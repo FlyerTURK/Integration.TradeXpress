@@ -1,0 +1,176 @@
+@using Integration.TradeXpress.Blazor.Client.Pages.Companies.Models
+@using Integration.Framework.Blazor.Client.Components.Crud
+@using Integration.TradeXpress.Branches
+@using DevExpress.Blazor
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+@inject IBranchAppService BranchAppService
+
+@* Şube kalıcı drill popup'ı — kendi ekosistemi: veri yükleme, CRUD, filtre, seçim ve
+   Kasalar drill'ine geçiş burada yaşar. Parent (CompanyListPage) yalnız görünürlük + kimlik verir. *@
+
+<DxPopup @bind-Visible="Visible" @bind-Visible:event="VisibleChanged"
+         HeaderText="@($"{CompanyName} — {L["Menu:Branches"]}")"
+         Width="85%" MaxWidth="980px" MaxHeight="90vh" Scrollable="true"
+         ShowCloseButton="true" CloseOnEscape="true" CloseOnOutsideClick="false">
+    <Content>
+        @if (Visible)
+        {
+            <DrillList TItem="BranchTreeItemViewModel"
+                       Title="@L["Menu:Branches"]"
+                       EntityName="@L["Entity:Branch"]"
+                       Items="@_items"
+                       FilterPredicate="@Filter"
+                       MinItems="1"
+                       NewItemFactory="@(() => new BranchTreeItemViewModel())"
+                       CloneFactory="@CompanyTreeMapping.CloneBranch"
+                       DeleteGuard="@DeleteGuard"
+                       PersistCreate="PersistCreate"
+                       PersistUpdate="PersistUpdate"
+                       PersistDelete="PersistDelete"
+                       OnItemSaved="OnItemSaved"
+                       OnSelectionChanged="OnSelectionChanged">
+                <ToolbarActions>
+                    <div style="display:flex; align-items:center; gap:0.4rem; white-space:nowrap;">
+                        <DxCheckBox Checked="@_activeFilter"
+                                    CheckedChanged="@((bool v) => { _activeFilter = v; })"
+                                    CheckType="CheckType.Switch" />
+                        <span>@(_activeFilter ? L["ActiveRecords"] : L["PassiveRecords"])</span>
+                    </div>
+                    <DxButton Text="@L["Menu:Vaults"]" IconCssClass="fas fa-vault"
+                              RenderStyle="ButtonRenderStyle.Secondary"
+                              Enabled="@(_selectedItem?.Id != null)"
+                              Click="RequestVaultsDrill" />
+                </ToolbarActions>
+                <GridColumns>
+                    <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" />
+                    <DxGridDataColumn FieldName="IsHeadquarters" Caption="@L["IsHeadquarters"]" Width="100px" />
+                </GridColumns>
+                <EditContent Context="branch">
+                    <DxFormLayout Data="@branch" CssClass="w-100">
+                        <DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="8">
+                            <DxTextBox @bind-Text="@branch.Name" />
+                        </DxFormLayoutItem>
+                        <DxFormLayoutItem Caption="@L["DisplayOrder"]" ColSpanMd="4">
+                            <DxSpinEdit @bind-Value="@branch.DisplayOrder" />
+                        </DxFormLayoutItem>
+                        <DxFormLayoutItem Caption="@L["IsHeadquarters"]" ColSpanMd="6">
+                            <DxCheckBox @bind-Checked="@branch.IsHeadquarters" CheckType="CheckType.Switch">
+                                @(branch.IsHeadquarters ? L["Yes"] : L["No"])
+                            </DxCheckBox>
+                        </DxFormLayoutItem>
+                        <DxFormLayoutItem Caption="@L["IsActive"]" ColSpanMd="6">
+                            <DxCheckBox @bind-Checked="@branch.IsActive" CheckType="CheckType.Switch">
+                                @(branch.IsActive ? L["Active"] : L["Passive"])
+                            </DxCheckBox>
+                        </DxFormLayoutItem>
+                        <DxFormLayoutItem Caption="@L["Description"]" ColSpanMd="12">
+                            <DxTextBox @bind-Text="@branch.Description" />
+                        </DxFormLayoutItem>
+                    </DxFormLayout>
+                </EditContent>
+            </DrillList>
+        }
+    </Content>
+</DxPopup>
+
+@code {
+    [Parameter] public bool Visible { get; set; }
+    [Parameter] public EventCallback<bool> VisibleChanged { get; set; }
+    [Parameter] public Guid CompanyId { get; set; }
+    [Parameter] public string CompanyName { get; set; } = "";
+
+    /// <summary>Seçim değişince — VaultDrillPopup için BranchId'yi parent'a taşır.</summary>
+    [Parameter] public EventCallback<BranchTreeItemViewModel?> OnBranchSelected { get; set; }
+
+    /// <summary>"Kasalar" butonuna basılınca — parent VaultDrillPopup'ı açar.</summary>
+    [Parameter] public EventCallback OnVaultsDrillRequested { get; set; }
+
+    private List<BranchTreeItemViewModel> _items = new();
+    private BranchTreeItemViewModel? _selectedItem;
+    private bool _activeFilter = true;
+    private Guid _loadedForCompanyId;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Visible && CompanyId != Guid.Empty && CompanyId != _loadedForCompanyId)
+        {
+            _loadedForCompanyId = CompanyId;
+            await LoadAsync();
+        }
+        else if (!Visible)
+        {
+            _loadedForCompanyId = Guid.Empty;
+            _selectedItem = null;
+            _activeFilter = true;
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            var list = await BranchAppService.GetListAsync(new BranchListRequestDto
+            {
+                MaxResultCount = DrillConsts.MaxInMemoryChildren,
+                CompanyId = CompanyId,
+            });
+            _items = list.Items.Select(ToBranchVm).ToList();
+            _selectedItem = null;
+            if (list.TotalCount > _items.Count)
+                await Notify.Warn(L["TradeXpress:Drill:CeilingReached"]);
+        }
+        catch (Exception ex)
+        {
+            await HandleErrorAsync(ex);
+        }
+    }
+
+    private bool Filter(BranchTreeItemViewModel b) => b.IsActive == _activeFilter;
+
+    private string? DeleteGuard(BranchTreeItemViewModel b)
+        => b.IsHeadquarters ? L["TradeXpress:Branch:CannotDeleteHeadquarters"] : null;
+
+    private void OnItemSaved(BranchTreeItemViewModel saved)
+    {
+        if (!saved.IsHeadquarters) return;
+        foreach (var b in _items)
+            if (b != saved) b.IsHeadquarters = false;
+    }
+
+    private async Task OnSelectionChanged(BranchTreeItemViewModel? b)
+    {
+        _selectedItem = b;
+        await OnBranchSelected.InvokeAsync(b);
+    }
+
+    private async Task RequestVaultsDrill() => await OnVaultsDrillRequested.InvokeAsync();
+
+    private async Task<BranchTreeItemViewModel> PersistCreate(BranchTreeItemViewModel vm)
+        => ToBranchVm(await BranchAppService.CreateAsync(new BranchCreateDto
+        {
+            CompanyId = CompanyId,
+            Name = vm.Name,
+            IsHeadquarters = vm.IsHeadquarters,
+            DisplayOrder = vm.DisplayOrder,
+            Description = vm.Description,
+        }));
+
+    private async Task<BranchTreeItemViewModel> PersistUpdate(BranchTreeItemViewModel vm)
+        => ToBranchVm(await BranchAppService.UpdateAsync(vm.Id!.Value, new BranchUpdateDto
+        {
+            Name = vm.Name,
+            IsHeadquarters = vm.IsHeadquarters,
+            IsActive = vm.IsActive,
+            DisplayOrder = vm.DisplayOrder,
+            Description = vm.Description,
+        }));
+
+    private Task PersistDelete(BranchTreeItemViewModel vm)
+        => BranchAppService.DeleteAsync(vm.Id!.Value);
+
+    private static BranchTreeItemViewModel ToBranchVm(BranchListDto d) => new()
+        { Id = d.Id, Name = d.Name, IsHeadquarters = d.IsHeadquarters, IsActive = d.IsActive, DisplayOrder = d.DisplayOrder };
+
+    private static BranchTreeItemViewModel ToBranchVm(BranchGetDto d) => new()
+        { Id = d.Id, Name = d.Name, IsHeadquarters = d.IsHeadquarters, IsActive = d.IsActive, DisplayOrder = d.DisplayOrder, Description = d.Description };
+}

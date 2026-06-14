@@ -1,0 +1,72 @@
+@using Integration.Framework.Blazor.Client.Services.Base
+@using DevExpress.Blazor
+@inherits Volo.Abp.AspNetCore.Components.AbpComponentBase
+@implements IDisposable
+@inject ITradeXpressUiService UiService
+
+<DxWindow @bind-Visible="@IsVisible"
+          CloseOnEscape="true"
+          ShowCloseButton="true"
+          ShowFooter="true"
+          HeaderTitle="@UiService.DialogTitle"
+          Width="92vw"
+          MaxWidth="450px"
+          MinHeight="180px"
+          MaxHeight="90vh"
+          CssClass="confirm-delete-dialog-window shadow"
+          HorizontalAlignment="HorizontalAlignment.Center"
+          VerticalAlignment="VerticalAlignment.Center"
+          CloseButtonClick="OnCloseButtonClick">
+    @* Bootstrap utility (d-flex/p-3/w-100/justify-content-end) bu app'te ETKİSİZ → inline stil.
+       Footer'da adaptif DxToolbar YOK: dar ekranda butonları "..." taşma menüsüne atıyordu; düz flex
+       sarmalı kullanıyoruz. Genişlik vw-tabanlı (Width="92vw") — "%" container'a göre çözülüp daralıyordu. *@
+    <BodyTextTemplate>
+        <div style="display:flex; align-items:flex-start; gap:0.75rem; padding:1rem;">
+            <i class="fas fa-exclamation-triangle fa-2x" style="color:#ffc107; flex:0 0 auto;"></i>
+            <p style="margin:0; font-weight:600; font-size:1.05rem; color:#212529;">@UiService.DialogMessage</p>
+        </div>
+    </BodyTextTemplate>
+    <FooterTemplate>
+        <div style="display:flex; flex-wrap:wrap; justify-content:flex-end; gap:0.5rem; width:100%; padding:0.5rem 0.75rem; border-top:1px solid #dee2e6;">
+            <DxButton Text="@L["Yes"]"
+                      RenderStyle="ButtonRenderStyle.Secondary"
+                      Click="@(() => UiService.CloseDialog(ConfirmDialogResult.Yes))" />
+            <DxButton Text="@L["No"]"
+                      RenderStyle="ButtonRenderStyle.Primary"
+                      FocusOnInit="true"
+                      Click="@(() => UiService.CloseDialog(ConfirmDialogResult.No))" />
+            <DxButton Text="@L["Cancel"]"
+                      RenderStyle="ButtonRenderStyle.Secondary"
+                      Click="@(() => UiService.CloseDialog(ConfirmDialogResult.Cancel))" />
+        </div>
+    </FooterTemplate>
+</DxWindow>
+
+@code {
+    private bool IsVisible
+    {
+        get => UiService.IsDialogVisible;
+        set
+        {
+            if (!value)
+            {
+                UiService.CloseDialog(ConfirmDialogResult.Cancel);
+            }
+        }
+    }
+
+    protected override void OnInitialized()
+    {
+        UiService.OnDialogChanged += StateHasChanged;
+    }
+
+    private void OnCloseButtonClick()
+    {
+        UiService.CloseDialog(ConfirmDialogResult.Cancel);
+    }
+
+    public void Dispose()
+    {
+        UiService.OnDialogChanged -= StateHasChanged;
+    }
+}

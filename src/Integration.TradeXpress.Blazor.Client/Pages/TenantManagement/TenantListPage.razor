@@ -1,0 +1,33 @@
+@page "/tenant-management/tenants"
+@using Integration.Framework.Blazor.Client.Components.Crud
+@using Integration.TradeXpress.Blazor.Client.Pages.TenantManagement.Services
+@using Integration.TradeXpress.Tenants
+@using Integration.TradeXpress.Blazor.Client.Pages.TenantManagement.Models
+@using DevExpress.Blazor
+@inherits CrudPageBase<TenantGetDto, TenantListDto, Guid, TenantListRequestDto, TenantCreateDto, TenantUpdateDto, TenantViewModel>
+
+<CrudLayout TGetDto="TenantGetDto"
+            TListDto="TenantListDto"
+            TViewModel="TenantViewModel"
+            TKey="Guid"
+            StateService="StateService"
+            DataSource="@GridDataSource"
+            EntityName="@L["Entity:Tenant"]"
+            PageTitle="@L["TenantManagement"]"
+            OnNewClick="BeforeCreateAsync"
+            OnUpdateClick="BeforeUpdateAsync"
+            OnDeleteClick="DeleteAsync"
+            OnRefreshClick="GetListAsync"
+            OnSearchChanged="OnSearchAsync"
+            OnSaveClick="SaveAsync">
+    
+    <GridColumns>
+        <DxGridDataColumn FieldName="Id" Caption="ID" Width="100px" Visible="false" />
+        <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" />
+    </GridColumns>
+
+    <EditPageContent Context="editingModel">
+        <TenantEditPage Model="editingModel" />
+    </EditPageContent>
+
+</CrudLayout>

@@ -1,0 +1,37 @@
+@page "/vaults"
+@using Integration.Framework.Blazor.Client.Components.Crud
+@using Integration.TradeXpress.Blazor.Client.Pages.Vaults.Services
+@using Integration.TradeXpress.Blazor.Client.Pages.Vaults.Models
+@using Integration.TradeXpress.Vaults
+@using DevExpress.Blazor
+@inherits CrudPageBase<VaultGetDto, VaultListDto, Guid, VaultListRequestDto, VaultCreateDto, VaultUpdateDto, VaultViewModel>
+
+<CrudLayout TGetDto="VaultGetDto"
+            TListDto="VaultListDto"
+            TViewModel="VaultViewModel"
+            TKey="Guid"
+            StateService="StateService"
+            DataSource="@GridDataSource"
+            EntityName="@L["Entity:Vault"]"
+            PageTitle="@L["Menu:Vaults"]"
+            OnNewClick="BeforeCreateAsync"
+            OnUpdateClick="BeforeUpdateAsync"
+            OnDeleteClick="DeleteAsync"
+            OnRefreshClick="GetListAsync"
+            OnSearchChanged="OnSearchAsync"
+            OnSaveClick="SaveAsync">
+
+    <GridColumns>
+        <DxGridDataColumn FieldName="BranchName" Caption="@L["Entity:Branch"]" Width="200px" />
+        <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" />
+        <DxGridDataColumn FieldName="IsDefault" Caption="@L["IsDefault"]" Width="100px" />
+        <DxGridDataColumn FieldName="IsActive" Caption="@L["IsActive"]" Width="90px" />
+        <DxGridDataColumn FieldName="DisplayOrder" Caption="@L["DisplayOrder"]" Width="90px" Visible="false" />
+    </GridColumns>
+
+    <EditPageContent Context="editingModel">
+        <VaultEditPage Model="editingModel"
+                       StateService="StateService" />
+    </EditPageContent>
+
+</CrudLayout>

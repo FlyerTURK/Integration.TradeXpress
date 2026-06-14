@@ -1,0 +1,110 @@
+@using System
+@using Integration.TradeXpress.Currencies
+@using DevExpress.Blazor
+@inherits Volo.Abp.AspNetCore.Components.AbpComponentBase
+
+@* Yeniden kullanılabilir "Margin Ayarla" diyaloğu. CurrencyUnit ve (ileride) ExchangeRate
+   grid'lerinden ShowAsync ile açılır; SetAsync ile append-only yeni marj satırı yazar. *@
+
+<DxPopup @bind-Visible="Visible" HeaderText="@Title" Width="440px" CloseOnOutsideClick="false">
+    <DxFormLayout CssClass="w-100">
+        <DxFormLayoutItem Caption="@L["Name"]" ColSpanMd="12">
+            <b>@_code</b> — @_name
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["MarginOnBuy"]" ColSpanMd="7">
+            <DxComboBox Data="MarginTypes" @bind-Value="BuyType" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["MarginValue"]" ColSpanMd="5">
+            <DxSpinEdit @bind-Value="BuyValue" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["MarginOnSell"]" ColSpanMd="7">
+            <DxComboBox Data="MarginTypes" @bind-Value="SellType" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["MarginValue"]" ColSpanMd="5">
+            <DxSpinEdit @bind-Value="SellValue" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem ColSpanMd="12" Context="footerItem">
+            <div class="d-flex justify-content-end gap-2 mt-3">
+                <DxButton Text="@L["Cancel"]" RenderStyle="ButtonRenderStyle.Secondary" Click="@(() => Visible = false)" Enabled="@(!_saving)" />
+                <DxButton RenderStyle="ButtonRenderStyle.Primary" Click="SaveAsync" Enabled="@(!_saving)">
+                    @if (_saving)
+                    {
+                        <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                    }
+                    @L["Save"]
+                </DxButton>
+            </div>
+        </DxFormLayoutItem>
+    </DxFormLayout>
+</DxPopup>
+
+@code {
+    [Inject] protected ICurrencyUnitMarginAppService MarginAppService { get; set; } = default!;
+
+    /// <summary>Marj kaydedildikten sonra tetiklenir (çağıran grid'i yenileyebilir).</summary>
+    [Parameter] public EventCallback OnSaved { get; set; }
+
+    protected bool Visible { get; set; }
+    private bool _saving;
+    private Guid _unitId;
+    private string _code = string.Empty;
+    private string _name = string.Empty;
+
+    protected string Title => $"{_code} — {L["MarginOnBuy"]}/{L["MarginOnSell"]}";
+
+    protected MarginType BuyType { get; set; }
+    protected decimal BuyValue { get; set; }
+    protected MarginType SellType { get; set; }
+    protected decimal SellValue { get; set; }
+
+    protected static readonly MarginType[] MarginTypes = Enum.GetValues<MarginType>();
+
+    public MarginSetDialog()
+    {
+        LocalizationResource = typeof(Integration.TradeXpress.Localization.TradeXpressResource);
+    }
+
+    /// <summary>Diyaloğu bir birim için açar; mevcut marjı prefill eder.</summary>
+    public async Task ShowAsync(Guid unitId, string code, string name)
+    {
+        _unitId = unitId;
+        _code = code;
+        _name = name;
+
+        var current = await MarginAppService.GetCurrentAsync(unitId);
+        BuyType = current.MarginOnBuyType;
+        BuyValue = current.MarginOnBuyValue;
+        SellType = current.MarginOnSellType;
+        SellValue = current.MarginOnSellValue;
+
+        Visible = true;
+        StateHasChanged();
+    }
+
+    protected async Task SaveAsync()
+    {
+        try
+        {
+            _saving = true;
+            await MarginAppService.SetAsync(new CurrencyUnitMarginSetDto
+            {
+                CurrencyUnitId = _unitId,
+                MarginOnBuyType = BuyType,
+                MarginOnBuyValue = BuyValue,
+                MarginOnSellType = SellType,
+                MarginOnSellValue = SellValue,
+            });
+            Visible = false;
+            await Notify.Success(L["SuccessfullySaved"]);
+            await OnSaved.InvokeAsync();
+        }
+        catch (Exception ex)
+        {
+            await HandleErrorAsync(ex);
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+}

@@ -1,0 +1,11 @@
+using Integration.Framework.Base.Dtos;
+
+namespace Integration.TradeXpress.Currencies;
+
+/// <summary>
+/// CurrencyUnit liste sorgusu. Merkezi <see cref="ListRequestDto"/> standardını kullanır
+/// (SkipCount / MaxResultCount / Sorting + yapılandırılmış Sorts / Filters / global Filter).
+/// </summary>
+public class CurrencyUnitListRequestDto : ListRequestDto
+{
+}

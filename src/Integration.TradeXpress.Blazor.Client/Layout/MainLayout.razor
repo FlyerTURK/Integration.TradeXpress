@@ -1,0 +1,204 @@
+@inherits LayoutComponentBase
+@using Microsoft.AspNetCore.Components.WebAssembly.Authentication
+@using Microsoft.AspNetCore.Components.Sections
+@using Microsoft.JSInterop
+@implements IAsyncDisposable
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+@inject Integration.TradeXpress.Blazor.Client.Theming.IThemeService ThemeService
+@inject Integration.TradeXpress.Blazor.Client.Theming.ISizeModeService SizeModeService
+@inject Microsoft.Extensions.Localization.IStringLocalizer<Integration.TradeXpress.Localization.TradeXpressResource> L
+
+<ErrorBoundary>
+    <ChildContent>
+        <DxToastProvider HorizontalAlignment="HorizontalAlignment.Center"
+                         VerticalAlignment="VerticalEdge.Top"
+                         Width="550px" />
+        <Integration.Framework.Blazor.Client.Components.Shared.ConfirmDeleteDialog />
+
+        @* Kimlik guard'ı: CurrentUser.Id yoksa (kimlik doğrulanmamışsa) ana layout HİÇ render edilmez;
+           doğrudan login'e yönlendirilir. Kimlik akışı sayfaları EmptyLayout kullandığı için döngü olmaz. *@
+        <AuthorizeView>
+        <Authorized Context="authCtx">
+        <div class="page h-100 d-flex flex-column">
+            @* Top panel: ERPPROV3 paritesi — DxToolbar yerine düz flex header.
+               Sol: hamburger + sayfa başlığı. Sağ (ms-auto): avatar + ayarlar. *@
+            @* Inline flex — Bootstrap utility'lerine (d-flex/ms-auto) bağlı kalmadan garanti layout. *@
+            <div role="banner" class="header shadow-sm bg-white border-bottom">
+                <div style="display:flex; align-items:center; width:100%; padding:0.5rem;">
+                    <button type="button" @onclick="ToggleNavigation" style="display:flex; align-items:center; justify-content:center; cursor:pointer; min-width:48px; min-height:48px; background:transparent; border:none; box-shadow:none; outline:none; padding:0; color:var(--DS-color-content-neutral-default-rest, var(--bs-body-color, #212529));" aria-label="Menü">
+                        <span class="erp-icon erp-icon-hamburger" aria-hidden="true"></span>
+                    </button>
+                    <div class="text-dark" style="display:flex; align-items:center; overflow:hidden; margin-left:0.5rem; min-width:0;">
+                        <SectionOutlet SectionName="PageHeaderTitle" />
+                    </div>
+                    <div style="display:flex; align-items:center; margin-left:auto;">
+                        <Integration.TradeXpress.Blazor.Client.Layout.UserAvatarMenu />
+                        <button type="button" @onclick="ToggleInfo" style="display:flex; align-items:center; justify-content:center; cursor:pointer; min-width:44px; min-height:44px; margin-left:0.25rem; background:transparent; border:none; box-shadow:none; outline:none; padding:0; color:var(--DS-color-content-neutral-default-rest, var(--bs-body-color, #212529));" title="@L["Settings"]" aria-label="@L["Settings"]">
+                            <span class="erp-icon erp-icon-settings" aria-hidden="true"></span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="app-body-region d-flex flex-grow-1 overflow-hidden position-relative">
+                <DxDrawer CssClass="h-100 w-100 demo-drawer"
+                          @bind-IsOpen="IsNavigationOpen"
+                          PanelWidth="250px"
+                          Position="DrawerPosition.Left"
+                          Mode="@(_isMobile ? DrawerMode.Overlap : DrawerMode.Shrink)">
+                    <BodyTemplate>
+                        <div class="h-100 w-100">
+                            <Integration.TradeXpress.Blazor.Client.Layout.NavMenu />
+                        </div>
+                    </BodyTemplate>
+                    <TargetContent>
+                        <DxDrawer CssClass="h-100 w-100"
+                                  @bind-IsOpen="IsInfoOpen"
+                                  Mode="DrawerMode.Overlap"
+                                  Position="DrawerPosition.Right"
+                                  PanelWidth="300px"
+                                  aria-label="Info Drawer">
+                            <HeaderTemplate>
+                                <div class="d-flex justify-content-between align-items-center w-100">
+                                    <strong>@L["Settings"]</strong>
+                                    <DxButton Click="CloseInfo"
+                                              IconCssClass="fas fa-times"
+                                              RenderStyle="ButtonRenderStyle.Link" />
+                                </div>
+                            </HeaderTemplate>
+                            <BodyTemplate>
+                                <Integration.TradeXpress.Blazor.Client.Layout.SettingsPanel />
+                            </BodyTemplate>
+                            <TargetContent>
+                                <div class="app-content h-100 overflow-auto bg-white">
+                                    @* Mobil bilgisini alt bileşenlere (ör. CrudToolbar) cascade et. *@
+                                    <CascadingValue Value="_isMobile" Name="IsMobile">
+                                        @Body
+                                    </CascadingValue>
+                                </div>
+                            </TargetContent>
+                        </DxDrawer>
+                    </TargetContent>
+                </DxDrawer>
+            </div>
+        </div>
+        </Authorized>
+        <NotAuthorized>
+            <RedirectToLogin />
+        </NotAuthorized>
+        </AuthorizeView>
+    </ChildContent>
+    <ErrorContent Context="exception">
+        <div class="alert alert-danger" style="margin: 20px; z-index:99999; position:relative;">
+            <h3>@L["AnErrorOccurred"]</h3>
+            <p>@exception.Message</p>
+            <pre>@exception.StackTrace</pre>
+        </div>
+    </ErrorContent>
+</ErrorBoundary>
+
+@code {
+    bool IsNavigationOpen { get; set; } = true;
+    bool IsInfoOpen { get; set; } = false;
+
+    private bool _isMobile;
+    private IJSObjectReference? _module;
+    private DotNetObjectReference<MainLayout>? _selfRef;
+    private IJSObjectReference? _breakpointSub;
+
+    protected override void OnInitialized()
+    {
+        // Mobilde menü öğesine tıklayınca (navigasyon) overlay drawer kapansın.
+        Navigation.LocationChanged += OnLocationChanged;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        _module = await JS.InvokeAsync<IJSObjectReference>("import", "./js/layout-responsive.js");
+        var mobile = await _module.InvokeAsync<bool>("isMobile");
+        _selfRef = DotNetObjectReference.Create(this);
+        _breakpointSub = await _module.InvokeAsync<IJSObjectReference>("registerBreakpoint", _selfRef);
+        ApplyViewport(mobile);
+
+        // Kaydedilmiş boyut/tema ayarlarını açılışta uygula.
+        try
+        {
+            await SizeModeService.InitializeAsync();
+            await ThemeService.InitializeAsync();
+        }
+        catch (JSDisconnectedException) { }
+    }
+
+    [JSInvokable]
+    public void OnViewportChanged(bool isMobile) => ApplyViewport(isMobile);
+
+    private void ApplyViewport(bool isMobile)
+    {
+        _isMobile = isMobile;
+        // Mobil: Overlap + kapalı (içerik tam genişlik). Masaüstü: Shrink + açık.
+        IsNavigationOpen = !isMobile;
+        StateHasChanged();
+    }
+
+    private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
+    {
+        if (_isMobile && IsNavigationOpen)
+        {
+            IsNavigationOpen = false;
+            StateHasChanged();
+        }
+    }
+
+    void ToggleNavigation()
+    {
+        IsNavigationOpen = !IsNavigationOpen;
+    }
+
+    void ToggleInfo()
+    {
+        IsInfoOpen = !IsInfoOpen;
+    }
+
+    void CloseInfo()
+    {
+        IsInfoOpen = false;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        Navigation.LocationChanged -= OnLocationChanged;
+        try
+        {
+            if (_breakpointSub != null)
+            {
+                await _breakpointSub.InvokeVoidAsync("dispose");
+                await _breakpointSub.DisposeAsync();
+            }
+            if (_module != null)
+            {
+                await _module.DisposeAsync();
+            }
+        }
+        catch (JSDisconnectedException) { }
+        _selfRef?.Dispose();
+    }
+}
+
+<style>
+    /* Padding tek kaynaktan gelsin: dis drawer'in content padding'i sifir,
+       icteki drawer'in dxbl-drawer-content padding'i kalir. */
+    .demo-drawer > .dxbl-drawer-content {
+        padding: 0;
+    }
+
+    html, body, #ApplicationContainer {
+        height: 100vh;       /* eski tarayıcı fallback'i */
+        height: 100dvh;      /* mobil: dinamik viewport — tarayıcı URL çubuğunu hesaba katar,
+                                yoksa 100vh görünür alandan uzun olup pager'ı fold altına itiyor */
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+    }
+</style>

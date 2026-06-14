@@ -1,0 +1,475 @@
+/* 
+    loader
+*/
+.loader {
+    position: fixed;
+    top: 0;
+    right: 0;
+    left: 0;
+    bottom: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 999;
+    background-color: #f1f1f2;
+  }
+
+#ApplicationContainer > div:first-child:not(:only-child) {
+    display: none !important;
+}
+
+#blazor-error-ui {
+    background: lightyellow;
+    bottom: 0;
+    box-shadow: 0 -1px 2px rgba(0, 0, 0, 0.2);
+    display: none;
+    left: 0;
+    padding: 0.6rem 1.25rem 0.7rem 1.25rem;
+    position: fixed;
+    width: 100%;
+    z-index: 1000;
+}
+
+#blazor-error-ui .dismiss {
+    cursor: pointer;
+    position: absolute;
+    right: 0.75rem;
+    top: 0.5rem;
+}
+
+:root {
+    --lpx-logo: url('/images/logo/leptonxlite/logo-light-thumbnail.png') !important;
+    --lpx-logo-icon: url('/images/logo/leptonxlite/logo-light-thumbnail.png') !important;
+}
+:root .abp-account-layout .lpx-brand-logo{
+    --lpx-logo: url('/images/logo/leptonxlite/logo-dark-thumbnail.png') !important;
+    background-position: left;
+}
+.demo-drawer .dxbl-drawer-content {
+    font-size: var(--dxbl-drawer-panel-font-size);
+    line-height: var(--dxbl-drawer-panel-line-height);
+    overflow: auto;
+    padding: var(--dxbl-drawer-panel-padding-y) var(--dxbl-drawer-panel-padding-x);
+}
+.demo-drawer:has(.demo-drawer-menu) {
+    --dxbl-drawer-panel-body-padding-x: 0;
+    --dxbl-drawer-panel-body-padding-y: 0;
+}
+.dxbl-menu.demo-drawer-menu {
+    --dxbl-menu-top-left-border-radius: 0;
+    --dxbl-menu-top-right-border-radius: 0;
+    --dxbl-menu-bottom-left-border-radius: 0;
+    --dxbl-menu-bottom-right-border-radius: 0;
+}
+
+/* XAF toolbar ikon boyutlandirmasi (ERPPROV3 kurali: 16x16 sabit) */
+.xaf-toolbar-item-icon {
+    max-width: 16px;
+    max-height: 16px;
+    width: 16px;
+    height: 16px;
+}
+
+/* --- Festive Loader (Şenlik) --- */
+.festive-loader-container {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+    z-index: 9999;
+}
+.festive-loader {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+}
+.festive-loader .dots {
+    display: flex;
+    gap: 10px;
+}
+.festive-loader span {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: linear-gradient(45deg, #ff007f, #7f00ff);
+    animation: festive-bounce 1s infinite alternate;
+    animation-delay: calc(0.1s * var(--i));
+    box-shadow: 0 0 10px rgba(255, 0, 127, 0.5);
+}
+@keyframes festive-bounce {
+    0% { transform: translateY(0) scale(1); filter: hue-rotate(0deg); }
+    100% { transform: translateY(-30px) scale(1.2); filter: hue-rotate(360deg); }
+}
+.festive-text {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-weight: bold;
+    font-size: 1.5rem;
+    color: #4a4a4a;
+    letter-spacing: 2px;
+    animation: pulse 1.5s infinite;
+}
+@keyframes pulse {
+    0% { opacity: 0.6; transform: scale(0.98); }
+    50% { opacity: 1; transform: scale(1.02); }
+    100% { opacity: 0.6; transform: scale(0.98); }
+}
+
+/* --- TradeXpress Style Loader --- */
+.int-loader-container {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    background-color: #f3f3f4; /* Light gray background like XAF */
+    z-index: 9999;
+}
+
+.int-loader-wrapper {
+    position: relative;
+    width: 160px;
+    height: 160px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.int-loader-circle {
+    width: 132px;
+    height: 132px;
+    background-color: var(--bs-primary, #0d6efd); /* Theme primary color */
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+    z-index: 2;
+}
+
+.int-loader-initials {
+    color: white;
+    font-size: 52px;
+    font-weight: 600;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    letter-spacing: 1px;
+}
+
+.int-loader-spinner {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    border: 3px solid transparent;
+    border-top-color: var(--bs-primary, #0d6efd);
+    border-right-color: var(--bs-primary, #0d6efd);
+    border-radius: 50%;
+    animation: int-spin 1s cubic-bezier(0.68, -0.55, 0.265, 1.55) infinite;
+    z-index: 1;
+}
+
+@keyframes int-spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.int-loader-text {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-size: 1.4rem;
+    color: #4a4a4a;
+}
+
+/* XAF Search Icon */
+.xaf-search-icon {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    background-image: url('/images/xaf/action_search.svg');
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+}
+
+/* Edit popup (CrudEditView) — mobilde ekran dışına taşmasın. DxPopup inline max-width:720px
+   uyguluyor; min(720px,95vw) + !important ile ezeriz: masaüstü 720, mobil 95vw (viewport'a sığar). */
+.crud-edit-popup {
+    max-width: min(720px, 95vw) !important;
+}
+.crud-edit-popup .dxbl-modal-content {
+    overflow-x: hidden;
+    /* Width="95%" mobilde içeriğe göre büzülüyor; gerçek genişliği zorla: masaüstü 720, mobil 95vw. */
+    width: min(720px, 95vw) !important;
+}
+.crud-edit-popup * {
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+/* Onay diyaloğu (DxWindow) — mobilde "minnacık" çıkmasın. Width="92vw"+MaxWidth zaten viewport-tabanlı;
+   bu kurallar dialog kutusunun gerçek genişliğini garantiler ve yatay taşma scrollbar'ını keser. */
+.confirm-delete-dialog-window .dxbl-window-dialog {
+    width: min(450px, 92vw) !important;
+    max-width: 92vw !important;
+}
+.confirm-delete-dialog-window .dxbl-window-body {
+    overflow-x: hidden;
+}
+
+/* Liste layout — grid yatay kayınca toolbar onunla SÜRÜKLENMESİN.
+   Flexbox tuzağı: grid (flex çocuğu) min-width:auto yüzünden geniş içerikte container'ı zorla
+   genişletir → container yatay kayar → toolbar da kayar. Fix: container'ı yatay clip + flex
+   çocuklarına min-width:0 (grid kendi iç scrollbar'ıyla kaysın, toolbar sabit kalır). */
+.crud-layout-container {
+    max-width: 100%;
+    overflow-x: hidden;
+}
+.crud-layout-container > * {
+    min-width: 0;
+}
+
+/* Layout YÜKSEKLİK zinciri — Bootstrap h-100/d-flex/flex-grow-1/overflow-hidden bu app'te
+   ETKİSİZ olduğundan gerçek CSS flex ile kurulur. Yoksa grid içeriğine göre büyüyüp (block)
+   mobilde viewport'u aşar ve html/body overflow:hidden yüzünden pager/page-size ekran-dışı
+   kalır. Zincir: html(100vh) → .page → .app-body-region → DevExpress drawer → .app-content →
+   .crud-layout-container → grid (flex:1 + iç scroll → pager hep dipte sabit). */
+.page {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+.app-body-region {
+    display: flex;
+    flex: 1 1 auto;
+    min-height: 0;
+}
+.app-body-region .dxbl-drawer {
+    height: 100%;
+}
+.app-content {
+    height: 100%;
+    overflow: auto;
+}
+.crud-layout-container {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+.crud-layout-container > .dxbl-grid {
+    flex: 1 1 auto;
+    min-height: 0;
+}
+/* Mobil dar ekranda pager içeriği (sayfa butonları + page-size seçici) yatay taşıp
+   overflow-x:hidden ile kırpılmasın → sarılsın, hepsi görünür kalsın. */
+.dxbl-grid .dxbl-grid-bottom-panel,
+.dxbl-grid .dxbl-pager-container {
+    flex-wrap: wrap;
+    row-gap: 0.25rem;
+}
+
+/* ERP ikonları — mask tabanlı (renk currentColor'dan gelir, temayla uyumlu).
+   ERPPROV3 paritesi: span'a .erp-icon + .erp-icon-<ad>, SVG wwwroot/images/ altında. */
+.erp-icon {
+    display: inline-block;
+    background-color: currentColor;
+    -webkit-mask-position: center;
+    mask-position: center;
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-size: contain;
+    mask-size: contain;
+    width: 24px;
+    height: 24px;
+    vertical-align: middle;
+}
+.erp-icon-hamburger {
+    -webkit-mask-image: url('images/hamburger.svg');
+    mask-image: url('images/hamburger.svg');
+}
+.erp-icon-settings {
+    -webkit-mask-image: url('images/settings.svg');
+    mask-image: url('images/settings.svg');
+}
+
+/* Kullanıcı avatarı — baş harfler temaya uygun renkli dairede (ERPPROV3 paritesi).
+   Renk aktif temayı takip eder: DX Fluent accent → Bootstrap primary → mavi fallback. */
+.erp-avatar-initials {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background-color: var(--dxds-color-surface-primary-default-rest, var(--bs-primary, #0d6efd));
+    color: #fff;
+    font-size: 0.72rem;
+    font-weight: 600;
+    line-height: 1;
+    letter-spacing: 0.5px;
+    user-select: none;
+}
+.erp-avatar-initials.erp-avatar-lg {
+    width: 44px;
+    height: 44px;
+    font-size: 0.95rem;
+}
+
+/* Avatar butonu — chrome'suz, dokunma dostu hedef. */
+.user-avatar-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+    min-width: 44px;
+    min-height: 44px;
+}
+.user-avatar-btn:focus-visible {
+    outline: 2px solid var(--bs-primary, #0d6efd);
+    outline-offset: 2px;
+    border-radius: 50%;
+}
+
+.user-avatar-flyout-body {
+    padding: 4px 4px 2px;
+}
+/* Büyük avatar flyout'ta yatay ortalansın (inline-flex → blok ortalama). */
+.user-avatar-flyout-body .erp-avatar-lg {
+    display: flex;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+/* Loading Overlay */
+.crud-loading-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(255, 255, 255, 0.7);
+    z-index: 1000;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+/* ─── Ayarlar paneli (tema/boyut/dil) — ERPPRO3'ten portlanıp .settings-panel altına scope'landı ─── */
+.settings-panel {
+    padding: 4px 0;
+}
+
+.settings-panel .themes-menu {
+    font-size: 0.875rem;
+    overflow: visible;
+}
+
+.settings-panel .themes-menu .nav-link {
+    font-size: 0.875rem;
+}
+
+.settings-panel .themes-menu-tms .nav-link {
+    white-space: nowrap;
+    font-weight: 400;
+    border: 0;
+    border-radius: 0;
+    padding: .5rem;
+    display: flex;
+    align-items: center;
+    color: var(--bs-body-color);
+    text-decoration: none;
+    background: 0 0;
+}
+
+.settings-panel .themes-menu-tms .nav-link.active {
+    background-color: var(--bs-nav-pills-link-active-bg, rgba(13, 110, 253, 0.12));
+}
+
+.settings-panel .themes-menu-tms .nav-link:hover {
+    background-color: var(--bs-tertiary-bg, rgba(0, 0, 0, 0.04));
+}
+
+.settings-panel .themes-menu-tms .nav-item {
+    width: 50%;
+    margin: 0;
+}
+
+.settings-panel .themes-menu .nav-item.theme-group {
+    width: 100%;
+    font-weight: 600;
+    padding: 0.5rem 0.75rem;
+    color: var(--bs-secondary-color, #6c757d);
+}
+
+.settings-panel .themes-menu-tms .nav-item.theme-group {
+    border-radius: 0;
+}
+
+.settings-panel .themes-menu-tms-hdr,
+.settings-panel .themes-fluent-header {
+    padding: 0;
+}
+
+.settings-panel .themes-menu .nav.nav-pills {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-wrap: wrap;
+}
+
+.settings-panel .themes-menu .nav-link .image {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    border: 1px solid rgba(0, 0, 0, 0.2);
+    margin-right: 8px;
+    flex: 0 0 16px;
+}
+
+.settings-panel .themes-menu .theme-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Özel renk satırı */
+.settings-panel .themeswitcher-custom-color {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+}
+
+.settings-panel .themeswitcher-custom-color .themeswitcher-custom-color-button {
+    position: relative;
+    width: 32px;
+    height: 32px;
+    flex: 0 0 32px;
+    padding: 0;
+}
+
+.settings-panel .themeswitcher-custom-color .themeswitcher-custom-color-button-icon {
+    width: 18px;
+    height: 18px;
+    margin: auto;
+    border-radius: 3px;
+    border: 1px solid var(--bs-border-color, rgba(0, 0, 0, .15));
+}
+
+.settings-panel .themeswitcher-custom-color .themeswitcher-custom-color-button input[type="color"] {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
+    border: 0;
+    padding: 0;
+    background: transparent;
+}

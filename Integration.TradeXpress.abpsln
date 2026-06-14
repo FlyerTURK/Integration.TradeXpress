@@ -1,0 +1,59 @@
+{
+  "id": "df07371e-0fd1-49b9-a494-6c0e55bb641c",
+  "creationTime": "06/11/2026 19:19:13 +00:00",
+  "template": "app",
+  "versions": {
+    "AbpFramework": "10.4.1",
+    "AbpStudio": "3.0.4",
+    "TargetDotnetFramework": "net10.0"
+  },
+  "modules": {
+    "Integration.TradeXpress": {
+      "path": "Integration.TradeXpress.abpmdl"
+    }
+  },
+  "runProfiles": {
+    "Default": {
+      "path": "etc/abp-studio/run-profiles/Default.abprun.json"
+    }
+  },
+  "options": {
+    "httpRequests": {
+      "ignoredUrls": [
+      
+      ]
+    }
+  },
+  "creatingStudioConfiguration": {
+    "template": "app",
+    "createdAbpStudioVersion": "3.0.4",
+    "creationTool": "ABP Studio CLI",
+    "tiered": "false",
+    "runInstallLibs": "",
+    "runBundling": "true",
+    "useLocalReferences": "false",
+    "multiTenancy": "true",
+    "includeTests": "true",
+    "kubernetesConfiguration": "false",
+    "uiFramework": "blazor",
+    "mobileFramework": "none",
+    "distributedEventBus": "none",
+    "databaseProvider": "ef",
+    "runDbMigrator": "",
+    "databaseManagementSystem": "sqlite",
+    "separateTenantSchema": "false",
+    "createInitialMigration": "",
+    "theme": "leptonx-lite",
+    "themeStyle": "",
+    "themeMenuPlacement": "",
+    "mobileFramework": "none",
+    "progressiveWebApp": "false",
+    "runProgressiveWebAppSupport": "false",
+    "publicWebsite": "false",
+    "socialLogin": "true",
+    "sampleCrudPage": "false",
+    "selectedLanguages": ["English", "Arabic", "Chinese (Simplified)", "Chinese (Traditional)", "Czech", "English (UK)", "Finnish", "French", "German (Germany)", "Hindi ", "Hungarian", "Icelandic", "Italian", "Portuguese (Brazil)", "Romanian (Romania)", "Russian", "Slovak", "Spanish", "Swedish", "Turkish", ],
+    "defaultLanguage": "English",
+    "createCommand": "abp new Integration.TradeXpress -t app --ui-framework blazor --blazor-ui-library blazorise --database-provider ef --database-management-system sqlite --theme leptonx-lite --skip-migration  --skip-migrator  --without-cms-kit --dont-run-install-libs -no-file-management"
+  }
+}

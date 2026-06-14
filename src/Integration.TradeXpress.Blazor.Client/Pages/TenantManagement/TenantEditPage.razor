@@ -1,0 +1,14 @@
+@using Integration.TradeXpress.Blazor.Client.Pages.TenantManagement.Models
+@using Integration.TradeXpress.Blazor.Client.Pages.TenantManagement.Services
+@using Integration.TradeXpress.Tenants
+@using Integration.Framework.Blazor.Client.Services.Base
+@inject Microsoft.Extensions.Localization.IStringLocalizer<Integration.TradeXpress.Localization.TradeXpressResource> L
+
+@* Tenant edit "evi" yeniden inşa edildi: artık el-örgüsü form/davranış yok — yalnız dumb layout'u
+   barındırır. Yaşam döngüsü (EditForm + validation + dirty + save/cancel + sayfa/popup kabuğu)
+   koordinatöre (CrudEditForm ← CrudEditModal) ait. Localizer'ı layout'a dışarıdan veriyoruz. *@
+<TenantEditFormLayout Model="Model" L="L" />
+
+@code {
+    [Parameter, EditorRequired] public TenantViewModel Model { get; set; } = default!;
+}

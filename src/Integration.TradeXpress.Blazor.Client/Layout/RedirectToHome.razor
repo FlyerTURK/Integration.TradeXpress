@@ -1,0 +1,14 @@
+@inject NavigationManager Navigation
+
+@*
+   Çıkış sonrası ("you are logged out") sayfasında kullanılır: kullanıcıyı köke (/) atar.
+   Kök sayfa MainLayout'ta render olur; kimlik yoksa layout guard'ı RedirectToLogin'i
+   tetikler ve returnUrl="/" ile login'e gider (logged-out URL'i returnUrl olmadığından döngü olmaz).
+*@
+
+@code {
+    protected override void OnInitialized()
+    {
+        Navigation.NavigateTo("/");
+    }
+}

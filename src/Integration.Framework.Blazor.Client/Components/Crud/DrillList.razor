@@ -1,0 +1,310 @@
+@typeparam TItem where TItem : class
+@using System.Linq
+@using Microsoft.AspNetCore.Components.Forms
+@using DevExpress.Blazor
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@*
+   Yeniden kullanılabilir master-detail "drill list" — listeleme formlarımızla aynı yerleşim
+   (başlık + toolbar + grid + popup edit form). İki modda çalışır:
+   • In-memory: yalnız Items koleksiyonunu mutasyona uğratır (parent kaydında commit edilir).
+   • Persistent: PersistCreate/Update/Delete callback'leri verilirse her işlem anında kalıcı yazar.
+   Farklı entity'ler için Columns + EditContent + NewItemFactory parametreleriyle özelleştirilir.
+*@
+
+<div class="drill-list">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+        <div class="fw-semibold">@Title</div>
+        <div class="d-flex gap-2">
+            @ToolbarActions
+            @if (!ReadOnly)
+            {
+                <DxButton Text="@L["New"]" IconCssClass="fas fa-plus" RenderStyle="ButtonRenderStyle.Secondary"
+                          Click="StartNew" Enabled="@(!_busy)" />
+                <DxButton Text="@L["Edit"]" IconCssClass="fas fa-pen" RenderStyle="ButtonRenderStyle.Secondary"
+                          Click="StartEdit" Enabled="@(_selected != null && !_busy)" />
+                <DxButton Text="@L["Delete"]" IconCssClass="fas fa-trash" RenderStyle="ButtonRenderStyle.Secondary"
+                          Click="DeleteSelected" Enabled="@(_selected != null && !_busy)" />
+            }
+        </div>
+    </div>
+
+    <DxGrid Data="@FilteredItems"
+            KeyFieldName="@KeyFieldName"
+            SelectionMode="GridSelectionMode.Single"
+            AllowSelectRowByClick="true"
+            SelectedDataItem="_selected"
+            SelectedDataItemChanged="OnGridSelectionChanged"
+            RowDoubleClick="OnRowDoubleClick"
+            PageSize="@PageSize">
+        <Columns>
+            @GridColumns
+        </Columns>
+    </DxGrid>
+</div>
+
+<DxPopup Visible="@_popupVisible"
+         VisibleChanged="OnPopupVisibleChanged"
+         HeaderText="@(_isNew ? L["New"] + " " + EntityName : EntityName + " " + L["Edit"])"
+         Width="95%"
+         MaxWidth="720px"
+         MaxHeight="90vh"
+         Scrollable="true"
+         ShowCloseButton="true"
+         CloseOnEscape="true"
+         CloseOnOutsideClick="false"
+         CssClass="crud-edit-popup">
+    <Content>
+        @if (_popupVisible && _editItem != null && _editContext != null)
+        {
+            @* EditForm YOK — CascadingValue<EditContext> ile kendi EditContext'imizi cascade ediyoruz.
+               EditForm bir <form> HTML elementi oluşturur ve EditContext'i cascade eder; ikisi iç içe
+               gelince (nested DrillList → nested EditForm → nested EditContext) DxGrid'in ambient
+               EditContext'e bağlanması NRE üretir. CascadingValue yaklaşımında her DrillList kendi
+               EditContext'ini cascade eder; iç DrillList'in CascadingValue'su dış olanı scope içinde
+               shadow'lar — doğru izolasyon, NRE yok. Save manuel HandleSaveClick → Validate() + SaveAsync(). *@
+            <CascadingValue Value="_editContext">
+                <LocalizedDataAnnotationsValidator />
+
+                @if (_editContext.GetValidationMessages().Any())
+                {
+                    <div class="alert alert-danger py-2 px-3 mb-3">
+                        <ValidationSummary />
+                    </div>
+                }
+
+                @EditContent(_editItem)
+            </CascadingValue>
+
+            <div class="d-flex justify-content-end gap-2 mt-3 pt-3 border-top">
+                <DxButton RenderStyle="ButtonRenderStyle.Primary" Click="HandleSaveClick" Enabled="@(!_busy)">
+                    @if (_busy)
+                    {
+                        <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                    }
+                    @L["Save"]
+                </DxButton>
+                <DxButton Text="@L["Cancel"]" RenderStyle="ButtonRenderStyle.Secondary"
+                          Click="Cancel" Enabled="@(!_busy)" />
+            </div>
+        }
+    </Content>
+</DxPopup>
+
+@code {
+    [Parameter] public string? Title { get; set; }
+    [Parameter] public string? EntityName { get; set; }
+
+    [Parameter, EditorRequired] public List<TItem> Items { get; set; } = default!;
+    [Parameter] public string KeyFieldName { get; set; } = "ClientKey";
+    [Parameter] public int PageSize { get; set; } = 10;
+    [Parameter] public bool ReadOnly { get; set; }
+
+    [Parameter, EditorRequired] public RenderFragment GridColumns { get; set; } = default!;
+    [Parameter, EditorRequired] public RenderFragment<TItem> EditContent { get; set; } = default!;
+
+    /// <summary>Popup içinde, edit EditForm'unun DIŞINDA render edilen opsiyonel ek içerik (ör. ikinci
+    /// seviye gömülü drill). EditForm dışı olduğundan iç içe EditContext NRE'si oluşturmaz — nested
+    /// DrillList için güvenli barınak. Düzenlenen öğeyi (_editItem) context olarak alır.</summary>
+    [Parameter] public RenderFragment<TItem>? AfterEditForm { get; set; }
+    [Parameter, EditorRequired] public Func<TItem> NewItemFactory { get; set; } = default!;
+
+    /// <summary>Bu sayının altına inilemez (en az N child kuralı). Sil engellenir.</summary>
+    [Parameter] public int MinItems { get; set; }
+
+    /// <summary>Entity'ye özel silme engeli — engel varsa lokalize mesaj döner, yoksa null.</summary>
+    [Parameter] public Func<TItem, string?>? DeleteGuard { get; set; }
+
+    /// <summary>Toolbar'a ek aksiyon butonları (ör. alt seviye "drill" action).</summary>
+    [Parameter] public RenderFragment? ToolbarActions { get; set; }
+
+    /// <summary>Opsiyonel istemci-tarafı filtre. Verilirse DxGrid yalnız eşleşen öğeleri gösterir;
+    /// Items (tam liste) mutation için dokunulmaz kalır.</summary>
+    [Parameter] public Func<TItem, bool>? FilterPredicate { get; set; }
+
+    private IEnumerable<TItem> FilteredItems =>
+        FilterPredicate != null ? Items.Where(FilterPredicate) : Items;
+
+    /// <summary>Liste değişince parent'a haber verir (dirty işaretleme / yeniden render).</summary>
+    [Parameter] public EventCallback OnChanged { get; set; }
+
+    /// <summary>Seçili öğe değişince parent'a bildirir (alt seviye drill action'ı için).</summary>
+    [Parameter] public EventCallback<TItem?> OnSelectionChanged { get; set; }
+
+    /// <summary>Bir öğe başarıyla kaydedilince parent'a bildirir — tekil-bayrak transferi (ör. HQ devri)
+    /// için. Items'a yazıldıktan SONRA, popup kapanmadan ÖNCE tetiklenir; parent Items'taki diğer öğeleri
+    /// bu callback içinde güvenle mutasyona uğratabilir.</summary>
+    [Parameter] public EventCallback<TItem> OnItemSaved { get; set; }
+
+    /// <summary>Bir öğe silinince (listeden çıkmadan ÖNCE) parent'a bildirir — silinen sunucu Id'sini
+    /// kaydetmek için (in-memory commit'te SaveTree'ye DeletedXIds olarak gider).</summary>
+    [Parameter] public EventCallback<TItem> OnItemDeleted { get; set; }
+
+    /// <summary>Düzenlemede canlı nesne yerine kopya üzerinde çalışmak için (Cancel geri alabilsin).
+    /// Verilmezse canlı nesne düzenlenir (Cancel geri almaz).</summary>
+    [Parameter] public Func<TItem, TItem>? CloneFactory { get; set; }
+
+    // Persistent mod — verilirse her işlem anında kalıcı yazılır; verilmezse saf in-memory.
+    [Parameter] public Func<TItem, Task<TItem>>? PersistCreate { get; set; }
+    [Parameter] public Func<TItem, Task<TItem>>? PersistUpdate { get; set; }
+    [Parameter] public Func<TItem, Task>? PersistDelete { get; set; }
+
+    private bool Persistent => PersistCreate != null;
+
+    private object? _selected;
+    private TItem? _editItem;
+    private TItem? _editOriginal;  // düzenlenen orijinal liste öğesi (clone modunda geri yazma için)
+    private bool _isNew;
+    private bool _popupVisible;
+    private bool _busy;
+    private EditContext? _editContext;
+
+    // Stale seçim emniyeti (framework düzeyi): parent re-render'da Items değiştiyse (ör. clone-swap:
+    // Items[idx]=clone → eski referans listede yok), referansı kalmayan _selected'ı temizle. DxGrid'in
+    // artık var olmayan SelectedDataItem üzerinde render NRE'si atmasını TEK noktada keser — özellikle
+    // gömülü (başka bir DrillList EditContent'i içindeki) drill, parent'ın save/validation re-render'ında
+    // yeniden değerlendirilirken kritik. Hem nested hem sibling için emniyet kemeri.
+    protected override void OnParametersSet()
+    {
+        base.OnParametersSet();
+        if (Items != null && _selected is TItem s && !Items.Contains(s))
+            _selected = null;
+    }
+
+    private async Task OnGridSelectionChanged(object? item)
+    {
+        _selected = item;
+        await OnSelectionChanged.InvokeAsync(item as TItem);
+    }
+
+    private void StartNew()
+    {
+        _editItem = NewItemFactory();
+        _editOriginal = null;
+        _isNew = true;
+        _editContext = new EditContext(_editItem);
+        _popupVisible = true;
+    }
+
+    private void BeginEdit(TItem item)
+    {
+        _editOriginal = item;
+        _editItem = CloneFactory != null ? CloneFactory(item) : item;  // kopya → Cancel geri alabilir
+        _isNew = false;
+        _editContext = new EditContext(_editItem);
+        _popupVisible = true;
+    }
+
+    private void StartEdit()
+    {
+        if (_selected is TItem item) BeginEdit(item);
+    }
+
+    private async Task OnRowDoubleClick(GridRowClickEventArgs e)
+    {
+        if (ReadOnly) return;
+        if (e.Grid.GetDataItem(e.VisibleIndex) is not TItem item) return;
+        _selected = item;
+        await OnSelectionChanged.InvokeAsync(item);
+        BeginEdit(item);
+    }
+
+    // Footer EditForm DIŞINDA olduğundan submit'i elle tetikliyoruz: önce doğrula, geçerliyse kaydet.
+    // Validate() validation mesajlarını üretir → koşullu ValidationSummary handler sonrası render'da görünür.
+    private async Task HandleSaveClick()
+    {
+        if (_editContext != null && _editContext.Validate())
+            await SaveAsync();
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_editItem == null) return;
+        _busy = true;
+        try
+        {
+            if (_isNew)
+            {
+                var added = Persistent ? await PersistCreate!(_editItem) : _editItem;
+                Items.Add(added);
+                _selected = added;
+            }
+            else
+            {
+                // Düzenleme: clone üzerinde çalışıldıysa orijinal slotu değiştir (Cancel'da liste değişmez).
+                var target = _editOriginal ?? _editItem;
+                if (Persistent) _editItem = await PersistUpdate!(_editItem);
+                var idx = Items.IndexOf(target);
+                if (idx >= 0) Items[idx] = _editItem;
+                _selected = _editItem;
+            }
+
+            var saved = _selected as TItem;
+            _popupVisible = false;
+            _editItem = null;
+            _editOriginal = null;
+            if (saved != null) await OnItemSaved.InvokeAsync(saved);
+            await OnSelectionChanged.InvokeAsync(saved);
+            await OnChanged.InvokeAsync();
+        }
+        catch (Exception ex)
+        {
+            await HandleErrorAsync(ex);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private void Cancel()
+    {
+        // Clone modunda _editItem bir kopyaydı; liste hiç değişmedi → sadece kapat.
+        _popupVisible = false;
+        _editItem = null;
+        _editOriginal = null;
+    }
+
+    private void OnPopupVisibleChanged(bool visible)
+    {
+        if (!visible) Cancel();
+    }
+
+    private async Task DeleteSelected()
+    {
+        if (_selected is not TItem item) return;
+
+        if (Items.Count <= MinItems)
+        {
+            await Notify.Warn(L["DrillMinItems"]);
+            return;
+        }
+
+        var guard = DeleteGuard?.Invoke(item);
+        if (guard != null)
+        {
+            await Notify.Warn(guard);
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            if (Persistent && PersistDelete != null)
+                await PersistDelete(item);
+            await OnItemDeleted.InvokeAsync(item);  // parent silinen sunucu Id'sini kaydedebilir
+            Items.Remove(item);
+            _selected = null;
+            await OnSelectionChanged.InvokeAsync(null);
+            await OnChanged.InvokeAsync();
+        }
+        catch (Exception ex)
+        {
+            await HandleErrorAsync(ex);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

@@ -1,0 +1,53 @@
+@page "/companies"
+@using Integration.Framework.Blazor.Client.Components.Crud
+@using Integration.TradeXpress.Blazor.Client.Pages.Companies.Services
+@using Integration.TradeXpress.Blazor.Client.Pages.Companies.Models
+@using Integration.TradeXpress.Companies
+@using DevExpress.Blazor
+@inherits CrudPageBase<CompanyGetDto, CompanyListDto, Guid, CompanyListRequestDto, CompanyCreateDto, CompanyUpdateDto, CompanyViewModel>
+
+<CrudLayout TGetDto="CompanyGetDto"
+            TListDto="CompanyListDto"
+            TViewModel="CompanyViewModel"
+            TKey="Guid"
+            StateService="StateService"
+            DataSource="@GridDataSource"
+            EntityName="@L["Entity:Company"]"
+            PageTitle="@L["Menu:Companies"]"
+            OnNewClick="BeforeCreateAsync"
+            OnUpdateClick="BeforeUpdateAsync"
+            OnDeleteClick="DeleteAsync"
+            OnRefreshClick="GetListAsync"
+            OnSearchChanged="OnSearchAsync"
+            OnSaveClick="SaveAsync">
+
+    <GridColumns>
+        <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" />
+        <DxGridDataColumn FieldName="CountryCode" Caption="@L["CountryCode"]" Width="100px" />
+        <DxGridDataColumn FieldName="BaseCurrencyCode" Caption="@L["BaseCurrency"]" Width="140px" />
+        <DxGridDataColumn FieldName="IsHeadquarters" Caption="@L["IsHeadquarters"]" Width="100px" />
+        <DxGridDataColumn FieldName="DisplayOrder" Caption="@L["DisplayOrder"]" Width="90px" Visible="false" />
+    </GridColumns>
+
+    <ToolbarActions>
+        <DxButton Text="@L["Menu:Branches"]" IconCssClass="fas fa-sitemap"
+                  RenderStyle="ButtonRenderStyle.Secondary"
+                  Enabled="@(SelectedCompany != null)"
+                  Click="OpenBranchesAsync" />
+    </ToolbarActions>
+
+    <EditPageContent Context="editingModel">
+        <CompanyEditPage Model="editingModel" OnChanged="MarkDrillDirty" />
+    </EditPageContent>
+
+</CrudLayout>
+
+<BranchDrillPopup @bind-Visible="_branchPopupVisible"
+                  CompanyId="@(SelectedCompany?.Id ?? Guid.Empty)"
+                  CompanyName="@SelectedCompanyName"
+                  OnBranchSelected="OnBranchSelected"
+                  OnVaultsDrillRequested="OpenVaultsDrill" />
+
+<VaultDrillPopup @bind-Visible="_vaultPopupVisible"
+                 BranchId="@(_selectedBranch?.Id ?? Guid.Empty)"
+                 BranchName="@(_selectedBranch?.Name ?? string.Empty)" />

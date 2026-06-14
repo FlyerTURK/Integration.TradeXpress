@@ -1,0 +1,49 @@
+@page "/currencies/currency-units"
+@using Integration.Framework.Blazor.Client.Components.Crud
+@using Integration.TradeXpress.Blazor.Client.Pages.Currencies.Services
+@using Integration.TradeXpress.Blazor.Client.Pages.Currencies.Models
+@using Integration.TradeXpress.Blazor.Client.Pages.Currencies.Components
+@using Integration.TradeXpress.Currencies
+@using DevExpress.Blazor
+@inherits CrudPageBase<CurrencyUnitGetDto, CurrencyUnitListDto, Guid, CurrencyUnitListRequestDto, CurrencyUnitCreateDto, CurrencyUnitUpdateDto, CurrencyUnitViewModel>
+
+<CrudLayout TGetDto="CurrencyUnitGetDto"
+            TListDto="CurrencyUnitListDto"
+            TViewModel="CurrencyUnitViewModel"
+            TKey="Guid"
+            StateService="StateService"
+            DataSource="@GridDataSource"
+            EntityName="@L["CurrencyUnit"]"
+            PageTitle="@L["CurrencyUnits"]"
+            OnNewClick="BeforeCreateAsync"
+            OnUpdateClick="BeforeUpdateAsync"
+            OnDeleteClick="DeleteAsync"
+            OnRefreshClick="GetListAsync"
+            OnSearchChanged="OnSearchAsync"
+            OnSaveClick="SaveAsync">
+
+    <GridColumns>
+        <DxGridDataColumn FieldName="Code" Caption="@L["Code"]" Width="90px" />
+        <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" />
+        <DxGridDataColumn FieldName="Type" Caption="@L["Type"]" Width="100px" />
+        <DxGridDataColumn FieldName="IsGlobal" Caption="@L["IsGlobal"]" Width="90px" />
+        <DxGridDataColumn FieldName="DisplayOrder" Caption="@L["DisplayOrder"]" Width="90px" Visible="false" />
+        <DxGridDataColumn Caption="@L["Margin"]" Width="130px" AllowSort="false">
+            <CellDisplayTemplate>
+                @{ var row = (CurrencyUnitListDto)context.DataItem; }
+                <DxButton Text="@L["SetMargin"]" RenderStyle="ButtonRenderStyle.Link"
+                          IconCssClass="fas fa-percent"
+                          Click="@(() => MarginDialog!.ShowAsync(row.Id, row.Code, row.Name))" />
+            </CellDisplayTemplate>
+        </DxGridDataColumn>
+    </GridColumns>
+
+    <EditPageContent Context="editingModel">
+        <CurrencyUnitEditPage Model="editingModel"
+                              StateService="StateService" />
+    </EditPageContent>
+
+</CrudLayout>
+
+@* Marj "Ayarla" diyaloğu — append-only SetAsync; kaydedince grid'i yeniler. *@
+<MarginSetDialog @ref="MarginDialog" OnSaved="GetListAsync" />

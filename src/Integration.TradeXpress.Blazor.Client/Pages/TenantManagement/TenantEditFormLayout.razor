@@ -1,0 +1,30 @@
+@using System
+@using Integration.TradeXpress.Blazor.Client.Pages.TenantManagement.Models
+@using Integration.Framework.Blazor.Client.Components.Inputs
+@using Microsoft.Extensions.Localization
+@using DevExpress.Blazor
+
+<DxFormLayout Data="@Model" CssClass="w-100">
+    <DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="12">
+        <DxTextBox @bind-Text="@Model.Name" />
+    </DxFormLayoutItem>
+
+    @* Admin e-posta/şifre yalnız YENİ tenant'ta gösterilir — ABP yeni tenant için bir admin
+       kullanıcı seed eder; bu ikisi onun kimliğidir. Düzenlemede gizli (yalnız ad değişir). *@
+    @if (Model.Id == Guid.Empty)
+    {
+        <DxFormLayoutItem Caption="@($"{L["AdminEmailAddress"]} *")" ColSpanMd="12">
+            <DxTextBox @bind-Text="@Model.AdminEmailAddress" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@($"{L["AdminPassword"]} *")" ColSpanMd="12">
+            <PasswordTextEdit @bind-Text="@Model.AdminPassword" Tooltip="@L["ShowPassword"]" />
+        </DxFormLayoutItem>
+    }
+</DxFormLayout>
+
+@code {
+    [Parameter, EditorRequired] public TenantViewModel Model { get; set; } = default!;
+
+    /// <summary>Localizer dışarıdan verilir — host hangi resource olduğuna karar verir (resource-agnostik).</summary>
+    [Parameter, EditorRequired] public IStringLocalizer L { get; set; } = default!;
+}

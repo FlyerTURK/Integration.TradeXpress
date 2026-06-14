@@ -1,0 +1,117 @@
+{
+  "template": "app",
+  "imports": {
+    "Volo.Abp.LeptonXLiteTheme": {
+      "version": "5.4.1",
+      "isInstalled": true,
+      "creationTime": "06/11/2026 19:19:13 +00:00"
+    },
+    "Volo.Abp.Account": {
+      "version": "10.4.1",
+      "isInstalled": true,
+      "creationTime": "06/11/2026 19:19:13 +00:00"
+    },
+    "Volo.Abp.OpenIddict": {
+      "version": "10.4.1",
+      "isInstalled": true,
+      "creationTime": "06/11/2026 19:19:13 +00:00"
+    },
+    "Volo.Abp.Identity": {
+      "version": "10.4.1",
+      "isInstalled": true,
+      "creationTime": "06/11/2026 19:19:13 +00:00"
+    },
+    "Volo.Abp.TenantManagement": {
+      "version": "10.4.1",
+      "isInstalled": true,
+      "creationTime": "06/11/2026 19:19:13 +00:00"
+    },
+    "Volo.Abp.SettingManagement": {
+      "version": "10.4.1",
+      "isInstalled": true,
+      "creationTime": "06/11/2026 19:19:13 +00:00"
+    },
+    "Volo.Abp.PermissionManagement": {
+      "version": "10.4.1",
+      "isInstalled": true,
+      "creationTime": "06/11/2026 19:19:13 +00:00"
+    },
+    "Volo.Abp.FeatureManagement": {
+      "version": "10.4.1",
+      "isInstalled": true,
+      "creationTime": "06/11/2026 19:19:13 +00:00"
+    }
+  },
+  "folders": {
+    "items": {
+      "src": {},
+      "test": {}
+    }
+  },
+  "packages": {
+    "Integration.TradeXpress.Application": {
+      "path": "src/Integration.TradeXpress.Application/Integration.TradeXpress.Application.abppkg",
+      "folder": "src"
+    },
+    "Integration.TradeXpress.Application.Tests": {
+      "path": "test/Integration.TradeXpress.Application.Tests/Integration.TradeXpress.Application.Tests.abppkg",
+      "folder": "test"
+    },
+    "Integration.TradeXpress.Domain.Shared": {
+      "path": "src/Integration.TradeXpress.Domain.Shared/Integration.TradeXpress.Domain.Shared.abppkg",
+      "folder": "src"
+    },
+    "Integration.TradeXpress.Application.Contracts": {
+      "path": "src/Integration.TradeXpress.Application.Contracts/Integration.TradeXpress.Application.Contracts.abppkg",
+      "folder": "src"
+    },
+    "Integration.TradeXpress.HttpApi": {
+      "path": "src/Integration.TradeXpress.HttpApi/Integration.TradeXpress.HttpApi.abppkg",
+      "folder": "src"
+    },
+    "Integration.TradeXpress.HttpApi.Client": {
+      "path": "src/Integration.TradeXpress.HttpApi.Client/Integration.TradeXpress.HttpApi.Client.abppkg",
+      "folder": "src"
+    },
+    "Integration.TradeXpress.EntityFrameworkCore.Tests": {
+      "path": "test/Integration.TradeXpress.EntityFrameworkCore.Tests/Integration.TradeXpress.EntityFrameworkCore.Tests.abppkg",
+      "folder": "test"
+    },
+    "Integration.TradeXpress.EntityFrameworkCore": {
+      "path": "src/Integration.TradeXpress.EntityFrameworkCore/Integration.TradeXpress.EntityFrameworkCore.abppkg",
+      "folder": "src"
+    },
+    "Integration.TradeXpress.TestBase": {
+      "path": "test/Integration.TradeXpress.TestBase/Integration.TradeXpress.TestBase.abppkg",
+      "folder": "test"
+    },
+    "Integration.TradeXpress.Domain.Tests": {
+      "path": "test/Integration.TradeXpress.Domain.Tests/Integration.TradeXpress.Domain.Tests.abppkg",
+      "folder": "test"
+    },
+    "Integration.TradeXpress.HttpApi.Client.ConsoleTestApp": {
+      "path": "test/Integration.TradeXpress.HttpApi.Client.ConsoleTestApp/Integration.TradeXpress.HttpApi.Client.ConsoleTestApp.abppkg",
+      "folder": "test"
+    },
+    "Integration.TradeXpress.DbMigrator": {
+      "path": "src/Integration.TradeXpress.DbMigrator/Integration.TradeXpress.DbMigrator.abppkg",
+      "folder": "src"
+    },
+    "Integration.TradeXpress.HttpApi.Host": {
+      "path": "src/Integration.TradeXpress.HttpApi.Host/Integration.TradeXpress.HttpApi.Host.abppkg",
+      "folder": "src"
+    },
+    "Integration.TradeXpress.Blazor": {
+      "path": "src/Integration.TradeXpress.Blazor/Integration.TradeXpress.Blazor.abppkg",
+      "folder": "src"
+    },
+    "Integration.TradeXpress.Blazor.Client": {
+      "path": "src/Integration.TradeXpress.Blazor.Client/Integration.TradeXpress.Blazor.Client.abppkg",
+      "folder": "src"
+    },
+    "Integration.TradeXpress.Domain": {
+      "path": "src/Integration.TradeXpress.Domain/Integration.TradeXpress.Domain.abppkg",
+      "folder": "src"
+    }
+  }
+}

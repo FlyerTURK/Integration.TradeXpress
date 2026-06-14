@@ -1,0 +1,34 @@
+@using System.Linq
+@using Integration.TradeXpress.Blazor.Client.Pages.Companies.Models
+@using Integration.TradeXpress.Countries
+@using Integration.TradeXpress.Currencies
+@using DevExpress.Blazor
+@inject Microsoft.Extensions.Localization.IStringLocalizer<Integration.TradeXpress.Localization.TradeXpressResource> L
+@inject ICurrencyUnitAppService CurrencyUnitAppService
+@inject ICountryAppService CountryAppService
+
+@* Şirket edit "evi" — TenantEditPage kalıbı: yalnız layout'u barındırır, veri/servis yükler,
+   yaşam döngüsü koordinatöre (CrudEditForm) ait. *@
+<CompanyEditFormLayout Model="Model"
+                       L="L"
+                       Units="Units"
+                       Countries="Countries"
+                       OnChanged="OnChanged" />
+
+@code {
+    [Parameter, EditorRequired] public CompanyViewModel Model { get; set; } = default!;
+
+    /// <summary>Combo veya drill değişince ateşlenir — list page StateService.MarkDirty'yi tetikler.</summary>
+    [Parameter] public EventCallback OnChanged { get; set; }
+
+    private List<CurrencyUnitListDto> Units { get; set; } = new();
+    private List<CountryListDto> Countries { get; set; } = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var units = await CurrencyUnitAppService.GetListAsync(new CurrencyUnitListRequestDto { MaxResultCount = 1000 });
+        Units = units.Items.ToList();
+        var countries = await CountryAppService.GetListAsync(new CountryListRequestDto { MaxResultCount = 1000 });
+        Countries = countries.Items.ToList();
+    }
+}

@@ -1,0 +1,15 @@
+{
+  "name": "harem-bridge",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Harem Altın canlı kur köprüsü — ERPPRO3 HaremClient için localhost JSON endpoint'i sunar.",
+  "main": "bridge.js",
+  "scripts": {
+    "start": "node bridge.js",
+    "start:visible": "cross-env HEADLESS=0 node bridge.js",
+    "postinstall": "playwright install chromium"
+  },
+  "dependencies": {
+    "playwright": "^1.49.0"
+  }
+}

@@ -1,0 +1,18 @@
+@using Volo.Abp.UI.Navigation
+@inject IMenuManager MenuManager
+
+<DxTreeView Data="@MenuItems" CssClass="demo-drawer-menu w-100 h-100" ShowFilterPanel="true">
+    <DataMappings>
+        <DxTreeViewDataMapping Children="Items" Text="DisplayName" NavigateUrl="Url" />
+    </DataMappings>
+</DxTreeView>
+
+@code {
+    private IReadOnlyList<ApplicationMenuItem> MenuItems = Array.Empty<ApplicationMenuItem>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var menu = await MenuManager.GetAsync(StandardMenus.Main);
+        MenuItems = menu.Items;
+    }
+}

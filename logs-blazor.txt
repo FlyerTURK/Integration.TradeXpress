@@ -1,0 +1,690 @@
+[07:32:58 INF] Starting web host.
+[07:32:58 DBG] Loaded ABP modules:
+[07:32:58 DBG] - Integration.TradeXpress.Blazor.TradeXpressBlazorModule
+[07:32:58 DBG]   - Volo.Abp.Autofac.AbpAutofacModule
+[07:32:58 DBG]     - Volo.Abp.Castle.AbpCastleCoreModule
+[07:32:58 DBG]   - Volo.Abp.AspNetCore.Mvc.UI.Bootstrap.AbpAspNetCoreMvcUiBootstrapModule
+[07:32:58 DBG]     - Volo.Abp.AspNetCore.Mvc.UI.AbpAspNetCoreMvcUiModule
+[07:32:58 DBG]       - Volo.Abp.AspNetCore.Mvc.AbpAspNetCoreMvcModule
+[07:32:58 DBG]         - Volo.Abp.AspNetCore.AbpAspNetCoreModule
+[07:32:58 DBG]           - Volo.Abp.Auditing.AbpAuditingModule
+[07:32:58 DBG]             - Volo.Abp.Data.AbpDataModule
+[07:32:58 DBG]               - Volo.Abp.ObjectExtending.AbpObjectExtendingModule
+[07:32:58 DBG]                 - Volo.Abp.Localization.AbpLocalizationAbstractionsModule
+[07:32:58 DBG]                 - Volo.Abp.Validation.AbpValidationAbstractionsModule
+[07:32:58 DBG]               - Volo.Abp.Uow.AbpUnitOfWorkModule
+[07:32:58 DBG]               - Volo.Abp.EventBus.Abstractions.AbpEventBusAbstractionsModule
+[07:32:58 DBG]             - Volo.Abp.Json.AbpJsonModule
+[07:32:58 DBG]               - Volo.Abp.Json.SystemTextJson.AbpJsonSystemTextJsonModule
+[07:32:58 DBG]                 - Volo.Abp.Json.AbpJsonAbstractionsModule
+[07:32:58 DBG]                 - Volo.Abp.Timing.AbpTimingModule
+[07:32:58 DBG]                   - Volo.Abp.Localization.AbpLocalizationModule
+[07:32:58 DBG]                     - Volo.Abp.VirtualFileSystem.AbpVirtualFileSystemModule
+[07:32:58 DBG]                     - Volo.Abp.Settings.AbpSettingsModule
+[07:32:58 DBG]                       - Volo.Abp.Security.AbpSecurityModule
+[07:32:58 DBG]                     - Volo.Abp.Threading.AbpThreadingModule
+[07:32:58 DBG]             - Volo.Abp.MultiTenancy.AbpMultiTenancyModule
+[07:32:58 DBG]               - Volo.Abp.MultiTenancy.AbpMultiTenancyAbstractionsModule
+[07:32:58 DBG]             - Volo.Abp.Auditing.AbpAuditingContractsModule
+[07:32:58 DBG]           - Volo.Abp.Http.AbpHttpModule
+[07:32:58 DBG]             - Volo.Abp.Http.AbpHttpAbstractionsModule
+[07:32:58 DBG]             - Volo.Abp.Minify.AbpMinifyModule
+[07:32:58 DBG]           - Volo.Abp.Authorization.AbpAuthorizationModule
+[07:32:58 DBG]             - Volo.Abp.Authorization.AbpAuthorizationAbstractionsModule
+[07:32:58 DBG]           - Volo.Abp.Validation.AbpValidationModule
+[07:32:58 DBG]           - Volo.Abp.ExceptionHandling.AbpExceptionHandlingModule
+[07:32:58 DBG]           - Volo.Abp.AspNetCore.AbpAspNetCoreAbstractionsModule
+[07:32:58 DBG]         - Volo.Abp.ApiVersioning.AbpApiVersioningAbstractionsModule
+[07:32:58 DBG]         - Volo.Abp.AspNetCore.Mvc.AbpAspNetCoreMvcContractsModule
+[07:32:58 DBG]           - Volo.Abp.Application.AbpDddApplicationContractsModule
+[07:32:58 DBG]         - Volo.Abp.UI.Navigation.AbpUiNavigationModule
+[07:32:58 DBG]           - Volo.Abp.UI.AbpUiModule
+[07:32:58 DBG]           - Volo.Abp.Features.AbpFeaturesModule
+[07:32:58 DBG]         - Volo.Abp.GlobalFeatures.AbpGlobalFeaturesModule
+[07:32:58 DBG]         - Volo.Abp.Application.AbpDddApplicationModule
+[07:32:58 DBG]           - Volo.Abp.Domain.AbpDddDomainModule
+[07:32:58 DBG]             - Volo.Abp.EventBus.AbpEventBusModule
+[07:32:58 DBG]               - Volo.Abp.Guids.AbpGuidsModule
+[07:32:58 DBG]               - Volo.Abp.BackgroundWorkers.AbpBackgroundWorkersModule
+[07:32:58 DBG]               - Volo.Abp.DistributedLocking.AbpDistributedLockingAbstractionsModule
+[07:32:58 DBG]             - Volo.Abp.ObjectMapping.AbpObjectMappingModule
+[07:32:58 DBG]             - Volo.Abp.Specifications.AbpSpecificationsModule
+[07:32:58 DBG]             - Volo.Abp.Caching.AbpCachingModule
+[07:32:58 DBG]               - Volo.Abp.Serialization.AbpSerializationModule
+[07:32:58 DBG]             - Volo.Abp.Domain.AbpDddDomainSharedModule
+[07:32:58 DBG]   - Volo.Abp.AspNetCore.Mvc.UI.Bundling.AbpAspNetCoreMvcUiBundlingModule
+[07:32:58 DBG]     - Volo.Abp.AspNetCore.Bundling.AbpAspNetCoreBundlingModule
+[07:32:58 DBG]       - Volo.Abp.AspNetCore.Mvc.UI.Bundling.AbpAspNetCoreMvcUiBundlingAbstractionsModule
+[07:32:59 INF] User profile is available. Using 'C:\Users\umutt\AppData\Local\ASP.NET\DataProtection-Keys' as key repository and Windows DPAPI to encrypt keys at rest.
+[07:32:59 INF] Initialized all ABP modules.
+[07:32:59 INF] Now listening on: https://0.0.0.0:44318
+[07:32:59 INF] Application started. Press Ctrl+C to shut down.
+[07:32:59 INF] Hosting environment: Production
+[07:32:59 INF] Content root path: E:\Kodlarim\Yeni\src\Integration.TradeXpress.Blazor
+[07:33:21 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/tenant-management/tenants - null null
+[07:33:21 INF] Executing endpoint '/tenant-management/tenants (/tenant-management/tenants)'
+[07:33:21 INF] Executed endpoint '/tenant-management/tenants (/tenant-management/tenants)'
+[07:33:21 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/tenant-management/tenants - 200 null text/html; charset=utf-8 317.0911ms
+[07:33:21 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/main.css - null null
+[07:33:21 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/DevExpress.Blazor.Themes/blazing-berry.bs5.min.css - null null
+[07:33:21 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/DevExpress.Blazor.Themes/bootstrap-external.bs5.min.css - null null
+[07:33:21 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:21 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:21 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:21 INF] The file _content/DevExpress.Blazor.Themes/bootstrap-external.bs5.min.css was not modified
+[07:33:21 INF] The file _content/DevExpress.Blazor.Themes/blazing-berry.bs5.min.css was not modified
+[07:33:21 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:21 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:21 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/DevExpress.Blazor.Themes/bootstrap-external.bs5.min.css - 304 null text/css 84.9438ms
+[07:33:21 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/DevExpress.Blazor.Themes/blazing-berry.bs5.min.css - 304 null text/css 84.9469ms
+[07:33:21 INF] Sending file. Request path: 'main.css'. Physical path: 'E:\Kodlarim\Yeni\src\Integration.TradeXpress.Blazor.Client\obj\Debug\net10.0\compressed\e5mdhctbfn-{0}-jqxnesobb0-jqxnesobb0.gz'
+[07:33:21 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:21 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/main.css - 200 6332 text/css 94.7525ms
+[07:33:21 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/Integration.TradeXpress.Blazor.Client.styles.css - null null
+[07:33:21 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:21 INF] Sending file. Request path: 'Integration.TradeXpress.Blazor.Client.styles.css'. Physical path: 'E:\Kodlarim\Yeni\src\Integration.TradeXpress.Blazor.Client\obj\Debug\net10.0\compressed\al6x01b7z4-{0}-lz285gdbgz-lz285gdbgz.gz'
+[07:33:21 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:21 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/Integration.TradeXpress.Blazor.Client.styles.css - 200 4362 text/css 1.3899ms
+[07:33:21 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/_framework/blazor.web.js - null null
+[07:33:21 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:21 INF] The file _framework/blazor.web.js was not modified
+[07:33:21 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:21 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/_framework/blazor.web.js - 304 null text/javascript 1.8217ms
+[07:33:21 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/Microsoft.AspNetCore.Components.WebAssembly.Authentication/AuthenticationService.js - null null
+[07:33:21 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:21 INF] The file _content/Microsoft.AspNetCore.Components.WebAssembly.Authentication/AuthenticationService.js was not modified
+[07:33:21 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:21 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/Microsoft.AspNetCore.Components.WebAssembly.Authentication/AuthenticationService.js - 304 null text/javascript 2.5263ms
+[07:33:21 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/_framework/Microsoft.DotNet.HotReload.WebAssembly.Browser.99zm1jdh75.lib.module.js - null null
+[07:33:21 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:21 INF] The file _framework/Microsoft.DotNet.HotReload.WebAssembly.Browser.99zm1jdh75.lib.module.js was not modified
+[07:33:21 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:21 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/_framework/Microsoft.DotNet.HotReload.WebAssembly.Browser.99zm1jdh75.lib.module.js - 304 null text/javascript 0.464ms
+[07:33:21 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/_framework/dotnet.js - null null
+[07:33:21 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:22 INF] Sending file. Request path: '_framework/dotnet.js'. Physical path: 'E:\Kodlarim\Yeni\src\Integration.TradeXpress.Blazor.Client\obj\Debug\net10.0\compressed\1w2vjm1h4t-{0}-g85c45vd9o-g85c45vd9o.gz'
+[07:33:22 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:22 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/_framework/dotnet.js - 200 135529 text/javascript 82.2723ms
+[07:33:23 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/_framework/dotnet.runtime.a6jcqbs390.js - null null
+[07:33:23 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:23 INF] The file _framework/dotnet.runtime.a6jcqbs390.js was not modified
+[07:33:23 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:23 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/_framework/dotnet.runtime.a6jcqbs390.js - 304 null text/javascript 1.6639ms
+[07:33:23 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/_framework/dotnet.native.ikrs475e5v.js - null null
+[07:33:23 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:23 INF] The file _framework/dotnet.native.ikrs475e5v.js was not modified
+[07:33:23 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:23 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/_framework/dotnet.native.ikrs475e5v.js - 304 null text/javascript 0.4915ms
+[07:33:23 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/_framework/Integration.TradeXpress.Blazor.Client.ingdbbk9ir.pdb - null null
+[07:33:23 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:23 INF] Sending file. Request path: '_framework/Integration.TradeXpress.Blazor.Client.ingdbbk9ir.pdb'. Physical path: 'E:\Kodlarim\Yeni\src\Integration.TradeXpress.Blazor.Client\obj\Debug\net10.0\compressed\nh0f8j914g-{0}-ingdbbk9ir-ingdbbk9ir.gz'
+[07:33:23 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:23 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/_framework/Integration.TradeXpress.Blazor.Client.ingdbbk9ir.pdb - 200 155925 application/octet-stream 17.1484ms
+[07:33:23 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/_framework/Integration.TradeXpress.Blazor.Client.6vux5sttq1.wasm - null null
+[07:33:23 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:23 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/appsettings.json - null null
+[07:33:23 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:23 INF] Sending file. Request path: 'appsettings.json'. Physical path: 'E:\Kodlarim\Yeni\src\Integration.TradeXpress.Blazor.Client\obj\Debug\net10.0\compressed\dxztffe5zg-{0}-60q643cbpb-60q643cbpb.gz'
+[07:33:23 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:23 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/appsettings.json - 200 464 application/json 0.9858ms
+[07:33:23 INF] Sending file. Request path: '_framework/Integration.TradeXpress.Blazor.Client.6vux5sttq1.wasm'. Physical path: 'E:\Kodlarim\Yeni\src\Integration.TradeXpress.Blazor.Client\obj\Debug\net10.0\compressed\pv74iu6z44-{0}-6vux5sttq1-6vux5sttq1.gz'
+[07:33:23 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:23 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/_framework/Integration.TradeXpress.Blazor.Client.6vux5sttq1.wasm - 200 215380 application/wasm 14.4455ms
+[07:33:27 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/authentication/login-callback?code=PwIKR0a4OXHgWhTfU0tPs-KWnuZbAv_K7loVp7ITpe8&state=552f7630971d454db6e3f4885cfd87ba&iss=https%3A%2F%2Fumut.taile7a850.ts.net%3A44388%2F&culture=tr&ui-culture=tr - null null
+[07:33:27 INF] Executing endpoint '/authentication/{action} (/authentication/{action})'
+[07:33:27 INF] Executed endpoint '/authentication/{action} (/authentication/{action})'
+[07:33:27 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/authentication/login-callback?code=PwIKR0a4OXHgWhTfU0tPs-KWnuZbAv_K7loVp7ITpe8&state=552f7630971d454db6e3f4885cfd87ba&iss=https%3A%2F%2Fumut.taile7a850.ts.net%3A44388%2F&culture=tr&ui-culture=tr - 200 null text/html; charset=utf-8 2.1746ms
+[07:33:27 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/DevExpress.Blazor.Themes/bootstrap-external.bs5.min.css - null null
+[07:33:27 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/DevExpress.Blazor.Themes/blazing-berry.bs5.min.css - null null
+[07:33:27 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:27 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:27 INF] The file _content/DevExpress.Blazor.Themes/bootstrap-external.bs5.min.css was not modified
+[07:33:27 INF] The file _content/DevExpress.Blazor.Themes/blazing-berry.bs5.min.css was not modified
+[07:33:27 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:27 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:27 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/DevExpress.Blazor.Themes/blazing-berry.bs5.min.css - 304 null text/css 4.5276ms
+[07:33:27 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/DevExpress.Blazor.Themes/bootstrap-external.bs5.min.css - 304 null text/css 4.5294ms
+[07:33:27 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/main.css - null null
+[07:33:27 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:27 INF] Sending file. Request path: 'main.css'. Physical path: 'E:\Kodlarim\Yeni\src\Integration.TradeXpress.Blazor.Client\obj\Debug\net10.0\compressed\e5mdhctbfn-{0}-jqxnesobb0-jqxnesobb0.gz'
+[07:33:27 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:27 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/main.css - 200 6332 text/css 1.1405ms
+[07:33:27 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/Integration.TradeXpress.Blazor.Client.styles.css - null null
+[07:33:27 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/_framework/blazor.web.js - null null
+[07:33:27 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:27 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:27 INF] The file _framework/blazor.web.js was not modified
+[07:33:27 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:27 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/_framework/blazor.web.js - 304 null text/javascript 0.3961ms
+[07:33:27 INF] Sending file. Request path: 'Integration.TradeXpress.Blazor.Client.styles.css'. Physical path: 'E:\Kodlarim\Yeni\src\Integration.TradeXpress.Blazor.Client\obj\Debug\net10.0\compressed\al6x01b7z4-{0}-lz285gdbgz-lz285gdbgz.gz'
+[07:33:27 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:27 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/Integration.TradeXpress.Blazor.Client.styles.css - 200 4362 text/css 0.7664ms
+[07:33:27 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/Microsoft.AspNetCore.Components.WebAssembly.Authentication/AuthenticationService.js - null null
+[07:33:27 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:27 INF] The file _content/Microsoft.AspNetCore.Components.WebAssembly.Authentication/AuthenticationService.js was not modified
+[07:33:27 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:27 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/Microsoft.AspNetCore.Components.WebAssembly.Authentication/AuthenticationService.js - 304 null text/javascript 1.3957ms
+[07:33:27 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/_framework/resource-collection.pqKWB.js - null null
+[07:33:27 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:27 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:27 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/_framework/resource-collection.pqKWB.js - 200 16192 application/javascript 1.8747ms
+[07:33:28 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/DevExpress.Blazor/modules/dx-blazor-all.js?v=25.2.5.0 - null null
+[07:33:28 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/DevExpress.Blazor.Resources/js/preload-script.js?v=25.2.5.0 - null null
+[07:33:28 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:28 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:28 INF] The file _content/DevExpress.Blazor/modules/dx-blazor-all.js was not modified
+[07:33:28 INF] The file _content/DevExpress.Blazor.Resources/js/preload-script.js was not modified
+[07:33:28 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:28 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:28 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/DevExpress.Blazor.Resources/js/preload-script.js?v=25.2.5.0 - 304 null text/javascript 0.5716ms
+[07:33:28 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/DevExpress.Blazor/modules/dx-blazor-all.js?v=25.2.5.0 - 304 null text/javascript 0.5701ms
+[07:33:28 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/DevExpress.Blazor/dx-blazor.svg?v=25.2.5.0 - null null
+[07:33:28 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:28 INF] The file _content/DevExpress.Blazor/dx-blazor.svg was not modified
+[07:33:28 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:28 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/DevExpress.Blazor/dx-blazor.svg?v=25.2.5.0 - 304 null image/svg+xml 1.2332ms
+[07:33:29 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/images/xaf/action_delete.svg - null null
+[07:33:29 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/js/layout-responsive.js - null null
+[07:33:29 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/images/xaf/action_new.svg - null null
+[07:33:29 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:29 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:29 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:29 INF] Sending file. Request path: 'images/xaf/action_new.svg'. Physical path: 'E:\Kodlarim\Yeni\src\Integration.TradeXpress.Blazor.Client\obj\Debug\net10.0\compressed\5i7vkyxbx9-{0}-zrizxqif5o-zrizxqif5o.gz'
+[07:33:29 INF] Sending file. Request path: 'images/xaf/action_delete.svg'. Physical path: 'E:\Kodlarim\Yeni\src\Integration.TradeXpress.Blazor.Client\obj\Debug\net10.0\compressed\c7v2hup3i6-{0}-necrj99wma-necrj99wma.gz'
+[07:33:29 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:29 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:29 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/images/xaf/action_delete.svg - 200 870 image/svg+xml 0.8611ms
+[07:33:29 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/images/xaf/action_new.svg - 200 487 image/svg+xml 0.861ms
+[07:33:29 INF] Sending file. Request path: 'js/layout-responsive.js'. Physical path: 'E:\Kodlarim\Yeni\src\Integration.TradeXpress.Blazor.Client\obj\Debug\net10.0\compressed\h3r77y9lww-{0}-fhboc95gbk-fhboc95gbk.gz'
+[07:33:29 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:29 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/js/layout-responsive.js - 200 778 text/javascript 0.9172ms
+[07:33:29 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/images/xaf/action_navigation_previous_object.svg - null null
+[07:33:29 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/images/xaf/action_navigation_next_object.svg - null null
+[07:33:29 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/images/xaf/action_refresh.svg - null null
+[07:33:29 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:29 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:29 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:29 INF] Sending file. Request path: 'images/xaf/action_navigation_previous_object.svg'. Physical path: 'E:\Kodlarim\Yeni\src\Integration.TradeXpress.Blazor.Client\obj\Debug\net10.0\compressed\m7fqbu62tl-{0}-7732diwoek-7732diwoek.gz'
+[07:33:29 INF] Sending file. Request path: 'images/xaf/action_navigation_next_object.svg'. Physical path: 'E:\Kodlarim\Yeni\src\Integration.TradeXpress.Blazor.Client\obj\Debug\net10.0\compressed\7t3nt1p4ey-{0}-kf88jc14uf-kf88jc14uf.gz'
+[07:33:29 INF] Sending file. Request path: 'images/xaf/action_refresh.svg'. Physical path: 'E:\Kodlarim\Yeni\src\Integration.TradeXpress.Blazor.Client\obj\Debug\net10.0\compressed\b2toy6k4va-{0}-lgpm8w7k5h-lgpm8w7k5h.gz'
+[07:33:29 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:29 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:29 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:29 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/images/xaf/action_navigation_next_object.svg - 200 510 image/svg+xml 50.195ms
+[07:33:29 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/images/xaf/action_navigation_previous_object.svg - 200 526 image/svg+xml 50.2334ms
+[07:33:29 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/images/xaf/action_refresh.svg - 200 1325 image/svg+xml 33.2582ms
+[07:33:29 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/images/xaf/action_export.svg - null null
+[07:33:29 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:29 INF] Sending file. Request path: 'images/xaf/action_export.svg'. Physical path: 'E:\Kodlarim\Yeni\src\Integration.TradeXpress.Blazor.Client\obj\Debug\net10.0\compressed\cm96l95et1-{0}-fbr97tcvzu-fbr97tcvzu.gz'
+[07:33:29 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:29 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/images/xaf/action_export.svg - 200 787 image/svg+xml 1.0263ms
+[07:33:29 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/images/xaf/action_search.svg - null null
+[07:33:29 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:29 INF] Sending file. Request path: 'images/xaf/action_search.svg'. Physical path: 'E:\Kodlarim\Yeni\src\Integration.TradeXpress.Blazor.Client\obj\Debug\net10.0\compressed\q4ffvktcyh-{0}-3q7cu8ovr1-3q7cu8ovr1.gz'
+[07:33:29 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:29 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/images/xaf/action_search.svg - 200 615 image/svg+xml 1.1417ms
+[07:33:29 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/DevExpress.Blazor/modules/dx-blazor-all-LhiyymDQ.js - null null
+[07:33:29 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/DevExpress.Blazor/modules/_commonjsHelpers-O6R62DGM.js - null null
+[07:33:29 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:29 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:29 INF] The file _content/DevExpress.Blazor/modules/dx-blazor-all-LhiyymDQ.js was not modified
+[07:33:29 INF] The file _content/DevExpress.Blazor/modules/_commonjsHelpers-O6R62DGM.js was not modified
+[07:33:29 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:29 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:29 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/DevExpress.Blazor/modules/_commonjsHelpers-O6R62DGM.js - 304 null text/javascript 0.6007ms
+[07:33:29 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/DevExpress.Blazor/modules/dx-blazor-all-LhiyymDQ.js - 304 null text/javascript 3.1283ms
+[07:33:29 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/DevExpress.Blazor.Themes/bootstrap-external.bs5.min.css - null null
+[07:33:29 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/DevExpress.Blazor.Themes/blazing-berry.bs5.min.css - null null
+[07:33:29 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/main.css - null null
+[07:33:29 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:29 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:29 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:29 INF] The file _content/DevExpress.Blazor.Themes/blazing-berry.bs5.min.css was not modified
+[07:33:29 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:29 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/DevExpress.Blazor.Themes/blazing-berry.bs5.min.css - 304 null text/css 0.434ms
+[07:33:29 INF] The file _content/DevExpress.Blazor.Themes/bootstrap-external.bs5.min.css was not modified
+[07:33:29 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:29 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/DevExpress.Blazor.Themes/bootstrap-external.bs5.min.css - 304 null text/css 0.5735ms
+[07:33:29 INF] Sending file. Request path: 'main.css'. Physical path: 'E:\Kodlarim\Yeni\src\Integration.TradeXpress.Blazor.Client\obj\Debug\net10.0\compressed\e5mdhctbfn-{0}-jqxnesobb0-jqxnesobb0.gz'
+[07:33:29 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:29 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/main.css - 200 6332 text/css 0.6374ms
+[07:33:30 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/Integration.TradeXpress.Blazor.Client.styles.css - null null
+[07:33:30 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:30 INF] Sending file. Request path: 'Integration.TradeXpress.Blazor.Client.styles.css'. Physical path: 'E:\Kodlarim\Yeni\src\Integration.TradeXpress.Blazor.Client\obj\Debug\net10.0\compressed\al6x01b7z4-{0}-lz285gdbgz-lz285gdbgz.gz'
+[07:33:30 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:30 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/Integration.TradeXpress.Blazor.Client.styles.css - 200 4362 text/css 0.6934ms
+[07:33:32 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/DevExpress.Blazor/dx-blazor.svg?v=25.2.5.0 - null null
+[07:33:32 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:32 INF] The file _content/DevExpress.Blazor/dx-blazor.svg was not modified
+[07:33:32 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:32 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/DevExpress.Blazor/dx-blazor.svg?v=25.2.5.0 - 304 null image/svg+xml 0.8822ms
+[07:33:32 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/images/xaf/action_new.svg - null null
+[07:33:32 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/images/xaf/action_export.svg - null null
+[07:33:32 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/images/xaf/action_delete.svg - null null
+[07:33:32 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:32 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:32 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:32 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/images/xaf/action_navigation_previous_object.svg - null null
+[07:33:32 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:32 INF] Sending file. Request path: 'images/xaf/action_new.svg'. Physical path: 'E:\Kodlarim\Yeni\src\Integration.TradeXpress.Blazor.Client\obj\Debug\net10.0\compressed\5i7vkyxbx9-{0}-zrizxqif5o-zrizxqif5o.gz'
+[07:33:32 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:32 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/images/xaf/action_new.svg - 200 487 image/svg+xml 0.6816ms
+[07:33:32 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/images/xaf/action_navigation_next_object.svg - null null
+[07:33:32 INF] Sending file. Request path: 'images/xaf/action_delete.svg'. Physical path: 'E:\Kodlarim\Yeni\src\Integration.TradeXpress.Blazor.Client\obj\Debug\net10.0\compressed\c7v2hup3i6-{0}-necrj99wma-necrj99wma.gz'
+[07:33:32 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:32 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/images/xaf/action_delete.svg - 200 870 image/svg+xml 0.6101ms
+[07:33:32 INF] Sending file. Request path: 'images/xaf/action_export.svg'. Physical path: 'E:\Kodlarim\Yeni\src\Integration.TradeXpress.Blazor.Client\obj\Debug\net10.0\compressed\cm96l95et1-{0}-fbr97tcvzu-fbr97tcvzu.gz'
+[07:33:32 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:32 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/images/xaf/action_refresh.svg - null null
+[07:33:32 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:32 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/images/xaf/action_export.svg - 200 787 image/svg+xml 0.6658ms
+[07:33:32 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:32 INF] Sending file. Request path: 'images/xaf/action_navigation_previous_object.svg'. Physical path: 'E:\Kodlarim\Yeni\src\Integration.TradeXpress.Blazor.Client\obj\Debug\net10.0\compressed\m7fqbu62tl-{0}-7732diwoek-7732diwoek.gz'
+[07:33:32 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:32 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/images/xaf/action_navigation_previous_object.svg - 200 526 image/svg+xml 0.5266ms
+[07:33:32 INF] Sending file. Request path: 'images/xaf/action_navigation_next_object.svg'. Physical path: 'E:\Kodlarim\Yeni\src\Integration.TradeXpress.Blazor.Client\obj\Debug\net10.0\compressed\7t3nt1p4ey-{0}-kf88jc14uf-kf88jc14uf.gz'
+[07:33:32 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:32 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/images/xaf/action_navigation_next_object.svg - 200 510 image/svg+xml 0.3432ms
+[07:33:32 INF] Sending file. Request path: 'images/xaf/action_refresh.svg'. Physical path: 'E:\Kodlarim\Yeni\src\Integration.TradeXpress.Blazor.Client\obj\Debug\net10.0\compressed\b2toy6k4va-{0}-lgpm8w7k5h-lgpm8w7k5h.gz'
+[07:33:32 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:32 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/images/xaf/action_refresh.svg - 200 1325 image/svg+xml 0.3547ms
+[07:33:32 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/DevExpress.Blazor/dx-blazor.svg?v=25.2.5.0 - null null
+[07:33:32 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:32 INF] The file _content/DevExpress.Blazor/dx-blazor.svg was not modified
+[07:33:32 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:33:32 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/DevExpress.Blazor/dx-blazor.svg?v=25.2.5.0 - 304 null image/svg+xml 0.4157ms
+[07:35:05 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/tenant-management/tenants - null null
+[07:35:05 INF] Executing endpoint '/tenant-management/tenants (/tenant-management/tenants)'
+[07:35:05 INF] Executed endpoint '/tenant-management/tenants (/tenant-management/tenants)'
+[07:35:05 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/tenant-management/tenants - 200 null text/html; charset=utf-8 1.0537ms
+[07:35:06 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/DevExpress.Blazor.Themes/bootstrap-external.bs5.min.css - null null
+[07:35:06 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:06 INF] The file _content/DevExpress.Blazor.Themes/bootstrap-external.bs5.min.css was not modified
+[07:35:06 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:06 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/DevExpress.Blazor.Themes/bootstrap-external.bs5.min.css - 304 null text/css 0.4473ms
+[07:35:06 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/DevExpress.Blazor.Themes/blazing-berry.bs5.min.css - null null
+[07:35:06 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:06 INF] The file _content/DevExpress.Blazor.Themes/blazing-berry.bs5.min.css was not modified
+[07:35:06 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:06 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/DevExpress.Blazor.Themes/blazing-berry.bs5.min.css - 304 null text/css 0.4185ms
+[07:35:06 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/main.css - null null
+[07:35:06 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/Integration.TradeXpress.Blazor.Client.styles.css - null null
+[07:35:06 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:06 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:06 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/_framework/blazor.web.js - null null
+[07:35:06 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:06 INF] The file _framework/blazor.web.js was not modified
+[07:35:06 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:06 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/_framework/blazor.web.js - 304 null text/javascript 0.2891ms
+[07:35:06 INF] Sending file. Request path: 'main.css'. Physical path: 'E:\Kodlarim\Yeni\src\Integration.TradeXpress.Blazor.Client\obj\Debug\net10.0\compressed\e5mdhctbfn-{0}-jqxnesobb0-jqxnesobb0.gz'
+[07:35:06 INF] Sending file. Request path: 'Integration.TradeXpress.Blazor.Client.styles.css'. Physical path: 'E:\Kodlarim\Yeni\src\Integration.TradeXpress.Blazor.Client\obj\Debug\net10.0\compressed\al6x01b7z4-{0}-lz285gdbgz-lz285gdbgz.gz'
+[07:35:06 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:06 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:06 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/Integration.TradeXpress.Blazor.Client.styles.css - 200 4362 text/css 0.7032ms
+[07:35:06 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/main.css - 200 6332 text/css 0.7353ms
+[07:35:06 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/Microsoft.AspNetCore.Components.WebAssembly.Authentication/AuthenticationService.js - null null
+[07:35:06 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:06 INF] The file _content/Microsoft.AspNetCore.Components.WebAssembly.Authentication/AuthenticationService.js was not modified
+[07:35:06 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:06 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/Microsoft.AspNetCore.Components.WebAssembly.Authentication/AuthenticationService.js - 304 null text/javascript 0.2066ms
+[07:35:06 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/_framework/Microsoft.DotNet.HotReload.WebAssembly.Browser.99zm1jdh75.lib.module.js - null null
+[07:35:06 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:06 INF] The file _framework/Microsoft.DotNet.HotReload.WebAssembly.Browser.99zm1jdh75.lib.module.js was not modified
+[07:35:06 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:06 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/_framework/Microsoft.DotNet.HotReload.WebAssembly.Browser.99zm1jdh75.lib.module.js - 304 null text/javascript 0.2856ms
+[07:35:06 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/favicon.ico - null null
+[07:35:06 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:06 INF] Sending file. Request path: 'favicon.ico'. Physical path: 'E:\Kodlarim\Yeni\src\Integration.TradeXpress.Blazor.Client\obj\Debug\net10.0\compressed\yccsurtni7-{0}-xr2w2zrsao-xr2w2zrsao.gz'
+[07:35:06 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:06 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/favicon.ico - 200 38116 image/x-icon 0.7574ms
+[07:35:06 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/_framework/dotnet.js - null null
+[07:35:06 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:06 INF] Sending file. Request path: '_framework/dotnet.js'. Physical path: 'E:\Kodlarim\Yeni\src\Integration.TradeXpress.Blazor.Client\obj\Debug\net10.0\compressed\1w2vjm1h4t-{0}-g85c45vd9o-g85c45vd9o.gz'
+[07:35:06 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:06 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/_framework/dotnet.js - 200 135529 text/javascript 71.1222ms
+[07:35:07 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/_framework/Integration.Framework.Blazor.Client.qz57zzn2c8.pdb - null null
+[07:35:07 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:07 INF] Sending file. Request path: '_framework/Integration.Framework.Blazor.Client.qz57zzn2c8.pdb'. Physical path: 'E:\Kodlarim\Yeni\src\Integration.TradeXpress.Blazor.Client\obj\Debug\net10.0\compressed\k58hirfo1o-{0}-qz57zzn2c8-qz57zzn2c8.gz'
+[07:35:07 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:07 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/_framework/Integration.Framework.Blazor.Client.qz57zzn2c8.pdb - 200 66607 application/octet-stream 1.033ms
+[07:35:07 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/_framework/dotnet.runtime.a6jcqbs390.js - null null
+[07:35:07 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:07 INF] The file _framework/dotnet.runtime.a6jcqbs390.js was not modified
+[07:35:07 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:07 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/_framework/dotnet.runtime.a6jcqbs390.js - 304 null text/javascript 0.2518ms
+[07:35:07 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/_framework/dotnet.native.ikrs475e5v.js - null null
+[07:35:07 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:07 INF] The file _framework/dotnet.native.ikrs475e5v.js was not modified
+[07:35:07 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:07 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/_framework/dotnet.native.ikrs475e5v.js - 304 null text/javascript 0.2401ms
+[07:35:07 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/_framework/Integration.TradeXpress.Blazor.Client.ingdbbk9ir.pdb - null null
+[07:35:07 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:07 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/appsettings.json - null null
+[07:35:07 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:07 INF] Sending file. Request path: 'appsettings.json'. Physical path: 'E:\Kodlarim\Yeni\src\Integration.TradeXpress.Blazor.Client\obj\Debug\net10.0\compressed\dxztffe5zg-{0}-60q643cbpb-60q643cbpb.gz'
+[07:35:07 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:07 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/appsettings.json - 200 464 application/json 0.3409ms
+[07:35:07 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/_framework/Integration.Framework.Blazor.Client.pw7cgtcw5h.wasm - null null
+[07:35:07 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:07 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/_framework/Integration.TradeXpress.Blazor.Client.6vux5sttq1.wasm - null null
+[07:35:07 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:07 INF] Sending file. Request path: '_framework/Integration.TradeXpress.Blazor.Client.ingdbbk9ir.pdb'. Physical path: 'E:\Kodlarim\Yeni\src\Integration.TradeXpress.Blazor.Client\obj\Debug\net10.0\compressed\nh0f8j914g-{0}-ingdbbk9ir-ingdbbk9ir.gz'
+[07:35:07 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:07 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/_framework/Integration.TradeXpress.Blazor.Client.ingdbbk9ir.pdb - 200 155925 application/octet-stream 313.1475ms
+[07:35:08 INF] Sending file. Request path: '_framework/Integration.Framework.Blazor.Client.pw7cgtcw5h.wasm'. Physical path: 'E:\Kodlarim\Yeni\src\Integration.TradeXpress.Blazor.Client\obj\Debug\net10.0\compressed\vtc4dgc5mi-{0}-pw7cgtcw5h-pw7cgtcw5h.gz'
+[07:35:08 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:08 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/_framework/Integration.Framework.Blazor.Client.pw7cgtcw5h.wasm - 200 103749 application/wasm 465.7446ms
+[07:35:08 INF] Sending file. Request path: '_framework/Integration.TradeXpress.Blazor.Client.6vux5sttq1.wasm'. Physical path: 'E:\Kodlarim\Yeni\src\Integration.TradeXpress.Blazor.Client\obj\Debug\net10.0\compressed\pv74iu6z44-{0}-6vux5sttq1-6vux5sttq1.gz'
+[07:35:08 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:08 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/_framework/Integration.TradeXpress.Blazor.Client.6vux5sttq1.wasm - 200 215380 application/wasm 762.5368ms
+[07:35:12 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/authentication/login-callback?code=BQfayrE9_uEGaY8tYhzi-LC-MC12d0y5yU38YOIDTa8&state=c525f36cbad14d80b9099035116f8a64&iss=https%3A%2F%2Fumut.taile7a850.ts.net%3A44388%2F&culture=en&ui-culture=en - null null
+[07:35:12 INF] Executing endpoint '/authentication/{action} (/authentication/{action})'
+[07:35:12 INF] Executed endpoint '/authentication/{action} (/authentication/{action})'
+[07:35:12 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/authentication/login-callback?code=BQfayrE9_uEGaY8tYhzi-LC-MC12d0y5yU38YOIDTa8&state=c525f36cbad14d80b9099035116f8a64&iss=https%3A%2F%2Fumut.taile7a850.ts.net%3A44388%2F&culture=en&ui-culture=en - 200 null text/html; charset=utf-8 0.8911ms
+[07:35:12 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/DevExpress.Blazor.Themes/blazing-berry.bs5.min.css - null null
+[07:35:12 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:12 INF] The file _content/DevExpress.Blazor.Themes/blazing-berry.bs5.min.css was not modified
+[07:35:12 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:12 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/DevExpress.Blazor.Themes/blazing-berry.bs5.min.css - 304 null text/css 0.4104ms
+[07:35:12 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/DevExpress.Blazor.Themes/bootstrap-external.bs5.min.css - null null
+[07:35:12 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/main.css - null null
+[07:35:12 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/Integration.TradeXpress.Blazor.Client.styles.css - null null
+[07:35:12 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/Microsoft.AspNetCore.Components.WebAssembly.Authentication/AuthenticationService.js - null null
+[07:35:12 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:12 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:12 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:12 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:12 INF] The file _content/Microsoft.AspNetCore.Components.WebAssembly.Authentication/AuthenticationService.js was not modified
+[07:35:12 INF] The file _content/DevExpress.Blazor.Themes/bootstrap-external.bs5.min.css was not modified
+[07:35:12 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:12 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:12 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/_framework/blazor.web.js - null null
+[07:35:12 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/DevExpress.Blazor.Themes/bootstrap-external.bs5.min.css - 304 null text/css 0.3605ms
+[07:35:12 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/Microsoft.AspNetCore.Components.WebAssembly.Authentication/AuthenticationService.js - 304 null text/javascript 0.2846ms
+[07:35:12 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:12 INF] The file _framework/blazor.web.js was not modified
+[07:35:12 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:12 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/_framework/blazor.web.js - 304 null text/javascript 0.2793ms
+[07:35:12 INF] Sending file. Request path: 'main.css'. Physical path: 'E:\Kodlarim\Yeni\src\Integration.TradeXpress.Blazor.Client\obj\Debug\net10.0\compressed\e5mdhctbfn-{0}-jqxnesobb0-jqxnesobb0.gz'
+[07:35:12 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:12 INF] Sending file. Request path: 'Integration.TradeXpress.Blazor.Client.styles.css'. Physical path: 'E:\Kodlarim\Yeni\src\Integration.TradeXpress.Blazor.Client\obj\Debug\net10.0\compressed\al6x01b7z4-{0}-lz285gdbgz-lz285gdbgz.gz'
+[07:35:12 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:12 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/main.css - 200 6332 text/css 0.7887ms
+[07:35:12 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/Integration.TradeXpress.Blazor.Client.styles.css - 200 4362 text/css 0.7527ms
+[07:35:12 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/_framework/resource-collection.pqKWB.js - null null
+[07:35:12 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:12 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:12 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/_framework/resource-collection.pqKWB.js - 200 16192 application/javascript 0.5858ms
+[07:35:14 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/DevExpress.Blazor.Resources/js/preload-script.js?v=25.2.5.0 - null null
+[07:35:14 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/DevExpress.Blazor/modules/dx-blazor-all.js?v=25.2.5.0 - null null
+[07:35:14 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/DevExpress.Blazor/dx-blazor.svg?v=25.2.5.0 - null null
+[07:35:14 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/js/layout-responsive.js - null null
+[07:35:14 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:14 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:14 INF] The file _content/DevExpress.Blazor/dx-blazor.svg was not modified
+[07:35:14 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:14 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/DevExpress.Blazor/dx-blazor.svg?v=25.2.5.0 - 304 null image/svg+xml 0.4022ms
+[07:35:14 INF] The file _content/DevExpress.Blazor/modules/dx-blazor-all.js was not modified
+[07:35:14 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:14 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/DevExpress.Blazor/modules/dx-blazor-all.js?v=25.2.5.0 - 304 null text/javascript 0.4767ms
+[07:35:14 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:14 INF] The file _content/DevExpress.Blazor.Resources/js/preload-script.js was not modified
+[07:35:14 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:14 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/DevExpress.Blazor.Resources/js/preload-script.js?v=25.2.5.0 - 304 null text/javascript 2.2542ms
+[07:35:14 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:14 INF] Sending file. Request path: 'js/layout-responsive.js'. Physical path: 'E:\Kodlarim\Yeni\src\Integration.TradeXpress.Blazor.Client\obj\Debug\net10.0\compressed\h3r77y9lww-{0}-fhboc95gbk-fhboc95gbk.gz'
+[07:35:14 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:14 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/js/layout-responsive.js - 200 778 text/javascript 1.8126ms
+[07:35:15 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/images/xaf/action_navigation_previous_object.svg - null null
+[07:35:15 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/images/xaf/action_refresh.svg - null null
+[07:35:15 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:15 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:15 INF] Sending file. Request path: 'images/xaf/action_navigation_previous_object.svg'. Physical path: 'E:\Kodlarim\Yeni\src\Integration.TradeXpress.Blazor.Client\obj\Debug\net10.0\compressed\m7fqbu62tl-{0}-7732diwoek-7732diwoek.gz'
+[07:35:15 INF] Sending file. Request path: 'images/xaf/action_refresh.svg'. Physical path: 'E:\Kodlarim\Yeni\src\Integration.TradeXpress.Blazor.Client\obj\Debug\net10.0\compressed\b2toy6k4va-{0}-lgpm8w7k5h-lgpm8w7k5h.gz'
+[07:35:15 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:15 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:15 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/images/xaf/action_refresh.svg - 200 1325 image/svg+xml 0.6773ms
+[07:35:15 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/images/xaf/action_navigation_previous_object.svg - 200 526 image/svg+xml 0.7019ms
+[07:35:15 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/images/xaf/action_navigation_next_object.svg - null null
+[07:35:15 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/images/xaf/action_new.svg - null null
+[07:35:15 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/images/xaf/action_delete.svg - null null
+[07:35:15 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:15 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:15 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:15 INF] Sending file. Request path: 'images/xaf/action_new.svg'. Physical path: 'E:\Kodlarim\Yeni\src\Integration.TradeXpress.Blazor.Client\obj\Debug\net10.0\compressed\5i7vkyxbx9-{0}-zrizxqif5o-zrizxqif5o.gz'
+[07:35:15 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:15 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/images/xaf/action_new.svg - 200 487 image/svg+xml 0.318ms
+[07:35:15 INF] Sending file. Request path: 'images/xaf/action_delete.svg'. Physical path: 'E:\Kodlarim\Yeni\src\Integration.TradeXpress.Blazor.Client\obj\Debug\net10.0\compressed\c7v2hup3i6-{0}-necrj99wma-necrj99wma.gz'
+[07:35:15 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:15 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/images/xaf/action_delete.svg - 200 870 image/svg+xml 0.3565ms
+[07:35:15 INF] Sending file. Request path: 'images/xaf/action_navigation_next_object.svg'. Physical path: 'E:\Kodlarim\Yeni\src\Integration.TradeXpress.Blazor.Client\obj\Debug\net10.0\compressed\7t3nt1p4ey-{0}-kf88jc14uf-kf88jc14uf.gz'
+[07:35:15 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:15 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/images/xaf/action_navigation_next_object.svg - 200 510 image/svg+xml 0.6215ms
+[07:35:15 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/images/xaf/action_export.svg - null null
+[07:35:15 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/images/xaf/action_search.svg - null null
+[07:35:15 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:15 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:15 INF] Sending file. Request path: 'images/xaf/action_export.svg'. Physical path: 'E:\Kodlarim\Yeni\src\Integration.TradeXpress.Blazor.Client\obj\Debug\net10.0\compressed\cm96l95et1-{0}-fbr97tcvzu-fbr97tcvzu.gz'
+[07:35:15 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:15 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/images/xaf/action_export.svg - 200 787 image/svg+xml 0.3056ms
+[07:35:15 INF] Sending file. Request path: 'images/xaf/action_search.svg'. Physical path: 'E:\Kodlarim\Yeni\src\Integration.TradeXpress.Blazor.Client\obj\Debug\net10.0\compressed\q4ffvktcyh-{0}-3q7cu8ovr1-3q7cu8ovr1.gz'
+[07:35:15 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:15 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/images/xaf/action_search.svg - 200 615 image/svg+xml 0.3374ms
+[07:35:15 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/DevExpress.Blazor/modules/dx-blazor-all-LhiyymDQ.js - null null
+[07:35:15 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:15 INF] The file _content/DevExpress.Blazor/modules/dx-blazor-all-LhiyymDQ.js was not modified
+[07:35:15 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:15 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/DevExpress.Blazor/modules/dx-blazor-all-LhiyymDQ.js - 304 null text/javascript 0.3962ms
+[07:35:15 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/DevExpress.Blazor/modules/_commonjsHelpers-O6R62DGM.js - null null
+[07:35:15 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:15 INF] The file _content/DevExpress.Blazor/modules/_commonjsHelpers-O6R62DGM.js was not modified
+[07:35:15 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:15 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/DevExpress.Blazor/modules/_commonjsHelpers-O6R62DGM.js - 304 null text/javascript 0.1809ms
+[07:35:15 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/DevExpress.Blazor.Themes/blazing-berry.bs5.min.css - null null
+[07:35:15 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:15 INF] The file _content/DevExpress.Blazor.Themes/blazing-berry.bs5.min.css was not modified
+[07:35:15 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:15 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/DevExpress.Blazor.Themes/blazing-berry.bs5.min.css - 304 null text/css 0.3776ms
+[07:35:15 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/DevExpress.Blazor.Themes/bootstrap-external.bs5.min.css - null null
+[07:35:15 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/main.css - null null
+[07:35:15 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/Integration.TradeXpress.Blazor.Client.styles.css - null null
+[07:35:15 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:15 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:15 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:15 INF] The file _content/DevExpress.Blazor.Themes/bootstrap-external.bs5.min.css was not modified
+[07:35:15 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:15 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/DevExpress.Blazor.Themes/bootstrap-external.bs5.min.css - 304 null text/css 0.2658ms
+[07:35:15 INF] Sending file. Request path: 'main.css'. Physical path: 'E:\Kodlarim\Yeni\src\Integration.TradeXpress.Blazor.Client\obj\Debug\net10.0\compressed\e5mdhctbfn-{0}-jqxnesobb0-jqxnesobb0.gz'
+[07:35:15 INF] Sending file. Request path: 'Integration.TradeXpress.Blazor.Client.styles.css'. Physical path: 'E:\Kodlarim\Yeni\src\Integration.TradeXpress.Blazor.Client\obj\Debug\net10.0\compressed\al6x01b7z4-{0}-lz285gdbgz-lz285gdbgz.gz'
+[07:35:15 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:15 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:15 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/main.css - 200 6332 text/css 0.5557ms
+[07:35:15 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/Integration.TradeXpress.Blazor.Client.styles.css - 200 4362 text/css 0.5492ms
+[07:35:15 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/DevExpress.Blazor/dx-blazor.svg?v=25.2.5.0 - null null
+[07:35:15 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:15 INF] The file _content/DevExpress.Blazor/dx-blazor.svg was not modified
+[07:35:15 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:15 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/DevExpress.Blazor/dx-blazor.svg?v=25.2.5.0 - 304 null image/svg+xml 0.337ms
+[07:35:15 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/DevExpress.Blazor/dx-blazor.svg?v=25.2.5.0 - null null
+[07:35:15 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:15 INF] The file _content/DevExpress.Blazor/dx-blazor.svg was not modified
+[07:35:15 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:15 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/DevExpress.Blazor/dx-blazor.svg?v=25.2.5.0 - 304 null image/svg+xml 0.3749ms
+[07:35:25 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/tenant-management/tenants - null null
+[07:35:25 INF] Executing endpoint '/tenant-management/tenants (/tenant-management/tenants)'
+[07:35:25 INF] Executed endpoint '/tenant-management/tenants (/tenant-management/tenants)'
+[07:35:25 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/tenant-management/tenants - 200 null text/html; charset=utf-8 0.9125ms
+[07:35:25 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/_framework/dotnet.js - null null
+[07:35:25 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:25 INF] Sending file. Request path: '_framework/dotnet.js'. Physical path: 'E:\Kodlarim\Yeni\src\Integration.TradeXpress.Blazor.Client\obj\Debug\net10.0\compressed\1w2vjm1h4t-{0}-g85c45vd9o-g85c45vd9o.gz'
+[07:35:25 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:25 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/_framework/dotnet.js - 200 135529 text/javascript 1.0603ms
+[07:35:25 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/_framework/dotnet.runtime.a6jcqbs390.js - null null
+[07:35:25 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/_framework/dotnet.native.ikrs475e5v.js - null null
+[07:35:25 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:25 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:25 INF] The file _framework/dotnet.runtime.a6jcqbs390.js was not modified
+[07:35:25 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:25 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/_framework/dotnet.runtime.a6jcqbs390.js - 304 null text/javascript 0.2364ms
+[07:35:25 INF] The file _framework/dotnet.native.ikrs475e5v.js was not modified
+[07:35:25 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:25 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/_framework/dotnet.native.ikrs475e5v.js - 304 null text/javascript 0.2905ms
+[07:35:26 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/appsettings.json - null null
+[07:35:26 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:26 INF] Sending file. Request path: 'appsettings.json'. Physical path: 'E:\Kodlarim\Yeni\src\Integration.TradeXpress.Blazor.Client\obj\Debug\net10.0\compressed\dxztffe5zg-{0}-60q643cbpb-60q643cbpb.gz'
+[07:35:26 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:26 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/appsettings.json - 200 464 application/json 0.4661ms
+[07:35:28 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/authentication/login-callback?code=IP_QRUHhY1SOAnJJ4uA5xTFrQy-gqVwP0PzakQoca5E&state=e8b36b4e3eab47649b72866ddeba0923&iss=https%3A%2F%2Fumut.taile7a850.ts.net%3A44388%2F&culture=en&ui-culture=en - null null
+[07:35:28 INF] Executing endpoint '/authentication/{action} (/authentication/{action})'
+[07:35:28 INF] Executed endpoint '/authentication/{action} (/authentication/{action})'
+[07:35:28 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/authentication/login-callback?code=IP_QRUHhY1SOAnJJ4uA5xTFrQy-gqVwP0PzakQoca5E&state=e8b36b4e3eab47649b72866ddeba0923&iss=https%3A%2F%2Fumut.taile7a850.ts.net%3A44388%2F&culture=en&ui-culture=en - 200 null text/html; charset=utf-8 0.8273ms
+[07:35:29 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/DevExpress.Blazor.Themes/blazing-berry.bs5.min.css - null null
+[07:35:29 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:29 INF] The file _content/DevExpress.Blazor.Themes/blazing-berry.bs5.min.css was not modified
+[07:35:29 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:29 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/DevExpress.Blazor.Themes/blazing-berry.bs5.min.css - 304 null text/css 0.3412ms
+[07:35:29 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/DevExpress.Blazor.Themes/bootstrap-external.bs5.min.css - null null
+[07:35:29 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:29 INF] The file _content/DevExpress.Blazor.Themes/bootstrap-external.bs5.min.css was not modified
+[07:35:29 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:29 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/DevExpress.Blazor.Themes/bootstrap-external.bs5.min.css - 304 null text/css 0.3533ms
+[07:35:29 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/main.css - null null
+[07:35:29 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/Integration.TradeXpress.Blazor.Client.styles.css - null null
+[07:35:29 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/_framework/blazor.web.js - null null
+[07:35:29 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:29 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:29 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:29 INF] The file _framework/blazor.web.js was not modified
+[07:35:29 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:29 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/_framework/blazor.web.js - 304 null text/javascript 0.2089ms
+[07:35:29 INF] Sending file. Request path: 'main.css'. Physical path: 'E:\Kodlarim\Yeni\src\Integration.TradeXpress.Blazor.Client\obj\Debug\net10.0\compressed\e5mdhctbfn-{0}-jqxnesobb0-jqxnesobb0.gz'
+[07:35:29 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:29 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/main.css - 200 6332 text/css 0.4484ms
+[07:35:29 INF] Sending file. Request path: 'Integration.TradeXpress.Blazor.Client.styles.css'. Physical path: 'E:\Kodlarim\Yeni\src\Integration.TradeXpress.Blazor.Client\obj\Debug\net10.0\compressed\al6x01b7z4-{0}-lz285gdbgz-lz285gdbgz.gz'
+[07:35:29 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:29 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/Integration.TradeXpress.Blazor.Client.styles.css - 200 4362 text/css 0.4622ms
+[07:35:29 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/Microsoft.AspNetCore.Components.WebAssembly.Authentication/AuthenticationService.js - null null
+[07:35:29 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:29 INF] The file _content/Microsoft.AspNetCore.Components.WebAssembly.Authentication/AuthenticationService.js was not modified
+[07:35:29 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:29 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/Microsoft.AspNetCore.Components.WebAssembly.Authentication/AuthenticationService.js - 304 null text/javascript 0.2134ms
+[07:35:30 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/DevExpress.Blazor.Resources/js/preload-script.js?v=25.2.5.0 - null null
+[07:35:30 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/DevExpress.Blazor/dx-blazor.svg?v=25.2.5.0 - null null
+[07:35:30 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/DevExpress.Blazor/modules/dx-blazor-all.js?v=25.2.5.0 - null null
+[07:35:30 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:30 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:30 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:30 INF] The file _content/DevExpress.Blazor.Resources/js/preload-script.js was not modified
+[07:35:30 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:30 INF] The file _content/DevExpress.Blazor/dx-blazor.svg was not modified
+[07:35:30 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:30 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/DevExpress.Blazor/dx-blazor.svg?v=25.2.5.0 - 304 null image/svg+xml 0.394ms
+[07:35:30 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/DevExpress.Blazor.Resources/js/preload-script.js?v=25.2.5.0 - 304 null text/javascript 0.3979ms
+[07:35:30 INF] The file _content/DevExpress.Blazor/modules/dx-blazor-all.js was not modified
+[07:35:30 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:30 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/DevExpress.Blazor/modules/dx-blazor-all.js?v=25.2.5.0 - 304 null text/javascript 0.4844ms
+[07:35:30 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/js/layout-responsive.js - null null
+[07:35:30 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:30 INF] Sending file. Request path: 'js/layout-responsive.js'. Physical path: 'E:\Kodlarim\Yeni\src\Integration.TradeXpress.Blazor.Client\obj\Debug\net10.0\compressed\h3r77y9lww-{0}-fhboc95gbk-fhboc95gbk.gz'
+[07:35:30 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:30 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/js/layout-responsive.js - 200 778 text/javascript 0.6344ms
+[07:35:31 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/images/xaf/action_new.svg - null null
+[07:35:31 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:31 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/images/xaf/action_delete.svg - null null
+[07:35:31 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:31 INF] Sending file. Request path: 'images/xaf/action_new.svg'. Physical path: 'E:\Kodlarim\Yeni\src\Integration.TradeXpress.Blazor.Client\obj\Debug\net10.0\compressed\5i7vkyxbx9-{0}-zrizxqif5o-zrizxqif5o.gz'
+[07:35:31 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:31 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/images/xaf/action_new.svg - 200 487 image/svg+xml 0.6342ms
+[07:35:31 INF] Sending file. Request path: 'images/xaf/action_delete.svg'. Physical path: 'E:\Kodlarim\Yeni\src\Integration.TradeXpress.Blazor.Client\obj\Debug\net10.0\compressed\c7v2hup3i6-{0}-necrj99wma-necrj99wma.gz'
+[07:35:31 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:31 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/images/xaf/action_delete.svg - 200 870 image/svg+xml 0.3169ms
+[07:35:31 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/images/xaf/action_navigation_previous_object.svg - null null
+[07:35:31 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:31 INF] Sending file. Request path: 'images/xaf/action_navigation_previous_object.svg'. Physical path: 'E:\Kodlarim\Yeni\src\Integration.TradeXpress.Blazor.Client\obj\Debug\net10.0\compressed\m7fqbu62tl-{0}-7732diwoek-7732diwoek.gz'
+[07:35:31 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:31 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/images/xaf/action_navigation_previous_object.svg - 200 526 image/svg+xml 0.5809ms
+[07:35:31 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/images/xaf/action_navigation_next_object.svg - null null
+[07:35:31 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:31 INF] Sending file. Request path: 'images/xaf/action_navigation_next_object.svg'. Physical path: 'E:\Kodlarim\Yeni\src\Integration.TradeXpress.Blazor.Client\obj\Debug\net10.0\compressed\7t3nt1p4ey-{0}-kf88jc14uf-kf88jc14uf.gz'
+[07:35:31 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:31 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/images/xaf/action_navigation_next_object.svg - 200 510 image/svg+xml 0.2688ms
+[07:35:31 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/images/xaf/action_export.svg - null null
+[07:35:31 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/images/xaf/action_refresh.svg - null null
+[07:35:31 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:31 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:31 INF] Sending file. Request path: 'images/xaf/action_refresh.svg'. Physical path: 'E:\Kodlarim\Yeni\src\Integration.TradeXpress.Blazor.Client\obj\Debug\net10.0\compressed\b2toy6k4va-{0}-lgpm8w7k5h-lgpm8w7k5h.gz'
+[07:35:31 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:31 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/images/xaf/action_refresh.svg - 200 1325 image/svg+xml 0.2811ms
+[07:35:31 INF] Sending file. Request path: 'images/xaf/action_export.svg'. Physical path: 'E:\Kodlarim\Yeni\src\Integration.TradeXpress.Blazor.Client\obj\Debug\net10.0\compressed\cm96l95et1-{0}-fbr97tcvzu-fbr97tcvzu.gz'
+[07:35:31 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:31 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/images/xaf/action_export.svg - 200 787 image/svg+xml 0.3274ms
+[07:35:31 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/images/xaf/action_search.svg - null null
+[07:35:31 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:31 INF] Sending file. Request path: 'images/xaf/action_search.svg'. Physical path: 'E:\Kodlarim\Yeni\src\Integration.TradeXpress.Blazor.Client\obj\Debug\net10.0\compressed\q4ffvktcyh-{0}-3q7cu8ovr1-3q7cu8ovr1.gz'
+[07:35:31 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:31 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/images/xaf/action_search.svg - 200 615 image/svg+xml 0.3812ms
+[07:35:31 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/DevExpress.Blazor/modules/dx-blazor-all-LhiyymDQ.js - null null
+[07:35:31 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:31 INF] The file _content/DevExpress.Blazor/modules/dx-blazor-all-LhiyymDQ.js was not modified
+[07:35:31 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:31 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/DevExpress.Blazor/modules/dx-blazor-all-LhiyymDQ.js - 304 null text/javascript 0.3592ms
+[07:35:31 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/DevExpress.Blazor/modules/_commonjsHelpers-O6R62DGM.js - null null
+[07:35:31 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:31 INF] The file _content/DevExpress.Blazor/modules/_commonjsHelpers-O6R62DGM.js was not modified
+[07:35:31 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:31 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/DevExpress.Blazor/modules/_commonjsHelpers-O6R62DGM.js - 304 null text/javascript 0.3476ms
+[07:35:31 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/DevExpress.Blazor.Themes/blazing-berry.bs5.min.css - null null
+[07:35:31 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:31 INF] The file _content/DevExpress.Blazor.Themes/blazing-berry.bs5.min.css was not modified
+[07:35:31 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:31 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/DevExpress.Blazor.Themes/blazing-berry.bs5.min.css - 304 null text/css 0.3393ms
+[07:35:31 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/DevExpress.Blazor.Themes/bootstrap-external.bs5.min.css - null null
+[07:35:31 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/main.css - null null
+[07:35:31 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:31 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:31 INF] The file _content/DevExpress.Blazor.Themes/bootstrap-external.bs5.min.css was not modified
+[07:35:31 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:31 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/DevExpress.Blazor.Themes/bootstrap-external.bs5.min.css - 304 null text/css 0.2293ms
+[07:35:31 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/Integration.TradeXpress.Blazor.Client.styles.css - null null
+[07:35:31 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:31 INF] Sending file. Request path: 'main.css'. Physical path: 'E:\Kodlarim\Yeni\src\Integration.TradeXpress.Blazor.Client\obj\Debug\net10.0\compressed\e5mdhctbfn-{0}-jqxnesobb0-jqxnesobb0.gz'
+[07:35:31 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:31 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/main.css - 200 6332 text/css 0.5176ms
+[07:35:31 INF] Sending file. Request path: 'Integration.TradeXpress.Blazor.Client.styles.css'. Physical path: 'E:\Kodlarim\Yeni\src\Integration.TradeXpress.Blazor.Client\obj\Debug\net10.0\compressed\al6x01b7z4-{0}-lz285gdbgz-lz285gdbgz.gz'
+[07:35:31 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:31 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/Integration.TradeXpress.Blazor.Client.styles.css - 200 4362 text/css 0.3788ms
+[07:35:32 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/DevExpress.Blazor/dx-blazor.svg?v=25.2.5.0 - null null
+[07:35:32 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:32 INF] The file _content/DevExpress.Blazor/dx-blazor.svg was not modified
+[07:35:32 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:32 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/DevExpress.Blazor/dx-blazor.svg?v=25.2.5.0 - 304 null image/svg+xml 0.3197ms
+[07:35:36 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/DevExpress.Blazor/dx-blazor.svg?v=25.2.5.0 - null null
+[07:35:36 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:36 INF] The file _content/DevExpress.Blazor/dx-blazor.svg was not modified
+[07:35:36 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:36 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/DevExpress.Blazor/dx-blazor.svg?v=25.2.5.0 - 304 null image/svg+xml 0.3603ms
+[07:35:36 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/DevExpress.Blazor/dx-blazor.svg?v=25.2.5.0 - null null
+[07:35:36 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:36 INF] The file _content/DevExpress.Blazor/dx-blazor.svg was not modified
+[07:35:36 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:36 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/DevExpress.Blazor/dx-blazor.svg?v=25.2.5.0 - 304 null image/svg+xml 0.4416ms
+[07:35:43 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/DevExpress.Blazor/dx-blazor.svg?v=25.2.5.0 - null null
+[07:35:43 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:43 INF] The file _content/DevExpress.Blazor/dx-blazor.svg was not modified
+[07:35:43 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:35:43 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/DevExpress.Blazor/dx-blazor.svg?v=25.2.5.0 - 304 null image/svg+xml 0.3802ms
+[07:36:37 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/DevExpress.Blazor/dx-blazor.svg?v=25.2.5.0 - null null
+[07:36:37 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:36:37 INF] The file _content/DevExpress.Blazor/dx-blazor.svg was not modified
+[07:36:37 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:36:37 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/DevExpress.Blazor/dx-blazor.svg?v=25.2.5.0 - 304 null image/svg+xml 0.3283ms
+[07:36:38 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/DevExpress.Blazor/dx-blazor.svg?v=25.2.5.0 - null null
+[07:36:38 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:36:38 INF] The file _content/DevExpress.Blazor/dx-blazor.svg was not modified
+[07:36:38 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:36:38 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/DevExpress.Blazor/dx-blazor.svg?v=25.2.5.0 - 304 null image/svg+xml 0.3612ms
+[07:36:48 INF] Request starting HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/DevExpress.Blazor/dx-blazor.svg?v=25.2.5.0 - null null
+[07:36:48 INF] Executing endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:36:48 INF] The file _content/DevExpress.Blazor/dx-blazor.svg was not modified
+[07:36:48 INF] Executed endpoint 'Microsoft.AspNetCore.Routing.RouteEndpoint'
+[07:36:48 INF] Request finished HTTP/2 GET https://umut.taile7a850.ts.net:44318/_content/DevExpress.Blazor/dx-blazor.svg?v=25.2.5.0 - 304 null image/svg+xml 0.4613ms

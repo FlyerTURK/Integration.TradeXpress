@@ -1,0 +1,110 @@
+@typeparam TGetDto where TGetDto : class, Integration.Framework.Base.Dtos.Interfaces.IGetDto<TKey>, new()
+@typeparam TListDto where TListDto : class, Integration.Framework.Base.Dtos.Interfaces.IListDto<TKey>, new()
+@typeparam TViewModel where TViewModel : class, Integration.Framework.Blazor.Client.Components.Crud.IViewModel<TKey>, new()
+@typeparam TKey
+
+@using Integration.Framework.Blazor.Client.Services.Base
+@using DevExpress.Blazor
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+<DxToolbar ItemRenderStyleMode="ToolbarRenderStyleMode.Plain">
+    <!-- New Button -->
+    <DxToolbarItem Text="@L["New"]"
+                   IconUrl="/images/xaf/action_new.svg"
+                   IconCssClass="xaf-toolbar-item-icon"
+                   Click="@((ToolbarItemClickEventArgs e) => OnNewClick.InvokeAsync())"
+                   Visible="@StateService.IsGrantedCreate"
+                   BeginGroup="@(!IsMobile)" />
+
+    <!-- Delete Button -->
+    <DxToolbarItem Text="@L["Delete"]"
+                   IconUrl="/images/xaf/action_delete.svg"
+                   IconCssClass="xaf-toolbar-item-icon"
+                   Click="@((ToolbarItemClickEventArgs e) => OnDeleteClick.InvokeAsync())"
+                   Visible="@StateService.IsGrantedDelete"
+                   Enabled="@(StateService.SelectedDataItems != null && StateService.SelectedDataItems.Count > 0)" />
+
+    <!-- Arama kutusu (masaüstü) — mobilde gizli -->
+    <DxToolbarItem BeginGroup="@(!IsMobile)" Visible="@(!IsMobile)">
+        <Template Context="searchContext">
+            <DxTextBox Text="@_localSearchText"
+                       TextChanged="OnLocalTextChanged"
+                       NullText="@L["Search"]"
+                       ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto"
+                       CssClass="grid-search-box">
+                <Buttons>
+                    <DxEditorButton IconCssClass="xaf-search-icon" Tooltip="@L["Search"]" Click="OnSearchButtonClick" />
+                </Buttons>
+            </DxTextBox>
+        </Template>
+    </DxToolbarItem>
+
+    <!-- Sade arama ikonu (mobil) — masaüstünde gizli. Tıklayınca DxGrid'in gömülü arama kutusunu açar. -->
+    <DxToolbarItem BeginGroup="@(!IsMobile)"
+                   Visible="@IsMobile"
+                   IconUrl="/images/xaf/action_search.svg"
+                   IconCssClass="xaf-toolbar-item-icon"
+                   Tooltip="@L["Search"]"
+                   Click="@((ToolbarItemClickEventArgs e) => OnToggleGridSearch.InvokeAsync())" />
+
+    <!-- Export & Print -->
+    <DxToolbarItem Tooltip="@L["Export"]" IconUrl="/images/xaf/action_export.svg" IconCssClass="xaf-toolbar-item-icon" BeginGroup="@(!IsMobile)">
+        <Items>
+            <DxToolbarItem Text="@L["ExportToExcel"]" IconUrl="/images/xaf/action_export_toxlsx.svg" IconCssClass="xaf-toolbar-item-icon" Click="@((ToolbarItemClickEventArgs e) => OnExportToExcelClick.InvokeAsync())" />
+            <DxToolbarItem Text="@L["PrintPdf"]" IconUrl="/images/xaf/action_export_topdf.svg" IconCssClass="xaf-toolbar-item-icon" Click="@((ToolbarItemClickEventArgs e) => OnPrintPdfClick.InvokeAsync())" />
+        </Items>
+    </DxToolbarItem>
+
+    <!-- Pagination (Previous / Next) -->
+    <DxToolbarItem IconUrl="/images/xaf/action_navigation_previous_object.svg"
+                   IconCssClass="xaf-toolbar-item-icon"
+                   Tooltip="@L["PreviousPage"]"
+                   Click="@((ToolbarItemClickEventArgs e) => OnGoToPreviousPageClick.InvokeAsync())" 
+                   Enabled="@CanGoToPreviousPage"
+                   BeginGroup="@(!IsMobile)" />
+                   
+    <DxToolbarItem IconUrl="/images/xaf/action_navigation_next_object.svg"
+                   IconCssClass="xaf-toolbar-item-icon"
+                   Tooltip="@L["NextPage"]"
+                   Click="@((ToolbarItemClickEventArgs e) => OnGoToNextPageClick.InvokeAsync())" 
+                   Enabled="@CanGoToNextPage" />
+
+    <!-- Refresh Button -->
+    <DxToolbarItem Tooltip="@L["Refresh"]"
+                   IconUrl="/images/xaf/action_refresh.svg"
+                   IconCssClass="xaf-toolbar-item-icon"
+                   Click="@((ToolbarItemClickEventArgs e) => OnRefreshClick.InvokeAsync())"
+                   BeginGroup="@(!IsMobile)" />
+
+    <!-- Sayfaya özel ek aksiyonlar (drill vb.) -->
+    @if (CustomActions != null)
+    {
+        <DxToolbarItem BeginGroup="@(!IsMobile)">
+            <Template>
+                @CustomActions
+            </Template>
+        </DxToolbarItem>
+    }
+
+    @* IsActive Filter Switch — sağa yaslı. EN SONDA tanımlanmalı: Alignment=Right bir item ortada
+       olunca DevExpress ondan sonraki item'ları da sağa kaydırıyor. Yalnız TListDto : IIsActive ise. *@
+    @if (ShowActiveFilter)
+    {
+        <DxToolbarItem Alignment="ToolbarItemAlignment.Right" BeginGroup="true">
+            <Template>
+                <div style="display:flex; align-items:center; gap:0.4rem; padding:0 0.25rem; white-space:nowrap;">
+                    <DxCheckBox Checked="ActiveSwitchValue"
+                                CheckedChanged="@((bool v) => OnActiveSwitchChanged(v))"
+                                CheckType="CheckType.Switch" />
+                    @* Etiket duruma göre: ON → Aktif, OFF → Pasif. Mobilde yer dar olduğundan gizlenir. *@
+                    @if (!IsMobile)
+                    {
+                        <span>@(ActiveSwitchValue ? L["ActiveRecords"] : L["PassiveRecords"])</span>
+                    }
+                </div>
+            </Template>
+        </DxToolbarItem>
+    }
+</DxToolbar>
+
+

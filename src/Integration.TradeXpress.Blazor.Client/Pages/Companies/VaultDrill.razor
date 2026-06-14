@@ -1,0 +1,58 @@
+@using Integration.TradeXpress.Blazor.Client.Pages.Companies.Models
+@using Integration.Framework.Blazor.Client.Components.Crud
+@using DevExpress.Blazor
+@inject Microsoft.Extensions.Localization.IStringLocalizer<Integration.TradeXpress.Localization.TradeXpressResource> L
+
+<DrillList TItem="VaultTreeItemViewModel"
+           Title="@L["Menu:Vaults"]"
+           EntityName="@L["Entity:Vault"]"
+           Items="@Items"
+           MinItems="1"
+           NewItemFactory="@CompanyTreeMapping.NewDefaultVault"
+           CloneFactory="@CompanyTreeMapping.CloneVault"
+           OnItemSaved="OnVaultSaved"
+           OnItemDeleted="OnItemDeleted"
+           OnChanged="OnChanged">
+    <GridColumns>
+        <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" />
+        <DxGridDataColumn FieldName="IsDefault" Caption="@L["IsDefault"]" Width="100px" />
+        <DxGridDataColumn FieldName="IsActive" Caption="@L["IsActive"]" Width="80px" />
+    </GridColumns>
+    <EditContent Context="vault">
+        <DxFormLayout Data="@vault" CssClass="w-100">
+            <DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="8">
+                <DxTextBox @bind-Text="@vault.Name" />
+            </DxFormLayoutItem>
+            <DxFormLayoutItem Caption="@L["DisplayOrder"]" ColSpanMd="4">
+                <DxSpinEdit @bind-Value="@vault.DisplayOrder" />
+            </DxFormLayoutItem>
+            <DxFormLayoutItem Caption="@L["IsDefault"]" ColSpanMd="6">
+                <DxCheckBox @bind-Checked="@vault.IsDefault" CheckType="CheckType.Switch">
+                    @(vault.IsDefault ? L["Yes"] : L["No"])
+                </DxCheckBox>
+                <div class="form-text text-muted small">@L["VaultDefaultHint"]</div>
+            </DxFormLayoutItem>
+            <DxFormLayoutItem Caption="@L["IsActive"]" ColSpanMd="6">
+                <DxCheckBox @bind-Checked="@vault.IsActive" CheckType="CheckType.Switch">
+                    @(vault.IsActive ? L["Active"] : L["Passive"])
+                </DxCheckBox>
+            </DxFormLayoutItem>
+            <DxFormLayoutItem Caption="@L["Description"]" ColSpanMd="12">
+                <DxTextBox @bind-Text="@vault.Description" />
+            </DxFormLayoutItem>
+        </DxFormLayout>
+    </EditContent>
+</DrillList>
+
+@code {
+    [Parameter, EditorRequired] public List<VaultTreeItemViewModel> Items { get; set; } = default!;
+    [Parameter] public EventCallback<VaultTreeItemViewModel> OnItemDeleted { get; set; }
+    [Parameter] public EventCallback OnChanged { get; set; }
+
+    private void OnVaultSaved(VaultTreeItemViewModel saved)
+    {
+        if (!saved.IsDefault) return;
+        foreach (var v in Items)
+            if (v != saved) v.IsDefault = false;
+    }
+}

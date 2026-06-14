@@ -1,0 +1,247 @@
+@using System.Globalization
+@using DevExpress.Blazor
+@using Integration.TradeXpress.Blazor.Client.Theming
+@using Integration.TradeXpress.Blazor.Client.Globalization
+@inject IThemeService ThemeService
+@inject ISizeModeService SizeModeService
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+@inject Microsoft.Extensions.Localization.IStringLocalizer<Integration.TradeXpress.Localization.TradeXpressResource> L
+@implements IDisposable
+
+<div class="settings-panel">
+
+    @* 1) Boyut (DevExpress SizeMode) *@
+    <nav class="themes-menu" aria-label="Boyut">
+        <ul class="nav nav-pills">
+            <li class="nav-item theme-group">Boyut</li>
+            <li class="nav-item theme-group">
+                <DxComboBox Data="_sizeModes"
+                            TextFieldName="@nameof(SizeModeOption.Caption)"
+                            ValueFieldName="@nameof(SizeModeOption.Mode)"
+                            Value="SizeModeService.CurrentSizeMode"
+                            ValueChanged="@((SizeMode m) => OnSizeModeChanged(m))"
+                            ValidationEnabled="false"
+                            CssClass="w-100" />
+            </li>
+        </ul>
+    </nav>
+
+    @* 2) Dil *@
+    <nav class="themes-menu" aria-label="Dil">
+        <ul class="nav nav-pills">
+            <li class="nav-item theme-group">Dil</li>
+            <li class="nav-item theme-group">
+                <DxComboBox Data="CultureCatalog.Supported"
+                            TextFieldName="@nameof(CultureInfo.NativeName)"
+                            ValueFieldName="@nameof(CultureInfo.Name)"
+                            Value="@CurrentCultureName"
+                            ValueChanged="@((string c) => OnCultureChanged(c))"
+                            ValidationEnabled="false"
+                            CssClass="w-100" />
+            </li>
+        </ul>
+    </nav>
+
+    @* 3) Tema Modu (Fluent Light/Dark) *@
+    <nav class="themes-menu" aria-label="Tema Modu">
+        <ul class="nav nav-pills">
+            <li class="nav-item theme-group">Tema Modu</li>
+            <li class="nav-item theme-group">
+                <DxComboBox Data="_themeModes"
+                            TextFieldName="@nameof(ThemeModeOption.Caption)"
+                            ValueFieldName="@nameof(ThemeModeOption.Mode)"
+                            Value="@CurrentFluentMode"
+                            ValueChanged="@((ThemeMode m) => OnFluentModeChanged(m))"
+                            ValidationEnabled="false"
+                            CssClass="w-100" />
+            </li>
+        </ul>
+    </nav>
+
+    @* 4) Vurgu Renkleri (Fluent accents) *@
+    <nav class="themes-menu themes-menu-tms themes-fluent-header" aria-label="Vurgu Renkleri">
+        <ul class="nav nav-pills">
+            <li class="nav-item theme-group">Vurgu Renkleri</li>
+        </ul>
+    </nav>
+    <nav class="themes-menu themes-menu-tms" aria-label="Vurgu Renkleri">
+        <ul class="nav nav-pills">
+            @foreach (var item in ThemeCatalog.FluentAccents)
+            {
+                var isActive = ThemeService.CurrentSelection.Kind == ThemeKind.Fluent
+                               && string.IsNullOrEmpty(ThemeService.CurrentSelection.FluentCustomColor)
+                               && ThemeService.CurrentSelection.FluentAccent == item.Accent;
+                <li class="nav-item">
+                    <a class="nav-link @(isActive ? "active" : "")"
+                       href="javascript:;"
+                       @onclick="@(() => OnFluentAccentClick(item.Accent))"
+                       @onclick:preventDefault="true">
+                        <span class="image" style="background-color:@item.SwatchColor" aria-hidden="true"></span>
+                        <span class="theme-name text-body">@item.Caption</span>
+                    </a>
+                </li>
+            }
+        </ul>
+    </nav>
+
+    @* 5) Özel Renk *@
+    <nav class="themes-menu themes-menu-tms themes-fluent-header" aria-label="Özel Renk">
+        <ul class="nav nav-pills">
+            <li class="nav-item theme-group">Özel Renk</li>
+        </ul>
+    </nav>
+    <nav class="themes-menu themeswitcher-custom-color @(string.IsNullOrEmpty(ThemeService.CurrentSelection.FluentCustomColor) ? "" : "active")" aria-label="Özel Renk">
+        <button type="button"
+                class="dxbl-btn dxbl-btn-secondary dxbl-btn-icon-only dxbl-btn-standalone themeswitcher-custom-color-button"
+                title="Özel Renk"
+                aria-label="Özel Renk">
+            <div class="themeswitcher-custom-color-button-icon"
+                 style="background-color:@(ThemeService.CurrentSelection.FluentCustomColor ?? "#0f6cbd")"></div>
+            <input type="color"
+                   value="@(ThemeService.CurrentSelection.FluentCustomColor ?? "#0f6cbd")"
+                   @onchange="OnCustomColorPicked"
+                   aria-label="Özel Renk" />
+        </button>
+        <span class="theme-name text-body">@(ThemeService.CurrentSelection.FluentCustomColor ?? "#0f6cbd")</span>
+    </nav>
+
+    @* 6) Klasik Temalar (Bootstrap) *@
+    <nav class="themes-menu themes-menu-tms-hdr" aria-label="Klasik Temalar">
+        <ul class="nav nav-pills">
+            <li class="nav-item theme-group">Klasik Temalar</li>
+        </ul>
+    </nav>
+    <nav class="themes-menu themes-menu-tms" aria-label="Klasik Temalar">
+        <ul class="nav nav-pills">
+            @foreach (var entry in ThemeCatalog.BootstrapThemes)
+            {
+                var isActive = ThemeService.CurrentSelection.Kind == ThemeKind.Bootstrap
+                               && ThemeService.CurrentSelection.BootstrapName == entry.Name;
+                <li class="nav-item">
+                    <a class="nav-link @(isActive ? "active" : "")"
+                       href="javascript:;"
+                       @onclick="@(() => OnBootstrapClick(entry.Name))"
+                       @onclick:preventDefault="true">
+                        <span class="image" style="background-color:@entry.SwatchColor" aria-hidden="true"></span>
+                        <span class="theme-name text-body">@entry.Name</span>
+                    </a>
+                </li>
+            }
+        </ul>
+    </nav>
+
+</div>
+
+@code {
+    private sealed record SizeModeOption(SizeMode Mode, string Caption);
+
+    private static readonly SizeModeOption[] _sizeModes =
+    {
+        new(SizeMode.Small,  "Compact"),
+        new(SizeMode.Medium, "Standart"),
+        new(SizeMode.Large,  "Geniş"),
+    };
+
+    private sealed record ThemeModeOption(ThemeMode Mode, string Caption);
+
+    private static readonly ThemeModeOption[] _themeModes =
+    {
+        new(ThemeMode.Light, "Açık"),
+        new(ThemeMode.Dark,  "Koyu"),
+    };
+
+    // Mevcut UI kültürünün, katalogdaki desteklenen değere eşlenmiş adı.
+    private string CurrentCultureName
+    {
+        get
+        {
+            var current = CultureInfo.CurrentUICulture.Name;
+            foreach (var c in CultureCatalog.Supported)
+            {
+                if (current.Equals(c.Name, StringComparison.OrdinalIgnoreCase)
+                    || current.StartsWith(c.Name, StringComparison.OrdinalIgnoreCase))
+                {
+                    return c.Name;
+                }
+            }
+            return current;
+        }
+    }
+
+    // Fluent değilse combobox yine de anlamlı bir mod göstersin (Light).
+    private ThemeMode CurrentFluentMode =>
+        ThemeService.CurrentSelection.Kind == ThemeKind.Fluent
+            ? ThemeService.CurrentSelection.FluentMode
+            : ThemeMode.Light;
+
+    protected override void OnInitialized()
+    {
+        ThemeService.CurrentThemeChanged += OnStateChanged;
+        SizeModeService.SizeModeChanged += OnStateChanged;
+    }
+
+    private void OnStateChanged(object? sender, EventArgs e) => InvokeAsync(StateHasChanged);
+
+    private async Task OnSizeModeChanged(SizeMode mode)
+        => await SizeModeService.SetAsync(mode);
+
+    private async Task OnFluentModeChanged(ThemeMode mode)
+    {
+        var accent = ThemeService.CurrentSelection.Kind == ThemeKind.Fluent
+            ? ThemeService.CurrentSelection.FluentAccent
+            : ThemeFluentAccentColor.Blue;
+        await ThemeService.SetFluentAsync(mode, accent);
+    }
+
+    private async Task OnFluentAccentClick(ThemeFluentAccentColor accent)
+    {
+        var mode = ThemeService.CurrentSelection.Kind == ThemeKind.Fluent
+            ? ThemeService.CurrentSelection.FluentMode
+            : ThemeMode.Light;
+        await ThemeService.SetFluentAsync(mode, accent);
+    }
+
+    private async Task OnCustomColorPicked(ChangeEventArgs e)
+    {
+        var hex = e.Value?.ToString();
+        if (string.IsNullOrWhiteSpace(hex)) return;
+        var mode = ThemeService.CurrentSelection.Kind == ThemeKind.Fluent
+            ? ThemeService.CurrentSelection.FluentMode
+            : ThemeMode.Light;
+        await ThemeService.SetFluentCustomAsync(mode, hex);
+    }
+
+    private async Task OnBootstrapClick(string name)
+        => await ThemeService.SetBootstrapAsync(name);
+
+    private void OnCultureChanged(string cultureName)
+    {
+        if (string.IsNullOrEmpty(cultureName) || cultureName == CurrentCultureName)
+            return;
+
+        _ = SwitchCultureAsync(cultureName);
+    }
+
+    private async Task SwitchCultureAsync(string cultureName)
+    {
+        try
+        {
+            var module = await JS.InvokeAsync<IJSObjectReference>("import", "./js/settings.js");
+            // İstemci UI kültürünün kaynağı: localStorage (Program.Main açılışta okur).
+            await module.InvokeVoidAsync("setLocal", CultureCatalog.StorageKey, cultureName);
+            // Sunucu/API request-localization da aynı dili kullansın diye ASP.NET cookie'si.
+            await module.InvokeVoidAsync("writeCookie", CultureCatalog.CookieName, $"c={cultureName}|uic={cultureName}", 365);
+        }
+        catch (JSDisconnectedException) { }
+        catch (TaskCanceledException)   { }
+
+        Navigation.NavigateTo(Navigation.Uri, forceLoad: true);
+    }
+
+    public void Dispose()
+    {
+        ThemeService.CurrentThemeChanged -= OnStateChanged;
+        SizeModeService.SizeModeChanged -= OnStateChanged;
+    }
+}

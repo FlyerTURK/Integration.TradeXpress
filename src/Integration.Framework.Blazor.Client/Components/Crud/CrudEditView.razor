@@ -1,0 +1,45 @@
+@using DevExpress.Blazor
+
+@*
+   Edit formunun kabuğu — içeriği (form layout'u) ya SAYFA içinde ya da POPUP içinde gösterir.
+   Seçim çağıran tarafça Mode parametresiyle yapılır. İçerik (ChildContent) yere göre değişmez;
+   yalnız kabuk değişir.
+*@
+
+@if (Mode == EditViewMode.Popup)
+{
+    <DxPopup Visible="@Visible"
+             VisibleChanged="VisibleChanged"
+             HeaderText="@Title"
+             Width="95%"
+             MaxWidth="720px"
+             MaxHeight="90vh"
+             Scrollable="true"
+             ShowCloseButton="true"
+             CloseOnEscape="true"
+             CloseOnOutsideClick="false"
+             CssClass="crud-edit-popup">
+        <Content>
+            @ChildContent
+        </Content>
+    </DxPopup>
+}
+else
+{
+    @ChildContent
+}
+
+@code {
+    /// <summary>Sayfa mı, popup mı — yerine göre çağıran belirler.</summary>
+    [Parameter] public EditViewMode Mode { get; set; } = EditViewMode.Page;
+
+    /// <summary>Popup modunda görünürlük (iki yönlü).</summary>
+    [Parameter] public bool Visible { get; set; }
+    [Parameter] public EventCallback<bool> VisibleChanged { get; set; }
+
+    /// <summary>Popup başlığı.</summary>
+    [Parameter] public string? Title { get; set; }
+
+    /// <summary>Gösterilecek form içeriği (ör. TenantEditFormLayout).</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

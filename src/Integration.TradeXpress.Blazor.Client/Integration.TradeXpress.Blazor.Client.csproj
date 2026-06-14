@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk.BlazorWebAssembly">
+
+  <Import Project="..\..\common.props" />
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <BlazorWebAssemblyLoadAllGlobalizationData>true</BlazorWebAssemblyLoadAllGlobalizationData>
+  <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="DevExpress.Blazor" />
+    <PackageReference Include="DevExpress.Blazor.Themes" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" />
+    <PackageReference Include="Volo.Abp.AspNetCore.Components.WebAssembly" />
+    <PackageReference Include="Volo.Abp.Http.Client.IdentityModel.WebAssembly" />
+    <PackageReference Include="Volo.Abp.Mapperly" />
+    <PackageReference Include="Volo.Abp.UI.Navigation" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Volo.Abp.Autofac.WebAssembly" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Integration.TradeXpress.HttpApi.Client\Integration.TradeXpress.HttpApi.Client.csproj" />
+    <ProjectReference Include="..\Integration.Framework.Blazor.Client\Integration.Framework.Blazor.Client.csproj" />
+    <ProjectReference Include="..\Integration.Framework.Application.Contracts\Integration.Framework.Application.Contracts.csproj" />
+  </ItemGroup>
+
+</Project>

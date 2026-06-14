@@ -1,0 +1,61 @@
+@using System.Linq
+@using Integration.TradeXpress.Blazor.Client.Pages.Countries.Models
+@using Integration.TradeXpress.Countries
+@using Integration.Framework.Blazor.Client.Services.Base
+@using DevExpress.Blazor
+@inject Microsoft.Extensions.Localization.IStringLocalizer<Integration.TradeXpress.Localization.TradeXpressResource> L
+@inject Integration.TradeXpress.Currencies.ICurrencyUnitAppService CurrencyAppService
+
+<DxFormLayout Data="@Model" CssClass="w-100">
+    <DxFormLayoutItem Caption="@($"{L["Code"]} *")" ColSpanMd="6">
+        <DxTextBox @bind-Text="@Model.Code" @ref="_codeBox" NullText="TR / US ..."
+                   Enabled="@StateService.IsNewRecord" />
+    </DxFormLayoutItem>
+    <DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="6">
+        <DxTextBox @bind-Text="@Model.Name" />
+    </DxFormLayoutItem>
+    <DxFormLayoutItem Caption="@L["BaseCurrency"]" ColSpanMd="6">
+        <DxComboBox Data="@CurrencyCodes"
+                    @bind-Value="@Model.DefaultCurrencyCode"
+                    SearchMode="ListSearchMode.AutoSearch"
+                    SearchFilterCondition="ListSearchFilterCondition.Contains"
+                    NullText="@L["Select"]" />
+        <div class="form-text text-muted small">@L["DefaultCurrencyHint"]</div>
+    </DxFormLayoutItem>
+    <DxFormLayoutItem Caption="@L["DisplayOrder"]" ColSpanMd="6">
+        <DxSpinEdit @bind-Value="@Model.DisplayOrder" />
+    </DxFormLayoutItem>
+    <DxFormLayoutItem Caption="@L["IsActive"]" ColSpanMd="6">
+        <DxCheckBox @bind-Checked="@Model.IsActive" CheckType="CheckType.Switch">
+            @(Model.IsActive ? L["Active"] : L["Passive"])
+        </DxCheckBox>
+    </DxFormLayoutItem>
+</DxFormLayout>
+
+@code {
+    [Parameter, EditorRequired] public CountryViewModel Model { get; set; } = default!;
+    [Parameter, EditorRequired] public ICrudStateService<CountryGetDto, CountryListDto, Guid, CountryViewModel> StateService { get; set; } = default!;
+
+    private DxTextBox? _codeBox;
+    private List<string> CurrencyCodes { get; set; } = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+        try
+        {
+            var result = await CurrencyAppService.GetListAsync(new Integration.TradeXpress.Currencies.CurrencyUnitListRequestDto { MaxResultCount = 1000 });
+            CurrencyCodes = result.Items.Select(x => x.Code).ToList();
+        }
+        catch (Exception)
+        {
+            CurrencyCodes = new List<string> { "TRY", "USD", "EUR", "GBP" };
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && StateService.IsNewRecord && _codeBox != null)
+            await _codeBox.FocusAsync();
+    }
+}

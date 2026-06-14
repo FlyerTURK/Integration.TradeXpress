@@ -1,0 +1,12 @@
+@using Volo.Abp.MultiTenancy
+@inject ICurrentTenant CurrentTenant
+@inject Microsoft.Extensions.Localization.IStringLocalizer<Integration.TradeXpress.Localization.TradeXpressResource> L
+
+@if (CurrentTenant.IsAvailable)
+{
+    <span class="badge bg-info me-2 text-white fw-bold">@CurrentTenant.Name</span>
+}
+else
+{
+    <span class="badge bg-secondary me-2 text-white fw-bold">@L["Host"]</span>
+}

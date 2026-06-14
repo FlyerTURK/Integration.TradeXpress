@@ -1,0 +1,55 @@
+using Integration.TradeXpress.Localization;
+using Volo.Abp.Authorization.Permissions;
+using Volo.Abp.Localization;
+using Volo.Abp.MultiTenancy;
+
+namespace Integration.TradeXpress.Permissions;
+
+public class TradeXpressPermissionDefinitionProvider : PermissionDefinitionProvider
+{
+    public override void Define(IPermissionDefinitionContext context)
+    {
+        var myGroup = context.AddGroup(TradeXpressPermissions.GroupName, L("Permission:TradeXpress"));
+
+        var currencyUnits = myGroup.AddPermission(
+            TradeXpressPermissions.CurrencyUnits.Default, L("Permission:CurrencyUnits"));
+        currencyUnits.AddChild(TradeXpressPermissions.CurrencyUnits.Create, L("Permission:Create"));
+        currencyUnits.AddChild(TradeXpressPermissions.CurrencyUnits.Update, L("Permission:Update"));
+        currencyUnits.AddChild(TradeXpressPermissions.CurrencyUnits.Delete, L("Permission:Delete"));
+
+        var currencyUnitMargins = myGroup.AddPermission(
+            TradeXpressPermissions.CurrencyUnitMargins.Default, L("Permission:CurrencyUnitMargins"));
+        currencyUnitMargins.AddChild(TradeXpressPermissions.CurrencyUnitMargins.Create, L("Permission:Create"));
+        currencyUnitMargins.AddChild(TradeXpressPermissions.CurrencyUnitMargins.Update, L("Permission:Update"));
+        currencyUnitMargins.AddChild(TradeXpressPermissions.CurrencyUnitMargins.Delete, L("Permission:Delete"));
+
+        var companies = myGroup.AddPermission(
+            TradeXpressPermissions.Companies.Default, L("Permission:Companies"));
+        companies.AddChild(TradeXpressPermissions.Companies.Create, L("Permission:Create"));
+        companies.AddChild(TradeXpressPermissions.Companies.Update, L("Permission:Update"));
+        companies.AddChild(TradeXpressPermissions.Companies.Delete, L("Permission:Delete"));
+
+        var countries = myGroup.AddPermission(
+            TradeXpressPermissions.Countries.Default, L("Permission:Countries"));
+        countries.AddChild(TradeXpressPermissions.Countries.Create, L("Permission:Create"));
+        countries.AddChild(TradeXpressPermissions.Countries.Update, L("Permission:Update"));
+        countries.AddChild(TradeXpressPermissions.Countries.Delete, L("Permission:Delete"));
+
+        var branches = myGroup.AddPermission(
+            TradeXpressPermissions.Branches.Default, L("Permission:Branches"));
+        branches.AddChild(TradeXpressPermissions.Branches.Create, L("Permission:Create"));
+        branches.AddChild(TradeXpressPermissions.Branches.Update, L("Permission:Update"));
+        branches.AddChild(TradeXpressPermissions.Branches.Delete, L("Permission:Delete"));
+
+        var vaults = myGroup.AddPermission(
+            TradeXpressPermissions.Vaults.Default, L("Permission:Vaults"));
+        vaults.AddChild(TradeXpressPermissions.Vaults.Create, L("Permission:Create"));
+        vaults.AddChild(TradeXpressPermissions.Vaults.Update, L("Permission:Update"));
+        vaults.AddChild(TradeXpressPermissions.Vaults.Delete, L("Permission:Delete"));
+    }
+
+    private static LocalizableString L(string name)
+    {
+        return LocalizableString.Create<TradeXpressResource>(name);
+    }
+}

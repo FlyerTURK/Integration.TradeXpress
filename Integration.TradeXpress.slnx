@@ -1,0 +1,28 @@
+<Solution>
+    <Folder Name="/src/">
+        <Project Path="src/Integration.TradeXpress.Domain/Integration.TradeXpress.Domain.csproj" />
+        <Project Path="src/Integration.TradeXpress.Application/Integration.TradeXpress.Application.csproj" />
+        <Project Path="src/Integration.TradeXpress.EntityFrameworkCore/Integration.TradeXpress.EntityFrameworkCore.csproj" />
+        <Project Path="src/Integration.TradeXpress.Domain.Shared/Integration.TradeXpress.Domain.Shared.csproj" />
+        <Project Path="src/Integration.TradeXpress.Application.Contracts/Integration.TradeXpress.Application.Contracts.csproj" />
+        <Project Path="src/Integration.TradeXpress.HttpApi/Integration.TradeXpress.HttpApi.csproj" />
+        <Project Path="src/Integration.TradeXpress.HttpApi.Client/Integration.TradeXpress.HttpApi.Client.csproj" />
+        <Project Path="src/Integration.TradeXpress.HttpApi.Host/Integration.TradeXpress.HttpApi.Host.csproj" />
+        <Project Path="src/Integration.TradeXpress.DbMigrator/Integration.TradeXpress.DbMigrator.csproj" />
+        <Project Path="src/Integration.TradeXpress.Blazor/Integration.TradeXpress.Blazor.csproj" />
+        <Project Path="src/Integration.TradeXpress.Blazor.Client/Integration.TradeXpress.Blazor.Client.csproj" />
+    </Folder>
+    <Folder Name="/Framework/">
+        <Project Path="src/Integration.Framework.Domain.Shared/Integration.Framework.Domain.Shared.csproj" />
+        <Project Path="src/Integration.Framework.Application.Contracts/Integration.Framework.Application.Contracts.csproj" />
+        <Project Path="src/Integration.Framework.Application/Integration.Framework.Application.csproj" />
+        <Project Path="src/Integration.Framework.Blazor.Client/Integration.Framework.Blazor.Client.csproj" />
+    </Folder>
+    <Folder Name="/test/">
+        <Project Path="test/Integration.TradeXpress.Application.Tests/Integration.TradeXpress.Application.Tests.csproj" />
+        <Project Path="test/Integration.TradeXpress.EntityFrameworkCore.Tests/Integration.TradeXpress.EntityFrameworkCore.Tests.csproj" />
+        <Project Path="test/Integration.TradeXpress.TestBase/Integration.TradeXpress.TestBase.csproj" />
+        <Project Path="test/Integration.TradeXpress.Domain.Tests/Integration.TradeXpress.Domain.Tests.csproj" />
+        <Project Path="test/Integration.TradeXpress.HttpApi.Client.ConsoleTestApp/Integration.TradeXpress.HttpApi.Client.ConsoleTestApp.csproj" />
+    </Folder>
+</Solution>

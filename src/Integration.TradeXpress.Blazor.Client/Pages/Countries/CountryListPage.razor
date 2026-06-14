@@ -1,0 +1,36 @@
+@page "/countries"
+@using Integration.Framework.Blazor.Client.Components.Crud
+@using Integration.TradeXpress.Blazor.Client.Pages.Countries.Services
+@using Integration.TradeXpress.Blazor.Client.Pages.Countries.Models
+@using Integration.TradeXpress.Countries
+@using DevExpress.Blazor
+@inherits CrudPageBase<CountryGetDto, CountryListDto, Guid, CountryListRequestDto, CountryCreateDto, CountryUpdateDto, CountryViewModel>
+
+<CrudLayout TGetDto="CountryGetDto"
+            TListDto="CountryListDto"
+            TViewModel="CountryViewModel"
+            TKey="Guid"
+            StateService="StateService"
+            DataSource="@GridDataSource"
+            EntityName="@L["Entity:Country"]"
+            PageTitle="@L["Menu:Countries"]"
+            OnNewClick="BeforeCreateAsync"
+            OnUpdateClick="BeforeUpdateAsync"
+            OnDeleteClick="DeleteAsync"
+            OnRefreshClick="GetListAsync"
+            OnSearchChanged="OnSearchAsync"
+            OnSaveClick="SaveAsync">
+
+    <GridColumns>
+        <DxGridDataColumn FieldName="Code" Caption="@L["Code"]" Width="90px" />
+        <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" />
+        <DxGridDataColumn FieldName="DefaultCurrencyCode" Caption="@L["BaseCurrency"]" Width="140px" />
+        <DxGridDataColumn FieldName="IsGlobal" Caption="@L["IsGlobal"]" Width="90px" />
+    </GridColumns>
+
+    <EditPageContent Context="editingModel">
+        <CountryEditPage Model="editingModel"
+                         StateService="StateService" />
+    </EditPageContent>
+
+</CrudLayout>

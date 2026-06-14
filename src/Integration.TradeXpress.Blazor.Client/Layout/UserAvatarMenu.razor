@@ -1,0 +1,99 @@
+@using System
+@using Microsoft.Extensions.Localization
+@using Microsoft.AspNetCore.Components.WebAssembly.Authentication
+@using Volo.Abp.Users
+@using Volo.Abp.MultiTenancy
+@using DevExpress.Blazor
+@inject ICurrentUser CurrentUser
+@inject ICurrentTenant CurrentTenant
+@inject NavigationManager Navigation
+@inject IStringLocalizer<Integration.TradeXpress.Localization.TradeXpressResource> L
+
+@*
+   Top panel kullanıcı avatarı: baş harfler temaya uygun renkli dairede. Tıklayınca DxFlyout açılır;
+   içinde kullanıcı adı, kiracı (tenant) adı ve çıkış butonu yer alır. Eski top panel "Çıkış" butonunun
+   yerini alır.
+*@
+
+<button type="button"
+        id="@_avatarId"
+        class="user-avatar-btn"
+        @onclick="Toggle"
+        title="@_tooltip"
+        aria-label="@_tooltip">
+    <span class="erp-avatar-initials" aria-hidden="true">@_initials</span>
+</button>
+
+<DxFlyout @bind-IsOpen="_isOpen"
+          PositionTarget="@_avatarSelector"
+          Position="FlyoutPosition.BottomEnd"
+          Width="260"
+          CloseOnOutsideClick="true"
+          CssClass="user-avatar-flyout">
+    <BodyContentTemplate Context="flyout">
+        <div class="user-avatar-flyout-body text-center">
+            <span class="erp-avatar-initials erp-avatar-lg mb-2" aria-hidden="true">@_initials</span>
+            <div class="fw-bold text-truncate" title="@_userName">@_userName</div>
+            @if (!string.IsNullOrEmpty(_tenantName))
+            {
+                <div class="text-muted small text-truncate mb-3" title="@_tenantName">@_tenantName</div>
+            }
+            else
+            {
+                <div class="mb-3"></div>
+            }
+            <DxButton Text="@L["Logout"]"
+                      IconCssClass="fas fa-sign-out-alt"
+                      RenderStyle="ButtonRenderStyle.Secondary"
+                      CssClass="w-100"
+                      Click="OnLogout" />
+        </div>
+    </BodyContentTemplate>
+</DxFlyout>
+
+@code {
+    private readonly string _avatarId = $"user-avatar-{Guid.NewGuid():N}";
+    private string _avatarSelector = string.Empty;
+
+    private bool _isOpen;
+    private string _userName   = string.Empty;
+    private string _tenantName = string.Empty;
+    private string _tooltip    = string.Empty;
+    private string _initials   = "U";
+
+    protected override void OnInitialized()
+    {
+        _avatarSelector = $"#{_avatarId}";
+        _userName   = CurrentUser.UserName ?? "User";
+        // Host (kiracısız) oturumda tenant id null olur; o durumda "Host" gösterilir.
+        _tenantName = CurrentTenant.Id is null
+            ? "Host"
+            : (CurrentTenant.Name ?? string.Empty);
+        _tooltip    = string.IsNullOrEmpty(_tenantName) ? _userName : $"{_userName} / {_tenantName}";
+        _initials   = BuildInitials(CurrentUser.Name, _userName);
+    }
+
+    private void Toggle() => _isOpen = !_isOpen;
+
+    private void OnLogout()
+    {
+        _isOpen = false;
+        Navigation.NavigateToLogout("authentication/logout");
+    }
+
+    private static string BuildInitials(string? fullName, string userName)
+    {
+        if (!string.IsNullOrWhiteSpace(fullName))
+        {
+            var parts = fullName.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length >= 2)
+                return $"{parts[0][0]}{parts[^1][0]}".ToUpperInvariant();
+            if (parts[0].Length >= 2)
+                return parts[0][..2].ToUpperInvariant();
+            return parts[0][..1].ToUpperInvariant();
+        }
+        return userName.Length >= 2
+            ? userName[..2].ToUpperInvariant()
+            : userName.ToUpperInvariant();
+    }
+}

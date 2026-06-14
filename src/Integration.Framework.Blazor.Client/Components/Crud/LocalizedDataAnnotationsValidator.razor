@@ -1,0 +1,162 @@
+@using System
+@using System.Linq
+@using System.Reflection
+@using System.Collections.Generic
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.Extensions.Localization
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+@implements System.IDisposable
+@inject IServiceProvider ServiceProvider
+
+@*
+   <DataAnnotationsValidator />'ın lokalize muadili. Validation mesajlarını ham attribute string'i
+   yerine localization resource'undan (L["Validation:..."]) üretir; böylece UI dili değişince
+   (tr↔en) hata mesajları da değişir. Görsel markup yok — saf davranış bileşeni.
+*@
+
+@code {
+    [CascadingParameter] public EditContext? CurrentEditContext { get; set; }
+
+    private ValidationMessageStore? _messages;
+
+    protected override void OnInitialized()
+    {
+        if (CurrentEditContext == null)
+        {
+            throw new InvalidOperationException(
+                $"{nameof(LocalizedDataAnnotationsValidator)} requires a cascading parameter of type {nameof(EditContext)}. " +
+                $"For example, you can use {nameof(LocalizedDataAnnotationsValidator)} inside an EditForm.");
+        }
+
+        _messages = new ValidationMessageStore(CurrentEditContext);
+
+        CurrentEditContext.OnValidationRequested += HandleValidationRequested;
+        CurrentEditContext.OnFieldChanged += HandleFieldChanged;
+    }
+
+    private void HandleValidationRequested(object? sender, ValidationRequestedEventArgs e)
+    {
+        _messages!.Clear();
+        ValidateModel();
+        CurrentEditContext!.NotifyValidationStateChanged();
+    }
+
+    private void HandleFieldChanged(object? sender, FieldChangedEventArgs e)
+    {
+        _messages!.Clear(e.FieldIdentifier);
+        ValidateProperty(e.FieldIdentifier.Model, e.FieldIdentifier.FieldName);
+        CurrentEditContext!.NotifyValidationStateChanged();
+    }
+
+    private void ValidateModel()
+    {
+        var model = CurrentEditContext!.Model;
+        if (model == null) return;
+
+        try
+        {
+            var props = model.GetType()
+                .GetProperties(BindingFlags.Public | BindingFlags.Instance)
+                .Where(p => p.CanRead && p.GetIndexParameters().Length == 0);
+
+            foreach (var prop in props)
+            {
+                ValidateProperty(model, prop.Name);
+            }
+        }
+        catch
+        {
+            // Reflection sırasında bir şey ters giderse validation'ı patlatma.
+        }
+
+        if (model is IValidatableObject validatable)
+        {
+            try
+            {
+                var ctx = new ValidationContext(model, ServiceProvider, null);
+                foreach (var result in validatable.Validate(ctx))
+                {
+                    if (result == ValidationResult.Success || result.ErrorMessage == null)
+                        continue;
+
+                    var memberNames = result.MemberNames?.ToList() ?? new List<string>();
+                    if (memberNames.Count == 0)
+                    {
+                        _messages!.Add(new FieldIdentifier(model, string.Empty), result.ErrorMessage);
+                    }
+                    else
+                    {
+                        foreach (var member in memberNames)
+                        {
+                            _messages!.Add(new FieldIdentifier(model, member), result.ErrorMessage);
+                        }
+                    }
+                }
+            }
+            catch
+            {
+                // IValidatableObject.Validate kullanıcı kodu — patlarsa validation'ı bozma.
+            }
+        }
+    }
+
+    private void ValidateProperty(object model, string propName)
+    {
+        if (model == null || string.IsNullOrEmpty(propName)) return;
+
+        try
+        {
+            var prop = model.GetType().GetProperty(propName, BindingFlags.Public | BindingFlags.Instance);
+            if (prop == null || !prop.CanRead || prop.GetIndexParameters().Length > 0) return;
+
+            var value = prop.GetValue(model);
+            var ctx = new ValidationContext(model, ServiceProvider, null) { MemberName = propName };
+
+            foreach (var attr in prop.GetCustomAttributes<ValidationAttribute>(true))
+            {
+                var result = attr.GetValidationResult(value, ctx);
+                if (result != ValidationResult.Success)
+                {
+                    _messages!.Add(new FieldIdentifier(model, propName), LocalizeMessage(attr, prop));
+                }
+            }
+        }
+        catch
+        {
+            // Tek bir property'nin doğrulaması patlarsa diğerlerini engelleme.
+        }
+    }
+
+    private string LocalizeMessage(ValidationAttribute attr, PropertyInfo prop)
+    {
+        var disp = LocalizeDisplay(prop);
+
+        return attr switch
+        {
+            RequiredAttribute => L["Validation:Required", disp],
+            StringLengthAttribute s when s.MinimumLength > 0 => L["Validation:LengthRange", disp, s.MinimumLength, s.MaximumLength],
+            StringLengthAttribute s => L["Validation:MaxLength", disp, s.MaximumLength],
+            MaxLengthAttribute m => L["Validation:MaxLength", disp, m.Length],
+            MinLengthAttribute m => L["Validation:MinLength", disp, m.Length],
+            EmailAddressAttribute => L["Validation:Email", disp],
+            RangeAttribute r => L["Validation:Range", disp, r.Minimum, r.Maximum],
+            _ => attr.FormatErrorMessage(disp),
+        };
+    }
+
+    private string LocalizeDisplay(PropertyInfo prop)
+    {
+        var key = prop.GetCustomAttribute<DisplayAttribute>()?.Name;
+        return string.IsNullOrEmpty(key) ? prop.Name : L[key];
+    }
+
+    public void Dispose()
+    {
+        if (CurrentEditContext != null)
+        {
+            CurrentEditContext.OnValidationRequested -= HandleValidationRequested;
+            CurrentEditContext.OnFieldChanged -= HandleFieldChanged;
+        }
+    }
+}

@@ -1,0 +1,68 @@
+@using System.Linq
+@using Integration.TradeXpress.Blazor.Client.Pages.Vaults.Models
+@using Integration.TradeXpress.Vaults
+@using Integration.TradeXpress.Branches
+@using Integration.Framework.Blazor.Client.Services.Base
+@using DevExpress.Blazor
+@inject Microsoft.Extensions.Localization.IStringLocalizer<Integration.TradeXpress.Localization.TradeXpressResource> L
+@inject IBranchAppService BranchAppService
+
+<DxFormLayout Data="@Model" CssClass="w-100">
+    <DxFormLayoutGroup Caption="@L["General"]" ColSpanMd="12">
+        <DxFormLayoutItem Caption="@($"{L["Entity:Branch"]} *")" ColSpanMd="6">
+            <DxComboBox Data="@Branches" @bind-Value="@Model.BranchId"
+                        ValueFieldName="@nameof(BranchListDto.Id)"
+                        TextFieldName="@nameof(BranchListDto.Name)"
+                        ValidationEnabled="false"
+                        Enabled="@StateService.IsNewRecord"
+                        CssClass="w-100" />
+            @if (!StateService.IsNewRecord)
+            {
+                <div class="form-text text-muted small">@L["ParentImmutableHint"]</div>
+            }
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="6">
+            <DxTextBox @bind-Text="@Model.Name" @ref="_nameBox" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["Description"]" ColSpanMd="12">
+            <DxTextBox @bind-Text="@Model.Description" />
+        </DxFormLayoutItem>
+    </DxFormLayoutGroup>
+
+    <DxFormLayoutGroup Caption="@L["Settings"]" ColSpanMd="12">
+        <DxFormLayoutItem Caption="@L["IsDefault"]" ColSpanMd="4">
+            <DxCheckBox @bind-Checked="@Model.IsDefault" CheckType="CheckType.Switch">
+                @(Model.IsDefault ? L["Yes"] : L["No"])
+            </DxCheckBox>
+            <div class="form-text text-muted small">@L["VaultDefaultHint"]</div>
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["IsActive"]" ColSpanMd="4">
+            <DxCheckBox @bind-Checked="@Model.IsActive" CheckType="CheckType.Switch">
+                @(Model.IsActive ? L["Active"] : L["Passive"])
+            </DxCheckBox>
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["DisplayOrder"]" ColSpanMd="4">
+            <DxSpinEdit @bind-Value="@Model.DisplayOrder" />
+        </DxFormLayoutItem>
+    </DxFormLayoutGroup>
+</DxFormLayout>
+
+@code {
+    [Parameter, EditorRequired] public VaultViewModel Model { get; set; } = default!;
+    [Parameter, EditorRequired] public ICrudStateService<VaultGetDto, VaultListDto, Guid, VaultViewModel> StateService { get; set; } = default!;
+
+    private DxTextBox? _nameBox;
+    private List<BranchListDto> Branches { get; set; } = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var branches = await BranchAppService.GetListAsync(new BranchListRequestDto { MaxResultCount = 1000 });
+        Branches = branches.Items.ToList();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && _nameBox != null)
+            await _nameBox.FocusAsync();
+    }
+}

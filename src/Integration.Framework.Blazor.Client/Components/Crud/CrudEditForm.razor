@@ -1,0 +1,141 @@
+@using System.Linq
+@using System.Collections.Generic
+@using Microsoft.AspNetCore.Components.Forms
+@using DevExpress.Blazor
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+@implements System.IDisposable
+
+@*
+   Edit formu KOORDİNATÖRÜ (kompozisyon — base sınıf değil). Yere göre sayfa/popup gösteren
+   CrudEditView kabuğunu sarar; içine Blazor EditForm + validation özeti + Save/Cancel footer'ını
+   koyar. StateService'ten habersizdir — gereken her şeyi (EditContext, Visible, CanSave, OnSave)
+   parametreyle alır; böylece sayfa, popup ve (ileride) drill bağlamlarında aynen kullanılır.
+*@
+
+<CrudEditView Mode="Mode" Visible="Visible" VisibleChanged="VisibleChanged" Title="@Title">
+    @if (EditContext != null)
+    {
+        <EditForm EditContext="EditContext" OnValidSubmit="OnValidSubmitAsync" Context="editForm">
+            <LocalizedDataAnnotationsValidator />
+
+            @* Inline stiller: bu app'te Bootstrap utility/component class'ları (alert, d-flex, border-top,
+               spinner-border) etkisiz; bağımlılık bırakmadan kendi içinde duran sunum. *@
+            @if (EditContext.GetValidationMessages().Any())
+            {
+                <div style="background:#f8d7da; color:#842029; border:1px solid #f5c2c7; border-radius:0.375rem; padding:0.5rem 0.75rem; margin-bottom:1rem;">
+                    <ValidationSummary />
+                </div>
+            }
+
+            @ChildContent
+
+            @* NOT: Bildirimsel footer (@foreach EffectiveActions) DevExpress DxButton ile bu iç içe
+               (DxPopup→EditForm) bağlamda render OLMUYOR — iki kez denendi, tekrarlanabilir. Bu yüzden
+               footer hardcoded Vazgeç/Kaydet. CrudAction modeli ileride çözülürse aktive edilecek (park). *@
+            <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:1rem; padding-top:1rem; border-top:1px solid #dee2e6;">
+                <DxButton RenderStyle="ButtonRenderStyle.Primary" SubmitFormOnClick="true" Enabled="@CanSave">
+                    @if (IsBusy)
+                    {
+                        <svg width="14" height="14" viewBox="0 0 24 24" style="margin-right:0.35rem; vertical-align:-2px;" aria-hidden="true">
+                            <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-dasharray="42 16" opacity="0.85">
+                                <animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="0.7s" repeatCount="indefinite" />
+                            </circle>
+                        </svg>
+                    }
+                    @L["Save"]
+                </DxButton>
+                <DxButton Text="@L["Cancel"]" RenderStyle="ButtonRenderStyle.Secondary"
+                          Click="CancelAsync" Enabled="@(!IsBusy)" />
+            </div>
+        </EditForm>
+    }
+</CrudEditView>
+
+@code {
+    /// <summary>Sayfa mı popup mu — yerine göre.</summary>
+    [Parameter] public EditViewMode Mode { get; set; } = EditViewMode.Popup;
+
+    /// <summary>Popup modunda görünürlük (iki yönlü). "false" = kapat/iptal sinyali.</summary>
+    [Parameter] public bool Visible { get; set; }
+    [Parameter] public EventCallback<bool> VisibleChanged { get; set; }
+
+    [Parameter] public string? Title { get; set; }
+
+    /// <summary>Düzenlenen modelin EditContext'i (sahibi çağırandır; burada yalnız kullanılır).</summary>
+    [Parameter] public EditContext? EditContext { get; set; }
+
+    /// <summary>Form içeriği — layout (ör. TenantEditFormLayout).</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    [Parameter] public bool IsBusy { get; set; }
+    [Parameter] public bool CanSave { get; set; } = true;
+
+    /// <summary>Geçerli submit'te tetiklenir (kaydet).</summary>
+    [Parameter] public EventCallback OnSave { get; set; }
+
+    /// <summary>Footer aksiyonları. Verilmezse varsayılan Cancel + Save üretilir (mevcut davranış).</summary>
+    [Parameter] public IReadOnlyList<CrudAction>? Actions { get; set; }
+
+    // Varsayılan aksiyonlar BİR KEZ üretilip cache'lenir — her render'da yeniden new'lersek DxButton
+    // parametreleri "değişti" sanılır, churn yüzünden butonlar boyanmaz.
+    private IReadOnlyList<CrudAction>? _defaultActions;
+    private IReadOnlyList<CrudAction> EffectiveActions => Actions ?? (_defaultActions ??= BuildDefaultActions());
+
+    private IReadOnlyList<CrudAction> BuildDefaultActions() => new List<CrudAction>
+    {
+        new()
+        {
+            Text = L["Cancel"],
+            RenderStyle = ButtonRenderStyle.Secondary,
+            Order = 0,
+            CanExecute = () => !IsBusy,
+            OnExecute = EventCallback.Factory.Create(this, CancelAsync),
+        },
+        new()
+        {
+            Text = L["Save"],
+            RenderStyle = ButtonRenderStyle.Primary,
+            Order = 10,
+            SubmitForm = true,
+            ShowBusySpinner = true,
+            CanExecute = () => CanSave,
+        },
+    };
+
+    private async Task OnActionClickAsync(CrudAction action)
+    {
+        // SubmitForm aksiyonları (Save) butonun SubmitFormOnClick'i ile form submit'ini tetikler;
+        // burada yalnız submit-olmayan aksiyonların (Cancel, custom) işini çalıştırırız.
+        if (!action.SubmitForm && action.OnExecute.HasDelegate)
+            await action.OnExecute.InvokeAsync();
+    }
+
+    private EditContext? _subscribed;
+
+    protected override void OnParametersSet()
+    {
+        // Dokunulmamış alanlarla submit denemesi validation-state değiştirir (field değil) → koşullu
+        // özetin görünmesi için yeniden render et.
+        if (!ReferenceEquals(_subscribed, EditContext))
+        {
+            if (_subscribed != null) _subscribed.OnValidationStateChanged -= OnValidationStateChanged;
+            _subscribed = EditContext;
+            if (_subscribed != null) _subscribed.OnValidationStateChanged += OnValidationStateChanged;
+        }
+    }
+
+    private void OnValidationStateChanged(object? sender, ValidationStateChangedEventArgs e)
+        => InvokeAsync(StateHasChanged);
+
+    private async Task OnValidSubmitAsync()
+    {
+        if (OnSave.HasDelegate) await OnSave.InvokeAsync();
+    }
+
+    private async Task CancelAsync() => await VisibleChanged.InvokeAsync(false);
+
+    public void Dispose()
+    {
+        if (_subscribed != null) _subscribed.OnValidationStateChanged -= OnValidationStateChanged;
+    }
+}

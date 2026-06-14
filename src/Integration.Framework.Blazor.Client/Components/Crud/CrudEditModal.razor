@@ -1,0 +1,29 @@
+@typeparam TGetDto where TGetDto : class, Integration.Framework.Base.Dtos.Interfaces.IGetDto<TKey>, new()
+@typeparam TListDto where TListDto : class, Integration.Framework.Base.Dtos.Interfaces.IListDto<TKey>, new()
+@typeparam TViewModel where TViewModel : class, Integration.Framework.Blazor.Client.Components.Crud.IViewModel<TKey>, new()
+@typeparam TKey
+
+@using System.Linq
+@using Integration.Framework.Blazor.Client.Services.Base
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+@using DevExpress.Blazor
+
+@*
+   StateService adaptörü: koordinatör görselini CrudEditForm'a (Mode=Popup) devreder. EditContext
+   yaşam döngüsü, dirty takibi ve "değişiklikleri at" onayı bu adaptörde (.razor.cs) kalır; görsel
+   kompozisyon (EditForm + validation + footer + sayfa/popup kabuğu) CrudEditForm'da toplanır.
+*@
+
+<CrudEditForm Mode="EditViewMode.Popup"
+              Visible="@StateService.EditPageVisible"
+              VisibleChanged="OnPopupVisibleChanged"
+              Title="@(StateService.IsNewRecord ? L["New"] + " " + EntityName : EntityName + " " + L["Edit"])"
+              EditContext="@(StateService.EditPageVisible ? CurrentEditContext : null)"
+              IsBusy="@StateService.IsBusy"
+              CanSave="@((StateService.IsNewRecord || StateService.IsDirty) && !StateService.IsBusy)"
+              OnSave="HandleValidSubmit">
+    @if (StateService.EditingModel != null)
+    {
+        @EditPageContent?.Invoke(StateService.EditingModel)
+    }
+</CrudEditForm>

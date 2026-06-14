@@ -1,0 +1,36 @@
+@page "/branches"
+@using Integration.Framework.Blazor.Client.Components.Crud
+@using Integration.TradeXpress.Blazor.Client.Pages.Branches.Services
+@using Integration.TradeXpress.Blazor.Client.Pages.Branches.Models
+@using Integration.TradeXpress.Branches
+@using DevExpress.Blazor
+@inherits CrudPageBase<BranchGetDto, BranchListDto, Guid, BranchListRequestDto, BranchCreateDto, BranchUpdateDto, BranchViewModel>
+
+<CrudLayout TGetDto="BranchGetDto"
+            TListDto="BranchListDto"
+            TViewModel="BranchViewModel"
+            TKey="Guid"
+            StateService="StateService"
+            DataSource="@GridDataSource"
+            EntityName="@L["Entity:Branch"]"
+            PageTitle="@L["Menu:Branches"]"
+            OnNewClick="BeforeCreateAsync"
+            OnUpdateClick="BeforeUpdateAsync"
+            OnDeleteClick="DeleteAsync"
+            OnRefreshClick="GetListAsync"
+            OnSearchChanged="OnSearchAsync"
+            OnSaveClick="SaveAsync">
+
+    <GridColumns>
+        <DxGridDataColumn FieldName="CompanyName" Caption="@L["Entity:Company"]" Width="200px" />
+        <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" />
+        <DxGridDataColumn FieldName="IsHeadquarters" Caption="@L["IsHeadquarters"]" Width="100px" />
+        <DxGridDataColumn FieldName="DisplayOrder" Caption="@L["DisplayOrder"]" Width="90px" Visible="false" />
+    </GridColumns>
+
+    <EditPageContent Context="editingModel">
+        <BranchEditPage Model="editingModel"
+                        StateService="StateService" />
+    </EditPageContent>
+
+</CrudLayout>

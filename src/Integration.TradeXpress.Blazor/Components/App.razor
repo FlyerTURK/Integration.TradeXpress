@@ -1,0 +1,62 @@
+@using DevExpress.Blazor
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Integration.TradeXpress</title>
+    <base href="/" />
+
+    <!--ABP:Styles-->
+    @DxResourceManager.RegisterTheme(DevExpress.Blazor.Themes.BlazingBerry)
+    @DxResourceManager.RegisterScripts()
+    <!--/ABP:Styles-->
+
+    <link href="main.css" rel="stylesheet" />
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet" />
+    <link href="Integration.TradeXpress.Blazor.Client.styles.css" rel="stylesheet"/>
+
+
+    <HeadOutlet @rendermode="new InteractiveWebAssemblyRenderMode(prerender: false)" />
+</head>
+
+<body>
+
+    <script src="_framework/blazor.web.js"></script>
+
+    <div id="ApplicationContainer">
+        <div class="int-loader-container">
+            <div class="int-loader-wrapper">
+                <div class="int-loader-spinner"></div>
+                <div class="int-loader-circle">
+                    <span class="int-loader-initials">TX</span>
+                </div>
+            </div>
+            <div class="int-loader-text">
+                <span style="font-weight:300;">Integration</span> <strong>TradeXpress</strong>
+            </div>
+        </div>
+
+        <Routes @rendermode="new InteractiveWebAssemblyRenderMode(prerender: false)"/>
+    </div>
+
+    <!--ABP:Scripts-->
+    <script>
+        // ABP'nin WASM modülü, sunucu kullanıcıyı anonim gördüğünde bu fonksiyonla
+        // lokal OIDC oturumunu temizler. Gerçek implementasyon: oidc.user anahtarlarını sil.
+        window.abp = {
+            utils: {
+                removeOidcUser: function () {
+                    Object.keys(sessionStorage)
+                        .filter(function (k) { return k.indexOf('oidc.user:') === 0; })
+                        .forEach(function (k) { sessionStorage.removeItem(k); });
+                }
+            }
+        };
+    </script>
+    <script src="_content/Microsoft.AspNetCore.Components.WebAssembly.Authentication/AuthenticationService.js"></script>
+    <!--/ABP:Scripts-->
+
+</body>
+</html>

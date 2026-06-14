@@ -1,0 +1,95 @@
+@typeparam TGetDto where TGetDto : class, Integration.Framework.Base.Dtos.Interfaces.IGetDto<TKey>, new()
+@typeparam TListDto where TListDto : class, Integration.Framework.Base.Dtos.Interfaces.IListDto<TKey>, new()
+@typeparam TViewModel where TViewModel : class, Integration.Framework.Blazor.Client.Components.Crud.IViewModel<TKey>, new()
+@typeparam TKey
+
+@using Integration.Framework.Blazor.Client.Services.Base
+@using DevExpress.Blazor
+@using Microsoft.Extensions.Localization
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@using Microsoft.AspNetCore.Components.Sections
+
+@if (!string.IsNullOrEmpty(PageTitle))
+{
+    <SectionContent SectionName="PageHeaderTitle">
+        <h5 class="m-0 fw-bold px-3">@PageTitle</h5>
+    </SectionContent>
+}
+
+<div class="crud-layout-container h-100 position-relative d-flex flex-column">
+    @if (StateService.IsBusy)
+    {
+        <div class="crud-loading-overlay">
+            <div class="d-flex flex-column align-items-center">
+                <div class="int-loader-wrapper">
+                    <div class="int-loader-circle">
+                        <span class="int-loader-initials">TX</span>
+                    </div>
+                    <div class="int-loader-spinner"></div>
+                </div>
+            </div>
+        </div>
+    }
+    <div class="pb-2">
+        <CrudToolbar TGetDto="TGetDto" TListDto="TListDto" TViewModel="TViewModel" TKey="TKey"
+                     StateService="StateService"
+                     SearchText="@SearchText"
+                     SearchTextChanged="OnToolbarSearch"
+                     OnNewClick="OnNewClick"
+                     OnDeleteClick="OnDeleteClick"
+                     OnRefreshClick="OnRefreshClick"
+                     OnExportToExcelClick="ExportToExcel"
+                     OnPrintPdfClick="PrintGrid"
+                     CanGoToPreviousPage="CanGoToPreviousPage"
+                     OnGoToPreviousPageClick="GoToPreviousPage"
+                     CanGoToNextPage="CanGoToNextPage"
+                     OnGoToNextPageClick="GoToNextPage"
+                     ActiveFilter="_activeFilter"
+                     ActiveFilterChanged="OnActiveFilterChanged"
+                     OnToggleGridSearch="ToggleGridSearch"
+                     CustomActions="ToolbarActions" />
+    </div>
+
+    <DxGrid Data="@(DataSource ?? (object)StateService.ListDataSource)"
+            KeyFieldName="Id"
+            @bind-SelectedDataItems="StateService.SelectedDataItems"
+            SelectionMode="GridSelectionMode.Multiple"
+            AllowSelectRowByClick="false"
+            ShowSearchBox="@_showGridSearch"
+            PagerVisible="true"
+            PageSizeSelectorVisible="true"
+            PageSizeSelectorItems="@(new int[] { 10, 20, 50, 100 })"
+            PageSizeSelectorAllRowsItemVisible="true"
+            PageSize="20"
+            @ref="Grid"
+            RowClick="OnRowClick"
+            CssClass="flex-grow-1 overflow-hidden"
+            @attributes="GridAttributes">
+        
+        <Columns>
+            <DxGridSelectionColumn Width="48px" AllowSelectAll="true" />
+            @if (GridColumns != null)
+            {
+                @GridColumns
+            }
+            else if (Columns != null)
+            {
+                foreach (var col in Columns)
+                {
+                    <DxGridDataColumn FieldName="@col.FieldName" Caption="@col.Caption" Width="@col.Width" DisplayFormat="@col.DisplayFormat" Visible="@col.Visible" />
+                }
+            }
+        </Columns>
+    </DxGrid>
+</div>
+
+<!-- Popup Edit Form Component -->
+<CrudEditModal TGetDto="TGetDto" TListDto="TListDto" TViewModel="TViewModel" TKey="TKey"
+               StateService="StateService"
+               EntityName="@EntityName"
+               EditPageContent="EditPageContent"
+               OnSaveClick="OnSaveClick"
+               ValidateOnPropertyChange="ValidateOnPropertyChange" />
+
+

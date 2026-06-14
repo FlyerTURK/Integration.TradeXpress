@@ -1,0 +1,78 @@
+@using Integration.TradeXpress.Blazor.Client.Pages.Companies.Models
+@using Integration.Framework.Blazor.Client.Components.Crud
+@using DevExpress.Blazor
+@inject Microsoft.Extensions.Localization.IStringLocalizer<Integration.TradeXpress.Localization.TradeXpressResource> L
+
+<DrillList TItem="BranchTreeItemViewModel"
+           Title="@L["Menu:Branches"]"
+           EntityName="@L["Entity:Branch"]"
+           Items="@Items"
+           MinItems="1"
+           NewItemFactory="@NewBranch"
+           CloneFactory="@CompanyTreeMapping.CloneBranch"
+           DeleteGuard="@BranchDeleteGuard"
+           OnItemSaved="OnBranchSaved"
+           OnItemDeleted="OnItemDeleted"
+           OnChanged="OnChanged">
+    <GridColumns>
+        <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" />
+        <DxGridDataColumn FieldName="IsHeadquarters" Caption="@L["IsHeadquarters"]" Width="100px" />
+        <DxGridDataColumn FieldName="IsActive" Caption="@L["IsActive"]" Width="80px" />
+    </GridColumns>
+    <EditContent Context="branch">
+        <DxFormLayout Data="@branch" CssClass="w-100">
+            <DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="8">
+                <DxTextBox @bind-Text="@branch.Name" />
+            </DxFormLayoutItem>
+            <DxFormLayoutItem Caption="@L["DisplayOrder"]" ColSpanMd="4">
+                <DxSpinEdit @bind-Value="@branch.DisplayOrder" />
+            </DxFormLayoutItem>
+            <DxFormLayoutItem Caption="@L["IsHeadquarters"]" ColSpanMd="6">
+                <DxCheckBox @bind-Checked="@branch.IsHeadquarters" CheckType="CheckType.Switch">
+                    @(branch.IsHeadquarters ? L["Yes"] : L["No"])
+                </DxCheckBox>
+                <div class="form-text text-muted small">@L["BranchHeadquartersHint"]</div>
+            </DxFormLayoutItem>
+            <DxFormLayoutItem Caption="@L["IsActive"]" ColSpanMd="6">
+                <DxCheckBox @bind-Checked="@branch.IsActive" CheckType="CheckType.Switch">
+                    @(branch.IsActive ? L["Active"] : L["Passive"])
+                </DxCheckBox>
+            </DxFormLayoutItem>
+            <DxFormLayoutItem Caption="@L["Description"]" ColSpanMd="12">
+                <DxTextBox @bind-Text="@branch.Description" />
+            </DxFormLayoutItem>
+        </DxFormLayout>
+
+        <div class="mt-3">
+            <VaultDrill Items="@branch.Vaults"
+                        OnItemDeleted="@(v => AddDeletedVaultId(branch, v))"
+                        OnChanged="OnChanged" />
+        </div>
+    </EditContent>
+</DrillList>
+
+@code {
+    [Parameter, EditorRequired] public List<BranchTreeItemViewModel> Items { get; set; } = default!;
+    [Parameter] public EventCallback<BranchTreeItemViewModel> OnItemDeleted { get; set; }
+    [Parameter] public EventCallback OnChanged { get; set; }
+
+    private BranchTreeItemViewModel NewBranch() => new()
+    {
+        Vaults = { CompanyTreeMapping.NewDefaultVault() }
+    };
+
+    private string? BranchDeleteGuard(BranchTreeItemViewModel branch)
+        => branch.IsHeadquarters ? L["TradeXpress:Branch:CannotDeleteHeadquarters"] : null;
+
+    private void OnBranchSaved(BranchTreeItemViewModel saved)
+    {
+        if (!saved.IsHeadquarters) return;
+        foreach (var b in Items)
+            if (b != saved) b.IsHeadquarters = false;
+    }
+
+    private void AddDeletedVaultId(BranchTreeItemViewModel branch, VaultTreeItemViewModel vault)
+    {
+        if (vault.Id is { } id) branch.DeletedVaultIds.Add(id);
+    }
+}
