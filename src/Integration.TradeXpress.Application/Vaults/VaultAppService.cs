@@ -25,7 +25,7 @@ public class VaultAppService : TradeXpressAppService, IVaultAppService
     private readonly IRepository<Branch, Guid> _branchRepository;
 
     private static readonly HashSet<string> AllowedListFields =
-        new(StringComparer.OrdinalIgnoreCase) { "Name", "IsDefault", "IsActive", "DisplayOrder", "BranchId", "Id" };
+        new(StringComparer.OrdinalIgnoreCase) { "Code", "Name", "IsDefault", "IsActive", "DisplayOrder", "BranchId", "Id" };
 
     public VaultAppService(
         IRepository<Vault, Guid> repository,
@@ -44,14 +44,15 @@ public class VaultAppService : TradeXpressAppService, IVaultAppService
         var totalCount = await AsyncExecuter.CountAsync(query);
         var items = await AsyncExecuter.ToListAsync(query.Skip(input.SkipCount).Take(input.MaxResultCount));
 
-        var names = await LoadBranchNamesAsync(items.Select(v => v.BranchId));
+        var names = await LoadBranchCodesAsync(items.Select(v => v.BranchId));
         return new PagedResultDto<VaultListDto>(
             totalCount,
             items.Select(v => new VaultListDto
             {
                 Id = v.Id,
                 BranchId = v.BranchId,
-                BranchName = names.GetValueOrDefault(v.BranchId, string.Empty),
+                BranchCode = names.GetValueOrDefault(v.BranchId, string.Empty),
+                Code = v.Code,
                 Name = v.Name,
                 IsDefault = v.IsDefault,
                 IsActive = v.IsActive,
@@ -62,7 +63,7 @@ public class VaultAppService : TradeXpressAppService, IVaultAppService
     public virtual async Task<VaultGetDto> GetAsync(Guid id)
     {
         var v = await _repository.GetAsync(id);
-        var names = await LoadBranchNamesAsync(new[] { v.BranchId });
+        var names = await LoadBranchCodesAsync(new[] { v.BranchId });
         return ToGetDto(v, names);
     }
 
@@ -77,6 +78,7 @@ public class VaultAppService : TradeXpressAppService, IVaultAppService
         var v = new Vault(
             GuidGenerator.Create(),
             input.BranchId,
+            input.Code,
             input.Name,
             isDefault: input.IsDefault,
             displayOrder: input.DisplayOrder,
@@ -88,7 +90,7 @@ public class VaultAppService : TradeXpressAppService, IVaultAppService
         if (v.IsDefault)
             await UnsetOtherDefaultsAsync(v.BranchId, v.Id);
 
-        var names = await LoadBranchNamesAsync(new[] { v.BranchId });
+        var names = await LoadBranchCodesAsync(new[] { v.BranchId });
         return ToGetDto(v, names);
     }
 
@@ -97,6 +99,7 @@ public class VaultAppService : TradeXpressAppService, IVaultAppService
     {
         var v = await _repository.GetAsync(id);
 
+        v.SetCode(input.Code);
         v.SetName(input.Name);
         v.SetDescription(input.Description);
         v.SetDisplayOrder(input.DisplayOrder);
@@ -108,7 +111,7 @@ public class VaultAppService : TradeXpressAppService, IVaultAppService
         if (v.IsDefault)
             await UnsetOtherDefaultsAsync(v.BranchId, v.Id);
 
-        var names = await LoadBranchNamesAsync(new[] { v.BranchId });
+        var names = await LoadBranchCodesAsync(new[] { v.BranchId });
         return ToGetDto(v, names);
     }
 
@@ -144,20 +147,21 @@ public class VaultAppService : TradeXpressAppService, IVaultAppService
         }
     }
 
-    private async Task<Dictionary<Guid, string>> LoadBranchNamesAsync(IEnumerable<Guid> ids)
+    private async Task<Dictionary<Guid, string>> LoadBranchCodesAsync(IEnumerable<Guid> ids)
     {
         var list = ids.Distinct().ToList();
         if (list.Count == 0) return new Dictionary<Guid, string>();
         var q = (await _branchRepository.GetQueryableAsync()).Where(b => list.Contains(b.Id));
         var branches = await AsyncExecuter.ToListAsync(q);
-        return branches.ToDictionary(b => b.Id, b => b.Name);
+        return branches.ToDictionary(b => b.Id, b => b.Code);
     }
 
     private static VaultGetDto ToGetDto(Vault v, Dictionary<Guid, string> names) => new()
     {
         Id = v.Id,
         BranchId = v.BranchId,
-        BranchName = names.GetValueOrDefault(v.BranchId, string.Empty),
+        BranchCode = names.GetValueOrDefault(v.BranchId, string.Empty),
+        Code = v.Code,
         Name = v.Name,
         IsDefault = v.IsDefault,
         IsActive = v.IsActive,

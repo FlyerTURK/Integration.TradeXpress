@@ -149,7 +149,7 @@ public class TenantAppService : TradeXpressAppService, ITenantAppService
             }
             else
             {
-                company = new Company(GuidGenerator.Create(), companyName, country, baseUnit.Id,
+                company = new Company(GuidGenerator.Create(), "MRK", companyName, country, baseUnit.Id,
                     isHeadquarters: true, displayOrder: 1, tenantId: tenantId);
                 await _companyRepository.InsertAsync(company, autoSave: true);
             }

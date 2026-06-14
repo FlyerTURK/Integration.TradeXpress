@@ -13,6 +13,7 @@ namespace Integration.TradeXpress.Companies;
 
 public class CompanyTreeDto : EntityDto<Guid>
 {
+    public string Code { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public string CountryCode { get; set; } = string.Empty;
     public Guid BaseCurrencyUnitId { get; set; }
@@ -28,6 +29,7 @@ public class CompanyTreeDto : EntityDto<Guid>
 
 public class BranchTreeDto : EntityDto<Guid>
 {
+    public string Code { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public bool IsHeadquarters { get; set; }
     public bool IsActive { get; set; }
@@ -40,6 +42,7 @@ public class BranchTreeDto : EntityDto<Guid>
 
 public class VaultTreeDto : EntityDto<Guid>
 {
+    public string Code { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public bool IsDefault { get; set; }
     public bool IsActive { get; set; }
@@ -55,6 +58,10 @@ public class VaultTreeDto : EntityDto<Guid>
 public class CompanyTreeSaveDto
 {
     public Guid? Id { get; set; }
+
+    [Required]
+    [StringLength(CompanyConsts.CodeMaxLength)]
+    public string Code { get; set; } = string.Empty;
 
     [Required]
     [StringLength(CompanyConsts.NameMaxLength)]
@@ -88,6 +95,10 @@ public class BranchTreeSaveDto
     public Guid? Id { get; set; }
 
     [Required]
+    [StringLength(BranchConsts.CodeMaxLength)]
+    public string Code { get; set; } = string.Empty;
+
+    [Required]
     [StringLength(BranchConsts.NameMaxLength)]
     public string Name { get; set; } = string.Empty;
 
@@ -109,6 +120,10 @@ public class BranchTreeSaveDto
 public class VaultTreeSaveDto
 {
     public Guid? Id { get; set; }
+
+    [Required]
+    [StringLength(VaultConsts.CodeMaxLength)]
+    public string Code { get; set; } = string.Empty;
 
     [Required]
     [StringLength(VaultConsts.NameMaxLength)]

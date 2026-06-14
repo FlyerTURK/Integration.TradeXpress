@@ -17,7 +17,8 @@ public class BranchListRequestDto : ListRequestDto
 public class BranchListDto : EntityDto<Guid>, IListDto<Guid>, IIsActive
 {
     public Guid CompanyId { get; set; }
-    public string CompanyName { get; set; } = string.Empty;
+    public string CompanyCode { get; set; } = string.Empty;
+    public string Code { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public bool IsHeadquarters { get; set; }
     // IsActive: ana grid kolonu kaldırıldı ama Company drill list'i (BranchTreeItemViewModel)
@@ -29,7 +30,8 @@ public class BranchListDto : EntityDto<Guid>, IListDto<Guid>, IIsActive
 public class BranchGetDto : EntityDto<Guid>, IGetDto<Guid>
 {
     public Guid CompanyId { get; set; }
-    public string CompanyName { get; set; } = string.Empty;
+    public string CompanyCode { get; set; } = string.Empty;
+    public string Code { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public bool IsHeadquarters { get; set; }
     public bool IsActive { get; set; }
@@ -45,6 +47,10 @@ public class BranchCreateDto : ICreateDto
     public Guid CompanyId { get; set; }
 
     [Required]
+    [StringLength(BranchConsts.CodeMaxLength)]
+    public string Code { get; set; } = string.Empty;
+
+    [Required]
     [StringLength(BranchConsts.NameMaxLength)]
     public string Name { get; set; } = string.Empty;
 
@@ -58,6 +64,10 @@ public class BranchCreateDto : ICreateDto
 // Parent (CompanyId) güncellemede değişmez — hiyerarşi sabit.
 public class BranchUpdateDto : IUpdateDto
 {
+    [Required]
+    [StringLength(BranchConsts.CodeMaxLength)]
+    public string Code { get; set; } = string.Empty;
+
     [Required]
     [StringLength(BranchConsts.NameMaxLength)]
     public string Name { get; set; } = string.Empty;

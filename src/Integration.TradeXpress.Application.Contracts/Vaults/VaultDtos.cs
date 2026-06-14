@@ -17,7 +17,8 @@ public class VaultListRequestDto : ListRequestDto
 public class VaultListDto : EntityDto<Guid>, IListDto<Guid>, IIsActive
 {
     public Guid BranchId { get; set; }
-    public string BranchName { get; set; } = string.Empty;
+    public string BranchCode { get; set; } = string.Empty;
+    public string Code { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public bool IsDefault { get; set; }
     // IsActive: ana grid kolonu kaldırıldı ama Company drill list'i (VaultTreeItemViewModel)
@@ -29,7 +30,8 @@ public class VaultListDto : EntityDto<Guid>, IListDto<Guid>, IIsActive
 public class VaultGetDto : EntityDto<Guid>, IGetDto<Guid>
 {
     public Guid BranchId { get; set; }
-    public string BranchName { get; set; } = string.Empty;
+    public string BranchCode { get; set; } = string.Empty;
+    public string Code { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public bool IsDefault { get; set; }
     public bool IsActive { get; set; }
@@ -45,6 +47,10 @@ public class VaultCreateDto : ICreateDto
     public Guid BranchId { get; set; }
 
     [Required]
+    [StringLength(VaultConsts.CodeMaxLength)]
+    public string Code { get; set; } = string.Empty;
+
+    [Required]
     [StringLength(VaultConsts.NameMaxLength)]
     public string Name { get; set; } = string.Empty;
 
@@ -58,6 +64,10 @@ public class VaultCreateDto : ICreateDto
 // Parent (BranchId) güncellemede değişmez — hiyerarşi sabit.
 public class VaultUpdateDto : IUpdateDto
 {
+    [Required]
+    [StringLength(VaultConsts.CodeMaxLength)]
+    public string Code { get; set; } = string.Empty;
+
     [Required]
     [StringLength(VaultConsts.NameMaxLength)]
     public string Name { get; set; } = string.Empty;

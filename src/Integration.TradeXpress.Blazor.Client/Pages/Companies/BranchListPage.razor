@@ -1,19 +1,18 @@
-@page "/branches"
+@page "/branches/{CompanyId:guid}"
 @using Integration.Framework.Blazor.Client.Components.Crud
-@using Integration.TradeXpress.Blazor.Client.Pages.Branches.Services
-@using Integration.TradeXpress.Blazor.Client.Pages.Branches.Models
+@using Integration.TradeXpress.Blazor.Client.Pages.Companies.Models
 @using Integration.TradeXpress.Branches
 @using DevExpress.Blazor
-@inherits CrudPageBase<BranchGetDto, BranchListDto, Guid, BranchListRequestDto, BranchCreateDto, BranchUpdateDto, BranchViewModel>
+@inherits CrudPageBase<BranchGetDto, BranchListDto, Guid, BranchListRequestDto, BranchCreateDto, BranchUpdateDto, BranchTreeItemViewModel>
 
 <CrudLayout TGetDto="BranchGetDto"
             TListDto="BranchListDto"
-            TViewModel="BranchViewModel"
+            TViewModel="BranchTreeItemViewModel"
             TKey="Guid"
             StateService="StateService"
             DataSource="@GridDataSource"
             EntityName="@L["Entity:Branch"]"
-            PageTitle="@L["Menu:Branches"]"
+            PageTitle="@PageTitle"
             OnNewClick="BeforeCreateAsync"
             OnUpdateClick="BeforeUpdateAsync"
             OnDeleteClick="DeleteAsync"
@@ -22,15 +21,15 @@
             OnSaveClick="SaveAsync">
 
     <GridColumns>
-        <DxGridDataColumn FieldName="CompanyName" Caption="@L["Entity:Company"]" Width="200px" />
+        <DxGridDataColumn FieldName="Code" Caption="@L["Code"]" Width="120px" />
         <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" />
-        <DxGridDataColumn FieldName="IsHeadquarters" Caption="@L["IsHeadquarters"]" Width="100px" />
+        <DxGridDataColumn FieldName="IsHeadquarters" Caption="@L["IsHeadquarters"]" Width="120px" />
+        <DxGridDataColumn FieldName="IsActive" Caption="@L["IsActive"]" Width="80px" />
         <DxGridDataColumn FieldName="DisplayOrder" Caption="@L["DisplayOrder"]" Width="90px" Visible="false" />
     </GridColumns>
 
-    <EditPageContent Context="editingModel">
-        <BranchEditPage Model="editingModel"
-                        StateService="StateService" />
+    <EditPageContent Context="model">
+        <BranchEditForm Branch="@model" PersistVaults="true" />
     </EditPageContent>
 
 </CrudLayout>

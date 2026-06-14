@@ -35,7 +35,7 @@ public class CompanyAppService : TradeXpressAppService, ICompanyAppService
     private readonly OrgTreeManager _orgTree;
 
     private static readonly HashSet<string> AllowedListFields =
-        new(StringComparer.OrdinalIgnoreCase) { "Name", "CountryCode", "IsActive", "DisplayOrder", "Id" };
+        new(StringComparer.OrdinalIgnoreCase) { "Code", "Name", "CountryCode", "IsActive", "DisplayOrder", "Id" };
 
     public CompanyAppService(
         IRepository<Company, Guid> repository,
@@ -65,6 +65,7 @@ public class CompanyAppService : TradeXpressAppService, ICompanyAppService
             items.Select(c => new CompanyListDto
             {
                 Id = c.Id,
+                Code = c.Code,
                 Name = c.Name,
                 CountryCode = c.CountryCode,
                 BaseCurrencyUnitId = c.BaseCurrencyUnitId,
@@ -93,6 +94,7 @@ public class CompanyAppService : TradeXpressAppService, ICompanyAppService
 
         var c = new Company(
             GuidGenerator.Create(),
+            input.Code,
             input.Name,
             input.CountryCode,
             input.BaseCurrencyUnitId,
@@ -133,6 +135,7 @@ public class CompanyAppService : TradeXpressAppService, ICompanyAppService
             throw new BusinessException("TradeXpress:Company:CannotUnsetHeadquarters");
         }
 
+        c.SetCode(input.Code);
         c.SetName(input.Name);
         c.SetCountryCode(input.CountryCode);
         c.SetBaseCurrency(input.BaseCurrencyUnitId);
@@ -174,6 +177,7 @@ public class CompanyAppService : TradeXpressAppService, ICompanyAppService
         return new CompanyTreeDto
         {
             Id = c.Id,
+            Code = c.Code,
             Name = c.Name,
             CountryCode = c.CountryCode,
             BaseCurrencyUnitId = c.BaseCurrencyUnitId,
@@ -186,6 +190,7 @@ public class CompanyAppService : TradeXpressAppService, ICompanyAppService
             Branches = branches.Select(b => new BranchTreeDto
             {
                 Id = b.Id,
+                Code = b.Code,
                 Name = b.Name,
                 IsHeadquarters = b.IsHeadquarters,
                 IsActive = b.IsActive,
@@ -195,6 +200,7 @@ public class CompanyAppService : TradeXpressAppService, ICompanyAppService
                 Vaults = vaults.Where(v => v.BranchId == b.Id).Select(v => new VaultTreeDto
                 {
                     Id = v.Id,
+                    Code = v.Code,
                     Name = v.Name,
                     IsDefault = v.IsDefault,
                     IsActive = v.IsActive,
@@ -237,7 +243,7 @@ public class CompanyAppService : TradeXpressAppService, ICompanyAppService
         Company company;
         if (isNew)
         {
-            company = new Company(GuidGenerator.Create(), input.Name, input.CountryCode, input.BaseCurrencyUnitId,
+            company = new Company(GuidGenerator.Create(), input.Code, input.Name, input.CountryCode, input.BaseCurrencyUnitId,
                 isHeadquarters: input.IsHeadquarters, displayOrder: input.DisplayOrder, tenantId: CurrentTenant.Id);
             company.SetDescription(input.Description);
             await _repository.InsertAsync(company, autoSave: true);
@@ -254,6 +260,7 @@ public class CompanyAppService : TradeXpressAppService, ICompanyAppService
                 company.SetAsHeadquarters(true);
             else if (!input.IsHeadquarters && company.IsHeadquarters)
                 throw new BusinessException("TradeXpress:Company:CannotUnsetHeadquarters");
+            company.SetCode(input.Code);
             company.SetName(input.Name);
             company.SetCountryCode(input.CountryCode);
             company.SetBaseCurrency(input.BaseCurrencyUnitId);
@@ -286,7 +293,7 @@ public class CompanyAppService : TradeXpressAppService, ICompanyAppService
             var bNew = isNew || bi.Id is null || bi.Id == Guid.Empty;  // yeni şirkette tüm çocuklar yeni
             if (bNew)
             {
-                branch = new Branch(GuidGenerator.Create(), company.Id, bi.Name,
+                branch = new Branch(GuidGenerator.Create(), company.Id, bi.Code, bi.Name,
                     isHeadquarters: bi.IsHeadquarters, displayOrder: bi.DisplayOrder, tenantId: CurrentTenant.Id);
                 branch.SetDescription(bi.Description);
                 await _branchRepository.InsertAsync(branch, autoSave: true);
@@ -298,6 +305,7 @@ public class CompanyAppService : TradeXpressAppService, ICompanyAppService
                 if (string.IsNullOrEmpty(bi.ConcurrencyStamp))  // fail-closed: mevcut şube stamp'siz güncellenemez
                     throw new BusinessException("TradeXpress:Company:TreeChanged");
                 branch.ConcurrencyStamp = bi.ConcurrencyStamp;
+                branch.SetCode(bi.Code);
                 branch.SetName(bi.Name);
                 branch.SetAsHeadquarters(bi.IsHeadquarters);
                 branch.SetDescription(bi.Description);
@@ -324,7 +332,7 @@ public class CompanyAppService : TradeXpressAppService, ICompanyAppService
                 Vault vault;
                 if (bNew || vi.Id is null || vi.Id == Guid.Empty)
                 {
-                    vault = new Vault(GuidGenerator.Create(), branch.Id, vi.Name,
+                    vault = new Vault(GuidGenerator.Create(), branch.Id, vi.Code, vi.Name,
                         isDefault: vi.IsDefault, displayOrder: vi.DisplayOrder, tenantId: CurrentTenant.Id);
                     vault.SetDescription(vi.Description);
                     await _vaultRepository.InsertAsync(vault, autoSave: true);
@@ -336,6 +344,7 @@ public class CompanyAppService : TradeXpressAppService, ICompanyAppService
                     if (string.IsNullOrEmpty(vi.ConcurrencyStamp))  // fail-closed: mevcut kasa stamp'siz güncellenemez
                         throw new BusinessException("TradeXpress:Company:TreeChanged");
                     vault.ConcurrencyStamp = vi.ConcurrencyStamp;
+                    vault.SetCode(vi.Code);
                     vault.SetName(vi.Name);
                     vault.SetAsDefault(vi.IsDefault);
                     vault.SetDescription(vi.Description);
@@ -452,6 +461,7 @@ public class CompanyAppService : TradeXpressAppService, ICompanyAppService
     private static CompanyGetDto ToGetDto(Company c, Dictionary<Guid, string> codes) => new()
     {
         Id = c.Id,
+        Code = c.Code,
         Name = c.Name,
         CountryCode = c.CountryCode,
         BaseCurrencyUnitId = c.BaseCurrencyUnitId,

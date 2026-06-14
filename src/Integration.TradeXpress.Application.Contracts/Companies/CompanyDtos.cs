@@ -13,6 +13,7 @@ public class CompanyListRequestDto : ListRequestDto
 
 public class CompanyListDto : EntityDto<Guid>, IListDto<Guid>, IIsActive
 {
+    public string Code { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public string CountryCode { get; set; } = string.Empty;
     public Guid BaseCurrencyUnitId { get; set; }
@@ -24,6 +25,7 @@ public class CompanyListDto : EntityDto<Guid>, IListDto<Guid>, IIsActive
 
 public class CompanyGetDto : EntityDto<Guid>, IGetDto<Guid>
 {
+    public string Code { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public string CountryCode { get; set; } = string.Empty;
     public Guid BaseCurrencyUnitId { get; set; }
@@ -38,6 +40,10 @@ public class CompanyGetDto : EntityDto<Guid>, IGetDto<Guid>
 
 public class CompanyCreateDto : ICreateDto
 {
+    [Required]
+    [StringLength(CompanyConsts.CodeMaxLength)]
+    public string Code { get; set; } = string.Empty;
+
     [Required]
     [StringLength(CompanyConsts.NameMaxLength)]
     public string Name { get; set; } = string.Empty;
@@ -58,6 +64,10 @@ public class CompanyCreateDto : ICreateDto
 
 public class CompanyUpdateDto : IUpdateDto
 {
+    [Required]
+    [StringLength(CompanyConsts.CodeMaxLength)]
+    public string Code { get; set; } = string.Empty;
+
     [Required]
     [StringLength(CompanyConsts.NameMaxLength)]
     public string Name { get; set; } = string.Empty;

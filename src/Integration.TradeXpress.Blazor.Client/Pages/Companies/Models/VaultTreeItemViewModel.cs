@@ -10,6 +10,11 @@ public class VaultTreeItemViewModel
     public Guid ClientKey { get; set; } = Guid.NewGuid();
     public Guid? Id { get; set; }
 
+    [Display(Name = "Code")]
+    [Required]
+    [StringLength(VaultConsts.CodeMaxLength)]
+    public string Code { get; set; } = string.Empty;
+
     [Display(Name = "Name")]
     [Required]
     [StringLength(VaultConsts.NameMaxLength)]

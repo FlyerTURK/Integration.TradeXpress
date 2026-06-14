@@ -52,8 +52,15 @@ public abstract class CrudPageBase<TGetDto, TListDto, TKey, TListRequestDto, TCr
             Filters        = request.Filters,
             IsActive       = request.IsActive,
         };
+        OnConfiguringListRequest(typed);
         return CrudAppService.GetListAsync(typed);
     }
+
+    /// <summary>
+    /// Alt sınıfların extra filtre eklemesine izin verir (örn. CompanyId, BranchId).
+    /// FetchPageAsync her sayfa çekiminde çağırır.
+    /// </summary>
+    protected virtual void OnConfiguringListRequest(TListRequestDto request) { }
 
     [Inject]
     public ICrudStateService<TGetDto, TListDto, TKey, TViewModel> StateService { get; set; } = default!;

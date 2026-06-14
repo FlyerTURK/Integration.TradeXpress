@@ -1,6 +1,5 @@
 @page "/vaults"
 @using Integration.Framework.Blazor.Client.Components.Crud
-@using Integration.TradeXpress.Blazor.Client.Pages.Vaults.Services
 @using Integration.TradeXpress.Blazor.Client.Pages.Vaults.Models
 @using Integration.TradeXpress.Vaults
 @using DevExpress.Blazor
@@ -22,7 +21,8 @@
             OnSaveClick="SaveAsync">
 
     <GridColumns>
-        <DxGridDataColumn FieldName="BranchName" Caption="@L["Entity:Branch"]" Width="200px" />
+        <DxGridDataColumn FieldName="BranchCode" Caption="@L["Entity:Branch"]" Width="120px" />
+        <DxGridDataColumn FieldName="Code" Caption="@L["Code"]" Width="120px" />
         <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" />
         <DxGridDataColumn FieldName="IsDefault" Caption="@L["IsDefault"]" Width="100px" />
         <DxGridDataColumn FieldName="IsActive" Caption="@L["IsActive"]" Width="90px" />

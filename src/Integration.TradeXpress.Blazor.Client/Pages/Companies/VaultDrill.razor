@@ -17,16 +17,20 @@
            OnItemDeleted="OnItemDeleted"
            OnChanged="OnChanged">
     <GridColumns>
+        <DxGridDataColumn FieldName="Code" Caption="@L["Code"]" Width="100px" />
         <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" />
         <DxGridDataColumn FieldName="IsDefault" Caption="@L["IsDefault"]" Width="100px" />
         <DxGridDataColumn FieldName="IsActive" Caption="@L["IsActive"]" Width="80px" />
     </GridColumns>
     <EditContent Context="vault">
         <DxFormLayout Data="@vault" CssClass="w-100">
-            <DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="8">
+            <DxFormLayoutItem Caption="@($"{L["Code"]} *")" ColSpanMd="4">
+                <DxTextBox @bind-Text="@vault.Code" />
+            </DxFormLayoutItem>
+            <DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="5">
                 <DxTextBox @bind-Text="@vault.Name" />
             </DxFormLayoutItem>
-            <DxFormLayoutItem Caption="@L["DisplayOrder"]" ColSpanMd="4">
+            <DxFormLayoutItem Caption="@L["DisplayOrder"]" ColSpanMd="3">
                 <DxSpinEdit @bind-Value="@vault.DisplayOrder" />
             </DxFormLayoutItem>
             <DxFormLayoutItem Caption="@L["IsDefault"]" ColSpanMd="6">

@@ -18,6 +18,8 @@ public class Company : FullAuditedAggregateRoot<Guid>, IMultiTenant
 {
     public virtual Guid? TenantId { get; protected set; }
 
+    public virtual string Code { get; protected set; } = null!;
+
     public virtual string Name { get; protected set; } = null!;
 
     /// <summary>ISO-3166 alpha-2 ülke kodu (TR, US, ...). Fiyatlar bu ülkenin değil — pivot
@@ -39,6 +41,7 @@ public class Company : FullAuditedAggregateRoot<Guid>, IMultiTenant
 
     public Company(
         Guid id,
+        string code,
         string name,
         string countryCode,
         Guid baseCurrencyUnitId,
@@ -47,6 +50,7 @@ public class Company : FullAuditedAggregateRoot<Guid>, IMultiTenant
         Guid? tenantId = null)
         : base(id)
     {
+        SetCode(code);
         SetName(name);
         SetCountryCode(countryCode);
         BaseCurrencyUnitId = baseCurrencyUnitId;
@@ -55,6 +59,9 @@ public class Company : FullAuditedAggregateRoot<Guid>, IMultiTenant
         TenantId = tenantId;
         IsActive = true;
     }
+
+    public virtual void SetCode(string code)
+        => Code = Check.NotNullOrWhiteSpace(code, nameof(code), CompanyConsts.CodeMaxLength).ToUpperInvariant();
 
     public virtual void SetName(string name)
         => Name = Check.NotNullOrWhiteSpace(name, nameof(name), CompanyConsts.NameMaxLength);

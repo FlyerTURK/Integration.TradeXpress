@@ -22,6 +22,8 @@ public class Branch : FullAuditedAggregateRoot<Guid>, IMultiTenant
     /// <summary>Üst şirket — id-only referans (nav YOK).</summary>
     public virtual Guid CompanyId { get; protected set; }
 
+    public virtual string Code { get; protected set; } = null!;
+
     public virtual string Name { get; protected set; } = null!;
 
     /// <summary>Şirketin merkez (HQ) şubesi mi. Şirket başına tek HQ (AppService doğrular).</summary>
@@ -37,6 +39,7 @@ public class Branch : FullAuditedAggregateRoot<Guid>, IMultiTenant
     public Branch(
         Guid id,
         Guid companyId,
+        string code,
         string name,
         bool isHeadquarters = false,
         int displayOrder = 0,
@@ -44,12 +47,16 @@ public class Branch : FullAuditedAggregateRoot<Guid>, IMultiTenant
         : base(id)
     {
         SetCompany(companyId);
+        SetCode(code);
         SetName(name);
         IsHeadquarters = isHeadquarters;
         DisplayOrder = displayOrder;
         TenantId = tenantId;
         IsActive = true;
     }
+
+    public virtual void SetCode(string code)
+        => Code = Check.NotNullOrWhiteSpace(code, nameof(code), BranchConsts.CodeMaxLength).ToUpperInvariant();
 
     public virtual void SetName(string name)
         => Name = Check.NotNullOrWhiteSpace(name, nameof(name), BranchConsts.NameMaxLength);

@@ -120,6 +120,7 @@ public class CurrencyDataSeedContributor : IDataSeedContributor, ITransientDepen
 
                 var company = new Company(
                     _guidGenerator.Create(),
+                    code: "MRK",
                     name: "Merkez",
                     countryCode: "TR",
                     baseCurrencyUnitId: tryUnit.Id,

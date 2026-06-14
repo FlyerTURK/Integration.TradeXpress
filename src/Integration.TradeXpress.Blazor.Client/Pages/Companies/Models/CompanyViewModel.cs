@@ -15,6 +15,11 @@ public class CompanyViewModel : IViewModel<Guid>
 {
     public Guid Id { get; set; }
 
+    [Display(Name = "Code")]
+    [Required]
+    [StringLength(CompanyConsts.CodeMaxLength)]
+    public string Code { get; set; } = string.Empty;
+
     [Display(Name = "Name")]
     [Required]
     [StringLength(CompanyConsts.NameMaxLength)]

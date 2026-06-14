@@ -10,7 +10,6 @@ using Integration.TradeXpress.Blazor.Client.Pages.TenantManagement.Models;
 using Integration.TradeXpress.Blazor.Client.Pages.Currencies.Models;
 using Integration.TradeXpress.Blazor.Client.Pages.Companies.Models;
 using Integration.TradeXpress.Blazor.Client.Pages.Countries.Models;
-using Integration.TradeXpress.Blazor.Client.Pages.Branches.Models;
 using Integration.TradeXpress.Blazor.Client.Pages.Vaults.Models;
 
 namespace Integration.TradeXpress.Blazor.Client;
@@ -138,28 +137,6 @@ public partial class CountryGetDtoToListDtoMapper : MapperBase<CountryGetDto, Co
     public override partial void Map(CountryGetDto source, CountryListDto destination);
 }
 
-// ── Branch (CompanyId güncellemede yok; CompanyName okuma-amaçlı) ────────────────
-
-[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
-public partial class BranchVmToCreateDtoMapper : MapperBase<BranchViewModel, BranchCreateDto>
-{
-    public override partial BranchCreateDto Map(BranchViewModel source);
-    public override partial void Map(BranchViewModel source, BranchCreateDto destination);
-}
-
-[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
-public partial class BranchVmToUpdateDtoMapper : MapperBase<BranchViewModel, BranchUpdateDto>
-{
-    public override partial BranchUpdateDto Map(BranchViewModel source);
-    public override partial void Map(BranchViewModel source, BranchUpdateDto destination);
-}
-
-[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
-public partial class BranchGetDtoToVmMapper : MapperBase<BranchGetDto, BranchViewModel>
-{
-    public override partial BranchViewModel Map(BranchGetDto source);
-    public override partial void Map(BranchGetDto source, BranchViewModel destination);
-}
 
 [Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
 public partial class BranchGetDtoToListDtoMapper : MapperBase<BranchGetDto, BranchListDto>

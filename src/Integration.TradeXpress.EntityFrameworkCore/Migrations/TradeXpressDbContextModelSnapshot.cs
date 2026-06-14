@@ -29,6 +29,11 @@ namespace Integration.TradeXpress.Migrations
                     b.Property<Guid>("Id")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
                     b.Property<Guid>("CompanyId")
                         .HasColumnType("uniqueidentifier");
 
@@ -100,6 +105,10 @@ namespace Integration.TradeXpress.Migrations
 
                     b.HasIndex("TenantId", "CompanyId");
 
+                    b.HasIndex("TenantId", "CompanyId", "Code")
+                        .IsUnique()
+                        .HasFilter("[TenantId] IS NOT NULL");
+
                     b.HasIndex("TenantId", "CompanyId", "IsHeadquarters");
 
                     b.ToTable("AppBranches", (string)null);
@@ -112,6 +121,11 @@ namespace Integration.TradeXpress.Migrations
 
                     b.Property<Guid>("BaseCurrencyUnitId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
 
                     b.Property<string>("ConcurrencyStamp")
                         .IsConcurrencyToken()
@@ -183,6 +197,10 @@ namespace Integration.TradeXpress.Migrations
                         .HasColumnName("TenantId");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "Code")
+                        .IsUnique()
+                        .HasFilter("[TenantId] IS NOT NULL");
 
                     b.HasIndex("TenantId", "CountryCode");
 
@@ -544,6 +562,11 @@ namespace Integration.TradeXpress.Migrations
                     b.Property<Guid>("BranchId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
                     b.Property<string>("ConcurrencyStamp")
                         .IsConcurrencyToken()
                         .IsRequired()
@@ -611,6 +634,10 @@ namespace Integration.TradeXpress.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("TenantId", "BranchId");
+
+                    b.HasIndex("TenantId", "BranchId", "Code")
+                        .IsUnique()
+                        .HasFilter("[TenantId] IS NOT NULL");
 
                     b.HasIndex("TenantId", "BranchId", "IsDefault");
 

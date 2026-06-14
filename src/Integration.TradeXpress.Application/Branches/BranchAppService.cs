@@ -28,7 +28,7 @@ public class BranchAppService : TradeXpressAppService, IBranchAppService
     private readonly OrgTreeManager _orgTree;
 
     private static readonly HashSet<string> AllowedListFields =
-        new(StringComparer.OrdinalIgnoreCase) { "Name", "IsHeadquarters", "IsActive", "DisplayOrder", "CompanyId", "Id" };
+        new(StringComparer.OrdinalIgnoreCase) { "Code", "Name", "IsHeadquarters", "IsActive", "DisplayOrder", "CompanyId", "Id" };
 
     public BranchAppService(
         IRepository<Branch, Guid> repository,
@@ -49,14 +49,15 @@ public class BranchAppService : TradeXpressAppService, IBranchAppService
         var totalCount = await AsyncExecuter.CountAsync(query);
         var items = await AsyncExecuter.ToListAsync(query.Skip(input.SkipCount).Take(input.MaxResultCount));
 
-        var names = await LoadCompanyNamesAsync(items.Select(b => b.CompanyId));
+        var names = await LoadCompanyCodesAsync(items.Select(b => b.CompanyId));
         return new PagedResultDto<BranchListDto>(
             totalCount,
             items.Select(b => new BranchListDto
             {
                 Id = b.Id,
                 CompanyId = b.CompanyId,
-                CompanyName = names.GetValueOrDefault(b.CompanyId, string.Empty),
+                CompanyCode = names.GetValueOrDefault(b.CompanyId, string.Empty),
+                Code = b.Code,
                 Name = b.Name,
                 IsHeadquarters = b.IsHeadquarters,
                 IsActive = b.IsActive,
@@ -67,7 +68,7 @@ public class BranchAppService : TradeXpressAppService, IBranchAppService
     public virtual async Task<BranchGetDto> GetAsync(Guid id)
     {
         var b = await _repository.GetAsync(id);
-        var names = await LoadCompanyNamesAsync(new[] { b.CompanyId });
+        var names = await LoadCompanyCodesAsync(new[] { b.CompanyId });
         return ToGetDto(b, names);
     }
 
@@ -82,6 +83,7 @@ public class BranchAppService : TradeXpressAppService, IBranchAppService
         var b = new Branch(
             GuidGenerator.Create(),
             input.CompanyId,
+            input.Code,
             input.Name,
             isHeadquarters: input.IsHeadquarters,
             displayOrder: input.DisplayOrder,
@@ -97,7 +99,7 @@ public class BranchAppService : TradeXpressAppService, IBranchAppService
         // En az 1 child: yeni şube otomatik bir varsayılan kasayla doğar.
         await _orgTree.EnsureDefaultVaultAsync(b);
 
-        var names = await LoadCompanyNamesAsync(new[] { b.CompanyId });
+        var names = await LoadCompanyCodesAsync(new[] { b.CompanyId });
         return ToGetDto(b, names);
     }
 
@@ -117,13 +119,14 @@ public class BranchAppService : TradeXpressAppService, IBranchAppService
             throw new BusinessException("TradeXpress:Branch:CannotUnsetHeadquarters");
         }
 
+        b.SetCode(input.Code);
         b.SetName(input.Name);
         b.SetDescription(input.Description);
         b.SetDisplayOrder(input.DisplayOrder);
         if (input.IsActive) b.Activate(); else b.Deactivate();
 
         await _repository.UpdateAsync(b, autoSave: true);
-        var names = await LoadCompanyNamesAsync(new[] { b.CompanyId });
+        var names = await LoadCompanyCodesAsync(new[] { b.CompanyId });
         return ToGetDto(b, names);
     }
 
@@ -163,20 +166,21 @@ public class BranchAppService : TradeXpressAppService, IBranchAppService
         }
     }
 
-    private async Task<Dictionary<Guid, string>> LoadCompanyNamesAsync(IEnumerable<Guid> ids)
+    private async Task<Dictionary<Guid, string>> LoadCompanyCodesAsync(IEnumerable<Guid> ids)
     {
         var list = ids.Distinct().ToList();
         if (list.Count == 0) return new Dictionary<Guid, string>();
         var q = (await _companyRepository.GetQueryableAsync()).Where(c => list.Contains(c.Id));
         var companies = await AsyncExecuter.ToListAsync(q);
-        return companies.ToDictionary(c => c.Id, c => c.Name);
+        return companies.ToDictionary(c => c.Id, c => c.Code);
     }
 
     private static BranchGetDto ToGetDto(Branch b, Dictionary<Guid, string> names) => new()
     {
         Id = b.Id,
         CompanyId = b.CompanyId,
-        CompanyName = names.GetValueOrDefault(b.CompanyId, string.Empty),
+        CompanyCode = names.GetValueOrDefault(b.CompanyId, string.Empty),
+        Code = b.Code,
         Name = b.Name,
         IsHeadquarters = b.IsHeadquarters,
         IsActive = b.IsActive,

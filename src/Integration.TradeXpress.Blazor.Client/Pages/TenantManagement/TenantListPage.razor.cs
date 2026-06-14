@@ -1,5 +1,4 @@
 using System.Threading.Tasks;
-using Integration.TradeXpress.Blazor.Client.Pages.TenantManagement.Services;
 using Integration.TradeXpress.Tenants;
 
 namespace Integration.TradeXpress.Blazor.Client.Pages.TenantManagement;

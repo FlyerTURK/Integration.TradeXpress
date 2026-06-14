@@ -1,9 +1,9 @@
 @page "/companies"
 @using Integration.Framework.Blazor.Client.Components.Crud
-@using Integration.TradeXpress.Blazor.Client.Pages.Companies.Services
 @using Integration.TradeXpress.Blazor.Client.Pages.Companies.Models
 @using Integration.TradeXpress.Companies
 @using DevExpress.Blazor
+@inject Microsoft.AspNetCore.Components.NavigationManager NavigationManager
 @inherits CrudPageBase<CompanyGetDto, CompanyListDto, Guid, CompanyListRequestDto, CompanyCreateDto, CompanyUpdateDto, CompanyViewModel>
 
 <CrudLayout TGetDto="CompanyGetDto"
@@ -22,6 +22,7 @@
             OnSaveClick="SaveAsync">
 
     <GridColumns>
+        <DxGridDataColumn FieldName="Code" Caption="@L["Code"]" Width="120px" />
         <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" />
         <DxGridDataColumn FieldName="CountryCode" Caption="@L["CountryCode"]" Width="100px" />
         <DxGridDataColumn FieldName="BaseCurrencyCode" Caption="@L["BaseCurrency"]" Width="140px" />
@@ -42,6 +43,3 @@
 
 </CrudLayout>
 
-<BranchDrillPopup @bind-Visible="_branchPopupVisible"
-                  CompanyId="@(SelectedCompany?.Id ?? Guid.Empty)"
-                  CompanyName="@SelectedCompanyName" />

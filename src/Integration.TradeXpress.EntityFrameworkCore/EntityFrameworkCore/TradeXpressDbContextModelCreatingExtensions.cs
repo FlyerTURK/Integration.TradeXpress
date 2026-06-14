@@ -87,10 +87,12 @@ public static class TradeXpressDbContextModelCreatingExtensions
             b.ToTable(TradeXpressConsts.DbTablePrefix + "Companies", TradeXpressConsts.DbSchema);
             b.ConfigureByConvention();
 
+            b.Property(x => x.Code).IsRequired().HasMaxLength(CompanyConsts.CodeMaxLength);
             b.Property(x => x.Name).IsRequired().HasMaxLength(CompanyConsts.NameMaxLength);
             b.Property(x => x.CountryCode).IsRequired().HasMaxLength(CompanyConsts.CountryCodeMaxLength);
             b.Property(x => x.Description).HasMaxLength(CompanyConsts.DescriptionMaxLength);
 
+            b.HasIndex(x => new { x.TenantId, x.Code }).IsUnique();
             b.HasIndex(x => new { x.TenantId, x.CountryCode });
             b.HasIndex(x => new { x.TenantId, x.IsHeadquarters });
         });
@@ -121,9 +123,11 @@ public static class TradeXpressDbContextModelCreatingExtensions
             b.ToTable(TradeXpressConsts.DbTablePrefix + "Branches", TradeXpressConsts.DbSchema);
             b.ConfigureByConvention();
 
+            b.Property(x => x.Code).IsRequired().HasMaxLength(BranchConsts.CodeMaxLength);
             b.Property(x => x.Name).IsRequired().HasMaxLength(BranchConsts.NameMaxLength);
             b.Property(x => x.Description).HasMaxLength(BranchConsts.DescriptionMaxLength);
 
+            b.HasIndex(x => new { x.TenantId, x.CompanyId, x.Code }).IsUnique();
             b.HasIndex(x => new { x.TenantId, x.CompanyId });
             b.HasIndex(x => new { x.TenantId, x.CompanyId, x.IsHeadquarters });
         });
@@ -138,9 +142,11 @@ public static class TradeXpressDbContextModelCreatingExtensions
             b.ToTable(TradeXpressConsts.DbTablePrefix + "Vaults", TradeXpressConsts.DbSchema);
             b.ConfigureByConvention();
 
+            b.Property(x => x.Code).IsRequired().HasMaxLength(VaultConsts.CodeMaxLength);
             b.Property(x => x.Name).IsRequired().HasMaxLength(VaultConsts.NameMaxLength);
             b.Property(x => x.Description).HasMaxLength(VaultConsts.DescriptionMaxLength);
 
+            b.HasIndex(x => new { x.TenantId, x.BranchId, x.Code }).IsUnique();
             b.HasIndex(x => new { x.TenantId, x.BranchId });
             b.HasIndex(x => new { x.TenantId, x.BranchId, x.IsDefault });
         });

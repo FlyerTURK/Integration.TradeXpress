@@ -18,6 +18,8 @@ public class Vault : FullAuditedAggregateRoot<Guid>, IMultiTenant
     /// <summary>Üst şube — id-only referans (nav YOK).</summary>
     public virtual Guid BranchId { get; protected set; }
 
+    public virtual string Code { get; protected set; } = null!;
+
     public virtual string Name { get; protected set; } = null!;
 
     /// <summary>Şubenin varsayılan kasası mı (otomatik açılan/birincil).</summary>
@@ -33,6 +35,7 @@ public class Vault : FullAuditedAggregateRoot<Guid>, IMultiTenant
     public Vault(
         Guid id,
         Guid branchId,
+        string code,
         string name,
         bool isDefault = false,
         int displayOrder = 0,
@@ -40,12 +43,16 @@ public class Vault : FullAuditedAggregateRoot<Guid>, IMultiTenant
         : base(id)
     {
         SetBranch(branchId);
+        SetCode(code);
         SetName(name);
         IsDefault = isDefault;
         DisplayOrder = displayOrder;
         TenantId = tenantId;
         IsActive = true;
     }
+
+    public virtual void SetCode(string code)
+        => Code = Check.NotNullOrWhiteSpace(code, nameof(code), VaultConsts.CodeMaxLength).ToUpperInvariant();
 
     public virtual void SetName(string name)
         => Name = Check.NotNullOrWhiteSpace(name, nameof(name), VaultConsts.NameMaxLength);

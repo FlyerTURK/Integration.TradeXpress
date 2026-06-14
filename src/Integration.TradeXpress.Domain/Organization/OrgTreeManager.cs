@@ -61,6 +61,7 @@ public class OrgTreeManager : DomainService
         var branch = new Branch(
             GuidGenerator.Create(),
             company.Id,
+            BranchConsts.DefaultHeadquartersCode,
             BranchConsts.DefaultHeadquartersName,
             isHeadquarters: true,
             displayOrder: 1,
@@ -97,6 +98,7 @@ public class OrgTreeManager : DomainService
         var vault = new Vault(
             GuidGenerator.Create(),
             branch.Id,
+            VaultConsts.DefaultCode,
             VaultConsts.DefaultName,
             isDefault: true,
             displayOrder: 1,

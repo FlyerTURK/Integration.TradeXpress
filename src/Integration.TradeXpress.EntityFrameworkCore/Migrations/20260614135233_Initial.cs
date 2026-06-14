@@ -467,6 +467,221 @@ namespace Integration.TradeXpress.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "AppBranches",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    TenantId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    CompanyId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    Code = table.Column<string>(type: "nvarchar(32)", maxLength: 32, nullable: false),
+                    Name = table.Column<string>(type: "nvarchar(128)", maxLength: 128, nullable: false),
+                    IsHeadquarters = table.Column<bool>(type: "bit", nullable: false),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false),
+                    DisplayOrder = table.Column<int>(type: "int", nullable: false),
+                    Description = table.Column<string>(type: "nvarchar(512)", maxLength: 512, nullable: true),
+                    ExtraProperties = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    ConcurrencyStamp = table.Column<string>(type: "nvarchar(40)", maxLength: 40, nullable: false),
+                    CreationTime = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    CreatorId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    LastModificationTime = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    LastModifierId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "bit", nullable: false, defaultValue: false),
+                    DeleterId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    DeletionTime = table.Column<DateTime>(type: "datetime2", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_AppBranches", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "AppCompanies",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    TenantId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    Code = table.Column<string>(type: "nvarchar(32)", maxLength: 32, nullable: false),
+                    Name = table.Column<string>(type: "nvarchar(128)", maxLength: 128, nullable: false),
+                    CountryCode = table.Column<string>(type: "nvarchar(2)", maxLength: 2, nullable: false),
+                    BaseCurrencyUnitId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false),
+                    IsHeadquarters = table.Column<bool>(type: "bit", nullable: false),
+                    DisplayOrder = table.Column<int>(type: "int", nullable: false),
+                    Description = table.Column<string>(type: "nvarchar(512)", maxLength: 512, nullable: true),
+                    ExtraProperties = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    ConcurrencyStamp = table.Column<string>(type: "nvarchar(40)", maxLength: 40, nullable: false),
+                    CreationTime = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    CreatorId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    LastModificationTime = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    LastModifierId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "bit", nullable: false, defaultValue: false),
+                    DeleterId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    DeletionTime = table.Column<DateTime>(type: "datetime2", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_AppCompanies", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "AppCountries",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    TenantId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    Code = table.Column<string>(type: "nvarchar(2)", maxLength: 2, nullable: false),
+                    Name = table.Column<string>(type: "nvarchar(128)", maxLength: 128, nullable: false),
+                    DefaultCurrencyCode = table.Column<string>(type: "nvarchar(16)", maxLength: 16, nullable: true),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false),
+                    DisplayOrder = table.Column<int>(type: "int", nullable: false),
+                    ExtraProperties = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    ConcurrencyStamp = table.Column<string>(type: "nvarchar(40)", maxLength: 40, nullable: false),
+                    CreationTime = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    CreatorId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    LastModificationTime = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    LastModifierId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "bit", nullable: false, defaultValue: false),
+                    DeleterId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    DeletionTime = table.Column<DateTime>(type: "datetime2", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_AppCountries", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "AppCurrencyUnitMargins",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    TenantId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    CurrencyUnitId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    MarginOnBuy_Type = table.Column<int>(type: "int", nullable: false),
+                    MarginOnBuy_Value = table.Column<decimal>(type: "decimal(18,5)", precision: 18, scale: 5, nullable: false),
+                    MarginOnSell_Type = table.Column<int>(type: "int", nullable: false),
+                    MarginOnSell_Value = table.Column<decimal>(type: "decimal(18,5)", precision: 18, scale: 5, nullable: false),
+                    ExtraProperties = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    ConcurrencyStamp = table.Column<string>(type: "nvarchar(40)", maxLength: 40, nullable: false),
+                    CreationTime = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    CreatorId = table.Column<Guid>(type: "uniqueidentifier", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_AppCurrencyUnitMargins", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "AppCurrencyUnits",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    TenantId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    Code = table.Column<string>(type: "nvarchar(16)", maxLength: 16, nullable: false),
+                    Name = table.Column<string>(type: "nvarchar(128)", maxLength: 128, nullable: false),
+                    Type = table.Column<int>(type: "int", nullable: false),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false),
+                    DisplayOrder = table.Column<int>(type: "int", nullable: false),
+                    Description = table.Column<string>(type: "nvarchar(512)", maxLength: 512, nullable: true),
+                    IsSystem = table.Column<bool>(type: "bit", nullable: false),
+                    FollowingUnitId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    FollowingMargin_Type = table.Column<int>(type: "int", nullable: true),
+                    FollowingMargin_Value = table.Column<decimal>(type: "decimal(18,5)", precision: 18, scale: 5, nullable: true),
+                    ExtraProperties = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    ConcurrencyStamp = table.Column<string>(type: "nvarchar(40)", maxLength: 40, nullable: false),
+                    CreationTime = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    CreatorId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    LastModificationTime = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    LastModifierId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "bit", nullable: false, defaultValue: false),
+                    DeleterId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    DeletionTime = table.Column<DateTime>(type: "datetime2", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_AppCurrencyUnits", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "AppExchangeRates",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    TenantId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    CurrencyUnitId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    MarketPriceOnBuy = table.Column<decimal>(type: "decimal(18,5)", precision: 18, scale: 5, nullable: false),
+                    MarketPriceOnSell = table.Column<decimal>(type: "decimal(18,5)", precision: 18, scale: 5, nullable: false),
+                    AppliedMarginOnBuy_Type = table.Column<int>(type: "int", nullable: false),
+                    AppliedMarginOnBuy_Value = table.Column<decimal>(type: "decimal(18,5)", precision: 18, scale: 5, nullable: false),
+                    AppliedMarginOnSell_Type = table.Column<int>(type: "int", nullable: false),
+                    AppliedMarginOnSell_Value = table.Column<decimal>(type: "decimal(18,5)", precision: 18, scale: 5, nullable: false),
+                    Source = table.Column<string>(type: "nvarchar(64)", maxLength: 64, nullable: false),
+                    RateDate = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    GuardFired = table.Column<bool>(type: "bit", nullable: false),
+                    ExtraProperties = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    ConcurrencyStamp = table.Column<string>(type: "nvarchar(40)", maxLength: 40, nullable: false),
+                    CreationTime = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    CreatorId = table.Column<Guid>(type: "uniqueidentifier", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_AppExchangeRates", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "AppParities",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    TenantId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    BaseCurrencyUnitId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    QuoteCurrencyUnitId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false),
+                    IsSystem = table.Column<bool>(type: "bit", nullable: false),
+                    DisplayOrder = table.Column<int>(type: "int", nullable: false),
+                    ExtraProperties = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    ConcurrencyStamp = table.Column<string>(type: "nvarchar(40)", maxLength: 40, nullable: false),
+                    CreationTime = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    CreatorId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    LastModificationTime = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    LastModifierId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "bit", nullable: false, defaultValue: false),
+                    DeleterId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    DeletionTime = table.Column<DateTime>(type: "datetime2", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_AppParities", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "AppVaults",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    TenantId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    BranchId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    Code = table.Column<string>(type: "nvarchar(32)", maxLength: 32, nullable: false),
+                    Name = table.Column<string>(type: "nvarchar(128)", maxLength: 128, nullable: false),
+                    IsDefault = table.Column<bool>(type: "bit", nullable: false),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false),
+                    DisplayOrder = table.Column<int>(type: "int", nullable: false),
+                    Description = table.Column<string>(type: "nvarchar(512)", maxLength: 512, nullable: true),
+                    ExtraProperties = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    ConcurrencyStamp = table.Column<string>(type: "nvarchar(40)", maxLength: 40, nullable: false),
+                    CreationTime = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    CreatorId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    LastModificationTime = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    LastModifierId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "bit", nullable: false, defaultValue: false),
+                    DeleterId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    DeletionTime = table.Column<DateTime>(type: "datetime2", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_AppVaults", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "OpenIddictApplications",
                 columns: table => new
                 {
@@ -1154,6 +1369,95 @@ namespace Integration.TradeXpress.Migrations
                 column: "UserName");
 
             migrationBuilder.CreateIndex(
+                name: "IX_AppBranches_TenantId_CompanyId",
+                table: "AppBranches",
+                columns: new[] { "TenantId", "CompanyId" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AppBranches_TenantId_CompanyId_Code",
+                table: "AppBranches",
+                columns: new[] { "TenantId", "CompanyId", "Code" },
+                unique: true,
+                filter: "[TenantId] IS NOT NULL");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AppBranches_TenantId_CompanyId_IsHeadquarters",
+                table: "AppBranches",
+                columns: new[] { "TenantId", "CompanyId", "IsHeadquarters" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AppCompanies_TenantId_Code",
+                table: "AppCompanies",
+                columns: new[] { "TenantId", "Code" },
+                unique: true,
+                filter: "[TenantId] IS NOT NULL");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AppCompanies_TenantId_CountryCode",
+                table: "AppCompanies",
+                columns: new[] { "TenantId", "CountryCode" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AppCompanies_TenantId_IsHeadquarters",
+                table: "AppCompanies",
+                columns: new[] { "TenantId", "IsHeadquarters" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AppCountries_TenantId_Code",
+                table: "AppCountries",
+                columns: new[] { "TenantId", "Code" },
+                unique: true,
+                filter: "[TenantId] IS NOT NULL");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AppCurrencyUnitMargins_TenantId_CurrencyUnitId_CreationTime",
+                table: "AppCurrencyUnitMargins",
+                columns: new[] { "TenantId", "CurrencyUnitId", "CreationTime" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AppCurrencyUnits_TenantId_Code",
+                table: "AppCurrencyUnits",
+                columns: new[] { "TenantId", "Code" },
+                unique: true,
+                filter: "[TenantId] IS NOT NULL");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AppExchangeRates_TenantId_CurrencyUnitId_RateDate",
+                table: "AppExchangeRates",
+                columns: new[] { "TenantId", "CurrencyUnitId", "RateDate" },
+                unique: true,
+                filter: "[TenantId] IS NOT NULL");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AppParities_TenantId_BaseCurrencyUnitId_QuoteCurrencyUnitId",
+                table: "AppParities",
+                columns: new[] { "TenantId", "BaseCurrencyUnitId", "QuoteCurrencyUnitId" },
+                unique: true,
+                filter: "[TenantId] IS NOT NULL");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AppParities_TenantId_IsActive",
+                table: "AppParities",
+                columns: new[] { "TenantId", "IsActive" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AppVaults_TenantId_BranchId",
+                table: "AppVaults",
+                columns: new[] { "TenantId", "BranchId" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AppVaults_TenantId_BranchId_Code",
+                table: "AppVaults",
+                columns: new[] { "TenantId", "BranchId", "Code" },
+                unique: true,
+                filter: "[TenantId] IS NOT NULL");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AppVaults_TenantId_BranchId_IsDefault",
+                table: "AppVaults",
+                columns: new[] { "TenantId", "BranchId", "IsDefault" });
+
+            migrationBuilder.CreateIndex(
                 name: "IX_OpenIddictApplications_ClientId",
                 table: "OpenIddictApplications",
                 column: "ClientId");
@@ -1273,6 +1577,30 @@ namespace Integration.TradeXpress.Migrations
 
             migrationBuilder.DropTable(
                 name: "AbpUserTokens");
+
+            migrationBuilder.DropTable(
+                name: "AppBranches");
+
+            migrationBuilder.DropTable(
+                name: "AppCompanies");
+
+            migrationBuilder.DropTable(
+                name: "AppCountries");
+
+            migrationBuilder.DropTable(
+                name: "AppCurrencyUnitMargins");
+
+            migrationBuilder.DropTable(
+                name: "AppCurrencyUnits");
+
+            migrationBuilder.DropTable(
+                name: "AppExchangeRates");
+
+            migrationBuilder.DropTable(
+                name: "AppParities");
+
+            migrationBuilder.DropTable(
+                name: "AppVaults");
 
             migrationBuilder.DropTable(
                 name: "OpenIddictScopes");

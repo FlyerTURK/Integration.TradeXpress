@@ -1,0 +1,77 @@
+@using Integration.TradeXpress.Blazor.Client.Pages.Currencies.Models
+@using Integration.TradeXpress.Currencies
+@using Microsoft.Extensions.Localization
+@using DevExpress.Blazor
+@inject ICurrencyUnitAppService CurrencyUnitAppService
+
+<DxFormLayout Data="@Model" CssClass="w-100">
+
+    <DxFormLayoutGroup Caption="@L["General"]" ColSpanMd="12">
+        <DxFormLayoutItem Caption="@($"{L["Code"]} *")" ColSpanMd="6">
+            <DxTextBox @bind-Text="@Model.Code" @ref="_codeBox" Enabled="@(Model.Id == Guid.Empty)" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["Type"]" ColSpanMd="6">
+            <DxComboBox Data="@_currencyTypes" @bind-Value="@Model.Type" Enabled="@(Model.Id == Guid.Empty)" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="12">
+            <DxTextBox @bind-Text="@Model.Name" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["Description"]" ColSpanMd="12">
+            <DxTextBox @bind-Text="@Model.Description" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["IsActive"]" ColSpanMd="6">
+            <DxCheckBox @bind-Checked="@Model.IsActive" CheckType="CheckType.Switch">
+                @(Model.IsActive ? L["Active"] : L["Passive"])
+            </DxCheckBox>
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["DisplayOrder"]" ColSpanMd="6">
+            <DxSpinEdit @bind-Value="@Model.DisplayOrder" />
+        </DxFormLayoutItem>
+    </DxFormLayoutGroup>
+
+    <DxFormLayoutGroup Caption="@L["Following"]" ColSpanMd="12">
+        <DxFormLayoutItem Caption="@L["FollowingUnit"]" ColSpanMd="4">
+            <DxComboBox Data="@_followCandidates"
+                        @bind-Value="@Model.FollowingUnitId"
+                        TextFieldName="@nameof(CurrencyUnitListDto.Code)"
+                        ValueFieldName="@nameof(CurrencyUnitListDto.Id)"
+                        NullText="@L["None"]"
+                        ValidationEnabled="false"
+                        ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
+            <div class="form-text text-muted small">@L["FollowingHint"]</div>
+        </DxFormLayoutItem>
+        @if (Model.FollowingUnitId.HasValue)
+        {
+            <DxFormLayoutItem Caption="@L["MarginType"]" ColSpanMd="4">
+                <DxComboBox Data="@_marginTypes" @bind-Value="@Model.FollowingMarginType" />
+            </DxFormLayoutItem>
+            <DxFormLayoutItem Caption="@L["MarginValue"]" ColSpanMd="4">
+                <DxSpinEdit @bind-Value="@Model.FollowingMarginValue" />
+            </DxFormLayoutItem>
+        }
+    </DxFormLayoutGroup>
+
+</DxFormLayout>
+
+@code {
+    [Parameter, EditorRequired] public CurrencyUnitViewModel Model { get; set; } = default!;
+    [Parameter, EditorRequired] public IStringLocalizer L { get; set; } = default!;
+
+    private DxTextBox? _codeBox;
+    private static readonly CurrencyUnitType[] _currencyTypes = Enum.GetValues<CurrencyUnitType>();
+    private static readonly MarginType[] _marginTypes = Enum.GetValues<MarginType>();
+    private List<CurrencyUnitListDto> _followCandidates = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var result = await CurrencyUnitAppService.GetListAsync(
+            new CurrencyUnitListRequestDto { MaxResultCount = 1000 });
+        _followCandidates = result.Items.Where(u => u.Id != Model.Id).ToList();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && Model.Id == Guid.Empty && _codeBox != null)
+            await _codeBox.FocusAsync();
+    }
+}

@@ -14,6 +14,7 @@ public static class CompanyTreeMapping
     public static CompanyViewModel ToViewModel(CompanyTreeDto src) => new()
     {
         Id = src.Id,
+        Code = src.Code,
         Name = src.Name,
         CountryCode = src.CountryCode,
         BaseCurrencyUnitId = src.BaseCurrencyUnitId,
@@ -28,6 +29,7 @@ public static class CompanyTreeMapping
             // sabit kalır → seçim sürekliliği + ileride optimistic-merge köprüsü için stabil anahtar.
             ClientKey = b.Id,
             Id = b.Id,
+            Code = b.Code,
             Name = b.Name,
             IsHeadquarters = b.IsHeadquarters,
             IsActive = b.IsActive,
@@ -38,6 +40,7 @@ public static class CompanyTreeMapping
             {
                 ClientKey = v.Id,  // deterministik: mevcut kasanın grid kimliği = sunucu Id'si
                 Id = v.Id,
+                Code = v.Code,
                 Name = v.Name,
                 IsDefault = v.IsDefault,
                 IsActive = v.IsActive,
@@ -51,6 +54,7 @@ public static class CompanyTreeMapping
     public static CompanyTreeSaveDto ToSaveDto(CompanyViewModel vm) => new()
     {
         Id = vm.Id == Guid.Empty ? null : vm.Id,
+        Code = vm.Code,
         Name = vm.Name,
         CountryCode = vm.CountryCode,
         BaseCurrencyUnitId = vm.BaseCurrencyUnitId,
@@ -63,6 +67,7 @@ public static class CompanyTreeMapping
         Branches = vm.Branches.Select(b => new BranchTreeSaveDto
         {
             Id = b.Id,
+            Code = b.Code,
             Name = b.Name,
             IsHeadquarters = b.IsHeadquarters,
             IsActive = b.IsActive,
@@ -73,6 +78,7 @@ public static class CompanyTreeMapping
             Vaults = b.Vaults.Select(v => new VaultTreeSaveDto
             {
                 Id = v.Id,
+                Code = v.Code,
                 Name = v.Name,
                 IsDefault = v.IsDefault,
                 IsActive = v.IsActive,
@@ -87,6 +93,7 @@ public static class CompanyTreeMapping
     public static BranchTreeItemViewModel NewHeadquartersBranch() => new()
     {
         ClientKey = Guid.NewGuid(),
+        Code = BranchConsts.DefaultHeadquartersCode,
         Name = BranchConsts.DefaultHeadquartersName,
         IsHeadquarters = true,
         IsActive = true,
@@ -97,6 +104,7 @@ public static class CompanyTreeMapping
     public static VaultTreeItemViewModel NewDefaultVault() => new()
     {
         ClientKey = Guid.NewGuid(),
+        Code = VaultConsts.DefaultCode,
         Name = VaultConsts.DefaultName,
         IsDefault = true,
         IsActive = true,
@@ -109,6 +117,7 @@ public static class CompanyTreeMapping
     {
         ClientKey = b.ClientKey,  // aynı grid anahtarı → seçim/satır korunur
         Id = b.Id,
+        Code = b.Code,
         Name = b.Name,
         IsHeadquarters = b.IsHeadquarters,
         IsActive = b.IsActive,
@@ -123,6 +132,7 @@ public static class CompanyTreeMapping
     {
         ClientKey = v.ClientKey,
         Id = v.Id,
+        Code = v.Code,
         Name = v.Name,
         IsDefault = v.IsDefault,
         IsActive = v.IsActive,

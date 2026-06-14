@@ -34,9 +34,11 @@ public partial class CompanyListPage
 
     private string SelectedCompanyName => SelectedCompany?.Name ?? string.Empty;
 
-    private bool _branchPopupVisible;
-
-    private void OpenBranchesAsync() => _branchPopupVisible = true;
+    private void OpenBranchesAsync()
+    {
+        if (SelectedCompany is null) return;
+        NavigationManager.NavigateTo($"/branches/{SelectedCompany.Id}?companycode={Uri.EscapeDataString(SelectedCompany.Code)}");
+    }
 
     // ── Edit formu değişince IsDirty — combo/drill EditContext'i atlar. ────────
     private void MarkDrillDirty() => StateService.IsDirty = true;

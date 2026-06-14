@@ -19,7 +19,11 @@ public class IntegrationFrameworkBlazorClientModule : AbpModule
 {
     public override void ConfigureServices(ServiceConfigurationContext context)
     {
-        // Register ITradeXpressUiService as Scoped
         context.Services.AddScoped<ITradeXpressUiService, TradeXpressUiService>();
+
+        // ICrudStateService<,,,> kullanan her sayfa ayrı bir sınıf yazmadan çözümlenir.
+        context.Services.AddTransient(
+            typeof(ICrudStateService<,,,>),
+            typeof(DefaultCrudStateService<,,,>));
     }
 }
