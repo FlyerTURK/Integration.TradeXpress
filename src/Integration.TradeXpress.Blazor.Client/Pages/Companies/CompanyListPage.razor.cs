@@ -35,14 +35,8 @@ public partial class CompanyListPage
     private string SelectedCompanyName => SelectedCompany?.Name ?? string.Empty;
 
     private bool _branchPopupVisible;
-    private bool _vaultPopupVisible;
-    private BranchTreeItemViewModel? _selectedBranch;
 
     private void OpenBranchesAsync() => _branchPopupVisible = true;
-
-    private void OnBranchSelected(BranchTreeItemViewModel? b) => _selectedBranch = b;
-
-    private void OpenVaultsDrill() => _vaultPopupVisible = true;
 
     // ── Edit formu değişince IsDirty — combo/drill EditContext'i atlar. ────────
     private void MarkDrillDirty() => StateService.IsDirty = true;

@@ -5,8 +5,8 @@
 @inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
 @inject IBranchAppService BranchAppService
 
-@* Şube kalıcı drill popup'ı — kendi ekosistemi: veri yükleme, CRUD, filtre, seçim ve
-   Kasalar drill'ine geçiş burada yaşar. Parent (CompanyListPage) yalnız görünürlük + kimlik verir. *@
+@* Şube kalıcı drill popup'ı. Parent yalnız görünürlük + şirket kimliği verir.
+   Kasa yönetimi BranchEditForm(PersistVaults=true) içinde yaşar — ayrı VaultDrillPopup yok. *@
 
 <DxPopup @bind-Visible="Visible" @bind-Visible:event="VisibleChanged"
          HeaderText="@($"{CompanyName} — {L["Menu:Branches"]}")"
@@ -27,8 +27,7 @@
                        PersistCreate="PersistCreate"
                        PersistUpdate="PersistUpdate"
                        PersistDelete="PersistDelete"
-                       OnItemSaved="OnItemSaved"
-                       OnSelectionChanged="OnSelectionChanged">
+                       OnItemSaved="OnItemSaved">
                 <ToolbarActions>
                     <div style="display:flex; align-items:center; gap:0.4rem; white-space:nowrap;">
                         <DxCheckBox Checked="@_activeFilter"
@@ -36,37 +35,13 @@
                                     CheckType="CheckType.Switch" />
                         <span>@(_activeFilter ? L["ActiveRecords"] : L["PassiveRecords"])</span>
                     </div>
-                    <DxButton Text="@L["Menu:Vaults"]" IconCssClass="fas fa-vault"
-                              RenderStyle="ButtonRenderStyle.Secondary"
-                              Enabled="@(_selectedItem?.Id != null)"
-                              Click="RequestVaultsDrill" />
                 </ToolbarActions>
                 <GridColumns>
                     <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" />
                     <DxGridDataColumn FieldName="IsHeadquarters" Caption="@L["IsHeadquarters"]" Width="100px" />
                 </GridColumns>
                 <EditContent Context="branch">
-                    <DxFormLayout Data="@branch" CssClass="w-100">
-                        <DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="8">
-                            <DxTextBox @bind-Text="@branch.Name" />
-                        </DxFormLayoutItem>
-                        <DxFormLayoutItem Caption="@L["DisplayOrder"]" ColSpanMd="4">
-                            <DxSpinEdit @bind-Value="@branch.DisplayOrder" />
-                        </DxFormLayoutItem>
-                        <DxFormLayoutItem Caption="@L["IsHeadquarters"]" ColSpanMd="6">
-                            <DxCheckBox @bind-Checked="@branch.IsHeadquarters" CheckType="CheckType.Switch">
-                                @(branch.IsHeadquarters ? L["Yes"] : L["No"])
-                            </DxCheckBox>
-                        </DxFormLayoutItem>
-                        <DxFormLayoutItem Caption="@L["IsActive"]" ColSpanMd="6">
-                            <DxCheckBox @bind-Checked="@branch.IsActive" CheckType="CheckType.Switch">
-                                @(branch.IsActive ? L["Active"] : L["Passive"])
-                            </DxCheckBox>
-                        </DxFormLayoutItem>
-                        <DxFormLayoutItem Caption="@L["Description"]" ColSpanMd="12">
-                            <DxTextBox @bind-Text="@branch.Description" />
-                        </DxFormLayoutItem>
-                    </DxFormLayout>
+                    <BranchEditForm Branch="@branch" PersistVaults="true" />
                 </EditContent>
             </DrillList>
         }
@@ -79,14 +54,7 @@
     [Parameter] public Guid CompanyId { get; set; }
     [Parameter] public string CompanyName { get; set; } = "";
 
-    /// <summary>Seçim değişince — VaultDrillPopup için BranchId'yi parent'a taşır.</summary>
-    [Parameter] public EventCallback<BranchTreeItemViewModel?> OnBranchSelected { get; set; }
-
-    /// <summary>"Kasalar" butonuna basılınca — parent VaultDrillPopup'ı açar.</summary>
-    [Parameter] public EventCallback OnVaultsDrillRequested { get; set; }
-
     private List<BranchTreeItemViewModel> _items = new();
-    private BranchTreeItemViewModel? _selectedItem;
     private bool _activeFilter = true;
     private Guid _loadedForCompanyId;
 
@@ -100,7 +68,6 @@
         else if (!Visible)
         {
             _loadedForCompanyId = Guid.Empty;
-            _selectedItem = null;
             _activeFilter = true;
         }
     }
@@ -115,7 +82,6 @@
                 CompanyId = CompanyId,
             });
             _items = list.Items.Select(ToBranchVm).ToList();
-            _selectedItem = null;
             if (list.TotalCount > _items.Count)
                 await Notify.Warn(L["TradeXpress:Drill:CeilingReached"]);
         }
@@ -136,14 +102,6 @@
         foreach (var b in _items)
             if (b != saved) b.IsHeadquarters = false;
     }
-
-    private async Task OnSelectionChanged(BranchTreeItemViewModel? b)
-    {
-        _selectedItem = b;
-        await OnBranchSelected.InvokeAsync(b);
-    }
-
-    private async Task RequestVaultsDrill() => await OnVaultsDrillRequested.InvokeAsync();
 
     private async Task<BranchTreeItemViewModel> PersistCreate(BranchTreeItemViewModel vm)
         => ToBranchVm(await BranchAppService.CreateAsync(new BranchCreateDto

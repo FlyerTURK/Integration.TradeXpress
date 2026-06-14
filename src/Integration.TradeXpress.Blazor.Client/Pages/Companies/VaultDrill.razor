@@ -7,9 +7,12 @@
            Title="@L["Menu:Vaults"]"
            EntityName="@L["Entity:Vault"]"
            Items="@Items"
-           MinItems="1"
+           MinItems="@MinItems"
            NewItemFactory="@CompanyTreeMapping.NewDefaultVault"
            CloneFactory="@CompanyTreeMapping.CloneVault"
+           PersistCreate="PersistCreate"
+           PersistUpdate="PersistUpdate"
+           PersistDelete="PersistDelete"
            OnItemSaved="OnVaultSaved"
            OnItemDeleted="OnItemDeleted"
            OnChanged="OnChanged">
@@ -46,8 +49,14 @@
 
 @code {
     [Parameter, EditorRequired] public List<VaultTreeItemViewModel> Items { get; set; } = default!;
+    [Parameter] public int MinItems { get; set; } = 1;
     [Parameter] public EventCallback<VaultTreeItemViewModel> OnItemDeleted { get; set; }
     [Parameter] public EventCallback OnChanged { get; set; }
+
+    /// <summary>null = in-memory mod, non-null = persistent mod.</summary>
+    [Parameter] public Func<VaultTreeItemViewModel, Task<VaultTreeItemViewModel>>? PersistCreate { get; set; }
+    [Parameter] public Func<VaultTreeItemViewModel, Task<VaultTreeItemViewModel>>? PersistUpdate { get; set; }
+    [Parameter] public Func<VaultTreeItemViewModel, Task>? PersistDelete { get; set; }
 
     private void OnVaultSaved(VaultTreeItemViewModel saved)
     {

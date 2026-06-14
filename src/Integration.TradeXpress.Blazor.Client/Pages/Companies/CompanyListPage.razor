@@ -44,10 +44,4 @@
 
 <BranchDrillPopup @bind-Visible="_branchPopupVisible"
                   CompanyId="@(SelectedCompany?.Id ?? Guid.Empty)"
-                  CompanyName="@SelectedCompanyName"
-                  OnBranchSelected="OnBranchSelected"
-                  OnVaultsDrillRequested="OpenVaultsDrill" />
-
-<VaultDrillPopup @bind-Visible="_vaultPopupVisible"
-                 BranchId="@(_selectedBranch?.Id ?? Guid.Empty)"
-                 BranchName="@(_selectedBranch?.Name ?? string.Empty)" />
+                  CompanyName="@SelectedCompanyName" />

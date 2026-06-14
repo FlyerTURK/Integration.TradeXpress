@@ -20,34 +20,7 @@
         <DxGridDataColumn FieldName="IsActive" Caption="@L["IsActive"]" Width="80px" />
     </GridColumns>
     <EditContent Context="branch">
-        <DxFormLayout Data="@branch" CssClass="w-100">
-            <DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="8">
-                <DxTextBox @bind-Text="@branch.Name" />
-            </DxFormLayoutItem>
-            <DxFormLayoutItem Caption="@L["DisplayOrder"]" ColSpanMd="4">
-                <DxSpinEdit @bind-Value="@branch.DisplayOrder" />
-            </DxFormLayoutItem>
-            <DxFormLayoutItem Caption="@L["IsHeadquarters"]" ColSpanMd="6">
-                <DxCheckBox @bind-Checked="@branch.IsHeadquarters" CheckType="CheckType.Switch">
-                    @(branch.IsHeadquarters ? L["Yes"] : L["No"])
-                </DxCheckBox>
-                <div class="form-text text-muted small">@L["BranchHeadquartersHint"]</div>
-            </DxFormLayoutItem>
-            <DxFormLayoutItem Caption="@L["IsActive"]" ColSpanMd="6">
-                <DxCheckBox @bind-Checked="@branch.IsActive" CheckType="CheckType.Switch">
-                    @(branch.IsActive ? L["Active"] : L["Passive"])
-                </DxCheckBox>
-            </DxFormLayoutItem>
-            <DxFormLayoutItem Caption="@L["Description"]" ColSpanMd="12">
-                <DxTextBox @bind-Text="@branch.Description" />
-            </DxFormLayoutItem>
-        </DxFormLayout>
-
-        <div class="mt-3">
-            <VaultDrill Items="@branch.Vaults"
-                        OnItemDeleted="@(v => AddDeletedVaultId(branch, v))"
-                        OnChanged="OnChanged" />
-        </div>
+        <BranchEditForm Branch="@branch" PersistVaults="false" OnChanged="OnChanged" />
     </EditContent>
 </DrillList>
 
@@ -69,10 +42,5 @@
         if (!saved.IsHeadquarters) return;
         foreach (var b in Items)
             if (b != saved) b.IsHeadquarters = false;
-    }
-
-    private void AddDeletedVaultId(BranchTreeItemViewModel branch, VaultTreeItemViewModel vault)
-    {
-        if (vault.Id is { } id) branch.DeletedVaultIds.Add(id);
     }
 }

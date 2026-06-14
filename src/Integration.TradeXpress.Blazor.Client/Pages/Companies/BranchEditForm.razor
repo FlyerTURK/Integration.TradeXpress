@@ -1,0 +1,115 @@
+@using Integration.TradeXpress.Blazor.Client.Pages.Companies.Models
+@using Integration.Framework.Blazor.Client.Components.Crud
+@using Integration.TradeXpress.Vaults
+@using DevExpress.Blazor
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+@inject IVaultAppService VaultAppService
+
+@* Şube düzenleme formu — hem in-memory (şirket ağacı) hem persistent (şube popup) modunda çalışır.
+   PersistVaults=false → VaultDrill in-memory, şirket SaveTree'siyle kaydedilir.
+   PersistVaults=true  → VaultDrill persistent, IVaultAppService ile anında yazar. *@
+
+<DxFormLayout Data="@Branch" CssClass="w-100">
+    <DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="8">
+        <DxTextBox @bind-Text="@Branch.Name" />
+    </DxFormLayoutItem>
+    <DxFormLayoutItem Caption="@L["DisplayOrder"]" ColSpanMd="4">
+        <DxSpinEdit @bind-Value="@Branch.DisplayOrder" />
+    </DxFormLayoutItem>
+    <DxFormLayoutItem Caption="@L["IsHeadquarters"]" ColSpanMd="6">
+        <DxCheckBox @bind-Checked="@Branch.IsHeadquarters" CheckType="CheckType.Switch">
+            @(Branch.IsHeadquarters ? L["Yes"] : L["No"])
+        </DxCheckBox>
+        <div class="form-text text-muted small">@L["BranchHeadquartersHint"]</div>
+    </DxFormLayoutItem>
+    <DxFormLayoutItem Caption="@L["IsActive"]" ColSpanMd="6">
+        <DxCheckBox @bind-Checked="@Branch.IsActive" CheckType="CheckType.Switch">
+            @(Branch.IsActive ? L["Active"] : L["Passive"])
+        </DxCheckBox>
+    </DxFormLayoutItem>
+    <DxFormLayoutItem Caption="@L["Description"]" ColSpanMd="12">
+        <DxTextBox @bind-Text="@Branch.Description" />
+    </DxFormLayoutItem>
+</DxFormLayout>
+
+<div class="mt-3">
+    <VaultDrill Items="@Branch.Vaults"
+                MinItems="@(PersistVaults ? 0 : 1)"
+                PersistCreate="@(PersistVaults ? PersistVaultCreate : null)"
+                PersistUpdate="@(PersistVaults ? PersistVaultUpdate : null)"
+                PersistDelete="@(PersistVaults ? PersistVaultDelete : null)"
+                OnItemDeleted="HandleVaultDeleted"
+                OnChanged="OnChanged" />
+</div>
+
+@code {
+    [Parameter, EditorRequired] public BranchTreeItemViewModel Branch { get; set; } = default!;
+
+    /// <summary>
+    /// false (varsayılan) = in-memory mod: kasa değişiklikleri şirket SaveTree'siyle toplu kaydedilir.
+    /// true = persistent mod: her kasa işlemi anında IVaultAppService'e gider.
+    /// </summary>
+    [Parameter] public bool PersistVaults { get; set; }
+
+    [Parameter] public EventCallback OnChanged { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Persistent modda mevcut şubeyi açarken kasaları yükle.
+        if (PersistVaults && Branch.Id != null && Branch.Vaults.Count == 0)
+        {
+            try
+            {
+                var list = await VaultAppService.GetListAsync(new VaultListRequestDto
+                {
+                    MaxResultCount = DrillConsts.MaxInMemoryChildren,
+                    BranchId = Branch.Id.Value,
+                });
+                foreach (var v in list.Items)
+                    Branch.Vaults.Add(ToVm(v));
+                if (list.TotalCount > Branch.Vaults.Count)
+                    await Notify.Warn(L["TradeXpress:Drill:CeilingReached"]);
+            }
+            catch (Exception ex)
+            {
+                await HandleErrorAsync(ex);
+            }
+        }
+    }
+
+    // In-memory modda silinen mevcut kasaların Id'lerini şubeye kaydeder (SaveTree için).
+    private void HandleVaultDeleted(VaultTreeItemViewModel vault)
+    {
+        if (!PersistVaults && vault.Id is { } id)
+            Branch.DeletedVaultIds.Add(id);
+    }
+
+    private async Task<VaultTreeItemViewModel> PersistVaultCreate(VaultTreeItemViewModel vm)
+        => ToVm(await VaultAppService.CreateAsync(new VaultCreateDto
+        {
+            BranchId = Branch.Id!.Value,
+            Name = vm.Name,
+            IsDefault = vm.IsDefault,
+            DisplayOrder = vm.DisplayOrder,
+            Description = vm.Description,
+        }));
+
+    private async Task<VaultTreeItemViewModel> PersistVaultUpdate(VaultTreeItemViewModel vm)
+        => ToVm(await VaultAppService.UpdateAsync(vm.Id!.Value, new VaultUpdateDto
+        {
+            Name = vm.Name,
+            IsDefault = vm.IsDefault,
+            IsActive = vm.IsActive,
+            DisplayOrder = vm.DisplayOrder,
+            Description = vm.Description,
+        }));
+
+    private Task PersistVaultDelete(VaultTreeItemViewModel vm)
+        => VaultAppService.DeleteAsync(vm.Id!.Value);
+
+    private static VaultTreeItemViewModel ToVm(VaultListDto d) => new()
+        { Id = d.Id, Name = d.Name, IsDefault = d.IsDefault, IsActive = d.IsActive, DisplayOrder = d.DisplayOrder };
+
+    private static VaultTreeItemViewModel ToVm(VaultGetDto d) => new()
+        { Id = d.Id, Name = d.Name, IsDefault = d.IsDefault, IsActive = d.IsActive, DisplayOrder = d.DisplayOrder, Description = d.Description };
+}
