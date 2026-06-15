@@ -19,8 +19,9 @@
     }
 
     <DxToolbar ItemRenderStyleMode="ToolbarRenderStyleMode.Plain" CssClass="mb-2">
-        @* Düzenleme tek-tıkla satırdan açılır → ayrı "Düzelt" butonu yok. *@
-        @if (!ReadOnly)
+        @* Popup modunda düzenleme tek-tıkla satırdan açılır → ayrı "Düzelt" butonu yok.
+           AllowInlineEdit modunda New/Delete'i grid'in command column'u sağlar → toolbar'dan gizlenir. *@
+        @if (!ReadOnly && !AllowInlineEdit)
         {
             <DxToolbarItem Text="@L["New"]"
                            IconUrl="/images/xaf/action_new.svg"
@@ -53,69 +54,74 @@
     </DxToolbar>
 
     <div style="min-height:@MinHeight">
-        <DxGrid Data="@FilteredItems"
-                KeyFieldName="@KeyFieldName"
-                SelectionMode="GridSelectionMode.Multiple"
-                AllowSelectRowByClick="false"
-                SelectedDataItems="@_selectedItems"
-                SelectedDataItemsChanged="OnGridSelectionChanged"
-                RowClick="OnRowClick"
-                PageSize="@PageSize">
-            <Columns>
-                <DxGridSelectionColumn Width="40px" />
-                @GridColumns
-            </Columns>
-        </DxGrid>
+        @if (AllowInlineEdit)
+        {
+            @* Satır-içi (hücre editörü) mod: cell'ler DevExpress'in native EditRow editörlerine döner.
+               New/Edit/Delete command column'dan; kaydetme EditModelSaving/DataItemDeleting üzerinden
+               aynı persist/in-memory mantığına bağlanır. NOT: sadece grid'de GÖRÜNEN kolonlar düzenlenir. *@
+            <DxGrid Data="@FilteredItems"
+                    KeyFieldName="@KeyFieldName"
+                    EditMode="GridEditMode.EditRow"
+                    EditModelSaving="OnEditModelSaving"
+                    DataItemDeleting="OnDataItemDeleting"
+                    CustomizeEditModel="OnCustomizeEditModel"
+                    PageSize="@PageSize">
+                <Columns>
+                    @if (!ReadOnly)
+                    {
+                        <DxGridCommandColumn Width="100px" />
+                    }
+                    @GridColumns
+                </Columns>
+            </DxGrid>
+        }
+        else
+        {
+            <DxGrid Data="@FilteredItems"
+                    KeyFieldName="@KeyFieldName"
+                    SelectionMode="GridSelectionMode.Multiple"
+                    AllowSelectRowByClick="false"
+                    SelectedDataItems="@_selectedItems"
+                    SelectedDataItemsChanged="OnGridSelectionChanged"
+                    RowClick="OnRowClick"
+                    PageSize="@PageSize">
+                <Columns>
+                    <DxGridSelectionColumn Width="40px" />
+                    @GridColumns
+                </Columns>
+            </DxGrid>
+        }
     </div>
 </div>
 
-<DxPopup Visible="@_popupVisible"
-         VisibleChanged="OnPopupVisibleChanged"
-         HeaderText="@(_isNew ? L["New"] + " " + EntityName : EntityName + " " + L["Edit"])"
-         Width="95%"
-         MaxWidth="720px"
-         MaxHeight="90vh"
-         Scrollable="true"
-         ShowCloseButton="true"
-         CloseOnEscape="true"
-         CloseOnOutsideClick="false"
-         CssClass="crud-edit-popup">
-    <Content>
-        @if (_popupVisible && _editItem != null && _editContext != null)
-        {
-            @* EditForm YOK — CascadingValue<EditContext> ile kendi EditContext'imizi cascade ediyoruz.
-               EditForm bir <form> HTML elementi oluşturur ve EditContext'i cascade eder; ikisi iç içe
-               gelince (nested DrillList → nested EditForm → nested EditContext) DxGrid'in ambient
-               EditContext'e bağlanması NRE üretir. CascadingValue yaklaşımında her DrillList kendi
-               EditContext'ini cascade eder; iç DrillList'in CascadingValue'su dış olanı scope içinde
-               shadow'lar — doğru izolasyon, NRE yok. Save manuel HandleSaveClick → Validate() + SaveAsync(). *@
-            <CascadingValue Value="_editContext">
-                <LocalizedDataAnnotationsValidator />
+@if (!AllowInlineEdit)
+{
+    <DxPopup Visible="@_popupVisible"
+             VisibleChanged="OnPopupVisibleChanged"
+             HeaderText="@(_isNew ? L["New"] + " " + EntityName : EntityName + " " + L["Edit"])"
+             Width="95%"
+             MaxWidth="720px"
+             MaxHeight="90vh"
+             Scrollable="true"
+             ShowCloseButton="true"
+             CloseOnEscape="true"
+             CloseOnOutsideClick="false"
+             CssClass="crud-edit-popup">
+        <Content>
+            @if (_popupVisible)
+            {
+                @EditFormBody
+            }
+        </Content>
+    </DxPopup>
+}
 
-                @if (_editContext.GetValidationMessages().Any())
-                {
-                    <div class="alert alert-danger py-2 px-3 mb-3">
-                        <ValidationSummary />
-                    </div>
-                }
-
-                @EditContent(_editItem)
-            </CascadingValue>
-
-            <div class="d-flex justify-content-end gap-2 mt-3 pt-3 border-top">
-                <DxButton RenderStyle="ButtonRenderStyle.Primary" Click="HandleSaveClick" Enabled="@(!_busy)">
-                    @if (_busy)
-                    {
-                        <span class="spinner-border spinner-border-sm me-1" role="status"></span>
-                    }
-                    @L["Save"]
-                </DxButton>
-                <DxButton Text="@L["Cancel"]" RenderStyle="ButtonRenderStyle.Secondary"
-                          Click="Cancel" Enabled="@(!_busy)" />
-            </div>
-        }
-    </Content>
-</DxPopup>
+@* Popup modunun düzenleme gövdesi (satır-içi mod DevExpress native EditRow kullanır, bunu kullanmaz).
+   EditForm YOK — CascadingValue<EditContext> ile kendi EditContext'imizi cascade ediyoruz.
+   EditForm bir <form> HTML elementi oluşturup EditContext cascade eder; iç içe gelince
+   (nested DrillList → nested EditForm → nested EditContext) DxGrid'in ambient EditContext'e
+   bağlanması NRE üretir. CascadingValue yaklaşımında her DrillList kendi EditContext'ini cascade
+   eder; iç DrillList dış olanı shadow'lar — doğru izolasyon, NRE yok. Save manuel: Validate()+SaveAsync(). *@
 
 @code {
     [Parameter] public string? Title { get; set; }
@@ -125,6 +131,12 @@
     [Parameter] public string KeyFieldName { get; set; } = "ClientKey";
     [Parameter] public int PageSize { get; set; } = 10;
     [Parameter] public bool ReadOnly { get; set; }
+
+    /// <summary>true → satır-içi (hücre editörü) düzenleme: cell'ler DevExpress native EditRow
+    /// editörlerine döner; New/Edit/Delete grid'in command column'undan gelir. Yalnız grid'de GÖRÜNEN
+    /// kolonlar düzenlenir (form-only alanlar değil). İç içe (nested) DrillList'te KULLANMA — orada
+    /// popup (varsayılan) daha güvenli. false → popup düzenleme (varsayılan).</summary>
+    [Parameter] public bool AllowInlineEdit { get; set; }
 
     /// <summary>Grid'in minimum yüksekliği. İçerik az olsa bile layout stabil kalır.</summary>
     [Parameter] public string MinHeight { get; set; } = "240px";
@@ -196,6 +208,37 @@
     private bool _popupVisible;
     private bool _busy;
     private EditContext? _editContext;
+
+    // Popup modunun (AllowInlineEdit=false) düzenleme gövdesi (form + Save/Cancel).
+    private RenderFragment EditFormBody => @<text>
+        @if (_editItem != null && _editContext != null)
+        {
+            <CascadingValue Value="_editContext">
+                <LocalizedDataAnnotationsValidator />
+
+                @if (_editContext.GetValidationMessages().Any())
+                {
+                    <div class="alert alert-danger py-2 px-3 mb-3">
+                        <ValidationSummary />
+                    </div>
+                }
+
+                @EditContent(_editItem)
+            </CascadingValue>
+
+            <div class="d-flex justify-content-end gap-2 mt-3 pt-3 border-top">
+                <DxButton RenderStyle="ButtonRenderStyle.Primary" Click="HandleSaveClick" Enabled="@(!_busy)">
+                    @if (_busy)
+                    {
+                        <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                    }
+                    @L["Save"]
+                </DxButton>
+                <DxButton Text="@L["Cancel"]" RenderStyle="ButtonRenderStyle.Secondary"
+                          Click="Cancel" Enabled="@(!_busy)" />
+            </div>
+        }
+    </text>;
 
     // Stale seçim emniyeti (framework düzeyi): parent re-render'da Items değiştiyse (ör. clone-swap:
     // Items[idx]=clone → eski referans listede yok), referansı kalmayan seçimleri temizle.
@@ -333,6 +376,91 @@
             }
             _selectedItems = null;
             await OnSelectionChanged.InvokeAsync(null);
+            await OnChanged.InvokeAsync();
+        }
+        catch (Exception ex)
+        {
+            await HandleErrorAsync(ex);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    // ---- AllowInlineEdit (DevExpress native EditRow — hücre editörü modu) ----
+
+    // Yeni satır: edit model'i kendi NewItemFactory'mizle üret (ClientKey + default'lar gelsin).
+    private void OnCustomizeEditModel(GridCustomizeEditModelEventArgs e)
+    {
+        if (e.IsNew) e.EditModel = NewItemFactory();
+    }
+
+    // Kaydet: popup SaveAsync ile aynı mantık (persistent → sunucu kopyası; in-memory → canlı nesne).
+    private async Task OnEditModelSaving(GridEditModelSavingEventArgs e)
+    {
+        if (e.EditModel is not TItem model) return;
+        _busy = true;
+        try
+        {
+            if (e.IsNew)
+            {
+                var added = Persistent ? await PersistCreate!(model) : model;
+                Items.Add(added);
+                await OnItemSaved.InvokeAsync(added);
+            }
+            else if (Persistent)
+            {
+                // Sunucu taze kopyayı döner → liste slotunu onunla değiştir.
+                var updated = await PersistUpdate!(model);
+                if (e.DataItem is TItem target)
+                {
+                    var idx = Items.IndexOf(target);
+                    if (idx >= 0) Items[idx] = updated;
+                }
+                await OnItemSaved.InvokeAsync(updated);
+            }
+            else
+            {
+                // In-memory: kullanıcı değişikliklerini canlı veri öğesine kopyala.
+                e.CopyChangesToDataItem();
+                if (e.DataItem is TItem saved) await OnItemSaved.InvokeAsync(saved);
+            }
+            await OnChanged.InvokeAsync();
+        }
+        catch (Exception ex)
+        {
+            await HandleErrorAsync(ex);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    // Sil: popup DeleteSelected ile aynı kurallar (MinItems + DeleteGuard + persist).
+    private async Task OnDataItemDeleting(GridDataItemDeletingEventArgs e)
+    {
+        if (e.DataItem is not TItem item) return;
+
+        if (Items.Count - 1 < MinItems)
+        {
+            await Notify.Warn(L["DrillMinItems"]);
+            return;
+        }
+        var guard = DeleteGuard?.Invoke(item);
+        if (guard != null)
+        {
+            await Notify.Warn(guard);
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            if (Persistent && PersistDelete != null) await PersistDelete(item);
+            await OnItemDeleted.InvokeAsync(item);
+            Items.Remove(item);
             await OnChanged.InvokeAsync();
         }
         catch (Exception ex)

@@ -50,6 +50,7 @@
                     PersistDelete="@(PersistVaults ? PersistVaultDelete : null)"
                     OnItemDeleted="HandleVaultDeleted"
                     OnRefresh="VaultRefreshCallback"
+                    AllowInlineEdit="@PersistVaults"
                     OnChanged="OnChanged" />
     }
 </div>

@@ -16,14 +16,36 @@
            OnItemSaved="OnVaultSaved"
            OnItemDeleted="OnItemDeleted"
            OnRefresh="OnRefresh"
+           AllowInlineEdit="AllowInlineEdit"
            OnChanged="OnChanged">
     <GridColumns>
         <DxGridDataColumn FieldName="Code" Caption="@L["Code"]" Width="100px" />
         <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" />
+        <DxGridDataColumn FieldName="DisplayOrder" Caption="@L["DisplayOrder"]" Width="90px" />
         <DxGridDataColumn FieldName="IsDefault" Caption="@L["IsDefault"]" Width="100px" />
         <DxGridDataColumn FieldName="IsActive" Caption="@L["Status"]" Width="110px">
             <CellDisplayTemplate><StatusCell Active="@((bool)context.Value)" /></CellDisplayTemplate>
+            @* Satır-içi düzenleme: ikonlu Aktif/Pasif combobox. EditBoxDisplayTemplate yalnız tam
+               DxComboBox'ta olduğundan (DxComboBoxSettings'te yok) CellEditTemplate kullanıyoruz;
+               combobox edit model'in IsActive alanına bağlanır. Hem açılır listede hem seçili kutuda ikon. *@
+            <CellEditTemplate Context="edit">
+                @{ var vm = (VaultTreeItemViewModel)edit.EditModel; }
+                <DxComboBox Data="@_statusItems" TData="StatusOption" TValue="bool"
+                            @bind-Value="vm.IsActive"
+                            ValueFieldName="Value" TextFieldName="Text">
+                    <EditBoxDisplayTemplate>
+                        @if (context.DataItem != null)
+                        {
+                            <StatusCell Active="@context.DataItem.Value" />
+                        }
+                    </EditBoxDisplayTemplate>
+                    <ItemDisplayTemplate>
+                        <StatusCell Active="@context.DataItem.Value" />
+                    </ItemDisplayTemplate>
+                </DxComboBox>
+            </CellEditTemplate>
         </DxGridDataColumn>
+        <DxGridDataColumn FieldName="Description" Caption="@L["Description"]" />
     </GridColumns>
     <EditContent Context="vault">
         <DxFormLayout Data="@vault" CssClass="w-100">
@@ -63,10 +85,17 @@
     /// <summary>Bağlanırsa Refresh butonu görünür (yalnız persistent modda anlamlı).</summary>
     [Parameter] public EventCallback OnRefresh { get; set; }
 
+    /// <summary>true → düzenleme satır-içi panelde açılır (yalnız nested OLMAYAN kullanımda; bkz. DrillList).</summary>
+    [Parameter] public bool AllowInlineEdit { get; set; }
+
     /// <summary>null = in-memory mod, non-null = persistent mod.</summary>
     [Parameter] public Func<VaultTreeItemViewModel, Task<VaultTreeItemViewModel>>? PersistCreate { get; set; }
     [Parameter] public Func<VaultTreeItemViewModel, Task<VaultTreeItemViewModel>>? PersistUpdate { get; set; }
     [Parameter] public Func<VaultTreeItemViewModel, Task>? PersistDelete { get; set; }
+
+    // Status kolonunun satır-içi combobox'ı için Aktif/Pasif seçenekleri (bool → metin).
+    private sealed record StatusOption(bool Value, string Text);
+    private List<StatusOption> _statusItems => new() { new(true, L["Active"]), new(false, L["Passive"]) };
 
     private void OnVaultSaved(VaultTreeItemViewModel saved)
     {

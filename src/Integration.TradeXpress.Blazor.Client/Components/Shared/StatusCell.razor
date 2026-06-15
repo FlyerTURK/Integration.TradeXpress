@@ -3,16 +3,17 @@
 
 @* IsActive grid hücresi — yeşil ikonlu "Active" / kırmızı ikonlu "Passive" (localized).
    Grid kolonunda: <CellDisplayTemplate><StatusCell Active="@((bool)context.Value)" /></CellDisplayTemplate> *@
+@* Yalnız ikon renkli; yazı normal (varsayılan) renk. display:flex → içerik sola yaslı (ortalanmaz). *@
 @if (Active)
 {
-    <span style="display:inline-flex; align-items:center; gap:0.35rem; color:#16a34a;">
-        <i class="fas fa-circle-check" aria-hidden="true"></i>@L["Active"]
+    <span style="display:flex; align-items:center; gap:0.35rem;">
+        <i class="fas fa-circle-check" aria-hidden="true" style="color:#16a34a;"></i>@L["Active"]
     </span>
 }
 else
 {
-    <span style="display:inline-flex; align-items:center; gap:0.35rem; color:#dc2626;">
-        <i class="fas fa-circle-xmark" aria-hidden="true"></i>@L["Passive"]
+    <span style="display:flex; align-items:center; gap:0.35rem;">
+        <i class="fas fa-circle-xmark" aria-hidden="true" style="color:#dc2626;"></i>@L["Passive"]
     </span>
 }
 
