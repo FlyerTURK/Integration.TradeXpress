@@ -16,6 +16,8 @@ namespace Integration.Framework.Blazor.Client.Components.Crud
 
         [Parameter, EditorRequired] public ICrudStateService<TGetDto, TListDto, TKey, TViewModel> StateService { get; set; } = default!;
 
+        [Inject] protected IUiStateService? UiStateService { get; set; }
+
         /// <summary>Server-side grid veri kaynağı (CrudPageBase.GridDataSource). Verilirse DxGrid server-mode'a geçer.</summary>
         [Parameter] public object? DataSource { get; set; }
 
@@ -35,6 +37,18 @@ namespace Integration.Framework.Blazor.Client.Components.Crud
 
         [Parameter] public string? PageTitle { get; set; }
         [Parameter] public string? EntityName { get; set; }
+
+        /// <summary>Bu entity'nin ikonu (FontAwesome class) — edit başlığında gösterilir.</summary>
+        [Parameter] public string? EntityIcon { get; set; }
+
+        /// <summary>Edit başlığında gösterilecek birincil değer seçici (genelde Code).</summary>
+        [Parameter] public Func<TViewModel, string?>? PrimaryTextSelector { get; set; }
+
+        /// <summary>Varsa üst (parent) entity adı — başlığa " - [ParentEntityName: ...]" eklenir.</summary>
+        [Parameter] public string? ParentEntityName { get; set; }
+
+        /// <summary>Üst entity gösterim metni seçici (genelde parent Code).</summary>
+        [Parameter] public Func<TViewModel, string?>? ParentTextSelector { get; set; }
 
         /// <summary>Toolbar'a sayfaya özel ek aksiyonlar (ör. "Şubeler" drill action'ı).</summary>
         [Parameter] public RenderFragment? ToolbarActions { get; set; }
@@ -112,6 +126,27 @@ namespace Integration.Framework.Blazor.Client.Components.Crud
             {
                 await OnUpdateClick.InvokeAsync(item);
             }
+        }
+
+        // -- Layout Persistence --
+        private string GetGridStateKey() => PageTitle ?? typeof(TListDto).Name;
+
+        private async Task OnGridLayoutAutoLoading(GridPersistentLayoutEventArgs e)
+        {
+            if (UiStateService == null) return;
+            var json = await UiStateService.GetGridStateAsync(GetGridStateKey());
+            if (!string.IsNullOrWhiteSpace(json))
+            {
+                try { e.Layout = System.Text.Json.JsonSerializer.Deserialize<GridPersistentLayout>(json); }
+                catch { /* parse error - pass */ }
+            }
+        }
+
+        private async Task OnGridLayoutAutoSaving(GridPersistentLayoutEventArgs e)
+        {
+            if (UiStateService == null || e.Layout == null) return;
+            var json = System.Text.Json.JsonSerializer.Serialize(e.Layout);
+            await UiStateService.SaveGridStateAsync(GetGridStateKey(), json);
         }
 
         // -- Export Logic --

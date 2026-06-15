@@ -27,13 +27,13 @@
                Sol: hamburger + sayfa başlığı. Sağ (ms-auto): avatar + ayarlar. *@
             @* Inline flex — Bootstrap utility'lerine (d-flex/ms-auto) bağlı kalmadan garanti layout. *@
             <div role="banner" class="header shadow-sm bg-white border-bottom">
-                <div style="display:flex; align-items:center; width:100%; padding:0.5rem;">
-                    <button type="button" @onclick="ToggleNavigation" style="display:flex; align-items:center; justify-content:center; cursor:pointer; min-width:48px; min-height:48px; background:transparent; border:none; box-shadow:none; outline:none; padding:0; color:var(--DS-color-content-neutral-default-rest, var(--bs-body-color, #212529));" aria-label="Menü">
+                <div style="display:flex; align-items:center; width:100%; padding:0.25rem;">
+                    <button type="button" @onclick="ToggleNavigation" style="display:flex; align-items:center; justify-content:center; cursor:pointer; min-width:34px; min-height:34px; background:transparent; border:none; box-shadow:none; outline:none; padding:0; color:var(--DS-color-content-neutral-default-rest, var(--bs-body-color, #212529));" aria-label="Menü">
                         <span class="erp-icon erp-icon-hamburger" aria-hidden="true"></span>
                     </button>
                     <div style="display:flex; align-items:center; margin-left:auto;">
                         <Integration.TradeXpress.Blazor.Client.Layout.UserAvatarMenu />
-                        <button type="button" @onclick="ToggleInfo" style="display:flex; align-items:center; justify-content:center; cursor:pointer; min-width:44px; min-height:44px; margin-left:0.25rem; background:transparent; border:none; box-shadow:none; outline:none; padding:0; color:var(--DS-color-content-neutral-default-rest, var(--bs-body-color, #212529));" title="@L["Settings"]" aria-label="@L["Settings"]">
+                        <button type="button" @onclick="ToggleInfo" style="display:flex; align-items:center; justify-content:center; cursor:pointer; min-width:31px; min-height:31px; margin-left:0.25rem; background:transparent; border:none; box-shadow:none; outline:none; padding:0; color:var(--DS-color-content-neutral-default-rest, var(--bs-body-color, #212529));" title="@L["Settings"]" aria-label="@L["Settings"]">
                             <span class="erp-icon erp-icon-settings" aria-hidden="true"></span>
                         </button>
                     </div>

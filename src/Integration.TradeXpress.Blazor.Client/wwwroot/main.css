@@ -11,9 +11,9 @@
     height: 100vh;
     z-index: 999;
     background-color: #f1f1f2;
-  }
+}
 
-#ApplicationContainer > div:first-child:not(:only-child) {
+#ApplicationContainer>div:first-child:not(:only-child) {
     display: none !important;
 }
 
@@ -40,20 +40,24 @@
     --lpx-logo: url('/images/logo/leptonxlite/logo-light-thumbnail.png') !important;
     --lpx-logo-icon: url('/images/logo/leptonxlite/logo-light-thumbnail.png') !important;
 }
-:root .abp-account-layout .lpx-brand-logo{
+
+:root .abp-account-layout .lpx-brand-logo {
     --lpx-logo: url('/images/logo/leptonxlite/logo-dark-thumbnail.png') !important;
     background-position: left;
 }
+
 .demo-drawer .dxbl-drawer-content {
     font-size: var(--dxbl-drawer-panel-font-size);
     line-height: var(--dxbl-drawer-panel-line-height);
     overflow: auto;
     padding: var(--dxbl-drawer-panel-padding-y) var(--dxbl-drawer-panel-padding-x);
 }
+
 .demo-drawer:has(.demo-drawer-menu) {
     --dxbl-drawer-panel-body-padding-x: 0;
     --dxbl-drawer-panel-body-padding-y: 0;
 }
+
 .dxbl-menu.demo-drawer-menu {
     --dxbl-menu-top-left-border-radius: 0;
     --dxbl-menu-top-right-border-radius: 0;
@@ -70,8 +74,16 @@
 }
 
 /* Toolbar drill action butonlari — renkli ikonlar (Bootstrap utility yok, custom renk). */
-.toolbar-action-branches { color: #2563eb !important; } /* sube → mavi */
-.toolbar-action-vaults   { color: #16a34a !important; } /* kasa → yesil */
+.toolbar-action-branches {
+    color: #2563eb !important;
+}
+
+/* sube → mavi */
+.toolbar-action-vaults {
+    color: #16a34a !important;
+}
+
+/* kasa → yesil */
 
 /* MDI sekme host'u — app-content bolgesini tam doldurur; sekme seridi sabit, icerik kayar. */
 .mdi-host {
@@ -80,26 +92,40 @@
     flex-direction: column;
     min-height: 0;
 }
+
 .mdi-host .mdi-tabs {
     height: 100%;
     display: flex;
     flex-direction: column;
     min-height: 0;
 }
-/* DevExpress DxTabs ic yapisi: basliklar sabit, content alani esner + kendi scroll'u. */
-.mdi-host .mdi-tabs > .dxbl-tabs {
+
+/* DevExpress DxTabs ic yapisi: basliklar sabit, content alani esner + kendi scroll'u.
+   GERÇEK sınıf adı .dxbl-tabs-content-panel (eski .dxbl-tabs-content/.dxbl-tabs-page DEĞİL —
+   onlar hiç eşleşmiyordu). Panel flex:1 1 auto + min-height:auto olduğundan flexbox min-height
+   tuzağına düşüp içeriğe (grid) göre şişiyor, parent'ı aşıyor → pager fold altına iniyordu.
+   min-height:0 ile panel parent'a sığacak şekilde küçülür; grid kendi iç scroll'unu kullanır. */
+.mdi-host .mdi-tabs>.dxbl-tabs-tablist {
     flex: 0 0 auto;
 }
-.mdi-host .mdi-tabs > .dxbl-tabs-content,
-.mdi-host .mdi-tabs .dxbl-tabs-page {
+
+.mdi-host .mdi-tabs>.dxbl-tabs-content-panel {
     flex: 1 1 auto;
     min-height: 0;
-    overflow: auto;
+    overflow: hidden;
 }
+
+.mdi-host .mdi-tabs>.dxbl-tabs-content-panel>.dxbl-tabs-content {
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+}
+
 .mdi-empty {
     padding: 1rem;
     color: #888;
 }
+
 .mdi-external-placeholder {
     padding: 1rem;
     color: #555;
@@ -108,23 +134,29 @@
 /* --- Festive Loader (Şenlik) --- */
 .festive-loader-container {
     position: fixed;
-    top: 0; left: 0; right: 0; bottom: 0;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
     display: flex;
     justify-content: center;
     align-items: center;
     background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
     z-index: 9999;
 }
+
 .festive-loader {
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 20px;
 }
+
 .festive-loader .dots {
     display: flex;
     gap: 10px;
 }
+
 .festive-loader span {
     width: 20px;
     height: 20px;
@@ -134,10 +166,19 @@
     animation-delay: calc(0.1s * var(--i));
     box-shadow: 0 0 10px rgba(255, 0, 127, 0.5);
 }
+
 @keyframes festive-bounce {
-    0% { transform: translateY(0) scale(1); filter: hue-rotate(0deg); }
-    100% { transform: translateY(-30px) scale(1.2); filter: hue-rotate(360deg); }
+    0% {
+        transform: translateY(0) scale(1);
+        filter: hue-rotate(0deg);
+    }
+
+    100% {
+        transform: translateY(-30px) scale(1.2);
+        filter: hue-rotate(360deg);
+    }
 }
+
 .festive-text {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     font-weight: bold;
@@ -146,21 +187,37 @@
     letter-spacing: 2px;
     animation: pulse 1.5s infinite;
 }
+
 @keyframes pulse {
-    0% { opacity: 0.6; transform: scale(0.98); }
-    50% { opacity: 1; transform: scale(1.02); }
-    100% { opacity: 0.6; transform: scale(0.98); }
+    0% {
+        opacity: 0.6;
+        transform: scale(0.98);
+    }
+
+    50% {
+        opacity: 1;
+        transform: scale(1.02);
+    }
+
+    100% {
+        opacity: 0.6;
+        transform: scale(0.98);
+    }
 }
 
 /* --- TradeXpress Style Loader --- */
 .int-loader-container {
     position: fixed;
-    top: 0; left: 0; right: 0; bottom: 0;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
     display: flex;
     flex-direction: column;
     justify-content: center;
     align-items: center;
-    background-color: #f3f3f4; /* Light gray background like XAF */
+    background-color: #f3f3f4;
+    /* Light gray background like XAF */
     z-index: 9999;
 }
 
@@ -177,12 +234,13 @@
 .int-loader-circle {
     width: 132px;
     height: 132px;
-    background-color: var(--bs-primary, #0d6efd); /* Theme primary color */
+    background-color: var(--bs-primary, #0d6efd);
+    /* Theme primary color */
     border-radius: 50%;
     display: flex;
     justify-content: center;
     align-items: center;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
     z-index: 2;
 }
 
@@ -209,8 +267,13 @@
 }
 
 @keyframes int-spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
+    0% {
+        transform: rotate(0deg);
+    }
+
+    100% {
+        transform: rotate(360deg);
+    }
 }
 
 .int-loader-text {
@@ -242,6 +305,7 @@
     width: min(450px, 92vw) !important;
     max-width: 92vw !important;
 }
+
 .confirm-delete-dialog-window .dxbl-window-body {
     overflow-x: hidden;
 }
@@ -254,7 +318,8 @@
     max-width: 100%;
     overflow-x: hidden;
 }
-.crud-layout-container > * {
+
+.crud-layout-container>* {
     min-width: 0;
 }
 
@@ -268,27 +333,33 @@
     flex-direction: column;
     height: 100%;
 }
+
 .app-body-region {
     display: flex;
     flex: 1 1 auto;
     min-height: 0;
 }
+
 .app-body-region .dxbl-drawer {
     height: 100%;
 }
+
 .app-content {
     height: 100%;
     overflow: auto;
 }
+
 .crud-layout-container {
     display: flex;
     flex-direction: column;
     height: 100%;
 }
-.crud-layout-container > .dxbl-grid {
+
+.crud-layout-container>.dxbl-grid {
     flex: 1 1 auto;
     min-height: 0;
 }
+
 /* Mobil dar ekranda pager içeriği (sayfa butonları + page-size seçici) yatay taşıp
    overflow-x:hidden ile kırpılmasın → sarılsın, hepsi görünür kalsın. */
 .dxbl-grid .dxbl-grid-bottom-panel,
@@ -312,10 +383,12 @@
     height: 24px;
     vertical-align: middle;
 }
+
 .erp-icon-hamburger {
     -webkit-mask-image: url('images/hamburger.svg');
     mask-image: url('images/hamburger.svg');
 }
+
 .erp-icon-settings {
     -webkit-mask-image: url('images/settings.svg');
     mask-image: url('images/settings.svg');
@@ -338,6 +411,7 @@
     letter-spacing: 0.5px;
     user-select: none;
 }
+
 .erp-avatar-initials.erp-avatar-lg {
     width: 44px;
     height: 44px;
@@ -353,9 +427,10 @@
     border: 0;
     background: transparent;
     cursor: pointer;
-    min-width: 44px;
-    min-height: 44px;
+    min-width: 31px;
+    min-height: 31px;
 }
+
 .user-avatar-btn:focus-visible {
     outline: 2px solid var(--bs-primary, #0d6efd);
     outline-offset: 2px;
@@ -365,6 +440,7 @@
 .user-avatar-flyout-body {
     padding: 4px 4px 2px;
 }
+
 /* Büyük avatar flyout'ta yatay ortalansın (inline-flex → blok ortalama). */
 .user-avatar-flyout-body .erp-avatar-lg {
     display: flex;

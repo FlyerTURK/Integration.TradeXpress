@@ -21,6 +21,7 @@ public interface ITabManager
     void OpenExternal(string url, string title, string? icon = null);
     void Activate(Guid id);
     void Close(Guid id);
+    Task<bool> TryCloseAsync(Guid id);
     void CloseOthers(Guid id);
     void CloseAll();
     void CloseToRight(Guid id);

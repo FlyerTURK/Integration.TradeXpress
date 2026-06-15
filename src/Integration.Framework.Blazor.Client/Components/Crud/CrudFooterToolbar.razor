@@ -1,0 +1,44 @@
+@using DevExpress.Blazor
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@*
+   Standart CRUD footer toolbar — TEK kaynak. Hem CrudEditForm (ana edit popup/sayfa) hem DrillList
+   edit popup'ı bunu kullanır; böylece Save / Kaydet-ve-Yeni / Cancel butonları tek yerde tanımlı ve
+   görünüm her yerde aynı. "Kaydet ve Yeni" ikonu app wwwroot'taki XAF SVG'sinden gelir.
+   ItemRenderStyleMode=Contained + FooterContentTemplate (çağıran) → tema padding'i ve sabit dip.
+*@
+<DxToolbar ItemRenderStyleMode="ToolbarRenderStyleMode.Contained" CssClass="w-100">
+    <DxToolbarItem Text="@L["Save"]" Alignment="ToolbarItemAlignment.Right"
+                   RenderStyle="ButtonRenderStyle.Primary"
+                   Enabled="@CanSave"
+                   Click="@((ToolbarItemClickEventArgs e) => OnSave.InvokeAsync())" />
+    <DxToolbarItem Text="@L["SaveAndNew"]" Alignment="ToolbarItemAlignment.Right" BeginGroup="true"
+                   Visible="@ShowSaveAndNew"
+                   IconUrl="/images/xaf/action_save_new.svg"
+                   IconCssClass="xaf-toolbar-item-icon"
+                   Enabled="@CanSave"
+                   Click="@((ToolbarItemClickEventArgs e) => OnSaveAndNew.InvokeAsync())" />
+    <DxToolbarItem Text="@L["Cancel"]" Alignment="ToolbarItemAlignment.Right" BeginGroup="true"
+                   Enabled="@(!IsBusy)"
+                   Click="@((ToolbarItemClickEventArgs e) => OnCancel.InvokeAsync())" />
+</DxToolbar>
+
+@code {
+    /// <summary>Kaydet.</summary>
+    [Parameter] public EventCallback OnSave { get; set; }
+
+    /// <summary>Kaydet ve Yeni — kaydedip yeni kayıt moduna geçer.</summary>
+    [Parameter] public EventCallback OnSaveAndNew { get; set; }
+
+    /// <summary>Vazgeç / kapat.</summary>
+    [Parameter] public EventCallback OnCancel { get; set; }
+
+    /// <summary>"Kaydet ve Yeni" butonu gösterilsin mi.</summary>
+    [Parameter] public bool ShowSaveAndNew { get; set; }
+
+    /// <summary>Kaydet/Kaydet-ve-Yeni etkin mi.</summary>
+    [Parameter] public bool CanSave { get; set; } = true;
+
+    /// <summary>İşlem sürüyor mu (Cancel'ı kilitler).</summary>
+    [Parameter] public bool IsBusy { get; set; }
+}

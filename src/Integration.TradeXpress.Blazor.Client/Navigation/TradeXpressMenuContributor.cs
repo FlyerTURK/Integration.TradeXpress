@@ -46,7 +46,7 @@ public class TradeXpressMenuContributor : IMenuContributor
             TradeXpressMenus.Home,
             l["Menu:Home"],
             "/",
-            icon: "fas fa-home",
+            icon: TradeXpressIcons.Home,
             order: 1
         ));
 
@@ -61,21 +61,21 @@ public class TradeXpressMenuContributor : IMenuContributor
             TradeXpressMenus.CurrencyUnits,
             l["CurrencyUnits"],
             url: "/currencies/currency-units",
-            icon: "fas fa-money-bill-wave"
+            icon: TradeXpressIcons.CurrencyUnit
         ).RequirePermissions(TradeXpressPermissions.CurrencyUnits.Default));
         // Kur panosu — viewer'ın efektif fiyatları + "Margin Ayarla" + marj geçmişi.
         definitions.AddItem(new ApplicationMenuItem(
             TradeXpressMenus.PriceBoard,
             l["Menu:PriceBoard"],
             url: "/currencies/prices",
-            icon: "fas fa-chart-line"
+            icon: TradeXpressIcons.PriceBoard
         ).RequirePermissions(TradeXpressPermissions.CurrencyUnits.Default));
         // Parite panosu — aktif paritelerin canlı çapraz kurları.
         definitions.AddItem(new ApplicationMenuItem(
             TradeXpressMenus.ParityBoard,
             l["Menu:ParityBoard"],
             url: "/currencies/parities",
-            icon: "fas fa-arrow-right-arrow-left"
+            icon: TradeXpressIcons.ParityBoard
         ).RequirePermissions(TradeXpressPermissions.CurrencyUnits.Default));
         // Değerleme (re-base) ayrı kullanıcı sayfası DEĞİL — kullanıcı daima piyasa/alışık
         // fiyatı görür; gerçek (base) değer arka planda hesaplanır (işlem/muhasebe).
@@ -94,7 +94,7 @@ public class TradeXpressMenuContributor : IMenuContributor
                 TradeXpressMenus.Companies,
                 l["Menu:Companies"],
                 url: "/companies",
-                icon: "fas fa-building",
+                icon: TradeXpressIcons.Company,
                 order: 3
             ).RequirePermissions(TradeXpressPermissions.Companies.Default));
         }
@@ -104,7 +104,7 @@ public class TradeXpressMenuContributor : IMenuContributor
             TradeXpressMenus.Countries,
             l["Menu:Countries"],
             url: "/countries",
-            icon: "fas fa-earth-europe",
+            icon: TradeXpressIcons.Country,
             order: 6
         ).RequirePermissions(TradeXpressPermissions.Countries.Default));
 
@@ -135,7 +135,7 @@ public class TradeXpressMenuContributor : IMenuContributor
                 "TenantManagement",
                 l["TenantManagement"],
                 url: "/tenant-management/tenants",
-                icon: "fas fa-users-cog"
+                icon: TradeXpressIcons.Tenant
             ).RequirePermissions("AbpTenantManagement.Tenants");
             administration.AddItem(tenantMenu);
         }
@@ -145,7 +145,7 @@ public class TradeXpressMenuContributor : IMenuContributor
             "SettingManagement",
             l["SettingManagement"],
             url: "/setting-management",
-            icon: "fas fa-cog"
+            icon: TradeXpressIcons.Settings
         ).RequireAuthenticated();
         administration.AddItem(settingsMenu);
     }

@@ -10,50 +10,62 @@
    PersistVaults=true  → VaultDrill persistent, IVaultAppService ile anında yazar. *@
 
 <DxFormLayout Data="@Branch" CssClass="w-100">
-    <DxFormLayoutItem Caption="@($"{L["Code"]} *")" ColSpanMd="4">
-        <DxTextBox @bind-Text="@Branch.Code" />
-    </DxFormLayoutItem>
-    <DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="5">
-        <DxTextBox @bind-Text="@Branch.Name" />
-    </DxFormLayoutItem>
-    <DxFormLayoutItem Caption="@L["DisplayOrder"]" ColSpanMd="3">
-        <DxSpinEdit @bind-Value="@Branch.DisplayOrder" />
-    </DxFormLayoutItem>
-    <DxFormLayoutItem Caption="@L["IsHeadquarters"]" ColSpanMd="6">
-        <DxCheckBox @bind-Checked="@Branch.IsHeadquarters" CheckType="CheckType.Switch">
-            @(Branch.IsHeadquarters ? L["Yes"] : L["No"])
-        </DxCheckBox>
-        <div class="form-text text-muted small">@L["BranchHeadquartersHint"]</div>
-    </DxFormLayoutItem>
-    <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6">
-        <DxCheckBox @bind-Checked="@Branch.IsActive" CheckType="CheckType.Switch">
-            @(Branch.IsActive ? L["Active"] : L["Passive"])
-        </DxCheckBox>
-    </DxFormLayoutItem>
-    <DxFormLayoutItem Caption="@L["Description"]" ColSpanMd="12">
-        <DxTextBox @bind-Text="@Branch.Description" />
-    </DxFormLayoutItem>
-</DxFormLayout>
+    <DxFormLayoutGroup Caption="@L["General"]" ColSpanMd="12">
+        @* 1. Kod — yarım satır *@
+        <DxFormLayoutItem Caption="@($"{L["Code"]} *")" ColSpanMd="6">
+            <DxTextBox @bind-Text="@Branch.Code" />
+        </DxFormLayoutItem>
+        @* 2. Adı — tam satır *@
+        <DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="12">
+            <DxTextBox @bind-Text="@Branch.Name" />
+        </DxFormLayoutItem>
+        @* Ara: Merkez — yarım satır (yalnız) *@
+        <DxFormLayoutItem Caption="@L["IsHeadquarters"]" ColSpanMd="6">
+            <DxCheckBox @bind-Checked="@Branch.IsHeadquarters" CheckType="CheckType.Switch">
+                @(Branch.IsHeadquarters ? L["Yes"] : L["No"])
+            </DxCheckBox>
+            <div class="form-text text-muted small">@L["BranchHeadquartersHint"]</div>
+        </DxFormLayoutItem>
+        @* Sondan bir önceki: Açıklama — tam satır, DxMemo 2 satır, resize kapalı *@
+        <DxFormLayoutItem Caption="@L["Description"]" ColSpanMd="12">
+            <DxMemo @bind-Text="@Branch.Description" Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100" />
+        </DxFormLayoutItem>
+        @* Son satır: Durum (Status) yarım + Sıra (DisplayOrder) yarım, yanında *@
+        <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6">
+            <DxCheckBox @bind-Checked="@Branch.IsActive" CheckType="CheckType.Switch">
+                @(Branch.IsActive ? L["Active"] : L["Passive"])
+            </DxCheckBox>
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["DisplayOrder"]" ColSpanMd="6">
+            <DxSpinEdit @bind-Value="@Branch.DisplayOrder" />
+        </DxFormLayoutItem>
+    </DxFormLayoutGroup>
 
-<div class="mt-3">
-    @if (PersistVaults && Branch.Id == null)
-    {
-        @* Persistent modda kasa eklemek için şubenin önden kaydedilmiş olması gerekir. *@
-        <div class="form-text text-muted small">@L["VaultsRequireSavedBranch"]</div>
-    }
-    else
-    {
-        <VaultDrill Items="@Branch.Vaults"
-                    MinItems="@(PersistVaults ? 0 : 1)"
-                    PersistCreate="@(PersistVaults ? PersistVaultCreate : null)"
-                    PersistUpdate="@(PersistVaults ? PersistVaultUpdate : null)"
-                    PersistDelete="@(PersistVaults ? PersistVaultDelete : null)"
-                    OnItemDeleted="HandleVaultDeleted"
-                    OnRefresh="VaultRefreshCallback"
-                    AllowInlineEdit="@PersistVaults"
-                    OnChanged="OnChanged" />
-    }
-</div>
+    @* Kasalar — drill form layout'un içinde bir grup; kenarları Genel ile birebir hizalı (Şirket deseni). *@
+    <DxFormLayoutGroup Caption="@L["Menu:Vaults"]" ColSpanMd="12">
+        <DxFormLayoutItem ColSpanMd="12" CaptionPosition="CaptionPosition.Vertical">
+            @if (PersistVaults && Branch.Id == null)
+            {
+                @* Persistent modda kasa eklemek için şubenin önden kaydedilmiş olması gerekir. *@
+                <div class="form-text text-muted small">@L["VaultsRequireSavedBranch"]</div>
+            }
+            else
+            {
+                <VaultDrill Items="@Branch.Vaults"
+                            MinItems="@(PersistVaults ? 0 : 1)"
+                            ParentEntityName="@L["Entity:Branch"]"
+                            ParentText="@Branch.Code"
+                            PersistCreate="@(PersistVaults ? PersistVaultCreate : null)"
+                            PersistUpdate="@(PersistVaults ? PersistVaultUpdate : null)"
+                            PersistDelete="@(PersistVaults ? PersistVaultDelete : null)"
+                            OnItemDeleted="HandleVaultDeleted"
+                            OnRefresh="VaultRefreshCallback"
+                            AllowInlineEdit="@PersistVaults"
+                            OnChanged="OnChanged" />
+            }
+        </DxFormLayoutItem>
+    </DxFormLayoutGroup>
+</DxFormLayout>
 
 @code {
     [Parameter, EditorRequired] public BranchTreeItemViewModel Branch { get; set; } = default!;

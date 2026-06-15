@@ -38,9 +38,11 @@
                     }
                     else if (captured.PageType != null)
                     {
-                        <DynamicComponent @key="@((captured.Id, captured.RefreshNonce))"
-                                          Type="@captured.PageType"
-                                          Parameters="@captured.Parameters" />
+                        <CascadingValue Value="@((Integration.Framework.Blazor.Client.Services.Mdi.IMdiTab)captured)" Name="CurrentMdiTab" IsFixed="true">
+                            <DynamicComponent @key="@((captured.Id, captured.RefreshNonce))"
+                                              Type="@captured.PageType"
+                                              Parameters="@captured.Parameters" />
+                        </CascadingValue>
                     }
                 </DxTabPage>
             }
@@ -54,7 +56,7 @@
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
-            await TabManager.InitializeAsync("/", L["Menu:Home"], "fas fa-home");
+            await TabManager.InitializeAsync("/", L["Menu:Home"], TradeXpressIcons.Home);
     }
 
     // TabManager model-kimliğiyle aktif sekmeyi tutar; DxTabs pozisyonel int ister → eşle.
@@ -75,11 +77,15 @@
             TabManager.Activate(TabManager.Tabs[index].Id);
     }
 
-    // X butonu / Delete tuşu → modelden çıkar (component dispose olsun, abonelik sızmasın).
-    private void OnTabClosing(TabCloseEventArgs e)
+    // X butonu / Delete tuşu → senkron kapatmayı iptal et, asenkron TryCloseAsync'e devret.
+    private async void OnTabClosing(TabCloseEventArgs e)
     {
+        e.Cancel = true; // DxTabs'ın senkron olarak sekmeyi uçurmasını engelle
         if (e.TabIndex >= 0 && e.TabIndex < TabManager.Tabs.Count)
-            TabManager.Close(TabManager.Tabs[e.TabIndex].Id);
+        {
+            var tabId = TabManager.Tabs[e.TabIndex].Id;
+            await TabManager.TryCloseAsync(tabId);
+        }
     }
 
     private void OnStateChanged() => InvokeAsync(StateHasChanged);

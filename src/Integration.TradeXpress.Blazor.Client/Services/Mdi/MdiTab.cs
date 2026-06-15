@@ -1,12 +1,15 @@
 using System;
 using System.Collections.Generic;
+using System.Threading.Tasks;
+
+using Integration.Framework.Blazor.Client.Services.Mdi;
 
 namespace Integration.TradeXpress.Blazor.Client.Services.Mdi;
 
 public enum TabKind { Internal, External }
 
 /// <summary>Tek bir MDI sekmesinin tanımı. Id = @key kimliği; RefreshNonce yenilemede değişir.</summary>
-public sealed class MdiTab
+public sealed class MdiTab : IMdiTab
 {
     public Guid Id { get; } = Guid.NewGuid();
 
@@ -27,4 +30,7 @@ public sealed class MdiTab
 
     /// <summary>Yenile komutunda değişir → DynamicComponent @key bozulur → sayfa yeniden init olur.</summary>
     public Guid RefreshNonce { get; set; } = Guid.NewGuid();
+
+    /// <summary>Sekmenin kapatılabilip kapatılamayacağını (ör. kirli form kontrolü) belirleyen asenkron delege.</summary>
+    public Func<Task<bool>>? CanCloseAsync { get; set; }
 }

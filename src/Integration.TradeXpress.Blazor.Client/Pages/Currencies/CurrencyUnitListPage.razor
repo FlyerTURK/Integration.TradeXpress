@@ -13,6 +13,8 @@
             StateService="StateService"
             DataSource="@GridDataSource"
             EntityName="@L["CurrencyUnit"]"
+            EntityIcon="@TradeXpressIcons.CurrencyUnit"
+            PrimaryTextSelector="@(m => m.Code)"
             PageTitle="@L["CurrencyUnits"]"
             OnNewClick="BeforeCreateAsync"
             OnUpdateClick="BeforeUpdateAsync"
@@ -32,7 +34,7 @@
             <CellDisplayTemplate>
                 @{ var row = (CurrencyUnitListDto)context.DataItem; }
                 <DxButton Text="@L["SetMargin"]" RenderStyle="ButtonRenderStyle.Link"
-                          IconCssClass="fas fa-percent"
+                          IconCssClass="@TradeXpressIcons.CurrencyMargin"
                           Click="@(() => MarginDialog!.ShowAsync(row.Id, row.Code, row.Name))" />
             </CellDisplayTemplate>
         </DxGridDataColumn>

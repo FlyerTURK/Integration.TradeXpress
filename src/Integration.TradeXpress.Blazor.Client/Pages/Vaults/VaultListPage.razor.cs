@@ -32,7 +32,7 @@ public partial class VaultListPage
 
     private string PageTitle => string.IsNullOrWhiteSpace(BranchCode)
         ? L["Menu:Vaults"]
-        : $"{BranchCode} — {L["Menu:Vaults"]}";
+        : $"{L["Menu:Vaults"]} - [{L["Entity:Branch"]}: {BranchCode}]";
 
     // Drill-down: yalnız bu şubeye ait kasalar.
     protected override void OnConfiguringListRequest(VaultListRequestDto request)

@@ -9,6 +9,20 @@ namespace Integration.Framework.Blazor.Client.Components.Crud
     {
         [Parameter, EditorRequired] public ICrudStateService<TGetDto, TListDto, TKey, TViewModel> StateService { get; set; } = default!;
         [Parameter] public string? EntityName { get; set; }
+
+        /// <summary>Bu entity'nin ikonu (FontAwesome class) — başlıkta gösterilir. Boşsa generic ikon.</summary>
+        [Parameter] public string? EntityIcon { get; set; }
+
+        /// <summary>Başlıkta gösterilecek birincil değer seçici (genelde Code). Yeni: "Yeni {Entity} {Code?}",
+        /// Düzenle: "{Entity} {Code}".</summary>
+        [Parameter] public Func<TViewModel, string?>? PrimaryTextSelector { get; set; }
+
+        /// <summary>Varsa üst (parent) entity adı — başlığa " - [ParentEntityName: ...]" eklenir.</summary>
+        [Parameter] public string? ParentEntityName { get; set; }
+
+        /// <summary>Üst entity gösterim metni seçici (genelde parent Code alanı).</summary>
+        [Parameter] public Func<TViewModel, string?>? ParentTextSelector { get; set; }
+
         [Parameter] public RenderFragment<TViewModel>? EditPageContent { get; set; }
         [Parameter] public EventCallback OnSaveClick { get; set; }
         [Parameter] public EventCallback OnSaveAndNewClick { get; set; }
@@ -18,6 +32,27 @@ namespace Integration.Framework.Blazor.Client.Components.Crud
 
         private EditContext? CurrentEditContext;
         private ValidationMessageStore? _serverErrorStore;
+
+        // Başlık: Yeni → "Yeni {Entity} {Code?}", Düzenle → "{Entity} {Code/primary}". Code yoksa yalnız Entity adı.
+        private string BuildTitle()
+        {
+            var name = EntityName ?? string.Empty;
+            var model = StateService?.EditingModel;
+            var primary = (model != null && PrimaryTextSelector != null) ? PrimaryTextSelector(model) : null;
+
+            var title = (StateService != null && StateService.IsNewRecord)
+                ? (string.IsNullOrWhiteSpace(primary) ? $"{L["New"]} {name}".Trim() : $"{L["New"]} {name} {primary}".Trim())
+                : (string.IsNullOrWhiteSpace(primary) ? name : $"{name} {primary}");
+
+            var parent = (model != null && ParentTextSelector != null) ? ParentTextSelector(model) : null;
+            if (!string.IsNullOrWhiteSpace(ParentEntityName) && !string.IsNullOrWhiteSpace(parent))
+                title += $" - [{ParentEntityName}: {parent}]";
+
+            return title;
+        }
+
+        // Başlık ikonu: entity ikonu (yoksa generic düzenleme ikonu).
+        private string HeaderIcon => string.IsNullOrEmpty(EntityIcon) ? "fas fa-pen-to-square" : EntityIcon!;
 
         protected override void OnParametersSet()
         {

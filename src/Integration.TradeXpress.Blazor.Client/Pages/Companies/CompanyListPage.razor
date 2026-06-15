@@ -13,6 +13,8 @@
             StateService="StateService"
             DataSource="@GridDataSource"
             EntityName="@L["Entity:Company"]"
+            EntityIcon="@TradeXpressIcons.Company"
+            PrimaryTextSelector="@(m => m.Code)"
             PageTitle="@L["Menu:Companies"]"
             OnNewClick="BeforeCreateAsync"
             OnUpdateClick="BeforeUpdateAsync"
@@ -32,7 +34,7 @@
     </GridColumns>
 
     <ToolbarActions>
-        <DxButton Text="@L["Menu:Branches"]" IconCssClass="fas fa-sitemap toolbar-action-branches"
+        <DxButton Text="@L["Menu:Branches"]" IconCssClass="@($"{TradeXpressIcons.Branch} toolbar-action-branches")"
                   RenderStyle="ButtonRenderStyle.Secondary"
                   Enabled="@(SelectedCompany != null)"
                   Click="OpenBranchesAsync" />

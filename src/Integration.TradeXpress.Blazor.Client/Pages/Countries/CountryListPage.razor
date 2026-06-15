@@ -12,6 +12,8 @@
             StateService="StateService"
             DataSource="@GridDataSource"
             EntityName="@L["Entity:Country"]"
+            EntityIcon="@TradeXpressIcons.Country"
+            PrimaryTextSelector="@(m => m.Code)"
             PageTitle="@L["Menu:Countries"]"
             OnNewClick="BeforeCreateAsync"
             OnUpdateClick="BeforeUpdateAsync"

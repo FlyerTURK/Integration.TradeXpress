@@ -3,24 +3,22 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
-using Microsoft.JSInterop;
+using Integration.TradeXpress.Settings;
 
 namespace Integration.TradeXpress.Blazor.Client.Services.Mdi;
 
 public sealed class TabManager : ITabManager
 {
-    private const string StorageKey = "tx.mdi.tabs";
-
     private readonly RouteResolver _resolver;
-    private readonly IJSRuntime _js;
+    private readonly IUserUiSettingAppService _uiSettings;
     private readonly List<MdiTab> _tabs = new();
     private Guid? _activeId;
     private bool _initialized;
 
-    public TabManager(RouteResolver resolver, IJSRuntime js)
+    public TabManager(RouteResolver resolver, IUserUiSettingAppService uiSettings)
     {
         _resolver = resolver;
-        _js = js;
+        _uiSettings = uiSettings;
     }
 
     public IReadOnlyList<MdiTab> Tabs => _tabs;
@@ -108,6 +106,21 @@ public sealed class TabManager : ITabManager
         Persist(); Raise();
     }
 
+    public async Task<bool> TryCloseAsync(Guid id)
+    {
+        var tab = _tabs.FirstOrDefault(t => t.Id == id);
+        if (tab == null) return false;
+
+        if (tab.CanCloseAsync != null)
+        {
+            var canClose = await tab.CanCloseAsync();
+            if (!canClose) return false;
+        }
+
+        Close(id);
+        return true;
+    }
+
     public void CloseOthers(Guid id)
     {
         _tabs.RemoveAll(t => t.Id != id && !t.IsPinned);
@@ -156,7 +169,7 @@ public sealed class TabManager : ITabManager
         return url;
     }
 
-    // ---- Kalıcılık (localStorage) — dil değişimi forceLoad reload'ı sekmeleri silmesin diye ----
+    // ---- Kalıcılık (ABP User Settings) ----
 
     private sealed record PersistedTab(string Url, string Title, string? Icon, bool IsExternal, bool IsPinned);
     private sealed record PersistedState(List<PersistedTab> Tabs, string? ActiveUrl);
@@ -171,17 +184,17 @@ public sealed class TabManager : ITabManager
             var state = new PersistedState(
                 _tabs.Select(t => new PersistedTab(t.Url, t.Title, t.IconCssClass, t.Kind == TabKind.External, t.IsPinned)).ToList(),
                 active);
-            await _js.InvokeVoidAsync("localStorage.setItem", StorageKey, JsonSerializer.Serialize(state));
+            await _uiSettings.SetMdiTabsAsync(JsonSerializer.Serialize(state));
         }
-        catch { /* JS yok / disconnected — sessiz geç */ }
+        catch { /* Network err — sessiz geç */ }
     }
 
     private async Task RehydrateAsync()
     {
         try
         {
-            var json = await _js.InvokeAsync<string?>("localStorage.getItem", StorageKey);
-            if (string.IsNullOrWhiteSpace(json)) return;
+            var json = await _uiSettings.GetMdiTabsAsync();
+            if (string.IsNullOrWhiteSpace(json) || json == "[]") return;
 
             var state = JsonSerializer.Deserialize<PersistedState>(json);
             if (state?.Tabs == null) return;

@@ -12,6 +12,8 @@
             StateService="StateService"
             DataSource="@GridDataSource"
             EntityName="@L["Entity:Tenant"]"
+            EntityIcon="@TradeXpressIcons.Tenant"
+            PrimaryTextSelector="@(m => m.Name)"
             PageTitle="@L["TenantManagement"]"
             OnNewClick="BeforeCreateAsync"
             OnUpdateClick="BeforeUpdateAsync"

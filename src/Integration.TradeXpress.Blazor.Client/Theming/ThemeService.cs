@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using DevExpress.Blazor;
 using Microsoft.JSInterop;
+using Integration.TradeXpress.Settings;
 
 namespace Integration.TradeXpress.Blazor.Client.Theming;
 
@@ -16,14 +17,16 @@ namespace Integration.TradeXpress.Blazor.Client.Theming;
 public sealed class ThemeService : IThemeService
 {
     private readonly IJSRuntime _js;
+    private readonly IUserUiSettingAppService _uiSettings;
     private readonly IThemeChangeService _devExpressThemeService;
     private IJSObjectReference? _module;
     private ThemeSelection _selection = ThemeSelection.Default;
     private ITheme _currentTheme;
 
-    public ThemeService(IJSRuntime js, IThemeChangeService devExpressThemeService)
+    public ThemeService(IJSRuntime js, IUserUiSettingAppService uiSettings, IThemeChangeService devExpressThemeService)
     {
         _js = js;
+        _uiSettings = uiSettings;
         _devExpressThemeService = devExpressThemeService;
         _currentTheme = ThemeBuilder.Build(_selection);
     }
@@ -41,7 +44,8 @@ public sealed class ThemeService : IThemeService
         try
         {
             var module = await GetModuleAsync();
-            var json = await module.InvokeAsync<string?>("getLocal", ThemeCatalog.StorageKey);
+            string? json = null;
+            try { json = await _uiSettings.GetThemeAsync(); } catch { /* Ignore API error if backend not updated */ }
             var saved = TryReadSelection(json);
             if (saved is not null)
             {
@@ -96,8 +100,12 @@ public sealed class ThemeService : IThemeService
             var module = await GetModuleAsync();
             if (persist)
             {
-                var json = JsonSerializer.Serialize(next);
-                await module.InvokeVoidAsync("setLocal", ThemeCatalog.StorageKey, json);
+                try
+                {
+                    var json = JsonSerializer.Serialize(next);
+                    await _uiSettings.SetThemeAsync(json);
+                }
+                catch { /* Ignore API error if backend not updated */ }
             }
             // Bootstrap 5.3 CSS değişkenleri mod ile senkron olsun diye <html data-bs-theme>.
             await module.InvokeVoidAsync("setBootstrapColorMode", BootstrapColorMode);

@@ -6,6 +6,10 @@
 <DrillList TItem="VaultTreeItemViewModel"
            Title="@L["Menu:Vaults"]"
            EntityName="@L["Entity:Vault"]"
+           EntityIcon="@TradeXpressIcons.Vault"
+           PrimaryTextSelector="@(v => v.Code)"
+           ParentEntityName="@ParentEntityName"
+           ParentText="@ParentText"
            Items="@Items"
            MinItems="@MinItems"
            NewItemFactory="@CompanyTreeMapping.NewDefaultVault"
@@ -87,6 +91,10 @@
 
     /// <summary>true → düzenleme satır-içi panelde açılır (yalnız nested OLMAYAN kullanımda; bkz. DrillList).</summary>
     [Parameter] public bool AllowInlineEdit { get; set; }
+
+    /// <summary>Üst entity (Şube) adı + metni — açılan kasa edit popup başlığında " - [Şube: KOD]".</summary>
+    [Parameter] public string? ParentEntityName { get; set; }
+    [Parameter] public string? ParentText { get; set; }
 
     /// <summary>null = in-memory mod, non-null = persistent mod.</summary>
     [Parameter] public Func<VaultTreeItemViewModel, Task<VaultTreeItemViewModel>>? PersistCreate { get; set; }

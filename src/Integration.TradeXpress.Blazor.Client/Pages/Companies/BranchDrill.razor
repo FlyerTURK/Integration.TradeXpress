@@ -6,6 +6,10 @@
 @* Başlık DxFormLayoutGroup caption'ından geldiği için DrillList'in kendi Title'ı verilmez. *@
 <DrillList TItem="BranchTreeItemViewModel"
            EntityName="@L["Entity:Branch"]"
+           EntityIcon="@TradeXpressIcons.Branch"
+           PrimaryTextSelector="@(b => b.Code)"
+           ParentEntityName="@ParentEntityName"
+           ParentText="@ParentText"
            Items="@Items"
            MinItems="1"
            NewItemFactory="@NewBranch"
@@ -31,6 +35,10 @@
     [Parameter, EditorRequired] public List<BranchTreeItemViewModel> Items { get; set; } = default!;
     [Parameter] public EventCallback<BranchTreeItemViewModel> OnItemDeleted { get; set; }
     [Parameter] public EventCallback OnChanged { get; set; }
+
+    /// <summary>Üst entity (Şirket) adı + metni — açılan şube edit popup başlığında " - [Şirket: KOD]".</summary>
+    [Parameter] public string? ParentEntityName { get; set; }
+    [Parameter] public string? ParentText { get; set; }
 
     private BranchTreeItemViewModel NewBranch() => new()
     {

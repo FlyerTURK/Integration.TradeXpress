@@ -41,8 +41,8 @@ public partial class CompanyListPage
     {
         if (SelectedCompany is null) return;
         var url = $"/branches/{SelectedCompany.Id}?companycode={Uri.EscapeDataString(SelectedCompany.Code)}";
-        var title = $"{SelectedCompany.Code} — {L["Menu:Branches"]}";
-        await TabManager.OpenOrActivateAsync(url, title, "fas fa-sitemap");
+        var title = $"{L["Menu:Branches"]} - [{L["Entity:Company"]}: {SelectedCompany.Code}]";
+        await TabManager.OpenOrActivateAsync(url, title, TradeXpressIcons.Branch);
     }
 
     // ── Edit formu değişince IsDirty — combo/drill EditContext'i atlar. ────────

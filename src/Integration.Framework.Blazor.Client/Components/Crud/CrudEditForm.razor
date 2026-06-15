@@ -40,21 +40,9 @@
            Padding/üst-çizgi FooterContentTemplate tarafından (tema) verilir; burada yalnız toolbar. *@
         @if (EditContext != null)
         {
-            <DxToolbar ItemRenderStyleMode="ToolbarRenderStyleMode.Contained" CssClass="w-100">
-                <DxToolbarItem Text="@L["Save"]" Alignment="ToolbarItemAlignment.Right"
-                               RenderStyle="ButtonRenderStyle.Primary"
-                               Enabled="@CanSave"
-                               Click="@((ToolbarItemClickEventArgs e) => HandleSaveClick())" />
-                <DxToolbarItem Text="@L["SaveAndNew"]" Alignment="ToolbarItemAlignment.Right" BeginGroup="true"
-                               Visible="@ShowSaveAndNew"
-                               IconUrl="/images/xaf/action_save_new.svg"
-                               IconCssClass="xaf-toolbar-item-icon"
-                               Enabled="@CanSave"
-                               Click="@((ToolbarItemClickEventArgs e) => HandleSaveAndNewClick())" />
-                <DxToolbarItem Text="@L["Cancel"]" Alignment="ToolbarItemAlignment.Right" BeginGroup="true"
-                               Enabled="@(!IsBusy)"
-                               Click="@((ToolbarItemClickEventArgs e) => CancelAsync())" />
-            </DxToolbar>
+            @* Ortak standart footer (tek kaynak) — DrillList ile aynı bileşen. *@
+            <CrudFooterToolbar OnSave="HandleSaveClick" OnSaveAndNew="HandleSaveAndNewClick" OnCancel="CancelAsync"
+                               ShowSaveAndNew="@ShowSaveAndNew" CanSave="@CanSave" IsBusy="@IsBusy" />
         }
     </Footer>
 </CrudEditView>

@@ -35,7 +35,7 @@ public partial class BranchListPage
 
     private string PageTitle => string.IsNullOrWhiteSpace(CompanyCode)
         ? L["Menu:Branches"]
-        : $"{CompanyCode} — {L["Menu:Branches"]}";
+        : $"{L["Menu:Branches"]} - [{L["Entity:Company"]}: {CompanyCode}]";
 
     protected override void OnConfiguringListRequest(BranchListRequestDto request)
         => request.CompanyId = CompanyId;
@@ -49,8 +49,8 @@ public partial class BranchListPage
     {
         if (SelectedBranch is null) return;
         var url = $"/vaults/{SelectedBranch.Id}?branchcode={Uri.EscapeDataString(SelectedBranch.Code)}";
-        var title = $"{SelectedBranch.Code} — {L["Menu:Vaults"]}";
-        await TabManager.OpenOrActivateAsync(url, title, "fas fa-vault");
+        var title = $"{L["Menu:Vaults"]} - [{L["Entity:Branch"]}: {SelectedBranch.Code}]";
+        await TabManager.OpenOrActivateAsync(url, title, TradeXpressIcons.Vault);
     }
 
     public override Task BeforeCreateAsync()

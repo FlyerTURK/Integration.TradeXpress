@@ -53,7 +53,10 @@
         }
     </DxToolbar>
 
-    <div style="min-height:@MinHeight">
+    @* Min/Max yükseklik + dikey flex: grid bu kutuyu doldurur (flex-grow), fazla satır grid'in kendi
+       içinde kayar (normal grid deseni). İkisi de DrillConsts.DefaultGridHeight'tan gelir → varsayılanda
+       EŞİT (sabit yükseklik, tüm drill'ler aynı). Gerekirse MinHeight<MaxHeight verilip aralık yapılabilir. *@
+    <div style="min-height:@MinHeight; max-height:@MaxHeight; display:flex; flex-direction:column;">
         @if (AllowInlineEdit)
         {
             @* Satır-içi (hücre editörü) mod: cell'ler DevExpress'in native EditRow editörlerine döner.
@@ -65,7 +68,8 @@
                     EditModelSaving="OnEditModelSaving"
                     DataItemDeleting="OnDataItemDeleting"
                     CustomizeEditModel="OnCustomizeEditModel"
-                    PageSize="@PageSize">
+                    PageSize="@PageSize"
+                    CssClass="flex-grow-1 overflow-hidden">
                 <Columns>
                     @if (!ReadOnly)
                     {
@@ -84,7 +88,8 @@
                     SelectedDataItems="@_selectedItems"
                     SelectedDataItemsChanged="OnGridSelectionChanged"
                     RowClick="OnRowClick"
-                    PageSize="@PageSize">
+                    PageSize="@PageSize"
+                    CssClass="flex-grow-1 overflow-hidden">
                 <Columns>
                     <DxGridSelectionColumn Width="40px" />
                     @GridColumns
@@ -96,23 +101,38 @@
 
 @if (!AllowInlineEdit)
 {
+    @* Footer/header ana CRUD edit (CrudEditView) ile aynı desen: DevExpress FooterContentTemplate
+       (sabit dip, tema padding'i + üst çizgi) + HeaderContentTemplate (ikon + sola yaslı başlık). *@
     <DxPopup Visible="@_popupVisible"
              VisibleChanged="OnPopupVisibleChanged"
-             HeaderText="@(_isNew ? L["New"] + " " + EntityName : EntityName + " " + L["Edit"])"
              Width="95%"
              MaxWidth="720px"
              MaxHeight="90vh"
              Scrollable="true"
+             AllowDrag="true"
+             AllowResize="true"
+             ShowFooter="true"
              ShowCloseButton="true"
              CloseOnEscape="true"
              CloseOnOutsideClick="false"
              CssClass="crud-edit-popup">
+        <HeaderContentTemplate Context="popup">
+            <div style="display:flex; align-items:center; gap:0.5rem; width:100%; justify-content:flex-start;">
+                <span class="@DrillHeaderIcon" aria-hidden="true" style="color:var(--dxbl-primary, #2563eb);"></span>
+                <span>@DrillTitle()</span>
+            </div>
+        </HeaderContentTemplate>
         <Content>
             @if (_popupVisible)
             {
                 @EditFormBody
             }
         </Content>
+        <FooterContentTemplate Context="popup">
+            @* Ortak standart footer (tek kaynak) — CrudEditForm ile aynı bileşen; Kaydet ve Yeni dahil. *@
+            <CrudFooterToolbar OnSave="HandleSaveClick" OnSaveAndNew="HandleSaveAndNew" OnCancel="Cancel"
+                               ShowSaveAndNew="true" CanSave="@(!_busy)" IsBusy="@_busy" />
+        </FooterContentTemplate>
     </DxPopup>
 }
 
@@ -127,6 +147,20 @@
     [Parameter] public string? Title { get; set; }
     [Parameter] public string? EntityName { get; set; }
 
+    /// <summary>Bu entity'nin ikonu (FontAwesome class) — edit popup başlığında. Boşsa generic ikon.</summary>
+    [Parameter] public string? EntityIcon { get; set; }
+
+    /// <summary>Edit başlığında gösterilecek birincil değer seçici (genelde Code).
+    /// Yeni → "Yeni {Entity} {Code?}", Düzenle → "{Entity} {Code}".</summary>
+    [Parameter] public Func<TItem, string?>? PrimaryTextSelector { get; set; }
+
+    /// <summary>Varsa üst (parent) entity adı — yalnız AÇILAN EDIT POPUP başlığına " - [Parent: Text]"
+    /// eklenir (grid/liste alanında gösterilmez).</summary>
+    [Parameter] public string? ParentEntityName { get; set; }
+
+    /// <summary>Üst entity'nin gösterim metni (genelde Code). ParentEntityName ile birlikte.</summary>
+    [Parameter] public string? ParentText { get; set; }
+
     [Parameter, EditorRequired] public List<TItem> Items { get; set; } = default!;
     [Parameter] public string KeyFieldName { get; set; } = "ClientKey";
     [Parameter] public int PageSize { get; set; } = 10;
@@ -138,8 +172,13 @@
     /// popup (varsayılan) daha güvenli. false → popup düzenleme (varsayılan).</summary>
     [Parameter] public bool AllowInlineEdit { get; set; }
 
-    /// <summary>Grid'in minimum yüksekliği. İçerik az olsa bile layout stabil kalır.</summary>
-    [Parameter] public string MinHeight { get; set; } = "240px";
+    /// <summary>Grid kutusunun minimum yüksekliği. Varsayılan: tüm drill'lerde ortak
+    /// <see cref="DrillConsts.DefaultGridHeight"/>. Gerekirse kullanım başına ezilebilir.</summary>
+    [Parameter] public string MinHeight { get; set; } = DrillConsts.DefaultGridHeight;
+
+    /// <summary>Grid kutusunun maksimum yüksekliği. Varsayılan: MinHeight ile EŞİT (sabit yükseklik).
+    /// MinHeight'tan büyük verilirse grid içerikle bu aralıkta büyür, sonra içeride kayar.</summary>
+    [Parameter] public string MaxHeight { get; set; } = DrillConsts.DefaultGridHeight;
 
     [Parameter, EditorRequired] public RenderFragment GridColumns { get; set; } = default!;
     [Parameter, EditorRequired] public RenderFragment<TItem> EditContent { get; set; } = default!;
@@ -225,18 +264,6 @@
 
                 @EditContent(_editItem)
             </CascadingValue>
-
-            <div class="d-flex justify-content-end gap-2 mt-3 pt-3 border-top">
-                <DxButton RenderStyle="ButtonRenderStyle.Primary" Click="HandleSaveClick" Enabled="@(!_busy)">
-                    @if (_busy)
-                    {
-                        <span class="spinner-border spinner-border-sm me-1" role="status"></span>
-                    }
-                    @L["Save"]
-                </DxButton>
-                <DxButton Text="@L["Cancel"]" RenderStyle="ButtonRenderStyle.Secondary"
-                          Click="Cancel" Enabled="@(!_busy)" />
-            </div>
         }
     </text>;
 
@@ -257,6 +284,22 @@
         _selectedItems = items;
         await OnSelectionChanged.InvokeAsync(SelectedItem);
     }
+
+    // Edit popup başlığı: Yeni → "Yeni {Entity} {Code?}", Düzenle → "{Entity} {Code/primary}".
+    private string DrillTitle()
+    {
+        var name = EntityName ?? string.Empty;
+        var primary = (_editItem != null && PrimaryTextSelector != null) ? PrimaryTextSelector(_editItem) : null;
+        var title = _isNew
+            ? (string.IsNullOrWhiteSpace(primary) ? $"{L["New"]} {name}".Trim() : $"{L["New"]} {name} {primary}".Trim())
+            : (string.IsNullOrWhiteSpace(primary) ? name : $"{name} {primary}");
+        if (!string.IsNullOrWhiteSpace(ParentEntityName) && !string.IsNullOrWhiteSpace(ParentText))
+            title += $" - [{ParentEntityName}: {ParentText}]";
+        return title;
+    }
+
+    // Başlık ikonu: entity ikonu (yoksa generic düzenleme ikonu).
+    private string DrillHeaderIcon => string.IsNullOrEmpty(EntityIcon) ? "fas fa-pen-to-square" : EntityIcon!;
 
     private void StartNew()
     {
@@ -289,6 +332,15 @@
     {
         if (_editContext != null && _editContext.Validate())
             await SaveAsync();
+    }
+
+    // Kaydet ve Yeni: geçerliyse kaydet, başarılıysa (SaveAsync popup'ı kapattıysa) hemen yeni kayıt aç.
+    private async Task HandleSaveAndNew()
+    {
+        if (_editContext == null || !_editContext.Validate()) return;
+        await SaveAsync();
+        if (!_popupVisible)  // başarı → SaveAsync kapattı → yenisini aç (hata olduysa açık kalır, dokunma)
+            StartNew();
     }
 
     private async Task SaveAsync()

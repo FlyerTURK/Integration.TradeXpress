@@ -13,6 +13,10 @@
             StateService="StateService"
             DataSource="@GridDataSource"
             EntityName="@L["Entity:Branch"]"
+            EntityIcon="@TradeXpressIcons.Branch"
+            PrimaryTextSelector="@(m => m.Code)"
+            ParentEntityName="@L["Entity:Company"]"
+            ParentTextSelector="@(_ => CompanyCode)"
             PageTitle="@PageTitle"
             OnNewClick="BeforeCreateAsync"
             OnUpdateClick="BeforeUpdateAsync"
@@ -31,7 +35,7 @@
     </GridColumns>
 
     <ToolbarActions>
-        <DxButton Text="@L["Menu:Vaults"]" IconCssClass="fas fa-vault toolbar-action-vaults"
+        <DxButton Text="@L["Menu:Vaults"]" IconCssClass="@($"{TradeXpressIcons.Vault} toolbar-action-vaults")"
                   RenderStyle="ButtonRenderStyle.Secondary"
                   Enabled="@(SelectedBranch != null)"
                   Click="OpenVaultsAsync" />
