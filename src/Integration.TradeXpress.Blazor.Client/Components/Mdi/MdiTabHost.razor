@@ -1,0 +1,88 @@
+@using DevExpress.Blazor
+@using Integration.TradeXpress.Blazor.Client.Services.Mdi
+@implements IDisposable
+@inject ITabManager TabManager
+@inject Microsoft.Extensions.Localization.IStringLocalizer<Integration.TradeXpress.Localization.TradeXpressResource> L
+
+@*
+   MDI sekme host'u — MainLayout'taki @Body bölgesinin yerine geçer. Tüm uygulama sayfaları
+   burada DxTabs sekmeleri içinde render edilir. İç sayfalar DynamicComponent ile (iframe DEĞİL);
+   harici URL'ler ileride ExternalFrameTab ile. RenderMode=OnDemand → ziyaret edilen sekme canlı
+   tutulur (state korunur), ziyaret edilmemiş sekme lazy.
+*@
+
+<div class="mdi-host">
+    @if (TabManager.Tabs.Count == 0)
+    {
+        <div class="mdi-empty">@L["Loading"]</div>
+    }
+    else
+    {
+        <DxTabs ActiveTabIndex="@ActiveIndex"
+                ActiveTabIndexChanged="OnActiveTabChanged"
+                RenderMode="TabsRenderMode.OnDemand"
+                ScrollMode="TabsScrollMode.NavButtons"
+                TabClosing="OnTabClosing"
+                CssClass="mdi-tabs">
+            @foreach (var tab in TabManager.Tabs)
+            {
+                var captured = tab;
+                <DxTabPage @key="captured.Id"
+                           Text="@captured.Title"
+                           TabIconCssClass="@captured.IconCssClass"
+                           AllowClose="@(!captured.IsPinned)">
+                    @if (captured.Kind == TabKind.External)
+                    {
+                        @* Faz 4: ExternalFrameTab (sandboxed iframe + fallback) *@
+                        <div class="mdi-external-placeholder">@captured.Url</div>
+                    }
+                    else if (captured.PageType != null)
+                    {
+                        <DynamicComponent @key="@((captured.Id, captured.RefreshNonce))"
+                                          Type="@captured.PageType"
+                                          Parameters="@captured.Parameters" />
+                    }
+                </DxTabPage>
+            }
+        </DxTabs>
+    }
+</div>
+
+@code {
+    protected override void OnInitialized() => TabManager.StateChanged += OnStateChanged;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+            await TabManager.InitializeAsync("/", L["Menu:Home"], "fas fa-home");
+    }
+
+    // TabManager model-kimliğiyle aktif sekmeyi tutar; DxTabs pozisyonel int ister → eşle.
+    private int ActiveIndex
+    {
+        get
+        {
+            if (TabManager.ActiveTabId is not { } id) return 0;
+            for (int i = 0; i < TabManager.Tabs.Count; i++)
+                if (TabManager.Tabs[i].Id == id) return i;
+            return 0;
+        }
+    }
+
+    private void OnActiveTabChanged(int index)
+    {
+        if (index >= 0 && index < TabManager.Tabs.Count)
+            TabManager.Activate(TabManager.Tabs[index].Id);
+    }
+
+    // X butonu / Delete tuşu → modelden çıkar (component dispose olsun, abonelik sızmasın).
+    private void OnTabClosing(TabCloseEventArgs e)
+    {
+        if (e.TabIndex >= 0 && e.TabIndex < TabManager.Tabs.Count)
+            TabManager.Close(TabManager.Tabs[e.TabIndex].Id);
+    }
+
+    private void OnStateChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose() => TabManager.StateChanged -= OnStateChanged;
+}

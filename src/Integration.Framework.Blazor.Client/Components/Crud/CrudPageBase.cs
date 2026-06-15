@@ -272,6 +272,16 @@ public abstract class CrudPageBase<TGetDto, TListDto, TKey, TListRequestDto, TCr
         }
     }
 
+    /// <summary>Kaydet ve Yeni: kaydeder, başarılıysa (popup kapandıysa) hemen yeni kayıt moduna geçer.
+    /// SaveAsync başarısız/validation'da popup açık kalır → yeni mod'a geçilmez. Page'ler SaveAsync ve
+    /// BeforeCreateAsync'i override ettiğinden bu kompozisyon tüm entity'lerde çalışır.</summary>
+    public virtual async Task SaveAndNewAsync()
+    {
+        await SaveAsync();
+        if (!StateService.EditPageVisible)
+            await BeforeCreateAsync();
+    }
+
     // #3 (thread-affinity fix): StateHasChanged'i her zaman renderer dispatcher'ında çalıştır.
     // Arka plan kaynağı (SSE/timer/distributed event handler) state'i değiştirip NotifyStateChanged
     // çağırsa bile "current thread is not associated with the Dispatcher" hatası olmaz.

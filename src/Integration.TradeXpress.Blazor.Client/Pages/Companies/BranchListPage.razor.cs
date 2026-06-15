@@ -2,6 +2,7 @@ using System;
 using System.Threading.Tasks;
 using Integration.Framework.Blazor.Client.Components.Crud;
 using Integration.TradeXpress.Blazor.Client.Pages.Companies.Models;
+using Integration.TradeXpress.Blazor.Client.Services.Mdi;
 using Integration.TradeXpress.Branches;
 using Integration.TradeXpress.Permissions;
 using Microsoft.AspNetCore.Components;
@@ -23,6 +24,7 @@ public partial class BranchListPage
     public string? CompanyCode { get; set; }
 
     [Inject] protected IBranchAppService BranchAppService { get; set; } = default!;
+    [Inject] protected ITabManager TabManager { get; set; } = default!;
 
     public override Volo.Abp.Application.Services.ICrudAppService<
         BranchGetDto, BranchListDto, Guid,
@@ -37,6 +39,19 @@ public partial class BranchListPage
 
     protected override void OnConfiguringListRequest(BranchListRequestDto request)
         => request.CompanyId = CompanyId;
+
+    // ── Toolbar drill: Şube → Kasalar ───────────────────────────────────────────
+    private BranchListDto? SelectedBranch =>
+        StateService.SelectedDataItems is { Count: 1 } sel ? sel[0] as BranchListDto : null;
+
+    // Drill-down artık URL navigasyonu değil — kasaları MDI sekmesi olarak açar/aktive eder.
+    private async Task OpenVaultsAsync()
+    {
+        if (SelectedBranch is null) return;
+        var url = $"/vaults/{SelectedBranch.Id}?branchcode={Uri.EscapeDataString(SelectedBranch.Code)}";
+        var title = $"{SelectedBranch.Code} — {L["Menu:Vaults"]}";
+        await TabManager.OpenOrActivateAsync(url, title, "fas fa-vault");
+    }
 
     public override Task BeforeCreateAsync()
     {

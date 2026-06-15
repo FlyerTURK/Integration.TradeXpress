@@ -11,6 +11,7 @@ namespace Integration.Framework.Blazor.Client.Components.Crud
         [Parameter] public string? EntityName { get; set; }
         [Parameter] public RenderFragment<TViewModel>? EditPageContent { get; set; }
         [Parameter] public EventCallback OnSaveClick { get; set; }
+        [Parameter] public EventCallback OnSaveAndNewClick { get; set; }
         [Parameter] public bool ValidateOnPropertyChange { get; set; } = true;
 
         [Inject] public ITradeXpressUiService UiService { get; set; } = default!;
@@ -93,16 +94,19 @@ namespace Integration.Framework.Blazor.Client.Components.Crud
             }
         }
 
-        private async Task HandleValidSubmit()
+        private Task HandleValidSubmit() => SubmitAsync(OnSaveClick);
+        private Task HandleValidSubmitAndNew() => SubmitAsync(OnSaveAndNewClick);
+
+        private async Task SubmitAsync(EventCallback callback)
         {
-            if (!OnSaveClick.HasDelegate) return;
+            if (!callback.HasDelegate) return;
 
             // Önceki sunucu hatalarını temizle.
             _serverErrorStore?.Clear();
             _serverErrorStore = null;
             CurrentEditContext?.NotifyValidationStateChanged();
 
-            await OnSaveClick.InvokeAsync();
+            await callback.InvokeAsync();
 
             // Sunucu doğrulama hatalarını forma aktar.
             var serverErrors = StateService.PendingServerErrors;

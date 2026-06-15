@@ -1,0 +1,21 @@
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<Integration.TradeXpress.Localization.TradeXpressResource> L
+
+@* IsActive grid hücresi — yeşil ikonlu "Active" / kırmızı ikonlu "Passive" (localized).
+   Grid kolonunda: <CellDisplayTemplate><StatusCell Active="@((bool)context.Value)" /></CellDisplayTemplate> *@
+@if (Active)
+{
+    <span style="display:inline-flex; align-items:center; gap:0.35rem; color:#16a34a;">
+        <i class="fas fa-circle-check" aria-hidden="true"></i>@L["Active"]
+    </span>
+}
+else
+{
+    <span style="display:inline-flex; align-items:center; gap:0.35rem; color:#dc2626;">
+        <i class="fas fa-circle-xmark" aria-hidden="true"></i>@L["Passive"]
+    </span>
+}
+
+@code {
+    [Parameter] public bool Active { get; set; }
+}

@@ -3,6 +3,7 @@
 @using Integration.TradeXpress.Blazor.Client.Pages.Companies.Models
 @using Integration.TradeXpress.Branches
 @using DevExpress.Blazor
+@inject Microsoft.AspNetCore.Components.NavigationManager NavigationManager
 @inherits CrudPageBase<BranchGetDto, BranchListDto, Guid, BranchListRequestDto, BranchCreateDto, BranchUpdateDto, BranchTreeItemViewModel>
 
 <CrudLayout TGetDto="BranchGetDto"
@@ -18,15 +19,23 @@
             OnDeleteClick="DeleteAsync"
             OnRefreshClick="GetListAsync"
             OnSearchChanged="OnSearchAsync"
-            OnSaveClick="SaveAsync">
+            OnSaveClick="SaveAsync"
+            OnSaveAndNewClick="SaveAndNewAsync">
 
     <GridColumns>
         <DxGridDataColumn FieldName="Code" Caption="@L["Code"]" Width="120px" />
         <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" />
         <DxGridDataColumn FieldName="IsHeadquarters" Caption="@L["IsHeadquarters"]" Width="120px" />
-        <DxGridDataColumn FieldName="IsActive" Caption="@L["IsActive"]" Width="80px" />
+        @* IsActive kolonu yok — toolbar'da IsActive switch filtre kontrolü var (aktif/pasif ayrımı orada). *@
         <DxGridDataColumn FieldName="DisplayOrder" Caption="@L["DisplayOrder"]" Width="90px" Visible="false" />
     </GridColumns>
+
+    <ToolbarActions>
+        <DxButton Text="@L["Menu:Vaults"]" IconCssClass="fas fa-vault toolbar-action-vaults"
+                  RenderStyle="ButtonRenderStyle.Secondary"
+                  Enabled="@(SelectedBranch != null)"
+                  Click="OpenVaultsAsync" />
+    </ToolbarActions>
 
     <EditPageContent Context="model">
         <BranchEditForm Branch="@model" PersistVaults="true" />

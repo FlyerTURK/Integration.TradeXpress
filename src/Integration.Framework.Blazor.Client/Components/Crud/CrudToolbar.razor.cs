@@ -17,12 +17,6 @@ namespace Integration.Framework.Blazor.Client.Components.Crud
         [Parameter] public EventCallback OnExportToExcelClick { get; set; }
         [Parameter] public EventCallback OnPrintPdfClick { get; set; }
 
-        [Parameter] public bool CanGoToPreviousPage { get; set; }
-        [Parameter] public EventCallback OnGoToPreviousPageClick { get; set; }
-
-        [Parameter] public bool CanGoToNextPage { get; set; }
-        [Parameter] public EventCallback OnGoToNextPageClick { get; set; }
-
         /// <summary>Sayfaya özel ek toolbar aksiyonları (ör. "Şubeler" drill action'ı).</summary>
         [Parameter] public RenderFragment? CustomActions { get; set; }
 

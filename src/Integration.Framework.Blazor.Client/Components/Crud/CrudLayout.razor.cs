@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using DevExpress.Blazor;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.WebAssembly.Services;
 using Integration.Framework.Blazor.Client.Services.Base;
 
 namespace Integration.Framework.Blazor.Client.Components.Crud
@@ -26,6 +27,7 @@ namespace Integration.Framework.Blazor.Client.Components.Crud
         [Parameter] public EventCallback OnRefreshClick { get; set; }
         
         [Parameter] public EventCallback OnSaveClick { get; set; }
+        [Parameter] public EventCallback OnSaveAndNewClick { get; set; }
         
         [Parameter] public RenderFragment? GridColumns { get; set; }
         [Parameter] public IEnumerable<GridColumnDefinition>? Columns { get; set; }
@@ -112,17 +114,39 @@ namespace Integration.Framework.Blazor.Client.Components.Crud
             }
         }
 
-        // -- Pagination Logic --
-        private bool CanGoToPreviousPage => Grid.CanGoToPreviousPage();
-        private bool CanGoToNextPage => Grid.CanGoToNextPage();
-
-        private void GoToPreviousPage() => Grid.GoToPreviousPage();
-
-        private void GoToNextPage() => Grid.GoToNextPage();
-
         // -- Export Logic --
-        private Task ExportToExcel() => Grid.ExportToXlsxSafeAsync("Export");
+        // Export'a özel ağır DevExpress assembly'leri (Pdf/Printing/Drawing) boot'tan çıkarıldı
+        // (csproj BlazorWebAssemblyLazyLoad). İlk export tıklamasında burada yüklenir; sonraki
+        // tıklamalarda runtime cache'inden gelir (idempotent). Açılış payload'ı ~10MB daha küçük.
+        [Inject] private LazyAssemblyLoader LazyAssemblyLoader { get; set; } = default!;
 
-        private Task PrintGrid() => Grid.ExportToPdfSafeAsync("Export");
+        private static readonly string[] ExportAssemblies =
+        {
+            "DevExpress.Printing.v25.2.Core.wasm",
+            "DevExpress.Pdf.v25.2.Core.wasm",
+            "DevExpress.Pdf.v25.2.Drawing.wasm",
+            "DevExpress.Drawing.v25.2.wasm",
+        };
+
+        private bool _exportAssembliesLoaded;
+
+        private async Task EnsureExportAssembliesAsync()
+        {
+            if (_exportAssembliesLoaded) return;
+            await LazyAssemblyLoader.LoadAssembliesAsync(ExportAssemblies);
+            _exportAssembliesLoaded = true;
+        }
+
+        private async Task ExportToExcel()
+        {
+            await EnsureExportAssembliesAsync();
+            await Grid.ExportToXlsxSafeAsync("Export");
+        }
+
+        private async Task PrintGrid()
+        {
+            await EnsureExportAssembliesAsync();
+            await Grid.ExportToPdfSafeAsync("Export");
+        }
     }
 }

@@ -21,7 +21,9 @@
               EditContext="@(StateService.EditPageVisible ? CurrentEditContext : null)"
               IsBusy="@StateService.IsBusy"
               CanSave="@((StateService.IsNewRecord || StateService.IsDirty) && !StateService.IsBusy)"
-              OnSave="HandleValidSubmit">
+              OnSave="HandleValidSubmit"
+              OnSaveAndNew="HandleValidSubmitAndNew"
+              ShowSaveAndNew="@OnSaveAndNewClick.HasDelegate">
     @if (StateService.EditingModel != null)
     {
         @EditPageContent?.Invoke(StateService.EditingModel)

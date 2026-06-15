@@ -1,4 +1,4 @@
-@page "/vaults"
+@page "/vaults/{BranchId:guid}"
 @using Integration.Framework.Blazor.Client.Components.Crud
 @using Integration.TradeXpress.Blazor.Client.Pages.Vaults.Models
 @using Integration.TradeXpress.Vaults
@@ -12,26 +12,26 @@
             StateService="StateService"
             DataSource="@GridDataSource"
             EntityName="@L["Entity:Vault"]"
-            PageTitle="@L["Menu:Vaults"]"
+            PageTitle="@PageTitle"
             OnNewClick="BeforeCreateAsync"
             OnUpdateClick="BeforeUpdateAsync"
             OnDeleteClick="DeleteAsync"
             OnRefreshClick="GetListAsync"
             OnSearchChanged="OnSearchAsync"
-            OnSaveClick="SaveAsync">
+            OnSaveClick="SaveAsync"
+            OnSaveAndNewClick="SaveAndNewAsync">
 
     <GridColumns>
         <DxGridDataColumn FieldName="BranchCode" Caption="@L["Entity:Branch"]" Width="120px" />
         <DxGridDataColumn FieldName="Code" Caption="@L["Code"]" Width="120px" />
         <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" />
         <DxGridDataColumn FieldName="IsDefault" Caption="@L["IsDefault"]" Width="100px" />
-        <DxGridDataColumn FieldName="IsActive" Caption="@L["IsActive"]" Width="90px" />
+        @* IsActive kolonu yok — toolbar'da IsActive switch filtre kontrolü var (aktif/pasif ayrımı orada). *@
         <DxGridDataColumn FieldName="DisplayOrder" Caption="@L["DisplayOrder"]" Width="90px" Visible="false" />
     </GridColumns>
 
     <EditPageContent Context="editingModel">
-        <VaultEditPage Model="editingModel"
-                       StateService="StateService" />
+        <VaultEditPage Model="editingModel" />
     </EditPageContent>
 
 </CrudLayout>

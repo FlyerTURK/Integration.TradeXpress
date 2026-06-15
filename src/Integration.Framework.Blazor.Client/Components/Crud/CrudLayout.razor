@@ -8,14 +8,8 @@
 @using Microsoft.Extensions.Localization
 @inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
 
-@using Microsoft.AspNetCore.Components.Sections
-
-@if (!string.IsNullOrEmpty(PageTitle))
-{
-    <SectionContent SectionName="PageHeaderTitle">
-        <h5 class="m-0 fw-bold px-3">@PageTitle</h5>
-    </SectionContent>
-}
+@* Sayfa başlığı artık MDI sekme caption'ında gösterilir; global PageHeaderTitle SectionOutlet
+   çoklu canlı sayfada çakıştığı için kaldırıldı. PageTitle parametresi geriye uyumluluk için kalır. *@
 
 <div class="crud-layout-container h-100 position-relative d-flex flex-column">
     @if (StateService.IsBusy)
@@ -31,7 +25,8 @@
             </div>
         </div>
     }
-    <div class="pb-2">
+    @* Toolbar üstü/altı boşluk — Bootstrap p-* bu projede etkisiz, inline padding. *@
+    <div style="padding-top:0.25rem; padding-bottom:0.25rem;">
         <CrudToolbar TGetDto="TGetDto" TListDto="TListDto" TViewModel="TViewModel" TKey="TKey"
                      StateService="StateService"
                      SearchText="@SearchText"
@@ -41,10 +36,6 @@
                      OnRefreshClick="OnRefreshClick"
                      OnExportToExcelClick="ExportToExcel"
                      OnPrintPdfClick="PrintGrid"
-                     CanGoToPreviousPage="CanGoToPreviousPage"
-                     OnGoToPreviousPageClick="GoToPreviousPage"
-                     CanGoToNextPage="CanGoToNextPage"
-                     OnGoToNextPageClick="GoToNextPage"
                      ActiveFilter="_activeFilter"
                      ActiveFilterChanged="OnActiveFilterChanged"
                      OnToggleGridSearch="ToggleGridSearch"
@@ -90,6 +81,7 @@
                EntityName="@EntityName"
                EditPageContent="EditPageContent"
                OnSaveClick="OnSaveClick"
+               OnSaveAndNewClick="OnSaveAndNewClick"
                ValidateOnPropertyChange="ValidateOnPropertyChange" />
 
 

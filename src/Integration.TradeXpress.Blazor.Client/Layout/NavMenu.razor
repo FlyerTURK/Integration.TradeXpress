@@ -1,9 +1,20 @@
 @using Volo.Abp.UI.Navigation
+@using Integration.TradeXpress.Blazor.Client.Services.Mdi
+@using DevExpress.Blazor
 @inject IMenuManager MenuManager
+@inject ITabManager TabManager
+@inject RouteResolver RouteResolver
+@inject NavigationManager Navigation
 
-<DxTreeView Data="@MenuItems" CssClass="demo-drawer-menu w-100 h-100" ShowFilterPanel="true">
+@* Menü düğümüne tıklayınca ilgili sayfayı MDI sekmesi olarak açar/aktive eder.
+   NodeClick kullanılır (SelectionChanged seçili düğüme tekrar tıklamada tetiklenmez —
+   açık bir sekmeyi yeniden aktive edemezdik). Çözümlenemeyen URL'ler (ABP admin
+   sayfaları: /identity/*, /setting-management) tam navigasyona düşer (MDI dışı). *@
+<DxTreeView Data="@MenuItems" CssClass="demo-drawer-menu w-100 h-100"
+            AllowSelectNodes="true" ShowFilterPanel="true"
+            NodeClick="OnNodeClick">
     <DataMappings>
-        <DxTreeViewDataMapping Children="Items" Text="DisplayName" NavigateUrl="Url" />
+        <DxTreeViewDataMapping Children="Items" Text="DisplayName" />
     </DataMappings>
 </DxTreeView>
 
@@ -14,5 +25,16 @@
     {
         var menu = await MenuManager.GetAsync(StandardMenus.Main);
         MenuItems = menu.Items;
+    }
+
+    private async Task OnNodeClick(TreeViewNodeClickEventArgs e)
+    {
+        if (e.NodeInfo.DataItem is not ApplicationMenuItem item) return;
+        if (string.IsNullOrEmpty(item.Url)) return; // grup/parent düğümü — URL yok
+
+        if (RouteResolver.IsKnownPage(item.Url))
+            await TabManager.OpenOrActivateAsync(item.Url, item.DisplayName, item.Icon);
+        else
+            Navigation.NavigateTo(item.Url, forceLoad: true); // ABP admin sayfaları (MDI dışı)
     }
 }

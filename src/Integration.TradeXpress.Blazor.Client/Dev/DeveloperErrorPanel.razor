@@ -1,0 +1,166 @@
+@namespace Integration.TradeXpress.Blazor.Client.Dev
+@using System.Text
+@using Microsoft.JSInterop
+@implements IAsyncDisposable
+@inject DevErrorSink Sink
+@inject IJSRuntime JS
+
+@*
+   Geliştirici Hata Paneli — ekranda sabit (bottom-right) küçük bir rozet/panel.
+   JS console hataları, window 'error', unhandled promise rejection ve Blazor'ın console'a yazdığı
+   ele alınmayan .NET exception'larını tek yerde kalıcı listeler. Mobilde konsol açılamadığı için
+   özellikle değerli. position:fixed olduğundan ErrorBoundary'nin DIŞINDA (sibling) render edilir;
+   böylece boundary trip etse bile panel görünür kalır.
+*@
+
+<div style="position:fixed; right:12px; bottom:12px; z-index:2147483000; font-family:ui-monospace,Consolas,monospace;">
+    @if (!_open)
+    {
+        <button type="button" @onclick="() => _open = true" title="Geliştirici Hataları"
+                style="@CollapsedButtonStyle">
+            <i class="fas fa-bug" style="font-size:16px;"></i>
+            @if (Sink.Count > 0)
+            {
+                <span style="@BadgeStyle">@Sink.Count</span>
+            }
+        </button>
+    }
+    else
+    {
+        <div style="width:min(420px,92vw); max-height:62vh; display:flex; flex-direction:column; background:#1e1e1e; color:#e6e6e6; border:1px solid #3a3a3a; border-radius:10px; box-shadow:0 8px 30px rgba(0,0,0,.45); overflow:hidden;">
+            <div style="display:flex; align-items:center; gap:8px; padding:8px 10px; background:#2a2a2a; border-bottom:1px solid #3a3a3a;">
+                <i class="fas fa-bug" style="color:#f87171;"></i>
+                <strong style="font-size:13px;">Geliştirici Hataları</strong>
+                <span style="font-size:12px; opacity:.7;">(@Sink.Count)</span>
+                <span style="margin-left:auto; display:flex; gap:6px;">
+                    <button type="button" @onclick="CopyAllAsync" title="Hepsini kopyala" style="@IconBtnStyle"><i class="fas fa-copy"></i></button>
+                    <button type="button" @onclick="Sink.Clear" title="Temizle" style="@IconBtnStyle"><i class="fas fa-trash"></i></button>
+                    <button type="button" @onclick="() => _open = false" title="Kapat" style="@IconBtnStyle"><i class="fas fa-chevron-down"></i></button>
+                </span>
+            </div>
+            <div style="overflow:auto; padding:6px 8px;">
+                @if (Sink.Count == 0)
+                {
+                    <div style="opacity:.6; font-size:12px; padding:10px;">Henüz hata yakalanmadı.</div>
+                }
+                else
+                {
+                    @foreach (var e in Sink.Entries.Reverse())
+                    {
+                        <div style="border-left:3px solid @LevelColor(e.Level); background:#262626; border-radius:4px; padding:6px 8px; margin-bottom:6px;">
+                            <div style="display:flex; gap:6px; align-items:center; font-size:11px; opacity:.75;">
+                                <span>@e.Time.ToString("HH:mm:ss")</span>
+                                <span style="text-transform:uppercase; color:@LevelColor(e.Level);">@e.Level</span>
+                                <span style="opacity:.6;">@e.Source</span>
+                                @if (e.Count > 1)
+                                {
+                                    <span style="margin-left:auto; background:#3a3a3a; border-radius:8px; padding:0 6px;">×@e.Count</span>
+                                }
+                            </div>
+                            <div style="font-size:12.5px; white-space:pre-wrap; word-break:break-word; margin-top:2px;">@e.Message</div>
+                            @if (!string.IsNullOrWhiteSpace(e.Stack))
+                            {
+                                <details style="margin-top:3px;">
+                                    <summary style="font-size:11px; cursor:pointer; opacity:.7;">stack</summary>
+                                    <pre style="font-size:11px; white-space:pre-wrap; word-break:break-word; margin:4px 0 0; opacity:.85;">@e.Stack</pre>
+                                </details>
+                            }
+                        </div>
+                    }
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private bool _open;
+    private IJSObjectReference? _module;
+    private DotNetObjectReference<DeveloperErrorPanel>? _selfRef;
+
+    protected override void OnInitialized()
+    {
+        Sink.Changed += OnSinkChanged;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        try
+        {
+            _module = await JS.InvokeAsync<IJSObjectReference>("import", "./js/dev-error-capture.js");
+            _selfRef = DotNetObjectReference.Create(this);
+            await _module.InvokeVoidAsync("init", _selfRef);
+        }
+        catch (JSDisconnectedException) { }
+    }
+
+    /// <summary>JS tarafından çağrılır (console/window/rejection). UI thread'ine alıp sink'e yazar.</summary>
+    [JSInvokable]
+    public void Report(string level, string source, string message, string? stack)
+    {
+        Sink.Add(new DevErrorEntry
+        {
+            Level = string.IsNullOrWhiteSpace(level) ? "error" : level,
+            Source = string.IsNullOrWhiteSpace(source) ? "js" : source,
+            Message = message ?? "",
+            Stack = stack,
+        });
+    }
+
+    private void OnSinkChanged() => InvokeAsync(StateHasChanged);
+
+    private async Task CopyAllAsync()
+    {
+        var sb = new StringBuilder();
+        foreach (var e in Sink.Entries)
+        {
+            sb.Append('[').Append(e.Time.ToString("HH:mm:ss")).Append("] ")
+              .Append(e.Level).Append('/').Append(e.Source);
+            if (e.Count > 1) sb.Append(" ×").Append(e.Count);
+            sb.Append(": ").AppendLine(e.Message);
+            if (!string.IsNullOrWhiteSpace(e.Stack)) sb.AppendLine(e.Stack);
+            sb.AppendLine();
+        }
+        if (_module != null)
+        {
+            try { await _module.InvokeAsync<bool>("copyText", sb.ToString()); }
+            catch (JSDisconnectedException) { }
+        }
+    }
+
+    private static string LevelColor(string level) => level switch
+    {
+        "warn" => "#d97706",
+        "rejection" => "#a78bfa",
+        "exception" => "#ef4444",
+        _ => "#ef4444",
+    };
+
+    private string CollapsedButtonStyle =>
+        $"position:relative; width:42px; height:42px; border-radius:50%; border:1px solid #3a3a3a; cursor:pointer; " +
+        $"display:flex; align-items:center; justify-content:center; color:#fff; " +
+        $"background:{(Sink.Count > 0 ? "#b91c1c" : "#374151")}; box-shadow:0 4px 14px rgba(0,0,0,.4);";
+
+    private const string BadgeStyle =
+        "position:absolute; top:-4px; right:-4px; min-width:18px; height:18px; padding:0 4px; border-radius:9px; " +
+        "background:#fbbf24; color:#1e1e1e; font-size:11px; font-weight:700; display:flex; align-items:center; justify-content:center;";
+
+    private const string IconBtnStyle =
+        "background:transparent; border:none; color:#cbd5e1; cursor:pointer; font-size:13px; padding:2px 4px;";
+
+    public async ValueTask DisposeAsync()
+    {
+        Sink.Changed -= OnSinkChanged;
+        try
+        {
+            if (_module != null)
+            {
+                await _module.InvokeVoidAsync("detach");
+                await _module.DisposeAsync();
+            }
+        }
+        catch (JSDisconnectedException) { }
+        _selfRef?.Dispose();
+    }
+}

@@ -3,8 +3,8 @@
 @using DevExpress.Blazor
 @inject Microsoft.Extensions.Localization.IStringLocalizer<Integration.TradeXpress.Localization.TradeXpressResource> L
 
+@* Başlık DxFormLayoutGroup caption'ından geldiği için DrillList'in kendi Title'ı verilmez. *@
 <DrillList TItem="BranchTreeItemViewModel"
-           Title="@L["Menu:Branches"]"
            EntityName="@L["Entity:Branch"]"
            Items="@Items"
            MinItems="1"
@@ -18,7 +18,9 @@
         <DxGridDataColumn FieldName="Code" Caption="@L["Code"]" Width="100px" />
         <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" />
         <DxGridDataColumn FieldName="IsHeadquarters" Caption="@L["IsHeadquarters"]" Width="100px" />
-        <DxGridDataColumn FieldName="IsActive" Caption="@L["IsActive"]" Width="80px" />
+        <DxGridDataColumn FieldName="IsActive" Caption="@L["Status"]" Width="110px">
+            <CellDisplayTemplate><StatusCell Active="@((bool)context.Value)" /></CellDisplayTemplate>
+        </DxGridDataColumn>
     </GridColumns>
     <EditContent Context="branch">
         <BranchEditForm Branch="@branch" PersistVaults="false" OnChanged="OnChanged" />

@@ -25,7 +25,7 @@
         </DxCheckBox>
         <div class="form-text text-muted small">@L["BranchHeadquartersHint"]</div>
     </DxFormLayoutItem>
-    <DxFormLayoutItem Caption="@L["IsActive"]" ColSpanMd="6">
+    <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6">
         <DxCheckBox @bind-Checked="@Branch.IsActive" CheckType="CheckType.Switch">
             @(Branch.IsActive ? L["Active"] : L["Passive"])
         </DxCheckBox>
@@ -36,13 +36,22 @@
 </DxFormLayout>
 
 <div class="mt-3">
-    <VaultDrill Items="@Branch.Vaults"
-                MinItems="@(PersistVaults ? 0 : 1)"
-                PersistCreate="@(PersistVaults ? PersistVaultCreate : null)"
-                PersistUpdate="@(PersistVaults ? PersistVaultUpdate : null)"
-                PersistDelete="@(PersistVaults ? PersistVaultDelete : null)"
-                OnItemDeleted="HandleVaultDeleted"
-                OnChanged="OnChanged" />
+    @if (PersistVaults && Branch.Id == null)
+    {
+        @* Persistent modda kasa eklemek için şubenin önden kaydedilmiş olması gerekir. *@
+        <div class="form-text text-muted small">@L["VaultsRequireSavedBranch"]</div>
+    }
+    else
+    {
+        <VaultDrill Items="@Branch.Vaults"
+                    MinItems="@(PersistVaults ? 0 : 1)"
+                    PersistCreate="@(PersistVaults ? PersistVaultCreate : null)"
+                    PersistUpdate="@(PersistVaults ? PersistVaultUpdate : null)"
+                    PersistDelete="@(PersistVaults ? PersistVaultDelete : null)"
+                    OnItemDeleted="HandleVaultDeleted"
+                    OnRefresh="VaultRefreshCallback"
+                    OnChanged="OnChanged" />
+    }
 </div>
 
 @code {
@@ -56,28 +65,44 @@
 
     [Parameter] public EventCallback OnChanged { get; set; }
 
+    // Refresh yalnız persistent modda anlamlı; in-memory modda boş callback (buton görünmez).
+    private EventCallback VaultRefreshCallback =>
+        PersistVaults ? EventCallback.Factory.Create(this, RefreshVaultsAsync) : EventCallback.Empty;
+
     protected override async Task OnInitializedAsync()
     {
         // Persistent modda mevcut şubeyi açarken kasaları yükle.
         if (PersistVaults && Branch.Id != null && Branch.Vaults.Count == 0)
+            await LoadVaultsAsync();
+    }
+
+    // Persistent modda kasaları sunucudan (yeniden) yükler.
+    private async Task LoadVaultsAsync()
+    {
+        if (Branch.Id == null) return;
+        try
         {
-            try
+            var list = await VaultAppService.GetListAsync(new VaultListRequestDto
             {
-                var list = await VaultAppService.GetListAsync(new VaultListRequestDto
-                {
-                    MaxResultCount = DrillConsts.MaxInMemoryChildren,
-                    BranchId = Branch.Id.Value,
-                });
-                foreach (var v in list.Items)
-                    Branch.Vaults.Add(ToVm(v));
-                if (list.TotalCount > Branch.Vaults.Count)
-                    await Notify.Warn(L["TradeXpress:Drill:CeilingReached"]);
-            }
-            catch (Exception ex)
-            {
-                await HandleErrorAsync(ex);
-            }
+                MaxResultCount = DrillConsts.MaxInMemoryChildren,
+                BranchId = Branch.Id.Value,
+            });
+            foreach (var v in list.Items)
+                Branch.Vaults.Add(ToVm(v));
+            if (list.TotalCount > Branch.Vaults.Count)
+                await Notify.Warn(L["TradeXpress:Drill:CeilingReached"]);
         }
+        catch (Exception ex)
+        {
+            await HandleErrorAsync(ex);
+        }
+    }
+
+    // Refresh: mevcut listeyi temizleyip sunucudan tazeler (persistent mod).
+    private async Task RefreshVaultsAsync()
+    {
+        Branch.Vaults.Clear();
+        await LoadVaultsAsync();
     }
 
     // In-memory modda silinen mevcut kasaların Id'lerini şubeye kaydeder (SaveTree için).

@@ -45,6 +45,13 @@ public class TradeXpressBlazorClientModule : AbpModule
         context.Services.AddSingleton<Theming.IThemeService, Theming.ThemeService>();
         context.Services.AddSingleton<Theming.ISizeModeService, Theming.SizeModeService>();
 
+        // MDI sekme altyapısı — WASM tek kullanıcı → Singleton (NavMenu/MdiTabHost/drill aynı koleksiyonu paylaşır).
+        context.Services.AddSingleton<Services.Mdi.RouteResolver>();
+        context.Services.AddSingleton<Services.Mdi.ITabManager, Services.Mdi.TabManager>();
+
+        // Geliştirici Hata Paneli — yakalanan tüm runtime hatalarının tek merkezi (Singleton).
+        context.Services.AddSingleton<Dev.DevErrorSink>();
+
         ConfigureMenu(context);
     }
     

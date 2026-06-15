@@ -1,6 +1,5 @@
 @inherits LayoutComponentBase
 @using Microsoft.AspNetCore.Components.WebAssembly.Authentication
-@using Microsoft.AspNetCore.Components.Sections
 @using Microsoft.JSInterop
 @implements IAsyncDisposable
 @inject NavigationManager Navigation
@@ -9,7 +8,10 @@
 @inject Integration.TradeXpress.Blazor.Client.Theming.ISizeModeService SizeModeService
 @inject Microsoft.Extensions.Localization.IStringLocalizer<Integration.TradeXpress.Localization.TradeXpressResource> L
 
-<ErrorBoundary>
+@* Geliştirici Hata Paneli — position:fixed; ErrorBoundary DIŞINDA ki boundary trip etse de kalsın. *@
+<Integration.TradeXpress.Blazor.Client.Dev.DeveloperErrorPanel />
+
+<ErrorBoundary @ref="_errorBoundary">
     <ChildContent>
         <DxToastProvider HorizontalAlignment="HorizontalAlignment.Center"
                          VerticalAlignment="VerticalEdge.Top"
@@ -29,9 +31,6 @@
                     <button type="button" @onclick="ToggleNavigation" style="display:flex; align-items:center; justify-content:center; cursor:pointer; min-width:48px; min-height:48px; background:transparent; border:none; box-shadow:none; outline:none; padding:0; color:var(--DS-color-content-neutral-default-rest, var(--bs-body-color, #212529));" aria-label="Menü">
                         <span class="erp-icon erp-icon-hamburger" aria-hidden="true"></span>
                     </button>
-                    <div class="text-dark" style="display:flex; align-items:center; overflow:hidden; margin-left:0.5rem; min-width:0;">
-                        <SectionOutlet SectionName="PageHeaderTitle" />
-                    </div>
                     <div style="display:flex; align-items:center; margin-left:auto;">
                         <Integration.TradeXpress.Blazor.Client.Layout.UserAvatarMenu />
                         <button type="button" @onclick="ToggleInfo" style="display:flex; align-items:center; justify-content:center; cursor:pointer; min-width:44px; min-height:44px; margin-left:0.25rem; background:transparent; border:none; box-shadow:none; outline:none; padding:0; color:var(--DS-color-content-neutral-default-rest, var(--bs-body-color, #212529));" title="@L["Settings"]" aria-label="@L["Settings"]">
@@ -70,10 +69,11 @@
                                 <Integration.TradeXpress.Blazor.Client.Layout.SettingsPanel />
                             </BodyTemplate>
                             <TargetContent>
-                                <div class="app-content h-100 overflow-auto bg-white">
-                                    @* Mobil bilgisini alt bileşenlere (ör. CrudToolbar) cascade et. *@
+                                <div class="app-content h-100 overflow-hidden bg-white">
+                                    @* Mobil bilgisini alt bileşenlere (ör. CrudToolbar) cascade et.
+                                       @Body yerine MDI sekme host'u — tüm sayfalar sekmelerde render edilir. *@
                                     <CascadingValue Value="_isMobile" Name="IsMobile">
-                                        @Body
+                                        <Integration.TradeXpress.Blazor.Client.Components.Mdi.MdiTabHost />
                                     </CascadingValue>
                                 </div>
                             </TargetContent>
@@ -93,6 +93,9 @@
             <h3>@L["AnErrorOccurred"]</h3>
             <p>@exception.Message</p>
             <pre>@exception.StackTrace</pre>
+            <button type="button" class="btn btn-sm btn-outline-light" @onclick="RecoverError">
+                <i class="fas fa-rotate-right"></i> @L["Refresh"]
+            </button>
         </div>
     </ErrorContent>
 </ErrorBoundary>
@@ -100,6 +103,11 @@
 @code {
     bool IsNavigationOpen { get; set; } = true;
     bool IsInfoOpen { get; set; } = false;
+
+    private ErrorBoundary? _errorBoundary;
+
+    // Boundary trip ettikten sonra yeniden dener (tek seferlik hatalarda sayfayı kurtarır).
+    private void RecoverError() => _errorBoundary?.Recover();
 
     private bool _isMobile;
     private IJSObjectReference? _module;

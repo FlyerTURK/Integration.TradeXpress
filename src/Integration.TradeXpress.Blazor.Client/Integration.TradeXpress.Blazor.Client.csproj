@@ -7,7 +7,21 @@
     <Nullable>enable</Nullable>
     <BlazorWebAssemblyLoadAllGlobalizationData>true</BlazorWebAssemblyLoadAllGlobalizationData>
   <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
+    <!-- net8+ varsayılan trim mode "full" DevExpress kütüphanelerini runtime'da bozar; DX dokümanı
+         "partial" öneriyor (Release/publish'te trimming + Brotli ile transfer ~58MB→~16MB). -->
+    <TrimMode>partial</TrimMode>
   </PropertyGroup>
+
+  <!-- Export'a özel ağır DevExpress assembly'leri (Pdf/Printing/Drawing ≈ 10MB ham) açılışta inmez;
+       yalnızca ilk Excel/PDF export tıklamasında LazyAssemblyLoader ile yüklenir
+       (CrudLayout.EnsureExportAssembliesAsync). Dosya adları publish çıktısındaki assembly adlarıyla
+       birebir eşleşmeli. -->
+  <ItemGroup>
+    <BlazorWebAssemblyLazyLoad Include="DevExpress.Printing.v25.2.Core.wasm" />
+    <BlazorWebAssemblyLazyLoad Include="DevExpress.Pdf.v25.2.Core.wasm" />
+    <BlazorWebAssemblyLazyLoad Include="DevExpress.Pdf.v25.2.Drawing.wasm" />
+    <BlazorWebAssemblyLazyLoad Include="DevExpress.Drawing.v25.2.wasm" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="DevExpress.Blazor" />

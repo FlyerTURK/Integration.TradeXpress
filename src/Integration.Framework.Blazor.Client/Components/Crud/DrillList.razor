@@ -13,34 +13,60 @@
 *@
 
 <div class="drill-list">
-    <div class="d-flex justify-content-between align-items-center mb-2">
-        <div class="fw-semibold">@Title</div>
-        <div class="d-flex gap-2">
-            @ToolbarActions
-            @if (!ReadOnly)
-            {
-                <DxButton Text="@L["New"]" IconCssClass="fas fa-plus" RenderStyle="ButtonRenderStyle.Secondary"
-                          Click="StartNew" Enabled="@(!_busy)" />
-                <DxButton Text="@L["Edit"]" IconCssClass="fas fa-pen" RenderStyle="ButtonRenderStyle.Secondary"
-                          Click="StartEdit" Enabled="@(_selected != null && !_busy)" />
-                <DxButton Text="@L["Delete"]" IconCssClass="fas fa-trash" RenderStyle="ButtonRenderStyle.Secondary"
-                          Click="DeleteSelected" Enabled="@(_selected != null && !_busy)" />
-            }
-        </div>
-    </div>
+    @if (!string.IsNullOrEmpty(Title))
+    {
+        <div class="fw-semibold mb-1">@Title</div>
+    }
 
-    <DxGrid Data="@FilteredItems"
-            KeyFieldName="@KeyFieldName"
-            SelectionMode="GridSelectionMode.Single"
-            AllowSelectRowByClick="true"
-            SelectedDataItem="_selected"
-            SelectedDataItemChanged="OnGridSelectionChanged"
-            RowDoubleClick="OnRowDoubleClick"
-            PageSize="@PageSize">
-        <Columns>
-            @GridColumns
-        </Columns>
-    </DxGrid>
+    <DxToolbar ItemRenderStyleMode="ToolbarRenderStyleMode.Plain" CssClass="mb-2">
+        @* Düzenleme tek-tıkla satırdan açılır → ayrı "Düzelt" butonu yok. *@
+        @if (!ReadOnly)
+        {
+            <DxToolbarItem Text="@L["New"]"
+                           IconUrl="/images/xaf/action_new.svg"
+                           IconCssClass="xaf-toolbar-item-icon"
+                           Click="@((ToolbarItemClickEventArgs e) => StartNew())"
+                           Enabled="@(!_busy)" />
+            <DxToolbarItem Text="@L["Delete"]"
+                           IconUrl="/images/xaf/action_delete.svg"
+                           IconCssClass="xaf-toolbar-item-icon"
+                           Click="@((ToolbarItemClickEventArgs e) => DeleteSelected())"
+                           Enabled="@(_selectedItems != null && _selectedItems.Count > 0 && !_busy)" />
+        }
+        @* Refresh, Delete'ten sonra gelir. *@
+        @if (OnRefresh.HasDelegate)
+        {
+            <DxToolbarItem Text="@L["Refresh"]"
+                           IconUrl="/images/xaf/action_refresh.svg"
+                           IconCssClass="xaf-toolbar-item-icon"
+                           Click="@((ToolbarItemClickEventArgs e) => OnRefresh.InvokeAsync())"
+                           Enabled="@(!_busy)" />
+        }
+        @if (ToolbarActions != null)
+        {
+            <DxToolbarItem BeginGroup="@(!ReadOnly)">
+                <Template>
+                    @ToolbarActions
+                </Template>
+            </DxToolbarItem>
+        }
+    </DxToolbar>
+
+    <div style="min-height:@MinHeight">
+        <DxGrid Data="@FilteredItems"
+                KeyFieldName="@KeyFieldName"
+                SelectionMode="GridSelectionMode.Multiple"
+                AllowSelectRowByClick="false"
+                SelectedDataItems="@_selectedItems"
+                SelectedDataItemsChanged="OnGridSelectionChanged"
+                RowClick="OnRowClick"
+                PageSize="@PageSize">
+            <Columns>
+                <DxGridSelectionColumn Width="40px" />
+                @GridColumns
+            </Columns>
+        </DxGrid>
+    </div>
 </div>
 
 <DxPopup Visible="@_popupVisible"
@@ -100,6 +126,9 @@
     [Parameter] public int PageSize { get; set; } = 10;
     [Parameter] public bool ReadOnly { get; set; }
 
+    /// <summary>Grid'in minimum yüksekliği. İçerik az olsa bile layout stabil kalır.</summary>
+    [Parameter] public string MinHeight { get; set; } = "240px";
+
     [Parameter, EditorRequired] public RenderFragment GridColumns { get; set; } = default!;
     [Parameter, EditorRequired] public RenderFragment<TItem> EditContent { get; set; } = default!;
 
@@ -128,6 +157,11 @@
     /// <summary>Liste değişince parent'a haber verir (dirty işaretleme / yeniden render).</summary>
     [Parameter] public EventCallback OnChanged { get; set; }
 
+    /// <summary>Yenile — verilirse toolbar'da Refresh butonu çıkar (genelde persistent modda parent
+    /// öğeleri sunucudan yeniden çeker). NOT: Persistent kayıt için parent kaydının önceden
+    /// kaydedilmiş (Id'li) olması gerekir; aksi halde PersistCreate/Update parent Id'sini bulamaz.</summary>
+    [Parameter] public EventCallback OnRefresh { get; set; }
+
     /// <summary>Seçili öğe değişince parent'a bildirir (alt seviye drill action'ı için).</summary>
     [Parameter] public EventCallback<TItem?> OnSelectionChanged { get; set; }
 
@@ -151,7 +185,11 @@
 
     private bool Persistent => PersistCreate != null;
 
-    private object? _selected;
+    private IReadOnlyList<object>? _selectedItems;
+
+    // Tek seçili öğe — Edit butonu ve popup için kullanılır.
+    private TItem? SelectedItem => _selectedItems?.Count == 1 ? _selectedItems[0] as TItem : null;
+
     private TItem? _editItem;
     private TItem? _editOriginal;  // düzenlenen orijinal liste öğesi (clone modunda geri yazma için)
     private bool _isNew;
@@ -160,21 +198,21 @@
     private EditContext? _editContext;
 
     // Stale seçim emniyeti (framework düzeyi): parent re-render'da Items değiştiyse (ör. clone-swap:
-    // Items[idx]=clone → eski referans listede yok), referansı kalmayan _selected'ı temizle. DxGrid'in
-    // artık var olmayan SelectedDataItem üzerinde render NRE'si atmasını TEK noktada keser — özellikle
-    // gömülü (başka bir DrillList EditContent'i içindeki) drill, parent'ın save/validation re-render'ında
-    // yeniden değerlendirilirken kritik. Hem nested hem sibling için emniyet kemeri.
+    // Items[idx]=clone → eski referans listede yok), referansı kalmayan seçimleri temizle.
     protected override void OnParametersSet()
     {
         base.OnParametersSet();
-        if (Items != null && _selected is TItem s && !Items.Contains(s))
-            _selected = null;
+        if (Items != null && _selectedItems != null)
+        {
+            var hasStale = _selectedItems.OfType<TItem>().Any(s => !Items.Contains(s));
+            if (hasStale) _selectedItems = null;
+        }
     }
 
-    private async Task OnGridSelectionChanged(object? item)
+    private async Task OnGridSelectionChanged(IReadOnlyList<object> items)
     {
-        _selected = item;
-        await OnSelectionChanged.InvokeAsync(item as TItem);
+        _selectedItems = items;
+        await OnSelectionChanged.InvokeAsync(SelectedItem);
     }
 
     private void StartNew()
@@ -195,22 +233,15 @@
         _popupVisible = true;
     }
 
-    private void StartEdit()
-    {
-        if (_selected is TItem item) BeginEdit(item);
-    }
-
-    private async Task OnRowDoubleClick(GridRowClickEventArgs e)
+    // Tek tıkla satırdan düzenleme formu açılır (ayrı "Düzelt" butonu yok).
+    private void OnRowClick(GridRowClickEventArgs e)
     {
         if (ReadOnly) return;
         if (e.Grid.GetDataItem(e.VisibleIndex) is not TItem item) return;
-        _selected = item;
-        await OnSelectionChanged.InvokeAsync(item);
         BeginEdit(item);
     }
 
     // Footer EditForm DIŞINDA olduğundan submit'i elle tetikliyoruz: önce doğrula, geçerliyse kaydet.
-    // Validate() validation mesajlarını üretir → koşullu ValidationSummary handler sonrası render'da görünür.
     private async Task HandleSaveClick()
     {
         if (_editContext != null && _editContext.Validate())
@@ -227,19 +258,19 @@
             {
                 var added = Persistent ? await PersistCreate!(_editItem) : _editItem;
                 Items.Add(added);
-                _selected = added;
+                _selectedItems = new List<object> { added };
             }
             else
             {
-                // Düzenleme: clone üzerinde çalışıldıysa orijinal slotu değiştir (Cancel'da liste değişmez).
+                // Düzenleme: clone üzerinde çalışıldıysa orijinal slotu değiştir.
                 var target = _editOriginal ?? _editItem;
                 if (Persistent) _editItem = await PersistUpdate!(_editItem);
                 var idx = Items.IndexOf(target);
                 if (idx >= 0) Items[idx] = _editItem;
-                _selected = _editItem;
+                _selectedItems = new List<object> { _editItem };
             }
 
-            var saved = _selected as TItem;
+            var saved = SelectedItem;
             _popupVisible = false;
             _editItem = null;
             _editOriginal = null;
@@ -259,7 +290,6 @@
 
     private void Cancel()
     {
-        // Clone modunda _editItem bir kopyaydı; liste hiç değişmedi → sadece kapat.
         _popupVisible = false;
         _editItem = null;
         _editOriginal = null;
@@ -272,29 +302,36 @@
 
     private async Task DeleteSelected()
     {
-        if (_selected is not TItem item) return;
+        var toDelete = _selectedItems?.OfType<TItem>().ToList();
+        if (toDelete == null || toDelete.Count == 0) return;
 
-        if (Items.Count <= MinItems)
+        if (Items.Count - toDelete.Count < MinItems)
         {
             await Notify.Warn(L["DrillMinItems"]);
             return;
         }
 
-        var guard = DeleteGuard?.Invoke(item);
-        if (guard != null)
+        foreach (var item in toDelete)
         {
-            await Notify.Warn(guard);
-            return;
+            var guard = DeleteGuard?.Invoke(item);
+            if (guard != null)
+            {
+                await Notify.Warn(guard);
+                return;
+            }
         }
 
         _busy = true;
         try
         {
-            if (Persistent && PersistDelete != null)
-                await PersistDelete(item);
-            await OnItemDeleted.InvokeAsync(item);  // parent silinen sunucu Id'sini kaydedebilir
-            Items.Remove(item);
-            _selected = null;
+            foreach (var item in toDelete)
+            {
+                if (Persistent && PersistDelete != null)
+                    await PersistDelete(item);
+                await OnItemDeleted.InvokeAsync(item);
+                Items.Remove(item);
+            }
+            _selectedItems = null;
             await OnSelectionChanged.InvokeAsync(null);
             await OnChanged.InvokeAsync();
         }

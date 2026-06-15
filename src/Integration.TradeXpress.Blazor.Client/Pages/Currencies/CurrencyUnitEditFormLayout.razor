@@ -19,7 +19,7 @@
         <DxFormLayoutItem Caption="@L["Description"]" ColSpanMd="12">
             <DxTextBox @bind-Text="@Model.Description" />
         </DxFormLayoutItem>
-        <DxFormLayoutItem Caption="@L["IsActive"]" ColSpanMd="6">
+        <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6">
             <DxCheckBox @bind-Checked="@Model.IsActive" CheckType="CheckType.Switch">
                 @(Model.IsActive ? L["Active"] : L["Passive"])
             </DxCheckBox>

@@ -19,7 +19,8 @@
             OnDeleteClick="DeleteAsync"
             OnRefreshClick="GetListAsync"
             OnSearchChanged="OnSearchAsync"
-            OnSaveClick="SaveAsync">
+            OnSaveClick="SaveAsync"
+            OnSaveAndNewClick="SaveAndNewAsync">
 
     <GridColumns>
         <DxGridDataColumn FieldName="Code" Caption="@L["Code"]" Width="120px" />
@@ -31,7 +32,7 @@
     </GridColumns>
 
     <ToolbarActions>
-        <DxButton Text="@L["Menu:Branches"]" IconCssClass="fas fa-sitemap"
+        <DxButton Text="@L["Menu:Branches"]" IconCssClass="fas fa-sitemap toolbar-action-branches"
                   RenderStyle="ButtonRenderStyle.Secondary"
                   Enabled="@(SelectedCompany != null)"
                   Click="OpenBranchesAsync" />

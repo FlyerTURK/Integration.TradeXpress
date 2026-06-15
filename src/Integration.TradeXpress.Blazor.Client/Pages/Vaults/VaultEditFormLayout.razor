@@ -37,7 +37,7 @@
             </DxCheckBox>
             <div class="form-text text-muted small">@L["VaultDefaultHint"]</div>
         </DxFormLayoutItem>
-        <DxFormLayoutItem Caption="@L["IsActive"]" ColSpanMd="4">
+        <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="4">
             <DxCheckBox @bind-Checked="@Model.IsActive" CheckType="CheckType.Switch">
                 @(Model.IsActive ? L["Active"] : L["Passive"])
             </DxCheckBox>

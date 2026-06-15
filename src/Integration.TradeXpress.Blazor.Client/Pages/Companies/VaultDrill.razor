@@ -15,12 +15,15 @@
            PersistDelete="PersistDelete"
            OnItemSaved="OnVaultSaved"
            OnItemDeleted="OnItemDeleted"
+           OnRefresh="OnRefresh"
            OnChanged="OnChanged">
     <GridColumns>
         <DxGridDataColumn FieldName="Code" Caption="@L["Code"]" Width="100px" />
         <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" />
         <DxGridDataColumn FieldName="IsDefault" Caption="@L["IsDefault"]" Width="100px" />
-        <DxGridDataColumn FieldName="IsActive" Caption="@L["IsActive"]" Width="80px" />
+        <DxGridDataColumn FieldName="IsActive" Caption="@L["Status"]" Width="110px">
+            <CellDisplayTemplate><StatusCell Active="@((bool)context.Value)" /></CellDisplayTemplate>
+        </DxGridDataColumn>
     </GridColumns>
     <EditContent Context="vault">
         <DxFormLayout Data="@vault" CssClass="w-100">
@@ -39,7 +42,7 @@
                 </DxCheckBox>
                 <div class="form-text text-muted small">@L["VaultDefaultHint"]</div>
             </DxFormLayoutItem>
-            <DxFormLayoutItem Caption="@L["IsActive"]" ColSpanMd="6">
+            <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6">
                 <DxCheckBox @bind-Checked="@vault.IsActive" CheckType="CheckType.Switch">
                     @(vault.IsActive ? L["Active"] : L["Passive"])
                 </DxCheckBox>
@@ -56,6 +59,9 @@
     [Parameter] public int MinItems { get; set; } = 1;
     [Parameter] public EventCallback<VaultTreeItemViewModel> OnItemDeleted { get; set; }
     [Parameter] public EventCallback OnChanged { get; set; }
+
+    /// <summary>Bağlanırsa Refresh butonu görünür (yalnız persistent modda anlamlı).</summary>
+    [Parameter] public EventCallback OnRefresh { get; set; }
 
     /// <summary>null = in-memory mod, non-null = persistent mod.</summary>
     [Parameter] public Func<VaultTreeItemViewModel, Task<VaultTreeItemViewModel>>? PersistCreate { get; set; }

@@ -19,7 +19,8 @@
             OnDeleteClick="DeleteAsync"
             OnRefreshClick="GetListAsync"
             OnSearchChanged="OnSearchAsync"
-            OnSaveClick="SaveAsync">
+            OnSaveClick="SaveAsync"
+            OnSaveAndNewClick="SaveAndNewAsync">
 
     <GridColumns>
         <DxGridDataColumn FieldName="Code" Caption="@L["Code"]" Width="90px" />
@@ -38,8 +39,7 @@
     </GridColumns>
 
     <EditPageContent Context="editingModel">
-        <CurrencyUnitEditPage Model="editingModel"
-                              StateService="StateService" />
+        <CurrencyUnitEditPage Model="editingModel" />
     </EditPageContent>
 
 </CrudLayout>

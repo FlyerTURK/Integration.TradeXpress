@@ -69,6 +69,42 @@
     height: 16px;
 }
 
+/* Toolbar drill action butonlari — renkli ikonlar (Bootstrap utility yok, custom renk). */
+.toolbar-action-branches { color: #2563eb !important; } /* sube → mavi */
+.toolbar-action-vaults   { color: #16a34a !important; } /* kasa → yesil */
+
+/* MDI sekme host'u — app-content bolgesini tam doldurur; sekme seridi sabit, icerik kayar. */
+.mdi-host {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+.mdi-host .mdi-tabs {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+/* DevExpress DxTabs ic yapisi: basliklar sabit, content alani esner + kendi scroll'u. */
+.mdi-host .mdi-tabs > .dxbl-tabs {
+    flex: 0 0 auto;
+}
+.mdi-host .mdi-tabs > .dxbl-tabs-content,
+.mdi-host .mdi-tabs .dxbl-tabs-page {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+}
+.mdi-empty {
+    padding: 1rem;
+    color: #888;
+}
+.mdi-external-placeholder {
+    padding: 1rem;
+    color: #555;
+}
+
 /* --- Festive Loader (Şenlik) --- */
 .festive-loader-container {
     position: fixed;
@@ -194,20 +230,11 @@
     background-position: center;
 }
 
-/* Edit popup (CrudEditView) — mobilde ekran dışına taşmasın. DxPopup inline max-width:720px
-   uyguluyor; min(720px,95vw) + !important ile ezeriz: masaüstü 720, mobil 95vw (viewport'a sığar). */
-.crud-edit-popup {
-    max-width: min(720px, 95vw) !important;
-}
-.crud-edit-popup .dxbl-modal-content {
-    overflow-x: hidden;
-    /* Width="95%" mobilde içeriğe göre büzülüyor; gerçek genişliği zorla: masaüstü 720, mobil 95vw. */
-    width: min(720px, 95vw) !important;
-}
-.crud-edit-popup * {
-    max-width: 100%;
-    box-sizing: border-box;
-}
+/* Edit popup (.crud-edit-popup): özel CSS YOK — saf DevExpress baseline kullanılır.
+   Eskiden buradaki override'lar (overflow-x:hidden → overflow-y'yi auto'ya zorlayıp modal-content'e
+   yalnız-sağ native scrollbar = sağ>sol asimetri; + width/box-sizing) soruna yol açıyordu. Kaldırıldı.
+   Mobil genişlik DxPopup'ın kendi Width="95%"/MaxWidth="720px" ayarıyla zaten responsive.
+   Gerekirse mobil için yalnızca minimal/hedefli (asimetri yaratmayan) kural eklenebilir. */
 
 /* Onay diyaloğu (DxWindow) — mobilde "minnacık" çıkmasın. Width="92vw"+MaxWidth zaten viewport-tabanlı;
    bu kurallar dialog kutusunun gerçek genişliğini garantiler ve yatay taşma scrollbar'ını keser. */

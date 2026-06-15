@@ -24,6 +24,16 @@
                    Visible="@StateService.IsGrantedDelete"
                    Enabled="@(StateService.SelectedDataItems != null && StateService.SelectedDataItems.Count > 0)" />
 
+    <!-- Sayfaya özel ek aksiyonlar (drill vb.) — arama kutusunun solunda -->
+    @if (CustomActions != null)
+    {
+        <DxToolbarItem BeginGroup="@(!IsMobile)">
+            <Template>
+                @CustomActions
+            </Template>
+        </DxToolbarItem>
+    }
+
     <!-- Arama kutusu (masaüstü) — mobilde gizli -->
     <DxToolbarItem BeginGroup="@(!IsMobile)" Visible="@(!IsMobile)">
         <Template Context="searchContext">
@@ -55,36 +65,12 @@
         </Items>
     </DxToolbarItem>
 
-    <!-- Pagination (Previous / Next) -->
-    <DxToolbarItem IconUrl="/images/xaf/action_navigation_previous_object.svg"
-                   IconCssClass="xaf-toolbar-item-icon"
-                   Tooltip="@L["PreviousPage"]"
-                   Click="@((ToolbarItemClickEventArgs e) => OnGoToPreviousPageClick.InvokeAsync())" 
-                   Enabled="@CanGoToPreviousPage"
-                   BeginGroup="@(!IsMobile)" />
-                   
-    <DxToolbarItem IconUrl="/images/xaf/action_navigation_next_object.svg"
-                   IconCssClass="xaf-toolbar-item-icon"
-                   Tooltip="@L["NextPage"]"
-                   Click="@((ToolbarItemClickEventArgs e) => OnGoToNextPageClick.InvokeAsync())" 
-                   Enabled="@CanGoToNextPage" />
-
     <!-- Refresh Button -->
     <DxToolbarItem Tooltip="@L["Refresh"]"
                    IconUrl="/images/xaf/action_refresh.svg"
                    IconCssClass="xaf-toolbar-item-icon"
                    Click="@((ToolbarItemClickEventArgs e) => OnRefreshClick.InvokeAsync())"
                    BeginGroup="@(!IsMobile)" />
-
-    <!-- Sayfaya özel ek aksiyonlar (drill vb.) -->
-    @if (CustomActions != null)
-    {
-        <DxToolbarItem BeginGroup="@(!IsMobile)">
-            <Template>
-                @CustomActions
-            </Template>
-        </DxToolbarItem>
-    }
 
     @* IsActive Filter Switch — sağa yaslı. EN SONDA tanımlanmalı: Alignment=Right bir item ortada
        olunca DevExpress ondan sonraki item'ları da sağa kaydırıyor. Yalnız TListDto : IIsActive ise. *@

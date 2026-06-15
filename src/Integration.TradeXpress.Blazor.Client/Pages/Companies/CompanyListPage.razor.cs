@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Integration.Framework.Blazor.Client.Components.Crud;
 using Integration.TradeXpress.Blazor.Client.Pages.Companies.Models;
+using Integration.TradeXpress.Blazor.Client.Services.Mdi;
 using Integration.TradeXpress.Companies;
 using Integration.TradeXpress.Permissions;
 using Microsoft.AspNetCore.Components;
@@ -19,6 +20,7 @@ public partial class CompanyListPage
     }
 
     [Inject] protected ICompanyAppService CompanyAppService { get; set; } = default!;
+    [Inject] protected ITabManager TabManager { get; set; } = default!;
 
     public override Volo.Abp.Application.Services.ICrudAppService<
         CompanyGetDto, CompanyListDto, Guid,
@@ -34,10 +36,13 @@ public partial class CompanyListPage
 
     private string SelectedCompanyName => SelectedCompany?.Name ?? string.Empty;
 
-    private void OpenBranchesAsync()
+    // Drill-down artık URL navigasyonu değil — şubeleri MDI sekmesi olarak açar/aktive eder.
+    private async Task OpenBranchesAsync()
     {
         if (SelectedCompany is null) return;
-        NavigationManager.NavigateTo($"/branches/{SelectedCompany.Id}?companycode={Uri.EscapeDataString(SelectedCompany.Code)}");
+        var url = $"/branches/{SelectedCompany.Id}?companycode={Uri.EscapeDataString(SelectedCompany.Code)}";
+        var title = $"{SelectedCompany.Code} — {L["Menu:Branches"]}";
+        await TabManager.OpenOrActivateAsync(url, title, "fas fa-sitemap");
     }
 
     // ── Edit formu değişince IsDirty — combo/drill EditContext'i atlar. ────────

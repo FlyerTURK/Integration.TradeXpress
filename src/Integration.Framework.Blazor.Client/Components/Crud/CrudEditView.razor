@@ -2,35 +2,56 @@
 
 @*
    Edit formunun kabuğu — içeriği (form layout'u) ya SAYFA içinde ya da POPUP içinde gösterir.
-   Seçim çağıran tarafça Mode parametresiyle yapılır. İçerik (ChildContent) yere göre değişmez;
-   yalnız kabuk değişir.
+   Popup modunda: header'da opsiyonel ikon + başlık (sola yaslı), kayan gövde + DevExpress'in
+   kendi footer'ı (FooterTemplate) → Save/Cancel toolbar'ı içerikle KAYMAZ, hep altta sabit.
 *@
 
 @if (Mode == EditViewMode.Popup)
 {
+    @* Göreceli genişlik (standart DevExpress): masaüstü = min(95vw, 720px); mobilde yerleşik
+       EnableAdaptivity göreceli genişlikle birlikte popup'ı tam ekrana yayar. Mutlak px (720px)
+       adaptivity'nin mobil yeniden-boyutlandırmasını bastırdığından kullanılmaz. *@
     <DxPopup Visible="@Visible"
              VisibleChanged="VisibleChanged"
-             HeaderText="@Title"
              Width="95%"
              MaxWidth="720px"
              MaxHeight="90vh"
              Scrollable="true"
+             AllowDrag="true"
+             AllowResize="true"
+             ShowFooter="@(Footer != null)"
              ShowCloseButton="true"
              CloseOnEscape="true"
              CloseOnOutsideClick="false"
              CssClass="crud-edit-popup">
+        <HeaderContentTemplate Context="popup">
+            @* Başlık sola yaslı + opsiyonel ikon (varsayılan ortalamayı ezer). *@
+            <div style="display:flex; align-items:center; gap:0.5rem; width:100%; justify-content:flex-start;">
+                @if (!string.IsNullOrEmpty(HeaderIconCssClass))
+                {
+                    <span class="@HeaderIconCssClass" aria-hidden="true"></span>
+                }
+                <span>@Title</span>
+            </div>
+        </HeaderContentTemplate>
         <Content>
             @ChildContent
         </Content>
+        @* FooterContentTemplate (FooterTemplate değil): gövdeyle AYNI tema padding'i + üst ayraç
+           çizgisini otomatik uygular → footer içeriği her temada gövdeyle hizalı kalır. *@
+        <FooterContentTemplate Context="popup">
+            @Footer
+        </FooterContentTemplate>
     </DxPopup>
 }
 else
 {
     @ChildContent
+    @Footer
 }
 
 @code {
-    /// <summary>Sayfa mı, popup mı — yerine göre çağıran belirler.</summary>
+    /// <summary>Sayfa mı, popup mu — yerine göre çağıran belirler.</summary>
     [Parameter] public EditViewMode Mode { get; set; } = EditViewMode.Page;
 
     /// <summary>Popup modunda görünürlük (iki yönlü).</summary>
@@ -40,6 +61,13 @@ else
     /// <summary>Popup başlığı.</summary>
     [Parameter] public string? Title { get; set; }
 
-    /// <summary>Gösterilecek form içeriği (ör. TenantEditFormLayout).</summary>
+    /// <summary>Header'da başlığın solunda gösterilecek opsiyonel ikon (CSS class). Boşsa ikon yok.</summary>
+    [Parameter] public string? HeaderIconCssClass { get; set; }
+
+    /// <summary>Gösterilecek form içeriği (ör. CompanyEditFormLayout).</summary>
     [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>Footer içeriği (Save/Cancel toolbar'ı). Popup'ta DevExpress footer'ında (sabit),
+    /// sayfa modunda içeriğin altında render edilir.</summary>
+    [Parameter] public RenderFragment? Footer { get; set; }
 }
