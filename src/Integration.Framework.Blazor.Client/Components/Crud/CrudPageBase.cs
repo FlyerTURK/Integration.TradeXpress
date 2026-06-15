@@ -37,7 +37,7 @@ public abstract class CrudPageBase<TGetDto, TListDto, TKey, TListRequestDto, TCr
     /// AppService'e gönderir; tüm veri kümesi belleğe çekilmez.
     /// </summary>
     public GridListDataSource<TListDto> GridDataSource
-        => _gridDataSource ??= new GridListDataSource<TListDto>(FetchPageAsync);
+        => _gridDataSource ??= new GridListDataSource<TListDto>(FetchPageAsync) { OnError = HandleErrorAsync };
 
     private Task<PagedResultDto<TListDto>> FetchPageAsync(ListRequestDto request)
     {
@@ -76,12 +76,34 @@ public abstract class CrudPageBase<TGetDto, TListDto, TKey, TListRequestDto, TCr
     protected virtual string? UpdatePolicyName => PermissionPrefix is null ? null : $"{PermissionPrefix}.Update";
     protected virtual string? DeletePolicyName => PermissionPrefix is null ? null : $"{PermissionPrefix}.Delete";
 
+    [CascadingParameter(Name = "CurrentMdiTab")]
+    public Integration.Framework.Blazor.Client.Services.Mdi.IMdiTab? CurrentMdiTab { get; set; }
+
     protected override async Task OnInitializedAsync()
     {
         await base.OnInitializedAsync();
         StateService.OnStateChanged += OnStateChangedHandler;
         await SetPermissionsAsync();
+        
+        if (CurrentMdiTab != null)
+        {
+            CurrentMdiTab.CanCloseAsync = CheckCanCloseAsync;
+        }
+        
         // Server-side: grid, GridDataSource üstünden ilk sayfayı kendi çeker (pre-fetch yok).
+    }
+
+    protected virtual async Task<bool> CheckCanCloseAsync()
+    {
+        if (StateService.IsDirty)
+        {
+            var dialogResult = await UiService.ConfirmDeleteAsync(L["DiscardChangesConfirmation"]);
+            if (dialogResult != ConfirmDialogResult.Yes)
+            {
+                return false; // Kullanıcı iptal etti, sekmeyi kapatma
+            }
+        }
+        return true; // Temiz veya kullanıcı çıkmayı onayladı
     }
 
     protected virtual async Task SetPermissionsAsync()

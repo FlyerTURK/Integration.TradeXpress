@@ -40,6 +40,10 @@ public sealed class GridListDataSource<TListDto> : GridCustomDataSource
     public GridListDataSource(Func<ListRequestDto, Task<PagedResultDto<TListDto>>> fetch)
         => _fetch = fetch ?? throw new ArgumentNullException(nameof(fetch));
 
+    /// <summary>Grid veri yükleme hatalarında çağrılır. DevExpress GridCustomDataSource exception'ı
+    /// internal yakalayıp sessizce boş grid gösterir; bu callback olmadan hata kullanıcıya/panele ulaşmaz.</summary>
+    public Func<Exception, Task>? OnError { get; set; }
+
     /// <summary>Global arama metni. Sayfa set edip grid'i <c>Reload()</c> eder.</summary>
     public string? SearchText { get; set; }
 
@@ -54,24 +58,39 @@ public sealed class GridListDataSource<TListDto> : GridCustomDataSource
     public override async Task<int> GetItemCountAsync(
         GridCustomDataSourceCountOptions options, CancellationToken cancellationToken)
     {
-        // Reload her zaman taze veri çeksin diye cache koşulsuz tazelenir.
-        var request = BuildRequest(0, DefaultPrefetchSize, sortInfo: null);
-        var result  = await _fetch(request);
-        _cache      = new CacheEntry(request, result.Items, result.TotalCount);
-        return (int)Math.Min(result.TotalCount, int.MaxValue);
+        try
+        {
+            var request = BuildRequest(0, DefaultPrefetchSize, sortInfo: null);
+            var result  = await _fetch(request);
+            _cache      = new CacheEntry(request, result.Items, result.TotalCount);
+            return (int)Math.Min(result.TotalCount, int.MaxValue);
+        }
+        catch (Exception ex)
+        {
+            if (OnError != null) await OnError(ex);
+            return 0;
+        }
     }
 
     public override async Task<IList> GetItemsAsync(
         GridCustomDataSourceItemsOptions options, CancellationToken cancellationToken)
     {
-        var request = BuildRequest(options.StartIndex, options.Count, options.SortInfo);
+        try
+        {
+            var request = BuildRequest(options.StartIndex, options.Count, options.SortInfo);
 
-        if (_cache is { } c && SameRequest(c.Request, request))
-            return c.Items.ToList();
+            if (_cache is { } c && SameRequest(c.Request, request))
+                return c.Items.ToList();
 
-        var result = await _fetch(request);
-        _cache     = new CacheEntry(request, result.Items, result.TotalCount);
-        return result.Items.ToList();
+            var result = await _fetch(request);
+            _cache     = new CacheEntry(request, result.Items, result.TotalCount);
+            return result.Items.ToList();
+        }
+        catch (Exception ex)
+        {
+            if (OnError != null) await OnError(ex);
+            return new List<TListDto>();
+        }
     }
 
     private ListRequestDto BuildRequest(
