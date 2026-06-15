@@ -4,6 +4,7 @@
 @implements IAsyncDisposable
 @inject DevErrorSink Sink
 @inject IJSRuntime JS
+@inject Microsoft.AspNetCore.Components.NavigationManager Nav
 
 @*
    Geliştirici Hata Paneli — ekranda sabit (bottom-right) küçük bir rozet/panel.
@@ -33,6 +34,7 @@
                 <strong style="font-size:13px;">Geliştirici Hataları</strong>
                 <span style="font-size:12px; opacity:.7;">(@Sink.Count)</span>
                 <span style="margin-left:auto; display:flex; gap:6px;">
+                    <button type="button" @onclick="HardReload" title="Uygulamayı yeniden yükle" style="@IconBtnStyle"><i class="fas fa-rotate-right"></i></button>
                     <button type="button" @onclick="CopyAllAsync" title="Hepsini kopyala" style="@IconBtnStyle"><i class="fas fa-copy"></i></button>
                     <button type="button" @onclick="Sink.Clear" title="Temizle" style="@IconBtnStyle"><i class="fas fa-trash"></i></button>
                     <button type="button" @onclick="() => _open = false" title="Kapat" style="@IconBtnStyle"><i class="fas fa-chevron-down"></i></button>
@@ -57,7 +59,15 @@
                                     <span style="margin-left:auto; background:#3a3a3a; border-radius:8px; padding:0 6px;">×@e.Count</span>
                                 }
                             </div>
+                            @{ var c = Classify(e); }
+                            <div style="display:flex; gap:6px; align-items:center; margin-top:2px;">
+                                <span style="font-size:10px; text-transform:uppercase; background:@c.Color; color:#1e1e1e; border-radius:4px; padding:0 5px; font-weight:700;">@c.Category</span>
+                            </div>
                             <div style="font-size:12.5px; white-space:pre-wrap; word-break:break-word; margin-top:2px;">@e.Message</div>
+                            @if (!string.IsNullOrEmpty(c.Suggestion))
+                            {
+                                <div style="font-size:11px; opacity:.7; margin-top:2px;"><i class="fas fa-lightbulb" style="margin-right:4px;"></i>@c.Suggestion</div>
+                            }
                             @if (!string.IsNullOrWhiteSpace(e.Stack))
                             {
                                 <details style="margin-top:3px;">
@@ -127,6 +137,34 @@
             try { await _module.InvokeAsync<bool>("copyText", sb.ToString()); }
             catch (JSDisconnectedException) { }
         }
+    }
+
+    // Güvenli tek-tık çözüm: uygulamayı baştan yükle (idempotent).
+    private void HardReload() => Nav.NavigateTo(Nav.Uri, forceLoad: true);
+
+    private readonly record struct ErrorClass(string Category, string Suggestion, string Color);
+
+    // Mesaj+stack'e bakıp kabaca sınıflandırır + kısa öneri verir (saf bilgilendirme).
+    private static ErrorClass Classify(DevErrorEntry e)
+    {
+        var t = ((e.Message ?? "") + " " + (e.Stack ?? "")).ToLowerInvariant();
+        bool Has(params string[] ks)
+        {
+            foreach (var k in ks) if (t.Contains(k)) return true;
+            return false;
+        }
+
+        if (Has("failed to fetch", "networkerror", "httprequestexception", "err_", "timeout", "502", "503", "504", "429", "net::"))
+            return new("network", "Ağ/sunucu geçici hatası — bağlantıyı kontrol et, yeniden dene.", "#fbbf24");
+        if (Has("401", "unauthorized", "/connect/", "accesstoken", "token"))
+            return new("auth", "Oturum/token sorunu — yeniden giriş gerekebilir.", "#c4b5fd");
+        if (Has("nullreference", "object reference not set", "cannot read properties of null", "editcontext", ".razor"))
+            return new("render", "Bileşen render hatası (muhtemelen null) — geliştirici incelemeli.", "#fca5a5");
+        if (Has("validation", "required", "dataannotation"))
+            return new("validation", "Doğrulama hatası — form alanlarını kontrol et.", "#93c5fd");
+        if (Has("jsexception", "invokemethodasync", "microsoft.jsinterop", "dotnet"))
+            return new("js-interop", "JS/.NET interop hatası — sayfayı yenilemeyi dene.", "#6ee7b7");
+        return new("unknown", "", "#d1d5db");
     }
 
     private static string LevelColor(string level) => level switch

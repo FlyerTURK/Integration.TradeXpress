@@ -52,6 +52,14 @@ public class TradeXpressBlazorClientModule : AbpModule
         // Geliştirici Hata Paneli — yakalanan tüm runtime hatalarının tek merkezi (Singleton).
         context.Services.AddSingleton<Dev.DevErrorSink>();
 
+        // Resilience: ABP "Default" remote-service client'ına geçici-hata retry handler'ı ekle.
+        // Auth handler'ının içinde çalışır (token zaten iliştirilmiş); yalnız idempotent metotları
+        // yeniden dener. Handler stateless → her seferinde yeni örnek.
+        context.Services
+            .AddHttpClient(TradeXpressHttpApiClientModule.RemoteServiceName)
+            .AddHttpMessageHandler(sp => new Integration.Framework.Blazor.Client.Resilience.ResilienceDelegatingHandler(
+                sp.GetService<Microsoft.Extensions.Logging.ILogger<Integration.Framework.Blazor.Client.Resilience.ResilienceDelegatingHandler>>()));
+
         ConfigureMenu(context);
     }
     
