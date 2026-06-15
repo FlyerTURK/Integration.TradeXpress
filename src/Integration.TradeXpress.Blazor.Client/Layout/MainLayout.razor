@@ -11,7 +11,7 @@
 @* Geliştirici Hata Paneli — position:fixed; ErrorBoundary DIŞINDA ki boundary trip etse de kalsın. *@
 <Integration.TradeXpress.Blazor.Client.Dev.DeveloperErrorPanel />
 
-<ErrorBoundary @ref="_errorBoundary">
+<Integration.Framework.Blazor.Client.Resilience.AutoRecoverErrorBoundary @ref="_errorBoundary">
     <ChildContent>
         <DxToastProvider HorizontalAlignment="HorizontalAlignment.Center"
                          VerticalAlignment="VerticalEdge.Top"
@@ -98,13 +98,13 @@
             </button>
         </div>
     </ErrorContent>
-</ErrorBoundary>
+</Integration.Framework.Blazor.Client.Resilience.AutoRecoverErrorBoundary>
 
 @code {
     bool IsNavigationOpen { get; set; } = true;
     bool IsInfoOpen { get; set; } = false;
 
-    private ErrorBoundary? _errorBoundary;
+    private Integration.Framework.Blazor.Client.Resilience.AutoRecoverErrorBoundary? _errorBoundary;
 
     // Boundary trip ettikten sonra yeniden dener (tek seferlik hatalarda sayfayı kurtarır).
     private void RecoverError() => _errorBoundary?.Recover();
