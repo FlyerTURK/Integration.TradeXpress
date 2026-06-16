@@ -1,0 +1,44 @@
+@page "/admin/roles"
+@using Integration.Framework.Blazor.Client.Components.Crud
+@using Integration.TradeXpress.Blazor.Client.Pages.Admin.Models
+@using Integration.TradeXpress.Blazor.Client.Services
+@using DevExpress.Blazor
+@inherits CrudPageBase<RoleGetDto, RoleListDto, Guid, RoleListRequestDto, CreateIdentityRoleInput, UpdateIdentityRoleInput, RoleEditViewModel>
+
+<CrudLayout TGetDto="RoleGetDto"
+            TListDto="RoleListDto"
+            TViewModel="RoleEditViewModel"
+            TKey="Guid"
+            StateService="StateService"
+            DataSource="@GridDataSource"
+            EntityName="@L["Role"]"
+            EntityIcon="@TradeXpressIcons.Role"
+            PageTitle="@L["Roles"]"
+            EditMode="CrudEditMode.Tab"
+            NewTabUrl="/admin/roles/new"
+            NewTabTitle="@($"{L["New"]} {L["Role"]}")"
+            EditTabUrl="@(r => $"/admin/roles/{r.Id}")"
+            EditTabTitle="@(r => $"{L["Role"]}: {r.Name}")"
+            OnNewClick="BeforeCreateAsync"
+            OnUpdateClick="BeforeUpdateAsync"
+            OnDeleteClick="DeleteAsync"
+            OnRefreshClick="GetListAsync"
+            OnSearchChanged="OnSearchAsync"
+            OnSaveClick="SaveAsync"
+            OnSaveAndNewClick="SaveAndNewAsync">
+
+    <GridColumns>
+        <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" />
+        <DxGridDataColumn FieldName="IsDefault" Caption="@L["IsDefault"]" Width="120px" />
+        <DxGridDataColumn FieldName="IsPublic" Caption="@L["IsPublic"]" Width="120px" />
+        <DxGridDataColumn FieldName="IsStatic" Caption="@L["IsStatic"]" Width="120px" />
+    </GridColumns>
+
+    <ToolbarActions>
+        <DxButton Text="@L["Permissions"]" IconCssClass="@TradeXpressIcons.Permission"
+                  RenderStyle="ButtonRenderStyle.Secondary"
+                  Enabled="@(SelectedRole != null)"
+                  Click="OpenPermissionsAsync" />
+    </ToolbarActions>
+
+</CrudLayout>

@@ -1,4 +1,6 @@
 @using DevExpress.Blazor
+@using Microsoft.AspNetCore.Components.Web
+@inject Microsoft.Extensions.Configuration.IConfiguration Configuration
 <!DOCTYPE html>
 <html>
 
@@ -18,12 +20,19 @@
     <link href="Integration.TradeXpress.Blazor.Client.styles.css" rel="stylesheet"/>
 
 
-    <HeadOutlet @rendermode="new InteractiveWebAssemblyRenderMode(prerender: false)" />
+    @{
+        var useServer = Configuration.GetValue<bool>("Blazor:UseServerMode");
+        IComponentRenderMode renderMode = useServer
+            ? new InteractiveServerRenderMode(prerender: false)
+            : new InteractiveWebAssemblyRenderMode(prerender: false);
+    }
+    <HeadOutlet @rendermode="renderMode" />
 </head>
 
 <body>
 
     <script src="_framework/blazor.web.js"></script>
+    <script src="js/login.js"></script>
 
     <div id="ApplicationContainer">
         <div class="int-loader-container">
@@ -38,7 +47,7 @@
             </div>
         </div>
 
-        <Routes @rendermode="new InteractiveWebAssemblyRenderMode(prerender: false)"/>
+        <Routes @rendermode="renderMode"/>
     </div>
 
     <!--ABP:Scripts-->

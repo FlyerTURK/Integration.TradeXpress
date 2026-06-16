@@ -2,13 +2,16 @@
 @layout EmptyLayout
 @using Microsoft.AspNetCore.Components.WebAssembly.Authentication
 
-<RemoteAuthenticatorView Action="@Action">
-    @* Çıkış tamamlanınca varsayılan "You are logged out" mesajını gösterme; köke at →
-       layout guard login'e yönlendirir. *@
-    <LogOutSucceeded>
-        <RedirectToHome />
-    </LogOutSucceeded>
-</RemoteAuthenticatorView>
+@if (OperatingSystem.IsBrowser())
+{
+    <RemoteAuthenticatorView Action="@Action">
+        @* Çıkış tamamlanınca varsayılan "You are logged out" mesajını gösterme; köke at →
+           layout guard login'e yönlendirir. *@
+        <LogOutSucceeded>
+            <RedirectToHome />
+        </LogOutSucceeded>
+    </RemoteAuthenticatorView>
+}
 
 @code {
     [Parameter]

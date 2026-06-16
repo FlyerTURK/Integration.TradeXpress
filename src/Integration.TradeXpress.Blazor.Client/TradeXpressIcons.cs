@@ -25,6 +25,9 @@ public static class TradeXpressIcons
     // ── Yönetim ──
     public const string Tenant = "fas fa-users-cog";
     public const string Settings = "fas fa-cog";
+    public const string User = "fas fa-user";
+    public const string Role = "fas fa-user-tag";
+    public const string Permission = "fas fa-key";
 
     // ── Genel ──
     public const string Home = "fas fa-home";

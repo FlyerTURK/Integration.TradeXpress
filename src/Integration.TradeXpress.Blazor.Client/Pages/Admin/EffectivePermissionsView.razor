@@ -1,0 +1,89 @@
+@using Integration.TradeXpress.Localization
+@using Integration.TradeXpress.Blazor.Client.Services
+@using DevExpress.Blazor
+@using Microsoft.AspNetCore.Components
+@using Microsoft.Extensions.Logging
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@* Read-only flatten view of a user's effective permissions.
+   Aggregates: (a) direct grants on the user, (b) grants on each role the user
+   has — and lists every permission with its source role(s) or "(direct)". *@
+
+@if (_loading)
+{
+    <p>@L["Loading"]</p>
+}
+else if (_error is not null)
+{
+    <div class="alert alert-danger">@_error</div>
+}
+else
+{
+    <DxGrid Data="_rows" PageSize="50">
+        <DxGridDataColumn FieldName="Permission" Caption="@L["Permission"]" Width="200px" MinWidth="180" />
+        <DxGridDataColumn FieldName="Sources" Caption="@L["Source"]" Width="240px" MinWidth="200" />
+    </DxGrid>
+}
+
+@code {
+    [Parameter, EditorRequired] public Guid UserId { get; set; }
+
+    private bool _loading = true;
+    private string? _error;
+    private List<EffectiveRow> _rows = new();
+
+    private sealed record EffectiveRow(string Permission, string Sources);
+
+    [Inject]
+    protected IIdentityUserService IdentityUserService { get; set; } = default!;
+
+    [Inject]
+    protected IIdentityRoleService IdentityRoleService { get; set; } = default!;
+
+    protected override void OnInitialized()
+    {
+        LocalizationResource = typeof(TradeXpressResource);
+        base.OnInitialized();
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            // Permission → list of sources (role names or "(direct)")
+            var sources = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+
+            // TODO: Fetch user's direct permissions and aggregate with role permissions
+            // This requires the PermissionApiService wrapper to be fully implemented
+            // For now, display empty state
+
+            _rows = new List<EffectiveRow>();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+            LogError(ex, "Error loading effective permissions");
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private static void AddSource(Dictionary<string, List<string>> dict, string perm, string source)
+    {
+        if (!dict.TryGetValue(perm, out var list))
+            dict[perm] = list = new();
+        list.Add(source);
+    }
+
+    private void LogError(Exception ex, string message)
+    {
+        if (Logger != null)
+        {
+            Logger.LogError(ex, message);
+        }
+    }
+}

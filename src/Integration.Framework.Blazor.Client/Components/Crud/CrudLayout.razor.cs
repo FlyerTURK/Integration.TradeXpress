@@ -53,6 +53,47 @@ namespace Integration.Framework.Blazor.Client.Components.Crud
         /// <summary>Toolbar'a sayfaya özel ek aksiyonlar (ör. "Şubeler" drill action'ı).</summary>
         [Parameter] public RenderFragment? ToolbarActions { get; set; }
 
+        // ── Edit modu (MERKEZİ): Popup (varsayılan) veya ayrı MDI sekmesi ──────────────
+        /// <summary>Edit formu popup'ta mı yoksa yeni MDI sekmesinde mi açılsın. Varsayılan Popup.</summary>
+        [Parameter] public CrudEditMode EditMode { get; set; } = CrudEditMode.Popup;
+
+        /// <summary>Tab modunda "Yeni" için açılacak routable edit sayfası URL'i (ör. "/admin/users/new").</summary>
+        [Parameter] public string? NewTabUrl { get; set; }
+
+        /// <summary>Tab modunda "Yeni" sekme başlığı. Boşsa "{EntityName}".</summary>
+        [Parameter] public string? NewTabTitle { get; set; }
+
+        /// <summary>Tab modunda satır düzenleme için URL üreticisi (ör. u => $"/admin/users/{u.Id}").</summary>
+        [Parameter] public Func<TListDto, string>? EditTabUrl { get; set; }
+
+        /// <summary>Tab modunda düzenleme sekmesi başlığı üreticisi. Boşsa "{EntityName}".</summary>
+        [Parameter] public Func<TListDto, string>? EditTabTitle { get; set; }
+
+        [Inject] private Integration.Framework.Blazor.Client.Services.Mdi.IMdiTabOpener? TabOpener { get; set; }
+
+        // "Yeni" tıklaması — Tab modunda sekme açar, aksi halde sayfanın popup akışını çağırır.
+        private async Task HandleNewClick()
+        {
+            if (EditMode == CrudEditMode.Tab && !string.IsNullOrEmpty(NewTabUrl) && TabOpener != null)
+                await TabOpener.OpenOrActivateAsync(NewTabUrl, NewTabTitle ?? EntityName ?? string.Empty, EntityIcon);
+            else
+                await OnNewClick.InvokeAsync();
+        }
+
+        // Satır düzenleme — Tab modunda sekme açar, aksi halde popup (OnUpdateClick).
+        private async Task HandleRowEdit(TListDto item)
+        {
+            if (EditMode == CrudEditMode.Tab && EditTabUrl != null && TabOpener != null)
+            {
+                var title = EditTabTitle?.Invoke(item) ?? EntityName ?? string.Empty;
+                await TabOpener.OpenOrActivateAsync(EditTabUrl(item), title, EntityIcon);
+            }
+            else
+            {
+                await OnUpdateClick.InvokeAsync(item);
+            }
+        }
+
         IGrid Grid { get; set; } = default!;
         string? SearchText { get; set; }
 
@@ -124,7 +165,7 @@ namespace Integration.Framework.Blazor.Client.Components.Crud
             var item = (TListDto)Grid.GetDataItem(e.VisibleIndex);
             if (item != null)
             {
-                await OnUpdateClick.InvokeAsync(item);
+                await HandleRowEdit(item);
             }
         }
 
@@ -145,15 +186,23 @@ namespace Integration.Framework.Blazor.Client.Components.Crud
         private async Task OnGridLayoutAutoSaving(GridPersistentLayoutEventArgs e)
         {
             if (UiStateService == null || e.Layout == null) return;
-            var json = System.Text.Json.JsonSerializer.Serialize(e.Layout);
-            await UiStateService.SaveGridStateAsync(GetGridStateKey(), json);
+            try
+            {
+                var json = System.Text.Json.JsonSerializer.Serialize(e.Layout);
+                await UiStateService.SaveGridStateAsync(GetGridStateKey(), json);
+            }
+            catch
+            {
+                // Grid state storage çok küçük; truncate hatası sessizce yoksay.
+                // Grid layout/columns kaybolsa bile grid çalışmaya devam etsin.
+            }
         }
 
         // -- Export Logic --
         // Export'a özel ağır DevExpress assembly'leri (Pdf/Printing/Drawing) boot'tan çıkarıldı
         // (csproj BlazorWebAssemblyLazyLoad). İlk export tıklamasında burada yüklenir; sonraki
         // tıklamalarda runtime cache'inden gelir (idempotent). Açılış payload'ı ~10MB daha küçük.
-        [Inject] private LazyAssemblyLoader LazyAssemblyLoader { get; set; } = default!;
+        [Inject] private LazyAssemblyLoader? LazyAssemblyLoader { get; set; }
 
         private static readonly string[] ExportAssemblies =
         {
@@ -168,6 +217,11 @@ namespace Integration.Framework.Blazor.Client.Components.Crud
         private async Task EnsureExportAssembliesAsync()
         {
             if (_exportAssembliesLoaded) return;
+            if (!OperatingSystem.IsBrowser() || LazyAssemblyLoader == null)
+            {
+                _exportAssembliesLoaded = true;
+                return;
+            }
             await LazyAssemblyLoader.LoadAssembliesAsync(ExportAssemblies);
             _exportAssembliesLoaded = true;
         }

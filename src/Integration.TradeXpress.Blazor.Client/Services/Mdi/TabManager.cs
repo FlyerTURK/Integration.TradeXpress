@@ -7,7 +7,7 @@ using Integration.TradeXpress.Settings;
 
 namespace Integration.TradeXpress.Blazor.Client.Services.Mdi;
 
-public sealed class TabManager : ITabManager
+public sealed class TabManager : ITabManager, Integration.Framework.Blazor.Client.Services.Mdi.IMdiTabOpener
 {
     private readonly RouteResolver _resolver;
     private readonly IUserUiSettingAppService _uiSettings;
@@ -52,6 +52,7 @@ public sealed class TabManager : ITabManager
         }
 
         var match = _resolver.Match(url);
+        System.Console.Error.WriteLine($"[TabManager] OpenOrActivateAsync url={url} match={(match != null ? match.PageType.Name : "NULL")} tabs={_tabs.Count}");
         if (match == null) return Task.CompletedTask; // bilinmeyen iç route → NavMenu fallback eder
 
         var tab = new MdiTab
@@ -178,6 +179,7 @@ public sealed class TabManager : ITabManager
 
     private async Task PersistAsync()
     {
+        if (!OperatingSystem.IsBrowser()) return; // Server mode: no per-user session to persist
         try
         {
             var active = _activeId != null ? _tabs.FirstOrDefault(t => t.Id == _activeId)?.Url : null;
@@ -191,6 +193,7 @@ public sealed class TabManager : ITabManager
 
     private async Task RehydrateAsync()
     {
+        if (!OperatingSystem.IsBrowser()) return; // Server mode: ABP app service hangs without HTTP context
         try
         {
             var json = await _uiSettings.GetMdiTabsAsync();

@@ -30,35 +30,50 @@ public class TradeXpressBlazorClientModule : AbpModule
 {
     public override void ConfigureServices(ServiceConfigurationContext context)
     {
-        var environment = context.Services.GetSingletonInstance<IWebAssemblyHostEnvironment>();
-        var builder = context.Services.GetSingletonInstance<WebAssemblyHostBuilder>();
         var configuration = context.Services.GetConfiguration();
 
         ConfigureLocalization();
-        ConfigureAuthentication(builder);
-        ConfigureHttpClient(context, environment);
+
+        if (OperatingSystem.IsBrowser())
+        {
+            var environment = context.Services.GetSingletonInstance<IWebAssemblyHostEnvironment>();
+            var builder = context.Services.GetSingletonInstance<WebAssemblyHostBuilder>();
+            ConfigureAuthentication(builder);
+            ConfigureHttpClient(context, environment);
+        }
+
         context.Services.AddDevExpressBlazor(options => {
             options.SizeMode = DevExpress.Blazor.SizeMode.Medium;
         });
 
-        // Ayarlar paneli servisleri — WASM tek kullanıcılı olduğu için Singleton.
+        // Bu servisler WASM'da Singleton — Server modunda host DI'da kayıtlı,
+        // WASM modunda browser DI'da kayıtlı. Her iki tarafta da kayıt harmless.
         context.Services.AddSingleton<Theming.IThemeService, Theming.ThemeService>();
         context.Services.AddSingleton<Theming.ISizeModeService, Theming.SizeModeService>();
 
-        // MDI sekme altyapısı — WASM tek kullanıcı → Singleton (NavMenu/MdiTabHost/drill aynı koleksiyonu paylaşır).
+        // MDI sekme altyapısı
         context.Services.AddSingleton<Services.Mdi.RouteResolver>();
         context.Services.AddSingleton<Services.Mdi.ITabManager, Services.Mdi.TabManager>();
+        context.Services.AddSingleton<Integration.Framework.Blazor.Client.Services.Mdi.IMdiTabOpener>(
+            sp => (Services.Mdi.TabManager)sp.GetRequiredService<Services.Mdi.ITabManager>());
 
-        // Geliştirici Hata Paneli — yakalanan tüm runtime hatalarının tek merkezi (Singleton).
+        // Geliştirici Hata Paneli
         context.Services.AddSingleton<Dev.DevErrorSink>();
 
-        // Resilience: ABP "Default" remote-service client'ına geçici-hata retry handler'ı ekle.
-        // Auth handler'ının içinde çalışır (token zaten iliştirilmiş); yalnız idempotent metotları
-        // yeniden dener. Handler stateless → her seferinde yeni örnek.
-        context.Services
-            .AddHttpClient(TradeXpressHttpApiClientModule.RemoteServiceName)
-            .AddHttpMessageHandler(sp => new Integration.Framework.Blazor.Client.Resilience.ResilienceDelegatingHandler(
-                sp.GetService<Microsoft.Extensions.Logging.ILogger<Integration.Framework.Blazor.Client.Resilience.ResilienceDelegatingHandler>>()));
+        // Identity Management Services
+        context.Services.AddScoped<Services.IIdentityUserService, Services.IdentityUserService>();
+        context.Services.AddScoped<Services.IIdentityRoleService, Services.IdentityRoleService>();
+        context.Services.AddScoped<Services.Identity.UserCrudAdapter>();
+        context.Services.AddScoped<Services.Identity.RoleCrudAdapter>();
+
+        if (OperatingSystem.IsBrowser())
+        {
+            // Resilience handler yalnız WASM'da (HTTP client WASM'a özel)
+            context.Services
+                .AddHttpClient(TradeXpressHttpApiClientModule.RemoteServiceName)
+                .AddHttpMessageHandler(sp => new Integration.Framework.Blazor.Client.Resilience.ResilienceDelegatingHandler(
+                    sp.GetService<Microsoft.Extensions.Logging.ILogger<Integration.Framework.Blazor.Client.Resilience.ResilienceDelegatingHandler>>()));
+        }
 
         ConfigureMenu(context);
     }

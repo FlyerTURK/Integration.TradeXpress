@@ -12,6 +12,7 @@
    sayfaları: /identity/*, /setting-management) tam navigasyona düşer (MDI dışı). *@
 <DxTreeView Data="@MenuItems" CssClass="demo-drawer-menu w-100 h-100"
             AllowSelectNodes="true" ShowFilterPanel="true"
+            NodeExpandCollapseAction="TreeViewNodeExpandCollapseAction.NodeClick"
             NodeClick="OnNodeClick">
     <DataMappings>
         <DxTreeViewDataMapping Children="Items" Text="DisplayName" />

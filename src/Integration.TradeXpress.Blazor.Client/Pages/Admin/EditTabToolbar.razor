@@ -1,0 +1,112 @@
+@using Integration.TradeXpress.Localization
+@using DevExpress.Blazor
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@*
+   Sekme (tab) içinde açılan edit formları için ÜST toolbar.
+   ERPPROV3 tab-edit aksiyon grubu:
+     [Kaydet ▾] (DxSplitButton: sol=Save, ok=dropdown{SaveAndNew, SaveAndClose})
+     | Sil | ◀ ▶ | Yenile
+   Vazgeç butonu yok — sekmeyi kapatmak için MDI tab X kullanılır.
+*@
+<DxToolbar ItemRenderStyleMode="ToolbarRenderStyleMode.Contained"
+           AdaptivityAutoHideRootItems="true"
+           AdaptivityAutoCollapseItemsToIcons="true"
+           AdaptivityMinRootItemCount="1"
+           CssClass="w-100">
+    <Items>
+
+        @* ── Kaydet SplitButton: sol=Save, ok=dropdown ── *@
+        <DxToolbarItem Enabled="@CanSave">
+            <Template>
+                <DxSplitButton Text="@L["Save"]"
+                               IconUrl="/images/xaf/action_save.svg"
+                               IconCssClass="xaf-toolbar-item-icon"
+                               RenderStyle="ButtonRenderStyle.Primary"
+                               Enabled="@CanSave"
+                               Click="@(async (MouseEventArgs _) => await OnSave.InvokeAsync())">
+                    <Items>
+                        @if (ShowSaveAndNew)
+                        {
+                            <DxDropDownButtonItem Text="@L["SaveAndNew"]"
+                                                 IconUrl="/images/xaf/action_save_new.svg"
+                                                 IconCssClass="xaf-toolbar-item-icon"
+                                                 Click="@(async (MouseEventArgs _) => await OnSaveAndNew.InvokeAsync())" />
+                        }
+                        <DxDropDownButtonItem Text="@L["SaveAndClose"]"
+                                             IconCssClass="fas fa-circle-check xaf-toolbar-item-icon"
+                                             Click="@(async (MouseEventArgs _) => await OnSaveAndClose.InvokeAsync())" />
+                    </Items>
+                </DxSplitButton>
+            </Template>
+        </DxToolbarItem>
+
+        @if (ShowDelete)
+        {
+            <DxToolbarItem Text="@L["Delete"]" BeginGroup="true"
+                           RenderStyle="ButtonRenderStyle.Secondary"
+                           IconUrl="/images/xaf/action_delete.svg"
+                           IconCssClass="xaf-toolbar-item-icon"
+                           Enabled="@CanDelete"
+                           Click="@((ToolbarItemClickEventArgs e) => OnDelete.InvokeAsync())" />
+        }
+
+        @if (ShowNavigation)
+        {
+            <DxToolbarItem Tooltip="@L["PreviousRecord"]" BeginGroup="true"
+                           RenderStyle="ButtonRenderStyle.Secondary"
+                           IconCssClass="fas fa-chevron-left xaf-toolbar-item-icon"
+                           Enabled="@CanPrevious"
+                           Click="@((ToolbarItemClickEventArgs e) => OnPrevious.InvokeAsync())" />
+            <DxToolbarItem Tooltip="@L["NextRecord"]"
+                           RenderStyle="ButtonRenderStyle.Secondary"
+                           IconCssClass="fas fa-chevron-right xaf-toolbar-item-icon"
+                           Enabled="@CanNext"
+                           Click="@((ToolbarItemClickEventArgs e) => OnNext.InvokeAsync())" />
+        }
+
+        @if (ShowRefresh)
+        {
+            <DxToolbarItem Tooltip="@L["Refresh"]" BeginGroup="true"
+                           RenderStyle="ButtonRenderStyle.Secondary"
+                           IconUrl="/images/xaf/action_refresh.svg"
+                           IconCssClass="xaf-toolbar-item-icon"
+                           Click="@((ToolbarItemClickEventArgs e) => OnRefresh.InvokeAsync())" />
+        }
+
+    </Items>
+</DxToolbar>
+
+@code {
+    // Kaydet grubu
+    [Parameter] public EventCallback OnSave { get; set; }
+    [Parameter] public EventCallback OnSaveAndNew { get; set; }
+    [Parameter] public EventCallback OnSaveAndClose { get; set; }
+    [Parameter] public bool ShowSaveAndNew { get; set; } = true;
+    [Parameter] public bool CanSave { get; set; } = true;
+
+    // Sil
+    [Parameter] public EventCallback OnDelete { get; set; }
+    [Parameter] public bool ShowDelete { get; set; }
+    [Parameter] public bool CanDelete { get; set; } = true;
+
+    // Kayıt navigasyonu
+    [Parameter] public EventCallback OnPrevious { get; set; }
+    [Parameter] public EventCallback OnNext { get; set; }
+    [Parameter] public bool ShowNavigation { get; set; }
+    [Parameter] public bool CanPrevious { get; set; } = true;
+    [Parameter] public bool CanNext { get; set; } = true;
+
+    // Yenile
+    [Parameter] public EventCallback OnRefresh { get; set; }
+    [Parameter] public bool ShowRefresh { get; set; }
+
+    // Geriye uyumluluk için tutuldu — artık kullanılmıyor
+    [Parameter] public EventCallback OnCancel { get; set; }
+
+    protected override void OnInitialized()
+    {
+        LocalizationResource = typeof(TradeXpressResource);
+        base.OnInitialized();
+    }
+}

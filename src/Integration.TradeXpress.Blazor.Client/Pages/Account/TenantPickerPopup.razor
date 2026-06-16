@@ -1,0 +1,131 @@
+@using Integration.TradeXpress.Localization
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TradeXpressResource> L
+@inject IJSRuntime Js
+
+@*  Pre-auth tenant selector popup. Validates the typed name against /account/find-tenant
+    before handing the resolved name back to Login.razor.
+
+    Security: empty input resolves to host context (sysadmin). We do NOT advertise
+    this in the UI to avoid leaking the host-login hint to casual attackers. *@
+
+<DxPopup @bind-Visible="@_visible"
+         HeaderText="@L["Login_TenantPickerTitle"].Value"
+         Width="420px"
+         ShowFooter="true"
+         CloseOnOutsideClick="false"
+         Closed="@OnClosed">
+    <Content>
+        <DxFormLayout CaptionPosition="CaptionPosition.Vertical">
+            <DxFormLayoutItem Caption="@L["Login_TenantPickerLabel"].Value" ColSpanMd="12">
+                <DxTextBox @ref="_inputBox"
+                           @bind-Text="_input"
+                           @bind-Text:after="OnInputChanged"
+                           BindValueMode="BindValueMode.OnInput"
+                           ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto"
+                           NullText="@L["Login_TenantPlaceholder"].Value" />
+            </DxFormLayoutItem>
+        </DxFormLayout>
+        @if (!string.IsNullOrEmpty(_error))
+        {
+            <div class="erp-login-tenant-error" role="alert">@_error</div>
+        }
+    </Content>
+    <FooterContentTemplate Context="popup">
+        <div class="erp-login-popup-footer">
+            <DxButton Text="@L["Login_TenantPickerApply"].Value"
+                      RenderStyle="ButtonRenderStyle.Primary"
+                      Enabled="@(!_busy)"
+                      Click="@ApplyAsync" />
+            <DxButton Text="@L["Cancel"].Value"
+                      RenderStyle="ButtonRenderStyle.Secondary"
+                      Enabled="@(!_busy)"
+                      Click="@CancelAsync" />
+        </div>
+    </FooterContentTemplate>
+</DxPopup>
+
+@code {
+    [Parameter, EditorRequired] public bool                  Visible        { get; set; }
+    [Parameter]                 public EventCallback<bool>   VisibleChanged { get; set; }
+    [Parameter]                 public string?               Current        { get; set; }
+    [Parameter]                 public EventCallback<string> OnApplied      { get; set; }
+
+    private bool       _visible;
+    private string     _input          = string.Empty;
+    private string?    _error;
+    private bool       _busy;
+    private bool       _previousVisible;
+    private DxTextBox? _inputBox;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _visible = Visible;
+        if (Visible && !_previousVisible)
+        {
+            _input = Current ?? string.Empty;
+            _error = null;
+            await Task.Yield();
+            if (_inputBox is not null)
+            {
+                try { await _inputBox.FocusAsync(); }
+                catch { /* JS not ready */ }
+            }
+        }
+        _previousVisible = Visible;
+    }
+
+    private async Task ApplyAsync()
+    {
+        if (_busy) return;
+
+        var trimmed = (_input ?? string.Empty).Trim();
+        if (string.IsNullOrEmpty(trimmed))
+        {
+            // Empty → host context, no validation needed.
+            await OnApplied.InvokeAsync(string.Empty);
+            await CloseAsync();
+            return;
+        }
+
+        _busy  = true;
+        _error = null;
+        await InvokeAsync(StateHasChanged);
+        try
+        {
+            var result = await Js.InvokeAsync<FindTenantResult>("erpFetchFindTenant", trimmed);
+            if (result.Found)
+            {
+                await OnApplied.InvokeAsync(result.Name ?? trimmed);
+                await CloseAsync();
+            }
+            else
+            {
+                _error = string.Format(L["Login_TenantNotFound"].Value, trimmed);
+            }
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private Task CancelAsync() => CloseAsync();
+
+    private async Task CloseAsync()
+    {
+        _visible = false;
+        await VisibleChanged.InvokeAsync(false);
+    }
+
+    private void OnClosed() => _ = VisibleChanged.InvokeAsync(false);
+
+    private void OnInputChanged() => _error = null;
+
+    private sealed record FindTenantResult(bool Found, string? Name);
+}

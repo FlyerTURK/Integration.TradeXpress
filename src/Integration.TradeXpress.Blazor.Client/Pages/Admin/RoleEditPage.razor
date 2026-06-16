@@ -1,0 +1,291 @@
+@page "/admin/roles/new"
+@page "/admin/roles/{RoleId:guid}"
+@using Integration.TradeXpress.Localization
+@using Integration.TradeXpress.Blazor.Client.Services
+@using Volo.Abp.Application.Dtos
+@using DevExpress.Blazor
+@using Microsoft.AspNetCore.Components
+@using Microsoft.Extensions.Logging
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+<div class="crud-layout-container h-100 d-flex flex-column">
+    @* Tab formlarında toolbar ÜSTTE. *@
+    <div style="padding-top:0.25rem; padding-bottom:0.25rem;">
+        <EditTabToolbar OnSave="SaveAsync" OnSaveAndNew="SaveAndNewAsync" OnSaveAndClose="SaveAndCloseAsync"
+                        OnDelete="DeleteRecordAsync" OnRefresh="RefreshRecordAsync"
+                        OnPrevious="PreviousAsync" OnNext="NextAsync"
+                        ShowDelete="@(!IsNewMode)" ShowRefresh="@(!IsNewMode)" ShowNavigation="@(!IsNewMode)"
+                        CanDelete="@(!(UpdateModel?.IsStatic ?? false))"
+                        CanPrevious="@CanPrevious" CanNext="@CanNext" />
+    </div>
+
+    <div style="flex:1 1 auto; overflow:auto; padding:0.5rem 0.25rem;">
+        <DxFormLayout CssClass="w-100">
+            @* Rol adı — anahtar alan: yalnız, yarım satır (statik rol adı değiştirilemez). *@
+            <DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="6">
+                <DxTextBox @bind-Text="Name" BindValueMode="BindValueMode.OnInput" Enabled="@(!(UpdateModel?.IsStatic ?? false))" />
+            </DxFormLayoutItem>
+            <DxFormLayoutItem ColSpanMd="6"><Template></Template></DxFormLayoutItem>
+
+            @* Varsayılan + Herkese Açık — yan yana yarımlar. *@
+            <DxFormLayoutItem Caption="@L["IsDefault"]" ColSpanMd="6">
+                <DxCheckBox @bind-Checked="IsDefault" CheckType="CheckType.Switch" />
+            </DxFormLayoutItem>
+            <DxFormLayoutItem Caption="@L["IsPublic"]" ColSpanMd="6">
+                <DxCheckBox @bind-Checked="IsPublic" CheckType="CheckType.Switch" />
+            </DxFormLayoutItem>
+
+            @if (UpdateModel?.IsStatic == true)
+            {
+                <DxFormLayoutItem ColSpanMd="12">
+                    <Template>
+                        <div style="background:#cff4fc; color:#055160; border:1px solid #b6effb; border-radius:0.375rem; padding:0.5rem 0.75rem;">
+                            @L["CannotModifyStaticRole"]
+                        </div>
+                    </Template>
+                </DxFormLayoutItem>
+            }
+        </DxFormLayout>
+
+        @if (!IsNewMode && !string.IsNullOrEmpty(UpdateModel?.Name))
+        {
+            <div class="mt-4">
+                <DxTabs>
+                    <DxTabPage Text="@L["Permissions"]">
+                        <PermissionEditorPanel @ref="PermissionEditor"
+                                               ProviderName="R"
+                                               ProviderKey="@UpdateModel!.Name"
+                                               Embedded="true" />
+                    </DxTabPage>
+                </DxTabs>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public Guid? RoleId { get; set; }
+
+    private CreateIdentityRoleInput? CreateModel { get; set; }
+    private UpdateIdentityRoleInput? UpdateModel { get; set; }
+    private bool IsNewMode => !RoleId.HasValue;
+    private PermissionEditorPanel? PermissionEditor { get; set; }
+
+    private string? Name
+    {
+        get => IsNewMode ? CreateModel?.Name : UpdateModel?.Name;
+        set
+        {
+            if (IsNewMode && CreateModel != null) CreateModel.Name = value;
+            else if (!IsNewMode && UpdateModel != null) UpdateModel.Name = value;
+        }
+    }
+
+    private bool IsDefault
+    {
+        get => (IsNewMode ? CreateModel?.IsDefault : UpdateModel?.IsDefault) ?? false;
+        set
+        {
+            if (IsNewMode && CreateModel != null) CreateModel.IsDefault = value;
+            else if (!IsNewMode && UpdateModel != null) UpdateModel.IsDefault = value;
+        }
+    }
+
+    private bool IsPublic
+    {
+        get => (IsNewMode ? CreateModel?.IsPublic : UpdateModel?.IsPublic) ?? false;
+        set
+        {
+            if (IsNewMode && CreateModel != null) CreateModel.IsPublic = value;
+            else if (!IsNewMode && UpdateModel != null) UpdateModel.IsPublic = value;
+        }
+    }
+
+    [Inject]
+    protected IIdentityRoleService IdentityRoleService { get; set; } = default!;
+
+    [Inject]
+    protected Integration.TradeXpress.Blazor.Client.Services.Mdi.ITabManager TabManager { get; set; } = default!;
+
+    [Inject]
+    protected Integration.Framework.Blazor.Client.Services.Mdi.IEntityChangeNotifier EntityChanges { get; set; } = default!;
+
+    [CascadingParameter(Name = "CurrentMdiTab")]
+    public Integration.Framework.Blazor.Client.Services.Mdi.IMdiTab? CurrentMdiTab { get; set; }
+
+    [Inject]
+    protected Integration.Framework.Blazor.Client.Services.Base.ITradeXpressUiService UiService { get; set; } = default!;
+
+    protected override void OnInitialized()
+    {
+        LocalizationResource = typeof(TradeXpressResource);
+        base.OnInitialized();
+    }
+
+    private List<Guid> _orderedIds = new();
+
+    private int CurrentIndex => RoleId.HasValue ? _orderedIds.IndexOf(RoleId.Value) : -1;
+    private bool CanPrevious => CurrentIndex > 0;
+    private bool CanNext => CurrentIndex >= 0 && CurrentIndex < _orderedIds.Count - 1;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!IsNewMode && RoleId.HasValue)
+        {
+            await LoadRoleAsync(RoleId.Value);
+            await EnsureOrderedIdsAsync();
+        }
+        else
+        {
+            CreateModel = new CreateIdentityRoleInput();
+        }
+
+        await base.OnInitializedAsync();
+    }
+
+    private async Task LoadRoleAsync(Guid id)
+    {
+        try
+        {
+            var role = await IdentityRoleService.GetAsync(id);
+            UpdateModel = new UpdateIdentityRoleInput
+            {
+                ConcurrencyStamp = role.ConcurrencyStamp,
+                Name = role.Name,
+                IsDefault = role.IsDefault,
+                IsPublic = role.IsPublic,
+                IsStatic = role.IsStatic
+            };
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading role");
+            UiService.ShowErrorToast(ExtractErrorMessage(ex));
+        }
+    }
+
+    private async Task EnsureOrderedIdsAsync()
+    {
+        try
+        {
+            var all = await IdentityRoleService.GetListAsync(new GetIdentityRolesInput { MaxResultCount = 1000 });
+            _orderedIds = all.Items.OrderBy(r => r.Name).Select(r => r.Id).ToList();
+        }
+        catch { /* navigasyon kritik değil — sessiz geç */ }
+    }
+
+    private async Task NavigateToAsync(Guid id)
+    {
+        RoleId = id;
+        await LoadRoleAsync(id);
+        if (PermissionEditor != null) await PermissionEditor.ReloadAsync();
+        StateHasChanged();
+    }
+
+    private async Task PreviousAsync()
+    {
+        if (CanPrevious) await NavigateToAsync(_orderedIds[CurrentIndex - 1]);
+    }
+
+    private async Task NextAsync()
+    {
+        if (CanNext) await NavigateToAsync(_orderedIds[CurrentIndex + 1]);
+    }
+
+    private async Task RefreshRecordAsync()
+    {
+        if (RoleId.HasValue) await LoadRoleAsync(RoleId.Value);
+        if (PermissionEditor != null) await PermissionEditor.ReloadAsync();
+    }
+
+    private async Task DeleteRecordAsync()
+    {
+        if (!RoleId.HasValue || (UpdateModel?.IsStatic ?? false)) return;
+        var confirm = await UiService.ConfirmDeleteAsync(L["DeleteConfirmationMessage"]);
+        if (confirm != Integration.Framework.Blazor.Client.Services.Base.ConfirmDialogResult.Yes) return;
+        try
+        {
+            await IdentityRoleService.DeleteAsync(RoleId.Value);
+            EntityChanges.Notify(IdentityViewKeys.Roles);
+            UiService.ShowSuccessToast(L["SuccessfullyDeleted"]);
+            CloseTab();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error deleting role");
+            UiService.ShowErrorToast(ex.Message);
+        }
+    }
+
+    /// <summary>Kaydeder; başarılıysa true döner. Yeni kayıtta oluşturulanı edit moduna geçirir.</summary>
+    private async Task<bool> PersistAsync()
+    {
+        try
+        {
+            if (IsNewMode && CreateModel != null)
+            {
+                var created = await IdentityRoleService.CreateAsync(CreateModel);
+                // Yeni kayıt → düzenleme moduna geç (izinler sekmesi açılsın).
+                RoleId = created.Id;
+                UpdateModel = new UpdateIdentityRoleInput
+                {
+                    ConcurrencyStamp = created.ConcurrencyStamp,
+                    Name = created.Name,
+                    IsDefault = created.IsDefault,
+                    IsPublic = created.IsPublic,
+                    IsStatic = created.IsStatic
+                };
+                CreateModel = null;
+            }
+            // Statik (sistem) roller yeniden adlandırılamaz/silinemez ama izinleri düzenlenebilir;
+            // kayıt güncellemesini yalnız statik olmayan rollerde yap.
+            else if (!IsNewMode && UpdateModel != null && RoleId.HasValue && !UpdateModel.IsStatic)
+            {
+                await IdentityRoleService.UpdateAsync(RoleId.Value, UpdateModel);
+            }
+
+            if (PermissionEditor != null && !IsNewMode)
+                await PermissionEditor.CommitChangesAsync();
+
+            // Liste sekmesi(leri) yenilensin.
+            EntityChanges.Notify(IdentityViewKeys.Roles);
+
+            UiService.ShowSuccessToast(L["SuccessfullySaved"]);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error saving role");
+            UiService.ShowErrorToast(ExtractErrorMessage(ex));
+            return false;
+        }
+    }
+
+    private static string ExtractErrorMessage(Exception ex) => AdminErrorFormatter.Extract(ex);
+
+    private async Task SaveAsync() => await PersistAsync();
+
+    private async Task SaveAndCloseAsync()
+    {
+        if (await PersistAsync())
+            CloseTab();
+    }
+
+    private async Task SaveAndNewAsync()
+    {
+        if (await PersistAsync())
+        {
+            RoleId = null;
+            UpdateModel = null;
+            CreateModel = new CreateIdentityRoleInput();
+        }
+    }
+
+    private void CloseTab()
+    {
+        if (CurrentMdiTab != null)
+            TabManager.Close(CurrentMdiTab.Id);
+    }
+}

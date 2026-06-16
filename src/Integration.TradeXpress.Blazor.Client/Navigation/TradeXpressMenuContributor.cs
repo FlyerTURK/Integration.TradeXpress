@@ -115,17 +115,17 @@ public class TradeXpressMenuContributor : IMenuContributor
             icon: "fas fa-id-card-alt"
         );
         identityMenu.AddItem(new ApplicationMenuItem(
-            "IdentityManagement.Roles",
-            l["Roles"],
-            url: "/identity/roles",
-            icon: "fas fa-user-tag"
-        ).RequirePermissions("AbpIdentity.Roles"));
-        identityMenu.AddItem(new ApplicationMenuItem(
             "IdentityManagement.Users",
             l["Users"],
-            url: "/identity/users",
-            icon: "fas fa-users"
+            url: "/admin/users",
+            icon: TradeXpressIcons.User
         ).RequirePermissions("AbpIdentity.Users"));
+        identityMenu.AddItem(new ApplicationMenuItem(
+            "IdentityManagement.Roles",
+            l["Roles"],
+            url: "/admin/roles",
+            icon: TradeXpressIcons.Role
+        ).RequirePermissions("AbpIdentity.Roles"));
         administration.AddItem(identityMenu);
 
         // Tenant Management Menu

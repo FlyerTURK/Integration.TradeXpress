@@ -24,20 +24,25 @@
             OnSaveClick="SaveAsync"
             OnSaveAndNewClick="SaveAndNewAsync">
 
+    <ToolbarActions>
+        @{
+            var selectedItem = StateService.SelectedDataItems?.Count == 1
+                ? StateService.SelectedDataItems[0] as CurrencyUnitListDto
+                : null;
+        }
+        <DxButton Text="@L["SetMargin"]"
+                  RenderStyle="ButtonRenderStyle.Secondary"
+                  IconCssClass="@TradeXpressIcons.CurrencyMargin"
+                  Enabled="@(selectedItem != null)"
+                  Click="@(async () => { if (selectedItem != null) await MarginDialog!.ShowAsync(selectedItem.Id, selectedItem.Code, selectedItem.Name); })" />
+    </ToolbarActions>
+
     <GridColumns>
         <DxGridDataColumn FieldName="Code" Caption="@L["Code"]" Width="90px" />
         <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" />
         <DxGridDataColumn FieldName="Type" Caption="@L["Type"]" Width="100px" />
         <DxGridDataColumn FieldName="IsGlobal" Caption="@L["IsGlobal"]" Width="90px" />
         <DxGridDataColumn FieldName="DisplayOrder" Caption="@L["DisplayOrder"]" Width="90px" Visible="false" />
-        <DxGridDataColumn Caption="@L["Margin"]" Width="130px" AllowSort="false">
-            <CellDisplayTemplate>
-                @{ var row = (CurrencyUnitListDto)context.DataItem; }
-                <DxButton Text="@L["SetMargin"]" RenderStyle="ButtonRenderStyle.Link"
-                          IconCssClass="@TradeXpressIcons.CurrencyMargin"
-                          Click="@(() => MarginDialog!.ShowAsync(row.Id, row.Code, row.Name))" />
-            </CellDisplayTemplate>
-        </DxGridDataColumn>
     </GridColumns>
 
     <EditPageContent Context="editingModel">

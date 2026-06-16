@@ -1,9 +1,12 @@
+using System;
 using System.Collections.Generic;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.Extensions.Logging;
 using Volo.Abp.SettingManagement;
 using Volo.Abp.Settings;
+using Volo.Abp.Application.Services;
 
 namespace Integration.TradeXpress.Settings;
 
@@ -19,42 +22,25 @@ public class UserUiSettingAppService : TradeXpressAppService, IUserUiSettingAppS
 
     public async Task<string?> GetGridStateAsync(string gridKey)
     {
-        var json = await SettingProvider.GetOrNullAsync(TradeXpressUiSettingNames.GridStates);
-        if (string.IsNullOrEmpty(json) || json == "{}") return null;
-
-        try
-        {
-            var states = JsonSerializer.Deserialize<Dictionary<string, string>>(json);
-            if (states != null && states.TryGetValue(gridKey, out var gridState))
-            {
-                return gridState;
-            }
-        }
-        catch
-        {
-            // Json parse error
-        }
-        return null;
+        // Her grid kendi ayarında depolansın (gridKey başına bir setting anahtarı)
+        var settingKey = $"{TradeXpressUiSettingNames.GridStates}_{gridKey}";
+        var json = await SettingProvider.GetOrNullAsync(settingKey);
+        return string.IsNullOrEmpty(json) ? null : json;
     }
 
     public async Task SetGridStateAsync(string gridKey, string stateJson)
     {
-        var json = await SettingProvider.GetOrNullAsync(TradeXpressUiSettingNames.GridStates);
-        var states = new Dictionary<string, string>();
-        
-        if (!string.IsNullOrEmpty(json) && json != "{}")
+        // Her grid kendi ayarında depolansın — truncate sorunu ortadan kalkar
+        var settingKey = $"{TradeXpressUiSettingNames.GridStates}_{gridKey}";
+        try
         {
-            try
-            {
-                states = JsonSerializer.Deserialize<Dictionary<string, string>>(json) ?? new Dictionary<string, string>();
-            }
-            catch { }
+            await _settingManager.SetForCurrentUserAsync(settingKey, stateJson);
         }
-
-        states[gridKey] = stateJson;
-        var newJson = JsonSerializer.Serialize(states);
-        
-        await _settingManager.SetForCurrentUserAsync(TradeXpressUiSettingNames.GridStates, newJson);
+        catch (Exception ex)
+        {
+            // Hata sessizce log'lansın — grid state kaybolsa bile app çalışmaya devam etsin
+            Logger.LogWarning(ex, $"Failed to save grid state for {gridKey}: {ex.Message}");
+        }
     }
 
     public async Task<string> GetMdiTabsAsync()

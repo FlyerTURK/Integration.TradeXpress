@@ -1,0 +1,356 @@
+@using System.Collections.Generic
+@using System.Linq
+@using Integration.TradeXpress.Localization
+@using Volo.Abp.PermissionManagement
+@using DevExpress.Blazor
+@using Microsoft.AspNetCore.Components
+@using Microsoft.Extensions.Logging
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@*
+   ERPPROV3 izin editörü layout uyarlaması:
+   - Sol dikey grup sekmeleri; başlık "Grup (verilen / toplam)"
+   - Tepede tri-state "Tümü"; grup içinde tri-state "Tümünü Seç"
+   - Girintili ağaç + alt izinler çok sütunlu (flex-wrap)
+   - Cascade: parent→child (aşağı), child grant→ancestors (yukarı)
+   - Embedded değilse preset (Salt Okunur/Yönetici/Tam) + Kaydet
+*@
+
+<div class="erp-permission-editor">
+    @if (_loading)
+    {
+        <div class="spinner-border" role="status"><span class="sr-only">@L["Loading"]</span></div>
+    }
+    else if (_error is not null)
+    {
+        <div class="alert alert-danger">@_error</div>
+    }
+    else if (_groups is null || _groups.Count == 0)
+    {
+        <div class="alert alert-info">@L["NoPermissionsAvailable"]</div>
+    }
+    else
+    {
+        @if (!Embedded)
+        {
+            <div class="erp-permission-editor__toolbar" style="display:flex; align-items:center; gap:0.5rem; margin-bottom:0.5rem;">
+                <DxDropDown @bind-IsOpen="_presetOpen" PositionMode="DropDownPositionMode.Bottom">
+                    <HeaderTemplate>
+                        <DxButton Text="@L["ApplyPreset"]" IconCssClass="fas fa-sliders"
+                                  RenderStyle="ButtonRenderStyle.Secondary"
+                                  Click="@(() => _presetOpen = !_presetOpen)" />
+                    </HeaderTemplate>
+                    <BodyTemplate>
+                        <div style="display:flex; flex-direction:column; min-width:160px;">
+                            <button class="dropdown-item" style="text-align:left; padding:0.4rem 0.75rem; border:none; background:none; cursor:pointer;" @onclick="@(() => ApplyPreset(Preset.ReadOnly))">@L["PresetReadOnly"]</button>
+                            <button class="dropdown-item" style="text-align:left; padding:0.4rem 0.75rem; border:none; background:none; cursor:pointer;" @onclick="@(() => ApplyPreset(Preset.Manager))">@L["PresetManager"]</button>
+                            <button class="dropdown-item" style="text-align:left; padding:0.4rem 0.75rem; border:none; background:none; cursor:pointer;" @onclick="@(() => ApplyPreset(Preset.Full))">@L["PresetFull"]</button>
+                        </div>
+                    </BodyTemplate>
+                </DxDropDown>
+                <span style="flex:1 1 auto;"></span>
+                <DxButton Text="@L["Save"]" RenderStyle="ButtonRenderStyle.Primary" Enabled="@_isDirty" Click="CommitChangesAsync" />
+            </div>
+        }
+
+        @if (HasAnyTogglable)
+        {
+            <div class="erp-permission-editor__master" style="padding:0.25rem 0 0.5rem 0; border-bottom:1px solid var(--dx-border-color,#e0e0e0); margin-bottom:0.5rem;">
+                <DxCheckBox T="bool?" Checked="@MasterState" CheckedChanged="OnMasterToggled" AllowIndeterminateStateByClick="false">
+                    <strong>@L["AllPermissions"]</strong>
+                </DxCheckBox>
+            </div>
+        }
+
+        <div class="erp-permission-editor__groups" style="display:flex; gap:0.75rem; min-height:0;">
+            <div style="flex:0 0 240px; display:flex; flex-direction:column; min-height:0;">
+                <DxListBox Data="@_groups"
+                           TextFieldName="@nameof(PermissionGroupDto.DisplayName)"
+                           @bind-Value="@_selectedGroup"
+                           ShowSearchBox="true"
+                           ListRenderMode="ListRenderMode.Virtual"
+                           CssClass="erp-permission-group-list"
+                           style="flex:1 1 auto; min-height:0; max-height:60vh;" />
+            </div>
+            <div style="flex:1 1 auto; min-height:0; overflow-y:auto;">
+                @if (_selectedGroup is not null)
+                {
+                    <div style="padding:0.5rem 0 0.75rem 0; border-bottom:1px solid var(--dx-border-color,#e0e0e0); margin-bottom:0.5rem;">
+                        <DxCheckBox T="bool?" Checked="@GroupState(_selectedGroup)" CheckedChanged="@((bool? v) => OnGroupToggled(_selectedGroup, v))" AllowIndeterminateStateByClick="false">
+                            <strong>@L["SelectAll"]</strong> <small style="color:var(--dx-text-muted,#888)">(@GrantedCount(_selectedGroup) / @_selectedGroup.Permissions.Count)</small>
+                        </DxCheckBox>
+                    </div>
+
+                    <div class="erp-permission-group" style="max-height:52vh; overflow-y:auto; padding-right:0.5rem;">
+                        @foreach (var root in RootsOf(_selectedGroup))
+                        {
+                            @RenderNode(root, 0)
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string ProviderName { get; set; } = "R";
+    [Parameter, EditorRequired] public string ProviderKey { get; set; } = "";
+    [Parameter] public bool Embedded { get; set; }
+    [Parameter] public EventCallback<bool> DirtyChanged { get; set; }
+
+    [Inject] protected IPermissionAppService PermissionAppService { get; set; } = default!;
+    [Inject] protected Integration.Framework.Blazor.Client.Services.Base.ITradeXpressUiService UiService { get; set; } = default!;
+
+    private bool _loading = true;
+    private string? _error;
+    private List<PermissionGroupDto>? _groups;
+    private PermissionGroupDto? _selectedGroup;
+    private bool _presetOpen;
+    private bool _isDirty;
+    private bool _committing;
+    private HashSet<string> _initialGranted = new();
+
+    // Ağaç düğümleri: ABP düz DTO'yu sarar; Granted -> Dto.IsGranted'a yazar.
+    private sealed class PermNode
+    {
+        public required PermissionGrantInfoDto Dto { get; init; }
+        public List<PermNode> Children { get; } = new();
+        public string Name => Dto.Name;
+        public string DisplayName => Dto.DisplayName;
+        public bool Granted { get => Dto.IsGranted; set => Dto.IsGranted = value; }
+    }
+
+    private readonly Dictionary<string, List<PermNode>> _rootsByGroup = new();
+    private readonly Dictionary<string, PermNode> _nodesByName = new(StringComparer.Ordinal);
+
+    private enum Preset { ReadOnly, Manager, Full }
+
+    protected override void OnInitialized()
+    {
+        LocalizationResource = typeof(TradeXpressResource);
+        base.OnInitialized();
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ReloadAsync();
+        await base.OnInitializedAsync();
+    }
+
+    public async Task ReloadAsync()
+    {
+        try
+        {
+            _loading = true;
+            _error = null;
+            var result = await PermissionAppService.GetAsync(ProviderName, ProviderKey);
+            _groups = result.Groups;
+            BuildTree();
+            _selectedGroup = _groups?.FirstOrDefault();
+            _initialGranted = CurrentGrantedSet();
+            _isDirty = false;
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+            if (Logger != null) Logger.LogError(ex, "Error loading permissions");
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void BuildTree()
+    {
+        _rootsByGroup.Clear();
+        _nodesByName.Clear();
+        if (_groups == null) return;
+
+        foreach (var group in _groups)
+        {
+            var nodes = group.Permissions.ToDictionary(p => p.Name, p => new PermNode { Dto = p }, StringComparer.Ordinal);
+            foreach (var n in nodes.Values) _nodesByName[n.Name] = n;
+
+            var roots = new List<PermNode>();
+            foreach (var p in group.Permissions)
+            {
+                var node = nodes[p.Name];
+                if (p.ParentName != null && nodes.TryGetValue(p.ParentName, out var parent))
+                    parent.Children.Add(node);
+                else
+                    roots.Add(node);
+            }
+            _rootsByGroup[group.Name] = roots;
+        }
+    }
+
+    private List<PermNode> RootsOf(PermissionGroupDto group)
+        => _rootsByGroup.TryGetValue(group.Name, out var r) ? r : new();
+
+    private static int GrantedCount(PermissionGroupDto group) => group.Permissions.Count(p => p.IsGranted);
+
+    private IEnumerable<PermissionGrantInfoDto> AllPerms()
+        => _groups?.SelectMany(g => g.Permissions) ?? Enumerable.Empty<PermissionGrantInfoDto>();
+
+    private bool HasAnyTogglable => AllPerms().Any();
+
+    private HashSet<string> CurrentGrantedSet()
+        => new(AllPerms().Where(p => p.IsGranted).Select(p => p.Name), StringComparer.Ordinal);
+
+    // ── Tri-state durumlar ──
+    private bool? MasterState
+    {
+        get
+        {
+            var all = AllPerms().ToList();
+            if (all.Count == 0) return false;
+            var g = all.Count(p => p.IsGranted);
+            return g == 0 ? false : g == all.Count ? true : (bool?)null;
+        }
+    }
+
+    private bool? GroupState(PermissionGroupDto group)
+    {
+        if (group.Permissions.Count == 0) return false;
+        var g = GrantedCount(group);
+        return g == 0 ? false : g == group.Permissions.Count ? true : (bool?)null;
+    }
+
+    private void OnMasterToggled(bool? value)
+    {
+        var grant = value == true;
+        foreach (var p in AllPerms()) p.IsGranted = grant;
+        RecomputeDirty();
+    }
+
+    private void OnGroupToggled(PermissionGroupDto group, bool? value)
+    {
+        var grant = value == true;
+        foreach (var p in group.Permissions) p.IsGranted = grant;
+        RecomputeDirty();
+    }
+
+    private void OnNodeToggled(PermNode node, bool granted)
+    {
+        node.Granted = granted;
+        // Aşağı: parent → tüm torunlar
+        foreach (var d in Descendants(node)) d.Granted = granted;
+        // Yukarı: child grant → atalar
+        if (granted)
+        {
+            var current = node.Dto;
+            while (current.ParentName != null && _nodesByName.TryGetValue(current.ParentName, out var parent))
+            {
+                parent.Granted = true;
+                current = parent.Dto;
+            }
+        }
+        RecomputeDirty();
+    }
+
+    private static IEnumerable<PermNode> Descendants(PermNode n)
+    {
+        foreach (var c in n.Children)
+        {
+            yield return c;
+            foreach (var d in Descendants(c)) yield return d;
+        }
+    }
+
+    private void ApplyPreset(Preset preset)
+    {
+        _presetOpen = false;
+        foreach (var p in AllPerms())
+        {
+            p.IsGranted = preset switch
+            {
+                Preset.Full => true,
+                Preset.ReadOnly => p.ParentName == null,
+                Preset.Manager => p.ParentName == null
+                                  || p.Name.EndsWith(".Create", StringComparison.OrdinalIgnoreCase)
+                                  || p.Name.EndsWith(".Update", StringComparison.OrdinalIgnoreCase),
+                _ => p.IsGranted
+            };
+        }
+        RecomputeDirty();
+    }
+
+    private void RecomputeDirty()
+    {
+        var now = !CurrentGrantedSet().SetEquals(_initialGranted);
+        if (now != _isDirty)
+        {
+            _isDirty = now;
+            if (DirtyChanged.HasDelegate) _ = DirtyChanged.InvokeAsync(_isDirty);
+        }
+        StateHasChanged();
+    }
+
+    public async Task CommitChangesAsync()
+    {
+        if (_committing || _groups == null) return;
+        try
+        {
+            _committing = true;
+            var input = new UpdatePermissionsDto
+            {
+                Permissions = AllPerms()
+                    .Select(p => new UpdatePermissionDto { Name = p.Name, IsGranted = p.IsGranted })
+                    .ToArray()
+            };
+            await PermissionAppService.UpdateAsync(ProviderName, ProviderKey, input);
+            _initialGranted = CurrentGrantedSet();
+            _isDirty = false;
+            if (!Embedded) UiService.ShowSuccessToast(L["SuccessfullySaved"]);
+        }
+        catch (Exception ex)
+        {
+            if (Logger != null) Logger.LogError(ex, "Error saving permissions");
+            UiService.ShowErrorToast(ex.Message);
+            throw;
+        }
+        finally
+        {
+            _committing = false;
+        }
+    }
+
+    // ── Ağaç render (recursive) ──
+    private RenderFragment RenderNode(PermNode node, int indent) => __builder =>
+    {
+        <div class="erp-permission-row" style="@($"padding-left:{indent * 20}px; padding-top:0.15rem;")">
+            <DxCheckBox Checked="@node.Granted" CheckedChanged="@((bool v) => OnNodeToggled(node, v))">
+                @node.DisplayName
+            </DxCheckBox>
+        </div>
+        @if (node.Children.Count > 0)
+        {
+            <div style="@($"padding-left:{(indent + 1) * 20}px;")">
+                @RenderChildrenInline(node)
+            </div>
+        }
+    };
+
+    private RenderFragment RenderChildrenInline(PermNode parent) => __builder =>
+    {
+        <div style="display:flex; gap:0.15rem 1.25rem; flex-wrap:wrap; align-items:flex-start;">
+            @foreach (var child in parent.Children)
+            {
+                var captured = child;
+                <div style="display:flex; flex-direction:column; gap:0.15rem; align-items:flex-start;">
+                    <DxCheckBox Checked="@captured.Granted" CheckedChanged="@((bool v) => OnNodeToggled(captured, v))">
+                        @captured.DisplayName
+                    </DxCheckBox>
+                    @if (captured.Children.Count > 0)
+                    {
+                        <div style="padding-left:20px;">
+                            @RenderChildrenInline(captured)
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    };
+}

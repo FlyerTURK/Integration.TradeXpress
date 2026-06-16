@@ -31,7 +31,7 @@
                      StateService="StateService"
                      SearchText="@SearchText"
                      SearchTextChanged="OnToolbarSearch"
-                     OnNewClick="OnNewClick"
+                     OnNewClick="HandleNewClick"
                      OnDeleteClick="OnDeleteClick"
                      OnRefreshClick="OnRefreshClick"
                      OnExportToExcelClick="ExportToExcel"
@@ -77,17 +77,20 @@
     </DxGrid>
 </div>
 
-<!-- Popup Edit Form Component -->
-<CrudEditModal TGetDto="TGetDto" TListDto="TListDto" TViewModel="TViewModel" TKey="TKey"
-               StateService="StateService"
-               EntityName="@EntityName"
-               EntityIcon="@EntityIcon"
-               PrimaryTextSelector="@PrimaryTextSelector"
-               ParentEntityName="@ParentEntityName"
-               ParentTextSelector="@ParentTextSelector"
-               EditPageContent="EditPageContent"
-               OnSaveClick="OnSaveClick"
-               OnSaveAndNewClick="OnSaveAndNewClick"
-               ValidateOnPropertyChange="ValidateOnPropertyChange" />
+<!-- Popup Edit Form Component — yalnız Popup modunda. Tab modunda edit ayrı MDI sekmesinde açılır. -->
+@if (EditMode == CrudEditMode.Popup)
+{
+    <CrudEditModal TGetDto="TGetDto" TListDto="TListDto" TViewModel="TViewModel" TKey="TKey"
+                   StateService="StateService"
+                   EntityName="@EntityName"
+                   EntityIcon="@EntityIcon"
+                   PrimaryTextSelector="@PrimaryTextSelector"
+                   ParentEntityName="@ParentEntityName"
+                   ParentTextSelector="@ParentTextSelector"
+                   EditPageContent="EditPageContent"
+                   OnSaveClick="OnSaveClick"
+                   OnSaveAndNewClick="OnSaveAndNewClick"
+                   ValidateOnPropertyChange="ValidateOnPropertyChange" />
+}
 
 

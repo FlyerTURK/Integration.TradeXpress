@@ -7,6 +7,15 @@
 
 <DxFormLayout Data="@Model" CssClass="w-100">
     <DxFormLayoutGroup Caption="@L["General"]" ColSpanMd="12">
+        @* 1. Kod — yarım satır (yalnız) *@
+        <DxFormLayoutItem Caption="@($"{L["Code"]} *")" ColSpanMd="6">
+            <DxTextBox @bind-Text="@Model.Code" @ref="_nameBox" />
+        </DxFormLayoutItem>
+        @* 2. Adı — tam satır *@
+        <DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="12">
+            <DxTextBox @bind-Text="@Model.Name" />
+        </DxFormLayoutItem>
+        @* Ara: Şube (üst entity, düzenlemede değişmez) — tam satır *@
         <DxFormLayoutItem Caption="@($"{L["Entity:Branch"]} *")" ColSpanMd="12">
             <DxComboBox Data="@_branches" @bind-Value="@Model.BranchId"
                         ValueFieldName="@nameof(BranchListDto.Id)"
@@ -19,30 +28,24 @@
                 <div class="form-text text-muted small">@L["ParentImmutableHint"]</div>
             }
         </DxFormLayoutItem>
-        <DxFormLayoutItem Caption="@($"{L["Code"]} *")" ColSpanMd="4">
-            <DxTextBox @bind-Text="@Model.Code" @ref="_nameBox" />
-        </DxFormLayoutItem>
-        <DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="8">
-            <DxTextBox @bind-Text="@Model.Name"  />
-        </DxFormLayoutItem>
-        <DxFormLayoutItem Caption="@L["Description"]" ColSpanMd="12">
-            <DxTextBox @bind-Text="@Model.Description" />
-        </DxFormLayoutItem>
-    </DxFormLayoutGroup>
-
-    <DxFormLayoutGroup Caption="@L["Settings"]" ColSpanMd="12">
-        <DxFormLayoutItem Caption="@L["IsDefault"]" ColSpanMd="4">
+        @* Ara: Varsayılan kasa — yarım satır *@
+        <DxFormLayoutItem Caption="@L["IsDefault"]" ColSpanMd="6">
             <DxCheckBox @bind-Checked="@Model.IsDefault" CheckType="CheckType.Switch">
                 @(Model.IsDefault ? L["Yes"] : L["No"])
             </DxCheckBox>
             <div class="form-text text-muted small">@L["VaultDefaultHint"]</div>
         </DxFormLayoutItem>
-        <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="4">
+        @* Sondan bir önceki: Açıklama — tam satır, DxMemo 2 satır, resize kapalı *@
+        <DxFormLayoutItem Caption="@L["Description"]" ColSpanMd="12">
+            <DxMemo @bind-Text="@Model.Description" Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100" />
+        </DxFormLayoutItem>
+        @* Son satır: Durum (Status) yarım + Sıra (DisplayOrder) yarım *@
+        <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6">
             <DxCheckBox @bind-Checked="@Model.IsActive" CheckType="CheckType.Switch">
                 @(Model.IsActive ? L["Active"] : L["Passive"])
             </DxCheckBox>
         </DxFormLayoutItem>
-        <DxFormLayoutItem Caption="@L["DisplayOrder"]" ColSpanMd="4">
+        <DxFormLayoutItem Caption="@L["DisplayOrder"]" ColSpanMd="6">
             <DxSpinEdit @bind-Value="@Model.DisplayOrder" />
         </DxFormLayoutItem>
     </DxFormLayoutGroup>

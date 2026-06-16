@@ -1,16 +1,17 @@
 @using Microsoft.AspNetCore.Components.WebAssembly.Authentication
 @inject NavigationManager Navigation
 
-@*
-   Kimliği olmayan kullanıcı için: hiçbir layout/chrome render etmeden doğrudan
-   WASM login akışına (RemoteAuthenticatorView → /authentication/login) yönlendirir.
-   NavigateToLogin returnUrl'i auth state üzerinden taşır; kullanıcı giriş sonrası
-   bulunduğu sayfaya döner.
-*@
-
 @code {
     protected override void OnInitialized()
     {
-        Navigation.NavigateToLogin("authentication/login");
+        if (OperatingSystem.IsBrowser())
+        {
+            Navigation.NavigateToLogin("authentication/login");
+        }
+        else
+        {
+            var returnUrl = Uri.EscapeDataString(Navigation.Uri);
+            Navigation.NavigateTo($"/account/login?returnUrl={returnUrl}", forceLoad: true);
+        }
     }
 }

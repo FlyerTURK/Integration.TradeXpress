@@ -53,28 +53,33 @@
     </GridColumns>
     <EditContent Context="vault">
         <DxFormLayout Data="@vault" CssClass="w-100">
-            <DxFormLayoutItem Caption="@($"{L["Code"]} *")" ColSpanMd="4">
+            @* 1. Kod — yarım satır (yalnız) *@
+            <DxFormLayoutItem Caption="@($"{L["Code"]} *")" ColSpanMd="6">
                 <DxTextBox @bind-Text="@vault.Code" />
             </DxFormLayoutItem>
-            <DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="5">
+            @* 2. Adı — tam satır *@
+            <DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="12">
                 <DxTextBox @bind-Text="@vault.Name" />
             </DxFormLayoutItem>
-            <DxFormLayoutItem Caption="@L["DisplayOrder"]" ColSpanMd="3">
-                <DxSpinEdit @bind-Value="@vault.DisplayOrder" />
-            </DxFormLayoutItem>
+            @* Ara: Varsayılan kasa — yarım satır *@
             <DxFormLayoutItem Caption="@L["IsDefault"]" ColSpanMd="6">
                 <DxCheckBox @bind-Checked="@vault.IsDefault" CheckType="CheckType.Switch">
                     @(vault.IsDefault ? L["Yes"] : L["No"])
                 </DxCheckBox>
                 <div class="form-text text-muted small">@L["VaultDefaultHint"]</div>
             </DxFormLayoutItem>
+            @* Sondan bir önceki: Açıklama — tam satır, DxMemo 2 satır, resize kapalı *@
+            <DxFormLayoutItem Caption="@L["Description"]" ColSpanMd="12">
+                <DxMemo @bind-Text="@vault.Description" Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100" />
+            </DxFormLayoutItem>
+            @* Son satır: Durum (Status) yarım + Sıra (DisplayOrder) yarım *@
             <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6">
                 <DxCheckBox @bind-Checked="@vault.IsActive" CheckType="CheckType.Switch">
                     @(vault.IsActive ? L["Active"] : L["Passive"])
                 </DxCheckBox>
             </DxFormLayoutItem>
-            <DxFormLayoutItem Caption="@L["Description"]" ColSpanMd="12">
-                <DxTextBox @bind-Text="@vault.Description" />
+            <DxFormLayoutItem Caption="@L["DisplayOrder"]" ColSpanMd="6">
+                <DxSpinEdit @bind-Value="@vault.DisplayOrder" />
             </DxFormLayoutItem>
         </DxFormLayout>
     </EditContent>

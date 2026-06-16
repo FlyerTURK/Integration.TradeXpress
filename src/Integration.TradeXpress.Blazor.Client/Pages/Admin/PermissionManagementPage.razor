@@ -1,0 +1,53 @@
+@page "/admin/permissions/{ProviderName}/{ProviderKey}"
+@using Integration.TradeXpress.Localization
+@using DevExpress.Blazor
+@using Microsoft.AspNetCore.Components
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+<div class="crud-layout" style="display:flex; flex-direction:column; height:100%;">
+    <div class="crud-header" style="padding:0.5rem 0.75rem; border-bottom:1px solid #eee;">
+        <h4 style="margin:0;">@L["PermissionManagement"] — @ProviderKey</h4>
+    </div>
+
+    <div style="flex:1 1 auto; overflow:auto; padding:0.75rem;">
+        <PermissionEditorPanel @ref="_panel" ProviderName="@ProviderName" ProviderKey="@ProviderKey" Embedded="true" />
+    </div>
+
+    <div class="crud-footer" style="padding:0.5rem 0.75rem; border-top:1px solid #eee; display:flex; gap:0.5rem;">
+        <DxButton Text="@L["Save"]" RenderStyle="ButtonRenderStyle.Primary" IconCssClass="fas fa-save" Click="SaveAsync" />
+        <DxButton Text="@L["Cancel"]" RenderStyle="ButtonRenderStyle.Secondary" Click="CloseTab" />
+    </div>
+</div>
+
+@code {
+    [Parameter] public string ProviderName { get; set; } = "R";
+    [Parameter] public string ProviderKey { get; set; } = "";
+
+    [CascadingParameter(Name = "CurrentMdiTab")]
+    public Integration.Framework.Blazor.Client.Services.Mdi.IMdiTab? CurrentMdiTab { get; set; }
+
+    [Inject] protected Integration.TradeXpress.Blazor.Client.Services.Mdi.ITabManager TabManager { get; set; } = default!;
+    [Inject] protected Integration.Framework.Blazor.Client.Services.Base.ITradeXpressUiService UiService { get; set; } = default!;
+
+    private PermissionEditorPanel? _panel;
+
+    protected override void OnInitialized()
+    {
+        LocalizationResource = typeof(TradeXpressResource);
+        base.OnInitialized();
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_panel != null)
+            await _panel.CommitChangesAsync();
+        UiService.ShowSuccessToast(L["SuccessfullySaved"]);
+        CloseTab();
+    }
+
+    private void CloseTab()
+    {
+        if (CurrentMdiTab != null)
+            TabManager.Close(CurrentMdiTab.Id);
+    }
+}

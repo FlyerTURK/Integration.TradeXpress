@@ -1,0 +1,303 @@
+@page "/account/login"
+@attribute [Microsoft.AspNetCore.Authorization.AllowAnonymous]
+@layout EmptyLayout
+@using Integration.TradeXpress.Blazor.Client.Layout
+@using Integration.TradeXpress.Localization
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TradeXpressResource> L
+@inject NavigationManager Nav
+@inject IJSRuntime Js
+
+@*  Custom Blazor login page — replaces ABP's default Account/Login Razor Page.
+
+    Cookie sign-in flow: browser JS (erpFetchSignIn) POSTs credentials to
+    /account/sign-in-cookie → server sets ASP.NET Identity auth cookie → forceLoad
+    navigation carries the cookie to the authenticated app. *@
+
+<PageTitle>@L["Login_Title"]</PageTitle>
+
+<div class="erp-login-shell">
+    <div class="erp-login-banner">
+        <span class="erp-login-appname">TradeXpress</span>
+    </div>
+
+    <div class="erp-login-main">
+        <div class="erp-login-card">
+
+            <div class="erp-login-card-header">
+                <div role="heading" aria-level="1" class="erp-login-title">@L["Login_Title"]</div>
+                <DxComboBox TData="LangItem"
+                            TValue="string"
+                            Data="@_languages"
+                            TextFieldName="@nameof(LangItem.Label)"
+                            ValueFieldName="@nameof(LangItem.Code)"
+                            Value="@_selectedCulture"
+                            ValueChanged="@OnLanguageChangedAsync"
+                            CssClass="erp-login-lang-combo"
+                            SizeMode="SizeMode.Small" />
+            </div>
+
+            <div class="erp-login-card-body">
+                <p class="erp-login-intro">@L["Login_Intro"]</p>
+
+                @if (!string.IsNullOrEmpty(_error))
+                {
+                    <div class="erp-login-error" role="alert">@_error</div>
+                }
+
+                <DxFormLayout CssClass="erp-login-form" CaptionPosition="CaptionPosition.Vertical">
+                    <DxFormLayoutItem Caption="@L["Login_TenantLabel"].Value" ColSpanMd="12">
+                        <div @onkeydown="OnTenantKeyDown">
+                            <DxTextBox @ref="_tenantBox" Text="@TenantDisplay" ReadOnly="true">
+                                <Buttons>
+                                    <DxEditorButton Text="@L["Login_TenantChange"].Value"
+                                                    Click="@OpenTenantPickerAsync" />
+                                </Buttons>
+                            </DxTextBox>
+                        </div>
+                    </DxFormLayoutItem>
+
+                    <DxFormLayoutItem Caption="@L["Login_UserName"].Value" ColSpanMd="12">
+                        <div @onkeydown="OnUserNameKeyDown">
+                            <DxTextBox @ref="_userBox"
+                                       @bind-Text="_userName"
+                                       @bind-Text:after="OnUserNameChanged"
+                                       BindValueMode="BindValueMode.OnInput"
+                                       ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
+                        </div>
+                    </DxFormLayoutItem>
+
+                    <DxFormLayoutItem Caption="@L["Login_Password"].Value" ColSpanMd="12">
+                        <div @onkeydown="OnPasswordKeyDown">
+                            <DxTextBox @key="_credentialsResetKey"
+                                       @ref="_passwordBox"
+                                       @bind-Text="_password"
+                                       Password="@(!_passwordVisible)"
+                                       Enabled="@(!string.IsNullOrWhiteSpace(_userName))"
+                                       BindValueMode="BindValueMode.OnInput"
+                                       ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto">
+                                <Buttons>
+                                    <DxEditorButton IconCssClass="fas fa-eye"
+                                                    Visible="@(!string.IsNullOrEmpty(_password))"
+                                                    Tooltip="@(_passwordVisible ? L["Login_PasswordHide"].Value : L["Login_PasswordShow"].Value)"
+                                                    Click="TogglePasswordVisibility" />
+                                </Buttons>
+                            </DxTextBox>
+                        </div>
+                    </DxFormLayoutItem>
+                </DxFormLayout>
+
+                @if (_tenantPopupVisible)
+                {
+                    <TenantPickerPopup Visible="_tenantPopupVisible"
+                                       VisibleChanged="@OnTenantPopupVisibleChanged"
+                                       Current="@_tenant"
+                                       OnApplied="@OnTenantApplied" />
+                }
+
+                <div class="erp-login-toolbar" @onkeydown="OnLoginButtonKeyDown">
+                    <DxButton Id="@LoginButtonId"
+                              Text="@L["Login_SignIn"].Value"
+                              RenderStyle="ButtonRenderStyle.Primary"
+                              CssClass="erp-login-btn"
+                              Enabled="@(!_busy && !string.IsNullOrWhiteSpace(_userName) && !string.IsNullOrWhiteSpace(_password))"
+                              Click="@SubmitAsync" />
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private const string LastTenantCookieName = "tx.last_tenant";
+    private const int    LastTenantCookieDays = 365;
+    private const string LoginButtonId        = "tx-login-submit";
+
+    [SupplyParameterFromQuery(Name = "returnUrl")]
+    public string? ReturnUrl { get; set; }
+
+    private string     _userName          = string.Empty;
+    private string     _password          = string.Empty;
+    private string     _tenant            = string.Empty;
+    private string?    _error;
+    private bool       _busy;
+    private string     _selectedCulture   = "tr";
+    private DxTextBox? _tenantBox;
+    private DxTextBox? _userBox;
+    private DxTextBox? _passwordBox;
+    private bool       _tenantPopupVisible;
+    private bool       _passwordVisible;
+    private int        _credentialsResetKey;
+
+    private readonly List<LangItem> _languages =
+    [
+        new("tr", "Türkçe"),
+        new("en", "English"),
+    ];
+
+    private string TenantDisplay =>
+        string.IsNullOrEmpty(_tenant) ? L["Login_TenantUnset"].Value : _tenant.ToUpperInvariant();
+
+    private void TogglePasswordVisibility() => _passwordVisible = !_passwordVisible;
+
+    protected override void OnInitialized()
+    {
+        _selectedCulture = System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName;
+        if (_selectedCulture != "en") _selectedCulture = "tr";
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        try
+        {
+            var saved = await Js.InvokeAsync<string?>("erpUx.readCookie", LastTenantCookieName);
+            if (!string.IsNullOrEmpty(saved) && saved != _tenant)
+            {
+                _tenant = saved;
+                StateHasChanged();
+            }
+        }
+        catch { /* JS disconnected */ }
+
+        if (_userBox is not null)
+        {
+            try { await _userBox.FocusAsync(); }
+            catch { /* JS not ready */ }
+        }
+    }
+
+    // ── Klavye navigasyonu ──────────────────────────────────────────────
+    private async Task OnTenantKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "F4")          await OpenTenantPickerAsync();
+        else if (e.Key == "Enter")  await FocusBoxAsync(_userBox);
+    }
+
+    private async Task OnUserNameKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !string.IsNullOrWhiteSpace(_userName))
+            await FocusBoxAsync(_passwordBox);
+        else if (e.Key == "Escape")
+            await FocusBoxAsync(_tenantBox);
+    }
+
+    private async Task OnPasswordKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+            await Js.InvokeVoidAsync("erpUx.focusById", LoginButtonId);
+        else if (e.Key == "Escape")
+            await FocusBoxAsync(_userBox);
+    }
+
+    private async Task OnLoginButtonKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape")
+            await FocusBoxAsync(_passwordBox);
+    }
+
+    private static async Task FocusBoxAsync(DxTextBox? box)
+    {
+        if (box is null) return;
+        try { await box.FocusAsync(); }
+        catch { /* JS not ready */ }
+    }
+
+    private void OnUserNameChanged()
+    {
+        if (string.IsNullOrWhiteSpace(_userName))
+        {
+            _password            = string.Empty;
+            _passwordVisible     = false;
+            _credentialsResetKey++;
+        }
+    }
+
+    // ── Tenant popup ────────────────────────────────────────────────────
+    private async Task OpenTenantPickerAsync()
+    {
+        _tenantPopupVisible = true;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void OnTenantPopupVisibleChanged(bool v) => _tenantPopupVisible = v;
+
+    private void OnTenantApplied(string applied) => _tenant = applied ?? string.Empty;
+
+    // ── Dil değiştirme ──────────────────────────────────────────────────
+    private async Task OnLanguageChangedAsync(string code)
+    {
+        _selectedCulture = code;
+        var ret = "/account/login"
+                + (string.IsNullOrEmpty(ReturnUrl) ? string.Empty : "?returnUrl=" + Uri.EscapeDataString(ReturnUrl));
+        await Js.InvokeVoidAsync(
+            "eval",
+            $"window.location.href = '/_ux/culture?culture={Uri.EscapeDataString(code)}&returnUrl={Uri.EscapeDataString(ret)}'");
+    }
+
+    // ── Giriş ───────────────────────────────────────────────────────────
+    private async Task SubmitAsync()
+    {
+        if (_busy) return;
+
+        if (string.IsNullOrWhiteSpace(_userName) || string.IsNullOrWhiteSpace(_password))
+        {
+            _error           = L["Login_CredentialsRequired"].Value;
+            _passwordVisible = true;
+            return;
+        }
+
+        _busy  = true;
+        _error = null;
+        try
+        {
+            // Browser-side fetch: Set-Cookie must reach the browser's cookie jar,
+            // not a server-side HttpClient container.
+            var result = await Js.InvokeAsync<SignInResponse>(
+                "erpFetchSignIn", _userName, _password, _tenant);
+
+            if (result is { Success: true })
+            {
+                try
+                {
+                    await Js.InvokeVoidAsync(
+                        "erpUx.writeCookie", LastTenantCookieName, _tenant, LastTenantCookieDays);
+                }
+                catch { /* best-effort */ }
+
+                Nav.NavigateTo(SanitizeReturnUrl(ReturnUrl), forceLoad: true);
+                return;
+            }
+            _error = L["Login_InvalidCredentials"].Value;
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+
+        // Giriş başarısız — kimlik bilgilerini temizle.
+        _password            = string.Empty;
+        _passwordVisible     = true;
+        _credentialsResetKey++;
+        await InvokeAsync(StateHasChanged);
+
+        _userName = string.Empty;
+        await InvokeAsync(StateHasChanged);
+        if (_userBox is not null)
+        {
+            try { await _userBox.FocusAsync(); }
+            catch { /* JS not ready */ }
+        }
+    }
+
+    private static string SanitizeReturnUrl(string? url)
+        => string.IsNullOrEmpty(url) || !url.StartsWith('/') ? "/" : url;
+
+    public sealed record LangItem(string Code, string Label);
+    public sealed record SignInResponse(bool Success, string? Error);
+}

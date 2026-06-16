@@ -33,6 +33,7 @@
     <PackageVersion Include="Volo.Abp.Account.HttpApi" Version="10.4.1" />
     <PackageVersion Include="Volo.Abp.Account.HttpApi.Client" Version="10.4.1" />
     <PackageVersion Include="Volo.Abp.Account.Web.OpenIddict" Version="10.4.1" />
+    <PackageVersion Include="Volo.Abp.AspNetCore.Components.Server" Version="10.4.1" />
     <PackageVersion Include="Volo.Abp.AspNetCore.Components.WebAssembly" Version="10.4.1" />
     <PackageVersion Include="Volo.Abp.AspNetCore.MultiTenancy" Version="10.4.1" />
     <PackageVersion Include="Volo.Abp.AspNetCore.Mvc" Version="10.4.1" />
@@ -46,6 +47,7 @@
     <PackageVersion Include="Volo.Abp.Authorization" Version="10.4.1" />
     <PackageVersion Include="Volo.Abp.Autofac" Version="10.4.1" />
     <PackageVersion Include="Volo.Abp.Autofac.WebAssembly" Version="10.4.1" />
+    <PackageVersion Include="Volo.Abp.BackgroundWorkers" Version="10.4.1" />
     <PackageVersion Include="Volo.Abp.BackgroundJobs.Abstractions" Version="10.4.1" />
     <PackageVersion Include="Volo.Abp.BackgroundJobs.Domain" Version="10.4.1" />
     <PackageVersion Include="Volo.Abp.BackgroundJobs.Domain.Shared" Version="10.4.1" />

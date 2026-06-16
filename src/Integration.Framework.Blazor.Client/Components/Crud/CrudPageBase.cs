@@ -79,18 +79,42 @@ public abstract class CrudPageBase<TGetDto, TListDto, TKey, TListRequestDto, TCr
     [CascadingParameter(Name = "CurrentMdiTab")]
     public Integration.Framework.Blazor.Client.Services.Mdi.IMdiTab? CurrentMdiTab { get; set; }
 
+    [Inject]
+    protected Integration.Framework.Blazor.Client.Services.Mdi.IEntityChangeNotifier? EntityChanges { get; set; }
+
+    /// <summary>Sekmeler arası değişim bildirimi için bu liste sayfasının entity anahtarı.
+    /// Edit sekmesi aynı anahtarla <c>Notify</c> çağırınca bu liste grid'ini yeniler.
+    /// Varsayılan: TListDto tam adı. Identity gibi adapter sayfalar sabit bir anahtarla override eder.</summary>
+    protected virtual string EntityChangeKey => typeof(TListDto).FullName ?? typeof(TListDto).Name;
+
     protected override async Task OnInitializedAsync()
     {
         await base.OnInitializedAsync();
         StateService.OnStateChanged += OnStateChangedHandler;
         await SetPermissionsAsync();
-        
+
+        if (EntityChanges != null)
+        {
+            EntityChanges.EntityChanged += OnEntityChangedExternally;
+        }
+
         if (CurrentMdiTab != null)
         {
             CurrentMdiTab.CanCloseAsync = CheckCanCloseAsync;
         }
-        
+
         // Server-side: grid, GridDataSource üstünden ilk sayfayı kendi çeker (pre-fetch yok).
+    }
+
+    // Başka bir sekmede (ör. edit sekmesi) aynı entity değişince grid'i tazele.
+    private void OnEntityChangedExternally(string key)
+    {
+        if (!string.Equals(key, EntityChangeKey, StringComparison.Ordinal)) return;
+        InvokeAsync(() =>
+        {
+            StateService.RequestReload();
+            StateHasChanged();
+        });
     }
 
     protected virtual async Task<bool> CheckCanCloseAsync()
@@ -108,6 +132,15 @@ public abstract class CrudPageBase<TGetDto, TListDto, TKey, TListRequestDto, TCr
 
     protected virtual async Task SetPermissionsAsync()
     {
+        // In Blazor Server mode ABP's principal accessor may deadlock the circuit's
+        // SynchronizationContext (blocking .GetResult() on GetAuthenticationStateAsync).
+        // Skip UI-level permission flags here — the server-side API still enforces them.
+        if (!OperatingSystem.IsBrowser())
+        {
+            StateService.IsGrantedCreate = StateService.IsGrantedUpdate = StateService.IsGrantedDelete = true;
+            return;
+        }
+
         StateService.IsGrantedCreate = string.IsNullOrEmpty(CreatePolicyName) || await AuthorizationService.IsGrantedAsync(CreatePolicyName);
         StateService.IsGrantedUpdate = string.IsNullOrEmpty(UpdatePolicyName) || await AuthorizationService.IsGrantedAsync(UpdatePolicyName);
         StateService.IsGrantedDelete = string.IsNullOrEmpty(DeletePolicyName) || await AuthorizationService.IsGrantedAsync(DeletePolicyName);
@@ -315,6 +348,10 @@ public abstract class CrudPageBase<TGetDto, TListDto, TKey, TListRequestDto, TCr
         if (StateService != null)
         {
             StateService.OnStateChanged -= OnStateChangedHandler;
+        }
+        if (EntityChanges != null)
+        {
+            EntityChanges.EntityChanged -= OnEntityChangedExternally;
         }
     }
 }

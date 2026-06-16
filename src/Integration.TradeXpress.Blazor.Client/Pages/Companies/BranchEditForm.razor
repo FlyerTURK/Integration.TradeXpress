@@ -26,20 +26,21 @@
             </DxCheckBox>
             <div class="form-text text-muted small">@L["BranchHeadquartersHint"]</div>
         </DxFormLayoutItem>
-        @* Sondan bir önceki: Açıklama — tam satır, DxMemo 2 satır, resize kapalı *@
-        <DxFormLayoutItem Caption="@L["Description"]" ColSpanMd="12">
-            <DxMemo @bind-Text="@Branch.Description" Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100" />
-        </DxFormLayoutItem>
-        @* Son satır: Durum (Status) yarım + Sıra (DisplayOrder) yarım, yanında *@
-        <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6">
-            <DxCheckBox @bind-Checked="@Branch.IsActive" CheckType="CheckType.Switch">
-                @(Branch.IsActive ? L["Active"] : L["Passive"])
-            </DxCheckBox>
-        </DxFormLayoutItem>
-        <DxFormLayoutItem Caption="@L["DisplayOrder"]" ColSpanMd="6">
-            <DxSpinEdit @bind-Value="@Branch.DisplayOrder" />
-        </DxFormLayoutItem>
     </DxFormLayoutGroup>
+
+    @* Sondan bir önceki: Açıklama — tam satır, DxMemo 2 satır, resize kapalı *@
+    <DxFormLayoutItem Caption="@L["Description"]" ColSpanMd="12">
+        <DxMemo @bind-Text="@Branch.Description" Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100" />
+    </DxFormLayoutItem>
+    @* Son satır: Durum (Status) yarım + Sıra (DisplayOrder) yarım *@
+    <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6">
+        <DxCheckBox @bind-Checked="@Branch.IsActive" CheckType="CheckType.Switch">
+            @(Branch.IsActive ? L["Active"] : L["Passive"])
+        </DxCheckBox>
+    </DxFormLayoutItem>
+    <DxFormLayoutItem Caption="@L["DisplayOrder"]" ColSpanMd="6">
+        <DxSpinEdit @bind-Value="@Branch.DisplayOrder" />
+    </DxFormLayoutItem>
 
     @* Kasalar — drill form layout'un içinde bir grup; kenarları Genel ile birebir hizalı (Şirket deseni). *@
     <DxFormLayoutGroup Caption="@L["Menu:Vaults"]" ColSpanMd="12">

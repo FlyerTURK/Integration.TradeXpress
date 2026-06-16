@@ -1,0 +1,308 @@
+@using Integration.TradeXpress.Localization
+@using Integration.TradeXpress.Companies
+@using Integration.TradeXpress.Branches
+@using Integration.TradeXpress.Vaults
+@using Integration.TradeXpress.Blazor.Client.Services
+@using Volo.Abp.Application.Dtos
+@using DevExpress.Blazor
+@using Microsoft.AspNetCore.Components
+@using Microsoft.Extensions.Logging
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+<div class="scoped-roles-editor">
+    <DxGrid @ref="Grid"
+            Data="Roles"
+            SelectionMode="GridSelectionMode.Single"
+            PageSize="10">
+        <DxGridDataColumn FieldName="RoleName" Caption="@L["Role"]" />
+        <DxGridDataColumn FieldName="CompanyCode" Caption="@L["Company"]" />
+        <DxGridDataColumn FieldName="BranchCode" Caption="@L["Branch"]" />
+        <DxGridDataColumn FieldName="VaultCode" Caption="@L["Vault"]" />
+        <DxGridCommandColumn Width="80px">
+            <DxGridCommandColumnItem Command="Edit" Click="@(async () => await EditRoleAsync(SelectedRole))" />
+            <DxGridCommandColumnItem Command="Delete" Click="@(async () => await DeleteRoleAsync(SelectedRole))" />
+        </DxGridCommandColumn>
+    </DxGrid>
+
+    <div class="mt-2">
+        <DxButton Text="@L["Add"]" RenderStyle="ButtonRenderStyle.Primary" Click="ShowAddRoleDialogAsync" />
+    </div>
+</div>
+
+<DxPopup @bind-Visible="ShowRolePopup" HeaderText="@L["AssignRole"]" AllowDrag="true" ShowFooter="false">
+    <DxFormLayout>
+        <DxFormLayoutItem Caption="@L["Role"]" ColSpanMd="12">
+            <DxComboBox Data="AvailableRoles"
+                        @bind-Value="SelectedRoleId"
+                        ValueFieldName="Id"
+                        TextFieldName="Name" />
+        </DxFormLayoutItem>
+
+        <DxFormLayoutItem Caption="@L["Company"]" ColSpanMd="6">
+            <DxComboBox Data="Companies"
+                        @bind-Value="SelectedCompanyId"
+                        ValueFieldName="Id"
+                        TextFieldName="Name"
+                        NullText="@L["Optional"]"
+                        AllowUserInput="false" />
+        </DxFormLayoutItem>
+
+        <DxFormLayoutItem Caption="@L["Branch"]" ColSpanMd="6">
+            <DxComboBox Data="FilteredBranches"
+                        @bind-Value="SelectedBranchId"
+                        ValueFieldName="Id"
+                        TextFieldName="Name"
+                        NullText="@L["Optional"]"
+                        AllowUserInput="false"
+                        Enabled="@(SelectedCompanyId.HasValue)" />
+        </DxFormLayoutItem>
+
+        <DxFormLayoutItem Caption="@L["Vault"]" ColSpanMd="6">
+            <DxComboBox Data="FilteredVaults"
+                        @bind-Value="SelectedVaultId"
+                        ValueFieldName="Id"
+                        TextFieldName="Name"
+                        NullText="@L["Optional"]"
+                        AllowUserInput="false"
+                        Enabled="@(SelectedBranchId.HasValue)" />
+        </DxFormLayoutItem>
+    </DxFormLayout>
+
+    <div class="popup-footer mt-3">
+        <DxButton Text="@L["Save"]" RenderStyle="ButtonRenderStyle.Primary" Click="SaveRoleAssignmentAsync" />
+        <DxButton Text="@L["Cancel"]" RenderStyle="ButtonRenderStyle.Secondary" Click="@(() => ShowRolePopup = false)" />
+    </div>
+</DxPopup>
+
+@code {
+    [Parameter]
+    public Guid UserId { get; set; }
+
+    private DxGrid Grid { get; set; } = default!;
+    private bool ShowRolePopup { get; set; }
+
+    private List<ScopedRoleRowVm> Roles { get; set; } = new();
+    private List<IdentityRoleDto> AvailableRoles { get; set; } = new();
+    private List<CompanyListDto> Companies { get; set; } = new();
+    private List<BranchListDto> AllBranches { get; set; } = new();
+    private List<VaultListDto> AllVaults { get; set; } = new();
+
+    private ScopedRoleRowVm? SelectedRole { get; set; }
+    private Guid? SelectedRoleId { get; set; }
+    private Guid? SelectedCompanyId { get; set; }
+    private Guid? SelectedBranchId { get; set; }
+    private Guid? SelectedVaultId { get; set; }
+
+    private List<BranchListDto> FilteredBranches => SelectedCompanyId.HasValue
+        ? AllBranches.Where(b => b.CompanyId == SelectedCompanyId.Value).ToList()
+        : new();
+
+    private List<VaultListDto> FilteredVaults => SelectedBranchId.HasValue
+        ? AllVaults.Where(v => v.BranchId == SelectedBranchId.Value).ToList()
+        : new();
+
+    [Inject]
+    protected IIdentityRoleService IdentityRoleService { get; set; } = default!;
+
+    [Inject]
+    protected ICompanyAppService CompanyAppService { get; set; } = default!;
+
+    [Inject]
+    protected IBranchAppService BranchAppService { get; set; } = default!;
+
+    [Inject]
+    protected IVaultAppService VaultAppService { get; set; } = default!;
+
+    [Inject]
+    protected Integration.Framework.Blazor.Client.Services.Base.ITradeXpressUiService UiService { get; set; } = default!;
+
+    protected override void OnInitialized()
+    {
+        LocalizationResource = typeof(TradeXpressResource);
+        base.OnInitialized();
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDataAsync();
+        await base.OnInitializedAsync();
+    }
+
+    private async Task LoadDataAsync()
+    {
+        try
+        {
+            var rolesResult = await IdentityRoleService.GetListAsync(new Integration.TradeXpress.Blazor.Client.Services.GetIdentityRolesInput());
+            AvailableRoles = rolesResult.Items.ToList();
+
+            var companiesResult = await CompanyAppService.GetListAsync(new CompanyListRequestDto());
+            Companies = companiesResult.Items.ToList();
+
+            var branchesResult = await BranchAppService.GetListAsync(new BranchListRequestDto());
+            AllBranches = branchesResult.Items.ToList();
+
+            var vaultsResult = await VaultAppService.GetListAsync(new VaultListRequestDto());
+            AllVaults = vaultsResult.Items.ToList();
+
+            // TODO: Load user's scoped roles
+            // Roles = await _userScopedRoleService.GetUserScopedRolesAsync(UserId);
+        }
+        catch (Exception ex)
+        {
+            LogError(ex, "Error loading scoped roles data");
+        }
+    }
+
+    private async Task ShowAddRoleDialogAsync()
+    {
+        ResetForm();
+        ShowRolePopup = true;
+    }
+
+    private async Task EditRoleAsync(ScopedRoleRowVm? role)
+    {
+        if (role == null) return;
+        SelectedRole = role;
+        SelectedRoleId = role.RoleId;
+        SelectedCompanyId = role.CompanyId;
+        SelectedBranchId = role.BranchId;
+        SelectedVaultId = role.VaultId;
+        ShowRolePopup = true;
+    }
+
+    private async Task DeleteRoleAsync(ScopedRoleRowVm? role)
+    {
+        if (role == null) return;
+
+        var result = await UiService.ConfirmDeleteAsync(L["DeleteConfirmationMessage"]);
+        if (result != Integration.Framework.Blazor.Client.Services.Base.ConfirmDialogResult.Yes)
+            return;
+
+        try
+        {
+            // TODO: Delete user scoped role
+            // await _userScopedRoleService.RemoveUserScopedRoleAsync(UserId, role.Id);
+            Roles.Remove(role);
+            UiService.ShowSuccessToast(L["SuccessfullyDeleted"]);
+        }
+        catch (Exception ex)
+        {
+            LogError(ex, "Error deleting scoped role");
+            UiService.ShowErrorToast(ex.Message);
+        }
+    }
+
+    private async Task SaveRoleAssignmentAsync()
+    {
+        try
+        {
+            if (!SelectedRoleId.HasValue)
+            {
+                UiService.ShowErrorToast(L["PleaseSelectRole"]);
+                return;
+            }
+
+            // TODO: Save user scoped role
+            // var assignment = new CreateUserScopedRoleDto
+            // {
+            //     RoleId = SelectedRoleId.Value,
+            //     CompanyId = SelectedCompanyId,
+            //     BranchId = SelectedBranchId,
+            //     VaultId = SelectedVaultId
+            // };
+            // await _userScopedRoleService.AddUserScopedRoleAsync(UserId, assignment);
+
+            var newRole = new ScopedRoleRowVm
+            {
+                RoleId = SelectedRoleId.Value,
+                RoleName = AvailableRoles.FirstOrDefault(r => r.Id == SelectedRoleId.Value)?.Name ?? "",
+                CompanyId = SelectedCompanyId,
+                CompanyCode = Companies.FirstOrDefault(c => c.Id == SelectedCompanyId)?.Code ?? "",
+                BranchId = SelectedBranchId,
+                BranchCode = AllBranches.FirstOrDefault(b => b.Id == SelectedBranchId)?.Code ?? "",
+                VaultId = SelectedVaultId,
+                VaultCode = AllVaults.FirstOrDefault(v => v.Id == SelectedVaultId)?.Code ?? ""
+            };
+
+            var existing = Roles.FirstOrDefault(r =>
+                r.RoleId == newRole.RoleId &&
+                r.CompanyId == newRole.CompanyId &&
+                r.BranchId == newRole.BranchId &&
+                r.VaultId == newRole.VaultId);
+
+            if (existing != null)
+            {
+                UiService.ShowErrorToast(L["DuplicateRoleAssignment"]);
+                return;
+            }
+
+            if (SelectedRole != null)
+            {
+                var index = Roles.IndexOf(SelectedRole);
+                Roles[index] = newRole;
+            }
+            else
+            {
+                Roles.Add(newRole);
+            }
+
+            ShowRolePopup = false;
+            ResetForm();
+            UiService.ShowSuccessToast(L["SuccessfullySaved"]);
+        }
+        catch (Exception ex)
+        {
+            LogError(ex, "Error saving role assignment");
+            UiService.ShowErrorToast(ex.Message);
+        }
+    }
+
+    private void ResetForm()
+    {
+        SelectedRole = null;
+        SelectedRoleId = null;
+        SelectedCompanyId = null;
+        SelectedBranchId = null;
+        SelectedVaultId = null;
+    }
+
+    public async Task CommitChangesAsync()
+    {
+        try
+        {
+            // TODO: Commit all changes to the backend
+            // await _userScopedRoleService.SetUserScopedRolesAsync(UserId, Roles.Select(r => new UserScopedRoleDto
+            // {
+            //     RoleId = r.RoleId,
+            //     CompanyId = r.CompanyId,
+            //     BranchId = r.BranchId,
+            //     VaultId = r.VaultId
+            // }).ToList());
+        }
+        catch (Exception ex)
+        {
+            LogError(ex, "Error committing scoped roles changes");
+            throw;
+        }
+    }
+
+    private void LogError(Exception ex, string message)
+    {
+        if (Logger != null)
+        {
+            Logger.LogError(ex, message);
+        }
+    }
+
+    public class ScopedRoleRowVm
+    {
+        public Guid RoleId { get; set; }
+        public string RoleName { get; set; } = string.Empty;
+        public Guid? CompanyId { get; set; }
+        public string CompanyCode { get; set; } = string.Empty;
+        public Guid? BranchId { get; set; }
+        public string BranchCode { get; set; } = string.Empty;
+        public Guid? VaultId { get; set; }
+        public string VaultCode { get; set; } = string.Empty;
+    }
+}

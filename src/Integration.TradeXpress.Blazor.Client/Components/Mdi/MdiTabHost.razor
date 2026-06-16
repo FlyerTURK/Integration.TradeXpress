@@ -56,7 +56,11 @@
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
+        {
             await TabManager.InitializeAsync("/", L["Menu:Home"], TradeXpressIcons.Home);
+            // Server mode: ensure re-render after initialization completes.
+            await InvokeAsync(StateHasChanged);
+        }
     }
 
     // TabManager model-kimliğiyle aktif sekmeyi tutar; DxTabs pozisyonel int ister → eşle.
@@ -88,7 +92,11 @@
         }
     }
 
-    private void OnStateChanged() => InvokeAsync(StateHasChanged);
+    private void OnStateChanged()
+    {
+        System.Console.Error.WriteLine($"[MdiTabHost] OnStateChanged tabs={TabManager.Tabs.Count}");
+        _ = InvokeAsync(StateHasChanged);
+    }
 
     public void Dispose() => TabManager.StateChanged -= OnStateChanged;
 }
