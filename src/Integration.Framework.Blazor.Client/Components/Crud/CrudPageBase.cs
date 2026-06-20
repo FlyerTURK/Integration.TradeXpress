@@ -16,8 +16,8 @@ namespace Integration.Framework.Blazor.Client.Components.Crud;
 /// <summary>
 /// Tüm CRUD işlemlerini yürüten gelişmiş Base sayfa bileşeni.
 /// </summary>
-public abstract class CrudPageBase<TGetDto, TListDto, TKey, TListRequestDto, TCreateInput, TUpdateInput> 
-    : AbpComponentBase, IDisposable
+public abstract class CrudPageBase<TGetDto, TListDto, TKey, TListRequestDto, TCreateInput, TUpdateInput>
+    : AbpComponentBase, IDisposable, ISplitListActions
     where TGetDto : class, IGetDto<TKey>, new()
     where TListDto : class, IListDto<TKey>, new()
     where TListRequestDto : ListRequestDto, new()
@@ -69,7 +69,24 @@ public abstract class CrudPageBase<TGetDto, TListDto, TKey, TListRequestDto, TCr
     [Inject]
     protected IPopupService PopupService { get; set; } = default!;
 
+    [Inject]
+    protected IViewOpener ViewOpener { get; set; } = default!;
+
     public abstract Type EditComponentType { get; }
+
+    /// <summary>Popup/sekme başlığı — ViewOpener'a geçilir. Override edilebilir.
+    /// Varsayılan: TGetDto adından "GetDto" suffix'i kırpılmış lokalizasyon key'i.</summary>
+    protected virtual string EditTitle
+    {
+        get
+        {
+            var name = typeof(TGetDto).Name;
+            if (name.EndsWith("GetDto", StringComparison.Ordinal))
+                name = name[..^"GetDto".Length];
+            return L[name];
+        }
+    }
+    protected virtual string? EditIconCssClass => null;
 
     // Konvansiyon: alt sınıf yalnızca PermissionPrefix verirse (örn. "AbpTenantManagement.Tenants")
     // üç policy adı otomatik türetilir. Gerekirse tek tek override edilebilir.
@@ -81,6 +98,22 @@ public abstract class CrudPageBase<TGetDto, TListDto, TKey, TListRequestDto, TCr
 
     [CascadingParameter(Name = "CurrentMdiTab")]
     public Integration.Framework.Blazor.Client.Services.Mdi.IMdiTab? CurrentMdiTab { get; set; }
+
+    /// <summary>
+    /// SplitCrudView birleşik toolbar + seçim host'u. Doluysa bu liste kendi toolbar'ını çizmez
+    /// (CrudLayout aynı cascade'i görüp gizler), aksiyonlarını host'a register eder ve
+    /// satır seçimleri popup yerine host'un guard'lı geçişlerine gider.
+    /// </summary>
+    [CascadingParameter]
+    public Integration.Framework.Blazor.Client.Services.Base.ISplitHost? SplitHost { get; set; }
+
+    // ── ISplitListActions ──
+    bool ISplitListActions.CanCreate   => StateService.IsGrantedCreate;
+    bool ISplitListActions.CanDelete   => StateService.IsGrantedDelete;
+    bool ISplitListActions.HasSelection => StateService.SelectedDataItems is { Count: > 0 };
+    Task ISplitListActions.NewAsync()    => BeforeCreateAsync();
+    Task ISplitListActions.RefreshAsync() => GetListAsync();
+    // DeleteAsync() zaten public — ISplitListActions.DeleteAsync'i otomatik karşılar.
 
     [Inject]
     protected Integration.Framework.Blazor.Client.Services.Mdi.IEntityChangeNotifier? EntityChanges { get; set; }
@@ -94,6 +127,7 @@ public abstract class CrudPageBase<TGetDto, TListDto, TKey, TListRequestDto, TCr
     {
         await base.OnInitializedAsync();
         StateService.OnStateChanged += OnStateChangedHandler;
+        SplitHost?.RegisterList(this);
         await SetPermissionsAsync();
 
         if (EntityChanges != null)
@@ -177,29 +211,33 @@ public abstract class CrudPageBase<TGetDto, TListDto, TKey, TListRequestDto, TCr
     public virtual async Task BeforeCreateAsync()
     {
         StateService.SetDataRowSelected(null!);
-        await ShowPopupAsync(default);
+        if (SplitHost != null)
+            await SplitHost.RequestNewAsync();       // guard'lı: açık edit kirliyse önce onay
+        else
+            await ShowPopupAsync(default);
     }
 
     public virtual async Task BeforeUpdateAsync(TListDto entity)
     {
         StateService.SetDataRowSelected(entity);
-        await ShowPopupAsync(entity.Id);
+        // Not: Gezinme durumu (ListDataSource/TotalCount/PageSkip) PAYLAŞILAN StateService'e zaten grid'in
+        // Fetched senkronundan (CrudLayout.SyncStateFromGrid) yazılır; burada ayrıca yazmaya gerek yok.
+        if (SplitHost != null)
+            await SplitHost.RequestSelectAsync(entity.Id);   // guard'lı geçiş
+        else
+            await ShowPopupAsync(entity.Id);
     }
 
-    protected virtual async Task ShowPopupAsync(TKey? id)
+    protected virtual Task ShowPopupAsync(TKey? id)
     {
-        var parameters = new System.Collections.Generic.Dictionary<string, object>
+        // Nav bağlamı artık PAYLAŞILAN StateService'ten okunuyor (AddScoped) — parametre geçmeye gerek yok.
+        var extra = new System.Collections.Generic.Dictionary<string, object>
         {
-            { "Id", id },
-            { "IsPopupMode", true },
-            { "OnSaved", Microsoft.AspNetCore.Components.EventCallback.Factory.Create(this, GetListAsync) },
-            { "OnClosed", Microsoft.AspNetCore.Components.EventCallback.Factory.Create(this, () => PopupService.Close()) }
+            { "OnSaved",  Microsoft.AspNetCore.Components.EventCallback.Factory.Create(this, GetListAsync) },
+            { "OnClosed", Microsoft.AspNetCore.Components.EventCallback.Factory.Create(this, () => PopupService.Close()) },
         };
 
-        // If the component has an 'L' parameter, we can optionally try to pass our L, 
-        // but it's better if the component uses its own inherited L or localization logic.
-
-        await PopupService.ShowAsync(EditComponentType, parameters);
+        return ViewOpener.OpenAsync(EditComponentType, id, EditTitle, EditIconCssClass, extra);
     }
 
     public virtual async Task DeleteAsync()
@@ -262,7 +300,11 @@ public abstract class CrudPageBase<TGetDto, TListDto, TKey, TListRequestDto, TCr
     // Arka plan kaynağı (SSE/timer/distributed event handler) state'i değiştirip NotifyStateChanged
     // çağırsa bile "current thread is not associated with the Dispatcher" hatası olmaz.
     // UI thread'inde zaten ucuz bir no-op hop'tur.
-    private void OnStateChangedHandler() => InvokeAsync(StateHasChanged);
+    private void OnStateChangedHandler()
+    {
+        SplitHost?.NotifyChanged();   // seçim değişince birleşik toolbar Sil butonunu güncelle
+        InvokeAsync(StateHasChanged);
+    }
 
     public void Dispose()
     {

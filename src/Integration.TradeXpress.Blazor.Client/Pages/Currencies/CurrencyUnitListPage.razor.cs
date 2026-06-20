@@ -21,6 +21,30 @@ public partial class CurrencyUnitListPage : IDisposable
     /// <summary>"Margin Ayarla" action'ının açtığı yeniden kullanılabilir diyalog.</summary>
     protected MarginSetDialog? MarginDialog;
 
+    /// <summary>Toolbar custom action(lar)ı — "Marj Ayarla" (SortIndex 300: Sil ile Arama arası).</summary>
+    private IReadOnlyList<Integration.Framework.Blazor.Client.Components.Crud.CrudToolbarAction> MarginActions => new[]
+    {
+        new Integration.Framework.Blazor.Client.Components.Crud.CrudToolbarAction
+        {
+            SortIndex = 300,
+            Text = L["SetMargin"],
+            Tooltip = L["SetMargin"],
+            IconCssClass = TradeXpressIcons.CurrencyMargin,
+            Enabled = StateService.SelectedDataItems?.Count == 1,
+            OnClick = OpenMarginDialogAsync,
+        },
+    };
+
+    /// <summary>Toolbar "Marj Ayarla" — tek satır seçiliyse diyaloğu açar.</summary>
+    private async Task OpenMarginDialogAsync()
+    {
+        var item = StateService.SelectedDataItems?.Count == 1
+            ? StateService.SelectedDataItems[0] as CurrencyUnitListDto
+            : null;
+        if (item != null && MarginDialog != null)
+            await MarginDialog.ShowAsync(item.Id, item.Code, item.Name);
+    }
+
 
 
     /// <summary>Host tenant değilse (bir tenant seçiliyse) true döner.</summary>

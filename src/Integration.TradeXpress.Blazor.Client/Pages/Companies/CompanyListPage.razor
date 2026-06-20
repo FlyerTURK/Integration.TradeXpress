@@ -19,7 +19,8 @@
             OnUpdateClick="BeforeUpdateAsync"
             OnDeleteClick="DeleteAsync"
             OnRefreshClick="GetListAsync"
-            OnSearchChanged="OnSearchAsync">
+            OnSearchChanged="OnSearchAsync"
+            CustomActions="@BranchActions">
 
     <GridColumns>
         <DxGridDataColumn FieldName="Code" Caption="@L["Code"]" Width="120px" />
@@ -29,13 +30,6 @@
         <DxGridDataColumn FieldName="IsHeadquarters" Caption="@L["IsHeadquarters"]" Width="100px" />
         <DxGridDataColumn FieldName="DisplayOrder" Caption="@L["DisplayOrder"]" Width="90px" Visible="false" />
     </GridColumns>
-
-    <ToolbarActions>
-        <DxButton Text="@L["Menu:Branches"]" IconCssClass="@($"{TradeXpressIcons.Branch} toolbar-action-branches")"
-                  RenderStyle="ButtonRenderStyle.Secondary"
-                  Enabled="@(SelectedCompany != null)"
-                  Click="OpenBranchesAsync" />
-    </ToolbarActions>
 
     
 

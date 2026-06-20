@@ -1,0 +1,240 @@
+@typeparam TGetDto where TGetDto : class, Integration.Framework.Base.Dtos.Interfaces.IGetDto<TKey>, new()
+@typeparam TListDto where TListDto : class, Integration.Framework.Base.Dtos.Interfaces.IListDto<TKey>, new()
+@typeparam TKey
+
+@using Integration.Framework.Blazor.Client.Services.Base
+@using DevExpress.Blazor
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+@implements IDisposable
+@implements Integration.Framework.Blazor.Client.Services.Base.ISplitHost
+
+@*
+   Faz 4 — List+Detail yan-yana çerçeve, TEK birleşik toolbar (XAF master-detail kalıbı).
+
+   Üstte tek toolbar şeridi: liste aksiyonları (Yeni/Sil/Yenile) + ayraç + edit aksiyonları
+   (Kaydet/Kaydet&Yeni/Kaydet&Kapat — kayıt seçiliyken). Liste ve edit panelleri kendi
+   yerel toolbar'larını çizmez; bu host'a (ISplitHost cascade) aksiyonlarını register eder.
+
+   IEditSession<TKey> de cascade edilir: liste satır tıklaması popup yerine edit panelini günceller.
+*@
+
+@* IsFixed YOK: edit state değişince (NotifyChanged → bu component re-render) cascade child'ı
+   CrudToolbar da SetParametersAsync alıp yeniden render olmalı. IsFixed=true CrudToolbar'ı ilk
+   render'da donduruyordu → Kaydet/Undo aktiflik durumu split'te hiç güncellenmiyordu. *@
+<CascadingValue TValue="Integration.Framework.Blazor.Client.Services.Base.ISplitHost" Value="@this">
+<div style="display:flex; flex-direction:column; height:100%; overflow:hidden;">
+
+    @* ── Tek MERKEZİ toolbar (CrudToolbar) ──
+         Elle çizim yok: CrudToolbar, SplitHost (this) cascade'ini görüp "split strateji"ye geçer.
+         Mobil arama→ikon, custom actions, IsActive switch, export hepsi merkezi motordan gelir;
+         edit aksiyonları + ◄Geri split modunda eklenir. *@
+    <div style="padding:0.25rem 8px; border-bottom:1px solid #dee2e6; flex-shrink:0;">
+        <CrudToolbar TGetDto="TGetDto" TListDto="TListDto" TKey="TKey" />
+    </div>
+
+    @* ── Paneller: DxSplitter (XAF master-detail kalıbı) ──
+       Web: DxSplitter Width=100% → liste %33 / edit %67 (esnek kalan), resize AÇIK min %33 / max %67.
+            Edit RESPONSIVE (pane'e uyar, kendi içinde yatay scroll yok).
+       Mobil: DxSplitter Width=160vw (liste 80vw + edit 80vw) → toplam viewport'u taşar; dış konteyner
+              overflow-x:auto ile TÜM split (liste+edit) tek parça yatay scroll. Başlangıçta liste %80
+              görünür, kaydırınca edit (sabit 80vw) görünür. Resize KAPALI. *@
+    <div style="flex:1 1 auto; min-height:0; min-width:0; @(IsMobile ? "overflow-x:auto; overflow-y:hidden;" : "overflow:hidden;")">
+        <DxSplitter Orientation="Orientation.Horizontal"
+                    Width="@(IsMobile ? "160vw" : "100%")" Height="100%"
+                    CssClass="split-crud-splitter">
+            <Panes>
+                <DxSplitterPane Size="@(IsMobile ? "80vw" : "33%")"
+                                MinSize="@(IsMobile ? null : "33%")"
+                                MaxSize="@(IsMobile ? null : "67%")"
+                                AllowResize="@(!IsMobile)">
+                    @ListContent
+                </DxSplitterPane>
+                <DxSplitterPane>
+                    @if (_session.HasSelection)
+                    {
+                        @* Edit responsive: pane'i (web %67 / mobil 80vw) doldurur, kendi içinde yatay scroll yok. *@
+                        <div style="height:100%; width:100%; overflow-y:auto; overflow-x:hidden;">
+                            <DynamicComponent Type="@EditType" Parameters="@GetEditParams()" @key="_editEpoch" />
+                        </div>
+                    }
+                    else
+                    {
+                        <div style="display:flex; align-items:center; justify-content:center; height:100%; color:#aaa; font-size:0.9rem; user-select:none;">
+                            @if (EmptyEditContent != null)
+                            {
+                                @EmptyEditContent
+                            }
+                            else
+                            {
+                                <span><i class="@EmptyIconCssClass me-2"></i>@L["Select"]</span>
+                            }
+                        </div>
+                    }
+                </DxSplitterPane>
+            </Panes>
+        </DxSplitter>
+    </div>
+
+</div>
+</CascadingValue>
+
+@code {
+    private readonly EditSession<TKey> _session = new();
+    private ISplitListActions? _list;
+    private ISplitEditActions? _edit;
+    private ISplitGridActions? _grid;
+
+    /// <summary>Liste sayfasıyla paylaşılan merkezi state — sayfa-aşırı gezinme sınır bilgisi (PageSkip/TotalCount)
+    /// buradan okunur. Split'in "geçerli kaydı" yine _session.CurrentId'dir (anlık, güvenilir).</summary>
+    [Inject] private ICrudStateService<TListDto, TKey> StateService { get; set; } = default!;
+
+    /// <summary>MainLayout JS viewport ölçümünden cascade eder. Mobilde split kapanır, tek panel olur.</summary>
+    [CascadingParameter(Name = "IsMobile")] public bool IsMobile { get; set; }
+
+    protected override void OnInitialized()
+    {
+        _session.SelectionChanged += OnSelectionChanged;
+    }
+
+    private void OnSelectionChanged() => InvokeAsync(StateHasChanged);
+
+    // ── ISplitHost ──
+    public void RegisterList(ISplitListActions list) { _list = list; InvokeAsync(StateHasChanged); }
+    public void RegisterEdit(ISplitEditActions edit) { _edit = edit; InvokeAsync(StateHasChanged); }
+    public void UnregisterEdit(ISplitEditActions edit) { if (ReferenceEquals(_edit, edit)) { _edit = null; InvokeAsync(StateHasChanged); } }
+    public void RegisterGrid(ISplitGridActions grid) { _grid = grid; InvokeAsync(StateHasChanged); }
+    public void UnregisterGrid(ISplitGridActions grid) { if (ReferenceEquals(_grid, grid)) { _grid = null; InvokeAsync(StateHasChanged); } }
+    public void NotifyChanged() => InvokeAsync(StateHasChanged);
+
+    // Merkezi CrudToolbar split modda bu accessor'lardan beslenir.
+    public ISplitListActions? List => _list;
+    public ISplitGridActions? Grid => _grid;
+    public ISplitEditActions? Edit => _edit;
+    public bool HasSelection => _session.HasSelection;
+
+    // Açık edit kirliyse discard onayı sor; reddedilirse geçişi engelle. Temizse/edit yoksa serbest.
+    private async Task<bool> GuardLeaveAsync()
+        => !(_session.HasSelection && _edit != null) || await _edit.CanLeaveAsync();
+
+    // Her geçişte artar; DynamicComponent @key'ine girer → edit remount olup OnInitialized'da
+    // taze LoadData yapar. (DynamicComponent Type sabit olduğundan instance aksi halde korunur ve
+    // ikinci satıra geçiş / Save&New formu yenileyemezdi.)
+    private int _editEpoch;
+
+    public async Task RequestSelectAsync(object? id)
+    {
+        if (!await GuardLeaveAsync()) return;
+        await SelectCoreAsync(id);
+    }
+
+    // Guard'sız geçiş çekirdeği (remount + grid focus). Cross-page'de guard zaten önce yapıldı.
+    private async Task SelectCoreAsync(object? id)
+    {
+        _editEpoch++;
+        _session.Select((TKey?)id);
+        await InvokeAsync(StateHasChanged);
+        if (id != null && _grid != null) await _grid.FocusDataItemAsync(id);   // grid odak + scroll
+    }
+
+    public async Task RequestNewAsync()
+    {
+        if (!await GuardLeaveAsync()) return;
+        _editEpoch++;
+        _session.SelectNew();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    public async Task RequestCloseAsync()
+    {
+        if (!await GuardLeaveAsync()) return;
+        _session.Reset();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    // ── Kayıt gezinme (Previous/Next) — sayfa-aşırı (tüm kayıtlar) ──
+    // Geçerli kayıt = _session.CurrentId. Sınır bilgisi (TotalCount/PageSkip) grid'den ANLIK okunur
+    // (GridVisibleKeys gibi; SyncState/Fetched timing'ine bağlı değil → güvenilir).
+    public System.Collections.Generic.IReadOnlyList<object> GridVisibleKeys
+        => _grid?.GridVisibleKeys ?? System.Array.Empty<object>();
+
+    private long GridTotalCount => _grid?.TotalCount ?? 0;
+    private int  GridPageSkip   => _grid?.PageSkip ?? 0;
+
+    // _session.CurrentId'nin tüm kayıtlar içindeki sırası (PageSkip + yüklü sayfadaki yerel index).
+    private int CurrentGlobalIndex
+    {
+        get
+        {
+            var local = RecordNavigation.IndexOf(GridVisibleKeys, _session.CurrentId);
+            return local < 0 ? -1 : GridPageSkip + local;
+        }
+    }
+
+    public bool CanGoPrevious => CurrentGlobalIndex > 0;
+    public bool CanGoNext     => CurrentGlobalIndex >= 0 && CurrentGlobalIndex < GridTotalCount - 1;
+
+    public Task GoPreviousAsync() => NavigateAsync(previous: true);
+    public Task GoNextAsync()     => NavigateAsync(previous: false);
+
+    private async Task NavigateAsync(bool previous)
+    {
+        var outcome = CrossPageNavigator.Resolve(previous, CurrentGlobalIndex, GridTotalCount, GridPageSkip, GridVisibleKeys);
+        if (outcome.Kind == NavKind.None) return;
+        if (!await GuardLeaveAsync()) return;   // dirty guard tek noktada (cross-page'de grid sayfası değişmeden önce)
+
+        if (outcome.Kind == NavKind.Local && outcome.LocalKey != null)
+        {
+            await SelectCoreAsync(outcome.LocalKey);   // komşu yüklü sayfada → server isteği yok
+        }
+        else if (outcome.Kind == NavKind.CrossPage && _grid != null)
+        {
+            var id = await _grid.EnsurePageForGlobalIndexAsync(outcome.TargetGlobalIndex);  // grid'i komşu sayfaya getir
+            if (id != null) await SelectCoreAsync(id);
+        }
+    }
+
+    // --- Zorunlu Parametreler ---
+    [Parameter, EditorRequired] public Type EditType { get; set; } = default!;
+    [Parameter, EditorRequired] public RenderFragment? ListContent { get; set; }
+
+    // --- Opsiyonel Parametreler ---
+    /// <summary>Boş edit paneli içeriği. Verilmezse EmptyIconCssClass + L["Select"] varsayılanı çizilir.</summary>
+    [Parameter] public RenderFragment? EmptyEditContent { get; set; }
+    /// <summary>Varsayılan boş panel için ikon (FontAwesome class). EmptyEditContent verilmediğinde kullanılır.</summary>
+    [Parameter] public string? EmptyIconCssClass { get; set; }
+    [Parameter] public System.Collections.Generic.Dictionary<string, object>? ExtraEditParams { get; set; }
+
+    private void ResetSelection()
+    {
+        _session.Reset();
+        StateHasChanged();
+    }
+
+    // Edit kaydedince listeyi sunucudan tazele (host'ta kayıtlı liste aksiyonu üzerinden).
+    private async Task RefreshListAsync()
+    {
+        if (_list != null) await _list.RefreshAsync();
+    }
+
+    private System.Collections.Generic.Dictionary<string, object> GetEditParams()
+    {
+        var p = new System.Collections.Generic.Dictionary<string, object>
+        {
+            { "Id",           (object?)_session.CurrentId! },
+            { "IsPopupMode",  false },
+            { "IsEmbedded",   true  },
+            // Kaydet (Save / Save&New / Save&Close) sonrası listeyi yenile — popup'taki OnSaved=GetListAsync karşılığı.
+            { "OnSaved",      Microsoft.AspNetCore.Components.EventCallback.Factory.Create(this, RefreshListAsync) },
+            { "OnDeleted",    Microsoft.AspNetCore.Components.EventCallback.Factory.Create(this, ResetSelection) },
+        };
+        if (ExtraEditParams != null)
+            foreach (var (k, v) in ExtraEditParams)
+                p[k] = v;
+        return p;
+    }
+
+    public void Dispose()
+    {
+        _session.SelectionChanged -= OnSelectionChanged;
+    }
+}

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using Integration.Framework.Blazor.Client.Components.Crud;
 using Integration.TradeXpress.Blazor.Client.Pages.Companies.Models;
@@ -43,6 +44,20 @@ public partial class BranchListPage
     // ── Toolbar drill: Şube → Kasalar ───────────────────────────────────────────
     private BranchListDto? SelectedBranch =>
         StateService.SelectedDataItems is { Count: 1 } sel ? sel[0] as BranchListDto : null;
+
+    /// <summary>Toolbar custom action — "Kasalar" drill (SortIndex 300: Sil ile Arama arası).</summary>
+    private IReadOnlyList<CrudToolbarAction> VaultActions => new[]
+    {
+        new CrudToolbarAction
+        {
+            SortIndex = 300,
+            Text = L["Menu:Vaults"],
+            Tooltip = L["Menu:Vaults"],
+            IconCssClass = $"{TradeXpressIcons.Vault} toolbar-action-vaults",
+            Enabled = SelectedBranch != null,
+            OnClick = OpenVaultsAsync,
+        },
+    };
 
     // Drill-down artık URL navigasyonu değil — kasaları MDI sekmesi olarak açar/aktive eder.
     private async Task OpenVaultsAsync()

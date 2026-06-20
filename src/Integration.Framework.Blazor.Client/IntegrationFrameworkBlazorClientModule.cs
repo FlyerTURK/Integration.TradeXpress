@@ -18,9 +18,14 @@ public class IntegrationFrameworkBlazorClientModule : AbpModule
     public override void ConfigureServices(ServiceConfigurationContext context)
     {
         context.Services.AddScoped<ITradeXpressUiService, TradeXpressUiService>();
+        context.Services.AddScoped<IViewOpener, DefaultViewOpener>();
 
-        // ICrudStateService<,,,> kullanan her sayfa ayrı bir sınıf yazmadan çözümlenir.
-        context.Services.AddTransient(
+        // ICrudStateService<,> her sayfa ayrı sınıf yazmadan açık-generic kayıttan çözümlenir.
+        // SCOPED (interface IScopedDependency ile tutarlı): WASM'da uygulama ömrü boyunca closed-generic
+        // başına TEK örnek → aynı entity'nin liste + edit (popup/sekme) + split paneli AYNI state'i paylaşır
+        // (seçim, yüklü sayfa, TotalCount/PageSkip tek kaynaktan koordineli). Transient olsaydı her [Inject]
+        // ayrı boş instance verirdi (popup gezinmesinin yetim kalma nedeni buydu).
+        context.Services.AddScoped(
             typeof(ICrudStateService<,>),
             typeof(DefaultCrudStateService<,>));
 

@@ -13,16 +13,14 @@
 
 @inherits Integration.Framework.Blazor.Client.Components.Crud.CrudEditComponentBase<CurrencyUnitGetDto, CurrencyUnitListDto, Guid, CurrencyUnitListRequestDto, CurrencyUnitCreateDto, CurrencyUnitUpdateDto>
 
-<CrudEditShell IsPopupMode="@IsPopupMode" EditContext="@EditContext"
-               OnSave="SaveAsync" OnSaveAndNew="SaveAndNewAsync" OnSaveAndClose="SaveAndCloseAsync"
-               OnDelete="DeleteRecordAsync" OnRefresh="LoadDataAsync"
-               CanSave="@IsDirty" CanDelete="@(!IsNewMode)">
+<CrudEditShell TGetDto="CurrencyUnitGetDto" TListDto="CurrencyUnitListDto" TKey="Guid"
+               IsPopupMode="@IsPopupMode" EditContext="@EditContext" EditController="@this">
     @RenderForm()
 </CrudEditShell>
 
 @code {
     private RenderFragment RenderForm() => @<text>
-<DxFormLayout Data="@EditModel" CssClass="w-100">
+<DxFormLayout CssClass="w-100">
 
     <DxFormLayoutTabPages>
         <DxFormLayoutTabPage Caption="@L["General"]">

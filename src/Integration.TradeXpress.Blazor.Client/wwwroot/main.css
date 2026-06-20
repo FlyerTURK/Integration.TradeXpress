@@ -73,6 +73,36 @@
     height: 16px;
 }
 
+/* XAF kalıbı (PrimaryToolbarItemsController): primary toolbar button'a xaf-primary-toolbar-btn class'ı.
+   Fluent tema disabled primary button ARKA PLANINI soluklaştırmıyor → arka plan rengini %50 saydam
+   primary yap (opacity DEĞİL — o yazı/ikonu da soluklaştırırdı; yazı net kalsın). */
+.xaf-primary-toolbar-btn:disabled,
+.xaf-primary-toolbar-btn.dxbl-disabled,
+.dxbl-toolbar .dxbl-btn-primary:disabled,
+.dxbl-toolbar .dxbl-btn-primary.dxbl-disabled {
+    /* Soluklaştırmayı yalnız ARKA PLANA uygula: temanın primary rengini %50 saydam yap.
+       Bootstrap temaları disabled'da butona opacity verip YAZIYI da soluklaştırıyor → opacity:1 ile
+       geri al (yazı orijinal primary text rengine döner; color'a dokunmuyoruz). Fluent etkilenmez. */
+    opacity: 1 !important;
+    background-color: color-mix(in srgb, var(--bs-primary) 50%, transparent) !important;
+    border-color: color-mix(in srgb, var(--bs-primary) 50%, transparent) !important;
+}
+
+/* Disabled toolbar ikon görünümü: Plain mode + RenderStyle None ile DevExpress artık disabled item'ın
+   ikonunu (XAF SVG img VE FontAwesome <i>) soluklaştırmıyor → hepsini %50 soluk göster (Sil/Prev/Next
+   = img; Undo/Redo/Reset = fa). Böylece disabled durumu ikon üzerinden net anlaşılır. */
+.dxbl-toolbar .dxbl-btn:disabled img,
+.dxbl-toolbar .dxbl-btn:disabled .fa,
+.dxbl-toolbar .dxbl-btn:disabled .fas,
+.dxbl-toolbar .dxbl-btn[disabled] img,
+.dxbl-toolbar .dxbl-btn[disabled] .fa,
+.dxbl-toolbar .dxbl-btn[disabled] .fas,
+.dxbl-toolbar-item .dxbl-disabled img,
+.dxbl-toolbar-item .dxbl-disabled .fa,
+.dxbl-toolbar-item .dxbl-disabled .fas {
+    opacity: 0.4 !important;
+}
+
 /* Toolbar drill action butonlari — renkli ikonlar (Bootstrap utility yok, custom renk). */
 .toolbar-action-branches {
     color: #2563eb !important;

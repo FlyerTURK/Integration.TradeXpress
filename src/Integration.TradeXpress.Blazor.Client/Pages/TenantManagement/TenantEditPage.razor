@@ -10,16 +10,14 @@
 
 @inherits CrudEditComponentBase<TenantGetDto, TenantListDto, Guid, TenantListRequestDto, TenantCreateDto, TenantUpdateDto>
 
-<CrudEditShell IsPopupMode="@IsPopupMode" EditContext="@EditContext"
-               OnSave="SaveAsync" OnSaveAndNew="SaveAndNewAsync" OnSaveAndClose="SaveAndCloseAsync"
-               OnDelete="DeleteRecordAsync" OnRefresh="LoadDataAsync"
-               CanSave="@IsDirty" CanDelete="@(!IsNewMode)">
+<CrudEditShell TGetDto="TenantGetDto" TListDto="TenantListDto" TKey="Guid"
+               IsPopupMode="@IsPopupMode" EditContext="@EditContext" EditController="@this">
     @RenderForm()
 </CrudEditShell>
 
 @code {
     private RenderFragment RenderForm() => @<text>
-<DxFormLayout Data="@EditModel" CssClass="w-100">
+<DxFormLayout CssClass="w-100">
     <DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="12">
         <DxTextBox @bind-Text="@EditModel.Name" @ref="_nameBox" />
     </DxFormLayoutItem>

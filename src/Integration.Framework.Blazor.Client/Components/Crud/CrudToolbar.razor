@@ -6,90 +6,72 @@
 @using DevExpress.Blazor
 @inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
 
-<DxToolbar ItemRenderStyleMode="ToolbarRenderStyleMode.Plain">
-    <!-- New Button -->
-    <DxToolbarItem Text="@L["New"]"
-                   IconUrl="/images/xaf/action_new.svg"
-                   IconCssClass="xaf-toolbar-item-icon"
-                   Click="@((ToolbarItemClickEventArgs e) => OnNewClick.InvokeAsync())"
-                   Visible="@StateService.IsGrantedCreate"
-                   BeginGroup="@(!IsMobile)" />
-
-    <!-- Delete Button -->
-    <DxToolbarItem Text="@L["Delete"]"
-                   IconUrl="/images/xaf/action_delete.svg"
-                   IconCssClass="xaf-toolbar-item-icon"
-                   Click="@((ToolbarItemClickEventArgs e) => OnDeleteClick.InvokeAsync())"
-                   Visible="@StateService.IsGrantedDelete"
-                   Enabled="@(StateService.SelectedDataItems != null && StateService.SelectedDataItems.Count > 0)" />
-
-    <!-- Sayfaya özel ek aksiyonlar (drill vb.) — arama kutusunun solunda -->
-    @if (CustomActions != null)
+@* Tek MERKEZİ toolbar (ERPPROV3 kalıbı) — Liste / Split / Edit üç bağlamı yönetir.
+   BuildActions() tüm stock + custom aksiyonları TEK descriptor listesinde toplar; SortedActions
+   Alignment + SortIndex'e göre sıralar; aşağıdaki tek foreach DxToolbar'a basar.
+   ÖNEMLİ: foreach içinde @@if/else ile FARKLI element üretmek (ya da <Template>/<Items>'ı @@if'e
+   sarmak) Blazor render-tree sequence'ini bozup DevExpress item sırasını karıştırır → HER item için
+   TEK DxToolbarItem; Template ve Items RenderFragment ATTRIBUTE olarak (null olabilir) verilir.
+   Böylece sıra yalnız SortIndex'ten gelir. *@
+<DxToolbar ItemRenderStyleMode="@RenderMode"
+           AdaptivityAutoCollapseItemsToIcons="true"
+           AdaptivityAutoHideRootItems="true">
+    @foreach (var a in SortedActions)
     {
-        <DxToolbarItem BeginGroup="@(!IsMobile)">
-            <Template>
-                @CustomActions
-            </Template>
-        </DxToolbarItem>
-    }
-
-    <!-- Arama kutusu (masaüstü) — mobilde gizli -->
-    <DxToolbarItem BeginGroup="@(!IsMobile)" Visible="@(!IsMobile)">
-        <Template Context="searchContext">
-            <DxTextBox Text="@_localSearchText"
-                       TextChanged="OnLocalTextChanged"
-                       NullText="@L["Search"]"
-                       ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto"
-                       CssClass="grid-search-box">
-                <Buttons>
-                    <DxEditorButton IconCssClass="xaf-search-icon" Tooltip="@L["Search"]" Click="OnSearchButtonClick" />
-                </Buttons>
-            </DxTextBox>
-        </Template>
-    </DxToolbarItem>
-
-    <!-- Sade arama ikonu (mobil) — masaüstünde gizli. Tıklayınca DxGrid'in gömülü arama kutusunu açar. -->
-    <DxToolbarItem BeginGroup="@(!IsMobile)"
-                   Visible="@IsMobile"
-                   IconUrl="/images/xaf/action_search.svg"
-                   IconCssClass="xaf-toolbar-item-icon"
-                   Tooltip="@L["Search"]"
-                   Click="@((ToolbarItemClickEventArgs e) => OnToggleGridSearch.InvokeAsync())" />
-
-    <!-- Export & Print -->
-    <DxToolbarItem Tooltip="@L["Export"]" IconUrl="/images/xaf/action_export.svg" IconCssClass="xaf-toolbar-item-icon" BeginGroup="@(!IsMobile)">
-        <Items>
-            <DxToolbarItem Text="@L["ExportToExcel"]" IconUrl="/images/xaf/action_export_toxlsx.svg" IconCssClass="xaf-toolbar-item-icon" Click="@((ToolbarItemClickEventArgs e) => OnExportToExcelClick.InvokeAsync())" />
-            <DxToolbarItem Text="@L["PrintPdf"]" IconUrl="/images/xaf/action_export_topdf.svg" IconCssClass="xaf-toolbar-item-icon" Click="@((ToolbarItemClickEventArgs e) => OnPrintPdfClick.InvokeAsync())" />
-        </Items>
-    </DxToolbarItem>
-
-    <!-- Refresh Button -->
-    <DxToolbarItem Tooltip="@L["Refresh"]"
-                   IconUrl="/images/xaf/action_refresh.svg"
-                   IconCssClass="xaf-toolbar-item-icon"
-                   Click="@((ToolbarItemClickEventArgs e) => OnRefreshClick.InvokeAsync())"
-                   BeginGroup="@(!IsMobile)" />
-
-    @* IsActive Filter Switch — sağa yaslı. EN SONDA tanımlanmalı: Alignment=Right bir item ortada
-       olunca DevExpress ondan sonraki item'ları da sağa kaydırıyor. Yalnız TListDto : IIsActive ise. *@
-    @if (ShowActiveFilter)
-    {
-        <DxToolbarItem Alignment="ToolbarItemAlignment.Right" BeginGroup="true">
-            <Template>
-                <div style="display:flex; align-items:center; gap:0.4rem; padding:0 0.25rem; white-space:nowrap;">
-                    <DxCheckBox Checked="ActiveSwitchValue"
-                                CheckedChanged="@((bool v) => OnActiveSwitchChanged(v))"
-                                CheckType="CheckType.Switch" />
-                    @* Etiket duruma göre: ON → Aktif, OFF → Pasif. Mobilde yer dar olduğundan gizlenir. *@
-                    @if (!IsMobile)
-                    {
-                        <span>@(ActiveSwitchValue ? L["ActiveRecords"] : L["PassiveRecords"])</span>
-                    }
-                </div>
-            </Template>
-        </DxToolbarItem>
+        <DxToolbarItem Text="@a.Text" AdaptiveText="@a.AdaptiveText" Tooltip="@a.Tooltip"
+                       IconUrl="@a.IconUrl" IconCssClass="@a.IconCssClass"
+                       BeginGroup="@a.BeginGroup" Alignment="@a.Alignment"
+                       RenderStyle="@(a.Primary ? ButtonRenderStyle.Primary : ButtonRenderStyle.None)"
+                       CssClass="@(a.Primary ? "xaf-primary-toolbar-btn" : null)"
+                       SplitDropDownButton="@a.SplitDropDownButton"
+                       Enabled="@a.Enabled"
+                       Template="@a.Template"
+                       Items="@SubItems(a)"
+                       Click="@((ToolbarItemClickEventArgs e) => InvokeAction(a))" />
     }
 </DxToolbar>
 
+@code {
+    private Task InvokeAction(CrudToolbarAction a) => a.OnClick?.Invoke() ?? Task.CompletedTask;
 
+    // Alt menü item'ları (Export → Excel/PDF, Kaydet&Yeni → Kaydet&Kapat) — RenderFragment attribute, null=yok.
+    private RenderFragment? SubItems(CrudToolbarAction a)
+    {
+        if (a.Items == null || a.Items.Count == 0) return null;
+        return @<text>
+            @foreach (var sub in a.Items)
+            {
+                <DxToolbarItem Text="@sub.Text" Tooltip="@sub.Tooltip"
+                               IconUrl="@sub.IconUrl" IconCssClass="@sub.IconCssClass"
+                               Enabled="@sub.Enabled"
+                               Click="@((ToolbarItemClickEventArgs e) => InvokeAction(sub))" />
+            }
+        </text>;
+    }
+
+    // Arama kutusu (masaüstü) — SortIndex=400 descriptor'ının Template'i (tipli; context kullanılmaz).
+    private RenderFragment<IToolbarItemInfo> SearchBoxTemplate => context => @<text>
+        <DxTextBox Text="@_localSearchText"
+                   TextChanged="OnLocalTextChanged"
+                   NullText="@L["Search"]"
+                   ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto"
+                   CssClass="grid-search-box">
+            <Buttons>
+                <DxEditorButton IconCssClass="xaf-search-icon" Tooltip="@L["Search"]" Click="OnSearchButtonClick" />
+            </Buttons>
+        </DxTextBox>
+    </text>;
+
+    // IsActive switch (Right, SortIndex=1000) — descriptor'ının Template'i (tipli; context kullanılmaz).
+    private RenderFragment<IToolbarItemInfo> ActiveFilterTemplate => context => @<text>
+        <div style="display:flex; align-items:center; gap:0.4rem; padding:0 0.25rem; white-space:nowrap;">
+            <DxCheckBox Checked="ActiveSwitchValue"
+                        CheckedChanged="@((bool v) => OnActiveSwitchChanged(v))"
+                        CheckType="CheckType.Switch" />
+            @if (!IsMobile)
+            {
+                <span>@(ActiveSwitchValue ? L["ActiveRecords"] : L["PassiveRecords"])</span>
+            }
+        </div>
+    </text>;
+}

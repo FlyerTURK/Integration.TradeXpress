@@ -22,20 +22,8 @@
             OnDeleteClick="DeleteAsync"
             OnRefreshClick="GetListAsync"
             OnSearchChanged="OnSearchAsync"
+            CustomActions="@MarginActions"
             AllowColumnReordering="true">
-
-    <ToolbarActions>
-        @{
-            var selectedItem = StateService.SelectedDataItems?.Count == 1
-                ? StateService.SelectedDataItems[0] as CurrencyUnitListDto
-                : null;
-        }
-        <DxButton Text="@L["SetMargin"]"
-                  RenderStyle="ButtonRenderStyle.Secondary"
-                  IconCssClass="@TradeXpressIcons.CurrencyMargin"
-                  Enabled="@(selectedItem != null)"
-                  Click="@(async () => { if (selectedItem != null) await MarginDialog!.ShowAsync(selectedItem.Id, selectedItem.Code, selectedItem.Name); })" />
-    </ToolbarActions>
 
     <GridColumns>
         <DxGridDataColumn FieldName="Code" Caption="@L["Code"]" Width="90px" />

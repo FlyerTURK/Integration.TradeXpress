@@ -8,7 +8,7 @@ using Integration.Framework.Blazor.Client.Services.Base;
 
 namespace Integration.Framework.Blazor.Client.Components.Crud
 {
-    public partial class CrudLayout<TGetDto, TListDto, TKey> : IDisposable
+    public partial class CrudLayout<TGetDto, TListDto, TKey> : IDisposable, ISplitGridActions
     {
         [Parameter(CaptureUnmatchedValues = true)] public Dictionary<string, object>? GridAttributes { get; set; }
 
@@ -16,10 +16,19 @@ namespace Integration.Framework.Blazor.Client.Components.Crud
 
         [Parameter, EditorRequired] public ICrudStateService<TListDto, TKey> StateService { get; set; } = default!;
 
+        /// <summary>SplitCrudView birleşik toolbar host'u; doluysa yerel CrudToolbar çizilmez.</summary>
+        [CascadingParameter] public ISplitHost? SplitHost { get; set; }
+
         [Inject] protected IUiStateService? UiStateService { get; set; }
 
         /// <summary>Server-side grid veri kaynağı (CrudPageBase.GridDataSource). Verilirse DxGrid server-mode'a geçer.</summary>
         [Parameter] public object? DataSource { get; set; }
+
+        /// <summary>Kolon filtre satırını (FilterRow) gösterir. Varsayılan açık. Server tarafı kolon filtresini
+        /// (ApplyListRequest → request.Filters) İŞLEYEN sayfalarda açık bırakılır. ApplyListRequest kullanmayan,
+        /// sabit/in-memory sıralayan ve input.Filters'ı yok sayan servislerin sayfaları (ör. CurrencyUnitMargin)
+        /// bunu <c>false</c> geçmeli — aksi halde kullanıcı filtreler ama sonuç değişmez (yanıltıcı).</summary>
+        [Parameter] public bool ShowColumnFilter { get; set; } = true;
 
         /// <summary>Arama kutusu metni değişince sayfaya bildirir (server-side filtre).</summary>
         [Parameter] public EventCallback<string> OnSearchChanged { get; set; }
@@ -49,8 +58,8 @@ namespace Integration.Framework.Blazor.Client.Components.Crud
         /// <summary>Üst entity gösterim metni seçici (genelde parent Code).</summary>
         [Parameter] public Func<TGetDto, string?>? ParentTextSelector { get; set; }
 
-        /// <summary>Toolbar'a sayfaya özel ek aksiyonlar (ör. "Şubeler" drill action'ı).</summary>
-        [Parameter] public RenderFragment? ToolbarActions { get; set; }
+        /// <summary>Toolbar'a sayfaya özel ek aksiyonlar (descriptor liste, SortIndex'li — ör. "Marj Ayarla", "Şubeler").</summary>
+        [Parameter] public IReadOnlyList<CrudToolbarAction>? CustomActions { get; set; }
 
         // "Yeni" tıklaması — sayfanın popup/tab akışını çağırır.
         private async Task HandleNewClick()
@@ -78,19 +87,189 @@ namespace Integration.Framework.Blazor.Client.Components.Crud
         private static readonly bool IsActiveFilterable =
             typeof(Integration.Framework.Base.Dtos.Interfaces.IIsActive).IsAssignableFrom(typeof(TListDto));
 
+        // Fetched aboneliği için referans (Dispose'da çözmek için tutulur).
+        private GridListDataSource<TListDto>? _gridSource;
+
         protected override void OnInitialized()
         {
             StateService.OnReloadRequested += ReloadGrid;
+            StateService.OnFocusItemRequested += FocusGridItemAsync;   // popup komşu kayda gezinince grid'i o kayda götür
+            SplitHost?.RegisterGrid(this);   // birleşik toolbar arama/filtre/export'u buradan alır
+        }
 
-            // Varsayılan: yalnız IIsActive grid'lerde ilk yükleme "Aktif" kayıtları gösterir
-            // (switch varsayılan ON ile tutarlı). İlk fetch'ten ÖNCE set edildiği için reload gerekmez.
-            if (IsActiveFilterable)
+        // Popup/standalone edit komşu kayda gezinince grid'i o kaydın SAYFASINA götürüp odakla. DevExpress
+        // SetFocusedDataItemAsync(item): item başka sayfadaysa grid OTOMATİK o sayfaya gider + satırı odaklar
+        // (manuel PageIndex/pageSize hesabı yok → popup arkasındaki liste grid için de güvenilir). Odak →
+        // OnGridFocusedRowChanged → seçim senkronu. item server'dan kesin çekilmiş dto (KeyFieldName=Id ile eşleşir).
+        private async System.Threading.Tasks.Task FocusGridItemAsync(TListDto item)
+        {
+            if (Grid == null) return;
+            await Grid.SetFocusedDataItemAsync(item);   // odak + otomatik doğru sayfa
+            // Selection (checkbox) açıkça senkronla: FocusedRow ile SelectionColumn DevExpress'te AYRI; programatik
+            // odakta OnGridFocusedRowChanged seçimi her zaman güvenilir yansıtmıyor. Grid'in GERÇEK focused item'i
+            // (data source instance'ı) ile SelectedDataItems'ı set et → @bind checkbox'ı işaretler.
+            if (Grid.GetFocusedDataItem() is TListDto focused)
+                StateService.SelectedDataItems = new List<TListDto> { focused };
+        }
+
+        // DataSource [Parameter] OnInitialized'da henüz null olabilir (parent grid kaynağını sonra bağlar) →
+        // Fetched aboneliği ve IsActive ilk-filtresi DataSource dolunca (bir kez) kurulur. Aksi halde grid
+        // fetch'i state'e hiç yansımıyor (TotalCount=0 → tüm Prev/Next pasif).
+        protected override void OnParametersSet()
+        {
+            if (_gridSource == null && DataSource is GridListDataSource<TListDto> ds)
             {
-                _activeFilter = true;
-                if (DataSource is GridListDataSource<TListDto> source)
-                    source.ActiveFilter = true;
+                _gridSource = ds;
+                ds.Fetched += SyncStateFromGrid;            // her fetch'te global state + yüklü sayfa StateService'e
+                StateService.FetchSingleByIndex = ds.FetchSingleAsync;   // popup sayfa-aşırı komşu kaydı buradan çeker
+
+                // IIsActive grid'lerde ilk yükleme "Aktif" kayıtlar (switch varsayılan ON). İlk fetch'ten önce.
+                if (IsActiveFilterable)
+                {
+                    _activeFilter = true;
+                    ds.ActiveFilter = true;
+                }
+                SyncStateFromGrid();   // abone geç kaldıysa olmuş ilk fetch'i de yakala
             }
         }
+
+        // Grid her fetch ettiğinde (Fetched) merkezi StateService'i tazele: yüklü sayfa + sayfa-aşırı durumu.
+        // (Grid fetch'i CrudLayout'u re-render etmediğinden eski OnAfterRender senkronu güvenilmezdi.)
+        private void SyncStateFromGrid()
+        {
+            if (_gridSource is not { } ds) return;
+            var req = ds.LastRequest;
+            InvokeAsync(async () =>
+            {
+                StateService.ListDataSource = new List<TListDto>(ds.CurrentItems);
+                StateService.TotalCount     = ds.TotalCount;
+                if (req != null)
+                {
+                    StateService.PageSkip       = req.SkipCount;
+                    StateService.PageSize       = req.MaxResultCount;
+                    StateService.Sorts          = req.Sorts;
+                    StateService.Filter         = req.Filter;
+                    StateService.IsActiveFilter = req.IsActive;
+                }
+
+                // Düz liste sayfası: fetch sonrası mevcut seçili kayıt yeni yüklü sayfada hâlâ varsa korunur
+                // (örn. popup sayfa-aşırı o kaydı seçtiyse); yoksa İLK kayıt görsel odaklanır (FocusDataItemAsync →
+                // FocusedRowChanged → OnGridFocusedRowChanged → SelectedDataItems+SelectedItem), sayfa boşsa seçim
+                // temizlenir. Böylece sayfa değişince eski sayfanın kaydı Sil'e açık kalmaz. Split kendi grid
+                // focus'unu yönettiği için (SplitHost!=null) buraya girmez.
+                if (SplitHost == null)
+                {
+                    var current = StateService.SelectedItem;
+                    var stillThere = false;
+                    if (current != null)
+                        foreach (var it in ds.CurrentItems)
+                            if (Equals(it.Id, current.Id)) { stillThere = true; break; }
+                    if (!stillThere)
+                    {
+                        if (ds.CurrentItems.Count > 0)
+                            await ((ISplitGridActions)this).FocusDataItemAsync(ds.CurrentItems[0].Id);
+                        else
+                            StateService.SetDataRowSelected(null!);
+                    }
+                }
+
+                StateHasChanged();
+            });
+        }
+
+        // ── ISplitGridActions (SplitCrudView birleşik toolbar) — mevcut yerel mantığa delege ──
+        Task ISplitGridActions.SearchAsync(string text)          => OnToolbarSearch(text);
+        bool ISplitGridActions.ActiveFilterSupported             => IsActiveFilterable;
+        bool? ISplitGridActions.ActiveFilter                     => _activeFilter;
+        Task ISplitGridActions.SetActiveFilterAsync(bool? value) => OnActiveFilterChanged(value);
+        Task ISplitGridActions.ExportExcelAsync()                => ExportToExcel();
+        Task ISplitGridActions.ExportPdfAsync()                  => PrintGrid();
+        IReadOnlyList<CrudToolbarAction>? ISplitGridActions.CustomActions => CustomActions;
+        // Split modda CrudToolbar grid'in DIŞINDA → otomatik re-render olmaz; explicit tetikle
+        // ki DxGrid.ShowSearchBox güncellensin (gömülü arama kutusu görünür/gizlenir).
+        Task ISplitGridActions.ToggleGridSearchAsync()           { ToggleGridSearch(); return InvokeAsync(StateHasChanged); }
+
+        // DxGrid'in aktif sayfası (programatik sayfa-aşırı geçiş için two-way bind).
+        private int _gridPageIndex;
+        private int _gridPageSize = 20;   // grid'in GERÇEK sayfa boyutu (@bind-PageSize ile selector'a senkron)
+
+        // Sayfa-aşırı: global index'in sayfasını grid'e yükle (PageIndex değiştir → fetch) + satır yüklenmesini
+        // bekle → o satırın Id'sini döndür. SplitCrudView komşu kayıt yüklü sayfa dışındaysa çağırır.
+        // ÜST SINIR clamp: globalIndex >= TotalCount ise out-of-range fetch (skip>=total → 0 kayıt, cache zehri)
+        // doğmasın diye çağrılmaz. pageSize grid'in gerçek boyutundan (_gridPageSize) okunur → desync olmaz.
+        async Task<object?> ISplitGridActions.EnsurePageForGlobalIndexAsync(int globalIndex)
+        {
+            if (Grid == null || globalIndex < 0 || globalIndex >= ((ISplitGridActions)this).TotalCount) return null;
+            var pageSize   = _gridPageSize > 0 ? _gridPageSize : 20;
+            var targetPage = globalIndex / pageSize;
+            var rowInPage  = globalIndex % pageSize;
+
+            if (_gridPageIndex != targetPage)
+            {
+                _gridPageIndex = targetPage;
+                await InvokeAsync(StateHasChanged);   // grid PageIndex değişir → yeni sayfa fetch'i tetiklenir
+            }
+            await Grid.WaitForRemoteSourceRowLoadAsync(rowInPage);   // o satırın server'dan yüklenmesini bekle
+            return Grid.GetDataItem(rowInPage) is TListDto item ? (object?)item.Id : null;
+        }
+
+        // Previous/Next ya da seçili kayıt → grid'de o satırı odakla + görünür yap (gerekirse scroll/sayfa).
+        async Task ISplitGridActions.FocusDataItemAsync(object? id)
+        {
+            if (id == null || Grid == null) return;
+            if (DataSource is GridListDataSource<TListDto> ds)
+            {
+                foreach (var item in ds.CurrentItems)
+                {
+                    if (Equals(item.Id, id))
+                    {
+                        // SetFocusedDataItemAsync → FocusedRowChanged → selection senkronu (tek kaynak).
+                        await Grid.SetFocusedDataItemAsync(item);   // odak + scroll/sayfa + seçim
+                        return;
+                    }
+                }
+            }
+        }
+
+        // Grid odağı (focus) değişince o satırı SEÇİLİ yap → focus+selection görsel tutarlılığı (split + düz liste).
+        // İlk yüklemede / sayfa değişiminde DevExpress ilk satırı otomatik focus eder; bu kanca onu selection'a
+        // (SelectedDataItems → SelectedItem) yansıtır → tek kaynak. Previous/Next (FocusDataItemAsync) ve tıklama
+        // da buradan senkron. Popup sayfa-aşırı gezinmede grid'i hedefe taşıdıktan sonra FocusDataItemAsync(target)
+        // ile odak hedefe gider → bu kanca seçimi de hedefe yazar (son söz). Tüm modlarda çalışır.
+        private void OnGridFocusedRowChanged(GridFocusedRowChangedEventArgs e)
+        {
+            // Idempotent: odak zaten seçili kayıttaysa no-op → geç gelen FocusedRowChanged'in (sayfa/satır
+            // değişiminde) seçimi başka kayda ezmesini önler (çok-yazarlı focus/selection yarışı kesilir).
+            if (StateService.SelectedItem != null && e.DataItem is TListDto fi && Equals(fi.Id, StateService.SelectedItem.Id))
+                return;
+            StateService.SelectedDataItems = e.DataItem is TListDto item
+                ? new List<TListDto> { item }
+                : new List<TListDto>();
+        }
+
+        // Grid'in o an yüklü (görünür sayfa) satır anahtarları (Previous/Next gezinme).
+        // GridListDataSource son fetch'in kayıtlarını tutar → Id listesi.
+        System.Collections.Generic.IReadOnlyList<object> ISplitGridActions.GridVisibleKeys
+        {
+            get
+            {
+                if (DataSource is GridListDataSource<TListDto> ds)
+                {
+                    var list = new List<object>(ds.CurrentItems.Count);
+                    foreach (var item in ds.CurrentItems)
+                        if (item.Id != null) list.Add(item.Id);
+                    return list;
+                }
+                return System.Array.Empty<object>();
+            }
+        }
+
+        // ── Sayfa-aşırı sınır bilgisi ANLIK (GridVisibleKeys gibi; SyncState/Fetched timing'ine bağlı değil) ──
+        long ISplitGridActions.TotalCount
+            => DataSource is GridListDataSource<TListDto> d ? d.TotalCount : 0;
+
+        int ISplitGridActions.PageSkip
+            => DataSource is GridListDataSource<TListDto> d ? (d.LastRequest?.SkipCount ?? 0) : 0;
 
         // Sayfa RequestReload çağırınca grid sunucudan taze sayfayı çeker.
         private void ReloadGrid() => InvokeAsync(() =>
@@ -119,9 +298,13 @@ namespace Integration.Framework.Blazor.Client.Components.Crud
 
         public void Dispose()
         {
+            SplitHost?.UnregisterGrid(this);
+            if (_gridSource != null)
+                _gridSource.Fetched -= SyncStateFromGrid;
             if (StateService != null)
             {
                 StateService.OnReloadRequested -= ReloadGrid;
+                StateService.OnFocusItemRequested -= FocusGridItemAsync;
             }
         }
 
@@ -135,7 +318,8 @@ namespace Integration.Framework.Blazor.Client.Components.Crud
             var item = (TListDto)Grid.GetDataItem(e.VisibleIndex);
             if (item != null)
             {
-                await HandleRowEdit(item);
+                await Grid.SetFocusedDataItemAsync(item);   // tıklanan satırı odakla → OnGridFocusedRowChanged seçimi senkronlar
+                await HandleRowEdit(item);                  // popup/edit açan (BeforeUpdate)
             }
         }
 

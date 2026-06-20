@@ -11,16 +11,14 @@
 
 @inherits CrudEditComponentBase<VaultGetDto, VaultListDto, Guid, VaultListRequestDto, VaultCreateDto, VaultUpdateDto>
 
-<CrudEditShell IsPopupMode="@IsPopupMode" EditContext="@EditContext"
-               OnSave="SaveAsync" OnSaveAndNew="SaveAndNewAsync" OnSaveAndClose="SaveAndCloseAsync"
-               OnDelete="DeleteRecordAsync" OnRefresh="LoadDataAsync"
-               CanSave="@IsDirty" CanDelete="@(!IsNewMode)">
+<CrudEditShell TGetDto="VaultGetDto" TListDto="VaultListDto" TKey="Guid"
+               IsPopupMode="@IsPopupMode" EditContext="@EditContext" EditController="@this">
     @RenderForm()
 </CrudEditShell>
 
 @code {
     private RenderFragment RenderForm() => @<text>
-<DxFormLayout Data="@EditModel" CssClass="w-100">
+<DxFormLayout CssClass="w-100">
     <DxFormLayoutGroup Caption="@L["General"]" ColSpanMd="12">
         @* 1. Kod — yarım satır (yalnız) *@
         <DxFormLayoutItem Caption="@($"{L["Code"]} *")" ColSpanMd="6">

@@ -13,10 +13,8 @@
 
 @inherits CrudEditComponentBase<UserGetDto, UserListDto, Guid, UserListRequestDto, CreateIdentityUserInput, UpdateIdentityUserInput>
 
-<CrudEditShell IsPopupMode="@IsPopupMode" EditContext="@EditContext"
-               OnSave="SaveAsync" OnSaveAndNew="SaveAndNewAsync" OnSaveAndClose="SaveAndCloseAsync"
-               OnDelete="DeleteRecordAsync" OnRefresh="LoadDataAsync"
-               CanSave="@IsDirty" CanDelete="@(!IsNewMode)">
+<CrudEditShell TGetDto="UserGetDto" TListDto="UserListDto" TKey="Guid"
+               IsPopupMode="@IsPopupMode" EditContext="@EditContext" EditController="@this">
     @RenderForm()
 </CrudEditShell>
 
@@ -25,7 +23,7 @@
     private PermissionEditorPanel? PermissionEditor { get; set; }
 
     private RenderFragment RenderForm() => @<text>
-<DxFormLayout Data="@EditModel" CssClass="w-100">
+<DxFormLayout CssClass="w-100">
     @* Kullanıcı adı — anahtar alan: yalnız, yarım satır (yeni kayıtta düzenlenebilir). *@
     <DxFormLayoutItem Caption="@($"{L["UserName"]} *")" ColSpanMd="6">
         <DxTextBox @bind-Text="EditModel.UserName" BindValueMode="BindValueMode.OnInput" Enabled="@IsNewMode" />

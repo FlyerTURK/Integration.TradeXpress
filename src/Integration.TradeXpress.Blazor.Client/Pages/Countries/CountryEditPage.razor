@@ -10,16 +10,14 @@
 
 @inherits CrudEditComponentBase<CountryGetDto, CountryListDto, Guid, CountryListRequestDto, CountryCreateDto, CountryUpdateDto>
 
-<CrudEditShell IsPopupMode="@IsPopupMode" EditContext="@EditContext"
-               OnSave="SaveAsync" OnSaveAndNew="SaveAndNewAsync" OnSaveAndClose="SaveAndCloseAsync"
-               OnDelete="DeleteRecordAsync" OnRefresh="LoadDataAsync"
-               CanSave="@IsDirty" CanDelete="@(!IsNewMode)">
+<CrudEditShell TGetDto="CountryGetDto" TListDto="CountryListDto" TKey="Guid"
+               IsPopupMode="@IsPopupMode" EditContext="@EditContext" EditController="@this">
     @RenderForm()
 </CrudEditShell>
 
 @code {
     private RenderFragment RenderForm() => @<text>
-<DxFormLayout Data="@EditModel" CssClass="w-100">
+<DxFormLayout CssClass="w-100">
     @* 1. Kod — yarım satır (yalnız) *@
     <DxFormLayoutItem Caption="@($"{L["Code"]} *")" ColSpanMd="6">
         <DxTextBox @bind-Text="@EditModel.Code" @ref="_codeBox" NullText="TR / US ..."

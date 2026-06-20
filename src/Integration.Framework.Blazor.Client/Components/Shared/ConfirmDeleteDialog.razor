@@ -23,21 +23,25 @@
     <BodyTextTemplate>
         <div style="display:flex; align-items:flex-start; gap:0.75rem; padding:1rem;">
             <i class="fas fa-exclamation-triangle fa-2x" style="color:#ffc107; flex:0 0 auto;"></i>
-            <p style="margin:0; font-weight:600; font-size:1.05rem; color:#212529;">@UiService.DialogMessage</p>
+            <p style="margin:0; font-weight:600; font-size:1.05rem;">@UiService.DialogMessage</p>
         </div>
     </BodyTextTemplate>
     <FooterTemplate>
-        <div style="display:flex; flex-wrap:wrap; justify-content:flex-end; gap:0.5rem; width:100%; padding:0.5rem 0.75rem; border-top:1px solid #dee2e6;">
-            <DxButton Text="@L["Yes"]"
-                      RenderStyle="ButtonRenderStyle.Secondary"
+        <div style="display:flex; flex-wrap:wrap; justify-content:flex-end; gap:0.5rem; width:100%; padding:0.5rem 0.75rem; border-top:1px solid var(--bs-border-color, #dee2e6);">
+            <DxButton Text="@(UiService.DialogYesText ?? L["Yes"])"
+                      RenderStyle="@(UiService.DialogDefaultYes ? ButtonRenderStyle.Primary : ButtonRenderStyle.Secondary)"
+                      FocusOnInit="@UiService.DialogDefaultYes"
                       Click="@(() => UiService.CloseDialog(ConfirmDialogResult.Yes))" />
-            <DxButton Text="@L["No"]"
-                      RenderStyle="ButtonRenderStyle.Primary"
-                      FocusOnInit="true"
+            <DxButton Text="@(UiService.DialogNoText ?? L["No"])"
+                      RenderStyle="@(UiService.DialogDefaultYes ? ButtonRenderStyle.Secondary : ButtonRenderStyle.Primary)"
+                      FocusOnInit="@(!UiService.DialogDefaultYes)"
                       Click="@(() => UiService.CloseDialog(ConfirmDialogResult.No))" />
-            <DxButton Text="@L["Cancel"]"
-                      RenderStyle="ButtonRenderStyle.Secondary"
-                      Click="@(() => UiService.CloseDialog(ConfirmDialogResult.Cancel))" />
+            @if (UiService.DialogShowCancel)
+            {
+                <DxButton Text="@L["Cancel"]"
+                          RenderStyle="ButtonRenderStyle.Secondary"
+                          Click="@(() => UiService.CloseDialog(ConfirmDialogResult.Cancel))" />
+            }
         </div>
     </FooterTemplate>
 </DxWindow>

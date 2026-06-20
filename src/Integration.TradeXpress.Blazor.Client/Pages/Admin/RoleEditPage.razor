@@ -13,18 +13,19 @@
 
 @inherits CrudEditComponentBase<RoleGetDto, RoleListDto, Guid, RoleListRequestDto, CreateIdentityRoleInput, UpdateIdentityRoleInput>
 
-<CrudEditShell IsPopupMode="@IsPopupMode" EditContext="@EditContext"
-               OnSave="SaveAsync" OnSaveAndNew="SaveAndNewAsync" OnSaveAndClose="SaveAndCloseAsync"
-               OnDelete="DeleteRecordAsync" OnRefresh="LoadDataAsync"
-               CanSave="@IsDirty" CanDelete="@(!IsNewMode && !EditModel.IsStatic)">
+<CrudEditShell TGetDto="RoleGetDto" TListDto="RoleListDto" TKey="Guid"
+               IsPopupMode="@IsPopupMode" EditContext="@EditContext" EditController="@this">
     @RenderForm()
 </CrudEditShell>
 
 @code {
     private PermissionEditorPanel? PermissionEditor { get; set; }
 
+    // Static (sistem) rol silinemez — merkezi toolbar Sil butonu bu kurala göre pasifleşir.
+    protected override bool CanDeleteRecord => !IsNewMode && !EditModel.IsStatic;
+
     private RenderFragment RenderForm() => @<text>
-<DxFormLayout Data="@EditModel" CssClass="w-100">
+<DxFormLayout CssClass="w-100">
     @* Rol adı — anahtar alan: yalnız, yarım satır (statik rol adı değiştirilemez). *@
     <DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="6">
         <DxTextBox @bind-Text="EditModel.Name" BindValueMode="BindValueMode.OnInput" Enabled="@(!EditModel.IsStatic)" />

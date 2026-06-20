@@ -1,0 +1,16 @@
+@page "/countries-split"
+@using Integration.Framework.Blazor.Client.Components.Crud
+@using Integration.TradeXpress.Blazor.Client.Pages.Countries.Models
+@using Integration.TradeXpress.Countries
+
+@* Faz 4 — Ülkeler: List+Detail yan-yana (SplitCrudView). *@
+
+<SplitCrudView TGetDto="CountryGetDto"
+               TListDto="CountryListDto"
+               TKey="Guid"
+               EditType="typeof(CountryEditPage)"
+               EmptyIconCssClass="@TradeXpressIcons.Country">
+    <ListContent>
+        <CountryListPage />
+    </ListContent>
+</SplitCrudView>

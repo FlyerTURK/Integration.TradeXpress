@@ -7,6 +7,7 @@
 @inject ICurrentUser CurrentUser
 @inject ICurrentTenant CurrentTenant
 @inject NavigationManager Navigation
+@inject IJSRuntime Js
 @inject IStringLocalizer<Integration.TradeXpress.Localization.TradeXpressResource> L
 
 @*
@@ -75,10 +76,20 @@
 
     private void Toggle() => _isOpen = !_isOpen;
 
-    private void OnLogout()
+    private async Task OnLogout()
     {
         _isOpen = false;
-        Navigation.NavigateTo("/api/account/logout?returnUrl=/account/login", forceLoad: true);
+        // /api/account/logout bir REST endpoint'tir (204 döner, redirect ETMEZ). Sayfa olarak
+        // gidersek boş ekranda kalırız. Login ile simetrik: same-origin fetch ile cookie'yi
+        // temizle, SONRA login'e forceLoad ile git (WASM baştan yüklenir → auth state sıfırlanır).
+        try
+        {
+            await Js.InvokeVoidAsync("fetch", "/api/account/logout",
+                new { method = "GET", credentials = "include" });
+        }
+        catch { /* ağ hatası olsa bile login'e yönlendir */ }
+
+        Navigation.NavigateTo("/account/login", forceLoad: true);
     }
 
     private static string BuildInitials(string? fullName, string userName)

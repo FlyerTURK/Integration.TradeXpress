@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Integration.Framework.Base.Dtos.Interfaces;
+using Integration.Framework.Base.Querying;
 using Integration.Framework.Blazor.Client.Components.Crud;
 
 namespace Integration.Framework.Blazor.Client.Services.Base;
@@ -14,8 +15,11 @@ public abstract class CrudStateServiceBase<TListDto, TKey> : ICrudStateService<T
 {
     public event Action? OnStateChanged;
     public event Action? OnReloadRequested;
+    public event Func<TListDto, System.Threading.Tasks.Task>? OnFocusItemRequested;
 
     public void RequestReload() => OnReloadRequested?.Invoke();
+    public System.Threading.Tasks.Task FocusGridItemAsync(TListDto item)
+        => OnFocusItemRequested?.Invoke(item) ?? System.Threading.Tasks.Task.CompletedTask;
 
     // #1 (tutarsız bildirim fix): tüm UI-state mutasyonu guarded Set'ten geçer → değişiklikte
     // tek tip otomatik notify; değer aynıysa no-op (gereksiz render yok). "Notify'ı unutma" sınıfı kalktı.
@@ -62,8 +66,60 @@ public abstract class CrudStateServiceBase<TListDto, TKey> : ICrudStateService<T
     private bool _isGrantedDelete;
     public bool IsGrantedDelete { get => _isGrantedDelete; set => Set(ref _isGrantedDelete, value); }
 
-    public bool CanGoNext => ListDataSource != null && SelectedItem != null && ListDataSource.IndexOf(SelectedItem) < ListDataSource.Count - 1;
-    public bool CanGoPrevious => ListDataSource != null && SelectedItem != null && ListDataSource.IndexOf(SelectedItem) > 0;
+    // Geçerli kaydın anahtarı (TKey constraint'siz → boxing ile object?'e çevir).
+    private object? CurrentKey => SelectedItem is { } s ? s.Id : (object?)null;
+
+    // Liste Id'leri (RecordNavigation object anahtar bekler). Id-bazlı arama → ListDataSource kopya
+    // olsa bile (referans eşitliği yerine Id) doğru çalışır.
+    private IReadOnlyList<object> KeyList()
+    {
+        var keys = new List<object>(ListDataSource?.Count ?? 0);
+        if (ListDataSource != null)
+            foreach (var item in ListDataSource)
+            {
+                if (item == null) continue;
+                object? key = item.Id;
+                if (key != null) keys.Add(key);
+            }
+        return keys;
+    }
+
+    public bool CanGoNext     => RecordNavigation.CanGoNext(KeyList(), CurrentKey);
+    public bool CanGoPrevious => RecordNavigation.CanGoPrevious(KeyList(), CurrentKey);
+
+    // ── Sayfa-aşırı gezinme durumu (grid fetch'te CrudLayout yazar) ──
+    private long _totalCount;
+    public long TotalCount { get => _totalCount; set => Set(ref _totalCount, value); }
+
+    private int _pageSize = 20;
+    public int PageSize { get => _pageSize; set => Set(ref _pageSize, value); }
+
+    private int _pageSkip;
+    public int PageSkip { get => _pageSkip; set => Set(ref _pageSkip, value); }
+
+    private IReadOnlyList<SortField> _sorts = new List<SortField>();
+    public IReadOnlyList<SortField> Sorts { get => _sorts; set => Set(ref _sorts, value); }
+
+    private string? _filter;
+    public string? Filter { get => _filter; set => Set(ref _filter, value); }
+
+    private bool? _isActiveFilter;
+    public bool? IsActiveFilter { get => _isActiveFilter; set => Set(ref _isActiveFilter, value); }
+
+    /// <summary>Seçili kaydın tüm kayıtlar içindeki sırası (PageSkip + yüklü sayfadaki yerel index); yoksa -1.</summary>
+    public int CurrentGlobalIndex
+    {
+        get
+        {
+            var local = RecordNavigation.IndexOf(KeyList(), CurrentKey);
+            return local < 0 ? -1 : PageSkip + local;
+        }
+    }
+    public bool CanGoPreviousGlobal => CurrentGlobalIndex > 0;
+    public bool CanGoNextGlobal     => CurrentGlobalIndex >= 0 && CurrentGlobalIndex < TotalCount - 1;
+
+    // Global index'teki tek kaydı çeken delege; CrudLayout grid kaynağına bağlar (popup sayfa-aşırı gezinme).
+    public Func<int, System.Threading.Tasks.Task<TListDto?>>? FetchSingleByIndex { get; set; }
 
     public void NotifyStateChanged() => OnStateChanged?.Invoke();
 
@@ -90,21 +146,16 @@ public abstract class CrudStateServiceBase<TListDto, TKey> : ICrudStateService<T
     }
 
     public virtual void GoNextRecord()
-    {
-        if (CanGoNext)
-        {
-            var currentIndex = ListDataSource.IndexOf(SelectedItem!);
-            SetDataRowSelected(ListDataSource[currentIndex + 1]);
-            // Not: Detay bilgisinin (GetDto) sunucudan tekrar çekilmesi CrudPageBase'deki OnSelectionChanged veya benzer bir event üzerinden tetiklenebilir.
-        }
-    }
+        => MoveToKey(RecordNavigation.NextKey(KeyList(), CurrentKey));
 
     public virtual void GoPreviousRecord()
+        => MoveToKey(RecordNavigation.PreviousKey(KeyList(), CurrentKey));
+
+    // Hedef Id'li kaydı listede bulup seçili yap (merkezi RecordNavigation komşu Id'yi döner).
+    private void MoveToKey(object? targetId)
     {
-        if (CanGoPrevious)
-        {
-            var currentIndex = ListDataSource.IndexOf(SelectedItem!);
-            SetDataRowSelected(ListDataSource[currentIndex - 1]);
-        }
+        if (targetId == null || ListDataSource == null) return;
+        var match = System.Linq.Enumerable.FirstOrDefault(ListDataSource, x => x != null && Equals(x.Id, targetId));
+        if (match != null) SetDataRowSelected(match);
     }
 }

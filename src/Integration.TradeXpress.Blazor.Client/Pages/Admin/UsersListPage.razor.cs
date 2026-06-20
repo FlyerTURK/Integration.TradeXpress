@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Integration.TradeXpress.Blazor.Client.Pages.Admin.Models;
@@ -29,6 +30,20 @@ public partial class UsersListPage
     protected override string EntityChangeKey => IdentityViewKeys.Users;
 
     private UserListDto? SelectedUser => StateService.SelectedDataItems?.OfType<UserListDto>().FirstOrDefault();
+
+    /// <summary>Toolbar custom action — "İzinler" (SortIndex 300: Sil ile Arama arası).</summary>
+    private IReadOnlyList<Integration.Framework.Blazor.Client.Components.Crud.CrudToolbarAction> PermissionActions => new[]
+    {
+        new Integration.Framework.Blazor.Client.Components.Crud.CrudToolbarAction
+        {
+            SortIndex = 300,
+            Text = L["Permissions"],
+            Tooltip = L["Permissions"],
+            IconCssClass = TradeXpressIcons.Permission,
+            Enabled = SelectedUser != null,
+            OnClick = OpenPermissionsAsync,
+        },
+    };
 
     private async Task OpenPermissionsAsync()
     {

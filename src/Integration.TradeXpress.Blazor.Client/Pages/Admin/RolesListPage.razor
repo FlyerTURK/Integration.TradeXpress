@@ -13,12 +13,13 @@
             DataSource="@GridDataSource"
             EntityName="@L["Role"]"
             EntityIcon="@TradeXpressIcons.Role"
-            PageTitle="@L["Roles"]"{L["New"]} {L["Role"]}")"/admin/roles/{r.Id}")"{L["Role"]}: {r.Name}")"
+            PageTitle="@L["Roles"]"
             OnNewClick="BeforeCreateAsync"
             OnUpdateClick="BeforeUpdateAsync"
             OnDeleteClick="DeleteAsync"
             OnRefreshClick="GetListAsync"
-            OnSearchChanged="OnSearchAsync">
+            OnSearchChanged="OnSearchAsync"
+            CustomActions="@PermissionActions">
 
     <GridColumns>
         <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" />
@@ -26,13 +27,6 @@
         <DxGridDataColumn FieldName="IsPublic" Caption="@L["IsPublic"]" Width="120px" />
         <DxGridDataColumn FieldName="IsStatic" Caption="@L["IsStatic"]" Width="120px" />
     </GridColumns>
-
-    <ToolbarActions>
-        <DxButton Text="@L["Permissions"]" IconCssClass="@TradeXpressIcons.Permission"
-                  RenderStyle="ButtonRenderStyle.Secondary"
-                  Enabled="@(SelectedRole != null)"
-                  Click="OpenPermissionsAsync" />
-    </ToolbarActions>
 
 </CrudLayout>
 

@@ -10,7 +10,16 @@ export function init(dotNetRef) {
     if (_installed) return;
     _installed = true;
 
+    // Zararsız tarayıcı/bileşen gürültüsü — panele DÜŞMEMELİ. "ResizeObserver loop ..." Chrome'un
+    // benign uyarısıdır (DevExpress'in resize-gözlemli bileşenleri bir frame'e sığmayınca fırlar;
+    // gerçek hata değil). Mesajı içeren her kayıt (console/js/rejection) sessizce yutulur.
+    const IGNORED = [
+        'ResizeObserver loop',
+    ];
+
     const report = (level, source, message, stack) => {
+        const text = message || '';
+        if (IGNORED.some(p => text.indexOf(p) !== -1)) return;   // gürültü → atla
         // Panel (ref) yoksa ya da çağrı patlarsa sessizce geç — asla console.error'a düşme (döngü olur).
         try {
             if (_ref) _ref.invokeMethodAsync('Report', level, source, message || '', stack || null);

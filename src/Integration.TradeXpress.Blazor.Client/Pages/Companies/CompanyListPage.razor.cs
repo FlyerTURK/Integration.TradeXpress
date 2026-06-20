@@ -36,6 +36,20 @@ public partial class CompanyListPage
 
     private string SelectedCompanyName => SelectedCompany?.Name ?? string.Empty;
 
+    /// <summary>Toolbar custom action — "Şubeler" drill (SortIndex 300: Sil ile Arama arası).</summary>
+    private IReadOnlyList<CrudToolbarAction> BranchActions => new[]
+    {
+        new CrudToolbarAction
+        {
+            SortIndex = 300,
+            Text = L["Menu:Branches"],
+            Tooltip = L["Menu:Branches"],
+            IconCssClass = $"{TradeXpressIcons.Branch} toolbar-action-branches",
+            Enabled = SelectedCompany != null,
+            OnClick = OpenBranchesAsync,
+        },
+    };
+
     // Drill-down artık URL navigasyonu değil — şubeleri MDI sekmesi olarak açar/aktive eder.
     private async Task OpenBranchesAsync()
     {

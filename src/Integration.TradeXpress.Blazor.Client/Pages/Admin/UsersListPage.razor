@@ -13,12 +13,13 @@
             DataSource="@GridDataSource"
             EntityName="@L["User"]"
             EntityIcon="@TradeXpressIcons.User"
-            PageTitle="@L["Users"]"{L["New"]} {L["User"]}")"/admin/users/{u.Id}")"{L["User"]}: {u.UserName}")"
+            PageTitle="@L["Users"]"
             OnNewClick="BeforeCreateAsync"
             OnUpdateClick="BeforeUpdateAsync"
             OnDeleteClick="DeleteAsync"
             OnRefreshClick="GetListAsync"
-            OnSearchChanged="OnSearchAsync">
+            OnSearchChanged="OnSearchAsync"
+            CustomActions="@PermissionActions">
 
     <GridColumns>
         <DxGridDataColumn FieldName="UserName" Caption="@L["UserName"]" Width="180px" />
@@ -28,13 +29,6 @@
         <DxGridDataColumn FieldName="PhoneNumber" Caption="@L["PhoneNumber"]" Width="140px" />
         @* IsActive kolonu yok — toolbar'da Aktif/Pasif switch filtresi var. *@
     </GridColumns>
-
-    <ToolbarActions>
-        <DxButton Text="@L["Permissions"]" IconCssClass="@TradeXpressIcons.Permission"
-                  RenderStyle="ButtonRenderStyle.Secondary"
-                  Enabled="@(SelectedUser != null)"
-                  Click="OpenPermissionsAsync" />
-    </ToolbarActions>
 
 </CrudLayout>
 

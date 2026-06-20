@@ -13,6 +13,10 @@ public class TradeXpressUiService : ITradeXpressUiService, IScopedDependency
     public bool IsDialogVisible { get; private set; }
     public string? DialogMessage { get; private set; }
     public string? DialogTitle { get; private set; }
+    public string? DialogYesText { get; private set; }
+    public string? DialogNoText { get; private set; }
+    public bool DialogShowCancel { get; private set; } = true;
+    public bool DialogDefaultYes { get; private set; }
 
     private TaskCompletionSource<ConfirmDialogResult>? _dialogTcs;
 
@@ -22,6 +26,9 @@ public class TradeXpressUiService : ITradeXpressUiService, IScopedDependency
     }
 
     public Task<ConfirmDialogResult> ConfirmDeleteAsync(string message, string? title = null)
+        => ConfirmAsync(message, title, yesText: null, noText: null, showCancel: true, defaultYes: false);
+
+    public Task<ConfirmDialogResult> ConfirmAsync(string message, string? title, string? yesText, string? noText, bool showCancel, bool defaultYes = false)
     {
         // Cancel previous if any
         _dialogTcs?.TrySetResult(ConfirmDialogResult.Cancel);
@@ -29,10 +36,14 @@ public class TradeXpressUiService : ITradeXpressUiService, IScopedDependency
         _dialogTcs = new TaskCompletionSource<ConfirmDialogResult>();
         DialogMessage = message;
         DialogTitle = title ?? "Onay";
+        DialogYesText = yesText;
+        DialogNoText = noText;
+        DialogShowCancel = showCancel;
+        DialogDefaultYes = defaultYes;
         IsDialogVisible = true;
-        
+
         OnDialogChanged?.Invoke();
-        
+
         return _dialogTcs.Task;
     }
 

@@ -1,0 +1,16 @@
+@page "/companies-split"
+@using Integration.Framework.Blazor.Client.Components.Crud
+@using Integration.TradeXpress.Blazor.Client.Pages.Companies.Models
+@using Integration.TradeXpress.Companies
+
+@* Faz 4 — Şirketler: List+Detail yan-yana (SplitCrudView). *@
+
+<SplitCrudView TGetDto="CompanyGetDto"
+               TListDto="CompanyListDto"
+               TKey="Guid"
+               EditType="typeof(CompanyEditPage)"
+               EmptyIconCssClass="@TradeXpressIcons.Company">
+    <ListContent>
+        <CompanyListPage />
+    </ListContent>
+</SplitCrudView>

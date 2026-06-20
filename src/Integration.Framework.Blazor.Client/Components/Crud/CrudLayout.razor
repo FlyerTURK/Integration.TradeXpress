@@ -24,7 +24,10 @@
             </div>
         </div>
     }
-    @* Toolbar üstü/altı boşluk — Bootstrap p-* bu projede etkisiz, inline padding. *@
+    @* Toolbar üstü/altı boşluk — Bootstrap p-* bu projede etkisiz, inline padding.
+       SplitHost doluysa (SplitCrudView birleşik toolbar) yerel toolbar çizilmez. *@
+    @if (SplitHost == null)
+    {
     <div style="padding-top:0.25rem; padding-bottom:0.25rem;">
         <CrudToolbar TGetDto="TGetDto" TListDto="TListDto" TKey="TKey"
                      StateService="StateService"
@@ -38,8 +41,9 @@
                      ActiveFilter="_activeFilter"
                      ActiveFilterChanged="OnActiveFilterChanged"
                      OnToggleGridSearch="ToggleGridSearch"
-                     CustomActions="ToolbarActions" />
+                     CustomActions="CustomActions" />
     </div>
+    }
 
     <DxGrid Data="@(DataSource ?? (object)StateService.ListDataSource)"
             KeyFieldName="Id"
@@ -48,12 +52,16 @@
             @bind-SelectedDataItems="StateService.SelectedDataItems"
             SelectionMode="GridSelectionMode.Multiple"
             AllowSelectRowByClick="false"
+            FocusedRowEnabled="true"
+            FocusedRowChanged="@OnGridFocusedRowChanged"
             ShowSearchBox="@_showGridSearch"
             PagerVisible="true"
             PageSizeSelectorVisible="true"
             PageSizeSelectorItems="@(new int[] { 10, 20, 50, 100 })"
             PageSizeSelectorAllRowsItemVisible="true"
-            PageSize="20"
+            @bind-PageSize="_gridPageSize"
+            @bind-PageIndex="_gridPageIndex"
+            ShowFilterRow="@ShowColumnFilter"
             @ref="Grid"
             RowClick="OnRowClick"
             CssClass="flex-grow-1 overflow-hidden"

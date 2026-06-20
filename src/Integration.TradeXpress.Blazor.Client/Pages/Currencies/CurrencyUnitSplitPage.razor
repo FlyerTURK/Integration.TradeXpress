@@ -1,0 +1,16 @@
+@page "/currencies/currency-units-split"
+@using Integration.Framework.Blazor.Client.Components.Crud
+@using Integration.TradeXpress.Blazor.Client.Pages.Currencies.Models
+@using Integration.TradeXpress.Currencies
+
+@* Faz 4 — Para Birimleri: List+Detail yan-yana (SplitCrudView). *@
+
+<SplitCrudView TGetDto="CurrencyUnitGetDto"
+               TListDto="CurrencyUnitListDto"
+               TKey="Guid"
+               EditType="typeof(CurrencyUnitEditPage)"
+               EmptyIconCssClass="@TradeXpressIcons.CurrencyUnit">
+    <ListContent>
+        <CurrencyUnitListPage />
+    </ListContent>
+</SplitCrudView>
