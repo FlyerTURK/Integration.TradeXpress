@@ -8,13 +8,13 @@ using Integration.Framework.Blazor.Client.Services.Base;
 
 namespace Integration.Framework.Blazor.Client.Components.Crud
 {
-    public partial class CrudLayout<TGetDto, TListDto, TViewModel, TKey> : IDisposable
+    public partial class CrudLayout<TGetDto, TListDto, TKey> : IDisposable
     {
         [Parameter(CaptureUnmatchedValues = true)] public Dictionary<string, object>? GridAttributes { get; set; }
 
         [Parameter] public bool ValidateOnPropertyChange { get; set; } = true;
 
-        [Parameter, EditorRequired] public ICrudStateService<TGetDto, TListDto, TKey, TViewModel> StateService { get; set; } = default!;
+        [Parameter, EditorRequired] public ICrudStateService<TListDto, TKey> StateService { get; set; } = default!;
 
         [Inject] protected IUiStateService? UiStateService { get; set; }
 
@@ -33,7 +33,6 @@ namespace Integration.Framework.Blazor.Client.Components.Crud
         
         [Parameter] public RenderFragment? GridColumns { get; set; }
         [Parameter] public IEnumerable<GridColumnDefinition>? Columns { get; set; }
-        [Parameter] public RenderFragment<TViewModel>? EditPageContent { get; set; }
 
         [Parameter] public string? PageTitle { get; set; }
         [Parameter] public string? EntityName { get; set; }
@@ -42,56 +41,27 @@ namespace Integration.Framework.Blazor.Client.Components.Crud
         [Parameter] public string? EntityIcon { get; set; }
 
         /// <summary>Edit başlığında gösterilecek birincil değer seçici (genelde Code).</summary>
-        [Parameter] public Func<TViewModel, string?>? PrimaryTextSelector { get; set; }
+        [Parameter] public Func<TGetDto, string?>? PrimaryTextSelector { get; set; }
 
         /// <summary>Varsa üst (parent) entity adı — başlığa " - [ParentEntityName: ...]" eklenir.</summary>
         [Parameter] public string? ParentEntityName { get; set; }
 
         /// <summary>Üst entity gösterim metni seçici (genelde parent Code).</summary>
-        [Parameter] public Func<TViewModel, string?>? ParentTextSelector { get; set; }
+        [Parameter] public Func<TGetDto, string?>? ParentTextSelector { get; set; }
 
         /// <summary>Toolbar'a sayfaya özel ek aksiyonlar (ör. "Şubeler" drill action'ı).</summary>
         [Parameter] public RenderFragment? ToolbarActions { get; set; }
 
-        // ── Edit modu (MERKEZİ): Popup (varsayılan) veya ayrı MDI sekmesi ──────────────
-        /// <summary>Edit formu popup'ta mı yoksa yeni MDI sekmesinde mi açılsın. Varsayılan Popup.</summary>
-        [Parameter] public CrudEditMode EditMode { get; set; } = CrudEditMode.Popup;
-
-        /// <summary>Tab modunda "Yeni" için açılacak routable edit sayfası URL'i (ör. "/admin/users/new").</summary>
-        [Parameter] public string? NewTabUrl { get; set; }
-
-        /// <summary>Tab modunda "Yeni" sekme başlığı. Boşsa "{EntityName}".</summary>
-        [Parameter] public string? NewTabTitle { get; set; }
-
-        /// <summary>Tab modunda satır düzenleme için URL üreticisi (ör. u => $"/admin/users/{u.Id}").</summary>
-        [Parameter] public Func<TListDto, string>? EditTabUrl { get; set; }
-
-        /// <summary>Tab modunda düzenleme sekmesi başlığı üreticisi. Boşsa "{EntityName}".</summary>
-        [Parameter] public Func<TListDto, string>? EditTabTitle { get; set; }
-
-        [Inject] private Integration.Framework.Blazor.Client.Services.Mdi.IMdiTabOpener? TabOpener { get; set; }
-
-        // "Yeni" tıklaması — Tab modunda sekme açar, aksi halde sayfanın popup akışını çağırır.
+        // "Yeni" tıklaması — sayfanın popup/tab akışını çağırır.
         private async Task HandleNewClick()
         {
-            if (EditMode == CrudEditMode.Tab && !string.IsNullOrEmpty(NewTabUrl) && TabOpener != null)
-                await TabOpener.OpenOrActivateAsync(NewTabUrl, NewTabTitle ?? EntityName ?? string.Empty, EntityIcon);
-            else
-                await OnNewClick.InvokeAsync();
+            await OnNewClick.InvokeAsync();
         }
 
-        // Satır düzenleme — Tab modunda sekme açar, aksi halde popup (OnUpdateClick).
+        // Satır düzenleme — popup veya tab (OnUpdateClick).
         private async Task HandleRowEdit(TListDto item)
         {
-            if (EditMode == CrudEditMode.Tab && EditTabUrl != null && TabOpener != null)
-            {
-                var title = EditTabTitle?.Invoke(item) ?? EntityName ?? string.Empty;
-                await TabOpener.OpenOrActivateAsync(EditTabUrl(item), title, EntityIcon);
-            }
-            else
-            {
-                await OnUpdateClick.InvokeAsync(item);
-            }
+            await OnUpdateClick.InvokeAsync(item);
         }
 
         IGrid Grid { get; set; } = default!;

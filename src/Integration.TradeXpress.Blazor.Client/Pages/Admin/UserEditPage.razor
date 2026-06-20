@@ -1,163 +1,85 @@
-@page "/admin/users/new"
-@page "/admin/users/{UserId:guid}"
 @using Integration.TradeXpress.Localization
 @using Integration.TradeXpress.Blazor.Client.Services
+@using Integration.TradeXpress.Blazor.Client.Services.Identity
+@using Integration.TradeXpress.Blazor.Client.Pages.Admin.Models
 @using Volo.Abp.Application.Dtos
 @using DevExpress.Blazor
+@using Integration.Framework.Blazor.Client.Components.Crud
+@using Integration.TradeXpress.Blazor.Client.Services.Mdi
 @using Microsoft.AspNetCore.Components
-@using Microsoft.Extensions.Logging
-@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
 
-<div class="crud-layout-container h-100 d-flex flex-column">
-    @* Tab formlarında toolbar ÜSTTE. *@
-    <div style="padding-top:0.25rem; padding-bottom:0.25rem;">
-        <EditTabToolbar OnSave="SaveAsync" OnSaveAndNew="SaveAndNewAsync" OnSaveAndClose="SaveAndCloseAsync"
-                        OnDelete="DeleteRecordAsync" OnRefresh="RefreshRecordAsync"
-                        OnPrevious="PreviousAsync" OnNext="NextAsync"
-                        ShowDelete="@(!IsNewMode)" ShowRefresh="@(!IsNewMode)" ShowNavigation="@(!IsNewMode)"
-                        CanPrevious="@CanPrevious" CanNext="@CanNext" />
-    </div>
+@inject UserCrudAdapter UserAdapter
+@inject ITabManager TabManager
 
-    <div style="flex:1 1 auto; overflow:auto; padding:0.5rem 0.25rem;">
-        <DxFormLayout CssClass="w-100">
-            @* Kullanıcı adı — anahtar alan: yalnız, yarım satır (yeni kayıtta düzenlenebilir). *@
-            <DxFormLayoutItem Caption="@($"{L["UserName"]} *")" ColSpanMd="6">
-                <DxTextBox @bind-Text="UserName" BindValueMode="BindValueMode.OnInput" Enabled="@IsNewMode" />
-            </DxFormLayoutItem>
-            <DxFormLayoutItem ColSpanMd="6"><Template></Template></DxFormLayoutItem>
+@inherits CrudEditComponentBase<UserGetDto, UserListDto, Guid, UserListRequestDto, CreateIdentityUserInput, UpdateIdentityUserInput>
 
-            @* Ad + Soyad — yan yana yarımlar. *@
-            <DxFormLayoutItem Caption="@L["Name"]" ColSpanMd="6">
-                <DxTextBox @bind-Text="Name" BindValueMode="BindValueMode.OnInput" />
-            </DxFormLayoutItem>
-            <DxFormLayoutItem Caption="@L["Surname"]" ColSpanMd="6">
-                <DxTextBox @bind-Text="Surname" BindValueMode="BindValueMode.OnInput" />
-            </DxFormLayoutItem>
-
-            @* E-posta + Telefon — yan yana yarımlar. *@
-            <DxFormLayoutItem Caption="@L["Email"]" ColSpanMd="6">
-                <DxTextBox @bind-Text="Email" BindValueMode="BindValueMode.OnInput" />
-            </DxFormLayoutItem>
-            <DxFormLayoutItem Caption="@L["PhoneNumber"]" ColSpanMd="6">
-                <DxTextBox @bind-Text="PhoneNumber" BindValueMode="BindValueMode.OnInput" />
-            </DxFormLayoutItem>
-
-            @if (IsNewMode)
-            {
-                <DxFormLayoutItem Caption="@L["Password"]" ColSpanMd="6">
-                    <DxTextBox @bind-Text="Password" BindValueMode="BindValueMode.OnInput" Password="true" />
-                </DxFormLayoutItem>
-            }
-
-            @* Son satır: Durum (switch) — yarım. *@
-            <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6">
-                <DxCheckBox @bind-Checked="IsActive" CheckType="CheckType.Switch" />
-            </DxFormLayoutItem>
-        </DxFormLayout>
-
-        @if (!IsNewMode && UserId.HasValue)
-        {
-            <div class="mt-4">
-                <DxTabs>
-                    <DxTabPage Text="@L["Permissions"]">
-                        <PermissionEditorPanel @ref="PermissionEditor" ProviderName="U" ProviderKey="@UserId.Value.ToString()" Embedded="true" />
-                    </DxTabPage>
-                    <DxTabPage Text="@L["ScopedRoles"]">
-                        <ScopedRolesEditor @ref="ScopedRolesEditor" UserId="UserId.Value" />
-                    </DxTabPage>
-                </DxTabs>
-            </div>
-        }
-    </div>
-</div>
+<CrudEditShell IsPopupMode="@IsPopupMode" EditContext="@EditContext"
+               OnSave="SaveAsync" OnSaveAndNew="SaveAndNewAsync" OnSaveAndClose="SaveAndCloseAsync"
+               OnDelete="DeleteRecordAsync" OnRefresh="LoadDataAsync"
+               CanSave="@IsDirty" CanDelete="@(!IsNewMode)">
+    @RenderForm()
+</CrudEditShell>
 
 @code {
-    [Parameter]
-    public Guid? UserId { get; set; }
-
-    private CreateIdentityUserInput? CreateModel { get; set; }
-    private UpdateIdentityUserInput? UpdateModel { get; set; }
-    private bool IsNewMode => !UserId.HasValue;
     private ScopedRolesEditor? ScopedRolesEditor { get; set; }
     private PermissionEditorPanel? PermissionEditor { get; set; }
-    private string? _existingUserName;
 
-    private string? UserName
+    private RenderFragment RenderForm() => @<text>
+<DxFormLayout Data="@EditModel" CssClass="w-100">
+    @* Kullanıcı adı — anahtar alan: yalnız, yarım satır (yeni kayıtta düzenlenebilir). *@
+    <DxFormLayoutItem Caption="@($"{L["UserName"]} *")" ColSpanMd="6">
+        <DxTextBox @bind-Text="EditModel.UserName" BindValueMode="BindValueMode.OnInput" Enabled="@IsNewMode" />
+    </DxFormLayoutItem>
+    <DxFormLayoutItem ColSpanMd="6"><Template></Template></DxFormLayoutItem>
+
+    @* Ad + Soyad — yan yana yarımlar. *@
+    <DxFormLayoutItem Caption="@L["Name"]" ColSpanMd="6">
+        <DxTextBox @bind-Text="EditModel.Name" BindValueMode="BindValueMode.OnInput" />
+    </DxFormLayoutItem>
+    <DxFormLayoutItem Caption="@L["Surname"]" ColSpanMd="6">
+        <DxTextBox @bind-Text="EditModel.Surname" BindValueMode="BindValueMode.OnInput" />
+    </DxFormLayoutItem>
+
+    @* E-posta + Telefon — yan yana yarımlar. *@
+    <DxFormLayoutItem Caption="@L["Email"]" ColSpanMd="6">
+        <DxTextBox @bind-Text="EditModel.Email" BindValueMode="BindValueMode.OnInput" />
+    </DxFormLayoutItem>
+    <DxFormLayoutItem Caption="@L["PhoneNumber"]" ColSpanMd="6">
+        <DxTextBox @bind-Text="EditModel.PhoneNumber" BindValueMode="BindValueMode.OnInput" />
+    </DxFormLayoutItem>
+
+    @if (IsNewMode)
     {
-        get => IsNewMode ? CreateModel?.UserName : _existingUserName;
-        set { if (IsNewMode && CreateModel != null) CreateModel.UserName = value; }
+        <DxFormLayoutItem Caption="@L["Password"]" ColSpanMd="6">
+            <DxTextBox @bind-Text="EditModel.Password" BindValueMode="BindValueMode.OnInput" Password="true" />
+        </DxFormLayoutItem>
     }
 
-    private string? Email
-    {
-        get => IsNewMode ? CreateModel?.Email : UpdateModel?.Email;
-        set
-        {
-            if (IsNewMode && CreateModel != null) CreateModel.Email = value;
-            else if (!IsNewMode && UpdateModel != null) UpdateModel.Email = value;
-        }
-    }
+    @* Son satır: Durum (switch) — yarım. *@
+    <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6">
+        <DxCheckBox @bind-Checked="EditModel.IsActive" CheckType="CheckType.Switch" />
+    </DxFormLayoutItem>
+</DxFormLayout>
 
-    private string? Name
-    {
-        get => IsNewMode ? CreateModel?.Name : UpdateModel?.Name;
-        set
-        {
-            if (IsNewMode && CreateModel != null) CreateModel.Name = value;
-            else if (!IsNewMode && UpdateModel != null) UpdateModel.Name = value;
-        }
-    }
+@if (!IsNewMode)
+{
+    <div class="mt-4">
+        <DxTabs>
+            <DxTabPage Text="@L["Permissions"]">
+                <PermissionEditorPanel @ref="PermissionEditor" ProviderName="U" ProviderKey="@Id.ToString()" Embedded="true" />
+            </DxTabPage>
+            <DxTabPage Text="@L["ScopedRoles"]">
+                <ScopedRolesEditor @ref="ScopedRolesEditor" UserId="Id" />
+            </DxTabPage>
+        </DxTabs>
+    </div>
+}
+</text>;
 
-    private string? Surname
-    {
-        get => IsNewMode ? CreateModel?.Surname : UpdateModel?.Surname;
-        set
-        {
-            if (IsNewMode && CreateModel != null) CreateModel.Surname = value;
-            else if (!IsNewMode && UpdateModel != null) UpdateModel.Surname = value;
-        }
-    }
+    protected override Volo.Abp.Application.Services.ICrudAppService<
+        UserGetDto, UserListDto, Guid, UserListRequestDto, CreateIdentityUserInput, UpdateIdentityUserInput> CrudAppService => UserAdapter;
 
-    private string? PhoneNumber
-    {
-        get => IsNewMode ? CreateModel?.PhoneNumber : UpdateModel?.PhoneNumber;
-        set
-        {
-            if (IsNewMode && CreateModel != null) CreateModel.PhoneNumber = value;
-            else if (!IsNewMode && UpdateModel != null) UpdateModel.PhoneNumber = value;
-        }
-    }
-
-    private string? Password
-    {
-        get => IsNewMode ? CreateModel?.Password : null;
-        set { if (IsNewMode && CreateModel != null) CreateModel.Password = value; }
-    }
-
-    private bool IsActive
-    {
-        get => (IsNewMode ? CreateModel?.IsActive : UpdateModel?.IsActive) ?? false;
-        set
-        {
-            if (IsNewMode && CreateModel != null) CreateModel.IsActive = value;
-            else if (!IsNewMode && UpdateModel != null) UpdateModel.IsActive = value;
-        }
-    }
-
-    [Inject]
-    protected IIdentityUserService IdentityUserService { get; set; } = default!;
-
-    [Inject]
-    protected Integration.TradeXpress.Blazor.Client.Services.Mdi.ITabManager TabManager { get; set; } = default!;
-
-    [Inject]
-    protected Integration.Framework.Blazor.Client.Services.Mdi.IEntityChangeNotifier EntityChanges { get; set; } = default!;
-
-    [CascadingParameter(Name = "CurrentMdiTab")]
-    public Integration.Framework.Blazor.Client.Services.Mdi.IMdiTab? CurrentMdiTab { get; set; }
-
-    [Inject]
-    protected Integration.Framework.Blazor.Client.Services.Base.ITradeXpressUiService UiService { get; set; } = default!;
+    protected override string EntityChangeKey => IdentityViewKeys.Users;
 
     protected override void OnInitialized()
     {
@@ -165,168 +87,29 @@
         base.OnInitialized();
     }
 
-    private List<Guid> _orderedIds = new();
-
-    private int CurrentIndex => UserId.HasValue ? _orderedIds.IndexOf(UserId.Value) : -1;
-    private bool CanPrevious => CurrentIndex > 0;
-    private bool CanNext => CurrentIndex >= 0 && CurrentIndex < _orderedIds.Count - 1;
-
-    protected override async Task OnInitializedAsync()
+    public override async Task<bool> SaveAsync()
     {
-        if (!IsNewMode && UserId.HasValue)
+        var saved = await base.SaveAsync();
+        if (saved && !IsNewMode)
         {
-            await LoadUserAsync(UserId.Value);
-            await EnsureOrderedIdsAsync();
+            if (PermissionEditor != null) await PermissionEditor.CommitChangesAsync();
+            // ScopedRolesEditor auto-saves when changed, no commit needed.
+        }
+        return saved;
+    }
+
+    public override async Task CloseAsync()
+    {
+        if (!IsPopupMode && CurrentMdiTab != null)
+        {
+            TabManager.Close(CurrentMdiTab.Id);
         }
         else
         {
-            CreateModel = new CreateIdentityUserInput();
+            await base.CloseAsync();
         }
-
-        await base.OnInitializedAsync();
-    }
-
-    private async Task LoadUserAsync(Guid id)
-    {
-        try
-        {
-            var user = await IdentityUserService.GetAsync(id);
-            _existingUserName = user.UserName;
-            UpdateModel = new UpdateIdentityUserInput
-            {
-                ConcurrencyStamp = user.ConcurrencyStamp,
-                Email = user.Email,
-                Name = user.Name,
-                Surname = user.Surname,
-                PhoneNumber = user.PhoneNumber,
-                IsActive = user.IsActive
-            };
-            StateHasChanged();
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Error loading user");
-            UiService.ShowErrorToast(ExtractErrorMessage(ex));
-        }
-    }
-
-    private async Task EnsureOrderedIdsAsync()
-    {
-        try
-        {
-            var all = await IdentityUserService.GetListAsync(new GetIdentityUsersInput { MaxResultCount = 1000 });
-            _orderedIds = all.Items.OrderBy(u => u.UserName).Select(u => u.Id).ToList();
-        }
-        catch { /* navigasyon kritik değil — sessiz geç */ }
-    }
-
-    private async Task NavigateToAsync(Guid id)
-    {
-        UserId = id;
-        await LoadUserAsync(id);
-        if (PermissionEditor != null) await PermissionEditor.ReloadAsync();
-        StateHasChanged();
-    }
-
-    private async Task PreviousAsync()
-    {
-        if (CanPrevious) await NavigateToAsync(_orderedIds[CurrentIndex - 1]);
-    }
-
-    private async Task NextAsync()
-    {
-        if (CanNext) await NavigateToAsync(_orderedIds[CurrentIndex + 1]);
-    }
-
-    private async Task RefreshRecordAsync()
-    {
-        if (UserId.HasValue) await LoadUserAsync(UserId.Value);
-        if (PermissionEditor != null) await PermissionEditor.ReloadAsync();
-    }
-
-    private async Task DeleteRecordAsync()
-    {
-        if (!UserId.HasValue) return;
-        var confirm = await UiService.ConfirmDeleteAsync(L["DeleteConfirmationMessage"]);
-        if (confirm != Integration.Framework.Blazor.Client.Services.Base.ConfirmDialogResult.Yes) return;
-        try
-        {
-            await IdentityUserService.DeleteAsync(UserId.Value);
-            EntityChanges.Notify(IdentityViewKeys.Users);
-            UiService.ShowSuccessToast(L["SuccessfullyDeleted"]);
-            CloseTab();
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Error deleting user");
-            UiService.ShowErrorToast(ex.Message);
-        }
-    }
-
-    /// <summary>Kaydeder; başarılıysa true döner. Yeni kayıtta oluşturulanı edit moduna geçirir.</summary>
-    private async Task<bool> PersistAsync()
-    {
-        try
-        {
-            if (IsNewMode && CreateModel != null)
-            {
-                var created = await IdentityUserService.CreateAsync(CreateModel);
-                _existingUserName = created.UserName;
-                UserId = created.Id;
-                UpdateModel = new UpdateIdentityUserInput
-                {
-                    ConcurrencyStamp = created.ConcurrencyStamp,
-                    Email = created.Email,
-                    Name = created.Name,
-                    Surname = created.Surname,
-                    PhoneNumber = created.PhoneNumber,
-                    IsActive = created.IsActive
-                };
-                CreateModel = null;
-            }
-            else if (!IsNewMode && UpdateModel != null && UserId.HasValue)
-            {
-                await IdentityUserService.UpdateAsync(UserId.Value, UpdateModel);
-            }
-
-            if (PermissionEditor != null && !IsNewMode)
-                await PermissionEditor.CommitChangesAsync();
-
-            EntityChanges.Notify(IdentityViewKeys.Users);
-            UiService.ShowSuccessToast(L["SuccessfullySaved"]);
-            return true;
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Error saving user");
-            UiService.ShowErrorToast(ExtractErrorMessage(ex));
-            return false;
-        }
-    }
-
-    private static string ExtractErrorMessage(Exception ex) => AdminErrorFormatter.Extract(ex);
-
-    private async Task SaveAsync() => await PersistAsync();
-
-    private async Task SaveAndCloseAsync()
-    {
-        if (await PersistAsync())
-            CloseTab();
-    }
-
-    private async Task SaveAndNewAsync()
-    {
-        if (await PersistAsync())
-        {
-            UserId = null;
-            UpdateModel = null;
-            CreateModel = new CreateIdentityUserInput();
-        }
-    }
-
-    private void CloseTab()
-    {
-        if (CurrentMdiTab != null)
-            TabManager.Close(CurrentMdiTab.Id);
     }
 }
+
+
+

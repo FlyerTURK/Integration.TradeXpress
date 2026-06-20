@@ -21,8 +21,8 @@ public class IntegrationFrameworkBlazorClientModule : AbpModule
 
         // ICrudStateService<,,,> kullanan her sayfa ayrı bir sınıf yazmadan çözümlenir.
         context.Services.AddTransient(
-            typeof(ICrudStateService<,,,>),
-            typeof(DefaultCrudStateService<,,,>));
+            typeof(ICrudStateService<,>),
+            typeof(DefaultCrudStateService<,>));
 
         // Sekmeler arası değişim bildirimi (edit sekmesi kaydedince liste sekmesi yenilenir).
         // Scoped: server'da devre başına, WASM'da uygulama ömrü boyunca tek örnek → tüm sekmeler paylaşır.

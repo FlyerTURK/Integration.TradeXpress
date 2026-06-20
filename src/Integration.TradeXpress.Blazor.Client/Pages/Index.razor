@@ -1,52 +1,8 @@
 @page "/"
 
-<div class="h-100 d-flex flex-column">
-    <div class="pb-3">
-        <h4>Dashboard - Demo Grid</h4>
-        <p class="text-muted">Bu sayfa içeriği MainLayout içerisindeki TargetContent alanında (sağ çekmecenin solunda) render edilmektedir.</p>
-    </div>
-
-    <div class="flex-grow-1 overflow-auto">
-        <DxGrid Data="@Forecasts"
-                PageSize="15"
-                PagerPosition="GridPagerPosition.Bottom"
-                PageSizeSelectorVisible="true"
-                PageSizeSelectorItems="@(new int[] { 5, 10, 15, 20 })"
-                ShowFilterRow="true"
-                ShowGroupPanel="true"
-                ColumnResizeMode="GridColumnResizeMode.NextColumn"
-                CssClass="h-100">
-            <Columns>
-                <DxGridDataColumn FieldName="Date" DisplayFormat="d" MinWidth="100" />
-                <DxGridDataColumn FieldName="TemperatureC" Caption="Sıcaklık (C)" MinWidth="100" />
-                <DxGridDataColumn FieldName="TemperatureF" Caption="Sıcaklık (F)" MinWidth="100" />
-                <DxGridDataColumn FieldName="Summary" Caption="Özet" MinWidth="150" />
-            </Columns>
-        </DxGrid>
-    </div>
+<div class="h-100 d-flex flex-column align-items-center justify-content-center">
+    <span class="erp-icon erp-icon-TradeXpress" style="font-size: 4rem; opacity: 0.2"></span>
 </div>
 
 @code {
-    private WeatherForecast[]? Forecasts;
-
-    protected override void OnInitialized()
-    {
-        var startDate = DateTime.Now;
-        var summaries = new[] { "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching" };
-        
-        Forecasts = Enumerable.Range(1, 50).Select(index => new WeatherForecast
-        {
-            Date = startDate.AddDays(index),
-            TemperatureC = Random.Shared.Next(-20, 55),
-            Summary = summaries[Random.Shared.Next(summaries.Length)]
-        }).ToArray();
-    }
-
-    public class WeatherForecast
-    {
-        public DateTime Date { get; set; }
-        public int TemperatureC { get; set; }
-        public string? Summary { get; set; }
-        public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
-    }
 }

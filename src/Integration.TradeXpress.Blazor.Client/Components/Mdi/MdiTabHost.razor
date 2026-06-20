@@ -14,7 +14,9 @@
 <div class="mdi-host">
     @if (TabManager.Tabs.Count == 0)
     {
-        <div class="mdi-empty">@L["Loading"]</div>
+        <div class="mdi-empty d-flex align-items-center justify-content-center h-100">
+            <h3 class="text-muted" style="opacity:0.2;">TradeXpress</h3>
+        </div>
     }
     else
     {
@@ -57,7 +59,9 @@
     {
         if (firstRender)
         {
-            await TabManager.InitializeAsync("/", L["Menu:Home"], TradeXpressIcons.Home);
+            // Ana sayfa otomatik sekme olarak açılmaz
+            // await TabManager.InitializeAsync("/", L["Menu:Home"], TradeXpressIcons.Home);
+            
             // Server mode: ensure re-render after initialization completes.
             await InvokeAsync(StateHasChanged);
         }

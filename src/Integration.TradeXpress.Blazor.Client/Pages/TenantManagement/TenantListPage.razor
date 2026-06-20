@@ -3,7 +3,7 @@
 @using Integration.TradeXpress.Tenants
 @using Integration.TradeXpress.Blazor.Client.Pages.TenantManagement.Models
 @using DevExpress.Blazor
-@inherits CrudPageBase<TenantGetDto, TenantListDto, Guid, TenantListRequestDto, TenantCreateDto, TenantUpdateDto, TenantViewModel>
+@inherits CrudPageBase<TenantGetDto, TenantListDto, Guid, TenantListRequestDto, TenantCreateDto, TenantUpdateDto>
 
 <CrudLayout TGetDto="TenantGetDto"
             TListDto="TenantListDto"
@@ -19,17 +19,18 @@
             OnUpdateClick="BeforeUpdateAsync"
             OnDeleteClick="DeleteAsync"
             OnRefreshClick="GetListAsync"
-            OnSearchChanged="OnSearchAsync"
-            OnSaveClick="SaveAsync"
-            OnSaveAndNewClick="SaveAndNewAsync">
+            OnSearchChanged="OnSearchAsync">
     
     <GridColumns>
         <DxGridDataColumn FieldName="Id" Caption="ID" Width="100px" Visible="false" />
         <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" />
     </GridColumns>
 
-    <EditPageContent Context="editingModel">
-        <TenantEditPage Model="editingModel" />
-    </EditPageContent>
+    
 
 </CrudLayout>
+
+
+
+
+

@@ -10,18 +10,14 @@ namespace Integration.Framework.Blazor.Client.Services.Base;
 /// DTO Kısıtlamaları ve Ayrımı standartlarına uyar.
 /// Gelişmiş Navigasyon (Next, Previous, IsDirty vb.) yeteneklerini barındırır.
 /// </summary>
-public interface ICrudStateService<TGetDto, TListDto, TKey, TViewModel> : Volo.Abp.DependencyInjection.IScopedDependency
-    where TGetDto : class, IGetDto<TKey>, new()
+public interface ICrudStateService<TListDto, TKey> : Volo.Abp.DependencyInjection.IScopedDependency
     where TListDto : class, IListDto<TKey>, new()
-    where TViewModel : class, IViewModel<TKey>, new()
 {
     event Action? OnStateChanged;
 
     bool IsLoaded { get; set; }
     bool IsBusy { get; set; }
     
-    // Popup veya Sayfa Görünürlük Durumları
-    bool EditPageVisible { get; set; }
     bool IsPopupListPage { get; set; }
 
     // Grid Verisi
@@ -33,12 +29,6 @@ public interface ICrudStateService<TGetDto, TListDto, TKey, TViewModel> : Volo.A
     // Grid'de Seçili Satırlar (Çoklu Seçim)
     IReadOnlyList<object> SelectedDataItems { get; set; }
     
-    // Formun Doğrudan Bağlandığı Düzenleme Modeli (TViewModel)
-    TViewModel? EditingModel { get; set; }
-    
-    // Form Navigasyon ve Durum İzleme
-    bool IsDirty { get; set; }
-    bool IsNewRecord { get; set; }
     bool CanGoNext { get; }
     bool CanGoPrevious { get; }
 
@@ -51,18 +41,10 @@ public interface ICrudStateService<TGetDto, TListDto, TKey, TViewModel> : Volo.A
     event Action? OnReloadRequested;
     void RequestReload();
 
-    // Son kaydetme denemesinden gelen sunucu doğrulama hataları — CrudEditModal'ın ValidationMessageStore'a aktarması için.
-    IReadOnlyList<ServerValidationError>? PendingServerErrors { get; set; }
-
     // Methodlar
     void NotifyStateChanged();
-    void ShowEditPage(bool isNewRecord);
-    void HideEditPage();
     void SetDataRowSelected(TListDto item);
 
     void GoNextRecord();
     void GoPreviousRecord();
 }
-
-/// <summary>Sunucudan dönen tek bir doğrulama hatası. MemberName null ise model-düzeyinde hata.</summary>
-public record ServerValidationError(string? MemberName, string Message);

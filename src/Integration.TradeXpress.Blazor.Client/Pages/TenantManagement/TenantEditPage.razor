@@ -1,13 +1,68 @@
-@using Integration.TradeXpress.Blazor.Client.Pages.TenantManagement.Models
 @using Integration.TradeXpress.Tenants
-@using Integration.Framework.Blazor.Client.Services.Base
-@inject Microsoft.Extensions.Localization.IStringLocalizer<Integration.TradeXpress.Localization.TradeXpressResource> L
+@using Integration.Framework.Blazor.Client.Components.Crud
+@using Integration.TradeXpress.Blazor.Client.Services.Mdi
+@using Integration.Framework.Blazor.Client.Components.Inputs
+@using DevExpress.Blazor
+@using Microsoft.Extensions.Localization
 
-@* Tenant edit "evi" yeniden inşa edildi: artık el-örgüsü form/davranış yok — yalnız dumb layout'u
-   barındırır. Yaşam döngüsü (EditForm + validation + dirty + save/cancel + sayfa/popup kabuğu)
-   koordinatöre (CrudEditForm ← CrudEditModal) ait. Localizer'ı layout'a dışarıdan veriyoruz. *@
-<TenantEditFormLayout Model="Model" L="L" />
+@inject ITenantAppService TenantAppService
+@inject ITabManager TabManager
+
+@inherits CrudEditComponentBase<TenantGetDto, TenantListDto, Guid, TenantListRequestDto, TenantCreateDto, TenantUpdateDto>
+
+<CrudEditShell IsPopupMode="@IsPopupMode" EditContext="@EditContext"
+               OnSave="SaveAsync" OnSaveAndNew="SaveAndNewAsync" OnSaveAndClose="SaveAndCloseAsync"
+               OnDelete="DeleteRecordAsync" OnRefresh="LoadDataAsync"
+               CanSave="@IsDirty" CanDelete="@(!IsNewMode)">
+    @RenderForm()
+</CrudEditShell>
 
 @code {
-    [Parameter, EditorRequired] public TenantViewModel Model { get; set; } = default!;
+    private RenderFragment RenderForm() => @<text>
+<DxFormLayout Data="@EditModel" CssClass="w-100">
+    <DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="12">
+        <DxTextBox @bind-Text="@EditModel.Name" @ref="_nameBox" />
+    </DxFormLayoutItem>
+
+    @* Admin e-posta/şifre yalnız YENİ tenant'ta gösterilir — ABP yeni tenant için bir admin
+       kullanıcı seed eder; bu ikisi onun kimliğidir. Düzenlemede gizli (yalnız ad değişir). *@
+    @if (IsNewMode)
+    {
+        <DxFormLayoutItem Caption="@($"{L["AdminEmailAddress"]} *")" ColSpanMd="12">
+            <DxTextBox @bind-Text="@EditModel.AdminEmailAddress" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@($"{L["AdminPassword"]} *")" ColSpanMd="12">
+            <PasswordTextEdit @bind-Text="@EditModel.AdminPassword" Tooltip="@L["ShowPassword"]" />
+        </DxFormLayoutItem>
+    }
+</DxFormLayout>
+</text>;
+
+    protected override Volo.Abp.Application.Services.ICrudAppService<
+        TenantGetDto, TenantListDto, Guid, TenantListRequestDto, TenantCreateDto, TenantUpdateDto> CrudAppService => TenantAppService;
+
+    protected override string EntityChangeKey => "Tenants";
+
+    private DxTextBox? _nameBox;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && _nameBox != null)
+            await _nameBox.FocusAsync();
+    }
+
+    public override async Task CloseAsync()
+    {
+        if (!IsPopupMode && CurrentMdiTab != null)
+        {
+            TabManager.Close(CurrentMdiTab.Id);
+        }
+        else
+        {
+            await base.CloseAsync();
+        }
+    }
 }
+
+
+

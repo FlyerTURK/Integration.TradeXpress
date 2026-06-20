@@ -10,21 +10,19 @@ using Volo.Abp.Application.Dtos;
 using Volo.Abp.Application.Services;
 using Volo.Abp.AspNetCore.Components;
 using Volo.Abp.Domain.Entities;
-using Volo.Abp.Http.Client;
 
 namespace Integration.Framework.Blazor.Client.Components.Crud;
 
 /// <summary>
 /// Tüm CRUD işlemlerini yürüten gelişmiş Base sayfa bileşeni.
 /// </summary>
-public abstract class CrudPageBase<TGetDto, TListDto, TKey, TListRequestDto, TCreateInput, TUpdateInput, TViewModel> 
+public abstract class CrudPageBase<TGetDto, TListDto, TKey, TListRequestDto, TCreateInput, TUpdateInput> 
     : AbpComponentBase, IDisposable
     where TGetDto : class, IGetDto<TKey>, new()
     where TListDto : class, IListDto<TKey>, new()
     where TListRequestDto : ListRequestDto, new()
     where TCreateInput : class, new()
     where TUpdateInput : class, new()
-    where TViewModel : class, IViewModel<TKey>, new()
 {
     // Alt sınıflar kendi spesifik servislerini (örn. ITenantAppService) buraya bağlamalıdır
     public abstract ICrudAppService<TGetDto, TListDto, TKey, TListRequestDto, TCreateInput, TUpdateInput> CrudAppService { get; }
@@ -63,10 +61,15 @@ public abstract class CrudPageBase<TGetDto, TListDto, TKey, TListRequestDto, TCr
     protected virtual void OnConfiguringListRequest(TListRequestDto request) { }
 
     [Inject]
-    public ICrudStateService<TGetDto, TListDto, TKey, TViewModel> StateService { get; set; } = default!;
+    public ICrudStateService<TListDto, TKey> StateService { get; set; } = default!;
 
     [Inject]
     protected ITradeXpressUiService UiService { get; set; } = default!;
+
+    [Inject]
+    protected IPopupService PopupService { get; set; } = default!;
+
+    public abstract Type EditComponentType { get; }
 
     // Konvansiyon: alt sınıf yalnızca PermissionPrefix verirse (örn. "AbpTenantManagement.Tenants")
     // üç policy adı otomatik türetilir. Gerekirse tek tek override edilebilir.
@@ -117,17 +120,9 @@ public abstract class CrudPageBase<TGetDto, TListDto, TKey, TListRequestDto, TCr
         });
     }
 
-    protected virtual async Task<bool> CheckCanCloseAsync()
+    protected virtual Task<bool> CheckCanCloseAsync()
     {
-        if (StateService.IsDirty)
-        {
-            var dialogResult = await UiService.ConfirmDeleteAsync(L["DiscardChangesConfirmation"]);
-            if (dialogResult != ConfirmDialogResult.Yes)
-            {
-                return false; // Kullanıcı iptal etti, sekmeyi kapatma
-            }
-        }
-        return true; // Temiz veya kullanıcı çıkmayı onayladı
+        return Task.FromResult(true);
     }
 
     protected virtual async Task SetPermissionsAsync()
@@ -148,20 +143,10 @@ public abstract class CrudPageBase<TGetDto, TListDto, TKey, TListRequestDto, TCr
 
     protected async Task ExecuteAsync(Func<Task> action)
     {
-        StateService.PendingServerErrors = null;
         try
         {
             StateService.IsBusy = true;
             await action();
-        }
-        catch (AbpRemoteCallException ex) when (ex.Error?.ValidationErrors?.Length > 0)
-        {
-            // Validation hataları toast yerine form alanlarına aktar; CrudEditModal HandleValidSubmit'te okur.
-            StateService.PendingServerErrors = ex.Error.ValidationErrors
-                .SelectMany(e => e.Members is { Length: > 0 }
-                    ? e.Members.Select(m => new ServerValidationError(m, e.Message ?? string.Empty))
-                    : [new ServerValidationError(null, e.Message ?? string.Empty)])
-                .ToList();
         }
         catch (Exception ex)
         {
@@ -189,63 +174,32 @@ public abstract class CrudPageBase<TGetDto, TListDto, TKey, TListRequestDto, TCr
         return Task.CompletedTask;
     }
 
-    public virtual Task BeforeCreateAsync()
+    public virtual async Task BeforeCreateAsync()
     {
-        StateService.EditingModel = new TViewModel();
-        StateService.ShowEditPage(isNewRecord: true);
-        return Task.CompletedTask;
+        StateService.SetDataRowSelected(null!);
+        await ShowPopupAsync(default);
     }
 
     public virtual async Task BeforeUpdateAsync(TListDto entity)
     {
         StateService.SetDataRowSelected(entity);
-        await ExecuteAsync(async () =>
-        {
-            TGetDto fullEntity;
-            try
-            {
-                fullEntity = await CrudAppService.GetAsync(entity.Id);
-            }
-            catch (EntityNotFoundException)
-            {
-                UiService.ShowWarningToast(L["RecordDeletedByAnotherUser"]);
-                StateService.RequestReload();
-                return;
-            }
-            catch (AbpRemoteCallException ex) when (ex.HttpStatusCode == 404)
-            {
-                UiService.ShowWarningToast(L["RecordDeletedByAnotherUser"]);
-                StateService.RequestReload();
-                return;
-            }
-            StateService.EditingModel = ObjectMapper.Map<TGetDto, TViewModel>(fullEntity);
-            StateService.ShowEditPage(isNewRecord: false);
-        });
+        await ShowPopupAsync(entity.Id);
     }
 
-    public virtual async Task CreateAsync()
+    protected virtual async Task ShowPopupAsync(TKey? id)
     {
-        await ExecuteAsync(async () =>
+        var parameters = new System.Collections.Generic.Dictionary<string, object>
         {
-            var createInput = ObjectMapper.Map<TViewModel, TCreateInput>(StateService.EditingModel!);
-            await CrudAppService.CreateAsync(createInput);
-            StateService.HideEditPage();
-            StateService.RequestReload();
-            await Notify.Success(L["SuccessfullySaved"]);
-        });
-    }
+            { "Id", id },
+            { "IsPopupMode", true },
+            { "OnSaved", Microsoft.AspNetCore.Components.EventCallback.Factory.Create(this, GetListAsync) },
+            { "OnClosed", Microsoft.AspNetCore.Components.EventCallback.Factory.Create(this, () => PopupService.Close()) }
+        };
 
-    public virtual async Task UpdateAsync()
-    {
-        await ExecuteAsync(async () =>
-        {
-            var updateInput = ObjectMapper.Map<TViewModel, TUpdateInput>(StateService.EditingModel!);
-            await CrudAppService.UpdateAsync(StateService.EditingModel!.Id, updateInput);
+        // If the component has an 'L' parameter, we can optionally try to pass our L, 
+        // but it's better if the component uses its own inherited L or localization logic.
 
-            StateService.HideEditPage();
-            StateService.RequestReload();
-            await Notify.Success(L["SuccessfullySaved"]);
-        });
+        await PopupService.ShowAsync(EditComponentType, parameters);
     }
 
     public virtual async Task DeleteAsync()
@@ -302,40 +256,7 @@ public abstract class CrudPageBase<TGetDto, TListDto, TKey, TListRequestDto, TCr
         }
     }
 
-    public virtual async Task CancelEditAsync()
-    {
-        if (StateService.IsDirty)
-        {
-            var dialogResult = await UiService.ConfirmDeleteAsync(L["DiscardChangesConfirmation"]);
-            if (dialogResult != ConfirmDialogResult.Yes)
-            {
-                return;
-            }
-        }
-        StateService.HideEditPage();
-    }
 
-    public virtual async Task SaveAsync()
-    {
-        if (StateService.IsNewRecord)
-        {
-            await CreateAsync();
-        }
-        else
-        {
-            await UpdateAsync();
-        }
-    }
-
-    /// <summary>Kaydet ve Yeni: kaydeder, başarılıysa (popup kapandıysa) hemen yeni kayıt moduna geçer.
-    /// SaveAsync başarısız/validation'da popup açık kalır → yeni mod'a geçilmez. Page'ler SaveAsync ve
-    /// BeforeCreateAsync'i override ettiğinden bu kompozisyon tüm entity'lerde çalışır.</summary>
-    public virtual async Task SaveAndNewAsync()
-    {
-        await SaveAsync();
-        if (!StateService.EditPageVisible)
-            await BeforeCreateAsync();
-    }
 
     // #3 (thread-affinity fix): StateHasChanged'i her zaman renderer dispatcher'ında çalıştır.
     // Arka plan kaynağı (SSE/timer/distributed event handler) state'i değiştirip NotifyStateChanged

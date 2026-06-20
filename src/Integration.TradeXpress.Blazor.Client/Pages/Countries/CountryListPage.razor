@@ -3,7 +3,7 @@
 @using Integration.TradeXpress.Blazor.Client.Pages.Countries.Models
 @using Integration.TradeXpress.Countries
 @using DevExpress.Blazor
-@inherits CrudPageBase<CountryGetDto, CountryListDto, Guid, CountryListRequestDto, CountryCreateDto, CountryUpdateDto, CountryViewModel>
+@inherits CrudPageBase<CountryGetDto, CountryListDto, Guid, CountryListRequestDto, CountryCreateDto, CountryUpdateDto>
 
 <CrudLayout TGetDto="CountryGetDto"
             TListDto="CountryListDto"
@@ -19,9 +19,7 @@
             OnUpdateClick="BeforeUpdateAsync"
             OnDeleteClick="DeleteAsync"
             OnRefreshClick="GetListAsync"
-            OnSearchChanged="OnSearchAsync"
-            OnSaveClick="SaveAsync"
-            OnSaveAndNewClick="SaveAndNewAsync">
+            OnSearchChanged="OnSearchAsync">
 
     <GridColumns>
         <DxGridDataColumn FieldName="Code" Caption="@L["Code"]" Width="90px" />
@@ -30,8 +28,11 @@
         <DxGridDataColumn FieldName="IsGlobal" Caption="@L["IsGlobal"]" Width="90px" />
     </GridColumns>
 
-    <EditPageContent Context="editingModel">
-        <CountryEditPage Model="editingModel" />
-    </EditPageContent>
+    
 
 </CrudLayout>
+
+
+
+
+

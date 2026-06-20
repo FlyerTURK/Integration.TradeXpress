@@ -3,7 +3,7 @@
 @using Integration.TradeXpress.Blazor.Client.Pages.Admin.Models
 @using Integration.TradeXpress.Blazor.Client.Services
 @using DevExpress.Blazor
-@inherits CrudPageBase<RoleGetDto, RoleListDto, Guid, RoleListRequestDto, CreateIdentityRoleInput, UpdateIdentityRoleInput, RoleEditViewModel>
+@inherits CrudPageBase<RoleGetDto, RoleListDto, Guid, RoleListRequestDto, CreateIdentityRoleInput, UpdateIdentityRoleInput>
 
 <CrudLayout TGetDto="RoleGetDto"
             TListDto="RoleListDto"
@@ -13,19 +13,12 @@
             DataSource="@GridDataSource"
             EntityName="@L["Role"]"
             EntityIcon="@TradeXpressIcons.Role"
-            PageTitle="@L["Roles"]"
-            EditMode="CrudEditMode.Tab"
-            NewTabUrl="/admin/roles/new"
-            NewTabTitle="@($"{L["New"]} {L["Role"]}")"
-            EditTabUrl="@(r => $"/admin/roles/{r.Id}")"
-            EditTabTitle="@(r => $"{L["Role"]}: {r.Name}")"
+            PageTitle="@L["Roles"]"{L["New"]} {L["Role"]}")"/admin/roles/{r.Id}")"{L["Role"]}: {r.Name}")"
             OnNewClick="BeforeCreateAsync"
             OnUpdateClick="BeforeUpdateAsync"
             OnDeleteClick="DeleteAsync"
             OnRefreshClick="GetListAsync"
-            OnSearchChanged="OnSearchAsync"
-            OnSaveClick="SaveAsync"
-            OnSaveAndNewClick="SaveAndNewAsync">
+            OnSearchChanged="OnSearchAsync">
 
     <GridColumns>
         <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" />
@@ -42,3 +35,8 @@
     </ToolbarActions>
 
 </CrudLayout>
+
+
+
+
+

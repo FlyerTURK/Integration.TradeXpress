@@ -1,0 +1,69 @@
+@typeparam TEnum
+@using System
+@using DevExpress.Blazor
+@using Microsoft.Extensions.Localization
+@* The consuming project should register IStringLocalizer<TResource> appropriately *@
+
+<DxComboBox Data="@_items"
+            Value="@Value"
+            ValueChanged="@(async (TEnum v) => await OnValueChanged(v))"
+            ValueExpression="@ValueExpression"
+            TextFieldName="Text"
+            ValueFieldName="Value"
+            NullText="@NullText"
+            ClearButtonDisplayMode="@ClearButtonDisplayMode"
+            Enabled="@Enabled" />
+
+@code {
+    [Parameter, EditorRequired] public IStringLocalizer L { get; set; } = default!;
+    
+    [Parameter] public TEnum Value { get; set; } = default!;
+    [Parameter] public EventCallback<TEnum> ValueChanged { get; set; }
+    [Parameter] public System.Linq.Expressions.Expression<Func<TEnum>>? ValueExpression { get; set; }
+    
+    [Parameter] public string? NullText { get; set; }
+    [Parameter] public DataEditorClearButtonDisplayMode ClearButtonDisplayMode { get; set; } = DataEditorClearButtonDisplayMode.Never;
+    [Parameter] public bool Enabled { get; set; } = true;
+
+    private List<EnumItem> _items = new();
+
+    protected override void OnInitialized()
+    {
+        var enumType = typeof(TEnum);
+        var actualType = Nullable.GetUnderlyingType(enumType) ?? enumType;
+
+        if (!actualType.IsEnum)
+        {
+            throw new InvalidOperationException("TEnum must be an enumeration type.");
+        }
+
+        var values = Enum.GetValues(actualType);
+        
+        foreach (var val in values)
+        {
+            var enumName = val.ToString()!;
+            string key = $"Enum:{actualType.Name}:{enumName}";
+            
+            _items.Add(new EnumItem
+            {
+                Value = (TEnum)val,
+                Text = L[key]?.Value ?? enumName
+            });
+        }
+    }
+
+    private async Task OnValueChanged(TEnum newValue)
+    {
+        Value = newValue;
+        if (ValueChanged.HasDelegate)
+        {
+            await ValueChanged.InvokeAsync(newValue);
+        }
+    }
+
+    public class EnumItem
+    {
+        public TEnum Value { get; set; } = default!;
+        public string Text { get; set; } = string.Empty;
+    }
+}

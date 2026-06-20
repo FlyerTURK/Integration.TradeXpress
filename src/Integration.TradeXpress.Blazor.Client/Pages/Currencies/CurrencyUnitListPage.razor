@@ -4,11 +4,12 @@
 @using Integration.TradeXpress.Blazor.Client.Pages.Currencies.Components
 @using Integration.TradeXpress.Currencies
 @using DevExpress.Blazor
-@inherits CrudPageBase<CurrencyUnitGetDto, CurrencyUnitListDto, Guid, CurrencyUnitListRequestDto, CurrencyUnitCreateDto, CurrencyUnitUpdateDto, CurrencyUnitViewModel>
+@using Volo.Abp.MultiTenancy
+
+@inherits CrudPageBase<CurrencyUnitGetDto, CurrencyUnitListDto, Guid, CurrencyUnitListRequestDto, CurrencyUnitCreateDto, CurrencyUnitUpdateDto>
 
 <CrudLayout TGetDto="CurrencyUnitGetDto"
             TListDto="CurrencyUnitListDto"
-            TViewModel="CurrencyUnitViewModel"
             TKey="Guid"
             StateService="StateService"
             DataSource="@GridDataSource"
@@ -21,8 +22,7 @@
             OnDeleteClick="DeleteAsync"
             OnRefreshClick="GetListAsync"
             OnSearchChanged="OnSearchAsync"
-            OnSaveClick="SaveAsync"
-            OnSaveAndNewClick="SaveAndNewAsync">
+            AllowColumnReordering="true">
 
     <ToolbarActions>
         @{
@@ -40,16 +40,37 @@
     <GridColumns>
         <DxGridDataColumn FieldName="Code" Caption="@L["Code"]" Width="90px" />
         <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" />
+        <DxGridDataColumn Caption="@L["Buy"]" Width="110px" AllowSort="false" TextAlignment="GridTextAlignment.Right">
+            <CellDisplayTemplate>
+                @LivePrice(((CurrencyUnitListDto)context.DataItem).Id, buy: true)
+            </CellDisplayTemplate>
+        </DxGridDataColumn>
+        <DxGridDataColumn Caption="@L["Sell"]" Width="110px" AllowSort="false" TextAlignment="GridTextAlignment.Right">
+            <CellDisplayTemplate>
+                @LivePrice(((CurrencyUnitListDto)context.DataItem).Id, buy: false)
+            </CellDisplayTemplate>
+        </DxGridDataColumn>
         <DxGridDataColumn FieldName="Type" Caption="@L["Type"]" Width="100px" />
         <DxGridDataColumn FieldName="IsGlobal" Caption="@L["IsGlobal"]" Width="90px" />
+
+        <DxGridBandColumn Caption="@L["FollowingAndMargin"]" Width="320px" Visible="@IsTenantMode">
+            <Columns>
+                <DxGridDataColumn FieldName="FollowingUnitCode" Caption="@L["FollowingUnit"]" Width="100px" />
+                <DxGridDataColumn FieldName="FollowingMarginType" Caption="@L["MarginType"]" Width="100px" />
+                <DxGridDataColumn FieldName="FollowingMarginValue" Caption="@L["MarginValue"]" Width="100px" />
+            </Columns>
+        </DxGridBandColumn>
+
         <DxGridDataColumn FieldName="DisplayOrder" Caption="@L["DisplayOrder"]" Width="90px" Visible="false" />
     </GridColumns>
 
-    <EditPageContent Context="editingModel">
-        <CurrencyUnitEditPage Model="editingModel" />
-    </EditPageContent>
+    
 
 </CrudLayout>
 
 @* Marj "Ayarla" diyaloğu — append-only SetAsync; kaydedince grid'i yeniler. *@
 <MarginSetDialog @ref="MarginDialog" OnSaved="GetListAsync" />
+
+
+
+

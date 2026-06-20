@@ -36,4 +36,8 @@ public partial class RolesListPage
         if (r == null) return;
         await TabManager.OpenOrActivateAsync($"/admin/permissions/R/{Uri.EscapeDataString(r.Name)}", $"{L["Permissions"]}: {r.Name}", TradeXpressIcons.Permission);
     }
-}
+
+        public override System.Type EditComponentType => typeof(RoleEditPage);
+    }
+
+

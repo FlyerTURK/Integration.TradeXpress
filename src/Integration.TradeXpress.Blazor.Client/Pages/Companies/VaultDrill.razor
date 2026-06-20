@@ -62,11 +62,17 @@
                 <DxTextBox @bind-Text="@vault.Name" />
             </DxFormLayoutItem>
             @* Ara: Varsayılan kasa — yarım satır *@
-            <DxFormLayoutItem Caption="@L["IsDefault"]" ColSpanMd="6">
-                <DxCheckBox @bind-Checked="@vault.IsDefault" CheckType="CheckType.Switch">
-                    @(vault.IsDefault ? L["Yes"] : L["No"])
-                </DxCheckBox>
-                <div class="form-text text-muted small">@L["VaultDefaultHint"]</div>
+            <DxFormLayoutItem ColSpanMd="6">
+                <CaptionTemplate>
+                    <InfoCaption Text="@L["IsDefault"].Value"
+                                 HintText="@L["Vault:IsDefaultHint"].Value"
+                                 Required="false" />
+                </CaptionTemplate>
+                <Template>
+                    <DxCheckBox @bind-Checked="@vault.IsDefault" CheckType="CheckType.Switch">
+                        @(vault.IsDefault ? L["Yes"] : L["No"])
+                    </DxCheckBox>
+                </Template>
             </DxFormLayoutItem>
             @* Sondan bir önceki: Açıklama — tam satır, DxMemo 2 satır, resize kapalı *@
             <DxFormLayoutItem Caption="@L["Description"]" ColSpanMd="12">
@@ -79,7 +85,7 @@
                 </DxCheckBox>
             </DxFormLayoutItem>
             <DxFormLayoutItem Caption="@L["DisplayOrder"]" ColSpanMd="6">
-                <DxSpinEdit @bind-Value="@vault.DisplayOrder" />
+                <NumericSpinEdit @bind-Value="@vault.DisplayOrder" />
             </DxFormLayoutItem>
         </DxFormLayout>
     </EditContent>

@@ -1,0 +1,57 @@
+@using DevExpress.Blazor
+@using Microsoft.AspNetCore.Components.Forms
+@using Integration.TradeXpress.Localization
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@*
+   Mode-agnostik edit form kabuğu: sekme (MDI) veya popup fark etmeksizin
+   EditTabToolbar + wrapper + EditContext cascade tek yerde.
+   Page yalnız form gövdesi (ChildContent) + aksiyon/yetki parametrelerini verir.
+*@
+
+@if (!IsPopupMode)
+{
+    <div class="crud-layout-container h-100 d-flex flex-column">
+        <div style="padding-top:0.25rem; padding-bottom:0.25rem;">
+            <EditTabToolbar OnSave="OnSave" OnSaveAndNew="OnSaveAndNew" OnSaveAndClose="OnSaveAndClose"
+                            OnDelete="OnDelete" OnRefresh="OnRefresh"
+                            ShowSaveAndNew="@ShowSaveAndNew"
+                            ShowDelete="@ShowDelete" ShowRefresh="@ShowRefresh"
+                            CanSave="@CanSave" CanDelete="@CanDelete" />
+        </div>
+        <div style="flex:1 1 auto; overflow:auto; padding:0.5rem 0.25rem;">
+            <CascadingValue Value="@EditContext">@ChildContent</CascadingValue>
+        </div>
+    </div>
+}
+else
+{
+    <div style="padding-top:0.5rem; border-bottom:1px solid #dee2e6; padding-bottom:0.5rem; margin-bottom:0.5rem;">
+        <EditTabToolbar OnSave="OnSave" OnSaveAndNew="OnSaveAndNew" OnSaveAndClose="OnSaveAndClose"
+                        OnDelete="OnDelete" OnRefresh="OnRefresh"
+                        ShowSaveAndNew="@ShowSaveAndNew"
+                        ShowDelete="@ShowDelete" ShowRefresh="@ShowRefresh"
+                        CanSave="@CanSave" CanDelete="@CanDelete" />
+    </div>
+    <CascadingValue Value="@EditContext">@ChildContent</CascadingValue>
+}
+
+@code {
+    [Parameter] public bool IsPopupMode { get; set; }
+    [Parameter] public EditContext? EditContext { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    // Toolbar aksiyonları
+    [Parameter] public EventCallback OnSave { get; set; }
+    [Parameter] public EventCallback OnSaveAndNew { get; set; }
+    [Parameter] public EventCallback OnSaveAndClose { get; set; }
+    [Parameter] public EventCallback OnDelete { get; set; }
+    [Parameter] public EventCallback OnRefresh { get; set; }
+
+    // Toolbar görünürlük / etkinlik
+    [Parameter] public bool CanSave { get; set; }
+    [Parameter] public bool CanDelete { get; set; } = true;
+    [Parameter] public bool ShowSaveAndNew { get; set; } = true;
+    [Parameter] public bool ShowDelete { get; set; } = true;
+    [Parameter] public bool ShowRefresh { get; set; } = true;
+}

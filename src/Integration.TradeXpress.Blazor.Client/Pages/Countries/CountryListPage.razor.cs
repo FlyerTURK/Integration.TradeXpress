@@ -20,4 +20,8 @@ public partial class CountryListPage
         => CountryAppService;
 
     protected override string PermissionPrefix => TradeXpressPermissions.Countries.Default;
-}
+
+        public override System.Type EditComponentType => typeof(Integration.TradeXpress.Blazor.Client.Pages.Countries.CountryEditPage);
+    }
+
+

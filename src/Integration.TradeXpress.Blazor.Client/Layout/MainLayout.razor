@@ -17,6 +17,7 @@
                          VerticalAlignment="VerticalEdge.Top"
                          Width="550px" />
         <Integration.Framework.Blazor.Client.Components.Shared.ConfirmDeleteDialog />
+        <Integration.Framework.Blazor.Client.Components.Shared.GlobalPopupHost />
 
         @* Kimlik guard'ı: CurrentUser.Id yoksa (kimlik doğrulanmamışsa) ana layout HİÇ render edilmez;
            doğrudan login'e yönlendirilir. Kimlik akışı sayfaları EmptyLayout kullandığı için döngü olmaz. *@
@@ -26,7 +27,7 @@
             @* Top panel: ERPPROV3 paritesi — DxToolbar yerine düz flex header.
                Sol: hamburger + sayfa başlığı. Sağ (ms-auto): avatar + ayarlar. *@
             @* Inline flex — Bootstrap utility'lerine (d-flex/ms-auto) bağlı kalmadan garanti layout. *@
-            <div role="banner" class="header shadow-sm bg-white border-bottom">
+            <div role="banner" class="header shadow-sm bg-white border-bottom" style="border-bottom: 1px solid var(--dxbl-drawer-border-color) !important;">
                 <div style="display:flex; align-items:center; width:100%; padding:0.25rem;">
                     <button type="button" @onclick="ToggleNavigation" style="display:flex; align-items:center; justify-content:center; cursor:pointer; min-width:34px; min-height:34px; background:transparent; border:none; box-shadow:none; outline:none; padding:0; color:var(--DS-color-content-neutral-default-rest, var(--bs-body-color, #212529));" aria-label="Menü">
                         <span class="erp-icon erp-icon-hamburger" aria-hidden="true"></span>

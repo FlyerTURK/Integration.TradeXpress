@@ -10,7 +10,7 @@ using Microsoft.AspNetCore.Components;
 namespace Integration.TradeXpress.Blazor.Client.Pages.Companies;
 
 public partial class BranchListPage
-    : CrudPageBase<BranchGetDto, BranchListDto, Guid, BranchListRequestDto, BranchCreateDto, BranchUpdateDto, BranchTreeItemViewModel>
+    : CrudPageBase<BranchGetDto, BranchListDto, Guid, BranchListRequestDto, BranchCreateDto, BranchUpdateDto>
 {
     public BranchListPage()
     {
@@ -53,67 +53,10 @@ public partial class BranchListPage
         await TabManager.OpenOrActivateAsync(url, title, TradeXpressIcons.Vault);
     }
 
-    public override Task BeforeCreateAsync()
-    {
-        StateService.EditingModel = new BranchTreeItemViewModel { IsActive = true };
-        StateService.ShowEditPage(isNewRecord: true);
-        return Task.CompletedTask;
+
+
+        public override System.Type EditComponentType => typeof(Integration.TradeXpress.Blazor.Client.Pages.Companies.BranchEditPage);
     }
 
-    public override async Task BeforeUpdateAsync(BranchListDto entity)
-    {
-        StateService.SetDataRowSelected(entity);
-        await ExecuteAsync(async () =>
-        {
-            var dto = await BranchAppService.GetAsync(entity.Id);
-            StateService.EditingModel = ToBranchVm(dto);
-            StateService.ShowEditPage(isNewRecord: false);
-        });
-    }
 
-    public override async Task SaveAsync()
-    {
-        var model = StateService.EditingModel!;
-        await ExecuteAsync(async () =>
-        {
-            if (StateService.IsNewRecord)
-            {
-                await BranchAppService.CreateAsync(new BranchCreateDto
-                {
-                    CompanyId = CompanyId,
-                    Code = model.Code,
-                    Name = model.Name,
-                    IsHeadquarters = model.IsHeadquarters,
-                    DisplayOrder = model.DisplayOrder,
-                    Description = model.Description,
-                });
-            }
-            else
-            {
-                await BranchAppService.UpdateAsync(model.Id!.Value, new BranchUpdateDto
-                {
-                    Code = model.Code,
-                    Name = model.Name,
-                    IsHeadquarters = model.IsHeadquarters,
-                    IsActive = model.IsActive,
-                    DisplayOrder = model.DisplayOrder,
-                    Description = model.Description,
-                });
-            }
-            StateService.HideEditPage();
-            StateService.RequestReload();
-            await Notify.Success(L["SuccessfullySaved"]);
-        });
-    }
 
-    private static BranchTreeItemViewModel ToBranchVm(BranchGetDto d) => new()
-    {
-        Id = d.Id,
-        Code = d.Code,
-        Name = d.Name,
-        IsHeadquarters = d.IsHeadquarters,
-        IsActive = d.IsActive,
-        DisplayOrder = d.DisplayOrder,
-        Description = d.Description,
-    };
-}

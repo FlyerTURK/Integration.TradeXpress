@@ -16,4 +16,8 @@ public partial class TenantListPage
     public override Volo.Abp.Application.Services.ICrudAppService<TenantGetDto, TenantListDto, System.Guid, TenantListRequestDto, TenantCreateDto, TenantUpdateDto> CrudAppService => TenantAppService;
 
     protected override string PermissionPrefix => Volo.Abp.TenantManagement.TenantManagementPermissions.Tenants.Default;
-}
+
+        public override System.Type EditComponentType => typeof(Integration.TradeXpress.Blazor.Client.Pages.TenantManagement.TenantEditPage);
+    }
+
+

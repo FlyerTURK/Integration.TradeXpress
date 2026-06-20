@@ -45,72 +45,9 @@ public partial class CompanyListPage
         await TabManager.OpenOrActivateAsync(url, title, TradeXpressIcons.Branch);
     }
 
-    // ── Edit formu değişince IsDirty — combo/drill EditContext'i atlar. ────────
-    private void MarkDrillDirty() => StateService.IsDirty = true;
 
-    // ── CRUD ──────────────────────────────────────────────────────────────────────
 
-    // Yeni şirket: varsayılan in-memory ağaçla başlar (bir HQ "Merkez Şube" + bir "Ana Kasa").
-    public override Task BeforeCreateAsync()
-    {
-        var vm = new CompanyViewModel();
-        vm.Branches.Add(CompanyTreeMapping.NewHeadquartersBranch());
-        StateService.EditingModel = vm;
-        StateService.ShowEditPage(isNewRecord: true);
-        return Task.CompletedTask;
+        public override System.Type EditComponentType => typeof(Integration.TradeXpress.Blazor.Client.Pages.Companies.CompanyEditPage);
     }
 
-    // Düzenleme: tam ağacı (şube + kasa) GetTree ile yükle.
-    public override async Task BeforeUpdateAsync(CompanyListDto entity)
-    {
-        StateService.SetDataRowSelected(entity);
-        await ExecuteAsync(async () =>
-        {
-            var tree = await CompanyAppService.GetTreeAsync(entity.Id);
-            StateService.EditingModel = CompanyTreeMapping.ToViewModel(tree);
-            StateService.ShowEditPage(isNewRecord: false);
-        });
-    }
 
-    // Kaydet: önce tüm ağacı (şube+kasa dahil) toplu doğrula, sonra tek transaction'da yaz.
-    public override async Task SaveAsync()
-    {
-        var model = StateService.EditingModel!;
-        if (!TryValidateTree(model, out var error))
-        {
-            await Notify.Warn(string.Format(L["TreeValidationFailed"], error));
-            return;
-        }
-
-        await ExecuteAsync(async () =>
-        {
-            var dto = CompanyTreeMapping.ToSaveDto(model);
-            await CompanyAppService.SaveTreeAsync(dto);
-            StateService.HideEditPage();
-            StateService.RequestReload();
-            await Notify.Success(L["SuccessfullySaved"]);
-        });
-    }
-
-    // Şirket + tüm şube + tüm kasaları DataAnnotations ile özyinelemeli doğrula.
-    private static bool TryValidateTree(CompanyViewModel m, out string error)
-    {
-        var errors = new List<string>();
-        ValidateOne(m, m.Name, errors);
-        foreach (var b in m.Branches)
-        {
-            ValidateOne(b, b.Name, errors);
-            foreach (var v in b.Vaults)
-                ValidateOne(v, v.Name, errors);
-        }
-        error = string.Join("; ", errors.Distinct().Take(5));
-        return errors.Count == 0;
-    }
-
-    private static void ValidateOne(object obj, string label, List<string> errors)
-    {
-        var results = new List<ValidationResult>();
-        if (!Validator.TryValidateObject(obj, new ValidationContext(obj), results, validateAllProperties: true))
-            errors.AddRange(results.Select(r => $"{(string.IsNullOrWhiteSpace(label) ? "?" : label)}: {r.ErrorMessage}"));
-    }
-}

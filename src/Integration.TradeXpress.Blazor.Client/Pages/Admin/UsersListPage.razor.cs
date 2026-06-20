@@ -36,4 +36,8 @@ public partial class UsersListPage
         if (u == null) return;
         await TabManager.OpenOrActivateAsync($"/admin/permissions/U/{u.Id}", $"{L["Permissions"]}: {u.UserName}", TradeXpressIcons.Permission);
     }
-}
+
+        public override System.Type EditComponentType => typeof(UserEditPage);
+    }
+
+

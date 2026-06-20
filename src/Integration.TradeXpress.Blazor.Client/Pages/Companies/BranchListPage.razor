@@ -4,11 +4,10 @@
 @using Integration.TradeXpress.Branches
 @using DevExpress.Blazor
 @inject Microsoft.AspNetCore.Components.NavigationManager NavigationManager
-@inherits CrudPageBase<BranchGetDto, BranchListDto, Guid, BranchListRequestDto, BranchCreateDto, BranchUpdateDto, BranchTreeItemViewModel>
+@inherits CrudPageBase<BranchGetDto, BranchListDto, Guid, BranchListRequestDto, BranchCreateDto, BranchUpdateDto>
 
 <CrudLayout TGetDto="BranchGetDto"
             TListDto="BranchListDto"
-            TViewModel="BranchTreeItemViewModel"
             TKey="Guid"
             StateService="StateService"
             DataSource="@GridDataSource"
@@ -22,9 +21,7 @@
             OnUpdateClick="BeforeUpdateAsync"
             OnDeleteClick="DeleteAsync"
             OnRefreshClick="GetListAsync"
-            OnSearchChanged="OnSearchAsync"
-            OnSaveClick="SaveAsync"
-            OnSaveAndNewClick="SaveAndNewAsync">
+            OnSearchChanged="OnSearchAsync">
 
     <GridColumns>
         <DxGridDataColumn FieldName="Code" Caption="@L["Code"]" Width="120px" />
@@ -41,8 +38,11 @@
                   Click="OpenVaultsAsync" />
     </ToolbarActions>
 
-    <EditPageContent Context="model">
-        <BranchEditForm Branch="@model" PersistVaults="true" />
-    </EditPageContent>
+    
 
 </CrudLayout>
+
+
+
+
+

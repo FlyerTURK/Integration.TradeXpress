@@ -1,8 +1,126 @@
-@using Integration.TradeXpress.Blazor.Client.Pages.Vaults.Models
-@inject Microsoft.Extensions.Localization.IStringLocalizer<Integration.TradeXpress.Localization.TradeXpressResource> L
+@using Integration.TradeXpress.Vaults
+@using Integration.TradeXpress.Branches
+@using Integration.Framework.Blazor.Client.Components.Crud
+@using Integration.TradeXpress.Blazor.Client.Services.Mdi
+@using DevExpress.Blazor
+@using Microsoft.Extensions.Localization
 
-<VaultEditFormLayout Model="Model" L="L" />
+@inject IVaultAppService VaultAppService
+@inject IBranchAppService BranchAppService
+@inject ITabManager TabManager
+
+@inherits CrudEditComponentBase<VaultGetDto, VaultListDto, Guid, VaultListRequestDto, VaultCreateDto, VaultUpdateDto>
+
+<CrudEditShell IsPopupMode="@IsPopupMode" EditContext="@EditContext"
+               OnSave="SaveAsync" OnSaveAndNew="SaveAndNewAsync" OnSaveAndClose="SaveAndCloseAsync"
+               OnDelete="DeleteRecordAsync" OnRefresh="LoadDataAsync"
+               CanSave="@IsDirty" CanDelete="@(!IsNewMode)">
+    @RenderForm()
+</CrudEditShell>
 
 @code {
-    [Parameter, EditorRequired] public VaultViewModel Model { get; set; } = default!;
+    private RenderFragment RenderForm() => @<text>
+<DxFormLayout Data="@EditModel" CssClass="w-100">
+    <DxFormLayoutGroup Caption="@L["General"]" ColSpanMd="12">
+        @* 1. Kod — yarım satır (yalnız) *@
+        <DxFormLayoutItem Caption="@($"{L["Code"]} *")" ColSpanMd="6">
+            <DxTextBox @bind-Text="@EditModel.Code" @ref="_nameBox" Enabled="@IsNewMode" />
+        </DxFormLayoutItem>
+        @* 2. Adı — tam satır *@
+        <DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="12">
+            <DxTextBox @bind-Text="@EditModel.Name" />
+        </DxFormLayoutItem>
+        @* Ara: Şube (üst entity, düzenlemede değişmez) — tam satır *@
+        <DxFormLayoutItem ColSpanMd="12">
+            <CaptionTemplate>
+                <InfoCaption Text="@L["Entity:Branch"].Value"
+                             HintText="@(!IsNewMode ? L["Vault:BranchIdHint"].Value : "")"
+                             Required="true" />
+            </CaptionTemplate>
+            <Template>
+                <DxComboBox Data="@_branches" @bind-Value="@EditModel.BranchId"
+                            ValueFieldName="@nameof(BranchListDto.Id)"
+                            TextFieldName="@nameof(BranchListDto.Code)"
+                            ValidationEnabled="false"
+                            Enabled="@IsNewMode"
+                            CssClass="w-100" />
+            </Template>
+        </DxFormLayoutItem>
+        @* Ara: Varsayılan kasa — yarım satır *@
+        <DxFormLayoutItem ColSpanMd="6">
+            <CaptionTemplate>
+                <InfoCaption Text="@L["IsDefault"].Value"
+                             HintText="@L["Vault:IsDefaultHint"].Value"
+                             Required="false" />
+            </CaptionTemplate>
+            <Template>
+                <DxCheckBox @bind-Checked="@EditModel.IsDefault" CheckType="CheckType.Switch">
+                    @(EditModel.IsDefault ? L["Yes"] : L["No"])
+                </DxCheckBox>
+            </Template>
+        </DxFormLayoutItem>
+        @* Sondan bir önceki: Açıklama — tam satır, DxMemo 2 satır, resize kapalı *@
+        <DxFormLayoutItem Caption="@L["Description"]" ColSpanMd="12">
+            <DxMemo @bind-Text="@EditModel.Description" Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100" />
+        </DxFormLayoutItem>
+        @* Son satır: Durum (Status) yarım + Sıra (DisplayOrder) yarım *@
+        <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6">
+            <DxCheckBox @bind-Checked="@EditModel.IsActive" CheckType="CheckType.Switch">
+                @(EditModel.IsActive ? L["Active"] : L["Passive"])
+            </DxCheckBox>
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["DisplayOrder"]" ColSpanMd="6">
+            <NumericSpinEdit @bind-Value="@EditModel.DisplayOrder" />
+        </DxFormLayoutItem>
+    </DxFormLayoutGroup>
+</DxFormLayout>
+</text>;
+
+    protected override Volo.Abp.Application.Services.ICrudAppService<
+        VaultGetDto, VaultListDto, Guid, VaultListRequestDto, VaultCreateDto, VaultUpdateDto> CrudAppService => VaultAppService;
+
+    protected override string EntityChangeKey => "Vaults";
+
+    private DxTextBox? _nameBox;
+    private List<BranchListDto> _branches = new();
+
+    [Parameter] public Guid? BranchId { get; set; }
+
+    public override async Task LoadDataAsync()
+    {
+        await base.LoadDataAsync();
+        var result = await BranchAppService.GetListAsync(new BranchListRequestDto { MaxResultCount = 1000 });
+        _branches = result.Items.ToList();
+    }
+
+    protected override Task OnModelCreatedAsync(VaultGetDto model)
+    {
+        if (BranchId.HasValue)
+        {
+            model.BranchId = BranchId.Value;
+        }
+        return base.OnModelCreatedAsync(model);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && IsNewMode && _nameBox != null)
+            await _nameBox.FocusAsync();
+    }
+
+    public override async Task CloseAsync()
+    {
+        if (!IsPopupMode && CurrentMdiTab != null)
+        {
+            TabManager.Close(CurrentMdiTab.Id);
+        }
+        else
+        {
+            await base.CloseAsync();
+        }
+    }
 }
+
+
+
+

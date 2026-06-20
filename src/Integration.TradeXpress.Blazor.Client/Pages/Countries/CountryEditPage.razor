@@ -1,8 +1,102 @@
-@using Integration.TradeXpress.Blazor.Client.Pages.Countries.Models
-@inject Microsoft.Extensions.Localization.IStringLocalizer<Integration.TradeXpress.Localization.TradeXpressResource> L
+@using Integration.TradeXpress.Countries
+@using Integration.TradeXpress.Currencies
+@using Integration.Framework.Blazor.Client.Components.Crud
+@using Integration.TradeXpress.Blazor.Client.Services.Mdi
+@using DevExpress.Blazor
+@using Microsoft.Extensions.Localization
+@inject ICountryAppService CountryAppService
+@inject ICurrencyUnitAppService CurrencyAppService
+@inject ITabManager TabManager
 
-<CountryEditFormLayout Model="Model" L="L" />
+@inherits CrudEditComponentBase<CountryGetDto, CountryListDto, Guid, CountryListRequestDto, CountryCreateDto, CountryUpdateDto>
+
+<CrudEditShell IsPopupMode="@IsPopupMode" EditContext="@EditContext"
+               OnSave="SaveAsync" OnSaveAndNew="SaveAndNewAsync" OnSaveAndClose="SaveAndCloseAsync"
+               OnDelete="DeleteRecordAsync" OnRefresh="LoadDataAsync"
+               CanSave="@IsDirty" CanDelete="@(!IsNewMode)">
+    @RenderForm()
+</CrudEditShell>
 
 @code {
-    [Parameter, EditorRequired] public CountryViewModel Model { get; set; } = default!;
+    private RenderFragment RenderForm() => @<text>
+<DxFormLayout Data="@EditModel" CssClass="w-100">
+    @* 1. Kod — yarım satır (yalnız) *@
+    <DxFormLayoutItem Caption="@($"{L["Code"]} *")" ColSpanMd="6">
+        <DxTextBox @bind-Text="@EditModel.Code" @ref="_codeBox" NullText="TR / US ..."
+                   Enabled="@IsNewMode" />
+    </DxFormLayoutItem>
+    @* 2. Adı — tam satır *@
+    <DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="12">
+        <DxTextBox @bind-Text="@EditModel.Name" />
+    </DxFormLayoutItem>
+    @* Ara: Varsayılan para birimi — tam satır *@
+    <DxFormLayoutItem ColSpanMd="12">
+        <CaptionTemplate>
+            <InfoCaption Text="@L["BaseCurrency"].Value"
+                         HintText="@L["Country:DefaultCurrencyCodeHint"].Value"
+                         Required="false" />
+        </CaptionTemplate>
+        <Template>
+            <DxComboBox Data="@_currencyCodes"
+                        @bind-Value="@EditModel.DefaultCurrencyCode"
+                        SearchMode="ListSearchMode.AutoSearch"
+                        SearchFilterCondition="ListSearchFilterCondition.Contains"
+                        NullText="@L["Select"]" />
+        </Template>
+    </DxFormLayoutItem>
+    @* Son satır: Durum (Status) yarım + Sıra (DisplayOrder) yarım *@
+    <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6">
+        <DxCheckBox @bind-Checked="@EditModel.IsActive" CheckType="CheckType.Switch">
+            @(EditModel.IsActive ? L["Active"] : L["Passive"])
+        </DxCheckBox>
+    </DxFormLayoutItem>
+    <DxFormLayoutItem Caption="@L["DisplayOrder"]" ColSpanMd="6">
+        <NumericSpinEdit @bind-Value="@EditModel.DisplayOrder" />
+    </DxFormLayoutItem>
+</DxFormLayout>
+</text>;
+
+    protected override Volo.Abp.Application.Services.ICrudAppService<
+        CountryGetDto, CountryListDto, Guid, CountryListRequestDto, CountryCreateDto, CountryUpdateDto> CrudAppService => CountryAppService;
+
+    protected override string EntityChangeKey => "Countries";
+
+    private DxTextBox? _codeBox;
+    private List<string> _currencyCodes = new();
+
+    public override async Task LoadDataAsync()
+    {
+        await base.LoadDataAsync();
+        try
+        {
+            var result = await CurrencyAppService.GetListAsync(
+                new CurrencyUnitListRequestDto { MaxResultCount = 1000 });
+            _currencyCodes = result.Items.Select(x => x.Code).ToList();
+        }
+        catch
+        {
+            _currencyCodes = ["TRY", "USD", "EUR", "GBP"];
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && IsNewMode && _codeBox != null)
+            await _codeBox.FocusAsync();
+    }
+
+    public override async Task CloseAsync()
+    {
+        if (!IsPopupMode && CurrentMdiTab != null)
+        {
+            TabManager.Close(CurrentMdiTab.Id);
+        }
+        else
+        {
+            await base.CloseAsync();
+        }
+    }
 }
+
+
+

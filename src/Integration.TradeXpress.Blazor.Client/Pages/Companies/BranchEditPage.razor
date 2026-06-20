@@ -1,0 +1,101 @@
+@using Integration.TradeXpress.Branches
+@using Integration.Framework.Blazor.Client.Components.Crud
+@using Integration.TradeXpress.Blazor.Client.Services.Mdi
+@using DevExpress.Blazor
+@using Microsoft.Extensions.Localization
+
+@inject IBranchAppService BranchAppService
+@inject ITabManager TabManager
+
+@inherits CrudEditComponentBase<BranchGetDto, BranchListDto, Guid, BranchListRequestDto, BranchCreateDto, BranchUpdateDto>
+
+<CrudEditShell IsPopupMode="@IsPopupMode" EditContext="@EditContext"
+               OnSave="SaveAsync" OnSaveAndNew="SaveAndNewAsync" OnSaveAndClose="SaveAndCloseAsync"
+               OnDelete="DeleteRecordAsync" OnRefresh="LoadDataAsync"
+               CanSave="@IsDirty" CanDelete="@(!IsNewMode)">
+    @RenderForm()
+</CrudEditShell>
+
+@code {
+    private RenderFragment RenderForm() => @<text>
+<DxFormLayout Data="@EditModel" CssClass="w-100">
+    <DxFormLayoutGroup Caption="@L["General"]" ColSpanMd="12">
+        @* 1. Kod — yarım satır *@
+        <DxFormLayoutItem Caption="@($"{L["Code"]} *")" ColSpanMd="6">
+            <DxTextBox @bind-Text="@EditModel.Code" @ref="_codeBox" Enabled="@IsNewMode" />
+        </DxFormLayoutItem>
+        @* 2. Adı — tam satır *@
+        <DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="12">
+            <DxTextBox @bind-Text="@EditModel.Name" />
+        </DxFormLayoutItem>
+        @* Ara: Merkez — yarım satır (yalnız) *@
+        <DxFormLayoutItem ColSpanMd="6">
+            <CaptionTemplate>
+                <InfoCaption Text="@L["IsHeadquarters"].Value"
+                             HintText="@L["Branch:IsHeadquartersHint"].Value"
+                             Required="false" />
+            </CaptionTemplate>
+            <Template>
+                <DxCheckBox @bind-Checked="@EditModel.IsHeadquarters" CheckType="CheckType.Switch">
+                    @(EditModel.IsHeadquarters ? L["Yes"] : L["No"])
+                </DxCheckBox>
+            </Template>
+        </DxFormLayoutItem>
+    </DxFormLayoutGroup>
+
+    @* Sondan bir önceki: Açıklama — tam satır, DxMemo 2 satır, resize kapalı *@
+    <DxFormLayoutItem Caption="@L["Description"]" ColSpanMd="12">
+        <DxMemo @bind-Text="@EditModel.Description" Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100" />
+    </DxFormLayoutItem>
+    @* Son satır: Durum (Status) yarım + Sıra (DisplayOrder) yarım *@
+    <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6">
+        <DxCheckBox @bind-Checked="@EditModel.IsActive" CheckType="CheckType.Switch">
+            @(EditModel.IsActive ? L["Active"] : L["Passive"])
+        </DxCheckBox>
+    </DxFormLayoutItem>
+    <DxFormLayoutItem Caption="@L["DisplayOrder"]" ColSpanMd="6">
+        <NumericSpinEdit @bind-Value="@EditModel.DisplayOrder" />
+    </DxFormLayoutItem>
+</DxFormLayout>
+</text>;
+
+    protected override Volo.Abp.Application.Services.ICrudAppService<
+        BranchGetDto, BranchListDto, Guid, BranchListRequestDto, BranchCreateDto, BranchUpdateDto> CrudAppService => BranchAppService;
+
+    protected override string EntityChangeKey => "Branches";
+
+    private DxTextBox? _codeBox;
+
+    [Parameter] public Guid? CompanyId { get; set; }
+
+    protected override Task OnModelCreatedAsync(BranchGetDto model)
+    {
+        if (CompanyId.HasValue)
+        {
+            model.CompanyId = CompanyId.Value;
+        }
+        return base.OnModelCreatedAsync(model);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && IsNewMode && _codeBox != null)
+            await _codeBox.FocusAsync();
+    }
+
+    public override async Task CloseAsync()
+    {
+        if (!IsPopupMode && CurrentMdiTab != null)
+        {
+            TabManager.Close(CurrentMdiTab.Id);
+        }
+        else
+        {
+            await base.CloseAsync();
+        }
+    }
+}
+
+
+
+

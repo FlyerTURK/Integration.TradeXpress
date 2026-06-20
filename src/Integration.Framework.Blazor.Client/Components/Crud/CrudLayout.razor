@@ -1,6 +1,5 @@
 @typeparam TGetDto where TGetDto : class, Integration.Framework.Base.Dtos.Interfaces.IGetDto<TKey>, new()
 @typeparam TListDto where TListDto : class, Integration.Framework.Base.Dtos.Interfaces.IListDto<TKey>, new()
-@typeparam TViewModel where TViewModel : class, Integration.Framework.Blazor.Client.Components.Crud.IViewModel<TKey>, new()
 @typeparam TKey
 
 @using Integration.Framework.Blazor.Client.Services.Base
@@ -27,7 +26,7 @@
     }
     @* Toolbar üstü/altı boşluk — Bootstrap p-* bu projede etkisiz, inline padding. *@
     <div style="padding-top:0.25rem; padding-bottom:0.25rem;">
-        <CrudToolbar TGetDto="TGetDto" TListDto="TListDto" TViewModel="TViewModel" TKey="TKey"
+        <CrudToolbar TGetDto="TGetDto" TListDto="TListDto" TKey="TKey"
                      StateService="StateService"
                      SearchText="@SearchText"
                      SearchTextChanged="OnToolbarSearch"
@@ -58,7 +57,8 @@
             @ref="Grid"
             RowClick="OnRowClick"
             CssClass="flex-grow-1 overflow-hidden"
-            @attributes="GridAttributes">
+            @attributes="GridAttributes"
+            AllowColumnResizing="true">
         
         <Columns>
             <DxGridSelectionColumn Width="48px" AllowSelectAll="true" />
@@ -77,20 +77,6 @@
     </DxGrid>
 </div>
 
-<!-- Popup Edit Form Component — yalnız Popup modunda. Tab modunda edit ayrı MDI sekmesinde açılır. -->
-@if (EditMode == CrudEditMode.Popup)
-{
-    <CrudEditModal TGetDto="TGetDto" TListDto="TListDto" TViewModel="TViewModel" TKey="TKey"
-                   StateService="StateService"
-                   EntityName="@EntityName"
-                   EntityIcon="@EntityIcon"
-                   PrimaryTextSelector="@PrimaryTextSelector"
-                   ParentEntityName="@ParentEntityName"
-                   ParentTextSelector="@ParentTextSelector"
-                   EditPageContent="EditPageContent"
-                   OnSaveClick="OnSaveClick"
-                   OnSaveAndNewClick="OnSaveAndNewClick"
-                   ValidateOnPropertyChange="ValidateOnPropertyChange" />
-}
+
 
 

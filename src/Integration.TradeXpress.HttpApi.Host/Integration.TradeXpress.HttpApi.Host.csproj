@@ -35,6 +35,11 @@
     <PackageReference Include="Volo.Abp.Account.Web.OpenIddict" />
   </ItemGroup>
 
+  <!-- OpenIddict imza/şifreleme sertifikası: content root'tan okunur; publish çıktısına da kopyalansın. -->
+  <ItemGroup>
+    <None Update="openiddict.pfx" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="Volo.Abp.AspNetCore.Mvc.UI.Theme.LeptonXLite" />
   </ItemGroup>

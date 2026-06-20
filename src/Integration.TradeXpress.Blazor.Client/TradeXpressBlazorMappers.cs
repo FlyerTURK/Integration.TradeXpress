@@ -174,3 +174,98 @@ public partial class VaultGetDtoToListDtoMapper : MapperBase<VaultGetDto, VaultL
     public override partial VaultListDto Map(VaultGetDto source);
     public override partial void Map(VaultGetDto source, VaultListDto destination);
 }
+
+// ── GetDto → Create/Update (CrudEditComponentBase doğrudan GetDto bind eder; SaveAsync
+//    ObjectMapper.Map<GetDto, Create/UpdateDto> çağırır). Bu mapper'lar olmadan kaydetme
+//    "No object mapping was found" atar. RequiredMappingStrategy.Target → GetDto'daki
+//    fazla alanlar (Id, *Code görünüm alanları, IsGlobal, PageIndex) yok sayılır. ────────
+
+[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
+public partial class CurrencyUnitGetDtoToCreateDtoMapper : MapperBase<CurrencyUnitGetDto, CurrencyUnitCreateDto>
+{
+    public override partial CurrencyUnitCreateDto Map(CurrencyUnitGetDto source);
+    public override partial void Map(CurrencyUnitGetDto source, CurrencyUnitCreateDto destination);
+}
+
+[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
+public partial class CurrencyUnitGetDtoToUpdateDtoMapper : MapperBase<CurrencyUnitGetDto, CurrencyUnitUpdateDto>
+{
+    public override partial CurrencyUnitUpdateDto Map(CurrencyUnitGetDto source);
+    public override partial void Map(CurrencyUnitGetDto source, CurrencyUnitUpdateDto destination);
+}
+
+[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
+public partial class CompanyGetDtoToCreateDtoMapper : MapperBase<CompanyGetDto, CompanyCreateDto>
+{
+    public override partial CompanyCreateDto Map(CompanyGetDto source);
+    public override partial void Map(CompanyGetDto source, CompanyCreateDto destination);
+}
+
+[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
+public partial class CompanyGetDtoToUpdateDtoMapper : MapperBase<CompanyGetDto, CompanyUpdateDto>
+{
+    public override partial CompanyUpdateDto Map(CompanyGetDto source);
+    public override partial void Map(CompanyGetDto source, CompanyUpdateDto destination);
+}
+
+[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
+public partial class CountryGetDtoToCreateDtoMapper : MapperBase<CountryGetDto, CountryCreateDto>
+{
+    public override partial CountryCreateDto Map(CountryGetDto source);
+    public override partial void Map(CountryGetDto source, CountryCreateDto destination);
+}
+
+[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
+public partial class CountryGetDtoToUpdateDtoMapper : MapperBase<CountryGetDto, CountryUpdateDto>
+{
+    public override partial CountryUpdateDto Map(CountryGetDto source);
+    public override partial void Map(CountryGetDto source, CountryUpdateDto destination);
+}
+
+[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
+public partial class BranchGetDtoToCreateDtoMapper : MapperBase<BranchGetDto, BranchCreateDto>
+{
+    public override partial BranchCreateDto Map(BranchGetDto source);
+    public override partial void Map(BranchGetDto source, BranchCreateDto destination);
+}
+
+[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
+public partial class BranchGetDtoToUpdateDtoMapper : MapperBase<BranchGetDto, BranchUpdateDto>
+{
+    public override partial BranchUpdateDto Map(BranchGetDto source);
+    public override partial void Map(BranchGetDto source, BranchUpdateDto destination);
+}
+
+[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
+public partial class VaultGetDtoToCreateDtoMapper : MapperBase<VaultGetDto, VaultCreateDto>
+{
+    public override partial VaultCreateDto Map(VaultGetDto source);
+    public override partial void Map(VaultGetDto source, VaultCreateDto destination);
+}
+
+[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
+public partial class VaultGetDtoToUpdateDtoMapper : MapperBase<VaultGetDto, VaultUpdateDto>
+{
+    public override partial VaultUpdateDto Map(VaultGetDto source);
+    public override partial void Map(VaultGetDto source, VaultUpdateDto destination);
+}
+
+// Tenant: admin alanları GetDto'da var (Name/AdminEmail/AdminPassword) → create'e map'lenir;
+// HqCompanyName/HqCountryCode GetDto'da YOK → ignore (tenant HQ şirketi opsiyonel).
+[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
+public partial class TenantGetDtoToCreateDtoMapper : MapperBase<TenantGetDto, TenantCreateDto>
+{
+    [MapperIgnoreTarget(nameof(TenantCreateDto.HqCompanyName))]
+    [MapperIgnoreTarget(nameof(TenantCreateDto.HqCountryCode))]
+    public override partial TenantCreateDto Map(TenantGetDto source);
+    [MapperIgnoreTarget(nameof(TenantCreateDto.HqCompanyName))]
+    [MapperIgnoreTarget(nameof(TenantCreateDto.HqCountryCode))]
+    public override partial void Map(TenantGetDto source, TenantCreateDto destination);
+}
+
+[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
+public partial class TenantGetDtoToUpdateDtoMapper : MapperBase<TenantGetDto, TenantUpdateDto>
+{
+    public override partial TenantUpdateDto Map(TenantGetDto source);
+    public override partial void Map(TenantGetDto source, TenantUpdateDto destination);
+}

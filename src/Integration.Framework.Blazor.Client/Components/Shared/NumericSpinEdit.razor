@@ -1,0 +1,41 @@
+@typeparam TValue
+@using System.Linq.Expressions
+@using DevExpress.Blazor
+
+<DxSpinEdit Value="@Value"
+            ValueChanged="@(async (TValue v) => await OnValueChanged(v))"
+            ValueExpression="@ValueExpression"
+            ClearButtonDisplayMode="@ClearButtonDisplayMode"
+            ShowSpinButtons="@ShowSpinButtons"
+            Enabled="@Enabled"
+            InputCssClass="@InputCssClass"
+            CssClass="numeric-spin-edit w-100" />
+
+<style>
+    .numeric-spin-edit input {
+        text-align: right !important;
+        padding-right: 5px !important;
+    }
+</style>
+
+@code {
+    [Parameter] public TValue Value { get; set; } = default!;
+    [Parameter] public EventCallback<TValue> ValueChanged { get; set; }
+    [Parameter] public Expression<Func<TValue>>? ValueExpression { get; set; }
+
+    [Parameter] public DataEditorClearButtonDisplayMode ClearButtonDisplayMode { get; set; } = DataEditorClearButtonDisplayMode.Never;
+    [Parameter] public bool ShowSpinButtons { get; set; } = false;
+    [Parameter] public bool Enabled { get; set; } = true;
+
+    // New parameter to apply CSS class to inner input for right alignment and padding
+    [Parameter] public string? InputCssClass { get; set; } = "text-end pe-2";
+
+    private async Task OnValueChanged(TValue newValue)
+    {
+        Value = newValue;
+        if (ValueChanged.HasDelegate)
+        {
+            await ValueChanged.InvokeAsync(newValue);
+        }
+    }
+}

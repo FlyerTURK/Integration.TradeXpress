@@ -1,0 +1,26 @@
+@using DevExpress.Blazor
+
+<span style="display:inline-flex; align-items:center; gap:0.25rem; padding-top: 5px; padding-right: 5px;">
+    <span>@Text@(Required ? " *" : "")</span>
+    <span id="@_id" class="fas fa-circle-info text-muted small"
+          style="cursor:pointer; position: relative; top: 2px;"
+          @onclick="@(() => _hintOpen = !_hintOpen)"
+          @onclick:stopPropagation="true"></span>
+</span>
+<DxFlyout @bind-IsOpen="_hintOpen"
+          PositionTarget="@($"#{_id}")">
+    <BodyTemplate>
+        <div style="min-width: 250px; max-width: 450px; padding: 0.25rem;">
+            @HintText
+        </div>
+    </BodyTemplate>
+</DxFlyout>
+
+@code {
+    [Parameter, EditorRequired] public string Text { get; set; } = default!;
+    [Parameter, EditorRequired] public string HintText { get; set; } = default!;
+    [Parameter] public bool Required { get; set; }
+
+    private string _id = "info_" + Guid.NewGuid().ToString("N");
+    private bool _hintOpen;
+}

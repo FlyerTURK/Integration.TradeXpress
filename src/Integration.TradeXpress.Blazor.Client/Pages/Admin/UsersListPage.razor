@@ -3,7 +3,7 @@
 @using Integration.TradeXpress.Blazor.Client.Pages.Admin.Models
 @using Integration.TradeXpress.Blazor.Client.Services
 @using DevExpress.Blazor
-@inherits CrudPageBase<UserGetDto, UserListDto, Guid, UserListRequestDto, CreateIdentityUserInput, UpdateIdentityUserInput, UserEditViewModel>
+@inherits CrudPageBase<UserGetDto, UserListDto, Guid, UserListRequestDto, CreateIdentityUserInput, UpdateIdentityUserInput>
 
 <CrudLayout TGetDto="UserGetDto"
             TListDto="UserListDto"
@@ -13,19 +13,12 @@
             DataSource="@GridDataSource"
             EntityName="@L["User"]"
             EntityIcon="@TradeXpressIcons.User"
-            PageTitle="@L["Users"]"
-            EditMode="CrudEditMode.Tab"
-            NewTabUrl="/admin/users/new"
-            NewTabTitle="@($"{L["New"]} {L["User"]}")"
-            EditTabUrl="@(u => $"/admin/users/{u.Id}")"
-            EditTabTitle="@(u => $"{L["User"]}: {u.UserName}")"
+            PageTitle="@L["Users"]"{L["New"]} {L["User"]}")"/admin/users/{u.Id}")"{L["User"]}: {u.UserName}")"
             OnNewClick="BeforeCreateAsync"
             OnUpdateClick="BeforeUpdateAsync"
             OnDeleteClick="DeleteAsync"
             OnRefreshClick="GetListAsync"
-            OnSearchChanged="OnSearchAsync"
-            OnSaveClick="SaveAsync"
-            OnSaveAndNewClick="SaveAndNewAsync">
+            OnSearchChanged="OnSearchAsync">
 
     <GridColumns>
         <DxGridDataColumn FieldName="UserName" Caption="@L["UserName"]" Width="180px" />
@@ -44,3 +37,8 @@
     </ToolbarActions>
 
 </CrudLayout>
+
+
+
+
+

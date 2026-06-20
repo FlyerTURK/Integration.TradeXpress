@@ -32,7 +32,7 @@
           CssClass="user-avatar-flyout">
     <BodyContentTemplate Context="flyout">
         <div class="user-avatar-flyout-body text-center">
-            <span class="erp-avatar-initials erp-avatar-lg mb-2" aria-hidden="true">@_initials</span>
+            <span class="erp-avatar-initials d-flex align-items-center justify-content-center mx-auto erp-avatar-lg mb-2" aria-hidden="true">@_initials</span>
             <div class="fw-bold text-truncate" title="@_userName">@_userName</div>
             @if (!string.IsNullOrEmpty(_tenantName))
             {
@@ -78,7 +78,7 @@
     private void OnLogout()
     {
         _isOpen = false;
-        Navigation.NavigateToLogout("authentication/logout");
+        Navigation.NavigateTo("/api/account/logout?returnUrl=/account/login", forceLoad: true);
     }
 
     private static string BuildInitials(string? fullName, string userName)

@@ -1,34 +1,138 @@
-@using System.Linq
-@using Integration.TradeXpress.Blazor.Client.Pages.Companies.Models
+@using Integration.TradeXpress.Companies
 @using Integration.TradeXpress.Countries
 @using Integration.TradeXpress.Currencies
+@using Integration.Framework.Blazor.Client.Components.Crud
+@using Integration.TradeXpress.Blazor.Client.Services.Mdi
 @using DevExpress.Blazor
-@inject Microsoft.Extensions.Localization.IStringLocalizer<Integration.TradeXpress.Localization.TradeXpressResource> L
-@inject ICurrencyUnitAppService CurrencyUnitAppService
-@inject ICountryAppService CountryAppService
+@using Microsoft.Extensions.Localization
 
-@* Şirket edit "evi" — TenantEditPage kalıbı: yalnız layout'u barındırır, veri/servis yükler,
-   yaşam döngüsü koordinatöre (CrudEditForm) ait. *@
-<CompanyEditFormLayout Model="Model"
-                       L="L"
-                       Units="Units"
-                       Countries="Countries"
-                       OnChanged="OnChanged" />
+@inject ICompanyAppService CompanyAppService
+@inject ICurrencyUnitAppService CurrencyAppService
+@inject ICountryAppService CountryAppService
+@inject ITabManager TabManager
+
+@inherits CrudEditComponentBase<CompanyGetDto, CompanyListDto, Guid, CompanyListRequestDto, CompanyCreateDto, CompanyUpdateDto>
+
+<CrudEditShell IsPopupMode="@IsPopupMode" EditContext="@EditContext"
+               OnSave="SaveAsync" OnSaveAndNew="SaveAndNewAsync" OnSaveAndClose="SaveAndCloseAsync"
+               OnDelete="DeleteRecordAsync" OnRefresh="LoadDataAsync"
+               CanSave="@IsDirty" CanDelete="@(!IsNewMode)">
+    @RenderForm()
+</CrudEditShell>
 
 @code {
-    [Parameter, EditorRequired] public CompanyViewModel Model { get; set; } = default!;
+    private RenderFragment RenderForm() => @<text>
+<DxFormLayout Data="@EditModel" CssClass="w-100">
+    <DxFormLayoutGroup Caption="@L["General"]" ColSpanMd="12">
+        @* 1. Kod — yarım satır *@
+        <DxFormLayoutItem Caption="@($"{L["Code"]} *")" ColSpanMd="6">
+            <DxTextBox @bind-Text="@EditModel.Code" Enabled="@IsNewMode" />
+        </DxFormLayoutItem>
+        @* 2. Adı — tam satır *@
+        <DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="12">
+            <DxTextBox @bind-Text="@EditModel.Name" @ref="_nameBox" />
+        </DxFormLayoutItem>
+        @* 3. Ülke — yarım satır *@
+        <DxFormLayoutItem Caption="@($"{L["Country"]} *")" ColSpanMd="6">
+            <DxComboBox Data="@Countries" Value="@EditModel.CountryCode"
+                        ValueFieldName="@nameof(CountryListDto.Code)"
+                        TextFieldName="@nameof(CountryListDto.Code)"
+                        ValueChanged="@((string code) => OnCountryChanged(code))"
+                        ValidationEnabled="false"
+                        NullText="@L["Country"]"
+                        CssClass="w-100" />
+        </DxFormLayoutItem>
+        @* 4. Değerleme Para Birimi — yarım satır *@
+        <DxFormLayoutItem ColSpanMd="6" CaptionFor="baseCcy">
+            <CaptionTemplate>
+                <InfoCaption Text="@L["Yerel Para Birimi"].Value"
+                             HintText="@L["Company:BaseCurrencyCodeHint"].Value"
+                             Required="true" />
+            </CaptionTemplate>
+            <Template>
+                <DxComboBox Data="@Units" @bind-Value="@EditModel.BaseCurrencyUnitId"
+                            ValueFieldName="@nameof(CurrencyUnitListDto.Id)"
+                            TextFieldName="@nameof(CurrencyUnitListDto.Code)"
+                            ValidationEnabled="false"
+                            InputId="baseCcy"
+                            CssClass="w-100" />
+            </Template>
+        </DxFormLayoutItem>
+        @* Ara: Merkez — yarım satır (yalnız) *@
+        <DxFormLayoutItem Caption="@L["IsHeadquarters"]" ColSpanMd="6">
+            <DxCheckBox @bind-Checked="@EditModel.IsHeadquarters" CheckType="CheckType.Switch">
+                @(EditModel.IsHeadquarters ? L["Yes"] : L["No"])
+            </DxCheckBox>
+        </DxFormLayoutItem>
+    </DxFormLayoutGroup>
 
-    /// <summary>Combo veya drill değişince ateşlenir — list page StateService.MarkDirty'yi tetikler.</summary>
-    [Parameter] public EventCallback OnChanged { get; set; }
+    @* Sondan bir önceki: Açıklama — tam satır, DxMemo 2 satır, resize kapalı *@
+    <DxFormLayoutItem Caption="@L["Description"]" ColSpanMd="12">
+        <DxMemo @bind-Text="@EditModel.Description" Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100" />
+    </DxFormLayoutItem>
+    @* Son satır: Durum (Status) yarım + Sıra (DisplayOrder) yarım *@
+    <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6">
+        <DxCheckBox @bind-Checked="@EditModel.IsActive" CheckType="CheckType.Switch">
+            @(EditModel.IsActive ? L["Active"] : L["Passive"])
+        </DxCheckBox>
+    </DxFormLayoutItem>
+    <DxFormLayoutItem Caption="@L["DisplayOrder"]" ColSpanMd="6">
+        <NumericSpinEdit @bind-Value="@EditModel.DisplayOrder" />
+    </DxFormLayoutItem>
+</DxFormLayout>
+</text>;
 
-    private List<CurrencyUnitListDto> Units { get; set; } = new();
-    private List<CountryListDto> Countries { get; set; } = new();
+    protected override Volo.Abp.Application.Services.ICrudAppService<
+        CompanyGetDto, CompanyListDto, Guid, CompanyListRequestDto, CompanyCreateDto, CompanyUpdateDto> CrudAppService => CompanyAppService;
 
-    protected override async Task OnInitializedAsync()
+    protected override string EntityChangeKey => "Companies";
+
+    private DxTextBox? _nameBox;
+    public List<CurrencyUnitListDto> Units { get; set; } = new();
+    public List<CountryListDto> Countries { get; set; } = new();
+
+    public override async Task LoadDataAsync()
     {
-        var units = await CurrencyUnitAppService.GetListAsync(new CurrencyUnitListRequestDto { MaxResultCount = 1000 });
-        Units = units.Items.ToList();
-        var countries = await CountryAppService.GetListAsync(new CountryListRequestDto { MaxResultCount = 1000 });
-        Countries = countries.Items.ToList();
+        await base.LoadDataAsync();
+        var currenciesTask = CurrencyAppService.GetListAsync(new CurrencyUnitListRequestDto { MaxResultCount = 1000 });
+        var countriesTask = CountryAppService.GetListAsync(new CountryListRequestDto { MaxResultCount = 1000 });
+        
+        await Task.WhenAll(currenciesTask, countriesTask);
+        
+        Units = (await currenciesTask).Items.ToList();
+        Countries = (await countriesTask).Items.ToList();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && IsNewMode && _nameBox != null)
+            await _nameBox.FocusAsync();
+    }
+
+    private void OnCountryChanged(string code)
+    {
+        EditModel.CountryCode = code;
+        var country = Countries.FirstOrDefault(c => c.Code == code);
+        if (country?.DefaultCurrencyCode is { Length: > 0 } ccy)
+        {
+            var unit = Units.FirstOrDefault(u => string.Equals(u.Code, ccy, StringComparison.OrdinalIgnoreCase));
+            if (unit != null)
+                EditModel.BaseCurrencyUnitId = unit.Id;
+        }
+    }
+
+    public override async Task CloseAsync()
+    {
+        if (!IsPopupMode && CurrentMdiTab != null)
+        {
+            TabManager.Close(CurrentMdiTab.Id);
+        }
+        else
+        {
+            await base.CloseAsync();
+        }
     }
 }
+
+
+

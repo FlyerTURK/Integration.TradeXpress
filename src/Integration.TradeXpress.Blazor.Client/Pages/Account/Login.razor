@@ -48,7 +48,7 @@
                 <DxFormLayout CssClass="erp-login-form" CaptionPosition="CaptionPosition.Vertical">
                     <DxFormLayoutItem Caption="@L["Login_TenantLabel"].Value" ColSpanMd="12">
                         <div @onkeydown="OnTenantKeyDown">
-                            <DxTextBox @ref="_tenantBox" Text="@TenantDisplay" ReadOnly="true">
+                            <DxTextBox @ref="_tenantBox" Text="@TenantDisplay" ReadOnly="true" NullText="@L["Firma Seçiniz..."].Value">
                                 <Buttons>
                                     <DxEditorButton Text="@L["Login_TenantChange"].Value"
                                                     Click="@OpenTenantPickerAsync" />
@@ -136,7 +136,7 @@
     ];
 
     private string TenantDisplay =>
-        string.IsNullOrEmpty(_tenant) ? L["Login_TenantUnset"].Value : _tenant.ToUpperInvariant();
+        string.IsNullOrEmpty(_tenant) ? string.Empty : _tenant.ToUpperInvariant();
 
     private void TogglePasswordVisibility() => _passwordVisible = !_passwordVisible;
 

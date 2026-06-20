@@ -31,6 +31,7 @@ public class UserGetDto : EntityDto<Guid>, IGetDto<Guid>
     public string PhoneNumber { get; set; } = string.Empty;
     public bool IsActive { get; set; }
     public string ConcurrencyStamp { get; set; } = string.Empty;
+    public string Password { get; set; } = string.Empty;
     public int PageIndex { get; set; }
 }
 

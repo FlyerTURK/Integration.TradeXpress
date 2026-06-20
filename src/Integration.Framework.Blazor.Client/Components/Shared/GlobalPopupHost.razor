@@ -1,0 +1,49 @@
+@using DevExpress.Blazor
+@using Integration.Framework.Blazor.Client.Services.Base
+@inject IPopupService PopupService
+@implements IDisposable
+
+<DxPopup Visible="@PopupService.IsVisible"
+         VisibleChanged="OnVisibleChanged"
+         HeaderText="@PopupService.Options?.Title"
+         ShowCloseButton="true"
+         ShowFooter="false"
+         Width="@(PopupService.Options?.Width ?? "800px")"
+         CloseOnEscape="@(PopupService.Options?.CloseOnEscape ?? false)"
+         CloseOnOutsideClick="@(PopupService.Options?.CloseOnOutsideClick ?? false)">
+    <BodyTemplate>
+        @if (PopupService.ComponentType != null)
+        {
+            <DynamicComponent Type="@PopupService.ComponentType" Parameters="@PopupService.ComponentParameters" />
+        }
+    </BodyTemplate>
+</DxPopup>
+
+@code {
+    protected override void OnInitialized()
+    {
+        PopupService.OnShow += StateHasChanged;
+        PopupService.OnHide += StateHasChanged;
+    }
+
+    private async Task OnVisibleChanged(bool isVisible)
+    {
+        if (!isVisible && PopupService.IsVisible)
+        {
+            // Kaydedilmemiş değişiklik guard'ı: false dönerse popup açık kalır.
+            var guard = PopupService.CloseGuard;
+            if (guard != null && !await guard())
+            {
+                await InvokeAsync(StateHasChanged); // Visible=true'ya geri bağlan → açık kal
+                return;
+            }
+            PopupService.Close();
+        }
+    }
+
+    public void Dispose()
+    {
+        PopupService.OnShow -= StateHasChanged;
+        PopupService.OnHide -= StateHasChanged;
+    }
+}

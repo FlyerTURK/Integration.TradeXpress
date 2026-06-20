@@ -19,6 +19,10 @@ public class CurrencyUnitListDto : EntityDto<Guid>, IListDto<Guid>, IIsActive
 
     /// <summary>Yapısal/global takip (varsa parent'tan türetilir).</summary>
     public Guid? FollowingUnitId { get; set; }
+    
+    public string? FollowingUnitCode { get; set; }
+    public MarginType? FollowingMarginType { get; set; }
+    public decimal? FollowingMarginValue { get; set; }
 
     /// <summary>Host kataloğu (TenantId=null) mu? Tenant bunu düzenleyemez; salt-okur.</summary>
     public bool IsGlobal { get; set; }

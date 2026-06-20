@@ -30,7 +30,7 @@ public class CurrencyUnitViewModel : IViewModel<Guid>
     public string? Description { get; set; }
 
     public bool IsActive { get; set; } = true;
-    public int DisplayOrder { get; set; }
+    public int DisplayOrder { get; set; } = 99;
 
     /// <summary>Sistem birimi mi (Code kilitli, silinemez).</summary>
     public bool IsSystem { get; set; }

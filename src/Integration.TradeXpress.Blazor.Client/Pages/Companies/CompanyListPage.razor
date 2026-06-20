@@ -4,11 +4,10 @@
 @using Integration.TradeXpress.Companies
 @using DevExpress.Blazor
 @inject Microsoft.AspNetCore.Components.NavigationManager NavigationManager
-@inherits CrudPageBase<CompanyGetDto, CompanyListDto, Guid, CompanyListRequestDto, CompanyCreateDto, CompanyUpdateDto, CompanyViewModel>
+@inherits CrudPageBase<CompanyGetDto, CompanyListDto, Guid, CompanyListRequestDto, CompanyCreateDto, CompanyUpdateDto>
 
 <CrudLayout TGetDto="CompanyGetDto"
             TListDto="CompanyListDto"
-            TViewModel="CompanyViewModel"
             TKey="Guid"
             StateService="StateService"
             DataSource="@GridDataSource"
@@ -20,9 +19,7 @@
             OnUpdateClick="BeforeUpdateAsync"
             OnDeleteClick="DeleteAsync"
             OnRefreshClick="GetListAsync"
-            OnSearchChanged="OnSearchAsync"
-            OnSaveClick="SaveAsync"
-            OnSaveAndNewClick="SaveAndNewAsync">
+            OnSearchChanged="OnSearchAsync">
 
     <GridColumns>
         <DxGridDataColumn FieldName="Code" Caption="@L["Code"]" Width="120px" />
@@ -40,9 +37,13 @@
                   Click="OpenBranchesAsync" />
     </ToolbarActions>
 
-    <EditPageContent Context="editingModel">
-        <CompanyEditPage Model="editingModel" OnChanged="MarkDrillDirty" />
-    </EditPageContent>
+    
 
 </CrudLayout>
+
+
+
+
+
+
 

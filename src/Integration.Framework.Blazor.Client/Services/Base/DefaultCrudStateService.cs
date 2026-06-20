@@ -8,10 +8,8 @@ namespace Integration.Framework.Blazor.Client.Services.Base;
 /// IntegrationFrameworkBlazorClientModule open generic olarak kaydeder —
 /// ICrudStateService kullanan her sayfa ayrı bir sınıf yazmadan otomatik çözümlenir.
 /// </summary>
-public class DefaultCrudStateService<TGetDto, TListDto, TKey, TViewModel>
-    : CrudStateServiceBase<TGetDto, TListDto, TKey, TViewModel>
-    where TGetDto : class, IGetDto<TKey>, new()
+public class DefaultCrudStateService<TListDto, TKey>
+    : CrudStateServiceBase<TListDto, TKey>
     where TListDto : class, IListDto<TKey>, new()
-    where TViewModel : class, IViewModel<TKey>, new()
 {
 }

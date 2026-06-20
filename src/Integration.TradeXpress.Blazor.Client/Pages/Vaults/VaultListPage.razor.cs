@@ -38,11 +38,7 @@ public partial class VaultListPage
     protected override void OnConfiguringListRequest(VaultListRequestDto request)
         => request.BranchId = BranchId;
 
-    // Yeni kasa: parent şube route'tan gelir (combo'da pre-set).
-    public override Task BeforeCreateAsync()
-    {
-        StateService.EditingModel = new VaultViewModel { BranchId = BranchId, IsActive = true };
-        StateService.ShowEditPage(isNewRecord: true);
-        return Task.CompletedTask;
+        public override System.Type EditComponentType => typeof(Integration.TradeXpress.Blazor.Client.Pages.Vaults.VaultEditPage);
     }
-}
+
+

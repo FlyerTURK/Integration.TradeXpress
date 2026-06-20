@@ -60,9 +60,14 @@ public class CurrencyUnitAppService : TradeXpressAppService, ICurrencyUnitAppSer
             var items = await AsyncExecuter.ToListAsync(
                 query.Skip(input.SkipCount).Take(input.MaxResultCount));
 
+            var parentIds = items.Where(x => x.FollowingUnitId.HasValue).Select(x => x.FollowingUnitId.Value).Distinct().ToList();
+            var parents = parentIds.Count > 0 
+                ? await AsyncExecuter.ToListAsync((await _repository.GetQueryableAsync()).Where(x => parentIds.Contains(x.Id)))
+                : new List<CurrencyUnit>();
+
             return new PagedResultDto<CurrencyUnitListDto>(
                 totalCount,
-                items.Select(ToListDto).ToList());
+                items.Select(e => ToListDto(e, parents)).ToList());
         }
     }
 
@@ -168,10 +173,17 @@ public class CurrencyUnitAppService : TradeXpressAppService, ICurrencyUnitAppSer
         entity.SetFollowing(followingUnitId, new MarginSetting(marginType.Value, marginValue.Value));
     }
 
-    private CurrencyUnitListDto ToListDto(CurrencyUnit e)
+    private CurrencyUnitListDto ToListDto(CurrencyUnit e, List<CurrencyUnit>? parents = null)
     {
         var dto = ObjectMapper.Map<CurrencyUnit, CurrencyUnitListDto>(e);
         dto.IsGlobal = e.TenantId == null;
+        dto.FollowingMarginType = e.FollowingMargin?.Type;
+        dto.FollowingMarginValue = e.FollowingMargin?.Value;
+        if (parents != null && e.FollowingUnitId.HasValue)
+        {
+            var parent = parents.FirstOrDefault(x => x.Id == e.FollowingUnitId.Value);
+            dto.FollowingUnitCode = parent?.Code;
+        }
         return dto;
     }
 

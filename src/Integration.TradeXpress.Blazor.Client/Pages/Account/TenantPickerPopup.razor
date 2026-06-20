@@ -10,20 +10,20 @@
     this in the UI to avoid leaking the host-login hint to casual attackers. *@
 
 <DxPopup @bind-Visible="@_visible"
-         HeaderText="@L["Login_TenantPickerTitle"].Value"
+         HeaderText="@L["Firma Seç"].Value"
          Width="420px"
          ShowFooter="true"
          CloseOnOutsideClick="false"
          Closed="@OnClosed">
     <Content>
         <DxFormLayout CaptionPosition="CaptionPosition.Vertical">
-            <DxFormLayoutItem Caption="@L["Login_TenantPickerLabel"].Value" ColSpanMd="12">
+            <DxFormLayoutItem Caption="@L["Firma Adı"].Value" ColSpanMd="12">
                 <DxTextBox @ref="_inputBox"
                            @bind-Text="_input"
                            @bind-Text:after="OnInputChanged"
                            BindValueMode="BindValueMode.OnInput"
                            ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto"
-                           NullText="@L["Login_TenantPlaceholder"].Value" />
+                           NullText="@L["Firma adı seçiniz..."].Value" />
             </DxFormLayoutItem>
         </DxFormLayout>
         @if (!string.IsNullOrEmpty(_error))

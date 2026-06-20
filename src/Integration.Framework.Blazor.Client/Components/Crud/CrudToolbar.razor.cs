@@ -3,9 +3,9 @@ using Integration.Framework.Blazor.Client.Services.Base;
 
 namespace Integration.Framework.Blazor.Client.Components.Crud
 {
-    public partial class CrudToolbar<TGetDto, TListDto, TViewModel, TKey>
+    public partial class CrudToolbar<TGetDto, TListDto, TKey>
     {
-        [Parameter, EditorRequired] public ICrudStateService<TGetDto, TListDto, TKey, TViewModel> StateService { get; set; } = default!;
+        [Parameter, EditorRequired] public ICrudStateService<TListDto, TKey> StateService { get; set; } = default!;
 
         [Parameter] public string? SearchText { get; set; }
         [Parameter] public EventCallback<string> SearchTextChanged { get; set; }

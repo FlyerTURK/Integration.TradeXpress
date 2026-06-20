@@ -1,8 +1,145 @@
+@page "/currencies/currency-units/new"
+@page "/currencies/currency-units/{Id:guid}"
 @using Integration.TradeXpress.Blazor.Client.Pages.Currencies.Models
-@inject Microsoft.Extensions.Localization.IStringLocalizer<Integration.TradeXpress.Localization.TradeXpressResource> L
+@using Integration.TradeXpress.Currencies
+@using Integration.TradeXpress.Blazor.Client.Services.Mdi
+@using Integration.TradeXpress.Blazor.Client.Services.Mdi
+@using Integration.Framework.Blazor.Client.Services.Base
+@using Integration.Framework.Blazor.Client.Components.Crud
+@using Microsoft.Extensions.Localization
+@using DevExpress.Blazor
+@inject ICurrencyUnitAppService CurrencyUnitAppService
+@inject Integration.TradeXpress.Blazor.Client.Services.Mdi.ITabManager TabManager
 
-<CurrencyUnitEditFormLayout Model="Model" L="L" />
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudEditComponentBase<CurrencyUnitGetDto, CurrencyUnitListDto, Guid, CurrencyUnitListRequestDto, CurrencyUnitCreateDto, CurrencyUnitUpdateDto>
+
+<CrudEditShell IsPopupMode="@IsPopupMode" EditContext="@EditContext"
+               OnSave="SaveAsync" OnSaveAndNew="SaveAndNewAsync" OnSaveAndClose="SaveAndCloseAsync"
+               OnDelete="DeleteRecordAsync" OnRefresh="LoadDataAsync"
+               CanSave="@IsDirty" CanDelete="@(!IsNewMode)">
+    @RenderForm()
+</CrudEditShell>
 
 @code {
-    [Parameter, EditorRequired] public CurrencyUnitViewModel Model { get; set; } = default!;
+    private RenderFragment RenderForm() => @<text>
+<DxFormLayout Data="@EditModel" CssClass="w-100">
+
+    <DxFormLayoutTabPages>
+        <DxFormLayoutTabPage Caption="@L["General"]">
+            @* 1. Kod — yarım satır (yalnız) *@
+            <DxFormLayoutItem Caption="@($"{L["Code"]} *")" ColSpanMd="6">
+                <DxTextBox @bind-Text="@EditModel.Code" @ref="_codeBox" Enabled="@(EditModel.Id == Guid.Empty)" />
+            </DxFormLayoutItem>
+            @* 2. Adı — tam satır *@
+            <DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="12">
+                <DxTextBox @bind-Text="@EditModel.Name" />
+            </DxFormLayoutItem>
+            @* Ara: Tür — yarım satır *@
+            <DxFormLayoutItem Caption="@L["Type"]" ColSpanMd="6">
+                <ComboBoxEnumEdit TEnum="CurrencyUnitType" @bind-Value="@EditModel.Type" L="@L" Enabled="@(EditModel.Id == Guid.Empty)" />
+            </DxFormLayoutItem>
+            @* Sondan bir önceki: Açıklama — tam satır, DxMemo 2 satır, resize kapalı *@
+            <DxFormLayoutItem Caption="@L["Description"]" ColSpanMd="12">
+                <DxMemo @bind-Text="@EditModel.Description" Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100" />
+            </DxFormLayoutItem>
+            @* Son satır: Durum (Status) yarım + Sıra (DisplayOrder) yarım *@
+            <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6">
+                <DxCheckBox @bind-Checked="@EditModel.IsActive" CheckType="CheckType.Switch">
+                    @(EditModel.IsActive ? L["Active"] : L["Passive"])
+                </DxCheckBox>
+            </DxFormLayoutItem>
+            <DxFormLayoutItem Caption="@L["DisplayOrder"]" ColSpanMd="6">
+                <NumericSpinEdit @bind-Value="@EditModel.DisplayOrder" />
+            </DxFormLayoutItem>
+        </DxFormLayoutTabPage>
+
+        @* Takip grubu (Host'ta gizli) *@
+        <DxFormLayoutTabPage Caption="@L["Following"]" Visible="@(CurrentTenant?.Id != null)">
+            <DxFormLayoutItem ColSpanMd="6">
+                <CaptionTemplate>
+                    <InfoCaption Text="@L["FollowingUnit"].Value"
+                                 HintText="@L["CurrencyUnit:FollowingUnitIdHint"].Value"
+                                 Required="false" />
+                </CaptionTemplate>
+                <Template>
+                    <DxComboBox Data="@_followCandidates"
+                                Value="@EditModel.FollowingUnitId"
+                                ValueChanged="(Guid? newId) => HandleFollowingUnitChanged(newId)"
+                                TextFieldName="@nameof(CurrencyUnitListDto.Code)"
+                                ValueFieldName="@nameof(CurrencyUnitListDto.Id)"
+                                NullText="@L["None"]"
+                                ValidationEnabled="false"
+                                ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
+                </Template>
+            </DxFormLayoutItem>
+            @if (EditModel.FollowingUnitId.HasValue)
+            {
+                <DxFormLayoutItem Caption="@L["MarginType"]" ColSpanMd="6" BeginRow="true">
+                    <ComboBoxEnumEdit TEnum="MarginType?" @bind-Value="@EditModel.FollowingMarginType" L="@L" />
+                </DxFormLayoutItem>
+                <DxFormLayoutItem Caption="@L["MarginValue"]" ColSpanMd="6">
+                    <NumericSpinEdit @bind-Value="@EditModel.FollowingMarginValue" />
+                </DxFormLayoutItem>
+            }
+        </DxFormLayoutTabPage>
+    </DxFormLayoutTabPages>
+
+</DxFormLayout>
+</text>;
+
+    protected override Volo.Abp.Application.Services.ICrudAppService<
+        CurrencyUnitGetDto, CurrencyUnitListDto, Guid, CurrencyUnitListRequestDto, CurrencyUnitCreateDto, CurrencyUnitUpdateDto> CrudAppService => CurrencyUnitAppService;
+
+    protected override string EntityChangeKey => "CurrencyUnits";
+
+    private DxTextBox? _codeBox;
+    private List<CurrencyUnitListDto> _followCandidates = new();
+
+    public override async Task LoadDataAsync()
+    {
+        await base.LoadDataAsync();
+        var result = await CurrencyUnitAppService.GetListAsync(new CurrencyUnitListRequestDto { MaxResultCount = 1000 });
+        _followCandidates = result.Items.Where(u => u.Id != EditModel.Id).ToList();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && IsNewMode && _codeBox != null)
+            await _codeBox.FocusAsync();
+    }
+
+    private void HandleFollowingUnitChanged(Guid? newId)
+    {
+        EditModel.FollowingUnitId = newId;
+        if (newId.HasValue)
+        {
+            if (EditModel.FollowingMarginType == null && EditModel.FollowingMarginValue == null)
+            {
+                EditModel.FollowingMarginType = MarginType.Multiply;
+                EditModel.FollowingMarginValue = 1m;
+            }
+        }
+        else
+        {
+            EditModel.FollowingMarginType = null;
+            EditModel.FollowingMarginValue = null;
+        }
+    }
+
+    public override async Task CloseAsync()
+    {
+        if (!IsPopupMode && CurrentMdiTab != null)
+        {
+            TabManager.Close(CurrentMdiTab.Id);
+        }
+        else
+        {
+            await base.CloseAsync();
+        }
+    }
 }
+
+
+
+
+
