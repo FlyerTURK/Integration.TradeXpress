@@ -8,7 +8,7 @@ namespace Integration.TradeXpress.Currencies;
 /// CurrencyUnit detay/edit DTO'su. Margin VO'ları düzleştirilmiş; takip (follow)
 /// alanları nullable. Edit formu buna bağlanır.
 /// </summary>
-public class CurrencyUnitGetDto : EntityDto<Guid>, IGetDto<Guid>
+public class CurrencyUnitGetDto : EntityDto<Guid>, IGetDto<Guid>, IHasCode
 {
     public string Code { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;

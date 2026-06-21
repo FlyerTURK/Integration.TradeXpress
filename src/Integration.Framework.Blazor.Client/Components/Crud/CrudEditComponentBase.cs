@@ -20,7 +20,7 @@ namespace Integration.Framework.Blazor.Client.Components.Crud;
 /// bağımsız (standalone) Edit formları için temel sınıf.
 /// Popup (Modal) veya MDI Sekmesi (Tab) içinde çalışabilir.
 /// </summary>
-public abstract class CrudEditComponentBase<TGetDto, TListDto, TKey, TListRequestDto, TCreateDto, TUpdateDto> : CrudComponentBase, ISplitEditActions, IDisposable
+public abstract class CrudEditComponentBase<TGetDto, TListDto, TKey, TListRequestDto, TCreateDto, TUpdateDto> : CrudComponentBase, ISplitEditActions, IEditHeaderSource, IDisposable
     where TGetDto : class, IGetDto<TKey>, new()
     where TListDto : class, IListDto<TKey>, new()
     where TListRequestDto : class, new()
@@ -83,9 +83,10 @@ public abstract class CrudEditComponentBase<TGetDto, TListDto, TKey, TListReques
 
     // ── Yapısal başlık (3-satır: tür / kimlik / parent) — TEK kaynak; MDI tab + top-panel + popup tüketir ──
     /// <summary>L1 — entity tür adı. Varsayılan: TGetDto adından "GetDto" atılıp lokalize edilir.</summary>
-    protected virtual string EditFormCaption => DefaultEntityCaption();
-    /// <summary>L2 — kaydın kimlik değeri (ör. Code). Varsayılan: EditModel'de "Code" property'si varsa onun değeri.</summary>
-    protected virtual string? EditEntityValue => ReflectCode();
+    protected virtual string EditFormCaption => CrudNaming.EntityCaption(typeof(TGetDto), L);
+    /// <summary>L2 — kaydın kimlik değeri. Varsayılan: DTO <see cref="IHasCode"/> ise Code (explicit, reflection yok).
+    /// Code'u olmayan/farklı kimlik kullanan entity alt sınıfta override eder.</summary>
+    protected virtual string? EditEntityValue => (EditModel as IHasCode)?.Code is { Length: > 0 } code ? code : null;
     /// <summary>L3a — parent etiketi (org entity'leri override eder; ör. "Şirket").</summary>
     protected virtual string? EditParentLabel => null;
     /// <summary>L3b — parent değeri (ör. "MERKEZ").</summary>
@@ -102,10 +103,10 @@ public abstract class CrudEditComponentBase<TGetDto, TListDto, TKey, TListReques
         ParentLabel  = EditParentLabel,
         ParentValue  = EditParentValue,
         IconCssClass = EditIconCssClass,
-        IsDirty      = IsDirty,
     };
 
-    TabHeaderData? ISplitEditActions.EditHeader => BuildEditHeader();
+    TabHeaderData? IEditHeaderSource.EditHeader => BuildEditHeader();
+    bool IEditHeaderSource.IsDirty => IsDirty;   // dirty TEK kaynak (popup/tab aynı bayraktan "*")
 
     // MDI tab başlığını push etmek için (opsiyonel — app TabManager'ı IMdiTabOpener olarak kaydeder).
     private IMdiTabOpener? TabOpener => ServiceProvider.GetService<IMdiTabOpener>();
@@ -123,20 +124,10 @@ public abstract class CrudEditComponentBase<TGetDto, TListDto, TKey, TListReques
         if (SplitHost != null || IsEmbedded)
             TabOpener?.SetTabDirty(tab.Id, IsDirty);
         else
-            TabOpener?.UpdateTabHeader(tab.Id, BuildEditHeader());   // standalone MDI: tam yapısal başlık
-    }
-
-    private string DefaultEntityCaption()
-    {
-        var name = typeof(TGetDto).Name;
-        if (name.EndsWith("GetDto", StringComparison.Ordinal)) name = name[..^"GetDto".Length];
-        return L[name];
-    }
-
-    private string? ReflectCode()
-    {
-        var p = typeof(TGetDto).GetProperty("Code", BindingFlags.Public | BindingFlags.Instance);
-        return p?.GetValue(EditModel) as string is { Length: > 0 } v ? v : null;
+        {
+            TabOpener?.UpdateTabHeader(tab.Id, BuildEditHeader());   // standalone MDI: yapısal başlık
+            TabOpener?.SetTabDirty(tab.Id, IsDirty);                 // dirty TEK kaynak = MdiTab.IsDirty
+        }
     }
 
     Task ISplitEditActions.SaveAsync()         => SaveAsync();   // Task<bool> → Task

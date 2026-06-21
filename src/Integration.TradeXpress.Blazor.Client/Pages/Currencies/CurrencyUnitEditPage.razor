@@ -1,17 +1,9 @@
 @page "/currencies/currency-units/new"
 @page "/currencies/currency-units/{Id:guid}"
-@using Integration.TradeXpress.Blazor.Client.Pages.Currencies.Models
-@using Integration.TradeXpress.Currencies
-@using Integration.TradeXpress.Blazor.Client.Services.Mdi
-@using Integration.TradeXpress.Blazor.Client.Services.Mdi
-@using Integration.Framework.Blazor.Client.Services.Base
-@using Integration.Framework.Blazor.Client.Components.Crud
-@using Microsoft.Extensions.Localization
-@using DevExpress.Blazor
 @inject ICurrencyUnitAppService CurrencyUnitAppService
-@inject Integration.TradeXpress.Blazor.Client.Services.Mdi.ITabManager TabManager
+@inject ITabManager TabManager
 
-@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudEditComponentBase<CurrencyUnitGetDto, CurrencyUnitListDto, Guid, CurrencyUnitListRequestDto, CurrencyUnitCreateDto, CurrencyUnitUpdateDto>
+@inherits CrudEditComponentBase<CurrencyUnitGetDto, CurrencyUnitListDto, Guid, CurrencyUnitListRequestDto, CurrencyUnitCreateDto, CurrencyUnitUpdateDto>
 
 <CrudEditShell TGetDto="CurrencyUnitGetDto" TListDto="CurrencyUnitListDto" TKey="Guid"
                IsPopupMode="@IsPopupMode" EditContext="@EditContext" EditController="@this">

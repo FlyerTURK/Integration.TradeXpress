@@ -1,9 +1,7 @@
-@using Integration.Framework.Blazor.Client.Services.Mdi
-
 @*
    Edit formunun yapısal başlığını (L1/L2/L3 + ikon + dirty "*") çizen TEK görsel.
-   Üç tüketici kullanır: MDI tab caption (Compact), top-panel aktif-tab başlığı, popup header.
-   Inline stil — bu app'te Bootstrap utility/alert class'ları etkisiz (bkz. proje notu).
+   Üç tüketici: MDI tab caption (Compact), top-panel aktif-tab başlığı, popup header.
+   Kod-arkası: EditHeaderView.razor.cs · stiller: EditHeaderView.razor.css.
 *@
 
 @if (Header is not null)
@@ -11,41 +9,36 @@
     var h = Header;
     var l1 = string.IsNullOrEmpty(h.NewPrefix) ? h.FormCaption : $"{h.NewPrefix} {h.FormCaption}";
     var hasL2 = !string.IsNullOrEmpty(h.EntityValue);
-    var dirtyStar = (ShowDirty && h.IsDirty) ? " *" : "";
+    var showStar = ShowDirty && IsDirty;
+    var rootClass = "eh-root" + (Compact ? " eh-compact" : "") + (hasL2 ? " has-l2" : "");
 
-    <div style="display:flex; align-items:center; gap:@(Compact ? "0.35rem" : "0.5rem"); min-width:0; line-height:1.05;">
+    <div class="@rootClass">
         @if (!string.IsNullOrEmpty(h.IconCssClass))
         {
-            <i class="@h.IconCssClass" aria-hidden="true"
-               style="flex:0 0 auto; color:var(--dxbl-primary, #2563eb); font-size:@(Compact ? "0.95em" : "1.1em");"></i>
+            <i class="eh-icon @h.IconCssClass" aria-hidden="true"></i>
         }
-        <div style="display:flex; flex-direction:column; min-width:0; overflow:hidden;">
-            <span style="font-size:@(hasL2 ? (Compact ? "0.72rem" : "0.78rem") : (Compact ? "0.85rem" : "0.95rem")); font-weight:@(hasL2 ? "500" : "600"); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; @(hasL2 ? "opacity:0.75;" : "")">
-                @l1@(hasL2 ? "" : dirtyStar)
+        <div class="eh-text">
+            <span class="eh-l1">
+                @l1
+                @if (!hasL2 && showStar)
+                {
+                    <span class="eh-dirty" aria-label="@DirtyLabel">*</span>
+                }
             </span>
             @if (hasL2)
             {
-                <span style="font-size:@(Compact ? "0.85rem" : "0.95rem"); font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
-                    @h.EntityValue@dirtyStar
+                <span class="eh-l2">
+                    @h.EntityValue
+                    @if (showStar)
+                    {
+                        <span class="eh-dirty" aria-label="@DirtyLabel">*</span>
+                    }
                 </span>
             }
             @if (h.HasParent)
             {
-                <span style="font-size:@(Compact ? "0.68rem" : "0.72rem"); opacity:0.6; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
-                    @h.ParentLabel : @h.ParentValue
-                </span>
+                <span class="eh-l3">@h.ParentLabel : @h.ParentValue</span>
             }
         </div>
     </div>
-}
-
-@code {
-    /// <summary>Çizilecek yapısal başlık. null ise hiçbir şey render edilmez.</summary>
-    [Parameter] public TabHeaderData? Header { get; set; }
-
-    /// <summary>Tab strip için küçük varyant (daha sıkı font/gap).</summary>
-    [Parameter] public bool Compact { get; set; }
-
-    /// <summary>Dirty "*" işareti gösterilsin mi (tab/popup: true; top-panel: false).</summary>
-    [Parameter] public bool ShowDirty { get; set; }
 }

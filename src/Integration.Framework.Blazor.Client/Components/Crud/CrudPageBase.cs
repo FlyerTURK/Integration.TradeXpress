@@ -76,16 +76,7 @@ public abstract class CrudPageBase<TGetDto, TListDto, TKey, TListRequestDto, TCr
 
     /// <summary>Popup/sekme başlığı — ViewOpener'a geçilir. Override edilebilir.
     /// Varsayılan: TGetDto adından "GetDto" suffix'i kırpılmış lokalizasyon key'i.</summary>
-    protected virtual string EditTitle
-    {
-        get
-        {
-            var name = typeof(TGetDto).Name;
-            if (name.EndsWith("GetDto", StringComparison.Ordinal))
-                name = name[..^"GetDto".Length];
-            return L[name];
-        }
-    }
+    protected virtual string EditTitle => CrudNaming.EntityCaption(typeof(TGetDto), L);
     protected virtual string? EditIconCssClass => null;
 
     // Konvansiyon: alt sınıf yalnızca PermissionPrefix verirse (örn. "AbpTenantManagement.Tenants")

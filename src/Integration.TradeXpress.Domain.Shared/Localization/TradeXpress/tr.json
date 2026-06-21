@@ -26,6 +26,7 @@
     "FilterRow": "Filtre Satırı",
     "ClearFilter": "Filtreyi Temizle",
     "ReadOnlyForm": "Bu, merkezi bir sistem kaydıdır. Bu kaydı yalnızca görüntüleyebilirsiniz; düzenleyemez ya da silemezsiniz.",
+    "UnsavedChanges": "Kaydedilmemiş değişiklikler",
     "AlwaysShowInBalance": "Bakiye Listesi",
     "GeneralInfo": "Genel Bilgiler",
     "CurrencyKind:Global": "Genel",

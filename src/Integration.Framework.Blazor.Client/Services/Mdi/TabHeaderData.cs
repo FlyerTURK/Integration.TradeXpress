@@ -26,8 +26,5 @@ public sealed record TabHeaderData
     /// <summary>İkon CSS sınıfı (ör. "fas fa-coins").</summary>
     public string? IconCssClass { get; init; }
 
-    /// <summary>Kaydedilmemiş değişiklik var mı (tab strip + popup'ta "*" ile gösterilir; top-panel'de değil).</summary>
-    public bool IsDirty { get; init; }
-
     public bool HasParent => !string.IsNullOrEmpty(ParentLabel) && !string.IsNullOrEmpty(ParentValue);
 }

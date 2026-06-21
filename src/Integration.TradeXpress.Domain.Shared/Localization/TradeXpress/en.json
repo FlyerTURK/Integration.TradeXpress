@@ -40,6 +40,7 @@
     "FilterRow": "Filter Row",
     "ClearFilter": "Clear Filter",
     "ReadOnlyForm": "This is a central system record. You can only view this record; you cannot edit or delete it.",
+    "UnsavedChanges": "Unsaved changes",
     "AlwaysShowInBalance": "Balance List",
     "GeneralInfo": "General Info",
     "CurrencyKind:Global": "System",

@@ -7,7 +7,7 @@ using Integration.TradeXpress.Settings;
 
 namespace Integration.TradeXpress.Blazor.Client.Services.Mdi;
 
-public sealed class TabManager : ITabManager, Integration.Framework.Blazor.Client.Services.Mdi.IMdiTabOpener
+public sealed class TabManager : ITabManager, IMdiTabOpener
 {
     private readonly RouteResolver _resolver;
     private readonly IUserUiSettingAppService _uiSettings;
@@ -52,7 +52,6 @@ public sealed class TabManager : ITabManager, Integration.Framework.Blazor.Clien
         }
 
         var match = _resolver.Match(url);
-        System.Console.Error.WriteLine($"[TabManager] OpenOrActivateAsync url={url} match={(match != null ? match.PageType.Name : "NULL")} tabs={_tabs.Count}");
         if (match == null) return Task.CompletedTask; // bilinmeyen iç route → NavMenu fallback eder
 
         var tab = new MdiTab
@@ -158,10 +157,10 @@ public sealed class TabManager : ITabManager, Integration.Framework.Blazor.Clien
         Raise();
     }
 
-    public void UpdateTabHeader(Guid tabId, Integration.Framework.Blazor.Client.Services.Mdi.TabHeaderData header)
+    public void UpdateTabHeader(Guid tabId, TabHeaderData header)
     {
         var tab = _tabs.FirstOrDefault(t => t.Id == tabId);
-        if (tab == null) return;
+        if (tab == null || tab.Header == header) return;   // record value-eşitliği → gereksiz Raise/re-render yok
         tab.Header = header;
         Raise();   // strip + top-panel re-render. Persist YOK — Header kalıcılaştırılmaz (restore'da edit sayfası kurar).
     }

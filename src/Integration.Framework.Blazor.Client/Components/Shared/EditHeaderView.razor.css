@@ -1,0 +1,25 @@
+/* EditHeaderView — yapısal başlık (L1/L2/L3 + ikon + dirty). Tek görsel; tab strip (compact),
+   top-panel ve popup header kullanır. Inline ternary-stil yerine sınıflar (KISS + SoC). */
+
+.eh-root { display: flex; align-items: center; gap: .5rem; min-width: 0; line-height: 1.05; }
+.eh-root.eh-compact { gap: .35rem; }
+
+.eh-icon { flex: 0 0 auto; color: var(--dxbl-primary, #2563eb); font-size: 1.1em; }
+.eh-compact .eh-icon { font-size: .95em; }
+
+.eh-text { display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
+.eh-l1, .eh-l2, .eh-l3 { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* L1 tek başına (L2 yok) → büyük/600. L2 varsa L1 küçülür/solar, L2 öne çıkar. */
+.eh-l1 { font-size: .95rem; font-weight: 600; }
+.eh-compact .eh-l1 { font-size: .85rem; }
+.eh-root.has-l2 .eh-l1 { font-size: .78rem; font-weight: 500; opacity: .75; }
+.eh-compact.has-l2 .eh-l1 { font-size: .72rem; }
+
+.eh-l2 { font-size: .95rem; font-weight: 600; }
+.eh-compact .eh-l2 { font-size: .85rem; }
+
+.eh-l3 { font-size: .72rem; opacity: .6; }
+.eh-compact .eh-l3 { font-size: .68rem; }
+
+.eh-dirty { margin-left: .15rem; }

@@ -124,10 +124,6 @@ public interface ISplitEditActions
     /// <summary>Salt-okunur formda gösterilecek bilgilendirme metni; null ise genel mesaj kullanılır.</summary>
     string? ReadOnlyNotice { get; }
 
-    /// <summary>Edit formunun yapısal başlığı (3-satır: tür/kimlik/parent + dirty). Popup shell bunu
-    /// canlı okur; MDI tab/top-panel'e ayrıca push edilir. null = yapısal başlık yok.</summary>
-    Integration.Framework.Blazor.Client.Services.Mdi.TabHeaderData? EditHeader { get; }
-
     Task SaveAsync();
     Task SaveAndNewAsync();
     Task SaveAndCloseAsync();

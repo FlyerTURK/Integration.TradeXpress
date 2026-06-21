@@ -38,7 +38,7 @@
                     <div style="display:flex; align-items:center; min-width:0; margin-left:0.5rem; overflow:hidden;">
                         @if (activeTab?.Header is not null)
                         {
-                            <Integration.Framework.Blazor.Client.Components.Shared.EditHeaderView Header="@activeTab.Header" ShowDirty="false" />
+                            <EditHeaderView Header="@activeTab.Header" ShowDirty="false" />
                         }
                         else if (activeTab is not null)
                         {

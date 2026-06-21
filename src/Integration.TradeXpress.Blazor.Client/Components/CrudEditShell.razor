@@ -48,7 +48,7 @@ else
     @if (HeaderData is not null)
     {
         <div style="padding:0.15rem 0.25rem 0.5rem; border-bottom:1px solid #dee2e6; margin-bottom:0.5rem;">
-            <Integration.Framework.Blazor.Client.Components.Shared.EditHeaderView Header="@HeaderData" ShowDirty="true" />
+            <EditHeaderView Header="@HeaderData" IsDirty="@HeaderDirty" ShowDirty="true" DirtyLabel="@L["UnsavedChanges"]" />
         </div>
     }
     <div style="padding-top:0.25rem; border-bottom:1px solid #dee2e6; padding-bottom:0.5rem; margin-bottom:0.5rem;">
@@ -88,8 +88,10 @@ else
     private bool ReadOnly => EditController?.IsReadOnly == true;
     private string ReadOnlyText => EditController?.ReadOnlyNotice ?? L["ReadOnlyForm"];
 
-    // Popup modunda yapısal başlık (3-satır + dirty) — tab/top-panel ile aynı kaynak (EditController.EditHeader).
-    private Integration.Framework.Blazor.Client.Services.Mdi.TabHeaderData? HeaderData => EditController?.EditHeader;
+    // Popup modunda yapısal başlık (3-satır + dirty) — tab/top-panel ile aynı kaynak. EditHeader ayrı
+    // IEditHeaderSource arayüzünde (ISP); edit controller onu da uygular.
+    private TabHeaderData? HeaderData => (EditController as IEditHeaderSource)?.EditHeader;
+    private bool HeaderDirty => (EditController as IEditHeaderSource)?.IsDirty ?? false;
 
     // DevExpress editörleri @bind ile EditModel'i değiştiriyor ama EditContext.OnFieldChanged'i
     // tetiklemiyor. Bu yüzden formu saran div'in DOM oninput/onchange event'lerini yakalayıp

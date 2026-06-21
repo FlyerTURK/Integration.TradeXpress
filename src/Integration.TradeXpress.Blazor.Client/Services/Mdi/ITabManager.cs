@@ -19,7 +19,7 @@ public interface ITabManager
     Task OpenOrActivateAsync(string url, string title, string? icon = null);
 
     /// <summary>Edit sayfası, sekmesinin yapısal başlığını (3-satır caption + dirty) günceller. Bilinmeyen id → no-op.</summary>
-    void UpdateTabHeader(Guid tabId, Integration.Framework.Blazor.Client.Services.Mdi.TabHeaderData header);
+    void UpdateTabHeader(Guid tabId, TabHeaderData header);
 
     /// <summary>SplitView'da embedded edit, liste tab'ının başlığını ezmeden sadece dirty bayrağını set eder.</summary>
     void SetTabDirty(Guid tabId, bool isDirty);

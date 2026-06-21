@@ -37,8 +37,8 @@
                         @* Edit sekmesi yapısal başlık (3-satır + dirty); düz menü/liste tab'ı sade metin. *@
                         @if (captured.Header is not null)
                         {
-                            <Integration.Framework.Blazor.Client.Components.Shared.EditHeaderView
-                                Header="@captured.Header" Compact="true" ShowDirty="true" />
+                            <EditHeaderView Header="@captured.Header" IsDirty="@captured.IsDirty"
+                                            Compact="true" ShowDirty="true" DirtyLabel="@L["UnsavedChanges"]" />
                         }
                         else
                         {
@@ -110,11 +110,7 @@
         }
     }
 
-    private void OnStateChanged()
-    {
-        System.Console.Error.WriteLine($"[MdiTabHost] OnStateChanged tabs={TabManager.Tabs.Count}");
-        _ = InvokeAsync(StateHasChanged);
-    }
+    private void OnStateChanged() => _ = InvokeAsync(StateHasChanged);
 
     public void Dispose() => TabManager.StateChanged -= OnStateChanged;
 }
