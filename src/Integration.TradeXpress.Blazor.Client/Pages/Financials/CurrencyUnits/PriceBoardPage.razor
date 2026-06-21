@@ -1,0 +1,72 @@
+@page "/currencies/prices"
+@using System
+@using Integration.TradeXpress.Financials.CurrencyUnits
+@using Integration.TradeXpress.Financials.Parities
+@using Integration.TradeXpress.Permissions
+@using Integration.TradeXpress.Blazor.Client.Pages.Financials.CurrencyUnits.Components
+@using Microsoft.AspNetCore.Authorization
+@using DevExpress.Blazor
+@attribute [Authorize(TradeXpressPermissions.CurrencyUnits.Default)]
+@inherits Volo.Abp.AspNetCore.Components.AbpComponentBase
+@implements IDisposable
+
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">
+            @L["Menu:PriceBoard"]
+            @if (LastUpdate.HasValue)
+            {
+                <span class="badge ms-2 @(IsLive ? "bg-success" : "bg-secondary")">
+                    @(IsLive ? L["StatusLive"] : L["StatusFrozen"]) · @LastUpdate.Value.ToLocalTime().ToString("dd.MM HH:mm:ss")
+                </span>
+            }
+        </h5>
+        <DxButton Text="@L["Refresh"]" RenderStyle="ButtonRenderStyle.Secondary" IconCssClass="fas fa-sync" Click="LoadAsync" />
+    </div>
+    <div class="card-body">
+        <DxGrid Data="Prices" PageSize="25" ShowPager="true" ColumnResizeMode="GridColumnResizeMode.NextColumn">
+            <Columns>
+                <DxGridDataColumn FieldName="CurrencyUnitCode" Caption="@L["Code"]" Width="90px" />
+                <DxGridDataColumn FieldName="CurrencyUnitName" Caption="@L["Name"]" />
+                <DxGridDataColumn FieldName="Buy" Caption="@L["Buy"]" Width="120px" DisplayFormat="N4" />
+                <DxGridDataColumn FieldName="Sell" Caption="@L["Sell"]" Width="120px" DisplayFormat="N4" />
+                <DxGridDataColumn FieldName="RawBuy" Caption="@L["RawBuy"]" Width="120px" DisplayFormat="N4" Visible="false" />
+                <DxGridDataColumn FieldName="RawSell" Caption="@L["RawSell"]" Width="120px" DisplayFormat="N4" Visible="false" />
+                <DxGridDataColumn FieldName="RateDate" Caption="@L["RateDate"]" Width="160px" DisplayFormat="g" />
+                <DxGridDataColumn Caption="" Width="60px" AllowSort="false">
+                    <CellDisplayTemplate>
+                        @{ var p = (CurrentPriceDto)context.DataItem; }
+                        @if (p.GuardFired)
+                        {
+                            <span class="text-warning" title="@L["GuardFired"]"><i class="fas fa-exclamation-triangle"></i></span>
+                        }
+                    </CellDisplayTemplate>
+                </DxGridDataColumn>
+                <DxGridDataColumn Caption="" Width="200px" AllowSort="false">
+                    <CellDisplayTemplate>
+                        @{ var row = (CurrentPriceDto)context.DataItem; }
+                        <DxButton Text="@L["SetMargin"]" RenderStyle="ButtonRenderStyle.Link" IconCssClass="fas fa-percent"
+                                  Click="@(() => MarginDialog!.ShowAsync(row.Id, row.CurrencyUnitCode, row.CurrencyUnitName, row.RawBuy, row.RawSell))" />
+                        <DxButton Text="@L["History"]" RenderStyle="ButtonRenderStyle.Link" IconCssClass="fas fa-clock-rotate-left"
+                                  Click="@(() => ShowHistoryAsync(row))" />
+                    </CellDisplayTemplate>
+                </DxGridDataColumn>
+            </Columns>
+        </DxGrid>
+    </div>
+</div>
+
+@* Marj "Ayarla" — append-only SetAsync; kaydedince panoyu yeniler. *@
+<MarginSetDialog @ref="MarginDialog" OnSaved="LoadAsync" />
+
+<DxPopup @bind-Visible="HistoryVisible" HeaderText="@HistoryTitle" Width="95%" MaxWidth="560px" MaxHeight="90vh" Scrollable="true">
+    <DxGrid Data="History" PageSize="10" ShowPager="true" ColumnResizeMode="GridColumnResizeMode.NextColumn">
+        <Columns>
+            <DxGridDataColumn FieldName="MarginOnBuyType" Caption="@L["MarginOnBuy"]" Width="120px" />
+            <DxGridDataColumn FieldName="MarginOnBuyValue" Caption="@L["MarginValue"]" Width="100px" DisplayFormat="N5" />
+            <DxGridDataColumn FieldName="MarginOnSellType" Caption="@L["MarginOnSell"]" Width="120px" />
+            <DxGridDataColumn FieldName="MarginOnSellValue" Caption="@L["MarginValue"]" Width="100px" DisplayFormat="N5" />
+            <DxGridDataColumn FieldName="CreationTime" Caption="@L["RateDate"]" Width="160px" DisplayFormat="g" />
+        </Columns>
+    </DxGrid>
+</DxPopup>

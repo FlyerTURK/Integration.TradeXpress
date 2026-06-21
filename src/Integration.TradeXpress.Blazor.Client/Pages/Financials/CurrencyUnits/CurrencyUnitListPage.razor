@@ -1,0 +1,111 @@
+@page "/currencies/currency-units"
+@using Integration.Framework.Blazor.Client.Components.Crud
+@using Integration.TradeXpress.Blazor.Client.Pages.Financials.CurrencyUnits.Models
+@using Integration.TradeXpress.Blazor.Client.Pages.Financials.CurrencyUnits.Components
+@using Integration.TradeXpress.Financials.CurrencyUnits
+@using Integration.TradeXpress.Financials.Parities
+@using DevExpress.Blazor
+@using Volo.Abp.MultiTenancy
+
+@inherits CrudPageBase<CurrencyUnitGetDto, CurrencyUnitListDto, Guid, CurrencyUnitListRequestDto, CurrencyUnitCreateDto, CurrencyUnitUpdateDto>
+
+<CrudLayout TGetDto="CurrencyUnitGetDto"
+            TListDto="CurrencyUnitListDto"
+            TKey="Guid"
+            StateService="StateService"
+            DataSource="@GridDataSource"
+            EntityName="@L["CurrencyUnit"]"
+            EntityIcon="@TradeXpressIcons.CurrencyUnit"
+            PrimaryTextSelector="@(m => m.Code)"
+            PageTitle="@L["CurrencyUnits"]"
+            OnNewClick="BeforeCreateAsync"
+            OnUpdateClick="BeforeUpdateAsync"
+            OnDeleteClick="DeleteAsync"
+            OnRefreshClick="GetListAsync"
+            OnSearchChanged="OnSearchAsync"
+            CustomActions="@MarginActions"
+            AllowColumnReordering="true">
+
+    <GridColumns>
+        @* Code: sola sabit, standalone (band-içi tekil fixed DevExpress'te desteklenmiyor → band dışında). *@
+        <DxGridDataColumn FieldName="Code" Caption="@L["Code"]" Width="90px" FixedPosition="GridColumnFixedPosition.Left" />
+
+        @* Diğer kimlik kolonları "Genel Bilgiler" band'ı altında. *@
+        <DxGridBandColumn Caption="@L["GeneralInfo"]" CaptionAlignment="GridTextAlignment.Center">
+            <Columns>
+                <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" MinWidth="180" Width="220px" />
+                <DxGridDataColumn FieldName="Type" Caption="@L["Type"]" Width="90px" TextAlignment="GridTextAlignment.Left">
+                    <CellDisplayTemplate>@L[$"Enum:CurrencyUnitType:{((CurrencyUnitListDto)context.DataItem).Type}"]</CellDisplayTemplate>
+                </DxGridDataColumn>
+                <DxGridDataColumn FieldName="IsGlobal" Caption="@L["Kind"]" Width="90px" TextAlignment="GridTextAlignment.Left">
+                    <CellDisplayTemplate>@(((CurrencyUnitListDto)context.DataItem).IsGlobal ? L["CurrencyKind:Global"] : L["CurrencyKind:Company"])</CellDisplayTemplate>
+                </DxGridDataColumn>
+                <DxGridDataColumn FieldName="AlwaysShowInBalance" Caption="@L["AlwaysShowInBalance"]" Width="110px" TextAlignment="GridTextAlignment.Left">
+                    <CellDisplayTemplate>@(((CurrencyUnitListDto)context.DataItem).AlwaysShowInBalance ? L["Show"].Value : "")</CellDisplayTemplate>
+                </DxGridDataColumn>
+                <DxGridDataColumn FieldName="DisplayOrder" Caption="@L["DisplayOrder"]" Width="80px" />
+            </Columns>
+        </DxGridBandColumn>
+
+        <DxGridBandColumn Caption="@L["FollowingAndMargin"]" Visible="@IsTenantMode" CaptionAlignment="GridTextAlignment.Center">
+            <Columns>
+                <DxGridDataColumn FieldName="FollowingUnitCode" Caption="@L["FollowingUnit"]" Width="100px" />
+                <DxGridDataColumn Caption="@L["Buy"]" Width="95px" AllowSort="false" TextAlignment="GridTextAlignment.Right">
+                    <CellDisplayTemplate>@FollowedPrice(((CurrencyUnitListDto)context.DataItem).FollowingUnitId, buy: true)</CellDisplayTemplate>
+                </DxGridDataColumn>
+                <DxGridDataColumn Caption="@L["Sell"]" Width="95px" AllowSort="false" TextAlignment="GridTextAlignment.Right">
+                    <CellDisplayTemplate>@FollowedPrice(((CurrencyUnitListDto)context.DataItem).FollowingUnitId, buy: false)</CellDisplayTemplate>
+                </DxGridDataColumn>
+                <DxGridDataColumn FieldName="FollowingMarginType" Caption="@L["MarginType"]" Width="100px">
+                    <CellDisplayTemplate>@FollowingMarginTypeText(((CurrencyUnitListDto)context.DataItem).FollowingMarginType)</CellDisplayTemplate>
+                </DxGridDataColumn>
+                <DxGridDataColumn FieldName="FollowingMarginValue" Caption="@L["MarginValue"]" Width="100px" DisplayFormat="N5" />
+            </Columns>
+        </DxGridBandColumn>
+
+        @* Alış/Satış band'ları EN SONDA: her biri Baz Fiyat · Marj Tipi · Marj · (bold) Fiyat *@
+        <DxGridBandColumn Caption="@L["BuyPrice"]" CaptionAlignment="GridTextAlignment.Center">
+            <Columns>
+                <DxGridDataColumn Caption="@L["BasePrice"]" Width="95px" AllowSort="false" TextAlignment="GridTextAlignment.Right">
+                    <CellDisplayTemplate>@LiveRaw(((CurrencyUnitListDto)context.DataItem).Id, buy: true)</CellDisplayTemplate>
+                </DxGridDataColumn>
+                <DxGridDataColumn Caption="@L["MarginType"]" Width="90px" AllowSort="false">
+                    <CellDisplayTemplate>@LiveMarginType(((CurrencyUnitListDto)context.DataItem).Id, buy: true)</CellDisplayTemplate>
+                </DxGridDataColumn>
+                <DxGridDataColumn Caption="@L["MarginValue"]" Width="80px" AllowSort="false" TextAlignment="GridTextAlignment.Right">
+                    <CellDisplayTemplate>@LiveMarginValue(((CurrencyUnitListDto)context.DataItem).Id, buy: true)</CellDisplayTemplate>
+                </DxGridDataColumn>
+                <DxGridDataColumn Caption="@L["Price"]" Width="100px" AllowSort="false" TextAlignment="GridTextAlignment.Right">
+                    <CellDisplayTemplate><b>@LivePrice(((CurrencyUnitListDto)context.DataItem).Id, buy: true)</b></CellDisplayTemplate>
+                </DxGridDataColumn>
+            </Columns>
+        </DxGridBandColumn>
+        <DxGridBandColumn Caption="@L["SellPrice"]" CaptionAlignment="GridTextAlignment.Center">
+            <Columns>
+                <DxGridDataColumn Caption="@L["BasePrice"]" Width="95px" AllowSort="false" TextAlignment="GridTextAlignment.Right">
+                    <CellDisplayTemplate>@LiveRaw(((CurrencyUnitListDto)context.DataItem).Id, buy: false)</CellDisplayTemplate>
+                </DxGridDataColumn>
+                <DxGridDataColumn Caption="@L["MarginType"]" Width="90px" AllowSort="false">
+                    <CellDisplayTemplate>@LiveMarginType(((CurrencyUnitListDto)context.DataItem).Id, buy: false)</CellDisplayTemplate>
+                </DxGridDataColumn>
+                <DxGridDataColumn Caption="@L["MarginValue"]" Width="80px" AllowSort="false" TextAlignment="GridTextAlignment.Right">
+                    <CellDisplayTemplate>@LiveMarginValue(((CurrencyUnitListDto)context.DataItem).Id, buy: false)</CellDisplayTemplate>
+                </DxGridDataColumn>
+                <DxGridDataColumn Caption="@L["Price"]" Width="100px" AllowSort="false" TextAlignment="GridTextAlignment.Right">
+                    <CellDisplayTemplate><b>@LivePrice(((CurrencyUnitListDto)context.DataItem).Id, buy: false)</b></CellDisplayTemplate>
+                </DxGridDataColumn>
+            </Columns>
+        </DxGridBandColumn>
+
+    </GridColumns>
+
+    
+
+</CrudLayout>
+
+@* Marj "Ayarla" diyaloğu — append-only SetAsync; kaydedince grid'i yeniler. *@
+<MarginSetDialog @ref="MarginDialog" OnSaved="GetListAsync" />
+
+
+
+

@@ -1,6 +1,4 @@
 using System;
-using System.Threading.Tasks;
-using Integration.TradeXpress.Blazor.Client.Pages.Vaults.Models;
 using Integration.TradeXpress.Vaults;
 using Integration.TradeXpress.Permissions;
 using Microsoft.AspNetCore.Components;

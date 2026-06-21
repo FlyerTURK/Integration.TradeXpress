@@ -1,8 +1,3 @@
-using System;
-using Volo.Abp;
-using Volo.Abp.Domain.Entities.Auditing;
-using Volo.Abp.MultiTenancy;
-
 namespace Integration.TradeXpress.Branches;
 
 /// <summary>
@@ -37,14 +32,12 @@ public class Branch : FullAuditedAggregateRoot<Guid>, IMultiTenant
     protected Branch() { }
 
     public Branch(
-        Guid id,
         Guid companyId,
         string code,
         string name,
         bool isHeadquarters = false,
         int displayOrder = 0,
         Guid? tenantId = null)
-        : base(id)
     {
         SetCompany(companyId);
         SetCode(code);

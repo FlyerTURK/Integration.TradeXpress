@@ -1,0 +1,43 @@
+@page "/currencies/parities/new"
+@page "/currencies/parities/{Id:guid}"
+
+@inherits CrudEditComponentBase<ParityGetDto, ParityListDto, Guid, ParityListRequestDto, ParityCreateDto, ParityUpdateDto>
+
+<CrudEditShell TGetDto="ParityGetDto" TListDto="ParityListDto" TKey="Guid"
+               IsPopupMode="@IsPopupMode" EditContext="@EditContext" EditController="@this">
+
+    <DxFormLayout CssClass="w-100">
+
+        @* Çift = Baz + Karşı (aynı satır, yarım). Mevcut kayıtta değişmez (immutable) → devre dışı. *@
+        <DxFormLayoutItem Caption="@($"{L["Base"]} *")" ColSpanMd="6">
+            <DxComboBox Data="@BaseCandidates"
+                        @bind-Value="@EditModel.BaseCurrencyUnitId"
+                        TextFieldName="@nameof(CurrencyUnitListDto.Code)"
+                        ValueFieldName="@nameof(CurrencyUnitListDto.Id)"
+                        Enabled="@IsNewMode"
+                        NullText="@L["Select"]"
+                        ValidationEnabled="false" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@($"{L["Quote"]} *")" ColSpanMd="6">
+            <DxComboBox Data="@QuoteCandidates"
+                        @bind-Value="@EditModel.QuoteCurrencyUnitId"
+                        TextFieldName="@nameof(CurrencyUnitListDto.Code)"
+                        ValueFieldName="@nameof(CurrencyUnitListDto.Id)"
+                        Enabled="@IsNewMode"
+                        NullText="@L["Select"]"
+                        ValidationEnabled="false" />
+        </DxFormLayoutItem>
+
+        @* Son satır: Durum (Status) yarım + Sıra (DisplayOrder) yarım — CurrencyUnit ile simetrik. *@
+        <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6">
+            <DxCheckBox @bind-Checked="@EditModel.IsActive" CheckType="CheckType.Switch">
+                @(EditModel.IsActive ? L["Active"] : L["Passive"])
+            </DxCheckBox>
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["DisplayOrder"]" ColSpanMd="6">
+            <NumericSpinEdit @bind-Value="@EditModel.DisplayOrder" />
+        </DxFormLayoutItem>
+
+    </DxFormLayout>
+
+</CrudEditShell>

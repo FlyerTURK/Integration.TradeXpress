@@ -1,17 +1,14 @@
-﻿using System;
-using Volo.Abp.PermissionManagement;
+﻿using Volo.Abp.PermissionManagement;
 using Volo.Abp.SettingManagement;
 using Volo.Abp.Account;
 using Volo.Abp.Identity;
-using Volo.Abp.Mapperly;
 using Volo.Abp.FeatureManagement;
 using Volo.Abp.Modularity;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Volo.Abp.TenantManagement;
 using Integration.Framework;
-using Integration.TradeXpress.Currencies;
+using Integration.TradeXpress.Financials.ExchangeRates;
 
 namespace Integration.TradeXpress;
 

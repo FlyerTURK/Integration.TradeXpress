@@ -1,8 +1,3 @@
-using System;
-using Volo.Abp;
-using Volo.Abp.Domain.Entities.Auditing;
-using Volo.Abp.MultiTenancy;
-
 namespace Integration.TradeXpress.Vaults;
 
 /// <summary>
@@ -33,14 +28,12 @@ public class Vault : FullAuditedAggregateRoot<Guid>, IMultiTenant
     protected Vault() { }
 
     public Vault(
-        Guid id,
         Guid branchId,
         string code,
         string name,
         bool isDefault = false,
         int displayOrder = 0,
         Guid? tenantId = null)
-        : base(id)
     {
         SetBranch(branchId);
         SetCode(code);

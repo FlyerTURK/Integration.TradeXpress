@@ -76,7 +76,6 @@ public class VaultAppService : TradeXpressAppService, IVaultAppService
         await EnsureBranchVisibleAsync(input.BranchId);
 
         var v = new Vault(
-            GuidGenerator.Create(),
             input.BranchId,
             input.Code,
             input.Name,

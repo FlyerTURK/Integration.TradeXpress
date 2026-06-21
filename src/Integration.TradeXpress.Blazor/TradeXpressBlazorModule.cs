@@ -1,13 +1,6 @@
-using System;
-using System.Linq;
 using Volo.Abp.BackgroundWorkers;
-using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Routing;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 using Microsoft.AspNetCore.Extensions.DependencyInjection;
 using OpenIddict.Validation.AspNetCore;
-using OpenIddict.Server.AspNetCore;
 using Integration.TradeXpress.Blazor.Components;
 using Integration.TradeXpress.Blazor.Client;
 using Integration.Framework.Blazor.Client;
@@ -21,7 +14,6 @@ using Volo.Abp.AspNetCore.Components.WebAssembly.WebApp;
 using Volo.Abp.AspNetCore.Mvc;
 using Volo.Abp.AspNetCore.Mvc.Libs;
 using Volo.Abp.AspNetCore.Mvc.Localization;
-using Volo.Abp.AspNetCore.Mvc.UI.Bundling;
 using Volo.Abp.AspNetCore.MultiTenancy;
 using Volo.Abp.AspNetCore.Serilog;
 using Volo.Abp.Autofac;
@@ -336,11 +328,11 @@ public class TradeXpressBlazorModule : AbpModule
         // process-başına singleton'dır) worker'ı burada başlatıyoruz; aksi halde canlı cache boş
         // kalır ve pano fiyat gösteremez. HaremEnabled=false ise hiç başlatılmaz.
         var feedOptions = context.ServiceProvider
-            .GetRequiredService<Microsoft.Extensions.Options.IOptions<Integration.TradeXpress.Currencies.ExchangeRateOptions>>().Value;
+            .GetRequiredService<Microsoft.Extensions.Options.IOptions<Integration.TradeXpress.Financials.ExchangeRates.ExchangeRateOptions>>().Value;
         if (feedOptions.HaremEnabled)
         {
             Volo.Abp.Threading.AsyncHelper.RunSync(() =>
-                context.AddBackgroundWorkerAsync<Integration.TradeXpress.Currencies.ExchangeRateFeedWorker>());
+                context.AddBackgroundWorkerAsync<Integration.TradeXpress.Financials.ExchangeRates.ExchangeRateFeedWorker>());
         }
     }
 }

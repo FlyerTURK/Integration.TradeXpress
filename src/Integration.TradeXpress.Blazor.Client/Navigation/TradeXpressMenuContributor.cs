@@ -9,7 +9,6 @@ using Volo.Abp.Account.Localization;
 using Volo.Abp.MultiTenancy;
 using Volo.Abp.UI.Navigation;
 using Volo.Abp.Authorization.Permissions;
-using Volo.Abp.Users;
 
 namespace Integration.TradeXpress.Blazor.Client.Navigation;
 
@@ -78,13 +77,13 @@ public class TradeXpressMenuContributor : IMenuContributor
             url: "/currencies/prices",
             icon: TradeXpressIcons.PriceBoard
         ).RequirePermissions(TradeXpressPermissions.CurrencyUnits.Default));
-        // Parite panosu — aktif paritelerin canlı çapraz kurları.
+        // Pariteler — base/quote çiftleri (CRUD). Host yönetir; tenant kendi paritesini ekler.
         definitions.AddItem(new ApplicationMenuItem(
-            TradeXpressMenus.ParityBoard,
-            l["Menu:ParityBoard"],
+            TradeXpressMenus.Parities,
+            l["Menu:Parities"],
             url: "/currencies/parities",
-            icon: TradeXpressIcons.ParityBoard
-        ).RequirePermissions(TradeXpressPermissions.CurrencyUnits.Default));
+            icon: TradeXpressIcons.Parity
+        ).RequirePermissions(TradeXpressPermissions.Parities.Default));
         // Değerleme (re-base) ayrı kullanıcı sayfası DEĞİL — kullanıcı daima piyasa/alışık
         // fiyatı görür; gerçek (base) değer arka planda hesaplanır (işlem/muhasebe).
         // Marj ayrı menü/sayfa DEĞİL — CurrencyUnit ve pano grid'inde "Margin Ayarla"

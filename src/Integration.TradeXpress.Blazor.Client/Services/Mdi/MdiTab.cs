@@ -2,8 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
-using Integration.Framework.Blazor.Client.Services.Mdi;
-
 namespace Integration.TradeXpress.Blazor.Client.Services.Mdi;
 
 public enum TabKind { Internal, External }

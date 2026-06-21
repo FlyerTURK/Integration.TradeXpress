@@ -1,7 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Threading.Tasks;
-
 namespace Integration.Framework.Blazor.Client.Services.Base;
 
 public class PopupOptions

@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-
 namespace Integration.Framework.Blazor.Client.Services.Base;
 
 /// <summary>

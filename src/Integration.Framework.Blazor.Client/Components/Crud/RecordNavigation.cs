@@ -1,5 +1,3 @@
-using System.Collections.Generic;
-
 namespace Integration.Framework.Blazor.Client.Components.Crud;
 
 /// <summary>

@@ -1,5 +1,3 @@
-using System;
-
 namespace Integration.Framework.Blazor.Client.Services.Mdi;
 
 /// <summary>Bir entity üzerinde gerçekleşen değişim türü (satır-düzeyi güncelleme tüketicileri için).</summary>

@@ -1,5 +1,4 @@
-﻿using Integration.TradeXpress.EntityFrameworkCore;
-using Xunit;
+﻿using Xunit;
 
 namespace Integration.TradeXpress.EntityFrameworkCore;
 

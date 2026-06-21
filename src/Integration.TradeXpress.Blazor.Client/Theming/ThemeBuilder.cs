@@ -1,4 +1,3 @@
-using System;
 using DevExpress.Blazor;
 
 namespace Integration.TradeXpress.Blazor.Client.Theming;

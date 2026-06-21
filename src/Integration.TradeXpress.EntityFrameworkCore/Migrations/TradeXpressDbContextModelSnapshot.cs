@@ -235,6 +235,7 @@ namespace Integration.TradeXpress.Migrations
                         .HasColumnName("CreatorId");
 
                     b.Property<string>("DefaultCurrencyCode")
+                        .IsRequired()
                         .HasMaxLength(16)
                         .HasColumnType("nvarchar(16)");
 
@@ -289,7 +290,7 @@ namespace Integration.TradeXpress.Migrations
                     b.ToTable("AppCountries", (string)null);
                 });
 
-            modelBuilder.Entity("Integration.TradeXpress.Currencies.CurrencyUnit", b =>
+            modelBuilder.Entity("Integration.TradeXpress.Financials.CurrencyUnits.CurrencyUnit", b =>
                 {
                     b.Property<Guid>("Id")
                         .HasColumnType("uniqueidentifier");
@@ -349,9 +350,6 @@ namespace Integration.TradeXpress.Migrations
                         .HasDefaultValue(false)
                         .HasColumnName("IsDeleted");
 
-                    b.Property<bool>("IsSystem")
-                        .HasColumnType("bit");
-
                     b.Property<DateTime?>("LastModificationTime")
                         .HasColumnType("datetime2")
                         .HasColumnName("LastModificationTime");
@@ -381,7 +379,7 @@ namespace Integration.TradeXpress.Migrations
                     b.ToTable("AppCurrencyUnits", (string)null);
                 });
 
-            modelBuilder.Entity("Integration.TradeXpress.Currencies.CurrencyUnitMargin", b =>
+            modelBuilder.Entity("Integration.TradeXpress.Financials.CurrencyUnits.CurrencyUnitMargin", b =>
                 {
                     b.Property<Guid>("Id")
                         .HasColumnType("uniqueidentifier");
@@ -420,7 +418,7 @@ namespace Integration.TradeXpress.Migrations
                     b.ToTable("AppCurrencyUnitMargins", (string)null);
                 });
 
-            modelBuilder.Entity("Integration.TradeXpress.Currencies.ExchangeRate", b =>
+            modelBuilder.Entity("Integration.TradeXpress.Financials.ExchangeRates.ExchangeRate", b =>
                 {
                     b.Property<Guid>("Id")
                         .HasColumnType("uniqueidentifier");
@@ -480,7 +478,7 @@ namespace Integration.TradeXpress.Migrations
                     b.ToTable("AppExchangeRates", (string)null);
                 });
 
-            modelBuilder.Entity("Integration.TradeXpress.Currencies.Parity", b =>
+            modelBuilder.Entity("Integration.TradeXpress.Financials.Parities.Parity", b =>
                 {
                     b.Property<Guid>("Id")
                         .HasColumnType("uniqueidentifier");
@@ -527,9 +525,6 @@ namespace Integration.TradeXpress.Migrations
                         .HasColumnType("bit")
                         .HasDefaultValue(false)
                         .HasColumnName("IsDeleted");
-
-                    b.Property<bool>("IsSystem")
-                        .HasColumnType("bit");
 
                     b.Property<DateTime?>("LastModificationTime")
                         .HasColumnType("datetime2")
@@ -2609,9 +2604,9 @@ namespace Integration.TradeXpress.Migrations
                     b.ToTable("AbpTenantConnectionStrings", (string)null);
                 });
 
-            modelBuilder.Entity("Integration.TradeXpress.Currencies.CurrencyUnit", b =>
+            modelBuilder.Entity("Integration.TradeXpress.Financials.CurrencyUnits.CurrencyUnit", b =>
                 {
-                    b.OwnsOne("Integration.TradeXpress.Currencies.MarginSetting", "FollowingMargin", b1 =>
+                    b.OwnsOne("Integration.TradeXpress.Financials.CurrencyUnits.MarginSetting", "FollowingMargin", b1 =>
                         {
                             b1.Property<Guid>("CurrencyUnitId")
                                 .HasColumnType("uniqueidentifier");
@@ -2634,9 +2629,9 @@ namespace Integration.TradeXpress.Migrations
                     b.Navigation("FollowingMargin");
                 });
 
-            modelBuilder.Entity("Integration.TradeXpress.Currencies.CurrencyUnitMargin", b =>
+            modelBuilder.Entity("Integration.TradeXpress.Financials.CurrencyUnits.CurrencyUnitMargin", b =>
                 {
-                    b.OwnsOne("Integration.TradeXpress.Currencies.MarginSetting", "MarginOnBuy", b1 =>
+                    b.OwnsOne("Integration.TradeXpress.Financials.CurrencyUnits.MarginSetting", "MarginOnBuy", b1 =>
                         {
                             b1.Property<Guid>("CurrencyUnitMarginId")
                                 .HasColumnType("uniqueidentifier");
@@ -2656,7 +2651,7 @@ namespace Integration.TradeXpress.Migrations
                                 .HasForeignKey("CurrencyUnitMarginId");
                         });
 
-                    b.OwnsOne("Integration.TradeXpress.Currencies.MarginSetting", "MarginOnSell", b1 =>
+                    b.OwnsOne("Integration.TradeXpress.Financials.CurrencyUnits.MarginSetting", "MarginOnSell", b1 =>
                         {
                             b1.Property<Guid>("CurrencyUnitMarginId")
                                 .HasColumnType("uniqueidentifier");
@@ -2683,9 +2678,9 @@ namespace Integration.TradeXpress.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("Integration.TradeXpress.Currencies.ExchangeRate", b =>
+            modelBuilder.Entity("Integration.TradeXpress.Financials.ExchangeRates.ExchangeRate", b =>
                 {
-                    b.OwnsOne("Integration.TradeXpress.Currencies.MarginSetting", "AppliedMarginOnBuy", b1 =>
+                    b.OwnsOne("Integration.TradeXpress.Financials.CurrencyUnits.MarginSetting", "AppliedMarginOnBuy", b1 =>
                         {
                             b1.Property<Guid>("ExchangeRateId")
                                 .HasColumnType("uniqueidentifier");
@@ -2705,7 +2700,7 @@ namespace Integration.TradeXpress.Migrations
                                 .HasForeignKey("ExchangeRateId");
                         });
 
-                    b.OwnsOne("Integration.TradeXpress.Currencies.MarginSetting", "AppliedMarginOnSell", b1 =>
+                    b.OwnsOne("Integration.TradeXpress.Financials.CurrencyUnits.MarginSetting", "AppliedMarginOnSell", b1 =>
                         {
                             b1.Property<Guid>("ExchangeRateId")
                                 .HasColumnType("uniqueidentifier");

@@ -1,7 +1,6 @@
 using Integration.TradeXpress.Localization;
 using Volo.Abp.Authorization.Permissions;
 using Volo.Abp.Localization;
-using Volo.Abp.MultiTenancy;
 
 namespace Integration.TradeXpress.Permissions;
 
@@ -22,6 +21,12 @@ public class TradeXpressPermissionDefinitionProvider : PermissionDefinitionProvi
         currencyUnitMargins.AddChild(TradeXpressPermissions.CurrencyUnitMargins.Create, L("Permission:Create"));
         currencyUnitMargins.AddChild(TradeXpressPermissions.CurrencyUnitMargins.Update, L("Permission:Update"));
         currencyUnitMargins.AddChild(TradeXpressPermissions.CurrencyUnitMargins.Delete, L("Permission:Delete"));
+
+        var parities = myGroup.AddPermission(
+            TradeXpressPermissions.Parities.Default, L("Permission:Parities"));
+        parities.AddChild(TradeXpressPermissions.Parities.Create, L("Permission:Create"));
+        parities.AddChild(TradeXpressPermissions.Parities.Update, L("Permission:Update"));
+        parities.AddChild(TradeXpressPermissions.Parities.Delete, L("Permission:Delete"));
 
         var companies = myGroup.AddPermission(
             TradeXpressPermissions.Companies.Default, L("Permission:Companies"));

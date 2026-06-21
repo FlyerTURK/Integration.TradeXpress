@@ -1,7 +1,6 @@
 using System.Linq;
 using System.Threading.Tasks;
-using Integration.TradeXpress.Countries;
-using Integration.TradeXpress.Currencies;
+using Integration.TradeXpress.Financials.CurrencyUnits;
 using Shouldly;
 using Volo.Abp.Modularity;
 using Xunit;

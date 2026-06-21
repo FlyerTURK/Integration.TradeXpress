@@ -54,7 +54,7 @@ public class CountryAppService : TradeXpressAppService, ICountryAppService
     [Authorize(TradeXpressPermissions.Countries.Create)]
     public virtual async Task<CountryGetDto> CreateAsync(CountryCreateDto input)
     {
-        var entity = new Country(GuidGenerator.Create(), input.Code, input.Name, input.DefaultCurrencyCode, input.DisplayOrder);
+        var entity = new Country(input.Code, input.Name, input.DefaultCurrencyCode, input.DisplayOrder);
         await _repository.InsertAsync(entity, autoSave: true);
         return ToGetDto(entity);
     }

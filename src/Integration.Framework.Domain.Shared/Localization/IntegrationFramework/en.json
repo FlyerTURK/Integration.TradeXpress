@@ -1,0 +1,10 @@
+{
+  "Culture": "en",
+  "Texts": {
+    "Integration.Framework:ListQueryRejected": "The list query was rejected (disallowed field or out-of-range shape).",
+    "Integration.Framework:PropertyRequired": "{Property} is required.",
+    "Integration.Framework:PropertyTooShort": "{Property} must be at least {Min} characters.",
+    "Integration.Framework:PropertyTooLong": "{Property} must be at most {Max} characters.",
+    "Integration.Framework:PropertyOutOfRange": "{Property} must be between {Min} and {Max}."
+  }
+}

@@ -1,5 +1,3 @@
-using System;
-using System.Threading.Tasks;
 using Microsoft.AspNetCore.Components.Web;
 
 namespace Integration.Framework.Blazor.Client.Resilience;

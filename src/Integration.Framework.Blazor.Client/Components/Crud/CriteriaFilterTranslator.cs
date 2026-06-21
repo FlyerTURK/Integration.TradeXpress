@@ -1,5 +1,3 @@
-using System;
-using System.Collections.Generic;
 using System.Globalization;
 using DevExpress.Data.Filtering;
 using Integration.Framework.Base.Querying;

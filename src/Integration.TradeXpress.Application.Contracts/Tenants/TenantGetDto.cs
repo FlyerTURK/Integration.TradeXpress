@@ -1,6 +1,5 @@
 using System;
 using Integration.Framework.Base.Dtos.Interfaces;
-using Volo.Abp.Application.Dtos;
 
 namespace Integration.TradeXpress.Tenants;
 

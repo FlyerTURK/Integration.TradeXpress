@@ -1,10 +1,7 @@
 using System;
 using System.Collections.Generic;
-using System.ComponentModel.DataAnnotations;
-using System.Linq;
 using System.Threading.Tasks;
 using Integration.Framework.Blazor.Client.Components.Crud;
-using Integration.TradeXpress.Blazor.Client.Pages.Companies.Models;
 using Integration.TradeXpress.Blazor.Client.Services.Mdi;
 using Integration.TradeXpress.Companies;
 using Integration.TradeXpress.Permissions;

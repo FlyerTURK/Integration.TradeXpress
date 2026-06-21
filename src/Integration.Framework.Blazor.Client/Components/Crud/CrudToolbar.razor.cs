@@ -1,8 +1,5 @@
-using System.Collections.Generic;
-using System.Linq;
 using DevExpress.Blazor;
 using Microsoft.AspNetCore.Components;
-using Integration.Framework.Blazor.Client.Services.Base;
 
 namespace Integration.Framework.Blazor.Client.Components.Crud
 {

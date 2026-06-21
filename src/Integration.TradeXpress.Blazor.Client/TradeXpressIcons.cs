@@ -17,10 +17,10 @@ public static class TradeXpressIcons
     public const string Country = "fas fa-earth-europe";
     public const string CurrencyUnit = "fas fa-coins";
     public const string CurrencyMargin = "fas fa-percent";
+    public const string Parity = "fas fa-arrow-right-arrow-left";
 
     // ── Panolar ──
     public const string PriceBoard = "fas fa-chart-line";
-    public const string ParityBoard = "fas fa-arrow-right-arrow-left";
 
     // ── Yönetim ──
     public const string Tenant = "fas fa-users-cog";

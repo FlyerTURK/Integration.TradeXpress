@@ -12,7 +12,7 @@ using Volo.Abp.MultiTenancy;
 using Integration.Framework.Base.Querying;
 using Integration.TradeXpress.Companies;
 using Integration.TradeXpress.Countries;
-using Integration.TradeXpress.Currencies;
+using Integration.TradeXpress.Financials.CurrencyUnits;
 using Integration.TradeXpress.Organization;
 
 namespace Integration.TradeXpress.Tenants;
@@ -149,7 +149,7 @@ public class TenantAppService : TradeXpressAppService, ITenantAppService
             }
             else
             {
-                company = new Company(GuidGenerator.Create(), "MRK", companyName, country, baseUnit.Id,
+                company = new Company("MRK", companyName, country, baseUnit.Id,
                     isHeadquarters: true, displayOrder: 1, tenantId: tenantId);
                 await _companyRepository.InsertAsync(company, autoSave: true);
             }

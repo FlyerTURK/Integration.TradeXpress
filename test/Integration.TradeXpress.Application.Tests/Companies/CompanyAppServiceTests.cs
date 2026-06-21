@@ -2,8 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using Integration.TradeXpress.Companies;
-using Integration.TradeXpress.Currencies;
+using Integration.TradeXpress.Financials.CurrencyUnits;
 using Integration.TradeXpress.Vaults;
 using Shouldly;
 using Volo.Abp;
@@ -46,6 +45,7 @@ public abstract class CompanyAppServiceTests<TStartupModule> : TradeXpressApplic
 
         await Should.ThrowAsync<BusinessException>(() => _appService.CreateAsync(new CompanyCreateDto
         {
+            Code = "MRK",
             Name = "Olmaz",
             CountryCode = "US",
             BaseCurrencyUnitId = usd.Id,
@@ -66,7 +66,7 @@ public abstract class CompanyAppServiceTests<TStartupModule> : TradeXpressApplic
         {
             var saved = await _appService.SaveTreeAsync(new CompanyTreeSaveDto
             {
-                Name = "Acme", CountryCode = "TR", BaseCurrencyUnitId = tryId, IsHeadquarters = true,
+                Code = "ACME", Name = "Acme", CountryCode = "TR", BaseCurrencyUnitId = tryId, IsHeadquarters = true,
                 // Branches boş → sunucu varsayılan HQ şube enjekte etmeli
             });
 
@@ -90,11 +90,11 @@ public abstract class CompanyAppServiceTests<TStartupModule> : TradeXpressApplic
         {
             var saved = await _appService.SaveTreeAsync(new CompanyTreeSaveDto
             {
-                Name = "Acme", CountryCode = "TR", BaseCurrencyUnitId = tryId, IsHeadquarters = true,
+                Code = "ACME", Name = "Acme", CountryCode = "TR", BaseCurrencyUnitId = tryId, IsHeadquarters = true,
                 Branches = new List<BranchTreeSaveDto>
                 {
-                    new() { Name = "Merkez", IsHeadquarters = true, DisplayOrder = 1 },
-                    new() { Name = "İkinci", IsHeadquarters = true, DisplayOrder = 2 },
+                    new() { Code = "MRK", Name = "Merkez", IsHeadquarters = true, DisplayOrder = 1 },
+                    new() { Code = "IK2", Name = "İkinci", IsHeadquarters = true, DisplayOrder = 2 },
                 },
             });
 
@@ -112,11 +112,11 @@ public abstract class CompanyAppServiceTests<TStartupModule> : TradeXpressApplic
         {
             var initial = await _appService.SaveTreeAsync(new CompanyTreeSaveDto
             {
-                Name = "Acme", CountryCode = "TR", BaseCurrencyUnitId = tryId, IsHeadquarters = true,
+                Code = "ACME", Name = "Acme", CountryCode = "TR", BaseCurrencyUnitId = tryId, IsHeadquarters = true,
                 Branches = new List<BranchTreeSaveDto>
                 {
-                    new() { Name = "Merkez", IsHeadquarters = true, DisplayOrder = 1 },
-                    new() { Name = "Şube2", IsHeadquarters = false, DisplayOrder = 2 },
+                    new() { Code = "MRK", Name = "Merkez", IsHeadquarters = true, DisplayOrder = 1 },
+                    new() { Code = "SB2", Name = "Şube2", IsHeadquarters = false, DisplayOrder = 2 },
                 },
             });
             var hq = initial.Branches.Single(b => b.IsHeadquarters);
@@ -140,7 +140,7 @@ public abstract class CompanyAppServiceTests<TStartupModule> : TradeXpressApplic
         {
             var initial = await _appService.SaveTreeAsync(new CompanyTreeSaveDto
             {
-                Name = "Acme", CountryCode = "TR", BaseCurrencyUnitId = tryId, IsHeadquarters = true,
+                Code = "ACME", Name = "Acme", CountryCode = "TR", BaseCurrencyUnitId = tryId, IsHeadquarters = true,
             });
 
             var update = CloneForUpdate(initial);
@@ -158,11 +158,11 @@ public abstract class CompanyAppServiceTests<TStartupModule> : TradeXpressApplic
         {
             var initial = await _appService.SaveTreeAsync(new CompanyTreeSaveDto
             {
-                Name = "Acme", CountryCode = "TR", BaseCurrencyUnitId = tryId, IsHeadquarters = true,
+                Code = "ACME", Name = "Acme", CountryCode = "TR", BaseCurrencyUnitId = tryId, IsHeadquarters = true,
                 Branches = new List<BranchTreeSaveDto>
                 {
-                    new() { Name = "Merkez", IsHeadquarters = true, DisplayOrder = 1 },
-                    new() { Name = "Şube2", IsHeadquarters = false, DisplayOrder = 2 },
+                    new() { Code = "MRK", Name = "Merkez", IsHeadquarters = true, DisplayOrder = 1 },
+                    new() { Code = "SB2", Name = "Şube2", IsHeadquarters = false, DisplayOrder = 2 },
                 },
             });
             var hq = initial.Branches.Single(b => b.IsHeadquarters);
@@ -186,11 +186,11 @@ public abstract class CompanyAppServiceTests<TStartupModule> : TradeXpressApplic
         {
             var initial = await _appService.SaveTreeAsync(new CompanyTreeSaveDto
             {
-                Name = "Acme", CountryCode = "TR", BaseCurrencyUnitId = tryId, IsHeadquarters = true,
+                Code = "ACME", Name = "Acme", CountryCode = "TR", BaseCurrencyUnitId = tryId, IsHeadquarters = true,
             });
 
             var update = CloneForUpdate(initial);
-            update.Branches.Add(new BranchTreeSaveDto { Id = Guid.NewGuid(), Name = "Hayalet", DisplayOrder = 9 });
+            update.Branches.Add(new BranchTreeSaveDto { Id = Guid.NewGuid(), Code = "GHO", Name = "Hayalet", DisplayOrder = 9 });
 
             await Should.ThrowAsync<BusinessException>(() => _appService.SaveTreeAsync(update));
         }
@@ -206,7 +206,7 @@ public abstract class CompanyAppServiceTests<TStartupModule> : TradeXpressApplic
         {
             var initial = await _appService.SaveTreeAsync(new CompanyTreeSaveDto
             {
-                Name = "Acme", CountryCode = "TR", BaseCurrencyUnitId = tryId, IsHeadquarters = true,
+                Code = "ACME", Name = "Acme", CountryCode = "TR", BaseCurrencyUnitId = tryId, IsHeadquarters = true,
             });
 
             // İlk güncelleme başarılı → company stamp döner/değişir.
@@ -229,11 +229,11 @@ public abstract class CompanyAppServiceTests<TStartupModule> : TradeXpressApplic
         {
             var initial = await _appService.SaveTreeAsync(new CompanyTreeSaveDto
             {
-                Name = "Acme", CountryCode = "TR", BaseCurrencyUnitId = tryId, IsHeadquarters = true,
+                Code = "ACME", Name = "Acme", CountryCode = "TR", BaseCurrencyUnitId = tryId, IsHeadquarters = true,
                 Branches = new List<BranchTreeSaveDto>
                 {
-                    new() { Name = "Merkez", IsHeadquarters = true, DisplayOrder = 1 },
-                    new() { Name = "Şube2", IsHeadquarters = false, DisplayOrder = 2 },
+                    new() { Code = "MRK", Name = "Merkez", IsHeadquarters = true, DisplayOrder = 1 },
+                    new() { Code = "SB2", Name = "Şube2", IsHeadquarters = false, DisplayOrder = 2 },
                 },
             });
             var staleBranchStamp = initial.Branches.Single(b => !b.IsHeadquarters).ConcurrencyStamp;
@@ -264,7 +264,7 @@ public abstract class CompanyAppServiceTests<TStartupModule> : TradeXpressApplic
         {
             var initial = await _appService.SaveTreeAsync(new CompanyTreeSaveDto
             {
-                Name = "Acme", CountryCode = "TR", BaseCurrencyUnitId = tryId, IsHeadquarters = true,
+                Code = "ACME", Name = "Acme", CountryCode = "TR", BaseCurrencyUnitId = tryId, IsHeadquarters = true,
             });
 
             var update = CloneForUpdate(initial);
@@ -286,7 +286,7 @@ public abstract class CompanyAppServiceTests<TStartupModule> : TradeXpressApplic
         {
             var initial = await _appService.SaveTreeAsync(new CompanyTreeSaveDto
             {
-                Name = "Acme", CountryCode = "TR", BaseCurrencyUnitId = tryId, IsHeadquarters = true,
+                Code = "ACME", Name = "Acme", CountryCode = "TR", BaseCurrencyUnitId = tryId, IsHeadquarters = true,
             });
 
             // "Eklenip silinen" hayalet şube hiç yok: sadece HQ gönderilir, DeletedBranchIds boş.
@@ -301,6 +301,7 @@ public abstract class CompanyAppServiceTests<TStartupModule> : TradeXpressApplic
     private static CompanyTreeSaveDto CloneForUpdate(CompanyTreeDto src) => new()
     {
         Id = src.Id,
+        Code = src.Code,
         Name = src.Name,
         CountryCode = src.CountryCode,
         BaseCurrencyUnitId = src.BaseCurrencyUnitId,
@@ -312,6 +313,7 @@ public abstract class CompanyAppServiceTests<TStartupModule> : TradeXpressApplic
         Branches = src.Branches.Select(b => new BranchTreeSaveDto
         {
             Id = b.Id,
+            Code = b.Code,
             Name = b.Name,
             IsHeadquarters = b.IsHeadquarters,
             IsActive = b.IsActive,
@@ -320,7 +322,7 @@ public abstract class CompanyAppServiceTests<TStartupModule> : TradeXpressApplic
             ConcurrencyStamp = b.ConcurrencyStamp,
             Vaults = b.Vaults.Select(v => new VaultTreeSaveDto
             {
-                Id = v.Id, Name = v.Name, IsDefault = v.IsDefault, IsActive = v.IsActive,
+                Id = v.Id, Code = v.Code, Name = v.Name, IsDefault = v.IsDefault, IsActive = v.IsActive,
                 DisplayOrder = v.DisplayOrder, Description = v.Description, ConcurrencyStamp = v.ConcurrencyStamp,
             }).ToList(),
         }).ToList(),

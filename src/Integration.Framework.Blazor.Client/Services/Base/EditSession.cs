@@ -1,5 +1,3 @@
-using System;
-
 namespace Integration.Framework.Blazor.Client.Services.Base;
 
 /// <summary>

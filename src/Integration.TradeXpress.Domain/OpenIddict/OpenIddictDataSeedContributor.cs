@@ -1,14 +1,8 @@
-using System;
-using System.Collections.Generic;
-using System.Threading.Tasks;
 using Microsoft.Extensions.Configuration;
 using OpenIddict.Abstractions;
-using Volo.Abp.Data;
-using Volo.Abp.DependencyInjection;
 using Volo.Abp.OpenIddict;
 using Volo.Abp.OpenIddict.Applications;
 using Volo.Abp.OpenIddict.Scopes;
-using Volo.Abp.Uow;
 
 namespace Integration.TradeXpress.OpenIddict;
 

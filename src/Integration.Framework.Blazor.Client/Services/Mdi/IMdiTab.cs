@@ -1,6 +1,3 @@
-using System;
-using System.Threading.Tasks;
-
 namespace Integration.Framework.Blazor.Client.Services.Mdi;
 
 /// <summary>

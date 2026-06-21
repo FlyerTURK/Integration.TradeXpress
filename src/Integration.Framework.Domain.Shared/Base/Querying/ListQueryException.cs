@@ -1,4 +1,3 @@
-using Integration.Framework;
 using Volo.Abp;
 
 namespace Integration.Framework.Base.Querying;

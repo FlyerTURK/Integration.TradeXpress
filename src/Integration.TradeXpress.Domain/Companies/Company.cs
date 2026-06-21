@@ -1,8 +1,3 @@
-using System;
-using Volo.Abp;
-using Volo.Abp.Domain.Entities.Auditing;
-using Volo.Abp.MultiTenancy;
-
 namespace Integration.TradeXpress.Companies;
 
 /// <summary>
@@ -40,7 +35,6 @@ public class Company : FullAuditedAggregateRoot<Guid>, IMultiTenant
     protected Company() { }
 
     public Company(
-        Guid id,
         string code,
         string name,
         string countryCode,
@@ -48,7 +42,6 @@ public class Company : FullAuditedAggregateRoot<Guid>, IMultiTenant
         bool isHeadquarters = false,
         int displayOrder = 0,
         Guid? tenantId = null)
-        : base(id)
     {
         SetCode(code);
         SetName(name);

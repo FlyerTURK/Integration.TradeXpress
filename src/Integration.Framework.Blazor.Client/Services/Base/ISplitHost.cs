@@ -1,7 +1,3 @@
-using System;
-using System.Threading.Tasks;
-using Microsoft.AspNetCore.Components;
-
 namespace Integration.Framework.Blazor.Client.Services.Base;
 
 /// <summary>

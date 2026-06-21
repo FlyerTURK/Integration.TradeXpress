@@ -1,12 +1,6 @@
-using System;
-using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
-using System.Linq;
 using System.Reflection;
-using System.Threading.Tasks;
 using Integration.Framework.Base.Dtos.Interfaces;
-using Integration.Framework.Blazor.Client.Services.Base;
-using Integration.Framework.Blazor.Client.Services.Mdi;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.Extensions.DependencyInjection;

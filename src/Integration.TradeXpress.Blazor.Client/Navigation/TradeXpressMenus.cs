@@ -14,5 +14,5 @@ public class TradeXpressMenus
     public const string Currencies          = Prefix + ".Currencies";
     public const string CurrencyUnits       = Currencies + ".CurrencyUnits";
     public const string PriceBoard          = Currencies + ".PriceBoard";
-    public const string ParityBoard         = Currencies + ".ParityBoard";
+    public const string Parities            = Currencies + ".Parities";
 }

@@ -1,0 +1,10 @@
+{
+  "Culture": "tr",
+  "Texts": {
+    "Integration.Framework:ListQueryRejected": "Liste sorgusu reddedildi (izin verilmeyen alan ya da sınır dışı şekil).",
+    "Integration.Framework:PropertyRequired": "{Property} zorunludur.",
+    "Integration.Framework:PropertyTooShort": "{Property} en az {Min} karakter olmalıdır.",
+    "Integration.Framework:PropertyTooLong": "{Property} en fazla {Max} karakter olmalıdır.",
+    "Integration.Framework:PropertyOutOfRange": "{Property} {Min} ile {Max} arasında olmalıdır."
+  }
+}

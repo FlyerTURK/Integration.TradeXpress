@@ -1,0 +1,157 @@
+@using System
+@using Integration.Framework.Blazor.Client.Components.Shared
+@using Integration.Framework.Blazor.Client.Components.Crud
+@using Integration.TradeXpress.Financials.CurrencyUnits
+@using Integration.TradeXpress.Financials.Parities
+@using DevExpress.Blazor
+@inherits Volo.Abp.AspNetCore.Components.AbpComponentBase
+
+@* Yeniden kullanılabilir "Marj Düzenleme" diyaloğu. ShowAsync ile (baz fiyatla) açılır; SetAsync ile
+   append-only yeni marj satırı yazar. Nihai fiyat girilen marja göre CANLI hesaplanır. *@
+
+<DxPopup @bind-Visible="Visible" Width="95%" MaxWidth="600px" MaxHeight="90vh" Scrollable="true"
+         CloseOnOutsideClick="false" ShowCloseButton="true" CloseOnEscape="true" ShowFooter="true">
+    <HeaderContentTemplate Context="popup">
+        @* İkon + "Marj Düzenleme - {Code}" (CurrencyUnit edit başlığı düzeniyle aynı). *@
+        <div style="display:flex; align-items:center; gap:0.5rem; width:100%; justify-content:flex-start;">
+            <i class="fas fa-percent" aria-hidden="true" style="color:var(--dxbl-primary, #2563eb);"></i>
+            <span>@($"{L["EditMargin"]} - {_code}")</span>
+        </div>
+    </HeaderContentTemplate>
+    <Content>
+        @* Uyarı — layoutun BAŞINDA, renkli kutu (inline; Bootstrap alert bu app'te etkisiz). *@
+        <div style="background:#fff3cd; color:#664d03; border:1px solid #ffe69c; border-radius:0.375rem; padding:0.5rem 0.75rem; margin-bottom:0.75rem; font-size:0.8rem; display:flex; align-items:flex-start; gap:0.5rem;">
+            <i class="fas fa-triangle-exclamation" style="margin-top:0.15rem;"></i>
+            <span>@L["CurrencyUnit:MarginDisclaimer"]</span>
+        </div>
+
+        <DxFormLayout CssClass="w-100">
+            <DxFormLayoutItem Caption="@L["Name"]" ColSpanMd="12">
+                <b>@_code</b> — @_name
+            </DxFormLayoutItem>
+
+            @* Alış / Satış grupları — masaüstünde yan yana (ColSpanMd=6), mobilde alt alta (otomatik tam genişlik).
+               Baz Fiyat ve Nihai Fiyat: kendi NumericSpinEdit'imiz, Enabled=false (salt-okunur; Nihai canlı). *@
+            <DxFormLayoutGroup Caption="@L["Buy"]" ColSpanMd="6">
+                <DxFormLayoutItem Caption="@L["BasePrice"]" ColSpanMd="12">
+                    <NumericSpinEdit TValue="decimal" Value="@_baseBuy" Enabled="false" DisplayFormat="N5" />
+                </DxFormLayoutItem>
+                <DxFormLayoutItem Caption="@L["MarginType"]" ColSpanMd="12">
+                    <ComboBoxEnumEdit TEnum="MarginType" @bind-Value="BuyType" L="@L" />
+                </DxFormLayoutItem>
+                <DxFormLayoutItem Caption="@L["MarginValue"]" ColSpanMd="12">
+                    <NumericSpinEdit @bind-Value="BuyValue" />
+                </DxFormLayoutItem>
+                <DxFormLayoutItem Caption="@L["FinalPrice"]" ColSpanMd="12">
+                    <NumericSpinEdit TValue="decimal" Value="@FinalBuy" Enabled="false" DisplayFormat="N5" />
+                </DxFormLayoutItem>
+            </DxFormLayoutGroup>
+
+            <DxFormLayoutGroup Caption="@L["Sell"]" ColSpanMd="6">
+                <DxFormLayoutItem Caption="@L["BasePrice"]" ColSpanMd="12">
+                    <NumericSpinEdit TValue="decimal" Value="@_baseSell" Enabled="false" DisplayFormat="N5" />
+                </DxFormLayoutItem>
+                <DxFormLayoutItem Caption="@L["MarginType"]" ColSpanMd="12">
+                    <ComboBoxEnumEdit TEnum="MarginType" @bind-Value="SellType" L="@L" />
+                </DxFormLayoutItem>
+                <DxFormLayoutItem Caption="@L["MarginValue"]" ColSpanMd="12">
+                    <NumericSpinEdit @bind-Value="SellValue" />
+                </DxFormLayoutItem>
+                <DxFormLayoutItem Caption="@L["FinalPrice"]" ColSpanMd="12">
+                    <NumericSpinEdit TValue="decimal" Value="@FinalSell" Enabled="false" DisplayFormat="N5" />
+                </DxFormLayoutItem>
+            </DxFormLayoutGroup>
+        </DxFormLayout>
+
+    </Content>
+    @* Save/Cancel POPUP FOOTER'ında → içerik scroll'una dahil DEĞİL, dipte sabit.
+       CrudFooterToolbar = standart DxToolbar; item'lar sağa dayalı (Alignment=Right). *@
+    <FooterContentTemplate Context="popup">
+        <CrudFooterToolbar OnSave="SaveAsync" OnCancel="@(() => Visible = false)"
+                           CanSave="@(!_saving)" IsBusy="@_saving" />
+    </FooterContentTemplate>
+</DxPopup>
+
+@code {
+    [Inject] protected ICurrencyUnitMarginAppService MarginAppService { get; set; } = default!;
+
+    /// <summary>Marj kaydedildikten sonra tetiklenir (çağıran grid'i yenileyebilir).</summary>
+    [Parameter] public EventCallback OnSaved { get; set; }
+
+    protected bool Visible { get; set; }
+    private bool _saving;
+    private Guid _unitId;
+    private string _code = string.Empty;
+    private string _name = string.Empty;
+    private decimal _baseBuy;
+    private decimal _baseSell;
+
+    protected MarginType BuyType { get; set; }
+    protected decimal BuyValue { get; set; }
+    protected MarginType SellType { get; set; }
+    protected decimal SellValue { get; set; }
+
+    // Nihai fiyat = baz fiyata girilen marjın uygulanması (server MarginSetting.Apply ile aynı formül).
+    private decimal FinalBuy => Apply(_baseBuy, BuyType, BuyValue);
+    private decimal FinalSell => Apply(_baseSell, SellType, SellValue);
+
+    private static decimal Apply(decimal basePrice, MarginType type, decimal value) => type switch
+    {
+        MarginType.FinalPrice => value,
+        MarginType.Multiply   => basePrice * value,
+        MarginType.Amount     => basePrice + value,
+        MarginType.Percent    => basePrice * (1m + value / 100m),
+        _ => basePrice,
+    };
+
+    public MarginSetDialog()
+    {
+        LocalizationResource = typeof(Integration.TradeXpress.Localization.TradeXpressResource);
+    }
+
+    /// <summary>Diyaloğu bir birim için açar; mevcut marjı + baz fiyatı (Alış/Satış) prefill eder.</summary>
+    public async Task ShowAsync(Guid unitId, string code, string name, decimal baseBuy = 0m, decimal baseSell = 0m)
+    {
+        _unitId = unitId;
+        _code = code;
+        _name = name;
+        _baseBuy = baseBuy;
+        _baseSell = baseSell;
+
+        var current = await MarginAppService.GetCurrentAsync(unitId);
+        BuyType = current.MarginOnBuyType;
+        BuyValue = current.MarginOnBuyValue;
+        SellType = current.MarginOnSellType;
+        SellValue = current.MarginOnSellValue;
+
+        Visible = true;
+        StateHasChanged();
+    }
+
+    protected async Task SaveAsync()
+    {
+        try
+        {
+            _saving = true;
+            await MarginAppService.SetAsync(new CurrencyUnitMarginSetDto
+            {
+                CurrencyUnitId = _unitId,
+                MarginOnBuyType = BuyType,
+                MarginOnBuyValue = BuyValue,
+                MarginOnSellType = SellType,
+                MarginOnSellValue = SellValue,
+            });
+            Visible = false;
+            await Notify.Success(L["SuccessfullySaved"]);
+            await OnSaved.InvokeAsync();
+        }
+        catch (Exception ex)
+        {
+            await HandleErrorAsync(ex);
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+}

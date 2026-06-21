@@ -4,13 +4,12 @@ using System.Linq;
 using System.Threading.Tasks;
 using Integration.Framework.Base.Querying;
 using Integration.TradeXpress.Branches;
-using Integration.TradeXpress.Currencies;
+using Integration.TradeXpress.Financials.CurrencyUnits;
 using Integration.TradeXpress.Organization;
 using Integration.TradeXpress.Permissions;
 using Integration.TradeXpress.Vaults;
 using Microsoft.AspNetCore.Authorization;
 using Volo.Abp;
-using Volo.Abp.Authorization;
 using Volo.Abp.Application.Dtos;
 using Volo.Abp.Data;
 using Volo.Abp.Domain.Entities;
@@ -93,7 +92,6 @@ public class CompanyAppService : TradeXpressAppService, ICompanyAppService
         await EnsureCurrencyVisibleAsync(input.BaseCurrencyUnitId);
 
         var c = new Company(
-            GuidGenerator.Create(),
             input.Code,
             input.Name,
             input.CountryCode,
@@ -243,7 +241,7 @@ public class CompanyAppService : TradeXpressAppService, ICompanyAppService
         Company company;
         if (isNew)
         {
-            company = new Company(GuidGenerator.Create(), input.Code, input.Name, input.CountryCode, input.BaseCurrencyUnitId,
+            company = new Company(input.Code, input.Name, input.CountryCode, input.BaseCurrencyUnitId,
                 isHeadquarters: input.IsHeadquarters, displayOrder: input.DisplayOrder, tenantId: CurrentTenant.Id);
             company.SetDescription(input.Description);
             await _repository.InsertAsync(company, autoSave: true);
@@ -280,7 +278,7 @@ public class CompanyAppService : TradeXpressAppService, ICompanyAppService
         var inputBranches = (input.Branches ?? new List<BranchTreeSaveDto>())
             .OrderBy(b => b.DisplayOrder).ToList();
         if (inputBranches.Count == 0)
-            inputBranches.Add(new BranchTreeSaveDto { Name = BranchConsts.DefaultHeadquartersName, IsHeadquarters = true, DisplayOrder = 1 });
+            inputBranches.Add(new BranchTreeSaveDto { Code = BranchConsts.DefaultHeadquartersCode, Name = BranchConsts.DefaultHeadquartersName, IsHeadquarters = true, DisplayOrder = 1 });
         // Kullanıcının AÇIKÇA bir HQ işaretleyip işaretlemediğini normalize'den ÖNCE yakala
         // (HQ devri kontrolü için: HQ silinirken kalanlardan biri açıkça HQ olmalı, otomatik terfi sayılmaz).
         var explicitSurvivingHq = inputBranches.Any(b => b.IsHeadquarters);
@@ -293,7 +291,7 @@ public class CompanyAppService : TradeXpressAppService, ICompanyAppService
             var bNew = isNew || bi.Id is null || bi.Id == Guid.Empty;  // yeni şirkette tüm çocuklar yeni
             if (bNew)
             {
-                branch = new Branch(GuidGenerator.Create(), company.Id, bi.Code, bi.Name,
+                branch = new Branch(company.Id, bi.Code, bi.Name,
                     isHeadquarters: bi.IsHeadquarters, displayOrder: bi.DisplayOrder, tenantId: CurrentTenant.Id);
                 branch.SetDescription(bi.Description);
                 await _branchRepository.InsertAsync(branch, autoSave: true);
@@ -323,7 +321,7 @@ public class CompanyAppService : TradeXpressAppService, ICompanyAppService
             var inputVaults = (bi.Vaults ?? new List<VaultTreeSaveDto>())
                 .OrderBy(v => v.DisplayOrder).ToList();
             if (inputVaults.Count == 0)
-                inputVaults.Add(new VaultTreeSaveDto { Name = VaultConsts.DefaultName, IsDefault = true, DisplayOrder = 1 });
+                inputVaults.Add(new VaultTreeSaveDto { Code = VaultConsts.DefaultCode, Name = VaultConsts.DefaultName, IsDefault = true, DisplayOrder = 1 });
             NormalizeSingleFlag(inputVaults, v => v.IsDefault, (v, val) => v.IsDefault = val, forceOne: true);
 
             var keptVaultIds = new HashSet<Guid>();
@@ -332,7 +330,7 @@ public class CompanyAppService : TradeXpressAppService, ICompanyAppService
                 Vault vault;
                 if (bNew || vi.Id is null || vi.Id == Guid.Empty)
                 {
-                    vault = new Vault(GuidGenerator.Create(), branch.Id, vi.Code, vi.Name,
+                    vault = new Vault(branch.Id, vi.Code, vi.Name,
                         isDefault: vi.IsDefault, displayOrder: vi.DisplayOrder, tenantId: CurrentTenant.Id);
                     vault.SetDescription(vi.Description);
                     await _vaultRepository.InsertAsync(vault, autoSave: true);

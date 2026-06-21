@@ -81,7 +81,6 @@ public class BranchAppService : TradeXpressAppService, IBranchAppService
         await EnsureCompanyVisibleAsync(input.CompanyId);
 
         var b = new Branch(
-            GuidGenerator.Create(),
             input.CompanyId,
             input.Code,
             input.Name,

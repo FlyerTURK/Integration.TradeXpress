@@ -1,0 +1,35 @@
+@page "/currencies/parities"
+
+@inherits CrudPageBase<ParityGetDto, ParityListDto, Guid, ParityListRequestDto, ParityCreateDto, ParityUpdateDto>
+
+<CrudLayout TGetDto="ParityGetDto"
+            TListDto="ParityListDto"
+            TKey="Guid"
+            StateService="StateService"
+            DataSource="@GridDataSource"
+            EntityName="@L["Parity"]"
+            EntityIcon="@TradeXpressIcons.Parity"
+            PrimaryTextSelector="@(m => $"{m.BaseCode}/{m.QuoteCode}")"
+            PageTitle="@L["Parities"]"
+            OnNewClick="BeforeCreateAsync"
+            OnUpdateClick="BeforeUpdateAsync"
+            OnDeleteClick="DeleteAsync"
+            OnRefreshClick="GetListAsync"
+            OnSearchChanged="OnSearchAsync"
+            AllowColumnReordering="true">
+
+    <GridColumns>
+        @* Kimlik = base/quote çifti. Kod'lar enrichment (FK→Code, nav yok) → server-side sort/filter edilemez. *@
+        <DxGridBandColumn Caption="@L["GeneralInfo"]" CaptionAlignment="GridTextAlignment.Center">
+            <Columns>
+                <DxGridDataColumn FieldName="BaseCode" Caption="@L["Base"]" Width="100px" AllowSort="false" />
+                <DxGridDataColumn FieldName="QuoteCode" Caption="@L["Quote"]" Width="100px" AllowSort="false" />
+                <DxGridDataColumn FieldName="IsGlobal" Caption="@L["Kind"]" Width="100px" TextAlignment="GridTextAlignment.Left">
+                    <CellDisplayTemplate>@(((ParityListDto)context.DataItem).IsGlobal ? L["CurrencyKind:Global"] : L["CurrencyKind:Company"])</CellDisplayTemplate>
+                </DxGridDataColumn>
+                <DxGridDataColumn FieldName="DisplayOrder" Caption="@L["DisplayOrder"]" Width="90px" />
+            </Columns>
+        </DxGridBandColumn>
+    </GridColumns>
+
+</CrudLayout>

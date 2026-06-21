@@ -42,7 +42,9 @@ public class CountryCreateDto : ICreateDto
     [StringLength(CountryConsts.NameMaxLength)]
     public string Name { get; set; } = string.Empty;
 
-    public string? DefaultCurrencyCode { get; set; }
+    [Required]
+    public string DefaultCurrencyCode { get; set; } = string.Empty;
+
     public int DisplayOrder { get; set; }
 }
 
@@ -52,7 +54,9 @@ public class CountryUpdateDto : IUpdateDto
     [StringLength(CountryConsts.NameMaxLength)]
     public string Name { get; set; } = string.Empty;
 
-    public string? DefaultCurrencyCode { get; set; }
+    [Required]
+    public string DefaultCurrencyCode { get; set; } = string.Empty;
+
     public bool IsActive { get; set; }
     public int DisplayOrder { get; set; }
 }

@@ -1,5 +1,6 @@
-using Integration.TradeXpress.Currencies;
 using Xunit;
+
+using Integration.TradeXpress.Financials.Parities;
 
 namespace Integration.TradeXpress.EntityFrameworkCore.Applications;
 

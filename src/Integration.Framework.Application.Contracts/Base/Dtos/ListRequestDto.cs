@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using Integration.Framework.Base.Dtos.Interfaces;
 using Integration.Framework.Base.Querying;
 using Volo.Abp.Application.Dtos;

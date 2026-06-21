@@ -1,0 +1,49 @@
+namespace Integration.TradeXpress;
+
+/// <summary>
+/// Seed orchestrator'ı — tek <see cref="IDataSeedContributor"/>; yalnız <b>sırayı</b> yönetir, asıl iş
+/// bucket-bazlı odaklı seeder'larda (SRP): <c>CurrencyUnitSeeder</c> / <c>ParitySeeder</c> /
+/// <c>CountrySeeder</c> / <c>OrgSeeder</c>. Sıkı bağımlılık var (birimler ÖNCE — parite/marj/şirket-base
+/// hepsi birime bağlı); ABP contributor'ları sırasız çalıştırdığından sıra burada tek noktada garanti edilir.
+/// Idempotent (her seeder kendi var-olanı atlar).
+/// </summary>
+public class TradeXpressDataSeedContributor(
+    CurrencyUnitSeeder currencyUnitSeeder,
+    ParitySeeder paritySeeder,
+    CountrySeeder countrySeeder,
+    OrgSeeder orgSeeder)
+    : IDataSeedContributor, ITransientDependency
+{
+    #region Fields
+
+    private readonly CurrencyUnitSeeder _currencyUnitSeeder = currencyUnitSeeder;
+    private readonly ParitySeeder _paritySeeder = paritySeeder;
+    private readonly CountrySeeder _countrySeeder = countrySeeder;
+    private readonly OrgSeeder _orgSeeder = orgSeeder;
+
+    #endregion
+
+    #region Seeding
+
+    public async Task SeedAsync(DataSeedContext context)
+    {
+        // (1) Merkezi referans yalnız host'ta (TenantId=null); tenant'lar paylaşır (null‖own).
+        if (context.TenantId == null)
+        {
+            await _currencyUnitSeeder.SeedCatalogAsync(); // birimler + TRY ham kuru — HER ŞEYDEN ÖNCE
+            await _paritySeeder.SeedAsync();              // host-global pariteler
+            await _countrySeeder.SeedAsync();             // host-global ülke kataloğu
+        }
+
+        // (2) Marjlar her tenant'ta (host dahil) — host'un merkezi düzeltme marjı da burada.
+        await _currencyUnitSeeder.SeedMarginsAsync(context.TenantId);
+
+        // (3) Org ağacı yalnız tenant'a aittir (host'ta company yok).
+        if (context.TenantId != null)
+        {
+            await _orgSeeder.SeedHqCompanyAsync(context.TenantId);
+        }
+    }
+
+    #endregion
+}

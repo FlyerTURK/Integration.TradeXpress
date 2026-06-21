@@ -1,8 +1,3 @@
-using System;
-using Volo.Abp;
-using Volo.Abp.Domain.Entities.Auditing;
-using Volo.Abp.MultiTenancy;
-
 namespace Integration.TradeXpress.Countries;
 
 /// <summary>
@@ -21,8 +16,9 @@ public class Country : FullAuditedAggregateRoot<Guid>, IMultiTenant
     public virtual string Code { get; protected set; } = null!;
     public virtual string Name { get; protected set; } = null!;
 
-    /// <summary>Ülkenin varsayılan para birimi kodu (CurrencyUnitCode ile eşleşirse HQ base önerisi). Opsiyonel.</summary>
-    public virtual string? DefaultCurrencyCode { get; protected set; }
+    /// <summary>Ülkenin varsayılan para birimi kodu (CurrencyUnitCode; HQ base önerisi). ZORUNLU —
+    /// birimi olmayan ülkeye izin verilmez.</summary>
+    public virtual string DefaultCurrencyCode { get; protected set; } = null!;
 
     public virtual bool IsActive { get; protected set; }
     public virtual int DisplayOrder { get; protected set; }
@@ -30,17 +26,15 @@ public class Country : FullAuditedAggregateRoot<Guid>, IMultiTenant
     protected Country() { }
 
     public Country(
-        Guid id,
         string code,
         string name,
-        string? defaultCurrencyCode = null,
+        string defaultCurrencyCode,
         int displayOrder = 0,
         Guid? tenantId = null)
-        : base(id)
     {
         SetCode(code);
         SetName(name);
-        DefaultCurrencyCode = defaultCurrencyCode?.ToUpperInvariant();
+        SetDefaultCurrencyCode(defaultCurrencyCode);
         DisplayOrder = displayOrder;
         TenantId = tenantId;
         IsActive = true;
@@ -52,7 +46,8 @@ public class Country : FullAuditedAggregateRoot<Guid>, IMultiTenant
     public virtual void SetName(string name)
         => Name = Check.NotNullOrWhiteSpace(name, nameof(name), CountryConsts.NameMaxLength);
 
-    public virtual void SetDefaultCurrencyCode(string? code) => DefaultCurrencyCode = code?.ToUpperInvariant();
+    public virtual void SetDefaultCurrencyCode(string code)
+        => DefaultCurrencyCode = Check.NotNullOrWhiteSpace(code, nameof(code), CurrencyConsts.CodeMaxLength).ToUpperInvariant();
     public virtual void Activate() => IsActive = true;
     public virtual void Deactivate() => IsActive = false;
     public virtual void SetDisplayOrder(int order) => DisplayOrder = order;

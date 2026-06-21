@@ -34,4 +34,8 @@
     <Content Remove="Localization\TradeXpress\*.json" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\Integration.Framework.Domain.Shared\Integration.Framework.Domain.Shared.csproj" />
+  </ItemGroup>
+
 </Project>

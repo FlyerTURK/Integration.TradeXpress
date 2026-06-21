@@ -1,13 +1,13 @@
 using Riok.Mapperly.Abstractions;
 using Volo.Abp.Mapperly;
 using Integration.TradeXpress.Tenants;
-using Integration.TradeXpress.Currencies;
+using Integration.TradeXpress.Financials.CurrencyUnits;
 using Integration.TradeXpress.Companies;
 using Integration.TradeXpress.Countries;
 using Integration.TradeXpress.Branches;
 using Integration.TradeXpress.Vaults;
 using Integration.TradeXpress.Blazor.Client.Pages.TenantManagement.Models;
-using Integration.TradeXpress.Blazor.Client.Pages.Currencies.Models;
+using Integration.TradeXpress.Blazor.Client.Pages.Financials.CurrencyUnits.Models;
 using Integration.TradeXpress.Blazor.Client.Pages.Companies.Models;
 using Integration.TradeXpress.Blazor.Client.Pages.Countries.Models;
 using Integration.TradeXpress.Blazor.Client.Pages.Vaults.Models;

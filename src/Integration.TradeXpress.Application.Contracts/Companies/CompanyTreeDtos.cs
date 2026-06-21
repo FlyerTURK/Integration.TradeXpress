@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using Integration.TradeXpress.Branches;
-using Integration.TradeXpress.Companies;
 using Integration.TradeXpress.Vaults;
 using Volo.Abp.Application.Dtos;
 

@@ -1,5 +1,4 @@
 using Integration.Framework.Base.Dtos.Interfaces;
-using Integration.Framework.Blazor.Client.Components.Crud;
 
 namespace Integration.Framework.Blazor.Client.Services.Base;
 
