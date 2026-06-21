@@ -67,20 +67,20 @@ public class CurrencyDataSeedContributor : IDataSeedContributor, ITransientDepen
 
     // Harem-güvenilir birimler + TRY. JPY/KWD (Harem bayat) ve RUB/AZN/CNY/RON/AED
     // (Harem vermez, Altınkaynak-only) BİLİNÇLİ olarak dışarıda.
-    private static readonly (string Code, string Name, CurrencyUnitType Type, int Order)[] Units =
+    private static readonly (string Code, string Name, CurrencyUnitType Type, int Order, bool AlwaysShow)[] Units =
     {
-        (CurrencyUnitCode.HAS, "Has Altın",              CurrencyUnitType.Metal, 1),
-        (CurrencyUnitCode.TRY, "Türk Lirası",            CurrencyUnitType.Cash,  2),
-        (CurrencyUnitCode.USD, "Amerikan Doları",        CurrencyUnitType.Cash,  3),
-        (CurrencyUnitCode.EUR, "Euro",                   CurrencyUnitType.Cash,  4),
-        (CurrencyUnitCode.GBP, "İngiliz Sterlini",       CurrencyUnitType.Cash,  5),
-        (CurrencyUnitCode.CHF, "İsviçre Frangı",         CurrencyUnitType.Cash,  6),
-        (CurrencyUnitCode.SAR, "Suudi Arabistan Riyali", CurrencyUnitType.Cash,  7),
-        (CurrencyUnitCode.AUD, "Avustralya Doları",      CurrencyUnitType.Cash,  8),
-        (CurrencyUnitCode.CAD, "Kanada Doları",          CurrencyUnitType.Cash,  9),
-        (CurrencyUnitCode.GUM, "Has Gümüş",              CurrencyUnitType.Metal, 10),
-        (CurrencyUnitCode.PLT, "Has Platin",             CurrencyUnitType.Metal, 11),
-        (CurrencyUnitCode.PLD, "Has Paladyum",           CurrencyUnitType.Metal, 12),
+        (CurrencyUnitCode.HAS, "Has Altın",              CurrencyUnitType.Metal, 1,  true),
+        (CurrencyUnitCode.TRY, "Türk Lirası",            CurrencyUnitType.Cash,  2,  true),
+        (CurrencyUnitCode.USD, "Amerikan Doları",        CurrencyUnitType.Cash,  3,  true),
+        (CurrencyUnitCode.EUR, "Euro",                   CurrencyUnitType.Cash,  4,  true),
+        (CurrencyUnitCode.GBP, "İngiliz Sterlini",       CurrencyUnitType.Cash,  5,  false),
+        (CurrencyUnitCode.CHF, "İsviçre Frangı",         CurrencyUnitType.Cash,  6,  false),
+        (CurrencyUnitCode.SAR, "Suudi Arabistan Riyali", CurrencyUnitType.Cash,  7,  false),
+        (CurrencyUnitCode.AUD, "Avustralya Doları",      CurrencyUnitType.Cash,  8,  false),
+        (CurrencyUnitCode.CAD, "Kanada Doları",          CurrencyUnitType.Cash,  9,  false),
+        (CurrencyUnitCode.GUM, "Has Gümüş",              CurrencyUnitType.Metal, 10, false),
+        (CurrencyUnitCode.PLT, "Has Platin",             CurrencyUnitType.Metal, 11, false),
+        (CurrencyUnitCode.PLD, "Has Paladyum",           CurrencyUnitType.Metal, 12, false),
     };
 
     public async Task SeedAsync(DataSeedContext context)
@@ -159,6 +159,7 @@ public class CurrencyDataSeedContributor : IDataSeedContributor, ITransientDepen
                 spec.Type,
                 isSystem: true,
                 displayOrder: spec.Order);
+            unit.SetAlwaysShowInBalance(spec.AlwaysShow);
 
             if (string.Equals(spec.Code, CurrencyUnitCode.TRY, StringComparison.OrdinalIgnoreCase))
                 tryUnit = unit;

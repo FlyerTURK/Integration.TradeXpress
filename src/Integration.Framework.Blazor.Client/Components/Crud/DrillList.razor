@@ -63,6 +63,7 @@
                New/Edit/Delete command column'dan; kaydetme EditModelSaving/DataItemDeleting üzerinden
                aynı persist/in-memory mantığına bağlanır. NOT: sadece grid'de GÖRÜNEN kolonlar düzenlenir. *@
             <DxGrid Data="@FilteredItems"
+                    ColumnResizeMode="GridColumnResizeMode.NextColumn"
                     KeyFieldName="@KeyFieldName"
                     EditMode="GridEditMode.EditRow"
                     EditModelSaving="OnEditModelSaving"
@@ -82,6 +83,7 @@
         else
         {
             <DxGrid Data="@FilteredItems"
+                    ColumnResizeMode="GridColumnResizeMode.NextColumn"
                     KeyFieldName="@KeyFieldName"
                     SelectionMode="GridSelectionMode.Multiple"
                     AllowSelectRowByClick="false"

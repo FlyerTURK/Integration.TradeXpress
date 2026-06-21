@@ -20,6 +20,12 @@ public readonly record struct NavOutcome(NavKind Kind, object? LocalKey, int Tar
 }
 
 /// <summary>
+/// Köprünün "hangi kayda geçildiği" sinyali. StateService gezinmeyi çözer; çağıran bağlam
+/// (popup: Id=Key + LoadDataAsync) <see cref="Key"/>'i alıp "nasıl gösteririm"i uygular.
+/// </summary>
+public readonly record struct NavTransition(object Key);
+
+/// <summary>
 /// Sayfa-aşırı (server-side, tüm kayıtlar arası) Previous/Next için SAF karar yardımcısı (UI'sız).
 /// "Geçerli kayıt kaynağı" ve "geçiş biçimi" çağıran bağlamda kalır (split: remount+focus; popup: LoadData);
 /// burada yalnız "komşu yüklü sayfada mı, yoksa sayfa-aşırı mı, yoksa uçta mı" kararı verilir.

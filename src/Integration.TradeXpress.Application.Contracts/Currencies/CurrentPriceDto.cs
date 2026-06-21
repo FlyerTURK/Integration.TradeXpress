@@ -18,9 +18,15 @@ public class CurrentPriceDto : EntityDto<Guid>
     public decimal Buy { get; set; }
     public decimal Sell { get; set; }
 
-    /// <summary>Host ham piyasa fiyatı (pivot TRY) — referans.</summary>
+    /// <summary>Host ham piyasa fiyatı (pivot TRY) — referans (baz fiyat).</summary>
     public decimal RawBuy { get; set; }
     public decimal RawSell { get; set; }
+
+    /// <summary>Baz fiyata uygulanan (en üst/yapılandırılmış) marj — alış/satış ayrı. Yoksa Passthrough (Multiply 1).</summary>
+    public MarginType MarginOnBuyType { get; set; }
+    public decimal MarginOnBuyValue { get; set; }
+    public MarginType MarginOnSellType { get; set; }
+    public decimal MarginOnSellValue { get; set; }
 
     /// <summary>Kademede bir yerde felaket guard'ı (alış>satış→takas) tetiklendi mi.</summary>
     public bool GuardFired { get; set; }

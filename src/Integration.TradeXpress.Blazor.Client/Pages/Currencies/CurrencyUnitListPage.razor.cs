@@ -42,7 +42,10 @@ public partial class CurrencyUnitListPage : IDisposable
             ? StateService.SelectedDataItems[0] as CurrencyUnitListDto
             : null;
         if (item != null && MarginDialog != null)
-            await MarginDialog.ShowAsync(item.Id, item.Code, item.Name);
+        {
+            var (baseBuy, baseSell) = _live.TryGetValue(item.Id, out var p) ? (p.RawBuy, p.RawSell) : (0m, 0m);
+            await MarginDialog.ShowAsync(item.Id, item.Code, item.Name, baseBuy, baseSell);
+        }
     }
 
 
@@ -93,11 +96,39 @@ public partial class CurrencyUnitListPage : IDisposable
         catch (OperationCanceledException) { /* sayfa kapandı */ }
     }
 
-    /// <summary>Satır için canlı Alış/Satış metni; fiyat yoksa "—".</summary>
+    /// <summary>Satır için canlı efektif Alış/Satış metni; fiyat yoksa "—".</summary>
     protected string LivePrice(Guid unitId, bool buy)
         => _live.TryGetValue(unitId, out var p)
-            ? (buy ? p.Buy : p.Sell).ToString("N4")
+            ? (buy ? p.Buy : p.Sell).ToString("N5")
             : "—";
+
+    /// <summary>Baz (ham pivot) Alış/Satış fiyatı.</summary>
+    protected string LiveRaw(Guid unitId, bool buy)
+        => _live.TryGetValue(unitId, out var p)
+            ? (buy ? p.RawBuy : p.RawSell).ToString("N5")
+            : "—";
+
+    /// <summary>Baz fiyata uygulanan marj tipi (alış/satış) — lokalize (Enum:MarginType:*).</summary>
+    protected string LiveMarginType(Guid unitId, bool buy)
+        => _live.TryGetValue(unitId, out var p)
+            ? L[$"Enum:MarginType:{(buy ? p.MarginOnBuyType : p.MarginOnSellType)}"]
+            : "—";
+
+    /// <summary>Baz fiyata uygulanan marj değeri (alış/satış).</summary>
+    protected string LiveMarginValue(Guid unitId, bool buy)
+        => _live.TryGetValue(unitId, out var p)
+            ? (buy ? p.MarginOnBuyValue : p.MarginOnSellValue).ToString("N5")
+            : "—";
+
+    /// <summary>Takip marj tipini lokalize gösterir (Enum:MarginType:*); takip yoksa boş.</summary>
+    protected string FollowingMarginTypeText(MarginType? type)
+        => type is { } t ? L[$"Enum:MarginType:{t}"].Value : "";
+
+    /// <summary>Takip edilen birimin (varsa) tenant'ın gördüğü efektif Alış/Satış fiyatı (ayrı kolon); takip/fiyat yoksa boş.</summary>
+    protected string FollowedPrice(Guid? followingUnitId, bool buy)
+        => followingUnitId is { } pid && _live.TryGetValue(pid, out var p)
+            ? (buy ? p.Buy : p.Sell).ToString("N5")
+            : "";
 
     void IDisposable.Dispose()
     {
@@ -113,15 +144,10 @@ public partial class CurrencyUnitListPage : IDisposable
 
     protected override string PermissionPrefix => TradeXpressPermissions.CurrencyUnits.Default;
 
+    // Global (host) birimi tenant'ta engellemiyoruz; salt-okunur olarak AÇILIR (CurrencyUnitEditPage.IsReadOnly
+    // banner + devre dışı form sağlar). Düzenleme/silme zaten hem UI hem server tarafında bloklu.
     public override async Task BeforeUpdateAsync(CurrencyUnitListDto entity)
-    {
-        if (entity.IsGlobal && CurrentTenant.Id != null)
-        {
-            UiService.ShowWarningToast(L["TradeXpress:CurrencyUnit:CannotEditGlobalAsTenant"]);
-            return;
-        }
-        await base.BeforeUpdateAsync(entity);
-    }
+        => await base.BeforeUpdateAsync(entity);
 
     public override async Task DeleteAsync()
     {
@@ -144,7 +170,11 @@ public partial class CurrencyUnitListPage : IDisposable
         await base.DeleteAsync();
     }
 
-        public override System.Type EditComponentType => typeof(Integration.TradeXpress.Blazor.Client.Pages.Currencies.CurrencyUnitEditPage);
-    }
+    // Edit'i popup yerine MDI sekmesinde aç (route'lu CurrencyUnitEditPage + IMdiTabOpener üzerinden).
+    protected override Integration.Framework.Blazor.Client.Components.Crud.EditOpenTarget EditOpenTarget
+        => Integration.Framework.Blazor.Client.Components.Crud.EditOpenTarget.MdiTab;
+
+    public override System.Type EditComponentType => typeof(Integration.TradeXpress.Blazor.Client.Pages.Currencies.CurrencyUnitEditPage);
+}
 
 

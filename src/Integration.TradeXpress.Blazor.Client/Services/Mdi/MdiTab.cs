@@ -17,6 +17,14 @@ public sealed class MdiTab : IMdiTab
     public string? IconCssClass { get; set; }
     public TabKind Kind { get; set; } = TabKind.Internal;
 
+    /// <summary>Edit sekmeleri için yapısal başlık (3-satır caption + dirty). Düz menü/liste tab'larında null.
+    /// Edit sayfası model yüklenince <see cref="ITabManager.UpdateTabHeader"/> ile doldurur; kalıcılaştırılmaz.</summary>
+    public TabHeaderData? Header { get; set; }
+
+    /// <summary>SplitView'da liste tab'ı için dirty bayrağı: embedded edit kirliyken düz Title'a "*" eklenir
+    /// (Header'ı EZMEDEN). Standalone edit'te dirty <see cref="Header"/>.IsDirty'den gelir; bu kullanılmaz.</summary>
+    public bool IsDirty { get; set; }
+
     /// <summary>İç sayfa için göreli URL (kaynak doğruluk), harici için mutlak URL.</summary>
     public required string Url { get; set; }
 

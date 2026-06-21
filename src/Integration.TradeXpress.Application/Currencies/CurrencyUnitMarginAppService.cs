@@ -73,11 +73,15 @@ public class CurrencyUnitMarginAppService : TradeXpressAppService, ICurrencyUnit
         await EnsureUnitVisibleAsync(input.CurrencyUnitId);
 
         // Append-only: var olanı kontrol etme/düzeltme — her zaman YENİ satır.
+        // TenantId = geçerli izleyici (host→null, tenant→viewer). GetCurrentAsync standart tenant
+        // filtresiyle okuduğundan, yazarken de aynı scope'a yazmalı — yoksa tenant'ta kaydedilen
+        // margin host satırı olarak yazılıp tenant okumasında görünmez (en son ayar yansımaz).
         var entity = new CurrencyUnitMargin(
             GuidGenerator.Create(),
             input.CurrencyUnitId,
             new MarginSetting(input.MarginOnBuyType, input.MarginOnBuyValue),
-            new MarginSetting(input.MarginOnSellType, input.MarginOnSellValue));
+            new MarginSetting(input.MarginOnSellType, input.MarginOnSellValue),
+            CurrentTenant.Id);
 
         await _repository.InsertAsync(entity, autoSave: true);
 

@@ -17,6 +17,9 @@ public class CurrencyUnitListDto : EntityDto<Guid>, IListDto<Guid>, IIsActive
     public int DisplayOrder { get; set; }
     public bool IsSystem { get; set; }
 
+    /// <summary>Bakiye listesinde her zaman gösterilsin mi.</summary>
+    public bool AlwaysShowInBalance { get; set; }
+
     /// <summary>Yapısal/global takip (varsa parent'tan türetilir).</summary>
     public Guid? FollowingUnitId { get; set; }
     

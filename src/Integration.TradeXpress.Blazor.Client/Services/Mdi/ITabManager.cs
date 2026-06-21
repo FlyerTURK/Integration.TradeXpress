@@ -18,6 +18,12 @@ public interface ITabManager
     /// <summary>Aynı URL'li sekme varsa aktive eder, yoksa çözümleyip yeni iç sekme açar. Çözümlenemezse no-op.</summary>
     Task OpenOrActivateAsync(string url, string title, string? icon = null);
 
+    /// <summary>Edit sayfası, sekmesinin yapısal başlığını (3-satır caption + dirty) günceller. Bilinmeyen id → no-op.</summary>
+    void UpdateTabHeader(Guid tabId, Integration.Framework.Blazor.Client.Services.Mdi.TabHeaderData header);
+
+    /// <summary>SplitView'da embedded edit, liste tab'ının başlığını ezmeden sadece dirty bayrağını set eder.</summary>
+    void SetTabDirty(Guid tabId, bool isDirty);
+
     void OpenExternal(string url, string title, string? icon = null);
     void Activate(Guid id);
     void Close(Guid id);

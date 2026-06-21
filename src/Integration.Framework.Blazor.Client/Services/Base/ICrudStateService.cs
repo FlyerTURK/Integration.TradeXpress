@@ -48,10 +48,6 @@ public interface ICrudStateService<TListDto, TKey> : Volo.Abp.DependencyInjectio
     bool CanGoPreviousGlobal { get; }
     bool CanGoNextGlobal { get; }
 
-    /// <summary>Global index'teki TEK kaydı (grid'in aktif sıralaması/filtresiyle) çeker — sayfa-aşırı popup
-    /// gezinmede komşu kaydı bulmak için. CrudLayout grid kaynağına (GridListDataSource.FetchSingleAsync) bağlar.</summary>
-    Func<int, System.Threading.Tasks.Task<TListDto?>>? FetchSingleByIndex { get; set; }
-
     // Yetki Kontrolleri (Türkan Şoray Kural 17)
     bool IsGrantedCreate { get; set; }
     bool IsGrantedUpdate { get; set; }
@@ -61,11 +57,25 @@ public interface ICrudStateService<TListDto, TKey> : Volo.Abp.DependencyInjectio
     event Action? OnReloadRequested;
     void RequestReload();
 
-    // Popup/standalone edit komşu kayda gezinince grid'i o kaydın SAYFASINA götürüp odaklamasını ister.
-    // CrudLayout, DevExpress Grid.SetFocusedDataItemAsync(item)'a bağlar → item farklı sayfadaysa grid
-    // OTOMATİK o sayfaya gider + satırı odaklar (manuel PageIndex hesabı yok → popup arkasında da çalışır).
-    event Func<TListDto, System.Threading.Tasks.Task>? OnFocusItemRequested;
-    System.Threading.Tasks.Task FocusGridItemAsync(TListDto item);
+    // ── Köprü: liste grid'ini StateService'e doğrudan bağla (split + popup TEK prensiple gezinir) ──
+    // CrudLayout her zaman (SplitHost'tan bağımsız) kendini register eder; köprü grid'i doğrudan sürer
+    // (GridVisibleKeys/PageSkip/TotalCount canlı okunur, EnsurePageForGlobalIndexAsync/FocusDataItemAsync çağrılır).
+    void RegisterGrid(ISplitGridActions grid);
+    void UnregisterGrid(ISplitGridActions grid);
+
+    /// <summary>"Geçerli kayıt" anahtarı kaynağı (popup: () => Id; null ise SelectedItem.Id). CurrentGlobalIndex
+    /// bunu canlı kaynak alır → popup'ın ayrı stale index'i kalkar, tek tanım.</summary>
+    Func<object?>? CurrentKeyProvider { get; set; }
+
+    /// <summary>Komşu kayda geçmeden önce ayrılma güvenli mi? (popup: ConfirmCloseAsync — dirty Kaydet/Yoksay.)</summary>
+    Func<System.Threading.Tasks.Task<bool>>? CanLeaveGuard { get; set; }
+
+    /// <summary>Köprü hedef kaydı bulunca "nasıl gösterileceği" hook'u (popup: Id=Key; LoadDataAsync).</summary>
+    Func<NavTransition, System.Threading.Tasks.Task>? OnRecordActivated { get; set; }
+
+    /// <summary>Sayfa-aşırı (tüm kayıtlar) önceki/sonraki kayda geç: CrossPageNavigator + guard + grid + hook.</summary>
+    System.Threading.Tasks.Task GoNextGlobalAsync();
+    System.Threading.Tasks.Task GoPreviousGlobalAsync();
 
     // Methodlar
     void NotifyStateChanged();

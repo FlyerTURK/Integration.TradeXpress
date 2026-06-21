@@ -8,13 +8,14 @@
             ClearButtonDisplayMode="@ClearButtonDisplayMode"
             ShowSpinButtons="@ShowSpinButtons"
             Enabled="@Enabled"
+            DisplayFormat="@DisplayFormat"
             InputCssClass="@InputCssClass"
             CssClass="numeric-spin-edit w-100" />
 
 <style>
     .numeric-spin-edit input {
         text-align: right !important;
-        padding-right: 5px !important;
+        padding-right: 10px !important;
     }
 </style>
 
@@ -26,6 +27,9 @@
     [Parameter] public DataEditorClearButtonDisplayMode ClearButtonDisplayMode { get; set; } = DataEditorClearButtonDisplayMode.Never;
     [Parameter] public bool ShowSpinButtons { get; set; } = false;
     [Parameter] public bool Enabled { get; set; } = true;
+
+    /// <summary>Focus dışındaki gösterim formatı (ör. "N5"). null = varsayılan. Girişi kısıtlamaz (mask değil).</summary>
+    [Parameter] public string? DisplayFormat { get; set; }
 
     // New parameter to apply CSS class to inner input for right alignment and padding
     [Parameter] public string? InputCssClass { get; set; } = "text-end pe-2";

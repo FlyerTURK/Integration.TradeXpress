@@ -23,7 +23,7 @@
         <DxButton Text="@L["Refresh"]" RenderStyle="ButtonRenderStyle.Secondary" IconCssClass="fas fa-sync" Click="LoadAsync" />
     </div>
     <div class="card-body">
-        <DxGrid Data="Prices" PageSize="25" ShowPager="true">
+        <DxGrid Data="Prices" PageSize="25" ShowPager="true" ColumnResizeMode="GridColumnResizeMode.NextColumn">
             <Columns>
                 <DxGridDataColumn FieldName="CurrencyUnitCode" Caption="@L["Code"]" Width="90px" />
                 <DxGridDataColumn FieldName="CurrencyUnitName" Caption="@L["Name"]" />
@@ -45,7 +45,7 @@
                     <CellDisplayTemplate>
                         @{ var row = (CurrentPriceDto)context.DataItem; }
                         <DxButton Text="@L["SetMargin"]" RenderStyle="ButtonRenderStyle.Link" IconCssClass="fas fa-percent"
-                                  Click="@(() => MarginDialog!.ShowAsync(row.Id, row.CurrencyUnitCode, row.CurrencyUnitName))" />
+                                  Click="@(() => MarginDialog!.ShowAsync(row.Id, row.CurrencyUnitCode, row.CurrencyUnitName, row.RawBuy, row.RawSell))" />
                         <DxButton Text="@L["History"]" RenderStyle="ButtonRenderStyle.Link" IconCssClass="fas fa-clock-rotate-left"
                                   Click="@(() => ShowHistoryAsync(row))" />
                     </CellDisplayTemplate>
@@ -58,8 +58,8 @@
 @* Marj "Ayarla" — append-only SetAsync; kaydedince panoyu yeniler. *@
 <MarginSetDialog @ref="MarginDialog" OnSaved="LoadAsync" />
 
-<DxPopup @bind-Visible="HistoryVisible" HeaderText="@HistoryTitle" Width="560px">
-    <DxGrid Data="History" PageSize="10" ShowPager="true">
+<DxPopup @bind-Visible="HistoryVisible" HeaderText="@HistoryTitle" Width="95%" MaxWidth="560px" MaxHeight="90vh" Scrollable="true">
+    <DxGrid Data="History" PageSize="10" ShowPager="true" ColumnResizeMode="GridColumnResizeMode.NextColumn">
         <Columns>
             <DxGridDataColumn FieldName="MarginOnBuyType" Caption="@L["MarginOnBuy"]" Width="120px" />
             <DxGridDataColumn FieldName="MarginOnBuyValue" Caption="@L["MarginValue"]" Width="100px" DisplayFormat="N5" />

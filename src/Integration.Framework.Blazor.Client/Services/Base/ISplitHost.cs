@@ -30,6 +30,9 @@ public interface ISplitHost
     ISplitGridActions? Grid { get; }
     /// <summary>Aktif edit paneli (null = seçim yok / edit mount değil).</summary>
     ISplitEditActions? Edit { get; }
+    /// <summary>Birleşik (split) toolbar'ın o anki görünür aksiyonları — CrudLayout satır context menüsü
+    /// split modda yerel toolbar olmadığından bunu kullanır.</summary>
+    System.Collections.Generic.IReadOnlyList<Integration.Framework.Blazor.Client.Components.Crud.CrudToolbarAction> ToolbarMenuActions { get; }
     /// <summary>Bir kayıt seçili/yeni mi (edit paneli açık mı).</summary>
     bool HasSelection { get; }
     /// <summary>Mobil görünüm mü (MainLayout viewport sinyalinden).</summary>
@@ -113,6 +116,17 @@ public interface ISplitEditActions
 {
     bool CanSave { get; }
     bool IsNew { get; }
+
+    /// <summary>Salt-okunur mod (ör. tenant'ta global/host kaydı). Kaydet/Sil gizlenir, form devre dışı,
+    /// üstte bilgilendirme banner'ı gösterilir.</summary>
+    bool IsReadOnly { get; }
+
+    /// <summary>Salt-okunur formda gösterilecek bilgilendirme metni; null ise genel mesaj kullanılır.</summary>
+    string? ReadOnlyNotice { get; }
+
+    /// <summary>Edit formunun yapısal başlığı (3-satır: tür/kimlik/parent + dirty). Popup shell bunu
+    /// canlı okur; MDI tab/top-panel'e ayrıca push edilir. null = yapısal başlık yok.</summary>
+    Integration.Framework.Blazor.Client.Services.Mdi.TabHeaderData? EditHeader { get; }
 
     Task SaveAsync();
     Task SaveAndNewAsync();

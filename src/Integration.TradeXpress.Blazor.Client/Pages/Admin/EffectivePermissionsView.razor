@@ -19,7 +19,7 @@ else if (_error is not null)
 }
 else
 {
-    <DxGrid Data="_rows" PageSize="50">
+    <DxGrid Data="_rows" PageSize="50" ColumnResizeMode="GridColumnResizeMode.NextColumn">
         <DxGridDataColumn FieldName="Permission" Caption="@L["Permission"]" Width="200px" MinWidth="180" />
         <DxGridDataColumn FieldName="Sources" Caption="@L["Source"]" Width="240px" MinWidth="200" />
     </DxGrid>

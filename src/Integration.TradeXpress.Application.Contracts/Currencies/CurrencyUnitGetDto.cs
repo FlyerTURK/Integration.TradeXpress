@@ -18,6 +18,9 @@ public class CurrencyUnitGetDto : EntityDto<Guid>, IGetDto<Guid>
     public string? Description { get; set; }
     public bool IsSystem { get; set; }
 
+    /// <summary>Bakiye listesinde her zaman gösterilsin mi.</summary>
+    public bool AlwaysShowInBalance { get; set; }
+
     public Guid? FollowingUnitId { get; set; }
     public MarginType? FollowingMarginType { get; set; }
     public decimal? FollowingMarginValue { get; set; }

@@ -11,7 +11,10 @@
 
 <DxPopup @bind-Visible="@_visible"
          HeaderText="@L["Firma Seç"].Value"
-         Width="420px"
+         Width="95%"
+         MaxWidth="420px"
+         MaxHeight="90vh"
+         Scrollable="true"
          ShowFooter="true"
          CloseOnOutsideClick="false"
          Closed="@OnClosed">

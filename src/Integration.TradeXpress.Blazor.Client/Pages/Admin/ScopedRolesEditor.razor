@@ -11,6 +11,7 @@
 
 <div class="scoped-roles-editor">
     <DxGrid @ref="Grid"
+            ColumnResizeMode="GridColumnResizeMode.NextColumn"
             Data="Roles"
             SelectionMode="GridSelectionMode.Single"
             PageSize="10">
@@ -29,7 +30,7 @@
     </div>
 </div>
 
-<DxPopup @bind-Visible="ShowRolePopup" HeaderText="@L["AssignRole"]" AllowDrag="true" ShowFooter="false">
+<DxPopup @bind-Visible="ShowRolePopup" HeaderText="@L["AssignRole"]" AllowDrag="true" ShowFooter="false" Width="95%" MaxWidth="520px" MaxHeight="90vh" Scrollable="true">
     <DxFormLayout>
         <DxFormLayoutItem Caption="@L["Role"]" ColSpanMd="12">
             <DxComboBox Data="AvailableRoles"

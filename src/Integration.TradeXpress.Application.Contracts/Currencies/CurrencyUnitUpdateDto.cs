@@ -20,6 +20,8 @@ public class CurrencyUnitUpdateDto : IUpdateDto
     public bool IsActive { get; set; }
     public int DisplayOrder { get; set; }
 
+    public bool AlwaysShowInBalance { get; set; }
+
     public Guid? FollowingUnitId { get; set; }
     public MarginType? FollowingMarginType { get; set; }
     public decimal? FollowingMarginValue { get; set; }

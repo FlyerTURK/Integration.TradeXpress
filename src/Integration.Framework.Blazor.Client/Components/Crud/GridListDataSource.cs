@@ -36,9 +36,6 @@ public sealed class GridListDataSource<TListDto> : GridCustomDataSource
     private readonly Func<ListRequestDto, Task<PagedResultDto<TListDto>>> _fetch;
 
     private CacheEntry? _cache;
-    // Son GetItems request'i (Sorts/Filter/Filters DOLU). FetchSingleAsync bunu kullanır; _cache, GetItemCount'un
-    // sort'suz sorgusuyla kirletilebildiği için tek-kayıt sorgusunun sıralaması buradan korunur.
-    private ListRequestDto? _lastItemsRequest;
     private sealed record CacheEntry(ListRequestDto Request, IReadOnlyList<TListDto> Items, long TotalCount);
 
     /// <summary>Son fetch edilen (görünür) sayfanın kayıtları — Previous/Next gezinme için.</summary>
@@ -53,36 +50,6 @@ public sealed class GridListDataSource<TListDto> : GridCustomDataSource
     /// <summary>Her başarılı GetItems (cache hit dahil) sonrası tetiklenir → CrudLayout StateService'i tazeler
     /// (grid fetch'i CrudLayout'u re-render etmediği için OnAfterRender senkronu güvenilmezdi).</summary>
     public event Action? Fetched;
-
-    /// <summary>Global sıradaki TEK kaydı, grid'in o anki sıralaması/filtresiyle çeker (SkipCount=globalIndex,
-    /// MaxResultCount=1). Sayfa-aşırı komşu kaydı bulmak için.</summary>
-    public async Task<TListDto?> FetchSingleAsync(int globalIndex)
-    {
-        if (globalIndex < 0) return null;
-        // Son GETITEMS request'ini baz al (Sorts/Filter/Filters DOLU). _cache.Request, GetItemCountAsync'in
-        // sort'suz (sortInfo:null) sorgusuyla kirletilebildiği için ona güvenmiyoruz — yoksa tek-kayıt sorgusu
-        // sıralamasız (default/Id) sıraya düşüp grid'den farklı sıra üretir.
-        var baseReq = _lastItemsRequest ?? _cache?.Request;
-        var request = new ListRequestDto
-        {
-            SkipCount      = globalIndex,
-            MaxResultCount = 1,
-            Filter         = baseReq?.Filter ?? (string.IsNullOrWhiteSpace(SearchText) ? null : SearchText.Trim()),
-            Sorts          = baseReq?.Sorts ?? new List<SortField>(),
-            Filters        = baseReq?.Filters ?? new List<FilterField>(),
-            IsActive       = baseReq?.IsActive ?? ActiveFilter,
-        };
-        try
-        {
-            var result = await _fetch(request);
-            return result.Items.FirstOrDefault();
-        }
-        catch (Exception ex)
-        {
-            if (OnError != null) await OnError(ex);
-            return null;
-        }
-    }
 
     public GridListDataSource(Func<ListRequestDto, Task<PagedResultDto<TListDto>>> fetch)
         => _fetch = fetch ?? throw new ArgumentNullException(nameof(fetch));
@@ -125,7 +92,6 @@ public sealed class GridListDataSource<TListDto> : GridCustomDataSource
         try
         {
             var request = BuildRequest(options.StartIndex, options.Count, options.SortInfo, options.FilterCriteria);
-            _lastItemsRequest = request;   // FetchSingle bunu baz alır (Sorts/Filter/Filters dolu; sayım sorgusu kirletmez)
 
             if (_cache is { } c && SameRequest(c.Request, request))
             {

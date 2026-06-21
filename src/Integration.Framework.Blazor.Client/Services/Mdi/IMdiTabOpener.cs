@@ -11,4 +11,12 @@ public interface IMdiTabOpener
 {
     /// <summary>Aynı URL'li sekme varsa aktive eder, yoksa yeni iç sekme açar.</summary>
     Task OpenOrActivateAsync(string url, string title, string? icon = null);
+
+    /// <summary>Edit sayfası, model yüklenince/dirty değişince sekmesinin yapısal başlığını günceller
+    /// (3-satır caption + dirty "*"). Bilinmeyen id → no-op.</summary>
+    void UpdateTabHeader(System.Guid tabId, TabHeaderData header);
+
+    /// <summary>SplitView'da embedded edit, başlığı EZMEDEN sadece dirty bayrağını set eder (liste tab'ına "*").
+    /// Bilinmeyen id → no-op.</summary>
+    void SetTabDirty(System.Guid tabId, bool isDirty);
 }

@@ -15,11 +15,17 @@ public abstract class CrudStateServiceBase<TListDto, TKey> : ICrudStateService<T
 {
     public event Action? OnStateChanged;
     public event Action? OnReloadRequested;
-    public event Func<TListDto, System.Threading.Tasks.Task>? OnFocusItemRequested;
 
     public void RequestReload() => OnReloadRequested?.Invoke();
-    public System.Threading.Tasks.Task FocusGridItemAsync(TListDto item)
-        => OnFocusItemRequested?.Invoke(item) ?? System.Threading.Tasks.Task.CompletedTask;
+
+    // ── Köprü: kayıtlı liste grid'i (CrudLayout, ISplitGridActions) — popup/liste sayfa-aşırı gezinmeyi sürer ──
+    private ISplitGridActions? _grid;
+    public void RegisterGrid(ISplitGridActions grid) => _grid = grid;
+    public void UnregisterGrid(ISplitGridActions grid) { if (ReferenceEquals(_grid, grid)) _grid = null; }
+
+    public Func<object?>? CurrentKeyProvider { get; set; }
+    public Func<System.Threading.Tasks.Task<bool>>? CanLeaveGuard { get; set; }
+    public Func<NavTransition, System.Threading.Tasks.Task>? OnRecordActivated { get; set; }
 
     // #1 (tutarsız bildirim fix): tüm UI-state mutasyonu guarded Set'ten geçer → değişiklikte
     // tek tip otomatik notify; değer aynıysa no-op (gereksiz render yok). "Notify'ı unutma" sınıfı kalktı.
@@ -106,20 +112,52 @@ public abstract class CrudStateServiceBase<TListDto, TKey> : ICrudStateService<T
     private bool? _isActiveFilter;
     public bool? IsActiveFilter { get => _isActiveFilter; set => Set(ref _isActiveFilter, value); }
 
-    /// <summary>Seçili kaydın tüm kayıtlar içindeki sırası (PageSkip + yüklü sayfadaki yerel index); yoksa -1.</summary>
+    // "Neredeyiz" tek tanım: kayıtlı köprü delegesi (popup: Id) varsa onu, yoksa SelectedItem'ı kaynak al.
+    private object? EffectiveKey => CurrentKeyProvider?.Invoke() ?? CurrentKey;
+    // Sayfa-aşırı üst sınır: kayıtlı grid varsa onun canlı TotalCount'u, yoksa son senkronlanan alan.
+    private long EffectiveTotal => _grid?.TotalCount ?? TotalCount;
+
+    /// <summary>Geçerli kaydın tüm kayıtlar içindeki sırası; yoksa -1. Kayıtlı grid varsa onun CANLI anahtar/
+    /// PageSkip'inden türetilir (split prensibi) → stale sayaç yok. Grid yoksa yüklü ListDataSource fallback.</summary>
     public int CurrentGlobalIndex
     {
         get
         {
-            var local = RecordNavigation.IndexOf(KeyList(), CurrentKey);
+            var key = EffectiveKey;
+            if (_grid != null)
+            {
+                var l = RecordNavigation.IndexOf(_grid.GridVisibleKeys, key);
+                return l < 0 ? -1 : _grid.PageSkip + l;
+            }
+            var local = RecordNavigation.IndexOf(KeyList(), key);
             return local < 0 ? -1 : PageSkip + local;
         }
     }
     public bool CanGoPreviousGlobal => CurrentGlobalIndex > 0;
-    public bool CanGoNextGlobal     => CurrentGlobalIndex >= 0 && CurrentGlobalIndex < TotalCount - 1;
+    public bool CanGoNextGlobal     => CurrentGlobalIndex >= 0 && CurrentGlobalIndex < EffectiveTotal - 1;
 
-    // Global index'teki tek kaydı çeken delege; CrudLayout grid kaynağına bağlar (popup sayfa-aşırı gezinme).
-    public Func<int, System.Threading.Tasks.Task<TListDto?>>? FetchSingleByIndex { get; set; }
+    public System.Threading.Tasks.Task GoNextGlobalAsync()     => GoGlobalAsync(previous: false);
+    public System.Threading.Tasks.Task GoPreviousGlobalAsync() => GoGlobalAsync(previous: true);
+
+    // Sayfa-aşırı gezinme — SplitCrudView.NavigateAsync'in (kanıtlanmış) StateService'e taşınmış hâli.
+    // CrossPageNavigator komşuyu çözer; guard dirty onayını sorar; grid komşu sayfaya taşınır + odaklanır
+    // (FocusDataItemAsync → OnGridFocusedRowChanged → seçim senkronu); hook "nasıl gösteririm"i uygular.
+    private async System.Threading.Tasks.Task GoGlobalAsync(bool previous)
+    {
+        if (_grid == null) return;
+        var outcome = CrossPageNavigator.Resolve(previous, CurrentGlobalIndex, _grid.TotalCount, _grid.PageSkip, _grid.GridVisibleKeys);
+        if (outcome.Kind == NavKind.None) return;
+        if (CanLeaveGuard != null && !await CanLeaveGuard.Invoke()) return;   // dirty guard
+
+        // Komşu yüklü sayfadaysa anahtar lokal; değilse grid'i hedef sayfaya getir (sayfalar arası dolaşım, AYRI yol).
+        object? targetId = outcome.Kind == NavKind.Local
+            ? outcome.LocalKey
+            : await _grid.EnsurePageForGlobalIndexAsync(outcome.TargetGlobalIndex);
+        if (targetId == null) return;
+
+        await _grid.FocusDataItemAsync(targetId);   // grid'de o satırı odakla → OnGridFocusedRowChanged → seçim
+        if (OnRecordActivated != null) await OnRecordActivated.Invoke(new NavTransition(targetId));
+    }
 
     public void NotifyStateChanged() => OnStateChanged?.Invoke();
 

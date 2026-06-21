@@ -27,6 +27,7 @@
     else
     {
         <DxGrid @ref="Grid"
+                ColumnResizeMode="GridColumnResizeMode.NextColumn"
                 Data="_scopeRows"
                 SelectionMode="GridSelectionMode.Single"
                 PageSize="10">
@@ -60,7 +61,7 @@
 
 </div>
 
-<DxPopup @bind-Visible="_showAddPopup" HeaderText="@L["AddScope"]" AllowDrag="true" ShowFooter="false">
+<DxPopup @bind-Visible="_showAddPopup" HeaderText="@L["AddScope"]" AllowDrag="true" ShowFooter="false" Width="95%" MaxWidth="520px" MaxHeight="90vh" Scrollable="true">
     <DxFormLayout>
         <DxFormLayoutItem Caption="@L["Company"]" ColSpanMd="12">
             <DxComboBox Data="Companies"

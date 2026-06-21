@@ -7,6 +7,7 @@
 @inject Integration.TradeXpress.Blazor.Client.Theming.IThemeService ThemeService
 @inject Integration.TradeXpress.Blazor.Client.Theming.ISizeModeService SizeModeService
 @inject Microsoft.Extensions.Localization.IStringLocalizer<Integration.TradeXpress.Localization.TradeXpressResource> L
+@inject Integration.TradeXpress.Blazor.Client.Services.Mdi.ITabManager TabManager
 
 @* Geliştirici Hata Paneli — position:fixed; ErrorBoundary DIŞINDA ki boundary trip etse de kalsın. *@
 <Integration.TradeXpress.Blazor.Client.Dev.DeveloperErrorPanel />
@@ -32,6 +33,22 @@
                     <button type="button" @onclick="ToggleNavigation" style="display:flex; align-items:center; justify-content:center; cursor:pointer; min-width:34px; min-height:34px; background:transparent; border:none; box-shadow:none; outline:none; padding:0; color:var(--DS-color-content-neutral-default-rest, var(--bs-body-color, #212529));" aria-label="Menü">
                         <span class="erp-icon erp-icon-hamburger" aria-hidden="true"></span>
                     </button>
+                    @* Aktif sekme başlığı (ERPPROV3 paritesi): yapısal başlık varsa 3-satır, yoksa düz Title. Dirty "*" yok. *@
+                    @{ var activeTab = ActiveTab; }
+                    <div style="display:flex; align-items:center; min-width:0; margin-left:0.5rem; overflow:hidden;">
+                        @if (activeTab?.Header is not null)
+                        {
+                            <Integration.Framework.Blazor.Client.Components.Shared.EditHeaderView Header="@activeTab.Header" ShowDirty="false" />
+                        }
+                        else if (activeTab is not null)
+                        {
+                            @if (!string.IsNullOrEmpty(activeTab.IconCssClass))
+                            {
+                                <i class="@activeTab.IconCssClass" aria-hidden="true" style="margin-right:0.4rem; color:var(--dxbl-primary, #2563eb);"></i>
+                            }
+                            <span style="font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">@activeTab.Title</span>
+                        }
+                    </div>
                     <div style="display:flex; align-items:center; margin-left:auto;">
                         <Integration.TradeXpress.Blazor.Client.Layout.UserAvatarMenu />
                         <button type="button" @onclick="ToggleInfo" style="display:flex; align-items:center; justify-content:center; cursor:pointer; min-width:31px; min-height:31px; margin-left:0.25rem; background:transparent; border:none; box-shadow:none; outline:none; padding:0; color:var(--DS-color-content-neutral-default-rest, var(--bs-body-color, #212529));" title="@L["Settings"]" aria-label="@L["Settings"]">
@@ -119,7 +136,15 @@
     {
         // Mobilde menü öğesine tıklayınca (navigasyon) overlay drawer kapansın.
         Navigation.LocationChanged += OnLocationChanged;
+        TabManager.StateChanged += OnTabsChanged;   // aktif sekme/başlık değişince top-panel'i tazele
     }
+
+    private Integration.TradeXpress.Blazor.Client.Services.Mdi.MdiTab? ActiveTab =>
+        TabManager.ActiveTabId is { } id
+            ? System.Linq.Enumerable.FirstOrDefault(TabManager.Tabs, t => t.Id == id)
+            : null;
+
+    private void OnTabsChanged() => _ = InvokeAsync(StateHasChanged);
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -178,6 +203,7 @@
     public async ValueTask DisposeAsync()
     {
         Navigation.LocationChanged -= OnLocationChanged;
+        TabManager.StateChanged -= OnTabsChanged;
         try
         {
             if (_breakpointSub != null)

@@ -31,21 +31,35 @@
                 var captured = tab;
                 <DxTabPage @key="captured.Id"
                            Text="@captured.Title"
-                           TabIconCssClass="@captured.IconCssClass"
+                           TabIconCssClass="@(captured.Header is null ? captured.IconCssClass : null)"
                            AllowClose="@(!captured.IsPinned)">
-                    @if (captured.Kind == TabKind.External)
-                    {
-                        @* Faz 4: ExternalFrameTab (sandboxed iframe + fallback) *@
-                        <div class="mdi-external-placeholder">@captured.Url</div>
-                    }
-                    else if (captured.PageType != null)
-                    {
-                        <CascadingValue Value="@((Integration.Framework.Blazor.Client.Services.Mdi.IMdiTab)captured)" Name="CurrentMdiTab" IsFixed="true">
-                            <DynamicComponent @key="@((captured.Id, captured.RefreshNonce))"
-                                              Type="@captured.PageType"
-                                              Parameters="@captured.Parameters" />
-                        </CascadingValue>
-                    }
+                    <TextTemplate>
+                        @* Edit sekmesi yapısal başlık (3-satır + dirty); düz menü/liste tab'ı sade metin. *@
+                        @if (captured.Header is not null)
+                        {
+                            <Integration.Framework.Blazor.Client.Components.Shared.EditHeaderView
+                                Header="@captured.Header" Compact="true" ShowDirty="true" />
+                        }
+                        else
+                        {
+                            @captured.Title@(captured.IsDirty ? " *" : "")
+                        }
+                    </TextTemplate>
+                    <ChildContent>
+                        @if (captured.Kind == TabKind.External)
+                        {
+                            @* Faz 4: ExternalFrameTab (sandboxed iframe + fallback) *@
+                            <div class="mdi-external-placeholder">@captured.Url</div>
+                        }
+                        else if (captured.PageType != null)
+                        {
+                            <CascadingValue Value="@((Integration.Framework.Blazor.Client.Services.Mdi.IMdiTab)captured)" Name="CurrentMdiTab" IsFixed="true">
+                                <DynamicComponent @key="@((captured.Id, captured.RefreshNonce))"
+                                                  Type="@captured.PageType"
+                                                  Parameters="@captured.Parameters" />
+                            </CascadingValue>
+                        }
+                    </ChildContent>
                 </DxTabPage>
             }
         </DxTabs>

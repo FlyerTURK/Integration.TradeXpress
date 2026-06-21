@@ -9,6 +9,7 @@ using Integration.Framework.Blazor.Client.Services.Base;
 using Integration.Framework.Blazor.Client.Services.Mdi;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Volo.Abp.Application.Services;
 
@@ -64,9 +65,80 @@ public abstract class CrudEditComponentBase<TGetDto, TListDto, TKey, TListReques
     /// edit'te kayıtlar arası gezinme bu merkezi servisten yapılır (split'te SplitHost devrede).</summary>
     [Inject] protected ICrudStateService<TListDto, TKey>? StateService { get; set; }
 
+    [Inject] private IServiceProvider ServiceProvider { get; set; } = default!;
+
     // ── ISplitEditActions ──
-    bool ISplitEditActions.CanSave => IsDirty;
+    bool ISplitEditActions.CanSave => !IsReadOnly && IsDirty;
     bool ISplitEditActions.IsNew   => IsNewMode;
+
+    /// <summary>Salt-okunur mod — alt sınıf override eder (ör. tenant'ta global birim). Kaydet/Sil gizlenir,
+    /// form devre dışı kalır, üstte <see cref="ReadOnlyNotice"/> banner'ı çıkar.</summary>
+    public virtual bool IsReadOnly => false;
+
+    /// <summary>Salt-okunur formdaki bilgilendirme metni; null → CrudEditShell genel mesajı gösterir.</summary>
+    public virtual string? ReadOnlyNotice => null;
+
+    bool ISplitEditActions.IsReadOnly => IsReadOnly;
+    string? ISplitEditActions.ReadOnlyNotice => ReadOnlyNotice;
+
+    // ── Yapısal başlık (3-satır: tür / kimlik / parent) — TEK kaynak; MDI tab + top-panel + popup tüketir ──
+    /// <summary>L1 — entity tür adı. Varsayılan: TGetDto adından "GetDto" atılıp lokalize edilir.</summary>
+    protected virtual string EditFormCaption => DefaultEntityCaption();
+    /// <summary>L2 — kaydın kimlik değeri (ör. Code). Varsayılan: EditModel'de "Code" property'si varsa onun değeri.</summary>
+    protected virtual string? EditEntityValue => ReflectCode();
+    /// <summary>L3a — parent etiketi (org entity'leri override eder; ör. "Şirket").</summary>
+    protected virtual string? EditParentLabel => null;
+    /// <summary>L3b — parent değeri (ör. "MERKEZ").</summary>
+    protected virtual string? EditParentValue => null;
+    /// <summary>Başlık ikonu (ör. "fas fa-coins").</summary>
+    protected virtual string? EditIconCssClass => null;
+
+    /// <summary>Mevcut virtual'lardan yapısal başlığı kurar (NewPrefix=IsNew, IsDirty dahil).</summary>
+    protected TabHeaderData BuildEditHeader() => new()
+    {
+        FormCaption  = EditFormCaption,
+        NewPrefix    = IsNewMode ? L["New"].Value : null,
+        EntityValue  = IsNewMode ? null : EditEntityValue,
+        ParentLabel  = EditParentLabel,
+        ParentValue  = EditParentValue,
+        IconCssClass = EditIconCssClass,
+        IsDirty      = IsDirty,
+    };
+
+    TabHeaderData? ISplitEditActions.EditHeader => BuildEditHeader();
+
+    // MDI tab başlığını push etmek için (opsiyonel — app TabManager'ı IMdiTabOpener olarak kaydeder).
+    private IMdiTabOpener? TabOpener => ServiceProvider.GetService<IMdiTabOpener>();
+    private bool _lastSyncedDirty;
+
+    /// <summary>Yapısal başlığı MDI sekmesine push eder (model yüklenince + dirty geçişinde). Popup/split shell
+    /// EditHeader'dan canlı okur; bu metot MDI tab + top-panel içindir.</summary>
+    protected void SyncTabHeader()
+    {
+        _lastSyncedDirty = IsDirty;
+        if (CurrentMdiTab is not { } tab) return;
+
+        // SplitView/embedded: tab LİSTE sayfasınındır (liste+detay aynı sekme) → başlığı EZMEYİZ; listeleme
+        // mantığı korunur. Tek fark: embedded edit'in dirty bayrağı liste tab'ına "*" olarak yansır.
+        if (SplitHost != null || IsEmbedded)
+            TabOpener?.SetTabDirty(tab.Id, IsDirty);
+        else
+            TabOpener?.UpdateTabHeader(tab.Id, BuildEditHeader());   // standalone MDI: tam yapısal başlık
+    }
+
+    private string DefaultEntityCaption()
+    {
+        var name = typeof(TGetDto).Name;
+        if (name.EndsWith("GetDto", StringComparison.Ordinal)) name = name[..^"GetDto".Length];
+        return L[name];
+    }
+
+    private string? ReflectCode()
+    {
+        var p = typeof(TGetDto).GetProperty("Code", BindingFlags.Public | BindingFlags.Instance);
+        return p?.GetValue(EditModel) as string is { Length: > 0 } v ? v : null;
+    }
+
     Task ISplitEditActions.SaveAsync()         => SaveAsync();   // Task<bool> → Task
     Task ISplitEditActions.SaveAndNewAsync()   => SaveAndNewAsync();
     Task ISplitEditActions.SaveAndCloseAsync() => SaveAndCloseAsync();
@@ -77,44 +149,15 @@ public abstract class CrudEditComponentBase<TGetDto, TListDto, TKey, TListReques
     Task ISplitEditActions.UndoAsync() { Undo(); return Task.CompletedTask; }
     Task ISplitEditActions.RedoAsync() { Redo(); return Task.CompletedTask; }
 
-    // ── Sayfa-aşırı gezinme: PAYLAŞILAN StateService üzerinden (liste + edit aynı scoped instance) ──
-    // Geçerli kayıt sırası StateService.CurrentGlobalIndex'ten (SelectedItem'a göre); komşuya geçişte hem
-    // SelectedItem güncellenir (liste grid'i highlight eder) hem -gerekirse- grid hedef sayfaya taşınır.
-    // Popup'ın gezinme sırası EXPLICIT tutulur: cross-page sonrası hedef kayıt yüklü sayfada olmadığından
-    // StateService.CurrentGlobalIndex (ListDataSource.IndexOf'a bağlı) -1 döner; bu yüzden index'i bağımsız sürdürürüz.
-    private int _popupGlobalIndex = -1;
+    // ── Sayfa-aşırı gezinme: TEK KÖPRÜ = paylaşılan StateService (split ile aynı CANLI-index prensibi) ──
+    // "Neredeyiz" StateService.CurrentGlobalIndex'ten (kayıtlı grid'in canlı GridVisibleKeys + PageSkip'inden,
+    // CurrentKeyProvider=()=>Id ile); ayrı stale sayaç YOK. Prev/Next köprünün GoNext/PreviousGlobalAsync'ine
+    // delege eder; köprü guard + grid taşıma/odak + OnRecordActivated (Id=Key; LoadDataAsync) işini yürütür.
+    bool ISplitEditActions.CanGoPrevious => StateService?.CanGoPreviousGlobal ?? false;
+    bool ISplitEditActions.CanGoNext     => StateService?.CanGoNextGlobal ?? false;
 
-    bool ISplitEditActions.CanGoPrevious => _popupGlobalIndex > 0;
-    bool ISplitEditActions.CanGoNext     => StateService != null && _popupGlobalIndex >= 0 && _popupGlobalIndex < StateService.TotalCount - 1;
-
-    Task ISplitEditActions.GoPreviousAsync() => NavigateRecordAsync(previous: true);
-    Task ISplitEditActions.GoNextAsync()     => NavigateRecordAsync(previous: false);
-
-    /// <summary>Kirliyse Kaydet/Yoksay/İptal sorar; komşu (global index ±1) kayda geçer. Hedef kaydı SERVER'dan
-    /// kesin çeker (grid sayfası popup arkasında güvenilir değişmeyebilir → GetDataItem'e güvenmeyiz); grid'i o
-    /// sayfaya taşımayı dener (görsel). SetDataRowSelected ile seçim güncellenir.</summary>
-    private async Task NavigateRecordAsync(bool previous)
-    {
-        if (StateService == null) return;
-        var total = StateService.TotalCount;
-        if (previous ? _popupGlobalIndex <= 0 : _popupGlobalIndex < 0 || _popupGlobalIndex >= total - 1) return;
-        if (!await ConfirmCloseAsync()) return;   // dirty guard
-
-        var targetGlobalIndex = previous ? _popupGlobalIndex - 1 : _popupGlobalIndex + 1;
-
-        TListDto? target = StateService.FetchSingleByIndex != null
-            ? await StateService.FetchSingleByIndex(targetGlobalIndex)
-            : System.Linq.Enumerable.FirstOrDefault(StateService.ListDataSource, x => x != null);
-        if (target == null) return;
-
-        _popupGlobalIndex = targetGlobalIndex;
-        Id = target.Id;
-        await LoadDataAsync();   // formu yeni kayda yükle (server'dan kesin)
-        // Grid'i o kaydın SAYFASINA götür + odakla: DevExpress SetFocusedDataItemAsync, item başka sayfadaysa
-        // otomatik o sayfaya gider (manuel PageIndex hesabı yok) → doğru sayfada doğru kayıt görünür + seçilir
-        // (OnGridFocusedRowChanged senkronu). KeyFieldName=Id ile eşleştiği için server'dan çekilen dto yeter.
-        await StateService.FocusGridItemAsync(target);
-    }
+    Task ISplitEditActions.GoPreviousAsync() => StateService?.GoPreviousGlobalAsync() ?? Task.CompletedTask;
+    Task ISplitEditActions.GoNextAsync()     => StateService?.GoNextGlobalAsync()     ?? Task.CompletedTask;
 
     // Form owner'ı (CrudEditShell) her render'ında çağırır. DevExpress @bind editör değişince
     // RenderForm'u barındıran CrudEditShell re-render olur (edit page DEĞİL) → bu yüzden sinyali
@@ -145,6 +188,7 @@ public abstract class CrudEditComponentBase<TGetDto, TListDto, TKey, TListReques
         _undoCurrent = json;
         _lastSeenJson = json;
         SplitHost?.NotifyChanged();               // Kaydet/Undo/Redo/Reset aktiflik durumunu tazele
+        if (IsDirty != _lastSyncedDirty) SyncTabHeader();   // clean↔dirty geçişi → tab/top-panel "*" tazele
     }
 
     /// <summary>Editör commit (blur/change) anında, değer gerçekten değiştiyse undo geçmişine bir adım ekler.</summary>
@@ -160,7 +204,7 @@ public abstract class CrudEditComponentBase<TGetDto, TListDto, TKey, TListReques
     /// <summary>Edit modunda Sil aktif mi? Varsayılan: yeni kayıt değilse. Alt sınıf özelleştirebilir
     /// (ör. Role: static rol silinemez).</summary>
     protected virtual bool CanDeleteRecord => !IsNewMode;
-    bool ISplitEditActions.CanDelete => CanDeleteRecord;
+    bool ISplitEditActions.CanDelete => !IsReadOnly && CanDeleteRecord;
     Task ISplitEditActions.DeleteAsync() => DeleteRecordAsync();
 
     [Inject]
@@ -310,10 +354,15 @@ public abstract class CrudEditComponentBase<TGetDto, TListDto, TKey, TListReques
 
     protected override async Task OnInitializedAsync()
     {
-        // Popup/standalone açılış gezinme sırası: BeforeUpdate açılan kaydı zaten SelectedItem yapmıştır →
-        // StateService.CurrentGlobalIndex (yüklü sayfada) doğru başlangıç verir.
+        // Popup/standalone: köprüyü bu edit'e bağla. "Neredeyiz" canlı Id'den (CurrentKeyProvider), ayrılma
+        // onayı dirty guard'dan (CanLeaveGuard), hedef kayda geçiş forma yüklemeden (OnRecordActivated).
+        // Split'te SplitHost devrede; köprü bağlanmaz (StateService.GoGlobal split panelinden tetiklenmez).
         if (SplitHost == null && StateService != null)
-            _popupGlobalIndex = StateService.CurrentGlobalIndex;
+        {
+            StateService.CurrentKeyProvider = () => Id;
+            StateService.CanLeaveGuard      = ConfirmCloseAsync;
+            StateService.OnRecordActivated  = async t => { Id = (TKey)t.Key; await LoadDataAsync(); };
+        }
         RebuildEditContext();   // ilk render güvenli (boş model)
         await LoadDataAsync();
         // Kapatma guard'ı — embedded panelde kapatma yok, guard kurulmaz.
@@ -333,6 +382,14 @@ public abstract class CrudEditComponentBase<TGetDto, TListDto, TKey, TListReques
         if (EditContext != null)
             EditContext.OnFieldChanged -= OnEditFieldChanged;
         SplitHost?.UnregisterEdit(this);
+        // Köprü delegeleri bu edit'i (closure ile) yakalar; StateService scoped → popup'tan uzun yaşar.
+        // Kapanışta temizle ki disposed edit'e referans (stale closure) kalmasın. Split'te bağlanmadı.
+        if (SplitHost == null && StateService != null)
+        {
+            StateService.CurrentKeyProvider = null;
+            StateService.CanLeaveGuard      = null;
+            StateService.OnRecordActivated  = null;
+        }
     }
 
     /// <summary>
@@ -372,6 +429,7 @@ public abstract class CrudEditComponentBase<TGetDto, TListDto, TKey, TListReques
                 EditModel = new TGetDto();
                 await OnModelCreatedAsync(EditModel);
             }
+            await OnModelLoadedAsync(EditModel);   // hem yeni hem mevcut, snapshot'tan ÖNCE → burada set edilen dirty saymaz
             CaptureSnapshot();
             RebuildEditContext();   // EditModel referansı değişti → context'i yenile
         }
@@ -385,6 +443,7 @@ public abstract class CrudEditComponentBase<TGetDto, TListDto, TKey, TListReques
             IsBusy = false;
             SyncNavigationSelection();    // popup/standalone gezinme: açık kaydı StateService seçili öğesine hizala
             SplitHost?.NotifyChanged();   // yükleme sonrası dirty=false / IsNew değişti → toolbar tazele
+            SyncTabHeader();              // model yüklendi (L2 kod + IsNew biliniyor) → MDI tab/top-panel başlığını kur
             StateHasChanged();            // EditModel yeni referans (Prev/Next/Reset) → formu yeniden çiz
         }
     }
@@ -397,8 +456,8 @@ public abstract class CrudEditComponentBase<TGetDto, TListDto, TKey, TListReques
         if (SplitHost != null || StateService == null || IsNewMode || Id == null) return;
         var match = System.Linq.Enumerable.FirstOrDefault(
             StateService.ListDataSource, x => x != null && Equals(x.Id, Id));
-        // Not: _popupGlobalIndex artık StateService'ten DEĞİL, açılışta NavGlobalIndex parametresinden gelir
-        // (popup ayrı DI scope → StateService boş olabilir). Burada yalnız split highlight'ı için SelectedItem hizalanır.
+        // Not: "neredeyiz" artık köprünün CurrentKeyProvider'ından (()=>Id) canlı gelir; burada yalnız liste
+        // grid'inin highlight'ı için açık kayıt SelectedItem'a hizalanır (ilk açılış / Prev/Next sonrası).
         if (match != null && !ReferenceEquals(StateService.SelectedItem, match))
             StateService.SelectedItem = match;
     }
@@ -407,6 +466,10 @@ public abstract class CrudEditComponentBase<TGetDto, TListDto, TKey, TListReques
     /// Yeni kayıt oluşturulduğunda DTO'nun default değerlerini set etmek için ezilebilir.
     /// </summary>
     protected virtual Task OnModelCreatedAsync(TGetDto model) => Task.CompletedTask;
+
+    /// <summary>Model yüklendikten (yeni veya mevcut) SONRA, temiz-snapshot ALINMADAN ÖNCE çağrılır. Burada
+    /// yapılan değişiklikler "kirli" sayılmaz (örn. bağlama göre varsayılan alan doldurma, ek veri yükleme).</summary>
+    protected virtual Task OnModelLoadedAsync(TGetDto model) => Task.CompletedTask;
 
     /// <summary>
     /// XAF Validation modülü emsali: Create/UpdateDto üzerindeki DataAnnotation'ları (Required,
@@ -512,6 +575,7 @@ public abstract class CrudEditComponentBase<TGetDto, TListDto, TKey, TListReques
             EntityChanges.Notify(EntityChangeKey,
                 wasNew ? EntityChangeKind.Created : EntityChangeKind.Updated, Id);
             CaptureSnapshot(); // kayıt sonrası model artık "temiz"
+            SyncTabHeader();   // dirty=false + (yeni→mevcut) → tab/top-panel başlığı + "*" temizliği (json değişmeyebilir, elle)
             UiService.ShowSuccessToast(LocalizationResource != null ? L["SuccessfullySaved"].Value : "Successfully saved");
 
             if (OnSaved.HasDelegate)

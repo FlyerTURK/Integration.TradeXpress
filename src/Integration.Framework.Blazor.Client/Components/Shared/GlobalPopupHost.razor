@@ -8,7 +8,10 @@
          HeaderText="@PopupService.Options?.Title"
          ShowCloseButton="true"
          ShowFooter="false"
-         Width="@(PopupService.Options?.Width ?? "800px")"
+         Width="95%"
+         MaxWidth="@(PopupService.Options?.Width ?? "800px")"
+         MaxHeight="90vh"
+         Scrollable="true"
          CloseOnEscape="@(PopupService.Options?.CloseOnEscape ?? false)"
          CloseOnOutsideClick="@(PopupService.Options?.CloseOnOutsideClick ?? false)">
     <BodyTemplate>

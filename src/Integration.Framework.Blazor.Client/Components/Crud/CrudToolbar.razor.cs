@@ -45,6 +45,7 @@ namespace Integration.Framework.Blazor.Client.Components.Crud
         private bool CanCreate => IsSplit ? (SplitHost!.List?.CanCreate ?? false) : (StateService?.IsGrantedCreate ?? false);
         private bool ShowNewItem    => !IsEdit && CanCreate;                 // Liste + Split
         // Kaydet: Split + Edit'te HER ZAMAN görünür; seçim/dirty yoksa Enabled=false ile pasif.
+        // Salt-okunur edit'te (ör. tenant'ta global birim) butonlar GÖRÜNÜR ama Enabled=false (CanSave/CanDelete).
         private bool ShowSaveGroup  => !IsList;
         // Kaydet&Yeni / Kaydet&Kapat: YALNIZ standalone Edit formunda (split'te tek Kaydet yeter).
         private bool ShowSaveAndNew => IsEdit;
@@ -145,6 +146,10 @@ namespace Integration.Framework.Blazor.Client.Components.Crud
                 .Where(a => a.Visible)
                 .OrderBy(a => a.Alignment == ToolbarItemAlignment.Right ? 1 : 0)
                 .ThenBy(a => a.SortIndex);
+
+        /// <summary>Toolbar'ın o anki görünür aksiyonları (CrudLayout satır context menüsünü bundan doldurur).
+        /// BuildActions her erişimde StateService'i okur → çağrı anındaki seçim/dirty durumuna göre Enabled doğru.</summary>
+        public IReadOnlyList<CrudToolbarAction> MenuActions => SortedActions.ToList();
 
         private List<CrudToolbarAction> BuildActions()
         {

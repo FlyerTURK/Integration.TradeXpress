@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Threading.Tasks;
 using Integration.Framework.Base.Querying;
 using Integration.TradeXpress.Permissions;
@@ -34,7 +35,24 @@ public class CurrencyUnitAppService : TradeXpressAppService, ICurrencyUnitAppSer
 
     private static readonly HashSet<string> AllowedListFields =
         new(StringComparer.OrdinalIgnoreCase)
-        { "Code", "Name", "Type", "IsActive", "DisplayOrder", "Id" };
+        { "Code", "Name", "Type", "IsActive", "DisplayOrder", "Id", "AlwaysShowInBalance" };
+
+    // Sort/filter alias'ı: IsGlobal entity'de yok (TenantId==null demek) → host-önce sıralaması için.
+    private static readonly IReadOnlyDictionary<string, LambdaExpression> ListAliases =
+        new Dictionary<string, LambdaExpression>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["IsGlobal"] = (Expression<Func<CurrencyUnit, bool>>)(x => x.TenantId == null),
+        };
+
+    // Kullanıcı kolon sıralamadığında CurrencyUnit standart sıralaması:
+    // Host (global) önce → Bakiyede gösterilenler önce → Sıra artan → Code artan (sonra Id tie-breaker).
+    private static List<SortField> DefaultListSorts() => new()
+    {
+        new() { Field = "IsGlobal",            Descending = true  },
+        new() { Field = "AlwaysShowInBalance", Descending = true  },
+        new() { Field = "DisplayOrder",        Descending = false },
+        new() { Field = "Code",                Descending = false },
+    };
 
     public CurrencyUnitAppService(
         IRepository<CurrencyUnit, Guid> repository,
@@ -52,9 +70,14 @@ public class CurrencyUnitAppService : TradeXpressAppService, ICurrencyUnitAppSer
         using (_dataFilter.Disable<IMultiTenant>())
         {
             var tenantId = CurrentTenant.Id;
+
+            // Kullanıcı bir sıralama vermediyse CurrencyUnit'e özel standart sıralamayı uygula.
+            if ((input.Sorts == null || input.Sorts.Count == 0) && string.IsNullOrWhiteSpace(input.Sorting))
+                input.Sorts = DefaultListSorts();
+
             var query = (await _repository.GetQueryableAsync())
                 .Where(x => x.TenantId == null || x.TenantId == tenantId)
-                .ApplyListRequest(input, AllowedListFields);
+                .ApplyListRequest(input, AllowedListFields, ListAliases);
 
             var totalCount = await AsyncExecuter.CountAsync(query);
             var items = await AsyncExecuter.ToListAsync(
@@ -90,6 +113,7 @@ public class CurrencyUnitAppService : TradeXpressAppService, ICurrencyUnitAppSer
             displayOrder: input.DisplayOrder);
 
         entity.SetDescription(input.Description);
+        entity.SetAlwaysShowInBalance(input.AlwaysShowInBalance);
         await ApplyFollowingAsync(entity, input.FollowingUnitId, input.FollowingMarginType, input.FollowingMarginValue);
 
         await _repository.InsertAsync(entity, autoSave: true);
@@ -105,6 +129,7 @@ public class CurrencyUnitAppService : TradeXpressAppService, ICurrencyUnitAppSer
         entity.SetName(input.Name);
         entity.SetDescription(input.Description);
         entity.SetDisplayOrder(input.DisplayOrder);
+        entity.SetAlwaysShowInBalance(input.AlwaysShowInBalance);
         if (input.IsActive) entity.Activate(); else entity.Deactivate();
 
         await ApplyFollowingAsync(entity, input.FollowingUnitId, input.FollowingMarginType, input.FollowingMarginValue);

@@ -29,7 +29,7 @@
     @if (SplitHost == null)
     {
     <div style="padding-top:0.25rem; padding-bottom:0.25rem;">
-        <CrudToolbar TGetDto="TGetDto" TListDto="TListDto" TKey="TKey"
+        <CrudToolbar @ref="_toolbar" TGetDto="TGetDto" TListDto="TListDto" TKey="TKey"
                      StateService="StateService"
                      SearchText="@SearchText"
                      SearchTextChanged="OnToolbarSearch"
@@ -61,7 +61,10 @@
             PageSizeSelectorAllRowsItemVisible="true"
             @bind-PageSize="_gridPageSize"
             @bind-PageIndex="_gridPageIndex"
-            ShowFilterRow="@ShowColumnFilter"
+            ShowFilterRow="@_showFilterRow"
+            ColumnResizeMode="GridColumnResizeMode.NextColumn"
+            ContextMenus="GridContextMenus.Header | GridContextMenus.DataRow"
+            CustomizeContextMenu="OnCustomizeContextMenu"
             @ref="Grid"
             RowClick="OnRowClick"
             CssClass="flex-grow-1 overflow-hidden"
@@ -69,7 +72,7 @@
             AllowColumnResizing="true">
         
         <Columns>
-            <DxGridSelectionColumn Width="48px" AllowSelectAll="true" />
+            <DxGridSelectionColumn Width="48px" AllowSelectAll="true" FixedPosition="GridColumnFixedPosition.Left" />
             @if (GridColumns != null)
             {
                 @GridColumns

@@ -29,7 +29,7 @@
          Mobil arama→ikon, custom actions, IsActive switch, export hepsi merkezi motordan gelir;
          edit aksiyonları + ◄Geri split modunda eklenir. *@
     <div style="padding:0.25rem 8px; border-bottom:1px solid #dee2e6; flex-shrink:0;">
-        <CrudToolbar TGetDto="TGetDto" TListDto="TListDto" TKey="TKey" />
+        <CrudToolbar @ref="_toolbar" TGetDto="TGetDto" TListDto="TListDto" TKey="TKey" />
     </div>
 
     @* ── Paneller: DxSplitter (XAF master-detail kalıbı) ──
@@ -111,6 +111,11 @@
     public ISplitGridActions? Grid => _grid;
     public ISplitEditActions? Edit => _edit;
     public bool HasSelection => _session.HasSelection;
+
+    // Birleşik toolbar'ın görünür aksiyonları — CrudLayout satır context menüsü split modda buradan dolar.
+    private CrudToolbar<TGetDto, TListDto, TKey>? _toolbar;
+    public System.Collections.Generic.IReadOnlyList<CrudToolbarAction> ToolbarMenuActions
+        => _toolbar?.MenuActions ?? System.Array.Empty<CrudToolbarAction>();
 
     // Açık edit kirliyse discard onayı sor; reddedilirse geçişi engelle. Temizse/edit yoksa serbest.
     private async Task<bool> GuardLeaveAsync()

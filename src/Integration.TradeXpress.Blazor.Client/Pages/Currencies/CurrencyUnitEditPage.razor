@@ -22,65 +22,67 @@
     private RenderFragment RenderForm() => @<text>
 <DxFormLayout CssClass="w-100">
 
-    <DxFormLayoutTabPages>
-        <DxFormLayoutTabPage Caption="@L["General"]">
-            @* 1. Kod — yarım satır (yalnız) *@
-            <DxFormLayoutItem Caption="@($"{L["Code"]} *")" ColSpanMd="6">
-                <DxTextBox @bind-Text="@EditModel.Code" @ref="_codeBox" Enabled="@(EditModel.Id == Guid.Empty)" />
-            </DxFormLayoutItem>
-            @* 2. Adı — tam satır *@
-            <DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="12">
-                <DxTextBox @bind-Text="@EditModel.Name" />
-            </DxFormLayoutItem>
-            @* Ara: Tür — yarım satır *@
-            <DxFormLayoutItem Caption="@L["Type"]" ColSpanMd="6">
-                <ComboBoxEnumEdit TEnum="CurrencyUnitType" @bind-Value="@EditModel.Type" L="@L" Enabled="@(EditModel.Id == Guid.Empty)" />
-            </DxFormLayoutItem>
-            @* Sondan bir önceki: Açıklama — tam satır, DxMemo 2 satır, resize kapalı *@
-            <DxFormLayoutItem Caption="@L["Description"]" ColSpanMd="12">
-                <DxMemo @bind-Text="@EditModel.Description" Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100" />
-            </DxFormLayoutItem>
-            @* Son satır: Durum (Status) yarım + Sıra (DisplayOrder) yarım *@
-            <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6">
-                <DxCheckBox @bind-Checked="@EditModel.IsActive" CheckType="CheckType.Switch">
-                    @(EditModel.IsActive ? L["Active"] : L["Passive"])
-                </DxCheckBox>
-            </DxFormLayoutItem>
-            <DxFormLayoutItem Caption="@L["DisplayOrder"]" ColSpanMd="6">
-                <NumericSpinEdit @bind-Value="@EditModel.DisplayOrder" />
-            </DxFormLayoutItem>
-        </DxFormLayoutTabPage>
+    @* 1. Kod — yarım satır (yalnız) *@
+    <DxFormLayoutItem Caption="@($"{L["Code"]} *")" ColSpanMd="6">
+        <DxTextBox @bind-Text="@EditModel.Code" @ref="_codeBox" Enabled="@(EditModel.Id == Guid.Empty)" />
+    </DxFormLayoutItem>
+    @* 2. Adı — tam satır *@
+    <DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="12">
+        <DxTextBox @bind-Text="@EditModel.Name" />
+    </DxFormLayoutItem>
+    @* Ara: Tür yarım + Bakiye Listesi switch yarım (aynı satır) *@
+    <DxFormLayoutItem Caption="@L["Type"]" ColSpanMd="6">
+        <ComboBoxEnumEdit TEnum="CurrencyUnitType" @bind-Value="@EditModel.Type" L="@L" Enabled="@(EditModel.Id == Guid.Empty)" />
+    </DxFormLayoutItem>
+    <DxFormLayoutItem Caption="@L["AlwaysShowInBalance"]" ColSpanMd="6">
+        <DxCheckBox @bind-Checked="@EditModel.AlwaysShowInBalance" CheckType="CheckType.Switch">
+            @(EditModel.AlwaysShowInBalance ? L["Show"] : L["DoNotShow"])
+        </DxCheckBox>
+    </DxFormLayoutItem>
 
-        @* Takip grubu (Host'ta gizli) *@
-        <DxFormLayoutTabPage Caption="@L["Following"]" Visible="@(CurrentTenant?.Id != null)">
-            <DxFormLayoutItem ColSpanMd="6">
-                <CaptionTemplate>
-                    <InfoCaption Text="@L["FollowingUnit"].Value"
-                                 HintText="@L["CurrencyUnit:FollowingUnitIdHint"].Value"
-                                 Required="false" />
-                </CaptionTemplate>
-                <Template>
-                    <DxComboBox Data="@_followCandidates"
-                                Value="@EditModel.FollowingUnitId"
-                                ValueChanged="(Guid? newId) => HandleFollowingUnitChanged(newId)"
-                                TextFieldName="@nameof(CurrencyUnitListDto.Code)"
-                                ValueFieldName="@nameof(CurrencyUnitListDto.Id)"
-                                NullText="@L["None"]"
-                                ValidationEnabled="false"
-                                ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
-                </Template>
+    @* Takip — eskiden ayrı sekmeydi, artık tam satır grup (yalnız tenant modunda; Host'ta gizli) *@
+    <DxFormLayoutGroup Caption="@L["Following"]" Visible="@(CurrentTenant?.Id != null && !EditModel.IsGlobal)" ColSpanMd="12">
+        <DxFormLayoutItem ColSpanMd="6">
+            <CaptionTemplate>
+                <InfoCaption Text="@L["FollowingUnit"].Value"
+                             HintText="@L["CurrencyUnit:FollowingUnitIdHint"].Value"
+                             Required="false" />
+            </CaptionTemplate>
+            <Template>
+                <DxComboBox Data="@_followCandidates"
+                            Value="@EditModel.FollowingUnitId"
+                            ValueChanged="(Guid? newId) => HandleFollowingUnitChanged(newId)"
+                            TextFieldName="@nameof(CurrencyUnitListDto.Code)"
+                            ValueFieldName="@nameof(CurrencyUnitListDto.Id)"
+                            NullText="@L["None"]"
+                            ValidationEnabled="false"
+                            ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
+            </Template>
+        </DxFormLayoutItem>
+        @if (EditModel.FollowingUnitId.HasValue)
+        {
+            <DxFormLayoutItem Caption="@L["MarginType"]" ColSpanMd="6" BeginRow="true">
+                <ComboBoxEnumEdit TEnum="MarginType?" @bind-Value="@EditModel.FollowingMarginType" L="@L" />
             </DxFormLayoutItem>
-            @if (EditModel.FollowingUnitId.HasValue)
-            {
-                <DxFormLayoutItem Caption="@L["MarginType"]" ColSpanMd="6" BeginRow="true">
-                    <ComboBoxEnumEdit TEnum="MarginType?" @bind-Value="@EditModel.FollowingMarginType" L="@L" />
-                </DxFormLayoutItem>
-                <DxFormLayoutItem Caption="@L["MarginValue"]" ColSpanMd="6">
-                    <NumericSpinEdit @bind-Value="@EditModel.FollowingMarginValue" />
-                </DxFormLayoutItem>
-            }
-        </DxFormLayoutTabPage>
-    </DxFormLayoutTabPages>
+            <DxFormLayoutItem Caption="@L["MarginValue"]" ColSpanMd="6">
+                <NumericSpinEdit @bind-Value="@EditModel.FollowingMarginValue" />
+            </DxFormLayoutItem>
+        }
+    </DxFormLayoutGroup>
+
+    @* Sondan bir önceki: Açıklama — tam satır, DxMemo 2 satır, resize kapalı *@
+    <DxFormLayoutItem Caption="@L["Description"]" ColSpanMd="12">
+        <DxMemo @bind-Text="@EditModel.Description" Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100" />
+    </DxFormLayoutItem>
+    @* Son satır: Durum (Status) yarım + Sıra (DisplayOrder) yarım *@
+    <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6">
+        <DxCheckBox @bind-Checked="@EditModel.IsActive" CheckType="CheckType.Switch">
+            @(EditModel.IsActive ? L["Active"] : L["Passive"])
+        </DxCheckBox>
+    </DxFormLayoutItem>
+    <DxFormLayoutItem Caption="@L["DisplayOrder"]" ColSpanMd="6">
+        <NumericSpinEdit @bind-Value="@EditModel.DisplayOrder" />
+    </DxFormLayoutItem>
 
 </DxFormLayout>
 </text>;
@@ -90,14 +92,35 @@
 
     protected override string EntityChangeKey => "CurrencyUnits";
 
+    // Yapısal başlık (tab/top-panel): L1 "Para Birimi" (varsayılan TGetDto→L["CurrencyUnit"]), L2 Code
+    // (varsayılan ReflectCode), ikon override. Parent yok → L3 boş.
+    protected override string? EditIconCssClass => TradeXpressIcons.CurrencyUnit;
+
+    // Tenant, global (host) birimi yalnızca GÖRÜNTÜLER → salt-okunur form + bilgilendirme banner'ı.
+    // (Server zaten tenant'ın global birimi düzenlemesini reddeder; bu UX katmanı.)
+    public override bool IsReadOnly => EditModel.IsGlobal && CurrentTenant?.Id != null;
+    // ReadOnlyNotice override yok → CrudEditShell genel L["ReadOnlyForm"] mesajını gösterir.
+
     private DxTextBox? _codeBox;
     private List<CurrencyUnitListDto> _followCandidates = new();
 
-    public override async Task LoadDataAsync()
+    // Model yüklenince (snapshot ALINMADAN önce) takip adaylarını çek ve tenant'ta varsayılanı kur → dirty saymaz.
+    protected override async Task OnModelLoadedAsync(CurrencyUnitGetDto model)
     {
-        await base.LoadDataAsync();
         var result = await CurrencyUnitAppService.GetListAsync(new CurrencyUnitListRequestDto { MaxResultCount = 1000 });
-        _followCandidates = result.Items.Where(u => u.Id != EditModel.Id).ToList();
+        _followCandidates = result.Items.Where(u => u.Id != model.Id).ToList();
+        EnsureFollowingDefault();
+    }
+
+    // Tenant'ta bir birim mutlaka bir global birimi takip eder; Takip boşsa otomatik bağla (null kalmasın).
+    // Code'a bakmaz: önce aynı Tür'den ilk global, yoksa listedeki ilk global. Host'ta / zaten seçiliyse dokunmaz.
+    private void EnsureFollowingDefault()
+    {
+        if (CurrentTenant?.Id == null || EditModel.IsGlobal || EditModel.FollowingUnitId.HasValue) return;
+        var match = _followCandidates.FirstOrDefault(c => c.IsGlobal && c.Type == EditModel.Type)
+                 ?? _followCandidates.FirstOrDefault(c => c.IsGlobal);
+        if (match != null)
+            HandleFollowingUnitChanged(match.Id);   // margin varsayılanları da kurulur
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)

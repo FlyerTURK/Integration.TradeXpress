@@ -24,6 +24,10 @@ public class CurrencyUnit : FullAuditedAggregateRoot<Guid>, IMultiTenant
     public virtual int DisplayOrder { get; protected set; }
     public virtual string? Description { get; protected set; }
 
+    /// <summary>Bu birim bakiye listesinde HER ZAMAN gösterilsin mi (ör. HAS/TRY/USD/EUR). Kimlik-seviyesi
+    /// (per-tenant değil); global birimlerde host belirler.</summary>
+    public virtual bool AlwaysShowInBalance { get; protected set; }
+
     /// <summary>Sistem-seed birim: Code değiştirilemez, silinemez.</summary>
     public virtual bool IsSystem { get; protected set; }
 
@@ -80,6 +84,7 @@ public class CurrencyUnit : FullAuditedAggregateRoot<Guid>, IMultiTenant
     public virtual void Activate() => IsActive = true;
     public virtual void Deactivate() => IsActive = false;
     public virtual void SetDisplayOrder(int order) => DisplayOrder = order;
+    public virtual void SetAlwaysShowInBalance(bool value) => AlwaysShowInBalance = value;
 
     /// <summary>
     /// Takip ilişkisini ayarlar/temizler. Kendini takip edemez. Tek-seviye kuralı

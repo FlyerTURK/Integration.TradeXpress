@@ -228,8 +228,22 @@ public abstract class CrudPageBase<TGetDto, TListDto, TKey, TListRequestDto, TCr
             await ShowPopupAsync(entity.Id);
     }
 
+    /// <summary>Edit formunun nerede açılacağı (Popup/MDI sekmesi). Alt sınıf override eder; varsayılan Popup.</summary>
+    protected virtual EditOpenTarget EditOpenTarget => EditOpenTarget.Popup;
+
+    [Inject] private IServiceProvider ServiceProvider { get; set; } = default!;
+
+    // MDI sekme açıcı — uygulama sağlar (TabManager); kayıtlı değilse null → popup'a düşülür (framework app tipine bağımlı değil).
+    private Integration.Framework.Blazor.Client.Services.Mdi.IMdiTabOpener? TabOpener
+        => ServiceProvider.GetService(typeof(Integration.Framework.Blazor.Client.Services.Mdi.IMdiTabOpener))
+           as Integration.Framework.Blazor.Client.Services.Mdi.IMdiTabOpener;
+
     protected virtual Task ShowPopupAsync(TKey? id)
     {
+        // Sayfa MDI sekmesi istiyorsa ve uygulama MDI sağlıyorsa: edit page'in route'unu sekmede aç (popup yerine).
+        if (EditOpenTarget == EditOpenTarget.MdiTab && TabOpener is { } tabs && BuildEditUrl(id) is { } url)
+            return tabs.OpenOrActivateAsync(url, EditTitle, EditIconCssClass);
+
         // Nav bağlamı artık PAYLAŞILAN StateService'ten okunuyor (AddScoped) — parametre geçmeye gerek yok.
         var extra = new System.Collections.Generic.Dictionary<string, object>
         {
@@ -237,7 +251,31 @@ public abstract class CrudPageBase<TGetDto, TListDto, TKey, TListRequestDto, TCr
             { "OnClosed", Microsoft.AspNetCore.Components.EventCallback.Factory.Create(this, () => PopupService.Close()) },
         };
 
-        return ViewOpener.OpenAsync(EditComponentType, id, EditTitle, EditIconCssClass, extra);
+        // Chrome başlığı boş — yapısal başlık popup gövdesinde (CrudEditShell → EditHeaderView) gösterilir.
+        return ViewOpener.OpenAsync(EditComponentType, id, string.Empty, EditIconCssClass, extra);
+    }
+
+    // EditComponentType'ın @page route'undan sekme URL'i kurar: id yoksa parametresiz ("new") route, varsa
+    // tek {param}'lı route'ta param'ı id ile değiştirir. (Edit page'leri tek anahtarlı route kullanır.)
+    private string? BuildEditUrl(TKey? id)
+    {
+        var templates = EditComponentType
+            .GetCustomAttributes(typeof(RouteAttribute), false)
+            .Cast<RouteAttribute>()
+            .Select(r => r.Template)
+            .ToList();
+        if (templates.Count == 0) return null;
+
+        bool isNew = id is null || id.Equals(default(TKey));
+        if (isNew)
+            return templates.FirstOrDefault(t => !t.Contains('{'));
+
+        var paramT = templates.FirstOrDefault(t => t.Contains('{'));
+        if (paramT == null) return null;
+        var open  = paramT.IndexOf('{');
+        var close = paramT.IndexOf('}', open);
+        if (close < 0) return null;
+        return paramT[..open] + id + paramT[(close + 1)..];
     }
 
     public virtual async Task DeleteAsync()

@@ -158,6 +158,22 @@ public sealed class TabManager : ITabManager, Integration.Framework.Blazor.Clien
         Raise();
     }
 
+    public void UpdateTabHeader(Guid tabId, Integration.Framework.Blazor.Client.Services.Mdi.TabHeaderData header)
+    {
+        var tab = _tabs.FirstOrDefault(t => t.Id == tabId);
+        if (tab == null) return;
+        tab.Header = header;
+        Raise();   // strip + top-panel re-render. Persist YOK — Header kalıcılaştırılmaz (restore'da edit sayfası kurar).
+    }
+
+    public void SetTabDirty(Guid tabId, bool isDirty)
+    {
+        var tab = _tabs.FirstOrDefault(t => t.Id == tabId);
+        if (tab == null || tab.IsDirty == isDirty) return;
+        tab.IsDirty = isDirty;
+        Raise();   // SplitView liste tab'ı: düz Title'a "*" (Header'a dokunmadan).
+    }
+
     private void Raise() => StateChanged?.Invoke();
 
     private static string Normalize(string url)

@@ -80,6 +80,93 @@ namespace Integration.Framework.Blazor.Client.Components.Crud
         private bool _showGridSearch;
         private void ToggleGridSearch() => _showGridSearch = !_showGridSearch;
 
+        // Context-menu'den yönetilen filtre satırı toggle'ı (başlangıçta ShowColumnFilter'dan). Gruplama server-side
+        // custom data source'ta desteklenmediği için grup paneli/komutları yok.
+        private bool _showFilterRow;
+
+        // Yerel toolbar referansı — row context menüsü onun görünür aksiyonlarından doldurulur (SplitHost null iken).
+        private CrudToolbar<TGetDto, TListDto, TKey>? _toolbar;
+
+        // Kolon başlığı + satır context menüsü: built-in (kolon seçici, grup paneli, filtre builder, sort, gizle) +
+        // ek kolaylaştırıcılar. Başlık: filtre satırı göster/gizle + filtreyi temizle. Satır: toolbar kopyası.
+        private void OnCustomizeContextMenu(GridCustomizeContextMenuEventArgs args)
+        {
+            if (args.Context is GridHeaderCommandContext)
+            {
+                // Server-side custom data source GRUPLAMAYI desteklemiyor (GetGroupInfoAsync implement değil) →
+                // grup komutlarını kaldır; aksi halde "Group By Column" çöker.
+                args.Items.Remove(GridContextMenuDefaultItemNames.GroupByColumn);
+                args.Items.Remove(GridContextMenuDefaultItemNames.UngroupColumn);
+                args.Items.Remove(GridContextMenuDefaultItemNames.ShowGroupPanel);
+
+                var filterRow = args.Items.AddCustomItem(L["FilterRow"].Value, () =>
+                {
+                    _showFilterRow = !_showFilterRow;
+                    return InvokeAsync(StateHasChanged);
+                });
+                filterRow.BeginGroup = true;
+                args.Items.AddCustomItem(L["ClearFilter"].Value, () =>
+                {
+                    Grid?.SetFilterCriteria(null);
+                    return Task.CompletedTask;
+                });
+            }
+            else if (args.Context is GridDataRowCommandContext rowContext)
+            {
+                // Önce sağ-tıklanan satırı SEÇ → toolbar aksiyonları (Sil/Marj Ayarla vb.) bu satıra göre Enabled hesaplar.
+                if (rowContext.DataItem is TListDto item)
+                    StateService.SetDataRowSelected(item);
+
+                // Row context menü = TOOLBAR'ın o anki görünür item'ları (dinamik; hardcoded değil). Çift satır
+                // düzenleme: satır tıkla = düzenle zaten var; burada toolbar ne sunuyorsa o doldurulur.
+                // Yerel toolbar (standalone) yoksa split host'un birleşik toolbar aksiyonlarını kullan.
+                var menuActions = _toolbar?.MenuActions ?? SplitHost?.ToolbarMenuActions;
+                if (menuActions != null)
+                {
+                    var first = true;
+                    foreach (var a in menuActions)
+                    {
+                        var text = a.Text ?? a.Tooltip ?? a.AdaptiveText;
+                        if (string.IsNullOrEmpty(text)) continue;
+                        var onClick = a.OnClick;
+                        var ci = args.Items.AddCustomItem(text, () => onClick?.Invoke() ?? Task.CompletedTask);
+                        ci.Enabled = a.Enabled;
+                        ApplyIcon(ci, a.IconUrl, a.IconCssClass);
+                        if (first) { ci.BeginGroup = true; first = false; }
+
+                        // Alt menü öğeleri (ör. Kaydet&Yeni → Kaydet&Kapat) — hepsini göster.
+                        if (a.Items != null)
+                            foreach (var sub in a.Items)
+                            {
+                                var subText = sub.Text ?? sub.Tooltip ?? sub.AdaptiveText;
+                                if (string.IsNullOrEmpty(subText)) continue;
+                                var subClick = sub.OnClick;
+                                var sci = ci.Items.AddCustomItem(subText, () => subClick?.Invoke() ?? Task.CompletedTask);
+                                sci.Enabled = sub.Enabled;
+                                ApplyIcon(sci, sub.IconUrl, sub.IconCssClass);
+                            }
+                    }
+                }
+
+                // Arama: toolbar'da kutu (aksiyon değil) → menüye ayrı ekle (grid içi arama kutusunu aç/kapat).
+                var search = args.Items.AddCustomItem(L["Search"].Value, () =>
+                {
+                    ToggleGridSearch();
+                    return InvokeAsync(StateHasChanged);
+                });
+                search.BeginGroup = true;
+                search.IconCssClass = "fas fa-magnifying-glass";
+            }
+        }
+
+        // Context menü öğesine ikon uygula. IContextMenuItem'da IconUrl doluysa IconCssClass yok sayılır;
+        // bu yüzden önce URL (XAF SVG), yoksa CSS class (FontAwesome custom action) denenir.
+        private static void ApplyIcon(IContextMenuItem item, string? iconUrl, string? iconCssClass)
+        {
+            if (!string.IsNullOrEmpty(iconUrl)) item.IconUrl = iconUrl;
+            else if (!string.IsNullOrEmpty(iconCssClass)) item.IconCssClass = iconCssClass;
+        }
+
         // IsActive filtre switch durumu. İkili: true = Aktif kayıtlar, false = Pasif kayıtlar.
         private bool? _activeFilter;
 
@@ -92,24 +179,12 @@ namespace Integration.Framework.Blazor.Client.Components.Crud
 
         protected override void OnInitialized()
         {
+            _showFilterRow = ShowColumnFilter;   // filtre satırı başlangıç durumu (context-menu ile toggle edilir)
             StateService.OnReloadRequested += ReloadGrid;
-            StateService.OnFocusItemRequested += FocusGridItemAsync;   // popup komşu kayda gezinince grid'i o kayda götür
+            // Köprü: grid'i StateService'e doğrudan bağla (SplitHost'tan bağımsız, her zaman). Popup/liste
+            // sayfa-aşırı gezinme bu kayıttan grid'i sürer (GoNext/PreviousGlobalAsync → EnsurePage/FocusDataItem).
+            StateService.RegisterGrid(this);
             SplitHost?.RegisterGrid(this);   // birleşik toolbar arama/filtre/export'u buradan alır
-        }
-
-        // Popup/standalone edit komşu kayda gezinince grid'i o kaydın SAYFASINA götürüp odakla. DevExpress
-        // SetFocusedDataItemAsync(item): item başka sayfadaysa grid OTOMATİK o sayfaya gider + satırı odaklar
-        // (manuel PageIndex/pageSize hesabı yok → popup arkasındaki liste grid için de güvenilir). Odak →
-        // OnGridFocusedRowChanged → seçim senkronu. item server'dan kesin çekilmiş dto (KeyFieldName=Id ile eşleşir).
-        private async System.Threading.Tasks.Task FocusGridItemAsync(TListDto item)
-        {
-            if (Grid == null) return;
-            await Grid.SetFocusedDataItemAsync(item);   // odak + otomatik doğru sayfa
-            // Selection (checkbox) açıkça senkronla: FocusedRow ile SelectionColumn DevExpress'te AYRI; programatik
-            // odakta OnGridFocusedRowChanged seçimi her zaman güvenilir yansıtmıyor. Grid'in GERÇEK focused item'i
-            // (data source instance'ı) ile SelectedDataItems'ı set et → @bind checkbox'ı işaretler.
-            if (Grid.GetFocusedDataItem() is TListDto focused)
-                StateService.SelectedDataItems = new List<TListDto> { focused };
         }
 
         // DataSource [Parameter] OnInitialized'da henüz null olabilir (parent grid kaynağını sonra bağlar) →
@@ -121,7 +196,6 @@ namespace Integration.Framework.Blazor.Client.Components.Crud
             {
                 _gridSource = ds;
                 ds.Fetched += SyncStateFromGrid;            // her fetch'te global state + yüklü sayfa StateService'e
-                StateService.FetchSingleByIndex = ds.FetchSingleAsync;   // popup sayfa-aşırı komşu kaydı buradan çeker
 
                 // IIsActive grid'lerde ilk yükleme "Aktif" kayıtlar (switch varsayılan ON). İlk fetch'ten önce.
                 if (IsActiveFilterable)
@@ -271,11 +345,17 @@ namespace Integration.Framework.Blazor.Client.Components.Crud
         int ISplitGridActions.PageSkip
             => DataSource is GridListDataSource<TListDto> d ? (d.LastRequest?.SkipCount ?? 0) : 0;
 
-        // Sayfa RequestReload çağırınca grid sunucudan taze sayfayı çeker.
-        private void ReloadGrid() => InvokeAsync(() =>
+        // Param değişimi (arama/filtre/IsActive, harici save/delete) → grid'i SUNUCUDAN yeniden çeker.
+        // KRİTİK: ilk açılıştaki TEMİZ liste gibi SAYFA 0'a dön. Cross-page gezinme _gridPageIndex'i ayrı
+        // yoldan (EnsurePageForGlobalIndexAsync) değiştirir; param değişince burada sıfırlanır → yeni sonuç
+        // kümesi eski sayfadan değil baştan gösterilir, snapshot (count+items) bayatlamaz. PageIndex'i önce
+        // grid'e flush edip sonra Reload ediyoruz ki Reload page 0'ı (yeni params'la) çeksin.
+        private void ReloadGrid() => InvokeAsync(async () =>
         {
-            Grid?.Reload();
-            return Task.CompletedTask;
+            _gridPageIndex = 0;       // param değişimi → ilk sayfa
+            StateHasChanged();        // PageIndex=0 parametresini grid'e geçir (render kuyruğa girer)
+            await Task.Yield();       // render'ın PageIndex=0'ı grid'e UYGULAMASINA izin ver (Reload'dan ÖNCE)
+            Grid?.Reload();           // grid artık page 0'da → count+items'ı yeni params ile tazele
         });
 
         // Switch değişince aktif server-side veri kaynağına filtreyi uygula ve grid'i yeniden çek.
@@ -304,7 +384,7 @@ namespace Integration.Framework.Blazor.Client.Components.Crud
             if (StateService != null)
             {
                 StateService.OnReloadRequested -= ReloadGrid;
-                StateService.OnFocusItemRequested -= FocusGridItemAsync;
+                StateService.UnregisterGrid(this);
             }
         }
 
