@@ -74,8 +74,10 @@ public static class TradeXpressDbContextModelCreatingExtensions
             b.ToTable(TradeXpressConsts.DbTablePrefix + "Parities", TradeXpressConsts.DbSchema);
             b.ConfigureByConvention();
 
-            // Çift tanımı; oran saklanmaz. Tenant+base+quote tekildir.
-            b.HasIndex(x => new { x.TenantId, x.BaseCurrencyUnitId, x.QuoteCurrencyUnitId }).IsUnique();
+            // Çift tanımı; oran saklanmaz. Yön-bağımsız PairKey ile benzersizlik: USDTRY varken TRYUSD
+            // eklenemez ve eşzamanlı yarış da DB tarafından kapanır (app kontrolü tek başına yetmez).
+            b.Property(x => x.PairKey).IsRequired().HasMaxLength(72);
+            b.HasIndex(x => new { x.TenantId, x.PairKey }).IsUnique();
             b.HasIndex(x => new { x.TenantId, x.IsActive });
         });
     }

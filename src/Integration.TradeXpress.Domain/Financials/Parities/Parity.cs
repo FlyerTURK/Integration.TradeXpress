@@ -41,6 +41,7 @@ public class Parity : FullAuditedAggregateRoot<Guid>, IMultiTenant
 
         BaseCurrencyUnitId = baseCurrencyUnitId;
         QuoteCurrencyUnitId = quoteCurrencyUnitId;
+        PairKey = BuildPairKey(baseCurrencyUnitId, quoteCurrencyUnitId); // yön-bağımsız benzersizlik anahtarı
         IsActive = isActive;
         SetDisplayOrder(displayOrder);
     }
@@ -56,6 +57,10 @@ public class Parity : FullAuditedAggregateRoot<Guid>, IMultiTenant
 
     /// <summary>Çiftin karşı (quote) birimi.</summary>
     public virtual Guid QuoteCurrencyUnitId { get; protected set; }
+
+    /// <summary>Yön-bağımsız çift anahtarı (USDTRY ile TRYUSD aynı anahtar) — ters-çift benzersizliğinin
+    /// DB garantisi. Ctor'da base/quote'tan türetilir; onlar gibi değişmez.</summary>
+    public virtual string PairKey { get; protected set; } = null!;
 
     public virtual bool IsActive { get; protected set; }
     public virtual int DisplayOrder { get; protected set; }
@@ -81,6 +86,15 @@ public class Parity : FullAuditedAggregateRoot<Guid>, IMultiTenant
     public override string ToString()
     {
         return $"{BaseCurrencyUnitId} / {QuoteCurrencyUnitId}";
+    }
+
+    // İki birimi sırasız tek anahtara indirger (USDTRY ve TRYUSD aynı) → ters-çifti DB unique index engelleyebilsin.
+    private static string BuildPairKey(Guid a, Guid b)
+    {
+        var x = a.ToString();
+        var y = b.ToString();
+
+        return string.CompareOrdinal(x, y) <= 0 ? x + y : y + x;
     }
 
     #endregion

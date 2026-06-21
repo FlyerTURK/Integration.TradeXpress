@@ -1,33 +1,58 @@
 namespace Integration.TradeXpress.Financials.Parities;
 
 /// <summary>
-/// Parite değişmezlerini (invariant) tek noktada toplar — böylece AppService ve seed yolları
-/// aynı kuralı paylaşır. Asıl kural: <b>bir çift sistemde tek yönde yaşar</b> — USDTRY varken
-/// TRYUSD oluşturulamaz. Kapsam = global (host, TenantId=null) + ilgili tenant; yön kullanıcının
-/// seçtiği gibi korunur (canonicalize edilmez), yalnız <i>ikinci</i> yön engellenir.
+/// Parite değişmezlerinin (invariant) sahibi — tek create kapısı. Kural: bir çift sistemde TEK YÖNDE
+/// yaşar (USDTRY varken TRYUSD olamaz). Kapsam = global (host, TenantId=null) + ilgili tenant; yön
+/// kullanıcının seçtiği gibi korunur (canonicalize edilmez), yalnız ikinci yön engellenir.
+///
+/// <para>Garanti İKİ katman: (1) kapsamlı ön-kontrol → dostça lokalize hata; (2) DB'de
+/// <c>(TenantId, PairKey)</c> yön-bağımsız unique index → ön-kontrolü geçen eşzamanlı yarışı da kapatır.
+/// App kontrolü tek başına (check-then-insert) yarışa açıktır; asıl garantiyi DB verir.</para>
 /// </summary>
-public class ParityManager : DomainService
+public class ParityManager(
+    IRepository<Parity, Guid> parityRepository,
+    IDataFilter dataFilter)
+    : DomainService
 {
-    private readonly IRepository<Parity, Guid> _parityRepository;
-    private readonly IDataFilter _dataFilter;
+    #region Fields
 
-    public ParityManager(
-        IRepository<Parity, Guid> parityRepository,
-        IDataFilter dataFilter)
+    private readonly IRepository<Parity, Guid> _parityRepository = parityRepository;
+    private readonly IDataFilter _dataFilter = dataFilter;
+
+    #endregion
+
+    #region Methods
+
+    /// <summary>Pariteyi kurar (tek create kapısı): kapsamlı ön-kontrol + insert.</summary>
+    public async Task<Parity> CreateAsync(
+        Guid baseCurrencyUnitId,
+        Guid quoteCurrencyUnitId,
+        bool isActive,
+        int displayOrder,
+        Guid? tenantId)
     {
-        _parityRepository = parityRepository;
-        _dataFilter = dataFilter;
+        await EnsureCreatableAsync(baseCurrencyUnitId, quoteCurrencyUnitId, tenantId);
+
+        var parity = new Parity(
+            baseCurrencyUnitId: baseCurrencyUnitId,
+            quoteCurrencyUnitId: quoteCurrencyUnitId,
+            isActive: isActive,
+            displayOrder: displayOrder);
+
+        // Ön-kontrolü geçen eşzamanlı yarış kalsa bile (TenantId, PairKey) unique index integrity'i korur.
+        return await _parityRepository.InsertAsync(parity, autoSave: true);
     }
 
     /// <summary>
-    /// Verilen çiftin oluşturulabilirliğini doğrular (fail-fast). Aynı çift varsa
-    /// <c>PairAlreadyExists</c>, ters çift (quote/base) varsa <c>ReversePairAlreadyExists</c>,
-    /// base==quote ise <c>BaseQuoteMustDiffer</c> fırlatır.
+    /// Çiftin oluşturulabilirliğini doğrular (fail-fast, dostça hata). Aynı çift → <c>PairAlreadyExists</c>,
+    /// ters çift (quote/base) → <c>ReversePairAlreadyExists</c>, base==quote → <c>BaseQuoteMustDiffer</c>.
     /// </summary>
     public async Task EnsureCreatableAsync(Guid baseCurrencyUnitId, Guid quoteCurrencyUnitId, Guid? tenantId)
     {
         if (baseCurrencyUnitId == quoteCurrencyUnitId)
+        {
             throw new BusinessException("TradeXpress:Parity:BaseQuoteMustDiffer");
+        }
 
         // Kapsam host‖own — tenant da global pariteyi (ve tersini) ikinci kez oluşturamaz.
         using (_dataFilter.Disable<IMultiTenant>())
@@ -37,15 +62,19 @@ public class ParityManager : DomainService
 
             var forwardExists = await AsyncExecuter.AnyAsync(scoped.Where(p =>
                 p.BaseCurrencyUnitId == baseCurrencyUnitId && p.QuoteCurrencyUnitId == quoteCurrencyUnitId));
-            
             if (forwardExists)
+            {
                 throw new BusinessException("TradeXpress:Parity:PairAlreadyExists");
+            }
 
             var reverseExists = await AsyncExecuter.AnyAsync(scoped.Where(p =>
                 p.BaseCurrencyUnitId == quoteCurrencyUnitId && p.QuoteCurrencyUnitId == baseCurrencyUnitId));
-            
             if (reverseExists)
+            {
                 throw new BusinessException("TradeXpress:Parity:ReversePairAlreadyExists");
+            }
         }
     }
+
+    #endregion
 }

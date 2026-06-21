@@ -99,16 +99,13 @@ public class ParityAppService : TradeXpressAppService, IParityAppService
     [Authorize(TradeXpressPermissions.Parities.Create)]
     public virtual async Task<ParityGetDto> CreateAsync(ParityCreateDto input)
     {
-        // Ters-çift / aynı-çift / base==quote doğrulaması (fail-fast, TenantId ABP tarafından atanır).
-        await _parityManager.EnsureCreatableAsync(input.BaseCurrencyUnitId, input.QuoteCurrencyUnitId, CurrentTenant.Id);
-
-        var entity = new Parity(
+        // Tek create kapısı manager: ön-kontrol (ters/aynı çift, base==quote) + insert. TenantId'yi ABP atar.
+        var entity = await _parityManager.CreateAsync(
             input.BaseCurrencyUnitId,
             input.QuoteCurrencyUnitId,
-            isActive: input.IsActive,
-            displayOrder: input.DisplayOrder);
-
-        await _repository.InsertAsync(entity, autoSave: true);
+            input.IsActive,
+            input.DisplayOrder,
+            CurrentTenant.Id);
 
         var codes = await GetCodeMapAsync(new[] { entity.BaseCurrencyUnitId, entity.QuoteCurrencyUnitId });
         return ToGetDto(entity, codes);
