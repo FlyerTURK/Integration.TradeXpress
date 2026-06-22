@@ -56,18 +56,11 @@ public class TradeXpressMenuContributor : IMenuContributor
             icon: "fas fa-coins",
             order: 2
         );
-        // Faz 4 test dönemi: Para Birimleri HEM normal (split olmayan toolbar regresyonu)
-        // HEM split olarak menüde — karşılaştırma + normal CrudToolbar testi için.
+        // Para Birimleri (CRUD; liste tab'ında, edit yeni yığın tab'ında). Split menü kalemi kaldırıldı.
         definitions.AddItem(new ApplicationMenuItem(
             TradeXpressMenus.CurrencyUnits,
             l["CurrencyUnits"],
             url: "/currencies/currency-units",
-            icon: TradeXpressIcons.CurrencyUnit
-        ).RequirePermissions(TradeXpressPermissions.CurrencyUnits.Default));
-        definitions.AddItem(new ApplicationMenuItem(
-            "TradeXpress.CurrencyUnitsSplit",
-            l["CurrencyUnits"] + " (Split)",
-            url: "/currencies/currency-units-split",
             icon: TradeXpressIcons.CurrencyUnit
         ).RequirePermissions(TradeXpressPermissions.CurrencyUnits.Default));
         // Kur panosu — viewer'ın efektif fiyatları + "Margin Ayarla" + marj geçmişi.
@@ -100,7 +93,7 @@ public class TradeXpressMenuContributor : IMenuContributor
             context.Menu.AddItem(new ApplicationMenuItem(
                 TradeXpressMenus.Companies,
                 l["Menu:Companies"],
-                url: "/companies-split",
+                url: "/companies",
                 icon: TradeXpressIcons.Company,
                 order: 3
             ).RequirePermissions(TradeXpressPermissions.Companies.Default));
@@ -110,7 +103,7 @@ public class TradeXpressMenuContributor : IMenuContributor
         context.Menu.AddItem(new ApplicationMenuItem(
             TradeXpressMenus.Countries,
             l["Menu:Countries"],
-            url: "/countries-split",
+            url: "/countries",
             icon: TradeXpressIcons.Country,
             order: 6
         ).RequirePermissions(TradeXpressPermissions.Countries.Default));
@@ -124,13 +117,13 @@ public class TradeXpressMenuContributor : IMenuContributor
         identityMenu.AddItem(new ApplicationMenuItem(
             "IdentityManagement.Users",
             l["Users"],
-            url: "/users-split",
+            url: "/admin/users",
             icon: TradeXpressIcons.User
         ).RequirePermissions("AbpIdentity.Users"));
         identityMenu.AddItem(new ApplicationMenuItem(
             "IdentityManagement.Roles",
             l["Roles"],
-            url: "/roles-split",
+            url: "/admin/roles",
             icon: TradeXpressIcons.Role
         ).RequirePermissions("AbpIdentity.Roles"));
         administration.AddItem(identityMenu);
@@ -141,7 +134,7 @@ public class TradeXpressMenuContributor : IMenuContributor
             var tenantMenu = new ApplicationMenuItem(
                 "TenantManagement",
                 l["TenantManagement"],
-                url: "/tenant-management/tenants-split",
+                url: "/tenant-management/tenants",
                 icon: TradeXpressIcons.Tenant
             ).RequirePermissions("AbpTenantManagement.Tenants");
             administration.AddItem(tenantMenu);

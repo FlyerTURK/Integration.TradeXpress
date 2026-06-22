@@ -23,7 +23,7 @@
 @* Sabit header + toolbar (flex-shrink:0), KAYAN body (flex:1 + overflow-y:auto). Yükseklik açık max-height:88vh
    (popup 90vh içine sığar) — h-100 popup'ta çözülmediğinden EXPLICIT bound veriyoruz → body güvenilir kayar.
    Header = paylaşılan EditHeaderView (Components.Shared import edildi → artık çözülür/görünür). *@
-<div style="display:flex; flex-direction:column; max-height:88vh; min-height:0;">
+<div style="display:flex; flex-direction:column; max-height:88vh; min-height:0; overflow-x:hidden; max-width:100%;">
     @if (Placement == ToolbarPlacement.Top)
     {
         @* Popup modunda (PopupChrome var) başlık CHROME header'ında (boş band + çift olmaz, native X kalır);
