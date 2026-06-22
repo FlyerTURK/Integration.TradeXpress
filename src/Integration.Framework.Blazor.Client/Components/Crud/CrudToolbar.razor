@@ -22,6 +22,7 @@
                        IconUrl="@a.IconUrl" IconCssClass="@a.IconCssClass"
                        BeginGroup="@a.BeginGroup" Alignment="@a.Alignment"
                        RenderStyle="@(a.Primary ? ButtonRenderStyle.Primary : ButtonRenderStyle.None)"
+                       RenderStyleMode="@(a.Primary ? ToolbarItemRenderStyleMode.Contained : ToolbarItemRenderStyleMode.Auto)"
                        CssClass="@(a.Primary ? "xaf-primary-toolbar-btn" : null)"
                        SplitDropDownButton="@a.SplitDropDownButton"
                        Enabled="@a.Enabled"

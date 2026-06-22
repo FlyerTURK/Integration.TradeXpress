@@ -73,20 +73,8 @@
     height: 16px;
 }
 
-/* XAF kalıbı (PrimaryToolbarItemsController): primary toolbar button'a xaf-primary-toolbar-btn class'ı.
-   Fluent tema disabled primary button ARKA PLANINI soluklaştırmıyor → arka plan rengini %50 saydam
-   primary yap (opacity DEĞİL — o yazı/ikonu da soluklaştırırdı; yazı net kalsın). */
-.xaf-primary-toolbar-btn:disabled,
-.xaf-primary-toolbar-btn.dxbl-disabled,
-.dxbl-toolbar .dxbl-btn-primary:disabled,
-.dxbl-toolbar .dxbl-btn-primary.dxbl-disabled {
-    /* Soluklaştırmayı yalnız ARKA PLANA uygula: temanın primary rengini %50 saydam yap.
-       Bootstrap temaları disabled'da butona opacity verip YAZIYI da soluklaştırıyor → opacity:1 ile
-       geri al (yazı orijinal primary text rengine döner; color'a dokunmuyoruz). Fluent etkilenmez. */
-    opacity: 1 !important;
-    background-color: color-mix(in srgb, var(--bs-primary) 50%, transparent) !important;
-    border-color: color-mix(in srgb, var(--bs-primary) 50%, transparent) !important;
-}
+/* Primary toolbar butonu (Kaydet): primary'ye özel override YOK — DevExpress tema stili (native) kullanılır.
+   (DOM incelemesiyle doğru/temiz çözüm bulunacak; override'lar geri alındı.) */
 
 /* Disabled toolbar ikon görünümü: Plain mode + RenderStyle None ile DevExpress artık disabled item'ın
    ikonunu (XAF SVG img VE FontAwesome <i>) soluklaştırmıyor → hepsini %50 soluk göster (Sil/Prev/Next
