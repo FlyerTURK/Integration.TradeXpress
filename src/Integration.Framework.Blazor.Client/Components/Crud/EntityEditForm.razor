@@ -52,7 +52,11 @@
                     </div>
                 }
                 <fieldset disabled="@IsReadOnly" style="border:0; padding:0; margin:0; min-width:0;">
-                    <div @onchange="OnFormChange">@ChildContent(Model)</div>
+                    @* Drill/koleksiyon değişimi @onchange'e veya EditContext'e düşmez → Layout içindeki drill'ler
+                       bu EditChanged cascade'ini çağırır → NotifyIfChanged (re-render + dirty/toolbar/* tazele). *@
+                    <CascadingValue Value="@EditChangedAction" Name="EditChanged" IsFixed="true">
+                        <div @onchange="OnFormChange">@ChildContent(Model)</div>
+                    </CascadingValue>
                 </fieldset>
             </EditForm>
         }
@@ -134,6 +138,11 @@
     }
 
     private bool _snapshotPending;
+
+    // Drill/koleksiyon değişimini forma bildiren cascade callback'i — Layout drill'leri (DrillList.OnChanged) çağırır.
+    // Stable ref (cache) → IsFixed cascade güvenli. NotifyIfChanged: re-render + dirty/toolbar/başlık (*) tazele.
+    private Action? _editChangedCache;
+    private Action EditChangedAction => _editChangedCache ??= NotifyIfChanged;
 
     // EntityEditForm, child VaultLayout'un @bind'ı değişince KENDİSİ re-render olmaz (child izole). DevExpress
     // editörleri EditContext.OnFieldChanged'i tetikler → buradan StateHasChanged ile dirty/toolbar tazelenir.

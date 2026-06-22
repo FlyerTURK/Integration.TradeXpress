@@ -69,7 +69,12 @@ public partial class BranchListPage
 
 
 
-        public override System.Type EditComponentType => typeof(Integration.TradeXpress.Blazor.Client.Pages.Companies.BranchEditPage);
+        // YENİ mimari: agnostic EntityEditForm + PersistentCoordinator (eski BranchEditPage kaldırıldı).
+        public override System.Type EditComponentType => typeof(Integration.TradeXpress.Blazor.Client.Pages.Companies.BranchEditHost);
+
+        // Yeni branch'e parent şirketi (route'tan gelen CompanyId) geçir → BranchEditHost.CompanyId (popup param).
+        protected override System.Collections.Generic.Dictionary<string, object>? AdditionalEditParameters
+            => new() { ["CompanyId"] = CompanyId };
     }
 
 
