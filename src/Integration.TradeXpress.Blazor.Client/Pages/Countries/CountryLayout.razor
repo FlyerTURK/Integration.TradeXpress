@@ -1,4 +1,7 @@
+@using System
+@using System.Collections.Generic
 @using Integration.TradeXpress.Countries
+@using Integration.TradeXpress.Financials.CurrencyUnits
 @using Integration.Framework.Blazor.Client.Components.Crud
 @using DevExpress.Blazor
 @using Microsoft.Extensions.Localization
@@ -25,11 +28,15 @@
                              Required="true" />
             </CaptionTemplate>
             <Template>
-                <DxComboBox Data="@CurrencyCodes"
-                            @bind-Value="@Model.DefaultCurrencyCode"
-                            SearchMode="ListSearchMode.AutoSearch"
-                            SearchFilterCondition="ListSearchFilterCondition.Contains"
-                            NullText="@L["Select"]" CssClass="w-100" />
+                <LookupComboBox TItem="CurrencyUnitListDto" TValue="string"
+                                Data="@Currencies"
+                                ValueFieldName="@nameof(CurrencyUnitListDto.Code)"
+                                TextFieldName="@nameof(CurrencyUnitListDto.Code)"
+                                @bind-Value="@Model.DefaultCurrencyCode"
+                                SearchFilterCondition="ListSearchFilterCondition.Contains"
+                                NullText="@L["Select"].Value"
+                                OnEditRequested="@OnEditCurrency"
+                                OnAddRequested="@OnAddCurrency" />
             </Template>
         </DxFormLayoutItem>
         <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6">
@@ -46,5 +53,11 @@
 @code {
     [Parameter, EditorRequired] public CountryGetDto Model { get; set; } = default!;
     [Parameter] public bool IsNew { get; set; }
-    [Parameter] public List<string> CurrencyCodes { get; set; } = new();
+    /// <summary>Döviz lookup verisi (read-koordinatörden; host doldurur). Dumb layout I/O yapmaz.</summary>
+    [Parameter] public IReadOnlyList<CurrencyUnitListDto> Currencies { get; set; } = Array.Empty<CurrencyUnitListDto>();
+    /// <summary>Quick-add (+) — host yeni döviz formunu popup açar ve OLUŞAN kodu döndürür (combo auto-select).
+    /// null dönerse seçim yok. Boşsa + butonu görünmez.</summary>
+    [Parameter] public Func<Task<string?>>? OnAddCurrency { get; set; }
+    /// <summary>Edit (✎) — host seçili dövizi (kod) popup'ta düzenler. Boşsa ✎ butonu görünmez.</summary>
+    [Parameter] public Func<string, Task>? OnEditCurrency { get; set; }
 }

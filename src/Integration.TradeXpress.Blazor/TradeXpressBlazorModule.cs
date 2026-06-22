@@ -184,6 +184,21 @@ public class TradeXpressBlazorModule : AbpModule
         context.Services.AddScoped<Integration.TradeXpress.Blazor.Client.Services.Identity.UserCrudAdapter>();
         context.Services.AddScoped<Integration.TradeXpress.Blazor.Client.Services.Identity.RoleCrudAdapter>();
 
+        // Faz 4 — Referans lookup cache (read-koordinatör): CurrencyUnit. Edit form'lar API yerine bundan besler
+        // (5dk TTL); CrudEditHost commit/delete'te typeof(ListDto).FullName ile notify → cache auto-invalidate.
+        context.Services.AddScoped<Integration.Framework.Blazor.Client.Services.Base.ILookupCache<Integration.TradeXpress.Financials.CurrencyUnits.CurrencyUnitListDto>>(sp =>
+        {
+            var svc = sp.GetRequiredService<Integration.TradeXpress.Financials.CurrencyUnits.ICurrencyUnitAppService>();
+            return new Integration.Framework.Blazor.Client.Services.Base.LookupCache<Integration.TradeXpress.Financials.CurrencyUnits.CurrencyUnitListDto>(
+                async ct =>
+                {
+                    var page = await svc.GetListAsync(new Integration.TradeXpress.Financials.CurrencyUnits.CurrencyUnitListRequestDto { MaxResultCount = 1000 });
+                    return new System.Collections.Generic.List<Integration.TradeXpress.Financials.CurrencyUnits.CurrencyUnitListDto>(page.Items);
+                },
+                sp.GetRequiredService<Integration.Framework.Blazor.Client.Services.Mdi.IEntityChangeNotifier>(),
+                typeof(Integration.TradeXpress.Financials.CurrencyUnits.CurrencyUnitListDto).FullName!);
+        });
+
         // Client modülü Server'ın DependsOn zincirinde olmadığından ITransientDependency
         // auto-scan çalışmıyor; circuit-level servisler burada manuel kayıtlanır.
         context.Services.AddTransient<Integration.Framework.Blazor.Client.Services.Base.IUiStateService,

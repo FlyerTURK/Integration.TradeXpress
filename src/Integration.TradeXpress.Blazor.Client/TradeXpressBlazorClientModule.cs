@@ -67,6 +67,20 @@ public class TradeXpressBlazorClientModule : AbpModule
         context.Services.AddScoped<Services.Identity.UserCrudAdapter>();
         context.Services.AddScoped<Services.Identity.RoleCrudAdapter>();
 
+        // Faz 4 — Referans lookup cache (read-koordinatör): CurrencyUnit (WASM parite; Server'da host DI kullanılır).
+        context.Services.AddScoped<Integration.Framework.Blazor.Client.Services.Base.ILookupCache<Integration.TradeXpress.Financials.CurrencyUnits.CurrencyUnitListDto>>(sp =>
+        {
+            var svc = sp.GetRequiredService<Integration.TradeXpress.Financials.CurrencyUnits.ICurrencyUnitAppService>();
+            return new Integration.Framework.Blazor.Client.Services.Base.LookupCache<Integration.TradeXpress.Financials.CurrencyUnits.CurrencyUnitListDto>(
+                async ct =>
+                {
+                    var page = await svc.GetListAsync(new Integration.TradeXpress.Financials.CurrencyUnits.CurrencyUnitListRequestDto { MaxResultCount = 1000 });
+                    return new System.Collections.Generic.List<Integration.TradeXpress.Financials.CurrencyUnits.CurrencyUnitListDto>(page.Items);
+                },
+                sp.GetRequiredService<Integration.Framework.Blazor.Client.Services.Mdi.IEntityChangeNotifier>(),
+                typeof(Integration.TradeXpress.Financials.CurrencyUnits.CurrencyUnitListDto).FullName!);
+        });
+
         if (OperatingSystem.IsBrowser())
         {
             // Resilience handler yalnız WASM'da (HTTP client WASM'a özel)

@@ -219,7 +219,13 @@
     bool ISplitEditActions.IsReadOnly => IsReadOnly;
     string? ISplitEditActions.ReadOnlyNotice => ReadOnlyNoticeText;
 
-    async Task ISplitEditActions.SaveAsync() => await ValidateAndCommitAsync();
+    async Task ISplitEditActions.SaveAsync()
+    {
+        if (!await ValidateAndCommitAsync()) return;
+        // Popup formlarda Save = Save&Close (kaydet + popup'ı kapat); tab/standalone'da sadece kaydet, form açık kalır.
+        if (PopupChrome is not null)
+            await OnSaveAndClose.InvokeAsync();
+    }
     async Task ISplitEditActions.SaveAndNewAsync() { if (await ValidateAndCommitAsync()) await OnSaveAndNew.InvokeAsync(); }
     async Task ISplitEditActions.SaveAndCloseAsync() { if (await ValidateAndCommitAsync()) await OnSaveAndClose.InvokeAsync(); }
 

@@ -24,10 +24,8 @@ public partial class CountryListPage
         // YENİ mimari: agnostic EntityEditForm + PersistentCoordinator (eski CountryEditPage repo'da kalır).
         public override System.Type EditComponentType => typeof(Integration.TradeXpress.Blazor.Client.Pages.Countries.CountryEditHost);
 
-        // OPSİYONEL POPUP override (örnek): otomatik default tab olsa da bu liste edit'i POPUP açar.
-        // Aynı CountryEditHost hem tab hem popup açılabilir (popup'ta IPopupChrome, tab'da CurrentMdiTab).
-        protected override Integration.Framework.Blazor.Client.Components.Crud.EditOpenTarget EditOpenTarget
-            => Integration.Framework.Blazor.Client.Components.Crud.EditOpenTarget.Popup;
+        // Edit TAB'da açılır (default: liste tab'da → edit tab'da). Faz 4 quick-add: döviz "+" formu POPUP açar;
+        // tek popup host nested olmadığından host edit'in popup'ta OLMAMASI gerekir. (Popup örneği Vault pilotunda.)
     }
 
 
