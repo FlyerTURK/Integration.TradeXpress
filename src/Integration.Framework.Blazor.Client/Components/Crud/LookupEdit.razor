@@ -1,0 +1,180 @@
+@typeparam TItem where TItem : class
+@typeparam TValue
+@using System
+@using System.Collections.Generic
+@using System.Linq
+@using System.Linq.Expressions
+@using System.Reflection
+@using DevExpress.Blazor
+@using Microsoft.AspNetCore.Components.Forms
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@*
+   LookupComboBox'un "büyük kardeşi" (XAF SearchLookupComboBox paritesi): salt-okunur display alanı +
+   ✎ (seçili düzenle) + ✕ (clear) + ▼ (picker) → KENDİ DxPopup'ı içinde DxGrid (built-in arama, çok-kolon,
+   paging, single-select, çift-tık=seç) + Seç/İptal/Yeni. Büyük/yapısal referans listeleri için (binlerce satır).
+   Veri = host'tan (genelde LookupCache); Edit/Add = host delege. Dirty: ValueExpression + EditContext.NotifyFieldChanged.
+   DevExpress-native (ERPPROV3 pure-HTML/GridCore yerine DxTextBox + DxGrid + DxPopup).
+*@
+<DxTextBox Text="@DisplayText"
+           ReadOnly="true"
+           Enabled="@Enabled"
+           NullText="@NullText"
+           ValidationEnabled="false"
+           CssClass="w-100">
+    <Buttons>
+        <DxEditorButton IconCssClass="fas fa-pen-to-square" Visible="@ShowEditButton" Click="@OnEditButtonClick" Tooltip="@L["Edit"].Value" />
+        <DxEditorButton IconCssClass="fas fa-xmark" Visible="@ShowClearButton" Click="@OnClearButtonClick" Tooltip="@L["Clear"].Value" />
+        <DxEditorButton IconCssClass="fas fa-ellipsis" Visible="@(!ReadOnly && Enabled)" Click="@OnPickerButtonClick" Tooltip="@L["Select"].Value" />
+    </Buttons>
+</DxTextBox>
+
+<DxPopup @bind-Visible="_pickerVisible"
+         HeaderText="@(Title ?? L["Select"].Value)"
+         ShowCloseButton="true"
+         Width="min(820px, 95vw)"
+         MaxHeight="90vh"
+         CloseOnOutsideClick="false">
+    <BodyTemplate>
+        <div style="display:flex; flex-direction:column; gap:0.6rem; min-height:0;">
+            <DxGrid @ref="_grid"
+                    Data="@Data"
+                    KeyFieldName="@ValueFieldName"
+                    ShowSearchBox="true"
+                    SelectionMode="GridSelectionMode.Single"
+                    AllowSelectRowByClick="true"
+                    SelectedDataItem="@_pending"
+                    SelectedDataItemChanged="@OnSelectedItemChanged"
+                    RowDoubleClick="@OnRowDoubleClick"
+                    PageSize="12"
+                    CssClass="w-100">
+                <Columns>
+                    @if (Columns is not null)
+                    {
+                        @Columns
+                    }
+                    else
+                    {
+                        <DxGridDataColumn FieldName="@TextFieldName" />
+                    }
+                </Columns>
+            </DxGrid>
+
+            <div style="display:flex; justify-content:flex-end; gap:0.5rem;">
+                @if (OnAddRequested is not null)
+                {
+                    <DxButton Text="@L["New"].Value" IconCssClass="fas fa-plus"
+                              RenderStyle="ButtonRenderStyle.Secondary" Click="@OnPickerAddClick" />
+                }
+                <DxButton Text="@L["Select"].Value" RenderStyle="ButtonRenderStyle.Primary"
+                          Enabled="@(_pending is not null)" Click="@ConfirmAsync" />
+                <DxButton Text="@L["Cancel"].Value" RenderStyle="ButtonRenderStyle.Secondary"
+                          Click="@(() => _pickerVisible = false)" />
+            </div>
+        </div>
+    </BodyTemplate>
+</DxPopup>
+
+@code {
+    [Parameter, EditorRequired] public IEnumerable<TItem> Data { get; set; } = Array.Empty<TItem>();
+    [Parameter, EditorRequired] public string ValueFieldName { get; set; } = "";
+    [Parameter, EditorRequired] public string TextFieldName { get; set; } = "";
+
+    [Parameter] public TValue? Value { get; set; }
+    [Parameter] public EventCallback<TValue?> ValueChanged { get; set; }
+    /// <summary>@bind-Value direktifinden gelir; EditContext'e dirty bildirmek için FieldIdentifier kaynağı.</summary>
+    [Parameter] public Expression<Func<TValue?>>? ValueExpression { get; set; }
+
+    [Parameter] public bool ReadOnly { get; set; }
+    [Parameter] public bool Enabled { get; set; } = true;
+    [Parameter] public bool AllowClear { get; set; } = true;
+    [Parameter] public string? NullText { get; set; }
+
+    /// <summary>Picker popup başlığı (null → "Seç").</summary>
+    [Parameter] public string? Title { get; set; }
+    /// <summary>Grid kolonları (çok-kolon). null → TextFieldName tek kolon fallback. Plain DxGridDataColumn'lar.</summary>
+    [Parameter] public RenderFragment? Columns { get; set; }
+
+    /// <summary>Edit(✎) — seçili referansı düzenle (host popup/navigate). Boşsa gizli.</summary>
+    [Parameter] public Func<TValue, Task>? OnEditRequested { get; set; }
+    /// <summary>Add(+) — quick-add; host yeni referansı açar ve OLUŞAN değeri döndürür → seçilir + picker kapanır. Boşsa gizli.</summary>
+    [Parameter] public Func<Task<TValue?>>? OnAddRequested { get; set; }
+
+    [CascadingParameter] private EditContext? CascadedEditContext { get; set; }
+
+    private bool _pickerVisible;
+    private object? _pending;     // grid'de seçili (henüz onaylanmamış) satır
+    private DxGrid? _grid;
+
+    private PropertyInfo? _valueProp;
+    private PropertyInfo? _textProp;
+    private PropertyInfo ValueProp => _valueProp ??= typeof(TItem).GetProperty(ValueFieldName)!;
+    private PropertyInfo? TextPropOrNull => _textProp ??= typeof(TItem).GetProperty(TextFieldName);
+
+    private TValue? GetItemValue(TItem item) => ValueProp?.GetValue(item) is TValue v ? v : default;
+    private string GetItemText(TItem item) => TextPropOrNull?.GetValue(item)?.ToString() ?? "";
+
+    private bool _hasValue => !EqualityComparer<TValue>.Default.Equals(Value, default!);
+    private bool _isNullable => !typeof(TValue).IsValueType || Nullable.GetUnderlyingType(typeof(TValue)) is not null;
+
+    private bool ShowEditButton => OnEditRequested is not null && !ReadOnly && Enabled && _hasValue;
+    private bool ShowClearButton => !ReadOnly && Enabled && _isNullable && AllowClear && _hasValue;
+
+    private TItem? SelectedItem => _hasValue
+        ? Data.FirstOrDefault(i => i is not null && EqualityComparer<TValue>.Default.Equals(GetItemValue(i), Value))
+        : null;
+
+    private string? DisplayText
+    {
+        get
+        {
+            if (!_hasValue) return null;
+            var item = SelectedItem;
+            return item is not null ? GetItemText(item) : Value?.ToString();
+        }
+    }
+
+    private Task OnEditButtonClick(MouseEventArgs _)
+        => (OnEditRequested is not null && _hasValue) ? OnEditRequested(Value!) : Task.CompletedTask;
+
+    private Task OnClearButtonClick(MouseEventArgs _) => CommitValueAsync(default);
+
+    // ▼ → picker'ı aç; mevcut değeri pre-highlight et.
+    private Task OnPickerButtonClick(MouseEventArgs _)
+    {
+        _pending = SelectedItem;
+        _pickerVisible = true;
+        return Task.CompletedTask;
+    }
+
+    private void OnSelectedItemChanged(object? item) => _pending = item;
+
+    private async Task OnRowDoubleClick(GridRowClickEventArgs e)
+    {
+        if (e.Grid.GetDataItem(e.VisibleIndex) is TItem item)
+            await CommitValueAsync(GetItemValue(item));
+    }
+
+    private async Task ConfirmAsync()
+    {
+        if (_pending is TItem item)
+            await CommitValueAsync(GetItemValue(item));
+    }
+
+    // + → host quick-add; oluşan değer dönerse onu seç + picker'ı kapat.
+    private async Task OnPickerAddClick()
+    {
+        if (OnAddRequested is null) return;
+        var created = await OnAddRequested();
+        if (!EqualityComparer<TValue>.Default.Equals(created!, default!))
+            await CommitValueAsync(created);
+    }
+
+    private async Task CommitValueAsync(TValue? value)
+    {
+        _pickerVisible = false;
+        await ValueChanged.InvokeAsync(value);
+        if (CascadedEditContext is not null && ValueExpression is not null)
+            CascadedEditContext.NotifyFieldChanged(FieldIdentifier.Create(ValueExpression));
+    }
+}

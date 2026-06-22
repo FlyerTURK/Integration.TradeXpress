@@ -1,0 +1,50 @@
+@typeparam TValue where TValue : class
+@using System
+@using DevExpress.Blazor
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@*
+   Gömülü value-object alanı editörü (FK referansı DEĞİL; Address/ContactInfo gibi owned sub-object).
+   Salt-okunur özet (DisplayProjection) + ✎ butonu → OnEditClick (parent value-object'in alanlarını popup'ta düzenler).
+   Boş (EmptyPredicate) → placeholder. Dirty: parent edit popup'ı value-object'i mutasyonlar → form JSON snapshot yakalar.
+   DevExpress-native (ERPPROV3 pure-HTML yerine DxTextBox + DxEditorButton).
+*@
+<DxTextBox Text="@_displayText"
+           ReadOnly="true"
+           Enabled="@Enabled"
+           NullText="@_nullText"
+           ValidationEnabled="false"
+           CssClass="w-100">
+    <Buttons>
+        <DxEditorButton IconCssClass="fas fa-pen-to-square"
+                        Visible="@_canEdit"
+                        Click="@OnEditButtonClick"
+                        Tooltip="@_buttonTooltip" />
+    </Buttons>
+</DxTextBox>
+
+@code {
+    [Parameter] public TValue? Value { get; set; }
+    /// <summary>Parent value-object'i değiştirmek yerine REPLACE ederse (yeni instance) bunu kullanır; in-place
+    /// mutasyonda gerekmez (form snapshot dirty'i yakalar). Opsiyonel.</summary>
+    [Parameter] public EventCallback<TValue?> ValueChanged { get; set; }
+
+    /// <summary>Value-object'i özet metne çevirir (ör. Address → "İstanbul / Kadıköy …"). null → Value.ToString().</summary>
+    [Parameter] public Func<TValue, string?>? DisplayProjection { get; set; }
+    /// <summary>Value "boş" mu (ör. tüm alanlar boş). null → Value is null kontrolü.</summary>
+    [Parameter] public Func<TValue?, bool>? EmptyPredicate { get; set; }
+    /// <summary>Boş durumda gösterilen placeholder (default "—").</summary>
+    [Parameter] public string? PlaceholderText { get; set; }
+    [Parameter] public string? EditTooltip { get; set; }
+    [Parameter] public bool Enabled { get; set; } = true;
+    /// <summary>✎ tıklanınca — parent value-object'in alanlarını popup'ta düzenler. Boşsa ✎ görünmez.</summary>
+    [Parameter] public EventCallback OnEditClick { get; set; }
+
+    private bool _canEdit => Enabled && OnEditClick.HasDelegate;
+    private bool _isEmpty => EmptyPredicate is { } pred ? pred(Value) : Value is null;
+    private string _displayText => (_isEmpty || Value is null) ? "" : (DisplayProjection?.Invoke(Value) ?? Value.ToString() ?? "");
+    private string _nullText => string.IsNullOrEmpty(PlaceholderText) ? "—" : PlaceholderText;
+    private string _buttonTooltip => string.IsNullOrEmpty(EditTooltip) ? L["Edit"].Value : EditTooltip;
+
+    private Task OnEditButtonClick(MouseEventArgs _) => _canEdit ? OnEditClick.InvokeAsync() : Task.CompletedTask;
+}
