@@ -1,0 +1,50 @@
+@using Integration.TradeXpress.Countries
+@using Integration.Framework.Blazor.Client.Components.Crud
+@using DevExpress.Blazor
+@using Microsoft.Extensions.Localization
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@*
+   Country DUMB Layout — yalnız CountryGetDto'yu forma yansıtır/düzenler. I/O yok, karar yok, persistence yok.
+   Döviz combo verisi (referans) host'tan param (CurrencyCodes). IsNew → Kod kilidi.
+   EntityEditForm bunu ChildContent(Model) olarak çizer (her bağlamda aynı).
+*@
+
+<DxFormLayout CssClass="w-100">
+    <DxFormLayoutGroup Caption="@L["General"]" ColSpanMd="12">
+        <DxFormLayoutItem Caption="@($"{L["Code"]} *")" ColSpanMd="6">
+            <DxTextBox @bind-Text="@Model.Code" NullText="TR / US ..." Enabled="@IsNew" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="12">
+            <DxTextBox @bind-Text="@Model.Name" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem ColSpanMd="12">
+            <CaptionTemplate>
+                <InfoCaption Text="@L["BaseCurrency"].Value"
+                             HintText="@L["Country:DefaultCurrencyCodeHint"].Value"
+                             Required="true" />
+            </CaptionTemplate>
+            <Template>
+                <DxComboBox Data="@CurrencyCodes"
+                            @bind-Value="@Model.DefaultCurrencyCode"
+                            SearchMode="ListSearchMode.AutoSearch"
+                            SearchFilterCondition="ListSearchFilterCondition.Contains"
+                            NullText="@L["Select"]" CssClass="w-100" />
+            </Template>
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6">
+            <DxCheckBox @bind-Checked="@Model.IsActive" CheckType="CheckType.Switch">
+                @(Model.IsActive ? L["Active"] : L["Passive"])
+            </DxCheckBox>
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["DisplayOrder"]" ColSpanMd="6">
+            <NumericSpinEdit @bind-Value="@Model.DisplayOrder" />
+        </DxFormLayoutItem>
+    </DxFormLayoutGroup>
+</DxFormLayout>
+
+@code {
+    [Parameter, EditorRequired] public CountryGetDto Model { get; set; } = default!;
+    [Parameter] public bool IsNew { get; set; }
+    [Parameter] public List<string> CurrencyCodes { get; set; } = new();
+}

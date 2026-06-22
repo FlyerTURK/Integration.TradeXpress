@@ -23,12 +23,24 @@ public class CountryListDto : EntityDto<Guid>, IListDto<Guid>, IIsActive
 
 public class CountryGetDto : EntityDto<Guid>, IGetDto<Guid>
 {
+    // Client validasyonu modelin ÜZERİNDE (agnostic Form, LocalizedDataAnnotationsValidator ile doğrular).
+    // Server-input doğrulaması Create/Update DTO'larında kalır. Create/Update ile aynı kurallar.
+    [Required]
+    [StringLength(CountryConsts.CodeMaxLength, MinimumLength = 2)]
     public string Code { get; set; } = string.Empty;
+
+    [Required]
+    [StringLength(CountryConsts.NameMaxLength)]
     public string Name { get; set; } = string.Empty;
+
+    [Required]
     public string? DefaultCurrencyCode { get; set; }
+
     public bool IsActive { get; set; }
     public int DisplayOrder { get; set; }
     public bool IsGlobal { get; set; }
+
+    // NOT: PageIndex (IGetDto üyesi) rollout sonunda global kaldırılacak; yeni koordinatör yok sayar.
     public int PageIndex { get; set; }
 }
 

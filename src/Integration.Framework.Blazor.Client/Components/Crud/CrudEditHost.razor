@@ -1,0 +1,144 @@
+@typeparam TGetDto where TGetDto : class, Integration.Framework.Base.Dtos.Interfaces.IGetDto<TKey>, new()
+@typeparam TListDto where TListDto : class, Integration.Framework.Base.Dtos.Interfaces.IListDto<TKey>, new()
+@typeparam TKey
+@typeparam TListRequestDto where TListRequestDto : class, new()
+@using System
+@using System.Collections.Generic
+@using Integration.Framework.Blazor.Client.Services.Base
+@inherits CrudComponentBase
+@inject ITradeXpressUiService UiService
+
+@*
+   GENERIC edit host — persistence sahibi (ICommitCoordinator) + agnostic EntityEditForm sunumu.
+   Entity-spesifik her şey PARAMETRE: coordinator (sarmal kurar), Layout (ChildContent), defaults, ref'ler
+   sarmalda, header/değer/validasyon/readonly/silme callback'leri. Böylece entity başına yalnız İNCE bir
+   sarmal (AppService inject + coordinator + Layout + config) + Layout kalır. commit/save/delete/close TEK yerde.
+*@
+
+@if (_model != null)
+{
+    <EntityEditForm TGetDto="TGetDto" TListDto="TListDto" TKey="TKey"
+                    Model="@_model" IsNew="@_isNew"
+                    FormCaption="@FormCaption"
+                    EntityValue="@(EntityValue?.Invoke(_model))"
+                    ParentLabel="@ParentLabel"
+                    ParentValue="@(ParentValue?.Invoke(_model))"
+                    IconCssClass="@IconCssClass"
+                    CanDeleteRecord="@((CanDelete?.Invoke(_model) ?? true) && !_isNew)"
+                    IsReadOnly="@(IsReadOnly?.Invoke(_model) ?? false)"
+                    ReadOnlyNoticeText="@ReadOnlyNotice"
+                    Placement="@Placement"
+                    ValidateContext="@ValidateContext"
+                    OnCommit="CommitAsync"
+                    OnSaveAndNew="SaveAndNewAsync"
+                    OnSaveAndClose="SaveAndCloseAsync"
+                    OnClose="CloseAsync"
+                    OnDelete="DeleteAsync">
+        @ChildContent(context)
+    </EntityEditForm>
+}
+
+@code {
+    // ── Sarmaldan gelen ──
+    /// <summary>Persistence sınırı — sarmal concrete AppService ile kurar (kapalı generic DI'dan çözülmez).</summary>
+    [Parameter, EditorRequired] public ICommitCoordinator<TGetDto, TListDto, TKey, TListRequestDto> Coordinator { get; set; } = default!;
+    /// <summary>Dumb Layout (GetDto'yu forma yansıtır).</summary>
+    [Parameter, EditorRequired] public RenderFragment<TGetDto> ChildContent { get; set; } = default!;
+
+    /// <summary>Düzenlenecek kayıt; boş/default → yeni kayıt. (Unconstrained TKey'de nullable kullanılamaz —
+    /// sarmal Guid?'yi <c>?? Guid.Empty</c> ile unwrap edip verir.)</summary>
+    [Parameter] public TKey Id { get; set; } = default!;
+    [Parameter] public bool IsPopupMode { get; set; }
+    [Parameter] public EventCallback OnSaved { get; set; }
+    [Parameter] public EventCallback OnClosed { get; set; }
+
+    // Header (yapısal 3-satır)
+    [Parameter] public string? FormCaption { get; set; }
+    [Parameter] public string? IconCssClass { get; set; }
+    [Parameter] public string? ParentLabel { get; set; }
+    [Parameter] public Func<TGetDto, string?>? EntityValue { get; set; }
+    [Parameter] public Func<TGetDto, string?>? ParentValue { get; set; }
+
+    /// <summary>Yeni kayıt fabrikası: NewModel sonrası bağlam default'larını uygula (IsActive=true, parent FK vb.).</summary>
+    [Parameter] public Action<TGetDto>? ApplyNewDefaults { get; set; }
+    /// <summary>Silinebilir mi (model'e göre; ör. !IsDefault). Yeni kayıtta zaten kapalı.</summary>
+    [Parameter] public Func<TGetDto, bool>? CanDelete { get; set; }
+    /// <summary>Salt-okunur mu (ör. tenant'ta global kayıt).</summary>
+    [Parameter] public Func<TGetDto, bool>? IsReadOnly { get; set; }
+    [Parameter] public string? ReadOnlyNotice { get; set; }
+    /// <summary>Bağlamsal validasyon (model attribute'larına EK; ör. Guid FK boş değil).</summary>
+    [Parameter] public Func<TGetDto, IReadOnlyList<KeyValuePair<string, string>>>? ValidateContext { get; set; }
+    [Parameter] public ToolbarPlacement Placement { get; set; } = ToolbarPlacement.Top;
+
+    private TGetDto? _model;
+    private bool _isNew = true;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        if (!IsEmptyKey(Id))
+        {
+            _model = await Coordinator.GetForEditAsync(Id);
+            _isNew = false;
+        }
+        else
+        {
+            _model = NewModel();
+            _isNew = true;
+        }
+    }
+
+    private TGetDto NewModel()
+    {
+        var m = Coordinator.NewModel();
+        ApplyNewDefaults?.Invoke(m);
+        return m;
+    }
+
+    private async Task CommitAsync(TGetDto m)
+    {
+        try
+        {
+            _model = await Coordinator.CommitAsync(m);   // taze model → rebind (* gider)
+            _isNew = false;
+            UiService.ShowSuccessToast(L["SuccessfullySaved"].Value);
+            await OnSaved.InvokeAsync();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            UiService.ShowErrorToast(ex.Message);        // form açık + dirty kalır
+        }
+    }
+
+    private Task SaveAndNewAsync()   // commit zaten OnCommit'te oldu → yeni boş forma geç
+    {
+        _model = NewModel();
+        _isNew = true;
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+    private Task SaveAndCloseAsync() => CloseAsync();   // commit zaten oldu
+
+    private async Task DeleteAsync()
+    {
+        if (_isNew || _model == null) return;   // onay EntityEditForm'da soruldu
+        try
+        {
+            await Coordinator.DeleteAsync(_model.Id);
+            UiService.ShowSuccessToast(L["SuccessfullyDeleted"].Value);
+            await OnSaved.InvokeAsync();
+            await CloseAsync();
+        }
+        catch (Exception ex)
+        {
+            UiService.ShowErrorToast(ex.Message);
+        }
+    }
+
+    private Task CloseAsync() => OnClosed.InvokeAsync();
+
+    private static bool IsEmptyKey(TKey key) => EqualityComparer<TKey>.Default.Equals(key, default!);
+}

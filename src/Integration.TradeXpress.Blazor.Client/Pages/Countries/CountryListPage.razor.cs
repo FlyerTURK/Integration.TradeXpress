@@ -21,7 +21,8 @@ public partial class CountryListPage
 
     protected override string PermissionPrefix => TradeXpressPermissions.Countries.Default;
 
-        public override System.Type EditComponentType => typeof(Integration.TradeXpress.Blazor.Client.Pages.Countries.CountryEditPage);
+        // YENİ mimari: agnostic EntityEditForm + PersistentCoordinator (eski CountryEditPage repo'da kalır).
+        public override System.Type EditComponentType => typeof(Integration.TradeXpress.Blazor.Client.Pages.Countries.CountryEditHost);
     }
 
 
