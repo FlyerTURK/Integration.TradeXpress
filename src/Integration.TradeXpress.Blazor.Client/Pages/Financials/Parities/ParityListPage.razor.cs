@@ -25,10 +25,11 @@ public partial class ParityListPage
 
     protected override string PermissionPrefix => TradeXpressPermissions.Parities.Default;
 
-    // Edit'i popup yerine MDI sekmesinde aç (route'lu ParityEditPage + IMdiTabOpener üzerinden).
+    // Edit'i popup yerine MDI sekmesinde aç (route'lu ParityEditHost + IMdiTabOpener üzerinden).
     protected override EditOpenTarget EditOpenTarget => EditOpenTarget.MdiTab;
 
-    public override Type EditComponentType => typeof(ParityEditPage);
+    // YENİ mimari: agnostic EntityEditForm + PersistentCoordinator (eski ParityEditPage kaldırıldı).
+    public override Type EditComponentType => typeof(ParityEditHost);
 
     // Tenant, global (host) pariteyi silemez — server zaten reddeder; bu erken/anlaşılır UX bloğu.
     public override async Task DeleteAsync()

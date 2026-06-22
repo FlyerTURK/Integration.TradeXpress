@@ -1,0 +1,51 @@
+@using System
+@using System.Linq
+@using System.Collections.Generic
+@using Integration.TradeXpress.Financials.Parities
+@using Integration.TradeXpress.Financials.CurrencyUnits
+@using Integration.Framework.Blazor.Client.Components.Crud
+@using DevExpress.Blazor
+@using Microsoft.Extensions.Localization
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@*
+   Parity DUMB Layout — ParityGetDto'yu forma yansıtır. I/O yok (döviz adayları host'tan param).
+   Base/Quote ÇİFTİ immutable (entity) → yalnız yeni kayıtta seçilir (Enabled=IsNew); edit'te devre dışı.
+   Base ↔ Quote karşılıklı dışlanır (bir birim hem baz hem karşı olamaz). LookupComboBox + currency lookup cache.
+*@
+<DxFormLayout CssClass="w-100">
+    <DxFormLayoutItem Caption="@($"{L["Base"]} *")" ColSpanMd="6">
+        <LookupComboBox TItem="CurrencyUnitListDto" TValue="Guid"
+                        Data="@Currencies.Where(c => c.Id != Model.QuoteCurrencyUnitId)"
+                        ValueFieldName="@nameof(CurrencyUnitListDto.Id)"
+                        TextFieldName="@nameof(CurrencyUnitListDto.Code)"
+                        @bind-Value="@Model.BaseCurrencyUnitId"
+                        Enabled="@IsNew"
+                        NullText="@L["Select"].Value" />
+    </DxFormLayoutItem>
+    <DxFormLayoutItem Caption="@($"{L["Quote"]} *")" ColSpanMd="6">
+        <LookupComboBox TItem="CurrencyUnitListDto" TValue="Guid"
+                        Data="@Currencies.Where(c => c.Id != Model.BaseCurrencyUnitId)"
+                        ValueFieldName="@nameof(CurrencyUnitListDto.Id)"
+                        TextFieldName="@nameof(CurrencyUnitListDto.Code)"
+                        @bind-Value="@Model.QuoteCurrencyUnitId"
+                        Enabled="@IsNew"
+                        NullText="@L["Select"].Value" />
+    </DxFormLayoutItem>
+
+    <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6">
+        <DxCheckBox @bind-Checked="@Model.IsActive" CheckType="CheckType.Switch">
+            @(Model.IsActive ? L["Active"] : L["Passive"])
+        </DxCheckBox>
+    </DxFormLayoutItem>
+    <DxFormLayoutItem Caption="@L["DisplayOrder"]" ColSpanMd="6">
+        <NumericSpinEdit @bind-Value="@Model.DisplayOrder" />
+    </DxFormLayoutItem>
+</DxFormLayout>
+
+@code {
+    [Parameter, EditorRequired] public ParityGetDto Model { get; set; } = default!;
+    [Parameter] public bool IsNew { get; set; }
+    /// <summary>Döviz lookup verisi (read-koordinatörden; host doldurur). Dumb layout I/O yapmaz.</summary>
+    [Parameter] public IReadOnlyList<CurrencyUnitListDto> Currencies { get; set; } = Array.Empty<CurrencyUnitListDto>();
+}
