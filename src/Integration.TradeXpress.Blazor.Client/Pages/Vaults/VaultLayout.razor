@@ -27,7 +27,9 @@
                              Required="false" />
             </CaptionTemplate>
             <Template>
-                <DxCheckBox @bind-Checked="@Model.IsDefault" CheckType="CheckType.Switch">
+                @* IsDefaultEnabled: drill bağlamında "tek varsayılan kapatılamaz" kuralı (host geçirir);
+                   standalone'da default true. *@
+                <DxCheckBox @bind-Checked="@Model.IsDefault" CheckType="CheckType.Switch" Enabled="@IsDefaultEnabled">
                     @(Model.IsDefault ? L["Yes"] : L["No"])
                 </DxCheckBox>
             </Template>
@@ -49,4 +51,6 @@
 @code {
     [Parameter, EditorRequired] public VaultGetDto Model { get; set; } = default!;
     [Parameter] public bool IsNew { get; set; }
+    /// <summary>IsDefault switch'i etkin mi? Drill'de "tek varsayılan kapatılamaz" için host false geçirir.</summary>
+    [Parameter] public bool IsDefaultEnabled { get; set; } = true;
 }

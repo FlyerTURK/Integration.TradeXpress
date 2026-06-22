@@ -94,26 +94,19 @@ public class VaultUpdateDto : IUpdateDto
 
 /// <summary>
 /// Branch grafının kasa DÜĞÜMÜ — yalnız in-memory drill + Branch save'i içindir (kendi app servisi YOK;
-/// standalone Vault CRUD ayrı: <see cref="VaultGetDto"/>/<see cref="VaultCreateDto"/>/<see cref="VaultUpdateDto"/>).
-/// Durum = <see cref="Id"/> + <see cref="IsDeleted"/>: Id boş → ekle, IsDeleted → sil, aksi → güncelle.
+/// standalone Vault CRUD ayrı: <see cref="VaultCreateDto"/>/<see cref="VaultUpdateDto"/>).
+/// <see cref="VaultGetDto"/>'dan TÜRER → alanlar + validasyon attribute'ları TEK KAYNAK (drill, standalone'la
+/// aynı VaultLayout'u ve aynı kuralları kullanır; mapping yok). Graf durumu eklenir: ClientKey + IsDeleted.
+/// Durum = <see cref="Volo.Abp.Application.Dtos.EntityDto{TKey}.Id"/> + <see cref="IsDeleted"/>:
+/// Id boş → ekle, IsDeleted → sil, aksi → güncelle. (BranchId/BranchCode/PageIndex miras gelir; graf save
+/// parent branch.Id'yi kullanır, bunlara dokunmaz.)
 /// </summary>
-public class VaultGraphDto : EntityDto<Guid>
+public class VaultGraphDto : VaultGetDto
 {
+    // Graf düğümü varsayılan AKTİF (eski field default'u koru → tüm `new VaultGraphDto` siteleri aktif gelir;
+    // explicit initializer / DB reconstruction ezer). VaultGetDto.IsActive default false olduğundan ctor'da set.
+    public VaultGraphDto() => IsActive = true;
+
     public Guid ClientKey { get; set; } = Guid.NewGuid();
     public bool IsDeleted { get; set; }
-
-    [Required]
-    [StringLength(VaultConsts.CodeMaxLength)]
-    public string Code { get; set; } = string.Empty;
-
-    [Required]
-    [StringLength(VaultConsts.NameMaxLength)]
-    public string Name { get; set; } = string.Empty;
-
-    public bool IsDefault { get; set; }
-    public bool IsActive { get; set; } = true;
-    public int DisplayOrder { get; set; }
-
-    [StringLength(VaultConsts.DescriptionMaxLength)]
-    public string? Description { get; set; }
 }

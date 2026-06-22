@@ -3,6 +3,7 @@
 @using Integration.TradeXpress.Companies
 @using Integration.TradeXpress.Branches
 @using Integration.TradeXpress.Vaults
+@using Integration.TradeXpress.Blazor.Client.Pages.Vaults
 @using Integration.Framework.Blazor.Client.Components.Crud
 @using Integration.TradeXpress.Blazor.Client.Components.Shared
 @using DevExpress.Blazor
@@ -101,14 +102,8 @@
                         <DxGridDataColumn FieldName="DisplayOrder" Caption="@L["DisplayOrder"]" Width="90px" />
                     </GridColumns>
                     <EditContent Context="v">
-                        <DxFormLayout CssClass="w-100">
-                            <DxFormLayoutItem Caption="@($"{L["Code"]} *")" ColSpanMd="6"><DxTextBox @bind-Text="v.Code" /></DxFormLayoutItem>
-                            <DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="12"><DxTextBox @bind-Text="v.Name" /></DxFormLayoutItem>
-                            <DxFormLayoutItem Caption="@L["IsDefault"]" ColSpanMd="6"><DxCheckBox @bind-Checked="v.IsDefault" CheckType="CheckType.Switch" Enabled="@(!IsVaultSoleDefault(b, v))" /></DxFormLayoutItem>
-                            <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6"><DxCheckBox @bind-Checked="v.IsActive" CheckType="CheckType.Switch" /></DxFormLayoutItem>
-                            <DxFormLayoutItem Caption="@L["Description"]" ColSpanMd="12"><DxMemo @bind-Text="v.Description" Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100" /></DxFormLayoutItem>
-                            <DxFormLayoutItem Caption="@L["DisplayOrder"]" ColSpanMd="6"><NumericSpinEdit @bind-Value="v.DisplayOrder" /></DxFormLayoutItem>
-                        </DxFormLayout>
+                        @* DRY: standalone + BranchEditPage ile AYNI dumb layout. Tek varsayılan kapatılamaz. *@
+                        <VaultLayout Model="@v" IsNew="@(v.Id == Guid.Empty)" IsDefaultEnabled="@(!IsVaultSoleDefault(b, v))" />
                     </EditContent>
                 </DrillList>
             </div>
