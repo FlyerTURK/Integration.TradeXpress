@@ -3,6 +3,7 @@
 @typeparam TKey
 
 @using Integration.Framework.Blazor.Client.Services.Base
+@using Integration.Framework.Blazor.Client.Services.Mdi
 @using DevExpress.Blazor
 @inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
 @implements IDisposable
@@ -91,9 +92,15 @@
     /// <summary>MainLayout JS viewport ölçümünden cascade eder. Mobilde split kapanır, tek panel olur.</summary>
     [CascadingParameter(Name = "IsMobile")] public bool IsMobile { get; set; }
 
+    /// <summary>Bu split'i barındıran MDI sekmesi. Sekme kapatma (X) → açık edit dirty ise onay sor.</summary>
+    [CascadingParameter(Name = "CurrentMdiTab")] public IMdiTab? CurrentMdiTab { get; set; }
+
     protected override void OnInitialized()
     {
         _session.SelectionChanged += OnSelectionChanged;
+        // Sekme kapatma guard'ı: embedded edit kendi kurmuyor (IsEmbedded), split'in tek geçiş kapısı buradan.
+        if (CurrentMdiTab != null)
+            CurrentMdiTab.CanCloseAsync = GuardLeaveAsync;
     }
 
     private void OnSelectionChanged() => InvokeAsync(StateHasChanged);
@@ -241,5 +248,7 @@
     public void Dispose()
     {
         _session.SelectionChanged -= OnSelectionChanged;
+        if (CurrentMdiTab is { } tab && tab.CanCloseAsync == GuardLeaveAsync)
+            tab.CanCloseAsync = null;
     }
 }

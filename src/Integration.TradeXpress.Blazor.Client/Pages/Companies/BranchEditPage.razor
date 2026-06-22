@@ -1,4 +1,7 @@
+@using System
+@using System.Linq
 @using Integration.TradeXpress.Branches
+@using Integration.TradeXpress.Vaults
 @using Integration.Framework.Blazor.Client.Components.Crud
 @using Integration.TradeXpress.Blazor.Client.Services.Mdi
 @using DevExpress.Blazor
@@ -18,15 +21,12 @@
     private RenderFragment RenderForm() => @<text>
 <DxFormLayout CssClass="w-100">
     <DxFormLayoutGroup Caption="@L["General"]" ColSpanMd="12">
-        @* 1. Kod — yarım satır *@
         <DxFormLayoutItem Caption="@($"{L["Code"]} *")" ColSpanMd="6">
             <DxTextBox @bind-Text="@EditModel.Code" @ref="_codeBox" Enabled="@IsNewMode" />
         </DxFormLayoutItem>
-        @* 2. Adı — tam satır *@
         <DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="12">
             <DxTextBox @bind-Text="@EditModel.Name" />
         </DxFormLayoutItem>
-        @* Ara: Merkez — yarım satır (yalnız) *@
         <DxFormLayoutItem ColSpanMd="6">
             <CaptionTemplate>
                 <InfoCaption Text="@L["IsHeadquarters"].Value"
@@ -34,18 +34,18 @@
                              Required="false" />
             </CaptionTemplate>
             <Template>
-                <DxCheckBox @bind-Checked="@EditModel.IsHeadquarters" CheckType="CheckType.Switch">
+                @* Merkez şube ise switch kapalı: şirketin tek merkez şubesini false'a çekmesin (devir = başka şubeyi merkez yapmak). *@
+                <DxCheckBox @bind-Checked="@EditModel.IsHeadquarters" CheckType="CheckType.Switch"
+                            Enabled="@(!_originalBranchWasHq)">
                     @(EditModel.IsHeadquarters ? L["Yes"] : L["No"])
                 </DxCheckBox>
             </Template>
         </DxFormLayoutItem>
     </DxFormLayoutGroup>
 
-    @* Sondan bir önceki: Açıklama — tam satır, DxMemo 2 satır, resize kapalı *@
     <DxFormLayoutItem Caption="@L["Description"]" ColSpanMd="12">
         <DxMemo @bind-Text="@EditModel.Description" Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100" />
     </DxFormLayoutItem>
-    @* Son satır: Durum (Status) yarım + Sıra (DisplayOrder) yarım *@
     <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6">
         <DxCheckBox @bind-Checked="@EditModel.IsActive" CheckType="CheckType.Switch">
             @(EditModel.IsActive ? L["Active"] : L["Passive"])
@@ -55,6 +55,53 @@
         <NumericSpinEdit @bind-Value="@EditModel.DisplayOrder" />
     </DxFormLayoutItem>
 </DxFormLayout>
+
+@* Kasalar — in-memory graf (soft-delete: silinen satır IsDeleted kalır, grid'de gizlenir, Branch save'inde VaultAppService'e gider). *@
+<div class="mt-3">
+    <DrillList TItem="VaultGraphDto"
+               Title="@L["Menu:Vaults"]"
+               EntityName="@L["Entity:Vault"]"
+               Items="EditModel.Vaults"
+               KeyFieldName="ClientKey"
+               PrimaryTextSelector="@(v => v.Code)"
+               NewItemFactory="@NewVault"
+               CloneFactory="@CloneVault"
+               MinItems="1"
+               SoftDelete="true"
+               IsNewItem="@(v => v.Id == Guid.Empty)"
+               MarkDeleted="@(v => v.IsDeleted = true)"
+               FilterPredicate="@(v => !v.IsDeleted)"
+               DeleteGuard="@(v => VaultDeleteGuard(v))"
+               OnSelectionChanged="OnVaultSelected"
+               OnItemSaved="OnVaultSaved"
+               OnChanged="NotifyDirtyChanged">
+        <ToolbarActions>
+            <DxButton Text="@L["MakeDefaultVault"]"
+                      RenderStyle="ButtonRenderStyle.Link"
+                      IconCssClass="fas fa-star"
+                      Click="MakeSelectedDefault"
+                      Enabled="@(_selectedVault is { IsDeleted: false, IsDefault: false })" />
+        </ToolbarActions>
+        <GridColumns>
+            <DxGridDataColumn FieldName="Code" Caption="@L["Code"]" Width="120px" />
+            <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" />
+            <DxGridDataColumn FieldName="IsDefault" Caption="@L["IsDefault"]" Width="90px" TextAlignment="GridTextAlignment.Left">
+                <CellDisplayTemplate Context="cell">@(((VaultGraphDto)cell.DataItem).IsDefault ? L["Yes"].Value : "")</CellDisplayTemplate>
+            </DxGridDataColumn>
+            <DxGridDataColumn FieldName="DisplayOrder" Caption="@L["DisplayOrder"]" Width="90px" />
+        </GridColumns>
+        <EditContent Context="v">
+            <DxFormLayout CssClass="w-100">
+                <DxFormLayoutItem Caption="@($"{L["Code"]} *")" ColSpanMd="6"><DxTextBox @bind-Text="v.Code" /></DxFormLayoutItem>
+                <DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="12"><DxTextBox @bind-Text="v.Name" /></DxFormLayoutItem>
+                <DxFormLayoutItem Caption="@L["IsDefault"]" ColSpanMd="6"><DxCheckBox @bind-Checked="v.IsDefault" CheckType="CheckType.Switch" Enabled="@(!IsVaultSoleDefault(v))" /></DxFormLayoutItem>
+                <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6"><DxCheckBox @bind-Checked="v.IsActive" CheckType="CheckType.Switch" /></DxFormLayoutItem>
+                <DxFormLayoutItem Caption="@L["Description"]" ColSpanMd="12"><DxMemo @bind-Text="v.Description" Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100" /></DxFormLayoutItem>
+                <DxFormLayoutItem Caption="@L["DisplayOrder"]" ColSpanMd="6"><NumericSpinEdit @bind-Value="v.DisplayOrder" /></DxFormLayoutItem>
+            </DxFormLayout>
+        </EditContent>
+    </DrillList>
+</div>
 </text>;
 
     protected override Volo.Abp.Application.Services.ICrudAppService<
@@ -66,13 +113,82 @@
 
     [Parameter] public Guid? CompanyId { get; set; }
 
+    // Yeni şube: parent şirket + görünür varsayılan kasa (snapshot ÖNCESİ → IsDirty tetiklemez).
     protected override Task OnModelCreatedAsync(BranchGetDto model)
     {
         if (CompanyId.HasValue)
-        {
             model.CompanyId = CompanyId.Value;
-        }
-        return base.OnModelCreatedAsync(model);
+
+        model.Vaults.Add(new VaultGraphDto
+        {
+            Code = VaultConsts.DefaultCode,
+            Name = VaultConsts.DefaultName,
+            IsDefault = true,
+            DisplayOrder = 1,
+        });
+        return Task.CompletedTask;
+    }
+
+    // Branch (kök entity) merkez switch'i: form içinde devir yok → orijinal (yüklenen) durum yeter.
+    private bool _originalBranchWasHq;
+
+    protected override Task OnModelLoadedAsync(BranchGetDto model)
+    {
+        _originalBranchWasHq = EditModel.IsHeadquarters;
+        return Task.CompletedTask;
+    }
+
+    public override async Task<bool> SaveAsync()
+    {
+        var ok = await base.SaveAsync();
+        if (ok) _originalBranchWasHq = EditModel.IsHeadquarters;
+        return ok;
+    }
+
+    private static VaultGraphDto NewVault() => new() { IsActive = true, DisplayOrder = 1 };
+
+    private static VaultGraphDto CloneVault(VaultGraphDto v) => new()
+    {
+        Id = v.Id,
+        ClientKey = v.ClientKey,
+        IsDeleted = v.IsDeleted,
+        Code = v.Code,
+        Name = v.Name,
+        IsDefault = v.IsDefault,
+        IsActive = v.IsActive,
+        DisplayOrder = v.DisplayOrder,
+        Description = v.Description,
+    };
+
+    private VaultGraphDto? _selectedVault;
+
+    private void OnVaultSelected(VaultGraphDto? v) => _selectedVault = v;
+
+    // Tekil-bayrak devri: kaydedilen kasa varsayılan ise diğer (silinmemiş) kasaların varsayılanını düşür.
+    private void OnVaultSaved(VaultGraphDto saved)
+    {
+        if (!saved.IsDefault) return;
+        foreach (var v in EditModel.Vaults)
+            if (!ReferenceEquals(v, saved) && !v.IsDeleted)
+                v.IsDefault = false;
+    }
+
+    // Tek varsayılan kasa mı? KENDİSİ (ClientKey) hariç başka varsayılan yoksa tektir → silinemez + switch kapalı.
+    // Self-hariç: kendi toggle'ı anında kilitlenmez, devir sonrası eski varsayılan tekrar açılabilir.
+    private bool IsVaultSoleDefault(VaultGraphDto v)
+        => v.IsDefault && !EditModel.Vaults.Any(x => x.ClientKey != v.ClientKey && !x.IsDeleted && x.IsDefault);
+
+    private string? VaultDeleteGuard(VaultGraphDto v)
+        => IsVaultSoleDefault(v) ? L["CannotDeleteDefaultVault"].Value : null;
+
+    // Seçili kasayı varsayılan yap (diğerlerini düşür) — in-memory; save'de VaultAppService normalize eder.
+    private void MakeSelectedDefault()
+    {
+        if (_selectedVault is null || _selectedVault.IsDeleted) return;
+        foreach (var v in EditModel.Vaults)
+            v.IsDefault = false;
+        _selectedVault.IsDefault = true;
+        NotifyDirtyChanged();
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -85,7 +201,7 @@
     {
         if (!IsPopupMode && CurrentMdiTab != null)
         {
-            TabManager.Close(CurrentMdiTab.Id);
+            await TabManager.TryCloseAsync(CurrentMdiTab.Id);
         }
         else
         {
@@ -93,7 +209,3 @@
         }
     }
 }
-
-
-
-

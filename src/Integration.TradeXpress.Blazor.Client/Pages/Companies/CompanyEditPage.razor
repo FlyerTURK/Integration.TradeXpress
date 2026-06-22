@@ -1,8 +1,12 @@
+@using System
+@using System.Linq
 @using Integration.TradeXpress.Companies
 @using Integration.TradeXpress.Countries
+@using Integration.TradeXpress.Branches
+@using Integration.TradeXpress.Vaults
 @using Integration.TradeXpress.Financials.CurrencyUnits
-@using Integration.TradeXpress.Financials.Parities
 @using Integration.Framework.Blazor.Client.Components.Crud
+@using Integration.TradeXpress.Blazor.Client.Components.Crud
 @using Integration.TradeXpress.Blazor.Client.Services.Mdi
 @using DevExpress.Blazor
 @using Microsoft.Extensions.Localization
@@ -16,115 +20,70 @@
 
 <CrudEditShell TGetDto="CompanyGetDto" TListDto="CompanyListDto" TKey="Guid"
                IsPopupMode="@IsPopupMode" EditContext="@EditContext" EditController="@this">
-    @RenderForm()
+    @* Paylaşılan şirket formu (TenantEditPage de aynı bileşenleri kullanır). Şirketin kendi merkez
+       switch'i standalone'da snapshot-temelli (form içinde devir yok). *@
+    <CompanyEditFields Model="@EditModel" Units="@Units" Countries="@Countries"
+                       HeadquartersEnabled="@(!_originalCompanyWasHq)" CodeEnabled="@IsNewMode" />
+    <CompanyBranchDrill Model="@EditModel" OnChanged="NotifyDirtyChanged" />
 </CrudEditShell>
 
 @code {
-    private RenderFragment RenderForm() => @<text>
-<DxFormLayout CssClass="w-100">
-    <DxFormLayoutGroup Caption="@L["General"]" ColSpanMd="12">
-        @* 1. Kod — yarım satır *@
-        <DxFormLayoutItem Caption="@($"{L["Code"]} *")" ColSpanMd="6">
-            <DxTextBox @bind-Text="@EditModel.Code" Enabled="@IsNewMode" />
-        </DxFormLayoutItem>
-        @* 2. Adı — tam satır *@
-        <DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="12">
-            <DxTextBox @bind-Text="@EditModel.Name" @ref="_nameBox" />
-        </DxFormLayoutItem>
-        @* 3. Ülke — yarım satır *@
-        <DxFormLayoutItem Caption="@($"{L["Country"]} *")" ColSpanMd="6">
-            <DxComboBox Data="@Countries" Value="@EditModel.CountryCode"
-                        ValueFieldName="@nameof(CountryListDto.Code)"
-                        TextFieldName="@nameof(CountryListDto.Code)"
-                        ValueChanged="@((string code) => OnCountryChanged(code))"
-                        ValidationEnabled="false"
-                        NullText="@L["Country"]"
-                        CssClass="w-100" />
-        </DxFormLayoutItem>
-        @* 4. Değerleme Para Birimi — yarım satır *@
-        <DxFormLayoutItem ColSpanMd="6" CaptionFor="baseCcy">
-            <CaptionTemplate>
-                <InfoCaption Text="@L["Yerel Para Birimi"].Value"
-                             HintText="@L["Company:BaseCurrencyCodeHint"].Value"
-                             Required="true" />
-            </CaptionTemplate>
-            <Template>
-                <DxComboBox Data="@Units" @bind-Value="@EditModel.BaseCurrencyUnitId"
-                            ValueFieldName="@nameof(CurrencyUnitListDto.Id)"
-                            TextFieldName="@nameof(CurrencyUnitListDto.Code)"
-                            ValidationEnabled="false"
-                            InputId="baseCcy"
-                            CssClass="w-100" />
-            </Template>
-        </DxFormLayoutItem>
-        @* Ara: Merkez — yarım satır (yalnız) *@
-        <DxFormLayoutItem Caption="@L["IsHeadquarters"]" ColSpanMd="6">
-            <DxCheckBox @bind-Checked="@EditModel.IsHeadquarters" CheckType="CheckType.Switch">
-                @(EditModel.IsHeadquarters ? L["Yes"] : L["No"])
-            </DxCheckBox>
-        </DxFormLayoutItem>
-    </DxFormLayoutGroup>
-
-    @* Sondan bir önceki: Açıklama — tam satır, DxMemo 2 satır, resize kapalı *@
-    <DxFormLayoutItem Caption="@L["Description"]" ColSpanMd="12">
-        <DxMemo @bind-Text="@EditModel.Description" Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100" />
-    </DxFormLayoutItem>
-    @* Son satır: Durum (Status) yarım + Sıra (DisplayOrder) yarım *@
-    <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6">
-        <DxCheckBox @bind-Checked="@EditModel.IsActive" CheckType="CheckType.Switch">
-            @(EditModel.IsActive ? L["Active"] : L["Passive"])
-        </DxCheckBox>
-    </DxFormLayoutItem>
-    <DxFormLayoutItem Caption="@L["DisplayOrder"]" ColSpanMd="6">
-        <NumericSpinEdit @bind-Value="@EditModel.DisplayOrder" />
-    </DxFormLayoutItem>
-</DxFormLayout>
-</text>;
-
     protected override Volo.Abp.Application.Services.ICrudAppService<
         CompanyGetDto, CompanyListDto, Guid, CompanyListRequestDto, CompanyCreateDto, CompanyUpdateDto> CrudAppService => CompanyAppService;
 
     protected override string EntityChangeKey => "Companies";
 
-    private DxTextBox? _nameBox;
     public List<CurrencyUnitListDto> Units { get; set; } = new();
     public List<CountryListDto> Countries { get; set; } = new();
+
+    private bool _originalCompanyWasHq;
 
     public override async Task LoadDataAsync()
     {
         await base.LoadDataAsync();
         var currenciesTask = CurrencyAppService.GetListAsync(new CurrencyUnitListRequestDto { MaxResultCount = 1000 });
         var countriesTask = CountryAppService.GetListAsync(new CountryListRequestDto { MaxResultCount = 1000 });
-        
         await Task.WhenAll(currenciesTask, countriesTask);
-        
         Units = (await currenciesTask).Items.ToList();
         Countries = (await countriesTask).Items.ToList();
+        _originalCompanyWasHq = EditModel.IsHeadquarters;
     }
 
-    protected override async Task OnAfterRenderAsync(bool firstRender)
+    public override async Task<bool> SaveAsync()
     {
-        if (firstRender && IsNewMode && _nameBox != null)
-            await _nameBox.FocusAsync();
+        var ok = await base.SaveAsync();
+        if (ok) _originalCompanyWasHq = EditModel.IsHeadquarters;
+        return ok;
     }
 
-    private void OnCountryChanged(string code)
+    // Yeni şirket: görünür varsayılan HQ şube + onun varsayılan kasası (snapshot ÖNCESİ → IsDirty tetiklemez).
+    protected override Task OnModelCreatedAsync(CompanyGetDto model)
     {
-        EditModel.CountryCode = code;
-        var country = Countries.FirstOrDefault(c => c.Code == code);
-        if (country?.DefaultCurrencyCode is { Length: > 0 } ccy)
+        model.Branches.Add(new BranchGraphDto
         {
-            var unit = Units.FirstOrDefault(u => string.Equals(u.Code, ccy, StringComparison.OrdinalIgnoreCase));
-            if (unit != null)
-                EditModel.BaseCurrencyUnitId = unit.Id;
-        }
+            Code = BranchConsts.DefaultHeadquartersCode,
+            Name = BranchConsts.DefaultHeadquartersName,
+            IsHeadquarters = true,
+            DisplayOrder = 1,
+            Vaults =
+            {
+                new VaultGraphDto
+                {
+                    Code = VaultConsts.DefaultCode,
+                    Name = VaultConsts.DefaultName,
+                    IsDefault = true,
+                    DisplayOrder = 1,
+                },
+            },
+        });
+        return Task.CompletedTask;
     }
 
     public override async Task CloseAsync()
     {
         if (!IsPopupMode && CurrentMdiTab != null)
         {
-            TabManager.Close(CurrentMdiTab.Id);
+            await TabManager.TryCloseAsync(CurrentMdiTab.Id);
         }
         else
         {
@@ -132,6 +91,3 @@
         }
     }
 }
-
-
-

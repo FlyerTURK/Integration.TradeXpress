@@ -1,7 +1,9 @@
 using System;
+using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using Integration.Framework.Base.Dtos;
 using Integration.Framework.Base.Dtos.Interfaces;
+using Integration.TradeXpress.Branches;
 using Volo.Abp.Application.Dtos;
 
 namespace Integration.TradeXpress.Companies;
@@ -23,7 +25,7 @@ public class CompanyListDto : EntityDto<Guid>, IListDto<Guid>, IIsActive
     public int DisplayOrder { get; set; }
 }
 
-public class CompanyGetDto : EntityDto<Guid>, IGetDto<Guid>
+public class CompanyGetDto : EntityDto<Guid>, IGetDto<Guid>, ICompanyGraph
 {
     public string Code { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
@@ -35,7 +37,44 @@ public class CompanyGetDto : EntityDto<Guid>, IGetDto<Guid>
     public int DisplayOrder { get; set; }
     public string? Description { get; set; }
 
+    // Sahip olunan şubeler (graf düğümleri; durum = Id + IsDeleted). Edit formu in-memory yönetir;
+    // Create/Update tek komutta BranchAppService'e delege eder.
+    public List<BranchGraphDto> Branches { get; set; } = new();
+
     public int PageIndex { get; set; }
+}
+
+/// <summary>
+/// Tenant onboarding'inin şirket DÜĞÜMÜ — tenant edit'inde in-memory drill + tenant save'i içindir
+/// (kendi app servisi YOK; standalone Company CRUD ayrı: <see cref="CompanyGetDto"/> vb.). Durum =
+/// <see cref="Id"/> + <see cref="IsDeleted"/>; şubeler <see cref="Branches"/> (şube→kasa grafı).
+/// </summary>
+public class CompanyGraphDto : EntityDto<Guid>, ICompanyGraph
+{
+    public Guid ClientKey { get; set; } = Guid.NewGuid();
+    public bool IsDeleted { get; set; }
+
+    [Required]
+    [StringLength(CompanyConsts.CodeMaxLength)]
+    public string Code { get; set; } = string.Empty;
+
+    [Required]
+    [StringLength(CompanyConsts.NameMaxLength)]
+    public string Name { get; set; } = string.Empty;
+
+    [Required]
+    [StringLength(CompanyConsts.CountryCodeMaxLength, MinimumLength = 2)]
+    public string CountryCode { get; set; } = string.Empty;
+
+    public Guid BaseCurrencyUnitId { get; set; }
+    public bool IsHeadquarters { get; set; }
+    public bool IsActive { get; set; } = true;
+    public int DisplayOrder { get; set; }
+
+    [StringLength(CompanyConsts.DescriptionMaxLength)]
+    public string? Description { get; set; }
+
+    public List<BranchGraphDto> Branches { get; set; } = new();
 }
 
 public class CompanyCreateDto : ICreateDto
@@ -60,6 +99,9 @@ public class CompanyCreateDto : ICreateDto
 
     [StringLength(CompanyConsts.DescriptionMaxLength)]
     public string? Description { get; set; }
+
+    // Sahip olunan şubeler (graf) — tek komutta yazılır (BranchAppService'e delege).
+    public List<BranchGraphDto> Branches { get; set; } = new();
 }
 
 public class CompanyUpdateDto : IUpdateDto
@@ -85,4 +127,7 @@ public class CompanyUpdateDto : IUpdateDto
 
     [StringLength(CompanyConsts.DescriptionMaxLength)]
     public string? Description { get; set; }
+
+    // Sahip olunan şubeler (graf; Id+IsDeleted ile diff) — tek komutta yazılır (BranchAppService'e delege).
+    public List<BranchGraphDto> Branches { get; set; } = new();
 }

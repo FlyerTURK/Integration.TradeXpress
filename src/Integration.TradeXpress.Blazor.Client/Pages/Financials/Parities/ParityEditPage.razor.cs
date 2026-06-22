@@ -61,7 +61,7 @@ public partial class ParityEditPage
     public override async Task CloseAsync()
     {
         if (!IsPopupMode && CurrentMdiTab != null)
-            TabManager.Close(CurrentMdiTab.Id);
+            await TabManager.TryCloseAsync(CurrentMdiTab.Id);
         else
             await base.CloseAsync();
     }

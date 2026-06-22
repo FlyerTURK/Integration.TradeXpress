@@ -88,7 +88,7 @@
     {
         if (!IsPopupMode && CurrentMdiTab != null)
         {
-            TabManager.Close(CurrentMdiTab.Id);
+            await TabManager.TryCloseAsync(CurrentMdiTab.Id);
         }
         else
         {

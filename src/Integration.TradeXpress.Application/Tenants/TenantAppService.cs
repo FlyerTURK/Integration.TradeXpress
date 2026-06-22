@@ -1,36 +1,44 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Claims;
 using System.Threading.Tasks;
+using Volo.Abp;
 using Volo.Abp.Application.Dtos;
 using Volo.Abp.Data;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.TenantManagement;
 using Microsoft.AspNetCore.Authorization;
-using Volo.Abp.EventBus.Distributed;
-using Volo.Abp.MultiTenancy;
 using Integration.Framework.Base.Querying;
 using Integration.TradeXpress.Companies;
-using Integration.TradeXpress.Countries;
-using Integration.TradeXpress.Financials.CurrencyUnits;
-using Integration.TradeXpress.Organization;
 using Volo.Abp.Identity;
+using Volo.Abp.Security.Claims;
 
 namespace Integration.TradeXpress.Tenants;
 
+/// <summary>
+/// Tenant CRUD + onboarding. Yeni tenant akışı (hepsi tek UoW → atomik):
+/// <list type="number">
+/// <item>Tenant oluştur.</item>
+/// <item><b>Admin'i SENKRON seed et</b> (admin rolü + TÜM izinler + admin kullanıcı) — ABP'nin
+/// post-commit event'i yerine inline, çünkü izinler bir sonraki adımda lazım.</item>
+/// <item><b>Admin'i impersonate et</b> (<c>ICurrentPrincipalAccessor.Change</c> = "ChangeUser") →
+/// principal artık tenant'ın tüm izinlerine sahip.</item>
+/// <item>Ek kullanıcılar + şirket graflarını <see cref="ICompanyAppService"/>'e DELEGE et (o da
+/// şubeleri/kasaları kendi app-service'lerine) → Tenant→Company→Branch→Vault recursive. Auth GERÇEKTEN
+/// geçer (bypass değil): işlemler tenant admin'i olarak çalışır.</item>
+/// </list>
+/// </summary>
 [Authorize(TenantManagementPermissions.Tenants.Default)]
 public class TenantAppService : TradeXpressAppService, ITenantAppService
 {
     private readonly ITenantManager _tenantManager;
     private readonly ITenantRepository _tenantRepository;
     private readonly IReadOnlyRepository<Tenant, Guid> _tenantQueryRepository;
-    private readonly IDistributedEventBus _distributedEventBus;
-    private readonly IRepository<Company, Guid> _companyRepository;
-    private readonly IRepository<Country, Guid> _countryRepository;
-    private readonly IRepository<CurrencyUnit, Guid> _unitRepository;
-    private readonly OrgTreeManager _orgTree;
-    private readonly IDataFilter _dataFilter;
+    private readonly ICompanyAppService _companyAppService;   // şirket grafı yazımı buraya delege
     private readonly IdentityUserManager _userManager;
+    private readonly IDataSeeder _dataSeeder;
+    private readonly ICurrentPrincipalAccessor _currentPrincipalAccessor;
 
     private static readonly HashSet<string> AllowedListFields =
         new(StringComparer.OrdinalIgnoreCase) { "Name", "Id" };
@@ -39,24 +47,18 @@ public class TenantAppService : TradeXpressAppService, ITenantAppService
         ITenantManager tenantManager,
         ITenantRepository tenantRepository,
         IReadOnlyRepository<Tenant, Guid> tenantQueryRepository,
-        IDistributedEventBus distributedEventBus,
-        IRepository<Company, Guid> companyRepository,
-        IRepository<Country, Guid> countryRepository,
-        IRepository<CurrencyUnit, Guid> unitRepository,
-        OrgTreeManager orgTree,
-        IDataFilter dataFilter,
-        IdentityUserManager userManager)
+        ICompanyAppService companyAppService,
+        IdentityUserManager userManager,
+        IDataSeeder dataSeeder,
+        ICurrentPrincipalAccessor currentPrincipalAccessor)
     {
         _tenantManager = tenantManager;
         _tenantRepository = tenantRepository;
         _tenantQueryRepository = tenantQueryRepository;
-        _distributedEventBus = distributedEventBus;
-        _companyRepository = companyRepository;
-        _countryRepository = countryRepository;
-        _unitRepository = unitRepository;
-        _orgTree = orgTree;
-        _dataFilter = dataFilter;
+        _companyAppService = companyAppService;
         _userManager = userManager;
+        _dataSeeder = dataSeeder;
+        _currentPrincipalAccessor = currentPrincipalAccessor;
     }
 
     public virtual async Task<TenantGetDto> GetAsync(Guid id)
@@ -81,31 +83,42 @@ public class TenantAppService : TradeXpressAppService, ITenantAppService
     [Authorize(TenantManagementPermissions.Tenants.Create)]
     public virtual async Task<TenantGetDto> CreateAsync(TenantCreateDto input)
     {
-        // Admin = IsAdmin işaretli ilk satır (yoksa ilk kullanıcı). Onun e-posta/şifresi ABP'nin
-        // zorunlu tenant-admin'ini (admin rolü + kullanıcı) seed eder.
+        // Admin = IsAdmin işaretli ilk satır (yoksa ilk kullanıcı). E-posta/şifresi tenant-admin'ini seed eder.
         var admin = input.Users.FirstOrDefault(u => u.IsAdmin) ?? input.Users.FirstOrDefault();
 
         var tenant = await _tenantManager.CreateAsync(input.Name);
         await _tenantRepository.InsertAsync(tenant, autoSave: true);
 
-        if (admin != null)
-        {
-            await _distributedEventBus.PublishAsync(
-                TenantCreatedEtoFactory.Create(tenant, admin.Email, admin.Password));
-        }
-
-        // Ek kullanıcılar + şirketler yeni tenant'ın scope'unda oluşturulur (global birim görünür kalsın).
         using (CurrentTenant.Change(tenant.Id))
-        using (_dataFilter.Disable<IMultiTenant>())
         {
-            foreach (var u in input.Users.Where(x => x != admin))
+            // 1) Admin'i SENKRON seed et (admin rolü + TÜM izinler + kullanıcı). İzinler 3. adımda lazım.
+            if (admin != null)
             {
-                await CreateUserAsync(u);
+                await _dataSeeder.SeedAsync(new DataSeedContext(tenant.Id)
+                    .WithProperty(IdentityDataSeedContributor.AdminEmailPropertyName, admin.Email)
+                    .WithProperty(IdentityDataSeedContributor.AdminPasswordPropertyName, admin.Password)
+                    // Org'u onboarding kendisi kuruyor → OrgSeeder'ın varsayılan MRK'sını atla (çift kayıt önle).
+                    .WithProperty(TradeXpressDataSeedContributor.SkipOrgSeedProperty, true));
             }
 
-            foreach (var company in input.Companies)
+            // 2) Seed edilen admin'i bul + impersonate (ChangeUser) → tenant izinlerine sahip principal.
+            var adminUser = admin != null ? await _userManager.FindByEmailAsync(admin.Email) : null;
+            var adminPrincipal = adminUser != null ? await BuildPrincipalAsync(adminUser) : null;
+
+            using (adminPrincipal != null ? _currentPrincipalAccessor.Change(adminPrincipal) : (IDisposable?)null)
             {
-                await CreateCompanyAsync(tenant.Id, company);
+                // 3) Ek kullanıcılar
+                foreach (var u in input.Users.Where(x => x != admin))
+                {
+                    await CreateUserAsync(u);
+                }
+
+                // 4) Şirket grafları — app-service delegasyonu (artık tenant admin olarak yetkili).
+                //    HQ şirket önce (sonra gelen merkez değilse mevcut HQ'yu bozmaz).
+                foreach (var company in input.Companies.OrderByDescending(c => c.IsHeadquarters))
+                {
+                    await CreateCompanyAsync(company);
+                }
             }
         }
 
@@ -127,41 +140,47 @@ public class TenantAppService : TradeXpressAppService, ITenantAppService
         await _tenantRepository.DeleteAsync(id);
     }
 
+    /// <summary>Seed edilen admin için impersonation principal'i kurar (userId + tenantId + rol claim'leri).</summary>
+    private async Task<ClaimsPrincipal> BuildPrincipalAsync(IdentityUser adminUser)
+    {
+        var claims = new List<Claim>
+        {
+            new(AbpClaimTypes.UserId, adminUser.Id.ToString()),
+            new(AbpClaimTypes.UserName, adminUser.UserName),
+        };
+        if (adminUser.TenantId.HasValue)
+            claims.Add(new Claim(AbpClaimTypes.TenantId, adminUser.TenantId.Value.ToString()));
+        if (!string.IsNullOrEmpty(adminUser.Email))
+            claims.Add(new Claim(AbpClaimTypes.Email, adminUser.Email));
+
+        foreach (var role in await _userManager.GetRolesAsync(adminUser))
+            claims.Add(new Claim(AbpClaimTypes.Role, role));
+
+        return new ClaimsPrincipal(new ClaimsIdentity(claims, "Impersonation"));
+    }
+
     /// <summary>Onboarding kullanıcısını yeni tenant'ta oluşturur (çağrı CurrentTenant.Change scope'unda).</summary>
     private async Task CreateUserAsync(TenantUserInput input)
     {
         var user = new IdentityUser(GuidGenerator.Create(), input.UserName, input.Email, CurrentTenant.Id);
         var result = await _userManager.CreateAsync(user, input.Password);
         if (!result.Succeeded)
-            throw new Volo.Abp.UserFriendlyException(string.Join("; ", result.Errors.Select(e => e.Description)));
+            throw new UserFriendlyException(string.Join("; ", result.Errors.Select(e => e.Description)));
     }
 
-    /// <summary>
-    /// Onboarding şirketini yeni tenant'ta oluşturur (çağrı CurrentTenant.Change scope'unda).
-    /// Base para birimi ülkenin DefaultCurrencyCode'undan, yoksa pivot TRY'den çözülür. Her şirket
-    /// en az bir HQ şube + varsayılan kasayla doğar.
-    /// </summary>
-    private async Task CreateCompanyAsync(Guid tenantId, TenantCompanyInput input)
+    /// <summary>Onboarding şirket grafını (şube→kasa) CompanyAppService'e delege eder (tenant admin yetkisiyle).</summary>
+    private async Task CreateCompanyAsync(CompanyGraphDto input)
     {
-        var country = (input.CountryCode ?? "TR").Trim().ToUpperInvariant();
-
-        var ccyCode = (await AsyncExecuter.FirstOrDefaultAsync(
-                (await _countryRepository.GetQueryableAsync())
-                    .Where(c => c.TenantId == null && c.Code == country)))?.DefaultCurrencyCode
-            ?? CurrencyUnitCode.TRY;
-
-        var unitQuery = await _unitRepository.GetQueryableAsync();
-        var baseUnit = await AsyncExecuter.FirstOrDefaultAsync(
-                unitQuery.Where(u => u.TenantId == null && u.Code == ccyCode))
-            ?? await AsyncExecuter.FirstOrDefaultAsync(
-                unitQuery.Where(u => u.TenantId == null && u.Code == CurrencyUnitCode.TRY));
-        if (baseUnit == null)
-            return; // birimler henüz seed edilmemiş (host run gerekir)
-
-        var company = new Company(input.Code, input.Name, country, baseUnit.Id,
-            isHeadquarters: input.IsHeadquarters, displayOrder: 1, tenantId: tenantId);
-        await _companyRepository.InsertAsync(company, autoSave: true);
-
-        await _orgTree.EnsureHeadquartersBranchAsync(company);
+        await _companyAppService.CreateAsync(new CompanyCreateDto
+        {
+            Code = input.Code,
+            Name = input.Name,
+            CountryCode = input.CountryCode,
+            BaseCurrencyUnitId = input.BaseCurrencyUnitId,
+            IsHeadquarters = input.IsHeadquarters,
+            DisplayOrder = input.DisplayOrder,
+            Description = input.Description,
+            Branches = input.Branches,
+        });
     }
 }

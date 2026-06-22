@@ -1,7 +1,9 @@
 using System;
+using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using Integration.Framework.Base.Dtos;
 using Integration.Framework.Base.Dtos.Interfaces;
+using Integration.TradeXpress.Vaults;
 using Volo.Abp.Application.Dtos;
 
 namespace Integration.TradeXpress.Branches;
@@ -37,6 +39,9 @@ public class BranchGetDto : EntityDto<Guid>, IGetDto<Guid>
     public int DisplayOrder { get; set; }
     public string? Description { get; set; }
 
+    // Sahip olunan kasalar (graf düğümleri; durum = Id + IsDeleted). Edit formu in-memory yönetir.
+    public List<VaultGraphDto> Vaults { get; set; } = new();
+
     public int PageIndex { get; set; }
 }
 
@@ -58,6 +63,9 @@ public class BranchCreateDto : ICreateDto
 
     [StringLength(BranchConsts.DescriptionMaxLength)]
     public string? Description { get; set; }
+
+    // Sahip olunan kasalar (graf) — tek komutta yazılır (VaultAppService'e delege).
+    public List<VaultGraphDto> Vaults { get; set; } = new();
 }
 
 // Parent (CompanyId) güncellemede değişmez — hiyerarşi sabit.
@@ -77,4 +85,35 @@ public class BranchUpdateDto : IUpdateDto
 
     [StringLength(BranchConsts.DescriptionMaxLength)]
     public string? Description { get; set; }
+
+    // Sahip olunan kasalar (graf; Id+IsDeleted ile diff) — tek komutta yazılır (VaultAppService'e delege).
+    public List<VaultGraphDto> Vaults { get; set; } = new();
+}
+
+/// <summary>
+/// Company grafının şube DÜĞÜMÜ — Company edit'inde in-memory drill + Company save'i içindir (kendi
+/// app servisi YOK; standalone Branch CRUD ayrı: <see cref="BranchGetDto"/> vb.). Durum = <see cref="Id"/>
+/// + <see cref="IsDeleted"/>: Id boş → ekle, IsDeleted → sil, aksi → güncelle. Kasalar <see cref="Vaults"/>.
+/// </summary>
+public class BranchGraphDto : EntityDto<Guid>
+{
+    public Guid ClientKey { get; set; } = Guid.NewGuid();
+    public bool IsDeleted { get; set; }
+
+    [Required]
+    [StringLength(BranchConsts.CodeMaxLength)]
+    public string Code { get; set; } = string.Empty;
+
+    [Required]
+    [StringLength(BranchConsts.NameMaxLength)]
+    public string Name { get; set; } = string.Empty;
+
+    public bool IsHeadquarters { get; set; }
+    public bool IsActive { get; set; } = true;
+    public int DisplayOrder { get; set; }
+
+    [StringLength(BranchConsts.DescriptionMaxLength)]
+    public string? Description { get; set; }
+
+    public List<VaultGraphDto> Vaults { get; set; } = new();
 }

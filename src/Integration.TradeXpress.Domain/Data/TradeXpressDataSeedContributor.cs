@@ -25,6 +25,12 @@ public class TradeXpressDataSeedContributor(
 
     #region Seeding
 
+    /// <summary>
+    /// Bu property <c>true</c> ise <see cref="OrgSeeder"/> ATLANIR. Onboarding (TenantAppService impersonation
+    /// akışı) şirket grafını kendisi tanımladığından varsayılan "MRK" şirketini istemez — yoksa çift kayıt.
+    /// </summary>
+    public const string SkipOrgSeedProperty = "TradeXpress:SkipOrgSeed";
+
     public async Task SeedAsync(DataSeedContext context)
     {
         // (1) Merkezi referans yalnız host'ta (TenantId=null); tenant'lar paylaşır (null‖own).
@@ -38,8 +44,8 @@ public class TradeXpressDataSeedContributor(
         // (2) Marjlar her tenant'ta (host dahil) — host'un merkezi düzeltme marjı da burada.
         await _currencyUnitSeeder.SeedMarginsAsync(context.TenantId);
 
-        // (3) Org ağacı yalnız tenant'a aittir (host'ta company yok).
-        if (context.TenantId != null)
+        // (3) Org ağacı yalnız tenant'a aittir (host'ta company yok). Onboarding org'u kendi kuruyorsa atla.
+        if (context.TenantId != null && context[SkipOrgSeedProperty] is not true)
         {
             await _orgSeeder.SeedHqCompanyAsync(context.TenantId);
         }

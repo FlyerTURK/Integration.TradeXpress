@@ -608,22 +608,21 @@ public abstract class CrudEditComponentBase<TGetDto, TListDto, TKey, TListReques
 
             if (IsNewMode)
             {
-                var createDto = ObjectMapper.Map<TGetDto, TCreateDto>(EditModel);
+                // Tek-DTO (GraphDto = TGet=TCreate) ise doğrudan kullan; ayrıysa map.
+                var createDto = EditModel is TCreateDto c ? c : ObjectMapper.Map<TGetDto, TCreateDto>(EditModel);
                 if (!ValidateInput(createDto)) return false;   // XAF tarzı: geçersizse sunucuya gitmeden engelle
                 var created = await CrudAppService.CreateAsync(createDto);
                 Id = created.Id;
-
-                // Kaydedildikten sonra EditModel'in ID'sini de güncelle.
-                if (EditModel is Volo.Abp.Application.Dtos.EntityDto<TKey> dto)
-                {
-                    dto.Id = created.Id;
-                }
+                EditModel = created;   // sunucunun döndürdüğü TAZE durum (graf: yeni Id/stamp, silinenler düşmüş)
+                RebuildEditContext();
             }
             else
             {
-                var updateDto = ObjectMapper.Map<TGetDto, TUpdateDto>(EditModel);
+                var updateDto = EditModel is TUpdateDto u ? u : ObjectMapper.Map<TGetDto, TUpdateDto>(EditModel);
                 if (!ValidateInput(updateDto)) return false;
-                await CrudAppService.UpdateAsync(Id!, updateDto);
+                var updated = await CrudAppService.UpdateAsync(Id!, updateDto);
+                EditModel = updated;   // sunucunun döndürdüğü TAZE durum → form grafı yeniler
+                RebuildEditContext();
             }
 
             EntityChanges.Notify(EntityChangeKey,

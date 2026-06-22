@@ -19,17 +19,19 @@ using Volo.Abp.MultiTenancy;
 namespace Integration.TradeXpress.Companies;
 
 /// <summary>
-/// Company CRUD — <b>per-tenant</b> (standart IMultiTenant; her tenant yalnız kendi şirketlerini
-/// yönetir). BaseCurrencyUnitId görünür bir <see cref="CurrencyUnit"/> olmalı (global + own);
-/// birim kodu okuma anında join'lenir (filter-disable). Şirket = OrgScope üstü + değerleme base'i.
+/// Company CRUD — <b>per-tenant</b>. Sahip olduğu <b>şube grafını</b> (her şube de kendi kasa grafını)
+/// tek komutta yönetir: standart Create/Update <see cref="CompanyGetDto.Branches"/>'i taşır, şube
+/// yazımları <see cref="IBranchAppService"/>'e (o da kasaları <see cref="IVaultAppService"/>'e) DELEGE
+/// edilir → Company→Branch→Vault recursive, tek UoW. Şube düğümü durumu Id + IsDeleted ile diff'lenir.
 /// </summary>
 [Authorize(TradeXpressPermissions.Companies.Default)]
 public class CompanyAppService : TradeXpressAppService, ICompanyAppService
 {
     private readonly IRepository<Company, Guid> _repository;
     private readonly IRepository<CurrencyUnit, Guid> _unitRepository;
-    private readonly IRepository<Branch, Guid> _branchRepository;
-    private readonly IRepository<Vault, Guid> _vaultRepository;
+    private readonly IRepository<Branch, Guid> _branchRepository;   // yalnız OKUMA (graf projeksiyonu)
+    private readonly IRepository<Vault, Guid> _vaultRepository;      // yalnız OKUMA
+    private readonly IBranchAppService _branchAppService;            // YAZMA: şube create/update/delete buraya delege
     private readonly IDataFilter _dataFilter;
     private readonly OrgTreeManager _orgTree;
 
@@ -41,6 +43,7 @@ public class CompanyAppService : TradeXpressAppService, ICompanyAppService
         IRepository<CurrencyUnit, Guid> unitRepository,
         IRepository<Branch, Guid> branchRepository,
         IRepository<Vault, Guid> vaultRepository,
+        IBranchAppService branchAppService,
         IDataFilter dataFilter,
         OrgTreeManager orgTree)
     {
@@ -48,6 +51,7 @@ public class CompanyAppService : TradeXpressAppService, ICompanyAppService
         _unitRepository = unitRepository;
         _branchRepository = branchRepository;
         _vaultRepository = vaultRepository;
+        _branchAppService = branchAppService;
         _dataFilter = dataFilter;
         _orgTree = orgTree;
     }
@@ -100,8 +104,7 @@ public class CompanyAppService : TradeXpressAppService, ICompanyAppService
     public virtual async Task<CompanyGetDto> GetAsync(Guid id)
     {
         var c = await _repository.GetAsync(id);
-        var codes = await LoadCurrencyCodesAsync(new[] { c.BaseCurrencyUnitId });
-        return ToGetDto(c, codes);
+        return await ToGetDtoAsync(c);
     }
 
     [Authorize(TradeXpressPermissions.Companies.Create)]
@@ -122,18 +125,16 @@ public class CompanyAppService : TradeXpressAppService, ICompanyAppService
             displayOrder: input.DisplayOrder,
             tenantId: CurrentTenant.Id);
         c.SetDescription(input.Description);
-
         await _repository.InsertAsync(c, autoSave: true);
 
         // Tek-HQ değişmezi: bu şirket HQ ise tenant'ın önceki HQ'sunu düşür.
         if (c.IsHeadquarters)
             await UnsetOtherHeadquartersAsync(c.Id);
 
-        // En az 1 child: her şirket otomatik bir merkez (HQ) şubeyle (ve onun varsayılan kasasıyla) doğar.
-        await _orgTree.EnsureHeadquartersBranchAsync(c);
+        await SaveBranchesAsync(c, input.Branches);
+        await _orgTree.EnsureHeadquartersBranchAsync(c);   // en az 1 HQ şube + varsayılan kasa (Branches boşsa da)
 
-        var codes = await LoadCurrencyCodesAsync(new[] { c.BaseCurrencyUnitId });
-        return ToGetDto(c, codes);
+        return await ToGetDtoAsync(c);
     }
 
     [Authorize(TradeXpressPermissions.Companies.Update)]
@@ -162,10 +163,12 @@ public class CompanyAppService : TradeXpressAppService, ICompanyAppService
         c.SetDescription(input.Description);
         c.SetDisplayOrder(input.DisplayOrder);
         if (input.IsActive) c.Activate(); else c.Deactivate();
-
         await _repository.UpdateAsync(c, autoSave: true);
-        var codes = await LoadCurrencyCodesAsync(new[] { c.BaseCurrencyUnitId });
-        return ToGetDto(c, codes);
+
+        await SaveBranchesAsync(c, input.Branches);
+        await _orgTree.EnsureHeadquartersBranchAsync(c);   // hiçbir koşulda şubesiz/HQ'suz kalmasın
+
+        return await ToGetDtoAsync(c);
     }
 
     [Authorize(TradeXpressPermissions.Companies.Delete)]
@@ -181,250 +184,54 @@ public class CompanyAppService : TradeXpressAppService, ICompanyAppService
         await _repository.DeleteAsync(c, autoSave: true);
     }
 
-    // ── tree (in-memory commit) ─────────────────────────────────────────────────
-
-    public virtual async Task<CompanyTreeDto> GetTreeAsync(Guid id)
+    // ── şube grafı diff (Id + IsDeleted) → BranchAppService'e DELEGE ────────────
+    // Company, şube/kasa repo'suna doğrudan yazmaz; her şube düğümünü BranchCreate/UpdateDto'ya (kasaları
+    // dahil) map'leyip BranchAppService'e gönderir (o da kasaları VaultAppService'e). Tek UoW.
+    private async Task SaveBranchesAsync(Company company, List<BranchGraphDto> branches)
     {
-        var c = await _repository.GetAsync(id);
-        var codes = await LoadCurrencyCodesAsync(new[] { c.BaseCurrencyUnitId });
+        // Silinmeyenler arasında TAM BİR HQ (forceOne) — "son HQ'yu devirsiz düşürme" hatasını önler.
+        var live = branches.Where(b => !b.IsDeleted).ToList();
+        NormalizeSingleFlag(live, b => b.IsHeadquarters, (b, v) => b.IsHeadquarters = v, forceOne: true);
 
-        var branches = await AsyncExecuter.ToListAsync((await _branchRepository.GetQueryableAsync())
-            .Where(b => b.CompanyId == id).OrderBy(b => b.DisplayOrder));
-        var branchIds = branches.Select(b => b.Id).ToList();
-        var vaults = await AsyncExecuter.ToListAsync((await _vaultRepository.GetQueryableAsync())
-            .Where(v => branchIds.Contains(v.BranchId)).OrderBy(v => v.DisplayOrder));
-
-        return new CompanyTreeDto
+        // Önce ekle + güncelle, HQ olanı İLK işle (yeni HQ DB'de eskiyi düşürsün → eskiyi false'a çekerken hata olmasın).
+        foreach (var bi in live.OrderByDescending(b => b.IsHeadquarters))
         {
-            Id = c.Id,
-            Code = c.Code,
-            Name = c.Name,
-            CountryCode = c.CountryCode,
-            BaseCurrencyUnitId = c.BaseCurrencyUnitId,
-            BaseCurrencyCode = codes.GetValueOrDefault(c.BaseCurrencyUnitId, string.Empty),
-            IsActive = c.IsActive,
-            IsHeadquarters = c.IsHeadquarters,
-            DisplayOrder = c.DisplayOrder,
-            Description = c.Description,
-            ConcurrencyStamp = c.ConcurrencyStamp,
-            Branches = branches.Select(b => new BranchTreeDto
+            if (bi.Id == Guid.Empty)
             {
-                Id = b.Id,
-                Code = b.Code,
-                Name = b.Name,
-                IsHeadquarters = b.IsHeadquarters,
-                IsActive = b.IsActive,
-                DisplayOrder = b.DisplayOrder,
-                Description = b.Description,
-                ConcurrencyStamp = b.ConcurrencyStamp,
-                Vaults = vaults.Where(v => v.BranchId == b.Id).Select(v => new VaultTreeDto
+                await _branchAppService.CreateAsync(new BranchCreateDto
                 {
-                    Id = v.Id,
-                    Code = v.Code,
-                    Name = v.Name,
-                    IsDefault = v.IsDefault,
-                    IsActive = v.IsActive,
-                    DisplayOrder = v.DisplayOrder,
-                    Description = v.Description,
-                    ConcurrencyStamp = v.ConcurrencyStamp,
-                }).ToList(),
-            }).ToList(),
-        };
-    }
-
-    /// <summary>
-    /// Tüm ağacı tek transaction'da kaydeder. Güvenlik/bütünlük için: (a) diff'e göre granüler izin
-    /// kontrolü (Branches/Vaults Create/Update/Delete), (b) per-entity ConcurrencyStamp ile optimistic
-    /// concurrency (eşzamanlı düzenleme AbpDbConcurrencyException atar), (c) KÖR omission-delete YOK —
-    /// yalnız kullanıcının açıkça kaldırdığı (DeletedBranchIds/DeletedVaultIds) öğeler silinir, böylece
-    /// eşzamanlı eklenen kardeşler korunur, (d) HQ şube ancak başka bir kalan şubeye devredildiyse
-    /// silinebilir, (e) tüm yazmalar tek ambient UoW içinde atomiktir (hata → tüm ağaç geri alınır).
-    /// <para>
-    /// MİMARİ NOT: Bu snapshot + açık DeletedXIds modeli BİLİNÇLİ tercihtir; in-memory delta tracker
-    /// (UiChangeTracker) + server-side sayfalı vitrin + optimistic merge ERTELENDİ — bugün DrillList'in
-    /// tek tüketicisi küçük & bounded Company→Şube→Kasa ağacı. Yeniden değerlendirme tetikleyicileri:
-    /// (i) ~500+ child'lı doğrulanmış yeni entity, (ii) DrillList 1000 guardrail'i production'da fiilen
-    /// tetiklenirse, (iii) SaveTree payload/latency ölçülebilir bozulursa, (iv) DrillList ikinci
-    /// bounded-olmayan tüketici kazanırsa. Stamp UPDATE dallarında fail-CLOSED (boş stamp → TreeChanged).
-    /// </para>
-    /// </summary>
-    public virtual async Task<CompanyTreeDto> SaveTreeAsync(CompanyTreeSaveDto input)
-    {
-        if (CurrentTenant.Id == null)
-            throw new BusinessException("TradeXpress:Company:HostHasNoCompanies");
-        await EnsureCurrencyVisibleAsync(input.BaseCurrencyUnitId);
-
-        var isNew = input.Id is null || input.Id == Guid.Empty;
-
-        // (a) Diff'e göre granüler izin kontrolü — class-level Companies.Default'a güvenme.
-        await AuthorizeTreeAsync(input, isNew);
-
-        // 1) Şirket upsert + tek-HQ değişmezi.
-        Company company;
-        if (isNew)
-        {
-            company = new Company(input.Code, input.Name, input.CountryCode, input.BaseCurrencyUnitId,
-                isHeadquarters: input.IsHeadquarters, displayOrder: input.DisplayOrder, tenantId: CurrentTenant.Id);
-            company.SetDescription(input.Description);
-            await _repository.InsertAsync(company, autoSave: true);
-        }
-        else
-        {
-            company = await _repository.GetAsync(input.Id!.Value);
-            // Fail-CLOSED optimistik kilit: mevcut kayıt güncellenirken stamp ZORUNLU. Boşsa client bayat/
-            // forge edilmiş bir payload gönderiyordur → sessizce ezme, reddet. (Yeni kayıtta stamp beklenmez.)
-            if (string.IsNullOrEmpty(input.ConcurrencyStamp))
-                throw new BusinessException("TradeXpress:Company:TreeChanged");
-            company.ConcurrencyStamp = input.ConcurrencyStamp;
-            if (input.IsHeadquarters && !company.IsHeadquarters)
-                company.SetAsHeadquarters(true);
-            else if (!input.IsHeadquarters && company.IsHeadquarters)
-                throw new BusinessException("TradeXpress:Company:CannotUnsetHeadquarters");
-            company.SetCode(input.Code);
-            company.SetName(input.Name);
-            company.SetCountryCode(input.CountryCode);
-            company.SetBaseCurrency(input.BaseCurrencyUnitId);
-            company.SetDescription(input.Description);
-            company.SetDisplayOrder(input.DisplayOrder);
-            if (input.IsActive) company.Activate(); else company.Deactivate();
-            await _repository.UpdateAsync(company, autoSave: true);
-        }
-        if (company.IsHeadquarters)
-            await UnsetOtherHeadquartersAsync(company.Id, autoSave: true);
-
-        var existingBranches = isNew
-            ? new List<Branch>()
-            : await AsyncExecuter.ToListAsync((await _branchRepository.GetQueryableAsync()).Where(b => b.CompanyId == company.Id));
-
-        // 2) Şube diff — DisplayOrder'a göre sırala (deterministik HQ seçimi), en az 1 şube + tek HQ.
-        var inputBranches = (input.Branches ?? new List<BranchTreeSaveDto>())
-            .OrderBy(b => b.DisplayOrder).ToList();
-        if (inputBranches.Count == 0)
-            inputBranches.Add(new BranchTreeSaveDto { Code = BranchConsts.DefaultHeadquartersCode, Name = BranchConsts.DefaultHeadquartersName, IsHeadquarters = true, DisplayOrder = 1 });
-        // Kullanıcının AÇIKÇA bir HQ işaretleyip işaretlemediğini normalize'den ÖNCE yakala
-        // (HQ devri kontrolü için: HQ silinirken kalanlardan biri açıkça HQ olmalı, otomatik terfi sayılmaz).
-        var explicitSurvivingHq = inputBranches.Any(b => b.IsHeadquarters);
-        NormalizeSingleFlag(inputBranches, b => b.IsHeadquarters, (b, v) => b.IsHeadquarters = v, forceOne: true);
-
-        var keptBranchIds = new HashSet<Guid>();
-        foreach (var bi in inputBranches)
-        {
-            Branch branch;
-            var bNew = isNew || bi.Id is null || bi.Id == Guid.Empty;  // yeni şirkette tüm çocuklar yeni
-            if (bNew)
-            {
-                branch = new Branch(company.Id, bi.Code, bi.Name,
-                    isHeadquarters: bi.IsHeadquarters, displayOrder: bi.DisplayOrder, tenantId: CurrentTenant.Id);
-                branch.SetDescription(bi.Description);
-                await _branchRepository.InsertAsync(branch, autoSave: true);
+                    CompanyId = company.Id,
+                    Code = bi.Code,
+                    Name = bi.Name,
+                    IsHeadquarters = bi.IsHeadquarters,
+                    DisplayOrder = bi.DisplayOrder,
+                    Description = bi.Description,
+                    Vaults = bi.Vaults,
+                });
             }
             else
             {
-                branch = existingBranches.FirstOrDefault(x => x.Id == bi.Id!.Value)
-                    ?? throw new BusinessException("TradeXpress:Company:TreeChanged");  // stale/forged child Id
-                if (string.IsNullOrEmpty(bi.ConcurrencyStamp))  // fail-closed: mevcut şube stamp'siz güncellenemez
-                    throw new BusinessException("TradeXpress:Company:TreeChanged");
-                branch.ConcurrencyStamp = bi.ConcurrencyStamp;
-                branch.SetCode(bi.Code);
-                branch.SetName(bi.Name);
-                branch.SetAsHeadquarters(bi.IsHeadquarters);
-                branch.SetDescription(bi.Description);
-                branch.SetDisplayOrder(bi.DisplayOrder);
-                if (bi.IsActive) branch.Activate(); else branch.Deactivate();
-                await _branchRepository.UpdateAsync(branch, autoSave: true);
-            }
-            keptBranchIds.Add(branch.Id);
-
-            // 3) Kasa diff — en az 1 kasa + TEK varsayılan (forceOne:true, simetrik invariant).
-            var existingVaults = bNew
-                ? new List<Vault>()
-                : await AsyncExecuter.ToListAsync((await _vaultRepository.GetQueryableAsync()).Where(v => v.BranchId == branch.Id));
-
-            var inputVaults = (bi.Vaults ?? new List<VaultTreeSaveDto>())
-                .OrderBy(v => v.DisplayOrder).ToList();
-            if (inputVaults.Count == 0)
-                inputVaults.Add(new VaultTreeSaveDto { Code = VaultConsts.DefaultCode, Name = VaultConsts.DefaultName, IsDefault = true, DisplayOrder = 1 });
-            NormalizeSingleFlag(inputVaults, v => v.IsDefault, (v, val) => v.IsDefault = val, forceOne: true);
-
-            var keptVaultIds = new HashSet<Guid>();
-            foreach (var vi in inputVaults)
-            {
-                Vault vault;
-                if (bNew || vi.Id is null || vi.Id == Guid.Empty)
+                await _branchAppService.UpdateAsync(bi.Id, new BranchUpdateDto
                 {
-                    vault = new Vault(branch.Id, vi.Code, vi.Name,
-                        isDefault: vi.IsDefault, displayOrder: vi.DisplayOrder, tenantId: CurrentTenant.Id);
-                    vault.SetDescription(vi.Description);
-                    await _vaultRepository.InsertAsync(vault, autoSave: true);
-                }
-                else
-                {
-                    vault = existingVaults.FirstOrDefault(x => x.Id == vi.Id!.Value)
-                        ?? throw new BusinessException("TradeXpress:Company:TreeChanged");
-                    if (string.IsNullOrEmpty(vi.ConcurrencyStamp))  // fail-closed: mevcut kasa stamp'siz güncellenemez
-                        throw new BusinessException("TradeXpress:Company:TreeChanged");
-                    vault.ConcurrencyStamp = vi.ConcurrencyStamp;
-                    vault.SetCode(vi.Code);
-                    vault.SetName(vi.Name);
-                    vault.SetAsDefault(vi.IsDefault);
-                    vault.SetDescription(vi.Description);
-                    vault.SetDisplayOrder(vi.DisplayOrder);
-                    if (vi.IsActive) vault.Activate(); else vault.Deactivate();
-                    await _vaultRepository.UpdateAsync(vault, autoSave: true);
-                }
-                keptVaultIds.Add(vault.Id);
-            }
-
-            // (c) Yalnız açıkça kaldırılan kasaları sil (kör omission değil).
-            if (!bNew && bi.DeletedVaultIds is { Count: > 0 })
-            {
-                foreach (var ev in existingVaults.Where(v => bi.DeletedVaultIds.Contains(v.Id) && !keptVaultIds.Contains(v.Id)))
-                    await _vaultRepository.DeleteAsync(ev, autoSave: true);
+                    Code = bi.Code,
+                    Name = bi.Name,
+                    IsHeadquarters = bi.IsHeadquarters,
+                    IsActive = bi.IsActive,
+                    DisplayOrder = bi.DisplayOrder,
+                    Description = bi.Description,
+                    Vaults = bi.Vaults,
+                });
             }
         }
 
-        // (c)+(d) Yalnız açıkça kaldırılan şubeleri sil; HQ şube ancak devredildiyse silinebilir.
-        if (!isNew && input.DeletedBranchIds is { Count: > 0 })
+        // Sonra sil (yalnız mevcut + IsDeleted; yeni+silinen listeye hiç girmedi). HQ şube silinemez (BranchAppService guard).
+        foreach (var bi in branches.Where(b => b.IsDeleted && b.Id != Guid.Empty))
         {
-            foreach (var eb in existingBranches.Where(b => input.DeletedBranchIds.Contains(b.Id) && !keptBranchIds.Contains(b.Id)))
-            {
-                if (eb.IsHeadquarters && !explicitSurvivingHq)
-                    throw new BusinessException("TradeXpress:Branch:CannotDeleteHeadquarters");
-                await _orgTree.DeleteVaultsOfBranchAsync(eb.Id, autoSave: true);
-                await _branchRepository.DeleteAsync(eb, autoSave: true);
-            }
+            await _branchAppService.DeleteAsync(bi.Id);
         }
-
-        // Tüm yazmalar ambient UoW içinde (atomik): bir hata olursa tüm ağaç geri alınır.
-        return await GetTreeAsync(company.Id);
     }
 
-    /// <summary>Tree-save'in yapacağı işlemlere göre gereken granüler izinleri kontrol eder.</summary>
-    private async Task AuthorizeTreeAsync(CompanyTreeSaveDto input, bool isNew)
-    {
-        await AuthorizationService.CheckAsync(isNew
-            ? TradeXpressPermissions.Companies.Create
-            : TradeXpressPermissions.Companies.Update);
-
-        var branches = input.Branches ?? new List<BranchTreeSaveDto>();
-        if (isNew || branches.Any(b => b.Id is null || b.Id == Guid.Empty))
-            await AuthorizationService.CheckAsync(TradeXpressPermissions.Branches.Create);
-        if (!isNew && branches.Any(b => b.Id is { } id && id != Guid.Empty))
-            await AuthorizationService.CheckAsync(TradeXpressPermissions.Branches.Update);
-        if (input.DeletedBranchIds is { Count: > 0 })
-            await AuthorizationService.CheckAsync(TradeXpressPermissions.Branches.Delete);
-
-        var vaults = branches.SelectMany(b => b.Vaults ?? new List<VaultTreeSaveDto>()).ToList();
-        if (isNew || vaults.Any(v => v.Id is null || v.Id == Guid.Empty))
-            await AuthorizationService.CheckAsync(TradeXpressPermissions.Vaults.Create);
-        if (!isNew && vaults.Any(v => v.Id is { } id && id != Guid.Empty))
-            await AuthorizationService.CheckAsync(TradeXpressPermissions.Vaults.Update);
-        if (branches.Any(b => b.DeletedVaultIds is { Count: > 0 }))
-            await AuthorizationService.CheckAsync(TradeXpressPermissions.Vaults.Delete);
-    }
-
-    /// <summary>Listede flag'i (HQ/varsayılan) tekilleştirir. Liste DisplayOrder'a göre sıralı
-    /// gelmeli (deterministik seçim). forceOne=true ise hiç yoksa ilkini işaretler.</summary>
+    // Tam bir bayrak: birden çoksa fazlalıkları, forceOne+hiç yoksa ilkini işaretle.
     private static void NormalizeSingleFlag<T>(List<T> items, Func<T, bool> get, Action<T, bool> set, bool forceOne)
     {
         var flagged = items.Where(get).ToList();
@@ -440,7 +247,6 @@ public class CompanyAppService : TradeXpressAppService, ICompanyAppService
     }
 
     // ── helpers ───────────────────────────────────────────────────────────────
-
     /// <summary>Tenant başına tek HQ şirket: verilen hariç diğer HQ'ları düşürür.</summary>
     private async Task UnsetOtherHeadquartersAsync(Guid exceptCompanyId, bool autoSave = true)
     {
@@ -478,19 +284,50 @@ public class CompanyAppService : TradeXpressAppService, ICompanyAppService
         }
     }
 
-    private static CompanyGetDto ToGetDto(Company c, Dictionary<Guid, string> codes) => new()
+    // Şirket + şube + kasa grafını GetDto'ya doldurur (edit formu in-memory bind eder; ClientKey taze).
+    private async Task<CompanyGetDto> ToGetDtoAsync(Company c)
     {
-        Id = c.Id,
-        Code = c.Code,
-        Name = c.Name,
-        CountryCode = c.CountryCode,
-        BaseCurrencyUnitId = c.BaseCurrencyUnitId,
-        BaseCurrencyCode = codes.GetValueOrDefault(c.BaseCurrencyUnitId, string.Empty),
-        IsActive = c.IsActive,
-        IsHeadquarters = c.IsHeadquarters,
-        DisplayOrder = c.DisplayOrder,
-        Description = c.Description,
-    };
+        var codes = await LoadCurrencyCodesAsync(new[] { c.BaseCurrencyUnitId });
+        var branches = await AsyncExecuter.ToListAsync((await _branchRepository.GetQueryableAsync())
+            .Where(b => b.CompanyId == c.Id).OrderBy(b => b.DisplayOrder));
+        var branchIds = branches.Select(b => b.Id).ToList();
+        var vaults = await AsyncExecuter.ToListAsync((await _vaultRepository.GetQueryableAsync())
+            .Where(v => branchIds.Contains(v.BranchId)).OrderBy(v => v.DisplayOrder));
+
+        return new CompanyGetDto
+        {
+            Id = c.Id,
+            Code = c.Code,
+            Name = c.Name,
+            CountryCode = c.CountryCode,
+            BaseCurrencyUnitId = c.BaseCurrencyUnitId,
+            BaseCurrencyCode = codes.GetValueOrDefault(c.BaseCurrencyUnitId, string.Empty),
+            IsActive = c.IsActive,
+            IsHeadquarters = c.IsHeadquarters,
+            DisplayOrder = c.DisplayOrder,
+            Description = c.Description,
+            Branches = branches.Select(b => new BranchGraphDto
+            {
+                Id = b.Id,
+                Code = b.Code,
+                Name = b.Name,
+                IsHeadquarters = b.IsHeadquarters,
+                IsActive = b.IsActive,
+                DisplayOrder = b.DisplayOrder,
+                Description = b.Description,
+                Vaults = vaults.Where(v => v.BranchId == b.Id).Select(v => new VaultGraphDto
+                {
+                    Id = v.Id,
+                    Code = v.Code,
+                    Name = v.Name,
+                    IsDefault = v.IsDefault,
+                    IsActive = v.IsActive,
+                    DisplayOrder = v.DisplayOrder,
+                    Description = v.Description,
+                }).ToList(),
+            }).ToList(),
+        };
+    }
 
     // Liste projeksiyonu: Company + join'lenmiş BaseCurrencyCode (gerçek string kolon → server-side sort/filter/arama).
     private sealed class CompanyListRow

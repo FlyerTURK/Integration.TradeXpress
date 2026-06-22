@@ -78,3 +78,29 @@ public class VaultUpdateDto : IUpdateDto
     [StringLength(VaultConsts.DescriptionMaxLength)]
     public string? Description { get; set; }
 }
+
+/// <summary>
+/// Branch grafının kasa DÜĞÜMÜ — yalnız in-memory drill + Branch save'i içindir (kendi app servisi YOK;
+/// standalone Vault CRUD ayrı: <see cref="VaultGetDto"/>/<see cref="VaultCreateDto"/>/<see cref="VaultUpdateDto"/>).
+/// Durum = <see cref="Id"/> + <see cref="IsDeleted"/>: Id boş → ekle, IsDeleted → sil, aksi → güncelle.
+/// </summary>
+public class VaultGraphDto : EntityDto<Guid>
+{
+    public Guid ClientKey { get; set; } = Guid.NewGuid();
+    public bool IsDeleted { get; set; }
+
+    [Required]
+    [StringLength(VaultConsts.CodeMaxLength)]
+    public string Code { get; set; } = string.Empty;
+
+    [Required]
+    [StringLength(VaultConsts.NameMaxLength)]
+    public string Name { get; set; } = string.Empty;
+
+    public bool IsDefault { get; set; }
+    public bool IsActive { get; set; } = true;
+    public int DisplayOrder { get; set; }
+
+    [StringLength(VaultConsts.DescriptionMaxLength)]
+    public string? Description { get; set; }
+}

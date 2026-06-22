@@ -1,9 +1,10 @@
 using System;
-using System.Threading.Tasks;
 using Volo.Abp.Application.Services;
 
 namespace Integration.TradeXpress.Companies;
 
+// Şirket + şube + kasa grafı standart Create/Update/Get üzerinden taşınır (CompanyGetDto.Branches).
+// Ayrı tree-API yok; yazımlar BranchAppService'e (o da VaultAppService'e) delege edilir.
 public interface ICompanyAppService : ICrudAppService<
     CompanyGetDto,
     CompanyListDto,
@@ -12,13 +13,4 @@ public interface ICompanyAppService : ICrudAppService<
     CompanyCreateDto,
     CompanyUpdateDto>
 {
-    /// <summary>Şirketi tüm şube + kasalarıyla (tam ağaç) okur — edit formundaki drill list'ler için.</summary>
-    Task<CompanyTreeDto> GetTreeAsync(Guid id);
-
-    /// <summary>
-    /// Şirket + şube + kasa ağacını tek transaction'da kaydeder (in-memory commit). Id'siz çocuklar
-    /// eklenir, girdide olmayan mevcut çocuklar silinir; değişmezler (en az 1 şube/kasa, tek HQ şube,
-    /// tek varsayılan kasa) zorlanır.
-    /// </summary>
-    Task<CompanyTreeDto> SaveTreeAsync(CompanyTreeSaveDto input);
 }

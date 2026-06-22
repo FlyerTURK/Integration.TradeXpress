@@ -4,7 +4,8 @@
 @implements IDisposable
 
 <DxPopup Visible="@PopupService.IsVisible"
-         VisibleChanged="OnVisibleChanged"
+         Closing="OnClosing"
+         Closed="OnClosed"
          HeaderText="@PopupService.Options?.Title"
          ShowCloseButton="true"
          ShowFooter="false"
@@ -29,19 +30,23 @@
         PopupService.OnHide += StateHasChanged;
     }
 
-    private async Task OnVisibleChanged(bool isVisible)
+    // Kapanma ÖNCESİ (Closing): kullanıcı kapanışında (X/Escape/dış tık) kirli guard'ı çalıştır; reddedilirse
+    // args.Cancel=true → popup HİÇ kapanmaz (görsel kapanıp sonra sorma derdi yok; "OnClosing" mantığı).
+    private async Task OnClosing(PopupClosingEventArgs args)
     {
-        if (!isVisible && PopupService.IsVisible)
-        {
-            // Kaydedilmemiş değişiklik guard'ı: false dönerse popup açık kalır.
-            var guard = PopupService.CloseGuard;
-            if (guard != null && !await guard())
-            {
-                await InvokeAsync(StateHasChanged); // Visible=true'ya geri bağlan → açık kal
-                return;
-            }
+        // Programmatik kapanış = PopupService.Close() çağrıldı (kod zaten karar verdi/guard'ladı) → tekrar sorma.
+        if (args.CloseReason == PopupCloseReason.Programmatically) return;
+
+        var guard = PopupService.CloseGuard;
+        if (guard != null && !await guard())
+            args.Cancel = true;
+    }
+
+    // Kapanış kesinleşti → servis state'ini senkronla (kullanıcı kapanışında IsVisible hâlâ true'ydu).
+    private void OnClosed(PopupClosedEventArgs args)
+    {
+        if (PopupService.IsVisible)
             PopupService.Close();
-        }
     }
 
     public void Dispose()

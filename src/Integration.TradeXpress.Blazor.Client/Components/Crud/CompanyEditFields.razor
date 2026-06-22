@@ -1,0 +1,85 @@
+@using System
+@using System.Linq
+@using Integration.TradeXpress.Companies
+@using Integration.TradeXpress.Countries
+@using Integration.TradeXpress.Financials.CurrencyUnits
+@using Integration.Framework.Blazor.Client.Components.Crud
+@using DevExpress.Blazor
+@using Microsoft.Extensions.Localization
+@inherits CrudComponentBase
+
+@* Şirket alanları (paylaşılan). EditForm/EditContent içinde kullanılır (validasyon cascade'i için). Şube/kasa
+   drill'i AYRI bileşendedir (CompanyBranchDrill) — iç içe DrillList'i EditContent'e gömmek NRE verir. *@
+
+<DxFormLayout CssClass="w-100">
+    <DxFormLayoutGroup Caption="@L["General"]" ColSpanMd="12">
+        <DxFormLayoutItem Caption="@($"{L["Code"]} *")" ColSpanMd="6">
+            <DxTextBox @bind-Text="@Model.Code" Enabled="@CodeEnabled" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="12">
+            <DxTextBox @bind-Text="@Model.Name" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@($"{L["Country"]} *")" ColSpanMd="6">
+            <DxComboBox Data="@Countries" Value="@Model.CountryCode"
+                        ValueFieldName="@nameof(CountryListDto.Code)"
+                        TextFieldName="@nameof(CountryListDto.Code)"
+                        ValueChanged="@((string code) => OnCountryChanged(code))"
+                        ValidationEnabled="false"
+                        NullText="@L["Country"]"
+                        CssClass="w-100" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem ColSpanMd="6" CaptionFor="baseCcy">
+            <CaptionTemplate>
+                <InfoCaption Text="@L["Yerel Para Birimi"].Value"
+                             HintText="@L["Company:BaseCurrencyCodeHint"].Value"
+                             Required="true" />
+            </CaptionTemplate>
+            <Template>
+                <DxComboBox Data="@Units" @bind-Value="@Model.BaseCurrencyUnitId"
+                            ValueFieldName="@nameof(CurrencyUnitListDto.Id)"
+                            TextFieldName="@nameof(CurrencyUnitListDto.Code)"
+                            ValidationEnabled="false"
+                            InputId="baseCcy"
+                            CssClass="w-100" />
+            </Template>
+        </DxFormLayoutItem>
+        @* Şirketin kendi merkez switch'i — Enabled host'tan (standalone: snapshot; tenant düğümü: canlı self-hariç). *@
+        <DxFormLayoutItem Caption="@L["IsHeadquarters"]" ColSpanMd="6">
+            <DxCheckBox @bind-Checked="@Model.IsHeadquarters" CheckType="CheckType.Switch" Enabled="@HeadquartersEnabled">
+                @(Model.IsHeadquarters ? L["Yes"] : L["No"])
+            </DxCheckBox>
+        </DxFormLayoutItem>
+    </DxFormLayoutGroup>
+
+    <DxFormLayoutItem Caption="@L["Description"]" ColSpanMd="12">
+        <DxMemo @bind-Text="@Model.Description" Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100" />
+    </DxFormLayoutItem>
+    <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6">
+        <DxCheckBox @bind-Checked="@Model.IsActive" CheckType="CheckType.Switch">
+            @(Model.IsActive ? L["Active"] : L["Passive"])
+        </DxCheckBox>
+    </DxFormLayoutItem>
+    <DxFormLayoutItem Caption="@L["DisplayOrder"]" ColSpanMd="6">
+        <NumericSpinEdit @bind-Value="@Model.DisplayOrder" />
+    </DxFormLayoutItem>
+</DxFormLayout>
+
+@code {
+    [Parameter, EditorRequired] public ICompanyGraph Model { get; set; } = default!;
+    [Parameter] public List<CurrencyUnitListDto> Units { get; set; } = new();
+    [Parameter] public List<CountryListDto> Countries { get; set; } = new();
+    [Parameter] public bool HeadquartersEnabled { get; set; } = true;
+    [Parameter] public bool CodeEnabled { get; set; } = true;
+
+    private void OnCountryChanged(string code)
+    {
+        Model.CountryCode = code;
+        var country = Countries.FirstOrDefault(c => c.Code == code);
+        if (country?.DefaultCurrencyCode is { Length: > 0 } ccy)
+        {
+            var unit = Units.FirstOrDefault(u => string.Equals(u.Code, ccy, StringComparison.OrdinalIgnoreCase));
+            if (unit != null)
+                Model.BaseCurrencyUnitId = unit.Id;
+        }
+    }
+}

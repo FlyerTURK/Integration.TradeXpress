@@ -1,0 +1,206 @@
+@using System
+@using System.Linq
+@using Integration.TradeXpress.Companies
+@using Integration.TradeXpress.Branches
+@using Integration.TradeXpress.Vaults
+@using Integration.Framework.Blazor.Client.Components.Crud
+@using Integration.TradeXpress.Blazor.Client.Components.Shared
+@using DevExpress.Blazor
+@using Microsoft.Extensions.Localization
+@inherits CrudComponentBase
+
+@* Paylaşılan şube+kasa drill'i (Model.Branches grafı). Şirket EditForm'unun DIŞINDA kullanılır
+   (CompanyEditPage'de form kardeşi; tenant'ta company-drill AfterEditForm'unda) — iç içe DrillList'i
+   EditContent'e gömmek NRE verir. Tüm tekil-bayrak (HQ/varsayılan) transfer/switch/sil mantığı burada. *@
+
+<div class="mt-3">
+    <DrillList TItem="BranchGraphDto"
+               Title="@L["Menu:Branches"]"
+               EntityName="@L["Entity:Branch"]"
+               Items="Model.Branches"
+               KeyFieldName="ClientKey"
+               PrimaryTextSelector="@(b => b.Code)"
+               ParentEntityName="@L["Entity:Company"]"
+               ParentText="@Model.Code"
+               NewItemFactory="@NewBranch"
+               CloneFactory="@CloneBranch"
+               MinItems="1"
+               SoftDelete="true"
+               IsNewItem="@(b => b.Id == Guid.Empty)"
+               MarkDeleted="@(b => b.IsDeleted = true)"
+               FilterPredicate="@(b => !b.IsDeleted)"
+               DeleteGuard="@BranchDeleteGuard"
+               OnSelectionChanged="OnBranchSelected"
+               OnItemSaved="OnBranchSaved"
+               OnChanged="NotifyChangedAsync">
+        <ToolbarActions>
+            <DxButton Text="@L["MakeHeadquarters"]"
+                      RenderStyle="ButtonRenderStyle.Link"
+                      IconCssClass="fas fa-building"
+                      Click="MakeBranchHeadquarters"
+                      Enabled="@(_selectedBranch is { IsDeleted: false, IsHeadquarters: false })" />
+        </ToolbarActions>
+        <GridColumns>
+            <DxGridDataColumn FieldName="Code" Caption="@L["Code"]" Width="120px" />
+            <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" />
+            <DxGridDataColumn FieldName="IsHeadquarters" Caption="@L["IsHeadquarters"]" Width="90px" TextAlignment="GridTextAlignment.Left">
+                <CellDisplayTemplate Context="cell">@(((BranchGraphDto)cell.DataItem).IsHeadquarters ? L["Yes"].Value : "")</CellDisplayTemplate>
+            </DxGridDataColumn>
+            <DxGridDataColumn FieldName="IsActive" Caption="@L["Status"]" Width="110px" TextAlignment="GridTextAlignment.Left">
+                <CellDisplayTemplate Context="cell"><StatusCell Active="@(((BranchGraphDto)cell.DataItem).IsActive)" /></CellDisplayTemplate>
+            </DxGridDataColumn>
+            <DxGridDataColumn FieldName="DisplayOrder" Caption="@L["DisplayOrder"]" Width="90px" />
+        </GridColumns>
+        <EditContent Context="b">
+            <DxFormLayout CssClass="w-100">
+                <DxFormLayoutItem Caption="@($"{L["Code"]} *")" ColSpanMd="6"><DxTextBox @bind-Text="b.Code" /></DxFormLayoutItem>
+                <DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="12"><DxTextBox @bind-Text="b.Name" /></DxFormLayoutItem>
+                <DxFormLayoutItem Caption="@L["IsHeadquarters"]" ColSpanMd="6"><DxCheckBox @bind-Checked="b.IsHeadquarters" CheckType="CheckType.Switch" Enabled="@(!IsBranchSoleHq(b))" /></DxFormLayoutItem>
+                <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6"><DxCheckBox @bind-Checked="b.IsActive" CheckType="CheckType.Switch" /></DxFormLayoutItem>
+                <DxFormLayoutItem Caption="@L["Description"]" ColSpanMd="12"><DxMemo @bind-Text="b.Description" Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100" /></DxFormLayoutItem>
+                <DxFormLayoutItem Caption="@L["DisplayOrder"]" ColSpanMd="6"><NumericSpinEdit @bind-Value="b.DisplayOrder" /></DxFormLayoutItem>
+            </DxFormLayout>
+        </EditContent>
+        <AfterEditForm Context="b">
+            <div class="mt-3">
+                <DrillList TItem="VaultGraphDto"
+                           Title="@L["Menu:Vaults"]"
+                           EntityName="@L["Entity:Vault"]"
+                           Items="b.Vaults"
+                           KeyFieldName="ClientKey"
+                           PrimaryTextSelector="@(v => v.Code)"
+                           ParentEntityName="@L["Entity:Branch"]"
+                           ParentText="@b.Code"
+                           NewItemFactory="@NewVault"
+                           CloneFactory="@CloneVault"
+                           MinItems="1"
+                           SoftDelete="true"
+                           IsNewItem="@(v => v.Id == Guid.Empty)"
+                           MarkDeleted="@(v => v.IsDeleted = true)"
+                           FilterPredicate="@(v => !v.IsDeleted)"
+                           DeleteGuard="@(v => VaultDeleteGuard(b, v))"
+                           OnSelectionChanged="OnVaultSelected"
+                           OnItemSaved="@(v => OnVaultSaved(b, v))"
+                           OnChanged="NotifyChangedAsync">
+                    <ToolbarActions>
+                        <DxButton Text="@L["MakeDefaultVault"]"
+                                  RenderStyle="ButtonRenderStyle.Link"
+                                  IconCssClass="fas fa-star"
+                                  Click="@(() => MakeVaultDefault(b))"
+                                  Enabled="@(_selectedVault is { IsDeleted: false, IsDefault: false })" />
+                    </ToolbarActions>
+                    <GridColumns>
+                        <DxGridDataColumn FieldName="Code" Caption="@L["Code"]" Width="120px" />
+                        <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" />
+                        <DxGridDataColumn FieldName="IsDefault" Caption="@L["IsDefault"]" Width="90px" TextAlignment="GridTextAlignment.Left">
+                            <CellDisplayTemplate Context="cell">@(((VaultGraphDto)cell.DataItem).IsDefault ? L["Yes"].Value : "")</CellDisplayTemplate>
+                        </DxGridDataColumn>
+                        <DxGridDataColumn FieldName="IsActive" Caption="@L["Status"]" Width="110px" TextAlignment="GridTextAlignment.Left">
+                            <CellDisplayTemplate Context="cell"><StatusCell Active="@(((VaultGraphDto)cell.DataItem).IsActive)" /></CellDisplayTemplate>
+                        </DxGridDataColumn>
+                        <DxGridDataColumn FieldName="DisplayOrder" Caption="@L["DisplayOrder"]" Width="90px" />
+                    </GridColumns>
+                    <EditContent Context="v">
+                        <DxFormLayout CssClass="w-100">
+                            <DxFormLayoutItem Caption="@($"{L["Code"]} *")" ColSpanMd="6"><DxTextBox @bind-Text="v.Code" /></DxFormLayoutItem>
+                            <DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="12"><DxTextBox @bind-Text="v.Name" /></DxFormLayoutItem>
+                            <DxFormLayoutItem Caption="@L["IsDefault"]" ColSpanMd="6"><DxCheckBox @bind-Checked="v.IsDefault" CheckType="CheckType.Switch" Enabled="@(!IsVaultSoleDefault(b, v))" /></DxFormLayoutItem>
+                            <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6"><DxCheckBox @bind-Checked="v.IsActive" CheckType="CheckType.Switch" /></DxFormLayoutItem>
+                            <DxFormLayoutItem Caption="@L["Description"]" ColSpanMd="12"><DxMemo @bind-Text="v.Description" Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100" /></DxFormLayoutItem>
+                            <DxFormLayoutItem Caption="@L["DisplayOrder"]" ColSpanMd="6"><NumericSpinEdit @bind-Value="v.DisplayOrder" /></DxFormLayoutItem>
+                        </DxFormLayout>
+                    </EditContent>
+                </DrillList>
+            </div>
+        </AfterEditForm>
+    </DrillList>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public ICompanyGraph Model { get; set; } = default!;
+    [Parameter] public EventCallback OnChanged { get; set; }
+
+    private BranchGraphDto? _selectedBranch;
+    private VaultGraphDto? _selectedVault;
+
+    private async Task NotifyChangedAsync()
+    {
+        await OnChanged.InvokeAsync();
+        StateHasChanged();
+    }
+
+    private static BranchGraphDto NewBranch() => new()
+    {
+        IsActive = true,
+        DisplayOrder = 1,
+        Vaults = { new VaultGraphDto { Code = VaultConsts.DefaultCode, Name = VaultConsts.DefaultName, IsDefault = true, DisplayOrder = 1 } },
+    };
+
+    private static VaultGraphDto NewVault() => new() { IsActive = true, DisplayOrder = 1 };
+
+    private static BranchGraphDto CloneBranch(BranchGraphDto b) => new()
+    {
+        Id = b.Id, ClientKey = b.ClientKey, IsDeleted = b.IsDeleted,
+        Code = b.Code, Name = b.Name, IsHeadquarters = b.IsHeadquarters,
+        IsActive = b.IsActive, DisplayOrder = b.DisplayOrder, Description = b.Description,
+        Vaults = b.Vaults.Select(CloneVault).ToList(),
+    };
+
+    private static VaultGraphDto CloneVault(VaultGraphDto v) => new()
+    {
+        Id = v.Id, ClientKey = v.ClientKey, IsDeleted = v.IsDeleted,
+        Code = v.Code, Name = v.Name, IsDefault = v.IsDefault,
+        IsActive = v.IsActive, DisplayOrder = v.DisplayOrder, Description = v.Description,
+    };
+
+    private void OnBranchSelected(BranchGraphDto? b) => _selectedBranch = b;
+    private void OnVaultSelected(VaultGraphDto? v) => _selectedVault = v;
+
+    // Tekil-bayrak: KENDİSİ (ClientKey) hariç başka HQ/varsayılan yoksa tektir → silinemez + switch kapalı.
+    private bool IsBranchSoleHq(BranchGraphDto b)
+        => b.IsHeadquarters && !Model.Branches.Any(x => x.ClientKey != b.ClientKey && !x.IsDeleted && x.IsHeadquarters);
+
+    private static bool IsVaultSoleDefault(BranchGraphDto branch, VaultGraphDto v)
+        => v.IsDefault && !branch.Vaults.Any(x => x.ClientKey != v.ClientKey && !x.IsDeleted && x.IsDefault);
+
+    private string? BranchDeleteGuard(BranchGraphDto b)
+        => IsBranchSoleHq(b) ? L["CannotDeleteHeadquartersBranch"].Value : null;
+
+    private string? VaultDeleteGuard(BranchGraphDto branch, VaultGraphDto v)
+        => IsVaultSoleDefault(branch, v) ? L["CannotDeleteDefaultVault"].Value : null;
+
+    // Devir: kaydedilen şube/kasa HQ/varsayılan ise diğerlerinin bayrağını düşür.
+    private void OnBranchSaved(BranchGraphDto saved)
+    {
+        if (!saved.IsHeadquarters) return;
+        foreach (var b in Model.Branches)
+            if (!ReferenceEquals(b, saved) && !b.IsDeleted)
+                b.IsHeadquarters = false;
+    }
+
+    private static void OnVaultSaved(BranchGraphDto branch, VaultGraphDto saved)
+    {
+        if (!saved.IsDefault) return;
+        foreach (var v in branch.Vaults)
+            if (!ReferenceEquals(v, saved) && !v.IsDeleted)
+                v.IsDefault = false;
+    }
+
+    private async Task MakeBranchHeadquarters()
+    {
+        if (_selectedBranch is null || _selectedBranch.IsDeleted) return;
+        foreach (var b in Model.Branches)
+            b.IsHeadquarters = false;
+        _selectedBranch.IsHeadquarters = true;
+        await NotifyChangedAsync();
+    }
+
+    private async Task MakeVaultDefault(BranchGraphDto branch)
+    {
+        if (_selectedVault is null || _selectedVault.IsDeleted) return;
+        foreach (var v in branch.Vaults)
+            v.IsDefault = false;
+        _selectedVault.IsDefault = true;
+        await NotifyChangedAsync();
+    }
+}

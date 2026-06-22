@@ -2,7 +2,9 @@
 @using System.Linq
 @using Microsoft.AspNetCore.Components.Forms
 @using DevExpress.Blazor
+@using Integration.Framework.Blazor.Client.Services.Base
 @inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+@inject ITradeXpressUiService UiService
 
 @*
    Yeniden kullanılabilir master-detail "drill list" — listeleme formlarımızla aynı yerleşim
@@ -32,7 +34,7 @@
                            IconUrl="/images/xaf/action_delete.svg"
                            IconCssClass="xaf-toolbar-item-icon"
                            Click="@((ToolbarItemClickEventArgs e) => DeleteSelected())"
-                           Enabled="@(_selectedItems != null && _selectedItems.Count > 0 && !_busy)" />
+                           Enabled="@(CanDeleteSelection && !_busy)" />
         }
         @* Refresh, Delete'ten sonra gelir. *@
         @if (OnRefresh.HasDelegate)
@@ -106,7 +108,8 @@
     @* Footer/header ana CRUD edit (CrudEditView) ile aynı desen: DevExpress FooterContentTemplate
        (sabit dip, tema padding'i + üst çizgi) + HeaderContentTemplate (ikon + sola yaslı başlık). *@
     <DxPopup Visible="@_popupVisible"
-             VisibleChanged="OnPopupVisibleChanged"
+             Closing="OnPopupClosing"
+             Closed="OnPopupClosed"
              Width="95%"
              MaxWidth="720px"
              MaxHeight="90vh"
@@ -133,7 +136,7 @@
         <FooterContentTemplate Context="popup">
             @* Ortak standart footer (tek kaynak) — CrudEditForm ile aynı bileşen; Kaydet ve Yeni dahil. *@
             <CrudFooterToolbar OnSave="HandleSaveClick" OnSaveAndNew="HandleSaveAndNew" OnCancel="Cancel"
-                               ShowSaveAndNew="true" CanSave="@(!_busy)" IsBusy="@_busy" />
+                               ShowSaveAndNew="true" CanSave="@((_isNew || IsEditDirty) && !_busy)" IsBusy="@_busy" />
         </FooterContentTemplate>
     </DxPopup>
 }
@@ -204,8 +207,22 @@
     /// Items (tam liste) mutation için dokunulmaz kalır.</summary>
     [Parameter] public Func<TItem, bool>? FilterPredicate { get; set; }
 
+    /// <summary>Soft-delete (graf) modu: silme satırı LİSTEDEN ÇIKARMAZ — <see cref="MarkDeleted"/> ile
+    /// işaretler (arka planda yaşar, parent save'inde IsDeleted olarak gider). Idsi olmayan (yeni) öğe
+    /// silinince listeden TAMAMEN çıkar (<see cref="IsNewItem"/> ile ayırt edilir). Grid'de görünmemesi
+    /// için ayrıca FilterPredicate ile IsDeleted olanlar gizlenmeli.</summary>
+    [Parameter] public bool SoftDelete { get; set; }
+
+    /// <summary>Öğe henüz kalıcı değil mi (Id boş)? Soft-delete'te yeni+silinen doğrudan listeden çıkar.</summary>
+    [Parameter] public Func<TItem, bool>? IsNewItem { get; set; }
+
+    /// <summary>Mevcut öğeyi silindi işaretle (IsDeleted=true). Soft-delete modunda kullanılır.</summary>
+    [Parameter] public Action<TItem>? MarkDeleted { get; set; }
+
+    // Her render'da YENİ liste → DxGrid Data referansı değişir → ekleme/silme/save-and-new anında yansır
+    // (aksi halde aynı List referansında mutasyonu grid algılamaz; özellikle FilterPredicate'siz drill'lerde).
     private IEnumerable<TItem> FilteredItems =>
-        FilterPredicate != null ? Items.Where(FilterPredicate) : Items;
+        (FilterPredicate != null ? Items.Where(FilterPredicate) : Items).ToList();
 
     /// <summary>Liste değişince parent'a haber verir (dirty işaretleme / yeniden render).</summary>
     [Parameter] public EventCallback OnChanged { get; set; }
@@ -243,12 +260,50 @@
     // Tek seçili öğe — Edit butonu ve popup için kullanılır.
     private TItem? SelectedItem => _selectedItems?.Count == 1 ? _selectedItems[0] as TItem : null;
 
+    // Sil butonu aktifliği: seçim var + seçilenlerin hiçbiri DeleteGuard ile engellenmiyor (ör. varsayılan kasa).
+    private bool CanDeleteSelection =>
+        _selectedItems is { Count: > 0 }
+        && (DeleteGuard == null || _selectedItems.OfType<TItem>().All(i => DeleteGuard(i) == null));
+
     private TItem? _editItem;
     private TItem? _editOriginal;  // düzenlenen orijinal liste öğesi (clone modunda geri yazma için)
     private bool _isNew;
     private bool _popupVisible;
     private bool _busy;
     private EditContext? _editContext;
+    private string? _editSnapshot;  // açılış anındaki _editItem JSON'u → dirty karşılaştırması (ana edit formuyla aynı)
+
+    // Kaydedilmemiş değişiklik var mı? Mevcut _editItem JSON'u açılış snapshot'ından farklıysa dirty.
+    // Serileştirme başarısızsa fail-open (dirty=true → kaydetme/onay engellenmesin).
+    private bool IsEditDirty
+    {
+        get
+        {
+            if (_editItem == null) return false;
+            if (_editSnapshot == null) return true;
+            try { return System.Text.Json.JsonSerializer.Serialize(_editItem) != _editSnapshot; }
+            catch { return true; }
+        }
+    }
+
+    // Alan değişince başlık "*" + Save aktifliği canlı güncellensin (DevExpress inputlar EditContext'e bildirir).
+    private void OnEditFieldChanged(object? sender, FieldChangedEventArgs e) => StateHasChanged();
+
+    private void SetEditContext(TItem item)
+    {
+        if (_editContext != null) _editContext.OnFieldChanged -= OnEditFieldChanged;
+        _editContext = new EditContext(item);
+        _editContext.OnFieldChanged += OnEditFieldChanged;
+        try { _editSnapshot = System.Text.Json.JsonSerializer.Serialize(item); }
+        catch { _editSnapshot = null; }
+    }
+
+    private void ClearEditContext()
+    {
+        if (_editContext != null) _editContext.OnFieldChanged -= OnEditFieldChanged;
+        _editContext = null;
+        _editSnapshot = null;
+    }
 
     // Popup modunun (AllowInlineEdit=false) düzenleme gövdesi (form + Save/Cancel).
     private RenderFragment EditFormBody => @<text>
@@ -266,6 +321,13 @@
 
                 @EditContent(_editItem)
             </CascadingValue>
+
+            @* Edit EditForm'unun (CascadingValue<EditContext>) DIŞINDA — iç içe DrillList kendi
+               context'ini cascade eder, parent'ınki sızmaz (nested EditContext render NRE'si önlenir). *@
+            @if (AfterEditForm != null)
+            {
+                @AfterEditForm(_editItem)
+            }
         }
     </text>;
 
@@ -297,7 +359,7 @@
             : (string.IsNullOrWhiteSpace(primary) ? name : $"{name} {primary}");
         if (!string.IsNullOrWhiteSpace(ParentEntityName) && !string.IsNullOrWhiteSpace(ParentText))
             title += $" - [{ParentEntityName}: {ParentText}]";
-        return title;
+        return IsEditDirty ? $"* {title}" : title;   // kaydedilmemiş değişiklik göstergesi
     }
 
     // Başlık ikonu: entity ikonu (yoksa generic düzenleme ikonu).
@@ -308,7 +370,7 @@
         _editItem = NewItemFactory();
         _editOriginal = null;
         _isNew = true;
-        _editContext = new EditContext(_editItem);
+        SetEditContext(_editItem);
         _popupVisible = true;
     }
 
@@ -317,7 +379,7 @@
         _editOriginal = item;
         _editItem = CloneFactory != null ? CloneFactory(item) : item;  // kopya → Cancel geri alabilir
         _isNew = false;
-        _editContext = new EditContext(_editItem);
+        SetEditContext(_editItem);
         _popupVisible = true;
     }
 
@@ -371,6 +433,7 @@
             _popupVisible = false;
             _editItem = null;
             _editOriginal = null;
+            ClearEditContext();
             if (saved != null) await OnItemSaved.InvokeAsync(saved);
             await OnSelectionChanged.InvokeAsync(saved);
             await OnChanged.InvokeAsync();
@@ -390,11 +453,45 @@
         _popupVisible = false;
         _editItem = null;
         _editOriginal = null;
+        ClearEditContext();
     }
 
-    private void OnPopupVisibleChanged(bool visible)
+    // Kapanma ÖNCESİ (Closing): kullanıcı kapanışında (X/Escape) kirli ise onay; reddedilirse iptal → açık kal.
+    private async Task OnPopupClosing(PopupClosingEventArgs args)
     {
-        if (!visible) Cancel();
+        if (args.CloseReason == PopupCloseReason.Programmatically) return;  // Save/Cancel kodu zaten kapattı
+        if (!await ConfirmCloseAsync()) args.Cancel = true;
+    }
+
+    // Kapanış kesinleşti (kullanıcı kapanışı onaylandı, programmatik değil) → temizle.
+    private void OnPopupClosed(PopupClosedEventArgs args)
+    {
+        if (_popupVisible) Cancel();
+    }
+
+    // Dirty değilse serbest. Dirty ise "Kaydet / Yoksay / (çarpı=İptal)" — ana edit formuyla aynı UX:
+    // Kaydet→doğrula+kaydet (geçerliyse kapanır, geçersizse açık kalır), Yoksay→değişiklikleri at, İptal→kal.
+    private async Task<bool> ConfirmCloseAsync()
+    {
+        if (!IsEditDirty) return true;
+        var result = await UiService.ConfirmAsync(
+            L["UnsavedChangesConfirmation"].Value, title: null,
+            yesText: L["SaveChanges"].Value, noText: L["DiscardChanges"].Value,
+            showCancel: false, defaultYes: true);
+        return result switch
+        {
+            ConfirmDialogResult.Yes => await TrySaveForCloseAsync(),  // geçerli+kaydedildi → kapat; geçersiz → kal
+            ConfirmDialogResult.No  => true,                          // yoksay → kapat
+            _                       => false,                         // çarpı/iptal → kal
+        };
+    }
+
+    // Kapanışta Kaydet: geçersizse false (açık kal); geçerliyse kaydet (SaveAsync zaten kapatır) → true.
+    private async Task<bool> TrySaveForCloseAsync()
+    {
+        if (_editContext == null || !_editContext.Validate()) return false;
+        await SaveAsync();
+        return true;
     }
 
     private async Task DeleteSelected()
@@ -402,7 +499,7 @@
         var toDelete = _selectedItems?.OfType<TItem>().ToList();
         if (toDelete == null || toDelete.Count == 0) return;
 
-        if (Items.Count - toDelete.Count < MinItems)
+        if (FilteredItems.Count() - toDelete.Count < MinItems)   // görünür (silinmemiş) sayıya göre
         {
             await Notify.Warn(L["DrillMinItems"]);
             return;
@@ -423,10 +520,22 @@
         {
             foreach (var item in toDelete)
             {
-                if (Persistent && PersistDelete != null)
-                    await PersistDelete(item);
-                await OnItemDeleted.InvokeAsync(item);
-                Items.Remove(item);
+                if (SoftDelete)
+                {
+                    // Yeni (Idsiz) → listeden tamamen çıkar; mevcut → IsDeleted işaretle (arka planda kalır).
+                    if (IsNewItem?.Invoke(item) == true)
+                        Items.Remove(item);
+                    else
+                        MarkDeleted?.Invoke(item);
+                    await OnItemDeleted.InvokeAsync(item);
+                }
+                else
+                {
+                    if (Persistent && PersistDelete != null)
+                        await PersistDelete(item);
+                    await OnItemDeleted.InvokeAsync(item);
+                    Items.Remove(item);
+                }
             }
             _selectedItems = null;
             await OnSelectionChanged.InvokeAsync(null);
