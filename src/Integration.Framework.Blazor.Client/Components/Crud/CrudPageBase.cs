@@ -224,6 +224,10 @@ public abstract class CrudPageBase<TGetDto, TListDto, TKey, TListRequestDto, TCr
         => ServiceProvider.GetService(typeof(Integration.Framework.Blazor.Client.Services.Mdi.IMdiTabOpener))
            as Integration.Framework.Blazor.Client.Services.Mdi.IMdiTabOpener;
 
+    /// <summary>Alt sınıf, edit bileşenine EK parametre geçirebilir (ör. drill-down bağlamı: BranchId/CompanyId).
+    /// Varsayılan null → değişiklik yok. ViewOpener'ın extra param'larına merge edilir.</summary>
+    protected virtual System.Collections.Generic.Dictionary<string, object>? AdditionalEditParameters => null;
+
     protected virtual Task ShowPopupAsync(TKey? id)
     {
         // Sayfa MDI sekmesi istiyorsa ve uygulama MDI sağlıyorsa: edit page'in route'unu sekmede aç (popup yerine).
@@ -237,7 +241,12 @@ public abstract class CrudPageBase<TGetDto, TListDto, TKey, TListRequestDto, TCr
             { "OnClosed", Microsoft.AspNetCore.Components.EventCallback.Factory.Create(this, () => PopupService.Close()) },
         };
 
-        // Chrome başlığı boş — yapısal başlık popup gövdesinde (CrudEditShell → EditHeaderView) gösterilir.
+        // Alt sınıf bağlam parametreleri (ör. BranchId) — edit bileşenine geçir.
+        if (AdditionalEditParameters is { } more)
+            foreach (var kv in more)
+                extra[kv.Key] = kv.Value;
+
+        // Chrome başlığı boş — yapısal başlık popup gövdesinde gösterilir.
         return ViewOpener.OpenAsync(EditComponentType, id, string.Empty, EditIconCssClass, extra);
     }
 

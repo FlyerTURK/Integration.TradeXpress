@@ -36,7 +36,12 @@ public partial class VaultListPage
     protected override void OnConfiguringListRequest(VaultListRequestDto request)
         => request.BranchId = BranchId;
 
-        public override System.Type EditComponentType => typeof(Integration.TradeXpress.Blazor.Client.Pages.Vaults.VaultEditPage);
-    }
+    // PİLOT: yeni mimari edit (agnostic EntityEditForm + PersistentCoordinator). Eski VaultEditPage repo'da kalır.
+    public override System.Type EditComponentType => typeof(VaultEditHost);
+
+    // Drill-down bağlamı: yeni kasanın şubesi (Id boş-guid bug'ı düzeltildi) + şube kodu (header L3: "Şube: MRK").
+    protected override System.Collections.Generic.Dictionary<string, object>? AdditionalEditParameters
+        => new() { ["BranchId"] = BranchId, ["BranchCode"] = BranchCode ?? string.Empty };
+}
 
 

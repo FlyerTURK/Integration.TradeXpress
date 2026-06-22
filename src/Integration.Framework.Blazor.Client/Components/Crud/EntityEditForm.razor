@@ -1,0 +1,336 @@
+@typeparam TGetDto where TGetDto : class, Integration.Framework.Base.Dtos.Interfaces.IGetDto<TKey>, new()
+@typeparam TListDto where TListDto : class, Integration.Framework.Base.Dtos.Interfaces.IListDto<TKey>, new()
+@typeparam TKey
+@using System.Text.Json
+@using DevExpress.Blazor
+@using Microsoft.AspNetCore.Components.Forms
+@using Integration.Framework.Blazor.Client.Services.Base
+@using Integration.Framework.Blazor.Client.Components.Shared
+@inherits CrudComponentBase
+@implements ISplitEditActions
+@implements IEditHeaderSource
+@implements IDisposable
+
+@*
+   AGNOSTIC edit form (yeni mimari): API'ye DOKUNMAZ. Bir GetDto (Model) alır, dumb Layout'u (ChildContent)
+   forma yansıtır, modeli doğrular + dirty takip eder, merkezi CrudToolbar'ı (EditController=this) yeniden
+   kullanır. Kaydet → doğrula → OnCommit(Model) fırlatır; host (liste/EditHost/DrillList) koordinatöre delege
+   eder. Prev/Next → niyet event'i; CanPrev/Next host'tan param. Persistence/contract tiplerini BİLMEZ.
+   (Undo/Redo v1'de devre dışı — ertelendi.)
+*@
+
+@* Sabit header + toolbar (flex-shrink:0), KAYAN body (flex:1 + overflow-y:auto). Yükseklik açık max-height:88vh
+   (popup 90vh içine sığar) — h-100 popup'ta çözülmediğinden EXPLICIT bound veriyoruz → body güvenilir kayar.
+   Header = paylaşılan EditHeaderView (Components.Shared import edildi → artık çözülür/görünür). *@
+<div style="display:flex; flex-direction:column; max-height:88vh; min-height:0;">
+    @if (Placement == ToolbarPlacement.Top)
+    {
+        @* Popup modunda (PopupChrome var) başlık CHROME header'ında (boş band + çift olmaz, native X kalır);
+           tab/standalone modda (chrome yok) gövdede çizilir. *@
+        @if (HeaderData is not null && PopupChrome is null)
+        {
+            <div style="padding:0.15rem 0.25rem 0.5rem; border-bottom:1px solid #dee2e6; margin-bottom:0.5rem; flex-shrink:0;">
+                <EditHeaderView Header="@HeaderData" IsDirty="@IsDirty" ShowDirty="true" DirtyLabel="@L["UnsavedChanges"]" />
+            </div>
+        }
+        <div style="border-bottom:1px solid #dee2e6; padding-bottom:0.5rem; margin-bottom:0.5rem; flex-shrink:0;">
+            <CrudToolbar TGetDto="TGetDto" TListDto="TListDto" TKey="TKey" EditController="@this" />
+        </div>
+    }
+
+    <div style="flex:1 1 auto; overflow-y:auto; overflow-x:hidden; min-height:0; padding:0.25rem;">
+        @if (_editContext != null)
+        {
+            <EditForm EditContext="@_editContext">
+                <LocalizedDataAnnotationsValidator />
+                @if (IsReadOnly)
+                {
+                    <div style="background:#cff4fc; color:#055160; border:1px solid #b6effb; border-radius:0.375rem; padding:0.5rem 0.75rem; margin-bottom:0.75rem; display:flex; align-items:center; gap:0.5rem;">
+                        <i class="fas fa-circle-info" aria-hidden="true"></i>
+                        <span>@(ReadOnlyNoticeText ?? L["ReadOnlyForm"].Value)</span>
+                    </div>
+                }
+                <fieldset disabled="@IsReadOnly" style="border:0; padding:0; margin:0; min-width:0;">
+                    <div @onchange="OnFormChange">@ChildContent(Model)</div>
+                </fieldset>
+            </EditForm>
+        }
+    </div>
+
+    @if (Placement == ToolbarPlacement.Bottom)
+    {
+        <div style="border-top:1px solid #dee2e6; padding-top:0.5rem; flex-shrink:0;">
+            <CrudToolbar TGetDto="TGetDto" TListDto="TListDto" TKey="TKey" EditController="@this" />
+        </div>
+    }
+</div>
+
+@code {
+    // ── Host'tan gelen ──
+    [Parameter, EditorRequired] public TGetDto Model { get; set; } = default!;
+    [Parameter, EditorRequired] public RenderFragment<TGetDto> ChildContent { get; set; } = default!;
+
+    /// <summary>Kaydet → doğrula → bu fırlatılır; host koordinatöre commit eder + taze Model'i geri verir.</summary>
+    [Parameter] public EventCallback<TGetDto> OnCommit { get; set; }
+    [Parameter] public EventCallback OnSaveAndNew { get; set; }
+    [Parameter] public EventCallback OnSaveAndClose { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback OnDelete { get; set; }
+
+    /// <summary>BAĞLAMSAL validasyon (model attribute'larına EK). Host sağlar; bağlama göre değişen kuralları
+    /// (ör. standalone'da BranchId zorunlu ama drill'de değil) inline gösterir. (field, mesaj) çiftleri döner.</summary>
+    [Parameter] public Func<TGetDto, IReadOnlyList<KeyValuePair<string, string>>>? ValidateContext { get; set; }
+
+    /// <summary>Yeni kayıt mı (host bilir; Save yeni'de dirty olmasa da aktif, başlıkta "New").</summary>
+    [Parameter] public bool IsNew { get; set; }
+    [Parameter] public bool CanDeleteRecord { get; set; }
+    [Parameter] public bool IsReadOnly { get; set; }
+    [Parameter] public string? ReadOnlyNoticeText { get; set; }
+
+    // Navigasyon: host (koordinatör) hesaplar + verir; Form yalnız niyet fırlatır.
+    [Parameter] public bool CanGoPreviousRecord { get; set; }
+    [Parameter] public bool CanGoNextRecord { get; set; }
+    [Parameter] public EventCallback OnGoPrevious { get; set; }
+    [Parameter] public EventCallback OnGoNext { get; set; }
+
+    // Yapısal başlık (3-satır) — host verir.
+    [Parameter] public string? FormCaption { get; set; }
+    [Parameter] public string? EntityValue { get; set; }
+    [Parameter] public string? ParentLabel { get; set; }
+    [Parameter] public string? ParentValue { get; set; }
+    [Parameter] public string? IconCssClass { get; set; }
+
+    [Parameter] public ToolbarPlacement Placement { get; set; } = ToolbarPlacement.Top;
+
+    // Popup chrome (GlobalPopupHost) → varsa başlığı chrome header'a iteriz, gövdede çizmeyiz. Tab'da null.
+    [CascadingParameter] public IPopupChrome? PopupChrome { get; set; }
+
+    [Inject] protected ITradeXpressUiService UiService { get; set; } = default!;
+
+    // ── İç durum ──
+    private EditContext? _editContext;
+    private ValidationMessageStore? _ctxMessages;   // bağlamsal hook hatalarını inline gösterir
+    private TGetDto? _boundModel;     // hangi Model referansına bağlandık (değişince context+snapshot yenile)
+    private string? _cleanSnapshot;
+    private string? _lastSeenJson;
+    private bool _busy;
+
+    protected override void OnParametersSet()
+    {
+        // Host yeni Model verdiyse (yükleme/commit/nav sonrası taze) → context + temiz snapshot yenile.
+        if (!ReferenceEquals(_boundModel, Model))
+        {
+            _boundModel = Model;
+            if (_editContext != null) _editContext.OnFieldChanged -= OnFieldChanged;
+            _editContext = new EditContext(Model!);
+            _editContext.OnFieldChanged += OnFieldChanged;   // DevExpress editör değişince → dirty/CanSave/"*" tazele
+            _ctxMessages = new ValidationMessageStore(_editContext);
+            _snapshotPending = true;   // baz'ı ilk render SONRASI al (editör null→"" coercion'ı dahil → yeni kayıt dirty değil)
+        }
+    }
+
+    private bool _snapshotPending;
+
+    // EntityEditForm, child VaultLayout'un @bind'ı değişince KENDİSİ re-render olmaz (child izole). DevExpress
+    // editörleri EditContext.OnFieldChanged'i tetikler → buradan StateHasChanged ile dirty/toolbar tazelenir.
+    private void OnFieldChanged(object? sender, FieldChangedEventArgs e) => NotifyIfChanged();
+
+    private void CaptureSnapshot()
+    {
+        try { _cleanSnapshot = JsonSerializer.Serialize(Model); }
+        catch { _cleanSnapshot = null; }
+        _lastSeenJson = _cleanSnapshot;
+    }
+
+    public bool IsDirty
+    {
+        get
+        {
+            if (_cleanSnapshot == null) return true;
+            try { return JsonSerializer.Serialize(Model) != _cleanSnapshot; }
+            catch { return true; }
+        }
+    }
+
+    // Editör değişince (her tuş/blur) toolbar CanSave + başlık "*" tazelensin.
+    private Func<Task<bool>>? _closeGuard;
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        // Popup chrome'a kapanış guard'ımızı (dirty onayı) kaydet → native X/Escape kirli formda sorar.
+        // Her render'da set (cache'li delegate): popup yeniden açılıp guard temizlense de tekrar bağlanır.
+        if (PopupChrome is not null)
+        {
+            _closeGuard ??= () => ((ISplitEditActions)this).CanLeaveAsync();
+            PopupChrome.SetCloseGuard(_closeGuard);
+        }
+
+        if (_snapshotPending)
+        {
+            _snapshotPending = false;
+            CaptureSnapshot();   // ilk render SONRASI temiz baz (coercion dahil) → yeni kayıt dirty görünmez
+            StateHasChanged();
+            PushChromeHeader();
+            return;
+        }
+        NotifyIfChanged();
+        PushChromeHeader();
+    }
+
+    // Popup modunda başlığı chrome'a it. Sig-guard: yalnız başlık/dirty değişince SetHeader → GlobalPopupHost
+    // re-render → döngü yok (sig aynıysa çağırma). Fragment EditHeaderView'i canlı (HeaderData/IsDirty) çizer.
+    private string? _lastChromeSig;
+    private void PushChromeHeader()
+    {
+        if (PopupChrome is null) return;
+        var h = HeaderData;
+        var sig = $"{h?.NewPrefix}|{h?.FormCaption}|{h?.EntityValue}|{h?.ParentLabel}|{h?.ParentValue}|{h?.IconCssClass}|{IsDirty}";
+        if (sig == _lastChromeSig) return;
+        _lastChromeSig = sig;
+        PopupChrome.SetHeader(ChromeHeader);
+    }
+
+    private RenderFragment ChromeHeader => @<EditHeaderView Header="@HeaderData" IsDirty="@IsDirty" ShowDirty="true" DirtyLabel="@L["UnsavedChanges"]" />;
+
+    private void OnFormChange() => NotifyIfChanged();
+
+    private void NotifyIfChanged()
+    {
+        string? json;
+        try { json = JsonSerializer.Serialize(Model); } catch { json = null; }
+        if (json == _lastSeenJson) return;   // net değişiklik yok → döngü yok
+        _lastSeenJson = json;
+        StateHasChanged();                   // toolbar (CanSave) + başlık (*) tazele
+    }
+
+    // ── ISplitEditActions ──
+    // Save ⟺ dirty (başlıktaki "*" ile tutarlı): yeni kayıt da dokunulmadan kaydedilemez (zorunlu alanlar
+    // zaten dirty yapar). Eski "IsNew || IsDirty" kaldırıldı — dokunulmamış yeni kayıtta Save kapalı.
+    bool ISplitEditActions.CanSave => !IsReadOnly && IsDirty;
+    bool ISplitEditActions.IsNew => IsNew;
+    bool ISplitEditActions.IsReadOnly => IsReadOnly;
+    string? ISplitEditActions.ReadOnlyNotice => ReadOnlyNoticeText;
+
+    async Task ISplitEditActions.SaveAsync() => await ValidateAndCommitAsync();
+    async Task ISplitEditActions.SaveAndNewAsync() { if (await ValidateAndCommitAsync()) await OnSaveAndNew.InvokeAsync(); }
+    async Task ISplitEditActions.SaveAndCloseAsync() { if (await ValidateAndCommitAsync()) await OnSaveAndClose.InvokeAsync(); }
+
+    private async Task<bool> ValidateAndCommitAsync()
+    {
+        if (_busy || _editContext == null) return false;
+
+        _ctxMessages?.Clear();
+        var ok = _editContext.Validate();   // model attribute'ları (LocalizedDataAnnotationsValidator) — inline
+
+        // Bağlamsal kurallar (host'tan; ör. standalone'da BranchId zorunlu) — model attribute'larına EK, inline.
+        if (ValidateContext is not null && _ctxMessages is not null)
+        {
+            var ctxErrors = ValidateContext(Model);
+            if (ctxErrors is { Count: > 0 })
+            {
+                foreach (var e in ctxErrors)
+                    _ctxMessages.Add(_editContext.Field(e.Key), e.Value);
+                _editContext.NotifyValidationStateChanged();
+                ok = false;
+            }
+        }
+        if (!ok) return false;
+
+        _busy = true;
+        try
+        {
+            await OnCommit.InvokeAsync(Model);   // host commit eder; taze Model'i param olarak geri verir → snapshot yenilenir
+            return true;
+        }
+        finally { _busy = false; }
+    }
+
+    bool ISplitEditActions.CanDelete => !IsReadOnly && CanDeleteRecord && !IsNew;
+    async Task ISplitEditActions.DeleteAsync()
+    {
+        // Silme onayı agnostic form'da (her entity'de geçerli); asıl silme host'ta (OnDelete → koordinatör).
+        if (await UiService.ConfirmDeleteAsync(L["DeleteConfirmationMessage"].Value) != ConfirmDialogResult.Yes) return;
+        await OnDelete.InvokeAsync();
+    }
+
+    bool ISplitEditActions.CanGoPrevious => CanGoPreviousRecord;
+    bool ISplitEditActions.CanGoNext => CanGoNextRecord;
+    Task ISplitEditActions.GoPreviousAsync() => OnGoPrevious.InvokeAsync();
+    Task ISplitEditActions.GoNextAsync() => OnGoNext.InvokeAsync();
+    // Kayıt-arası nav koordinatörün liste sahipliğini ister (henüz yok) → toolbar'da GİZLE (Faz 3/5'te açılır).
+    bool ISplitEditActions.SupportsRecordNavigation => false;
+
+    async Task<bool> ISplitEditActions.CanLeaveAsync() => await ConfirmCloseAsync();
+
+    /// <summary>Dirty değilse serbest; dirty ise Kaydet/Yoksay/(çarpı=İptal).</summary>
+    private async Task<bool> ConfirmCloseAsync()
+    {
+        if (!IsDirty) return true;
+        var result = await UiService.ConfirmAsync(
+            L["UnsavedChangesConfirmation"].Value, title: null,
+            yesText: L["SaveChanges"].Value, noText: L["DiscardChanges"].Value,
+            showCancel: false, defaultYes: true);
+        return result switch
+        {
+            ConfirmDialogResult.Yes => await ValidateAndCommitAsync(),
+            ConfirmDialogResult.No  => true,
+            _                       => false,
+        };
+    }
+
+    Task ISplitEditActions.ResetAsync()
+    {
+        // Kaydedilmemişi at: snapshot'tan modeli geri yükle (host taze model vermeden, yerinde geri al).
+        if (_cleanSnapshot != null)
+        {
+            try
+            {
+                var restored = JsonSerializer.Deserialize<TGetDto>(_cleanSnapshot);
+                if (restored != null)
+                {
+                    Model = restored; _boundModel = restored;
+                    if (_editContext != null) _editContext.OnFieldChanged -= OnFieldChanged;
+                    _editContext = new EditContext(Model!);
+                    _editContext.OnFieldChanged += OnFieldChanged;
+                    _ctxMessages = new ValidationMessageStore(_editContext);
+                    _lastSeenJson = _cleanSnapshot;
+                }
+            }
+            catch { /* fail-safe: bırak */ }
+        }
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+    // Undo/Redo v1'de ertelendi (geçmiş yığını yok) → toolbar'da GİZLE. Reset (snapshot'tan geri al) ÇALIŞIR + görünür.
+    bool ISplitEditActions.SupportsUndoRedo => false;
+    bool ISplitEditActions.CanUndo => false;
+    bool ISplitEditActions.CanRedo => false;
+    Task ISplitEditActions.UndoAsync() => Task.CompletedTask;
+    Task ISplitEditActions.RedoAsync() => Task.CompletedTask;
+
+    void ISplitEditActions.NotifyInput() => NotifyIfChanged();
+    void ISplitEditActions.CommitUndoStep() { /* undo ertelendi */ }
+
+    // ── IEditHeaderSource ──
+    private TabHeaderData? HeaderData => BuildHeader();
+    TabHeaderData? IEditHeaderSource.EditHeader => BuildHeader();
+    bool IEditHeaderSource.IsDirty => IsDirty;
+
+    private TabHeaderData BuildHeader() => new()
+    {
+        FormCaption  = FormCaption ?? string.Empty,
+        NewPrefix    = IsNew ? L["New"].Value : null,
+        EntityValue  = IsNew ? null : EntityValue,
+        ParentLabel  = ParentLabel,
+        ParentValue  = ParentValue,
+        IconCssClass = IconCssClass,
+    };
+
+    public void Dispose()
+    {
+        if (_editContext != null) _editContext.OnFieldChanged -= OnFieldChanged;
+        PopupChrome?.SetHeader(null);       // kapanırken chrome başlığını bırakma
+        PopupChrome?.SetCloseGuard(null);   // ve guard'ı bırak
+    }
+}

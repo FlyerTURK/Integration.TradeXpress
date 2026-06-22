@@ -135,6 +135,11 @@ public interface ISplitEditActions
     Task GoPreviousAsync();
     Task GoNextAsync();
 
+    /// <summary>Bu edit kayıt-arası gezinmeyi (Önceki/Sonraki) DESTEKLİYOR mu? false ise toolbar nav'ı GİZLER
+    /// (sadece pasif değil). Default true (mevcut base'ler StateService ile destekler); koordinatör liste
+    /// sahipliği olmayan edit'ler (ör. yeni pilot Form) false döner. (Default interface member → eskiyi bozmaz.)</summary>
+    bool SupportsRecordNavigation => true;
+
     /// <summary>
     /// Panelden ayrılmak (başka kayda geçiş / Geri) güvenli mi?
     /// Temizse true; kirliyse kullanıcıya discard onayı sorar (XAF ConfirmationRequest karşılığı).
@@ -142,12 +147,17 @@ public interface ISplitEditActions
     Task<bool> CanLeaveAsync();
 
     // ── Reset / Undo / Redo ──
-    /// <summary>Kaydedilmemiş değişiklikleri at, orijinali yeniden yükle.</summary>
+    /// <summary>Kaydedilmemiş değişiklikleri at, orijinali yeniden yükle. (Reset her edit'te desteklenir.)</summary>
     Task ResetAsync();
     bool CanUndo { get; }
     bool CanRedo { get; }
     Task UndoAsync();
     Task RedoAsync();
+
+    /// <summary>Bu edit Undo/Redo (çok-adımlı değişiklik geçmişi) DESTEKLİYOR mu? false ise toolbar Undo/Redo'yu
+    /// GİZLER (Reset ayrı, görünür kalır). Default true (mevcut base snapshot-stack ile destekler); henüz
+    /// geçmiş yığını olmayan edit'ler (yeni pilot Form) false döner. (Default interface member → eskiyi bozmaz.)</summary>
+    bool SupportsUndoRedo => true;
 
     // ── Form değişiklik sinyalleri (DOM event delegation) ──
     // DevExpress editörleri @bind ile EditModel'i değiştiriyor ama EditContext.NotifyFieldChanged

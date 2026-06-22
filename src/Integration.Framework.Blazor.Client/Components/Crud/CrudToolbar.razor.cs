@@ -56,8 +56,9 @@ namespace Integration.Framework.Blazor.Client.Components.Crud
         private bool ShowFilter     => !IsEdit && ShowActiveFilter;          // Liste + Split (IIsActive)
         // Previous/Next: Split + Edit. Split'te SplitHost (grid keys), popup/standalone edit'te
         // merkezi StateService (GoNext/GoPreviousRecord) üzerinden gezinir. YENİ kayıtta gizli.
-        private bool ShowNav        => !IsList && !(ActiveEdit?.IsNew ?? false);
-        private bool ShowUndoRedo   => !IsList;                              // Split + Edit, her zaman (pasif olabilir)
+        private bool ShowNav        => !IsList && !(ActiveEdit?.IsNew ?? false) && (ActiveEdit?.SupportsRecordNavigation ?? true);
+        private bool ShowUndoRedo   => !IsList && (ActiveEdit?.SupportsUndoRedo ?? true);   // edit destekliyorsa
+        private bool ShowReset      => !IsList;                              // Reset her edit'te (snapshot'tan geri al)
 
         // ── Etkinlik ──
         private bool DeleteEnabled => IsEdit
@@ -221,7 +222,7 @@ namespace Integration.Framework.Blazor.Client.Components.Crud
                     Visible = ShowUndoRedo, Enabled = CanRedo, OnClick = DoRedo },
             new() { SortIndex = 820, AdaptiveText = L["Reset"], Tooltip = L["Reset"],
                     IconCssClass = "fas fa-eraser xaf-toolbar-item-icon",
-                    Visible = ShowUndoRedo, Enabled = CanReset, OnClick = DoReset },
+                    Visible = ShowReset, Enabled = CanReset, OnClick = DoReset },
 
             // IsActive switch — EN SONDA, sağa yaslı (Liste + Split)
             new() { SortIndex = 1000, Alignment = ToolbarItemAlignment.Right,

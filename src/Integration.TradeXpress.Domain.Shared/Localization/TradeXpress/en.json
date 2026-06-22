@@ -205,6 +205,7 @@
     "Vault:BranchIdHint": "The parent cannot be changed after creation.",
     "Branch:IsHeadquartersHint": "Setting as headquarters demotes the company's previous HQ branch (one HQ per company).",
     "Vault:IsDefaultHint": "Setting as default demotes the branch's previous default vault (one default per branch).",
+    "Vault:BranchRequired": "Branch is required.",
     "Permission:Countries": "Countries",
     "Menu:Countries": "Countries",
     "Entity:Country": "Country",

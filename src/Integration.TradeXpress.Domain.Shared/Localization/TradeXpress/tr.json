@@ -236,6 +236,7 @@
     "Vault:BranchIdHint": "Üst kayıt oluşturduktan sonra değiştirilemez.",
     "Branch:IsHeadquartersHint": "Merkez yapılırsa şirketin önceki merkez şubesi düşürülür (şirket başına tek merkez).",
     "Vault:IsDefaultHint": "Varsayılan yapılırsa şubenin önceki varsayılan kasası düşürülür (şube başına tek varsayılan).",
+    "Vault:BranchRequired": "Şube seçimi zorunludur.",
     "Permission:Countries": "Ülkeler",
     "Menu:Countries": "Ülkeler",
     "Entity:Country": "Ülke",

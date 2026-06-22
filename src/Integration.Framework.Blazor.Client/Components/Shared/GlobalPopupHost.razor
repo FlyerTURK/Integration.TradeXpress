@@ -1,12 +1,17 @@
 @using DevExpress.Blazor
+@using Microsoft.AspNetCore.Components
 @using Integration.Framework.Blazor.Client.Services.Base
 @inject IPopupService PopupService
 @implements IDisposable
+@implements IPopupChrome
 
+@* NATIVE close X korunur (ShowCloseButton). Boş chrome bandı yerine: hosted edit form, başlığını
+   IPopupChrome.SetHeader ile buraya verir → HeaderContentTemplate'i DOLDURUR (band boş kalmaz, çift
+   başlık olmaz). HeaderContentTemplate yalnız content alanını etkiler; native X bağımsız (DevExpress).
+   IPopupChrome cascade ile gövdeye verilir; form vermezse Title'a düşer (eski davranış). *@
 <DxPopup Visible="@PopupService.IsVisible"
          Closing="OnClosing"
          Closed="OnClosed"
-         HeaderText="@PopupService.Options?.Title"
          ShowCloseButton="true"
          ShowFooter="false"
          Width="95%"
@@ -15,34 +20,61 @@
          Scrollable="true"
          CloseOnEscape="@(PopupService.Options?.CloseOnEscape ?? false)"
          CloseOnOutsideClick="@(PopupService.Options?.CloseOnOutsideClick ?? false)">
-    <BodyTemplate>
-        @if (PopupService.ComponentType != null)
+    <HeaderContentTemplate Context="popup">
+        @if (_chromeHeader is not null)
         {
-            <DynamicComponent Type="@PopupService.ComponentType" Parameters="@PopupService.ComponentParameters" />
+            @_chromeHeader
         }
+        else if (!string.IsNullOrEmpty(PopupService.Options?.Title))
+        {
+            <span>@PopupService.Options!.Title</span>
+        }
+    </HeaderContentTemplate>
+    <BodyTemplate>
+        <CascadingValue Value="@((IPopupChrome)this)" IsFixed="true">
+            @if (PopupService.ComponentType != null)
+            {
+                <DynamicComponent Type="@PopupService.ComponentType" Parameters="@PopupService.ComponentParameters" />
+            }
+        </CascadingValue>
     </BodyTemplate>
 </DxPopup>
 
 @code {
+    private RenderFragment? _chromeHeader;
+    private Func<Task<bool>>? _chromeGuard;   // form'un kapanış guard'ı (CanLeaveAsync) — IPopupChrome ile gelir
+
     protected override void OnInitialized()
     {
-        PopupService.OnShow += StateHasChanged;
-        PopupService.OnHide += StateHasChanged;
+        PopupService.OnShow += HandleShow;
+        PopupService.OnHide += HandleHide;
     }
 
+    // Edit form (popup modunda) başlığını buraya verir → chrome header dolar, native X kalır.
+    // Reaktif: form dirty/başlık değişince yeniden çağrılır (form tarafı sig-guard'lı → döngü yok).
+    public void SetHeader(RenderFragment? header)
+    {
+        _chromeHeader = header;
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void SetCloseGuard(Func<Task<bool>>? guard) => _chromeGuard = guard;
+
+    private void HandleShow() { _chromeHeader = null; _chromeGuard = null; StateHasChanged(); }   // yeni popup → temizle
+    private void HandleHide() { _chromeHeader = null; _chromeGuard = null; StateHasChanged(); }
+
     // Kapanma ÖNCESİ (Closing): kullanıcı kapanışında (X/Escape/dış tık) kirli guard'ı çalıştır; reddedilirse
-    // args.Cancel=true → popup HİÇ kapanmaz (görsel kapanıp sonra sorma derdi yok; "OnClosing" mantığı).
+    // args.Cancel=true → popup HİÇ kapanmaz.
     private async Task OnClosing(PopupClosingEventArgs args)
     {
-        // Programmatik kapanış = PopupService.Close() çağrıldı (kod zaten karar verdi/guard'ladı) → tekrar sorma.
-        if (args.CloseReason == PopupCloseReason.Programmatically) return;
+        if (args.CloseReason == PopupCloseReason.Programmatically) return;   // kod zaten karar verdi/guard'ladı
 
-        var guard = PopupService.CloseGuard;
+        // Form'un kendi guard'ı (IPopupChrome ile gelen CanLeaveAsync) önceliklidir; yoksa eski PopupService.CloseGuard.
+        var guard = _chromeGuard ?? PopupService.CloseGuard;
         if (guard != null && !await guard())
             args.Cancel = true;
     }
 
-    // Kapanış kesinleşti → servis state'ini senkronla (kullanıcı kapanışında IsVisible hâlâ true'ydu).
     private void OnClosed(PopupClosedEventArgs args)
     {
         if (PopupService.IsVisible)
@@ -51,7 +83,7 @@
 
     public void Dispose()
     {
-        PopupService.OnShow -= StateHasChanged;
-        PopupService.OnHide -= StateHasChanged;
+        PopupService.OnShow -= HandleShow;
+        PopupService.OnHide -= HandleHide;
     }
 }

@@ -1,0 +1,52 @@
+@using Integration.TradeXpress.Vaults
+@using Integration.TradeXpress.Branches
+@using Integration.Framework.Blazor.Client.Components.Crud
+@using DevExpress.Blazor
+@using Microsoft.Extensions.Localization
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@*
+   Vault DUMB Layout — yalnız VaultGetDto'yu forma yansıtır/düzenler. I/O yok, karar yok, persistence yok.
+   Branch combo verisi (referans) host'tan param (ileride LookupEditComboBox olacak). IsNew → Kod/Şube kilidi.
+   EntityEditForm bunu ChildContent(Model) olarak çizer (her bağlamda aynı: tab/popup/split/drill).
+*@
+
+<DxFormLayout CssClass="w-100">
+    <DxFormLayoutGroup Caption="@L["General"]" ColSpanMd="12">
+        <DxFormLayoutItem Caption="@($"{L["Code"]} *")" ColSpanMd="6">
+            <DxTextBox @bind-Text="@Model.Code" Enabled="@IsNew" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="12">
+            <DxTextBox @bind-Text="@Model.Name" />
+        </DxFormLayoutItem>
+        @* Şube combosu YOK: kasa her zaman bir şube bağlamında açılır (BranchId host'tan gelir, sabit). *@
+        <DxFormLayoutItem ColSpanMd="6">
+            <CaptionTemplate>
+                <InfoCaption Text="@L["IsDefault"].Value"
+                             HintText="@L["Vault:IsDefaultHint"].Value"
+                             Required="false" />
+            </CaptionTemplate>
+            <Template>
+                <DxCheckBox @bind-Checked="@Model.IsDefault" CheckType="CheckType.Switch">
+                    @(Model.IsDefault ? L["Yes"] : L["No"])
+                </DxCheckBox>
+            </Template>
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["Description"]" ColSpanMd="12">
+            <DxMemo @bind-Text="@Model.Description" Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6">
+            <DxCheckBox @bind-Checked="@Model.IsActive" CheckType="CheckType.Switch">
+                @(Model.IsActive ? L["Active"] : L["Passive"])
+            </DxCheckBox>
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["DisplayOrder"]" ColSpanMd="6">
+            <NumericSpinEdit @bind-Value="@Model.DisplayOrder" />
+        </DxFormLayoutItem>
+    </DxFormLayoutGroup>
+</DxFormLayout>
+
+@code {
+    [Parameter, EditorRequired] public VaultGetDto Model { get; set; } = default!;
+    [Parameter] public bool IsNew { get; set; }
+}

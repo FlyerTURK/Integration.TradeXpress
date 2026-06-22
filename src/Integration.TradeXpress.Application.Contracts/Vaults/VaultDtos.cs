@@ -30,13 +30,26 @@ public class VaultGetDto : EntityDto<Guid>, IGetDto<Guid>
 {
     public Guid BranchId { get; set; }
     public string BranchCode { get; set; } = string.Empty;
+
+    // Client validasyonu modelin ÜZERİNDE (agnostic Form, LocalizedDataAnnotationsValidator ile doğrular;
+    // GraphDto : GetDto bunları miras alır). Server-input doğrulaması Create/Update DTO'larında kalır.
+    // BranchId'ye [Required] KONMAZ: bağlam FK'sı (drill'de in-memory parent'ta boş olabilir; server set eder).
+    [Required]
+    [StringLength(VaultConsts.CodeMaxLength)]
     public string Code { get; set; } = string.Empty;
+
+    [Required]
+    [StringLength(VaultConsts.NameMaxLength)]
     public string Name { get; set; } = string.Empty;
+
     public bool IsDefault { get; set; }
     public bool IsActive { get; set; }
     public int DisplayOrder { get; set; }
+
+    [StringLength(VaultConsts.DescriptionMaxLength)]
     public string? Description { get; set; }
 
+    // NOT: PageIndex (IGetDto üyesi) rollout'ta global olarak kaldırılacak; pilotta yeni koordinatör yok sayar.
     public int PageIndex { get; set; }
 }
 
