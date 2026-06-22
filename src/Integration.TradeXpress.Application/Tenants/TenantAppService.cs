@@ -14,6 +14,7 @@ using Integration.TradeXpress.Companies;
 using Integration.TradeXpress.Countries;
 using Integration.TradeXpress.Financials.CurrencyUnits;
 using Integration.TradeXpress.Organization;
+using Volo.Abp.Identity;
 
 namespace Integration.TradeXpress.Tenants;
 
@@ -29,6 +30,7 @@ public class TenantAppService : TradeXpressAppService, ITenantAppService
     private readonly IRepository<CurrencyUnit, Guid> _unitRepository;
     private readonly OrgTreeManager _orgTree;
     private readonly IDataFilter _dataFilter;
+    private readonly IdentityUserManager _userManager;
 
     private static readonly HashSet<string> AllowedListFields =
         new(StringComparer.OrdinalIgnoreCase) { "Name", "Id" };
@@ -42,7 +44,8 @@ public class TenantAppService : TradeXpressAppService, ITenantAppService
         IRepository<Country, Guid> countryRepository,
         IRepository<CurrencyUnit, Guid> unitRepository,
         OrgTreeManager orgTree,
-        IDataFilter dataFilter)
+        IDataFilter dataFilter,
+        IdentityUserManager userManager)
     {
         _tenantManager = tenantManager;
         _tenantRepository = tenantRepository;
@@ -53,6 +56,7 @@ public class TenantAppService : TradeXpressAppService, ITenantAppService
         _unitRepository = unitRepository;
         _orgTree = orgTree;
         _dataFilter = dataFilter;
+        _userManager = userManager;
     }
 
     public virtual async Task<TenantGetDto> GetAsync(Guid id)
@@ -77,15 +81,33 @@ public class TenantAppService : TradeXpressAppService, ITenantAppService
     [Authorize(TenantManagementPermissions.Tenants.Create)]
     public virtual async Task<TenantGetDto> CreateAsync(TenantCreateDto input)
     {
+        // Admin = IsAdmin işaretli ilk satır (yoksa ilk kullanıcı). Onun e-posta/şifresi ABP'nin
+        // zorunlu tenant-admin'ini (admin rolü + kullanıcı) seed eder.
+        var admin = input.Users.FirstOrDefault(u => u.IsAdmin) ?? input.Users.FirstOrDefault();
+
         var tenant = await _tenantManager.CreateAsync(input.Name);
         await _tenantRepository.InsertAsync(tenant, autoSave: true);
 
-        // Tenant Admin kullanıcısı için DataSeeder'ı tetikle.
-        await _distributedEventBus.PublishAsync(
-            TenantCreatedEtoFactory.Create(tenant, input.AdminEmailAddress, input.AdminPassword));
+        if (admin != null)
+        {
+            await _distributedEventBus.PublishAsync(
+                TenantCreatedEtoFactory.Create(tenant, admin.Email, admin.Password));
+        }
 
-        // Merkez (HQ) şirketini onboarding bilgileriyle kur (yeni tenant'ın scope'unda).
-        await SetHeadquartersAsync(tenant.Id, input.HqCompanyName, input.HqCountryCode);
+        // Ek kullanıcılar + şirketler yeni tenant'ın scope'unda oluşturulur (global birim görünür kalsın).
+        using (CurrentTenant.Change(tenant.Id))
+        using (_dataFilter.Disable<IMultiTenant>())
+        {
+            foreach (var u in input.Users.Where(x => x != admin))
+            {
+                await CreateUserAsync(u);
+            }
+
+            foreach (var company in input.Companies)
+            {
+                await CreateCompanyAsync(tenant.Id, company);
+            }
+        }
 
         return ObjectMapper.Map<Tenant, TenantGetDto>(tenant);
     }
@@ -105,57 +127,41 @@ public class TenantAppService : TradeXpressAppService, ITenantAppService
         await _tenantRepository.DeleteAsync(id);
     }
 
-    /// <summary>
-    /// Yeni tenant için merkez (HQ) şirketini kurar/günceller (idempotent). Ad boşsa atlanır
-    /// (seed varsayılan HQ'yu kurar). Base para birimi ülkenin DefaultCurrencyCode'undan,
-    /// yoksa pivot TRY'den çözülür. Ülke kodu boşsa TR varsayılır.
-    /// </summary>
-    private async Task SetHeadquartersAsync(Guid tenantId, string? companyName, string? countryCode)
+    /// <summary>Onboarding kullanıcısını yeni tenant'ta oluşturur (çağrı CurrentTenant.Change scope'unda).</summary>
+    private async Task CreateUserAsync(TenantUserInput input)
     {
-        if (string.IsNullOrWhiteSpace(companyName))
-            return;
+        var user = new IdentityUser(GuidGenerator.Create(), input.UserName, input.Email, CurrentTenant.Id);
+        var result = await _userManager.CreateAsync(user, input.Password);
+        if (!result.Succeeded)
+            throw new Volo.Abp.UserFriendlyException(string.Join("; ", result.Errors.Select(e => e.Description)));
+    }
 
-        var country = (countryCode ?? "TR").Trim().ToUpperInvariant();
+    /// <summary>
+    /// Onboarding şirketini yeni tenant'ta oluşturur (çağrı CurrentTenant.Change scope'unda).
+    /// Base para birimi ülkenin DefaultCurrencyCode'undan, yoksa pivot TRY'den çözülür. Her şirket
+    /// en az bir HQ şube + varsayılan kasayla doğar.
+    /// </summary>
+    private async Task CreateCompanyAsync(Guid tenantId, TenantCompanyInput input)
+    {
+        var country = (input.CountryCode ?? "TR").Trim().ToUpperInvariant();
 
-        using (CurrentTenant.Change(tenantId))
-        using (_dataFilter.Disable<IMultiTenant>())
-        {
-            // Ülkenin varsayılan para birimi (global), yoksa TRY.
-            var ccyCode = (await AsyncExecuter.FirstOrDefaultAsync(
-                    (await _countryRepository.GetQueryableAsync())
-                        .Where(c => c.TenantId == null && c.Code == country)))?.DefaultCurrencyCode
-                ?? CurrencyUnitCode.TRY;
+        var ccyCode = (await AsyncExecuter.FirstOrDefaultAsync(
+                (await _countryRepository.GetQueryableAsync())
+                    .Where(c => c.TenantId == null && c.Code == country)))?.DefaultCurrencyCode
+            ?? CurrencyUnitCode.TRY;
 
-            var unitQuery = await _unitRepository.GetQueryableAsync();
-            var baseUnit = await AsyncExecuter.FirstOrDefaultAsync(
-                    unitQuery.Where(u => u.TenantId == null && u.Code == ccyCode))
-                ?? await AsyncExecuter.FirstOrDefaultAsync(
-                    unitQuery.Where(u => u.TenantId == null && u.Code == CurrencyUnitCode.TRY));
-            if (baseUnit == null)
-                return; // birimler henüz seed edilmemiş (host run gerekir)
+        var unitQuery = await _unitRepository.GetQueryableAsync();
+        var baseUnit = await AsyncExecuter.FirstOrDefaultAsync(
+                unitQuery.Where(u => u.TenantId == null && u.Code == ccyCode))
+            ?? await AsyncExecuter.FirstOrDefaultAsync(
+                unitQuery.Where(u => u.TenantId == null && u.Code == CurrencyUnitCode.TRY));
+        if (baseUnit == null)
+            return; // birimler henüz seed edilmemiş (host run gerekir)
 
-            var existing = await AsyncExecuter.FirstOrDefaultAsync(
-                (await _companyRepository.GetQueryableAsync())
-                    .Where(c => c.TenantId == tenantId && c.IsHeadquarters));
+        var company = new Company(input.Code, input.Name, country, baseUnit.Id,
+            isHeadquarters: input.IsHeadquarters, displayOrder: 1, tenantId: tenantId);
+        await _companyRepository.InsertAsync(company, autoSave: true);
 
-            Company company;
-            if (existing != null)
-            {
-                existing.SetName(companyName);
-                existing.SetCountryCode(country);
-                existing.SetBaseCurrency(baseUnit.Id);
-                await _companyRepository.UpdateAsync(existing, autoSave: true);
-                company = existing;
-            }
-            else
-            {
-                company = new Company("MRK", companyName, country, baseUnit.Id,
-                    isHeadquarters: true, displayOrder: 1, tenantId: tenantId);
-                await _companyRepository.InsertAsync(company, autoSave: true);
-            }
-
-            // Merkez şirket en az bir HQ şube + varsayılan kasayla doğar.
-            await _orgTree.EnsureHeadquartersBranchAsync(company);
-        }
+        await _orgTree.EnsureHeadquartersBranchAsync(company);
     }
 }

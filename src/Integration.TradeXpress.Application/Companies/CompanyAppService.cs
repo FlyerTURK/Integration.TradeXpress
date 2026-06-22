@@ -34,7 +34,7 @@ public class CompanyAppService : TradeXpressAppService, ICompanyAppService
     private readonly OrgTreeManager _orgTree;
 
     private static readonly HashSet<string> AllowedListFields =
-        new(StringComparer.OrdinalIgnoreCase) { "Code", "Name", "CountryCode", "IsActive", "DisplayOrder", "Id" };
+        new(StringComparer.OrdinalIgnoreCase) { "Code", "Name", "CountryCode", "BaseCurrencyCode", "IsActive", "IsHeadquarters", "DisplayOrder", "Id" };
 
     public CompanyAppService(
         IRepository<Company, Guid> repository,
@@ -54,25 +54,47 @@ public class CompanyAppService : TradeXpressAppService, ICompanyAppService
 
     public virtual async Task<PagedResultDto<CompanyListDto>> GetListAsync(CompanyListRequestDto input)
     {
-        var query = (await _repository.GetQueryableAsync()).ApplyListRequest(input, AllowedListFields);
-        var totalCount = await AsyncExecuter.CountAsync(query);
-        var items = await AsyncExecuter.ToListAsync(query.Skip(input.SkipCount).Take(input.MaxResultCount));
+        // BaseCurrencyCode join'i GLOBAL birime (ör. TRY) eşleşir; tenant context'inde multi-tenant filtresi
+        // global birimleri gizlediğinden INNER JOIN tüm şirketleri DÜŞÜRÜR. Filtreyi kapat + şirketleri
+        // AÇIKÇA tenant'a göre kapsa (host'un şirketi yok → null). (CountryCode zaten Company'de gerçek kolon.)
+        using (_dataFilter.Disable<IMultiTenant>())
+        {
+            var tenantId = CurrentTenant.Id;
+            var units = await _unitRepository.GetQueryableAsync();
+            var rows = (await _repository.GetQueryableAsync())
+                .Where(c => c.TenantId == tenantId)
+                .Join(units, c => c.BaseCurrencyUnitId, u => u.Id, (c, u) => new CompanyListRow
+                {
+                    Id = c.Id,
+                    Code = c.Code,
+                    Name = c.Name,
+                    CountryCode = c.CountryCode,
+                    BaseCurrencyUnitId = c.BaseCurrencyUnitId,
+                    BaseCurrencyCode = u.Code,
+                    IsActive = c.IsActive,
+                    IsHeadquarters = c.IsHeadquarters,
+                    DisplayOrder = c.DisplayOrder,
+                })
+                .ApplyListRequest(input, AllowedListFields);
 
-        var codes = await LoadCurrencyCodesAsync(items.Select(c => c.BaseCurrencyUnitId));
-        return new PagedResultDto<CompanyListDto>(
-            totalCount,
-            items.Select(c => new CompanyListDto
-            {
-                Id = c.Id,
-                Code = c.Code,
-                Name = c.Name,
-                CountryCode = c.CountryCode,
-                BaseCurrencyUnitId = c.BaseCurrencyUnitId,
-                BaseCurrencyCode = codes.GetValueOrDefault(c.BaseCurrencyUnitId, string.Empty),
-                IsActive = c.IsActive,
-                IsHeadquarters = c.IsHeadquarters,
-                DisplayOrder = c.DisplayOrder,
-            }).ToList());
+            var totalCount = await AsyncExecuter.CountAsync(rows);
+            var items = await AsyncExecuter.ToListAsync(rows.Skip(input.SkipCount).Take(input.MaxResultCount));
+
+            return new PagedResultDto<CompanyListDto>(
+                totalCount,
+                items.Select(r => new CompanyListDto
+                {
+                    Id = r.Id,
+                    Code = r.Code,
+                    Name = r.Name,
+                    CountryCode = r.CountryCode,
+                    BaseCurrencyUnitId = r.BaseCurrencyUnitId,
+                    BaseCurrencyCode = r.BaseCurrencyCode,
+                    IsActive = r.IsActive,
+                    IsHeadquarters = r.IsHeadquarters,
+                    DisplayOrder = r.DisplayOrder,
+                }).ToList());
+        }
     }
 
     public virtual async Task<CompanyGetDto> GetAsync(Guid id)
@@ -469,4 +491,18 @@ public class CompanyAppService : TradeXpressAppService, ICompanyAppService
         DisplayOrder = c.DisplayOrder,
         Description = c.Description,
     };
+
+    // Liste projeksiyonu: Company + join'lenmiş BaseCurrencyCode (gerçek string kolon → server-side sort/filter/arama).
+    private sealed class CompanyListRow
+    {
+        public Guid Id { get; set; }
+        public string Code { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string CountryCode { get; set; } = string.Empty;
+        public Guid BaseCurrencyUnitId { get; set; }
+        public string BaseCurrencyCode { get; set; } = string.Empty;
+        public bool IsActive { get; set; }
+        public bool IsHeadquarters { get; set; }
+        public int DisplayOrder { get; set; }
+    }
 }

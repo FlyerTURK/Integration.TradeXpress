@@ -25,7 +25,10 @@
         <DxGridDataColumn FieldName="Code" Caption="@L["Code"]" Width="90px" />
         <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" />
         <DxGridDataColumn FieldName="DefaultCurrencyCode" Caption="@L["BaseCurrency"]" Width="140px" />
-        <DxGridDataColumn FieldName="IsGlobal" Caption="@L["IsGlobal"]" Width="90px" />
+        <DxGridDataColumn FieldName="IsGlobal" Caption="@L["Kind"]" Width="100px" TextAlignment="GridTextAlignment.Left">
+            <CellDisplayTemplate>@(((CountryListDto)context.DataItem).IsGlobal ? L["CurrencyKind:Global"] : L["CurrencyKind:Company"])</CellDisplayTemplate>
+        </DxGridDataColumn>
+        <DxGridDataColumn FieldName="DisplayOrder" Caption="@L["DisplayOrder"]" Width="90px" />
     </GridColumns>
 
     

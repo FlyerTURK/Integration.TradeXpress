@@ -9,8 +9,13 @@
 @inject Microsoft.Extensions.Localization.IStringLocalizer<Integration.TradeXpress.Localization.TradeXpressResource> L
 @inject Integration.TradeXpress.Blazor.Client.Services.Mdi.ITabManager TabManager
 
-@* Geliştirici Hata Paneli — position:fixed; ErrorBoundary DIŞINDA ki boundary trip etse de kalsın. *@
-<Integration.TradeXpress.Blazor.Client.Dev.DeveloperErrorPanel />
+@* Geliştirici Hata Paneli — position:fixed; ErrorBoundary DIŞINDA ki boundary trip etse de kalsın.
+   YALNIZ DEBUG (geliştirme) derlemesinde render edilir; Release'te (son kullanıcı) tamamen yok.
+   Not: render modu Server↔WASM değişebildiğinden ortam arayüzü yerine derleme-zamanı koşulu kullanılır. *@
+@if (ShowDevErrorPanel)
+{
+    <Integration.TradeXpress.Blazor.Client.Dev.DeveloperErrorPanel />
+}
 
 <Integration.Framework.Blazor.Client.Resilience.AutoRecoverErrorBoundary @ref="_errorBoundary">
     <ChildContent>
@@ -119,6 +124,13 @@
 </Integration.Framework.Blazor.Client.Resilience.AutoRecoverErrorBoundary>
 
 @code {
+    // Geliştirici hata paneli yalnız DEBUG derlemesinde; Release'te (son kullanıcı) derlemeye hiç girmez.
+#if DEBUG
+    private const bool ShowDevErrorPanel = true;
+#else
+    private const bool ShowDevErrorPanel = false;
+#endif
+
     bool IsNavigationOpen { get; set; } = true;
     bool IsInfoOpen { get; set; } = false;
 

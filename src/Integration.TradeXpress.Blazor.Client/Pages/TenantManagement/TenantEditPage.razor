@@ -1,4 +1,6 @@
+@using System.Linq
 @using Integration.TradeXpress.Tenants
+@using Integration.TradeXpress.Countries
 @using Integration.Framework.Blazor.Client.Components.Crud
 @using Integration.TradeXpress.Blazor.Client.Services.Mdi
 @using Integration.Framework.Blazor.Client.Components.Inputs
@@ -6,6 +8,7 @@
 @using Microsoft.Extensions.Localization
 
 @inject ITenantAppService TenantAppService
+@inject ICountryAppService CountryAppService
 @inject ITabManager TabManager
 
 @inherits CrudEditComponentBase<TenantGetDto, TenantListDto, Guid, TenantListRequestDto, TenantCreateDto, TenantUpdateDto>
@@ -21,19 +24,74 @@
     <DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="12">
         <DxTextBox @bind-Text="@EditModel.Name" @ref="_nameBox" />
     </DxFormLayoutItem>
-
-    @* Admin e-posta/şifre yalnız YENİ tenant'ta gösterilir — ABP yeni tenant için bir admin
-       kullanıcı seed eder; bu ikisi onun kimliğidir. Düzenlemede gizli (yalnız ad değişir). *@
-    @if (IsNewMode)
-    {
-        <DxFormLayoutItem Caption="@($"{L["AdminEmailAddress"]} *")" ColSpanMd="12">
-            <DxTextBox @bind-Text="@EditModel.AdminEmailAddress" />
-        </DxFormLayoutItem>
-        <DxFormLayoutItem Caption="@($"{L["AdminPassword"]} *")" ColSpanMd="12">
-            <PasswordTextEdit @bind-Text="@EditModel.AdminPassword" Tooltip="@L["ShowPassword"]" />
-        </DxFormLayoutItem>
-    }
 </DxFormLayout>
+
+@* Kullanıcılar ve Şirketler yalnız YENİ tenant'ta (in-memory DrillList; save'de o tenant'ta oluşturulur). *@
+@if (IsNewMode)
+{
+    <div class="mt-3">
+        <DrillList TItem="TenantUserInput"
+                   Title="@L["Users"]"
+                   EntityName="@L["Entity:User"]"
+                   Items="EditModel.Users"
+                   KeyFieldName="ClientKey"
+                   PrimaryTextSelector="@(u => u.UserName)"
+                   NewItemFactory="@(() => new TenantUserInput())"
+                   MinItems="1"
+                   OnChanged="NotifyDirtyChanged">
+            <GridColumns>
+                <DxGridDataColumn FieldName="UserName" Caption="@L["UserName"]" />
+                <DxGridDataColumn FieldName="Email" Caption="@L["Email"]" />
+                <DxGridDataColumn FieldName="IsAdmin" Caption="@L["IsAdmin"]" Width="90px" TextAlignment="GridTextAlignment.Left">
+                    <CellDisplayTemplate>@(((TenantUserInput)context.DataItem).IsAdmin ? L["Yes"].Value : "")</CellDisplayTemplate>
+                </DxGridDataColumn>
+            </GridColumns>
+            <EditContent Context="u">
+                <DxFormLayout CssClass="w-100">
+                    <DxFormLayoutItem Caption="@($"{L["UserName"]} *")" ColSpanMd="6"><DxTextBox @bind-Text="u.UserName" /></DxFormLayoutItem>
+                    <DxFormLayoutItem Caption="@($"{L["Email"]} *")" ColSpanMd="6"><DxTextBox @bind-Text="u.Email" /></DxFormLayoutItem>
+                    <DxFormLayoutItem Caption="@($"{L["Password"]} *")" ColSpanMd="6"><PasswordTextEdit @bind-Text="u.Password" Tooltip="@L["ShowPassword"]" /></DxFormLayoutItem>
+                    <DxFormLayoutItem Caption="@($"{L["ConfirmPassword"]} *")" ColSpanMd="6"><PasswordTextEdit @bind-Text="u.PasswordConfirm" Tooltip="@L["ShowPassword"]" /></DxFormLayoutItem>
+                    <DxFormLayoutItem Caption="@L["Name"]" ColSpanMd="6"><DxTextBox @bind-Text="u.Name" /></DxFormLayoutItem>
+                    <DxFormLayoutItem Caption="@L["Surname"]" ColSpanMd="6"><DxTextBox @bind-Text="u.Surname" /></DxFormLayoutItem>
+                    <DxFormLayoutItem Caption="@L["IsAdmin"]" ColSpanMd="6"><DxCheckBox @bind-Checked="u.IsAdmin" CheckType="CheckType.Switch" /></DxFormLayoutItem>
+                </DxFormLayout>
+            </EditContent>
+        </DrillList>
+    </div>
+
+    <div class="mt-3">
+        <DrillList TItem="TenantCompanyInput"
+                   Title="@L["Companies"]"
+                   EntityName="@L["Entity:Company"]"
+                   Items="EditModel.Companies"
+                   KeyFieldName="ClientKey"
+                   PrimaryTextSelector="@(c => c.Code)"
+                   NewItemFactory="@(() => new TenantCompanyInput())"
+                   MinItems="1"
+                   OnChanged="NotifyDirtyChanged">
+            <GridColumns>
+                <DxGridDataColumn FieldName="Code" Caption="@L["Code"]" Width="100px" />
+                <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" />
+                <DxGridDataColumn FieldName="CountryCode" Caption="@L["CountryCode"]" Width="90px" />
+                <DxGridDataColumn FieldName="IsHeadquarters" Caption="@L["IsHeadquarters"]" Width="90px" TextAlignment="GridTextAlignment.Left">
+                    <CellDisplayTemplate>@(((TenantCompanyInput)context.DataItem).IsHeadquarters ? L["Yes"].Value : "")</CellDisplayTemplate>
+                </DxGridDataColumn>
+            </GridColumns>
+            <EditContent Context="c">
+                <DxFormLayout CssClass="w-100">
+                    <DxFormLayoutItem Caption="@($"{L["Code"]} *")" ColSpanMd="6"><DxTextBox @bind-Text="c.Code" /></DxFormLayoutItem>
+                    <DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="6"><DxTextBox @bind-Text="c.Name" /></DxFormLayoutItem>
+                    <DxFormLayoutItem Caption="@($"{L["CountryCode"]} *")" ColSpanMd="6">
+                        <DxComboBox Data="@_countries" @bind-Value="c.CountryCode"
+                                    ValueFieldName="@nameof(CountryListDto.Code)" TextFieldName="@nameof(CountryListDto.Name)" />
+                    </DxFormLayoutItem>
+                    <DxFormLayoutItem Caption="@L["IsHeadquarters"]" ColSpanMd="6"><DxCheckBox @bind-Checked="c.IsHeadquarters" CheckType="CheckType.Switch" /></DxFormLayoutItem>
+                </DxFormLayout>
+            </EditContent>
+        </DrillList>
+    </div>
+}
 </text>;
 
     protected override Volo.Abp.Application.Services.ICrudAppService<
@@ -42,6 +100,56 @@
     protected override string EntityChangeKey => "Tenants";
 
     private DxTextBox? _nameBox;
+    private List<CountryListDto> _countries = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+        var res = await CountryAppService.GetListAsync(new CountryListRequestDto { MaxResultCount = 200 });
+        _countries = res.Items.ToList();
+    }
+
+    // Yeni tenant: başlangıç admin kullanıcısı + HQ şirket satırı. Snapshot'tan ÖNCE eklendiğinden
+    // sıfır müdahalede IsDirty TETİKLEMEZ (temiz baz). DEBUG'da şifre hazır dolu.
+    protected override Task OnModelCreatedAsync(TenantGetDto model)
+    {
+        model.Users.Add(new TenantUserInput
+        {
+            UserName = "admin",
+            Email = "admin@admin.com",
+            IsAdmin = true,
+#if DEBUG
+            Password = "1q2w3E*",
+            PasswordConfirm = "1q2w3E*",
+#endif
+        });
+        model.Companies.Add(new TenantCompanyInput
+        {
+            Code = "MRK",
+            Name = "Merkez",
+            CountryCode = "TR",
+            IsHeadquarters = true,
+        });
+        return Task.CompletedTask;
+    }
+
+    public override async Task<bool> SaveAsync()
+    {
+        if (IsNewMode)
+        {
+            if (!EditModel.Users.Any(u => u.IsAdmin))
+            {
+                ShowErrorLines(L["TenantNeedsAdmin"]);
+                return false;
+            }
+            if (!EditModel.Companies.Any(c => c.IsHeadquarters))
+            {
+                ShowErrorLines(L["TenantNeedsHq"]);
+                return false;
+            }
+        }
+        return await base.SaveAsync();
+    }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -61,6 +169,3 @@
         }
     }
 }
-
-
-

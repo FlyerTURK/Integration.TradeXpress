@@ -25,7 +25,7 @@ public class VaultAppService : TradeXpressAppService, IVaultAppService
     private readonly IRepository<Branch, Guid> _branchRepository;
 
     private static readonly HashSet<string> AllowedListFields =
-        new(StringComparer.OrdinalIgnoreCase) { "Code", "Name", "IsDefault", "IsActive", "DisplayOrder", "BranchId", "Id" };
+        new(StringComparer.OrdinalIgnoreCase) { "Code", "Name", "BranchCode", "IsDefault", "IsActive", "DisplayOrder", "BranchId", "Id" };
 
     public VaultAppService(
         IRepository<Vault, Guid> repository,
@@ -37,26 +37,41 @@ public class VaultAppService : TradeXpressAppService, IVaultAppService
 
     public virtual async Task<PagedResultDto<VaultListDto>> GetListAsync(VaultListRequestDto input)
     {
+        var branches = await _branchRepository.GetQueryableAsync();
         var query = await _repository.GetQueryableAsync();
         if (input.BranchId.HasValue)
             query = query.Where(v => v.BranchId == input.BranchId.Value);
-        query = query.ApplyListRequest(input, AllowedListFields);
-        var totalCount = await AsyncExecuter.CountAsync(query);
-        var items = await AsyncExecuter.ToListAsync(query.Skip(input.SkipCount).Take(input.MaxResultCount));
 
-        var names = await LoadBranchCodesAsync(items.Select(v => v.BranchId));
-        return new PagedResultDto<VaultListDto>(
-            totalCount,
-            items.Select(v => new VaultListDto
+        // BranchCode enrichment'tı → join ile GERÇEK kolon yap: kod ile sort/filter/arama server-side çalışsın.
+        var rows = query
+            .Join(branches, v => v.BranchId, b => b.Id, (v, b) => new VaultListRow
             {
                 Id = v.Id,
                 BranchId = v.BranchId,
-                BranchCode = names.GetValueOrDefault(v.BranchId, string.Empty),
+                BranchCode = b.Code,
                 Code = v.Code,
                 Name = v.Name,
                 IsDefault = v.IsDefault,
                 IsActive = v.IsActive,
                 DisplayOrder = v.DisplayOrder,
+            })
+            .ApplyListRequest(input, AllowedListFields);
+
+        var totalCount = await AsyncExecuter.CountAsync(rows);
+        var items = await AsyncExecuter.ToListAsync(rows.Skip(input.SkipCount).Take(input.MaxResultCount));
+
+        return new PagedResultDto<VaultListDto>(
+            totalCount,
+            items.Select(r => new VaultListDto
+            {
+                Id = r.Id,
+                BranchId = r.BranchId,
+                BranchCode = r.BranchCode,
+                Code = r.Code,
+                Name = r.Name,
+                IsDefault = r.IsDefault,
+                IsActive = r.IsActive,
+                DisplayOrder = r.DisplayOrder,
             }).ToList());
     }
 
@@ -167,4 +182,17 @@ public class VaultAppService : TradeXpressAppService, IVaultAppService
         DisplayOrder = v.DisplayOrder,
         Description = v.Description,
     };
+
+    // Liste projeksiyonu: Vault + join'lenmiş BranchCode (gerçek string kolon → server-side sort/filter/arama).
+    private sealed class VaultListRow
+    {
+        public Guid Id { get; set; }
+        public Guid BranchId { get; set; }
+        public string BranchCode { get; set; } = string.Empty;
+        public string Code { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public bool IsDefault { get; set; }
+        public bool IsActive { get; set; }
+        public int DisplayOrder { get; set; }
+    }
 }

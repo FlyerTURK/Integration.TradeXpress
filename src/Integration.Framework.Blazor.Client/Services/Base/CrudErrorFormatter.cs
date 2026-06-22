@@ -11,7 +11,13 @@ namespace Integration.Framework.Blazor.Client.Services.Base;
 /// </summary>
 public static class CrudErrorFormatter
 {
-    public static string Extract(Exception ex)
+    /// <summary>
+    /// Kullanıcıya gösterilebilir mesajı çıkarır. Yalnız <b>validation</b> ve <b>iş kuralı</b>
+    /// (<see cref="Volo.Abp.IBusinessException"/>: BusinessException/UserFriendly/EntityNotFound) mesajları
+    /// döner. Teknik hatalar (ObjectMapper "No object mapping…", NRE, vb. ham <c>AbpException</c>/Exception)
+    /// kullanıcı-dostu DEĞİLDİR → <c>null</c> döner; çağıran genel bir mesaj gösterir (detay loglanır).
+    /// </summary>
+    public static string? Extract(Exception ex)
     {
         var current = ex;
         while (current != null)
@@ -27,9 +33,11 @@ public static class CrudErrorFormatter
                 if (msgs.Count > 0) return string.Join("\n", msgs);
             }
 
-            // b) ABP UserFriendly/Business exception — Message zaten anlamlı
-            if (current is Volo.Abp.AbpException &&
+            // b) İş kuralı / kullanıcı-dostu exception — Message anlamlı. (Ham AbpException teknik olabilir →
+            //    yalnız IBusinessException kabul; "No object mapping…" gibi teknik AbpException buraya GİRMEZ.)
+            if (current is Volo.Abp.IBusinessException &&
                 !string.IsNullOrWhiteSpace(current.Message) &&
+                !current.Message.StartsWith("Exception of type", StringComparison.Ordinal) && // kodu olup lokalize edilmemiş → çevirisi ShowError.LocalizeErrorCode'da
                 !current.Message.Contains("not valid", StringComparison.OrdinalIgnoreCase))
             {
                 return current.Message;
@@ -42,7 +50,7 @@ public static class CrudErrorFormatter
             current = current.InnerException;
         }
 
-        return ex.Message;
+        return null;   // kullanıcı-dostu mesaj yok → çağıran genel mesaj göstersin
     }
 
     private static string? TryRemote(Exception ex)

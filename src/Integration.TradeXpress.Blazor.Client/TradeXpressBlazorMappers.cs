@@ -2,6 +2,7 @@ using Riok.Mapperly.Abstractions;
 using Volo.Abp.Mapperly;
 using Integration.TradeXpress.Tenants;
 using Integration.TradeXpress.Financials.CurrencyUnits;
+using Integration.TradeXpress.Financials.Parities;
 using Integration.TradeXpress.Companies;
 using Integration.TradeXpress.Countries;
 using Integration.TradeXpress.Branches;
@@ -11,31 +12,13 @@ using Integration.TradeXpress.Blazor.Client.Pages.Financials.CurrencyUnits.Model
 using Integration.TradeXpress.Blazor.Client.Pages.Companies.Models;
 using Integration.TradeXpress.Blazor.Client.Pages.Countries.Models;
 using Integration.TradeXpress.Blazor.Client.Pages.Vaults.Models;
+using Integration.TradeXpress.Blazor.Client.Pages.Admin.Models;
+using Integration.TradeXpress.Blazor.Client.Services;
 
 namespace Integration.TradeXpress.Blazor.Client;
 
-[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
-public partial class TenantViewModelToTenantCreateDtoMapper : MapperBase<TenantViewModel, TenantCreateDto>
-{
-    public override partial TenantCreateDto Map(TenantViewModel source);
-    public override partial void Map(TenantViewModel source, TenantCreateDto destination);
-}
-
-[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
-public partial class TenantViewModelToTenantUpdateDtoMapper : MapperBase<TenantViewModel, TenantUpdateDto>
-{
-    public override partial TenantUpdateDto Map(TenantViewModel source);
-    public override partial void Map(TenantViewModel source, TenantUpdateDto destination);
-}
-
-[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
-public partial class TenantGetDtoToTenantViewModelMapper : MapperBase<TenantGetDto, TenantViewModel>
-{
-    [MapperIgnoreTarget(nameof(TenantViewModel.AdminEmailAddress))]
-    [MapperIgnoreTarget(nameof(TenantViewModel.AdminPassword))]
-    public override partial TenantViewModel Map(TenantGetDto source);
-    public override partial void Map(TenantGetDto source, TenantViewModel destination);
-}
+// TenantViewModel mapper'ları kaldırıldı — tenant edit formu artık GetDto'ya doğrudan bind ediliyor
+// (in-memory Users/Companies DrillList'leri). ViewModel legacy.
 
 [Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
 public partial class TenantGetDtoToTenantListDtoMapper : MapperBase<TenantGetDto, TenantListDto>
@@ -194,6 +177,22 @@ public partial class CurrencyUnitGetDtoToUpdateDtoMapper : MapperBase<CurrencyUn
     public override partial void Map(CurrencyUnitGetDto source, CurrencyUnitUpdateDto destination);
 }
 
+// Parity: GetDto'daki enrichment/computed alanlar (BaseCode/QuoteCode/IsSystem/IsGlobal/PageIndex) Target
+// strategy ile yok sayılır. Update yalnız IsActive/DisplayOrder (base/quote değişmez).
+[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
+public partial class ParityGetDtoToCreateDtoMapper : MapperBase<ParityGetDto, ParityCreateDto>
+{
+    public override partial ParityCreateDto Map(ParityGetDto source);
+    public override partial void Map(ParityGetDto source, ParityCreateDto destination);
+}
+
+[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
+public partial class ParityGetDtoToUpdateDtoMapper : MapperBase<ParityGetDto, ParityUpdateDto>
+{
+    public override partial ParityUpdateDto Map(ParityGetDto source);
+    public override partial void Map(ParityGetDto source, ParityUpdateDto destination);
+}
+
 [Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
 public partial class CompanyGetDtoToCreateDtoMapper : MapperBase<CompanyGetDto, CompanyCreateDto>
 {
@@ -250,16 +249,11 @@ public partial class VaultGetDtoToUpdateDtoMapper : MapperBase<VaultGetDto, Vaul
     public override partial void Map(VaultGetDto source, VaultUpdateDto destination);
 }
 
-// Tenant: admin alanları GetDto'da var (Name/AdminEmail/AdminPassword) → create'e map'lenir;
-// HqCompanyName/HqCountryCode GetDto'da YOK → ignore (tenant HQ şirketi opsiyonel).
+// Tenant: Name/AdminEmail/AdminPassword + HqCompanyName/HqCountryCode (onboarding) GetDto'da var → create'e map'lenir.
 [Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
 public partial class TenantGetDtoToCreateDtoMapper : MapperBase<TenantGetDto, TenantCreateDto>
 {
-    [MapperIgnoreTarget(nameof(TenantCreateDto.HqCompanyName))]
-    [MapperIgnoreTarget(nameof(TenantCreateDto.HqCountryCode))]
     public override partial TenantCreateDto Map(TenantGetDto source);
-    [MapperIgnoreTarget(nameof(TenantCreateDto.HqCompanyName))]
-    [MapperIgnoreTarget(nameof(TenantCreateDto.HqCountryCode))]
     public override partial void Map(TenantGetDto source, TenantCreateDto destination);
 }
 
@@ -268,4 +262,36 @@ public partial class TenantGetDtoToUpdateDtoMapper : MapperBase<TenantGetDto, Te
 {
     public override partial TenantUpdateDto Map(TenantGetDto source);
     public override partial void Map(TenantGetDto source, TenantUpdateDto destination);
+}
+
+// ── Identity (Role/User) — GetDto → Create/Update (CrudEditComponentBase.SaveAsync ObjectMapper ile
+//    GetDto→Create/Update map'ler, sonra adapter ABP IIdentity*AppService'e gönderir). Target strategy:
+//    GetDto'daki fazlalar (Id, IsStatic [create], Password [update], PageIndex) yok sayılır. ─────────
+
+[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
+public partial class RoleGetDtoToCreateInputMapper : MapperBase<RoleGetDto, CreateIdentityRoleInput>
+{
+    public override partial CreateIdentityRoleInput Map(RoleGetDto source);
+    public override partial void Map(RoleGetDto source, CreateIdentityRoleInput destination);
+}
+
+[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
+public partial class RoleGetDtoToUpdateInputMapper : MapperBase<RoleGetDto, UpdateIdentityRoleInput>
+{
+    public override partial UpdateIdentityRoleInput Map(RoleGetDto source);
+    public override partial void Map(RoleGetDto source, UpdateIdentityRoleInput destination);
+}
+
+[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
+public partial class UserGetDtoToCreateInputMapper : MapperBase<UserGetDto, CreateIdentityUserInput>
+{
+    public override partial CreateIdentityUserInput Map(UserGetDto source);
+    public override partial void Map(UserGetDto source, CreateIdentityUserInput destination);
+}
+
+[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
+public partial class UserGetDtoToUpdateInputMapper : MapperBase<UserGetDto, UpdateIdentityUserInput>
+{
+    public override partial UpdateIdentityUserInput Map(UserGetDto source);
+    public override partial void Map(UserGetDto source, UpdateIdentityUserInput destination);
 }

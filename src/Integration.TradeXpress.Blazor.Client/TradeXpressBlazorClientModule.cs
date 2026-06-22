@@ -58,6 +58,8 @@ public class TradeXpressBlazorClientModule : AbpModule
 
         // Geliştirici Hata Paneli
         context.Services.AddSingleton<Dev.DevErrorSink>();
+        // Yakalanan teknik hataları panele taşıyan köprü (Blazor Server'da ILogger tarayıcıya gitmez).
+        context.Services.AddTransient<Integration.Framework.Blazor.Client.Services.Base.IClientErrorReporter, Dev.DevErrorReporter>();
 
         // Identity Management Services
         context.Services.AddScoped<Services.IIdentityUserService, Services.IdentityUserService>();

@@ -33,16 +33,17 @@ public class ParityAppService : TradeXpressAppService, IParityAppService
     private readonly IRepository<CurrencyUnit, Guid> _currencyUnitRepository;
     private readonly ParityManager _parityManager;
 
-    // Base/QuoteCode enrichment'tır (FK→Code); IsGlobal computed → whitelist'te yok.
+    // Liste, Parity'yi CurrencyUnit'e join'leyip ParityListRow'a yansıtır → BaseCode/QuoteCode GERÇEK
+    // string kolon olur; böylece kod ile sıralama/filtre/arama server-side çalışır (Parity id-only kalır).
     private static readonly HashSet<string> AllowedListFields =
         new(StringComparer.OrdinalIgnoreCase)
-        { "IsActive", "DisplayOrder", "Id" };
+        { "IsActive", "DisplayOrder", "Id", "BaseCode", "QuoteCode" };
 
-    // IsGlobal entity'de yok (TenantId==null demek) → host-önce sıralaması için alias.
+    // IsGlobal kolon değil (TenantId==null demek) → host-önce sıralaması için alias (projeksiyon satırında).
     private static readonly IReadOnlyDictionary<string, LambdaExpression> ListAliases =
         new Dictionary<string, LambdaExpression>(StringComparer.OrdinalIgnoreCase)
         {
-            ["IsGlobal"] = (Expression<Func<Parity, bool>>)(x => x.TenantId == null),
+            ["IsGlobal"] = (Expression<Func<ParityListRow, bool>>)(r => r.TenantId == null),
         };
 
     // Varsayılan sıra: host (global) önce → DisplayOrder artan → Id (deterministik tie-break).
@@ -72,20 +73,30 @@ public class ParityAppService : TradeXpressAppService, IParityAppService
             if ((input.Sorts == null || input.Sorts.Count == 0) && string.IsNullOrWhiteSpace(input.Sorting))
                 input.Sorts = DefaultListSorts();
 
-            var query = (await _repository.GetQueryableAsync())
+            // Parity id-only (nav yok) → kodları join ile getir; ParityListRow'da BaseCode/QuoteCode gerçek
+            // kolon olduğundan ApplyListRequest kod ile sıralama/filtre/arama'yı server-side uygular.
+            var units = await _currencyUnitRepository.GetQueryableAsync();
+            var rows = (await _repository.GetQueryableAsync())
                 .Where(x => x.TenantId == null || x.TenantId == tenantId)
+                .Join(units, p => p.BaseCurrencyUnitId, u => u.Id, (p, u) => new { p, baseCode = u.Code })
+                .Join(units, x => x.p.QuoteCurrencyUnitId, u => u.Id, (x, u) => new ParityListRow
+                {
+                    Id = x.p.Id,
+                    TenantId = x.p.TenantId,
+                    BaseCurrencyUnitId = x.p.BaseCurrencyUnitId,
+                    QuoteCurrencyUnitId = x.p.QuoteCurrencyUnitId,
+                    BaseCode = x.baseCode,
+                    QuoteCode = u.Code,
+                    IsActive = x.p.IsActive,
+                    DisplayOrder = x.p.DisplayOrder,
+                })
                 .ApplyListRequest(input, AllowedListFields, ListAliases);
 
-            var totalCount = await AsyncExecuter.CountAsync(query);
+            var totalCount = await AsyncExecuter.CountAsync(rows);
             var items = await AsyncExecuter.ToListAsync(
-                query.Skip(input.SkipCount).Take(input.MaxResultCount));
+                rows.Skip(input.SkipCount).Take(input.MaxResultCount));
 
-            var codes = await GetCodeMapAsync(
-                items.Select(x => x.BaseCurrencyUnitId).Concat(items.Select(x => x.QuoteCurrencyUnitId)));
-
-            return new PagedResultDto<ParityListDto>(
-                totalCount,
-                items.Select(e => ToListDto(e, codes)).ToList());
+            return new PagedResultDto<ParityListDto>(totalCount, items.Select(ToListDto).ToList());
         }
     }
 
@@ -179,14 +190,31 @@ public class ParityAppService : TradeXpressAppService, IParityAppService
         }
     }
 
-    private ParityListDto ToListDto(Parity e, IReadOnlyDictionary<Guid, string> codes)
+    private static ParityListDto ToListDto(ParityListRow r) => new()
     {
-        var dto = ObjectMapper.Map<Parity, ParityListDto>(e);
-        dto.IsGlobal = e.TenantId == null;
-        dto.IsSystem = e.TenantId == null;
-        dto.BaseCode = codes.GetValueOrDefault(e.BaseCurrencyUnitId, string.Empty);
-        dto.QuoteCode = codes.GetValueOrDefault(e.QuoteCurrencyUnitId, string.Empty);
-        return dto;
+        Id = r.Id,
+        BaseCurrencyUnitId = r.BaseCurrencyUnitId,
+        QuoteCurrencyUnitId = r.QuoteCurrencyUnitId,
+        BaseCode = r.BaseCode,
+        QuoteCode = r.QuoteCode,
+        IsActive = r.IsActive,
+        IsSystem = r.TenantId == null,
+        IsGlobal = r.TenantId == null,
+        DisplayOrder = r.DisplayOrder,
+    };
+
+    // Liste projeksiyonu: Parity + join'lenmiş birim kodları. BaseCode/QuoteCode gerçek string kolon
+    // olduğundan ApplyListRequest sıralama/filtre/arama'yı server-side uygular (Parity id-only kalır).
+    private sealed class ParityListRow
+    {
+        public Guid Id { get; set; }
+        public Guid? TenantId { get; set; }
+        public Guid BaseCurrencyUnitId { get; set; }
+        public Guid QuoteCurrencyUnitId { get; set; }
+        public string BaseCode { get; set; } = string.Empty;
+        public string QuoteCode { get; set; } = string.Empty;
+        public bool IsActive { get; set; }
+        public int DisplayOrder { get; set; }
     }
 
     private ParityGetDto ToGetDto(Parity e, IReadOnlyDictionary<Guid, string> codes)

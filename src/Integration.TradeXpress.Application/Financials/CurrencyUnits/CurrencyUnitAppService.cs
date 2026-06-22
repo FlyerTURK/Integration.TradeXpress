@@ -33,13 +33,13 @@ public class CurrencyUnitAppService : TradeXpressAppService, ICurrencyUnitAppSer
 
     private static readonly HashSet<string> AllowedListFields =
         new(StringComparer.OrdinalIgnoreCase)
-        { "Code", "Name", "Type", "IsActive", "DisplayOrder", "Id", "AlwaysShowInBalance" };
+        { "Code", "Name", "Type", "IsActive", "DisplayOrder", "Id", "AlwaysShowInBalance", "FollowingUnitCode" };
 
-    // Sort/filter alias'ı: IsGlobal entity'de yok (TenantId==null demek) → host-önce sıralaması için.
+    // Sort/filter alias'ı: IsGlobal kolon değil (TenantId==null demek) → host-önce sıralaması (projeksiyon satırında).
     private static readonly IReadOnlyDictionary<string, LambdaExpression> ListAliases =
         new Dictionary<string, LambdaExpression>(StringComparer.OrdinalIgnoreCase)
         {
-            ["IsGlobal"] = (Expression<Func<CurrencyUnit, bool>>)(x => x.TenantId == null),
+            ["IsGlobal"] = (Expression<Func<CurrencyUnitListRow, bool>>)(r => r.TenantId == null),
         };
 
     // Kullanıcı kolon sıralamadığında CurrencyUnit standart sıralaması:
@@ -68,22 +68,35 @@ public class CurrencyUnitAppService : TradeXpressAppService, ICurrencyUnitAppSer
             if ((input.Sorts == null || input.Sorts.Count == 0) && string.IsNullOrWhiteSpace(input.Sorting))
                 input.Sorts = DefaultListSorts();
 
-            var query = (await _repository.GetQueryableAsync())
+            // FollowingUnitCode enrichment'tı → self-join (korelasyonlu alt-sorgu, FollowingUnitId nullable)
+            // ile GERÇEK kolon yap: kod ile sort/filter/arama server-side çalışsın.
+            var all = await _repository.GetQueryableAsync();
+            var rows = (await _repository.GetQueryableAsync())
                 .Where(x => x.TenantId == null || x.TenantId == tenantId)
+                .Select(c => new CurrencyUnitListRow
+                {
+                    Id = c.Id,
+                    TenantId = c.TenantId,
+                    Code = c.Code,
+                    Name = c.Name,
+                    Type = c.Type,
+                    AlwaysShowInBalance = c.AlwaysShowInBalance,
+                    DisplayOrder = c.DisplayOrder,
+                    IsActive = c.IsActive,
+                    FollowingUnitId = c.FollowingUnitId,
+                    FollowingUnitCode = c.FollowingUnitId == null
+                        ? null
+                        : all.Where(f => f.Id == c.FollowingUnitId).Select(f => f.Code).FirstOrDefault(),
+                    FollowingMarginType = c.FollowingUnitId == null ? (MarginType?)null : c.FollowingMargin!.Type,
+                    FollowingMarginValue = c.FollowingUnitId == null ? (decimal?)null : c.FollowingMargin!.Value,
+                })
                 .ApplyListRequest(input, AllowedListFields, ListAliases);
 
-            var totalCount = await AsyncExecuter.CountAsync(query);
+            var totalCount = await AsyncExecuter.CountAsync(rows);
             var items = await AsyncExecuter.ToListAsync(
-                query.Skip(input.SkipCount).Take(input.MaxResultCount));
+                rows.Skip(input.SkipCount).Take(input.MaxResultCount));
 
-            var parentIds = items.Where(x => x.FollowingUnitId.HasValue).Select(x => x.FollowingUnitId.Value).Distinct().ToList();
-            var parents = parentIds.Count > 0 
-                ? await AsyncExecuter.ToListAsync((await _repository.GetQueryableAsync()).Where(x => parentIds.Contains(x.Id)))
-                : new List<CurrencyUnit>();
-
-            return new PagedResultDto<CurrencyUnitListDto>(
-                totalCount,
-                items.Select(e => ToListDto(e, parents)).ToList());
+            return new PagedResultDto<CurrencyUnitListDto>(totalCount, items.Select(ToListDto).ToList());
         }
     }
 
@@ -186,19 +199,39 @@ public class CurrencyUnitAppService : TradeXpressAppService, ICurrencyUnitAppSer
         entity.SetFollowing(followingUnitId, new MarginSetting(marginType.Value, marginValue.Value));
     }
 
-    private CurrencyUnitListDto ToListDto(CurrencyUnit e, List<CurrencyUnit>? parents = null)
+    private static CurrencyUnitListDto ToListDto(CurrencyUnitListRow r) => new()
     {
-        var dto = ObjectMapper.Map<CurrencyUnit, CurrencyUnitListDto>(e);
-        dto.IsGlobal = e.TenantId == null;
-        dto.IsSystem = e.TenantId == null;
-        dto.FollowingMarginType = e.FollowingMargin?.Type;
-        dto.FollowingMarginValue = e.FollowingMargin?.Value;
-        if (parents != null && e.FollowingUnitId.HasValue)
-        {
-            var parent = parents.FirstOrDefault(x => x.Id == e.FollowingUnitId.Value);
-            dto.FollowingUnitCode = parent?.Code;
-        }
-        return dto;
+        Id = r.Id,
+        Code = r.Code,
+        Name = r.Name,
+        Type = r.Type,
+        AlwaysShowInBalance = r.AlwaysShowInBalance,
+        DisplayOrder = r.DisplayOrder,
+        IsActive = r.IsActive,
+        IsGlobal = r.TenantId == null,
+        IsSystem = r.TenantId == null,
+        FollowingUnitId = r.FollowingUnitId,
+        FollowingUnitCode = r.FollowingUnitCode,
+        FollowingMarginType = r.FollowingMarginType,
+        FollowingMarginValue = r.FollowingMarginValue,
+    };
+
+    // Liste projeksiyonu: CurrencyUnit + self-join'lenmiş FollowingUnitCode (gerçek string kolon →
+    // server-side sort/filter/arama). Owned VO (FollowingMargin) FollowingUnitId varken doludur.
+    private sealed class CurrencyUnitListRow
+    {
+        public Guid Id { get; set; }
+        public Guid? TenantId { get; set; }
+        public string Code { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public CurrencyUnitType Type { get; set; }
+        public bool AlwaysShowInBalance { get; set; }
+        public int DisplayOrder { get; set; }
+        public bool IsActive { get; set; }
+        public Guid? FollowingUnitId { get; set; }
+        public string? FollowingUnitCode { get; set; }
+        public MarginType? FollowingMarginType { get; set; }
+        public decimal? FollowingMarginValue { get; set; }
     }
 
     private CurrencyUnitGetDto ToGetDto(CurrencyUnit e)

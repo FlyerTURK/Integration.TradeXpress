@@ -28,7 +28,7 @@ public class BranchAppService : TradeXpressAppService, IBranchAppService
     private readonly OrgTreeManager _orgTree;
 
     private static readonly HashSet<string> AllowedListFields =
-        new(StringComparer.OrdinalIgnoreCase) { "Code", "Name", "IsHeadquarters", "IsActive", "DisplayOrder", "CompanyId", "Id" };
+        new(StringComparer.OrdinalIgnoreCase) { "Code", "Name", "CompanyCode", "IsHeadquarters", "IsActive", "DisplayOrder", "CompanyId", "Id" };
 
     public BranchAppService(
         IRepository<Branch, Guid> repository,
@@ -42,26 +42,41 @@ public class BranchAppService : TradeXpressAppService, IBranchAppService
 
     public virtual async Task<PagedResultDto<BranchListDto>> GetListAsync(BranchListRequestDto input)
     {
+        var companies = await _companyRepository.GetQueryableAsync();
         var query = await _repository.GetQueryableAsync();
         if (input.CompanyId.HasValue)
             query = query.Where(b => b.CompanyId == input.CompanyId.Value);
-        query = query.ApplyListRequest(input, AllowedListFields);
-        var totalCount = await AsyncExecuter.CountAsync(query);
-        var items = await AsyncExecuter.ToListAsync(query.Skip(input.SkipCount).Take(input.MaxResultCount));
 
-        var names = await LoadCompanyCodesAsync(items.Select(b => b.CompanyId));
-        return new PagedResultDto<BranchListDto>(
-            totalCount,
-            items.Select(b => new BranchListDto
+        // CompanyCode enrichment'tı → join ile GERÇEK kolon yap: kod ile sort/filter/arama server-side çalışsın.
+        var rows = query
+            .Join(companies, b => b.CompanyId, c => c.Id, (b, c) => new BranchListRow
             {
                 Id = b.Id,
                 CompanyId = b.CompanyId,
-                CompanyCode = names.GetValueOrDefault(b.CompanyId, string.Empty),
+                CompanyCode = c.Code,
                 Code = b.Code,
                 Name = b.Name,
                 IsHeadquarters = b.IsHeadquarters,
                 IsActive = b.IsActive,
                 DisplayOrder = b.DisplayOrder,
+            })
+            .ApplyListRequest(input, AllowedListFields);
+
+        var totalCount = await AsyncExecuter.CountAsync(rows);
+        var items = await AsyncExecuter.ToListAsync(rows.Skip(input.SkipCount).Take(input.MaxResultCount));
+
+        return new PagedResultDto<BranchListDto>(
+            totalCount,
+            items.Select(r => new BranchListDto
+            {
+                Id = r.Id,
+                CompanyId = r.CompanyId,
+                CompanyCode = r.CompanyCode,
+                Code = r.Code,
+                Name = r.Name,
+                IsHeadquarters = r.IsHeadquarters,
+                IsActive = r.IsActive,
+                DisplayOrder = r.DisplayOrder,
             }).ToList());
     }
 
@@ -186,4 +201,17 @@ public class BranchAppService : TradeXpressAppService, IBranchAppService
         DisplayOrder = b.DisplayOrder,
         Description = b.Description,
     };
+
+    // Liste projeksiyonu: Branch + join'lenmiş CompanyCode (gerçek string kolon → server-side sort/filter/arama).
+    private sealed class BranchListRow
+    {
+        public Guid Id { get; set; }
+        public Guid CompanyId { get; set; }
+        public string CompanyCode { get; set; } = string.Empty;
+        public string Code { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public bool IsHeadquarters { get; set; }
+        public bool IsActive { get; set; }
+        public int DisplayOrder { get; set; }
+    }
 }

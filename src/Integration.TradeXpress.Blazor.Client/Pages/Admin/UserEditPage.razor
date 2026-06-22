@@ -22,6 +22,11 @@
     private ScopedRolesEditor? ScopedRolesEditor { get; set; }
     private PermissionEditorPanel? PermissionEditor { get; set; }
 
+    // İzin paneli EditModel'e yansımaz; dirty'sini forma dahil et (Kaydet aktif + "*" + ayrılma onayı).
+    // (ScopedRolesEditor değişince kendi kendine kaydeder → dirty'ye dahil değil.)
+    protected override bool HasExtraChanges => PermissionEditor?.IsDirty == true;
+    private void OnPermissionsDirtyChanged(bool _) => NotifyDirtyChanged();
+
     private RenderFragment RenderForm() => @<text>
 <DxFormLayout CssClass="w-100">
     @* Kullanıcı adı — anahtar alan: yalnız, yarım satır (yeni kayıtta düzenlenebilir). *@
@@ -64,7 +69,7 @@
     <div class="mt-4">
         <DxTabs>
             <DxTabPage Text="@L["Permissions"]">
-                <PermissionEditorPanel @ref="PermissionEditor" ProviderName="U" ProviderKey="@Id.ToString()" Embedded="true" />
+                <PermissionEditorPanel @ref="PermissionEditor" ProviderName="U" ProviderKey="@Id.ToString()" Embedded="true" DirtyChanged="OnPermissionsDirtyChanged" />
             </DxTabPage>
             <DxTabPage Text="@L["ScopedRoles"]">
                 <ScopedRolesEditor @ref="ScopedRolesEditor" UserId="Id" />

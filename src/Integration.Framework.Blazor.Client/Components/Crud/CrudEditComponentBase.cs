@@ -124,6 +124,18 @@ public abstract class CrudEditComponentBase<TGetDto, TListDto, TKey, TListReques
         }
     }
 
+    /// <summary>
+    /// EditModel'e yansımayan dirty kaynağı (embedded izin paneli gibi) değişince çağrılır.
+    /// <see cref="NotifyToolbarIfChanged"/> yalnız EditModel JSON'u değişince tetiklendiğinden bu kaynağı
+    /// göremez; bu yüzden split toolbar + MDI sekme "*" + sayfa render'ını DOĞRUDAN tazeleriz.
+    /// </summary>
+    protected void NotifyDirtyChanged()
+    {
+        SplitHost?.NotifyChanged();
+        if (IsDirty != _lastSyncedDirty) SyncTabHeader();
+        StateHasChanged();
+    }
+
     Task ISplitEditActions.SaveAsync()         => SaveAsync();   // Task<bool> → Task
     Task ISplitEditActions.SaveAndNewAsync()   => SaveAndNewAsync();
     Task ISplitEditActions.SaveAndCloseAsync() => SaveAndCloseAsync();
@@ -331,11 +343,15 @@ public abstract class CrudEditComponentBase<TGetDto, TListDto, TKey, TListReques
     {
         get
         {
+            if (HasExtraChanges) return true;   // EditModel dışı dirty kaynağı (ör. embedded izin paneli)
             if (_cleanSnapshot == null) return true;
             try { return System.Text.Json.JsonSerializer.Serialize(EditModel) != _cleanSnapshot; }
             catch { return true; }
         }
     }
+
+    /// <summary>EditModel'e yansımayan dirty kaynağı — alt sayfalar embedded editör (izin paneli vb.) için override eder.</summary>
+    protected virtual bool HasExtraChanges => false;
 
     protected override async Task OnInitializedAsync()
     {
@@ -421,7 +437,7 @@ public abstract class CrudEditComponentBase<TGetDto, TListDto, TKey, TListReques
         catch (Exception ex)
         {
             Logger.LogError(ex, "Error loading data for Edit form");
-            ShowErrorLines(CrudErrorFormatter.Extract(ex));
+            ShowError(ex);
         }
         finally
         {
@@ -515,6 +531,59 @@ public abstract class CrudEditComponentBase<TGetDto, TListDto, TKey, TListReques
         return false;
     }
 
+    /// <summary>
+    /// Hatayı işler: kullanıcı-dostu mesaj varsa (validation / iş kuralı) toast'ta gösterir; YOKSA
+    /// (teknik hata) genel mesaj gösterir ve TAM detayı (<see cref="IClientErrorReporter"/>) geliştirici
+    /// tanılama yüzeyine (Developer Error Panel) iletir — Blazor Server'da ILogger tarayıcıya gitmez.
+    /// </summary>
+    protected void ShowError(Exception ex)
+    {
+        // BusinessException/IHasErrorCode in-process'te (Blazor Server) Message lokalize olmaz → kodu elle
+        // çevir; sonra validation/remote için formatter; ikisi de yoksa teknik hata → genel mesaj + panele detay.
+        var friendly = LocalizeErrorCode(ex) ?? CrudErrorFormatter.Extract(ex);
+        if (friendly is null)
+        {
+            ServiceProvider.GetService<IClientErrorReporter>()?.Report(ex.Message, ex.ToString());
+        }
+
+        ShowErrorLines(friendly ?? L["UnexpectedError"]);
+    }
+
+    /// <summary>
+    /// Hata kodlu (<see cref="Volo.Abp.BusinessException"/>) exception'ın kodunu, kod-namespace eşlemesinden
+    /// (MapCodeNamespace) bulunan kaynakla lokalize eder. In-process (Blazor Server) çağrıda ABP'nin
+    /// HTTP pipeline lokalizasyonu çalışmadığından gerekir. Eşleşme/çeviri yoksa null.
+    /// </summary>
+    private string? LocalizeErrorCode(Exception ex)
+    {
+        for (var cur = ex; cur != null; cur = cur.InnerException)
+        {
+            if (cur is not Volo.Abp.BusinessException { Code: { } code } || !code.Contains(':'))
+            {
+                continue;
+            }
+
+            var ns = code.Substring(0, code.IndexOf(':'));
+            var mappings = ServiceProvider
+                .GetService<Microsoft.Extensions.Options.IOptions<Volo.Abp.Localization.ExceptionHandling.AbpExceptionLocalizationOptions>>()
+                ?.Value.ErrorCodeNamespaceMappings;
+            if (mappings is null || !mappings.TryGetValue(ns, out var resourceType))
+            {
+                continue;
+            }
+
+            var localized = ServiceProvider
+                .GetRequiredService<Microsoft.Extensions.Localization.IStringLocalizerFactory>()
+                .Create(resourceType)[code];
+            if (!localized.ResourceNotFound)
+            {
+                return localized.Value;
+            }
+        }
+
+        return null;
+    }
+
     /// <summary>Çok satırlı hata metnini satır başına ayrı toast olarak gösterir (XAF tarzı).</summary>
     protected void ShowErrorLines(string text)
     {
@@ -574,7 +643,7 @@ public abstract class CrudEditComponentBase<TGetDto, TListDto, TKey, TListReques
         {
             Logger.LogError(ex, "Error saving data in Edit form");
             // API'den gelen mesajları göster
-            ShowErrorLines(CrudErrorFormatter.Extract(ex));
+            ShowError(ex);
             return false;
         }
         finally
@@ -633,7 +702,7 @@ public abstract class CrudEditComponentBase<TGetDto, TListDto, TKey, TListReques
         catch (Exception ex)
         {
             Logger.LogError(ex, "Error deleting data");
-            ShowErrorLines(CrudErrorFormatter.Extract(ex));
+            ShowError(ex);
         }
         finally
         {

@@ -22,8 +22,8 @@
         @* Kimlik = base/quote çifti. Kod'lar enrichment (FK→Code, nav yok) → server-side sort/filter edilemez. *@
         <DxGridBandColumn Caption="@L["GeneralInfo"]" CaptionAlignment="GridTextAlignment.Center">
             <Columns>
-                <DxGridDataColumn FieldName="BaseCode" Caption="@L["Base"]" Width="100px" AllowSort="false" />
-                <DxGridDataColumn FieldName="QuoteCode" Caption="@L["Quote"]" Width="100px" AllowSort="false" />
+                <DxGridDataColumn FieldName="BaseCode" Caption="@L["Base"]" Width="100px" />
+                <DxGridDataColumn FieldName="QuoteCode" Caption="@L["Quote"]" Width="100px" />
                 <DxGridDataColumn FieldName="IsGlobal" Caption="@L["Kind"]" Width="100px" TextAlignment="GridTextAlignment.Left">
                     <CellDisplayTemplate>@(((ParityListDto)context.DataItem).IsGlobal ? L["CurrencyKind:Global"] : L["CurrencyKind:Company"])</CellDisplayTemplate>
                 </DxGridDataColumn>

@@ -188,6 +188,9 @@ public class TradeXpressBlazorModule : AbpModule
         // auto-scan çalışmıyor; circuit-level servisler burada manuel kayıtlanır.
         context.Services.AddTransient<Integration.Framework.Blazor.Client.Services.Base.IUiStateService,
                                       Integration.TradeXpress.Blazor.Client.Services.TradeXpressUiStateService>();
+        // Yakalanan teknik hataları Developer Error Panel'e taşıyan köprü (Blazor Server'da ILogger tarayıcıya gitmez).
+        context.Services.AddTransient<Integration.Framework.Blazor.Client.Services.Base.IClientErrorReporter,
+                                      Integration.TradeXpress.Blazor.Client.Dev.DevErrorReporter>();
 
         RegisterClientMapperlyMappers(context);
     }

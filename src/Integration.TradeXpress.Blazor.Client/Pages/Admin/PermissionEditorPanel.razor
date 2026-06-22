@@ -56,7 +56,7 @@
         @if (HasAnyTogglable)
         {
             <div class="erp-permission-editor__master" style="padding:0.25rem 0 0.5rem 0; border-bottom:1px solid var(--dx-border-color,#e0e0e0); margin-bottom:0.5rem;">
-                <DxCheckBox T="bool?" Checked="@MasterState" CheckedChanged="OnMasterToggled" AllowIndeterminateStateByClick="false">
+                <DxCheckBox T="bool?" Checked="@MasterState" CheckedChanged="OnMasterToggled" AllowIndeterminateStateByClick="false" ValidationEnabled="false">
                     <strong>@L["AllPermissions"]</strong>
                 </DxCheckBox>
             </div>
@@ -76,7 +76,7 @@
                 @if (_selectedGroup is not null)
                 {
                     <div style="padding:0.5rem 0 0.75rem 0; border-bottom:1px solid var(--dx-border-color,#e0e0e0); margin-bottom:0.5rem;">
-                        <DxCheckBox T="bool?" Checked="@GroupState(_selectedGroup)" CheckedChanged="@((bool? v) => OnGroupToggled(_selectedGroup, v))" AllowIndeterminateStateByClick="false">
+                        <DxCheckBox T="bool?" Checked="@GroupState(_selectedGroup)" CheckedChanged="@((bool? v) => OnGroupToggled(_selectedGroup, v))" AllowIndeterminateStateByClick="false" ValidationEnabled="false">
                             <strong>@L["SelectAll"]</strong> <small style="color:var(--dx-text-muted,#888)">(@GrantedCount(_selectedGroup) / @_selectedGroup.Permissions.Count)</small>
                         </DxCheckBox>
                     </div>
@@ -108,6 +108,7 @@
     private PermissionGroupDto? _selectedGroup;
     private bool _presetOpen;
     private bool _isDirty;
+    public bool IsDirty => _isDirty;   // parent edit formu kendi dirty'sine OR'lasın
     private bool _committing;
     private HashSet<string> _initialGranted = new();
 
@@ -303,6 +304,7 @@
             await PermissionAppService.UpdateAsync(ProviderName, ProviderKey, input);
             _initialGranted = CurrentGrantedSet();
             _isDirty = false;
+            if (DirtyChanged.HasDelegate) _ = DirtyChanged.InvokeAsync(false); // parent "*"/Kaydet'i temizlesin
             if (!Embedded) UiService.ShowSuccessToast(L["SuccessfullySaved"]);
         }
         catch (Exception ex)
@@ -321,7 +323,7 @@
     private RenderFragment RenderNode(PermNode node, int indent) => __builder =>
     {
         <div class="erp-permission-row" style="@($"padding-left:{indent * 20}px; padding-top:0.15rem;")">
-            <DxCheckBox Checked="@node.Granted" CheckedChanged="@((bool v) => OnNodeToggled(node, v))">
+            <DxCheckBox Checked="@node.Granted" CheckedChanged="@((bool v) => OnNodeToggled(node, v))" ValidationEnabled="false">
                 @node.DisplayName
             </DxCheckBox>
         </div>
@@ -340,7 +342,7 @@
             {
                 var captured = child;
                 <div style="display:flex; flex-direction:column; gap:0.15rem; align-items:flex-start;">
-                    <DxCheckBox Checked="@captured.Granted" CheckedChanged="@((bool v) => OnNodeToggled(captured, v))">
+                    <DxCheckBox Checked="@captured.Granted" CheckedChanged="@((bool v) => OnNodeToggled(captured, v))" ValidationEnabled="false">
                         @captured.DisplayName
                     </DxCheckBox>
                     @if (captured.Children.Count > 0)

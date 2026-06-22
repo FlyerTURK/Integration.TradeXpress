@@ -41,6 +41,12 @@ public class GridColumnResolver : IGridColumnResolver, ISingletonDependency
             return false;
         }
 
+        // IsActive grid'de kolon DEĞİL — toolbar'daki switch filtresiyle yönetilir (StatusCell kuralı).
+        if (string.Equals(property.Name, "IsActive", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
         var scaffold = property.GetCustomAttribute<ScaffoldColumnAttribute>();
         if (scaffold is { Scaffold: false })
         {

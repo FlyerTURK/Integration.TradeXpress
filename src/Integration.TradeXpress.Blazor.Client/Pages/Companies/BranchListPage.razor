@@ -25,11 +25,12 @@
             CustomActions="@VaultActions">
 
     <GridColumns>
+        <DxGridDataColumn FieldName="CompanyCode" Caption="@L["Entity:Company"]" Width="120px" />
         <DxGridDataColumn FieldName="Code" Caption="@L["Code"]" Width="120px" />
         <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" />
         <DxGridDataColumn FieldName="IsHeadquarters" Caption="@L["IsHeadquarters"]" Width="120px" />
         @* IsActive kolonu yok — toolbar'da IsActive switch filtre kontrolü var (aktif/pasif ayrımı orada). *@
-        <DxGridDataColumn FieldName="DisplayOrder" Caption="@L["DisplayOrder"]" Width="90px" Visible="false" />
+        <DxGridDataColumn FieldName="DisplayOrder" Caption="@L["DisplayOrder"]" Width="90px" />
     </GridColumns>
 
     

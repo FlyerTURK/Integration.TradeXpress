@@ -24,6 +24,10 @@
     // Static (sistem) rol silinemez — merkezi toolbar Sil butonu bu kurala göre pasifleşir.
     protected override bool CanDeleteRecord => !IsNewMode && !EditModel.IsStatic;
 
+    // İzin paneli EditModel'e yansımaz; dirty'sini forma dahil et (Kaydet aktif + "*" + ayrılma onayı).
+    protected override bool HasExtraChanges => PermissionEditor?.IsDirty == true;
+    private void OnPermissionsDirtyChanged(bool _) => NotifyDirtyChanged();
+
     private RenderFragment RenderForm() => @<text>
 <DxFormLayout CssClass="w-100">
     @* Rol adı — anahtar alan: yalnız, yarım satır (statik rol adı değiştirilemez). *@
@@ -52,7 +56,8 @@
     }
 </DxFormLayout>
 
-@if (!IsNewMode && !string.IsNullOrEmpty(EditModel.Name))
+@* Ad girilir girilmez izin paneli görünür (yeni rolde de) — toggle'lar Kaydet'te rolle birlikte yazılır. *@
+@if (!string.IsNullOrEmpty(EditModel.Name))
 {
     <div class="mt-4">
         <DxTabs>
@@ -60,7 +65,8 @@
                 <PermissionEditorPanel @ref="PermissionEditor"
                                        ProviderName="R"
                                        ProviderKey="@EditModel.Name"
-                                       Embedded="true" />
+                                       Embedded="true"
+                                       DirtyChanged="OnPermissionsDirtyChanged" />
             </DxTabPage>
         </DxTabs>
     </div>
@@ -80,8 +86,10 @@
 
     public override async Task<bool> SaveAsync()
     {
+        // base.SaveAsync yeni rolde önce rolü oluşturur (Id set, IsNewMode→false); ardından izinler
+        // artık var olan rolün adına (ProviderKey = EditModel.Name) yazılır → tek akışta birlikte kaydedilir.
         var saved = await base.SaveAsync();
-        if (saved && PermissionEditor != null && !IsNewMode)
+        if (saved && PermissionEditor != null)
         {
             await PermissionEditor.CommitChangesAsync();
         }
