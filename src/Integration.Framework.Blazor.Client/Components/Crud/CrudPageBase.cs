@@ -214,8 +214,10 @@ public abstract class CrudPageBase<TGetDto, TListDto, TKey, TListRequestDto, TCr
             await ShowPopupAsync(entity.Id);
     }
 
-    /// <summary>Edit formunun nerede açılacağı (Popup/MDI sekmesi). Alt sınıf override eder; varsayılan Popup.</summary>
-    protected virtual EditOpenTarget EditOpenTarget => EditOpenTarget.Popup;
+    /// <summary>Edit formunun nerede açılacağı (Popup/MDI sekmesi). OTOMATİK: liste bir MDI sekmesinde açıldıysa
+    /// edit de sekmede açılır (kullanıcı tercihi); değilse popup. Edit bileşeninin @page route'u yoksa
+    /// (BuildEditUrl null) zaten popup'a düşülür. Alt sınıf gerekirse override eder (ör. zorla Popup).</summary>
+    protected virtual EditOpenTarget EditOpenTarget => CurrentMdiTab != null ? EditOpenTarget.MdiTab : EditOpenTarget.Popup;
 
     [Inject] private IServiceProvider ServiceProvider { get; set; } = default!;
 

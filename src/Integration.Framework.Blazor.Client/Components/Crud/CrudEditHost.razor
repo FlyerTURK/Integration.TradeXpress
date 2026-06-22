@@ -5,8 +5,11 @@
 @using System
 @using System.Collections.Generic
 @using Integration.Framework.Blazor.Client.Services.Base
+@using Integration.Framework.Blazor.Client.Services.Mdi
 @inherits CrudComponentBase
 @inject ITradeXpressUiService UiService
+@inject IEntityChangeNotifier EntityChanges
+@inject IMdiTabOpener TabOpener
 
 @*
    GENERIC edit host — persistence sahibi (ICommitCoordinator) + agnostic EntityEditForm sunumu.
@@ -52,6 +55,15 @@
     [Parameter] public EventCallback OnSaved { get; set; }
     [Parameter] public EventCallback OnClosed { get; set; }
 
+    /// <summary>Cross-tab liste tazeleme anahtarı. Boşsa typeof(TListDto).FullName → CrudPageBase'in default'uyla
+    /// otomatik eşleşir (özel key'li listelerde — Roles/Users — sarmal verir).</summary>
+    [Parameter] public string? EntityChangeKey { get; set; }
+
+    // MDI tab bağlamı (routable host tab'da açılınca cascade gelir). Popup'ta null → tab-close yerine OnClosed.
+    [CascadingParameter(Name = "CurrentMdiTab")] public IMdiTab? CurrentMdiTab { get; set; }
+
+    private string ResolvedKey => EntityChangeKey ?? typeof(TListDto).FullName ?? typeof(TListDto).Name;
+
     // Header (yapısal 3-satır)
     [Parameter] public string? FormCaption { get; set; }
     [Parameter] public string? IconCssClass { get; set; }
@@ -61,6 +73,9 @@
 
     /// <summary>Yeni kayıt fabrikası: NewModel sonrası bağlam default'larını uygula (IsActive=true, parent FK vb.).</summary>
     [Parameter] public Action<TGetDto>? ApplyNewDefaults { get; set; }
+    /// <summary>Model HAZIR olunca (yeni VEYA yüklenmiş; snapshot ÖNCESİ) çalışır — fetch'e bağlı default'lar için
+    /// (ör. CurrencyUnit EnsureFollowingDefault). Burada yapılan değişiklik temiz baz'a girer (dirty saymaz).</summary>
+    [Parameter] public Func<TGetDto, Task>? OnModelReady { get; set; }
     /// <summary>Silinebilir mi (model'e göre; ör. !IsDefault). Yeni kayıtta zaten kapalı.</summary>
     [Parameter] public Func<TGetDto, bool>? CanDelete { get; set; }
     /// <summary>Salt-okunur mu (ör. tenant'ta global kayıt).</summary>
@@ -87,6 +102,9 @@
             _model = NewModel();
             _isNew = true;
         }
+
+        if (OnModelReady != null)
+            await OnModelReady(_model);   // fetch'e bağlı default'lar (snapshot öncesi → dirty saymaz)
     }
 
     private TGetDto NewModel()
@@ -98,12 +116,14 @@
 
     private async Task CommitAsync(TGetDto m)
     {
+        var wasNew = _isNew;
         try
         {
             _model = await Coordinator.CommitAsync(m);   // taze model → rebind (* gider)
             _isNew = false;
             UiService.ShowSuccessToast(L["SuccessfullySaved"].Value);
-            await OnSaved.InvokeAsync();
+            EntityChanges.Notify(ResolvedKey, wasNew ? EntityChangeKind.Created : EntityChangeKind.Updated, _model.Id);  // cross-tab liste tazele
+            await OnSaved.InvokeAsync();                 // popup açan listeyi de tazele (varsa)
             StateHasChanged();
         }
         catch (Exception ex)
@@ -127,8 +147,10 @@
         if (_isNew || _model == null) return;   // onay EntityEditForm'da soruldu
         try
         {
-            await Coordinator.DeleteAsync(_model.Id);
+            var deletedId = _model.Id;
+            await Coordinator.DeleteAsync(deletedId);
             UiService.ShowSuccessToast(L["SuccessfullyDeleted"].Value);
+            EntityChanges.Notify(ResolvedKey, EntityChangeKind.Deleted, deletedId);   // cross-tab liste tazele
             await OnSaved.InvokeAsync();
             await CloseAsync();
         }
@@ -138,7 +160,15 @@
         }
     }
 
-    private Task CloseAsync() => OnClosed.InvokeAsync();
+    // Tab modunda (CurrentMdiTab var) sekmeyi kapat (CanCloseAsync guard'ı EntityEditForm'da kuruldu);
+    // popup modunda OnClosed (açan host/PopupService kapatır).
+    private async Task CloseAsync()
+    {
+        if (CurrentMdiTab is { } tab)
+            await TabOpener.TryCloseAsync(tab.Id);
+        else
+            await OnClosed.InvokeAsync();
+    }
 
     private static bool IsEmptyKey(TKey key) => EqualityComparer<TKey>.Default.Equals(key, default!);
 }

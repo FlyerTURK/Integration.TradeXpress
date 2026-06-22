@@ -169,11 +169,9 @@ public partial class CurrencyUnitListPage : IDisposable
         await base.DeleteAsync();
     }
 
-    // Edit'i popup yerine MDI sekmesinde aç (route'lu CurrencyUnitEditPage + IMdiTabOpener üzerinden).
-    protected override Integration.Framework.Blazor.Client.Components.Crud.EditOpenTarget EditOpenTarget
-        => Integration.Framework.Blazor.Client.Components.Crud.EditOpenTarget.MdiTab;
-
-    public override System.Type EditComponentType => typeof(Integration.TradeXpress.Blazor.Client.Pages.Financials.CurrencyUnits.CurrencyUnitEditPage);
+    // YENİ mimari: agnostic EntityEditForm + generic CrudEditHost, POPUP'ta (tutarlılık; tab/MdiTab kaldırıldı).
+    // Eski route'lu CurrencyUnitEditPage repo'da kalır.
+    public override System.Type EditComponentType => typeof(Integration.TradeXpress.Blazor.Client.Pages.Financials.CurrencyUnits.CurrencyUnitEditHost);
 }
 
 

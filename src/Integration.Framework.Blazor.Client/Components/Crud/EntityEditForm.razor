@@ -5,6 +5,7 @@
 @using DevExpress.Blazor
 @using Microsoft.AspNetCore.Components.Forms
 @using Integration.Framework.Blazor.Client.Services.Base
+@using Integration.Framework.Blazor.Client.Services.Mdi
 @using Integration.Framework.Blazor.Client.Components.Shared
 @inherits CrudComponentBase
 @implements ISplitEditActions
@@ -104,8 +105,11 @@
 
     // Popup chrome (GlobalPopupHost) → varsa başlığı chrome header'a iteriz, gövdede çizmeyiz. Tab'da null.
     [CascadingParameter] public IPopupChrome? PopupChrome { get; set; }
+    // MDI tab bağlamı (routable host tab'da açılınca) → başlığı tab şeridine sync + kapanış guard'ı tab'a bağla.
+    [CascadingParameter(Name = "CurrentMdiTab")] public IMdiTab? CurrentMdiTab { get; set; }
 
     [Inject] protected ITradeXpressUiService UiService { get; set; } = default!;
+    [Inject] protected IMdiTabOpener TabOpener { get; set; } = default!;
 
     // ── İç durum ──
     private EditContext? _editContext;
@@ -157,37 +161,41 @@
 
     protected override void OnAfterRender(bool firstRender)
     {
-        // Popup chrome'a kapanış guard'ımızı (dirty onayı) kaydet → native X/Escape kirli formda sorar.
-        // Her render'da set (cache'li delegate): popup yeniden açılıp guard temizlense de tekrar bağlanır.
-        if (PopupChrome is not null)
-        {
-            _closeGuard ??= () => ((ISplitEditActions)this).CanLeaveAsync();
-            PopupChrome.SetCloseGuard(_closeGuard);
-        }
+        // Kapanış guard'ı (dirty onayı): popup → chrome (native X/Escape); tab → CurrentMdiTab.CanCloseAsync.
+        // Her render'da set (cache'li delegate): yeniden açılıp guard temizlense de tekrar bağlanır.
+        _closeGuard ??= () => ((ISplitEditActions)this).CanLeaveAsync();
+        if (PopupChrome is not null) PopupChrome.SetCloseGuard(_closeGuard);
+        else if (CurrentMdiTab is { } tab) tab.CanCloseAsync = _closeGuard;
 
         if (_snapshotPending)
         {
             _snapshotPending = false;
             CaptureSnapshot();   // ilk render SONRASI temiz baz (coercion dahil) → yeni kayıt dirty görünmez
             StateHasChanged();
-            PushChromeHeader();
+            PushHeader();
             return;
         }
         NotifyIfChanged();
-        PushChromeHeader();
+        PushHeader();
     }
 
-    // Popup modunda başlığı chrome'a it. Sig-guard: yalnız başlık/dirty değişince SetHeader → GlobalPopupHost
-    // re-render → döngü yok (sig aynıysa çağırma). Fragment EditHeaderView'i canlı (HeaderData/IsDirty) çizer.
-    private string? _lastChromeSig;
-    private void PushChromeHeader()
+    // Başlığı host chrome'una it. Sig-guard: yalnız başlık/dirty değişince → döngü yok. popup → IPopupChrome
+    // (EditHeaderView fragment, canlı); tab → MDI tab şeridi (UpdateTabHeader + SetTabDirty). Gövde başlığı ayrıca
+    // (PopupChrome null iken) çizilir → tab içeriğinde de header görünür, üstte tab şeridi de senkron.
+    private string? _lastHeaderSig;
+    private void PushHeader()
     {
-        if (PopupChrome is null) return;
         var h = HeaderData;
         var sig = $"{h?.NewPrefix}|{h?.FormCaption}|{h?.EntityValue}|{h?.ParentLabel}|{h?.ParentValue}|{h?.IconCssClass}|{IsDirty}";
-        if (sig == _lastChromeSig) return;
-        _lastChromeSig = sig;
-        PopupChrome.SetHeader(ChromeHeader);
+        if (sig == _lastHeaderSig) return;
+        _lastHeaderSig = sig;
+        if (PopupChrome is not null)
+            PopupChrome.SetHeader(ChromeHeader);
+        else if (CurrentMdiTab is { } tab && h is not null)
+        {
+            TabOpener.UpdateTabHeader(tab.Id, h);
+            TabOpener.SetTabDirty(tab.Id, IsDirty);
+        }
     }
 
     private RenderFragment ChromeHeader => @<EditHeaderView Header="@HeaderData" IsDirty="@IsDirty" ShowDirty="true" DirtyLabel="@L["UnsavedChanges"]" />;
@@ -332,5 +340,6 @@
         if (_editContext != null) _editContext.OnFieldChanged -= OnFieldChanged;
         PopupChrome?.SetHeader(null);       // kapanırken chrome başlığını bırakma
         PopupChrome?.SetCloseGuard(null);   // ve guard'ı bırak
+        if (CurrentMdiTab != null) CurrentMdiTab.CanCloseAsync = null;   // tab guard'ı bırak
     }
 }

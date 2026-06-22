@@ -1,0 +1,104 @@
+@using System
+@using System.Linq
+@using System.Collections.Generic
+@using Integration.TradeXpress.Financials.CurrencyUnits
+@using Integration.Framework.Blazor.Client.Components.Crud
+@using DevExpress.Blazor
+@using Microsoft.Extensions.Localization
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+@inject Volo.Abp.MultiTenancy.ICurrentTenant CurrentTenant
+
+@*
+   CurrencyUnit DUMB Layout — CurrencyUnitGetDto'yu forma yansıtır. I/O yok (takip adayları host'tan param).
+   Following/margin alan-koordinasyonu (HandleFollowingUnitChanged) UI mantığıdır — persistence değil, burada kalır.
+   Takip grubu yalnız tenant + non-global'de görünür (host global'i ayrıca readonly yapar).
+*@
+
+<DxFormLayout CssClass="w-100">
+    <DxFormLayoutGroup Caption="@L["General"]" ColSpanMd="12">
+        <DxFormLayoutItem Caption="@($"{L["Code"]} *")" ColSpanMd="6">
+            <DxTextBox @bind-Text="@Model.Code" Enabled="@IsNew" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="12">
+            <DxTextBox @bind-Text="@Model.Name" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["Type"]" ColSpanMd="6">
+            <ComboBoxEnumEdit TEnum="CurrencyUnitType" @bind-Value="@Model.Type" L="@L" Enabled="@IsNew" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["AlwaysShowInBalance"]" ColSpanMd="6">
+            <DxCheckBox @bind-Checked="@Model.AlwaysShowInBalance" CheckType="CheckType.Switch">
+                @(Model.AlwaysShowInBalance ? L["Show"] : L["DoNotShow"])
+            </DxCheckBox>
+        </DxFormLayoutItem>
+    </DxFormLayoutGroup>
+
+    @* Takip — yalnız tenant modunda + bu birim global değilse *@
+    <DxFormLayoutGroup Caption="@L["Following"]" Visible="@(CurrentTenant?.Id != null && !Model.IsGlobal)" ColSpanMd="12">
+        <DxFormLayoutItem ColSpanMd="6">
+            <CaptionTemplate>
+                <InfoCaption Text="@L["FollowingUnit"].Value"
+                             HintText="@L["CurrencyUnit:FollowingUnitIdHint"].Value"
+                             Required="false" />
+            </CaptionTemplate>
+            <Template>
+                @* Self'i dışla: bir birim kendini takip edemez. *@
+                @* Value/ValueChanged (custom handler) kullanır → ValueExpression yok → EditContext'te
+                   validasyonu kapat (eski formdaki gibi); aksi halde DxComboBox ValueExpression hatası verir. *@
+                <DxComboBox Data="@FollowCandidates.Where(u => u.Id != Model.Id)"
+                            Value="@Model.FollowingUnitId"
+                            ValueChanged="(Guid? newId) => HandleFollowingUnitChanged(newId)"
+                            TextFieldName="@nameof(CurrencyUnitListDto.Code)"
+                            ValueFieldName="@nameof(CurrencyUnitListDto.Id)"
+                            NullText="@L["None"]"
+                            ValidationEnabled="false"
+                            ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
+            </Template>
+        </DxFormLayoutItem>
+        @if (Model.FollowingUnitId.HasValue)
+        {
+            <DxFormLayoutItem Caption="@L["MarginType"]" ColSpanMd="6" BeginRow="true">
+                <ComboBoxEnumEdit TEnum="MarginType?" @bind-Value="@Model.FollowingMarginType" L="@L" />
+            </DxFormLayoutItem>
+            <DxFormLayoutItem Caption="@L["MarginValue"]" ColSpanMd="6">
+                <NumericSpinEdit @bind-Value="@Model.FollowingMarginValue" />
+            </DxFormLayoutItem>
+        }
+    </DxFormLayoutGroup>
+
+    <DxFormLayoutItem Caption="@L["Description"]" ColSpanMd="12">
+        <DxMemo @bind-Text="@Model.Description" Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100" />
+    </DxFormLayoutItem>
+    <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6">
+        <DxCheckBox @bind-Checked="@Model.IsActive" CheckType="CheckType.Switch">
+            @(Model.IsActive ? L["Active"] : L["Passive"])
+        </DxCheckBox>
+    </DxFormLayoutItem>
+    <DxFormLayoutItem Caption="@L["DisplayOrder"]" ColSpanMd="6">
+        <NumericSpinEdit @bind-Value="@Model.DisplayOrder" />
+    </DxFormLayoutItem>
+</DxFormLayout>
+
+@code {
+    [Parameter, EditorRequired] public CurrencyUnitGetDto Model { get; set; } = default!;
+    [Parameter] public bool IsNew { get; set; }
+    [Parameter] public List<CurrencyUnitListDto> FollowCandidates { get; set; } = new();
+
+    // Takip birimi değişince margin varsayılanlarını kur/temizle (UI alan-koordinasyonu).
+    private void HandleFollowingUnitChanged(Guid? newId)
+    {
+        Model.FollowingUnitId = newId;
+        if (newId.HasValue)
+        {
+            if (Model.FollowingMarginType == null && Model.FollowingMarginValue == null)
+            {
+                Model.FollowingMarginType = MarginType.Multiply;
+                Model.FollowingMarginValue = 1m;
+            }
+        }
+        else
+        {
+            Model.FollowingMarginType = null;
+            Model.FollowingMarginValue = null;
+        }
+    }
+}
