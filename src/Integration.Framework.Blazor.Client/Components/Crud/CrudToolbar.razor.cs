@@ -30,10 +30,15 @@ namespace Integration.Framework.Blazor.Client.Components.Crud
         /// <summary>CrudEditShell verir — doluysa "Edit" modu (standalone popup/sekme edit).</summary>
         [Parameter] public ISplitEditActions? EditController { get; set; }
 
+        /// <summary>GlobalPopupHost cascade'i — doluysa edit POPUP'ta açık (tab/split/standalone değil).</summary>
+        [CascadingParameter] public IPopupChrome? PopupChrome { get; set; }
+
         // ── Üç bağlam (View mode) ──
         private bool IsSplit => SplitHost != null;
         private bool IsEdit  => SplitHost == null && EditController != null;
         private bool IsList  => SplitHost == null && EditController == null;
+        // Popup'ta açık edit: Save zaten Save&Close yapıyor → ayrı "Kaydet ve Kapat" gereksiz.
+        private bool IsPopupEdit => PopupChrome != null;
 
         // Edit aksiyonları: split'te host'un edit'i, standalone edit'te controller. Ortak sözleşme.
         private ISplitEditActions? ActiveEdit => SplitHost?.Edit ?? EditController;
@@ -163,11 +168,12 @@ namespace Integration.Framework.Blazor.Client.Components.Crud
                     IconUrl = "/images/xaf/action_save.svg", IconCssClass = "xaf-toolbar-item-icon",
                     Visible = ShowSaveGroup, Enabled = EditCanSave, OnClick = DoSave },
 
-            // Kaydet ve Yeni ▾ (içinde Kaydet ve Kapat) (Edit)
-            new() { SortIndex = 20, Text = L["SaveAndNew"], Tooltip = L["SaveAndNew"], SplitDropDownButton = true,
+            // Kaydet ve Yeni ▾ (içinde Kaydet ve Kapat) (Edit). POPUP'ta Save = Save&Close olduğundan alt item
+            // gereksiz → popup'ta düz buton (▾/Kaydet&Kapat yok); tab/standalone'da split + Kaydet&Kapat.
+            new() { SortIndex = 20, Text = L["SaveAndNew"], Tooltip = L["SaveAndNew"], SplitDropDownButton = !IsPopupEdit,
                     IconUrl = "/images/xaf/action_save_new.svg", IconCssClass = "xaf-toolbar-item-icon",
                     Visible = ShowSaveAndNew, Enabled = EditCanSave, OnClick = DoSaveNew,
-                    Items = new List<CrudToolbarAction>
+                    Items = IsPopupEdit ? null : new List<CrudToolbarAction>
                     {
                         new() { Text = L["SaveAndClose"], Tooltip = L["SaveAndClose"],
                                 IconCssClass = "fas fa-circle-check xaf-toolbar-item-icon",
