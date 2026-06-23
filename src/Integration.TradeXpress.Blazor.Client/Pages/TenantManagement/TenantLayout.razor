@@ -1,0 +1,242 @@
+@using System
+@using System.Linq
+@using System.Collections.Generic
+@using Integration.TradeXpress.Tenants
+@using Integration.TradeXpress.Companies
+@using Integration.TradeXpress.Branches
+@using Integration.TradeXpress.Vaults
+@using Integration.TradeXpress.Countries
+@using Integration.TradeXpress.Financials.CurrencyUnits
+@using Integration.Framework.Blazor.Client.Components.Crud
+@using Integration.TradeXpress.Blazor.Client.Components.Crud
+@using Integration.TradeXpress.Blazor.Client.Components.Shared
+@using Integration.Framework.Blazor.Client.Components.Inputs
+@using DevExpress.Blazor
+@using Microsoft.Extensions.Localization
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@*
+   Tenant DUMB Layout — Ad + (yalnız YENİ tenant'ta) Kullanıcılar drill (admin onboarding) + Şirketler drill
+   (paylaşılan CompanyEditFields + CompanyBranchDrill grafı). In-memory graf → save'de server o tenant scope'unda
+   oluşturur (onboarding/impersonation server-side). Drill değişimi EditChanged ile dirty/Save. Tekil-bayrak
+   (admin/HQ) self-hariç canlı. Şirket-drill combo'larında Add/Edit YOK (Tenant popup'ta → nested popup olmaz).
+*@
+<DxFormLayout CssClass="w-100">
+    <DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="12">
+        <DxTextBox @bind-Text="@Model.Name" />
+    </DxFormLayoutItem>
+</DxFormLayout>
+
+@if (IsNew)
+{
+    @* Kullanıcılar + Şirketler ayrı sekmelerde (DxTabs) — uzun graf'ı dikey yığmak yerine. *@
+    <DxTabs CssClass="mt-3">
+    <DxTabPage Text="@L["Companies"].Value">
+        @* Şirketler: tam graf (CompanyEditFields + CompanyBranchDrill). Tek merkez şirket. *@
+        <DrillList TItem="CompanyGraphDto"
+                   Title="@L["Companies"]"
+                   EntityName="@L["Entity:Company"]"
+                   Items="Model.Companies"
+                   KeyFieldName="ClientKey"
+                   PrimaryTextSelector="@(c => c.Code)"
+                   NewItemFactory="@NewCompanyNode"
+                   CloneFactory="@CloneCompany"
+                   MinItems="1"
+                   SoftDelete="true"
+                   IsNewItem="@(c => c.Id == Guid.Empty)"
+                   MarkDeleted="@(c => c.IsDeleted = true)"
+                   FilterPredicate="@(c => !c.IsDeleted)"
+                   DeleteGuard="@CompanyDeleteGuard"
+                   OnSelectionChanged="OnCompanySelected"
+                   OnItemSaved="OnCompanySaved"
+                   OnChanged="@(() => EditChanged?.Invoke())">
+            <ToolbarActions>
+                <DxButton Text="@L["MakeHeadquarters"]"
+                          RenderStyle="ButtonRenderStyle.Link"
+                          IconCssClass="fas fa-building"
+                          Click="MakeCompanyHeadquarters"
+                          Enabled="@(_selectedCompany is { IsDeleted: false, IsHeadquarters: false })" />
+            </ToolbarActions>
+            <GridColumns>
+                <DxGridDataColumn FieldName="Code" Caption="@L["Code"]" Width="110px" />
+                <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" />
+                <DxGridDataColumn FieldName="CountryCode" Caption="@L["Country"]" Width="90px" />
+                <DxGridDataColumn FieldName="IsHeadquarters" Caption="@L["IsHeadquarters"]" Width="90px" TextAlignment="GridTextAlignment.Left">
+                    <CellDisplayTemplate Context="cell">@(((CompanyGraphDto)cell.DataItem).IsHeadquarters ? L["Yes"].Value : "")</CellDisplayTemplate>
+                </DxGridDataColumn>
+                <DxGridDataColumn FieldName="IsActive" Caption="@L["Status"]" Width="110px" TextAlignment="GridTextAlignment.Left">
+                    <CellDisplayTemplate Context="cell"><StatusCell Active="@(((CompanyGraphDto)cell.DataItem).IsActive)" /></CellDisplayTemplate>
+                </DxGridDataColumn>
+            </GridColumns>
+            <EditContent Context="c">
+                <CompanyEditFields Model="c" Units="Units" Countries="Countries"
+                                   HeadquartersEnabled="@(!IsCompanySoleHq(c))" CodeEnabled="true" />
+            </EditContent>
+            <AfterEditForm Context="c">
+                <CompanyBranchDrill Model="c" OnChanged="@(() => EditChanged?.Invoke())" />
+            </AfterEditForm>
+        </DrillList>
+    </DxTabPage>
+    <DxTabPage Text="@L["Users"].Value">
+        <DrillList TItem="TenantUserInput"
+                   Title="@L["Users"]"
+                   EntityName="@L["Entity:User"]"
+                   Items="Model.Users"
+                   KeyFieldName="ClientKey"
+                   PrimaryTextSelector="@(u => u.UserName)"
+                   NewItemFactory="@(() => new TenantUserInput())"
+                   MinItems="1"
+                   SoftDelete="true"
+                   IsNewItem="@(_ => true)"
+                   MarkDeleted="@(_ => { })"
+                   DeleteGuard="@UserDeleteGuard"
+                   OnSelectionChanged="OnUserSelected"
+                   OnItemSaved="OnUserSaved"
+                   OnChanged="@(() => EditChanged?.Invoke())">
+            <ToolbarActions>
+                <DxButton Text="@L["MakeAdmin"]"
+                          RenderStyle="ButtonRenderStyle.Link"
+                          IconCssClass="fas fa-user-shield"
+                          Click="MakeUserAdmin"
+                          Enabled="@(_selectedUser is { IsAdmin: false })" />
+            </ToolbarActions>
+            <GridColumns>
+                <DxGridDataColumn FieldName="UserName" Caption="@L["UserName"]" />
+                <DxGridDataColumn FieldName="Email" Caption="@L["Email"]" />
+                <DxGridDataColumn FieldName="IsAdmin" Caption="@L["IsAdmin"]" Width="90px" TextAlignment="GridTextAlignment.Left">
+                    <CellDisplayTemplate Context="cell">@(((TenantUserInput)cell.DataItem).IsAdmin ? L["Yes"].Value : "")</CellDisplayTemplate>
+                </DxGridDataColumn>
+            </GridColumns>
+            <EditContent Context="u">
+                <DxFormLayout CssClass="w-100">
+                    <DxFormLayoutItem Caption="@($"{L["UserName"]} *")" ColSpanMd="6"><DxTextBox @bind-Text="u.UserName" /></DxFormLayoutItem>
+                    <DxFormLayoutItem Caption="@($"{L["Email"]} *")" ColSpanMd="6"><DxTextBox @bind-Text="u.Email" /></DxFormLayoutItem>
+                    <DxFormLayoutItem Caption="@($"{L["Password"]} *")" ColSpanMd="6"><PasswordTextEdit @bind-Text="u.Password" Tooltip="@L["ShowPassword"]" /></DxFormLayoutItem>
+                    <DxFormLayoutItem Caption="@($"{L["ConfirmPassword"]} *")" ColSpanMd="6"><PasswordTextEdit @bind-Text="u.PasswordConfirm" Tooltip="@L["ShowPassword"]" /></DxFormLayoutItem>
+                    <DxFormLayoutItem Caption="@L["Name"]" ColSpanMd="6"><DxTextBox @bind-Text="u.Name" /></DxFormLayoutItem>
+                    <DxFormLayoutItem Caption="@L["Surname"]" ColSpanMd="6"><DxTextBox @bind-Text="u.Surname" /></DxFormLayoutItem>
+                    <DxFormLayoutItem Caption="@L["IsAdmin"]" ColSpanMd="6"><DxCheckBox @bind-Checked="u.IsAdmin" CheckType="CheckType.Switch" Enabled="@(!IsUserSoleAdmin(u))" /></DxFormLayoutItem>
+                </DxFormLayout>
+            </EditContent>
+        </DrillList>
+    </DxTabPage>
+    </DxTabs>
+}
+
+@code {
+    [Parameter, EditorRequired] public TenantGetDto Model { get; set; } = default!;
+    [Parameter] public bool IsNew { get; set; }
+    [Parameter] public List<CurrencyUnitListDto> Units { get; set; } = new();
+    [Parameter] public List<CountryListDto> Countries { get; set; } = new();
+
+    // Drill (Kullanıcılar/Şirketler/Şube-Kasa) değişimini forma bildir — EntityEditForm EditChanged cascade'i.
+    [CascadingParameter(Name = "EditChanged")] private Action? EditChanged { get; set; }
+
+    private TenantUserInput? _selectedUser;
+    private CompanyGraphDto? _selectedCompany;
+
+    // ── Yeni şirket düğümü grafı (host ApplyNewDefaults de kullanır → static, units/countries parametreli). ──
+    public static CompanyGraphDto NewCompany(string code, string name, string country, bool isHeadquarters,
+        IReadOnlyList<CurrencyUnitListDto> units, IReadOnlyList<CountryListDto> countries) => new()
+    {
+        Code = code,
+        Name = name,
+        CountryCode = country,
+        BaseCurrencyUnitId = DefaultUnitIdFor(country, units, countries),
+        IsHeadquarters = isHeadquarters,
+        IsActive = true,
+        DisplayOrder = 1,
+        Branches =
+        {
+            new BranchGraphDto
+            {
+                Code = BranchConsts.DefaultHeadquartersCode,
+                Name = BranchConsts.DefaultHeadquartersName,
+                IsHeadquarters = true,
+                DisplayOrder = 1,
+                Vaults = { new VaultGraphDto { Code = VaultConsts.DefaultCode, Name = VaultConsts.DefaultName, IsDefault = true, DisplayOrder = 1 } },
+            },
+        },
+    };
+
+    // Ülkenin varsayılan para biriminin Id'si (yoksa TRY).
+    public static Guid DefaultUnitIdFor(string country, IReadOnlyList<CurrencyUnitListDto> units, IReadOnlyList<CountryListDto> countries)
+    {
+        var ccy = countries.FirstOrDefault(c => string.Equals(c.Code, country, StringComparison.OrdinalIgnoreCase))?.DefaultCurrencyCode;
+        var unit = units.FirstOrDefault(u => string.Equals(u.Code, ccy, StringComparison.OrdinalIgnoreCase))
+            ?? units.FirstOrDefault(u => u.Code == CurrencyUnitCode.TRY);
+        return unit?.Id ?? Guid.Empty;
+    }
+
+    // Drill add (parametresiz): boş şirket düğümü (TR default).
+    private CompanyGraphDto NewCompanyNode() => NewCompany(string.Empty, string.Empty, "TR", isHeadquarters: false, Units, Countries);
+
+    private static CompanyGraphDto CloneCompany(CompanyGraphDto c) => new()
+    {
+        Id = c.Id, ClientKey = c.ClientKey, IsDeleted = c.IsDeleted,
+        Code = c.Code, Name = c.Name, CountryCode = c.CountryCode, BaseCurrencyUnitId = c.BaseCurrencyUnitId,
+        IsHeadquarters = c.IsHeadquarters, IsActive = c.IsActive, DisplayOrder = c.DisplayOrder, Description = c.Description,
+        Branches = c.Branches.Select(CloneBranch).ToList(),
+    };
+
+    private static BranchGraphDto CloneBranch(BranchGraphDto b) => new()
+    {
+        Id = b.Id, ClientKey = b.ClientKey, IsDeleted = b.IsDeleted,
+        Code = b.Code, Name = b.Name, IsHeadquarters = b.IsHeadquarters,
+        IsActive = b.IsActive, DisplayOrder = b.DisplayOrder, Description = b.Description,
+        Vaults = b.Vaults.Select(CloneVault).ToList(),
+    };
+
+    private static VaultGraphDto CloneVault(VaultGraphDto v) => new()
+    {
+        Id = v.Id, ClientKey = v.ClientKey, IsDeleted = v.IsDeleted,
+        Code = v.Code, Name = v.Name, IsDefault = v.IsDefault,
+        IsActive = v.IsActive, DisplayOrder = v.DisplayOrder, Description = v.Description,
+    };
+
+    // ── Tekil-bayrak (admin / merkez şirket) — KENDİSİ hariç canlı ──
+    private void OnUserSelected(TenantUserInput? u) => _selectedUser = u;
+    private void OnCompanySelected(CompanyGraphDto? c) => _selectedCompany = c;
+
+    private bool IsUserSoleAdmin(TenantUserInput u)
+        => u.IsAdmin && !Model.Users.Any(x => x.ClientKey != u.ClientKey && x.IsAdmin);
+
+    private bool IsCompanySoleHq(CompanyGraphDto c)
+        => c.IsHeadquarters && !Model.Companies.Any(x => x.ClientKey != c.ClientKey && !x.IsDeleted && x.IsHeadquarters);
+
+    private string? UserDeleteGuard(TenantUserInput u)
+        => IsUserSoleAdmin(u) ? L["CannotDeleteSoleAdmin"].Value : null;
+
+    private string? CompanyDeleteGuard(CompanyGraphDto c)
+        => IsCompanySoleHq(c) ? L["CannotDeleteHeadquartersCompany"].Value : null;
+
+    private void OnUserSaved(TenantUserInput saved)
+    {
+        if (!saved.IsAdmin) return;
+        foreach (var u in Model.Users)
+            if (!ReferenceEquals(u, saved)) u.IsAdmin = false;
+    }
+
+    private void OnCompanySaved(CompanyGraphDto saved)
+    {
+        if (!saved.IsHeadquarters) return;
+        foreach (var c in Model.Companies)
+            if (!ReferenceEquals(c, saved) && !c.IsDeleted) c.IsHeadquarters = false;
+    }
+
+    private void MakeUserAdmin()
+    {
+        if (_selectedUser is null) return;
+        foreach (var u in Model.Users) u.IsAdmin = false;
+        _selectedUser.IsAdmin = true;
+        EditChanged?.Invoke();
+    }
+
+    private void MakeCompanyHeadquarters()
+    {
+        if (_selectedCompany is null || _selectedCompany.IsDeleted) return;
+        foreach (var c in Model.Companies) c.IsHeadquarters = false;
+        _selectedCompany.IsHeadquarters = true;
+        EditChanged?.Invoke();
+    }
+}

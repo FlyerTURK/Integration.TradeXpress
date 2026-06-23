@@ -32,11 +32,22 @@ public class BranchGetDto : EntityDto<Guid>, IGetDto<Guid>
 {
     public Guid CompanyId { get; set; }
     public string CompanyCode { get; set; } = string.Empty;
+
+    // VALİDASYON kuralları BURADA (tek kaynak) — BranchGraphDto bunlardan MİRAS alır → standalone ve
+    // company-node şube düzenlemeleri GARANTİLİ aynı kuralları doğrular.
+    [Required]
+    [StringLength(BranchConsts.CodeMaxLength)]
     public string Code { get; set; } = string.Empty;
+
+    [Required]
+    [StringLength(BranchConsts.NameMaxLength)]
     public string Name { get; set; } = string.Empty;
+
     public bool IsHeadquarters { get; set; }
     public bool IsActive { get; set; }
     public int DisplayOrder { get; set; }
+
+    [StringLength(BranchConsts.DescriptionMaxLength)]
     public string? Description { get; set; }
 
     // Sahip olunan kasalar (graf düğümleri; durum = Id + IsDeleted). Edit formu in-memory yönetir.
@@ -95,25 +106,10 @@ public class BranchUpdateDto : IUpdateDto
 /// app servisi YOK; standalone Branch CRUD ayrı: <see cref="BranchGetDto"/> vb.). Durum = <see cref="Id"/>
 /// + <see cref="IsDeleted"/>: Id boş → ekle, IsDeleted → sil, aksi → güncelle. Kasalar <see cref="Vaults"/>.
 /// </summary>
-public class BranchGraphDto : EntityDto<Guid>
+public class BranchGraphDto : BranchGetDto
 {
+    // Graf düğümü EKSTRALARI (durum). Code/Name/Vaults + TÜM VALİDASYON BranchGetDto'dan MİRAS → standalone
+    // ve company-node şube düzenlemeleri tek kaynaktan, GARANTİLİ aynı (kopya yok). (K3: GraphDto : GetDto)
     public Guid ClientKey { get; set; } = Guid.NewGuid();
     public bool IsDeleted { get; set; }
-
-    [Required]
-    [StringLength(BranchConsts.CodeMaxLength)]
-    public string Code { get; set; } = string.Empty;
-
-    [Required]
-    [StringLength(BranchConsts.NameMaxLength)]
-    public string Name { get; set; } = string.Empty;
-
-    public bool IsHeadquarters { get; set; }
-    public bool IsActive { get; set; } = true;
-    public int DisplayOrder { get; set; }
-
-    [StringLength(BranchConsts.DescriptionMaxLength)]
-    public string? Description { get; set; }
-
-    public List<VaultGraphDto> Vaults { get; set; } = new();
 }

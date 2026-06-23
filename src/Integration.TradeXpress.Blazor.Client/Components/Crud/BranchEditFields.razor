@@ -1,0 +1,54 @@
+@using System
+@using Integration.TradeXpress.Branches
+@using Integration.Framework.Blazor.Client.Components.Crud
+@using DevExpress.Blazor
+@using Microsoft.Extensions.Localization
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@*
+   Şube form ALANLARI (PAYLAŞILAN) — Branch standalone (BranchLayout) + Company şube-drill'i (CompanyBranchDrill)
+   AYNI bu alanları kullanır (DRY; alan kopyası yok). Model = BranchGetDto; BranchGraphDto : BranchGetDto
+   olduğundan company-node da (b) sorunsuz geçer + AYNI validasyon (kalıtım).
+   HeadquartersEnabled / CodeEnabled bağlama göre: standalone (orijinal-HQ kilidi / IsNew) vs node (sole-HQ / true).
+*@
+<DxFormLayout CssClass="w-100">
+    <DxFormLayoutGroup Caption="@L["General"]" ColSpanMd="12">
+        <DxFormLayoutItem Caption="@($"{L["Code"]} *")" ColSpanMd="6">
+            <DxTextBox @bind-Text="@Model.Code" Enabled="@CodeEnabled" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="12">
+            <DxTextBox @bind-Text="@Model.Name" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem ColSpanMd="6">
+            <CaptionTemplate>
+                <InfoCaption Text="@L["IsHeadquarters"].Value"
+                             HintText="@L["Branch:IsHeadquartersHint"].Value"
+                             Required="false" />
+            </CaptionTemplate>
+            <Template>
+                <DxCheckBox @bind-Checked="@Model.IsHeadquarters" CheckType="CheckType.Switch"
+                            Enabled="@HeadquartersEnabled">
+                    @(Model.IsHeadquarters ? L["Yes"] : L["No"])
+                </DxCheckBox>
+            </Template>
+        </DxFormLayoutItem>
+    </DxFormLayoutGroup>
+
+    <DxFormLayoutItem Caption="@L["Description"]" ColSpanMd="12">
+        <DxMemo @bind-Text="@Model.Description" Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100" />
+    </DxFormLayoutItem>
+    <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6">
+        <DxCheckBox @bind-Checked="@Model.IsActive" CheckType="CheckType.Switch">
+            @(Model.IsActive ? L["Active"] : L["Passive"])
+        </DxCheckBox>
+    </DxFormLayoutItem>
+    <DxFormLayoutItem Caption="@L["DisplayOrder"]" ColSpanMd="6">
+        <NumericSpinEdit @bind-Value="@Model.DisplayOrder" />
+    </DxFormLayoutItem>
+</DxFormLayout>
+
+@code {
+    [Parameter, EditorRequired] public BranchGetDto Model { get; set; } = default!;
+    [Parameter] public bool HeadquartersEnabled { get; set; } = true;
+    [Parameter] public bool CodeEnabled { get; set; } = true;
+}

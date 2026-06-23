@@ -1,0 +1,103 @@
+@using System
+@using System.Linq
+@using System.Collections.Generic
+@using Integration.TradeXpress.Vaults
+@using Integration.TradeXpress.Blazor.Client.Pages.Vaults
+@using Integration.Framework.Blazor.Client.Components.Crud
+@using Integration.TradeXpress.Blazor.Client.Components.Shared
+@using DevExpress.Blazor
+@using Microsoft.Extensions.Localization
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@*
+   Kasalar drill (PAYLAŞILAN) — Branch standalone (BranchLayout) + Company şube-drill'i (CompanyBranchDrill)
+   AYNI bu bileşeni kullanır (DRY). Vault graf in-memory (soft-delete). Tek-varsayılan transfer/guard/switch
+   mantığı + VaultLayout EditContent burada. Değişim OnChanged ile yukarı bildirilir (EditChanged/NotifyDirty).
+*@
+<DrillList TItem="VaultGraphDto"
+           Title="@L["Menu:Vaults"]"
+           EntityName="@L["Entity:Vault"]"
+           Items="Vaults"
+           ParentEntityName="@ParentEntityName"
+           ParentText="@ParentText"
+           KeyFieldName="ClientKey"
+           PrimaryTextSelector="@(v => v.Code)"
+           NewItemFactory="@NewVault"
+           CloneFactory="@CloneVault"
+           MinItems="1"
+           SoftDelete="true"
+           IsNewItem="@(v => v.Id == Guid.Empty)"
+           MarkDeleted="@(v => v.IsDeleted = true)"
+           FilterPredicate="@(v => !v.IsDeleted)"
+           DeleteGuard="@VaultDeleteGuard"
+           OnSelectionChanged="OnVaultSelected"
+           OnItemSaved="OnVaultSaved"
+           OnChanged="OnChanged">
+    <ToolbarActions>
+        <DxButton Text="@L["MakeDefaultVault"]"
+                  RenderStyle="ButtonRenderStyle.Link"
+                  IconCssClass="fas fa-star"
+                  Click="MakeSelectedDefault"
+                  Enabled="@(_selectedVault is { IsDeleted: false, IsDefault: false })" />
+    </ToolbarActions>
+    <GridColumns>
+        <DxGridDataColumn FieldName="Code" Caption="@L["Code"]" Width="120px" />
+        <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" />
+        <DxGridDataColumn FieldName="IsDefault" Caption="@L["IsDefault"]" Width="90px" TextAlignment="GridTextAlignment.Left">
+            <CellDisplayTemplate Context="cell">@(((VaultGraphDto)cell.DataItem).IsDefault ? L["Yes"].Value : "")</CellDisplayTemplate>
+        </DxGridDataColumn>
+        <DxGridDataColumn FieldName="IsActive" Caption="@L["Status"]" Width="110px" TextAlignment="GridTextAlignment.Left">
+            <CellDisplayTemplate Context="cell"><StatusCell Active="@(((VaultGraphDto)cell.DataItem).IsActive)" /></CellDisplayTemplate>
+        </DxGridDataColumn>
+        <DxGridDataColumn FieldName="DisplayOrder" Caption="@L["DisplayOrder"]" Width="90px" />
+    </GridColumns>
+    <EditContent Context="v">
+        @* DRY: standalone ile AYNI dumb VaultLayout. Tek varsayılan kapatılamaz. *@
+        <VaultLayout Model="@v" IsNew="@(v.Id == Guid.Empty)" IsDefaultEnabled="@(!IsVaultSoleDefault(v))" />
+    </EditContent>
+</DrillList>
+
+@code {
+    [Parameter, EditorRequired] public List<VaultGraphDto> Vaults { get; set; } = default!;
+    [Parameter] public EventCallback OnChanged { get; set; }
+    [Parameter] public string? ParentEntityName { get; set; }
+    [Parameter] public string? ParentText { get; set; }
+
+    private VaultGraphDto? _selectedVault;
+    private void OnVaultSelected(VaultGraphDto? v) => _selectedVault = v;
+
+    private static VaultGraphDto NewVault() => new() { IsActive = true, DisplayOrder = 1 };
+
+    private static VaultGraphDto CloneVault(VaultGraphDto v) => new()
+    {
+        Id = v.Id, ClientKey = v.ClientKey, IsDeleted = v.IsDeleted,
+        Code = v.Code, Name = v.Name, IsDefault = v.IsDefault,
+        IsActive = v.IsActive, DisplayOrder = v.DisplayOrder, Description = v.Description,
+    };
+
+    // Tekil-bayrak devri: kaydedilen kasa varsayılan ise diğer (silinmemiş) kasaların varsayılanını düşür.
+    private void OnVaultSaved(VaultGraphDto saved)
+    {
+        if (!saved.IsDefault) return;
+        foreach (var v in Vaults)
+            if (!ReferenceEquals(v, saved) && !v.IsDeleted)
+                v.IsDefault = false;
+    }
+
+    // Tek varsayılan kasa mı? KENDİSİ hariç başka varsayılan yoksa tektir → silinemez + switch kapalı.
+    private bool IsVaultSoleDefault(VaultGraphDto v)
+        => v.IsDefault && !Vaults.Any(x => x.ClientKey != v.ClientKey && !x.IsDeleted && x.IsDefault);
+
+    private string? VaultDeleteGuard(VaultGraphDto v)
+        => IsVaultSoleDefault(v) ? L["CannotDeleteDefaultVault"].Value : null;
+
+    // Seçili kasayı varsayılan yap (diğerlerini düşür) — in-memory; save'de AppService normalize eder.
+    private async Task MakeSelectedDefault()
+    {
+        if (_selectedVault is null || _selectedVault.IsDeleted) return;
+        foreach (var v in Vaults)
+            v.IsDefault = false;
+        _selectedVault.IsDefault = true;
+        await OnChanged.InvokeAsync();
+    }
+}

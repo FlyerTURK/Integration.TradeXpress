@@ -27,14 +27,27 @@ public class CompanyListDto : EntityDto<Guid>, IListDto<Guid>, IIsActive
 
 public class CompanyGetDto : EntityDto<Guid>, IGetDto<Guid>, ICompanyGraph
 {
+    // VALİDASYON kuralları BURADA (tek kaynak) — CompanyGraphDto bunlardan MİRAS alır → standalone ve
+    // tenant-node düzenlemeleri GARANTİLİ aynı kuralları doğrular (ıraksayamaz).
+    [Required]
+    [StringLength(CompanyConsts.CodeMaxLength)]
     public string Code { get; set; } = string.Empty;
+
+    [Required]
+    [StringLength(CompanyConsts.NameMaxLength)]
     public string Name { get; set; } = string.Empty;
+
+    [Required]
+    [StringLength(CompanyConsts.CountryCodeMaxLength, MinimumLength = 2)]
     public string CountryCode { get; set; } = string.Empty;
+
     public Guid BaseCurrencyUnitId { get; set; }
     public string BaseCurrencyCode { get; set; } = string.Empty;
     public bool IsActive { get; set; }
     public bool IsHeadquarters { get; set; }
     public int DisplayOrder { get; set; }
+
+    [StringLength(CompanyConsts.DescriptionMaxLength)]
     public string? Description { get; set; }
 
     // Sahip olunan şubeler (graf düğümleri; durum = Id + IsDeleted). Edit formu in-memory yönetir;
@@ -49,32 +62,12 @@ public class CompanyGetDto : EntityDto<Guid>, IGetDto<Guid>, ICompanyGraph
 /// (kendi app servisi YOK; standalone Company CRUD ayrı: <see cref="CompanyGetDto"/> vb.). Durum =
 /// <see cref="Id"/> + <see cref="IsDeleted"/>; şubeler <see cref="Branches"/> (şube→kasa grafı).
 /// </summary>
-public class CompanyGraphDto : EntityDto<Guid>, ICompanyGraph
+public class CompanyGraphDto : CompanyGetDto
 {
+    // Graf düğümü EKSTRALARI (durum). Code/Name/CountryCode/Branches + TÜM VALİDASYON CompanyGetDto'dan
+    // MİRAS → standalone ve tenant-node şirket düzenlemeleri tek kaynaktan, GARANTİLİ aynı (kopya yok). (K3: GraphDto : GetDto)
     public Guid ClientKey { get; set; } = Guid.NewGuid();
     public bool IsDeleted { get; set; }
-
-    [Required]
-    [StringLength(CompanyConsts.CodeMaxLength)]
-    public string Code { get; set; } = string.Empty;
-
-    [Required]
-    [StringLength(CompanyConsts.NameMaxLength)]
-    public string Name { get; set; } = string.Empty;
-
-    [Required]
-    [StringLength(CompanyConsts.CountryCodeMaxLength, MinimumLength = 2)]
-    public string CountryCode { get; set; } = string.Empty;
-
-    public Guid BaseCurrencyUnitId { get; set; }
-    public bool IsHeadquarters { get; set; }
-    public bool IsActive { get; set; } = true;
-    public int DisplayOrder { get; set; }
-
-    [StringLength(CompanyConsts.DescriptionMaxLength)]
-    public string? Description { get; set; }
-
-    public List<BranchGraphDto> Branches { get; set; } = new();
 }
 
 public class CompanyCreateDto : ICreateDto

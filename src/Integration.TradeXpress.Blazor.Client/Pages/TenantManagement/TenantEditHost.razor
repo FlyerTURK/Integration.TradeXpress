@@ -1,0 +1,76 @@
+@using System
+@using System.Collections.Generic
+@using System.Linq
+@using Integration.TradeXpress.Tenants
+@using Integration.TradeXpress.Countries
+@using Integration.TradeXpress.Financials.CurrencyUnits
+@using Integration.Framework.Blazor.Client.Components.Crud
+@using Integration.Framework.Blazor.Client.Services.Base
+@using Volo.Abp.ObjectMapping
+@using Microsoft.Extensions.Localization
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+@inject ITenantAppService TenantAppService
+@inject ICountryAppService CountryAppService
+@inject ICurrencyUnitAppService CurrencyAppService
+@inject IObjectMapper Mapper
+
+@*
+   Tenant edit host = İNCE SARMAL: coordinator + ülke/döviz (default şirketin base para'sı için) + yeni-kayıt
+   default'ları (admin kullanıcı + merkez şirket grafı). In-memory graf → save'de TenantAppService o tenant
+   scope'unda oluşturur (onboarding/impersonation SERVER-side, dokunulmaz). Route YOK → POPUP (eski gibi).
+*@
+
+@if (_coordinator != null && _ready)
+{
+    <CrudEditHost TGetDto="TenantGetDto" TListDto="TenantListDto" TKey="Guid" TListRequestDto="TenantListRequestDto"
+                  Coordinator="@_coordinator" Id="@(Id ?? Guid.Empty)" IsPopupMode="@IsPopupMode" OnSaved="@OnSaved" OnClosed="@OnClosed"
+                  FormCaption="@L["Entity:Tenant"].Value" IconCssClass="fas fa-building-user"
+                  EntityValue="@(m => m.Name)"
+                  ApplyNewDefaults="@ApplyNewTenantDefaults">
+        <TenantLayout Model="@context" IsNew="@(context.Id == Guid.Empty)" Units="@_units" Countries="@_countries" />
+    </CrudEditHost>
+}
+
+@code {
+    [Parameter] public Guid? Id { get; set; }
+    [Parameter] public bool IsPopupMode { get; set; }
+    [Parameter] public EventCallback OnSaved { get; set; }
+    [Parameter] public EventCallback OnClosed { get; set; }
+
+    private List<CurrencyUnitListDto> _units = new();
+    private List<CountryListDto> _countries = new();
+    private ICommitCoordinator<TenantGetDto, TenantListDto, Guid, TenantListRequestDto>? _coordinator;
+    private bool _ready;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _coordinator = new PersistentCoordinator<TenantGetDto, TenantListDto, Guid, TenantListRequestDto, TenantCreateDto, TenantUpdateDto>(
+            TenantAppService, Mapper);
+
+        // Ülke/birim listeleri default şirketin base para birimi türetilsin diye model oluşturmadan ÖNCE yüklenir.
+        try
+        {
+            _countries = (await CountryAppService.GetListAsync(new CountryListRequestDto { MaxResultCount = 1000 })).Items.ToList();
+            _units = (await CurrencyAppService.GetListAsync(new CurrencyUnitListRequestDto { MaxResultCount = 1000 })).Items.ToList();
+        }
+        catch { /* feed yoksa boş; default şirketin para'sı Empty kalır */ }
+
+        _ready = true;
+    }
+
+    // Yeni tenant: başlangıç admin kullanıcısı + varsayılan merkez şirket (HQ şube + Ana Kasa). Snapshot ÖNCESİ → dirty saymaz.
+    private void ApplyNewTenantDefaults(TenantGetDto m)
+    {
+        m.Users.Add(new TenantUserInput
+        {
+            UserName = "admin",
+            Email = "admin@admin.com",
+            IsAdmin = true,
+#if DEBUG
+            Password = "1q2w3E*",
+            PasswordConfirm = "1q2w3E*",
+#endif
+        });
+        m.Companies.Add(TenantLayout.NewCompany("MRK", "Merkez", "TR", isHeadquarters: true, _units, _countries));
+    }
+}

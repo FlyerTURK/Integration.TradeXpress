@@ -16,7 +16,8 @@ public partial class TenantListPage
 
     protected override string PermissionPrefix => Volo.Abp.TenantManagement.TenantManagementPermissions.Tenants.Default;
 
-        public override System.Type EditComponentType => typeof(Integration.TradeXpress.Blazor.Client.Pages.TenantManagement.TenantEditPage);
+        // YENİ mimari: agnostic EntityEditForm + PersistentCoordinator (eski TenantEditPage kaldırıldı).
+        public override System.Type EditComponentType => typeof(Integration.TradeXpress.Blazor.Client.Pages.TenantManagement.TenantEditHost);
     }
 
 
