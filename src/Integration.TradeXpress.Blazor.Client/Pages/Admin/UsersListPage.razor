@@ -22,11 +22,12 @@
             CustomActions="@PermissionActions">
 
     <GridColumns>
-        <DxGridDataColumn FieldName="UserName" Caption="@L["UserName"]" Width="180px" />
-        <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" />
-        <DxGridDataColumn FieldName="Surname" Caption="@L["Surname"]" />
-        <DxGridDataColumn FieldName="Email" Caption="@L["Email"]" />
-        <DxGridDataColumn FieldName="PhoneNumber" Caption="@L["PhoneNumber"]" Width="140px" />
+        <GridLinkColumn FieldName="UserName" Caption="@L["UserName"]" Width="180px" VisibleIndex="0"
+                        OnClick="@(o => BeforeUpdateAsync((UserListDto)o))" />
+        <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" VisibleIndex="1" />
+        <DxGridDataColumn FieldName="Surname" Caption="@L["Surname"]" VisibleIndex="2" />
+        <DxGridDataColumn FieldName="Email" Caption="@L["Email"]" VisibleIndex="3" />
+        <DxGridDataColumn FieldName="PhoneNumber" Caption="@L["PhoneNumber"]" Width="140px" VisibleIndex="4" />
         @* IsActive kolonu yok — toolbar'da Aktif/Pasif switch filtresi var. *@
     </GridColumns>
 

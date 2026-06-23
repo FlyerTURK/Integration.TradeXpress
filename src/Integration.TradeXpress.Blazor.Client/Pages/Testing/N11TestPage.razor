@@ -1,0 +1,122 @@
+@page "/test/n11"
+@using System.Linq
+@using Integration.TradeXpress.Scraping.N11
+@using Integration.TradeXpress.Blazor.Client.Layout
+@using DevExpress.Blazor
+@layout EmptyLayout
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@inject IN11Scraper Scraper
+
+@* MDI kabuğunu bypass et: MainLayout @Body yerine MDI host basıyor → menüde olmayan raw URL'ler gövdeyi
+   gösteremez (Login gibi). EmptyLayout ile sayfa URL'den standalone açılır (/test/n11). *@
+
+@* TEST sayfası — n11 kategori ürünlerini ürün-kartı ızgarasında gösterir (DxGrid değil; resim üstte).
+   Görseller İSTEMCİDE (Blazor kullanıcı tarayıcısı) <img src> ile doğrudan n11 CDN'inden çekilir, lazy+paralel. *@
+
+<div class="card">
+    <div class="card-header" style="display:flex; gap:.5rem; align-items:center; flex-wrap:wrap;">
+        <span class="badge bg-warning text-dark">TEST</span>
+        <DxTextBox @bind-Text="_url" NullText="n11 kategori URL" CssClass="flex-grow-1" style="min-width:360px;" />
+        <DxSpinEdit @bind-Value="_max" MinValue="1" MaxValue="80" Width="90px" />
+        <DxButton Text="Çek" RenderStyle="ButtonRenderStyle.Primary" IconCssClass="fas fa-cloud-download-alt"
+                  Click="LoadAsync" Enabled="@(!_busy)" />
+        <DxCheckBox @bind-Checked="_showImages" CheckType="CheckType.Switch">Görseller</DxCheckBox>
+        @if (_busy)
+        {
+            <span><i class="fas fa-spinner fa-spin"></i> Çekiliyor… (gerçek Chrome açılıyor)</span>
+        }
+        else if (_products.Count > 0)
+        {
+            <span class="text-muted">@_products.Count ürün</span>
+        }
+    </div>
+    <div class="card-body">
+        @if (_error is not null)
+        {
+            <div class="text-danger mb-2">@_error</div>
+        }
+        @* Ürün-kartı ızgarası (DxGrid yerine) — resim üstte, ad/fiyat altta; responsive, boş kolon yok.
+           Çalışma kuralı gereği yeni CSS sınıfı/<style> YOK → sadece inline stil. *@
+        <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(210px, 1fr)); gap:14px;">
+            @foreach (var p in _products)
+            {
+                <div style="border:1px solid #e5e7eb; border-radius:10px; padding:10px; background:#fff;
+                            display:flex; flex-direction:column; gap:6px; box-shadow:0 1px 3px rgba(0,0,0,.06);">
+                    @* _showImages kapalıyken HİÇ <img> emit edilmez → istemci sıfır görsel isteği (çıplak mod). *@
+                    @if (_showImages && !string.IsNullOrEmpty(p.Image) && p.Image.StartsWith("http"))
+                    {
+                        <a href="@p.Url" target="_blank" rel="noopener" style="display:block;">
+                            <img src="@p.Image" alt="@p.Name" loading="lazy" decoding="async"
+                                 style="width:100%; height:180px; object-fit:contain; border-radius:8px; background:#fafafa;" />
+                        </a>
+                    }
+                    <a href="@p.Url" target="_blank" rel="noopener" title="@p.Name"
+                       style="color:#1f2937; text-decoration:none; font-size:.86rem; line-height:1.25; height:3.2em; overflow:hidden;
+                              display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical;">@p.Name</a>
+                    <div style="margin-top:auto; display:flex; flex-direction:column; gap:2px;">
+                        <span style="font-weight:700; font-size:1.02rem; color:#111;">@(p.CartPrice ?? p.ListPrice) TL</span>
+                        @if (!string.IsNullOrEmpty(p.CartPrice) && p.DiscountPct is > 0)
+                        {
+                            <span style="font-size:.76rem; color:#9ca3af; text-decoration:line-through;">@p.ListPrice TL · şişirme %@(((p.DiscountPct ?? 0) * 100).ToString("N1"))</span>
+                        }
+                    </div>
+                    <div style="font-size:.75rem; color:#374151; border-top:1px solid #f1f5f9; padding-top:6px; display:flex; flex-direction:column; gap:1px;">
+                        <div>Maliyet: <b>@(p.TotalCost?.ToString("N2") ?? "—") TL</b> @(p.WeightG is not null ? $"· {p.WeightG:0.##}g/{p.Milyem}" : "")</div>
+                        <div>Kâr: <b style="color:@((p.ProfitTl ?? 0) >= 0 ? "#16a34a" : "#dc2626")">@(p.ProfitTl?.ToString("N2") ?? "—") TL</b> @(p.ProfitPct is not null ? $"(%{(p.ProfitPct.Value * 100):N1})" : "")</div>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; align-items:center; font-size:.76rem; color:#6b7280; padding-top:4px;">
+                        <span><i class="fas fa-comment-dots"></i> @(p.ReviewCount ?? 0)</span>
+                        <a href="@p.Url" target="_blank" rel="noopener" style="color:#2563eb; text-decoration:none;">İncele →</a>
+                    </div>
+                </div>
+            }
+        </div>
+        @if (_products.Count == 0 && !_busy && _error is null)
+        {
+            <div class="text-muted">Henüz ürün yok.</div>
+        }
+    </div>
+</div>
+
+@code {
+    private string _url = "https://www.n11.com/altin-ve-gumus/kulce-altin?minp=6650&maxp=7500";
+    private int _max = 40;
+    private bool _showImages = true;   // kapalı → çıplak mod (sıfır görsel trafiği)
+    private bool _busy;
+    private bool _loaded;
+    private string? _error;
+    private List<N11Product> _products = new();
+
+    // Sayfa açılır açılmaz otomatik çek (ilk interaktif render'da bir kez → prerender'da çift kazıma olmaz).
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && !_loaded)
+        {
+            _loaded = true;
+            await LoadAsync();
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        _busy = true;
+        _error = null;
+        try
+        {
+            _products = (await Scraper.GetCategoryAsync(_url, _max))
+                .OrderByDescending(p => p.ProfitPct ?? double.MinValue)   // en kârlı (spot'a göre en pahalı satan) üstte
+                .ToList();
+            if (_products.Count == 0)
+                _error = "Ürün bulunamadı (Cloudflare blok / yapı değişmiş olabilir).";
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

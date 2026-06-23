@@ -144,6 +144,14 @@
     {
         _selectedCulture = System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName;
         if (_selectedCulture != "en") _selectedCulture = "tr";
+
+#if DEBUG
+        // Development kolaylığı: dev admin kimliği ön-dolu (giriş her seferinde elle yazılmasın). YALNIZ DEBUG
+        // derlemede derlenir → Release'e (WASM publish) GİRMEZ. Değerler ABP seed admin'i (host):
+        // kullanıcı adı "admin", şifre TradeXpressConsts.AdminPasswordDefaultValue. Tenant boş = host.
+        _userName = "admin";
+        _password = "1q2w3E*";
+#endif
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)

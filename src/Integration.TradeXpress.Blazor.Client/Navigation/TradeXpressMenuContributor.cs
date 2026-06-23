@@ -41,19 +41,11 @@ public class TradeXpressMenuContributor : IMenuContributor
         var administration = context.Menu.GetAdministration();
         administration.Order = 6;
 
-        context.Menu.AddItem(new ApplicationMenuItem(
-            TradeXpressMenus.Home,
-            l["Menu:Home"],
-            "/",
-            icon: TradeXpressIcons.Home,
-            order: 1
-        ));
-
         // Tanımlar → Para Birimleri
         var definitions = new ApplicationMenuItem(
             TradeXpressMenus.Currencies,
             l["Definitions"],
-            icon: "fas fa-coins",
+            icon: TradeXpressIcons.Definitions,
             order: 2
         );
         // Para Birimleri (CRUD; liste tab'ında, edit yeni yığın tab'ında). Split menü kalemi kaldırıldı.
@@ -112,7 +104,7 @@ public class TradeXpressMenuContributor : IMenuContributor
         var identityMenu = new ApplicationMenuItem(
             "IdentityManagement",
             l["IdentityManagement"],
-            icon: "fas fa-id-card-alt"
+            icon: TradeXpressIcons.Identity
         );
         identityMenu.AddItem(new ApplicationMenuItem(
             "IdentityManagement.Users",

@@ -156,84 +156,25 @@ namespace Integration.Framework.Blazor.Client.Components.Crud
 
         private List<CrudToolbarAction> BuildActions()
         {
+            // Kimlik (SortIndex/ikon/Text/grup/alt-item) merkezî CrudToolbarActions kataloğundan; burada yalnız
+            // bağlama göre değişen wiring (Visible/Enabled/OnClick/Template). EditToolbar + DrillList AYNI katalog.
             var list = new List<CrudToolbarAction>
-        {
-            // Yeni (Liste + Split)
-            new() { SortIndex = 0, Text = L["New"], Tooltip = L["New"],
-                    IconUrl = "/images/xaf/action_new.svg", IconCssClass = "xaf-toolbar-item-icon",
-                    Visible = ShowNewItem, OnClick = DoNew },
-
-            // Kaydet (Split + Edit, primary) — Yeni ile Sil arasında
-            new() { SortIndex = 10, Text = L["Save"], Tooltip = L["Save"], Primary = true,
-                    IconUrl = "/images/xaf/action_save.svg", IconCssClass = "xaf-toolbar-item-icon",
-                    Visible = ShowSaveGroup, Enabled = EditCanSave, OnClick = DoSave },
-
-            // Kaydet ve Yeni ▾ (içinde Kaydet ve Kapat) (Edit). POPUP'ta Save = Save&Close olduğundan alt item
-            // gereksiz → popup'ta düz buton (▾/Kaydet&Kapat yok); tab/standalone'da split + Kaydet&Kapat.
-            new() { SortIndex = 20, Text = L["SaveAndNew"], Tooltip = L["SaveAndNew"], SplitDropDownButton = !IsPopupEdit,
-                    IconUrl = "/images/xaf/action_save_new.svg", IconCssClass = "xaf-toolbar-item-icon",
-                    Visible = ShowSaveAndNew, Enabled = EditCanSave, OnClick = DoSaveNew,
-                    Items = IsPopupEdit ? null : new List<CrudToolbarAction>
-                    {
-                        new() { Text = L["SaveAndClose"], Tooltip = L["SaveAndClose"],
-                                IconCssClass = "fas fa-circle-check xaf-toolbar-item-icon",
-                                Enabled = EditCanSave, OnClick = DoSaveClose },
-                    } },
-
-            // Sil (her yerde)
-            new() { SortIndex = 100, Text = L["Delete"], Tooltip = L["Delete"],
-                    IconUrl = "/images/xaf/action_delete.svg", IconCssClass = "xaf-toolbar-item-icon",
-                    Visible = ShowDeleteItem, Enabled = DeleteEnabled, OnClick = DoDelete },
-
-            // (Sayfaya özel custom action'lar SortIndex'leriyle aşağıda AddRange ile eklenir — varsayılan 300,
-            //  yani Sil(100) ile Arama(400) arası.)
-
-            // Arama kutusu (masaüstü) / ikonu (mobil)
-            new() { SortIndex = 400, Visible = ShowSearchBox, Template = SearchBoxTemplate },
-            new() { SortIndex = 400, Tooltip = L["Search"],
-                    IconUrl = "/images/xaf/action_search.svg", IconCssClass = "xaf-toolbar-item-icon",
-                    Visible = ShowSearchIcon, OnClick = DoToggleSearch },
-
-            // Dışa aktar
-            new() { SortIndex = 500, AdaptiveText = L["Export"], Tooltip = L["Export"],
-                    IconUrl = "/images/xaf/action_export.svg", IconCssClass = "xaf-toolbar-item-icon",
-                    Visible = ShowExport,
-                    Items = new List<CrudToolbarAction>
-                    {
-                        new() { Text = L["ExportToExcel"], Tooltip = L["ExportToExcel"],
-                                IconUrl = "/images/xaf/action_export_toxlsx.svg", IconCssClass = "xaf-toolbar-item-icon", OnClick = DoExportExcel },
-                        new() { Text = L["PrintPdf"], Tooltip = L["PrintPdf"],
-                                IconUrl = "/images/xaf/action_export_topdf.svg", IconCssClass = "xaf-toolbar-item-icon", OnClick = DoExportPdf },
-                    } },
-
-            // Yenile
-            new() { SortIndex = 600, AdaptiveText = L["Refresh"], Tooltip = L["Refresh"],
-                    IconUrl = "/images/xaf/action_refresh.svg", IconCssClass = "xaf-toolbar-item-icon",
-                    Visible = ShowRefresh, OnClick = DoRefresh },
-
-            // Previous / Next (Split + Edit) — XAF SVG (disabled görünümü Sil gibi doğru çalışır)
-            new() { SortIndex = 700, AdaptiveText = L["Previous"], Tooltip = L["Previous"],
-                    IconUrl = "/images/xaf/action_navigation_previous_object.svg", IconCssClass = "xaf-toolbar-item-icon",
-                    Visible = ShowNav, Enabled = CanPrev, OnClick = DoPrev },
-            new() { SortIndex = 710, AdaptiveText = L["Next"], Tooltip = L["Next"],
-                    IconUrl = "/images/xaf/action_navigation_next_object.svg", IconCssClass = "xaf-toolbar-item-icon",
-                    Visible = ShowNav, Enabled = CanNext, OnClick = DoNext },
-
-            // Undo / Redo / Reset (Split + Edit)
-            new() { SortIndex = 800, AdaptiveText = L["Undo"], Tooltip = L["Undo"],
-                    IconCssClass = "fas fa-rotate-left xaf-toolbar-item-icon",
-                    Visible = ShowUndoRedo, Enabled = CanUndo, OnClick = DoUndo },
-            new() { SortIndex = 810, AdaptiveText = L["Redo"], Tooltip = L["Redo"],
-                    IconCssClass = "fas fa-rotate-right xaf-toolbar-item-icon",
-                    Visible = ShowUndoRedo, Enabled = CanRedo, OnClick = DoRedo },
-            new() { SortIndex = 820, AdaptiveText = L["Reset"], Tooltip = L["Reset"],
-                    IconCssClass = "fas fa-eraser xaf-toolbar-item-icon",
-                    Visible = ShowReset, Enabled = CanReset, OnClick = DoReset },
-
-            // IsActive switch — EN SONDA, sağa yaslı (Liste + Split)
-            new() { SortIndex = 1000, Alignment = ToolbarItemAlignment.Right,
-                    Visible = ShowFilter, Template = ActiveFilterTemplate },
-        };
+            {
+                CrudToolbarActions.New(L, ShowNewItem, true, DoNew),
+                CrudToolbarActions.Save(L, ShowSaveGroup, EditCanSave, DoSave),
+                CrudToolbarActions.SaveAndNew(L, ShowSaveAndNew, EditCanSave, splitDropDown: !IsPopupEdit, DoSaveNew, IsPopupEdit ? null : DoSaveClose),
+                CrudToolbarActions.Delete(L, ShowDeleteItem, DeleteEnabled, DoDelete),
+                CrudToolbarActions.SearchBox(ShowSearchBox, SearchBoxTemplate),
+                CrudToolbarActions.SearchIcon(L, ShowSearchIcon, DoToggleSearch),
+                CrudToolbarActions.Export(L, ShowExport, DoExportExcel, DoExportPdf),
+                CrudToolbarActions.Refresh(L, ShowRefresh, true, DoRefresh),
+                CrudToolbarActions.Previous(L, ShowNav, CanPrev, DoPrev),
+                CrudToolbarActions.Next(L, ShowNav, CanNext, DoNext),
+                CrudToolbarActions.Undo(L, ShowUndoRedo, CanUndo, DoUndo),
+                CrudToolbarActions.Redo(L, ShowUndoRedo, CanRedo, DoRedo),
+                CrudToolbarActions.Reset(L, ShowReset, CanReset, DoReset),
+                CrudToolbarActions.ActiveFilter(ShowFilter, ActiveFilterTemplate),
+            };
 
             // Sayfa-özel custom action'lar — yalnız Liste + Split (edit'te gizli). SortIndex'leri sayfa belirler.
             if (!IsEdit)

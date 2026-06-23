@@ -22,10 +22,11 @@
             CustomActions="@PermissionActions">
 
     <GridColumns>
-        <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" />
-        <DxGridDataColumn FieldName="IsDefault" Caption="@L["IsDefault"]" Width="120px" />
-        <DxGridDataColumn FieldName="IsPublic" Caption="@L["IsPublic"]" Width="120px" />
-        <DxGridDataColumn FieldName="IsStatic" Caption="@L["IsStatic"]" Width="120px" />
+        <GridLinkColumn FieldName="Name" Caption="@L["Name"]" VisibleIndex="0"
+                        OnClick="@(o => BeforeUpdateAsync((RoleListDto)o))" />
+        <DxGridDataColumn FieldName="IsDefault" Caption="@L["IsDefault"]" Width="120px" VisibleIndex="1" />
+        <DxGridDataColumn FieldName="IsPublic" Caption="@L["IsPublic"]" Width="120px" VisibleIndex="2" />
+        <DxGridDataColumn FieldName="IsStatic" Caption="@L["IsStatic"]" Width="120px" VisibleIndex="3" />
     </GridColumns>
 
 </CrudLayout>

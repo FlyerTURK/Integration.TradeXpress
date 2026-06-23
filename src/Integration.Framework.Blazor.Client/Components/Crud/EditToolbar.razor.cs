@@ -23,6 +23,10 @@ namespace Integration.Framework.Blazor.Client.Components.Crud
         /// ama yine popup'tır → true verince Save = Save&Close kabul edilir, "Kaydet ve Yeni ▾" alt-item'ı (Kaydet&Kapat) gizlenir.</summary>
         [Parameter] public bool IsPopup { get; set; }
 
+        /// <summary>Aksiyon çalıştıktan sonra host'a (EntityEditForm/DrillList) iletilir → durum sahibi kendini
+        /// render eder (ToolbarRenderer'ın receiver'ı bu bileşen olduğundan host otomatik tazelenmez).</summary>
+        [Parameter] public EventCallback OnActionInvoked { get; set; }
+
         private ISplitEditActions E => EditController;
         private bool IsPopupEdit => PopupChrome != null || IsPopup;
 
@@ -46,50 +50,18 @@ namespace Integration.Framework.Blazor.Client.Components.Crud
         private IEnumerable<CrudToolbarAction> SortedActions =>
             BuildActions().Where(a => a.Visible).OrderBy(a => a.SortIndex);
 
-        // CrudToolbar'ın edit alt-kümesiyle BİRE BİR aynı (SortIndex/ikon/primary) → EntityEditForm değişmez.
+        // Kimlik merkezî CrudToolbarActions kataloğundan (CrudToolbar/DrillList ile AYNI); burada yalnız
+        // ISplitEditActions yetenek bayraklarından gelen Visible/Enabled/OnClick → EntityEditForm değişmez.
         private List<CrudToolbarAction> BuildActions() => new()
         {
-            // Kaydet (primary, Contained)
-            new() { SortIndex = 10, Text = L["Save"], Tooltip = L["Save"], Primary = true,
-                    IconUrl = "/images/xaf/action_save.svg", IconCssClass = "xaf-toolbar-item-icon",
-                    Visible = true, Enabled = E.CanSave, OnClick = DoSave },
-
-            // Kaydet ve Yeni ▾ (Kaydet ve Kapat) — popup'ta düz buton (Save zaten kapatır).
-            new() { SortIndex = 20, Text = L["SaveAndNew"], Tooltip = L["SaveAndNew"], SplitDropDownButton = !IsPopupEdit,
-                    IconUrl = "/images/xaf/action_save_new.svg", IconCssClass = "xaf-toolbar-item-icon",
-                    Visible = true, Enabled = E.CanSave, OnClick = DoSaveNew,
-                    Items = IsPopupEdit ? null : new List<CrudToolbarAction>
-                    {
-                        new() { Text = L["SaveAndClose"], Tooltip = L["SaveAndClose"],
-                                IconCssClass = "fas fa-circle-check xaf-toolbar-item-icon",
-                                Enabled = E.CanSave, OnClick = DoSaveClose },
-                    } },
-
-            // Sil — her edit'te görünür; yeni/silinemez kayıtta Enabled=false (CanDelete) ile pasif.
-            new() { SortIndex = 100, Text = L["Delete"], Tooltip = L["Delete"],
-                    IconUrl = "/images/xaf/action_delete.svg", IconCssClass = "xaf-toolbar-item-icon",
-                    Visible = true, Enabled = E.CanDelete, OnClick = DoDelete },
-
-            // Önceki / Sonraki (kayıt-arası gezinme destekliyorsa)
-            new() { SortIndex = 700, AdaptiveText = L["Previous"], Tooltip = L["Previous"],
-                    IconUrl = "/images/xaf/action_navigation_previous_object.svg", IconCssClass = "xaf-toolbar-item-icon",
-                    Visible = ShowNav, Enabled = E.CanGoPrevious, OnClick = DoPrev },
-            new() { SortIndex = 710, AdaptiveText = L["Next"], Tooltip = L["Next"],
-                    IconUrl = "/images/xaf/action_navigation_next_object.svg", IconCssClass = "xaf-toolbar-item-icon",
-                    Visible = ShowNav, Enabled = E.CanGoNext, OnClick = DoNext },
-
-            // Geri al / Yinele (undo/redo destekliyorsa)
-            new() { SortIndex = 800, AdaptiveText = L["Undo"], Tooltip = L["Undo"],
-                    IconCssClass = "fas fa-rotate-left xaf-toolbar-item-icon",
-                    Visible = ShowUndoRedo, Enabled = E.CanUndo, OnClick = DoUndo },
-            new() { SortIndex = 810, AdaptiveText = L["Redo"], Tooltip = L["Redo"],
-                    IconCssClass = "fas fa-rotate-right xaf-toolbar-item-icon",
-                    Visible = ShowUndoRedo, Enabled = E.CanRedo, OnClick = DoRedo },
-
-            // Reset — her edit'te görünür (snapshot'tan geri al); değişiklik yoksa Enabled=false (CanSave).
-            new() { SortIndex = 820, AdaptiveText = L["Reset"], Tooltip = L["Reset"],
-                    IconCssClass = "fas fa-eraser xaf-toolbar-item-icon",
-                    Visible = true, Enabled = E.CanSave, OnClick = DoReset },
+            CrudToolbarActions.Save(L, visible: true, E.CanSave, DoSave),
+            CrudToolbarActions.SaveAndNew(L, visible: true, E.CanSave, splitDropDown: !IsPopupEdit, DoSaveNew, IsPopupEdit ? null : DoSaveClose),
+            CrudToolbarActions.Delete(L, visible: true, E.CanDelete, DoDelete),
+            CrudToolbarActions.Previous(L, ShowNav, E.CanGoPrevious, DoPrev),
+            CrudToolbarActions.Next(L, ShowNav, E.CanGoNext, DoNext),
+            CrudToolbarActions.Undo(L, ShowUndoRedo, E.CanUndo, DoUndo),
+            CrudToolbarActions.Redo(L, ShowUndoRedo, E.CanRedo, DoRedo),
+            CrudToolbarActions.Reset(L, visible: true, E.CanSave, DoReset),
         };
     }
 }

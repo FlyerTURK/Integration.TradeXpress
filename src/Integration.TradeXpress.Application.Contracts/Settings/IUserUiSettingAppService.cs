@@ -7,7 +7,10 @@ public interface IUserUiSettingAppService : IApplicationService
 {
     Task<string?> GetGridStateAsync(string gridKey);
     Task SetGridStateAsync(string gridKey, string stateJson);
-    
+
+    /// <summary>Mevcut kullanıcının TÜM grid kolon-düzeni ayarlarını siler (stil/düzen sıfırla).</summary>
+    Task ResetGridStatesAsync();
+
     Task<string> GetMdiTabsAsync();
     Task SetMdiTabsAsync(string stateJson);
 

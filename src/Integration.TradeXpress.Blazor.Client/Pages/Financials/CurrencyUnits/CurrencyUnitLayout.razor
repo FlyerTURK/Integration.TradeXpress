@@ -41,17 +41,17 @@
                              Required="false" />
             </CaptionTemplate>
             <Template>
-                @* Self'i dışla: bir birim kendini takip edemez. *@
-                @* Value/ValueChanged (custom handler) kullanır → ValueExpression yok → EditContext'te
-                   validasyonu kapat (eski formdaki gibi); aksi halde DxComboBox ValueExpression hatası verir. *@
-                <DxComboBox Data="@FollowCandidates.Where(u => u.Id != Model.Id)"
-                            Value="@Model.FollowingUnitId"
-                            ValueChanged="(Guid? newId) => HandleFollowingUnitChanged(newId)"
-                            TextFieldName="@nameof(CurrencyUnitListDto.Code)"
-                            ValueFieldName="@nameof(CurrencyUnitListDto.Id)"
-                            NullText="@L["None"]"
-                            ValidationEnabled="false"
-                            ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
+                @* Self'i dışla: bir birim kendini takip edemez. LookupComboBox: arama + temizle + (host bağlarsa)
+                   ✎ ile takip edilen birimin edit'ine git. Custom ValueChanged margin default'larını koordine eder. *@
+                <LookupComboBox TItem="CurrencyUnitListDto" TValue="Guid?"
+                                Data="@FollowCandidates.Where(u => u.Id != Model.Id)"
+                                ValueFieldName="@nameof(CurrencyUnitListDto.Id)"
+                                TextFieldName="@nameof(CurrencyUnitListDto.Code)"
+                                Value="@Model.FollowingUnitId"
+                                ValueChanged="@((Guid? newId) => HandleFollowingUnitChanged(newId))"
+                                ValueExpression="@(() => Model.FollowingUnitId)"
+                                NullText="@L["None"].Value"
+                                OnEditRequested="@OnEditFollowingUnit" />
             </Template>
         </DxFormLayoutItem>
         @if (Model.FollowingUnitId.HasValue)
@@ -82,6 +82,10 @@
     [Parameter, EditorRequired] public CurrencyUnitGetDto Model { get; set; } = default!;
     [Parameter] public bool IsNew { get; set; }
     [Parameter] public List<CurrencyUnitListDto> FollowCandidates { get; set; } = new();
+
+    // Quick-edit (combo ✎): takip edilen birimin edit'ini aç (host bağlar → buton görünür). Boşsa gizli.
+    // TValue=Guid? olduğundan imza Func<Guid?, Task> (LookupComboBox.OnEditRequested = Func<TValue, Task>).
+    [Parameter] public Func<Guid?, Task>? OnEditFollowingUnit { get; set; }
 
     // Takip birimi değişince margin varsayılanlarını kur/temizle (UI alan-koordinasyonu).
     private void HandleFollowingUnitChanged(Guid? newId)

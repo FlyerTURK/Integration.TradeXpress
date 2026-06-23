@@ -206,6 +206,9 @@ public class TradeXpressBlazorModule : AbpModule
         // Yakalanan teknik hataları Developer Error Panel'e taşıyan köprü (Blazor Server'da ILogger tarayıcıya gitmez).
         context.Services.AddTransient<Integration.Framework.Blazor.Client.Services.Base.IClientErrorReporter,
                                       Integration.TradeXpress.Blazor.Client.Dev.DevErrorReporter>();
+        // Grid export assembly lazy-loader (CrudLayout + DrillList ortak; Server'da no-op, WASM'da lazy-load).
+        context.Services.AddScoped<Integration.Framework.Blazor.Client.Components.Crud.IGridExportAssemblyLoader,
+                                   Integration.Framework.Blazor.Client.Components.Crud.GridExportAssemblyLoader>();
 
         RegisterClientMapperlyMappers(context);
     }
@@ -335,22 +338,32 @@ public class TradeXpressBlazorModule : AbpModule
                 }
             }).AllowAnonymous();
 
+            // ── TEST: n11 kategori kazıma → JSON. "Link ver → JSON dön" döngüsü; AI bu JSON'u okuyup
+            //    ürünleri sınıflandırır (ağırlık/ayar/tip). GET /api/n11?url=<kategori>&max=40 ──
+            builder.MapGet("/api/n11", async (
+                string url, int? max,
+                [Microsoft.AspNetCore.Mvc.FromServices] Integration.TradeXpress.Scraping.N11.IN11Scraper scraper) =>
+            {
+                var items = await scraper.GetCategoryAsync(url, max is > 0 and <= 200 ? max.Value : 40);
+                return Microsoft.AspNetCore.Http.Results.Json(items);
+            }).AllowAnonymous();
+
             builder.MapRazorComponents<App>()
                 .AddInteractiveServerRenderMode()
                 .AddInteractiveWebAssemblyRenderMode()
                 .AddAdditionalAssemblies(WebAppAdditionalAssembliesHelper.GetAssemblies<TradeXpressBlazorClientModule>());
         });
 
-        // Harem fiyat feed worker'ı. WASM→web-app geçişinde HttpApi.Host ayrı süreç olarak
-        // çalışmadığından (Kur Panosu bu Blazor host'ta render edilir ve ExchangeRateCacheService
-        // process-başına singleton'dır) worker'ı burada başlatıyoruz; aksi halde canlı cache boş
-        // kalır ve pano fiyat gösteremez. HaremEnabled=false ise hiç başlatılmaz.
+        // Harem fiyat feed'i — TEK sahip burada (Kur Panosu bu Blazor host'ta render edilir ve
+        // ExchangeRateCacheService process-başına singleton'dır). In-process Microsoft.Playwright ile
+        // (bundled Chromium, headless) Harem socket.io WS'i dinlenir — harici HaremBridge (Node/Python/8765)
+        // GEREKMEZ. HaremEnabled=false ise hiç başlatılmaz.
         var feedOptions = context.ServiceProvider
             .GetRequiredService<Microsoft.Extensions.Options.IOptions<Integration.TradeXpress.Financials.ExchangeRates.ExchangeRateOptions>>().Value;
         if (feedOptions.HaremEnabled)
         {
             Volo.Abp.Threading.AsyncHelper.RunSync(() =>
-                context.AddBackgroundWorkerAsync<Integration.TradeXpress.Financials.ExchangeRates.ExchangeRateFeedWorker>());
+                context.AddBackgroundWorkerAsync<Integration.TradeXpress.Financials.ExchangeRates.HaremPlaywrightFeedWorker>());
         }
     }
 }

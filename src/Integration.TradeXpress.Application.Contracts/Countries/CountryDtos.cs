@@ -16,6 +16,8 @@ public class CountryListDto : EntityDto<Guid>, IListDto<Guid>, IIsActive
     public string Code { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public string? DefaultCurrencyCode { get; set; }
+    /// <summary>DefaultCurrencyCode'a karşılık gelen CurrencyUnit.Id (link için; Code'dan çözülür, FK değil).</summary>
+    public Guid? DefaultCurrencyUnitId { get; set; }
     public bool IsActive { get; set; }
     public int DisplayOrder { get; set; }
     public bool IsGlobal { get; set; }

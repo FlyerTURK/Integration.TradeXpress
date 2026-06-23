@@ -4,6 +4,7 @@
 @using Microsoft.AspNetCore.Components
 @using Microsoft.Extensions.Logging
 @inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+@inject IUiStateService UiStateService
 
 @* Read-only flatten view of a user's effective permissions.
    Aggregates: (a) direct grants on the user, (b) grants on each role the user
@@ -19,7 +20,8 @@ else if (_error is not null)
 }
 else
 {
-    <DxGrid Data="_rows" PageSize="50" ColumnResizeMode="GridColumnResizeMode.NextColumn">
+    <DxGrid Data="_rows" PageSize="50" ColumnResizeMode="GridColumnResizeMode.ColumnsContainer"
+            LayoutAutoLoading="OnLayoutLoading" LayoutAutoSaving="OnLayoutSaving">
         <DxGridDataColumn FieldName="Permission" Caption="@L["Permission"]" Width="200px" MinWidth="180" />
         <DxGridDataColumn FieldName="Sources" Caption="@L["Source"]" Width="240px" MinWidth="200" />
     </DxGrid>
@@ -27,6 +29,20 @@ else
 
 @code {
     [Parameter, EditorRequired] public Guid UserId { get; set; }
+
+    // Kolon düzeni kalıcılığı (kullanıcı başına) — CrudLayout ile aynı IUiStateService yolu.
+    private const string GridStateKey = "EffectivePermissions:v1";
+    private async Task OnLayoutLoading(GridPersistentLayoutEventArgs e)
+    {
+        var json = await UiStateService.GetGridStateAsync(GridStateKey);
+        if (!string.IsNullOrWhiteSpace(json))
+            try { e.Layout = System.Text.Json.JsonSerializer.Deserialize<GridPersistentLayout>(json); } catch { }
+    }
+    private async Task OnLayoutSaving(GridPersistentLayoutEventArgs e)
+    {
+        if (e.Layout == null) return;
+        try { await UiStateService.SaveGridStateAsync(GridStateKey, System.Text.Json.JsonSerializer.Serialize(e.Layout)); } catch { }
+    }
 
     private bool _loading = true;
     private string? _error;

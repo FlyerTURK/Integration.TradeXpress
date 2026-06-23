@@ -29,6 +29,10 @@ public static class TradeXpressIcons
     public const string Role = "fas fa-user-tag";
     public const string Permission = "fas fa-key";
 
+    // ── Menü grupları (parent düğümler) ──
+    public const string Definitions = "fas fa-folder-tree";
+    public const string Identity = "fas fa-id-card-alt";
+
     // ── Genel ──
     public const string Home = "fas fa-home";
 }

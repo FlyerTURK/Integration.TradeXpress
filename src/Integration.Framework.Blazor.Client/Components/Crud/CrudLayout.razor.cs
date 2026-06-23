@@ -1,6 +1,5 @@
 using DevExpress.Blazor;
 using Microsoft.AspNetCore.Components;
-using Microsoft.AspNetCore.Components.WebAssembly.Services;
 
 namespace Integration.Framework.Blazor.Client.Components.Crud
 {
@@ -28,6 +27,15 @@ namespace Integration.Framework.Blazor.Client.Components.Crud
 
         /// <summary>Arama kutusu metni değişince sayfaya bildirir (server-side filtre).</summary>
         [Parameter] public EventCallback<string> OnSearchChanged { get; set; }
+
+        /// <summary>Arama modu. Varsayılan ServerSide (toolbar araması tüm kayıtlarda → OnSearchChanged/server reload).
+        /// InGrid → arama grid'in YÜKLÜ verisinde istemci filtresi (DxGrid.SearchText). İstenirse sayfa değiştirir.</summary>
+        [Parameter] public GridSearchMode SearchMode { get; set; } = GridSearchMode.ServerSide;
+
+        // DxGrid.SearchText'e bağlı (in-grid istemci filtresi). InGrid modda toolbar araması buraya yazar; ayrıca
+        // mobil gömülü arama kutusu (ShowSearchBox) da bunu kullanır. ServerSide modda toolbar araması buraya değil
+        // OnSearchChanged'e gider (tüm kayıtlar).
+        private string? _inGridSearchText;
         [Parameter] public EventCallback OnNewClick { get; set; }
         [Parameter] public EventCallback<TListDto> OnUpdateClick { get; set; }
         [Parameter] public EventCallback OnDeleteClick { get; set; }
@@ -155,6 +163,14 @@ namespace Integration.Framework.Blazor.Client.Components.Crud
             }
         }
 
+        // Veri satırı tıklanınca düzenleme açılır → düzenleme yetkisi varken satır üzerinde el (pointer) cursor'ı.
+        // CSS sınıfı yok; DevExpress CustomizeElement API'siyle satıra inline stil verilir.
+        private void OnCustomizeGridElement(GridCustomizeElementEventArgs e)
+        {
+            if (e.ElementType == GridElementType.DataRow && StateService.IsGrantedUpdate)
+                e.Style = "cursor: pointer;";
+        }
+
         // Context menü öğesine ikon uygula. IContextMenuItem'da IconUrl doluysa IconCssClass yok sayılır;
         // bu yüzden önce URL (XAF SVG), yoksa CSS class (FontAwesome custom action) denenir.
         private static void ApplyIcon(IContextMenuItem item, string? iconUrl, string? iconCssClass)
@@ -220,14 +236,20 @@ namespace Integration.Framework.Blazor.Client.Components.Crud
                     StateService.Sorts          = req.Sorts;
                     StateService.Filter         = req.Filter;
                     StateService.IsActiveFilter = req.IsActive;
+
+                    // @bind-PageIndex YARIŞ DÜZELTMESİ: bu fetch'in StateHasChanged'i, DxGrid'in
+                    // PageIndexChanged writeback'inden (_gridPageIndex=hedef) ÖNCE koşarsa, re-render eski
+                    // _gridPageIndex'i (genelde 0) grid'e geri basıp sayfayı 1'e snap'liyordu ("bazen 2.→1."").
+                    // Fetch edilen GERÇEK sayfayı (skip÷size) controlled değere yaz → hep gerçeğe eşit, snap yok.
+                    if (req.MaxResultCount > 0)
+                        _gridPageIndex = req.SkipCount / req.MaxResultCount;
                 }
 
-                // Düz liste sayfası: fetch sonrası mevcut seçili kayıt yeni yüklü sayfada hâlâ varsa korunur
-                // (örn. popup sayfa-aşırı o kaydı seçtiyse); yoksa İLK kayıt görsel odaklanır (FocusDataItemAsync →
-                // FocusedRowChanged → OnGridFocusedRowChanged → SelectedDataItems+SelectedItem), sayfa boşsa seçim
-                // temizlenir. Böylece sayfa değişince eski sayfanın kaydı Sil'e açık kalmaz. Split kendi grid
-                // focus'unu yönettiği için (SplitHost!=null) buraya girmez.
-                if (SplitHost == null)
+                // Düz liste sayfası: fetch sonrası mevcut seçili kayıt yeni yüklü sayfada hâlâ varsa korunur;
+                // yoksa İLK kayıt SEÇİLİR (FocusDataItemAsync artık odak değil seçim yapar), sayfa boşsa seçim
+                // temizlenir → sayfa değişince eski sayfanın kaydı Sil'e açık kalmaz. Split kendi grid'ini yönetir.
+                // ÇOKLU SEÇİM (checkbox, >1) sürerken fetch sonrası ilk-satır seçimi EZMESİN.
+                if (SplitHost == null && (StateService.SelectedDataItems?.Count ?? 0) <= 1)
                 {
                     var current = StateService.SelectedItem;
                     var stillThere = false;
@@ -283,38 +305,23 @@ namespace Integration.Framework.Blazor.Client.Components.Crud
             return Grid.GetDataItem(rowInPage) is TListDto item ? (object?)item.Id : null;
         }
 
-        // Previous/Next ya da seçili kayıt → grid'de o satırı odakla + görünür yap (gerekirse scroll/sayfa).
+        // Previous/Next ya da popup sayfa-aşırı gezinme → o kaydı SEÇ (odak/FocusedRow YOK; seçim tek kaynak).
+        // Seçim grid'e @bind-SelectedDataItems ile yansır → satır vurgulanır + detail/toolbar senkron olur.
         async Task ISplitGridActions.FocusDataItemAsync(object? id)
         {
-            if (id == null || Grid == null) return;
+            if (id == null) return;
             if (DataSource is GridListDataSource<TListDto> ds)
             {
                 foreach (var item in ds.CurrentItems)
                 {
                     if (Equals(item.Id, id))
                     {
-                        // SetFocusedDataItemAsync → FocusedRowChanged → selection senkronu (tek kaynak).
-                        await Grid.SetFocusedDataItemAsync(item);   // odak + scroll/sayfa + seçim
+                        StateService.SetDataRowSelected(item);
+                        await InvokeAsync(StateHasChanged);
                         return;
                     }
                 }
             }
-        }
-
-        // Grid odağı (focus) değişince o satırı SEÇİLİ yap → focus+selection görsel tutarlılığı (split + düz liste).
-        // İlk yüklemede / sayfa değişiminde DevExpress ilk satırı otomatik focus eder; bu kanca onu selection'a
-        // (SelectedDataItems → SelectedItem) yansıtır → tek kaynak. Previous/Next (FocusDataItemAsync) ve tıklama
-        // da buradan senkron. Popup sayfa-aşırı gezinmede grid'i hedefe taşıdıktan sonra FocusDataItemAsync(target)
-        // ile odak hedefe gider → bu kanca seçimi de hedefe yazar (son söz). Tüm modlarda çalışır.
-        private void OnGridFocusedRowChanged(GridFocusedRowChangedEventArgs e)
-        {
-            // Idempotent: odak zaten seçili kayıttaysa no-op → geç gelen FocusedRowChanged'in (sayfa/satır
-            // değişiminde) seçimi başka kayda ezmesini önler (çok-yazarlı focus/selection yarışı kesilir).
-            if (StateService.SelectedItem != null && e.DataItem is TListDto fi && Equals(fi.Id, StateService.SelectedItem.Id))
-                return;
-            StateService.SelectedDataItems = e.DataItem is TListDto item
-                ? new List<TListDto> { item }
-                : new List<TListDto>();
         }
 
         // Grid'in o an yüklü (görünür sayfa) satır anahtarları (Previous/Next gezinme).
@@ -368,8 +375,14 @@ namespace Integration.Framework.Blazor.Client.Components.Crud
 
         private async Task OnToolbarSearch(string text)
         {
-            SearchText = text;
-            await OnSearchChanged.InvokeAsync(text);
+            SearchText = text;   // toolbar kutusu metnini sakla (gösterim senkronu)
+            if (SearchMode == GridSearchMode.InGrid)
+            {
+                _inGridSearchText = text;   // grid'in yüklü verisinde istemci filtresi (server reload yok)
+                StateHasChanged();
+                return;
+            }
+            await OnSearchChanged.InvokeAsync(text);   // ServerSide: tüm kayıtlarda ara
         }
 
         public void Dispose()
@@ -394,13 +407,16 @@ namespace Integration.Framework.Blazor.Client.Components.Crud
             var item = (TListDto)Grid.GetDataItem(e.VisibleIndex);
             if (item != null)
             {
-                await Grid.SetFocusedDataItemAsync(item);   // tıklanan satırı odakla → OnGridFocusedRowChanged seçimi senkronlar
-                await HandleRowEdit(item);                  // popup/edit açan (BeforeUpdate)
+                StateService.SetDataRowSelected(item);   // tıklanan satırı SEÇ (odak/FocusedRow yok) → toolbar senkron
+                await HandleRowEdit(item);               // popup/edit açan (BeforeUpdate)
             }
         }
 
         // -- Layout Persistence --
-        private string GetGridStateKey() => PageTitle ?? typeof(TListDto).Name;
+        // Versiyon eki: kolon yapısı değişince (linkli kolonlar/yeniden sıralama → kolon kimliği değişir)
+        // eski kaydedilmiş düzen "bilinmeyen" kolonu en sağa atıyordu. Versiyon artınca eski düzen yok sayılır
+        // → markup sırası geçerli olur (yeni düzen v3 altında kaydedilir).
+        private string GetGridStateKey() => (PageTitle ?? typeof(TListDto).Name) + ":v3";
 
         private async Task OnGridLayoutAutoLoading(GridPersistentLayoutEventArgs e)
         {
@@ -429,42 +445,19 @@ namespace Integration.Framework.Blazor.Client.Components.Crud
         }
 
         // -- Export Logic --
-        // Export'a özel ağır DevExpress assembly'leri (Pdf/Printing/Drawing) boot'tan çıkarıldı
-        // (csproj BlazorWebAssemblyLazyLoad). İlk export tıklamasında burada yüklenir; sonraki
-        // tıklamalarda runtime cache'inden gelir (idempotent). Açılış payload'ı ~10MB daha küçük.
-        [Inject] private LazyAssemblyLoader? LazyAssemblyLoader { get; set; }
-
-        private static readonly string[] ExportAssemblies =
-        {
-            "DevExpress.Printing.v25.2.Core.wasm",
-            "DevExpress.Pdf.v25.2.Core.wasm",
-            "DevExpress.Pdf.v25.2.Drawing.wasm",
-            "DevExpress.Drawing.v25.2.wasm",
-        };
-
-        private bool _exportAssembliesLoaded;
-
-        private async Task EnsureExportAssembliesAsync()
-        {
-            if (_exportAssembliesLoaded) return;
-            if (!OperatingSystem.IsBrowser() || LazyAssemblyLoader == null)
-            {
-                _exportAssembliesLoaded = true;
-                return;
-            }
-            await LazyAssemblyLoader.LoadAssembliesAsync(ExportAssemblies);
-            _exportAssembliesLoaded = true;
-        }
+        // Export assembly lazy-load'ı paylaşılan IGridExportAssemblyLoader'a taşındı (DrillList de aynısını kullanır).
+        // Server'da no-op, WASM'da ilk export'ta lazy-load (açılış payload'ı küçük kalsın diye boot'tan çıkarıldılar).
+        [Inject] private IGridExportAssemblyLoader ExportLoader { get; set; } = default!;
 
         private async Task ExportToExcel()
         {
-            await EnsureExportAssembliesAsync();
+            await ExportLoader.EnsureLoadedAsync();
             await Grid.ExportToXlsxSafeAsync("Export");
         }
 
         private async Task PrintGrid()
         {
-            await EnsureExportAssembliesAsync();
+            await ExportLoader.EnsureLoadedAsync();
             await Grid.ExportToPdfSafeAsync("Export");
         }
     }

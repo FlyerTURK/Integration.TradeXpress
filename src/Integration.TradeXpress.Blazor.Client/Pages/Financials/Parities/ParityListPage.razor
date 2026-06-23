@@ -1,4 +1,8 @@
 @page "/currencies/parities"
+@using Integration.TradeXpress.Financials.Parities
+@using Integration.TradeXpress.Financials.CurrencyUnits
+@using Integration.Framework.Blazor.Client.Components.Crud
+@using DevExpress.Blazor
 
 @inherits CrudPageBase<ParityGetDto, ParityListDto, Guid, ParityListRequestDto, ParityCreateDto, ParityUpdateDto>
 
@@ -19,15 +23,33 @@
             AllowColumnReordering="true">
 
     <GridColumns>
-        @* Kimlik = base/quote çifti. Kod'lar enrichment (FK→Code, nav yok) → server-side sort/filter edilemez. *@
-        <DxGridBandColumn Caption="@L["GeneralInfo"]" CaptionAlignment="GridTextAlignment.Center">
+        @* Kod: paritenin kendisini düzenle (linkli). *@
+        <GridLinkColumn Caption="@L["Code"]" Width="110px" FixedPosition="GridColumnFixedPosition.Left" AllowSort="false" VisibleIndex="1"
+                        TextSelector="@(o => ((ParityListDto)o).Code)"
+                        OnClick="@(o => BeforeUpdateAsync((ParityListDto)o))" />
+
+        <DxGridDataColumn Caption="@L["Name"]" MinWidth="200" Width="260px" AllowSort="false" VisibleIndex="1">
+            <CellDisplayTemplate>@(((ParityListDto)context.DataItem).Name)</CellDisplayTemplate>
+        </DxGridDataColumn>
+
+        <DxGridDataColumn Caption="@L["Rate"]" Width="120px" AllowSort="false" VisibleIndex="2" TextAlignment="GridTextAlignment.Right">
+            <CellDisplayTemplate>
+                @{ var _p = (ParityListDto)context.DataItem; var _rate = ParityRate(_p); }
+                <span style="@RateCellStyle(_p.Id)"><b>@(_rate?.ToString("N5") ?? "—")</b></span>
+            </CellDisplayTemplate>
+        </DxGridDataColumn>
+
+        <DxGridBandColumn Caption="@L["GeneralInfo"]" CaptionAlignment="GridTextAlignment.Center" VisibleIndex="3">
             <Columns>
-                <DxGridDataColumn FieldName="BaseCode" Caption="@L["Base"]" Width="100px" />
-                <DxGridDataColumn FieldName="QuoteCode" Caption="@L["Quote"]" Width="100px" />
-                <DxGridDataColumn FieldName="IsGlobal" Caption="@L["Kind"]" Width="100px" TextAlignment="GridTextAlignment.Left">
+                @* Baz / Karşı: ilgili para biriminin edit'ini MDI sekmesinde aç (linkli). *@
+                <GridLinkColumn FieldName="BaseCode" Caption="@L["Base"]" Width="100px" VisibleIndex="0"
+                                OnClick="@(o => OpenUnitAsync(((ParityListDto)o).BaseCurrencyUnitId, ((ParityListDto)o).BaseCode))" />
+                <GridLinkColumn FieldName="QuoteCode" Caption="@L["Quote"]" Width="100px" VisibleIndex="1"
+                                OnClick="@(o => OpenUnitAsync(((ParityListDto)o).QuoteCurrencyUnitId, ((ParityListDto)o).QuoteCode))" />
+                <DxGridDataColumn FieldName="IsGlobal" Caption="@L["Kind"]" Width="100px" VisibleIndex="2" TextAlignment="GridTextAlignment.Left">
                     <CellDisplayTemplate>@(((ParityListDto)context.DataItem).IsGlobal ? L["CurrencyKind:Global"] : L["CurrencyKind:Company"])</CellDisplayTemplate>
                 </DxGridDataColumn>
-                <DxGridDataColumn FieldName="DisplayOrder" Caption="@L["DisplayOrder"]" Width="90px" />
+                <DxGridDataColumn FieldName="DisplayOrder" Caption="@L["DisplayOrder"]" Width="90px" VisibleIndex="3" />
             </Columns>
         </DxGridBandColumn>
     </GridColumns>

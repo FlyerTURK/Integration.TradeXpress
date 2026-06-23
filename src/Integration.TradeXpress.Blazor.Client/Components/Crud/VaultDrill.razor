@@ -32,14 +32,8 @@
            DeleteGuard="@VaultDeleteGuard"
            OnSelectionChanged="OnVaultSelected"
            OnItemSaved="OnVaultSaved"
-           OnChanged="OnChanged">
-    <ToolbarActions>
-        <DxButton Text="@L["MakeDefaultVault"]"
-                  RenderStyle="ButtonRenderStyle.Link"
-                  IconCssClass="fas fa-star"
-                  Click="MakeSelectedDefault"
-                  Enabled="@(_selectedVault is { IsDeleted: false, IsDefault: false })" />
-    </ToolbarActions>
+           OnChanged="OnChanged"
+           CustomActions="@VaultActions">
     <GridColumns>
         <DxGridDataColumn FieldName="Code" Caption="@L["Code"]" Width="120px" />
         <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" />
@@ -65,6 +59,20 @@
 
     private VaultGraphDto? _selectedVault;
     private void OnVaultSelected(VaultGraphDto? v) => _selectedVault = v;
+
+    // Toolbar custom action — liste sayfalarıyla AYNI descriptor sözleşmesi (SortIndex 300).
+    private IReadOnlyList<CrudToolbarAction> VaultActions => new[]
+    {
+        new CrudToolbarAction
+        {
+            SortIndex = 300,
+            Text = L["MakeDefaultVault"],
+            Tooltip = L["MakeDefaultVault"],
+            IconCssClass = "fas fa-star",
+            Enabled = _selectedVault is { IsDeleted: false, IsDefault: false },
+            OnClick = MakeSelectedDefault,
+        },
+    };
 
     private static VaultGraphDto NewVault() => new() { IsActive = true, DisplayOrder = 1 };
 

@@ -18,6 +18,8 @@ public class CompanyListDto : EntityDto<Guid>, IListDto<Guid>, IIsActive
     public string Code { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public string CountryCode { get; set; } = string.Empty;
+    /// <summary>CountryCode'a karşılık gelen Country.Id (link/navigasyon için; Code'dan çözülür, entity'de FK yok).</summary>
+    public Guid? CountryId { get; set; }
     public Guid BaseCurrencyUnitId { get; set; }
     public string BaseCurrencyCode { get; set; } = string.Empty;
     public bool IsActive { get; set; }

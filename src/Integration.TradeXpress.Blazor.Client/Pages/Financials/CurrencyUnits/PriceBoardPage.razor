@@ -24,7 +24,7 @@
         <DxButton Text="@L["Refresh"]" RenderStyle="ButtonRenderStyle.Secondary" IconCssClass="fas fa-sync" Click="LoadAsync" />
     </div>
     <div class="card-body">
-        <DxGrid Data="Prices" PageSize="25" ShowPager="true" ColumnResizeMode="GridColumnResizeMode.NextColumn">
+        <DxGrid Data="Prices" PageSize="25" ShowPager="true" ColumnResizeMode="GridColumnResizeMode.ColumnsContainer">
             <Columns>
                 <DxGridDataColumn FieldName="CurrencyUnitCode" Caption="@L["Code"]" Width="90px" />
                 <DxGridDataColumn FieldName="CurrencyUnitName" Caption="@L["Name"]" />
@@ -60,7 +60,7 @@
 <MarginSetDialog @ref="MarginDialog" OnSaved="LoadAsync" />
 
 <DxPopup @bind-Visible="HistoryVisible" HeaderText="@HistoryTitle" Width="95%" MaxWidth="560px" MaxHeight="90vh" Scrollable="true">
-    <DxGrid Data="History" PageSize="10" ShowPager="true" ColumnResizeMode="GridColumnResizeMode.NextColumn">
+    <DxGrid Data="History" PageSize="10" ShowPager="true" ColumnResizeMode="GridColumnResizeMode.ColumnsContainer">
         <Columns>
             <DxGridDataColumn FieldName="MarginOnBuyType" Caption="@L["MarginOnBuy"]" Width="120px" />
             <DxGridDataColumn FieldName="MarginOnBuyValue" Caption="@L["MarginValue"]" Width="100px" DisplayFormat="N5" />

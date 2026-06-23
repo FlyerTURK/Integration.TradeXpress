@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Integration.Framework.Base.Querying;
 using Integration.TradeXpress.Branches;
+using Integration.TradeXpress.Countries;
 using Integration.TradeXpress.Financials.CurrencyUnits;
 using Integration.TradeXpress.Organization;
 using Integration.TradeXpress.Permissions;
@@ -29,6 +30,7 @@ public class CompanyAppService : TradeXpressAppService, ICompanyAppService
 {
     private readonly IRepository<Company, Guid> _repository;
     private readonly IRepository<CurrencyUnit, Guid> _unitRepository;
+    private readonly IRepository<Country, Guid> _countryRepository; // yalnız OKUMA (CountryCode→Id çözümü, link için)
     private readonly IRepository<Branch, Guid> _branchRepository;   // yalnız OKUMA (graf projeksiyonu)
     private readonly IRepository<Vault, Guid> _vaultRepository;      // yalnız OKUMA
     private readonly IBranchAppService _branchAppService;            // YAZMA: şube create/update/delete buraya delege
@@ -41,6 +43,7 @@ public class CompanyAppService : TradeXpressAppService, ICompanyAppService
     public CompanyAppService(
         IRepository<Company, Guid> repository,
         IRepository<CurrencyUnit, Guid> unitRepository,
+        IRepository<Country, Guid> countryRepository,
         IRepository<Branch, Guid> branchRepository,
         IRepository<Vault, Guid> vaultRepository,
         IBranchAppService branchAppService,
@@ -49,6 +52,7 @@ public class CompanyAppService : TradeXpressAppService, ICompanyAppService
     {
         _repository = repository;
         _unitRepository = unitRepository;
+        _countryRepository = countryRepository;
         _branchRepository = branchRepository;
         _vaultRepository = vaultRepository;
         _branchAppService = branchAppService;
@@ -84,6 +88,19 @@ public class CompanyAppService : TradeXpressAppService, ICompanyAppService
             var totalCount = await AsyncExecuter.CountAsync(rows);
             var items = await AsyncExecuter.ToListAsync(rows.Skip(input.SkipCount).Take(input.MaxResultCount));
 
+            // CountryCode bir string kolon (entity'de FK yok) → linklenebilmesi için Country.Id'yi Code'dan
+            // çöz (bellekte; yalnız bu sayfanın kodları). Kapsam: global (TenantId=null) + mevcut tenant.
+            var countryCodes = items.Select(r => r.CountryCode).Where(c => !string.IsNullOrEmpty(c)).Distinct().ToList();
+            var countryMap = new Dictionary<string, Guid>(StringComparer.OrdinalIgnoreCase);
+            if (countryCodes.Count > 0)
+            {
+                var countries = await _countryRepository.GetQueryableAsync();
+                var matched = await AsyncExecuter.ToListAsync(
+                    countries.Where(ct => countryCodes.Contains(ct.Code) && (ct.TenantId == null || ct.TenantId == tenantId)));
+                foreach (var ct in matched)
+                    countryMap[ct.Code] = ct.Id;   // code kapsam içinde tekil; çakışırsa son kazanır
+            }
+
             return new PagedResultDto<CompanyListDto>(
                 totalCount,
                 items.Select(r => new CompanyListDto
@@ -92,6 +109,7 @@ public class CompanyAppService : TradeXpressAppService, ICompanyAppService
                     Code = r.Code,
                     Name = r.Name,
                     CountryCode = r.CountryCode,
+                    CountryId = countryMap.TryGetValue(r.CountryCode, out var cid) ? cid : (Guid?)null,
                     BaseCurrencyUnitId = r.BaseCurrencyUnitId,
                     BaseCurrencyCode = r.BaseCurrencyCode,
                     IsActive = r.IsActive,

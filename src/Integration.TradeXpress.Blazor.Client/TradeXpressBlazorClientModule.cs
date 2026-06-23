@@ -60,6 +60,9 @@ public class TradeXpressBlazorClientModule : AbpModule
         context.Services.AddSingleton<Dev.DevErrorSink>();
         // Yakalanan teknik hataları panele taşıyan köprü (Blazor Server'da ILogger tarayıcıya gitmez).
         context.Services.AddTransient<Integration.Framework.Blazor.Client.Services.Base.IClientErrorReporter, Dev.DevErrorReporter>();
+        // Grid export assembly lazy-loader (CrudLayout + DrillList ortak; WASM'da lazy-load, Server'da no-op).
+        context.Services.AddScoped<Integration.Framework.Blazor.Client.Components.Crud.IGridExportAssemblyLoader,
+                                   Integration.Framework.Blazor.Client.Components.Crud.GridExportAssemblyLoader>();
 
         // Identity Management Services
         context.Services.AddScoped<Services.IIdentityUserService, Services.IdentityUserService>();

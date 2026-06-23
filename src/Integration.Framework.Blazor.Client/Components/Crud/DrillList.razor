@@ -8,6 +8,8 @@
 @inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
 @implements Integration.Framework.Blazor.Client.Services.Base.ISplitEditActions
 @inject ITradeXpressUiService UiService
+@inject IGridExportAssemblyLoader ExportLoader
+@inject IUiStateService UiStateService
 
 @*
    Yeniden kullanılabilir master-detail "drill list" — listeleme formlarımızla aynı yerleşim
@@ -21,7 +23,7 @@
     @* Drill başlığı (Title) kaldırıldı — toolbar üstü gereksiz başlık; bölüm bağlamı parent form/grid'den belli. *@
     <div class="mb-2">
         @* Liste toolbar — genel CrudToolbar/EditToolbar ile AYNI ToolbarRenderer (ikiz değil). Aksiyonlar descriptor. *@
-        <ToolbarRenderer Actions="@ListToolbarActions" RenderMode="ToolbarRenderStyleMode.Plain" />
+        <ToolbarRenderer Actions="@ListToolbarActions" RenderMode="ToolbarRenderStyleMode.Plain" OnActionInvoked="OnToolbarActionInvoked" />
     </div>
 
     @* Min/Max yükseklik + dikey flex: grid bu kutuyu doldurur (flex-grow), fazla satır grid'in kendi
@@ -34,12 +36,16 @@
                New/Edit/Delete command column'dan; kaydetme EditModelSaving/DataItemDeleting üzerinden
                aynı persist/in-memory mantığına bağlanır. NOT: sadece grid'de GÖRÜNEN kolonlar düzenlenir. *@
             <DxGrid Data="@FilteredItems"
-                    ColumnResizeMode="GridColumnResizeMode.NextColumn"
+                    @ref="_grid"
+                    SearchText="@_searchText"
+                    ColumnResizeMode="GridColumnResizeMode.ColumnsContainer"
                     KeyFieldName="@KeyFieldName"
                     EditMode="GridEditMode.EditRow"
                     EditModelSaving="OnEditModelSaving"
                     DataItemDeleting="OnDataItemDeleting"
                     CustomizeEditModel="OnCustomizeEditModel"
+                    LayoutAutoLoading="OnLayoutLoading"
+                    LayoutAutoSaving="OnLayoutSaving"
                     PageSize="@PageSize"
                     CssClass="flex-grow-1 overflow-hidden">
                 <Columns>
@@ -54,13 +60,18 @@
         else
         {
             <DxGrid Data="@FilteredItems"
-                    ColumnResizeMode="GridColumnResizeMode.NextColumn"
+                    @ref="_grid"
+                    SearchText="@_searchText"
+                    ColumnResizeMode="GridColumnResizeMode.ColumnsContainer"
                     KeyFieldName="@KeyFieldName"
                     SelectionMode="GridSelectionMode.Multiple"
                     AllowSelectRowByClick="false"
                     SelectedDataItems="@_selectedItems"
                     SelectedDataItemsChanged="OnGridSelectionChanged"
                     RowClick="OnRowClick"
+                    CustomizeElement="OnCustomizeRow"
+                    LayoutAutoLoading="OnLayoutLoading"
+                    LayoutAutoSaving="OnLayoutSaving"
                     PageSize="@PageSize"
                     CssClass="flex-grow-1 overflow-hidden">
                 <Columns>
@@ -100,7 +111,7 @@
                 <div style="border-bottom:1px solid #dee2e6; padding-bottom:0.5rem; margin-bottom:0.5rem;">
                     @* Genel edit ile AYNI bileşen (ikiz değil): EditToolbar. Drill yetenekleri ISplitEditActions'tan
                        (yalnız Kaydet + Kaydet&Yeni; Sil/nav/undo/reset gizli). *@
-                    <EditToolbar EditController="@this" IsPopup="true" />
+                    <EditToolbar EditController="@this" IsPopup="true" OnActionInvoked="OnToolbarActionInvoked" />
                 </div>
                 @EditFormBody
             }
@@ -138,6 +149,22 @@
     [Parameter] public int PageSize { get; set; } = 10;
     [Parameter] public bool ReadOnly { get; set; }
 
+    /// <summary>Toolbar'da arama kutusu göster (genel listeleme formuyla parite). Varsayılan AÇIK; istenen drill
+    /// <c>false</c> geçebilir. <see cref="SearchMode"/> ile in-grid (varsayılan) veya server-side davranır.</summary>
+    [Parameter] public bool ShowSearch { get; set; } = true;
+
+    /// <summary>Toolbar'da Dışa Aktar (Excel/PDF) göster. Varsayılan AÇIK; istenen drill <c>false</c> geçebilir.
+    /// Export paylaşılan <see cref="IGridExportAssemblyLoader"/> + grid.ExportToXlsx/PdfSafeAsync ile (Server'da çalışır).</summary>
+    [Parameter] public bool ShowExport { get; set; } = true;
+
+    /// <summary>Arama modu. Varsayılan InGrid (in-memory drill grid'inin yüklü verisinde istemci filtresi).
+    /// Persistent drill geldiğinde ServerSide verilip <see cref="OnServerSearch"/> bağlanır (sunucudan filtreli çekim).</summary>
+    [Parameter] public GridSearchMode SearchMode { get; set; } = GridSearchMode.InGrid;
+
+    /// <summary>ServerSide arama modunda arama metnini parent'a iletir (ileride persistent drill: sunucudan filtreli
+    /// yeniden çek). InGrid modda kullanılmaz.</summary>
+    [Parameter] public EventCallback<string> OnServerSearch { get; set; }
+
     /// <summary>true → satır-içi (hücre editörü) düzenleme: cell'ler DevExpress native EditRow
     /// editörlerine döner; New/Edit/Delete grid'in command column'undan gelir. Yalnız grid'de GÖRÜNEN
     /// kolonlar düzenlenir (form-only alanlar değil). İç içe (nested) DrillList'te KULLANMA — orada
@@ -167,8 +194,9 @@
     /// <summary>Entity'ye özel silme engeli — engel varsa lokalize mesaj döner, yoksa null.</summary>
     [Parameter] public Func<TItem, string?>? DeleteGuard { get; set; }
 
-    /// <summary>Toolbar'a ek aksiyon butonları (ör. alt seviye "drill" action).</summary>
-    [Parameter] public RenderFragment? ToolbarActions { get; set; }
+    /// <summary>Toolbar'a sayfaya özel ek aksiyonlar — descriptor liste, SortIndex'li (liste sayfalarıyla AYNI
+    /// sözleşme; varsayılan SortIndex 300 = Sil ile Arama arası). Eski <c>RenderFragment ToolbarActions</c> kaldırıldı.</summary>
+    [Parameter] public IReadOnlyList<CrudToolbarAction>? CustomActions { get; set; }
 
     /// <summary>Opsiyonel istemci-tarafı filtre. Verilirse DxGrid yalnız eşleşen öğeleri gösterir;
     /// Items (tam liste) mutation için dokunulmaz kalır.</summary>
@@ -233,6 +261,11 @@
 
     private IReadOnlyList<object>? _selectedItems;
 
+    // Grid referansı (export için) + in-grid arama metni (DxGrid.SearchText'e bağlı). Hangi grid render edilirse
+    // (inline/normal) _grid ona set olur; aynı anda yalnız biri render edilir.
+    private DevExpress.Blazor.IGrid? _grid;
+    private string? _searchText;
+
     // Tek seçili öğe — Edit butonu ve popup için kullanılır.
     private TItem? SelectedItem => _selectedItems?.Count == 1 ? _selectedItems[0] as TItem : null;
 
@@ -259,31 +292,30 @@
             .OrderBy(a => a.Alignment == ToolbarItemAlignment.Right ? 1 : 0)
             .ThenBy(a => a.SortIndex).ToList();
 
-    private List<CrudToolbarAction> BuildListActions() => new()
+    // Kimlik merkezî CrudToolbarActions kataloğundan (CrudToolbar/EditToolbar ile AYNI); burada yalnız in-memory
+    // drill'e özgü Visible/Enabled/OnClick. Yeni/Sil yalnız popup modda toolbar'dan (AllowInlineEdit'te grid command column).
+    private List<CrudToolbarAction> BuildListActions()
     {
-        // Yeni — popup/satır-içi mod ayrımı (AllowInlineEdit'te New/Delete grid command column'dan gelir).
-        new() { SortIndex = 0, Text = L["New"], Tooltip = L["New"],
-                IconUrl = "/images/xaf/action_new.svg", IconCssClass = "xaf-toolbar-item-icon",
-                Visible = !ReadOnly && !AllowInlineEdit, Enabled = !_busy,
-                OnClick = () => { StartNew(); return Task.CompletedTask; } },
-        // Sil — seçili öğe(ler) (guard + MinItems DeleteSelected'te).
-        new() { SortIndex = 100, Text = L["Delete"], Tooltip = L["Delete"],
-                IconUrl = "/images/xaf/action_delete.svg", IconCssClass = "xaf-toolbar-item-icon",
-                Visible = !ReadOnly && !AllowInlineEdit, Enabled = CanDeleteSelection && !_busy,
-                OnClick = DeleteSelected },
-        // Yenile — yalnız OnRefresh verilmişse (persistent drill).
-        new() { SortIndex = 600, AdaptiveText = L["Refresh"], Tooltip = L["Refresh"],
-                IconUrl = "/images/xaf/action_refresh.svg", IconCssClass = "xaf-toolbar-item-icon",
-                Visible = OnRefresh.HasDelegate, Enabled = !_busy,
-                OnClick = () => OnRefresh.InvokeAsync() },
-        // Sayfaya özel custom action'lar (ToolbarActions RenderFragment → descriptor Template'i ile sarılır).
-        new() { SortIndex = 300, Visible = ToolbarActions != null, Template = CustomActionsTemplate },
-        // IsActive filtre switch — EN SONDA, sağa yaslı (IIsActive ise + ShowActiveFilter; genel liste ile aynı).
-        new() { SortIndex = 1000, Alignment = ToolbarItemAlignment.Right,
-                Visible = ItemIsActiveAware && ShowActiveFilter, Template = ActiveFilterTemplate },
-    };
+        var list = new List<CrudToolbarAction>
+        {
+            CrudToolbarActions.New(L, !ReadOnly && !AllowInlineEdit, !_busy, () => { StartNew(); return Task.CompletedTask; }),
+            CrudToolbarActions.Delete(L, !ReadOnly && !AllowInlineEdit, CanDeleteSelection && !_busy, DeleteSelected),
+            // Arama (opt-in) — InGrid (varsayılan) yüklü veride, ServerSide ileride persistent drill için.
+            CrudToolbarActions.SearchBox(ShowSearch, SearchBoxTemplate),
+            // Dışa Aktar (opt-in) — Excel/PDF, paylaşılan export loader.
+            CrudToolbarActions.Export(L, ShowExport, DoExportExcel, DoExportPdf),
+            // Yenile — yalnız OnRefresh verilmişse (persistent drill).
+            CrudToolbarActions.Refresh(L, OnRefresh.HasDelegate, !_busy, () => OnRefresh.InvokeAsync()),
+            // IsActive filtre switch (IIsActive ise + ShowActiveFilter).
+            CrudToolbarActions.ActiveFilter(ItemIsActiveAware && ShowActiveFilter, ActiveFilterTemplate),
+        };
 
-    private RenderFragment<IToolbarItemInfo> CustomActionsTemplate => _ => @<text>@ToolbarActions</text>;
+        // Sayfaya özel custom action'lar — liste sayfalarıyla AYNI sözleşme (descriptor; SortIndex'leri çağıran belirler, varsayılan 300).
+        if (CustomActions != null)
+            list.AddRange(CustomActions);
+
+        return list;
+    }
 
     private RenderFragment<IToolbarItemInfo> ActiveFilterTemplate => _ => @<text>
         <div style="display:flex; align-items:center; gap:0.4rem; padding:0 0.25rem; white-space:nowrap;">
@@ -291,6 +323,47 @@
             <span>@(_showActiveOnly ? L["ActiveRecords"] : L["PassiveRecords"])</span>
         </div>
     </text>;
+
+    // Arama kutusu — genel liste toolbar'ı (CrudToolbar.SearchBoxTemplate) ile AYNI görünüm. InGrid modda metin
+    // grid'in yüklü verisinde filtreler (DxGrid.SearchText); ServerSide modda OnServerSearch ile parent'a gider.
+    private RenderFragment<IToolbarItemInfo> SearchBoxTemplate => _ => @<text>
+        @* Arama kutusu model alanı DEĞİL; drill, parent edit formunun EditContext'i içinde render olabildiğinden
+           (ör. Şirket edit → Şubeler drill) DevExpress TextExpression ister → ValidationEnabled=false ŞART. *@
+        <DxTextBox Text="@_searchText"
+                   TextChanged="OnDrillSearch"
+                   ValidationEnabled="false"
+                   NullText="@L["Search"]"
+                   ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto"
+                   CssClass="grid-search-box">
+            <Buttons>
+                <DxEditorButton IconCssClass="xaf-search-icon" Tooltip="@L["Search"]"
+                                Click="@(() => OnDrillSearch(_searchText ?? string.Empty))" />
+            </Buttons>
+        </DxTextBox>
+    </text>;
+
+    private async Task OnDrillSearch(string text)
+    {
+        if (SearchMode == GridSearchMode.ServerSide)
+        {
+            await OnServerSearch.InvokeAsync(text);   // ileride persistent drill: parent sunucudan filtreli çeker
+            return;
+        }
+        _searchText = text;   // InGrid: grid yüklü veride filtreler
+        StateHasChanged();
+    }
+
+    private async Task DoExportExcel()
+    {
+        await ExportLoader.EnsureLoadedAsync();
+        await _grid.ExportToXlsxSafeAsync("Export");
+    }
+
+    private async Task DoExportPdf()
+    {
+        await ExportLoader.EnsureLoadedAsync();
+        await _grid.ExportToPdfSafeAsync("Export");
+    }
 
     private TItem? _editItem;
     private TItem? _editOriginal;  // düzenlenen orijinal liste öğesi (clone modunda geri yazma için)
@@ -391,6 +464,11 @@
     // Başlık ikonu: entity ikonu (yoksa generic düzenleme ikonu).
     private string DrillHeaderIcon => string.IsNullOrEmpty(EntityIcon) ? "fas fa-pen-to-square" : EntityIcon!;
 
+    // Toolbar (liste ToolbarRenderer + edit EditToolbar) aksiyon SONRASI tek tazeleme noktası: Click EventCallback'i
+    // o bileşenlerde üretildiğinden Blazor DrillList'i otomatik render etmez → durum (popup aç/kapa, seçim, _busy)
+    // yansısın diye burada StateHasChanged. Böylece aksiyon metotlarına serpilmiş StateHasChanged'lere gerek kalmaz.
+    private void OnToolbarActionInvoked() => StateHasChanged();
+
     private void StartNew()
     {
         _editItem = NewItemFactory();
@@ -398,10 +476,6 @@
         _isNew = true;
         SetEditContext(_editItem);
         _popupVisible = true;
-        // Toolbar tıklaması artık paylaşılan ToolbarRenderer/EditToolbar içinden geliyor → EventCallback'in
-        // receiver'ı O bileşen; Blazor yalnız onu otomatik render eder, DrillList'i ETMEZ. Popup'ın açılması
-        // (_popupVisible) için DrillList'i ELLE tazele (ResetAsync/OnActiveFilterChanged ile aynı kalıp).
-        StateHasChanged();
     }
 
     private void BeginEdit(TItem item)
@@ -421,20 +495,61 @@
         BeginEdit(item);
     }
 
+    // Satır tıkla = inline düzenle → düzenlenebilir drill'de satır üzerinde el (pointer) cursor (CSS sınıfı yok).
+    private void OnCustomizeRow(GridCustomizeElementEventArgs e)
+    {
+        if (e.ElementType == GridElementType.DataRow && !ReadOnly)
+            e.Style = "cursor: pointer;";
+    }
+
+    // ── Kolon düzeni kalıcılığı (kullanıcı başına) — CrudLayout ile aynı IUiStateService yolu. ──
+    /// <summary>Aynı TItem'i farklı bağlamda drill edersen ayırt etmek için opsiyonel anahtar.</summary>
+    [Parameter] public string? StateKey { get; set; }
+    private string GridStateKey => $"Drill:{StateKey ?? typeof(TItem).Name}:v1";
+
+    private async Task OnLayoutLoading(GridPersistentLayoutEventArgs e)
+    {
+        var json = await UiStateService.GetGridStateAsync(GridStateKey);
+        if (!string.IsNullOrWhiteSpace(json))
+            try { e.Layout = System.Text.Json.JsonSerializer.Deserialize<GridPersistentLayout>(json); }
+            catch { /* bozuk düzen → yoksay */ }
+    }
+
+    private async Task OnLayoutSaving(GridPersistentLayoutEventArgs e)
+    {
+        if (e.Layout == null) return;
+        try { await UiStateService.SaveGridStateAsync(GridStateKey, System.Text.Json.JsonSerializer.Serialize(e.Layout)); }
+        catch { /* kayıt hatası app'i durdurmasın */ }
+    }
+
     // Footer EditForm DIŞINDA olduğundan submit'i elle tetikliyoruz: önce doğrula, geçerliyse kaydet.
     private async Task HandleSaveClick()
     {
-        if (_editContext != null && _editContext.Validate())
+        if (_editContext == null) return;
+        if (_editContext.Validate())
             await SaveAsync();
+        else
+            ShowValidationToasts();   // normal edit formlarıyla parite: validation hataları DxToast olarak
     }
 
     // Kaydet ve Yeni: geçerliyse kaydet, başarılıysa (SaveAsync popup'ı kapattıysa) hemen yeni kayıt aç.
     private async Task HandleSaveAndNew()
     {
-        if (_editContext == null || !_editContext.Validate()) return;
+        if (_editContext == null) return;
+        if (!_editContext.Validate()) { ShowValidationToasts(); return; }
         await SaveAsync();
         if (!_popupVisible)  // başarı → SaveAsync kapattı → yenisini aç (hata olduysa açık kalır, dokunma)
             StartNew();
+    }
+
+    // Validation hatalarını normal edit formlarıyla AYNI şekilde göster: her mesaj AYRI DxToast (XAF tarzı,
+    // CrudEditComponentBase.ShowError ile aynı desen). Popup'taki inline ValidationSummary'ye EK — bu app'te
+    // Bootstrap alert stili etkisiz olduğundan toast asıl görünür bildirimdir.
+    private void ShowValidationToasts()
+    {
+        if (_editContext == null) return;
+        foreach (var msg in _editContext.GetValidationMessages().Distinct())
+            UiService.ShowErrorToast(msg);
     }
 
     private async Task SaveAsync()
@@ -470,12 +585,11 @@
         }
         catch (Exception ex)
         {
-            await HandleErrorAsync(ex);
+            UiService.ShowErrorToast(ex.Message);   // normal edit formlarıyla parite (CrudEditHost.CommitAsync); ABP HandleErrorAsync bu app'te (LeptonX kapalı) görünür toast üretmiyordu.
         }
         finally
         {
             _busy = false;
-            StateHasChanged();   // Save toolbar'dan (EditToolbar→ToolbarRenderer) çağrılıyor → receiver DrillList değil; popup kapanışı/_busy için elle tazele.
         }
     }
 
@@ -485,7 +599,6 @@
         _editItem = null;
         _editOriginal = null;
         ClearEditContext();
-        StateHasChanged();   // Popup kapanışı (Sil sonrası / Save&New reopen) toolbar receiver'ından geliyor → DrillList'i elle tazele.
     }
 
     // ── ISplitEditActions — drill edit popup'ı genel EDIT TOOLBAR'ı (EditToolbar) AYNEN kullanır (ikiz yok).
@@ -520,8 +633,7 @@
             }
             catch { /* fail-safe: bırak */ }
         }
-        StateHasChanged();
-        return Task.CompletedTask;
+        return Task.CompletedTask;   // re-render toolbar OnActionInvoked'tan gelir (EditToolbar → OnToolbarActionInvoked)
     }
 
     bool ISplitEditActions.CanGoPrevious => false;
@@ -571,7 +683,8 @@
     // Kapanışta Kaydet: geçersizse false (açık kal); geçerliyse kaydet (SaveAsync zaten kapatır) → true.
     private async Task<bool> TrySaveForCloseAsync()
     {
-        if (_editContext == null || !_editContext.Validate()) return false;
+        if (_editContext == null) return false;
+        if (!_editContext.Validate()) { ShowValidationToasts(); return false; }
         await SaveAsync();
         return true;
     }
@@ -583,7 +696,7 @@
 
         if (FilteredItems.Count() - toDelete.Count < MinItems)   // görünür (silinmemiş) sayıya göre
         {
-            await Notify.Warn(L["DrillMinItems"]);
+            UiService.ShowWarningToast(L["DrillMinItems"].Value);
             return;
         }
 
@@ -592,7 +705,7 @@
             var guard = DeleteGuard?.Invoke(item);
             if (guard != null)
             {
-                await Notify.Warn(guard);
+                UiService.ShowWarningToast(guard);
                 return;
             }
         }
@@ -625,12 +738,11 @@
         }
         catch (Exception ex)
         {
-            await HandleErrorAsync(ex);
+            UiService.ShowErrorToast(ex.Message);   // normal edit formlarıyla parite (CrudEditHost.CommitAsync); ABP HandleErrorAsync bu app'te (LeptonX kapalı) görünür toast üretmiyordu.
         }
         finally
         {
             _busy = false;
-            StateHasChanged();   // Sil toolbar'dan (ToolbarRenderer/EditToolbar) çağrılıyor → receiver DrillList değil; silinen satır/_busy yansısın diye elle tazele.
         }
     }
 
@@ -676,7 +788,7 @@
         }
         catch (Exception ex)
         {
-            await HandleErrorAsync(ex);
+            UiService.ShowErrorToast(ex.Message);   // normal edit formlarıyla parite (CrudEditHost.CommitAsync); ABP HandleErrorAsync bu app'te (LeptonX kapalı) görünür toast üretmiyordu.
         }
         finally
         {
@@ -691,13 +803,13 @@
 
         if (Items.Count - 1 < MinItems)
         {
-            await Notify.Warn(L["DrillMinItems"]);
+            UiService.ShowWarningToast(L["DrillMinItems"].Value);
             return;
         }
         var guard = DeleteGuard?.Invoke(item);
         if (guard != null)
         {
-            await Notify.Warn(guard);
+            UiService.ShowWarningToast(guard);
             return;
         }
 
@@ -711,7 +823,7 @@
         }
         catch (Exception ex)
         {
-            await HandleErrorAsync(ex);
+            UiService.ShowErrorToast(ex.Message);   // normal edit formlarıyla parite (CrudEditHost.CommitAsync); ABP HandleErrorAsync bu app'te (LeptonX kapalı) görünür toast üretmiyordu.
         }
         finally
         {

@@ -22,13 +22,15 @@
             OnSearchChanged="OnSearchAsync">
 
     <GridColumns>
-        <DxGridDataColumn FieldName="Code" Caption="@L["Code"]" Width="90px" />
-        <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" />
-        <DxGridDataColumn FieldName="DefaultCurrencyCode" Caption="@L["BaseCurrency"]" Width="140px" />
-        <DxGridDataColumn FieldName="IsGlobal" Caption="@L["Kind"]" Width="100px" TextAlignment="GridTextAlignment.Left">
+        <GridLinkColumn FieldName="Code" Caption="@L["Code"]" Width="90px" VisibleIndex="0"
+                        OnClick="@(o => BeforeUpdateAsync((CountryListDto)o))" />
+        <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" VisibleIndex="1" />
+        <GridLinkColumn FieldName="DefaultCurrencyCode" Caption="@L["BaseCurrency"]" Width="140px" VisibleIndex="2"
+                        OnClick="@(o => OpenUnitAsync(((CountryListDto)o).DefaultCurrencyUnitId, ((CountryListDto)o).DefaultCurrencyCode))" />
+        <DxGridDataColumn FieldName="IsGlobal" Caption="@L["Kind"]" Width="100px" VisibleIndex="3" TextAlignment="GridTextAlignment.Left">
             <CellDisplayTemplate>@(((CountryListDto)context.DataItem).IsGlobal ? L["CurrencyKind:Global"] : L["CurrencyKind:Company"])</CellDisplayTemplate>
         </DxGridDataColumn>
-        <DxGridDataColumn FieldName="DisplayOrder" Caption="@L["DisplayOrder"]" Width="90px" />
+        <DxGridDataColumn FieldName="DisplayOrder" Caption="@L["DisplayOrder"]" Width="90px" VisibleIndex="4" />
     </GridColumns>
 
     

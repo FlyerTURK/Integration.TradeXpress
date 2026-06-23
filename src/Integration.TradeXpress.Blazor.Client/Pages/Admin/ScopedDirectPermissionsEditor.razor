@@ -8,6 +8,7 @@
 @using Microsoft.AspNetCore.Components
 @using Microsoft.Extensions.Logging
 @inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+@inject IUiStateService UiStateService
 
 @* Two-pane editor:
    Top    — grid of scope coordinates where the user has direct permission grants.
@@ -27,9 +28,10 @@
     else
     {
         <DxGrid @ref="Grid"
-                ColumnResizeMode="GridColumnResizeMode.NextColumn"
+                ColumnResizeMode="GridColumnResizeMode.ColumnsContainer"
                 Data="_scopeRows"
                 SelectionMode="GridSelectionMode.Single"
+                LayoutAutoLoading="OnLayoutLoading" LayoutAutoSaving="OnLayoutSaving"
                 PageSize="10">
             <DxGridDataColumn FieldName="CompanyCode" Caption="@L["Company"]" />
             <DxGridDataColumn FieldName="BranchCode" Caption="@L["Branch"]" />
@@ -103,6 +105,20 @@
 
 @code {
     [Parameter, EditorRequired] public Guid UserId { get; set; }
+
+    // Kolon düzeni kalıcılığı (kullanıcı başına).
+    private const string GridStateKey = "ScopedDirectPermissions:v1";
+    private async Task OnLayoutLoading(GridPersistentLayoutEventArgs e)
+    {
+        var json = await UiStateService.GetGridStateAsync(GridStateKey);
+        if (!string.IsNullOrWhiteSpace(json))
+            try { e.Layout = System.Text.Json.JsonSerializer.Deserialize<GridPersistentLayout>(json); } catch { }
+    }
+    private async Task OnLayoutSaving(GridPersistentLayoutEventArgs e)
+    {
+        if (e.Layout == null) return;
+        try { await UiStateService.SaveGridStateAsync(GridStateKey, System.Text.Json.JsonSerializer.Serialize(e.Layout)); } catch { }
+    }
 
     [Parameter] public EventCallback OnDirty { get; set; }
 

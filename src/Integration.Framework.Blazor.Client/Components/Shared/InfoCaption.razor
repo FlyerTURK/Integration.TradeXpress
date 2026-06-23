@@ -1,11 +1,13 @@
 @using DevExpress.Blazor
 
-<span style="display:inline-flex; align-items:center; gap:0.25rem; padding-top: 5px; padding-right: 5px;">
-    <span>@Text@(Required ? " *" : "")</span>
-    <span id="@_id" class="fas fa-circle-info text-muted small"
-          style="cursor:pointer; position: relative; top: 2px;"
+@*
+   Bilgi başlığı: caption'ın KENDİSİ link (grid-btn-link: mavi/altçizgili, el imleci). Tıklanınca hint
+   flyout'u açılır — ayrı (i) ikonu yok. HintText flyout panelinde gösterilir.
+*@
+<span style="display:inline-flex; align-items:center; padding-top:5px; padding-right:5px;">
+    <span id="@_id" class="grid-btn-link" style="cursor:pointer;"
           @onclick="@(() => _hintOpen = !_hintOpen)"
-          @onclick:stopPropagation="true"></span>
+          @onclick:stopPropagation="true"><span style="margin-inline-end:.3em; text-decoration:none;">ℹ️</span>@Text@(Required ? " *" : "")</span>
 </span>
 <DxFlyout @bind-IsOpen="_hintOpen"
           PositionTarget="@($"#{_id}")">

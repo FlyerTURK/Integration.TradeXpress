@@ -33,14 +33,8 @@
                DeleteGuard="@BranchDeleteGuard"
                OnSelectionChanged="OnBranchSelected"
                OnItemSaved="OnBranchSaved"
-               OnChanged="NotifyChangedAsync">
-        <ToolbarActions>
-            <DxButton Text="@L["MakeHeadquarters"]"
-                      RenderStyle="ButtonRenderStyle.Link"
-                      IconCssClass="fas fa-building"
-                      Click="MakeBranchHeadquarters"
-                      Enabled="@(_selectedBranch is { IsDeleted: false, IsHeadquarters: false })" />
-        </ToolbarActions>
+               OnChanged="NotifyChangedAsync"
+               CustomActions="@BranchActions">
         <GridColumns>
             <DxGridDataColumn FieldName="Code" Caption="@L["Code"]" Width="120px" />
             <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" />
@@ -71,6 +65,20 @@
     [Parameter] public EventCallback OnChanged { get; set; }
 
     private BranchGraphDto? _selectedBranch;
+
+    // Toolbar custom action — liste sayfalarıyla AYNI descriptor sözleşmesi (SortIndex 300: Sil ile Arama arası).
+    private IReadOnlyList<CrudToolbarAction> BranchActions => new[]
+    {
+        new CrudToolbarAction
+        {
+            SortIndex = 300,
+            Text = L["MakeHeadquarters"],
+            Tooltip = L["MakeHeadquarters"],
+            IconCssClass = "fas fa-building",
+            Enabled = _selectedBranch is { IsDeleted: false, IsHeadquarters: false },
+            OnClick = MakeBranchHeadquarters,
+        },
+    };
 
     private async Task NotifyChangedAsync()
     {

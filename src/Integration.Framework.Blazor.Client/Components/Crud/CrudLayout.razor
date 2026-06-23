@@ -52,9 +52,8 @@
             @bind-SelectedDataItems="StateService.SelectedDataItems"
             SelectionMode="GridSelectionMode.Multiple"
             AllowSelectRowByClick="false"
-            FocusedRowEnabled="true"
-            FocusedRowChanged="@OnGridFocusedRowChanged"
             ShowSearchBox="@_showGridSearch"
+            @bind-SearchText="_inGridSearchText"
             PagerVisible="true"
             PageSizeSelectorVisible="true"
             PageSizeSelectorItems="@(new int[] { 10, 20, 50, 100 })"
@@ -62,9 +61,10 @@
             @bind-PageSize="_gridPageSize"
             @bind-PageIndex="_gridPageIndex"
             ShowFilterRow="@_showFilterRow"
-            ColumnResizeMode="GridColumnResizeMode.NextColumn"
+            ColumnResizeMode="GridColumnResizeMode.ColumnsContainer"
             ContextMenus="GridContextMenus.Header | GridContextMenus.DataRow"
             CustomizeContextMenu="OnCustomizeContextMenu"
+            CustomizeElement="OnCustomizeGridElement"
             @ref="Grid"
             RowClick="OnRowClick"
             CssClass="flex-grow-1 overflow-hidden"
@@ -73,7 +73,7 @@
             AllowColumnResizing="true">
         
         <Columns>
-            <DxGridSelectionColumn Width="48px" AllowSelectAll="true" FixedPosition="GridColumnFixedPosition.Left" />
+            <DxGridSelectionColumn Width="48px" AllowSelectAll="true" FixedPosition="GridColumnFixedPosition.Left" AllowReorder="false" VisibleIndex="0" />
             @if (GridColumns != null)
             {
                 @GridColumns

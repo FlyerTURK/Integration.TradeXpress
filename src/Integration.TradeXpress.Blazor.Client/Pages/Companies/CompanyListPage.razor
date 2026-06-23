@@ -23,12 +23,15 @@
             CustomActions="@BranchActions">
 
     <GridColumns>
-        <DxGridDataColumn FieldName="Code" Caption="@L["Code"]" Width="120px" />
-        <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" />
-        <DxGridDataColumn FieldName="CountryCode" Caption="@L["CountryCode"]" Width="100px" />
-        <DxGridDataColumn FieldName="BaseCurrencyCode" Caption="@L["BaseCurrency"]" Width="140px" />
-        <DxGridDataColumn FieldName="IsHeadquarters" Caption="@L["IsHeadquarters"]" Width="100px" />
-        <DxGridDataColumn FieldName="DisplayOrder" Caption="@L["DisplayOrder"]" Width="90px" />
+        <GridLinkColumn FieldName="Code" Caption="@L["Code"]" Width="120px" VisibleIndex="0"
+                        OnClick="@(o => BeforeUpdateAsync((CompanyListDto)o))" />
+        <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" VisibleIndex="1" />
+        <GridLinkColumn FieldName="CountryCode" Caption="@L["CountryCode"]" Width="100px" VisibleIndex="2"
+                        OnClick="@(o => OpenCountryAsync((CompanyListDto)o))" />
+        <GridLinkColumn FieldName="BaseCurrencyCode" Caption="@L["BaseCurrency"]" Width="140px" VisibleIndex="3"
+                        OnClick="@(o => OpenUnitAsync(((CompanyListDto)o).BaseCurrencyUnitId, ((CompanyListDto)o).BaseCurrencyCode))" />
+        <DxGridDataColumn FieldName="IsHeadquarters" Caption="@L["IsHeadquarters"]" Width="100px" VisibleIndex="4" />
+        <DxGridDataColumn FieldName="DisplayOrder" Caption="@L["DisplayOrder"]" Width="90px" VisibleIndex="5" />
     </GridColumns>
 
     

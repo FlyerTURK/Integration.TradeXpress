@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Integration.Framework.Base.Querying;
+using Integration.TradeXpress.Financials.CurrencyUnits;
 using Integration.TradeXpress.Permissions;
 using Microsoft.AspNetCore.Authorization;
 using Volo.Abp;
@@ -23,14 +24,19 @@ namespace Integration.TradeXpress.Countries;
 public class CountryAppService : TradeXpressAppService, ICountryAppService
 {
     private readonly IRepository<Country, Guid> _repository;
+    private readonly IRepository<CurrencyUnit, Guid> _unitRepository;  // yalnız OKUMA (DefaultCurrencyCode→Id, link)
     private readonly IDataFilter _dataFilter;
 
     private static readonly HashSet<string> AllowedListFields =
         new(StringComparer.OrdinalIgnoreCase) { "Code", "Name", "IsActive", "DisplayOrder", "Id" };
 
-    public CountryAppService(IRepository<Country, Guid> repository, IDataFilter dataFilter)
+    public CountryAppService(
+        IRepository<Country, Guid> repository,
+        IRepository<CurrencyUnit, Guid> unitRepository,
+        IDataFilter dataFilter)
     {
         _repository = repository;
+        _unitRepository = unitRepository;
         _dataFilter = dataFilter;
     }
 
@@ -45,7 +51,21 @@ public class CountryAppService : TradeXpressAppService, ICountryAppService
 
             var totalCount = await AsyncExecuter.CountAsync(query);
             var items = await AsyncExecuter.ToListAsync(query.Skip(input.SkipCount).Take(input.MaxResultCount));
-            return new PagedResultDto<CountryListDto>(totalCount, items.Select(ToListDto).ToList());
+
+            // DefaultCurrencyCode string kolon (FK yok) → linklenebilmesi için CurrencyUnit.Id'yi Code'dan
+            // çöz (bellekte; bu sayfanın kodları). Kapsam: global (TenantId=null) + mevcut tenant.
+            var ccyCodes = items.Select(c => c.DefaultCurrencyCode).Where(c => !string.IsNullOrEmpty(c)).Distinct().ToList();
+            var unitMap = new Dictionary<string, Guid>(StringComparer.OrdinalIgnoreCase);
+            if (ccyCodes.Count > 0)
+            {
+                var units = await _unitRepository.GetQueryableAsync();
+                var matched = await AsyncExecuter.ToListAsync(
+                    units.Where(u => ccyCodes.Contains(u.Code) && (u.TenantId == null || u.TenantId == tenantId)));
+                foreach (var u in matched)
+                    unitMap[u.Code] = u.Id;
+            }
+
+            return new PagedResultDto<CountryListDto>(totalCount, items.Select(c => ToListDto(c, unitMap)).ToList());
         }
     }
 
@@ -100,9 +120,11 @@ public class CountryAppService : TradeXpressAppService, ICountryAppService
             throw new BusinessException("TradeXpress:Country:CannotEditGlobalAsTenant");
     }
 
-    private CountryListDto ToListDto(Country c) => new()
+    private static CountryListDto ToListDto(Country c, IReadOnlyDictionary<string, Guid> unitMap) => new()
     {
         Id = c.Id, Code = c.Code, Name = c.Name, DefaultCurrencyCode = c.DefaultCurrencyCode,
+        DefaultCurrencyUnitId = !string.IsNullOrEmpty(c.DefaultCurrencyCode) && unitMap.TryGetValue(c.DefaultCurrencyCode, out var uid)
+            ? uid : (Guid?)null,
         IsActive = c.IsActive, DisplayOrder = c.DisplayOrder, IsGlobal = c.TenantId == null,
     };
 

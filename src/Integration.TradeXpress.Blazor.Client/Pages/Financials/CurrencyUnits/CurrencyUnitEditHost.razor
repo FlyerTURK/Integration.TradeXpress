@@ -12,6 +12,7 @@
 @inject ICurrencyUnitAppService CurrencyUnitAppService
 @inject IObjectMapper Mapper
 @inject Volo.Abp.MultiTenancy.ICurrentTenant CurrentTenant
+@inject Integration.TradeXpress.Blazor.Client.Services.Mdi.ITabManager TabManager
 
 @*
    CurrencyUnit edit host = ince sarmal: coordinator + takip adayları (referans) + config.
@@ -28,7 +29,8 @@
                   IsReadOnly="@(m => m.IsGlobal && CurrentTenant?.Id != null)"
                   ApplyNewDefaults="@(m => { m.IsActive = true; m.DisplayOrder = 1; })"
                   OnModelReady="@(m => { EnsureFollowingDefault(m); return Task.CompletedTask; })">
-        <CurrencyUnitLayout Model="@context" IsNew="@(context.Id == Guid.Empty)" FollowCandidates="@_allUnits" />
+        <CurrencyUnitLayout Model="@context" IsNew="@(context.Id == Guid.Empty)" FollowCandidates="@_allUnits"
+                            OnEditFollowingUnit="@OnEditFollowingUnitAsync" />
     </CrudEditHost>
 }
 
@@ -51,6 +53,18 @@
         _allUnits = result.Items.ToList();
 
         _ready = true;
+    }
+
+    // Takip birimi combo'sundaki ✎ → o birimin edit'ini MDI sekmesinde aç. (Bu host POPUP'ta açılabildiğinden
+    // referansı popup'ta açmak nested-popup olur → TAB ile açıyoruz; grid linkleriyle de tutarlı.)
+    private async Task OnEditFollowingUnitAsync(Guid? followingId)
+    {
+        if (followingId is not { } id || id == Guid.Empty) return;
+        var code = _allUnits.FirstOrDefault(u => u.Id == id)?.Code;
+        await TabManager.OpenOrActivateAsync(
+            $"/currencies/currency-units/{id}",
+            $"{L["CurrencyUnit"]}: {code}",
+            TradeXpressIcons.CurrencyUnit);
     }
 
     // Tenant'ta bir birim mutlaka bir global birimi takip eder; takip boşsa otomatik bağla (önce aynı Tür'den

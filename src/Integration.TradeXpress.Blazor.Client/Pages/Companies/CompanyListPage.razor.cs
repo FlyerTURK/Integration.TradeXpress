@@ -47,6 +47,26 @@ public partial class CompanyListPage
         },
     };
 
+    /// <summary>BaseCurrency linki → o para biriminin edit'ini MDI sekmesinde aç.</summary>
+    private async Task OpenUnitAsync(Guid unitId, string? code)
+    {
+        if (unitId == Guid.Empty) return;
+        await TabManager.OpenOrActivateAsync(
+            $"/currencies/currency-units/{unitId}",
+            $"{L["CurrencyUnit"]}: {code}",
+            TradeXpressIcons.CurrencyUnit);
+    }
+
+    /// <summary>CountryCode linki → ülkenin edit'ini MDI sekmesinde aç (Id Code'dan çözüldü; yoksa no-op).</summary>
+    private async Task OpenCountryAsync(CompanyListDto c)
+    {
+        if (c.CountryId is not { } id || id == Guid.Empty) return;
+        await TabManager.OpenOrActivateAsync(
+            $"/countries/{id}",
+            $"{L["Entity:Country"]}: {c.CountryCode}",
+            TradeXpressIcons.Country);
+    }
+
     // Drill-down artık URL navigasyonu değil — şubeleri MDI sekmesi olarak açar/aktive eder.
     private async Task OpenBranchesAsync()
     {

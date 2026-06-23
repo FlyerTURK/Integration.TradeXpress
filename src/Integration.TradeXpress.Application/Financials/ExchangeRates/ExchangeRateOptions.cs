@@ -43,4 +43,22 @@ public sealed class ExchangeRateOptions
 
     /// <summary>Ardışık hata log aralığı: 1. ve her N'inci hatada logla.</summary>
     public int LogEveryNthFailure { get; set; } = 60;
+
+    // ── In-process Playwright feed (HaremBridge'i emekli eder; Node/Python/8765 gerekmez) ──
+
+    /// <summary>Harem canlı piyasalar sayfası (socket.io WS bu sayfadan beslenir).</summary>
+    public string HaremPageUrl { get; set; } = "https://canlipiyasalar.haremaltin.com/";
+
+    /// <summary>Playwright tarayıcı channel'ı: null/boş = bundled Chromium (sistem tarayıcı gerekmez),
+    /// "chrome" = kurulu Google Chrome, "msedge" = Edge. Varsayılan bundled.</summary>
+    public string? BrowserChannel { get; set; }
+
+    /// <summary>Tarayıcı görünmez mi (varsayılan true). Cloudflare soğuk headless'i geçiyor (test edildi).</summary>
+    public bool Headless { get; set; } = true;
+
+    /// <summary>Kalıcı tarayıcı profil klasörü (cf_clearance saklanır). Boşsa app data altında varsayılan.</summary>
+    public string? BrowserProfileDir { get; set; }
+
+    /// <summary>Bu süre boyunca hiç fiyat paketi gelmezse sayfa yeniden yüklenir (WS kopması/challenge kurtarma).</summary>
+    public TimeSpan StaleReload { get; set; } = TimeSpan.FromSeconds(45);
 }

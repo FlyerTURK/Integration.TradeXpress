@@ -22,7 +22,8 @@
     
     <GridColumns>
         <DxGridDataColumn FieldName="Id" Caption="ID" Width="100px" Visible="false" />
-        <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" />
+        <GridLinkColumn FieldName="Name" Caption="@L["Name"]" VisibleIndex="0"
+                        OnClick="@(o => BeforeUpdateAsync((TenantListDto)o))" />
     </GridColumns>
 
     

@@ -1,0 +1,73 @@
+@using DevExpress.Blazor
+@implements Microsoft.AspNetCore.Components.IHandleEvent
+@*
+   Yeniden kullanılabilir grid kolon bileşeni: navige-edilebilir (linkli) hücre.
+   DxGridDataColumn'u sarmalar (ERPPROV3 ErpLinkColumn deseni — cascading değerler bileşen sınırını
+   geçtiğinden iç kolon grid'e normal kaydolur, ekstra tel gerekmez). Hücreyi link butonu olarak çizer,
+   tıklanınca OnClick(DataItem) tetikler. OnClick verilmezse düz metin (sıradan kolon).
+
+   Metin: TextSelector verilirse ondan (hesaplanan/FieldName'siz); verilmezse cell.HighlightedDisplayText
+   (FieldName'li kolon → arama vurgusu korunur). IHandleEvent override: kolon nested-settings renderer'ında
+   async re-render hatasını önler (event sonrası StateHasChanged ATLANIR).
+*@
+<DxGridDataColumn FieldName="@FieldName"
+                  Caption="@Caption"
+                  Width="@Width"
+                  TextAlignment="@TextAlignment"
+                  AllowSort="@AllowSort"
+                  FixedPosition="@FixedPosition"
+                  VisibleIndex="@VisibleIndex"
+                  Visible="@Visible">
+    <CellDisplayTemplate Context="cell">
+        @if (OnClick.HasDelegate)
+        {
+            <button class="btn btn-link grid-btn-link"
+                    @onclick="@(() => OnClick.InvokeAsync(cell.DataItem))"
+                    @onclick:stopPropagation="true">
+                @if (!string.IsNullOrEmpty(IconCssClass))
+                {
+                    <i class="@IconCssClass" style="margin-inline-end:.35em;"></i>
+                }
+                @if (TextSelector != null)
+                {
+                    @TextSelector(cell.DataItem)
+                }
+                else
+                {
+                    @cell.HighlightedDisplayText
+                }
+            </button>
+        }
+        else if (TextSelector != null)
+        {
+            @TextSelector(cell.DataItem)
+        }
+        else
+        {
+            @cell.HighlightedDisplayText
+        }
+    </CellDisplayTemplate>
+</DxGridDataColumn>
+
+@code {
+    [Parameter] public string? FieldName { get; set; }
+    [Parameter] public string Caption { get; set; } = string.Empty;
+    [Parameter] public string? Width { get; set; }
+    [Parameter] public GridTextAlignment TextAlignment { get; set; }
+    [Parameter] public bool AllowSort { get; set; } = true;
+    [Parameter] public GridColumnFixedPosition FixedPosition { get; set; } = GridColumnFixedPosition.None;
+    /// <summary>Açık kolon sırası (DevExpress VisibleIndex). Negatif/unset = markup sırası.</summary>
+    [Parameter] public int VisibleIndex { get; set; } = -1;
+    [Parameter] public bool Visible { get; set; } = true;
+
+    /// <summary>Verilirse hücre metnini DataItem'dan üretir (FieldName'siz/hesaplanan kolonlar için).</summary>
+    [Parameter] public Func<object, string?>? TextSelector { get; set; }
+    /// <summary>Opsiyonel sol ikon (FontAwesome class).</summary>
+    [Parameter] public string? IconCssClass { get; set; }
+    /// <summary>Tıklanınca DataItem ile çağrılır. Verilmezse hücre düz metin (link değil).</summary>
+    [Parameter] public EventCallback<object> OnClick { get; set; }
+
+    Task Microsoft.AspNetCore.Components.IHandleEvent.HandleEventAsync(
+        Microsoft.AspNetCore.Components.EventCallbackWorkItem callback, object? arg)
+        => callback.InvokeAsync(arg);
+}

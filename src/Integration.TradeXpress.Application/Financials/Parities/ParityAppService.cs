@@ -78,7 +78,7 @@ public class ParityAppService : TradeXpressAppService, IParityAppService
             var units = await _currencyUnitRepository.GetQueryableAsync();
             var rows = (await _repository.GetQueryableAsync())
                 .Where(x => x.TenantId == null || x.TenantId == tenantId)
-                .Join(units, p => p.BaseCurrencyUnitId, u => u.Id, (p, u) => new { p, baseCode = u.Code })
+                .Join(units, p => p.BaseCurrencyUnitId, u => u.Id, (p, u) => new { p, baseCode = u.Code, baseName = u.Name })
                 .Join(units, x => x.p.QuoteCurrencyUnitId, u => u.Id, (x, u) => new ParityListRow
                 {
                     Id = x.p.Id,
@@ -86,7 +86,9 @@ public class ParityAppService : TradeXpressAppService, IParityAppService
                     BaseCurrencyUnitId = x.p.BaseCurrencyUnitId,
                     QuoteCurrencyUnitId = x.p.QuoteCurrencyUnitId,
                     BaseCode = x.baseCode,
+                    BaseName = x.baseName,
                     QuoteCode = u.Code,
+                    QuoteName = u.Name,
                     IsActive = x.p.IsActive,
                     DisplayOrder = x.p.DisplayOrder,
                 })
@@ -196,7 +198,9 @@ public class ParityAppService : TradeXpressAppService, IParityAppService
         BaseCurrencyUnitId = r.BaseCurrencyUnitId,
         QuoteCurrencyUnitId = r.QuoteCurrencyUnitId,
         BaseCode = r.BaseCode,
+        BaseName = r.BaseName,
         QuoteCode = r.QuoteCode,
+        QuoteName = r.QuoteName,
         IsActive = r.IsActive,
         IsSystem = r.TenantId == null,
         IsGlobal = r.TenantId == null,
@@ -212,7 +216,9 @@ public class ParityAppService : TradeXpressAppService, IParityAppService
         public Guid BaseCurrencyUnitId { get; set; }
         public Guid QuoteCurrencyUnitId { get; set; }
         public string BaseCode { get; set; } = string.Empty;
+        public string BaseName { get; set; } = string.Empty;
         public string QuoteCode { get; set; } = string.Empty;
+        public string QuoteName { get; set; } = string.Empty;
         public bool IsActive { get; set; }
         public int DisplayOrder { get; set; }
     }

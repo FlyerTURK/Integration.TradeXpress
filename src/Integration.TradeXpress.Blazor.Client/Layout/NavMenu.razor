@@ -15,7 +15,8 @@
             NodeExpandCollapseAction="TreeViewNodeExpandCollapseAction.NodeClick"
             NodeClick="OnNodeClick">
     <DataMappings>
-        <DxTreeViewDataMapping Children="Items" Text="DisplayName" />
+        @* ApplicationMenuItem.Icon (TradeXpressIcons FontAwesome class) → düğüm ikonu. *@
+        <DxTreeViewDataMapping Children="Items" Text="DisplayName" IconCssClass="Icon" />
     </DataMappings>
 </DxTreeView>
 

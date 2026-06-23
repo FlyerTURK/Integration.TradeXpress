@@ -8,12 +8,14 @@
 @using Microsoft.AspNetCore.Components
 @using Microsoft.Extensions.Logging
 @inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+@inject IUiStateService UiStateService
 
 <div class="scoped-roles-editor">
     <DxGrid @ref="Grid"
-            ColumnResizeMode="GridColumnResizeMode.NextColumn"
+            ColumnResizeMode="GridColumnResizeMode.ColumnsContainer"
             Data="Roles"
             SelectionMode="GridSelectionMode.Single"
+            LayoutAutoLoading="OnLayoutLoading" LayoutAutoSaving="OnLayoutSaving"
             PageSize="10">
         <DxGridDataColumn FieldName="RoleName" Caption="@L["Role"]" />
         <DxGridDataColumn FieldName="CompanyCode" Caption="@L["Company"]" />
@@ -78,6 +80,20 @@
 @code {
     [Parameter]
     public Guid UserId { get; set; }
+
+    // Kolon düzeni kalıcılığı (kullanıcı başına).
+    private const string GridStateKey = "ScopedRoles:v1";
+    private async Task OnLayoutLoading(GridPersistentLayoutEventArgs e)
+    {
+        var json = await UiStateService.GetGridStateAsync(GridStateKey);
+        if (!string.IsNullOrWhiteSpace(json))
+            try { e.Layout = System.Text.Json.JsonSerializer.Deserialize<GridPersistentLayout>(json); } catch { }
+    }
+    private async Task OnLayoutSaving(GridPersistentLayoutEventArgs e)
+    {
+        if (e.Layout == null) return;
+        try { await UiStateService.SaveGridStateAsync(GridStateKey, System.Text.Json.JsonSerializer.Serialize(e.Layout)); } catch { }
+    }
 
     private DxGrid Grid { get; set; } = default!;
     private bool ShowRolePopup { get; set; }

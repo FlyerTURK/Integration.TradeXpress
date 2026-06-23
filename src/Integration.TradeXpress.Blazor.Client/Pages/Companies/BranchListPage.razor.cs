@@ -40,6 +40,16 @@ public partial class BranchListPage
     protected override void OnConfiguringListRequest(BranchListRequestDto request)
         => request.CompanyId = CompanyId;
 
+    /// <summary>CompanyCode linki → şirketin edit'ini MDI sekmesinde aç.</summary>
+    private async Task OpenCompanyAsync(BranchListDto b)
+    {
+        if (b.CompanyId == Guid.Empty) return;
+        await TabManager.OpenOrActivateAsync(
+            $"/companies/{b.CompanyId}",
+            $"{L["Entity:Company"]}: {b.CompanyCode}",
+            TradeXpressIcons.Company);
+    }
+
     // ── Toolbar drill: Şube → Kasalar ───────────────────────────────────────────
     private BranchListDto? SelectedBranch =>
         StateService.SelectedDataItems is { Count: 1 } sel ? sel[0] as BranchListDto : null;

@@ -298,12 +298,8 @@ public class TradeXpressHttpApiHostModule : AbpModule
         app.UseAbpSerilogEnrichers();
         app.UseConfiguredEndpoints();
 
-        // Harem fiyat feed worker'ı (yalnız bu host; margin per-tenant olduğundan
-        // host ham piyasa satırı yazar). HaremEnabled=false ise hiç başlatılmaz.
-        var feedOptions = context.ServiceProvider.GetRequiredService<IOptions<ExchangeRateOptions>>().Value;
-        if (feedOptions.HaremEnabled)
-        {
-            AsyncHelper.RunSync(() => context.AddBackgroundWorkerAsync<ExchangeRateFeedWorker>());
-        }
+        // Harem fiyat feed'i artık TEK sahip olarak Blazor host'ta çalışır (in-process Playwright;
+        // ExchangeRateCacheService + Kur Panosu orada, process-singleton). Bu host'ta feed başlatılmaz
+        // (çift tarayıcı/çift yazım olmasın). Çok-instance'a geçince IAbpDistributedLock ile tekilleştirilir.
     }
 }

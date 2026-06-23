@@ -58,9 +58,26 @@ public partial class CurrencyUnitListPage : IDisposable
     [Inject]
     protected IEffectivePriceAppService PriceAppService { get; set; } = default!;
 
-    // Birim Id → güncel efektif fiyat (canlı). Worker cache'ini ~8 sn'de bir okur.
+    [Inject]
+    protected Integration.TradeXpress.Blazor.Client.Services.Mdi.ITabManager TabManager { get; set; } = default!;
+
+    /// <summary>Takip birimi linki → o para biriminin edit'ini MDI sekmesinde aç (takip yoksa no-op).</summary>
+    private async Task OpenUnitAsync(Guid? unitId, string? code)
+    {
+        if (unitId is not { } id || id == Guid.Empty) return;
+        await TabManager.OpenOrActivateAsync(
+            $"/currencies/currency-units/{id}",
+            $"{L["CurrencyUnit"]}: {code}",
+            TradeXpressIcons.CurrencyUnit);
+    }
+
+    // Birim Id → güncel efektif fiyat (canlı). Worker cache'ini ~1 sn'de bir okur.
     private readonly Dictionary<Guid, CurrentPriceDto> _live = new();
     private CancellationTokenSource? _priceCts;
+
+    // Yön referansı = bir önceki EFEKTİF (marjlı) fiyat (alış/satış ayrı). + flash (yön + 1 sn pencere).
+    private readonly Dictionary<(Guid Id, bool Buy), decimal> _prevEffective = new();
+    private readonly Dictionary<(Guid Id, bool Buy), (int Dir, DateTime Until)> _flash = new();
 
     protected override async Task OnInitializedAsync()
     {
@@ -75,17 +92,43 @@ public partial class CurrencyUnitListPage : IDisposable
         try
         {
             var prices = await PriceAppService.GetCurrentPricesAsync();
+            var now = DateTime.UtcNow;
             _live.Clear();
-            foreach (var p in prices) _live[p.Id] = p;
+            foreach (var p in prices)
+            {
+                _live[p.Id] = p;
+                TrackDirection(p.Id, buy: true, p.Buy, now);
+                TrackDirection(p.Id, buy: false, p.Sell, now);
+            }
         }
         catch { /* feed yoksa sessiz geç — liste yine de çalışır */ }
+    }
+
+    // Yeni efektif (marjlı) fiyat bir öncekinden farklıysa yön+flash kaydet (yeşil=yükseliş, kırmızı=düşüş).
+    private void TrackDirection(Guid id, bool buy, decimal value, DateTime now)
+    {
+        var key = (id, buy);
+        if (_prevEffective.TryGetValue(key, out var prev) && value != prev)
+            _flash[key] = (value > prev ? 1 : -1, now.AddSeconds(1));
+        _prevEffective[key] = value;
+    }
+
+    // Hücre arka planı: dikey gradyan; 1 sn pencere + inline transition ile parlayıp söner (keyframe YOK — kural).
+    protected string PriceCellStyle(Guid id, bool buy)
+    {
+        var on = _flash.TryGetValue((id, buy), out var f) && DateTime.UtcNow < f.Until;
+        var bg = !on ? "transparent"
+            : f.Dir > 0
+                ? "linear-gradient(180deg, rgba(22,163,74,0.45), rgba(22,163,74,0.04))"
+                : "linear-gradient(180deg, rgba(220,38,38,0.45), rgba(220,38,38,0.04))";
+        return $"display:block; text-align:right; padding:2px 6px; border-radius:4px; background:{bg}; transition: background 700ms ease-out;";
     }
 
     private async Task LivePriceLoopAsync(CancellationToken ct)
     {
         try
         {
-            using var timer = new PeriodicTimer(TimeSpan.FromSeconds(8));
+            using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
             while (await timer.WaitForNextTickAsync(ct))
             {
                 await LoadLivePricesAsync();

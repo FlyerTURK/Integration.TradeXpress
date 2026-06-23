@@ -27,13 +27,28 @@
             AllowColumnReordering="true">
 
     <GridColumns>
-        @* Code: sola sabit, standalone (band-içi tekil fixed DevExpress'te desteklenmiyor → band dışında). *@
-        <DxGridDataColumn FieldName="Code" Caption="@L["Code"]" Width="90px" FixedPosition="GridColumnFixedPosition.Left" />
+        @* Sıra: Kod · Ad · Alış · Satış (Ad band dışında, Kod'un hemen sağında). *@
+        <GridLinkColumn FieldName="Code" Caption="@L["Code"]" Width="90px" FixedPosition="GridColumnFixedPosition.Left" VisibleIndex="1"
+                        OnClick="@(o => BeforeUpdateAsync((CurrencyUnitListDto)o))" />
+        <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" MinWidth="180" Width="220px" VisibleIndex="1" />
+
+        @* Canlı alış/satış özet kolonları; flash+gradyan burada da aktif. *@
+        <DxGridDataColumn Caption="@L["Buy"]" Width="110px" AllowSort="false" VisibleIndex="2" TextAlignment="GridTextAlignment.Right">
+            <CellDisplayTemplate>
+                @{ var _qbid = ((CurrencyUnitListDto)context.DataItem).Id; }
+                <span style="@PriceCellStyle(_qbid, true)"><b>@LivePrice(_qbid, buy: true)</b></span>
+            </CellDisplayTemplate>
+        </DxGridDataColumn>
+        <DxGridDataColumn Caption="@L["Sell"]" Width="110px" AllowSort="false" VisibleIndex="3" TextAlignment="GridTextAlignment.Right">
+            <CellDisplayTemplate>
+                @{ var _qsid = ((CurrencyUnitListDto)context.DataItem).Id; }
+                <span style="@PriceCellStyle(_qsid, false)"><b>@LivePrice(_qsid, buy: false)</b></span>
+            </CellDisplayTemplate>
+        </DxGridDataColumn>
 
         @* Diğer kimlik kolonları "Genel Bilgiler" band'ı altında. *@
-        <DxGridBandColumn Caption="@L["GeneralInfo"]" CaptionAlignment="GridTextAlignment.Center">
+        <DxGridBandColumn Caption="@L["GeneralInfo"]" CaptionAlignment="GridTextAlignment.Center" VisibleIndex="4">
             <Columns>
-                <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" MinWidth="180" Width="220px" />
                 <DxGridDataColumn FieldName="Type" Caption="@L["Type"]" Width="90px" TextAlignment="GridTextAlignment.Left">
                     <CellDisplayTemplate>@L[$"Enum:CurrencyUnitType:{((CurrencyUnitListDto)context.DataItem).Type}"]</CellDisplayTemplate>
                 </DxGridDataColumn>
@@ -47,24 +62,26 @@
             </Columns>
         </DxGridBandColumn>
 
-        <DxGridBandColumn Caption="@L["FollowingAndMargin"]" Visible="@IsTenantMode" CaptionAlignment="GridTextAlignment.Center">
+        <DxGridBandColumn Caption="@L["FollowingAndMargin"]" Visible="@IsTenantMode" CaptionAlignment="GridTextAlignment.Center" VisibleIndex="5">
             <Columns>
-                <DxGridDataColumn FieldName="FollowingUnitCode" Caption="@L["FollowingUnit"]" Width="100px" />
-                <DxGridDataColumn Caption="@L["Buy"]" Width="95px" AllowSort="false" TextAlignment="GridTextAlignment.Right">
+                @* Takip birimi de bir para birimi → edit'ini MDI sekmesinde aç (linkli). *@
+                <GridLinkColumn FieldName="FollowingUnitCode" Caption="@L["FollowingUnit"]" Width="100px" VisibleIndex="0"
+                                OnClick="@(o => OpenUnitAsync(((CurrencyUnitListDto)o).FollowingUnitId, ((CurrencyUnitListDto)o).FollowingUnitCode))" />
+                <DxGridDataColumn Caption="@L["Buy"]" Width="95px" AllowSort="false" VisibleIndex="1" TextAlignment="GridTextAlignment.Right">
                     <CellDisplayTemplate>@FollowedPrice(((CurrencyUnitListDto)context.DataItem).FollowingUnitId, buy: true)</CellDisplayTemplate>
                 </DxGridDataColumn>
-                <DxGridDataColumn Caption="@L["Sell"]" Width="95px" AllowSort="false" TextAlignment="GridTextAlignment.Right">
+                <DxGridDataColumn Caption="@L["Sell"]" Width="95px" AllowSort="false" VisibleIndex="2" TextAlignment="GridTextAlignment.Right">
                     <CellDisplayTemplate>@FollowedPrice(((CurrencyUnitListDto)context.DataItem).FollowingUnitId, buy: false)</CellDisplayTemplate>
                 </DxGridDataColumn>
-                <DxGridDataColumn FieldName="FollowingMarginType" Caption="@L["MarginType"]" Width="100px">
+                <DxGridDataColumn FieldName="FollowingMarginType" Caption="@L["MarginType"]" Width="100px" VisibleIndex="3">
                     <CellDisplayTemplate>@FollowingMarginTypeText(((CurrencyUnitListDto)context.DataItem).FollowingMarginType)</CellDisplayTemplate>
                 </DxGridDataColumn>
-                <DxGridDataColumn FieldName="FollowingMarginValue" Caption="@L["MarginValue"]" Width="100px" DisplayFormat="N5" />
+                <DxGridDataColumn FieldName="FollowingMarginValue" Caption="@L["MarginValue"]" Width="100px" VisibleIndex="4" DisplayFormat="N5" />
             </Columns>
         </DxGridBandColumn>
 
         @* Alış/Satış band'ları EN SONDA: her biri Baz Fiyat · Marj Tipi · Marj · (bold) Fiyat *@
-        <DxGridBandColumn Caption="@L["BuyPrice"]" CaptionAlignment="GridTextAlignment.Center">
+        <DxGridBandColumn Caption="@L["BuyPrice"]" CaptionAlignment="GridTextAlignment.Center" VisibleIndex="6">
             <Columns>
                 <DxGridDataColumn Caption="@L["BasePrice"]" Width="95px" AllowSort="false" TextAlignment="GridTextAlignment.Right">
                     <CellDisplayTemplate>@LiveRaw(((CurrencyUnitListDto)context.DataItem).Id, buy: true)</CellDisplayTemplate>
@@ -75,12 +92,15 @@
                 <DxGridDataColumn Caption="@L["MarginValue"]" Width="80px" AllowSort="false" TextAlignment="GridTextAlignment.Right">
                     <CellDisplayTemplate>@LiveMarginValue(((CurrencyUnitListDto)context.DataItem).Id, buy: true)</CellDisplayTemplate>
                 </DxGridDataColumn>
-                <DxGridDataColumn Caption="@L["Price"]" Width="100px" AllowSort="false" TextAlignment="GridTextAlignment.Right">
-                    <CellDisplayTemplate><b>@LivePrice(((CurrencyUnitListDto)context.DataItem).Id, buy: true)</b></CellDisplayTemplate>
+                <DxGridDataColumn Caption="@L["Price"]" Width="110px" AllowSort="false" TextAlignment="GridTextAlignment.Right">
+                    <CellDisplayTemplate>
+                        @{ var _bid = ((CurrencyUnitListDto)context.DataItem).Id; }
+                        <span style="@PriceCellStyle(_bid, true)"><b>@LivePrice(_bid, buy: true)</b></span>
+                    </CellDisplayTemplate>
                 </DxGridDataColumn>
             </Columns>
         </DxGridBandColumn>
-        <DxGridBandColumn Caption="@L["SellPrice"]" CaptionAlignment="GridTextAlignment.Center">
+        <DxGridBandColumn Caption="@L["SellPrice"]" CaptionAlignment="GridTextAlignment.Center" VisibleIndex="7">
             <Columns>
                 <DxGridDataColumn Caption="@L["BasePrice"]" Width="95px" AllowSort="false" TextAlignment="GridTextAlignment.Right">
                     <CellDisplayTemplate>@LiveRaw(((CurrencyUnitListDto)context.DataItem).Id, buy: false)</CellDisplayTemplate>
@@ -91,8 +111,11 @@
                 <DxGridDataColumn Caption="@L["MarginValue"]" Width="80px" AllowSort="false" TextAlignment="GridTextAlignment.Right">
                     <CellDisplayTemplate>@LiveMarginValue(((CurrencyUnitListDto)context.DataItem).Id, buy: false)</CellDisplayTemplate>
                 </DxGridDataColumn>
-                <DxGridDataColumn Caption="@L["Price"]" Width="100px" AllowSort="false" TextAlignment="GridTextAlignment.Right">
-                    <CellDisplayTemplate><b>@LivePrice(((CurrencyUnitListDto)context.DataItem).Id, buy: false)</b></CellDisplayTemplate>
+                <DxGridDataColumn Caption="@L["Price"]" Width="110px" AllowSort="false" TextAlignment="GridTextAlignment.Right">
+                    <CellDisplayTemplate>
+                        @{ var _sid = ((CurrencyUnitListDto)context.DataItem).Id; }
+                        <span style="@PriceCellStyle(_sid, false)"><b>@LivePrice(_sid, buy: false)</b></span>
+                    </CellDisplayTemplate>
                 </DxGridDataColumn>
             </Columns>
         </DxGridBandColumn>

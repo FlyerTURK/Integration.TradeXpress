@@ -49,14 +49,8 @@
                    DeleteGuard="@CompanyDeleteGuard"
                    OnSelectionChanged="OnCompanySelected"
                    OnItemSaved="OnCompanySaved"
-                   OnChanged="@(() => EditChanged?.Invoke())">
-            <ToolbarActions>
-                <DxButton Text="@L["MakeHeadquarters"]"
-                          RenderStyle="ButtonRenderStyle.Link"
-                          IconCssClass="fas fa-building"
-                          Click="MakeCompanyHeadquarters"
-                          Enabled="@(_selectedCompany is { IsDeleted: false, IsHeadquarters: false })" />
-            </ToolbarActions>
+                   OnChanged="@(() => EditChanged?.Invoke())"
+                   CustomActions="@CompanyActions">
             <GridColumns>
                 <DxGridDataColumn FieldName="Code" Caption="@L["Code"]" Width="110px" />
                 <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" />
@@ -92,14 +86,8 @@
                    DeleteGuard="@UserDeleteGuard"
                    OnSelectionChanged="OnUserSelected"
                    OnItemSaved="OnUserSaved"
-                   OnChanged="@(() => EditChanged?.Invoke())">
-            <ToolbarActions>
-                <DxButton Text="@L["MakeAdmin"]"
-                          RenderStyle="ButtonRenderStyle.Link"
-                          IconCssClass="fas fa-user-shield"
-                          Click="MakeUserAdmin"
-                          Enabled="@(_selectedUser is { IsAdmin: false })" />
-            </ToolbarActions>
+                   OnChanged="@(() => EditChanged?.Invoke())"
+                   CustomActions="@UserActions">
             <GridColumns>
                 <DxGridDataColumn FieldName="UserName" Caption="@L["UserName"]" />
                 <DxGridDataColumn FieldName="Email" Caption="@L["Email"]" />
@@ -134,6 +122,34 @@
 
     private TenantUserInput? _selectedUser;
     private CompanyGraphDto? _selectedCompany;
+
+    // Toolbar custom action'ları — liste sayfalarıyla AYNI descriptor sözleşmesi (SortIndex 300). void handler'lar
+    // Func<Task>'e sarılır.
+    private IReadOnlyList<CrudToolbarAction> CompanyActions => new[]
+    {
+        new CrudToolbarAction
+        {
+            SortIndex = 300,
+            Text = L["MakeHeadquarters"],
+            Tooltip = L["MakeHeadquarters"],
+            IconCssClass = "fas fa-building",
+            Enabled = _selectedCompany is { IsDeleted: false, IsHeadquarters: false },
+            OnClick = () => { MakeCompanyHeadquarters(); return Task.CompletedTask; },
+        },
+    };
+
+    private IReadOnlyList<CrudToolbarAction> UserActions => new[]
+    {
+        new CrudToolbarAction
+        {
+            SortIndex = 300,
+            Text = L["MakeAdmin"],
+            Tooltip = L["MakeAdmin"],
+            IconCssClass = "fas fa-user-shield",
+            Enabled = _selectedUser is { IsAdmin: false },
+            OnClick = () => { MakeUserAdmin(); return Task.CompletedTask; },
+        },
+    };
 
     // ── Yeni şirket düğümü grafı (host ApplyNewDefaults de kullanır → static, units/countries parametreli). ──
     public static CompanyGraphDto NewCompany(string code, string name, string country, bool isHeadquarters,

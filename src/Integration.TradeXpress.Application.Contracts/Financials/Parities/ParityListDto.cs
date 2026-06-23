@@ -13,9 +13,17 @@ public class ParityListDto : EntityDto<Guid>, IListDto<Guid>, IIsActive
 {
     public Guid BaseCurrencyUnitId { get; set; }
     public string BaseCode { get; set; } = string.Empty;
+    public string BaseName { get; set; } = string.Empty;
 
     public Guid QuoteCurrencyUnitId { get; set; }
     public string QuoteCode { get; set; } = string.Empty;
+    public string QuoteName { get; set; } = string.Empty;
+
+    /// <summary>USDTRY formatı (BaseCode + QuoteCode).</summary>
+    public string Code => BaseCode + QuoteCode;
+
+    /// <summary>"Amerikan Doları / Türk Lirası" formatı.</summary>
+    public string Name => string.IsNullOrEmpty(BaseName) ? string.Empty : $"{BaseName} / {QuoteName}";
 
     public bool IsActive { get; set; }
     public bool IsSystem { get; set; }

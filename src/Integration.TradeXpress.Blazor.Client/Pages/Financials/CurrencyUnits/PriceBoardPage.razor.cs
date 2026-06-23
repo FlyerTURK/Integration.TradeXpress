@@ -42,12 +42,14 @@ public partial class PriceBoardPage
     protected override async Task OnInitializedAsync()
     {
         await LoadAsync();
-        _ = AutoRefreshLoopAsync(); // canlı: her ~8s yeniden çek
+        _ = AutoRefreshLoopAsync(); // canlı: her ~1s yeniden çek (feed saniye-altı; pano poll'u kısaldı)
     }
 
     private async Task AutoRefreshLoopAsync()
     {
-        _timer = new PeriodicTimer(TimeSpan.FromSeconds(8));
+        // NOT: bu POLL (1s). Gerçek "saniye-altı" çözüm = push/event-driven (ExchangeRateCacheService.Updated
+        // → delta push), 1000-tenant delivery tasarımının parçası olarak sonra. Şimdilik 1s poll yeterince canlı.
+        _timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
         try
         {
             while (await _timer.WaitForNextTickAsync())

@@ -1,4 +1,5 @@
 using System;
+using System.Threading.Tasks;
 using Integration.TradeXpress.Countries;
 using Integration.TradeXpress.Permissions;
 
@@ -13,6 +14,19 @@ public partial class CountryListPage
 
     [Microsoft.AspNetCore.Components.Inject]
     protected ICountryAppService CountryAppService { get; set; } = default!;
+
+    [Microsoft.AspNetCore.Components.Inject]
+    protected Integration.TradeXpress.Blazor.Client.Services.Mdi.ITabManager TabManager { get; set; } = default!;
+
+    /// <summary>Varsayılan para birimi linki → o birimin edit'ini MDI sekmesinde aç (Id Code'dan çözüldü; yoksa no-op).</summary>
+    private async Task OpenUnitAsync(Guid? unitId, string? code)
+    {
+        if (unitId is not { } id || id == Guid.Empty) return;
+        await TabManager.OpenOrActivateAsync(
+            $"/currencies/currency-units/{id}",
+            $"{L["CurrencyUnit"]}: {code}",
+            TradeXpressIcons.CurrencyUnit);
+    }
 
     public override Volo.Abp.Application.Services.ICrudAppService<
         CountryGetDto, CountryListDto, Guid,

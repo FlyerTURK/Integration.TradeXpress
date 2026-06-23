@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Logging;
@@ -16,21 +18,39 @@ public class UserUiSettingAppService : TradeXpressAppService, IUserUiSettingAppS
         _settingManager = settingManager;
     }
 
+    // Grid düzenleri TEK tanımlı ayarda ("TradeXpress.UI.GridStates", default "{}") JSON SÖZLÜĞÜ olarak tutulur:
+    // { gridKey → layoutJson }. (Önceki "GridStates_<grid>" per-grid adı ABP'de TANIMSIZ → "Undefined setting"
+    // ile sessizce kaydedilemiyordu; tanım yalnız taban adı içeriyor.)
+
+    /// <summary>Mevcut GridStates sözlüğünü oku (bozuksa boş döner).</summary>
+    private async Task<Dictionary<string, string>> ReadGridStatesAsync()
+    {
+        var json = await SettingProvider.GetOrNullAsync(TradeXpressUiSettingNames.GridStates);
+        if (string.IsNullOrWhiteSpace(json)) return new();
+        try { return JsonSerializer.Deserialize<Dictionary<string, string>>(json) ?? new(); }
+        catch { return new(); }
+    }
+
+    public async Task ResetGridStatesAsync()
+    {
+        // Tüm grid düzenlerini sıfırla → tanımlı ayarı boş sözlüğe ("{}") al.
+        await _settingManager.SetForCurrentUserAsync(TradeXpressUiSettingNames.GridStates, "{}");
+    }
+
     public async Task<string?> GetGridStateAsync(string gridKey)
     {
-        // Her grid kendi ayarında depolansın (gridKey başına bir setting anahtarı)
-        var settingKey = $"{TradeXpressUiSettingNames.GridStates}_{gridKey}";
-        var json = await SettingProvider.GetOrNullAsync(settingKey);
-        return string.IsNullOrEmpty(json) ? null : json;
+        var dict = await ReadGridStatesAsync();
+        return dict.TryGetValue(gridKey, out var v) && !string.IsNullOrEmpty(v) ? v : null;
     }
 
     public async Task SetGridStateAsync(string gridKey, string stateJson)
     {
-        // Her grid kendi ayarında depolansın — truncate sorunu ortadan kalkar
-        var settingKey = $"{TradeXpressUiSettingNames.GridStates}_{gridKey}";
         try
         {
-            await _settingManager.SetForCurrentUserAsync(settingKey, stateJson);
+            var dict = await ReadGridStatesAsync();
+            dict[gridKey] = stateJson;
+            await _settingManager.SetForCurrentUserAsync(
+                TradeXpressUiSettingNames.GridStates, JsonSerializer.Serialize(dict));
         }
         catch (Exception ex)
         {

@@ -6,6 +6,7 @@
 @inject ISizeModeService SizeModeService
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
+@inject Integration.TradeXpress.Settings.IUserUiSettingAppService UiSettings
 @inject Microsoft.Extensions.Localization.IStringLocalizer<Integration.TradeXpress.Localization.TradeXpressResource> L
 @implements IDisposable
 
@@ -131,9 +132,40 @@
         </ul>
     </nav>
 
+    @* 7) Stil/düzen sıfırla — kullanıcının kaydedilmiş grid kolon düzenlerini siler (markup sırasına döner) *@
+    <nav class="themes-menu themes-menu-tms-hdr" aria-label="Sıfırla">
+        <ul class="nav nav-pills">
+            <li class="nav-item theme-group">Sıfırla</li>
+        </ul>
+    </nav>
+    <nav class="themes-menu" aria-label="Stil bilgilerini sıfırla">
+        <ul class="nav nav-pills">
+            <li class="nav-item theme-group">
+                <DxButton Text="Stil bilgilerini sıfırla"
+                          RenderStyle="ButtonRenderStyle.Secondary"
+                          IconCssClass="fas fa-rotate-left"
+                          CssClass="w-100"
+                          Enabled="@(!_resetting)"
+                          Click="OnResetStylesAsync" />
+            </li>
+        </ul>
+    </nav>
+
 </div>
 
 @code {
+    private bool _resetting;
+
+    // Kaydedilmiş grid kolon düzenlerini sil → sayfayı yeniden yükle (grid'ler markup sırasıyla temiz açılır).
+    private async Task OnResetStylesAsync()
+    {
+        if (_resetting) return;
+        _resetting = true;
+        try { await UiSettings.ResetGridStatesAsync(); }
+        catch { /* sessiz geç — yine de reload dene */ }
+        Navigation.NavigateTo(Navigation.Uri, forceLoad: true);
+    }
+
     private sealed record SizeModeOption(SizeMode Mode, string Caption);
 
     private static readonly SizeModeOption[] _sizeModes =
