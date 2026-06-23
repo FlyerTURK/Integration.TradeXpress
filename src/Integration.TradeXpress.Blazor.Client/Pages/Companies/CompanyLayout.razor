@@ -1,0 +1,49 @@
+@using System
+@using System.Collections.Generic
+@using Integration.TradeXpress.Companies
+@using Integration.TradeXpress.Countries
+@using Integration.TradeXpress.Financials.CurrencyUnits
+@using Integration.Framework.Blazor.Client.Components.Crud
+@using Integration.TradeXpress.Blazor.Client.Components.Crud
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@*
+   Company DUMB Layout — paylaşılan CompanyEditFields (form) + CompanyBranchDrill (Şube→Kasa nested drill).
+   İkisi de Tenant ile paylaşılır (ICompanyGraph). Drill değişimi EditChanged cascade'i ile forma bildirilir
+   (dirty/toolbar/*). Şirketin kendi HQ switch'i: form içi devir yok → yüklü (orijinal) HQ ise kilitli.
+*@
+<CompanyEditFields Model="@Model" Units="@Units" Countries="@Countries"
+                   HeadquartersEnabled="@(!_originalWasHq)" CodeEnabled="@IsNew"
+                   OnAddCurrency="@OnAddCurrency" OnEditCurrency="@OnEditCurrency"
+                   OnAddCountry="@OnAddCountry" OnEditCountry="@OnEditCountry" />
+
+<CompanyBranchDrill Model="@Model" OnChanged="@(() => EditChanged?.Invoke())" />
+
+@code {
+    [Parameter, EditorRequired] public CompanyGetDto Model { get; set; } = default!;
+    [Parameter] public bool IsNew { get; set; }
+    [Parameter] public List<CurrencyUnitListDto> Units { get; set; } = new();
+    [Parameter] public List<CountryListDto> Countries { get; set; } = new();
+
+    // Quick-add/edit (host bağlar → +/✎ butonları) — CompanyEditFields combo'larına forward.
+    [Parameter] public Func<Task<Guid>>? OnAddCurrency { get; set; }
+    [Parameter] public Func<Guid, Task>? OnEditCurrency { get; set; }
+    [Parameter] public Func<Task<string?>>? OnAddCountry { get; set; }
+    [Parameter] public Func<string, Task>? OnEditCountry { get; set; }
+
+    // Şube/Kasa drill değişimini forma bildir (dirty/toolbar/*) — EntityEditForm EditChanged cascade'i.
+    [CascadingParameter(Name = "EditChanged")] private Action? EditChanged { get; set; }
+
+    // Şirketin kendi HQ switch'i: form içi devir yok → yüklü (orijinal) HQ ise kilitli. İlk parametre set'inde yakala.
+    private bool _originalWasHq;
+    private bool _hqCaptured;
+
+    protected override void OnParametersSet()
+    {
+        if (!_hqCaptured && Model is not null)
+        {
+            _originalWasHq = Model.IsHeadquarters;
+            _hqCaptured = true;
+        }
+    }
+}

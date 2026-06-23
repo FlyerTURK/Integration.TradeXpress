@@ -114,7 +114,16 @@
     private TValue? GetItemValue(TItem item) => ValueProp?.GetValue(item) is TValue v ? v : default;
     private string GetItemText(TItem item) => TextPropOrNull?.GetValue(item)?.ToString() ?? "";
 
-    private bool _hasValue => !EqualityComparer<TValue>.Default.Equals(Value, default!);
+    // "Değer var mı": null / Guid.Empty / 0 → yok. Boş string de "yok" (string "" default'u EqualityComparer'da
+    // null'a eşit değil → Edit/Clear yanlış görünürdü). Kalıcı fix → tüm kullanımlarda doğru.
+    private bool _hasValue
+    {
+        get
+        {
+            if (EqualityComparer<TValue>.Default.Equals(Value, default!)) return false;
+            return Value is not string s || s.Length > 0;
+        }
+    }
     private bool _isNullable => !typeof(TValue).IsValueType || Nullable.GetUnderlyingType(typeof(TValue)) is not null;
 
     private bool ShowEditButton => OnEditRequested is not null && !ReadOnly && Enabled && _hasValue;

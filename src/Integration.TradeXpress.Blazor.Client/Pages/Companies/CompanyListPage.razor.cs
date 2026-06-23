@@ -58,7 +58,8 @@ public partial class CompanyListPage
 
 
 
-        public override System.Type EditComponentType => typeof(Integration.TradeXpress.Blazor.Client.Pages.Companies.CompanyEditPage);
+        // YENİ mimari: agnostic EntityEditForm + PersistentCoordinator (eski CompanyEditPage kaldırıldı).
+        public override System.Type EditComponentType => typeof(Integration.TradeXpress.Blazor.Client.Pages.Companies.CompanyEditHost);
     }
 
 

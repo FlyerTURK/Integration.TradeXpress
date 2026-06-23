@@ -20,27 +20,33 @@
             <DxTextBox @bind-Text="@Model.Name" />
         </DxFormLayoutItem>
         <DxFormLayoutItem Caption="@($"{L["Country"]} *")" ColSpanMd="6">
-            <DxComboBox Data="@Countries" Value="@Model.CountryCode"
-                        ValueFieldName="@nameof(CountryListDto.Code)"
-                        TextFieldName="@nameof(CountryListDto.Code)"
-                        ValueChanged="@((string code) => OnCountryChanged(code))"
-                        ValidationEnabled="false"
-                        NullText="@L["Country"]"
-                        CssClass="w-100" />
+            @* Custom ValueChanged (ülke→para default'u) ama ValueExpression veriyoruz → EditContext dirty çalışır. *@
+            <LookupComboBox TItem="CountryListDto" TValue="string"
+                            Data="@Countries"
+                            ValueFieldName="@nameof(CountryListDto.Code)"
+                            TextFieldName="@nameof(CountryListDto.Code)"
+                            Value="@Model.CountryCode"
+                            ValueChanged="@((string? code) => OnCountryChanged(code))"
+                            ValueExpression="@(() => Model.CountryCode)"
+                            AllowClear="false"
+                            NullText="@L["Country"].Value"
+                            OnAddRequested="@OnAddCountry"
+                            OnEditRequested="@OnEditCountry" />
         </DxFormLayoutItem>
-        <DxFormLayoutItem ColSpanMd="6" CaptionFor="baseCcy">
+        <DxFormLayoutItem ColSpanMd="6">
             <CaptionTemplate>
                 <InfoCaption Text="@L["Yerel Para Birimi"].Value"
                              HintText="@L["Company:BaseCurrencyCodeHint"].Value"
                              Required="true" />
             </CaptionTemplate>
             <Template>
-                <DxComboBox Data="@Units" @bind-Value="@Model.BaseCurrencyUnitId"
-                            ValueFieldName="@nameof(CurrencyUnitListDto.Id)"
-                            TextFieldName="@nameof(CurrencyUnitListDto.Code)"
-                            ValidationEnabled="false"
-                            InputId="baseCcy"
-                            CssClass="w-100" />
+                <LookupComboBox TItem="CurrencyUnitListDto" TValue="Guid"
+                                Data="@Units"
+                                ValueFieldName="@nameof(CurrencyUnitListDto.Id)"
+                                TextFieldName="@nameof(CurrencyUnitListDto.Code)"
+                                @bind-Value="@Model.BaseCurrencyUnitId"
+                                OnAddRequested="@OnAddCurrency"
+                                OnEditRequested="@OnEditCurrency" />
             </Template>
         </DxFormLayoutItem>
         @* Şirketin kendi merkez switch'i — Enabled host'tan (standalone: snapshot; tenant düğümü: canlı self-hariç). *@
@@ -71,9 +77,15 @@
     [Parameter] public bool HeadquartersEnabled { get; set; } = true;
     [Parameter] public bool CodeEnabled { get; set; } = true;
 
-    private void OnCountryChanged(string code)
+    // Quick-add/edit (opsiyonel; host bağlar → +/✎ butonları görünür). Boşsa butonlar gizli.
+    [Parameter] public Func<Task<Guid>>? OnAddCurrency { get; set; }
+    [Parameter] public Func<Guid, Task>? OnEditCurrency { get; set; }
+    [Parameter] public Func<Task<string?>>? OnAddCountry { get; set; }
+    [Parameter] public Func<string, Task>? OnEditCountry { get; set; }
+
+    private void OnCountryChanged(string? code)
     {
-        Model.CountryCode = code;
+        Model.CountryCode = code ?? string.Empty;
         var country = Countries.FirstOrDefault(c => c.Code == code);
         if (country?.DefaultCurrencyCode is { Length: > 0 } ccy)
         {
