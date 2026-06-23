@@ -26,16 +26,11 @@
 <div style="display:flex; flex-direction:column; max-height:88vh; min-height:0; overflow-x:hidden; max-width:100%;">
     @if (Placement == ToolbarPlacement.Top)
     {
-        @* Popup modunda (PopupChrome var) başlık CHROME header'ında (boş band + çift olmaz, native X kalır);
-           tab/standalone modda (chrome yok) gövdede çizilir. *@
-        @if (HeaderData is not null && PopupChrome is null)
-        {
-            <div style="padding:0.15rem 0.25rem 0.5rem; border-bottom:1px solid #dee2e6; margin-bottom:0.5rem; flex-shrink:0;">
-                <EditHeaderView Header="@HeaderData" IsDirty="@IsDirty" ShowDirty="true" DirtyLabel="@L["UnsavedChanges"]" />
-            </div>
-        }
+        @* Yapısal başlık ENGINE'den gelir (tek kaynak BuildHeader→TabHeaderData → sekme şeridi + app-header üst-paneli).
+           Gövdede TEKRAR çizilmez — gereksiz kopyaydı. Popup'ta başlık chrome header'ında (ChromeHeader). *@
         <div style="border-bottom:1px solid #dee2e6; padding-bottom:0.5rem; margin-bottom:0.5rem; flex-shrink:0;">
-            <CrudToolbar TGetDto="TGetDto" TListDto="TListDto" TKey="TKey" EditController="@this" />
+            @* TEK edit toolbar — drill edit popup'ı da AYNI EditToolbar'ı kullanır (ikiz değil, aynısı). *@
+            <EditToolbar EditController="@this" />
         </div>
     }
 
@@ -142,7 +137,7 @@
     // Drill/koleksiyon değişimini forma bildiren cascade callback'i — Layout drill'leri (DrillList.OnChanged) çağırır.
     // Stable ref (cache) → IsFixed cascade güvenli. NotifyIfChanged: re-render + dirty/toolbar/başlık (*) tazele.
     private Action? _editChangedCache;
-    private Action EditChangedAction => _editChangedCache ??= NotifyIfChanged;
+    private Action EditChangedAction => _editChangedCache ??= NotifyEditChanged;
 
     // EntityEditForm, child VaultLayout'un @bind'ı değişince KENDİSİ re-render olmaz (child izole). DevExpress
     // editörleri EditContext.OnFieldChanged'i tetikler → buradan StateHasChanged ile dirty/toolbar tazelenir.
@@ -164,6 +159,12 @@
             catch { return true; }
         }
     }
+
+    // İzin paneli gibi Model'e YANSIMAYAN harici dirty kaynağı (host wires; ör. () => PermissionEditorPanel.IsDirty).
+    [Parameter] public Func<bool>? HasExtraChanges { get; set; }
+
+    // Kaydet / "*" / kapanış-onayı için ETKİN dirty: model snapshot dirty VEYA harici panel dirty.
+    private bool EffectiveDirty => IsDirty || (HasExtraChanges?.Invoke() ?? false);
 
     // Editör değişince (her tuş/blur) toolbar CanSave + başlık "*" tazelensin.
     private Func<Task<bool>>? _closeGuard;
@@ -195,7 +196,7 @@
     private void PushHeader()
     {
         var h = HeaderData;
-        var sig = $"{h?.NewPrefix}|{h?.FormCaption}|{h?.EntityValue}|{h?.ParentLabel}|{h?.ParentValue}|{h?.IconCssClass}|{IsDirty}";
+        var sig = $"{h?.NewPrefix}|{h?.FormCaption}|{h?.EntityValue}|{h?.ParentLabel}|{h?.ParentValue}|{h?.IconCssClass}|{EffectiveDirty}";
         if (sig == _lastHeaderSig) return;
         _lastHeaderSig = sig;
         if (PopupChrome is not null)
@@ -203,11 +204,11 @@
         else if (CurrentMdiTab is { } tab && h is not null)
         {
             TabOpener.UpdateTabHeader(tab.Id, h);
-            TabOpener.SetTabDirty(tab.Id, IsDirty);
+            TabOpener.SetTabDirty(tab.Id, EffectiveDirty);
         }
     }
 
-    private RenderFragment ChromeHeader => @<EditHeaderView Header="@HeaderData" IsDirty="@IsDirty" ShowDirty="true" DirtyLabel="@L["UnsavedChanges"]" />;
+    private RenderFragment ChromeHeader => @<EditHeaderView Header="@HeaderData" IsDirty="@EffectiveDirty" ShowDirty="true" DirtyLabel="@L["UnsavedChanges"]" />;
 
     private void OnFormChange() => NotifyIfChanged();
 
@@ -220,10 +221,19 @@
         StateHasChanged();                   // toolbar (CanSave) + başlık (*) tazele
     }
 
+    // Çocuk (drill/panel) AÇIKÇA değişiklik bildirdi (DrillList.OnChanged / panel DirtyChanged) → HER ZAMAN tazele.
+    // NotifyIfChanged Model-compare ile erken döner; izin paneli Model'i değiştirmez → onun dirty'si için force gerekir.
+    private void NotifyEditChanged()
+    {
+        try { _lastSeenJson = JsonSerializer.Serialize(Model); } catch { _lastSeenJson = null; }
+        StateHasChanged();   // toolbar CanSave (= EffectiveDirty) tazele
+        PushHeader();        // başlık/tab "*" (EffectiveDirty) tazele
+    }
+
     // ── ISplitEditActions ──
     // Save ⟺ dirty (başlıktaki "*" ile tutarlı): yeni kayıt da dokunulmadan kaydedilemez (zorunlu alanlar
     // zaten dirty yapar). Eski "IsNew || IsDirty" kaldırıldı — dokunulmamış yeni kayıtta Save kapalı.
-    bool ISplitEditActions.CanSave => !IsReadOnly && IsDirty;
+    bool ISplitEditActions.CanSave => !IsReadOnly && EffectiveDirty;
     bool ISplitEditActions.IsNew => IsNew;
     bool ISplitEditActions.IsReadOnly => IsReadOnly;
     string? ISplitEditActions.ReadOnlyNotice => ReadOnlyNoticeText;
@@ -288,7 +298,7 @@
     /// <summary>Dirty değilse serbest; dirty ise Kaydet/Yoksay/(çarpı=İptal).</summary>
     private async Task<bool> ConfirmCloseAsync()
     {
-        if (!IsDirty) return true;
+        if (!EffectiveDirty) return true;
         var result = await UiService.ConfirmAsync(
             L["UnsavedChangesConfirmation"].Value, title: null,
             yesText: L["SaveChanges"].Value, noText: L["DiscardChanges"].Value,

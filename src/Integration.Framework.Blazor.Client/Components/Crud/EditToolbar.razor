@@ -1,0 +1,8 @@
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@*
+   TEK edit toolbar (ikiz DEĞİL, aynısı) — EntityEditForm (tab/popup) + DrillList edit popup AYNI bunu kullanır.
+   Aksiyonlar ISplitEditActions sözleşmesinden (BuildActions, EditToolbar.razor.cs); ÇİZİM paylaşılan ToolbarRenderer'da
+   (CrudToolbar liste toolbar'ı da aynı render'ı kullanır → tüm toolbar'lar tek çizim kaynağı).
+*@
+<ToolbarRenderer Actions="@SortedActions.ToList()" RenderMode="@RenderMode" />

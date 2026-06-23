@@ -3,7 +3,10 @@
 @using Microsoft.AspNetCore.Components.Forms
 @using DevExpress.Blazor
 @using Integration.Framework.Blazor.Client.Services.Base
+@using Integration.Framework.Blazor.Client.Services.Mdi
+@using Integration.Framework.Blazor.Client.Components.Shared
 @inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+@implements Integration.Framework.Blazor.Client.Services.Base.ISplitEditActions
 @inject ITradeXpressUiService UiService
 
 @*
@@ -15,45 +18,11 @@
 *@
 
 <div class="drill-list">
-    @if (!string.IsNullOrEmpty(Title))
-    {
-        <div class="fw-semibold mb-1">@Title</div>
-    }
-
-    <DxToolbar ItemRenderStyleMode="ToolbarRenderStyleMode.Plain" CssClass="mb-2">
-        @* Popup modunda düzenleme tek-tıkla satırdan açılır → ayrı "Düzelt" butonu yok.
-           AllowInlineEdit modunda New/Delete'i grid'in command column'u sağlar → toolbar'dan gizlenir. *@
-        @if (!ReadOnly && !AllowInlineEdit)
-        {
-            <DxToolbarItem Text="@L["New"]"
-                           IconUrl="/images/xaf/action_new.svg"
-                           IconCssClass="xaf-toolbar-item-icon"
-                           Click="@((ToolbarItemClickEventArgs e) => StartNew())"
-                           Enabled="@(!_busy)" />
-            <DxToolbarItem Text="@L["Delete"]"
-                           IconUrl="/images/xaf/action_delete.svg"
-                           IconCssClass="xaf-toolbar-item-icon"
-                           Click="@((ToolbarItemClickEventArgs e) => DeleteSelected())"
-                           Enabled="@(CanDeleteSelection && !_busy)" />
-        }
-        @* Refresh, Delete'ten sonra gelir. *@
-        @if (OnRefresh.HasDelegate)
-        {
-            <DxToolbarItem Text="@L["Refresh"]"
-                           IconUrl="/images/xaf/action_refresh.svg"
-                           IconCssClass="xaf-toolbar-item-icon"
-                           Click="@((ToolbarItemClickEventArgs e) => OnRefresh.InvokeAsync())"
-                           Enabled="@(!_busy)" />
-        }
-        @if (ToolbarActions != null)
-        {
-            <DxToolbarItem BeginGroup="@(!ReadOnly)">
-                <Template>
-                    @ToolbarActions
-                </Template>
-            </DxToolbarItem>
-        }
-    </DxToolbar>
+    @* Drill başlığı (Title) kaldırıldı — toolbar üstü gereksiz başlık; bölüm bağlamı parent form/grid'den belli. *@
+    <div class="mb-2">
+        @* Liste toolbar — genel CrudToolbar/EditToolbar ile AYNI ToolbarRenderer (ikiz değil). Aksiyonlar descriptor. *@
+        <ToolbarRenderer Actions="@ListToolbarActions" RenderMode="ToolbarRenderStyleMode.Plain" />
+    </div>
 
     @* Min/Max yükseklik + dikey flex: grid bu kutuyu doldurur (flex-grow), fazla satır grid'in kendi
        içinde kayar (normal grid deseni). İkisi de DrillConsts.DefaultGridHeight'tan gelir → varsayılanda
@@ -116,28 +85,26 @@
              Scrollable="true"
              AllowDrag="true"
              AllowResize="true"
-             ShowFooter="true"
              ShowCloseButton="true"
              CloseOnEscape="true"
              CloseOnOutsideClick="false"
              CssClass="crud-edit-popup">
         <HeaderContentTemplate Context="popup">
-            <div style="display:flex; align-items:center; gap:0.5rem; width:100%; justify-content:flex-start;">
-                <span class="@DrillHeaderIcon" aria-hidden="true" style="color:var(--dxbl-primary, #2563eb);"></span>
-                <span>@DrillTitle()</span>
-            </div>
+            @* Yapısal başlık — genel popup chrome ile AYNI engine (TabHeaderData → EditHeaderView): ikon + 3-satır + stillenmiş "*". *@
+            <EditHeaderView Header="@BuildDrillHeader()" IsDirty="@IsEditDirty" ShowDirty="true" DirtyLabel="@L["UnsavedChanges"]" />
         </HeaderContentTemplate>
         <Content>
             @if (_popupVisible)
             {
+                @* Toolbar ÜSTTE (genel EntityEditForm deseni; alt footer kaldırıldı). *@
+                <div style="border-bottom:1px solid #dee2e6; padding-bottom:0.5rem; margin-bottom:0.5rem;">
+                    @* Genel edit ile AYNI bileşen (ikiz değil): EditToolbar. Drill yetenekleri ISplitEditActions'tan
+                       (yalnız Kaydet + Kaydet&Yeni; Sil/nav/undo/reset gizli). *@
+                    <EditToolbar EditController="@this" IsPopup="true" />
+                </div>
                 @EditFormBody
             }
         </Content>
-        <FooterContentTemplate Context="popup">
-            @* Ortak standart footer (tek kaynak) — CrudEditForm ile aynı bileşen; Kaydet ve Yeni dahil. *@
-            <CrudFooterToolbar OnSave="HandleSaveClick" OnSaveAndNew="HandleSaveAndNew" OnCancel="Cancel"
-                               ShowSaveAndNew="true" CanSave="@((_isNew || IsEditDirty) && !_busy)" IsBusy="@_busy" />
-        </FooterContentTemplate>
     </DxPopup>
 }
 
@@ -221,8 +188,17 @@
 
     // Her render'da YENİ liste → DxGrid Data referansı değişir → ekleme/silme/save-and-new anında yansır
     // (aksi halde aynı List referansında mutasyonu grid algılamaz; özellikle FilterPredicate'siz drill'lerde).
-    private IEnumerable<TItem> FilteredItems =>
-        (FilterPredicate != null ? Items.Where(FilterPredicate) : Items).ToList();
+    private IEnumerable<TItem> FilteredItems
+    {
+        get
+        {
+            var q = FilterPredicate != null ? Items.Where(FilterPredicate) : Items;
+            // IIsActive öğelerde Aktif/Pasif filtresi (switch açıkken yalnız aktifler) — genel liste ile aynı.
+            if (ItemIsActiveAware && ShowActiveFilter && _showActiveOnly)
+                q = q.Where(ItemIsActive);
+            return q.ToList();
+        }
+    }
 
     /// <summary>Liste değişince parent'a haber verir (dirty işaretleme / yeniden render).</summary>
     [Parameter] public EventCallback OnChanged { get; set; }
@@ -264,6 +240,57 @@
     private bool CanDeleteSelection =>
         _selectedItems is { Count: > 0 }
         && (DeleteGuard == null || _selectedItems.OfType<TItem>().All(i => DeleteGuard(i) == null));
+
+    // ── Liste toolbar (genel CrudToolbar/EditToolbar ile AYNI ToolbarRenderer; ikiz değil) ──
+    private static readonly bool ItemIsActiveAware =
+        typeof(Integration.Framework.Base.Dtos.Interfaces.IIsActive).IsAssignableFrom(typeof(TItem));
+    // IIsActive MARKER'dır (property YOK) → IsActive'i reflection ile oku (tip başına bir kez cache).
+    private static readonly System.Reflection.PropertyInfo? IsActiveProp =
+        ItemIsActiveAware ? typeof(TItem).GetProperty("IsActive") : null;
+    private static bool ItemIsActive(TItem item) => IsActiveProp?.GetValue(item) as bool? ?? true;
+
+    /// <summary>IIsActive öğelerde Aktif/Pasif filtre switch'i göster (AKSİ belirtilmedikçe). false → gizle.</summary>
+    [Parameter] public bool ShowActiveFilter { get; set; } = true;
+    private bool _showActiveOnly = true;   // varsayılan: yalnız aktif (genel liste ile aynı)
+    private void OnActiveFilterChanged(bool v) { _showActiveOnly = v; StateHasChanged(); }
+
+    private IReadOnlyList<CrudToolbarAction> ListToolbarActions =>
+        BuildListActions().Where(a => a.Visible)
+            .OrderBy(a => a.Alignment == ToolbarItemAlignment.Right ? 1 : 0)
+            .ThenBy(a => a.SortIndex).ToList();
+
+    private List<CrudToolbarAction> BuildListActions() => new()
+    {
+        // Yeni — popup/satır-içi mod ayrımı (AllowInlineEdit'te New/Delete grid command column'dan gelir).
+        new() { SortIndex = 0, Text = L["New"], Tooltip = L["New"],
+                IconUrl = "/images/xaf/action_new.svg", IconCssClass = "xaf-toolbar-item-icon",
+                Visible = !ReadOnly && !AllowInlineEdit, Enabled = !_busy,
+                OnClick = () => { StartNew(); return Task.CompletedTask; } },
+        // Sil — seçili öğe(ler) (guard + MinItems DeleteSelected'te).
+        new() { SortIndex = 100, Text = L["Delete"], Tooltip = L["Delete"],
+                IconUrl = "/images/xaf/action_delete.svg", IconCssClass = "xaf-toolbar-item-icon",
+                Visible = !ReadOnly && !AllowInlineEdit, Enabled = CanDeleteSelection && !_busy,
+                OnClick = DeleteSelected },
+        // Yenile — yalnız OnRefresh verilmişse (persistent drill).
+        new() { SortIndex = 600, AdaptiveText = L["Refresh"], Tooltip = L["Refresh"],
+                IconUrl = "/images/xaf/action_refresh.svg", IconCssClass = "xaf-toolbar-item-icon",
+                Visible = OnRefresh.HasDelegate, Enabled = !_busy,
+                OnClick = () => OnRefresh.InvokeAsync() },
+        // Sayfaya özel custom action'lar (ToolbarActions RenderFragment → descriptor Template'i ile sarılır).
+        new() { SortIndex = 300, Visible = ToolbarActions != null, Template = CustomActionsTemplate },
+        // IsActive filtre switch — EN SONDA, sağa yaslı (IIsActive ise + ShowActiveFilter; genel liste ile aynı).
+        new() { SortIndex = 1000, Alignment = ToolbarItemAlignment.Right,
+                Visible = ItemIsActiveAware && ShowActiveFilter, Template = ActiveFilterTemplate },
+    };
+
+    private RenderFragment<IToolbarItemInfo> CustomActionsTemplate => _ => @<text>@ToolbarActions</text>;
+
+    private RenderFragment<IToolbarItemInfo> ActiveFilterTemplate => _ => @<text>
+        <div style="display:flex; align-items:center; gap:0.4rem; padding:0 0.25rem; white-space:nowrap;">
+            <DxCheckBox Checked="_showActiveOnly" CheckedChanged="@((bool v) => OnActiveFilterChanged(v))" CheckType="CheckType.Switch" />
+            <span>@(_showActiveOnly ? L["ActiveRecords"] : L["PassiveRecords"])</span>
+        </div>
+    </text>;
 
     private TItem? _editItem;
     private TItem? _editOriginal;  // düzenlenen orijinal liste öğesi (clone modunda geri yazma için)
@@ -349,18 +376,17 @@
         await OnSelectionChanged.InvokeAsync(SelectedItem);
     }
 
-    // Edit popup başlığı: Yeni → "Yeni {Entity} {Code?}", Düzenle → "{Entity} {Code/primary}".
-    private string DrillTitle()
+    // Edit popup YAPISAL başlığı — genel popup chrome ile AYNI engine (TabHeaderData → EditHeaderView):
+    // L1 (Yeni) tür · L2 kayıt değeri (primary) · L3 parent. Dirty "*" EditHeaderView'de stillenir.
+    private TabHeaderData BuildDrillHeader() => new()
     {
-        var name = EntityName ?? string.Empty;
-        var primary = (_editItem != null && PrimaryTextSelector != null) ? PrimaryTextSelector(_editItem) : null;
-        var title = _isNew
-            ? (string.IsNullOrWhiteSpace(primary) ? $"{L["New"]} {name}".Trim() : $"{L["New"]} {name} {primary}".Trim())
-            : (string.IsNullOrWhiteSpace(primary) ? name : $"{name} {primary}");
-        if (!string.IsNullOrWhiteSpace(ParentEntityName) && !string.IsNullOrWhiteSpace(ParentText))
-            title += $" - [{ParentEntityName}: {ParentText}]";
-        return IsEditDirty ? $"* {title}" : title;   // kaydedilmemiş değişiklik göstergesi
-    }
+        NewPrefix = _isNew ? L["New"].Value : null,
+        FormCaption = EntityName ?? string.Empty,
+        EntityValue = (_editItem != null && PrimaryTextSelector != null) ? PrimaryTextSelector(_editItem) : null,
+        ParentLabel = ParentEntityName,
+        ParentValue = ParentText,
+        IconCssClass = DrillHeaderIcon,
+    };
 
     // Başlık ikonu: entity ikonu (yoksa generic düzenleme ikonu).
     private string DrillHeaderIcon => string.IsNullOrEmpty(EntityIcon) ? "fas fa-pen-to-square" : EntityIcon!;
@@ -372,6 +398,10 @@
         _isNew = true;
         SetEditContext(_editItem);
         _popupVisible = true;
+        // Toolbar tıklaması artık paylaşılan ToolbarRenderer/EditToolbar içinden geliyor → EventCallback'in
+        // receiver'ı O bileşen; Blazor yalnız onu otomatik render eder, DrillList'i ETMEZ. Popup'ın açılması
+        // (_popupVisible) için DrillList'i ELLE tazele (ResetAsync/OnActiveFilterChanged ile aynı kalıp).
+        StateHasChanged();
     }
 
     private void BeginEdit(TItem item)
@@ -445,6 +475,7 @@
         finally
         {
             _busy = false;
+            StateHasChanged();   // Save toolbar'dan (EditToolbar→ToolbarRenderer) çağrılıyor → receiver DrillList değil; popup kapanışı/_busy için elle tazele.
         }
     }
 
@@ -454,7 +485,58 @@
         _editItem = null;
         _editOriginal = null;
         ClearEditContext();
+        StateHasChanged();   // Popup kapanışı (Sil sonrası / Save&New reopen) toolbar receiver'ından geliyor → DrillList'i elle tazele.
     }
+
+    // ── ISplitEditActions — drill edit popup'ı genel EDIT TOOLBAR'ı (EditToolbar) AYNEN kullanır (ikiz yok).
+    //    Basit in-memory item edit: yalnız Kaydet + Kaydet&Yeni görünür; Sil/nav/undo/reset yeteneği YOK (gizli). ──
+    bool ISplitEditActions.CanSave => (_isNew || IsEditDirty) && !_busy;
+    bool ISplitEditActions.IsNew => _isNew;
+    bool ISplitEditActions.IsReadOnly => false;
+    string? ISplitEditActions.ReadOnlyNotice => null;
+    Task ISplitEditActions.SaveAsync() => HandleSaveClick();
+    Task ISplitEditActions.SaveAndNewAsync() => HandleSaveAndNew();
+    Task ISplitEditActions.SaveAndCloseAsync() => HandleSaveClick();   // drill Save zaten popup'ı kapatır
+
+    // Sil — düzenlenen öğeyi sil (grid Sil ile AYNI guard/MinItems/persist üzerinden), sonra popup'ı kapat.
+    bool ISplitEditActions.CanDelete => !_isNew && !_busy;
+    async Task ISplitEditActions.DeleteAsync()
+    {
+        if (_editItem == null || _isNew) return;
+        _selectedItems = new List<object> { (object)(_editOriginal ?? _editItem) };
+        await DeleteSelected();                       // MinItems + DeleteGuard + soft/persist + OnChanged
+        if (_selectedItems == null) Cancel();         // silindi (seçim temizlendi) → popup'ı kapat
+    }
+
+    // Reset — kaydedilmemiş değişiklikleri at: snapshot'tan düzenlenen öğeyi geri yükle (ana edit ile aynı UX).
+    Task ISplitEditActions.ResetAsync()
+    {
+        if (_editSnapshot != null && _editItem != null)
+        {
+            try
+            {
+                var restored = System.Text.Json.JsonSerializer.Deserialize<TItem>(_editSnapshot);
+                if (restored != null) { _editItem = restored; SetEditContext(_editItem); }
+            }
+            catch { /* fail-safe: bırak */ }
+        }
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+    bool ISplitEditActions.CanGoPrevious => false;
+    bool ISplitEditActions.CanGoNext => false;
+    Task ISplitEditActions.GoPreviousAsync() => Task.CompletedTask;
+    Task ISplitEditActions.GoNextAsync() => Task.CompletedTask;
+    bool ISplitEditActions.SupportsRecordNavigation => false;
+    Task<bool> ISplitEditActions.CanLeaveAsync() => Task.FromResult(true);   // kapanış guard'ı OnPopupClosing'de
+    bool ISplitEditActions.CanUndo => false;
+    bool ISplitEditActions.CanRedo => false;
+    Task ISplitEditActions.UndoAsync() => Task.CompletedTask;
+    Task ISplitEditActions.RedoAsync() => Task.CompletedTask;
+    bool ISplitEditActions.SupportsUndoRedo => false;
+    void ISplitEditActions.NotifyInput() { }
+    void ISplitEditActions.CommitUndoStep() { }
 
     // Kapanma ÖNCESİ (Closing): kullanıcı kapanışında (X/Escape) kirli ise onay; reddedilirse iptal → açık kal.
     private async Task OnPopupClosing(PopupClosingEventArgs args)
@@ -548,6 +630,7 @@
         finally
         {
             _busy = false;
+            StateHasChanged();   // Sil toolbar'dan (ToolbarRenderer/EditToolbar) çağrılıyor → receiver DrillList değil; silinen satır/_busy yansısın diye elle tazele.
         }
     }
 

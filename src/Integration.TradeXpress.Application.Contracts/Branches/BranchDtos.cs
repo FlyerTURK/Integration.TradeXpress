@@ -52,8 +52,6 @@ public class BranchGetDto : EntityDto<Guid>, IGetDto<Guid>
 
     // Sahip olunan kasalar (graf düğümleri; durum = Id + IsDeleted). Edit formu in-memory yönetir.
     public List<VaultGraphDto> Vaults { get; set; } = new();
-
-    public int PageIndex { get; set; }
 }
 
 public class BranchCreateDto : ICreateDto

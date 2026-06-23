@@ -48,9 +48,6 @@ public class VaultGetDto : EntityDto<Guid>, IGetDto<Guid>
 
     [StringLength(VaultConsts.DescriptionMaxLength)]
     public string? Description { get; set; }
-
-    // NOT: PageIndex (IGetDto üyesi) rollout'ta global olarak kaldırılacak; pilotta yeni koordinatör yok sayar.
-    public int PageIndex { get; set; }
 }
 
 public class VaultCreateDto : ICreateDto
@@ -98,7 +95,7 @@ public class VaultUpdateDto : IUpdateDto
 /// <see cref="VaultGetDto"/>'dan TÜRER → alanlar + validasyon attribute'ları TEK KAYNAK (drill, standalone'la
 /// aynı VaultLayout'u ve aynı kuralları kullanır; mapping yok). Graf durumu eklenir: ClientKey + IsDeleted.
 /// Durum = <see cref="Volo.Abp.Application.Dtos.EntityDto{TKey}.Id"/> + <see cref="IsDeleted"/>:
-/// Id boş → ekle, IsDeleted → sil, aksi → güncelle. (BranchId/BranchCode/PageIndex miras gelir; graf save
+/// Id boş → ekle, IsDeleted → sil, aksi → güncelle. (BranchId/BranchCode miras gelir; graf save
 /// parent branch.Id'yi kullanır, bunlara dokunmaz.)
 /// </summary>
 public class VaultGraphDto : VaultGetDto

@@ -1,0 +1,48 @@
+@using DevExpress.Blazor
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@*
+   Toolbar ÇİZİMİ — TEK kaynak (ikiz değil). CrudToolbar (liste/split/edit), EditToolbar ve DrillList liste
+   toolbar'ı AYNI bunu kullanır: CrudToolbarAction descriptor listesini DxToolbar'a basar. Görünür aksiyon +
+   sıra çağırana ait (BuildActions); burada yalnız çizim (descriptor → DxToolbarItem + alt menü + Template).
+*@
+<DxToolbar ItemRenderStyleMode="@RenderMode"
+           AdaptivityAutoCollapseItemsToIcons="true"
+           AdaptivityAutoHideRootItems="true">
+    @foreach (var a in Actions)
+    {
+        <DxToolbarItem Text="@a.Text" AdaptiveText="@a.AdaptiveText" Tooltip="@a.Tooltip"
+                       IconUrl="@a.IconUrl" IconCssClass="@a.IconCssClass"
+                       BeginGroup="@a.BeginGroup" Alignment="@a.Alignment"
+                       RenderStyle="@(a.Primary ? ButtonRenderStyle.Primary : ButtonRenderStyle.None)"
+                       RenderStyleMode="@(a.Primary ? ToolbarItemRenderStyleMode.Contained : ToolbarItemRenderStyleMode.Auto)"
+                       CssClass="@(a.Primary ? "xaf-primary-toolbar-btn" : null)"
+                       SplitDropDownButton="@a.SplitDropDownButton"
+                       Enabled="@a.Enabled"
+                       Template="@a.Template"
+                       Items="@SubItems(a)"
+                       Click="@((ToolbarItemClickEventArgs e) => InvokeAction(a))" />
+    }
+</DxToolbar>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<CrudToolbarAction> Actions { get; set; } = System.Array.Empty<CrudToolbarAction>();
+    [Parameter] public ToolbarRenderStyleMode RenderMode { get; set; } = ToolbarRenderStyleMode.Plain;
+
+    private Task InvokeAction(CrudToolbarAction a) => a.OnClick?.Invoke() ?? Task.CompletedTask;
+
+    // Alt menü item'ları (Export → Excel/PDF, Kaydet&Yeni → Kaydet&Kapat) — RenderFragment attribute, null=yok.
+    private RenderFragment? SubItems(CrudToolbarAction a)
+    {
+        if (a.Items == null || a.Items.Count == 0) return null;
+        return @<text>
+            @foreach (var sub in a.Items)
+            {
+                <DxToolbarItem Text="@sub.Text" Tooltip="@sub.Tooltip"
+                               IconUrl="@sub.IconUrl" IconCssClass="@sub.IconCssClass"
+                               Enabled="@sub.Enabled"
+                               Click="@((ToolbarItemClickEventArgs e) => InvokeAction(sub))" />
+            }
+        </text>;
+    }
+}

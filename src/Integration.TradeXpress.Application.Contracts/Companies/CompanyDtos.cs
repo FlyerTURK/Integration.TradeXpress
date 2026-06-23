@@ -53,8 +53,6 @@ public class CompanyGetDto : EntityDto<Guid>, IGetDto<Guid>, ICompanyGraph
     // Sahip olunan şubeler (graf düğümleri; durum = Id + IsDeleted). Edit formu in-memory yönetir;
     // Create/Update tek komutta BranchAppService'e delege eder.
     public List<BranchGraphDto> Branches { get; set; } = new();
-
-    public int PageIndex { get; set; }
 }
 
 /// <summary>

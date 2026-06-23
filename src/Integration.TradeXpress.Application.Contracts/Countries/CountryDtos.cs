@@ -39,9 +39,6 @@ public class CountryGetDto : EntityDto<Guid>, IGetDto<Guid>
     public bool IsActive { get; set; }
     public int DisplayOrder { get; set; }
     public bool IsGlobal { get; set; }
-
-    // NOT: PageIndex (IGetDto üyesi) rollout sonunda global kaldırılacak; yeni koordinatör yok sayar.
-    public int PageIndex { get; set; }
 }
 
 public class CountryCreateDto : ICreateDto

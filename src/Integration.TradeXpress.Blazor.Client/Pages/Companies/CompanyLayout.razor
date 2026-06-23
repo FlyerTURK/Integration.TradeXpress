@@ -5,6 +5,7 @@
 @using Integration.TradeXpress.Financials.CurrencyUnits
 @using Integration.Framework.Blazor.Client.Components.Crud
 @using Integration.TradeXpress.Blazor.Client.Components.Crud
+@using DevExpress.Blazor
 @inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
 
 @*
@@ -17,7 +18,12 @@
                    OnAddCurrency="@OnAddCurrency" OnEditCurrency="@OnEditCurrency"
                    OnAddCountry="@OnAddCountry" OnEditCountry="@OnEditCountry" />
 
-<CompanyBranchDrill Model="@Model" OnChanged="@(() => EditChanged?.Invoke())" />
+@* Tek drill de tablı yapıda + entity ikonu (genel desen). *@
+<DxTabs CssClass="mt-3">
+    <DxTabPage Text="@L["Menu:Branches"]" TabIconCssClass="@TradeXpressIcons.Branch">
+        <CompanyBranchDrill Model="@Model" OnChanged="@(() => EditChanged?.Invoke())" />
+    </DxTabPage>
+</DxTabs>
 
 @code {
     [Parameter, EditorRequired] public CompanyGetDto Model { get; set; } = default!;

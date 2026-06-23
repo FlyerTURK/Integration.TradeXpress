@@ -1,0 +1,97 @@
+@using System
+@using Integration.TradeXpress.Blazor.Client.Pages.Admin.Models
+@using Integration.Framework.Blazor.Client.Components.Crud
+@using DevExpress.Blazor
+@using Microsoft.Extensions.Localization
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@*
+   User DUMB Layout — Kullanıcı alanları + (var olan kullanıcıda) İzin paneli + Rol-Scope editörü (DxTabs). I/O yok.
+   İzin paneli Model'e YANSIMAZ → DirtyChanged EditChanged'i tetikler (extra-dirty: Kaydet aktif + "*").
+   Panel ref'i host'a iletilir (PanelRefChanged) → host HasExtraChanges + OnAfterCommit'i ona bağlar.
+   ScopedRolesEditor kendi kendine kaydeder (auto-save) → dirty'ye dahil DEĞİL, commit gerekmez.
+   Paneller ProviderKey=Id gerektirir → yalnız var olan kullanıcıda (ilk kayıttan SONRA) görünür. Toolbar üstte.
+*@
+<DxFormLayout CssClass="w-100">
+    @* Kullanıcı adı — anahtar alan: yarım satır (yalnız yeni kayıtta düzenlenebilir). *@
+    <DxFormLayoutItem Caption="@($"{L["UserName"]} *")" ColSpanMd="6">
+        <DxTextBox @bind-Text="Model.UserName" BindValueMode="BindValueMode.OnInput" Enabled="@IsNew" />
+    </DxFormLayoutItem>
+    <DxFormLayoutItem ColSpanMd="6"><Template></Template></DxFormLayoutItem>
+
+    @* Ad + Soyad — yan yana yarımlar. *@
+    <DxFormLayoutItem Caption="@L["Name"]" ColSpanMd="6">
+        <DxTextBox @bind-Text="Model.Name" BindValueMode="BindValueMode.OnInput" />
+    </DxFormLayoutItem>
+    <DxFormLayoutItem Caption="@L["Surname"]" ColSpanMd="6">
+        <DxTextBox @bind-Text="Model.Surname" BindValueMode="BindValueMode.OnInput" />
+    </DxFormLayoutItem>
+
+    @* E-posta + Telefon — yan yana yarımlar. *@
+    <DxFormLayoutItem Caption="@L["Email"]" ColSpanMd="6">
+        <DxTextBox @bind-Text="Model.Email" BindValueMode="BindValueMode.OnInput" />
+    </DxFormLayoutItem>
+    <DxFormLayoutItem Caption="@L["PhoneNumber"]" ColSpanMd="6">
+        <DxTextBox @bind-Text="Model.PhoneNumber" BindValueMode="BindValueMode.OnInput" />
+    </DxFormLayoutItem>
+
+    @* Şifre — yalnız yeni kayıtta (mevcut kullanıcıda değişmez). *@
+    @if (IsNew)
+    {
+        <DxFormLayoutItem Caption="@($"{L["Password"]} *")" ColSpanMd="6">
+            <DxTextBox @bind-Text="Model.Password" BindValueMode="BindValueMode.OnInput" Password="true" />
+        </DxFormLayoutItem>
+    }
+
+    @* Son satır: Durum (switch) — yarım. *@
+    <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6">
+        <DxCheckBox @bind-Checked="Model.IsActive" CheckType="CheckType.Switch" />
+    </DxFormLayoutItem>
+</DxFormLayout>
+
+@* İzin + rol-scope panelleri yalnız var olan kullanıcıda (ProviderKey=Id gerekir; ilk kayıttan sonra ortaya çıkar). *@
+@if (!IsNew)
+{
+    <div class="mt-4">
+        <DxTabs>
+            <DxTabPage Text="@L["Permissions"]" TabIconCssClass="@TradeXpressIcons.Permission">
+                <PermissionEditorPanel @ref="_panel"
+                                       ProviderName="U"
+                                       ProviderKey="@Model.Id.ToString()"
+                                       Embedded="true"
+                                       DirtyChanged="OnPanelDirtyChanged" />
+            </DxTabPage>
+            <DxTabPage Text="@L["ScopedRoles"]" TabIconCssClass="@TradeXpressIcons.Role">
+                <ScopedRolesEditor UserId="@Model.Id" />
+            </DxTabPage>
+        </DxTabs>
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired] public UserGetDto Model { get; set; } = default!;
+
+    // İzin paneli ref'ini host'a ilet (HasExtraChanges + OnAfterCommit için). Panel, kullanıcı var olunca var/null olur.
+    [Parameter] public EventCallback<PermissionEditorPanel?> PanelRefChanged { get; set; }
+
+    // EntityEditForm cascade'i: panel dirty (Model'e yansımaz) → formu tazele (Kaydet aktif + "*").
+    [CascadingParameter(Name = "EditChanged")] private Action? EditChanged { get; set; }
+
+    // Yeni kayıt = Id boş. İzin panelleri ProviderKey=Id gerektirir → yeni kullanıcıda gizli, ilk kayıttan sonra açılır.
+    private bool IsNew => Model.Id == Guid.Empty;
+
+    private PermissionEditorPanel? _panel;
+    private PermissionEditorPanel? _lastReported;
+
+    private void OnPanelDirtyChanged(bool _) => EditChanged?.Invoke();
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // Panel görünürlüğü kayıt durumuna bağlı → ref değişince (ortaya çık/kaybol) host'a bildir.
+        if (!ReferenceEquals(_panel, _lastReported))
+        {
+            _lastReported = _panel;
+            await PanelRefChanged.InvokeAsync(_panel);
+        }
+    }
+}

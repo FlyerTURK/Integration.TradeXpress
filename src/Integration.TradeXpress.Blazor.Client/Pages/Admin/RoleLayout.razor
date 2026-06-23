@@ -1,0 +1,80 @@
+@using System
+@using Integration.TradeXpress.Blazor.Client.Pages.Admin.Models
+@using Integration.Framework.Blazor.Client.Components.Crud
+@using DevExpress.Blazor
+@using Microsoft.Extensions.Localization
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@*
+   Role DUMB Layout — Ad + Varsayılan/Herkese-Açık + (Ad doluysa) İzin paneli (DxTabs). I/O yok.
+   İzin paneli Model'e YANSIMAZ → DirtyChanged EditChanged'i tetikler (extra-dirty: Kaydet aktif + "*").
+   Panel ref'i host'a iletilir (PanelRefChanged) → host HasExtraChanges + OnAfterCommit'i ona bağlar.
+   Statik (sistem) rol: adı değiştirilemez. Toolbar üstte (EntityEditForm standardı).
+*@
+<DxFormLayout CssClass="w-100">
+    @* Rol adı — anahtar alan: yarım satır (statik rol adı değiştirilemez). *@
+    <DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="6">
+        <DxTextBox @bind-Text="Model.Name" BindValueMode="BindValueMode.OnInput" Enabled="@(!Model.IsStatic)" />
+    </DxFormLayoutItem>
+    <DxFormLayoutItem ColSpanMd="6"><Template></Template></DxFormLayoutItem>
+
+    @* Varsayılan + Herkese Açık — yan yana yarımlar. *@
+    <DxFormLayoutItem Caption="@L["IsDefault"]" ColSpanMd="6">
+        <DxCheckBox @bind-Checked="Model.IsDefault" CheckType="CheckType.Switch" />
+    </DxFormLayoutItem>
+    <DxFormLayoutItem Caption="@L["IsPublic"]" ColSpanMd="6">
+        <DxCheckBox @bind-Checked="Model.IsPublic" CheckType="CheckType.Switch" />
+    </DxFormLayoutItem>
+
+    @if (Model.IsStatic)
+    {
+        <DxFormLayoutItem ColSpanMd="12">
+            <Template>
+                <div style="background:#cff4fc; color:#055160; border:1px solid #b6effb; border-radius:0.375rem; padding:0.5rem 0.75rem;">
+                    @L["CannotModifyStaticRole"]
+                </div>
+            </Template>
+        </DxFormLayoutItem>
+    }
+</DxFormLayout>
+
+@* Ad girilir girilmez izin paneli görünür (yeni rolde de) — toggle'lar Kaydet'te (OnAfterCommit) rol adına yazılır. *@
+@if (!string.IsNullOrEmpty(Model.Name))
+{
+    <div class="mt-4">
+        <DxTabs>
+            <DxTabPage Text="@L["Permissions"]" TabIconCssClass="@TradeXpressIcons.Permission">
+                <PermissionEditorPanel @ref="_panel"
+                                       ProviderName="R"
+                                       ProviderKey="@Model.Name"
+                                       Embedded="true"
+                                       DirtyChanged="OnPanelDirtyChanged" />
+            </DxTabPage>
+        </DxTabs>
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired] public RoleGetDto Model { get; set; } = default!;
+
+    // İzin paneli ref'ini host'a ilet (HasExtraChanges + OnAfterCommit için). Panel, Name dolunca var/null olur.
+    [Parameter] public EventCallback<PermissionEditorPanel?> PanelRefChanged { get; set; }
+
+    // EntityEditForm cascade'i: panel dirty (Model'e yansımaz) → formu tazele (Kaydet aktif + "*").
+    [CascadingParameter(Name = "EditChanged")] private Action? EditChanged { get; set; }
+
+    private PermissionEditorPanel? _panel;
+    private PermissionEditorPanel? _lastReported;
+
+    private void OnPanelDirtyChanged(bool _) => EditChanged?.Invoke();
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // Panel görünürlüğü Name'e bağlı → ref değişince (ortaya çık/kaybol) host'a bildir.
+        if (!ReferenceEquals(_panel, _lastReported))
+        {
+            _lastReported = _panel;
+            await PanelRefChanged.InvokeAsync(_panel);
+        }
+    }
+}

@@ -32,6 +32,7 @@
                     ReadOnlyNoticeText="@ReadOnlyNotice"
                     Placement="@Placement"
                     ValidateContext="@ValidateContext"
+                    HasExtraChanges="@HasExtraChanges"
                     OnCommit="CommitAsync"
                     OnSaveAndNew="SaveAndNewAsync"
                     OnSaveAndClose="SaveAndCloseAsync"
@@ -85,6 +86,12 @@
     [Parameter] public Func<TGetDto, IReadOnlyList<KeyValuePair<string, string>>>? ValidateContext { get; set; }
     [Parameter] public ToolbarPlacement Placement { get; set; } = ToolbarPlacement.Top;
 
+    /// <summary>Model'e YANSIMAYAN harici dirty (ör. izin paneli) → CanSave / "*" / kapanış-onayı buna da bakar.</summary>
+    [Parameter] public Func<bool>? HasExtraChanges { get; set; }
+    /// <summary>Ana commit'ten SONRA çalışır (taze model ile) — AYRI servise yazan paneller için. Role/User:
+    /// izin paneli, rol/kullanıcı kaydedildikten (ProviderKey artık geçerli) sonra izinlerini kendi servisine yazar.</summary>
+    [Parameter] public Func<TGetDto, Task>? OnAfterCommit { get; set; }
+
     private TGetDto? _model;
     private bool _isNew = true;
 
@@ -121,6 +128,8 @@
         {
             _model = await Coordinator.CommitAsync(m);   // taze model → rebind (* gider)
             _isNew = false;
+            // Extra-commit: ana kayıt SONRASI ayrı servise yazan paneller (ör. izinler → artık var olan rol/kullanıcı adına).
+            if (OnAfterCommit != null) await OnAfterCommit(_model);
             UiService.ShowSuccessToast(L["SuccessfullySaved"].Value);
             EntityChanges.Notify(ResolvedKey, wasNew ? EntityChangeKind.Created : EntityChangeKind.Updated, _model.Id);  // cross-tab liste tazele
             await OnSaved.InvokeAsync();                 // popup açan listeyi de tazele (varsa)

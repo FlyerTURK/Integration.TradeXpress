@@ -2,6 +2,7 @@
 @using Integration.TradeXpress.Branches
 @using Integration.TradeXpress.Vaults
 @using Integration.TradeXpress.Blazor.Client.Components.Crud
+@using DevExpress.Blazor
 @using Microsoft.Extensions.Localization
 @inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
 
@@ -13,7 +14,12 @@
 <BranchEditFields Model="@Model" HeadquartersEnabled="@(!_originalWasHq)" CodeEnabled="@IsNew" />
 
 <div class="mt-3">
-    <VaultDrill Vaults="Model.Vaults" OnChanged="@(() => EditChanged?.Invoke())" />
+    @* Tek drill de tablı yapıda + entity ikonu (genel desen). *@
+    <DxTabs>
+        <DxTabPage Text="@L["Menu:Vaults"]" TabIconCssClass="@TradeXpressIcons.Vault">
+            <VaultDrill Vaults="Model.Vaults" OnChanged="@(() => EditChanged?.Invoke())" />
+        </DxTabPage>
+    </DxTabs>
 </div>
 
 @code {

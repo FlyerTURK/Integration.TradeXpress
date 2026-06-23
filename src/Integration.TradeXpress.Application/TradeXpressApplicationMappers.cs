@@ -23,14 +23,13 @@ public partial class TenantToTenantListDtoMapper : MapperBase<Tenant, TenantList
 
 // ── CurrencyUnit ──────────────────────────────────────────────────────────────
 // Margin VO'ları otomatik düzleştirilir (MarginOnBuy.Type → MarginOnBuyType).
-// IsGlobal (TenantId==null) ve PageIndex AppService'te elle set edilir.
+// IsGlobal (TenantId==null) AppService'te elle set edilir.
 
 [Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
 public partial class CurrencyUnitToGetDtoMapper : MapperBase<CurrencyUnit, CurrencyUnitGetDto>
 {
     [MapperIgnoreTarget(nameof(CurrencyUnitGetDto.IsGlobal))]
     [MapperIgnoreTarget(nameof(CurrencyUnitGetDto.IsSystem))]
-    [MapperIgnoreTarget(nameof(CurrencyUnitGetDto.PageIndex))]
     public override partial CurrencyUnitGetDto Map(CurrencyUnit source);
     public override partial void Map(CurrencyUnit source, CurrencyUnitGetDto destination);
 }
@@ -45,7 +44,7 @@ public partial class CurrencyUnitToListDtoMapper : MapperBase<CurrencyUnit, Curr
 }
 
 // ── Parity ──────────────────────────────────────────────────────────────────
-// IsGlobal (TenantId==null), BaseCode/QuoteCode (FK→Code enrichment) ve PageIndex
+// IsGlobal (TenantId==null), BaseCode/QuoteCode (FK→Code enrichment)
 // AppService'te elle set edilir (entity'de karşılığı yok).
 
 [Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
@@ -55,7 +54,6 @@ public partial class ParityToGetDtoMapper : MapperBase<Parity, ParityGetDto>
     [MapperIgnoreTarget(nameof(ParityGetDto.IsSystem))]
     [MapperIgnoreTarget(nameof(ParityGetDto.BaseCode))]
     [MapperIgnoreTarget(nameof(ParityGetDto.QuoteCode))]
-    [MapperIgnoreTarget(nameof(ParityGetDto.PageIndex))]
     public override partial ParityGetDto Map(Parity source);
     public override partial void Map(Parity source, ParityGetDto destination);
 }

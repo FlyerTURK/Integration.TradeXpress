@@ -161,7 +161,7 @@ public partial class VaultGetDtoToListDtoMapper : MapperBase<VaultGetDto, VaultL
 // ── GetDto → Create/Update (CrudEditComponentBase doğrudan GetDto bind eder; SaveAsync
 //    ObjectMapper.Map<GetDto, Create/UpdateDto> çağırır). Bu mapper'lar olmadan kaydetme
 //    "No object mapping was found" atar. RequiredMappingStrategy.Target → GetDto'daki
-//    fazla alanlar (Id, *Code görünüm alanları, IsGlobal, PageIndex) yok sayılır. ────────
+//    fazla alanlar (Id, *Code görünüm alanları, IsGlobal) yok sayılır. ────────
 
 [Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
 public partial class CurrencyUnitGetDtoToCreateDtoMapper : MapperBase<CurrencyUnitGetDto, CurrencyUnitCreateDto>
@@ -177,7 +177,7 @@ public partial class CurrencyUnitGetDtoToUpdateDtoMapper : MapperBase<CurrencyUn
     public override partial void Map(CurrencyUnitGetDto source, CurrencyUnitUpdateDto destination);
 }
 
-// Parity: GetDto'daki enrichment/computed alanlar (BaseCode/QuoteCode/IsSystem/IsGlobal/PageIndex) Target
+// Parity: GetDto'daki enrichment/computed alanlar (BaseCode/QuoteCode/IsSystem/IsGlobal) Target
 // strategy ile yok sayılır. Update yalnız IsActive/DisplayOrder (base/quote değişmez).
 [Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
 public partial class ParityGetDtoToCreateDtoMapper : MapperBase<ParityGetDto, ParityCreateDto>
@@ -266,7 +266,7 @@ public partial class TenantGetDtoToUpdateDtoMapper : MapperBase<TenantGetDto, Te
 
 // ── Identity (Role/User) — GetDto → Create/Update (CrudEditComponentBase.SaveAsync ObjectMapper ile
 //    GetDto→Create/Update map'ler, sonra adapter ABP IIdentity*AppService'e gönderir). Target strategy:
-//    GetDto'daki fazlalar (Id, IsStatic [create], Password [update], PageIndex) yok sayılır. ─────────
+//    GetDto'daki fazlalar (Id, IsStatic [create], Password [update]) yok sayılır. ─────────
 
 [Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
 public partial class RoleGetDtoToCreateInputMapper : MapperBase<RoleGetDto, CreateIdentityRoleInput>

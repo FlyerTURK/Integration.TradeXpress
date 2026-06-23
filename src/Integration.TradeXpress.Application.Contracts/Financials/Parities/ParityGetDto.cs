@@ -23,7 +23,4 @@ public class ParityGetDto : EntityDto<Guid>, IGetDto<Guid>
 
     /// <summary>Host kataloğu (TenantId=null) mu? Tenant bunu düzenleyemez; salt-okur.</summary>
     public bool IsGlobal { get; set; }
-
-    /// <summary>Kaydın listede düştüğü sayfa (IGetDto — akıllı sayfa zıplaması).</summary>
-    public int PageIndex { get; set; }
 }

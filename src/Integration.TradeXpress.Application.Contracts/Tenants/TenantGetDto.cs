@@ -13,7 +13,4 @@ public class TenantGetDto : Volo.Abp.Application.Dtos.EntityDto<Guid>, IGetDto<G
     // Şirketler tam graf (şirket→şube→kasa); kayıtta CompanyAppService'e delege edilir.
     public List<TenantUserInput> Users { get; set; } = new();
     public List<CompanyGraphDto> Companies { get; set; } = new();
-
-    // Akıllı Zıplama için
-    public int PageIndex { get; set; }
 }

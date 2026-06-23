@@ -34,7 +34,4 @@ public class CurrencyUnitGetDto : EntityDto<Guid>, IGetDto<Guid>, IHasCode
     public decimal? FollowingMarginValue { get; set; }
 
     public bool IsGlobal { get; set; }
-
-    // Akıllı Zıplama için
-    public int PageIndex { get; set; }
 }

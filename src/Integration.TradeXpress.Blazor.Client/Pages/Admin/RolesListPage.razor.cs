@@ -52,7 +52,8 @@ public partial class RolesListPage
         await TabManager.OpenOrActivateAsync($"/admin/permissions/R/{Uri.EscapeDataString(r.Name)}", $"{L["Permissions"]}: {r.Name}", TradeXpressIcons.Permission);
     }
 
-        public override System.Type EditComponentType => typeof(RoleEditPage);
+        // YENİ mimari: agnostic EntityEditForm + PersistentCoordinator + izin paneli kancaları (eski RoleEditPage kaldırıldı).
+        public override System.Type EditComponentType => typeof(RoleEditHost);
     }
 
 

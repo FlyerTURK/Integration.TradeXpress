@@ -1,4 +1,5 @@
 using System;
+using System.ComponentModel.DataAnnotations;
 using Integration.Framework.Base.Dtos;
 using Integration.Framework.Base.Dtos.Interfaces;
 using Integration.Framework.Blazor.Client.Components.Crud;
@@ -24,6 +25,9 @@ public class UserListDto : EntityDto<Guid>, IListDto<Guid>, IIsActive
 
 public class UserGetDto : EntityDto<Guid>, IGetDto<Guid>
 {
+    // Client inline validasyon (yeni EntityEditForm Model'i doğrular) — server otoritesi ABP input'tur.
+    [Required]
+    [StringLength(256)]
     public string UserName { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public string Surname { get; set; } = string.Empty;
@@ -32,7 +36,6 @@ public class UserGetDto : EntityDto<Guid>, IGetDto<Guid>
     public bool IsActive { get; set; }
     public string ConcurrencyStamp { get; set; } = string.Empty;
     public string Password { get; set; } = string.Empty;
-    public int PageIndex { get; set; }
 }
 
 /// <summary>Tab modunda edit ayrı sayfada yapıldığından bu VM yalnız generic-kısıt için minimaldir.</summary>
@@ -55,12 +58,14 @@ public class RoleListDto : EntityDto<Guid>, IListDto<Guid>
 
 public class RoleGetDto : EntityDto<Guid>, IGetDto<Guid>
 {
+    // Client inline validasyon (yeni EntityEditForm Model'i doğrular) — server otoritesi ABP input'tur.
+    [Required]
+    [StringLength(256)]
     public string Name { get; set; } = string.Empty;
     public bool IsDefault { get; set; }
     public bool IsPublic { get; set; }
     public bool IsStatic { get; set; }
     public string ConcurrencyStamp { get; set; } = string.Empty;
-    public int PageIndex { get; set; }
 }
 
 public class RoleEditViewModel : IViewModel<Guid>

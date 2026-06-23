@@ -52,7 +52,8 @@ public partial class UsersListPage
         await TabManager.OpenOrActivateAsync($"/admin/permissions/U/{u.Id}", $"{L["Permissions"]}: {u.UserName}", TradeXpressIcons.Permission);
     }
 
-        public override System.Type EditComponentType => typeof(UserEditPage);
+        // YENİ mimari: agnostic EntityEditForm + PersistentCoordinator + izin/rol-scope paneli kancaları (eski UserEditPage kaldırıldı).
+        public override System.Type EditComponentType => typeof(UserEditHost);
     }
 
 
