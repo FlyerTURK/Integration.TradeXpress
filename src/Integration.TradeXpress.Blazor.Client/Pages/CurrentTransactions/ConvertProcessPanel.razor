@@ -46,7 +46,7 @@
                 @* Grup 3 — Miktar (Amount) *@
                 <div style="@GroupStyle()">
                     <small style="font-weight:600; text-transform:uppercase; letter-spacing:0.05em;">@nameof(VoucherLineDto.Amount)</small>
-                    <NumericSpinEdit TValue="decimal" Value="@_model.Amount" ValueChanged="@OnAmountChanged"
+                    <NumericSpinEdit TValue="decimal" Value="@_model.Amount" ValueChanged="@OnAmountChanged" BindValueMode="BindValueMode.OnInput"
                                      ShowSpinButtons="false" DisplayFormat="N2" Mask="N2" />
                 </div>
 
@@ -66,7 +66,7 @@
                 @* Grup 5 — Fiyat (parite) *@
                 <div style="@GroupStyle()">
                     <small style="font-weight:600; text-transform:uppercase; letter-spacing:0.05em;">@nameof(VoucherLineDto.PayFactor)</small>
-                    <NumericSpinEdit TValue="decimal" Value="@_model.PayFactor" ValueChanged="@OnPayFactorChanged"
+                    <NumericSpinEdit TValue="decimal" Value="@_model.PayFactor" ValueChanged="@OnPayFactorChanged" BindValueMode="BindValueMode.OnInput"
                                      ShowSpinButtons="false" DisplayFormat="N5" Mask="N5" />
                 </div>
 

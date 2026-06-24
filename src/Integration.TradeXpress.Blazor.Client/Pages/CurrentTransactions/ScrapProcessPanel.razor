@@ -53,14 +53,14 @@
                 @* Miktar (brüt gram) = Amount *@
                 <div style="@GroupStyle()">
                     <small style="font-weight:600; text-transform:uppercase; letter-spacing:0.05em;">@nameof(VoucherLineDto.Amount)</small>
-                    <NumericSpinEdit TValue="decimal" Value="@_model.Amount" ValueChanged="@OnAmountChanged"
+                    <NumericSpinEdit TValue="decimal" Value="@_model.Amount" ValueChanged="@OnAmountChanged" BindValueMode="BindValueMode.OnInput"
                                      ShowSpinButtons="false" DisplayFormat="N2" Mask="N2" />
                 </div>
 
                 @* Milyem (Factor) = Factor; FactorChange ile editlenebilir *@
                 <div style="@GroupStyle()">
                     <small style="font-weight:600; text-transform:uppercase; letter-spacing:0.05em;">@L["Factor"]</small>
-                    <NumericSpinEdit TValue="decimal" Value="@_model.Factor" ValueChanged="@OnFactorChanged"
+                    <NumericSpinEdit TValue="decimal" Value="@_model.Factor" ValueChanged="@OnFactorChanged" BindValueMode="BindValueMode.OnInput"
                                      Enabled="@(!_milyemReadOnly)" ShowSpinButtons="false" DisplayFormat="N5" Mask="N5" />
                 </div>
 
@@ -86,7 +86,7 @@
                     @* Fiyat (Miktar modunda ×Milyem gösterilir) *@
                     <div style="@GroupStyle()">
                         <small style="font-weight:600; text-transform:uppercase; letter-spacing:0.05em;">@nameof(VoucherLineDto.PayFactor)</small>
-                        <NumericSpinEdit TValue="decimal" Value="@DisplayPayFactor" ValueChanged="@OnDisplayPayFactorChanged"
+                        <NumericSpinEdit TValue="decimal" Value="@DisplayPayFactor" ValueChanged="@OnDisplayPayFactorChanged" BindValueMode="BindValueMode.OnInput"
                                          ShowSpinButtons="false" DisplayFormat="N5" Mask="N5" />
                     </div>
 

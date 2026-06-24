@@ -1,0 +1,30 @@
+@page "/stones"
+@using Integration.Framework.Blazor.Client.Components.Crud
+@using Integration.TradeXpress.Stones
+@using DevExpress.Blazor
+@inherits CrudPageBase<StoneGetDto, StoneListDto, Guid, StoneListRequestDto, StoneCreateDto, StoneUpdateDto>
+
+<CrudLayout TGetDto="StoneGetDto"
+            TListDto="StoneListDto"
+            TKey="Guid"
+            StateService="StateService"
+            DataSource="@GridDataSource"
+            EntityName="@L["Stone"]"
+            EntityIcon="@TradeXpressIcons.Stone"
+            PrimaryTextSelector="@(m => m.Code)"
+            PageTitle="@L["Stones"]"
+            OnNewClick="BeforeCreateAsync"
+            OnUpdateClick="BeforeUpdateAsync"
+            OnDeleteClick="DeleteAsync"
+            OnRefreshClick="GetListAsync"
+            OnSearchChanged="OnSearchAsync">
+
+    <GridColumns>
+        <GridLinkColumn FieldName="Code" Caption="@L["Code"]" Width="120px" VisibleIndex="0"
+                        OnClick="@(o => BeforeUpdateAsync((StoneListDto)o))" />
+        <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" VisibleIndex="1" />
+        <DxGridDataColumn FieldName="StoneKind" Caption="@L["StoneKind"]" Width="120px" VisibleIndex="2" />
+        <DxGridDataColumn FieldName="Color" Caption="@L["Color"]" Width="100px" VisibleIndex="3" />
+    </GridColumns>
+
+</CrudLayout>

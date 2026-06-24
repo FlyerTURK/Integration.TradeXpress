@@ -122,6 +122,8 @@
                        Click="@OnScrapClicked" />
         <DxToolbarItem Text="@($"1-{L["Metal"].Value}")" IconCssClass="fas fa-ring"
                        Click="@OnMetalClicked" />
+        <DxToolbarItem Text="@($"2-{L["Stone"].Value}")" IconCssClass="fas fa-gem"
+                       Click="@OnStoneClicked" />
         <DxToolbarItem Text="@($"0-{L["List"].Value}")" IconCssClass="fas fa-list"
                        Click="@OnListClicked" />
     </DxToolbar>
@@ -236,6 +238,24 @@ else if (_activeProcess == "Metal")
                            OnSaved="@OnLineSavedInternal" />
     </div>
 }
+else if (_activeProcess == "Stone")
+{
+    <div style="margin-top:8px;">
+        <StoneProcessPanel @ref="_stonePanel"
+                           OnBack="@OnProcessBack"
+                           AccountCode="@_selectedAccountCode"
+                           SubAccountCode="@_selectedSubAccountCode"
+                           CompanyId="@_model.CompanyId"
+                           BranchId="@_model.BranchId"
+                           VaultId="@_model.VaultId"
+                           AccountId="@_model.AccountId"
+                           SubAccountId="@_model.SubAccountId"
+                           VoucherDate="@_model.VoucherDate"
+                           VoucherDescription="@_model.Description"
+                           VoucherId="@_selectedVoucherId"
+                           OnSaved="@OnLineSavedInternal" />
+    </div>
+}
 
 @code {
     [Parameter] public EventCallback<Guid> OnLineSaved { get; set; }
@@ -261,6 +281,7 @@ else if (_activeProcess == "Metal")
     private FutureProcessPanel? _futurePanel;
     private ScrapProcessPanel? _scrapPanel;
     private MetalProcessPanel? _metalPanel;
+    private StoneProcessPanel? _stonePanel;
     private VoucherLineDto? _pendingEdit;
 
     private List<SubAccountListDto> _subAccounts = new();
@@ -408,6 +429,7 @@ else if (_activeProcess == "Metal")
     private Task OnFutureClicked()  => SetActiveProcessAsync("Future");
     private Task OnScrapClicked()   => SetActiveProcessAsync("Scrap");
     private Task OnMetalClicked()   => SetActiveProcessAsync("Metal");
+    private Task OnStoneClicked()   => SetActiveProcessAsync("Stone");
     private Task OnProcessBack()    => SetActiveProcessAsync(null);
     private Task OnListClicked()    => OnListRequested.InvokeAsync();
 
@@ -423,6 +445,7 @@ else if (_activeProcess == "Metal")
             ProcessType.Future  => "Future",
             ProcessType.Scrap   => "Scrap",
             ProcessType.Metal   => "Metal",
+            ProcessType.Stone   => "Stone",
             _ => "Cash",
         };
         await SetActiveProcessAsync(process);
@@ -459,7 +482,12 @@ else if (_activeProcess == "Metal")
             _pendingEdit = null;
             await _metalPanel.LoadForEditAsync(dto);
         }
-        else if (dto.Type is not ProcessType.Service and not ProcessType.Convert and not ProcessType.Future and not ProcessType.Scrap and not ProcessType.Metal && _cashPanel is not null)
+        else if (dto.Type == ProcessType.Stone && _stonePanel is not null)
+        {
+            _pendingEdit = null;
+            await _stonePanel.LoadForEditAsync(dto);
+        }
+        else if (dto.Type is not ProcessType.Service and not ProcessType.Convert and not ProcessType.Future and not ProcessType.Scrap and not ProcessType.Metal and not ProcessType.Stone && _cashPanel is not null)
         {
             _pendingEdit = null;
             await _cashPanel.LoadForEditAsync(dto);

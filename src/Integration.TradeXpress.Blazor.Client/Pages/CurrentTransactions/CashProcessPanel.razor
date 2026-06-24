@@ -82,7 +82,7 @@
                     <small style="font-weight:600; text-transform:uppercase; letter-spacing:0.05em;">@nameof(VoucherLineDto.Amount)</small>
                     <NumericSpinEdit TValue="decimal"
                                      Value="@_model.Amount"
-                                     ValueChanged="@OnTotalChanged"
+                                     ValueChanged="@OnTotalChanged" BindValueMode="BindValueMode.OnInput"
                                      ShowSpinButtons="false"
                                      DisplayFormat="N2"
                                      Mask="N2" />
@@ -115,7 +115,7 @@
                     <small style="font-weight:600; text-transform:uppercase; letter-spacing:0.05em;">@nameof(VoucherLineDto.PayFactor)</small>
                     <NumericSpinEdit TValue="decimal"
                                      Value="@_model.PayFactor"
-                                     ValueChanged="@OnPayFactorChanged"
+                                     ValueChanged="@OnPayFactorChanged" BindValueMode="BindValueMode.OnInput"
                                      Enabled="@(!_payFactorReadOnly)"
                                      ShowSpinButtons="false"
                                      DisplayFormat="N5"

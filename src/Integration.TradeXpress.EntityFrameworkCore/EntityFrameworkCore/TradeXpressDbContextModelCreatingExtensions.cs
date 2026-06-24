@@ -282,6 +282,33 @@ public static class TradeXpressDbContextModelCreatingExtensions
         });
     }
 
+    public static void ConfigureStones(this ModelBuilder builder)
+    {
+        Check.NotNull(builder, nameof(builder));
+
+        builder.Entity<Integration.TradeXpress.Stones.Stone>(b =>
+        {
+            b.ToTable(TradeXpressConsts.DbTablePrefix + "Stones", TradeXpressConsts.DbSchema);
+            b.ConfigureByConvention();
+
+            b.Property(x => x.Code).IsRequired().HasMaxLength(Integration.TradeXpress.Stones.StoneConsts.CodeMaxLength);
+            b.Property(x => x.Name).IsRequired().HasMaxLength(Integration.TradeXpress.Stones.StoneConsts.NameMaxLength);
+            b.Property(x => x.Description).HasMaxLength(Integration.TradeXpress.Stones.StoneConsts.DescriptionMaxLength);
+            foreach (var p in new[] { nameof(Integration.TradeXpress.Stones.Stone.StoneKind), nameof(Integration.TradeXpress.Stones.Stone.StoneType),
+                nameof(Integration.TradeXpress.Stones.Stone.Color), nameof(Integration.TradeXpress.Stones.Stone.Cut),
+                nameof(Integration.TradeXpress.Stones.Stone.Clarity), nameof(Integration.TradeXpress.Stones.Stone.Sieve),
+                nameof(Integration.TradeXpress.Stones.Stone.Category), nameof(Integration.TradeXpress.Stones.Stone.GroupCode) })
+                b.Property(p).HasMaxLength(Integration.TradeXpress.Stones.StoneConsts.AttributeMaxLength);
+            b.Property(x => x.EntryPrice).HasPrecision(Integration.TradeXpress.Stones.StoneConsts.PricePrecision, Integration.TradeXpress.Stones.StoneConsts.PriceScale);
+            b.Property(x => x.ExitPrice).HasPrecision(Integration.TradeXpress.Stones.StoneConsts.PricePrecision, Integration.TradeXpress.Stones.StoneConsts.PriceScale);
+
+            b.HasIndex(x => new { x.TenantId, x.Code }).IsUnique();
+
+            b.HasOne(x => x.EntryPriceUnit).WithMany().HasForeignKey(x => x.EntryPriceUnitId).OnDelete(DeleteBehavior.Restrict);
+            b.HasOne(x => x.ExitPriceUnit).WithMany().HasForeignKey(x => x.ExitPriceUnitId).OnDelete(DeleteBehavior.Restrict);
+        });
+    }
+
     public static void ConfigureAccounts(this ModelBuilder builder)
     {
         Check.NotNull(builder, nameof(builder));

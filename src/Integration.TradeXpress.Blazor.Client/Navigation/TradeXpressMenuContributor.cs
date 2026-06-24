@@ -112,6 +112,12 @@ public class TradeXpressMenuContributor : IMenuContributor
             url: "/metals",
             icon: TradeXpressIcons.Metal
         ));
+        commodities.AddItem(new ApplicationMenuItem(
+            TradeXpressMenus.Stones,
+            l["Stones"],
+            url: "/stones",
+            icon: TradeXpressIcons.Stone
+        ));
         definitions.AddItem(commodities);
         // Değerleme (re-base) ayrı kullanıcı sayfası DEĞİL — kullanıcı daima piyasa/alışık
         // fiyatı görür; gerçek (base) değer arka planda hesaplanır (işlem/muhasebe).

@@ -68,7 +68,7 @@
                     <small style="font-weight:600; text-transform:uppercase; letter-spacing:0.05em;">@nameof(VoucherLineDto.PayTotal)</small>
                     <NumericSpinEdit TValue="decimal"
                                      Value="@_model.PayTotal"
-                                     ValueChanged="@OnAmountChanged"
+                                     ValueChanged="@OnAmountChanged" BindValueMode="BindValueMode.OnInput"
                                      ShowSpinButtons="false" DisplayFormat="N2" Mask="N2" />
                 </div>
 

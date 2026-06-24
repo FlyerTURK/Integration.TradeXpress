@@ -52,7 +52,7 @@
                 {
                     <div style="@GroupStyle()">
                         <small style="@LabelStyle">@L["Count"]</small>
-                        <NumericSpinEdit TValue="decimal" Value="@_model.Quantity" ValueChanged="@OnQuantityChanged"
+                        <NumericSpinEdit TValue="decimal" Value="@_model.Quantity" ValueChanged="@OnQuantityChanged" BindValueMode="BindValueMode.OnInput"
                                          ShowSpinButtons="false" DisplayFormat="N0" Mask="N0" />
                     </div>
                 }
@@ -60,14 +60,14 @@
                 @* Miktar (gram) = Amount *@
                 <div style="@GroupStyle()">
                     <small style="@LabelStyle">@nameof(VoucherLineDto.Amount)</small>
-                    <NumericSpinEdit TValue="decimal" Value="@_model.Amount" ValueChanged="@OnAmountChanged"
+                    <NumericSpinEdit TValue="decimal" Value="@_model.Amount" ValueChanged="@OnAmountChanged" BindValueMode="BindValueMode.OnInput"
                                      Enabled="@(!_amountReadOnly)" ShowSpinButtons="false" DisplayFormat="N2" Mask="N2" />
                 </div>
 
                 @* Milyem = Factor: Normal'de saf milyem (düzenlenebilir), Peşin/Bedelli'de efektif Factor (işçilik yedirilmiş, salt-okunur) *@
                 <div style="@GroupStyle()">
                     <small style="@LabelStyle">@L["Factor"]</small>
-                    <NumericSpinEdit TValue="decimal" Value="@(HasPriceMode ? _model.Factor : _baseFactor)" ValueChanged="@OnFactorChanged"
+                    <NumericSpinEdit TValue="decimal" Value="@(HasPriceMode ? _model.Factor : _baseFactor)" ValueChanged="@OnFactorChanged" BindValueMode="BindValueMode.OnInput"
                                      Enabled="@(!_factorReadOnly && !HasPriceMode)" ShowSpinButtons="false" DisplayFormat="N5" Mask="N5" />
                 </div>
 
@@ -92,7 +92,7 @@
                     </div>
                     <div style="@GroupStyle()">
                         <small style="@LabelStyle">@L["Labor"]</small>
-                        <NumericSpinEdit TValue="decimal" Value="@_laborRate" ValueChanged="@OnLaborRateChanged"
+                        <NumericSpinEdit TValue="decimal" Value="@_laborRate" ValueChanged="@OnLaborRateChanged" BindValueMode="BindValueMode.OnInput"
                                          Enabled="@(!_laborReadOnly)" ShowSpinButtons="false" DisplayFormat="N5" Mask="N5" />
                     </div>
                     <div style="@GroupStyle()">
@@ -116,7 +116,7 @@
                     @* Peşin/Bedelli → işçilik Factor'a yedirilir (yukarıdaki Milyem alanı efektif Factor'u gösterir); karşı bacak = fiyat/bedel *@
                     <div style="@GroupStyle()">
                         <small style="@LabelStyle">@nameof(VoucherLineDto.PayFactor)</small>
-                        <NumericSpinEdit TValue="decimal" Value="@_model.PayFactor" ValueChanged="@OnPayFactorChanged"
+                        <NumericSpinEdit TValue="decimal" Value="@_model.PayFactor" ValueChanged="@OnPayFactorChanged" BindValueMode="BindValueMode.OnInput"
                                          ShowSpinButtons="false" DisplayFormat="N5" Mask="N5" />
                     </div>
                     <div style="@GroupStyle()">

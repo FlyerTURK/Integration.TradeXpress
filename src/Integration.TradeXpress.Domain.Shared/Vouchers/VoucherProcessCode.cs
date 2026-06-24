@@ -28,6 +28,7 @@ public static class VoucherProcessCode
         ProcessType.Convert  => "C",
         ProcessType.Service  => "G",
         ProcessType.Future   => "V",
+        ProcessType.Stone    => "T",
         ProcessType.Transfer => "V",
         _ => "?",
     };

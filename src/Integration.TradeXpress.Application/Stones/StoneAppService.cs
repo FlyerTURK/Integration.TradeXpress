@@ -1,0 +1,174 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
+using Integration.Framework.Base.Querying;
+using Microsoft.AspNetCore.Authorization;
+using Volo.Abp;
+using Volo.Abp.Application.Dtos;
+using Volo.Abp.Application.Services;
+using Volo.Abp.Data;
+using Volo.Abp.Domain.Entities;
+using Volo.Abp.Domain.Repositories;
+using Volo.Abp.MultiTenancy;
+
+namespace Integration.TradeXpress.Stones;
+
+/// <summary>
+/// Stone (Taş) CRUD. Görünürlük (Cash gibi): host kataloğu (TenantId=null) + tenant kendi kayıtları.
+/// Tenant global kaydı düzenleyemez/silemez. Sıralama: Code artan.
+/// </summary>
+[Authorize]
+public class StoneAppService : TradeXpressAppService, IStoneAppService
+{
+    private readonly IRepository<Stone, Guid> _repository;
+    private readonly IDataFilter _dataFilter;
+
+    private static readonly HashSet<string> AllowedListFields =
+        new(StringComparer.OrdinalIgnoreCase) { "Code", "Name", "IsActive", "Id" };
+
+    public StoneAppService(IRepository<Stone, Guid> repository, IDataFilter dataFilter)
+    {
+        _repository = repository;
+        _dataFilter = dataFilter;
+    }
+
+    public virtual async Task<PagedResultDto<StoneListDto>> GetListAsync(StoneListRequestDto input)
+    {
+        using (_dataFilter.Disable<IMultiTenant>())
+        {
+            var tenantId = CurrentTenant.Id;
+            var query = (await _repository.GetQueryableAsync())
+                .Where(x => x.TenantId == null || x.TenantId == tenantId)
+                .ApplyListRequest(input, AllowedListFields);
+
+            var totalCount = await AsyncExecuter.CountAsync(query);
+            var explicitSort = (input.Sorts is { Count: > 0 }) || !string.IsNullOrWhiteSpace(input.Sorting);
+            if (!explicitSort)
+                query = query.OrderBy(x => x.Code);
+
+            var items = await AsyncExecuter.ToListAsync(query.Skip(input.SkipCount).Take(input.MaxResultCount));
+            return new PagedResultDto<StoneListDto>(totalCount, items.Select(ToListDto).ToList());
+        }
+    }
+
+    public virtual async Task<StoneGetDto> GetAsync(Guid id) => ToGetDto(await GetInScopeAsync(id));
+
+    public virtual async Task<StoneGetDto> CreateAsync(StoneCreateDto input)
+    {
+        var entity = new Stone(
+            input.Code, input.Name,
+            input.IsQuantity, input.PriceByQuantity, input.PriceTypeChange,
+            input.EntryPrice, input.EntryPriceUnitId, input.ExitPrice, input.ExitPriceUnitId);
+        entity.SetAttributes(input.StoneKind, input.StoneType, input.Color, input.Cut,
+                             input.Clarity, input.Sieve, input.Category, input.GroupCode);
+        entity.SetDescription(input.Description);
+
+        await _repository.InsertAsync(entity, autoSave: true);
+        return ToGetDto(entity);
+    }
+
+    public virtual async Task<StoneGetDto> UpdateAsync(Guid id, StoneUpdateDto input)
+    {
+        var entity = await GetInScopeAsync(id);
+        EnsureEditable(entity);
+
+        entity.SetName(input.Name);
+        entity.SetAttributes(input.StoneKind, input.StoneType, input.Color, input.Cut,
+                             input.Clarity, input.Sieve, input.Category, input.GroupCode);
+        entity.SetPricing(input.IsQuantity, input.PriceByQuantity, input.PriceTypeChange,
+                          input.EntryPrice, input.EntryPriceUnitId, input.ExitPrice, input.ExitPriceUnitId);
+        entity.SetDescription(input.Description);
+        entity.SetActive(input.IsActive);
+
+        await _repository.UpdateAsync(entity, autoSave: true);
+        return ToGetDto(entity);
+    }
+
+    public virtual async Task DeleteAsync(Guid id)
+    {
+        var entity = await GetInScopeAsync(id);
+        EnsureEditable(entity, isDelete: true);
+        await _repository.DeleteAsync(entity, autoSave: true);
+    }
+
+    public virtual async Task<List<StoneListDto>> GetPickerListAsync()
+    {
+        using (_dataFilter.Disable<IMultiTenant>())
+        {
+            var tenantId = CurrentTenant.Id;
+            var rows = await AsyncExecuter.ToListAsync(
+                (await _repository.GetQueryableAsync())
+                    .Where(x => x.TenantId == null || x.TenantId == tenantId)
+                    .OrderBy(x => x.Code));
+            return rows.Select(ToListDto).ToList();
+        }
+    }
+
+    // ── helpers ───────────────────────────────────────────────────────────────
+
+    private async Task<Stone> GetInScopeAsync(Guid id)
+    {
+        using (_dataFilter.Disable<IMultiTenant>())
+        {
+            var tenantId = CurrentTenant.Id;
+            var entity = await AsyncExecuter.FirstOrDefaultAsync(
+                (await _repository.GetQueryableAsync())
+                    .Where(x => x.Id == id && (x.TenantId == null || x.TenantId == tenantId)));
+            return entity ?? throw new EntityNotFoundException(typeof(Stone), id);
+        }
+    }
+
+    private void EnsureEditable(Stone entity, bool isDelete = false)
+    {
+        if (entity.TenantId == null && CurrentTenant.Id != null)
+        {
+            throw new BusinessException(isDelete
+                ? "TradeXpress:Stone:CannotDeleteGlobalAsTenant"
+                : "TradeXpress:Stone:CannotEditGlobalAsTenant");
+        }
+    }
+
+    private static StoneListDto ToListDto(Stone s) => new()
+    {
+        Id               = s.Id,
+        Code             = s.Code,
+        Name             = s.Name,
+        StoneKind        = s.StoneKind,
+        Color            = s.Color,
+        IsQuantity       = s.IsQuantity,
+        PriceByQuantity  = s.PriceByQuantity,
+        PriceTypeChange  = s.PriceTypeChange,
+        EntryPrice       = s.EntryPrice,
+        EntryPriceUnitId = s.EntryPriceUnitId,
+        ExitPrice        = s.ExitPrice,
+        ExitPriceUnitId  = s.ExitPriceUnitId,
+        IsActive         = s.IsActive,
+        IsGlobal         = s.TenantId == null,
+    };
+
+    private static StoneGetDto ToGetDto(Stone s) => new()
+    {
+        Id               = s.Id,
+        Code             = s.Code,
+        Name             = s.Name,
+        StoneKind        = s.StoneKind,
+        StoneType        = s.StoneType,
+        Color            = s.Color,
+        Cut              = s.Cut,
+        Clarity          = s.Clarity,
+        Sieve            = s.Sieve,
+        Category         = s.Category,
+        GroupCode        = s.GroupCode,
+        IsQuantity       = s.IsQuantity,
+        PriceByQuantity  = s.PriceByQuantity,
+        PriceTypeChange  = s.PriceTypeChange,
+        EntryPrice       = s.EntryPrice,
+        EntryPriceUnitId = s.EntryPriceUnitId,
+        ExitPrice        = s.ExitPrice,
+        ExitPriceUnitId  = s.ExitPriceUnitId,
+        Description      = s.Description,
+        IsActive         = s.IsActive,
+        IsGlobal         = s.TenantId == null,
+    };
+}

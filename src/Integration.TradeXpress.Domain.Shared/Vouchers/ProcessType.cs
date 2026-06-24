@@ -29,6 +29,9 @@ public enum ProcessType : byte
     /// <summary>Vadeli işlem.</summary>
     Future   = 6,
 
+    /// <summary>Taş (değerli taş) alış-satış işlemi — parasal/adet, milyem/işçilik yok.</summary>
+    Stone    = 7,
+
     /// <summary>Virman — hesaplar arası aktarım (satır-seviyesi karşı kayıt ile).</summary>
     Transfer = 11,
 

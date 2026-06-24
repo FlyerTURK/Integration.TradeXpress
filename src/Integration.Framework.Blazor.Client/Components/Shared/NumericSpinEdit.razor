@@ -5,6 +5,7 @@
 <DxSpinEdit Value="@Value"
             ValueChanged="@(async (TValue v) => await OnValueChanged(v))"
             ValueExpression="@ValueExpression"
+            BindValueMode="@BindValueMode"
             ClearButtonDisplayMode="@ClearButtonDisplayMode"
             ShowSpinButtons="@ShowSpinButtons"
             Enabled="@Enabled"
@@ -24,6 +25,10 @@
     [Parameter] public TValue Value { get; set; } = default!;
     [Parameter] public EventCallback<TValue> ValueChanged { get; set; }
     [Parameter] public Expression<Func<TValue>>? ValueExpression { get; set; }
+
+    /// <summary>Değerin ne zaman yansıyacağı. Sürücü (girdi) alanlarda OnInput (anlık ileri hesap),
+    /// ters-hesap tetikleyen alanlarda OnChange (odak çıkışı) verilir. Varsayılan OnChange.</summary>
+    [Parameter] public BindValueMode BindValueMode { get; set; } = BindValueMode.OnLostFocus;
 
     [Parameter] public DataEditorClearButtonDisplayMode ClearButtonDisplayMode { get; set; } = DataEditorClearButtonDisplayMode.Never;
     [Parameter] public bool ShowSpinButtons { get; set; } = true;
