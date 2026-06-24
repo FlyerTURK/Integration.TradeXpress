@@ -178,6 +178,14 @@ public class TradeXpressMenuContributor : IMenuContributor
             order: 6
         ).RequireAuthenticated());
 
+        context.Menu.AddItem(new ApplicationMenuItem(
+            "Reports.Scrap",
+            l["Menu:ScrapReport"],
+            url: "/reports/scrap",
+            icon: "fa fa-chart-bar",
+            order: 6
+        ).RequireAuthenticated());
+
         // Ülkeler (merkezi referans — host yönetir, tenant seçer)
         context.Menu.AddItem(new ApplicationMenuItem(
             TradeXpressMenus.Countries,

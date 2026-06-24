@@ -1,0 +1,134 @@
+@page "/reports/scrap"
+@using Integration.TradeXpress.Branches
+@using Integration.TradeXpress.Companies
+@using Integration.TradeXpress.Reports
+@using Integration.TradeXpress.Scraps
+@using Integration.TradeXpress.Vaults
+@using Integration.TradeXpress.Vouchers
+@using DevExpress.Blazor
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+<PageTitle>Hurda Raporu</PageTitle>
+
+<div style="padding:12px; display:flex; flex-direction:column; gap:12px; height:100%;">
+
+    @* ── Kapsam + tarih filtresi ── *@
+    <div style="display:flex; flex-wrap:wrap; gap:8px; align-items:flex-end;">
+
+        <div style="display:flex; flex-direction:column; gap:2px;">
+            <label style="font-size:11px; color:var(--dxbl-text-secondary);">Şirket</label>
+            <DxComboBox Data="@_companies"
+                        TextFieldName="@nameof(CompanyListDto.Name)"
+                        ValueFieldName="@nameof(CompanyListDto.Id)"
+                        Value="_filter.CompanyId"
+                        ValueChanged="@((Guid? v) => OnCompanyChanged(v))"
+                        NullText="(Tümü)"
+                        ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto"
+                        style="min-width:160px;" />
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:2px;">
+            <label style="font-size:11px; color:var(--dxbl-text-secondary);">Şube</label>
+            <DxComboBox Data="@_branches"
+                        TextFieldName="@nameof(BranchListDto.Name)"
+                        ValueFieldName="@nameof(BranchListDto.Id)"
+                        Value="_filter.BranchId"
+                        ValueChanged="@((Guid? v) => OnBranchChanged(v))"
+                        NullText="(Tümü)"
+                        ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto"
+                        Enabled="@(_filter.CompanyId != null)"
+                        style="min-width:160px;" />
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:2px;">
+            <label style="font-size:11px; color:var(--dxbl-text-secondary);">Kasa</label>
+            <DxComboBox Data="@_vaults"
+                        TextFieldName="@nameof(VaultListDto.Name)"
+                        ValueFieldName="@nameof(VaultListDto.Id)"
+                        @bind-Value="_filter.VaultId"
+                        NullText="(Tümü)"
+                        ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto"
+                        Enabled="@(_filter.BranchId != null)"
+                        style="min-width:140px;" />
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:2px;">
+            <label style="font-size:11px; color:var(--dxbl-text-secondary);">Başlangıç</label>
+            <DxDateEdit @bind-Date="_filter.Start" style="min-width:130px;" />
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:2px;">
+            <label style="font-size:11px; color:var(--dxbl-text-secondary);">Bitiş</label>
+            <DxDateEdit @bind-Date="_filter.End" style="min-width:130px;" />
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:2px;">
+            <label style="font-size:11px; color:var(--dxbl-text-secondary);">Hurda</label>
+            <DxComboBox Data="@_scraps"
+                        TextFieldName="@nameof(ScrapListDto.Name)"
+                        ValueFieldName="@nameof(ScrapListDto.Id)"
+                        @bind-Value="_filter.ScrapId"
+                        NullText="(Tümü)"
+                        ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto"
+                        style="min-width:160px;" />
+        </div>
+
+        <DxButton Text="Getir" Click="@LoadAsync" RenderStyleMode="ButtonRenderStyleMode.Contained" RenderStyle="ButtonRenderStyle.Primary" />
+    </div>
+
+    @* ── Sekmeler ── *@
+    <DxTabs @bind-ActiveTabIndex="_tabIndex" style="flex:1; min-height:0;">
+
+        <DxTabPage Text="Hurda Stoğu">
+            @if (_stockRows != null)
+            {
+                <DxGrid Data="@_stockRows" ShowFilterRow="false" style="height:100%;">
+                    <Columns>
+                        <DxGridDataColumn FieldName="@nameof(ScrapStockRowDto.UnitCode)"  Caption="Birim"  Width="100" />
+                        <DxGridDataColumn FieldName="@nameof(ScrapStockRowDto.InTotal)"   Caption="Giriş"  DisplayFormat="n4" Width="140" />
+                        <DxGridDataColumn FieldName="@nameof(ScrapStockRowDto.OutTotal)"  Caption="Çıkış"  DisplayFormat="n4" Width="140" />
+                        <DxGridDataColumn FieldName="@nameof(ScrapStockRowDto.Net)"       Caption="Net"    DisplayFormat="n4" Width="140" />
+                    </Columns>
+                    <TotalSummary>
+                        <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum" FieldName="@nameof(ScrapStockRowDto.InTotal)"  DisplayFormat="n4" />
+                        <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum" FieldName="@nameof(ScrapStockRowDto.OutTotal)" DisplayFormat="n4" />
+                        <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum" FieldName="@nameof(ScrapStockRowDto.Net)"      DisplayFormat="n4" />
+                    </TotalSummary>
+                </DxGrid>
+            }
+        </DxTabPage>
+
+        <DxTabPage Text="Hurda Hareketleri">
+            @if (_movementRows != null)
+            {
+                <DxGrid Data="@_movementRows" ShowFilterRow="true" style="height:100%;">
+                    <Columns>
+                        <DxGridDataColumn FieldName="@nameof(ScrapMovementRowDto.VoucherDate)"    Caption="Tarih"      DisplayFormat="d"   Width="95"  />
+                        <DxGridDataColumn FieldName="@nameof(ScrapMovementRowDto.SubAccountCode)" Caption="Hesap"                          Width="160" />
+                        <DxGridDataColumn FieldName="@nameof(ScrapMovementRowDto.CompanyCode)"    Caption="Şirket"                         Width="90"  />
+                        <DxGridDataColumn FieldName="@nameof(ScrapMovementRowDto.BranchCode)"     Caption="Şube"                           Width="90"  />
+                        <DxGridDataColumn FieldName="@nameof(ScrapMovementRowDto.VaultCode)"      Caption="Kasa"                           Width="90"  />
+                        <DxGridDataColumn FieldName="@nameof(ScrapMovementRowDto.ProcessCode)"    Caption="İşlem"                          Width="65"  />
+                        <DxGridDataColumn FieldName="@nameof(ScrapMovementRowDto.Source)"         Caption="Bacak"                          Width="75"  />
+                        <DxGridDataColumn FieldName="@nameof(ScrapMovementRowDto.CommodityCode)"  Caption="Mal"                            Width="100" />
+                        <DxGridDataColumn FieldName="@nameof(ScrapMovementRowDto.UnitCode)"       Caption="Birim"                          Width="65"  />
+                        <DxGridDataColumn FieldName="@nameof(ScrapMovementRowDto.Amount)"         Caption="Miktar"     DisplayFormat="n4"   Width="110" />
+                        <DxGridDataColumn FieldName="@nameof(ScrapMovementRowDto.Factor)"         Caption="Milyem"     DisplayFormat="n4"   Width="100" />
+                        <DxGridDataColumn FieldName="@nameof(ScrapMovementRowDto.Devir)"          Caption="Devir"      DisplayFormat="n4"   Width="120" />
+                        <DxGridDataColumn FieldName="@nameof(ScrapMovementRowDto.Giren)"          Caption="Giren"      DisplayFormat="n4"   Width="120" />
+                        <DxGridDataColumn FieldName="@nameof(ScrapMovementRowDto.Cikan)"          Caption="Çıkan"      DisplayFormat="n4"   Width="120" />
+                        <DxGridDataColumn FieldName="@nameof(ScrapMovementRowDto.RunningBalance)" Caption="Son Durum"  DisplayFormat="n4"   Width="120" />
+                        <DxGridDataColumn FieldName="@nameof(ScrapMovementRowDto.Description)"    Caption="Açıklama" />
+                    </Columns>
+                    <TotalSummary>
+                        <DxGridSummaryItem SummaryType="GridSummaryItemType.Count" FieldName="@nameof(ScrapMovementRowDto.VoucherDate)" Caption="Kayıt:" />
+                        <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum"   FieldName="@nameof(ScrapMovementRowDto.Giren)"       DisplayFormat="n4" />
+                        <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum"   FieldName="@nameof(ScrapMovementRowDto.Cikan)"       DisplayFormat="n4" />
+                    </TotalSummary>
+                </DxGrid>
+            }
+        </DxTabPage>
+
+    </DxTabs>
+
+</div>
