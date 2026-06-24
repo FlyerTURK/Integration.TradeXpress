@@ -179,8 +179,8 @@ public class CashReportAppService : TradeXpressAppService, ICashReportAppService
             {
                 v.VoucherDate, v.VoucherNumber, v.VaultId, v.CompanyId, v.BranchId, v.SubAccountId,
                 l.Type, l.PaymentType, l.Direction,
-                l.MainUnitId, l.CommodityCode, l.Total,
-                l.PayUnitId, l.PayTotal,
+                l.MainUnitId, l.CommodityId, l.CommodityCode, l.Total,
+                l.PayUnitId, l.PayCommodityId, l.PayTotal,
                 l.Description, l.CreationTime, l.Id,
             });
 
@@ -190,14 +190,17 @@ public class CashReportAppService : TradeXpressAppService, ICashReportAppService
             var inflow = ((int)r.Direction % 2) == 0;
 
             // Sol bacak: yalnız Cash process'te nakit. Giriş + / Çıkış −.
-            if (r.Type == ProcessType.Cash && r.MainUnitId != Guid.Empty && r.Total != 0m)
+            // CashId filtresi varsa yalnız bu bacağın nakiti eşleşiyorsa oluştur.
+            if (r.Type == ProcessType.Cash && r.MainUnitId != Guid.Empty && r.Total != 0m
+                && (filter.CashId == null || r.CommodityId == filter.CashId))
                 legs.Add(new CashLeg(r.MainUnitId, inflow ? r.Total : -r.Total, "Nakit",
                     r.CommodityCode,
                     r.VoucherDate, r.VoucherNumber, r.Type, r.Direction, r.VaultId, r.CompanyId, r.BranchId, r.SubAccountId, r.Description, r.CreationTime, r.Id));
 
-            // Sağ bacak: Peşin (WithCash) olan TÜM process'lerde karşılık nakit.
-            // CommodityCode = işlemin ANA mali (nakit tanımı değil). Mal Çıkış→nakit girer(+), Giriş→çıkar(−).
-            if (r.PaymentType == ProcessPaymentType.WithCash && r.PayUnitId is { } payUnit && r.PayTotal != 0m)
+            // Sağ bacak: Peşin (WithCash) olan tüm process'lerde karşılık nakit.
+            // CashId filtresi varsa yalnız bu bacağın nakiti (PayCommodityId) eşleşiyorsa oluştur.
+            if (r.PaymentType == ProcessPaymentType.WithCash && r.PayUnitId is { } payUnit && r.PayTotal != 0m
+                && (filter.CashId == null || r.PayCommodityId == filter.CashId))
                 legs.Add(new CashLeg(payUnit, inflow ? -r.PayTotal : r.PayTotal, "Peşin",
                     r.CommodityCode,
                     r.VoucherDate, r.VoucherNumber, r.Type, r.Direction, r.VaultId, r.CompanyId, r.BranchId, r.SubAccountId, r.Description, r.CreationTime, r.Id));
