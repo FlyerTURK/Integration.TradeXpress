@@ -169,7 +169,7 @@ public class ScrapReportAppService : TradeXpressAppService, IScrapReportAppServi
 
             bool isBedelli = r.PaymentType == ProcessPaymentType.WithCurrency;
             var unitId = isBedelli ? (r.PayUnitId ?? Guid.Empty) : r.MainUnitId;
-            var effect = isBedelli ? sign * r.PayTotal : sign * r.Total;
+            var effect = isBedelli ? sign * r.PayTotal : sign * r.Amount;
 
             return new ScrapLeg(unitId, effect,
                 r.Amount, r.Factor,
