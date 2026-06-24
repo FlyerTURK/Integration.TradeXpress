@@ -1,0 +1,496 @@
+@using DevExpress.Blazor
+@using Integration.TradeXpress.Accounts
+@using Integration.TradeXpress.Vouchers
+@using Integration.TradeXpress.Vaults
+@using System.Globalization
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+@inject ISubAccountAppService SubAccountService
+@inject IVoucherAppService VoucherService
+@inject IVaultAppService VaultService
+@inject Integration.TradeXpress.Blazor.Client.Services.Working.IWorkingContextService Working
+
+@if (_activeProcess == null)
+{
+<DxFormLayout>
+    <DxFormLayoutItem Caption="@L["SubAccount"]" ColSpanMd="12">
+        <LookupComboBox TItem="SubAccountListDto" TValue="Guid?"
+                        Data="@_subAccounts"
+                        ValueFieldName="@nameof(SubAccountListDto.Id)"
+                        TextFieldName="@nameof(SubAccountListDto.AccountSubCodeDisplay)"
+                        Value="@_model.SubAccountId"
+                        ValueChanged="@OnSubAccountChanged"
+                        NullText="@L["Select"].Value"
+                        AllowClear="true"
+                        Enabled="@(!_locked)"
+                        OnEditRequested="@((Guid? id) => Task.CompletedTask)"
+                        OnAddRequested="@(() => Task.FromResult<Guid?>(null))">
+            <Columns>
+                <DxListEditorColumn FieldName="@nameof(SubAccountListDto.AccountDisplay)"
+                                    Caption="@L["Account"]" Width="50%" />
+                <DxListEditorColumn FieldName="@nameof(SubAccountListDto.SubAccountDisplay)"
+                                    Caption="@L["SubAccount"]" />
+            </Columns>
+        </LookupComboBox>
+    </DxFormLayoutItem>
+
+    <DxFormLayoutItem Caption="@L["VoucherSelection"].Value" ColSpanMd="12" Visible="@(_model.SubAccountId.HasValue)">
+        <DxComboBox TData="VoucherComboItem" TValue="Guid?"
+                    Data="@_voucherItems"
+                    ValueFieldName="@nameof(VoucherComboItem.Id)"
+                    TextFieldName="@nameof(VoucherComboItem.VoucherNo)"
+                    Value="@_selectedVoucherId"
+                    ValueChanged="@OnVoucherChanged"
+                    DropDownTriggerMode="DropDownTriggerMode.Click" ShowDropDownButton="true"
+                    SearchMode="ListSearchMode.AutoSearch"
+                    NullText="@L["NewVoucherPlaceholder"].Value"
+                    ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto"
+                    Enabled="@(!_locked)"
+                    CssClass="w-100">
+            <DxListEditorColumn FieldName="@nameof(VoucherComboItem.VoucherNo)"
+                                Caption="@L["VoucherNumber"].Value" Width="120px" />
+            <DxListEditorColumn FieldName="@nameof(VoucherComboItem.Date)"
+                                Caption="@L["VoucherDate"].Value" />
+        </DxComboBox>
+    </DxFormLayoutItem>
+
+    <DxFormLayoutItem Caption="@L["VoucherDate"].Value" ColSpanMd="6" Visible="@(_model.SubAccountId.HasValue)">
+        <DxDateEdit Date="@_displayVoucherDate"
+                    DateChanged="@((DateTime? d) => OnVoucherDateChanged(d ?? DateTime.Now))"
+                    ReadOnly="@_selectedVoucherId.HasValue"
+                    Enabled="@(!_locked)"
+                    Format="dd.MM.yyyy HH:mm"
+                    TimeSectionVisible="true"
+                    CssClass="w-100" />
+    </DxFormLayoutItem>
+
+    <DxFormLayoutItem Caption="@L["Vault"].Value" ColSpanMd="6" Visible="@(_model.SubAccountId.HasValue)">
+        @if (_selectedVoucherId.HasValue)
+        {
+            <DxTextBox Text="@_selectedVaultDisplay" ReadOnly="true" CssClass="w-100" />
+        }
+        else
+        {
+            <DxComboBox TData="VaultListDto" TValue="Guid?"
+                        Data="@_branchVaults"
+                        ValueFieldName="@nameof(VaultListDto.Id)"
+                        TextFieldName="@nameof(VaultListDto.Code)"
+                        Value="@_model.VaultId"
+                        ValueChanged="@((Guid? id) => { _model.VaultId = id; })"
+                        DropDownTriggerMode="DropDownTriggerMode.Click" ShowDropDownButton="true"
+                        NullText="@L["SelectVault"].Value"
+                        ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto"
+                        Enabled="@(!_locked)"
+                        CssClass="w-100">
+                <DxListEditorColumn FieldName="@nameof(VaultListDto.Code)" Caption="@L["Code"].Value" Width="100px" />
+                <DxListEditorColumn FieldName="@nameof(VaultListDto.Name)" Caption="@L["Name"].Value" />
+            </DxComboBox>
+        }
+    </DxFormLayoutItem>
+
+    <DxFormLayoutItem Caption="@L["Description"]" ColSpanMd="12" Visible="@(_model.SubAccountId.HasValue)">
+        <DxMemo @bind-Text="@_model.Description"
+                Rows="2"
+                ReadOnly="@_selectedVoucherId.HasValue"
+                Enabled="@(!_locked)"
+                CssClass="w-100" />
+    </DxFormLayoutItem>
+</DxFormLayout>
+
+@if (_model.SubAccountId.HasValue)
+{
+    <div style="margin-top:8px; display:flex; justify-content:flex-end;">
+        <DxButton Text="@(_locked ? L["SelectAccount"].Value : L["Confirm"].Value)"
+                  IconCssClass="@(_locked ? "fas fa-address-card" : "fas fa-check")"
+                  RenderStyle="@(_locked ? ButtonRenderStyle.Secondary : ButtonRenderStyle.Success)"
+                  RenderStyleMode="ButtonRenderStyleMode.Contained"
+                  Click="@OnConfirmClicked" />
+    </div>
+}
+
+@if (_showActionToolbar)
+{
+    <DxToolbar style="margin-top:6px;" Adaptive="false">
+        <DxToolbarItem Text="@($"7-{L["Convert"].Value}")" IconCssClass="fas fa-right-left"
+                       Click="@OnConvertClicked" />
+        <DxToolbarItem Text="@($"5-{L["CashProcess"].Value}")" IconCssClass="fas fa-money-bill-wave"
+                       Click="@OnCashClicked" />
+        <DxToolbarItem Text="@($"6-{L["Service"].Value}")" IconCssClass="fas fa-screwdriver-wrench"
+                       Click="@OnServiceClicked" />
+        <DxToolbarItem Text="@($"8-{L["Future"].Value}")" IconCssClass="fas fa-hourglass-half"
+                       Click="@OnFutureClicked" />
+        <DxToolbarItem Text="@($"9-{L["Scrap"].Value}")" IconCssClass="fas fa-recycle"
+                       Click="@OnScrapClicked" />
+        <DxToolbarItem Text="@($"1-{L["Metal"].Value}")" IconCssClass="fas fa-ring"
+                       Click="@OnMetalClicked" />
+        <DxToolbarItem Text="@($"0-{L["List"].Value}")" IconCssClass="fas fa-list"
+                       Click="@OnListClicked" />
+    </DxToolbar>
+}
+}
+
+@if (_activeProcess == "Cash")
+{
+    <div style="margin-top:8px;">
+        <CashProcessPanel @ref="_cashPanel"
+                          OnBack="@OnProcessBack"
+                          AccountCode="@_selectedAccountCode"
+                          SubAccountCode="@_selectedSubAccountCode"
+                          CompanyId="@_model.CompanyId"
+                          BranchId="@_model.BranchId"
+                          VaultId="@_model.VaultId"
+                          AccountId="@_model.AccountId"
+                          SubAccountId="@_model.SubAccountId"
+                          VoucherDate="@_model.VoucherDate"
+                          VoucherDescription="@_model.Description"
+                          VoucherId="@_selectedVoucherId"
+                          OnSaved="@OnLineSavedInternal" />
+    </div>
+}
+else if (_activeProcess == "Service")
+{
+    <div style="margin-top:8px;">
+        <ServiceProcessPanel @ref="_servicePanel"
+                             OnBack="@OnProcessBack"
+                             AccountCode="@_selectedAccountCode"
+                             SubAccountCode="@_selectedSubAccountCode"
+                             CompanyId="@_model.CompanyId"
+                             BranchId="@_model.BranchId"
+                             VaultId="@_model.VaultId"
+                             AccountId="@_model.AccountId"
+                             SubAccountId="@_model.SubAccountId"
+                             VoucherDate="@_model.VoucherDate"
+                             VoucherDescription="@_model.Description"
+                             VoucherId="@_selectedVoucherId"
+                             OnSaved="@OnLineSavedInternal" />
+    </div>
+}
+else if (_activeProcess == "Convert")
+{
+    <div style="margin-top:8px;">
+        <ConvertProcessPanel @ref="_convertPanel"
+                             OnBack="@OnProcessBack"
+                             AccountCode="@_selectedAccountCode"
+                             SubAccountCode="@_selectedSubAccountCode"
+                             CompanyId="@_model.CompanyId"
+                             BranchId="@_model.BranchId"
+                             VaultId="@_model.VaultId"
+                             AccountId="@_model.AccountId"
+                             SubAccountId="@_model.SubAccountId"
+                             VoucherDate="@_model.VoucherDate"
+                             VoucherDescription="@_model.Description"
+                             VoucherId="@_selectedVoucherId"
+                             OnSaved="@OnLineSavedInternal" />
+    </div>
+}
+else if (_activeProcess == "Future")
+{
+    <div style="margin-top:8px;">
+        <FutureProcessPanel @ref="_futurePanel"
+                            OnBack="@OnProcessBack"
+                            AccountCode="@_selectedAccountCode"
+                            SubAccountCode="@_selectedSubAccountCode"
+                            CompanyId="@_model.CompanyId"
+                            BranchId="@_model.BranchId"
+                            VaultId="@_model.VaultId"
+                            AccountId="@_model.AccountId"
+                            SubAccountId="@_model.SubAccountId"
+                            VoucherDate="@_model.VoucherDate"
+                            VoucherDescription="@_model.Description"
+                            VoucherId="@_selectedVoucherId"
+                            OnSaved="@OnLineSavedInternal" />
+    </div>
+}
+else if (_activeProcess == "Scrap")
+{
+    <div style="margin-top:8px;">
+        <ScrapProcessPanel @ref="_scrapPanel"
+                           OnBack="@OnProcessBack"
+                           AccountCode="@_selectedAccountCode"
+                           SubAccountCode="@_selectedSubAccountCode"
+                           CompanyId="@_model.CompanyId"
+                           BranchId="@_model.BranchId"
+                           VaultId="@_model.VaultId"
+                           AccountId="@_model.AccountId"
+                           SubAccountId="@_model.SubAccountId"
+                           VoucherDate="@_model.VoucherDate"
+                           VoucherDescription="@_model.Description"
+                           VoucherId="@_selectedVoucherId"
+                           OnSaved="@OnLineSavedInternal" />
+    </div>
+}
+else if (_activeProcess == "Metal")
+{
+    <div style="margin-top:8px;">
+        <MetalProcessPanel @ref="_metalPanel"
+                           OnBack="@OnProcessBack"
+                           AccountCode="@_selectedAccountCode"
+                           SubAccountCode="@_selectedSubAccountCode"
+                           CompanyId="@_model.CompanyId"
+                           BranchId="@_model.BranchId"
+                           VaultId="@_model.VaultId"
+                           AccountId="@_model.AccountId"
+                           SubAccountId="@_model.SubAccountId"
+                           VoucherDate="@_model.VoucherDate"
+                           VoucherDescription="@_model.Description"
+                           VoucherId="@_selectedVoucherId"
+                           OnSaved="@OnLineSavedInternal" />
+    </div>
+}
+
+@code {
+    [Parameter] public EventCallback<Guid> OnLineSaved { get; set; }
+    [Parameter] public EventCallback<SubAccountListDto?> OnSubAccountSelected { get; set; }
+    [Parameter] public EventCallback<Guid?> OnVoucherOpened { get; set; }
+    /// <summary>Süreç paneli (Nakit vb.) açık/kapalı değişince forma bildirir.</summary>
+    [Parameter] public EventCallback<bool> OnProcessActiveChanged { get; set; }
+    /// <summary>Cari panel TAMAM ile kilitlenince/açılınca forma bildirir (Düzelt/Sil görünürlüğü).</summary>
+    [Parameter] public EventCallback<bool> OnLockChanged { get; set; }
+    /// <summary>Liste butonu → form liste modunu açar.</summary>
+    [Parameter] public EventCallback OnListRequested { get; set; }
+
+    private VoucherCreateDto _model = new();
+    private bool _locked;
+    private bool _showActionToolbar;
+    private string? _activeProcess;
+    private string? _selectedAccountCode;
+    private string? _selectedSubAccountCode;
+
+    private CashProcessPanel? _cashPanel;
+    private ServiceProcessPanel? _servicePanel;
+    private ConvertProcessPanel? _convertPanel;
+    private FutureProcessPanel? _futurePanel;
+    private ScrapProcessPanel? _scrapPanel;
+    private MetalProcessPanel? _metalPanel;
+    private VoucherLineDto? _pendingEdit;
+
+    private List<SubAccountListDto> _subAccounts = new();
+    private List<VaultListDto>      _branchVaults = new();
+
+    private const int VoucherPageSize = 1000;
+    private static readonly Guid SentinelId = new("00000000-0000-0000-0000-000000000001");
+    private List<VoucherComboItem> _voucherItems = new();
+    private int   _voucherOffset;
+    private bool  _voucherHasMore;
+    private Guid? _selectedVoucherId;
+
+    private DateTime _displayVoucherDate = DateTime.Now;
+    private string   _selectedVaultDisplay = string.Empty;
+
+    private record VoucherComboItem(Guid Id, string VoucherNo, string Date, string VaultDisplay, DateTime VoucherDate, string? Description);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+        await Working.EnsureLoadedAsync();
+
+        _model.CompanyId = Working.CurrentCompanyId ?? Guid.Empty;
+        _model.BranchId  = Working.CurrentBranchId  ?? Guid.Empty;
+
+        var subTask   = SubAccountService.GetListAsync(new SubAccountListRequestDto { MaxResultCount = 1000 });
+        var vaultTask = VaultService.GetListAsync(new VaultListRequestDto { BranchId = Working.CurrentBranchId, MaxResultCount = 1000 });
+        await Task.WhenAll(subTask, vaultTask);
+        _subAccounts  = subTask.Result.Items.ToList();
+        _branchVaults = vaultTask.Result.Items.ToList();
+    }
+
+    private async Task OnSubAccountChanged(Guid? subAccountId)
+    {
+        _model.SubAccountId = subAccountId;
+        _selectedVoucherId  = null;
+
+        var selected = subAccountId.HasValue
+            ? _subAccounts.FirstOrDefault(s => s.Id == subAccountId.Value)
+            : null;
+        _model.AccountId        = selected?.AccountId ?? Guid.Empty;
+        _selectedAccountCode    = selected?.AccountCode;
+        _selectedSubAccountCode = selected?.Code;
+
+        if (_model.VaultId == null && _branchVaults.Count > 0)
+            _model.VaultId = _branchVaults[0].Id;
+
+        _locked            = false;
+        _showActionToolbar = false;
+        await SetActiveProcessAsync(null);
+        _voucherItems      = new();
+        _voucherOffset    = 0;
+        if (subAccountId.HasValue)
+            await LoadVouchersAsync();
+
+        // Forma bildir → bakiye panelini yükle/temizle + sekme başlığı.
+        await OnSubAccountSelected.InvokeAsync(selected);
+    }
+
+    private async Task LoadVouchersAsync()
+    {
+        var result = await VoucherService.GetListAsync(new VoucherListRequestDto
+        {
+            SubAccountId   = _model.SubAccountId,
+            SkipCount      = _voucherOffset,
+            MaxResultCount = VoucherPageSize,
+        });
+
+        _voucherItems.RemoveAll(x => x.Id == SentinelId);
+
+        foreach (var v in result.Items)
+            _voucherItems.Add(new VoucherComboItem(
+                v.Id,
+                $"#{v.VoucherNumber}",
+                v.VoucherDate.ToString("dd.MM.yyyy HH:mm", CultureInfo.InvariantCulture),
+                v.VaultDisplay,
+                v.VoucherDate,
+                v.Description));
+
+        _voucherOffset += result.Items.Count;
+        _voucherHasMore = _voucherOffset < result.TotalCount;
+
+        if (_voucherHasMore)
+            _voucherItems.Add(new VoucherComboItem(SentinelId, "...", $"{result.TotalCount - _voucherOffset} more...", string.Empty, default, null));
+    }
+
+    private async Task OnVoucherChanged(Guid? id)
+    {
+        if (id == SentinelId) { await LoadVouchersAsync(); return; }
+
+        _selectedVoucherId = id;
+
+        if (id.HasValue)
+        {
+            var item = _voucherItems.FirstOrDefault(x => x.Id == id.Value);
+            if (item is not null)
+            {
+                _displayVoucherDate   = item.VoucherDate;
+                _selectedVaultDisplay = item.VaultDisplay;
+                _model.Description    = item.Description;
+            }
+        }
+        else
+        {
+            _displayVoucherDate   = DateTime.Now;
+            _model.VoucherDate    = _displayVoucherDate;
+            _selectedVaultDisplay = string.Empty;
+            _model.Description    = null;
+        }
+    }
+
+    private void OnVoucherDateChanged(DateTime d)
+    {
+        _displayVoucherDate = d;
+        if (!_selectedVoucherId.HasValue)
+            _model.VoucherDate = d;
+    }
+
+    private async Task OnConfirmClicked()
+    {
+        _locked            = !_locked;
+        _showActionToolbar = _locked;
+        await OnLockChanged.InvokeAsync(_locked);
+        if (!_locked)
+        {
+            await SetActiveProcessAsync(null);
+            await OnVoucherOpened.InvokeAsync(null);   // HESAP SEÇ → gridi temizle
+        }
+        else
+        {
+            // TAMAM → seçili fişin (varsa) hareketlerini forma yüklet; yeni fiş ise null (boş grid).
+            await OnVoucherOpened.InvokeAsync(_selectedVoucherId);
+        }
+    }
+
+    private async Task SetActiveProcessAsync(string? process)
+    {
+        _activeProcess = process;
+        await OnProcessActiveChanged.InvokeAsync(process != null);
+    }
+
+    private Task OnCashClicked()    => SetActiveProcessAsync("Cash");
+    private Task OnServiceClicked() => SetActiveProcessAsync("Service");
+    private Task OnConvertClicked() => SetActiveProcessAsync("Convert");
+    private Task OnFutureClicked()  => SetActiveProcessAsync("Future");
+    private Task OnScrapClicked()   => SetActiveProcessAsync("Scrap");
+    private Task OnMetalClicked()   => SetActiveProcessAsync("Metal");
+    private Task OnProcessBack()    => SetActiveProcessAsync(null);
+    private Task OnListClicked()    => OnListRequested.InvokeAsync();
+
+    /// <summary>Form'dan çağrılır (Düzelt): satırın türüne göre ilgili paneli açıp yükler.</summary>
+    public async Task BeginEditLineAsync(VoucherLineDto dto)
+    {
+        _selectedVoucherId = dto.VoucherId;
+        _pendingEdit       = dto;            // panel render olunca yüklenecek (OnAfterRender)
+        var process = dto.Type switch
+        {
+            ProcessType.Service => "Service",
+            ProcessType.Convert => "Convert",
+            ProcessType.Future  => "Future",
+            ProcessType.Scrap   => "Scrap",
+            ProcessType.Metal   => "Metal",
+            _ => "Cash",
+        };
+        await SetActiveProcessAsync(process);
+        StateHasChanged();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        await base.OnAfterRenderAsync(firstRender);
+        if (_pendingEdit is not { } dto) return;
+
+        if (dto.Type == ProcessType.Service && _servicePanel is not null)
+        {
+            _pendingEdit = null;
+            await _servicePanel.LoadForEditAsync(dto);
+        }
+        else if (dto.Type == ProcessType.Convert && _convertPanel is not null)
+        {
+            _pendingEdit = null;
+            await _convertPanel.LoadForEditAsync(dto);
+        }
+        else if (dto.Type == ProcessType.Future && _futurePanel is not null)
+        {
+            _pendingEdit = null;
+            await _futurePanel.LoadForEditAsync(dto);
+        }
+        else if (dto.Type == ProcessType.Scrap && _scrapPanel is not null)
+        {
+            _pendingEdit = null;
+            await _scrapPanel.LoadForEditAsync(dto);
+        }
+        else if (dto.Type == ProcessType.Metal && _metalPanel is not null)
+        {
+            _pendingEdit = null;
+            await _metalPanel.LoadForEditAsync(dto);
+        }
+        else if (dto.Type is not ProcessType.Service and not ProcessType.Convert and not ProcessType.Future and not ProcessType.Scrap and not ProcessType.Metal && _cashPanel is not null)
+        {
+            _pendingEdit = null;
+            await _cashPanel.LoadForEditAsync(dto);
+        }
+    }
+
+    private async Task OnLineSavedInternal(VoucherLineDto result)
+    {
+        var vid = result.VoucherId ?? Guid.Empty;
+
+        // Yeni fiş mi oluştu (combo'da yok mu)?
+        var isNew = _voucherItems.All(x => x.Id != vid);
+
+        // İlk satır fişi oluşturdu → sonraki satırlar aynı fişe gitsin.
+        _selectedVoucherId = vid;
+
+        if (isNew)
+        {
+            // Fiş listesini tazele → yeni fiş numarasıyla combo'ya gelsin ve seçili görünsün.
+            _voucherItems  = new();
+            _voucherOffset = 0;
+            await LoadVouchersAsync();
+
+            var item = _voucherItems.FirstOrDefault(x => x.Id == vid);
+            if (item is not null)
+            {
+                _displayVoucherDate   = item.VoucherDate;
+                _selectedVaultDisplay = item.VaultDisplay;
+            }
+        }
+
+        await OnLineSaved.InvokeAsync(vid);
+    }
+}

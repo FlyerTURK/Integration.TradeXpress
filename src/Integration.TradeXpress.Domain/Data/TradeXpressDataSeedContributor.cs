@@ -12,6 +12,10 @@ public class TradeXpressDataSeedContributor(
     ParitySeeder paritySeeder,
     CountrySeeder countrySeeder,
     CashSeeder cashSeeder,
+    Integration.TradeXpress.Services.ServiceSeeder serviceSeeder,
+    Integration.TradeXpress.Futures.FutureSeeder futureSeeder,
+    Integration.TradeXpress.Scraps.ScrapSeeder scrapSeeder,
+    Integration.TradeXpress.Metals.MetalSeeder metalSeeder,
     OrgSeeder orgSeeder)
     : IDataSeedContributor, ITransientDependency
 {
@@ -21,6 +25,10 @@ public class TradeXpressDataSeedContributor(
     private readonly ParitySeeder _paritySeeder = paritySeeder;
     private readonly CountrySeeder _countrySeeder = countrySeeder;
     private readonly CashSeeder _cashSeeder = cashSeeder;
+    private readonly Integration.TradeXpress.Services.ServiceSeeder _serviceSeeder = serviceSeeder;
+    private readonly Integration.TradeXpress.Futures.FutureSeeder _futureSeeder = futureSeeder;
+    private readonly Integration.TradeXpress.Scraps.ScrapSeeder _scrapSeeder = scrapSeeder;
+    private readonly Integration.TradeXpress.Metals.MetalSeeder _metalSeeder = metalSeeder;
     private readonly OrgSeeder _orgSeeder = orgSeeder;
 
     #endregion
@@ -42,12 +50,21 @@ public class TradeXpressDataSeedContributor(
             await _paritySeeder.SeedAsync();              // host-global pariteler
             await _countrySeeder.SeedAsync();             // host-global ülke kataloğu
             await _cashSeeder.SeedAsync();                // host-global nakit kataloğu (Type=Cash birimlerden türetilir)
+            await _serviceSeeder.SeedAsync();             // host-global hizmet kataloğu (şu an boş — gerçek liste bekleniyor)
         }
 
         // (2) Marjlar her tenant'ta (host dahil) — host'un merkezi düzeltme marjı da burada.
         await _currencyUnitSeeder.SeedMarginsAsync(context.TenantId);
 
-        // (3) Org ağacı yalnız tenant'a aittir (host'ta company yok). Onboarding org'u kendi kuruyorsa atla.
+        // (3) Vadeli + Hurda yalnız tenant'a (ERPPROV3 paritesi; host'ta yok). Birimlerden sonra.
+        if (context.TenantId != null)
+        {
+            await _futureSeeder.SeedAsync();
+            await _scrapSeeder.SeedAsync();
+            await _metalSeeder.SeedAsync();
+        }
+
+        // (4) Org ağacı yalnız tenant'a aittir (host'ta company yok). Onboarding org'u kendi kuruyorsa atla.
         if (context.TenantId != null && context[SkipOrgSeedProperty] is not true)
         {
             await _orgSeeder.SeedHqCompanyAsync(context.TenantId);

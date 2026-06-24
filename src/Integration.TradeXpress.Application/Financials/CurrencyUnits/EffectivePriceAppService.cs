@@ -49,6 +49,10 @@ public class EffectivePriceAppService : TradeXpressAppService, IEffectivePriceAp
     {
         var prices = await ComputeEffectiveAsync();
         return prices
+            .OrderBy(e => e.Unit.TenantId == null ? 0 : 1)
+            .ThenByDescending(e => e.Unit.AlwaysShowInBalance)
+            .ThenBy(e => e.Unit.DisplayOrder)
+            .ThenBy(e => e.Unit.Code)
             .Select(e => new CurrentPriceDto
             {
                 Id = e.Unit.Id,
@@ -67,7 +71,7 @@ public class EffectivePriceAppService : TradeXpressAppService, IEffectivePriceAp
                 GuardFired = e.Eff.GuardFired,
                 RateDate = e.RateDate,
             })
-            .OrderBy(p => p.DisplayOrder).ThenBy(p => p.CurrencyUnitCode).ToList();
+            .ToList();
     }
 
     public virtual async Task<List<ValuationPriceDto>> GetValuationAsync(Guid? companyId = null)

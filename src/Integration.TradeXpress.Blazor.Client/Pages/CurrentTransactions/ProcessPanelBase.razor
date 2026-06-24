@@ -1,0 +1,68 @@
+@inject IStringLocalizer<TradeXpressResource> L
+
+<div style="display:flex; flex-direction:column; box-sizing:border-box;">
+
+    <div style="@StripStyle(); display:flex; align-items:center; padding:0 10px; color:#fff; font-size:0.85rem; font-weight:700; letter-spacing:0.06em; text-transform:uppercase; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+        @StripText()
+    </div>
+
+    <div>
+        @ChildContent
+    </div>
+
+    <div style="display:flex; justify-content:flex-end; gap:8px; padding:8px 8px 4px; border-top:1px solid #ddd;">
+        <DxButton Text="@L["Save"].Value"
+                  IconCssClass="fas fa-save"
+                  RenderStyle="ButtonRenderStyle.Success"
+                  RenderStyleMode="ButtonRenderStyleMode.Contained"
+                  Click="@OnSave" />
+        <DxButton Text="@L["Back"].Value"
+                  IconCssClass="fas fa-arrow-left"
+                  RenderStyle="ButtonRenderStyle.Secondary"
+                  RenderStyleMode="ButtonRenderStyleMode.Contained"
+                  Click="@OnBack" />
+    </div>
+</div>
+
+@code {
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public ProcessDirectionType Direction { get; set; }
+    [Parameter] public EventCallback OnSave { get; set; }
+    [Parameter] public EventCallback OnBack { get; set; }
+
+    [Parameter] public string? ProcessTypeName { get; set; }
+    [Parameter] public string? PaymentTypeName { get; set; }
+    [Parameter] public string? AccountCode { get; set; }
+    [Parameter] public string? SubAccountCode { get; set; }
+
+    private string StripText()
+    {
+        var parts = new System.Collections.Generic.List<string>();
+        if (!string.IsNullOrEmpty(ProcessTypeName)) parts.Add(ProcessTypeName.ToUpperInvariant());
+        parts.Add(L[$"Enum:ProcessDirectionType:{Direction}"].Value.ToUpperInvariant());
+        if (!string.IsNullOrEmpty(PaymentTypeName)) parts.Add(PaymentTypeName.ToUpperInvariant());
+
+        var text = string.Join("   ", parts);
+
+        if (!string.IsNullOrEmpty(AccountCode))
+        {
+            var account = string.IsNullOrEmpty(SubAccountCode)
+                ? $"[{AccountCode}]"
+                : $"[{AccountCode} / {SubAccountCode}]";
+            text += $"   {account}";
+        }
+
+        return text;
+    }
+
+    private string StripStyle()
+    {
+        // inflow (Giriş/Alacak/Alış) → yeşil; aksi (Çıkış/Borç/Satış) → kırmızı.
+        var isInflow = ((int)Direction % 2) == 0;
+        var gradient = isInflow
+            ? "linear-gradient(to bottom, #1b5e20, #66bb6a)"
+            : "linear-gradient(to bottom, #7f0000, #ef5350)";
+
+        return $"height:34px; border-radius:4px 4px 0 0; background:{gradient};";
+    }
+}

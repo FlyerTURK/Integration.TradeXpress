@@ -1,0 +1,32 @@
+@page "/futures"
+@using Integration.Framework.Blazor.Client.Components.Crud
+@using Integration.TradeXpress.Futures
+@using DevExpress.Blazor
+@inherits CrudPageBase<FutureGetDto, FutureListDto, Guid, FutureListRequestDto, FutureCreateDto, FutureUpdateDto>
+
+<CrudLayout TGetDto="FutureGetDto"
+            TListDto="FutureListDto"
+            TKey="Guid"
+            StateService="StateService"
+            DataSource="@GridDataSource"
+            EntityName="@L["Future"]"
+            EntityIcon="@TradeXpressIcons.Future"
+            PrimaryTextSelector="@(m => m.Code)"
+            PageTitle="@L["Futures"]"
+            OnNewClick="BeforeCreateAsync"
+            OnUpdateClick="BeforeUpdateAsync"
+            OnDeleteClick="DeleteAsync"
+            OnRefreshClick="GetListAsync"
+            OnSearchChanged="OnSearchAsync">
+
+    <GridColumns>
+        <GridLinkColumn FieldName="Code" Caption="@L["Code"]" Width="90px" VisibleIndex="0"
+                        OnClick="@(o => BeforeUpdateAsync((FutureListDto)o))" />
+        <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" VisibleIndex="1" />
+        <GridLinkColumn FieldName="FollowingUnitCode" Caption="@L["CurrencyUnit"]" Width="120px" VisibleIndex="2"
+                        OnClick="@(o => OpenUnitAsync(((FutureListDto)o).FollowingUnitId, ((FutureListDto)o).FollowingUnitCode))" />
+        <DxGridDataColumn FieldName="FollowingFactor" Caption="@L["Factor"]" Width="110px" VisibleIndex="3"
+                          DisplayFormat="N5" TextAlignment="GridTextAlignment.Right" />
+    </GridColumns>
+
+</CrudLayout>

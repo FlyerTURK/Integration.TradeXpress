@@ -11,6 +11,7 @@ using Integration.TradeXpress.Branches;
 using Integration.TradeXpress.Vaults;
 using Integration.TradeXpress.Cashes;
 using Integration.TradeXpress.Accounts;
+using Integration.TradeXpress.Vouchers;
 using Integration.TradeXpress.Authorization;
 using Integration.TradeXpress.Settings;
 
@@ -186,6 +187,101 @@ public static class TradeXpressDbContextModelCreatingExtensions
         });
     }
 
+    public static void ConfigureServices(this ModelBuilder builder)
+    {
+        Check.NotNull(builder, nameof(builder));
+
+        builder.Entity<Integration.TradeXpress.Services.Service>(b =>
+        {
+            b.ToTable(TradeXpressConsts.DbTablePrefix + "Services", TradeXpressConsts.DbSchema);
+            b.ConfigureByConvention();
+
+            b.Property(x => x.Code).IsRequired().HasMaxLength(Integration.TradeXpress.Services.ServiceConsts.CodeMaxLength);
+            b.Property(x => x.Name).IsRequired().HasMaxLength(Integration.TradeXpress.Services.ServiceConsts.NameMaxLength);
+            b.Property(x => x.Description).HasMaxLength(Integration.TradeXpress.Services.ServiceConsts.DescriptionMaxLength);
+
+            b.HasIndex(x => new { x.TenantId, x.Code }).IsUnique();
+        });
+    }
+
+    public static void ConfigureFutures(this ModelBuilder builder)
+    {
+        Check.NotNull(builder, nameof(builder));
+
+        builder.Entity<Integration.TradeXpress.Futures.Future>(b =>
+        {
+            b.ToTable(TradeXpressConsts.DbTablePrefix + "Futures", TradeXpressConsts.DbSchema);
+            b.ConfigureByConvention();
+
+            b.Property(x => x.Code).IsRequired().HasMaxLength(Integration.TradeXpress.Futures.FutureConsts.CodeMaxLength);
+            b.Property(x => x.Name).IsRequired().HasMaxLength(Integration.TradeXpress.Futures.FutureConsts.NameMaxLength);
+            b.Property(x => x.Description).HasMaxLength(Integration.TradeXpress.Futures.FutureConsts.DescriptionMaxLength);
+            b.Property(x => x.FollowingFactor).HasPrecision(
+                Integration.TradeXpress.Futures.FutureConsts.FactorPrecision,
+                Integration.TradeXpress.Futures.FutureConsts.FactorScale);
+
+            b.HasIndex(x => new { x.TenantId, x.Code }).IsUnique();
+
+            b.HasOne(x => x.FollowingUnit).WithMany()
+                .HasForeignKey(x => x.FollowingUnitId).IsRequired().OnDelete(DeleteBehavior.Restrict);
+            b.HasIndex(x => new { x.TenantId, x.FollowingUnitId });
+        });
+    }
+
+    public static void ConfigureScraps(this ModelBuilder builder)
+    {
+        Check.NotNull(builder, nameof(builder));
+
+        builder.Entity<Integration.TradeXpress.Scraps.Scrap>(b =>
+        {
+            b.ToTable(TradeXpressConsts.DbTablePrefix + "Scraps", TradeXpressConsts.DbSchema);
+            b.ConfigureByConvention();
+
+            b.Property(x => x.Code).IsRequired().HasMaxLength(Integration.TradeXpress.Scraps.ScrapConsts.CodeMaxLength);
+            b.Property(x => x.Name).IsRequired().HasMaxLength(Integration.TradeXpress.Scraps.ScrapConsts.NameMaxLength);
+            b.Property(x => x.Description).HasMaxLength(Integration.TradeXpress.Scraps.ScrapConsts.DescriptionMaxLength);
+            b.Property(x => x.Purity).HasPrecision(
+                Integration.TradeXpress.Scraps.ScrapConsts.PurityPrecision,
+                Integration.TradeXpress.Scraps.ScrapConsts.PurityScale);
+
+            b.HasIndex(x => new { x.TenantId, x.Code }).IsUnique();
+
+            b.HasOne(x => x.FollowingUnit).WithMany()
+                .HasForeignKey(x => x.FollowingUnitId).IsRequired().OnDelete(DeleteBehavior.Restrict);
+            b.HasIndex(x => new { x.TenantId, x.FollowingUnitId });
+        });
+    }
+
+    public static void ConfigureMetals(this ModelBuilder builder)
+    {
+        Check.NotNull(builder, nameof(builder));
+
+        builder.Entity<Integration.TradeXpress.Metals.Metal>(b =>
+        {
+            b.ToTable(TradeXpressConsts.DbTablePrefix + "Metals", TradeXpressConsts.DbSchema);
+            b.ConfigureByConvention();
+
+            b.Property(x => x.Code).IsRequired().HasMaxLength(Integration.TradeXpress.Metals.MetalConsts.CodeMaxLength);
+            b.Property(x => x.Name).IsRequired().HasMaxLength(Integration.TradeXpress.Metals.MetalConsts.NameMaxLength);
+            b.Property(x => x.Description).HasMaxLength(Integration.TradeXpress.Metals.MetalConsts.DescriptionMaxLength);
+            b.Property(x => x.Barcode).HasMaxLength(Integration.TradeXpress.Metals.MetalConsts.BarcodeMaxLength);
+            b.Property(x => x.Purity).HasPrecision(
+                Integration.TradeXpress.Metals.MetalConsts.DecimalPrecision, Integration.TradeXpress.Metals.MetalConsts.DecimalScale);
+            b.Property(x => x.StableQuantity).HasPrecision(
+                Integration.TradeXpress.Metals.MetalConsts.DecimalPrecision, Integration.TradeXpress.Metals.MetalConsts.DecimalScale);
+            b.Property(x => x.EntryLabor).HasPrecision(
+                Integration.TradeXpress.Metals.MetalConsts.DecimalPrecision, Integration.TradeXpress.Metals.MetalConsts.DecimalScale);
+            b.Property(x => x.ExitLabor).HasPrecision(
+                Integration.TradeXpress.Metals.MetalConsts.DecimalPrecision, Integration.TradeXpress.Metals.MetalConsts.DecimalScale);
+
+            b.HasIndex(x => new { x.TenantId, x.Code }).IsUnique();
+
+            b.HasOne(x => x.FollowingUnit).WithMany()
+                .HasForeignKey(x => x.FollowingUnitId).IsRequired().OnDelete(DeleteBehavior.Restrict);
+            b.HasIndex(x => new { x.TenantId, x.FollowingUnitId });
+        });
+    }
+
     public static void ConfigureAccounts(this ModelBuilder builder)
     {
         Check.NotNull(builder, nameof(builder));
@@ -265,6 +361,67 @@ public static class TradeXpressDbContextModelCreatingExtensions
 
             b.HasIndex(x => new { x.TenantId, x.UserId, x.GridKey }).IsUnique();
         });
+    }
+
+    public static void ConfigureVouchers(this ModelBuilder builder)
+    {
+        Check.NotNull(builder, nameof(builder));
+
+        builder.Entity<Voucher>(b =>
+        {
+            b.ToTable(TradeXpressConsts.DbTablePrefix + "Vouchers", TradeXpressConsts.DbSchema);
+            b.ConfigureByConvention();
+
+            b.Property(x => x.Description).HasMaxLength(VoucherConsts.DescriptionMaxLength);
+            b.Property(x => x.VoucherNumber).IsRequired();
+            b.Property(x => x.VoucherDate).IsRequired();
+
+            // Fiş numarası şirket bazında tekil.
+            b.HasIndex(x => new { x.TenantId, x.CompanyId, x.VoucherNumber }).IsUnique();
+            b.HasIndex(x => new { x.TenantId, x.CompanyId, x.BranchId });
+            b.HasIndex(x => new { x.TenantId, x.AccountId });
+
+            // FK'lar — referans varken kaynak silinemez (Restrict).
+            b.HasOne<Companies.Company>().WithMany()
+                .HasForeignKey(x => x.CompanyId).IsRequired().OnDelete(DeleteBehavior.Restrict);
+            b.HasOne<Branches.Branch>().WithMany()
+                .HasForeignKey(x => x.BranchId).IsRequired().OnDelete(DeleteBehavior.Restrict);
+            b.HasOne<Vaults.Vault>().WithMany()
+                .HasForeignKey(x => x.VaultId).IsRequired(false).OnDelete(DeleteBehavior.Restrict);
+            b.HasOne<Accounts.Account>().WithMany()
+                .HasForeignKey(x => x.AccountId).IsRequired().OnDelete(DeleteBehavior.Restrict);
+            b.HasOne<Accounts.SubAccount>().WithMany()
+                .HasForeignKey(x => x.SubAccountId).IsRequired(false).OnDelete(DeleteBehavior.Restrict);
+
+            b.HasMany(x => x.Lines).WithOne(l => l.Voucher).HasForeignKey(l => l.VoucherId)
+                .IsRequired().OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<VoucherLine>(b =>
+        {
+            b.ToTable(TradeXpressConsts.DbTablePrefix + "VoucherLines", TradeXpressConsts.DbSchema);
+            b.ConfigureByConvention();
+
+            b.Property(x => x.CommodityCode).HasMaxLength(VoucherConsts.CommodityCodeMaxLength);
+            b.Property(x => x.PayCommodityCode).HasMaxLength(VoucherConsts.CommodityCodeMaxLength);
+            b.Property(x => x.Description).HasMaxLength(VoucherConsts.DescriptionMaxLength);
+
+            // N5: milyem / çarpan / parite / fiyat / miktar
+            b.Property(x => x.Quantity).HasPrecision(VoucherConsts.FactorPrecision, VoucherConsts.FactorScale);
+            b.Property(x => x.Factor).HasPrecision(VoucherConsts.FactorPrecision, VoucherConsts.FactorScale);
+            b.Property(x => x.PayFactor).HasPrecision(VoucherConsts.FactorPrecision, VoucherConsts.FactorScale);
+            b.Property(x => x.MarketPrice).HasPrecision(VoucherConsts.FactorPrecision, VoucherConsts.FactorScale);
+            b.Property(x => x.PayUnitRate).HasPrecision(VoucherConsts.FactorPrecision, VoucherConsts.FactorScale);
+
+            // N2: para / has miktarları
+            b.Property(x => x.Amount).HasPrecision(VoucherConsts.AmountPrecision, VoucherConsts.AmountScale);
+            b.Property(x => x.Total).HasPrecision(VoucherConsts.AmountPrecision, VoucherConsts.AmountScale);
+            b.Property(x => x.PayTotal).HasPrecision(VoucherConsts.AmountPrecision, VoucherConsts.AmountScale);
+            b.Property(x => x.Profit).HasPrecision(VoucherConsts.AmountPrecision, VoucherConsts.AmountScale);
+
+            b.HasIndex(x => x.VoucherId);
+        });
+
     }
 
     // MarginSetting owned mapping — her iki alanı (Type enum + Value) explicit map eder.

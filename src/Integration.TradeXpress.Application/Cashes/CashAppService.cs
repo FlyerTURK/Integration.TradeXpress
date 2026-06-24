@@ -112,6 +112,40 @@ public class CashAppService : TradeXpressAppService, ICashAppService
         await _repository.DeleteAsync(entity, autoSave: true);
     }
 
+    public virtual async Task<List<CashListDto>> GetPickerListAsync()
+    {
+        using (_dataFilter.Disable<IMultiTenant>())
+        {
+            var tenantId = CurrentTenant.Id;
+            var units    = await _unitRepository.GetQueryableAsync();
+            var cashes   = await _repository.GetQueryableAsync();
+
+            var rows = await AsyncExecuter.ToListAsync(
+                from c in cashes
+                where c.TenantId == null || c.TenantId == tenantId
+                join u in units on c.FollowingUnitId equals u.Id into uj
+                from u in uj.DefaultIfEmpty()
+                orderby (u == null ? 0 : (u.TenantId == null ? 0 : 1)),
+                        (u == null ? false : u.AlwaysShowInBalance) descending,
+                        (u == null ? 0 : u.DisplayOrder),
+                        (u == null ? string.Empty : u.Code),
+                        c.Code
+                select new CashListRow
+                {
+                    Id                = c.Id,
+                    TenantId          = c.TenantId,
+                    Code              = c.Code,
+                    Name              = c.Name,
+                    IsActive          = c.IsActive,
+                    FollowingUnitId   = c.FollowingUnitId,
+                    FollowingUnitCode = u == null ? null : u.Code,
+                    FollowingUnitName = u == null ? null : u.Name,
+                });
+
+            return rows.Select(ToListDto).ToList();
+        }
+    }
+
     // ── helpers ───────────────────────────────────────────────────────────────
 
     /// <summary>Id'yi görünürlük scope'unda (global + kendi) çeker; yoksa EntityNotFound.</summary>

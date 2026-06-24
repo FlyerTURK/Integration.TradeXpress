@@ -22,6 +22,11 @@ using Integration.TradeXpress.Branches;
 using Integration.TradeXpress.Vaults;
 using Integration.TradeXpress.Cashes;
 using Integration.TradeXpress.Accounts;
+using Integration.TradeXpress.Vouchers;
+using Integration.TradeXpress.Services;
+using Integration.TradeXpress.Futures;
+using Integration.TradeXpress.Scraps;
+using Integration.TradeXpress.Metals;
 
 namespace Integration.TradeXpress.EntityFrameworkCore;
 
@@ -43,8 +48,14 @@ public class TradeXpressDbContext :
     public DbSet<Branch> Branches { get; set; } = null!;
     public DbSet<Vault> Vaults { get; set; } = null!;
     public DbSet<Cash> Cashes { get; set; } = null!;
+    public DbSet<Service> Services { get; set; } = null!;
+    public DbSet<Future> Futures { get; set; } = null!;
+    public DbSet<Scrap> Scraps { get; set; } = null!;
+    public DbSet<Metal> Metals { get; set; } = null!;
     public DbSet<Account> Accounts { get; set; } = null!;
     public DbSet<SubAccount> SubAccounts { get; set; } = null!;
+    public DbSet<Voucher> Vouchers { get; set; } = null!;
+    public DbSet<VoucherLine> VoucherLines { get; set; } = null!;
     public DbSet<Integration.TradeXpress.Authorization.UserScopedGrant> UserScopedGrants { get; set; } = null!;
     public DbSet<Integration.TradeXpress.Settings.UserGridLayout> UserGridLayouts { get; set; } = null!;
 
@@ -108,7 +119,12 @@ public class TradeXpressDbContext :
         builder.ConfigureBranches();
         builder.ConfigureVaults();
         builder.ConfigureCashes();
+        builder.ConfigureServices();
+        builder.ConfigureFutures();
+        builder.ConfigureScraps();
+        builder.ConfigureMetals();
         builder.ConfigureAccounts();
+        builder.ConfigureVouchers();
         builder.ConfigureUserScopedGrants();
         builder.ConfigureUserGridLayouts();
     }

@@ -4,6 +4,10 @@ using Integration.TradeXpress.Tenants;
 using Integration.TradeXpress.Financials.CurrencyUnits;
 using Integration.TradeXpress.Financials.Parities;
 using Integration.TradeXpress.Cashes;
+using Integration.TradeXpress.Services;
+using Integration.TradeXpress.Futures;
+using Integration.TradeXpress.Scraps;
+using Integration.TradeXpress.Metals;
 using Integration.TradeXpress.Countries;
 using Integration.TradeXpress.Accounts;
 using Volo.Abp.TenantManagement;
@@ -106,6 +110,50 @@ public partial class ParityToListDtoMapper : MapperBase<Parity, ParityListDto>
 {
     public override partial CashUpdateDto Map(CashGetDto source);
     public override partial void Map(CashGetDto source, CashUpdateDto destination);
+}
+
+[Mapper] public partial class ServiceGetToCreateMapper : MapperBase<ServiceGetDto, ServiceCreateDto>
+{
+    public override partial ServiceCreateDto Map(ServiceGetDto source);
+    public override partial void Map(ServiceGetDto source, ServiceCreateDto destination);
+}
+[Mapper] public partial class ServiceGetToUpdateMapper : MapperBase<ServiceGetDto, ServiceUpdateDto>
+{
+    public override partial ServiceUpdateDto Map(ServiceGetDto source);
+    public override partial void Map(ServiceGetDto source, ServiceUpdateDto destination);
+}
+
+[Mapper] public partial class FutureGetToCreateMapper : MapperBase<FutureGetDto, FutureCreateDto>
+{
+    public override partial FutureCreateDto Map(FutureGetDto source);
+    public override partial void Map(FutureGetDto source, FutureCreateDto destination);
+}
+[Mapper] public partial class FutureGetToUpdateMapper : MapperBase<FutureGetDto, FutureUpdateDto>
+{
+    public override partial FutureUpdateDto Map(FutureGetDto source);
+    public override partial void Map(FutureGetDto source, FutureUpdateDto destination);
+}
+
+[Mapper] public partial class ScrapGetToCreateMapper : MapperBase<ScrapGetDto, ScrapCreateDto>
+{
+    public override partial ScrapCreateDto Map(ScrapGetDto source);
+    public override partial void Map(ScrapGetDto source, ScrapCreateDto destination);
+}
+[Mapper] public partial class ScrapGetToUpdateMapper : MapperBase<ScrapGetDto, ScrapUpdateDto>
+{
+    public override partial ScrapUpdateDto Map(ScrapGetDto source);
+    public override partial void Map(ScrapGetDto source, ScrapUpdateDto destination);
+}
+
+[Mapper] public partial class MetalGetToCreateMapper : MapperBase<MetalGetDto, MetalCreateDto>
+{
+    public override partial MetalCreateDto Map(MetalGetDto source);
+    public override partial void Map(MetalGetDto source, MetalCreateDto destination);
+}
+[Mapper] public partial class MetalGetToUpdateMapper : MapperBase<MetalGetDto, MetalUpdateDto>
+{
+    public override partial MetalUpdateDto Map(MetalGetDto source);
+    public override partial void Map(MetalGetDto source, MetalUpdateDto destination);
 }
 
 [Mapper] public partial class AccountGetToCreateMapper : MapperBase<AccountGetDto, AccountCreateDto>

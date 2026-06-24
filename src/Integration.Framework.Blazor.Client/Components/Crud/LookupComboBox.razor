@@ -28,7 +28,8 @@
             ClearButtonDisplayMode="@_clearMode"
             ShowDropDownButton="@(!_effectiveReadOnly)"
             ValidationEnabled="false"
-            CssClass="w-100">
+            CssClass="w-100"
+            Columns="@Columns">
     <Buttons>
         <DxEditorButton IconCssClass="fas fa-pen-to-square" Visible="@ShowEditButton" Click="@OnEditButtonClick" Tooltip="@L["Edit"].Value" />
         <DxEditorButton IconCssClass="fas fa-plus" Visible="@ShowAddButton" Click="@OnAddButtonClick" Tooltip="@L["New"].Value" />
@@ -57,6 +58,8 @@
     [Parameter] public Func<TValue, Task>? OnEditRequested { get; set; }
     /// <summary>Add(+) — quick-add; host yeni referansı açar ve OLUŞAN değeri döndürür → combo auto-select. Boşsa gizli.</summary>
     [Parameter] public Func<Task<TValue?>>? OnAddRequested { get; set; }
+    /// <summary>Dropdown kolonları — <c>DxListEditorColumn</c> elemanları buraya verilir.</summary>
+    [Parameter] public RenderFragment? Columns { get; set; }
 
     [CascadingParameter] private EditContext? CascadedEditContext { get; set; }
     /// <summary>EntityEditForm salt-okunur (fieldset disabled) iken true → ✎/+ ve clear gizlenir (native disable görünür bırakırdı).</summary>

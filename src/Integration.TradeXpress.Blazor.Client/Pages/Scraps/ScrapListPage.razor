@@ -1,0 +1,32 @@
+@page "/scraps"
+@using Integration.Framework.Blazor.Client.Components.Crud
+@using Integration.TradeXpress.Scraps
+@using DevExpress.Blazor
+@inherits CrudPageBase<ScrapGetDto, ScrapListDto, Guid, ScrapListRequestDto, ScrapCreateDto, ScrapUpdateDto>
+
+<CrudLayout TGetDto="ScrapGetDto"
+            TListDto="ScrapListDto"
+            TKey="Guid"
+            StateService="StateService"
+            DataSource="@GridDataSource"
+            EntityName="@L["Scrap"]"
+            EntityIcon="@TradeXpressIcons.Scrap"
+            PrimaryTextSelector="@(m => m.Code)"
+            PageTitle="@L["Scraps"]"
+            OnNewClick="BeforeCreateAsync"
+            OnUpdateClick="BeforeUpdateAsync"
+            OnDeleteClick="DeleteAsync"
+            OnRefreshClick="GetListAsync"
+            OnSearchChanged="OnSearchAsync">
+
+    <GridColumns>
+        <GridLinkColumn FieldName="Code" Caption="@L["Code"]" Width="100px" VisibleIndex="0"
+                        OnClick="@(o => BeforeUpdateAsync((ScrapListDto)o))" />
+        <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" VisibleIndex="1" />
+        <GridLinkColumn FieldName="FollowingUnitCode" Caption="@L["CurrencyUnit"]" Width="120px" VisibleIndex="2"
+                        OnClick="@(o => OpenUnitAsync(((ScrapListDto)o).FollowingUnitId, ((ScrapListDto)o).FollowingUnitCode))" />
+        <DxGridDataColumn FieldName="Purity" Caption="@L["Purity"]" Width="110px" VisibleIndex="3"
+                          DisplayFormat="N5" TextAlignment="GridTextAlignment.Right" />
+    </GridColumns>
+
+</CrudLayout>

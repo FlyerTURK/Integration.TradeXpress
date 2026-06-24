@@ -21,6 +21,9 @@ public interface ITabManager
     /// <summary>Edit sayfası, sekmesinin yapısal başlığını (3-satır caption + dirty) günceller. Bilinmeyen id → no-op.</summary>
     void UpdateTabHeader(Guid tabId, TabHeaderData header);
 
+    /// <summary>Düz sekme başlığını (Title) günceller — ör. cari seçilince sekme adı hesap olur. Bilinmeyen id → no-op.</summary>
+    void SetTabTitle(Guid tabId, string title);
+
     /// <summary>SplitView'da embedded edit, liste tab'ının başlığını ezmeden sadece dirty bayrağını set eder.</summary>
     void SetTabDirty(Guid tabId, bool isDirty);
 

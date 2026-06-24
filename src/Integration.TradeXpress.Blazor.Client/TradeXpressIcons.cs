@@ -17,6 +17,10 @@ public static class TradeXpressIcons
     public const string Country = "fas fa-earth-europe";
     public const string CurrencyUnit = "fas fa-coins";
     public const string Cash = "fas fa-money-bill-wave";
+    public const string Service = "fas fa-screwdriver-wrench";
+    public const string Future = "fas fa-hourglass-half";
+    public const string Scrap = "fas fa-recycle";
+    public const string Metal = "fas fa-ring";
 
     // ── Hesaplar ──
     public const string Account = "fas fa-book";
@@ -27,6 +31,9 @@ public static class TradeXpressIcons
 
     // ── Panolar ──
     public const string PriceBoard = "fas fa-chart-line";
+
+    // ── İşlemler ──
+    public const string CurrentTransactions = "fas fa-right-left";
 
     // ── Yönetim ──
     public const string Tenant = "fas fa-users-cog";

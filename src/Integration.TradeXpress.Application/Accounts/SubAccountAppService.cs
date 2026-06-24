@@ -56,6 +56,7 @@ public class SubAccountAppService : TradeXpressAppService, ISubAccountAppService
                 Id = s.Id,
                 AccountId = s.AccountId,
                 AccountCode = a.Code,
+                AccountName = a.Name,
                 BranchId = s.BranchId,
                 BranchCode = s.BranchId == null
                     ? null
@@ -76,6 +77,7 @@ public class SubAccountAppService : TradeXpressAppService, ISubAccountAppService
                 Id = r.Id,
                 AccountId = r.AccountId,
                 AccountCode = r.AccountCode,
+                AccountName = r.AccountName,
                 BranchId = r.BranchId,
                 BranchCode = r.BranchCode,
                 Code = r.Code,
@@ -166,6 +168,7 @@ public class SubAccountAppService : TradeXpressAppService, ISubAccountAppService
         public Guid Id { get; set; }
         public Guid AccountId { get; set; }
         public string AccountCode { get; set; } = string.Empty;
+        public string AccountName { get; set; } = string.Empty;
         public Guid? BranchId { get; set; }
         public string? BranchCode { get; set; }
         public string Code { get; set; } = string.Empty;

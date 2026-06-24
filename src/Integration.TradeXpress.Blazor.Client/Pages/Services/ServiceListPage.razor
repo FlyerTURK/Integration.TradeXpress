@@ -1,0 +1,28 @@
+@page "/services"
+@using Integration.Framework.Blazor.Client.Components.Crud
+@using Integration.TradeXpress.Services
+@using DevExpress.Blazor
+@inherits CrudPageBase<ServiceGetDto, ServiceListDto, Guid, ServiceListRequestDto, ServiceCreateDto, ServiceUpdateDto>
+
+<CrudLayout TGetDto="ServiceGetDto"
+            TListDto="ServiceListDto"
+            TKey="Guid"
+            StateService="StateService"
+            DataSource="@GridDataSource"
+            EntityName="@L["Service"]"
+            EntityIcon="@TradeXpressIcons.Service"
+            PrimaryTextSelector="@(m => m.Code)"
+            PageTitle="@L["Services"]"
+            OnNewClick="BeforeCreateAsync"
+            OnUpdateClick="BeforeUpdateAsync"
+            OnDeleteClick="DeleteAsync"
+            OnRefreshClick="GetListAsync"
+            OnSearchChanged="OnSearchAsync">
+
+    <GridColumns>
+        <GridLinkColumn FieldName="Code" Caption="@L["Code"]" Width="90px" VisibleIndex="0"
+                        OnClick="@(o => BeforeUpdateAsync((ServiceListDto)o))" />
+        <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" VisibleIndex="1" />
+    </GridColumns>
+
+</CrudLayout>

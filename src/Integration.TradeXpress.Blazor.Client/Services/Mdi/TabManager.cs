@@ -165,6 +165,14 @@ public sealed class TabManager : ITabManager, IMdiTabOpener
         Raise();   // strip + top-panel re-render. Persist YOK — Header kalıcılaştırılmaz (restore'da edit sayfası kurar).
     }
 
+    public void SetTabTitle(Guid tabId, string title)
+    {
+        var tab = _tabs.FirstOrDefault(t => t.Id == tabId);
+        if (tab == null || tab.Title == title) return;
+        tab.Title = title;
+        Raise();   // strip re-render. Kalıcılaştırma: persist sırasında güncel Title yazılır.
+    }
+
     public void SetTabDirty(Guid tabId, bool isDirty)
     {
         var tab = _tabs.FirstOrDefault(t => t.Id == tabId);

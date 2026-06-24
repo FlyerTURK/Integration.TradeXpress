@@ -88,6 +88,30 @@ public class TradeXpressMenuContributor : IMenuContributor
             url: "/cashes",
             icon: TradeXpressIcons.Cash
         ).RequirePermissions(TradeXpressPermissions.Cashes.Default));
+        commodities.AddItem(new ApplicationMenuItem(
+            TradeXpressMenus.Services,
+            l["Services"],
+            url: "/services",
+            icon: TradeXpressIcons.Service
+        ));
+        commodities.AddItem(new ApplicationMenuItem(
+            TradeXpressMenus.Futures,
+            l["Futures"],
+            url: "/futures",
+            icon: TradeXpressIcons.Future
+        ));
+        commodities.AddItem(new ApplicationMenuItem(
+            TradeXpressMenus.Scraps,
+            l["Scraps"],
+            url: "/scraps",
+            icon: TradeXpressIcons.Scrap
+        ));
+        commodities.AddItem(new ApplicationMenuItem(
+            TradeXpressMenus.Metals,
+            l["Metals"],
+            url: "/metals",
+            icon: TradeXpressIcons.Metal
+        ));
         definitions.AddItem(commodities);
         // Değerleme (re-base) ayrı kullanıcı sayfası DEĞİL — kullanıcı daima piyasa/alışık
         // fiyatı görür; gerçek (base) değer arka planda hesaplanır (işlem/muhasebe).
@@ -123,6 +147,15 @@ public class TradeXpressMenuContributor : IMenuContributor
         }
 
         context.Menu.AddItem(definitions);
+
+        // Cari İşlemler — bağımsız işlem formu (adaptif 3 panelli yerleşim).
+        context.Menu.AddItem(new ApplicationMenuItem(
+            TradeXpressMenus.CurrentTransactions,
+            l["Menu:CurrentTransactions"],
+            url: "/cari-islemler",
+            icon: TradeXpressIcons.CurrentTransactions,
+            order: 5
+        ).RequireAuthenticated());
 
         // Ülkeler (merkezi referans — host yönetir, tenant seçer)
         context.Menu.AddItem(new ApplicationMenuItem(

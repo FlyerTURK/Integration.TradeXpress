@@ -9,6 +9,7 @@
             ShowSpinButtons="@ShowSpinButtons"
             Enabled="@Enabled"
             DisplayFormat="@DisplayFormat"
+            Mask="@Mask"
             InputCssClass="@InputCssClass"
             CssClass="numeric-spin-edit w-100" />
 
@@ -30,6 +31,8 @@
 
     /// <summary>Focus dışındaki gösterim formatı (ör. "N5"). null = varsayılan. Girişi kısıtlamaz (mask değil).</summary>
     [Parameter] public string? DisplayFormat { get; set; }
+    /// <summary>Giriş maskesi (ör. "N2"). null = masksiz.</summary>
+    [Parameter] public string? Mask { get; set; }
 
     // New parameter to apply CSS class to inner input for right alignment and padding
     [Parameter] public string? InputCssClass { get; set; } = "text-end pe-2";

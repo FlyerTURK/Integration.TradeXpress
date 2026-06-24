@@ -19,11 +19,16 @@ public class SubAccountListDto : EntityDto<Guid>, IListDto<Guid>, IIsActive
 {
     public Guid AccountId { get; set; }
     public string AccountCode { get; set; } = string.Empty;
+    public string AccountName { get; set; } = string.Empty;
     public Guid? BranchId { get; set; }
     public string? BranchCode { get; set; }
     public string Code { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public bool IsActive { get; set; }
+
+    public string AccountDisplay => $"{AccountCode} / {AccountName}";
+    public string SubAccountDisplay => $"{Code} / {Name}";
+    public string AccountSubCodeDisplay => $"{AccountCode} / {Code}";
 }
 
 public class SubAccountGetDto : EntityDto<Guid>, IGetDto<Guid>, IHasCode
