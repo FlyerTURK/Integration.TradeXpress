@@ -9,6 +9,8 @@ using Integration.TradeXpress.Companies;
 using Integration.TradeXpress.Countries;
 using Integration.TradeXpress.Branches;
 using Integration.TradeXpress.Vaults;
+using Integration.TradeXpress.Authorization;
+using Integration.TradeXpress.Settings;
 
 namespace Integration.TradeXpress.EntityFrameworkCore;
 
@@ -153,6 +155,38 @@ public static class TradeXpressDbContextModelCreatingExtensions
             b.HasIndex(x => new { x.TenantId, x.BranchId, x.Code }).IsUnique();
             b.HasIndex(x => new { x.TenantId, x.BranchId });
             b.HasIndex(x => new { x.TenantId, x.BranchId, x.IsDefault });
+        });
+    }
+
+    public static void ConfigureUserScopedGrants(this ModelBuilder builder)
+    {
+        Check.NotNull(builder, nameof(builder));
+
+        builder.Entity<UserScopedGrant>(b =>
+        {
+            b.ToTable(TradeXpressConsts.DbTablePrefix + "UserScopedGrants", TradeXpressConsts.DbSchema);
+            b.ConfigureByConvention();
+
+            b.Property(x => x.PermissionName).HasMaxLength(UserScopedGrantConsts.PermissionNameMaxLength);
+
+            // Bir kullanıcının atamalarını çekmek için (scoped rol/izin listesi).
+            b.HasIndex(x => new { x.TenantId, x.UserId });
+        });
+    }
+
+    public static void ConfigureUserGridLayouts(this ModelBuilder builder)
+    {
+        Check.NotNull(builder, nameof(builder));
+
+        builder.Entity<UserGridLayout>(b =>
+        {
+            b.ToTable(TradeXpressConsts.DbTablePrefix + "UserGridLayouts", TradeXpressConsts.DbSchema);
+            b.ConfigureByConvention();
+
+            b.Property(x => x.GridKey).IsRequired().HasMaxLength(UserGridLayoutConsts.GridKeyMaxLength);
+            b.Property(x => x.Layout).IsRequired();   // maxlength YOK → nvarchar(max), truncate olmaz
+
+            b.HasIndex(x => new { x.TenantId, x.UserId, x.GridKey }).IsUnique();
         });
     }
 

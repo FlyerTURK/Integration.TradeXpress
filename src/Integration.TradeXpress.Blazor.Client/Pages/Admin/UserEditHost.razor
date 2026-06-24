@@ -18,7 +18,7 @@
    İzin paneli User DTO'sunun parçası DEĞİL → ayrı servise yazılır:
      • HasExtraChanges → panel dirty'sini Kaydet/"*"/kapanış-onayına dahil et (extra-dirty).
      • OnAfterCommit → kullanıcı kaydedildikten SONRA (ProviderKey=Id artık geçerli) panel izinleri yazar (extra-commit).
-   ScopedRolesEditor auto-save → extra-commit gerekmez (Layout içinde). Yeni kullanıcı: şifre zorunlu (ValidateContext),
+   ScopedRolesEditor de aynı kanca: inline stage edilir, extra-dirty + OnAfterCommit'te DB'ye yazılır. Yeni kullanıcı: şifre zorunlu (ValidateContext),
    IsActive=true default (ApplyNewDefaults). Üst-seviye entity → @page (TAB; izin ağacı için ferah). Liste EntityChanges ile tazelenir.
 *@
 @if (_coordinator != null)
@@ -31,9 +31,9 @@
                   EntityChangeKey="@IdentityViewKeys.Users"
                   ApplyNewDefaults="@(m => m.IsActive = true)"
                   ValidateContext="@ValidatePassword"
-                  HasExtraChanges="@(() => _panel?.IsDirty == true)"
-                  OnAfterCommit="@CommitPermissionsAsync">
-        <UserLayout Model="@context" PanelRefChanged="@OnPanelRef" />
+                  HasExtraChanges="@(() => _panel?.IsDirty == true || _scopedEditor?.IsDirty == true)"
+                  OnAfterCommit="@CommitExtrasAsync">
+        <UserLayout Model="@context" PanelRefChanged="@OnPanelRef" ScopedEditorRefChanged="@OnScopedRef" />
     </CrudEditHost>
 }
 
@@ -45,12 +45,14 @@
 
     private ICommitCoordinator<UserGetDto, UserListDto, Guid, UserListRequestDto>? _coordinator;
     private PermissionEditorPanel? _panel;   // UserLayout'tan iletilen aktif izin paneli (var olan kullanıcıda var/null)
+    private ScopedRolesEditor? _scopedEditor; // UserLayout'tan iletilen scoped rol editörü (var olan kullanıcıda var/null)
 
     protected override void OnInitialized()
         => _coordinator = new PersistentCoordinator<UserGetDto, UserListDto, Guid, UserListRequestDto, CreateIdentityUserInput, UpdateIdentityUserInput>(
             UserAdapter, Mapper);
 
     private void OnPanelRef(PermissionEditorPanel? p) => _panel = p;
+    private void OnScopedRef(ScopedRolesEditor? e) => _scopedEditor = e;
 
     // Yeni kullanıcıda şifre zorunlu (model attribute DEĞİL — mevcut kullanıcıda boş geçilir). Server otoritesi ek doğrular.
     private IReadOnlyList<KeyValuePair<string, string>> ValidatePassword(UserGetDto m)
@@ -58,10 +60,12 @@
             ? new[] { new KeyValuePair<string, string>(nameof(UserGetDto.Password), L["Validation:Required", L["Password"]].Value) }
             : Array.Empty<KeyValuePair<string, string>>();
 
-    // Extra-commit: kullanıcı kaydedildikten sonra izinler artık var olan kullanıcının Id'sine (ProviderKey=Id) yazılır.
-    private async Task CommitPermissionsAsync(UserGetDto saved)
+    // Extra-commit: kullanıcı kaydedildikten sonra izinler (ProviderKey=Id artık geçerli) + scoped rol atamaları yazılır.
+    private async Task CommitExtrasAsync(UserGetDto saved)
     {
         if (_panel != null)
             await _panel.CommitChangesAsync();
+        if (_scopedEditor != null)
+            await _scopedEditor.CommitChangesAsync();
     }
 }

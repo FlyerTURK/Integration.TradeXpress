@@ -40,6 +40,8 @@ public class TradeXpressDbContext :
     public DbSet<Country> Countries { get; set; } = null!;
     public DbSet<Branch> Branches { get; set; } = null!;
     public DbSet<Vault> Vaults { get; set; } = null!;
+    public DbSet<Integration.TradeXpress.Authorization.UserScopedGrant> UserScopedGrants { get; set; } = null!;
+    public DbSet<Integration.TradeXpress.Settings.UserGridLayout> UserGridLayouts { get; set; } = null!;
 
 
     #region Entities from the modules
@@ -100,5 +102,7 @@ public class TradeXpressDbContext :
         builder.ConfigureCountries();
         builder.ConfigureBranches();
         builder.ConfigureVaults();
+        builder.ConfigureUserScopedGrants();
+        builder.ConfigureUserGridLayouts();
     }
 }

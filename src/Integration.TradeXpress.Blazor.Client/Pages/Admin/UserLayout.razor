@@ -9,7 +9,7 @@
    User DUMB Layout — Kullanıcı alanları + (var olan kullanıcıda) İzin paneli + Rol-Scope editörü (DxTabs). I/O yok.
    İzin paneli Model'e YANSIMAZ → DirtyChanged EditChanged'i tetikler (extra-dirty: Kaydet aktif + "*").
    Panel ref'i host'a iletilir (PanelRefChanged) → host HasExtraChanges + OnAfterCommit'i ona bağlar.
-   ScopedRolesEditor kendi kendine kaydeder (auto-save) → dirty'ye dahil DEĞİL, commit gerekmez.
+   ScopedRolesEditor de İZİN paneliyle aynı kanca: inline stage → DirtyChanged extra-dirty, ref host'a → OnAfterCommit'te yazılır.
    Paneller ProviderKey=Id gerektirir → yalnız var olan kullanıcıda (ilk kayıttan SONRA) görünür. Toolbar üstte.
 *@
 <DxFormLayout CssClass="w-100">
@@ -62,7 +62,7 @@
                                        DirtyChanged="OnPanelDirtyChanged" />
             </DxTabPage>
             <DxTabPage Text="@L["ScopedRoles"]" TabIconCssClass="@TradeXpressIcons.Role">
-                <ScopedRolesEditor UserId="@Model.Id" />
+                <ScopedRolesEditor @ref="_scopedEditor" UserId="@Model.Id" DirtyChanged="OnScopedDirtyChanged" />
             </DxTabPage>
         </DxTabs>
     </div>
@@ -74,6 +74,9 @@
     // İzin paneli ref'ini host'a ilet (HasExtraChanges + OnAfterCommit için). Panel, kullanıcı var olunca var/null olur.
     [Parameter] public EventCallback<PermissionEditorPanel?> PanelRefChanged { get; set; }
 
+    // Scoped rol editörü ref'ini host'a ilet (aynı kanca: extra-dirty + extra-commit).
+    [Parameter] public EventCallback<ScopedRolesEditor?> ScopedEditorRefChanged { get; set; }
+
     // EntityEditForm cascade'i: panel dirty (Model'e yansımaz) → formu tazele (Kaydet aktif + "*").
     [CascadingParameter(Name = "EditChanged")] private Action? EditChanged { get; set; }
 
@@ -82,16 +85,24 @@
 
     private PermissionEditorPanel? _panel;
     private PermissionEditorPanel? _lastReported;
+    private ScopedRolesEditor? _scopedEditor;
+    private ScopedRolesEditor? _lastScopedReported;
 
     private void OnPanelDirtyChanged(bool _) => EditChanged?.Invoke();
+    private void OnScopedDirtyChanged(bool _) => EditChanged?.Invoke();
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        // Panel görünürlüğü kayıt durumuna bağlı → ref değişince (ortaya çık/kaybol) host'a bildir.
+        // Panel/editör görünürlüğü kayıt durumuna bağlı → ref değişince (ortaya çık/kaybol) host'a bildir.
         if (!ReferenceEquals(_panel, _lastReported))
         {
             _lastReported = _panel;
             await PanelRefChanged.InvokeAsync(_panel);
+        }
+        if (!ReferenceEquals(_scopedEditor, _lastScopedReported))
+        {
+            _lastScopedReported = _scopedEditor;
+            await ScopedEditorRefChanged.InvokeAsync(_scopedEditor);
         }
     }
 }

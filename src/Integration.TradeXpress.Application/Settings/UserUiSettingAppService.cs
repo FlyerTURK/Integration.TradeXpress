@@ -1,10 +1,10 @@
 using System;
-using System.Collections.Generic;
-using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Logging;
+using Volo.Abp.Domain.Repositories;
 using Volo.Abp.SettingManagement;
+using Volo.Abp.Users;
 
 namespace Integration.TradeXpress.Settings;
 
@@ -12,45 +12,51 @@ namespace Integration.TradeXpress.Settings;
 public class UserUiSettingAppService : TradeXpressAppService, IUserUiSettingAppService
 {
     private readonly ISettingManager _settingManager;
+    private readonly IRepository<UserGridLayout, Guid> _gridLayoutRepository;
 
-    public UserUiSettingAppService(ISettingManager settingManager)
+    public UserUiSettingAppService(
+        ISettingManager settingManager,
+        IRepository<UserGridLayout, Guid> gridLayoutRepository)
     {
         _settingManager = settingManager;
+        _gridLayoutRepository = gridLayoutRepository;
     }
 
-    // Grid düzenleri TEK tanımlı ayarda ("TradeXpress.UI.GridStates", default "{}") JSON SÖZLÜĞÜ olarak tutulur:
-    // { gridKey → layoutJson }. (Önceki "GridStates_<grid>" per-grid adı ABP'de TANIMSIZ → "Undefined setting"
-    // ile sessizce kaydedilemiyordu; tanım yalnız taban adı içeriyor.)
-
-    /// <summary>Mevcut GridStates sözlüğünü oku (bozuksa boş döner).</summary>
-    private async Task<Dictionary<string, string>> ReadGridStatesAsync()
-    {
-        var json = await SettingProvider.GetOrNullAsync(TradeXpressUiSettingNames.GridStates);
-        if (string.IsNullOrWhiteSpace(json)) return new();
-        try { return JsonSerializer.Deserialize<Dictionary<string, string>>(json) ?? new(); }
-        catch { return new(); }
-    }
+    // Grid düzenleri AYRI TABLODA (AppUserGridLayouts) per-grid satır olarak tutulur; Layout = nvarchar(max).
+    // (Önce tek AbpSettings.Value'da JSON sözlüğüydü ama büyüyünce TRUNCATE oluyordu → ayrı tablo.)
 
     public async Task ResetGridStatesAsync()
     {
-        // Tüm grid düzenlerini sıfırla → tanımlı ayarı boş sözlüğe ("{}") al.
-        await _settingManager.SetForCurrentUserAsync(TradeXpressUiSettingNames.GridStates, "{}");
+        var userId = CurrentUser.GetId();
+        await _gridLayoutRepository.DeleteAsync(x => x.UserId == userId, autoSave: true);
     }
 
     public async Task<string?> GetGridStateAsync(string gridKey)
     {
-        var dict = await ReadGridStatesAsync();
-        return dict.TryGetValue(gridKey, out var v) && !string.IsNullOrEmpty(v) ? v : null;
+        var userId = CurrentUser.GetId();
+        var entity = await _gridLayoutRepository.FirstOrDefaultAsync(
+            x => x.UserId == userId && x.GridKey == gridKey);
+        return string.IsNullOrEmpty(entity?.Layout) ? null : entity!.Layout;
     }
 
     public async Task SetGridStateAsync(string gridKey, string stateJson)
     {
         try
         {
-            var dict = await ReadGridStatesAsync();
-            dict[gridKey] = stateJson;
-            await _settingManager.SetForCurrentUserAsync(
-                TradeXpressUiSettingNames.GridStates, JsonSerializer.Serialize(dict));
+            var userId = CurrentUser.GetId();
+            var entity = await _gridLayoutRepository.FirstOrDefaultAsync(
+                x => x.UserId == userId && x.GridKey == gridKey);
+
+            if (entity == null)
+            {
+                await _gridLayoutRepository.InsertAsync(
+                    new UserGridLayout(userId, gridKey, stateJson, CurrentTenant.Id), autoSave: true);
+            }
+            else
+            {
+                entity.SetLayout(stateJson);
+                await _gridLayoutRepository.UpdateAsync(entity, autoSave: true);
+            }
         }
         catch (Exception ex)
         {
