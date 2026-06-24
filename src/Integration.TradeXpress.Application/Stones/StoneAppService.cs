@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Integration.Framework.Base.Querying;
+using Integration.TradeXpress.MultiCompany;
 using Microsoft.AspNetCore.Authorization;
 using Volo.Abp;
 using Volo.Abp.Application.Dtos;
@@ -23,24 +24,25 @@ public class StoneAppService : TradeXpressAppService, IStoneAppService
 {
     private readonly IRepository<Stone, Guid> _repository;
     private readonly IDataFilter _dataFilter;
+    private readonly ICurrentCompany _currentCompany;
 
     private static readonly HashSet<string> AllowedListFields =
         new(StringComparer.OrdinalIgnoreCase) { "Code", "Name", "IsActive", "Id" };
 
-    public StoneAppService(IRepository<Stone, Guid> repository, IDataFilter dataFilter)
+    public StoneAppService(IRepository<Stone, Guid> repository, IDataFilter dataFilter, ICurrentCompany currentCompany)
     {
         _repository = repository;
         _dataFilter = dataFilter;
+        _currentCompany = currentCompany;
     }
 
     public virtual async Task<PagedResultDto<StoneListDto>> GetListAsync(StoneListRequestDto input)
     {
         using (_dataFilter.Disable<IMultiTenant>())
         {
-            var tenantId = CurrentTenant.Id;
-            // Görünür = host(TenantId null) + çalışılan şirkete-özel (CompanyId == input.CompanyId).
+            // Görünürlük merkezi helper'dan (host + holding-host + çalışılan şirket); şirket ambient'ten.
             var query = (await _repository.GetQueryableAsync())
-                .Where(x => x.TenantId == null || (x.TenantId == tenantId && x.CompanyId == input.CompanyId))
+                .WhereCompanyVisible(CurrentTenant.Id, _currentCompany.Id)
                 .ApplyListRequest(input, AllowedListFields);
 
             var totalCount = await AsyncExecuter.CountAsync(query);
@@ -97,10 +99,9 @@ public class StoneAppService : TradeXpressAppService, IStoneAppService
     {
         using (_dataFilter.Disable<IMultiTenant>())
         {
-            var tenantId = CurrentTenant.Id;
             var rows = await AsyncExecuter.ToListAsync(
                 (await _repository.GetQueryableAsync())
-                    .Where(x => x.TenantId == null || (x.TenantId == tenantId && x.CompanyId == companyId))
+                    .WhereCompanyVisible(CurrentTenant.Id, companyId ?? _currentCompany.Id)
                     .OrderBy(x => x.Code));
             return rows.Select(ToListDto).ToList();
         }

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Integration.Framework.Base.Querying;
+using Integration.TradeXpress.MultiCompany;
 using Microsoft.AspNetCore.Authorization;
 using Volo.Abp;
 using Volo.Abp.Application.Dtos;
@@ -23,24 +24,24 @@ public class JewelryAppService : TradeXpressAppService, IJewelryAppService
 {
     private readonly IRepository<Jewelry, Guid> _repository;
     private readonly IDataFilter _dataFilter;
+    private readonly ICurrentCompany _currentCompany;
 
     private static readonly HashSet<string> AllowedListFields =
         new(StringComparer.OrdinalIgnoreCase) { "Code", "Name", "IsActive", "Id" };
 
-    public JewelryAppService(IRepository<Jewelry, Guid> repository, IDataFilter dataFilter)
+    public JewelryAppService(IRepository<Jewelry, Guid> repository, IDataFilter dataFilter, ICurrentCompany currentCompany)
     {
         _repository = repository;
         _dataFilter = dataFilter;
+        _currentCompany = currentCompany;
     }
 
     public virtual async Task<PagedResultDto<JewelryListDto>> GetListAsync(JewelryListRequestDto input)
     {
         using (_dataFilter.Disable<IMultiTenant>())
         {
-            var tenantId = CurrentTenant.Id;
             var query = (await _repository.GetQueryableAsync())
-                .Where(x => x.TenantId == null
-                            || (x.TenantId == tenantId && (x.CompanyId == null || x.CompanyId == input.CompanyId)))
+                .WhereCompanyVisible(CurrentTenant.Id, _currentCompany.Id)
                 .ApplyListRequest(input, AllowedListFields);
 
             var totalCount = await AsyncExecuter.CountAsync(query);
@@ -95,11 +96,9 @@ public class JewelryAppService : TradeXpressAppService, IJewelryAppService
     {
         using (_dataFilter.Disable<IMultiTenant>())
         {
-            var tenantId = CurrentTenant.Id;
             var rows = await AsyncExecuter.ToListAsync(
                 (await _repository.GetQueryableAsync())
-                    .Where(x => x.TenantId == null
-                                || (x.TenantId == tenantId && (x.CompanyId == null || x.CompanyId == companyId)))
+                    .WhereCompanyVisible(CurrentTenant.Id, companyId ?? _currentCompany.Id)
                     .OrderBy(x => x.Code));
             return rows.Select(ToListDto).ToList();
         }

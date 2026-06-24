@@ -1,4 +1,5 @@
 using Integration.TradeXpress.Financials.CurrencyUnits;
+using Integration.TradeXpress.MultiCompany;
 
 namespace Integration.TradeXpress.Stones;
 
@@ -10,7 +11,7 @@ namespace Integration.TradeXpress.Stones;
 /// <para>Host + tenant scoped (Cash/Metal gibi): host kataloğu (TenantId=null) herkese görünür, tenant
 /// düzenleyemez/silemez; tenant kendi kayıtlarını ekleyebilir.</para>
 /// </summary>
-public class Stone : FullAuditedAggregateRoot<Guid>, IMultiTenant
+public class Stone : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyScoped
 {
     #region Constructors
 

@@ -1,3 +1,4 @@
+using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Volo.Abp.AuditLogging.EntityFrameworkCore;
 using Volo.Abp.BackgroundJobs.EntityFrameworkCore;
@@ -133,5 +134,35 @@ public class TradeXpressDbContext :
         builder.ConfigureVouchers();
         builder.ConfigureUserScopedGrants();
         builder.ConfigureUserGridLayouts();
+    }
+
+    /// <summary>
+    /// Company-scoped (<see cref="Integration.TradeXpress.MultiCompany.ICompanyScoped"/>) eklenen kayıtlara,
+    /// CompanyId boşsa aktif çalışılan şirketi otomatik basar (ABP'nin TenantId auto-stamp'ının company eşdeğeri).
+    /// Çalışılan şirket yoksa null kalır = holding-host.
+    /// </summary>
+    public override async Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, System.Threading.CancellationToken cancellationToken = default)
+    {
+        StampCompanyScoped();
+        return await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+    }
+
+    private void StampCompanyScoped()
+    {
+        var current = LazyServiceProvider?.LazyGetService<Integration.TradeXpress.MultiCompany.ICurrentCompany>();
+        var companyId = current?.Id;
+        if (companyId == null)
+        {
+            return; // çalışılan şirket yok → holding-host (null) bırak
+        }
+
+        foreach (var entry in ChangeTracker.Entries())
+        {
+            if (entry.State == EntityState.Added
+                && entry.Entity is Integration.TradeXpress.MultiCompany.ICompanyScoped { CompanyId: null })
+            {
+                entry.Property(nameof(Integration.TradeXpress.MultiCompany.ICompanyScoped.CompanyId)).CurrentValue = companyId;
+            }
+        }
     }
 }

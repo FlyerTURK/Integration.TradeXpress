@@ -1,4 +1,5 @@
 using Integration.TradeXpress.Financials.CurrencyUnits;
+using Integration.TradeXpress.MultiCompany;
 
 namespace Integration.TradeXpress.Jewelries;
 
@@ -10,7 +11,7 @@ namespace Integration.TradeXpress.Jewelries;
 /// <para><b>Company-scoped:</b> opsiyonel <see cref="CompanyId"/> — null = holding-host (tüm şirketlere),
 /// dolu = o şirkete-özel. Host (TenantId=null) global. Görünürlük working-company'ye göre süzülür.</para>
 /// </summary>
-public class Jewelry : FullAuditedAggregateRoot<Guid>, IMultiTenant
+public class Jewelry : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyScoped
 {
     #region Constructors
 
