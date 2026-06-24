@@ -1,0 +1,175 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
+using Integration.Framework.Base.Querying;
+using Integration.TradeXpress.Branches;
+using Integration.TradeXpress.Permissions;
+using Microsoft.AspNetCore.Authorization;
+using Volo.Abp;
+using Volo.Abp.Application.Dtos;
+using Volo.Abp.Domain.Entities;
+using Volo.Abp.Domain.Repositories;
+
+namespace Integration.TradeXpress.Accounts;
+
+/// <summary>
+/// SubAccount CRUD — <b>per-tenant + branch-scoped</b>, bir <see cref="Account"/>'a bağlı. Liste
+/// <see cref="SubAccountListRequestDto.AccountId"/> ve/veya <see cref="SubAccountListRequestDto.BranchId"/>
+/// ile daraltılır. Parent hesap ve şube oluşturmada doğrulanır; sonradan değişmez.
+/// </summary>
+[Authorize(TradeXpressPermissions.SubAccounts.Default)]
+public class SubAccountAppService : TradeXpressAppService, ISubAccountAppService
+{
+    private readonly IRepository<SubAccount, Guid> _repository;
+    private readonly IRepository<Account, Guid> _accountRepository;
+    private readonly IRepository<Branch, Guid> _branchRepository;
+
+    private static readonly HashSet<string> AllowedListFields =
+        new(StringComparer.OrdinalIgnoreCase) { "Code", "Name", "AccountCode", "BranchCode", "IsActive", "Id", "AccountId", "BranchId" };
+
+    public SubAccountAppService(
+        IRepository<SubAccount, Guid> repository,
+        IRepository<Account, Guid> accountRepository,
+        IRepository<Branch, Guid> branchRepository)
+    {
+        _repository = repository;
+        _accountRepository = accountRepository;
+        _branchRepository = branchRepository;
+    }
+
+    public virtual async Task<PagedResultDto<SubAccountListDto>> GetListAsync(SubAccountListRequestDto input)
+    {
+        var accounts = await _accountRepository.GetQueryableAsync();
+        var branches = await _branchRepository.GetQueryableAsync();
+        var query = await _repository.GetQueryableAsync();
+
+        if (input.AccountId.HasValue)
+            query = query.Where(s => s.AccountId == input.AccountId.Value);
+        if (input.BranchId.HasValue)
+            query = query.Where(s => s.BranchId == input.BranchId.Value);
+
+        // Branch OPSİYONEL → korelasyonlu alt-sorgu (left-join etkisi): null şubeli alt hesaplar da listede kalır.
+        var rows = query
+            .Join(accounts, s => s.AccountId, a => a.Id, (s, a) => new SubAccountListRow
+            {
+                Id = s.Id,
+                AccountId = s.AccountId,
+                AccountCode = a.Code,
+                BranchId = s.BranchId,
+                BranchCode = s.BranchId == null
+                    ? null
+                    : branches.Where(b => b.Id == s.BranchId).Select(b => b.Code).FirstOrDefault(),
+                Code = s.Code,
+                Name = s.Name,
+                IsActive = s.IsActive,
+            })
+            .ApplyListRequest(input, AllowedListFields);
+
+        var totalCount = await AsyncExecuter.CountAsync(rows);
+        var items = await AsyncExecuter.ToListAsync(rows.Skip(input.SkipCount).Take(input.MaxResultCount));
+
+        return new PagedResultDto<SubAccountListDto>(
+            totalCount,
+            items.Select(r => new SubAccountListDto
+            {
+                Id = r.Id,
+                AccountId = r.AccountId,
+                AccountCode = r.AccountCode,
+                BranchId = r.BranchId,
+                BranchCode = r.BranchCode,
+                Code = r.Code,
+                Name = r.Name,
+                IsActive = r.IsActive,
+            }).ToList());
+    }
+
+    public virtual async Task<SubAccountGetDto> GetAsync(Guid id) => await ToGetDtoAsync(await _repository.GetAsync(id));
+
+    [Authorize(TradeXpressPermissions.SubAccounts.Create)]
+    public virtual async Task<SubAccountGetDto> CreateAsync(SubAccountCreateDto input)
+    {
+        if (CurrentTenant.Id == null)
+            throw new BusinessException("TradeXpress:Company:HostHasNoCompanies");
+
+        var accountId = await EnsureAccountVisibleAsync(input.AccountId);
+        var branchId = await ResolveBranchAsync(input.BranchId);   // opsiyonel — null geçerli
+
+        var entity = new SubAccount(accountId, branchId, input.Code, input.Name);
+        entity.SetDescription(input.Description);
+
+        await _repository.InsertAsync(entity, autoSave: true);
+        return await ToGetDtoAsync(entity);
+    }
+
+    [Authorize(TradeXpressPermissions.SubAccounts.Update)]
+    public virtual async Task<SubAccountGetDto> UpdateAsync(Guid id, SubAccountUpdateDto input)
+    {
+        var entity = await _repository.GetAsync(id);
+
+        entity.SetName(input.Name);
+        entity.SetDescription(input.Description);
+        entity.SetActive(input.IsActive);
+
+        await _repository.UpdateAsync(entity, autoSave: true);
+        return await ToGetDtoAsync(entity);
+    }
+
+    [Authorize(TradeXpressPermissions.SubAccounts.Delete)]
+    public virtual async Task DeleteAsync(Guid id) => await _repository.DeleteAsync(id, autoSave: true);
+
+    // ── helpers ───────────────────────────────────────────────────────────────
+
+    private async Task<Guid> EnsureAccountVisibleAsync(Guid? accountId)
+    {
+        if (accountId is not { } id || id == Guid.Empty || await _accountRepository.FindAsync(id) == null)
+            throw new EntityNotFoundException(typeof(Account), accountId ?? Guid.Empty);
+        return id;
+    }
+
+    /// <summary>Şube OPSİYONEL: null/boş → null döner; verilmişse görünür olmalı (yoksa EntityNotFound).</summary>
+    private async Task<Guid?> ResolveBranchAsync(Guid? branchId)
+    {
+        if (branchId is not { } id || id == Guid.Empty)
+            return null;
+        if (await _branchRepository.FindAsync(id) == null)
+            throw new EntityNotFoundException(typeof(Branch), id);
+        return id;
+    }
+
+    private async Task<SubAccountGetDto> ToGetDtoAsync(SubAccount s)
+    {
+        var accountCode = await AsyncExecuter.FirstOrDefaultAsync(
+            (await _accountRepository.GetQueryableAsync()).Where(a => a.Id == s.AccountId).Select(a => a.Code));
+
+        string? branchCode = null;
+        if (s.BranchId is { } bid)
+            branchCode = await AsyncExecuter.FirstOrDefaultAsync(
+                (await _branchRepository.GetQueryableAsync()).Where(b => b.Id == bid).Select(b => b.Code));
+
+        return new SubAccountGetDto
+        {
+            Id = s.Id,
+            AccountId = s.AccountId,
+            AccountCode = accountCode ?? string.Empty,
+            BranchId = s.BranchId,
+            BranchCode = branchCode,
+            Code = s.Code,
+            Name = s.Name,
+            Description = s.Description,
+            IsActive = s.IsActive,
+        };
+    }
+
+    private sealed class SubAccountListRow
+    {
+        public Guid Id { get; set; }
+        public Guid AccountId { get; set; }
+        public string AccountCode { get; set; } = string.Empty;
+        public Guid? BranchId { get; set; }
+        public string? BranchCode { get; set; }
+        public string Code { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public bool IsActive { get; set; }
+    }
+}

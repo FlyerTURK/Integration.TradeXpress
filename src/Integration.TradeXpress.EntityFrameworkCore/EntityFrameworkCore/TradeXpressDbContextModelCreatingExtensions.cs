@@ -9,6 +9,8 @@ using Integration.TradeXpress.Companies;
 using Integration.TradeXpress.Countries;
 using Integration.TradeXpress.Branches;
 using Integration.TradeXpress.Vaults;
+using Integration.TradeXpress.Cashes;
+using Integration.TradeXpress.Accounts;
 using Integration.TradeXpress.Authorization;
 using Integration.TradeXpress.Settings;
 
@@ -155,6 +157,81 @@ public static class TradeXpressDbContextModelCreatingExtensions
             b.HasIndex(x => new { x.TenantId, x.BranchId, x.Code }).IsUnique();
             b.HasIndex(x => new { x.TenantId, x.BranchId });
             b.HasIndex(x => new { x.TenantId, x.BranchId, x.IsDefault });
+        });
+    }
+
+    public static void ConfigureCashes(this ModelBuilder builder)
+    {
+        Check.NotNull(builder, nameof(builder));
+
+        builder.Entity<Cash>(b =>
+        {
+            b.ToTable(TradeXpressConsts.DbTablePrefix + "Cashes", TradeXpressConsts.DbSchema);
+            b.ConfigureByConvention();
+
+            b.Property(x => x.Code).IsRequired().HasMaxLength(CashConsts.CodeMaxLength);
+            b.Property(x => x.Name).IsRequired().HasMaxLength(CashConsts.NameMaxLength);
+            b.Property(x => x.Description).HasMaxLength(CashConsts.DescriptionMaxLength);
+
+            b.HasIndex(x => new { x.TenantId, x.Code }).IsUnique();
+
+            // Takip edilen para birimi (cins) — ZORUNLU. Takip eden Cash varken birim silinemez (Restrict).
+            b.HasOne(x => x.FollowingUnit)
+                .WithMany()
+                .HasForeignKey(x => x.FollowingUnitId)
+                .IsRequired()
+                .OnDelete(DeleteBehavior.Restrict);
+
+            b.HasIndex(x => new { x.TenantId, x.FollowingUnitId });
+        });
+    }
+
+    public static void ConfigureAccounts(this ModelBuilder builder)
+    {
+        Check.NotNull(builder, nameof(builder));
+
+        builder.Entity<Account>(b =>
+        {
+            b.ToTable(TradeXpressConsts.DbTablePrefix + "Accounts", TradeXpressConsts.DbSchema);
+            b.ConfigureByConvention();
+
+            b.Property(x => x.Code).IsRequired().HasMaxLength(AccountConsts.CodeMaxLength);
+            b.Property(x => x.Name).IsRequired().HasMaxLength(AccountConsts.NameMaxLength);
+            b.Property(x => x.Description).HasMaxLength(AccountConsts.DescriptionMaxLength);
+            b.Property(x => x.Limit).HasPrecision(18, 2);
+
+            b.HasIndex(x => new { x.TenantId, x.CompanyId, x.Code }).IsUnique();
+            b.HasIndex(x => new { x.TenantId, x.CompanyId });
+
+            // Para birimi referansları (cins + limit) — ZORUNLU; hesap varken birim silinemez (Restrict).
+            b.HasOne(x => x.BalanceCurrencyUnit)
+                .WithMany()
+                .HasForeignKey(x => x.BalanceCurrencyUnitId)
+                .IsRequired()
+                .OnDelete(DeleteBehavior.Restrict);
+
+            b.HasOne(x => x.LimitUnit)
+                .WithMany()
+                .HasForeignKey(x => x.LimitUnitId)
+                .IsRequired()
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        builder.Entity<SubAccount>(b =>
+        {
+            b.ToTable(TradeXpressConsts.DbTablePrefix + "SubAccounts", TradeXpressConsts.DbSchema);
+            b.ConfigureByConvention();
+
+            b.Property(x => x.Code).IsRequired().HasMaxLength(AccountConsts.CodeMaxLength);
+            b.Property(x => x.Name).IsRequired().HasMaxLength(AccountConsts.NameMaxLength);
+            b.Property(x => x.Description).HasMaxLength(AccountConsts.DescriptionMaxLength);
+
+            b.HasIndex(x => new { x.TenantId, x.AccountId, x.Code }).IsUnique();
+            b.HasIndex(x => new { x.TenantId, x.BranchId });
+
+            // Parent hesap (ZORUNLU) + şube (OPSİYONEL/nullable) — id-only (nav YOK); referans varken silme engeli (Restrict).
+            b.HasOne<Account>().WithMany().HasForeignKey(x => x.AccountId).IsRequired().OnDelete(DeleteBehavior.Restrict);
+            b.HasOne<Branch>().WithMany().HasForeignKey(x => x.BranchId).IsRequired(false).OnDelete(DeleteBehavior.Restrict);
         });
     }
 

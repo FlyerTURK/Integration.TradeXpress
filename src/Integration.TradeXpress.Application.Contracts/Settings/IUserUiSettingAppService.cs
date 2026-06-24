@@ -16,4 +16,8 @@ public interface IUserUiSettingAppService : IApplicationService
 
     Task<string?> GetThemeAsync();
     Task SetThemeAsync(string stateJson);
+
+    /// <summary>Seçili çalışma şubesi (Branch.Id) — per-user, cihazdan bağımsız.</summary>
+    Task<string?> GetWorkingBranchAsync();
+    Task SetWorkingBranchAsync(string? branchId);
 }

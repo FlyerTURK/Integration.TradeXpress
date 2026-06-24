@@ -176,6 +176,11 @@ public class TradeXpressBlazorModule : AbpModule
             sp => (Integration.TradeXpress.Blazor.Client.Services.Mdi.TabManager)sp.GetRequiredService<Integration.TradeXpress.Blazor.Client.Services.Mdi.ITabManager>());
         context.Services.AddScoped<Integration.TradeXpress.Blazor.Client.Dev.DevErrorSink>();
 
+        // Çalışma bağlamı (working context) — sol menü footer'ındaki şube seçici sürer (server-side elle kayıt;
+        // client modülü DependsOn zincirinde değil → client modüldeki kayıt server'da çalışmaz).
+        context.Services.AddScoped<Integration.TradeXpress.Blazor.Client.Services.Working.IWorkingContextService,
+                                   Integration.TradeXpress.Blazor.Client.Services.Working.WorkingContextService>();
+
         // Identity Management Services
         context.Services.AddScoped<Integration.TradeXpress.Blazor.Client.Services.IIdentityUserService,
                                    Integration.TradeXpress.Blazor.Client.Services.IdentityUserService>();

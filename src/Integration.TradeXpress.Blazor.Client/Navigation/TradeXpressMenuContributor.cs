@@ -48,48 +48,81 @@ public class TradeXpressMenuContributor : IMenuContributor
             icon: TradeXpressIcons.Definitions,
             order: 2
         );
+        // Finansal — Para Birimleri + Kur Panosu + Pariteler (alt menü).
+        var financial = new ApplicationMenuItem(
+            TradeXpressMenus.Financial,
+            l["Menu:Financial"],
+            icon: TradeXpressIcons.Financial
+        );
         // Para Birimleri (CRUD; liste tab'ında, edit yeni yığın tab'ında). Split menü kalemi kaldırıldı.
-        definitions.AddItem(new ApplicationMenuItem(
+        financial.AddItem(new ApplicationMenuItem(
             TradeXpressMenus.CurrencyUnits,
             l["CurrencyUnits"],
             url: "/currencies/currency-units",
             icon: TradeXpressIcons.CurrencyUnit
         ).RequirePermissions(TradeXpressPermissions.CurrencyUnits.Default));
         // Kur panosu — viewer'ın efektif fiyatları + "Margin Ayarla" + marj geçmişi.
-        definitions.AddItem(new ApplicationMenuItem(
+        financial.AddItem(new ApplicationMenuItem(
             TradeXpressMenus.PriceBoard,
             l["Menu:PriceBoard"],
             url: "/currencies/prices",
             icon: TradeXpressIcons.PriceBoard
         ).RequirePermissions(TradeXpressPermissions.CurrencyUnits.Default));
         // Pariteler — base/quote çiftleri (CRUD). Host yönetir; tenant kendi paritesini ekler.
-        definitions.AddItem(new ApplicationMenuItem(
+        financial.AddItem(new ApplicationMenuItem(
             TradeXpressMenus.Parities,
             l["Menu:Parities"],
             url: "/currencies/parities",
             icon: TradeXpressIcons.Parity
         ).RequirePermissions(TradeXpressPermissions.Parities.Default));
+        definitions.AddItem(financial);
+        // Emtialar — Voucher/VoucherLine'da seçilecek işaretçi emtia tipleri (alt menü). Nakitler buraya bağlı.
+        var commodities = new ApplicationMenuItem(
+            TradeXpressMenus.Commodities,
+            l["Commodities"],
+            icon: TradeXpressIcons.Commodities
+        );
+        commodities.AddItem(new ApplicationMenuItem(
+            TradeXpressMenus.Cashes,
+            l["Cashes"],
+            url: "/cashes",
+            icon: TradeXpressIcons.Cash
+        ).RequirePermissions(TradeXpressPermissions.Cashes.Default));
+        definitions.AddItem(commodities);
         // Değerleme (re-base) ayrı kullanıcı sayfası DEĞİL — kullanıcı daima piyasa/alışık
         // fiyatı görür; gerçek (base) değer arka planda hesaplanır (işlem/muhasebe).
         // Marj ayrı menü/sayfa DEĞİL — CurrencyUnit ve pano grid'inde "Margin Ayarla"
         // action'ıyla düzenlenir; geçmiş pano "Geçmiş" aksiyonundan görünür.
-        context.Menu.AddItem(definitions);
-
-        // Org ağacı yalnız TENANT'a aittir; host (merkezi operasyon) şirket tanımlayamaz → host
-        // oturumunda menüde gösterilmez. Şube/Kasa ayrı menü DEĞİL: Şirket edit formunda gömülü
-        // drill list'lerle ve Şirketler listesindeki "Şubeler" → "Kasalar" toolbar action'larıyla yönetilir.
+        // Organizasyonlar (Tanımlar altında) — Şirketler + Cari Hesaplar. Company/Account tenant'a aittir
+        // (host şirket tanımlayamaz) → yalnız tenant oturumunda gösterilir. Şube/Kasa ve Alt Hesap ayrı menü
+        // DEĞİL: parent edit formundaki drill list'lerle yönetilir.
         var currentTenant = context.ServiceProvider.GetRequiredService<ICurrentTenant>();
         if (currentTenant.Id != null)
         {
+            var organizations = new ApplicationMenuItem(
+                TradeXpressMenus.Organizations,
+                l["Menu:Organizations"],
+                icon: TradeXpressIcons.Organizations,
+                order: 3
+            );
             // Şirketler (OrgScope üstü + değerleme base'i)
-            context.Menu.AddItem(new ApplicationMenuItem(
+            organizations.AddItem(new ApplicationMenuItem(
                 TradeXpressMenus.Companies,
                 l["Menu:Companies"],
                 url: "/companies",
-                icon: TradeXpressIcons.Company,
-                order: 3
+                icon: TradeXpressIcons.Company
             ).RequirePermissions(TradeXpressPermissions.Companies.Default));
+            // Cari Hesaplar — company-scoped. Alt hesaplar drill (Hesap edit formunda).
+            organizations.AddItem(new ApplicationMenuItem(
+                TradeXpressMenus.AccountList,
+                l["Accounts"],
+                url: "/accounts",
+                icon: TradeXpressIcons.Account
+            ).RequirePermissions(TradeXpressPermissions.Accounts.Default));
+            definitions.AddItem(organizations);
         }
+
+        context.Menu.AddItem(definitions);
 
         // Ülkeler (merkezi referans — host yönetir, tenant seçer)
         context.Menu.AddItem(new ApplicationMenuItem(

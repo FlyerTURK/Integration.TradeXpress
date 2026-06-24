@@ -18,14 +18,14 @@
 *@
 <DxTextBox Text="@DisplayText"
            ReadOnly="true"
-           Enabled="@Enabled"
+           Enabled="@_effectiveEnabled"
            NullText="@NullText"
            ValidationEnabled="false"
            CssClass="w-100">
     <Buttons>
         <DxEditorButton IconCssClass="fas fa-pen-to-square" Visible="@ShowEditButton" Click="@OnEditButtonClick" Tooltip="@L["Edit"].Value" />
         <DxEditorButton IconCssClass="fas fa-xmark" Visible="@ShowClearButton" Click="@OnClearButtonClick" Tooltip="@L["Clear"].Value" />
-        <DxEditorButton IconCssClass="fas fa-ellipsis" Visible="@(!ReadOnly && Enabled)" Click="@OnPickerButtonClick" Tooltip="@L["Select"].Value" />
+        <DxEditorButton IconCssClass="fas fa-ellipsis" Visible="@(!_effectiveReadOnly && _effectiveEnabled)" Click="@OnPickerButtonClick" Tooltip="@L["Select"].Value" />
     </Buttons>
 </DxTextBox>
 
@@ -101,6 +101,8 @@
     [Parameter] public Func<Task<TValue?>>? OnAddRequested { get; set; }
 
     [CascadingParameter] private EditContext? CascadedEditContext { get; set; }
+    /// <summary>EntityEditForm salt-okunur (fieldset disabled) iken true → ✎/✕/▼ gizlenir (native disable görünür bırakırdı).</summary>
+    [CascadingParameter(Name = "FormIsReadOnly")] private bool FormIsReadOnly { get; set; }
 
     private bool _pickerVisible;
     private object? _pending;     // grid'de seçili (henüz onaylanmamış) satır
@@ -126,8 +128,13 @@
     }
     private bool _isNullable => !typeof(TValue).IsValueType || Nullable.GetUnderlyingType(typeof(TValue)) is not null;
 
-    private bool ShowEditButton => OnEditRequested is not null && !ReadOnly && Enabled && _hasValue;
-    private bool ShowClearButton => !ReadOnly && Enabled && _isNullable && AllowClear && _hasValue;
+    // Form salt-okunur (fieldset disabled) → component'i de okunur/pasif say: native disable input'u kapatır ama
+    // gömülü ✎/✕/▼ butonlarını görünür bırakırdı → efektif bayraklarla hepsini gizle.
+    private bool _effectiveReadOnly => ReadOnly || FormIsReadOnly;
+    private bool _effectiveEnabled => Enabled && !FormIsReadOnly;
+
+    private bool ShowEditButton => OnEditRequested is not null && !_effectiveReadOnly && _effectiveEnabled && _hasValue;
+    private bool ShowClearButton => !_effectiveReadOnly && _effectiveEnabled && _isNullable && AllowClear && _hasValue;
 
     private TItem? SelectedItem => _hasValue
         ? Data.FirstOrDefault(i => i is not null && EqualityComparer<TValue>.Default.Equals(GetItemValue(i), Value))

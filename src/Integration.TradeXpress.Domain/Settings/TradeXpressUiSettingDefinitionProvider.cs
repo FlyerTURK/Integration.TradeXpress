@@ -21,6 +21,11 @@ public class TradeXpressUiSettingDefinitionProvider : SettingDefinitionProvider
                 TradeXpressUiSettingNames.Theme,
                 defaultValue: "",
                 isVisibleToClients: true
+            ),
+            new SettingDefinition(
+                TradeXpressUiSettingNames.WorkingBranch,
+                defaultValue: "",
+                isVisibleToClients: true
             )
         );
     }

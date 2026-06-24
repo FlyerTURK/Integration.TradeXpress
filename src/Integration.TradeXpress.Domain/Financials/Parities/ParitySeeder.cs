@@ -1,8 +1,9 @@
 namespace Integration.TradeXpress.Financials.Parities;
 
 /// <summary>
-/// Parite seed'i (tek sorumluluk): host birimlerinin uyumlu tüm çiftleri (C(n,2)), öncelik diziyle
-/// yönlü (base = yüksek öncelikli). Host-only; birimler kurulduktan SONRA çağrılır (orchestrator sırası).
+/// Parite seed'i (tek sorumluluk): işletmenin gerçekten kullandığı SEÇİLİ çiftler (aşağıdaki
+/// <see cref="CuratedPairs"/> listesi), öncelik diziyle yönlü (base = yüksek öncelikli).
+/// Host-only; birimler kurulduktan SONRA çağrılır (orchestrator sırası).
 /// Tekrar çalıştırılabilir — zaten var olanı yeniden eklemez.
 /// </summary>
 public class ParitySeeder(
@@ -21,7 +22,7 @@ public class ParitySeeder(
 
     #region Seeding
 
-    /// <summary>Host birimlerinin uyumlu tüm çiftlerini (C(n,2)) ekler. Yalnız host.</summary>
+    /// <summary>Seçili (curated) host paritelerini ekler. Yalnız host.</summary>
     public async Task SeedAsync()
     {
         var hostUnits = await GetHostUnits();
@@ -29,7 +30,7 @@ public class ParitySeeder(
         var existingPairs = await GetExistingHostPairs();
 
         var order = 1;
-        foreach (var (baseCode, quoteCode) in CompatiblePairs(hostUnits))
+        foreach (var (baseCode, quoteCode) in CuratedPairs(idByCode))
         {
             var pair = (idByCode[baseCode], idByCode[quoteCode]);
 
@@ -75,16 +76,15 @@ public class ParitySeeder(
 
     #region Helpers
 
-    // Birimlerin uyumlu tüm ikilileri (C(n,2)); her biri öncelik diziyle yönlü (Base = güçlü olan).
-    private static IEnumerable<(string Base, string Quote)> CompatiblePairs(IReadOnlyList<CurrencyUnit> units)
+    // Seçili çiftler — yalnız host kataloğunda VAR OLAN birimlerin ikilileri; her biri öncelik
+    // diziyle yönlü (Base = güçlü olan). Eksik birim içeren çift sessizce atlanır (idempotent/güvenli).
+    private static IEnumerable<(string Base, string Quote)> CuratedPairs(IReadOnlyDictionary<string, Guid> idByCode)
     {
-        var codes = units.Select(u => u.Code).ToList();
-
-        for (var i = 0; i < codes.Count; i++)
+        foreach (var (a, b) in Pairs)
         {
-            for (var j = i + 1; j < codes.Count; j++)
+            if (idByCode.ContainsKey(a) && idByCode.ContainsKey(b))
             {
-                yield return CurrencyUnitPriority.Direct(codes[i], codes[j]);
+                yield return CurrencyUnitPriority.Direct(a, b);
             }
         }
     }
@@ -94,6 +94,28 @@ public class ParitySeeder(
     {
         await _unitOfWorkManager.Current!.SaveChangesAsync();
     }
+
+    #endregion
+
+    #region Seed Data
+
+    // İşletmenin kullandığı seçili pariteler (12). Yön önemsiz — Direct() base/quote'u önceliğe göre
+    // belirler; PairKey ters-çifti zaten teke indirir. Yalnız katalogda var olan birim kodları.
+    private static readonly (string A, string B)[] Pairs =
+    [
+        (CurrencyUnitCode.USD, CurrencyUnitCode.TRY),
+        (CurrencyUnitCode.HAS, CurrencyUnitCode.TRY),
+        (CurrencyUnitCode.HAS, CurrencyUnitCode.USD),
+        (CurrencyUnitCode.HAS, CurrencyUnitCode.EUR),
+        (CurrencyUnitCode.HAS, CurrencyUnitCode.GUM),
+        (CurrencyUnitCode.HAS, CurrencyUnitCode.PLT),
+        (CurrencyUnitCode.HAS, CurrencyUnitCode.PLD),
+        (CurrencyUnitCode.GUM, CurrencyUnitCode.TRY),
+        (CurrencyUnitCode.USD, CurrencyUnitCode.CHF),
+        (CurrencyUnitCode.USD, CurrencyUnitCode.CAD),
+        (CurrencyUnitCode.USD, CurrencyUnitCode.SAR),
+        (CurrencyUnitCode.EUR, CurrencyUnitCode.TRY),
+    ];
 
     #endregion
 }

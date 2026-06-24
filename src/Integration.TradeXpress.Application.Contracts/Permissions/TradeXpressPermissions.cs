@@ -59,4 +59,28 @@ public static class TradeXpressPermissions
         public const string Update  = Default + ".Update";
         public const string Delete  = Default + ".Delete";
     }
+
+    public static class Cashes
+    {
+        public const string Default = GroupName + ".Cashes";
+        public const string Create  = Default + ".Create";
+        public const string Update  = Default + ".Update";
+        public const string Delete  = Default + ".Delete";
+    }
+
+    public static class Accounts
+    {
+        public const string Default = GroupName + ".Accounts";
+        public const string Create  = Default + ".Create";
+        public const string Update  = Default + ".Update";
+        public const string Delete  = Default + ".Delete";
+    }
+
+    public static class SubAccounts
+    {
+        public const string Default = GroupName + ".SubAccounts";
+        public const string Create  = Default + ".Create";
+        public const string Update  = Default + ".Update";
+        public const string Delete  = Default + ".Delete";
+    }
 }

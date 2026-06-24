@@ -19,14 +19,14 @@
             TextFieldName="@TextFieldName"
             Value="@Value"
             ValueChanged="@OnInternalValueChanged"
-            Enabled="@Enabled"
-            ReadOnly="@ReadOnly"
+            Enabled="@_effectiveEnabled"
+            ReadOnly="@_effectiveReadOnly"
             NullText="@NullText"
             SearchMode="ListSearchMode.AutoSearch"
             SearchFilterCondition="@SearchFilterCondition"
             DropDownTriggerMode="DropDownTriggerMode.Click"
             ClearButtonDisplayMode="@_clearMode"
-            ShowDropDownButton="@(!ReadOnly)"
+            ShowDropDownButton="@(!_effectiveReadOnly)"
             ValidationEnabled="false"
             CssClass="w-100">
     <Buttons>
@@ -59,6 +59,8 @@
     [Parameter] public Func<Task<TValue?>>? OnAddRequested { get; set; }
 
     [CascadingParameter] private EditContext? CascadedEditContext { get; set; }
+    /// <summary>EntityEditForm salt-okunur (fieldset disabled) iken true → ✎/+ ve clear gizlenir (native disable görünür bırakırdı).</summary>
+    [CascadingParameter(Name = "FormIsReadOnly")] private bool FormIsReadOnly { get; set; }
 
     // "Değer var mı": null / Guid.Empty / 0 → yok. AYRICA boş string de "yok" (string DTO alanının "" default'u
     // EqualityComparer'da null'a eşit DEĞİL → Edit/Clear yanlış görünürdü). Kalıcı fix burada → tüm kullanımlarda doğru.
@@ -72,12 +74,17 @@
     }
     private bool _isNullable => !typeof(TValue).IsValueType || Nullable.GetUnderlyingType(typeof(TValue)) is not null;
 
-    private bool ShowEditButton => OnEditRequested is not null && !ReadOnly && Enabled && _hasValue;
-    private bool ShowAddButton => OnAddRequested is not null && !ReadOnly && Enabled;
+    // Form salt-okunur (fieldset disabled) → component'i de pasif/okunur say: native disable input'u kapatır ama
+    // ✎/+ ve clear'ı görünür bırakırdı; efektif bayrakları her yerde kullan → disabled combo'da hiçbir buton çıkmaz.
+    private bool _effectiveReadOnly => ReadOnly || FormIsReadOnly;
+    private bool _effectiveEnabled => Enabled && !FormIsReadOnly;
+
+    private bool ShowEditButton => OnEditRequested is not null && !_effectiveReadOnly && _effectiveEnabled && _hasValue;
+    private bool ShowAddButton => OnAddRequested is not null && !_effectiveReadOnly && _effectiveEnabled;
 
     // Native clear (DevExpress) — nullable + AllowClear iken Auto (değer varken × görünür), aksi halde Never.
     private DataEditorClearButtonDisplayMode _clearMode =>
-        (!ReadOnly && _isNullable && AllowClear)
+        (!_effectiveReadOnly && _effectiveEnabled && _isNullable && AllowClear)
             ? DataEditorClearButtonDisplayMode.Auto
             : DataEditorClearButtonDisplayMode.Never;
 

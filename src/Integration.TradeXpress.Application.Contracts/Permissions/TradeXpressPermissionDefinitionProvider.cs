@@ -51,6 +51,24 @@ public class TradeXpressPermissionDefinitionProvider : PermissionDefinitionProvi
         vaults.AddChild(TradeXpressPermissions.Vaults.Create, L("Permission:Create"));
         vaults.AddChild(TradeXpressPermissions.Vaults.Update, L("Permission:Update"));
         vaults.AddChild(TradeXpressPermissions.Vaults.Delete, L("Permission:Delete"));
+
+        var cashes = myGroup.AddPermission(
+            TradeXpressPermissions.Cashes.Default, L("Permission:Cashes"));
+        cashes.AddChild(TradeXpressPermissions.Cashes.Create, L("Permission:Create"));
+        cashes.AddChild(TradeXpressPermissions.Cashes.Update, L("Permission:Update"));
+        cashes.AddChild(TradeXpressPermissions.Cashes.Delete, L("Permission:Delete"));
+
+        var accounts = myGroup.AddPermission(
+            TradeXpressPermissions.Accounts.Default, L("Permission:Accounts"));
+        accounts.AddChild(TradeXpressPermissions.Accounts.Create, L("Permission:Create"));
+        accounts.AddChild(TradeXpressPermissions.Accounts.Update, L("Permission:Update"));
+        accounts.AddChild(TradeXpressPermissions.Accounts.Delete, L("Permission:Delete"));
+
+        var subAccounts = myGroup.AddPermission(
+            TradeXpressPermissions.SubAccounts.Default, L("Permission:SubAccounts"));
+        subAccounts.AddChild(TradeXpressPermissions.SubAccounts.Create, L("Permission:Create"));
+        subAccounts.AddChild(TradeXpressPermissions.SubAccounts.Update, L("Permission:Update"));
+        subAccounts.AddChild(TradeXpressPermissions.SubAccounts.Delete, L("Permission:Delete"));
     }
 
     private static LocalizableString L(string name)

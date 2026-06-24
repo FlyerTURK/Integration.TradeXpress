@@ -86,4 +86,14 @@ public class UserUiSettingAppService : TradeXpressAppService, IUserUiSettingAppS
     {
         await _settingManager.SetForCurrentUserAsync(TradeXpressUiSettingNames.Theme, stateJson ?? "");
     }
+
+    public async Task<string?> GetWorkingBranchAsync()
+    {
+        return await SettingProvider.GetOrNullAsync(TradeXpressUiSettingNames.WorkingBranch);
+    }
+
+    public async Task SetWorkingBranchAsync(string? branchId)
+    {
+        await _settingManager.SetForCurrentUserAsync(TradeXpressUiSettingNames.WorkingBranch, branchId ?? "");
+    }
 }

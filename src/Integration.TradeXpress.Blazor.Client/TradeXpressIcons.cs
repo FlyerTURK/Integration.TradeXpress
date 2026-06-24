@@ -16,6 +16,12 @@ public static class TradeXpressIcons
     // ── Tanımlar ──
     public const string Country = "fas fa-earth-europe";
     public const string CurrencyUnit = "fas fa-coins";
+    public const string Cash = "fas fa-money-bill-wave";
+
+    // ── Hesaplar ──
+    public const string Account = "fas fa-book";
+    public const string SubAccount = "fas fa-list-ul";
+    public const string Accounts = "fas fa-book-open";
     public const string CurrencyMargin = "fas fa-percent";
     public const string Parity = "fas fa-arrow-right-arrow-left";
 
@@ -31,6 +37,9 @@ public static class TradeXpressIcons
 
     // ── Menü grupları (parent düğümler) ──
     public const string Definitions = "fas fa-folder-tree";
+    public const string Commodities = "fas fa-cubes";
+    public const string Organizations = "fas fa-sitemap";
+    public const string Financial = "fas fa-money-bill-trend-up";
     public const string Identity = "fas fa-id-card-alt";
 
     // ── Genel ──

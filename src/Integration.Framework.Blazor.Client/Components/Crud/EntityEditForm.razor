@@ -49,8 +49,12 @@
                 <fieldset disabled="@IsReadOnly" style="border:0; padding:0; margin:0; min-width:0;">
                     @* Drill/koleksiyon değişimi @onchange'e veya EditContext'e düşmez → Layout içindeki drill'ler
                        bu EditChanged cascade'ini çağırır → NotifyIfChanged (re-render + dirty/toolbar/* tazele). *@
+                    @* Salt-okunur (fieldset disabled) durumu component'lere cascade et: native disabled input'ları
+                       pasifleştirir ama gömülü ✎/+ butonlarını GİZLEYEMEZ → LookupComboBox/LookupEdit bu bayrakla saklar. *@
                     <CascadingValue Value="@EditChangedAction" Name="EditChanged" IsFixed="true">
-                        <div @onchange="OnFormChange">@ChildContent(Model)</div>
+                        <CascadingValue Value="@IsReadOnly" Name="FormIsReadOnly">
+                            <div @onchange="OnFormChange">@ChildContent(Model)</div>
+                        </CascadingValue>
                     </CascadingValue>
                 </fieldset>
             </EditForm>

@@ -64,6 +64,9 @@ public class TradeXpressBlazorClientModule : AbpModule
         context.Services.AddScoped<Integration.Framework.Blazor.Client.Components.Crud.IGridExportAssemblyLoader,
                                    Integration.Framework.Blazor.Client.Components.Crud.GridExportAssemblyLoader>();
 
+        // Çalışma bağlamı (working context) — seçili çalışma şubesi (company+branch); sol menü footer combo'su sürer.
+        context.Services.AddScoped<Services.Working.IWorkingContextService, Services.Working.WorkingContextService>();
+
         // Identity Management Services
         context.Services.AddScoped<Services.IIdentityUserService, Services.IdentityUserService>();
         context.Services.AddScoped<Services.IIdentityRoleService, Services.IdentityRoleService>();

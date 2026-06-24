@@ -1,0 +1,292 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
+using Integration.Framework.Base.Querying;
+using Integration.TradeXpress.Companies;
+using Integration.TradeXpress.Financials.CurrencyUnits;
+using Integration.TradeXpress.Permissions;
+using Microsoft.AspNetCore.Authorization;
+using Volo.Abp;
+using Volo.Abp.Application.Dtos;
+using Volo.Abp.Data;
+using Volo.Abp.Domain.Entities;
+using Volo.Abp.Domain.Repositories;
+using Volo.Abp.MultiTenancy;
+
+namespace Integration.TradeXpress.Accounts;
+
+/// <summary>
+/// Account CRUD — <b>per-tenant + company-scoped</b> (liste <see cref="AccountListRequestDto.CompanyId"/> ile
+/// daraltılır). Bakiye/limit para birimleri (host‖tenant CurrencyUnit) ZORUNLU ve görünürlük kapsamında
+/// (global ‖ own) doğrulanır; kodları liste/get'te zenginleştirilir. Alt hesabı olan hesap silinemez.
+/// </summary>
+[Authorize(TradeXpressPermissions.Accounts.Default)]
+public class AccountAppService : TradeXpressAppService, IAccountAppService
+{
+    private readonly IRepository<Account, Guid> _repository;
+    private readonly IRepository<Company, Guid> _companyRepository;
+    private readonly IRepository<CurrencyUnit, Guid> _unitRepository;
+    private readonly IRepository<SubAccount, Guid> _subAccountRepository;   // yalnız OKUMA (graf projeksiyonu + sil)
+    private readonly ISubAccountAppService _subAccountAppService;           // YAZMA: alt hesap create/update/delete buraya delege
+    private readonly IDataFilter _dataFilter;
+
+    private static readonly HashSet<string> AllowedListFields =
+        new(StringComparer.OrdinalIgnoreCase) { "Code", "Name", "CompanyCode", "IsActive", "Limit", "Id", "CompanyId" };
+
+    public AccountAppService(
+        IRepository<Account, Guid> repository,
+        IRepository<Company, Guid> companyRepository,
+        IRepository<CurrencyUnit, Guid> unitRepository,
+        IRepository<SubAccount, Guid> subAccountRepository,
+        ISubAccountAppService subAccountAppService,
+        IDataFilter dataFilter)
+    {
+        _repository = repository;
+        _companyRepository = companyRepository;
+        _unitRepository = unitRepository;
+        _subAccountRepository = subAccountRepository;
+        _subAccountAppService = subAccountAppService;
+        _dataFilter = dataFilter;
+    }
+
+    public virtual async Task<PagedResultDto<AccountListDto>> GetListAsync(AccountListRequestDto input)
+    {
+        var companies = await _companyRepository.GetQueryableAsync();
+        var query = await _repository.GetQueryableAsync();
+        if (input.CompanyId.HasValue)
+            query = query.Where(a => a.CompanyId == input.CompanyId.Value);
+
+        var rows = query
+            .Join(companies, a => a.CompanyId, c => c.Id, (a, c) => new AccountListRow
+            {
+                Id = a.Id,
+                CompanyId = a.CompanyId,
+                CompanyCode = c.Code,
+                Code = a.Code,
+                Name = a.Name,
+                BalanceCurrencyUnitId = a.BalanceCurrencyUnitId,
+                Limit = a.Limit,
+                LimitUnitId = a.LimitUnitId,
+                IsActive = a.IsActive,
+            })
+            .ApplyListRequest(input, AllowedListFields);
+
+        var totalCount = await AsyncExecuter.CountAsync(rows);
+        var items = await AsyncExecuter.ToListAsync(rows.Skip(input.SkipCount).Take(input.MaxResultCount));
+
+        var codes = await LoadCurrencyCodesAsync(
+            items.SelectMany(r => new[] { r.BalanceCurrencyUnitId, r.LimitUnitId }));
+
+        return new PagedResultDto<AccountListDto>(
+            totalCount,
+            items.Select(r => new AccountListDto
+            {
+                Id = r.Id,
+                CompanyId = r.CompanyId,
+                CompanyCode = r.CompanyCode,
+                Code = r.Code,
+                Name = r.Name,
+                BalanceCurrencyUnitId = r.BalanceCurrencyUnitId,
+                BalanceCurrencyCode = codes.GetValueOrDefault(r.BalanceCurrencyUnitId),
+                Limit = r.Limit,
+                LimitUnitId = r.LimitUnitId,
+                LimitCurrencyCode = codes.GetValueOrDefault(r.LimitUnitId),
+                IsActive = r.IsActive,
+            }).ToList());
+    }
+
+    public virtual async Task<AccountGetDto> GetAsync(Guid id) => await ToGetDtoAsync(await _repository.GetAsync(id));
+
+    [Authorize(TradeXpressPermissions.Accounts.Create)]
+    public virtual async Task<AccountGetDto> CreateAsync(AccountCreateDto input)
+    {
+        if (CurrentTenant.Id == null)
+            throw new BusinessException("TradeXpress:Company:HostHasNoCompanies");
+
+        await EnsureCompanyVisibleAsync(input.CompanyId);
+        var balanceUnitId = await ResolveCurrencyAsync(input.BalanceCurrencyUnitId);
+        var limitUnitId = await ResolveCurrencyAsync(input.LimitUnitId);
+
+        var entity = new Account(
+            input.CompanyId,
+            input.Code,
+            input.Name,
+            balanceUnitId,
+            limitUnitId,
+            input.Limit);
+        entity.SetDescription(input.Description);
+
+        await _repository.InsertAsync(entity, autoSave: true);
+        await SaveSubAccountsAsync(entity.Id, input.SubAccounts);
+        await EnsureDefaultSubAccountAsync(entity.Id);   // en az 1 alt hesap (ANAHESAP) garantisi
+        return await ToGetDtoAsync(entity);
+    }
+
+    [Authorize(TradeXpressPermissions.Accounts.Update)]
+    public virtual async Task<AccountGetDto> UpdateAsync(Guid id, AccountUpdateDto input)
+    {
+        var entity = await _repository.GetAsync(id);
+        var balanceUnitId = await ResolveCurrencyAsync(input.BalanceCurrencyUnitId);
+        var limitUnitId = await ResolveCurrencyAsync(input.LimitUnitId);
+
+        entity.SetName(input.Name);
+        entity.SetBalanceCurrencyUnit(balanceUnitId);
+        entity.SetLimit(input.Limit);
+        entity.SetLimitUnit(limitUnitId);
+        entity.SetDescription(input.Description);
+        entity.SetActive(input.IsActive);
+
+        await _repository.UpdateAsync(entity, autoSave: true);
+        await SaveSubAccountsAsync(entity.Id, input.SubAccounts);
+        await EnsureDefaultSubAccountAsync(entity.Id);   // hiçbir koşulda alt hesapsız kalmasın
+        return await ToGetDtoAsync(entity);
+    }
+
+    [Authorize(TradeXpressPermissions.Accounts.Delete)]
+    public virtual async Task DeleteAsync(Guid id)
+    {
+        // Alt hesapları da sil (cascade) — hesap silinince çocuksuz kalsın.
+        await _subAccountRepository.DeleteAsync(s => s.AccountId == id, autoSave: true);
+        await _repository.DeleteAsync(id, autoSave: true);
+    }
+
+    // ── alt hesap grafı diff (Id + IsDeleted) → SubAccountAppService'e DELEGE ───
+    private async Task SaveSubAccountsAsync(Guid accountId, System.Collections.Generic.List<SubAccountGraphDto> subAccounts)
+    {
+        if (subAccounts == null) return;
+
+        // Önce ekle + güncelle, sonra sil (Branch→Vault deseniyle aynı).
+        foreach (var s in subAccounts.Where(x => !x.IsDeleted))
+        {
+            if (s.Id == Guid.Empty)
+            {
+                await _subAccountAppService.CreateAsync(new SubAccountCreateDto
+                {
+                    AccountId = accountId,
+                    BranchId = null,            // drill'de şube atanmaz (nullable)
+                    Code = s.Code,
+                    Name = s.Name,
+                    Description = s.Description,
+                });
+            }
+            else
+            {
+                await _subAccountAppService.UpdateAsync(s.Id, new SubAccountUpdateDto
+                {
+                    Name = s.Name,
+                    Description = s.Description,
+                    IsActive = s.IsActive,
+                });
+            }
+        }
+
+        foreach (var s in subAccounts.Where(x => x.IsDeleted && x.Id != Guid.Empty))
+        {
+            await _subAccountAppService.DeleteAsync(s.Id);
+        }
+    }
+
+    /// <summary>Hesabın hiç alt hesabı yoksa varsayılan "ANAHESAP" (BranchId=null) alt hesabını ekler (en az 1 kuralı).</summary>
+    private async Task EnsureDefaultSubAccountAsync(Guid accountId)
+    {
+        var any = await AsyncExecuter.AnyAsync(
+            (await _subAccountRepository.GetQueryableAsync()).Where(s => s.AccountId == accountId));
+        if (any) return;
+
+        await _subAccountAppService.CreateAsync(new SubAccountCreateDto
+        {
+            AccountId = accountId,
+            BranchId = null,
+            Code = AccountConsts.DefaultSubAccountCode,
+            Name = AccountConsts.DefaultSubAccountName,
+        });
+    }
+
+    // ── helpers ───────────────────────────────────────────────────────────────
+
+    private async Task EnsureCompanyVisibleAsync(Guid companyId)
+    {
+        if (companyId == Guid.Empty || await _companyRepository.FindAsync(companyId) == null)
+            throw new EntityNotFoundException(typeof(Company), companyId);
+    }
+
+    /// <summary>Para birimi zorunlu + görünürlük kapsamında (global ‖ own) var olmalı. Geçerli Id'yi döndürür.</summary>
+    private async Task<Guid> ResolveCurrencyAsync(Guid? currencyUnitId)
+    {
+        if (currencyUnitId is not { } id || id == Guid.Empty)
+            throw new BusinessException("TradeXpress:Account:CurrencyRequired");
+
+        using (_dataFilter.Disable<IMultiTenant>())
+        {
+            var tenantId = CurrentTenant.Id;
+            var exists = await AsyncExecuter.AnyAsync(
+                (await _unitRepository.GetQueryableAsync())
+                    .Where(u => u.Id == id && (u.TenantId == null || u.TenantId == tenantId)));
+            if (!exists)
+                throw new EntityNotFoundException(typeof(CurrencyUnit), id);
+        }
+
+        return id;
+    }
+
+    private async Task<Dictionary<Guid, string>> LoadCurrencyCodesAsync(IEnumerable<Guid> ids)
+    {
+        var list = ids.Where(i => i != Guid.Empty).Distinct().ToList();
+        if (list.Count == 0) return new Dictionary<Guid, string>();
+
+        using (_dataFilter.Disable<IMultiTenant>())
+        {
+            var units = await AsyncExecuter.ToListAsync(
+                (await _unitRepository.GetQueryableAsync()).Where(u => list.Contains(u.Id)));
+            return units.ToDictionary(u => u.Id, u => u.Code);
+        }
+    }
+
+    private async Task<AccountGetDto> ToGetDtoAsync(Account a)
+    {
+        var companyCode = await AsyncExecuter.FirstOrDefaultAsync(
+            (await _companyRepository.GetQueryableAsync()).Where(c => c.Id == a.CompanyId).Select(c => c.Code));
+        var codes = await LoadCurrencyCodesAsync(new[] { a.BalanceCurrencyUnitId, a.LimitUnitId });
+
+        var subs = await AsyncExecuter.ToListAsync(
+            (await _subAccountRepository.GetQueryableAsync()).Where(s => s.AccountId == a.Id).OrderBy(s => s.Code));
+
+        return new AccountGetDto
+        {
+            Id = a.Id,
+            CompanyId = a.CompanyId,
+            CompanyCode = companyCode ?? string.Empty,
+            Code = a.Code,
+            Name = a.Name,
+            BalanceCurrencyUnitId = a.BalanceCurrencyUnitId,
+            BalanceCurrencyCode = codes.GetValueOrDefault(a.BalanceCurrencyUnitId),
+            Limit = a.Limit,
+            LimitUnitId = a.LimitUnitId,
+            LimitCurrencyCode = codes.GetValueOrDefault(a.LimitUnitId),
+            Description = a.Description,
+            IsActive = a.IsActive,
+            SubAccounts = subs.Select(s => new SubAccountGraphDto
+            {
+                Id = s.Id,
+                Code = s.Code,
+                Name = s.Name,
+                Description = s.Description,
+                IsActive = s.IsActive,
+            }).ToList(),
+        };
+    }
+
+    private sealed class AccountListRow
+    {
+        public Guid Id { get; set; }
+        public Guid CompanyId { get; set; }
+        public string CompanyCode { get; set; } = string.Empty;
+        public string Code { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public Guid BalanceCurrencyUnitId { get; set; }
+        public decimal Limit { get; set; }
+        public Guid LimitUnitId { get; set; }
+        public bool IsActive { get; set; }
+    }
+}

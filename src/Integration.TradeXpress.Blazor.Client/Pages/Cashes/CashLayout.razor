@@ -1,0 +1,59 @@
+@using System
+@using System.Linq
+@using System.Collections.Generic
+@using Integration.TradeXpress.Cashes
+@using Integration.TradeXpress.Financials.CurrencyUnits
+@using Integration.Framework.Blazor.Client.Components.Crud
+@using DevExpress.Blazor
+@using Microsoft.Extensions.Localization
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@*
+   Cash DUMB Layout — yalnız CashGetDto'yu forma yansıtır. I/O yok (cins adayları host'tan param).
+   FollowingUnit (para birimi cinsi) ZORUNLU; LookupComboBox arama + (host bağlarsa) ✎ ile birimin edit'ine git.
+*@
+
+<DxFormLayout CssClass="w-100">
+    <DxFormLayoutGroup Caption="@L["General"]" ColSpanMd="12">
+        <DxFormLayoutItem Caption="@($"{L["Code"]} *")" ColSpanMd="6">
+            <DxTextBox @bind-Text="@Model.Code" Enabled="@IsNew" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="12">
+            <DxTextBox @bind-Text="@Model.Name" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem ColSpanMd="12">
+            <CaptionTemplate>
+                <InfoCaption Text="@L["Cash:Currency"].Value"
+                             HintText="@L["Cash:CurrencyHint"].Value"
+                             Required="true" />
+            </CaptionTemplate>
+            <Template>
+                <LookupComboBox TItem="CurrencyUnitListDto" TValue="Guid?"
+                                Data="@CurrencyUnits"
+                                ValueFieldName="@nameof(CurrencyUnitListDto.Id)"
+                                TextFieldName="@nameof(CurrencyUnitListDto.Code)"
+                                @bind-Value="@Model.FollowingUnitId"
+                                SearchFilterCondition="ListSearchFilterCondition.Contains"
+                                NullText="@L["Select"].Value"
+                                OnEditRequested="@OnEditFollowingUnit" />
+            </Template>
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["Description"]" ColSpanMd="12">
+            <DxMemo @bind-Text="@Model.Description" Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6">
+            <DxCheckBox @bind-Checked="@Model.IsActive" CheckType="CheckType.Switch">
+                @(Model.IsActive ? L["Active"] : L["Passive"])
+            </DxCheckBox>
+        </DxFormLayoutItem>
+    </DxFormLayoutGroup>
+</DxFormLayout>
+
+@code {
+    [Parameter, EditorRequired] public CashGetDto Model { get; set; } = default!;
+    [Parameter] public bool IsNew { get; set; }
+    /// <summary>Cins lookup verisi (Type=Cash para birimleri; host doldurur). Dumb layout I/O yapmaz.</summary>
+    [Parameter] public IReadOnlyList<CurrencyUnitListDto> CurrencyUnits { get; set; } = Array.Empty<CurrencyUnitListDto>();
+    /// <summary>Edit (✎) — host seçili birimi (Id) düzenler. Boşsa ✎ butonu görünmez.</summary>
+    [Parameter] public Func<Guid?, Task>? OnEditFollowingUnit { get; set; }
+}

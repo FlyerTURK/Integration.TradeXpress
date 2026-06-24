@@ -73,6 +73,12 @@
                             <Integration.TradeXpress.Blazor.Client.Layout.NavMenu />
                         </div>
                     </BodyTemplate>
+                    <FooterTemplate>
+                        @* Çalışma bağlamı (working context) şube seçici — sol menü footer'ı. *@
+                        <div style="padding:0.5rem; border-top:1px solid var(--dxbl-drawer-border-color);">
+                            <Integration.TradeXpress.Blazor.Client.Layout.WorkingBranchSelector />
+                        </div>
+                    </FooterTemplate>
                     <TargetContent>
                         <DxDrawer CssClass="h-100 w-100"
                                   @bind-IsOpen="IsInfoOpen"

@@ -20,6 +20,8 @@ using Integration.TradeXpress.Companies;
 using Integration.TradeXpress.Countries;
 using Integration.TradeXpress.Branches;
 using Integration.TradeXpress.Vaults;
+using Integration.TradeXpress.Cashes;
+using Integration.TradeXpress.Accounts;
 
 namespace Integration.TradeXpress.EntityFrameworkCore;
 
@@ -40,6 +42,9 @@ public class TradeXpressDbContext :
     public DbSet<Country> Countries { get; set; } = null!;
     public DbSet<Branch> Branches { get; set; } = null!;
     public DbSet<Vault> Vaults { get; set; } = null!;
+    public DbSet<Cash> Cashes { get; set; } = null!;
+    public DbSet<Account> Accounts { get; set; } = null!;
+    public DbSet<SubAccount> SubAccounts { get; set; } = null!;
     public DbSet<Integration.TradeXpress.Authorization.UserScopedGrant> UserScopedGrants { get; set; } = null!;
     public DbSet<Integration.TradeXpress.Settings.UserGridLayout> UserGridLayouts { get; set; } = null!;
 
@@ -102,6 +107,8 @@ public class TradeXpressDbContext :
         builder.ConfigureCountries();
         builder.ConfigureBranches();
         builder.ConfigureVaults();
+        builder.ConfigureCashes();
+        builder.ConfigureAccounts();
         builder.ConfigureUserScopedGrants();
         builder.ConfigureUserGridLayouts();
     }

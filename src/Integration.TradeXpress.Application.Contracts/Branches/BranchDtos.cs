@@ -19,6 +19,7 @@ public class BranchListDto : EntityDto<Guid>, IListDto<Guid>, IIsActive
 {
     public Guid CompanyId { get; set; }
     public string CompanyCode { get; set; } = string.Empty;
+    public string CompanyName { get; set; } = string.Empty;
     public string Code { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public bool IsHeadquarters { get; set; }
@@ -26,6 +27,15 @@ public class BranchListDto : EntityDto<Guid>, IListDto<Guid>, IIsActive
     // bu listeden besleniyor ve durumu gösteriyor; bu yüzden DTO'da kalır.
     public bool IsActive { get; set; }
     public int DisplayOrder { get; set; }
+
+    /// <summary>Combo kapalı gösterimi: "ŞirketKodu / ŞubeKodu".</summary>
+    public string CompanyBranchCode => $"{CompanyCode} / {Code}";
+
+    /// <summary>Combo 1. kolon: "ŞirketKodu / ŞirketAdı".</summary>
+    public string CompanyDisplay => $"{CompanyCode} / {CompanyName}";
+
+    /// <summary>Combo 2. kolon: "ŞubeKodu / ŞubeAdı".</summary>
+    public string BranchDisplay => $"{Code} / {Name}";
 }
 
 public class BranchGetDto : EntityDto<Guid>, IGetDto<Guid>

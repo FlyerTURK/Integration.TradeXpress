@@ -1,0 +1,33 @@
+@page "/cashes"
+@using Integration.Framework.Blazor.Client.Components.Crud
+@using Integration.TradeXpress.Cashes
+@using DevExpress.Blazor
+@inherits CrudPageBase<CashGetDto, CashListDto, Guid, CashListRequestDto, CashCreateDto, CashUpdateDto>
+
+<CrudLayout TGetDto="CashGetDto"
+            TListDto="CashListDto"
+            TKey="Guid"
+            StateService="StateService"
+            DataSource="@GridDataSource"
+            EntityName="@L["Cash"]"
+            EntityIcon="@TradeXpressIcons.Cash"
+            PrimaryTextSelector="@(m => m.Code)"
+            PageTitle="@L["Cashes"]"
+            OnNewClick="BeforeCreateAsync"
+            OnUpdateClick="BeforeUpdateAsync"
+            OnDeleteClick="DeleteAsync"
+            OnRefreshClick="GetListAsync"
+            OnSearchChanged="OnSearchAsync">
+
+    <GridColumns>
+        <GridLinkColumn FieldName="Code" Caption="@L["Code"]" Width="90px" VisibleIndex="0"
+                        OnClick="@(o => BeforeUpdateAsync((CashListDto)o))" />
+        <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" VisibleIndex="1" />
+        <GridLinkColumn FieldName="FollowingUnitCode" Caption="@L["Cash:Currency"]" Width="140px" VisibleIndex="2"
+                        OnClick="@(o => OpenUnitAsync(((CashListDto)o).FollowingUnitId, ((CashListDto)o).FollowingUnitCode))" />
+        <DxGridDataColumn FieldName="IsGlobal" Caption="@L["Kind"]" Width="100px" VisibleIndex="3" TextAlignment="GridTextAlignment.Left">
+            <CellDisplayTemplate>@(((CashListDto)context.DataItem).IsGlobal ? L["CurrencyKind:Global"] : L["CurrencyKind:Company"])</CellDisplayTemplate>
+        </DxGridDataColumn>
+    </GridColumns>
+
+</CrudLayout>

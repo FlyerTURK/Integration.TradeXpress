@@ -1,0 +1,31 @@
+@page "/accounts"
+@using Integration.Framework.Blazor.Client.Components.Crud
+@using Integration.TradeXpress.Accounts
+@using DevExpress.Blazor
+@inherits CrudPageBase<AccountGetDto, AccountListDto, Guid, AccountListRequestDto, AccountCreateDto, AccountUpdateDto>
+
+<CrudLayout TGetDto="AccountGetDto"
+            TListDto="AccountListDto"
+            TKey="Guid"
+            StateService="StateService"
+            DataSource="@GridDataSource"
+            EntityName="@L["Account"]"
+            EntityIcon="@TradeXpressIcons.Account"
+            PrimaryTextSelector="@(m => m.Code)"
+            PageTitle="@L["Accounts"]"
+            OnNewClick="BeforeCreateAsync"
+            OnUpdateClick="BeforeUpdateAsync"
+            OnDeleteClick="DeleteAsync"
+            OnRefreshClick="GetListAsync"
+            OnSearchChanged="OnSearchAsync">
+
+    <GridColumns>
+        <GridLinkColumn FieldName="Code" Caption="@L["Code"]" Width="120px" VisibleIndex="0"
+                        OnClick="@(o => BeforeUpdateAsync((AccountListDto)o))" />
+        <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" VisibleIndex="1" />
+        <DxGridDataColumn FieldName="BalanceCurrencyCode" Caption="@L["BalanceCurrency"]" Width="130px" VisibleIndex="2" />
+        <DxGridDataColumn FieldName="Limit" Caption="@L["Limit"]" Width="120px" VisibleIndex="3" TextAlignment="GridTextAlignment.Right" DisplayFormat="N2" />
+        <DxGridDataColumn FieldName="LimitCurrencyCode" Caption="@L["LimitCurrency"]" Width="110px" VisibleIndex="4" />
+    </GridColumns>
+
+</CrudLayout>

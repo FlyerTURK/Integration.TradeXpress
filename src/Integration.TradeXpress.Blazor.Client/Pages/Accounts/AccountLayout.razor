@@ -1,0 +1,118 @@
+@using System
+@using System.Collections.Generic
+@using Integration.TradeXpress.Accounts
+@using Integration.TradeXpress.Financials.CurrencyUnits
+@using Integration.Framework.Blazor.Client.Components.Crud
+@using Integration.TradeXpress.Blazor.Client.Components.Shared
+@using DevExpress.Blazor
+@using Microsoft.Extensions.Localization
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@*
+   Account DUMB Layout — AccountGetDto'yu forma yansıtır. I/O yok (para birimi adayları host'tan param).
+   Bakiye/limit birimi ZORUNLU (LookupComboBox). Kod yalnız yeni kayıtta düzenlenebilir.
+*@
+
+<DxFormLayout CssClass="w-100">
+    <DxFormLayoutGroup Caption="@L["General"]" ColSpanMd="12">
+        <DxFormLayoutItem Caption="@($"{L["Code"]} *")" ColSpanMd="6">
+            <DxTextBox @bind-Text="@Model.Code" Enabled="@IsNew" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="12">
+            <DxTextBox @bind-Text="@Model.Name" />
+        </DxFormLayoutItem>
+
+        <DxFormLayoutItem ColSpanMd="12">
+            <CaptionTemplate>
+                <InfoCaption Text="@L["BalanceCurrency"].Value" HintText="@L["Account:BalanceCurrencyHint"].Value" Required="true" />
+            </CaptionTemplate>
+            <Template>
+                <LookupComboBox TItem="CurrencyUnitListDto" TValue="Guid?"
+                                Data="@Currencies"
+                                ValueFieldName="@nameof(CurrencyUnitListDto.Id)"
+                                TextFieldName="@nameof(CurrencyUnitListDto.Code)"
+                                @bind-Value="@Model.BalanceCurrencyUnitId"
+                                SearchFilterCondition="ListSearchFilterCondition.Contains"
+                                NullText="@L["Select"].Value"
+                                OnEditRequested="@OnEditCurrency" />
+            </Template>
+        </DxFormLayoutItem>
+
+        @* Limit + Limit birimi AYNI satırda yarı yarıya (BeginRow → yeni satır). *@
+        <DxFormLayoutItem Caption="@L["Limit"]" ColSpanMd="6" BeginRow="true">
+            <NumericSpinEdit @bind-Value="@Model.Limit" />
+        </DxFormLayoutItem>
+
+        <DxFormLayoutItem ColSpanMd="6">
+            <CaptionTemplate>
+                <InfoCaption Text="@L["LimitCurrency"].Value" HintText="@L["Account:LimitCurrencyHint"].Value" Required="true" />
+            </CaptionTemplate>
+            <Template>
+                <LookupComboBox TItem="CurrencyUnitListDto" TValue="Guid?"
+                                Data="@Currencies"
+                                ValueFieldName="@nameof(CurrencyUnitListDto.Id)"
+                                TextFieldName="@nameof(CurrencyUnitListDto.Code)"
+                                @bind-Value="@Model.LimitUnitId"
+                                SearchFilterCondition="ListSearchFilterCondition.Contains"
+                                NullText="@L["Select"].Value"
+                                OnEditRequested="@OnEditCurrency" />
+            </Template>
+        </DxFormLayoutItem>
+
+        <DxFormLayoutItem Caption="@L["Description"]" ColSpanMd="12">
+            <DxMemo @bind-Text="@Model.Description" Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6">
+            <DxCheckBox @bind-Checked="@Model.IsActive" CheckType="CheckType.Switch">
+                @(Model.IsActive ? L["Active"] : L["Passive"])
+            </DxCheckBox>
+        </DxFormLayoutItem>
+    </DxFormLayoutGroup>
+</DxFormLayout>
+
+@* Alt hesaplar — in-memory drill (graf); Account save'inde tek komutla yazılır. Sekme içinde (grid + toolbar). *@
+<DxTabs CssClass="mt-3">
+    <DxTabPage Text="@L["SubAccounts"].Value" TabIconCssClass="@TradeXpressIcons.SubAccount">
+        <DrillList TItem="SubAccountGraphDto"
+                   Title="@L["SubAccounts"]"
+                   EntityName="@L["SubAccount"]"
+                   Items="Model.SubAccounts"
+                   KeyFieldName="ClientKey"
+                   PrimaryTextSelector="@(s => s.Code)"
+                   NewItemFactory="@(() => new SubAccountGraphDto())"
+                   MinItems="1"
+                   SoftDelete="true"
+                   IsNewItem="@(s => s.Id == Guid.Empty)"
+                   MarkDeleted="@(s => s.IsDeleted = true)"
+                   FilterPredicate="@(s => !s.IsDeleted)"
+                   OnChanged="@(() => EditChanged?.Invoke())">
+            <GridColumns>
+                <DxGridDataColumn FieldName="Code" Caption="@L["Code"]" Width="140px" />
+                <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" />
+                <DxGridDataColumn FieldName="IsActive" Caption="@L["Status"]" Width="110px" TextAlignment="GridTextAlignment.Left">
+                    <CellDisplayTemplate Context="cell"><StatusCell Active="@(((SubAccountGraphDto)cell.DataItem).IsActive)" /></CellDisplayTemplate>
+                </DxGridDataColumn>
+            </GridColumns>
+            <EditContent Context="s">
+                <DxFormLayout CssClass="w-100">
+                    <DxFormLayoutItem Caption="@($"{L["Code"]} *")" ColSpanMd="6"><DxTextBox @bind-Text="s.Code" /></DxFormLayoutItem>
+                    <DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="12"><DxTextBox @bind-Text="s.Name" /></DxFormLayoutItem>
+                    <DxFormLayoutItem Caption="@L["Description"]" ColSpanMd="12"><DxMemo @bind-Text="s.Description" Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100" /></DxFormLayoutItem>
+                    <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6">
+                        <DxCheckBox @bind-Checked="s.IsActive" CheckType="CheckType.Switch">@(s.IsActive ? L["Active"] : L["Passive"])</DxCheckBox>
+                    </DxFormLayoutItem>
+                </DxFormLayout>
+            </EditContent>
+        </DrillList>
+    </DxTabPage>
+</DxTabs>
+
+@code {
+    [Parameter, EditorRequired] public AccountGetDto Model { get; set; } = default!;
+    [Parameter] public bool IsNew { get; set; }
+    [Parameter] public IReadOnlyList<CurrencyUnitListDto> Currencies { get; set; } = Array.Empty<CurrencyUnitListDto>();
+    [Parameter] public Func<Guid?, Task>? OnEditCurrency { get; set; }
+
+    // Drill değişimini forma bildir (dirty/Save) — EntityEditForm EditChanged cascade'i.
+    [CascadingParameter(Name = "EditChanged")] private Action? EditChanged { get; set; }
+}

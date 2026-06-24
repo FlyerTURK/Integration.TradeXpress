@@ -8,7 +8,7 @@ namespace Integration.TradeXpress.Financials.CurrencyUnits;
 /// CurrencyUnit grid satırı (KİMLİK). Alış/satış marjı burada DEĞİL — per-tenant
 /// <see cref="CurrencyUnitMargin"/>'de. <see cref="IsGlobal"/>: host kataloğu (TenantId=null) mu.
 /// </summary>
-public class CurrencyUnitListDto : EntityDto<Guid>, IListDto<Guid>, IIsActive
+public class CurrencyUnitListDto : EntityDto<Guid>, IListDto<Guid>, IIsActive, IHostScoped
 {
     public string Code { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;

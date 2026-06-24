@@ -11,7 +11,7 @@ public class CountryListRequestDto : ListRequestDto
 {
 }
 
-public class CountryListDto : EntityDto<Guid>, IListDto<Guid>, IIsActive
+public class CountryListDto : EntityDto<Guid>, IListDto<Guid>, IIsActive, IHostScoped
 {
     public string Code { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;

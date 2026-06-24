@@ -11,6 +11,7 @@ public class TradeXpressDataSeedContributor(
     CurrencyUnitSeeder currencyUnitSeeder,
     ParitySeeder paritySeeder,
     CountrySeeder countrySeeder,
+    CashSeeder cashSeeder,
     OrgSeeder orgSeeder)
     : IDataSeedContributor, ITransientDependency
 {
@@ -19,6 +20,7 @@ public class TradeXpressDataSeedContributor(
     private readonly CurrencyUnitSeeder _currencyUnitSeeder = currencyUnitSeeder;
     private readonly ParitySeeder _paritySeeder = paritySeeder;
     private readonly CountrySeeder _countrySeeder = countrySeeder;
+    private readonly CashSeeder _cashSeeder = cashSeeder;
     private readonly OrgSeeder _orgSeeder = orgSeeder;
 
     #endregion
@@ -39,6 +41,7 @@ public class TradeXpressDataSeedContributor(
             await _currencyUnitSeeder.SeedCatalogAsync(); // birimler + TRY ham kuru — HER ŞEYDEN ÖNCE
             await _paritySeeder.SeedAsync();              // host-global pariteler
             await _countrySeeder.SeedAsync();             // host-global ülke kataloğu
+            await _cashSeeder.SeedAsync();                // host-global nakit kataloğu (Type=Cash birimlerden türetilir)
         }
 
         // (2) Marjlar her tenant'ta (host dahil) — host'un merkezi düzeltme marjı da burada.

@@ -1,0 +1,54 @@
+@using System
+@using DevExpress.Blazor
+@using Integration.TradeXpress.Branches
+@using Integration.TradeXpress.Blazor.Client.Services.Working
+@implements IDisposable
+@inject IWorkingContextService Working
+@inject Microsoft.Extensions.Localization.IStringLocalizer<Integration.TradeXpress.Localization.TradeXpressResource> L
+
+@*
+   Çalışma bağlamı (working context) şube seçici — sol menü drawer'ının FooterTemplate'inde.
+   İki kolonlu combo: Company (kod) + Branch (ad). Değer WorkingContextService'te tutulur; ilk yüklemede
+   son seçim ya da İLK şube otomatik seçilir (combo boş kalmaz). Şube yoksa (host) hiç render edilmez.
+*@
+
+@if (Working.Branches.Count > 0)
+{
+    <div style="display:flex; flex-direction:column; gap:0.2rem;">
+        <span style="font-size:0.75rem; opacity:0.7;">@L["WorkingBranchCaption"]</span>
+        <DxComboBox TData="BranchListDto" TValue="Guid?"
+                    Data="@Working.Branches"
+                    Value="@Working.CurrentBranchId"
+                    ValueChanged="@OnBranchChanged"
+                    ValueFieldName="@nameof(BranchListDto.Id)"
+                    TextFieldName="@nameof(BranchListDto.CompanyBranchCode)"
+                    NullText="@L["WorkingBranchCaption"].Value"
+                    CssClass="w-100">
+            <Columns>
+                <DxListEditorColumn FieldName="@nameof(BranchListDto.CompanyDisplay)" Caption="@L["Company"].Value" Width="50%" />
+                <DxListEditorColumn FieldName="@nameof(BranchListDto.BranchDisplay)" Caption="@L["Branch"].Value" />
+            </Columns>
+        </DxComboBox>
+    </div>
+}
+
+@code {
+    protected override void OnInitialized() => Working.Changed += OnChanged;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+            await Working.EnsureLoadedAsync(); // branch listesi + localStorage (JS interop → afterRender)
+    }
+
+    // Combo boş kalmamalı → null seçim yok sayılır (mevcut seçim korunur).
+    private async Task OnBranchChanged(Guid? branchId)
+    {
+        if (branchId is null) return;
+        await Working.SetBranchAsync(branchId);
+    }
+
+    private void OnChanged() => _ = InvokeAsync(StateHasChanged);
+
+    public void Dispose() => Working.Changed -= OnChanged;
+}

@@ -9,7 +9,7 @@ namespace Integration.TradeXpress.Financials.Parities;
 /// birimlerin efektif fiyatından canlı türetilir. <see cref="IsGlobal"/>: host kataloğu
 /// (TenantId=null) mu; tenant bunu düzenleyemez, salt-okur.
 /// </summary>
-public class ParityListDto : EntityDto<Guid>, IListDto<Guid>, IIsActive
+public class ParityListDto : EntityDto<Guid>, IListDto<Guid>, IIsActive, IHostScoped
 {
     public Guid BaseCurrencyUnitId { get; set; }
     public string BaseCode { get; set; } = string.Empty;

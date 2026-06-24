@@ -65,10 +65,31 @@ namespace Integration.Framework.Blazor.Client.Components.Crud
         private bool ShowUndoRedo   => !IsList && (ActiveEdit?.SupportsUndoRedo ?? true);   // edit destekliyorsa
         private bool ShowReset      => !IsList;                              // Reset her edit'te (snapshot'tan geri al)
 
+        // Tenant'ın multi-tenancy bağlamı — host (global) kayıt koruması için. Property injection (LazyServiceProvider)
+        // Blazor.Client tiplerinde güvenilmez (DependsOn dışı) → açıkça @inject; base.CurrentTenant'ı GİZLEMEMEK için ayrı ad.
+        [Inject] private Volo.Abp.MultiTenancy.ICurrentTenant TenantContext { get; set; } = default!;
+
         // ── Etkinlik ──
         private bool DeleteEnabled => IsEdit
             ? (ActiveEdit?.CanDelete ?? false)
-            : (IsSplit ? (SplitHost!.List?.HasSelection ?? false) : (StateService?.SelectedDataItems is { Count: > 0 }));
+            : (HasListSelection && !SelectionHasProtectedGlobal);
+
+        private bool HasListSelection =>
+            IsSplit ? (SplitHost!.List?.HasSelection ?? false) : (StateService?.SelectedDataItems is { Count: > 0 });
+
+        // Tenant oturumunda seçimde HERHANGİ bir host (global) kayıt varsa (tekli ya da çoklu) Sil pasif:
+        // host kataloğu kayıtları tenant tarafından silinemez. Host oturumda (TenantContext.Id==null) kısıt yok.
+        // TListDto IHostScoped değilse (ör. tenant-only Company/Branch/Vault) kısıt uygulanmaz.
+        private bool SelectionHasProtectedGlobal
+        {
+            get
+            {
+                if (TenantContext?.Id == null) return false;
+                var items = StateService?.SelectedDataItems;
+                if (items == null || items.Count == 0) return false;
+                return items.OfType<Integration.Framework.Base.Dtos.Interfaces.IHostScoped>().Any(x => x.IsGlobal);
+            }
+        }
         private bool EditCanSave => ActiveEdit?.CanSave ?? false;
         private bool CanUndo  => ActiveEdit?.CanUndo ?? false;
         private bool CanRedo  => ActiveEdit?.CanRedo ?? false;

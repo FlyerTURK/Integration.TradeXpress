@@ -61,6 +61,7 @@ public class BranchAppService : TradeXpressAppService, IBranchAppService
                 Id = b.Id,
                 CompanyId = b.CompanyId,
                 CompanyCode = c.Code,
+                CompanyName = c.Name,
                 Code = b.Code,
                 Name = b.Name,
                 IsHeadquarters = b.IsHeadquarters,
@@ -79,6 +80,7 @@ public class BranchAppService : TradeXpressAppService, IBranchAppService
                 Id = r.Id,
                 CompanyId = r.CompanyId,
                 CompanyCode = r.CompanyCode,
+                CompanyName = r.CompanyName,
                 Code = r.Code,
                 Name = r.Name,
                 IsHeadquarters = r.IsHeadquarters,
@@ -294,6 +296,7 @@ public class BranchAppService : TradeXpressAppService, IBranchAppService
         public Guid Id { get; set; }
         public Guid CompanyId { get; set; }
         public string CompanyCode { get; set; } = string.Empty;
+        public string CompanyName { get; set; } = string.Empty;
         public string Code { get; set; } = string.Empty;
         public string Name { get; set; } = string.Empty;
         public bool IsHeadquarters { get; set; }
