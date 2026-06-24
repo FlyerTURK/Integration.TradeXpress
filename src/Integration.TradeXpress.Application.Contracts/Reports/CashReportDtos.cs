@@ -13,6 +13,9 @@ public class CashReportFilterDto
     public Guid? BranchId { get; set; }
     public Guid? VaultId { get; set; }
 
+    /// <summary>Belirli bir nakit tanımı (null = tümü, stok raporunda anlamlı; hareket raporunda seçmek zorunlu değil ama önerilir).</summary>
+    public Guid? CashId { get; set; }
+
     /// <summary>Hareket raporu tarih aralığı (dahil). Stok raporunda yok sayılır (anlık).</summary>
     public DateTime Start { get; set; }
     public DateTime End { get; set; }

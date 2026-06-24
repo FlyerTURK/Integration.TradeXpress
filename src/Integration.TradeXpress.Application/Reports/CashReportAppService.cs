@@ -114,6 +114,7 @@ public class CashReportAppService : TradeXpressAppService, ICashReportAppService
             from l in v.Lines
             where !l.IsDeleted
                && (l.Type == ProcessType.Cash || l.PaymentType == ProcessPaymentType.WithCash)
+               && (filter.CashId == null || l.CommodityId == filter.CashId || l.PayCommodityId == filter.CashId)
             select new
             {
                 v.VoucherDate, v.VoucherNumber, v.VaultId, v.SubAccountId,

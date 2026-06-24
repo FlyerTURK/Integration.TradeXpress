@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Integration.TradeXpress.Branches;
+using Integration.TradeXpress.Cashes;
 using Integration.TradeXpress.Companies;
 using Integration.TradeXpress.Reports;
 using Integration.TradeXpress.Vaults;
@@ -14,11 +15,13 @@ public partial class CashReportPage
     [Inject] ICompanyAppService CompanyAppService { get; set; } = default!;
     [Inject] IBranchAppService BranchAppService { get; set; } = default!;
     [Inject] IVaultAppService VaultAppService { get; set; } = default!;
+    [Inject] ICashAppService CashAppService { get; set; } = default!;
     [Inject] ICashReportAppService CashReportAppService { get; set; } = default!;
 
     private List<CompanyListDto> _companies = new();
     private List<BranchListDto> _branches = new();
     private List<VaultListDto> _vaults = new();
+    private List<CashListDto> _cashes = new();
 
     private CashReportFilterDto _filter = new()
     {
@@ -34,6 +37,7 @@ public partial class CashReportPage
     {
         var companies = await CompanyAppService.GetListAsync(new CompanyListRequestDto { MaxResultCount = 200 });
         _companies = companies.Items as List<CompanyListDto> ?? new(companies.Items);
+        _cashes = await CashAppService.GetPickerListAsync();
     }
 
     private async Task OnCompanyChanged(Guid? companyId)

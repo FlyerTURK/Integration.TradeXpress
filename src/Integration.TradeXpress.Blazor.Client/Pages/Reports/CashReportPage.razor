@@ -1,5 +1,6 @@
 @page "/reports/cash"
 @using Integration.TradeXpress.Branches
+@using Integration.TradeXpress.Cashes
 @using Integration.TradeXpress.Companies
 @using Integration.TradeXpress.Reports
 @using Integration.TradeXpress.Vaults
@@ -59,6 +60,17 @@
         <div style="display:flex; flex-direction:column; gap:2px;">
             <label style="font-size:11px; color:var(--dxbl-text-secondary);">Bitiş</label>
             <DxDateEdit @bind-Date="_filter.End" style="min-width:130px;" />
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:2px;">
+            <label style="font-size:11px; color:var(--dxbl-text-secondary);">Nakit</label>
+            <DxComboBox Data="@_cashes"
+                        TextFieldName="@nameof(CashListDto.Name)"
+                        ValueFieldName="@nameof(CashListDto.Id)"
+                        @bind-Value="_filter.CashId"
+                        NullText="(Tümü)"
+                        ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto"
+                        style="min-width:160px;" />
         </div>
 
         <DxButton Text="Getir" Click="@LoadAsync" RenderStyleMode="ButtonRenderStyleMode.Contained" RenderStyle="ButtonRenderStyle.Primary" />
