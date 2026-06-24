@@ -7,7 +7,9 @@ using Integration.TradeXpress.Financials.CurrencyUnits;
 using Integration.TradeXpress.Vaults;
 using Integration.TradeXpress.Vouchers;
 using Microsoft.AspNetCore.Authorization;
+using Volo.Abp.Data;
 using Volo.Abp.Domain.Repositories;
+using Volo.Abp.MultiTenancy;
 
 namespace Integration.TradeXpress.Reports;
 
@@ -28,17 +30,20 @@ public class CashReportAppService : TradeXpressAppService, ICashReportAppService
     private readonly IRepository<Vault, Guid> _vaultRepository;
     private readonly IRepository<CurrencyUnit, Guid> _unitRepository;
     private readonly IRepository<SubAccount, Guid> _subAccountRepository;
+    private readonly IDataFilter _dataFilter;
 
     public CashReportAppService(
         IRepository<Voucher, Guid> voucherRepository,
         IRepository<Vault, Guid> vaultRepository,
         IRepository<CurrencyUnit, Guid> unitRepository,
-        IRepository<SubAccount, Guid> subAccountRepository)
+        IRepository<SubAccount, Guid> subAccountRepository,
+        IDataFilter dataFilter)
     {
         _voucherRepository = voucherRepository;
         _vaultRepository = vaultRepository;
         _unitRepository = unitRepository;
         _subAccountRepository = subAccountRepository;
+        _dataFilter = dataFilter;
     }
 
     private sealed record CashLeg(Guid UnitId, decimal Effect, string? CashCode, string Source,
@@ -60,7 +65,7 @@ public class CashReportAppService : TradeXpressAppService, ICashReportAppService
             })
             .ToList();
 
-        var unitCodes = await CodeMapAsync(_unitRepository, grouped.Select(r => r.UnitId), u => u.Id, u => u.Code);
+        var unitCodes = await CodeMapAsync(_unitRepository, grouped.Select(r => r.UnitId), u => u.Id, u => u.Code, disableMultiTenant: true);
         foreach (var r in grouped) r.UnitCode = unitCodes.GetValueOrDefault(r.UnitId);
         return grouped.OrderBy(r => r.UnitCode).ToList();
     }
@@ -71,7 +76,7 @@ public class CashReportAppService : TradeXpressAppService, ICashReportAppService
             .OrderBy(x => x.VoucherDate).ThenBy(x => x.CreationTime).ThenBy(x => x.LineId)
             .ToList();
 
-        var unitCodes = await CodeMapAsync(_unitRepository, legs.Select(x => x.UnitId), u => u.Id, u => u.Code);
+        var unitCodes = await CodeMapAsync(_unitRepository, legs.Select(x => x.UnitId), u => u.Id, u => u.Code, disableMultiTenant: true);
         var vaultCodes = await CodeMapAsync(_vaultRepository, legs.Where(x => x.VaultId != null).Select(x => x.VaultId!.Value), x => x.Id, x => x.Code);
         var subCodes = await CodeMapAsync(_subAccountRepository, legs.Where(x => x.SubAccountId != null).Select(x => x.SubAccountId!.Value), x => x.Id, x => x.Code);
 
@@ -139,11 +144,20 @@ public class CashReportAppService : TradeXpressAppService, ICashReportAppService
     }
 
     private async Task<Dictionary<Guid, string>> CodeMapAsync<T>(
-        IRepository<T, Guid> repo, IEnumerable<Guid> ids, Func<T, Guid> keyOf, Func<T, string> codeOf)
+        IRepository<T, Guid> repo, IEnumerable<Guid> ids, Func<T, Guid> keyOf, Func<T, string> codeOf,
+        bool disableMultiTenant = false)
         where T : class, Volo.Abp.Domain.Entities.IEntity<Guid>
     {
         var idList = ids.Where(i => i != Guid.Empty).Distinct().ToList();
         if (idList.Count == 0) return new();
+        if (disableMultiTenant)
+        {
+            using (_dataFilter.Disable<IMultiTenant>())
+            {
+                var rows2 = await AsyncExecuter.ToListAsync((await repo.GetQueryableAsync()).Where(x => idList.Contains(x.Id)));
+                return rows2.ToDictionary(keyOf, codeOf);
+            }
+        }
         var rows = await AsyncExecuter.ToListAsync((await repo.GetQueryableAsync()).Where(x => idList.Contains(x.Id)));
         return rows.ToDictionary(keyOf, codeOf);
     }
