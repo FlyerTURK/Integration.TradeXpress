@@ -37,7 +37,7 @@ public class CashMovementRowDto
     public DateTime VoucherDate { get; set; }
     public long VoucherNumber { get; set; }
     public ProcessType ProcessType { get; set; }
-    /// <summary>Nakit bacağı kaynağı: "Nakit" (Cash sol bacak) veya "Peşin" (sağ bacak).</summary>
+    /// <summary>Nakit bacağı kaynağı: "Nakit" (Cash sol bacak) veya "Peşin" (sağ bacak). Devreden satırı için "Devreden".</summary>
     public string Source { get; set; } = string.Empty;
     public string? VaultCode { get; set; }
     public string? SubAccountCode { get; set; }
@@ -47,5 +47,9 @@ public class CashMovementRowDto
     public string? UnitCode { get; set; }
     /// <summary>İşaretli nakit etkisi (+ kasaya giriş / − çıkış).</summary>
     public decimal CashAmount { get; set; }
+    /// <summary>Bu satır dahil kümülatif bakiye.</summary>
+    public decimal RunningBalance { get; set; }
     public string? Description { get; set; }
+    /// <summary>true = başlangıç tarihinden önceki birikimi gösteren devreden satırı (gerçek işlem değil).</summary>
+    public bool IsCarryForward { get; set; }
 }

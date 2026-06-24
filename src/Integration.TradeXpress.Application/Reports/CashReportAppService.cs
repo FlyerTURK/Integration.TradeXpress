@@ -72,37 +72,81 @@ public class CashReportAppService : TradeXpressAppService, ICashReportAppService
 
     public virtual async Task<List<CashMovementRowDto>> GetMovementsAsync(CashReportFilterDto filter)
     {
+        // Dönem içi satırlar
         var legs = (await QueryCashLegsAsync(filter, dateFiltered: true))
             .OrderBy(x => x.VoucherDate).ThenBy(x => x.CreationTime).ThenBy(x => x.LineId)
             .ToList();
 
-        var unitCodes = await CodeMapAsync(_unitRepository, legs.Select(x => x.UnitId), u => u.Id, u => u.Code, disableMultiTenant: true);
-        var vaultCodes = await CodeMapAsync(_vaultRepository, legs.Where(x => x.VaultId != null).Select(x => x.VaultId!.Value), x => x.Id, x => x.Code);
-        var subCodes = await CodeMapAsync(_subAccountRepository, legs.Where(x => x.SubAccountId != null).Select(x => x.SubAccountId!.Value), x => x.Id, x => x.Code);
+        // Devreden: başlangıç tarihinden önceki tüm birikmiş etki (aynı kapsam + nakit filtresi, tarih hariç)
+        var carryLegs = await QueryCashLegsAsync(filter, dateFiltered: false,
+            endExclusiveOverride: filter.Start.Date);
 
-        return legs.Select(x => new CashMovementRowDto
+        var allUnitIds = legs.Select(x => x.UnitId).Concat(carryLegs.Select(x => x.UnitId));
+        var unitCodes  = await CodeMapAsync(_unitRepository, allUnitIds, u => u.Id, u => u.Code, disableMultiTenant: true);
+        var vaultCodes = await CodeMapAsync(_vaultRepository, legs.Where(x => x.VaultId != null).Select(x => x.VaultId!.Value), x => x.Id, x => x.Code);
+        var subCodes   = await CodeMapAsync(_subAccountRepository, legs.Where(x => x.SubAccountId != null).Select(x => x.SubAccountId!.Value), x => x.Id, x => x.Code);
+
+        var result = new List<CashMovementRowDto>();
+
+        // Birim bazında devreden grupları
+        var carryByUnit = carryLegs.GroupBy(x => x.UnitId);
+        var runningByUnit = new Dictionary<Guid, decimal>();
+
+        foreach (var g in carryByUnit)
         {
-            VoucherDate    = x.VoucherDate,
-            VoucherNumber  = x.VoucherNumber,
-            ProcessType    = x.ProcessType,
-            Source         = x.Source,
-            VaultCode      = x.VaultId is { } v ? vaultCodes.GetValueOrDefault(v) : null,
-            SubAccountCode = x.SubAccountId is { } s ? subCodes.GetValueOrDefault(s) : null,
-            Direction      = x.Direction,
-            CashCode       = x.CashCode,
-            UnitId         = x.UnitId,
-            UnitCode       = unitCodes.GetValueOrDefault(x.UnitId),
-            CashAmount     = x.Effect,
-            Description    = x.Description,
-        }).ToList();
+            var carry = g.Sum(x => x.Effect);
+            runningByUnit[g.Key] = carry;
+            if (carry != 0m)
+            {
+                result.Add(new CashMovementRowDto
+                {
+                    VoucherDate    = filter.Start.Date,
+                    VoucherNumber  = 0,
+                    Source         = "Devreden",
+                    IsCarryForward = true,
+                    UnitId         = g.Key,
+                    UnitCode       = unitCodes.GetValueOrDefault(g.Key),
+                    CashAmount     = carry,
+                    RunningBalance = carry,
+                });
+            }
+        }
+
+        // Dönem hareketleri + cari bakiye
+        foreach (var x in legs)
+        {
+            runningByUnit.TryGetValue(x.UnitId, out var prev);
+            var running = prev + x.Effect;
+            runningByUnit[x.UnitId] = running;
+
+            result.Add(new CashMovementRowDto
+            {
+                VoucherDate    = x.VoucherDate,
+                VoucherNumber  = x.VoucherNumber,
+                ProcessType    = x.ProcessType,
+                Source         = x.Source,
+                VaultCode      = x.VaultId is { } v ? vaultCodes.GetValueOrDefault(v) : null,
+                SubAccountCode = x.SubAccountId is { } s ? subCodes.GetValueOrDefault(s) : null,
+                Direction      = x.Direction,
+                CashCode       = x.CashCode,
+                UnitId         = x.UnitId,
+                UnitCode       = unitCodes.GetValueOrDefault(x.UnitId),
+                CashAmount     = x.Effect,
+                RunningBalance = running,
+                Description    = x.Description,
+            });
+        }
+
+        return result;
     }
 
     // ── ortak: kapsam + iki-bacak nakit çıkarımı ────────────────────────────────
 
-    private async Task<List<CashLeg>> QueryCashLegsAsync(CashReportFilterDto filter, bool dateFiltered)
+    private async Task<List<CashLeg>> QueryCashLegsAsync(CashReportFilterDto filter, bool dateFiltered,
+        DateTime? endExclusiveOverride = null)
     {
         var start = filter.Start.Date;
-        var endExclusive = filter.End.Date.AddDays(1);
+        var endExclusive = endExclusiveOverride ?? filter.End.Date.AddDays(1);
 
         var q = await _voucherRepository.GetQueryableAsync();
         var rows = await AsyncExecuter.ToListAsync(
@@ -110,7 +154,9 @@ public class CashReportAppService : TradeXpressAppService, ICashReportAppService
             where (filter.CompanyId == null || v.CompanyId == filter.CompanyId)
                && (filter.BranchId == null || v.BranchId == filter.BranchId)
                && (filter.VaultId == null || v.VaultId == filter.VaultId)
-               && (!dateFiltered || (v.VoucherDate >= start && v.VoucherDate < endExclusive))
+               && (!dateFiltered && endExclusiveOverride == null
+                   || (dateFiltered && v.VoucherDate >= start && v.VoucherDate < endExclusive)
+                   || (endExclusiveOverride != null && v.VoucherDate < endExclusive))
             from l in v.Lines
             where !l.IsDeleted
                && (l.Type == ProcessType.Cash || l.PaymentType == ProcessPaymentType.WithCash)
