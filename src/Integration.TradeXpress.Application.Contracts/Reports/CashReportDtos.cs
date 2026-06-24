@@ -47,9 +47,17 @@ public class CashMovementRowDto
     public string? UnitCode { get; set; }
     /// <summary>İşaretli nakit etkisi (+ kasaya giriş / − çıkış).</summary>
     public decimal CashAmount { get; set; }
-    /// <summary>Bu satır dahil kümülatif bakiye.</summary>
+    /// <summary>Bu satır dahil kümülatif bakiye (Son Durum).</summary>
     public decimal RunningBalance { get; set; }
     public string? Description { get; set; }
     /// <summary>true = başlangıç tarihinden önceki birikimi gösteren devreden satırı (gerçek işlem değil).</summary>
     public bool IsCarryForward { get; set; }
+
+    // Computed — grid kolonları için
+    /// <summary>Bu satırdan önceki bakiye (Devir = RunningBalance − CashAmount).</summary>
+    public decimal Devir => RunningBalance - CashAmount;
+    /// <summary>Giren (kasaya giren tutar; çıkışta 0).</summary>
+    public decimal Giren => CashAmount > 0 ? CashAmount : 0m;
+    /// <summary>Çıkan (kasadan çıkan tutar, pozitif gösterim; girişte 0).</summary>
+    public decimal Cikan => CashAmount < 0 ? -CashAmount : 0m;
 }

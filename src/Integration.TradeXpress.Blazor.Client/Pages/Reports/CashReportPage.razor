@@ -103,21 +103,22 @@
             {
                 <DxGrid Data="@_movementRows" ShowFilterRow="true" style="height:100%;">
                     <Columns>
-                        <DxGridDataColumn FieldName="@nameof(CashMovementRowDto.VoucherDate)"    Caption="Tarih"   DisplayFormat="d"  Width="100" />
-                        <DxGridDataColumn FieldName="@nameof(CashMovementRowDto.VoucherNumber)"  Caption="No"                         Width="70"  />
-                        <DxGridDataColumn FieldName="@nameof(CashMovementRowDto.ProcessType)"    Caption="İşlem"                      Width="90"  />
-                        <DxGridDataColumn FieldName="@nameof(CashMovementRowDto.Source)"         Caption="Bacak"                      Width="70"  />
-                        <DxGridDataColumn FieldName="@nameof(CashMovementRowDto.VaultCode)"      Caption="Kasa"                       Width="90"  />
-                        <DxGridDataColumn FieldName="@nameof(CashMovementRowDto.SubAccountCode)" Caption="Hesap"                      Width="110" />
-                        <DxGridDataColumn FieldName="@nameof(CashMovementRowDto.CashCode)"       Caption="Nakit"                      Width="90"  />
-                        <DxGridDataColumn FieldName="@nameof(CashMovementRowDto.UnitCode)"       Caption="Birim"                      Width="80"  />
-                        <DxGridDataColumn FieldName="@nameof(CashMovementRowDto.CashAmount)"     Caption="Tutar"    DisplayFormat="n2"  Width="120" />
-                        <DxGridDataColumn FieldName="@nameof(CashMovementRowDto.RunningBalance)" Caption="Bakiye"   DisplayFormat="n2"  Width="120" />
+                        <DxGridDataColumn FieldName="@nameof(CashMovementRowDto.VoucherDate)"    Caption="Tarih"      DisplayFormat="d"  Width="95"  />
+                        <DxGridDataColumn FieldName="@nameof(CashMovementRowDto.SubAccountCode)" Caption="Hesap"                         Width="160" />
+                        <DxGridDataColumn FieldName="@nameof(CashMovementRowDto.ProcessType)"    Caption="İşlem"                         Width="75"  />
+                        <DxGridDataColumn FieldName="@nameof(CashMovementRowDto.Source)"         Caption="Bacak"                         Width="70"  />
+                        <DxGridDataColumn FieldName="@nameof(CashMovementRowDto.CashCode)"       Caption="Nakit"                         Width="90"  />
+                        <DxGridDataColumn FieldName="@nameof(CashMovementRowDto.UnitCode)"       Caption="Birim"                         Width="65"  />
+                        <DxGridDataColumn FieldName="@nameof(CashMovementRowDto.Devir)"          Caption="Devir"      DisplayFormat="n2"  Width="120" />
+                        <DxGridDataColumn FieldName="@nameof(CashMovementRowDto.Giren)"          Caption="Giren"      DisplayFormat="n2"  Width="120" />
+                        <DxGridDataColumn FieldName="@nameof(CashMovementRowDto.Cikan)"          Caption="Çıkan"      DisplayFormat="n2"  Width="120" />
+                        <DxGridDataColumn FieldName="@nameof(CashMovementRowDto.RunningBalance)" Caption="Son Durum"  DisplayFormat="n2"  Width="120" />
                         <DxGridDataColumn FieldName="@nameof(CashMovementRowDto.Description)"    Caption="Açıklama" />
                     </Columns>
                     <TotalSummary>
-                        <DxGridSummaryItem SummaryType="GridSummaryItemType.Count" FieldName="@nameof(CashMovementRowDto.VoucherNumber)" Caption="Kayıt:" />
-                        <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum"   FieldName="@nameof(CashMovementRowDto.CashAmount)"    DisplayFormat="n2" />
+                        <DxGridSummaryItem SummaryType="GridSummaryItemType.Count" FieldName="@nameof(CashMovementRowDto.VoucherDate)" Caption="Kayıt:" />
+                        <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum"   FieldName="@nameof(CashMovementRowDto.Giren)"       DisplayFormat="n2" />
+                        <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum"   FieldName="@nameof(CashMovementRowDto.Cikan)"       DisplayFormat="n2" />
                     </TotalSummary>
                 </DxGrid>
             }
