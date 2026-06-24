@@ -1,24 +1,24 @@
 using Integration.TradeXpress.Financials.CurrencyUnits;
 
-namespace Integration.TradeXpress.Stones;
+namespace Integration.TradeXpress.Jewelries;
 
 /// <summary>
-/// Stone = bir <b>değerli taş</b> tanımı (katalog). Maden/Hurda'dan çok daha basit: milyem/işçilik/has YOK,
-/// tamamen <b>parasal/adet</b>. Tanım alanları (cins/tür/renk/kesim/saflık/elek/kategori/grup) + adet takibi +
-/// fiyat tipi (adet/miktar başına) + giriş/çıkış fiyatı &amp; para birimi taşır.
+/// Jewelry = bir <b>mücevher</b> (bitmiş ürün) tanımı (katalog). Taş gibi basit parasal/adet —
+/// milyem/işçilik/has YOK. Tanım nitelikleri (model/cins/tür/renk/kategori/grup) + adet takibi +
+/// fiyat tipi (adet/miktar başına) + giriş/çıkış fiyatı &amp; para birimi.
 ///
-/// <para>Host + tenant scoped (Cash/Metal gibi): host kataloğu (TenantId=null) herkese görünür, tenant
-/// düzenleyemez/silemez; tenant kendi kayıtlarını ekleyebilir.</para>
+/// <para><b>Company-scoped:</b> opsiyonel <see cref="CompanyId"/> — null = holding-host (tüm şirketlere),
+/// dolu = o şirkete-özel. Host (TenantId=null) global. Görünürlük working-company'ye göre süzülür.</para>
 /// </summary>
-public class Stone : FullAuditedAggregateRoot<Guid>, IMultiTenant
+public class Jewelry : FullAuditedAggregateRoot<Guid>, IMultiTenant
 {
     #region Constructors
 
-    protected Stone()
+    protected Jewelry()
     {
     }
 
-    public Stone(
+    public Jewelry(
         string code,
         string name,
         Guid? companyId = null,
@@ -49,27 +49,22 @@ public class Stone : FullAuditedAggregateRoot<Guid>, IMultiTenant
     #region Properties
 
     public virtual Guid? TenantId { get; protected set; }
-    /// <summary>Şirkete-özel kayıt için sahip Company. null = tenant geneli / host global.</summary>
+    /// <summary>Şirkete-özel kayıt için sahip Company. null = holding-host / host global.</summary>
     public virtual Guid? CompanyId { get; protected set; }
     public virtual string Code { get; protected set; } = null!;
     public virtual string Name { get; protected set; } = null!;
     public virtual string? Description { get; protected set; }
 
-    // Tanım nitelikleri (serbest metin/lookup; opsiyonel)
-    public virtual string? StoneKind { get; protected set; }   // Cins (elmas/yakut/safir…)
-    public virtual string? StoneType { get; protected set; }   // Tür (doğal/sentetik…)
-    public virtual string? Color { get; protected set; }       // Renk
-    public virtual string? Cut { get; protected set; }         // Kesim
-    public virtual string? Clarity { get; protected set; }     // Saflık/berraklık
-    public virtual string? Sieve { get; protected set; }       // Elek
-    public virtual string? Category { get; protected set; }    // Kategori
-    public virtual string? GroupCode { get; protected set; }   // Grup kodu
+    // Tanım nitelikleri (opsiyonel)
+    public virtual string? Model { get; protected set; }      // Model
+    public virtual string? Kind { get; protected set; }       // Cins
+    public virtual string? Type { get; protected set; }       // Tür
+    public virtual string? Color { get; protected set; }      // Renk
+    public virtual string? Category { get; protected set; }   // Kategori
+    public virtual string? GroupCode { get; protected set; }  // Grup kodu
 
-    /// <summary>Adet takibi yapılır mı (sikke/parça)?</summary>
     public virtual bool IsQuantity { get; protected set; }
-    /// <summary>Fiyat adet başına mı (true) yoksa miktar/gram başına mı (false)? (FiyatTipi)</summary>
     public virtual bool PriceByQuantity { get; protected set; }
-    /// <summary>Fiyat tipi fişte değiştirilebilir mi?</summary>
     public virtual bool PriceTypeChange { get; protected set; }
 
     public virtual decimal EntryPrice { get; protected set; }
@@ -88,32 +83,29 @@ public class Stone : FullAuditedAggregateRoot<Guid>, IMultiTenant
     public virtual void SetName(string name)
     {
         Name = StringFieldGuard.NormalizeName(
-            name, nameof(Name), EntityFieldConsts.NameMinLength, StoneConsts.NameMaxLength);
+            name, nameof(Name), EntityFieldConsts.NameMinLength, JewelryConsts.NameMaxLength);
     }
 
     public virtual void SetDescription(string? description)
     {
         Description = StringFieldGuard.EnsureOptionalText(
-            description, nameof(Description), EntityFieldConsts.DescriptionMinLength, StoneConsts.DescriptionMaxLength);
+            description, nameof(Description), EntityFieldConsts.DescriptionMinLength, JewelryConsts.DescriptionMaxLength);
     }
 
     public virtual void SetAttributes(
-        string? stoneKind, string? stoneType, string? color, string? cut,
-        string? clarity, string? sieve, string? category, string? groupCode)
+        string? model, string? kind, string? type, string? color, string? category, string? groupCode)
     {
-        StoneKind = Trim(stoneKind);
-        StoneType = Trim(stoneType);
+        Model     = Trim(model);
+        Kind      = Trim(kind);
+        Type      = Trim(type);
         Color     = Trim(color);
-        Cut       = Trim(cut);
-        Clarity   = Trim(clarity);
-        Sieve     = Trim(sieve);
         Category  = Trim(category);
         GroupCode = Trim(groupCode);
 
         static string? Trim(string? v)
         {
             var t = v?.Trim();
-            return string.IsNullOrEmpty(t) ? null : t.Length > StoneConsts.AttributeMaxLength ? t[..StoneConsts.AttributeMaxLength] : t;
+            return string.IsNullOrEmpty(t) ? null : t.Length > JewelryConsts.AttributeMaxLength ? t[..JewelryConsts.AttributeMaxLength] : t;
         }
     }
 
@@ -135,7 +127,7 @@ public class Stone : FullAuditedAggregateRoot<Guid>, IMultiTenant
     private void SetCode(string code)
     {
         Code = StringFieldGuard.NormalizeCode(
-            code, nameof(Code), EntityFieldConsts.CodeMinLength, StoneConsts.CodeMaxLength);
+            code, nameof(Code), EntityFieldConsts.CodeMinLength, JewelryConsts.CodeMaxLength);
     }
 
     #endregion

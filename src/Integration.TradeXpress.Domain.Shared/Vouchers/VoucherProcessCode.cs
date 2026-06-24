@@ -29,6 +29,7 @@ public static class VoucherProcessCode
         ProcessType.Service  => "G",
         ProcessType.Future   => "V",
         ProcessType.Stone    => "T",
+        ProcessType.Jewelry  => "J",
         ProcessType.Transfer => "V",
         _ => "?",
     };

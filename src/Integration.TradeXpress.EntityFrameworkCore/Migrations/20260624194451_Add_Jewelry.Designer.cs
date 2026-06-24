@@ -4,6 +4,7 @@ using Integration.TradeXpress.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Volo.Abp.EntityFrameworkCore;
 
@@ -12,9 +13,11 @@ using Volo.Abp.EntityFrameworkCore;
 namespace Integration.TradeXpress.Migrations
 {
     [DbContext(typeof(TradeXpressDbContext))]
-    partial class TradeXpressDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260624194451_Add_Jewelry")]
+    partial class Add_Jewelry
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

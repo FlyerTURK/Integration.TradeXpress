@@ -1,19 +1,19 @@
 using System;
 using System.Linq;
 using System.Threading.Tasks;
-using Integration.TradeXpress.Stones;
+using Integration.TradeXpress.Jewelries;
 
-namespace Integration.TradeXpress.Blazor.Client.Pages.Stones;
+namespace Integration.TradeXpress.Blazor.Client.Pages.Jewelries;
 
-public partial class StoneListPage
+public partial class JewelryListPage
 {
-    public StoneListPage()
+    public JewelryListPage()
     {
         LocalizationResource = typeof(Integration.TradeXpress.Localization.TradeXpressResource);
     }
 
     [Microsoft.AspNetCore.Components.Inject]
-    protected IStoneAppService StoneAppService { get; set; } = default!;
+    protected IJewelryAppService JewelryAppService { get; set; } = default!;
 
     [Microsoft.AspNetCore.Components.Inject]
     protected Integration.TradeXpress.Blazor.Client.Services.Working.IWorkingContextService Working { get; set; } = default!;
@@ -24,19 +24,18 @@ public partial class StoneListPage
         await base.OnInitializedAsync();
     }
 
-    // Liste isteğine çalışılan şirketi koy → server host(null) + bu şirkete-özel taşları döner.
-    protected override void OnConfiguringListRequest(StoneListRequestDto request)
+    protected override void OnConfiguringListRequest(JewelryListRequestDto request)
     {
         request.CompanyId = Working.CurrentCompanyId;
     }
 
     public override Volo.Abp.Application.Services.ICrudAppService<
-        StoneGetDto, StoneListDto, Guid,
-        StoneListRequestDto, StoneCreateDto, StoneUpdateDto> CrudAppService
-        => StoneAppService;
+        JewelryGetDto, JewelryListDto, Guid,
+        JewelryListRequestDto, JewelryCreateDto, JewelryUpdateDto> CrudAppService
+        => JewelryAppService;
 
     public override System.Type EditComponentType
-        => typeof(Integration.TradeXpress.Blazor.Client.Pages.Stones.StoneEditHost);
+        => typeof(Integration.TradeXpress.Blazor.Client.Pages.Jewelries.JewelryEditHost);
 
     public override async Task DeleteAsync()
     {
@@ -48,10 +47,10 @@ public partial class StoneListPage
 
         if (CurrentTenant.Id != null)
         {
-            var hasGlobal = selectedItems.OfType<StoneListDto>().Any(x => x.IsGlobal);
+            var hasGlobal = selectedItems.OfType<JewelryListDto>().Any(x => x.IsGlobal);
             if (hasGlobal)
             {
-                UiService.ShowWarningToast(L["TradeXpress:Stone:CannotDeleteGlobalAsTenant"]);
+                UiService.ShowWarningToast(L["TradeXpress:Jewelry:CannotDeleteGlobalAsTenant"]);
                 return;
             }
         }

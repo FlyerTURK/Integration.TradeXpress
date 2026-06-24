@@ -1,14 +1,14 @@
-@page "/stones/new"
-@page "/stones/{Id:guid}"
+@page "/jewelries/new"
+@page "/jewelries/{Id:guid}"
 @using System
 @using System.Linq
 @using System.Collections.Generic
-@using Integration.TradeXpress.Stones
+@using Integration.TradeXpress.Jewelries
 @using Integration.TradeXpress.Financials.CurrencyUnits
 @using Integration.Framework.Blazor.Client.Components.Crud
 @using Microsoft.Extensions.Localization
 @inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
-@inject IStoneAppService StoneAppService
+@inject IJewelryAppService JewelryAppService
 @inject ICurrencyUnitAppService CurrencyUnitAppService
 @inject Volo.Abp.ObjectMapping.IObjectMapper Mapper
 @inject Volo.Abp.MultiTenancy.ICurrentTenant CurrentTenant
@@ -16,13 +16,13 @@
 
 @if (_coordinator != null && _ready)
 {
-    <CrudEditHost TGetDto="StoneGetDto" TListDto="StoneListDto" TKey="Guid" TListRequestDto="StoneListRequestDto"
+    <CrudEditHost TGetDto="JewelryGetDto" TListDto="JewelryListDto" TKey="Guid" TListRequestDto="JewelryListRequestDto"
                   Coordinator="@_coordinator" Id="@(Id ?? Guid.Empty)" IsPopupMode="@IsPopupMode" OnSaved="@OnSaved" OnClosed="@OnClosed"
-                  FormCaption="@L["Stone"].Value" IconCssClass="@TradeXpressIcons.Stone"
+                  FormCaption="@L["Jewelry"].Value" IconCssClass="@TradeXpressIcons.Jewelry"
                   EntityValue="@(m => m.Code)"
                   IsReadOnly="@(m => m.IsGlobal && CurrentTenant?.Id != null)"
                   ApplyNewDefaults="@(m => { m.IsActive = true; m.PriceTypeChange = true; m.CompanyId = Working.CurrentCompanyId; })">
-        <StoneLayout Model="@context" IsNew="@(context.Id == Guid.Empty)" CurrencyUnits="@_units" />
+        <JewelryLayout Model="@context" IsNew="@(context.Id == Guid.Empty)" CurrencyUnits="@_units" />
     </CrudEditHost>
 }
 
@@ -33,13 +33,13 @@
     [Parameter] public EventCallback OnClosed { get; set; }
 
     private List<CurrencyUnitListDto> _units = new();
-    private ICommitCoordinator<StoneGetDto, StoneListDto, Guid, StoneListRequestDto>? _coordinator;
+    private ICommitCoordinator<JewelryGetDto, JewelryListDto, Guid, JewelryListRequestDto>? _coordinator;
     private bool _ready;
 
     protected override async Task OnInitializedAsync()
     {
-        _coordinator = new PersistentCoordinator<StoneGetDto, StoneListDto, Guid, StoneListRequestDto, StoneCreateDto, StoneUpdateDto>(
-            StoneAppService, Mapper);
+        _coordinator = new PersistentCoordinator<JewelryGetDto, JewelryListDto, Guid, JewelryListRequestDto, JewelryCreateDto, JewelryUpdateDto>(
+            JewelryAppService, Mapper);
 
         await Working.EnsureLoadedAsync();
 

@@ -13,6 +13,6 @@ public interface IStoneAppService : ICrudAppService<
     StoneCreateDto,
     StoneUpdateDto>
 {
-    /// <summary>Taş süreç paneli combo'su için host‖own kayıtlar (koda göre sıralı).</summary>
-    Task<List<StoneListDto>> GetPickerListAsync();
+    /// <summary>Taş süreç paneli combo'su için host + çalışılan şirkete-özel kayıtlar (koda göre sıralı).</summary>
+    Task<List<StoneListDto>> GetPickerListAsync(Guid? companyId = null);
 }

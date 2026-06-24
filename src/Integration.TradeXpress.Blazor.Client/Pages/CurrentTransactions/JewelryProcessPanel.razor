@@ -1,5 +1,5 @@
 @inject IStringLocalizer<TradeXpressResource> L
-@inject Integration.TradeXpress.Stones.IStoneAppService StoneService
+@inject Integration.TradeXpress.Jewelries.IJewelryAppService JewelryService
 @inject Integration.TradeXpress.Cashes.ICashAppService CashService
 @inject ICurrencyUnitAppService CurrencyUnitService
 @inject IVoucherAppService VoucherService
@@ -9,7 +9,7 @@
 <DxLayoutBreakpoint MaxWidth="768" @bind-IsActive="@_isMobile" />
 
 <ProcessPanelBase Direction="@_model.Direction" OnSave="@HandleSave" OnBack="@OnBack"
-                 ProcessTypeName="@L["Stone"].Value"
+                 ProcessTypeName="@L["Jewelry"].Value"
                  PaymentTypeName="@_paymentItems.FirstOrDefault(p => p.Value == _model.PaymentType)?.Label"
                  AccountCode="@AccountCode"
                  SubAccountCode="@SubAccountCode">
@@ -34,14 +34,14 @@
         <div style="display:flex; flex-direction:column; gap:4px; @(_isMobile ? "width:100%;" : "flex-shrink:0;")">
             <div style="display:flex; @(_isMobile ? "flex-direction:column;" : "") gap:4px; align-items:flex-start;">
 
-                @* Taş = Commodity *@
+                @* Mücevher = Commodity *@
                 <div style="@GroupStyle()">
                     <small style="@LabelStyle">@nameof(VoucherLineDto.CommodityId)</small>
-                    <DxComboBox TData="Integration.TradeXpress.Stones.StoneListDto" TValue="Guid?"
-                                Data="@_activeStones"
-                                ValueFieldName="@nameof(Integration.TradeXpress.Stones.StoneListDto.Id)"
-                                TextFieldName="@nameof(Integration.TradeXpress.Stones.StoneListDto.Code)"
-                                Value="@_model.CommodityId" ValueChanged="@OnStoneChanged"
+                    <DxComboBox TData="Integration.TradeXpress.Jewelries.JewelryListDto" TValue="Guid?"
+                                Data="@_activeJewelries"
+                                ValueFieldName="@nameof(Integration.TradeXpress.Jewelries.JewelryListDto.Id)"
+                                TextFieldName="@nameof(Integration.TradeXpress.Jewelries.JewelryListDto.Code)"
+                                Value="@_model.CommodityId" ValueChanged="@OnJewelryChanged"
                                 DropDownTriggerMode="DropDownTriggerMode.Click" ShowDropDownButton="true"
                                 ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Never"
                                 SearchMode="ListSearchMode.AutoSearch" style="@ControlStyle()" />
@@ -137,14 +137,14 @@
     private VoucherLineDto _model = NewModel();
     private static VoucherLineDto NewModel() => new()
     {
-        Type        = ProcessType.Stone,
+        Type        = ProcessType.Jewelry,
         Direction   = ProcessDirectionType.Outbound,
         PaymentType = ProcessPaymentType.Normal,
         Factor      = 1m,
     };
 
-    private List<Integration.TradeXpress.Stones.StoneListDto> _allStones = new();
-    private List<Integration.TradeXpress.Stones.StoneListDto> _activeStones = new();
+    private List<Integration.TradeXpress.Jewelries.JewelryListDto> _allJewelries = new();
+    private List<Integration.TradeXpress.Jewelries.JewelryListDto> _activeJewelries = new();
 
     private List<CurrencyUnitListDto> _activeUnits = new();
     private List<Integration.TradeXpress.Cashes.CashListDto> _allCashes = new();
@@ -185,8 +185,8 @@
         };
 
         await Working.EnsureLoadedAsync();
-        _allStones = await StoneService.GetPickerListAsync(Working.CurrentCompanyId);
-        _activeStones = _allStones.Where(s => s.IsActive).ToList();
+        _allJewelries = await JewelryService.GetPickerListAsync(Working.CurrentCompanyId);
+        _activeJewelries = _allJewelries.Where(j => j.IsActive).ToList();
 
         var cashResult = await CashService.GetListAsync(new Integration.TradeXpress.Cashes.CashListRequestDto { MaxResultCount = 1000 });
         _allCashes = cashResult.Items.ToList();
@@ -195,48 +195,47 @@
         _activeUnits = unitResult.Items.Where(u => u.IsActive).ToList();
         _codeByUnit = unitResult.Items.ToDictionary(u => u.Id, u => u.Code);
 
-        if (_activeStones.Count > 0)
-            OnStoneChanged(_activeStones[0].Id);
+        if (_activeJewelries.Count > 0)
+            OnJewelryChanged(_activeJewelries[0].Id);
         else
             BuildPayList();
     }
 
-    // Tutar = (Adet | Miktar) × Fiyat.
     private void Recompute()
     {
         var basis = _priceByQuantity ? _model.Quantity : _model.Amount;
         _model.PayTotal = basis * _model.PayFactor;
     }
 
-    private void OnStoneChanged(Guid? id)
+    private void OnJewelryChanged(Guid? id)
     {
-        var s = id.HasValue ? _allStones.FirstOrDefault(x => x.Id == id.Value) : null;
+        var j = id.HasValue ? _allJewelries.FirstOrDefault(x => x.Id == id.Value) : null;
         _model.CommodityId   = id;
-        _model.CommodityCode = s?.Code ?? string.Empty;
-        if (s is { })
+        _model.CommodityCode = j?.Code ?? string.Empty;
+        if (j is { })
         {
-            _showAdet          = s.IsQuantity;
-            _priceByQuantity   = s.PriceByQuantity;
-            _priceTypeReadOnly = !s.PriceTypeChange;
-            ApplyDirectionPrice(s);
+            _showAdet          = j.IsQuantity;
+            _priceByQuantity   = j.PriceByQuantity;
+            _priceTypeReadOnly = !j.PriceTypeChange;
+            ApplyDirectionPrice(j);
         }
         BuildPayList();
         EnsurePayItem(SuggestedUnit());
         Recompute();
     }
 
-    private void ApplyDirectionPrice(Integration.TradeXpress.Stones.StoneListDto s)
+    private void ApplyDirectionPrice(Integration.TradeXpress.Jewelries.JewelryListDto j)
     {
-        var inflow = ((int)_model.Direction % 2) == 0;   // Giriş
-        _model.PayFactor = inflow ? s.EntryPrice : s.ExitPrice;
+        var inflow = ((int)_model.Direction % 2) == 0;
+        _model.PayFactor = inflow ? j.EntryPrice : j.ExitPrice;
     }
 
     private Guid? SuggestedUnit()
     {
-        var s = _allStones.FirstOrDefault(x => x.Id == _model.CommodityId);
-        if (s is null) return null;
+        var j = _allJewelries.FirstOrDefault(x => x.Id == _model.CommodityId);
+        if (j is null) return null;
         var inflow = ((int)_model.Direction % 2) == 0;
-        return inflow ? s.EntryPriceUnitId : s.ExitPriceUnitId;
+        return inflow ? j.EntryPriceUnitId : j.ExitPriceUnitId;
     }
 
     private void BuildPayList()
@@ -282,8 +281,8 @@
     private void OnDirectionChanged(ProcessDirectionType value)
     {
         _model.Direction = value;
-        var s = _allStones.FirstOrDefault(x => x.Id == _model.CommodityId);
-        if (s is { }) ApplyDirectionPrice(s);
+        var j = _allJewelries.FirstOrDefault(x => x.Id == _model.CommodityId);
+        if (j is { }) ApplyDirectionPrice(j);
         EnsurePayItem(SuggestedUnit());
         Recompute();
     }
@@ -307,7 +306,6 @@
     private void OnPayFactorChanged(decimal value) { _model.PayFactor = value; Recompute(); }
     private void OnPriceTypeChanged(bool isQuantity) { _priceByQuantity = isQuantity; Recompute(); }
 
-    // Tutar elle düzenlenince Fiyat'ı geri-hesapla.
     private void OnPayTotalChanged(decimal value)
     {
         _model.PayTotal = value;
@@ -333,7 +331,7 @@
         _model.SubAccountId       = SubAccountId;
         _model.VoucherDate        = VoucherDate;
         _model.VoucherDescription = VoucherDescription;
-        _model.Type               = ProcessType.Stone;
+        _model.Type               = ProcessType.Jewelry;
         _model.MainUnitId         = Guid.Empty;
         _model.Factor             = 1m;
         _model.Total              = 0m;
@@ -361,12 +359,12 @@
     {
         _model = dto;
         VoucherId = dto.VoucherId;
-        var s = _allStones.FirstOrDefault(x => x.Id == dto.CommodityId);
-        if (s is { })
+        var j = _allJewelries.FirstOrDefault(x => x.Id == dto.CommodityId);
+        if (j is { })
         {
-            _showAdet          = s.IsQuantity;
-            _priceByQuantity   = s.PriceByQuantity;
-            _priceTypeReadOnly = !s.PriceTypeChange;
+            _showAdet          = j.IsQuantity;
+            _priceByQuantity   = j.PriceByQuantity;
+            _priceTypeReadOnly = !j.PriceTypeChange;
         }
         BuildPayList();
         EnsurePayItem();

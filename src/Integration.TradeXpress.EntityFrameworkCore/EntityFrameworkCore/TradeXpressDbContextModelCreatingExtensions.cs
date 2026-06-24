@@ -302,7 +302,33 @@ public static class TradeXpressDbContextModelCreatingExtensions
             b.Property(x => x.EntryPrice).HasPrecision(Integration.TradeXpress.Stones.StoneConsts.PricePrecision, Integration.TradeXpress.Stones.StoneConsts.PriceScale);
             b.Property(x => x.ExitPrice).HasPrecision(Integration.TradeXpress.Stones.StoneConsts.PricePrecision, Integration.TradeXpress.Stones.StoneConsts.PriceScale);
 
-            b.HasIndex(x => new { x.TenantId, x.Code }).IsUnique();
+            b.HasIndex(x => new { x.TenantId, x.CompanyId, x.Code }).IsUnique();
+
+            b.HasOne(x => x.EntryPriceUnit).WithMany().HasForeignKey(x => x.EntryPriceUnitId).OnDelete(DeleteBehavior.Restrict);
+            b.HasOne(x => x.ExitPriceUnit).WithMany().HasForeignKey(x => x.ExitPriceUnitId).OnDelete(DeleteBehavior.Restrict);
+        });
+    }
+
+    public static void ConfigureJewelries(this ModelBuilder builder)
+    {
+        Check.NotNull(builder, nameof(builder));
+
+        builder.Entity<Integration.TradeXpress.Jewelries.Jewelry>(b =>
+        {
+            b.ToTable(TradeXpressConsts.DbTablePrefix + "Jewelries", TradeXpressConsts.DbSchema);
+            b.ConfigureByConvention();
+
+            b.Property(x => x.Code).IsRequired().HasMaxLength(Integration.TradeXpress.Jewelries.JewelryConsts.CodeMaxLength);
+            b.Property(x => x.Name).IsRequired().HasMaxLength(Integration.TradeXpress.Jewelries.JewelryConsts.NameMaxLength);
+            b.Property(x => x.Description).HasMaxLength(Integration.TradeXpress.Jewelries.JewelryConsts.DescriptionMaxLength);
+            foreach (var p in new[] { nameof(Integration.TradeXpress.Jewelries.Jewelry.Model), nameof(Integration.TradeXpress.Jewelries.Jewelry.Kind),
+                nameof(Integration.TradeXpress.Jewelries.Jewelry.Type), nameof(Integration.TradeXpress.Jewelries.Jewelry.Color),
+                nameof(Integration.TradeXpress.Jewelries.Jewelry.Category), nameof(Integration.TradeXpress.Jewelries.Jewelry.GroupCode) })
+                b.Property(p).HasMaxLength(Integration.TradeXpress.Jewelries.JewelryConsts.AttributeMaxLength);
+            b.Property(x => x.EntryPrice).HasPrecision(Integration.TradeXpress.Jewelries.JewelryConsts.PricePrecision, Integration.TradeXpress.Jewelries.JewelryConsts.PriceScale);
+            b.Property(x => x.ExitPrice).HasPrecision(Integration.TradeXpress.Jewelries.JewelryConsts.PricePrecision, Integration.TradeXpress.Jewelries.JewelryConsts.PriceScale);
+
+            b.HasIndex(x => new { x.TenantId, x.CompanyId, x.Code }).IsUnique();
 
             b.HasOne(x => x.EntryPriceUnit).WithMany().HasForeignKey(x => x.EntryPriceUnitId).OnDelete(DeleteBehavior.Restrict);
             b.HasOne(x => x.ExitPriceUnit).WithMany().HasForeignKey(x => x.ExitPriceUnitId).OnDelete(DeleteBehavior.Restrict);

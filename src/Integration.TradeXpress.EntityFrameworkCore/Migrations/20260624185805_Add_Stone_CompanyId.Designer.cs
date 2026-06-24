@@ -4,6 +4,7 @@ using Integration.TradeXpress.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Volo.Abp.EntityFrameworkCore;
 
@@ -12,9 +13,11 @@ using Volo.Abp.EntityFrameworkCore;
 namespace Integration.TradeXpress.Migrations
 {
     [DbContext(typeof(TradeXpressDbContext))]
-    partial class TradeXpressDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260624185805_Add_Stone_CompanyId")]
+    partial class Add_Stone_CompanyId
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -992,137 +995,6 @@ namespace Integration.TradeXpress.Migrations
                     b.HasIndex("TenantId", "FollowingUnitId");
 
                     b.ToTable("AppFutures", (string)null);
-                });
-
-            modelBuilder.Entity("Integration.TradeXpress.Jewelries.Jewelry", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("Category")
-                        .HasMaxLength(64)
-                        .HasColumnType("nvarchar(64)");
-
-                    b.Property<string>("Code")
-                        .IsRequired()
-                        .HasMaxLength(16)
-                        .HasColumnType("nvarchar(16)");
-
-                    b.Property<string>("Color")
-                        .HasMaxLength(64)
-                        .HasColumnType("nvarchar(64)");
-
-                    b.Property<Guid?>("CompanyId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("ConcurrencyStamp")
-                        .IsConcurrencyToken()
-                        .IsRequired()
-                        .HasMaxLength(40)
-                        .HasColumnType("nvarchar(40)")
-                        .HasColumnName("ConcurrencyStamp");
-
-                    b.Property<DateTime>("CreationTime")
-                        .HasColumnType("datetime2")
-                        .HasColumnName("CreationTime");
-
-                    b.Property<Guid?>("CreatorId")
-                        .HasColumnType("uniqueidentifier")
-                        .HasColumnName("CreatorId");
-
-                    b.Property<Guid?>("DeleterId")
-                        .HasColumnType("uniqueidentifier")
-                        .HasColumnName("DeleterId");
-
-                    b.Property<DateTime?>("DeletionTime")
-                        .HasColumnType("datetime2")
-                        .HasColumnName("DeletionTime");
-
-                    b.Property<string>("Description")
-                        .HasMaxLength(512)
-                        .HasColumnType("nvarchar(512)");
-
-                    b.Property<decimal>("EntryPrice")
-                        .HasPrecision(18, 5)
-                        .HasColumnType("decimal(18,5)");
-
-                    b.Property<Guid?>("EntryPriceUnitId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<decimal>("ExitPrice")
-                        .HasPrecision(18, 5)
-                        .HasColumnType("decimal(18,5)");
-
-                    b.Property<Guid?>("ExitPriceUnitId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("ExtraProperties")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)")
-                        .HasColumnName("ExtraProperties");
-
-                    b.Property<string>("GroupCode")
-                        .HasMaxLength(64)
-                        .HasColumnType("nvarchar(64)");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("IsDeleted")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bit")
-                        .HasDefaultValue(false)
-                        .HasColumnName("IsDeleted");
-
-                    b.Property<bool>("IsQuantity")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("Kind")
-                        .HasMaxLength(64)
-                        .HasColumnType("nvarchar(64)");
-
-                    b.Property<DateTime?>("LastModificationTime")
-                        .HasColumnType("datetime2")
-                        .HasColumnName("LastModificationTime");
-
-                    b.Property<Guid?>("LastModifierId")
-                        .HasColumnType("uniqueidentifier")
-                        .HasColumnName("LastModifierId");
-
-                    b.Property<string>("Model")
-                        .HasMaxLength(64)
-                        .HasColumnType("nvarchar(64)");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(128)
-                        .HasColumnType("nvarchar(128)");
-
-                    b.Property<bool>("PriceByQuantity")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("PriceTypeChange")
-                        .HasColumnType("bit");
-
-                    b.Property<Guid?>("TenantId")
-                        .HasColumnType("uniqueidentifier")
-                        .HasColumnName("TenantId");
-
-                    b.Property<string>("Type")
-                        .HasMaxLength(64)
-                        .HasColumnType("nvarchar(64)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("EntryPriceUnitId");
-
-                    b.HasIndex("ExitPriceUnitId");
-
-                    b.HasIndex("TenantId", "CompanyId", "Code")
-                        .IsUnique()
-                        .HasFilter("[TenantId] IS NOT NULL AND [CompanyId] IS NOT NULL");
-
-                    b.ToTable("AppJewelries", (string)null);
                 });
 
             modelBuilder.Entity("Integration.TradeXpress.Metals.Metal", b =>
@@ -4064,23 +3936,6 @@ namespace Integration.TradeXpress.Migrations
                         .IsRequired();
 
                     b.Navigation("FollowingUnit");
-                });
-
-            modelBuilder.Entity("Integration.TradeXpress.Jewelries.Jewelry", b =>
-                {
-                    b.HasOne("Integration.TradeXpress.Financials.CurrencyUnits.CurrencyUnit", "EntryPriceUnit")
-                        .WithMany()
-                        .HasForeignKey("EntryPriceUnitId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("Integration.TradeXpress.Financials.CurrencyUnits.CurrencyUnit", "ExitPriceUnit")
-                        .WithMany()
-                        .HasForeignKey("ExitPriceUnitId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.Navigation("EntryPriceUnit");
-
-                    b.Navigation("ExitPriceUnit");
                 });
 
             modelBuilder.Entity("Integration.TradeXpress.Metals.Metal", b =>

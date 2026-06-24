@@ -38,8 +38,9 @@ public class StoneAppService : TradeXpressAppService, IStoneAppService
         using (_dataFilter.Disable<IMultiTenant>())
         {
             var tenantId = CurrentTenant.Id;
+            // Görünür = host(TenantId null) + çalışılan şirkete-özel (CompanyId == input.CompanyId).
             var query = (await _repository.GetQueryableAsync())
-                .Where(x => x.TenantId == null || x.TenantId == tenantId)
+                .Where(x => x.TenantId == null || (x.TenantId == tenantId && x.CompanyId == input.CompanyId))
                 .ApplyListRequest(input, AllowedListFields);
 
             var totalCount = await AsyncExecuter.CountAsync(query);
@@ -57,7 +58,7 @@ public class StoneAppService : TradeXpressAppService, IStoneAppService
     public virtual async Task<StoneGetDto> CreateAsync(StoneCreateDto input)
     {
         var entity = new Stone(
-            input.Code, input.Name,
+            input.Code, input.Name, input.CompanyId,
             input.IsQuantity, input.PriceByQuantity, input.PriceTypeChange,
             input.EntryPrice, input.EntryPriceUnitId, input.ExitPrice, input.ExitPriceUnitId);
         entity.SetAttributes(input.StoneKind, input.StoneType, input.Color, input.Cut,
@@ -92,14 +93,14 @@ public class StoneAppService : TradeXpressAppService, IStoneAppService
         await _repository.DeleteAsync(entity, autoSave: true);
     }
 
-    public virtual async Task<List<StoneListDto>> GetPickerListAsync()
+    public virtual async Task<List<StoneListDto>> GetPickerListAsync(Guid? companyId = null)
     {
         using (_dataFilter.Disable<IMultiTenant>())
         {
             var tenantId = CurrentTenant.Id;
             var rows = await AsyncExecuter.ToListAsync(
                 (await _repository.GetQueryableAsync())
-                    .Where(x => x.TenantId == null || x.TenantId == tenantId)
+                    .Where(x => x.TenantId == null || (x.TenantId == tenantId && x.CompanyId == companyId))
                     .OrderBy(x => x.Code));
             return rows.Select(ToListDto).ToList();
         }
@@ -168,6 +169,7 @@ public class StoneAppService : TradeXpressAppService, IStoneAppService
         ExitPrice        = s.ExitPrice,
         ExitPriceUnitId  = s.ExitPriceUnitId,
         Description      = s.Description,
+        CompanyId        = s.CompanyId,
         IsActive         = s.IsActive,
         IsGlobal         = s.TenantId == null,
     };

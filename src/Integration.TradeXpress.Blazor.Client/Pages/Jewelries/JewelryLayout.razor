@@ -1,0 +1,70 @@
+@using System
+@using System.Collections.Generic
+@using Integration.TradeXpress.Jewelries
+@using Integration.TradeXpress.Financials.CurrencyUnits
+@using Integration.Framework.Blazor.Client.Components.Crud
+@using DevExpress.Blazor
+@using Microsoft.Extensions.Localization
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@* Jewelry (Mücevher) DUMB Layout — JewelryGetDto. Basit parasal/adet; Model + tanım nitelikleri + fiyat. *@
+
+<DxFormLayout CssClass="w-100">
+    <DxFormLayoutGroup Caption="@L["General"]" ColSpanMd="12">
+        <DxFormLayoutItem Caption="@($"{L["Code"]} *")" ColSpanMd="6">
+            <DxTextBox @bind-Text="@Model.Code" Enabled="@IsNew" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="6">
+            <DxTextBox @bind-Text="@Model.Name" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["JewelryModel"]" ColSpanMd="4"><DxTextBox @bind-Text="@Model.Model" /></DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["StoneKind"]" ColSpanMd="4"><DxTextBox @bind-Text="@Model.Kind" /></DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["StoneType"]" ColSpanMd="4"><DxTextBox @bind-Text="@Model.Type" /></DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["Color"]" ColSpanMd="4"><DxTextBox @bind-Text="@Model.Color" /></DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["Category"]" ColSpanMd="4"><DxTextBox @bind-Text="@Model.Category" /></DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["GroupCode"]" ColSpanMd="4"><DxTextBox @bind-Text="@Model.GroupCode" /></DxFormLayoutItem>
+    </DxFormLayoutGroup>
+
+    <DxFormLayoutGroup Caption="@L["Pricing"]" ColSpanMd="12">
+        <DxFormLayoutItem Caption="@L["IsQuantity"]" ColSpanMd="4">
+            <DxCheckBox @bind-Checked="@Model.IsQuantity" CheckType="CheckType.Switch">@(Model.IsQuantity ? L["Yes"] : L["No"])</DxCheckBox>
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["PriceType"]" ColSpanMd="4">
+            <DxCheckBox @bind-Checked="@Model.PriceByQuantity" CheckType="CheckType.Switch">@(Model.PriceByQuantity ? L["Count"] : L["Amount"])</DxCheckBox>
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["PriceTypeChange"]" ColSpanMd="4">
+            <DxCheckBox @bind-Checked="@Model.PriceTypeChange" CheckType="CheckType.Switch">@(Model.PriceTypeChange ? L["Yes"] : L["No"])</DxCheckBox>
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["EntryPrice"]" ColSpanMd="4">
+            <DxSpinEdit @bind-Value="@Model.EntryPrice" DisplayFormat="N2" ShowSpinButtons="false" CssClass="w-100" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["CurrencyUnit"]" ColSpanMd="2">
+            <LookupComboBox TItem="CurrencyUnitListDto" TValue="Guid?" Data="@CurrencyUnits"
+                            ValueFieldName="@nameof(CurrencyUnitListDto.Id)" TextFieldName="@nameof(CurrencyUnitListDto.Code)"
+                            @bind-Value="@Model.EntryPriceUnitId" NullText="@L["Select"].Value" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["ExitPrice"]" ColSpanMd="4">
+            <DxSpinEdit @bind-Value="@Model.ExitPrice" DisplayFormat="N2" ShowSpinButtons="false" CssClass="w-100" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["CurrencyUnit"]" ColSpanMd="2">
+            <LookupComboBox TItem="CurrencyUnitListDto" TValue="Guid?" Data="@CurrencyUnits"
+                            ValueFieldName="@nameof(CurrencyUnitListDto.Id)" TextFieldName="@nameof(CurrencyUnitListDto.Code)"
+                            @bind-Value="@Model.ExitPriceUnitId" NullText="@L["Select"].Value" />
+        </DxFormLayoutItem>
+    </DxFormLayoutGroup>
+
+    <DxFormLayoutGroup Caption="@L["Other"]" ColSpanMd="12">
+        <DxFormLayoutItem Caption="@L["Description"]" ColSpanMd="12">
+            <DxMemo @bind-Text="@Model.Description" Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6">
+            <DxCheckBox @bind-Checked="@Model.IsActive" CheckType="CheckType.Switch">@(Model.IsActive ? L["Active"] : L["Passive"])</DxCheckBox>
+        </DxFormLayoutItem>
+    </DxFormLayoutGroup>
+</DxFormLayout>
+
+@code {
+    [Parameter, EditorRequired] public JewelryGetDto Model { get; set; } = default!;
+    [Parameter] public bool IsNew { get; set; }
+    [Parameter] public IReadOnlyList<CurrencyUnitListDto> CurrencyUnits { get; set; } = Array.Empty<CurrencyUnitListDto>();
+}

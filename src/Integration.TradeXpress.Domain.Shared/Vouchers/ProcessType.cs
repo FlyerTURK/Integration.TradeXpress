@@ -32,6 +32,9 @@ public enum ProcessType : byte
     /// <summary>Taş (değerli taş) alış-satış işlemi — parasal/adet, milyem/işçilik yok.</summary>
     Stone    = 7,
 
+    /// <summary>Mücevher (bitmiş ürün) alış-satış işlemi — parasal/adet, company-scoped.</summary>
+    Jewelry  = 8,
+
     /// <summary>Virman — hesaplar arası aktarım (satır-seviyesi karşı kayıt ile).</summary>
     Transfer = 11,
 

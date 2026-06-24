@@ -9,6 +9,7 @@ using Integration.TradeXpress.Futures;
 using Integration.TradeXpress.Scraps;
 using Integration.TradeXpress.Metals;
 using Integration.TradeXpress.Stones;
+using Integration.TradeXpress.Jewelries;
 using Integration.TradeXpress.Countries;
 using Integration.TradeXpress.Accounts;
 using Volo.Abp.TenantManagement;
@@ -166,6 +167,17 @@ public partial class ParityToListDtoMapper : MapperBase<Parity, ParityListDto>
 {
     public override partial StoneUpdateDto Map(StoneGetDto source);
     public override partial void Map(StoneGetDto source, StoneUpdateDto destination);
+}
+
+[Mapper] public partial class JewelryGetToCreateMapper : MapperBase<JewelryGetDto, JewelryCreateDto>
+{
+    public override partial JewelryCreateDto Map(JewelryGetDto source);
+    public override partial void Map(JewelryGetDto source, JewelryCreateDto destination);
+}
+[Mapper] public partial class JewelryGetToUpdateMapper : MapperBase<JewelryGetDto, JewelryUpdateDto>
+{
+    public override partial JewelryUpdateDto Map(JewelryGetDto source);
+    public override partial void Map(JewelryGetDto source, JewelryUpdateDto destination);
 }
 
 [Mapper] public partial class AccountGetToCreateMapper : MapperBase<AccountGetDto, AccountCreateDto>

@@ -4,21 +4,21 @@ using Integration.Framework.Base.Dtos;
 using Integration.Framework.Base.Dtos.Interfaces;
 using Volo.Abp.Application.Dtos;
 
-namespace Integration.TradeXpress.Stones;
+namespace Integration.TradeXpress.Jewelries;
 
-public class StoneListRequestDto : ListRequestDto
+public class JewelryListRequestDto : ListRequestDto
 {
-    /// <summary>Çalışılan şirket — görünür kayıtlar host(null) + bu şirkete-özel olanlar.</summary>
+    /// <summary>Çalışılan şirket — görünür kayıtlar host/holding-host(null) + bu şirkete-özel olanlar.</summary>
     public Guid? CompanyId { get; set; }
 }
 
-public class StoneListDto : EntityDto<Guid>, IListDto<Guid>, IIsActive, IHostScoped
+public class JewelryListDto : EntityDto<Guid>, IListDto<Guid>, IIsActive, IHostScoped
 {
     public string Code { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
 
-    public string? StoneKind { get; set; }
-    public string? Color { get; set; }
+    public string? Model { get; set; }
+    public string? Kind { get; set; }
 
     public bool IsQuantity { get; set; }
     public bool PriceByQuantity { get; set; }
@@ -28,28 +28,27 @@ public class StoneListDto : EntityDto<Guid>, IListDto<Guid>, IIsActive, IHostSco
     public decimal ExitPrice { get; set; }
     public Guid? ExitPriceUnitId { get; set; }
 
+    public Guid? CompanyId { get; set; }
     public bool IsActive { get; set; }
     public bool IsGlobal { get; set; }
 }
 
-public class StoneGetDto : EntityDto<Guid>, IGetDto<Guid>, IHasCode
+public class JewelryGetDto : EntityDto<Guid>, IGetDto<Guid>, IHasCode
 {
     [Required]
-    [StringLength(StoneConsts.CodeMaxLength, MinimumLength = EntityFieldConsts.CodeMinLength)]
+    [StringLength(JewelryConsts.CodeMaxLength, MinimumLength = EntityFieldConsts.CodeMinLength)]
     public string Code { get; set; } = string.Empty;
 
     [Required]
-    [StringLength(StoneConsts.NameMaxLength, MinimumLength = EntityFieldConsts.NameMinLength)]
+    [StringLength(JewelryConsts.NameMaxLength, MinimumLength = EntityFieldConsts.NameMinLength)]
     public string Name { get; set; } = string.Empty;
 
-    [StringLength(StoneConsts.AttributeMaxLength)] public string? StoneKind { get; set; }
-    [StringLength(StoneConsts.AttributeMaxLength)] public string? StoneType { get; set; }
-    [StringLength(StoneConsts.AttributeMaxLength)] public string? Color { get; set; }
-    [StringLength(StoneConsts.AttributeMaxLength)] public string? Cut { get; set; }
-    [StringLength(StoneConsts.AttributeMaxLength)] public string? Clarity { get; set; }
-    [StringLength(StoneConsts.AttributeMaxLength)] public string? Sieve { get; set; }
-    [StringLength(StoneConsts.AttributeMaxLength)] public string? Category { get; set; }
-    [StringLength(StoneConsts.AttributeMaxLength)] public string? GroupCode { get; set; }
+    [StringLength(JewelryConsts.AttributeMaxLength)] public string? Model { get; set; }
+    [StringLength(JewelryConsts.AttributeMaxLength)] public string? Kind { get; set; }
+    [StringLength(JewelryConsts.AttributeMaxLength)] public string? Type { get; set; }
+    [StringLength(JewelryConsts.AttributeMaxLength)] public string? Color { get; set; }
+    [StringLength(JewelryConsts.AttributeMaxLength)] public string? Category { get; set; }
+    [StringLength(JewelryConsts.AttributeMaxLength)] public string? GroupCode { get; set; }
 
     public bool IsQuantity { get; set; }
     public bool PriceByQuantity { get; set; }
@@ -59,34 +58,31 @@ public class StoneGetDto : EntityDto<Guid>, IGetDto<Guid>, IHasCode
     public decimal ExitPrice { get; set; }
     public Guid? ExitPriceUnitId { get; set; }
 
-    [StringLength(StoneConsts.DescriptionMaxLength)]
+    [StringLength(JewelryConsts.DescriptionMaxLength)]
     public string? Description { get; set; }
 
     public Guid? CompanyId { get; set; }
-
     public bool IsActive { get; set; }
     public bool IsGlobal { get; set; }
 }
 
-public class StoneCreateDto : ICreateDto
+public class JewelryCreateDto : ICreateDto
 {
     /// <summary>Sahip şirket — client çalışılan şirketi atar (otomatik scope).</summary>
     public Guid? CompanyId { get; set; }
 
     [Required]
-    [StringLength(StoneConsts.CodeMaxLength, MinimumLength = EntityFieldConsts.CodeMinLength)]
+    [StringLength(JewelryConsts.CodeMaxLength, MinimumLength = EntityFieldConsts.CodeMinLength)]
     public string Code { get; set; } = string.Empty;
 
     [Required]
-    [StringLength(StoneConsts.NameMaxLength, MinimumLength = EntityFieldConsts.NameMinLength)]
+    [StringLength(JewelryConsts.NameMaxLength, MinimumLength = EntityFieldConsts.NameMinLength)]
     public string Name { get; set; } = string.Empty;
 
-    public string? StoneKind { get; set; }
-    public string? StoneType { get; set; }
+    public string? Model { get; set; }
+    public string? Kind { get; set; }
+    public string? Type { get; set; }
     public string? Color { get; set; }
-    public string? Cut { get; set; }
-    public string? Clarity { get; set; }
-    public string? Sieve { get; set; }
     public string? Category { get; set; }
     public string? GroupCode { get; set; }
 
@@ -98,22 +94,20 @@ public class StoneCreateDto : ICreateDto
     public decimal ExitPrice { get; set; }
     public Guid? ExitPriceUnitId { get; set; }
 
-    [StringLength(StoneConsts.DescriptionMaxLength)]
+    [StringLength(JewelryConsts.DescriptionMaxLength)]
     public string? Description { get; set; }
 }
 
-public class StoneUpdateDto : IUpdateDto
+public class JewelryUpdateDto : IUpdateDto
 {
     [Required]
-    [StringLength(StoneConsts.NameMaxLength, MinimumLength = EntityFieldConsts.NameMinLength)]
+    [StringLength(JewelryConsts.NameMaxLength, MinimumLength = EntityFieldConsts.NameMinLength)]
     public string Name { get; set; } = string.Empty;
 
-    public string? StoneKind { get; set; }
-    public string? StoneType { get; set; }
+    public string? Model { get; set; }
+    public string? Kind { get; set; }
+    public string? Type { get; set; }
     public string? Color { get; set; }
-    public string? Cut { get; set; }
-    public string? Clarity { get; set; }
-    public string? Sieve { get; set; }
     public string? Category { get; set; }
     public string? GroupCode { get; set; }
 
@@ -125,7 +119,7 @@ public class StoneUpdateDto : IUpdateDto
     public decimal ExitPrice { get; set; }
     public Guid? ExitPriceUnitId { get; set; }
 
-    [StringLength(StoneConsts.DescriptionMaxLength)]
+    [StringLength(JewelryConsts.DescriptionMaxLength)]
     public string? Description { get; set; }
 
     public bool IsActive { get; set; }

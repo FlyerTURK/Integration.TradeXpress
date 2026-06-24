@@ -28,6 +28,7 @@ using Integration.TradeXpress.Futures;
 using Integration.TradeXpress.Scraps;
 using Integration.TradeXpress.Metals;
 using Integration.TradeXpress.Stones;
+using Integration.TradeXpress.Jewelries;
 
 namespace Integration.TradeXpress.EntityFrameworkCore;
 
@@ -54,6 +55,7 @@ public class TradeXpressDbContext :
     public DbSet<Scrap> Scraps { get; set; } = null!;
     public DbSet<Metal> Metals { get; set; } = null!;
     public DbSet<Stone> Stones { get; set; } = null!;
+    public DbSet<Jewelry> Jewelries { get; set; } = null!;
     public DbSet<Account> Accounts { get; set; } = null!;
     public DbSet<SubAccount> SubAccounts { get; set; } = null!;
     public DbSet<Voucher> Vouchers { get; set; } = null!;
@@ -126,6 +128,7 @@ public class TradeXpressDbContext :
         builder.ConfigureScraps();
         builder.ConfigureMetals();
         builder.ConfigureStones();
+        builder.ConfigureJewelries();
         builder.ConfigureAccounts();
         builder.ConfigureVouchers();
         builder.ConfigureUserScopedGrants();

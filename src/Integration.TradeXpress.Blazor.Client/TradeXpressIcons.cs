@@ -22,6 +22,7 @@ public static class TradeXpressIcons
     public const string Scrap = "fas fa-recycle";
     public const string Metal = "fas fa-ring";
     public const string Stone = "fas fa-gem";
+    public const string Jewelry = "fas fa-crown";
 
     // ── Hesaplar ──
     public const string Account = "fas fa-book";

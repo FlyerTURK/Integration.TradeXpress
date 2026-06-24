@@ -25,6 +25,7 @@ public class TradeXpressMenus
     public const string Scraps              = Commodities + ".Scraps";
     public const string Metals              = Commodities + ".Metals";
     public const string Stones              = Commodities + ".Stones";
+    public const string Jewelries           = Commodities + ".Jewelries";
 
     public const string Organizations       = Prefix + ".Organizations";
     public const string Accounts            = Prefix + ".Accounts";
