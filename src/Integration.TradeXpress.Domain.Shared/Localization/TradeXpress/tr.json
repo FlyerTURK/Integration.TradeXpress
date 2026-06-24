@@ -244,6 +244,7 @@
     "TradeXpress:Country:CannotEditGlobalAsTenant": "Genel (host) ülke kaydı tenant tarafından düzenlenemez.",
     "WorkingBranchCaption": "Şirket / Şube Seçimi",
     "Menu:CurrentTransactions": "Cari İşlemler",
+    "Menu:CashReport": "Nakit Raporu",
     "Amount": "Tutar",
     "Account": "Cari Hesap",
     "Accounts": "Cari Hesaplar",

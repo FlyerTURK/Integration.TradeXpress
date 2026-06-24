@@ -169,6 +169,15 @@ public class TradeXpressMenuContributor : IMenuContributor
             order: 5
         ).RequireAuthenticated());
 
+        // Raporlar
+        context.Menu.AddItem(new ApplicationMenuItem(
+            "Reports.Cash",
+            l["Menu:CashReport"],
+            url: "/reports/cash",
+            icon: "fa fa-chart-bar",
+            order: 6
+        ).RequireAuthenticated());
+
         // Ülkeler (merkezi referans — host yönetir, tenant seçer)
         context.Menu.AddItem(new ApplicationMenuItem(
             TradeXpressMenus.Countries,
