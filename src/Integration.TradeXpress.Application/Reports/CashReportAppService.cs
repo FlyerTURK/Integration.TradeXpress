@@ -56,7 +56,7 @@ public class CashReportAppService : TradeXpressAppService, ICashReportAppService
 
     private sealed record CashLeg(Guid UnitId, decimal Effect, string Source,
         string? MainCommodityCode,
-        DateTime VoucherDate, long VoucherNumber, ProcessType ProcessType, ProcessDirectionType Direction,
+        DateTime VoucherDate, long VoucherNumber, ProcessType ProcessType, ProcessDirectionType Direction, ProcessPaymentType? PaymentType,
         Guid? VaultId, Guid CompanyId, Guid BranchId, Guid? SubAccountId, string? Description, DateTime CreationTime, Guid LineId);
 
     public virtual async Task<List<CashStockRowDto>> GetStockAsync(CashReportFilterDto filter)
@@ -135,7 +135,7 @@ public class CashReportAppService : TradeXpressAppService, ICashReportAppService
                 VoucherDate    = x.VoucherDate,
                 VoucherNumber  = x.VoucherNumber,
                 ProcessType    = x.ProcessType,
-                ProcessCode    = Vouchers.VoucherProcessCode.Code(x.ProcessType),
+                ProcessCode    = Vouchers.VoucherProcessCode.Of(x.ProcessType, x.Direction, x.PaymentType),
                 Source         = x.Source,
                 CompanyCode    = companyCodes.GetValueOrDefault(x.CompanyId),
                 BranchCode     = branchCodes.GetValueOrDefault(x.BranchId),
@@ -195,7 +195,7 @@ public class CashReportAppService : TradeXpressAppService, ICashReportAppService
                 && (filter.CashId == null || r.CommodityId == filter.CashId))
                 legs.Add(new CashLeg(r.MainUnitId, inflow ? r.Total : -r.Total, "Nakit",
                     r.CommodityCode,
-                    r.VoucherDate, r.VoucherNumber, r.Type, r.Direction, r.VaultId, r.CompanyId, r.BranchId, r.SubAccountId, r.Description, r.CreationTime, r.Id));
+                    r.VoucherDate, r.VoucherNumber, r.Type, r.Direction, r.PaymentType, r.VaultId, r.CompanyId, r.BranchId, r.SubAccountId, r.Description, r.CreationTime, r.Id));
 
             // Sağ bacak: Peşin (WithCash) olan tüm process'lerde karşılık nakit.
             // CashId filtresi varsa yalnız bu bacağın nakiti (PayCommodityId) eşleşiyorsa oluştur.
@@ -203,7 +203,7 @@ public class CashReportAppService : TradeXpressAppService, ICashReportAppService
                 && (filter.CashId == null || r.PayCommodityId == filter.CashId))
                 legs.Add(new CashLeg(payUnit, inflow ? -r.PayTotal : r.PayTotal, "Peşin",
                     r.CommodityCode,
-                    r.VoucherDate, r.VoucherNumber, r.Type, r.Direction, r.VaultId, r.CompanyId, r.BranchId, r.SubAccountId, r.Description, r.CreationTime, r.Id));
+                    r.VoucherDate, r.VoucherNumber, r.Type, r.Direction, r.PaymentType, r.VaultId, r.CompanyId, r.BranchId, r.SubAccountId, r.Description, r.CreationTime, r.Id));
         }
 
         return legs;
