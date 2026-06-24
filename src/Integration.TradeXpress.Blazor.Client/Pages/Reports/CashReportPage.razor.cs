@@ -38,6 +38,7 @@ public partial class CashReportPage
         var companies = await CompanyAppService.GetListAsync(new CompanyListRequestDto { MaxResultCount = 200 });
         _companies = companies.Items as List<CompanyListDto> ?? new(companies.Items);
         _cashes = await CashAppService.GetPickerListAsync();
+        if (_cashes.Count > 0) _filter.CashId = _cashes[0].Id;
     }
 
     private async Task OnCompanyChanged(Guid? companyId)
