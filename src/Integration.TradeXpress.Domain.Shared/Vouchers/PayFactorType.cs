@@ -5,7 +5,7 @@ namespace Integration.TradeXpress.Vouchers;
 /// panel seçilen tipe göre fiyatı çevirip gösterir. <b>Tek enum</b>; her panel ilgili alt kümeyi gösterir:
 /// <list type="bullet">
 ///   <item>Vadeli: <see cref="Gram"/> (kanonik) / <see cref="Ounce"/> (×31.1035).</item>
-///   <item>Hurda: <see cref="Has"/> (kanonik) / <see cref="Quantity"/> (brüt gram, ×Purity).</item>
+///   <item>Hurda: <see cref="Has"/> (kanonik) / <see cref="Quantity"/> (brüt gram, ×Factor).</item>
 /// </list>
 /// </summary>
 public enum PayFactorType : byte
@@ -19,6 +19,6 @@ public enum PayFactorType : byte
     /// <summary>Has başına (Hurda kanonik).</summary>
     Has      = 2,
 
-    /// <summary>Miktar (brüt gram) başına — gösterim = kanonik × Purity.</summary>
+    /// <summary>Miktar (brüt gram) başına — gösterim = kanonik × Factor.</summary>
     Quantity = 3,
 }

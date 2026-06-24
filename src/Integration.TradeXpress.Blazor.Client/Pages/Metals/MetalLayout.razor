@@ -8,7 +8,7 @@
 @using Microsoft.Extensions.Localization
 @inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
 
-@* Metal DUMB Layout — MetalGetDto. FollowingUnit ZORUNLU + Purity(>0) + işçilik + sikke/adet. *@
+@* Metal DUMB Layout — MetalGetDto. FollowingUnit ZORUNLU + Factor(>0) + işçilik + sikke/adet. *@
 
 <DxFormLayout CssClass="w-100">
     <DxFormLayoutGroup Caption="@L["General"]" ColSpanMd="12">
@@ -25,11 +25,11 @@
                             @bind-Value="@Model.FollowingUnitId"
                             SearchFilterCondition="ListSearchFilterCondition.Contains" NullText="@L["Select"].Value" />
         </DxFormLayoutItem>
-        <DxFormLayoutItem Caption="@($"{L["Purity"]} *")" ColSpanMd="4">
-            <DxSpinEdit @bind-Value="@Model.Purity" DisplayFormat="N5" ShowSpinButtons="false" CssClass="w-100" />
+        <DxFormLayoutItem Caption="@($"{L["Factor"]} *")" ColSpanMd="4">
+            <DxSpinEdit @bind-Value="@Model.Factor" DisplayFormat="N5" ShowSpinButtons="false" CssClass="w-100" />
         </DxFormLayoutItem>
-        <DxFormLayoutItem Caption="@L["PurityChange"]" ColSpanMd="4">
-            <DxCheckBox @bind-Checked="@Model.PurityChange" CheckType="CheckType.Switch">@(Model.PurityChange ? L["Yes"] : L["No"])</DxCheckBox>
+        <DxFormLayoutItem Caption="@L["FactorChange"]" ColSpanMd="4">
+            <DxCheckBox @bind-Checked="@Model.FactorChange" CheckType="CheckType.Switch">@(Model.FactorChange ? L["Yes"] : L["No"])</DxCheckBox>
         </DxFormLayoutItem>
     </DxFormLayoutGroup>
 

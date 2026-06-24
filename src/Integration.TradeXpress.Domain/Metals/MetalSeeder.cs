@@ -26,7 +26,7 @@ public class MetalSeeder(
     : ITransientDependency
 {
     // (Kod, Ad, Milyem, MilyemOynar, İşçilikTürü, StabilMiktar, GirişİşçiliÄŸi, ÇıkışİşçiliÄŸi, MaliyetBirimKodu)
-    private static readonly (string Code, string Name, decimal Purity, bool PurityChange,
+    private static readonly (string Code, string Name, decimal Factor, bool FactorChange,
         MetalLaborType LaborType, decimal Stable, decimal Entry, decimal Exit, string CostUnit)[] Seeds =
     {
         ("G0.1 GR 995",   "0.10gr 995 Gramaltın",   0.99500m, false, MetalLaborType.Amount,   0.10000m, 0m,       0m,       CurrencyUnitCode.HAS),
@@ -95,7 +95,7 @@ public class MetalSeeder(
             .ToList()
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var (code, name, purity, purityChange, laborType, stable, entry, exit, costUnit) in Seeds)
+        foreach (var (code, name, factor, factorChange, laborType, stable, entry, exit, costUnit) in Seeds)
         {
             if (existing.Contains(code.NormalizeAsCode())) continue;
             Guid? costUnitId = unitIdByCode.TryGetValue(costUnit, out var cu) ? cu : null;
@@ -103,7 +103,7 @@ public class MetalSeeder(
             await metalRepository.InsertAsync(
                 new Metal(
                     code: code, name: name, followingUnitId: hasId,
-                    purity: purity, purityChange: purityChange,
+                    factor: factor, factorChange: factorChange,
                     isQuantity: true, stableQuantity: stable,
                     laborType: laborType, laborTypeChange: false,
                     entryLabor: entry, entryLaborUnitId: hasId, entryLaborChange: true,

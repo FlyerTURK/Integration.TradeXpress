@@ -19,8 +19,8 @@ public class MetalListDto : EntityDto<Guid>, IListDto<Guid>, IIsActive, IHostSco
 
     public Guid FollowingUnitId { get; set; }
     public string? FollowingUnitCode { get; set; }
-    public decimal Purity { get; set; }
-    public bool PurityChange { get; set; }
+    public decimal Factor { get; set; }
+    public bool FactorChange { get; set; }
 
     public bool IsQuantity { get; set; }
     public decimal StableQuantity { get; set; }
@@ -54,8 +54,8 @@ public class MetalGetDto : EntityDto<Guid>, IGetDto<Guid>, IHasCode
     public string? FollowingUnitCode { get; set; }
 
     [Range(0.0000001, double.MaxValue)]
-    public decimal Purity { get; set; } = MetalConsts.DefaultPurity;
-    public bool PurityChange { get; set; }
+    public decimal Factor { get; set; } = MetalConsts.DefaultFactor;
+    public bool FactorChange { get; set; }
 
     public bool IsQuantity { get; set; }
     public decimal StableQuantity { get; set; }
@@ -93,8 +93,8 @@ public class MetalCreateDto : ICreateDto
     public Guid? FollowingUnitId { get; set; }
 
     [Range(0.0000001, double.MaxValue)]
-    public decimal Purity { get; set; } = MetalConsts.DefaultPurity;
-    public bool PurityChange { get; set; }
+    public decimal Factor { get; set; } = MetalConsts.DefaultFactor;
+    public bool FactorChange { get; set; }
 
     public bool IsQuantity { get; set; }
     public decimal StableQuantity { get; set; }
@@ -125,8 +125,8 @@ public class MetalUpdateDto : IUpdateDto
     public Guid? FollowingUnitId { get; set; }
 
     [Range(0.0000001, double.MaxValue)]
-    public decimal Purity { get; set; } = MetalConsts.DefaultPurity;
-    public bool PurityChange { get; set; }
+    public decimal Factor { get; set; } = MetalConsts.DefaultFactor;
+    public bool FactorChange { get; set; }
 
     public bool IsQuantity { get; set; }
     public decimal StableQuantity { get; set; }

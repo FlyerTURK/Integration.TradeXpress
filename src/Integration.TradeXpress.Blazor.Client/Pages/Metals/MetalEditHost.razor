@@ -20,7 +20,7 @@
                   FormCaption="@L["Metal"].Value" IconCssClass="@TradeXpressIcons.Metal"
                   EntityValue="@(m => m.Code)"
                   IsReadOnly="@(m => m.IsGlobal && CurrentTenant?.Id != null)"
-                  ApplyNewDefaults="@(m => { m.IsActive = true; m.Purity = 0.995m; })">
+                  ApplyNewDefaults="@(m => { m.IsActive = true; m.Factor = 0.995m; })">
         <MetalLayout Model="@context" IsNew="@(context.Id == Guid.Empty)" CurrencyUnits="@_units" />
     </CrudEditHost>
 }

@@ -4,9 +4,9 @@ namespace Integration.TradeXpress.Scraps;
 
 /// <summary>
 /// Scrap = bir <b>hurda maden</b> tanımı (katalog). Bir ana birimi (<see cref="FollowingUnitId"/>, ZORUNLU;
-/// hurdanın saflaştığı birim, ör. HAS) takip eder + bir <see cref="Purity"/> (milyem/saflık, 0..1) taşır.
-/// VoucherLine'da commodity olarak seçilir; Has = Miktar × Purity (ana bacak).
-/// <see cref="PurityChange"/> fişte milyemin editlenebilirliğini belirler.
+/// hurdanın saflaştığı birim, ör. HAS) takip eder + bir <see cref="Factor"/> (milyem/saflık, 0..1) taşır.
+/// VoucherLine'da commodity olarak seçilir; Has = Miktar × Factor (ana bacak).
+/// <see cref="FactorChange"/> fişte milyemin editlenebilirliğini belirler.
 ///
 /// <para>Host + tenant scoped (Future gibi): host kataloğu (TenantId=null) herkese görünür, tenant
 /// düzenleyemez/silemez; tenant kendi kayıtlarını ekleyebilir.</para>
@@ -23,15 +23,15 @@ public class Scrap : FullAuditedAggregateRoot<Guid>, IMultiTenant
         string code,
         string name,
         Guid followingUnitId,
-        decimal purity = ScrapConsts.DefaultPurity,
-        bool purityChange = true,
+        decimal factor = ScrapConsts.DefaultFactor,
+        bool factorChange = true,
         bool isActive = true)
     {
         SetCode(code);
         SetName(name);
         SetFollowingUnit(followingUnitId);
-        SetPurity(purity);
-        PurityChange = purityChange;
+        SetFactor(factor);
+        FactorChange = factorChange;
         SetActive(isActive);
     }
 
@@ -47,11 +47,11 @@ public class Scrap : FullAuditedAggregateRoot<Guid>, IMultiTenant
     public virtual Guid FollowingUnitId { get; protected set; }
     public virtual CurrencyUnit? FollowingUnit { get; protected set; }
 
-    /// <summary>Saflık/milyem (0..1) — Has = Miktar × Purity. Varsayılan 0.570.</summary>
-    public virtual decimal Purity { get; protected set; }
+    /// <summary>Saflık/milyem (0..1) — Has = Miktar × Factor. Varsayılan 0.570.</summary>
+    public virtual decimal Factor { get; protected set; }
 
     /// <summary>Milyem fişte editlenebilir mi? false=kilitli, true=serbest.</summary>
-    public virtual bool PurityChange { get; protected set; }
+    public virtual bool FactorChange { get; protected set; }
 
     public virtual string? Description { get; protected set; }
     public virtual bool IsActive { get; protected set; }
@@ -76,19 +76,19 @@ public class Scrap : FullAuditedAggregateRoot<Guid>, IMultiTenant
         FollowingUnitId = followingUnitId;
     }
 
-    public virtual void SetPurity(decimal value)
+    public virtual void SetFactor(decimal value)
     {
         if (value <= 0m || value > 1m)
         {
-            throw new BusinessException("TradeXpress:Scrap:PurityOutOfRange");
+            throw new BusinessException("TradeXpress:Scrap:FactorOutOfRange");
         }
 
-        Purity = value;
+        Factor = value;
     }
 
-    public virtual void SetPurityChange(bool value)
+    public virtual void SetFactorChange(bool value)
     {
-        PurityChange = value;
+        FactorChange = value;
     }
 
     public virtual void SetDescription(string? description)

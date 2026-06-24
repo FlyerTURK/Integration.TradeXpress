@@ -11,7 +11,7 @@ namespace Integration.TradeXpress.Vouchers.Balance;
 ///   <item><b>Bedelli</b> (<see cref="ProcessPaymentType.WithCurrency"/>): pay bacağı
 ///         (<see cref="VoucherLine.PayUnitId"/>/<see cref="VoucherLine.PayTotal"/>).</item>
 ///   <item><b>Normal/İade/Emanet</b> (vd.): ana bacak
-///         (<see cref="VoucherLine.MainUnitId"/>/<see cref="VoucherLine.Total"/> = Miktar × Purity).</item>
+///         (<see cref="VoucherLine.MainUnitId"/>/<see cref="VoucherLine.Total"/> = Miktar × Factor).</item>
 /// </list>
 /// İşaret: Giriş(Inbound) → ALACAK(+), Çıkış(Outbound) → BORÇ(−). isInflow = <c>(int)Direction % 2 == 0</c>.
 /// </summary>

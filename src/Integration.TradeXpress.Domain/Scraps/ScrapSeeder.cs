@@ -15,7 +15,7 @@ namespace Integration.TradeXpress.Scraps;
 /// <summary>
 /// Her gerçek tenant'a sistem hurda madenlerini seed eder (ERPPROV3 paritesi; ayar bazlı milyemler).
 /// FollowingUnit host-paylaşımlı <see cref="CurrencyUnit"/> kataloğundan koda göre çözülür.
-/// <b>Host'ta (TenantId=null) ÇALIŞMAZ</b> (orchestrator tenant dalında çağrılır). PurityChange=true (milyem oynar).
+/// <b>Host'ta (TenantId=null) ÇALIŞMAZ</b> (orchestrator tenant dalında çağrılır). FactorChange=true (milyem oynar).
 /// Idempotent: kod (normalize edilmiş haliyle) varsa atlar.
 /// </summary>
 public class ScrapSeeder(
@@ -25,8 +25,8 @@ public class ScrapSeeder(
     IUnitOfWorkManager unitOfWorkManager)
     : ITransientDependency
 {
-    // (Kod, Ad, FollowingUnit kodu, Purity). MilyemOynarmi=1 → PurityChange=true.
-    private static readonly (string Code, string Name, string UnitCode, decimal Purity)[] Seeds =
+    // (Kod, Ad, FollowingUnit kodu, Factor). MilyemOynarmi=1 → FactorChange=true.
+    private static readonly (string Code, string Name, string UnitCode, decimal Factor)[] Seeds =
     {
         ("08 HURDA", "08 Ayar Hurda", CurrencyUnitCode.HAS, 0.33300m),
         ("09 HURDA", "09 Ayar Hurda", CurrencyUnitCode.HAS, 0.37500m),
@@ -59,12 +59,12 @@ public class ScrapSeeder(
             .ToList()
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var (code, name, unitCode, purity) in Seeds)
+        foreach (var (code, name, unitCode, factor) in Seeds)
         {
             // Entity ctor kodu normalize ettiği için (boşluk→_) var-kontrolü normalize edilmiş kodla yapılır.
             if (existing.Contains(code.NormalizeAsCode())) continue;
             if (!unitIdByCode.TryGetValue(unitCode, out var uid)) continue;
-            await scrapRepository.InsertAsync(new Scrap(code, name, uid, purity, purityChange: true), autoSave: false);
+            await scrapRepository.InsertAsync(new Scrap(code, name, uid, factor, factorChange: true), autoSave: false);
         }
 
         await unitOfWorkManager.Current!.SaveChangesAsync();

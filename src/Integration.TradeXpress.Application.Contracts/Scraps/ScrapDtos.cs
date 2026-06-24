@@ -17,8 +17,8 @@ public class ScrapListDto : EntityDto<Guid>, IListDto<Guid>, IIsActive, IHostSco
 
     public Guid FollowingUnitId { get; set; }
     public string? FollowingUnitCode { get; set; }
-    public decimal Purity { get; set; }
-    public bool PurityChange { get; set; }
+    public decimal Factor { get; set; }
+    public bool FactorChange { get; set; }
 
     public bool IsActive { get; set; }
     public bool IsGlobal { get; set; }
@@ -39,9 +39,9 @@ public class ScrapGetDto : EntityDto<Guid>, IGetDto<Guid>, IHasCode
     public string? FollowingUnitCode { get; set; }
 
     [Range(0.0000001, 1.0)]
-    public decimal Purity { get; set; } = ScrapConsts.DefaultPurity;
+    public decimal Factor { get; set; } = ScrapConsts.DefaultFactor;
 
-    public bool PurityChange { get; set; } = true;
+    public bool FactorChange { get; set; } = true;
 
     [StringLength(ScrapConsts.DescriptionMaxLength)]
     public string? Description { get; set; }
@@ -64,9 +64,9 @@ public class ScrapCreateDto : ICreateDto
     public Guid? FollowingUnitId { get; set; }
 
     [Range(0.0000001, 1.0)]
-    public decimal Purity { get; set; } = ScrapConsts.DefaultPurity;
+    public decimal Factor { get; set; } = ScrapConsts.DefaultFactor;
 
-    public bool PurityChange { get; set; } = true;
+    public bool FactorChange { get; set; } = true;
 
     [StringLength(ScrapConsts.DescriptionMaxLength)]
     public string? Description { get; set; }
@@ -82,9 +82,9 @@ public class ScrapUpdateDto : IUpdateDto
     public Guid? FollowingUnitId { get; set; }
 
     [Range(0.0000001, 1.0)]
-    public decimal Purity { get; set; } = ScrapConsts.DefaultPurity;
+    public decimal Factor { get; set; } = ScrapConsts.DefaultFactor;
 
-    public bool PurityChange { get; set; } = true;
+    public bool FactorChange { get; set; } = true;
 
     [StringLength(ScrapConsts.DescriptionMaxLength)]
     public string? Description { get; set; }

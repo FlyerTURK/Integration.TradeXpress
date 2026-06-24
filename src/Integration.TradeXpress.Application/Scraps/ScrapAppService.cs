@@ -17,8 +17,8 @@ namespace Integration.TradeXpress.Scraps;
 
 /// <summary>
 /// Scrap (Hurda) CRUD. Görünürlük (Future gibi): host kataloğu (TenantId=null) + tenant kendi kayıtları.
-/// FollowingUnit ZORUNLU; Purity 0..1. Tenant global kaydı düzenleyemez/silemez. Sıralama: birim düzeni
-/// (CurrencyUnit app service) → Purity desc → Code asc.
+/// FollowingUnit ZORUNLU; Factor 0..1. Tenant global kaydı düzenleyemez/silemez. Sıralama: birim düzeni
+/// (CurrencyUnit app service) → Factor desc → Code asc.
 /// </summary>
 [Authorize]
 public class ScrapAppService : TradeXpressAppService, IScrapAppService
@@ -73,7 +73,7 @@ public class ScrapAppService : TradeXpressAppService, IScrapAppService
 
     public virtual async Task<ScrapGetDto> CreateAsync(ScrapCreateDto input)
     {
-        var entity = new Scrap(input.Code, input.Name, input.FollowingUnitId!.Value, input.Purity, input.PurityChange);
+        var entity = new Scrap(input.Code, input.Name, input.FollowingUnitId!.Value, input.Factor, input.FactorChange);
         entity.SetDescription(input.Description);
 
         await _repository.InsertAsync(entity, autoSave: true);
@@ -87,8 +87,8 @@ public class ScrapAppService : TradeXpressAppService, IScrapAppService
 
         entity.SetName(input.Name);
         entity.SetFollowingUnit(input.FollowingUnitId!.Value);
-        entity.SetPurity(input.Purity);
-        entity.SetPurityChange(input.PurityChange);
+        entity.SetFactor(input.Factor);
+        entity.SetFactorChange(input.FactorChange);
         entity.SetDescription(input.Description);
         entity.SetActive(input.IsActive);
 
@@ -139,7 +139,7 @@ public class ScrapAppService : TradeXpressAppService, IScrapAppService
         }
     }
 
-    // Birim düzeni (global önce → AlwaysShowInBalance desc → DisplayOrder asc → Code asc) + Purity desc + Code asc.
+    // Birim düzeni (global önce → AlwaysShowInBalance desc → DisplayOrder asc → Code asc) + Factor desc + Code asc.
     private static List<Scrap> OrderComposite(
         IEnumerable<Scrap> scraps,
         IReadOnlyDictionary<Guid, (int Global, bool AlwaysShow, int DisplayOrder, string Code)> orders)
@@ -152,7 +152,7 @@ public class ScrapAppService : TradeXpressAppService, IScrapAppService
             .ThenByDescending(s => Key(s).AlwaysShow)
             .ThenBy(s => Key(s).DisplayOrder)
             .ThenBy(s => Key(s).Code, StringComparer.OrdinalIgnoreCase)
-            .ThenByDescending(s => s.Purity)
+            .ThenByDescending(s => s.Factor)
             .ThenBy(s => s.Code, StringComparer.OrdinalIgnoreCase)
             .ToList();
     }
@@ -203,8 +203,8 @@ public class ScrapAppService : TradeXpressAppService, IScrapAppService
         Code            = s.Code,
         Name            = s.Name,
         FollowingUnitId = s.FollowingUnitId,
-        Purity          = s.Purity,
-        PurityChange    = s.PurityChange,
+        Factor          = s.Factor,
+        FactorChange    = s.FactorChange,
         IsActive        = s.IsActive,
         IsGlobal        = s.TenantId == null,
     };
@@ -215,8 +215,8 @@ public class ScrapAppService : TradeXpressAppService, IScrapAppService
         Code            = s.Code,
         Name            = s.Name,
         FollowingUnitId = s.FollowingUnitId,
-        Purity          = s.Purity,
-        PurityChange    = s.PurityChange,
+        Factor          = s.Factor,
+        FactorChange    = s.FactorChange,
         Description     = s.Description,
         IsActive        = s.IsActive,
         IsGlobal        = s.TenantId == null,

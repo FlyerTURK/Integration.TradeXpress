@@ -6,7 +6,7 @@ namespace Integration.TradeXpress.Metals;
 /// <summary>
 /// Metal = bir <b>maden</b> (altın/gümüş/platin işlenmiş ürün/sikke) tanımı (katalog). Hurda'nın (<c>Scrap</c>)
 /// üstüne <b>işçilik (labor)</b> ve <b>sikke/adet</b> takibi ekler. Bir ana birim (<see cref="FollowingUnitId"/>,
-/// ZORUNLU; ör. HAS) + <see cref="Purity"/> (milyem; gram-altı ≤1, sikke birim-başı HAS-gram &gt;1) taşır.
+/// ZORUNLU; ör. HAS) + <see cref="Factor"/> (milyem; gram-altı ≤1, sikke birim-başı HAS-gram &gt;1) taşır.
 ///
 /// <para>Host + tenant scoped (Scrap gibi): host kataloğu (TenantId=null) herkese görünür, tenant
 /// düzenleyemez/silemez; tenant kendi kayıtlarını ekleyebilir.</para>
@@ -23,8 +23,8 @@ public class Metal : FullAuditedAggregateRoot<Guid>, IMultiTenant
         string code,
         string name,
         Guid followingUnitId,
-        decimal purity = MetalConsts.DefaultPurity,
-        bool purityChange = false,
+        decimal factor = MetalConsts.DefaultFactor,
+        bool factorChange = false,
         bool isQuantity = false,
         decimal stableQuantity = 0m,
         MetalLaborType laborType = MetalLaborType.Amount,
@@ -41,8 +41,8 @@ public class Metal : FullAuditedAggregateRoot<Guid>, IMultiTenant
         SetCode(code);
         SetName(name);
         SetFollowingUnit(followingUnitId);
-        SetPurity(purity);
-        PurityChange     = purityChange;
+        SetFactor(factor);
+        FactorChange     = factorChange;
         IsQuantity       = isQuantity;
         StableQuantity   = stableQuantity;
         LaborType        = laborType;
@@ -72,8 +72,8 @@ public class Metal : FullAuditedAggregateRoot<Guid>, IMultiTenant
     public virtual CurrencyUnit? FollowingUnit { get; protected set; }
 
     /// <summary>Milyem — gram-altı ≤1 (ör. 0.995), sikkede birim-başı HAS-gram &gt;1 (ör. 1.605). Yalnız pozitif.</summary>
-    public virtual decimal Purity { get; protected set; }
-    public virtual bool PurityChange { get; protected set; }
+    public virtual decimal Factor { get; protected set; }
+    public virtual bool FactorChange { get; protected set; }
 
     /// <summary>Adet bazlı takip mi (sikke)?</summary>
     public virtual bool IsQuantity { get; protected set; }
@@ -113,15 +113,15 @@ public class Metal : FullAuditedAggregateRoot<Guid>, IMultiTenant
         FollowingUnitId = followingUnitId;
     }
 
-    public virtual void SetPurity(decimal value)
+    public virtual void SetFactor(decimal value)
     {
         // Yalnız pozitif — üst sınır yok (sikkede milyem HAS-gram olarak >1 olabilir).
         if (value <= 0m)
         {
-            throw new BusinessException("TradeXpress:Metal:PurityMustBePositive");
+            throw new BusinessException("TradeXpress:Metal:FactorMustBePositive");
         }
 
-        Purity = value;
+        Factor = value;
     }
 
     public virtual void SetDescription(string? description)
@@ -158,7 +158,7 @@ public class Metal : FullAuditedAggregateRoot<Guid>, IMultiTenant
         StableQuantity = stableQuantity;
     }
 
-    public virtual void SetPurityChange(bool value) => PurityChange = value;
+    public virtual void SetFactorChange(bool value) => FactorChange = value;
 
     public virtual void SetActive(bool value) => IsActive = value;
 

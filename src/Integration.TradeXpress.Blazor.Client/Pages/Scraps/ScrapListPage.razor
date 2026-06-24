@@ -25,7 +25,7 @@
         <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" VisibleIndex="1" />
         <GridLinkColumn FieldName="FollowingUnitCode" Caption="@L["CurrencyUnit"]" Width="120px" VisibleIndex="2"
                         OnClick="@(o => OpenUnitAsync(((ScrapListDto)o).FollowingUnitId, ((ScrapListDto)o).FollowingUnitCode))" />
-        <DxGridDataColumn FieldName="Purity" Caption="@L["Purity"]" Width="110px" VisibleIndex="3"
+        <DxGridDataColumn FieldName="Factor" Caption="@L["Factor"]" Width="110px" VisibleIndex="3"
                           DisplayFormat="N5" TextAlignment="GridTextAlignment.Right" />
     </GridColumns>
 

@@ -17,8 +17,8 @@ namespace Integration.TradeXpress.Metals;
 
 /// <summary>
 /// Metal (Maden) CRUD. Görünürlük (Scrap gibi): host kataloğu (TenantId=null) + tenant kendi kayıtları.
-/// FollowingUnit ZORUNLU; Purity &gt;0 (üst sınır yok). Tenant global kaydı düzenleyemez/silemez.
-/// Grid: kolon sıralaması yoksa Code artan; picker: birim düzeni → Purity desc → Code asc.
+/// FollowingUnit ZORUNLU; Factor &gt;0 (üst sınır yok). Tenant global kaydı düzenleyemez/silemez.
+/// Grid: kolon sıralaması yoksa Code artan; picker: birim düzeni → Factor desc → Code asc.
 /// </summary>
 [Authorize]
 public class MetalAppService : TradeXpressAppService, IMetalAppService
@@ -74,7 +74,7 @@ public class MetalAppService : TradeXpressAppService, IMetalAppService
     {
         var entity = new Metal(
             input.Code, input.Name, input.FollowingUnitId!.Value,
-            input.Purity, input.PurityChange,
+            input.Factor, input.FactorChange,
             input.IsQuantity, input.StableQuantity,
             input.LaborType, input.LaborTypeChange,
             input.EntryLabor, input.EntryLaborUnitId, input.EntryLaborChange,
@@ -94,8 +94,8 @@ public class MetalAppService : TradeXpressAppService, IMetalAppService
 
         entity.SetName(input.Name);
         entity.SetFollowingUnit(input.FollowingUnitId!.Value);
-        entity.SetPurity(input.Purity);
-        entity.SetPurityChange(input.PurityChange);
+        entity.SetFactor(input.Factor);
+        entity.SetFactorChange(input.FactorChange);
         entity.SetQuantityTracking(input.IsQuantity, input.StableQuantity);
         entity.SetLabor(
             input.LaborType, input.LaborTypeChange,
@@ -165,7 +165,7 @@ public class MetalAppService : TradeXpressAppService, IMetalAppService
             .ThenByDescending(m => Key(m).AlwaysShow)
             .ThenBy(m => Key(m).DisplayOrder)
             .ThenBy(m => Key(m).Code, StringComparer.OrdinalIgnoreCase)
-            .ThenByDescending(m => m.Purity)
+            .ThenByDescending(m => m.Factor)
             .ThenBy(m => m.Code, StringComparer.OrdinalIgnoreCase)
             .ToList();
     }
@@ -216,8 +216,8 @@ public class MetalAppService : TradeXpressAppService, IMetalAppService
         Code             = m.Code,
         Name             = m.Name,
         FollowingUnitId  = m.FollowingUnitId,
-        Purity           = m.Purity,
-        PurityChange     = m.PurityChange,
+        Factor           = m.Factor,
+        FactorChange     = m.FactorChange,
         IsQuantity       = m.IsQuantity,
         StableQuantity   = m.StableQuantity,
         LaborType        = m.LaborType,
@@ -239,8 +239,8 @@ public class MetalAppService : TradeXpressAppService, IMetalAppService
         Code             = m.Code,
         Name             = m.Name,
         FollowingUnitId  = m.FollowingUnitId,
-        Purity           = m.Purity,
-        PurityChange     = m.PurityChange,
+        Factor           = m.Factor,
+        FactorChange     = m.FactorChange,
         IsQuantity       = m.IsQuantity,
         StableQuantity   = m.StableQuantity,
         LaborType        = m.LaborType,

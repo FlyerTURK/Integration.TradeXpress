@@ -13,6 +13,6 @@ public interface IMetalAppService : ICrudAppService<
     MetalCreateDto,
     MetalUpdateDto>
 {
-    /// <summary>Maden süreç paneli combo'su için host‖own kayıtlar (birim düzeni + Purity desc + Code asc).</summary>
+    /// <summary>Maden süreç paneli combo'su için host‖own kayıtlar (birim düzeni + Factor desc + Code asc).</summary>
     Task<List<MetalListDto>> GetPickerListAsync();
 }

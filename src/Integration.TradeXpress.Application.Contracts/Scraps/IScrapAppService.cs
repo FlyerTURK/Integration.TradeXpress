@@ -13,6 +13,6 @@ public interface IScrapAppService : ICrudAppService<
     ScrapCreateDto,
     ScrapUpdateDto>
 {
-    /// <summary>Hurda süreç paneli combo'su için host‖own kayıtlar (birim düzeni + Purity desc + Code asc).</summary>
+    /// <summary>Hurda süreç paneli combo'su için host‖own kayıtlar (birim düzeni + Factor desc + Code asc).</summary>
     Task<List<ScrapListDto>> GetPickerListAsync();
 }

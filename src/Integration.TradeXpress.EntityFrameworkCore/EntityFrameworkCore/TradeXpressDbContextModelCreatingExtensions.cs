@@ -240,9 +240,9 @@ public static class TradeXpressDbContextModelCreatingExtensions
             b.Property(x => x.Code).IsRequired().HasMaxLength(Integration.TradeXpress.Scraps.ScrapConsts.CodeMaxLength);
             b.Property(x => x.Name).IsRequired().HasMaxLength(Integration.TradeXpress.Scraps.ScrapConsts.NameMaxLength);
             b.Property(x => x.Description).HasMaxLength(Integration.TradeXpress.Scraps.ScrapConsts.DescriptionMaxLength);
-            b.Property(x => x.Purity).HasPrecision(
-                Integration.TradeXpress.Scraps.ScrapConsts.PurityPrecision,
-                Integration.TradeXpress.Scraps.ScrapConsts.PurityScale);
+            b.Property(x => x.Factor).HasPrecision(
+                Integration.TradeXpress.Scraps.ScrapConsts.FactorPrecision,
+                Integration.TradeXpress.Scraps.ScrapConsts.FactorScale);
 
             b.HasIndex(x => new { x.TenantId, x.Code }).IsUnique();
 
@@ -265,7 +265,7 @@ public static class TradeXpressDbContextModelCreatingExtensions
             b.Property(x => x.Name).IsRequired().HasMaxLength(Integration.TradeXpress.Metals.MetalConsts.NameMaxLength);
             b.Property(x => x.Description).HasMaxLength(Integration.TradeXpress.Metals.MetalConsts.DescriptionMaxLength);
             b.Property(x => x.Barcode).HasMaxLength(Integration.TradeXpress.Metals.MetalConsts.BarcodeMaxLength);
-            b.Property(x => x.Purity).HasPrecision(
+            b.Property(x => x.Factor).HasPrecision(
                 Integration.TradeXpress.Metals.MetalConsts.DecimalPrecision, Integration.TradeXpress.Metals.MetalConsts.DecimalScale);
             b.Property(x => x.StableQuantity).HasPrecision(
                 Integration.TradeXpress.Metals.MetalConsts.DecimalPrecision, Integration.TradeXpress.Metals.MetalConsts.DecimalScale);

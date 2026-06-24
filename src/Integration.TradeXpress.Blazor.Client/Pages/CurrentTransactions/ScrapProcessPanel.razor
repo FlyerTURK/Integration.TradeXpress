@@ -1,5 +1,6 @@
 @inject IStringLocalizer<TradeXpressResource> L
 @inject Integration.TradeXpress.Scraps.IScrapAppService ScrapService
+@inject Integration.TradeXpress.Cashes.ICashAppService CashService
 @inject ICurrencyUnitAppService CurrencyUnitService
 @inject Integration.TradeXpress.Financials.CurrencyUnits.IEffectivePriceAppService PriceService
 @inject Integration.TradeXpress.Financials.Parities.IParityAppService ParityService
@@ -56,17 +57,17 @@
                                      ShowSpinButtons="false" DisplayFormat="N2" Mask="N2" />
                 </div>
 
-                @* Milyem (Purity) = Factor; PurityChange ile editlenebilir *@
+                @* Milyem (Factor) = Factor; FactorChange ile editlenebilir *@
                 <div style="@GroupStyle()">
-                    <small style="font-weight:600; text-transform:uppercase; letter-spacing:0.05em;">@L["Purity"]</small>
-                    <NumericSpinEdit TValue="decimal" Value="@_model.Factor" ValueChanged="@OnPurityChanged"
+                    <small style="font-weight:600; text-transform:uppercase; letter-spacing:0.05em;">@L["Factor"]</small>
+                    <NumericSpinEdit TValue="decimal" Value="@_model.Factor" ValueChanged="@OnFactorChanged"
                                      Enabled="@(!_milyemReadOnly)" ShowSpinButtons="false" DisplayFormat="N5" Mask="N5" />
                 </div>
 
-                @* Has (= Miktar × Milyem = Total, kilitli) *@
+                @* Has (= Miktar × Milyem = Total). Amount/Factor düzenlenebildiğinden Total da düzenlenebilir (geri-hesap milyem). *@
                 <div style="@GroupStyle()">
                     <small style="font-weight:600; text-transform:uppercase; letter-spacing:0.05em;">@L["Has"]</small>
-                    <NumericSpinEdit TValue="decimal" Value="@_model.Total" Enabled="false"
+                    <NumericSpinEdit TValue="decimal" Value="@_model.Total" ValueChanged="@OnTotalChanged"
                                      ShowSpinButtons="false" DisplayFormat="N5" Mask="N5" />
                 </div>
 
@@ -96,13 +97,13 @@
                                          ShowSpinButtons="false" DisplayFormat="N2" Mask="N2" />
                     </div>
 
-                    @* Ödeme Birimi = PayCommodity *@
+                    @* Ödeme Birimi = PayCommodity (Peşin→Cash kayıtları, Bedelli→para birimi) *@
                     <div style="@GroupStyle()">
                         <small style="font-weight:600; text-transform:uppercase; letter-spacing:0.05em;">@nameof(VoucherLineDto.PayCommodityId)</small>
-                        <DxComboBox TData="CurrencyUnitListDto" TValue="Guid?"
-                                    Data="@_payUnits"
-                                    ValueFieldName="@nameof(CurrencyUnitListDto.Id)" TextFieldName="@nameof(CurrencyUnitListDto.Code)"
-                                    Value="@_model.PayCommodityId" ValueChanged="@OnPayUnitChanged"
+                        <DxComboBox TData="PayComboItem" TValue="Guid?"
+                                    Data="@_activePayItems"
+                                    ValueFieldName="@nameof(PayComboItem.Id)" TextFieldName="@nameof(PayComboItem.Code)"
+                                    Value="@_model.PayCommodityId" ValueChanged="@OnPayItemChanged"
                                     DropDownTriggerMode="DropDownTriggerMode.Click" ShowDropDownButton="true"
                                     ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Never"
                                     SearchMode="ListSearchMode.AutoSearch" style="@ControlStyle()" />
@@ -164,7 +165,13 @@
 
     private List<CurrencyUnitListDto> _allCurrencyUnits = new();
     private List<CurrencyUnitListDto> _activeUnits = new();
-    private List<CurrencyUnitListDto> _payUnits = new();   // ana (FollowingUnit/HAS) hariç
+
+    private List<Integration.TradeXpress.Cashes.CashListDto> _allCashes = new();
+
+    // Karşı bacak (Peşin→Cash, Bedelli→para birimi). Id=combo değeri, PayUnitId=gerçek para birimi (bakiye/parite).
+    private record PayComboItem(Guid Id, string Code, bool IsActive, Guid? PayUnitId, string? PayUnitCode);
+    private List<PayComboItem> _activePayItems = new();
+    private PayComboItem? _selectedPayItem;
 
     private Dictionary<Guid, decimal> _buyByUnit = new();
     private Dictionary<Guid, string>  _codeByUnit = new();
@@ -177,7 +184,7 @@
     private record PaymentItem(ProcessPaymentType? Value, string Label);
     private List<PaymentItem> _paymentItems = new();
 
-    // Fiyat tipi (salt UI): kanonik PayFactor Has başına; Miktar modunda ×Purity gösterilir.
+    // Fiyat tipi (salt UI): kanonik PayFactor Has başına; Miktar modunda ×Factor gösterilir.
     private PayFactorType _priceType = PayFactorType.Has;
     private record PriceTypeItem(PayFactorType Value, string Label);
     private List<PriceTypeItem> _priceTypeItems = new();
@@ -211,6 +218,9 @@
 
         _allScraps = await ScrapService.GetPickerListAsync();
         _activeScraps = _allScraps.Where(s => s.IsActive).ToList();
+
+        var cashResult = await CashService.GetListAsync(new Integration.TradeXpress.Cashes.CashListRequestDto { MaxResultCount = 1000 });
+        _allCashes = cashResult.Items.ToList();
 
         var unitResult = await CurrencyUnitService.GetListAsync(new CurrencyUnitListRequestDto { MaxResultCount = 1000 });
         _allCurrencyUnits = unitResult.Items.ToList();
@@ -283,42 +293,73 @@
         _model.CommodityId   = id;
         _model.CommodityCode = s?.Code ?? string.Empty;
         _model.MainUnitId    = s?.FollowingUnitId ?? Guid.Empty;
-        if (s is { }) { _model.Factor = s.Purity; _milyemReadOnly = !s.PurityChange; }
+        if (s is { }) { _model.Factor = s.Factor; _milyemReadOnly = !s.FactorChange; }
 
-        _payUnits = _activeUnits.Where(x => x.Id != _model.MainUnitId).ToList();
-        EnsurePayUnit();
+        BuildPayList();
+        EnsurePayItem();
         Recalc(EditedField.Commodity);
     }
 
-    private void EnsurePayUnit()
+    // Peşin → Cash kayıtları (PayUnit = Cash.FollowingUnit); Bedelli → para birimi (ana hariç).
+    private void BuildPayList()
     {
-        if (_model.PayCommodityId is null || _payUnits.All(x => x.Id != _model.PayCommodityId))
+        if (_model.PaymentType == ProcessPaymentType.WithCash)
         {
-            var c = _payUnits.FirstOrDefault();
-            _model.PayCommodityId   = c?.Id;
-            _model.PayCommodityCode = c?.Code;
-            _model.PayUnitId        = c?.Id;
+            _activePayItems = _allCashes
+                .Where(c => c.IsActive && c.FollowingUnitId != _model.MainUnitId)
+                .Select(c => new PayComboItem(c.Id, c.Code,
+                                              true,
+                                              c.FollowingUnitId == Guid.Empty ? null : c.FollowingUnitId,
+                                              c.FollowingUnitCode))
+                .ToList();
+        }
+        else
+        {
+            _activePayItems = _activeUnits
+                .Where(u => u.Id != _model.MainUnitId)
+                .Select(u => new PayComboItem(u.Id, u.Code, true, u.Id, u.Code))
+                .ToList();
         }
     }
 
+    private void EnsurePayItem()
+    {
+        if (_model.PayCommodityId is null || _activePayItems.All(x => x.Id != _model.PayCommodityId))
+            ApplyPayItem(_activePayItems.FirstOrDefault());
+        else
+            ApplyPayItem(_activePayItems.First(x => x.Id == _model.PayCommodityId));
+    }
+
+    private void ApplyPayItem(PayComboItem? item)
+    {
+        _selectedPayItem        = item;
+        _model.PayCommodityId   = item?.Id;
+        _model.PayCommodityCode = item?.Code;
+        _model.PayUnitId        = item?.PayUnitId;
+    }
+
     private void OnAmountChanged(decimal value) { _model.Amount = value; Recalc(EditedField.Amount); }
-    private void OnPurityChanged(decimal value) { _model.Factor = value; Recalc(EditedField.Amount); }
+    private void OnFactorChanged(decimal value) { _model.Factor = value; Recalc(EditedField.Amount); }
+
+    // Total (HAS) elle düzenlenince milyemi (Factor) geri-hesapla → Amount × Factor = value korunur.
+    private void OnTotalChanged(decimal value)
+    {
+        _model.Factor = _model.Amount != 0m ? value / _model.Amount : _model.Factor;
+        Recalc(EditedField.Amount);
+    }
 
     private void OnDirectionChanged(ProcessDirectionType value) { _model.Direction = value; Recalc(EditedField.Direction); }
 
     private void OnPaymentTypeChanged(ProcessPaymentType? value)
     {
         _model.PaymentType = value;
-        if (HasPriceLeg) EnsurePayUnit();
+        if (HasPriceLeg) { BuildPayList(); EnsurePayItem(); }
         Recalc(EditedField.PaymentType);
     }
 
-    private void OnPayUnitChanged(Guid? id)
+    private void OnPayItemChanged(Guid? id)
     {
-        var u = id.HasValue ? _allCurrencyUnits.FirstOrDefault(x => x.Id == id.Value) : null;
-        _model.PayCommodityId   = id;
-        _model.PayCommodityCode = u?.Code;
-        _model.PayUnitId        = id;
+        ApplyPayItem(id.HasValue ? _activePayItems.FirstOrDefault(x => x.Id == id.Value) : null);
         Recalc(EditedField.PayUnit);
     }
 
@@ -393,8 +434,8 @@
         _model = dto;
         VoucherId = dto.VoucherId;
         var scrap = _allScraps.FirstOrDefault(x => x.Id == dto.CommodityId);
-        _milyemReadOnly = scrap is { } ? !scrap.PurityChange : false;
-        _payUnits = _activeUnits.Where(x => x.Id != dto.MainUnitId).ToList();
+        _milyemReadOnly = scrap is { } ? !scrap.FactorChange : false;
+        if (HasPriceLeg) { BuildPayList(); EnsurePayItem(); }
         StateHasChanged();
         return Task.CompletedTask;
     }
