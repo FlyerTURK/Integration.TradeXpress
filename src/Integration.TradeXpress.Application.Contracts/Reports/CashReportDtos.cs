@@ -39,10 +39,15 @@ public class CashMovementRowDto
     public ProcessType ProcessType { get; set; }
     /// <summary>Nakit bacağı kaynağı: "Nakit" (Cash sol bacak) veya "Peşin" (sağ bacak). Devreden satırı için "Devreden".</summary>
     public string Source { get; set; } = string.Empty;
+    public string? CompanyCode { get; set; }
+    public string? BranchCode { get; set; }
     public string? VaultCode { get; set; }
     public string? SubAccountCode { get; set; }
     public ProcessDirectionType Direction { get; set; }
-    public string? CashCode { get; set; }
+    /// <summary>İşlem kısaltma kodu (VoucherProcessCode.Code).</summary>
+    public string? ProcessCode { get; set; }
+    /// <summary>İşlemin ana malı (CommodityCode) — nakit tanım kodu değil.</summary>
+    public string? CommodityCode { get; set; }
     public Guid UnitId { get; set; }
     public string? UnitCode { get; set; }
     /// <summary>İşaretli nakit etkisi (+ kasaya giriş / − çıkış).</summary>

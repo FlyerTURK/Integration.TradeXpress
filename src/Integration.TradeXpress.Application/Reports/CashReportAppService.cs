@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Integration.TradeXpress.Accounts;
+using Integration.TradeXpress.Branches;
+using Integration.TradeXpress.Companies;
 using Integration.TradeXpress.Financials.CurrencyUnits;
 using Integration.TradeXpress.Vaults;
 using Integration.TradeXpress.Vouchers;
@@ -28,6 +30,8 @@ public class CashReportAppService : TradeXpressAppService, ICashReportAppService
 {
     private readonly IRepository<Voucher, Guid> _voucherRepository;
     private readonly IRepository<Vault, Guid> _vaultRepository;
+    private readonly IRepository<Branch, Guid> _branchRepository;
+    private readonly IRepository<Company, Guid> _companyRepository;
     private readonly IRepository<CurrencyUnit, Guid> _unitRepository;
     private readonly IRepository<SubAccount, Guid> _subAccountRepository;
     private readonly IDataFilter _dataFilter;
@@ -35,20 +39,25 @@ public class CashReportAppService : TradeXpressAppService, ICashReportAppService
     public CashReportAppService(
         IRepository<Voucher, Guid> voucherRepository,
         IRepository<Vault, Guid> vaultRepository,
+        IRepository<Branch, Guid> branchRepository,
+        IRepository<Company, Guid> companyRepository,
         IRepository<CurrencyUnit, Guid> unitRepository,
         IRepository<SubAccount, Guid> subAccountRepository,
         IDataFilter dataFilter)
     {
         _voucherRepository = voucherRepository;
         _vaultRepository = vaultRepository;
+        _branchRepository = branchRepository;
+        _companyRepository = companyRepository;
         _unitRepository = unitRepository;
         _subAccountRepository = subAccountRepository;
         _dataFilter = dataFilter;
     }
 
-    private sealed record CashLeg(Guid UnitId, decimal Effect, string? CashCode, string Source,
+    private sealed record CashLeg(Guid UnitId, decimal Effect, string Source,
+        string? MainCommodityCode,
         DateTime VoucherDate, long VoucherNumber, ProcessType ProcessType, ProcessDirectionType Direction,
-        Guid? VaultId, Guid? SubAccountId, string? Description, DateTime CreationTime, Guid LineId);
+        Guid? VaultId, Guid CompanyId, Guid BranchId, Guid? SubAccountId, string? Description, DateTime CreationTime, Guid LineId);
 
     public virtual async Task<List<CashStockRowDto>> GetStockAsync(CashReportFilterDto filter)
     {
@@ -81,10 +90,12 @@ public class CashReportAppService : TradeXpressAppService, ICashReportAppService
         var carryLegs = await QueryCashLegsAsync(filter, dateFiltered: false,
             endExclusiveOverride: filter.Start.Date);
 
-        var allUnitIds = legs.Select(x => x.UnitId).Concat(carryLegs.Select(x => x.UnitId));
-        var unitCodes  = await CodeMapAsync(_unitRepository, allUnitIds, u => u.Id, u => u.Code, disableMultiTenant: true);
-        var vaultCodes = await CodeMapAsync(_vaultRepository, legs.Where(x => x.VaultId != null).Select(x => x.VaultId!.Value), x => x.Id, x => x.Code);
-        var subCodes   = await CodeMapAsync(_subAccountRepository, legs.Where(x => x.SubAccountId != null).Select(x => x.SubAccountId!.Value), x => x.Id, x => x.Code);
+        var allLegs    = legs.Concat(carryLegs).ToList();
+        var unitCodes    = await CodeMapAsync(_unitRepository,    allLegs.Select(x => x.UnitId),                                    u => u.Id, u => u.Code, disableMultiTenant: true);
+        var vaultCodes   = await CodeMapAsync(_vaultRepository,   legs.Where(x => x.VaultId    != null).Select(x => x.VaultId!.Value),   x => x.Id, x => x.Code);
+        var branchCodes  = await CodeMapAsync(_branchRepository,  legs.Select(x => x.BranchId),                                     x => x.Id, x => x.Code);
+        var companyCodes = await CodeMapAsync(_companyRepository, legs.Select(x => x.CompanyId),                                    x => x.Id, x => x.Code);
+        var subCodes     = await CodeMapAsync(_subAccountRepository, legs.Where(x => x.SubAccountId != null).Select(x => x.SubAccountId!.Value), x => x.Id, x => x.Code);
 
         var result = new List<CashMovementRowDto>();
 
@@ -124,11 +135,14 @@ public class CashReportAppService : TradeXpressAppService, ICashReportAppService
                 VoucherDate    = x.VoucherDate,
                 VoucherNumber  = x.VoucherNumber,
                 ProcessType    = x.ProcessType,
+                ProcessCode    = Vouchers.VoucherProcessCode.Code(x.ProcessType),
                 Source         = x.Source,
+                CompanyCode    = companyCodes.GetValueOrDefault(x.CompanyId),
+                BranchCode     = branchCodes.GetValueOrDefault(x.BranchId),
                 VaultCode      = x.VaultId is { } v ? vaultCodes.GetValueOrDefault(v) : null,
                 SubAccountCode = x.SubAccountId is { } s ? subCodes.GetValueOrDefault(s) : null,
                 Direction      = x.Direction,
-                CashCode       = x.CashCode,
+                CommodityCode  = x.MainCommodityCode,
                 UnitId         = x.UnitId,
                 UnitCode       = unitCodes.GetValueOrDefault(x.UnitId),
                 CashAmount     = x.Effect,
@@ -163,10 +177,10 @@ public class CashReportAppService : TradeXpressAppService, ICashReportAppService
                && (filter.CashId == null || l.CommodityId == filter.CashId || l.PayCommodityId == filter.CashId)
             select new
             {
-                v.VoucherDate, v.VoucherNumber, v.VaultId, v.SubAccountId,
+                v.VoucherDate, v.VoucherNumber, v.VaultId, v.CompanyId, v.BranchId, v.SubAccountId,
                 l.Type, l.PaymentType, l.Direction,
                 l.MainUnitId, l.CommodityCode, l.Total,
-                l.PayUnitId, l.PayCommodityCode, l.PayTotal,
+                l.PayUnitId, l.PayTotal,
                 l.Description, l.CreationTime, l.Id,
             });
 
@@ -177,14 +191,16 @@ public class CashReportAppService : TradeXpressAppService, ICashReportAppService
 
             // Sol bacak: yalnız Cash process'te nakit. Giriş + / Çıkış −.
             if (r.Type == ProcessType.Cash && r.MainUnitId != Guid.Empty && r.Total != 0m)
-                legs.Add(new CashLeg(r.MainUnitId, inflow ? r.Total : -r.Total, r.CommodityCode, "Nakit",
-                    r.VoucherDate, r.VoucherNumber, r.Type, r.Direction, r.VaultId, r.SubAccountId, r.Description, r.CreationTime, r.Id));
+                legs.Add(new CashLeg(r.MainUnitId, inflow ? r.Total : -r.Total, "Nakit",
+                    r.CommodityCode,
+                    r.VoucherDate, r.VoucherNumber, r.Type, r.Direction, r.VaultId, r.CompanyId, r.BranchId, r.SubAccountId, r.Description, r.CreationTime, r.Id));
 
-            // Sağ bacak: Peşin (WithCash) olan TÜM process'lerde karşılık nakit (Cash+Peşin'de iki bacak da nakit →
-            // biri girer biri çıkar, ör. döviz bozdurma). Mal Çıkış→nakit girer(+), mal Giriş→nakit çıkar(−).
+            // Sağ bacak: Peşin (WithCash) olan TÜM process'lerde karşılık nakit.
+            // CommodityCode = işlemin ANA mali (nakit tanımı değil). Mal Çıkış→nakit girer(+), Giriş→çıkar(−).
             if (r.PaymentType == ProcessPaymentType.WithCash && r.PayUnitId is { } payUnit && r.PayTotal != 0m)
-                legs.Add(new CashLeg(payUnit, inflow ? -r.PayTotal : r.PayTotal, r.PayCommodityCode, "Peşin",
-                    r.VoucherDate, r.VoucherNumber, r.Type, r.Direction, r.VaultId, r.SubAccountId, r.Description, r.CreationTime, r.Id));
+                legs.Add(new CashLeg(payUnit, inflow ? -r.PayTotal : r.PayTotal, "Peşin",
+                    r.CommodityCode,
+                    r.VoucherDate, r.VoucherNumber, r.Type, r.Direction, r.VaultId, r.CompanyId, r.BranchId, r.SubAccountId, r.Description, r.CreationTime, r.Id));
         }
 
         return legs;
