@@ -15,6 +15,10 @@ export function setBootstrapColorMode(mode) {
     document.documentElement.setAttribute('data-bs-theme', mode);
 }
 
+export function setPrimaryColorHex(hex) {
+    document.documentElement.style.setProperty('--tx-theme-primary', hex);
+}
+
 export function setSizeModeAttribute(size) {
     document.documentElement.setAttribute('data-erp-size', size);
 }

@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
 using DevExpress.Blazor;
@@ -37,6 +38,20 @@ public sealed class ThemeService : IThemeService
 
     public string BootstrapColorMode => ResolveBootstrapColorMode(_selection);
 
+    public string PrimaryColorHex
+    {
+        get
+        {
+            if (_selection.Kind == ThemeKind.Bootstrap)
+                return ThemeCatalog.BootstrapThemes.FirstOrDefault(x => x.Name == _selection.BootstrapName)?.SwatchColor ?? "#0d6efd";
+            
+            if (!string.IsNullOrEmpty(_selection.FluentCustomColor)) 
+                return _selection.FluentCustomColor;
+                
+            return ThemeCatalog.FluentAccents.FirstOrDefault(x => x.Accent == _selection.FluentAccent)?.SwatchColor ?? "#0f6cbd";
+        }
+    }
+
     public event EventHandler? CurrentThemeChanged;
 
     public async Task InitializeAsync()
@@ -55,6 +70,7 @@ public sealed class ThemeService : IThemeService
             {
                 // Kayıt yoksa varsayılanın data-bs-theme'i de doğru yazılsın.
                 await module.InvokeVoidAsync("setBootstrapColorMode", BootstrapColorMode);
+                await module.InvokeVoidAsync("setPrimaryColorHex", PrimaryColorHex);
             }
         }
         catch (JSDisconnectedException)    { }
@@ -109,6 +125,7 @@ public sealed class ThemeService : IThemeService
             }
             // Bootstrap 5.3 CSS değişkenleri mod ile senkron olsun diye <html data-bs-theme>.
             await module.InvokeVoidAsync("setBootstrapColorMode", BootstrapColorMode);
+            await module.InvokeVoidAsync("setPrimaryColorHex", PrimaryColorHex);
         }
         // Swallowed by design: kullanıcı sayfadan ayrıldı / circuit kapandı.
         catch (JSDisconnectedException)    { }

@@ -190,6 +190,7 @@ public class VoucherAppService : TradeXpressAppService, IVoucherAppService
         var dtos = displayed.Select(MapLine).ToList();
         foreach (var d in dtos) { d.VoucherDate = voucher.VoucherDate; d.VoucherNumber = voucher.VoucherNumber; }
         await ResolveUnitCodesAsync(dtos);
+        await ResolveCreatorNamesAsync(dtos);
 
         // Yürüyen bakiye: devreden (ilk satırdan ÖNCEKİ tüm satırlar) + satır-satır birikim.
         if (displayed.Count > 0 && voucher.SubAccountId is { } subId)
@@ -232,6 +233,7 @@ public class VoucherAppService : TradeXpressAppService, IVoucherAppService
         }
 
         await ResolveUnitCodesAsync(dtos);
+        await ResolveCreatorNamesAsync(dtos);
 
         if (displayed.Count > 0)
         {
@@ -417,7 +419,30 @@ public class VoucherAppService : TradeXpressAppService, IVoucherAppService
         DueDate          = l.DueDate,
         Description      = l.Description,
         CreationTime     = l.CreationTime,
+        CreatorId        = l.CreatorId,
     };
+
+    private async Task ResolveCreatorNamesAsync(List<VoucherLineDto> dtos)
+    {
+        var creatorIds = dtos.Where(x => x.CreatorId.HasValue).Select(x => x.CreatorId!.Value).Distinct().ToList();
+        if (!creatorIds.Any()) return;
+
+        var userRepo = LazyServiceProvider.LazyGetService<IRepository<Volo.Abp.Identity.IdentityUser, Guid>>();
+        if (userRepo == null) return;
+
+        var users = await AsyncExecuter.ToListAsync(
+            (await userRepo.GetQueryableAsync()).Where(u => creatorIds.Contains(u.Id))
+        );
+        var userDict = users.ToDictionary(u => u.Id, u => u.UserName);
+
+        foreach (var dto in dtos)
+        {
+            if (dto.CreatorId.HasValue && userDict.TryGetValue(dto.CreatorId.Value, out var name))
+            {
+                dto.CreatorName = name;
+            }
+        }
+    }
 
     /// <summary>Görünür birimleri (host‖own) gösterim sırasıyla döndürür: her zaman gösterilecekler
     /// (AlwaysShowInBalance) + <paramref name="includeIds"/> (hareketi olanlar).</summary>

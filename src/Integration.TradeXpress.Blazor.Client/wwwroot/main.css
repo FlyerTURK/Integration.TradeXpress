@@ -144,6 +144,30 @@
     overflow: hidden;
 }
 
+/* Alt sekmelerin (nested DxTabs) de h-100 verilince tam esnemesi için fix */
+.tx-tabs-stretched {
+    display: flex !important;
+    min-height: 0 !important;
+    height: 100% !important;
+}
+.tx-tabs-stretched .dxbl-tabs-tablist {
+    flex: 0 0 auto !important;
+}
+.tx-tabs-stretched .dxbl-tabs-content-panel {
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+    display: flex !important;
+    flex-direction: column !important;
+    height: 100% !important;
+}
+.tx-tabs-stretched .dxbl-tabs-content-panel .dxbl-tabs-content {
+    flex: 1 1 auto !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+}
+
 .mdi-empty {
     padding: 1rem;
     color: #888;

@@ -126,17 +126,17 @@
     @if (_showActionToolbar)
     {
         <hr class="my-2" style="border-top: 1px solid var(--bs-border-color);" />
-        <div class="d-flex flex-wrap gap-2 mt-2">
-            <DxButton Text="@($"3-{L["Metal"].Value}")" IconCssClass="custom-icon-metal" Click="@OnMetalClicked" RenderStyle="ButtonRenderStyle.Secondary" />
-            <DxButton Text="@($"4-{L["Scrap"].Value}")" IconCssClass="custom-icon-scrap" Click="@OnScrapClicked" RenderStyle="ButtonRenderStyle.Secondary" />
-            <DxButton Text="@($"5-{L["CashProcess"].Value}")" IconCssClass="custom-icon-cash" Click="@OnCashClicked" RenderStyle="ButtonRenderStyle.Secondary" />
-            <DxButton Text="@($"6-{L["Convert"].Value}")" IconCssClass="custom-icon-convert" Click="@OnConvertClicked" RenderStyle="ButtonRenderStyle.Secondary" />
-            <DxButton Text="@($"7-{L["Service"].Value}")" IconCssClass="custom-icon-service" Click="@OnServiceClicked" RenderStyle="ButtonRenderStyle.Secondary" />
-            <DxButton Text="@($"8-{L["Future"].Value}")" IconCssClass="custom-icon-future" Click="@OnFutureClicked" RenderStyle="ButtonRenderStyle.Secondary" />
-            <DxButton Text="@($"9-{L["Stone"].Value}")" IconCssClass="custom-icon-stone" Click="@OnStoneClicked" RenderStyle="ButtonRenderStyle.Secondary" />
-            <DxButton Text="@($"M-{L["Jewelry"].Value}")" IconCssClass="custom-icon-jewelry" Click="@OnJewelryClicked" RenderStyle="ButtonRenderStyle.Secondary" />
-            <DxButton Text="@($"0-{L["List"].Value}")" IconCssClass="custom-icon-list" Click="@OnListClicked" RenderStyle="ButtonRenderStyle.Secondary" />
-        </div>
+        <DxToolbar Adaptive="false" CssClass="mt-2">
+            <DxToolbarItem BeginGroup="true" Text="@($"3-{L["Metal"].ToString().ToUpper()}")" IconCssClass="custom-icon-metal" Click="@OnMetalClicked" />
+            <DxToolbarItem BeginGroup="true" Text="@($"4-{L["Scrap"].ToString().ToUpper()}")" IconCssClass="custom-icon-scrap" Click="@OnScrapClicked" />
+            <DxToolbarItem BeginGroup="true" Text="@($"5-{L["CashProcess"].ToString().ToUpper()}")" IconCssClass="custom-icon-cash" Click="@OnCashClicked" />
+            <DxToolbarItem BeginGroup="true" Text="@($"6-{L["Convert"].ToString().ToUpper()}")" IconCssClass="custom-icon-convert" Click="@OnConvertClicked" />
+            <DxToolbarItem BeginGroup="true" Text="@($"7-{L["Service"].ToString().ToUpper()}")" IconCssClass="custom-icon-service" Click="@OnServiceClicked" />
+            <DxToolbarItem BeginGroup="true" Text="@($"8-{L["Future"].ToString().ToUpper()}")" IconCssClass="custom-icon-future" Click="@OnFutureClicked" />
+            <DxToolbarItem BeginGroup="true" Text="@($"9-{L["Stone"].ToString().ToUpper()}")" IconCssClass="custom-icon-stone" Click="@OnStoneClicked" />
+            <DxToolbarItem BeginGroup="true" Text="@($"M-{L["Jewelry"].ToString().ToUpper()}")" IconCssClass="custom-icon-jewelry" Click="@OnJewelryClicked" />
+            <DxToolbarItem BeginGroup="true" Text="@($"0-{L["List"].ToString().ToUpper()}")" IconCssClass="custom-icon-list" Click="@OnListClicked" />
+        </DxToolbar>
     }
 </div>
 }

@@ -11,6 +11,31 @@
 @inject Integration.Framework.Blazor.Client.Services.Base.ITradeXpressUiService Ui
 @inject ITabManager Tabs
 
+<style>
+    .tx-tabs-stretched {
+        display: flex !important;
+        min-height: 0 !important;
+        height: 100% !important;
+    }
+    .tx-tabs-stretched .dxbl-tabs-tablist {
+        flex: 0 0 auto !important;
+    }
+    .tx-tabs-stretched .dxbl-tabs-content-panel {
+        flex: 1 1 auto !important;
+        min-height: 0 !important;
+        overflow: hidden !important;
+        display: flex !important;
+        flex-direction: column !important;
+        height: 100% !important;
+    }
+    .tx-tabs-stretched .dxbl-tabs-content-panel .dxbl-tabs-content {
+        flex: 1 1 auto !important;
+        height: 100% !important;
+        min-height: 0 !important;
+        overflow: hidden !important;
+    }
+</style>
+
 <DxLayoutBreakpoint MaxWidth="768" @bind-IsActive="@_isMobile" />
 
 <div style="@GridStyle()">
@@ -28,31 +53,33 @@
 
     @if (_currentSubAccountId.HasValue && _accountLocked)
     {
-        <div style="@($"{PanelBox()} grid-area:p2; {(_isMobile ? "" : "min-height:0;")}")">
-            <DxTabs TabsPosition="TabsPosition.Bottom" CssClass="w-100 h-100">
+        <div style="@($"{PanelBox()} grid-area:p2; {(_isMobile ? "" : "min-height:0; height:100%; display:flex; flex-direction:column;")}")">
+            <DxTabs TabsPosition="TabsPosition.Bottom" CssClass="w-100 h-100 tx-tabs-stretched">
                 <DxTabPage Text="@L["Transactions"].Value" TabIconCssClass="custom-icon-list">
-                    <div style="display:grid; grid-template-rows:auto auto 1fr auto; height:100%; padding-top:8px;">
-                        @if (_listMode)
-                        {
-                            <DxToolbar Adaptive="false" CssClass="mb-2">
-                                <DxToolbarItem BeginGroup="true" Alignment="ToolbarItemAlignment.Right">
-                                    <Template>
-                                        <DxDateRangePicker StartDate="@_listStart" EndDate="@_listEnd"
-                                                           StartDateChanged="@((DateTime? d) => OnListRangeChanged(d ?? _listStart, _listEnd))"
-                                                           EndDateChanged="@((DateTime? d) => OnListRangeChanged(_listStart, d ?? _listEnd))"
-                                                           DisplayFormat="@L["ShortDateFormat"].Value" style="width:280px;" />
-                                    </Template>
-                                </DxToolbarItem>
-                                <DxToolbarItem BeginGroup="true" Alignment="ToolbarItemAlignment.Right" Text="@L["Back"].Value" IconCssClass="fas fa-arrow-left" Click="@ExitListModeAsync" />
-                            </DxToolbar>
-                        }
-
-                        <div style="font-size:14px; font-weight:bold; text-align:center; letter-spacing:1px; text-transform:uppercase; width:100%; padding:6px; border-radius:4px 4px 0 0; background-color:rgba(var(--bs-primary-rgb, 13, 110, 253), 0.15);">
+                    <div style="display:flex; flex-direction:column; height:100%;">
+                        <div style="flex-shrink:0; font-size:14px; font-weight:bold; text-align:center; letter-spacing:1px; text-transform:uppercase; width:100%; padding:6px; border-radius:4px 4px 0 0; background-color:color-mix(in srgb, var(--tx-theme-primary, var(--bs-primary, #0d6efd)) 8%, transparent);">
                             @L["TransactionList"].Value
                         </div>
 
-                        <div style="min-height:0; min-width:0; overflow:auto;">
-                            <DxGrid Data="@_voucherLines" ShowSearchBox="false" PageSize="50" CssClass="h-100"
+                        @if (_listMode)
+                        {
+                            <div style="flex-shrink:0; padding:8px 12px; border-left:1px solid color-mix(in srgb, var(--tx-theme-primary, var(--bs-primary, #0d6efd)) 8%, transparent); border-right:1px solid color-mix(in srgb, var(--tx-theme-primary, var(--bs-primary, #0d6efd)) 8%, transparent); background-color:transparent;">
+                                <DxToolbar Adaptive="false">
+                                    <DxToolbarItem BeginGroup="true" Alignment="ToolbarItemAlignment.Right">
+                                        <Template Context="toolbarContext">
+                                            <DxDateRangePicker StartDate="@_listStart" EndDate="@_listEnd"
+                                                               StartDateChanged="@((DateTime? d) => OnListRangeChanged(d ?? _listStart, _listEnd))"
+                                                               EndDateChanged="@((DateTime? d) => OnListRangeChanged(_listStart, d ?? _listEnd))"
+                                                               DisplayFormat="@L["ShortDateFormat"].Value" style="width:280px;" />
+                                        </Template>
+                                    </DxToolbarItem>
+                                    <DxToolbarItem BeginGroup="true" Alignment="ToolbarItemAlignment.Right" Text="@L["Back"].Value" IconCssClass="fas fa-arrow-left" Click="@ExitListModeAsync" />
+                                </DxToolbar>
+                            </div>
+                        }
+
+                        <div style="flex:1; min-height:0; min-width:0; overflow:hidden; display:flex; flex-direction:column;">
+                            <DxGrid Data="@_voucherLines" ShowSearchBox="false" PageSize="50" CssClass="w-100" style="height:100% !important; flex:1 1 auto !important; min-height:0 !important;"
                                     KeyFieldName="@nameof(VoucherLineDto.Id)"
                                     ShowFilterRow="true"
                                     SelectionMode="GridSelectionMode.Single"
@@ -88,12 +115,13 @@
                                     <DxGridDataColumn AllowSort="false" FieldName="@nameof(VoucherLineDto.MarketPrice)"      Caption="@L["Market"].ToString().ToUpper()"      DisplayFormat="N5" TextAlignment="GridTextAlignment.Right" Width="100px" />
                                     <DxGridDataColumn AllowSort="false" FieldName="@nameof(VoucherLineDto.Profit)"           Caption="@L["Profit"].ToString().ToUpper()"           DisplayFormat="N2" TextAlignment="GridTextAlignment.Right" Width="100px" />
                                     <DxGridDataColumn AllowSort="false" FieldName="@nameof(VoucherLineDto.DueDate)"          Caption="@L["Due"].ToString().ToUpper()"          DisplayFormat="dd.MM.yyyy" Width="100px" />
+                                    <DxGridDataColumn AllowSort="false" FieldName="@nameof(VoucherLineDto.CreatorName)"      Caption="@L["User"].ToString().ToUpper()"         Width="120px" Visible="@_listMode" />
                                 </Columns>
                             </DxGrid>
                         </div>
                         @if (_selectedLine is VoucherLineDto selectedLine)
                         {
-                            <div class="mt-2">
+                            <div class="mt-2" style="flex-shrink:0;">
                                 <DxMemo Text="@selectedLine.Description" ReadOnly="true" Rows="1" ResizeMode="MemoResizeMode.Vertical" CssClass="w-100" />
                             </div>
                         }
@@ -105,18 +133,20 @@
 
     @if (_currentSubAccountId.HasValue)
     {
-        <div style="@($"{PanelBox()} grid-area:p3;{(_isMobile ? "" : " width:300px;")}")">
-            <DxTabs TabsPosition="TabsPosition.Bottom" CssClass="w-100">
+        <div style="@($"{PanelBox()} grid-area:p3;{(_isMobile ? "" : " width:300px; min-height:0; height:100%; display:flex; flex-direction:column;")}")">
+            <DxTabs TabsPosition="TabsPosition.Bottom" CssClass="w-100 h-100 tx-tabs-stretched">
                 <DxTabPage Text="@L["Balance"].Value">
-                    @* Konsolide toplam — hesabın bakiye birimi cinsinden, canlı kurla; alacak=yeşil/borç=kırmızı gradyan.
-                       Bakiye yoksa (0) gösterilmez. (≈ = bir birim değerlenemedi.) *@
-                    @if (_consTotal != 0m)
-                    {
-                        <div style="@($"height:34px; display:flex; align-items:center; justify-content:center; padding:0 10px; border-radius:4px; color:#fff; font-weight:700; font-size:1.05rem; background:{(_consTotal >= 0m ? "var(--gradient-green)" : "var(--gradient-red)")};")">
-                            @(_consComplete ? "" : "≈ ")@Math.Abs(_consTotal).ToString("N2") @_baseCode @(_consTotal < 0m ? "(B)" : "(A)")
-                        </div>
-                    }
-                    <DxGrid Data="@_balanceRows" ShowSearchBox="false" PageSize="1000" CssClass="mt-2">
+                    <div style="display:flex; flex-direction:column; height:100%;">
+                        @* Konsolide toplam — hesabın bakiye birimi cinsinden, canlı kurla; alacak=yeşil/borç=kırmızı gradyan.
+                           Bakiye yoksa (0) gösterilmez. (≈ = bir birim değerlenemedi.) *@
+                        @if (_consTotal != 0m)
+                        {
+                            <div style="@($"flex-shrink:0; height:34px; display:flex; align-items:center; justify-content:center; padding:0 10px; border-radius:4px 4px 0 0; color:#fff; font-weight:700; font-size:1.05rem; background:{(_consTotal >= 0m ? "var(--gradient-green)" : "var(--gradient-red)")};")">
+                                @(_consComplete ? "" : "≈ ")@Math.Abs(_consTotal).ToString("N2") @_baseCode @(_consTotal < 0m ? "(B)" : "(A)")
+                            </div>
+                        }
+                        <div style="flex:1; min-height:0; overflow:hidden; display:flex; flex-direction:column;">
+                            <DxGrid Data="@_balanceRows" ShowSearchBox="false" PageSize="1000" CssClass="w-100" style="height:100% !important; flex:1 1 auto !important; min-height:0 !important;">
                         <Columns>
                             <DxGridDataColumn FieldName="@nameof(VoucherBalanceLineDto.UnitCode)" Caption="@L["Code"].Value.ToString().ToUpper()" Width="70px" TextAlignment="GridTextAlignment.Left" CaptionAlignment="GridTextAlignment.Center"/>
                             <DxGridDataColumn FieldName="@nameof(VoucherBalanceLineDto.Credit)" Caption="@L["Credit"].Value.ToString().ToUpper()" TextAlignment="GridTextAlignment.Right" CaptionAlignment="GridTextAlignment.Center">
@@ -139,9 +169,13 @@
                             </DxGridDataColumn>
                         </Columns>
                     </DxGrid>
+                        </div>
+                    </div>
                 </DxTabPage>
                 <DxTabPage Text="@L["LiveRates"].Value">
-                    <DxGrid Data="@_liveRates" ShowSearchBox="false" PageSize="1000">
+                    <div style="display:flex; flex-direction:column; height:100%;">
+                        <div style="flex:1; min-height:0; overflow:hidden; display:flex; flex-direction:column;">
+                            <DxGrid Data="@_liveRates" ShowSearchBox="false" PageSize="1000" CssClass="w-100 h-100">
                         <Columns>
                             <DxGridDataColumn FieldName="@nameof(CurrentPriceDto.CurrencyUnitCode)"
                                               Caption="@nameof(CurrentPriceDto.CurrencyUnitCode)" Width="70px" />
@@ -161,6 +195,8 @@
                             </DxGridDataColumn>
                         </Columns>
                     </DxGrid>
+                        </div>
+                    </div>
                 </DxTabPage>
             </DxTabs>
         </div>
@@ -503,25 +539,25 @@
         if (!_currentSubAccountId.HasValue)
         {
             return _isMobile
-                ? "display:grid; gap:10px; grid-template-columns:1fr; grid-template-areas:'p1'; overflow-y:auto; max-height:calc(100vh - 110px);"
-                : "display:grid; gap:10px; height:calc(100vh - 110px); grid-template-columns:1fr; grid-template-areas:'p1';";
+                ? "display:grid; gap:0px; grid-template-columns:1fr; grid-template-areas:'p1'; overflow-y:auto; max-height:calc(100vh - 110px);"
+                : "display:grid; gap:0px; height:calc(100vh - 110px); grid-template-columns:1fr; grid-template-areas:'p1';";
         }
 
         if (!_accountLocked)
         {
             return _isMobile
-                ? "display:grid; gap:10px; grid-template-columns:1fr; grid-template-areas:'p1' 'p3'; overflow-y:auto; max-height:calc(100vh - 110px);"
-                : "display:grid; gap:10px; height:calc(100vh - 110px); grid-template-columns:minmax(0,1fr) 300px; grid-template-areas:'p1 p3';";
+                ? "display:grid; gap:0px; grid-template-columns:1fr; grid-template-areas:'p1' 'p3'; overflow-y:auto; max-height:calc(100vh - 110px);"
+                : "display:grid; gap:0px; height:calc(100vh - 110px); grid-template-columns:minmax(0,1fr) 300px; grid-template-areas:'p1 p3';";
         }
 
         if (_isMobile)
             return _listMode && !_processActive
-                ? "display:grid; gap:10px; grid-template-columns:1fr; grid-template-areas:'p3' 'p2'; overflow-y:auto; max-height:calc(100vh - 110px);"
-                : "display:grid; gap:10px; grid-template-columns:1fr; grid-template-areas:'p1' 'p3' 'p2'; overflow-y:auto; max-height:calc(100vh - 110px);";
+                ? "display:grid; gap:0px; grid-template-columns:1fr; grid-template-areas:'p3' 'p2'; overflow-y:auto; max-height:calc(100vh - 110px);"
+                : "display:grid; gap:0px; grid-template-columns:1fr; grid-template-areas:'p1' 'p3' 'p2'; overflow-y:auto; max-height:calc(100vh - 110px);";
 
         return _listMode && !_processActive
-            ? "display:grid; gap:10px; height:calc(100vh - 110px); grid-template-columns:minmax(0,1fr) 300px; grid-template-areas:'p2 p3';"
-            : "display:grid; gap:10px; height:calc(100vh - 110px); grid-template-columns:minmax(0,1fr) 300px; grid-template-rows:auto 1fr; grid-template-areas:'p1 p3' 'p2 p3';";
+            ? "display:grid; gap:0px; height:calc(100vh - 110px); grid-template-columns:minmax(0,1fr) 300px; grid-template-areas:'p2 p3';"
+            : "display:grid; gap:0px; height:calc(100vh - 110px); grid-template-columns:minmax(0,1fr) 300px; grid-template-rows:auto 1fr; grid-template-areas:'p1 p3' 'p2 p3';";
     }
 
     private static string PanelBox() =>

@@ -65,6 +65,8 @@ public class VoucherLineDto
     [StringLength(VoucherConsts.DescriptionMaxLength)]
     public string? Description { get; set; }
     public DateTime CreationTime { get; set; }
+    public Guid? CreatorId { get; set; }
+    public string? CreatorName { get; set; }
 
     /// <summary>Sunucu recompute yönü (hangi alan düzenlendi) — kaydetmede kullanılır.</summary>
     public EditedField EditedField { get; set; } = EditedField.None;

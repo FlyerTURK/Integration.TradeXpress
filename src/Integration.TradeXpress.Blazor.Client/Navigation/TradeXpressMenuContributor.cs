@@ -77,7 +77,10 @@ public class TradeXpressMenuContributor : IMenuContributor
         ).RequirePermissions(TradeXpressPermissions.Parities.Default));
         definitions.AddItem(financial);
         // Emtialar — Voucher/VoucherLine'da seçilecek işaretçi emtia tipleri (alt menü). Nakitler buraya bağlı.
-        var commodities = new ApplicationMenuItem(
+        var currentTenant = context.ServiceProvider.GetRequiredService<ICurrentTenant>();
+        if (currentTenant.Id != null)
+        {
+            var commodities = new ApplicationMenuItem(
             TradeXpressMenus.Commodities,
             l["Commodities"],
             icon: TradeXpressIcons.Commodities
@@ -156,6 +159,7 @@ public class TradeXpressMenuContributor : IMenuContributor
             icon: TradeXpressIcons.Jewelry
         ));
         definitions.AddItem(commodities);
+        }
         // Değerleme (re-base) ayrı kullanıcı sayfası DEĞİL — kullanıcı daima piyasa/alışık
         // fiyatı görür; gerçek (base) değer arka planda hesaplanır (işlem/muhasebe).
         // Marj ayrı menü/sayfa DEĞİL — CurrencyUnit ve pano grid'inde "Margin Ayarla"
@@ -163,7 +167,6 @@ public class TradeXpressMenuContributor : IMenuContributor
         // Organizasyonlar (Tanımlar altında) — Şirketler + Cari Hesaplar. Company/Account tenant'a aittir
         // (host şirket tanımlayamaz) → yalnız tenant oturumunda gösterilir. Şube/Kasa ve Alt Hesap ayrı menü
         // DEĞİL: parent edit formundaki drill list'lerle yönetilir.
-        var currentTenant = context.ServiceProvider.GetRequiredService<ICurrentTenant>();
         if (currentTenant.Id != null)
         {
             var organizations = new ApplicationMenuItem(
@@ -191,14 +194,17 @@ public class TradeXpressMenuContributor : IMenuContributor
 
         context.Menu.AddItem(definitions);
 
-        // Cari İşlemler — bağımsız işlem formu (adaptif 3 panelli yerleşim).
-        context.Menu.AddItem(new ApplicationMenuItem(
-            TradeXpressMenus.CurrentTransactions,
-            l["Menu:CurrentTransactions"],
-            url: "/cari-islemler",
-            icon: TradeXpressIcons.CurrentTransactions,
-            order: 1
-        ).RequireAuthenticated());
+        if (currentTenant.Id != null)
+        {
+            // Cari İşlemler — bağımsız işlem formu (adaptif 3 panelli yerleşim).
+            context.Menu.AddItem(new ApplicationMenuItem(
+                TradeXpressMenus.CurrentTransactions,
+                l["Menu:CurrentTransactions"],
+                url: "/cari-islemler",
+                icon: TradeXpressIcons.CurrentTransactions,
+                order: 1
+            ).RequireAuthenticated());
+        }
 
 
 
