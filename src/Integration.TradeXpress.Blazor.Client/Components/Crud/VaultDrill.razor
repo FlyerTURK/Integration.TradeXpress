@@ -15,6 +15,7 @@
    mantığı + VaultLayout EditContent burada. Değişim OnChanged ile yukarı bildirilir (EditChanged/NotifyDirty).
 *@
 <DrillList TItem="VaultGraphDto"
+           @ref="_drill"
            Title="@L["Menu:Vaults"]"
            EntityName="@L["Entity:Vault"]"
            Items="Vaults"
@@ -35,7 +36,7 @@
            OnChanged="OnChanged"
            CustomActions="@VaultActions">
     <GridColumns>
-        <DxGridDataColumn FieldName="Code" Caption="@L["Code"]" Width="120px" />
+        <GridLinkColumn FieldName="Code" Caption="@L["Code"]" Width="140px" FixedPosition="GridColumnFixedPosition.Left" VisibleIndex="1" OnClick="@(item => _drill?.EditItem((VaultGraphDto)item))" />
         <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" />
         <DxGridDataColumn FieldName="IsDefault" Caption="@L["IsDefault"]" Width="90px" TextAlignment="GridTextAlignment.Left">
             <CellDisplayTemplate Context="cell">@(((VaultGraphDto)cell.DataItem).IsDefault ? L["Yes"].Value : "")</CellDisplayTemplate>
@@ -58,6 +59,7 @@
     [Parameter] public string? ParentText { get; set; }
 
     private VaultGraphDto? _selectedVault;
+    private DrillList<VaultGraphDto>? _drill;
     private void OnVaultSelected(VaultGraphDto? v) => _selectedVault = v;
 
     // Toolbar custom action — liste sayfalarıyla AYNI descriptor sözleşmesi (SortIndex 300).

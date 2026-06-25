@@ -78,8 +78,17 @@
     filter: none !important;
 }
 
-/* Primary toolbar butonu (Kaydet): primary'ye özel override YOK — DevExpress tema stili (native) kullanılır.
-   (DOM incelemesiyle doğru/temiz çözüm bulunacak; override'lar geri alındı.) */
+/* Primary toolbar butonu (Kaydet) disabled durumu:
+   Fluent temada varsayılan olarak griye dönen arka planı ezerek tema renginin yarı saydam halini uygularız. */
+.dxbl-toolbar .dxbl-btn-primary:disabled,
+.dxbl-toolbar .dxbl-btn-primary.dxbl-disabled,
+.dxbl-btn-primary:disabled,
+.dxbl-btn-primary.dxbl-disabled {
+    background-color: var(--tx-theme-primary, var(--bs-primary, #0d6efd)) !important;
+    border-color: var(--tx-theme-primary, var(--bs-primary, #0d6efd)) !important;
+    color: #fff !important;
+    opacity: 0.5 !important;
+}
 
 /* Disabled toolbar ikon görünümü: Plain mode + RenderStyle None ile DevExpress artık disabled item'ın
    ikonunu (XAF SVG img VE FontAwesome <i>) soluklaştırmıyor → hepsini %50 soluk göster (Sil/Prev/Next
@@ -820,15 +829,8 @@
 }
 
 /* Custom Toolbar SVG Icons — renkli, DX filtresi devre dışı */
-.custom-icon-metal,
-.custom-icon-scrap,
-.custom-icon-cash,
-.custom-icon-convert,
-.custom-icon-service,
-.custom-icon-future,
-.custom-icon-stone,
-.custom-icon-jewelry,
-.custom-icon-list {
+[class^="custom-icon-"],
+[class*=" custom-icon-"] {
     display: inline-block;
     width: 16px;
     height: 16px;
@@ -848,3 +850,25 @@
 .custom-icon-stone    { background-image: url('/images/custom/stone.svg'); }
 .custom-icon-jewelry  { background-image: url('/images/custom/jewelry.svg'); }
 .custom-icon-list     { background-image: url('/images/custom/list.svg'); }
+.custom-icon-company  { background-image: url('/images/custom/company.svg'); }
+.custom-icon-branch   { background-image: url('/images/custom/branch.svg'); }
+.custom-icon-vault    { background-image: url('/images/custom/vault.svg'); }
+.custom-icon-country  { background-image: url('/images/custom/country.svg'); }
+.custom-icon-currency-unit { background-image: url('/images/custom/currency-unit.svg'); }
+.custom-icon-account  { background-image: url('/images/custom/account.svg'); }
+.custom-icon-accounts { background-image: url('/images/custom/accounts.svg'); }
+.custom-icon-currency-margin { background-image: url('/images/custom/currency-margin.svg'); }
+.custom-icon-parity   { background-image: url('/images/custom/parity.svg'); }
+.custom-icon-price-board { background-image: url('/images/custom/price-board.svg'); }
+.custom-icon-current-transactions { background-image: url('/images/custom/current-transactions.svg'); }
+.custom-icon-tenant   { background-image: url('/images/custom/tenant.svg'); }
+.custom-icon-settings { background-image: url('/images/custom/settings.svg'); }
+.custom-icon-user     { background-image: url('/images/custom/user.svg'); }
+.custom-icon-role     { background-image: url('/images/custom/role.svg'); }
+.custom-icon-permission { background-image: url('/images/custom/permission.svg'); }
+.custom-icon-definitions { background-image: url('/images/custom/definitions.svg'); }
+.custom-icon-commodities { background-image: url('/images/custom/commodities.svg'); }
+.custom-icon-organizations { background-image: url('/images/custom/organizations.svg'); }
+.custom-icon-financial { background-image: url('/images/custom/financial.svg'); }
+.custom-icon-identity { background-image: url('/images/custom/identity.svg'); }
+.custom-icon-home     { background-image: url('/images/custom/home.svg'); }

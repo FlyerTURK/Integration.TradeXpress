@@ -7,7 +7,7 @@
 <span style="display:inline-flex; align-items:center; padding-top:5px; padding-right:5px;">
     <span id="@_id" class="grid-btn-link" style="cursor:pointer;"
           @onclick="@(() => _hintOpen = !_hintOpen)"
-          @onclick:stopPropagation="true"><span style="margin-inline-end:.3em; text-decoration:none;">ℹ️</span>@Text@(Required ? " *" : "")</span>
+          @onclick:stopPropagation="true">@Text@(Required ? " *" : "")</span>
 </span>
 <DxFlyout @bind-IsOpen="_hintOpen"
           PositionTarget="@($"#{_id}")">

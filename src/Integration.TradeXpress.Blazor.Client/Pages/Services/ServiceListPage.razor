@@ -20,9 +20,9 @@
             OnSearchChanged="OnSearchAsync">
 
     <GridColumns>
-        <GridLinkColumn FieldName="Code" Caption="@L["Code"]" Width="90px" VisibleIndex="0"
+        <GridLinkColumn FieldName="Code" Caption="@L["Code"]" Width="90px" FixedPosition="GridColumnFixedPosition.Left" VisibleIndex="1"
                         OnClick="@(o => BeforeUpdateAsync((ServiceListDto)o))" />
-        <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" VisibleIndex="1" />
+        <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" VisibleIndex="1"  MinWidth="200" />
     </GridColumns>
 
 </CrudLayout>

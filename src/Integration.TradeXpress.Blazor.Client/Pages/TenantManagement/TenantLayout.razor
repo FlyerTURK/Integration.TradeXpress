@@ -34,6 +34,7 @@
     <DxTabPage Text="@L["Companies"].Value" TabIconCssClass="@TradeXpressIcons.Company">
         @* Şirketler: tam graf (CompanyEditFields + CompanyBranchDrill). Tek merkez şirket. *@
         <DrillList TItem="CompanyGraphDto"
+                   @ref="_companyDrill"
                    Title="@L["Companies"]"
                    EntityName="@L["Entity:Company"]"
                    Items="Model.Companies"
@@ -52,7 +53,7 @@
                    OnChanged="@(() => EditChanged?.Invoke())"
                    CustomActions="@CompanyActions">
             <GridColumns>
-                <DxGridDataColumn FieldName="Code" Caption="@L["Code"]" Width="110px" />
+                <GridLinkColumn FieldName="Code" Caption="@L["Code"]" Width="110px" FixedPosition="GridColumnFixedPosition.Left" VisibleIndex="1" OnClick="@(item => _companyDrill?.EditItem((CompanyGraphDto)item))" />
                 <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" />
                 <DxGridDataColumn FieldName="CountryCode" Caption="@L["Country"]" Width="90px" />
                 <DxGridDataColumn FieldName="IsHeadquarters" Caption="@L["IsHeadquarters"]" Width="90px" TextAlignment="GridTextAlignment.Left">
@@ -73,6 +74,7 @@
     </DxTabPage>
     <DxTabPage Text="@L["Users"].Value" TabIconCssClass="@TradeXpressIcons.User">
         <DrillList TItem="TenantUserInput"
+                   @ref="_userDrill"
                    Title="@L["Users"]"
                    EntityName="@L["Entity:User"]"
                    Items="Model.Users"
@@ -89,7 +91,7 @@
                    OnChanged="@(() => EditChanged?.Invoke())"
                    CustomActions="@UserActions">
             <GridColumns>
-                <DxGridDataColumn FieldName="UserName" Caption="@L["UserName"]" />
+                <GridLinkColumn FieldName="UserName" Caption="@L["UserName"]" FixedPosition="GridColumnFixedPosition.Left" VisibleIndex="1" OnClick="@(item => _userDrill?.EditItem((TenantUserInput)item))" />
                 <DxGridDataColumn FieldName="Email" Caption="@L["Email"]" />
                 <DxGridDataColumn FieldName="IsAdmin" Caption="@L["IsAdmin"]" Width="90px" TextAlignment="GridTextAlignment.Left">
                     <CellDisplayTemplate Context="cell">@(((TenantUserInput)cell.DataItem).IsAdmin ? L["Yes"].Value : "")</CellDisplayTemplate>
@@ -114,6 +116,9 @@
 @code {
     [Parameter, EditorRequired] public TenantGetDto Model { get; set; } = default!;
     [Parameter] public bool IsNew { get; set; }
+    
+    private DrillList<CompanyGraphDto>? _companyDrill;
+    private DrillList<TenantUserInput>? _userDrill;
     [Parameter] public List<CurrencyUnitListDto> Units { get; set; } = new();
     [Parameter] public List<CountryListDto> Countries { get; set; } = new();
 

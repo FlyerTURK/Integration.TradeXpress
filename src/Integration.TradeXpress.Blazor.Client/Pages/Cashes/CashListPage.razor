@@ -21,9 +21,9 @@
             CustomActions="@_customActions">
 
     <GridColumns>
-        <GridLinkColumn FieldName="Code" Caption="@L["Code"]" Width="90px" VisibleIndex="0"
+        <GridLinkColumn FieldName="Code" Caption="@L["Code"]" Width="90px" FixedPosition="GridColumnFixedPosition.Left" VisibleIndex="1"
                         OnClick="@(o => BeforeUpdateAsync((CashListDto)o))" />
-        <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" VisibleIndex="1" />
+        <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" VisibleIndex="1"  MinWidth="200" />
         <GridLinkColumn FieldName="FollowingUnitCode" Caption="@L["Cash:Currency"]" Width="140px" VisibleIndex="2"
                         OnClick="@(o => OpenUnitAsync(((CashListDto)o).FollowingUnitId, ((CashListDto)o).FollowingUnitCode))" />
         <DxGridDataColumn FieldName="IsGlobal" Caption="@L["Kind"]" Width="100px" VisibleIndex="3" TextAlignment="GridTextAlignment.Left">

@@ -21,9 +21,9 @@
             CustomActions="@_customActions">
 
     <GridColumns>
-        <GridLinkColumn FieldName="Code" Caption="@L["Code"]" Width="130px" VisibleIndex="0"
+        <GridLinkColumn FieldName="Code" Caption="@L["Code"]" Width="130px" FixedPosition="GridColumnFixedPosition.Left" VisibleIndex="1"
                         OnClick="@(o => BeforeUpdateAsync((MetalListDto)o))" />
-        <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" VisibleIndex="1" />
+        <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" VisibleIndex="1"  MinWidth="200" />
         <DxGridDataColumn FieldName="FollowingUnitCode" Caption="@L["CurrencyUnit"]" Width="110px" VisibleIndex="2" />
         <DxGridDataColumn FieldName="Factor" Caption="@L["Factor"]" Width="100px" VisibleIndex="3"
                           DisplayFormat="N5" TextAlignment="GridTextAlignment.Right" />

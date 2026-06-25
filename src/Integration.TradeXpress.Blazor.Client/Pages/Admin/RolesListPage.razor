@@ -22,7 +22,7 @@
             CustomActions="@PermissionActions">
 
     <GridColumns>
-        <GridLinkColumn FieldName="Name" Caption="@L["Name"]" VisibleIndex="0"
+        <GridLinkColumn FieldName="Name" Caption="@L["Name"]" FixedPosition="GridColumnFixedPosition.Left" VisibleIndex="1"
                         OnClick="@(o => BeforeUpdateAsync((RoleListDto)o))" />
         <DxGridDataColumn FieldName="IsDefault" Caption="@L["IsDefault"]" Width="120px" VisibleIndex="1" />
         <DxGridDataColumn FieldName="IsPublic" Caption="@L["IsPublic"]" Width="120px" VisibleIndex="2" />

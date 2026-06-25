@@ -20,9 +20,9 @@
             OnSearchChanged="OnSearchAsync">
 
     <GridColumns>
-        <GridLinkColumn FieldName="Code" Caption="@L["Code"]" Width="120px" VisibleIndex="0"
+        <GridLinkColumn FieldName="Code" Caption="@L["Code"]" Width="120px" FixedPosition="GridColumnFixedPosition.Left" VisibleIndex="1"
                         OnClick="@(o => BeforeUpdateAsync((StoneListDto)o))" />
-        <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" VisibleIndex="1" />
+        <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" VisibleIndex="1"  MinWidth="200" />
         <DxGridDataColumn FieldName="StoneKind" Caption="@L["StoneKind"]" Width="120px" VisibleIndex="2" />
         <DxGridDataColumn FieldName="Color" Caption="@L["Color"]" Width="100px" VisibleIndex="3" />
     </GridColumns>

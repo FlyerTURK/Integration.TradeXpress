@@ -65,7 +65,7 @@
         <DxGridBandColumn Caption="@L["FollowingAndMargin"]" Visible="@IsTenantMode" CaptionAlignment="GridTextAlignment.Center" VisibleIndex="5">
             <Columns>
                 @* Takip birimi de bir para birimi → edit'ini MDI sekmesinde aç (linkli). *@
-                <GridLinkColumn FieldName="FollowingUnitCode" Caption="@L["FollowingUnit"]" Width="100px" VisibleIndex="0"
+                <GridLinkColumn FieldName="FollowingUnitCode" Caption="@L["FollowingUnit"]" Width="100px" FixedPosition="GridColumnFixedPosition.Left" VisibleIndex="1"
                                 OnClick="@(o => OpenUnitAsync(((CurrencyUnitListDto)o).FollowingUnitId, ((CurrencyUnitListDto)o).FollowingUnitCode))" />
                 <DxGridDataColumn Caption="@L["Buy"]" Width="95px" AllowSort="false" VisibleIndex="1" TextAlignment="GridTextAlignment.Right">
                     <CellDisplayTemplate>@FollowedPrice(((CurrencyUnitListDto)context.DataItem).FollowingUnitId, buy: true)</CellDisplayTemplate>

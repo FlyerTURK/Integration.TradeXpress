@@ -65,4 +65,69 @@ window.erpFetchFindTenant = async function (name) {
         const el = document.getElementById(id);
         if (el) { try { el.focus(); } catch { /* ignore */ } }
     };
+
+    ux.focusFirstPopupInput = function () {
+        setTimeout(() => {
+            const popupHeaders = document.querySelectorAll('.dxbs-popup-header');
+            popupHeaders.forEach(header => {
+                const closeBtns = header.querySelectorAll('.btn-close, .dx-closebutton, button[aria-label="Close"], button.dx-btn-icon');
+                closeBtns.forEach(btn => btn.setAttribute('tabindex', '-1'));
+            });
+
+            const popupContents = document.querySelectorAll('.dxbs-popup-content');
+            if (popupContents.length > 0) {
+                const lastContent = popupContents[popupContents.length - 1];
+                const allInputs = lastContent.querySelectorAll('input:not([type=hidden]), textarea');
+                let targetInput = null;
+                
+                for(let i = 0; i < allInputs.length; i++) {
+                    let el = allInputs[i];
+                    if (el.disabled || el.readOnly) continue;
+                    
+                    let parent = el.closest('.dxbs-editor, .dx-editor, .dx-widget, [class*="readonly"], [class*="disabled"]');
+                    if (parent && (parent.classList.contains('dxbs-readonly') || parent.classList.contains('dxbs-disabled') || parent.classList.contains('dx-state-readonly') || parent.classList.contains('dx-state-disabled') || parent.hasAttribute('disabled') || parent.hasAttribute('readonly'))) {
+                        continue;
+                    }
+                    targetInput = el;
+                    break;
+                }
+
+                if (targetInput) {
+                    try {
+                        targetInput.focus();
+                        if (targetInput.select) targetInput.select();
+                    } catch { }
+                }
+            }
+        }, 50);
+    };
+
+    ux.focusFirstFormInput = function (formId) {
+        setTimeout(() => {
+            const form = document.getElementById(formId);
+            if (!form) return;
+            
+            const allInputs = form.querySelectorAll('input:not([type=hidden]), textarea');
+            let targetInput = null;
+            
+            for(let i = 0; i < allInputs.length; i++) {
+                let el = allInputs[i];
+                if (el.disabled || el.readOnly) continue;
+                
+                let parent = el.closest('.dxbs-editor, .dx-editor, .dx-widget, [class*="readonly"], [class*="disabled"]');
+                if (parent && (parent.classList.contains('dxbs-readonly') || parent.classList.contains('dxbs-disabled') || parent.classList.contains('dx-state-readonly') || parent.classList.contains('dx-state-disabled') || parent.hasAttribute('disabled') || parent.hasAttribute('readonly'))) {
+                    continue;
+                }
+                targetInput = el;
+                break;
+            }
+
+            if (targetInput) {
+                try {
+                    targetInput.focus();
+                    if (targetInput.select) targetInput.select();
+                } catch { }
+            }
+        }, 100);
+    };
 })(window.erpUx);

@@ -74,6 +74,7 @@
 <DxTabs CssClass="mt-3">
     <DxTabPage Text="@L["SubAccounts"].Value" TabIconCssClass="@TradeXpressIcons.SubAccount">
         <DrillList TItem="SubAccountGraphDto"
+                   @ref="_subAccountDrill"
                    Title="@L["SubAccounts"]"
                    EntityName="@L["SubAccount"]"
                    Items="Model.SubAccounts"
@@ -87,7 +88,7 @@
                    FilterPredicate="@(s => !s.IsDeleted)"
                    OnChanged="@(() => EditChanged?.Invoke())">
             <GridColumns>
-                <DxGridDataColumn FieldName="Code" Caption="@L["Code"]" Width="140px" />
+                <GridLinkColumn FieldName="Code" Caption="@L["Code"]" Width="140px" FixedPosition="GridColumnFixedPosition.Left" VisibleIndex="1" OnClick="@(item => _subAccountDrill?.EditItem((SubAccountGraphDto)item))" />
                 <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" />
                 <DxGridDataColumn FieldName="IsActive" Caption="@L["Status"]" Width="110px" TextAlignment="GridTextAlignment.Left">
                     <CellDisplayTemplate Context="cell"><StatusCell Active="@(((SubAccountGraphDto)cell.DataItem).IsActive)" /></CellDisplayTemplate>
@@ -112,6 +113,8 @@
     [Parameter] public bool IsNew { get; set; }
     [Parameter] public IReadOnlyList<CurrencyUnitListDto> Currencies { get; set; } = Array.Empty<CurrencyUnitListDto>();
     [Parameter] public Func<Guid?, Task>? OnEditCurrency { get; set; }
+
+    private DrillList<SubAccountGraphDto>? _subAccountDrill;
 
     // Drill değişimini forma bildir (dirty/Save) — EntityEditForm EditChanged cascade'i.
     [CascadingParameter(Name = "EditChanged")] private Action? EditChanged { get; set; }

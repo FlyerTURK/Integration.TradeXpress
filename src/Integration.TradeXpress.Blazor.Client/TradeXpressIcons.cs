@@ -9,48 +9,48 @@ namespace Integration.TradeXpress.Blazor.Client;
 public static class TradeXpressIcons
 {
     // ── Org hiyerarşisi ──
-    public const string Company = "fas fa-building";
-    public const string Branch = "fas fa-code-branch";
-    public const string Vault = "fas fa-vault";
+    public const string Company = "custom-icon-company";
+    public const string Branch = "custom-icon-branch";
+    public const string Vault = "custom-icon-vault";
 
     // ── Tanımlar ──
-    public const string Country = "fas fa-earth-europe";
-    public const string CurrencyUnit = "fas fa-coins";
-    public const string Cash = "fas fa-money-bill-wave";
-    public const string Service = "fas fa-screwdriver-wrench";
-    public const string Future = "fas fa-hourglass-half";
-    public const string Scrap = "fas fa-recycle";
-    public const string Metal = "fas fa-ring";
-    public const string Stone = "fas fa-gem";
-    public const string Jewelry = "fas fa-crown";
+    public const string Country = "custom-icon-country";
+    public const string CurrencyUnit = "custom-icon-currency-unit";
+    public const string Cash = "custom-icon-cash";
+    public const string Service = "custom-icon-service";
+    public const string Future = "custom-icon-future";
+    public const string Scrap = "custom-icon-scrap";
+    public const string Metal = "custom-icon-metal";
+    public const string Stone = "custom-icon-stone";
+    public const string Jewelry = "custom-icon-jewelry";
 
     // ── Hesaplar ──
-    public const string Account = "fas fa-book";
-    public const string SubAccount = "fas fa-list-ul";
-    public const string Accounts = "fas fa-book-open";
-    public const string CurrencyMargin = "fas fa-percent";
-    public const string Parity = "fas fa-arrow-right-arrow-left";
+    public const string Account = "custom-icon-account";
+    public const string SubAccount = "custom-icon-list";
+    public const string Accounts = "custom-icon-accounts";
+    public const string CurrencyMargin = "custom-icon-currency-margin";
+    public const string Parity = "custom-icon-parity";
 
     // ── Panolar ──
-    public const string PriceBoard = "fas fa-chart-line";
+    public const string PriceBoard = "custom-icon-price-board";
 
     // ── İşlemler ──
-    public const string CurrentTransactions = "fas fa-right-left";
+    public const string CurrentTransactions = "custom-icon-current-transactions";
 
     // ── Yönetim ──
-    public const string Tenant = "fas fa-users-cog";
-    public const string Settings = "fas fa-cog";
-    public const string User = "fas fa-user";
-    public const string Role = "fas fa-user-tag";
-    public const string Permission = "fas fa-key";
+    public const string Tenant = "custom-icon-tenant";
+    public const string Settings = "custom-icon-settings";
+    public const string User = "custom-icon-user";
+    public const string Role = "custom-icon-role";
+    public const string Permission = "custom-icon-permission";
 
     // ── Menü grupları (parent düğümler) ──
-    public const string Definitions = "fas fa-folder-tree";
-    public const string Commodities = "fas fa-cubes";
-    public const string Organizations = "fas fa-sitemap";
-    public const string Financial = "fas fa-money-bill-trend-up";
-    public const string Identity = "fas fa-id-card-alt";
+    public const string Definitions = "custom-icon-definitions";
+    public const string Commodities = "custom-icon-commodities";
+    public const string Organizations = "custom-icon-organizations";
+    public const string Financial = "custom-icon-financial";
+    public const string Identity = "custom-icon-identity";
 
     // ── Genel ──
-    public const string Home = "fas fa-home";
+    public const string Home = "custom-icon-home";
 }

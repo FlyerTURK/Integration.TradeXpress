@@ -121,7 +121,7 @@ public partial class CurrencyUnitListPage : IDisposable
             : f.Dir > 0
                 ? "var(--flash-green)"
                 : "var(--flash-red)";
-        return $"display:block; text-align:right; padding:2px 6px; border-radius:4px; background:{bg}; transition: background 700ms ease-out;";
+        return $"display:block; width:100%; text-align:right !important; padding:2px 6px; border-radius:4px; background:{bg}; transition: background 700ms ease-out;";
     }
 
     private async Task LivePriceLoopAsync(CancellationToken ct)

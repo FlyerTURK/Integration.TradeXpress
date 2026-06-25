@@ -22,9 +22,9 @@
             CustomActions="@PermissionActions">
 
     <GridColumns>
-        <GridLinkColumn FieldName="UserName" Caption="@L["UserName"]" Width="180px" VisibleIndex="0"
+        <GridLinkColumn FieldName="UserName" Caption="@L["UserName"]" Width="180px" FixedPosition="GridColumnFixedPosition.Left" VisibleIndex="1"
                         OnClick="@(o => BeforeUpdateAsync((UserListDto)o))" />
-        <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" VisibleIndex="1" />
+        <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" VisibleIndex="1"  MinWidth="200" />
         <DxGridDataColumn FieldName="Surname" Caption="@L["Surname"]" VisibleIndex="2" />
         <DxGridDataColumn FieldName="Email" Caption="@L["Email"]" VisibleIndex="3" />
         <DxGridDataColumn FieldName="PhoneNumber" Caption="@L["PhoneNumber"]" Width="140px" VisibleIndex="4" />

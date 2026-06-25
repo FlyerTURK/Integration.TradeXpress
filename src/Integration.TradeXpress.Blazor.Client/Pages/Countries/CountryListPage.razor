@@ -22,9 +22,9 @@
             OnSearchChanged="OnSearchAsync">
 
     <GridColumns>
-        <GridLinkColumn FieldName="Code" Caption="@L["Code"]" Width="90px" VisibleIndex="0"
+        <GridLinkColumn FieldName="Code" Caption="@L["Code"]" Width="90px" FixedPosition="GridColumnFixedPosition.Left" VisibleIndex="1"
                         OnClick="@(o => BeforeUpdateAsync((CountryListDto)o))" />
-        <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" VisibleIndex="1" />
+        <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" VisibleIndex="1"  MinWidth="200" />
         <GridLinkColumn FieldName="DefaultCurrencyCode" Caption="@L["BaseCurrency"]" Width="140px" VisibleIndex="2"
                         OnClick="@(o => OpenUnitAsync(((CountryListDto)o).DefaultCurrencyUnitId, ((CountryListDto)o).DefaultCurrencyCode))" />
         <DxGridDataColumn FieldName="IsGlobal" Caption="@L["Kind"]" Width="100px" VisibleIndex="3" TextAlignment="GridTextAlignment.Left">

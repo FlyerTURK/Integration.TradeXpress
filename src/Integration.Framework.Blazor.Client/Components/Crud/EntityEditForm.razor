@@ -11,6 +11,8 @@
 @implements ISplitEditActions
 @implements IEditHeaderSource
 @implements IDisposable
+@using Microsoft.JSInterop
+@inject IJSRuntime JS
 
 @*
    AGNOSTIC edit form (yeni mimari): API'ye DOKUNMAZ. Bir GetDto (Model) alır, dumb Layout'u (ChildContent)
@@ -23,18 +25,18 @@
 @* Sabit header + toolbar (flex-shrink:0), KAYAN body (flex:1 + overflow-y:auto). Yükseklik açık max-height:88vh
    (popup 90vh içine sığar) — h-100 popup'ta çözülmediğinden EXPLICIT bound veriyoruz → body güvenilir kayar.
    Header = paylaşılan EditHeaderView (Components.Shared import edildi → artık çözülür/görünür). *@
-<div style="display:flex; flex-direction:column; max-height:88vh; min-height:0; overflow-x:hidden; max-width:100%;">
+<div id="@_formId" style="display:flex; flex-direction:column; max-height:88vh; min-height:0; overflow-x:hidden; max-width:100%;">
     @if (Placement == ToolbarPlacement.Top)
     {
         @* Yapısal başlık ENGINE'den gelir (tek kaynak BuildHeader→TabHeaderData → sekme şeridi + app-header üst-paneli).
            Gövdede TEKRAR çizilmez — gereksiz kopyaydı. Popup'ta başlık chrome header'ında (ChromeHeader). *@
-        <div style="border-bottom:1px solid #dee2e6; padding-bottom:0.5rem; margin-bottom:0.5rem; flex-shrink:0;">
+        <div style="border-bottom:1px solid #dee2e6; padding:0.5rem 0.75rem; margin-bottom:0.5rem; flex-shrink:0;">
             @* TEK edit toolbar — drill edit popup'ı da AYNI EditToolbar'ı kullanır (ikiz değil, aynısı). *@
             <EditToolbar EditController="@this" OnActionInvoked="StateHasChanged" />
         </div>
     }
 
-    <div style="flex:1 1 auto; overflow-y:auto; overflow-x:hidden; min-height:0; padding:0.25rem;">
+    <div style="flex:1 1 auto; overflow-y:auto; overflow-x:hidden; min-height:0; padding:0.25rem 0.75rem 0.75rem;">
         @if (_editContext != null)
         {
             <EditForm EditContext="@_editContext">
@@ -121,6 +123,7 @@
     private string? _cleanSnapshot;
     private string? _lastSeenJson;
     private bool _busy;
+    private string _formId = "edit_form_" + Guid.NewGuid().ToString("N");
 
     protected override void OnParametersSet()
     {
@@ -173,13 +176,25 @@
     // Editör değişince (her tuş/blur) toolbar CanSave + başlık "*" tazelensin.
     private Func<Task<bool>>? _closeGuard;
 
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && CurrentMdiTab != null)
+        {
+            try { await JS.InvokeVoidAsync("erpUx.focusFirstFormInput", _formId); } catch { }
+        }
+        await base.OnAfterRenderAsync(firstRender);
+    }
+
     protected override void OnAfterRender(bool firstRender)
     {
         // Kapanış guard'ı (dirty onayı): popup → chrome (native X/Escape); tab → CurrentMdiTab.CanCloseAsync.
         // Her render'da set (cache'li delegate): yeniden açılıp guard temizlense de tekrar bağlanır.
         _closeGuard ??= () => ((ISplitEditActions)this).CanLeaveAsync();
-        if (PopupChrome is not null) PopupChrome.SetCloseGuard(_closeGuard);
-        else if (CurrentMdiTab is { } tab) tab.CanCloseAsync = _closeGuard;
+
+        if (PopupChrome != null)
+            PopupChrome.SetCloseGuard(_closeGuard);
+        else if (CurrentMdiTab != null)
+            CurrentMdiTab.CanCloseAsync = _closeGuard;
 
         if (_snapshotPending)
         {

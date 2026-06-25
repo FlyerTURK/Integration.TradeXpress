@@ -1,7 +1,9 @@
 @using DevExpress.Blazor
 @using Microsoft.AspNetCore.Components
+@using Microsoft.JSInterop
 @using Integration.Framework.Blazor.Client.Services.Base
 @inject IPopupService PopupService
+@inject IJSRuntime JS
 @implements IDisposable
 @implements IPopupChrome
 
@@ -12,6 +14,7 @@
 <DxPopup Visible="@PopupService.IsVisible"
          Closing="OnClosing"
          Closed="OnClosed"
+         Shown="OnShown"
          ShowCloseButton="true"
          ShowFooter="false"
          Width="95%"
@@ -63,6 +66,15 @@
 
     private void HandleShow() { _chromeHeader = null; _chromeGuard = null; StateHasChanged(); }   // yeni popup → temizle
     private void HandleHide() { _chromeHeader = null; _chromeGuard = null; StateHasChanged(); }
+
+    private async Task OnShown()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("erpUx.focusFirstPopupInput");
+        }
+        catch { }
+    }
 
     // Kapanma ÖNCESİ (Closing): kullanıcı kapanışında (X/Escape/dış tık) kirli guard'ı çalıştır; reddedilirse
     // args.Cancel=true → popup HİÇ kapanmaz.

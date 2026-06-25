@@ -42,7 +42,7 @@
         <DxGridBandColumn Caption="@L["GeneralInfo"]" CaptionAlignment="GridTextAlignment.Center" VisibleIndex="3">
             <Columns>
                 @* Baz / Karşı: ilgili para biriminin edit'ini MDI sekmesinde aç (linkli). *@
-                <GridLinkColumn FieldName="BaseCode" Caption="@L["Base"]" Width="100px" VisibleIndex="0"
+                <GridLinkColumn FieldName="BaseCode" Caption="@L["Base"]" Width="100px" FixedPosition="GridColumnFixedPosition.Left" VisibleIndex="1"
                                 OnClick="@(o => OpenUnitAsync(((ParityListDto)o).BaseCurrencyUnitId, ((ParityListDto)o).BaseCode))" />
                 <GridLinkColumn FieldName="QuoteCode" Caption="@L["Quote"]" Width="100px" VisibleIndex="1"
                                 OnClick="@(o => OpenUnitAsync(((ParityListDto)o).QuoteCurrencyUnitId, ((ParityListDto)o).QuoteCode))" />

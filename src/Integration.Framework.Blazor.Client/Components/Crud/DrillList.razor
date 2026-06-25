@@ -478,7 +478,7 @@
         _popupVisible = true;
     }
 
-    private void BeginEdit(TItem item)
+    public void EditItem(TItem item)
     {
         _editOriginal = item;
         _editItem = CloneFactory != null ? CloneFactory(item) : item;  // kopya → Cancel geri alabilir
@@ -492,7 +492,7 @@
     {
         if (ReadOnly) return;
         if (e.Grid.GetDataItem(e.VisibleIndex) is not TItem item) return;
-        BeginEdit(item);
+        EditItem(item);
     }
 
     // Satır tıkla = inline düzenle → düzenlenebilir drill'de satır üzerinde el (pointer) cursor (CSS sınıfı yok).

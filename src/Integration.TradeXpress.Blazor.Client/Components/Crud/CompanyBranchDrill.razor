@@ -16,6 +16,7 @@
 
 <div class="mt-3">
     <DrillList TItem="BranchGraphDto"
+               @ref="_drill"
                Title="@L["Menu:Branches"]"
                EntityName="@L["Entity:Branch"]"
                Items="Model.Branches"
@@ -36,7 +37,7 @@
                OnChanged="NotifyChangedAsync"
                CustomActions="@BranchActions">
         <GridColumns>
-            <DxGridDataColumn FieldName="Code" Caption="@L["Code"]" Width="120px" />
+            <GridLinkColumn FieldName="Code" Caption="@L["Code"]" Width="120px" FixedPosition="GridColumnFixedPosition.Left" VisibleIndex="1" OnClick="@(item => _drill?.EditItem((BranchGraphDto)item))" />
             <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" />
             <DxGridDataColumn FieldName="IsHeadquarters" Caption="@L["IsHeadquarters"]" Width="90px" TextAlignment="GridTextAlignment.Left">
                 <CellDisplayTemplate Context="cell">@(((BranchGraphDto)cell.DataItem).IsHeadquarters ? L["Yes"].Value : "")</CellDisplayTemplate>
@@ -65,6 +66,7 @@
     [Parameter] public EventCallback OnChanged { get; set; }
 
     private BranchGraphDto? _selectedBranch;
+    private DrillList<BranchGraphDto>? _drill;
 
     // Toolbar custom action — liste sayfalarıyla AYNI descriptor sözleşmesi (SortIndex 300: Sil ile Arama arası).
     private IReadOnlyList<CrudToolbarAction> BranchActions => new[]
