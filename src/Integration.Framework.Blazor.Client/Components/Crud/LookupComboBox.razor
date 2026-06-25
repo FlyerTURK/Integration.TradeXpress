@@ -19,6 +19,8 @@
             TextFieldName="@TextFieldName"
             Value="@Value"
             ValueChanged="@OnInternalValueChanged"
+            DropDownVisibleChanged="@OnDropDownVisibleChanged"
+            @onblur="@OnBlurInternal"
             Enabled="@_effectiveEnabled"
             ReadOnly="@_effectiveReadOnly"
             NullText="@NullText"
@@ -31,12 +33,14 @@
             CssClass="w-100"
             Columns="@Columns">
     <Buttons>
-        <DxEditorButton IconCssClass="fas fa-pen-to-square" Visible="@ShowEditButton" Click="@OnEditButtonClick" Tooltip="@L["Edit"].Value" />
-        <DxEditorButton IconCssClass="fas fa-plus" Visible="@ShowAddButton" Click="@OnAddButtonClick" Tooltip="@L["New"].Value" />
+        <DxEditorButton IconCssClass="xaf-edit-icon" Visible="@ShowEditButton" Click="@OnEditButtonClick" Tooltip="@L["Edit"].Value" />
+        <DxEditorButton IconCssClass="xaf-new-icon" Visible="@ShowAddButton" Click="@OnAddButtonClick" Tooltip="@L["New"].Value" />
     </Buttons>
 </DxComboBox>
 
 @code {
+    /// <summary>Bileşen tamamen odağı kaybettiğinde (dropdown kapalıyken) tetiklenir.</summary>
+    [Parameter] public EventCallback LostFocus { get; set; }
     [Parameter, EditorRequired] public IEnumerable<TItem> Data { get; set; } = Array.Empty<TItem>();
     [Parameter, EditorRequired] public string ValueFieldName { get; set; } = "";
     [Parameter, EditorRequired] public string TextFieldName { get; set; } = "";
@@ -90,6 +94,18 @@
         (!_effectiveReadOnly && _effectiveEnabled && _isNullable && AllowClear)
             ? DataEditorClearButtonDisplayMode.Auto
             : DataEditorClearButtonDisplayMode.Never;
+
+    // Dropdown açık/kapalı durumu — @onblur dropdown toggle sırasında da tetiklenir; bunu ayırt etmek için.
+    private bool _dropDownVisible;
+
+    private void OnDropDownVisibleChanged(bool visible) => _dropDownVisible = visible;
+
+    private async Task OnBlurInternal(FocusEventArgs e)
+    {
+        // Dropdown açıkken tetiklenen blur → false positive (dropdown toggle). Yok say.
+        if (_dropDownVisible) return;
+        await LostFocus.InvokeAsync();
+    }
 
     // DxComboBox custom ValueChanged Blazor'ın @bind dirty hook'unu bypass eder → caller'a forward + EditContext'e elle bildir.
     private async Task OnInternalValueChanged(TValue? value)

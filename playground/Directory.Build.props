@@ -1,0 +1,8 @@
+<!-- Playground: projemizden BAĞIMSIZ. Bu dosya MSBuild'in yukarı doğru kök Directory.Build.props'u
+     bulmasını DURDURUR (en yakın bulunan kazanır) → kök common.props/banned-package/analyzer mirası gelmez.
+     CPM (kök Directory.Packages.props) da kapatılır → paket sürümleri burada serbest. -->
+<Project>
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+</Project>

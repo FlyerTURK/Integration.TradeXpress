@@ -155,6 +155,7 @@ public class VoucherAppService : TradeXpressAppService, IVoucherAppService
                          v.Description,
                          BranchCode = b == null ? string.Empty : b.Code,
                          VaultCode  = vault == null ? (string?)null : vault.Code,
+                         LineCount  = v.Lines.Count(),
                      };
 
         var total = await AsyncExecuter.CountAsync(joined);
@@ -171,6 +172,7 @@ public class VoucherAppService : TradeXpressAppService, IVoucherAppService
                 Description   = v.Description,
                 BranchCode    = v.BranchCode,
                 VaultCode     = v.VaultCode,
+                LineCount     = v.LineCount,
             }).ToList());
     }
 
@@ -468,4 +470,9 @@ public class VoucherAppService : TradeXpressAppService, IVoucherAppService
         PayUnitRate:      i.PayUnitRate,
         DueDate:          i.DueDate,
         Description:      i.Description);
+
+    public async Task DeleteAsync(Guid id)
+    {
+        await _repository.DeleteAsync(id, autoSave: true);
+    }
 }

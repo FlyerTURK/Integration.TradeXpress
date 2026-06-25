@@ -60,4 +60,23 @@ public partial class CashListPage
 
         await base.DeleteAsync();
     }
+
+    private System.Collections.Generic.IReadOnlyList<Integration.Framework.Blazor.Client.Components.Crud.CrudToolbarAction>? _customActions;
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        _customActions = new System.Collections.Generic.List<Integration.Framework.Blazor.Client.Components.Crud.CrudToolbarAction>
+        {
+            new Integration.Framework.Blazor.Client.Components.Crud.CrudToolbarAction
+            {
+                SortIndex = 150,
+                Text = L["CashReport"].Value,
+                AdaptiveText = L["CashReport"].Value,
+                Tooltip = L["CashReport"].Value,
+                IconCssClass = "fa fa-chart-bar",
+                OnClick = async () => await TabManager.OpenOrActivateAsync("/reports/cash", L["CashReport"].Value, "fa fa-chart-bar")
+            }
+        };
+    }
 }

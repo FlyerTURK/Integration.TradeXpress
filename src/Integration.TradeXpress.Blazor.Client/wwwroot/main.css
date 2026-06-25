@@ -39,6 +39,10 @@
 :root {
     --lpx-logo: url('/images/logo/leptonxlite/logo-light-thumbnail.png') !important;
     --lpx-logo-icon: url('/images/logo/leptonxlite/logo-light-thumbnail.png') !important;
+    --gradient-green: linear-gradient(to bottom, #1b5e20, #66bb6a);
+    --gradient-red: linear-gradient(to bottom, #7f0000, #ef5350);
+    --flash-green: linear-gradient(to bottom, rgba(27, 94, 32, 0.45), rgba(102, 187, 106, 0.04));
+    --flash-red: linear-gradient(to bottom, rgba(127, 0, 0, 0.45), rgba(239, 83, 80, 0.04));
 }
 
 :root .abp-account-layout .lpx-brand-logo {
@@ -71,6 +75,7 @@
     max-height: 16px;
     width: 16px;
     height: 16px;
+    filter: none !important;
 }
 
 /* Primary toolbar butonu (Kaydet): primary'ye özel override YOK — DevExpress tema stili (native) kullanılır.
@@ -309,6 +314,42 @@
     background-size: contain;
     background-repeat: no-repeat;
     background-position: center;
+}
+
+/* XAF Edit Icon */
+.xaf-edit-icon {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    background-image: url('/images/xaf/action_edit.svg');
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+    filter: none !important;
+}
+
+/* XAF New Icon */
+.xaf-new-icon {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    background-image: url('/images/xaf/action_new.svg');
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+    filter: none !important;
+}
+
+/* XAF Delete Icon */
+.xaf-delete-icon {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    background-image: url('/images/xaf/action_delete.svg');
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+    filter: none !important;
 }
 
 /* Edit popup (.crud-edit-popup): özel CSS YOK — saf DevExpress baseline kullanılır.
@@ -721,3 +762,65 @@
 .grid-btn-link:focus {
     color: #0a58ca;
 }
+
+/* Clickable menu items in sidebar (Madenler, Hurdalar, Nakitler parent menus) underline styling */
+.underline-menu-item a,
+.underline-menu-item .lpx-menu-item-link,
+.underline-menu-item .lpx-menu-item-text,
+.underline-menu-item .lpx-menu-link,
+.underline-menu-item .lpx-nav-link,
+.lpx-sidebar a[href="/cashes"],
+.lpx-sidebar a[href="/scraps"],
+.lpx-sidebar a[href="/metals"],
+.lpx-navbar a[href="/cashes"],
+.lpx-navbar a[href="/scraps"],
+.lpx-navbar a[href="/metals"],
+.lpx-nav-menu a[href="/cashes"],
+.lpx-nav-menu a[href="/scraps"],
+.lpx-nav-menu a[href="/metals"] {
+    text-decoration: underline !important;
+}
+.underline-menu-item a i,
+.underline-menu-item a svg,
+.underline-menu-item a img,
+.underline-menu-item a .lpx-menu-item-icon,
+.underline-menu-item a .lpx-menu-item-icon-wrapper,
+.lpx-sidebar a[href="/cashes"] i,
+.lpx-sidebar a[href="/scraps"] i,
+.lpx-sidebar a[href="/metals"] i,
+.lpx-navbar a[href="/cashes"] i,
+.lpx-navbar a[href="/scraps"] i,
+.lpx-navbar a[href="/metals"] i {
+    text-decoration: none !important;
+    display: inline-block;
+}
+
+/* Custom Toolbar SVG Icons — renkli, DX filtresi devre dışı */
+.custom-icon-metal,
+.custom-icon-scrap,
+.custom-icon-cash,
+.custom-icon-convert,
+.custom-icon-service,
+.custom-icon-future,
+.custom-icon-stone,
+.custom-icon-jewelry,
+.custom-icon-list {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+    filter: none !important;
+    -webkit-filter: none !important;
+}
+
+.custom-icon-metal    { background-image: url('/images/custom/metal.svg'); }
+.custom-icon-scrap    { background-image: url('/images/custom/scrap.svg'); }
+.custom-icon-cash     { background-image: url('/images/custom/cash.svg'); }
+.custom-icon-convert  { background-image: url('/images/custom/convert.svg'); }
+.custom-icon-service  { background-image: url('/images/custom/service.svg'); }
+.custom-icon-future   { background-image: url('/images/custom/future.svg'); }
+.custom-icon-stone    { background-image: url('/images/custom/stone.svg'); }
+.custom-icon-jewelry  { background-image: url('/images/custom/jewelry.svg'); }
+.custom-icon-list     { background-image: url('/images/custom/list.svg'); }

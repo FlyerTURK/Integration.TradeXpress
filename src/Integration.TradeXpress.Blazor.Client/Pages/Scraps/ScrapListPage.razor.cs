@@ -55,4 +55,23 @@ public partial class ScrapListPage
 
         await base.DeleteAsync();
     }
+
+    private System.Collections.Generic.IReadOnlyList<Integration.Framework.Blazor.Client.Components.Crud.CrudToolbarAction>? _customActions;
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        _customActions = new System.Collections.Generic.List<Integration.Framework.Blazor.Client.Components.Crud.CrudToolbarAction>
+        {
+            new Integration.Framework.Blazor.Client.Components.Crud.CrudToolbarAction
+            {
+                SortIndex = 150,
+                Text = L["ScrapReport"].Value,
+                AdaptiveText = L["ScrapReport"].Value,
+                Tooltip = L["ScrapReport"].Value,
+                IconCssClass = "fa fa-chart-bar",
+                OnClick = async () => await TabManager.OpenOrActivateAsync("/reports/scrap", L["ScrapReport"].Value, "fa fa-chart-bar")
+            }
+        };
+    }
 }

@@ -1,0 +1,3 @@
+<!-- Kök Directory.Build.targets mirasını durdurur (banned-API analyzer vb. playground'a sızmasın). -->
+<Project>
+</Project>

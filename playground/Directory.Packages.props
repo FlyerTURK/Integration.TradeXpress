@@ -1,0 +1,7 @@
+<!-- En yakın Directory.Packages.props budur → MSBuild kök CPM dosyasını bulmaz.
+     CPM'i kapatıyoruz; playground paket sürümlerini csproj'da serbestçe verir (projemizden bağımsız). -->
+<Project>
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+</Project>

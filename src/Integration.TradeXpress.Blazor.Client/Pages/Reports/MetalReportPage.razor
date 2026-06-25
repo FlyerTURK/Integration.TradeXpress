@@ -1,0 +1,150 @@
+@page "/reports/metal"
+@using Integration.TradeXpress.Branches
+@using Integration.TradeXpress.Companies
+@using Integration.TradeXpress.Metals
+@using Integration.TradeXpress.Reports
+@using Integration.TradeXpress.Vaults
+@using Integration.TradeXpress.Vouchers
+@using DevExpress.Blazor
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+<PageTitle>Maden Raporu</PageTitle>
+
+<div style="padding:12px; display:flex; flex-direction:column; gap:12px; height:100%;">
+
+    @* ── Kapsam + tarih filtresi ── *@
+    <div style="display:flex; flex-wrap:wrap; gap:8px; align-items:flex-end;">
+
+        <div style="display:flex; flex-direction:column; gap:2px;">
+            <label style="font-size:11px; color:var(--dxbl-text-secondary);">Şirket</label>
+            <DxComboBox Data="@_companies"
+                        TextFieldName="@nameof(CompanyListDto.Name)"
+                        ValueFieldName="@nameof(CompanyListDto.Id)"
+                        Value="_filter.CompanyId"
+                        ValueChanged="@((Guid? v) => OnCompanyChanged(v))"
+                        NullText="(Tümü)"
+                        ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto"
+                        style="min-width:160px;" />
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:2px;">
+            <label style="font-size:11px; color:var(--dxbl-text-secondary);">Şube</label>
+            <DxComboBox Data="@_branches"
+                        TextFieldName="@nameof(BranchListDto.Name)"
+                        ValueFieldName="@nameof(BranchListDto.Id)"
+                        Value="_filter.BranchId"
+                        ValueChanged="@((Guid? v) => OnBranchChanged(v))"
+                        NullText="(Tümü)"
+                        ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto"
+                        Enabled="@(_filter.CompanyId != null)"
+                        style="min-width:160px;" />
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:2px;">
+            <label style="font-size:11px; color:var(--dxbl-text-secondary);">Kasa</label>
+            <DxComboBox Data="@_vaults"
+                        TextFieldName="@nameof(VaultListDto.Name)"
+                        ValueFieldName="@nameof(VaultListDto.Id)"
+                        @bind-Value="_filter.VaultId"
+                        NullText="(Tümü)"
+                        ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto"
+                        Enabled="@(_filter.BranchId != null)"
+                        style="min-width:140px;" />
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:2px;">
+            <label style="font-size:11px; color:var(--dxbl-text-secondary);">Başlangıç</label>
+            <DxDateEdit @bind-Date="_filter.Start" style="min-width:130px;" />
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:2px;">
+            <label style="font-size:11px; color:var(--dxbl-text-secondary);">Bitiş</label>
+            <DxDateEdit @bind-Date="_filter.End" style="min-width:130px;" />
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:2px;">
+            <label style="font-size:11px; color:var(--dxbl-text-secondary);">Maden</label>
+            <DxComboBox Data="@_metals"
+                        TextFieldName="@nameof(MetalListDto.Name)"
+                        ValueFieldName="@nameof(MetalListDto.Id)"
+                        @bind-Value="_filter.MetalId"
+                        NullText="(Tümü)"
+                        ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto"
+                        style="min-width:160px;" />
+        </div>
+
+        <DxButton Text="Getir" Click="@LoadAsync" RenderStyleMode="ButtonRenderStyleMode.Contained" RenderStyle="ButtonRenderStyle.Primary" />
+    </div>
+
+    @* ── Sekmeler ── *@
+    <DxTabs @bind-ActiveTabIndex="_tabIndex" style="flex:1; min-height:0;">
+
+        <DxTabPage Text="Maden Stoğu">
+            @if (_stockRows != null)
+            {
+                <DxGrid Data="@_stockRows" ShowFilterRow="false" style="height:100%;">
+                    <Columns>
+                        <DxGridDataColumn FieldName="@nameof(MetalStockRowDto.MetalCode)"   Caption="Maden Kodu"  Width="120" />
+                        <DxGridDataColumn FieldName="@nameof(MetalStockRowDto.MetalName)"   Caption="Maden Adı"   Width="180" />
+                        <DxGridDataColumn FieldName="@nameof(MetalStockRowDto.UnitCode)"    Caption="Birim"       Width="80" />
+                        <DxGridDataColumn FieldName="@nameof(MetalStockRowDto.InQuantity)"  Caption="Giriş (Adet)" DisplayFormat="n2" Width="130" />
+                        <DxGridDataColumn FieldName="@nameof(MetalStockRowDto.InAmount)"    Caption="Giriş (Miktar)" DisplayFormat="n4" Width="140" />
+                        <DxGridDataColumn FieldName="@nameof(MetalStockRowDto.OutQuantity)" Caption="Çıkış (Adet)" DisplayFormat="n2" Width="130" />
+                        <DxGridDataColumn FieldName="@nameof(MetalStockRowDto.OutAmount)"   Caption="Çıkış (Miktar)" DisplayFormat="n4" Width="140" />
+                        <DxGridDataColumn FieldName="@nameof(MetalStockRowDto.NetQuantity)" Caption="Net (Adet)"   DisplayFormat="n2" Width="130" />
+                        <DxGridDataColumn FieldName="@nameof(MetalStockRowDto.NetAmount)"   Caption="Net (Miktar)" DisplayFormat="n4" Width="140" />
+                    </Columns>
+                    <TotalSummary>
+                        <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum" FieldName="@nameof(MetalStockRowDto.InQuantity)"  DisplayFormat="n2" />
+                        <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum" FieldName="@nameof(MetalStockRowDto.InAmount)"    DisplayFormat="n4" />
+                        <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum" FieldName="@nameof(MetalStockRowDto.OutQuantity)" DisplayFormat="n2" />
+                        <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum" FieldName="@nameof(MetalStockRowDto.OutAmount)"   DisplayFormat="n4" />
+                        <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum" FieldName="@nameof(MetalStockRowDto.NetQuantity)" DisplayFormat="n2" />
+                        <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum" FieldName="@nameof(MetalStockRowDto.NetAmount)"   DisplayFormat="n4" />
+                    </TotalSummary>
+                </DxGrid>
+            }
+        </DxTabPage>
+
+        <DxTabPage Text="Maden Hareketleri">
+            @if (_movementRows != null)
+            {
+                <DxGrid Data="@_movementRows" ShowFilterRow="true" style="height:100%;">
+                    <Columns>
+                        <DxGridDataColumn FieldName="@nameof(MetalMovementRowDto.VoucherDate)"    Caption="Tarih"       DisplayFormat="d"   Width="95"  />
+                        <DxGridDataColumn FieldName="@nameof(MetalMovementRowDto.SubAccountCode)" Caption="Hesap"                            Width="160" />
+                        <DxGridDataColumn FieldName="@nameof(MetalMovementRowDto.CompanyCode)"    Caption="Şirket"                           Width="90"  />
+                        <DxGridDataColumn FieldName="@nameof(MetalMovementRowDto.BranchCode)"     Caption="Şube"                             Width="90"  />
+                        <DxGridDataColumn FieldName="@nameof(MetalMovementRowDto.VaultCode)"      Caption="Kasa"                             Width="90"  />
+                        <DxGridDataColumn FieldName="@nameof(MetalMovementRowDto.ProcessCode)"    Caption="İşlem"                            Width="65"  />
+                        <DxGridDataColumn FieldName="@nameof(MetalMovementRowDto.Source)"         Caption="Öd.Tipi"                          Width="80"  />
+                        <DxGridDataColumn FieldName="@nameof(MetalMovementRowDto.CommodityCode)"  Caption="Mal"                              Width="100" />
+                        <DxGridDataColumn FieldName="@nameof(MetalMovementRowDto.UnitCode)"       Caption="Birim"                            Width="65"  />
+                        <DxGridDataColumn FieldName="@nameof(MetalMovementRowDto.Factor)"         Caption="Milyem"      DisplayFormat="n4"   Width="100" />
+                        @* ── Adet (Quantity) kolonları ── *@
+                        <DxGridDataColumn FieldName="@nameof(MetalMovementRowDto.DevirQty)"       Caption="Dev.Adet"    DisplayFormat="n2"   Width="110" />
+                        <DxGridDataColumn FieldName="@nameof(MetalMovementRowDto.GirenQty)"       Caption="Giren Adet"  DisplayFormat="n2"   Width="110" />
+                        <DxGridDataColumn FieldName="@nameof(MetalMovementRowDto.CikanQty)"       Caption="Çıkan Adet"  DisplayFormat="n2"   Width="110" />
+                        <DxGridDataColumn FieldName="@nameof(MetalMovementRowDto.RunningQty)"     Caption="Son Adet"    DisplayFormat="n2"   Width="110" />
+                        @* ── Miktar (Amount) kolonları ── *@
+                        <DxGridDataColumn FieldName="@nameof(MetalMovementRowDto.Devir)"          Caption="Dev.Miktar"  DisplayFormat="n4"   Width="120" />
+                        <DxGridDataColumn FieldName="@nameof(MetalMovementRowDto.Giren)"          Caption="Giren"       DisplayFormat="n4"   Width="120" />
+                        <DxGridDataColumn FieldName="@nameof(MetalMovementRowDto.Cikan)"          Caption="Çıkan"       DisplayFormat="n4"   Width="120" />
+                        <DxGridDataColumn FieldName="@nameof(MetalMovementRowDto.RunningBalance)" Caption="Son Durum"   DisplayFormat="n4"   Width="120" />
+                        <DxGridDataColumn FieldName="@nameof(MetalMovementRowDto.Description)"    Caption="Açıklama" />
+                    </Columns>
+                    <TotalSummary>
+                        <DxGridSummaryItem SummaryType="GridSummaryItemType.Count" FieldName="@nameof(MetalMovementRowDto.VoucherDate)" Caption="Kayıt:" />
+                        <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum"   FieldName="@nameof(MetalMovementRowDto.GirenQty)"   DisplayFormat="n2" />
+                        <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum"   FieldName="@nameof(MetalMovementRowDto.CikanQty)"   DisplayFormat="n2" />
+                        <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum"   FieldName="@nameof(MetalMovementRowDto.Giren)"      DisplayFormat="n4" />
+                        <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum"   FieldName="@nameof(MetalMovementRowDto.Cikan)"      DisplayFormat="n4" />
+                    </TotalSummary>
+                </DxGrid>
+            }
+        </DxTabPage>
+
+
+    </DxTabs>
+
+</div>

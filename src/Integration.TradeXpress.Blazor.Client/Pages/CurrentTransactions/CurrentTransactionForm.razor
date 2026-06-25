@@ -16,7 +16,7 @@
 <div style="@GridStyle()">
 
     @* Liste modunda gizli (display:none) — state korunur (Geri'de cari/fiş seçimi kaybolmaz). *@
-    <div style="@($"{PanelBox()} grid-area:p1; min-height:unset; overflow:hidden;{(_listMode ? " display:none;" : "")}")">
+    <div style="@($"{PanelBox()} grid-area:p1; min-height:unset; overflow:hidden;{(_listMode && !_processActive ? " display:none;" : "")}")">
         <AccountSelectionPanel @ref="_accountPanel"
                                OnLineSaved="@OnLineSaved"
                                OnSubAccountSelected="@OnSubAccountSelected"
@@ -26,111 +26,145 @@
                                OnListRequested="@EnterListModeAsync" />
     </div>
 
-    <div style="@($"{PanelBox()} grid-area:p2; display:grid; grid-template-rows:auto 1fr; {(_isMobile ? "min-height:340px;" : "min-height:0;")}")">
-        @if (_listMode)
-        {
-            <DxToolbar Adaptive="false">
-                <DxToolbarItem BeginGroup="true">
-                    <Template>
-                        <DxDateRangePicker StartDate="@_listStart" EndDate="@_listEnd"
-                                           StartDateChanged="@((DateTime? d) => OnListRangeChanged(d ?? _listStart, _listEnd))"
-                                           EndDateChanged="@((DateTime? d) => OnListRangeChanged(_listStart, d ?? _listEnd))"
-                                           DisplayFormat="dd.MM.yyyy" style="width:280px;" />
-                    </Template>
-                </DxToolbarItem>
-                <DxToolbarItem Text="@L["Back"].Value" IconCssClass="fas fa-arrow-left" Click="@ExitListModeAsync" />
-            </DxToolbar>
-        }
-        @* Düzelt/Sil: yalnız cari panel KİLİTLİ (TAMAM) ve process paneli KAPALI iken; liste modunda da görünür. *@
-        @if (_accountLocked && !_processActive)
-        {
-            <DxToolbar>
-                <DxToolbarItem Text="@L["Edit"].Value" IconCssClass="fas fa-pen-to-square"
-                               Enabled="@(_selectedLine != null)" Click="@OnEditLine" />
-                <DxToolbarItem Text="@L["Delete"].Value" IconCssClass="fas fa-trash"
-                               Enabled="@(_selectedLine != null)" Click="@OnDeleteLine" />
-            </DxToolbar>
-        }
-        <div style="min-height:0; min-width:0; overflow:auto;">
-        <DxGrid Data="@_voucherLines" ShowSearchBox="false" PageSize="50" CssClass="h-100"
-                KeyFieldName="@nameof(VoucherLineDto.Id)"
-                ShowFilterRow="true"
-                SelectionMode="GridSelectionMode.Single"
-                AllowSelectRowByClick="true"
-                SelectedDataItem="@_selectedLine"
-                SelectedDataItemChanged="@OnLineSelected">
-            <Columns>
-                <DxGridDataColumn AllowSort="false" FieldName="@nameof(VoucherLineDto.VoucherDate)"   Caption="@nameof(VoucherLineDto.VoucherDate)"   DisplayFormat="dd.MM.yyyy HH:mm" Width="120px" Visible="@_listMode" />
-                <DxGridDataColumn AllowSort="false" FieldName="@nameof(VoucherLineDto.VoucherNumber)" Caption="@nameof(VoucherLineDto.VoucherNumber)" Width="80px" Visible="@_listMode" />
-                <DxGridDataColumn AllowSort="false" FieldName="@nameof(VoucherLineDto.ProcessCode)" Caption="@nameof(VoucherLineDto.ProcessCode)" Width="70px" />
-                <DxGridDataColumn AllowSort="false" FieldName="@nameof(VoucherLineDto.CommodityCode)"    Caption="@nameof(VoucherLineDto.CommodityCode)"    Width="90px" />
-                <DxGridDataColumn AllowSort="false" FieldName="@nameof(VoucherLineDto.Quantity)"         Caption="@nameof(VoucherLineDto.Quantity)"         DisplayFormat="N0" TextAlignment="GridTextAlignment.Right" Width="70px" />
-                <DxGridDataColumn AllowSort="false" FieldName="@nameof(VoucherLineDto.Amount)"           Caption="@nameof(VoucherLineDto.Amount)"           DisplayFormat="N2" TextAlignment="GridTextAlignment.Right" Width="100px" />
-                <DxGridDataColumn AllowSort="false" FieldName="@nameof(VoucherLineDto.Factor)"           Caption="@nameof(VoucherLineDto.Factor)"           DisplayFormat="N5" TextAlignment="GridTextAlignment.Right" Width="90px" />
-                <DxGridDataColumn AllowSort="false" FieldName="@nameof(VoucherLineDto.Total)"            Caption="@nameof(VoucherLineDto.Total)"            DisplayFormat="N2" TextAlignment="GridTextAlignment.Right" Width="100px" />
-                <DxGridDataColumn AllowSort="false" FieldName="@nameof(VoucherLineDto.MainUnitCode)"     Caption="@nameof(VoucherLineDto.MainUnitCode)"     Width="100px" />
-                <DxGridDataColumn AllowSort="false" FieldName="@nameof(VoucherLineDto.PayFactor)"        Caption="@nameof(VoucherLineDto.PayFactor)"        DisplayFormat="N5" TextAlignment="GridTextAlignment.Right" Width="100px" />
-                <DxGridDataColumn AllowSort="false" FieldName="@nameof(VoucherLineDto.PayTotal)"         Caption="@nameof(VoucherLineDto.PayTotal)"         DisplayFormat="N2" TextAlignment="GridTextAlignment.Right" Width="100px" />
-                <DxGridDataColumn AllowSort="false" FieldName="@nameof(VoucherLineDto.PayCommodityCode)" Caption="@nameof(VoucherLineDto.PayCommodityCode)" Width="120px" />
-                <DxGridDataColumn AllowSort="false" FieldName="@nameof(VoucherLineDto.PayUnitCode)"      Caption="@nameof(VoucherLineDto.PayUnitCode)"      Width="100px" />
-                <DxGridDataColumn AllowSort="false" FieldName="@nameof(VoucherLineDto.MarketPrice)"      Caption="@nameof(VoucherLineDto.MarketPrice)"      DisplayFormat="N5" TextAlignment="GridTextAlignment.Right" Width="100px" />
-                <DxGridDataColumn AllowSort="false" FieldName="@nameof(VoucherLineDto.Profit)"           Caption="@nameof(VoucherLineDto.Profit)"           DisplayFormat="N2" TextAlignment="GridTextAlignment.Right" Width="100px" />
-                <DxGridDataColumn AllowSort="false" FieldName="@nameof(VoucherLineDto.DueDate)"          Caption="@nameof(VoucherLineDto.DueDate)"          DisplayFormat="dd.MM.yyyy" Width="100px" />
-                <DxGridDataColumn AllowSort="false" FieldName="@nameof(VoucherLineDto.Description)"      Caption="@nameof(VoucherLineDto.Description)" />
-            </Columns>
-        </DxGrid>
-        </div>
-    </div>
+    @if (_currentSubAccountId.HasValue && _accountLocked)
+    {
+        <div style="@($"{PanelBox()} grid-area:p2; {(_isMobile ? "" : "min-height:0;")}")">
+            <DxTabs TabsPosition="TabsPosition.Bottom" CssClass="w-100 h-100">
+                <DxTabPage Text="@L["Transactions"].Value" TabIconCssClass="custom-icon-list">
+                    <div style="display:grid; grid-template-rows:auto auto 1fr auto; height:100%; padding-top:8px;">
+                        @if (_listMode)
+                        {
+                            <DxToolbar Adaptive="false" CssClass="mb-2">
+                                <DxToolbarItem BeginGroup="true" Alignment="ToolbarItemAlignment.Right">
+                                    <Template>
+                                        <DxDateRangePicker StartDate="@_listStart" EndDate="@_listEnd"
+                                                           StartDateChanged="@((DateTime? d) => OnListRangeChanged(d ?? _listStart, _listEnd))"
+                                                           EndDateChanged="@((DateTime? d) => OnListRangeChanged(_listStart, d ?? _listEnd))"
+                                                           DisplayFormat="@L["ShortDateFormat"].Value" style="width:280px;" />
+                                    </Template>
+                                </DxToolbarItem>
+                                <DxToolbarItem BeginGroup="true" Alignment="ToolbarItemAlignment.Right" Text="@L["Back"].Value" IconCssClass="fas fa-arrow-left" Click="@ExitListModeAsync" />
+                            </DxToolbar>
+                        }
 
-    <div style="@($"{PanelBox()} grid-area:p3;{(_isMobile ? " min-height:380px;" : " width:300px;")}")">
-        <DxTabs TabsPosition="TabsPosition.Bottom" CssClass="w-100">
-            <DxTabPage Text="@L["Balance"].Value">
-                @* Konsolide toplam — hesabın bakiye birimi cinsinden, canlı kurla; alacak=yeşil/borç=kırmızı gradyan.
-                   Bakiye yoksa (0) gösterilmez. (≈ = bir birim değerlenemedi.) *@
-                @if (_consTotal != 0m)
-                {
-                    <div style="@($"height:34px; display:flex; align-items:center; justify-content:center; padding:0 10px; border-radius:4px; color:#fff; font-weight:700; font-size:1.05rem; background:{(_consTotal >= 0m ? "linear-gradient(to bottom,#1b5e20,#66bb6a)" : "linear-gradient(to bottom,#7f0000,#ef5350)")};")">
-                        @(_consComplete ? "" : "≈ ")@Math.Abs(_consTotal).ToString("N2") @_baseCode @(_consTotal < 0m ? "(B)" : "(A)")
+                        <div style="font-size:14px; font-weight:bold; text-align:center; letter-spacing:1px; text-transform:uppercase; width:100%; padding:6px; border-radius:4px 4px 0 0; background-color:rgba(var(--bs-primary-rgb, 13, 110, 253), 0.15);">
+                            @L["TransactionList"].Value
+                        </div>
+
+                        <div style="min-height:0; min-width:0; overflow:auto;">
+                            <DxGrid Data="@_voucherLines" ShowSearchBox="false" PageSize="50" CssClass="h-100"
+                                    KeyFieldName="@nameof(VoucherLineDto.Id)"
+                                    ShowFilterRow="true"
+                                    SelectionMode="GridSelectionMode.Single"
+                                    AllowSelectRowByClick="true"
+                                    SelectedDataItem="@_selectedLine"
+                                    SelectedDataItemChanged="@OnLineSelected">
+                                <Columns>
+                                    @if (_accountLocked && !_processActive)
+                                    {
+                                        <DxGridCommandColumn Width="80px" FixedPosition="GridColumnFixedPosition.Left" NewButtonVisible="false" EditButtonVisible="false" DeleteButtonVisible="false">
+                                            <CellDisplayTemplate>
+                                                @{ var line = (VoucherLineDto)context.DataItem; }
+                                                <div @onclick:stopPropagation="true" class="d-flex justify-content-center align-items-center" style="gap:12px;">
+                                                    <a class="xaf-edit-icon" @onclick="@(async () => { _selectedLine = line; await OnEditLine(); })" href="javascript:void(0);" title="@L["Edit"].Value" style="text-decoration:none;"></a>
+                                                    <a class="xaf-delete-icon" @onclick="@(() => { _selectedLine = line; OnDeleteLine(); })" href="javascript:void(0);" title="@L["Delete"].Value" style="text-decoration:none;"></a>
+                                                </div>
+                                            </CellDisplayTemplate>
+                                        </DxGridCommandColumn>
+                                    }
+                                    <DxGridDataColumn AllowSort="false" FieldName="@nameof(VoucherLineDto.VoucherDate)"   Caption="@L["Date"].ToString().ToUpper()"   DisplayFormat="dd.MM.yyyy HH:mm" Width="120px" Visible="@_listMode" />
+                                    <DxGridDataColumn AllowSort="false" FieldName="@nameof(VoucherLineDto.VoucherNumber)" Caption="@L["Nr"].ToString().ToUpper()" Width="80px" Visible="@_listMode" />
+                                    <DxGridDataColumn AllowSort="false" FieldName="@nameof(VoucherLineDto.ProcessCode)" Caption="@L["Process"].ToString().ToUpper()" Width="70px" />
+                                    <DxGridDataColumn AllowSort="false" FieldName="@nameof(VoucherLineDto.CommodityCode)"    Caption="@L["Code"].ToString().ToUpper()"    Width="90px" />
+                                    <DxGridDataColumn AllowSort="false" FieldName="@nameof(VoucherLineDto.Quantity)"         Caption="@L["Quantity"].ToString().ToUpper()"         DisplayFormat="N0" TextAlignment="GridTextAlignment.Right" Width="70px" />
+                                    <DxGridDataColumn AllowSort="false" FieldName="@nameof(VoucherLineDto.Amount)"           Caption="@L["Amount"].ToString().ToUpper()"           DisplayFormat="N2" TextAlignment="GridTextAlignment.Right" Width="100px" />
+                                    <DxGridDataColumn AllowSort="false" FieldName="@nameof(VoucherLineDto.Factor)"           Caption="@L["Factor"].ToString().ToUpper()"           DisplayFormat="N5" TextAlignment="GridTextAlignment.Right" Width="90px" />
+                                    <DxGridDataColumn AllowSort="false" FieldName="@nameof(VoucherLineDto.Total)"            Caption="@L["Total"].ToString().ToUpper()"            DisplayFormat="N2" TextAlignment="GridTextAlignment.Right" Width="100px" />
+                                    <DxGridDataColumn AllowSort="false" FieldName="@nameof(VoucherLineDto.MainUnitCode)"     Caption="@L["Unit"].ToString().ToUpper()"     Width="100px" />
+                                    <DxGridDataColumn AllowSort="false" FieldName="@nameof(VoucherLineDto.PayFactor)"        Caption="@L["Rate"].ToString().ToUpper()"        DisplayFormat="N5" TextAlignment="GridTextAlignment.Right" Width="100px" />
+                                    <DxGridDataColumn AllowSort="false" FieldName="@nameof(VoucherLineDto.PayTotal)"         Caption="@L["Total"].ToString().ToUpper()"         DisplayFormat="N2" TextAlignment="GridTextAlignment.Right" Width="100px" />
+                                    <DxGridDataColumn AllowSort="false" FieldName="@nameof(VoucherLineDto.PayCommodityCode)" Caption="@L["Unit"].ToString().ToUpper()" Width="120px" />
+                                    <DxGridDataColumn AllowSort="false" FieldName="@nameof(VoucherLineDto.PayUnitCode)"      Caption="@L["Code"].ToString().ToUpper()"      Width="100px" />
+                                    <DxGridDataColumn AllowSort="false" FieldName="@nameof(VoucherLineDto.MarketPrice)"      Caption="@L["Market"].ToString().ToUpper()"      DisplayFormat="N5" TextAlignment="GridTextAlignment.Right" Width="100px" />
+                                    <DxGridDataColumn AllowSort="false" FieldName="@nameof(VoucherLineDto.Profit)"           Caption="@L["Profit"].ToString().ToUpper()"           DisplayFormat="N2" TextAlignment="GridTextAlignment.Right" Width="100px" />
+                                    <DxGridDataColumn AllowSort="false" FieldName="@nameof(VoucherLineDto.DueDate)"          Caption="@L["Due"].ToString().ToUpper()"          DisplayFormat="dd.MM.yyyy" Width="100px" />
+                                </Columns>
+                            </DxGrid>
+                        </div>
+                        @if (_selectedLine is VoucherLineDto selectedLine)
+                        {
+                            <div class="mt-2">
+                                <DxMemo Text="@selectedLine.Description" ReadOnly="true" Rows="1" ResizeMode="MemoResizeMode.Vertical" CssClass="w-100" />
+                            </div>
+                        }
                     </div>
-                }
-                <DxGrid Data="@_balanceRows" ShowSearchBox="false" PageSize="1000" CssClass="mt-2">
-                    <Columns>
-                        <DxGridDataColumn FieldName="@nameof(VoucherBalanceLineDto.UnitCode)" Caption="@nameof(VoucherBalanceLineDto.UnitCode)" Width="70px" />
-                        <DxGridDataColumn FieldName="@nameof(VoucherBalanceLineDto.Credit)" Caption="@nameof(VoucherBalanceLineDto.Credit)" TextAlignment="GridTextAlignment.Right">
-                            <CellDisplayTemplate>
-                                @{ var c = ((VoucherBalanceLineDto)context.DataItem).Credit; }
-                                @if (c > 0)
-                                {
-                                    <span style="color:#2e7d32; font-weight:600;">@c.ToString("N2")</span>
-                                }
-                            </CellDisplayTemplate>
-                        </DxGridDataColumn>
-                        <DxGridDataColumn FieldName="@nameof(VoucherBalanceLineDto.Debt)" Caption="@nameof(VoucherBalanceLineDto.Debt)" TextAlignment="GridTextAlignment.Right">
-                            <CellDisplayTemplate>
-                                @{ var d = ((VoucherBalanceLineDto)context.DataItem).Debt; }
-                                @if (d > 0)
-                                {
-                                    <span style="color:#c62828; font-weight:600;">@d.ToString("N2")</span>
-                                }
-                            </CellDisplayTemplate>
-                        </DxGridDataColumn>
-                    </Columns>
-                </DxGrid>
-            </DxTabPage>
-            <DxTabPage Text="@L["LiveRates"].Value">
-                <DxGrid Data="@_liveRates" ShowSearchBox="false" PageSize="1000">
-                    <Columns>
-                        <DxGridDataColumn FieldName="@nameof(CurrentPriceDto.CurrencyUnitCode)"
-                                          Caption="@nameof(CurrentPriceDto.CurrencyUnitCode)" Width="70px" />
-                        <DxGridDataColumn FieldName="@nameof(CurrentPriceDto.Buy)"
-                                          Caption="@nameof(CurrentPriceDto.Buy)"  DisplayFormat="N5" TextAlignment="GridTextAlignment.Right" />
-                        <DxGridDataColumn FieldName="@nameof(CurrentPriceDto.Sell)"
-                                          Caption="@nameof(CurrentPriceDto.Sell)" DisplayFormat="N5" TextAlignment="GridTextAlignment.Right" />
-                    </Columns>
-                </DxGrid>
-            </DxTabPage>
-        </DxTabs>
-    </div>
+                </DxTabPage>
+            </DxTabs>
+        </div>
+    }
+
+    @if (_currentSubAccountId.HasValue)
+    {
+        <div style="@($"{PanelBox()} grid-area:p3;{(_isMobile ? "" : " width:300px;")}")">
+            <DxTabs TabsPosition="TabsPosition.Bottom" CssClass="w-100">
+                <DxTabPage Text="@L["Balance"].Value">
+                    @* Konsolide toplam — hesabın bakiye birimi cinsinden, canlı kurla; alacak=yeşil/borç=kırmızı gradyan.
+                       Bakiye yoksa (0) gösterilmez. (≈ = bir birim değerlenemedi.) *@
+                    @if (_consTotal != 0m)
+                    {
+                        <div style="@($"height:34px; display:flex; align-items:center; justify-content:center; padding:0 10px; border-radius:4px; color:#fff; font-weight:700; font-size:1.05rem; background:{(_consTotal >= 0m ? "var(--gradient-green)" : "var(--gradient-red)")};")">
+                            @(_consComplete ? "" : "≈ ")@Math.Abs(_consTotal).ToString("N2") @_baseCode @(_consTotal < 0m ? "(B)" : "(A)")
+                        </div>
+                    }
+                    <DxGrid Data="@_balanceRows" ShowSearchBox="false" PageSize="1000" CssClass="mt-2">
+                        <Columns>
+                            <DxGridDataColumn FieldName="@nameof(VoucherBalanceLineDto.UnitCode)" Caption="@L["Code"].Value.ToString().ToUpper()" Width="70px" TextAlignment="GridTextAlignment.Left" CaptionAlignment="GridTextAlignment.Center"/>
+                            <DxGridDataColumn FieldName="@nameof(VoucherBalanceLineDto.Credit)" Caption="@L["Credit"].Value.ToString().ToUpper()" TextAlignment="GridTextAlignment.Right" CaptionAlignment="GridTextAlignment.Center">
+                                <CellDisplayTemplate>
+                                    @{ var c = ((VoucherBalanceLineDto)context.DataItem).Credit; }
+                                    @if (c > 0)
+                                    {
+                                        <span style="color:#2e7d32; font-weight:600;">@c.ToString("N2")</span>
+                                    }
+                                </CellDisplayTemplate>
+                            </DxGridDataColumn>
+                            <DxGridDataColumn FieldName="@nameof(VoucherBalanceLineDto.Debt)" Caption="@L["Debit"].Value.ToString().ToUpper()" TextAlignment="GridTextAlignment.Right" CaptionAlignment="GridTextAlignment.Center">
+                                <CellDisplayTemplate>
+                                    @{ var d = ((VoucherBalanceLineDto)context.DataItem).Debt; }
+                                    @if (d > 0)
+                                    {
+                                        <span style="color:#c62828; font-weight:600;">@d.ToString("N2")</span>
+                                    }
+                                </CellDisplayTemplate>
+                            </DxGridDataColumn>
+                        </Columns>
+                    </DxGrid>
+                </DxTabPage>
+                <DxTabPage Text="@L["LiveRates"].Value">
+                    <DxGrid Data="@_liveRates" ShowSearchBox="false" PageSize="1000">
+                        <Columns>
+                            <DxGridDataColumn FieldName="@nameof(CurrentPriceDto.CurrencyUnitCode)"
+                                              Caption="@nameof(CurrentPriceDto.CurrencyUnitCode)" Width="70px" />
+                            <DxGridDataColumn FieldName="@nameof(CurrentPriceDto.Buy)"
+                                              Caption="@nameof(CurrentPriceDto.Buy)" TextAlignment="GridTextAlignment.Right" Width="115px">
+                                <CellDisplayTemplate>
+                                    @{ var row = (CurrentPriceDto)context.DataItem; }
+                                    <span style="@PriceCellStyle(row.Id, true)"><b>@row.Buy.ToString("N5")</b></span>
+                                </CellDisplayTemplate>
+                            </DxGridDataColumn>
+                            <DxGridDataColumn FieldName="@nameof(CurrentPriceDto.Sell)"
+                                              Caption="@nameof(CurrentPriceDto.Sell)" TextAlignment="GridTextAlignment.Right" Width="115px">
+                                <CellDisplayTemplate>
+                                    @{ var row = (CurrentPriceDto)context.DataItem; }
+                                    <span style="@PriceCellStyle(row.Id, false)"><b>@row.Sell.ToString("N5")</b></span>
+                                </CellDisplayTemplate>
+                            </DxGridDataColumn>
+                        </Columns>
+                    </DxGrid>
+                </DxTabPage>
+            </DxTabs>
+        </div>
+    }
 
 </div>
 
@@ -182,7 +216,10 @@
     private async Task OnLineSaved(Guid voucherId)
     {
         _currentVoucherId = voucherId;
-        _voucherLines = await VoucherService.GetLinesAsync(voucherId);
+        if (_listMode)
+            await ReloadListAsync();   // liste modundayken listeyi yenile, moddan çıkma
+        else
+            _voucherLines = await VoucherService.GetLinesAsync(voucherId);
         _selectedLine = null;
         await RefreshBalanceAsync();
         await InvokeAsync(StateHasChanged);
@@ -270,6 +307,7 @@
         if (_selectedLine is VoucherLineDto line && _accountPanel is not null)
         {
             var dto = await VoucherService.GetLineForEditAsync(line.Id);
+            // _processActive true olunca p1 paneli liste modunda da görünür hale gelir.
             await _accountPanel.BeginEditLineAsync(dto);
         }
     }
@@ -283,7 +321,7 @@
 
     private void OnDeleteLine()
     {
-        if (_selectedLine is not VoucherLineDto || _currentVoucherId is null)
+        if (_selectedLine is not VoucherLineDto)
             return;
 
         _deleteA      = _rng.Next(1, 10);
@@ -295,7 +333,7 @@
 
     private async Task ConfirmDeleteAsync()
     {
-        if (_selectedLine is not VoucherLineDto line || _currentVoucherId is not { } vid)
+        if (_selectedLine is not VoucherLineDto line || line.VoucherId is not { } vid)
             return;
 
         if (_deleteAnswer != _deleteA + _deleteB)
@@ -311,7 +349,12 @@
 
         _showDeleteDialog = false;
         await VoucherService.DeleteLineAsync(vid, line.Id, _deleteReason.Trim());
-        _voucherLines = await VoucherService.GetLinesAsync(vid);
+        
+        if (_listMode)
+            await ReloadListAsync();
+        else
+            _voucherLines = await VoucherService.GetLinesAsync(vid);
+
         _selectedLine = null;
         await RefreshBalanceAsync();
         await InvokeAsync(StateHasChanged);
@@ -394,6 +437,27 @@
     private List<CurrentPriceDto> _liveRates = new();
     private PeriodicTimer? _rateTimer;
 
+    private readonly Dictionary<(Guid Id, bool Buy), decimal> _prevEffective = new();
+    private readonly Dictionary<(Guid Id, bool Buy), (int Dir, DateTime Until)> _flash = new();
+
+    private void TrackDirection(Guid id, bool buy, decimal value, DateTime now)
+    {
+        var key = (id, buy);
+        if (_prevEffective.TryGetValue(key, out var prev) && value != prev)
+            _flash[key] = (value > prev ? 1 : -1, now.AddSeconds(1));
+        _prevEffective[key] = value;
+    }
+
+    protected string PriceCellStyle(Guid id, bool buy)
+    {
+        var on = _flash.TryGetValue((id, buy), out var f) && DateTime.UtcNow < f.Until;
+        var bg = !on ? "transparent"
+            : f.Dir > 0
+                ? "var(--flash-green)"
+                : "var(--flash-red)";
+        return $"display:block; text-align:right; padding:2px 6px; border-radius:4px; background:{bg}; transition: background 700ms ease-out;";
+    }
+
     protected override async Task OnInitializedAsync()
     {
         await base.OnInitializedAsync();
@@ -417,7 +481,17 @@
 
     private async Task RefreshRatesAsync()
     {
-        try { _liveRates = await PriceService.GetCurrentPricesAsync(); }
+        try
+        {
+            var prices = await PriceService.GetCurrentPricesAsync();
+            var now = DateTime.UtcNow;
+            foreach (var p in prices)
+            {
+                TrackDirection(p.Id, buy: true, p.Buy, now);
+                TrackDirection(p.Id, buy: false, p.Sell, now);
+            }
+            _liveRates = prices;
+        }
         catch { }
         ComputeConsolidated();   // konsolide toplam canlı kurla her tikte tazelensin
     }
@@ -426,16 +500,30 @@
 
     private string GridStyle()
     {
-        if (_isMobile)
-            return _listMode
-                ? "display:grid; gap:10px; padding:10px; grid-template-columns:1fr; grid-template-areas:'p3' 'p2'; overflow-y:auto; max-height:calc(100vh - 110px);"
-                : "display:grid; gap:10px; padding:10px; grid-template-columns:1fr; grid-template-areas:'p1' 'p3' 'p2'; overflow-y:auto; max-height:calc(100vh - 110px);";
+        if (!_currentSubAccountId.HasValue)
+        {
+            return _isMobile
+                ? "display:grid; gap:10px; grid-template-columns:1fr; grid-template-areas:'p1'; overflow-y:auto; max-height:calc(100vh - 110px);"
+                : "display:grid; gap:10px; height:calc(100vh - 110px); grid-template-columns:1fr; grid-template-areas:'p1';";
+        }
 
-        return _listMode
-            ? "display:grid; gap:10px; padding:10px; height:calc(100vh - 110px); grid-template-columns:minmax(0,1fr) 300px; grid-template-areas:'p2 p3';"
-            : "display:grid; gap:10px; padding:10px; height:calc(100vh - 110px); grid-template-columns:minmax(0,1fr) 300px; grid-template-rows:auto 1fr; grid-template-areas:'p1 p3' 'p2 p3';";
+        if (!_accountLocked)
+        {
+            return _isMobile
+                ? "display:grid; gap:10px; grid-template-columns:1fr; grid-template-areas:'p1' 'p3'; overflow-y:auto; max-height:calc(100vh - 110px);"
+                : "display:grid; gap:10px; height:calc(100vh - 110px); grid-template-columns:minmax(0,1fr) 300px; grid-template-areas:'p1 p3';";
+        }
+
+        if (_isMobile)
+            return _listMode && !_processActive
+                ? "display:grid; gap:10px; grid-template-columns:1fr; grid-template-areas:'p3' 'p2'; overflow-y:auto; max-height:calc(100vh - 110px);"
+                : "display:grid; gap:10px; grid-template-columns:1fr; grid-template-areas:'p1' 'p3' 'p2'; overflow-y:auto; max-height:calc(100vh - 110px);";
+
+        return _listMode && !_processActive
+            ? "display:grid; gap:10px; height:calc(100vh - 110px); grid-template-columns:minmax(0,1fr) 300px; grid-template-areas:'p2 p3';"
+            : "display:grid; gap:10px; height:calc(100vh - 110px); grid-template-columns:minmax(0,1fr) 300px; grid-template-rows:auto 1fr; grid-template-areas:'p1 p3' 'p2 p3';";
     }
 
     private static string PanelBox() =>
-        "box-sizing:border-box; border-radius:12px; padding:8px; min-width:0;";
+        "box-sizing:border-box; border-radius:12px; padding:4px; min-width:0;";
 }

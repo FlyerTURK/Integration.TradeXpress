@@ -1,6 +1,8 @@
 {
   "Culture": "en",
   "Texts": {
+    "Transactions": "Transactions",
+    "TransactionList": "TRANSACTION LIST",
     "AppName": "TradeXpress",
     "User": "User",
     "Role": "Role",
@@ -213,6 +215,9 @@
     "TradeXpress:Country:CannotEditGlobalAsTenant": "A global (host) country cannot be edited by a tenant.",
     "WorkingBranchCaption": "Company / Branch Selection",
     "Menu:CurrentTransactions": "Current Transactions",
+    "CashReport": "Cash Report",
+    "ScrapReport": "Scrap Report",
+    "MetalReport": "Metal Report",
     "Amount": "Amount",
     "Account": "Current Account",
     "Accounts": "Current Accounts",
@@ -294,9 +299,11 @@
     "Login_TenantPickerApply": "Apply",
     "Login_TenantNotFound": "Organization '{0}' was not found.",
     "VoucherSelection": "Voucher",
+    "AccountSelection": "Account Selection",
     "NewVoucherPlaceholder": "Leave empty for a new voucher...",
-    "VoucherNumber": "Voucher No",
+    "VoucherNumber": "Voucher Nr.",
     "VoucherDate": "Voucher Date",
+    "VoucherComboDisplayTextFormat": "Voucher Nr.: {0} - Voucher Date: {1} ({2} Records)",
     "SelectVault": "Select vault...",
     "Enum:ProcessDirectionType:Inbound": "INBOUND",
     "Enum:ProcessDirectionType:Outbound": "OUTBOUND",
@@ -336,7 +343,6 @@
     "Pricing": "Pricing",
     "EntryPrice": "Buy Price",
     "ExitPrice": "Sell Price",
-    "Factor": "Purity",
     "FactorChange": "Purity Editable",
     "Has": "Fine",
     "Labor": "Labor",
@@ -381,6 +387,15 @@
     "DueDate": "Due Date",
     "Balance": "Balance",
     "Credit": "Credit",
-    "Debt": "Debt"
+    "Debt": "Debt",
+    "Debit": "Debit",
+    "Nr": "Nr.",
+    "Process": "Process",
+    "Total": "Total",
+    "Unit": "Unit",
+    "Rate": "Rate",
+    "Market": "Market",
+    "Due": "Due",
+    "ShortDateFormat": "MM/dd/yy"
   }
 }

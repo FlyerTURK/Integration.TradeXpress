@@ -82,12 +82,22 @@ public class TradeXpressMenuContributor : IMenuContributor
             l["Commodities"],
             icon: TradeXpressIcons.Commodities
         );
-        commodities.AddItem(new ApplicationMenuItem(
+        var cashesMenu = new ApplicationMenuItem(
             TradeXpressMenus.Cashes,
             l["Cashes"],
             url: "/cashes",
             icon: TradeXpressIcons.Cash
-        ).RequirePermissions(TradeXpressPermissions.Cashes.Default));
+        ).RequirePermissions(TradeXpressPermissions.Cashes.Default);
+        cashesMenu.CssClass = "underline-menu-item";
+
+        cashesMenu.AddItem(new ApplicationMenuItem(
+            TradeXpressMenus.Reports + ".Cash",
+            l["CashReport"],
+            url: "/reports/cash",
+            icon: "fa fa-chart-bar"
+        ));
+
+        commodities.AddItem(cashesMenu);
         commodities.AddItem(new ApplicationMenuItem(
             TradeXpressMenus.Services,
             l["Services"],
@@ -100,18 +110,39 @@ public class TradeXpressMenuContributor : IMenuContributor
             url: "/futures",
             icon: TradeXpressIcons.Future
         ));
-        commodities.AddItem(new ApplicationMenuItem(
+        var scrapsMenu = new ApplicationMenuItem(
             TradeXpressMenus.Scraps,
             l["Scraps"],
             url: "/scraps",
             icon: TradeXpressIcons.Scrap
+        );
+        scrapsMenu.CssClass = "underline-menu-item";
+
+        scrapsMenu.AddItem(new ApplicationMenuItem(
+            TradeXpressMenus.Reports + ".Scrap",
+            l["ScrapReport"],
+            url: "/reports/scrap",
+            icon: "fa fa-chart-bar"
         ));
-        commodities.AddItem(new ApplicationMenuItem(
+
+        commodities.AddItem(scrapsMenu);
+
+        var metalsMenu = new ApplicationMenuItem(
             TradeXpressMenus.Metals,
             l["Metals"],
             url: "/metals",
             icon: TradeXpressIcons.Metal
+        );
+        metalsMenu.CssClass = "underline-menu-item";
+
+        metalsMenu.AddItem(new ApplicationMenuItem(
+            TradeXpressMenus.Reports + ".Metal",
+            l["MetalReport"],
+            url: "/reports/metal",
+            icon: "fa fa-chart-bar"
         ));
+
+        commodities.AddItem(metalsMenu);
         commodities.AddItem(new ApplicationMenuItem(
             TradeXpressMenus.Stones,
             l["Stones"],
@@ -166,25 +197,10 @@ public class TradeXpressMenuContributor : IMenuContributor
             l["Menu:CurrentTransactions"],
             url: "/cari-islemler",
             icon: TradeXpressIcons.CurrentTransactions,
-            order: 5
+            order: 1
         ).RequireAuthenticated());
 
-        // Raporlar
-        context.Menu.AddItem(new ApplicationMenuItem(
-            "Reports.Cash",
-            l["Menu:CashReport"],
-            url: "/reports/cash",
-            icon: "fa fa-chart-bar",
-            order: 6
-        ).RequireAuthenticated());
 
-        context.Menu.AddItem(new ApplicationMenuItem(
-            "Reports.Scrap",
-            l["Menu:ScrapReport"],
-            url: "/reports/scrap",
-            icon: "fa fa-chart-bar",
-            order: 6
-        ).RequireAuthenticated());
 
         // Ülkeler (merkezi referans — host yönetir, tenant seçer)
         context.Menu.AddItem(new ApplicationMenuItem(

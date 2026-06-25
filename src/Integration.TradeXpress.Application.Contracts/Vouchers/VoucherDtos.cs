@@ -53,6 +53,7 @@ public class VoucherListDto : EntityDto<Guid>
     public string BranchCode { get; set; } = string.Empty;
     public string? VaultCode { get; set; }
     public string? Description { get; set; }
+    public int LineCount { get; set; }
 
     public string VaultDisplay => VaultCode != null ? $"{BranchCode}/{VaultCode}" : BranchCode;
 }

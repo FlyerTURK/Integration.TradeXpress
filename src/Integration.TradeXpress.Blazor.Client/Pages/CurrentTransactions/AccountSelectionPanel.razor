@@ -8,133 +8,142 @@
 @inject IVoucherAppService VoucherService
 @inject IVaultAppService VaultService
 @inject Integration.TradeXpress.Blazor.Client.Services.Working.IWorkingContextService Working
+@inject Integration.Framework.Blazor.Client.Services.Base.ITradeXpressUiService Ui
 
 @if (_activeProcess == null)
 {
-<DxFormLayout>
-    <DxFormLayoutItem Caption="@L["SubAccount"]" ColSpanMd="12">
-        <LookupComboBox TItem="SubAccountListDto" TValue="Guid?"
-                        Data="@_subAccounts"
-                        ValueFieldName="@nameof(SubAccountListDto.Id)"
-                        TextFieldName="@nameof(SubAccountListDto.AccountSubCodeDisplay)"
-                        Value="@_model.SubAccountId"
-                        ValueChanged="@OnSubAccountChanged"
-                        NullText="@L["Select"].Value"
-                        AllowClear="true"
-                        Enabled="@(!_locked)"
-                        OnEditRequested="@((Guid? id) => Task.CompletedTask)"
-                        OnAddRequested="@(() => Task.FromResult<Guid?>(null))">
-            <Columns>
-                <DxListEditorColumn FieldName="@nameof(SubAccountListDto.AccountDisplay)"
-                                    Caption="@L["Account"]" Width="50%" />
-                <DxListEditorColumn FieldName="@nameof(SubAccountListDto.SubAccountDisplay)"
-                                    Caption="@L["SubAccount"]" />
-            </Columns>
-        </LookupComboBox>
-    </DxFormLayoutItem>
+<div class="d-flex flex-column account-selection-wrapper">
+    <div class="d-flex flex-column flex-md-row gap-3">
+        <!-- Sol Panel -->
+        <div style="flex: 0 0 auto; width: 100%; max-width: 700px;">
+            <DxFormLayout>
+                <!-- Row 1 -->
+                <DxFormLayoutItem Caption="@L["Account"]" ColSpanMd="12">
+                    <LookupComboBox TItem="SubAccountListDto" TValue="Guid?"
+                                    Data="@_subAccounts"
+                                    ValueFieldName="@nameof(SubAccountListDto.Id)"
+                                    TextFieldName="@nameof(SubAccountListDto.AccountSubCodeDisplay)"
+                                    Value="@_model.SubAccountId"
+                                    ValueChanged="@OnSubAccountChanged"
+                                    LostFocus="@OnSubAccountLostFocus"
+                                    NullText="@L["Select"].Value"
+                                    AllowClear="true"
+                                    Enabled="@(!_locked)"
+                                    OnEditRequested="@((Guid? id) => Task.CompletedTask)"
+                                    OnAddRequested="@(() => Task.FromResult<Guid?>(null))">
+                        <Columns>
+                            <DxListEditorColumn FieldName="@nameof(SubAccountListDto.AccountDisplay)"
+                                                Caption="@L["Account"]" Width="50%" />
+                            <DxListEditorColumn FieldName="@nameof(SubAccountListDto.SubAccountDisplay)"
+                                                Caption="@L["SubAccount"]" />
+                        </Columns>
+                    </LookupComboBox>
+                </DxFormLayoutItem>
 
-    <DxFormLayoutItem Caption="@L["VoucherSelection"].Value" ColSpanMd="12" Visible="@(_model.SubAccountId.HasValue)">
-        <DxComboBox TData="VoucherComboItem" TValue="Guid?"
-                    Data="@_voucherItems"
-                    ValueFieldName="@nameof(VoucherComboItem.Id)"
-                    TextFieldName="@nameof(VoucherComboItem.VoucherNo)"
-                    Value="@_selectedVoucherId"
-                    ValueChanged="@OnVoucherChanged"
-                    DropDownTriggerMode="DropDownTriggerMode.Click" ShowDropDownButton="true"
-                    SearchMode="ListSearchMode.AutoSearch"
-                    NullText="@L["NewVoucherPlaceholder"].Value"
-                    ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto"
-                    Enabled="@(!_locked)"
-                    CssClass="w-100">
-            <DxListEditorColumn FieldName="@nameof(VoucherComboItem.VoucherNo)"
-                                Caption="@L["VoucherNumber"].Value" Width="120px" />
-            <DxListEditorColumn FieldName="@nameof(VoucherComboItem.Date)"
-                                Caption="@L["VoucherDate"].Value" />
-        </DxComboBox>
-    </DxFormLayoutItem>
+                <!-- Row 2 -->
+                <DxFormLayoutItem Caption="@L["VoucherSelection"].Value" ColSpanMd="6" Visible="@(_model.SubAccountId.HasValue)">
+                    <DxComboBox TData="VoucherComboItem" TValue="Guid?"
+                                Data="@_voucherItems"
+                                ValueFieldName="@nameof(VoucherComboItem.Id)"
+                                TextFieldName="@nameof(VoucherComboItem.DisplayText)"
+                                Value="@_selectedVoucherId"
+                                ValueChanged="@OnVoucherChanged"
+                                DropDownTriggerMode="DropDownTriggerMode.Click" ShowDropDownButton="true"
+                                SearchMode="ListSearchMode.AutoSearch"
+                                NullText="@L["NewVoucherPlaceholder"].Value"
+                                ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto"
+                                Enabled="@(!_locked)"
+                                CssClass="w-100">
 
-    <DxFormLayoutItem Caption="@L["VoucherDate"].Value" ColSpanMd="6" Visible="@(_model.SubAccountId.HasValue)">
-        <DxDateEdit Date="@_displayVoucherDate"
-                    DateChanged="@((DateTime? d) => OnVoucherDateChanged(d ?? DateTime.Now))"
-                    ReadOnly="@_selectedVoucherId.HasValue"
-                    Enabled="@(!_locked)"
-                    Format="dd.MM.yyyy HH:mm"
-                    TimeSectionVisible="true"
-                    CssClass="w-100" />
-    </DxFormLayoutItem>
+                        <Columns>
+                            <DxListEditorColumn FieldName="@nameof(VoucherComboItem.VoucherNo)"
+                                                Caption="@L["VoucherNumber"].Value" Width="120px" />
+                            <DxListEditorColumn FieldName="@nameof(VoucherComboItem.Date)"
+                                                Caption="@L["Date"].Value" />
+                            <DxListEditorColumn FieldName="@nameof(VoucherComboItem.CurrentTransactionCount)" Caption="@L["Count"].Value" />
+                        </Columns>
+                    </DxComboBox>
+                </DxFormLayoutItem>
 
-    <DxFormLayoutItem Caption="@L["Vault"].Value" ColSpanMd="6" Visible="@(_model.SubAccountId.HasValue)">
-        @if (_selectedVoucherId.HasValue)
-        {
-            <DxTextBox Text="@_selectedVaultDisplay" ReadOnly="true" CssClass="w-100" />
-        }
-        else
-        {
-            <DxComboBox TData="VaultListDto" TValue="Guid?"
-                        Data="@_branchVaults"
-                        ValueFieldName="@nameof(VaultListDto.Id)"
-                        TextFieldName="@nameof(VaultListDto.Code)"
-                        Value="@_model.VaultId"
-                        ValueChanged="@((Guid? id) => { _model.VaultId = id; })"
-                        DropDownTriggerMode="DropDownTriggerMode.Click" ShowDropDownButton="true"
-                        NullText="@L["SelectVault"].Value"
-                        ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto"
-                        Enabled="@(!_locked)"
-                        CssClass="w-100">
-                <DxListEditorColumn FieldName="@nameof(VaultListDto.Code)" Caption="@L["Code"].Value" Width="100px" />
-                <DxListEditorColumn FieldName="@nameof(VaultListDto.Name)" Caption="@L["Name"].Value" />
-            </DxComboBox>
-        }
-    </DxFormLayoutItem>
+                <DxFormLayoutItem Caption="@L["Vault"].Value" ColSpanMd="6" Visible="@(_model.SubAccountId.HasValue)">
+                    @if (_selectedVoucherId.HasValue)
+                    {
+                        <DxTextBox Text="@_selectedVaultDisplay" Enabled="false" CssClass="w-100" />
+                    }
+                    else
+                    {
+                        <DxComboBox TData="VaultListDto" TValue="Guid?"
+                                    Data="@_branchVaults"
+                                    ValueFieldName="@nameof(VaultListDto.Id)"
+                                    TextFieldName="@nameof(VaultListDto.Code)"
+                                    Value="@_model.VaultId"
+                                    ValueChanged="@((Guid? id) => { _model.VaultId = id; })"
+                                    DropDownTriggerMode="DropDownTriggerMode.Click" ShowDropDownButton="true"
+                                    NullText="@L["SelectVault"].Value"
+                                    ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto"
+                                    Enabled="@(!_locked)"
+                                    CssClass="w-100">
+                            <DxListEditorColumn FieldName="@nameof(VaultListDto.Code)" Caption="@L["Code"].Value" Width="100px" />
+                            <DxListEditorColumn FieldName="@nameof(VaultListDto.Name)" Caption="@L["Name"].Value" />
+                        </DxComboBox>
+                    }
+                </DxFormLayoutItem>
 
-    <DxFormLayoutItem Caption="@L["Description"]" ColSpanMd="12" Visible="@(_model.SubAccountId.HasValue)">
-        <DxMemo @bind-Text="@_model.Description"
-                Rows="2"
-                ReadOnly="@_selectedVoucherId.HasValue"
-                Enabled="@(!_locked)"
-                CssClass="w-100" />
-    </DxFormLayoutItem>
-</DxFormLayout>
+                <!-- Row 3 -->
+                <DxFormLayoutItem Caption="@L["Description"]" ColSpanMd="12" Visible="@(_model.SubAccountId.HasValue)">
+                    <DxTextBox @bind-Text="@_model.Description"
+                               Enabled="@(!_locked && !_selectedVoucherId.HasValue)"
+                               CssClass="w-100" />
+                </DxFormLayoutItem>
 
-@if (_model.SubAccountId.HasValue)
-{
-    <div style="margin-top:8px; display:flex; justify-content:flex-end;">
-        <DxButton Text="@(_locked ? L["SelectAccount"].Value : L["Confirm"].Value)"
-                  IconCssClass="@(_locked ? "fas fa-address-card" : "fas fa-check")"
-                  RenderStyle="@(_locked ? ButtonRenderStyle.Secondary : ButtonRenderStyle.Success)"
-                  RenderStyleMode="ButtonRenderStyleMode.Contained"
-                  Click="@OnConfirmClicked" />
+                <!-- Row 4 -->
+                <DxFormLayoutItem Caption="@L["Date"].Value" ColSpanMd="6" Visible="@(_model.SubAccountId.HasValue)">
+                    <DxDateEdit Date="@_displayVoucherDate"
+                                DateChanged="@((DateTime? d) => OnVoucherDateChanged(d ?? DateTime.Now))"
+                                Enabled="@(!_locked && !_selectedVoucherId.HasValue)"
+                                Format="dd.MM.yyyy HH:mm"
+                                TimeSectionVisible="true"
+                                CssClass="w-100" />
+                </DxFormLayoutItem>
+
+                <DxFormLayoutItem ColSpanMd="6" Visible="@(_model.SubAccountId.HasValue)">
+                    <div style="display:flex; justify-content:flex-end; width:100%; height:100%; align-items:flex-end;">
+                        <DxButton Text="@(_locked ? L["SelectAccount"].Value : L["Confirm"].Value)"
+                                  IconCssClass="@(_locked ? "fas fa-address-card" : "fas fa-check")"
+                                  RenderStyle="ButtonRenderStyle.Primary"
+                                  Click="@OnConfirmClicked" />
+                    </div>
+                </DxFormLayoutItem>
+            </DxFormLayout>
+        </div>
+
+        <!-- Sağ Panel (Boş) -->
+        <div class="right-selection-panel flex-grow-1">
+            <!-- İleride buraya başka editler eklenecek -->
+        </div>
     </div>
-}
 
-@if (_showActionToolbar)
-{
-    <DxToolbar style="margin-top:6px;" Adaptive="false">
-        <DxToolbarItem Text="@($"7-{L["Convert"].Value}")" IconCssClass="fas fa-right-left"
-                       Click="@OnConvertClicked" />
-        <DxToolbarItem Text="@($"5-{L["CashProcess"].Value}")" IconCssClass="fas fa-money-bill-wave"
-                       Click="@OnCashClicked" />
-        <DxToolbarItem Text="@($"6-{L["Service"].Value}")" IconCssClass="fas fa-screwdriver-wrench"
-                       Click="@OnServiceClicked" />
-        <DxToolbarItem Text="@($"8-{L["Future"].Value}")" IconCssClass="fas fa-hourglass-half"
-                       Click="@OnFutureClicked" />
-        <DxToolbarItem Text="@($"9-{L["Scrap"].Value}")" IconCssClass="fas fa-recycle"
-                       Click="@OnScrapClicked" />
-        <DxToolbarItem Text="@($"1-{L["Metal"].Value}")" IconCssClass="fas fa-ring"
-                       Click="@OnMetalClicked" />
-        <DxToolbarItem Text="@($"2-{L["Stone"].Value}")" IconCssClass="fas fa-gem"
-                       Click="@OnStoneClicked" />
-        <DxToolbarItem Text="@($"3-{L["Jewelry"].Value}")" IconCssClass="fas fa-crown"
-                       Click="@OnJewelryClicked" />
-        <DxToolbarItem Text="@($"0-{L["List"].Value}")" IconCssClass="fas fa-list"
-                       Click="@OnListClicked" />
-    </DxToolbar>
-}
+    @if (_showActionToolbar)
+    {
+        <hr class="my-2" style="border-top: 1px solid var(--bs-border-color);" />
+        <div class="d-flex flex-wrap gap-2 mt-2">
+            <DxButton Text="@($"3-{L["Metal"].Value}")" IconCssClass="custom-icon-metal" Click="@OnMetalClicked" RenderStyle="ButtonRenderStyle.Secondary" />
+            <DxButton Text="@($"4-{L["Scrap"].Value}")" IconCssClass="custom-icon-scrap" Click="@OnScrapClicked" RenderStyle="ButtonRenderStyle.Secondary" />
+            <DxButton Text="@($"5-{L["CashProcess"].Value}")" IconCssClass="custom-icon-cash" Click="@OnCashClicked" RenderStyle="ButtonRenderStyle.Secondary" />
+            <DxButton Text="@($"6-{L["Convert"].Value}")" IconCssClass="custom-icon-convert" Click="@OnConvertClicked" RenderStyle="ButtonRenderStyle.Secondary" />
+            <DxButton Text="@($"7-{L["Service"].Value}")" IconCssClass="custom-icon-service" Click="@OnServiceClicked" RenderStyle="ButtonRenderStyle.Secondary" />
+            <DxButton Text="@($"8-{L["Future"].Value}")" IconCssClass="custom-icon-future" Click="@OnFutureClicked" RenderStyle="ButtonRenderStyle.Secondary" />
+            <DxButton Text="@($"9-{L["Stone"].Value}")" IconCssClass="custom-icon-stone" Click="@OnStoneClicked" RenderStyle="ButtonRenderStyle.Secondary" />
+            <DxButton Text="@($"M-{L["Jewelry"].Value}")" IconCssClass="custom-icon-jewelry" Click="@OnJewelryClicked" RenderStyle="ButtonRenderStyle.Secondary" />
+            <DxButton Text="@($"0-{L["List"].Value}")" IconCssClass="custom-icon-list" Click="@OnListClicked" RenderStyle="ButtonRenderStyle.Secondary" />
+        </div>
+    }
+</div>
 }
 
 @if (_activeProcess == "Cash")
 {
-    <div style="margin-top:8px;">
+    <div style="padding:8px; overflow-x:auto;">
         <CashProcessPanel @ref="_cashPanel"
                           OnBack="@OnProcessBack"
                           AccountCode="@_selectedAccountCode"
@@ -152,7 +161,7 @@
 }
 else if (_activeProcess == "Service")
 {
-    <div style="margin-top:8px;">
+    <div style="padding:8px; overflow-x:auto;">
         <ServiceProcessPanel @ref="_servicePanel"
                              OnBack="@OnProcessBack"
                              AccountCode="@_selectedAccountCode"
@@ -170,7 +179,7 @@ else if (_activeProcess == "Service")
 }
 else if (_activeProcess == "Convert")
 {
-    <div style="margin-top:8px;">
+    <div style="padding:8px; overflow-x:auto;">
         <ConvertProcessPanel @ref="_convertPanel"
                              OnBack="@OnProcessBack"
                              AccountCode="@_selectedAccountCode"
@@ -188,7 +197,7 @@ else if (_activeProcess == "Convert")
 }
 else if (_activeProcess == "Future")
 {
-    <div style="margin-top:8px;">
+    <div style="padding:8px; overflow-x:auto;">
         <FutureProcessPanel @ref="_futurePanel"
                             OnBack="@OnProcessBack"
                             AccountCode="@_selectedAccountCode"
@@ -206,7 +215,7 @@ else if (_activeProcess == "Future")
 }
 else if (_activeProcess == "Scrap")
 {
-    <div style="margin-top:8px;">
+    <div style="padding:8px; overflow-x:auto;">
         <ScrapProcessPanel @ref="_scrapPanel"
                            OnBack="@OnProcessBack"
                            AccountCode="@_selectedAccountCode"
@@ -224,7 +233,7 @@ else if (_activeProcess == "Scrap")
 }
 else if (_activeProcess == "Metal")
 {
-    <div style="margin-top:8px;">
+    <div style="padding:8px; overflow-x:auto;">
         <MetalProcessPanel @ref="_metalPanel"
                            OnBack="@OnProcessBack"
                            AccountCode="@_selectedAccountCode"
@@ -242,7 +251,7 @@ else if (_activeProcess == "Metal")
 }
 else if (_activeProcess == "Stone")
 {
-    <div style="margin-top:8px;">
+    <div style="padding:8px; overflow-x:auto;">
         <StoneProcessPanel @ref="_stonePanel"
                            OnBack="@OnProcessBack"
                            AccountCode="@_selectedAccountCode"
@@ -260,7 +269,7 @@ else if (_activeProcess == "Stone")
 }
 else if (_activeProcess == "Jewelry")
 {
-    <div style="margin-top:8px;">
+    <div style="padding:8px; overflow-x:auto;">
         <JewelryProcessPanel @ref="_jewelryPanel"
                            OnBack="@OnProcessBack"
                            AccountCode="@_selectedAccountCode"
@@ -304,6 +313,8 @@ else if (_activeProcess == "Jewelry")
     private StoneProcessPanel? _stonePanel;
     private JewelryProcessPanel? _jewelryPanel;
     private VoucherLineDto? _pendingEdit;
+    private SubAccountListDto? _pendingSubAccount;
+
 
     private List<SubAccountListDto> _subAccounts = new();
     private List<VaultListDto>      _branchVaults = new();
@@ -318,7 +329,7 @@ else if (_activeProcess == "Jewelry")
     private DateTime _displayVoucherDate = DateTime.Now;
     private string   _selectedVaultDisplay = string.Empty;
 
-    private record VoucherComboItem(Guid Id, string VoucherNo, string Date, string VaultDisplay, DateTime VoucherDate, string? Description);
+    private record VoucherComboItem(Guid Id, string VoucherNo, string Date, string VaultDisplay, DateTime VoucherDate, string? Description, string DisplayText, int CurrentTransactionCount);
 
     protected override async Task OnInitializedAsync()
     {
@@ -358,8 +369,26 @@ else if (_activeProcess == "Jewelry")
         if (subAccountId.HasValue)
             await LoadVouchersAsync();
 
-        // Forma bildir → bakiye panelini yükle/temizle + sekme başlığı.
-        await OnSubAccountSelected.InvokeAsync(selected);
+        // Seçim null ise (temizleme) direkt bildir; değilse blur'da bildirilecek.
+        if (selected == null)
+        {
+            _pendingSubAccount = null;
+            await OnSubAccountSelected.InvokeAsync(null);
+        }
+        else
+        {
+            _pendingSubAccount = selected;
+        }
+    }
+
+    private async Task OnSubAccountLostFocus()
+    {
+        if (_pendingSubAccount != null)
+        {
+            var sa = _pendingSubAccount;
+            _pendingSubAccount = null;
+            await OnSubAccountSelected.InvokeAsync(sa);
+        }
     }
 
     private async Task LoadVouchersAsync()
@@ -374,19 +403,25 @@ else if (_activeProcess == "Jewelry")
         _voucherItems.RemoveAll(x => x.Id == SentinelId);
 
         foreach (var v in result.Items)
+        {
+            var dateStr = v.VoucherDate.ToString("dd.MM.yyyy HH:mm", CultureInfo.InvariantCulture);
+            var displayText = L["VoucherComboDisplayTextFormat", v.VoucherNumber, dateStr, v.LineCount].Value;
             _voucherItems.Add(new VoucherComboItem(
                 v.Id,
                 $"#{v.VoucherNumber}",
-                v.VoucherDate.ToString("dd.MM.yyyy HH:mm", CultureInfo.InvariantCulture),
+                dateStr,
                 v.VaultDisplay,
                 v.VoucherDate,
-                v.Description));
+                v.Description,
+                displayText,
+                v.LineCount));
+        }
 
         _voucherOffset += result.Items.Count;
         _voucherHasMore = _voucherOffset < result.TotalCount;
 
         if (_voucherHasMore)
-            _voucherItems.Add(new VoucherComboItem(SentinelId, "...", $"{result.TotalCount - _voucherOffset} more...", string.Empty, default, null));
+            _voucherItems.Add(new VoucherComboItem(SentinelId, "...", $"{result.TotalCount - _voucherOffset} more...", string.Empty, default, null, "...", 0));
     }
 
     private async Task OnVoucherChanged(Guid? id)
@@ -548,5 +583,36 @@ else if (_activeProcess == "Jewelry")
         }
 
         await OnLineSaved.InvokeAsync(vid);
+    }
+
+    private async Task OnDeleteVoucherClick(MouseEventArgs _)
+    {
+        if (!_selectedVoucherId.HasValue) return;
+
+        if (await Ui.ConfirmDeleteAsync(L["DeleteConfirmationMessage"].Value) != Integration.Framework.Blazor.Client.Services.Base.ConfirmDialogResult.Yes)
+            return;
+
+        try
+        {
+            await VoucherService.DeleteAsync(_selectedVoucherId.Value);
+
+            _selectedVoucherId = null;
+            _displayVoucherDate = DateTime.Now;
+            _model.VoucherDate = _displayVoucherDate;
+            _selectedVaultDisplay = string.Empty;
+            _model.Description = null;
+
+            _voucherItems = new();
+            _voucherOffset = 0;
+            await LoadVouchersAsync();
+
+            await OnVoucherOpened.InvokeAsync(null);
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex.ToString());
+        }
     }
 }

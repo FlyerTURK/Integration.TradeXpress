@@ -119,8 +119,8 @@ public partial class CurrencyUnitListPage : IDisposable
         var on = _flash.TryGetValue((id, buy), out var f) && DateTime.UtcNow < f.Until;
         var bg = !on ? "transparent"
             : f.Dir > 0
-                ? "linear-gradient(180deg, rgba(22,163,74,0.45), rgba(22,163,74,0.04))"
-                : "linear-gradient(180deg, rgba(220,38,38,0.45), rgba(220,38,38,0.04))";
+                ? "var(--flash-green)"
+                : "var(--flash-red)";
         return $"display:block; text-align:right; padding:2px 6px; border-radius:4px; background:{bg}; transition: background 700ms ease-out;";
     }
 

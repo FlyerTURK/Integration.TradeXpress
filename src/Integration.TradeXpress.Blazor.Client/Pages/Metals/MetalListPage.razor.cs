@@ -15,6 +15,9 @@ public partial class MetalListPage
     [Microsoft.AspNetCore.Components.Inject]
     protected IMetalAppService MetalAppService { get; set; } = default!;
 
+    [Microsoft.AspNetCore.Components.Inject]
+    protected Integration.TradeXpress.Blazor.Client.Services.Mdi.ITabManager TabManager { get; set; } = default!;
+
     public override Volo.Abp.Application.Services.ICrudAppService<
         MetalGetDto, MetalListDto, Guid,
         MetalListRequestDto, MetalCreateDto, MetalUpdateDto> CrudAppService
@@ -42,5 +45,24 @@ public partial class MetalListPage
         }
 
         await base.DeleteAsync();
+    }
+
+    private System.Collections.Generic.IReadOnlyList<Integration.Framework.Blazor.Client.Components.Crud.CrudToolbarAction>? _customActions;
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        _customActions = new System.Collections.Generic.List<Integration.Framework.Blazor.Client.Components.Crud.CrudToolbarAction>
+        {
+            new Integration.Framework.Blazor.Client.Components.Crud.CrudToolbarAction
+            {
+                SortIndex = 150,
+                Text = L["MetalReport"].Value,
+                AdaptiveText = L["MetalReport"].Value,
+                Tooltip = L["MetalReport"].Value,
+                IconCssClass = "fa fa-chart-bar",
+                OnClick = async () => await TabManager.OpenOrActivateAsync("/reports/metal", L["MetalReport"].Value, "fa fa-chart-bar")
+            }
+        };
     }
 }

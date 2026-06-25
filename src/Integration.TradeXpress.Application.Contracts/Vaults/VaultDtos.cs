@@ -24,6 +24,7 @@ public class VaultListDto : EntityDto<Guid>, IListDto<Guid>, IIsActive
     // bu listeden besleniyor ve durumu gösteriyor; bu yüzden DTO'da kalır.
     public bool IsActive { get; set; }
     public int DisplayOrder { get; set; }
+    public int CurrentTransactionCount { get; set; }
 }
 
 public class VaultGetDto : EntityDto<Guid>, IGetDto<Guid>

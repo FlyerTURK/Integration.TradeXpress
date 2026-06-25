@@ -28,4 +28,7 @@ public interface IVoucherAppService : IApplicationService
 
     /// <summary>Bir cari (SubAccount) için birim bazında anlık bakiye + hesabın bakiye birimi (opsiyonel tarih sınırı).</summary>
     Task<AccountBalanceDto> GetBalancesAsync(Guid subAccountId, DateTime? upTo = null);
+
+    /// <summary>Bir fişi (ve altındaki tüm satırları) siler.</summary>
+    Task DeleteAsync(Guid id);
 }
