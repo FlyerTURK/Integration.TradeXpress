@@ -477,6 +477,27 @@ public static class TradeXpressDbContextModelCreatingExtensions
 
     }
 
+    /// <summary>
+    /// Bakiye ledger'ı (poster çıktısının kalıcı kaydı) — pozisyon raporu bunu GROUP BY/SUM ile okur.
+    /// FK YOK: VoucherId mantıksal referans (id-only desen); senkron app-katmanında (BalanceLedgerSynchronizer).
+    /// </summary>
+    public static void ConfigureBalanceLedger(this ModelBuilder builder)
+    {
+        builder.Entity<Integration.TradeXpress.Vouchers.Balance.BalanceLedgerEntry>(b =>
+        {
+            b.ToTable(TradeXpressConsts.DbTablePrefix + "BalanceLedgerEntries", TradeXpressConsts.DbSchema);
+            b.ConfigureByConvention();
+
+            // İşaretli net etki — N2 (Voucher tutarlarıyla aynı hassasiyet).
+            b.Property(x => x.Amount).HasPrecision(VoucherConsts.AmountPrecision, VoucherConsts.AmountScale);
+
+            // Rapor: scope + birim bazında GROUP BY/SUM (kapsayan index — DB-tarafı toplam hızlı).
+            b.HasIndex(x => new { x.TenantId, x.CompanyId, x.BranchId, x.UnitId });
+            // Senkron: voucher bazında sil + yeniden yaz.
+            b.HasIndex(x => x.VoucherId);
+        });
+    }
+
     // MarginSetting owned mapping — her iki alanı (Type enum + Value) explicit map eder.
     private static void ConfigureMargin<TOwner>(OwnedNavigationBuilder<TOwner, MarginSetting> o)
         where TOwner : class

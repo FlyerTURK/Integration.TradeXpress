@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
+using Integration.TradeXpress.Blazor.Client.Services.Working;
 using Integration.TradeXpress.Branches;
 using Integration.TradeXpress.Companies;
 using Integration.TradeXpress.Metals;
@@ -12,13 +14,12 @@ namespace Integration.TradeXpress.Blazor.Client.Pages.Reports;
 
 public partial class MetalReportPage
 {
-    [Inject] ICompanyAppService CompanyAppService { get; set; } = default!;
+    [Inject] IWorkingContextService Working { get; set; } = default!;
     [Inject] IBranchAppService BranchAppService { get; set; } = default!;
     [Inject] IVaultAppService VaultAppService { get; set; } = default!;
     [Inject] IMetalAppService MetalAppService { get; set; } = default!;
     [Inject] IMetalReportAppService MetalReportAppService { get; set; } = default!;
 
-    private List<CompanyListDto> _companies = new();
     private List<BranchListDto>  _branches  = new();
     private List<VaultListDto>   _vaults    = new();
     private List<MetalListDto>   _metals    = new();
@@ -35,23 +36,26 @@ public partial class MetalReportPage
 
     protected override async Task OnInitializedAsync()
     {
-        var companies = await CompanyAppService.GetListAsync(new CompanyListRequestDto { MaxResultCount = 200 });
-        _companies = companies.Items as List<CompanyListDto> ?? new(companies.Items);
-        _metals    = await MetalAppService.GetPickerListAsync();
+        await Working.EnsureLoadedAsync();
+        await LoadWorkingScopeAsync();   // şirket = working şirket (sunucuda zorlanır); şube listesi o şirkete ait
+        _metals = await MetalAppService.GetPickerListAsync();
     }
 
-    private async Task OnCompanyChanged(Guid? companyId)
+    /// <summary>Kapsam = çalışılan (working) şirket — manuel şirket seçimi YOK (sızıntı önlemi). Şube listesi
+    /// yalnız working şirketin şubeleri; şirket ayrıca sunucuda ICurrentCompany'den zorlanır.</summary>
+    private async Task LoadWorkingScopeAsync()
     {
-        _filter.CompanyId = companyId;
+        _filter.CompanyId = Working.CurrentCompanyId;
         _filter.BranchId  = null;
         _filter.VaultId   = null;
         _branches.Clear();
         _vaults.Clear();
 
-        if (companyId != null)
+        if (Working.CurrentCompanyId is { } cid)
         {
             var branches = await BranchAppService.GetListAsync(new BranchListRequestDto { MaxResultCount = 200 });
-            _branches = branches.Items as List<BranchListDto> ?? new(branches.Items);
+            var all = branches.Items as List<BranchListDto> ?? new(branches.Items);
+            _branches = all.Where(b => b.CompanyId == cid).ToList();
         }
     }
 

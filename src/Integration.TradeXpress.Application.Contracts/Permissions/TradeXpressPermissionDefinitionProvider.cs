@@ -69,6 +69,10 @@ public class TradeXpressPermissionDefinitionProvider : PermissionDefinitionProvi
         subAccounts.AddChild(TradeXpressPermissions.SubAccounts.Create, L("Permission:Create"));
         subAccounts.AddChild(TradeXpressPermissions.SubAccounts.Update, L("Permission:Update"));
         subAccounts.AddChild(TradeXpressPermissions.SubAccounts.Delete, L("Permission:Delete"));
+
+        var reports = myGroup.AddPermission(
+            TradeXpressPermissions.Reports.Default, L("Permission:Reports"));
+        reports.AddChild(TradeXpressPermissions.Reports.Position, L("Permission:Position"));
     }
 
     private static LocalizableString L(string name)

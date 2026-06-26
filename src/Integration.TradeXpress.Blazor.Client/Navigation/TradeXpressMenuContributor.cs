@@ -204,6 +204,15 @@ public class TradeXpressMenuContributor : IMenuContributor
                 icon: TradeXpressIcons.CurrentTransactions,
                 order: 1
             ).RequireAuthenticated());
+
+            // Pozisyon Raporu — bilanço birimine göre canlı açık pozisyon (ledger toplamı, 5sn yenilenir).
+            context.Menu.AddItem(new ApplicationMenuItem(
+                TradeXpressMenus.Reports + ".Position",
+                l["PositionReport"],
+                url: "/reports/position",
+                icon: "custom-icon-report",
+                order: 2
+            ).RequirePermissions(TradeXpressPermissions.Reports.Position));
         }
 
 

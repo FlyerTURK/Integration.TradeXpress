@@ -6,6 +6,7 @@ using Integration.TradeXpress.Accounts;
 using Integration.TradeXpress.Branches;
 using Integration.TradeXpress.Companies;
 using Integration.TradeXpress.Financials.CurrencyUnits;
+using Integration.TradeXpress.MultiCompany;
 using Integration.TradeXpress.Vaults;
 using Integration.TradeXpress.Vouchers;
 using Microsoft.AspNetCore.Authorization;
@@ -159,13 +160,17 @@ public class CashReportAppService : TradeXpressAppService, ICashReportAppService
     private async Task<List<CashLeg>> QueryCashLegsAsync(CashReportFilterDto filter, bool dateFiltered,
         DateTime? endExclusiveOverride = null)
     {
+        // SIZINTI ÖNLEME: rapor DAİMA çalışılan şirketle sınırlı (ICurrentCompany). Yoksa (host/API) boş.
+        if (LazyServiceProvider.LazyGetRequiredService<ICurrentCompany>().Id is not { } companyId)
+            return new List<CashLeg>();
+
         var start = filter.Start.Date;
         var endExclusive = endExclusiveOverride ?? filter.End.Date.AddDays(1);
 
         var q = await _voucherRepository.GetQueryableAsync();
         var rows = await AsyncExecuter.ToListAsync(
             from v in q
-            where (filter.CompanyId == null || v.CompanyId == filter.CompanyId)
+            where v.CompanyId == companyId
                && (filter.BranchId == null || v.BranchId == filter.BranchId)
                && (filter.VaultId == null || v.VaultId == filter.VaultId)
                && (!dateFiltered && endExclusiveOverride == null

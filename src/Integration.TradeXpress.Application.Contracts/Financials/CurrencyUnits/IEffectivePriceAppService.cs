@@ -20,4 +20,10 @@ public interface IEffectivePriceAppService : IApplicationService
     /// (forex yönü) bundan AYRIDIR.
     /// </summary>
     Task<List<ValuationPriceDto>> GetValuationAsync(Guid? companyId = null);
+
+    /// <summary>
+    /// Efektifleri VERİLEN base birime re-base eder (şube bilanço birimi şirket base'inden farklı
+    /// olabilir → pozisyon raporu bunu kullanır). Boş id ya da base efektifi yoksa boş liste.
+    /// </summary>
+    Task<List<ValuationPriceDto>> GetValuationByBaseAsync(Guid baseCurrencyUnitId);
 }

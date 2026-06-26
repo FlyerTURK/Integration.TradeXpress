@@ -83,4 +83,10 @@ public static class TradeXpressPermissions
         public const string Update  = Default + ".Update";
         public const string Delete  = Default + ".Delete";
     }
+
+    public static class Reports
+    {
+        public const string Default  = GroupName + ".Reports";
+        public const string Position = Default + ".Position";
+    }
 }

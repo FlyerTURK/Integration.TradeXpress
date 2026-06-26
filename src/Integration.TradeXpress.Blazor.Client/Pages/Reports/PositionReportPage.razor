@@ -1,0 +1,71 @@
+@page "/reports/position"
+@using System
+@using Integration.TradeXpress.Reports
+@using Integration.TradeXpress.Permissions
+@using Integration.TradeXpress.Blazor.Client.Services.Working
+@using Microsoft.AspNetCore.Authorization
+@using DevExpress.Blazor
+@attribute [Authorize(TradeXpressPermissions.Reports.Position)]
+@inherits Volo.Abp.AspNetCore.Components.AbpComponentBase
+@implements IDisposable
+
+<PageTitle>Pozisyon Raporu</PageTitle>
+
+<div style="padding:12px; display:flex; flex-direction:column; gap:12px; height:100%;">
+
+    @* Kapsam = çalışılan (working) şube — manuel şirket/şube seçimi YOK (sol menüdeki working seçiciyle
+       değişir; şirket sunucuda ICurrentCompany'den zorlanır → bilgi sızıntısı önlenir). *@
+    <div style="display:flex; flex-wrap:wrap; gap:16px; align-items:center;">
+        <div style="display:flex; flex-direction:column; gap:2px;">
+            <label style="font-size:11px; color:var(--dxbl-text-secondary);">Çalışılan</label>
+            <span style="font-weight:600;">@WorkingLabel()</span>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:2px;">
+            <label style="font-size:11px; color:var(--dxbl-text-secondary);">Kapsam</label>
+            <DxCheckBox Checked="@_companyMode" CheckedChanged="@((bool v) => OnCompanyModeChanged(v))" CheckType="CheckType.Switch">
+                @(_companyMode ? "Şirket Geneli (tüm şubeler)" : "Çalışılan Şube")
+            </DxCheckBox>
+        </div>
+        @if (_result != null)
+        {
+            <div style="margin-left:auto; display:flex; flex-direction:column; align-items:flex-end; gap:2px;">
+                <label style="font-size:11px; color:var(--dxbl-text-secondary);">Bilanço Birimi: <b>@_result.BaseCurrencyCode</b></label>
+                <div style="font-size:18px; font-weight:600; color:@DurumColor(_result.DurumSell);">
+                    DURUM: @_result.DurumSell.ToString("n2") @_result.BaseCurrencyCode
+                </div>
+            </div>
+        }
+    </div>
+
+    @* Pozisyon grid'i — long yeşil / short kırmızı; bilanço satırı soluk (DURUM dışı); width yok → tam ekran. *@
+    @if (_result != null)
+    {
+        <DxGrid Data="@_result.Rows" ShowFilterRow="false" style="flex:1; min-height:0;">
+            <Columns>
+                <DxGridDataColumn FieldName="@nameof(PositionRowDto.UnitCode)" Caption="Birim">
+                    <CellDisplayTemplate>
+                        @{ var row = (PositionRowDto)context.DataItem; }
+                        <span style="@(row.IsBaseUnit ? "opacity:0.7; font-style:italic;" : "")">@row.UnitCode@(row.IsBaseUnit ? " (bilanço)" : "")</span>
+                    </CellDisplayTemplate>
+                </DxGridDataColumn>
+                <DxGridDataColumn FieldName="@nameof(PositionRowDto.NetAmount)" Caption="Net" DisplayFormat="n4">
+                    <CellDisplayTemplate>
+                        @{ var row = (PositionRowDto)context.DataItem; }
+                        <span style="color:@SignColor(row.NetAmount);">@row.NetAmount.ToString("n4")</span>
+                    </CellDisplayTemplate>
+                </DxGridDataColumn>
+                <DxGridDataColumn FieldName="@nameof(PositionRowDto.ValuedBuy)"  Caption="Değer (Alış)"  DisplayFormat="n2" />
+                <DxGridDataColumn FieldName="@nameof(PositionRowDto.ValuedSell)" Caption="Değer (Satış)" DisplayFormat="n2" />
+                <DxGridDataColumn FieldName="@nameof(PositionRowDto.MissingRate)" Caption="">
+                    <CellDisplayTemplate>
+                        @{ var row = (PositionRowDto)context.DataItem; }
+                        @if (row.MissingRate)
+                        {
+                            <span style="color:var(--dxbl-warning, #ef6c00); font-size:11px;">kur yok</span>
+                        }
+                    </CellDisplayTemplate>
+                </DxGridDataColumn>
+            </Columns>
+        </DxGrid>
+    }
+</div>

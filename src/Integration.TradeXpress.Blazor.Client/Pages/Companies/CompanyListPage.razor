@@ -28,7 +28,7 @@
         <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" VisibleIndex="1"  MinWidth="200" />
         <GridLinkColumn FieldName="CountryCode" Caption="@L["CountryCode"]" Width="100px" VisibleIndex="2"
                         OnClick="@(o => OpenCountryAsync((CompanyListDto)o))" />
-        <GridLinkColumn FieldName="BaseCurrencyCode" Caption="@L["BaseCurrency"]" Width="140px" VisibleIndex="3"
+        <GridLinkColumn FieldName="BaseCurrencyCode" Caption="@L["BalanceCurrency"]" Width="140px" VisibleIndex="3"
                         OnClick="@(o => OpenUnitAsync(((CompanyListDto)o).BaseCurrencyUnitId, ((CompanyListDto)o).BaseCurrencyCode))" />
         <DxGridDataColumn FieldName="IsHeadquarters" Caption="@L["IsHeadquarters"]" Width="100px" VisibleIndex="4" />
         <DxGridDataColumn FieldName="DisplayOrder" Caption="@L["DisplayOrder"]" Width="90px" VisibleIndex="5" />

@@ -16,18 +16,6 @@
     <div style="display:flex; flex-wrap:wrap; gap:8px; align-items:flex-end;">
 
         <div style="display:flex; flex-direction:column; gap:2px;">
-            <label style="font-size:11px; color:var(--dxbl-text-secondary);">Şirket</label>
-            <DxComboBox Data="@_companies"
-                        TextFieldName="@nameof(CompanyListDto.Name)"
-                        ValueFieldName="@nameof(CompanyListDto.Id)"
-                        Value="_filter.CompanyId"
-                        ValueChanged="@((Guid? v) => OnCompanyChanged(v))"
-                        NullText="(Tümü)"
-                        ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto"
-                        style="min-width:160px;" />
-        </div>
-
-        <div style="display:flex; flex-direction:column; gap:2px;">
             <label style="font-size:11px; color:var(--dxbl-text-secondary);">Şube</label>
             <DxComboBox Data="@_branches"
                         TextFieldName="@nameof(BranchListDto.Name)"

@@ -16,7 +16,8 @@ public class TradeXpressDataSeedContributor(
     Integration.TradeXpress.Futures.FutureSeeder futureSeeder,
     Integration.TradeXpress.Scraps.ScrapSeeder scrapSeeder,
     Integration.TradeXpress.Metals.MetalSeeder metalSeeder,
-    OrgSeeder orgSeeder)
+    OrgSeeder orgSeeder,
+    Integration.TradeXpress.Vouchers.Balance.BalanceLedgerBackfiller balanceLedgerBackfiller)
     : IDataSeedContributor, ITransientDependency
 {
     #region Fields
@@ -30,6 +31,7 @@ public class TradeXpressDataSeedContributor(
     private readonly Integration.TradeXpress.Scraps.ScrapSeeder _scrapSeeder = scrapSeeder;
     private readonly Integration.TradeXpress.Metals.MetalSeeder _metalSeeder = metalSeeder;
     private readonly OrgSeeder _orgSeeder = orgSeeder;
+    private readonly Integration.TradeXpress.Vouchers.Balance.BalanceLedgerBackfiller _balanceLedgerBackfiller = balanceLedgerBackfiller;
 
     #endregion
 
@@ -68,6 +70,13 @@ public class TradeXpressDataSeedContributor(
         if (context.TenantId != null && context[SkipOrgSeedProperty] is not true)
         {
             await _orgSeeder.SeedHqCompanyAsync(context.TenantId);
+        }
+
+        // (5) Bakiye ledger'ı (Path B) — mevcut voucher'lardan birim-net etkileri doldur (idempotent;
+        //     doluysa atlar). Voucher'lar tenant-scoped → yalnız tenant'ta.
+        if (context.TenantId != null)
+        {
+            await _balanceLedgerBackfiller.BackfillCurrentTenantAsync();
         }
     }
 

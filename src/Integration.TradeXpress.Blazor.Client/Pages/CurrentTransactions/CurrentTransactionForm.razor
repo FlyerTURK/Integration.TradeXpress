@@ -55,7 +55,7 @@
 
     @if (_currentSubAccountId.HasValue && _accountLocked)
     {
-        <div style="@($"{PanelBox()} grid-area:p2; {(_isMobile ? "" : "min-height:0; height:100%; display:flex; flex-direction:column;")}")">
+        <div style="@($"{PanelBox()} grid-area:p2; {(_isMobile ? "height:65vh; min-height:0; display:flex; flex-direction:column;" : "min-height:0; height:100%; display:flex; flex-direction:column;")}")">
             <DxTabs TabsPosition="TabsPosition.Bottom" CssClass="w-100 h-100 tx-tabs-stretched">
                 <DxTabPage Text="@L["Transactions"].Value" TabIconCssClass="custom-icon-list">
                     <div style="display:flex; flex-direction:column; height:100%;">

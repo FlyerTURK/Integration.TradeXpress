@@ -33,6 +33,7 @@ public class VoucherAppService : TradeXpressAppService, IVoucherAppService
     private readonly IRepository<SubAccount, Guid> _subAccountRepository;
     private readonly IRepository<Account, Guid> _accountRepository;
     private readonly VoucherBalanceCalculator _balanceCalculator;
+    private readonly BalanceLedgerSynchronizer _ledgerSynchronizer;
     private readonly IDataFilter _dataFilter;
 
     public VoucherAppService(
@@ -43,6 +44,7 @@ public class VoucherAppService : TradeXpressAppService, IVoucherAppService
         IRepository<SubAccount, Guid> subAccountRepository,
         IRepository<Account, Guid> accountRepository,
         VoucherBalanceCalculator balanceCalculator,
+        BalanceLedgerSynchronizer ledgerSynchronizer,
         IDataFilter dataFilter)
     {
         _repository           = repository;
@@ -52,6 +54,7 @@ public class VoucherAppService : TradeXpressAppService, IVoucherAppService
         _subAccountRepository = subAccountRepository;
         _accountRepository    = accountRepository;
         _balanceCalculator    = balanceCalculator;
+        _ledgerSynchronizer   = ledgerSynchronizer;
         _dataFilter           = dataFilter;
     }
 
@@ -126,6 +129,9 @@ public class VoucherAppService : TradeXpressAppService, IVoucherAppService
             lineId = voucher.AddLine(GuidGenerator.Create(), lineInput).Id;
             await _repository.InsertAsync(voucher, autoSave: true);
         }
+
+        // Ledger senkronu (poster çıktısı → kalıcı): voucher kaydedildikten sonra, aynı UoW içinde.
+        await _ledgerSynchronizer.SyncVoucherAsync(voucher);
 
         input.Id            = lineId;
         input.VoucherId     = voucher.Id;
@@ -342,6 +348,7 @@ public class VoucherAppService : TradeXpressAppService, IVoucherAppService
         await _repository.EnsureCollectionLoadedAsync(voucher, v => v.Lines);
         voucher.RemoveLine(lineId);
         await _repository.UpdateAsync(voucher, autoSave: true);
+        await _ledgerSynchronizer.SyncVoucherAsync(voucher);
 
         // VoucherLineLog gelene kadar nedeni log'a yaz (kalıcı geçmiş ertelendi).
         Logger.LogInformation("VoucherLine {LineId} silindi. Neden: {Reason}", lineId, reason);
@@ -498,6 +505,7 @@ public class VoucherAppService : TradeXpressAppService, IVoucherAppService
 
     public async Task DeleteAsync(Guid id)
     {
+        await _ledgerSynchronizer.DeleteVoucherAsync(id);
         await _repository.DeleteAsync(id, autoSave: true);
     }
 }

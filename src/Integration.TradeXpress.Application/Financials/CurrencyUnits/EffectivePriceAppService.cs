@@ -99,11 +99,32 @@ public class EffectivePriceAppService : TradeXpressAppService, IEffectivePriceAp
                 .OrderBy(p => p.DisplayOrder).ThenBy(p => p.CurrencyUnitCode).ToList();
         }
 
-        var baseCode = await GetCurrencyCodeAsync(company.BaseCurrencyUnitId);
-        var byUnit = prices.ToDictionary(e => e.Unit.Id);
+        // Şirket base'ine re-base (DEĞERLEME).
+        return await ReBaseToAsync(prices, company.BaseCurrencyUnitId);
+    }
+
+    /// <summary>
+    /// Değerlemeyi VERİLEN base birime göre re-base eder — şube bilanço birimi şirket base'inden
+    /// farklı olabildiğinden pozisyon raporu bunu kullanır. <see cref="GetValuationAsync"/>'in
+    /// base-param genelleştirmesi. Boş id ya da base efektifi (feed) yoksa boş liste.
+    /// </summary>
+    public virtual async Task<List<ValuationPriceDto>> GetValuationByBaseAsync(Guid baseCurrencyUnitId)
+    {
+        if (baseCurrencyUnitId == Guid.Empty)
+            return new List<ValuationPriceDto>();
+
+        var prices = await ComputeEffectiveAsync();
+        return await ReBaseToAsync(prices, baseCurrencyUnitId);
+    }
+
+    /// <summary>Efektifleri verilen base birime per-leg re-base + guard'lar; base efektifi yoksa boş.
+    /// Hem şirket-base hem şube-base değerlemenin TEK ortak çekirdeği (DRY).</summary>
+    private async Task<List<ValuationPriceDto>> ReBaseToAsync(List<EffPrice> prices, Guid baseUnitId)
+    {
+        var baseCode = await GetCurrencyCodeAsync(baseUnitId);
 
         // Base biriminin efektifi olmadan re-base yapılamaz (örn. feed gelmemiş USD).
-        if (!byUnit.TryGetValue(company.BaseCurrencyUnitId, out var baseEff))
+        if (!prices.ToDictionary(e => e.Unit.Id).TryGetValue(baseUnitId, out var baseEff))
             return new List<ValuationPriceDto>();
 
         var result = new List<ValuationPriceDto>();
