@@ -986,6 +986,19 @@
 
 
 
+}
+
+
+
+
+
+
+
+
+
+
+
+
 .minimized-popup .dxbl-popup-header,
 .minimized-popup .modal-header {
     padding-top: 0.2rem !important;
@@ -996,4 +1009,19 @@
 
 .minimized-popup .dxbl-popup-content-panel {
     padding: 0 !important;
+}
+
+/* DevExpress Popup Header flex container stretching */
+.dxbl-popup-header .dxbl-modal-header-default,
+.crud-edit-popup .dxbl-modal-header-default {
+    display: flex !important;
+    width: 100% !important;
+    align-items: center !important;
+}
+
+.dxbl-popup-header .dxbl-modal-header-default > :first-child,
+.crud-edit-popup .dxbl-modal-header-default > :first-child {
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+    width: 100% !important;
 }

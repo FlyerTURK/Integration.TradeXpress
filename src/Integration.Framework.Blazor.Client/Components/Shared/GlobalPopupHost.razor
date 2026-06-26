@@ -40,9 +40,9 @@
                     <span>@PopupService.Options!.Title</span>
                 }
             </div>
-            <div class="position-absolute d-flex align-items-center" style="right: 0; top: 50%; transform: translateY(-50%);">
-                <DxButton RenderStyle="ButtonRenderStyle.None" CssClass="me-1 d-flex flex-shrink-0 align-items-center justify-content-center" Click="ToggleMinimize" tabindex="-1"><i class="@(_isMinimized ? "custom-icon-restore-min" : "custom-icon-minimize-corner")" style="width: 20px; height: 20px;"></i></DxButton>
-                <DxButton RenderStyle="ButtonRenderStyle.None" CssClass="@($"me-2 d-none {(_isMinimized ? "" : "d-md-flex")} align-items-center justify-content-center")" Click="ToggleFullscreen" tabindex="-1"><i class="@(_isFullscreen ? "custom-icon-minimize" : "custom-icon-maximize")" style="width: 20px; height: 20px;"></i></DxButton>
+            <div class="position-absolute d-flex align-items-center" style="right: 8px; top: 50%; transform: translateY(-50%); gap: 4px;">
+                <DxButton RenderStyle="ButtonRenderStyle.None" CssClass="d-flex flex-shrink-0 align-items-center justify-content-center p-0" Click="ToggleMinimize" tabindex="-1"><i class="@(_isMinimized ? "custom-icon-restore-min" : "custom-icon-minimize-corner")" style="width: 20px; height: 20px;"></i></DxButton>
+                <DxButton RenderStyle="ButtonRenderStyle.None" CssClass="@($"d-none {(_isMinimized ? "" : "d-md-flex")} align-items-center justify-content-center p-0")" Click="ToggleFullscreen" tabindex="-1"><i class="@(_isFullscreen ? "custom-icon-minimize" : "custom-icon-maximize")" style="width: 20px; height: 20px;"></i></DxButton>
             </div>
         </div>
     </HeaderContentTemplate>
