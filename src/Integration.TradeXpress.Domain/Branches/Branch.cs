@@ -17,6 +17,10 @@ public class Branch : FullAuditedAggregateRoot<Guid>, IMultiTenant
     /// <summary>Üst şirket — id-only referans (nav YOK).</summary>
     public virtual Guid CompanyId { get; protected set; }
 
+    /// <summary>Değerleme (bilanço) para birimi — global CurrencyUnit'e id-only referans (nav YOK).
+    /// ZORUNLU (non-null); varsayılan = parent şirketin base'i (AppService resolve eder).</summary>
+    public virtual Guid BaseCurrencyUnitId { get; protected set; }
+
     public virtual string Code { get; protected set; } = null!;
 
     public virtual string Name { get; protected set; } = null!;
@@ -59,6 +63,14 @@ public class Branch : FullAuditedAggregateRoot<Guid>, IMultiTenant
         if (companyId == Guid.Empty)
             throw new ArgumentException("Company is required.", nameof(companyId));
         CompanyId = companyId;
+    }
+
+    /// <summary>Bilanço/değerleme birimi (ZORUNLU). Boş Guid reddedilir (AppService önce şirket base'ine düşürür).</summary>
+    public virtual void SetBaseCurrency(Guid baseCurrencyUnitId)
+    {
+        if (baseCurrencyUnitId == Guid.Empty)
+            throw new ArgumentException("Base currency unit is required.", nameof(baseCurrencyUnitId));
+        BaseCurrencyUnitId = baseCurrencyUnitId;
     }
 
     public virtual void SetDescription(string? description)

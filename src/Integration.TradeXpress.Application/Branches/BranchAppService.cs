@@ -101,7 +101,8 @@ public class BranchAppService : TradeXpressAppService, IBranchAppService
         if (CurrentTenant.Id == null)
             throw new BusinessException("TradeXpress:Company:HostHasNoCompanies");
 
-        await EnsureCompanyVisibleAsync(input.CompanyId);
+        var company = await _companyRepository.FindAsync(input.CompanyId)
+            ?? throw new EntityNotFoundException(typeof(Company), input.CompanyId);
 
         var b = new Branch(
             input.CompanyId,
@@ -111,6 +112,7 @@ public class BranchAppService : TradeXpressAppService, IBranchAppService
             displayOrder: input.DisplayOrder,
             tenantId: CurrentTenant.Id);
         b.SetDescription(input.Description);
+        b.SetBaseCurrency(input.BaseCurrencyUnitId == Guid.Empty ? company.BaseCurrencyUnitId : input.BaseCurrencyUnitId);   // boş → parent şirketin base'i
         await _repository.InsertAsync(b, autoSave: true);
 
         // Tek-HQ değişmezi: bu şube HQ ise şirketin önceki HQ'sunu düşür.
@@ -143,6 +145,7 @@ public class BranchAppService : TradeXpressAppService, IBranchAppService
         b.SetName(input.Name);
         b.SetDescription(input.Description);
         b.SetDisplayOrder(input.DisplayOrder);
+        b.SetBaseCurrency(input.BaseCurrencyUnitId == Guid.Empty ? b.BaseCurrencyUnitId : input.BaseCurrencyUnitId);   // boş gelirse mevcut değeri KORU (wipe önleme)
         if (input.IsActive) b.Activate(); else b.Deactivate();
         await _repository.UpdateAsync(b, autoSave: true);
 
@@ -234,12 +237,6 @@ public class BranchAppService : TradeXpressAppService, IBranchAppService
     }
 
     // ── helpers ───────────────────────────────────────────────────────────────
-    private async Task EnsureCompanyVisibleAsync(Guid companyId)
-    {
-        if (await _companyRepository.FindAsync(companyId) == null)
-            throw new EntityNotFoundException(typeof(Company), companyId);
-    }
-
     private async Task UnsetOtherHeadquartersAsync(Guid companyId, Guid exceptBranchId)
     {
         var others = await AsyncExecuter.ToListAsync((await _repository.GetQueryableAsync())
@@ -271,6 +268,7 @@ public class BranchAppService : TradeXpressAppService, IBranchAppService
             Id = b.Id,
             CompanyId = b.CompanyId,
             CompanyCode = names.GetValueOrDefault(b.CompanyId, string.Empty),
+            BaseCurrencyUnitId = b.BaseCurrencyUnitId,
             Code = b.Code,
             Name = b.Name,
             IsHeadquarters = b.IsHeadquarters,

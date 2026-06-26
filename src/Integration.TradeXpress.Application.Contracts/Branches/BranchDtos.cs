@@ -43,6 +43,9 @@ public class BranchGetDto : EntityDto<Guid>, IGetDto<Guid>
     public Guid CompanyId { get; set; }
     public string CompanyCode { get; set; } = string.Empty;
 
+    /// <summary>Şubenin değerleme (bilanço) birimi (ZORUNLU; varsayılan = parent şirketin base'i).</summary>
+    public Guid BaseCurrencyUnitId { get; set; }
+
     // VALİDASYON kuralları BURADA (tek kaynak) — BranchGraphDto bunlardan MİRAS alır → standalone ve
     // company-node şube düzenlemeleri GARANTİLİ aynı kuralları doğrular.
     [Required]
@@ -69,6 +72,9 @@ public class BranchCreateDto : ICreateDto
     [Required]
     public Guid CompanyId { get; set; }
 
+    /// <summary>Bilanço birimi — boş Guid → parent şirketin base'i (AppService default'lar).</summary>
+    public Guid BaseCurrencyUnitId { get; set; }
+
     [Required]
     [StringLength(BranchConsts.CodeMaxLength)]
     public string Code { get; set; } = string.Empty;
@@ -90,6 +96,9 @@ public class BranchCreateDto : ICreateDto
 // Parent (CompanyId) güncellemede değişmez — hiyerarşi sabit.
 public class BranchUpdateDto : IUpdateDto
 {
+    /// <summary>Bilanço birimi — şubenin kendi değerleme birimi (boş Guid → mevcut korunur).</summary>
+    public Guid BaseCurrencyUnitId { get; set; }
+
     [Required]
     [StringLength(BranchConsts.CodeMaxLength)]
     public string Code { get; set; } = string.Empty;

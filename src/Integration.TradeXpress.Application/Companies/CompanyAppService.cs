@@ -219,6 +219,7 @@ public class CompanyAppService : TradeXpressAppService, ICompanyAppService
                 await _branchAppService.CreateAsync(new BranchCreateDto
                 {
                     CompanyId = company.Id,
+                    BaseCurrencyUnitId = bi.BaseCurrencyUnitId,   // null → BranchAppService şirketin base'ine düşer
                     Code = bi.Code,
                     Name = bi.Name,
                     IsHeadquarters = bi.IsHeadquarters,
@@ -231,6 +232,7 @@ public class CompanyAppService : TradeXpressAppService, ICompanyAppService
             {
                 await _branchAppService.UpdateAsync(bi.Id, new BranchUpdateDto
                 {
+                    BaseCurrencyUnitId = bi.BaseCurrencyUnitId,   // şubenin kendi bilanço birimi (drill override)
                     Code = bi.Code,
                     Name = bi.Name,
                     IsHeadquarters = bi.IsHeadquarters,
@@ -327,6 +329,7 @@ public class CompanyAppService : TradeXpressAppService, ICompanyAppService
             Branches = branches.Select(b => new BranchGraphDto
             {
                 Id = b.Id,
+                BaseCurrencyUnitId = b.BaseCurrencyUnitId,
                 Code = b.Code,
                 Name = b.Name,
                 IsHeadquarters = b.IsHeadquarters,
