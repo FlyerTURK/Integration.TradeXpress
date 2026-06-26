@@ -25,12 +25,12 @@
          Height="@(_isFullscreen ? "100%" : null)"
          HorizontalAlignment="@(_isMinimized ? HorizontalAlignment.Left : HorizontalAlignment.Center)"
          VerticalAlignment="@(_isMinimized ? VerticalAlignment.Bottom : VerticalAlignment.Center)"
-         Scrollable="true" ShowBackdrop="@(!_isMinimized)"
+         Scrollable="true" ShowBackdrop="@(_isModal && !_isMinimized)"
          CloseOnEscape="@(PopupService.Options?.CloseOnEscape ?? false)"
          CloseOnOutsideClick="@(PopupService.Options?.CloseOnOutsideClick ?? false)">
     <HeaderContentTemplate Context="popup">
         <div class="flex-grow-1 w-100 h-100 position-relative d-flex align-items-center" style="user-select: none;" @ondblclick="@(() => { if (_isMinimized) ToggleMinimize(); else ToggleFullscreen(); })">
-            <div class="flex-grow-1" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; padding-right: 60px;">
+            <div class="flex-grow-1" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; padding-right: 120px;">
                 @if (_chromeHeader is not null)
                 {
                     @_chromeHeader
@@ -41,6 +41,8 @@
                 }
             </div>
             <div class="position-absolute d-flex align-items-center" style="right: 8px; top: 50%; transform: translateY(-50%); gap: 4px;">
+                <DxButton RenderStyle="ButtonRenderStyle.None" CssClass="@($"d-none {(_isMinimized ? "" : "d-md-flex")} align-items-center justify-content-center p-0")" Click="ToggleModal" tabindex="-1" title="@(_isModal ? "Arka Planı Kilitleme (Modeless)" : "Arka Planı Kilitle (Modal)")"><i class="erp-icon @(_isModal ? "erp-icon-pin" : "erp-icon-unpin")" style="width: 18px; height: 18px;"></i></DxButton>
+                <DxButton RenderStyle="ButtonRenderStyle.None" CssClass="@($"d-none {(_isMinimized ? "" : "d-md-flex")} align-items-center justify-content-center p-0")" Click="DockToTab" tabindex="-1" title="Sekmeye Sabitle"><i class="erp-icon erp-icon-dock" style="width: 18px; height: 18px;"></i></DxButton>
                 <DxButton RenderStyle="ButtonRenderStyle.None" CssClass="d-flex flex-shrink-0 align-items-center justify-content-center p-0" Click="ToggleMinimize" tabindex="-1"><i class="@(_isMinimized ? "custom-icon-restore-min" : "custom-icon-minimize-corner")" style="width: 20px; height: 20px;"></i></DxButton>
                 <DxButton RenderStyle="ButtonRenderStyle.None" CssClass="@($"d-none {(_isMinimized ? "" : "d-md-flex")} align-items-center justify-content-center p-0")" Click="ToggleFullscreen" tabindex="-1"><i class="@(_isFullscreen ? "custom-icon-minimize" : "custom-icon-maximize")" style="width: 20px; height: 20px;"></i></DxButton>
             </div>
@@ -62,6 +64,48 @@
     private Func<Task<bool>>? _chromeGuard;   // form'un kapanış guard'ı (CanLeaveAsync) — IPopupChrome ile gelir
     private bool _isFullscreen;
     private bool _isMinimized;
+    private bool _isModal = false; // Modeless by default
+
+    private void ToggleModal()
+    {
+        _isModal = !_isModal;
+    }
+
+    [Inject] private Integration.Framework.Blazor.Client.Services.Mdi.IMdiTabOpener TabOpener { get; set; } = default!;
+
+    private async Task DockToTab()
+    {
+        if (PopupService.ComponentType == null) return;
+
+        // Warn the user about state loss if there are unsaved changes
+        var guard = _chromeGuard ?? PopupService.CloseGuard;
+        if (guard != null)
+        {
+            var canLeave = await guard();
+            if (!canLeave) return; // User cancelled due to dirty state
+        }
+
+        var parameters = PopupService.ComponentParameters;
+        var title = PopupService.Options?.Title ?? "Sekme";
+        
+        string url = null;
+        if (parameters != null && parameters.TryGetValue("_TabUrl", out var tabUrlObj) && tabUrlObj is string tabUrl)
+        {
+            url = tabUrl;
+        }
+
+        if (string.IsNullOrEmpty(url)) 
+        {
+            // If we can't resolve URL, don't allow docking.
+            return;
+        }
+
+        // Kapat, State'i temizle
+        PopupService.Close();
+
+        // Yeni Sekme olarak aç
+        await TabOpener.OpenOrActivateAsync(url, title);
+    }
 
     private void ToggleFullscreen()
     {
