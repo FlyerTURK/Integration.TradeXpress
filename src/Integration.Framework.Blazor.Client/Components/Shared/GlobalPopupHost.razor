@@ -1,3 +1,5 @@
+@using System.Collections.Generic
+@using System.Linq
 @using DevExpress.Blazor
 @using Microsoft.AspNetCore.Components
 @using Microsoft.JSInterop
@@ -52,7 +54,7 @@
         <div style="@(_isMinimized ? "display: none !important;" : "")" class="h-100 d-flex flex-column">            <CascadingValue Value="@((IPopupChrome)this)" IsFixed="true">
             @if (PopupService.ComponentType != null)
             {
-                <DynamicComponent Type="@PopupService.ComponentType" Parameters="@PopupService.ComponentParameters" />
+                <DynamicComponent Type="@PopupService.ComponentType" Parameters="@RenderParameters" />
             }
         </CascadingValue>
         </div>
@@ -117,6 +119,26 @@
     {
         _isFullscreen = false;
         _isMinimized = !_isMinimized;
+    }
+
+    // _TabUrl popup METADATA'sıdır (PopOutActiveTab → DockToTab geri-dönüş URL'i); sayfa BİLEŞENİNE parametre
+    // olarak GEÇMEZ — CrudPageBase list sayfalarında tanımsız → "does not have a property _TabUrl" exception.
+    // Kaynak referansı değişince (yeni popup) BİR kez filtrele → render başına yeni dict üretip DynamicComponent'i
+    // gereksiz re-init etmeyiz. DockToTab _TabUrl'i orijinal ComponentParameters'tan okumaya devam eder.
+    private Dictionary<string, object>? _renderParamsSource;
+    private Dictionary<string, object>? _renderParams;
+    private Dictionary<string, object>? RenderParameters
+    {
+        get
+        {
+            var src = PopupService.ComponentParameters;
+            if (!ReferenceEquals(src, _renderParamsSource))
+            {
+                _renderParamsSource = src;
+                _renderParams = src?.Where(kv => kv.Key != "_TabUrl").ToDictionary(kv => kv.Key, kv => kv.Value);
+            }
+            return _renderParams;
+        }
     }
 
     protected override void OnInitialized()
