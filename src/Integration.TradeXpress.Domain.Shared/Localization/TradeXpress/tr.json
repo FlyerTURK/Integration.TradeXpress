@@ -227,6 +227,7 @@
     "Permission:Branches": "Şubeler",
     "Menu:Branches": "Şubeler",
     "Entity:Branch": "Şube",
+    "BalanceCurrency": "Bilanço Birimi",
     "TradeXpress:Branch:CannotDeleteHeadquarters": "Merkez (HQ) şube silinemez; önce HQ'yu başka bir şubeye devredin.",
     "TradeXpress:Branch:CannotUnsetHeadquarters": "Merkez (HQ) doğrudan kaldırılamaz; başka bir şubeyi HQ yaparak devredin.",
     "TradeXpress:Branch:CompanyMustHaveBranch": "Şirketin en az bir şubesi olmalı; son şube silinemez.",

@@ -4,14 +4,17 @@ using System.Linq;
 using System.Threading.Tasks;
 using Integration.Framework.Base.Querying;
 using Integration.TradeXpress.Companies;
+using Integration.TradeXpress.Financials.CurrencyUnits;
 using Integration.TradeXpress.Organization;
 using Integration.TradeXpress.Permissions;
 using Integration.TradeXpress.Vaults;
 using Microsoft.AspNetCore.Authorization;
 using Volo.Abp;
 using Volo.Abp.Application.Dtos;
+using Volo.Abp.Data;
 using Volo.Abp.Domain.Entities;
 using Volo.Abp.Domain.Repositories;
+using Volo.Abp.MultiTenancy;
 
 namespace Integration.TradeXpress.Branches;
 
@@ -26,24 +29,30 @@ public class BranchAppService : TradeXpressAppService, IBranchAppService
 {
     private readonly IRepository<Branch, Guid> _repository;
     private readonly IRepository<Company, Guid> _companyRepository;
+    private readonly IRepository<CurrencyUnit, Guid> _unitRepository;   // yalnız OKUMA (BaseCurrencyCode çözümü; global birim)
     private readonly IRepository<Vault, Guid> _vaultRepository;   // yalnız OKUMA (graf projeksiyonu)
     private readonly IVaultAppService _vaultAppService;            // YAZMA: kasa create/update/delete buraya delege
+    private readonly IDataFilter _dataFilter;
     private readonly OrgTreeManager _orgTree;
 
     private static readonly HashSet<string> AllowedListFields =
-        new(StringComparer.OrdinalIgnoreCase) { "Code", "Name", "CompanyCode", "IsHeadquarters", "IsActive", "DisplayOrder", "CompanyId", "Id" };
+        new(StringComparer.OrdinalIgnoreCase) { "Code", "Name", "CompanyCode", "BaseCurrencyCode", "IsHeadquarters", "IsActive", "DisplayOrder", "CompanyId", "Id" };
 
     public BranchAppService(
         IRepository<Branch, Guid> repository,
         IRepository<Company, Guid> companyRepository,
+        IRepository<CurrencyUnit, Guid> unitRepository,
         IRepository<Vault, Guid> vaultRepository,
         IVaultAppService vaultAppService,
+        IDataFilter dataFilter,
         OrgTreeManager orgTree)
     {
         _repository = repository;
         _companyRepository = companyRepository;
+        _unitRepository = unitRepository;
         _vaultRepository = vaultRepository;
         _vaultAppService = vaultAppService;
+        _dataFilter = dataFilter;
         _orgTree = orgTree;
     }
 
@@ -62,6 +71,7 @@ public class BranchAppService : TradeXpressAppService, IBranchAppService
                 CompanyId = b.CompanyId,
                 CompanyCode = c.Code,
                 CompanyName = c.Name,
+                BaseCurrencyUnitId = b.BaseCurrencyUnitId,
                 Code = b.Code,
                 Name = b.Name,
                 IsHeadquarters = b.IsHeadquarters,
@@ -73,6 +83,21 @@ public class BranchAppService : TradeXpressAppService, IBranchAppService
         var totalCount = await AsyncExecuter.CountAsync(rows);
         var items = await AsyncExecuter.ToListAsync(rows.Skip(input.SkipCount).Take(input.MaxResultCount));
 
+        // BaseCurrencyCode: birim GLOBAL (TenantId=null) → tenant filtresi join'i düşürür; filtreyi kapatıp
+        // yalnız bu sayfanın birim id'lerini bellekte koda çöz (Company.GetListAsync ile aynı yaklaşım).
+        var unitIds = items.Select(r => r.BaseCurrencyUnitId).Where(id => id != Guid.Empty).Distinct().ToList();
+        var unitMap = new Dictionary<Guid, string>();
+        if (unitIds.Count > 0)
+        {
+            using (_dataFilter.Disable<IMultiTenant>())
+            {
+                var units = await _unitRepository.GetQueryableAsync();
+                var matched = await AsyncExecuter.ToListAsync(units.Where(u => unitIds.Contains(u.Id)));
+                foreach (var u in matched)
+                    unitMap[u.Id] = u.Code;
+            }
+        }
+
         return new PagedResultDto<BranchListDto>(
             totalCount,
             items.Select(r => new BranchListDto
@@ -81,6 +106,8 @@ public class BranchAppService : TradeXpressAppService, IBranchAppService
                 CompanyId = r.CompanyId,
                 CompanyCode = r.CompanyCode,
                 CompanyName = r.CompanyName,
+                BaseCurrencyUnitId = r.BaseCurrencyUnitId,
+                BaseCurrencyCode = unitMap.GetValueOrDefault(r.BaseCurrencyUnitId, string.Empty),
                 Code = r.Code,
                 Name = r.Name,
                 IsHeadquarters = r.IsHeadquarters,
@@ -295,6 +322,7 @@ public class BranchAppService : TradeXpressAppService, IBranchAppService
         public Guid CompanyId { get; set; }
         public string CompanyCode { get; set; } = string.Empty;
         public string CompanyName { get; set; } = string.Empty;
+        public Guid BaseCurrencyUnitId { get; set; }
         public string Code { get; set; } = string.Empty;
         public string Name { get; set; } = string.Empty;
         public bool IsHeadquarters { get; set; }

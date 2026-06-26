@@ -30,9 +30,10 @@
         <GridLinkColumn FieldName="CompanyCode" Caption="@L["Entity:Company"]" Width="120px" VisibleIndex="1"
                         OnClick="@(o => OpenCompanyAsync((BranchListDto)o))" />
         <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" VisibleIndex="2"  MinWidth="200" />
-        <DxGridDataColumn FieldName="IsHeadquarters" Caption="@L["IsHeadquarters"]" Width="120px" VisibleIndex="3" />
+        <DxGridDataColumn FieldName="BaseCurrencyCode" Caption="@L["BalanceCurrency"]" Width="120px" VisibleIndex="3" />
+        <DxGridDataColumn FieldName="IsHeadquarters" Caption="@L["IsHeadquarters"]" Width="120px" VisibleIndex="4" />
         @* IsActive kolonu yok — toolbar'da IsActive switch filtre kontrolü var (aktif/pasif ayrımı orada). *@
-        <DxGridDataColumn FieldName="DisplayOrder" Caption="@L["DisplayOrder"]" Width="90px" VisibleIndex="4" />
+        <DxGridDataColumn FieldName="DisplayOrder" Caption="@L["DisplayOrder"]" Width="90px" VisibleIndex="5" />
     </GridColumns>
 
     

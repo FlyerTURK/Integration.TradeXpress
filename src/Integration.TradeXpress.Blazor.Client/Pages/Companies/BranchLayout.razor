@@ -1,6 +1,8 @@
 @using System
+@using System.Collections.Generic
 @using Integration.TradeXpress.Branches
 @using Integration.TradeXpress.Vaults
+@using Integration.TradeXpress.Financials.CurrencyUnits
 @using Integration.TradeXpress.Blazor.Client.Components.Crud
 @using DevExpress.Blazor
 @using Microsoft.Extensions.Localization
@@ -11,7 +13,7 @@
    Alanlar/validasyon BranchEditFields'te (Company şube-drill'i ile AYNI); kasalar VaultDrill'de (DRY).
    HQ switch: form içi devir yok → yüklü (orijinal) HQ ise kilitli. Drill değişimi EditChanged ile dirty.
 *@
-<BranchEditFields Model="@Model" HeadquartersEnabled="@(!_originalWasHq)" CodeEnabled="@IsNew" />
+<BranchEditFields Model="@Model" Units="@Units" HeadquartersEnabled="@(!_originalWasHq)" CodeEnabled="@IsNew" />
 
 <div class="mt-3">
     @* Tek drill de tablı yapıda + entity ikonu (genel desen). *@
@@ -24,6 +26,7 @@
 
 @code {
     [Parameter, EditorRequired] public BranchGetDto Model { get; set; } = default!;
+    [Parameter] public List<CurrencyUnitListDto> Units { get; set; } = new();
     [Parameter] public bool IsNew { get; set; }
 
     // Drill (Kasalar) değişimini forma bildir — EntityEditForm EditChanged cascade'i.

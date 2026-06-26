@@ -20,6 +20,8 @@ public class BranchListDto : EntityDto<Guid>, IListDto<Guid>, IIsActive
     public Guid CompanyId { get; set; }
     public string CompanyCode { get; set; } = string.Empty;
     public string CompanyName { get; set; } = string.Empty;
+    public Guid BaseCurrencyUnitId { get; set; }
+    public string BaseCurrencyCode { get; set; } = string.Empty;
     public string Code { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public bool IsHeadquarters { get; set; }

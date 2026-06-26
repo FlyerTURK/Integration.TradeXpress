@@ -196,6 +196,7 @@
     "Permission:Branches": "Branches",
     "Menu:Branches": "Branches",
     "Entity:Branch": "Branch",
+    "BalanceCurrency": "Balance Currency",
     "TradeXpress:Branch:CannotDeleteHeadquarters": "The headquarters (HQ) branch cannot be deleted; transfer HQ to another branch first.",
     "TradeXpress:Branch:CannotUnsetHeadquarters": "HQ cannot be removed directly; transfer it by making another branch the HQ.",
     "TradeXpress:Branch:CompanyMustHaveBranch": "A company must have at least one branch; the last branch cannot be deleted.",

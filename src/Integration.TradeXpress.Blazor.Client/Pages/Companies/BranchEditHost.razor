@@ -4,12 +4,14 @@
 @using System.Collections.Generic
 @using Integration.TradeXpress.Branches
 @using Integration.TradeXpress.Vaults
+@using Integration.TradeXpress.Financials.CurrencyUnits
 @using Integration.Framework.Blazor.Client.Components.Crud
 @using Integration.Framework.Blazor.Client.Services.Base
 @using Volo.Abp.ObjectMapping
 @using Microsoft.Extensions.Localization
 @inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
 @inject IBranchAppService BranchAppService
+@inject ILookupCache<CurrencyUnitListDto> CurrencyLookup
 @inject IObjectMapper Mapper
 
 @*
@@ -18,14 +20,14 @@
    generic CrudEditHost'ta. Route YOK → child entity, BranchListPage POPUP açar (CompanyId AdditionalEditParameters ile).
 *@
 
-@if (_coordinator != null)
+@if (_coordinator != null && _ready)
 {
     <CrudEditHost TGetDto="BranchGetDto" TListDto="BranchListDto" TKey="Guid" TListRequestDto="BranchListRequestDto"
                   Coordinator="@_coordinator" Id="@(Id ?? Guid.Empty)" IsPopupMode="@IsPopupMode" OnSaved="@OnSaved" OnClosed="@OnClosed"
                   FormCaption="@L["Entity:Branch"].Value" IconCssClass="@TradeXpressIcons.Branch"
                   EntityValue="@(m => m.Code)"
                   ApplyNewDefaults="@ApplyNewBranchDefaults">
-        <BranchLayout Model="@context" IsNew="@(context.Id == Guid.Empty)" />
+        <BranchLayout Model="@context" IsNew="@(context.Id == Guid.Empty)" Units="@_units" />
     </CrudEditHost>
 }
 
@@ -38,10 +40,17 @@
     [Parameter] public EventCallback OnClosed { get; set; }
 
     private ICommitCoordinator<BranchGetDto, BranchListDto, Guid, BranchListRequestDto>? _coordinator;
+    private List<CurrencyUnitListDto> _units = new();
+    private bool _ready;
 
-    protected override void OnInitialized()
-        => _coordinator = new PersistentCoordinator<BranchGetDto, BranchListDto, Guid, BranchListRequestDto, BranchCreateDto, BranchUpdateDto>(
+    protected override async Task OnInitializedAsync()
+    {
+        _coordinator = new PersistentCoordinator<BranchGetDto, BranchListDto, Guid, BranchListRequestDto, BranchCreateDto, BranchUpdateDto>(
             BranchAppService, Mapper);
+        try { _units = new List<CurrencyUnitListDto>(await CurrencyLookup.GetAsync()); }   // döviz cache (TTL + auto-invalidate)
+        catch { /* feed yoksa boş; combo boş kalır */ }
+        _ready = true;
+    }
 
     // Yeni branch: parent şirket + görünür varsayılan kasa (snapshot ÖNCESİ → IsDirty tetiklemez).
     private void ApplyNewBranchDefaults(BranchGetDto m)

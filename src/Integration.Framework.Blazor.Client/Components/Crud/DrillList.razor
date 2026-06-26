@@ -398,6 +398,7 @@
     private TItem? _editOriginal;  // düzenlenen orijinal liste öğesi (clone modunda geri yazma için)
     private bool _isNew;
     private bool _popupVisible;
+    private bool _pendingEditRender;   // popup açılışında combo/lookup'lar seçili değeri göstersin diye tek ek render
     private bool _busy;
     private EditContext? _editContext;
     private string? _editSnapshot;  // açılış anındaki _editItem JSON'u → dirty karşılaştırması (ana edit formuyla aynı)
@@ -472,6 +473,18 @@
         }
     }
 
+    // Drill popup açılışında DxComboBox/lookup'lar önceden YÜKLÜ seçili değeri ilk render'da göstermeyebilir
+    // (standalone'da model async yüklendiği için iki-fazlı render bunu örtüyor). Popup açılınca BİR ek render
+    // tetikle → Value↔Data eşleşmesi yeniden değerlenir. Flag ile tek sefer (render loop yok).
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (_pendingEditRender)
+        {
+            _pendingEditRender = false;
+            StateHasChanged();
+        }
+    }
+
     private async Task OnGridSelectionChanged(IReadOnlyList<object> items)
     {
         _selectedItems = items;
@@ -505,6 +518,7 @@
         _isNew = true;
         SetEditContext(_editItem);
         _popupVisible = true;
+        _pendingEditRender = true;
     }
 
     public void EditItem(TItem item)
@@ -514,6 +528,7 @@
         _isNew = false;
         SetEditContext(_editItem);
         _popupVisible = true;
+        _pendingEditRender = true;
     }
 
     // Tek tıkla satırdan düzenleme formu açılır (ayrı "Düzelt" butonu yok).

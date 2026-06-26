@@ -3,6 +3,7 @@
 @using Integration.TradeXpress.Companies
 @using Integration.TradeXpress.Branches
 @using Integration.TradeXpress.Vaults
+@using Integration.TradeXpress.Financials.CurrencyUnits
 @using Integration.TradeXpress.Blazor.Client.Pages.Vaults
 @using Integration.Framework.Blazor.Client.Components.Crud
 @using Integration.TradeXpress.Blazor.Client.Components.Shared
@@ -39,6 +40,9 @@
         <GridColumns>
             <GridLinkColumn FieldName="Code" Caption="@L["Code"]" Width="120px" FixedPosition="GridColumnFixedPosition.Left" VisibleIndex="1" OnClick="@(item => _drill?.EditItem((BranchGraphDto)item))" />
             <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" />
+            <DxGridDataColumn FieldName="BaseCurrencyUnitId" Caption="@L["BalanceCurrency"]" Width="110px" TextAlignment="GridTextAlignment.Left">
+                <CellDisplayTemplate Context="cell">@(Units.FirstOrDefault(u => u.Id == ((BranchGraphDto)cell.DataItem).BaseCurrencyUnitId)?.Code ?? "")</CellDisplayTemplate>
+            </DxGridDataColumn>
             <DxGridDataColumn FieldName="IsHeadquarters" Caption="@L["IsHeadquarters"]" Width="90px" TextAlignment="GridTextAlignment.Left">
                 <CellDisplayTemplate Context="cell">@(((BranchGraphDto)cell.DataItem).IsHeadquarters ? L["Yes"].Value : "")</CellDisplayTemplate>
             </DxGridDataColumn>
@@ -49,7 +53,7 @@
         </GridColumns>
         <EditContent Context="b">
             @* DRY: standalone Branch ile AYNI BranchEditFields (alanlar + validasyon tek kaynak). Tek HQ kapatılamaz. *@
-            <BranchEditFields Model="b" HeadquartersEnabled="@(!IsBranchSoleHq(b))" CodeEnabled="true" />
+            <BranchEditFields Model="b" Units="@Units" HeadquartersEnabled="@(!IsBranchSoleHq(b))" CodeEnabled="true" />
         </EditContent>
         <AfterEditForm Context="b">
             <DxTabs CssClass="mt-3">
@@ -64,6 +68,7 @@
 
 @code {
     [Parameter, EditorRequired] public ICompanyGraph Model { get; set; } = default!;
+    [Parameter] public List<CurrencyUnitListDto> Units { get; set; } = new();
     [Parameter] public EventCallback OnChanged { get; set; }
 
     private BranchGraphDto? _selectedBranch;
@@ -100,6 +105,7 @@
     {
         Id = b.Id, ClientKey = b.ClientKey, IsDeleted = b.IsDeleted,
         Code = b.Code, Name = b.Name, IsHeadquarters = b.IsHeadquarters,
+        BaseCurrencyUnitId = b.BaseCurrencyUnitId,
         IsActive = b.IsActive, DisplayOrder = b.DisplayOrder, Description = b.Description,
         Vaults = b.Vaults.Select(CloneVault).ToList(),
     };

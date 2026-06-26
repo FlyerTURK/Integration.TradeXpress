@@ -21,7 +21,7 @@
 @* Tek drill de tablı yapıda + entity ikonu (genel desen). *@
 <DxTabs CssClass="mt-3">
     <DxTabPage Text="@L["Menu:Branches"]" TabIconCssClass="@TradeXpressIcons.Branch">
-        <CompanyBranchDrill Model="@Model" OnChanged="@(() => EditChanged?.Invoke())" />
+        <CompanyBranchDrill Model="@Model" Units="@Units" OnChanged="@(() => EditChanged?.Invoke())" />
     </DxTabPage>
 </DxTabs>
 

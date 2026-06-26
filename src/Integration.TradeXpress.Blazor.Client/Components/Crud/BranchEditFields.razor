@@ -1,5 +1,6 @@
 @using System
 @using Integration.TradeXpress.Branches
+@using Integration.TradeXpress.Financials.CurrencyUnits
 @using Integration.Framework.Blazor.Client.Components.Crud
 @using DevExpress.Blazor
 @using Microsoft.Extensions.Localization
@@ -18,6 +19,13 @@
         </DxFormLayoutItem>
         <DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="12">
             <DxTextBox @bind-Text="@Model.Name" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@($"{L["BalanceCurrency"]} *")" ColSpanMd="6">
+            <LookupComboBox TItem="CurrencyUnitListDto" TValue="Guid"
+                            Data="@Units"
+                            ValueFieldName="@nameof(CurrencyUnitListDto.Id)"
+                            TextFieldName="@nameof(CurrencyUnitListDto.Code)"
+                            @bind-Value="@Model.BaseCurrencyUnitId" />
         </DxFormLayoutItem>
         <DxFormLayoutItem ColSpanMd="6">
             <CaptionTemplate>
@@ -49,6 +57,7 @@
 
 @code {
     [Parameter, EditorRequired] public BranchGetDto Model { get; set; } = default!;
+    [Parameter] public List<CurrencyUnitListDto> Units { get; set; } = new();
     [Parameter] public bool HeadquartersEnabled { get; set; } = true;
     [Parameter] public bool CodeEnabled { get; set; } = true;
 }
