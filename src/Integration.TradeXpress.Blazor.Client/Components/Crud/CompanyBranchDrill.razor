@@ -52,11 +52,12 @@
             <BranchEditFields Model="b" HeadquartersEnabled="@(!IsBranchSoleHq(b))" CodeEnabled="true" />
         </EditContent>
         <AfterEditForm Context="b">
-            <div class="mt-3">
-                @* Paylaşılan Kasalar drill'i (Branch standalone ile AYNI bileşen). *@
-                <VaultDrill Vaults="b.Vaults" OnChanged="NotifyChangedAsync"
-                            ParentEntityName="@L["Entity:Branch"]" ParentText="@b.Code" />
-            </div>
+            <DxTabs CssClass="mt-3">
+                <DxTabPage Text="@L["Menu:Vaults"].Value" TabIconCssClass="@TradeXpressIcons.Vault">
+                    <VaultDrill Vaults="b.Vaults" OnChanged="NotifyChangedAsync"
+                                ParentEntityName="@L["Entity:Branch"]" ParentText="@b.Code" />
+                </DxTabPage>
+            </DxTabs>
         </AfterEditForm>
     </DrillList>
 </div>
@@ -76,7 +77,7 @@
             SortIndex = 300,
             Text = L["MakeHeadquarters"],
             Tooltip = L["MakeHeadquarters"],
-            IconCssClass = "fas fa-building",
+            IconCssClass = "custom-icon-company",
             Enabled = _selectedBranch is { IsDeleted: false, IsHeadquarters: false },
             OnClick = MakeBranchHeadquarters,
         },
@@ -137,3 +138,4 @@
         await NotifyChangedAsync();
     }
 }
+

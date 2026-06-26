@@ -27,7 +27,7 @@
 {
     <CrudEditHost TGetDto="CountryGetDto" TListDto="CountryListDto" TKey="Guid" TListRequestDto="CountryListRequestDto"
                   Coordinator="@_coordinator" Id="@(Id ?? Guid.Empty)" IsPopupMode="@IsPopupMode" OnSaved="@OnSaved" OnClosed="@OnClosed"
-                  FormCaption="@L["Entity:Country"].Value" IconCssClass="fas fa-globe"
+                  FormCaption="@L["Entity:Country"].Value" IconCssClass="custom-icon-country"
                   EntityValue="@(m => m.Code)"
                   ApplyNewDefaults="@(m => { m.IsActive = true; m.DisplayOrder = 1; })">
         <CountryLayout Model="@context" IsNew="@(context.Id == Guid.Empty)" Currencies="@_currencies"
@@ -92,3 +92,4 @@
         StateHasChanged();
     }
 }
+

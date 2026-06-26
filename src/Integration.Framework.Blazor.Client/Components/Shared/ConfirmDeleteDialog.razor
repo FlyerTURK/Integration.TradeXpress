@@ -22,7 +22,7 @@
        sarmalı kullanıyoruz. Genişlik vw-tabanlı (Width="92vw") — "%" container'a göre çözülüp daralıyordu. *@
     <BodyTextTemplate>
         <div style="display:flex; align-items:flex-start; gap:0.75rem; padding:1rem;">
-            <i class="fas fa-exclamation-triangle fa-2x" style="color:#ffc107; flex:0 0 auto;"></i>
+            <i class="custom-icon-warning custom-2x" style="color:#ffc107; flex:0 0 auto;"></i>
             <p style="margin:0; font-weight:600; font-size:1.05rem;">@UiService.DialogMessage</p>
         </div>
     </BodyTextTemplate>
@@ -74,3 +74,4 @@
         UiService.OnDialogChanged -= StateHasChanged;
     }
 }
+

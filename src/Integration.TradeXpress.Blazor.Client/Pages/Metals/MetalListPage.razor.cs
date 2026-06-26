@@ -60,9 +60,10 @@ public partial class MetalListPage
                 Text = L["MetalReport"].Value,
                 AdaptiveText = L["MetalReport"].Value,
                 Tooltip = L["MetalReport"].Value,
-                IconCssClass = "fa fa-chart-bar",
-                OnClick = async () => await TabManager.OpenOrActivateAsync("/reports/metal", L["MetalReport"].Value, "fa fa-chart-bar")
+                IconCssClass = "custom-icon-report",
+                OnClick = async () => await TabManager.OpenOrActivateAsync("/reports/metal", L["MetalReport"].Value, "custom-icon-report")
             }
         };
     }
 }
+

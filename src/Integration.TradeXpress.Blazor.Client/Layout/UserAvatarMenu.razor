@@ -8,6 +8,8 @@
 @inject ICurrentTenant CurrentTenant
 @inject NavigationManager Navigation
 @inject IJSRuntime Js
+@inject Integration.TradeXpress.Blazor.Client.Services.Mdi.ITabManager TabManager
+@inject Integration.Framework.Blazor.Client.Services.Base.ITradeXpressUiService Ui
 @inject IStringLocalizer<Integration.TradeXpress.Localization.TradeXpressResource> L
 
 @*
@@ -44,7 +46,7 @@
                 <div class="mb-3"></div>
             }
             <DxButton Text="@L["Logout"]"
-                      IconCssClass="fas fa-sign-out-alt"
+                      IconCssClass="custom-icon-sign-out"
                       RenderStyle="ButtonRenderStyle.Secondary"
                       CssClass="w-100"
                       Click="OnLogout" />
@@ -78,6 +80,12 @@
 
     private async Task OnLogout()
     {
+        if (TabManager.HasDirtyTabs)
+        {
+            var result = await Ui.ConfirmAsync("Değişiklik yapılmış ancak kaydedilmemiş sekmeler var. Çıkış yaparsanız bu değişiklikler kaybolacak. Çıkış yapmak istediğinize emin misiniz?", "Uyarı", "Yine de Çık", "İptal", false, false);
+            if (result != Integration.Framework.Blazor.Client.Services.Base.ConfirmDialogResult.Yes) return;
+        }
+
         _isOpen = false;
         // /api/account/logout bir REST endpoint'tir (204 döner, redirect ETMEZ). Sayfa olarak
         // gidersek boş ekranda kalırız. Login ile simetrik: same-origin fetch ile cookie'yi
@@ -108,3 +116,4 @@
             : userName.ToUpperInvariant();
     }
 }
+

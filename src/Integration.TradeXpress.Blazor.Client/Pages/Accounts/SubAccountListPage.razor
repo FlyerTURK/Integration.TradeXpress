@@ -1,0 +1,36 @@
+@page "/subaccounts/{AccountId:guid}"
+@using Integration.Framework.Blazor.Client.Components.Crud
+@using Integration.TradeXpress.Accounts
+@using DevExpress.Blazor
+@inject Microsoft.AspNetCore.Components.NavigationManager NavigationManager
+@inherits CrudPageBase<SubAccountGetDto, SubAccountListDto, Guid, SubAccountListRequestDto, SubAccountCreateDto, SubAccountUpdateDto>
+
+<CrudLayout TGetDto="SubAccountGetDto"
+            TListDto="SubAccountListDto"
+            TKey="Guid"
+            StateService="StateService"
+            DataSource="@GridDataSource"
+            EntityName="@L["SubAccount"]"
+            EntityIcon="@TradeXpressIcons.SubAccount"
+            PrimaryTextSelector="@(m => m.Code)"
+            ParentEntityName="@L["Account"]"
+            ParentTextSelector="@(_ => AccountCode)"
+            PageTitle="@PageTitle"
+            OnNewClick="BeforeCreateAsync"
+            OnUpdateClick="BeforeUpdateAsync"
+            OnDeleteClick="DeleteAsync"
+            OnRefreshClick="GetListAsync"
+            OnSearchChanged="OnSearchAsync">
+
+    <GridColumns>
+        <GridLinkColumn FieldName="Code" Caption="@L["Code"]" Width="120px" FixedPosition="GridColumnFixedPosition.Left" VisibleIndex="1"
+                        OnClick="@(o => BeforeUpdateAsync((SubAccountListDto)o))" />
+        <GridLinkColumn FieldName="AccountCode" Caption="@L["Account"]" Width="120px" VisibleIndex="1"
+                        OnClick="@(o => OpenAccountAsync((SubAccountListDto)o))" />
+        <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" VisibleIndex="2"  MinWidth="200" />
+        <DxGridDataColumn FieldName="IsActive" Caption="@L["Status"]" Width="110px" VisibleIndex="3" TextAlignment="GridTextAlignment.Left">
+            <CellDisplayTemplate Context="cell"><Integration.Framework.Blazor.Client.Components.Shared.StatusCell Active="@(((SubAccountListDto)cell.DataItem).IsActive)" /></CellDisplayTemplate>
+        </DxGridDataColumn>
+    </GridColumns>
+
+</CrudLayout>

@@ -20,6 +20,7 @@ public partial class BranchListPage
     [Parameter]
     public Guid CompanyId { get; set; }
 
+    [Parameter]
     [SupplyParameterFromQuery(Name = "companycode")]
     public string? CompanyCode { get; set; }
 
@@ -31,6 +32,7 @@ public partial class BranchListPage
         BranchListRequestDto, BranchCreateDto, BranchUpdateDto> CrudAppService
         => BranchAppService;
 
+    protected override string EditTitle => string.IsNullOrWhiteSpace(CompanyCode) ? base.EditTitle : $"{base.EditTitle} - [{L["Entity:Company"]}: {CompanyCode}]";
     protected override string PermissionPrefix => TradeXpressPermissions.Branches.Default;
 
     private string PageTitle => string.IsNullOrWhiteSpace(CompanyCode)
@@ -73,8 +75,13 @@ public partial class BranchListPage
     {
         if (SelectedBranch is null) return;
         var url = $"/vaults/{SelectedBranch.Id}?branchcode={Uri.EscapeDataString(SelectedBranch.Code)}";
-        var title = $"{L["Menu:Vaults"]} - [{L["Entity:Branch"]}: {SelectedBranch.Code}]";
-        await TabManager.OpenOrActivateAsync(url, title, TradeXpressIcons.Vault);
+        var header = new Integration.Framework.Blazor.Client.Services.Mdi.TabHeaderData {
+            FormCaption = L["Menu:Vaults"],
+            IconCssClass = TradeXpressIcons.Vault,
+            ParentLabel = L["Entity:Branch"],
+            ParentValue = SelectedBranch.Code
+        };
+        await TabManager.OpenOrActivateAsync(url, header);
     }
 
 
@@ -86,6 +93,9 @@ public partial class BranchListPage
         protected override System.Collections.Generic.Dictionary<string, object>? AdditionalEditParameters
             => new() { ["CompanyId"] = CompanyId };
     }
+
+
+
 
 
 

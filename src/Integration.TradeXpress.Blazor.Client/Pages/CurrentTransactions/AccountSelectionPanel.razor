@@ -109,7 +109,7 @@
                 <DxFormLayoutItem ColSpanMd="6" Visible="@(_model.SubAccountId.HasValue)">
                     <div style="display:flex; justify-content:flex-end; width:100%; height:100%; align-items:flex-end;">
                         <DxButton Text="@(_locked ? L["SelectAccount"].Value : L["Confirm"].Value)"
-                                  IconCssClass="@(_locked ? "fas fa-address-card" : "fas fa-check")"
+                                  IconCssClass="@(_locked ? "custom-icon-address-card" : "custom-icon-check")"
                                   RenderStyle="ButtonRenderStyle.Primary"
                                   Click="@OnConfirmClicked" />
                     </div>
@@ -126,7 +126,7 @@
     @if (_showActionToolbar)
     {
         <hr class="my-2" style="border-top: 1px solid var(--bs-border-color);" />
-        <DxToolbar Adaptive="false" CssClass="mt-2">
+        <DxToolbar Adaptive="false" AdaptivityAutoCollapseItemsToIcons="false" CssClass="mt-2">
             <DxToolbarItem BeginGroup="true" Text="@($"3-{L["Metal"].ToString().ToUpper()}")" IconCssClass="custom-icon-metal" Click="@OnMetalClicked" />
             <DxToolbarItem BeginGroup="true" Text="@($"4-{L["Scrap"].ToString().ToUpper()}")" IconCssClass="custom-icon-scrap" Click="@OnScrapClicked" />
             <DxToolbarItem BeginGroup="true" Text="@($"5-{L["CashProcess"].ToString().ToUpper()}")" IconCssClass="custom-icon-cash" Click="@OnCashClicked" />
@@ -287,10 +287,13 @@ else if (_activeProcess == "Jewelry")
 }
 
 @code {
+    [Parameter] public Guid? InitialSubAccountId { get; set; }
+    [Parameter] public Guid? InitialVoucherId { get; set; }
+
     [Parameter] public EventCallback<Guid> OnLineSaved { get; set; }
     [Parameter] public EventCallback<SubAccountListDto?> OnSubAccountSelected { get; set; }
     [Parameter] public EventCallback<Guid?> OnVoucherOpened { get; set; }
-    /// <summary>Süreç paneli (Nakit vb.) açık/kapalı değişince forma bildirir.</summary>
+    /// <summary>Süreç paneli (Nakit vb.) açık/kalı değişince forma bildirir.</summary>
     [Parameter] public EventCallback<bool> OnProcessActiveChanged { get; set; }
     /// <summary>Cari panel TAMAM ile kilitlenince/açılınca forma bildirir (Düzelt/Sil görünürlüğü).</summary>
     [Parameter] public EventCallback<bool> OnLockChanged { get; set; }
@@ -344,6 +347,18 @@ else if (_activeProcess == "Jewelry")
         await Task.WhenAll(subTask, vaultTask);
         _subAccounts  = subTask.Result.Items.ToList();
         _branchVaults = vaultTask.Result.Items.ToList();
+
+        if (InitialSubAccountId.HasValue)
+        {
+            await OnSubAccountChanged(InitialSubAccountId);
+            await OnSubAccountLostFocus(); // Seçimi anında forma bildir (blur bekleme)
+
+            if (InitialVoucherId.HasValue)
+            {
+                await OnVoucherChanged(InitialVoucherId);
+                await OnConfirmClicked(); // Auto-lock and open voucher!
+            }
+        }
     }
 
     private async Task OnSubAccountChanged(Guid? subAccountId)
@@ -616,3 +631,4 @@ else if (_activeProcess == "Jewelry")
         }
     }
 }
+

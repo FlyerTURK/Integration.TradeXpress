@@ -58,7 +58,7 @@
     [Parameter] public string? Title { get; set; }
 
     /// <summary>Header'da opsiyonel ikon. Varsayılan: generic "düzenle" ikonu (entity'ye özel geçilebilir).</summary>
-    [Parameter] public string? HeaderIconCssClass { get; set; } = "fas fa-pen-to-square";
+    [Parameter] public string? HeaderIconCssClass { get; set; } = "custom-icon-edit";
 
     /// <summary>Düzenlenen modelin EditContext'i (sahibi çağırandır; burada yalnız kullanılır).</summary>
     [Parameter] public EditContext? EditContext { get; set; }
@@ -121,3 +121,4 @@
         if (_subscribed != null) _subscribed.OnValidationStateChanged -= OnValidationStateChanged;
     }
 }
+

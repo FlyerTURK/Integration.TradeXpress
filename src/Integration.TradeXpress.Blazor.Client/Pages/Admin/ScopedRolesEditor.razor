@@ -48,10 +48,10 @@
             </Template>
         </DxToolbarItem>
 
-        <DxToolbarItem Text="@L["Add"]" IconCssClass="fas fa-plus"
+        <DxToolbarItem Text="@L["Add"]" IconCssClass="custom-icon-add"
                        Enabled="@CanAdd" Click="AddAsync"
                        Alignment="ToolbarItemAlignment.Right" />
-        <DxToolbarItem Text="@L["Delete"]" IconCssClass="fas fa-trash"
+        <DxToolbarItem Text="@L["Delete"]" IconCssClass="custom-icon-delete"
                        Enabled="@(SelectedRole != null)" Click="DeleteSelected"
                        Alignment="ToolbarItemAlignment.Right" />
     </DxToolbar>
@@ -289,3 +289,4 @@
         public string VaultCode { get; set; } = string.Empty;
     }
 }
+

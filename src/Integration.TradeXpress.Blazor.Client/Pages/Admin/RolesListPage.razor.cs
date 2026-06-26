@@ -49,7 +49,13 @@ public partial class RolesListPage
     {
         var r = SelectedRole;
         if (r == null) return;
-        await TabManager.OpenOrActivateAsync($"/admin/permissions/R/{Uri.EscapeDataString(r.Name)}", $"{L["Permissions"]}: {r.Name}", TradeXpressIcons.Permission);
+        var header = new Integration.Framework.Blazor.Client.Services.Mdi.TabHeaderData {
+            FormCaption = L["Permissions"],
+            IconCssClass = TradeXpressIcons.Permission,
+            ParentLabel = L["Role"],
+            ParentValue = r.Name
+        };
+        await TabManager.OpenOrActivateAsync($"/admin/permissions/R/{Uri.EscapeDataString(r.Name)}", header);
     }
 
         // YENİ mimari: agnostic EntityEditForm + PersistentCoordinator + izin paneli kancaları (eski RoleEditPage kaldırıldı).

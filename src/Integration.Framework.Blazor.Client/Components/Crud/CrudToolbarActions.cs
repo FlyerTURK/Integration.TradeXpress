@@ -43,7 +43,7 @@ namespace Integration.Framework.Blazor.Client.Components.Crud
             Items = onSaveAndClose == null ? null : new List<CrudToolbarAction>
             {
                 new() { Text = L["SaveAndClose"], Tooltip = L["SaveAndClose"],
-                        IconCssClass = "fas fa-circle-check " + IconClass,
+                        IconCssClass = "custom-icon-check-circle " + IconClass,
                         Enabled = enabled, OnClick = onSaveAndClose },
             },
         };
@@ -107,21 +107,21 @@ namespace Integration.Framework.Blazor.Client.Components.Crud
         public static CrudToolbarAction Undo(IStringLocalizer L, bool visible, bool enabled, Func<Task> onClick) => new()
         {
             SortIndex = 800, AdaptiveText = L["Undo"], Tooltip = L["Undo"],
-            IconCssClass = "fas fa-rotate-left " + IconClass,
+            IconCssClass = "custom-icon-refresh " + IconClass,
             Visible = visible, Enabled = enabled, OnClick = onClick,
         };
 
         public static CrudToolbarAction Redo(IStringLocalizer L, bool visible, bool enabled, Func<Task> onClick) => new()
         {
             SortIndex = 810, AdaptiveText = L["Redo"], Tooltip = L["Redo"],
-            IconCssClass = "fas fa-rotate-right " + IconClass,
+            IconCssClass = "custom-icon-refresh " + IconClass,
             Visible = visible, Enabled = enabled, OnClick = onClick,
         };
 
         public static CrudToolbarAction Reset(IStringLocalizer L, bool visible, bool enabled, Func<Task> onClick) => new()
         {
             SortIndex = 820, AdaptiveText = L["Reset"], Tooltip = L["Reset"],
-            IconCssClass = "fas fa-eraser " + IconClass,
+            IconCssClass = "custom-icon-eraser " + IconClass,
             Visible = visible, Enabled = enabled, OnClick = onClick,
         };
 
@@ -132,3 +132,4 @@ namespace Integration.Framework.Blazor.Client.Components.Crud
         };
     }
 }
+

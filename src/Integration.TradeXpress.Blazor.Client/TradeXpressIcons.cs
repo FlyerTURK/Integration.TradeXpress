@@ -53,4 +53,31 @@ public static class TradeXpressIcons
 
     // â”€â”€ Genel â”€â”€
     public const string Home = "custom-icon-home";
+
+    // ¦¦ Action & System ¦¦
+    public const string Add = "custom-icon-add";
+    public const string Delete = "custom-icon-delete";
+    public const string Download = "custom-icon-download";
+    public const string Spinner = "custom-icon-spinner custom-spin";
+    public const string Comments = "custom-icon-comments";
+    public const string Report = "custom-icon-report";
+    public const string Save = "custom-icon-save";
+    public const string Sliders = "custom-icon-sliders";
+    public const string Back = "custom-icon-back";
+    public const string Swap = "custom-icon-swap";
+    public const string AddressCard = "custom-icon-address-card";
+    public const string Check = "custom-icon-check";
+    public const string Refresh = "custom-icon-refresh";
+    public const string Warning = "custom-icon-warning";
+    public const string Percent = "custom-icon-percent";
+    public const string History = "custom-icon-history";
+    public const string Close = "custom-icon-close";
+    public const string Eye = "custom-icon-eye";
+    public const string SignOut = "custom-icon-sign-out";
+    public const string Server = "custom-icon-server";
+    public const string Bug = "custom-icon-bug";
+    public const string Copy = "custom-icon-copy";
+    public const string ChevronDown = "custom-icon-chevron-down";
+    public const string Lightbulb = "custom-icon-lightbulb";
 }
+

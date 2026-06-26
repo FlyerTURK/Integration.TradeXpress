@@ -16,7 +16,7 @@
            ValidationEnabled="false"
            CssClass="w-100">
     <Buttons>
-        <DxEditorButton IconCssClass="fas fa-pen-to-square"
+        <DxEditorButton IconCssClass="custom-icon-edit"
                         Visible="@_canEdit"
                         Click="@OnEditButtonClick"
                         Tooltip="@_buttonTooltip" />
@@ -48,3 +48,4 @@
 
     private Task OnEditButtonClick(MouseEventArgs _) => _canEdit ? OnEditClick.InvokeAsync() : Task.CompletedTask;
 }
+

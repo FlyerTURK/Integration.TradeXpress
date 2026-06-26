@@ -1,4 +1,4 @@
-﻿<!-- @license lucide-static v0.300.0 - ISC -->
+<!-- @license lucide-static v0.300.0 - ISC -->
 <svg
   class="lucide lucide-folder-tree"
   xmlns="http://www.w3.org/2000/svg"
@@ -6,7 +6,7 @@
   height="24"
   viewBox="0 0 24 24"
   fill="none"
-  stroke="#f59e0b"
+  stroke="#64748b"
   stroke-width="2.5"
   stroke-linecap="round"
   stroke-linejoin="round"
@@ -16,4 +16,5 @@
   <path d="M3 5a2 2 0 0 0 2 2h3" />
   <path d="M3 3v13a2 2 0 0 0 2 2h3" />
 </svg>
+
 

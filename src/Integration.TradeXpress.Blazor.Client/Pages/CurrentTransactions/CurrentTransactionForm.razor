@@ -43,6 +43,8 @@
     @* Liste modunda gizli (display:none) — state korunur (Geri'de cari/fiş seçimi kaybolmaz). *@
     <div style="@($"{PanelBox()} grid-area:p1; min-height:unset; overflow:hidden;{(_listMode && !_processActive ? " display:none;" : "")}")">
         <AccountSelectionPanel @ref="_accountPanel"
+                               InitialSubAccountId="@SubAccountId"
+                               InitialVoucherId="@VoucherId"
                                OnLineSaved="@OnLineSaved"
                                OnSubAccountSelected="@OnSubAccountSelected"
                                OnVoucherOpened="@OnVoucherOpened"
@@ -73,7 +75,7 @@
                                                                DisplayFormat="@L["ShortDateFormat"].Value" style="width:280px;" />
                                         </Template>
                                     </DxToolbarItem>
-                                    <DxToolbarItem BeginGroup="true" Alignment="ToolbarItemAlignment.Right" Text="@L["Back"].Value" IconCssClass="fas fa-arrow-left" Click="@ExitListModeAsync" />
+                                    <DxToolbarItem BeginGroup="true" Alignment="ToolbarItemAlignment.Right" Text="@L["Back"].Value" IconCssClass="custom-icon-back" Click="@ExitListModeAsync" />
                                 </DxToolbar>
                             </div>
                         }
@@ -212,7 +214,7 @@
             <DxSpinEdit TValue="int?" @bind-Value="@_deleteAnswer" ShowSpinButtons="false" CssClass="w-100" />
             <DxTextBox @bind-Text="@_deleteReason" NullText="Silme nedeni" CssClass="w-100" />
             <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:4px;">
-                <DxButton Text="Sil" IconCssClass="fas fa-trash"
+                <DxButton Text="Sil" IconCssClass="custom-icon-delete"
                           RenderStyle="ButtonRenderStyle.Danger" RenderStyleMode="ButtonRenderStyleMode.Contained"
                           Click="@ConfirmDeleteAsync" />
                 <DxButton Text="İptal"
@@ -264,6 +266,26 @@
     [CascadingParameter(Name = "CurrentMdiTab")]
     private Integration.Framework.Blazor.Client.Services.Mdi.IMdiTab? CurrentMdiTab { get; set; }
 
+    [Parameter]
+    [SupplyParameterFromQuery(Name = "subAccountId")]
+    public Guid? SubAccountId { get; set; }
+
+    [Parameter]
+    [SupplyParameterFromQuery(Name = "voucherId")]
+    public Guid? VoucherId { get; set; }
+
+    private void PushStateToUrl()
+    {
+        if (CurrentMdiTab == null) return;
+        var q = new List<string>();
+        if (_currentSubAccountId.HasValue) q.Add($"subAccountId={_currentSubAccountId.Value}");
+        if (_currentVoucherId.HasValue) q.Add($"voucherId={_currentVoucherId.Value}");
+        
+        var url = "/cari-islemler";
+        if (q.Any()) url += "?" + string.Join("&", q);
+        Tabs.UpdateTabUrl(CurrentMdiTab.Id, url);
+    }
+
     private async Task OnSubAccountSelected(SubAccountListDto? sa)
     {
         _currentSubAccountId = sa?.Id;
@@ -276,14 +298,17 @@
                 ? new Integration.Framework.Blazor.Client.Services.Mdi.TabHeaderData { FormCaption = "Cari İşlemler" }
                 : new Integration.Framework.Blazor.Client.Services.Mdi.TabHeaderData
                 {
-                    FormCaption = sa.AccountDisplay,
+                    FormCaption = "Cari İşlemler",
                     EntityValue = sa.SubAccountDisplay,
-                    IconCssClass = "fas fa-right-left",
+                    ParentLabel = L["Entity:Account"],
+                    ParentValue = sa.AccountDisplay,
+                    IconCssClass = "custom-icon-swap",
                 };
             Tabs.UpdateTabHeader(CurrentMdiTab.Id, header);
         }
 
         await RefreshBalanceAsync();
+        PushStateToUrl();
         await InvokeAsync(StateHasChanged);
     }
 
@@ -296,6 +321,7 @@
             : new List<VoucherLineDto>();
         _selectedLine = null;
         await RefreshBalanceAsync();   // seçim yok → cari toplamı
+        PushStateToUrl();
         await InvokeAsync(StateHasChanged);
     }
 
@@ -563,3 +589,4 @@
     private static string PanelBox() =>
         "box-sizing:border-box; border-radius:12px; padding:4px; min-width:0;";
 }
+

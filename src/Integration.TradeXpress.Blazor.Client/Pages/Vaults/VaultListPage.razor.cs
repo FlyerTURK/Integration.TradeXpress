@@ -15,6 +15,7 @@ public partial class VaultListPage
     [Parameter]
     public Guid BranchId { get; set; }
 
+    [Parameter]
     [SupplyParameterFromQuery(Name = "branchcode")]
     public string? BranchCode { get; set; }
 
@@ -26,6 +27,7 @@ public partial class VaultListPage
         VaultListRequestDto, VaultCreateDto, VaultUpdateDto> CrudAppService
         => VaultAppService;
 
+    protected override string EditTitle => string.IsNullOrWhiteSpace(BranchCode) ? base.EditTitle : $"{base.EditTitle} - [{L["Entity:Branch"]}: {BranchCode}]";
     protected override string PermissionPrefix => TradeXpressPermissions.Vaults.Default;
 
     private string PageTitle => string.IsNullOrWhiteSpace(BranchCode)
@@ -43,5 +45,8 @@ public partial class VaultListPage
     protected override System.Collections.Generic.Dictionary<string, object>? AdditionalEditParameters
         => new() { ["BranchId"] = BranchId, ["BranchCode"] = BranchCode ?? string.Empty };
 }
+
+
+
 
 

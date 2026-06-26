@@ -97,7 +97,7 @@ public class TradeXpressMenuContributor : IMenuContributor
             TradeXpressMenus.Reports + ".Cash",
             l["CashReport"],
             url: "/reports/cash",
-            icon: "fa fa-chart-bar"
+            icon: "custom-icon-report"
         ));
 
         commodities.AddItem(cashesMenu);
@@ -125,7 +125,7 @@ public class TradeXpressMenuContributor : IMenuContributor
             TradeXpressMenus.Reports + ".Scrap",
             l["ScrapReport"],
             url: "/reports/scrap",
-            icon: "fa fa-chart-bar"
+            icon: "custom-icon-report"
         ));
 
         commodities.AddItem(scrapsMenu);
@@ -142,7 +142,7 @@ public class TradeXpressMenuContributor : IMenuContributor
             TradeXpressMenus.Reports + ".Metal",
             l["MetalReport"],
             url: "/reports/metal",
-            icon: "fa fa-chart-bar"
+            icon: "custom-icon-report"
         ));
 
         commodities.AddItem(metalsMenu);
@@ -268,10 +268,11 @@ public class TradeXpressMenuContributor : IMenuContributor
             "Account.Manage",
             accountStringLocalizer["MyAccount"],
             $"{authServerUrl.EnsureEndsWith('/')}Account/Manage",
-            icon: "fa fa-cog",
+            icon: "custom-icon-settings",
             order: 1000,
             target: "_blank").RequireAuthenticated());
 
         await Task.CompletedTask;
     }
 }
+

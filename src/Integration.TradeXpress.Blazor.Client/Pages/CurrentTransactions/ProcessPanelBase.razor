@@ -12,12 +12,12 @@
 
     <div style="display:flex; justify-content:flex-end; gap:8px; padding:8px 8px 4px; border-top:1px solid #ddd;">
         <DxButton Text="@L["Save"].Value"
-                  IconCssClass="fas fa-save"
+                  IconCssClass="custom-icon-save"
                   RenderStyle="ButtonRenderStyle.Primary"
                   RenderStyleMode="ButtonRenderStyleMode.Contained"
                   Click="@OnSave" />
         <DxButton Text="@L["Back"].Value"
-                  IconCssClass="fas fa-arrow-left"
+                  IconCssClass="custom-icon-back"
                   RenderStyle="ButtonRenderStyle.Secondary"
                   RenderStyleMode="ButtonRenderStyleMode.Contained"
                   Click="@OnBack" />
@@ -66,3 +66,4 @@
         return $"height:34px; border-radius:4px 4px 0 0; background:{gradient};";
     }
 }
+

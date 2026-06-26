@@ -67,14 +67,18 @@ public class UserUiSettingAppService : TradeXpressAppService, IUserUiSettingAppS
 
     public async Task<string> GetMdiTabsAsync()
     {
-        var json = await SettingProvider.GetOrNullAsync(TradeXpressUiSettingNames.MdiTabs);
+        var branchId = await GetWorkingBranchAsync();
+        var key = string.IsNullOrEmpty(branchId) ? TradeXpressUiSettingNames.MdiTabs : $"{TradeXpressUiSettingNames.MdiTabs}_{branchId}";
+        var json = await GetGridStateAsync(key);
         return string.IsNullOrEmpty(json) ? "[]" : json;
     }
 
     public async Task SetMdiTabsAsync(string stateJson)
     {
+        var branchId = await GetWorkingBranchAsync();
+        var key = string.IsNullOrEmpty(branchId) ? TradeXpressUiSettingNames.MdiTabs : $"{TradeXpressUiSettingNames.MdiTabs}_{branchId}";
         if (string.IsNullOrEmpty(stateJson)) stateJson = "[]";
-        await _settingManager.SetForCurrentUserAsync(TradeXpressUiSettingNames.MdiTabs, stateJson);
+        await SetGridStateAsync(key, stateJson);
     }
 
     public async Task<string?> GetThemeAsync()

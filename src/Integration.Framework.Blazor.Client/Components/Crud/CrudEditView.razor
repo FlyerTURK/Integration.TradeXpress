@@ -13,34 +13,47 @@
        adaptivity'nin mobil yeniden-boyutlandırmasını bastırdığından kullanılmaz. *@
     <DxPopup Visible="@Visible"
              VisibleChanged="VisibleChanged"
-             Width="95%"
-             MaxWidth="720px"
-             MaxHeight="90vh"
+             Width="@(_isFullscreen ? "100%" : (_isMinimized ? "350px" : "95%"))"
+             MaxWidth="@(_isFullscreen ? "100vw" : (_isMinimized ? "350px" : "720px"))"             MinHeight="@(_isMinimized ? "0" : "150px")"
+             MaxHeight="@(_isFullscreen ? "100vh" : "90vh")"
+             Height="@(_isFullscreen ? "100%" : null)"
              Scrollable="true"
-             AllowDrag="true"
-             AllowResize="true"
+             ShowBackdrop="@(!_isMinimized)"
+             AllowDrag="@(!_isFullscreen && !_isMinimized)"
+             AllowResize="@(!_isFullscreen)"
+             HorizontalAlignment="@(_isMinimized ? HorizontalAlignment.Left : HorizontalAlignment.Center)"
+             VerticalAlignment="@(_isMinimized ? VerticalAlignment.Bottom : VerticalAlignment.Center)"
              ShowFooter="@(Footer != null)"
-             ShowCloseButton="true"
+             ShowCloseButton="@(!_isMinimized)"
              CloseOnEscape="true"
              CloseOnOutsideClick="false"
-             CssClass="crud-edit-popup">
+             CssClass="@($"crud-edit-popup {(_isFullscreen ? "fullscreen-popup " : "")} {(_isMinimized ? "minimized-popup " : "")}")">
         <HeaderContentTemplate Context="popup">
-            @* Başlık sola yaslı + opsiyonel ikon (varsayılan ortalamayı ezer). *@
-            <div style="display:flex; align-items:center; gap:0.5rem; width:100%; justify-content:flex-start;">
-                @if (!string.IsNullOrEmpty(HeaderIconCssClass))
-                {
-                    <span class="@HeaderIconCssClass" aria-hidden="true" style="color:var(--dxbl-primary, #2563eb);"></span>
-                }
-                <span>@Title</span>
+            <div class="flex-grow-1 w-100 h-100 position-relative d-flex align-items-center" style="user-select: none;" @ondblclick="@(() => { if (_isMinimized) ToggleMinimize(); else ToggleFullscreen(); })">
+                <div class="flex-grow-1" style="display:flex; align-items:center; gap:0.5rem; justify-content:flex-start; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; padding-right: 60px;">
+                    @if (!string.IsNullOrEmpty(HeaderIconCssClass))
+                    {
+                        <span class="@HeaderIconCssClass" aria-hidden="true" style="color:var(--dxbl-primary, #2563eb);"></span>
+                    }
+                    <span>@Title</span>
+                </div>
+                <div class="position-absolute d-flex align-items-center" style="right: 0; top: 50%; transform: translateY(-50%);">
+                    <DxButton RenderStyle="ButtonRenderStyle.None" CssClass="me-1 d-flex flex-shrink-0 align-items-center justify-content-center" Click="ToggleMinimize" tabindex="-1"><i class="@(_isMinimized ? "custom-icon-restore-min" : "custom-icon-minimize-corner")" style="width: 20px; height: 20px;"></i></DxButton>
+                    <DxButton RenderStyle="ButtonRenderStyle.None" CssClass="@($"me-2 d-none {(_isMinimized ? "" : "d-md-flex")} align-items-center justify-content-center")" Click="ToggleFullscreen" tabindex="-1"><i class="@(_isFullscreen ? "custom-icon-minimize" : "custom-icon-maximize")" style="width: 20px; height: 20px;"></i></DxButton>
+                </div>
             </div>
         </HeaderContentTemplate>
-        <Content>
-            @ChildContent
-        </Content>
+        <BodyContentTemplate Context="popup">
+            <div style="@(_isMinimized ? "display: none !important;" : "")">
+                @ChildContent
+            </div>
+        </BodyContentTemplate>
         @* FooterContentTemplate (FooterTemplate değil): gövdeyle AYNI tema padding'i + üst ayraç
            çizgisini otomatik uygular → footer içeriği her temada gövdeyle hizalı kalır. *@
         <FooterContentTemplate Context="popup">
-            @Footer
+            <div style="@(_isMinimized ? "display: none !important;" : "")">
+                @Footer
+            </div>
         </FooterContentTemplate>
     </DxPopup>
 }
@@ -51,6 +64,21 @@ else
 }
 
 @code {
+    private bool _isFullscreen;
+    private bool _isMinimized;
+
+    private void ToggleFullscreen()
+    {
+        _isMinimized = false;
+        _isFullscreen = !_isFullscreen;
+    }
+
+    private void ToggleMinimize()
+    {
+        _isFullscreen = false;
+        _isMinimized = !_isMinimized;
+    }
+
     /// <summary>Sayfa mı, popup mu — yerine göre çağıran belirler.</summary>
     [Parameter] public EditViewMode Mode { get; set; } = EditViewMode.Page;
 
@@ -71,3 +99,26 @@ else
     /// sayfa modunda içeriğin altında render edilir.</summary>
     [Parameter] public RenderFragment? Footer { get; set; }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

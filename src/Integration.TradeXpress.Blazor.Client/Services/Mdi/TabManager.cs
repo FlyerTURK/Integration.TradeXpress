@@ -11,21 +11,24 @@ public sealed class TabManager : ITabManager, IMdiTabOpener
 {
     private readonly RouteResolver _resolver;
     private readonly IUserUiSettingAppService _uiSettings;
+    private readonly Integration.TradeXpress.Blazor.Client.Services.Working.IWorkingContextService _working;
     private readonly List<MdiTab> _tabs = new();
     private Guid? _activeId;
     private bool _initialized;
 
-    public TabManager(RouteResolver resolver, IUserUiSettingAppService uiSettings)
+    public TabManager(RouteResolver resolver, IUserUiSettingAppService uiSettings, Integration.TradeXpress.Blazor.Client.Services.Working.IWorkingContextService working)
     {
         _resolver = resolver;
         _uiSettings = uiSettings;
+        _working = working;
     }
 
     public IReadOnlyList<MdiTab> Tabs => _tabs;
     public Guid? ActiveTabId => _activeId;
+    public bool HasDirtyTabs => _tabs.Any(t => t.IsDirty);
     public event Action? StateChanged;
 
-    public async Task InitializeAsync(string defaultUrl, string defaultTitle, string? defaultIcon)
+    public async Task InitializeAsync(string? defaultUrl, string? defaultTitle, string? defaultIcon)
     {
         if (_initialized) return;
         _initialized = true;
@@ -33,12 +36,38 @@ public sealed class TabManager : ITabManager, IMdiTabOpener
         await RehydrateAsync();
 
         if (_tabs.Count == 0)
-            await OpenOrActivateAsync(defaultUrl, defaultTitle, defaultIcon);
+        {
+            if (!string.IsNullOrEmpty(defaultUrl))
+                await OpenOrActivateAsync(defaultUrl, defaultTitle ?? "", defaultIcon);
+        }
         else
             Raise();
     }
 
+    public async Task ReloadTabsAsync()
+    {
+        _tabs.Clear();
+        _activeId = null;
+        await RehydrateAsync();
+        Raise();
+    }
+
+    public async Task HardResetAsync()
+    {
+        _tabs.Clear();
+        _activeId = null;
+        var branchId = _working.CurrentBranchId?.ToString();
+        var key = string.IsNullOrEmpty(branchId) ? "MdiTabs" : $"MdiTabs_{branchId}";
+        await _uiSettings.SetGridStateAsync(key, "[]");
+        Raise();
+    }
+
     public Task OpenOrActivateAsync(string url, string title, string? icon = null)
+    {
+        return OpenOrActivateAsync(url, new Integration.Framework.Blazor.Client.Services.Mdi.TabHeaderData { FormCaption = title, IconCssClass = icon });
+    }
+
+    public Task OpenOrActivateAsync(string url, Integration.Framework.Blazor.Client.Services.Mdi.TabHeaderData headerData)
     {
         url = Normalize(url);
 
@@ -47,6 +76,9 @@ public sealed class TabManager : ITabManager, IMdiTabOpener
         if (existing != null)
         {
             _activeId = existing.Id;
+            existing.Header = headerData;
+            existing.Title = headerData.FormCaption;
+            existing.IconCssClass = headerData.IconCssClass;
             Persist(); Raise();
             return Task.CompletedTask;
         }
@@ -56,8 +88,9 @@ public sealed class TabManager : ITabManager, IMdiTabOpener
 
         var tab = new MdiTab
         {
-            Title = title,
-            IconCssClass = icon,
+            Title = headerData.FormCaption,
+            Header = headerData,
+            IconCssClass = headerData.IconCssClass,
             Kind = TabKind.Internal,
             Url = url,
             PageType = match.PageType,
@@ -79,7 +112,7 @@ public sealed class TabManager : ITabManager, IMdiTabOpener
         var tab = new MdiTab
         {
             Title = title,
-            IconCssClass = icon ?? "fas fa-globe",
+            IconCssClass = icon ?? "custom-icon-country",
             Kind = TabKind.External,
             Url = url,
         };
@@ -162,7 +195,10 @@ public sealed class TabManager : ITabManager, IMdiTabOpener
         var tab = _tabs.FirstOrDefault(t => t.Id == tabId);
         if (tab == null || tab.Header == header) return;   // record value-eşitliği → gereksiz Raise/re-render yok
         tab.Header = header;
-        Raise();   // strip + top-panel re-render. Persist YOK — Header kalıcılaştırılmaz (restore'da edit sayfası kurar).
+        // İkon güncel Header'dan al (icon sonradan değişebilir, ör. detaylı yüklemede).
+        if (!string.IsNullOrEmpty(header.IconCssClass))
+            tab.IconCssClass = header.IconCssClass;
+        Raise(); Persist();   // strip + top-panel re-render. Header da kalıcılaştırılır → restore'da hemen görünür.
     }
 
     public void SetTabTitle(Guid tabId, string title)
@@ -181,6 +217,14 @@ public sealed class TabManager : ITabManager, IMdiTabOpener
         Raise();   // SplitView liste tab'ı: düz Title'a "*" (Header'a dokunmadan).
     }
 
+    public void UpdateTabUrl(Guid tabId, string url)
+    {
+        var tab = _tabs.FirstOrDefault(t => t.Id == tabId);
+        if (tab == null || string.Equals(tab.Url, url, StringComparison.OrdinalIgnoreCase)) return;
+        tab.Url = url;
+        Persist();
+    }
+
     private void Raise() => StateChanged?.Invoke();
 
     private static string Normalize(string url)
@@ -195,31 +239,48 @@ public sealed class TabManager : ITabManager, IMdiTabOpener
 
     // ---- Kalıcılık (ABP User Settings) ----
 
-    private sealed record PersistedTab(string Url, string Title, string? Icon, bool IsExternal, bool IsPinned);
+    private sealed record PersistedTab(
+        string Url,
+        string Title,
+        string? Icon,
+        bool IsExternal,
+        bool IsPinned,
+        // Header alanları — tab strip restore'da hemen görünsün (bileşen yüklenince zaten override edilir)
+        string? FormCaption = null,
+        string? EntityValue = null,
+        string? ParentLabel = null,
+        string? ParentValue = null);
     private sealed record PersistedState(List<PersistedTab> Tabs, string? ActiveUrl);
 
     private void Persist() => _ = PersistAsync();
 
     private async Task PersistAsync()
     {
-        if (!OperatingSystem.IsBrowser()) return; // Server mode: no per-user session to persist
         try
         {
             var active = _activeId != null ? _tabs.FirstOrDefault(t => t.Id == _activeId)?.Url : null;
             var state = new PersistedState(
-                _tabs.Select(t => new PersistedTab(t.Url, t.Title, t.IconCssClass, t.Kind == TabKind.External, t.IsPinned)).ToList(),
+                _tabs.Where(t => !t.IsDirty).Select(t => new PersistedTab(
+                    t.Url, t.Title, t.IconCssClass ?? t.Header?.IconCssClass,
+                    t.Kind == TabKind.External, t.IsPinned,
+                    t.Header?.FormCaption, t.Header?.EntityValue,
+                    t.Header?.ParentLabel, t.Header?.ParentValue)).ToList(),
                 active);
-            await _uiSettings.SetMdiTabsAsync(JsonSerializer.Serialize(state));
+                
+            var branchId = _working.CurrentBranchId?.ToString();
+            var key = string.IsNullOrEmpty(branchId) ? "MdiTabs" : $"MdiTabs_{branchId}";
+            await _uiSettings.SetGridStateAsync(key, JsonSerializer.Serialize(state));
         }
         catch { /* Network err — sessiz geç */ }
     }
 
     private async Task RehydrateAsync()
     {
-        if (!OperatingSystem.IsBrowser()) return; // Server mode: ABP app service hangs without HTTP context
         try
         {
-            var json = await _uiSettings.GetMdiTabsAsync();
+            var branchId = _working.CurrentBranchId?.ToString();
+            var key = string.IsNullOrEmpty(branchId) ? "MdiTabs" : $"MdiTabs_{branchId}";
+            var json = await _uiSettings.GetGridStateAsync(key);
             if (string.IsNullOrWhiteSpace(json) || json == "[]") return;
 
             var state = JsonSerializer.Deserialize<PersistedState>(json);
@@ -235,6 +296,19 @@ public sealed class TabManager : ITabManager, IMdiTabOpener
                 {
                     var match = _resolver.Match(p.Url);
                     if (match == null) continue; // route artık yok → atla
+
+                    // Kaydedilmiş header alanları varsa hemen restore et → bileşen yüklenene kadar tab şeridinde görünür.
+                    TabHeaderData? restoredHeader = null;
+                    if (!string.IsNullOrEmpty(p.FormCaption))
+                        restoredHeader = new TabHeaderData
+                        {
+                            FormCaption = p.FormCaption,
+                            EntityValue = p.EntityValue,
+                            ParentLabel = p.ParentLabel,
+                            ParentValue = p.ParentValue,
+                            IconCssClass = p.Icon,
+                        };
+
                     _tabs.Add(new MdiTab
                     {
                         Title = p.Title,
@@ -244,6 +318,7 @@ public sealed class TabManager : ITabManager, IMdiTabOpener
                         PageType = match.PageType,
                         Parameters = match.Parameters,
                         IsPinned = p.IsPinned,
+                        Header = restoredHeader,
                     });
                 }
             }
@@ -256,3 +331,4 @@ public sealed class TabManager : ITabManager, IMdiTabOpener
         catch { /* bozuk state → yoksay */ }
     }
 }
+

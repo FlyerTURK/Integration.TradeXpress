@@ -73,8 +73,8 @@
     {
         if (firstRender)
         {
-            // Ana sayfa otomatik sekme olarak açılmaz
-            // await TabManager.InitializeAsync("/", L["Menu:Home"], TradeXpressIcons.Home);
+            // Ana sayfa otomatik sekme olarak açılmaz, null gönderiyoruz
+            await TabManager.InitializeAsync(null, null, null);
             
             // Server mode: ensure re-render after initialization completes.
             await InvokeAsync(StateHasChanged);

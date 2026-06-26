@@ -159,7 +159,7 @@ namespace Integration.Framework.Blazor.Client.Components.Crud
                     return InvokeAsync(StateHasChanged);
                 });
                 search.BeginGroup = true;
-                search.IconCssClass = "fas fa-magnifying-glass";
+                search.IconCssClass = "custom-icon-search";
             }
         }
 
@@ -462,3 +462,4 @@ namespace Integration.Framework.Blazor.Client.Components.Crud
         }
     }
 }
+

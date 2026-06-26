@@ -19,7 +19,7 @@
     {
         <button type="button" @onclick="() => _open = true" title="Geliştirici Hataları"
                 style="@CollapsedButtonStyle">
-            <i class="fas fa-bug" style="font-size:16px;"></i>
+            <i class="custom-icon-bug" style="font-size:16px;"></i>
             @if (Sink.Count > 0)
             {
                 <span style="@BadgeStyle">@Sink.Count</span>
@@ -30,14 +30,14 @@
     {
         <div style="width:min(420px,92vw); max-height:62vh; display:flex; flex-direction:column; background:#1e1e1e; color:#e6e6e6; border:1px solid #3a3a3a; border-radius:10px; box-shadow:0 8px 30px rgba(0,0,0,.45); overflow:hidden;">
             <div style="display:flex; align-items:center; gap:8px; padding:8px 10px; background:#2a2a2a; border-bottom:1px solid #3a3a3a;">
-                <i class="fas fa-bug" style="color:#f87171;"></i>
+                <i class="custom-icon-bug" style="color:#f87171;"></i>
                 <strong style="font-size:13px;">Geliştirici Hataları</strong>
                 <span style="font-size:12px; opacity:.7;">(@Sink.Count)</span>
                 <span style="margin-left:auto; display:flex; gap:6px;">
-                    <button type="button" @onclick="HardReload" title="Uygulamayı yeniden yükle" style="@IconBtnStyle"><i class="fas fa-rotate-right"></i></button>
-                    <button type="button" @onclick="CopyAllAsync" title="Hepsini kopyala" style="@IconBtnStyle"><i class="fas fa-copy"></i></button>
-                    <button type="button" @onclick="Sink.Clear" title="Temizle" style="@IconBtnStyle"><i class="fas fa-trash"></i></button>
-                    <button type="button" @onclick="() => _open = false" title="Kapat" style="@IconBtnStyle"><i class="fas fa-chevron-down"></i></button>
+                    <button type="button" @onclick="HardReload" title="Uygulamayı yeniden yükle" style="@IconBtnStyle"><i class="custom-icon-refresh"></i></button>
+                    <button type="button" @onclick="CopyAllAsync" title="Hepsini kopyala" style="@IconBtnStyle"><i class="custom-icon-copy"></i></button>
+                    <button type="button" @onclick="Sink.Clear" title="Temizle" style="@IconBtnStyle"><i class="custom-icon-delete"></i></button>
+                    <button type="button" @onclick="() => _open = false" title="Kapat" style="@IconBtnStyle"><i class="custom-icon-chevron-down"></i></button>
                 </span>
             </div>
             <div style="overflow:auto; padding:6px 8px;">
@@ -66,7 +66,7 @@
                             <div style="font-size:12.5px; white-space:pre-wrap; word-break:break-word; margin-top:2px;">@e.Message</div>
                             @if (!string.IsNullOrEmpty(c.Suggestion))
                             {
-                                <div style="font-size:11px; opacity:.7; margin-top:2px;"><i class="fas fa-lightbulb" style="margin-right:4px;"></i>@c.Suggestion</div>
+                                <div style="font-size:11px; opacity:.7; margin-top:2px;"><i class="custom-icon-lightbulb" style="margin-right:4px;"></i>@c.Suggestion</div>
                             }
                             @if (!string.IsNullOrWhiteSpace(e.Stack))
                             {
@@ -202,3 +202,4 @@
         _selfRef?.Dispose();
     }
 }
+

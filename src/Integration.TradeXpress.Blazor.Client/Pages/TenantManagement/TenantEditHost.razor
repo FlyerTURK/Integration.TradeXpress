@@ -1,3 +1,5 @@
+@page "/tenants/new"
+@page "/tenants/{Id:guid}"
 @using System
 @using System.Collections.Generic
 @using System.Linq
@@ -24,7 +26,7 @@
 {
     <CrudEditHost TGetDto="TenantGetDto" TListDto="TenantListDto" TKey="Guid" TListRequestDto="TenantListRequestDto"
                   Coordinator="@_coordinator" Id="@(Id ?? Guid.Empty)" IsPopupMode="@IsPopupMode" OnSaved="@OnSaved" OnClosed="@OnClosed"
-                  FormCaption="@L["Entity:Tenant"].Value" IconCssClass="fas fa-building-user"
+                  FormCaption="@L["Entity:Tenant"].Value" IconCssClass="custom-icon-tenant"
                   EntityValue="@(m => m.Name)"
                   ApplyNewDefaults="@ApplyNewTenantDefaults">
         <TenantLayout Model="@context" IsNew="@(context.Id == Guid.Empty)" Units="@_units" Countries="@_countries" />
@@ -74,3 +76,5 @@
         m.Companies.Add(TenantLayout.NewCompany("MRK", "Merkez", "TR", isHeadquarters: true, _units, _countries));
     }
 }
+
+

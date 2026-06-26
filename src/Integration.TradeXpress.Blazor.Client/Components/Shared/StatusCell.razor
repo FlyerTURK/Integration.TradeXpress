@@ -7,7 +7,7 @@
 @if (Active)
 {
     <span style="display:flex; align-items:center; gap:0.35rem;">
-        <i class="fas fa-circle-check" aria-hidden="true" style="color:#16a34a;"></i>@L["Active"]
+        <i class="custom-icon-check-circle" aria-hidden="true" style="color:#16a34a;"></i>@L["Active"]
     </span>
 }
 else
@@ -20,3 +20,4 @@ else
 @code {
     [Parameter] public bool Active { get; set; }
 }
+

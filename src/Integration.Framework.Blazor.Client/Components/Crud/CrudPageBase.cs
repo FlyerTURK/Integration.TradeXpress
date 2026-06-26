@@ -267,15 +267,26 @@ public abstract class CrudPageBase<TGetDto, TListDto, TKey, TListRequestDto, TCr
         if (templates.Count == 0) return null;
 
         bool isNew = id is null || id.Equals(default(TKey));
+        string? url = null;
         if (isNew)
-            return templates.FirstOrDefault(t => !t.Contains('{'));
+            url = templates.FirstOrDefault(t => !t.Contains('{'));
+        else
+        {
+            var paramT = templates.FirstOrDefault(t => t.Contains('{'));
+            if (paramT != null)
+            {
+                var open  = paramT.IndexOf('{');
+                var close = paramT.IndexOf('}', open);
+                if (close >= 0) url = paramT[..open] + id + paramT[(close + 1)..];
+            }
+        }
 
-        var paramT = templates.FirstOrDefault(t => t.Contains('{'));
-        if (paramT == null) return null;
-        var open  = paramT.IndexOf('{');
-        var close = paramT.IndexOf('}', open);
-        if (close < 0) return null;
-        return paramT[..open] + id + paramT[(close + 1)..];
+        if (url != null && AdditionalEditParameters?.Count > 0)
+        {
+            var qs = string.Join("&", AdditionalEditParameters.Select(kv => $"{kv.Key}={Uri.EscapeDataString(kv.Value?.ToString() ?? "")}"));
+            url = $"{url}?{qs}";
+        }
+        return url;
     }
 
     public virtual async Task DeleteAsync()

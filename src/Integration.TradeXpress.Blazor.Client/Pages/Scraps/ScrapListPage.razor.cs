@@ -69,9 +69,10 @@ public partial class ScrapListPage
                 Text = L["ScrapReport"].Value,
                 AdaptiveText = L["ScrapReport"].Value,
                 Tooltip = L["ScrapReport"].Value,
-                IconCssClass = "fa fa-chart-bar",
-                OnClick = async () => await TabManager.OpenOrActivateAsync("/reports/scrap", L["ScrapReport"].Value, "fa fa-chart-bar")
+                IconCssClass = "custom-icon-report",
+                OnClick = async () => await TabManager.OpenOrActivateAsync("/reports/scrap", L["ScrapReport"].Value, "custom-icon-report")
             }
         };
     }
 }
+

@@ -23,9 +23,9 @@
            ValidationEnabled="false"
            CssClass="w-100">
     <Buttons>
-        <DxEditorButton IconCssClass="fas fa-pen-to-square" Visible="@ShowEditButton" Click="@OnEditButtonClick" Tooltip="@L["Edit"].Value" />
-        <DxEditorButton IconCssClass="fas fa-xmark" Visible="@ShowClearButton" Click="@OnClearButtonClick" Tooltip="@L["Clear"].Value" />
-        <DxEditorButton IconCssClass="fas fa-ellipsis" Visible="@(!_effectiveReadOnly && _effectiveEnabled)" Click="@OnPickerButtonClick" Tooltip="@L["Select"].Value" />
+        <DxEditorButton IconCssClass="custom-icon-edit" Visible="@ShowEditButton" Click="@OnEditButtonClick" Tooltip="@L["Edit"].Value" />
+        <DxEditorButton IconCssClass="custom-icon-close" Visible="@ShowClearButton" Click="@OnClearButtonClick" Tooltip="@L["Clear"].Value" />
+        <DxEditorButton IconCssClass="custom-icon-more" Visible="@(!_effectiveReadOnly && _effectiveEnabled)" Click="@OnPickerButtonClick" Tooltip="@L["Select"].Value" />
     </Buttons>
 </DxTextBox>
 
@@ -63,7 +63,7 @@
             <div style="display:flex; justify-content:flex-end; gap:0.5rem;">
                 @if (OnAddRequested is not null)
                 {
-                    <DxButton Text="@L["New"].Value" IconCssClass="fas fa-plus"
+                    <DxButton Text="@L["New"].Value" IconCssClass="custom-icon-add"
                               RenderStyle="ButtonRenderStyle.Secondary" Click="@OnPickerAddClick" />
                 }
                 <DxButton Text="@L["Select"].Value" RenderStyle="ButtonRenderStyle.Primary"
@@ -194,3 +194,4 @@
             CascadedEditContext.NotifyFieldChanged(FieldIdentifier.Create(ValueExpression));
     }
 }
+

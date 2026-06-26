@@ -14,7 +14,7 @@
     </div>
 
     <div class="crud-footer" style="padding:0.5rem 0.75rem; border-top:1px solid #eee; display:flex; gap:0.5rem;">
-        <DxButton Text="@L["Save"]" RenderStyle="ButtonRenderStyle.Primary" IconCssClass="fas fa-save" Click="SaveAsync" />
+        <DxButton Text="@L["Save"]" RenderStyle="ButtonRenderStyle.Primary" IconCssClass="custom-icon-save" Click="SaveAsync" />
         <DxButton Text="@L["Cancel"]" RenderStyle="ButtonRenderStyle.Secondary" Click="CloseTab" />
     </div>
 </div>
@@ -51,3 +51,4 @@
             TabManager.Close(CurrentMdiTab.Id);
     }
 }
+

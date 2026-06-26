@@ -14,14 +14,14 @@
     <HeaderContentTemplate Context="popup">
         @* İkon + "Marj Düzenleme - {Code}" (CurrencyUnit edit başlığı düzeniyle aynı). *@
         <div style="display:flex; align-items:center; gap:0.5rem; width:100%; justify-content:flex-start;">
-            <i class="fas fa-percent" aria-hidden="true" style="color:var(--dxbl-primary, #2563eb);"></i>
+            <i class="custom-icon-percent" aria-hidden="true" style="color:var(--dxbl-primary, #2563eb);"></i>
             <span>@($"{L["EditMargin"]} - {_code}")</span>
         </div>
     </HeaderContentTemplate>
     <Content>
         @* Uyarı — layoutun BAŞINDA, renkli kutu (inline; Bootstrap alert bu app'te etkisiz). *@
         <div style="background:#fff3cd; color:#664d03; border:1px solid #ffe69c; border-radius:0.375rem; padding:0.5rem 0.75rem; margin-bottom:0.75rem; font-size:0.8rem; display:flex; align-items:flex-start; gap:0.5rem;">
-            <i class="fas fa-triangle-exclamation" style="margin-top:0.15rem;"></i>
+            <i class="custom-icon-warning" style="margin-top:0.15rem;"></i>
             <span>@L["CurrencyUnit:MarginDisclaimer"]</span>
         </div>
 
@@ -155,3 +155,4 @@
         }
     }
 }
+

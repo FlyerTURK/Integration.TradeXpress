@@ -5,6 +5,8 @@
 @implements IDisposable
 @inject IWorkingContextService Working
 @inject Microsoft.Extensions.Localization.IStringLocalizer<Integration.TradeXpress.Localization.TradeXpressResource> L
+@inject Integration.TradeXpress.Blazor.Client.Services.Mdi.ITabManager TabManager
+@inject Integration.Framework.Blazor.Client.Services.Base.ITradeXpressUiService Ui
 
 @*
    Çalışma bağlamı (working context) şube seçici — sol menü drawer'ının FooterTemplate'inde.
@@ -44,8 +46,21 @@
     // Combo boş kalmamalı → null seçim yok sayılır (mevcut seçim korunur).
     private async Task OnBranchChanged(Guid? branchId)
     {
-        if (branchId is null) return;
+        if (branchId is null || branchId == Working.CurrentBranchId) return;
+
+        if (TabManager.HasDirtyTabs)
+        {
+            var result = await Ui.ConfirmAsync("Değişiklik yapılmış ancak kaydedilmemiş sekmeler var. Şube değiştirirseniz bu değişiklikler kaybolacak. Devam etmek istediğinize emin misiniz?", "Uyarı", "Yine de Değiştir", "İptal", false, false);
+            if (result != Integration.Framework.Blazor.Client.Services.Base.ConfirmDialogResult.Yes)
+            {
+                // Combo seçimini geri almak için UI'ı zorla güncelliyoruz.
+                _ = InvokeAsync(StateHasChanged);
+                return;
+            }
+        }
+
         await Working.SetBranchAsync(branchId);
+        await TabManager.ReloadTabsAsync();
     }
 
     private void OnChanged() => _ = InvokeAsync(StateHasChanged);

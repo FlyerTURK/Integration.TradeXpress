@@ -36,7 +36,7 @@
             <div class="erp-permission-editor__toolbar" style="display:flex; align-items:center; gap:0.5rem; margin-bottom:0.5rem;">
                 <DxDropDown @bind-IsOpen="_presetOpen" PositionMode="DropDownPositionMode.Bottom">
                     <HeaderTemplate>
-                        <DxButton Text="@L["ApplyPreset"]" IconCssClass="fas fa-sliders"
+                        <DxButton Text="@L["ApplyPreset"]" IconCssClass="custom-icon-sliders"
                                   RenderStyle="ButtonRenderStyle.Secondary"
                                   Click="@(() => _presetOpen = !_presetOpen)" />
                     </HeaderTemplate>
@@ -356,3 +356,4 @@
         </div>
     };
 }
+

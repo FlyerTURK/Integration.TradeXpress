@@ -74,9 +74,10 @@ public partial class CashListPage
                 Text = L["CashReport"].Value,
                 AdaptiveText = L["CashReport"].Value,
                 Tooltip = L["CashReport"].Value,
-                IconCssClass = "fa fa-chart-bar",
-                OnClick = async () => await TabManager.OpenOrActivateAsync("/reports/cash", L["CashReport"].Value, "fa fa-chart-bar")
+                IconCssClass = "custom-icon-report",
+                OnClick = async () => await TabManager.OpenOrActivateAsync("/reports/cash", L["CashReport"].Value, "custom-icon-report")
             }
         };
     }
 }
+

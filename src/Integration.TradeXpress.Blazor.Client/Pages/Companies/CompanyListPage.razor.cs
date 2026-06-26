@@ -72,8 +72,13 @@ public partial class CompanyListPage
     {
         if (SelectedCompany is null) return;
         var url = $"/branches/{SelectedCompany.Id}?companycode={Uri.EscapeDataString(SelectedCompany.Code)}";
-        var title = $"{L["Menu:Branches"]} - [{L["Entity:Company"]}: {SelectedCompany.Code}]";
-        await TabManager.OpenOrActivateAsync(url, title, TradeXpressIcons.Branch);
+        var header = new Integration.Framework.Blazor.Client.Services.Mdi.TabHeaderData {
+            FormCaption = L["Menu:Branches"],
+            IconCssClass = TradeXpressIcons.Branch,
+            ParentLabel = L["Entity:Company"],
+            ParentValue = SelectedCompany.Code
+        };
+        await TabManager.OpenOrActivateAsync(url, header);
     }
 
 

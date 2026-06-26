@@ -21,7 +21,7 @@
                 </span>
             }
         </h5>
-        <DxButton Text="@L["Refresh"]" RenderStyle="ButtonRenderStyle.Secondary" IconCssClass="fas fa-sync" Click="LoadAsync" />
+        <DxButton Text="@L["Refresh"]" RenderStyle="ButtonRenderStyle.Secondary" IconCssClass="custom-icon-refresh" Click="LoadAsync" />
     </div>
     <div class="card-body">
         <DxGrid Data="Prices" PageSize="25" ShowPager="true" ColumnResizeMode="GridColumnResizeMode.ColumnsContainer">
@@ -38,16 +38,16 @@
                         @{ var p = (CurrentPriceDto)context.DataItem; }
                         @if (p.GuardFired)
                         {
-                            <span class="text-warning" title="@L["GuardFired"]"><i class="fas fa-exclamation-triangle"></i></span>
+                            <span class="text-warning" title="@L["GuardFired"]"><i class="custom-icon-warning"></i></span>
                         }
                     </CellDisplayTemplate>
                 </DxGridDataColumn>
                 <DxGridDataColumn Caption="" Width="200px" AllowSort="false">
                     <CellDisplayTemplate>
                         @{ var row = (CurrentPriceDto)context.DataItem; }
-                        <DxButton Text="@L["SetMargin"]" RenderStyle="ButtonRenderStyle.Link" IconCssClass="fas fa-percent"
+                        <DxButton Text="@L["SetMargin"]" RenderStyle="ButtonRenderStyle.Link" IconCssClass="custom-icon-percent"
                                   Click="@(() => MarginDialog!.ShowAsync(row.Id, row.CurrencyUnitCode, row.CurrencyUnitName, row.RawBuy, row.RawSell))" />
-                        <DxButton Text="@L["History"]" RenderStyle="ButtonRenderStyle.Link" IconCssClass="fas fa-clock-rotate-left"
+                        <DxButton Text="@L["History"]" RenderStyle="ButtonRenderStyle.Link" IconCssClass="custom-icon-history"
                                   Click="@(() => ShowHistoryAsync(row))" />
                     </CellDisplayTemplate>
                 </DxGridDataColumn>
@@ -70,3 +70,4 @@
         </Columns>
     </DxGrid>
 </DxPopup>
+

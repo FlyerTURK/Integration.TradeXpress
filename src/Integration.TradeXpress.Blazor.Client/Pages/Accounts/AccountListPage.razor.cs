@@ -16,6 +16,7 @@ public partial class AccountListPage : IDisposable
 
     [Inject] protected IAccountAppService AccountAppService { get; set; } = default!;
     [Inject] protected IWorkingContextService Working { get; set; } = default!;
+    [Inject] protected Integration.TradeXpress.Blazor.Client.Services.Mdi.ITabManager TabManager { get; set; } = default!;
 
     protected override async Task OnInitializedAsync()
     {
@@ -36,6 +37,35 @@ public partial class AccountListPage : IDisposable
         AccountListRequestDto, AccountCreateDto, AccountUpdateDto> CrudAppService => AccountAppService;
 
     protected override string PermissionPrefix => TradeXpressPermissions.Accounts.Default;
+
+    private AccountListDto? SelectedAccount =>
+        StateService.SelectedDataItems is { Count: 1 } sel ? sel[0] as AccountListDto : null;
+
+    private System.Collections.Generic.IReadOnlyList<Integration.Framework.Blazor.Client.Components.Crud.CrudToolbarAction> SubAccountActions => new[]
+    {
+        new Integration.Framework.Blazor.Client.Components.Crud.CrudToolbarAction
+        {
+            SortIndex = 300,
+            Text = L["SubAccounts"],
+            Tooltip = L["SubAccounts"],
+            IconCssClass = $"{TradeXpressIcons.SubAccount} toolbar-action-subaccounts",
+            Enabled = SelectedAccount != null,
+            OnClick = OpenSubAccountsAsync,
+        },
+    };
+
+    private async Task OpenSubAccountsAsync()
+    {
+        if (SelectedAccount is null) return;
+        var url = $"/subaccounts/{SelectedAccount.Id}?accountcode={Uri.EscapeDataString(SelectedAccount.Code)}";
+        var header = new Integration.Framework.Blazor.Client.Services.Mdi.TabHeaderData {
+            FormCaption = L["SubAccounts"],
+            IconCssClass = TradeXpressIcons.SubAccount,
+            ParentLabel = L["Account"],
+            ParentValue = SelectedAccount.Code
+        };
+        await TabManager.OpenOrActivateAsync(url, header);
+    }
 
     public override System.Type EditComponentType => typeof(AccountEditHost);
 

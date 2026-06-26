@@ -35,7 +35,8 @@ public sealed class RouteResolver
             if (routes.Count == 0) continue;
 
             var paramProps = type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
-                .Where(p => p.GetCustomAttribute<ParameterAttribute>() != null)
+                .Where(p => p.GetCustomAttribute<ParameterAttribute>() != null || 
+                            p.GetCustomAttribute<SupplyParameterFromQueryAttribute>() != null)
                 .ToList();
 
             var paramMap = new Dictionary<string, PropertyInfo>(StringComparer.OrdinalIgnoreCase);

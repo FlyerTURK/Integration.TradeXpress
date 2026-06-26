@@ -1,3 +1,5 @@
+@page "/branches/edit/new"
+@page "/branches/edit/{Id:guid}"
 @using System
 @using System.Collections.Generic
 @using Integration.TradeXpress.Branches
@@ -31,7 +33,7 @@
     [Parameter] public Guid? Id { get; set; }
     [Parameter] public bool IsPopupMode { get; set; }
     /// <summary>Parent şirket (yeni branch için; BranchListPage AdditionalEditParameters ile geçirir).</summary>
-    [Parameter] public Guid? CompanyId { get; set; }
+    [Parameter] [SupplyParameterFromQuery] public Guid? CompanyId { get; set; }
     [Parameter] public EventCallback OnSaved { get; set; }
     [Parameter] public EventCallback OnClosed { get; set; }
 
@@ -58,3 +60,5 @@
         });
     }
 }
+
+

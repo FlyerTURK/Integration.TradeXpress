@@ -77,7 +77,7 @@
                                        BindValueMode="BindValueMode.OnInput"
                                        ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto">
                                 <Buttons>
-                                    <DxEditorButton IconCssClass="fas fa-eye"
+                                    <DxEditorButton IconCssClass="custom-icon-eye"
                                                     Visible="@(!string.IsNullOrEmpty(_password))"
                                                     Tooltip="@(_passwordVisible ? L["Login_PasswordHide"].Value : L["Login_PasswordShow"].Value)"
                                                     Click="TogglePasswordVisibility" />
@@ -309,3 +309,4 @@
     public sealed record LangItem(string Code, string Label);
     public sealed record SignInResponse(bool Success, string? Error);
 }
+

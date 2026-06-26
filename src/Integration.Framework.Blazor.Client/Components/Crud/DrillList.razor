@@ -90,22 +90,35 @@
     <DxPopup Visible="@_popupVisible"
              Closing="OnPopupClosing"
              Closed="OnPopupClosed"
-             Width="95%"
-             MaxWidth="720px"
-             MaxHeight="90vh"
+             Width="@(_isFullscreen ? "100%" : "95%")"
+             MaxWidth="@(_isFullscreen ? "100vw" : "720px")"
+             MaxHeight="@(_isFullscreen ? "100vh" : "90vh")"
+             Height="@(_isFullscreen ? "100%" : null)"
              Scrollable="true"
-             AllowDrag="true"
-             AllowResize="true"
-             ShowCloseButton="true"
+             ShowBackdrop="@(!_isMinimized)"
+             AllowDrag="@(!_isFullscreen && !_isMinimized)"
+             AllowResize="@(!_isFullscreen)"
+             HorizontalAlignment="@(_isMinimized ? HorizontalAlignment.Left : HorizontalAlignment.Center)"
+             VerticalAlignment="@(_isMinimized ? VerticalAlignment.Bottom : VerticalAlignment.Center)"
+             ShowCloseButton="@(!_isMinimized)"
              CloseOnEscape="true"
              CloseOnOutsideClick="false"
-             CssClass="crud-edit-popup">
+             CssClass="@($"crud-edit-popup {(_isFullscreen ? "fullscreen-popup " : "")} {(_isMinimized ? "minimized-popup " : "")}")">
         <HeaderContentTemplate Context="popup">
-            @* Yapısal başlık — genel popup chrome ile AYNI engine (TabHeaderData → EditHeaderView): ikon + 3-satır + stillenmiş "*". *@
-            <EditHeaderView Header="@BuildDrillHeader()" IsDirty="@IsEditDirty" ShowDirty="true" DirtyLabel="@L["UnsavedChanges"]" />
+            <div class="flex-grow-1 w-100 h-100 position-relative d-flex align-items-center" style="user-select: none;" @ondblclick="@(() => { if (_isMinimized) ToggleMinimize(); else ToggleFullscreen(); })">
+                <div class="flex-grow-1" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; padding-right: 60px;">
+                    @* Yapısal başlık — genel popup chrome ile AYNI engine (TabHeaderData → EditHeaderView): ikon + 3-satır + stillenmiş "*". *@
+                    <EditHeaderView Header="@BuildDrillHeader()" IsDirty="@IsEditDirty" ShowDirty="true" DirtyLabel="@L["UnsavedChanges"]" />
+                </div>
+                <div class="position-absolute d-flex align-items-center" style="right: 0; top: 50%; transform: translateY(-50%);">
+                    <DxButton RenderStyle="ButtonRenderStyle.None" CssClass="me-1 d-flex flex-shrink-0 align-items-center justify-content-center" Click="ToggleMinimize" tabindex="-1"><i class="@(_isMinimized ? "custom-icon-restore-min" : "custom-icon-minimize-corner")" style="width: 20px; height: 20px;"></i></DxButton>
+                    <DxButton RenderStyle="ButtonRenderStyle.None" CssClass="@($"me-2 d-none {(_isMinimized ? "" : "d-md-flex")} align-items-center justify-content-center")" Click="ToggleFullscreen" tabindex="-1"><i class="@(_isFullscreen ? "custom-icon-minimize" : "custom-icon-maximize")" style="width: 20px; height: 20px;"></i></DxButton>
+                </div>
+            </div>
         </HeaderContentTemplate>
         <Content>
-            @if (_popupVisible)
+            <div style="@(_isMinimized ? "display: none !important;" : "")" class="d-flex flex-column h-100">
+              @if (_popupVisible)
             {
                 @* Toolbar ÜSTTE (genel EntityEditForm deseni; alt footer kaldırıldı). *@
                 <div style="border-bottom:1px solid #dee2e6; padding-bottom:0.5rem; margin-bottom:0.5rem;">
@@ -115,6 +128,7 @@
                 </div>
                 @EditFormBody
             }
+            </div>
         </Content>
     </DxPopup>
 }
@@ -127,6 +141,21 @@
    eder; iç DrillList dış olanı shadow'lar — doğru izolasyon, NRE yok. Save manuel: Validate()+SaveAsync(). *@
 
 @code {
+    private bool _isFullscreen;
+    private bool _isMinimized;
+
+    private void ToggleFullscreen()
+    {
+        _isMinimized = false;
+        _isFullscreen = !_isFullscreen;
+    }
+
+    private void ToggleMinimize()
+    {
+        _isFullscreen = false;
+        _isMinimized = !_isMinimized;
+    }
+
     [Parameter] public string? Title { get; set; }
     [Parameter] public string? EntityName { get; set; }
 
@@ -462,7 +491,7 @@
     };
 
     // Başlık ikonu: entity ikonu (yoksa generic düzenleme ikonu).
-    private string DrillHeaderIcon => string.IsNullOrEmpty(EntityIcon) ? "fas fa-pen-to-square" : EntityIcon!;
+    private string DrillHeaderIcon => string.IsNullOrEmpty(EntityIcon) ? "custom-icon-edit" : EntityIcon!;
 
     // Toolbar (liste ToolbarRenderer + edit EditToolbar) aksiyon SONRASI tek tazeleme noktası: Click EventCallback'i
     // o bileşenlerde üretildiğinden Blazor DrillList'i otomatik render etmez → durum (popup aç/kapa, seçim, _busy)
@@ -660,6 +689,10 @@
     // Kapanış kesinleşti (kullanıcı kapanışı onaylandı, programmatik değil) → temizle.
     private void OnPopupClosed(PopupClosedEventArgs args)
     {
+        _isFullscreen = false;
+        _isMinimized = false;
+        _editItem = default;
+        _editOriginal = default;
         if (_popupVisible) Cancel();
     }
 
@@ -831,3 +864,27 @@
         }
     }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

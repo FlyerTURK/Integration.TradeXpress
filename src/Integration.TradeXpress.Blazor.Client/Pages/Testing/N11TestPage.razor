@@ -18,12 +18,12 @@
         <span class="badge bg-warning text-dark">TEST</span>
         <DxTextBox @bind-Text="_url" NullText="n11 kategori URL" CssClass="flex-grow-1" style="min-width:360px;" />
         <DxSpinEdit @bind-Value="_max" MinValue="1" MaxValue="80" Width="90px" />
-        <DxButton Text="Çek" RenderStyle="ButtonRenderStyle.Primary" IconCssClass="fas fa-cloud-download-alt"
+        <DxButton Text="Çek" RenderStyle="ButtonRenderStyle.Primary" IconCssClass="custom-icon-download"
                   Click="LoadAsync" Enabled="@(!_busy)" />
         <DxCheckBox @bind-Checked="_showImages" CheckType="CheckType.Switch">Görseller</DxCheckBox>
         @if (_busy)
         {
-            <span><i class="fas fa-spinner fa-spin"></i> Çekiliyor… (gerçek Chrome açılıyor)</span>
+            <span><i class="custom-icon-spinner custom-spin"></i> Çekiliyor… (gerçek Chrome açılıyor)</span>
         }
         else if (_products.Count > 0)
         {
@@ -65,7 +65,7 @@
                         <div>Kâr: <b style="color:@((p.ProfitTl ?? 0) >= 0 ? "#16a34a" : "#dc2626")">@(p.ProfitTl?.ToString("N2") ?? "—") TL</b> @(p.ProfitPct is not null ? $"(%{(p.ProfitPct.Value * 100):N1})" : "")</div>
                     </div>
                     <div style="display:flex; justify-content:space-between; align-items:center; font-size:.76rem; color:#6b7280; padding-top:4px;">
-                        <span><i class="fas fa-comment-dots"></i> @(p.ReviewCount ?? 0)</span>
+                        <span><i class="custom-icon-comments"></i> @(p.ReviewCount ?? 0)</span>
                         <a href="@p.Url" target="_blank" rel="noopener" style="color:#2563eb; text-decoration:none;">İncele →</a>
                     </div>
                 </div>
@@ -120,3 +120,4 @@
         }
     }
 }
+

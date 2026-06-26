@@ -68,7 +68,11 @@
                                    HeadquartersEnabled="@(!IsCompanySoleHq(c))" CodeEnabled="true" />
             </EditContent>
             <AfterEditForm Context="c">
-                <CompanyBranchDrill Model="c" OnChanged="@(() => EditChanged?.Invoke())" />
+                <DxTabs CssClass="mt-3">
+                    <DxTabPage Text="@L["Menu:Branches"].Value" TabIconCssClass="@TradeXpressIcons.Branch">
+                        <CompanyBranchDrill Model="c" OnChanged="@(() => EditChanged?.Invoke())" />
+                    </DxTabPage>
+                </DxTabs>
             </AfterEditForm>
         </DrillList>
     </DxTabPage>
@@ -137,7 +141,7 @@
             SortIndex = 300,
             Text = L["MakeHeadquarters"],
             Tooltip = L["MakeHeadquarters"],
-            IconCssClass = "fas fa-building",
+            IconCssClass = "custom-icon-company",
             Enabled = _selectedCompany is { IsDeleted: false, IsHeadquarters: false },
             OnClick = () => { MakeCompanyHeadquarters(); return Task.CompletedTask; },
         },
@@ -150,7 +154,7 @@
             SortIndex = 300,
             Text = L["MakeAdmin"],
             Tooltip = L["MakeAdmin"],
-            IconCssClass = "fas fa-user-shield",
+            IconCssClass = "custom-icon-role",
             Enabled = _selectedUser is { IsAdmin: false },
             OnClick = () => { MakeUserAdmin(); return Task.CompletedTask; },
         },
@@ -261,3 +265,4 @@
         EditChanged?.Invoke();
     }
 }
+
