@@ -283,3 +283,5 @@ src/Integration.TradeXpress.Blazor.Server.Tiered/Logs/*
 # IdentityServer temp files
 tempkey.rsa
 tempkey.jwk
+# Claude Code oturum artefaktları (worktree/transcript/workflow/research)
+.claude/
