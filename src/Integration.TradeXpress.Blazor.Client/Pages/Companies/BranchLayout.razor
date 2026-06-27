@@ -6,7 +6,10 @@
 @using Integration.TradeXpress.Blazor.Client.Components.Crud
 @using DevExpress.Blazor
 @using Microsoft.Extensions.Localization
+@using Integration.Framework.Blazor.Client.Components.Crud
+@using Integration.Framework.Blazor.Client.Profiles
 @inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+@inject IEntityProfileRegistry Profiles
 
 @*
    Branch DUMB Layout — paylaşılan BranchEditFields (alanlar) + VaultDrill (kasalar). I/O yok.
@@ -17,11 +20,11 @@
 
 <div class="mt-3">
     @* Tek drill de tablı yapıda + entity ikonu (genel desen). *@
-    <DxTabs>
-        <DxTabPage Text="@L["Menu:Vaults"]" TabIconCssClass="@TradeXpressIcons.Vault">
+    <DrillTabs>
+        <DxTabPage Text="@Profiles.PluralTitle("Vault", L)" TabIconCssClass="@Profiles.Icon("Vault")">
             <VaultDrill Vaults="Model.Vaults" OnChanged="@(() => EditChanged?.Invoke())" />
         </DxTabPage>
-    </DxTabs>
+    </DrillTabs>
 </div>
 
 @code {

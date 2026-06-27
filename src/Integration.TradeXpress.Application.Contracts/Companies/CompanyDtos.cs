@@ -68,6 +68,17 @@ public class CompanyGraphDto : CompanyGetDto
     // MİRAS → standalone ve tenant-node şirket düzenlemeleri tek kaynaktan, GARANTİLİ aynı (kopya yok). (K3: GraphDto : GetDto)
     public Guid ClientKey { get; set; } = Guid.NewGuid();
     public bool IsDeleted { get; set; }
+
+    /// <summary>Tam deep-copy (şubeler→kasalar dahil). TÜM alanlar tek yerde → "unutulan alan" clone bug'ı imkânsız.</summary>
+    public CompanyGraphDto Clone() => new()
+    {
+        Id = Id, ClientKey = ClientKey, IsDeleted = IsDeleted,
+        Code = Code, Name = Name, CountryCode = CountryCode,
+        BaseCurrencyUnitId = BaseCurrencyUnitId, BaseCurrencyCode = BaseCurrencyCode,
+        IsActive = IsActive, IsHeadquarters = IsHeadquarters,
+        DisplayOrder = DisplayOrder, Description = Description,
+        Branches = Branches.ConvertAll(b => b.Clone()),
+    };
 }
 
 public class CompanyCreateDto : ICreateDto

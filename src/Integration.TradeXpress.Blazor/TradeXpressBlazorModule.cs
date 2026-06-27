@@ -176,6 +176,22 @@ public class TradeXpressBlazorModule : AbpModule
             sp => (Integration.TradeXpress.Blazor.Client.Services.Mdi.TabManager)sp.GetRequiredService<Integration.TradeXpress.Blazor.Client.Services.Mdi.ITabManager>());
         context.Services.AddScoped<Integration.TradeXpress.Blazor.Client.Dev.DevErrorSink>();
 
+        // EntityProfile'lar (kimlik tek-kaynak; Faz 1 pilot Vault + parent Branch). Registry framework modülünde
+        // (DependsOn'da) kayıtlı; profiller client modülde → server DependsOn zincirinde DEĞİL → ELLE kaydet,
+        // yoksa server'da registry boş kalır (Get(VaultListDto) fırlatır). WorkingContextService ile AYNI desen.
+        context.Services.AddSingleton<Integration.Framework.Blazor.Client.Profiles.EntityProfile,
+                                      Integration.TradeXpress.Blazor.Client.Profiles.VaultProfile>();
+        context.Services.AddSingleton<Integration.Framework.Blazor.Client.Profiles.EntityProfile,
+                                      Integration.TradeXpress.Blazor.Client.Profiles.BranchProfile>();
+        context.Services.AddSingleton<Integration.Framework.Blazor.Client.Profiles.EntityProfile,
+                                      Integration.TradeXpress.Blazor.Client.Profiles.CompanyProfile>();
+        context.Services.AddSingleton<Integration.Framework.Blazor.Client.Profiles.EntityProfile,
+                                      Integration.TradeXpress.Blazor.Client.Profiles.AccountProfile>();
+        context.Services.AddSingleton<Integration.Framework.Blazor.Client.Profiles.EntityProfile,
+                                      Integration.TradeXpress.Blazor.Client.Profiles.SubAccountProfile>();
+        context.Services.AddSingleton<Integration.Framework.Blazor.Client.Profiles.EntityProfile,
+                                      Integration.TradeXpress.Blazor.Client.Profiles.UserProfile>();
+
         // Çalışma bağlamı (working context) — sol menü footer'ındaki şube seçici sürer (server-side elle kayıt;
         // client modülü DependsOn zincirinde değil → client modüldeki kayıt server'da çalışmaz).
         context.Services.AddScoped<Integration.TradeXpress.Blazor.Client.Services.Working.IWorkingContextService,

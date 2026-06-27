@@ -1,0 +1,95 @@
+@namespace Integration.Framework.Blazor.Client.Components.Crud
+@using System.Collections.Generic
+@using DevExpress.Blazor
+@inject Integration.Framework.Blazor.Client.Services.Base.IUiStateService UiState
+@*
+   TxGrid — uygulamanın STANDART grid kabuğu. DxGrid'i ORTAK UX ile sarar (tek kaynak):
+     • context menu (Header + DataRow), sütun yeniden boyutlandırma + yeniden sıralama,
+     • kolon-düzeni KALICILIĞI: StateKey verilirse genişlik/sıra/sıralama kullanıcı başına saklanır
+       (IUiStateService → her grid'de tekrarlanan LayoutLoading/Saving boilerplate'i SİLİNİR).
+   Her grid yalnız Data + <Columns> verir; "burada context menu var, şurada yok" tutarsızlığı biter.
+
+   Kolonlar DxGrid'e cascade ile kaydolur → <Columns> forward GÜVENLİ (GridLinkColumn/StatusColumn dahil;
+   CrudLayout da aynı forward'u yapıyor). Açıkça verilmeyen DxGrid parametreleri @attributes ile geçer
+   (KeyFieldName, SelectionMode, ShowFilterRow, PageSize, style, @ref hariç...). DxGrid'in TÜM API'si erişilebilir kalır.
+*@
+<DxGrid Data="@Data"
+        KeyFieldName="@KeyFieldName"
+        ShowFilterRow="@ShowFilterRow"
+        ColumnResizeMode="GridColumnResizeMode.ColumnsContainer"
+        ContextMenus="GridContextMenus.Header | GridContextMenus.DataRow"
+        AllowColumnReordering="true"
+        AllowColumnResizing="true"
+        CssClass="@CssClass"
+        LayoutAutoLoading="OnLayoutLoading"
+        LayoutAutoSaving="OnLayoutSaving"
+        @attributes="MergedAttributes">
+    <Columns>
+        @Columns
+    </Columns>
+    <TotalSummary>
+        @TotalSummary
+    </TotalSummary>
+</DxGrid>
+
+@code {
+    /// <summary>Grid verisi (DxGrid.Data).</summary>
+    [Parameter] public object? Data { get; set; }
+
+    /// <summary>Kolon tanımları — doğrudan DxGrid'in &lt;Columns&gt;'una forward edilir (cascade kaydı).</summary>
+    [Parameter] public RenderFragment? Columns { get; set; }
+
+    /// <summary>Toplam-özet (footer) öğeleri — DxGrid'in &lt;TotalSummary&gt;'sine forward edilir. Boşsa özet satırı çizilmez.</summary>
+    [Parameter] public RenderFragment? TotalSummary { get; set; }
+
+    /// <summary>Verilirse kolon düzeni (genişlik/sıra/sıralama) kullanıcı başına KALICI olur (IUiStateService).
+    /// Boşsa kalıcılık yok (her açılış varsayılan). Grid'e özgü benzersiz anahtar ver (ör. "report:position").</summary>
+    [Parameter] public string? StateKey { get; set; }
+
+    [Parameter] public string? CssClass { get; set; }
+
+    // ── Açıkça tanımlı tipli DxGrid parametreleri ──────────────────────────────────────────────
+    // NEDEN: @attributes ile geçen LİTERAL değerler STRING yakalanır (tip dönüşümü yalnız DECLARED
+    // parametrelerde olur) → bool/enum/int DxGrid param'ı literal verilince cast hatası. Bu yüzden
+    // non-string yaygın param'lar burada tipli tanımlı. String param'lar (style/class vb.) @attributes'tan geçebilir.
+    [Parameter] public string? KeyFieldName { get; set; }
+    [Parameter] public bool ShowFilterRow { get; set; }
+
+    // Nullable non-string param'lar — SET edilince DxGrid'e forward (GridSelectionMode'da 'None' YOK → null=DxGrid
+    // default; PageSize null=DxGrid default). MergedAttributes ile TİPLİ değer olarak splat edilir (literal-string
+    // tuzağı yok: programatik dict değeri tipini korur → cast hatası olmaz, hem de koşullu/opsiyonel kalır).
+    [Parameter] public GridSelectionMode? SelectionMode { get; set; }
+    [Parameter] public int? PageSize { get; set; }
+
+    /// <summary>Yukarıda tanımlı OLMAYAN DxGrid parametreleri (string'ler + style/class + ileride eklenecekler).
+    /// Non-string bir param LİTERAL verilecekse önce yukarıya tipli [Parameter] olarak ekle (literal=string → cast hatası).</summary>
+    [Parameter(CaptureUnmatchedValues = true)] public Dictionary<string, object>? Attributes { get; set; }
+
+    /// <summary>@attributes splat'ı: dış Attributes + tipli nullable param'lar (set edilenler). Tipli değer enjekte
+    /// edildiği için cast sorunu yok; null param'lar eklenmez → DxGrid default'u korunur.</summary>
+    private Dictionary<string, object>? MergedAttributes
+    {
+        get
+        {
+            if (SelectionMode is null && PageSize is null) return Attributes;
+            var d = Attributes is null ? new Dictionary<string, object>() : new Dictionary<string, object>(Attributes);
+            if (SelectionMode.HasValue) d["SelectionMode"] = SelectionMode.Value;
+            if (PageSize.HasValue) d["PageSize"] = PageSize.Value;
+            return d;
+        }
+    }
+
+    private async Task OnLayoutLoading(GridPersistentLayoutEventArgs e)
+    {
+        if (string.IsNullOrEmpty(StateKey)) return;
+        var json = await UiState.GetGridStateAsync(StateKey);
+        if (!string.IsNullOrWhiteSpace(json))
+            try { e.Layout = System.Text.Json.JsonSerializer.Deserialize<GridPersistentLayout>(json); } catch { }
+    }
+
+    private async Task OnLayoutSaving(GridPersistentLayoutEventArgs e)
+    {
+        if (string.IsNullOrEmpty(StateKey) || e.Layout == null) return;
+        try { await UiState.SaveGridStateAsync(StateKey, System.Text.Json.JsonSerializer.Serialize(e.Layout)); } catch { }
+    }
+}

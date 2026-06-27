@@ -29,15 +29,17 @@
              CloseOnOutsideClick="false"
              CssClass="@($"crud-edit-popup {(_isFullscreen ? "fullscreen-popup " : "")} {(_isMinimized ? "minimized-popup " : "")}")">
         <HeaderContentTemplate Context="popup">
-            <div class="flex-grow-1 w-100 h-100 position-relative d-flex align-items-center" style="user-select: none;" @ondblclick="@(() => { if (_isMinimized) ToggleMinimize(); else ToggleFullscreen(); })">
-                <div class="flex-grow-1" style="display:flex; align-items:center; gap:0.5rem; justify-content:flex-start; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; padding-right: 60px;">
+            @* Layout INLINE (utility class'a güvenme): Fluent teması Bootstrap CSS getirmediğinden
+               position-absolute/d-flex/flex-grow-1 etkisiz kalıp butonlar başlığın altına kayıyordu. *@
+            <div class="flex-grow-1 w-100 h-100 position-relative d-flex align-items-center" style="user-select: none; position: relative; display: flex; align-items: center; flex-grow: 1; width: 100%; height: 100%;" @ondblclick="@(() => { if (_isMinimized) ToggleMinimize(); else ToggleFullscreen(); })">
+                <div class="flex-grow-1" style="flex-grow: 1; display:flex; align-items:center; gap:0.5rem; justify-content:flex-start; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; padding-right: 60px;">
                     @if (!string.IsNullOrEmpty(HeaderIconCssClass))
                     {
                         <span class="@HeaderIconCssClass" aria-hidden="true" style="color:var(--dxbl-primary, #2563eb);"></span>
                     }
                     <span>@Title</span>
                 </div>
-                <div class="position-absolute d-flex align-items-center" style="right: 8px; top: 50%; transform: translateY(-50%); gap: 4px;">
+                <div class="position-absolute d-flex align-items-center" style="position: absolute; display: flex; align-items: center; right: 8px; top: 50%; transform: translateY(-50%); gap: 4px;">
                     <DxButton RenderStyle="ButtonRenderStyle.None" CssClass="d-flex flex-shrink-0 align-items-center justify-content-center p-0" Click="ToggleMinimize" tabindex="-1"><i class="@(_isMinimized ? "custom-icon-restore-min" : "custom-icon-minimize-corner")" style="width: 20px; height: 20px;"></i></DxButton>
                     <DxButton RenderStyle="ButtonRenderStyle.None" CssClass="@($"d-none {(_isMinimized ? "" : "d-md-flex")} align-items-center justify-content-center p-0")" Click="ToggleFullscreen" tabindex="-1"><i class="@(_isFullscreen ? "custom-icon-minimize" : "custom-icon-maximize")" style="width: 20px; height: 20px;"></i></DxButton>
                 </div>

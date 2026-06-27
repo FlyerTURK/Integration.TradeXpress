@@ -131,4 +131,15 @@ public class BranchGraphDto : BranchGetDto
     // ve company-node şube düzenlemeleri tek kaynaktan, GARANTİLİ aynı (kopya yok). (K3: GraphDto : GetDto)
     public Guid ClientKey { get; set; } = Guid.NewGuid();
     public bool IsDeleted { get; set; }
+
+    /// <summary>Tam deep-copy (kasalar dahil). TÜM alanlar tek yerde → "unutulan alan" clone bug'ı imkânsız.</summary>
+    public BranchGraphDto Clone() => new()
+    {
+        Id = Id, ClientKey = ClientKey, IsDeleted = IsDeleted,
+        CompanyId = CompanyId, CompanyCode = CompanyCode,
+        BaseCurrencyUnitId = BaseCurrencyUnitId,
+        Code = Code, Name = Name, IsHeadquarters = IsHeadquarters,
+        IsActive = IsActive, DisplayOrder = DisplayOrder, Description = Description,
+        Vaults = Vaults.ConvertAll(v => v.Clone()),
+    };
 }

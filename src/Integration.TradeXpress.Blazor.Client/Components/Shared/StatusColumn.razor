@@ -1,0 +1,31 @@
+@using DevExpress.Blazor
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<Integration.TradeXpress.Localization.TradeXpressResource> L
+@*
+   Yeniden kullanılabilir "Status" (IsActive) grid kolonu — ikonlu StatusCell hücresi, DTO-AGNOSTİK
+   (cell.Value = IsActive değeri → per-DTO cast YOK). GridLinkColumn deseni: WRAPPER bileşen; iç
+   DxGridDataColumn cascade ile grid'e normal kaydolur (DxGrid kolonları CollectionFiller'la DEĞİL
+   cascade ile toplanır → DxTabs'in aksine wrapper güvenli). Caption her yerde "Status"
+   (memory: isactive-kolon-filtre-kurali). IsActive toolbar filtresi olan grid'e KONMAZ (aynı kural).
+*@
+<DxGridDataColumn FieldName="@FieldName"
+                  Caption="@(Caption ?? L["Status"].Value)"
+                  Width="@Width"
+                  TextAlignment="GridTextAlignment.Left"
+                  VisibleIndex="@VisibleIndex"
+                  Visible="@Visible">
+    <CellDisplayTemplate Context="cell">
+        <StatusCell Active="@(cell.Value is bool b && b)" />
+    </CellDisplayTemplate>
+</DxGridDataColumn>
+
+@code {
+    /// <summary>Aktiflik alanı (varsayılan IsActive).</summary>
+    [Parameter] public string FieldName { get; set; } = "IsActive";
+    /// <summary>Başlık (varsayılan localize "Status").</summary>
+    [Parameter] public string? Caption { get; set; }
+    [Parameter] public string Width { get; set; } = "110px";
+    /// <summary>Açık kolon sırası (negatif = markup sırası; GridLinkColumn ile aynı kural).</summary>
+    [Parameter] public int VisibleIndex { get; set; } = -1;
+    [Parameter] public bool Visible { get; set; } = true;
+}

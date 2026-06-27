@@ -6,12 +6,14 @@
 @using Integration.TradeXpress.Branches
 @using Integration.Framework.Blazor.Client.Components.Crud
 @using Integration.Framework.Blazor.Client.Services.Base
+@using Integration.Framework.Blazor.Client.Profiles
 @using Volo.Abp.ObjectMapping
 @using Microsoft.Extensions.Localization
 @inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
 @inject IVaultAppService VaultAppService
 @inject IObjectMapper Mapper
 @inject ITradeXpressUiService UiService
+@inject IEntityProfileRegistry Profiles
 
 @*
    PİLOT vault edit (YENİ mimari) — VaultListPage'in EditComponentType'ı (popup'ta açılır).
@@ -23,11 +25,11 @@
 {
     <EntityEditForm TGetDto="VaultGetDto" TListDto="VaultListDto" TKey="Guid"
                     Model="@_model" IsNew="@_isNew"
-                    FormCaption="@L["Entity:Vault"].Value"
+                    FormCaption="@L[Profile.CaptionKey].Value"
                     EntityValue="@_model.Code"
-                    ParentLabel="@L["Entity:Branch"].Value"
+                    ParentLabel="@L[ParentProfile.CaptionKey].Value"
                     ParentValue="@_model.BranchCode"
-                    IconCssClass="custom-icon-vault"
+                    IconCssClass="@Profile.IconCssClass"
                     CanDeleteRecord="@(!_isNew && !_model.IsDefault)"
                     Placement="ToolbarPlacement.Top"
                     ValidateContext="ValidateVault"
@@ -52,6 +54,12 @@
     private bool _isNew = true;
     private bool _ready;
     private ICommitCoordinator<VaultGetDto, VaultListDto, Guid, VaultListRequestDto>? _coordinator;
+
+    // Entity KİMLİĞİ tek kaynak: başlık/ikon/parent profilden (VaultListPage ile AYNI profil).
+    private EntityProfile? _profile;
+    private EntityProfile Profile => _profile ??= Profiles.Get(typeof(VaultGetDto));
+    private EntityProfile? _parentProfile;
+    private EntityProfile ParentProfile => _parentProfile ??= Profiles.GetByKey(Profile.ParentProfileKey!);
 
     protected override async Task OnInitializedAsync()
     {

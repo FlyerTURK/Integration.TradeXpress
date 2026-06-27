@@ -1,0 +1,199 @@
+@using DevExpress.Blazor
+@using Integration.Framework.Blazor.Client.Services.Mdi
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@*
+   TEK chrome kabuğu — 3 kopyanın (GlobalPopupHost / CrudEditView / DrillList) yerine geçer.
+   "Shell" = chrome (DxPopup sarmalı + buton seti + pencere durumu); İÇERİK = ChildContent (sahip ne verirse).
+   Header İÇERİĞİ paylaşılan EditHeaderView motoru ile çizilir (TabHeaderData'dan). Mantık (guard/dock/persistence)
+   KABUKTA DEĞİL — sahibe (DrillList/GlobalPopupHost/...) EventCallback ile delege edilir.
+   NRE izolasyonu: EditForm/EditContext KURMAZ — DrillList kendi CascadingValue<EditContext>'ini ChildContent
+   içinde verir → iç içe context kabuğa girmez (yapısal olarak NRE imkânsız).
+   Layout INLINE: Fluent teması Bootstrap utility (position/d-flex/flex-grow) getirmiyor → konum hep inline style.
+*@
+
+@if (Mode == EditShellMode.Inline)
+{
+    @* Chrome yok — sayfa/split/embedded; gövde doğrudan. *@
+    @ChildContent
+}
+else
+{
+    <DxPopup Visible="@Visible" VisibleChanged="@VisibleChanged"
+             Closing="@OnPopupClosing" Closed="@OnPopupClosed" Shown="@OnPopupShown"
+             ShowCloseButton="@(!_isMinimized)" ShowFooter="@(Footer != null)"
+             Width="@(_isFullscreen ? "100%" : (_isMinimized ? "350px" : "95%"))"
+             MaxWidth="@(_isFullscreen ? "100vw" : (_isMinimized ? "350px" : MaxWidth))"
+             MinHeight="@(_isMinimized ? "0" : "150px")"
+             MaxHeight="@(_isFullscreen ? "100vh" : "90vh")"
+             Height="@(_isFullscreen ? "100%" : null)"
+             Scrollable="false"
+             AllowDrag="@(!_isFullscreen && !_isMinimized)"
+             AllowResize="@(!_isFullscreen)"
+             ShowBackdrop="@EffectiveBackdrop"
+             HorizontalAlignment="@(_isMinimized ? HorizontalAlignment.Left : HorizontalAlignment.Center)"
+             VerticalAlignment="@(_isMinimized ? VerticalAlignment.Bottom : VerticalAlignment.Center)"
+             CloseOnEscape="@CloseOnEscape" CloseOnOutsideClick="@CloseOnOutsideClick"
+             CssClass="@($"crud-edit-popup {(_isFullscreen ? "fullscreen-popup " : "")}{(_isMinimized ? "minimized-popup " : "")}{CssClass}")">
+        <HeaderContentTemplate Context="popup">
+            <div style="user-select:none; position:relative; display:flex; align-items:center; flex-grow:1; width:100%; height:100%;"
+                 @ondblclick="@OnHeaderDoubleClick">
+                <div style="@($"flex-grow:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; padding-right:{HeaderPaddingRight};")">
+                    @* Header önceliği: yapısal (EditHeaderView) → hazır fragment → düz başlık. Sahip yalnız birini verir. *@
+                    @if (Header is not null)
+                    {
+                        <EditHeaderView Header="@Header" IsDirty="@IsDirty" ShowDirty="true" DirtyLabel="@L["UnsavedChanges"]" />
+                    }
+                    else if (ChromeHeader is not null)
+                    {
+                        @ChromeHeader
+                    }
+                    else if (!string.IsNullOrEmpty(TitleText))
+                    {
+                        <span>@TitleText</span>
+                    }
+                </div>
+                <div style="position:absolute; display:flex; align-items:center; right:8px; top:50%; transform:translateY(-50%); gap:4px;">
+                    @* Buton seti TEK yer; Buttons bayrağına göre. Hide-on-minimize @if ile (utility class Fluent'te ölü). *@
+                    @if (Buttons.HasFlag(EditShellButtons.Modal) && !_isMinimized)
+                    {
+                        <DxButton RenderStyle="ButtonRenderStyle.None" CssClass="p-0" Click="ToggleModal" tabindex="-1"
+                                  style="display:flex; align-items:center; justify-content:center;"
+                                  title="@(_isModal ? "Arka Planı Kilitleme (Modeless)" : "Arka Planı Kilitle (Modal)")">
+                            <i class="erp-icon @(_isModal ? "erp-icon-pin" : "erp-icon-unpin")" style="width:18px;height:18px;"></i>
+                        </DxButton>
+                    }
+                    @if (Buttons.HasFlag(EditShellButtons.Dock) && !_isMinimized)
+                    {
+                        <DxButton RenderStyle="ButtonRenderStyle.None" CssClass="p-0" Click="OnDockClick" tabindex="-1"
+                                  style="display:flex; align-items:center; justify-content:center;" title="Sekmeye Sabitle">
+                            <i class="erp-icon erp-icon-dock" style="width:18px;height:18px;"></i>
+                        </DxButton>
+                    }
+                    @if (Buttons.HasFlag(EditShellButtons.Minimize))
+                    {
+                        <DxButton RenderStyle="ButtonRenderStyle.None" CssClass="p-0" Click="ToggleMinimize" tabindex="-1"
+                                  style="display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+                            <i class="@(_isMinimized ? "custom-icon-restore-min" : "custom-icon-minimize-corner")" style="width:20px;height:20px;"></i>
+                        </DxButton>
+                    }
+                    @if (Buttons.HasFlag(EditShellButtons.Fullscreen) && !_isMinimized)
+                    {
+                        <DxButton RenderStyle="ButtonRenderStyle.None" CssClass="p-0" Click="ToggleFullscreen" tabindex="-1"
+                                  style="display:flex; align-items:center; justify-content:center;">
+                            <i class="@(_isFullscreen ? "custom-icon-minimize" : "custom-icon-maximize")" style="width:20px;height:20px;"></i>
+                        </DxButton>
+                    }
+                </div>
+            </div>
+        </HeaderContentTemplate>
+        @* GÖVDE = <Content> PASSTHROUGH: scroll + sabit-toolbar çerçevesini SAHİP içerik kurar (EntityEditForm gibi:
+           flex-column + explicit max-height + iç gövde overflow-y:auto). Kabuk gövdeye YAPI/PADDING DAYATMAZ →
+           içerik 88vh'ye sığar, dx-modal-body KAYMAZ (toolbar üstünde sızıntı yok) ve EntityEditForm'un kendi
+           scroll'uyla çakışmaz. Yatay taşma kesilir (max-width:100%). *@
+        <Content>
+            <div style="@(_isMinimized ? "display:none !important;" : "box-sizing:border-box; max-width:100%;")">
+                @ChildContent
+            </div>
+        </Content>
+        @* Footer DAİMA emit (Razor template'i @if ile sarılamaz); görünürlük ShowFooter="@(Footer != null)" ile. *@
+        <FooterContentTemplate>
+            <div style="@(_isMinimized ? "display:none !important;" : "")">@Footer</div>
+        </FooterContentTemplate>
+    </DxPopup>
+}
+
+@code {
+    /// <summary>Inline (chrome yok) | Popup (DxPopup chrome).</summary>
+    [Parameter] public EditShellMode Mode { get; set; } = EditShellMode.Popup;
+    /// <summary>Header buton seti (Edit/Drill = Minimize|Fullscreen; Global = +Modal+Dock).</summary>
+    [Parameter] public EditShellButtons Buttons { get; set; } = EditShellButtons.Minimize | EditShellButtons.Fullscreen;
+
+    /// <summary>Yapısal 3-satır başlık (EditHeaderView ile çizilir). En öncelikli header kaynağı.</summary>
+    [Parameter] public TabHeaderData? Header { get; set; }
+    /// <summary>Hazır header fragment'ı (GlobalPopupHost'un form-iter IPopupChrome yolu). Header yoksa kullanılır.</summary>
+    [Parameter] public RenderFragment? ChromeHeader { get; set; }
+    /// <summary>Düz başlık fallback (Header de ChromeHeader de yoksa; ör. PopupOptions.Title).</summary>
+    [Parameter] public string? TitleText { get; set; }
+    /// <summary>Header'a "*" yıldızı (yapısal header yolunda).</summary>
+    [Parameter] public bool IsDirty { get; set; }
+
+    [Parameter] public bool Visible { get; set; }
+    [Parameter] public EventCallback<bool> VisibleChanged { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    /// <summary>Opsiyonel sabit dip (CrudEditView FooterContentTemplate deseni); verilmezse footer çizilmez.</summary>
+    [Parameter] public RenderFragment? Footer { get; set; }
+
+    [Parameter] public string MaxWidth { get; set; } = "720px";
+    [Parameter] public string? CssClass { get; set; }
+    [Parameter] public bool CloseOnEscape { get; set; } = true;
+    [Parameter] public bool CloseOnOutsideClick { get; set; }
+    /// <summary>Modal butonu YOKKEN backdrop (Edit/Drill = true → daima modal). Modal butonu varsa kullanıcı toggle'ı (_isModal).</summary>
+    [Parameter] public bool DefaultModal { get; set; } = true;
+
+    /// <summary>Kapanış ÖNCESİ (Closing) — guard MANTIĞI KABUKTA DEĞİL: sahip dinler, dirty ise <c>args.Cancel=true</c> yapar.</summary>
+    [Parameter] public EventCallback<PopupClosingEventArgs> OnClosingRequested { get; set; }
+    /// <summary>Kapanış kesinleşti — sahip temizlik yapar (parametresiz).</summary>
+    [Parameter] public EventCallback OnClosedConfirmed { get; set; }
+    /// <summary>Sekmeye sabitle (yalnız Buttons|Dock iken) — mantık (URL oku/sekme aç) sahipte.</summary>
+    [Parameter] public EventCallback OnDockRequested { get; set; }
+    /// <summary>Popup açıldıktan sonra (Shown) — sahip ilk input'a odak vb. yapar.</summary>
+    [Parameter] public EventCallback OnShownRequested { get; set; }
+
+    // Pencere durumu kabuğa AİT (instance-local; iç içe popup'larda biri fullscreen olunca diğeri etkilenmez).
+    private bool _isFullscreen;
+    private bool _isMinimized;
+    private bool _isModal;   // Global modeless default; Modal butonu ile toggle
+    private bool _prevVisible;
+
+    // Kapanınca pencere durumunu sıfırla (kullanıcı X'i + programmatik kapanış; eski 3 kabuğun davranışı).
+    protected override void OnParametersSet()
+    {
+        if (_prevVisible && !Visible)
+        {
+            _isFullscreen = false;
+            _isMinimized = false;
+            _isModal = false;
+        }
+        _prevVisible = Visible;
+    }
+
+    // Modal butonu yoksa sabit (Edit/Drill = DefaultModal=true → daima modal); varsa kullanıcı toggle'ına bağlı. Minimize'da backdrop kapalı.
+    private bool EffectiveBackdrop => (Buttons.HasFlag(EditShellButtons.Modal) ? _isModal : DefaultModal) && !_isMinimized;
+
+    // padding-right buton SAYISINDAN türer (hardcode 120/60 yok): Global 4 buton → 124px, Edit/Drill 2 buton → 68px.
+    private string HeaderPaddingRight
+    {
+        get
+        {
+            var count = 0;
+            if (Buttons.HasFlag(EditShellButtons.Modal)) count++;
+            if (Buttons.HasFlag(EditShellButtons.Dock)) count++;
+            if (Buttons.HasFlag(EditShellButtons.Minimize)) count++;
+            if (Buttons.HasFlag(EditShellButtons.Fullscreen)) count++;
+            return $"{count * 28 + 12}px";
+        }
+    }
+
+    private void ToggleFullscreen() { _isMinimized = false; _isFullscreen = !_isFullscreen; }
+    private void ToggleMinimize() { _isFullscreen = false; _isMinimized = !_isMinimized; }
+    private void ToggleModal() => _isModal = !_isModal;
+    private void OnHeaderDoubleClick() { if (_isMinimized) ToggleMinimize(); else ToggleFullscreen(); }
+
+    private async Task OnPopupClosing(PopupClosingEventArgs args)
+    {
+        if (OnClosingRequested.HasDelegate) await OnClosingRequested.InvokeAsync(args);
+    }
+    private async Task OnPopupClosed()
+    {
+        if (OnClosedConfirmed.HasDelegate) await OnClosedConfirmed.InvokeAsync();
+    }
+    private async Task OnDockClick()
+    {
+        if (OnDockRequested.HasDelegate) await OnDockRequested.InvokeAsync();
+    }
+    private async Task OnPopupShown()
+    {
+        if (OnShownRequested.HasDelegate) await OnShownRequested.InvokeAsync();
+    }
+}

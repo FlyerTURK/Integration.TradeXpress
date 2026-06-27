@@ -19,17 +19,20 @@
    Farklı entity'ler için Columns + EditContent + NewItemFactory parametreleriyle özelleştirilir.
 *@
 
-<div class="drill-list">
+@* Responsive yükseklik (voucher tab-grid deseni): mobilde SABİT (min/max), masaüstünde FLEX ile kalan alanı doldurur. *@
+<DxLayoutBreakpoint MaxWidth="768" @bind-IsActive="@_isMobile" />
+<div class="drill-list" style="@(_isMobile ? "" : "display:flex; flex-direction:column; flex:1 1 auto; min-height:0;")">
     @* Drill başlığı (Title) kaldırıldı — toolbar üstü gereksiz başlık; bölüm bağlamı parent form/grid'den belli. *@
-    <div class="mb-2">
+    <div style="padding: 0.5rem; flex-shrink:0;">
         @* Liste toolbar — genel CrudToolbar/EditToolbar ile AYNI ToolbarRenderer (ikiz değil). Aksiyonlar descriptor. *@
         <ToolbarRenderer Actions="@ListToolbarActions" RenderMode="ToolbarRenderStyleMode.Plain" OnActionInvoked="OnToolbarActionInvoked" />
     </div>
 
-    @* Min/Max yükseklik + dikey flex: grid bu kutuyu doldurur (flex-grow), fazla satır grid'in kendi
-       içinde kayar (normal grid deseni). İkisi de DrillConsts.DefaultGridHeight'tan gelir → varsayılanda
-       EŞİT (sabit yükseklik, tüm drill'ler aynı). Gerekirse MinHeight<MaxHeight verilip aralık yapılabilir. *@
-    <div style="min-height:@MinHeight; max-height:@MaxHeight; display:flex; flex-direction:column;">
+    @* Mobil: SABİT (min/max = DefaultGridHeight). Masaüstü: flex:1 ile parent'taki kalan alanı doldurur,
+       MinHeight zemin (taban). Grid bu kutuyu doldurur; fazla satır grid'in kendi içinde kayar. *@
+    <div style="@(_isMobile
+            ? $"min-height:{MinHeight}; max-height:{MaxHeight}; display:flex; flex-direction:column;"
+            : $"flex:1 1 auto; min-height:{MinHeight}; display:flex; flex-direction:column;")">
         @if (AllowInlineEdit)
         {
             @* Satır-içi (hücre editörü) mod: cell'ler DevExpress'in native EditRow editörlerine döner.
@@ -47,7 +50,8 @@
                     LayoutAutoLoading="OnLayoutLoading"
                     LayoutAutoSaving="OnLayoutSaving"
                     PageSize="@PageSize"
-                    CssClass="flex-grow-1 overflow-hidden">
+                    CssClass="flex-grow-1 overflow-hidden"
+                    style="height:100% !important; flex:1 1 auto !important; min-height:0 !important;">
                 <Columns>
                     @if (!ReadOnly)
                     {
@@ -73,7 +77,8 @@
                     LayoutAutoLoading="OnLayoutLoading"
                     LayoutAutoSaving="OnLayoutSaving"
                     PageSize="@PageSize"
-                    CssClass="flex-grow-1 overflow-hidden">
+                    CssClass="flex-grow-1 overflow-hidden"
+                    style="height:100% !important; flex:1 1 auto !important; min-height:0 !important;">
                 <Columns>
                     <DxGridSelectionColumn Width="40px" />
                     @GridColumns
@@ -85,52 +90,34 @@
 
 @if (!AllowInlineEdit)
 {
-    @* Footer/header ana CRUD edit (CrudEditView) ile aynı desen: DevExpress FooterContentTemplate
-       (sabit dip, tema padding'i + üst çizgi) + HeaderContentTemplate (ikon + sola yaslı başlık). *@
-    <DxPopup Visible="@_popupVisible"
-             Closing="OnPopupClosing"
-             Closed="OnPopupClosed"
-             Width="@(_isFullscreen ? "100%" : "95%")"
-             MaxWidth="@(_isFullscreen ? "100vw" : "720px")"
-             MaxHeight="@(_isFullscreen ? "100vh" : "90vh")"
-             Height="@(_isFullscreen ? "100%" : null)"
-             Scrollable="true"
-             ShowBackdrop="@(!_isMinimized)"
-             AllowDrag="@(!_isFullscreen && !_isMinimized)"
-             AllowResize="@(!_isFullscreen)"
-             HorizontalAlignment="@(_isMinimized ? HorizontalAlignment.Left : HorizontalAlignment.Center)"
-             VerticalAlignment="@(_isMinimized ? VerticalAlignment.Bottom : VerticalAlignment.Center)"
-             ShowCloseButton="@(!_isMinimized)"
-             CloseOnEscape="true"
-             CloseOnOutsideClick="false"
-             CssClass="@($"crud-edit-popup {(_isFullscreen ? "fullscreen-popup " : "")} {(_isMinimized ? "minimized-popup " : "")}")">
-        <HeaderContentTemplate Context="popup">
-            <div class="flex-grow-1 w-100 h-100 position-relative d-flex align-items-center" style="user-select: none;" @ondblclick="@(() => { if (_isMinimized) ToggleMinimize(); else ToggleFullscreen(); })">
-                <div class="flex-grow-1" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; padding-right: 60px;">
-                    @* Yapısal başlık — genel popup chrome ile AYNI engine (TabHeaderData → EditHeaderView): ikon + 3-satır + stillenmiş "*". *@
-                    <EditHeaderView Header="@BuildDrillHeader()" IsDirty="@IsEditDirty" ShowDirty="true" DirtyLabel="@L["UnsavedChanges"]" />
-                </div>
-                <div class="position-absolute d-flex align-items-center" style="right: 8px; top: 50%; transform: translateY(-50%); gap: 4px;">
-                    <DxButton RenderStyle="ButtonRenderStyle.None" CssClass="d-flex flex-shrink-0 align-items-center justify-content-center p-0" Click="ToggleMinimize" tabindex="-1"><i class="@(_isMinimized ? "custom-icon-restore-min" : "custom-icon-minimize-corner")" style="width: 20px; height: 20px;"></i></DxButton>
-                    <DxButton RenderStyle="ButtonRenderStyle.None" CssClass="@($"d-none {(_isMinimized ? "" : "d-md-flex")} align-items-center justify-content-center p-0")" Click="ToggleFullscreen" tabindex="-1"><i class="@(_isFullscreen ? "custom-icon-minimize" : "custom-icon-maximize")" style="width: 20px; height: 20px;"></i></DxButton>
-                </div>
-            </div>
-        </HeaderContentTemplate>
-        <Content>
-            <div style="@(_isMinimized ? "display: none !important;" : "")" class="d-flex flex-column h-100">
-              @if (_popupVisible)
-            {
-                @* Toolbar ÜSTTE (genel EntityEditForm deseni; alt footer kaldırıldı). *@
-                <div style="border-bottom:1px solid #dee2e6; padding-bottom:0.5rem; margin-bottom:0.5rem;">
-                    @* Genel edit ile AYNI bileşen (ikiz değil): EditToolbar. Drill yetenekleri ISplitEditActions'tan
-                       (yalnız Kaydet + Kaydet&Yeni; Sil/nav/undo/reset gizli). *@
+    @* Popup chrome ARTIK TEK KAYNAK: EditShell (3 kabuk kopyası yerine). Header zaten TabHeaderData
+       (BuildDrillHeader → EditHeaderView); guard OnPopupClosing'de; gövde EditForm'suz CascadingValue<EditContext>
+       — kabuğun DIŞINDA, ChildContent olarak girer → nested EditContext NRE'si yapısal olarak imkânsız.
+       Pencere durumu (fullscreen/minimize) + butonlar EditShell'de. *@
+    <EditShell Mode="EditShellMode.Popup"
+               Buttons="EditShellButtons.Minimize | EditShellButtons.Fullscreen"
+               Visible="@_popupVisible"
+               Header="@BuildDrillHeader()"
+               IsDirty="@IsEditDirty"
+               MaxWidth="720px"
+               OnClosingRequested="OnPopupClosing"
+               OnClosedConfirmed="OnPopupClosed">
+        @if (_popupVisible)
+        {
+            @* EntityEditForm ile AYNI desen: flex-column + EXPLICIT max-height (popup'ta h-100 çözülmez) →
+               toolbar flex-shrink:0 SABİT, gövde flex:1 overflow-y:auto KAYAR. Sticky hack YOK; dx-modal-body
+               kaymadığı için toolbar üstünde sızıntı da yok. Toolbar yalnız alt padding; gövde edge-to-edge. *@
+            <div style="display:flex; flex-direction:column; max-height:88vh; min-height:0; overflow-x:hidden; max-width:100%;">
+                <div style="flex-shrink:0; padding-bottom:0.5rem;">
+                    @* Genel edit ile AYNI bileşen (ikiz değil): EditToolbar. Drill: yalnız Kaydet + Kaydet&Yeni. *@
                     <EditToolbar EditController="@this" IsPopup="true" OnActionInvoked="OnToolbarActionInvoked" />
                 </div>
-                @EditFormBody
-            }
+                <div style="flex:1 1 auto; overflow-y:auto; overflow-x:hidden; min-height:0;">
+                    @EditFormBody
+                </div>
             </div>
-        </Content>
-    </DxPopup>
+        }
+    </EditShell>
 }
 
 @* Popup modunun düzenleme gövdesi (satır-içi mod DevExpress native EditRow kullanır, bunu kullanmaz).
@@ -141,20 +128,8 @@
    eder; iç DrillList dış olanı shadow'lar — doğru izolasyon, NRE yok. Save manuel: Validate()+SaveAsync(). *@
 
 @code {
-    private bool _isFullscreen;
-    private bool _isMinimized;
-
-    private void ToggleFullscreen()
-    {
-        _isMinimized = false;
-        _isFullscreen = !_isFullscreen;
-    }
-
-    private void ToggleMinimize()
-    {
-        _isFullscreen = false;
-        _isMinimized = !_isMinimized;
-    }
+    // Pencere durumu (fullscreen/minimize) + Toggle metotları + butonlar ARTIK EditShell'de.
+    // DrillList yalnız _popupVisible + kapanış guard'ını (OnPopupClosing/OnPopupClosed) tutar.
 
     [Parameter] public string? Title { get; set; }
     [Parameter] public string? EntityName { get; set; }
@@ -204,9 +179,12 @@
     /// <see cref="DrillConsts.DefaultGridHeight"/>. Gerekirse kullanım başına ezilebilir.</summary>
     [Parameter] public string MinHeight { get; set; } = DrillConsts.DefaultGridHeight;
 
-    /// <summary>Grid kutusunun maksimum yüksekliği. Varsayılan: MinHeight ile EŞİT (sabit yükseklik).
-    /// MinHeight'tan büyük verilirse grid içerikle bu aralıkta büyür, sonra içeride kayar.</summary>
+    /// <summary>Grid kutusunun maksimum yüksekliği (yalnız MOBİL). Varsayılan: MinHeight ile EŞİT (sabit yükseklik).
+    /// Masaüstünde grid flex ile parent'ın kalan alanını doldurur (MinHeight = taban).</summary>
     [Parameter] public string MaxHeight { get; set; } = DrillConsts.DefaultGridHeight;
+
+    // Responsive (DxLayoutBreakpoint MaxWidth=768): mobil = sabit min/max; masaüstü = flex-fill (voucher deseni).
+    private bool _isMobile;
 
     [Parameter, EditorRequired] public RenderFragment GridColumns { get; set; } = default!;
     [Parameter, EditorRequired] public RenderFragment<TItem> EditContent { get; set; } = default!;
@@ -701,11 +679,9 @@
         if (!await ConfirmCloseAsync()) args.Cancel = true;
     }
 
-    // Kapanış kesinleşti (kullanıcı kapanışı onaylandı, programmatik değil) → temizle.
-    private void OnPopupClosed(PopupClosedEventArgs args)
+    // Kapanış kesinleşti (EditShell.OnClosedConfirmed; parametresiz) → temizle. Pencere durumunu EditShell sıfırlar.
+    private void OnPopupClosed()
     {
-        _isFullscreen = false;
-        _isMinimized = false;
         _editItem = default;
         _editOriginal = default;
         if (_popupVisible) Cancel();

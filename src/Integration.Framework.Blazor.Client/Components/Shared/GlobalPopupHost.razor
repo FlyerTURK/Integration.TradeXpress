@@ -13,65 +13,34 @@
    IPopupChrome.SetHeader ile buraya verir → HeaderContentTemplate'i DOLDURUR (band boş kalmaz, çift
    başlık olmaz). HeaderContentTemplate yalnız content alanını etkiler; native X bağımsız (DevExpress).
    IPopupChrome cascade ile gövdeye verilir; form vermezse Title'a düşer (eski davranış). *@
-<DxPopup Visible="@PopupService.IsVisible"
-         CssClass="@((_isFullscreen ? "fullscreen-popup " : "") + (_isMinimized ? "minimized-popup " : ""))"
-         Closing="OnClosing"
-         Closed="OnClosed"
-         Shown="OnShown"
-         ShowCloseButton="@(!_isMinimized)"
-         ShowFooter="false"
-         Width="@(_isFullscreen ? "100%" : (_isMinimized ? "350px" : "95%"))"
-         MaxWidth="@(_isFullscreen ? "100vw" : (_isMinimized ? "350px" : (PopupService.Options?.Width ?? "800px")))"
-         MinHeight="@(_isMinimized ? "0" : "150px")"
-         MaxHeight="@(_isFullscreen ? "100vh" : "90vh")"
-         Height="@(_isFullscreen ? "100%" : null)"
-         HorizontalAlignment="@(_isMinimized ? HorizontalAlignment.Left : HorizontalAlignment.Center)"
-         VerticalAlignment="@(_isMinimized ? VerticalAlignment.Bottom : VerticalAlignment.Center)"
-         Scrollable="true" ShowBackdrop="@(_isModal && !_isMinimized)"
-         CloseOnEscape="@(PopupService.Options?.CloseOnEscape ?? false)"
-         CloseOnOutsideClick="@(PopupService.Options?.CloseOnOutsideClick ?? false)">
-    <HeaderContentTemplate Context="popup">
-        <div class="flex-grow-1 w-100 h-100 position-relative d-flex align-items-center" style="user-select: none;" @ondblclick="@(() => { if (_isMinimized) ToggleMinimize(); else ToggleFullscreen(); })">
-            <div class="flex-grow-1" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; padding-right: 120px;">
-                @if (_chromeHeader is not null)
-                {
-                    @_chromeHeader
-                }
-                else if (!string.IsNullOrEmpty(PopupService.Options?.Title))
-                {
-                    <span>@PopupService.Options!.Title</span>
-                }
-            </div>
-            <div class="position-absolute d-flex align-items-center" style="right: 8px; top: 50%; transform: translateY(-50%); gap: 4px;">
-                <DxButton RenderStyle="ButtonRenderStyle.None" CssClass="@($"d-none {(_isMinimized ? "" : "d-md-flex")} align-items-center justify-content-center p-0")" Click="ToggleModal" tabindex="-1" title="@(_isModal ? "Arka Planı Kilitleme (Modeless)" : "Arka Planı Kilitle (Modal)")"><i class="erp-icon @(_isModal ? "erp-icon-pin" : "erp-icon-unpin")" style="width: 18px; height: 18px;"></i></DxButton>
-                <DxButton RenderStyle="ButtonRenderStyle.None" CssClass="@($"d-none {(_isMinimized ? "" : "d-md-flex")} align-items-center justify-content-center p-0")" Click="DockToTab" tabindex="-1" title="Sekmeye Sabitle"><i class="erp-icon erp-icon-dock" style="width: 18px; height: 18px;"></i></DxButton>
-                <DxButton RenderStyle="ButtonRenderStyle.None" CssClass="d-flex flex-shrink-0 align-items-center justify-content-center p-0" Click="ToggleMinimize" tabindex="-1"><i class="@(_isMinimized ? "custom-icon-restore-min" : "custom-icon-minimize-corner")" style="width: 20px; height: 20px;"></i></DxButton>
-                <DxButton RenderStyle="ButtonRenderStyle.None" CssClass="@($"d-none {(_isMinimized ? "" : "d-md-flex")} align-items-center justify-content-center p-0")" Click="ToggleFullscreen" tabindex="-1"><i class="@(_isFullscreen ? "custom-icon-minimize" : "custom-icon-maximize")" style="width: 20px; height: 20px;"></i></DxButton>
-            </div>
-        </div>
-    </HeaderContentTemplate>
-    <BodyTemplate>
-        <div style="@(_isMinimized ? "display: none !important;" : "")" class="h-100 d-flex flex-column">            <CascadingValue Value="@((IPopupChrome)this)" IsFixed="true">
-            @if (PopupService.ComponentType != null)
-            {
-                <DynamicComponent Type="@PopupService.ComponentType" Parameters="@RenderParameters" />
-            }
-        </CascadingValue>
-        </div>
-    </BodyTemplate>
-</DxPopup>
+@* Popup chrome ARTIK TEK KAYNAK: EditShell (3 kabuk kopyası yerine). Başlık/butonlar/pencere-durumu EditShell'de;
+   IPopupChrome köprüsü, DockToTab, RenderParameters (_TabUrl filtresi), OnShow/OnHide GlobalPopupHost'ta KALIR. *@
+<EditShell Mode="EditShellMode.Popup"
+           Buttons="EditShellButtons.Minimize | EditShellButtons.Fullscreen | EditShellButtons.Modal | EditShellButtons.Dock"
+           Visible="@PopupService.IsVisible"
+           ChromeHeader="@_chromeHeader"
+           TitleText="@PopupService.Options?.Title"
+           MaxWidth="@(PopupService.Options?.Width ?? "800px")"
+           DefaultModal="false"
+           CloseOnEscape="@(PopupService.Options?.CloseOnEscape ?? false)"
+           CloseOnOutsideClick="@(PopupService.Options?.CloseOnOutsideClick ?? false)"
+           OnClosingRequested="OnClosing"
+           OnClosedConfirmed="OnClosed"
+           OnShownRequested="OnShown"
+           OnDockRequested="DockToTab">
+    @* Gövde: form başlığını IPopupChrome.SetHeader ile iter (ChromeHeader); EntityEditForm kendi flex+scroll'unu taşır. *@
+    <CascadingValue Value="@((IPopupChrome)this)" IsFixed="true">
+        @if (PopupService.ComponentType != null)
+        {
+            <DynamicComponent Type="@PopupService.ComponentType" Parameters="@RenderParameters" />
+        }
+    </CascadingValue>
+</EditShell>
 
 @code {
     private RenderFragment? _chromeHeader;
     private Func<Task<bool>>? _chromeGuard;   // form'un kapanış guard'ı (CanLeaveAsync) — IPopupChrome ile gelir
-    private bool _isFullscreen;
-    private bool _isMinimized;
-    private bool _isModal = false; // Modeless by default
-
-    private void ToggleModal()
-    {
-        _isModal = !_isModal;
-    }
+    // Pencere durumu (fullscreen/minimize/modal) + toggle'lar EditShell'de (tek kabuk).
 
     [Inject] private Integration.Framework.Blazor.Client.Services.Mdi.IMdiTabOpener TabOpener { get; set; } = default!;
 
@@ -107,18 +76,6 @@
 
         // Yeni Sekme olarak aç
         await TabOpener.OpenOrActivateAsync(url, title);
-    }
-
-    private void ToggleFullscreen()
-    {
-        _isMinimized = false;
-        _isFullscreen = !_isFullscreen;
-    }
-
-    private void ToggleMinimize()
-    {
-        _isFullscreen = false;
-        _isMinimized = !_isMinimized;
     }
 
     // _TabUrl popup METADATA'sıdır (PopOutActiveTab → DockToTab geri-dönüş URL'i); sayfa BİLEŞENİNE parametre
@@ -157,8 +114,8 @@
 
     public void SetCloseGuard(Func<Task<bool>>? guard) => _chromeGuard = guard;
 
-    private void HandleShow() { _chromeHeader = null; _chromeGuard = null; _isFullscreen = false; _isMinimized = false; StateHasChanged(); }   // yeni popup → temizle
-    private void HandleHide() { _chromeHeader = null; _chromeGuard = null; _isFullscreen = false; _isMinimized = false; StateHasChanged(); }
+    private void HandleShow() { _chromeHeader = null; _chromeGuard = null; StateHasChanged(); }   // yeni popup → temizle (pencere durumu EditShell'de)
+    private void HandleHide() { _chromeHeader = null; _chromeGuard = null; StateHasChanged(); }
 
     private async Task OnShown()
     {
@@ -181,7 +138,7 @@
             args.Cancel = true;
     }
 
-    private void OnClosed(PopupClosedEventArgs args)
+    private void OnClosed()
     {
         if (PopupService.IsVisible)
             PopupService.Close();

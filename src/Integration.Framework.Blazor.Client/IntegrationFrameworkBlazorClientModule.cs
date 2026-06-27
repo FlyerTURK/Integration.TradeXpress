@@ -18,6 +18,10 @@ public class IntegrationFrameworkBlazorClientModule : AbpModule
         context.Services.AddScoped<ITradeXpressUiService, TradeXpressUiService>();
         context.Services.AddScoped<IViewOpener, DefaultViewOpener>();
 
+        // EntityProfile registry — entity kimliğinin (ikon/başlık/parent/permission/edit-host) TEK KAYNAĞI.
+        // Tüketici modüller EntityProfile'larını singleton kaydeder; registry hepsini toplayıp indeksler.
+        context.Services.AddSingleton<Profiles.IEntityProfileRegistry, Profiles.EntityProfileRegistry>();
+
         // ICrudStateService<,> her sayfa ayrı sınıf yazmadan açık-generic kayıttan çözümlenir.
         // SCOPED (interface IScopedDependency ile tutarlı): WASM'da uygulama ömrü boyunca closed-generic
         // başına TEK örnek → aynı entity'nin liste + edit (popup/sekme) + split paneli AYNI state'i paylaşır

@@ -107,4 +107,14 @@ public class VaultGraphDto : VaultGetDto
 
     public Guid ClientKey { get; set; } = Guid.NewGuid();
     public bool IsDeleted { get; set; }
+
+    /// <summary>Tam deep-copy (in-memory drill: Cancel orijinali geri alabilsin). TÜM alanlar kopyalanır →
+    /// alan eklenince SADECE burası güncellenir ("unutulan alan" clone bug'ı imkânsız; tek kaynak).</summary>
+    public VaultGraphDto Clone() => new()
+    {
+        Id = Id, ClientKey = ClientKey, IsDeleted = IsDeleted,
+        BranchId = BranchId, BranchCode = BranchCode,
+        Code = Code, Name = Name, IsDefault = IsDefault,
+        IsActive = IsActive, DisplayOrder = DisplayOrder, Description = Description,
+    };
 }

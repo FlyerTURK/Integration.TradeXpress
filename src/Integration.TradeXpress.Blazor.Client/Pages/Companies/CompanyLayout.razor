@@ -6,7 +6,9 @@
 @using Integration.Framework.Blazor.Client.Components.Crud
 @using Integration.TradeXpress.Blazor.Client.Components.Crud
 @using DevExpress.Blazor
+@using Integration.Framework.Blazor.Client.Profiles
 @inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+@inject IEntityProfileRegistry Profiles
 
 @*
    Company DUMB Layout — paylaşılan CompanyEditFields (form) + CompanyBranchDrill (Şube→Kasa nested drill).
@@ -19,11 +21,11 @@
                    OnAddCountry="@OnAddCountry" OnEditCountry="@OnEditCountry" />
 
 @* Tek drill de tablı yapıda + entity ikonu (genel desen). *@
-<DxTabs CssClass="mt-3">
-    <DxTabPage Text="@L["Menu:Branches"]" TabIconCssClass="@TradeXpressIcons.Branch">
+<DrillTabs CssClass="mt-3">
+    <DxTabPage Text="@Profiles.PluralTitle("Branch", L)" TabIconCssClass="@Profiles.Icon("Branch")">
         <CompanyBranchDrill Model="@Model" Units="@Units" OnChanged="@(() => EditChanged?.Invoke())" />
     </DxTabPage>
-</DxTabs>
+</DrillTabs>
 
 @code {
     [Parameter, EditorRequired] public CompanyGetDto Model { get; set; } = default!;

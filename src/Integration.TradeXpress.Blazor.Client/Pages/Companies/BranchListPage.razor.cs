@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Integration.Framework.Blazor.Client.Components.Crud;
+using Integration.Framework.Blazor.Client.Profiles;
 using Integration.TradeXpress.Blazor.Client.Services.Mdi;
 using Integration.TradeXpress.Branches;
 using Integration.TradeXpress.Permissions;
@@ -26,6 +27,7 @@ public partial class BranchListPage
 
     [Inject] protected IBranchAppService BranchAppService { get; set; } = default!;
     [Inject] protected ITabManager TabManager { get; set; } = default!;
+    [Inject] protected IEntityProfileRegistry Profiles { get; set; } = default!;
 
     public override Volo.Abp.Application.Services.ICrudAppService<
         BranchGetDto, BranchListDto, Guid,
@@ -75,9 +77,10 @@ public partial class BranchListPage
     {
         if (SelectedBranch is null) return;
         var url = $"/vaults/{SelectedBranch.Id}?branchcode={Uri.EscapeDataString(SelectedBranch.Code)}";
+        // Tab ikonu TEK KAYNAK = VaultProfile (popup ile birebir aynı; "Vault" = entity profil anahtarı).
         var header = new Integration.Framework.Blazor.Client.Services.Mdi.TabHeaderData {
             FormCaption = L["Menu:Vaults"],
-            IconCssClass = TradeXpressIcons.Vault,
+            IconCssClass = Profiles.GetByKey("Vault").IconCssClass,
             ParentLabel = L["Entity:Branch"],
             ParentValue = SelectedBranch.Code
         };

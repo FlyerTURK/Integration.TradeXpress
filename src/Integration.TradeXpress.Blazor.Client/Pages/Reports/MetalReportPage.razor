@@ -6,6 +6,7 @@
 @using Integration.TradeXpress.Vaults
 @using Integration.TradeXpress.Vouchers
 @using DevExpress.Blazor
+@using Integration.Framework.Blazor.Client.Components.Crud
 @inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
 
 <PageTitle>Maden Raporu</PageTitle>
@@ -70,7 +71,7 @@
         <DxTabPage Text="Maden Stoğu">
             @if (_stockRows != null)
             {
-                <DxGrid Data="@_stockRows" ShowFilterRow="false" style="height:100%;">
+                <TxGrid Data="@_stockRows" StateKey="report:metal-stock" ShowFilterRow="false" style="height:100%;">
                     <Columns>
                         <DxGridDataColumn FieldName="@nameof(MetalStockRowDto.MetalCode)"   Caption="Maden Kodu"  Width="120" />
                         <DxGridDataColumn FieldName="@nameof(MetalStockRowDto.MetalName)"   Caption="Maden Adı"   Width="180" />
@@ -90,14 +91,14 @@
                         <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum" FieldName="@nameof(MetalStockRowDto.NetQuantity)" DisplayFormat="n2" />
                         <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum" FieldName="@nameof(MetalStockRowDto.NetAmount)"   DisplayFormat="n4" />
                     </TotalSummary>
-                </DxGrid>
+                </TxGrid>
             }
         </DxTabPage>
 
         <DxTabPage Text="Maden Hareketleri">
             @if (_movementRows != null)
             {
-                <DxGrid Data="@_movementRows" ShowFilterRow="true" style="height:100%;">
+                <TxGrid Data="@_movementRows" StateKey="report:metal-movement" ShowFilterRow="true" style="height:100%;">
                     <Columns>
                         <DxGridDataColumn FieldName="@nameof(MetalMovementRowDto.VoucherDate)"    Caption="Tarih"       DisplayFormat="d"   Width="95"  />
                         <DxGridDataColumn FieldName="@nameof(MetalMovementRowDto.SubAccountCode)" Caption="Hesap"                            Width="160" />
@@ -128,7 +129,7 @@
                         <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum"   FieldName="@nameof(MetalMovementRowDto.Giren)"      DisplayFormat="n4" />
                         <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum"   FieldName="@nameof(MetalMovementRowDto.Cikan)"      DisplayFormat="n4" />
                     </TotalSummary>
-                </DxGrid>
+                </TxGrid>
             }
         </DxTabPage>
 

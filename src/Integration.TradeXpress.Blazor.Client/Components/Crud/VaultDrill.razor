@@ -4,10 +4,12 @@
 @using Integration.TradeXpress.Vaults
 @using Integration.TradeXpress.Blazor.Client.Pages.Vaults
 @using Integration.Framework.Blazor.Client.Components.Crud
+@using Integration.Framework.Blazor.Client.Profiles
 @using Integration.TradeXpress.Blazor.Client.Components.Shared
 @using DevExpress.Blazor
 @using Microsoft.Extensions.Localization
 @inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+@inject IEntityProfileRegistry Profiles
 
 @*
    Kasalar drill (PAYLAŞILAN) — Branch standalone (BranchLayout) + Company şube-drill'i (CompanyBranchDrill)
@@ -18,13 +20,14 @@
            @ref="_drill"
            Title="@L["Menu:Vaults"]"
            EntityName="@L["Entity:Vault"]"
+           EntityIcon="@Profiles.GetByKey("Vault").IconCssClass"
            Items="Vaults"
            ParentEntityName="@ParentEntityName"
            ParentText="@ParentText"
            KeyFieldName="ClientKey"
            PrimaryTextSelector="@(v => v.Code)"
            NewItemFactory="@NewVault"
-           CloneFactory="@CloneVault"
+           CloneFactory="@(v => v.Clone())"
            MinItems="1"
            SoftDelete="true"
            IsNewItem="@(v => v.Id == Guid.Empty)"
@@ -41,9 +44,7 @@
         <DxGridDataColumn FieldName="IsDefault" Caption="@L["IsDefault"]" Width="90px" TextAlignment="GridTextAlignment.Left">
             <CellDisplayTemplate Context="cell">@(((VaultGraphDto)cell.DataItem).IsDefault ? L["Yes"].Value : "")</CellDisplayTemplate>
         </DxGridDataColumn>
-        <DxGridDataColumn FieldName="IsActive" Caption="@L["Status"]" Width="110px" TextAlignment="GridTextAlignment.Left">
-            <CellDisplayTemplate Context="cell"><StatusCell Active="@(((VaultGraphDto)cell.DataItem).IsActive)" /></CellDisplayTemplate>
-        </DxGridDataColumn>
+        <StatusColumn />
         <DxGridDataColumn FieldName="DisplayOrder" Caption="@L["DisplayOrder"]" Width="90px" />
     </GridColumns>
     <EditContent Context="v">
@@ -78,12 +79,7 @@
 
     private static VaultGraphDto NewVault() => new() { IsActive = true, DisplayOrder = 1 };
 
-    private static VaultGraphDto CloneVault(VaultGraphDto v) => new()
-    {
-        Id = v.Id, ClientKey = v.ClientKey, IsDeleted = v.IsDeleted,
-        Code = v.Code, Name = v.Name, IsDefault = v.IsDefault,
-        IsActive = v.IsActive, DisplayOrder = v.DisplayOrder, Description = v.Description,
-    };
+    // Clone() VaultGraphDto'da (tek kaynak — kopya-clone "unutulan alan" bug'ı önlenir).
 
     // Tekil-bayrak devri: kaydedilen kasa varsayılan ise diğer (silinmemiş) kasaların varsayılanını düşür.
     private void OnVaultSaved(VaultGraphDto saved)

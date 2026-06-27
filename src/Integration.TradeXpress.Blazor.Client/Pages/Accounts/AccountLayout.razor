@@ -6,7 +6,9 @@
 @using Integration.TradeXpress.Blazor.Client.Components.Shared
 @using DevExpress.Blazor
 @using Microsoft.Extensions.Localization
+@using Integration.Framework.Blazor.Client.Profiles
 @inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+@inject IEntityProfileRegistry Profiles
 
 @*
    Account DUMB Layout — AccountGetDto'yu forma yansıtır. I/O yok (para birimi adayları host'tan param).
@@ -71,8 +73,8 @@
 </DxFormLayout>
 
 @* Alt hesaplar — in-memory drill (graf); Account save'inde tek komutla yazılır. Sekme içinde (grid + toolbar). *@
-<DxTabs CssClass="mt-3">
-    <DxTabPage Text="@L["SubAccounts"].Value" TabIconCssClass="@TradeXpressIcons.SubAccount">
+<DrillTabs CssClass="mt-3">
+    <DxTabPage Text="@Profiles.PluralTitle("SubAccount", L)" TabIconCssClass="@Profiles.Icon("SubAccount")">
         <DrillList TItem="SubAccountGraphDto"
                    @ref="_subAccountDrill"
                    Title="@L["SubAccounts"]"
@@ -90,9 +92,7 @@
             <GridColumns>
                 <GridLinkColumn FieldName="Code" Caption="@L["Code"]" Width="140px" FixedPosition="GridColumnFixedPosition.Left" VisibleIndex="1" OnClick="@(item => _subAccountDrill?.EditItem((SubAccountGraphDto)item))" />
                 <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" />
-                <DxGridDataColumn FieldName="IsActive" Caption="@L["Status"]" Width="110px" TextAlignment="GridTextAlignment.Left">
-                    <CellDisplayTemplate Context="cell"><StatusCell Active="@(((SubAccountGraphDto)cell.DataItem).IsActive)" /></CellDisplayTemplate>
-                </DxGridDataColumn>
+                <StatusColumn />
             </GridColumns>
             <EditContent Context="s">
                 <DxFormLayout CssClass="w-100">
@@ -106,7 +106,7 @@
             </EditContent>
         </DrillList>
     </DxTabPage>
-</DxTabs>
+</DrillTabs>
 
 @code {
     [Parameter, EditorRequired] public AccountGetDto Model { get; set; } = default!;

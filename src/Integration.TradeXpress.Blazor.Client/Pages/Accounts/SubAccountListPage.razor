@@ -1,5 +1,6 @@
 @page "/subaccounts/{AccountId:guid}"
 @using Integration.Framework.Blazor.Client.Components.Crud
+@using Integration.TradeXpress.Blazor.Client.Components.Shared
 @using Integration.TradeXpress.Accounts
 @using DevExpress.Blazor
 @inject Microsoft.AspNetCore.Components.NavigationManager NavigationManager
@@ -28,9 +29,7 @@
         <GridLinkColumn FieldName="AccountCode" Caption="@L["Account"]" Width="120px" VisibleIndex="1"
                         OnClick="@(o => OpenAccountAsync((SubAccountListDto)o))" />
         <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" VisibleIndex="2"  MinWidth="200" />
-        <DxGridDataColumn FieldName="IsActive" Caption="@L["Status"]" Width="110px" VisibleIndex="3" TextAlignment="GridTextAlignment.Left">
-            <CellDisplayTemplate Context="cell"><Integration.Framework.Blazor.Client.Components.Shared.StatusCell Active="@(((SubAccountListDto)cell.DataItem).IsActive)" /></CellDisplayTemplate>
-        </DxGridDataColumn>
+        <StatusColumn VisibleIndex="3" />
     </GridColumns>
 
 </CrudLayout>

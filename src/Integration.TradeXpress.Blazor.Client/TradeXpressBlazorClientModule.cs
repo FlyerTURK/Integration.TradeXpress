@@ -64,6 +64,14 @@ public class TradeXpressBlazorClientModule : AbpModule
         context.Services.AddScoped<Integration.Framework.Blazor.Client.Components.Crud.IGridExportAssemblyLoader,
                                    Integration.Framework.Blazor.Client.Components.Crud.GridExportAssemblyLoader>();
 
+        // EntityProfile'lar (kimlik tek-kaynak). Registry bunları toplar; drill-tab ikon/başlıkları buradan türer.
+        context.Services.AddSingleton<Integration.Framework.Blazor.Client.Profiles.EntityProfile, Profiles.VaultProfile>();
+        context.Services.AddSingleton<Integration.Framework.Blazor.Client.Profiles.EntityProfile, Profiles.BranchProfile>();
+        context.Services.AddSingleton<Integration.Framework.Blazor.Client.Profiles.EntityProfile, Profiles.CompanyProfile>();
+        context.Services.AddSingleton<Integration.Framework.Blazor.Client.Profiles.EntityProfile, Profiles.AccountProfile>();
+        context.Services.AddSingleton<Integration.Framework.Blazor.Client.Profiles.EntityProfile, Profiles.SubAccountProfile>();
+        context.Services.AddSingleton<Integration.Framework.Blazor.Client.Profiles.EntityProfile, Profiles.UserProfile>();
+
         // Çalışma bağlamı (working context) — seçili çalışma şubesi (company+branch); sol menü footer combo'su sürer.
         context.Services.AddScoped<Services.Working.IWorkingContextService, Services.Working.WorkingContextService>();
 

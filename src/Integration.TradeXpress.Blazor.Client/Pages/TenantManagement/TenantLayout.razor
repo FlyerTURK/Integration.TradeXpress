@@ -13,7 +13,9 @@
 @using Integration.Framework.Blazor.Client.Components.Inputs
 @using DevExpress.Blazor
 @using Microsoft.Extensions.Localization
+@using Integration.Framework.Blazor.Client.Profiles
 @inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+@inject IEntityProfileRegistry Profiles
 
 @*
    Tenant DUMB Layout — Ad + (yalnız YENİ tenant'ta) Kullanıcılar drill (admin onboarding) + Şirketler drill
@@ -30,8 +32,8 @@
 @if (IsNew)
 {
     @* Kullanıcılar + Şirketler ayrı sekmelerde (DxTabs) — uzun graf'ı dikey yığmak yerine. *@
-    <DxTabs CssClass="mt-3">
-    <DxTabPage Text="@L["Companies"].Value" TabIconCssClass="@TradeXpressIcons.Company">
+    <DrillTabs CssClass="mt-3">
+    <DxTabPage Text="@Profiles.PluralTitle("Company", L)" TabIconCssClass="@Profiles.Icon("Company")">
         @* Şirketler: tam graf (CompanyEditFields + CompanyBranchDrill). Tek merkez şirket. *@
         <DrillList TItem="CompanyGraphDto"
                    @ref="_companyDrill"
@@ -41,7 +43,7 @@
                    KeyFieldName="ClientKey"
                    PrimaryTextSelector="@(c => c.Code)"
                    NewItemFactory="@NewCompanyNode"
-                   CloneFactory="@CloneCompany"
+                   CloneFactory="@(c => c.Clone())"
                    MinItems="1"
                    SoftDelete="true"
                    IsNewItem="@(c => c.Id == Guid.Empty)"
@@ -59,25 +61,23 @@
                 <DxGridDataColumn FieldName="IsHeadquarters" Caption="@L["IsHeadquarters"]" Width="90px" TextAlignment="GridTextAlignment.Left">
                     <CellDisplayTemplate Context="cell">@(((CompanyGraphDto)cell.DataItem).IsHeadquarters ? L["Yes"].Value : "")</CellDisplayTemplate>
                 </DxGridDataColumn>
-                <DxGridDataColumn FieldName="IsActive" Caption="@L["Status"]" Width="110px" TextAlignment="GridTextAlignment.Left">
-                    <CellDisplayTemplate Context="cell"><StatusCell Active="@(((CompanyGraphDto)cell.DataItem).IsActive)" /></CellDisplayTemplate>
-                </DxGridDataColumn>
+                <StatusColumn />
             </GridColumns>
             <EditContent Context="c">
                 <CompanyEditFields Model="c" Units="Units" Countries="Countries"
                                    HeadquartersEnabled="@(!IsCompanySoleHq(c))" CodeEnabled="true" />
             </EditContent>
             <AfterEditForm Context="c">
-                <DxTabs CssClass="mt-3">
-                    <DxTabPage Text="@L["Menu:Branches"].Value" TabIconCssClass="@TradeXpressIcons.Branch">
+                <DrillTabs CssClass="mt-3">
+                    <DxTabPage Text="@Profiles.PluralTitle("Branch", L)" TabIconCssClass="@Profiles.Icon("Branch")">
                         <CompanyBranchDrill Model="c" Units="Units" OnChanged="@(() => EditChanged?.Invoke())"
                                             OnReferenceDataReload="@OnReferenceDataReload" />
                     </DxTabPage>
-                </DxTabs>
+                </DrillTabs>
             </AfterEditForm>
         </DrillList>
     </DxTabPage>
-    <DxTabPage Text="@L["Users"].Value" TabIconCssClass="@TradeXpressIcons.User">
+    <DxTabPage Text="@Profiles.PluralTitle("User", L)" TabIconCssClass="@Profiles.Icon("User")">
         <DrillList TItem="TenantUserInput"
                    @ref="_userDrill"
                    Title="@L["Users"]"
@@ -115,7 +115,7 @@
             </EditContent>
         </DrillList>
     </DxTabPage>
-    </DxTabs>
+    </DrillTabs>
 }
 
 @code {
@@ -206,29 +206,8 @@
     // Drill add (parametresiz): boş şirket düğümü (TR default).
     private CompanyGraphDto NewCompanyNode() => NewCompany(string.Empty, string.Empty, "TR", isHeadquarters: false, Units, Countries);
 
-    private static CompanyGraphDto CloneCompany(CompanyGraphDto c) => new()
-    {
-        Id = c.Id, ClientKey = c.ClientKey, IsDeleted = c.IsDeleted,
-        Code = c.Code, Name = c.Name, CountryCode = c.CountryCode, BaseCurrencyUnitId = c.BaseCurrencyUnitId,
-        IsHeadquarters = c.IsHeadquarters, IsActive = c.IsActive, DisplayOrder = c.DisplayOrder, Description = c.Description,
-        Branches = c.Branches.Select(CloneBranch).ToList(),
-    };
-
-    private static BranchGraphDto CloneBranch(BranchGraphDto b) => new()
-    {
-        Id = b.Id, ClientKey = b.ClientKey, IsDeleted = b.IsDeleted,
-        Code = b.Code, Name = b.Name, IsHeadquarters = b.IsHeadquarters,
-        BaseCurrencyUnitId = b.BaseCurrencyUnitId,   // KRİTİK: kopyalanmazsa drill-edit'te combo Guid.Empty → boş gelir
-        IsActive = b.IsActive, DisplayOrder = b.DisplayOrder, Description = b.Description,
-        Vaults = b.Vaults.Select(CloneVault).ToList(),
-    };
-
-    private static VaultGraphDto CloneVault(VaultGraphDto v) => new()
-    {
-        Id = v.Id, ClientKey = v.ClientKey, IsDeleted = v.IsDeleted,
-        Code = v.Code, Name = v.Name, IsDefault = v.IsDefault,
-        IsActive = v.IsActive, DisplayOrder = v.DisplayOrder, Description = v.Description,
-    };
+    // Clone() CompanyGraphDto'da (şube→kasa dahil tam deep-copy; tek kaynak → BaseCurrencyUnitId gibi
+    // alanların "unutulan alan" bug'ı imkânsız — eski 3 kopyada biri bu yüzden boş combo veriyordu).
 
     // ── Tekil-bayrak (admin / merkez şirket) — KENDİSİ hariç canlı ──
     private void OnUserSelected(TenantUserInput? u) => _selectedUser = u;

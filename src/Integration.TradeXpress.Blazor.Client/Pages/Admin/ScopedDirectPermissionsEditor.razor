@@ -7,6 +7,7 @@
 @using DevExpress.Blazor
 @using Microsoft.AspNetCore.Components
 @using Microsoft.Extensions.Logging
+@using Integration.Framework.Blazor.Client.Components.Crud
 @inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
 @inject IUiStateService UiStateService
 
@@ -27,20 +28,25 @@
     }
     else
     {
-        <DxGrid @ref="Grid"
-                ColumnResizeMode="GridColumnResizeMode.ColumnsContainer"
-                Data="_scopeRows"
+        <TxGrid Data="_scopeRows"
                 SelectionMode="GridSelectionMode.Single"
-                LayoutAutoLoading="OnLayoutLoading" LayoutAutoSaving="OnLayoutSaving"
-                PageSize="10">
+                PageSize="10"
+                StateKey="ScopedDirectPermissions:v1">
+            <Columns>
             <DxGridDataColumn FieldName="CompanyCode" Caption="@L["Company"]" />
             <DxGridDataColumn FieldName="BranchCode" Caption="@L["Branch"]" />
             <DxGridDataColumn FieldName="VaultCode" Caption="@L["Vault"]" />
             <DxGridDataColumn FieldName="GrantedCount" Caption="@L["Permissions"]" Width="80px" />
-            <DxGridCommandColumn Width="80px">
-                <DxGridCommandColumnItem Command="Delete" Click="@(async () => await DeleteScopeAsync(SelectedRow))" />
+            <DxGridCommandColumn Width="80px" NewButtonVisible="false" EditButtonVisible="false" DeleteButtonVisible="false">
+                <CellDisplayTemplate>
+                    <div @onclick:stopPropagation="true" class="d-flex justify-content-center align-items-center">
+                        <a class="xaf-delete-icon" @onclick="@(async () => await DeleteScopeAsync((ScopeRowDto)context.DataItem))"
+                           href="javascript:void(0);" title="@L["Delete"].Value" style="text-decoration:none;"></a>
+                    </div>
+                </CellDisplayTemplate>
             </DxGridCommandColumn>
-        </DxGrid>
+            </Columns>
+        </TxGrid>
 
         <div class="mt-2">
             <DxButton Text="@L["Add"]" RenderStyle="ButtonRenderStyle.Primary" Click="ShowAddPopupAsync" />
@@ -106,23 +112,10 @@
 @code {
     [Parameter, EditorRequired] public Guid UserId { get; set; }
 
-    // Kolon düzeni kalıcılığı (kullanıcı başına).
-    private const string GridStateKey = "ScopedDirectPermissions:v1";
-    private async Task OnLayoutLoading(GridPersistentLayoutEventArgs e)
-    {
-        var json = await UiStateService.GetGridStateAsync(GridStateKey);
-        if (!string.IsNullOrWhiteSpace(json))
-            try { e.Layout = System.Text.Json.JsonSerializer.Deserialize<GridPersistentLayout>(json); } catch { }
-    }
-    private async Task OnLayoutSaving(GridPersistentLayoutEventArgs e)
-    {
-        if (e.Layout == null) return;
-        try { await UiStateService.SaveGridStateAsync(GridStateKey, System.Text.Json.JsonSerializer.Serialize(e.Layout)); } catch { }
-    }
+    // Kolon-düzeni kalıcılığı artık TxGrid'de (StateKey="ScopedDirectPermissions:v1" → IUiStateService).
 
     [Parameter] public EventCallback OnDirty { get; set; }
 
-    private DxGrid Grid { get; set; } = default!;
     private bool _loading = true;
     private string? _error;
 

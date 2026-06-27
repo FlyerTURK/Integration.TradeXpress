@@ -6,6 +6,7 @@
 @using Integration.TradeXpress.Vaults
 @using Integration.TradeXpress.Vouchers
 @using DevExpress.Blazor
+@using Integration.Framework.Blazor.Client.Components.Crud
 @inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
 
 <PageTitle>Nakit Raporu</PageTitle>
@@ -68,7 +69,7 @@
         <DxTabPage Text="Nakit Stoğu">
             @if (_stockRows != null)
             {
-                <DxGrid Data="@_stockRows" ShowFilterRow="false" style="height:100%;">
+                <TxGrid Data="@_stockRows" StateKey="report:cash-stock" ShowFilterRow="false" style="height:100%;">
                     <Columns>
                         <DxGridDataColumn FieldName="@nameof(CashStockRowDto.UnitCode)"  Caption="Birim"  Width="100" />
                         <DxGridDataColumn FieldName="@nameof(CashStockRowDto.InTotal)"   Caption="Giriş"  DisplayFormat="n2" Width="130" />
@@ -80,14 +81,14 @@
                         <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum" FieldName="@nameof(CashStockRowDto.OutTotal)" DisplayFormat="n2" />
                         <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum" FieldName="@nameof(CashStockRowDto.Net)"      DisplayFormat="n2" />
                     </TotalSummary>
-                </DxGrid>
+                </TxGrid>
             }
         </DxTabPage>
 
         <DxTabPage Text="Nakit Hareketleri">
             @if (_movementRows != null)
             {
-                <DxGrid Data="@_movementRows" ShowFilterRow="true" style="height:100%;">
+                <TxGrid Data="@_movementRows" StateKey="report:cash-movement" ShowFilterRow="true" style="height:100%;">
                     <Columns>
                         <DxGridDataColumn FieldName="@nameof(CashMovementRowDto.VoucherDate)"    Caption="Tarih"      DisplayFormat="d"  Width="95"  />
                         <DxGridDataColumn FieldName="@nameof(CashMovementRowDto.SubAccountCode)" Caption="Hesap"                         Width="160" />
@@ -109,7 +110,7 @@
                         <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum"   FieldName="@nameof(CashMovementRowDto.Giren)"       DisplayFormat="n2" />
                         <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum"   FieldName="@nameof(CashMovementRowDto.Cikan)"       DisplayFormat="n2" />
                     </TotalSummary>
-                </DxGrid>
+                </TxGrid>
             }
         </DxTabPage>
 

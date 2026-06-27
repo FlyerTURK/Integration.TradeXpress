@@ -5,6 +5,7 @@
 @using Integration.TradeXpress.Blazor.Client.Services.Working
 @using Microsoft.AspNetCore.Authorization
 @using DevExpress.Blazor
+@using Integration.Framework.Blazor.Client.Components.Crud
 @attribute [Authorize(TradeXpressPermissions.Reports.Position)]
 @inherits Volo.Abp.AspNetCore.Components.AbpComponentBase
 @implements IDisposable
@@ -40,7 +41,7 @@
     @* Pozisyon grid'i — long yeşil / short kırmızı; bilanço satırı soluk (DURUM dışı); width yok → tam ekran. *@
     @if (_result != null)
     {
-        <DxGrid Data="@_result.Rows" ShowFilterRow="false" style="flex:1; min-height:0;">
+        <TxGrid Data="@_result.Rows" StateKey="report:position" ShowFilterRow="false" style="flex:1; min-height:0;">
             <Columns>
                 <DxGridDataColumn FieldName="@nameof(PositionRowDto.UnitCode)" Caption="Birim">
                     <CellDisplayTemplate>
@@ -66,6 +67,6 @@
                     </CellDisplayTemplate>
                 </DxGridDataColumn>
             </Columns>
-        </DxGrid>
+        </TxGrid>
     }
 </div>

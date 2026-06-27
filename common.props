@@ -3,6 +3,10 @@
     <LangVersion>latest</LangVersion>
     <Version>1.0.0</Version>
     <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <!-- RZ10012 = "çözülemeyen bileşen → bilinmeyen HTML elementi (sessizce görünmez)". Uyarı değil HATA:
+         @using eksik / yanlış namespace / var olmayan bileşen (kolon bileşenleri dahil) derlemeyi DURDURUR,
+         asla sessizce sızamaz. (Razor olmayan projelerde no-op.) -->
+    <WarningsAsErrors>$(WarningsAsErrors);RZ10012</WarningsAsErrors>
     <NuGetAudit>false</NuGetAudit>
 	<AbpProjectType>app</AbpProjectType>
   </PropertyGroup>

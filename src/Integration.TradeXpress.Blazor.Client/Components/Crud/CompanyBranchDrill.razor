@@ -9,7 +9,9 @@
 @using Integration.TradeXpress.Blazor.Client.Components.Shared
 @using DevExpress.Blazor
 @using Microsoft.Extensions.Localization
+@using Integration.Framework.Blazor.Client.Profiles
 @inherits CrudComponentBase
+@inject IEntityProfileRegistry Profiles
 
 @* Paylaşılan şube+kasa drill'i (Model.Branches grafı). Şirket EditForm'unun DIŞINDA kullanılır
    (CompanyEditPage'de form kardeşi; tenant'ta company-drill AfterEditForm'unda) — iç içe DrillList'i
@@ -26,7 +28,7 @@
                ParentEntityName="@L["Entity:Company"]"
                ParentText="@Model.Code"
                NewItemFactory="@NewBranch"
-               CloneFactory="@CloneBranch"
+               CloneFactory="@(b => b.Clone())"
                MinItems="1"
                SoftDelete="true"
                IsNewItem="@(b => b.Id == Guid.Empty)"
@@ -46,9 +48,7 @@
             <DxGridDataColumn FieldName="IsHeadquarters" Caption="@L["IsHeadquarters"]" Width="90px" TextAlignment="GridTextAlignment.Left">
                 <CellDisplayTemplate Context="cell">@(((BranchGraphDto)cell.DataItem).IsHeadquarters ? L["Yes"].Value : "")</CellDisplayTemplate>
             </DxGridDataColumn>
-            <DxGridDataColumn FieldName="IsActive" Caption="@L["Status"]" Width="110px" TextAlignment="GridTextAlignment.Left">
-                <CellDisplayTemplate Context="cell"><StatusCell Active="@(((BranchGraphDto)cell.DataItem).IsActive)" /></CellDisplayTemplate>
-            </DxGridDataColumn>
+            <StatusColumn />
             <DxGridDataColumn FieldName="DisplayOrder" Caption="@L["DisplayOrder"]" Width="90px" />
         </GridColumns>
         <EditContent Context="b">
@@ -57,12 +57,12 @@
                               OnReferenceDataReload="@OnReferenceDataReload" />
         </EditContent>
         <AfterEditForm Context="b">
-            <DxTabs CssClass="mt-3">
-                <DxTabPage Text="@L["Menu:Vaults"].Value" TabIconCssClass="@TradeXpressIcons.Vault">
+            <DrillTabs CssClass="mt-3">
+                <DxTabPage Text="@Profiles.PluralTitle("Vault", L)" TabIconCssClass="@Profiles.Icon("Vault")">
                     <VaultDrill Vaults="b.Vaults" OnChanged="NotifyChangedAsync"
                                 ParentEntityName="@L["Entity:Branch"]" ParentText="@b.Code" />
                 </DxTabPage>
-            </DxTabs>
+            </DrillTabs>
         </AfterEditForm>
     </DrillList>
 </div>
@@ -107,21 +107,7 @@
         Vaults = { new VaultGraphDto { Code = VaultConsts.DefaultCode, Name = VaultConsts.DefaultName, IsDefault = true, IsActive = true, DisplayOrder = 1 } },
     };
 
-    private static BranchGraphDto CloneBranch(BranchGraphDto b) => new()
-    {
-        Id = b.Id, ClientKey = b.ClientKey, IsDeleted = b.IsDeleted,
-        Code = b.Code, Name = b.Name, IsHeadquarters = b.IsHeadquarters,
-        BaseCurrencyUnitId = b.BaseCurrencyUnitId,
-        IsActive = b.IsActive, DisplayOrder = b.DisplayOrder, Description = b.Description,
-        Vaults = b.Vaults.Select(CloneVault).ToList(),
-    };
-
-    private static VaultGraphDto CloneVault(VaultGraphDto v) => new()
-    {
-        Id = v.Id, ClientKey = v.ClientKey, IsDeleted = v.IsDeleted,
-        Code = v.Code, Name = v.Name, IsDefault = v.IsDefault,
-        IsActive = v.IsActive, DisplayOrder = v.DisplayOrder, Description = v.Description,
-    };
+    // Clone() BranchGraphDto'da (kasalar dahil tam deep-copy; tek kaynak → "unutulan alan" bug'ı imkânsız).
 
     private void OnBranchSelected(BranchGraphDto? b) => _selectedBranch = b;
 

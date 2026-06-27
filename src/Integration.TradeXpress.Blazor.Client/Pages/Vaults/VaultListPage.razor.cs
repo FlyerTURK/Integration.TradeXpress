@@ -1,6 +1,6 @@
 using System;
 using Integration.TradeXpress.Vaults;
-using Integration.TradeXpress.Permissions;
+using Integration.Framework.Blazor.Client.Profiles;
 using Microsoft.AspNetCore.Components;
 
 namespace Integration.TradeXpress.Blazor.Client.Pages.Vaults;
@@ -22,24 +22,36 @@ public partial class VaultListPage
     [Inject]
     protected IVaultAppService VaultAppService { get; set; } = default!;
 
+    [Inject]
+    protected IEntityProfileRegistry Profiles { get; set; } = default!;
+
+    /// <summary>Bu sayfanın entity KİMLİĞİ tek kaynak: ikon/başlık/permission/edit-host profilden gelir.</summary>
+    private EntityProfile? _profile;
+    protected EntityProfile Profile => _profile ??= Profiles.Get(typeof(VaultListDto));
+
+    /// <summary>Parent (Branch) kimliği — başlık/etiketler için profilden (Vault.ParentProfileKey).</summary>
+    private EntityProfile? _parentProfile;
+    protected EntityProfile ParentProfile => _parentProfile ??= Profiles.GetByKey(Profile.ParentProfileKey!);
+
     public override Volo.Abp.Application.Services.ICrudAppService<
         VaultGetDto, VaultListDto, Guid,
         VaultListRequestDto, VaultCreateDto, VaultUpdateDto> CrudAppService
         => VaultAppService;
 
-    protected override string EditTitle => string.IsNullOrWhiteSpace(BranchCode) ? base.EditTitle : $"{base.EditTitle} - [{L["Entity:Branch"]}: {BranchCode}]";
-    protected override string PermissionPrefix => TradeXpressPermissions.Vaults.Default;
+    protected override string EditTitle => string.IsNullOrWhiteSpace(BranchCode) ? base.EditTitle : $"{base.EditTitle} - [{L[ParentProfile.CaptionKey]}: {BranchCode}]";
+    protected override string? PermissionPrefix => Profile.PermissionPrefix;
+    protected override string? EditIconCssClass => Profile.IconCssClass;
 
     private string PageTitle => string.IsNullOrWhiteSpace(BranchCode)
-        ? L["Menu:Vaults"]
-        : $"{L["Menu:Vaults"]} - [{L["Entity:Branch"]}: {BranchCode}]";
+        ? L[Profile.PluralCaptionKey]
+        : $"{L[Profile.PluralCaptionKey]} - [{L[ParentProfile.CaptionKey]}: {BranchCode}]";
 
     // Drill-down: yalnız bu şubeye ait kasalar.
     protected override void OnConfiguringListRequest(VaultListRequestDto request)
         => request.BranchId = BranchId;
 
-    // PİLOT: yeni mimari edit (agnostic EntityEditForm + PersistentCoordinator). Eski VaultEditPage repo'da kalır.
-    public override System.Type EditComponentType => typeof(VaultEditHost);
+    // PİLOT: yeni mimari edit (agnostic EntityEditForm + PersistentCoordinator). Edit host TİPİ profilden.
+    public override System.Type EditComponentType => Profile.EditComponentType;
 
     // Drill-down bağlamı: yeni kasanın şubesi (Id boş-guid bug'ı düzeltildi) + şube kodu (header L3: "Şube: MRK").
     protected override System.Collections.Generic.Dictionary<string, object>? AdditionalEditParameters

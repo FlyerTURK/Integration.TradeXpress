@@ -3,6 +3,7 @@
 @using DevExpress.Blazor
 @using Microsoft.AspNetCore.Components
 @using Microsoft.Extensions.Logging
+@using Integration.Framework.Blazor.Client.Components.Crud
 @inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
 @inject IUiStateService UiStateService
 
@@ -20,29 +21,18 @@ else if (_error is not null)
 }
 else
 {
-    <DxGrid Data="_rows" PageSize="50" ColumnResizeMode="GridColumnResizeMode.ColumnsContainer"
-            LayoutAutoLoading="OnLayoutLoading" LayoutAutoSaving="OnLayoutSaving">
+    <TxGrid Data="_rows" PageSize="50" StateKey="EffectivePermissions:v1">
+        <Columns>
         <DxGridDataColumn FieldName="Permission" Caption="@L["Permission"]" Width="200px" MinWidth="180" />
         <DxGridDataColumn FieldName="Sources" Caption="@L["Source"]" Width="240px" MinWidth="200" />
-    </DxGrid>
+        </Columns>
+    </TxGrid>
 }
 
 @code {
     [Parameter, EditorRequired] public Guid UserId { get; set; }
 
-    // Kolon düzeni kalıcılığı (kullanıcı başına) — CrudLayout ile aynı IUiStateService yolu.
-    private const string GridStateKey = "EffectivePermissions:v1";
-    private async Task OnLayoutLoading(GridPersistentLayoutEventArgs e)
-    {
-        var json = await UiStateService.GetGridStateAsync(GridStateKey);
-        if (!string.IsNullOrWhiteSpace(json))
-            try { e.Layout = System.Text.Json.JsonSerializer.Deserialize<GridPersistentLayout>(json); } catch { }
-    }
-    private async Task OnLayoutSaving(GridPersistentLayoutEventArgs e)
-    {
-        if (e.Layout == null) return;
-        try { await UiStateService.SaveGridStateAsync(GridStateKey, System.Text.Json.JsonSerializer.Serialize(e.Layout)); } catch { }
-    }
+    // Kolon-düzeni kalıcılığı artık TxGrid'de (StateKey="EffectivePermissions:v1" → IUiStateService).
 
     private bool _loading = true;
     private string? _error;

@@ -1,0 +1,31 @@
+@namespace Integration.Framework.Blazor.Client.Components.Crud
+@using System.Linq
+@using DevExpress.Blazor
+
+@* Drill gridlerinin STANDART sekme kabuğu — DxTabs'i sarar; İÇİNE DOĞRUDAN <DxTabPage> yazılır.
+   DxTabPage, ChildContent üzerinden DxTabs'in render-ağacına splice olur → DevExpress CollectionFiller
+   onu BULUR (doğrudan çocuk frame). UYARI: DxTabPage ÜRETEN özel bir bileşen (wrapper) KULLANMA —
+   CollectionFiller wrapper'ın içine inmez, sekme SESSİZCE görünmez olur.
+
+   İkon/başlık TEK-KAYNAK (EntityProfile) için <DxTabPage> üzerinde profil helper'larını kullan:
+       <DxTabPage Text="@Profiles.PluralTitle("Vault", L)" TabIconCssClass="@Profiles.Icon("Vault")">
+   (Profiles = @inject IEntityProfileRegistry; helper'lar EntityProfileRegistryUiExtensions'ta.) *@
+<DxTabs CssClass="@_css">
+    @ChildContent
+</DxTabs>
+
+@code {
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>DxTabs'e eklenecek ek CSS sınıfı (ör. "mt-3").</summary>
+    [Parameter] public string? CssClass { get; set; }
+
+    /// <summary>true → sekme içeriği parent'ın KALAN dikey alanını doldurur (tx-tabs-stretched, main.css).
+    /// YALNIZ bounded-flex parent'ta kullan (üst-düzey sayfa / CrudEditView gövdesi). Popup/scroll bağlamında
+    /// KULLANMA: flex 0'a kollabe olur → orada DrillList kendi MinHeight tabanına bırakılır.</summary>
+    [Parameter] public bool Stretch { get; set; }
+
+    private string _css =>
+        string.Join(" ", new[] { Stretch ? "tx-tabs-stretched w-100 h-100" : null, CssClass }
+            .Where(s => !string.IsNullOrWhiteSpace(s)));
+}
