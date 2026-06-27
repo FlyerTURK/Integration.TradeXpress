@@ -9,15 +9,25 @@
        (IUiStateService → her grid'de tekrarlanan LayoutLoading/Saving boilerplate'i SİLİNİR).
    Her grid yalnız Data + <Columns> verir; "burada context menu var, şurada yok" tutarsızlığı biter.
 
-   Kolonlar DxGrid'e cascade ile kaydolur → <Columns> forward GÜVENLİ (GridLinkColumn/StatusColumn dahil;
-   CrudLayout da aynı forward'u yapıyor). Açıkça verilmeyen DxGrid parametreleri @attributes ile geçer
-   (KeyFieldName, SelectionMode, ShowFilterRow, PageSize, style, @ref hariç...). DxGrid'in TÜM API'si erişilebilir kalır.
+   DxGrid'in TÜM API'si erişilebilir: yaygın param'lar açık (selection/edit/RowClick/...), gerisi @attributes.
+   İç DxGrid <see cref="InnerGrid"/> ile dışarı açılır (export vb.). Kolonlar cascade ile kaydolur → <Columns>
+   forward GÜVENLİ. Açık verilmeyen param'lar null/default = zararsız (mevcut basit grid'ler etkilenmez).
 *@
-<DxGrid Data="@Data"
+<DxGrid @ref="_innerGrid"
+        Data="@Data"
         KeyFieldName="@KeyFieldName"
         ShowFilterRow="@ShowFilterRow"
+        SearchText="@SearchText"
+        SelectedDataItems="@SelectedDataItems"
+        SelectedDataItemsChanged="@SelectedDataItemsChanged"
+        RowClick="@RowClick"
+        CustomizeElement="@CustomizeElement"
+        EditModelSaving="@EditModelSaving"
+        DataItemDeleting="@DataItemDeleting"
+        CustomizeEditModel="@CustomizeEditModel"
         ColumnResizeMode="GridColumnResizeMode.ColumnsContainer"
         ContextMenus="GridContextMenus.Header | GridContextMenus.DataRow"
+        CustomizeContextMenu="OnCustomizeContextMenu"
         AllowColumnReordering="true"
         AllowColumnResizing="true"
         CssClass="@CssClass"
@@ -25,6 +35,11 @@
         LayoutAutoSaving="OnLayoutSaving"
         @attributes="MergedAttributes">
     <Columns>
+        @if (ShowSelectionColumn)
+        {
+            @* STANDART seçim kolonu — her grid'de sola SABİT + VisibleIndex=0 + tümünü-seç; çağıran elle yazmaz. *@
+            <DxGridSelectionColumn Width="40px" AllowSelectAll="true" FixedPosition="GridColumnFixedPosition.Left" AllowReorder="false" VisibleIndex="0" />
+        }
         @Columns
     </Columns>
     <TotalSummary>
@@ -48,22 +63,44 @@
 
     [Parameter] public string? CssClass { get; set; }
 
-    // ── Açıkça tanımlı tipli DxGrid parametreleri ──────────────────────────────────────────────
+    // ── Açık tipli DxGrid parametreleri ────────────────────────────────────────────────────────
     // NEDEN: @attributes ile geçen LİTERAL değerler STRING yakalanır (tip dönüşümü yalnız DECLARED
-    // parametrelerde olur) → bool/enum/int DxGrid param'ı literal verilince cast hatası. Bu yüzden
-    // non-string yaygın param'lar burada tipli tanımlı. String param'lar (style/class vb.) @attributes'tan geçebilir.
+    // parametrelerde olur) → bool/enum/int param literal verilince cast hatası. String/callback'ler açık tanımlı.
     [Parameter] public string? KeyFieldName { get; set; }
     [Parameter] public bool ShowFilterRow { get; set; }
+    [Parameter] public string? SearchText { get; set; }
 
-    // Nullable non-string param'lar — SET edilince DxGrid'e forward (GridSelectionMode'da 'None' YOK → null=DxGrid
-    // default; PageSize null=DxGrid default). MergedAttributes ile TİPLİ değer olarak splat edilir (literal-string
-    // tuzağı yok: programatik dict değeri tipini korur → cast hatası olmaz, hem de koşullu/opsiyonel kalır).
+    /// <summary>true → grid'in başına STANDART seçim kolonu (sola SABİT, VisibleIndex=0, tümünü-seç) OTOMATİK eklenir.
+    /// Çağıran &lt;Columns&gt;'a elle DxGridSelectionColumn YAZMAZ — her grid'de tek-tip seçim kolonu.</summary>
+    [Parameter] public bool ShowSelectionColumn { get; set; }
+
+    // Selection (iki-yönlü) + satır olayları + satır boyama (DrillList vb. zengin grid'ler için).
+    [Parameter] public IReadOnlyList<object>? SelectedDataItems { get; set; }
+    [Parameter] public EventCallback<IReadOnlyList<object>> SelectedDataItemsChanged { get; set; }
+    [Parameter] public EventCallback<GridRowClickEventArgs> RowClick { get; set; }
+    [Parameter] public Action<GridCustomizeElementEventArgs>? CustomizeElement { get; set; }
+
+    // Satır-içi (inline) düzenleme — DxGrid native EditRow akışı.
+    [Parameter] public EventCallback<GridEditModelSavingEventArgs> EditModelSaving { get; set; }
+    [Parameter] public EventCallback<GridDataItemDeletingEventArgs> DataItemDeleting { get; set; }
+    [Parameter] public EventCallback<GridCustomizeEditModelEventArgs> CustomizeEditModel { get; set; }
+
+    // Nullable non-string param'lar — SET edilince MergedAttributes ile TİPLİ değer olarak DxGrid'e enjekte edilir
+    // (literal-string tuzağı yok; null = DxGrid default → mevcut grid'ler etkilenmez). GridSelectionMode'da 'None' YOK.
     [Parameter] public GridSelectionMode? SelectionMode { get; set; }
     [Parameter] public int? PageSize { get; set; }
+    [Parameter] public bool? AllowSelectRowByClick { get; set; }
+    [Parameter] public bool? PagerVisible { get; set; }
+    [Parameter] public GridEditMode? EditMode { get; set; }
 
-    /// <summary>Yukarıda tanımlı OLMAYAN DxGrid parametreleri (string'ler + style/class + ileride eklenecekler).
+    /// <summary>Yukarıda tanımlı OLMAYAN DxGrid parametreleri (style/class + ileride eklenecekler).
     /// Non-string bir param LİTERAL verilecekse önce yukarıya tipli [Parameter] olarak ekle (literal=string → cast hatası).</summary>
     [Parameter(CaptureUnmatchedValues = true)] public Dictionary<string, object>? Attributes { get; set; }
+
+    private DxGrid? _innerGrid;
+
+    /// <summary>İç DxGrid — export/scroll/API erişimi için (ör. DrillList ExportToXlsx/PdfSafeAsync). Render sonrası dolar.</summary>
+    public IGrid? InnerGrid => _innerGrid;
 
     /// <summary>@attributes splat'ı: dış Attributes + tipli nullable param'lar (set edilenler). Tipli değer enjekte
     /// edildiği için cast sorunu yok; null param'lar eklenmez → DxGrid default'u korunur.</summary>
@@ -71,13 +108,20 @@
     {
         get
         {
-            if (SelectionMode is null && PageSize is null) return Attributes;
-            var d = Attributes is null ? new Dictionary<string, object>() : new Dictionary<string, object>(Attributes);
+            if (SelectionMode is null && PageSize is null && AllowSelectRowByClick is null && PagerVisible is null && EditMode is null)
+                return Attributes;
+            var d = Attributes is null ? new() : new Dictionary<string, object>(Attributes);
             if (SelectionMode.HasValue) d["SelectionMode"] = SelectionMode.Value;
             if (PageSize.HasValue) d["PageSize"] = PageSize.Value;
+            if (AllowSelectRowByClick.HasValue) d["AllowSelectRowByClick"] = AllowSelectRowByClick.Value;
+            if (PagerVisible.HasValue) d["PagerVisible"] = PagerVisible.Value;
+            if (EditMode.HasValue) d["EditMode"] = EditMode.Value;
             return d;
         }
     }
+
+    // Header context-menü: Sola/Sağa Sabitle + Sabitlemeyi Kaldır (seçim kolonu hariç) — ortak helper, tüm grid'lerde aynı.
+    private void OnCustomizeContextMenu(GridCustomizeContextMenuEventArgs args) => GridColumnFixMenu.Add(args);
 
     private async Task OnLayoutLoading(GridPersistentLayoutEventArgs e)
     {

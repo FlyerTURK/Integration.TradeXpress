@@ -19,39 +19,37 @@
    Farklı entity'ler için Columns + EditContent + NewItemFactory parametreleriyle özelleştirilir.
 *@
 
-@* Responsive yükseklik (voucher tab-grid deseni): mobilde SABİT (min/max), masaüstünde FLEX ile kalan alanı doldurur. *@
+@* Responsive yükseklik: mobilde SABİT (min/max), masaüstünde vh-BAĞLI (içeriğe göre DesktopMin..DesktopMax
+   arasında büyür, taşınca grid kendi içinde kayar). vh-bağlı yaklaşım parent'ın bounded-flex olmasına BAĞIMLI
+   DEĞİL → popup/sekme/sayfa her bağlamda çalışır (eski "flex:1 fill" parent bounded değilse 180px'e çöküyordu). *@
 <DxLayoutBreakpoint MaxWidth="768" @bind-IsActive="@_isMobile" />
-<div class="drill-list" style="@(_isMobile ? "" : "display:flex; flex-direction:column; flex:1 1 auto; min-height:0;")">
+<div class="drill-list">
     @* Drill başlığı (Title) kaldırıldı — toolbar üstü gereksiz başlık; bölüm bağlamı parent form/grid'den belli. *@
-    <div style="padding: 0.5rem; flex-shrink:0;">
+    <div style="padding: 0.5rem;">
         @* Liste toolbar — genel CrudToolbar/EditToolbar ile AYNI ToolbarRenderer (ikiz değil). Aksiyonlar descriptor. *@
         <ToolbarRenderer Actions="@ListToolbarActions" RenderMode="ToolbarRenderStyleMode.Plain" OnActionInvoked="OnToolbarActionInvoked" />
     </div>
 
-    @* Mobil: SABİT (min/max = DefaultGridHeight). Masaüstü: flex:1 ile parent'taki kalan alanı doldurur,
-       MinHeight zemin (taban). Grid bu kutuyu doldurur; fazla satır grid'in kendi içinde kayar. *@
+    @* Mobil: SABİT (min/max). Masaüstü: min-height TABAN + max-height vh TAVAN → içerikle büyür, taşınca iç scroll. *@
     <div style="@(_isMobile
             ? $"min-height:{MinHeight}; max-height:{MaxHeight}; display:flex; flex-direction:column;"
-            : $"flex:1 1 auto; min-height:{MinHeight}; display:flex; flex-direction:column;")">
+            : $"min-height:{DesktopMinHeight}; max-height:{DesktopMaxHeight}; display:flex; flex-direction:column;")">
         @if (AllowInlineEdit)
         {
             @* Satır-içi (hücre editörü) mod: cell'ler DevExpress'in native EditRow editörlerine döner.
                New/Edit/Delete command column'dan; kaydetme EditModelSaving/DataItemDeleting üzerinden
                aynı persist/in-memory mantığına bağlanır. NOT: sadece grid'de GÖRÜNEN kolonlar düzenlenir. *@
-            <DxGrid Data="@FilteredItems"
-                    @ref="_grid"
+            <TxGrid Data="@FilteredItems"
+                    @ref="_txGrid"
                     SearchText="@_searchText"
-                    ColumnResizeMode="GridColumnResizeMode.ColumnsContainer"
                     KeyFieldName="@KeyFieldName"
                     EditMode="GridEditMode.EditRow"
                     EditModelSaving="OnEditModelSaving"
                     DataItemDeleting="OnDataItemDeleting"
                     CustomizeEditModel="OnCustomizeEditModel"
-                    LayoutAutoLoading="OnLayoutLoading"
-                    LayoutAutoSaving="OnLayoutSaving"
+                    StateKey="@GridStateKey"
                     PageSize="@PageSize"
-                    CssClass="flex-grow-1 overflow-hidden"
-                    style="height:100% !important; flex:1 1 auto !important; min-height:0 !important;">
+                    CssClass="tx-grid-fill">
                 <Columns>
                     @if (!ReadOnly)
                     {
@@ -59,31 +57,28 @@
                     }
                     @GridColumns
                 </Columns>
-            </DxGrid>
+            </TxGrid>
         }
         else
         {
-            <DxGrid Data="@FilteredItems"
-                    @ref="_grid"
+            <TxGrid Data="@FilteredItems"
+                    @ref="_txGrid"
                     SearchText="@_searchText"
-                    ColumnResizeMode="GridColumnResizeMode.ColumnsContainer"
                     KeyFieldName="@KeyFieldName"
                     SelectionMode="GridSelectionMode.Multiple"
+                    ShowSelectionColumn="true"
                     AllowSelectRowByClick="false"
                     SelectedDataItems="@_selectedItems"
                     SelectedDataItemsChanged="OnGridSelectionChanged"
                     RowClick="OnRowClick"
                     CustomizeElement="OnCustomizeRow"
-                    LayoutAutoLoading="OnLayoutLoading"
-                    LayoutAutoSaving="OnLayoutSaving"
+                    StateKey="@GridStateKey"
                     PageSize="@PageSize"
-                    CssClass="flex-grow-1 overflow-hidden"
-                    style="height:100% !important; flex:1 1 auto !important; min-height:0 !important;">
+                    CssClass="tx-grid-fill">
                 <Columns>
-                    <DxGridSelectionColumn Width="40px" />
                     @GridColumns
                 </Columns>
-            </DxGrid>
+            </TxGrid>
         }
     </div>
 </div>
@@ -107,7 +102,7 @@
             @* EntityEditForm ile AYNI desen: flex-column + EXPLICIT max-height (popup'ta h-100 çözülmez) →
                toolbar flex-shrink:0 SABİT, gövde flex:1 overflow-y:auto KAYAR. Sticky hack YOK; dx-modal-body
                kaymadığı için toolbar üstünde sızıntı da yok. Toolbar yalnız alt padding; gövde edge-to-edge. *@
-            <div style="display:flex; flex-direction:column; max-height:88vh; min-height:0; overflow-x:hidden; max-width:100%;">
+            <div style="display:flex; flex-direction:column; max-height:calc(90vh - 84px); max-height:calc(90dvh - 84px); min-height:0; overflow-x:hidden; max-width:100%;">
                 <div style="flex-shrink:0; padding-bottom:0.5rem;">
                     @* Genel edit ile AYNI bileşen (ikiz değil): EditToolbar. Drill: yalnız Kaydet + Kaydet&Yeni. *@
                     <EditToolbar EditController="@this" IsPopup="true" OnActionInvoked="OnToolbarActionInvoked" />
@@ -179,11 +174,17 @@
     /// <see cref="DrillConsts.DefaultGridHeight"/>. Gerekirse kullanım başına ezilebilir.</summary>
     [Parameter] public string MinHeight { get; set; } = DrillConsts.DefaultGridHeight;
 
-    /// <summary>Grid kutusunun maksimum yüksekliği (yalnız MOBİL). Varsayılan: MinHeight ile EŞİT (sabit yükseklik).
-    /// Masaüstünde grid flex ile parent'ın kalan alanını doldurur (MinHeight = taban).</summary>
+    /// <summary>Grid kutusunun maksimum yüksekliği (yalnız MOBİL). Varsayılan: MinHeight ile EŞİT (sabit yükseklik).</summary>
     [Parameter] public string MaxHeight { get; set; } = DrillConsts.DefaultGridHeight;
 
-    // Responsive (DxLayoutBreakpoint MaxWidth=768): mobil = sabit min/max; masaüstü = flex-fill (voucher deseni).
+    /// <summary>Masaüstü TABAN yüksekliği (içerik azsa bu kadar). Varsayılan 300px.</summary>
+    [Parameter] public string DesktopMinHeight { get; set; } = "300px";
+
+    /// <summary>Masaüstü TAVAN yüksekliği (vh-bağlı; içerik buraya kadar büyür, taşınca grid içi scroll). Varsayılan 62vh.
+    /// vh-bağlı → parent'ın bounded-flex olmasına BAĞIMLI DEĞİL (popup/sekme/sayfa her yerde çalışır).</summary>
+    [Parameter] public string DesktopMaxHeight { get; set; } = "62vh";
+
+    // Responsive (DxLayoutBreakpoint MaxWidth=768): mobil = sabit min/max; masaüstü = vh-bağlı (min taban, max tavan).
     private bool _isMobile;
 
     [Parameter, EditorRequired] public RenderFragment GridColumns { get; set; } = default!;
@@ -268,9 +269,10 @@
 
     private IReadOnlyList<object>? _selectedItems;
 
-    // Grid referansı (export için) + in-grid arama metni (DxGrid.SearchText'e bağlı). Hangi grid render edilirse
-    // (inline/normal) _grid ona set olur; aynı anda yalnız biri render edilir.
-    private DevExpress.Blazor.IGrid? _grid;
+    // Grid referansı (export için) + in-grid arama metni. Hangi TxGrid render edilirse (inline/normal)
+    // _txGrid ona @ref olur (aynı anda yalnız biri); _grid = aktif TxGrid'in InnerGrid'i (IGrid, export vb.).
+    private TxGrid? _txGrid;
+    private DevExpress.Blazor.IGrid? _grid => _txGrid?.InnerGrid;
     private string? _searchText;
 
     // Tek seçili öğe — Edit butonu ve popup için kullanılır.
@@ -524,25 +526,11 @@
             e.Style = "cursor: pointer;";
     }
 
-    // ── Kolon düzeni kalıcılığı (kullanıcı başına) — CrudLayout ile aynı IUiStateService yolu. ──
+    // ── Kolon düzeni kalıcılığı — TxGrid (StateKey) devraldı; tam anahtar burada türetilip TxGrid'e geçer. ──
     /// <summary>Aynı TItem'i farklı bağlamda drill edersen ayırt etmek için opsiyonel anahtar.</summary>
     [Parameter] public string? StateKey { get; set; }
-    private string GridStateKey => $"Drill:{StateKey ?? typeof(TItem).Name}:v1";
-
-    private async Task OnLayoutLoading(GridPersistentLayoutEventArgs e)
-    {
-        var json = await UiStateService.GetGridStateAsync(GridStateKey);
-        if (!string.IsNullOrWhiteSpace(json))
-            try { e.Layout = System.Text.Json.JsonSerializer.Deserialize<GridPersistentLayout>(json); }
-            catch { /* bozuk düzen → yoksay */ }
-    }
-
-    private async Task OnLayoutSaving(GridPersistentLayoutEventArgs e)
-    {
-        if (e.Layout == null) return;
-        try { await UiStateService.SaveGridStateAsync(GridStateKey, System.Text.Json.JsonSerializer.Serialize(e.Layout)); }
-        catch { /* kayıt hatası app'i durdurmasın */ }
-    }
+    // v2: seçim kolonu sola-sabit + VisibleIndex=0 standardına geçince eski kayıtlı düzenler geçersiz (kolon sırası değişti).
+    private string GridStateKey => $"Drill:{StateKey ?? typeof(TItem).Name}:v2";
 
     // Footer EditForm DIŞINDA olduğundan submit'i elle tetikliyoruz: önce doğrula, geçerliyse kaydet.
     private async Task HandleSaveClick()

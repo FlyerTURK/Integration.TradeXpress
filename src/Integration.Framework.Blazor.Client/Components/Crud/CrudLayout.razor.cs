@@ -95,6 +95,7 @@ namespace Integration.Framework.Blazor.Client.Components.Crud
         // ek kolaylaştırıcılar. Başlık: filtre satırı göster/gizle + filtreyi temizle. Satır: toolbar kopyası.
         private void OnCustomizeContextMenu(GridCustomizeContextMenuEventArgs args)
         {
+            GridColumnFixMenu.Add(args);   // Sola/Sağa Sabitle + Kaldır (seçim kolonu hariç) — TxGrid ile ortak, her grid'de aynı
             if (args.Context is GridHeaderCommandContext)
             {
                 // Server-side custom data source GRUPLAMAYI desteklemiyor (GetGroupInfoAsync implement değil) →

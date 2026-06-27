@@ -11,8 +11,8 @@ public static class DrillConsts
     /// <summary>In-memory drill'in çekeceği azami child sayısı. Aşılırsa sesli uyarı verilir.</summary>
     public const int MaxInMemoryChildren = 1000;
 
-    /// <summary>Tüm DrillList'lerin STANDART grid yüksekliği (sabit). Form başına ayrı px verilmez;
-    /// her drill bunu kullanır. Tek yerden değiştir → her yere yansır. DrillList.Height ile yine de
-    /// gerekirse kullanım başına ezilebilir. Grid bu yüksekliği doldurur, fazla satır içeride kayar.</summary>
-    public const string DefaultGridHeight = "180px";
+    /// <summary>MOBİL drill grid'inin STANDART sabit yüksekliği (DrillList.MinHeight/MaxHeight varsayılanı).
+    /// Masaüstü ayrı (DrillList.DesktopMin/MaxHeight). Tek yerden değiştir → her mobil drill'e yansır.
+    /// Grid bu yüksekliği doldurur, fazla satır içeride kayar.</summary>
+    public const string DefaultGridHeight = "300px";
 }

@@ -177,6 +177,15 @@
     overflow: hidden !important;
 }
 
+/* Grid'in parent flex-kutusunu doldurması (DrillList/TxGrid/voucher gridleri) — tek kaynak.
+   Eski inline "height:100%!important; flex:1 1 auto!important; min-height:0!important" string'inin yerine. */
+.tx-grid-fill {
+    height: 100% !important;
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+}
+
 .mdi-empty {
     padding: 1rem;
     color: #888;

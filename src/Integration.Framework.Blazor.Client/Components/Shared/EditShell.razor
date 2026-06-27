@@ -25,7 +25,7 @@ else
              Width="@(_isFullscreen ? "100%" : (_isMinimized ? "350px" : "95%"))"
              MaxWidth="@(_isFullscreen ? "100vw" : (_isMinimized ? "350px" : MaxWidth))"
              MinHeight="@(_isMinimized ? "0" : "150px")"
-             MaxHeight="@(_isFullscreen ? "100vh" : "90vh")"
+             MaxHeight="@(_isFullscreen ? "100dvh" : "90dvh")"
              Height="@(_isFullscreen ? "100%" : null)"
              Scrollable="false"
              AllowDrag="@(!_isFullscreen && !_isMinimized)"

@@ -81,7 +81,7 @@
                         }
 
                         <div style="flex:1; min-height:0; min-width:0; overflow:hidden; display:flex; flex-direction:column;">
-                            <DxGrid Data="@_voucherLines" ShowSearchBox="false" PageSize="50" CssClass="w-100" style="height:100% !important; flex:1 1 auto !important; min-height:0 !important;"
+                            <DxGrid Data="@_voucherLines" ShowSearchBox="false" PageSize="50" CssClass="w-100 tx-grid-fill"
                                     KeyFieldName="@nameof(VoucherLineDto.Id)"
                                     ShowFilterRow="true"
                                     SelectionMode="GridSelectionMode.Single"
@@ -148,7 +148,7 @@
                             </div>
                         }
                         <div style="flex:1; min-height:0; overflow:hidden; display:flex; flex-direction:column;">
-                            <DxGrid Data="@_balanceRows" ShowSearchBox="false" PageSize="1000" CssClass="w-100" style="height:100% !important; flex:1 1 auto !important; min-height:0 !important;">
+                            <DxGrid Data="@_balanceRows" ShowSearchBox="false" PageSize="1000" CssClass="w-100 tx-grid-fill">
                         <Columns>
                             <DxGridDataColumn FieldName="@nameof(VoucherBalanceLineDto.UnitCode)" Caption="@L["Code"].Value.ToString().ToUpper()" Width="70px" TextAlignment="GridTextAlignment.Left" CaptionAlignment="GridTextAlignment.Center"/>
                             <DxGridDataColumn FieldName="@nameof(VoucherBalanceLineDto.Credit)" Caption="@L["Credit"].Value.ToString().ToUpper()" TextAlignment="GridTextAlignment.Right" CaptionAlignment="GridTextAlignment.Center">
