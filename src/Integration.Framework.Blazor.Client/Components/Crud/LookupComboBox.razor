@@ -5,7 +5,13 @@
 @using System.Linq.Expressions
 @using DevExpress.Blazor
 @using Microsoft.AspNetCore.Components.Forms
+@using Integration.Framework.Blazor.Client.Services.Mdi
+@using Integration.Framework.Blazor.Client.Services.Base
 @inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+@inject IEntityChangeNotifier EntityChanges
+@inject IViewOpener ViewOpener
+@inject IPopupService PopupService
+@implements IDisposable
 
 @*
    Generic referans lookup combo (ERPPROV3 deseni): DxComboBox + tıkla-aç dropdown (DropDownTriggerMode.Click) +
@@ -65,6 +71,21 @@
     /// <summary>Dropdown kolonları — <c>DxListEditorColumn</c> elemanları buraya verilir.</summary>
     [Parameter] public RenderFragment? Columns { get; set; }
 
+    /// <summary>İlgili entity'nin edit host tipi (ör. <c>typeof(CurrencyUnitEditHost)</c>). Verilirse Add(+)/Edit(✎)
+    /// butonları MERKEZÎ popup yolu (<see cref="IViewOpener"/>) ile o host'u açar — liste sayfasının "New/Edit"
+    /// akışıyla AYNI mekanizma (ham DxPopup YOK). Override (OnAdd/OnEditRequested) verilmişse o öncelikli kalır.</summary>
+    [Parameter] public Type? EditComponentType { get; set; }
+
+    /// <summary>Inline edit veya dış-sekme değişimi sonrası host'tan <see cref="Data"/>'yı yeniden yüklemesini ister
+    /// (EntityChange tetikler). Auto-select için reload önce beklenir.</summary>
+    [Parameter] public EventCallback OnLookupReloadRequested { get; set; }
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        EntityChanges.Changed += OnEntityChanged;   // inline/dış edit sonrası tazeleme + auto-select
+    }
+
     [CascadingParameter] private EditContext? CascadedEditContext { get; set; }
     /// <summary>EntityEditForm salt-okunur (fieldset disabled) iken true → ✎/+ ve clear gizlenir (native disable görünür bırakırdı).</summary>
     [CascadingParameter(Name = "FormIsReadOnly")] private bool FormIsReadOnly { get; set; }
@@ -86,8 +107,12 @@
     private bool _effectiveReadOnly => ReadOnly || FormIsReadOnly;
     private bool _effectiveEnabled => Enabled && !FormIsReadOnly;
 
-    private bool ShowEditButton => OnEditRequested is not null && !_effectiveReadOnly && _effectiveEnabled && _hasValue;
-    private bool ShowAddButton => OnAddRequested is not null && !_effectiveReadOnly && _effectiveEnabled;
+    // Görünürlük (kural): handler override VEYA inline EditForm varsa buton aktiftir.
+    //   Add  → readonly/disabled değilse HER ZAMAN.
+    //   Edit → readonly/disabled değil VE değer (EditValue) dolu iken.
+    private bool _hasEditCapability => EditComponentType is not null;
+    private bool ShowEditButton => (OnEditRequested is not null || _hasEditCapability) && !_effectiveReadOnly && _effectiveEnabled && _hasValue;
+    private bool ShowAddButton => (OnAddRequested is not null || _hasEditCapability) && !_effectiveReadOnly && _effectiveEnabled;
 
     // Native clear (DevExpress) — nullable + AllowClear iken Auto (değer varken × görünür), aksi halde Never.
     private DataEditorClearButtonDisplayMode _clearMode =>
@@ -115,15 +140,50 @@
             CascadedEditContext.NotifyFieldChanged(FieldIdentifier.Create(ValueExpression));
     }
 
+    // ✎ → host override'ı varsa onu çağır; yoksa MERKEZÎ popup yolu (ViewOpener) ile seçili değeri düzenle.
     private Task OnEditButtonClick(MouseEventArgs _)
-        => (OnEditRequested is not null && _hasValue) ? OnEditRequested(Value!) : Task.CompletedTask;
+    {
+        if (!_hasValue) return Task.CompletedTask;
+        if (OnEditRequested is not null) return OnEditRequested(Value!);
+        return OpenEditAsync(Value);
+    }
 
-    // + → host quick-add'i açar, OLUŞAN değeri döndürür; default değilse combo'da otomatik seç (dirty + caller bildir).
+    // + → host override'ı varsa quick-add (oluşan değeri auto-select); yoksa MERKEZÎ popup yolu ile yeni kayıt aç.
     private async Task OnAddButtonClick(MouseEventArgs _)
     {
-        if (OnAddRequested is null) return;
-        var created = await OnAddRequested();
-        if (!EqualityComparer<TValue>.Default.Equals(created!, default!))
-            await OnInternalValueChanged(created);
+        if (OnAddRequested is not null)
+        {
+            var created = await OnAddRequested();
+            if (!EqualityComparer<TValue>.Default.Equals(created!, default!))
+                await OnInternalValueChanged(created);
+            return;
+        }
+        await OpenEditAsync(default);
     }
+
+    // Liste sayfasının "New/Edit" akışıyla AYNI merkezî yol: edit host'u popup/MDI'de açar (ham DxPopup YOK).
+    // Kayıt sonrası tazeleme + auto-select EntityChange üzerinden olur (OnEntityChanged).
+    private Task OpenEditAsync(TValue? id)
+    {
+        if (EditComponentType is null) return Task.CompletedTask;
+        var extra = new Dictionary<string, object>
+        {
+            { "OnClosed", EventCallback.Factory.Create(this, () => PopupService.Close()) },
+        };
+        // Add → id null (yeni kayıt); Edit → seçili değer. Required (Guid) alanda default = Guid.Empty → host "yeni" sayar.
+        object? editId = (id is null || EqualityComparer<TValue>.Default.Equals(id, default!)) ? null : id;
+        return ViewOpener.OpenAsync(EditComponentType, editId, string.Empty, null, extra);
+    }
+
+    // Bu entity türü değişince (inline popup VEYA başka sekme): listeyi tazele + Created'da yeni kaydı auto-select.
+    private async void OnEntityChanged(EntityChange change)
+    {
+        if (change.EntityKey != typeof(TItem).FullName) return;
+        await OnLookupReloadRequested.InvokeAsync();   // host Data'yı yeniden yükler
+        if (change.Kind == EntityChangeKind.Created && change.Id is TValue newId)
+            await OnInternalValueChanged(newId);       // yeni kaydı combo'da seç
+        await InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose() => EntityChanges.Changed -= OnEntityChanged;
 }

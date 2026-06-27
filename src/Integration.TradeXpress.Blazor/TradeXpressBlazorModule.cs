@@ -181,6 +181,12 @@ public class TradeXpressBlazorModule : AbpModule
         context.Services.AddScoped<Integration.TradeXpress.Blazor.Client.Services.Working.IWorkingContextService,
                                    Integration.TradeXpress.Blazor.Client.Services.Working.WorkingContextService>();
 
+        // ICurrentCompany köprüsü — working şubenin şirketini sunucu-ambient ICurrentCompany'ye taşır. Client modülü
+        // DependsOn'da olmadığından [Dependency(ReplaceServices)] sunucuda çalışmaz → elle kaydet (son kayıt kazanır).
+        // Yoksa ICurrentCompany.Id sunucuda DAİMA null → yerel kur re-base / pozisyon / emtia scope çözülmez.
+        context.Services.AddScoped<Integration.TradeXpress.MultiCompany.ICompanyContextProvider,
+                                   Integration.TradeXpress.Blazor.Client.Services.Working.WorkingCompanyContextProvider>();
+
         // Identity Management Services
         context.Services.AddScoped<Integration.TradeXpress.Blazor.Client.Services.IIdentityUserService,
                                    Integration.TradeXpress.Blazor.Client.Services.IdentityUserService>();

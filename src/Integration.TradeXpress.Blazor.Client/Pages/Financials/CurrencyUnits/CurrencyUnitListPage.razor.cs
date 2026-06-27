@@ -29,10 +29,20 @@ public partial class CurrencyUnitListPage : IDisposable
             Text = L["SetMargin"],
             Tooltip = L["SetMargin"],
             IconCssClass = TradeXpressIcons.CurrencyMargin,
-            Enabled = StateService.SelectedDataItems?.Count == 1,
+            // Tek satır seçili VE yerel/pivot para birimi DEĞİL (yerel = re-base sonrası 1.00 → marj yasak).
+            Enabled = StateService.SelectedDataItems?.Count == 1 && !SelectedIsLocalUnit(),
             OnClick = OpenMarginDialogAsync,
         },
     };
+
+    /// <summary>Seçili tek satır YEREL/pivot para birimi mi: re-base sonrası canlı fiyatı 1.00 olan satır
+    /// yereldir (host→TRY, tenant→ülke parası). Yerel paraya marj yasak (server da reddeder).</summary>
+    private bool SelectedIsLocalUnit()
+    {
+        if (StateService.SelectedDataItems?.Count != 1) return false;
+        if (StateService.SelectedDataItems[0] is not CurrencyUnitListDto item) return false;
+        return _live.TryGetValue(item.Id, out var p) && p.Buy == 1m && p.Sell == 1m;
+    }
 
     /// <summary>Toolbar "Marj Ayarla" — tek satır seçiliyse diyaloğu açar.</summary>
     private async Task OpenMarginDialogAsync()

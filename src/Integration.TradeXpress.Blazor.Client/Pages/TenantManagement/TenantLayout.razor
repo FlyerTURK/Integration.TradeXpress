@@ -70,7 +70,8 @@
             <AfterEditForm Context="c">
                 <DxTabs CssClass="mt-3">
                     <DxTabPage Text="@L["Menu:Branches"].Value" TabIconCssClass="@TradeXpressIcons.Branch">
-                        <CompanyBranchDrill Model="c" OnChanged="@(() => EditChanged?.Invoke())" />
+                        <CompanyBranchDrill Model="c" Units="Units" OnChanged="@(() => EditChanged?.Invoke())"
+                                            OnReferenceDataReload="@OnReferenceDataReload" />
                     </DxTabPage>
                 </DxTabs>
             </AfterEditForm>
@@ -126,6 +127,9 @@
     [Parameter] public List<CurrencyUnitListDto> Units { get; set; } = new();
     [Parameter] public List<CountryListDto> Countries { get; set; } = new();
 
+    /// <summary>Inline combo'dan birim eklenince host'un (TenantEditHost) birim listesini tazelemesi için sinyal.</summary>
+    [Parameter] public EventCallback OnReferenceDataReload { get; set; }
+
     // Drill (Kullanıcılar/Şirketler/Şube-Kasa) değişimini forma bildir — EntityEditForm EditChanged cascade'i.
     [CascadingParameter(Name = "EditChanged")] private Action? EditChanged { get; set; }
 
@@ -162,27 +166,33 @@
 
     // ── Yeni şirket düğümü grafı (host ApplyNewDefaults de kullanır → static, units/countries parametreli). ──
     public static CompanyGraphDto NewCompany(string code, string name, string country, bool isHeadquarters,
-        IReadOnlyList<CurrencyUnitListDto> units, IReadOnlyList<CountryListDto> countries) => new()
+        IReadOnlyList<CurrencyUnitListDto> units, IReadOnlyList<CountryListDto> countries)
     {
-        Code = code,
-        Name = name,
-        CountryCode = country,
-        BaseCurrencyUnitId = DefaultUnitIdFor(country, units, countries),
-        IsHeadquarters = isHeadquarters,
-        IsActive = true,
-        DisplayOrder = 1,
-        Branches =
+        var baseUnitId = DefaultUnitIdFor(country, units, countries);   // tek kaynak: şirket + HQ şube aynı base ile preset
+        return new CompanyGraphDto
         {
-            new BranchGraphDto
+            Code = code,
+            Name = name,
+            CountryCode = country,
+            BaseCurrencyUnitId = baseUnitId,
+            IsHeadquarters = isHeadquarters,
+            IsActive = true,
+            DisplayOrder = 1,
+            Branches =
             {
-                Code = BranchConsts.DefaultHeadquartersCode,
-                Name = BranchConsts.DefaultHeadquartersName,
-                IsHeadquarters = true,
-                DisplayOrder = 1,
-                Vaults = { new VaultGraphDto { Code = VaultConsts.DefaultCode, Name = VaultConsts.DefaultName, IsDefault = true, DisplayOrder = 1 } },
+                new BranchGraphDto
+                {
+                    Code = BranchConsts.DefaultHeadquartersCode,
+                    Name = BranchConsts.DefaultHeadquartersName,
+                    IsHeadquarters = true,
+                    IsActive = true,
+                    DisplayOrder = 1,
+                    BaseCurrencyUnitId = baseUnitId,
+                    Vaults = { new VaultGraphDto { Code = VaultConsts.DefaultCode, Name = VaultConsts.DefaultName, IsDefault = true, IsActive = true, DisplayOrder = 1 } },
+                },
             },
-        },
-    };
+        };
+    }
 
     // Ülkenin varsayılan para biriminin Id'si (yoksa TRY).
     public static Guid DefaultUnitIdFor(string country, IReadOnlyList<CurrencyUnitListDto> units, IReadOnlyList<CountryListDto> countries)
@@ -208,6 +218,7 @@
     {
         Id = b.Id, ClientKey = b.ClientKey, IsDeleted = b.IsDeleted,
         Code = b.Code, Name = b.Name, IsHeadquarters = b.IsHeadquarters,
+        BaseCurrencyUnitId = b.BaseCurrencyUnitId,   // KRİTİK: kopyalanmazsa drill-edit'te combo Guid.Empty → boş gelir
         IsActive = b.IsActive, DisplayOrder = b.DisplayOrder, Description = b.Description,
         Vaults = b.Vaults.Select(CloneVault).ToList(),
     };

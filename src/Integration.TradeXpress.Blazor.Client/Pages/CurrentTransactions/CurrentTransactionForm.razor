@@ -463,7 +463,8 @@
         decimal total = 0m;
         var complete = true;
 
-        var buyById = _liveRates.ToDictionary(p => p.Id, p => p.Buy);
+        // Pivot (TRY) Buy — tutarlı tek-yön; parite görüntü fiyatı (_liveRates) konsolide matematiği için kullanılamaz.
+        var buyById = _pivotBuy;
         var baseBuy = buyById.GetValueOrDefault(_baseUnitId);
 
         foreach (var row in _balanceRows)
@@ -497,6 +498,7 @@
         => p is { } v ? L[$"Enum:ProcessPaymentType:{v}"].Value : string.Empty;
 
     private List<CurrentPriceDto> _liveRates = new();
+    private Dictionary<Guid, decimal> _pivotBuy = new();   // konsolide bakiye için TUTARLI pivot Buy (parite görüntü değil)
     private PeriodicTimer? _rateTimer;
 
     private readonly Dictionary<(Guid Id, bool Buy), decimal> _prevEffective = new();
@@ -545,7 +547,7 @@
     {
         try
         {
-            var prices = await PriceService.GetCurrentPricesAsync();
+            var prices = await PriceService.GetCurrentPricesAsync();   // YEREL para birimine re-base'li (ülke parası); bilanço değil
             var now = DateTime.UtcNow;
             foreach (var p in prices)
             {
@@ -553,6 +555,8 @@
                 TrackDirection(p.Id, buy: false, p.Sell, now);
             }
             _liveRates = prices;
+            // Konsolide bakiye matematiği TUTARLI (pivot) fiyat ister — parite görüntü fiyatı (karışık yön) değil.
+            _pivotBuy = (await PriceService.GetCurrentPricesAsync()).ToDictionary(p => p.Id, p => p.Buy);
         }
         catch { }
         ComputeConsolidated();   // konsolide toplam canlı kurla her tikte tazelensin

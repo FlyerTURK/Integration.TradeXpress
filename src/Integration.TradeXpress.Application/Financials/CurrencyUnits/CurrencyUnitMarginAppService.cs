@@ -2,8 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Integration.TradeXpress.MultiCompany;
 using Integration.TradeXpress.Permissions;
 using Microsoft.AspNetCore.Authorization;
+using Volo.Abp;
 using Volo.Abp.Application.Dtos;
 using Volo.Abp.Data;
 using Volo.Abp.Domain.Entities;
@@ -26,21 +28,53 @@ public class CurrencyUnitMarginAppService : TradeXpressAppService, ICurrencyUnit
 {
     private readonly IRepository<CurrencyUnitMargin, Guid> _repository;
     private readonly IRepository<CurrencyUnit, Guid> _unitRepository;
+    private readonly ICurrentCompany _currentCompany;
+    private readonly LocalCurrencyResolver _localCurrencyResolver;
 
     public CurrencyUnitMarginAppService(
         IRepository<CurrencyUnitMargin, Guid> repository,
-        IRepository<CurrencyUnit, Guid> unitRepository)
+        IRepository<CurrencyUnit, Guid> unitRepository,
+        ICurrentCompany currentCompany,
+        LocalCurrencyResolver localCurrencyResolver)
     {
         _repository = repository;
         _unitRepository = unitRepository;
+        _currentCompany = currentCompany;
+        _localCurrencyResolver = localCurrencyResolver;
+    }
+
+    /// <summary>Yerel/pivot para birimine marj YASAK (re-base identity korunur — yerel daima 1.00).
+    /// Host → TRY (pivot); tenant → working company ülke parası. İhlalde kullanıcı-dostu hata.</summary>
+    private async Task EnsureNotLocalCurrencyAsync(Guid unitId)
+    {
+        var localCode = await _localCurrencyResolver.ResolveCodeAsync() ?? CurrencyUnitCode.TRY;
+        var unit = (await LoadUnitMapAsync(new[] { unitId })).GetValueOrDefault(unitId);
+        if (unit != null && string.Equals(unit.Code, localCode, StringComparison.OrdinalIgnoreCase))
+            throw new UserFriendlyException(L["CurrencyUnit:CannotSetMarginOnLocal", localCode]);
+    }
+
+    /// <summary>Bu scope'un marj CompanyId'si: host (TenantId=null) → null (global taban);
+    /// tenant → working company (HQ garantisi ile daima dolu). Tenant'ta working company yoksa
+    /// fail-fast (HQ garantisi bozulmuş — sessiz geçme yok).</summary>
+    private Guid? ResolveScopeCompanyId()
+    {
+        if (CurrentTenant.Id == null)
+            return null;
+        if (_currentCompany.Id is not { } companyId)
+            throw new InvalidOperationException(
+                "Tenant scope marj işlemi için working company zorunlu (HQ garantisi bozulmuş).");
+        return companyId;
     }
 
     public virtual async Task<PagedResultDto<CurrencyUnitMarginListDto>> GetListAsync(CurrencyUnitMarginListRequestDto input)
     {
-        // Tenant filtresi AÇIK → yalnız bu scope'un (host=null) marjları.
+        // Tenant filtresi AÇIK → yalnız bu scope'un (host=null) marjları. CompanyId ile de daralt:
+        // host→null (global taban), tenant→working company (branch bazlı DEĞİL).
         // Birim başına GÜNCEL satır = en son CreationTime (eşitlikte Id tie-break).
         // Veri küçük (birim × geçmiş) → grup bellek-içi; CreationTime ties'a dayanıklı.
-        var all = await AsyncExecuter.ToListAsync(await _repository.GetQueryableAsync());
+        var scopeCompanyId = ResolveScopeCompanyId();
+        var all = (await AsyncExecuter.ToListAsync(await _repository.GetQueryableAsync()))
+            .Where(m => m.CompanyId == scopeCompanyId);
         var latest = all
             .GroupBy(m => m.CurrencyUnitId)
             .Select(g => g.OrderByDescending(x => x.CreationTime).ThenByDescending(x => x.Id).First())
@@ -68,14 +102,17 @@ public class CurrencyUnitMarginAppService : TradeXpressAppService, ICurrencyUnit
     public virtual async Task<CurrencyUnitMarginListDto> SetAsync(CurrencyUnitMarginSetDto input)
     {
         await EnsureUnitVisibleAsync(input.CurrencyUnitId);
+        await EnsureNotLocalCurrencyAsync(input.CurrencyUnitId);   // yerel/pivot para birimine marj YASAK
 
         // Append-only: var olanı kontrol etme/düzeltme — her zaman YENİ satır.
         // TenantId = geçerli izleyici (host→null, tenant→viewer). GetCurrentAsync standart tenant
         // filtresiyle okuduğundan, yazarken de aynı scope'a yazmalı — yoksa tenant'ta kaydedilen
         // margin host satırı olarak yazılıp tenant okumasında görünmez (en son ayar yansımaz).
         // TenantId ABP tarafından CurrentTenant'tan atanır (SetAsync viewer scope'unda çalışır).
+        // CompanyId = working company (host→null, tenant→zorunlu): marj company bazlı, branch DEĞİL.
         var entity = new CurrencyUnitMargin(
             input.CurrencyUnitId,
+            ResolveScopeCompanyId(),
             new MarginSetting(input.MarginOnBuyType, input.MarginOnBuyValue),
             new MarginSetting(input.MarginOnSellType, input.MarginOnSellValue));
 
@@ -89,8 +126,10 @@ public class CurrencyUnitMarginAppService : TradeXpressAppService, ICurrencyUnit
     {
         await EnsureUnitVisibleAsync(currencyUnitId);
 
+        var scopeCompanyId = ResolveScopeCompanyId();
         var mq = await _repository.GetQueryableAsync();
-        var rows = await AsyncExecuter.ToListAsync(mq.Where(m => m.CurrencyUnitId == currencyUnitId));
+        var rows = await AsyncExecuter.ToListAsync(
+            mq.Where(m => m.CurrencyUnitId == currencyUnitId && m.CompanyId == scopeCompanyId));
         var latest = rows.OrderByDescending(x => x.CreationTime).ThenByDescending(x => x.Id).FirstOrDefault();
 
         var unitMap = await LoadUnitMapAsync(new[] { currencyUnitId });
@@ -118,9 +157,11 @@ public class CurrencyUnitMarginAppService : TradeXpressAppService, ICurrencyUnit
     {
         await EnsureUnitVisibleAsync(currencyUnitId);
 
+        var scopeCompanyId = ResolveScopeCompanyId();
         var mq = await _repository.GetQueryableAsync();
         var rows = await AsyncExecuter.ToListAsync(
-            mq.Where(m => m.CurrencyUnitId == currencyUnitId).OrderByDescending(m => m.CreationTime));
+            mq.Where(m => m.CurrencyUnitId == currencyUnitId && m.CompanyId == scopeCompanyId)
+              .OrderByDescending(m => m.CreationTime));
 
         var unitMap = await LoadUnitMapAsync(new[] { currencyUnitId });
         return rows.Select(r => ToDto(r, unitMap)).ToList();

@@ -1,6 +1,7 @@
 @using System
 @using Integration.TradeXpress.Branches
 @using Integration.TradeXpress.Financials.CurrencyUnits
+@using Integration.TradeXpress.Blazor.Client.Pages.Financials.CurrencyUnits
 @using Integration.Framework.Blazor.Client.Components.Crud
 @using DevExpress.Blazor
 @using Microsoft.Extensions.Localization
@@ -25,7 +26,9 @@
                             Data="@Units"
                             ValueFieldName="@nameof(CurrencyUnitListDto.Id)"
                             TextFieldName="@nameof(CurrencyUnitListDto.Code)"
-                            @bind-Value="@Model.BaseCurrencyUnitId" />
+                            @bind-Value="@Model.BaseCurrencyUnitId"
+                            EditComponentType="typeof(CurrencyUnitEditHost)"
+                            OnLookupReloadRequested="@OnReferenceDataReload" />
         </DxFormLayoutItem>
         <DxFormLayoutItem ColSpanMd="6">
             <CaptionTemplate>
@@ -60,4 +63,8 @@
     [Parameter] public List<CurrencyUnitListDto> Units { get; set; } = new();
     [Parameter] public bool HeadquartersEnabled { get; set; } = true;
     [Parameter] public bool CodeEnabled { get; set; } = true;
+
+    /// <summary>Inline combo'dan birim eklenince/güncellenince host'un birim listesini (<see cref="Units"/>) tazelemesi
+    /// için yukarı sinyal. Bağlanmazsa combo yine çalışır; sadece yeni birim listeye anında düşmez.</summary>
+    [Parameter] public EventCallback OnReferenceDataReload { get; set; }
 }

@@ -51,9 +51,10 @@ public static class TradeXpressDbContextModelCreatingExtensions
             b.ToTable(TradeXpressConsts.DbTablePrefix + "CurrencyUnitMargins", TradeXpressConsts.DbSchema);
             b.ConfigureByConvention();
 
-            // Append-only: tenant+birim başına ÇOK satır (marj geçmişi). Güncel = en son
-            // CreationTime. Unique YOK; bu index "en son marj" sorgusunu hızlandırır.
-            b.HasIndex(x => new { x.TenantId, x.CurrencyUnitId, x.CreationTime });
+            // Append-only: tenant+company+birim başına ÇOK satır (marj geçmişi). Güncel = en son
+            // CreationTime. Unique YOK; bu index "en son marj" sorgusunu hızlandırır. CompanyId:
+            // host→null (global taban), tenant→working company (branch bazlı DEĞİL).
+            b.HasIndex(x => new { x.TenantId, x.CompanyId, x.CurrencyUnitId, x.CreationTime });
 
             b.OwnsOne(x => x.MarginOnBuy,  ConfigureMargin);
             b.OwnsOne(x => x.MarginOnSell, ConfigureMargin);

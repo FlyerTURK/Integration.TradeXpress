@@ -61,13 +61,6 @@ public class TradeXpressMenuContributor : IMenuContributor
             url: "/currencies/currency-units",
             icon: TradeXpressIcons.CurrencyUnit
         ).RequirePermissions(TradeXpressPermissions.CurrencyUnits.Default));
-        // Kur panosu — viewer'ın efektif fiyatları + "Margin Ayarla" + marj geçmişi.
-        financial.AddItem(new ApplicationMenuItem(
-            TradeXpressMenus.PriceBoard,
-            l["Menu:PriceBoard"],
-            url: "/currencies/prices",
-            icon: TradeXpressIcons.PriceBoard
-        ).RequirePermissions(TradeXpressPermissions.CurrencyUnits.Default));
         // Pariteler — base/quote çiftleri (CRUD). Host yönetir; tenant kendi paritesini ekler.
         financial.AddItem(new ApplicationMenuItem(
             TradeXpressMenus.Parities,

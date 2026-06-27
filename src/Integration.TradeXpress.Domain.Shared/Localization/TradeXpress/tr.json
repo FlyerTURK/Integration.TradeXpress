@@ -197,7 +197,7 @@
     "FollowingAndMargin": "Takip ve Marj",
     "SetMargin": "Marj Ayarla",
     "CurrencyUnit:MarginDisclaimer": "Uyarı: Girdiğiniz marj tipi ve değerleri baz fiyata doğrudan uygulanır. Hatalı tip/değer seçiminden doğacak yanlış alış/satış fiyatlarından kullanıcı sorumludur; lütfen kaydetmeden önce değerleri kontrol edin.",
-    "Menu:PriceBoard": "Kur Panosu",
+    "CurrencyUnit:CannotSetMarginOnLocal": "{0} yerel para birimidir; yerel para birimine marj uygulanamaz (kurlar bu birime göre hesaplanır, daima 1.00).",
     "Buy": "Alış",
     "Sell": "Satış",
     "RawBuy": "Ham Alış",

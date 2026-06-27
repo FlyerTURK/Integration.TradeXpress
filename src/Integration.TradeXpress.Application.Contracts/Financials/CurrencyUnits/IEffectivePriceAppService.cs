@@ -11,7 +11,9 @@ namespace Integration.TradeXpress.Financials.CurrencyUnits;
 /// </summary>
 public interface IEffectivePriceAppService : IApplicationService
 {
-    /// <summary>Görünür her birim için bu scope'un GÜNCEL efektif fiyatı (en son ham × güncel kademe).</summary>
+    /// <summary>Görünür her birim için bu scope'un GÜNCEL efektif fiyatı, çalışılan şirketin YEREL para birimine
+    /// (ülke parası: TR→TRY, US→USD) re-base'li — kurlar TEK ELDEN re-base alınır (TR'de yerel=TRY → ÷1 = pivot).
+    /// "1 birim = X yerel", yerel satır 1.00. Bilanço birimi (BaseCurrencyUnitId) DEĞİL. Yerel çözülemezse pivot (TRY).</summary>
     Task<List<CurrentPriceDto>> GetCurrentPricesAsync();
 
     /// <summary>

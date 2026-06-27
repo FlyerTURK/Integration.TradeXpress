@@ -16,7 +16,6 @@ public class TradeXpressMenus
     public const string Currencies          = Prefix + ".Currencies";
     public const string Financial           = Prefix + ".Financial";
     public const string CurrencyUnits       = Currencies + ".CurrencyUnits";
-    public const string PriceBoard          = Currencies + ".PriceBoard";
     public const string Parities            = Currencies + ".Parities";
 
     public const string Commodities         = Prefix + ".Commodities";

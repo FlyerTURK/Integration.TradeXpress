@@ -29,7 +29,8 @@
                   FormCaption="@L["Entity:Tenant"].Value" IconCssClass="custom-icon-tenant"
                   EntityValue="@(m => m.Name)"
                   ApplyNewDefaults="@ApplyNewTenantDefaults">
-        <TenantLayout Model="@context" IsNew="@(context.Id == Guid.Empty)" Units="@_units" Countries="@_countries" />
+        <TenantLayout Model="@context" IsNew="@(context.Id == Guid.Empty)" Units="@_units" Countries="@_countries"
+                      OnReferenceDataReload="@ReloadUnitsAsync" />
     </CrudEditHost>
 }
 
@@ -60,6 +61,13 @@
         _ready = true;
     }
 
+    // Inline combo'dan birim eklenince/güncellenince birim listesini tazele → cascade ile tüm combo'lara yeni Data düşer.
+    private async Task ReloadUnitsAsync()
+    {
+        _units = (await CurrencyAppService.GetListAsync(new CurrencyUnitListRequestDto { MaxResultCount = 1000 })).Items.ToList();
+        await InvokeAsync(StateHasChanged);
+    }
+
     // Yeni tenant: başlangıç admin kullanıcısı + varsayılan merkez şirket (HQ şube + Ana Kasa). Snapshot ÖNCESİ → dirty saymaz.
     private void ApplyNewTenantDefaults(TenantGetDto m)
     {
@@ -68,10 +76,10 @@
             UserName = "admin",
             Email = "admin@admin.com",
             IsAdmin = true,
-#if DEBUG
+            // Her modda (Debug/Development/Release) standart başlangıç şifresi — Release'de boş gelip
+            // validation'a takılmasın. Admin ilk girişte değiştirir.
             Password = "1q2w3E*",
             PasswordConfirm = "1q2w3E*",
-#endif
         });
         m.Companies.Add(TenantLayout.NewCompany("MRK", "Merkez", "TR", isHeadquarters: true, _units, _countries));
     }

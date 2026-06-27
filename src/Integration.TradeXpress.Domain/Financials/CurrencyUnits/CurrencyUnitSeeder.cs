@@ -186,10 +186,12 @@ public class CurrencyUnitSeeder(
             return IsTry(currency.Code)
                 ? new CurrencyUnitMargin(                       // TRY: alış/satış sabit 1 (kendine oranı)
                     currencyUnitId: currency.Id,
+                    companyId: null,                           // host taban (global); company bazlı değil
                     marginOnBuy: MarginSetting.Fixed(1m),
                     marginOnSell: MarginSetting.Fixed(1m))
                 : new CurrencyUnitMargin(                       // diğerleri: piyasayı aynen geçir (marj uygulama)
                     currencyUnitId: currency.Id,
+                    companyId: null,                           // host taban (global); company bazlı değil
                     marginOnBuy: MarginSetting.Passthrough,
                     marginOnSell: MarginSetting.Passthrough);
         }

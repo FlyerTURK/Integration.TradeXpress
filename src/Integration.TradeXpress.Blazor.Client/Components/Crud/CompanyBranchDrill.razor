@@ -53,7 +53,8 @@
         </GridColumns>
         <EditContent Context="b">
             @* DRY: standalone Branch ile AYNI BranchEditFields (alanlar + validasyon tek kaynak). Tek HQ kapatılamaz. *@
-            <BranchEditFields Model="b" Units="@Units" HeadquartersEnabled="@(!IsBranchSoleHq(b))" CodeEnabled="true" />
+            <BranchEditFields Model="b" Units="@Units" HeadquartersEnabled="@(!IsBranchSoleHq(b))" CodeEnabled="true"
+                              OnReferenceDataReload="@OnReferenceDataReload" />
         </EditContent>
         <AfterEditForm Context="b">
             <DxTabs CssClass="mt-3">
@@ -70,6 +71,9 @@
     [Parameter, EditorRequired] public ICompanyGraph Model { get; set; } = default!;
     [Parameter] public List<CurrencyUnitListDto> Units { get; set; } = new();
     [Parameter] public EventCallback OnChanged { get; set; }
+
+    /// <summary>Şube combo'sundan birim eklenince/güncellenince host'un birim listesini tazelemesi için yukarı sinyal.</summary>
+    [Parameter] public EventCallback OnReferenceDataReload { get; set; }
 
     private BranchGraphDto? _selectedBranch;
     private DrillList<BranchGraphDto>? _drill;
@@ -94,11 +98,13 @@
         StateHasChanged();
     }
 
-    private static BranchGraphDto NewBranch() => new()
+    // Yeni şube: bilanço birimi DEFAULT = parent şirketin base'i (boş gelmesin, combo preset olsun; server de aynı default'u uygular).
+    private BranchGraphDto NewBranch() => new()
     {
         IsActive = true,
         DisplayOrder = 1,
-        Vaults = { new VaultGraphDto { Code = VaultConsts.DefaultCode, Name = VaultConsts.DefaultName, IsDefault = true, DisplayOrder = 1 } },
+        BaseCurrencyUnitId = Model.BaseCurrencyUnitId,
+        Vaults = { new VaultGraphDto { Code = VaultConsts.DefaultCode, Name = VaultConsts.DefaultName, IsDefault = true, IsActive = true, DisplayOrder = 1 } },
     };
 
     private static BranchGraphDto CloneBranch(BranchGraphDto b) => new()

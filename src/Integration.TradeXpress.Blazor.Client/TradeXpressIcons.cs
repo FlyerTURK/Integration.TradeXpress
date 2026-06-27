@@ -31,9 +31,6 @@ public static class TradeXpressIcons
     public const string CurrencyMargin = "custom-icon-currency-margin";
     public const string Parity = "custom-icon-parity";
 
-    // ── Panolar ──
-    public const string PriceBoard = "custom-icon-price-board";
-
     // ── İşlemler ──
     public const string CurrentTransactions = "custom-icon-current-transactions";
 
@@ -54,7 +51,7 @@ public static class TradeXpressIcons
     // ── Genel ──
     public const string Home = "custom-icon-home";
 
-    // �� Action & System ��
+    // �� Action & System ��
     public const string Add = "custom-icon-add";
     public const string Delete = "custom-icon-delete";
     public const string Download = "custom-icon-download";

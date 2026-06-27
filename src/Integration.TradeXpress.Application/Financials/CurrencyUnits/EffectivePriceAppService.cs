@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Integration.TradeXpress.Companies;
+using Integration.TradeXpress.MultiCompany;
 using Integration.TradeXpress.Permissions;
 using Microsoft.AspNetCore.Authorization;
 using Volo.Abp.Data;
@@ -11,6 +12,7 @@ using Volo.Abp.Domain.Repositories;
 using Volo.Abp.MultiTenancy;
 
 using Integration.TradeXpress.Financials.ExchangeRates;
+using Integration.TradeXpress.Financials.Parities;
 
 namespace Integration.TradeXpress.Financials.CurrencyUnits;
 
@@ -19,7 +21,7 @@ namespace Integration.TradeXpress.Financials.CurrencyUnits;
 /// host marjı → (viewer tenant ise) viewer marjı (append-only CurrencyUnitMargin'den güncel=en son).
 /// Cross-tenant okuma için tenant filtresi disable; görünürlük açık predicate (host null + viewer).
 ///
-/// <para><see cref="GetCurrentPricesAsync"/> = pivot (X/TRY) board verisi.
+/// <para><see cref="GetCurrentPricesAsync"/> = kurlar yerel para birimine re-base'li (tek el; TR'de ÷1 = pivot).
 /// <see cref="GetValuationAsync"/> = aktif şirket base'ine re-base (DEĞERLEME; parite forex yönü AYRI).</para>
 /// </summary>
 [Authorize(TradeXpressPermissions.CurrencyUnits.Default)]
@@ -29,6 +31,9 @@ public class EffectivePriceAppService : TradeXpressAppService, IEffectivePriceAp
     private readonly IRepository<CurrencyUnitMargin, Guid> _marginRepository;
     private readonly IRepository<CurrencyUnit, Guid> _unitRepository;
     private readonly IRepository<Company, Guid> _companyRepository;
+    private readonly IRepository<Parity, Guid> _parityRepository;
+    private readonly ICurrentCompany _currentCompany;
+    private readonly LocalCurrencyResolver _localCurrencyResolver;
     private readonly ExchangeRateCacheService _cache;
 
     public EffectivePriceAppService(
@@ -36,43 +41,87 @@ public class EffectivePriceAppService : TradeXpressAppService, IEffectivePriceAp
         IRepository<CurrencyUnitMargin, Guid> marginRepository,
         IRepository<CurrencyUnit, Guid> unitRepository,
         IRepository<Company, Guid> companyRepository,
+        IRepository<Parity, Guid> parityRepository,
+        ICurrentCompany currentCompany,
+        LocalCurrencyResolver localCurrencyResolver,
         ExchangeRateCacheService cache)
     {
         _rateRepository = rateRepository;
         _marginRepository = marginRepository;
         _unitRepository = unitRepository;
         _companyRepository = companyRepository;
+        _parityRepository = parityRepository;
+        _currentCompany = currentCompany;
+        _localCurrencyResolver = localCurrencyResolver;
         _cache = cache;
     }
 
+    /// <summary>
+    /// Kurları çalışılan şirketin <b>YEREL para birimine</b> (ülke parası: TR→TRY, US→USD) re-base ederek döndürür —
+    /// kurlar TEK ELDEN re-base'li alınır (TR dahil; host TRY-based olduğundan TR'de yerel=TRY=(1,1) → ÷1 = identity).
+    /// Konvansiyon <b>her satır = "1 birim = X yerel"</b> (satır.value ÷ yerel.value, same-leg: <c>birim.Buy/yerel.Buy</c>,
+    /// <c>birim.Sell/yerel.Sell</c>) — yerel satır 1.00. US şirkette TRY satırı = <c>TRYUSD</c> = 0.0211
+    /// (1 TRY = 0.0211 USD), HAS = 129.6, USD = 1.00. Yön konvansiyonu YOK: tıpkı TR'de USD=47.30 ("1 USD=47.30 TRY")
+    /// gibi US'te de "1 TRY = X USD" gösterilir — piyasanın evrensel okuması. Yerel para birimi marj alamaz
+    /// (host TRY üzerinden gider; admin dahil TRY marjı tanımlanamaz) → yerel daima saf pivot, identity garantili.
+    /// Yerel çözülemezse pivot (TRY). <b>NOT:</b> bilanço birimi (<c>BaseCurrencyUnitId</c>) DEĞİL — kur yerel paraya,
+    /// pozisyon/değerleme bilançoya göredir.
+    /// </summary>
     public virtual async Task<List<CurrentPriceDto>> GetCurrentPricesAsync()
     {
         var prices = await ComputeEffectiveAsync();
-        return prices
+
+        var localCode = await ResolveLocalCurrencyCodeAsync();
+        var local = localCode is { } lc
+            ? prices.FirstOrDefault(e => string.Equals(e.Unit.Code, lc, StringComparison.OrdinalIgnoreCase))
+            : null;
+
+        // Yerel çözülemezse (host scope / feed yok) → pivot (TRY) görüntü.
+        if (local is null || local.Eff is not { Buy: > 0m, Sell: > 0m })
+            return OrderPrices(prices).Select(e => ToCurrentPriceDto(e, e.Eff)).ToList();
+
+        var localId = local.Unit.Id;
+        var localEff = local.Eff;
+
+        // DİREKT re-base (parite resolver YOK): her satır "1 birim = X yerel" = birim.Buy/yerel.Buy, birim.Sell/yerel.Sell.
+        // Yerel birim 1.00. US şirket: TRY = TRY.Buy/USD.Buy = 0.0211; HAS = 129.6; USD = 1.00.
+        return OrderPrices(prices).Select(e =>
+        {
+            CurrencyPrice display = e.Unit.Id == localId
+                ? CurrencyPriceCalculator.Guard(1m, 1m)
+                : (e.Eff is { Buy: > 0m, Sell: > 0m } ? CurrencyPriceCalculator.ReBase(e.Eff, localEff) : e.Eff);
+            return ToCurrentPriceDto(e, display);
+        }).ToList();
+    }
+
+    private static IEnumerable<EffPrice> OrderPrices(IEnumerable<EffPrice> prices)
+        => prices
             .OrderBy(e => e.Unit.TenantId == null ? 0 : 1)
             .ThenByDescending(e => e.Unit.AlwaysShowInBalance)
             .ThenBy(e => e.Unit.DisplayOrder)
-            .ThenBy(e => e.Unit.Code)
-            .Select(e => new CurrentPriceDto
-            {
-                Id = e.Unit.Id,
-                CurrencyUnitCode = e.Unit.Code,
-                CurrencyUnitName = e.Unit.Name,
-                UnitType = e.Unit.Type,
-                DisplayOrder = e.Unit.DisplayOrder,
-                Buy = e.Eff.Buy,
-                Sell = e.Eff.Sell,
-                RawBuy = e.Raw.Buy,
-                RawSell = e.Raw.Sell,
-                MarginOnBuyType = e.AppliedBuy.Type,
-                MarginOnBuyValue = e.AppliedBuy.Value,
-                MarginOnSellType = e.AppliedSell.Type,
-                MarginOnSellValue = e.AppliedSell.Value,
-                GuardFired = e.Eff.GuardFired,
-                RateDate = e.RateDate,
-            })
-            .ToList();
-    }
+            .ThenBy(e => e.Unit.Code);
+
+    /// <summary>EffPrice + GÖRÜNTÜ fiyatı (<paramref name="display"/>: pivot ya da yerel-parite re-base'li) → DTO.
+    /// RawBuy/RawSell DAİMA pivot kalır — marj editörü (Kur Panosu "Ayarla") feed/pivot üzerinde çalışır.</summary>
+    private static CurrentPriceDto ToCurrentPriceDto(EffPrice e, CurrencyPrice display)
+        => new()
+        {
+            Id = e.Unit.Id,
+            CurrencyUnitCode = e.Unit.Code,
+            CurrencyUnitName = e.Unit.Name,
+            UnitType = e.Unit.Type,
+            DisplayOrder = e.Unit.DisplayOrder,
+            Buy = display.Buy,
+            Sell = display.Sell,
+            RawBuy = e.Raw.Buy,
+            RawSell = e.Raw.Sell,
+            MarginOnBuyType = e.AppliedBuy.Type,
+            MarginOnBuyValue = e.AppliedBuy.Value,
+            MarginOnSellType = e.AppliedSell.Type,
+            MarginOnSellValue = e.AppliedSell.Value,
+            GuardFired = display.GuardFired,
+            RateDate = e.RateDate,
+        };
 
     public virtual async Task<List<ValuationPriceDto>> GetValuationAsync(Guid? companyId = null)
     {
@@ -174,11 +223,15 @@ public class EffectivePriceAppService : TradeXpressAppService, IEffectivePriceAp
                 (await _marginRepository.GetQueryableAsync()).Where(m => m.TenantId == null));
             var hostMargin = LatestBy(hostMarginRows, m => m.CurrencyUnitId, m => m.CreationTime, m => m.Id);
 
-            Dictionary<Guid, CurrencyUnitMargin> viewerMargin = hostMargin;
-            if (viewer != null)
+            // Viewer (tenant) marjı COMPANY bazlı: working company'nin marjı uygulanır (branch DEĞİL).
+            // Working company yoksa (host ya da tenant'ta context yoksa) viewer katmanı boş → host taban
+            // gösterilir (görüntü servisi çökmez; yazma tarafı SetAsync fail-fast'tir).
+            Dictionary<Guid, CurrencyUnitMargin> viewerMargin = new();
+            if (viewer != null && _currentCompany.Id is { } workingCompanyId)
             {
                 var viewerRows = await AsyncExecuter.ToListAsync(
-                    (await _marginRepository.GetQueryableAsync()).Where(m => m.TenantId == viewer));
+                    (await _marginRepository.GetQueryableAsync())
+                        .Where(m => m.TenantId == viewer && m.CompanyId == workingCompanyId));
                 viewerMargin = LatestBy(viewerRows, m => m.CurrencyUnitId, m => m.CreationTime, m => m.Id);
             }
 
@@ -268,6 +321,26 @@ public class EffectivePriceAppService : TradeXpressAppService, IEffectivePriceAp
             }
 
             return byId.Values.ToList();
+        }
+    }
+
+    /// <summary>Çalışılan (working) şirketin YEREL para birimi kodu (TR→TRY, US→USD); yoksa null.
+    /// Tek kaynak <see cref="LocalCurrencyResolver"/> (kur görüntüsü + marj guard ortak kullanır).</summary>
+    private Task<string?> ResolveLocalCurrencyCodeAsync()
+        => _localCurrencyResolver.ResolveCodeAsync();
+
+    /// <summary>Görünür parite çiftlerini (host null ‖ viewer tenant) (Base,Quote) Id listesi olarak yükler —
+    /// <see cref="ParityResolver"/>'ın yön/bağlantı (≤3 seviye) çözümü için.</summary>
+    private async Task<List<(Guid Base, Guid Quote)>> LoadParityPairsAsync()
+    {
+        var viewer = CurrentTenant.Id;
+        using (DataFilter.Disable<IMultiTenant>())
+        {
+            var rows = await AsyncExecuter.ToListAsync(
+                (await _parityRepository.GetQueryableAsync())
+                    .Where(p => p.TenantId == null || p.TenantId == viewer)
+                    .Select(p => new { p.BaseCurrencyUnitId, p.QuoteCurrencyUnitId }));
+            return rows.Select(r => (r.BaseCurrencyUnitId, r.QuoteCurrencyUnitId)).ToList();
         }
     }
 

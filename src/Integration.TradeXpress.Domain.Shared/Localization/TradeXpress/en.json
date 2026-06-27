@@ -165,7 +165,7 @@
     "FollowingAndMargin": "Following & Margin",
     "SetMargin": "Set Margin",
     "CurrencyUnit:MarginDisclaimer": "Warning: The margin type and values you enter are applied directly to the base price. The user is responsible for incorrect buy/sell prices resulting from wrong type/value entries; please review the values before saving.",
-    "Menu:PriceBoard": "Price Board",
+    "CurrencyUnit:CannotSetMarginOnLocal": "{0} is the local currency; margin cannot be applied to the local currency (rates are computed against it and it is always 1.00).",
     "Buy": "Buy",
     "Sell": "Sell",
     "RawBuy": "Raw Buy",
