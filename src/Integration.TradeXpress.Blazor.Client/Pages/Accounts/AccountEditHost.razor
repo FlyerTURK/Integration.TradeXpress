@@ -40,6 +40,9 @@
 @code {
     [Parameter] public Guid? Id { get; set; }
     [Parameter] public bool IsPopupMode { get; set; }
+    /// <summary>true (default): yeni Account'a otomatik bir default SubAccount eklenir. false: eklenmez
+    /// (ör. SubAccount manuel oluşturulurken account inline eklenirse çift kayıt olmasın).</summary>
+    [Parameter] public bool CreateChilds { get; set; } = true;
     [Parameter] public EventCallback OnSaved { get; set; }
     [Parameter] public EventCallback OnClosed { get; set; }
 
@@ -77,7 +80,7 @@
             m.BalanceCurrencyUnitId ??= b;
             m.LimitUnitId ??= b;
         }
-        if (m.SubAccounts.Count == 0)
+        if (CreateChilds && m.SubAccounts.Count == 0)
         {
             m.SubAccounts.Add(new SubAccountGraphDto
             {

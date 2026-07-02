@@ -29,7 +29,7 @@ public class UserScopedGrantAppService : TradeXpressAppService, IUserScopedGrant
         var query = (await _repository.GetQueryableAsync())
             .Where(g => g.UserId == userId && g.TenantId == CurrentTenant.Id);
         var items = await AsyncExecuter.ToListAsync(query);
-        return items.Select(ToDto).ToList();
+        return items.Select(g => ObjectMapper.Map<UserScopedGrant, UserScopedGrantDto>(g)).ToList();
     }
 
     public virtual async Task<UserScopedGrantDto> CreateAsync(UserScopedGrantCreateDto input)
@@ -38,10 +38,10 @@ public class UserScopedGrantAppService : TradeXpressAppService, IUserScopedGrant
         var entity = new UserScopedGrant(
             input.UserId, input.RoleId, input.PermissionName,
             input.CompanyId, input.BranchId, input.VaultId,
-            input.Mode, CurrentTenant.Id);
+            input.Mode);
 
         await _repository.InsertAsync(entity, autoSave: true);
-        return ToDto(entity);
+        return ObjectMapper.Map<UserScopedGrant, UserScopedGrantDto>(entity);
     }
 
     public virtual async Task DeleteAsync(Guid id)
@@ -51,16 +51,4 @@ public class UserScopedGrantAppService : TradeXpressAppService, IUserScopedGrant
             throw new EntityNotFoundException(typeof(UserScopedGrant), id);
         await _repository.DeleteAsync(entity, autoSave: true);
     }
-
-    private static UserScopedGrantDto ToDto(UserScopedGrant g) => new()
-    {
-        Id = g.Id,
-        UserId = g.UserId,
-        RoleId = g.RoleId,
-        PermissionName = g.PermissionName,
-        CompanyId = g.CompanyId,
-        BranchId = g.BranchId,
-        VaultId = g.VaultId,
-        Mode = g.Mode,
-    };
 }

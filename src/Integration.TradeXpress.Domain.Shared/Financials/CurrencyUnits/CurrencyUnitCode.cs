@@ -20,4 +20,5 @@ public static class CurrencyUnitCode
     public const string GUM = "GUM";   // Has gümüş (gram)
     public const string PLT = "PLT";   // Platin (Harem türetilmiş)
     public const string PLD = "PLD";   // Paladyum (Harem türetilmiş)
+    public const string Bullion = "TAKOZ";   // Raporsuz takoz PSEUDO-birimi (gerçek birim değil; [[bullion-consts]] Carpan ile HAS'a çevrilir)
 }

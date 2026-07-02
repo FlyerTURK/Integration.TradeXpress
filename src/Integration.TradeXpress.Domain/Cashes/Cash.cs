@@ -41,8 +41,6 @@ public class Cash : FullAuditedAggregateRoot<Guid>, IMultiTenant
     /// <summary>Takip edilen para birimi — nakit kaydının cinsi (FK, ZORUNLU).</summary>
     public virtual Guid FollowingUnitId { get; protected set; }
 
-    /// <summary>Takip edilen para birimi (navigation). Aggregate dışı referans; salt-okuma/traversal için.</summary>
-    public virtual CurrencyUnit? FollowingUnit { get; protected set; }
 
     public virtual string? Description { get; protected set; }
     public virtual bool IsActive { get; protected set; }
@@ -83,6 +81,11 @@ public class Cash : FullAuditedAggregateRoot<Guid>, IMultiTenant
     public virtual void SetActive(bool value)
     {
         IsActive = value;
+    }
+
+    public override string ToString()
+    {
+        return Code;
     }
 
     // Code immutable (public mutator YOK) → yalnız ctor için private normalize+validate.

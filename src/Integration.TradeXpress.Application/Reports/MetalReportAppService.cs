@@ -117,6 +117,111 @@ public class MetalReportAppService : TradeXpressAppService, IMetalReportAppServi
         return grouped.OrderBy(r => r.MetalCode).ToList();
     }
 
+    /// <summary>
+    /// Bilanço STOK(maden) için fiziksel maden holding'i: kapsam (şirket DAİMA ICurrentCompany'den) + branch/vault,
+    /// asOfExclusive'den ÖNCE birikmiş net, MainUnit(maden birimi)-bazında. Bacak çıkarımı tek kaynakta
+    /// (<see cref="QueryLegsAsync"/>; DRY). Net = FİZİKSEL holding (Amount @ MainUnit, tüm ödeme tipleri/Peşin dahil;
+    /// + = firma o madeni tutar). Cari metal (ledger/BAKIYE) AYRI boyut → çift sayım değil, offset. Değerleme merkezde.
+    /// </summary>
+    public virtual async Task<Dictionary<Guid, decimal>> GetMetalNetByUnitAsync(Guid? branchId, Guid? vaultId, DateTime asOfExclusive)
+    {
+        var legs = await QueryLegsAsync(
+            new MetalReportFilterDto { BranchId = branchId, VaultId = vaultId },
+            dateFiltered: false, endExclusiveOverride: asOfExclusive);
+        // HAS İÇERİĞİ = Effect × Factor (= sign × Amount × Factor = sign × Total). HAM gram (Amount) DEĞİL —
+        // MainUnit=HAS olduğundan değerleme HAS kuruyla yapılır; poster'ın cari'ye yazdığı Total ile BİREBİR offset.
+        // (Bilanço HAS-değerlemesi için Total gerekir; GetStockAsync'in Amount'u adet/gram raporu içindir.)
+        return legs.GroupBy(x => x.UnitId).ToDictionary(g => g.Key, g => g.Sum(x => x.Effect * x.Factor));
+    }
+
+    /// <summary>
+    /// Bilanço İŞÇİLİK (Labor) için: <b>on-hand (satılmamış) madenin işçilik MALİYETİ</b> (SERMAYE/VARLIK). Maden Normal/İade/Emanet
+    /// işçilik bacağı (PayUnit/PayTotal); maliyet **AĞIRLIKLI-ORTALAMA** (ERPPRO GetMadenMaliyeti paritesi): çıkış işçiliği SATIŞ fiyatıyla
+    /// DEĞİL, giriş-MALİYETİYLE düşer → metal başına işçilik = Σ(giriş işçilik) × (on-hand miktar / Σ giriş miktar). Para-birimi bazında döner;
+    /// merkez base'e (HAS) çevirir. <b>TOPLAM'a GİRER</b>; BAKİYE'deki işçilik cari'sini OFFSET eder. Hep ≥0 (varlık).
+    /// ✅ ERPPRO paritesi: alış 2500 → İŞÇİLİK +2500 (break-even); alış 2500 + satış 2800 → İŞÇİLİK 0 (satıldı), kâr +300 BAKİYE'de (KAR).
+    /// </summary>
+    public virtual async Task<Dictionary<Guid, decimal>> GetMetalLaborByUnitAsync(Guid? branchId, Guid? vaultId, DateTime asOfExclusive)
+    {
+        if (LazyServiceProvider.LazyGetRequiredService<ICurrentCompany>().Id is not { } companyId)
+            return new Dictionary<Guid, decimal>();
+
+        var q = await _voucherRepository.GetQueryableAsync();
+        var rows = await AsyncExecuter.ToListAsync(
+            from v in q
+            where v.CompanyId == companyId
+               && (branchId == null || v.BranchId == branchId)
+               && (vaultId == null || v.VaultId == vaultId)
+               && v.VoucherDate < asOfExclusive
+            from l in v.Lines
+            where !l.IsDeleted && l.Type == ProcessType.Metal
+               && (l.PaymentType == ProcessPaymentType.Normal
+                   || l.PaymentType == ProcessPaymentType.Return
+                   || l.PaymentType == ProcessPaymentType.Consignment)
+               && l.CommodityId != null && l.PayUnitId != null && l.PayTotal != 0m
+            select new { CommodityId = l.CommodityId!.Value, PayUnitId = l.PayUnitId!.Value, l.Direction, l.PayTotal, l.Amount });
+
+        // On-hand işçilik MALİYETİ (ağırlıklı-ortalama, cost-inventory): metal başına Σ(giriş işçilik) × (on-hand miktar / Σ giriş miktar).
+        // Çıkış işçiliği maliyetle düşer → tüm stok satılınca işçilik 0, kâr BAKİYE'de görünür (ERPPRO GetMadenMaliyeti paritesi).
+        var result = new Dictionary<Guid, decimal>();
+        foreach (var g in rows.GroupBy(r => new { r.CommodityId, r.PayUnitId }))
+        {
+            var girisLabor = g.Where(r => ((int)r.Direction % 2) == 0).Sum(r => r.PayTotal);   // giriş işçilik maliyeti
+            var girisQty   = g.Where(r => ((int)r.Direction % 2) == 0).Sum(r => r.Amount);      // giriş miktar (terazi/adet)
+            var cikisQty   = g.Where(r => ((int)r.Direction % 2) != 0).Sum(r => r.Amount);      // çıkış miktar
+            if (girisQty <= 0m) continue;
+            var onHand = girisLabor * Math.Max(0m, girisQty - cikisQty) / girisQty;             // satılmamış kısmın işçilik maliyeti
+            result[g.Key.PayUnitId] = result.GetValueOrDefault(g.Key.PayUnitId) + onHand;
+        }
+        return result;
+    }
+
+    /// <summary>DRILL — metal FİZİKSEL stok, COMMODITY (metal kodu) bazında, tek birim için (bilanço Stok popup). Net = Σ(Effect×Factor) @ unit.</summary>
+    public virtual async Task<Dictionary<string, decimal>> GetMetalStockByCommodityAsync(Guid? branchId, Guid unitId, DateTime asOfExclusive)
+    {
+        var legs = await QueryLegsAsync(
+            new MetalReportFilterDto { BranchId = branchId },
+            dateFiltered: false, endExclusiveOverride: asOfExclusive);
+        return legs.Where(x => x.UnitId == unitId)
+            .GroupBy(x => x.CommodityCode ?? "?")
+            .Select(g => new { Code = g.Key, Net = g.Sum(x => x.Effect * x.Factor) })
+            .Where(x => x.Net != 0m)
+            .ToDictionary(x => x.Code, x => x.Net);
+    }
+
+    /// <summary>DRILL — metal İŞÇİLİK maliyeti (on-hand), COMMODITY bazında, tek PayUnit için (bilanço İşçilik popup). GetMetalLaborByUnitAsync paritesi, metal-kodu kırılımı.</summary>
+    public virtual async Task<Dictionary<string, decimal>> GetMetalLaborByCommodityAsync(Guid? branchId, Guid unitId, DateTime asOfExclusive)
+    {
+        if (LazyServiceProvider.LazyGetRequiredService<ICurrentCompany>().Id is not { } companyId)
+            return new Dictionary<string, decimal>();
+
+        var q = await _voucherRepository.GetQueryableAsync();
+        var rows = await AsyncExecuter.ToListAsync(
+            from v in q
+            where v.CompanyId == companyId
+               && (branchId == null || v.BranchId == branchId)
+               && v.VoucherDate < asOfExclusive
+            from l in v.Lines
+            where !l.IsDeleted && l.Type == ProcessType.Metal
+               && (l.PaymentType == ProcessPaymentType.Normal
+                   || l.PaymentType == ProcessPaymentType.Return
+                   || l.PaymentType == ProcessPaymentType.Consignment)
+               && l.CommodityId != null && l.PayUnitId == unitId && l.PayTotal != 0m
+            select new { l.CommodityCode, l.Direction, l.PayTotal, l.Amount });
+
+        var result = new Dictionary<string, decimal>();
+        foreach (var g in rows.GroupBy(r => r.CommodityCode ?? "?"))
+        {
+            var girisLabor = g.Where(r => ((int)r.Direction % 2) == 0).Sum(r => r.PayTotal);
+            var girisQty   = g.Where(r => ((int)r.Direction % 2) == 0).Sum(r => r.Amount);
+            var cikisQty   = g.Where(r => ((int)r.Direction % 2) != 0).Sum(r => r.Amount);
+            if (girisQty <= 0m) continue;
+            var onHand = girisLabor * Math.Max(0m, girisQty - cikisQty) / girisQty;
+            if (onHand != 0m) result[g.Key] = result.GetValueOrDefault(g.Key) + onHand;
+        }
+        return result;
+    }
+
     // ────────────────────────────────────────────────────────────────────────────────
     //  Hareketler
     // ────────────────────────────────────────────────────────────────────────────────

@@ -54,8 +54,7 @@ public class OrgTreeManager : DomainService
             BranchConsts.DefaultHeadquartersCode,
             BranchConsts.DefaultHeadquartersName,
             isHeadquarters: true,
-            displayOrder: 1,
-            tenantId: company.TenantId);
+            displayOrder: 1);
 
         await _branchRepository.InsertAsync(branch, autoSave: true);
         await EnsureDefaultVaultAsync(branch);
@@ -90,8 +89,7 @@ public class OrgTreeManager : DomainService
             VaultConsts.DefaultCode,
             VaultConsts.DefaultName,
             isDefault: true,
-            displayOrder: 1,
-            tenantId: branch.TenantId);
+            displayOrder: 1);
 
         await _vaultRepository.InsertAsync(vault, autoSave: true);
         return vault;

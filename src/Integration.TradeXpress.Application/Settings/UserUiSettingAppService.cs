@@ -50,7 +50,7 @@ public class UserUiSettingAppService : TradeXpressAppService, IUserUiSettingAppS
             if (entity == null)
             {
                 await _gridLayoutRepository.InsertAsync(
-                    new UserGridLayout(userId, gridKey, stateJson, CurrentTenant.Id), autoSave: true);
+                    new UserGridLayout(userId, gridKey, stateJson), autoSave: true);
             }
             else
             {

@@ -1,0 +1,29 @@
+@page "/assay-offices"
+@using Integration.Framework.Blazor.Client.Components.Crud
+@using Integration.TradeXpress.AssayOffices
+@using DevExpress.Blazor
+@inherits CrudPageBase<AssayOfficeGetDto, AssayOfficeListDto, Guid, AssayOfficeListRequestDto, AssayOfficeCreateDto, AssayOfficeUpdateDto>
+
+<CrudLayout TGetDto="AssayOfficeGetDto"
+            TListDto="AssayOfficeListDto"
+            TKey="Guid"
+            StateService="StateService"
+            DataSource="@GridDataSource"
+            EntityName="@L["AssayOffice"]"
+            EntityIcon="custom-icon-bullion"
+            PrimaryTextSelector="@(m => m.Code)"
+            PageTitle="@L["AssayOffices"]"
+            OnNewClick="BeforeCreateAsync"
+            OnUpdateClick="BeforeUpdateAsync"
+            OnDeleteClick="DeleteAsync"
+            OnRefreshClick="GetListAsync"
+            OnSearchChanged="OnSearchAsync">
+
+    <GridColumns>
+        <GridLinkColumn FieldName="Code" Caption="@L["Code"]" Width="120px" FixedPosition="GridColumnFixedPosition.Left" VisibleIndex="1"
+                        OnClick="@(o => BeforeUpdateAsync((AssayOfficeListDto)o))" />
+        <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" VisibleIndex="2" MinWidth="200" />
+        <DxGridDataColumn FieldName="DisplayOrder" Caption="@L["DisplayOrder"]" Width="110px" VisibleIndex="3" />
+    </GridColumns>
+
+</CrudLayout>

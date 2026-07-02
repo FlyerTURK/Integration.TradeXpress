@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
+using Integration.TradeXpress.Bullions;
 using Integration.TradeXpress.Vouchers;
 
 namespace Integration.TradeXpress.Vouchers;
@@ -64,6 +65,40 @@ public class VoucherLineDto
     public DateTime? DueDate { get; set; }
     [StringLength(VoucherConsts.DescriptionMaxLength)]
     public string? Description { get; set; }
+
+    // ── TAKOZ (Bullion) — ProcessType.Bullion satırına özel (diğer tiplerde null) ──
+    public BullionType? BullionType { get; set; }
+    public Guid? AssayOfficeId { get; set; }
+    public string? ReportNo { get; set; }
+    public bool? IsReport { get; set; }
+    public bool? IsExtra { get; set; }
+    public decimal? AssayAmount { get; set; }
+    public decimal? SilverFactor { get; set; }
+    public decimal? PlatinumFactor { get; set; }
+    public decimal? PalladiumFactor { get; set; }
+    public MetalDisposition? SilverMode { get; set; }
+    public MetalDisposition? PlatinumMode { get; set; }
+    public MetalDisposition? PalladiumMode { get; set; }
+    public BullionLaborMode? LaborMode { get; set; }
+    public decimal? SilverLaborRate { get; set; }
+    public decimal? PlatinumLaborRate { get; set; }
+    public decimal? PalladiumLaborRate { get; set; }
+    public Guid? GoldLaborUnitId { get; set; }
+    public Guid? SilverLaborUnitId { get; set; }
+    public Guid? PlatinumLaborUnitId { get; set; }
+    public Guid? PalladiumLaborUnitId { get; set; }
+    public Guid? SilverUnitId { get; set; }
+    public Guid? PlatinumUnitId { get; set; }
+    public Guid? PalladiumUnitId { get; set; }
+    public decimal? GoldRate { get; set; }
+    public decimal? SilverRate { get; set; }
+    public decimal? PlatinumRate { get; set; }
+    public decimal? PalladiumRate { get; set; }
+    public decimal? GoldLaborUnitRate { get; set; }
+    public decimal? SilverLaborUnitRate { get; set; }
+    public decimal? PlatinumLaborUnitRate { get; set; }
+    public decimal? PalladiumLaborUnitRate { get; set; }
+
     public DateTime CreationTime { get; set; }
     public Guid? CreatorId { get; set; }
     public string? CreatorName { get; set; }

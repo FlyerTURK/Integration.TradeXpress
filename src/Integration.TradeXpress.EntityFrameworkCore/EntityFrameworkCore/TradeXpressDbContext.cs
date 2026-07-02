@@ -21,6 +21,8 @@ using Integration.TradeXpress.Companies;
 using Integration.TradeXpress.Countries;
 using Integration.TradeXpress.Branches;
 using Integration.TradeXpress.Vaults;
+using Integration.TradeXpress.AssayOffices;
+using Integration.TradeXpress.Scheduling;
 using Integration.TradeXpress.Cashes;
 using Integration.TradeXpress.Accounts;
 using Integration.TradeXpress.Vouchers;
@@ -50,6 +52,8 @@ public class TradeXpressDbContext :
     public DbSet<Country> Countries { get; set; } = null!;
     public DbSet<Branch> Branches { get; set; } = null!;
     public DbSet<Vault> Vaults { get; set; } = null!;
+    public DbSet<AssayOffice> AssayOffices { get; set; } = null!;
+    public DbSet<SchedulerAppointment> SchedulerAppointments { get; set; } = null!;
     public DbSet<Cash> Cashes { get; set; } = null!;
     public DbSet<Service> Services { get; set; } = null!;
     public DbSet<Future> Futures { get; set; } = null!;
@@ -124,6 +128,8 @@ public class TradeXpressDbContext :
         builder.ConfigureCountries();
         builder.ConfigureBranches();
         builder.ConfigureVaults();
+        builder.ConfigureAssayOffices();
+        builder.ConfigureSchedulerAppointments();
         builder.ConfigureCashes();
         builder.ConfigureServices();
         builder.ConfigureFutures();

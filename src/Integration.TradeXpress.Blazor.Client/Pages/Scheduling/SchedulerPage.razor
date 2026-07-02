@@ -1,0 +1,73 @@
+@page "/scheduler"
+@using DevExpress.Blazor
+@using Integration.TradeXpress.Scheduling
+@inject ISchedulerAppointmentAppService AppointmentService
+
+@*
+   Takvim (DevExpress DxScheduler) — company-scoped randevular. DataStorage AppointmentsSource'u
+   AppService'ten yüklenir; ekle/güncelle/sil event'leri (AppointmentInserted/Updated/Removed) →
+   e.SourceObject (SchedulerAppointmentDto) ile AppService'e persist edilir. İleride: tarih-aralığı
+   yüklemesi, kaynak (resource), filtreler, cari/şube ilişkisi.
+*@
+
+<div style="height: 100%; min-height: 640px; display: flex; flex-direction: column;">
+    <DxScheduler StartDate="@DateTime.Today"
+                 DataStorage="@_dataStorage"
+                 AppointmentInserted="@OnAppointmentInserted"
+                 AppointmentUpdated="@OnAppointmentUpdated"
+                 AppointmentRemoved="@OnAppointmentRemoved"
+                 CssClass="flex-grow-1">
+        <Views>
+            <DxSchedulerDayView />
+            <DxSchedulerWorkWeekView ShowWorkTimeOnly="false" />
+            <DxSchedulerWeekView />
+            <DxSchedulerMonthView />
+        </Views>
+    </DxScheduler>
+</div>
+
+@code {
+    // Alan adları SchedulerAppointmentDto ile birebir (nameof) — kırılgan string yok.
+    private readonly DxSchedulerDataStorage _dataStorage = new()
+    {
+        AppointmentMappings = new DxSchedulerAppointmentMappings
+        {
+            Id             = nameof(SchedulerAppointmentDto.Id),
+            Start          = nameof(SchedulerAppointmentDto.StartTime),
+            End            = nameof(SchedulerAppointmentDto.EndTime),
+            Subject        = nameof(SchedulerAppointmentDto.Subject),
+            Description    = nameof(SchedulerAppointmentDto.Description),
+            Location       = nameof(SchedulerAppointmentDto.Location),
+            AllDay         = nameof(SchedulerAppointmentDto.AllDay),
+            LabelId        = nameof(SchedulerAppointmentDto.Label),
+            StatusId       = nameof(SchedulerAppointmentDto.Status),
+            Type           = nameof(SchedulerAppointmentDto.AppointmentType),
+            RecurrenceInfo = nameof(SchedulerAppointmentDto.RecurrenceInfo),
+        }
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        _dataStorage.AppointmentsSource = await AppointmentService.GetListAsync();
+    }
+
+    // Ekle → server Id atar, kaynak nesneye geri yaz (sonraki update/delete doğru Id'yi taşısın).
+    private async Task OnAppointmentInserted(DxSchedulerAppointmentItem e)
+    {
+        if (e.SourceObject is not SchedulerAppointmentDto dto) return;
+        var created = await AppointmentService.CreateAsync(dto);
+        dto.Id = created.Id;
+    }
+
+    private async Task OnAppointmentUpdated(DxSchedulerAppointmentItem e)
+    {
+        if (e.SourceObject is SchedulerAppointmentDto dto)
+            await AppointmentService.UpdateAsync(dto);
+    }
+
+    private async Task OnAppointmentRemoved(DxSchedulerAppointmentItem e)
+    {
+        if (e.SourceObject is SchedulerAppointmentDto dto)
+            await AppointmentService.DeleteAsync(dto.Id);
+    }
+}

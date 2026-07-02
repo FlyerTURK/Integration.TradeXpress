@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Integration.TradeXpress.Accounts;
 using Integration.TradeXpress.Branches;
+using Integration.TradeXpress.Bullions;
 using Integration.TradeXpress.Financials.CurrencyUnits;
 using Integration.TradeXpress.Financials.Parities;
 using Integration.TradeXpress.Vaults;
@@ -469,7 +470,14 @@ public class VoucherAppService : TradeXpressAppService, IVoucherAppService
                      .ThenBy(u => u.Code)
                      .Select(u => new { u.Id, u.Code }));
 
-            return ordered.Select(u => (u.Id, u.Code)).ToList();
+            var result = ordered.Select(u => (u.Id, u.Code)).ToList();
+
+            // TAKOZ pseudo-birim (gerçek CurrencyUnit DEĞİL → tabloda yok): bakiye listesinde DAİMA EN BAŞTA
+            // görünür (bakiye olmasa da 0; kullanıcı kararı). Önce varsa çıkar, sonra başa ekle.
+            result.RemoveAll(r => r.Id == BullionConsts.PseudoUnitId);
+            result.Insert(0, (BullionConsts.PseudoUnitId, CurrencyUnitCode.Bullion));
+
+            return result;
         }
     }
 
@@ -501,7 +509,38 @@ public class VoucherAppService : TradeXpressAppService, IVoucherAppService
         PayUnitId:        i.PayUnitId,
         PayUnitRate:      i.PayUnitRate,
         DueDate:          i.DueDate,
-        Description:      i.Description);
+        Description:      i.Description,
+        BullionType:            i.BullionType,
+        AssayOfficeId:          i.AssayOfficeId,
+        ReportNo:               i.ReportNo,
+        IsReport:               i.IsReport,
+        IsExtra:                i.IsExtra,
+        AssayAmount:            i.AssayAmount,
+        SilverFactor:           i.SilverFactor,
+        PlatinumFactor:         i.PlatinumFactor,
+        PalladiumFactor:        i.PalladiumFactor,
+        SilverMode:             i.SilverMode,
+        PlatinumMode:           i.PlatinumMode,
+        PalladiumMode:          i.PalladiumMode,
+        LaborMode:              i.LaborMode,
+        SilverLaborRate:        i.SilverLaborRate,
+        PlatinumLaborRate:      i.PlatinumLaborRate,
+        PalladiumLaborRate:     i.PalladiumLaborRate,
+        GoldLaborUnitId:        i.GoldLaborUnitId,
+        SilverLaborUnitId:      i.SilverLaborUnitId,
+        PlatinumLaborUnitId:    i.PlatinumLaborUnitId,
+        PalladiumLaborUnitId:   i.PalladiumLaborUnitId,
+        SilverUnitId:           i.SilverUnitId,
+        PlatinumUnitId:         i.PlatinumUnitId,
+        PalladiumUnitId:        i.PalladiumUnitId,
+        GoldRate:               i.GoldRate,
+        SilverRate:             i.SilverRate,
+        PlatinumRate:           i.PlatinumRate,
+        PalladiumRate:          i.PalladiumRate,
+        GoldLaborUnitRate:      i.GoldLaborUnitRate,
+        SilverLaborUnitRate:    i.SilverLaborUnitRate,
+        PlatinumLaborUnitRate:  i.PlatinumLaborUnitRate,
+        PalladiumLaborUnitRate: i.PalladiumLaborUnitRate);
 
     public async Task DeleteAsync(Guid id)
     {

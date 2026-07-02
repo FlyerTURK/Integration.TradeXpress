@@ -60,6 +60,22 @@ public static class TradeXpressPermissions
         public const string Delete  = Default + ".Delete";
     }
 
+    public static class AssayOffices
+    {
+        public const string Default = GroupName + ".AssayOffices";
+        public const string Create  = Default + ".Create";
+        public const string Update  = Default + ".Update";
+        public const string Delete  = Default + ".Delete";
+    }
+
+    public static class Appointments
+    {
+        public const string Default = GroupName + ".Appointments";
+        public const string Create  = Default + ".Create";
+        public const string Update  = Default + ".Update";
+        public const string Delete  = Default + ".Delete";
+    }
+
     public static class Cashes
     {
         public const string Default = GroupName + ".Cashes";
@@ -87,6 +103,7 @@ public static class TradeXpressPermissions
     public static class Reports
     {
         public const string Default  = GroupName + ".Reports";
-        public const string Position = Default + ".Position";
+        public const string Position    = Default + ".Position";
+        public const string BalanceSheet = Default + ".BalanceSheet";
     }
 }

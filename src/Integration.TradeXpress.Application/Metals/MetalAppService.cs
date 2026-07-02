@@ -56,7 +56,7 @@ public class MetalAppService : TradeXpressAppService, IMetalAppService
             var explicitSort = (input.Sorts is { Count: > 0 }) || !string.IsNullOrWhiteSpace(input.Sorting);
             var ordered = explicitSort ? all : all.OrderBy(m => m.Code, StringComparer.OrdinalIgnoreCase).ToList();
 
-            var dtos = ordered.Skip(input.SkipCount).Take(input.MaxResultCount).Select(ToListDto).ToList();
+            var dtos = ordered.Skip(input.SkipCount).Take(input.MaxResultCount).Select(MapList).ToList();
             ApplyUnitCodes(dtos, orders);
             return new PagedResultDto<MetalListDto>(totalCount, dtos);
         }
@@ -65,7 +65,7 @@ public class MetalAppService : TradeXpressAppService, IMetalAppService
     public virtual async Task<MetalGetDto> GetAsync(Guid id)
     {
         var entity = await GetInScopeAsync(id);
-        var dto = ToGetDto(entity);
+        var dto = MapGet(entity);
         dto.FollowingUnitCode = await ResolveUnitCodeAsync(entity.FollowingUnitId);
         return dto;
     }
@@ -84,7 +84,7 @@ public class MetalAppService : TradeXpressAppService, IMetalAppService
         entity.SetDescription(input.Description);
 
         await _repository.InsertAsync(entity, autoSave: true);
-        return ToGetDto(entity);
+        return MapGet(entity);
     }
 
     public virtual async Task<MetalGetDto> UpdateAsync(Guid id, MetalUpdateDto input)
@@ -107,7 +107,7 @@ public class MetalAppService : TradeXpressAppService, IMetalAppService
         entity.SetActive(input.IsActive);
 
         await _repository.UpdateAsync(entity, autoSave: true);
-        return ToGetDto(entity);
+        return MapGet(entity);
     }
 
     public virtual async Task DeleteAsync(Guid id)
@@ -127,7 +127,7 @@ public class MetalAppService : TradeXpressAppService, IMetalAppService
                     .Where(x => x.TenantId == null || x.TenantId == tenantId));
 
             var orders = await GetUnitOrdersAsync(rows.Select(m => m.FollowingUnitId));
-            var dtos = OrderComposite(rows, orders).Select(ToListDto).ToList();
+            var dtos = OrderComposite(rows, orders).Select(MapList).ToList();
             ApplyUnitCodes(dtos, orders);
             return dtos;
         }
@@ -210,51 +210,18 @@ public class MetalAppService : TradeXpressAppService, IMetalAppService
         }
     }
 
-    private static MetalListDto ToListDto(Metal m) => new()
+    // Mapperly + IsGlobal enrichment (FollowingUnitCode ayrıca ApplyUnitCodes/ResolveUnitCode ile). Instance → net'i tetiklemez.
+    private MetalListDto MapList(Metal m)
     {
-        Id               = m.Id,
-        Code             = m.Code,
-        Name             = m.Name,
-        FollowingUnitId  = m.FollowingUnitId,
-        Factor           = m.Factor,
-        FactorChange     = m.FactorChange,
-        IsQuantity       = m.IsQuantity,
-        StableQuantity   = m.StableQuantity,
-        LaborType        = m.LaborType,
-        LaborTypeChange  = m.LaborTypeChange,
-        EntryLabor       = m.EntryLabor,
-        EntryLaborUnitId = m.EntryLaborUnitId,
-        EntryLaborChange = m.EntryLaborChange,
-        ExitLabor        = m.ExitLabor,
-        ExitLaborUnitId  = m.ExitLaborUnitId,
-        ExitLaborChange  = m.ExitLaborChange,
-        CostUnitId       = m.CostUnitId,
-        IsActive         = m.IsActive,
-        IsGlobal         = m.TenantId == null,
-    };
+        var dto = ObjectMapper.Map<Metal, MetalListDto>(m);
+        dto.IsGlobal = m.TenantId == null;
+        return dto;
+    }
 
-    private static MetalGetDto ToGetDto(Metal m) => new()
+    private MetalGetDto MapGet(Metal m)
     {
-        Id               = m.Id,
-        Code             = m.Code,
-        Name             = m.Name,
-        FollowingUnitId  = m.FollowingUnitId,
-        Factor           = m.Factor,
-        FactorChange     = m.FactorChange,
-        IsQuantity       = m.IsQuantity,
-        StableQuantity   = m.StableQuantity,
-        LaborType        = m.LaborType,
-        LaborTypeChange  = m.LaborTypeChange,
-        EntryLabor       = m.EntryLabor,
-        EntryLaborUnitId = m.EntryLaborUnitId,
-        EntryLaborChange = m.EntryLaborChange,
-        ExitLabor        = m.ExitLabor,
-        ExitLaborUnitId  = m.ExitLaborUnitId,
-        ExitLaborChange  = m.ExitLaborChange,
-        CostUnitId       = m.CostUnitId,
-        Barcode          = m.Barcode,
-        Description      = m.Description,
-        IsActive         = m.IsActive,
-        IsGlobal         = m.TenantId == null,
-    };
+        var dto = ObjectMapper.Map<Metal, MetalGetDto>(m);
+        dto.IsGlobal = m.TenantId == null;
+        return dto;
+    }
 }

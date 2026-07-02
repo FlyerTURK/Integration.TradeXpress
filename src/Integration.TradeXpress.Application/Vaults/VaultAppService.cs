@@ -95,8 +95,7 @@ public class VaultAppService : TradeXpressAppService, IVaultAppService
             input.Code,
             input.Name,
             isDefault: input.IsDefault,
-            displayOrder: input.DisplayOrder,
-            tenantId: CurrentTenant.Id);
+            displayOrder: input.DisplayOrder);
         v.SetDescription(input.Description);
 
         await _repository.InsertAsync(v, autoSave: true);
@@ -118,7 +117,7 @@ public class VaultAppService : TradeXpressAppService, IVaultAppService
         v.SetDescription(input.Description);
         v.SetDisplayOrder(input.DisplayOrder);
         v.SetAsDefault(input.IsDefault);
-        if (input.IsActive) v.Activate(); else v.Deactivate();
+        v.SetActive(input.IsActive);
 
         await _repository.UpdateAsync(v, autoSave: true);
 

@@ -1,4 +1,5 @@
 using System;
+using Integration.TradeXpress.Bullions;
 
 namespace Integration.TradeXpress.Vouchers;
 
@@ -27,4 +28,37 @@ public sealed record VoucherLineInput(
     Guid?                PayUnitId,
     decimal              PayUnitRate,
     DateTime?            DueDate,
-    string?              Description);
+    string?              Description,
+
+    // ── Takoz (Bullion) — diğer tiplerde null/default ──
+    BullionType?         BullionType            = null,
+    Guid?                AssayOfficeId          = null,
+    string?              ReportNo               = null,
+    bool?                IsReport               = null,
+    bool?                IsExtra                = null,
+    decimal?             AssayAmount            = null,
+    decimal?             SilverFactor           = null,
+    decimal?             PlatinumFactor         = null,
+    decimal?             PalladiumFactor        = null,
+    MetalDisposition?    SilverMode             = null,
+    MetalDisposition?    PlatinumMode           = null,
+    MetalDisposition?    PalladiumMode          = null,
+    BullionLaborMode?    LaborMode              = null,
+    decimal?             SilverLaborRate        = null,
+    decimal?             PlatinumLaborRate      = null,
+    decimal?             PalladiumLaborRate     = null,
+    Guid?                GoldLaborUnitId        = null,
+    Guid?                SilverLaborUnitId      = null,
+    Guid?                PlatinumLaborUnitId    = null,
+    Guid?                PalladiumLaborUnitId   = null,
+    Guid?                SilverUnitId           = null,
+    Guid?                PlatinumUnitId         = null,
+    Guid?                PalladiumUnitId        = null,
+    decimal?             GoldRate               = null,
+    decimal?             SilverRate             = null,
+    decimal?             PlatinumRate           = null,
+    decimal?             PalladiumRate          = null,
+    decimal?             GoldLaborUnitRate      = null,
+    decimal?             SilverLaborUnitRate    = null,
+    decimal?             PlatinumLaborUnitRate  = null,
+    decimal?             PalladiumLaborUnitRate = null);

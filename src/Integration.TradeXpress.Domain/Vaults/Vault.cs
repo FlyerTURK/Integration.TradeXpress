@@ -32,15 +32,13 @@ public class Vault : FullAuditedAggregateRoot<Guid>, IMultiTenant
         string code,
         string name,
         bool isDefault = false,
-        int displayOrder = 0,
-        Guid? tenantId = null)
+        int displayOrder = 0)
     {
         SetBranch(branchId);
         SetCode(code);
         SetName(name);
         IsDefault = isDefault;
         DisplayOrder = displayOrder;
-        TenantId = tenantId;
         IsActive = true;
     }
 
@@ -65,8 +63,16 @@ public class Vault : FullAuditedAggregateRoot<Guid>, IMultiTenant
         Description = description;
     }
 
-    public virtual void Activate() => IsActive = true;
-    public virtual void Deactivate() => IsActive = false;
+    public virtual void SetActive(bool value)
+    {
+        IsActive = value;
+    }
+
     public virtual void SetAsDefault(bool isDefault) => IsDefault = isDefault;
     public virtual void SetDisplayOrder(int order) => DisplayOrder = order;
+
+    public override string ToString()
+    {
+        return Code;
+    }
 }

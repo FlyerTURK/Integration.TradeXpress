@@ -157,12 +157,12 @@ public class EffectivePriceAppService : TradeXpressAppService, IEffectivePriceAp
     /// farklı olabildiğinden pozisyon raporu bunu kullanır. <see cref="GetValuationAsync"/>'in
     /// base-param genelleştirmesi. Boş id ya da base efektifi (feed) yoksa boş liste.
     /// </summary>
-    public virtual async Task<List<ValuationPriceDto>> GetValuationByBaseAsync(Guid baseCurrencyUnitId)
+    public virtual async Task<List<ValuationPriceDto>> GetValuationByBaseAsync(Guid baseCurrencyUnitId, DateTime? asOf = null)
     {
         if (baseCurrencyUnitId == Guid.Empty)
             return new List<ValuationPriceDto>();
 
-        var prices = await ComputeEffectiveAsync();
+        var prices = await ComputeEffectiveAsync(asOf);
         return await ReBaseToAsync(prices, baseCurrencyUnitId);
     }
 
@@ -205,9 +205,14 @@ public class EffectivePriceAppService : TradeXpressAppService, IEffectivePriceAp
     private sealed record EffPrice(CurrencyUnit Unit, CurrencyPrice Eff, CurrencyPrice Raw, DateTime RateDate,
         MarginSetting AppliedBuy, MarginSetting AppliedSell);
 
-    private async Task<List<EffPrice>> ComputeEffectiveAsync()
+    private async Task<List<EffPrice>> ComputeEffectiveAsync(DateTime? asOf = null)
     {
         var viewer = CurrentTenant.Id;
+
+        // As-of değerleme: geçmiş bir gün istenirse canlı tick (yalnız "şimdi") ATLANIR ve ham kur/marj o tarihe göre
+        // seçilir. cutoff = asOf gününün SONU (RateDate < ertesi gün ⇒ asOf günü dahil). null ⇒ güncel davranış (kayıtsız).
+        bool historical = asOf is { } a && a.Date < DateTime.Now.Date;
+        DateTime? cutoff = asOf is { } ao ? ao.Date.AddDays(1) : (DateTime?)null;
 
         using (DataFilter.Disable<IMultiTenant>())
         {
@@ -215,12 +220,14 @@ public class EffectivePriceAppService : TradeXpressAppService, IEffectivePriceAp
                 (await _unitRepository.GetQueryableAsync())
                     .Where(u => u.TenantId == null || u.TenantId == viewer));
 
-            var rawRows = await AsyncExecuter.ToListAsync(
-                (await _rateRepository.GetQueryableAsync()).Where(r => r.TenantId == null));
+            var rawQuery = (await _rateRepository.GetQueryableAsync()).Where(r => r.TenantId == null);
+            if (cutoff is { } rc) rawQuery = rawQuery.Where(r => r.RateDate < rc);   // as-of: o tarihe kadar bilinen kur (GetLastKur)
+            var rawRows = await AsyncExecuter.ToListAsync(rawQuery);
             var latestRaw = LatestBy(rawRows, r => r.CurrencyUnitId, r => r.RateDate, r => r.Id);
 
-            var hostMarginRows = await AsyncExecuter.ToListAsync(
-                (await _marginRepository.GetQueryableAsync()).Where(m => m.TenantId == null));
+            var hostMarginQuery = (await _marginRepository.GetQueryableAsync()).Where(m => m.TenantId == null);
+            if (cutoff is { } hc) hostMarginQuery = hostMarginQuery.Where(m => m.CreationTime < hc);   // as-of marj kademesi
+            var hostMarginRows = await AsyncExecuter.ToListAsync(hostMarginQuery);
             var hostMargin = LatestBy(hostMarginRows, m => m.CurrencyUnitId, m => m.CreationTime, m => m.Id);
 
             // Viewer (tenant) marjı COMPANY bazlı: working company'nin marjı uygulanır (branch DEĞİL).
@@ -229,9 +236,10 @@ public class EffectivePriceAppService : TradeXpressAppService, IEffectivePriceAp
             Dictionary<Guid, CurrencyUnitMargin> viewerMargin = new();
             if (viewer != null && _currentCompany.Id is { } workingCompanyId)
             {
-                var viewerRows = await AsyncExecuter.ToListAsync(
-                    (await _marginRepository.GetQueryableAsync())
-                        .Where(m => m.TenantId == viewer && m.CompanyId == workingCompanyId));
+                var viewerQuery = (await _marginRepository.GetQueryableAsync())
+                    .Where(m => m.TenantId == viewer && m.CompanyId == workingCompanyId);
+                if (cutoff is { } vc) viewerQuery = viewerQuery.Where(m => m.CreationTime < vc);   // as-of marj kademesi
+                var viewerRows = await AsyncExecuter.ToListAsync(viewerQuery);
                 viewerMargin = LatestBy(viewerRows, m => m.CurrencyUnitId, m => m.CreationTime, m => m.Id);
             }
 
@@ -253,7 +261,7 @@ public class EffectivePriceAppService : TradeXpressAppService, IEffectivePriceAp
                     // Ham fiyat: önce CANLI cache (sub-dakika), yoksa DB 15-dk snapshot, yoksa TAKİP türevi.
                     CurrencyPrice raw;
                     DateTime rateDate;
-                    if (live.TryGetValue(unit.Code, out var q) && q.Buy > 0m && q.Sell > 0m)
+                    if (!historical && live.TryGetValue(unit.Code, out var q) && q.Buy > 0m && q.Sell > 0m)
                     {
                         raw = CurrencyPriceCalculator.Guard(q.Buy, q.Sell);
                         rateDate = q.UpdatedAtUtc ?? DateTime.UtcNow;
@@ -328,6 +336,22 @@ public class EffectivePriceAppService : TradeXpressAppService, IEffectivePriceAp
     /// Tek kaynak <see cref="LocalCurrencyResolver"/> (kur görüntüsü + marj guard ortak kullanır).</summary>
     private Task<string?> ResolveLocalCurrencyCodeAsync()
         => _localCurrencyResolver.ResolveCodeAsync();
+
+    /// <inheritdoc />
+    public async Task<Guid?> GetWorkingLocalCurrencyUnitIdAsync()
+    {
+        var code = await ResolveLocalCurrencyCodeAsync();
+        if (string.IsNullOrEmpty(code))
+            return null;
+
+        using (DataFilter.Disable<IMultiTenant>())
+        {
+            return await AsyncExecuter.FirstOrDefaultAsync(
+                (await _unitRepository.GetQueryableAsync())
+                    .Where(x => x.Code == code)
+                    .Select(x => (Guid?)x.Id));
+        }
+    }
 
     /// <summary>Görünür parite çiftlerini (host null ‖ viewer tenant) (Base,Quote) Id listesi olarak yükler —
     /// <see cref="ParityResolver"/>'ın yön/bağlantı (≤3 seviye) çözümü için.</summary>

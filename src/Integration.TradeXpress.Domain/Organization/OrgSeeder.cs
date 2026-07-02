@@ -88,8 +88,7 @@ public class OrgSeeder(
                 countryCode: "TR",
                 baseCurrencyUnitId: baseCurrencyUnitId,
                 isHeadquarters: true,
-                displayOrder: 1,
-                tenantId: owner);
+                displayOrder: 1);
         }
     }
 

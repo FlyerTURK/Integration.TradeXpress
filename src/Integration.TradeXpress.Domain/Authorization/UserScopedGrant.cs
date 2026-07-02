@@ -46,8 +46,7 @@ public class UserScopedGrant : FullAuditedAggregateRoot<Guid>, IMultiTenant
         Guid? companyId,
         Guid? branchId,
         Guid? vaultId,
-        ScopedGrantMode mode = ScopedGrantMode.Grant,
-        Guid? tenantId = null)
+        ScopedGrantMode mode = ScopedGrantMode.Grant)
     {
         if (userId == Guid.Empty)
             throw new ArgumentException("User is required.", nameof(userId));
@@ -71,7 +70,6 @@ public class UserScopedGrant : FullAuditedAggregateRoot<Guid>, IMultiTenant
         BranchId = branchId;
         VaultId = vaultId;
         Mode = mode;
-        TenantId = tenantId;
     }
 
     public virtual void SetMode(ScopedGrantMode mode) => Mode = mode;

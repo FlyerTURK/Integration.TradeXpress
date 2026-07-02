@@ -40,8 +40,7 @@ public class Company : FullAuditedAggregateRoot<Guid>, IMultiTenant
         string countryCode,
         Guid baseCurrencyUnitId,
         bool isHeadquarters = false,
-        int displayOrder = 0,
-        Guid? tenantId = null)
+        int displayOrder = 0)
     {
         SetCode(code);
         SetName(name);
@@ -49,7 +48,6 @@ public class Company : FullAuditedAggregateRoot<Guid>, IMultiTenant
         BaseCurrencyUnitId = baseCurrencyUnitId;
         IsHeadquarters = isHeadquarters;
         DisplayOrder = displayOrder;
-        TenantId = tenantId;
         IsActive = true;
     }
 
@@ -78,8 +76,16 @@ public class Company : FullAuditedAggregateRoot<Guid>, IMultiTenant
         Description = description;
     }
 
-    public virtual void Activate() => IsActive = true;
-    public virtual void Deactivate() => IsActive = false;
+    public virtual void SetActive(bool value)
+    {
+        IsActive = value;
+    }
+
     public virtual void SetAsHeadquarters(bool isHeadquarters) => IsHeadquarters = isHeadquarters;
     public virtual void SetDisplayOrder(int order) => DisplayOrder = order;
+
+    public override string ToString()
+    {
+        return Code;
+    }
 }

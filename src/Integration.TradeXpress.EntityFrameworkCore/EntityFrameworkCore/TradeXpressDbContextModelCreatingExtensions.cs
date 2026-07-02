@@ -8,6 +8,8 @@ using Integration.TradeXpress.Financials.ExchangeRates;
 using Integration.TradeXpress.Companies;
 using Integration.TradeXpress.Countries;
 using Integration.TradeXpress.Branches;
+using Integration.TradeXpress.AssayOffices;
+using Integration.TradeXpress.Scheduling;
 using Integration.TradeXpress.Vaults;
 using Integration.TradeXpress.Cashes;
 using Integration.TradeXpress.Accounts;
@@ -162,6 +164,42 @@ public static class TradeXpressDbContextModelCreatingExtensions
         });
     }
 
+    public static void ConfigureAssayOffices(this ModelBuilder builder)
+    {
+        Check.NotNull(builder, nameof(builder));
+
+        builder.Entity<AssayOffice>(b =>
+        {
+            b.ToTable(TradeXpressConsts.DbTablePrefix + "AssayOffices", TradeXpressConsts.DbSchema);
+            b.ConfigureByConvention();
+
+            b.Property(x => x.Code).IsRequired().HasMaxLength(AssayOfficeConsts.CodeMaxLength);
+            b.Property(x => x.Name).IsRequired().HasMaxLength(AssayOfficeConsts.NameMaxLength);
+            b.Property(x => x.Description).HasMaxLength(AssayOfficeConsts.DescriptionMaxLength);
+
+            b.HasIndex(x => new { x.TenantId, x.CompanyId, x.Code }).IsUnique();
+            b.HasIndex(x => new { x.TenantId, x.CompanyId });
+        });
+    }
+
+    public static void ConfigureSchedulerAppointments(this ModelBuilder builder)
+    {
+        Check.NotNull(builder, nameof(builder));
+
+        builder.Entity<SchedulerAppointment>(b =>
+        {
+            b.ToTable(TradeXpressConsts.DbTablePrefix + "SchedulerAppointments", TradeXpressConsts.DbSchema);
+            b.ConfigureByConvention();
+
+            b.Property(x => x.Subject).IsRequired().HasMaxLength(SchedulerAppointmentConsts.SubjectMaxLength);
+            b.Property(x => x.Description).HasMaxLength(SchedulerAppointmentConsts.DescriptionMaxLength);
+            b.Property(x => x.Location).HasMaxLength(SchedulerAppointmentConsts.LocationMaxLength);
+            b.Property(x => x.RecurrenceInfo).HasMaxLength(SchedulerAppointmentConsts.RecurrenceInfoMaxLength);
+
+            b.HasIndex(x => new { x.TenantId, x.CompanyId, x.StartTime });
+        });
+    }
+
     public static void ConfigureCashes(this ModelBuilder builder)
     {
         Check.NotNull(builder, nameof(builder));
@@ -178,7 +216,7 @@ public static class TradeXpressDbContextModelCreatingExtensions
             b.HasIndex(x => new { x.TenantId, x.Code }).IsUnique();
 
             // Takip edilen para birimi (cins) — ZORUNLU. Takip eden Cash varken birim silinemez (Restrict).
-            b.HasOne(x => x.FollowingUnit)
+            b.HasOne<Integration.TradeXpress.Financials.CurrencyUnits.CurrencyUnit>()
                 .WithMany()
                 .HasForeignKey(x => x.FollowingUnitId)
                 .IsRequired()
@@ -223,7 +261,7 @@ public static class TradeXpressDbContextModelCreatingExtensions
 
             b.HasIndex(x => new { x.TenantId, x.Code }).IsUnique();
 
-            b.HasOne(x => x.FollowingUnit).WithMany()
+            b.HasOne<Integration.TradeXpress.Financials.CurrencyUnits.CurrencyUnit>().WithMany()
                 .HasForeignKey(x => x.FollowingUnitId).IsRequired().OnDelete(DeleteBehavior.Restrict);
             b.HasIndex(x => new { x.TenantId, x.FollowingUnitId });
         });
@@ -247,7 +285,7 @@ public static class TradeXpressDbContextModelCreatingExtensions
 
             b.HasIndex(x => new { x.TenantId, x.Code }).IsUnique();
 
-            b.HasOne(x => x.FollowingUnit).WithMany()
+            b.HasOne<Integration.TradeXpress.Financials.CurrencyUnits.CurrencyUnit>().WithMany()
                 .HasForeignKey(x => x.FollowingUnitId).IsRequired().OnDelete(DeleteBehavior.Restrict);
             b.HasIndex(x => new { x.TenantId, x.FollowingUnitId });
         });
@@ -277,7 +315,7 @@ public static class TradeXpressDbContextModelCreatingExtensions
 
             b.HasIndex(x => new { x.TenantId, x.Code }).IsUnique();
 
-            b.HasOne(x => x.FollowingUnit).WithMany()
+            b.HasOne<Integration.TradeXpress.Financials.CurrencyUnits.CurrencyUnit>().WithMany()
                 .HasForeignKey(x => x.FollowingUnitId).IsRequired().OnDelete(DeleteBehavior.Restrict);
             b.HasIndex(x => new { x.TenantId, x.FollowingUnitId });
         });
@@ -305,8 +343,8 @@ public static class TradeXpressDbContextModelCreatingExtensions
 
             b.HasIndex(x => new { x.TenantId, x.CompanyId, x.Code }).IsUnique();
 
-            b.HasOne(x => x.EntryPriceUnit).WithMany().HasForeignKey(x => x.EntryPriceUnitId).OnDelete(DeleteBehavior.Restrict);
-            b.HasOne(x => x.ExitPriceUnit).WithMany().HasForeignKey(x => x.ExitPriceUnitId).OnDelete(DeleteBehavior.Restrict);
+            b.HasOne<Integration.TradeXpress.Financials.CurrencyUnits.CurrencyUnit>().WithMany().HasForeignKey(x => x.EntryPriceUnitId).OnDelete(DeleteBehavior.Restrict);
+            b.HasOne<Integration.TradeXpress.Financials.CurrencyUnits.CurrencyUnit>().WithMany().HasForeignKey(x => x.ExitPriceUnitId).OnDelete(DeleteBehavior.Restrict);
         });
     }
 
@@ -331,8 +369,8 @@ public static class TradeXpressDbContextModelCreatingExtensions
 
             b.HasIndex(x => new { x.TenantId, x.CompanyId, x.Code }).IsUnique();
 
-            b.HasOne(x => x.EntryPriceUnit).WithMany().HasForeignKey(x => x.EntryPriceUnitId).OnDelete(DeleteBehavior.Restrict);
-            b.HasOne(x => x.ExitPriceUnit).WithMany().HasForeignKey(x => x.ExitPriceUnitId).OnDelete(DeleteBehavior.Restrict);
+            b.HasOne<Integration.TradeXpress.Financials.CurrencyUnits.CurrencyUnit>().WithMany().HasForeignKey(x => x.EntryPriceUnitId).OnDelete(DeleteBehavior.Restrict);
+            b.HasOne<Integration.TradeXpress.Financials.CurrencyUnits.CurrencyUnit>().WithMany().HasForeignKey(x => x.ExitPriceUnitId).OnDelete(DeleteBehavior.Restrict);
         });
     }
 
@@ -354,13 +392,13 @@ public static class TradeXpressDbContextModelCreatingExtensions
             b.HasIndex(x => new { x.TenantId, x.CompanyId });
 
             // Para birimi referansları (cins + limit) — ZORUNLU; hesap varken birim silinemez (Restrict).
-            b.HasOne(x => x.BalanceCurrencyUnit)
+            b.HasOne<Integration.TradeXpress.Financials.CurrencyUnits.CurrencyUnit>()
                 .WithMany()
                 .HasForeignKey(x => x.BalanceCurrencyUnitId)
                 .IsRequired()
                 .OnDelete(DeleteBehavior.Restrict);
 
-            b.HasOne(x => x.LimitUnit)
+            b.HasOne<Integration.TradeXpress.Financials.CurrencyUnits.CurrencyUnit>()
                 .WithMany()
                 .HasForeignKey(x => x.LimitUnitId)
                 .IsRequired()

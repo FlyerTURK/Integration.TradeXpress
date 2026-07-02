@@ -25,12 +25,11 @@ public class UserGridLayout : FullAuditedAggregateRoot<Guid>, IMultiTenant
 
     protected UserGridLayout() { }
 
-    public UserGridLayout(Guid userId, string gridKey, string layout, Guid? tenantId = null)
+    public UserGridLayout(Guid userId, string gridKey, string layout)
     {
         UserId = userId;
         GridKey = gridKey;
         Layout = layout;
-        TenantId = tenantId;
     }
 
     public virtual void SetLayout(string layout) => Layout = layout;

@@ -136,8 +136,7 @@ public class BranchAppService : TradeXpressAppService, IBranchAppService
             input.Code,
             input.Name,
             isHeadquarters: input.IsHeadquarters,
-            displayOrder: input.DisplayOrder,
-            tenantId: CurrentTenant.Id);
+            displayOrder: input.DisplayOrder);
         b.SetDescription(input.Description);
         b.SetBaseCurrency(input.BaseCurrencyUnitId == Guid.Empty ? company.BaseCurrencyUnitId : input.BaseCurrencyUnitId);   // boş → parent şirketin base'i
         await _repository.InsertAsync(b, autoSave: true);
@@ -173,7 +172,7 @@ public class BranchAppService : TradeXpressAppService, IBranchAppService
         b.SetDescription(input.Description);
         b.SetDisplayOrder(input.DisplayOrder);
         b.SetBaseCurrency(input.BaseCurrencyUnitId == Guid.Empty ? b.BaseCurrencyUnitId : input.BaseCurrencyUnitId);   // boş gelirse mevcut değeri KORU (wipe önleme)
-        if (input.IsActive) b.Activate(); else b.Deactivate();
+        b.SetActive(input.IsActive);
         await _repository.UpdateAsync(b, autoSave: true);
 
         await SaveVaultsAsync(b, input.Vaults);

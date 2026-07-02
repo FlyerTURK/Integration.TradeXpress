@@ -40,15 +40,13 @@ public class Branch : FullAuditedAggregateRoot<Guid>, IMultiTenant
         string code,
         string name,
         bool isHeadquarters = false,
-        int displayOrder = 0,
-        Guid? tenantId = null)
+        int displayOrder = 0)
     {
         SetCompany(companyId);
         SetCode(code);
         SetName(name);
         IsHeadquarters = isHeadquarters;
         DisplayOrder = displayOrder;
-        TenantId = tenantId;
         IsActive = true;
     }
 
@@ -81,8 +79,16 @@ public class Branch : FullAuditedAggregateRoot<Guid>, IMultiTenant
         Description = description;
     }
 
-    public virtual void Activate() => IsActive = true;
-    public virtual void Deactivate() => IsActive = false;
+    public virtual void SetActive(bool value)
+    {
+        IsActive = value;
+    }
+
     public virtual void SetAsHeadquarters(bool isHeadquarters) => IsHeadquarters = isHeadquarters;
     public virtual void SetDisplayOrder(int order) => DisplayOrder = order;
+
+    public override string ToString()
+    {
+        return Code;
+    }
 }

@@ -63,6 +63,11 @@ public class Service : FullAuditedAggregateRoot<Guid>, IMultiTenant
         IsActive = value;
     }
 
+    public override string ToString()
+    {
+        return Code;
+    }
+
     // Code immutable (public mutator YOK) → yalnız ctor için private normalize+validate.
     private void SetCode(string code)
     {

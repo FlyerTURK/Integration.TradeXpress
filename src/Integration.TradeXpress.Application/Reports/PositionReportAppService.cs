@@ -75,6 +75,11 @@ public class PositionReportAppService : TradeXpressAppService, IPositionReportAp
             group e by e.UnitId into g
             select new { UnitId = g.Key, Net = g.Sum(x => x.Amount) });
 
+        // FİRMA perspektifi (bilanço ile TUTARLI): ledger HESAP bakiyesini saklar (müşteri borçlanır → −). Firmanın net
+        // pozisyonu = −Σ — müşteri borcu = bizim ALACAĞIMIZ/varlığımız (+), müşteri alacağı = bizim borcumuz (−). Tek
+        // yerden çevir → tüm satır (NetAmount/Valued) + DURUM tutarlı. (Kullanıcı: "hizmet çıkış = müşteri borçlanır".)
+        nets = nets.Select(x => new { x.UnitId, Net = -x.Net }).ToList();
+
         var result = new PositionReportResultDto { BaseUnitId = baseUnitId };
 
         if (nets.Count == 0)

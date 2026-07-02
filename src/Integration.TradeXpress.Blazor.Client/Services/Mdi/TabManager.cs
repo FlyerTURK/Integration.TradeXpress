@@ -95,7 +95,6 @@ public sealed class TabManager : ITabManager, IMdiTabOpener
             Url = url,
             PageType = match.PageType,
             Parameters = match.Parameters,
-            IsPinned = url == "/",
         };
         _tabs.Add(tab);
         _activeId = tab.Id;
@@ -178,6 +177,34 @@ public sealed class TabManager : ITabManager, IMdiTabOpener
 
         if (_activeId != null && _tabs.All(t => t.Id != _activeId))
             _activeId = _tabs[idx].Id;
+
+        Persist(); Raise();
+    }
+
+    // ── Toplu kapatma: hedef hesabı (pinned hariç) + FORCE çoklu kapatma. Dirty kararını UI TEK uyarıda verir,
+    //    sonra ya temizleri ya hepsini bu metoda gönderir (per-tab guard YOK — niyet zaten onaylandı). ──
+    public IReadOnlyList<MdiTab> GetCloseTargets(TabCloseScope scope, Guid anchorId) => scope switch
+    {
+        TabCloseScope.Others  => _tabs.Where(t => t.Id != anchorId && !t.IsPinned).ToList(),
+        TabCloseScope.All     => _tabs.Where(t => !t.IsPinned).ToList(),
+        TabCloseScope.ToRight => RightOf(anchorId),
+        _ => new List<MdiTab>()
+    };
+
+    private List<MdiTab> RightOf(Guid anchorId)
+    {
+        var idx = _tabs.FindIndex(t => t.Id == anchorId);
+        return idx < 0 ? new List<MdiTab>() : _tabs.Skip(idx + 1).Where(t => !t.IsPinned).ToList();
+    }
+
+    public void CloseMany(IEnumerable<Guid> ids)
+    {
+        var set = new HashSet<Guid>(ids);
+        if (set.Count == 0) return;
+
+        _tabs.RemoveAll(t => set.Contains(t.Id) && !t.IsPinned);
+        if (_activeId == null || _tabs.All(t => t.Id != _activeId))
+            _activeId = _tabs.FirstOrDefault()?.Id;
 
         Persist(); Raise();
     }
@@ -288,6 +315,7 @@ public sealed class TabManager : ITabManager, IMdiTabOpener
 
             foreach (var p in state.Tabs)
             {
+                if (p.Url == "/") continue;   // eski kaldırılmış Home tab izi — restore etme (stale persisted state temizliği)
                 if (p.IsExternal)
                 {
                     _tabs.Add(new MdiTab { Title = p.Title, IconCssClass = p.Icon, Kind = TabKind.External, Url = p.Url, IsPinned = p.IsPinned });

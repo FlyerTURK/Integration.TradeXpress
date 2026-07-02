@@ -75,10 +75,8 @@ public class Stone : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyScope
 
     public virtual decimal EntryPrice { get; protected set; }
     public virtual Guid? EntryPriceUnitId { get; protected set; }
-    public virtual CurrencyUnit? EntryPriceUnit { get; protected set; }
     public virtual decimal ExitPrice { get; protected set; }
     public virtual Guid? ExitPriceUnitId { get; protected set; }
-    public virtual CurrencyUnit? ExitPriceUnit { get; protected set; }
 
     public virtual bool IsActive { get; protected set; }
 
@@ -132,6 +130,11 @@ public class Stone : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyScope
     }
 
     public virtual void SetActive(bool value) => IsActive = value;
+
+    public override string ToString()
+    {
+        return Code;
+    }
 
     private void SetCode(string code)
     {

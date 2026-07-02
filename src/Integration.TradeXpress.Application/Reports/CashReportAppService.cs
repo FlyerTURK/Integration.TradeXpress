@@ -80,6 +80,19 @@ public class CashReportAppService : TradeXpressAppService, ICashReportAppService
         return grouped.OrderBy(r => r.UnitCode).ToList();
     }
 
+    /// <summary>
+    /// Bilanço STOK (nakit) kategorisi için fiziksel nakit holding'i: kapsam (şirket DAİMA ICurrentCompany'den) + branch/
+    /// vault, <paramref name="asOfExclusive"/> tarihinden ÖNCE birikmiş net, birim-bazında. İki-bacak çıkarım tek kaynakta
+    /// (<see cref="QueryCashLegsAsync"/>; DRY — GetStockAsync de onu kullanır). Net = FİRMA perspektifi (+ = firma o nakdi tutar).
+    /// </summary>
+    public virtual async Task<Dictionary<Guid, decimal>> GetCashNetByUnitAsync(Guid? branchId, Guid? vaultId, DateTime asOfExclusive)
+    {
+        var legs = await QueryCashLegsAsync(
+            new CashReportFilterDto { BranchId = branchId, VaultId = vaultId },
+            dateFiltered: false, endExclusiveOverride: asOfExclusive);
+        return legs.GroupBy(x => x.UnitId).ToDictionary(g => g.Key, g => g.Sum(x => x.Effect));
+    }
+
     public virtual async Task<List<CashMovementRowDto>> GetMovementsAsync(CashReportFilterDto filter)
     {
         // Dönem içi satırlar

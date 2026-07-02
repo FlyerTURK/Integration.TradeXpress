@@ -484,7 +484,7 @@
     };
 
     // Başlık ikonu: entity ikonu (yoksa generic düzenleme ikonu).
-    private string DrillHeaderIcon => string.IsNullOrEmpty(EntityIcon) ? "custom-icon-edit" : EntityIcon!;
+    private string DrillHeaderIcon => string.IsNullOrEmpty(EntityIcon) ? FrameworkIcons.Edit : EntityIcon!;
 
     // Toolbar (liste ToolbarRenderer + edit EditToolbar) aksiyon SONRASI tek tazeleme noktası: Click EventCallback'i
     // o bileşenlerde üretildiğinden Blazor DrillList'i otomatik render etmez → durum (popup aç/kapa, seçim, _busy)

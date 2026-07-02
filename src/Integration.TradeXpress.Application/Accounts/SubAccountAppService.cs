@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Integration.Framework.Base.Querying;
 using Integration.TradeXpress.Branches;
+using Integration.TradeXpress.MultiCompany;
 using Integration.TradeXpress.Permissions;
 using Microsoft.AspNetCore.Authorization;
 using Volo.Abp;
@@ -24,6 +25,7 @@ public class SubAccountAppService : TradeXpressAppService, ISubAccountAppService
     private readonly IRepository<SubAccount, Guid> _repository;
     private readonly IRepository<Account, Guid> _accountRepository;
     private readonly IRepository<Branch, Guid> _branchRepository;
+    private readonly ICurrentCompany _currentCompany;
 
     private static readonly HashSet<string> AllowedListFields =
         new(StringComparer.OrdinalIgnoreCase) { "Code", "Name", "AccountCode", "BranchCode", "IsActive", "Id", "AccountId", "BranchId" };
@@ -31,23 +33,33 @@ public class SubAccountAppService : TradeXpressAppService, ISubAccountAppService
     public SubAccountAppService(
         IRepository<SubAccount, Guid> repository,
         IRepository<Account, Guid> accountRepository,
-        IRepository<Branch, Guid> branchRepository)
+        IRepository<Branch, Guid> branchRepository,
+        ICurrentCompany currentCompany)
     {
         _repository = repository;
         _accountRepository = accountRepository;
         _branchRepository = branchRepository;
+        _currentCompany = currentCompany;
     }
 
     public virtual async Task<PagedResultDto<SubAccountListDto>> GetListAsync(SubAccountListRequestDto input)
     {
-        var accounts = await _accountRepository.GetQueryableAsync();
+        // ŞİRKET SCOPE — sunucu zorlar (client CompanyId GÖNDERMEZ; sızıntı önlemi, [[scoped-yetki-tasarimi]]).
+        // Aktif çalışma şirketi yoksa boş döner (host/API bağlamı). Account.CompanyId üzerinden inner-join ile daraltılır.
+        if (_currentCompany.Id is not { } companyId)
+            return new PagedResultDto<SubAccountListDto>(0, new List<SubAccountListDto>());
+
+        var accounts = (await _accountRepository.GetQueryableAsync()).Where(a => a.CompanyId == companyId);
         var branches = await _branchRepository.GetQueryableAsync();
         var query = await _repository.GetQueryableAsync();
 
         if (input.AccountId.HasValue)
             query = query.Where(s => s.AccountId == input.AccountId.Value);
+
+        // ŞUBE filtresi: BranchId verilirse → company-level (BranchId=null) + o şubeye özel olanlar;
+        // verilmezse şube daraltması YOK (tüm şirket — liste sayfaları için). Combo working branch'i geçer.
         if (input.BranchId.HasValue)
-            query = query.Where(s => s.BranchId == input.BranchId.Value);
+            query = query.Where(s => s.BranchId == null || s.BranchId == input.BranchId.Value);
 
         // Branch OPSİYONEL → korelasyonlu alt-sorgu (left-join etkisi): null şubeli alt hesaplar da listede kalır.
         var rows = query

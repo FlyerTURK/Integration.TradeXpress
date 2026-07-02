@@ -52,6 +52,18 @@ public class TradeXpressPermissionDefinitionProvider : PermissionDefinitionProvi
         vaults.AddChild(TradeXpressPermissions.Vaults.Update, L("Permission:Update"));
         vaults.AddChild(TradeXpressPermissions.Vaults.Delete, L("Permission:Delete"));
 
+        var assayOffices = myGroup.AddPermission(
+            TradeXpressPermissions.AssayOffices.Default, L("Permission:AssayOffices"));
+        assayOffices.AddChild(TradeXpressPermissions.AssayOffices.Create, L("Permission:Create"));
+        assayOffices.AddChild(TradeXpressPermissions.AssayOffices.Update, L("Permission:Update"));
+        assayOffices.AddChild(TradeXpressPermissions.AssayOffices.Delete, L("Permission:Delete"));
+
+        var appointments = myGroup.AddPermission(
+            TradeXpressPermissions.Appointments.Default, L("Permission:Appointments"));
+        appointments.AddChild(TradeXpressPermissions.Appointments.Create, L("Permission:Create"));
+        appointments.AddChild(TradeXpressPermissions.Appointments.Update, L("Permission:Update"));
+        appointments.AddChild(TradeXpressPermissions.Appointments.Delete, L("Permission:Delete"));
+
         var cashes = myGroup.AddPermission(
             TradeXpressPermissions.Cashes.Default, L("Permission:Cashes"));
         cashes.AddChild(TradeXpressPermissions.Cashes.Create, L("Permission:Create"));
@@ -73,6 +85,7 @@ public class TradeXpressPermissionDefinitionProvider : PermissionDefinitionProvi
         var reports = myGroup.AddPermission(
             TradeXpressPermissions.Reports.Default, L("Permission:Reports"));
         reports.AddChild(TradeXpressPermissions.Reports.Position, L("Permission:Position"));
+        reports.AddChild(TradeXpressPermissions.Reports.BalanceSheet, L("Permission:BalanceSheet"));
     }
 
     private static LocalizableString L(string name)

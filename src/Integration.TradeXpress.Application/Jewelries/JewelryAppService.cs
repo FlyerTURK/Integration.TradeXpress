@@ -50,11 +50,11 @@ public class JewelryAppService : TradeXpressAppService, IJewelryAppService
                 query = query.OrderBy(x => x.Code);
 
             var items = await AsyncExecuter.ToListAsync(query.Skip(input.SkipCount).Take(input.MaxResultCount));
-            return new PagedResultDto<JewelryListDto>(totalCount, items.Select(ToListDto).ToList());
+            return new PagedResultDto<JewelryListDto>(totalCount, items.Select(MapList).ToList());
         }
     }
 
-    public virtual async Task<JewelryGetDto> GetAsync(Guid id) => ToGetDto(await GetInScopeAsync(id));
+    public virtual async Task<JewelryGetDto> GetAsync(Guid id) => MapGet(await GetInScopeAsync(id));
 
     public virtual async Task<JewelryGetDto> CreateAsync(JewelryCreateDto input)
     {
@@ -66,7 +66,7 @@ public class JewelryAppService : TradeXpressAppService, IJewelryAppService
         entity.SetDescription(input.Description);
 
         await _repository.InsertAsync(entity, autoSave: true);
-        return ToGetDto(entity);
+        return MapGet(entity);
     }
 
     public virtual async Task<JewelryGetDto> UpdateAsync(Guid id, JewelryUpdateDto input)
@@ -82,7 +82,7 @@ public class JewelryAppService : TradeXpressAppService, IJewelryAppService
         entity.SetActive(input.IsActive);
 
         await _repository.UpdateAsync(entity, autoSave: true);
-        return ToGetDto(entity);
+        return MapGet(entity);
     }
 
     public virtual async Task DeleteAsync(Guid id)
@@ -100,7 +100,7 @@ public class JewelryAppService : TradeXpressAppService, IJewelryAppService
                 (await _repository.GetQueryableAsync())
                     .WhereCompanyVisible(CurrentTenant.Id, companyId ?? _currentCompany.Id)
                     .OrderBy(x => x.Code));
-            return rows.Select(ToListDto).ToList();
+            return rows.Select(MapList).ToList();
         }
     }
 
@@ -128,46 +128,18 @@ public class JewelryAppService : TradeXpressAppService, IJewelryAppService
         }
     }
 
-    private static JewelryListDto ToListDto(Jewelry j) => new()
+    // Mapperly + IsGlobal enrichment. Instance → net'i tetiklemez.
+    private JewelryListDto MapList(Jewelry j)
     {
-        Id               = j.Id,
-        Code             = j.Code,
-        Name             = j.Name,
-        Model            = j.Model,
-        Kind             = j.Kind,
-        IsQuantity       = j.IsQuantity,
-        PriceByQuantity  = j.PriceByQuantity,
-        PriceTypeChange  = j.PriceTypeChange,
-        EntryPrice       = j.EntryPrice,
-        EntryPriceUnitId = j.EntryPriceUnitId,
-        ExitPrice        = j.ExitPrice,
-        ExitPriceUnitId  = j.ExitPriceUnitId,
-        CompanyId        = j.CompanyId,
-        IsActive         = j.IsActive,
-        IsGlobal         = j.TenantId == null,
-    };
+        var dto = ObjectMapper.Map<Jewelry, JewelryListDto>(j);
+        dto.IsGlobal = j.TenantId == null;
+        return dto;
+    }
 
-    private static JewelryGetDto ToGetDto(Jewelry j) => new()
+    private JewelryGetDto MapGet(Jewelry j)
     {
-        Id               = j.Id,
-        Code             = j.Code,
-        Name             = j.Name,
-        Model            = j.Model,
-        Kind             = j.Kind,
-        Type             = j.Type,
-        Color            = j.Color,
-        Category         = j.Category,
-        GroupCode        = j.GroupCode,
-        IsQuantity       = j.IsQuantity,
-        PriceByQuantity  = j.PriceByQuantity,
-        PriceTypeChange  = j.PriceTypeChange,
-        EntryPrice       = j.EntryPrice,
-        EntryPriceUnitId = j.EntryPriceUnitId,
-        ExitPrice        = j.ExitPrice,
-        ExitPriceUnitId  = j.ExitPriceUnitId,
-        Description      = j.Description,
-        CompanyId        = j.CompanyId,
-        IsActive         = j.IsActive,
-        IsGlobal         = j.TenantId == null,
-    };
+        var dto = ObjectMapper.Map<Jewelry, JewelryGetDto>(j);
+        dto.IsGlobal = j.TenantId == null;
+        return dto;
+    }
 }

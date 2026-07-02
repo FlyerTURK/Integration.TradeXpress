@@ -87,7 +87,7 @@ public class CountryAppService : TradeXpressAppService, ICountryAppService
         entity.SetName(input.Name);
         entity.SetDefaultCurrencyCode(input.DefaultCurrencyCode);
         entity.SetDisplayOrder(input.DisplayOrder);
-        if (input.IsActive) entity.Activate(); else entity.Deactivate();
+        entity.SetActive(input.IsActive);
         await _repository.UpdateAsync(entity, autoSave: true);
         return ToGetDto(entity);
     }

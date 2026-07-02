@@ -12,6 +12,9 @@ using Integration.TradeXpress.Stones;
 using Integration.TradeXpress.Jewelries;
 using Integration.TradeXpress.Countries;
 using Integration.TradeXpress.Accounts;
+using Integration.TradeXpress.AssayOffices;
+using Integration.TradeXpress.Scheduling;
+using Integration.TradeXpress.Authorization;
 using Volo.Abp.TenantManagement;
 
 namespace Integration.TradeXpress;
@@ -112,6 +115,164 @@ public partial class ParityToListDtoMapper : MapperBase<Parity, ParityListDto>
 {
     public override partial CashUpdateDto Map(CashGetDto source);
     public override partial void Map(CashGetDto source, CashUpdateDto destination);
+}
+
+[Mapper] public partial class AssayOfficeGetToCreateMapper : MapperBase<AssayOfficeGetDto, AssayOfficeCreateDto>
+{
+    public override partial AssayOfficeCreateDto Map(AssayOfficeGetDto source);
+    public override partial void Map(AssayOfficeGetDto source, AssayOfficeCreateDto destination);
+}
+[Mapper] public partial class AssayOfficeGetToUpdateMapper : MapperBase<AssayOfficeGetDto, AssayOfficeUpdateDto>
+{
+    public override partial AssayOfficeUpdateDto Map(AssayOfficeGetDto source);
+    public override partial void Map(AssayOfficeGetDto source, AssayOfficeUpdateDto destination);
+}
+
+// ── SchedulerAppointment ──────────────────────────────────────────────────────
+// Entity↔DTO alan adları birebir → otomatik eşleme (CompanyId/TenantId/audit = source-only, hedefte yok).
+
+[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
+public partial class SchedulerAppointmentToDtoMapper : MapperBase<SchedulerAppointment, SchedulerAppointmentDto>
+{
+    public override partial SchedulerAppointmentDto Map(SchedulerAppointment source);
+    public override partial void Map(SchedulerAppointment source, SchedulerAppointmentDto destination);
+}
+
+// ── AssayOffice (entity→DTO: statik mapper anti-pattern'inden Mapperly'ye çevrildi) ──
+
+[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
+public partial class AssayOfficeToGetDtoMapper : MapperBase<AssayOffice, AssayOfficeGetDto>
+{
+    public override partial AssayOfficeGetDto Map(AssayOffice source);
+    public override partial void Map(AssayOffice source, AssayOfficeGetDto destination);
+}
+
+[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
+public partial class AssayOfficeToListDtoMapper : MapperBase<AssayOffice, AssayOfficeListDto>
+{
+    public override partial AssayOfficeListDto Map(AssayOffice source);
+    public override partial void Map(AssayOffice source, AssayOfficeListDto destination);
+}
+
+// ── Service (statik mapper → Mapperly; IsGlobal = TenantId==null AppService'te elle set, CurrencyUnit deseni) ──
+
+[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
+public partial class ServiceToGetDtoMapper : MapperBase<Service, ServiceGetDto>
+{
+    [MapperIgnoreTarget(nameof(ServiceGetDto.IsGlobal))]
+    public override partial ServiceGetDto Map(Service source);
+    public override partial void Map(Service source, ServiceGetDto destination);
+}
+
+[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
+public partial class ServiceToListDtoMapper : MapperBase<Service, ServiceListDto>
+{
+    [MapperIgnoreTarget(nameof(ServiceListDto.IsGlobal))]
+    public override partial ServiceListDto Map(Service source);
+    public override partial void Map(Service source, ServiceListDto destination);
+}
+
+// ── Scrap (statik mapper → Mapperly; IsGlobal + FollowingUnitCode AppService'te/ApplyUnitCodes ile set) ──
+
+[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
+public partial class ScrapToGetDtoMapper : MapperBase<Scrap, ScrapGetDto>
+{
+    [MapperIgnoreTarget(nameof(ScrapGetDto.IsGlobal))]
+    [MapperIgnoreTarget(nameof(ScrapGetDto.FollowingUnitCode))]
+    public override partial ScrapGetDto Map(Scrap source);
+    public override partial void Map(Scrap source, ScrapGetDto destination);
+}
+
+[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
+public partial class ScrapToListDtoMapper : MapperBase<Scrap, ScrapListDto>
+{
+    [MapperIgnoreTarget(nameof(ScrapListDto.IsGlobal))]
+    [MapperIgnoreTarget(nameof(ScrapListDto.FollowingUnitCode))]
+    public override partial ScrapListDto Map(Scrap source);
+    public override partial void Map(Scrap source, ScrapListDto destination);
+}
+
+// ── Metal (Scrap deseni: IsGlobal + FollowingUnitCode ignore) ──
+
+[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
+public partial class MetalToGetDtoMapper : MapperBase<Metal, MetalGetDto>
+{
+    [MapperIgnoreTarget(nameof(MetalGetDto.IsGlobal))]
+    [MapperIgnoreTarget(nameof(MetalGetDto.FollowingUnitCode))]
+    public override partial MetalGetDto Map(Metal source);
+    public override partial void Map(Metal source, MetalGetDto destination);
+}
+
+[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
+public partial class MetalToListDtoMapper : MapperBase<Metal, MetalListDto>
+{
+    [MapperIgnoreTarget(nameof(MetalListDto.IsGlobal))]
+    [MapperIgnoreTarget(nameof(MetalListDto.FollowingUnitCode))]
+    public override partial MetalListDto Map(Metal source);
+    public override partial void Map(Metal source, MetalListDto destination);
+}
+
+// ── Future (Metal deseni: IsGlobal + FollowingUnitCode ignore) ──
+
+[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
+public partial class FutureToGetDtoMapper : MapperBase<Future, FutureGetDto>
+{
+    [MapperIgnoreTarget(nameof(FutureGetDto.IsGlobal))]
+    [MapperIgnoreTarget(nameof(FutureGetDto.FollowingUnitCode))]
+    public override partial FutureGetDto Map(Future source);
+    public override partial void Map(Future source, FutureGetDto destination);
+}
+
+[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
+public partial class FutureToListDtoMapper : MapperBase<Future, FutureListDto>
+{
+    [MapperIgnoreTarget(nameof(FutureListDto.IsGlobal))]
+    [MapperIgnoreTarget(nameof(FutureListDto.FollowingUnitCode))]
+    public override partial FutureListDto Map(Future source);
+    public override partial void Map(Future source, FutureListDto destination);
+}
+
+// ── Jewelry / Stone (Service deseni: yalnız IsGlobal ignore; GroupCode entity'de) ──
+
+[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
+public partial class JewelryToGetDtoMapper : MapperBase<Jewelry, JewelryGetDto>
+{
+    [MapperIgnoreTarget(nameof(JewelryGetDto.IsGlobal))]
+    public override partial JewelryGetDto Map(Jewelry source);
+    public override partial void Map(Jewelry source, JewelryGetDto destination);
+}
+
+[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
+public partial class JewelryToListDtoMapper : MapperBase<Jewelry, JewelryListDto>
+{
+    [MapperIgnoreTarget(nameof(JewelryListDto.IsGlobal))]
+    public override partial JewelryListDto Map(Jewelry source);
+    public override partial void Map(Jewelry source, JewelryListDto destination);
+}
+
+[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
+public partial class StoneToGetDtoMapper : MapperBase<Stone, StoneGetDto>
+{
+    [MapperIgnoreTarget(nameof(StoneGetDto.IsGlobal))]
+    public override partial StoneGetDto Map(Stone source);
+    public override partial void Map(Stone source, StoneGetDto destination);
+}
+
+[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
+public partial class StoneToListDtoMapper : MapperBase<Stone, StoneListDto>
+{
+    [MapperIgnoreTarget(nameof(StoneListDto.IsGlobal))]
+    public override partial StoneListDto Map(Stone source);
+    public override partial void Map(Stone source, StoneListDto destination);
+}
+
+// ── UserScopedGrant (statik ToDto → Mapperly; düz 1:1, enrichment yok) ──
+
+[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
+public partial class UserScopedGrantToDtoMapper : MapperBase<UserScopedGrant, UserScopedGrantDto>
+{
+    public override partial UserScopedGrantDto Map(UserScopedGrant source);
+    public override partial void Map(UserScopedGrant source, UserScopedGrantDto destination);
 }
 
 [Mapper] public partial class ServiceGetToCreateMapper : MapperBase<ServiceGetDto, ServiceCreateDto>

@@ -57,7 +57,7 @@ public class ScrapAppService : TradeXpressAppService, IScrapAppService
             var explicitSort = (input.Sorts is { Count: > 0 }) || !string.IsNullOrWhiteSpace(input.Sorting);
             var ordered = explicitSort ? all : all.OrderBy(s => s.Code, StringComparer.OrdinalIgnoreCase).ToList();
 
-            var dtos = ordered.Skip(input.SkipCount).Take(input.MaxResultCount).Select(ToListDto).ToList();
+            var dtos = ordered.Skip(input.SkipCount).Take(input.MaxResultCount).Select(MapList).ToList();
             ApplyUnitCodes(dtos, orders);
             return new PagedResultDto<ScrapListDto>(totalCount, dtos);
         }
@@ -66,7 +66,7 @@ public class ScrapAppService : TradeXpressAppService, IScrapAppService
     public virtual async Task<ScrapGetDto> GetAsync(Guid id)
     {
         var entity = await GetInScopeAsync(id);
-        var dto = ToGetDto(entity);
+        var dto = MapGet(entity);
         dto.FollowingUnitCode = await ResolveUnitCodeAsync(entity.FollowingUnitId);
         return dto;
     }
@@ -77,7 +77,7 @@ public class ScrapAppService : TradeXpressAppService, IScrapAppService
         entity.SetDescription(input.Description);
 
         await _repository.InsertAsync(entity, autoSave: true);
-        return ToGetDto(entity);
+        return MapGet(entity);
     }
 
     public virtual async Task<ScrapGetDto> UpdateAsync(Guid id, ScrapUpdateDto input)
@@ -93,7 +93,7 @@ public class ScrapAppService : TradeXpressAppService, IScrapAppService
         entity.SetActive(input.IsActive);
 
         await _repository.UpdateAsync(entity, autoSave: true);
-        return ToGetDto(entity);
+        return MapGet(entity);
     }
 
     public virtual async Task DeleteAsync(Guid id)
@@ -113,7 +113,7 @@ public class ScrapAppService : TradeXpressAppService, IScrapAppService
                     .Where(x => x.TenantId == null || x.TenantId == tenantId));
 
             var orders = await GetUnitOrdersAsync(rows.Select(s => s.FollowingUnitId));
-            var dtos = OrderComposite(rows, orders).Select(ToListDto).ToList();
+            var dtos = OrderComposite(rows, orders).Select(MapList).ToList();
             ApplyUnitCodes(dtos, orders);
             return dtos;
         }
@@ -197,28 +197,18 @@ public class ScrapAppService : TradeXpressAppService, IScrapAppService
         }
     }
 
-    private static ScrapListDto ToListDto(Scrap s) => new()
+    // Mapperly + IsGlobal enrichment (FollowingUnitCode ayrıca ApplyUnitCodes ile). Instance → statik değil, net'i tetiklemez.
+    private ScrapListDto MapList(Scrap s)
     {
-        Id              = s.Id,
-        Code            = s.Code,
-        Name            = s.Name,
-        FollowingUnitId = s.FollowingUnitId,
-        Factor          = s.Factor,
-        FactorChange    = s.FactorChange,
-        IsActive        = s.IsActive,
-        IsGlobal        = s.TenantId == null,
-    };
+        var dto = ObjectMapper.Map<Scrap, ScrapListDto>(s);
+        dto.IsGlobal = s.TenantId == null;
+        return dto;
+    }
 
-    private static ScrapGetDto ToGetDto(Scrap s) => new()
+    private ScrapGetDto MapGet(Scrap s)
     {
-        Id              = s.Id,
-        Code            = s.Code,
-        Name            = s.Name,
-        FollowingUnitId = s.FollowingUnitId,
-        Factor          = s.Factor,
-        FactorChange    = s.FactorChange,
-        Description     = s.Description,
-        IsActive        = s.IsActive,
-        IsGlobal        = s.TenantId == null,
-    };
+        var dto = ObjectMapper.Map<Scrap, ScrapGetDto>(s);
+        dto.IsGlobal = s.TenantId == null;
+        return dto;
+    }
 }

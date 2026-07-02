@@ -1,7 +1,11 @@
 @using DevExpress.Blazor
+@using Microsoft.AspNetCore.Components.Web
 @using Integration.TradeXpress.Blazor.Client.Services.Mdi
+@using Integration.Framework.Blazor.Client.Services.Base
 @implements IDisposable
 @inject ITabManager TabManager
+@inject IPopupService PopupService
+@inject ITradeXpressUiService UiService
 @inject Microsoft.Extensions.Localization.IStringLocalizer<Integration.TradeXpress.Localization.TradeXpressResource> L
 
 @*
@@ -34,16 +38,20 @@
                            TabIconCssClass="@(captured.Header is null ? captured.IconCssClass : null)"
                            AllowClose="@(!captured.IsPinned)">
                     <TextTemplate>
-                        @* Edit sekmesi yapısal başlık (3-satır + dirty); düz menü/liste tab'ı sade metin. *@
-                        @if (captured.Header is not null)
-                        {
-                            <EditHeaderView Header="@captured.Header" IsDirty="@captured.IsDirty"
-                                            Compact="true" ShowDirty="true" DirtyLabel="@L["UnsavedChanges"]" />
-                        }
-                        else
-                        {
-                            @captured.Title@(captured.IsDirty ? " *" : "")
-                        }
+                        @* Edit sekmesi yapısal başlık (3-satır + dirty); düz menü/liste tab'ı sade metin.
+                           Sağ-tık → Chrome benzeri sekme yönetim context menüsü. *@
+                        <span @oncontextmenu:preventDefault @oncontextmenu="@(e => OnTabContextMenuAsync(e, captured))"
+                              style="display:inline-flex; align-items:center;">
+                            @if (captured.Header is not null)
+                            {
+                                <EditHeaderView Header="@captured.Header" IsDirty="@captured.IsDirty"
+                                                Compact="true" ShowDirty="true" DirtyLabel="@L["UnsavedChanges"]" />
+                            }
+                            else
+                            {
+                                @captured.Title@(captured.IsDirty ? " *" : "")
+                            }
+                        </span>
                     </TextTemplate>
                     <ChildContent>
                         @if (captured.Kind == TabKind.External)
@@ -63,6 +71,18 @@
                 </DxTabPage>
             }
         </DxTabs>
+
+        @* Chrome benzeri sekme context menüsü — sağ-tıklanan sekmeye (_ctxTabId) uygulanır. *@
+        <DxContextMenu @ref="_tabMenu">
+            <Items>
+                <DxContextMenuItem Text="@L["Tab_Refresh"]" IconCssClass="custom-icon-refresh" Click="@(() => TabManager.Refresh(_ctxTabId))" />
+                <DxContextMenuItem Text="@L["Tab_PopOut"]" IconCssClass="custom-icon-maximize" Click="@PopOutContextTabAsync" />
+                <DxContextMenuItem Text="@L["Tab_Close"]" IconCssClass="custom-icon-close" BeginGroup="true" Click="@OnCtxCloseAsync" />
+                <DxContextMenuItem Text="@L["Tab_CloseOthers"]" Click="@(async () => await BulkCloseAsync(TabCloseScope.Others))" />
+                <DxContextMenuItem Text="@L["Tab_CloseRight"]" Click="@(async () => await BulkCloseAsync(TabCloseScope.ToRight))" />
+                <DxContextMenuItem Text="@L["Tab_CloseAll"]" Click="@(async () => await BulkCloseAsync(TabCloseScope.All))" />
+            </Items>
+        </DxContextMenu>
     }
 </div>
 
@@ -111,6 +131,68 @@
     }
 
     private void OnStateChanged() => _ = InvokeAsync(StateHasChanged);
+
+    // ── Sekme context menüsü (Chrome benzeri) ───────────────────────────────
+    private DxContextMenu? _tabMenu;
+    private Guid _ctxTabId;
+
+    private async Task OnTabContextMenuAsync(MouseEventArgs e, MdiTab tab)
+    {
+        _ctxTabId = tab.Id;                         // sağ-tıklanan sekme (aktif olmak zorunda değil)
+        if (_tabMenu is not null)
+            await _tabMenu.ShowAsync(e);            // imleç konumunda aç
+    }
+
+    private async Task OnCtxCloseAsync() => await TabManager.TryCloseAsync(_ctxTabId);
+
+    // Toplu kapatma: dirty YOK → sessizce hepsi; dirty VAR → TEK uyarı (mevcut ConfirmAsync popup'ı):
+    //   Yes = Kaydedilmişleri kapat (yalnız temizler) · No = Yine de kapat (hepsi, dirty atılır) · çarpı = İptal.
+    private async Task BulkCloseAsync(TabCloseScope scope)
+    {
+        var targets = TabManager.GetCloseTargets(scope, _ctxTabId);
+        if (targets.Count == 0) return;
+
+        var dirtyCount = targets.Count(t => t.IsDirty);
+        if (dirtyCount == 0)
+        {
+            TabManager.CloseMany(targets.Select(t => t.Id));            // hiç dirty yok → sessizce kapat
+            return;
+        }
+
+        var result = await UiService.ConfirmAsync(
+            string.Format(L["BulkCloseDirtyWarning"].Value, dirtyCount),
+            title: null,
+            yesText: L["CloseSavedTabs"].Value,     // Kaydedilmişleri kapat (primary)
+            noText: L["CloseAnyway"].Value,         // Yine de kapat
+            showCancel: false,                      // İptal görevi = popup çarpısı
+            defaultYes: true);
+
+        if (result == ConfirmDialogResult.Yes)
+        {
+            TabManager.CloseMany(targets.Where(t => !t.IsDirty).Select(t => t.Id));   // sadece temiz (kaydedilmiş) olanlar
+            // İlk kaydedilmemiş (dirty) sekmeye odaklan — yoksa CloseMany aktifi kapsam-dışı/ilk kalan sekmeye düşürür.
+            var firstDirty = targets.FirstOrDefault(t => t.IsDirty);
+            if (firstDirty != null) TabManager.Activate(firstDirty.Id);
+        }
+        else if (result == ConfirmDialogResult.No)
+            TabManager.CloseMany(targets.Select(t => t.Id));                          // hepsi — dirty değişiklikler atılır
+        // ConfirmDialogResult.Cancel → hiçbir şey yapma
+    }
+
+    // Pop-out: sekmeyi kapat (dirty guard) → aynı içeriği popup olarak aç (Dock-to-Tab geri-dönüşü için _TabUrl taşınır).
+    private async Task PopOutContextTabAsync()
+    {
+        var tab = TabManager.Tabs.FirstOrDefault(t => t.Id == _ctxTabId);
+        if (tab is null || tab.PageType is null) return;
+        if (!await TabManager.TryCloseAsync(tab.Id)) return;
+
+        var parameters = tab.Parameters != null
+            ? new Dictionary<string, object>(tab.Parameters)
+            : new Dictionary<string, object>();
+        parameters["_TabUrl"] = tab.Url;
+
+        await PopupService.ShowAsync(tab.PageType, parameters, new PopupOptions { Title = tab.Title });
+    }
 
     public void Dispose() => TabManager.StateChanged -= OnStateChanged;
 }

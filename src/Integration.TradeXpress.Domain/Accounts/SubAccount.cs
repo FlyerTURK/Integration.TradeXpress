@@ -85,6 +85,11 @@ public class SubAccount : FullAuditedAggregateRoot<Guid>, IMultiTenant
         BranchId = (branchId is { } b && b != Guid.Empty) ? b : null;
     }
 
+    public override string ToString()
+    {
+        return Code;
+    }
+
     // Code immutable → yalnız ctor.
     private void SetCode(string code)
     {

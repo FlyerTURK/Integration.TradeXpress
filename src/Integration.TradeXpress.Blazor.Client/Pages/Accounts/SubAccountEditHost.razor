@@ -9,6 +9,7 @@
 @using DevExpress.Blazor
 @inherits CrudComponentBase
 @inject ISubAccountAppService SubAccountAppService
+@inject IAccountAppService AccountAppService
 @inject IObjectMapper Mapper
 
 @if (_coordinator != null)
@@ -21,7 +22,23 @@
                   Context="m">
         
         <DxFormLayout CssClass="w-100">
-            <DxFormLayoutItem Caption="@($"{L["Code"]} *")" ColSpanMd="6"><DxTextBox @bind-Text="m.Code" /></DxFormLayoutItem>
+            @* Cari (Account) lookup — Code'dan ÖNCE yarım satır; yeni kayıtta seçilir, edit'te salt-okunur (UpdateDto'da AccountId yok). *@
+            <DxFormLayoutItem Caption="@($"{L["Account"]} *")" ColSpanMd="6">
+                <LookupComboBox TItem="AccountListDto" TValue="Guid?"
+                                Data="@_accounts"
+                                ValueFieldName="@nameof(AccountListDto.Id)"
+                                TextFieldName="@nameof(AccountListDto.Code)"
+                                Value="@(m.AccountId == Guid.Empty ? (Guid?)null : m.AccountId)"
+                                ValueChanged="@((Guid? id) => m.AccountId = id ?? Guid.Empty)"
+                                Enabled="@(m.Id == Guid.Empty)"
+                                NullText="@L["Select"].Value">
+                    <Columns>
+                        <DxListEditorColumn FieldName="@nameof(AccountListDto.Code)" Caption="@L["Code"].Value" Width="40%" />
+                        <DxListEditorColumn FieldName="@nameof(AccountListDto.Name)" Caption="@L["Name"].Value" />
+                    </Columns>
+                </LookupComboBox>
+            </DxFormLayoutItem>
+            <DxFormLayoutItem Caption="@($"{L["Code"]} *")" ColSpanMd="6" BeginRow="true"><DxTextBox @bind-Text="m.Code" /></DxFormLayoutItem>
             <DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="12"><DxTextBox @bind-Text="m.Name" /></DxFormLayoutItem>
             <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6">
                 <DxCheckBox @bind-Checked="m.IsActive" CheckType="CheckType.Switch">
@@ -42,10 +59,18 @@
     [Parameter] public EventCallback OnClosed { get; set; }
 
     private ICommitCoordinator<SubAccountGetDto, SubAccountListDto, Guid, SubAccountListRequestDto>? _coordinator;
+    private List<AccountListDto> _accounts = new();
 
     protected override void OnInitialized()
         => _coordinator = new PersistentCoordinator<SubAccountGetDto, SubAccountListDto, Guid, SubAccountListRequestDto, SubAccountCreateDto, SubAccountUpdateDto>(
             SubAccountAppService, Mapper);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+        var res = await AccountAppService.GetListAsync(new AccountListRequestDto { MaxResultCount = 1000 });
+        _accounts = res.Items.ToList();
+    }
 
     // Yeni subaccount: parent account + active default
     private void ApplyNewSubAccountDefaults(SubAccountGetDto m)

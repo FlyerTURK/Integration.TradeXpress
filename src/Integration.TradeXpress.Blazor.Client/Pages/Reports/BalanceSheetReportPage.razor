@@ -1,0 +1,188 @@
+@page "/reports/balance-sheet"
+@using System
+@using Integration.TradeXpress.Reports
+@using Integration.TradeXpress.Permissions
+@using Integration.TradeXpress.Blazor.Client.Services.Working
+@using Microsoft.AspNetCore.Authorization
+@using DevExpress.Blazor
+@using Microsoft.Extensions.Localization
+@attribute [Authorize(TradeXpressPermissions.Reports.BalanceSheet)]
+@inherits Volo.Abp.AspNetCore.Components.AbpComponentBase
+@inject IStringLocalizer<Integration.TradeXpress.Localization.TradeXpressResource> Loc
+@implements IDisposable
+
+<PageTitle>Bilanço Raporu</PageTitle>
+
+<DxLayoutBreakpoint MaxWidth="768" @bind-IsActive="_isMobile" />
+
+<div style="padding:@(_isMobile ? "6px 0" : "12px"); display:flex; flex-direction:column; gap:8px; height:100%;">
+
+    @* TOPLAM henüz KISMİ (cari + gider/gelir + stok/işçilik); fiziksel bazı kategoriler ileride → dürüst uyarı (sonuç varken). *@
+    @if (_result != null)
+    {
+        <div style="padding:6px 10px; border-radius:6px; background:#fff3cd; color:#664d03; border:1px solid #ffe69c; font-size:12px;">
+            ⚠ @Loc["BalanceSheet:PartialTotalWarning"]
+        </div>
+    }
+
+    @* ERPPRO düzeni: SOL = kategori detay grid (toolbar grid'in ToolbarTemplate'inde) + KAR/ZARAR; SAĞ = SADECE kaydedilen bilançolar. Workspace → tab başlığı (kod). *@
+    <div style="display:flex; @(_isMobile ? "flex-direction:column; overflow-y:auto;" : "") gap:12px; flex:1; min-height:0;">
+
+        @* ── SOL ── grid'ler HER ZAMAN görünür *@
+        <div style="@(_isMobile ? "width:100%;" : "flex:0 0 540px; min-height:0;") min-width:0; display:flex; flex-direction:column; gap:8px;">
+
+            @* kategori×birim; Category'ye göre gruplu. Toolbar grid'in ToolbarTemplate'inde. *@
+            <DxGrid Data="@(_result?.Rows)" ShowGroupPanel="false" AutoExpandAllGroupRows="true"
+                    SelectionMode="GridSelectionMode.Single" AllowSelectRowByClick="true" @bind-SelectedDataItem="_selectedDetailRow"
+                    RowDoubleClick="@OnRowDoubleClick"
+                    CssClass="w-100" style="@(_isMobile ? "height:360px;" : "flex:1; min-height:0;")">
+                <ToolbarTemplate>
+                    @* İki toolbar alt alta (saf layout sarmalayıcı) — her biri az item → mobilde menü butonuna DARALMAZ. *@
+                    <div style="display:flex; flex-direction:column; gap:4px;">
+                        @* 1) Tarih + Şube/Şirket *@
+                        <DxToolbar AdaptivityAutoHideRootItems="false" AdaptivityAutoCollapseItemsToIcons="false">
+                            <DxToolbarItem>
+                                <Template Context="ti">
+                                    <DxDateEdit @bind-Date="_asOf" style="width:150px;" />
+                                </Template>
+                            </DxToolbarItem>
+                            <DxToolbarItem>
+                                <Template Context="ti">
+                                    <DxCheckBox Checked="@_companyMode" CheckedChanged="@(async (bool v) => await OnCompanyModeChanged(v))" CheckType="CheckType.Switch">
+                                        @(_companyMode ? "Şirket" : "Şube")
+                                    </DxCheckBox>
+                                </Template>
+                            </DxToolbarItem>
+                        </DxToolbar>
+                        @* 2) Bilanço Al + Kaydet *@
+                        <DxToolbar AdaptivityAutoHideRootItems="false" AdaptivityAutoCollapseItemsToIcons="false">
+                            <DxToolbarItem Text="Bilanço Al" Click="ComputeAsync" Enabled="@(!_busy)"
+                                           RenderStyle="ButtonRenderStyle.Primary" RenderStyleMode="ToolbarItemRenderStyleMode.Contained" />
+                            @* Kaydet: snapshot kalıcılığı Faz 1b'de gelecek → disable + tooltip (buton silinmez). *@
+                            <DxToolbarItem Text="Kaydet" Enabled="false" Tooltip="@Loc["BalanceSheet:SaveDisabledTooltip"]" />
+                        </DxToolbar>
+                    </div>
+                </ToolbarTemplate>
+                <Columns>
+                    <DxGridDataColumn FieldName="@nameof(BalanceSheetDetailRowDto.Category)" GroupIndex="0" Visible="false" />
+                    @* Kompakt KART satırı — kod + bakiye + Net rozeti; kolon başlığı = "XX TARİHLİ BİLANÇO" (büyük harf, ortalı). *@
+                    <DxGridDataColumn Caption="@($"{(_result?.AsOf ?? _asOf):dd.MM.yyyy} TARİHLİ BİLANÇO")" CaptionAlignment="GridTextAlignment.Center" AllowSort="false" AllowGroup="false">
+                        <CellDisplayTemplate>
+                            @{ var r = (BalanceSheetDetailRowDto)context.DataItem; }
+                            <div style="display:flex; align-items:center; gap:10px; width:100%;">
+                                <span style="font-weight:700; min-width:46px;">@r.UnitCode</span>
+                                <span style="flex:1; text-align:right; color:var(--dxbl-text-secondary);">@r.Amount.ToString("n2")</span>
+                                @if (r.MissingRate)
+                                {
+                                    <span style="color:var(--dxbl-warning,#ef6c00); font-size:11px;">kur yok</span>
+                                }
+                                else
+                                {
+                                    <span style="@GradientBadgeStyle(r.Net)">@r.Net.ToString("n2") @_result?.BaseCurrencyCode</span>
+                                }
+                            </div>
+                        </CellDisplayTemplate>
+                    </DxGridDataColumn>
+                </Columns>
+                <DataColumnGroupRowTemplate>
+                    @{ var cat = (string)context.GroupValue; var ct = CatTotal(cat); }
+                    <strong>@Loc[$"BalanceSheetCategory:{cat}"]</strong>
+                    @if (ct is { CountsInTotal: false })
+                    {
+                        <span style="font-size:11px; color:var(--dxbl-text-secondary); margin-left:6px;">· TOPLAM dışı</span>
+                    }
+                    <span style="@("margin-left:10px; " + GradientBadgeStyle(CatNet(cat)))">@CatNet(cat).ToString("n2") @_result?.BaseCurrencyCode</span>
+                </DataColumnGroupRowTemplate>
+            </DxGrid>
+
+            @* KAR/ZARAR — birim detay grid HER ZAMAN; gradyan banner sonuç varken (voucher bakiye label CSS'i) *@
+            <div style="flex:0 0 auto; display:flex; flex-direction:column;">
+                @if (_result != null)
+                {
+                    <div style="@($"height:36px; display:flex; align-items:center; justify-content:center; padding:0 10px; border-radius:4px 4px 0 0; color:#fff; font-weight:700; font-size:1.05rem; background:{(_result.Total >= 0m ? "var(--gradient-green)" : "var(--gradient-red)")};")">
+                        @Math.Abs(_result.Total).ToString("n2") @_result.BaseCurrencyCode @(_result.Total >= 0m ? "KÂR" : "ZARAR")
+                    </div>
+                }
+                <DxGrid Data="@KarZararRows()" ShowGroupPanel="false" CssClass="w-100" style="max-height:170px;">
+                    <Columns>
+                        <DxGridDataColumn FieldName="@nameof(KarZararRow.UnitCode)" Caption="Kod" Width="80px" />
+                        <DxGridDataColumn FieldName="@nameof(KarZararRow.Bakiye)" Caption="Bakiye" DisplayFormat="n2" TextAlignment="GridTextAlignment.Right" />
+                        <DxGridDataColumn FieldName="@nameof(KarZararRow.Net)" Caption="Net" TextAlignment="GridTextAlignment.Right">
+                            <CellDisplayTemplate>
+                                @{ var k = (KarZararRow)context.DataItem; }
+                                <span style="@GradientBadgeStyle(k.Net)">@k.Net.ToString("n2") @_result?.BaseCurrencyCode</span>
+                            </CellDisplayTemplate>
+                        </DxGridDataColumn>
+                    </Columns>
+                </DxGrid>
+            </div>
+        </div>
+
+        @* ── SAĞ — SADECE kaydedilen bilançolar (snapshot, ERPPRO üst grid). Boşsa boş; Kaydet/Faz 3 doldurur. ── *@
+        <div style="@(_isMobile ? "width:100%; min-height:320px;" : "flex:1;") min-width:0; display:flex; flex-direction:column;">
+            <DxGrid Data="@_savedSnapshots" ShowGroupPanel="false" CssClass="w-100" style="@(_isMobile ? "height:320px;" : "flex:1; min-height:0;")">
+                <Columns>
+                    <DxGridDataColumn FieldName="Sube" Caption="ŞUBE" Width="150px" />
+                    <DxGridDataColumn FieldName="Tarih" Caption="TARİH" DisplayFormat="dd.MM.yyyy" Width="100px" />
+                    <DxGridDataColumn FieldName="Gider" Caption="GİDER" DisplayFormat="n2" TextAlignment="GridTextAlignment.Right" Width="90px" />
+                    <DxGridDataColumn FieldName="Gelir" Caption="GELİR" DisplayFormat="n2" TextAlignment="GridTextAlignment.Right" Width="90px" />
+                    <DxGridDataColumn FieldName="Gunluk" Caption="GÜNLÜK" DisplayFormat="n2" TextAlignment="GridTextAlignment.Right" Width="90px" />
+                    <DxGridDataColumn FieldName="MToplam" Caption="M.TOPLAM" DisplayFormat="n2" TextAlignment="GridTextAlignment.Right" Width="95px" />
+                    <DxGridDataColumn FieldName="KurFarki" Caption="KUR FARKI" DisplayFormat="n2" TextAlignment="GridTextAlignment.Right" Width="95px" />
+                    <DxGridDataColumn FieldName="Bakiye" Caption="BAKİYE" DisplayFormat="n2" TextAlignment="GridTextAlignment.Right" Width="95px" />
+                    <DxGridDataColumn FieldName="Stok" Caption="STOK" DisplayFormat="n2" TextAlignment="GridTextAlignment.Right" Width="90px" />
+                    <DxGridDataColumn FieldName="Pirlanta" Caption="PIRLANTA" DisplayFormat="n2" TextAlignment="GridTextAlignment.Right" Width="90px" />
+                    <DxGridDataColumn FieldName="Tas" Caption="TAŞ" DisplayFormat="n2" TextAlignment="GridTextAlignment.Right" Width="80px" />
+                    <DxGridDataColumn FieldName="Iscilik" Caption="İŞÇİLİK" DisplayFormat="n2" TextAlignment="GridTextAlignment.Right" Width="90px" />
+                    <DxGridDataColumn FieldName="Takoz" Caption="TAKOZ" DisplayFormat="n2" TextAlignment="GridTextAlignment.Right" Width="80px" />
+                    <DxGridDataColumn FieldName="Devir" Caption="DEVİR" DisplayFormat="n2" TextAlignment="GridTextAlignment.Right" Width="85px" />
+                    <DxGridDataColumn FieldName="KarZarar" Caption="KAR/ZARAR" TextAlignment="GridTextAlignment.Right" Width="100px">
+                        <CellDisplayTemplate>
+                            @{ var s = (BilancoSummaryRow)context.DataItem; }
+                            <span style="@GradientBadgeStyle(s.KarZarar)">@s.KarZarar.ToString("n2")</span>
+                        </CellDisplayTemplate>
+                    </DxGridDataColumn>
+                    <DxGridDataColumn FieldName="Toplam" Caption="TOPLAM" TextAlignment="GridTextAlignment.Right" Width="105px">
+                        <CellDisplayTemplate>
+                            @{ var s = (BilancoSummaryRow)context.DataItem; }
+                            <span style="@GradientBadgeStyle(s.Toplam)">@s.Toplam.ToString("n2")</span>
+                        </CellDisplayTemplate>
+                    </DxGridDataColumn>
+                    <DxGridDataColumn FieldName="Birim" Caption="BİRİM" Width="70px" />
+                </Columns>
+            </DxGrid>
+        </div>
+    </div>
+
+    @* DRILL popup — üst grid çift-tık → o kategori×birim değerinin HAREKETLERİ (solda Kod, sağda Bakiye rozet). *@
+    <DxPopup @bind-Visible="_movementsVisible"
+             HeaderText="@(_movementRow is null ? "Hareketler" : $"{Loc[$"BalanceSheetCategory:{_movementRow.Category}"]} · {_movementRow.UnitCode}")"
+             AllowDrag="false"
+             Width="@(_isMobile ? "96vw" : "420px")"
+             CloseOnEscape="true" ShowCloseButton="true">
+        <BodyContentTemplate Context="popupCtx">
+            @if (_movementsBusy)
+            {
+                <div style="padding:16px; text-align:center; color:var(--dxbl-text-secondary);">Yükleniyor…</div>
+            }
+            else if (_movements is { Supported: false })
+            {
+                <div style="padding:16px; color:var(--dxbl-text-secondary);">Bu kategori için hareket detayı yakında eklenecek.</div>
+            }
+            else if (_movements is { } m)
+            {
+                <DxGrid Data="@m.Movements" ShowGroupPanel="false" CssClass="w-100">
+                    <Columns>
+                        <DxGridDataColumn FieldName="Code" Caption="Kod" />
+                        <DxGridDataColumn FieldName="Amount" Caption="Bakiye" TextAlignment="GridTextAlignment.Right">
+                            <CellDisplayTemplate>
+                                @{ var mv = (BalanceSheetMovementDto)context.DataItem; }
+                                <span style="@GradientBadgeStyle(mv.Amount)">@mv.Amount.ToString("n2") @m.UnitCode</span>
+                            </CellDisplayTemplate>
+                        </DxGridDataColumn>
+                    </Columns>
+                </DxGrid>
+            }
+        </BodyContentTemplate>
+    </DxPopup>
+</div>

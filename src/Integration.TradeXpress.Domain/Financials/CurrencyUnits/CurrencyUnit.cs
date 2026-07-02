@@ -141,6 +141,11 @@ public class CurrencyUnit : FullAuditedAggregateRoot<Guid>, IMultiTenant
         Type = type;
     }
 
+    public override string ToString()
+    {
+        return Code;
+    }
+
     // Code immutable (public mutator YOK) → yalnız ctor için private normalize+validate.
     private void SetCode(string code)
     {

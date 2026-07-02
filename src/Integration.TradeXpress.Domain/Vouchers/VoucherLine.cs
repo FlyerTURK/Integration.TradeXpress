@@ -1,4 +1,6 @@
 using System;
+using Integration.TradeXpress.Bullions;
+using Integration.TradeXpress.Conventions;
 using Volo.Abp;
 using Volo.Abp.Domain.Entities;
 using Volo.Abp.Domain.Entities.Auditing;
@@ -33,6 +35,7 @@ public class VoucherLine : CreationAuditedEntity<Guid>, ISoftDelete
 
     public virtual Guid VoucherId { get; protected set; }
 
+    [AllowNavigation("Aggregate-içi child→root: VoucherLine, Voucher aggregate'inin parçası (inverse: Voucher.Lines).")]
     public virtual Voucher Voucher { get; protected set; } = null!;
 
     public virtual ProcessType Type { get; protected set; }
@@ -93,6 +96,55 @@ public class VoucherLine : CreationAuditedEntity<Guid>, ISoftDelete
 
     public virtual bool IsDeleted { get; set; }
 
+    // ── TAKOZ (Bullion) — ProcessType.Bullion satırına özel (diğer tiplerde null) ───────
+    // Ana metal = Factor(=altın milyemi) @ MainUnitId; altın işçilik = PayFactor @ PayUnitId.
+    // Yan metaller (gümüş/platin/paladyum) + işçilikleri + dağıtım durumları + kur snapshot'ları.
+
+    public virtual BullionType? BullionType { get; protected set; }
+    public virtual Guid? AssayOfficeId { get; protected set; }
+    public virtual string? ReportNo { get; protected set; }
+    public virtual bool? IsReport { get; protected set; }
+    public virtual bool? IsExtra { get; protected set; }
+    /// <summary>Çeşni numune miktarı (girişte cari bakiyeye dahil).</summary>
+    public virtual decimal? AssayAmount { get; protected set; }
+
+    // Yan metal milyemleri
+    public virtual decimal? SilverFactor { get; protected set; }
+    public virtual decimal? PlatinumFactor { get; protected set; }
+    public virtual decimal? PalladiumFactor { get; protected set; }
+
+    // Dağıtım durumları (Madeni Ver / Altına Çevir / İşçilikten Düş / Madeni Bırak) + işçilik tahsil şekli
+    public virtual MetalDisposition? SilverMode { get; protected set; }
+    public virtual MetalDisposition? PlatinumMode { get; protected set; }
+    public virtual MetalDisposition? PalladiumMode { get; protected set; }
+    public virtual BullionLaborMode? LaborMode { get; protected set; }
+
+    // İşçilik fiyatları (altın = PayFactor; gümüş/platin/paladyum yeni — PT/PD ERPPROV3'te YOK, eklendi)
+    public virtual decimal? SilverLaborRate { get; protected set; }
+    public virtual decimal? PlatinumLaborRate { get; protected set; }
+    public virtual decimal? PalladiumLaborRate { get; protected set; }
+
+    // İşçilik birimleri (edit-load için)
+    public virtual Guid? GoldLaborUnitId { get; protected set; }
+    public virtual Guid? SilverLaborUnitId { get; protected set; }
+    public virtual Guid? PlatinumLaborUnitId { get; protected set; }
+    public virtual Guid? PalladiumLaborUnitId { get; protected set; }
+
+    // Yan metal bacak birimleri (gümüş/platin/paladyum bakiyesi hangi birime postlanır)
+    public virtual Guid? SilverUnitId { get; protected set; }
+    public virtual Guid? PlatinumUnitId { get; protected set; }
+    public virtual Guid? PalladiumUnitId { get; protected set; }
+
+    // Kur snapshot'ları (kayıt anında dondurulur — poster ek kur okuması YAPMAZ)
+    public virtual decimal? GoldRate { get; protected set; }
+    public virtual decimal? SilverRate { get; protected set; }
+    public virtual decimal? PlatinumRate { get; protected set; }
+    public virtual decimal? PalladiumRate { get; protected set; }
+    public virtual decimal? GoldLaborUnitRate { get; protected set; }
+    public virtual decimal? SilverLaborUnitRate { get; protected set; }
+    public virtual decimal? PlatinumLaborUnitRate { get; protected set; }
+    public virtual decimal? PalladiumLaborUnitRate { get; protected set; }
+
     #endregion
 
     #region Methods
@@ -121,6 +173,39 @@ public class VoucherLine : CreationAuditedEntity<Guid>, ISoftDelete
         PayUnitRate      = input.PayUnitRate;
         DueDate          = input.DueDate;
         Description      = input.Description;
+
+        // ── Takoz (Bullion) alanları ──
+        BullionType           = input.BullionType;
+        AssayOfficeId         = input.AssayOfficeId == Guid.Empty ? null : input.AssayOfficeId;
+        ReportNo              = input.ReportNo;
+        IsReport              = input.IsReport;
+        IsExtra               = input.IsExtra;
+        AssayAmount           = input.AssayAmount;
+        SilverFactor          = input.SilverFactor;
+        PlatinumFactor        = input.PlatinumFactor;
+        PalladiumFactor       = input.PalladiumFactor;
+        SilverMode            = input.SilverMode;
+        PlatinumMode          = input.PlatinumMode;
+        PalladiumMode         = input.PalladiumMode;
+        LaborMode             = input.LaborMode;
+        SilverLaborRate       = input.SilverLaborRate;
+        PlatinumLaborRate     = input.PlatinumLaborRate;
+        PalladiumLaborRate    = input.PalladiumLaborRate;
+        GoldLaborUnitId       = input.GoldLaborUnitId;
+        SilverLaborUnitId     = input.SilverLaborUnitId;
+        PlatinumLaborUnitId   = input.PlatinumLaborUnitId;
+        PalladiumLaborUnitId  = input.PalladiumLaborUnitId;
+        SilverUnitId          = input.SilverUnitId;
+        PlatinumUnitId        = input.PlatinumUnitId;
+        PalladiumUnitId       = input.PalladiumUnitId;
+        GoldRate              = input.GoldRate;
+        SilverRate            = input.SilverRate;
+        PlatinumRate          = input.PlatinumRate;
+        PalladiumRate         = input.PalladiumRate;
+        GoldLaborUnitRate     = input.GoldLaborUnitRate;
+        SilverLaborUnitRate   = input.SilverLaborUnitRate;
+        PlatinumLaborUnitRate = input.PlatinumLaborUnitRate;
+        PalladiumLaborUnitRate = input.PalladiumLaborUnitRate;
     }
 
     #endregion

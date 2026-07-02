@@ -69,7 +69,6 @@ public class Metal : FullAuditedAggregateRoot<Guid>, IMultiTenant
 
     /// <summary>Madenin saf olarak dönüştüğü ana birim (FK, ZORUNLU; ör. HAS).</summary>
     public virtual Guid FollowingUnitId { get; protected set; }
-    public virtual CurrencyUnit? FollowingUnit { get; protected set; }
 
     /// <summary>Milyem — gram-altı ≤1 (ör. 0.995), sikkede birim-başı HAS-gram &gt;1 (ör. 1.605). Yalnız pozitif.</summary>
     public virtual decimal Factor { get; protected set; }
@@ -161,6 +160,11 @@ public class Metal : FullAuditedAggregateRoot<Guid>, IMultiTenant
     public virtual void SetFactorChange(bool value) => FactorChange = value;
 
     public virtual void SetActive(bool value) => IsActive = value;
+
+    public override string ToString()
+    {
+        return Code;
+    }
 
     private void SetCode(string code)
     {

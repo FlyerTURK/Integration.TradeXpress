@@ -42,7 +42,6 @@ public class Future : FullAuditedAggregateRoot<Guid>, IMultiTenant
 
     /// <summary>Takip edilen ana para birimi (FK, ZORUNLU) — ana bacağın cinsi.</summary>
     public virtual Guid FollowingUnitId { get; protected set; }
-    public virtual CurrencyUnit? FollowingUnit { get; protected set; }
 
     /// <summary>Çarpan (milyem/lot/saflık) — Total = Miktar × FollowingFactor. Pozitif; varsayılan 1.</summary>
     public virtual decimal FollowingFactor { get; protected set; }
@@ -89,6 +88,11 @@ public class Future : FullAuditedAggregateRoot<Guid>, IMultiTenant
     public virtual void SetActive(bool value)
     {
         IsActive = value;
+    }
+
+    public override string ToString()
+    {
+        return Code;
     }
 
     private void SetCode(string code)

@@ -58,7 +58,7 @@
     [Parameter] public string? Title { get; set; }
 
     /// <summary>Header'da opsiyonel ikon. Varsayılan: generic "düzenle" ikonu (entity'ye özel geçilebilir).</summary>
-    [Parameter] public string? HeaderIconCssClass { get; set; } = "custom-icon-edit";
+    [Parameter] public string? HeaderIconCssClass { get; set; } = FrameworkIcons.Edit;
 
     /// <summary>Düzenlenen modelin EditContext'i (sahibi çağırandır; burada yalnız kullanılır).</summary>
     [Parameter] public EditContext? EditContext { get; set; }

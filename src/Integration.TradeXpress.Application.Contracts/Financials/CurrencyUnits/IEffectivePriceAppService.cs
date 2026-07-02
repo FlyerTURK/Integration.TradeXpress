@@ -16,6 +16,10 @@ public interface IEffectivePriceAppService : IApplicationService
     /// "1 birim = X yerel", yerel satır 1.00. Bilanço birimi (BaseCurrencyUnitId) DEĞİL. Yerel çözülemezse pivot (TRY).</summary>
     Task<List<CurrentPriceDto>> GetCurrentPricesAsync();
 
+    /// <summary>Çalışılan (working) şirketin YEREL para birimi unit Id'si (CountryCode→Country.DefaultCurrencyCode→CurrencyUnit);
+    /// şirket/ülke/birim yoksa null. Peşin nakit + Bedelli combo default'u için (takip birimi = yerel para).</summary>
+    Task<Guid?> GetWorkingLocalCurrencyUnitIdAsync();
+
     /// <summary>
     /// Efektif fiyatları aktif şirketin <b>base para birimine</b> re-base eder (DEĞERLEME görünümü;
     /// base=USD → USD=1). <paramref name="companyId"/> null ise scope'un HQ şirketi. Parite panosu
@@ -25,7 +29,10 @@ public interface IEffectivePriceAppService : IApplicationService
 
     /// <summary>
     /// Efektifleri VERİLEN base birime re-base eder (şube bilanço birimi şirket base'inden farklı
-    /// olabilir → pozisyon raporu bunu kullanır). Boş id ya da base efektifi yoksa boş liste.
+    /// olabilir → pozisyon/bilanço raporu bunu kullanır). Boş id ya da base efektifi yoksa boş liste.
+    /// <paramref name="asOf"/> verilirse (ve geçmiş bir günse) değerleme O TARİHTEKİ kurla yapılır
+    /// (canlı tick atlanır, ham kur RateDate≤asOf'tan son bilinen seçilir = ERPPRO GetLastKur semantiği);
+    /// null/bugün ise canlı/güncel davranış. Tarihsel bilanço bugünün kuruyla değerlenmesin diye.
     /// </summary>
-    Task<List<ValuationPriceDto>> GetValuationByBaseAsync(Guid baseCurrencyUnitId);
+    Task<List<ValuationPriceDto>> GetValuationByBaseAsync(Guid baseCurrencyUnitId, DateTime? asOf = null);
 }

@@ -38,8 +38,26 @@ public interface ITabManager
     void CloseOthers(Guid id);
     void CloseAll();
     void CloseToRight(Guid id);
+
+    /// <summary>Toplu-kapatma kapsamı için hedef sekmeler (pinned HARİÇ) — UI dirty kontrolü + tek-uyarı kararı için.</summary>
+    IReadOnlyList<MdiTab> GetCloseTargets(TabCloseScope scope, Guid anchorId);
+    /// <summary>Verilen id'leri FORCE kapatır (guard YOK — UI zaten karar verdi: ör. "yine de kapat"/"kaydedilmişleri kapat").
+    /// Pinned atlanır. Tek Persist/Raise.</summary>
+    void CloseMany(IEnumerable<Guid> ids);
+
     void Refresh(Guid id);
     Task ReloadTabsAsync();
     Task HardResetAsync();
     void UpdateTabUrl(Guid tabId, string url);
+}
+
+/// <summary>Toplu sekme kapatma kapsamı (sağ-tık context menüsü).</summary>
+public enum TabCloseScope
+{
+    /// <summary>Anchor hariç tüm (pinned olmayan) sekmeler.</summary>
+    Others,
+    /// <summary>Anchor'ın sağındaki (pinned olmayan) sekmeler.</summary>
+    ToRight,
+    /// <summary>Tüm (pinned olmayan) sekmeler.</summary>
+    All
 }

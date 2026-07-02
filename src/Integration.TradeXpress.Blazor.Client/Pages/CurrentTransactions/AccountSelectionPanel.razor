@@ -9,6 +9,8 @@
 @inject IVaultAppService VaultService
 @inject Integration.TradeXpress.Blazor.Client.Services.Working.IWorkingContextService Working
 @inject Integration.Framework.Blazor.Client.Services.Base.ITradeXpressUiService Ui
+@inject Integration.Framework.Blazor.Client.Services.Base.IViewOpener ViewOpener
+@inject Integration.Framework.Blazor.Client.Services.Base.IPopupService PopupService
 
 @if (_activeProcess == null)
 {
@@ -29,8 +31,8 @@
                                     NullText="@L["Select"].Value"
                                     AllowClear="true"
                                     Enabled="@(!_locked)"
-                                    OnEditRequested="@((Guid? id) => Task.CompletedTask)"
-                                    OnAddRequested="@(() => Task.FromResult<Guid?>(null))">
+                                    OnEditRequested="@OnEditSubAccountAsync"
+                                    OnAddRequested="@OnAddSubAccountAsync">
                         <Columns>
                             <DxListEditorColumn FieldName="@nameof(SubAccountListDto.AccountDisplay)"
                                                 Caption="@L["Account"]" Width="50%" />
@@ -126,7 +128,7 @@
     @if (_showActionToolbar)
     {
         <hr class="my-2" style="border-top: 1px solid var(--bs-border-color);" />
-        <DxToolbar Adaptive="false" AdaptivityAutoCollapseItemsToIcons="false" CssClass="mt-2">
+        <DxToolbar AdaptivityAutoHideRootItems="false" AdaptivityAutoCollapseItemsToIcons="false" CssClass="mt-2">
             <DxToolbarItem BeginGroup="true" Text="@($"3-{L["Metal"].ToString().ToUpper()}")" IconCssClass="custom-icon-metal" Click="@OnMetalClicked" />
             <DxToolbarItem BeginGroup="true" Text="@($"4-{L["Scrap"].ToString().ToUpper()}")" IconCssClass="custom-icon-scrap" Click="@OnScrapClicked" />
             <DxToolbarItem BeginGroup="true" Text="@($"5-{L["CashProcess"].ToString().ToUpper()}")" IconCssClass="custom-icon-cash" Click="@OnCashClicked" />
@@ -135,6 +137,7 @@
             <DxToolbarItem BeginGroup="true" Text="@($"8-{L["Future"].ToString().ToUpper()}")" IconCssClass="custom-icon-future" Click="@OnFutureClicked" />
             <DxToolbarItem BeginGroup="true" Text="@($"9-{L["Stone"].ToString().ToUpper()}")" IconCssClass="custom-icon-stone" Click="@OnStoneClicked" />
             <DxToolbarItem BeginGroup="true" Text="@($"M-{L["Jewelry"].ToString().ToUpper()}")" IconCssClass="custom-icon-jewelry" Click="@OnJewelryClicked" />
+            <DxToolbarItem BeginGroup="true" Text="@($"B-{L["Bullion"].ToString().ToUpper()}")" IconCssClass="custom-icon-bullion" Click="@OnBullionClicked" />
             <DxToolbarItem BeginGroup="true" Text="@($"0-{L["List"].ToString().ToUpper()}")" IconCssClass="custom-icon-list" Click="@OnListClicked" />
         </DxToolbar>
     }
@@ -285,6 +288,23 @@ else if (_activeProcess == "Jewelry")
                            OnSaved="@OnLineSavedInternal" />
     </div>
 }
+else if (_activeProcess == "Bullion")
+{
+    <div style="padding:8px; overflow-x:auto;">
+        <BullionProcessPanel @ref="_bullionPanel"
+                           OnBack="@OnProcessBack"
+                           AccountCode="@_selectedAccountCode"
+                           SubAccountCode="@_selectedSubAccountCode"
+                           CompanyId="@_model.CompanyId"
+                           BranchId="@_model.BranchId"
+                           VaultId="@_model.VaultId"
+                           AccountId="@_model.AccountId"
+                           SubAccountId="@_model.SubAccountId"
+                           VoucherDate="@_model.VoucherDate"
+                           VoucherId="@_selectedVoucherId"
+                           OnSaved="@OnLineSavedInternal" />
+    </div>
+}
 
 @code {
     [Parameter] public Guid? InitialSubAccountId { get; set; }
@@ -315,6 +335,7 @@ else if (_activeProcess == "Jewelry")
     private MetalProcessPanel? _metalPanel;
     private StoneProcessPanel? _stonePanel;
     private JewelryProcessPanel? _jewelryPanel;
+    private BullionProcessPanel? _bullionPanel;
     private VoucherLineDto? _pendingEdit;
     private SubAccountListDto? _pendingSubAccount;
 
@@ -342,7 +363,7 @@ else if (_activeProcess == "Jewelry")
         _model.CompanyId = Working.CurrentCompanyId ?? Guid.Empty;
         _model.BranchId  = Working.CurrentBranchId  ?? Guid.Empty;
 
-        var subTask   = SubAccountService.GetListAsync(new SubAccountListRequestDto { MaxResultCount = 1000 });
+        var subTask   = SubAccountService.GetListAsync(new SubAccountListRequestDto { BranchId = Working.CurrentBranchId, MaxResultCount = 1000 });
         var vaultTask = VaultService.GetListAsync(new VaultListRequestDto { BranchId = Working.CurrentBranchId, MaxResultCount = 1000 });
         await Task.WhenAll(subTask, vaultTask);
         _subAccounts  = subTask.Result.Items.ToList();
@@ -502,6 +523,63 @@ else if (_activeProcess == "Jewelry")
     private Task OnMetalClicked()   => SetActiveProcessAsync("Metal");
     private Task OnStoneClicked()   => SetActiveProcessAsync("Stone");
     private Task OnJewelryClicked() => SetActiveProcessAsync("Jewelry");
+    private Task OnBullionClicked() => SetActiveProcessAsync("Bullion");
+
+    private bool _accountPopupSaved;
+
+    /// <summary>Cari combo "düzelt": seçili ALT-HESABI (SubAccount) POPUP'ta açar (standart popup+refresh+odak).
+    /// SubAccount formunda Account lookup yer alır (yeni kayıtta seçilir, edit'te salt-okunur).</summary>
+    private async Task OnEditSubAccountAsync(Guid? subAccountId)
+    {
+        if (subAccountId is not { } id || id == Guid.Empty) return;
+        var sub = _subAccounts.FirstOrDefault(s => s.Id == id);
+        var title = sub is not null ? $"{L["SubAccount"]}: {sub.AccountSubCodeDisplay}" : L["SubAccount"].Value;
+        await OpenSubAccountPopupAsync(id, title);
+    }
+
+    /// <summary>Cari combo "ekle": YENİ alt-hesabı (SubAccount) POPUP'ta açar (standart popup+refresh+odak).</summary>
+    private async Task<Guid?> OnAddSubAccountAsync()
+    {
+        await OpenSubAccountPopupAsync(null, L["SubAccount"].Value);
+        return null;   // yeni id popup akışında oluşur; seçim aşağıda (refresh sonrası) yapılır
+    }
+
+    /// <summary>STANDART davranış: SubAccount edit POPUP'ı (framework merkezî yolu IViewOpener→IPopupService) →
+    /// kaydedilince combo listesini TAZELE + ilgili kayda ODAKLAN (ekle → yeni eklenen; düzelt → mevcut).
+    /// İptalde (kaydetmeden kapat) hiçbir şey yapılmaz.</summary>
+    private async Task OpenSubAccountPopupAsync(Guid? subAccountId, string title)
+    {
+        _accountPopupSaved = false;
+        var beforeIds = _subAccounts.Select(s => s.Id).ToHashSet();
+
+        await ViewOpener.OpenAsync(
+            typeof(Integration.TradeXpress.Blazor.Client.Pages.Accounts.SubAccountEditHost),
+            subAccountId, title, TradeXpressIcons.SubAccount, AccountPopupExtra());
+
+        if (!_accountPopupSaved) return;                       // iptal → tazeleme/odak yok
+
+        await ReloadSubAccountsAsync();                        // liste refresh
+
+        // Odaklan: ekle → yeni eklenen alt-hesap (before'da olmayan); düzelt → mevcut seçili kayıt (display tazelenir).
+        var focus = _subAccounts.FirstOrDefault(s => !beforeIds.Contains(s.Id))
+                    ?? _subAccounts.FirstOrDefault(s => s.Id == _model.SubAccountId);
+        if (focus is not null)
+            await OnSubAccountChanged(focus.Id);
+        await InvokeAsync(StateHasChanged);
+    }
+
+    /// <summary>Popup kancaları: kaydet → bayrak set + kapat; kapat → sadece kapat (merkezî IPopupService).</summary>
+    private Dictionary<string, object> AccountPopupExtra() => new()
+    {
+        { "OnSaved",  EventCallback.Factory.Create(this, () => { _accountPopupSaved = true; PopupService.Close(); }) },
+        { "OnClosed", EventCallback.Factory.Create(this, () => PopupService.Close()) },
+    };
+
+    private async Task ReloadSubAccountsAsync()
+    {
+        var res = await SubAccountService.GetListAsync(new SubAccountListRequestDto { BranchId = Working.CurrentBranchId, MaxResultCount = 1000 });
+        _subAccounts = res.Items.ToList();
+    }
     private Task OnProcessBack()    => SetActiveProcessAsync(null);
     private Task OnListClicked()    => OnListRequested.InvokeAsync();
 
@@ -519,6 +597,7 @@ else if (_activeProcess == "Jewelry")
             ProcessType.Metal   => "Metal",
             ProcessType.Stone   => "Stone",
             ProcessType.Jewelry => "Jewelry",
+            ProcessType.Bullion => "Bullion",
             _ => "Cash",
         };
         await SetActiveProcessAsync(process);
@@ -565,7 +644,12 @@ else if (_activeProcess == "Jewelry")
             _pendingEdit = null;
             await _jewelryPanel.LoadForEditAsync(dto);
         }
-        else if (dto.Type is not ProcessType.Service and not ProcessType.Convert and not ProcessType.Future and not ProcessType.Scrap and not ProcessType.Metal and not ProcessType.Stone and not ProcessType.Jewelry && _cashPanel is not null)
+        else if (dto.Type == ProcessType.Bullion && _bullionPanel is not null)
+        {
+            _pendingEdit = null;
+            await _bullionPanel.LoadForEditAsync(dto);
+        }
+        else if (dto.Type is not ProcessType.Service and not ProcessType.Convert and not ProcessType.Future and not ProcessType.Scrap and not ProcessType.Metal and not ProcessType.Stone and not ProcessType.Jewelry and not ProcessType.Bullion && _cashPanel is not null)
         {
             _pendingEdit = null;
             await _cashPanel.LoadForEditAsync(dto);

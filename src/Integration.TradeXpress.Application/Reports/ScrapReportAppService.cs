@@ -71,6 +71,57 @@ public class ScrapReportAppService : TradeXpressAppService, IScrapReportAppServi
         return grouped.OrderBy(r => r.UnitCode).ToList();
     }
 
+    /// <summary>
+    /// Bilanço STOK(hurda) için fiziksel hurda-maden holding'i: kapsam (şirket DAİMA ICurrentCompany'den) + branch/vault,
+    /// asOfExclusive'den ÖNCE birikmiş net, MainUnit(HAS)-bazında. HAS içeriği = <b>Total</b> (= Amount × Factor; poster'ın
+    /// Normal'de cari'ye yazdığı Total ile birebir offset). TÜM ödeme tipleri (Peşin dahil — fiziksel hurda hareket eder).
+    /// GetStockAsync ödeme-tipine göre cari/fiziksel KARIŞIK döner (Bedelli→PayUnit cari) → bu metod yalnız fiziksel ana
+    /// bacağı (MainUnit/Total) alır. + = firma o hurdayı tutar. Değerleme merkezde.
+    /// </summary>
+    public virtual async Task<Dictionary<Guid, decimal>> GetScrapNetByUnitAsync(Guid? branchId, Guid? vaultId, DateTime asOfExclusive)
+    {
+        if (LazyServiceProvider.LazyGetRequiredService<ICurrentCompany>().Id is not { } companyId)
+            return new Dictionary<Guid, decimal>();
+
+        var q = await _voucherRepository.GetQueryableAsync();
+        var rows = await AsyncExecuter.ToListAsync(
+            from v in q
+            where v.CompanyId == companyId
+               && (branchId == null || v.BranchId == branchId)
+               && (vaultId == null || v.VaultId == vaultId)
+               && v.VoucherDate < asOfExclusive
+            from l in v.Lines
+            where !l.IsDeleted && l.Type == ProcessType.Scrap && l.MainUnitId != Guid.Empty && l.Total != 0m
+            select new { l.MainUnitId, l.Direction, l.Total });
+
+        return rows
+            .GroupBy(r => r.MainUnitId)
+            .ToDictionary(g => g.Key, g => g.Sum(r => (((int)r.Direction % 2) == 0 ? 1m : -1m) * r.Total));
+    }
+
+    /// <summary>DRILL — hurda stok, COMMODITY bazında, tek birim için (bilanço Stok popup). GetScrapNetByUnitAsync paritesi, kod kırılımı.</summary>
+    public virtual async Task<Dictionary<string, decimal>> GetScrapStockByCommodityAsync(Guid? branchId, Guid unitId, DateTime asOfExclusive)
+    {
+        if (LazyServiceProvider.LazyGetRequiredService<ICurrentCompany>().Id is not { } companyId)
+            return new Dictionary<string, decimal>();
+
+        var q = await _voucherRepository.GetQueryableAsync();
+        var rows = await AsyncExecuter.ToListAsync(
+            from v in q
+            where v.CompanyId == companyId
+               && (branchId == null || v.BranchId == branchId)
+               && v.VoucherDate < asOfExclusive
+            from l in v.Lines
+            where !l.IsDeleted && l.Type == ProcessType.Scrap && l.MainUnitId == unitId && l.Total != 0m
+            select new { l.CommodityCode, l.Direction, l.Total });
+
+        return rows
+            .GroupBy(r => r.CommodityCode ?? "?")
+            .Select(g => new { Code = g.Key, Net = g.Sum(r => (((int)r.Direction % 2) == 0 ? 1m : -1m) * r.Total) })
+            .Where(x => x.Net != 0m)
+            .ToDictionary(x => x.Code, x => x.Net);
+    }
+
     public virtual async Task<List<ScrapMovementRowDto>> GetMovementsAsync(ScrapReportFilterDto filter)
     {
         var legs      = (await QueryLegsAsync(filter, dateFiltered: true))

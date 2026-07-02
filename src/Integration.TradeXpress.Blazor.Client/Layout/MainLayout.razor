@@ -8,7 +8,6 @@
 @inject Integration.TradeXpress.Blazor.Client.Theming.ISizeModeService SizeModeService
 @inject Microsoft.Extensions.Localization.IStringLocalizer<Integration.TradeXpress.Localization.TradeXpressResource> L
 @inject Integration.TradeXpress.Blazor.Client.Services.Mdi.ITabManager TabManager
-@inject Integration.Framework.Blazor.Client.Services.Base.IPopupService PopupService
 
 @* Geliştirici Hata Paneli — position:fixed; ErrorBoundary DIŞINDA ki boundary trip etse de kalsın.
    YALNIZ DEBUG (geliştirme) derlemesinde render edilir; Release'te (son kullanıcı) tamamen yok.
@@ -55,12 +54,7 @@
                             <span style="font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">@activeTab.Title</span>
                         }
                     </div>
-                    @if (activeTab != null)
-                    {
-                        <button type="button" @onclick="PopOutActiveTab" class="btn btn-sm btn-link text-secondary" style="margin-left: 10px;" title="Açılır Pencereye Çıkar" aria-label="Açılır Pencereye Çıkar">
-                            <i class="erp-icon erp-icon-window"></i>
-                        </button>
-                    }
+                    @* Pop-out butonu kaldırıldı → MDI sekme sağ-tık context menüsüne taşındı (MdiTabHost). *@
                     <div style="display:flex; align-items:center; margin-left:auto;">
                         <Integration.TradeXpress.Blazor.Client.Layout.UserAvatarMenu />
                         <button type="button" @onclick="ToggleInfo" style="display:flex; align-items:center; justify-content:center; cursor:pointer; min-width:31px; min-height:31px; margin-left:0.25rem; background:transparent; border:none; box-shadow:none; outline:none; padding:0; color:var(--DS-color-content-neutral-default-rest, var(--bs-body-color, #212529));" title="@L["Settings"]" aria-label="@L["Settings"]">
@@ -147,26 +141,7 @@
     bool IsNavigationOpen { get; set; } = true;
     bool IsInfoOpen { get; set; } = false;
 
-    private async Task PopOutActiveTab()
-    {
-        var tab = ActiveTab;
-        if (tab == null || tab.PageType == null) return;
-        
-        bool closed = await TabManager.TryCloseAsync(tab.Id);
-        if (!closed) return; // Kullanıcı kaydetmeden çıkmayı reddetti
-
-        // Sekmenin mevcut URL'sini PopupService'e geçirelim ki Dock to Tab sırasında geri dönebilsin.
-        var parameters = tab.Parameters != null 
-            ? new Dictionary<string, object>(tab.Parameters) 
-            : new Dictionary<string, object>();
-            
-        parameters["_TabUrl"] = tab.Url;
-
-        await PopupService.ShowAsync(tab.PageType, parameters, new Integration.Framework.Blazor.Client.Services.Base.PopupOptions 
-        { 
-            Title = tab.Title 
-        });
-    }
+    // PopOutActiveTab → MdiTabHost context menüsüne taşındı (top-panel butonu kaldırıldı).
 
     private Integration.Framework.Blazor.Client.Resilience.AutoRecoverErrorBoundary? _errorBoundary;
 

@@ -63,19 +63,25 @@
                             @L["TransactionList"].Value
                         </div>
 
-                        @if (_listMode)
+                        @if (_accountLocked && !_processActive)
                         {
                             <div style="flex-shrink:0; padding:8px 12px; border-left:1px solid color-mix(in srgb, var(--tx-theme-primary, var(--bs-primary, #0d6efd)) 8%, transparent); border-right:1px solid color-mix(in srgb, var(--tx-theme-primary, var(--bs-primary, #0d6efd)) 8%, transparent); background-color:transparent;">
                                 <DxToolbar Adaptive="false">
-                                    <DxToolbarItem BeginGroup="true" Alignment="ToolbarItemAlignment.Right">
-                                        <Template Context="toolbarContext">
-                                            <DxDateRangePicker StartDate="@_listStart" EndDate="@_listEnd"
-                                                               StartDateChanged="@((DateTime? d) => OnListRangeChanged(d ?? _listStart, _listEnd))"
-                                                               EndDateChanged="@((DateTime? d) => OnListRangeChanged(_listStart, d ?? _listEnd))"
-                                                               DisplayFormat="@L["ShortDateFormat"].Value" style="width:280px;" />
-                                        </Template>
-                                    </DxToolbarItem>
-                                    <DxToolbarItem BeginGroup="true" Alignment="ToolbarItemAlignment.Right" Text="@L["Back"].Value" IconCssClass="custom-icon-back" Click="@ExitListModeAsync" />
+                                    @* Düzelt/Sil satır-içi ikonlar yerine toolbar BAŞINDA; seçili satır(lar) üzerinde çalışır (sade görünüm). *@
+                                    <DxToolbarItem Text="@L["Edit"].Value" IconCssClass="custom-icon-edit" Click="@OnEditLine" Enabled="@(_selectedLine != null)" />
+                                    <DxToolbarItem Text="@L["Delete"].Value" IconCssClass="custom-icon-delete" Click="@OnDeleteLine" Enabled="@(_selectedLines.Count >= 1)" />
+                                    @if (_listMode)
+                                    {
+                                        <DxToolbarItem BeginGroup="true" Alignment="ToolbarItemAlignment.Right">
+                                            <Template Context="toolbarContext">
+                                                <DxDateRangePicker StartDate="@_listStart" EndDate="@_listEnd"
+                                                                   StartDateChanged="@((DateTime? d) => OnListRangeChanged(d ?? _listStart, _listEnd))"
+                                                                   EndDateChanged="@((DateTime? d) => OnListRangeChanged(_listStart, d ?? _listEnd))"
+                                                                   DisplayFormat="@L["ShortDateFormat"].Value" style="width:280px;" />
+                                            </Template>
+                                        </DxToolbarItem>
+                                        <DxToolbarItem BeginGroup="true" Alignment="ToolbarItemAlignment.Right" Text="@L["Back"].Value" IconCssClass="custom-icon-back" Click="@ExitListModeAsync" />
+                                    }
                                 </DxToolbar>
                             </div>
                         }
@@ -84,22 +90,15 @@
                             <DxGrid Data="@_voucherLines" ShowSearchBox="false" PageSize="50" CssClass="w-100 tx-grid-fill"
                                     KeyFieldName="@nameof(VoucherLineDto.Id)"
                                     ShowFilterRow="true"
-                                    SelectionMode="GridSelectionMode.Single"
+                                    SelectionMode="GridSelectionMode.Multiple"
                                     AllowSelectRowByClick="true"
-                                    SelectedDataItem="@_selectedLine"
-                                    SelectedDataItemChanged="@OnLineSelected">
+                                    SelectedDataItems="@_selectedLines"
+                                    SelectedDataItemsChanged="@OnLinesSelected">
                                 <Columns>
                                     @if (_accountLocked && !_processActive)
                                     {
-                                        <DxGridCommandColumn Width="80px" FixedPosition="GridColumnFixedPosition.Left" NewButtonVisible="false" EditButtonVisible="false" DeleteButtonVisible="false">
-                                            <CellDisplayTemplate>
-                                                @{ var line = (VoucherLineDto)context.DataItem; }
-                                                <div @onclick:stopPropagation="true" class="d-flex justify-content-center align-items-center" style="gap:12px;">
-                                                    <a class="xaf-edit-icon" @onclick="@(async () => { _selectedLine = line; await OnEditLine(); })" href="javascript:void(0);" title="@L["Edit"].Value" style="text-decoration:none;"></a>
-                                                    <a class="xaf-delete-icon" @onclick="@(() => { _selectedLine = line; OnDeleteLine(); })" href="javascript:void(0);" title="@L["Delete"].Value" style="text-decoration:none;"></a>
-                                                </div>
-                                            </CellDisplayTemplate>
-                                        </DxGridCommandColumn>
+                                        @* Çoklu-seçim kolonu (sola sabit); Düzelt/Sil toolbar'dan seçili satır(lar) üzerinde çalışır. *@
+                                        <DxGridSelectionColumn Width="36px" FixedPosition="GridColumnFixedPosition.Left" AllowSelectAll="true" AllowReorder="false" />
                                     }
                                     <DxGridDataColumn AllowSort="false" FieldName="@nameof(VoucherLineDto.VoucherDate)"   Caption="@L["Date"].ToString().ToUpper()"   DisplayFormat="dd.MM.yyyy HH:mm" Width="120px" Visible="@_listMode" />
                                     <DxGridDataColumn AllowSort="false" FieldName="@nameof(VoucherLineDto.VoucherNumber)" Caption="@L["Nr"].ToString().ToUpper()" Width="80px" Visible="@_listMode" />
@@ -210,7 +209,7 @@
 <DxPopup @bind-Visible="@_showDeleteDialog" HeaderText="Satır Sil" Width="360px" ShowFooter="false">
     <BodyContentTemplate>
         <div style="display:flex; flex-direction:column; gap:10px;">
-            <div>Silmek için doğrulayın: <b>@_deleteA + @_deleteB = ?</b></div>
+            <div><b>@_selectedLines.Count</b> satır silinecek. Doğrulayın: <b>@_deleteA + @_deleteB = ?</b></div>
             <DxSpinEdit TValue="int?" @bind-Value="@_deleteAnswer" ShowSpinButtons="false" CssClass="w-100" />
             <DxTextBox @bind-Text="@_deleteReason" NullText="Silme nedeni" CssClass="w-100" />
             <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:4px;">
@@ -230,7 +229,8 @@
 
     // VoucherLines — kaydedilen fişin satırları (p2 grid).
     private List<VoucherLineDto> _voucherLines = new();
-    private object? _selectedLine;
+    private object? _selectedLine;                                   // tek seçim (yürüyen bakiye + Düzelt için)
+    private IReadOnlyList<object> _selectedLines = Array.Empty<object>();   // çoklu seçim (Sil + selection kolonu)
     private Guid? _currentVoucherId;
     private AccountSelectionPanel? _accountPanel;
     private bool _processActive;   // süreç paneli açıkken Düzelt/Sil toolbar gizli
@@ -383,7 +383,7 @@
 
     private void OnDeleteLine()
     {
-        if (_selectedLine is not VoucherLineDto)
+        if (_selectedLines.Count == 0)
             return;
 
         _deleteA      = _rng.Next(1, 10);
@@ -395,7 +395,8 @@
 
     private async Task ConfirmDeleteAsync()
     {
-        if (_selectedLine is not VoucherLineDto line || line.VoucherId is not { } vid)
+        var lines = _selectedLines.OfType<VoucherLineDto>().Where(l => l.VoucherId is not null).ToList();
+        if (lines.Count == 0)
             return;
 
         if (_deleteAnswer != _deleteA + _deleteB)
@@ -410,17 +411,20 @@
         }
 
         _showDeleteDialog = false;
-        await VoucherService.DeleteLineAsync(vid, line.Id, _deleteReason.Trim());
-        
+        var reason = _deleteReason.Trim();
+        foreach (var line in lines)
+            await VoucherService.DeleteLineAsync(line.VoucherId!.Value, line.Id, reason);
+
         if (_listMode)
             await ReloadListAsync();
-        else
+        else if (_currentVoucherId is { } vid)
             _voucherLines = await VoucherService.GetLinesAsync(vid);
 
+        _selectedLines = Array.Empty<object>();
         _selectedLine = null;
         await RefreshBalanceAsync();
         await InvokeAsync(StateHasChanged);
-        Ui.ShowSuccessToast("Satır silindi.");
+        Ui.ShowSuccessToast(lines.Count == 1 ? "Satır silindi." : $"{lines.Count} satır silindi.");
     }
 
     private async Task OnLineSelected(object? item)
@@ -436,6 +440,13 @@
             await RefreshBalanceAsync();            // seçim kalktı → cari toplamı
         }
         await InvokeAsync(StateHasChanged);
+    }
+
+    // Çoklu-seçim → tek seçim türet: TAM 1 satır seçiliyse onun yürüyen bakiyesi + Düzelt aktif; aksi halde toplam.
+    private async Task OnLinesSelected(IReadOnlyList<object> items)
+    {
+        _selectedLines = items ?? Array.Empty<object>();
+        await OnLineSelected(_selectedLines.Count == 1 ? _selectedLines[0] : null);
     }
 
     private async Task RefreshBalanceAsync()

@@ -95,6 +95,12 @@ public class TradeXpressMenuContributor : IMenuContributor
 
         commodities.AddItem(cashesMenu);
         commodities.AddItem(new ApplicationMenuItem(
+            "TradeXpress.AssayOffices",
+            l["AssayOffices"],
+            url: "/assay-offices",
+            icon: "custom-icon-bullion"
+        ).RequirePermissions(TradeXpressPermissions.AssayOffices.Default));
+        commodities.AddItem(new ApplicationMenuItem(
             TradeXpressMenus.Services,
             l["Services"],
             url: "/services",
@@ -198,6 +204,15 @@ public class TradeXpressMenuContributor : IMenuContributor
                 order: 1
             ).RequireAuthenticated());
 
+            // Takvim — DevExpress DxScheduler (company-scoped randevular). İkon: placeholder (history); özel takvim ikonu onay sonrası.
+            context.Menu.AddItem(new ApplicationMenuItem(
+                TradeXpressMenus.Scheduler,
+                l["Menu:Scheduler"],
+                url: "/scheduler",
+                icon: TradeXpressIcons.History,
+                order: 3
+            ).RequirePermissions(TradeXpressPermissions.Appointments.Default));
+
             // Pozisyon Raporu — bilanço birimine göre canlı açık pozisyon (ledger toplamı, 5sn yenilenir).
             context.Menu.AddItem(new ApplicationMenuItem(
                 TradeXpressMenus.Reports + ".Position",
@@ -206,6 +221,15 @@ public class TradeXpressMenuContributor : IMenuContributor
                 icon: "custom-icon-report",
                 order: 2
             ).RequirePermissions(TradeXpressPermissions.Reports.Position));
+
+            // Bilanço Raporu — FULL net-varlık (snapshot; kapsam Şube/Şirket switch + tarih → Bilanço Al/Kaydet).
+            context.Menu.AddItem(new ApplicationMenuItem(
+                TradeXpressMenus.Reports + ".BalanceSheet",
+                l["BalanceSheetReport"],
+                url: "/reports/balance-sheet",
+                icon: "custom-icon-report",
+                order: 3
+            ).RequirePermissions(TradeXpressPermissions.Reports.BalanceSheet));
         }
 
 

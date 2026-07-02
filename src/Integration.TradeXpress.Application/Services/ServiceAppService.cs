@@ -46,11 +46,11 @@ public class ServiceAppService : TradeXpressAppService, IServiceAppService
             var totalCount = await AsyncExecuter.CountAsync(query);
             var items = await AsyncExecuter.ToListAsync(query.Skip(input.SkipCount).Take(input.MaxResultCount));
 
-            return new PagedResultDto<ServiceListDto>(totalCount, items.Select(ToListDto).ToList());
+            return new PagedResultDto<ServiceListDto>(totalCount, items.Select(MapList).ToList());
         }
     }
 
-    public virtual async Task<ServiceGetDto> GetAsync(Guid id) => ToGetDto(await GetInScopeAsync(id));
+    public virtual async Task<ServiceGetDto> GetAsync(Guid id) => MapGet(await GetInScopeAsync(id));
 
     public virtual async Task<ServiceGetDto> CreateAsync(ServiceCreateDto input)
     {
@@ -58,7 +58,7 @@ public class ServiceAppService : TradeXpressAppService, IServiceAppService
         entity.SetDescription(input.Description);
 
         await _repository.InsertAsync(entity, autoSave: true);
-        return ToGetDto(entity);
+        return MapGet(entity);
     }
 
     public virtual async Task<ServiceGetDto> UpdateAsync(Guid id, ServiceUpdateDto input)
@@ -71,7 +71,7 @@ public class ServiceAppService : TradeXpressAppService, IServiceAppService
         entity.SetActive(input.IsActive);
 
         await _repository.UpdateAsync(entity, autoSave: true);
-        return ToGetDto(entity);
+        return MapGet(entity);
     }
 
     public virtual async Task DeleteAsync(Guid id)
@@ -92,7 +92,7 @@ public class ServiceAppService : TradeXpressAppService, IServiceAppService
                     .Where(x => x.TenantId == null || x.TenantId == tenantId)
                     .OrderBy(x => x.Code));
 
-            return rows.Select(ToListDto).ToList();
+            return rows.Select(MapList).ToList();
         }
     }
 
@@ -121,22 +121,18 @@ public class ServiceAppService : TradeXpressAppService, IServiceAppService
         }
     }
 
-    private static ServiceListDto ToListDto(Service s) => new()
+    // Mapperly + IsGlobal enrichment (TenantId==null). Instance (statik DEĞİL → ObjectMapper kullanır, net'i tetiklemez).
+    private ServiceListDto MapList(Service s)
     {
-        Id       = s.Id,
-        Code     = s.Code,
-        Name     = s.Name,
-        IsActive = s.IsActive,
-        IsGlobal = s.TenantId == null,
-    };
+        var dto = ObjectMapper.Map<Service, ServiceListDto>(s);
+        dto.IsGlobal = s.TenantId == null;
+        return dto;
+    }
 
-    private static ServiceGetDto ToGetDto(Service s) => new()
+    private ServiceGetDto MapGet(Service s)
     {
-        Id          = s.Id,
-        Code        = s.Code,
-        Name        = s.Name,
-        Description = s.Description,
-        IsActive    = s.IsActive,
-        IsGlobal    = s.TenantId == null,
-    };
+        var dto = ObjectMapper.Map<Service, ServiceGetDto>(s);
+        dto.IsGlobal = s.TenantId == null;
+        return dto;
+    }
 }

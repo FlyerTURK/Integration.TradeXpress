@@ -25,7 +25,10 @@
                         Data="@_directionItems" Value="@_model.Direction" ValueChanged="@OnDirectionChanged"
                         DropDownTriggerMode="DropDownTriggerMode.Click" ShowDropDownButton="true"
                         ValueFieldName="@nameof(DirectionItem.Value)" TextFieldName="@nameof(DirectionItem.Label)" style="@ControlStyle()" />
-            <small style="@LabelStyle">@nameof(VoucherLineDto.PaymentType)</small>
+            @if (_isMobile)
+            {
+                <small style="@LabelStyle">@nameof(VoucherLineDto.PaymentType)</small>
+            }
             <DxComboBox TData="PaymentItem" TValue="ProcessPaymentType?"
                         Data="@_paymentItems" Value="@_model.PaymentType" ValueChanged="@OnPaymentTypeChanged"
                         DropDownTriggerMode="DropDownTriggerMode.Click" ShowDropDownButton="true"
@@ -36,7 +39,8 @@
             <div style="display:flex; @(_isMobile ? "flex-direction:column;" : "") gap:4px; align-items:flex-start;">
 
                 @* Maden = Commodity *@
-                <div style="@GroupStyle()">
+                @* CommodityId — iki kat genişlik (240px) *@
+                <div style="@GroupStyle(240)">
                     <small style="@LabelStyle">@nameof(VoucherLineDto.CommodityId)</small>
                     <DxComboBox TData="Integration.TradeXpress.Metals.MetalListDto" TValue="Guid?"
                                 Data="@_activeMetals"
@@ -45,12 +49,13 @@
                                 Value="@_model.CommodityId" ValueChanged="@OnMetalChanged"
                                 DropDownTriggerMode="DropDownTriggerMode.Click" ShowDropDownButton="true"
                                 ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Never"
-                                SearchMode="ListSearchMode.AutoSearch" style="@ControlStyle()" />
+                                SearchMode="ListSearchMode.AutoSearch" style="@ControlStyle(240)" />
                 </div>
 
                 @if (_showAdet)
                 {
-                    <div style="@GroupStyle()">
+                    @* Quantity — yarım genişlik (60px) *@
+                    <div style="@GroupStyle(60)">
                         <small style="@LabelStyle">@L["Count"]</small>
                         <NumericSpinEdit TValue="decimal" Value="@_model.Quantity" ValueChanged="@OnQuantityChanged" BindValueMode="BindValueMode.OnInput"
                                          ShowSpinButtons="false" DisplayFormat="N0" Mask="N0" />
@@ -79,78 +84,48 @@
                                      ShowSpinButtons="false" DisplayFormat="N5" Mask="N5" />
                 </div>
 
-                @if (!HasPriceMode)
-                {
-                    @* Normal/İade/Emanet → işçilik karşı bacakta *@
-                    <div style="@GroupStyle()">
-                        <small style="@LabelStyle">@L["LaborType"]</small>
-                        <DxComboBox TData="LaborTypeItem" TValue="MetalLaborType"
-                                    Data="@_laborTypeItems" Value="@_laborType" ValueChanged="@OnLaborTypeChanged"
-                                    Enabled="@(!_laborTypeReadOnly)"
-                                    DropDownTriggerMode="DropDownTriggerMode.Click" ShowDropDownButton="true"
-                                    ValueFieldName="@nameof(LaborTypeItem.Value)" TextFieldName="@nameof(LaborTypeItem.Label)" style="@ControlStyle()" />
-                    </div>
-                    <div style="@GroupStyle()">
-                        <small style="@LabelStyle">@L["Labor"]</small>
-                        <NumericSpinEdit TValue="decimal" Value="@_laborRate" ValueChanged="@OnLaborRateChanged" BindValueMode="BindValueMode.OnInput"
-                                         Enabled="@(!_laborReadOnly)" ShowSpinButtons="false" DisplayFormat="N5" Mask="N5" />
-                    </div>
-                    <div style="@GroupStyle()">
-                        <small style="@LabelStyle">@nameof(VoucherLineDto.PayTotal)</small>
-                        <NumericSpinEdit TValue="decimal" Value="@_model.PayTotal" ValueChanged="@OnLaborTotalChanged"
-                                         Enabled="@(!_laborReadOnly)" ShowSpinButtons="false" DisplayFormat="N2" Mask="N2" />
-                    </div>
-                    <div style="@GroupStyle()">
-                        <small style="@LabelStyle">@nameof(VoucherLineDto.PayCommodityId)</small>
-                        <DxComboBox TData="CurrencyUnitListDto" TValue="Guid?"
-                                    Data="@_activeUnits"
-                                    ValueFieldName="@nameof(CurrencyUnitListDto.Id)" TextFieldName="@nameof(CurrencyUnitListDto.Code)"
-                                    Value="@_laborUnitId" ValueChanged="@OnLaborUnitChanged"
-                                    DropDownTriggerMode="DropDownTriggerMode.Click" ShowDropDownButton="true"
-                                    ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Never"
-                                    SearchMode="ListSearchMode.AutoSearch" style="@ControlStyle()" />
-                    </div>
-                }
-                else
-                {
-                    @* Peşin/Bedelli → işçilik Factor'a yedirilir (yukarıdaki Milyem alanı efektif Factor'u gösterir); karşı bacak = fiyat/bedel *@
-                    <div style="@GroupStyle()">
-                        <small style="@LabelStyle">@nameof(VoucherLineDto.PayFactor)</small>
-                        <NumericSpinEdit TValue="decimal" Value="@_model.PayFactor" ValueChanged="@OnPayFactorChanged" BindValueMode="BindValueMode.OnInput"
-                                         ShowSpinButtons="false" DisplayFormat="N5" Mask="N5" />
-                    </div>
-                    <div style="@GroupStyle()">
-                        <small style="@LabelStyle">@nameof(VoucherLineDto.PayTotal)</small>
-                        <NumericSpinEdit TValue="decimal" Value="@_model.PayTotal" ValueChanged="@OnPayTotalChanged"
-                                         ShowSpinButtons="false" DisplayFormat="N2" Mask="N2" />
-                    </div>
-                    <div style="@GroupStyle()">
-                        <small style="@LabelStyle">@nameof(VoucherLineDto.PayCommodityId)</small>
-                        <DxComboBox TData="PayComboItem" TValue="Guid?"
-                                    Data="@_activePayItems"
-                                    ValueFieldName="@nameof(PayComboItem.Id)" TextFieldName="@nameof(PayComboItem.Code)"
-                                    Value="@_model.PayCommodityId" ValueChanged="@OnPayItemChanged"
-                                    DropDownTriggerMode="DropDownTriggerMode.Click" ShowDropDownButton="true"
-                                    ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Never"
-                                    SearchMode="ListSearchMode.AutoSearch" style="@ControlStyle()" />
-                    </div>
-                }
-
-                @* Vade *@
+                @* TEK PAY SETİ (ERPPROV3 paritesi) — işçilik + bedel TEK _model.Pay* alanlarında; ödeme tipine göre yalnız
+                   RATE caption'ı + hesap dalı değişir. Normal/İade/Emanet → işçilik (caption "İşçilik (Adet/Miktar)"); Peşin/Bedelli → bedel. *@
                 <div style="@GroupStyle()">
-                    <small style="@LabelStyle">@nameof(VoucherLineDto.DueDate)</small>
-                    <DxDateEdit Date="@_model.DueDate" DateChanged="@((DateTime? d) => _model.DueDate = d)"
-                                Format="dd.MM.yyyy" style="@ControlStyle()" />
+                    <small style="@LabelStyle">@PayRateCaption</small>
+                    <NumericSpinEdit TValue="decimal" Value="@_model.PayFactor" ValueChanged="@OnPayFactorChanged" BindValueMode="BindValueMode.OnInput"
+                                     Enabled="@(HasPriceMode || !_laborReadOnly)" ShowSpinButtons="false" DisplayFormat="N5" Mask="N5" />
+                </div>
+                <div style="@GroupStyle()">
+                    <small style="@LabelStyle">@nameof(VoucherLineDto.PayTotal)</small>
+                    <NumericSpinEdit TValue="decimal" Value="@_model.PayTotal" ValueChanged="@OnPayTotalChanged"
+                                     Enabled="@(HasPriceMode || !_laborReadOnly)" ShowSpinButtons="false" DisplayFormat="N2" Mask="N2" />
+                </div>
+                <div style="@GroupStyle()">
+                    <small style="@LabelStyle">@nameof(VoucherLineDto.PayCommodityId)</small>
+                    <DxComboBox TData="PayComboItem" TValue="Guid?"
+                                Data="@_activePayItems"
+                                ValueFieldName="@nameof(PayComboItem.Id)" TextFieldName="@nameof(PayComboItem.Code)"
+                                Value="@_model.PayCommodityId" ValueChanged="@OnPayItemChanged"
+                                DropDownTriggerMode="DropDownTriggerMode.Click" ShowDropDownButton="true"
+                                ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Never"
+                                SearchMode="ListSearchMode.AutoSearch" style="@ControlStyle()" />
                 </div>
 
             </div>
 
-            <div style="display:flex; flex-direction:column; gap:4px;">
-                @if (_isMobile)
-                {
-                    <small style="@LabelStyle">@nameof(VoucherLineDto.Description)</small>
-                }
-                <DxTextBox @bind-Text="@_model.Description" CssClass="w-100" />
+            @* Vade (CommodityId altında, boyut sabit) + Açıklama (satır sonuna kadar genişler) *@
+            <div style="display:flex; @(_isMobile ? "flex-direction:column;" : "") gap:4px; align-items:flex-start;">
+                <div style="@GroupStyle()">
+                    @if (_isMobile)
+                    {
+                        <small style="@LabelStyle">@nameof(VoucherLineDto.DueDate)</small>
+                    }
+                    <DxDateEdit Date="@_model.DueDate" DateChanged="@((DateTime? d) => _model.DueDate = d)"
+                                Format="dd.MM.yyyy" style="@ControlStyle()" />
+                </div>
+                <div style="display:flex; flex-direction:column; gap:4px; @(_isMobile ? "width:100%;" : "flex:1; min-width:0;")">
+                    @if (_isMobile)
+                    {
+                        <small style="@LabelStyle">@nameof(VoucherLineDto.Description)</small>
+                    }
+                    <DxTextBox @bind-Text="@_model.Description" CssClass="w-100" />
+                </div>
             </div>
         </div>
 
@@ -204,38 +179,52 @@
     private Dictionary<Guid, decimal> _buyByUnit = new();
     private Dictionary<Guid, string>  _codeByUnit = new();
     private List<(Guid Base, Guid Quote)> _parityPairs = new();
+    private Guid? _localUnitId;   // company YEREL para birimi — Peşin nakit/Bedelli combo default'u (takip birimi eşleşmesi)
 
     // Seçili madenin panel durumu
     private decimal _baseFactor = 0.995m;
-    private decimal _laborRate;
-    private Guid? _laborUnitId;
     private MetalLaborType _laborType = MetalLaborType.Amount;
-    private bool _factorReadOnly, _laborReadOnly, _laborTypeReadOnly, _amountReadOnly, _showAdet, _isQuantity;
+    private bool _factorReadOnly, _laborReadOnly, _amountReadOnly, _showAdet, _isQuantity;
     private decimal _stableQuantity;
+
+    // İşçilik-rate caption'ı — Normal/İade/Emanet'te "İşçilik (Adet/Miktar)"; Peşin/Bedelli'de "PayFactor" (bedel). Tek pay seti.
+    private string PayRateCaption => HasPriceMode
+        ? nameof(VoucherLineDto.PayFactor)
+        : $"{L["Labor"].Value} ({(_laborType == MetalLaborType.Quantity ? L["Count"].Value : L["Amount"].Value)})";
 
     private record DirectionItem(ProcessDirectionType Value, string Label);
     private List<DirectionItem> _directionItems = new();
     private record PaymentItem(ProcessPaymentType? Value, string Label);
     private List<PaymentItem> _paymentItems = new();
-    private record LaborTypeItem(MetalLaborType Value, string Label);
-    private List<LaborTypeItem> _laborTypeItems = new();
 
     private bool HasPriceMode =>
         _model.PaymentType is ProcessPaymentType.WithCash or ProcessPaymentType.WithCurrency;
 
     private decimal PureHas => _model.Amount * _baseFactor;
-    private decimal LaborTotal => _laborRate * (_laborType == MetalLaborType.Quantity ? _model.Quantity : _model.Amount);
+    private decimal LaborTotalOf(decimal rate)
+        => rate * (_laborType == MetalLaborType.Quantity ? _model.Quantity : _model.Amount);
 
+    // Peşin/Bedelli: işçilik Has'a yedirilir. İşçilik kullanıcıya gösterilmediğinden (tek pay seti bedele ayrık)
+    // madenin giriş/çıkış işçilik DEFAULT'u doğrudan okunur — eski _laborRate state'i ile eşdeğer, ayrı state gerekmez.
     private decimal LaborHas()
     {
-        if (_laborUnitId is not { } lu || _model.MainUnitId == Guid.Empty) return 0m;
-        var lt = LaborTotal;
+        var m = _allMetals.FirstOrDefault(x => x.Id == _model.CommodityId);
+        if (m is null || _model.MainUnitId == Guid.Empty) return 0m;
+        var inflow = ((int)_model.Direction % 2) == 0;
+        var rate   = inflow ? m.EntryLabor : m.ExitLabor;
+        var lu     = (inflow ? m.EntryLaborUnitId : m.ExitLaborUnitId) ?? m.FollowingUnitId;
+        var lt     = LaborTotalOf(rate);
         if (lu == _model.MainUnitId) return lt;
         var bl = BuyOf(lu); var bm = BuyOf(_model.MainUnitId);
         return bm != 0m ? lt * bl / bm : 0m;
     }
 
-    protected override async Task OnInitializedAsync()
+    private Task _initTask = Task.CompletedTask;
+    private bool _editLoaded;   // edit yüklendiyse InitializeAsync default metal SEÇMESİN (async yarış koruması)
+
+    protected override Task OnInitializedAsync() => _initTask = InitializeAsync();
+
+    private async Task InitializeAsync()
     {
         _directionItems = new()
         {
@@ -250,12 +239,6 @@
             new(ProcessPaymentType.Return,       L["Enum:ProcessPaymentType:Return"].Value),
             new(ProcessPaymentType.Consignment,  L["Enum:ProcessPaymentType:Consignment"].Value),
         };
-        _laborTypeItems = new()
-        {
-            new(MetalLaborType.Amount,   L["Enum:MetalLaborType:Amount"].Value),
-            new(MetalLaborType.Quantity, L["Enum:MetalLaborType:Quantity"].Value),
-        };
-
         _allMetals = await MetalService.GetPickerListAsync();
         _activeMetals = _allMetals.Where(m => m.IsActive).ToList();
 
@@ -273,7 +256,9 @@
             new Integration.TradeXpress.Financials.Parities.ParityListRequestDto { MaxResultCount = 1000 });
         _parityPairs = parityResult.Items.Select(p => (p.BaseCurrencyUnitId, p.QuoteCurrencyUnitId)).ToList();
 
-        if (_activeMetals.Count > 0)
+        _localUnitId = await PriceService.GetWorkingLocalCurrencyUnitIdAsync();   // Peşin/Bedelli default karşı bacak
+
+        if (!_editLoaded && _activeMetals.Count > 0)   // edit yükleniyorsa default metal SEÇME (loaded değerleri ezmesin)
             OnMetalChanged(_activeMetals[0].Id);
     }
 
@@ -294,14 +279,18 @@
 
         if (!HasPriceMode)
         {
-            // Normal/İade/Emanet → işçilik karşı bacakta; Factor = saf milyem.
-            _model.Factor   = _baseFactor;
-            _model.Total    = PureHas;
-            _model.PayUnitId        = _laborUnitId;
-            _model.PayCommodityId   = _laborUnitId;
-            _model.PayCommodityCode = _laborUnitId is { } lu ? _codeByUnit.GetValueOrDefault(lu) : null;
-            _model.PayFactor = _laborRate;
-            _model.PayTotal  = LaborTotal;
+            // Normal/İade/Emanet → işçilik karşı bacak (parite YOK; inline). Factor = saf milyem; işçilik = PayFactor × (adet|miktar).
+            _model.Factor = _baseFactor;
+            _model.Total  = PureHas;
+            var qty = _laborType == MetalLaborType.Quantity ? _model.Quantity : _model.Amount;
+            if (edited == EditedField.PayTotal && qty != 0m)
+                _model.PayFactor = _model.PayTotal / qty;   // PayTotal elle düzenlendi → rate geri-hesap
+            else
+                _model.PayTotal = _model.PayFactor * qty;
+            // İşçilik birimi = seçili pay item (Normal'de _activePayItems = para birimleri); PayUnitId=PayCommodityId.
+            _model.PayUnitId        = _selectedPayItem?.PayUnitId ?? _model.PayCommodityId;
+            _model.PayCommodityCode = _selectedPayItem?.Code
+                                      ?? (_model.PayCommodityId is { } lu ? _codeByUnit.GetValueOrDefault(lu) : null);
             _model.MarketPrice = 0m;
             _model.Profit      = 0m;
             return;
@@ -354,7 +343,6 @@
             _isQuantity       = m.IsQuantity;
             _stableQuantity   = m.StableQuantity;
             _laborType        = m.LaborType;
-            _laborTypeReadOnly = !m.LaborTypeChange;
             ApplyDirectionLabor(m);
             _showAdet         = m.IsQuantity || m.LaborType == MetalLaborType.Quantity;
             _amountReadOnly   = m.IsQuantity && m.StableQuantity > 0m;
@@ -366,13 +354,16 @@
         Recalc(EditedField.Commodity);
     }
 
-    // Yön'e göre giriş/çıkış işçiliği + birimi + edit kilidini uygular.
+    // Yön'e göre işçilik kilidini + (yalnız işçilik modunda) işçilik DEFAULT'unu pay alanlarına uygular.
     private void ApplyDirectionLabor(Integration.TradeXpress.Metals.MetalListDto m)
     {
         var inflow = ((int)_model.Direction % 2) == 0;   // Giriş
-        _laborRate     = inflow ? m.EntryLabor : m.ExitLabor;
-        _laborUnitId   = (inflow ? m.EntryLaborUnitId : m.ExitLaborUnitId) ?? m.FollowingUnitId;
         _laborReadOnly = !(inflow ? m.EntryLaborChange : m.ExitLaborChange);
+        if (!HasPriceMode)   // Normal/İade/Emanet → pay = işçilik; default rate/birimi _model.Pay*'e yaz (EnsurePayItem seçer)
+        {
+            _model.PayFactor      = inflow ? m.EntryLabor : m.ExitLabor;
+            _model.PayCommodityId = (inflow ? m.EntryLaborUnitId : m.ExitLaborUnitId) ?? m.FollowingUnitId;
+        }
     }
 
     // Peşin → Cash kayıtları (PayUnit = Cash.FollowingUnit); Bedelli → para birimi (ana hariç).
@@ -398,11 +389,17 @@
 
     private void EnsurePayItem()
     {
-        if (_model.PayCommodityId is null || _activePayItems.All(x => x.Id != _model.PayCommodityId))
-            ApplyPayItem(_activePayItems.FirstOrDefault());
+        if (_model.PayCommodityId is { } pcid && _activePayItems.Any(x => x.Id == pcid))
+            ApplyPayItem(_activePayItems.First(x => x.Id == pcid));
         else
-            ApplyPayItem(_activePayItems.First(x => x.Id == _model.PayCommodityId));
+            ApplyPayItem(DefaultPayItem());
     }
+
+    // Default karşı bacak: takip birimi (PayUnitId) = company YEREL para birimi olan ilk item; yoksa listenin ilki.
+    // (Peşin: nakit kaydının FollowingUnit'i; Bedelli: para biriminin kendisi — ikisi de PayUnitId'de.)
+    private PayComboItem? DefaultPayItem()
+        => (_localUnitId is { } lu ? _activePayItems.FirstOrDefault(x => x.PayUnitId == lu) : null)
+           ?? _activePayItems.FirstOrDefault();
 
     private void ApplyPayItem(PayComboItem? item)
     {
@@ -422,9 +419,31 @@
 
     private void OnPaymentTypeChanged(ProcessPaymentType? value)
     {
-        _model.PaymentType = value;
-        if (HasPriceMode) { BuildPayList(); EnsurePayItem(); }
-        Recalc(EditedField.PaymentType);
+        var wasPriceMode = HasPriceMode;                 // eski mod (değişmeden önce)
+        var prevPayUnit  = _selectedPayItem?.PayUnitId;  // eski karşı bacak BİRİMİ (Peşin: nakit takip birimi; Bedelli: para birimi)
+        _model.PaymentType = value;                      // yeni mod
+
+        if (HasPriceMode)
+        {
+            // Peşin/Bedelli → karşı bacak listesi. Önceki BİRİM (PayUnitId) yeni listede varsa KORU (item Id farklı olsa da);
+            // yoksa yerel default. Her hâlde seçilen birim için PayFactor/PayTotal'ı TAZE hesapla (staleness olmasın).
+            BuildPayList();
+            var keep = prevPayUnit is { } pu ? _activePayItems.FirstOrDefault(x => x.PayUnitId == pu) : null;
+            ApplyPayItem(keep ?? DefaultPayItem());
+            Recalc(EditedField.PayUnit);
+        }
+        else
+        {
+            // Normal/İade/Emanet. Peşin/Bedelli'DEN geliyorsak madenin DEFAULT işçiliğini yaz;
+            // labor↔labor (Normal↔İade↔Emanet) ise işçilik alanları DEĞİŞMEZ — yalnız yeniden hesap.
+            if (wasPriceMode && _allMetals.FirstOrDefault(x => x.Id == _model.CommodityId) is { } m)
+            {
+                ApplyDirectionLabor(m);   // _model.PayFactor/PayCommodityId = madenin işçilik default'u
+                BuildPayList();
+                EnsurePayItem();
+            }
+            Recalc(EditedField.PaymentType);
+        }
     }
 
     private void OnQuantityChanged(decimal value) { _model.Quantity = value; Recalc(EditedField.Amount); }
@@ -445,14 +464,6 @@
             _model.Factor = _model.Amount != 0m ? value / _model.Amount : _model.Factor;
             RecalcPriceLeg(value);        // Total'ı koru, yalnız bedeli yeniden hesapla
         }
-    }
-
-    // Normal'de işçilik PayTotal'ı elle düzenlenince işçilik bedelini (PayFactor) geri-hesapla.
-    private void OnLaborTotalChanged(decimal value)
-    {
-        var basis = _laborType == MetalLaborType.Quantity ? _model.Quantity : _model.Amount;
-        _laborRate = basis != 0m ? value / basis : _laborRate;
-        Recalc(EditedField.Amount);       // PayTotal = LaborTotal = laborRate × basis = value
     }
 
     // Peşin/Bedelli: verilen Total'ı koruyarak bedel bacağını (parite) yeniden hesaplar.
@@ -478,15 +489,6 @@
         _model.MarketPrice = r.MarketPrice;
         _model.Profit      = r.Profit;
     }
-    private void OnLaborTypeChanged(MetalLaborType value) { _laborType = value; Recalc(EditedField.Amount); }
-    private void OnLaborRateChanged(decimal value) { _laborRate = value; Recalc(EditedField.PayFactor); }
-
-    private void OnLaborUnitChanged(Guid? id)
-    {
-        _laborUnitId = id;
-        Recalc(EditedField.PayUnit);
-    }
-
     private void OnPayItemChanged(Guid? id)
     {
         ApplyPayItem(id.HasValue ? _activePayItems.FirstOrDefault(x => x.Id == id.Value) : null);
@@ -496,9 +498,11 @@
     private void OnPayFactorChanged(decimal value) { _model.PayFactor = value; Recalc(EditedField.PayFactor); }
     private void OnPayTotalChanged(decimal value)  { _model.PayTotal = value;  Recalc(EditedField.PayTotal); }
 
-    private string GroupStyle() =>
-        "display:flex; flex-direction:column; gap:4px; " + (_isMobile ? "width:100%;" : "width:120px; flex-shrink:0;");
-    private string ControlStyle() => _isMobile ? "width:100%;" : "width:120px;";
+    private string GroupStyle() => GroupStyle(120);
+    private string GroupStyle(int w) =>
+        "display:flex; flex-direction:column; gap:4px; " + (_isMobile ? "width:100%;" : $"width:{w}px; flex-shrink:0;");
+    private string ControlStyle() => ControlStyle(120);
+    private string ControlStyle(int w) => _isMobile ? "width:100%;" : $"width:{w}px;";
 
     private async Task HandleSave()
     {
@@ -539,26 +543,35 @@
         Recalc(EditedField.None);
     }
 
-    public Task LoadForEditAsync(VoucherLineDto dto)
+    public async Task LoadForEditAsync(VoucherLineDto dto)
     {
+        _editLoaded = true;        // OnInitialized'ın default metal seçimini iptal et (yarışı kapat)
+        await _initTask;           // veriler (özellikle _allMetals) yüklensin → m bulunur, default ezme olmaz
+
         _model = dto;
         VoucherId = dto.VoucherId;
         var m = _allMetals.FirstOrDefault(x => x.Id == dto.CommodityId);
         if (m is { })
         {
-            _baseFactor        = m.Factor;
+            _model.MainUnitId  = m.FollowingUnitId;           // ana birim garanti (BuildPayList filtresi buna bağlı)
             _factorReadOnly    = !m.FactorChange;
             _isQuantity        = m.IsQuantity;
             _stableQuantity    = m.StableQuantity;
-            _laborType         = m.LaborType;
-            _laborTypeReadOnly = !m.LaborTypeChange;
-            ApplyDirectionLabor(m);
-            _showAdet          = m.IsQuantity || m.LaborType == MetalLaborType.Quantity;
-            _amountReadOnly    = m.IsQuantity && m.StableQuantity > 0m;
+            _laborType        = m.LaborType;
+            var inflow        = ((int)_model.Direction % 2) == 0;
+            _laborReadOnly    = !(inflow ? m.EntryLaborChange : m.ExitLaborChange);
+            _showAdet         = m.IsQuantity || m.LaborType == MetalLaborType.Quantity;
+            _amountReadOnly   = m.IsQuantity && m.StableQuantity > 0m;
         }
-        if (HasPriceMode) { BuildPayList(); EnsurePayItem(); }
-        else { _laborUnitId = dto.PayUnitId; _laborRate = dto.PayFactor; }
+        _baseFactor = HasPriceMode ? (m?.Factor ?? dto.Factor) : dto.Factor;   // Normal=saved milyem; Peşin/Bedelli=pür milyem
+
+        // TEK PAY SETİ (ERPPROV3) → her iki mod aynı: _model.Pay* zaten dto'da; ayrı state reconstruction YOK.
+        // Pay listesini kur + saved PayCommodityId'yi seç (aktif listede yoksa kaybolmasın diye başa ekle).
+        BuildPayList();
+        if (_model.PayCommodityId is { } pcid && _activePayItems.All(x => x.Id != pcid))
+            _activePayItems.Insert(0, new PayComboItem(pcid, _model.PayCommodityCode ?? string.Empty, true, _model.PayUnitId, _model.PayUnitCode));
+        _selectedPayItem = _activePayItems.FirstOrDefault(x => x.Id == _model.PayCommodityId);
+
         StateHasChanged();
-        return Task.CompletedTask;
     }
 }

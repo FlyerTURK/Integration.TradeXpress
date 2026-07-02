@@ -51,11 +51,11 @@ public class StoneAppService : TradeXpressAppService, IStoneAppService
                 query = query.OrderBy(x => x.Code);
 
             var items = await AsyncExecuter.ToListAsync(query.Skip(input.SkipCount).Take(input.MaxResultCount));
-            return new PagedResultDto<StoneListDto>(totalCount, items.Select(ToListDto).ToList());
+            return new PagedResultDto<StoneListDto>(totalCount, items.Select(MapList).ToList());
         }
     }
 
-    public virtual async Task<StoneGetDto> GetAsync(Guid id) => ToGetDto(await GetInScopeAsync(id));
+    public virtual async Task<StoneGetDto> GetAsync(Guid id) => MapGet(await GetInScopeAsync(id));
 
     public virtual async Task<StoneGetDto> CreateAsync(StoneCreateDto input)
     {
@@ -68,7 +68,7 @@ public class StoneAppService : TradeXpressAppService, IStoneAppService
         entity.SetDescription(input.Description);
 
         await _repository.InsertAsync(entity, autoSave: true);
-        return ToGetDto(entity);
+        return MapGet(entity);
     }
 
     public virtual async Task<StoneGetDto> UpdateAsync(Guid id, StoneUpdateDto input)
@@ -85,7 +85,7 @@ public class StoneAppService : TradeXpressAppService, IStoneAppService
         entity.SetActive(input.IsActive);
 
         await _repository.UpdateAsync(entity, autoSave: true);
-        return ToGetDto(entity);
+        return MapGet(entity);
     }
 
     public virtual async Task DeleteAsync(Guid id)
@@ -103,7 +103,7 @@ public class StoneAppService : TradeXpressAppService, IStoneAppService
                 (await _repository.GetQueryableAsync())
                     .WhereCompanyVisible(CurrentTenant.Id, companyId ?? _currentCompany.Id)
                     .OrderBy(x => x.Code));
-            return rows.Select(ToListDto).ToList();
+            return rows.Select(MapList).ToList();
         }
     }
 
@@ -131,47 +131,18 @@ public class StoneAppService : TradeXpressAppService, IStoneAppService
         }
     }
 
-    private static StoneListDto ToListDto(Stone s) => new()
+    // Mapperly + IsGlobal enrichment. Instance → net'i tetiklemez.
+    private StoneListDto MapList(Stone s)
     {
-        Id               = s.Id,
-        Code             = s.Code,
-        Name             = s.Name,
-        StoneKind        = s.StoneKind,
-        Color            = s.Color,
-        IsQuantity       = s.IsQuantity,
-        PriceByQuantity  = s.PriceByQuantity,
-        PriceTypeChange  = s.PriceTypeChange,
-        EntryPrice       = s.EntryPrice,
-        EntryPriceUnitId = s.EntryPriceUnitId,
-        ExitPrice        = s.ExitPrice,
-        ExitPriceUnitId  = s.ExitPriceUnitId,
-        IsActive         = s.IsActive,
-        IsGlobal         = s.TenantId == null,
-    };
+        var dto = ObjectMapper.Map<Stone, StoneListDto>(s);
+        dto.IsGlobal = s.TenantId == null;
+        return dto;
+    }
 
-    private static StoneGetDto ToGetDto(Stone s) => new()
+    private StoneGetDto MapGet(Stone s)
     {
-        Id               = s.Id,
-        Code             = s.Code,
-        Name             = s.Name,
-        StoneKind        = s.StoneKind,
-        StoneType        = s.StoneType,
-        Color            = s.Color,
-        Cut              = s.Cut,
-        Clarity          = s.Clarity,
-        Sieve            = s.Sieve,
-        Category         = s.Category,
-        GroupCode        = s.GroupCode,
-        IsQuantity       = s.IsQuantity,
-        PriceByQuantity  = s.PriceByQuantity,
-        PriceTypeChange  = s.PriceTypeChange,
-        EntryPrice       = s.EntryPrice,
-        EntryPriceUnitId = s.EntryPriceUnitId,
-        ExitPrice        = s.ExitPrice,
-        ExitPriceUnitId  = s.ExitPriceUnitId,
-        Description      = s.Description,
-        CompanyId        = s.CompanyId,
-        IsActive         = s.IsActive,
-        IsGlobal         = s.TenantId == null,
-    };
+        var dto = ObjectMapper.Map<Stone, StoneGetDto>(s);
+        dto.IsGlobal = s.TenantId == null;
+        return dto;
+    }
 }

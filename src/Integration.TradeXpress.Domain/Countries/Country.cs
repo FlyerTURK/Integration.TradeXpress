@@ -29,14 +29,12 @@ public class Country : FullAuditedAggregateRoot<Guid>, IMultiTenant
         string code,
         string name,
         string defaultCurrencyCode,
-        int displayOrder = 0,
-        Guid? tenantId = null)
+        int displayOrder = 0)
     {
         SetCode(code);
         SetName(name);
         SetDefaultCurrencyCode(defaultCurrencyCode);
         DisplayOrder = displayOrder;
-        TenantId = tenantId;
         IsActive = true;
     }
 
@@ -48,7 +46,15 @@ public class Country : FullAuditedAggregateRoot<Guid>, IMultiTenant
 
     public virtual void SetDefaultCurrencyCode(string code)
         => DefaultCurrencyCode = Check.NotNullOrWhiteSpace(code, nameof(code), CurrencyConsts.CodeMaxLength).ToUpperInvariant();
-    public virtual void Activate() => IsActive = true;
-    public virtual void Deactivate() => IsActive = false;
+    public virtual void SetActive(bool value)
+    {
+        IsActive = value;
+    }
+
     public virtual void SetDisplayOrder(int order) => DisplayOrder = order;
+
+    public override string ToString()
+    {
+        return Code;
+    }
 }

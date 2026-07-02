@@ -58,7 +58,7 @@ public class FutureAppService : TradeXpressAppService, IFutureAppService
             var explicitSort = (input.Sorts is { Count: > 0 }) || !string.IsNullOrWhiteSpace(input.Sorting);
             var ordered = explicitSort ? all : all.OrderBy(f => f.Code, StringComparer.OrdinalIgnoreCase).ToList();
 
-            var dtos = ordered.Skip(input.SkipCount).Take(input.MaxResultCount).Select(ToListDto).ToList();
+            var dtos = ordered.Skip(input.SkipCount).Take(input.MaxResultCount).Select(MapList).ToList();
             ApplyUnitCodes(dtos, orders);
             return new PagedResultDto<FutureListDto>(totalCount, dtos);
         }
@@ -67,7 +67,7 @@ public class FutureAppService : TradeXpressAppService, IFutureAppService
     public virtual async Task<FutureGetDto> GetAsync(Guid id)
     {
         var entity = await GetInScopeAsync(id);
-        var dto = ToGetDto(entity);
+        var dto = MapGet(entity);
         dto.FollowingUnitCode = await ResolveUnitCodeAsync(entity.FollowingUnitId);
         return dto;
     }
@@ -78,7 +78,7 @@ public class FutureAppService : TradeXpressAppService, IFutureAppService
         entity.SetDescription(input.Description);
 
         await _repository.InsertAsync(entity, autoSave: true);
-        return ToGetDto(entity);
+        return MapGet(entity);
     }
 
     public virtual async Task<FutureGetDto> UpdateAsync(Guid id, FutureUpdateDto input)
@@ -93,7 +93,7 @@ public class FutureAppService : TradeXpressAppService, IFutureAppService
         entity.SetActive(input.IsActive);
 
         await _repository.UpdateAsync(entity, autoSave: true);
-        return ToGetDto(entity);
+        return MapGet(entity);
     }
 
     public virtual async Task DeleteAsync(Guid id)
@@ -113,7 +113,7 @@ public class FutureAppService : TradeXpressAppService, IFutureAppService
                     .Where(x => x.TenantId == null || x.TenantId == tenantId));
 
             var orders = await GetUnitOrdersAsync(rows.Select(f => f.FollowingUnitId));
-            var dtos = OrderComposite(rows, orders).Select(ToListDto).ToList();
+            var dtos = OrderComposite(rows, orders).Select(MapList).ToList();
             ApplyUnitCodes(dtos, orders);
             return dtos;
         }
@@ -199,26 +199,18 @@ public class FutureAppService : TradeXpressAppService, IFutureAppService
         }
     }
 
-    private static FutureListDto ToListDto(Future f) => new()
+    // Mapperly + IsGlobal enrichment (FollowingUnitCode ayrıca ResolveUnitCode/ApplyUnitCodes). Instance → net'i tetiklemez.
+    private FutureListDto MapList(Future f)
     {
-        Id              = f.Id,
-        Code            = f.Code,
-        Name            = f.Name,
-        FollowingUnitId = f.FollowingUnitId,
-        FollowingFactor = f.FollowingFactor,
-        IsActive        = f.IsActive,
-        IsGlobal        = f.TenantId == null,
-    };
+        var dto = ObjectMapper.Map<Future, FutureListDto>(f);
+        dto.IsGlobal = f.TenantId == null;
+        return dto;
+    }
 
-    private static FutureGetDto ToGetDto(Future f) => new()
+    private FutureGetDto MapGet(Future f)
     {
-        Id              = f.Id,
-        Code            = f.Code,
-        Name            = f.Name,
-        FollowingUnitId = f.FollowingUnitId,
-        FollowingFactor = f.FollowingFactor,
-        Description     = f.Description,
-        IsActive        = f.IsActive,
-        IsGlobal        = f.TenantId == null,
-    };
+        var dto = ObjectMapper.Map<Future, FutureGetDto>(f);
+        dto.IsGlobal = f.TenantId == null;
+        return dto;
+    }
 }

@@ -50,14 +50,12 @@ public class Account : FullAuditedAggregateRoot<Guid>, IMultiTenant
 
     /// <summary>Bakiye cinsi (para birimi) — ZORUNLU.</summary>
     public virtual Guid BalanceCurrencyUnitId { get; protected set; }
-    public virtual CurrencyUnit? BalanceCurrencyUnit { get; protected set; }
 
     /// <summary>Kredi/risk limiti (decimal n2).</summary>
     public virtual decimal Limit { get; protected set; }
 
     /// <summary>Limit birimi — ZORUNLU (varsayılan: şirketin bilanço/base birimi).</summary>
     public virtual Guid LimitUnitId { get; protected set; }
-    public virtual CurrencyUnit? LimitUnit { get; protected set; }
 
     public virtual string? Description { get; protected set; }
     public virtual bool IsActive { get; protected set; }
@@ -117,6 +115,11 @@ public class Account : FullAuditedAggregateRoot<Guid>, IMultiTenant
         }
 
         CompanyId = companyId;
+    }
+
+    public override string ToString()
+    {
+        return Code;
     }
 
     // Code immutable → yalnız ctor için private normalize+validate.

@@ -209,6 +209,91 @@ namespace Integration.TradeXpress.Migrations
                     b.ToTable("AppSubAccounts", (string)null);
                 });
 
+            modelBuilder.Entity("Integration.TradeXpress.AssayOffices.AssayOffice", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ConcurrencyStamp")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)")
+                        .HasColumnName("ConcurrencyStamp");
+
+                    b.Property<DateTime>("CreationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("CreationTime");
+
+                    b.Property<Guid?>("CreatorId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CreatorId");
+
+                    b.Property<Guid?>("DeleterId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("DeleterId");
+
+                    b.Property<DateTime?>("DeletionTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("DeletionTime");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
+
+                    b.Property<int>("DisplayOrder")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ExtraProperties")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("ExtraProperties");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false)
+                        .HasColumnName("IsDeleted");
+
+                    b.Property<DateTime?>("LastModificationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("LastModificationTime");
+
+                    b.Property<Guid?>("LastModifierId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("LastModifierId");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("TenantId");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "CompanyId");
+
+                    b.HasIndex("TenantId", "CompanyId", "Code")
+                        .IsUnique()
+                        .HasFilter("[TenantId] IS NOT NULL");
+
+                    b.ToTable("AppAssayOffices", (string)null);
+                });
+
             modelBuilder.Entity("Integration.TradeXpress.Authorization.UserScopedGrant", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1262,6 +1347,102 @@ namespace Integration.TradeXpress.Migrations
                     b.ToTable("AppMetals", (string)null);
                 });
 
+            modelBuilder.Entity("Integration.TradeXpress.Scheduling.SchedulerAppointment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("AllDay")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("AppointmentType")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ConcurrencyStamp")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)")
+                        .HasColumnName("ConcurrencyStamp");
+
+                    b.Property<DateTime>("CreationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("CreationTime");
+
+                    b.Property<Guid?>("CreatorId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CreatorId");
+
+                    b.Property<Guid?>("DeleterId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("DeleterId");
+
+                    b.Property<DateTime?>("DeletionTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("DeletionTime");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(2048)
+                        .HasColumnType("nvarchar(2048)");
+
+                    b.Property<DateTime>("EndTime")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ExtraProperties")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("ExtraProperties");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false)
+                        .HasColumnName("IsDeleted");
+
+                    b.Property<int>("Label")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("LastModificationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("LastModificationTime");
+
+                    b.Property<Guid?>("LastModifierId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("LastModifierId");
+
+                    b.Property<string>("Location")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<string>("RecurrenceInfo")
+                        .HasMaxLength(2048)
+                        .HasColumnType("nvarchar(2048)");
+
+                    b.Property<DateTime>("StartTime")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Subject")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("TenantId");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "CompanyId", "StartTime");
+
+                    b.ToTable("AppSchedulerAppointments", (string)null);
+                });
+
             modelBuilder.Entity("Integration.TradeXpress.Scraps.Scrap", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1920,6 +2101,15 @@ namespace Integration.TradeXpress.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
+                    b.Property<decimal?>("AssayAmount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<Guid?>("AssayOfficeId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<byte?>("BullionType")
+                        .HasColumnType("tinyint");
+
                     b.Property<string>("CommodityCode")
                         .IsRequired()
                         .HasMaxLength(64)
@@ -1950,11 +2140,29 @@ namespace Integration.TradeXpress.Migrations
                         .HasPrecision(18, 5)
                         .HasColumnType("decimal(18,5)");
 
+                    b.Property<Guid?>("GoldLaborUnitId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal?>("GoldLaborUnitRate")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("GoldRate")
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<bool>("IsDeleted")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("bit")
                         .HasDefaultValue(false)
                         .HasColumnName("IsDeleted");
+
+                    b.Property<bool?>("IsExtra")
+                        .HasColumnType("bit");
+
+                    b.Property<bool?>("IsReport")
+                        .HasColumnType("bit");
+
+                    b.Property<byte?>("LaborMode")
+                        .HasColumnType("tinyint");
 
                     b.Property<Guid>("MainUnitId")
                         .HasColumnType("uniqueidentifier");
@@ -1962,6 +2170,27 @@ namespace Integration.TradeXpress.Migrations
                     b.Property<decimal>("MarketPrice")
                         .HasPrecision(18, 5)
                         .HasColumnType("decimal(18,5)");
+
+                    b.Property<decimal?>("PalladiumFactor")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("PalladiumLaborRate")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<Guid?>("PalladiumLaborUnitId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal?>("PalladiumLaborUnitRate")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<byte?>("PalladiumMode")
+                        .HasColumnType("tinyint");
+
+                    b.Property<decimal?>("PalladiumRate")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<Guid?>("PalladiumUnitId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("PayCommodityCode")
                         .HasMaxLength(64)
@@ -1988,6 +2217,27 @@ namespace Integration.TradeXpress.Migrations
                     b.Property<byte?>("PaymentType")
                         .HasColumnType("tinyint");
 
+                    b.Property<decimal?>("PlatinumFactor")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("PlatinumLaborRate")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<Guid?>("PlatinumLaborUnitId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal?>("PlatinumLaborUnitRate")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<byte?>("PlatinumMode")
+                        .HasColumnType("tinyint");
+
+                    b.Property<decimal?>("PlatinumRate")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<Guid?>("PlatinumUnitId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<decimal>("Profit")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
@@ -1995,6 +2245,30 @@ namespace Integration.TradeXpress.Migrations
                     b.Property<decimal>("Quantity")
                         .HasPrecision(18, 5)
                         .HasColumnType("decimal(18,5)");
+
+                    b.Property<string>("ReportNo")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<decimal?>("SilverFactor")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("SilverLaborRate")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<Guid?>("SilverLaborUnitId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal?>("SilverLaborUnitRate")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<byte?>("SilverMode")
+                        .HasColumnType("tinyint");
+
+                    b.Property<decimal?>("SilverRate")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<Guid?>("SilverUnitId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<decimal>("Total")
                         .HasPrecision(18, 2)

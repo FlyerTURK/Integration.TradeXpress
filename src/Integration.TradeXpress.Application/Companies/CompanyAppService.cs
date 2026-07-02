@@ -140,8 +140,7 @@ public class CompanyAppService : TradeXpressAppService, ICompanyAppService
             input.CountryCode,
             input.BaseCurrencyUnitId,
             isHeadquarters: input.IsHeadquarters,
-            displayOrder: input.DisplayOrder,
-            tenantId: CurrentTenant.Id);
+            displayOrder: input.DisplayOrder);
         c.SetDescription(input.Description);
         await _repository.InsertAsync(c, autoSave: true);
 
@@ -180,7 +179,7 @@ public class CompanyAppService : TradeXpressAppService, ICompanyAppService
         c.SetBaseCurrency(input.BaseCurrencyUnitId);
         c.SetDescription(input.Description);
         c.SetDisplayOrder(input.DisplayOrder);
-        if (input.IsActive) c.Activate(); else c.Deactivate();
+        c.SetActive(input.IsActive);
         await _repository.UpdateAsync(c, autoSave: true);
 
         await SaveBranchesAsync(c, input.Branches);

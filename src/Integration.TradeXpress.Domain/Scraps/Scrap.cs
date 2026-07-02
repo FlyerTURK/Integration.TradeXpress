@@ -45,7 +45,6 @@ public class Scrap : FullAuditedAggregateRoot<Guid>, IMultiTenant
 
     /// <summary>Takip edilen ana para birimi (FK, ZORUNLU) — hurdanın saflaştığı birim (ör. HAS).</summary>
     public virtual Guid FollowingUnitId { get; protected set; }
-    public virtual CurrencyUnit? FollowingUnit { get; protected set; }
 
     /// <summary>Saflık/milyem (0..1) — Has = Miktar × Factor. Varsayılan 0.570.</summary>
     public virtual decimal Factor { get; protected set; }
@@ -100,6 +99,11 @@ public class Scrap : FullAuditedAggregateRoot<Guid>, IMultiTenant
     public virtual void SetActive(bool value)
     {
         IsActive = value;
+    }
+
+    public override string ToString()
+    {
+        return Code;
     }
 
     private void SetCode(string code)

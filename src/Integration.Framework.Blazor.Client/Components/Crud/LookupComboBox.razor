@@ -39,8 +39,8 @@
             CssClass="w-100"
             Columns="@Columns">
     <Buttons>
-        <DxEditorButton IconCssClass="xaf-edit-icon" Visible="@ShowEditButton" Click="@OnEditButtonClick" Tooltip="@L["Edit"].Value" />
-        <DxEditorButton IconCssClass="xaf-new-icon" Visible="@ShowAddButton" Click="@OnAddButtonClick" Tooltip="@L["New"].Value" />
+        <DxEditorButton IconCssClass="@EditIconCssClass" Visible="@ShowEditButton" Click="@OnEditButtonClick" Tooltip="@L["Edit"].Value" />
+        <DxEditorButton IconCssClass="@AddIconCssClass" Visible="@ShowAddButton" Click="@OnAddButtonClick" Tooltip="@L["New"].Value" />
     </Buttons>
 </DxComboBox>
 
@@ -63,6 +63,11 @@
     /// <summary>Nullable değerde native clear (×) gösterimi. Required (Guid) alanlarda false.</summary>
     [Parameter] public bool AllowClear { get; set; } = true;
     [Parameter] public string? NullText { get; set; }
+
+    /// <summary>Düzelt(✎)/Ekle(+) buton ikonları — DEFAULT standart (FrameworkIcons, tek-kaynak/DRY);
+    /// gerekirse kullanım yerinde override edilir.</summary>
+    [Parameter] public string EditIconCssClass { get; set; } = FrameworkIcons.LookupEdit;
+    [Parameter] public string AddIconCssClass { get; set; } = FrameworkIcons.LookupAdd;
 
     /// <summary>Edit(✎) — seçili referansı düzenle (host popup/navigate açar; geçerli değer verilir). Boşsa gizli.</summary>
     [Parameter] public Func<TValue, Task>? OnEditRequested { get; set; }
