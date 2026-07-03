@@ -17,13 +17,14 @@ if (-not (Test-Path $BackupDir)) { New-Item -ItemType Directory -Force -Path $Ba
 $stamp = Get-Date -Format "yyyyMMdd_HHmmss"
 $file  = Join-Path $BackupDir "$($Database)_FULL_$stamp.bak"
 
-# FULL yedek (COMPRESSION + CHECKSUM). -E: Windows auth (SA parolası script'e girmez). Gerekirse -U/-P kullan.
-$sql = "BACKUP DATABASE [$Database] TO DISK = N'$file' WITH FORMAT, INIT, CHECKSUM, COMPRESSION, STATS = 10;"
-sqlcmd -S $Server -E -b -Q $sql
+# FULL yedek (CHECKSUM). -E: Windows auth (SA parolası script'e girmez). -C: self-signed cert güven (ODBC 18).
+# NOT: COMPRESSION SQL Express'te YOK (Msg 1844) — bilinçli çıkarıldı.
+$sql = "BACKUP DATABASE [$Database] TO DISK = N'$file' WITH FORMAT, INIT, CHECKSUM, STATS = 10;"
+sqlcmd -S $Server -E -C -b -Q $sql
 if ($LASTEXITCODE -ne 0) { throw "BACKUP başarısız (exit $LASTEXITCODE)" }
 
 # Restore edilebilirliği DOĞRULA (yedek bozuksa erken yakala).
-sqlcmd -S $Server -E -b -Q "RESTORE VERIFYONLY FROM DISK = N'$file' WITH CHECKSUM;"
+sqlcmd -S $Server -E -C -b -Q "RESTORE VERIFYONLY FROM DISK = N'$file' WITH CHECKSUM;"
 if ($LASTEXITCODE -ne 0) { throw "RESTORE VERIFYONLY başarısız — yedek bozuk!" }
 
 # Eski yedekleri temizle (retention).
