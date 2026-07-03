@@ -1,0 +1,110 @@
+@typeparam TListDto where TListDto : class, IPricedCommodityListDto
+
+<DxLayoutBreakpoint MaxWidth="768" @bind-IsActive="@_isMobile" />
+
+<ProcessPanelBase Direction="@_model.Direction" OnSave="@HandleSave" OnBack="@OnBack"
+                 ProcessTypeName="@L[ProcessTypeNameKey].Value"
+                 PaymentTypeName="@_paymentItems.FirstOrDefault(p => p.Value == _model.PaymentType)?.Label"
+                 AccountCode="@AccountCode"
+                 SubAccountCode="@SubAccountCode">
+
+    <div style="padding:8px; @(_isMobile ? "" : "overflow-x:auto;")">
+    <div style="display:flex; @(_isMobile ? "flex-direction:column;" : "width:max-content;") gap:4px; align-items:flex-start;">
+
+        @* Grup 1 — Yön + Ödeme tipi *@
+        <div style="@GroupStyle()">
+            <small style="@LabelStyle">@nameof(VoucherLineDto.Direction)</small>
+            <DxComboBox TData="DirectionItem" TValue="ProcessDirectionType"
+                        Data="@_directionItems" Value="@_model.Direction" ValueChanged="@OnDirectionChanged"
+                        DropDownTriggerMode="DropDownTriggerMode.Click" ShowDropDownButton="true"
+                        ValueFieldName="@nameof(DirectionItem.Value)" TextFieldName="@nameof(DirectionItem.Label)" style="@ControlStyle()" />
+            <small style="@LabelStyle">@nameof(VoucherLineDto.PaymentType)</small>
+            <DxComboBox TData="PaymentItem" TValue="ProcessPaymentType?"
+                        Data="@_paymentItems" Value="@_model.PaymentType" ValueChanged="@OnPaymentTypeChanged"
+                        DropDownTriggerMode="DropDownTriggerMode.Click" ShowDropDownButton="true"
+                        ValueFieldName="@nameof(PaymentItem.Value)" TextFieldName="@nameof(PaymentItem.Label)" style="@ControlStyle()" />
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:4px; @(_isMobile ? "width:100%;" : "flex-shrink:0;")">
+            <div style="display:flex; @(_isMobile ? "flex-direction:column;" : "") gap:4px; align-items:flex-start;">
+
+                @* Emtia (Taş/Mücevher) = Commodity *@
+                <div style="@GroupStyle()">
+                    <small style="@LabelStyle">@nameof(VoucherLineDto.CommodityId)</small>
+                    <DxComboBox TData="TListDto" TValue="Guid?"
+                                Data="@_activeCommodities"
+                                ValueFieldName="@nameof(IPricedCommodityListDto.Id)"
+                                TextFieldName="@nameof(IPricedCommodityListDto.Code)"
+                                Value="@_model.CommodityId" ValueChanged="@OnCommodityChanged"
+                                DropDownTriggerMode="DropDownTriggerMode.Click" ShowDropDownButton="true"
+                                ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Never"
+                                SearchMode="ListSearchMode.AutoSearch" style="@ControlStyle()" />
+                </div>
+
+                @if (_showAdet)
+                {
+                    <div style="@GroupStyle()">
+                        <small style="@LabelStyle">@L["Count"]</small>
+                        <NumericSpinEdit TValue="decimal" Value="@_model.Quantity" ValueChanged="@OnQuantityChanged" BindValueMode="BindValueMode.OnInput"
+                                         ShowSpinButtons="false" DisplayFormat="N0" Mask="N0" />
+                    </div>
+                }
+
+                @* Fiyat Tipi (Adet/Miktar) *@
+                <div style="@GroupStyle()">
+                    <small style="@LabelStyle">@L["PriceType"]</small>
+                    <DxComboBox TData="PriceTypeItem" TValue="bool"
+                                Data="@_priceTypeItems" Value="@_priceByQuantity" ValueChanged="@OnPriceTypeChanged"
+                                Enabled="@(!_priceTypeReadOnly)"
+                                DropDownTriggerMode="DropDownTriggerMode.Click" ShowDropDownButton="true"
+                                ValueFieldName="@nameof(PriceTypeItem.IsQuantity)" TextFieldName="@nameof(PriceTypeItem.Label)" style="@ControlStyle()" />
+                </div>
+
+                @* Miktar = Amount *@
+                <div style="@GroupStyle()">
+                    <small style="@LabelStyle">@nameof(VoucherLineDto.Amount)</small>
+                    <NumericSpinEdit TValue="decimal" Value="@_model.Amount" ValueChanged="@OnAmountChanged" BindValueMode="BindValueMode.OnInput"
+                                     ShowSpinButtons="false" DisplayFormat="N2" Mask="N2" />
+                </div>
+
+                @* Fiyat = PayFactor *@
+                <div style="@GroupStyle()">
+                    <small style="@LabelStyle">@nameof(VoucherLineDto.PayFactor)</small>
+                    <NumericSpinEdit TValue="decimal" Value="@_model.PayFactor" ValueChanged="@OnPayFactorChanged" BindValueMode="BindValueMode.OnInput"
+                                     ShowSpinButtons="false" DisplayFormat="N5" Mask="N5" />
+                </div>
+
+                @* Tutar = PayTotal *@
+                <div style="@GroupStyle()">
+                    <small style="@LabelStyle">@nameof(VoucherLineDto.PayTotal)</small>
+                    <NumericSpinEdit TValue="decimal" Value="@_model.PayTotal" ValueChanged="@OnPayTotalChanged"
+                                     ShowSpinButtons="false" DisplayFormat="N2" Mask="N2" />
+                </div>
+
+                @* Birim = PayCommodity (Peşin→Cash, aksi→para birimi) *@
+                <div style="@GroupStyle()">
+                    <small style="@LabelStyle">@nameof(VoucherLineDto.PayCommodityId)</small>
+                    <DxComboBox TData="PayComboItem" TValue="Guid?"
+                                Data="@_activePayItems"
+                                ValueFieldName="@nameof(PayComboItem.Id)" TextFieldName="@nameof(PayComboItem.Code)"
+                                Value="@_model.PayCommodityId" ValueChanged="@OnPayItemChanged"
+                                DropDownTriggerMode="DropDownTriggerMode.Click" ShowDropDownButton="true"
+                                ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Never"
+                                SearchMode="ListSearchMode.AutoSearch" style="@ControlStyle()" />
+                </div>
+
+            </div>
+
+            <div style="display:flex; flex-direction:column; gap:4px;">
+                @if (_isMobile)
+                {
+                    <small style="@LabelStyle">@nameof(VoucherLineDto.Description)</small>
+                }
+                <DxTextBox @bind-Text="@_model.Description" CssClass="w-100" />
+            </div>
+        </div>
+
+    </div>
+    </div>
+
+</ProcessPanelBase>

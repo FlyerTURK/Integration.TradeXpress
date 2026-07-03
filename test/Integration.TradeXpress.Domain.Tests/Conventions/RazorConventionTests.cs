@@ -34,7 +34,7 @@ public class RazorConventionTests
     private static readonly Regex LineCommentRegex = new(@"(?<!:)//[^\n]*", RegexOptions.Compiled); // '://' (URL) korunur
 
     // ── TEST a — Yeni .razor'da @code yasak (code-behind → .razor.cs partial) ───────────────────────
-    // Allow-list = ŞU AN @code taşıyan TÜM .razor (grep kanıtı: 103 dosya). Golden yeşil.
+    // Allow-list = ŞU AN @code taşıyan TÜM .razor (grep kanıtı: 103 → 101; Stone/Jewelry panelleri code-behind base'e taşındı 2026-07-03). Golden yeşil.
     // YENİ dosya @code eklerse (listede yoksa) KIRMIZI → .razor.cs'e taşınmaya zorlar.
     // İstisna eklerken: gerekçe yorumu ekle (neden inline @code meşru).
     private static readonly HashSet<string> CodeBlockAllowList = new(StringComparer.OrdinalIgnoreCase)
@@ -108,12 +108,10 @@ public class RazorConventionTests
         "src/Integration.TradeXpress.Blazor.Client/Pages/CurrentTransactions/CashProcessPanel.razor",
         "src/Integration.TradeXpress.Blazor.Client/Pages/CurrentTransactions/ConvertProcessPanel.razor",
         "src/Integration.TradeXpress.Blazor.Client/Pages/CurrentTransactions/FutureProcessPanel.razor",
-        "src/Integration.TradeXpress.Blazor.Client/Pages/CurrentTransactions/JewelryProcessPanel.razor",
         "src/Integration.TradeXpress.Blazor.Client/Pages/CurrentTransactions/MetalProcessPanel.razor",
         "src/Integration.TradeXpress.Blazor.Client/Pages/CurrentTransactions/ProcessPanelBase.razor",
         "src/Integration.TradeXpress.Blazor.Client/Pages/CurrentTransactions/ScrapProcessPanel.razor",
         "src/Integration.TradeXpress.Blazor.Client/Pages/CurrentTransactions/ServiceProcessPanel.razor",
-        "src/Integration.TradeXpress.Blazor.Client/Pages/CurrentTransactions/StoneProcessPanel.razor",
         "src/Integration.TradeXpress.Blazor.Client/Pages/Financials/CurrencyUnits/Components/MarginSetDialog.razor",
         "src/Integration.TradeXpress.Blazor.Client/Pages/Financials/CurrencyUnits/CurrencyUnitEditHost.razor",
         "src/Integration.TradeXpress.Blazor.Client/Pages/Financials/CurrencyUnits/CurrencyUnitEditPage.razor",
@@ -153,7 +151,7 @@ public class RazorConventionTests
     };
 
     // ── TEST c — Tam-nitelikli @inject (namespace ön-eki = koku; _Imports.razor'a taşınmalı) ─────────
-    // Allow-list = ŞU AN tam-nitelikli @inject taşıyan TÜM .razor (grep kanıtı: 36 dosya). Golden yeşil.
+    // Allow-list = ŞU AN tam-nitelikli @inject taşıyan TÜM .razor (grep kanıtı: 36 → 34; Stone/Jewelry panelleri code-behind base'e taşındı 2026-07-03). Golden yeşil.
     // YENİ dosya tam-nitelikli @inject eklerse KIRMIZI → tipi _Imports.razor @using'ine taşı, kısa ad kullan.
     private static readonly HashSet<string> QualifiedInjectAllowList = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -178,11 +176,9 @@ public class RazorConventionTests
         "src/Integration.TradeXpress.Blazor.Client/Pages/CurrentTransactions/CashProcessPanel.razor",
         "src/Integration.TradeXpress.Blazor.Client/Pages/CurrentTransactions/ConvertProcessPanel.razor",
         "src/Integration.TradeXpress.Blazor.Client/Pages/CurrentTransactions/FutureProcessPanel.razor",
-        "src/Integration.TradeXpress.Blazor.Client/Pages/CurrentTransactions/JewelryProcessPanel.razor",
         "src/Integration.TradeXpress.Blazor.Client/Pages/CurrentTransactions/MetalProcessPanel.razor",
         "src/Integration.TradeXpress.Blazor.Client/Pages/CurrentTransactions/ScrapProcessPanel.razor",
         "src/Integration.TradeXpress.Blazor.Client/Pages/CurrentTransactions/ServiceProcessPanel.razor",
-        "src/Integration.TradeXpress.Blazor.Client/Pages/CurrentTransactions/StoneProcessPanel.razor",
         "src/Integration.TradeXpress.Blazor.Client/Pages/Financials/CurrencyUnits/Components/MarginSetDialog.razor",
         "src/Integration.TradeXpress.Blazor.Client/Pages/Financials/CurrencyUnits/CurrencyUnitEditHost.razor",
         "src/Integration.TradeXpress.Blazor.Client/Pages/Futures/FutureEditHost.razor",

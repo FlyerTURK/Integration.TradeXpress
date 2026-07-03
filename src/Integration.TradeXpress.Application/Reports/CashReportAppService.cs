@@ -82,15 +82,50 @@ public class CashReportAppService : TradeXpressAppService, ICashReportAppService
 
     /// <summary>
     /// Bilanço STOK (nakit) kategorisi için fiziksel nakit holding'i: kapsam (şirket DAİMA ICurrentCompany'den) + branch/
-    /// vault, <paramref name="asOfExclusive"/> tarihinden ÖNCE birikmiş net, birim-bazında. İki-bacak çıkarım tek kaynakta
-    /// (<see cref="QueryCashLegsAsync"/>; DRY — GetStockAsync de onu kullanır). Net = FİRMA perspektifi (+ = firma o nakdi tutar).
+    /// vault, <paramref name="asOfExclusive"/> tarihinden ÖNCE birikmiş net, birim-bazında. Net = FİRMA perspektifi
+    /// (+ = firma o nakdi tutar). K4: satırları belleğe çekmek yerine SQL-side GROUP BY + SUM (AccountBalance/ServicePL
+    /// ledger deseni) — bacak/işaret kuralları <see cref="QueryCashLegsAsync"/> ile BİREBİR aynı, yalnız aggregation DB'de.
     /// </summary>
     public virtual async Task<Dictionary<Guid, decimal>> GetCashNetByUnitAsync(Guid? branchId, Guid? vaultId, DateTime asOfExclusive)
     {
-        var legs = await QueryCashLegsAsync(
-            new CashReportFilterDto { BranchId = branchId, VaultId = vaultId },
-            dateFiltered: false, endExclusiveOverride: asOfExclusive);
-        return legs.GroupBy(x => x.UnitId).ToDictionary(g => g.Key, g => g.Sum(x => x.Effect));
+        // SIZINTI ÖNLEME: rapor DAİMA çalışılan şirketle sınırlı (ICurrentCompany). Yoksa (host/API) boş.
+        if (LazyServiceProvider.LazyGetRequiredService<ICurrentCompany>().Id is not { } companyId)
+            return new Dictionary<Guid, decimal>();
+
+        var q = await _voucherRepository.GetQueryableAsync();
+
+        // Sol bacak: yalnız Cash process'te nakit (Total @ MainUnit). Giriş + / Çıkış −.
+        var mainLegs = await AsyncExecuter.ToListAsync(
+            from v in q
+            where v.CompanyId == companyId
+               && (branchId == null || v.BranchId == branchId)
+               && (vaultId == null || v.VaultId == vaultId)
+               && v.VoucherDate < asOfExclusive
+            from l in v.Lines
+            where !l.IsDeleted && l.Type == ProcessType.Cash && l.MainUnitId != Guid.Empty && l.Total != 0m
+            group l by l.MainUnitId into g
+            select new { UnitId = g.Key, Net = g.Sum(x => ((int)x.Direction % 2) == 0 ? x.Total : -x.Total) });
+
+        // Sağ bacak: Peşin (WithCash) olan tüm process'lerde karşılık nakit (PayTotal @ PayUnit).
+        // İşaret tersi: mal Çıkış → nakit girer (+PayTotal), mal Giriş → nakit çıkar (−PayTotal).
+        var payLegs = await AsyncExecuter.ToListAsync(
+            from v in q
+            where v.CompanyId == companyId
+               && (branchId == null || v.BranchId == branchId)
+               && (vaultId == null || v.VaultId == vaultId)
+               && v.VoucherDate < asOfExclusive
+            from l in v.Lines
+            where !l.IsDeleted && l.PaymentType == ProcessPaymentType.WithCash && l.PayUnitId != null && l.PayTotal != 0m
+            group l by l.PayUnitId into g
+            select new { UnitId = g.Key, Net = g.Sum(x => ((int)x.Direction % 2) == 0 ? -x.PayTotal : x.PayTotal) });
+
+        var result = mainLegs.ToDictionary(r => r.UnitId, r => r.Net);
+        foreach (var r in payLegs)
+        {
+            var unitId = r.UnitId!.Value;   // where-filtresi null'ı zaten eledi
+            result[unitId] = result.GetValueOrDefault(unitId) + r.Net;
+        }
+        return result;
     }
 
     public virtual async Task<List<CashMovementRowDto>> GetMovementsAsync(CashReportFilterDto filter)

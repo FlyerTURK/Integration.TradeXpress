@@ -41,6 +41,9 @@ public class BullionCategorySource : IBalanceSheetCategorySource, ITransientDepe
     {
         var cutoff = asOf.Date.AddDays(1);   // gün-sonu dahil (AccountBalance/Metal/Scrap ile aynı)
 
+        // K4 NOTU: bu kaynak BİLEREK SQL-side aggregation'a İNDİRİLMEDİ — bacaklar satır-başı koşullu işaret
+        // motorundan (BullionLegCalculator.ComputeBullion: IsReport/Mode dallanmaları + milyem çarpımları) türetilir;
+        // SQL'e çevrilemez, zorlanırsa client-eval/yanlış sonuç riski. Projeksiyon zaten dar (entity çekilmez).
         // Takoz satırlarının ham alanları + kayıt anı kur snapshot'ları — poster'ın okuduğu alanların aynısı.
         var vq = await _vouchers.GetQueryableAsync();
         var lines = await _executer.ToListAsync(

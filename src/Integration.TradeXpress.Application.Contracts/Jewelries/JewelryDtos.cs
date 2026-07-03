@@ -2,6 +2,7 @@ using System;
 using System.ComponentModel.DataAnnotations;
 using Integration.Framework.Base.Dtos;
 using Integration.Framework.Base.Dtos.Interfaces;
+using Integration.TradeXpress.Vouchers;
 using Volo.Abp.Application.Dtos;
 
 namespace Integration.TradeXpress.Jewelries;
@@ -12,7 +13,7 @@ public class JewelryListRequestDto : ListRequestDto
     public Guid? CompanyId { get; set; }
 }
 
-public class JewelryListDto : EntityDto<Guid>, IListDto<Guid>, IIsActive, IHostScoped
+public class JewelryListDto : EntityDto<Guid>, IListDto<Guid>, IIsActive, IHostScoped, IPricedCommodityListDto
 {
     public string Code { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;

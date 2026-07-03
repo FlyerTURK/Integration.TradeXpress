@@ -120,18 +120,36 @@ public class MetalReportAppService : TradeXpressAppService, IMetalReportAppServi
     /// <summary>
     /// Bilanço STOK(maden) için fiziksel maden holding'i: kapsam (şirket DAİMA ICurrentCompany'den) + branch/vault,
     /// asOfExclusive'den ÖNCE birikmiş net, MainUnit(maden birimi)-bazında. Bacak çıkarımı tek kaynakta
-    /// (<see cref="QueryLegsAsync"/>; DRY). Net = FİZİKSEL holding (Amount @ MainUnit, tüm ödeme tipleri/Peşin dahil;
-    /// + = firma o madeni tutar). Cari metal (ledger/BAKIYE) AYRI boyut → çift sayım değil, offset. Değerleme merkezde.
+    /// Net = FİZİKSEL holding (Amount @ MainUnit, tüm ödeme tipleri/Peşin dahil; + = firma o madeni tutar).
+    /// Cari metal (ledger/BAKIYE) AYRI boyut → çift sayım değil, offset. Değerleme merkezde.
+    /// K4: SQL-side GROUP BY + SUM (ledger deseni) — bacak/işaret kuralları <see cref="QueryLegsAsync"/> ile BİREBİR.
     /// </summary>
     public virtual async Task<Dictionary<Guid, decimal>> GetMetalNetByUnitAsync(Guid? branchId, Guid? vaultId, DateTime asOfExclusive)
     {
-        var legs = await QueryLegsAsync(
-            new MetalReportFilterDto { BranchId = branchId, VaultId = vaultId },
-            dateFiltered: false, endExclusiveOverride: asOfExclusive);
-        // HAS İÇERİĞİ = Effect × Factor (= sign × Amount × Factor = sign × Total). HAM gram (Amount) DEĞİL —
+        // SIZINTI ÖNLEME: rapor DAİMA çalışılan şirketle sınırlı (ICurrentCompany). Yoksa (host/API) boş.
+        if (LazyServiceProvider.LazyGetRequiredService<ICurrentCompany>().Id is not { } companyId)
+            return new Dictionary<Guid, decimal>();
+
+        // HAS İÇERİĞİ = sign × Amount × Factor (= sign × Total). HAM gram (Amount) DEĞİL —
         // MainUnit=HAS olduğundan değerleme HAS kuruyla yapılır; poster'ın cari'ye yazdığı Total ile BİREBİR offset.
         // (Bilanço HAS-değerlemesi için Total gerekir; GetStockAsync'in Amount'u adet/gram raporu içindir.)
-        return legs.GroupBy(x => x.UnitId).ToDictionary(g => g.Key, g => g.Sum(x => x.Effect * x.Factor));
+        var q = await _voucherRepository.GetQueryableAsync();
+        var rows = await AsyncExecuter.ToListAsync(
+            from v in q
+            where v.CompanyId == companyId
+               && (branchId == null || v.BranchId == branchId)
+               && (vaultId == null || v.VaultId == vaultId)
+               && v.VoucherDate < asOfExclusive
+            from l in v.Lines
+            where !l.IsDeleted && l.Type == ProcessType.Metal && l.MainUnitId != Guid.Empty && l.Amount != 0m
+            group l by l.MainUnitId into g
+            select new
+            {
+                UnitId = g.Key,
+                Net = g.Sum(x => ((int)x.Direction % 2) == 0 ? x.Amount * x.Factor : -(x.Amount * x.Factor)),
+            });
+
+        return rows.ToDictionary(r => r.UnitId, r => r.Net);
     }
 
     /// <summary>
@@ -146,8 +164,10 @@ public class MetalReportAppService : TradeXpressAppService, IMetalReportAppServi
         if (LazyServiceProvider.LazyGetRequiredService<ICurrentCompany>().Id is not { } companyId)
             return new Dictionary<Guid, decimal>();
 
+        // K4: satır listesi yerine SQL-side GROUP BY (Commodity×PayUnit) + koşullu SUM'lar; grup sayısı küçük olduğundan
+        // ağırlıklı-ortalama bölme işlemi (SQL'e zorlamaya değmez) bellekte grup-başına yapılır.
         var q = await _voucherRepository.GetQueryableAsync();
-        var rows = await AsyncExecuter.ToListAsync(
+        var groups = await AsyncExecuter.ToListAsync(
             from v in q
             where v.CompanyId == companyId
                && (branchId == null || v.BranchId == branchId)
@@ -159,19 +179,24 @@ public class MetalReportAppService : TradeXpressAppService, IMetalReportAppServi
                    || l.PaymentType == ProcessPaymentType.Return
                    || l.PaymentType == ProcessPaymentType.Consignment)
                && l.CommodityId != null && l.PayUnitId != null && l.PayTotal != 0m
-            select new { CommodityId = l.CommodityId!.Value, PayUnitId = l.PayUnitId!.Value, l.Direction, l.PayTotal, l.Amount });
+            group l by new { l.CommodityId, l.PayUnitId } into g
+            select new
+            {
+                g.Key.PayUnitId,
+                EntryLabor = g.Sum(x => ((int)x.Direction % 2) == 0 ? x.PayTotal : 0m),   // giriş işçilik maliyeti
+                EntryQty   = g.Sum(x => ((int)x.Direction % 2) == 0 ? x.Amount : 0m),     // giriş miktar (terazi/adet)
+                ExitQty    = g.Sum(x => ((int)x.Direction % 2) != 0 ? x.Amount : 0m),     // çıkış miktar
+            });
 
         // On-hand işçilik MALİYETİ (ağırlıklı-ortalama, cost-inventory): metal başına Σ(giriş işçilik) × (on-hand miktar / Σ giriş miktar).
         // Çıkış işçiliği maliyetle düşer → tüm stok satılınca işçilik 0, kâr BAKİYE'de görünür (ERPPRO GetMadenMaliyeti paritesi).
         var result = new Dictionary<Guid, decimal>();
-        foreach (var g in rows.GroupBy(r => new { r.CommodityId, r.PayUnitId }))
+        foreach (var g in groups)
         {
-            var girisLabor = g.Where(r => ((int)r.Direction % 2) == 0).Sum(r => r.PayTotal);   // giriş işçilik maliyeti
-            var girisQty   = g.Where(r => ((int)r.Direction % 2) == 0).Sum(r => r.Amount);      // giriş miktar (terazi/adet)
-            var cikisQty   = g.Where(r => ((int)r.Direction % 2) != 0).Sum(r => r.Amount);      // çıkış miktar
-            if (girisQty <= 0m) continue;
-            var onHand = girisLabor * Math.Max(0m, girisQty - cikisQty) / girisQty;             // satılmamış kısmın işçilik maliyeti
-            result[g.Key.PayUnitId] = result.GetValueOrDefault(g.Key.PayUnitId) + onHand;
+            if (g.EntryQty <= 0m) continue;
+            var onHand = g.EntryLabor * Math.Max(0m, g.EntryQty - g.ExitQty) / g.EntryQty;   // satılmamış kısmın işçilik maliyeti
+            var unitId = g.PayUnitId!.Value;   // where-filtresi null'ı zaten eledi
+            result[unitId] = result.GetValueOrDefault(unitId) + onHand;
         }
         return result;
     }

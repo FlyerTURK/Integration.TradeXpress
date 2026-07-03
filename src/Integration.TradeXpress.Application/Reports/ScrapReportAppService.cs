@@ -83,6 +83,7 @@ public class ScrapReportAppService : TradeXpressAppService, IScrapReportAppServi
         if (LazyServiceProvider.LazyGetRequiredService<ICurrentCompany>().Id is not { } companyId)
             return new Dictionary<Guid, decimal>();
 
+        // K4: satırları belleğe çekmeden SQL-side GROUP BY + koşullu SUM (ledger deseni).
         var q = await _voucherRepository.GetQueryableAsync();
         var rows = await AsyncExecuter.ToListAsync(
             from v in q
@@ -92,11 +93,10 @@ public class ScrapReportAppService : TradeXpressAppService, IScrapReportAppServi
                && v.VoucherDate < asOfExclusive
             from l in v.Lines
             where !l.IsDeleted && l.Type == ProcessType.Scrap && l.MainUnitId != Guid.Empty && l.Total != 0m
-            select new { l.MainUnitId, l.Direction, l.Total });
+            group l by l.MainUnitId into g
+            select new { UnitId = g.Key, Net = g.Sum(x => ((int)x.Direction % 2) == 0 ? x.Total : -x.Total) });
 
-        return rows
-            .GroupBy(r => r.MainUnitId)
-            .ToDictionary(g => g.Key, g => g.Sum(r => (((int)r.Direction % 2) == 0 ? 1m : -1m) * r.Total));
+        return rows.ToDictionary(r => r.UnitId, r => r.Net);
     }
 
     /// <summary>DRILL — hurda stok, COMMODITY bazında, tek birim için (bilanço Stok popup). GetScrapNetByUnitAsync paritesi, kod kırılımı.</summary>

@@ -39,29 +39,26 @@ public abstract class CostInventoryCategorySourceBase : IBalanceSheetCategorySou
         var cutoff = asOf.Date.AddDays(1);   // gün-sonu dahil
         var pt = ProcessKind;
 
+        // K4: CommodityId bazında on-hand (işaret: Giriş + / Çıkış −) SQL-side GROUP BY + koşullu SUM
+        // (ledger deseni) — satırlar belleğe çekilmez; maliyet lookup'ı zaten Id listesiyle çalışır.
         var vq = await _vouchers.GetQueryableAsync();
-        var lines = await Executer.ToListAsync(
+        var onHand = await Executer.ToListAsync(
             from v in vq
             where v.CompanyId == companyId
                && (branchId == null || v.BranchId == branchId)
                && v.VoucherDate < cutoff
             from l in v.Lines
             where !l.IsDeleted && l.Type == pt && l.CommodityId != null
-            select new { CommodityId = l.CommodityId!.Value, l.Direction, l.Quantity, l.Amount });
-
-        if (lines.Count == 0)
-            return new List<BalanceSheetContribution>();
-
-        // CommodityId bazında on-hand (işaret: Giriş + / Çıkış −).
-        var onHand = lines
-            .GroupBy(x => x.CommodityId)
-            .Select(g => new
+            group l by l.CommodityId into g
+            select new
             {
-                CommodityId = g.Key,
-                NetQty = g.Sum(x => Sign(x.Direction) * x.Quantity),
-                NetAmt = g.Sum(x => Sign(x.Direction) * x.Amount),
-            })
-            .ToList();
+                CommodityId = g.Key!.Value,
+                NetQty = g.Sum(x => ((int)x.Direction % 2) == 0 ? x.Quantity : -x.Quantity),
+                NetAmt = g.Sum(x => ((int)x.Direction % 2) == 0 ? x.Amount : -x.Amount),
+            });
+
+        if (onHand.Count == 0)
+            return new List<BalanceSheetContribution>();
 
         var costs = await LoadCostsAsync(onHand.Select(o => o.CommodityId).ToList());
 
