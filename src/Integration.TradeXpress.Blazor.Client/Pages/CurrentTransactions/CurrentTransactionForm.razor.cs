@@ -20,6 +20,12 @@ public partial class CurrentTransactionForm
 
     // VoucherLines — kaydedilen fişin satırları (p2 grid).
     private List<VoucherLineDto> _voucherLines = new();
+
+    /// <summary>Takoz kolonları (rapor no/çeşni/Ag-Pt-Pd milyem) yalnız görünümde takoz satırı varken açılır.</summary>
+    private bool _hasBullionRows
+    {
+        get { return _voucherLines.Any(l => l.Type == ProcessType.Bullion); }
+    }
     private object? _selectedLine;                                   // tek seçim (yürüyen bakiye + Düzelt için)
     private IReadOnlyList<object> _selectedLines = Array.Empty<object>();   // çoklu seçim (Sil + selection kolonu)
     private Guid? _currentVoucherId;
