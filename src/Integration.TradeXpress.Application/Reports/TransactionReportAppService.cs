@@ -81,7 +81,7 @@ public class TransactionReportAppService : TradeXpressAppService, ITransactionRe
                 v.AccountId, v.SubAccountId, v.BranchId, v.VaultId,
                 l.Type, l.Direction, l.PaymentType,
                 l.CommodityCode, l.Quantity, l.Amount, l.Total, l.MainUnitId,
-                l.PayTotal, l.PayUnitId,
+                l.PayTotal, l.PayUnitId, l.CounterAccountId,
                 l.Description, l.CreationTime, l.CreatorId, LineId = l.Id,
             };
 
@@ -108,8 +108,11 @@ public class TransactionReportAppService : TradeXpressAppService, ITransactionRe
             page.Select(x => x.MainUnitId).Concat(page.Where(x => x.PayUnitId != null).Select(x => x.PayUnitId!.Value)),
             u => u.Id, u => u.Code, disableMultiTenant: true);
         var accountCodes = await CodeMapAsync(_accountRepository, page.Select(x => x.AccountId), x => x.Id, x => x.Code);
+        // Alt hesap kodları: fiş carisi + virman karşı hesabı AYNI haritadan çözülür (tek sorgu).
         var subCodes = await CodeMapAsync(
-            _subAccountRepository, page.Where(x => x.SubAccountId != null).Select(x => x.SubAccountId!.Value),
+            _subAccountRepository,
+            page.Where(x => x.SubAccountId != null).Select(x => x.SubAccountId!.Value)
+                .Concat(page.Where(x => x.CounterAccountId != null).Select(x => x.CounterAccountId!.Value)),
             x => x.Id, x => x.Code);
         var branchCodes = await CodeMapAsync(_branchRepository, page.Select(x => x.BranchId), x => x.Id, x => x.Code);
         var vaultCodes = await CodeMapAsync(
@@ -128,6 +131,7 @@ public class TransactionReportAppService : TradeXpressAppService, ITransactionRe
                 ProcessCode    = VoucherProcessCode.Of(x.Type, x.Direction, x.PaymentType),
                 AccountCode    = accountCodes.GetValueOrDefault(x.AccountId),
                 SubAccountCode = x.SubAccountId is { } s ? subCodes.GetValueOrDefault(s) : null,
+                CounterAccountCode = x.CounterAccountId is { } cnt ? subCodes.GetValueOrDefault(cnt) : null,
                 BranchCode     = branchCodes.GetValueOrDefault(x.BranchId),
                 VaultCode      = x.VaultId is { } v ? vaultCodes.GetValueOrDefault(v) : null,
                 CommodityCode  = x.CommodityCode,

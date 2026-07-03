@@ -22,6 +22,7 @@ public class VoucherLedgerSyncTests : TradeXpressEntityFrameworkCoreTestBase
 {
     private readonly IVoucherAppService _voucherAppService;
     private readonly IRepository<BalanceLedgerEntry, Guid> _ledgerRepository;
+    private readonly IRepository<Voucher, Guid> _voucherRepository;
     private readonly VoucherTestDataSeeder _seeder;
     private readonly TestCompanyContextProvider _companyContext;
 
@@ -29,6 +30,7 @@ public class VoucherLedgerSyncTests : TradeXpressEntityFrameworkCoreTestBase
     {
         _voucherAppService = GetRequiredService<IVoucherAppService>();
         _ledgerRepository  = GetRequiredService<IRepository<BalanceLedgerEntry, Guid>>();
+        _voucherRepository = GetRequiredService<IRepository<Voucher, Guid>>();
         _seeder            = GetRequiredService<VoucherTestDataSeeder>();
         _companyContext    = GetRequiredService<TestCompanyContextProvider>();
     }
@@ -221,6 +223,116 @@ public class VoucherLedgerSyncTests : TradeXpressEntityFrameworkCoreTestBase
         var ex = await Should.ThrowAsync<BusinessException>(
             () => _voucherAppService.SaveLineAsync(VoucherTestLines.AssayLine(data, 0m, 0.916m, 0.05m)));
         ex.Code.ShouldBe("TradeXpress:Voucher:AmountRequired");
+    }
+
+    [Fact]
+    public async Task Transfer_creates_opposite_twin_in_counter_voucher_with_matching_link()
+    {
+        var data      = await ArrangeCompanyAsync();
+        var counterId = await WithUnitOfWorkAsync(() => _seeder.SeedCounterSubAccountAsync(data));
+
+        // Kaynak taraf ÇIKIŞ (BORÇ) 500 TRY → kaynak fişte −500; ikiz karşı fişte GİRİŞ +500.
+        var saved = await _voucherAppService.SaveLineAsync(
+            VoucherTestLines.TransferLine(data, counterId, ProcessDirectionType.Outbound, 500m));
+
+        saved.LinkId.ShouldNotBeNull();
+
+        // Kaynak fiş ledger'ı: tek satır, −500 TRY, kaynak alt hesap kapsamı.
+        var sourceEntries = await GetLedgerAsync(saved.VoucherId!.Value);
+        var sourceEntry = sourceEntries.ShouldHaveSingleItem();
+        sourceEntry.UnitId.ShouldBe(data.TryUnitId);
+        sourceEntry.Amount.ShouldBe(-500m);
+        sourceEntry.SubAccountId.ShouldBe(data.SubAccountId);
+
+        // İkiz satır: aynı LinkId, zıt yön, aynı tutar/birim, karşı referans kaynağa döner.
+        var twin = await GetTwinLineAsync(saved.LinkId!.Value, saved.Id);
+        twin.ShouldNotBeNull();
+        twin.Direction.ShouldBe(ProcessDirectionType.Inbound);
+        twin.PayTotal.ShouldBe(500m);
+        twin.PayUnitId.ShouldBe(data.TryUnitId);
+        twin.CounterAccountId.ShouldBe(data.SubAccountId);
+        twin.VoucherId.ShouldNotBe(saved.VoucherId!.Value);   // karşı bacak KENDİ fişinde (fiş = tek cari)
+
+        // Karşı fiş ledger'ı: tek satır, +500 TRY, karşı alt hesap kapsamı.
+        var twinEntries = await GetLedgerAsync(twin.VoucherId);
+        var twinEntry = twinEntries.ShouldHaveSingleItem();
+        twinEntry.UnitId.ShouldBe(data.TryUnitId);
+        twinEntry.Amount.ShouldBe(500m);
+        twinEntry.SubAccountId.ShouldBe(counterId);
+    }
+
+    [Fact]
+    public async Task Updating_a_transfer_line_updates_its_twin_and_both_ledgers()
+    {
+        var data      = await ArrangeCompanyAsync();
+        var counterId = await WithUnitOfWorkAsync(() => _seeder.SeedCounterSubAccountAsync(data));
+
+        var saved = await _voucherAppService.SaveLineAsync(
+            VoucherTestLines.TransferLine(data, counterId, ProcessDirectionType.Outbound, 500m));
+
+        // Güncelle: tutar 300 + yön GİRİŞ'e çevrilir → ikiz de 300 + ÇIKIŞ olmalı (LinkId sabit).
+        var update = VoucherTestLines.TransferLine(data, counterId, ProcessDirectionType.Inbound, 300m);
+        update.Id        = saved.Id;
+        update.VoucherId = saved.VoucherId;
+        var updated = await _voucherAppService.SaveLineAsync(update);
+
+        updated.LinkId.ShouldBe(saved.LinkId);   // LinkId güncellemede korunur (sunucu otoritedir)
+
+        (await GetLedgerAsync(saved.VoucherId!.Value)).ShouldHaveSingleItem().Amount.ShouldBe(300m);
+
+        var twin = await GetTwinLineAsync(saved.LinkId!.Value, saved.Id);
+        twin.ShouldNotBeNull();
+        twin.Direction.ShouldBe(ProcessDirectionType.Outbound);
+        twin.PayTotal.ShouldBe(300m);
+        (await GetLedgerAsync(twin.VoucherId)).ShouldHaveSingleItem().Amount.ShouldBe(-300m);
+    }
+
+    [Fact]
+    public async Task Deleting_a_transfer_line_removes_twin_line_and_both_ledgers()
+    {
+        var data      = await ArrangeCompanyAsync();
+        var counterId = await WithUnitOfWorkAsync(() => _seeder.SeedCounterSubAccountAsync(data));
+
+        var saved = await _voucherAppService.SaveLineAsync(
+            VoucherTestLines.TransferLine(data, counterId, ProcessDirectionType.Outbound, 750m));
+
+        var twinBefore = await GetTwinLineAsync(saved.LinkId!.Value, saved.Id);
+        twinBefore.ShouldNotBeNull();
+
+        // Kaynak satırı sil → ikiz de düşer; İKİ fişin ledger'ı da temizlenir (tek bacak kalamaz).
+        await _voucherAppService.DeleteLineAsync(saved.VoucherId!.Value, saved.Id, "virman test silme");
+
+        (await GetLedgerAsync(saved.VoucherId!.Value)).ShouldBeEmpty();
+        (await GetLedgerAsync(twinBefore.VoucherId)).ShouldBeEmpty();
+        (await GetTwinLineAsync(saved.LinkId!.Value, saved.Id)).ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task Transfer_to_same_or_missing_counter_account_is_rejected()
+    {
+        var data = await ArrangeCompanyAsync();
+
+        // Karşı hesap = kaynak hesap → reddedilir.
+        var same = await Should.ThrowAsync<BusinessException>(() => _voucherAppService.SaveLineAsync(
+            VoucherTestLines.TransferLine(data, data.SubAccountId, ProcessDirectionType.Outbound, 100m)));
+        same.Code.ShouldBe("TradeXpress:Voucher:TransferCounterSameAccount");
+
+        // Karşı hesap seçilmemiş → reddedilir.
+        var missingDto = VoucherTestLines.TransferLine(data, data.SubAccountId, ProcessDirectionType.Outbound, 100m);
+        missingDto.CounterAccountId = null;
+        var missing = await Should.ThrowAsync<BusinessException>(() => _voucherAppService.SaveLineAsync(missingDto));
+        missing.Code.ShouldBe("TradeXpress:Voucher:TransferCounterRequired");
+    }
+
+    /// <summary>LinkId üzerinden ikiz satırı bulur (verilen satır hariç, silinmemiş).</summary>
+    private Task<VoucherLine?> GetTwinLineAsync(Guid linkId, Guid excludedLineId)
+    {
+        return WithUnitOfWorkAsync(async () =>
+        {
+            var q = await _voucherRepository.GetQueryableAsync();
+            return q.SelectMany(v => v.Lines)
+                .FirstOrDefault(l => l.LinkId == linkId && l.Id != excludedLineId && !l.IsDeleted);
+        });
     }
 
     /// <summary>Org grafını kurar ve working şirketi bu şirket yapar.</summary>

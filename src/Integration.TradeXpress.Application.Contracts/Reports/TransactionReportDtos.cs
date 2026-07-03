@@ -42,6 +42,9 @@ public class TransactionReportRowDto
 
     public string? AccountCode { get; set; }
     public string? SubAccountCode { get; set; }
+
+    /// <summary>Virman karşı hesabının (SubAccount) kodu — yalnız Transfer satırlarında dolu.</summary>
+    public string? CounterAccountCode { get; set; }
     public string? BranchCode { get; set; }
     public string? VaultCode { get; set; }
 

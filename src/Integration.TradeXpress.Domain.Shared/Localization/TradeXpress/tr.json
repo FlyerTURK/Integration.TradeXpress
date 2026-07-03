@@ -341,6 +341,7 @@
     "Permission:Transactions:Bullion": "Takoz İşlemi",
     "Permission:Transactions:Assay": "Çeşni İşlemi",
     "Permission:Transactions:DebitNote": "Dekont İşlemi",
+    "Permission:Transactions:Transfer": "Virman İşlemi",
     "Amount": "Tutar",
     "Account": "Cari Hesap",
     "Accounts": "Cari Hesaplar",
@@ -625,6 +626,12 @@
     "Voucher_Op_Gum": "GUM",
     "Assay_Stock_Empty": "Çeşni stoğu yok.",
     "TradeXpress:Voucher:AmountRequired": "Miktar sıfırdan büyük olmalıdır.",
+    "Transfer": "Virman",
+    "Transfer_CounterAccount": "Karşı Hesap",
+    "TradeXpress:Voucher:TransferSourceRequired": "Virman için cari (alt hesap) seçilmelidir.",
+    "TradeXpress:Voucher:TransferCounterRequired": "Virman için karşı hesap seçilmelidir.",
+    "TradeXpress:Voucher:TransferCounterSameAccount": "Karşı hesap, işlem yapılan hesapla aynı olamaz.",
+    "TradeXpress:Voucher:TransferCounterNotFound": "Karşı hesap bulunamadı, pasif ya da çalışılan şirkete ait değil.",
     "ShortDateFormat": "dd.MM.yy"
   }
 }

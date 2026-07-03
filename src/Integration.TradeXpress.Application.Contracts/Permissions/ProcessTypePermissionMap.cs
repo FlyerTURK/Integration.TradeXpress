@@ -24,7 +24,7 @@ public static class ProcessTypePermissionMap
         ProcessType.Bullion => TradeXpressPermissions.Transactions.Bullion,
         ProcessType.Assay   => TradeXpressPermissions.Transactions.Assay,
         ProcessType.DebitNote => TradeXpressPermissions.Transactions.DebitNote,
-        // Transfer için henüz ayrı yetki tanımlanmadı — dalga 2b'de (çift-bacak virman) eklenecek.
+        ProcessType.Transfer  => TradeXpressPermissions.Transactions.Transfer,
         // Fail-fast: bilinmeyen tip = hata
         // (sessiz geçme YOK). Ham .NET exception yerine error-code'lu + lokalize ABP BusinessException.
         _ => throw new BusinessException("TradeXpress:Transactions:UnknownProcessType")

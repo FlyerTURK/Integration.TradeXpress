@@ -200,6 +200,19 @@ public class VoucherAppService : TradeXpressAppService, IVoucherAppService
         if (input.Type == ProcessType.Bullion && !IsInflow(input.Direction))
             await PrepareBullionExitLineAsync(input);
 
+        // Virman: karşı hesap doğrulaması + LinkId (sunucu otoritedir) + legacy açıklama formatı.
+        // Diğer tiplerde virman alanları temizlenir (istemciden sızan değere güvenilmez).
+        TransferContext? transferCtx = null;
+        if (input.Type == ProcessType.Transfer)
+        {
+            transferCtx = await PrepareTransferLineAsync(input);
+        }
+        else
+        {
+            input.CounterAccountId = null;
+            input.LinkId           = null;
+        }
+
         // WYSIWYG: ekranda görünen değerler AYNEN kaydedilir (sunucu recompute yok).
         var lineInput = ToLineInput(input);
 
@@ -260,6 +273,13 @@ public class VoucherAppService : TradeXpressAppService, IVoucherAppService
 
         // Ledger senkronu (poster çıktısı → kalıcı): voucher kaydedildikten sonra, aynı UoW içinde.
         await _ledgerSynchronizer.SyncVoucherAsync(voucher);
+
+        // Virman: karşı bacak (ikiz satır) AYNI UoW içinde — karşı hesabın kendi fişinde bul/oluştur/güncelle
+        // + o fişin ledger senkronu. İki bacak tek transaction'da tutarlı yazılır.
+        if (transferCtx is not null)
+        {
+            await SyncTransferTwinAsync(voucher, lineId, lineInput, transferCtx);
+        }
 
         input.Id            = lineId;
         input.VoucherId     = voucher.Id;
@@ -332,6 +352,7 @@ public class VoucherAppService : TradeXpressAppService, IVoucherAppService
             d.VoucherConcurrencyStamp = voucher.ConcurrencyStamp;   // düzenlemede bayat-istemci tespiti için
         }
         await ResolveUnitCodesAsync(dtos);
+        await ResolveCounterAccountCodesAsync(dtos);
         await ResolveCreatorNamesAsync(dtos);
 
         // Yürüyen bakiye: devreden (ilk satırdan ÖNCEKİ tüm satırlar) + satır-satır birikim.
@@ -394,6 +415,7 @@ public class VoucherAppService : TradeXpressAppService, IVoucherAppService
         }
 
         await ResolveUnitCodesAsync(dtos);
+        await ResolveCounterAccountCodesAsync(dtos);
         await ResolveCreatorNamesAsync(dtos);
 
         // Devreden: start'tan önceki satırların (aynı tip filtresiyle) birim-bazlı neti.
@@ -470,6 +492,30 @@ public class VoucherAppService : TradeXpressAppService, IVoucherAppService
         }
     }
 
+    /// <summary>Virman satırlarının karşı hesap kodunu (DB'de saklanmaz) CounterAccountId'den okuma
+    /// anında çözer — grid "Karşı Hesap" kolonu (MainUnitCode/PayUnitCode ile aynı desen).</summary>
+    private async Task ResolveCounterAccountCodesAsync(List<VoucherLineDto> dtos)
+    {
+        var counterIds = dtos.Where(d => d.CounterAccountId.HasValue)
+            .Select(d => d.CounterAccountId!.Value)
+            .Distinct().ToList();
+        if (counterIds.Count == 0) return;
+
+        var codeMap = (await AsyncExecuter.ToListAsync(
+                (await _subAccountRepository.GetQueryableAsync())
+                    .Where(s => counterIds.Contains(s.Id))
+                    .Select(s => new { s.Id, s.Code })))
+            .ToDictionary(x => x.Id, x => x.Code);
+
+        foreach (var d in dtos)
+        {
+            if (d.CounterAccountId is { } cid && codeMap.TryGetValue(cid, out var code))
+            {
+                d.CounterAccountCode = code;
+            }
+        }
+    }
+
     /// <summary>Devreden (<paramref name="carryLines"/>) + sıralı görüntülenen satırlardan her satıra
     /// kadarki yürüyen bakiyeyi (birim-bazlı) hesaplar ve <paramref name="dtos"/>'ya yazar.</summary>
     private async Task AssignRunningBalancesAsync(
@@ -539,6 +585,12 @@ public class VoucherAppService : TradeXpressAppService, IVoucherAppService
         voucher.RemoveLine(lineId);
         await _repository.UpdateAsync(voucher, autoSave: true);   // ABP stamp döngüsü paralel isteği zaten yakalar
         await _ledgerSynchronizer.SyncVoucherAsync(voucher);
+
+        // Virman: ikiz satır BAŞKA fişte yaşar — silmede ikisi birlikte düşer (tutarlılık).
+        if (line.Type == ProcessType.Transfer && line.LinkId is { } linkId)
+        {
+            await RemoveTransferTwinAsync(linkId, lineId);
+        }
 
         // VoucherLineLog gelene kadar nedeni log'a yaz (kalıcı geçmiş ertelendi).
         Logger.LogInformation("VoucherLine {LineId} silindi. Neden: {Reason}", lineId, reason);
@@ -784,6 +836,215 @@ public class VoucherAppService : TradeXpressAppService, IVoucherAppService
         input.PalladiumUnitId = entry.PalladiumUnitId;
     }
 
+    // ── Virman (Transfer) çift-bacak ─────────────────────────────────────────────
+
+    /// <summary>Virman hazırlığının taşıyıcısı: kaynak/karşı alt hesap kimlikleri + karşı hesabın üst
+    /// hesabı (ikiz fiş başlığı için) + açıklama bileşenleri (ikizde kodlar ters çevrilir).</summary>
+    private sealed record TransferContext(
+        Guid SourceSubAccountId,
+        Guid CounterSubAccountId,
+        Guid CounterParentAccountId,
+        string SourceCode,
+        string CounterCode,
+        string RawDescription);
+
+    /// <summary>Virman satırını kaydetmeden ÖNCE doğrular ve sunucu-otoriter alanları doldurur:
+    /// karşı alt hesap zorunlu + kaynaktan farklı + AYNI şirkette (SubAccount→Account→CompanyId) + aktif;
+    /// LinkId güncellemede mevcut satırdan okunur (istemciye güvenilmez), yeni satırda üretilir;
+    /// açıklama legacy "{kaynak}/{karşı}:{desc}" formatına çevrilir.</summary>
+    private async Task<TransferContext> PrepareTransferLineAsync(VoucherLineDto input)
+    {
+        var companyId = EnsureCurrentCompanyId();
+
+        // Kaynak alt hesap: güncellemede fiş başlığından (otorite), yeni satırda input'tan.
+        var sourceSubId = input.VoucherId is { } vid
+            ? (await GetOwnedVoucherAsync(vid)).SubAccountId
+            : input.SubAccountId;
+        if (sourceSubId is not { } sourceId || sourceId == Guid.Empty)
+        {
+            throw new BusinessException("TradeXpress:Voucher:TransferSourceRequired");
+        }
+
+        if (input.CounterAccountId is not { } counterId || counterId == Guid.Empty)
+        {
+            throw new BusinessException("TradeXpress:Voucher:TransferCounterRequired");
+        }
+
+        if (counterId == sourceId)
+        {
+            throw new BusinessException("TradeXpress:Voucher:TransferCounterSameAccount");
+        }
+
+        // Karşı alt hesap aitliği: SubAccount → Account → CompanyId zinciri working şirkete çıkmalı;
+        // pasif hesaba virman açılmaz (UI datasource'u da filtreler — burası son savunma hattı).
+        var counterSub     = await _subAccountRepository.FindAsync(counterId);
+        var counterAccount = counterSub is null ? null : await _accountRepository.FindAsync(counterSub.AccountId);
+        if (counterSub is null || !counterSub.IsActive || counterAccount is null || counterAccount.CompanyId != companyId)
+        {
+            throw new BusinessException("TradeXpress:Voucher:TransferCounterNotFound");
+        }
+
+        var sourceSub = await _subAccountRepository.GetAsync(sourceId);
+
+        // LinkId (legacy RefNo): güncellemede mevcut satırın kimliği korunur, yeni satırda üretilir.
+        Guid linkId;
+        if (input.Id != Guid.Empty)
+        {
+            var existing = await AsyncExecuter.FirstOrDefaultAsync(
+                (await _repository.GetQueryableAsync())
+                    .SelectMany(v => v.Lines)
+                    .Where(l => l.Id == input.Id && !l.IsDeleted));
+            linkId = existing?.LinkId ?? GuidGenerator.Create();
+        }
+        else
+        {
+            linkId = GuidGenerator.Create();
+        }
+        input.LinkId = linkId;
+
+        // Açıklama — legacy formatı "{kaynak}/{karşı}:{desc}". Düzenlemede eski önek soyulur (çift önek olmaz).
+        var raw = StripTransferPrefix(input.Description);
+        input.Description = ComposeTransferDescription(sourceSub.Code, counterSub.Code, raw);
+
+        return new TransferContext(sourceId, counterId, counterSub.AccountId, sourceSub.Code, counterSub.Code, raw);
+    }
+
+    /// <summary>Birincil satır kaydedildikten sonra karşı bacağı senkronlar: ikiz yoksa karşı hesabın YENİ
+    /// fişinde açılır; varsa yerinde güncellenir; karşı hesap DEĞİŞTİYSE eski ikiz düşer, yenisi açılır.
+    /// Etkilenen her fişin ledger'ı ayrıca senkronlanır (hepsi aynı UoW/transaction).</summary>
+    private async Task SyncTransferTwinAsync(
+        Voucher primaryVoucher, Guid primaryLineId, VoucherLineInput lineInput, TransferContext ctx)
+    {
+        var twinInput = BuildTransferTwinInput(lineInput, ctx);
+        var linkId    = lineInput.LinkId!.Value;
+
+        var twin = await AsyncExecuter.FirstOrDefaultAsync(
+            (await _repository.GetQueryableAsync())
+                .SelectMany(v => v.Lines)
+                .Where(l => l.LinkId == linkId && l.Id != primaryLineId && !l.IsDeleted));
+
+        if (twin is null)
+        {
+            await CreateTransferTwinVoucherAsync(primaryVoucher, twinInput, ctx);
+            return;
+        }
+
+        var twinVoucher = await _repository.GetAsync(twin.VoucherId);
+        await _repository.EnsureCollectionLoadedAsync(twinVoucher, v => v.Lines);
+
+        if (twinVoucher.SubAccountId == ctx.CounterSubAccountId)
+        {
+            twinVoucher.UpdateLine(twin.Id, twinInput);
+            await _repository.UpdateAsync(twinVoucher, autoSave: true);
+            await _ledgerSynchronizer.SyncVoucherAsync(twinVoucher);
+            return;
+        }
+
+        // Karşı hesap değişti: fiş = tek cari olduğundan ikiz taşınamaz — eski fişten düşer,
+        // yeni karşı hesabın fişinde yeniden açılır (LinkId aynı kalır).
+        twinVoucher.RemoveLine(twin.Id);
+        await _repository.UpdateAsync(twinVoucher, autoSave: true);
+        await _ledgerSynchronizer.SyncVoucherAsync(twinVoucher);
+        await CreateTransferTwinVoucherAsync(primaryVoucher, twinInput, ctx);
+    }
+
+    /// <summary>Karşı hesabın YENİ fişini (başlık birincil fişten kopya: şube/kasa/tarih/açıklama;
+    /// cari = karşı hesap) numaralandırıp ikiz satırla oluşturur ve ledger'ını senkronlar.</summary>
+    private async Task CreateTransferTwinVoucherAsync(
+        Voucher primaryVoucher, VoucherLineInput twinInput, TransferContext ctx)
+    {
+        var counterVoucher = new Voucher(
+            primaryVoucher.CompanyId,
+            primaryVoucher.BranchId,
+            primaryVoucher.VaultId,
+            ctx.CounterParentAccountId,
+            ctx.CounterSubAccountId,
+            await NextNumberAsync(primaryVoucher.CompanyId),
+            primaryVoucher.VoucherDate,
+            primaryVoucher.Description);
+
+        counterVoucher.AddLine(GuidGenerator.Create(), twinInput);
+
+        try
+        {
+            await _repository.InsertAsync(counterVoucher, autoSave: true);
+        }
+        catch (Exception ex) when (IsVoucherNumberConflict(ex))
+        {
+            // MAX+1 yarışı — birincil fişteki davranışla aynı lokalize mesaj.
+            throw new BusinessException("TradeXpress:Voucher:NumberConflict");
+        }
+
+        await _ledgerSynchronizer.SyncVoucherAsync(counterVoucher);
+    }
+
+    /// <summary>İkiz satır girdisi: birincil satırın kopyası, yön TERS (Giriş↔Çıkış), karşı referans
+    /// kaynağa döner, LinkId ve PayTotal/PayUnit AYNI; açıklamada kodlar ters çevrilir.</summary>
+    private static VoucherLineInput BuildTransferTwinInput(VoucherLineInput primary, TransferContext ctx)
+    {
+        return primary with
+        {
+            Direction = primary.Direction == ProcessDirectionType.Inbound
+                ? ProcessDirectionType.Outbound
+                : ProcessDirectionType.Inbound,
+            CounterAccountId = ctx.SourceSubAccountId,
+            Description      = ComposeTransferDescription(ctx.CounterCode, ctx.SourceCode, ctx.RawDescription),
+        };
+    }
+
+    /// <summary>Virman satırını (birincil ya da ikiz) LinkId üzerinden bulup KENDİ fişinden düşürür ve
+    /// o fişin ledger'ını senkronlar — satır/fiş silme yollarının ortak ikiz-temizliği.</summary>
+    private async Task RemoveTransferTwinAsync(Guid linkId, Guid excludedLineId)
+    {
+        var twin = await AsyncExecuter.FirstOrDefaultAsync(
+            (await _repository.GetQueryableAsync())
+                .SelectMany(v => v.Lines)
+                .Where(l => l.LinkId == linkId && l.Id != excludedLineId && !l.IsDeleted));
+        if (twin is null)
+        {
+            return;   // ikiz zaten yok (yarım kalmış eski veri) — sessizce geç, silme akışı sürsün
+        }
+
+        var twinVoucher = await _repository.GetAsync(twin.VoucherId);
+        await _repository.EnsureCollectionLoadedAsync(twinVoucher, v => v.Lines);
+        twinVoucher.RemoveLine(twin.Id);
+        await _repository.UpdateAsync(twinVoucher, autoSave: true);
+        await _ledgerSynchronizer.SyncVoucherAsync(twinVoucher);
+    }
+
+    /// <summary>Legacy açıklama formatı: "{kendi}/{karşı}:{desc}" — taşarsa kolon sınırına kırpılır.</summary>
+    private static string ComposeTransferDescription(string ownCode, string otherCode, string raw)
+    {
+        var composed = $"{ownCode}/{otherCode}:{raw}";
+        return composed.Length <= VoucherConsts.DescriptionMaxLength
+            ? composed
+            : composed[..VoucherConsts.DescriptionMaxLength];
+    }
+
+    /// <summary>Var olan "{X}/{Y}:" önekini soyar (düzenlemede çift önek birikmesin). Sezgisel kural:
+    /// ilk ':' öncesi tek '/' içeren, boşluksuz bir baş ise önek sayılır — hesap kodları normalize
+    /// (boşluksuz/üst-harf) olduğundan güvenli; kullanıcı metni nadiren bu kalıba düşer.</summary>
+    private static string StripTransferPrefix(string? description)
+    {
+        if (string.IsNullOrEmpty(description))
+        {
+            return string.Empty;
+        }
+
+        var colon = description.IndexOf(':');
+        if (colon > 0)
+        {
+            var head  = description[..colon];
+            var slash = head.IndexOf('/');
+            if (slash > 0 && head.IndexOf('/', slash + 1) < 0 && !head.Contains(' '))
+            {
+                return description[(colon + 1)..];
+            }
+        }
+
+        return description;
+    }
+
     /// <summary>Bir takoz GİRİŞ satırını (külçeyi) Id ile bulur (silinmemiş, Bullion+Inbound).</summary>
     private async Task<VoucherLine?> FindBullionEntryLineAsync(Guid entryLineId)
     {
@@ -820,6 +1081,10 @@ public class VoucherAppService : TradeXpressAppService, IVoucherAppService
         Profit           = l.Profit,
         DueDate          = l.DueDate,
         Description      = l.Description,
+
+        // ── VİRMAN (Transfer) alanları — düzenleme akışı karşı hesabı/bağı geri okur ──
+        CounterAccountId = l.CounterAccountId,
+        LinkId           = l.LinkId,
 
         // ── TAKOZ (Bullion) alanları — DÜZELT akışı bunlarsız paneli default'larla açıyordu
         //    (raporsuz/Gold/milyemler 0): kaydetme yönü (ToLineInput) tamdı, okuma yönü eksikti. ──
@@ -939,6 +1204,8 @@ public class VoucherAppService : TradeXpressAppService, IVoucherAppService
         PayUnitRate:      i.PayUnitRate,
         DueDate:          i.DueDate,
         Description:      i.Description,
+        CounterAccountId: i.CounterAccountId,
+        LinkId:           i.LinkId,
         BullionType:            i.BullionType,
         AssayOfficeId:          i.AssayOfficeId,
         ReportNo:               i.ReportNo,
@@ -980,6 +1247,16 @@ public class VoucherAppService : TradeXpressAppService, IVoucherAppService
         foreach (var type in voucher.Lines.Where(l => !l.IsDeleted).Select(l => l.Type).Distinct())
         {
             await EnsureTransactionPermissionAsync(type);
+        }
+
+        // Virman satırlarının ikizleri BAŞKA fişlerde yaşar — fiş silinirken ikizler de tutarlı düşer
+        // (aksi hâlde karşı hesapta tek bacak kalır; çift bacak değişmezi bozulur).
+        var transferLines = voucher.Lines
+            .Where(l => !l.IsDeleted && l.Type == ProcessType.Transfer && l.LinkId != null)
+            .ToList();
+        foreach (var line in transferLines)
+        {
+            await RemoveTransferTwinAsync(line.LinkId!.Value, line.Id);
         }
 
         await _ledgerSynchronizer.DeleteVoucherAsync(id);

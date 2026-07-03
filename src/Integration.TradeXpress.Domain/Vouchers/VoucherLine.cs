@@ -96,6 +96,16 @@ public class VoucherLine : CreationAuditedEntity<Guid>, ISoftDelete
 
     public virtual bool IsDeleted { get; set; }
 
+    // ── VİRMAN (Transfer) — ProcessType.Transfer satırına özel (diğer tiplerde null) ──
+
+    /// <summary>Karşı taraf alt hesabı (SubAccount) — id-only referans (legacy StokId karşılığı).
+    /// Karşı bacak bu alt hesabın KENDİ voucher'ında açılır (fiş = tek cari kuralı).</summary>
+    public virtual Guid? CounterAccountId { get; protected set; }
+
+    /// <summary>Çift bacağı bağlayan ortak bağlantı kimliği (legacy RefNo karşılığı) —
+    /// iki zıt yönlü satır aynı LinkId'yi taşır; güncelleme/silme ikizini bu kimlikle bulur.</summary>
+    public virtual Guid? LinkId { get; protected set; }
+
     // ── TAKOZ (Bullion) — ProcessType.Bullion satırına özel (diğer tiplerde null) ───────
     // Ana metal = Factor(=altın milyemi) @ MainUnitId; altın işçilik = PayFactor @ PayUnitId.
     // Yan metaller (gümüş/platin/paladyum) + işçilikleri + dağıtım durumları + kur snapshot'ları.
@@ -173,6 +183,10 @@ public class VoucherLine : CreationAuditedEntity<Guid>, ISoftDelete
         PayUnitRate      = input.PayUnitRate;
         DueDate          = input.DueDate;
         Description      = input.Description;
+
+        // ── Virman (Transfer) alanları ──
+        CounterAccountId = input.CounterAccountId == Guid.Empty ? null : input.CounterAccountId;
+        LinkId           = input.LinkId == Guid.Empty ? null : input.LinkId;
 
         // ── Takoz (Bullion) alanları ──
         BullionType           = input.BullionType;

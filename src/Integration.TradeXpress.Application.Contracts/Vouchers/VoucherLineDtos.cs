@@ -70,6 +70,14 @@ public class VoucherLineDto
     [StringLength(VoucherConsts.DescriptionMaxLength)]
     public string? Description { get; set; }
 
+    // ── VİRMAN (Transfer) — ProcessType.Transfer satırına özel (diğer tiplerde null) ──
+    /// <summary>Karşı taraf alt hesabı (SubAccount) — karşı bacak bu hesabın kendi voucher'ında açılır.</summary>
+    public Guid? CounterAccountId { get; set; }
+    /// <summary>Çift bacağı bağlayan ortak kimlik (legacy RefNo) — sunucu atar, istemciden gelene güvenilmez.</summary>
+    public Guid? LinkId { get; set; }
+    /// <summary>Karşı alt hesabın kodu (okumada CounterAccountId'den çözülür; DB'de saklanmaz) — grid gösterimi.</summary>
+    public string? CounterAccountCode { get; set; }
+
     // ── TAKOZ (Bullion) — ProcessType.Bullion satırına özel (diğer tiplerde null) ──
     public BullionType? BullionType { get; set; }
     public Guid? AssayOfficeId { get; set; }

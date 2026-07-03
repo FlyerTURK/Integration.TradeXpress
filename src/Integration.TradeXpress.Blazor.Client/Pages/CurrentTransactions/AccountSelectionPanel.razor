@@ -173,6 +173,8 @@
             @* Çeşni "Ç" / Dekont "D" — rakamlar dolu (1-9), harf kısayolu (Jewelry "M" deseni). *@
             <DxToolbarItem BeginGroup="true" Text="@($"Ç-{L["Assay"].ToString().ToUpper()}")" IconCssClass="custom-icon-bullion" Click="@OnAssayClicked" Visible="@_isGrantedAssay" />
             <DxToolbarItem BeginGroup="true" Text="@($"D-{L["DebitNote"].ToString().ToUpper()}")" IconCssClass="custom-icon-report" Click="@OnDebitNoteClicked" Visible="@_isGrantedDebitNote" />
+            @* Virman "V" — harf kısayolu (kısaltma kodu VGN/VCN ile hizalı). *@
+            <DxToolbarItem BeginGroup="true" Text="@($"V-{L["Transfer"].ToString().ToUpper()}")" IconCssClass="custom-icon-convert" Click="@OnTransferClicked" Visible="@_isGrantedTransfer" />
             <DxToolbarItem BeginGroup="true" Text="@($"0-{L["List"].ToString().ToUpper()}")" IconCssClass="custom-icon-list" Click="@OnListClicked" />
         </DxToolbar>
     }
@@ -374,6 +376,24 @@ else if (_activeProcess == "DebitNote")
                                VoucherDescription="@_model.Description"
                                VoucherId="@_selectedVoucherId"
                                OnSaved="@OnLineSavedInternal" />
+    </div>
+}
+else if (_activeProcess == "Transfer")
+{
+    <div class="tx-process-panel-wrap">
+        <TransferProcessPanel @ref="_transferPanel"
+                              OnBack="@OnProcessBack"
+                              AccountCode="@_selectedAccountCode"
+                              SubAccountCode="@_selectedSubAccountCode"
+                              CompanyId="@_model.CompanyId"
+                              BranchId="@_model.BranchId"
+                              VaultId="@_model.VaultId"
+                              AccountId="@_model.AccountId"
+                              SubAccountId="@_model.SubAccountId"
+                              VoucherDate="@_model.VoucherDate"
+                              VoucherDescription="@_model.Description"
+                              VoucherId="@_selectedVoucherId"
+                              OnSaved="@OnLineSavedInternal" />
     </div>
 }
 else if (_activeProcess == "BullionOut")

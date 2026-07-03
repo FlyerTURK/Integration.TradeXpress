@@ -310,6 +310,7 @@
     "Permission:Transactions:Bullion": "Bullion Transaction",
     "Permission:Transactions:Assay": "Assay Transaction",
     "Permission:Transactions:DebitNote": "Debit Note Transaction",
+    "Permission:Transactions:Transfer": "Transfer Transaction",
     "Amount": "Amount",
     "Account": "Current Account",
     "Accounts": "Current Accounts",
@@ -593,6 +594,12 @@
     "Voucher_Op_Gum": "GUM",
     "Assay_Stock_Empty": "No assay stock.",
     "TradeXpress:Voucher:AmountRequired": "Amount must be greater than zero.",
+    "Transfer": "Transfer",
+    "Transfer_CounterAccount": "Counter Account",
+    "TradeXpress:Voucher:TransferSourceRequired": "A sub account must be selected for a transfer.",
+    "TradeXpress:Voucher:TransferCounterRequired": "A counter account must be selected for a transfer.",
+    "TradeXpress:Voucher:TransferCounterSameAccount": "The counter account cannot be the same as the source account.",
+    "TradeXpress:Voucher:TransferCounterNotFound": "The counter account was not found, is passive, or does not belong to the working company.",
     "ShortDateFormat": "MM/dd/yy"
   }
 }

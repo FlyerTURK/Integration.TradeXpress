@@ -30,6 +30,11 @@ public sealed record VoucherLineInput(
     DateTime?            DueDate,
     string?              Description,
 
+    // ── Virman (Transfer) — diğer tiplerde null. CounterAccountId = karşı SubAccount (id-only),
+    //    LinkId = çift bacağı bağlayan ortak kimlik (legacy RefNo). ──
+    Guid?                CounterAccountId       = null,
+    Guid?                LinkId                 = null,
+
     // ── Takoz (Bullion) — diğer tiplerde null/default ──
     BullionType?         BullionType            = null,
     Guid?                AssayOfficeId          = null,

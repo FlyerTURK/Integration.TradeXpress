@@ -1,0 +1,96 @@
+@inject IStringLocalizer<TradeXpressResource> L
+@inject ICurrencyUnitAppService CurrencyUnitService
+@inject ISubAccountAppService SubAccountService
+@inject IVoucherAppService VoucherService
+@inject ITradeXpressUiService Ui
+
+@* VİRMAN paneli (Transfer=11) — çift bacak: bu satır + karşı hesabın KENDİ fişinde zıt yönlü ikiz
+   (aynı LinkId; sunucu üretir). Yön combo etiketi ALACAK/BORÇ (legacy quirk: DB'de GİRİŞ/ÇIKIŞ).
+   Karşı hesap = SubAccount lookup (kendi hesabı hariç + yalnız aktifler). Miktar YOK (0 gider);
+   açıklama sunucuda legacy "{kaynak}/{karşı}:{desc}" formatına çevrilir. *@
+
+<DxLayoutBreakpoint MaxWidth="768" @bind-IsActive="@_isMobile" />
+
+<ProcessPanelBase Direction="@_model.Direction" OnSave="@HandleSave" OnBack="@OnBack"
+                  ProcessTypeName="@L["Transfer"].Value"
+                  AccountCode="@AccountCode"
+                  SubAccountCode="@SubAccountCode">
+
+    <div style="padding:8px; @(_isMobile ? "" : "overflow-x:auto;")">
+    <div style="display:flex; @(_isMobile ? "flex-direction:column;" : "width:max-content;") gap:4px; align-items:flex-start;">
+
+        @* Grup 1 — Yön (ALACAK/BORÇ etiketli) *@
+        <div style="@GroupStyle()">
+            <small style="font-weight:600; text-transform:uppercase; letter-spacing:0.05em;">@L["ProcessType"]</small>
+            <DxComboBox TData="DirectionItem" TValue="ProcessDirectionType"
+                        Data="@_directionItems"
+                        Value="@_model.Direction"
+                        ValueChanged="@((ProcessDirectionType v) => _model.Direction = v)"
+                        DropDownTriggerMode="DropDownTriggerMode.Click" ShowDropDownButton="true"
+                        ValueFieldName="@nameof(DirectionItem.Value)" TextFieldName="@nameof(DirectionItem.Label)"
+                        style="@ControlStyle()" />
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:4px; @(_isMobile ? "width:100%;" : "flex-shrink:0;")">
+            <div style="display:flex; @(_isMobile ? "flex-direction:column;" : "") gap:4px; align-items:flex-start;">
+
+                @* Grup 2 — Karşı Hesap (SubAccount lookup; kendi hesabı hariç + aktifler) *@
+                <div style="@CounterGroupStyle()">
+                    <small style="font-weight:600; text-transform:uppercase; letter-spacing:0.05em;">@L["Transfer_CounterAccount"]</small>
+                    <DxComboBox TData="SubAccountListDto" TValue="Guid?"
+                                Data="@_counterAccounts"
+                                ValueFieldName="@nameof(SubAccountListDto.Id)"
+                                TextFieldName="@nameof(SubAccountListDto.AccountSubCodeDisplay)"
+                                Value="@_model.CounterAccountId"
+                                ValueChanged="@((Guid? id) => _model.CounterAccountId = id)"
+                                DropDownTriggerMode="DropDownTriggerMode.Click" ShowDropDownButton="true"
+                                ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Never"
+                                SearchMode="ListSearchMode.AutoSearch" style="@CounterControlStyle()">
+                        <Columns>
+                            <DxListEditorColumn FieldName="@nameof(SubAccountListDto.AccountDisplay)"
+                                                Caption="@L["Account"]" Width="50%" />
+                            <DxListEditorColumn FieldName="@nameof(SubAccountListDto.SubAccountDisplay)"
+                                                Caption="@L["SubAccount"]" />
+                        </Columns>
+                    </DxComboBox>
+                </div>
+
+                @* Grup 3 — Tutar (PayTotal) *@
+                <div style="@GroupStyle()">
+                    <small style="font-weight:600; text-transform:uppercase; letter-spacing:0.05em;">@L["PayTotal"]</small>
+                    <NumericSpinEdit TValue="decimal"
+                                     Value="@_model.PayTotal"
+                                     ValueChanged="@OnAmountChanged" BindValueMode="BindValueMode.OnInput"
+                                     ShowSpinButtons="false" DisplayFormat="N2" Mask="N2" />
+                </div>
+
+                @* Grup 4 — Birim (CurrencyUnit → PayUnit) *@
+                <div style="@GroupStyle()">
+                    <small style="font-weight:600; text-transform:uppercase; letter-spacing:0.05em;">@L["PaymentUnit"]</small>
+                    <DxComboBox TData="CurrencyUnitListDto" TValue="Guid?"
+                                Data="@_activeUnits"
+                                ValueFieldName="@nameof(CurrencyUnitListDto.Id)"
+                                TextFieldName="@nameof(CurrencyUnitListDto.Code)"
+                                Value="@_model.PayUnitId"
+                                ValueChanged="@OnUnitChanged"
+                                DropDownTriggerMode="DropDownTriggerMode.Click" ShowDropDownButton="true"
+                                ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Never"
+                                SearchMode="ListSearchMode.AutoSearch" style="@ControlStyle()" />
+                </div>
+
+            </div>
+
+            @* Açıklama — sunucu "{kaynak}/{karşı}:{desc}" önekiyle kaydeder *@
+            <div style="display:flex; flex-direction:column; gap:4px;">
+                @if (_isMobile)
+                {
+                    <small style="font-weight:600; text-transform:uppercase; letter-spacing:0.05em;">@L["Voucher_Op_Description"]</small>
+                }
+                <DxTextBox @bind-Text="@_model.Description" CssClass="w-100" />
+            </div>
+        </div>
+
+    </div>
+    </div>
+
+</ProcessPanelBase>

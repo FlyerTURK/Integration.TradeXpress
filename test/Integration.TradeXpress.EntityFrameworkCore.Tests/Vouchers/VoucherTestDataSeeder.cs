@@ -89,6 +89,16 @@ public class VoucherTestDataSeeder : ITransientDependency
             company.Id, branch.Id, vault.Id, account.Id, subAccount.Id, tryId, hasId, gumId);
     }
 
+    /// <summary>Virman testleri için karşı alt hesabı kurar (aynı üst hesap altında ikinci SubAccount —
+    /// virman kuralı hesap DEĞİL alt-hesap seviyesinde ayrışır). UoW içinden çağrılmalıdır.</summary>
+    public async Task<Guid> SeedCounterSubAccountAsync(VoucherTestData data, string prefix = "CNT")
+    {
+        var sub = await _subAccountRepository.InsertAsync(
+            new SubAccount(data.AccountId, data.BranchId, $"{prefix}SUB", $"{prefix} Counter Sub"),
+            autoSave: true);
+        return sub.Id;
+    }
+
     /// <summary>Host seed'li (TenantId=null) birimleri kod ile çözer — ambient tenant ne olursa olsun
     /// görünsün diye IMultiTenant filtresi kapatılır (host satırları tenant altında filtrelenir).</summary>
     private async Task<(Guid TryId, Guid HasId, Guid GumId)> ResolveUnitIdsAsync()
@@ -180,6 +190,32 @@ public static class VoucherTestLines
             PayUnitId     = data.TryUnitId,
             PayFactor     = payTotal,
             PayTotal      = payTotal,
+        };
+    }
+
+    /// <summary>Virman satırı: TransferBalancePoster PayUnitId/PayTotal'a bakar; Miktar YOK (0) —
+    /// Giriş(ALACAK) → +PayTotal, Çıkış(BORÇ) → −PayTotal. Sunucu karşı hesabın KENDİ fişinde zıt
+    /// yönlü ikizi (aynı LinkId) açar; çift etki iki satırdan doğar.</summary>
+    public static VoucherLineDto TransferLine(
+        VoucherTestData data,
+        Guid counterSubAccountId,
+        ProcessDirectionType direction,
+        decimal payTotal)
+    {
+        return new VoucherLineDto
+        {
+            BranchId         = data.BranchId,
+            VaultId          = data.VaultId,
+            AccountId        = data.AccountId,
+            SubAccountId     = data.SubAccountId,
+            Type             = ProcessType.Transfer,
+            Direction        = direction,
+            PaymentType      = ProcessPaymentType.Normal,   // kısaltma kodu VGN/VCN'in "N"i
+            Amount           = 0m,                          // Miktar alanı yok — 0 gider (tip-bazlı muafiyet)
+            PayUnitId        = data.TryUnitId,
+            PayFactor        = payTotal,
+            PayTotal         = payTotal,
+            CounterAccountId = counterSubAccountId,
         };
     }
 

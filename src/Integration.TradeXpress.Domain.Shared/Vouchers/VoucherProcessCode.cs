@@ -34,8 +34,9 @@ public static class VoucherProcessCode
             ProcessType.Future   => "V",
             ProcessType.Stone    => "T",
             ProcessType.Jewelry  => "J",
-            // Transfer "V" Future ile ÇAKIŞIR — Transfer henüz bağlanmadı (panel/poster/permission yok);
-            // etkinleştirilirken benzersiz harf seçilmeli (keşif turu 2, O6).
+            // Transfer 'V' harfini Future ile PAYLAŞIR ama BİLEŞİK kodlar çakışmaz (kullanıcı kararı
+            // 2026-07-03): Future yönü Buy/Sell → "VA"/"VS"; Virman yönü Giriş/Çıkış + ödeme Normal →
+            // "VGN"/"VCN". Hiçbir Future kodu 3. harf üretmez (ödeme tipi eklenmez) → ayrışma garantili.
             ProcessType.Transfer => "V",
             // Bullion bu karaktere HİÇ düşmez: kısaltma kodu literal "TGA"/"TCA" ile özel-yolludur
             // (kullanıcı kuralı). Bu dal yalnız beklenmedik çağrılara karşı duruyor.

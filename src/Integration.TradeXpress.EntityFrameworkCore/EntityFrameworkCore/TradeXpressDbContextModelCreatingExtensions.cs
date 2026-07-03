@@ -509,6 +509,12 @@ public static class TradeXpressDbContextModelCreatingExtensions
             b.Property(x => x.MarketPrice).HasPrecision(VoucherConsts.FactorPrecision, VoucherConsts.FactorScale);
             b.Property(x => x.PayUnitRate).HasPrecision(VoucherConsts.FactorPrecision, VoucherConsts.FactorScale);
 
+            // Yan metal milyem hassasiyeti — 0.008 gibi değerler default (18,2)'de 0.01'e yuvarlanıyordu
+            // (canlı bug; AU Factor zaten N5 konfigürlüydü, yan metaller unutulmuştu).
+            b.Property(x => x.SilverFactor).HasPrecision(VoucherConsts.FactorPrecision, VoucherConsts.FactorScale);
+            b.Property(x => x.PlatinumFactor).HasPrecision(VoucherConsts.FactorPrecision, VoucherConsts.FactorScale);
+            b.Property(x => x.PalladiumFactor).HasPrecision(VoucherConsts.FactorPrecision, VoucherConsts.FactorScale);
+
             // N2: para / has miktarları
             b.Property(x => x.Amount).HasPrecision(VoucherConsts.AmountPrecision, VoucherConsts.AmountScale);
             b.Property(x => x.Total).HasPrecision(VoucherConsts.AmountPrecision, VoucherConsts.AmountScale);
@@ -516,6 +522,9 @@ public static class TradeXpressDbContextModelCreatingExtensions
             b.Property(x => x.Profit).HasPrecision(VoucherConsts.AmountPrecision, VoucherConsts.AmountScale);
 
             b.HasIndex(x => x.VoucherId);
+
+            // Virman ikiz araması: LinkId (legacy RefNo) ile zıt bacak bulunur (güncelle/sil senkronu).
+            b.HasIndex(x => x.LinkId);
         });
 
     }
