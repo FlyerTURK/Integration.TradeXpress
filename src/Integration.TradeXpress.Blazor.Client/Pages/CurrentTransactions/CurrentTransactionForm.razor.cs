@@ -164,7 +164,8 @@ public partial class CurrentTransactionForm
     }
 
     // ── Silme onayı (rakam doğrulama + neden) ──
-    private static readonly Random _rng = new();
+    // Random.Shared: thread-safe — static kendi Random'ımız çok-circuit paralel Next()'te bozulabilirdi.
+    private static Random _rng => Random.Shared;
     private bool   _showDeleteDialog;
     private int    _deleteA, _deleteB;
     private int?   _deleteAnswer;

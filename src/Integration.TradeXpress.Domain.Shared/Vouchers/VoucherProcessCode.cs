@@ -34,7 +34,11 @@ public static class VoucherProcessCode
             ProcessType.Future   => "V",
             ProcessType.Stone    => "T",
             ProcessType.Jewelry  => "J",
+            // Transfer "V" Future ile ÇAKIŞIR — Transfer henüz bağlanmadı (panel/poster/permission yok);
+            // etkinleştirilirken benzersiz harf seçilmeli (keşif turu 2, O6).
             ProcessType.Transfer => "V",
+            // Bullion bu karaktere HİÇ düşmez: kısaltma kodu literal "TGA"/"TCA" ile özel-yolludur
+            // (kullanıcı kuralı). Bu dal yalnız beklenmedik çağrılara karşı duruyor.
             ProcessType.Bullion  => "T",
             _ => "?",
         };

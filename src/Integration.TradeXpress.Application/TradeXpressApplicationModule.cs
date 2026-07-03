@@ -30,13 +30,7 @@ public class TradeXpressApplicationModule : AbpModule
         var configuration = context.Services.GetConfiguration();
         context.Services.Configure<ExchangeRateOptions>(
             configuration.GetSection(ExchangeRateOptions.SectionName));
-
-        // HaremBridge localhost endpoint'i için named HttpClient. BaseAddress yok
-        // (HaremClient absolute URL'i options.HaremBridgeUrl'den okur). Timeout kısa.
-        context.Services.AddHttpClient(HaremClient.HttpClientName, (sp, client) =>
-        {
-            var options = sp.GetRequiredService<IOptions<ExchangeRateOptions>>().Value;
-            client.Timeout = options.HaremHttpTimeout;
-        });
+        // NOT: eski HaremBridge HttpClient kaydı kaldırıldı — feed artık in-process Playwright
+        // (HaremPlaywrightFeedWorker); HTTP köprü yolu ölü koddu (keşif turu 2, O5).
     }
 }

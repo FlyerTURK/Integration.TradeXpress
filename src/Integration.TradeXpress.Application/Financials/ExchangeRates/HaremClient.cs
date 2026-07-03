@@ -3,38 +3,23 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Threading;
-using System.Threading.Tasks;
-using Volo.Abp.DependencyInjection;
 
 using Integration.TradeXpress.Financials.CurrencyUnits;
 
 namespace Integration.TradeXpress.Financials.ExchangeRates;
 
 /// <summary>
-/// Harem canlı kurlarını HaremBridge (tools/HaremBridge) localhost endpoint'inden okur.
-/// Harem fiyatları Cloudflare arkasındaki socket.io WebSocket'inden push edilir; köprü
-/// (Playwright + Chrome) sayfayı açık tutup ham fiyatları JSON sunar:
-/// <code>{ "lastUpdate":"&lt;ISO&gt;", "kurlar": { "ALTIN": {"alis","satis","tarih"}, ... } }</code>
+/// Harem ham fiyat payload'ını (<c>{ "kurlar": { "ALTIN": {"alis","satis","tarih"}, ... } }</c>)
+/// iç kotasyonlara çeviren SAF eşleme/parse yardımcıları. Ham sembolleri iç birim kodlarına
+/// (<see cref="HaremCodeMapping"/>) eşler, PLT/PLD'yi USDTRY üzerinden türetir. Source = "Harem".
 ///
-/// <para>Ham Harem sembollerini iç birim kodlarına (<see cref="HaremCodeMapping"/>) eşler,
-/// PLT/PLD'yi türetir. Source = "Harem". Ağ/format hatasında çağıran worker yakalar.</para>
+/// <para>Tarihçe: eskiden HaremBridge (localhost HTTP köprüsü) client'ıydı; köprü ve HTTP yolu
+/// in-process <see cref="HaremPlaywrightFeedWorker"/> ile emekli edildi (keşif turu 2, O5) —
+/// geriye yalnız worker + testlerin kullandığı static parse/map çekirdeği kaldı.</para>
 /// </summary>
-public sealed class HaremClient : ISingletonDependency
+public static class HaremClient
 {
-    internal const string HttpClientName = "Harem";
     public const string SourceName = "Harem";
-
-    private readonly System.Net.Http.IHttpClientFactory _httpClientFactory;
-    private readonly Microsoft.Extensions.Options.IOptions<ExchangeRateOptions> _options;
-
-    public HaremClient(
-        System.Net.Http.IHttpClientFactory httpClientFactory,
-        Microsoft.Extensions.Options.IOptions<ExchangeRateOptions> options)
-    {
-        _httpClientFactory = httpClientFactory;
-        _options = options;
-    }
 
     private static readonly TimeZoneInfo TurkeyTimeZone = ResolveTurkeyTimeZone();
 
@@ -67,16 +52,7 @@ public sealed class HaremClient : ISingletonDependency
         PropertyNameCaseInsensitive = true,
     };
 
-    /// <summary>Köprüden tüm takip edilen kotasyonları çeker (HTTP GET poll). Köprü
-    /// ulaşılamaz veya JSON bozuksa exception fırlatır (worker yakalar).</summary>
-    public async Task<List<MarketQuote>> FetchAllAsync(CancellationToken cancellationToken = default)
-    {
-        var http = _httpClientFactory.CreateClient(HttpClientName);
-        var json = await http.GetStringAsync(_options.Value.HaremBridgeUrl, cancellationToken);
-        return ParseSnapshot(json);
-    }
-
-    /// <summary>Köprü JSON gövdesini (GET snapshot veya SSE event — aynı şema) iç
+    /// <summary>Harem JSON gövdesini (snapshot veya push event — aynı şema) iç
     /// kotasyon listesine çevirir. Test edilebilir saf metot.</summary>
     public static List<MarketQuote> ParseSnapshot(string json)
     {
