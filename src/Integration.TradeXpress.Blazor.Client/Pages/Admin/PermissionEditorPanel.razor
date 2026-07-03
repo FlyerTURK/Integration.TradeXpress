@@ -62,15 +62,15 @@
             </div>
         }
 
-        <div class="erp-permission-editor__groups" style="display:flex; gap:0.75rem; min-height:0;">
-            <div style="flex:0 0 240px; display:flex; flex-direction:column; min-height:0;">
-                <DxListBox Data="@_groups"
-                           TextFieldName="@nameof(PermissionGroupDto.DisplayName)"
-                           @bind-Value="@_selectedGroup"
-                           ShowSearchBox="true"
-                           ListRenderMode="ListRenderMode.Virtual"
-                           CssClass="erp-permission-group-list"
-                           style="flex:1 1 auto; min-height:0; max-height:60vh;" />
+        @* Grup seçimi ÜSTTE combobox (eski sol liste yerine — mobilde kolay), izinler ALTTA (dikey istif). *@
+        <div class="erp-permission-editor__groups" style="display:flex; flex-direction:column; gap:0.5rem; min-height:0;">
+            <div style="flex:0 0 auto;">
+                <DxComboBox Data="@_groups"
+                            @bind-Value="@_selectedGroup"
+                            TextFieldName="@nameof(PermissionGroupDto.DisplayName)"
+                            SearchMode="ListSearchMode.AutoSearch"
+                            CssClass="w-100"
+                            style="max-width:420px;" />
             </div>
             <div style="flex:1 1 auto; min-height:0; overflow-y:auto;">
                 @if (_selectedGroup is not null)

@@ -1,8 +1,4 @@
-using System;
 using System.Threading;
-using Integration.TradeXpress.MultiCompany;
-using Volo.Abp;
-using Volo.Abp.DependencyInjection;
 
 namespace Integration.TradeXpress.MultiCompany;
 
@@ -36,5 +32,8 @@ public class CurrentCompany : ICurrentCompany, ITransientDependency
 /// <summary>Varsayılan kaynak (host / HTTP API): aktif şirket yok → null. Blazor köprüsü bunu değiştirir.</summary>
 public class NullCompanyContextProvider : ICompanyContextProvider, ISingletonDependency
 {
-    public Guid? GetCurrentCompanyId() => null;
+    public Guid? GetCurrentCompanyId()
+    {
+        return null;
+    }
 }

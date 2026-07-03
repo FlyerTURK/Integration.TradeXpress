@@ -38,6 +38,7 @@ public class BalanceSheetReportAppService : TradeXpressAppService, IBalanceSheet
     private readonly ICashReportAppService _cashReport;
     private readonly IEffectivePriceAppService _pricing;
     private readonly ICurrentCompany _currentCompany;
+    private readonly IRepository<BalanceSheetSnapshot, Guid> _snapshots;
 
     public BalanceSheetReportAppService(
         IEnumerable<IBalanceSheetCategorySource> sources,
@@ -51,7 +52,8 @@ public class BalanceSheetReportAppService : TradeXpressAppService, IBalanceSheet
         IScrapReportAppService scrapReport,
         ICashReportAppService cashReport,
         IEffectivePriceAppService pricing,
-        ICurrentCompany currentCompany)
+        ICurrentCompany currentCompany,
+        IRepository<BalanceSheetSnapshot, Guid> snapshots)
     {
         _sources        = sources;
         _branches       = branches;
@@ -65,6 +67,7 @@ public class BalanceSheetReportAppService : TradeXpressAppService, IBalanceSheet
         _cashReport     = cashReport;
         _pricing        = pricing;
         _currentCompany = currentCompany;
+        _snapshots      = snapshots;
     }
 
     /// <summary>
@@ -271,12 +274,244 @@ public class BalanceSheetReportAppService : TradeXpressAppService, IBalanceSheet
         return result;
     }
 
-    public virtual Task<BalanceSheetReportResultDto> SaveAsync(BalanceSheetReportFilterDto filter)
+    /// <summary>
+    /// Bilançoyu HESAPLA + DONDUR (ERPPRO <c>SaveAll</c> paritesi): <see cref="ComputeAsync"/> çıktısını aynı
+    /// (Scope, CompanyId, BranchId, AsOfDate) kapsamında idempotent <b>sil + yeniden yaz</b> ile persist eder.
+    /// CompanyId <see cref="ICurrentCompany"/>'den zorlanır (ComputeAsync ile aynı; sızıntı önleme). MissingRate
+    /// satırları DA yazılır (ValuationRate=0/Net=0 ile — "o tarihte kur yoktu" bilgisi korunur). Sonuç DTO'su döner.
+    /// </summary>
+    public virtual async Task<BalanceSheetReportResultDto> SaveAsync(BalanceSheetReportFilterDto filter)
     {
-        // TODO (Faz 1b): hesapla → BalanceSheetSnapshot tablosuna yaz (aynı scope+tarih sil+yeniden yaz).
-        // Şimdilik kalıcılık YOK → compute döner (sözleşme sabit kalır, persistence sonra eklenir).
-        return ComputeAsync(filter);
+        var result = await ComputeAsync(filter);
+
+        // Working şirket yoksa (host/API) ComputeAsync boş döner → persist edecek bir şey yok.
+        if (_currentCompany.Id is not { } companyId)
+        {
+            return result;
+        }
+
+        // Kapsam ComputeAsync ile AYNI çözümlenir (Branch scope + şirkete ait olmayan şube → konsolideye düşer).
+        Guid? branchId = filter.Scope == BalanceSheetScope.Branch ? filter.BranchId : null;
+        if (branchId is { } bid)
+        {
+            var branch = await _branches.FindAsync(bid);
+            if (branch is null || branch.CompanyId != companyId)
+            {
+                branchId = null;
+            }
+        }
+
+        var asOfDate = filter.AsOf.Date;
+
+        // ① İdempotent: aynı gün + kapsam eski snapshot satırlarını HARD sil (ERPPRO SaveAll paritesi; snapshot
+        // türetilmiş yeniden-yazım verisidir → soft-delete geçmişi tutmanın değeri yok, sadece şişme). DeleteDirectAsync
+        // = EF ExecuteDelete: soft-delete bypass + tek SQL (BalanceLedgerSynchronizer ile aynı desen). asOfDate DELETE ve
+        // INSERT'te AYNI normalize değer (.Date) → gün-only karşılaştırma tutarlı, idempotency korunur.
+        await _snapshots.DeleteDirectAsync(
+            s => s.CompanyId == companyId
+              && s.Scope == filter.Scope
+              && s.BranchId == branchId
+              && s.AsOfDate == asOfDate);
+
+        // ② ComputeAsync detay satırlarını dondurulmuş snapshot olarak yaz (MissingRate satırları da; Net=0).
+        if (result.Rows.Count > 0)
+        {
+            var toInsert = result.Rows.Select(r => new BalanceSheetSnapshot(
+                filter.Scope,
+                companyId,
+                branchId,
+                asOfDate,
+                r.Category,
+                r.UnitId,
+                r.Amount,
+                r.ValuationRate,
+                r.Net,
+                result.BaseUnitId,
+                result.BaseCurrencyCode)).ToList();
+
+            await _snapshots.InsertManyAsync(toInsert, autoSave: true);
+        }
+
+        return result;
     }
+
+    /// <summary>
+    /// DÖNEM SIFIRLA (minimal, ERPPRO <c>FrmBilancoSifirla</c> kısmi muadili): kapsamdaki şube(ler)in
+    /// <see cref="Branch.ProfitResetDate"/>'ini <c>filter.AsOf</c>'a ilerletir (P&L cari dönemi buradan başlar) +
+    /// <see cref="SaveAsync"/> ile snapshot dondurur. Bu virtual app-service metodu TEK UnitOfWork'te çalışır (ABP UoW
+    /// interceptor) → şube güncellemesi + snapshot yazımı ATOMİK commit olur (ERPPRO SaveAll + RevCostDate update atomik).
+    /// CompanyId ICurrentCompany'den zorlanır. Branch scope → o şube; Company scope → şirketin TÜM şubeleri. RESMİ GL
+    /// devir/prim postalaması YOK (net-varlık/TOPLAM zaten P&L içermez; devir/prim ayrı faz).
+    /// </summary>
+    public virtual async Task<BalanceSheetReportResultDto> ResetProfitPeriodAsync(BalanceSheetReportFilterDto filter)
+    {
+        // Working şirket yoksa (host/API) işlem yok — yalnız compute döner (SaveAsync ile tutarlı guard).
+        if (_currentCompany.Id is not { } companyId)
+        {
+            return await ComputeAsync(filter);
+        }
+
+        // Kapsam ComputeAsync/SaveAsync ile AYNI: Branch scope + şirkete ait olmayan şube → konsolideye düşer.
+        Guid? branchId = filter.Scope == BalanceSheetScope.Branch ? filter.BranchId : null;
+        if (branchId is { } bid)
+        {
+            var branch = await _branches.FindAsync(bid);
+            if (branch is null || branch.CompanyId != companyId)
+            {
+                branchId = null;
+            }
+        }
+
+        var resetDate = filter.AsOf.Date;
+
+        // Kapsamdaki şube(ler)in ProfitResetDate'ini ilerlet: Branch scope → o şube; Company scope → şirketin TÜM şubeleri.
+        var bq = await _branches.GetQueryableAsync();
+        var targets = await AsyncExecuter.ToListAsync(
+            bq.Where(b => b.CompanyId == companyId && (branchId == null || b.Id == branchId)));
+        foreach (var branch in targets)
+        {
+            branch.SetProfitResetDate(resetDate);
+            await _branches.UpdateAsync(branch, autoSave: true);
+        }
+
+        // Snapshot'ı AYNI UoW'de dondur (atomik): SaveAsync reuse — kesme artık ilerletilmiş ProfitResetDate'i yansıtır.
+        return await SaveAsync(filter);
+    }
+
+    /// <summary>
+    /// Kaydedilmiş bilanço snapshot'larının GEÇMİŞ listesi (ERPPRO <c>BilancoListesi.Load</c> paritesi):
+    /// scope+company (ICurrentCompany zorlanır) filtreli snapshot'ları oku → AsOfDate bazında PIVOT (kategori→Net) →
+    /// TOPLAM (CountsInTotal kategoriler) → tarih ARTAN running türetim (DEVIR=önceki TOPLAM · KARZARAR=TOPLAM−DEVIR ·
+    /// MASRAF=Expense+Income · GUNLUK=MASRAF delta · KURFARKI=gün-aşırı yeniden değerleme). Running in-memory
+    /// (BilancoDevirleri tablosu OKUNMAZ).
+    /// <para>KURFARKI (1b-3, ERPPRO <c>GetKurFarki</c> paritesi): ardışık snapshot çifti (i-1, i) için BİRİM bazında
+    /// <c>Fark = Σ_unit [ row[i-1].Amount(unit) × row[i].ValuationRate(unit) − row[i-1].Net(unit) ]</c>, sonraki güne
+    /// (row[i]) iliştirilir (ERPPRO T-1 semantiği; "önceki gün" = önceki SNAPSHOT satırı, takvim -1 DEĞİL). Expense/Income
+    /// ve MissingRate (donuk rate=0) satırları HARİÇ. TOPLAM DIŞI (ayrı kolon). Sonraki rate cinsi = ValuationRate (marjlı
+    /// re-base) → donuk Net ile aynı cins, temiz FX farkı. row[0].KurFarki=0 (öncesi yok).</para>
+    /// </summary>
+    public virtual async Task<BalanceSheetSnapshotListDto> GetSnapshotListAsync(BalanceSheetSnapshotListRequestDto request)
+    {
+        var dto = new BalanceSheetSnapshotListDto();
+
+        // Sızıntı önleme: working şirket yoksa (host/API) boş.
+        if (_currentCompany.Id is not { } companyId)
+            return dto;
+
+        // Kapsam ComputeAsync/SaveAsync ile AYNI: Branch scope + şirkete ait olmayan şube → konsolideye düşer.
+        Guid? branchId = request.Scope == BalanceSheetScope.Branch ? request.BranchId : null;
+        if (branchId is { } bid)
+        {
+            var branch = await _branches.FindAsync(bid);
+            if (branch is null || branch.CompanyId != companyId)
+                branchId = null;
+        }
+
+        // Birim-detay DA çekilir: KURFARKI birim (UnitId) bazlı yeniden değerleme gerektirir (Amount × sonraki ValuationRate).
+        var q = await _snapshots.GetQueryableAsync();
+        var rows = await AsyncExecuter.ToListAsync(
+            q.Where(s => s.CompanyId == companyId
+                      && s.Scope == request.Scope
+                      && s.BranchId == branchId)
+             .Select(s => new
+             {
+                 s.AsOfDate, s.BranchId, s.Category, s.UnitId, s.Amount, s.ValuationRate, s.Net, s.BaseCurrencyCode
+             }));
+
+        if (rows.Count == 0)
+            return dto;
+
+        // Görünen kategori anahtarları (kolon başlıkları); TOPLAM sırası sabit.
+        dto.Categories = rows.Select(r => r.Category).Distinct().OrderBy(c => c).ToList();
+
+        // Şube kodları (Company scope'ta konsolide → boş). BranchId null olmayan snapshot'lar için çöz.
+        var branchIds = rows.Where(r => r.BranchId != null).Select(r => r.BranchId!.Value).Distinct().ToList();
+        var branchCodes = branchIds.Count == 0
+            ? new Dictionary<Guid, string>()
+            : (await AsyncExecuter.ToListAsync(
+                (await _branches.GetQueryableAsync()).Where(b => branchIds.Contains(b.Id)).Select(b => new { b.Id, b.Code })))
+              .ToDictionary(b => b.Id, b => b.Code);
+
+        // AsOfDate bazında PIVOT (tarih ARTAN). Birim-detayı (KURFARKI için) günle beraber tutulur.
+        var days = rows
+            .GroupBy(r => r.AsOfDate)
+            .OrderBy(g => g.Key)
+            .Select(g =>
+            {
+                var categoryNets = g.GroupBy(x => x.Category)
+                    .ToDictionary(cg => cg.Key, cg => cg.Sum(x => x.Net));
+                var total  = categoryNets.Where(kv => BalanceSheetCategory.CountsInTotal(kv.Key)).Sum(kv => kv.Value);
+                var masraf = categoryNets.GetValueOrDefault(BalanceSheetCategory.Expense)
+                           + categoryNets.GetValueOrDefault(BalanceSheetCategory.Income);
+                var firstBranchId = g.Select(x => x.BranchId).FirstOrDefault(id => id != null);
+
+                // KURFARKI için birim-detay: Expense/Income (P&L) + MissingRate (donuk rate=0) satırları HARİÇ.
+                // Aynı gün + aynı UnitId'nin birden çok kategori satırı olabilir → UnitId bazında Amount/Net topla,
+                // ValuationRate birim-başına sabit (aynı asOf kuru) → ilkini al.
+                var unitDetail = g
+                    .Where(x => x.ValuationRate != 0m
+                             && x.Category != BalanceSheetCategory.Expense
+                             && x.Category != BalanceSheetCategory.Income)
+                    .GroupBy(x => x.UnitId)
+                    .ToDictionary(
+                        ug => ug.Key,
+                        ug => new SnapshotUnitCell(ug.Sum(x => x.Amount), ug.First().ValuationRate, ug.Sum(x => x.Net)));
+
+                return new DayPivot(
+                    new BalanceSheetSnapshotRowDto
+                    {
+                        AsOfDate         = g.Key,
+                        Scope            = request.Scope,
+                        BranchCode       = firstBranchId is { } fb ? branchCodes.GetValueOrDefault(fb) : null,
+                        CategoryNets     = categoryNets,
+                        Total            = total,
+                        Masraf           = masraf,
+                        BaseCurrencyCode = g.Select(x => x.BaseCurrencyCode).FirstOrDefault() ?? string.Empty,
+                    },
+                    unitDetail);
+            })
+            .ToList();
+
+        // Running türetimler (tarih sırasına göre akümülatör) + KURFARKI (ardışık gün çifti).
+        decimal prevTotal = 0m;
+        decimal? prevMasraf = null;
+        for (var i = 0; i < days.Count; i++)
+        {
+            var row = days[i].Row;
+            row.Devir    = prevTotal;                        // önceki günün TOPLAM'ı (ilk gün 0)
+            row.KarZarar = row.Total - row.Devir;            // dönemler arası net varlık değişimi
+            row.Gunluk   = prevMasraf is { } pm ? row.Masraf - pm : row.Masraf;   // MASRAF delta (ilk gün MASRAF'ın kendisi)
+
+            // KURFARKI: önceki snapshot satırının pozisyonunu BU günün kuruyla yeniden değerle → o günün Fark'ını
+            // İLİŞTİR (ERPPRO T-1: dünkü pozisyonun bugünkü kurla yeniden değerlemesi bu satırda görünür). İlk gün = 0.
+            if (i > 0)
+            {
+                var prev = days[i - 1].UnitDetail;
+                var curr = days[i].UnitDetail;
+                decimal fark = 0m;
+                foreach (var (unitId, prevCell) in prev)
+                {
+                    // Bu günde AYNI birim yoksa (pozisyon kapanmış) katkı 0 (yeniden değerlenecek rate yok).
+                    if (!curr.TryGetValue(unitId, out var currCell))
+                        continue;
+                    fark += prevCell.Amount * currCell.ValuationRate - prevCell.Net;
+                }
+                row.KurFarki = fark;
+            }
+
+            prevTotal  = row.Total;
+            prevMasraf = row.Masraf;
+        }
+
+        dto.Rows = days.Select(d => d.Row).ToList();
+        return dto;
+    }
+
+    /// <summary>Bir snapshot gününün pivot satırı + KURFARKI için birim-bazlı yeniden değerleme detayı.</summary>
+    private sealed record DayPivot(BalanceSheetSnapshotRowDto Row, Dictionary<Guid, SnapshotUnitCell> UnitDetail);
+
+    /// <summary>Bir gün+birim için yeniden değerleme hücresi: donuk Amount + donuk ValuationRate + donuk Net.</summary>
+    private readonly record struct SnapshotUnitCell(decimal Amount, decimal ValuationRate, decimal Net);
 
     /// <summary>Bilanço birimi: branch base'i (boş Guid ise şirket base'ine düşer); şube yoksa şirket base'i.</summary>
     private async Task<Guid> ResolveBaseUnitAsync(Guid companyId, Guid? branchId)

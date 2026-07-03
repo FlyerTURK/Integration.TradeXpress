@@ -30,6 +30,11 @@ public class Branch : FullAuditedAggregateRoot<Guid>, IMultiTenant
 
     public virtual bool IsActive { get; protected set; }
 
+    /// <summary>P&L (gider/gelir) dönem-başlangıç sınırı — ERPPRO <c>Subeler.RevCostDate</c> muadili. Bu tarihten
+    /// SONRAKİ (strict) gider/gelir cari döneme sayılır; öncekiler kapanmış sayılır. null = hiç kapanmadı (hepsi dahil,
+    /// mevcut davranış). YALNIZ P&L kaynağını (ServicePL) sınırlar; net-varlık kaynaklarını ETKİLEMEZ.</summary>
+    public virtual DateTime? ProfitResetDate { get; protected set; }
+
     public virtual int DisplayOrder { get; protected set; }
     public virtual string? Description { get; protected set; }
 
@@ -51,15 +56,33 @@ public class Branch : FullAuditedAggregateRoot<Guid>, IMultiTenant
     }
 
     public virtual void SetCode(string code)
-        => Code = Check.NotNullOrWhiteSpace(code, nameof(code), BranchConsts.CodeMaxLength).ToUpperInvariant();
+    {
+        // NormalizeCode: Trim + çoklu boşluk→tek + boşluk→'_' + UPPER, ardından zorunlu/min/max doğrulaması.
+        // Elle .ToUpperInvariant() gerekmez (NormalizeCode zaten UPPER yapar).
+        Code = StringFieldGuard.NormalizeCode(
+            code,
+            nameof(Code),
+            EntityFieldConsts.CodeMinLength,
+            BranchConsts.CodeMaxLength);
+    }
 
     public virtual void SetName(string name)
-        => Name = Check.NotNullOrWhiteSpace(name, nameof(name), BranchConsts.NameMaxLength);
+    {
+        // NormalizeName: Trim + çoklu boşluk→tek + TitleCase, ardından zorunlu/min/max doğrulaması.
+        Name = StringFieldGuard.NormalizeName(
+            name,
+            nameof(Name),
+            EntityFieldConsts.NameMinLength,
+            BranchConsts.NameMaxLength);
+    }
 
     public virtual void SetCompany(Guid companyId)
     {
         if (companyId == Guid.Empty)
-            throw new ArgumentException("Company is required.", nameof(companyId));
+        {
+            throw new BusinessException("TradeXpress:Branch:CompanyRequired");
+        }
+
         CompanyId = companyId;
     }
 
@@ -67,15 +90,21 @@ public class Branch : FullAuditedAggregateRoot<Guid>, IMultiTenant
     public virtual void SetBaseCurrency(Guid baseCurrencyUnitId)
     {
         if (baseCurrencyUnitId == Guid.Empty)
-            throw new ArgumentException("Base currency unit is required.", nameof(baseCurrencyUnitId));
+        {
+            throw new BusinessException("TradeXpress:Branch:BaseCurrencyRequired");
+        }
+
         BaseCurrencyUnitId = baseCurrencyUnitId;
     }
 
     public virtual void SetDescription(string? description)
     {
+        // Opsiyonel alan: yalnız üst sınır (min yok — mevcut davranış korunur). Aşılırsa tipli Framework exception'ı.
         if (description is { Length: > BranchConsts.DescriptionMaxLength })
-            throw new ArgumentException(
-                $"Description length must be at most {BranchConsts.DescriptionMaxLength}.", nameof(description));
+        {
+            throw new TooLongPropertyException(nameof(Description), BranchConsts.DescriptionMaxLength);
+        }
+
         Description = description;
     }
 
@@ -84,8 +113,21 @@ public class Branch : FullAuditedAggregateRoot<Guid>, IMultiTenant
         IsActive = value;
     }
 
-    public virtual void SetAsHeadquarters(bool isHeadquarters) => IsHeadquarters = isHeadquarters;
-    public virtual void SetDisplayOrder(int order) => DisplayOrder = order;
+    /// <summary>P&L dönem-başlangıç sınırını ilerletir (dönem kapanışı — ERPPRO RevCostDate update muadili).</summary>
+    public virtual void SetProfitResetDate(DateTime value)
+    {
+        ProfitResetDate = value;
+    }
+
+    public virtual void SetAsHeadquarters(bool isHeadquarters)
+    {
+        IsHeadquarters = isHeadquarters;
+    }
+
+    public virtual void SetDisplayOrder(int order)
+    {
+        DisplayOrder = order;
+    }
 
     public override string ToString()
     {

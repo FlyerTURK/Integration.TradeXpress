@@ -1,0 +1,16 @@
+# ── Mekanik ağ Katman 1 — yasak API'ler (Microsoft.CodeAnalysis.BannedApiAnalyzers → RS0030) ──
+# Kapsam: yalnız Domain + Domain.Shared projeleri (csproj'larda AdditionalFiles olarak bağlı; test projeleri HARİÇ).
+# Kök .editorconfig RS0030'u ERROR yapar → ihlal = derleme hatası.
+# Not: parametre listesi YAZILMAYAN girdiler TÜM overload'ları yasaklar (BannedApiAnalyzers kuralı).
+
+# Entity Id/TenantId'yi ABP atar (InsertAsync sıralı GUID doldurur); gerekiyorsa IGuidGenerator — CLAUDE.md entity-conventions.
+M:System.Guid.NewGuid;ABP atar — DI'da IGuidGenerator, DI'sız testte SimpleGuidGenerator.Instance.Create() kullan (entity-conventions)
+
+# Ham .NET exception YOK → ABP BusinessException (error-code + lokalize) ya da tipli Framework exception.
+M:System.ArgumentException.#ctor;BusinessException("TradeXpress:Entity:Rule") ya da tipli Framework exception (Required/TooShort/TooLongPropertyException) kullan
+M:System.ArgumentOutOfRangeException.#ctor;BusinessException ya da OutOfRangePropertyException kullan
+M:System.InvalidOperationException.#ctor;BusinessException kullan (error-code + lokalize)
+
+# Check.NotNullOrWhiteSpace YETMEZ (normalize/min/lokalize yok) → StringFieldGuard.
+# İmza Volo.Abp.Core 10.4.1'den reflection ile DOĞRULANDI (tek overload).
+M:Volo.Abp.Check.NotNullOrWhiteSpace(System.String,System.String,System.Int32,System.Int32);StringFieldGuard.NormalizeCode/NormalizeName/NormalizeInvariantCode/EnsureRequiredText kullan

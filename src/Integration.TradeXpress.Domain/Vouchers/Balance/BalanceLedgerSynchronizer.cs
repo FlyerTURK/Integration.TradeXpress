@@ -61,5 +61,7 @@ public class BalanceLedgerSynchronizer : ITransientDependency
 
     /// <summary>Fiş silindiğinde tüm ledger kayıtlarını temizler (FK yok — manuel).</summary>
     public Task DeleteVoucherAsync(Guid voucherId)
-        => _ledgerRepository.DeleteDirectAsync(e => e.VoucherId == voucherId);
+    {
+        return _ledgerRepository.DeleteDirectAsync(e => e.VoucherId == voucherId);
+    }
 }

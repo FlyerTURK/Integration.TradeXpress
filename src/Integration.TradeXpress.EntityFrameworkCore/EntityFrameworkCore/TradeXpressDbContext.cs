@@ -66,6 +66,7 @@ public class TradeXpressDbContext :
     public DbSet<Voucher> Vouchers { get; set; } = null!;
     public DbSet<VoucherLine> VoucherLines { get; set; } = null!;
     public DbSet<Integration.TradeXpress.Vouchers.Balance.BalanceLedgerEntry> BalanceLedgerEntries { get; set; } = null!;
+    public DbSet<Integration.TradeXpress.Reports.BalanceSheet.BalanceSheetSnapshot> BalanceSheetSnapshots { get; set; } = null!;
     public DbSet<Integration.TradeXpress.Authorization.UserScopedGrant> UserScopedGrants { get; set; } = null!;
     public DbSet<Integration.TradeXpress.Settings.UserGridLayout> UserGridLayouts { get; set; } = null!;
 
@@ -140,6 +141,7 @@ public class TradeXpressDbContext :
         builder.ConfigureAccounts();
         builder.ConfigureVouchers();
         builder.ConfigureBalanceLedger();
+        builder.ConfigureBalanceSheetSnapshots();
         builder.ConfigureUserScopedGrants();
         builder.ConfigureUserGridLayouts();
     }

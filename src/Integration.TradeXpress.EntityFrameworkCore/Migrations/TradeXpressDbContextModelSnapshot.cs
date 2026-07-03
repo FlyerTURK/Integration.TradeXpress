@@ -450,6 +450,9 @@ namespace Integration.TradeXpress.Migrations
                         .HasMaxLength(128)
                         .HasColumnType("nvarchar(128)");
 
+                    b.Property<DateTime?>("ProfitResetDate")
+                        .HasColumnType("datetime2");
+
                     b.Property<Guid?>("TenantId")
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("TenantId");
@@ -1345,6 +1348,104 @@ namespace Integration.TradeXpress.Migrations
                     b.HasIndex("TenantId", "FollowingUnitId");
 
                     b.ToTable("AppMetals", (string)null);
+                });
+
+            modelBuilder.Entity("Integration.TradeXpress.Reports.BalanceSheet.BalanceSheetSnapshot", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime>("AsOfDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("BaseCurrencyCode")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<Guid>("BaseUnitId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("BranchId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ConcurrencyStamp")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)")
+                        .HasColumnName("ConcurrencyStamp");
+
+                    b.Property<DateTime>("CreationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("CreationTime");
+
+                    b.Property<Guid?>("CreatorId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CreatorId");
+
+                    b.Property<Guid?>("DeleterId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("DeleterId");
+
+                    b.Property<DateTime?>("DeletionTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("DeletionTime");
+
+                    b.Property<string>("ExtraProperties")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("ExtraProperties");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false)
+                        .HasColumnName("IsDeleted");
+
+                    b.Property<DateTime?>("LastModificationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("LastModificationTime");
+
+                    b.Property<Guid?>("LastModifierId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("LastModifierId");
+
+                    b.Property<decimal>("Net")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("Scope")
+                        .HasColumnType("int");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("TenantId");
+
+                    b.Property<Guid>("UnitId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("ValuationRate")
+                        .HasPrecision(18, 5)
+                        .HasColumnType("decimal(18,5)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "Scope", "CompanyId", "BranchId", "AsOfDate");
+
+                    b.ToTable("AppBalanceSheetSnapshots", (string)null);
                 });
 
             modelBuilder.Entity("Integration.TradeXpress.Scheduling.SchedulerAppointment", b =>
@@ -4251,21 +4352,17 @@ namespace Integration.TradeXpress.Migrations
 
             modelBuilder.Entity("Integration.TradeXpress.Accounts.Account", b =>
                 {
-                    b.HasOne("Integration.TradeXpress.Financials.CurrencyUnits.CurrencyUnit", "BalanceCurrencyUnit")
+                    b.HasOne("Integration.TradeXpress.Financials.CurrencyUnits.CurrencyUnit", null)
                         .WithMany()
                         .HasForeignKey("BalanceCurrencyUnitId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("Integration.TradeXpress.Financials.CurrencyUnits.CurrencyUnit", "LimitUnit")
+                    b.HasOne("Integration.TradeXpress.Financials.CurrencyUnits.CurrencyUnit", null)
                         .WithMany()
                         .HasForeignKey("LimitUnitId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
-
-                    b.Navigation("BalanceCurrencyUnit");
-
-                    b.Navigation("LimitUnit");
                 });
 
             modelBuilder.Entity("Integration.TradeXpress.Accounts.SubAccount", b =>
@@ -4284,13 +4381,11 @@ namespace Integration.TradeXpress.Migrations
 
             modelBuilder.Entity("Integration.TradeXpress.Cashes.Cash", b =>
                 {
-                    b.HasOne("Integration.TradeXpress.Financials.CurrencyUnits.CurrencyUnit", "FollowingUnit")
+                    b.HasOne("Integration.TradeXpress.Financials.CurrencyUnits.CurrencyUnit", null)
                         .WithMany()
                         .HasForeignKey("FollowingUnitId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
-
-                    b.Navigation("FollowingUnit");
                 });
 
             modelBuilder.Entity("Integration.TradeXpress.Financials.CurrencyUnits.CurrencyUnit", b =>
@@ -4418,69 +4513,55 @@ namespace Integration.TradeXpress.Migrations
 
             modelBuilder.Entity("Integration.TradeXpress.Futures.Future", b =>
                 {
-                    b.HasOne("Integration.TradeXpress.Financials.CurrencyUnits.CurrencyUnit", "FollowingUnit")
+                    b.HasOne("Integration.TradeXpress.Financials.CurrencyUnits.CurrencyUnit", null)
                         .WithMany()
                         .HasForeignKey("FollowingUnitId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
-
-                    b.Navigation("FollowingUnit");
                 });
 
             modelBuilder.Entity("Integration.TradeXpress.Jewelries.Jewelry", b =>
                 {
-                    b.HasOne("Integration.TradeXpress.Financials.CurrencyUnits.CurrencyUnit", "EntryPriceUnit")
+                    b.HasOne("Integration.TradeXpress.Financials.CurrencyUnits.CurrencyUnit", null)
                         .WithMany()
                         .HasForeignKey("EntryPriceUnitId")
                         .OnDelete(DeleteBehavior.Restrict);
 
-                    b.HasOne("Integration.TradeXpress.Financials.CurrencyUnits.CurrencyUnit", "ExitPriceUnit")
+                    b.HasOne("Integration.TradeXpress.Financials.CurrencyUnits.CurrencyUnit", null)
                         .WithMany()
                         .HasForeignKey("ExitPriceUnitId")
                         .OnDelete(DeleteBehavior.Restrict);
-
-                    b.Navigation("EntryPriceUnit");
-
-                    b.Navigation("ExitPriceUnit");
                 });
 
             modelBuilder.Entity("Integration.TradeXpress.Metals.Metal", b =>
                 {
-                    b.HasOne("Integration.TradeXpress.Financials.CurrencyUnits.CurrencyUnit", "FollowingUnit")
+                    b.HasOne("Integration.TradeXpress.Financials.CurrencyUnits.CurrencyUnit", null)
                         .WithMany()
                         .HasForeignKey("FollowingUnitId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
-
-                    b.Navigation("FollowingUnit");
                 });
 
             modelBuilder.Entity("Integration.TradeXpress.Scraps.Scrap", b =>
                 {
-                    b.HasOne("Integration.TradeXpress.Financials.CurrencyUnits.CurrencyUnit", "FollowingUnit")
+                    b.HasOne("Integration.TradeXpress.Financials.CurrencyUnits.CurrencyUnit", null)
                         .WithMany()
                         .HasForeignKey("FollowingUnitId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
-
-                    b.Navigation("FollowingUnit");
                 });
 
             modelBuilder.Entity("Integration.TradeXpress.Stones.Stone", b =>
                 {
-                    b.HasOne("Integration.TradeXpress.Financials.CurrencyUnits.CurrencyUnit", "EntryPriceUnit")
+                    b.HasOne("Integration.TradeXpress.Financials.CurrencyUnits.CurrencyUnit", null)
                         .WithMany()
                         .HasForeignKey("EntryPriceUnitId")
                         .OnDelete(DeleteBehavior.Restrict);
 
-                    b.HasOne("Integration.TradeXpress.Financials.CurrencyUnits.CurrencyUnit", "ExitPriceUnit")
+                    b.HasOne("Integration.TradeXpress.Financials.CurrencyUnits.CurrencyUnit", null)
                         .WithMany()
                         .HasForeignKey("ExitPriceUnitId")
                         .OnDelete(DeleteBehavior.Restrict);
-
-                    b.Navigation("EntryPriceUnit");
-
-                    b.Navigation("ExitPriceUnit");
                 });
 
             modelBuilder.Entity("Integration.TradeXpress.Vouchers.Voucher", b =>

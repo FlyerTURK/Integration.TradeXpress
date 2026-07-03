@@ -23,14 +23,16 @@ public class VoucherBalanceCalculator : ITransientDependency
 
     /// <summary>Tek satırın bakiye etkilerini üretir (poster yoksa boş).</summary>
     public IEnumerable<BalanceEffect> Post(VoucherLine line)
-        => _posters.TryGetValue(line.Type, out var poster)
+    {
+        return _posters.TryGetValue(line.Type, out var poster)
             ? poster.Post(line)
             : Enumerable.Empty<BalanceEffect>();
+    }
 
     /// <summary>Satır kümesinin birim bazında net bakiyesini (UnitId → toplam) döndürür.</summary>
-    public IReadOnlyDictionary<System.Guid, decimal> Aggregate(IEnumerable<VoucherLine> lines)
+    public IReadOnlyDictionary<Guid, decimal> Aggregate(IEnumerable<VoucherLine> lines)
     {
-        var net = new Dictionary<System.Guid, decimal>();
+        var net = new Dictionary<Guid, decimal>();
         foreach (var line in lines)
         {
             foreach (var effect in Post(line))

@@ -16,7 +16,8 @@ public static class BullionConsts
     /// <summary>TAKOZ pseudo-birim kodu (gösterimde özel-durum).</summary>
     public const string PseudoUnitCode = CurrencyUnitCode.Bullion;
 
-    /// <summary>TAKOZ → HAS konsolidasyon katsayısı (= takoz varsayılan milyemi; legacy BakiyeKodlari.Carpan).
-    /// 1 TAKOZ gram = <c>DefaultCarpan</c> HAS gram. Varsayılan 0.300 (operatör sonra ayarlayabilir).</summary>
-    public const decimal DefaultCarpan = 0.300m;
+    /// <summary>Raporsuz takoz HAS değerleme katsayısı — SABİT. Legacy parite: <c>FN.TakozKur = HAS kuru × 0.6</c>
+    /// ve <c>Report.BakiyeListesi</c>/<c>Stok.TakozOzet</c>/<c>Stok.GetCesniStoklari</c>'nda hardcoded <c>× 0.600</c>
+    /// (ERPGOLDV2'de doğrulandı). 1 TAKOZ gram = <c>DefaultCarpan</c> HAS gram.</summary>
+    public const decimal DefaultCarpan = 0.600m;
 }

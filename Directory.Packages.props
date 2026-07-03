@@ -16,6 +16,8 @@
     <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="10.0.7" />
     <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly.Server" Version="10.0.7" />
     <PackageVersion Include="Microsoft.AspNetCore.Mvc.Razor.RuntimeCompilation" Version="10.0.7" />
+    <!-- BannedApiAnalyzers: BannedSymbols.txt'teki API'leri derlemede RS0030 yapar (Domain + Domain.Shared'de ERROR). -->
+    <PackageVersion Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" Version="5.6.0" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.7" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.InMemory" Version="10.0.7" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Tools" Version="10.0.7" />

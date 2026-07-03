@@ -87,7 +87,10 @@ public class Voucher : FullAuditedAggregateRoot<Guid>, IMultiTenant
     }
 
     /// <summary>Fiş numarasını dışarıdan atar (numara servisi; "ne zaman" kararı burada değil).</summary>
-    public virtual void SetVoucherNumber(long number) => VoucherNumber = number;
+    public virtual void SetVoucherNumber(long number)
+    {
+        VoucherNumber = number;
+    }
 
     /// <summary>Yeni satır ekler (Id dışarıdan — IGuidGenerator).</summary>
     public virtual VoucherLine AddLine(Guid id, VoucherLineInput input)
@@ -99,7 +102,9 @@ public class Voucher : FullAuditedAggregateRoot<Guid>, IMultiTenant
 
     /// <summary>Mevcut satırın alanlarını günceller.</summary>
     public virtual void UpdateLine(Guid lineId, VoucherLineInput input)
-        => Lines.FirstOrDefault(l => l.Id == lineId && !l.IsDeleted)?.Set(input);
+    {
+        Lines.FirstOrDefault(l => l.Id == lineId && !l.IsDeleted)?.Set(input);
+    }
 
     /// <summary>Satırı soft-delete eder (koleksiyondan çıkarmaz — DB'de kalır).</summary>
     public virtual void RemoveLine(Guid lineId)
@@ -128,7 +133,9 @@ public class Voucher : FullAuditedAggregateRoot<Guid>, IMultiTenant
     }
 
     private static DateTime TruncateToSeconds(DateTime dt)
-        => new DateTime(dt.Year, dt.Month, dt.Day, dt.Hour, dt.Minute, dt.Second, dt.Kind);
+    {
+        return new DateTime(dt.Year, dt.Month, dt.Day, dt.Hour, dt.Minute, dt.Second, dt.Kind);
+    }
 
     #endregion
 }

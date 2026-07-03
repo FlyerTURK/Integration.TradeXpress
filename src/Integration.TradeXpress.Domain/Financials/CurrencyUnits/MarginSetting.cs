@@ -24,17 +24,23 @@ public class MarginSetting : ValueObject
     public static MarginSetting Passthrough => new(MarginType.Multiply, 1m);
 
     /// <summary>Sabit fiyat margin'i (feed'i yok say).</summary>
-    public static MarginSetting Fixed(decimal price) => new(MarginType.FinalPrice, price);
+    public static MarginSetting Fixed(decimal price)
+    {
+        return new(MarginType.FinalPrice, price);
+    }
 
     /// <summary>Verilen piyasa fiyatından nihai fiyatı türetir.</summary>
-    public decimal Apply(decimal marketPrice) => Type switch
+    public decimal Apply(decimal marketPrice)
     {
-        MarginType.FinalPrice => Value,
-        MarginType.Multiply   => marketPrice * Value,
-        MarginType.Amount     => marketPrice + Value,
-        MarginType.Percent    => marketPrice * (1m + Value / 100m),
-        _                     => marketPrice
-    };
+        return Type switch
+        {
+            MarginType.FinalPrice => Value,
+            MarginType.Multiply   => marketPrice * Value,
+            MarginType.Amount     => marketPrice + Value,
+            MarginType.Percent    => marketPrice * (1m + Value / 100m),
+            _                     => marketPrice
+        };
+    }
 
     protected override IEnumerable<object> GetAtomicValues()
     {

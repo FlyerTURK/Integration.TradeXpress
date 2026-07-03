@@ -1,0 +1,16 @@
+# Domain.Shared katmanı — expression-bodied üye yasağı ERROR (mekanik ağ Katman 1; kök .editorconfig'i sıkılaştırır).
+# Csproj'da EnforceCodeStyleInBuild=true → bu IDE00xx kuralları DERLEMEDE zorlanır.
+# MUAF: auto-property, get-only expression property (IDE0025 dokunulmadı) ve LINQ lambda'ları.
+
+[*.cs]
+csharp_style_expression_bodied_methods = false:error
+csharp_style_expression_bodied_constructors = false:error
+csharp_style_expression_bodied_operators = false:error
+csharp_style_expression_bodied_local_functions = false:error
+
+# IDE0021 = ctor, IDE0022 = method, IDE0023 = conversion operator, IDE0024 = operator, IDE0061 = local function
+dotnet_diagnostic.IDE0021.severity = error
+dotnet_diagnostic.IDE0022.severity = error
+dotnet_diagnostic.IDE0023.severity = error
+dotnet_diagnostic.IDE0024.severity = error
+dotnet_diagnostic.IDE0061.severity = error

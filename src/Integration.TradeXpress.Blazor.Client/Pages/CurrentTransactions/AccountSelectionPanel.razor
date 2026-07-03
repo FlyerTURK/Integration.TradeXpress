@@ -1,16 +1,46 @@
-@using DevExpress.Blazor
-@using Integration.TradeXpress.Accounts
-@using Integration.TradeXpress.Vouchers
 @using Integration.TradeXpress.Vaults
-@using System.Globalization
 @inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
 @inject ISubAccountAppService SubAccountService
 @inject IVoucherAppService VoucherService
 @inject IVaultAppService VaultService
 @inject Integration.TradeXpress.Blazor.Client.Services.Working.IWorkingContextService Working
-@inject Integration.Framework.Blazor.Client.Services.Base.ITradeXpressUiService Ui
-@inject Integration.Framework.Blazor.Client.Services.Base.IViewOpener ViewOpener
-@inject Integration.Framework.Blazor.Client.Services.Base.IPopupService PopupService
+@inject ITradeXpressUiService Ui
+@inject IViewOpener ViewOpener
+@inject IPopupService PopupService
+
+<style>
+    /* İşlem tipi butonları dar ekranda alt satıra aksın (wrap).
+       KÖK NEDEN (tema CSS + DxToolbar kaynak analizi, DevExpress 25.2.5):
+       1) DxToolbar kök elemente Adaptivity* parametreleri false olsa bile HER ZAMAN
+          'dxbl-toolbar-adaptive' class'ı basar (DxToolbar.GetCssClass sabit yield).
+       2) Butonları taşıyan gerçek flex konteyner kök değil, içteki '.dxbl-btn-toolbar'dır;
+          adaptive modda tema onu 'position:absolute' yapar ve 'flex-wrap:nowrap' verir →
+          köke verilen flex-wrap etkisizdir (kökün tek çocuğu var).
+       3) Toolbar'ın JS custom element'i köke INLINE style yazar:
+          - updateToolbarHeight → tek satıra göre sabit 'height: Npx'
+          - checkUpdateMinWidth → tüm butonların toplamı kadar 'min-width: Npx' (küçülmeyi,
+            dolayısıyla wrap'i engeller)
+          Inline stili ezmek için bu ikisinde !important şart. */
+    .tx-process-type-toolbar.dxbl-toolbar {
+        height: auto !important;
+        min-width: 0 !important;
+    }
+
+    /* Asıl flex konteyner: absolute'tan akışa geri al + wrap ver.
+       Ölçüm klonu '.dxbl-virtual-toolbar' hariç (tema onu zaten !important ile gizli tutar). */
+    .tx-process-type-toolbar.dxbl-toolbar > .dxbl-btn-toolbar:not(.dxbl-virtual-toolbar) {
+        position: static;
+        flex: 1 1 auto;
+        min-width: 0;
+        flex-wrap: wrap;
+        row-gap: 4px;
+    }
+
+    /* İşlem paneli sarmalayıcısı — 10 panelin ortak stili TEK kaynak (DRY). */
+    .tx-process-panel-wrap {
+        overflow-x: auto;
+    }
+</style>
 
 @if (_activeProcess == null)
 {
@@ -128,16 +158,18 @@
     @if (_showActionToolbar)
     {
         <hr class="my-2" style="border-top: 1px solid var(--bs-border-color);" />
-        <DxToolbar AdaptivityAutoHideRootItems="false" AdaptivityAutoCollapseItemsToIcons="false" CssClass="mt-2">
-            <DxToolbarItem BeginGroup="true" Text="@($"3-{L["Metal"].ToString().ToUpper()}")" IconCssClass="custom-icon-metal" Click="@OnMetalClicked" />
-            <DxToolbarItem BeginGroup="true" Text="@($"4-{L["Scrap"].ToString().ToUpper()}")" IconCssClass="custom-icon-scrap" Click="@OnScrapClicked" />
-            <DxToolbarItem BeginGroup="true" Text="@($"5-{L["CashProcess"].ToString().ToUpper()}")" IconCssClass="custom-icon-cash" Click="@OnCashClicked" />
-            <DxToolbarItem BeginGroup="true" Text="@($"6-{L["Convert"].ToString().ToUpper()}")" IconCssClass="custom-icon-convert" Click="@OnConvertClicked" />
-            <DxToolbarItem BeginGroup="true" Text="@($"7-{L["Service"].ToString().ToUpper()}")" IconCssClass="custom-icon-service" Click="@OnServiceClicked" />
-            <DxToolbarItem BeginGroup="true" Text="@($"8-{L["Future"].ToString().ToUpper()}")" IconCssClass="custom-icon-future" Click="@OnFutureClicked" />
-            <DxToolbarItem BeginGroup="true" Text="@($"9-{L["Stone"].ToString().ToUpper()}")" IconCssClass="custom-icon-stone" Click="@OnStoneClicked" />
-            <DxToolbarItem BeginGroup="true" Text="@($"M-{L["Jewelry"].ToString().ToUpper()}")" IconCssClass="custom-icon-jewelry" Click="@OnJewelryClicked" />
-            <DxToolbarItem BeginGroup="true" Text="@($"B-{L["Bullion"].ToString().ToUpper()}")" IconCssClass="custom-icon-bullion" Click="@OnBullionClicked" />
+        <DxToolbar AdaptivityAutoHideRootItems="false" AdaptivityAutoCollapseItemsToIcons="false" CssClass="mt-2 tx-process-type-toolbar">
+            @* Takoz Giriş/Çıkış (kısayol 1/2) numara sırasına göre EN BAŞTA. *@
+            <DxToolbarItem BeginGroup="true" Text="@($"1-{L["Bullion_In"].ToString().ToUpper()}")" IconCssClass="custom-icon-bullion" Click="@OnBullionInClicked" Visible="@_isGrantedBullion" />
+            <DxToolbarItem BeginGroup="true" Text="@($"2-{L["Bullion_Out"].ToString().ToUpper()}")" IconCssClass="custom-icon-bullion" Click="@OnBullionOutClicked" Visible="@_isGrantedBullion" />
+            <DxToolbarItem BeginGroup="true" Text="@($"3-{L["Metal"].ToString().ToUpper()}")" IconCssClass="custom-icon-metal" Click="@OnMetalClicked" Visible="@_isGrantedMetal" />
+            <DxToolbarItem BeginGroup="true" Text="@($"4-{L["Scrap"].ToString().ToUpper()}")" IconCssClass="custom-icon-scrap" Click="@OnScrapClicked" Visible="@_isGrantedScrap" />
+            <DxToolbarItem BeginGroup="true" Text="@($"5-{L["CashProcess"].ToString().ToUpper()}")" IconCssClass="custom-icon-cash" Click="@OnCashClicked" Visible="@_isGrantedCash" />
+            <DxToolbarItem BeginGroup="true" Text="@($"6-{L["Convert"].ToString().ToUpper()}")" IconCssClass="custom-icon-convert" Click="@OnConvertClicked" Visible="@_isGrantedConvert" />
+            <DxToolbarItem BeginGroup="true" Text="@($"7-{L["Service"].ToString().ToUpper()}")" IconCssClass="custom-icon-service" Click="@OnServiceClicked" Visible="@_isGrantedService" />
+            <DxToolbarItem BeginGroup="true" Text="@($"8-{L["Future"].ToString().ToUpper()}")" IconCssClass="custom-icon-future" Click="@OnFutureClicked" Visible="@_isGrantedFuture" />
+            <DxToolbarItem BeginGroup="true" Text="@($"9-{L["Stone"].ToString().ToUpper()}")" IconCssClass="custom-icon-stone" Click="@OnStoneClicked" Visible="@_isGrantedStone" />
+            <DxToolbarItem BeginGroup="true" Text="@($"M-{L["Jewelry"].ToString().ToUpper()}")" IconCssClass="custom-icon-jewelry" Click="@OnJewelryClicked" Visible="@_isGrantedJewelry" />
             <DxToolbarItem BeginGroup="true" Text="@($"0-{L["List"].ToString().ToUpper()}")" IconCssClass="custom-icon-list" Click="@OnListClicked" />
         </DxToolbar>
     }
@@ -146,7 +178,7 @@
 
 @if (_activeProcess == "Cash")
 {
-    <div style="padding:8px; overflow-x:auto;">
+    <div class="tx-process-panel-wrap">
         <CashProcessPanel @ref="_cashPanel"
                           OnBack="@OnProcessBack"
                           AccountCode="@_selectedAccountCode"
@@ -164,7 +196,7 @@
 }
 else if (_activeProcess == "Service")
 {
-    <div style="padding:8px; overflow-x:auto;">
+    <div class="tx-process-panel-wrap">
         <ServiceProcessPanel @ref="_servicePanel"
                              OnBack="@OnProcessBack"
                              AccountCode="@_selectedAccountCode"
@@ -182,7 +214,7 @@ else if (_activeProcess == "Service")
 }
 else if (_activeProcess == "Convert")
 {
-    <div style="padding:8px; overflow-x:auto;">
+    <div class="tx-process-panel-wrap">
         <ConvertProcessPanel @ref="_convertPanel"
                              OnBack="@OnProcessBack"
                              AccountCode="@_selectedAccountCode"
@@ -200,7 +232,7 @@ else if (_activeProcess == "Convert")
 }
 else if (_activeProcess == "Future")
 {
-    <div style="padding:8px; overflow-x:auto;">
+    <div class="tx-process-panel-wrap">
         <FutureProcessPanel @ref="_futurePanel"
                             OnBack="@OnProcessBack"
                             AccountCode="@_selectedAccountCode"
@@ -218,7 +250,7 @@ else if (_activeProcess == "Future")
 }
 else if (_activeProcess == "Scrap")
 {
-    <div style="padding:8px; overflow-x:auto;">
+    <div class="tx-process-panel-wrap">
         <ScrapProcessPanel @ref="_scrapPanel"
                            OnBack="@OnProcessBack"
                            AccountCode="@_selectedAccountCode"
@@ -236,7 +268,7 @@ else if (_activeProcess == "Scrap")
 }
 else if (_activeProcess == "Metal")
 {
-    <div style="padding:8px; overflow-x:auto;">
+    <div class="tx-process-panel-wrap">
         <MetalProcessPanel @ref="_metalPanel"
                            OnBack="@OnProcessBack"
                            AccountCode="@_selectedAccountCode"
@@ -254,7 +286,7 @@ else if (_activeProcess == "Metal")
 }
 else if (_activeProcess == "Stone")
 {
-    <div style="padding:8px; overflow-x:auto;">
+    <div class="tx-process-panel-wrap">
         <StoneProcessPanel @ref="_stonePanel"
                            OnBack="@OnProcessBack"
                            AccountCode="@_selectedAccountCode"
@@ -272,7 +304,7 @@ else if (_activeProcess == "Stone")
 }
 else if (_activeProcess == "Jewelry")
 {
-    <div style="padding:8px; overflow-x:auto;">
+    <div class="tx-process-panel-wrap">
         <JewelryProcessPanel @ref="_jewelryPanel"
                            OnBack="@OnProcessBack"
                            AccountCode="@_selectedAccountCode"
@@ -290,7 +322,7 @@ else if (_activeProcess == "Jewelry")
 }
 else if (_activeProcess == "Bullion")
 {
-    <div style="padding:8px; overflow-x:auto;">
+    <div class="tx-process-panel-wrap">
         <BullionProcessPanel @ref="_bullionPanel"
                            OnBack="@OnProcessBack"
                            AccountCode="@_selectedAccountCode"
@@ -305,414 +337,20 @@ else if (_activeProcess == "Bullion")
                            OnSaved="@OnLineSavedInternal" />
     </div>
 }
-
-@code {
-    [Parameter] public Guid? InitialSubAccountId { get; set; }
-    [Parameter] public Guid? InitialVoucherId { get; set; }
-
-    [Parameter] public EventCallback<Guid> OnLineSaved { get; set; }
-    [Parameter] public EventCallback<SubAccountListDto?> OnSubAccountSelected { get; set; }
-    [Parameter] public EventCallback<Guid?> OnVoucherOpened { get; set; }
-    /// <summary>Süreç paneli (Nakit vb.) açık/kalı değişince forma bildirir.</summary>
-    [Parameter] public EventCallback<bool> OnProcessActiveChanged { get; set; }
-    /// <summary>Cari panel TAMAM ile kilitlenince/açılınca forma bildirir (Düzelt/Sil görünürlüğü).</summary>
-    [Parameter] public EventCallback<bool> OnLockChanged { get; set; }
-    /// <summary>Liste butonu → form liste modunu açar.</summary>
-    [Parameter] public EventCallback OnListRequested { get; set; }
-
-    private VoucherCreateDto _model = new();
-    private bool _locked;
-    private bool _showActionToolbar;
-    private string? _activeProcess;
-    private string? _selectedAccountCode;
-    private string? _selectedSubAccountCode;
-
-    private CashProcessPanel? _cashPanel;
-    private ServiceProcessPanel? _servicePanel;
-    private ConvertProcessPanel? _convertPanel;
-    private FutureProcessPanel? _futurePanel;
-    private ScrapProcessPanel? _scrapPanel;
-    private MetalProcessPanel? _metalPanel;
-    private StoneProcessPanel? _stonePanel;
-    private JewelryProcessPanel? _jewelryPanel;
-    private BullionProcessPanel? _bullionPanel;
-    private VoucherLineDto? _pendingEdit;
-    private SubAccountListDto? _pendingSubAccount;
-
-
-    private List<SubAccountListDto> _subAccounts = new();
-    private List<VaultListDto>      _branchVaults = new();
-
-    private const int VoucherPageSize = 1000;
-    private static readonly Guid SentinelId = new("00000000-0000-0000-0000-000000000001");
-    private List<VoucherComboItem> _voucherItems = new();
-    private int   _voucherOffset;
-    private bool  _voucherHasMore;
-    private Guid? _selectedVoucherId;
-
-    private DateTime _displayVoucherDate = DateTime.Now;
-    private string   _selectedVaultDisplay = string.Empty;
-
-    private record VoucherComboItem(Guid Id, string VoucherNo, string Date, string VaultDisplay, DateTime VoucherDate, string? Description, string DisplayText, int CurrentTransactionCount);
-
-    protected override async Task OnInitializedAsync()
-    {
-        await base.OnInitializedAsync();
-        await Working.EnsureLoadedAsync();
-
-        _model.CompanyId = Working.CurrentCompanyId ?? Guid.Empty;
-        _model.BranchId  = Working.CurrentBranchId  ?? Guid.Empty;
-
-        var subTask   = SubAccountService.GetListAsync(new SubAccountListRequestDto { BranchId = Working.CurrentBranchId, MaxResultCount = 1000 });
-        var vaultTask = VaultService.GetListAsync(new VaultListRequestDto { BranchId = Working.CurrentBranchId, MaxResultCount = 1000 });
-        await Task.WhenAll(subTask, vaultTask);
-        _subAccounts  = subTask.Result.Items.ToList();
-        _branchVaults = vaultTask.Result.Items.ToList();
-
-        if (InitialSubAccountId.HasValue)
-        {
-            await OnSubAccountChanged(InitialSubAccountId);
-            await OnSubAccountLostFocus(); // Seçimi anında forma bildir (blur bekleme)
-
-            if (InitialVoucherId.HasValue)
-            {
-                await OnVoucherChanged(InitialVoucherId);
-                await OnConfirmClicked(); // Auto-lock and open voucher!
-            }
-        }
-    }
-
-    private async Task OnSubAccountChanged(Guid? subAccountId)
-    {
-        _model.SubAccountId = subAccountId;
-        _selectedVoucherId  = null;
-
-        var selected = subAccountId.HasValue
-            ? _subAccounts.FirstOrDefault(s => s.Id == subAccountId.Value)
-            : null;
-        _model.AccountId        = selected?.AccountId ?? Guid.Empty;
-        _selectedAccountCode    = selected?.AccountCode;
-        _selectedSubAccountCode = selected?.Code;
-
-        if (_model.VaultId == null && _branchVaults.Count > 0)
-            _model.VaultId = _branchVaults[0].Id;
-
-        _locked            = false;
-        _showActionToolbar = false;
-        await SetActiveProcessAsync(null);
-        _voucherItems      = new();
-        _voucherOffset    = 0;
-        if (subAccountId.HasValue)
-            await LoadVouchersAsync();
-
-        // Seçim null ise (temizleme) direkt bildir; değilse blur'da bildirilecek.
-        if (selected == null)
-        {
-            _pendingSubAccount = null;
-            await OnSubAccountSelected.InvokeAsync(null);
-        }
-        else
-        {
-            _pendingSubAccount = selected;
-        }
-    }
-
-    private async Task OnSubAccountLostFocus()
-    {
-        if (_pendingSubAccount != null)
-        {
-            var sa = _pendingSubAccount;
-            _pendingSubAccount = null;
-            await OnSubAccountSelected.InvokeAsync(sa);
-        }
-    }
-
-    private async Task LoadVouchersAsync()
-    {
-        var result = await VoucherService.GetListAsync(new VoucherListRequestDto
-        {
-            SubAccountId   = _model.SubAccountId,
-            SkipCount      = _voucherOffset,
-            MaxResultCount = VoucherPageSize,
-        });
-
-        _voucherItems.RemoveAll(x => x.Id == SentinelId);
-
-        foreach (var v in result.Items)
-        {
-            var dateStr = v.VoucherDate.ToString("dd.MM.yyyy HH:mm", CultureInfo.InvariantCulture);
-            var displayText = L["VoucherComboDisplayTextFormat", v.VoucherNumber, dateStr, v.LineCount].Value;
-            _voucherItems.Add(new VoucherComboItem(
-                v.Id,
-                $"#{v.VoucherNumber}",
-                dateStr,
-                v.VaultDisplay,
-                v.VoucherDate,
-                v.Description,
-                displayText,
-                v.LineCount));
-        }
-
-        _voucherOffset += result.Items.Count;
-        _voucherHasMore = _voucherOffset < result.TotalCount;
-
-        if (_voucherHasMore)
-            _voucherItems.Add(new VoucherComboItem(SentinelId, "...", $"{result.TotalCount - _voucherOffset} more...", string.Empty, default, null, "...", 0));
-    }
-
-    private async Task OnVoucherChanged(Guid? id)
-    {
-        if (id == SentinelId) { await LoadVouchersAsync(); return; }
-
-        _selectedVoucherId = id;
-
-        if (id.HasValue)
-        {
-            var item = _voucherItems.FirstOrDefault(x => x.Id == id.Value);
-            if (item is not null)
-            {
-                _displayVoucherDate   = item.VoucherDate;
-                _selectedVaultDisplay = item.VaultDisplay;
-                _model.Description    = item.Description;
-            }
-        }
-        else
-        {
-            _displayVoucherDate   = DateTime.Now;
-            _model.VoucherDate    = _displayVoucherDate;
-            _selectedVaultDisplay = string.Empty;
-            _model.Description    = null;
-        }
-    }
-
-    private void OnVoucherDateChanged(DateTime d)
-    {
-        _displayVoucherDate = d;
-        if (!_selectedVoucherId.HasValue)
-            _model.VoucherDate = d;
-    }
-
-    private async Task OnConfirmClicked()
-    {
-        _locked            = !_locked;
-        _showActionToolbar = _locked;
-        await OnLockChanged.InvokeAsync(_locked);
-        if (!_locked)
-        {
-            await SetActiveProcessAsync(null);
-            await OnVoucherOpened.InvokeAsync(null);   // HESAP SEÇ → gridi temizle
-        }
-        else
-        {
-            // TAMAM → seçili fişin (varsa) hareketlerini forma yüklet; yeni fiş ise null (boş grid).
-            await OnVoucherOpened.InvokeAsync(_selectedVoucherId);
-        }
-    }
-
-    private async Task SetActiveProcessAsync(string? process)
-    {
-        _activeProcess = process;
-        await OnProcessActiveChanged.InvokeAsync(process != null);
-    }
-
-    private Task OnCashClicked()    => SetActiveProcessAsync("Cash");
-    private Task OnServiceClicked() => SetActiveProcessAsync("Service");
-    private Task OnConvertClicked() => SetActiveProcessAsync("Convert");
-    private Task OnFutureClicked()  => SetActiveProcessAsync("Future");
-    private Task OnScrapClicked()   => SetActiveProcessAsync("Scrap");
-    private Task OnMetalClicked()   => SetActiveProcessAsync("Metal");
-    private Task OnStoneClicked()   => SetActiveProcessAsync("Stone");
-    private Task OnJewelryClicked() => SetActiveProcessAsync("Jewelry");
-    private Task OnBullionClicked() => SetActiveProcessAsync("Bullion");
-
-    private bool _accountPopupSaved;
-
-    /// <summary>Cari combo "düzelt": seçili ALT-HESABI (SubAccount) POPUP'ta açar (standart popup+refresh+odak).
-    /// SubAccount formunda Account lookup yer alır (yeni kayıtta seçilir, edit'te salt-okunur).</summary>
-    private async Task OnEditSubAccountAsync(Guid? subAccountId)
-    {
-        if (subAccountId is not { } id || id == Guid.Empty) return;
-        var sub = _subAccounts.FirstOrDefault(s => s.Id == id);
-        var title = sub is not null ? $"{L["SubAccount"]}: {sub.AccountSubCodeDisplay}" : L["SubAccount"].Value;
-        await OpenSubAccountPopupAsync(id, title);
-    }
-
-    /// <summary>Cari combo "ekle": YENİ alt-hesabı (SubAccount) POPUP'ta açar (standart popup+refresh+odak).</summary>
-    private async Task<Guid?> OnAddSubAccountAsync()
-    {
-        await OpenSubAccountPopupAsync(null, L["SubAccount"].Value);
-        return null;   // yeni id popup akışında oluşur; seçim aşağıda (refresh sonrası) yapılır
-    }
-
-    /// <summary>STANDART davranış: SubAccount edit POPUP'ı (framework merkezî yolu IViewOpener→IPopupService) →
-    /// kaydedilince combo listesini TAZELE + ilgili kayda ODAKLAN (ekle → yeni eklenen; düzelt → mevcut).
-    /// İptalde (kaydetmeden kapat) hiçbir şey yapılmaz.</summary>
-    private async Task OpenSubAccountPopupAsync(Guid? subAccountId, string title)
-    {
-        _accountPopupSaved = false;
-        var beforeIds = _subAccounts.Select(s => s.Id).ToHashSet();
-
-        await ViewOpener.OpenAsync(
-            typeof(Integration.TradeXpress.Blazor.Client.Pages.Accounts.SubAccountEditHost),
-            subAccountId, title, TradeXpressIcons.SubAccount, AccountPopupExtra());
-
-        if (!_accountPopupSaved) return;                       // iptal → tazeleme/odak yok
-
-        await ReloadSubAccountsAsync();                        // liste refresh
-
-        // Odaklan: ekle → yeni eklenen alt-hesap (before'da olmayan); düzelt → mevcut seçili kayıt (display tazelenir).
-        var focus = _subAccounts.FirstOrDefault(s => !beforeIds.Contains(s.Id))
-                    ?? _subAccounts.FirstOrDefault(s => s.Id == _model.SubAccountId);
-        if (focus is not null)
-            await OnSubAccountChanged(focus.Id);
-        await InvokeAsync(StateHasChanged);
-    }
-
-    /// <summary>Popup kancaları: kaydet → bayrak set + kapat; kapat → sadece kapat (merkezî IPopupService).</summary>
-    private Dictionary<string, object> AccountPopupExtra() => new()
-    {
-        { "OnSaved",  EventCallback.Factory.Create(this, () => { _accountPopupSaved = true; PopupService.Close(); }) },
-        { "OnClosed", EventCallback.Factory.Create(this, () => PopupService.Close()) },
-    };
-
-    private async Task ReloadSubAccountsAsync()
-    {
-        var res = await SubAccountService.GetListAsync(new SubAccountListRequestDto { BranchId = Working.CurrentBranchId, MaxResultCount = 1000 });
-        _subAccounts = res.Items.ToList();
-    }
-    private Task OnProcessBack()    => SetActiveProcessAsync(null);
-    private Task OnListClicked()    => OnListRequested.InvokeAsync();
-
-    /// <summary>Form'dan çağrılır (Düzelt): satırın türüne göre ilgili paneli açıp yükler.</summary>
-    public async Task BeginEditLineAsync(VoucherLineDto dto)
-    {
-        _selectedVoucherId = dto.VoucherId;
-        _pendingEdit       = dto;            // panel render olunca yüklenecek (OnAfterRender)
-        var process = dto.Type switch
-        {
-            ProcessType.Service => "Service",
-            ProcessType.Convert => "Convert",
-            ProcessType.Future  => "Future",
-            ProcessType.Scrap   => "Scrap",
-            ProcessType.Metal   => "Metal",
-            ProcessType.Stone   => "Stone",
-            ProcessType.Jewelry => "Jewelry",
-            ProcessType.Bullion => "Bullion",
-            _ => "Cash",
-        };
-        await SetActiveProcessAsync(process);
-        StateHasChanged();
-    }
-
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        await base.OnAfterRenderAsync(firstRender);
-        if (_pendingEdit is not { } dto) return;
-
-        if (dto.Type == ProcessType.Service && _servicePanel is not null)
-        {
-            _pendingEdit = null;
-            await _servicePanel.LoadForEditAsync(dto);
-        }
-        else if (dto.Type == ProcessType.Convert && _convertPanel is not null)
-        {
-            _pendingEdit = null;
-            await _convertPanel.LoadForEditAsync(dto);
-        }
-        else if (dto.Type == ProcessType.Future && _futurePanel is not null)
-        {
-            _pendingEdit = null;
-            await _futurePanel.LoadForEditAsync(dto);
-        }
-        else if (dto.Type == ProcessType.Scrap && _scrapPanel is not null)
-        {
-            _pendingEdit = null;
-            await _scrapPanel.LoadForEditAsync(dto);
-        }
-        else if (dto.Type == ProcessType.Metal && _metalPanel is not null)
-        {
-            _pendingEdit = null;
-            await _metalPanel.LoadForEditAsync(dto);
-        }
-        else if (dto.Type == ProcessType.Stone && _stonePanel is not null)
-        {
-            _pendingEdit = null;
-            await _stonePanel.LoadForEditAsync(dto);
-        }
-        else if (dto.Type == ProcessType.Jewelry && _jewelryPanel is not null)
-        {
-            _pendingEdit = null;
-            await _jewelryPanel.LoadForEditAsync(dto);
-        }
-        else if (dto.Type == ProcessType.Bullion && _bullionPanel is not null)
-        {
-            _pendingEdit = null;
-            await _bullionPanel.LoadForEditAsync(dto);
-        }
-        else if (dto.Type is not ProcessType.Service and not ProcessType.Convert and not ProcessType.Future and not ProcessType.Scrap and not ProcessType.Metal and not ProcessType.Stone and not ProcessType.Jewelry and not ProcessType.Bullion && _cashPanel is not null)
-        {
-            _pendingEdit = null;
-            await _cashPanel.LoadForEditAsync(dto);
-        }
-    }
-
-    private async Task OnLineSavedInternal(VoucherLineDto result)
-    {
-        var vid = result.VoucherId ?? Guid.Empty;
-
-        // Yeni fiş mi oluştu (combo'da yok mu)?
-        var isNew = _voucherItems.All(x => x.Id != vid);
-
-        // İlk satır fişi oluşturdu → sonraki satırlar aynı fişe gitsin.
-        _selectedVoucherId = vid;
-
-        if (isNew)
-        {
-            // Fiş listesini tazele → yeni fiş numarasıyla combo'ya gelsin ve seçili görünsün.
-            _voucherItems  = new();
-            _voucherOffset = 0;
-            await LoadVouchersAsync();
-
-            var item = _voucherItems.FirstOrDefault(x => x.Id == vid);
-            if (item is not null)
-            {
-                _displayVoucherDate   = item.VoucherDate;
-                _selectedVaultDisplay = item.VaultDisplay;
-            }
-        }
-
-        await OnLineSaved.InvokeAsync(vid);
-    }
-
-    private async Task OnDeleteVoucherClick(MouseEventArgs _)
-    {
-        if (!_selectedVoucherId.HasValue) return;
-
-        if (await Ui.ConfirmDeleteAsync(L["DeleteConfirmationMessage"].Value) != Integration.Framework.Blazor.Client.Services.Base.ConfirmDialogResult.Yes)
-            return;
-
-        try
-        {
-            await VoucherService.DeleteAsync(_selectedVoucherId.Value);
-
-            _selectedVoucherId = null;
-            _displayVoucherDate = DateTime.Now;
-            _model.VoucherDate = _displayVoucherDate;
-            _selectedVaultDisplay = string.Empty;
-            _model.Description = null;
-
-            _voucherItems = new();
-            _voucherOffset = 0;
-            await LoadVouchersAsync();
-
-            await OnVoucherOpened.InvokeAsync(null);
-
-            StateHasChanged();
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine(ex.ToString());
-        }
-    }
+else if (_activeProcess == "BullionOut")
+{
+    <div class="tx-process-panel-wrap">
+        <BullionExitPanel @ref="_bullionExitPanel"
+                           OnBack="@OnProcessBack"
+                           AccountCode="@_selectedAccountCode"
+                           SubAccountCode="@_selectedSubAccountCode"
+                           CompanyId="@_model.CompanyId"
+                           BranchId="@_model.BranchId"
+                           VaultId="@_model.VaultId"
+                           AccountId="@_model.AccountId"
+                           SubAccountId="@_model.SubAccountId"
+                           VoucherDate="@_model.VoucherDate"
+                           VoucherId="@_selectedVoucherId"
+                           OnSaved="@OnLineSavedInternal" />
+    </div>
 }
-

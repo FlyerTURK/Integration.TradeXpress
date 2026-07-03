@@ -3,14 +3,7 @@ using System.Collections.Generic;
 
 namespace Integration.TradeXpress.Reports;
 
-/// <summary>Bilanço kapsam kademesi — kullanıcı toolbar switch'iyle seçer.</summary>
-public enum BalanceSheetScope
-{
-    /// <summary>Çalışılan ŞUBE bazında (Branch.Base biriminde).</summary>
-    Branch = 0,
-    /// <summary>Çalışılan ŞİRKET konsolide (Company.Base biriminde; tüm şubeleri toplar).</summary>
-    Company = 1,
-}
+// BalanceSheetScope enum'u Domain.Shared'a taşındı (Domain snapshot entity'si de kullanıyor; her iki katman görür).
 
 /// <summary>
 /// Bilanço hesaplama filtresi. Kapsam (Branch/Company) + tarih (AsOf — o güne kadarki snapshot). CompanyId DAİMA

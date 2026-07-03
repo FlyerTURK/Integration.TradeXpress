@@ -12,7 +12,10 @@ namespace Integration.TradeXpress.Vouchers;
 public static class BullionLegCalculator
 {
     /// <summary>Sıfır-güvenli bölme.</summary>
-    private static decimal Div(decimal value, decimal by) => by == 0m ? 0m : value / by;
+    private static decimal Div(decimal value, decimal by)
+    {
+        return by == 0m ? 0m : value / by;
+    }
 
     public static BullionLegResult ComputeBullion(BullionLegInput i)
     {

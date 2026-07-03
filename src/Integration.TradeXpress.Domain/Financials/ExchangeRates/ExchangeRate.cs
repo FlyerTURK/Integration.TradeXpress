@@ -36,7 +36,8 @@ public class ExchangeRate : CreationAuditedAggregateRoot<Guid>, IMultiTenant
         MarketPriceOnSell = RequirePositive(marketPriceOnSell);
         AppliedMarginOnBuy = appliedMarginOnBuy ?? MarginSetting.Passthrough;
         AppliedMarginOnSell = appliedMarginOnSell ?? MarginSetting.Passthrough;
-        Source = Check.NotNullOrWhiteSpace(source, nameof(source), CurrencyConsts.RateSourceMaxLength);
+        // Serbest kaynak etiketi ("Haremaltin" vb.): Trim + zorunlu + max; case normalizasyonu YAPILMAZ.
+        Source = StringFieldGuard.EnsureRequiredText(source, nameof(Source), 1, CurrencyConsts.RateSourceMaxLength);
         RateDate = rateDate;
         GuardFired = guardFired;
     }

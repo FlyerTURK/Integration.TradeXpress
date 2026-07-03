@@ -156,7 +156,8 @@ public static class VoucherLineCalculator
 
     private static VoucherLineCalcResult Passthrough(
         VoucherLineCalcInput i, bool isInflow, PayCommoditySource paySource)
-        => new(
+    {
+        return new(
             Amount:             i.Amount,
             Factor:             i.Factor,
             Total:              i.Total,
@@ -168,4 +169,5 @@ public static class VoucherLineCalculator
             PayTotalReadOnly:   false,
             PayCommoditySource: paySource,
             IsInflow:           isInflow);
+    }
 }

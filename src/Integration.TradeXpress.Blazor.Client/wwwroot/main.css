@@ -186,6 +186,14 @@
     overflow: hidden !important;
 }
 
+/* Fiş süreç panellerinde salt-okunur değer / net bacak gösterimi — inline stil tekilleştirme (DRY, tek kaynak).
+   .tx-readonly-value = salt-okunur alan değeri; .tx-leg-value.pos/.neg = özet bacak (pozitif yeşil / negatif kırmızı). */
+.tx-readonly-value { font-weight: 600; }
+.tx-readonly-value.danger { color: var(--dxbl-danger, #c62828); }
+.tx-leg-value { font-weight: 600; }
+.tx-leg-value.pos { color: var(--dxbl-success, #2e7d32); }
+.tx-leg-value.neg { color: var(--dxbl-danger, #c62828); }
+
 .mdi-empty {
     padding: 1rem;
     color: #888;
@@ -877,6 +885,7 @@
 .custom-icon-stone { background-image: url('/images/custom/stone.svg'); background-color: transparent; -webkit-mask-image: none; mask-image: none; }
 .custom-icon-jewelry { background-image: url('/images/custom/jewelry.svg'); background-color: transparent; -webkit-mask-image: none; mask-image: none; }
 .custom-icon-list { background-image: url('/images/custom/list.svg'); background-color: transparent; -webkit-mask-image: none; mask-image: none; }
+.custom-icon-bullion { background-image: url('/images/custom/bullion.svg'); background-color: transparent; -webkit-mask-image: none; mask-image: none; }
 .custom-icon-company { background-image: url('/images/custom/company.svg'); background-color: transparent; -webkit-mask-image: none; mask-image: none; }
 .custom-icon-branch { background-image: url('/images/custom/branch.svg'); background-color: transparent; -webkit-mask-image: none; mask-image: none; }
 .custom-icon-vault { background-image: url('/images/custom/vault.svg'); background-color: transparent; -webkit-mask-image: none; mask-image: none; }

@@ -52,27 +52,55 @@ public class Company : FullAuditedAggregateRoot<Guid>, IMultiTenant
     }
 
     public virtual void SetCode(string code)
-        => Code = Check.NotNullOrWhiteSpace(code, nameof(code), CompanyConsts.CodeMaxLength).ToUpperInvariant();
+    {
+        // NormalizeCode: Trim + çoklu boşluk→tek + boşluk→'_' + UPPER, ardından zorunlu/min/max doğrulaması.
+        // Elle .ToUpperInvariant() gerekmez (NormalizeCode zaten UPPER yapar).
+        Code = StringFieldGuard.NormalizeCode(
+            code,
+            nameof(Code),
+            EntityFieldConsts.CodeMinLength,
+            CompanyConsts.CodeMaxLength);
+    }
 
     public virtual void SetName(string name)
-        => Name = Check.NotNullOrWhiteSpace(name, nameof(name), CompanyConsts.NameMaxLength);
+    {
+        // NormalizeName: Trim + çoklu boşluk→tek + TitleCase, ardından zorunlu/min/max doğrulaması.
+        Name = StringFieldGuard.NormalizeName(
+            name,
+            nameof(Name),
+            EntityFieldConsts.NameMinLength,
+            CompanyConsts.NameMaxLength);
+    }
 
     public virtual void SetCountryCode(string countryCode)
-        => CountryCode = Check.NotNullOrWhiteSpace(countryCode, nameof(countryCode), CompanyConsts.CountryCodeMaxLength)
-            .ToUpperInvariant();
+    {
+        // ISO-3166 alpha-2 sabit uzunluk (min = max = 2). Kültür-BAĞIMSIZ UPPER (tr-TR 'i'→'İ' tuzağı yok);
+        // NormalizeCode KULLANILMAZ (evrensel CodeMinLength=3 iki harfli ISO koduna uymaz).
+        CountryCode = StringFieldGuard.NormalizeInvariantCode(
+            countryCode,
+            nameof(CountryCode),
+            CompanyConsts.CountryCodeMaxLength,
+            CompanyConsts.CountryCodeMaxLength);
+    }
 
     public virtual void SetBaseCurrency(Guid baseCurrencyUnitId)
     {
         if (baseCurrencyUnitId == Guid.Empty)
-            throw new ArgumentException("Base currency unit is required.", nameof(baseCurrencyUnitId));
+        {
+            throw new BusinessException("TradeXpress:Company:BaseCurrencyRequired");
+        }
+
         BaseCurrencyUnitId = baseCurrencyUnitId;
     }
 
     public virtual void SetDescription(string? description)
     {
+        // Opsiyonel alan: yalnız üst sınır (min yok — mevcut davranış korunur). Aşılırsa tipli Framework exception'ı.
         if (description is { Length: > CompanyConsts.DescriptionMaxLength })
-            throw new ArgumentException(
-                $"Description length must be at most {CompanyConsts.DescriptionMaxLength}.", nameof(description));
+        {
+            throw new TooLongPropertyException(nameof(Description), CompanyConsts.DescriptionMaxLength);
+        }
+
         Description = description;
     }
 
@@ -81,8 +109,15 @@ public class Company : FullAuditedAggregateRoot<Guid>, IMultiTenant
         IsActive = value;
     }
 
-    public virtual void SetAsHeadquarters(bool isHeadquarters) => IsHeadquarters = isHeadquarters;
-    public virtual void SetDisplayOrder(int order) => DisplayOrder = order;
+    public virtual void SetAsHeadquarters(bool isHeadquarters)
+    {
+        IsHeadquarters = isHeadquarters;
+    }
+
+    public virtual void SetDisplayOrder(int order)
+    {
+        DisplayOrder = order;
+    }
 
     public override string ToString()
     {

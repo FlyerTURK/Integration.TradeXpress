@@ -1,8 +1,3 @@
-using System;
-using Volo.Abp;
-using Volo.Abp.Domain.Entities.Auditing;
-using Volo.Abp.MultiTenancy;
-
 namespace Integration.TradeXpress.Authorization;
 
 /// <summary>
@@ -49,19 +44,28 @@ public class UserScopedGrant : FullAuditedAggregateRoot<Guid>, IMultiTenant
         ScopedGrantMode mode = ScopedGrantMode.Grant)
     {
         if (userId == Guid.Empty)
-            throw new ArgumentException("User is required.", nameof(userId));
+        {
+            throw new BusinessException("TradeXpress:ScopedGrant:UserRequired");
+        }
 
         var hasRole = roleId.HasValue && roleId.Value != Guid.Empty;
         var hasPermission = !string.IsNullOrWhiteSpace(permissionName);
         if (hasRole == hasPermission)
+        {
             throw new BusinessException("TradeXpress:ScopedGrant:RoleXorPermission")
                 .WithData("detail", "Tam olarak biri (RoleId ya da PermissionName) verilmeli.");
+        }
 
         // Kapsam hiyerarşisi tutarlılığı: alt seviye üst seviyeyi gerektirir.
         if (branchId.HasValue && !companyId.HasValue)
+        {
             throw new BusinessException("TradeXpress:ScopedGrant:BranchRequiresCompany");
+        }
+
         if (vaultId.HasValue && !branchId.HasValue)
+        {
             throw new BusinessException("TradeXpress:ScopedGrant:VaultRequiresBranch");
+        }
 
         UserId = userId;
         RoleId = hasRole ? roleId : null;
@@ -72,5 +76,8 @@ public class UserScopedGrant : FullAuditedAggregateRoot<Guid>, IMultiTenant
         Mode = mode;
     }
 
-    public virtual void SetMode(ScopedGrantMode mode) => Mode = mode;
+    public virtual void SetMode(ScopedGrantMode mode)
+    {
+        Mode = mode;
+    }
 }

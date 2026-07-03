@@ -157,9 +157,15 @@ public class Metal : FullAuditedAggregateRoot<Guid>, IMultiTenant
         StableQuantity = stableQuantity;
     }
 
-    public virtual void SetFactorChange(bool value) => FactorChange = value;
+    public virtual void SetFactorChange(bool value)
+    {
+        FactorChange = value;
+    }
 
-    public virtual void SetActive(bool value) => IsActive = value;
+    public virtual void SetActive(bool value)
+    {
+        IsActive = value;
+    }
 
     public override string ToString()
     {

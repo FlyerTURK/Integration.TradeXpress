@@ -86,6 +86,18 @@ public class TradeXpressPermissionDefinitionProvider : PermissionDefinitionProvi
             TradeXpressPermissions.Reports.Default, L("Permission:Reports"));
         reports.AddChild(TradeXpressPermissions.Reports.Position, L("Permission:Position"));
         reports.AddChild(TradeXpressPermissions.Reports.BalanceSheet, L("Permission:BalanceSheet"));
+
+        var transactions = myGroup.AddPermission(
+            TradeXpressPermissions.Transactions.Default, L("Permission:Transactions"));
+        transactions.AddChild(TradeXpressPermissions.Transactions.Metal, L("Permission:Transactions:Metal"));
+        transactions.AddChild(TradeXpressPermissions.Transactions.Scrap, L("Permission:Transactions:Scrap"));
+        transactions.AddChild(TradeXpressPermissions.Transactions.Cash, L("Permission:Transactions:Cash"));
+        transactions.AddChild(TradeXpressPermissions.Transactions.Convert, L("Permission:Transactions:Convert"));
+        transactions.AddChild(TradeXpressPermissions.Transactions.Service, L("Permission:Transactions:Service"));
+        transactions.AddChild(TradeXpressPermissions.Transactions.Future, L("Permission:Transactions:Future"));
+        transactions.AddChild(TradeXpressPermissions.Transactions.Stone, L("Permission:Transactions:Stone"));
+        transactions.AddChild(TradeXpressPermissions.Transactions.Jewelry, L("Permission:Transactions:Jewelry"));
+        transactions.AddChild(TradeXpressPermissions.Transactions.Bullion, L("Permission:Transactions:Bullion"));
     }
 
     private static LocalizableString L(string name)

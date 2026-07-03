@@ -2,6 +2,7 @@ using System;
 using Integration.TradeXpress.Financials.CurrencyUnits;
 using Integration.TradeXpress.Financials.ExchangeRates;
 using Shouldly;
+using Volo.Abp;
 using Xunit;
 
 namespace Integration.TradeXpress.Financials.ExchangeRates;
@@ -183,7 +184,7 @@ public class CurrencyPriceCalculatorTests
 
     [Fact]
     public void ReBase_rejects_nonpositive_base()
-        => Should.Throw<ArgumentOutOfRangeException>(
+        => Should.Throw<BusinessException>(
             () => CurrencyPriceCalculator.ReBase(
                 new CurrencyPrice(1m, 1m, false), new CurrencyPrice(0m, 1m, false)));
 
@@ -296,6 +297,6 @@ public class CurrencyPriceCalculatorTests
 
     [Fact]
     public void Cross_rejects_nonpositive_quote()
-        => Should.Throw<ArgumentOutOfRangeException>(
+        => Should.Throw<BusinessException>(
             () => CurrencyPriceCalculator.Cross(new CurrencyPrice(1m, 1m, false), new CurrencyPrice(0m, 1m, false)));
 }

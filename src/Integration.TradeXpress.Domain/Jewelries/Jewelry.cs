@@ -121,7 +121,10 @@ public class Jewelry : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanySco
         ExitPriceUnitId  = exitPriceUnitId;
     }
 
-    public virtual void SetActive(bool value) => IsActive = value;
+    public virtual void SetActive(bool value)
+    {
+        IsActive = value;
+    }
 
     public override string ToString()
     {

@@ -259,13 +259,22 @@
 
         var wasEdit = _model.Id != Guid.Empty;   // save Id'yi dolduracağı için ÖNCE yakala
 
-        var result = await VoucherService.SaveLineAsync(_model);
+        VoucherLineDto result;
+        try
+        {
+            result = await VoucherService.SaveLineAsync(_model);
+        }
+        catch (Exception ex)
+        {
+            Ui.ShowErrorToast(L["Voucher_LineSaveFailed", ex.Message].Value);
+            return;
+        }
 
         VoucherId        = result.VoucherId;
         _model.VoucherId = result.VoucherId;
         _model.Id        = Guid.Empty;
         await OnSaved.InvokeAsync(result);
-        Ui.ShowSuccessToast(wasEdit ? "Satır güncellendi." : "Satır eklendi.");
+        Ui.ShowSuccessToast(wasEdit ? L["Voucher_LineUpdated"].Value : L["Voucher_LineAdded"].Value);
 
         if (wasEdit)
         {

@@ -1,0 +1,148 @@
+@inject IStringLocalizer<TradeXpressResource> L
+@inject ICurrencyUnitAppService CurrencyUnitService
+@inject IEffectivePriceAppService PriceService
+@inject IVoucherAppService VoucherService
+
+@* TAKOZ ÇIKIŞ paneli — TAM MİNİMAL (kullanıcı UX kararı): yalnız külçe seçimi + işçilik/durum girişleri +
+   açıklama. Orijinal ifTakozCikis'teki salt-okunur kimlik/milyem/has göstergeleri bilinçli KALDIRILDI
+   (kullanıcı istemedi). Külçe salt-okunur (kısmi çıkış YOK, bütün çıkar); metal verisi kayıtta SUNUCUDA
+   giriş satırından kopyalanır (PrepareBullionExitLineAsync) — panel yalnız işçilik + durumlar + külçe
+   referansı gönderir. Yön sabit ÇIKIŞ. Düzeltmede külçe değişmez (combo yerine kırmızı kod etiketi). *@
+
+<ProcessPanelBase Direction="ProcessDirectionType.Outbound" OnSave="@HandleSave" OnBack="@OnBack"
+                  ProcessTypeName="@L["Bullion"].Value"
+                  AccountCode="@AccountCode" SubAccountCode="@SubAccountCode">
+
+    <DxFormLayout CssClass="w-100">
+
+        @* ── Külçe seçimi ── *@
+        <DxFormLayoutGroup Caption="@L["Bullion_Section_Exit"]" ColSpanMd="12">
+            <DxFormLayoutItem Caption="@L["Voucher_Op_BullionNo"]" ColSpanMd="4" ColSpanSm="12">
+                @if (_isEdit)
+                {
+                    <span class="tx-readonly-value danger">@(_code ?? "—")</span>
+                }
+                else
+                {
+                    <DxComboBox Data="@_stock" TData="BullionStockItemDto" TValue="Guid?"
+                                ValueFieldName="@nameof(BullionStockItemDto.EntryLineId)"
+                                TextFieldName="@nameof(BullionStockItemDto.Code)"
+                                Value="@_entryLineId"
+                                ValueChanged="@OnBullionChanged"
+                                DropDownTriggerMode="DropDownTriggerMode.Click"
+                                SearchMode="ListSearchMode.AutoSearch"
+                                SearchFilterCondition="ListSearchFilterCondition.Contains"
+                                NullText="@L["Bullion_Exit_SelectRequired"].Value" />
+                }
+            </DxFormLayoutItem>
+        </DxFormLayoutGroup>
+
+        @* ── İşçilik (kullanıcı girişi) —
+              AU/AG işçilik oran+birim (+ EXTRA'da PT/PD); İşçilik Durumu / Ödeme Birimi (WithCash'te Enabled);
+              Gümüş Durumu (seçili+raporlu); EXTRA'da Platin/Paladyum Durumu. *@
+        <DxFormLayoutGroup Caption="@L["Bullion_Section_Labor"]" ColSpanMd="12">
+            <DxFormLayoutItem Caption="@L["Voucher_Op_GoldLabor"]" ColSpanMd="3" ColSpanSm="6">
+                <NumericSpinEdit TValue="decimal" Value="@_goldLaborRate" ValueChanged="@OnGoldLaborRateChanged" BindValueMode="BindValueMode.OnInput"
+                                 ShowSpinButtons="false" DisplayFormat="N2" Mask="N2" />
+            </DxFormLayoutItem>
+            <DxFormLayoutItem Caption="@L["Voucher_Op_Unit"]" ColSpanMd="3" ColSpanSm="6">
+                <DxComboBox Data="@_allUnitOptions" TData="UnitOpt" TValue="Guid?"
+                            ValueFieldName="Id" TextFieldName="Code" DropDownTriggerMode="DropDownTriggerMode.Click"
+                            Value="@_goldLaborUnitId" ValueChanged="@((Guid? v) => { _goldLaborUnitId = v; Recalc(); })" />
+            </DxFormLayoutItem>
+            <DxFormLayoutItem Caption="@L["Voucher_Op_SilverLabor"]" ColSpanMd="3" ColSpanSm="6">
+                <NumericSpinEdit TValue="decimal" Value="@_silverLaborRate" ValueChanged="@OnSilverLaborRateChanged" BindValueMode="BindValueMode.OnInput"
+                                 ShowSpinButtons="false" DisplayFormat="N2" Mask="N2" />
+            </DxFormLayoutItem>
+            <DxFormLayoutItem Caption="@L["Voucher_Op_Unit"]" ColSpanMd="3" ColSpanSm="6">
+                <DxComboBox Data="@_allUnitOptions" TData="UnitOpt" TValue="Guid?"
+                            ValueFieldName="Id" TextFieldName="Code" DropDownTriggerMode="DropDownTriggerMode.Click"
+                            Value="@_silverLaborUnitId" ValueChanged="@((Guid? v) => { _silverLaborUnitId = v; Recalc(); })" />
+            </DxFormLayoutItem>
+            @if (_hasSelection && _isReport && _isExtra)
+            {
+                <DxFormLayoutItem Caption="@L["Voucher_Op_PtLabor"]" ColSpanMd="3" ColSpanSm="6">
+                    <NumericSpinEdit TValue="decimal" Value="@_ptLaborRate" ValueChanged="@OnPtLaborRateChanged" BindValueMode="BindValueMode.OnInput"
+                                     ShowSpinButtons="false" DisplayFormat="N2" Mask="N2" />
+                </DxFormLayoutItem>
+                <DxFormLayoutItem Caption="@L["Voucher_Op_Unit"]" ColSpanMd="3" ColSpanSm="6">
+                    <DxComboBox Data="@_allUnitOptions" TData="UnitOpt" TValue="Guid?"
+                                ValueFieldName="Id" TextFieldName="Code" DropDownTriggerMode="DropDownTriggerMode.Click"
+                                Value="@_ptLaborUnitId" ValueChanged="@((Guid? v) => { _ptLaborUnitId = v; Recalc(); })" />
+                </DxFormLayoutItem>
+                <DxFormLayoutItem Caption="@L["Voucher_Op_PdLabor"]" ColSpanMd="3" ColSpanSm="6">
+                    <NumericSpinEdit TValue="decimal" Value="@_pdLaborRate" ValueChanged="@OnPdLaborRateChanged" BindValueMode="BindValueMode.OnInput"
+                                     ShowSpinButtons="false" DisplayFormat="N2" Mask="N2" />
+                </DxFormLayoutItem>
+                <DxFormLayoutItem Caption="@L["Voucher_Op_Unit"]" ColSpanMd="3" ColSpanSm="6">
+                    <DxComboBox Data="@_allUnitOptions" TData="UnitOpt" TValue="Guid?"
+                                ValueFieldName="Id" TextFieldName="Code" DropDownTriggerMode="DropDownTriggerMode.Click"
+                                Value="@_pdLaborUnitId" ValueChanged="@((Guid? v) => { _pdLaborUnitId = v; Recalc(); })" />
+                </DxFormLayoutItem>
+            }
+            <DxFormLayoutItem Caption="@L["Voucher_Op_LaborMode"]" ColSpanMd="4" ColSpanSm="6">
+                <DxComboBox Data="@_laborModes" TData="ModeOpt" TValue="BullionLaborMode"
+                            ValueFieldName="Value" TextFieldName="Label" DropDownTriggerMode="DropDownTriggerMode.Click"
+                            Value="@_laborMode" ValueChanged="@OnLaborModeChanged" />
+            </DxFormLayoutItem>
+            <DxFormLayoutItem Caption="@L["Voucher_Op_PayUnit"]" ColSpanMd="4" ColSpanSm="6">
+                <DxComboBox Data="@_cashUnitOptions" TData="UnitOpt" TValue="Guid?"
+                            ValueFieldName="Id" TextFieldName="Code" DropDownTriggerMode="DropDownTriggerMode.Click"
+                            Enabled="@(_laborMode == BullionLaborMode.WithCash)"
+                            Value="@_payUnitId" ValueChanged="@((Guid? v) => { _payUnitId = v; Recalc(); })" />
+            </DxFormLayoutItem>
+            <DxFormLayoutItem Caption="@L["Voucher_Op_SilverMode"]" ColSpanMd="4" ColSpanSm="6">
+                <DxComboBox Data="@_dispositions" TData="DispOpt" TValue="MetalDisposition"
+                            ValueFieldName="Value" TextFieldName="Label" DropDownTriggerMode="DropDownTriggerMode.Click"
+                            Enabled="@(_hasSelection && _isReport)"
+                            Value="@_silverMode" ValueChanged="@((MetalDisposition v) => { _silverMode = v; Recalc(); })" />
+            </DxFormLayoutItem>
+
+            @if (_hasSelection && _isReport && _isExtra)
+            {
+                <DxFormLayoutItem Caption="@L["Voucher_Op_PlatinumMode"]" ColSpanMd="6" ColSpanSm="6">
+                    <DxComboBox Data="@_dispositions" TData="DispOpt" TValue="MetalDisposition"
+                                ValueFieldName="Value" TextFieldName="Label" DropDownTriggerMode="DropDownTriggerMode.Click"
+                                Value="@_platinumMode" ValueChanged="@((MetalDisposition v) => { _platinumMode = v; Recalc(); })" />
+                </DxFormLayoutItem>
+                <DxFormLayoutItem Caption="@L["Voucher_Op_PalladiumMode"]" ColSpanMd="6" ColSpanSm="6">
+                    <DxComboBox Data="@_dispositions" TData="DispOpt" TValue="MetalDisposition"
+                                ValueFieldName="Value" TextFieldName="Label" DropDownTriggerMode="DropDownTriggerMode.Click"
+                                Value="@_palladiumMode" ValueChanged="@((MetalDisposition v) => { _palladiumMode = v; Recalc(); })" />
+                </DxFormLayoutItem>
+            }
+        </DxFormLayoutGroup>
+
+        @* ── Açıklama + Takoz Bakiyesi net sonuç özeti ──
+              Çıkışın cari'ye net etkisi (işçilik toplamı + metal net bacakları, birim-başı) — GİRİŞ panelindeki
+              (BullionProcessPanel) özet deseniyle birebir simetrik; ERPPRO iFTakozGiris canlı net grid paritesi.
+              Ara milyem/has göstergesi YOK (kullanıcı kimlik/içerik istemedi); yalnız net sonuç. *@
+        <DxFormLayoutGroup Caption="@L["Voucher_Op_Description"]" ColSpanMd="@(_summaryLegs.Count > 0 ? 8 : 12)">
+            <DxFormLayoutItem ColSpanMd="12">
+                <DxTextBox @bind-Text="_description" />
+            </DxFormLayoutItem>
+        </DxFormLayoutGroup>
+
+        @if (_summaryLegs.Count > 0)
+        {
+            <DxFormLayoutGroup Caption="@L["Voucher_Op_BullionSummary"]" ColSpanMd="4">
+                @foreach (var leg in _summaryLegs)
+                {
+                    <DxFormLayoutItem Caption="@leg.Code" ColSpanMd="12" ColSpanSm="6">
+                        <span class="tx-leg-value @(leg.Value >= 0 ? "pos" : "neg")">@leg.Value.ToString("N2")</span>
+                        @* Raporsuz TAKOZ bacağının HAS değerlemesi (salt gösterim; legacy Stok.TakozOzet ×0.6). *@
+                        @if (leg.Code == BullionConsts.PseudoUnitCode)
+                        {
+                            <span style="margin-left:6px; opacity:.65; font-size:.85em;">@L["Voucher_Op_ApproxHas", (leg.Value * BullionConsts.DefaultCarpan).ToString("N2")]</span>
+                        }
+                    </DxFormLayoutItem>
+                }
+            </DxFormLayoutGroup>
+        }
+    </DxFormLayout>
+
+    @if (!string.IsNullOrEmpty(_error))
+    {
+        <div class="alert alert-warning mt-2" style="margin:8px;">@_error</div>
+    }
+</ProcessPanelBase>

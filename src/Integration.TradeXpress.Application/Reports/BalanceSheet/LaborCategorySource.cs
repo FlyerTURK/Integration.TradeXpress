@@ -13,6 +13,12 @@ namespace Integration.TradeXpress.Reports.BalanceSheet;
 /// (AccountBalance) işçilik cari'sini OFFSET eder (ERPPRO paritesi: alış-anı BAKİYE −36.13 + İŞÇİLİK +3.08 + STOK +33.05 = 0 break-even).
 /// Kaynak = VoucherLine PayTotal (başka yerde işçilik kaydı yok — kullanıcı). ⚠ ÇIKIŞ şu an satış PayTotal'ı ile düşüyor (COST değil) →
 /// alış+satış marj kârı için maliyet-takibi (ERPPRO GetMadenMaliyeti) gerek; gelecek faz.
+/// <para>⚠ YALNIZ MADEN — TAKOZ (Bullion) İŞÇİLİĞİ BURAYA GİRMEZ (kanıtlanmış, ERPPRO-sadık): ISCILIK yalnız eldeki-stok
+/// işçilik MALİYETİ olan MADEN için türetilir (GetMadenStoklari CROSS APPLY / GetMadenMaliyeti — satışta azalır → 0).
+/// OzetBilanco'nun TAKOZ bloğu yalnız 4 metal bacağı (HAS/GUM/PLT/PLD) üretir, işçilik bacağı YOKTUR; GetTakozMaliyeti muadili
+/// hiç yoktur. Takoz işçiliği (BullionLegCalculator.netLabor) bir CARİ yükümlülüktür → BAKİYE'de (AccountBalance) kalır, doğrudur.
+/// GetMetalLaborByUnitAsync filtresine Bullion EKLEME — eklenirse ERPPRO'da olmayan sahte takoz-işçilik varlığı üretilir ve
+/// BAKİYE'deki gerçek cari işçilik ters yönde çift-sayılarak TOPLAM bozulur.</para>
 /// </summary>
 [ExposeServices(typeof(IBalanceSheetCategorySource))]
 public class LaborCategorySource : IBalanceSheetCategorySource, ITransientDependency

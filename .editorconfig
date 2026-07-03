@@ -1,2 +1,17 @@
+# Kök EditorConfig — mekanik ağ Katman 1 severity'leri (bkz. CLAUDE.md §8, BannedSymbols.txt).
+
 [*.csproj]
 indent_size = 2
+
+[*.cs]
+# BannedApiAnalyzers ihlali (BannedSymbols.txt) = derleme HATASI.
+# Analyzer yalnız Domain + Domain.Shared csproj'larına bağlı; diğer projelerde RS0030 üretilmez.
+dotnet_diagnostic.RS0030.severity = error
+
+# Expression-bodied üye yasağı (brace zorunlu — entity-conventions). Kök seviyede UYARI
+# (mevcut kod diğer katmanlarda geniş kullanıyor; build kırılmasın). Domain + Domain.Shared
+# alt .editorconfig'leri ERROR'a çeker. Auto-property, expression property ve lambda MUAF.
+csharp_style_expression_bodied_methods = false:warning
+csharp_style_expression_bodied_constructors = false:warning
+csharp_style_expression_bodied_operators = false:warning
+csharp_style_expression_bodied_local_functions = false:warning

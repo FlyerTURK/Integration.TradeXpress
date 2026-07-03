@@ -3,14 +3,17 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Integration.TradeXpress.Accounts;
+using Integration.TradeXpress.AssayOffices;
 using Integration.TradeXpress.Branches;
 using Integration.TradeXpress.Bullions;
 using Integration.TradeXpress.Financials.CurrencyUnits;
 using Integration.TradeXpress.Financials.Parities;
+using Integration.TradeXpress.Permissions;
 using Integration.TradeXpress.Vaults;
 using Integration.TradeXpress.Vouchers.Balance;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Logging;
+using Volo.Abp;
 using Volo.Abp.Application.Dtos;
 using Volo.Abp.Data;
 using Volo.Abp.Domain.Entities;
@@ -33,6 +36,7 @@ public class VoucherAppService : TradeXpressAppService, IVoucherAppService
     private readonly IRepository<CurrencyUnit, Guid> _unitRepository;
     private readonly IRepository<SubAccount, Guid> _subAccountRepository;
     private readonly IRepository<Account, Guid> _accountRepository;
+    private readonly IRepository<AssayOffice, Guid> _assayOfficeRepository;
     private readonly VoucherBalanceCalculator _balanceCalculator;
     private readonly BalanceLedgerSynchronizer _ledgerSynchronizer;
     private readonly IDataFilter _dataFilter;
@@ -44,19 +48,21 @@ public class VoucherAppService : TradeXpressAppService, IVoucherAppService
         IRepository<CurrencyUnit, Guid> unitRepository,
         IRepository<SubAccount, Guid> subAccountRepository,
         IRepository<Account, Guid> accountRepository,
+        IRepository<AssayOffice, Guid> assayOfficeRepository,
         VoucherBalanceCalculator balanceCalculator,
         BalanceLedgerSynchronizer ledgerSynchronizer,
         IDataFilter dataFilter)
     {
-        _repository           = repository;
-        _branchRepository     = branchRepository;
-        _vaultRepository      = vaultRepository;
-        _unitRepository       = unitRepository;
-        _subAccountRepository = subAccountRepository;
-        _accountRepository    = accountRepository;
-        _balanceCalculator    = balanceCalculator;
-        _ledgerSynchronizer   = ledgerSynchronizer;
-        _dataFilter           = dataFilter;
+        _repository            = repository;
+        _branchRepository      = branchRepository;
+        _vaultRepository       = vaultRepository;
+        _unitRepository        = unitRepository;
+        _subAccountRepository  = subAccountRepository;
+        _accountRepository     = accountRepository;
+        _assayOfficeRepository = assayOfficeRepository;
+        _balanceCalculator     = balanceCalculator;
+        _ledgerSynchronizer    = ledgerSynchronizer;
+        _dataFilter            = dataFilter;
     }
 
     public async Task<VoucherGetDto> CreateAsync(VoucherCreateDto input)
@@ -91,6 +97,14 @@ public class VoucherAppService : TradeXpressAppService, IVoucherAppService
 
     public async Task<VoucherLineDto> SaveLineAsync(VoucherLineDto input)
     {
+        // Server-side per-tip yetki kontrolü (UI gate TEK BAŞINA yetmez — bkz. ProcessTypePermissionMap).
+        await EnsureTransactionPermissionAsync(input.Type);
+
+        // Takoz ÇIKIŞ: metal verisi (miktar/milyem/rapor/ayar evi/birimler) SERVER-AUTHORITATIVE —
+        // seçilen giriş külçesinden kopyalanır; panel yalnız işçilik + dağıtım durumlarını gönderir.
+        if (input.Type == ProcessType.Bullion && !IsInflow(input.Direction))
+            await PrepareBullionExitLineAsync(input);
+
         // WYSIWYG: ekranda görünen değerler AYNEN kaydedilir (sunucu recompute yok).
         var lineInput = ToLineInput(input);
 
@@ -382,6 +396,98 @@ public class VoucherAppService : TradeXpressAppService, IVoucherAppService
         };
     }
 
+    public async Task<List<BullionStockItemDto>> GetBullionStockAsync(bool? inStock = null)
+    {
+        var q = await _repository.GetQueryableAsync();
+
+        // Külçeler = aktif GİRİŞ satırları (fiş başlığındaki SubAccountId ile — VoucherLine'da yok).
+        var entries = await AsyncExecuter.ToListAsync(
+            from v in q
+            from l in v.Lines
+            where l.Type == ProcessType.Bullion
+               && l.Direction == ProcessDirectionType.Inbound
+               && !l.IsDeleted
+            select new BullionStockItemDto
+            {
+                EntryLineId     = l.Id,
+                Code            = l.CommodityCode,
+                BullionType     = l.BullionType,
+                IsReport        = l.IsReport ?? false,
+                IsExtra         = l.IsExtra ?? false,
+                Amount          = l.Amount,
+                AssayAmount     = l.AssayAmount ?? 0m,
+                GoldFactor      = l.Factor,
+                SilverFactor    = l.SilverFactor ?? 0m,
+                PlatinumFactor  = l.PlatinumFactor ?? 0m,
+                PalladiumFactor = l.PalladiumFactor ?? 0m,
+                ReportNo        = l.ReportNo,
+                AssayOfficeId   = l.AssayOfficeId,
+                EntryDate       = l.CreationTime,
+                SubAccountId    = v.SubAccountId,
+            });
+
+        if (entries.Count == 0)
+            return entries;
+
+        // Aktif çıkışlar → külçe başına son çıkış zamanı (stok = çıkışı olmayan giriş).
+        var exits = await AsyncExecuter.ToListAsync(
+            (await _repository.GetQueryableAsync())
+                .SelectMany(v => v.Lines)
+                .Where(l => l.Type == ProcessType.Bullion
+                         && l.Direction == ProcessDirectionType.Outbound
+                         && !l.IsDeleted
+                         && l.CommodityId != null)
+                .Select(l => new { l.CommodityId, l.CreationTime }));
+        var exitByEntry = exits
+            .GroupBy(x => x.CommodityId!.Value)
+            .ToDictionary(g => g.Key, g => g.Max(x => x.CreationTime));
+
+        foreach (var e in entries)
+        {
+            e.InStock  = !exitByEntry.ContainsKey(e.EntryLineId);
+            e.ExitDate = exitByEntry.TryGetValue(e.EntryLineId, out var d) ? d : null;
+        }
+
+        if (inStock is { } stockFilter)
+            entries = entries.Where(e => e.InStock == stockFilter).ToList();
+
+        await ResolveBullionStockDisplayAsync(entries);
+
+        return entries.OrderByDescending(e => e.EntryDate).ToList();
+    }
+
+    /// <summary>Takoz stoğu satırlarının denormalize gösterim alanlarını (ayar evi adı + getiren cari) doldurur.</summary>
+    private async Task ResolveBullionStockDisplayAsync(List<BullionStockItemDto> entries)
+    {
+        var assayIds = entries.Where(e => e.AssayOfficeId.HasValue)
+                              .Select(e => e.AssayOfficeId!.Value).Distinct().ToList();
+        if (assayIds.Count > 0)
+        {
+            var names = (await AsyncExecuter.ToListAsync(
+                    (await _assayOfficeRepository.GetQueryableAsync())
+                        .Where(a => assayIds.Contains(a.Id))
+                        .Select(a => new { a.Id, a.Name })))
+                .ToDictionary(x => x.Id, x => x.Name);
+            foreach (var e in entries)
+                if (e.AssayOfficeId is { } aid && names.TryGetValue(aid, out var n))
+                    e.AssayOfficeName = n;
+        }
+
+        var subIds = entries.Where(e => e.SubAccountId.HasValue)
+                            .Select(e => e.SubAccountId!.Value).Distinct().ToList();
+        if (subIds.Count > 0)
+        {
+            var subs = (await AsyncExecuter.ToListAsync(
+                    (await _subAccountRepository.GetQueryableAsync())
+                        .Where(s => subIds.Contains(s.Id))
+                        .Select(s => new { s.Id, s.Code, s.Name })))
+                .ToDictionary(x => x.Id, x => $"{x.Code} — {x.Name}");
+            foreach (var e in entries)
+                if (e.SubAccountId is { } sid && subs.TryGetValue(sid, out var disp))
+                    e.SubAccountDisplay = disp;
+        }
+    }
+
     private async Task<(Guid Id, string Code)> ResolveBalanceUnitAsync(Guid subAccountId)
     {
         var sub = await _subAccountRepository.FindAsync(subAccountId);
@@ -401,6 +507,61 @@ public class VoucherAppService : TradeXpressAppService, IVoucherAppService
     }
 
     // ── helpers ───────────────────────────────────────────────────────────────
+
+    /// <summary>Satırın <see cref="ProcessType"/>'ına göre gerekli yetkiyi kontrol eder — UI gate'i (buton
+    /// gizleme) bypass eden doğrudan API çağrılarına karşı SON savunma hattı (ProcessTypePermissionMap tek kaynak).</summary>
+    private async Task EnsureTransactionPermissionAsync(ProcessType type)
+    {
+        var permission = ProcessTypePermissionMap.PermissionFor(type);
+        await AuthorizationService.CheckAsync(permission);
+    }
+
+    /// <summary>Yön "giriş" mi (bakiyeye + yönde): Inbound/Credit/Buy → çift enum değeri.</summary>
+    private static bool IsInflow(ProcessDirectionType direction) => ((int)direction % 2) == 0;
+
+    /// <summary>Takoz ÇIKIŞ satırının metal verisini (miktar/milyem/rapor/ayar evi/yan-birimler) seçilen GİRİŞ
+    /// külçesinden KOPYALAR — client bu alanlara güvenilmez (yalnız işçilik + dağıtım durumlarını gönderir).
+    /// Kısmi çıkış YOK: külçe bütünüyle çıkar (Amount girişten aynen). CommodityId = giriş satırı Id'si.</summary>
+    private async Task PrepareBullionExitLineAsync(VoucherLineDto input)
+    {
+        if (input.CommodityId is not { } entryLineId || entryLineId == Guid.Empty)
+            throw new BusinessException("TradeXpress:Bullion:ExitEntryRequired");
+
+        var entry = await FindBullionEntryLineAsync(entryLineId)
+            ?? throw new BusinessException("TradeXpress:Bullion:ExitEntryNotFound");
+
+        // Külçe kimliği + metal ölçüleri (giriş otoritedir).
+        input.CommodityCode = entry.CommodityCode;
+        input.BullionType   = entry.BullionType;
+        input.AssayOfficeId = entry.AssayOfficeId;
+        input.ReportNo      = entry.ReportNo;
+        input.IsReport      = entry.IsReport;
+        input.IsExtra       = entry.IsExtra;
+        input.Amount        = entry.Amount;
+        input.AssayAmount   = entry.AssayAmount;
+        input.Factor          = entry.Factor;          // altın milyemi
+        input.SilverFactor    = entry.SilverFactor;
+        input.PlatinumFactor  = entry.PlatinumFactor;
+        input.PalladiumFactor = entry.PalladiumFactor;
+
+        // Ana + yan metal bacak birimleri (poster bunlara postlar) girişten kopyalanır.
+        input.MainUnitId     = entry.MainUnitId;
+        input.SilverUnitId   = entry.SilverUnitId;
+        input.PlatinumUnitId = entry.PlatinumUnitId;
+        input.PalladiumUnitId = entry.PalladiumUnitId;
+    }
+
+    /// <summary>Bir takoz GİRİŞ satırını (külçeyi) Id ile bulur (silinmemiş, Bullion+Inbound).</summary>
+    private async Task<VoucherLine?> FindBullionEntryLineAsync(Guid entryLineId)
+    {
+        return await AsyncExecuter.FirstOrDefaultAsync(
+            (await _repository.GetQueryableAsync())
+                .SelectMany(v => v.Lines)
+                .Where(l => l.Id == entryLineId
+                         && l.Type == ProcessType.Bullion
+                         && l.Direction == ProcessDirectionType.Inbound
+                         && !l.IsDeleted));
+    }
 
     private static VoucherLineDto MapLine(VoucherLine l) => new()
     {

@@ -20,6 +20,22 @@ public static class StringFieldGuard
         return ValidateRequiredText(raw.NormalizeAsName(), propertyName, minLength, maxLength);
     }
 
+    /// <summary>Kültür-BAĞIMSIZ kod (ISO ülke/para kodu gibi): Trim + ToUpperInvariant (tr-TR 'i'→'İ'
+    /// tuzağına düşmez), sonra zorunlu + min + max. Boşluk dönüşümü YAPMAZ (ISO kodunda boşluk olmaz).</summary>
+    public static string NormalizeInvariantCode(string? raw, string propertyName, int minLength, int maxLength)
+    {
+        var normalized = raw?.Trim().ToUpperInvariant() ?? string.Empty;
+        return ValidateRequiredText(normalized, propertyName, minLength, maxLength);
+    }
+
+    /// <summary>Zorunlu serbest metin (ör. randevu konusu, kur kaynak etiketi): Trim, sonra zorunlu + min + max.
+    /// Case/boşluk normalizasyonu YAPMAZ — kullanıcı metnini olduğu gibi korur.</summary>
+    public static string EnsureRequiredText(string? value, string propertyName, int minLength, int maxLength)
+    {
+        var trimmed = value?.Trim() ?? string.Empty;
+        return ValidateRequiredText(trimmed, propertyName, minLength, maxLength);
+    }
+
     /// <summary>Opsiyonel metin (ör. Description): boş/null serbest; doluysa Trim + min + max. Boşsa <c>null</c> döner.</summary>
     public static string? EnsureOptionalText(string? value, string propertyName, int minLength, int maxLength)
     {

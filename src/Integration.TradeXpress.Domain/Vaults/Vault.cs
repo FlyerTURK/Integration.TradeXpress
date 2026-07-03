@@ -43,23 +43,44 @@ public class Vault : FullAuditedAggregateRoot<Guid>, IMultiTenant
     }
 
     public virtual void SetCode(string code)
-        => Code = Check.NotNullOrWhiteSpace(code, nameof(code), VaultConsts.CodeMaxLength).ToUpperInvariant();
+    {
+        // NormalizeCode: Trim + çoklu boşluk→tek + boşluk→'_' + UPPER, ardından zorunlu/min/max doğrulaması.
+        // Elle .ToUpperInvariant() gerekmez (NormalizeCode zaten UPPER yapar).
+        Code = StringFieldGuard.NormalizeCode(
+            code,
+            nameof(Code),
+            EntityFieldConsts.CodeMinLength,
+            VaultConsts.CodeMaxLength);
+    }
 
     public virtual void SetName(string name)
-        => Name = Check.NotNullOrWhiteSpace(name, nameof(name), VaultConsts.NameMaxLength);
+    {
+        // NormalizeName: Trim + çoklu boşluk→tek + TitleCase, ardından zorunlu/min/max doğrulaması.
+        Name = StringFieldGuard.NormalizeName(
+            name,
+            nameof(Name),
+            EntityFieldConsts.NameMinLength,
+            VaultConsts.NameMaxLength);
+    }
 
     public virtual void SetBranch(Guid branchId)
     {
         if (branchId == Guid.Empty)
-            throw new ArgumentException("Branch is required.", nameof(branchId));
+        {
+            throw new BusinessException("TradeXpress:Vault:BranchRequired");
+        }
+
         BranchId = branchId;
     }
 
     public virtual void SetDescription(string? description)
     {
+        // Opsiyonel alan: yalnız üst sınır (min yok — mevcut davranış korunur). Aşılırsa tipli Framework exception'ı.
         if (description is { Length: > VaultConsts.DescriptionMaxLength })
-            throw new ArgumentException(
-                $"Description length must be at most {VaultConsts.DescriptionMaxLength}.", nameof(description));
+        {
+            throw new TooLongPropertyException(nameof(Description), VaultConsts.DescriptionMaxLength);
+        }
+
         Description = description;
     }
 
@@ -68,8 +89,15 @@ public class Vault : FullAuditedAggregateRoot<Guid>, IMultiTenant
         IsActive = value;
     }
 
-    public virtual void SetAsDefault(bool isDefault) => IsDefault = isDefault;
-    public virtual void SetDisplayOrder(int order) => DisplayOrder = order;
+    public virtual void SetAsDefault(bool isDefault)
+    {
+        IsDefault = isDefault;
+    }
+
+    public virtual void SetDisplayOrder(int order)
+    {
+        DisplayOrder = order;
+    }
 
     public override string ToString()
     {

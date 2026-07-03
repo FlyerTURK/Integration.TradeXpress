@@ -5,6 +5,7 @@
 @using Integration.TradeXpress.Financials.Parities
 @using DevExpress.Blazor
 @inherits Volo.Abp.AspNetCore.Components.AbpComponentBase
+@inject Integration.Framework.Blazor.Client.Services.Base.ITradeXpressUiService Ui
 
 @* Yeniden kullanılabilir "Marj Düzenleme" diyaloğu. ShowAsync ile (baz fiyatla) açılır; SetAsync ile
    append-only yeni marj satırı yazar. Nihai fiyat girilen marja göre CANLI hesaplanır. *@
@@ -142,7 +143,7 @@
                 MarginOnSellValue = SellValue,
             });
             Visible = false;
-            await Notify.Success(L["SuccessfullySaved"]);
+            Ui.ShowSuccessToast(L["SuccessfullySaved"]);   // ABP Notify.Success = no-op stub (abp.js); app'in çalışan yolu = ITradeXpressUiService → DxToastProvider
             await OnSaved.InvokeAsync();
         }
         catch (Exception ex)

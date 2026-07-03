@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Integration.TradeXpress.Reports;
 using Integration.TradeXpress.Blazor.Client.Services.Working;
 using Integration.TradeXpress.Blazor.Client.Services.Mdi;
+using Integration.Framework.Blazor.Client.Services.Base;
 using DevExpress.Blazor;
 using Microsoft.AspNetCore.Components;
 
@@ -36,6 +37,7 @@ public partial class BalanceSheetReportPage
         Working.Changed += OnWorkingChanged;
         UpdateTabTitle();
         await ComputeAsync();   // form açılışında grid otomatik dolsun (varsayılan kapsam Şube + bugün).
+        await LoadSnapshotsAsync();   // kaydedilen bilanço geçmişini (sağ grid) da yükle.
     }
 
     /// <summary>Tab başlığını workspace KODUYLA güncelle (sadece kodlar yeterli): "Bilanço · PALAZZO / INTERNET". Tab yoksa no-op.</summary>
@@ -47,12 +49,15 @@ public partial class BalanceSheetReportPage
 
     /// <summary>Filtre: company-mode → BranchId null (sunucu working şirketle sınırlar); aksi halde working şube.
     /// Şirket client'tan GÖNDERİLMEZ — sunucu ICurrentCompany'den zorlar.</summary>
-    private BalanceSheetReportFilterDto BuildFilter() => new()
+    private BalanceSheetReportFilterDto BuildFilter()
     {
-        Scope    = _companyMode ? BalanceSheetScope.Company : BalanceSheetScope.Branch,
-        BranchId = _companyMode ? null : Working.CurrentBranchId,
-        AsOf     = _asOf,
-    };
+        return new()
+        {
+            Scope    = _companyMode ? BalanceSheetScope.Company : BalanceSheetScope.Branch,
+            BranchId = _companyMode ? null : Working.CurrentBranchId,
+            AsOf     = _asOf,
+        };
+    }
 
     private async Task ComputeAsync()
     {
@@ -61,11 +66,12 @@ public partial class BalanceSheetReportPage
         finally { _busy = false; }
     }
 
-    /// <summary>Şirket/Şube switch değişince kapsamı uygula + grid'i OTOMATİK yeniden hesapla (reload).</summary>
+    /// <summary>Şirket/Şube switch değişince kapsamı uygula + grid'i OTOMATİK yeniden hesapla (reload) + geçmişi tazele.</summary>
     private async Task OnCompanyModeChanged(bool value)
     {
         _companyMode = value;
         await ComputeAsync();
+        await LoadSnapshotsAsync();
     }
 
     // ── Drill popup: üst grid çift-tık → o kategori×birim değerinin HAREKETLERİ (Kod | Bakiye) ──
@@ -101,7 +107,38 @@ public partial class BalanceSheetReportPage
     {
         if (_result is null) return;
         _busy = true;
-        try { _result = await BalanceSheetReportAppService.SaveAsync(BuildFilter()); }
+        try
+        {
+            _result = await BalanceSheetReportAppService.SaveAsync(BuildFilter());
+            await LoadSnapshotsAsync();   // yeni snapshot geçmiş grid'inde görünsün.
+            // Başarı toast'ı: uygulamanın STANDART yolu = ITradeXpressUiService → DevExpress IToastNotificationService
+            // → MainLayout'taki <DxToastProvider> render eder. (ABP Notify.Success bu app'te no-op: abp.notify stub.)
+            Ui.ShowSuccessToast(Loc["BalanceSheet:Saved"]);
+        }
+        finally { _busy = false; }
+    }
+
+    /// <summary>DÖNEM SIFIRLA: kapsam-farkındalıklı ONAY → onaylanırsa P&L dönem başlangıcını AsOf'a ilerlet + snapshot
+    /// dondur (atomik, sunucuda) → toast + geçmiş grid tazele. Resmi GL devir/prim YAPILMAZ (onay metninde belirtilir).</summary>
+    private async Task ResetProfitPeriodAsync()
+    {
+        if (_result is null) return;
+
+        // Kapsam-farkındalıklı onay: şube mi tüm şubeler mi (company-konsolide) net söylenir + GL yapılmayacağı uyarısı.
+        string scopeText = _companyMode ? Loc["BalanceSheet:ResetScopeCompany"].Value : WorkingLabel();
+        var message      = Loc["BalanceSheet:ResetConfirm", scopeText, _asOf.ToString("dd.MM.yyyy")];
+        var confirm   = await Ui.ConfirmAsync(
+            message.Value, Loc["BalanceSheet:ResetPeriod"].Value,
+            Loc["BalanceSheet:ResetConfirmYes"].Value, Loc["Cancel"].Value, showCancel: false, defaultYes: false);
+        if (confirm != ConfirmDialogResult.Yes) return;
+
+        _busy = true;
+        try
+        {
+            _result = await BalanceSheetReportAppService.ResetProfitPeriodAsync(BuildFilter());
+            await LoadSnapshotsAsync();   // dönem sıfırlandı + snapshot alındı → geçmiş grid'i tazele.
+            Ui.ShowSuccessToast(Loc["BalanceSheet:ResetDone"]);
+        }
         finally { _busy = false; }
     }
 
@@ -120,23 +157,65 @@ public partial class BalanceSheetReportPage
 
     /// <summary>İşaret rengi: +(varlık) yeşil, −(borç) kırmızı, 0 nötr.</summary>
     private static string SignColor(decimal v)
-        => v > 0 ? "var(--dxbl-success, #2e7d32)" : v < 0 ? "var(--dxbl-danger, #c62828)" : "inherit";
+    {
+        return v > 0 ? "var(--dxbl-success, #2e7d32)" : v < 0 ? "var(--dxbl-danger, #c62828)" : "inherit";
+    }
 
     /// <summary>Pozitif/negatif değer = KAR/ZARAR GRADYANLI rozet (yeşil/kırmızı dolu, beyaz yazı); 0 → düz. Banner ile aynı gradyan.</summary>
     private static string GradientBadgeStyle(decimal v)
-        => v == 0m
+    {
+        return v == 0m
             ? "display:inline-block; padding:2px 6px;"
             : $"display:inline-block; padding:2px 8px; border-radius:4px; color:#fff; font-weight:600; background:{(v > 0m ? "var(--gradient-green)" : "var(--gradient-red)")};";
+    }
 
     /// <summary>Kategori base-net (sol grup başlığı + sağ özet kolonları); kategori yoksa 0.</summary>
     private decimal CatNet(string category)
-        => _result?.CategoryTotals.FirstOrDefault(c => c.Category == category)?.Net ?? 0m;
+    {
+        return _result?.CategoryTotals.FirstOrDefault(c => c.Category == category)?.Net ?? 0m;
+    }
 
     private BalanceSheetCategoryTotalDto? CatTotal(string category)
-        => _result?.CategoryTotals.FirstOrDefault(c => c.Category == category);
+    {
+        return _result?.CategoryTotals.FirstOrDefault(c => c.Category == category);
+    }
 
-    /// <summary>Sağ grid SADECE kaydedilen bilanço snapshot'larını gösterir (ERPPRO üst grid). Kaydet (Faz 3) çalışınca dolacak; şimdilik boş.</summary>
-    private readonly List<BilancoSummaryRow> _savedSnapshots = new();
+    /// <summary>Sağ grid SADECE kaydedilen bilanço snapshot'larını gösterir (ERPPRO üst grid); GetSnapshotListAsync ile dolar.</summary>
+    private List<BilancoSummaryRow> _savedSnapshots = new();
+
+    /// <summary>Snapshot geçmişi isteği — ComputeAsync/SaveAsync ile AYNI kapsam (company client'tan gönderilmez).</summary>
+    private BalanceSheetSnapshotListRequestDto BuildSnapshotRequest()
+    {
+        return new()
+        {
+            Scope    = _companyMode ? BalanceSheetScope.Company : BalanceSheetScope.Branch,
+            BranchId = _companyMode ? null : Working.CurrentBranchId,
+        };
+    }
+
+    /// <summary>Kaydedilen bilanço geçmişini sunucudan çekip sağ grid'e (BilancoSummaryRow) map'ler. Kur farkı bu fazda 0.</summary>
+    private async Task LoadSnapshotsAsync()
+    {
+        var list = await BalanceSheetReportAppService.GetSnapshotListAsync(BuildSnapshotRequest());
+        _savedSnapshots = list.Rows.Select(r => new BilancoSummaryRow(
+            Sube:     r.BranchCode ?? (r.Scope == BalanceSheetScope.Company ? Loc["BalanceSheet:Consolidated"].Value : string.Empty),
+            Tarih:    r.AsOfDate,
+            Gider:    r.CategoryNets.GetValueOrDefault(BalanceSheetCategory.Expense),
+            Gelir:    r.CategoryNets.GetValueOrDefault(BalanceSheetCategory.Income),
+            Gunluk:   r.Gunluk,
+            MToplam:  r.Masraf,
+            KurFarki: r.KurFarki,   // gün-aşırı yeniden değerleme (ERPPRO GetKurFarki; önceki snapshot pozisyonu bu günün kuruyla)
+            Bakiye:   r.CategoryNets.GetValueOrDefault(BalanceSheetCategory.AccountBalance),
+            Stok:     r.CategoryNets.GetValueOrDefault(BalanceSheetCategory.Stock),
+            Pirlanta: r.CategoryNets.GetValueOrDefault(BalanceSheetCategory.Jewelry),   // ERPPRO PIRLANTA kolonu = bizde Jewelry (Mücevher)
+            Tas:      r.CategoryNets.GetValueOrDefault(BalanceSheetCategory.Stone),
+            Iscilik:  r.CategoryNets.GetValueOrDefault(BalanceSheetCategory.Labor),
+            Takoz:    r.CategoryNets.GetValueOrDefault(BalanceSheetCategory.Bullion),
+            Devir:    r.Devir,
+            KarZarar: r.KarZarar,
+            Toplam:   r.Total,
+            Birim:    r.BaseCurrencyCode)).ToList();
+    }
 
     /// <summary>Sol-alt KAR/ZARAR detay grid: TOPLAM'a giren kategorilerin birim-bazında net'i (DEVIR yokken KARZARAR = TOPLAM/birim).</summary>
     private List<KarZararRow> KarZararRows()
@@ -158,5 +237,8 @@ public partial class BalanceSheetReportPage
         decimal Bakiye, decimal Stok, decimal Pirlanta, decimal Tas, decimal Iscilik, decimal Takoz,
         decimal Devir, decimal KarZarar, decimal Toplam, string Birim);
 
-    public void Dispose() => Working.Changed -= OnWorkingChanged;
+    public void Dispose()
+    {
+        Working.Changed -= OnWorkingChanged;
+    }
 }

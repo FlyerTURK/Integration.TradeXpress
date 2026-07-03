@@ -537,6 +537,35 @@ public static class TradeXpressDbContextModelCreatingExtensions
         });
     }
 
+    /// <summary>
+    /// Bilanço snapshot'ları (dondurulmuş kategori×birim satırları) — ERPPRO <c>Bilanco.Bilancolar</c> paritesi.
+    /// FK YOK: CompanyId/BranchId/UnitId/BaseUnitId id-only mantıksal referans (ledger deseni). SaveAsync idempotent
+    /// (Scope, CompanyId, BranchId, AsOfDate) bazında sil+yeniden yaz; index o sorguyu + gün-serisi okumasını hızlandırır.
+    /// </summary>
+    public static void ConfigureBalanceSheetSnapshots(this ModelBuilder builder)
+    {
+        Check.NotNull(builder, nameof(builder));
+
+        builder.Entity<Integration.TradeXpress.Reports.BalanceSheet.BalanceSheetSnapshot>(b =>
+        {
+            b.ToTable(TradeXpressConsts.DbTablePrefix + "BalanceSheetSnapshots", TradeXpressConsts.DbSchema);
+            b.ConfigureByConvention();
+
+            b.Property(x => x.Category).IsRequired()
+                .HasMaxLength(Integration.TradeXpress.Reports.BalanceSheet.BalanceSheetSnapshotConsts.CategoryMaxLength);
+            b.Property(x => x.BaseCurrencyCode).IsRequired()
+                .HasMaxLength(Integration.TradeXpress.Reports.BalanceSheet.BalanceSheetSnapshotConsts.BaseCurrencyCodeMaxLength);
+
+            // N2 (Voucher tutarlarıyla aynı) miktar/net; N5 (kur çaprazı hassasiyeti) donmuş değerleme kuru.
+            b.Property(x => x.Amount).HasPrecision(VoucherConsts.AmountPrecision, VoucherConsts.AmountScale);
+            b.Property(x => x.Net).HasPrecision(VoucherConsts.AmountPrecision, VoucherConsts.AmountScale);
+            b.Property(x => x.ValuationRate).HasPrecision(VoucherConsts.FactorPrecision, VoucherConsts.FactorScale);
+
+            // SaveAsync sil+yeniden-yaz + gün-serisi okuması: (kapsam + tarih) kapsayan sorgu index'i.
+            b.HasIndex(x => new { x.TenantId, x.Scope, x.CompanyId, x.BranchId, x.AsOfDate });
+        });
+    }
+
     // MarginSetting owned mapping — her iki alanı (Type enum + Value) explicit map eder.
     private static void ConfigureMargin<TOwner>(OwnedNavigationBuilder<TOwner, MarginSetting> o)
         where TOwner : class

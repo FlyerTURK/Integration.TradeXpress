@@ -9,6 +9,7 @@
 @attribute [Authorize(TradeXpressPermissions.Reports.BalanceSheet)]
 @inherits Volo.Abp.AspNetCore.Components.AbpComponentBase
 @inject IStringLocalizer<Integration.TradeXpress.Localization.TradeXpressResource> Loc
+@inject Integration.Framework.Blazor.Client.Services.Base.ITradeXpressUiService Ui
 @implements IDisposable
 
 <PageTitle>Bilanço Raporu</PageTitle>
@@ -20,8 +21,9 @@
     @* TOPLAM henüz KISMİ (cari + gider/gelir + stok/işçilik); fiziksel bazı kategoriler ileride → dürüst uyarı (sonuç varken). *@
     @if (_result != null)
     {
-        <div style="padding:6px 10px; border-radius:6px; background:#fff3cd; color:#664d03; border:1px solid #ffe69c; font-size:12px;">
-            ⚠ @Loc["BalanceSheet:PartialTotalWarning"]
+        <div style="display:flex; align-items:center; gap:6px; padding:6px 10px; border-radius:6px; background:#fff3cd; color:#664d03; border:1px solid #ffe69c; font-size:12px;">
+            <i class="custom-icon-warning" style="flex:0 0 auto;"></i>
+            <span>@Loc["BalanceSheet:PartialTotalWarning"]</span>
         </div>
     }
 
@@ -58,8 +60,11 @@
                         <DxToolbar AdaptivityAutoHideRootItems="false" AdaptivityAutoCollapseItemsToIcons="false">
                             <DxToolbarItem Text="Bilanço Al" Click="ComputeAsync" Enabled="@(!_busy)"
                                            RenderStyle="ButtonRenderStyle.Primary" RenderStyleMode="ToolbarItemRenderStyleMode.Contained" />
-                            @* Kaydet: snapshot kalıcılığı Faz 1b'de gelecek → disable + tooltip (buton silinmez). *@
-                            <DxToolbarItem Text="Kaydet" Enabled="false" Tooltip="@Loc["BalanceSheet:SaveDisabledTooltip"]" />
+                            @* Kaydet: hesaplanan bilançoyu snapshot'a dondur (idempotent sil+yeniden yaz). *@
+                            <DxToolbarItem Text="Kaydet" Click="SaveAsync" Enabled="@(!_busy && _result != null)" />
+                            @* Dönem Sıfırla: P&L dönem başlangıcını AsOf'a ilerlet + snapshot dondur (GL devir/prim YOK). *@
+                            <DxToolbarItem Text="@(Loc["BalanceSheet:ResetPeriod"])" Click="ResetProfitPeriodAsync" Enabled="@(!_busy && _result != null)"
+                                           Tooltip="@(Loc["BalanceSheet:ResetPeriodTooltip"])" />
                         </DxToolbar>
                     </div>
                 </ToolbarTemplate>
@@ -122,33 +127,33 @@
         <div style="@(_isMobile ? "width:100%; min-height:320px;" : "flex:1;") min-width:0; display:flex; flex-direction:column;">
             <DxGrid Data="@_savedSnapshots" ShowGroupPanel="false" CssClass="w-100" style="@(_isMobile ? "height:320px;" : "flex:1; min-height:0;")">
                 <Columns>
-                    <DxGridDataColumn FieldName="Sube" Caption="ŞUBE" Width="150px" />
-                    <DxGridDataColumn FieldName="Tarih" Caption="TARİH" DisplayFormat="dd.MM.yyyy" Width="100px" />
-                    <DxGridDataColumn FieldName="Gider" Caption="GİDER" DisplayFormat="n2" TextAlignment="GridTextAlignment.Right" Width="90px" />
-                    <DxGridDataColumn FieldName="Gelir" Caption="GELİR" DisplayFormat="n2" TextAlignment="GridTextAlignment.Right" Width="90px" />
-                    <DxGridDataColumn FieldName="Gunluk" Caption="GÜNLÜK" DisplayFormat="n2" TextAlignment="GridTextAlignment.Right" Width="90px" />
-                    <DxGridDataColumn FieldName="MToplam" Caption="M.TOPLAM" DisplayFormat="n2" TextAlignment="GridTextAlignment.Right" Width="95px" />
-                    <DxGridDataColumn FieldName="KurFarki" Caption="KUR FARKI" DisplayFormat="n2" TextAlignment="GridTextAlignment.Right" Width="95px" />
-                    <DxGridDataColumn FieldName="Bakiye" Caption="BAKİYE" DisplayFormat="n2" TextAlignment="GridTextAlignment.Right" Width="95px" />
-                    <DxGridDataColumn FieldName="Stok" Caption="STOK" DisplayFormat="n2" TextAlignment="GridTextAlignment.Right" Width="90px" />
-                    <DxGridDataColumn FieldName="Pirlanta" Caption="PIRLANTA" DisplayFormat="n2" TextAlignment="GridTextAlignment.Right" Width="90px" />
-                    <DxGridDataColumn FieldName="Tas" Caption="TAŞ" DisplayFormat="n2" TextAlignment="GridTextAlignment.Right" Width="80px" />
-                    <DxGridDataColumn FieldName="Iscilik" Caption="İŞÇİLİK" DisplayFormat="n2" TextAlignment="GridTextAlignment.Right" Width="90px" />
-                    <DxGridDataColumn FieldName="Takoz" Caption="TAKOZ" DisplayFormat="n2" TextAlignment="GridTextAlignment.Right" Width="80px" />
-                    <DxGridDataColumn FieldName="Devir" Caption="DEVİR" DisplayFormat="n2" TextAlignment="GridTextAlignment.Right" Width="85px" />
-                    <DxGridDataColumn FieldName="KarZarar" Caption="KAR/ZARAR" TextAlignment="GridTextAlignment.Right" Width="100px">
+                    <DxGridDataColumn FieldName="Sube" Caption="@(Loc["BalanceSheet:Col:Branch"])" Width="150px" />
+                    <DxGridDataColumn FieldName="Tarih" Caption="@(Loc["BalanceSheet:Col:Date"])" DisplayFormat="dd.MM.yyyy" Width="100px" />
+                    <DxGridDataColumn FieldName="Gider" Caption="@(Loc["BalanceSheet:Col:Expense"])" DisplayFormat="n2" TextAlignment="GridTextAlignment.Right" Width="90px" />
+                    <DxGridDataColumn FieldName="Gelir" Caption="@(Loc["BalanceSheet:Col:Income"])" DisplayFormat="n2" TextAlignment="GridTextAlignment.Right" Width="90px" />
+                    <DxGridDataColumn FieldName="Gunluk" Caption="@(Loc["BalanceSheet:Col:Daily"])" DisplayFormat="n2" TextAlignment="GridTextAlignment.Right" Width="90px" />
+                    <DxGridDataColumn FieldName="MToplam" Caption="@(Loc["BalanceSheet:Col:ExpenseTotal"])" DisplayFormat="n2" TextAlignment="GridTextAlignment.Right" Width="95px" />
+                    <DxGridDataColumn FieldName="KurFarki" Caption="@(Loc["BalanceSheet:Col:ExchangeDiff"])" DisplayFormat="n2" TextAlignment="GridTextAlignment.Right" Width="95px" />
+                    <DxGridDataColumn FieldName="Bakiye" Caption="@(Loc["BalanceSheet:Col:AccountBalance"])" DisplayFormat="n2" TextAlignment="GridTextAlignment.Right" Width="95px" />
+                    <DxGridDataColumn FieldName="Stok" Caption="@(Loc["BalanceSheet:Col:Stock"])" DisplayFormat="n2" TextAlignment="GridTextAlignment.Right" Width="90px" />
+                    <DxGridDataColumn FieldName="Pirlanta" Caption="@(Loc["BalanceSheet:Col:Jewelry"])" DisplayFormat="n2" TextAlignment="GridTextAlignment.Right" Width="90px" />
+                    <DxGridDataColumn FieldName="Tas" Caption="@(Loc["BalanceSheet:Col:Stone"])" DisplayFormat="n2" TextAlignment="GridTextAlignment.Right" Width="80px" />
+                    <DxGridDataColumn FieldName="Iscilik" Caption="@(Loc["BalanceSheet:Col:Labor"])" DisplayFormat="n2" TextAlignment="GridTextAlignment.Right" Width="90px" />
+                    <DxGridDataColumn FieldName="Takoz" Caption="@(Loc["BalanceSheet:Col:Bullion"])" DisplayFormat="n2" TextAlignment="GridTextAlignment.Right" Width="80px" />
+                    <DxGridDataColumn FieldName="Devir" Caption="@(Loc["BalanceSheet:Col:Carryover"])" DisplayFormat="n2" TextAlignment="GridTextAlignment.Right" Width="85px" />
+                    <DxGridDataColumn FieldName="KarZarar" Caption="@(Loc["BalanceSheet:Col:ProfitLoss"])" TextAlignment="GridTextAlignment.Right" Width="100px">
                         <CellDisplayTemplate>
                             @{ var s = (BilancoSummaryRow)context.DataItem; }
                             <span style="@GradientBadgeStyle(s.KarZarar)">@s.KarZarar.ToString("n2")</span>
                         </CellDisplayTemplate>
                     </DxGridDataColumn>
-                    <DxGridDataColumn FieldName="Toplam" Caption="TOPLAM" TextAlignment="GridTextAlignment.Right" Width="105px">
+                    <DxGridDataColumn FieldName="Toplam" Caption="@(Loc["BalanceSheet:Col:Total"])" TextAlignment="GridTextAlignment.Right" Width="105px">
                         <CellDisplayTemplate>
                             @{ var s = (BilancoSummaryRow)context.DataItem; }
                             <span style="@GradientBadgeStyle(s.Toplam)">@s.Toplam.ToString("n2")</span>
                         </CellDisplayTemplate>
                     </DxGridDataColumn>
-                    <DxGridDataColumn FieldName="Birim" Caption="BİRİM" Width="70px" />
+                    <DxGridDataColumn FieldName="Birim" Caption="@(Loc["BalanceSheet:Col:Unit"])" Width="70px" />
                 </Columns>
             </DxGrid>
         </div>

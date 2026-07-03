@@ -1,18 +1,20 @@
 namespace Integration.TradeXpress.Vouchers;
 
 /// <summary>
-/// İşlem kısa kodu (ERPPROV3 paritesi): <see cref="ProcessType"/> + <see cref="ProcessDirectionType"/> +
-/// <see cref="ProcessPaymentType"/> harflerinin birleşimi (ör. Nakit+Giriş+Peşin = "NGP").
-/// Grid'deki "İşlem" kolonu bu kodu gösterir.
+/// İşlem kısa kodu (ERPPROV3 grid paritesi — kullanıcı gerçek grid otoritesi): <see cref="ProcessType"/> +
+/// <see cref="ProcessDirectionType"/> + <see cref="ProcessPaymentType"/> harflerinin birleşimi
+/// (ör. Nakit+Giriş+Peşin = "NGP", Taş+Giriş+Normal = "TGN"). Grid'deki "İşlem" kolonu bu kodu gösterir.
 /// </summary>
 public static class VoucherProcessCode
 {
-    /// <summary>Birleşik kısa kod. Çevir/Vadeli'de ödeme tipi yok (tip harfi eklenmez);
-    /// Takoz → yön kodu ("1"/"2"); Çeşni → "C".</summary>
+    /// <summary>Birleşik kısa kod. Çevir/Vadeli'de ödeme tipi yok (tip harfi eklenmez); Çeşni → "C";
+    /// Takoz → sabit "TGA" (giriş) / "TCA" (çıkış). Hem Taş hem Takoz "T" ile başlar ama takozun 3. harfi
+    /// daima "A"; hiçbir ödeme tipi "A" üretmediğinden takoz taş'tan bu harfle ayrışır → ÇAKIŞMA YOK
+    /// (ör. Taş Giriş Normal = "TGN" ↔ Takoz Giriş = "TGA").</summary>
     public static string Of(ProcessType process, ProcessDirectionType direction, ProcessPaymentType? payment = null)
     {
         if (process == ProcessType.Bullion)
-            return ((int)direction % 2) == 0 ? "1" : "2";
+            return ((int)direction % 2) == 0 ? "TGA" : "TCA";
         if (process == ProcessType.Assay)
             return "C";
 
@@ -20,39 +22,49 @@ public static class VoucherProcessCode
         return Code(process) + Code(direction) + (pay is { } p ? Code(p) : string.Empty);
     }
 
-    public static string Code(ProcessType p) => p switch
+    public static string Code(ProcessType p)
     {
-        ProcessType.Metal    => "M",
-        ProcessType.Scrap    => "H",
-        ProcessType.Cash     => "N",
-        ProcessType.Convert  => "C",
-        ProcessType.Service  => "G",
-        ProcessType.Future   => "V",
-        ProcessType.Stone    => "T",
-        ProcessType.Jewelry  => "J",
-        ProcessType.Transfer => "V",
-        _ => "?",
-    };
+        return p switch
+        {
+            ProcessType.Metal    => "M",
+            ProcessType.Scrap    => "H",
+            ProcessType.Cash     => "N",
+            ProcessType.Convert  => "C",
+            ProcessType.Service  => "G",
+            ProcessType.Future   => "V",
+            ProcessType.Stone    => "T",
+            ProcessType.Jewelry  => "J",
+            ProcessType.Transfer => "V",
+            ProcessType.Bullion  => "T",
+            _ => "?",
+        };
+    }
 
-    public static string Code(ProcessDirectionType d) => d switch
+    public static string Code(ProcessDirectionType d)
     {
-        ProcessDirectionType.Inbound  => "G",
-        ProcessDirectionType.Outbound => "C",
-        ProcessDirectionType.Credit   => "A",
-        ProcessDirectionType.Debit    => "B",
-        ProcessDirectionType.Buy      => "A",
-        ProcessDirectionType.Sell     => "S",
-        _ => "?",
-    };
+        return d switch
+        {
+            ProcessDirectionType.Inbound  => "G",
+            ProcessDirectionType.Outbound => "C",
+            ProcessDirectionType.Credit   => "A",
+            ProcessDirectionType.Debit    => "B",
+            ProcessDirectionType.Buy      => "A",
+            ProcessDirectionType.Sell     => "S",
+            _ => "?",
+        };
+    }
 
-    public static string Code(ProcessPaymentType t) => t switch
+    public static string Code(ProcessPaymentType t)
     {
-        ProcessPaymentType.Normal       => "N",
-        ProcessPaymentType.WithCash     => "P",
-        ProcessPaymentType.WithCurrency => "B",
-        ProcessPaymentType.Return       => "I",
-        ProcessPaymentType.Consignment  => "E",
-        ProcessPaymentType.WithUnit     => "M",
-        _ => "?",
-    };
+        return t switch
+        {
+            ProcessPaymentType.Normal       => "N",
+            ProcessPaymentType.WithCash     => "P",
+            ProcessPaymentType.WithCurrency => "B",
+            ProcessPaymentType.Return       => "I",
+            ProcessPaymentType.Consignment  => "E",
+            ProcessPaymentType.WithUnit     => "M",
+            _ => "?",
+        };
+    }
 }

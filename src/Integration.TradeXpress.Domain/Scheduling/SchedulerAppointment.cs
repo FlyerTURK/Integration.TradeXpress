@@ -47,47 +47,83 @@ public class SchedulerAppointment : FullAuditedAggregateRoot<Guid>, IMultiTenant
     public virtual void SetCompany(Guid companyId)
     {
         if (companyId == Guid.Empty)
-            throw new ArgumentException("Company is required.", nameof(companyId));
+        {
+            throw new BusinessException("TradeXpress:SchedulerAppointment:CompanyRequired");
+        }
+
         CompanyId = companyId;
     }
 
     public virtual void SetSubject(string subject)
-        => Subject = Check.NotNullOrWhiteSpace(subject, nameof(subject), SchedulerAppointmentConsts.SubjectMaxLength);
+    {
+        // Serbest kullanıcı metni: Trim + zorunlu + max. TitleCase/UPPER normalizasyonu YAPILMAZ
+        // (randevu konusu kullanıcının yazdığı gibi kalır).
+        Subject = StringFieldGuard.EnsureRequiredText(
+            subject,
+            nameof(Subject),
+            1,
+            SchedulerAppointmentConsts.SubjectMaxLength);
+    }
 
     public virtual void SetTimeRange(DateTime start, DateTime end)
     {
         if (end < start)
-            throw new ArgumentException("End time cannot be earlier than start time.", nameof(end));
+        {
+            throw new BusinessException("TradeXpress:SchedulerAppointment:EndBeforeStart");
+        }
+
         StartTime = start;
         EndTime = end;
     }
 
     public virtual void SetDescription(string? description)
     {
+        // Opsiyonel alan: yalnız üst sınır (min yok — mevcut davranış korunur). Aşılırsa tipli Framework exception'ı.
         if (description is { Length: > SchedulerAppointmentConsts.DescriptionMaxLength })
-            throw new ArgumentException(
-                $"Description length must be at most {SchedulerAppointmentConsts.DescriptionMaxLength}.", nameof(description));
+        {
+            throw new TooLongPropertyException(nameof(Description), SchedulerAppointmentConsts.DescriptionMaxLength);
+        }
+
         Description = description;
     }
 
     public virtual void SetLocation(string? location)
     {
         if (location is { Length: > SchedulerAppointmentConsts.LocationMaxLength })
-            throw new ArgumentException(
-                $"Location length must be at most {SchedulerAppointmentConsts.LocationMaxLength}.", nameof(location));
+        {
+            throw new TooLongPropertyException(nameof(Location), SchedulerAppointmentConsts.LocationMaxLength);
+        }
+
         Location = location;
     }
 
-    public virtual void SetAllDay(bool allDay) => AllDay = allDay;
-    public virtual void SetLabel(int label) => Label = label;
-    public virtual void SetStatus(int status) => Status = status;
-    public virtual void SetAppointmentType(int type) => AppointmentType = type;
+    public virtual void SetAllDay(bool allDay)
+    {
+        AllDay = allDay;
+    }
+
+    public virtual void SetLabel(int label)
+    {
+        Label = label;
+    }
+
+    public virtual void SetStatus(int status)
+    {
+        Status = status;
+    }
+
+    public virtual void SetAppointmentType(int type)
+    {
+        AppointmentType = type;
+    }
 
     public virtual void SetRecurrenceInfo(string? recurrenceInfo)
     {
         if (recurrenceInfo is { Length: > SchedulerAppointmentConsts.RecurrenceInfoMaxLength })
-            throw new ArgumentException(
-                $"RecurrenceInfo length must be at most {SchedulerAppointmentConsts.RecurrenceInfoMaxLength}.", nameof(recurrenceInfo));
+        {
+            throw new TooLongPropertyException(nameof(RecurrenceInfo), SchedulerAppointmentConsts.RecurrenceInfoMaxLength);
+        }
+
         RecurrenceInfo = recurrenceInfo;
     }
 }

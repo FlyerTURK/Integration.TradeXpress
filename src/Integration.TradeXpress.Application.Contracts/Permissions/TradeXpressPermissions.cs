@@ -106,4 +106,19 @@ public static class TradeXpressPermissions
         public const string Position    = Default + ".Position";
         public const string BalanceSheet = Default + ".BalanceSheet";
     }
+
+    /// <summary>Cari işlem (voucher satırı) tipleri — her işlem tipi için AYRI yetki (List yetki gerektirmez).</summary>
+    public static class Transactions
+    {
+        public const string Default = GroupName + ".Transactions";
+        public const string Metal   = Default + ".Metal";
+        public const string Scrap   = Default + ".Scrap";
+        public const string Cash    = Default + ".Cash";
+        public const string Convert = Default + ".Convert";
+        public const string Service = Default + ".Service";
+        public const string Future  = Default + ".Future";
+        public const string Stone   = Default + ".Stone";
+        public const string Jewelry = Default + ".Jewelry";
+        public const string Bullion = Default + ".Bullion";
+    }
 }

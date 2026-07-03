@@ -128,7 +128,10 @@ public static class CurrencyPriceCalculator
         ArgumentNullException.ThrowIfNull(baseInPivot);
         ArgumentNullException.ThrowIfNull(quoteInPivot);
         if (quoteInPivot.Buy <= 0m || quoteInPivot.Sell <= 0m)
-            throw new ArgumentOutOfRangeException(nameof(quoteInPivot), "Quote prices must be positive.");
+        {
+            // Payda sıfır/negatif olamaz — çapraz kur tanımsız (BusinessException: error-code + lokalize).
+            throw new BusinessException("TradeXpress:ExchangeRate:QuotePriceMustBePositive");
+        }
 
         var bid = baseInPivot.Buy / quoteInPivot.Sell;
         var ask = baseInPivot.Sell / quoteInPivot.Buy;
@@ -140,7 +143,10 @@ public static class CurrencyPriceCalculator
         ArgumentNullException.ThrowIfNull(priceInPivot);
         ArgumentNullException.ThrowIfNull(baseInPivot);
         if (baseInPivot.Buy <= 0m || baseInPivot.Sell <= 0m)
-            throw new ArgumentOutOfRangeException(nameof(baseInPivot), "Base prices must be positive.");
+        {
+            // Payda sıfır/negatif olamaz — re-base tanımsız (BusinessException: error-code + lokalize).
+            throw new BusinessException("TradeXpress:ExchangeRate:BasePriceMustBePositive");
+        }
 
         return new CurrencyPrice(
             priceInPivot.Buy  / baseInPivot.Buy,

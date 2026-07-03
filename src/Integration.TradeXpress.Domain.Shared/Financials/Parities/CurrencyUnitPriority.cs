@@ -27,7 +27,9 @@ public static class CurrencyUnitPriority
 
     /// <summary>İki koddan hangisi çiftin base'i: önceliği yüksek (rank küçük) olan.</summary>
     public static (string Base, string Quote) Direct(string a, string b)
-        => RankOf(a) <= RankOf(b) ? (a, b) : (b, a);
+    {
+        return RankOf(a) <= RankOf(b) ? (a, b) : (b, a);
+    }
 
     /// <summary>Bilinen kodlar (öncelik sırasında) — seed kombinasyonu için.</summary>
     public static IReadOnlyList<string> KnownCodes => Order;

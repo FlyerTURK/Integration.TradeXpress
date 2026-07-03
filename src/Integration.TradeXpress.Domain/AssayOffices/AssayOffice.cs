@@ -41,21 +41,42 @@ public class AssayOffice : FullAuditedAggregateRoot<Guid>, IMultiTenant
     public virtual void SetCompany(Guid companyId)
     {
         if (companyId == Guid.Empty)
-            throw new ArgumentException("Company is required.", nameof(companyId));
+        {
+            throw new BusinessException("TradeXpress:AssayOffice:CompanyRequired");
+        }
+
         CompanyId = companyId;
     }
 
     public virtual void SetCode(string code)
-        => Code = Check.NotNullOrWhiteSpace(code, nameof(code), AssayOfficeConsts.CodeMaxLength).ToUpperInvariant();
+    {
+        // NormalizeCode: Trim + çoklu boşluk→tek + boşluk→'_' + UPPER, ardından zorunlu/min/max doğrulaması.
+        // Elle .ToUpperInvariant() gerekmez (NormalizeCode zaten UPPER yapar).
+        Code = StringFieldGuard.NormalizeCode(
+            code,
+            nameof(Code),
+            EntityFieldConsts.CodeMinLength,
+            AssayOfficeConsts.CodeMaxLength);
+    }
 
     public virtual void SetName(string name)
-        => Name = Check.NotNullOrWhiteSpace(name, nameof(name), AssayOfficeConsts.NameMaxLength);
+    {
+        // NormalizeName: Trim + çoklu boşluk→tek + TitleCase, ardından zorunlu/min/max doğrulaması.
+        Name = StringFieldGuard.NormalizeName(
+            name,
+            nameof(Name),
+            EntityFieldConsts.NameMinLength,
+            AssayOfficeConsts.NameMaxLength);
+    }
 
     public virtual void SetDescription(string? description)
     {
+        // Opsiyonel alan: yalnız üst sınır (min yok — mevcut davranış korunur). Aşılırsa tipli Framework exception'ı.
         if (description is { Length: > AssayOfficeConsts.DescriptionMaxLength })
-            throw new ArgumentException(
-                $"Description length must be at most {AssayOfficeConsts.DescriptionMaxLength}.", nameof(description));
+        {
+            throw new TooLongPropertyException(nameof(Description), AssayOfficeConsts.DescriptionMaxLength);
+        }
+
         Description = description;
     }
 
@@ -64,7 +85,10 @@ public class AssayOffice : FullAuditedAggregateRoot<Guid>, IMultiTenant
         IsActive = value;
     }
 
-    public virtual void SetDisplayOrder(int order) => DisplayOrder = order;
+    public virtual void SetDisplayOrder(int order)
+    {
+        DisplayOrder = order;
+    }
 
     public override string ToString()
     {

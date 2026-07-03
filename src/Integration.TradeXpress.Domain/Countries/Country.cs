@@ -39,19 +39,45 @@ public class Country : FullAuditedAggregateRoot<Guid>, IMultiTenant
     }
 
     public virtual void SetCode(string code)
-        => Code = Check.NotNullOrWhiteSpace(code, nameof(code), CountryConsts.CodeMaxLength).ToUpperInvariant();
+    {
+        // ISO-3166 alpha-2 sabit uzunluk (min = max = 2). Kültür-BAĞIMSIZ UPPER (tr-TR 'i'→'İ' tuzağı yok);
+        // NormalizeCode KULLANILMAZ (evrensel CodeMinLength=3 iki harfli ISO koduna uymaz).
+        Code = StringFieldGuard.NormalizeInvariantCode(
+            code,
+            nameof(Code),
+            CountryConsts.CodeMaxLength,
+            CountryConsts.CodeMaxLength);
+    }
 
     public virtual void SetName(string name)
-        => Name = Check.NotNullOrWhiteSpace(name, nameof(name), CountryConsts.NameMaxLength);
+    {
+        // NormalizeName: Trim + çoklu boşluk→tek + TitleCase, ardından zorunlu/min/max doğrulaması.
+        Name = StringFieldGuard.NormalizeName(
+            name,
+            nameof(Name),
+            EntityFieldConsts.NameMinLength,
+            CountryConsts.NameMaxLength);
+    }
 
     public virtual void SetDefaultCurrencyCode(string code)
-        => DefaultCurrencyCode = Check.NotNullOrWhiteSpace(code, nameof(code), CurrencyConsts.CodeMaxLength).ToUpperInvariant();
+    {
+        // Para birimi kodu — CurrencyUnit.SetCode ile AYNI normalizasyon (NormalizeCode) ki eşleşme bozulmasın.
+        DefaultCurrencyCode = StringFieldGuard.NormalizeCode(
+            code,
+            nameof(DefaultCurrencyCode),
+            EntityFieldConsts.CodeMinLength,
+            CurrencyConsts.CodeMaxLength);
+    }
+
     public virtual void SetActive(bool value)
     {
         IsActive = value;
     }
 
-    public virtual void SetDisplayOrder(int order) => DisplayOrder = order;
+    public virtual void SetDisplayOrder(int order)
+    {
+        DisplayOrder = order;
+    }
 
     public override string ToString()
     {

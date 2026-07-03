@@ -29,6 +29,10 @@ public interface IVoucherAppService : IApplicationService
     /// <summary>Bir cari (SubAccount) için birim bazında anlık bakiye + hesabın bakiye birimi (opsiyonel tarih sınırı).</summary>
     Task<AccountBalanceDto> GetBalancesAsync(Guid subAccountId, DateTime? upTo = null);
 
+    /// <summary>Takoz stoğu (aktif giriş külçeleri) — takoz ÇIKIŞ panelinin combo kaynağı.
+    /// <paramref name="inStock"/> true → yalnız stokta olanlar (aktif çıkışı olmayan); null → hepsi (düzeltme için).</summary>
+    Task<List<BullionStockItemDto>> GetBullionStockAsync(bool? inStock = null);
+
     /// <summary>Bir fişi (ve altındaki tüm satırları) siler.</summary>
     Task DeleteAsync(Guid id);
 }

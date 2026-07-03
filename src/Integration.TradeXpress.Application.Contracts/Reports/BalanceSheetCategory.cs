@@ -11,9 +11,9 @@ public static class BalanceSheetCategory
 {
     public const string AccountBalance = "AccountBalance";   // ERPPRO BAKIYE — cari hesap döviz/emtia bakiyeleri (ledger)
     public const string Stock          = "Stock";            // ERPPRO STOK — nakit/emtia/maden/alaşım stokları
-    public const string Labor          = "Labor";            // ERPPRO ISCILIK — maden işçilik maliyeti
+    public const string Labor          = "Labor";            // ERPPRO ISCILIK — YALNIZ maden işçilik maliyeti (takoz işçiliği cari/BAKİYE'de kalır, buraya girmez)
     public const string Stone          = "Stone";            // Kıymetli taşlar (Stone entity) — maliyet envanteri (ERPPRO TAS)
-    public const string Bullion        = "Bullion";          // ERPPRO TAKOZ — külçe (HAS/GUM/PLT/PLD) — SONRA
+    public const string Bullion        = "Bullion";          // ERPPRO TAKOZ — külçe metal içeriği (HAS/GUM/PLT/PLD); işçilik YOK (cari/BAKİYE'de). BullionCategorySource ile beslenir
     public const string Jewelry        = "Jewelry";          // Kıymetli taş barındıran TAKILAR (mücevher); ERPPRO bunu yanlışlıkla "PIRLANTA" adlandırmış — maliyet envanteri
     public const string Expense        = "Expense";          // ERPPRO GIDER — P&L gider (değerlenmez, TOPLAM dışı)
     public const string Income         = "Income";           // ERPPRO GELIR — P&L gelir (değerlenmez, TOPLAM dışı)

@@ -25,11 +25,14 @@ public enum BullionType : byte
 /// <summary>Takoz türü → kanonik ana birim kodu eşlemesi (<see cref="CurrencyUnitCode"/> sabitleri).</summary>
 public static class BullionTypeExtensions
 {
-    public static string MainUnitCode(this BullionType type) => type switch
+    public static string MainUnitCode(this BullionType type)
     {
-        BullionType.Silver    => CurrencyUnitCode.GUM,
-        BullionType.Platinum  => CurrencyUnitCode.PLT,
-        BullionType.Palladium => CurrencyUnitCode.PLD,
-        _                     => CurrencyUnitCode.HAS,
-    };
+        return type switch
+        {
+            BullionType.Silver    => CurrencyUnitCode.GUM,
+            BullionType.Platinum  => CurrencyUnitCode.PLT,
+            BullionType.Palladium => CurrencyUnitCode.PLD,
+            _                     => CurrencyUnitCode.HAS,
+        };
+    }
 }
