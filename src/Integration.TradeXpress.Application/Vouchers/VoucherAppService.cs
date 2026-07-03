@@ -188,6 +188,13 @@ public class VoucherAppService : TradeXpressAppService, IVoucherAppService
         // Server-side per-tip yetki kontrolü (UI gate TEK BAŞINA yetmez — bkz. ProcessTypePermissionMap).
         await EnsureTransactionPermissionAsync(input.Type);
 
+        // Tip-bazlı Miktar kuralı (legacy Islem.Save paritesi): Çeşni'de Miktar ZORUNLU (>0);
+        // Dekont/Virman gibi parasal tipler muaf (Miktar=0 serbest — ek doğrulama yok).
+        if (input.Type == ProcessType.Assay && input.Amount <= 0m)
+        {
+            throw new BusinessException("TradeXpress:Voucher:AmountRequired");
+        }
+
         // Takoz ÇIKIŞ: metal verisi (miktar/milyem/rapor/ayar evi/birimler) SERVER-AUTHORITATIVE —
         // seçilen giriş külçesinden kopyalanır; panel yalnız işçilik + dağıtım durumlarını gönderir.
         if (input.Type == ProcessType.Bullion && !IsInflow(input.Direction))
@@ -625,6 +632,63 @@ public class VoucherAppService : TradeXpressAppService, IVoucherAppService
         return entries.OrderByDescending(e => e.EntryDate).ToList();
     }
 
+    /// <summary>Çeşni stoğu özeti — SQL-side toplama (satır çekmeden): takoz GİRİŞ satırlarının AssayAmount
+    /// havuzu (raporsuzda da cari alacağına dahil — BullionLegCalculator giriş kuralı) MİNUS çeşni ÇIKIŞ
+    /// satırlarının Amount toplamı. Milyemler ağırlıklı ortalama (Has/Miktar — legacy Cesni paritesi).
+    /// Not: külçenin takoz-çıkışı numuneyi düşürmez (numune dükkânda kalır — legacy kural).</summary>
+    public async Task<AssayStockDto> GetAssayStockAsync()
+    {
+        var companyId = EnsureCurrentCompanyId();   // company scope ZORUNLU (sızıntı önleme)
+        var q = await _repository.GetQueryableAsync();
+
+        // Giriş havuzu: takoz GİRİŞ satırlarının numunesi (miktar + metal içerikleri).
+        var entry = await AsyncExecuter.FirstOrDefaultAsync(
+            (from v in q
+             where v.CompanyId == companyId
+             from l in v.Lines
+             where l.Type == ProcessType.Bullion
+                && l.Direction == ProcessDirectionType.Inbound
+                && !l.IsDeleted
+             select l)
+            .GroupBy(_ => 1)
+            .Select(g => new
+            {
+                Amount = g.Sum(l => l.AssayAmount ?? 0m),
+                Has    = g.Sum(l => (l.AssayAmount ?? 0m) * l.Factor),
+                Gum    = g.Sum(l => (l.AssayAmount ?? 0m) * (l.SilverFactor ?? 0m)),
+            }));
+
+        // Çıkışlar: çeşni satırları (yön daima ÇIKIŞ) havuzdan düşer.
+        var exit = await AsyncExecuter.FirstOrDefaultAsync(
+            (from v in q
+             where v.CompanyId == companyId
+             from l in v.Lines
+             where l.Type == ProcessType.Assay
+                && l.Direction == ProcessDirectionType.Outbound
+                && !l.IsDeleted
+             select l)
+            .GroupBy(_ => 1)
+            .Select(g => new
+            {
+                Amount = g.Sum(l => l.Amount),
+                Has    = g.Sum(l => l.Amount * l.Factor),
+                Gum    = g.Sum(l => l.Amount * (l.SilverFactor ?? 0m)),
+            }));
+
+        var amount = (entry?.Amount ?? 0m) - (exit?.Amount ?? 0m);
+        var has    = (entry?.Has ?? 0m) - (exit?.Has ?? 0m);
+        var gum    = (entry?.Gum ?? 0m) - (exit?.Gum ?? 0m);
+
+        return new AssayStockDto
+        {
+            Amount   = amount,
+            Has      = has,
+            Gum      = gum,
+            AuMilyem = amount == 0m ? 0m : has / amount,
+            AgMilyem = amount == 0m ? 0m : gum / amount,
+        };
+    }
+
     /// <summary>Takoz stoğu satırlarının denormalize gösterim alanlarını (ayar evi adı + getiren cari) doldurur.</summary>
     private async Task ResolveBullionStockDisplayAsync(List<BullionStockItemDto> entries)
     {
@@ -756,6 +820,41 @@ public class VoucherAppService : TradeXpressAppService, IVoucherAppService
         Profit           = l.Profit,
         DueDate          = l.DueDate,
         Description      = l.Description,
+
+        // ── TAKOZ (Bullion) alanları — DÜZELT akışı bunlarsız paneli default'larla açıyordu
+        //    (raporsuz/Gold/milyemler 0): kaydetme yönü (ToLineInput) tamdı, okuma yönü eksikti. ──
+        BullionType            = l.BullionType,
+        AssayOfficeId          = l.AssayOfficeId,
+        ReportNo               = l.ReportNo,
+        IsReport               = l.IsReport,
+        IsExtra                = l.IsExtra,
+        AssayAmount            = l.AssayAmount,
+        SilverFactor           = l.SilverFactor,
+        PlatinumFactor         = l.PlatinumFactor,
+        PalladiumFactor        = l.PalladiumFactor,
+        SilverMode             = l.SilverMode,
+        PlatinumMode           = l.PlatinumMode,
+        PalladiumMode          = l.PalladiumMode,
+        LaborMode              = l.LaborMode,
+        SilverLaborRate        = l.SilverLaborRate,
+        PlatinumLaborRate      = l.PlatinumLaborRate,
+        PalladiumLaborRate     = l.PalladiumLaborRate,
+        GoldLaborUnitId        = l.GoldLaborUnitId,
+        SilverLaborUnitId      = l.SilverLaborUnitId,
+        PlatinumLaborUnitId    = l.PlatinumLaborUnitId,
+        PalladiumLaborUnitId   = l.PalladiumLaborUnitId,
+        SilverUnitId           = l.SilverUnitId,
+        PlatinumUnitId         = l.PlatinumUnitId,
+        PalladiumUnitId        = l.PalladiumUnitId,
+        GoldRate               = l.GoldRate,
+        SilverRate             = l.SilverRate,
+        PlatinumRate           = l.PlatinumRate,
+        PalladiumRate          = l.PalladiumRate,
+        GoldLaborUnitRate      = l.GoldLaborUnitRate,
+        SilverLaborUnitRate    = l.SilverLaborUnitRate,
+        PlatinumLaborUnitRate  = l.PlatinumLaborUnitRate,
+        PalladiumLaborUnitRate = l.PalladiumLaborUnitRate,
+
         CreationTime     = l.CreationTime,
         CreatorId        = l.CreatorId,
     };
