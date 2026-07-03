@@ -351,3 +351,16 @@ public partial class UserScopedGrantToDtoMapper : MapperBase<UserScopedGrant, Us
     public override partial AccountUpdateDto Map(AccountGetDto source);
     public override partial void Map(AccountGetDto source, AccountUpdateDto destination);
 }
+
+// SubAccount edit'i PersistentCoordinator üzerinden koşulsuz Map<GetDto,Create/UpdateDto> çağırır —
+// bu mapper'lar yokken kaydet/güncelle runtime'da "No object mapping was found" fırlatıyordu (entegrasyon analizi E-3).
+[Mapper] public partial class SubAccountGetToCreateMapper : MapperBase<SubAccountGetDto, SubAccountCreateDto>
+{
+    public override partial SubAccountCreateDto Map(SubAccountGetDto source);
+    public override partial void Map(SubAccountGetDto source, SubAccountCreateDto destination);
+}
+[Mapper] public partial class SubAccountGetToUpdateMapper : MapperBase<SubAccountGetDto, SubAccountUpdateDto>
+{
+    public override partial SubAccountUpdateDto Map(SubAccountGetDto source);
+    public override partial void Map(SubAccountGetDto source, SubAccountUpdateDto destination);
+}

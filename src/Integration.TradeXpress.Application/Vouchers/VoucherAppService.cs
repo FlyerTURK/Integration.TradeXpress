@@ -8,6 +8,7 @@ using Integration.TradeXpress.Branches;
 using Integration.TradeXpress.Bullions;
 using Integration.TradeXpress.Financials.CurrencyUnits;
 using Integration.TradeXpress.Financials.Parities;
+using Integration.TradeXpress.MultiCompany;
 using Integration.TradeXpress.Permissions;
 using Integration.TradeXpress.Vaults;
 using Integration.TradeXpress.Vouchers.Balance;
@@ -40,6 +41,7 @@ public class VoucherAppService : TradeXpressAppService, IVoucherAppService
     private readonly VoucherBalanceCalculator _balanceCalculator;
     private readonly BalanceLedgerSynchronizer _ledgerSynchronizer;
     private readonly IDataFilter _dataFilter;
+    private readonly ICurrentCompany _currentCompany;
 
     public VoucherAppService(
         IRepository<Voucher, Guid> repository,
@@ -51,7 +53,8 @@ public class VoucherAppService : TradeXpressAppService, IVoucherAppService
         IRepository<AssayOffice, Guid> assayOfficeRepository,
         VoucherBalanceCalculator balanceCalculator,
         BalanceLedgerSynchronizer ledgerSynchronizer,
-        IDataFilter dataFilter)
+        IDataFilter dataFilter,
+        ICurrentCompany currentCompany)
     {
         _repository            = repository;
         _branchRepository      = branchRepository;
@@ -63,14 +66,59 @@ public class VoucherAppService : TradeXpressAppService, IVoucherAppService
         _balanceCalculator     = balanceCalculator;
         _ledgerSynchronizer    = ledgerSynchronizer;
         _dataFilter            = dataFilter;
+        _currentCompany        = currentCompany;
+    }
+
+    /// <summary>Sızıntı önleme (BalanceSheet ile aynı desen): CompanyId DAİMA working-context'ten
+    /// (<see cref="ICurrentCompany"/>) zorlanır — client'tan gelen CompanyId'ye ASLA güvenilmez.
+    /// Sahte CompanyId ile başka şirkete fiş/ledger yazılmasını (ve bilançosuna sızmasını) engeller.</summary>
+    private Guid EnsureCurrentCompanyId()
+    {
+        if (_currentCompany.Id is not { } companyId)
+        {
+            throw new BusinessException("TradeXpress:Voucher:CompanyContextRequired");
+        }
+
+        return companyId;
+    }
+
+    /// <summary>Şube working şirkete, kasa (varsa) o şubeye ait olmalı — aitlik doğrulaması
+    /// (client'ın başka şirketin şube/kasasını göndermesini engeller).</summary>
+    private async Task EnsureOrgScopeAsync(Guid companyId, Guid branchId, Guid? vaultId)
+    {
+        if (!await _branchRepository.AnyAsync(b => b.Id == branchId && b.CompanyId == companyId))
+        {
+            throw new BusinessException("TradeXpress:Voucher:BranchNotInCompany");
+        }
+
+        if (vaultId is { } vid && !await _vaultRepository.AnyAsync(v => v.Id == vid && v.BranchId == branchId))
+        {
+            throw new BusinessException("TradeXpress:Voucher:VaultNotInBranch");
+        }
+    }
+
+    /// <summary>Fişi yükler + working şirkete aitliğini doğrular (yabancı şirket fişi = yokmuş gibi davran).</summary>
+    private async Task<Voucher> GetOwnedVoucherAsync(Guid voucherId)
+    {
+        var voucher = await _repository.GetAsync(voucherId);
+        if (voucher.CompanyId != EnsureCurrentCompanyId())
+        {
+            throw new EntityNotFoundException(typeof(Voucher), voucherId);
+        }
+
+        return voucher;
     }
 
     public async Task<VoucherGetDto> CreateAsync(VoucherCreateDto input)
     {
-        var maxNumber = await NextNumberAsync(input.CompanyId);
+        // Client CompanyId'sine güvenilmez — ambient working-context zorlanır (sızıntı önleme).
+        var companyId = EnsureCurrentCompanyId();
+        await EnsureOrgScopeAsync(companyId, input.BranchId, input.VaultId);
+
+        var maxNumber = await NextNumberAsync(companyId);
 
         var entity = new Voucher(
-            input.CompanyId,
+            companyId,
             input.BranchId,
             input.VaultId,
             input.AccountId,
@@ -113,7 +161,8 @@ public class VoucherAppService : TradeXpressAppService, IVoucherAppService
 
         if (input.VoucherId is { } voucherId)
         {
-            voucher = await _repository.GetAsync(voucherId);
+            // Aitlik: yabancı şirketin fişine satır eklenemez/güncellenemez.
+            voucher = await GetOwnedVoucherAsync(voucherId);
             await _repository.EnsureCollectionLoadedAsync(voucher, v => v.Lines);
 
             if (input.Id != Guid.Empty)
@@ -130,14 +179,18 @@ public class VoucherAppService : TradeXpressAppService, IVoucherAppService
         }
         else
         {
-            // Fiş lazy oluşturulur + numara atanır.
+            // Fiş lazy oluşturulur + numara atanır. CompanyId ambient'ten zorlanır (client'a güvenilmez),
+            // şube/kasa aitliği doğrulanır (sızıntı önleme — BalanceSheet ile aynı ilke).
+            var companyId = EnsureCurrentCompanyId();
+            await EnsureOrgScopeAsync(companyId, input.BranchId, input.VaultId);
+
             voucher = new Voucher(
-                input.CompanyId,
+                companyId,
                 input.BranchId,
                 input.VaultId,
                 input.AccountId,
                 input.SubAccountId,
-                await NextNumberAsync(input.CompanyId),
+                await NextNumberAsync(companyId),
                 input.VoucherDate,
                 input.VoucherDescription);
 
@@ -156,8 +209,10 @@ public class VoucherAppService : TradeXpressAppService, IVoucherAppService
 
     public async Task<PagedResultDto<VoucherListDto>> GetListAsync(VoucherListRequestDto input)
     {
+        // Company scope: yalnız working şirketin fişleri (sızıntı önleme).
+        var companyId = EnsureCurrentCompanyId();
         var voucherQ = (await _repository.GetQueryableAsync())
-            .Where(v => v.SubAccountId == input.SubAccountId)
+            .Where(v => v.CompanyId == companyId && v.SubAccountId == input.SubAccountId)
             .OrderByDescending(v => v.VoucherDate);
 
         var branchQ = await _branchRepository.GetQueryableAsync();
@@ -199,7 +254,7 @@ public class VoucherAppService : TradeXpressAppService, IVoucherAppService
 
     public async Task<List<VoucherLineDto>> GetLinesAsync(Guid voucherId)
     {
-        var voucher = await _repository.GetAsync(voucherId);
+        var voucher = await GetOwnedVoucherAsync(voucherId);
         await _repository.EnsureCollectionLoadedAsync(voucher, v => v.Lines);
 
         // Görüntülenen satırlar — kronolojik (CreationTime, eşitte Id) sıra.
@@ -219,7 +274,7 @@ public class VoucherAppService : TradeXpressAppService, IVoucherAppService
             var boundary = displayed[0].CreationTime;
             var carryLines = await AsyncExecuter.ToListAsync(
                 (await _repository.GetQueryableAsync())
-                    .Where(v => v.SubAccountId == subId)
+                    .Where(v => v.CompanyId == voucher.CompanyId && v.SubAccountId == subId)
                     .SelectMany(v => v.Lines)
                     .Where(l => !l.IsDeleted && l.CreationTime < boundary));
 
@@ -233,10 +288,11 @@ public class VoucherAppService : TradeXpressAppService, IVoucherAppService
     /// kronolojik (VoucherDate → CreationTime), yürüyen bakiyeyle (devreden = start'tan ÖNCESİ).</summary>
     public async Task<List<VoucherLineDto>> GetLinesByDateRangeAsync(Guid subAccountId, DateTime start, DateTime endExclusive)
     {
+        var companyId = EnsureCurrentCompanyId();   // company scope (sızıntı önleme)
         var q = await _repository.GetQueryableAsync();
         var rows = await AsyncExecuter.ToListAsync(
             from v in q
-            where v.SubAccountId == subAccountId && v.VoucherDate >= start && v.VoucherDate < endExclusive
+            where v.CompanyId == companyId && v.SubAccountId == subAccountId && v.VoucherDate >= start && v.VoucherDate < endExclusive
             from l in v.Lines
             where !l.IsDeleted
             select new { Line = l, v.VoucherDate, v.VoucherNumber });
@@ -260,7 +316,7 @@ public class VoucherAppService : TradeXpressAppService, IVoucherAppService
         {
             var carryLines = await AsyncExecuter.ToListAsync(
                 (await _repository.GetQueryableAsync())
-                    .Where(v => v.SubAccountId == subAccountId && v.VoucherDate < start)
+                    .Where(v => v.CompanyId == companyId && v.SubAccountId == subAccountId && v.VoucherDate < start)
                     .SelectMany(v => v.Lines)
                     .Where(l => !l.IsDeleted));
 
@@ -359,8 +415,15 @@ public class VoucherAppService : TradeXpressAppService, IVoucherAppService
 
     public async Task DeleteLineAsync(Guid voucherId, Guid lineId, string reason)
     {
-        var voucher = await _repository.GetAsync(voucherId);
+        var voucher = await GetOwnedVoucherAsync(voucherId);
         await _repository.EnsureCollectionLoadedAsync(voucher, v => v.Lines);
+
+        // Silme de Save ile AYNI per-tip yetkiye tabidir — Metal işlemi yapamayan, Metal satırı da silemez
+        // (UI gate'i bypass eden doğrudan API çağrılarına karşı; entegrasyon analizi E-2).
+        var line = voucher.Lines.FirstOrDefault(l => l.Id == lineId)
+                   ?? throw new EntityNotFoundException(typeof(VoucherLine), lineId);
+        await EnsureTransactionPermissionAsync(line.Type);
+
         voucher.RemoveLine(lineId);
         await _repository.UpdateAsync(voucher, autoSave: true);
         await _ledgerSynchronizer.SyncVoucherAsync(voucher);
@@ -371,7 +434,9 @@ public class VoucherAppService : TradeXpressAppService, IVoucherAppService
 
     public async Task<AccountBalanceDto> GetBalancesAsync(Guid subAccountId, DateTime? upTo = null)
     {
-        var q = (await _repository.GetQueryableAsync()).Where(v => v.SubAccountId == subAccountId);
+        var companyId = EnsureCurrentCompanyId();   // company scope (sızıntı önleme)
+        var q = (await _repository.GetQueryableAsync())
+            .Where(v => v.CompanyId == companyId && v.SubAccountId == subAccountId);
         if (upTo.HasValue)
             q = q.Where(v => v.VoucherDate <= upTo.Value);
 
@@ -398,13 +463,15 @@ public class VoucherAppService : TradeXpressAppService, IVoucherAppService
 
     public async Task<List<BullionStockItemDto>> GetBullionStockAsync(bool? inStock = null)
     {
+        var companyId = EnsureCurrentCompanyId();   // company scope (sızıntı önleme)
         var q = await _repository.GetQueryableAsync();
 
         // Külçeler = aktif GİRİŞ satırları (fiş başlığındaki SubAccountId ile — VoucherLine'da yok).
         var entries = await AsyncExecuter.ToListAsync(
             from v in q
             from l in v.Lines
-            where l.Type == ProcessType.Bullion
+            where v.CompanyId == companyId
+               && l.Type == ProcessType.Bullion
                && l.Direction == ProcessDirectionType.Inbound
                && !l.IsDeleted
             select new BullionStockItemDto
@@ -432,6 +499,7 @@ public class VoucherAppService : TradeXpressAppService, IVoucherAppService
         // Aktif çıkışlar → külçe başına son çıkış zamanı (stok = çıkışı olmayan giriş).
         var exits = await AsyncExecuter.ToListAsync(
             (await _repository.GetQueryableAsync())
+                .Where(v => v.CompanyId == companyId)
                 .SelectMany(v => v.Lines)
                 .Where(l => l.Type == ProcessType.Bullion
                          && l.Direction == ProcessDirectionType.Outbound
@@ -705,6 +773,15 @@ public class VoucherAppService : TradeXpressAppService, IVoucherAppService
 
     public async Task DeleteAsync(Guid id)
     {
+        // Aitlik + per-tip yetki: fişteki HER farklı işlem tipi için ayrı yetki gerekir
+        // (tek tipte bile yetkisizse fişin tamamı silinemez; entegrasyon analizi E-2).
+        var voucher = await GetOwnedVoucherAsync(id);
+        await _repository.EnsureCollectionLoadedAsync(voucher, v => v.Lines);
+        foreach (var type in voucher.Lines.Where(l => !l.IsDeleted).Select(l => l.Type).Distinct())
+        {
+            await EnsureTransactionPermissionAsync(type);
+        }
+
         await _ledgerSynchronizer.DeleteVoucherAsync(id);
         await _repository.DeleteAsync(id, autoSave: true);
     }
