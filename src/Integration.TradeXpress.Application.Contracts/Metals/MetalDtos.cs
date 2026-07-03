@@ -2,6 +2,7 @@ using System;
 using System.ComponentModel.DataAnnotations;
 using Integration.Framework.Base.Dtos;
 using Integration.Framework.Base.Dtos.Interfaces;
+using Integration.TradeXpress.Commodities;
 using Integration.TradeXpress.Vouchers;
 using Volo.Abp.Application.Dtos;
 
@@ -12,7 +13,7 @@ public class MetalListRequestDto : ListRequestDto
 }
 
 /// <summary>Grid + süreç paneli picker'ı. İşçilik/sikke alanları panelin hesabı için taşınır.</summary>
-public class MetalListDto : EntityDto<Guid>, IListDto<Guid>, IIsActive, IHostScoped
+public class MetalListDto : EntityDto<Guid>, IListDto<Guid>, IIsActive, IHostScoped, IFollowingUnitDto
 {
     public string Code { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
@@ -39,7 +40,7 @@ public class MetalListDto : EntityDto<Guid>, IListDto<Guid>, IIsActive, IHostSco
     public bool IsGlobal { get; set; }
 }
 
-public class MetalGetDto : EntityDto<Guid>, IGetDto<Guid>, IHasCode
+public class MetalGetDto : EntityDto<Guid>, IGetDto<Guid>, IHasCode, IHostScoped, IFollowingUnitDto
 {
     [Required]
     [StringLength(MetalConsts.CodeMaxLength, MinimumLength = EntityFieldConsts.CodeMinLength)]

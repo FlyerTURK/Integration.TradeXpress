@@ -15,10 +15,9 @@
 - **CSS/stil:** yeni `.css`/`.razor.css`/`<style>`/sınıf — inline'ı "temizlik" diye CSS'e taşıma dahil — önce dosya+sınıf+seçici+neden belirt, onay bekle.
 - **Teşhis önce:** "şöyle olmalı" demeden kök nedeni DOĞRULA (varsayım ≠ kanıt). Referans varsa önce oradaki çalışan deseni incele.
 
-## 2) ASLA onaysız (yıkıcı kısayol YASAK — bir kısmı hook ile de bloklu)
+## 2) ASLA onaysız (yıkıcı kısayol YASAK)
 Tıkanınca kolay yola sapıp mevcut işi silme/kökten değiştirme YOK. Refleks: DUR → kök neden + 1-2 küçük geri-alınabilir seçenek → geri-dönüşsüzleri işaretle → onay bekle.
-- **DB:** drop/reset, truncate, `WHERE`'siz UPDATE/DELETE, `ef database drop`, `migrations remove`, şema sıfırlama, seed ezme.
-- **Git/iş kaybı:** `git reset --hard`, `git checkout -- <dosya>`, force-push, `--amend` ile geçmiş bozma, branch silme, commit'siz değişiklik atma.
+- **Mekanik bloklu** (deny + `guard.ps1` hook — tam liste orada): git reset --hard / checkout -- / force-push / --amend / branch -D / clean -f · `ef database drop` / `migrations remove` · rm -rf & toplu silme · anonim-erişim attribute edit'i · Migrations/snapshot elle edit. Aynı sınıf (hook'suz): `WHERE`'siz UPDATE/DELETE, truncate, şema sıfırlama, seed ezme, commit'siz değişiklik atma.
 - **Kod:** kökten yeniden yazım, çalışan implementasyonu silme, tıkandın diye yaklaşımı terk etme.
 - **Mimari:** katman kaydırma (UI↔API), merkezi yolu (CrudLayout/StateService/Framework modülü) bypass edip paralel tek-kullanımlık yapı.
 - **Güvenlik:** auth/`[Authorize]` kapatma, multi-tenant `IDataFilter` disable, validation/concurrency/guard kaldırma "çalışsın diye".
@@ -48,7 +47,7 @@ Tıkanınca kolay yola sapıp mevcut işi silme/kökten değiştirme YOK. Reflek
 - **Blazor SERVER** (WASM değil): `ILogger` server-log'a gider; `IWebAssemblyHostEnvironment` YOK; client modülü server'ın `DependsOn`'unda değil → **servis/mapper'ı server modülde de elle kaydet**; `BusinessException` in-process lokalize olmaz.
 - **Portlar:** Blazor host `:44318` · HttpApi.Host `:44388`. Kanonik URL `https://umut.taile7a850.ts.net:44318` (WASM authority tek-değerli → localhost değil ts.net). Cert: `E:\Kodlarim\Yeni\certs\`.
 - **Org hiyerarşisi:** Şirket→Şube→Kasa (OrgTreeManager: otomatik kurulum + en-az-1-child + HQ-devir-önce-sil). Yetki: rol/izin tenant/company/branch/vault **scoped** (cascade + dar override; working context = company+branch).
-- **Yerel ≠ Bilanço birimi:** Yerel = ülke parası (CountryCode→TRY); Bilanço = değerleme birimi (`Company.BaseCurrencyUnitId`, HAS olabilir). **KUR görüntüsü → yerele re-base; POZİSYON/değerleme → bilanço birimine re-base.** Karıştırma.
+- **Yerel ≠ Bilanço birimi** — kur görüntüsü YERELE, pozisyon/değerleme BİLANÇOYA re-base; karıştırma. Detay + yön kuralları: `.claude/rules/financials.md`.
 - **ViewModel emekli:** flat edit formları GetDto-direct (`CrudEditComponentBase<TGetDto>`, Save'de `ObjectMapper.Map` Mapperly); drill/tree → Contracts input-DTO + DrillList. Client-side ViewModel YOK.
 
 ## 7) Referans kaynakları (ERP iş kuralı araştırması)
@@ -58,22 +57,13 @@ Tıkanınca kolay yola sapıp mevcut işi silme/kökten değiştirme YOK. Reflek
 - **ERPGOLD DB** — canlı SQL: `.\SQLEXPRESS` / `ERPGOLDV2` / `sa`. SADECE OKU (research); çıkanları `.claude/research/<konu>/` altına kaydet.
 
 ## 8) Governance — mekanik konvansiyon ağları (armed)
-Kurallar MEKANİK zorlanır (derleme + test); KIRMIZIYSA kural çiğnenmiş, sessiz geçilemez. İstisna = allow-list/attribute + gerekçe (asla "testi gevşetme" / `#pragma`):
-**Derleme-zamanı (Domain + Domain.Shared — BannedApiAnalyzers RS0030=error + .editorconfig):**
-- `BannedSymbols.txt` (kök): `Guid.NewGuid` (ABP atar) · ham `ArgumentException`/`ArgumentOutOfRangeException`/`InvalidOperationException` ctor'ları (→ BusinessException/tipli) · `Check.NotNullOrWhiteSpace` (→ StringFieldGuard). Kapsam yalnız Domain+Domain.Shared (Blazor'daki DOM-id Guid.NewGuid meşru; Framework/Application → Faz B).
-- Expression-bodied member: kök `.editorconfig` warning, `Domain*/.editorconfig` ERROR (auto-prop + lambda muaf).
-**Test-zamanı (`dotnet test`):**
-- **EntityConventionTests** — entity ctor'unda `Guid id`/`tenantId` YOK (ABP atar); SetActive(bool); ToString override; protected set. Allow-list: VoucherLine/BalanceLedgerEntry.
-- **AppServiceConventionTests** — elle statik entity→DTO mapper YASAK (Mapperly/`ObjectMapper.Map`). İstisna: Voucher.MapLine (kompozit DTO).
-- **NavigationConventionTests** — aggregate'ler arası id-only (XId + aynı adlı nav YASAK; orphan nav YASAK). İstisna: `[AllowNavigation]`.
-- **RazorConventionTests** — yeni .razor'da `@code` YASAK (→ .razor.cs; mevcut 103 dosya allow-list) · markup'ta ad-hoc sembol/emoji ikon YASAK · yeni tam-nitelikli `@inject` YASAK (36 mevcut allow-list).
-- **LocalizationParityTests** — tr/en.json anahtar kümeleri eşit değilse KIRMIZI (`KnownParityGaps`: 32 çevrilmemiş ABP şablon anahtarı; İŞ anahtarı giremez) + öksüz-anahtar uyarı raporu.
+Kurallar MEKANİK zorlanır (derleme + test); KIRMIZIYSA kural çiğnenmiş, sessiz geçilemez. İstisna = allow-list/attribute + gerekçe (asla "testi gevşetme" / `#pragma`). Allow-list'ler ve tam gerekçeler İLGİLİ dosyaların içinde yaşar — burada tekrarlanmaz.
+- **Derleme-zamanı** (yalnız Domain+Domain.Shared; BannedApiAnalyzers RS0030=error): `Guid.NewGuid` · ham .NET exception ctor'ları (→ BusinessException/tipli) · `Check.NotNullOrWhiteSpace` (→ StringFieldGuard) — tam liste kök `BannedSymbols.txt`. Expression-bodied member: kökte warning, `Domain*/.editorconfig` ERROR (auto-prop + lambda muaf).
+- **Test-zamanı:** EntityConventionTests (ctor'da id/tenantId yok · SetActive(bool) · ToString · protected set) · AppServiceConventionTests (elle statik entity→DTO mapper YASAK) · NavigationConventionTests (aggregate'ler arası id-only) · RazorConventionTests (yeni .razor'da `@code` YASAK · ad-hoc sembol/emoji ikon YASAK · yeni tam-nitelikli `@inject` YASAK) · LocalizationParityTests (tr/en anahtar paritesi).
 - Yeni kural çıkınca buraya assert/ban ekle (golden GEÇsin, ihlal KIRMIZI).
 
-## 9) Açık işler (pointer — detay yedekte)
-- **Governance Faz A** (reflection: ToString override · `SetActive(bool)` not Activate/Deactivate · property `protected set`) → **Faz B** (Roslyn analyzer: ham `ArgumentException`→BusinessException, `Check.NotNullOrWhiteSpace`→StringFieldGuard, expression-bodied).
-- **Bullion/Takoz portu:** Assay entity → PT/PD işçilik → motor/poster.
-- **Voucher import:** VoucherLineLog + diğer ProcessType'lar.
+## 9) Açık işler & dokunulmazlar
+- Açık işler listesi: `.claude/research/governance/ACIK-ISLER.md` (Governance Faz A/B · Bullion portu · Voucher import · EditHost boilerplate).
 - **SplitView eski yığını SİLİNMEZ** (`CrudEditComponentBase`/`CrudEditShell`/`{Entity}EditPage` + `SplitCrudView`) — ileride canlandırılacak, dokunma.
 
 ## 10) Subagent orkestrasyonu

@@ -32,14 +32,19 @@
                       RenderStyle="@(UiService.DialogDefaultYes ? ButtonRenderStyle.Primary : ButtonRenderStyle.Secondary)"
                       FocusOnInit="@UiService.DialogDefaultYes"
                       Click="@(() => UiService.CloseDialog(ConfirmDialogResult.Yes))" />
-            <DxButton Text="@(UiService.DialogNoText ?? L["No"])"
-                      RenderStyle="@(UiService.DialogDefaultYes ? ButtonRenderStyle.Secondary : ButtonRenderStyle.Primary)"
-                      FocusOnInit="@(!UiService.DialogDefaultYes)"
-                      Click="@(() => UiService.CloseDialog(ConfirmDialogResult.No))" />
+            @if (UiService.DialogShowNo)
+            {
+                <DxButton Text="@(UiService.DialogNoText ?? L["No"])"
+                          RenderStyle="@(UiService.DialogDefaultYes ? ButtonRenderStyle.Secondary : ButtonRenderStyle.Primary)"
+                          FocusOnInit="@(!UiService.DialogDefaultYes)"
+                          Click="@(() => UiService.CloseDialog(ConfirmDialogResult.No))" />
+            }
             @if (UiService.DialogShowCancel)
             {
+                @* No gizliyken güvenli varsayılan (primary + odak) Vazgeç'tir — silme onayı deseni. *@
                 <DxButton Text="@L["Cancel"]"
-                          RenderStyle="ButtonRenderStyle.Secondary"
+                          RenderStyle="@(!UiService.DialogShowNo && !UiService.DialogDefaultYes ? ButtonRenderStyle.Primary : ButtonRenderStyle.Secondary)"
+                          FocusOnInit="@(!UiService.DialogShowNo && !UiService.DialogDefaultYes)"
                           Click="@(() => UiService.CloseDialog(ConfirmDialogResult.Cancel))" />
             }
         </div>

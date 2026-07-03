@@ -24,7 +24,8 @@
         <GridLinkColumn FieldName="Code" Caption="@L["Code"]" Width="130px" FixedPosition="GridColumnFixedPosition.Left" VisibleIndex="1"
                         OnClick="@(o => BeforeUpdateAsync((MetalListDto)o))" />
         <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" VisibleIndex="1"  MinWidth="200" />
-        <DxGridDataColumn FieldName="FollowingUnitCode" Caption="@L["CurrencyUnit"]" Width="110px" VisibleIndex="2" />
+        <GridLinkColumn FieldName="FollowingUnitCode" Caption="@L["CurrencyUnit"]" Width="110px" VisibleIndex="2"
+                        OnClick="@(o => OpenUnitAsync(((MetalListDto)o).FollowingUnitId, ((MetalListDto)o).FollowingUnitCode))" />
         <DxGridDataColumn FieldName="Factor" Caption="@L["Factor"]" Width="100px" VisibleIndex="3"
                           DisplayFormat="N5" TextAlignment="GridTextAlignment.Right" />
         <DxGridDataColumn FieldName="StableQuantity" Caption="@L["StableQuantity"]" Width="100px" VisibleIndex="4"

@@ -21,12 +21,15 @@ public interface ITradeXpressUiService : IScopedDependency
     string? DialogNoText { get; }
     /// <summary>Cancel butonu gösterilsin mi? false ise iptal görevini yalnız pencerenin çarpısı yapar.</summary>
     bool DialogShowCancel { get; }
-    /// <summary>Varsayılan (primary + odaklı) buton Yes mi? true → Yes, false → No. Silme'de güvenli olan No, dirty'de Kaydet (Yes).</summary>
+    /// <summary>No butonu gösterilsin mi? Silme onayı gibi iki-butonlu ("Sil" + "Vazgeç") diyaloglar false verir.</summary>
+    bool DialogShowNo { get; }
+    /// <summary>Varsayılan (primary + odaklı) buton Yes mi? true → Yes, false → No (No gizliyse Cancel). Silme'de güvenli olan Vazgeç, dirty'de Kaydet (Yes).</summary>
     bool DialogDefaultYes { get; }
 
-    Task<ConfirmDialogResult> ConfirmDeleteAsync(string message, string? title = null);
-    /// <summary>Genel onay diyaloğu — özel buton metinleri, Cancel gizleme ve varsayılan buton seçimiyle.</summary>
-    Task<ConfirmDialogResult> ConfirmAsync(string message, string? title, string? yesText, string? noText, bool showCancel, bool defaultYes = false);
+    /// <summary>Silme onayı: "<paramref name="yesText"/> (Kaydı/Kayıtları Sil)" + "Vazgeç" — No butonu YOK.</summary>
+    Task<ConfirmDialogResult> ConfirmDeleteAsync(string message, string? title = null, string? yesText = null);
+    /// <summary>Genel onay diyaloğu — özel buton metinleri, Cancel/No gizleme ve varsayılan buton seçimiyle.</summary>
+    Task<ConfirmDialogResult> ConfirmAsync(string message, string? title, string? yesText, string? noText, bool showCancel, bool defaultYes = false, bool showNo = true);
     void CloseDialog(ConfirmDialogResult result);
 
     void ShowSuccessToast(string message);

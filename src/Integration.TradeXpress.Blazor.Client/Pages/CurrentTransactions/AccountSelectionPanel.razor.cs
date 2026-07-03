@@ -69,18 +69,28 @@ public partial class AccountSelectionPanel
     private string   _selectedVaultDisplay = string.Empty;
 
     // ── İşlem tipi butonları — yetki gate'i (server-side kontrol VoucherAppService.SaveLineAsync'de tekrarlanır) ──
-    private bool _isGrantedMetal;
-    private bool _isGrantedScrap;
-    private bool _isGrantedCash;
-    private bool _isGrantedConvert;
-    private bool _isGrantedService;
-    private bool _isGrantedFuture;
-    private bool _isGrantedStone;
-    private bool _isGrantedJewelry;
-    private bool _isGrantedBullion;
-    private bool _isGrantedAssay;
-    private bool _isGrantedDebitNote;
-    private bool _isGrantedTransfer;
+    private readonly Dictionary<ProcessType, bool> _grantedProcesses = new();
+
+    // ProcessType → düzenleme paneli getter'ı. Panel @ref alanları render SONRASI dolduğundan
+    // değerler alan referansı değil lambda'dır (çağrı anındaki güncel referans okunur).
+    private readonly Dictionary<ProcessType, Func<IVoucherLineEditPanel?>> _editPanelByType;
+
+    public AccountSelectionPanel()
+    {
+        _editPanelByType = new Dictionary<ProcessType, Func<IVoucherLineEditPanel?>>
+        {
+            [ProcessType.Service]   = () => _servicePanel,
+            [ProcessType.Convert]   = () => _convertPanel,
+            [ProcessType.Future]    = () => _futurePanel,
+            [ProcessType.Scrap]     = () => _scrapPanel,
+            [ProcessType.Metal]     = () => _metalPanel,
+            [ProcessType.Stone]     = () => _stonePanel,
+            [ProcessType.Jewelry]   = () => _jewelryPanel,
+            [ProcessType.Assay]     = () => _assayPanel,
+            [ProcessType.DebitNote] = () => _debitNotePanel,
+            [ProcessType.Transfer]  = () => _transferPanel,
+        };
+    }
 
     private record VoucherComboItem(Guid Id, string VoucherNo, string Date, string VaultDisplay, DateTime VoucherDate, string? Description, string DisplayText, int CurrentTransactionCount);
 
@@ -117,18 +127,23 @@ public partial class AccountSelectionPanel
     /// GÖRÜNMEZ. UI gate'tir; gerçek yetki denetimi server-side'da VoucherAppService.SaveLineAsync'de tekrarlanır.</summary>
     private async Task LoadTransactionPermissionsAsync()
     {
-        _isGrantedMetal   = await AuthorizationService.IsGrantedAsync(TradeXpressPermissions.Transactions.Metal);
-        _isGrantedScrap   = await AuthorizationService.IsGrantedAsync(TradeXpressPermissions.Transactions.Scrap);
-        _isGrantedCash    = await AuthorizationService.IsGrantedAsync(TradeXpressPermissions.Transactions.Cash);
-        _isGrantedConvert = await AuthorizationService.IsGrantedAsync(TradeXpressPermissions.Transactions.Convert);
-        _isGrantedService = await AuthorizationService.IsGrantedAsync(TradeXpressPermissions.Transactions.Service);
-        _isGrantedFuture  = await AuthorizationService.IsGrantedAsync(TradeXpressPermissions.Transactions.Future);
-        _isGrantedStone   = await AuthorizationService.IsGrantedAsync(TradeXpressPermissions.Transactions.Stone);
-        _isGrantedJewelry = await AuthorizationService.IsGrantedAsync(TradeXpressPermissions.Transactions.Jewelry);
-        _isGrantedBullion = await AuthorizationService.IsGrantedAsync(TradeXpressPermissions.Transactions.Bullion);
-        _isGrantedAssay   = await AuthorizationService.IsGrantedAsync(TradeXpressPermissions.Transactions.Assay);
-        _isGrantedDebitNote = await AuthorizationService.IsGrantedAsync(TradeXpressPermissions.Transactions.DebitNote);
-        _isGrantedTransfer  = await AuthorizationService.IsGrantedAsync(TradeXpressPermissions.Transactions.Transfer);
+        foreach (var type in Enum.GetValues<ProcessType>())
+        {
+            _grantedProcesses[type] = await AuthorizationService.IsGrantedAsync(ProcessTypePermissionMap.PermissionFor(type));
+        }
+    }
+
+    /// <summary>İşlem tipi butonunun görünürlüğü (LoadTransactionPermissionsAsync sonucu; yüklenmemişse false).</summary>
+    private bool IsProcessGranted(ProcessType type)
+    {
+        return _grantedProcesses.TryGetValue(type, out var granted) && granted;
+    }
+
+    /// <summary>Cari seçimini dışarıdan temizler — form, aynı cari BAŞKA bir Cari İşlemler sekmesinde
+    /// zaten açıksa seçimi geri alıp o sekmeye geçer (aynı carinin ikinci sekmesi açılmaz).</summary>
+    public async Task ClearSubAccountSelectionAsync()
+    {
+        await OnSubAccountChanged(null);
     }
 
     private async Task OnSubAccountChanged(Guid? subAccountId)
@@ -361,75 +376,40 @@ public partial class AccountSelectionPanel
         StateHasChanged();
     }
 
+    /// <summary>Satırın tipine (Bullion'da yönüne) göre yüklenecek düzenleme panelini döndürür.
+    /// Sözlükte olmayan tipler (Cash dahil) nakit paneline düşer; panel henüz render olmadıysa null.</summary>
+    private IVoucherLineEditPanel? ResolveEditPanel(VoucherLineDto dto)
+    {
+        if (dto.Type == ProcessType.Bullion)
+        {
+            // Takoz: yön'e göre giriş (Inbound) veya çıkış (Outbound) paneli.
+            if (dto.Direction == ProcessDirectionType.Outbound)
+            {
+                return _bullionExitPanel;
+            }
+            return _bullionPanel;
+        }
+
+        if (_editPanelByType.TryGetValue(dto.Type, out var getPanel))
+        {
+            return getPanel();
+        }
+        return _cashPanel;
+    }
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         await base.OnAfterRenderAsync(firstRender);
-        if (_pendingEdit is not { } dto) return;
+        if (_pendingEdit is not { } dto)
+        {
+            return;
+        }
 
-        if (dto.Type == ProcessType.Service && _servicePanel is not null)
+        // Panel henüz render olmadıysa _pendingEdit tüketilmez → sonraki render'da tekrar denenir.
+        if (ResolveEditPanel(dto) is { } panel)
         {
             _pendingEdit = null;
-            await _servicePanel.LoadForEditAsync(dto);
-        }
-        else if (dto.Type == ProcessType.Convert && _convertPanel is not null)
-        {
-            _pendingEdit = null;
-            await _convertPanel.LoadForEditAsync(dto);
-        }
-        else if (dto.Type == ProcessType.Future && _futurePanel is not null)
-        {
-            _pendingEdit = null;
-            await _futurePanel.LoadForEditAsync(dto);
-        }
-        else if (dto.Type == ProcessType.Scrap && _scrapPanel is not null)
-        {
-            _pendingEdit = null;
-            await _scrapPanel.LoadForEditAsync(dto);
-        }
-        else if (dto.Type == ProcessType.Metal && _metalPanel is not null)
-        {
-            _pendingEdit = null;
-            await _metalPanel.LoadForEditAsync(dto);
-        }
-        else if (dto.Type == ProcessType.Stone && _stonePanel is not null)
-        {
-            _pendingEdit = null;
-            await _stonePanel.LoadForEditAsync(dto);
-        }
-        else if (dto.Type == ProcessType.Jewelry && _jewelryPanel is not null)
-        {
-            _pendingEdit = null;
-            await _jewelryPanel.LoadForEditAsync(dto);
-        }
-        else if (dto.Type == ProcessType.Bullion && dto.Direction == ProcessDirectionType.Outbound && _bullionExitPanel is not null)
-        {
-            _pendingEdit = null;
-            await _bullionExitPanel.LoadForEditAsync(dto);
-        }
-        else if (dto.Type == ProcessType.Bullion && dto.Direction != ProcessDirectionType.Outbound && _bullionPanel is not null)
-        {
-            _pendingEdit = null;
-            await _bullionPanel.LoadForEditAsync(dto);
-        }
-        else if (dto.Type == ProcessType.Assay && _assayPanel is not null)
-        {
-            _pendingEdit = null;
-            await _assayPanel.LoadForEditAsync(dto);
-        }
-        else if (dto.Type == ProcessType.DebitNote && _debitNotePanel is not null)
-        {
-            _pendingEdit = null;
-            await _debitNotePanel.LoadForEditAsync(dto);
-        }
-        else if (dto.Type == ProcessType.Transfer && _transferPanel is not null)
-        {
-            _pendingEdit = null;
-            await _transferPanel.LoadForEditAsync(dto);
-        }
-        else if (dto.Type is not ProcessType.Service and not ProcessType.Convert and not ProcessType.Future and not ProcessType.Scrap and not ProcessType.Metal and not ProcessType.Stone and not ProcessType.Jewelry and not ProcessType.Bullion and not ProcessType.Assay and not ProcessType.DebitNote and not ProcessType.Transfer && _cashPanel is not null)
-        {
-            _pendingEdit = null;
-            await _cashPanel.LoadForEditAsync(dto);
+            await panel.LoadForEditAsync(dto);
         }
 
         // Panel yüklendiyse (_pendingEdit tüketildi) görünüme kaydır + ilk input'a odaklan —

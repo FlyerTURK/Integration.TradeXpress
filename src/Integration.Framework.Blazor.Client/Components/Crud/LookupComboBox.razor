@@ -7,6 +7,7 @@
 @using Microsoft.AspNetCore.Components.Forms
 @using Integration.Framework.Blazor.Client.Services.Mdi
 @using Integration.Framework.Blazor.Client.Services.Base
+@using Microsoft.AspNetCore.Authorization
 @inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
 @inject IEntityChangeNotifier EntityChanges
 @inject IViewOpener ViewOpener
@@ -81,6 +82,43 @@
     /// akışıyla AYNI mekanizma (ham DxPopup YOK). Override (OnAdd/OnEditRequested) verilmişse o öncelikli kalır.</summary>
     [Parameter] public Type? EditComponentType { get; set; }
 
+    /// <summary>Add(+) butonunun YETKİ kapısı — host, ilgili Create iznini kontrol edip verir (UI gate;
+    /// gerçek denetim server-side policy'de). Varsayılan true (izin kavramı olmayan lookuplar etkilenmez).</summary>
+    [Parameter] public bool CanAdd { get; set; } = true;
+
+    /// <summary>Edit(✎) butonunun YETKİ kapısı — host, ilgili Update iznini kontrol edip verir.</summary>
+    [Parameter] public bool CanEdit { get; set; } = true;
+
+    /// <summary>Add(+) için izin adı (ör. <c>TradeXpressPermissions.CurrencyUnits.Create</c>) — verilirse
+    /// bileşen kendisi kontrol eder (host'ta elle IsGranted kodu gerekmez). null → kısıt yok.</summary>
+    [Parameter] public string? CreatePolicy { get; set; }
+
+    /// <summary>Edit(✎) için izin adı (ör. <c>...CurrencyUnits.Update</c>). null → kısıt yok.</summary>
+    [Parameter] public string? UpdatePolicy { get; set; }
+
+    // Policy sonuçları cache'lenir (OnParametersSetAsync her render'da koşar; izin adı değişmedikçe sorgulanmaz).
+    private bool _createPolicyGranted = true;
+    private bool _updatePolicyGranted = true;
+    private string? _checkedCreatePolicy;
+    private string? _checkedUpdatePolicy;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await base.OnParametersSetAsync();
+
+        if (!string.Equals(CreatePolicy, _checkedCreatePolicy, StringComparison.Ordinal))
+        {
+            _checkedCreatePolicy = CreatePolicy;
+            _createPolicyGranted = CreatePolicy is null || await AuthorizationService.IsGrantedAsync(CreatePolicy);
+        }
+
+        if (!string.Equals(UpdatePolicy, _checkedUpdatePolicy, StringComparison.Ordinal))
+        {
+            _checkedUpdatePolicy = UpdatePolicy;
+            _updatePolicyGranted = UpdatePolicy is null || await AuthorizationService.IsGrantedAsync(UpdatePolicy);
+        }
+    }
+
     /// <summary>Inline edit veya dış-sekme değişimi sonrası host'tan <see cref="Data"/>'yı yeniden yüklemesini ister
     /// (EntityChange tetikler). Auto-select için reload önce beklenir.</summary>
     [Parameter] public EventCallback OnLookupReloadRequested { get; set; }
@@ -113,11 +151,11 @@
     private bool _effectiveEnabled => Enabled && !FormIsReadOnly;
 
     // Görünürlük (kural): handler override VEYA inline EditForm varsa buton aktiftir.
-    //   Add  → readonly/disabled değilse HER ZAMAN.
-    //   Edit → readonly/disabled değil VE değer (EditValue) dolu iken.
+    //   Add  → readonly/disabled değilse VE CanAdd (yetki kapısı) iken.
+    //   Edit → readonly/disabled değil VE değer (EditValue) dolu VE CanEdit iken.
     private bool _hasEditCapability => EditComponentType is not null;
-    private bool ShowEditButton => (OnEditRequested is not null || _hasEditCapability) && !_effectiveReadOnly && _effectiveEnabled && _hasValue;
-    private bool ShowAddButton => (OnAddRequested is not null || _hasEditCapability) && !_effectiveReadOnly && _effectiveEnabled;
+    private bool ShowEditButton => (OnEditRequested is not null || _hasEditCapability) && CanEdit && _updatePolicyGranted && !_effectiveReadOnly && _effectiveEnabled && _hasValue;
+    private bool ShowAddButton => (OnAddRequested is not null || _hasEditCapability) && CanAdd && _createPolicyGranted && !_effectiveReadOnly && _effectiveEnabled;
 
     // Native clear (DevExpress) — nullable + AllowClear iken Auto (değer varken × görünür), aksi halde Never.
     private DataEditorClearButtonDisplayMode _clearMode =>

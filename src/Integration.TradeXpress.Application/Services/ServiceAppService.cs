@@ -1,138 +1,66 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
+using System.Linq.Expressions;
 using System.Threading.Tasks;
-using Integration.Framework.Base.Querying;
+using Integration.Framework.Application;
+using Integration.TradeXpress.Localization;
 using Microsoft.AspNetCore.Authorization;
-using Volo.Abp;
-using Volo.Abp.Application.Dtos;
-using Volo.Abp.Application.Services;
-using Volo.Abp.Data;
-using Volo.Abp.Domain.Entities;
 using Volo.Abp.Domain.Repositories;
-using Volo.Abp.MultiTenancy;
 
 namespace Integration.TradeXpress.Services;
 
 /// <summary>
-/// Service (Hizmet) CRUD. Görünürlük (Cash gibi): host kataloğu (TenantId=null) herkese görünür +
-/// tenant kendi kayıtlarını görür → multi-tenant filter disable + <c>TenantId == null || == own</c>.
-/// Tenant, global (host) kaydı düzenleyemez/silemez.
+/// Service (Hizmet) CRUD. Görünürlük/guard/picker davranışı <see cref="HostCatalogCrudAppService{TEntity,TGetDto,TListDto,TListRequest,TCreateInput,TUpdateInput}"/>
+/// tabanından gelir: host kataloğu (TenantId=null) herkese görünür + tenant kendi kayıtlarını görür;
+/// tenant global kaydı düzenleyemez/silemez.
 /// </summary>
 [Authorize]
-public class ServiceAppService : TradeXpressAppService, IServiceAppService
+public class ServiceAppService
+    : HostCatalogCrudAppService<Service, ServiceGetDto, ServiceListDto, ServiceListRequestDto, ServiceCreateDto, ServiceUpdateDto>,
+      IServiceAppService
 {
-    private readonly IRepository<Service, Guid> _repository;
-    private readonly IDataFilter _dataFilter;
-
-    private static readonly HashSet<string> AllowedListFields =
-        new(StringComparer.OrdinalIgnoreCase) { "Code", "Name", "IsActive", "Id" };
-
-    public ServiceAppService(IRepository<Service, Guid> repository, IDataFilter dataFilter)
+    public ServiceAppService(IRepository<Service, Guid> repository)
+        : base(repository)
     {
-        _repository = repository;
-        _dataFilter = dataFilter;
+        LocalizationResource = typeof(TradeXpressResource);
     }
 
-    public virtual async Task<PagedResultDto<ServiceListDto>> GetListAsync(ServiceListRequestDto input)
+    protected override ISet<string> AllowedListFields { get; } =
+        new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "Code", "Name", "IsActive", "Id" };
+
+    protected override string EditGlobalErrorCode
     {
-        using (_dataFilter.Disable<IMultiTenant>())
-        {
-            var tenantId = CurrentTenant.Id;
-            var query = (await _repository.GetQueryableAsync())
-                .Where(x => x.TenantId == null || x.TenantId == tenantId)
-                .ApplyListRequest(input, AllowedListFields);
-
-            var totalCount = await AsyncExecuter.CountAsync(query);
-            var items = await AsyncExecuter.ToListAsync(query.Skip(input.SkipCount).Take(input.MaxResultCount));
-
-            return new PagedResultDto<ServiceListDto>(totalCount, items.Select(MapList).ToList());
-        }
+        get { return "TradeXpress:Service:CannotEditGlobalAsTenant"; }
     }
 
-    public virtual async Task<ServiceGetDto> GetAsync(Guid id) => MapGet(await GetInScopeAsync(id));
-
-    public virtual async Task<ServiceGetDto> CreateAsync(ServiceCreateDto input)
+    protected override string DeleteGlobalErrorCode
     {
-        var entity = new Service(input.Code, input.Name);   // TenantId otomatik (host→null, tenant→kendi)
-        entity.SetDescription(input.Description);
-
-        await _repository.InsertAsync(entity, autoSave: true);
-        return MapGet(entity);
+        get { return "TradeXpress:Service:CannotDeleteGlobalAsTenant"; }
     }
 
-    public virtual async Task<ServiceGetDto> UpdateAsync(Guid id, ServiceUpdateDto input)
+    protected override Expression<Func<Service, string>> PickerOrderSelector
     {
-        var entity = await GetInScopeAsync(id);
-        EnsureEditable(entity);
-
-        entity.SetName(input.Name);
-        entity.SetDescription(input.Description);
-        entity.SetActive(input.IsActive);
-
-        await _repository.UpdateAsync(entity, autoSave: true);
-        return MapGet(entity);
+        get { return x => x.Code; }
     }
 
-    public virtual async Task DeleteAsync(Guid id)
+    public virtual Task<List<ServiceListDto>> GetPickerListAsync()
     {
-        var entity = await GetInScopeAsync(id);
-        EnsureEditable(entity, isDelete: true);
-
-        await _repository.DeleteAsync(entity, autoSave: true);
+        return GetPickerListCoreAsync();
     }
 
-    public virtual async Task<List<ServiceListDto>> GetPickerListAsync()
+    protected override Task<Service> MapToEntityAsync(ServiceCreateDto createInput)
     {
-        using (_dataFilter.Disable<IMultiTenant>())
-        {
-            var tenantId = CurrentTenant.Id;
-            var rows = await AsyncExecuter.ToListAsync(
-                (await _repository.GetQueryableAsync())
-                    .Where(x => x.TenantId == null || x.TenantId == tenantId)
-                    .OrderBy(x => x.Code));
-
-            return rows.Select(MapList).ToList();
-        }
+        // TenantId otomatik (host→null, tenant→kendi); zengin ctor + SetX.
+        var entity = new Service(createInput.Code, createInput.Name);
+        entity.SetDescription(createInput.Description);
+        return Task.FromResult(entity);
     }
 
-    // ── helpers ───────────────────────────────────────────────────────────────
-
-    private async Task<Service> GetInScopeAsync(Guid id)
+    protected override Task MapToEntityAsync(ServiceUpdateDto updateInput, Service entity)
     {
-        using (_dataFilter.Disable<IMultiTenant>())
-        {
-            var tenantId = CurrentTenant.Id;
-            var entity = await AsyncExecuter.FirstOrDefaultAsync(
-                (await _repository.GetQueryableAsync())
-                    .Where(x => x.Id == id && (x.TenantId == null || x.TenantId == tenantId)));
-
-            return entity ?? throw new EntityNotFoundException(typeof(Service), id);
-        }
-    }
-
-    private void EnsureEditable(Service entity, bool isDelete = false)
-    {
-        if (entity.TenantId == null && CurrentTenant.Id != null)
-        {
-            throw new BusinessException(isDelete
-                ? "TradeXpress:Service:CannotDeleteGlobalAsTenant"
-                : "TradeXpress:Service:CannotEditGlobalAsTenant");
-        }
-    }
-
-    // Mapperly + IsGlobal enrichment (TenantId==null). Instance (statik DEĞİL → ObjectMapper kullanır, net'i tetiklemez).
-    private ServiceListDto MapList(Service s)
-    {
-        var dto = ObjectMapper.Map<Service, ServiceListDto>(s);
-        dto.IsGlobal = s.TenantId == null;
-        return dto;
-    }
-
-    private ServiceGetDto MapGet(Service s)
-    {
-        var dto = ObjectMapper.Map<Service, ServiceGetDto>(s);
-        dto.IsGlobal = s.TenantId == null;
-        return dto;
+        entity.SetName(updateInput.Name);
+        entity.SetDescription(updateInput.Description);
+        entity.SetActive(updateInput.IsActive);
+        return Task.CompletedTask;
     }
 }

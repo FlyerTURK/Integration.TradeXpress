@@ -9,7 +9,7 @@ namespace Integration.TradeXpress.Financials.Parities;
 /// IsActive/DisplayOrder güncellenir. <see cref="BaseCode"/>/<see cref="QuoteCode"/> AppService'te
 /// referans birimlerden zenginleştirilir (yapısal başlık L2 = "BASE/QUOTE").
 /// </summary>
-public class ParityGetDto : EntityDto<Guid>, IGetDto<Guid>
+public class ParityGetDto : EntityDto<Guid>, IGetDto<Guid>, IHostScoped
 {
     public Guid BaseCurrencyUnitId { get; set; }
     public string BaseCode { get; set; } = string.Empty;

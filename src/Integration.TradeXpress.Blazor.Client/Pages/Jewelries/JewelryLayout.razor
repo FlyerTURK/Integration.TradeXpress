@@ -2,6 +2,7 @@
 @using System.Collections.Generic
 @using Integration.TradeXpress.Jewelries
 @using Integration.TradeXpress.Financials.CurrencyUnits
+@using Integration.TradeXpress.Permissions
 @using Integration.Framework.Blazor.Client.Components.Crud
 @using DevExpress.Blazor
 @using Microsoft.Extensions.Localization
@@ -41,7 +42,9 @@
         <DxFormLayoutItem Caption="@L["CurrencyUnit"]" ColSpanMd="2">
             <LookupComboBox TItem="CurrencyUnitListDto" TValue="Guid?" Data="@CurrencyUnits"
                             ValueFieldName="@nameof(CurrencyUnitListDto.Id)" TextFieldName="@nameof(CurrencyUnitListDto.Code)"
-                            @bind-Value="@Model.EntryPriceUnitId" NullText="@L["Select"].Value" />
+                            @bind-Value="@Model.EntryPriceUnitId" NullText="@L["Select"].Value"
+                            CreatePolicy="@TradeXpressPermissions.CurrencyUnits.Create"
+                            UpdatePolicy="@TradeXpressPermissions.CurrencyUnits.Update" />
         </DxFormLayoutItem>
         <DxFormLayoutItem Caption="@L["ExitPrice"]" ColSpanMd="4">
             <DxSpinEdit @bind-Value="@Model.ExitPrice" DisplayFormat="N2" ShowSpinButtons="false" CssClass="w-100" />
@@ -49,7 +52,9 @@
         <DxFormLayoutItem Caption="@L["CurrencyUnit"]" ColSpanMd="2">
             <LookupComboBox TItem="CurrencyUnitListDto" TValue="Guid?" Data="@CurrencyUnits"
                             ValueFieldName="@nameof(CurrencyUnitListDto.Id)" TextFieldName="@nameof(CurrencyUnitListDto.Code)"
-                            @bind-Value="@Model.ExitPriceUnitId" NullText="@L["Select"].Value" />
+                            @bind-Value="@Model.ExitPriceUnitId" NullText="@L["Select"].Value"
+                            CreatePolicy="@TradeXpressPermissions.CurrencyUnits.Create"
+                            UpdatePolicy="@TradeXpressPermissions.CurrencyUnits.Update" />
         </DxFormLayoutItem>
     </DxFormLayoutGroup>
 

@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.WebUtilities;
 
-namespace Integration.TradeXpress.Blazor.Client.Extensions;
+namespace Integration.Framework.Blazor.Client.Extensions;
 
 /// <summary>
 /// <see cref="NavigationManager"/> için query-string yardımcıları.

@@ -20,7 +20,7 @@ public class ServiceListDto : EntityDto<Guid>, IListDto<Guid>, IIsActive, IHostS
     public bool IsGlobal { get; set; }
 }
 
-public class ServiceGetDto : EntityDto<Guid>, IGetDto<Guid>, IHasCode
+public class ServiceGetDto : EntityDto<Guid>, IGetDto<Guid>, IHasCode, IHostScoped
 {
     [Required]
     [StringLength(ServiceConsts.CodeMaxLength, MinimumLength = EntityFieldConsts.CodeMinLength)]

@@ -2,6 +2,7 @@
 @using System.Collections.Generic
 @using Integration.TradeXpress.Futures
 @using Integration.TradeXpress.Financials.CurrencyUnits
+@using Integration.TradeXpress.Permissions
 @using Integration.Framework.Blazor.Client.Components.Crud
 @using DevExpress.Blazor
 @using Microsoft.Extensions.Localization
@@ -27,7 +28,9 @@
                             @bind-Value="@Model.FollowingUnitId"
                             SearchFilterCondition="ListSearchFilterCondition.Contains"
                             NullText="@L["Select"].Value"
-                            OnEditRequested="@OnEditFollowingUnit" />
+                            OnEditRequested="@OnEditFollowingUnit"
+                            CreatePolicy="@TradeXpressPermissions.CurrencyUnits.Create"
+                            UpdatePolicy="@TradeXpressPermissions.CurrencyUnits.Update" />
         </DxFormLayoutItem>
         <DxFormLayoutItem Caption="@($"{L["Factor"]} *")" ColSpanMd="6">
             <DxSpinEdit @bind-Value="@Model.FollowingFactor" DisplayFormat="N5" ShowSpinButtons="false" CssClass="w-100" />

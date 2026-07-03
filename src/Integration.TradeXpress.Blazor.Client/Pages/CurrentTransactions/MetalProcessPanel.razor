@@ -1,3 +1,5 @@
+@using Integration.Framework.Blazor.Client.Components.Crud
+@implements IVoucherLineEditPanel
 @inject IStringLocalizer<TradeXpressResource> L
 @inject Integration.TradeXpress.Metals.IMetalAppService MetalService
 @inject Integration.TradeXpress.Cashes.ICashAppService CashService
@@ -42,14 +44,18 @@
                 @* CommodityId — iki kat genişlik (240px) *@
                 <div style="@GroupStyle(240)">
                     <small style="@LabelStyle">@nameof(VoucherLineDto.CommodityId)</small>
-                    <DxComboBox TData="Integration.TradeXpress.Metals.MetalListDto" TValue="Guid?"
-                                Data="@_activeMetals"
-                                ValueFieldName="@nameof(Integration.TradeXpress.Metals.MetalListDto.Id)"
-                                TextFieldName="@nameof(Integration.TradeXpress.Metals.MetalListDto.Code)"
-                                Value="@_model.CommodityId" ValueChanged="@OnMetalChanged"
-                                DropDownTriggerMode="DropDownTriggerMode.Click" ShowDropDownButton="true"
-                                ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Never"
-                                SearchMode="ListSearchMode.AutoSearch" style="@ControlStyle(240)" />
+                    @* Standart lookup: ✎/+ butonları Metals Update/Create iznine bağlı; add/edit MetalEditHost
+                       popup'ıyla açılır, kayıt sonrası liste EntityChange ile tazelenip yeni kayıt auto-select olur. *@
+                    <LookupComboBox TItem="Integration.TradeXpress.Metals.MetalListDto" TValue="Guid?"
+                                    Data="@_activeMetals"
+                                    ValueFieldName="@nameof(Integration.TradeXpress.Metals.MetalListDto.Id)"
+                                    TextFieldName="@nameof(Integration.TradeXpress.Metals.MetalListDto.Code)"
+                                    Value="@_model.CommodityId" ValueChanged="@((Guid? v) => OnMetalChanged(v))"
+                                    AllowClear="false"
+                                    EditComponentType="typeof(Integration.TradeXpress.Blazor.Client.Pages.Metals.MetalEditHost)"
+                                    CreatePolicy="@Integration.TradeXpress.Permissions.TradeXpressPermissions.Metals.Create"
+                                    UpdatePolicy="@Integration.TradeXpress.Permissions.TradeXpressPermissions.Metals.Update"
+                                    OnLookupReloadRequested="@ReloadMetalsAsync" />
                 </div>
 
                 @if (_showAdet)
@@ -239,8 +245,7 @@
             new(ProcessPaymentType.Return,       L["Enum:ProcessPaymentType:Return"].Value),
             new(ProcessPaymentType.Consignment,  L["Enum:ProcessPaymentType:Consignment"].Value),
         };
-        _allMetals = await MetalService.GetPickerListAsync();
-        _activeMetals = _allMetals.Where(m => m.IsActive).ToList();
+        await ReloadMetalsAsync();
 
         var cashResult = await CashService.GetListAsync(new Integration.TradeXpress.Cashes.CashListRequestDto { MaxResultCount = 1000 });
         _allCashes = cashResult.Items.ToList();
@@ -260,6 +265,18 @@
 
         if (!_editLoaded && _activeMetals.Count > 0)   // edit yükleniyorsa default metal SEÇME (loaded değerleri ezmesin)
             OnMetalChanged(_activeMetals[0].Id);
+    }
+
+    /// <summary>Maden listesini (lookup verisi) yükler/tazeler — combo, LISTELEME GRIDIYLE AYNI sırada:
+    /// Kod artan (kullanıcı kararı; picker'ın birim-düzeni sırası değil). Lookup'tan ekle/düzelt sonrası
+    /// EntityChange bu metodu yeniden çağırır.</summary>
+    private async Task ReloadMetalsAsync()
+    {
+        _allMetals = await MetalService.GetPickerListAsync();
+        _activeMetals = _allMetals
+            .Where(m => m.IsActive)
+            .OrderBy(m => m.Code, StringComparer.OrdinalIgnoreCase)
+            .ToList();
     }
 
     private decimal BuyOf(Guid id) => _buyByUnit.GetValueOrDefault(id);

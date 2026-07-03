@@ -3,6 +3,7 @@
 @using Integration.TradeXpress.Companies
 @using Integration.TradeXpress.Countries
 @using Integration.TradeXpress.Financials.CurrencyUnits
+@using Integration.TradeXpress.Permissions
 @using Integration.Framework.Blazor.Client.Components.Crud
 @using DevExpress.Blazor
 @using Microsoft.Extensions.Localization
@@ -31,7 +32,9 @@
                             AllowClear="false"
                             NullText="@L["Country"].Value"
                             OnAddRequested="@OnAddCountry"
-                            OnEditRequested="@OnEditCountry" />
+                            OnEditRequested="@OnEditCountry"
+                            CreatePolicy="@TradeXpressPermissions.Countries.Create"
+                            UpdatePolicy="@TradeXpressPermissions.Countries.Update" />
         </DxFormLayoutItem>
         <DxFormLayoutItem ColSpanMd="6">
             <CaptionTemplate>
@@ -46,7 +49,9 @@
                                 TextFieldName="@nameof(CurrencyUnitListDto.Code)"
                                 @bind-Value="@Model.BaseCurrencyUnitId"
                                 OnAddRequested="@OnAddCurrency"
-                                OnEditRequested="@OnEditCurrency" />
+                                OnEditRequested="@OnEditCurrency"
+                                CreatePolicy="@TradeXpressPermissions.CurrencyUnits.Create"
+                                UpdatePolicy="@TradeXpressPermissions.CurrencyUnits.Update" />
             </Template>
         </DxFormLayoutItem>
         @* Şirketin kendi merkez switch'i — Enabled host'tan (standalone: snapshot; tenant düğümü: canlı self-hariç). *@

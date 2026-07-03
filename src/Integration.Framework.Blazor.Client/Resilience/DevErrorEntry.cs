@@ -1,6 +1,6 @@
 using System;
 
-namespace Integration.TradeXpress.Blazor.Client.Dev;
+namespace Integration.Framework.Blazor.Client.Resilience;
 
 /// <summary>
 /// Developer Error Panel'de gösterilen tek bir yakalanmış hata kaydı.

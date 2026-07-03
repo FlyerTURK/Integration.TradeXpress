@@ -18,7 +18,7 @@ namespace Integration.TradeXpress.Blazor.Client.Pages.CurrentTransactions;
 /// Türeyen sınıf markup'sızdır (BuildRenderTree devralınır); yalnız işlem tipini, panel başlık anahtarını
 /// ve emtia picker servisini sağlar.
 /// </summary>
-public abstract partial class CommodityProcessPanelBase<TListDto> where TListDto : class, IPricedCommodityListDto
+public abstract partial class CommodityProcessPanelBase<TListDto> : IVoucherLineEditPanel where TListDto : class, IPricedCommodityListDto
 {
     [Inject] protected IStringLocalizer<TradeXpressResource> L { get; set; } = default!;
     [Inject] private ICashAppService CashService { get; set; } = default!;

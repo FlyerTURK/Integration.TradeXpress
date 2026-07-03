@@ -84,6 +84,16 @@ public static class TradeXpressPermissions
         public const string Delete  = Default + ".Delete";
     }
 
+    /// <summary>Maden KATALOĞU yönetimi (işlem yetkisi DEĞİL — o <see cref="Transactions.Metal"/>).
+    /// Liste/okuma serbest ([Authorize]); Create/Update/Delete izinlidir (combo ✎/+ görünürlüğü de buna bakar).</summary>
+    public static class Metals
+    {
+        public const string Default = GroupName + ".Metals";
+        public const string Create  = Default + ".Create";
+        public const string Update  = Default + ".Update";
+        public const string Delete  = Default + ".Delete";
+    }
+
     public static class Accounts
     {
         public const string Default = GroupName + ".Accounts";

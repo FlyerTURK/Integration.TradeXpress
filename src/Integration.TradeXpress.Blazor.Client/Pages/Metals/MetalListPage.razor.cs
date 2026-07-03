@@ -18,6 +18,20 @@ public partial class MetalListPage
     [Microsoft.AspNetCore.Components.Inject]
     protected Integration.TradeXpress.Blazor.Client.Services.Mdi.ITabManager TabManager { get; set; } = default!;
 
+    /// <summary>Takip edilen para birimi linki → o birimin edit'ini MDI sekmesinde aç (yoksa no-op).</summary>
+    private async Task OpenUnitAsync(Guid? unitId, string? code)
+    {
+        if (unitId is not { } id || id == Guid.Empty)
+        {
+            return;
+        }
+
+        await TabManager.OpenOrActivateAsync(
+            $"/currencies/currency-units/{id}",
+            $"{L["CurrencyUnit"]}: {code}",
+            TradeXpressIcons.CurrencyUnit);
+    }
+
     public override Volo.Abp.Application.Services.ICrudAppService<
         MetalGetDto, MetalListDto, Guid,
         MetalListRequestDto, MetalCreateDto, MetalUpdateDto> CrudAppService

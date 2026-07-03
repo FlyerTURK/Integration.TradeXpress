@@ -304,7 +304,12 @@ public abstract class CrudPageBase<TGetDto, TListDto, TKey, TListRequestDto, TCr
             ? L["AreYouSureToDelete"]
             : string.Format(L["AreYouSureToDeleteMultiple"], selectedItems.Count);
 
-        var dialogResult = await UiService.ConfirmDeleteAsync(confirmMessage);
+        // İki butonlu onay: "Kaydı Sil / Kayıtları Sil" + "Vazgeç" (No yok; güvenli varsayılan Vazgeç).
+        string deleteButtonText = selectedItems.Count == 1
+            ? L["DeleteRecordButton"]
+            : L["DeleteRecordsButton"];
+
+        var dialogResult = await UiService.ConfirmDeleteAsync(confirmMessage, yesText: deleteButtonText);
         if (dialogResult != ConfirmDialogResult.Yes)
         {
             return;

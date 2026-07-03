@@ -7,9 +7,6 @@ using Integration.TradeXpress.Companies;
 using Integration.TradeXpress.Countries;
 using Integration.TradeXpress.Branches;
 using Integration.TradeXpress.Vaults;
-using Integration.TradeXpress.Blazor.Client.Pages.TenantManagement.Models;
-using Integration.TradeXpress.Blazor.Client.Pages.Financials.CurrencyUnits.Models;
-using Integration.TradeXpress.Blazor.Client.Pages.Companies.Models;
 using Integration.TradeXpress.Blazor.Client.Pages.Countries.Models;
 using Integration.TradeXpress.Blazor.Client.Pages.Vaults.Models;
 using Integration.TradeXpress.Blazor.Client.Pages.Admin.Models;
@@ -28,27 +25,7 @@ public partial class TenantGetDtoToTenantListDtoMapper : MapperBase<TenantGetDto
 }
 
 // ── CurrencyUnit (tüm alanlar düz; ad eşleşmesiyle map'lenir) ───────────────────
-
-[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
-public partial class CurrencyUnitViewModelToCreateDtoMapper : MapperBase<CurrencyUnitViewModel, CurrencyUnitCreateDto>
-{
-    public override partial CurrencyUnitCreateDto Map(CurrencyUnitViewModel source);
-    public override partial void Map(CurrencyUnitViewModel source, CurrencyUnitCreateDto destination);
-}
-
-[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
-public partial class CurrencyUnitViewModelToUpdateDtoMapper : MapperBase<CurrencyUnitViewModel, CurrencyUnitUpdateDto>
-{
-    public override partial CurrencyUnitUpdateDto Map(CurrencyUnitViewModel source);
-    public override partial void Map(CurrencyUnitViewModel source, CurrencyUnitUpdateDto destination);
-}
-
-[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
-public partial class CurrencyUnitGetDtoToViewModelMapper : MapperBase<CurrencyUnitGetDto, CurrencyUnitViewModel>
-{
-    public override partial CurrencyUnitViewModel Map(CurrencyUnitGetDto source);
-    public override partial void Map(CurrencyUnitGetDto source, CurrencyUnitViewModel destination);
-}
+// ViewModel mapper'ları kaldırıldı — edit formu GetDto'ya doğrudan bind ediliyor.
 
 [Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
 public partial class CurrencyUnitGetDtoToListDtoMapper : MapperBase<CurrencyUnitGetDto, CurrencyUnitListDto>
@@ -61,27 +38,7 @@ public partial class CurrencyUnitGetDtoToListDtoMapper : MapperBase<CurrencyUnit
 // Sayfa doğrudan ICurrencyUnitMarginAppService (GetList/Set/History) kullanır.
 
 // ── Company (düz alanlar) ───────────────────────────────────────────────────────
-
-[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
-public partial class CompanyVmToCreateDtoMapper : MapperBase<CompanyViewModel, CompanyCreateDto>
-{
-    public override partial CompanyCreateDto Map(CompanyViewModel source);
-    public override partial void Map(CompanyViewModel source, CompanyCreateDto destination);
-}
-
-[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
-public partial class CompanyVmToUpdateDtoMapper : MapperBase<CompanyViewModel, CompanyUpdateDto>
-{
-    public override partial CompanyUpdateDto Map(CompanyViewModel source);
-    public override partial void Map(CompanyViewModel source, CompanyUpdateDto destination);
-}
-
-[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
-public partial class CompanyGetDtoToVmMapper : MapperBase<CompanyGetDto, CompanyViewModel>
-{
-    public override partial CompanyViewModel Map(CompanyGetDto source);
-    public override partial void Map(CompanyGetDto source, CompanyViewModel destination);
-}
+// ViewModel mapper'ları kaldırıldı — edit formu GetDto'ya doğrudan bind ediliyor.
 
 [Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
 public partial class CompanyGetDtoToListDtoMapper : MapperBase<CompanyGetDto, CompanyListDto>

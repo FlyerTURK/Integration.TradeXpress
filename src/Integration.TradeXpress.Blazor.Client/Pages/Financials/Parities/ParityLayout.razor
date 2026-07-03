@@ -3,6 +3,7 @@
 @using System.Collections.Generic
 @using Integration.TradeXpress.Financials.Parities
 @using Integration.TradeXpress.Financials.CurrencyUnits
+@using Integration.TradeXpress.Permissions
 @using Integration.Framework.Blazor.Client.Components.Crud
 @using DevExpress.Blazor
 @using Microsoft.Extensions.Localization
@@ -21,7 +22,9 @@
                         TextFieldName="@nameof(CurrencyUnitListDto.Code)"
                         @bind-Value="@Model.BaseCurrencyUnitId"
                         Enabled="@IsNew"
-                        NullText="@L["Select"].Value" />
+                        NullText="@L["Select"].Value"
+                        CreatePolicy="@TradeXpressPermissions.CurrencyUnits.Create"
+                        UpdatePolicy="@TradeXpressPermissions.CurrencyUnits.Update" />
     </DxFormLayoutItem>
     <DxFormLayoutItem Caption="@($"{L["Quote"]} *")" ColSpanMd="6">
         <LookupComboBox TItem="CurrencyUnitListDto" TValue="Guid"
@@ -30,7 +33,9 @@
                         TextFieldName="@nameof(CurrencyUnitListDto.Code)"
                         @bind-Value="@Model.QuoteCurrencyUnitId"
                         Enabled="@IsNew"
-                        NullText="@L["Select"].Value" />
+                        NullText="@L["Select"].Value"
+                        CreatePolicy="@TradeXpressPermissions.CurrencyUnits.Create"
+                        UpdatePolicy="@TradeXpressPermissions.CurrencyUnits.Update" />
     </DxFormLayoutItem>
 
     <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6">

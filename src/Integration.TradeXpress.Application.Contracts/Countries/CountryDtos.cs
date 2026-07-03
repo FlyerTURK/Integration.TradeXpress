@@ -23,7 +23,7 @@ public class CountryListDto : EntityDto<Guid>, IListDto<Guid>, IIsActive, IHostS
     public bool IsGlobal { get; set; }
 }
 
-public class CountryGetDto : EntityDto<Guid>, IGetDto<Guid>
+public class CountryGetDto : EntityDto<Guid>, IGetDto<Guid>, IHostScoped
 {
     // Client validasyonu modelin ÜZERİNDE (agnostic Form, LocalizedDataAnnotationsValidator ile doğrular).
     // Server-input doğrulaması Create/Update DTO'larında kalır. Create/Update ile aynı kurallar.

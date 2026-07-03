@@ -14,6 +14,7 @@ public class TradeXpressUiService : ITradeXpressUiService, IScopedDependency
     public string? DialogYesText { get; private set; }
     public string? DialogNoText { get; private set; }
     public bool DialogShowCancel { get; private set; } = true;
+    public bool DialogShowNo { get; private set; } = true;
     public bool DialogDefaultYes { get; private set; }
 
     private TaskCompletionSource<ConfirmDialogResult>? _dialogTcs;
@@ -23,10 +24,13 @@ public class TradeXpressUiService : ITradeXpressUiService, IScopedDependency
         _toastNotificationService = toastNotificationService;
     }
 
-    public Task<ConfirmDialogResult> ConfirmDeleteAsync(string message, string? title = null)
-        => ConfirmAsync(message, title, yesText: null, noText: null, showCancel: true, defaultYes: false);
+    public Task<ConfirmDialogResult> ConfirmDeleteAsync(string message, string? title = null, string? yesText = null)
+    {
+        // Silme onayı iki butonlu: "{Kaydı/Kayıtları} Sil" + "Vazgeç" (No YOK) — güvenli varsayılan Vazgeç.
+        return ConfirmAsync(message, title, yesText, noText: null, showCancel: true, defaultYes: false, showNo: false);
+    }
 
-    public Task<ConfirmDialogResult> ConfirmAsync(string message, string? title, string? yesText, string? noText, bool showCancel, bool defaultYes = false)
+    public Task<ConfirmDialogResult> ConfirmAsync(string message, string? title, string? yesText, string? noText, bool showCancel, bool defaultYes = false, bool showNo = true)
     {
         // Cancel previous if any
         _dialogTcs?.TrySetResult(ConfirmDialogResult.Cancel);
@@ -37,6 +41,7 @@ public class TradeXpressUiService : ITradeXpressUiService, IScopedDependency
         DialogYesText = yesText;
         DialogNoText = noText;
         DialogShowCancel = showCancel;
+        DialogShowNo = showNo;
         DialogDefaultYes = defaultYes;
         IsDialogVisible = true;
 

@@ -34,7 +34,7 @@ public class JewelryListDto : EntityDto<Guid>, IListDto<Guid>, IIsActive, IHostS
     public bool IsGlobal { get; set; }
 }
 
-public class JewelryGetDto : EntityDto<Guid>, IGetDto<Guid>, IHasCode
+public class JewelryGetDto : EntityDto<Guid>, IGetDto<Guid>, IHasCode, IHostScoped
 {
     [Required]
     [StringLength(JewelryConsts.CodeMaxLength, MinimumLength = EntityFieldConsts.CodeMinLength)]

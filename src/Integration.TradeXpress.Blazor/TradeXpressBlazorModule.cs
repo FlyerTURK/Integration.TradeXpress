@@ -96,6 +96,21 @@ public class TradeXpressBlazorModule : AbpModule
     {
         var configuration = context.Services.GetConfiguration();
 
+        // Sıra korunur (bazı kayıtlar "son kayıt kazanır" / options sırasına duyarlı olabilir).
+        ConfigureRazorComponentsAndUi(context);
+        ConfigureAuthentication(context);
+        ConfigureAppUrls(configuration);
+        ConfigureAutoApiControllers();
+        ConfigureNavigation(configuration);
+        ConfigureLocalization();
+        ConfigureLoginPage(context);
+        ConfigureClientServices(context);
+        RegisterClientMapperlyMappers(context);
+    }
+
+    /// <summary>Razor Components (Server+WASM hibrit) + DevExpress + framework CRUD taban ayarları.</summary>
+    private void ConfigureRazorComponentsAndUi(ServiceConfigurationContext context)
+    {
         // Framework CRUD bileşenleri (CrudComponentBase) constructor'da
         // LocalizationResource atıyor — Server modunda da resource'u set et.
         Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase.DefaultLocalizationResource
@@ -120,34 +135,58 @@ public class TradeXpressBlazorModule : AbpModule
         context.Services.AddDevExpressBlazor(options => {
             options.SizeMode = DevExpress.Blazor.SizeMode.Medium;
         });
+    }
 
+    /// <summary>Bearer yönlendirmesi (OpenIddict) + dinamik claim üretimi.</summary>
+    private void ConfigureAuthentication(ServiceConfigurationContext context)
+    {
         context.Services.ForwardIdentityAuthenticationForBearer(OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme);
         context.Services.Configure<AbpClaimsPrincipalFactoryOptions>(options =>
         {
             options.IsDynamicClaimsEnabled = true;
         });
+    }
 
+    /// <summary>Uygulama kök URL'i + izinli redirect listesi.</summary>
+    private void ConfigureAppUrls(IConfiguration configuration)
+    {
         Configure<AppUrlOptions>(options =>
         {
             options.Applications["MVC"].RootUrl = configuration["App:SelfUrl"];
             options.RedirectAllowedUrls.AddRange(configuration["App:RedirectAllowedUrls"]?.Split(',') ?? Array.Empty<string>());
         });
+    }
 
+    /// <summary>Application katmanından otomatik API controller üretimi.</summary>
+    private void ConfigureAutoApiControllers()
+    {
         Configure<AbpAspNetCoreMvcOptions>(options =>
         {
             options.ConventionalControllers.Create(typeof(TradeXpressApplicationModule).Assembly);
         });
+    }
 
+    /// <summary>Sol menü katkıcısı.</summary>
+    private void ConfigureNavigation(IConfiguration configuration)
+    {
         Configure<AbpNavigationOptions>(options =>
         {
             options.MenuContributors.Add(new Integration.TradeXpress.Blazor.Client.Navigation.TradeXpressMenuContributor(configuration));
         });
+    }
 
+    /// <summary>Varsayılan lokalizasyon kaynağı.</summary>
+    private void ConfigureLocalization()
+    {
         Configure<AbpLocalizationOptions>(options =>
         {
             options.DefaultResourceType = typeof(TradeXpressResource);
         });
+    }
 
+    /// <summary>ABP'nin yerleşik login Razor Page'i kapatılır; challenge'lar Blazor login sayfasına yönlenir.</summary>
+    private void ConfigureLoginPage(ServiceConfigurationContext context)
+    {
         // Suppress ABP's built-in /Account/Login Razor Page so our Blazor component owns the route.
         context.Services.Configure<Microsoft.AspNetCore.Mvc.RazorPages.RazorPagesOptions>(options =>
         {
@@ -160,7 +199,12 @@ public class TradeXpressBlazorModule : AbpModule
         {
             options.LoginPath = "/account/login";
         });
+    }
 
+    /// <summary>Client (WASM) modülündeki servislerin server DI'ına ELLE kaydı — client modülü server'ın
+    /// DependsOn zincirinde olmadığından auto-scan/conventional registration burada çalışmaz.</summary>
+    private void ConfigureClientServices(ServiceConfigurationContext context)
+    {
         // Server render mode için servisler (WASM modülünde browser DI'da kayıtlı,
         // Server modunda host DI'da kayıtlı olması gerekiyor).
         // RouteResolver: durumsuzdur → Singleton OK.
@@ -174,7 +218,7 @@ public class TradeXpressBlazorModule : AbpModule
                                     Integration.TradeXpress.Blazor.Client.Services.Mdi.TabManager>();
         context.Services.AddScoped<Integration.Framework.Blazor.Client.Services.Mdi.IMdiTabOpener>(
             sp => (Integration.TradeXpress.Blazor.Client.Services.Mdi.TabManager)sp.GetRequiredService<Integration.TradeXpress.Blazor.Client.Services.Mdi.ITabManager>());
-        context.Services.AddScoped<Integration.TradeXpress.Blazor.Client.Dev.DevErrorSink>();
+        context.Services.AddScoped<Integration.Framework.Blazor.Client.Resilience.DevErrorSink>();
 
         // EntityProfile'lar (kimlik tek-kaynak; Faz 1 pilot Vault + parent Branch). Registry framework modülünde
         // (DependsOn'da) kayıtlı; profiller client modülde → server DependsOn zincirinde DEĞİL → ELLE kaydet,
@@ -232,12 +276,10 @@ public class TradeXpressBlazorModule : AbpModule
                                       Integration.TradeXpress.Blazor.Client.Services.TradeXpressUiStateService>();
         // Yakalanan teknik hataları Developer Error Panel'e taşıyan köprü (Blazor Server'da ILogger tarayıcıya gitmez).
         context.Services.AddTransient<Integration.Framework.Blazor.Client.Services.Base.IClientErrorReporter,
-                                      Integration.TradeXpress.Blazor.Client.Dev.DevErrorReporter>();
+                                      Integration.Framework.Blazor.Client.Resilience.DevErrorReporter>();
         // Grid export assembly lazy-loader (CrudLayout + DrillList ortak; Server'da no-op, WASM'da lazy-load).
         context.Services.AddScoped<Integration.Framework.Blazor.Client.Components.Crud.IGridExportAssemblyLoader,
                                    Integration.Framework.Blazor.Client.Components.Crud.GridExportAssemblyLoader>();
-
-        RegisterClientMapperlyMappers(context);
     }
 
     /// <summary>
@@ -278,6 +320,23 @@ public class TradeXpressBlazorModule : AbpModule
         var env = context.GetEnvironment();
         var app = context.GetApplicationBuilder();
 
+        // Middleware + endpoint SIRASI kritik — alt metotlar çağrı sırasını birebir korur.
+        ConfigureRequestPipeline(app, env);
+
+        app.UseConfiguredEndpoints(builder =>
+        {
+            MapSignInCookieEndpoint(builder);
+            MapFindTenantEndpoint(builder);
+            MapN11ScrapeEndpoint(builder);
+            MapBlazorComponents(builder);
+        });
+
+        StartHaremFeedWorkerIfEnabled(context);
+    }
+
+    /// <summary>HTTP request pipeline'ı (middleware zinciri) — sıralama duyarlı, dokunma.</summary>
+    private static void ConfigureRequestPipeline(IApplicationBuilder app, IWebHostEnvironment env)
+    {
         // Configure the HTTP request pipeline.
         if (env.IsDevelopment())
         {
@@ -307,14 +366,15 @@ public class TradeXpressBlazorModule : AbpModule
         app.UseAntiforgery();
         app.UseAuthorization();
         app.UseAbpSerilogEnrichers();
+    }
 
-        app.UseConfiguredEndpoints(builder =>
-        {
-            // ── Custom login endpoints ────────────────────────────────────────────
-            // /account/sign-in-cookie: validates credentials + sets ASP.NET Identity
-            // auth cookie so the browser picks it up (browser-side fetch, not server
-            // HttpClient, so Set-Cookie actually reaches the user's cookie jar).
-            builder.MapPost("/account/sign-in-cookie", async (
+    // ── Custom login endpoints ────────────────────────────────────────────
+    // /account/sign-in-cookie: validates credentials + sets ASP.NET Identity
+    // auth cookie so the browser picks it up (browser-side fetch, not server
+    // HttpClient, so Set-Cookie actually reaches the user's cookie jar).
+    private static void MapSignInCookieEndpoint(IEndpointRouteBuilder builder)
+    {
+        builder.MapPost("/account/sign-in-cookie", async (
                 [Microsoft.AspNetCore.Mvc.FromBody] SignInCookieRequest                req,
                 [Microsoft.AspNetCore.Mvc.FromServices] Volo.Abp.MultiTenancy.ITenantStore       tenantStore,
                 [Microsoft.AspNetCore.Mvc.FromServices] Volo.Abp.MultiTenancy.ICurrentTenant     currentTenant,
@@ -345,8 +405,12 @@ public class TradeXpressBlazorModule : AbpModule
                 }
             }).AllowAnonymous().DisableAntiforgery();
 
-            // /account/find-tenant: validates a tenant name before the user submits credentials.
-            builder.MapGet("/account/find-tenant", async (
+    }
+
+    // /account/find-tenant: validates a tenant name before the user submits credentials.
+    private static void MapFindTenantEndpoint(IEndpointRouteBuilder builder)
+    {
+        builder.MapGet("/account/find-tenant", async (
                 string? name,
                 [Microsoft.AspNetCore.Mvc.FromServices] Volo.Abp.MultiTenancy.ITenantStore tenantStore) =>
             {
@@ -365,9 +429,13 @@ public class TradeXpressBlazorModule : AbpModule
                 }
             }).AllowAnonymous();
 
-            // ── TEST: n11 kategori kazıma → JSON. "Link ver → JSON dön" döngüsü; AI bu JSON'u okuyup
-            //    ürünleri sınıflandırır (ağırlık/ayar/tip). GET /api/n11?url=<kategori>&max=40 ──
-            builder.MapGet("/api/n11", async (
+    }
+
+    // ── TEST: n11 kategori kazıma → JSON. "Link ver → JSON dön" döngüsü; AI bu JSON'u okuyup
+    //    ürünleri sınıflandırır (ağırlık/ayar/tip). GET /api/n11?url=<kategori>&max=40 ──
+    private static void MapN11ScrapeEndpoint(IEndpointRouteBuilder builder)
+    {
+        builder.MapGet("/api/n11", async (
                 string url, int? max,
                 [Microsoft.AspNetCore.Mvc.FromServices] Integration.TradeXpress.Scraping.N11.IN11Scraper scraper) =>
             {
@@ -375,16 +443,23 @@ public class TradeXpressBlazorModule : AbpModule
                 return Microsoft.AspNetCore.Http.Results.Json(items);
             }).AllowAnonymous();
 
-            builder.MapRazorComponents<App>()
-                .AddInteractiveServerRenderMode()
-                .AddInteractiveWebAssemblyRenderMode()
-                .AddAdditionalAssemblies(WebAppAdditionalAssembliesHelper.GetAssemblies<TradeXpressBlazorClientModule>());
-        });
+    }
 
-        // Harem fiyat feed'i — TEK sahip burada (Kur Panosu bu Blazor host'ta render edilir ve
-        // ExchangeRateCacheService process-başına singleton'dır). In-process Microsoft.Playwright ile
-        // (bundled Chromium, headless) Harem socket.io WS'i dinlenir — harici HaremBridge (Node/Python/8765)
-        // GEREKMEZ. HaremEnabled=false ise hiç başlatılmaz.
+    /// <summary>Razor Components kök haritası (Server + WASM render modları + client assembly'leri).</summary>
+    private static void MapBlazorComponents(IEndpointRouteBuilder builder)
+    {
+        builder.MapRazorComponents<App>()
+            .AddInteractiveServerRenderMode()
+            .AddInteractiveWebAssemblyRenderMode()
+            .AddAdditionalAssemblies(WebAppAdditionalAssembliesHelper.GetAssemblies<TradeXpressBlazorClientModule>());
+    }
+
+    // Harem fiyat feed'i — TEK sahip burada (Kur Panosu bu Blazor host'ta render edilir ve
+    // ExchangeRateCacheService process-başına singleton'dır). In-process Microsoft.Playwright ile
+    // (bundled Chromium, headless) Harem socket.io WS'i dinlenir — harici HaremBridge (Node/Python/8765)
+    // GEREKMEZ. HaremEnabled=false ise hiç başlatılmaz.
+    private static void StartHaremFeedWorkerIfEnabled(ApplicationInitializationContext context)
+    {
         var feedOptions = context.ServiceProvider
             .GetRequiredService<Microsoft.Extensions.Options.IOptions<Integration.TradeXpress.Financials.ExchangeRates.ExchangeRateOptions>>().Value;
         if (feedOptions.HaremEnabled)

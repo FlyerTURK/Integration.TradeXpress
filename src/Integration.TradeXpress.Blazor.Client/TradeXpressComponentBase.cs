@@ -5,7 +5,7 @@ using Volo.Abp.AspNetCore.Components;
 using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
 using Integration.Framework.Blazor.Client.Services.Base;
-using Integration.TradeXpress.Blazor.Client.Extensions;
+using Integration.Framework.Blazor.Client.Extensions;
 
 namespace Integration.TradeXpress.Blazor.Client;
 

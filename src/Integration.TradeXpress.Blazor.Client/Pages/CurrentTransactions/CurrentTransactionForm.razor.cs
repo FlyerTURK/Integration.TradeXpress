@@ -1,12 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Threading;
 using System.Threading.Tasks;
 using DevExpress.Blazor;
 using Integration.Framework.Blazor.Client.Components.Crud;
 using Integration.TradeXpress.Accounts;
-using Integration.TradeXpress.Bullions;
 using Integration.TradeXpress.Financials.CurrencyUnits;
 using Integration.TradeXpress.Vouchers;
 using Microsoft.AspNetCore.Components;
@@ -95,6 +93,28 @@ public partial class CurrentTransactionForm
 
     private async Task OnSubAccountSelected(SubAccountListDto? sa)
     {
+        // Aynı cari BAŞKA bir Cari İşlemler sekmesinde zaten açıksa: seçimi geri al, o sekmeye geç —
+        // aynı carinin ikinci sekmesi açılmaz (URL'deki subAccountId üzerinden; PushStateToUrl tek kaynak).
+        if (sa != null && CurrentMdiTab != null)
+        {
+            var needle = $"subAccountId={sa.Id}";
+            var existing = Tabs.Tabs.FirstOrDefault(t =>
+                t.Id != CurrentMdiTab.Id
+                && t.Url.StartsWith("/cari-islemler", StringComparison.OrdinalIgnoreCase)
+                && t.Url.Contains(needle, StringComparison.OrdinalIgnoreCase));
+            if (existing != null)
+            {
+                if (_accountPanel != null)
+                {
+                    await _accountPanel.ClearSubAccountSelectionAsync();   // bu sekme boş kalır
+                }
+
+                Ui.ShowWarningToast(L["SubAccountAlreadyOpenInAnotherTab"]);
+                Tabs.Activate(existing.Id);
+                return;
+            }
+        }
+
         _currentSubAccountId = sa?.Id;
         _voucherLines = new();   // farklı cari → satır gridini temizle
 
@@ -303,47 +323,18 @@ public partial class CurrentTransactionForm
         ComputeConsolidated();
     }
 
-    /// <summary>Görünen bakiye satırlarını canlı kurla hesabın bakiye birimine çevirip toplar.
-    /// Kuru olmayan birim → toplama katılmaz, ≈ (eksik) işaretlenir.
-    /// TAKOZ pseudo-birimin kuru yok — legacy <c>FN.TakozKur</c> paritesi: DefaultCarpan(0.6) × HAS kuru
-    /// (Report.BakiyeListesi: <c>TAKOZ × 0.600 × KurHas</c>; 1000 TAKOZ → "600.00 HAS (A)").</summary>
+    /// <summary>Görünen bakiye satırlarını canlı kurla hesabın bakiye birimine çevirip toplar
+    /// (saf hesap <see cref="ConsolidatedBalanceCalculator"/>'da — form yalnız girdileri toplayıp çağırır).</summary>
     private void ComputeConsolidated()
     {
-        decimal total = 0m;
-        var complete = true;
-
         // Pivot (TRY) Buy — tutarlı tek-yön; parite görüntü fiyatı (_liveRates) konsolide matematiği için kullanılamaz.
-        var buyById = _pivotBuy;
-        var baseBuy = buyById.GetValueOrDefault(_baseUnitId);
-        var hasBuy  = _liveRates.FirstOrDefault(p => p.CurrencyUnitCode == CurrencyUnitCode.HAS) is { } has
-            ? buyById.GetValueOrDefault(has.Id)
+        var hasBuy = _liveRates.FirstOrDefault(p => p.CurrencyUnitCode == CurrencyUnitCode.HAS) is { } has
+            ? _pivotBuy.GetValueOrDefault(has.Id)
             : 0m;
 
-        foreach (var row in _balanceRows)
-        {
-            if (row.Net == 0m) continue;
-
-            if (row.UnitId == _baseUnitId)
-            {
-                total += row.Net;                     // zaten base cinsinden
-                continue;
-            }
-
-            // TAKOZ pseudo-birim: kur tablosunda yok → Carpan × HAS kuru ile değerle.
-            var unitBuy = row.UnitId == BullionConsts.PseudoUnitId
-                ? BullionConsts.DefaultCarpan * hasBuy
-                : buyById.GetValueOrDefault(row.UnitId);
-            if (unitBuy <= 0m || baseBuy <= 0m)
-            {
-                complete = false;                     // değerlenemedi
-                continue;
-            }
-
-            total += row.Net * unitBuy / baseBuy;     // pivot üzerinden base'e çevir
-        }
-
-        _consTotal    = total;
-        _consComplete = complete;
+        var result = ConsolidatedBalanceCalculator.Calculate(_balanceRows, _baseUnitId, _pivotBuy, hasBuy);
+        _consTotal    = result.Total;
+        _consComplete = result.IsComplete;
     }
 
     private string DirectionText(ProcessDirectionType d)
@@ -352,32 +343,7 @@ public partial class CurrentTransactionForm
     private string PaymentText(ProcessPaymentType? p)
         => p is { } v ? L[$"Enum:ProcessPaymentType:{v}"].Value : string.Empty;
 
-    private List<CurrentPriceDto> _liveRates = new();
-    private Dictionary<Guid, decimal> _pivotBuy = new();   // konsolide bakiye için TUTARLI pivot Buy (parite görüntü değil)
-    private PeriodicTimer? _rateTimer;
-    private CancellationTokenSource? _rateCts;   // dispose'da döngüyü iptal eder (tick↔dispose yarış penceresi)
-    private DateTime _lastRateChangeUtc;         // render kapısı: flash animasyonu penceresi (son değişim anı)
-
-    private readonly Dictionary<(Guid Id, bool Buy), decimal> _prevEffective = new();
-    private readonly Dictionary<(Guid Id, bool Buy), (int Dir, DateTime Until)> _flash = new();
-
-    private void TrackDirection(Guid id, bool buy, decimal value, DateTime now)
-    {
-        var key = (id, buy);
-        if (_prevEffective.TryGetValue(key, out var prev) && value != prev)
-            _flash[key] = (value > prev ? 1 : -1, now.AddSeconds(1));
-        _prevEffective[key] = value;
-    }
-
-    protected string PriceCellStyle(Guid id, bool buy)
-    {
-        var on = _flash.TryGetValue((id, buy), out var f) && DateTime.UtcNow < f.Until;
-        var bg = !on ? "transparent"
-            : f.Dir > 0
-                ? "var(--flash-green)"
-                : "var(--flash-red)";
-        return $"display:block; text-align:right; padding:2px 6px; border-radius:4px; background:{bg}; transition: background 700ms ease-out;";
-    }
+    // Canlı kur alanları + döngüsü CurrentTransactionForm.LiveRates.cs partial dosyasında.
 
     protected override async Task OnInitializedAsync()
     {
@@ -388,66 +354,6 @@ public partial class CurrentTransactionForm
             .ToList();
         await RefreshRatesAsync();
         _ = LiveRateLoopAsync();
-    }
-
-    private async Task LiveRateLoopAsync()
-    {
-        _rateCts   = new CancellationTokenSource();
-        _rateTimer = new PeriodicTimer(TimeSpan.FromSeconds(1));
-        try
-        {
-            while (await _rateTimer.WaitForNextTickAsync(_rateCts.Token))
-            {
-                var changed = await RefreshRatesAsync();
-                // Render kapısı: kur değişmediyse (ve flash animasyon penceresi kapandıysa) tüm form
-                // ağacını her saniye yeniden çizme — büyük grid'lerde gereksiz diff yükü.
-                if (changed || DateTime.UtcNow - _lastRateChangeUtc < TimeSpan.FromSeconds(1.5))
-                {
-                    await InvokeAsync(StateHasChanged);
-                }
-            }
-        }
-        catch (OperationCanceledException) { }
-        catch (ObjectDisposedException) { }   // tick ↔ dispose yarış penceresi (circuit kapanışı) — sessiz çık
-    }
-
-    /// <summary>Kurları tazeler; en az bir fiyat DEĞİŞTİYSE true döner (render kapısı için).</summary>
-    private async Task<bool> RefreshRatesAsync()
-    {
-        var changed = false;
-        try
-        {
-            var prices = await PriceService.GetCurrentPricesAsync();   // YEREL para birimine re-base'li (ülke parası); bilanço değil
-            var now = DateTime.UtcNow;
-            foreach (var p in prices)
-            {
-                var old = _liveRates.FirstOrDefault(x => x.Id == p.Id);
-                if (old is null || old.Buy != p.Buy || old.Sell != p.Sell)
-                {
-                    changed = true;
-                }
-                TrackDirection(p.Id, buy: true, p.Buy, now);
-                TrackDirection(p.Id, buy: false, p.Sell, now);
-            }
-            _liveRates = prices;
-            // Konsolide bakiye matematiği aynı fiyat listesinden — İKİNCİ servis çağrısı GEREKMEZ
-            // (eski kod aynı metodu tik başına iki kez çağırıyordu; canlı yol pahalı — teke indirildi).
-            _pivotBuy = prices.ToDictionary(p => p.Id, p => p.Buy);
-            if (changed)
-            {
-                _lastRateChangeUtc = now;
-            }
-        }
-        catch { }
-        ComputeConsolidated();   // konsolide toplam canlı kurla tazelensin
-        return changed;
-    }
-
-    public void Dispose()
-    {
-        _rateCts?.Cancel();
-        _rateCts?.Dispose();
-        _rateTimer?.Dispose();
     }
 
     private string GridStyle()

@@ -2,6 +2,7 @@ using System;
 using System.ComponentModel.DataAnnotations;
 using Integration.Framework.Base.Dtos;
 using Integration.Framework.Base.Dtos.Interfaces;
+using Integration.TradeXpress.Commodities;
 using Volo.Abp.Application.Dtos;
 
 namespace Integration.TradeXpress.Futures;
@@ -10,7 +11,7 @@ public class FutureListRequestDto : ListRequestDto
 {
 }
 
-public class FutureListDto : EntityDto<Guid>, IListDto<Guid>, IIsActive, IHostScoped
+public class FutureListDto : EntityDto<Guid>, IListDto<Guid>, IIsActive, IHostScoped, IFollowingUnitDto
 {
     public string Code { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
@@ -23,7 +24,7 @@ public class FutureListDto : EntityDto<Guid>, IListDto<Guid>, IIsActive, IHostSc
     public bool IsGlobal { get; set; }
 }
 
-public class FutureGetDto : EntityDto<Guid>, IGetDto<Guid>, IHasCode
+public class FutureGetDto : EntityDto<Guid>, IGetDto<Guid>, IHasCode, IHostScoped, IFollowingUnitDto
 {
     [Required]
     [StringLength(FutureConsts.CodeMaxLength, MinimumLength = EntityFieldConsts.CodeMinLength)]

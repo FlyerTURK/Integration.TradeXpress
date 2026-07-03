@@ -1,7 +1,7 @@
 using Integration.Framework.Blazor.Client.Services.Base;
 using Volo.Abp.DependencyInjection;
 
-namespace Integration.TradeXpress.Blazor.Client.Dev;
+namespace Integration.Framework.Blazor.Client.Resilience;
 
 /// <summary>
 /// <see cref="IClientErrorReporter"/> implementasyonu: yakalanan teknik .NET hatasını <see cref="DevErrorSink"/>'e

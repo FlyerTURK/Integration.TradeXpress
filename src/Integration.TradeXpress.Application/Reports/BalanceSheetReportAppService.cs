@@ -87,95 +87,135 @@ public class BalanceSheetReportAppService : TradeXpressAppService, IBalanceSheet
                 (await _units.GetQueryableAsync()).Where(u => u.Id == input.UnitId).Select(u => u.Code)) ?? string.Empty);
 
         var cutoff   = input.AsOf.Date.AddDays(1);
+        // DİKKAT: drill kapsamı şube doğrulaması YAPMAZ (mevcut davranış) — ResolveScopedBranchIdAsync'ten kasıtlı farklı.
         var branchId = input.Scope == BalanceSheetScope.Company ? (Guid?)null : input.BranchId;
 
+        // Kategori → hareket sağlayıcısı (her kategori kendi private metodunda; davranış birebir).
         if (input.Category == BalanceSheetCategory.AccountBalance)
         {
             result.Supported = true;
-            var q = await _ledger.GetQueryableAsync();
-            // CARİ/ALTHESAP bazında kır (belge no DEĞİL — kullanıcı cari kodu ister): (Account, SubAccount) GROUP BY + SUM.
-            var grouped = await AsyncExecuter.ToListAsync(
-                from e in q
-                where e.CompanyId == companyId
-                   && (branchId == null || e.BranchId == branchId)
-                   && e.UnitId == input.UnitId
-                   && e.VoucherDate < cutoff
-                group e by new { e.AccountId, e.SubAccountId } into g
-                select new { g.Key.AccountId, g.Key.SubAccountId, Amount = g.Sum(x => x.Amount) });
-
-            // Kodları memory'de çöz (Account zorunlu; SubAccount opsiyonel → "cari / althesap").
-            var accountIds = grouped.Select(r => r.AccountId).Distinct().ToList();
-            var subIds     = grouped.Where(r => r.SubAccountId != null).Select(r => r.SubAccountId!.Value).Distinct().ToList();
-
-            var accountCodes = (await AsyncExecuter.ToListAsync(
-                    (await _accounts.GetQueryableAsync()).Where(a => accountIds.Contains(a.Id)).Select(a => new { a.Id, a.Code })))
-                .ToDictionary(a => a.Id, a => a.Code);
-            var subCodes = subIds.Count == 0
-                ? new Dictionary<Guid, string>()
-                : (await AsyncExecuter.ToListAsync(
-                    (await _subAccounts.GetQueryableAsync()).Where(s => subIds.Contains(s.Id)).Select(s => new { s.Id, s.Code })))
-                  .ToDictionary(s => s.Id, s => s.Code);
-
-            result.Movements = grouped
-                .Select(r => new BalanceSheetMovementDto
-                {
-                    Code = r.SubAccountId is { } sid && subCodes.TryGetValue(sid, out var sc)
-                        ? $"{accountCodes.GetValueOrDefault(r.AccountId, "?")} / {sc}"
-                        : accountCodes.GetValueOrDefault(r.AccountId, "?"),
-                    Amount = -r.Amount,
-                })
-                .Where(m => m.Amount != 0m)
-                .OrderBy(m => m.Code)
-                .ToList();
+            result.Movements = await GetAccountBalanceMovementsAsync(companyId, branchId, input.UnitId, cutoff);
         }
         else if (input.Category == BalanceSheetCategory.Labor)
         {
-            // İŞÇİLİK = on-hand metal işçilik maliyeti, COMMODITY (metal kodu) bazında. +Net (varlık, NEGATİFLENMEZ).
             result.Supported = true;
-            var byCode = await _metalReport.GetMetalLaborByCommodityAsync(branchId, input.UnitId, cutoff);
-            result.Movements = byCode
-                .Where(kv => kv.Value != 0m)
-                .Select(kv => new BalanceSheetMovementDto { Code = kv.Key, Amount = kv.Value })
-                .OrderBy(m => m.Code)
-                .ToList();
+            result.Movements = await GetLaborMovementsAsync(branchId, input.UnitId, cutoff);
         }
         else if (input.Category == BalanceSheetCategory.Stock)
         {
-            // STOK = fiziksel maden + hurda (COMMODITY bazında) + nakit (tek "NAKİT" lump). +Net (firma-perspektifi).
             result.Supported = true;
-            var merged = new Dictionary<string, decimal>();
-            foreach (var kv in await _metalReport.GetMetalStockByCommodityAsync(branchId, input.UnitId, cutoff))
-                merged[kv.Key] = merged.GetValueOrDefault(kv.Key) + kv.Value;
-            foreach (var kv in await _scrapReport.GetScrapStockByCommodityAsync(branchId, input.UnitId, cutoff))
-                merged[kv.Key] = merged.GetValueOrDefault(kv.Key) + kv.Value;
-            var cash = (await _cashReport.GetCashNetByUnitAsync(branchId, vaultId: null, asOfExclusive: cutoff))
-                .GetValueOrDefault(input.UnitId);
-            if (cash != 0m) merged["NAKİT"] = merged.GetValueOrDefault("NAKİT") + cash;
-
-            result.Movements = merged
-                .Where(kv => kv.Value != 0m)
-                .Select(kv => new BalanceSheetMovementDto { Code = kv.Key, Amount = kv.Value })
-                .OrderBy(m => m.Code)
-                .ToList();
+            result.Movements = await GetStockMovementsAsync(branchId, input.UnitId, cutoff);
         }
         else if (input.Category == BalanceSheetCategory.Stone || input.Category == BalanceSheetCategory.Jewelry)
         {
-            // TAŞ/MÜCEVHER = maliyet-envanteri; ilgili kaynağın COMMODITY (taş/mücevher kodu) kırılımı. +Net.
-            var drill = _sources.OfType<IBalanceSheetCommodityDrill>()
-                .FirstOrDefault(d => d.DrillCategory == input.Category);
-            if (drill != null)
+            // Kaynak drill desteklemiyorsa Supported=false kalır (mevcut davranış).
+            var movements = await GetCommodityDrillMovementsAsync(input.Category, companyId, branchId, input.AsOf, input.UnitId);
+            if (movements != null)
             {
                 result.Supported = true;
-                var byCode = await drill.GetCommodityBreakdownAsync(companyId, branchId, input.AsOf, input.UnitId);
-                result.Movements = byCode
-                    .Where(kv => kv.Value != 0m)
-                    .Select(kv => new BalanceSheetMovementDto { Code = kv.Key, Amount = kv.Value })
-                    .OrderBy(m => m.Code)
-                    .ToList();
+                result.Movements = movements;
             }
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// BAKİYE(cari) drill: CARİ/ALTHESAP bazında kır (belge no DEĞİL — kullanıcı cari kodu ister):
+    /// (Account, SubAccount) GROUP BY + SUM; BAKİYE = −Σ(ledger) olduğundan işaret görünenle aynı.
+    /// </summary>
+    private async Task<List<BalanceSheetMovementDto>> GetAccountBalanceMovementsAsync(
+        Guid companyId, Guid? branchId, Guid unitId, DateTime cutoff)
+    {
+        var q = await _ledger.GetQueryableAsync();
+        var grouped = await AsyncExecuter.ToListAsync(
+            from e in q
+            where e.CompanyId == companyId
+               && (branchId == null || e.BranchId == branchId)
+               && e.UnitId == unitId
+               && e.VoucherDate < cutoff
+            group e by new { e.AccountId, e.SubAccountId } into g
+            select new { g.Key.AccountId, g.Key.SubAccountId, Amount = g.Sum(x => x.Amount) });
+
+        // Kodları memory'de çöz (Account zorunlu; SubAccount opsiyonel → "cari / althesap").
+        var accountIds = grouped.Select(r => r.AccountId).Distinct().ToList();
+        var subIds     = grouped.Where(r => r.SubAccountId != null).Select(r => r.SubAccountId!.Value).Distinct().ToList();
+
+        var accountCodes = (await AsyncExecuter.ToListAsync(
+                (await _accounts.GetQueryableAsync()).Where(a => accountIds.Contains(a.Id)).Select(a => new { a.Id, a.Code })))
+            .ToDictionary(a => a.Id, a => a.Code);
+        var subCodes = subIds.Count == 0
+            ? new Dictionary<Guid, string>()
+            : (await AsyncExecuter.ToListAsync(
+                (await _subAccounts.GetQueryableAsync()).Where(s => subIds.Contains(s.Id)).Select(s => new { s.Id, s.Code })))
+              .ToDictionary(s => s.Id, s => s.Code);
+
+        return grouped
+            .Select(r => new BalanceSheetMovementDto
+            {
+                Code = r.SubAccountId is { } sid && subCodes.TryGetValue(sid, out var sc)
+                    ? $"{accountCodes.GetValueOrDefault(r.AccountId, "?")} / {sc}"
+                    : accountCodes.GetValueOrDefault(r.AccountId, "?"),
+                Amount = -r.Amount,
+            })
+            .Where(m => m.Amount != 0m)
+            .OrderBy(m => m.Code)
+            .ToList();
+    }
+
+    /// <summary>İŞÇİLİK drill = on-hand metal işçilik maliyeti, COMMODITY (metal kodu) bazında. +Net (varlık, NEGATİFLENMEZ).</summary>
+    private async Task<List<BalanceSheetMovementDto>> GetLaborMovementsAsync(Guid? branchId, Guid unitId, DateTime cutoff)
+    {
+        var byCode = await _metalReport.GetMetalLaborByCommodityAsync(branchId, unitId, cutoff);
+        return ToSortedMovements(byCode);
+    }
+
+    /// <summary>STOK drill = fiziksel maden + hurda (COMMODITY bazında) + nakit (tek "NAKİT" lump). +Net (firma-perspektifi).</summary>
+    private async Task<List<BalanceSheetMovementDto>> GetStockMovementsAsync(Guid? branchId, Guid unitId, DateTime cutoff)
+    {
+        var merged = new Dictionary<string, decimal>();
+        foreach (var kv in await _metalReport.GetMetalStockByCommodityAsync(branchId, unitId, cutoff))
+        {
+            merged[kv.Key] = merged.GetValueOrDefault(kv.Key) + kv.Value;
+        }
+        foreach (var kv in await _scrapReport.GetScrapStockByCommodityAsync(branchId, unitId, cutoff))
+        {
+            merged[kv.Key] = merged.GetValueOrDefault(kv.Key) + kv.Value;
+        }
+        var cash = (await _cashReport.GetCashNetByUnitAsync(branchId, vaultId: null, asOfExclusive: cutoff))
+            .GetValueOrDefault(unitId);
+        if (cash != 0m)
+        {
+            merged["NAKİT"] = merged.GetValueOrDefault("NAKİT") + cash;
+        }
+
+        return ToSortedMovements(merged);
+    }
+
+    /// <summary>TAŞ/MÜCEVHER drill = maliyet-envanteri; ilgili kaynağın COMMODITY (taş/mücevher kodu) kırılımı. +Net.
+    /// Kategoriye drill kaynağı yoksa <c>null</c> (çağıran Supported=false bırakır).</summary>
+    private async Task<List<BalanceSheetMovementDto>?> GetCommodityDrillMovementsAsync(
+        string category, Guid companyId, Guid? branchId, DateTime asOf, Guid unitId)
+    {
+        var drill = _sources.OfType<IBalanceSheetCommodityDrill>()
+            .FirstOrDefault(d => d.DrillCategory == category);
+        if (drill == null)
+        {
+            return null;
+        }
+
+        var byCode = await drill.GetCommodityBreakdownAsync(companyId, branchId, asOf, unitId);
+        return ToSortedMovements(byCode);
+    }
+
+    /// <summary>Kod→tutar kırılımını sıfırları atıp koda göre sıralı hareket satırlarına çevirir (drill'lerin ortak kuyruğu).</summary>
+    private static List<BalanceSheetMovementDto> ToSortedMovements(IEnumerable<KeyValuePair<string, decimal>> byCode)
+    {
+        return byCode
+            .Where(kv => kv.Value != 0m)
+            .Select(kv => new BalanceSheetMovementDto { Code = kv.Key, Amount = kv.Value })
+            .OrderBy(m => m.Code)
+            .ToList();
     }
 
     public virtual async Task<BalanceSheetReportResultDto> ComputeAsync(BalanceSheetReportFilterDto filter)
@@ -185,13 +225,7 @@ public class BalanceSheetReportAppService : TradeXpressAppService, IBalanceSheet
             return new();
 
         // Company scope → branchId null (konsolide). Branch scope → client şubesi (şirkete ait değilse düşür).
-        Guid? branchId = filter.Scope == BalanceSheetScope.Branch ? filter.BranchId : null;
-        if (branchId is { } bid)
-        {
-            var branch = await _branches.FindAsync(bid);
-            if (branch is null || branch.CompanyId != companyId)
-                branchId = null;
-        }
+        var branchId = await ResolveScopedBranchIdAsync(filter.Scope, filter.BranchId, companyId);
 
         var baseUnitId = await ResolveBaseUnitAsync(companyId, branchId);
 
@@ -291,15 +325,7 @@ public class BalanceSheetReportAppService : TradeXpressAppService, IBalanceSheet
         }
 
         // Kapsam ComputeAsync ile AYNI çözümlenir (Branch scope + şirkete ait olmayan şube → konsolideye düşer).
-        Guid? branchId = filter.Scope == BalanceSheetScope.Branch ? filter.BranchId : null;
-        if (branchId is { } bid)
-        {
-            var branch = await _branches.FindAsync(bid);
-            if (branch is null || branch.CompanyId != companyId)
-            {
-                branchId = null;
-            }
-        }
+        var branchId = await ResolveScopedBranchIdAsync(filter.Scope, filter.BranchId, companyId);
 
         var asOfDate = filter.AsOf.Date;
 
@@ -352,15 +378,7 @@ public class BalanceSheetReportAppService : TradeXpressAppService, IBalanceSheet
         }
 
         // Kapsam ComputeAsync/SaveAsync ile AYNI: Branch scope + şirkete ait olmayan şube → konsolideye düşer.
-        Guid? branchId = filter.Scope == BalanceSheetScope.Branch ? filter.BranchId : null;
-        if (branchId is { } bid)
-        {
-            var branch = await _branches.FindAsync(bid);
-            if (branch is null || branch.CompanyId != companyId)
-            {
-                branchId = null;
-            }
-        }
+        var branchId = await ResolveScopedBranchIdAsync(filter.Scope, filter.BranchId, companyId);
 
         var resetDate = filter.AsOf.Date;
 
@@ -399,17 +417,11 @@ public class BalanceSheetReportAppService : TradeXpressAppService, IBalanceSheet
             return dto;
 
         // Kapsam ComputeAsync/SaveAsync ile AYNI: Branch scope + şirkete ait olmayan şube → konsolideye düşer.
-        Guid? branchId = request.Scope == BalanceSheetScope.Branch ? request.BranchId : null;
-        if (branchId is { } bid)
-        {
-            var branch = await _branches.FindAsync(bid);
-            if (branch is null || branch.CompanyId != companyId)
-                branchId = null;
-        }
+        var branchId = await ResolveScopedBranchIdAsync(request.Scope, request.BranchId, companyId);
 
         // Birim-detay DA çekilir: KURFARKI birim (UnitId) bazlı yeniden değerleme gerektirir (Amount × sonraki ValuationRate).
         var q = await _snapshots.GetQueryableAsync();
-        var rows = await AsyncExecuter.ToListAsync(
+        var snapshotRows = await AsyncExecuter.ToListAsync(
             q.Where(s => s.CompanyId == companyId
                       && s.Scope == request.Scope
                       && s.BranchId == branchId)
@@ -418,8 +430,14 @@ public class BalanceSheetReportAppService : TradeXpressAppService, IBalanceSheet
                  s.AsOfDate, s.BranchId, s.Category, s.UnitId, s.Amount, s.ValuationRate, s.Net, s.BaseCurrencyCode
              }));
 
-        if (rows.Count == 0)
+        if (snapshotRows.Count == 0)
             return dto;
+
+        // Saf-hesap girdisine map (EF projeksiyonu DEĞİŞMEDİ; pivot/running SnapshotPivotBuilder'da).
+        var rows = snapshotRows
+            .Select(r => new SnapshotPivotBuilder.SnapshotRow(
+                r.AsOfDate, r.BranchId, r.Category, r.UnitId, r.Amount, r.ValuationRate, r.Net, r.BaseCurrencyCode))
+            .ToList();
 
         // Görünen kategori anahtarları (kolon başlıkları); TOPLAM sırası sabit.
         dto.Categories = rows.Select(r => r.Category).Distinct().OrderBy(c => c).ToList();
@@ -432,86 +450,28 @@ public class BalanceSheetReportAppService : TradeXpressAppService, IBalanceSheet
                 (await _branches.GetQueryableAsync()).Where(b => branchIds.Contains(b.Id)).Select(b => new { b.Id, b.Code })))
               .ToDictionary(b => b.Id, b => b.Code);
 
-        // AsOfDate bazında PIVOT (tarih ARTAN). Birim-detayı (KURFARKI için) günle beraber tutulur.
-        var days = rows
-            .GroupBy(r => r.AsOfDate)
-            .OrderBy(g => g.Key)
-            .Select(g =>
-            {
-                var categoryNets = g.GroupBy(x => x.Category)
-                    .ToDictionary(cg => cg.Key, cg => cg.Sum(x => x.Net));
-                var total  = categoryNets.Where(kv => BalanceSheetCategory.CountsInTotal(kv.Key)).Sum(kv => kv.Value);
-                var masraf = categoryNets.GetValueOrDefault(BalanceSheetCategory.Expense)
-                           + categoryNets.GetValueOrDefault(BalanceSheetCategory.Income);
-                var firstBranchId = g.Select(x => x.BranchId).FirstOrDefault(id => id != null);
-
-                // KURFARKI için birim-detay: Expense/Income (P&L) + MissingRate (donuk rate=0) satırları HARİÇ.
-                // Aynı gün + aynı UnitId'nin birden çok kategori satırı olabilir → UnitId bazında Amount/Net topla,
-                // ValuationRate birim-başına sabit (aynı asOf kuru) → ilkini al.
-                var unitDetail = g
-                    .Where(x => x.ValuationRate != 0m
-                             && x.Category != BalanceSheetCategory.Expense
-                             && x.Category != BalanceSheetCategory.Income)
-                    .GroupBy(x => x.UnitId)
-                    .ToDictionary(
-                        ug => ug.Key,
-                        ug => new SnapshotUnitCell(ug.Sum(x => x.Amount), ug.First().ValuationRate, ug.Sum(x => x.Net)));
-
-                return new DayPivot(
-                    new BalanceSheetSnapshotRowDto
-                    {
-                        AsOfDate         = g.Key,
-                        Scope            = request.Scope,
-                        BranchCode       = firstBranchId is { } fb ? branchCodes.GetValueOrDefault(fb) : null,
-                        CategoryNets     = categoryNets,
-                        Total            = total,
-                        Masraf           = masraf,
-                        BaseCurrencyCode = g.Select(x => x.BaseCurrencyCode).FirstOrDefault() ?? string.Empty,
-                    },
-                    unitDetail);
-            })
-            .ToList();
-
-        // Running türetimler (tarih sırasına göre akümülatör) + KURFARKI (ardışık gün çifti).
-        decimal prevTotal = 0m;
-        decimal? prevMasraf = null;
-        for (var i = 0; i < days.Count; i++)
-        {
-            var row = days[i].Row;
-            row.Devir    = prevTotal;                        // önceki günün TOPLAM'ı (ilk gün 0)
-            row.KarZarar = row.Total - row.Devir;            // dönemler arası net varlık değişimi
-            row.Gunluk   = prevMasraf is { } pm ? row.Masraf - pm : row.Masraf;   // MASRAF delta (ilk gün MASRAF'ın kendisi)
-
-            // KURFARKI: önceki snapshot satırının pozisyonunu BU günün kuruyla yeniden değerle → o günün Fark'ını
-            // İLİŞTİR (ERPPRO T-1: dünkü pozisyonun bugünkü kurla yeniden değerlemesi bu satırda görünür). İlk gün = 0.
-            if (i > 0)
-            {
-                var prev = days[i - 1].UnitDetail;
-                var curr = days[i].UnitDetail;
-                decimal fark = 0m;
-                foreach (var (unitId, prevCell) in prev)
-                {
-                    // Bu günde AYNI birim yoksa (pozisyon kapanmış) katkı 0 (yeniden değerlenecek rate yok).
-                    if (!curr.TryGetValue(unitId, out var currCell))
-                        continue;
-                    fark += prevCell.Amount * currCell.ValuationRate - prevCell.Net;
-                }
-                row.KurFarki = fark;
-            }
-
-            prevTotal  = row.Total;
-            prevMasraf = row.Masraf;
-        }
-
-        dto.Rows = days.Select(d => d.Row).ToList();
+        dto.Rows = SnapshotPivotBuilder.Build(rows, request.Scope, branchCodes);
         return dto;
     }
 
-    /// <summary>Bir snapshot gününün pivot satırı + KURFARKI için birim-bazlı yeniden değerleme detayı.</summary>
-    private sealed record DayPivot(BalanceSheetSnapshotRowDto Row, Dictionary<Guid, SnapshotUnitCell> UnitDetail);
+    /// <summary>
+    /// Kapsam çözümü (Compute/Save/ResetProfitPeriod/GetSnapshotList ORTAK): Company scope → <c>null</c> (konsolide);
+    /// Branch scope → istenen şube, şube yoksa ya da working şirkete ait değilse konsolideye (<c>null</c>) düşer.
+    /// </summary>
+    private async Task<Guid?> ResolveScopedBranchIdAsync(BalanceSheetScope scope, Guid? requestedBranchId, Guid companyId)
+    {
+        Guid? branchId = scope == BalanceSheetScope.Branch ? requestedBranchId : null;
+        if (branchId is { } bid)
+        {
+            var branch = await _branches.FindAsync(bid);
+            if (branch is null || branch.CompanyId != companyId)
+            {
+                branchId = null;
+            }
+        }
 
-    /// <summary>Bir gün+birim için yeniden değerleme hücresi: donuk Amount + donuk ValuationRate + donuk Net.</summary>
-    private readonly record struct SnapshotUnitCell(decimal Amount, decimal ValuationRate, decimal Net);
+        return branchId;
+    }
 
     /// <summary>Bilanço birimi: branch base'i (boş Guid ise şirket base'ine düşer); şube yoksa şirket base'i.</summary>
     private async Task<Guid> ResolveBaseUnitAsync(Guid companyId, Guid? branchId)

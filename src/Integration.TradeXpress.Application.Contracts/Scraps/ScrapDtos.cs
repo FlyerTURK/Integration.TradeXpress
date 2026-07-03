@@ -2,6 +2,7 @@ using System;
 using System.ComponentModel.DataAnnotations;
 using Integration.Framework.Base.Dtos;
 using Integration.Framework.Base.Dtos.Interfaces;
+using Integration.TradeXpress.Commodities;
 using Volo.Abp.Application.Dtos;
 
 namespace Integration.TradeXpress.Scraps;
@@ -10,7 +11,7 @@ public class ScrapListRequestDto : ListRequestDto
 {
 }
 
-public class ScrapListDto : EntityDto<Guid>, IListDto<Guid>, IIsActive, IHostScoped
+public class ScrapListDto : EntityDto<Guid>, IListDto<Guid>, IIsActive, IHostScoped, IFollowingUnitDto
 {
     public string Code { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
@@ -24,7 +25,7 @@ public class ScrapListDto : EntityDto<Guid>, IListDto<Guid>, IIsActive, IHostSco
     public bool IsGlobal { get; set; }
 }
 
-public class ScrapGetDto : EntityDto<Guid>, IGetDto<Guid>, IHasCode
+public class ScrapGetDto : EntityDto<Guid>, IGetDto<Guid>, IHasCode, IHostScoped, IFollowingUnitDto
 {
     [Required]
     [StringLength(ScrapConsts.CodeMaxLength, MinimumLength = EntityFieldConsts.CodeMinLength)]

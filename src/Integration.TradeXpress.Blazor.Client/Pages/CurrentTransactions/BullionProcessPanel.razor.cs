@@ -9,7 +9,7 @@ using Microsoft.AspNetCore.Components;
 
 namespace Integration.TradeXpress.Blazor.Client.Pages.CurrentTransactions;
 
-public partial class BullionProcessPanel
+public partial class BullionProcessPanel : IVoucherLineEditPanel
 {
     [Parameter] public EventCallback OnBack { get; set; }
     [Parameter] public string? AccountCode { get; set; }

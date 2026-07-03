@@ -21,4 +21,9 @@ public interface IMdiTabOpener
     /// <summary>Edit sekmesini kapat (Kaydet&Kapat / Sil sonrası). CanCloseAsync guard'ını çalıştırır;
     /// reddedilirse false döner (açık kalır). Yeni yığın (CrudEditHost) tab-modunda kapatmak için kullanır.</summary>
     Task<bool> TryCloseAsync(Guid tabId);
+
+    /// <summary>Sekmenin URL'ini günceller (bilinmeyen id → no-op). Yeni kayıt kaydedilince edit host
+    /// sekmeyi "/entity/new" → "/entity/{id}" retarget eder — böylece listeden Düzelt aynı kayda İKİNCİ
+    /// sekme açmaz (OpenOrActivateAsync URL eşleşmesiyle mevcut sekmeyi aktive eder).</summary>
+    void UpdateTabUrl(Guid tabId, string url);
 }

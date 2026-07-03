@@ -2,6 +2,7 @@
 @page "/sub-accounts/{Id:guid}"
 @using System
 @using Integration.TradeXpress.Accounts
+@using Integration.TradeXpress.Permissions
 @using Integration.Framework.Blazor.Client.Components.Crud
 @using Integration.Framework.Blazor.Client.Services.Base
 @using Volo.Abp.ObjectMapping
@@ -31,7 +32,9 @@
                                 Value="@(m.AccountId == Guid.Empty ? (Guid?)null : m.AccountId)"
                                 ValueChanged="@((Guid? id) => m.AccountId = id ?? Guid.Empty)"
                                 Enabled="@(m.Id == Guid.Empty)"
-                                NullText="@L["Select"].Value">
+                                NullText="@L["Select"].Value"
+                                CreatePolicy="@TradeXpressPermissions.Accounts.Create"
+                                UpdatePolicy="@TradeXpressPermissions.Accounts.Update">
                     <Columns>
                         <DxListEditorColumn FieldName="@nameof(AccountListDto.Code)" Caption="@L["Code"].Value" Width="40%" />
                         <DxListEditorColumn FieldName="@nameof(AccountListDto.Name)" Caption="@L["Name"].Value" />

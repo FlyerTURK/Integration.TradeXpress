@@ -33,7 +33,7 @@ public class StoneListDto : EntityDto<Guid>, IListDto<Guid>, IIsActive, IHostSco
     public bool IsGlobal { get; set; }
 }
 
-public class StoneGetDto : EntityDto<Guid>, IGetDto<Guid>, IHasCode
+public class StoneGetDto : EntityDto<Guid>, IGetDto<Guid>, IHasCode, IHostScoped
 {
     [Required]
     [StringLength(StoneConsts.CodeMaxLength, MinimumLength = EntityFieldConsts.CodeMinLength)]

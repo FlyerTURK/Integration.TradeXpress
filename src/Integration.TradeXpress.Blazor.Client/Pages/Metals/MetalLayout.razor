@@ -3,6 +3,7 @@
 @using Integration.TradeXpress.Metals
 @using Integration.TradeXpress.Vouchers
 @using Integration.TradeXpress.Financials.CurrencyUnits
+@using Integration.TradeXpress.Permissions
 @using Integration.Framework.Blazor.Client.Components.Crud
 @using DevExpress.Blazor
 @using Microsoft.Extensions.Localization
@@ -23,7 +24,9 @@
                             Data="@CurrencyUnits"
                             ValueFieldName="@nameof(CurrencyUnitListDto.Id)" TextFieldName="@nameof(CurrencyUnitListDto.Code)"
                             @bind-Value="@Model.FollowingUnitId"
-                            SearchFilterCondition="ListSearchFilterCondition.Contains" NullText="@L["Select"].Value" />
+                            SearchFilterCondition="ListSearchFilterCondition.Contains" NullText="@L["Select"].Value"
+                            CreatePolicy="@TradeXpressPermissions.CurrencyUnits.Create"
+                            UpdatePolicy="@TradeXpressPermissions.CurrencyUnits.Update" />
         </DxFormLayoutItem>
         <DxFormLayoutItem Caption="@($"{L["Factor"]} *")" ColSpanMd="4">
             <DxSpinEdit @bind-Value="@Model.Factor" DisplayFormat="N5" ShowSpinButtons="false" CssClass="w-100" />
@@ -57,7 +60,9 @@
         <DxFormLayoutItem Caption="@L["CurrencyUnit"]" ColSpanMd="4">
             <LookupComboBox TItem="CurrencyUnitListDto" TValue="Guid?" Data="@CurrencyUnits"
                             ValueFieldName="@nameof(CurrencyUnitListDto.Id)" TextFieldName="@nameof(CurrencyUnitListDto.Code)"
-                            @bind-Value="@Model.EntryLaborUnitId" NullText="@L["Select"].Value" />
+                            @bind-Value="@Model.EntryLaborUnitId" NullText="@L["Select"].Value"
+                            CreatePolicy="@TradeXpressPermissions.CurrencyUnits.Create"
+                            UpdatePolicy="@TradeXpressPermissions.CurrencyUnits.Update" />
         </DxFormLayoutItem>
         <DxFormLayoutItem Caption="@L["EntryLaborChange"]" ColSpanMd="4">
             <DxCheckBox @bind-Checked="@Model.EntryLaborChange" CheckType="CheckType.Switch">@(Model.EntryLaborChange ? L["Yes"] : L["No"])</DxCheckBox>
@@ -68,7 +73,9 @@
         <DxFormLayoutItem Caption="@L["CurrencyUnit"]" ColSpanMd="4">
             <LookupComboBox TItem="CurrencyUnitListDto" TValue="Guid?" Data="@CurrencyUnits"
                             ValueFieldName="@nameof(CurrencyUnitListDto.Id)" TextFieldName="@nameof(CurrencyUnitListDto.Code)"
-                            @bind-Value="@Model.ExitLaborUnitId" NullText="@L["Select"].Value" />
+                            @bind-Value="@Model.ExitLaborUnitId" NullText="@L["Select"].Value"
+                            CreatePolicy="@TradeXpressPermissions.CurrencyUnits.Create"
+                            UpdatePolicy="@TradeXpressPermissions.CurrencyUnits.Update" />
         </DxFormLayoutItem>
         <DxFormLayoutItem Caption="@L["ExitLaborChange"]" ColSpanMd="4">
             <DxCheckBox @bind-Checked="@Model.ExitLaborChange" CheckType="CheckType.Switch">@(Model.ExitLaborChange ? L["Yes"] : L["No"])</DxCheckBox>

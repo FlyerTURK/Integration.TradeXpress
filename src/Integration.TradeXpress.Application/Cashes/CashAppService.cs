@@ -1,14 +1,16 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Threading.Tasks;
+using Integration.Framework.Application;
 using Integration.Framework.Base.Querying;
 using Integration.TradeXpress.Financials.CurrencyUnits;
+using Integration.TradeXpress.Localization;
 using Integration.TradeXpress.Permissions;
 using Microsoft.AspNetCore.Authorization;
 using Volo.Abp;
 using Volo.Abp.Application.Dtos;
-using Volo.Abp.Data;
 using Volo.Abp.Domain.Entities;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.MultiTenancy;
@@ -16,41 +18,57 @@ using Volo.Abp.MultiTenancy;
 namespace Integration.TradeXpress.Cashes;
 
 /// <summary>
-/// Cash CRUD. <b>Görünürlük</b> (CurrencyUnit gibi): host kataloğu (TenantId=null) HERKESE görünür + tenant
-/// kendi kayıtlarını görür → multi-tenant filter disable + açık predicate <c>TenantId == null || == own</c>.
-/// Tenant global (host) Cash'i düzenleyemez/silemez; kendi ekleyebilir. <b>FollowingUnit (para birimi) ZORUNLU</b>
-/// ve görünürlük kapsamında (global ‖ own) olmalıdır.
+/// Cash CRUD. Görünürlük/guard <see cref="HostCatalogCrudAppService{TEntity,TGetDto,TListDto,TListRequest,TCreateInput,TUpdateInput}"/>
+/// tabanından (host kataloğu + tenant kendi kayıtları). <b>FollowingUnit (para birimi) ZORUNLU</b> ve görünürlük
+/// kapsamında (global ‖ own) olmalıdır. Liste/picker özel: FollowingUnitCode/Name self-join ile gerçek kolon
+/// (server-side sort/filter/arama) — bu yüzden GetListAsync/picker burada override edilir.
 /// </summary>
 [Authorize(TradeXpressPermissions.Cashes.Default)]
-public class CashAppService : TradeXpressAppService, ICashAppService
+public class CashAppService
+    : HostCatalogCrudAppService<Cash, CashGetDto, CashListDto, CashListRequestDto, CashCreateDto, CashUpdateDto>,
+      ICashAppService
 {
-    private readonly IRepository<Cash, Guid> _repository;
     private readonly IRepository<CurrencyUnit, Guid> _unitRepository;  // yalnız OKUMA (FollowingUnit kod/ad zenginleştirme + doğrulama)
-    private readonly IDataFilter _dataFilter;
-
-    private static readonly HashSet<string> AllowedListFields =
-        new(StringComparer.OrdinalIgnoreCase) { "Code", "Name", "IsActive", "Id", "FollowingUnitCode", "FollowingUnitName" };
 
     public CashAppService(
         IRepository<Cash, Guid> repository,
-        IRepository<CurrencyUnit, Guid> unitRepository,
-        IDataFilter dataFilter)
+        IRepository<CurrencyUnit, Guid> unitRepository)
+        : base(repository)
     {
-        _repository = repository;
         _unitRepository = unitRepository;
-        _dataFilter = dataFilter;
+        LocalizationResource = typeof(TradeXpressResource);
+        CreatePolicyName = TradeXpressPermissions.Cashes.Create;
+        UpdatePolicyName = TradeXpressPermissions.Cashes.Update;
+        DeletePolicyName = TradeXpressPermissions.Cashes.Delete;
     }
 
-    public virtual async Task<PagedResultDto<CashListDto>> GetListAsync(CashListRequestDto input)
+    protected override ISet<string> AllowedListFields { get; } =
+        new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "Code", "Name", "IsActive", "Id", "FollowingUnitCode", "FollowingUnitName" };
+
+    protected override string EditGlobalErrorCode
     {
-        using (_dataFilter.Disable<IMultiTenant>())
+        get { return "TradeXpress:Cash:CannotEditGlobalAsTenant"; }
+    }
+
+    protected override string DeleteGlobalErrorCode
+    {
+        get { return "TradeXpress:Cash:CannotDeleteGlobalAsTenant"; }
+    }
+
+    protected override Expression<Func<Cash, string>> PickerOrderSelector
+    {
+        get { return x => x.Code; }   // kullanılmaz — picker aşağıda komple override (birim-bazlı kompozit sıralama)
+    }
+
+    public override async Task<PagedResultDto<CashListDto>> GetListAsync(CashListRequestDto input)
+    {
+        using (DataFilter.Disable<IMultiTenant>())
         {
-            var tenantId = CurrentTenant.Id;
             var units = await _unitRepository.GetQueryableAsync();
 
             // FollowingUnitCode/Name → self-join (korelasyonlu alt-sorgu) ile GERÇEK kolon: server-side sort/filter/arama.
-            var rows = (await _repository.GetQueryableAsync())
-                .Where(x => x.TenantId == null || x.TenantId == tenantId)
+            var rows = (await Repository.GetQueryableAsync())
+                .Where(BuildVisibilityPredicate())
                 .Select(c => new CashListRow
                 {
                     Id = c.Id,
@@ -71,58 +89,15 @@ public class CashAppService : TradeXpressAppService, ICashAppService
         }
     }
 
-    public virtual async Task<CashGetDto> GetAsync(Guid id) => await ToGetDtoAsync(await GetInScopeAsync(id));
-
-    [Authorize(TradeXpressPermissions.Cashes.Create)]
-    public virtual async Task<CashGetDto> CreateAsync(CashCreateDto input)
-    {
-        var followingUnitId = await ResolveFollowingUnitAsync(input.FollowingUnitId);
-
-        // TenantId otomatik atanır (ABP IMultiTenant): host→null (global), tenant→kendi.
-        var entity = new Cash(input.Code, input.Name, followingUnitId);
-        entity.SetDescription(input.Description);
-
-        await _repository.InsertAsync(entity, autoSave: true);
-        return await ToGetDtoAsync(entity);
-    }
-
-    [Authorize(TradeXpressPermissions.Cashes.Update)]
-    public virtual async Task<CashGetDto> UpdateAsync(Guid id, CashUpdateDto input)
-    {
-        var entity = await GetInScopeAsync(id);
-        EnsureEditable(entity);
-
-        var followingUnitId = await ResolveFollowingUnitAsync(input.FollowingUnitId);
-
-        entity.SetName(input.Name);
-        entity.SetFollowingUnit(followingUnitId);
-        entity.SetDescription(input.Description);
-        entity.SetActive(input.IsActive);
-
-        await _repository.UpdateAsync(entity, autoSave: true);
-        return await ToGetDtoAsync(entity);
-    }
-
-    [Authorize(TradeXpressPermissions.Cashes.Delete)]
-    public virtual async Task DeleteAsync(Guid id)
-    {
-        var entity = await GetInScopeAsync(id);
-        EnsureEditable(entity, isDelete: true);
-
-        await _repository.DeleteAsync(entity, autoSave: true);
-    }
-
     public virtual async Task<List<CashListDto>> GetPickerListAsync()
     {
-        using (_dataFilter.Disable<IMultiTenant>())
+        using (DataFilter.Disable<IMultiTenant>())
         {
-            var tenantId = CurrentTenant.Id;
-            var units    = await _unitRepository.GetQueryableAsync();
-            var cashes   = await _repository.GetQueryableAsync();
+            var units  = await _unitRepository.GetQueryableAsync();
+            var cashes = (await Repository.GetQueryableAsync()).Where(BuildVisibilityPredicate());
 
             var rows = await AsyncExecuter.ToListAsync(
                 from c in cashes
-                where c.TenantId == null || c.TenantId == tenantId
                 join u in units on c.FollowingUnitId equals u.Id into uj
                 from u in uj.DefaultIfEmpty()
                 orderby (u == null ? 0 : (u.TenantId == null ? 0 : 1)),
@@ -146,32 +121,52 @@ public class CashAppService : TradeXpressAppService, ICashAppService
         }
     }
 
+    protected override async Task<Cash> MapToEntityAsync(CashCreateDto createInput)
+    {
+        var followingUnitId = await ResolveFollowingUnitAsync(createInput.FollowingUnitId);
+
+        // TenantId otomatik atanır (ABP IMultiTenant): host→null (global), tenant→kendi.
+        var entity = new Cash(createInput.Code, createInput.Name, followingUnitId);
+        entity.SetDescription(createInput.Description);
+        return entity;
+    }
+
+    protected override async Task MapToEntityAsync(CashUpdateDto updateInput, Cash entity)
+    {
+        var followingUnitId = await ResolveFollowingUnitAsync(updateInput.FollowingUnitId);
+
+        entity.SetName(updateInput.Name);
+        entity.SetFollowingUnit(followingUnitId);
+        entity.SetDescription(updateInput.Description);
+        entity.SetActive(updateInput.IsActive);
+    }
+
+    // Cash için Mapperly entity→DTO mapping yok; GetDto elle + FollowingUnitCode zenginleştirmesiyle kurulur.
+    protected override async Task<CashGetDto> MapToGetOutputDtoAsync(Cash entity)
+    {
+        string? followingCode;
+        using (DataFilter.Disable<IMultiTenant>())
+        {
+            followingCode = await AsyncExecuter.FirstOrDefaultAsync(
+                (await _unitRepository.GetQueryableAsync())
+                    .Where(u => u.Id == entity.FollowingUnitId)
+                    .Select(u => u.Code));
+        }
+
+        return new CashGetDto
+        {
+            Id = entity.Id,
+            Code = entity.Code,
+            Name = entity.Name,
+            FollowingUnitId = entity.FollowingUnitId,
+            FollowingUnitCode = followingCode,
+            Description = entity.Description,
+            IsActive = entity.IsActive,
+            IsGlobal = entity.TenantId == null,
+        };
+    }
+
     // ── helpers ───────────────────────────────────────────────────────────────
-
-    /// <summary>Id'yi görünürlük scope'unda (global + kendi) çeker; yoksa EntityNotFound.</summary>
-    private async Task<Cash> GetInScopeAsync(Guid id)
-    {
-        using (_dataFilter.Disable<IMultiTenant>())
-        {
-            var tenantId = CurrentTenant.Id;
-            var entity = await AsyncExecuter.FirstOrDefaultAsync(
-                (await _repository.GetQueryableAsync())
-                    .Where(x => x.Id == id && (x.TenantId == null || x.TenantId == tenantId)));
-
-            return entity ?? throw new EntityNotFoundException(typeof(Cash), id);
-        }
-    }
-
-    /// <summary>Tenant, global (host) Cash'i düzenleyemez/silemez — yalnız host yönetir.</summary>
-    private void EnsureEditable(Cash entity, bool isDelete = false)
-    {
-        if (entity.TenantId == null && CurrentTenant.Id != null)
-        {
-            throw new BusinessException(isDelete
-                ? "TradeXpress:Cash:CannotDeleteGlobalAsTenant"
-                : "TradeXpress:Cash:CannotEditGlobalAsTenant");
-        }
-    }
 
     /// <summary>FollowingUnit zorunlu; görünürlük kapsamında (global ‖ own) var olmalı. Geçerli Id'yi döndürür.</summary>
     private async Task<Guid> ResolveFollowingUnitAsync(Guid? followingUnitId)
@@ -181,7 +176,7 @@ public class CashAppService : TradeXpressAppService, ICashAppService
             throw new BusinessException("TradeXpress:Cash:FollowingUnitRequired");
         }
 
-        using (_dataFilter.Disable<IMultiTenant>())
+        using (DataFilter.Disable<IMultiTenant>())
         {
             var tenantId = CurrentTenant.Id;
             var exists = await AsyncExecuter.AnyAsync(
@@ -197,39 +192,18 @@ public class CashAppService : TradeXpressAppService, ICashAppService
         return id;
     }
 
-    private static CashListDto ToListDto(CashListRow r) => new()
+    private static CashListDto ToListDto(CashListRow r)
     {
-        Id = r.Id,
-        Code = r.Code,
-        Name = r.Name,
-        FollowingUnitId = r.FollowingUnitId,
-        FollowingUnitCode = r.FollowingUnitCode,
-        FollowingUnitName = r.FollowingUnitName,
-        IsActive = r.IsActive,
-        IsGlobal = r.TenantId == null,
-    };
-
-    private async Task<CashGetDto> ToGetDtoAsync(Cash c)
-    {
-        string? followingCode;
-        using (_dataFilter.Disable<IMultiTenant>())
+        return new CashListDto
         {
-            followingCode = await AsyncExecuter.FirstOrDefaultAsync(
-                (await _unitRepository.GetQueryableAsync())
-                    .Where(u => u.Id == c.FollowingUnitId)
-                    .Select(u => u.Code));
-        }
-
-        return new CashGetDto
-        {
-            Id = c.Id,
-            Code = c.Code,
-            Name = c.Name,
-            FollowingUnitId = c.FollowingUnitId,
-            FollowingUnitCode = followingCode,
-            Description = c.Description,
-            IsActive = c.IsActive,
-            IsGlobal = c.TenantId == null,
+            Id = r.Id,
+            Code = r.Code,
+            Name = r.Name,
+            FollowingUnitId = r.FollowingUnitId,
+            FollowingUnitCode = r.FollowingUnitCode,
+            FollowingUnitName = r.FollowingUnitName,
+            IsActive = r.IsActive,
+            IsGlobal = r.TenantId == null,
         };
     }
 

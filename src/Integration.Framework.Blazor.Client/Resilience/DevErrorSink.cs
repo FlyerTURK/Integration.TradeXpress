@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace Integration.TradeXpress.Blazor.Client.Dev;
+namespace Integration.Framework.Blazor.Client.Resilience;
 
 /// <summary>
 /// Yakalanan tüm runtime hatalarının tutulduğu tek merkez (WASM tek kullanıcı → Singleton).

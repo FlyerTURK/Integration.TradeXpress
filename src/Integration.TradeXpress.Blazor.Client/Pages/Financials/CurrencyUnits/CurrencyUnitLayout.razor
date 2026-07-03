@@ -2,6 +2,7 @@
 @using System.Linq
 @using System.Collections.Generic
 @using Integration.TradeXpress.Financials.CurrencyUnits
+@using Integration.TradeXpress.Permissions
 @using Integration.Framework.Blazor.Client.Components.Crud
 @using DevExpress.Blazor
 @using Microsoft.Extensions.Localization
@@ -50,7 +51,9 @@
                                 ValueChanged="@((Guid? newId) => HandleFollowingUnitChanged(newId))"
                                 ValueExpression="@(() => Model.FollowingUnitId)"
                                 NullText="@L["None"].Value"
-                                OnEditRequested="@OnEditFollowingUnit" />
+                                OnEditRequested="@OnEditFollowingUnit"
+                                CreatePolicy="@TradeXpressPermissions.CurrencyUnits.Create"
+                                UpdatePolicy="@TradeXpressPermissions.CurrencyUnits.Update" />
             </Template>
         </DxFormLayoutItem>
         @if (Model.FollowingUnitId.HasValue)

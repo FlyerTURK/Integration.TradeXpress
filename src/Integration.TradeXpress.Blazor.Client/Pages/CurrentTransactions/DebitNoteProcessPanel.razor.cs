@@ -14,7 +14,7 @@ namespace Integration.TradeXpress.Blazor.Client.Pages.CurrentTransactions;
 /// (DebitNoteBalancePoster daima bakiyeye yazar). Yön etiketi ALACAK/BORÇ — DB'de Inbound/Outbound saklanır
 /// (legacy quirk paritesi). Kategori bu fazda serbest metin → CommodityCode (legacy 'DEVİR' gibi).
 /// </summary>
-public partial class DebitNoteProcessPanel
+public partial class DebitNoteProcessPanel : IVoucherLineEditPanel
 {
     [Parameter] public EventCallback OnBack { get; set; }
     [Parameter] public string? AccountCode { get; set; }

@@ -3,40 +3,39 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Threading.Tasks;
+using Integration.Framework.Application;
 using Integration.Framework.Base.Querying;
+using Integration.TradeXpress.Financials.CurrencyUnits;
+using Integration.TradeXpress.Localization;
 using Integration.TradeXpress.Permissions;
 using Microsoft.AspNetCore.Authorization;
-using Volo.Abp;
 using Volo.Abp.Application.Dtos;
-using Volo.Abp.Data;
-using Volo.Abp.Domain.Entities;
 using Volo.Abp.Domain.Repositories;
-using Volo.Abp.Guids;
 using Volo.Abp.MultiTenancy;
-
-using Integration.TradeXpress.Financials.CurrencyUnits;
 
 namespace Integration.TradeXpress.Financials.Parities;
 
 /// <summary>
-/// Parite CRUD. <b>Görünürlük:</b> host kataloğu (TenantId=null) HERKESE görünür + tenant kendi
-/// paritelerini görür — ABP multi-tenant filter disable + açık predicate (<c>TenantId==null||==tenant</c>),
-/// <see cref="CurrencyUnitAppService"/> ile bire bir. Tenant global pariteyi düzenleyemez/silemez (salt-okur).
+/// Parite CRUD. Görünürlük/guard <see cref="HostCatalogCrudAppService{TEntity,TGetDto,TListDto,TListRequest,TCreateInput,TUpdateInput}"/>
+/// tabanından (host kataloğu + tenant kendi pariteleri; tenant global'i düzenleyemez/silemez).
 ///
 /// <para>Çift = base/quote; oran saklanmaz (birim fiyatından türetilir). <b>Ters-çift kuralı</b>
-/// (<see cref="ParityManager"/>): USDTRY varken TRYUSD oluşturulamaz — kapsam host‖own.</para>
+/// (<see cref="ParityManager"/>): USDTRY varken TRYUSD oluşturulamaz — kapsam host‖own. Create tek
+/// kapıdan (manager) geçer. Liste özel: Parity id-only olduğundan birim kodları join'le gerçek kolon
+/// yapılır (server-side sort/filter/arama) — GetListAsync burada override.</para>
 /// </summary>
 [Authorize(TradeXpressPermissions.Parities.Default)]
-public class ParityAppService : TradeXpressAppService, IParityAppService
+public class ParityAppService
+    : HostCatalogCrudAppService<Parity, ParityGetDto, ParityListDto, ParityListRequestDto, ParityCreateDto, ParityUpdateDto>,
+      IParityAppService
 {
-    private readonly IRepository<Parity, Guid> _repository;
     private readonly IRepository<CurrencyUnit, Guid> _currencyUnitRepository;
     private readonly ParityManager _parityManager;
 
     // Liste, Parity'yi CurrencyUnit'e join'leyip ParityListRow'a yansıtır → BaseCode/QuoteCode GERÇEK
     // string kolon olur; böylece kod ile sıralama/filtre/arama server-side çalışır (Parity id-only kalır).
-    private static readonly HashSet<string> AllowedListFields =
-        new(StringComparer.OrdinalIgnoreCase)
+    protected override ISet<string> AllowedListFields { get; } =
+        new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         { "IsActive", "DisplayOrder", "Id", "BaseCode", "QuoteCode" };
 
     // IsGlobal kolon değil (TenantId==null demek) → host-önce sıralaması için alias (projeksiyon satırında).
@@ -46,38 +45,51 @@ public class ParityAppService : TradeXpressAppService, IParityAppService
             ["IsGlobal"] = (Expression<Func<ParityListRow, bool>>)(r => r.TenantId == null),
         };
 
-    // Varsayılan sıra: host (global) önce → DisplayOrder artan → Id (deterministik tie-break).
-    private static List<SortField> DefaultListSorts() => new()
-    {
-        new() { Field = "IsGlobal",     Descending = true  },
-        new() { Field = "DisplayOrder", Descending = false },
-        new() { Field = "Id",           Descending = false },
-    };
-
     public ParityAppService(
         IRepository<Parity, Guid> repository,
         IRepository<CurrencyUnit, Guid> currencyUnitRepository,
         ParityManager parityManager)
+        : base(repository)
     {
-        _repository = repository;
         _currencyUnitRepository = currencyUnitRepository;
         _parityManager = parityManager;
+        LocalizationResource = typeof(TradeXpressResource);
+        CreatePolicyName = TradeXpressPermissions.Parities.Create;
+        UpdatePolicyName = TradeXpressPermissions.Parities.Update;
+        DeletePolicyName = TradeXpressPermissions.Parities.Delete;
     }
 
-    public virtual async Task<PagedResultDto<ParityListDto>> GetListAsync(ParityListRequestDto input)
+    protected override string EditGlobalErrorCode
     {
+        get { return "TradeXpress:Parity:CannotEditGlobalAsTenant"; }
+    }
+
+    protected override string DeleteGlobalErrorCode
+    {
+        get { return "TradeXpress:Parity:CannotDeleteGlobalAsTenant"; }
+    }
+
+    protected override Expression<Func<Parity, string>> PickerOrderSelector
+    {
+        get { return x => x.Id.ToString(); }   // picker yok (sözleşmede GetPickerListAsync tanımlı değil)
+    }
+
+    public override async Task<PagedResultDto<ParityListDto>> GetListAsync(ParityListRequestDto input)
+    {
+        await CheckGetListPolicyAsync();
+
         using (DataFilter.Disable<IMultiTenant>())
         {
-            var tenantId = CurrentTenant.Id;
-
             if ((input.Sorts == null || input.Sorts.Count == 0) && string.IsNullOrWhiteSpace(input.Sorting))
+            {
                 input.Sorts = DefaultListSorts();
+            }
 
             // Parity id-only (nav yok) → kodları join ile getir; ParityListRow'da BaseCode/QuoteCode gerçek
             // kolon olduğundan ApplyListRequest kod ile sıralama/filtre/arama'yı server-side uygular.
             var units = await _currencyUnitRepository.GetQueryableAsync();
-            var rows = (await _repository.GetQueryableAsync())
-                .Where(x => x.TenantId == null || x.TenantId == tenantId)
+            var rows = (await Repository.GetQueryableAsync())
+                .Where(BuildVisibilityPredicate())
                 .Join(units, p => p.BaseCurrencyUnitId, u => u.Id, (p, u) => new { p, baseCode = u.Code, baseName = u.Name })
                 .Join(units, x => x.p.QuoteCurrencyUnitId, u => u.Id, (x, u) => new ParityListRow
                 {
@@ -102,16 +114,10 @@ public class ParityAppService : TradeXpressAppService, IParityAppService
         }
     }
 
-    public virtual async Task<ParityGetDto> GetAsync(Guid id)
+    public override async Task<ParityGetDto> CreateAsync(ParityCreateDto input)
     {
-        var entity = await GetInScopeAsync(id);
-        var codes = await GetCodeMapAsync(new[] { entity.BaseCurrencyUnitId, entity.QuoteCurrencyUnitId });
-        return ToGetDto(entity, codes);
-    }
+        await CheckCreatePolicyAsync();
 
-    [Authorize(TradeXpressPermissions.Parities.Create)]
-    public virtual async Task<ParityGetDto> CreateAsync(ParityCreateDto input)
-    {
         // Tek create kapısı manager: ön-kontrol (ters/aynı çift, base==quote) + insert. TenantId'yi ABP atar.
         var entity = await _parityManager.CreateAsync(
             input.BaseCurrencyUnitId,
@@ -120,61 +126,44 @@ public class ParityAppService : TradeXpressAppService, IParityAppService
             input.DisplayOrder,
             CurrentTenant.Id);
 
-        var codes = await GetCodeMapAsync(new[] { entity.BaseCurrencyUnitId, entity.QuoteCurrencyUnitId });
-        return ToGetDto(entity, codes);
+        return await MapToGetOutputDtoAsync(entity);
     }
 
-    [Authorize(TradeXpressPermissions.Parities.Update)]
-    public virtual async Task<ParityGetDto> UpdateAsync(Guid id, ParityUpdateDto input)
+    protected override Task<Parity> MapToEntityAsync(ParityCreateDto createInput)
     {
-        var entity = await GetInScopeAsync(id);
-        EnsureEditable(entity);
-
-        entity.SetActive(input.IsActive);
-        entity.SetDisplayOrder(input.DisplayOrder);
-
-        await _repository.UpdateAsync(entity, autoSave: true);
-
-        var codes = await GetCodeMapAsync(new[] { entity.BaseCurrencyUnitId, entity.QuoteCurrencyUnitId });
-        return ToGetDto(entity, codes);
+        // Create tamamen manager'a delege — bu yol asla çağrılmamalı (fail-fast).
+        throw new InvalidOperationException("Parity create ParityManager üzerinden yapılır; CreateAsync override'ı kullanın.");
     }
 
-    [Authorize(TradeXpressPermissions.Parities.Delete)]
-    public virtual async Task DeleteAsync(Guid id)
+    protected override Task MapToEntityAsync(ParityUpdateDto updateInput, Parity entity)
     {
-        var entity = await GetInScopeAsync(id);
-        EnsureEditable(entity, isDelete: true);
+        entity.SetActive(updateInput.IsActive);
+        entity.SetDisplayOrder(updateInput.DisplayOrder);
+        return Task.CompletedTask;
+    }
 
-        await _repository.DeleteAsync(entity, autoSave: true);
+    protected override async Task<ParityGetDto> MapToGetOutputDtoAsync(Parity entity)
+    {
+        var dto = await base.MapToGetOutputDtoAsync(entity);   // Mapperly + IsGlobal (IHostScoped)
+        dto.IsSystem = entity.TenantId == null;
+
+        var codes = await GetCodeMapAsync(new[] { entity.BaseCurrencyUnitId, entity.QuoteCurrencyUnitId });
+        dto.BaseCode = codes.GetValueOrDefault(entity.BaseCurrencyUnitId, string.Empty);
+        dto.QuoteCode = codes.GetValueOrDefault(entity.QuoteCurrencyUnitId, string.Empty);
+        return dto;
     }
 
     // ── Yardımcılar ──
 
-    /// <summary>Kayıt görünür kapsamda (global + kendi tenant) mı? Değilse EntityNotFound.</summary>
-    private async Task<Parity> GetInScopeAsync(Guid id)
+    // Varsayılan sıra: host (global) önce → DisplayOrder artan → Id (deterministik tie-break).
+    private static List<SortField> DefaultListSorts()
     {
-        using (DataFilter.Disable<IMultiTenant>())
+        return new List<SortField>
         {
-            var tenantId = CurrentTenant.Id;
-            var entity = await AsyncExecuter.FirstOrDefaultAsync(
-                (await _repository.GetQueryableAsync())
-                    .Where(x => x.Id == id && (x.TenantId == null || x.TenantId == tenantId)));
-
-            if (entity is null)
-                throw new EntityNotFoundException(typeof(Parity), id);
-            return entity;
-        }
-    }
-
-    /// <summary>Tenant, global (host) pariteyi düzenleyemez/silemez — yalnız host yönetir.</summary>
-    private void EnsureEditable(Parity entity, bool isDelete = false)
-    {
-        if (entity.TenantId == null && CurrentTenant.Id != null)
-        {
-            throw new BusinessException(isDelete
-                ? "TradeXpress:Parity:CannotDeleteGlobalAsTenant"
-                : "TradeXpress:Parity:CannotEditGlobalAsTenant");
-        }
+            new() { Field = "IsGlobal",     Descending = true  },
+            new() { Field = "DisplayOrder", Descending = false },
+            new() { Field = "Id",           Descending = false },
+        };
     }
 
     /// <summary>Verilen birim id'leri için Id→Code haritası (global + tenant birimleri).</summary>
@@ -182,7 +171,9 @@ public class ParityAppService : TradeXpressAppService, IParityAppService
     {
         var ids = unitIds.Distinct().ToList();
         if (ids.Count == 0)
+        {
             return new Dictionary<Guid, string>();
+        }
 
         using (DataFilter.Disable<IMultiTenant>())
         {
@@ -192,20 +183,23 @@ public class ParityAppService : TradeXpressAppService, IParityAppService
         }
     }
 
-    private static ParityListDto ToListDto(ParityListRow r) => new()
+    private static ParityListDto ToListDto(ParityListRow r)
     {
-        Id = r.Id,
-        BaseCurrencyUnitId = r.BaseCurrencyUnitId,
-        QuoteCurrencyUnitId = r.QuoteCurrencyUnitId,
-        BaseCode = r.BaseCode,
-        BaseName = r.BaseName,
-        QuoteCode = r.QuoteCode,
-        QuoteName = r.QuoteName,
-        IsActive = r.IsActive,
-        IsSystem = r.TenantId == null,
-        IsGlobal = r.TenantId == null,
-        DisplayOrder = r.DisplayOrder,
-    };
+        return new ParityListDto
+        {
+            Id = r.Id,
+            BaseCurrencyUnitId = r.BaseCurrencyUnitId,
+            QuoteCurrencyUnitId = r.QuoteCurrencyUnitId,
+            BaseCode = r.BaseCode,
+            BaseName = r.BaseName,
+            QuoteCode = r.QuoteCode,
+            QuoteName = r.QuoteName,
+            IsActive = r.IsActive,
+            IsSystem = r.TenantId == null,
+            IsGlobal = r.TenantId == null,
+            DisplayOrder = r.DisplayOrder,
+        };
+    }
 
     // Liste projeksiyonu: Parity + join'lenmiş birim kodları. BaseCode/QuoteCode gerçek string kolon
     // olduğundan ApplyListRequest sıralama/filtre/arama'yı server-side uygular (Parity id-only kalır).
@@ -221,15 +215,5 @@ public class ParityAppService : TradeXpressAppService, IParityAppService
         public string QuoteName { get; set; } = string.Empty;
         public bool IsActive { get; set; }
         public int DisplayOrder { get; set; }
-    }
-
-    private ParityGetDto ToGetDto(Parity e, IReadOnlyDictionary<Guid, string> codes)
-    {
-        var dto = ObjectMapper.Map<Parity, ParityGetDto>(e);
-        dto.IsGlobal = e.TenantId == null;
-        dto.IsSystem = e.TenantId == null;
-        dto.BaseCode = codes.GetValueOrDefault(e.BaseCurrencyUnitId, string.Empty);
-        dto.QuoteCode = codes.GetValueOrDefault(e.QuoteCurrencyUnitId, string.Empty);
-        return dto;
     }
 }

@@ -44,7 +44,6 @@ public class RazorConventionTests
         "src/Integration.Framework.Blazor.Client/Components/Crud/CrudEditView.razor",
         "src/Integration.Framework.Blazor.Client/Components/Crud/CrudFooterToolbar.razor",
         "src/Integration.Framework.Blazor.Client/Components/Crud/CrudToolbar.razor",
-        "src/Integration.Framework.Blazor.Client/Components/Crud/DrillList.razor",
         "src/Integration.Framework.Blazor.Client/Components/Crud/DrillTabs.razor",
         "src/Integration.Framework.Blazor.Client/Components/Crud/EntityEditForm.razor",
         "src/Integration.Framework.Blazor.Client/Components/Crud/GridLinkColumn.razor",

@@ -95,7 +95,17 @@
     private TGetDto? _model;
     private bool _isNew = true;
 
-    protected override async Task OnInitializedAsync() => await LoadAsync();
+    // Sekme "/entity/new" rotasıyla açıldıysa orijinal URL — kaydet sonrası "/entity/{id}" retarget'i
+    // ve Kaydet&Yeni'de geri dönüş için saklanır (aynı kayda ikinci sekme açılmasın).
+    private string? _newTabUrl;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (CurrentMdiTab is { } tab && tab.Url.EndsWith("/new", StringComparison.OrdinalIgnoreCase))
+            _newTabUrl = tab.Url;
+
+        await LoadAsync();
+    }
 
     private async Task LoadAsync()
     {
@@ -128,6 +138,12 @@
         {
             _model = await Coordinator.CommitAsync(m);   // taze model → rebind (* gider)
             _isNew = false;
+
+            // Yeni kayıt sekmede kaydedildi ve sekme açık kaldı → sekme artık BU KAYDI temsil eder:
+            // URL "/entity/new" → "/entity/{id}". Listeden Düzelt aynı URL'i bulup bu sekmeyi aktive
+            // eder (ikinci sekme açılmaz); form zaten update moduna geçti (_isNew=false).
+            if (wasNew && _newTabUrl != null && CurrentMdiTab is { } savedTab)
+                TabOpener.UpdateTabUrl(savedTab.Id, _newTabUrl[..^3] + _model.Id);
             // Extra-commit: ana kayıt SONRASI ayrı servise yazan paneller (ör. izinler → artık var olan rol/kullanıcı adına).
             if (OnAfterCommit != null) await OnAfterCommit(_model);
             UiService.ShowSuccessToast(L["SuccessfullySaved"].Value);
@@ -145,6 +161,12 @@
     {
         _model = NewModel();
         _isNew = true;
+
+        // Form yeniden "yeni" moduna döndü → sekme URL'i de "new" rotasına dönsün (retarget geri alınır);
+        // aksi hâlde sekme az önce kaydedilen kaydın URL'ini taşımaya devam ederdi.
+        if (_newTabUrl != null && CurrentMdiTab is { } tab)
+            TabOpener.UpdateTabUrl(tab.Id, _newTabUrl);
+
         StateHasChanged();
         return Task.CompletedTask;
     }

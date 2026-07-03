@@ -2,6 +2,7 @@
 @using System.Collections.Generic
 @using Integration.TradeXpress.Accounts
 @using Integration.TradeXpress.Financials.CurrencyUnits
+@using Integration.TradeXpress.Permissions
 @using Integration.Framework.Blazor.Client.Components.Crud
 @using Integration.TradeXpress.Blazor.Client.Components.Shared
 @using DevExpress.Blazor
@@ -36,7 +37,9 @@
                                 @bind-Value="@Model.BalanceCurrencyUnitId"
                                 SearchFilterCondition="ListSearchFilterCondition.Contains"
                                 NullText="@L["Select"].Value"
-                                OnEditRequested="@OnEditCurrency" />
+                                OnEditRequested="@OnEditCurrency"
+                                CreatePolicy="@TradeXpressPermissions.CurrencyUnits.Create"
+                                UpdatePolicy="@TradeXpressPermissions.CurrencyUnits.Update" />
             </Template>
         </DxFormLayoutItem>
 
@@ -57,7 +60,9 @@
                                 @bind-Value="@Model.LimitUnitId"
                                 SearchFilterCondition="ListSearchFilterCondition.Contains"
                                 NullText="@L["Select"].Value"
-                                OnEditRequested="@OnEditCurrency" />
+                                OnEditRequested="@OnEditCurrency"
+                                CreatePolicy="@TradeXpressPermissions.CurrencyUnits.Create"
+                                UpdatePolicy="@TradeXpressPermissions.CurrencyUnits.Update" />
             </Template>
         </DxFormLayoutItem>
 

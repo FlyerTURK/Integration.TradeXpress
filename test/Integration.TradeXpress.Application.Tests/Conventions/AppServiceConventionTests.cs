@@ -17,17 +17,11 @@ public class AppServiceConventionTests
 {
     private static readonly Assembly ApplicationAssembly = typeof(CurrencyUnitAppService).Assembly;
 
-    // Commodity statik-mapping BORCU TAMAMEN ÖDENDİ: AssayOffice (referans) + Service/Scrap/Metal/Future/Jewelry/
-    // Stone/UserScopedGrant → hepsi Mapperly'ye çevrildi. Aşağıdaki tek isim BORÇ DEĞİL → MEŞRU İSTİSNA:
-    //   VoucherAppService.MapLine(VoucherLine) — basit full-entity→DTO DEĞİL. VoucherLineDto kompozit/çok-kaynaklı:
-    //   entity'nin yalnız PERSISTED alt-kümesi + voucher-header bağlamı (CompanyId/BranchId/VoucherDate...) +
-    //   okuma-anı çözülen *UnitCode + bullion + running-balance. Mapperly'ye zorlamak ~55 MapperIgnoreTarget /
-    //   zayıf strateji getirir, netlik kazandırmaz; üstelik name-match, MapLine'ın BİLEREK atladığı alanları
-    //   map'leyip davranış değiştirebilir. YENİ basit static mapper bu listeye GİREMEZ → yine kırmızı.
-    private static readonly HashSet<string> StaticMapperExceptions = new(StringComparer.Ordinal)
-    {
-        "VoucherAppService",
-    };
+    // Statik-mapping BORCU TAMAMEN ÖDENDİ — istisna listesi BOŞ. Eski tek istisna VoucherAppService.MapLine
+    // idi; o eşleme artık VoucherLineDtoFactory'de yaşıyor (AppService değil → tarama dışı) ve Mapperly'ye
+    // bilinçli çevrilmeme gerekçesi o dosyanın başında dokümante. YENİ basit static mapper bu listeye
+    // GİREMEZ → yine kırmızı.
+    private static readonly HashSet<string> StaticMapperExceptions = new(StringComparer.Ordinal);
 
     [Fact]
     public void Entity_to_dto_mapping_must_use_Mapperly_not_hand_rolled_static_helpers()

@@ -2,6 +2,7 @@
 @using System.Collections.Generic
 @using Integration.TradeXpress.Countries
 @using Integration.TradeXpress.Financials.CurrencyUnits
+@using Integration.TradeXpress.Permissions
 @using Integration.Framework.Blazor.Client.Components.Crud
 @using DevExpress.Blazor
 @using Microsoft.Extensions.Localization
@@ -36,7 +37,9 @@
                                 SearchFilterCondition="ListSearchFilterCondition.Contains"
                                 NullText="@L["Select"].Value"
                                 OnEditRequested="@OnEditCurrency"
-                                OnAddRequested="@OnAddCurrency" />
+                                OnAddRequested="@OnAddCurrency"
+                                CreatePolicy="@TradeXpressPermissions.CurrencyUnits.Create"
+                                UpdatePolicy="@TradeXpressPermissions.CurrencyUnits.Update" />
             </Template>
         </DxFormLayoutItem>
         <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6">

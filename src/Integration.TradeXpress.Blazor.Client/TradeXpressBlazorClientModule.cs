@@ -56,10 +56,11 @@ public class TradeXpressBlazorClientModule : AbpModule
         context.Services.AddSingleton<Integration.Framework.Blazor.Client.Services.Mdi.IMdiTabOpener>(
             sp => (Services.Mdi.TabManager)sp.GetRequiredService<Services.Mdi.ITabManager>());
 
-        // Geliştirici Hata Paneli
-        context.Services.AddSingleton<Dev.DevErrorSink>();
+        // Geliştirici Hata Paneli (sink/reporter Framework'e taşındı; panel bileşeni bu projede)
+        context.Services.AddSingleton<Integration.Framework.Blazor.Client.Resilience.DevErrorSink>();
         // Yakalanan teknik hataları panele taşıyan köprü (Blazor Server'da ILogger tarayıcıya gitmez).
-        context.Services.AddTransient<Integration.Framework.Blazor.Client.Services.Base.IClientErrorReporter, Dev.DevErrorReporter>();
+        context.Services.AddTransient<Integration.Framework.Blazor.Client.Services.Base.IClientErrorReporter,
+                                      Integration.Framework.Blazor.Client.Resilience.DevErrorReporter>();
         // Grid export assembly lazy-loader (CrudLayout + DrillList ortak; WASM'da lazy-load, Server'da no-op).
         context.Services.AddScoped<Integration.Framework.Blazor.Client.Components.Crud.IGridExportAssemblyLoader,
                                    Integration.Framework.Blazor.Client.Components.Crud.GridExportAssemblyLoader>();

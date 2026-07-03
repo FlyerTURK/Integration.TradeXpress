@@ -14,7 +14,7 @@ namespace Integration.TradeXpress.Blazor.Client.Pages.CurrentTransactions;
 /// (salt-okunur); açılışta mevcut çeşni stoğu ön-doldurulur (GetAssayStockAsync — legacy Cesni paritesi).
 /// Metal bacak birimleri (HAS/GUM) satıra panelden yazılır — AssayBalancePoster bunlara postlar.
 /// </summary>
-public partial class AssayProcessPanel
+public partial class AssayProcessPanel : IVoucherLineEditPanel
 {
     [Parameter] public EventCallback OnBack { get; set; }
     [Parameter] public string? AccountCode { get; set; }

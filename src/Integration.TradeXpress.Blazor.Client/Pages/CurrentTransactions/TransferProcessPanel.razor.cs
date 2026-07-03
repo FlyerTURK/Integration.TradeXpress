@@ -16,7 +16,7 @@ namespace Integration.TradeXpress.Blazor.Client.Pages.CurrentTransactions;
 /// pasifleri dışlar; Miktar alanı YOK (0 gider — tip bazlı muafiyet). Açıklama sunucuda legacy
 /// "{kaynak}/{karşı}:{desc}" formatına çevrilir; panel ham metni gönderir.
 /// </summary>
-public partial class TransferProcessPanel
+public partial class TransferProcessPanel : IVoucherLineEditPanel
 {
     [Parameter] public EventCallback OnBack { get; set; }
     [Parameter] public string? AccountCode { get; set; }

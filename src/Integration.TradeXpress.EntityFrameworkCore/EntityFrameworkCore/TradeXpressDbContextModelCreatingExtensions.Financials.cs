@@ -1,0 +1,85 @@
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Volo.Abp;
+using Volo.Abp.EntityFrameworkCore.Modeling;
+using Integration.TradeXpress.Financials.CurrencyUnits;
+using Integration.TradeXpress.Financials.Parities;
+using Integration.TradeXpress.Financials.ExchangeRates;
+
+namespace Integration.TradeXpress.EntityFrameworkCore;
+
+/// <summary>
+/// Finansal alan mapping'leri: para birimleri, marjlar, kurlar, pariteler.
+/// </summary>
+public static partial class TradeXpressDbContextModelCreatingExtensions
+{
+    public static void ConfigureCurrencies(this ModelBuilder builder)
+    {
+        Check.NotNull(builder, nameof(builder));
+
+        builder.Entity<CurrencyUnit>(b =>
+        {
+            b.ToTable(TradeXpressConsts.DbTablePrefix + "CurrencyUnits", TradeXpressConsts.DbSchema);
+            b.ConfigureByConvention();
+
+            b.Property(x => x.Code).IsRequired().HasMaxLength(CurrencyConsts.CodeMaxLength);
+            b.Property(x => x.Name).IsRequired().HasMaxLength(CurrencyConsts.NameMaxLength);
+            b.Property(x => x.Description).HasMaxLength(CurrencyConsts.DescriptionMaxLength);
+            b.HasIndex(x => new { x.TenantId, x.Code }).IsUnique();
+
+            // Alış/satış marjı CurrencyUnit'te DEĞİL (per-tenant CurrencyUnitMargin'de).
+            // Yalnız yapısal/global FollowingMargin owned olarak burada.
+            // Type (enum) EXPLICIT map edilmeli — convention get-only enum'u atlıyordu.
+            b.OwnsOne(x => x.FollowingMargin, ConfigureMargin); // nullable owned
+        });
+
+        builder.Entity<CurrencyUnitMargin>(b =>
+        {
+            b.ToTable(TradeXpressConsts.DbTablePrefix + "CurrencyUnitMargins", TradeXpressConsts.DbSchema);
+            b.ConfigureByConvention();
+
+            // Append-only: tenant+company+birim başına ÇOK satır (marj geçmişi). Güncel = en son
+            // CreationTime. Unique YOK; bu index "en son marj" sorgusunu hızlandırır. CompanyId:
+            // host→null (global taban), tenant→working company (branch bazlı DEĞİL).
+            b.HasIndex(x => new { x.TenantId, x.CompanyId, x.CurrencyUnitId, x.CreationTime });
+
+            b.OwnsOne(x => x.MarginOnBuy,  ConfigureMargin);
+            b.OwnsOne(x => x.MarginOnSell, ConfigureMargin);
+        });
+
+        builder.Entity<ExchangeRate>(b =>
+        {
+            b.ToTable(TradeXpressConsts.DbTablePrefix + "ExchangeRates", TradeXpressConsts.DbSchema);
+            b.ConfigureByConvention();
+
+            b.Property(x => x.MarketPriceOnBuy).HasPrecision(RatePrecision, RateScale);
+            b.Property(x => x.MarketPriceOnSell).HasPrecision(RatePrecision, RateScale);
+            b.Property(x => x.Source).IsRequired().HasMaxLength(CurrencyConsts.RateSourceMaxLength);
+            // Pencere başına birim başına tek satır (worker idempotency backstop).
+            b.HasIndex(x => new { x.TenantId, x.CurrencyUnitId, x.RateDate }).IsUnique();
+
+            b.OwnsOne(x => x.AppliedMarginOnBuy,  ConfigureMargin);
+            b.OwnsOne(x => x.AppliedMarginOnSell, ConfigureMargin);
+        });
+
+        builder.Entity<Parity>(b =>
+        {
+            b.ToTable(TradeXpressConsts.DbTablePrefix + "Parities", TradeXpressConsts.DbSchema);
+            b.ConfigureByConvention();
+
+            // Çift tanımı; oran saklanmaz. Yön-bağımsız PairKey ile benzersizlik: USDTRY varken TRYUSD
+            // eklenemez ve eşzamanlı yarış da DB tarafından kapanır (app kontrolü tek başına yetmez).
+            b.Property(x => x.PairKey).IsRequired().HasMaxLength(72);
+            b.HasIndex(x => new { x.TenantId, x.PairKey }).IsUnique();
+            b.HasIndex(x => new { x.TenantId, x.IsActive });
+        });
+    }
+
+    // MarginSetting owned mapping — her iki alanı (Type enum + Value) explicit map eder.
+    private static void ConfigureMargin<TOwner>(OwnedNavigationBuilder<TOwner, MarginSetting> o)
+        where TOwner : class
+    {
+        o.Property(p => p.Type);
+        o.Property(p => p.Value).HasPrecision(RatePrecision, RateScale);
+    }
+}

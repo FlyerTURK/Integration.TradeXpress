@@ -1,6 +1,7 @@
 @using System
 @using Integration.TradeXpress.Branches
 @using Integration.TradeXpress.Financials.CurrencyUnits
+@using Integration.TradeXpress.Permissions
 @using Integration.TradeXpress.Blazor.Client.Pages.Financials.CurrencyUnits
 @using Integration.Framework.Blazor.Client.Components.Crud
 @using DevExpress.Blazor
@@ -28,7 +29,9 @@
                             TextFieldName="@nameof(CurrencyUnitListDto.Code)"
                             @bind-Value="@Model.BaseCurrencyUnitId"
                             EditComponentType="typeof(CurrencyUnitEditHost)"
-                            OnLookupReloadRequested="@OnReferenceDataReload" />
+                            OnLookupReloadRequested="@OnReferenceDataReload"
+                            CreatePolicy="@TradeXpressPermissions.CurrencyUnits.Create"
+                            UpdatePolicy="@TradeXpressPermissions.CurrencyUnits.Update" />
         </DxFormLayoutItem>
         <DxFormLayoutItem ColSpanMd="6">
             <CaptionTemplate>
