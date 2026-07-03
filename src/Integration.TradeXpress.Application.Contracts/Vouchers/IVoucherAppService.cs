@@ -38,6 +38,10 @@ public interface IVoucherAppService : IApplicationService
     /// <paramref name="inStock"/> true → yalnız stokta olanlar (aktif çıkışı olmayan); null → hepsi (düzeltme için).</summary>
     Task<List<BullionStockItemDto>> GetBullionStockAsync(bool? inStock = null);
 
+    /// <summary>Çeşni stoğu özeti (takoz girişlerinin AssayAmount havuzu − çeşni çıkışları) — Çeşni panelinin
+    /// açılış ön-doldurma kaynağı. Milyemler ağırlıklı ortalama (Has/Miktar, legacy Cesni paritesi).</summary>
+    Task<AssayStockDto> GetAssayStockAsync();
+
     /// <summary>Bir fişi (ve altındaki tüm satırları) siler.</summary>
     Task DeleteAsync(Guid id);
 }

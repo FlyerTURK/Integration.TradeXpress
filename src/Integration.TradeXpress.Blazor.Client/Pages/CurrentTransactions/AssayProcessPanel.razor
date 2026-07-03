@@ -1,0 +1,49 @@
+@inject IStringLocalizer<TradeXpressResource> L
+@inject ICurrencyUnitAppService CurrencyUnitService
+@inject IVoucherAppService VoucherService
+@inject ITradeXpressUiService Ui
+
+@* ÇEŞNİ paneli (Assay=14) — biriken çeşni stoğundan (takoz girişlerindeki numune havuzu) cariye SAF METAL
+   verilmesi. Yön SABİT ÇIKIŞ (kırmızı şerit); parasal alan YOK (Fiyat=Tutar=0). MİKTAR + MILYEM(AU/AG)
+   girilir; HAS/GUM salt-okunur hesaplanır (Miktar × milyem). Açılışta mevcut çeşni stoğu ön-doldurulur
+   (legacy Stok.GetCesniStoklari paritesi — milyemler Has/Miktar türetimli). *@
+
+<ProcessPanelBase Direction="ProcessDirectionType.Outbound" OnSave="@HandleSave" OnBack="@OnBack"
+                  ProcessTypeName="@L["Assay"].Value"
+                  AccountCode="@AccountCode" SubAccountCode="@SubAccountCode">
+
+    <DxFormLayout CssClass="w-100">
+
+        <DxFormLayoutGroup Caption="@L["Assay_Section_Exit"]" ColSpanMd="12">
+            <DxFormLayoutItem Caption="@L["Voucher_Op_Quantity"]" ColSpanMd="2" ColSpanSm="6">
+                <NumericSpinEdit TValue="decimal" Value="@_amount" ValueChanged="@OnAmountChanged" BindValueMode="BindValueMode.OnInput"
+                                 ShowSpinButtons="false" DisplayFormat="N2" Mask="N2" />
+            </DxFormLayoutItem>
+            <DxFormLayoutItem Caption="@L["Voucher_Op_AuMilyem"]" ColSpanMd="3" ColSpanSm="6">
+                <NumericSpinEdit TValue="decimal" Value="@_auMilyem" ValueChanged="@OnAuMilyemChanged" BindValueMode="BindValueMode.OnInput"
+                                 ShowSpinButtons="false" DisplayFormat="N5" Mask="N5" />
+            </DxFormLayoutItem>
+            <DxFormLayoutItem Caption="@L["Voucher_Op_Has"]" ColSpanMd="2" ColSpanSm="6">
+                <span>@_hasValue.ToString("N2")</span>
+            </DxFormLayoutItem>
+            <DxFormLayoutItem Caption="@L["Voucher_Op_AgMilyem"]" ColSpanMd="3" ColSpanSm="6">
+                <NumericSpinEdit TValue="decimal" Value="@_agMilyem" ValueChanged="@OnAgMilyemChanged" BindValueMode="BindValueMode.OnInput"
+                                 ShowSpinButtons="false" DisplayFormat="N5" Mask="N5" />
+            </DxFormLayoutItem>
+            <DxFormLayoutItem Caption="@L["Voucher_Op_Gum"]" ColSpanMd="2" ColSpanSm="6">
+                <span>@_gumValue.ToString("N2")</span>
+            </DxFormLayoutItem>
+        </DxFormLayoutGroup>
+
+        <DxFormLayoutGroup Caption="@L["Voucher_Op_Description"]" ColSpanMd="12">
+            <DxFormLayoutItem ColSpanMd="12">
+                <DxTextBox @bind-Text="_description" />
+            </DxFormLayoutItem>
+        </DxFormLayoutGroup>
+    </DxFormLayout>
+
+    @if (!string.IsNullOrEmpty(_error))
+    {
+        <div class="alert alert-warning mt-2" style="margin:8px;">@_error</div>
+    }
+</ProcessPanelBase>

@@ -40,6 +40,8 @@ public static class VoucherProcessCode
             // Bullion bu karaktere HİÇ düşmez: kısaltma kodu literal "TGA"/"TCA" ile özel-yolludur
             // (kullanıcı kuralı). Bu dal yalnız beklenmedik çağrılara karşı duruyor.
             ProcessType.Bullion  => "T",
+            // Dekont (Borç/Alacak) — "D"; Convert'in "C"si ile çakışmaz (Assay literal "C" özel-yollu).
+            ProcessType.DebitNote => "D",
             _ => "?",
         };
     }

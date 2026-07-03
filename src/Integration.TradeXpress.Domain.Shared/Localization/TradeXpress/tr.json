@@ -339,6 +339,8 @@
     "Permission:Transactions:Stone": "Taş İşlemi",
     "Permission:Transactions:Jewelry": "Mücevher İşlemi",
     "Permission:Transactions:Bullion": "Takoz İşlemi",
+    "Permission:Transactions:Assay": "Çeşni İşlemi",
+    "Permission:Transactions:DebitNote": "Dekont İşlemi",
     "Amount": "Tutar",
     "Account": "Cari Hesap",
     "Accounts": "Cari Hesaplar",
@@ -467,6 +469,7 @@
     "Enum:ProcessType:Transfer": "Virman",
     "Enum:ProcessType:Assay": "Çeşni",
     "Enum:ProcessType:Bullion": "Takoz",
+    "Enum:ProcessType:DebitNote": "Dekont",
     "OpeningBalance": "Devreden",
     "ClosingBalance": "Son Durum",
     "AllProcessTypes": "Tüm işlem tipleri",
@@ -613,6 +616,15 @@
     "Voucher_Disp_Keep": "Madeni Bırak",
     "Voucher_Labor_DeductFromGold": "Altından Düş",
     "Voucher_Labor_WithCash": "Para İle",
+    "DebitNote": "Dekont",
+    "Assay": "Çeşni",
+    "DebitNote_Category": "Kodu",
+    "Assay_Section_Stock": "Çeşni Stoğu",
+    "Assay_Section_Exit": "Çeşni Çıkış",
+    "Voucher_Op_Has": "HAS",
+    "Voucher_Op_Gum": "GUM",
+    "Assay_Stock_Empty": "Çeşni stoğu yok.",
+    "TradeXpress:Voucher:AmountRequired": "Miktar sıfırdan büyük olmalıdır.",
     "ShortDateFormat": "dd.MM.yy"
   }
 }

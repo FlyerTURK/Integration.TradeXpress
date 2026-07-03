@@ -99,6 +99,8 @@ public class TradeXpressPermissionDefinitionProvider : PermissionDefinitionProvi
         transactions.AddChild(TradeXpressPermissions.Transactions.Stone, L("Permission:Transactions:Stone"));
         transactions.AddChild(TradeXpressPermissions.Transactions.Jewelry, L("Permission:Transactions:Jewelry"));
         transactions.AddChild(TradeXpressPermissions.Transactions.Bullion, L("Permission:Transactions:Bullion"));
+        transactions.AddChild(TradeXpressPermissions.Transactions.Assay, L("Permission:Transactions:Assay"));
+        transactions.AddChild(TradeXpressPermissions.Transactions.DebitNote, L("Permission:Transactions:DebitNote"));
     }
 
     private static LocalizableString L(string name)

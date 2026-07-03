@@ -170,6 +170,9 @@
             <DxToolbarItem BeginGroup="true" Text="@($"8-{L["Future"].ToString().ToUpper()}")" IconCssClass="custom-icon-future" Click="@OnFutureClicked" Visible="@_isGrantedFuture" />
             <DxToolbarItem BeginGroup="true" Text="@($"9-{L["Stone"].ToString().ToUpper()}")" IconCssClass="custom-icon-stone" Click="@OnStoneClicked" Visible="@_isGrantedStone" />
             <DxToolbarItem BeginGroup="true" Text="@($"M-{L["Jewelry"].ToString().ToUpper()}")" IconCssClass="custom-icon-jewelry" Click="@OnJewelryClicked" Visible="@_isGrantedJewelry" />
+            @* Çeşni "Ç" / Dekont "D" — rakamlar dolu (1-9), harf kısayolu (Jewelry "M" deseni). *@
+            <DxToolbarItem BeginGroup="true" Text="@($"Ç-{L["Assay"].ToString().ToUpper()}")" IconCssClass="custom-icon-bullion" Click="@OnAssayClicked" Visible="@_isGrantedAssay" />
+            <DxToolbarItem BeginGroup="true" Text="@($"D-{L["DebitNote"].ToString().ToUpper()}")" IconCssClass="custom-icon-report" Click="@OnDebitNoteClicked" Visible="@_isGrantedDebitNote" />
             <DxToolbarItem BeginGroup="true" Text="@($"0-{L["List"].ToString().ToUpper()}")" IconCssClass="custom-icon-list" Click="@OnListClicked" />
         </DxToolbar>
     }
@@ -335,6 +338,42 @@ else if (_activeProcess == "Bullion")
                            VoucherDate="@_model.VoucherDate"
                            VoucherId="@_selectedVoucherId"
                            OnSaved="@OnLineSavedInternal" />
+    </div>
+}
+else if (_activeProcess == "Assay")
+{
+    <div class="tx-process-panel-wrap">
+        <AssayProcessPanel @ref="_assayPanel"
+                           OnBack="@OnProcessBack"
+                           AccountCode="@_selectedAccountCode"
+                           SubAccountCode="@_selectedSubAccountCode"
+                           CompanyId="@_model.CompanyId"
+                           BranchId="@_model.BranchId"
+                           VaultId="@_model.VaultId"
+                           AccountId="@_model.AccountId"
+                           SubAccountId="@_model.SubAccountId"
+                           VoucherDate="@_model.VoucherDate"
+                           VoucherDescription="@_model.Description"
+                           VoucherId="@_selectedVoucherId"
+                           OnSaved="@OnLineSavedInternal" />
+    </div>
+}
+else if (_activeProcess == "DebitNote")
+{
+    <div class="tx-process-panel-wrap">
+        <DebitNoteProcessPanel @ref="_debitNotePanel"
+                               OnBack="@OnProcessBack"
+                               AccountCode="@_selectedAccountCode"
+                               SubAccountCode="@_selectedSubAccountCode"
+                               CompanyId="@_model.CompanyId"
+                               BranchId="@_model.BranchId"
+                               VaultId="@_model.VaultId"
+                               AccountId="@_model.AccountId"
+                               SubAccountId="@_model.SubAccountId"
+                               VoucherDate="@_model.VoucherDate"
+                               VoucherDescription="@_model.Description"
+                               VoucherId="@_selectedVoucherId"
+                               OnSaved="@OnLineSavedInternal" />
     </div>
 }
 else if (_activeProcess == "BullionOut")

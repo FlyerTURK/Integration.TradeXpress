@@ -45,6 +45,8 @@ public partial class AccountSelectionPanel
     private JewelryProcessPanel? _jewelryPanel;
     private BullionProcessPanel? _bullionPanel;
     private BullionExitPanel? _bullionExitPanel;
+    private AssayProcessPanel? _assayPanel;
+    private DebitNoteProcessPanel? _debitNotePanel;
     private VoucherLineDto? _pendingEdit;
     private SubAccountListDto? _pendingSubAccount;
 
@@ -72,6 +74,8 @@ public partial class AccountSelectionPanel
     private bool _isGrantedStone;
     private bool _isGrantedJewelry;
     private bool _isGrantedBullion;
+    private bool _isGrantedAssay;
+    private bool _isGrantedDebitNote;
 
     private record VoucherComboItem(Guid Id, string VoucherNo, string Date, string VaultDisplay, DateTime VoucherDate, string? Description, string DisplayText, int CurrentTransactionCount);
 
@@ -117,6 +121,8 @@ public partial class AccountSelectionPanel
         _isGrantedStone   = await AuthorizationService.IsGrantedAsync(TradeXpressPermissions.Transactions.Stone);
         _isGrantedJewelry = await AuthorizationService.IsGrantedAsync(TradeXpressPermissions.Transactions.Jewelry);
         _isGrantedBullion = await AuthorizationService.IsGrantedAsync(TradeXpressPermissions.Transactions.Bullion);
+        _isGrantedAssay   = await AuthorizationService.IsGrantedAsync(TradeXpressPermissions.Transactions.Assay);
+        _isGrantedDebitNote = await AuthorizationService.IsGrantedAsync(TradeXpressPermissions.Transactions.DebitNote);
     }
 
     private async Task OnSubAccountChanged(Guid? subAccountId)
@@ -262,6 +268,8 @@ public partial class AccountSelectionPanel
     private Task OnJewelryClicked() => SetActiveProcessAsync("Jewelry");
     private Task OnBullionInClicked()  => SetActiveProcessAsync("Bullion");
     private Task OnBullionOutClicked() => SetActiveProcessAsync("BullionOut");
+    private Task OnAssayClicked()      => SetActiveProcessAsync("Assay");
+    private Task OnDebitNoteClicked()  => SetActiveProcessAsync("DebitNote");
 
     private bool _accountPopupSaved;
 
@@ -337,6 +345,8 @@ public partial class AccountSelectionPanel
             ProcessType.Jewelry => "Jewelry",
             // Takoz: yön'e göre giriş (Inbound) veya çıkış (Outbound) paneli.
             ProcessType.Bullion => dto.Direction == ProcessDirectionType.Outbound ? "BullionOut" : "Bullion",
+            ProcessType.Assay     => "Assay",
+            ProcessType.DebitNote => "DebitNote",
             _ => "Cash",
         };
         await SetActiveProcessAsync(process);
@@ -393,7 +403,17 @@ public partial class AccountSelectionPanel
             _pendingEdit = null;
             await _bullionPanel.LoadForEditAsync(dto);
         }
-        else if (dto.Type is not ProcessType.Service and not ProcessType.Convert and not ProcessType.Future and not ProcessType.Scrap and not ProcessType.Metal and not ProcessType.Stone and not ProcessType.Jewelry and not ProcessType.Bullion && _cashPanel is not null)
+        else if (dto.Type == ProcessType.Assay && _assayPanel is not null)
+        {
+            _pendingEdit = null;
+            await _assayPanel.LoadForEditAsync(dto);
+        }
+        else if (dto.Type == ProcessType.DebitNote && _debitNotePanel is not null)
+        {
+            _pendingEdit = null;
+            await _debitNotePanel.LoadForEditAsync(dto);
+        }
+        else if (dto.Type is not ProcessType.Service and not ProcessType.Convert and not ProcessType.Future and not ProcessType.Scrap and not ProcessType.Metal and not ProcessType.Stone and not ProcessType.Jewelry and not ProcessType.Bullion and not ProcessType.Assay and not ProcessType.DebitNote && _cashPanel is not null)
         {
             _pendingEdit = null;
             await _cashPanel.LoadForEditAsync(dto);

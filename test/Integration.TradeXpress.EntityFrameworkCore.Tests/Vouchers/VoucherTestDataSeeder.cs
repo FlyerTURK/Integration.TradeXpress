@@ -159,4 +159,52 @@ public static class VoucherTestLines
             PayTotal      = laborTotal,
         };
     }
+
+    /// <summary>Dekont satırı: DebitNoteBalancePoster PayUnitId/PayTotal'a bakar; Miktar YOK (0) —
+    /// Giriş(ALACAK) → +PayTotal, Çıkış(BORÇ) → −PayTotal; PEŞİN MUAFİYETİ YOK (daima bakiyeye yazar).</summary>
+    public static VoucherLineDto DebitNoteLine(
+        VoucherTestData data,
+        ProcessDirectionType direction,
+        decimal payTotal)
+    {
+        return new VoucherLineDto
+        {
+            BranchId      = data.BranchId,
+            VaultId       = data.VaultId,
+            AccountId     = data.AccountId,
+            SubAccountId  = data.SubAccountId,
+            Type          = ProcessType.DebitNote,
+            Direction     = direction,
+            CommodityCode = "DEVIR",         // legacy kategori örneği
+            Amount        = 0m,              // Miktar alanı yok — 0 gider (tip-bazlı muafiyet)
+            PayUnitId     = data.TryUnitId,
+            PayFactor     = payTotal,
+            PayTotal      = payTotal,
+        };
+    }
+
+    /// <summary>Çeşni satırı (yön SABİT ÇIKIŞ): AssayBalancePoster HAS'a −(Miktar×Factor),
+    /// GUM'a −(Miktar×SilverFactor) postlar; para bacağı yok (Total=PayTotal=0).</summary>
+    public static VoucherLineDto AssayLine(
+        VoucherTestData data,
+        decimal amount,
+        decimal auMilyem,
+        decimal agMilyem)
+    {
+        return new VoucherLineDto
+        {
+            BranchId      = data.BranchId,
+            VaultId       = data.VaultId,
+            AccountId     = data.AccountId,
+            SubAccountId  = data.SubAccountId,
+            Type          = ProcessType.Assay,
+            Direction     = ProcessDirectionType.Outbound,
+            CommodityCode = "CESNI",
+            Amount        = amount,
+            Factor        = auMilyem,
+            SilverFactor  = agMilyem,
+            MainUnitId    = data.HasUnitId,
+            SilverUnitId  = data.GumUnitId,
+        };
+    }
 }

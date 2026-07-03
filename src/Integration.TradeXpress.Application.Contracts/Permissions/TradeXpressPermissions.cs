@@ -122,5 +122,7 @@ public static class TradeXpressPermissions
         public const string Stone   = Default + ".Stone";
         public const string Jewelry = Default + ".Jewelry";
         public const string Bullion = Default + ".Bullion";
+        public const string Assay   = Default + ".Assay";
+        public const string DebitNote = Default + ".DebitNote";
     }
 }

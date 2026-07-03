@@ -6,6 +6,7 @@ using Integration.TradeXpress.EntityFrameworkCore;
 using Integration.TradeXpress.MultiCompany;
 using Integration.TradeXpress.Vouchers.Balance;
 using Shouldly;
+using Volo.Abp;
 using Volo.Abp.Domain.Repositories;
 using Xunit;
 
@@ -133,6 +134,93 @@ public class VoucherLedgerSyncTests : TradeXpressEntityFrameworkCoreTestBase
         var remaining = await GetLedgerAsync(voucherId);
         remaining.Count.ShouldBe(2);
         remaining.ShouldAllBe(e => e.VoucherLineId == metal.Id);
+    }
+
+    [Fact]
+    public async Task DebitNote_lines_post_signed_pay_leg_in_both_directions()
+    {
+        var data = await ArrangeCompanyAsync();
+
+        // Dekont GİRİŞ (ALACAK etiketli) → +500 TRY.
+        var credit = await _voucherAppService.SaveLineAsync(
+            VoucherTestLines.DebitNoteLine(data, ProcessDirectionType.Inbound, 500m));
+        var voucherId = credit.VoucherId!.Value;
+
+        // Dekont ÇIKIŞ (BORÇ etiketli) aynı fişe → −200 TRY.
+        var debitDto = VoucherTestLines.DebitNoteLine(data, ProcessDirectionType.Outbound, 200m);
+        debitDto.VoucherId = voucherId;
+        var debit = await _voucherAppService.SaveLineAsync(debitDto);
+
+        var entries = await GetLedgerAsync(voucherId);
+        entries.Count.ShouldBe(2);
+        entries.Single(e => e.VoucherLineId == credit.Id).Amount.ShouldBe(500m);
+        entries.Single(e => e.VoucherLineId == debit.Id).Amount.ShouldBe(-200m);
+        entries.ShouldAllBe(e => e.UnitId == data.TryUnitId);
+    }
+
+    [Fact]
+    public async Task Assay_exit_posts_negative_has_and_gum_legs_without_money_leg()
+    {
+        var data = await ArrangeCompanyAsync();
+
+        // Çeşni ÇIKIŞ: 10 gr × AU 0.916 / AG 0.05 → HAS −9.16, GUM −0.50; para bacağı YOK.
+        var assay = await _voucherAppService.SaveLineAsync(
+            VoucherTestLines.AssayLine(data, 10m, 0.916m, 0.05m));
+
+        var entries = await GetLedgerAsync(assay.VoucherId!.Value);
+        entries.Count.ShouldBe(2);
+        entries.Single(e => e.UnitId == data.HasUnitId).Amount.ShouldBe(-9.16m);
+        entries.Single(e => e.UnitId == data.GumUnitId).Amount.ShouldBe(-0.50m);
+    }
+
+    [Fact]
+    public async Task Assay_stock_accumulates_from_bullion_entries_and_drains_with_assay_exits()
+    {
+        var data = await ArrangeCompanyAsync();
+
+        // Takoz GİRİŞ: Miktar=100, numune (AssayAmount)=5, AU=0.916, AG=0.04 → çeşni havuzu 5 gr.
+        var bullionIn = new VoucherLineDto
+        {
+            BranchId      = data.BranchId,
+            VaultId       = data.VaultId,
+            AccountId     = data.AccountId,
+            SubAccountId  = data.SubAccountId,
+            Type          = ProcessType.Bullion,
+            Direction     = ProcessDirectionType.Inbound,
+            CommodityCode = "TKZ-1",
+            Amount        = 100m,
+            Factor        = 0.916m,
+            SilverFactor  = 0.04m,
+            AssayAmount   = 5m,
+            MainUnitId    = data.HasUnitId,
+        };
+        await _voucherAppService.SaveLineAsync(bullionIn);
+
+        var afterEntry = await WithUnitOfWorkAsync(() => _voucherAppService.GetAssayStockAsync());
+        afterEntry.Amount.ShouldBe(5m);
+        afterEntry.AuMilyem.ShouldBe(0.916m);
+        afterEntry.AgMilyem.ShouldBe(0.04m);
+
+        // Çeşni ÇIKIŞ 2 gr → havuz 3 gr'a düşer; milyem ortalaması değişmez (aynı milyemle çıkış).
+        await _voucherAppService.SaveLineAsync(VoucherTestLines.AssayLine(data, 2m, 0.916m, 0.04m));
+
+        var afterExit = await WithUnitOfWorkAsync(() => _voucherAppService.GetAssayStockAsync());
+        afterExit.Amount.ShouldBe(3m);
+        afterExit.Has.ShouldBe(3m * 0.916m);
+        afterExit.Gum.ShouldBe(3m * 0.04m);
+        afterExit.AuMilyem.ShouldBe(0.916m);
+        afterExit.AgMilyem.ShouldBe(0.04m);
+    }
+
+    [Fact]
+    public async Task Assay_line_without_amount_is_rejected()
+    {
+        var data = await ArrangeCompanyAsync();
+
+        // Miktar ZORUNLU (legacy: CESNI muaf DEĞİL) → 0 miktar lokalize BusinessException'la reddedilir.
+        var ex = await Should.ThrowAsync<BusinessException>(
+            () => _voucherAppService.SaveLineAsync(VoucherTestLines.AssayLine(data, 0m, 0.916m, 0.05m)));
+        ex.Code.ShouldBe("TradeXpress:Voucher:AmountRequired");
     }
 
     /// <summary>Org grafını kurar ve working şirketi bu şirket yapar.</summary>

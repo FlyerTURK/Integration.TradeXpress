@@ -43,4 +43,8 @@ public enum ProcessType : byte
 
     /// <summary>Takoz (külçe) giriş/çıkış işlemi.</summary>
     Bullion  = 15,
+
+    /// <summary>Borç/Alacak dekontu (Türkçe UI "Dekont") — kategorili serbest tutar hareketi; Miktar alanı yok (0 gider).
+    /// Legacy ERPPRO tIslemKodu.BORC=999 karşılığı — byte aralığı nedeniyle 99; import mapping'inde 999→99 çevrilir.</summary>
+    DebitNote = 99,
 }

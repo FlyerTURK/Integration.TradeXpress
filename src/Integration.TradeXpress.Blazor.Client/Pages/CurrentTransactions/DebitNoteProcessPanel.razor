@@ -1,0 +1,81 @@
+@inject IStringLocalizer<TradeXpressResource> L
+@inject ICurrencyUnitAppService CurrencyUnitService
+@inject IVoucherAppService VoucherService
+@inject ITradeXpressUiService Ui
+
+@* BORÇ/ALACAK DEKONTU paneli (legacy BORC=999) — tek bacak, Miktar YOK (0 gider), peşin muafiyeti YOK.
+   Yön combo etiketi ALACAK/BORÇ (legacy quirk: DB'de GİRİŞ/ÇIKIŞ saklanır). Kategori bu fazda serbest
+   metin → CommodityCode (legacy 'DEVİR' gibi; ayrı lookup tablosu yok). *@
+
+<DxLayoutBreakpoint MaxWidth="768" @bind-IsActive="@_isMobile" />
+
+<ProcessPanelBase Direction="@_model.Direction" OnSave="@HandleSave" OnBack="@OnBack"
+                  ProcessTypeName="@L["DebitNote"].Value"
+                  AccountCode="@AccountCode"
+                  SubAccountCode="@SubAccountCode">
+
+    <div style="padding:8px; @(_isMobile ? "" : "overflow-x:auto;")">
+    <div style="display:flex; @(_isMobile ? "flex-direction:column;" : "width:max-content;") gap:4px; align-items:flex-start;">
+
+        @* Grup 1 — Yön (ALACAK/BORÇ etiketli) *@
+        <div style="@GroupStyle()">
+            <small style="font-weight:600; text-transform:uppercase; letter-spacing:0.05em;">@L["ProcessType"]</small>
+            <DxComboBox TData="DirectionItem" TValue="ProcessDirectionType"
+                        Data="@_directionItems"
+                        Value="@_model.Direction"
+                        ValueChanged="@((ProcessDirectionType v) => _model.Direction = v)"
+                        DropDownTriggerMode="DropDownTriggerMode.Click" ShowDropDownButton="true"
+                        ValueFieldName="@nameof(DirectionItem.Value)" TextFieldName="@nameof(DirectionItem.Label)"
+                        style="@ControlStyle()" />
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:4px; @(_isMobile ? "width:100%;" : "flex-shrink:0;")">
+            <div style="display:flex; @(_isMobile ? "flex-direction:column;" : "") gap:4px; align-items:flex-start;">
+
+                @* Grup 2 — Kategori (serbest metin → CommodityCode) *@
+                <div style="@GroupStyle()">
+                    <small style="font-weight:600; text-transform:uppercase; letter-spacing:0.05em;">@L["DebitNote_Category"]</small>
+                    <DxTextBox Text="@_model.CommodityCode"
+                               TextChanged="@OnCategoryChanged"
+                               style="@ControlStyle()" />
+                </div>
+
+                @* Grup 3 — Tutar (PayTotal) *@
+                <div style="@GroupStyle()">
+                    <small style="font-weight:600; text-transform:uppercase; letter-spacing:0.05em;">@L["PayTotal"]</small>
+                    <NumericSpinEdit TValue="decimal"
+                                     Value="@_model.PayTotal"
+                                     ValueChanged="@OnAmountChanged" BindValueMode="BindValueMode.OnInput"
+                                     ShowSpinButtons="false" DisplayFormat="N2" Mask="N2" />
+                </div>
+
+                @* Grup 4 — Birim (CurrencyUnit → PayUnit) *@
+                <div style="@GroupStyle()">
+                    <small style="font-weight:600; text-transform:uppercase; letter-spacing:0.05em;">@L["PaymentUnit"]</small>
+                    <DxComboBox TData="CurrencyUnitListDto" TValue="Guid?"
+                                Data="@_activeUnits"
+                                ValueFieldName="@nameof(CurrencyUnitListDto.Id)"
+                                TextFieldName="@nameof(CurrencyUnitListDto.Code)"
+                                Value="@_model.PayUnitId"
+                                ValueChanged="@OnUnitChanged"
+                                DropDownTriggerMode="DropDownTriggerMode.Click" ShowDropDownButton="true"
+                                ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Never"
+                                SearchMode="ListSearchMode.AutoSearch" style="@ControlStyle()" />
+                </div>
+
+            </div>
+
+            @* Açıklama *@
+            <div style="display:flex; flex-direction:column; gap:4px;">
+                @if (_isMobile)
+                {
+                    <small style="font-weight:600; text-transform:uppercase; letter-spacing:0.05em;">@L["Voucher_Op_Description"]</small>
+                }
+                <DxTextBox @bind-Text="@_model.Description" CssClass="w-100" />
+            </div>
+        </div>
+
+    </div>
+    </div>
+
+</ProcessPanelBase>

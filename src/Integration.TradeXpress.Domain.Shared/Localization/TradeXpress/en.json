@@ -308,6 +308,8 @@
     "Permission:Transactions:Stone": "Stone Transaction",
     "Permission:Transactions:Jewelry": "Jewelry Transaction",
     "Permission:Transactions:Bullion": "Bullion Transaction",
+    "Permission:Transactions:Assay": "Assay Transaction",
+    "Permission:Transactions:DebitNote": "Debit Note Transaction",
     "Amount": "Amount",
     "Account": "Current Account",
     "Accounts": "Current Accounts",
@@ -436,6 +438,7 @@
     "Enum:ProcessType:Transfer": "Transfer",
     "Enum:ProcessType:Assay": "Assay",
     "Enum:ProcessType:Bullion": "Bullion",
+    "Enum:ProcessType:DebitNote": "Debit Note",
     "OpeningBalance": "Opening Balance",
     "ClosingBalance": "Closing Balance",
     "AllProcessTypes": "All process types",
@@ -581,6 +584,15 @@
     "Voucher_Disp_Keep": "Keep Metal",
     "Voucher_Labor_DeductFromGold": "Deduct from Gold",
     "Voucher_Labor_WithCash": "With Cash",
+    "DebitNote": "Debit Note",
+    "Assay": "Assay",
+    "DebitNote_Category": "Code",
+    "Assay_Section_Stock": "Assay Stock",
+    "Assay_Section_Exit": "Assay Out",
+    "Voucher_Op_Has": "HAS",
+    "Voucher_Op_Gum": "GUM",
+    "Assay_Stock_Empty": "No assay stock.",
+    "TradeXpress:Voucher:AmountRequired": "Amount must be greater than zero.",
     "ShortDateFormat": "MM/dd/yy"
   }
 }

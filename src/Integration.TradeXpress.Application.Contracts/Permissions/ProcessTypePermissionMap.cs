@@ -22,8 +22,10 @@ public static class ProcessTypePermissionMap
         ProcessType.Stone   => TradeXpressPermissions.Transactions.Stone,
         ProcessType.Jewelry => TradeXpressPermissions.Transactions.Jewelry,
         ProcessType.Bullion => TradeXpressPermissions.Transactions.Bullion,
-        // Transfer/Assay gibi kullanıcı butonundan doğrudan tetiklenmeyen dahili tipler için
-        // henüz ayrı yetki tanımlanmadı — ileride gerekirse eklenir. Fail-fast: bilinmeyen tip = hata
+        ProcessType.Assay   => TradeXpressPermissions.Transactions.Assay,
+        ProcessType.DebitNote => TradeXpressPermissions.Transactions.DebitNote,
+        // Transfer için henüz ayrı yetki tanımlanmadı — dalga 2b'de (çift-bacak virman) eklenecek.
+        // Fail-fast: bilinmeyen tip = hata
         // (sessiz geçme YOK). Ham .NET exception yerine error-code'lu + lokalize ABP BusinessException.
         _ => throw new BusinessException("TradeXpress:Transactions:UnknownProcessType")
             .WithData("type", type),
