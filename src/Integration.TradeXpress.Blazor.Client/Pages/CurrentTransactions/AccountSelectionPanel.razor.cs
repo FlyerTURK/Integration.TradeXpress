@@ -84,11 +84,12 @@ public partial class AccountSelectionPanel
         _model.CompanyId = Working.CurrentCompanyId ?? Guid.Empty;
         _model.BranchId  = Working.CurrentBranchId  ?? Guid.Empty;
 
-        var subTask   = SubAccountService.GetListAsync(new SubAccountListRequestDto { BranchId = Working.CurrentBranchId, MaxResultCount = 1000 });
-        var vaultTask = VaultService.GetListAsync(new VaultListRequestDto { BranchId = Working.CurrentBranchId, MaxResultCount = 1000 });
-        await Task.WhenAll(subTask, vaultTask);
-        _subAccounts  = subTask.Result.Items.ToList();
-        _branchVaults = vaultTask.Result.Items.ToList();
+        // SIRALI await (Task.WhenAll DEĞİL): Blazor Server'da bu servisler aynı circuit scope'unun
+        // DbContext'ini paylaşır — paralel iki EF sorgusu aralıklı "second operation started" çökmesi üretir.
+        var subResult   = await SubAccountService.GetListAsync(new SubAccountListRequestDto { BranchId = Working.CurrentBranchId, MaxResultCount = 1000 });
+        var vaultResult = await VaultService.GetListAsync(new VaultListRequestDto { BranchId = Working.CurrentBranchId, MaxResultCount = 1000 });
+        _subAccounts  = subResult.Items.ToList();
+        _branchVaults = vaultResult.Items.ToList();
 
         if (InitialSubAccountId.HasValue)
         {

@@ -222,6 +222,15 @@ public class EffectivePriceAppService : TradeXpressAppService, IEffectivePriceAp
 
             var rawQuery = (await _rateRepository.GetQueryableAsync()).Where(r => r.TenantId == null);
             if (cutoff is { } rc) rawQuery = rawQuery.Where(r => r.RateDate < rc);   // as-of: o tarihe kadar bilinen kur (GetLastKur)
+            if (!historical)
+            {
+                // ÖLÇEK koruması: canlı yolda "en güncel" için TÜM kur geçmişini çekme — feed 15dk'da satır ekler
+                // (5 yılda ~1.7M satır) ve bu metot canlı formlarca saniyelik çağrılır. Canlıda ham fiyat zaten
+                // öncelikle cache'ten gelir; DB satırları yalnız yedek → son 45 gün fazlasıyla yeter
+                // (index (TenantId,CurrencyUnitId,RateDate) seek'e döner). As-of (historical) yol DOKUNULMADI.
+                var liveFloor = DateTime.UtcNow.AddDays(-45);
+                rawQuery = rawQuery.Where(r => r.RateDate >= liveFloor);
+            }
             var rawRows = await AsyncExecuter.ToListAsync(rawQuery);
             var latestRaw = LatestBy(rawRows, r => r.CurrencyUnitId, r => r.RateDate, r => r.Id);
 

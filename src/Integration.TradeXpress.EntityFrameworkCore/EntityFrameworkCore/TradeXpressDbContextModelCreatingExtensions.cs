@@ -472,6 +472,10 @@ public static class TradeXpressDbContextModelCreatingExtensions
             b.HasIndex(x => new { x.TenantId, x.CompanyId, x.VoucherNumber }).IsUnique();
             b.HasIndex(x => new { x.TenantId, x.CompanyId, x.BranchId });
             b.HasIndex(x => new { x.TenantId, x.AccountId });
+            // Perf (keşif turu 2, K3): TÜM raporlar CompanyId+VoucherDate, TÜM cari sorguları
+            // CompanyId+SubAccountId(+tarih) filtreler — bunlar index'siz company-scan'e düşüyordu.
+            b.HasIndex(x => new { x.TenantId, x.CompanyId, x.VoucherDate });
+            b.HasIndex(x => new { x.TenantId, x.CompanyId, x.SubAccountId, x.VoucherDate });
 
             // FK'lar — referans varken kaynak silinemez (Restrict).
             b.HasOne<Companies.Company>().WithMany()

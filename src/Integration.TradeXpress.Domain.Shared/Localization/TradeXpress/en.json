@@ -371,6 +371,8 @@
     "TradeXpress:Jewelry:CannotEditGlobalAsTenant": "Global (host) jewelry records cannot be edited by a tenant.",
     "TradeXpress:Jewelry:CannotDeleteGlobalAsTenant": "Global (host) jewelry records cannot be deleted by a tenant.",
     "TradeXpress:Voucher:CompanyContextRequired": "No working company is selected; the operation cannot proceed.",
+    "TradeXpress:Voucher:ConcurrencyConflict": "This voucher was modified by another user after you loaded it. Please refresh and try again.",
+    "TradeXpress:Voucher:NumberConflict": "The voucher number collided with a concurrent save. Please save again.",
     "TradeXpress:Voucher:BranchNotInCompany": "The selected branch does not belong to the working company.",
     "TradeXpress:Voucher:VaultNotInBranch": "The selected vault does not belong to this branch.",
     "Menu:PriceBoard": "Price Board",

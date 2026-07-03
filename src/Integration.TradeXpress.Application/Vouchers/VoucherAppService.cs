@@ -109,6 +109,38 @@ public class VoucherAppService : TradeXpressAppService, IVoucherAppService
         return voucher;
     }
 
+    // NOT (eşzamanlılık doğrulaması): PARALEL istek koruması ABP'de ZATEN var — repo UpdateAsync root'u
+    // Modified işaretler, ABP stamp'i döndürür (expected-original = property'deki değer) → ikinci paralel
+    // istek AbpDbConcurrencyException alır; ledger drift'i bu yolda imkânsız. Stamp'i ELLE set etmek bu
+    // mekanizmayı BOZAR (set edilen değer expected-original sanılır → 0 satır → hata) — yapma.
+    // Kalan tek gerçek boşluk BAYAT İSTEMCİ idi (form eski veriyle açık) → aşağıdaki kontrol.
+
+    /// <summary>İstemcinin okuduğu andaki fiş stamp'i mevcutla eşleşmiyorsa (arada başka kullanıcı değiştirdi)
+    /// kaydı reddeder — sessiz last-writer-wins yerine açık, lokalize uyarı.</summary>
+    private static void EnsureVoucherNotStale(Voucher voucher, string? clientStamp)
+    {
+        if (clientStamp != null && clientStamp != voucher.ConcurrencyStamp)
+        {
+            throw new BusinessException("TradeXpress:Voucher:ConcurrencyConflict");
+        }
+    }
+
+    /// <summary>VoucherNumber unique index (TenantId,CompanyId,VoucherNumber) ihlali mi? MAX+1 yarışında
+    /// (iki kullanıcı aynı anda ilk satır) ikinci insert bu ihlale düşer — sert DbUpdateException yerine
+    /// lokalize "tekrar deneyin" mesajına çevrilir (panel verisi ekranda kalır, kullanıcı yeniden kaydeder).</summary>
+    private static bool IsVoucherNumberConflict(Exception ex)
+    {
+        for (var e = ex; e != null; e = e.InnerException)
+        {
+            if (e.Message.Contains("VoucherNumber", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public async Task<VoucherGetDto> CreateAsync(VoucherCreateDto input)
     {
         // Client CompanyId'sine güvenilmez — ambient working-context zorlanır (sızıntı önleme).
@@ -127,7 +159,15 @@ public class VoucherAppService : TradeXpressAppService, IVoucherAppService
             input.VoucherDate,
             input.Description);
 
-        await _repository.InsertAsync(entity, autoSave: true);
+        try
+        {
+            await _repository.InsertAsync(entity, autoSave: true);
+        }
+        catch (Exception ex) when (IsVoucherNumberConflict(ex))
+        {
+            // MAX+1 yarışı: unique index bütünlüğü koruyor; sert hata yerine lokalize "tekrar deneyin".
+            throw new BusinessException("TradeXpress:Voucher:NumberConflict");
+        }
 
         return new VoucherGetDto
         {
@@ -165,6 +205,9 @@ public class VoucherAppService : TradeXpressAppService, IVoucherAppService
             voucher = await GetOwnedVoucherAsync(voucherId);
             await _repository.EnsureCollectionLoadedAsync(voucher, v => v.Lines);
 
+            // Bayat istemci kontrolü: okuma anındaki stamp değişmişse (başkası düzenledi) reddet.
+            EnsureVoucherNotStale(voucher, input.VoucherConcurrencyStamp);
+
             if (input.Id != Guid.Empty)
             {
                 voucher.UpdateLine(input.Id, lineInput);
@@ -175,7 +218,7 @@ public class VoucherAppService : TradeXpressAppService, IVoucherAppService
                 lineId = voucher.AddLine(GuidGenerator.Create(), lineInput).Id;
             }
 
-            await _repository.UpdateAsync(voucher, autoSave: true);
+            await _repository.UpdateAsync(voucher, autoSave: true);   // ABP stamp döngüsü paralel isteği zaten yakalar
         }
         else
         {
@@ -195,7 +238,17 @@ public class VoucherAppService : TradeXpressAppService, IVoucherAppService
                 input.VoucherDescription);
 
             lineId = voucher.AddLine(GuidGenerator.Create(), lineInput).Id;
-            await _repository.InsertAsync(voucher, autoSave: true);
+
+            try
+            {
+                await _repository.InsertAsync(voucher, autoSave: true);
+            }
+            catch (Exception ex) when (IsVoucherNumberConflict(ex))
+            {
+                // MAX+1 yarışı (eşzamanlı ilk satır): unique index veri bütünlüğünü zaten koruyor;
+                // sert DbUpdateException yerine lokalize mesaj — panel verisi ekranda, kullanıcı yeniden kaydeder.
+                throw new BusinessException("TradeXpress:Voucher:NumberConflict");
+            }
         }
 
         // Ledger senkronu (poster çıktısı → kalıcı): voucher kaydedildikten sonra, aynı UoW içinde.
@@ -204,6 +257,7 @@ public class VoucherAppService : TradeXpressAppService, IVoucherAppService
         input.Id            = lineId;
         input.VoucherId     = voucher.Id;
         input.VoucherNumber = voucher.VoucherNumber;
+        input.VoucherConcurrencyStamp = voucher.ConcurrencyStamp;   // ardışık düzenleme taze stamp'le sürsün
         return input;
     }
 
@@ -264,7 +318,12 @@ public class VoucherAppService : TradeXpressAppService, IVoucherAppService
             .ToList();
 
         var dtos = displayed.Select(MapLine).ToList();
-        foreach (var d in dtos) { d.VoucherDate = voucher.VoucherDate; d.VoucherNumber = voucher.VoucherNumber; }
+        foreach (var d in dtos)
+        {
+            d.VoucherDate = voucher.VoucherDate;
+            d.VoucherNumber = voucher.VoucherNumber;
+            d.VoucherConcurrencyStamp = voucher.ConcurrencyStamp;   // düzenlemede bayat-istemci tespiti için
+        }
         await ResolveUnitCodesAsync(dtos);
         await ResolveCreatorNamesAsync(dtos);
 
@@ -335,6 +394,11 @@ public class VoucherAppService : TradeXpressAppService, IVoucherAppService
             ?? throw new EntityNotFoundException(typeof(VoucherLine), lineId);
 
         var dto = MapLine(line);
+        // Fişin stamp'ini de taşı — kaydetmede bayat-istemci tespiti (ConcurrencyConflict) için.
+        dto.VoucherConcurrencyStamp = await AsyncExecuter.FirstOrDefaultAsync(
+            (await _repository.GetQueryableAsync())
+                .Where(v => v.Id == line.VoucherId)
+                .Select(v => v.ConcurrencyStamp));
         if (line.MainUnitId != Guid.Empty)
             dto.MainUnitCode = await ResolveUnitCodeAsync(line.MainUnitId);
         if (line.PayUnitId is { } pid)
@@ -425,7 +489,7 @@ public class VoucherAppService : TradeXpressAppService, IVoucherAppService
         await EnsureTransactionPermissionAsync(line.Type);
 
         voucher.RemoveLine(lineId);
-        await _repository.UpdateAsync(voucher, autoSave: true);
+        await _repository.UpdateAsync(voucher, autoSave: true);   // ABP stamp döngüsü paralel isteği zaten yakalar
         await _ledgerSynchronizer.SyncVoucherAsync(voucher);
 
         // VoucherLineLog gelene kadar nedeni log'a yaz (kalıcı geçmiş ertelendi).

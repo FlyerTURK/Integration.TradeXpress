@@ -19,6 +19,10 @@ public class VoucherLineDto
     public Guid? VoucherId { get; set; }
     public long VoucherNumber { get; set; }
 
+    /// <summary>Fişin ConcurrencyStamp'i (okuma anındaki). Güncelleme/silmede sunucu bunu mevcutla karşılaştırır —
+    /// fiş arada başkası tarafından değiştiyse kayıt reddedilir (sessiz last-writer-wins yerine açık uyarı).</summary>
+    public string? VoucherConcurrencyStamp { get; set; }
+
     // ── Fiş başlığı (lazy create için; okuma sonuçlarında boş olabilir) ──
     public Guid CompanyId { get; set; }
     public Guid BranchId { get; set; }

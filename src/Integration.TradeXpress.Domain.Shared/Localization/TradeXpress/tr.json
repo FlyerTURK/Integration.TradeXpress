@@ -402,6 +402,8 @@
     "TradeXpress:Jewelry:CannotEditGlobalAsTenant": "Genel (host) mücevher kayıtları tenant tarafından düzenlenemez.",
     "TradeXpress:Jewelry:CannotDeleteGlobalAsTenant": "Genel (host) mücevher kayıtları tenant tarafından silinemez.",
     "TradeXpress:Voucher:CompanyContextRequired": "Çalışılan şirket seçili değil; işlem yapılamaz.",
+    "TradeXpress:Voucher:ConcurrencyConflict": "Bu fiş siz okuduktan sonra başka bir kullanıcı tarafından değiştirildi. Lütfen sayfayı yenileyip tekrar deneyin.",
+    "TradeXpress:Voucher:NumberConflict": "Fiş numarası eşzamanlı başka bir kayıtla çakıştı. Lütfen tekrar kaydedin.",
     "TradeXpress:Voucher:BranchNotInCompany": "Seçilen şube çalışılan şirkete ait değil.",
     "TradeXpress:Voucher:VaultNotInBranch": "Seçilen kasa bu şubeye ait değil.",
     "Menu:PriceBoard": "Kur Panosu",
