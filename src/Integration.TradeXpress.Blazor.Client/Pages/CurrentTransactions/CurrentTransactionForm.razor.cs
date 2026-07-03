@@ -100,9 +100,11 @@ public partial class CurrentTransactionForm
                 : new Integration.Framework.Blazor.Client.Services.Mdi.TabHeaderData
                 {
                     FormCaption = "Cari İşlemler",
-                    EntityValue = sa.SubAccountDisplay,
+                    // Sekme dar alan — yalnız KODLAR (Code/Name değil; kullanıcı isteği). Diğer kullanım
+                    // yerleri etkilenmez: TabHeaderData altyapısı aynı, yalnız bu formun değerleri kısaldı.
+                    EntityValue = sa.Code,
                     ParentLabel = L["Entity:Account"],
-                    ParentValue = sa.AccountDisplay,
+                    ParentValue = sa.AccountCode,
                     IconCssClass = "custom-icon-swap",
                 };
             Tabs.UpdateTabHeader(CurrentMdiTab.Id, header);

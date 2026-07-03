@@ -32,7 +32,9 @@
 <body>
 
     <script src="_framework/blazor.web.js"></script>
-    <script src="js/login.js"></script>
+    @* ?v= cache-bust: dosya değişince ARTIR — tarayıcı eski sürümü önbellekten kullanıp yeni
+       fonksiyonları (ör. erpUx.scrollFocusPanel) görmüyordu. *@
+    <script src="js/login.js?v=2"></script>
 
     <div id="ApplicationContainer">
         <div class="int-loader-container">
