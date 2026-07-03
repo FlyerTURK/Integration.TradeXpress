@@ -10,11 +10,14 @@ using Integration.TradeXpress.Vouchers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
+using Microsoft.JSInterop;
 
 namespace Integration.TradeXpress.Blazor.Client.Pages.CurrentTransactions;
 
 public partial class AccountSelectionPanel
 {
+    [Inject] private IJSRuntime JS { get; set; } = default!;
+
     [Parameter] public Guid? InitialSubAccountId { get; set; }
     [Parameter] public Guid? InitialVoucherId { get; set; }
 
@@ -427,6 +430,13 @@ public partial class AccountSelectionPanel
         {
             _pendingEdit = null;
             await _cashPanel.LoadForEditAsync(dto);
+        }
+
+        // Panel yüklendiyse (_pendingEdit tüketildi) görünüme kaydır + ilk input'a odaklan —
+        // özellikle mobilde Düzelt'e basınca panel ekran dışında kalıyordu (kullanıcı isteği).
+        if (_pendingEdit is null)
+        {
+            try { await JS.InvokeVoidAsync("erpUx.scrollFocusPanel", "tx-active-process-panel"); } catch { }
         }
     }
 

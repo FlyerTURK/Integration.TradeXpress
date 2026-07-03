@@ -130,4 +130,15 @@ window.erpFetchFindTenant = async function (name) {
             }
         }, 100);
     };
+
+    // Konteyneri görünüme kaydır + içindeki ilk düzenlenebilir input'a odaklan.
+    // Kullanım: işlem grid'inde Düzelt → açılan process paneline odak (özellikle mobilde panel ekran dışıysa).
+    ux.scrollFocusPanel = function (containerId) {
+        setTimeout(() => {
+            const panel = document.getElementById(containerId);
+            if (!panel) return;
+            try { panel.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch { }
+            ux.focusFirstFormInput(containerId);
+        }, 150);   // panel render'ının oturması için küçük gecikme (focusFirstFormInput +100ms daha bekler)
+    };
 })(window.erpUx);

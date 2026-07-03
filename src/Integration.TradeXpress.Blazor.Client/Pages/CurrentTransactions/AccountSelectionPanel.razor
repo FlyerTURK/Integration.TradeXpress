@@ -183,7 +183,8 @@
 
 @if (_activeProcess == "Cash")
 {
-    <div class="tx-process-panel-wrap">
+    @* Aynı anda tek panel render olur → id DOM'da benzersizdir (Düzelt-sonrası scroll+odak hedefi). *@
+    <div id="tx-active-process-panel" class="tx-process-panel-wrap">
         <CashProcessPanel @ref="_cashPanel"
                           OnBack="@OnProcessBack"
                           AccountCode="@_selectedAccountCode"
@@ -201,7 +202,8 @@
 }
 else if (_activeProcess == "Service")
 {
-    <div class="tx-process-panel-wrap">
+    @* Aynı anda tek panel render olur → id DOM'da benzersizdir (Düzelt-sonrası scroll+odak hedefi). *@
+    <div id="tx-active-process-panel" class="tx-process-panel-wrap">
         <ServiceProcessPanel @ref="_servicePanel"
                              OnBack="@OnProcessBack"
                              AccountCode="@_selectedAccountCode"
@@ -219,7 +221,8 @@ else if (_activeProcess == "Service")
 }
 else if (_activeProcess == "Convert")
 {
-    <div class="tx-process-panel-wrap">
+    @* Aynı anda tek panel render olur → id DOM'da benzersizdir (Düzelt-sonrası scroll+odak hedefi). *@
+    <div id="tx-active-process-panel" class="tx-process-panel-wrap">
         <ConvertProcessPanel @ref="_convertPanel"
                              OnBack="@OnProcessBack"
                              AccountCode="@_selectedAccountCode"
@@ -237,7 +240,8 @@ else if (_activeProcess == "Convert")
 }
 else if (_activeProcess == "Future")
 {
-    <div class="tx-process-panel-wrap">
+    @* Aynı anda tek panel render olur → id DOM'da benzersizdir (Düzelt-sonrası scroll+odak hedefi). *@
+    <div id="tx-active-process-panel" class="tx-process-panel-wrap">
         <FutureProcessPanel @ref="_futurePanel"
                             OnBack="@OnProcessBack"
                             AccountCode="@_selectedAccountCode"
@@ -255,7 +259,8 @@ else if (_activeProcess == "Future")
 }
 else if (_activeProcess == "Scrap")
 {
-    <div class="tx-process-panel-wrap">
+    @* Aynı anda tek panel render olur → id DOM'da benzersizdir (Düzelt-sonrası scroll+odak hedefi). *@
+    <div id="tx-active-process-panel" class="tx-process-panel-wrap">
         <ScrapProcessPanel @ref="_scrapPanel"
                            OnBack="@OnProcessBack"
                            AccountCode="@_selectedAccountCode"
@@ -273,7 +278,8 @@ else if (_activeProcess == "Scrap")
 }
 else if (_activeProcess == "Metal")
 {
-    <div class="tx-process-panel-wrap">
+    @* Aynı anda tek panel render olur → id DOM'da benzersizdir (Düzelt-sonrası scroll+odak hedefi). *@
+    <div id="tx-active-process-panel" class="tx-process-panel-wrap">
         <MetalProcessPanel @ref="_metalPanel"
                            OnBack="@OnProcessBack"
                            AccountCode="@_selectedAccountCode"
@@ -291,7 +297,8 @@ else if (_activeProcess == "Metal")
 }
 else if (_activeProcess == "Stone")
 {
-    <div class="tx-process-panel-wrap">
+    @* Aynı anda tek panel render olur → id DOM'da benzersizdir (Düzelt-sonrası scroll+odak hedefi). *@
+    <div id="tx-active-process-panel" class="tx-process-panel-wrap">
         <StoneProcessPanel @ref="_stonePanel"
                            OnBack="@OnProcessBack"
                            AccountCode="@_selectedAccountCode"
@@ -309,7 +316,8 @@ else if (_activeProcess == "Stone")
 }
 else if (_activeProcess == "Jewelry")
 {
-    <div class="tx-process-panel-wrap">
+    @* Aynı anda tek panel render olur → id DOM'da benzersizdir (Düzelt-sonrası scroll+odak hedefi). *@
+    <div id="tx-active-process-panel" class="tx-process-panel-wrap">
         <JewelryProcessPanel @ref="_jewelryPanel"
                            OnBack="@OnProcessBack"
                            AccountCode="@_selectedAccountCode"
@@ -327,7 +335,8 @@ else if (_activeProcess == "Jewelry")
 }
 else if (_activeProcess == "Bullion")
 {
-    <div class="tx-process-panel-wrap">
+    @* Aynı anda tek panel render olur → id DOM'da benzersizdir (Düzelt-sonrası scroll+odak hedefi). *@
+    <div id="tx-active-process-panel" class="tx-process-panel-wrap">
         <BullionProcessPanel @ref="_bullionPanel"
                            OnBack="@OnProcessBack"
                            AccountCode="@_selectedAccountCode"
@@ -344,7 +353,8 @@ else if (_activeProcess == "Bullion")
 }
 else if (_activeProcess == "Assay")
 {
-    <div class="tx-process-panel-wrap">
+    @* Aynı anda tek panel render olur → id DOM'da benzersizdir (Düzelt-sonrası scroll+odak hedefi). *@
+    <div id="tx-active-process-panel" class="tx-process-panel-wrap">
         <AssayProcessPanel @ref="_assayPanel"
                            OnBack="@OnProcessBack"
                            AccountCode="@_selectedAccountCode"
@@ -362,7 +372,8 @@ else if (_activeProcess == "Assay")
 }
 else if (_activeProcess == "DebitNote")
 {
-    <div class="tx-process-panel-wrap">
+    @* Aynı anda tek panel render olur → id DOM'da benzersizdir (Düzelt-sonrası scroll+odak hedefi). *@
+    <div id="tx-active-process-panel" class="tx-process-panel-wrap">
         <DebitNoteProcessPanel @ref="_debitNotePanel"
                                OnBack="@OnProcessBack"
                                AccountCode="@_selectedAccountCode"
@@ -380,7 +391,8 @@ else if (_activeProcess == "DebitNote")
 }
 else if (_activeProcess == "Transfer")
 {
-    <div class="tx-process-panel-wrap">
+    @* Aynı anda tek panel render olur → id DOM'da benzersizdir (Düzelt-sonrası scroll+odak hedefi). *@
+    <div id="tx-active-process-panel" class="tx-process-panel-wrap">
         <TransferProcessPanel @ref="_transferPanel"
                               OnBack="@OnProcessBack"
                               AccountCode="@_selectedAccountCode"
@@ -398,7 +410,8 @@ else if (_activeProcess == "Transfer")
 }
 else if (_activeProcess == "BullionOut")
 {
-    <div class="tx-process-panel-wrap">
+    @* Aynı anda tek panel render olur → id DOM'da benzersizdir (Düzelt-sonrası scroll+odak hedefi). *@
+    <div id="tx-active-process-panel" class="tx-process-panel-wrap">
         <BullionExitPanel @ref="_bullionExitPanel"
                            OnBack="@OnProcessBack"
                            AccountCode="@_selectedAccountCode"

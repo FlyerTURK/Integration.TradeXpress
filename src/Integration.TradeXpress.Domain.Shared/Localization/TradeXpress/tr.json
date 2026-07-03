@@ -31,6 +31,8 @@
     "Tab_CloseOthers": "Diğerlerini kapat",
     "Tab_CloseRight": "Sağdaki sekmeleri kapat",
     "Tab_CloseAll": "Tümünü kapat",
+    "Popup_LockBackground": "Arka Planı Kilitle (Modal)",
+    "Popup_DockToTab": "Sekmeye Sabitle",
     "BulkCloseDirtyWarning": "{0} sekmede kaydedilmemiş değişiklik var. Ne yapmak istersiniz?",
     "CloseSavedTabs": "Kaydedilmişleri kapat",
     "CloseAnyway": "Yine de kapat",

@@ -14,6 +14,8 @@ public static class FrameworkIcons
     public const string Add     = "custom-icon-add";
     public const string Search  = "custom-icon-search";
     public const string Info    = "custom-icon-info";
+    /// <summary>Menüde "işaretli/aktif" durum göstergesi (DevExpress checked-item deseni: IconCssClass toggle).</summary>
+    public const string Check   = "custom-icon-check";
 
     // Lookup combo butonları — RENKLİ (xaf SVG kendi renkleriyle çizilir; aksiyon ikonlarından farklı olarak
     // tek-renk/currentColor DEĞİL). Kullanıcı kararı: lookup'ın renkli görünümü STANDART. main.css'te tanımlı.

@@ -59,6 +59,8 @@
     "Tab_CloseOthers": "Close other tabs",
     "Tab_CloseRight": "Close tabs to the right",
     "Tab_CloseAll": "Close all tabs",
+    "Popup_LockBackground": "Lock Background (Modal)",
+    "Popup_DockToTab": "Dock to Tab",
     "BulkCloseDirtyWarning": "{0} tab(s) have unsaved changes. What would you like to do?",
     "CloseSavedTabs": "Close saved tabs",
     "CloseAnyway": "Close anyway",
