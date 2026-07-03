@@ -277,6 +277,14 @@ src/Integration.TradeXpress.DbMigrator/Logs/*
 src/Integration.TradeXpress.Blazor.Server/Logs/*
 src/Integration.TradeXpress.Blazor.Server.Tiered/Logs/*
 
+# Vendored DevExpress paketleri (5-10 yıl restore garantisi) — *.nupkg genel ignore'una İSTİSNA, izlensinler.
+!nuget-packages/
+!nuget-packages/*.nupkg
+
+# Gerçek secret'lar burada — ASLA commit'lenmez (rotasyon sonrası değerler buraya; .example izlenir).
+appsettings.secrets.json
+!appsettings.secrets.json.example
+
 # Use abp install-libs to restore.
 **/wwwroot/libs/*
 

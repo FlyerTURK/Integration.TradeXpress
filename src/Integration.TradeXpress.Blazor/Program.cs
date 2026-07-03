@@ -15,7 +15,13 @@ public class Program
 #endif
             .MinimumLevel.Override("Microsoft", LogEventLevel.Information)
             .Enrich.FromLogContext()
-            .WriteTo.Async(c => c.File("Logs/logs.txt"))
+            // Log rotasyonu: günlük + 50MB dosya limiti + 31 dosya tut → 5-10 yıl boyunca disk dolmaz.
+            .WriteTo.Async(c => c.File(
+                "Logs/logs.txt",
+                rollingInterval: RollingInterval.Day,
+                fileSizeLimitBytes: 50_000_000,
+                rollOnFileSizeLimit: true,
+                retainedFileCountLimit: 31))
             .WriteTo.Async(c => c.Console())
             .CreateLogger();
 

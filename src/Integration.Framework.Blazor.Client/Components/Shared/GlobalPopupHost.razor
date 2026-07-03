@@ -59,7 +59,7 @@
         var parameters = PopupService.ComponentParameters;
         var title = PopupService.Options?.Title ?? "Sekme";
         
-        string url = null;
+        string? url = null;
         if (parameters != null && parameters.TryGetValue("_TabUrl", out var tabUrlObj) && tabUrlObj is string tabUrl)
         {
             url = tabUrl;

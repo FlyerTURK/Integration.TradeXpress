@@ -211,7 +211,8 @@ public abstract class CrudEditComponentBase<TGetDto, TListDto, TKey, TListReques
     protected IEntityChangeNotifier EntityChanges { get; set; } = default!;
 
     [Inject]
-    protected ILogger<CrudEditComponentBase<TGetDto, TListDto, TKey, TListRequestDto, TCreateDto, TUpdateDto>> Logger { get; set; } = default!;
+    // 'new': AbpComponentBase.Logger'ı bilinçli gölgeler (tipli ILogger<T> — CS0108 susturması değil, kasıtlı override).
+    protected new ILogger<CrudEditComponentBase<TGetDto, TListDto, TKey, TListRequestDto, TCreateDto, TUpdateDto>> Logger { get; set; } = default!;
 
     [Inject]
     protected IPopupService PopupService { get; set; } = default!;

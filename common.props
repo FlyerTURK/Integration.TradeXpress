@@ -1,6 +1,10 @@
 <Project>
   <PropertyGroup>
-    <LangVersion>latest</LangVersion>
+    <!-- LangVersion sabit (net10 = C# 14): 'latest' gelecekte yeni SDK ile sessizce C# 15+ açardı → sürpriz davranış.
+         Sabitlemek 5-10 yıl reprodüksiyon garantiler. -->
+    <LangVersion>14</LangVersion>
+    <!-- Deterministik restore: her proje packages.lock.json üretir → 5-10 yıl sonra aynı transitive graf. -->
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
     <Version>1.0.0</Version>
     <NoWarn>$(NoWarn);CS1591</NoWarn>
     <!-- RZ10012 = "çözülemeyen bileşen → bilinmeyen HTML elementi (sessizce görünmez)". Uyarı değil HATA:

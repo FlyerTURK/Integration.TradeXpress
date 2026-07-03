@@ -12,7 +12,13 @@ public class Program
     public async static Task<int> Main(string[] args)
     {
         Log.Logger = new LoggerConfiguration()
-            .WriteTo.Async(c => c.File("Logs/logs.txt"))
+            // Bootstrap logger'da da rotasyon (runtime logger appsettings'ten okur; ikisi de aynı dosyayı roll'lar).
+            .WriteTo.Async(c => c.File(
+                "Logs/logs.txt",
+                rollingInterval: RollingInterval.Day,
+                fileSizeLimitBytes: 50_000_000,
+                rollOnFileSizeLimit: true,
+                retainedFileCountLimit: 31))
             .WriteTo.Async(c => c.Console())
             .CreateBootstrapLogger();
 
