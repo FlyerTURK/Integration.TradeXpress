@@ -17,8 +17,13 @@ public interface IVoucherAppService : IApplicationService
     /// <summary>Bir fişin (silinmemiş) satırlarını döndürür.</summary>
     Task<List<VoucherLineDto>> GetLinesAsync(Guid voucherId);
 
-    /// <summary>Liste modu: cari'nin [start, endExclusive) tarih aralığındaki tüm satırları (fiş-bağımsız) + yürüyen bakiye.</summary>
+    /// <summary>Liste modu: cari'nin [start, endExclusive) tarih aralığındaki tüm satırları (fiş-bağımsız) + yürüyen bakiye.
+    /// (Ekstre metoduna delege eder; devreden/kapanış gerekiyorsa <see cref="GetAccountStatementAsync"/> kullan.)</summary>
     Task<List<VoucherLineDto>> GetLinesByDateRangeAsync(Guid subAccountId, DateTime start, DateTime endExclusive);
+
+    /// <summary>Hesap ekstresi: [start, endExclusive) satırları + devreden/kapanış birim bakiyeleri.
+    /// <paramref name="types"/> doluysa satırlar VE devreden/kapanış aynı işlem-tipi filtresiyle hesaplanır.</summary>
+    Task<AccountStatementDto> GetAccountStatementAsync(Guid subAccountId, DateTime start, DateTime endExclusive, List<ProcessType>? types = null);
 
     /// <summary>Düzeltme için satırın tam halini döndürür.</summary>
     Task<VoucherLineDto> GetLineForEditAsync(Guid lineId);

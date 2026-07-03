@@ -230,6 +230,15 @@ public class TradeXpressMenuContributor : IMenuContributor
                 icon: "custom-icon-report",
                 order: 3
             ).RequirePermissions(TradeXpressPermissions.Reports.BalanceSheet));
+
+            // İşlem Raporu — cari-hesap-BAĞIMSIZ, Company/Branch/Vault scoped, tarih aralıklı işlem listesi.
+            context.Menu.AddItem(new ApplicationMenuItem(
+                TradeXpressMenus.Reports + ".Transactions",
+                l["TransactionReport"],
+                url: "/reports/transactions",
+                icon: "custom-icon-report",
+                order: 4
+            ).RequirePermissions(TradeXpressPermissions.Reports.Transactions));
         }
 
 

@@ -105,6 +105,8 @@ public static class TradeXpressPermissions
         public const string Default  = GroupName + ".Reports";
         public const string Position    = Default + ".Position";
         public const string BalanceSheet = Default + ".BalanceSheet";
+        /// <summary>Cari-hesap-bağımsız işlem raporu (tüm carilerin hareketleri tek raporda).</summary>
+        public const string Transactions = Default + ".Transactions";
     }
 
     /// <summary>Cari işlem (voucher satırı) tipleri — her işlem tipi için AYRI yetki (List yetki gerektirmez).</summary>

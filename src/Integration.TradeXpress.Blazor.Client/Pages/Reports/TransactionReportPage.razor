@@ -1,0 +1,102 @@
+@page "/reports/transactions"
+@using System
+@using Integration.TradeXpress.Branches
+@using Integration.TradeXpress.Permissions
+@using Integration.TradeXpress.Reports
+@using Integration.TradeXpress.Vaults
+@using Microsoft.AspNetCore.Authorization
+@using DevExpress.Blazor
+@using Integration.Framework.Blazor.Client.Components.Crud
+@attribute [Authorize(TradeXpressPermissions.Reports.Transactions)]
+@inherits Volo.Abp.AspNetCore.Components.AbpComponentBase
+
+<PageTitle>İşlem Raporu</PageTitle>
+
+<div style="padding:12px; display:flex; flex-direction:column; gap:12px; height:100%;">
+
+    @* ── Kapsam + tarih + tip filtresi (şirket sunucuda ICurrentCompany'den zorlanır — manuel şirket seçimi YOK) ── *@
+    <div style="display:flex; flex-wrap:wrap; gap:8px; align-items:flex-end;">
+
+        <div style="display:flex; flex-direction:column; gap:2px;">
+            <label style="font-size:11px; color:var(--dxbl-text-secondary);">Şube</label>
+            <DxComboBox Data="@_branches"
+                        TextFieldName="@nameof(BranchListDto.Name)"
+                        ValueFieldName="@nameof(BranchListDto.Id)"
+                        Value="_request.BranchId"
+                        ValueChanged="@((Guid? v) => OnBranchChanged(v))"
+                        NullText="(Tümü)"
+                        ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto"
+                        style="min-width:160px;" />
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:2px;">
+            <label style="font-size:11px; color:var(--dxbl-text-secondary);">Kasa</label>
+            <DxComboBox Data="@_vaults"
+                        TextFieldName="@nameof(VaultListDto.Name)"
+                        ValueFieldName="@nameof(VaultListDto.Id)"
+                        @bind-Value="_request.VaultId"
+                        NullText="(Tümü)"
+                        ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto"
+                        Enabled="@(_request.BranchId != null)"
+                        style="min-width:140px;" />
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:2px;">
+            <label style="font-size:11px; color:var(--dxbl-text-secondary);">Başlangıç</label>
+            <DxDateEdit @bind-Date="_start" style="min-width:130px;" />
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:2px;">
+            <label style="font-size:11px; color:var(--dxbl-text-secondary);">Bitiş</label>
+            <DxDateEdit @bind-Date="_end" style="min-width:130px;" />
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:2px;">
+            <label style="font-size:11px; color:var(--dxbl-text-secondary);">İşlem Tipi</label>
+            <DxComboBox Data="@_typeOptions"
+                        TextFieldName="@nameof(TypeOption.Name)"
+                        ValueFieldName="@nameof(TypeOption.Value)"
+                        @bind-Value="_selectedType"
+                        NullText="(Tümü)"
+                        ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto"
+                        style="min-width:140px;" />
+        </div>
+
+        <DxButton Text="Getir" Click="@(() => LoadPageAsync(0))" RenderStyleMode="ButtonRenderStyleMode.Contained" RenderStyle="ButtonRenderStyle.Primary" />
+        <DxButton Text="Excel'e Aktar" Click="@ExportToExcelAsync" Enabled="@(_rows != null && _totalCount > 0 && !_busy)" RenderStyle="ButtonRenderStyle.Secondary" />
+    </div>
+
+    @if (_rows != null)
+    {
+        <TxGrid @ref="_grid" Data="@_rows" StateKey="report:transactions" ShowFilterRow="false"
+                PageSize="@PageSize" PagerVisible="false" style="flex:1; min-height:0;">
+            <Columns>
+                <DxGridDataColumn FieldName="@nameof(TransactionReportRowDto.VoucherDate)"    Caption="Tarih"     DisplayFormat="g"  Width="130" />
+                <DxGridDataColumn FieldName="@nameof(TransactionReportRowDto.VoucherNumber)"  Caption="Fiş No"                       Width="80"  />
+                <DxGridDataColumn FieldName="@nameof(TransactionReportRowDto.ProcessCode)"    Caption="İşlem"                        Width="65"  />
+                <DxGridDataColumn FieldName="@nameof(TransactionReportRowDto.AccountCode)"    Caption="Hesap"                        Width="120" />
+                <DxGridDataColumn FieldName="@nameof(TransactionReportRowDto.SubAccountCode)" Caption="Alt Hesap"                    Width="120" />
+                <DxGridDataColumn FieldName="@nameof(TransactionReportRowDto.BranchCode)"     Caption="Şube"                         Width="90"  />
+                <DxGridDataColumn FieldName="@nameof(TransactionReportRowDto.VaultCode)"      Caption="Kasa"                         Width="90"  />
+                <DxGridDataColumn FieldName="@nameof(TransactionReportRowDto.CommodityCode)"  Caption="Mal"                          Width="100" />
+                <DxGridDataColumn FieldName="@nameof(TransactionReportRowDto.Quantity)"       Caption="Adet"      DisplayFormat="n2" Width="90"  />
+                <DxGridDataColumn FieldName="@nameof(TransactionReportRowDto.Amount)"         Caption="Miktar"    DisplayFormat="n2" Width="110" />
+                <DxGridDataColumn FieldName="@nameof(TransactionReportRowDto.Total)"          Caption="Toplam"    DisplayFormat="n2" Width="110" />
+                <DxGridDataColumn FieldName="@nameof(TransactionReportRowDto.MainUnitCode)"   Caption="Birim"                        Width="65"  />
+                <DxGridDataColumn FieldName="@nameof(TransactionReportRowDto.PayTotal)"       Caption="Ödeme"     DisplayFormat="n2" Width="110" />
+                <DxGridDataColumn FieldName="@nameof(TransactionReportRowDto.PayUnitCode)"    Caption="Ö.Birim"                      Width="70"  />
+                <DxGridDataColumn FieldName="@nameof(TransactionReportRowDto.Description)"    Caption="Açıklama" />
+                <DxGridDataColumn FieldName="@nameof(TransactionReportRowDto.CreatorName)"    Caption="Kullanıcı"                    Width="100" />
+            </Columns>
+        </TxGrid>
+
+        @* ── Server-side sayfalama: pager + toplam kayıt ── *@
+        <div style="display:flex; align-items:center; gap:12px;">
+            <DxPager PageCount="@PageCount"
+                     ActivePageIndex="@_pageIndex"
+                     ActivePageIndexChanged="@((int i) => LoadPageAsync(i))" />
+            <span style="font-size:12px; color:var(--dxbl-text-secondary);">Toplam @_totalCount kayıt</span>
+        </div>
+    }
+
+</div>

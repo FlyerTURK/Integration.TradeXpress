@@ -114,6 +114,21 @@ public class VoucherLineDto
     public List<VoucherBalanceLineDto> RunningBalances { get; set; } = new();
 }
 
+/// <summary>Hesap ekstresi — devreden (dönem öncesi birim-bazlı net) + dönem satırları (yürüyen bakiyeli) + kapanış.
+/// <para>Kapanış = son satırın yürüyen bakiyesi; dönemde satır yoksa devredene eşittir. Tip filtresi verilmişse
+/// devreden/kapanış da AYNI filtreyle hesaplanır (filtreli ekstre kendi içinde tutarlı yürür).</para></summary>
+public class AccountStatementDto
+{
+    /// <summary>Devreden: başlangıç tarihinden ÖNCEKİ satırların birim-bazlı net bakiyesi.</summary>
+    public List<VoucherBalanceLineDto> OpeningBalances { get; set; } = new();
+
+    /// <summary>Dönem satırları — kronolojik, yürüyen bakiyeli (devreden dahil).</summary>
+    public List<VoucherLineDto> Lines { get; set; } = new();
+
+    /// <summary>Kapanış (son durum): dönem sonundaki birim-bazlı net bakiye.</summary>
+    public List<VoucherBalanceLineDto> ClosingBalances { get; set; } = new();
+}
+
 /// <summary>Cari bakiye sonucu — hesabın bakiye para birimi (konsolide hedefi) + birim-bazlı satırlar.</summary>
 public class AccountBalanceDto
 {

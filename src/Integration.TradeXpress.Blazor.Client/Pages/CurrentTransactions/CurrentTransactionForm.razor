@@ -6,6 +6,7 @@
 @inject IVoucherAppService VoucherService
 @inject ITradeXpressUiService Ui
 @inject ITabManager Tabs
+@inject IGridExportAssemblyLoader ExportLoader
 
 @* .tx-tabs-stretched kuralları main.css'te tek kaynak (E9: razor içi mükerrer <style> kaldırıldı). *@
 
@@ -45,6 +46,21 @@
                                     <DxToolbarItem Text="@L["Delete"].Value" IconCssClass="custom-icon-delete" Click="@OnDeleteLine" Enabled="@(_selectedLines.Count >= 1)" />
                                     @if (_listMode)
                                     {
+                                        @* Ekstre: işlem-tipi çoklu-seçim filtresi (server-side; devreden/kapanış da aynı filtreyle yürür). *@
+                                        <DxToolbarItem BeginGroup="true" Alignment="ToolbarItemAlignment.Right">
+                                            <Template Context="toolbarContext">
+                                                <DxTagBox Data="@_processTypeItems"
+                                                          TData="ProcessTypeItem" TValue="ProcessType"
+                                                          Values="@_listTypes"
+                                                          ValuesChanged="@(async (IEnumerable<ProcessType> v) => await OnListTypesChanged(v))"
+                                                          ValuesExpression="@(() => _listTypes)"
+                                                          ValueFieldName="@nameof(ProcessTypeItem.Value)"
+                                                          TextFieldName="@nameof(ProcessTypeItem.Text)"
+                                                          NullText="@L["AllProcessTypes"].Value"
+                                                          ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto"
+                                                          style="width:260px;" />
+                                            </Template>
+                                        </DxToolbarItem>
                                         <DxToolbarItem BeginGroup="true" Alignment="ToolbarItemAlignment.Right">
                                             <Template Context="toolbarContext">
                                                 <DxDateRangePicker StartDate="@_listStart" EndDate="@_listEnd"
@@ -53,14 +69,34 @@
                                                                    DisplayFormat="@L["ShortDateFormat"].Value" style="width:280px;" />
                                             </Template>
                                         </DxToolbarItem>
+                                        @* Excel export — merkezi xaf export ikonu (CrudToolbarActions.Export ile aynı görsel). *@
+                                        <DxToolbarItem BeginGroup="true" Alignment="ToolbarItemAlignment.Right"
+                                                       Tooltip="@L["ExportToExcel"].Value"
+                                                       IconUrl="/images/xaf/action_export_toxlsx.svg" IconCssClass="xaf-toolbar-item-icon"
+                                                       Click="@ExportListToExcelAsync" />
                                         <DxToolbarItem BeginGroup="true" Alignment="ToolbarItemAlignment.Right" Text="@L["Back"].Value" IconCssClass="custom-icon-back" Click="@ExitListModeAsync" />
                                     }
                                 </DxToolbar>
                             </div>
                         }
 
+                        @if (_listMode && !_processActive)
+                        {
+                            @* Ekstre DEVREDEN şeridi (grid üstü): dönem öncesi birim-bazlı net — Bakiye sekmesi renk dili (yeşil=ALACAK, kırmızı=BORÇ). *@
+                            <div style="flex-shrink:0; display:flex; align-items:center; gap:14px; flex-wrap:wrap; padding:5px 12px; font-size:12px; border-left:1px solid color-mix(in srgb, var(--tx-theme-primary, var(--bs-primary, #0d6efd)) 8%, transparent); border-right:1px solid color-mix(in srgb, var(--tx-theme-primary, var(--bs-primary, #0d6efd)) 8%, transparent); background-color:color-mix(in srgb, var(--tx-theme-primary, var(--bs-primary, #0d6efd)) 4%, transparent);">
+                                <span style="font-weight:700; letter-spacing:0.5px;">@L["OpeningBalance"].Value.ToUpper()</span>
+                                @foreach (var b in _listOpening.Where(x => x.Net != 0m))
+                                {
+                                    <span style="font-weight:600; color:@(b.Net > 0m ? "#2e7d32" : "#c62828");">@Math.Abs(b.Net).ToString("N2") @b.UnitCode @(b.Net > 0m ? "(A)" : "(B)")</span>
+                                }
+                                @if (_listOpening.All(x => x.Net == 0m))
+                                {
+                                    <span style="opacity:0.6;">—</span>
+                                }
+                            </div>
+                        }
                         <div style="flex:1; min-height:0; min-width:0; overflow:hidden; display:flex; flex-direction:column;">
-                            <DxGrid Data="@_voucherLines" ShowSearchBox="false" PageSize="50" CssClass="w-100 tx-grid-fill"
+                            <DxGrid @ref="_listGrid" Data="@_voucherLines" ShowSearchBox="false" PageSize="50" CssClass="w-100 tx-grid-fill"
                                     KeyFieldName="@nameof(VoucherLineDto.Id)"
                                     ShowFilterRow="true"
                                     SelectionMode="GridSelectionMode.Multiple"
@@ -93,6 +129,21 @@
                                 </Columns>
                             </DxGrid>
                         </div>
+                        @if (_listMode && !_processActive)
+                        {
+                            @* Ekstre KAPANIŞ (son durum) şeridi (grid altı): son yürüyen bakiye — Bakiye sekmesini bozmayan, Liste moduna özgü dip-toplam. *@
+                            <div style="flex-shrink:0; display:flex; align-items:center; gap:14px; flex-wrap:wrap; padding:5px 12px; font-size:12px; border:1px solid color-mix(in srgb, var(--tx-theme-primary, var(--bs-primary, #0d6efd)) 8%, transparent); border-top:none; border-radius:0 0 4px 4px; background-color:color-mix(in srgb, var(--tx-theme-primary, var(--bs-primary, #0d6efd)) 8%, transparent);">
+                                <span style="font-weight:700; letter-spacing:0.5px;">@L["ClosingBalance"].Value.ToUpper()</span>
+                                @foreach (var b in _listClosing.Where(x => x.Net != 0m))
+                                {
+                                    <span style="font-weight:600; color:@(b.Net > 0m ? "#2e7d32" : "#c62828");">@Math.Abs(b.Net).ToString("N2") @b.UnitCode @(b.Net > 0m ? "(A)" : "(B)")</span>
+                                }
+                                @if (_listClosing.All(x => x.Net == 0m))
+                                {
+                                    <span style="opacity:0.6;">—</span>
+                                }
+                            </div>
+                        }
                         @if (_selectedLine is VoucherLineDto selectedLine)
                         {
                             <div class="mt-2" style="flex-shrink:0;">

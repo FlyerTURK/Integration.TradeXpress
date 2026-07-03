@@ -86,6 +86,7 @@ public class TradeXpressPermissionDefinitionProvider : PermissionDefinitionProvi
             TradeXpressPermissions.Reports.Default, L("Permission:Reports"));
         reports.AddChild(TradeXpressPermissions.Reports.Position, L("Permission:Position"));
         reports.AddChild(TradeXpressPermissions.Reports.BalanceSheet, L("Permission:BalanceSheet"));
+        reports.AddChild(TradeXpressPermissions.Reports.Transactions, L("Permission:TransactionReport"));
 
         var transactions = myGroup.AddPermission(
             TradeXpressPermissions.Transactions.Default, L("Permission:Transactions"));

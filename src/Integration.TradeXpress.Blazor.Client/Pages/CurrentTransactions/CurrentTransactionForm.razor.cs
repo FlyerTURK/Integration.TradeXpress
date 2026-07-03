@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using DevExpress.Blazor;
+using Integration.Framework.Blazor.Client.Components.Crud;
 using Integration.TradeXpress.Accounts;
 using Integration.TradeXpress.Bullions;
 using Integration.TradeXpress.Financials.CurrencyUnits;
@@ -25,10 +27,20 @@ public partial class CurrentTransactionForm
     private bool _processActive;   // süreç paneli açıkken Düzelt/Sil toolbar gizli
     private bool _accountLocked;   // cari panel TAMAM ile kilitliyken Düzelt/Sil görünür
 
-    // Liste modu: cari'nin tarih aralığındaki tüm satırları (fiş-bağımsız). Sağ bakiye görünür kalır.
+    // Liste modu (ekstre): cari'nin tarih aralığındaki tüm satırları (fiş-bağımsız). Sağ bakiye görünür kalır.
     private bool _listMode;
     private DateTime _listStart = DateTime.Today.AddDays(-7);
     private DateTime _listEnd   = DateTime.Today;
+
+    // Ekstre eklentileri: devreden (grid üstü) + kapanış (grid altı) + işlem-tipi filtresi + Excel export.
+    private List<VoucherBalanceLineDto> _listOpening = new();
+    private List<VoucherBalanceLineDto> _listClosing = new();
+    private IEnumerable<ProcessType> _listTypes = Enumerable.Empty<ProcessType>();
+    private List<ProcessTypeItem> _processTypeItems = new();
+    private IGrid? _listGrid;
+
+    /// <summary>İşlem-tipi çoklu-seçim öğesi (record: TagBox item karşılaştırması Equals ister).</summary>
+    private sealed record ProcessTypeItem(ProcessType Value, string Text);
 
     // Bakiye (p3 Bakiye sekmesi) — anlık hesap.
     private List<VoucherBalanceLineDto> _balanceRows = new();
@@ -137,9 +149,35 @@ public partial class CurrentTransactionForm
 
     private async Task ReloadListAsync()
     {
-        _voucherLines = _currentSubAccountId is { } id
-            ? await VoucherService.GetLinesByDateRangeAsync(id, _listStart.Date, _listEnd.Date.AddDays(1))
-            : new List<VoucherLineDto>();
+        if (_currentSubAccountId is { } id)
+        {
+            var statement = await VoucherService.GetAccountStatementAsync(
+                id, _listStart.Date, _listEnd.Date.AddDays(1), _listTypes.ToList());
+            _voucherLines = statement.Lines;
+            _listOpening  = statement.OpeningBalances;
+            _listClosing  = statement.ClosingBalances;
+        }
+        else
+        {
+            _voucherLines = new List<VoucherLineDto>();
+            _listOpening  = new List<VoucherBalanceLineDto>();
+            _listClosing  = new List<VoucherBalanceLineDto>();
+        }
+    }
+
+    private async Task OnListTypesChanged(IEnumerable<ProcessType> values)
+    {
+        _listTypes = values ?? Enumerable.Empty<ProcessType>();
+        await ReloadListAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task ExportListToExcelAsync()
+    {
+        // Server'da loader no-op; WASM'a taşınırsa export assembly'leri lazy yüklenir (DrillList ile aynı yol).
+        await ExportLoader.EnsureLoadedAsync();
+        var name = $"{L["TransactionList"].Value} {_listStart:yyyy-MM-dd} {_listEnd:yyyy-MM-dd}";
+        await _listGrid.ExportToXlsxSafeAsync(name);
     }
 
     private async Task ExitListModeAsync()
@@ -336,6 +374,10 @@ public partial class CurrentTransactionForm
     protected override async Task OnInitializedAsync()
     {
         await base.OnInitializedAsync();
+        // İşlem-tipi filtresi (ekstre) seçenekleri — enum + lokalize ad.
+        _processTypeItems = Enum.GetValues<ProcessType>()
+            .Select(t => new ProcessTypeItem(t, L[$"Enum:ProcessType:{t}"].Value))
+            .ToList();
         await RefreshRatesAsync();
         _ = LiveRateLoopAsync();
     }

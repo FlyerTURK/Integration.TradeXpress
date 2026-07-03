@@ -344,17 +344,35 @@ public class VoucherAppService : TradeXpressAppService, IVoucherAppService
     }
 
     /// <summary>Liste modu: cari'nin [start, endExclusive) tarih aralığındaki tüm satırları (fiş-bağımsız),
-    /// kronolojik (VoucherDate → CreationTime), yürüyen bakiyeyle (devreden = start'tan ÖNCESİ).</summary>
+    /// kronolojik (VoucherDate → CreationTime), yürüyen bakiyeyle (devreden = start'tan ÖNCESİ).
+    /// Sözleşme korunur — ekstre metoduna delege eder (devreden/kapanış yutulur).</summary>
     public async Task<List<VoucherLineDto>> GetLinesByDateRangeAsync(Guid subAccountId, DateTime start, DateTime endExclusive)
     {
+        var statement = await GetAccountStatementAsync(subAccountId, start, endExclusive);
+        return statement.Lines;
+    }
+
+    /// <summary>Hesap ekstresi (legacy <c>Cari.HesapExtresiEx</c> paritesi): dönem satırları + devreden + kapanış.
+    /// <paramref name="types"/> doluysa hem dönem satırları hem devreden AYNI tip filtresiyle hesaplanır —
+    /// filtreli ekstrenin yürüyen bakiyesi kendi içinde tutarlı kalır (filtresiz çağrıda dip-toplam = Bakiye sekmesi).</summary>
+    public async Task<AccountStatementDto> GetAccountStatementAsync(
+        Guid subAccountId, DateTime start, DateTime endExclusive, List<ProcessType>? types = null)
+    {
         var companyId = EnsureCurrentCompanyId();   // company scope (sızıntı önleme)
+        var typeFilter = types is { Count: > 0 } ? types : null;   // boş liste = filtre yok
+
         var q = await _repository.GetQueryableAsync();
-        var rows = await AsyncExecuter.ToListAsync(
+        var rangeQuery =
             from v in q
             where v.CompanyId == companyId && v.SubAccountId == subAccountId && v.VoucherDate >= start && v.VoucherDate < endExclusive
             from l in v.Lines
             where !l.IsDeleted
-            select new { Line = l, v.VoucherDate, v.VoucherNumber });
+            select new { Line = l, v.VoucherDate, v.VoucherNumber };
+        if (typeFilter != null)
+        {
+            rangeQuery = rangeQuery.Where(r => typeFilter.Contains(r.Line.Type));
+        }
+        var rows = await AsyncExecuter.ToListAsync(rangeQuery);
 
         var ordered = rows
             .OrderBy(r => r.VoucherDate).ThenBy(r => r.Line.CreationTime).ThenBy(r => r.Line.Id)
@@ -371,18 +389,32 @@ public class VoucherAppService : TradeXpressAppService, IVoucherAppService
         await ResolveUnitCodesAsync(dtos);
         await ResolveCreatorNamesAsync(dtos);
 
+        // Devreden: start'tan önceki satırların (aynı tip filtresiyle) birim-bazlı neti.
+        // Dönemde satır olmasa da hesaplanır — boş dönemde bile devreden görünür kalmalı.
+        var carryQuery = (await _repository.GetQueryableAsync())
+            .Where(v => v.CompanyId == companyId && v.SubAccountId == subAccountId && v.VoucherDate < start)
+            .SelectMany(v => v.Lines)
+            .Where(l => !l.IsDeleted);
+        if (typeFilter != null)
+        {
+            carryQuery = carryQuery.Where(l => typeFilter.Contains(l.Type));
+        }
+        var carryLines = await AsyncExecuter.ToListAsync(carryQuery);
+
         if (displayed.Count > 0)
         {
-            var carryLines = await AsyncExecuter.ToListAsync(
-                (await _repository.GetQueryableAsync())
-                    .Where(v => v.CompanyId == companyId && v.SubAccountId == subAccountId && v.VoucherDate < start)
-                    .SelectMany(v => v.Lines)
-                    .Where(l => !l.IsDeleted));
-
             await AssignRunningBalancesAsync(displayed, dtos, carryLines);
         }
 
-        return dtos;
+        var opening = await ToBalanceRowsAsync(_balanceCalculator.Aggregate(carryLines));
+        var closing = dtos.Count > 0 ? dtos[^1].RunningBalances : opening;
+
+        return new AccountStatementDto
+        {
+            OpeningBalances = opening,
+            Lines           = dtos,
+            ClosingBalances = closing,
+        };
     }
 
     public async Task<VoucherLineDto> GetLineForEditAsync(Guid lineId)
@@ -466,6 +498,15 @@ public class VoucherAppService : TradeXpressAppService, IVoucherAppService
         }
     }
 
+    /// <summary>Birim → net sözlüğünü görünür-birim sırasıyla bakiye satırlarına çevirir (ekstre devreden/kapanış + Bakiye sekmesi ortak yolu).</summary>
+    private async Task<List<VoucherBalanceLineDto>> ToBalanceRowsAsync(IReadOnlyDictionary<Guid, decimal> net)
+    {
+        var ordered = await OrderedVisibleUnitsAsync(net.Keys);
+        return ordered
+            .Select(u => new VoucherBalanceLineDto { UnitId = u.Id, UnitCode = u.Code, Net = net.GetValueOrDefault(u.Id) })
+            .ToList();
+    }
+
     private async Task<string?> ResolveUnitCodeAsync(Guid unitId)
     {
         using (_dataFilter.Disable<IMultiTenant>())
@@ -507,12 +548,8 @@ public class VoucherAppService : TradeXpressAppService, IVoucherAppService
         var lines = await AsyncExecuter.ToListAsync(
             q.SelectMany(v => v.Lines).Where(l => !l.IsDeleted));
 
-        var net = _balanceCalculator.Aggregate(lines);   // UnitId → işaretli net
-
-        var ordered = await OrderedVisibleUnitsAsync(net.Keys);
-        var rows = ordered
-            .Select(u => new VoucherBalanceLineDto { UnitId = u.Id, UnitCode = u.Code, Net = net.GetValueOrDefault(u.Id) })
-            .ToList();
+        var net  = _balanceCalculator.Aggregate(lines);   // UnitId → işaretli net
+        var rows = await ToBalanceRowsAsync(net);
 
         // Hesabın bakiye para birimi (konsolide hedefi): SubAccount → Account → BalanceCurrencyUnit.
         var (baseUnitId, baseCode) = await ResolveBalanceUnitAsync(subAccountId);
