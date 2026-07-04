@@ -3,13 +3,13 @@
 @inject IAssayOfficeAppService AssayOfficeService
 @inject IEffectivePriceAppService PriceService
 @inject IVoucherAppService VoucherService
-@inject ITradeXpressUiService Ui
+@inject IUiInteractionService Ui
 
 @* TAKOZ GİRİŞ paneli — DevExpress DxFormLayout (responsive ColSpan; mobilde DevExpress breakpoint'lere göre
    yeniden dizer, kayma/daralma olmaz). 5 bölüm: Kimlik · Milyem(AU/AG) · Platin/Paladyum · İşçilik · Açıklama
    + sağ Takoz Bakiyesi özeti. Yön sabit GİRİŞ. Kayıt: BullionBalancePoster (server). *@
 
-<ProcessPanelBase Direction="ProcessDirectionType.Inbound" OnSave="@HandleSave" OnBack="@OnBack"
+<ProcessPanelBase Direction="ProcessDirectionType.Inbound" OnSave="@HandleSave" SaveEnabled="@(!_saving)" OnBack="@OnBack"
                   ProcessTypeName="@L["Bullion"].Value"
                   AccountCode="@AccountCode" SubAccountCode="@SubAccountCode">
 

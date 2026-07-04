@@ -19,7 +19,7 @@ public partial class BullionProcessPanel : IVoucherLineEditPanel
     [Parameter] public Guid? VaultId { get; set; }
     [Parameter] public Guid AccountId { get; set; }
     [Parameter] public Guid? SubAccountId { get; set; }
-    [Parameter] public DateTime VoucherDate { get; set; } = DateTime.Now;
+    [Parameter] public DateTime VoucherDate { get; set; } = BusinessClock.Now();
     [Parameter] public Guid? VoucherId { get; set; }
     [Parameter] public EventCallback<VoucherLineDto> OnSaved { get; set; }
 
@@ -189,7 +189,19 @@ public partial class BullionProcessPanel : IVoucherLineEditPanel
         }
     }
 
+    /// <summary>Kaydetme sürüyor mu — re-entrancy bayrağı (çift tıklama/Enter çift-gönderim koruması).</summary>
+    private bool _saving;
+
     private async Task HandleSave()
+    {
+        if (_saving) return; // kaydetme zaten sürüyor — çift tıklamayı yut
+        _saving = true;
+        StateHasChanged(); // Kaydet butonu ilk await'te disabled çizilsin
+        try { await HandleSaveCoreAsync(); }
+        finally { _saving = false; }
+    }
+
+    private async Task HandleSaveCoreAsync()
     {
         _error = null;
         if (_assayOfficeId is null) { _error = L["Voucher_Op_AssayOffice"].Value; return; }
@@ -211,7 +223,7 @@ public partial class BullionProcessPanel : IVoucherLineEditPanel
             VaultId      = VaultId,
             AccountId    = AccountId,
             SubAccountId = SubAccountId,
-            VoucherDate  = VoucherDate == default ? DateTime.Now : VoucherDate,
+            VoucherDate  = VoucherDate == default ? BusinessClock.Now() : VoucherDate,
             Type         = ProcessType.Bullion,
             Direction    = ProcessDirectionType.Inbound,
             Amount       = _amount,

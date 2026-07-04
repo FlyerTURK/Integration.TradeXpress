@@ -4,6 +4,7 @@ using System.Linq.Expressions;
 using System.Threading.Tasks;
 using Integration.Framework.Application;
 using Integration.TradeXpress.Localization;
+using Integration.TradeXpress.Permissions;
 using Microsoft.AspNetCore.Authorization;
 using Volo.Abp.Domain.Repositories;
 
@@ -23,6 +24,11 @@ public class ServiceAppService
         : base(repository)
     {
         LocalizationResource = typeof(TradeXpressResource);
+
+        // Katalog yönetimi izinli (okuma/liste serbest — [Authorize] yeter): Metal deseniyle hizalı.
+        CreatePolicyName = TradeXpressPermissions.Services.Create;
+        UpdatePolicyName = TradeXpressPermissions.Services.Update;
+        DeletePolicyName = TradeXpressPermissions.Services.Delete;
     }
 
     protected override ISet<string> AllowedListFields { get; } =

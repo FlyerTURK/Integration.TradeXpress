@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
+using Integration.Framework.Timing;
 using Integration.TradeXpress.Bullions;
 using Integration.TradeXpress.Vouchers;
 
@@ -29,7 +30,7 @@ public class VoucherLineDto
     public Guid? VaultId { get; set; }
     public Guid AccountId { get; set; }
     public Guid? SubAccountId { get; set; }
-    public DateTime VoucherDate { get; set; } = DateTime.Now;
+    public DateTime VoucherDate { get; set; } = BusinessClock.Now();
     [StringLength(VoucherConsts.DescriptionMaxLength)]
     public string? VoucherDescription { get; set; }
 

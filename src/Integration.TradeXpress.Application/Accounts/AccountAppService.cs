@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Integration.Framework.Base.Querying;
 using Integration.TradeXpress.Companies;
 using Integration.TradeXpress.Financials.CurrencyUnits;
+using Integration.TradeXpress.MultiCompany;
 using Integration.TradeXpress.Permissions;
 using Microsoft.AspNetCore.Authorization;
 using Volo.Abp;
@@ -30,6 +31,7 @@ public class AccountAppService : TradeXpressAppService, IAccountAppService
     private readonly IRepository<SubAccount, Guid> _subAccountRepository;   // yalnız OKUMA (graf projeksiyonu + sil)
     private readonly ISubAccountAppService _subAccountAppService;           // YAZMA: alt hesap create/update/delete buraya delege
     private readonly IDataFilter _dataFilter;
+    private readonly ICurrentCompany _currentCompany;                       // güvenlik sınırı: working-context zorlaması
 
     private static readonly HashSet<string> AllowedListFields =
         new(StringComparer.OrdinalIgnoreCase) { "Code", "Name", "CompanyCode", "IsActive", "Limit", "Id", "CompanyId" };
@@ -40,7 +42,8 @@ public class AccountAppService : TradeXpressAppService, IAccountAppService
         IRepository<CurrencyUnit, Guid> unitRepository,
         IRepository<SubAccount, Guid> subAccountRepository,
         ISubAccountAppService subAccountAppService,
-        IDataFilter dataFilter)
+        IDataFilter dataFilter,
+        ICurrentCompany currentCompany)
     {
         _repository = repository;
         _companyRepository = companyRepository;
@@ -48,6 +51,7 @@ public class AccountAppService : TradeXpressAppService, IAccountAppService
         _subAccountRepository = subAccountRepository;
         _subAccountAppService = subAccountAppService;
         _dataFilter = dataFilter;
+        _currentCompany = currentCompany;
     }
 
     public virtual async Task<PagedResultDto<AccountListDto>> GetListAsync(AccountListRequestDto input)
@@ -104,12 +108,18 @@ public class AccountAppService : TradeXpressAppService, IAccountAppService
         if (CurrentTenant.Id == null)
             throw new BusinessException("TradeXpress:Company:HostHasNoCompanies");
 
-        await EnsureCompanyVisibleAsync(input.CompanyId);
+        // Güvenlik sınırı (Voucher deseniyle aynı, fail-closed): CompanyId client'tan gelir ama
+        // working-context'e EŞLEŞMELİ — sahte CompanyId ile başka şirkete hesap açılması engellenir.
+        var companyId = EnsureCurrentCompanyId();
+        if (input.CompanyId != companyId)
+            throw new BusinessException("TradeXpress:Account:CompanyContextMismatch");
+
+        await EnsureCompanyVisibleAsync(companyId);
         var balanceUnitId = await ResolveCurrencyAsync(input.BalanceCurrencyUnitId);
         var limitUnitId = await ResolveCurrencyAsync(input.LimitUnitId);
 
         var entity = new Account(
-            input.CompanyId,
+            companyId,
             input.Code,
             input.Name,
             balanceUnitId,
@@ -146,9 +156,14 @@ public class AccountAppService : TradeXpressAppService, IAccountAppService
     [Authorize(TradeXpressPermissions.Accounts.Delete)]
     public virtual async Task DeleteAsync(Guid id)
     {
+        // Güvenlik sınırı: hesabı ÖNCE yükle — company query filter yabancı şirketin hesabını gizler →
+        // EntityNotFoundException. Bu doğrulama alt-hesap silmeden ÖNCE olmalı; aksi hâlde yabancı hesabın
+        // alt hesapları (SubAccount company-filtreli değil, yalnız tenant) yıkıcı biçimde silinebilirdi.
+        var entity = await _repository.GetAsync(id);
+
         // Alt hesapları da sil (cascade) — hesap silinince çocuksuz kalsın.
-        await _subAccountRepository.DeleteAsync(s => s.AccountId == id, autoSave: true);
-        await _repository.DeleteAsync(id, autoSave: true);
+        await _subAccountRepository.DeleteAsync(s => s.AccountId == entity.Id, autoSave: true);
+        await _repository.DeleteAsync(entity, autoSave: true);
     }
 
     // ── alt hesap grafı diff (Id + IsDeleted) → SubAccountAppService'e DELEGE ───
@@ -204,6 +219,16 @@ public class AccountAppService : TradeXpressAppService, IAccountAppService
     }
 
     // ── helpers ───────────────────────────────────────────────────────────────
+
+    /// <summary>Sızıntı önleme (Voucher/BalanceSheet ile aynı desen): aktif şirket working-context'ten
+    /// (<see cref="ICurrentCompany"/>) zorlanır; yoksa fail-closed. Konsolide (context yok) yazma yapılamaz.</summary>
+    private Guid EnsureCurrentCompanyId()
+    {
+        if (_currentCompany.Id is not { } companyId)
+            throw new BusinessException("TradeXpress:Account:CompanyContextRequired");
+
+        return companyId;
+    }
 
     private async Task EnsureCompanyVisibleAsync(Guid companyId)
     {

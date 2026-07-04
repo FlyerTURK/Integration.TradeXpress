@@ -27,7 +27,7 @@
     public Integration.Framework.Blazor.Client.Services.Mdi.IMdiTab? CurrentMdiTab { get; set; }
 
     [Inject] protected Integration.TradeXpress.Blazor.Client.Services.Mdi.ITabManager TabManager { get; set; } = default!;
-    [Inject] protected Integration.Framework.Blazor.Client.Services.Base.ITradeXpressUiService UiService { get; set; } = default!;
+    [Inject] protected IUiInteractionService UiService { get; set; } = default!;
 
     private PermissionEditorPanel? _panel;
 

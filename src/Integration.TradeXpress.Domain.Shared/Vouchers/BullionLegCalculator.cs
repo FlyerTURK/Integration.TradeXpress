@@ -19,7 +19,7 @@ public static class BullionLegCalculator
 
     public static BullionLegResult ComputeBullion(BullionLegInput i)
     {
-        var isInflow = ((int)i.Direction % 2) == 0;   // Inbound (çift) = giriş
+        var isInflow = i.Direction.IsInflow();   // Inbound (çift) = giriş
         var sign     = isInflow ? 1m : -1m;
 
         // GİRİŞ'te çeşni miktarı bakiyeye dahil; ÇIKIŞ'ta numune dükkânda kalır.

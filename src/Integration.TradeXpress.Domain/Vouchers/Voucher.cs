@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Integration.TradeXpress.MultiCompany;
 
 namespace Integration.TradeXpress.Vouchers;
 
@@ -10,7 +11,7 @@ namespace Integration.TradeXpress.Vouchers;
 /// Tüm kapsam alanları (Company/Branch/Vault/Account/SubAccount) oluşturmadan sonra değişmez.
 /// VoucherDate: kullanıcı girişi (CreationTime'dan bağımsız), saniye hassasiyetinde saklanır.
 /// </summary>
-public class Voucher : FullAuditedAggregateRoot<Guid>, IMultiTenant
+public class Voucher : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwned
 {
     #region Constructors
 
@@ -62,7 +63,11 @@ public class Voucher : FullAuditedAggregateRoot<Guid>, IMultiTenant
     /// <summary>Şirket bazında otomatik artan fiş numarası.</summary>
     public virtual long VoucherNumber { get; protected set; }
 
-    /// <summary>Kullanıcı girişi fiş tarihi+saati — saniye hassasiyetinde, CreationTime'dan bağımsız.</summary>
+    /// <summary>Kullanıcı girişi fiş tarihi+saati — saniye hassasiyetinde, CreationTime'dan bağımsız.
+    /// <para><b>Wall-clock (kaymasız):</b> <c>[DisableDateTimeNormalization]</c> ile ABP <c>IClock</c> (UTC)
+    /// bu değeri UTC'ye çevirmez. Giriş <see cref="BusinessClock.Now"/> ile Kind=Unspecified gelir,
+    /// <see cref="TruncateToSeconds"/> Kind'ı garanti eder → gün/saat kayması yok, ekstre/gün-sınırı stabil.</para></summary>
+    [DisableDateTimeNormalization]
     public virtual DateTime VoucherDate { get; protected set; }
 
     public virtual string? Description { get; protected set; }
@@ -132,9 +137,12 @@ public class Voucher : FullAuditedAggregateRoot<Guid>, IMultiTenant
         AccountId = value;
     }
 
+    /// <summary>Saniye-altını atar VE Kind'ı <see cref="DateTimeKind.Unspecified"/>'e sabitler:
+    /// girişte Local/Utc gelse bile ABP bunu normalize edip kaydırmasın (alan zaten
+    /// <c>[DisableDateTimeNormalization]</c>; bu, wall-clock garantisinin entity-içi SSOT ayağıdır).</summary>
     private static DateTime TruncateToSeconds(DateTime dt)
     {
-        return new DateTime(dt.Year, dt.Month, dt.Day, dt.Hour, dt.Minute, dt.Second, dt.Kind);
+        return new DateTime(dt.Year, dt.Month, dt.Day, dt.Hour, dt.Minute, dt.Second, DateTimeKind.Unspecified);
     }
 
     #endregion

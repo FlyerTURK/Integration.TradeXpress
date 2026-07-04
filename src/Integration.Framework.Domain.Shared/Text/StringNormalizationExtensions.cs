@@ -5,12 +5,14 @@ namespace Integration.Framework;
 
 /// <summary>
 /// Kimlik alanları (Code/Name) için merkezî string normalizasyonu — her zaman elimizin altında
-/// (extension). Kültür duyarlı (<see cref="CultureInfo.CurrentUICulture"/>) ki kullanıcı kendi
-/// dilinde rahat etsin. Doğrulama (min/max/empty) BURADA DEĞİL → <see cref="StringFieldGuard"/>.
+/// (extension). Code büyütme KÜLTÜR-BAĞIMSIZ (<see cref="string.ToUpperInvariant"/>) — Türkçe İ/i
+/// tuzağını önler (tr "istanbul"→İSTANBUL, en →ISTANBUL çatallanmasını kapatır; benzersizlik yalnız
+/// DB unique index'e kalmaz). Name yalnızca görünen ad (DB'de unique index yok) → kültüre-duyarlı
+/// TitleCase kalır. Doğrulama (min/max/empty) BURADA DEĞİL → <see cref="StringFieldGuard"/>.
 /// </summary>
 public static class StringNormalizationExtensions
 {
-    /// <summary>Code normalizasyonu: Trim · çoklu boşluk→tek · boşluk→<c>_</c> · BÜYÜK harf (CurrentUICulture).</summary>
+    /// <summary>Code normalizasyonu: Trim · çoklu boşluk→tek · boşluk→<c>_</c> · BÜYÜK harf (invariant, kültür-bağımsız).</summary>
     public static string NormalizeAsCode(this string? raw)
     {
         if (string.IsNullOrWhiteSpace(raw))
@@ -19,7 +21,7 @@ public static class StringNormalizationExtensions
         }
 
         var collapsed = CollapseWhitespace(raw.Trim());
-        return collapsed.Replace(' ', '_').ToUpper(CultureInfo.CurrentUICulture);
+        return collapsed.Replace(' ', '_').ToUpperInvariant();
     }
 
     /// <summary>Name normalizasyonu: Trim · çoklu boşluk→tek · her kelimenin ilk harfi büyük (TitleCase, CurrentUICulture).</summary>

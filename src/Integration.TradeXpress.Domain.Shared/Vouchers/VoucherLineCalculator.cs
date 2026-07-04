@@ -27,7 +27,7 @@ public static class VoucherLineCalculator
         ArgumentNullException.ThrowIfNull(buyRateOf);
         ArgumentNullException.ThrowIfNull(parityMainOf);
 
-        var isInflow  = ((int)i.Direction % 2) == 0;
+        var isInflow  = i.Direction.IsInflow();
         var paySource = i.PaymentType == ProcessPaymentType.WithCash
             ? PayCommoditySource.CashInstruments
             : PayCommoditySource.Units;

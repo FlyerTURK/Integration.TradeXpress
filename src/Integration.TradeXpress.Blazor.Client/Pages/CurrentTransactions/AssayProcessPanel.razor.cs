@@ -25,7 +25,7 @@ public partial class AssayProcessPanel : IVoucherLineEditPanel
     [Parameter] public Guid? VaultId { get; set; }
     [Parameter] public Guid AccountId { get; set; }
     [Parameter] public Guid? SubAccountId { get; set; }
-    [Parameter] public DateTime VoucherDate { get; set; } = DateTime.Now;
+    [Parameter] public DateTime VoucherDate { get; set; } = BusinessClock.Now();
     [Parameter] public string? VoucherDescription { get; set; }
     [Parameter] public Guid? VoucherId { get; set; }
     [Parameter] public EventCallback<VoucherLineDto> OnSaved { get; set; }
@@ -95,7 +95,19 @@ public partial class AssayProcessPanel : IVoucherLineEditPanel
         StateHasChanged();
     }
 
+    /// <summary>Kaydetme sürüyor mu — re-entrancy bayrağı (çift tıklama/Enter çift-gönderim koruması).</summary>
+    private bool _saving;
+
     private async Task HandleSave()
+    {
+        if (_saving) return; // kaydetme zaten sürüyor — çift tıklamayı yut
+        _saving = true;
+        StateHasChanged(); // Kaydet butonu ilk await'te disabled çizilsin
+        try { await HandleSaveCoreAsync(); }
+        finally { _saving = false; }
+    }
+
+    private async Task HandleSaveCoreAsync()
     {
         _error = null;
         if (_amount <= 0m)
@@ -118,7 +130,7 @@ public partial class AssayProcessPanel : IVoucherLineEditPanel
             VaultId      = VaultId,
             AccountId    = AccountId,
             SubAccountId = SubAccountId,
-            VoucherDate  = VoucherDate == default ? DateTime.Now : VoucherDate,
+            VoucherDate  = VoucherDate == default ? BusinessClock.Now() : VoucherDate,
             VoucherDescription = VoucherDescription,
             Type         = ProcessType.Assay,
             Direction    = ProcessDirectionType.Outbound,   // yön SABİT ÇIKIŞ

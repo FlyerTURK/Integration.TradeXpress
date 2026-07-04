@@ -27,6 +27,8 @@ public sealed class ServiceBalancePoster : IVoucherLineBalancePoster, ITransient
             yield break;
 
         // Giriş → ALACAK (+), Çıkış → BORÇ (−). (Nakit ile aynı.)
+        // Bilinçli ve ground-truth ONAYLI (ERPGOLDV2 matrisi, 2026-07-03): Hizmet tipi yalnız
+        // Giriş/Çıkış tanır; Credit/Buy asla üretilmez → == Inbound ⟺ IsInflow() özdeştir.
         var amount = line.Direction == ProcessDirectionType.Inbound ? line.PayTotal : -line.PayTotal;
         yield return new BalanceEffect(unitId, amount);
     }

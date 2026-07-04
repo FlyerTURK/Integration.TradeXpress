@@ -3,7 +3,6 @@ using System.ComponentModel.DataAnnotations;
 using Integration.Framework.Base.Dtos;
 using Integration.Framework.Base.Dtos.Interfaces;
 using Integration.TradeXpress.Vouchers;
-using Volo.Abp.Application.Dtos;
 
 namespace Integration.TradeXpress.Stones;
 
@@ -13,11 +12,8 @@ public class StoneListRequestDto : ListRequestDto
     public Guid? CompanyId { get; set; }
 }
 
-public class StoneListDto : EntityDto<Guid>, IListDto<Guid>, IIsActive, IHostScoped, IPricedCommodityListDto
+public class StoneListDto : CatalogListDtoBase, IPricedCommodityListDto
 {
-    public string Code { get; set; } = string.Empty;
-    public string Name { get; set; } = string.Empty;
-
     public string? StoneKind { get; set; }
     public string? Color { get; set; }
 
@@ -28,20 +24,17 @@ public class StoneListDto : EntityDto<Guid>, IListDto<Guid>, IIsActive, IHostSco
     public Guid? EntryPriceUnitId { get; set; }
     public decimal ExitPrice { get; set; }
     public Guid? ExitPriceUnitId { get; set; }
-
-    public bool IsActive { get; set; }
-    public bool IsGlobal { get; set; }
 }
 
-public class StoneGetDto : EntityDto<Guid>, IGetDto<Guid>, IHasCode, IHostScoped
+public class StoneGetDto : CatalogGetDtoBase, IHasCode
 {
     [Required]
     [StringLength(StoneConsts.CodeMaxLength, MinimumLength = EntityFieldConsts.CodeMinLength)]
-    public string Code { get; set; } = string.Empty;
+    public override string Code { get; set; } = string.Empty;
 
     [Required]
     [StringLength(StoneConsts.NameMaxLength, MinimumLength = EntityFieldConsts.NameMinLength)]
-    public string Name { get; set; } = string.Empty;
+    public override string Name { get; set; } = string.Empty;
 
     [StringLength(StoneConsts.AttributeMaxLength)] public string? StoneKind { get; set; }
     [StringLength(StoneConsts.AttributeMaxLength)] public string? StoneType { get; set; }
@@ -64,23 +57,20 @@ public class StoneGetDto : EntityDto<Guid>, IGetDto<Guid>, IHasCode, IHostScoped
     public string? Description { get; set; }
 
     public Guid? CompanyId { get; set; }
-
-    public bool IsActive { get; set; }
-    public bool IsGlobal { get; set; }
 }
 
-public class StoneCreateDto : ICreateDto
+public class StoneCreateDto : CatalogCreateDtoBase
 {
     /// <summary>Sahip şirket — client çalışılan şirketi atar (otomatik scope).</summary>
     public Guid? CompanyId { get; set; }
 
     [Required]
     [StringLength(StoneConsts.CodeMaxLength, MinimumLength = EntityFieldConsts.CodeMinLength)]
-    public string Code { get; set; } = string.Empty;
+    public override string Code { get; set; } = string.Empty;
 
     [Required]
     [StringLength(StoneConsts.NameMaxLength, MinimumLength = EntityFieldConsts.NameMinLength)]
-    public string Name { get; set; } = string.Empty;
+    public override string Name { get; set; } = string.Empty;
 
     public string? StoneKind { get; set; }
     public string? StoneType { get; set; }
@@ -103,11 +93,11 @@ public class StoneCreateDto : ICreateDto
     public string? Description { get; set; }
 }
 
-public class StoneUpdateDto : IUpdateDto
+public class StoneUpdateDto : CatalogUpdateDtoBase
 {
     [Required]
     [StringLength(StoneConsts.NameMaxLength, MinimumLength = EntityFieldConsts.NameMinLength)]
-    public string Name { get; set; } = string.Empty;
+    public override string Name { get; set; } = string.Empty;
 
     public string? StoneKind { get; set; }
     public string? StoneType { get; set; }
@@ -128,6 +118,4 @@ public class StoneUpdateDto : IUpdateDto
 
     [StringLength(StoneConsts.DescriptionMaxLength)]
     public string? Description { get; set; }
-
-    public bool IsActive { get; set; }
 }

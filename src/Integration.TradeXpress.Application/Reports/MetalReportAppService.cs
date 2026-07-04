@@ -7,6 +7,7 @@ using Integration.TradeXpress.Branches;
 using Integration.TradeXpress.Companies;
 using Integration.TradeXpress.Financials.CurrencyUnits;
 using Integration.TradeXpress.MultiCompany;
+using Integration.TradeXpress.Permissions;
 using Integration.TradeXpress.Vaults;
 using Integration.TradeXpress.Vouchers;
 using Microsoft.AspNetCore.Authorization;
@@ -25,9 +26,9 @@ namespace Integration.TradeXpress.Reports;
 ///   <item>Etki = <c>±Amount</c> (<see cref="VoucherLine.Amount"/>), birim = <see cref="VoucherLine.MainUnitId"/>.</item>
 ///   <item>Source kolonu ödeme tipini bilgi amaçlı gösterir (Normal / Peşin / Bedelli / İade / Emanet / Miktar).</item>
 /// </list>
-/// İşaret: Giriş(Inbound) → +, Çıkış(Outbound) → −. isInflow = <c>(int)Direction % 2 == 0</c>.
+/// İşaret: Giriş(Inbound) → +, Çıkış(Outbound) → −. isInflow = <c>Direction.IsInflow()</c>.
 /// </summary>
-[Authorize]
+[Authorize(TradeXpressPermissions.Reports.Metal)]
 public class MetalReportAppService : TradeXpressAppService, IMetalReportAppService
 {
     private readonly IRepository<Voucher, Guid> _voucherRepository;
@@ -143,6 +144,7 @@ public class MetalReportAppService : TradeXpressAppService, IMetalReportAppServi
             from l in v.Lines
             where !l.IsDeleted && l.Type == ProcessType.Metal && l.MainUnitId != Guid.Empty && l.Amount != 0m
             group l by l.MainUnitId into g
+            // IQueryable → SQL: IsInflow() extension'ı EF Core tarafından çevrilemez, ham %2 bilinçli.
             select new
             {
                 UnitId = g.Key,
@@ -180,6 +182,7 @@ public class MetalReportAppService : TradeXpressAppService, IMetalReportAppServi
                    || l.PaymentType == ProcessPaymentType.Consignment)
                && l.CommodityId != null && l.PayUnitId != null && l.PayTotal != 0m
             group l by new { l.CommodityId, l.PayUnitId } into g
+            // IQueryable → SQL: IsInflow() extension'ı EF Core tarafından çevrilemez, ham %2 bilinçli.
             select new
             {
                 g.Key.PayUnitId,
@@ -237,9 +240,9 @@ public class MetalReportAppService : TradeXpressAppService, IMetalReportAppServi
         var result = new Dictionary<string, decimal>();
         foreach (var g in rows.GroupBy(r => r.CommodityCode ?? "?"))
         {
-            var girisLabor = g.Where(r => ((int)r.Direction % 2) == 0).Sum(r => r.PayTotal);
-            var girisQty   = g.Where(r => ((int)r.Direction % 2) == 0).Sum(r => r.Amount);
-            var cikisQty   = g.Where(r => ((int)r.Direction % 2) != 0).Sum(r => r.Amount);
+            var girisLabor = g.Where(r => r.Direction.IsInflow()).Sum(r => r.PayTotal);
+            var girisQty   = g.Where(r => r.Direction.IsInflow()).Sum(r => r.Amount);
+            var cikisQty   = g.Where(r => r.Direction.IsOutflow()).Sum(r => r.Amount);
             if (girisQty <= 0m) continue;
             var onHand = girisLabor * Math.Max(0m, girisQty - cikisQty) / girisQty;
             if (onHand != 0m) result[g.Key] = result.GetValueOrDefault(g.Key) + onHand;
@@ -389,7 +392,7 @@ public class MetalReportAppService : TradeXpressAppService, IMetalReportAppServi
         {
             if (r.MainUnitId == Guid.Empty || r.Amount == 0m) continue;
 
-            var sign   = (((int)r.Direction % 2) == 0) ? 1m : -1m;   // Giriş +, Çıkış −
+            var sign   = r.Direction.IsInflow() ? 1m : -1m;   // Giriş +, Çıkış −
             var source = PaymentSource(r.PaymentType);
 
             legs.Add(new MetalLeg(

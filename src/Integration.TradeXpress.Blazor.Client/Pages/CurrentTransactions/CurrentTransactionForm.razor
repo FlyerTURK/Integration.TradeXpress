@@ -4,7 +4,7 @@
 @implements IDisposable
 @inject IEffectivePriceAppService PriceService
 @inject IVoucherAppService VoucherService
-@inject ITradeXpressUiService Ui
+@inject IUiInteractionService Ui
 @inject ITabManager Tabs
 @inject IGridExportAssemblyLoader ExportLoader
 
@@ -238,17 +238,17 @@
 </div>
 
 @* Silme onayı: rakam doğrulama + neden *@
-<DxPopup @bind-Visible="@_showDeleteDialog" HeaderText="Satır Sil" Width="360px" ShowFooter="false">
+<DxPopup @bind-Visible="@_showDeleteDialog" HeaderText="@L["DeleteLine"]" Width="360px" ShowFooter="false">
     <BodyContentTemplate>
         <div style="display:flex; flex-direction:column; gap:10px;">
             <div><b>@_selectedLines.Count</b> satır silinecek. Doğrulayın: <b>@_deleteA + @_deleteB = ?</b></div>
             <DxSpinEdit TValue="int?" @bind-Value="@_deleteAnswer" ShowSpinButtons="false" CssClass="w-100" />
-            <DxTextBox @bind-Text="@_deleteReason" NullText="Silme nedeni" CssClass="w-100" />
+            <DxTextBox @bind-Text="@_deleteReason" NullText="@L["DeleteReason"]" CssClass="w-100" />
             <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:4px;">
-                <DxButton Text="Sil" IconCssClass="custom-icon-delete"
+                <DxButton Text="@L["Delete"]" IconCssClass="custom-icon-delete"
                           RenderStyle="ButtonRenderStyle.Danger" RenderStyleMode="ButtonRenderStyleMode.Contained"
                           Click="@ConfirmDeleteAsync" />
-                <DxButton Text="İptal"
+                <DxButton Text="@L["Cancel"]"
                           RenderStyle="ButtonRenderStyle.Secondary" RenderStyleMode="ButtonRenderStyleMode.Contained"
                           Click="@(() => _showDeleteDialog = false)" />
             </div>

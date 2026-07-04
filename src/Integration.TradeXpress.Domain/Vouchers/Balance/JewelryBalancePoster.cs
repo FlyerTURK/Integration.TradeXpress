@@ -21,7 +21,7 @@ public sealed class JewelryBalancePoster : IVoucherLineBalancePoster, ITransient
 
         if (line.PayUnitId is { } payUnit && line.PayTotal != 0m)
         {
-            var sign = (((int)line.Direction % 2) == 0) ? 1m : -1m;
+            var sign = line.Direction.IsInflow() ? 1m : -1m;
             yield return new BalanceEffect(payUnit, sign * line.PayTotal);
         }
     }

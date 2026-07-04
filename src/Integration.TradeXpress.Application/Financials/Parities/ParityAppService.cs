@@ -9,6 +9,7 @@ using Integration.TradeXpress.Financials.CurrencyUnits;
 using Integration.TradeXpress.Localization;
 using Integration.TradeXpress.Permissions;
 using Microsoft.AspNetCore.Authorization;
+using Volo.Abp;
 using Volo.Abp.Application.Dtos;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.MultiTenancy;
@@ -132,7 +133,7 @@ public class ParityAppService
     protected override Task<Parity> MapToEntityAsync(ParityCreateDto createInput)
     {
         // Create tamamen manager'a delege — bu yol asla çağrılmamalı (fail-fast).
-        throw new InvalidOperationException("Parity create ParityManager üzerinden yapılır; CreateAsync override'ı kullanın.");
+        throw new BusinessException("TradeXpress:Parity:CreateMustUseManager");
     }
 
     protected override Task MapToEntityAsync(ParityUpdateDto updateInput, Parity entity)

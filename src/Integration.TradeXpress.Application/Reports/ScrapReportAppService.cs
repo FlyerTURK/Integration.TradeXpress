@@ -7,6 +7,7 @@ using Integration.TradeXpress.Branches;
 using Integration.TradeXpress.Companies;
 using Integration.TradeXpress.Financials.CurrencyUnits;
 using Integration.TradeXpress.MultiCompany;
+using Integration.TradeXpress.Permissions;
 using Integration.TradeXpress.Vaults;
 using Integration.TradeXpress.Vouchers;
 using Microsoft.AspNetCore.Authorization;
@@ -20,7 +21,7 @@ namespace Integration.TradeXpress.Reports;
 /// Hurda stok ve hareket raporları. Bakiye etkisi ScrapBalancePoster ile aynı kural:
 /// Peşin → etki yok; Bedelli → PayTotal@PayUnit; Normal/diğer → Total@MainUnit (Has).
 /// </summary>
-[Authorize]
+[Authorize(TradeXpressPermissions.Reports.Scrap)]
 public class ScrapReportAppService : TradeXpressAppService, IScrapReportAppService
 {
     private readonly IRepository<Voucher, Guid> _voucherRepository;
@@ -94,6 +95,7 @@ public class ScrapReportAppService : TradeXpressAppService, IScrapReportAppServi
             from l in v.Lines
             where !l.IsDeleted && l.Type == ProcessType.Scrap && l.MainUnitId != Guid.Empty && l.Total != 0m
             group l by l.MainUnitId into g
+            // IQueryable → SQL: IsInflow() extension'ı EF Core tarafından çevrilemez, ham %2 bilinçli.
             select new { UnitId = g.Key, Net = g.Sum(x => ((int)x.Direction % 2) == 0 ? x.Total : -x.Total) });
 
         return rows.ToDictionary(r => r.UnitId, r => r.Net);
@@ -117,7 +119,7 @@ public class ScrapReportAppService : TradeXpressAppService, IScrapReportAppServi
 
         return rows
             .GroupBy(r => r.CommodityCode ?? "?")
-            .Select(g => new { Code = g.Key, Net = g.Sum(r => (((int)r.Direction % 2) == 0 ? 1m : -1m) * r.Total) })
+            .Select(g => new { Code = g.Key, Net = g.Sum(r => (r.Direction.IsInflow() ? 1m : -1m) * r.Total) })
             .Where(x => x.Net != 0m)
             .ToDictionary(x => x.Code, x => x.Net);
     }
@@ -220,7 +222,7 @@ public class ScrapReportAppService : TradeXpressAppService, IScrapReportAppServi
 
         return rows.Select(r =>
         {
-            var inflow = ((int)r.Direction % 2) == 0;
+            var inflow = r.Direction.IsInflow();
             var sign   = inflow ? 1m : -1m;
 
             bool isBedelli = r.PaymentType == ProcessPaymentType.WithCurrency;

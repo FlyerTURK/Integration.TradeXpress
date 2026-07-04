@@ -3,7 +3,7 @@ using Volo.Abp.DependencyInjection;
 
 namespace Integration.Framework.Blazor.Client.Services.Base;
 
-public class TradeXpressUiService : ITradeXpressUiService, IScopedDependency
+public class UiInteractionService : IUiInteractionService, IScopedDependency
 {
     private readonly IToastNotificationService _toastNotificationService;
 
@@ -19,7 +19,7 @@ public class TradeXpressUiService : ITradeXpressUiService, IScopedDependency
 
     private TaskCompletionSource<ConfirmDialogResult>? _dialogTcs;
 
-    public TradeXpressUiService(IToastNotificationService toastNotificationService)
+    public UiInteractionService(IToastNotificationService toastNotificationService)
     {
         _toastNotificationService = toastNotificationService;
     }

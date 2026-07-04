@@ -36,6 +36,7 @@ public class OrgTreeManager : DomainService
         var hq = branches.FirstOrDefault(b => b.IsHeadquarters);
         if (hq != null)
         {
+            await EnsureBaseCurrencyInheritedAsync(hq, company);
             await EnsureDefaultVaultAsync(hq);
             return hq;
         }
@@ -44,6 +45,7 @@ public class OrgTreeManager : DomainService
         {
             hq = branches.OrderBy(b => b.DisplayOrder).First();
             hq.SetAsHeadquarters(true);
+            InheritBaseCurrencyIfMissing(hq, company);
             await _branchRepository.UpdateAsync(hq, autoSave: true);
             await EnsureDefaultVaultAsync(hq);
             return hq;
@@ -55,6 +57,8 @@ public class OrgTreeManager : DomainService
             BranchConsts.DefaultHeadquartersName,
             isHeadquarters: true,
             displayOrder: 1);
+
+        InheritBaseCurrencyIfMissing(branch, company);
 
         await _branchRepository.InsertAsync(branch, autoSave: true);
         await EnsureDefaultVaultAsync(branch);
@@ -93,6 +97,30 @@ public class OrgTreeManager : DomainService
 
         await _vaultRepository.InsertAsync(vault, autoSave: true);
         return vault;
+    }
+
+    /// <summary>
+    /// Şube-otoriter bilanço birimi değişmezi (bkz. .claude/rules/financials.md): şube kendi
+    /// bilanço birimini TAŞIMALI. Otomatik kurulan/yükseltilen şubelerde birim boş kalmışsa
+    /// şirketin base'ini devralır (varsayılan-devir); şirket base'i de boşsa (erken-seed) dokunmaz —
+    /// değerleme zaten şirket-fallback ile çalışır, devir bir sonraki geçişte tamamlanır (idempotent).
+    /// </summary>
+    private static void InheritBaseCurrencyIfMissing(Branch branch, Company company)
+    {
+        if (branch.BaseCurrencyUnitId == Guid.Empty && company.BaseCurrencyUnitId != Guid.Empty)
+        {
+            branch.SetBaseCurrency(company.BaseCurrencyUnitId);
+        }
+    }
+
+    /// <summary>Mevcut HQ şubede eksik bilanço birimini devralır ve kalıcılaştırır (backfill iyileştirmesi).</summary>
+    private async Task EnsureBaseCurrencyInheritedAsync(Branch hq, Company company)
+    {
+        if (hq.BaseCurrencyUnitId == Guid.Empty && company.BaseCurrencyUnitId != Guid.Empty)
+        {
+            hq.SetBaseCurrency(company.BaseCurrencyUnitId);
+            await _branchRepository.UpdateAsync(hq, autoSave: true);
+        }
     }
 
     /// <summary>Şubenin tüm kasalarını siler (şube silinmeden önce çağrılır).</summary>

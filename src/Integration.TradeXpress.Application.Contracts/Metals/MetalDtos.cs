@@ -4,7 +4,6 @@ using Integration.Framework.Base.Dtos;
 using Integration.Framework.Base.Dtos.Interfaces;
 using Integration.TradeXpress.Commodities;
 using Integration.TradeXpress.Vouchers;
-using Volo.Abp.Application.Dtos;
 
 namespace Integration.TradeXpress.Metals;
 
@@ -13,13 +12,8 @@ public class MetalListRequestDto : ListRequestDto
 }
 
 /// <summary>Grid + süreç paneli picker'ı. İşçilik/sikke alanları panelin hesabı için taşınır.</summary>
-public class MetalListDto : EntityDto<Guid>, IListDto<Guid>, IIsActive, IHostScoped, IFollowingUnitDto
+public class MetalListDto : FollowingUnitCatalogListDtoBase
 {
-    public string Code { get; set; } = string.Empty;
-    public string Name { get; set; } = string.Empty;
-
-    public Guid FollowingUnitId { get; set; }
-    public string? FollowingUnitCode { get; set; }
     public decimal Factor { get; set; }
     public bool FactorChange { get; set; }
 
@@ -35,24 +29,17 @@ public class MetalListDto : EntityDto<Guid>, IListDto<Guid>, IIsActive, IHostSco
     public Guid? ExitLaborUnitId { get; set; }
     public bool ExitLaborChange { get; set; }
     public Guid? CostUnitId { get; set; }
-
-    public bool IsActive { get; set; }
-    public bool IsGlobal { get; set; }
 }
 
-public class MetalGetDto : EntityDto<Guid>, IGetDto<Guid>, IHasCode, IHostScoped, IFollowingUnitDto
+public class MetalGetDto : FollowingUnitCatalogGetDtoBase, IHasCode
 {
     [Required]
     [StringLength(MetalConsts.CodeMaxLength, MinimumLength = EntityFieldConsts.CodeMinLength)]
-    public string Code { get; set; } = string.Empty;
+    public override string Code { get; set; } = string.Empty;
 
     [Required]
     [StringLength(MetalConsts.NameMaxLength, MinimumLength = EntityFieldConsts.NameMinLength)]
-    public string Name { get; set; } = string.Empty;
-
-    [Required]
-    public Guid? FollowingUnitId { get; set; }
-    public string? FollowingUnitCode { get; set; }
+    public override string Name { get; set; } = string.Empty;
 
     [Range(0.0000001, double.MaxValue)]
     public decimal Factor { get; set; } = MetalConsts.DefaultFactor;
@@ -75,23 +62,17 @@ public class MetalGetDto : EntityDto<Guid>, IGetDto<Guid>, IHasCode, IHostScoped
     public string? Barcode { get; set; }
     [StringLength(MetalConsts.DescriptionMaxLength)]
     public string? Description { get; set; }
-
-    public bool IsActive { get; set; }
-    public bool IsGlobal { get; set; }
 }
 
-public class MetalCreateDto : ICreateDto
+public class MetalCreateDto : FollowingUnitCatalogCreateDtoBase
 {
     [Required]
     [StringLength(MetalConsts.CodeMaxLength, MinimumLength = EntityFieldConsts.CodeMinLength)]
-    public string Code { get; set; } = string.Empty;
+    public override string Code { get; set; } = string.Empty;
 
     [Required]
     [StringLength(MetalConsts.NameMaxLength, MinimumLength = EntityFieldConsts.NameMinLength)]
-    public string Name { get; set; } = string.Empty;
-
-    [Required]
-    public Guid? FollowingUnitId { get; set; }
+    public override string Name { get; set; } = string.Empty;
 
     [Range(0.0000001, double.MaxValue)]
     public decimal Factor { get; set; } = MetalConsts.DefaultFactor;
@@ -116,14 +97,11 @@ public class MetalCreateDto : ICreateDto
     public string? Description { get; set; }
 }
 
-public class MetalUpdateDto : IUpdateDto
+public class MetalUpdateDto : FollowingUnitCatalogUpdateDtoBase
 {
     [Required]
     [StringLength(MetalConsts.NameMaxLength, MinimumLength = EntityFieldConsts.NameMinLength)]
-    public string Name { get; set; } = string.Empty;
-
-    [Required]
-    public Guid? FollowingUnitId { get; set; }
+    public override string Name { get; set; } = string.Empty;
 
     [Range(0.0000001, double.MaxValue)]
     public decimal Factor { get; set; } = MetalConsts.DefaultFactor;
@@ -146,6 +124,4 @@ public class MetalUpdateDto : IUpdateDto
     public string? Barcode { get; set; }
     [StringLength(MetalConsts.DescriptionMaxLength)]
     public string? Description { get; set; }
-
-    public bool IsActive { get; set; }
 }

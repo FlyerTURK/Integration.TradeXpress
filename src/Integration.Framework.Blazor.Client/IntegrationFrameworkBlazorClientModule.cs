@@ -15,7 +15,7 @@ public class IntegrationFrameworkBlazorClientModule : AbpModule
 {
     public override void ConfigureServices(ServiceConfigurationContext context)
     {
-        context.Services.AddScoped<ITradeXpressUiService, TradeXpressUiService>();
+        context.Services.AddScoped<IUiInteractionService, UiInteractionService>();
         context.Services.AddScoped<IViewOpener, DefaultViewOpener>();
 
         // EntityProfile registry — entity kimliğinin (ikon/başlık/parent/permission/edit-host) TEK KAYNAĞI.

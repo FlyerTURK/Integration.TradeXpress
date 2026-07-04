@@ -111,7 +111,7 @@ public partial class BalanceSheetReportPage
         {
             _result = await BalanceSheetReportAppService.SaveAsync(BuildFilter());
             await LoadSnapshotsAsync();   // yeni snapshot geçmiş grid'inde görünsün.
-            // Başarı toast'ı: uygulamanın STANDART yolu = ITradeXpressUiService → DevExpress IToastNotificationService
+            // Başarı toast'ı: uygulamanın STANDART yolu = IUiInteractionService → DevExpress IToastNotificationService
             // → MainLayout'taki <DxToastProvider> render eder. (ABP Notify.Success bu app'te no-op: abp.notify stub.)
             Ui.ShowSuccessToast(Loc["BalanceSheet:Saved"]);
         }

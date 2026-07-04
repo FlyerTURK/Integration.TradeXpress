@@ -129,6 +129,44 @@ public class VoucherCompanyScopeTests : TradeXpressEntityFrameworkCoreTestBase
         nonZero.Net.ShouldBe(1000m);
     }
 
+    [Fact]
+    public async Task Foreign_company_line_edit_behaves_as_not_found()
+    {
+        var (mine, foreign) = await ArrangeTwoCompaniesAsync();
+
+        // Yabancı şirkette satır oluştur.
+        _companyContext.CompanyId = foreign.CompanyId;
+        var foreignLine = await _voucherAppService.SaveLineAsync(
+            VoucherTestLines.CashLine(foreign, ProcessDirectionType.Inbound, 1000m));
+
+        // Working şirket bize dönünce yabancı satır düzenlemeye AÇILAMAZ (id sızsa bile yokmuş gibi).
+        _companyContext.CompanyId = mine.CompanyId;
+        await Should.ThrowAsync<EntityNotFoundException>(
+            () => _voucherAppService.GetLineForEditAsync(foreignLine.Id));
+
+        // Kontrol grubu: sahibi şirket bağlamında aynı satır normal açılır.
+        _companyContext.CompanyId = foreign.CompanyId;
+        (await _voucherAppService.GetLineForEditAsync(foreignLine.Id)).Id.ShouldBe(foreignLine.Id);
+    }
+
+    [Fact]
+    public async Task Foreign_company_bullion_entry_is_not_found_for_exit()
+    {
+        var (mine, foreign) = await ArrangeTwoCompaniesAsync();
+
+        // Yabancı şirkette takoz GİRİŞ külçesi oluştur.
+        _companyContext.CompanyId = foreign.CompanyId;
+        var entry = await _voucherAppService.SaveLineAsync(
+            VoucherTestLines.BullionEntryLine(foreign, "TKZ-FOREIGN", 100m));
+
+        // Working = bizim şirket: yabancı külçe id'siyle takoz ÇIKIŞ hazırlanamaz (yokmuş gibi).
+        _companyContext.CompanyId = mine.CompanyId;
+        var exit = VoucherTestLines.BullionExitLine(mine, entry.Id);
+
+        (await Should.ThrowAsync<BusinessException>(() => _voucherAppService.SaveLineAsync(exit)))
+            .Code.ShouldBe("TradeXpress:Bullion:ExitEntryNotFound");
+    }
+
     /// <summary>Aynı tenant/host altında iki ayrı şirket grafı kurar (sızıntı senaryoları).</summary>
     private async Task<(VoucherTestData Mine, VoucherTestData Foreign)> ArrangeTwoCompaniesAsync()
     {

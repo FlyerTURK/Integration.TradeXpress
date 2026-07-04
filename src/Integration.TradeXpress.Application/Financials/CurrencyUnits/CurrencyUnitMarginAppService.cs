@@ -61,8 +61,8 @@ public class CurrencyUnitMarginAppService : TradeXpressAppService, ICurrencyUnit
         if (CurrentTenant.Id == null)
             return null;
         if (_currentCompany.Id is not { } companyId)
-            throw new InvalidOperationException(
-                "Tenant scope marj işlemi için working company zorunlu (HQ garantisi bozulmuş).");
+            // Tenant scope marj işlemi için working company zorunlu (HQ garantisi bozulmuş — fail-fast).
+            throw new BusinessException("TradeXpress:CurrencyUnitMargin:WorkingCompanyRequired");
         return companyId;
     }
 

@@ -4,6 +4,7 @@ using System.Linq.Expressions;
 using System.Threading.Tasks;
 using Integration.TradeXpress.Commodities;
 using Integration.TradeXpress.Financials.CurrencyUnits;
+using Integration.TradeXpress.Permissions;
 using Microsoft.AspNetCore.Authorization;
 using Volo.Abp.Domain.Repositories;
 
@@ -24,6 +25,10 @@ public class ScrapAppService
         IRepository<CurrencyUnit, Guid> unitRepository)
         : base(repository, unitRepository)
     {
+        // Katalog yönetimi izinli (okuma/liste serbest — [Authorize] yeter): Metal deseniyle hizalı.
+        CreatePolicyName = TradeXpressPermissions.Scraps.Create;
+        UpdatePolicyName = TradeXpressPermissions.Scraps.Update;
+        DeletePolicyName = TradeXpressPermissions.Scraps.Delete;
     }
 
     protected override ISet<string> AllowedListFields { get; } =

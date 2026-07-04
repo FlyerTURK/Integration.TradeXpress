@@ -13,7 +13,7 @@ namespace Integration.TradeXpress.Vouchers.Balance;
 ///   <item><b>Normal/İade/Emanet</b> (vd.): ana bacak
 ///         (<see cref="VoucherLine.MainUnitId"/>/<see cref="VoucherLine.Total"/> = Miktar × Factor).</item>
 /// </list>
-/// İşaret: Giriş(Inbound) → ALACAK(+), Çıkış(Outbound) → BORÇ(−). isInflow = <c>(int)Direction % 2 == 0</c>.
+/// İşaret: Giriş(Inbound) → ALACAK(+), Çıkış(Outbound) → BORÇ(−). isInflow = <c>Direction.IsInflow()</c>.
 /// </summary>
 [ExposeServices(typeof(IVoucherLineBalancePoster))]
 public sealed class ScrapBalancePoster : IVoucherLineBalancePoster, ITransientDependency
@@ -26,7 +26,7 @@ public sealed class ScrapBalancePoster : IVoucherLineBalancePoster, ITransientDe
         if (line.PaymentType == ProcessPaymentType.WithCash)
             yield break;
 
-        var sign = (((int)line.Direction % 2) == 0) ? 1m : -1m;   // Giriş +, Çıkış −
+        var sign = line.Direction.IsInflow() ? 1m : -1m;   // Giriş +, Çıkış −
 
         if (line.PaymentType == ProcessPaymentType.WithCurrency)
         {

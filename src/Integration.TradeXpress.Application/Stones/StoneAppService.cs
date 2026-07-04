@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Integration.Framework.Application;
 using Integration.TradeXpress.Localization;
 using Integration.TradeXpress.MultiCompany;
+using Integration.TradeXpress.Permissions;
 using Microsoft.AspNetCore.Authorization;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.MultiTenancy;
@@ -31,6 +32,11 @@ public class StoneAppService
     {
         _currentCompany = currentCompany;
         LocalizationResource = typeof(TradeXpressResource);
+
+        // Katalog yönetimi izinli (okuma/liste serbest — [Authorize] yeter): Metal deseniyle hizalı.
+        CreatePolicyName = TradeXpressPermissions.Stones.Create;
+        UpdatePolicyName = TradeXpressPermissions.Stones.Update;
+        DeletePolicyName = TradeXpressPermissions.Stones.Delete;
     }
 
     protected override ISet<string> AllowedListFields { get; } =
@@ -51,12 +57,18 @@ public class StoneAppService
         get { return x => x.Code; }
     }
 
-    public virtual Task<List<StoneListDto>> GetPickerListAsync(Guid? companyId = null)
+    public virtual async Task<List<StoneListDto>> GetPickerListAsync(Guid? companyId = null)
     {
         // Panel çalışılan şirketten farklı bir şirket verebilir → görünürlük o şirkete göre kurulur.
+        // Global company filtresi working şirkete kilitli olduğundan bilinçli kapatılır;
+        // görünürlüğü aşağıdaki predicate (istenen şirkete göre) zorlamaya devam eder.
         var scope = CompanyScopedQueryable.CompanyVisiblePredicate<Stone>(
             CurrentTenant.Id, companyId ?? _currentCompany.Id);
-        return GetPickerListCoreAsync(scope);
+
+        using (DataFilter.Disable<ICompanyScoped>())
+        {
+            return await GetPickerListCoreAsync(scope);
+        }
     }
 
     protected override Expression<Func<Stone, bool>> BuildVisibilityPredicate()

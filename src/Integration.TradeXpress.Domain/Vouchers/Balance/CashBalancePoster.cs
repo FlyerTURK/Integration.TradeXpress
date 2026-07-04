@@ -29,6 +29,8 @@ public sealed class CashBalancePoster : IVoucherLineBalancePoster, ITransientDep
             yield break;
 
         // Nakitte yön Giriş/Çıkış: In → ALACAK (+), aksi → BORÇ (−).
+        // Bilinçli ve ground-truth ONAYLI (ERPGOLDV2 Cari.Islemler matrisi, 2026-07-03): Nakit tipi
+        // YALNIZ Giriş/Çıkış tanır; Credit/Buy asla üretilmez. Bu yüzden == Inbound ⟺ IsInflow() özdeştir.
         var amount = line.Direction == ProcessDirectionType.Inbound ? line.PayTotal : -line.PayTotal;
         yield return new BalanceEffect(unitId, amount);
     }

@@ -9,7 +9,7 @@ public enum ConfirmDialogResult
     Cancel
 }
 
-public interface ITradeXpressUiService : IScopedDependency
+public interface IUiInteractionService : IScopedDependency
 {
     event Action? OnDialogChanged;
     bool IsDialogVisible { get; }

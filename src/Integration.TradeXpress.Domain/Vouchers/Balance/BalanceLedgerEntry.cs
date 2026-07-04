@@ -1,4 +1,6 @@
 using System;
+using Integration.TradeXpress.Financials;
+using Integration.TradeXpress.MultiCompany;
 using Volo.Abp.Domain.Entities.Auditing;
 using Volo.Abp.MultiTenancy;
 
@@ -13,7 +15,7 @@ namespace Integration.TradeXpress.Vouchers.Balance;
 /// ledger yalnız o çıktıyı saklar. Senkron: voucher save/update/delete'te VoucherId bazında
 /// <b>sil + yeniden yaz</b> (<c>BalanceLedgerSynchronizer</c>) → kaydedilen işlemle inşaen tutarlı.</para>
 /// </summary>
-public class BalanceLedgerEntry : CreationAuditedAggregateRoot<Guid>, IMultiTenant
+public class BalanceLedgerEntry : CreationAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwned
 {
     public virtual Guid? TenantId { get; protected set; }
 
@@ -38,6 +40,11 @@ public class BalanceLedgerEntry : CreationAuditedAggregateRoot<Guid>, IMultiTena
     public virtual ProcessDirectionType Direction { get; protected set; }
     public virtual ProcessPaymentType? PaymentType { get; protected set; }
     public virtual long VoucherNumber { get; protected set; }
+
+    /// <summary>Voucher.VoucherDate kopyası — wall-clock (kaymasız). <c>[DisableDateTimeNormalization]</c>
+    /// ile ABP UTC normalizasyonundan muaf; kaynak Voucher zaten Kind=Unspecified verir → poster/ledger
+    /// tarafında da gün-sınırı (pozisyon/ekstre) aynı wall-clock ile hizalı kalır.</summary>
+    [DisableDateTimeNormalization]
     public virtual DateTime VoucherDate { get; protected set; }
 
     protected BalanceLedgerEntry()
@@ -45,7 +52,10 @@ public class BalanceLedgerEntry : CreationAuditedAggregateRoot<Guid>, IMultiTena
     }
 
     /// <summary>Voucher header (kapsam) + satır (sınıflandırma) + poster etkisinden (unit/amount) bir satır kurar.
-    /// TenantId set EDİLMEZ — ABP IMultiTenant insert'te otomatik basar (Voucher ile aynı).</summary>
+    /// TenantId set EDİLMEZ — ABP IMultiTenant insert'te otomatik basar (Voucher ile aynı).
+    /// <para><b>Rounding:</b> tutar KAYIT ANINDA N2 + AwayFromZero yuvarlanır (<see cref="FinancialRounding"/> —
+    /// ERPPRO'da SQL kolon scale'inin fiili davranışı; poster ara hesapları HAM kalır, yalnız kalıcılaşan
+    /// değer yuvarlanır).</para></summary>
     public BalanceLedgerEntry(Guid id, Voucher voucher, VoucherLine line, Guid unitId, decimal amount)
         : base(id)
     {
@@ -55,7 +65,7 @@ public class BalanceLedgerEntry : CreationAuditedAggregateRoot<Guid>, IMultiTena
         AccountId     = voucher.AccountId;
         SubAccountId  = voucher.SubAccountId;
         UnitId        = unitId;
-        Amount        = amount;
+        Amount        = FinancialRounding.RoundAmount(amount);
         VoucherId     = voucher.Id;
         VoucherLineId = line.Id;
         ProcessType   = line.Type;

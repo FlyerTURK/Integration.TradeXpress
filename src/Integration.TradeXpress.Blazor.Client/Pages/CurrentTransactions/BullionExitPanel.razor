@@ -9,7 +9,7 @@
    giriş satırından kopyalanır (PrepareBullionExitLineAsync) — panel yalnız işçilik + durumlar + külçe
    referansı gönderir. Yön sabit ÇIKIŞ. Düzeltmede külçe değişmez (combo yerine kırmızı kod etiketi). *@
 
-<ProcessPanelBase Direction="ProcessDirectionType.Outbound" OnSave="@HandleSave" OnBack="@OnBack"
+<ProcessPanelBase Direction="ProcessDirectionType.Outbound" OnSave="@HandleSave" SaveEnabled="@(!_saving)" OnBack="@OnBack"
                   ProcessTypeName="@L["Bullion"].Value"
                   AccountCode="@AccountCode" SubAccountCode="@SubAccountCode">
 

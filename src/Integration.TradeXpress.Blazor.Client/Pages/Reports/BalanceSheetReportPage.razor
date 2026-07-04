@@ -9,7 +9,7 @@
 @attribute [Authorize(TradeXpressPermissions.Reports.BalanceSheet)]
 @inherits Volo.Abp.AspNetCore.Components.AbpComponentBase
 @inject IStringLocalizer<Integration.TradeXpress.Localization.TradeXpressResource> Loc
-@inject Integration.Framework.Blazor.Client.Services.Base.ITradeXpressUiService Ui
+@inject IUiInteractionService Ui
 @implements IDisposable
 
 <PageTitle>Bilanço Raporu</PageTitle>

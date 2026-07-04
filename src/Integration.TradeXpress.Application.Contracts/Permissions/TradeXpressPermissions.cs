@@ -94,6 +94,52 @@ public static class TradeXpressPermissions
         public const string Delete  = Default + ".Delete";
     }
 
+    /// <summary>Hurda KATALOĞU yönetimi (işlem yetkisi DEĞİL — o <see cref="Transactions.Scrap"/>).
+    /// Liste/okuma serbest ([Authorize]); Create/Update/Delete izinlidir.</summary>
+    public static class Scraps
+    {
+        public const string Default = GroupName + ".Scraps";
+        public const string Create  = Default + ".Create";
+        public const string Update  = Default + ".Update";
+        public const string Delete  = Default + ".Delete";
+    }
+
+    /// <summary>Vadeli KATALOĞU yönetimi (işlem yetkisi DEĞİL — o <see cref="Transactions.Future"/>).</summary>
+    public static class Futures
+    {
+        public const string Default = GroupName + ".Futures";
+        public const string Create  = Default + ".Create";
+        public const string Update  = Default + ".Update";
+        public const string Delete  = Default + ".Delete";
+    }
+
+    /// <summary>Hizmet KATALOĞU yönetimi (işlem yetkisi DEĞİL — o <see cref="Transactions.Service"/>).</summary>
+    public static class Services
+    {
+        public const string Default = GroupName + ".Services";
+        public const string Create  = Default + ".Create";
+        public const string Update  = Default + ".Update";
+        public const string Delete  = Default + ".Delete";
+    }
+
+    /// <summary>Taş KATALOĞU yönetimi (işlem yetkisi DEĞİL — o <see cref="Transactions.Stone"/>).</summary>
+    public static class Stones
+    {
+        public const string Default = GroupName + ".Stones";
+        public const string Create  = Default + ".Create";
+        public const string Update  = Default + ".Update";
+        public const string Delete  = Default + ".Delete";
+    }
+
+    /// <summary>Mücevher KATALOĞU yönetimi (işlem yetkisi DEĞİL — o <see cref="Transactions.Jewelry"/>).</summary>
+    public static class Jewelries
+    {
+        public const string Default = GroupName + ".Jewelries";
+        public const string Create  = Default + ".Create";
+        public const string Update  = Default + ".Update";
+        public const string Delete  = Default + ".Delete";
+    }
+
     public static class Accounts
     {
         public const string Default = GroupName + ".Accounts";
@@ -117,6 +163,9 @@ public static class TradeXpressPermissions
         public const string BalanceSheet = Default + ".BalanceSheet";
         /// <summary>Cari-hesap-bağımsız işlem raporu (tüm carilerin hareketleri tek raporda).</summary>
         public const string Transactions = Default + ".Transactions";
+        public const string Cash  = Default + ".Cash";
+        public const string Metal = Default + ".Metal";
+        public const string Scrap = Default + ".Scrap";
     }
 
     /// <summary>Cari işlem (voucher satırı) tipleri — her işlem tipi için AYRI yetki (List yetki gerektirmez).</summary>

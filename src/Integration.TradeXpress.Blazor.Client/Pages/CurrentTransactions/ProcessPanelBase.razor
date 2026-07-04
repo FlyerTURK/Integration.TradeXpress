@@ -15,6 +15,7 @@
                   IconCssClass="custom-icon-save"
                   RenderStyle="ButtonRenderStyle.Primary"
                   RenderStyleMode="ButtonRenderStyleMode.Contained"
+                  Enabled="@SaveEnabled"
                   Click="@OnSave" />
         <DxButton Text="@L["Back"].Value"
                   IconCssClass="custom-icon-back"
@@ -23,47 +24,3 @@
                   Click="@OnBack" />
     </div>
 </div>
-
-@code {
-    [Parameter] public RenderFragment? ChildContent { get; set; }
-    [Parameter] public ProcessDirectionType Direction { get; set; }
-    [Parameter] public EventCallback OnSave { get; set; }
-    [Parameter] public EventCallback OnBack { get; set; }
-
-    [Parameter] public string? ProcessTypeName { get; set; }
-    [Parameter] public string? PaymentTypeName { get; set; }
-    [Parameter] public string? AccountCode { get; set; }
-    [Parameter] public string? SubAccountCode { get; set; }
-
-    private string StripText()
-    {
-        var parts = new System.Collections.Generic.List<string>();
-        if (!string.IsNullOrEmpty(ProcessTypeName)) parts.Add(ProcessTypeName.ToUpperInvariant());
-        parts.Add(L[$"Enum:ProcessDirectionType:{Direction}"].Value.ToUpperInvariant());
-        if (!string.IsNullOrEmpty(PaymentTypeName)) parts.Add(PaymentTypeName.ToUpperInvariant());
-
-        var text = string.Join("   ", parts);
-
-        if (!string.IsNullOrEmpty(AccountCode))
-        {
-            var account = string.IsNullOrEmpty(SubAccountCode)
-                ? $"[{AccountCode}]"
-                : $"[{AccountCode} / {SubAccountCode}]";
-            text += $"   {account}";
-        }
-
-        return text;
-    }
-
-    private string StripStyle()
-    {
-        // inflow (Giriş/Alacak/Alış) → yeşil; aksi (Çıkış/Borç/Satış) → kırmızı.
-        var isInflow = ((int)Direction % 2) == 0;
-        var gradient = isInflow
-            ? "var(--gradient-green)"
-            : "var(--gradient-red)";
-
-        return $"height:34px; border-radius:4px 4px 0 0; background:{gradient};";
-    }
-}
-

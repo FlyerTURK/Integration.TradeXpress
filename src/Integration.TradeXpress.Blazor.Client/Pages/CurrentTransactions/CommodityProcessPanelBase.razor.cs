@@ -25,7 +25,7 @@ public abstract partial class CommodityProcessPanelBase<TListDto> : IVoucherLine
     [Inject] private ICurrencyUnitAppService CurrencyUnitService { get; set; } = default!;
     [Inject] private IVoucherAppService VoucherService { get; set; } = default!;
     [Inject] private IWorkingContextService Working { get; set; } = default!;
-    [Inject] private ITradeXpressUiService Ui { get; set; } = default!;
+    [Inject] private IUiInteractionService Ui { get; set; } = default!;
 
     [Parameter] public EventCallback OnBack { get; set; }
     [Parameter] public string? AccountCode { get; set; }
@@ -36,7 +36,7 @@ public abstract partial class CommodityProcessPanelBase<TListDto> : IVoucherLine
     [Parameter] public Guid? VaultId { get; set; }
     [Parameter] public Guid AccountId { get; set; }
     [Parameter] public Guid? SubAccountId { get; set; }
-    [Parameter] public DateTime VoucherDate { get; set; } = DateTime.Now;
+    [Parameter] public DateTime VoucherDate { get; set; } = BusinessClock.Now();
     [Parameter] public string? VoucherDescription { get; set; }
     [Parameter] public Guid? VoucherId { get; set; }
     [Parameter] public EventCallback<VoucherLineDto> OnSaved { get; set; }
@@ -151,7 +151,7 @@ public abstract partial class CommodityProcessPanelBase<TListDto> : IVoucherLine
 
     private void ApplyDirectionPrice(TListDto c)
     {
-        var inflow = ((int)_model.Direction % 2) == 0;   // Giriş
+        var inflow = _model.Direction.IsInflow();   // Giriş
         _model.PayFactor = inflow ? c.EntryPrice : c.ExitPrice;
     }
 
@@ -159,7 +159,7 @@ public abstract partial class CommodityProcessPanelBase<TListDto> : IVoucherLine
     {
         var c = _allCommodities.FirstOrDefault(x => x.Id == _model.CommodityId);
         if (c is null) return null;
-        var inflow = ((int)_model.Direction % 2) == 0;
+        var inflow = _model.Direction.IsInflow();
         return inflow ? c.EntryPriceUnitId : c.ExitPriceUnitId;
     }
 
@@ -243,7 +243,19 @@ public abstract partial class CommodityProcessPanelBase<TListDto> : IVoucherLine
         "display:flex; flex-direction:column; gap:4px; " + (_isMobile ? "width:100%;" : "width:120px; flex-shrink:0;");
     private string ControlStyle() => _isMobile ? "width:100%;" : "width:120px;";
 
+    /// <summary>Kaydetme sürüyor mu — re-entrancy bayrağı (çift tıklama/Enter çift-gönderim koruması).</summary>
+    private bool _saving;
+
     private async Task HandleSave()
+    {
+        if (_saving) return; // kaydetme zaten sürüyor — çift tıklamayı yut
+        _saving = true;
+        StateHasChanged(); // Kaydet butonu ilk await'te disabled çizilsin
+        try { await HandleSaveCoreAsync(); }
+        finally { _saving = false; }
+    }
+
+    private async Task HandleSaveCoreAsync()
     {
         if (_model.CommodityId is null || _model.PayUnitId is null)
             return;

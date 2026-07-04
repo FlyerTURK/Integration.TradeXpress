@@ -8,6 +8,13 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <!-- Mekanik ağ Katman 1: yasak API'ler (Guid.NewGuid, ham exception ctor'ları, Check.NotNullOrWhiteSpace)
+       kök BannedSymbols.txt üzerinden RS0030 üretir; kök .editorconfig RS0030'u ERROR yapar. -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers; buildtransitive" />
+    <AdditionalFiles Include="..\..\BannedSymbols.txt" Link="BannedSymbols.txt" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="Volo.Abp.Ddd.Application" />
   </ItemGroup>

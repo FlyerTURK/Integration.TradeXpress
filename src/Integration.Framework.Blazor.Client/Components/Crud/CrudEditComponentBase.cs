@@ -205,7 +205,7 @@ public abstract class CrudEditComponentBase<TGetDto, TListDto, TKey, TListReques
     Task ISplitEditActions.DeleteAsync() => DeleteRecordAsync();
 
     [Inject]
-    protected ITradeXpressUiService UiService { get; set; } = default!;
+    protected IUiInteractionService UiService { get; set; } = default!;
 
     [Inject]
     protected IEntityChangeNotifier EntityChanges { get; set; } = default!;

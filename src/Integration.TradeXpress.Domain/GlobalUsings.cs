@@ -22,6 +22,7 @@ global using Volo.Abp.Domain.Services;
 global using Volo.Abp.Domain.Values;
 global using Volo.Abp.Guids;
 global using Volo.Abp.MultiTenancy;
+global using Volo.Abp.Timing;
 global using Volo.Abp.Uow;
 
 // ── TradeXpress alan namespace'leri ──

@@ -79,9 +79,6 @@ public partial class VoucherAppService
         await AuthorizationService.CheckAsync(permission);
     }
 
-    /// <summary>Yön "giriş" mi (bakiyeye + yönde): Inbound/Credit/Buy → çift enum değeri.</summary>
-    private static bool IsInflow(ProcessDirectionType direction)
-    {
-        return ((int)direction % 2) == 0;
-    }
+    // NOT: Eski private IsInflow yardımcısı Domain.Shared'daki ProcessDirectionTypeExtensions.IsInflow()
+    // extension'ına taşındı (DRY — tek kaynak).
 }

@@ -22,7 +22,7 @@ public sealed class StoneBalancePoster : IVoucherLineBalancePoster, ITransientDe
 
         if (line.PayUnitId is { } payUnit && line.PayTotal != 0m)
         {
-            var sign = (((int)line.Direction % 2) == 0) ? 1m : -1m;   // Giriş +, Çıkış −
+            var sign = line.Direction.IsInflow() ? 1m : -1m;   // Giriş +, Çıkış −
             yield return new BalanceEffect(payUnit, sign * line.PayTotal);
         }
     }

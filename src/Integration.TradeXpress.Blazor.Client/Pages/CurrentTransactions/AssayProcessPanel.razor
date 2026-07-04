@@ -1,14 +1,14 @@
 @inject IStringLocalizer<TradeXpressResource> L
 @inject ICurrencyUnitAppService CurrencyUnitService
 @inject IVoucherAppService VoucherService
-@inject ITradeXpressUiService Ui
+@inject IUiInteractionService Ui
 
 @* ÇEŞNİ paneli (Assay=14) — biriken çeşni stoğundan (takoz girişlerindeki numune havuzu) cariye SAF METAL
    verilmesi. Yön SABİT ÇIKIŞ (kırmızı şerit); parasal alan YOK (Fiyat=Tutar=0). MİKTAR + MILYEM(AU/AG)
    girilir; HAS/GUM salt-okunur hesaplanır (Miktar × milyem). Açılışta mevcut çeşni stoğu ön-doldurulur
    (legacy Stok.GetCesniStoklari paritesi — milyemler Has/Miktar türetimli). *@
 
-<ProcessPanelBase Direction="ProcessDirectionType.Outbound" OnSave="@HandleSave" OnBack="@OnBack"
+<ProcessPanelBase Direction="ProcessDirectionType.Outbound" OnSave="@HandleSave" SaveEnabled="@(!_saving)" OnBack="@OnBack"
                   ProcessTypeName="@L["Assay"].Value"
                   AccountCode="@AccountCode" SubAccountCode="@SubAccountCode">
 

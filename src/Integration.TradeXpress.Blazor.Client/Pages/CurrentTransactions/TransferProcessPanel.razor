@@ -2,7 +2,7 @@
 @inject ICurrencyUnitAppService CurrencyUnitService
 @inject ISubAccountAppService SubAccountService
 @inject IVoucherAppService VoucherService
-@inject ITradeXpressUiService Ui
+@inject IUiInteractionService Ui
 
 @* VİRMAN paneli (Transfer=11) — çift bacak: bu satır + karşı hesabın KENDİ fişinde zıt yönlü ikiz
    (aynı LinkId; sunucu üretir). Yön combo etiketi ALACAK/BORÇ (legacy quirk: DB'de GİRİŞ/ÇIKIŞ).
@@ -11,7 +11,7 @@
 
 <DxLayoutBreakpoint MaxWidth="768" @bind-IsActive="@_isMobile" />
 
-<ProcessPanelBase Direction="@_model.Direction" OnSave="@HandleSave" OnBack="@OnBack"
+<ProcessPanelBase Direction="@_model.Direction" OnSave="@HandleSave" SaveEnabled="@(!_saving)" OnBack="@OnBack"
                   ProcessTypeName="@L["Transfer"].Value"
                   AccountCode="@AccountCode"
                   SubAccountCode="@SubAccountCode">

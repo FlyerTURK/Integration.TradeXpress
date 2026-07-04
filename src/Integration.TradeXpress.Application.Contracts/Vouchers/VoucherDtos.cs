@@ -1,5 +1,6 @@
 using System;
 using System.ComponentModel.DataAnnotations;
+using Integration.Framework.Timing;
 using Integration.TradeXpress.Vouchers;
 using Volo.Abp.Application.Dtos;
 
@@ -21,7 +22,7 @@ public class VoucherCreateDto
     public Guid? SubAccountId { get; set; }
 
     [Required]
-    public DateTime VoucherDate { get; set; } = DateTime.Now;
+    public DateTime VoucherDate { get; set; } = BusinessClock.Now();
 
     [StringLength(VoucherConsts.DescriptionMaxLength)]
     public string? Description { get; set; }

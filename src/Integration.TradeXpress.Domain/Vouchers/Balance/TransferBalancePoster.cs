@@ -26,6 +26,8 @@ public sealed class TransferBalancePoster : IVoucherLineBalancePoster, ITransien
             yield break;
 
         // Giriş → ALACAK (+), aksi → BORÇ (−). (Nakit ile aynı işaret; çift etki iki satırdan doğar.)
+        // Bilinçli ve ground-truth ONAYLI (ERPGOLDV2 matrisi, 2026-07-03): Virman tipi yalnız
+        // Giriş/Çıkış tanır (ikiz bacak); Credit/Buy asla üretilmez → == Inbound ⟺ IsInflow() özdeştir.
         var amount = line.Direction == ProcessDirectionType.Inbound ? line.PayTotal : -line.PayTotal;
         yield return new BalanceEffect(unitId, amount);
     }

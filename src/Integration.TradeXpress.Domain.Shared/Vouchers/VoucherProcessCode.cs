@@ -14,7 +14,7 @@ public static class VoucherProcessCode
     public static string Of(ProcessType process, ProcessDirectionType direction, ProcessPaymentType? payment = null)
     {
         if (process == ProcessType.Bullion)
-            return ((int)direction % 2) == 0 ? "TGA" : "TCA";
+            return direction.IsInflow() ? "TGA" : "TCA";
         if (process == ProcessType.Assay)
             return "C";
 

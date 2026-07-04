@@ -327,7 +327,6 @@ public class TradeXpressBlazorModule : AbpModule
         {
             MapSignInCookieEndpoint(builder);
             MapFindTenantEndpoint(builder);
-            MapN11ScrapeEndpoint(builder);
             MapBlazorComponents(builder);
         });
 
@@ -427,20 +426,6 @@ public class TradeXpressBlazorModule : AbpModule
                 {
                     return Microsoft.AspNetCore.Http.Results.Ok(new { found = false, name = (string?)null });
                 }
-            }).AllowAnonymous();
-
-    }
-
-    // ── TEST: n11 kategori kazıma → JSON. "Link ver → JSON dön" döngüsü; AI bu JSON'u okuyup
-    //    ürünleri sınıflandırır (ağırlık/ayar/tip). GET /api/n11?url=<kategori>&max=40 ──
-    private static void MapN11ScrapeEndpoint(IEndpointRouteBuilder builder)
-    {
-        builder.MapGet("/api/n11", async (
-                string url, int? max,
-                [Microsoft.AspNetCore.Mvc.FromServices] Integration.TradeXpress.Scraping.N11.IN11Scraper scraper) =>
-            {
-                var items = await scraper.GetCategoryAsync(url, max is > 0 and <= 200 ? max.Value : 40);
-                return Microsoft.AspNetCore.Http.Results.Json(items);
             }).AllowAnonymous();
 
     }

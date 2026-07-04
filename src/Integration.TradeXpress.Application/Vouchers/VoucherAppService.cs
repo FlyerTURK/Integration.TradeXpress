@@ -12,6 +12,7 @@ using Volo.Abp;
 using Volo.Abp.Application.Dtos;
 using Volo.Abp.Domain.Entities;
 using Volo.Abp.Domain.Repositories;
+using Volo.Abp.Uow;
 
 namespace Integration.TradeXpress.Vouchers;
 
@@ -95,7 +96,14 @@ public partial class VoucherAppService : TradeXpressAppService, IVoucherAppServi
         };
     }
 
-    public async Task<VoucherLineDto> SaveLineAsync(VoucherLineDto input)
+    // ÇOK-ADIMLI yazım (fiş kaydı + ledger sil/yaz + virman ikizi) → AÇIK transaction ZORUNLU.
+    // Global AddAlwaysDisableUnitOfWorkTransaction yalnız OTOMATİK hesaplanan UoW opsiyonlarını etkiler;
+    // attribute'un açık IsTransactional değeri interceptor'da onu bypass eder (UnitOfWorkInterceptor.
+    // CreateOptions: attribute.IsTransactional != null → provider'a hiç danışılmaz). Dikkat: ambient UoW
+    // varsa Begin child olarak katılır ve bu opsiyon YOK SAYILIR — bu metotlar dış UoW'suz çağrılır
+    // (Blazor circuit / HTTP entry), garanti oradan gelir.
+    [UnitOfWork(isTransactional: true)]
+    public virtual async Task<VoucherLineDto> SaveLineAsync(VoucherLineDto input)
     {
         // Server-side per-tip yetki kontrolü (UI gate TEK BAŞINA yetmez — bkz. ProcessTypePermissionMap).
         await EnsureTransactionPermissionAsync(input.Type);
@@ -109,9 +117,9 @@ public partial class VoucherAppService : TradeXpressAppService, IVoucherAppServi
 
         // Takoz ÇIKIŞ: metal verisi (miktar/milyem/rapor/ayar evi/birimler) SERVER-AUTHORITATIVE —
         // seçilen giriş külçesinden kopyalanır; panel yalnız işçilik + dağıtım durumlarını gönderir.
-        if (input.Type == ProcessType.Bullion && !IsInflow(input.Direction))
+        if (input.Type == ProcessType.Bullion && input.Direction.IsOutflow())
         {
-            await _bullionStockService.PrepareBullionExitLineAsync(input);
+            await _bullionStockService.PrepareBullionExitLineAsync(input, EnsureCurrentCompanyId());
         }
 
         // Virman: karşı hesap doğrulaması + LinkId (sunucu otoritedir) + legacy açıklama formatı.
@@ -299,8 +307,12 @@ public partial class VoucherAppService : TradeXpressAppService, IVoucherAppServi
 
     public async Task<VoucherLineDto> GetLineForEditAsync(Guid lineId)
     {
+        // Company scope: yabancı şirketin satırı YOKMUŞ gibi davranılır (sızıntı önleme —
+        // GetLinesAsync/DeleteLineAsync ile aynı aitlik ilkesi, sorgu fiş başlığına filtrelenir).
+        var companyId = EnsureCurrentCompanyId();
         var line = await AsyncExecuter.FirstOrDefaultAsync(
             (await _repository.GetQueryableAsync())
+                .Where(v => v.CompanyId == companyId)
                 .SelectMany(v => v.Lines)
                 .Where(l => l.Id == lineId && !l.IsDeleted))
             ?? throw new EntityNotFoundException(typeof(VoucherLine), lineId);
@@ -322,7 +334,9 @@ public partial class VoucherAppService : TradeXpressAppService, IVoucherAppServi
         return dto;
     }
 
-    public async Task DeleteLineAsync(Guid voucherId, Guid lineId, string reason)
+    // Çok-adımlı: satır düşür + ledger senkronu + virman ikizinin fişi/ledger'ı → tek transaction.
+    [UnitOfWork(isTransactional: true)]
+    public virtual async Task DeleteLineAsync(Guid voucherId, Guid lineId, string reason)
     {
         var voucher = await GetOwnedVoucherAsync(voucherId);
         await _repository.EnsureCollectionLoadedAsync(voucher, v => v.Lines);
@@ -365,7 +379,9 @@ public partial class VoucherAppService : TradeXpressAppService, IVoucherAppServi
         return await _bullionStockService.GetAssayStockAsync(companyId);
     }
 
-    public async Task DeleteAsync(Guid id)
+    // Çok-adımlı: virman ikizleri (başka fişler) + ledger temizliği + fiş silme → tek transaction.
+    [UnitOfWork(isTransactional: true)]
+    public virtual async Task DeleteAsync(Guid id)
     {
         // Aitlik + per-tip yetki: fişteki HER farklı işlem tipi için ayrı yetki gerekir
         // (tek tipte bile yetkisizse fişin tamamı silinemez; entegrasyon analizi E-2).

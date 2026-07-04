@@ -1,5 +1,9 @@
+using System;
+using System.Linq.Expressions;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Volo.Abp.AuditLogging.EntityFrameworkCore;
 using Volo.Abp.BackgroundJobs.EntityFrameworkCore;
 using Volo.Abp.BlobStoring.Database.EntityFrameworkCore;
@@ -10,6 +14,7 @@ using Volo.Abp.FeatureManagement.EntityFrameworkCore;
 using Volo.Abp.Identity;
 using Volo.Abp.Identity.EntityFrameworkCore;
 using Volo.Abp.PermissionManagement.EntityFrameworkCore;
+using Volo.Abp.MultiTenancy;
 using Volo.Abp.SettingManagement.EntityFrameworkCore;
 using Volo.Abp.OpenIddict.EntityFrameworkCore;
 using Volo.Abp.TenantManagement;
@@ -30,6 +35,7 @@ using Integration.TradeXpress.Services;
 using Integration.TradeXpress.Futures;
 using Integration.TradeXpress.Scraps;
 using Integration.TradeXpress.Metals;
+using Integration.TradeXpress.MultiCompany;
 using Integration.TradeXpress.Stones;
 using Integration.TradeXpress.Jewelries;
 
@@ -147,7 +153,7 @@ public class TradeXpressDbContext :
     }
 
     /// <summary>
-    /// Company-scoped (<see cref="Integration.TradeXpress.MultiCompany.ICompanyScoped"/>) eklenen kayıtlara,
+    /// Company-scoped (<see cref="ICompanyScoped"/>) eklenen kayıtlara,
     /// CompanyId boşsa aktif çalışılan şirketi otomatik basar (ABP'nin TenantId auto-stamp'ının company eşdeğeri).
     /// Çalışılan şirket yoksa null kalır = holding-host.
     /// </summary>
@@ -157,9 +163,140 @@ public class TradeXpressDbContext :
         return await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
     }
 
+    #region Company-scoped global query filter
+
+    /// <summary>
+    /// Company görünürlük filtresi açık mı? ABP <c>IDataFilter</c> anahtarı <see cref="ICompanyScoped"/>'tur
+    /// (IMultiTenant/ISoftDelete deseniyle aynı); konsolide/rapor sorguları
+    /// <c>DataFilter.Disable&lt;ICompanyScoped&gt;()</c> ile bilinçli kapatır. Varsayılan: AÇIK.
+    /// </summary>
+    protected virtual bool IsCompanyScopedFilterEnabled
+    {
+        get
+        {
+            var dataFilter = LazyServiceProvider?.LazyGetService<IDataFilter>();
+            return dataFilter?.IsEnabled<ICompanyScoped>() ?? false;
+        }
+    }
+
+    /// <summary>Aktif (working) şirket — Blazor circuit'inde working-context köprüsünden gelir; API/host'ta null.</summary>
+    protected virtual Guid? CurrentCompanyId
+    {
+        get
+        {
+            var currentCompany = LazyServiceProvider?.LazyGetService<ICurrentCompany>();
+            return currentCompany?.Id;
+        }
+    }
+
+    protected override bool ShouldFilterEntity<TEntity>(IMutableEntityType entityType)
+    {
+        // İki company-marker'ı da aynı filtre kapsamına alır: ICompanyScoped (görünüm, CompanyId=Guid?) +
+        // ICompanyOwned (güvenlik sınırı, CompanyId=Guid). Anahtar tek: IDataFilter<ICompanyScoped>.
+        if (typeof(ICompanyScoped).IsAssignableFrom(typeof(TEntity))
+            || typeof(ICompanyOwned).IsAssignableFrom(typeof(TEntity)))
+        {
+            return true;
+        }
+
+        return base.ShouldFilterEntity<TEntity>(entityType);
+    }
+
+    /// <summary>
+    /// <see cref="ICompanyScoped"/> entity'lere company görünürlük filtresini ABP'nin soft-delete/multi-tenant
+    /// filtreleriyle BİRLEŞTİREREK ekler. Semantik <c>CompanyScopedQueryable.CompanyVisiblePredicate</c> ile
+    /// birebir: host kaydı (TenantId=null) HERKESE görünür; working şirket yokken (CurrentCompanyId=null)
+    /// konsolide = kısıt yok; CompanyId=null (holding-host) herkese görünür; dolu CompanyId yalnız kendi
+    /// şirketine. Tenant boyutu ABP'nin IMultiTenant filtresinin işi — burada tekrar edilmez (host-muafiyet
+    /// istisnası hariç). Elle <c>WhereCompanyVisible</c> çağrıları yerinde kalır (çift katman zararsız);
+    /// bu filtre unutulan çağrı sınıfını YAPISAL kapatan güvenlik ağıdır.
+    /// </summary>
+    protected override Expression<Func<TEntity, bool>>? CreateFilterExpression<TEntity>(
+        ModelBuilder modelBuilder,
+        EntityTypeBuilder<TEntity> entityTypeBuilder)
+        where TEntity : class
+    {
+        var expression = base.CreateFilterExpression<TEntity>(modelBuilder, entityTypeBuilder);
+
+        if (typeof(ICompanyScoped).IsAssignableFrom(typeof(TEntity)))
+        {
+            var companyFilter = CreateCompanyScopedFilterExpression<TEntity>();
+            expression = expression == null
+                ? companyFilter
+                : QueryFilterExpressionHelper.CombineExpressions(expression, companyFilter);
+        }
+        else if (typeof(ICompanyOwned).IsAssignableFrom(typeof(TEntity)))
+        {
+            // ICompanyScoped ve ICompanyOwned kasıtla birbirini dışlar (Guid? vs Guid); else-if güvenli.
+            var companyFilter = CreateCompanyOwnedFilterExpression<TEntity>();
+            expression = expression == null
+                ? companyFilter
+                : QueryFilterExpressionHelper.CombineExpressions(expression, companyFilter);
+        }
+
+        return expression;
+    }
+
+    /// <summary>Filtre durumu compiled-query cache anahtarına girer (ABP custom-filter gereği).</summary>
+    public override string GetCompiledQueryCacheKey()
+    {
+        return $"{base.GetCompiledQueryCacheKey()}:{IsCompanyScopedFilterEnabled}:{CurrentCompanyId?.ToString() ?? "Null"}";
+    }
+
+    private Expression<Func<TEntity, bool>> CreateCompanyScopedFilterExpression<TEntity>()
+        where TEntity : class
+    {
+        // IMultiTenant + ICompanyScoped (mevcut tüm implementasyonlar): host kaydı company filtresinden muaf.
+        if (typeof(IMultiTenant).IsAssignableFrom(typeof(TEntity)))
+        {
+            return e =>
+                !IsCompanyScopedFilterEnabled
+                || CurrentCompanyId == null
+                || EF.Property<Guid?>(e, nameof(IMultiTenant.TenantId)) == null
+                || EF.Property<Guid?>(e, nameof(ICompanyScoped.CompanyId)) == null
+                || EF.Property<Guid?>(e, nameof(ICompanyScoped.CompanyId)) == CurrentCompanyId;
+        }
+
+        // Salt ICompanyScoped (tenant'sız — bugün yok, ileriye dönük): host-muafiyet kolu düşer.
+        return e =>
+            !IsCompanyScopedFilterEnabled
+            || CurrentCompanyId == null
+            || EF.Property<Guid?>(e, nameof(ICompanyScoped.CompanyId)) == null
+            || EF.Property<Guid?>(e, nameof(ICompanyScoped.CompanyId)) == CurrentCompanyId;
+    }
+
+    /// <summary>
+    /// <see cref="ICompanyOwned"/> (güvenlik sınırı) filtresi: kayıt DAİMA tek şirkete aittir,
+    /// "holding-host (null)" görünür kolu YOKTUR (<see cref="ICompanyScoped"/>'tan tek yapısal fark).
+    /// CompanyId non-nullable <see cref="Guid"/> → karşılaştırma için <c>(Guid?)</c>'a yükseltilir.
+    /// Host kaydı (TenantId=null) yine muaf (finansal çekirdek per-tenant ama host seed/rapor kırılmasın).
+    /// Konsolide (CurrentCompanyId=null) PERMISSIVE.
+    /// </summary>
+    private Expression<Func<TEntity, bool>> CreateCompanyOwnedFilterExpression<TEntity>()
+        where TEntity : class
+    {
+        // Mevcut tüm ICompanyOwned implementasyonları IMultiTenant (Account/Voucher ailesi): host muaf.
+        if (typeof(IMultiTenant).IsAssignableFrom(typeof(TEntity)))
+        {
+            return e =>
+                !IsCompanyScopedFilterEnabled
+                || CurrentCompanyId == null
+                || EF.Property<Guid?>(e, nameof(IMultiTenant.TenantId)) == null
+                || (Guid?)EF.Property<Guid>(e, nameof(ICompanyOwned.CompanyId)) == CurrentCompanyId;
+        }
+
+        // Salt ICompanyOwned (tenant'sız — ileriye dönük): host-muafiyet kolu düşer.
+        return e =>
+            !IsCompanyScopedFilterEnabled
+            || CurrentCompanyId == null
+            || (Guid?)EF.Property<Guid>(e, nameof(ICompanyOwned.CompanyId)) == CurrentCompanyId;
+    }
+
+    #endregion
+
     private void StampCompanyScoped()
     {
-        var current = LazyServiceProvider?.LazyGetService<Integration.TradeXpress.MultiCompany.ICurrentCompany>();
+        var current = LazyServiceProvider?.LazyGetService<ICurrentCompany>();
         var companyId = current?.Id;
         if (companyId == null)
         {
@@ -169,9 +306,9 @@ public class TradeXpressDbContext :
         foreach (var entry in ChangeTracker.Entries())
         {
             if (entry.State == EntityState.Added
-                && entry.Entity is Integration.TradeXpress.MultiCompany.ICompanyScoped { CompanyId: null })
+                && entry.Entity is ICompanyScoped { CompanyId: null })
             {
-                entry.Property(nameof(Integration.TradeXpress.MultiCompany.ICompanyScoped.CompanyId)).CurrentValue = companyId;
+                entry.Property(nameof(ICompanyScoped.CompanyId)).CurrentValue = companyId;
             }
         }
     }

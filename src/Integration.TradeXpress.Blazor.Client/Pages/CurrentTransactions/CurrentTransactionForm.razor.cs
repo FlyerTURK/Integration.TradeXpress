@@ -122,10 +122,10 @@ public partial class CurrentTransactionForm
         if (CurrentMdiTab != null)
         {
             var header = sa is null
-                ? new Integration.Framework.Blazor.Client.Services.Mdi.TabHeaderData { FormCaption = "Cari İşlemler" }
+                ? new Integration.Framework.Blazor.Client.Services.Mdi.TabHeaderData { FormCaption = L["Menu:CurrentTransactions"] }
                 : new Integration.Framework.Blazor.Client.Services.Mdi.TabHeaderData
                 {
-                    FormCaption = "Cari İşlemler",
+                    FormCaption = L["Menu:CurrentTransactions"],
                     // Sekme dar alan — yalnız KODLAR (Code/Name değil; kullanıcı isteği). Diğer kullanım
                     // yerleri etkilenmez: TabHeaderData altyapısı aynı, yalnız bu formun değerleri kısaldı.
                     EntityValue = sa.Code,
@@ -158,7 +158,7 @@ public partial class CurrentTransactionForm
     {
         if (_currentSubAccountId is null)
         {
-            Ui.ShowWarningToast("Önce cari seçin.");
+            Ui.ShowWarningToast(L["SelectSubAccountFirst"]);
             return;
         }
         _listMode = true;
@@ -257,12 +257,12 @@ public partial class CurrentTransactionForm
 
         if (_deleteAnswer != _deleteA + _deleteB)
         {
-            Ui.ShowWarningToast("Doğrulama toplamı yanlış.");
+            Ui.ShowWarningToast(L["VerificationSumIncorrect"]);
             return;
         }
         if (string.IsNullOrWhiteSpace(_deleteReason))
         {
-            Ui.ShowWarningToast("Silme nedeni gerekli.");
+            Ui.ShowWarningToast(L["DeleteReasonRequired"]);
             return;
         }
 
@@ -280,7 +280,7 @@ public partial class CurrentTransactionForm
         _selectedLine = null;
         await RefreshBalanceAsync();
         await InvokeAsync(StateHasChanged);
-        Ui.ShowSuccessToast(lines.Count == 1 ? "Satır silindi." : $"{lines.Count} satır silindi.");
+        Ui.ShowSuccessToast(lines.Count == 1 ? L["LineDeleted"] : L["LinesDeleted", lines.Count]);
     }
 
     private async Task OnLineSelected(object? item)

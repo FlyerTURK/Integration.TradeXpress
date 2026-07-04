@@ -3,7 +3,6 @@ using System.ComponentModel.DataAnnotations;
 using Integration.Framework.Base.Dtos;
 using Integration.Framework.Base.Dtos.Interfaces;
 using Integration.TradeXpress.Vouchers;
-using Volo.Abp.Application.Dtos;
 
 namespace Integration.TradeXpress.Jewelries;
 
@@ -13,11 +12,8 @@ public class JewelryListRequestDto : ListRequestDto
     public Guid? CompanyId { get; set; }
 }
 
-public class JewelryListDto : EntityDto<Guid>, IListDto<Guid>, IIsActive, IHostScoped, IPricedCommodityListDto
+public class JewelryListDto : CatalogListDtoBase, IPricedCommodityListDto
 {
-    public string Code { get; set; } = string.Empty;
-    public string Name { get; set; } = string.Empty;
-
     public string? Model { get; set; }
     public string? Kind { get; set; }
 
@@ -30,19 +26,17 @@ public class JewelryListDto : EntityDto<Guid>, IListDto<Guid>, IIsActive, IHostS
     public Guid? ExitPriceUnitId { get; set; }
 
     public Guid? CompanyId { get; set; }
-    public bool IsActive { get; set; }
-    public bool IsGlobal { get; set; }
 }
 
-public class JewelryGetDto : EntityDto<Guid>, IGetDto<Guid>, IHasCode, IHostScoped
+public class JewelryGetDto : CatalogGetDtoBase, IHasCode
 {
     [Required]
     [StringLength(JewelryConsts.CodeMaxLength, MinimumLength = EntityFieldConsts.CodeMinLength)]
-    public string Code { get; set; } = string.Empty;
+    public override string Code { get; set; } = string.Empty;
 
     [Required]
     [StringLength(JewelryConsts.NameMaxLength, MinimumLength = EntityFieldConsts.NameMinLength)]
-    public string Name { get; set; } = string.Empty;
+    public override string Name { get; set; } = string.Empty;
 
     [StringLength(JewelryConsts.AttributeMaxLength)] public string? Model { get; set; }
     [StringLength(JewelryConsts.AttributeMaxLength)] public string? Kind { get; set; }
@@ -63,22 +57,20 @@ public class JewelryGetDto : EntityDto<Guid>, IGetDto<Guid>, IHasCode, IHostScop
     public string? Description { get; set; }
 
     public Guid? CompanyId { get; set; }
-    public bool IsActive { get; set; }
-    public bool IsGlobal { get; set; }
 }
 
-public class JewelryCreateDto : ICreateDto
+public class JewelryCreateDto : CatalogCreateDtoBase
 {
     /// <summary>Sahip şirket — client çalışılan şirketi atar (otomatik scope).</summary>
     public Guid? CompanyId { get; set; }
 
     [Required]
     [StringLength(JewelryConsts.CodeMaxLength, MinimumLength = EntityFieldConsts.CodeMinLength)]
-    public string Code { get; set; } = string.Empty;
+    public override string Code { get; set; } = string.Empty;
 
     [Required]
     [StringLength(JewelryConsts.NameMaxLength, MinimumLength = EntityFieldConsts.NameMinLength)]
-    public string Name { get; set; } = string.Empty;
+    public override string Name { get; set; } = string.Empty;
 
     public string? Model { get; set; }
     public string? Kind { get; set; }
@@ -99,11 +91,11 @@ public class JewelryCreateDto : ICreateDto
     public string? Description { get; set; }
 }
 
-public class JewelryUpdateDto : IUpdateDto
+public class JewelryUpdateDto : CatalogUpdateDtoBase
 {
     [Required]
     [StringLength(JewelryConsts.NameMaxLength, MinimumLength = EntityFieldConsts.NameMinLength)]
-    public string Name { get; set; } = string.Empty;
+    public override string Name { get; set; } = string.Empty;
 
     public string? Model { get; set; }
     public string? Kind { get; set; }
@@ -122,6 +114,4 @@ public class JewelryUpdateDto : IUpdateDto
 
     [StringLength(JewelryConsts.DescriptionMaxLength)]
     public string? Description { get; set; }
-
-    public bool IsActive { get; set; }
 }

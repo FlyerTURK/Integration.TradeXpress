@@ -50,6 +50,7 @@ public abstract class CostInventoryCategorySourceBase : IBalanceSheetCategorySou
             from l in v.Lines
             where !l.IsDeleted && l.Type == pt && l.CommodityId != null
             group l by l.CommodityId into g
+            // IQueryable → SQL: IsInflow() extension'ı EF Core tarafından çevrilemez, ham %2 bilinçli.
             select new
             {
                 CommodityId = g.Key!.Value,
@@ -128,7 +129,7 @@ public abstract class CostInventoryCategorySourceBase : IBalanceSheetCategorySou
         return result;
     }
 
-    private static decimal Sign(ProcessDirectionType d) => ((int)d % 2) == 0 ? 1m : -1m;
+    private static decimal Sign(ProcessDirectionType d) => d.IsInflow() ? 1m : -1m;
 }
 
 /// <summary>DRILL arayüzü — bir kategorinin tek birim COMMODITY(kod) bazında kırılımı (bilanço popup; Stone/Jewelry maliyet-envanteri).</summary>

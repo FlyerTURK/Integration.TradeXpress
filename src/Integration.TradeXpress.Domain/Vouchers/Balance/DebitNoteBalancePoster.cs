@@ -24,6 +24,8 @@ public sealed class DebitNoteBalancePoster : IVoucherLineBalancePoster, ITransie
             yield break;
 
         // Giriş → ALACAK (+), aksi → BORÇ (−). (Nakit ile aynı işaret.)
+        // Bilinçli ve ground-truth ONAYLI (ERPGOLDV2 matrisi, 2026-07-03): Dekont/Devir tipi yalnız
+        // Giriş/Çıkış tanır; Credit/Buy asla üretilmez → == Inbound ⟺ IsInflow() özdeştir.
         var amount = line.Direction == ProcessDirectionType.Inbound ? line.PayTotal : -line.PayTotal;
         yield return new BalanceEffect(unitId, amount);
     }

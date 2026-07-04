@@ -36,7 +36,9 @@ public class WorkingContextService : IWorkingContextService
 
     private List<BranchListDto> _branches = new();
     private Guid? _currentBranchId;
-    private bool _loaded;
+
+    /// <summary>Paylaşılan yükleme Task'ı — eşzamanlı ikinci çağıran AYNI yüklemeyi bekler (boş şube listesi penceresi yok).</summary>
+    private Task? _loadTask;
 
     public WorkingContextService(IBranchAppService branchAppService, IUserUiSettingAppService uiSettings)
     {
@@ -48,15 +50,29 @@ public class WorkingContextService : IWorkingContextService
     public Guid? CurrentBranchId => _currentBranchId;
     public BranchListDto? CurrentBranch => _branches.FirstOrDefault(b => b.Id == _currentBranchId);
     public Guid? CurrentCompanyId => CurrentBranch?.CompanyId;
-    public bool IsLoaded => _loaded;
+    public bool IsLoaded => _loadTask is { IsCompletedSuccessfully: true };
 
     public event Action? Changed;
 
     public async Task EnsureLoadedAsync()
     {
-        if (_loaded) return;
-        _loaded = true;
+        // Paylaşılan Task deseni: bayrağı await'ten önce set etmek yerine Task'ın kendisi paylaşılır —
+        // ikinci çağıran yükleme bitmeden dönmez (boş-liste yarış penceresi kapanır).
+        var task = _loadTask ??= LoadCoreAsync();
+        try
+        {
+            await task;
+        }
+        catch
+        {
+            // Başarısız yüklemede Task sıfırlanır → sonraki çağrı yeniden dener (kalıcı bozuk durumda kalma).
+            if (_loadTask == task) _loadTask = null;
+            throw;
+        }
+    }
 
+    private async Task LoadCoreAsync()
+    {
         var result = await _branchAppService.GetListAsync(new BranchListRequestDto { MaxResultCount = 1000 });
         _branches = result.Items
             .OrderBy(b => b.CompanyCode, StringComparer.OrdinalIgnoreCase)

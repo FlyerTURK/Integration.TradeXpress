@@ -12,7 +12,7 @@ namespace Integration.TradeXpress.Vouchers.Balance;
 ///   <item>Karşı bacak (hedef, <see cref="VoucherLine.PayUnitId"/>/<see cref="VoucherLine.PayTotal"/>):
 ///         Alacak→ALACAK(+), Borç→BORÇ(−).</item>
 /// </list>
-/// Yön: <c>(int)Direction % 2 == 0</c> → Credit (inflow). Daima 2 etki üretir.
+/// Yön: <c>Direction.IsInflow()</c> → Credit (inflow). Daima 2 etki üretir.
 /// </summary>
 [ExposeServices(typeof(IVoucherLineBalancePoster))]
 public sealed class ConvertBalancePoster : IVoucherLineBalancePoster, ITransientDependency
@@ -21,7 +21,7 @@ public sealed class ConvertBalancePoster : IVoucherLineBalancePoster, ITransient
 
     public IEnumerable<BalanceEffect> Post(VoucherLine line)
     {
-        var isCredit = ((int)line.Direction % 2) == 0;   // Credit(2) → inflow
+        var isCredit = line.Direction.IsInflow();   // Credit(2) → inflow
 
         // Ana bacak: Alacak → BORÇ (−Total), Borç → ALACAK (+Total).
         if (line.MainUnitId != Guid.Empty && line.Total != 0m)

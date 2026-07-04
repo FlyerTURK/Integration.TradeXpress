@@ -123,7 +123,7 @@
     [Inject] protected IBranchAppService BranchAppService { get; set; } = default!;
     [Inject] protected IVaultAppService VaultAppService { get; set; } = default!;
     [Inject] protected IUserScopedGrantAppService GrantService { get; set; } = default!;
-    [Inject] protected Integration.Framework.Blazor.Client.Services.Base.ITradeXpressUiService UiService { get; set; } = default!;
+    [Inject] protected IUiInteractionService UiService { get; set; } = default!;
 
     protected override void OnInitialized()
     {

@@ -219,6 +219,45 @@ public static class VoucherTestLines
         };
     }
 
+    /// <summary>Takoz GİRİŞ satırı (külçe): stok + çeşni havuzunun kaynağı — metal ölçüleri girişte otoritedir.</summary>
+    public static VoucherLineDto BullionEntryLine(
+        VoucherTestData data,
+        string code,
+        decimal amount)
+    {
+        return new VoucherLineDto
+        {
+            BranchId      = data.BranchId,
+            VaultId       = data.VaultId,
+            AccountId     = data.AccountId,
+            SubAccountId  = data.SubAccountId,
+            Type          = ProcessType.Bullion,
+            Direction     = ProcessDirectionType.Inbound,
+            CommodityCode = code,
+            Amount        = amount,
+            Factor        = 0.916m,
+            SilverFactor  = 0.04m,
+            AssayAmount   = 5m,
+            MainUnitId    = data.HasUnitId,
+        };
+    }
+
+    /// <summary>Takoz ÇIKIŞ satırı: istemci yalnız külçe referansı (CommodityId) gönderir — metal verisi
+    /// sunucuda GİRİŞ satırından kopyalanır (PrepareBullionExitLineAsync sözleşmesi).</summary>
+    public static VoucherLineDto BullionExitLine(VoucherTestData data, Guid entryLineId)
+    {
+        return new VoucherLineDto
+        {
+            BranchId     = data.BranchId,
+            VaultId      = data.VaultId,
+            AccountId    = data.AccountId,
+            SubAccountId = data.SubAccountId,
+            Type         = ProcessType.Bullion,
+            Direction    = ProcessDirectionType.Outbound,
+            CommodityId  = entryLineId,
+        };
+    }
+
     /// <summary>Çeşni satırı (yön SABİT ÇIKIŞ): AssayBalancePoster HAS'a −(Miktar×Factor),
     /// GUM'a −(Miktar×SilverFactor) postlar; para bacağı yok (Total=PayTotal=0).</summary>
     public static VoucherLineDto AssayLine(

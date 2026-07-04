@@ -62,7 +62,7 @@ public abstract class CrudPageBase<TGetDto, TListDto, TKey, TListRequestDto, TCr
     public ICrudStateService<TListDto, TKey> StateService { get; set; } = default!;
 
     [Inject]
-    protected ITradeXpressUiService UiService { get; set; } = default!;
+    protected IUiInteractionService UiService { get; set; } = default!;
 
     [Inject]
     protected IPopupService PopupService { get; set; } = default!;

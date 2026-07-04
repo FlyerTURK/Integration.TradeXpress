@@ -7,6 +7,7 @@ using Integration.TradeXpress.Branches;
 using Integration.TradeXpress.Companies;
 using Integration.TradeXpress.Financials.CurrencyUnits;
 using Integration.TradeXpress.MultiCompany;
+using Integration.TradeXpress.Permissions;
 using Integration.TradeXpress.Vaults;
 using Integration.TradeXpress.Vouchers;
 using Microsoft.AspNetCore.Authorization;
@@ -26,7 +27,7 @@ namespace Integration.TradeXpress.Reports;
 /// </list>
 /// Kapsam Voucher header'ından (Company/Branch/Vault), hiyerarşik opsiyonel (null = alt kırılımları topla).
 /// </summary>
-[Authorize]
+[Authorize(TradeXpressPermissions.Reports.Cash)]
 public class CashReportAppService : TradeXpressAppService, ICashReportAppService
 {
     private readonly IRepository<Voucher, Guid> _voucherRepository;
@@ -104,6 +105,7 @@ public class CashReportAppService : TradeXpressAppService, ICashReportAppService
             from l in v.Lines
             where !l.IsDeleted && l.Type == ProcessType.Cash && l.MainUnitId != Guid.Empty && l.Total != 0m
             group l by l.MainUnitId into g
+            // IQueryable → SQL: IsInflow() extension'ı EF Core tarafından çevrilemez, ham %2 bilinçli.
             select new { UnitId = g.Key, Net = g.Sum(x => ((int)x.Direction % 2) == 0 ? x.Total : -x.Total) });
 
         // Sağ bacak: Peşin (WithCash) olan tüm process'lerde karşılık nakit (PayTotal @ PayUnit).
@@ -117,6 +119,7 @@ public class CashReportAppService : TradeXpressAppService, ICashReportAppService
             from l in v.Lines
             where !l.IsDeleted && l.PaymentType == ProcessPaymentType.WithCash && l.PayUnitId != null && l.PayTotal != 0m
             group l by l.PayUnitId into g
+            // IQueryable → SQL: IsInflow() extension'ı EF Core tarafından çevrilemez, ham %2 bilinçli.
             select new { UnitId = g.Key, Net = g.Sum(x => ((int)x.Direction % 2) == 0 ? -x.PayTotal : x.PayTotal) });
 
         var result = mainLegs.ToDictionary(r => r.UnitId, r => r.Net);
@@ -240,7 +243,7 @@ public class CashReportAppService : TradeXpressAppService, ICashReportAppService
         var legs = new List<CashLeg>(rows.Count);
         foreach (var r in rows)
         {
-            var inflow = ((int)r.Direction % 2) == 0;
+            var inflow = r.Direction.IsInflow();
 
             // Sol bacak: yalnız Cash process'te nakit. Giriş + / Çıkış −.
             // CashId filtresi varsa yalnız bu bacağın nakiti eşleşiyorsa oluştur.

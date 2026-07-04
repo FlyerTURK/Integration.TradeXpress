@@ -12,7 +12,13 @@ namespace Integration.TradeXpress.Vouchers.Balance;
 ///   <item>Pay bacağı (<see cref="VoucherLine.PayUnitId"/>/<see cref="VoucherLine.PayTotal"/>):
 ///         Alış→BORÇ(−), Satış→ALACAK(+).</item>
 /// </list>
-/// Yön: <c>(int)Direction % 2 == 0</c> → Buy (inflow). Çevir'in TERSİ işaret. Daima 2 etki.
+/// Yön: <c>Direction.IsInflow()</c> → Buy (inflow). Daima 2 etki.
+/// <para>
+/// <b>Çevir'in TERSİ işaret — BİLİNÇLİ (2026-07-03 kullanıcı onayı).</b> Çevir bir birim-dönüşümüdür
+/// (aynı sahibin bir birimindeki bakiyeyi diğer birime aktarır). Vadeli ise bir ALIŞVERİŞTİR: bir
+/// birimde borç, karşı birimde alacak doğurur. İki işlemin ekonomik anlamı farklı olduğundan işaret
+/// yönleri de terstir; bu, orijinal ERPPRO trigger'ından (Çevir=Vadeli özdeş) kasıtlı sapmadır.
+/// </para>
 /// </summary>
 [ExposeServices(typeof(IVoucherLineBalancePoster))]
 public sealed class FutureBalancePoster : IVoucherLineBalancePoster, ITransientDependency
@@ -21,7 +27,7 @@ public sealed class FutureBalancePoster : IVoucherLineBalancePoster, ITransientD
 
     public IEnumerable<BalanceEffect> Post(VoucherLine line)
     {
-        var isBuy = ((int)line.Direction % 2) == 0;   // Buy(4) → inflow
+        var isBuy = line.Direction.IsInflow();   // Buy(4) → inflow
 
         // Ana bacak: Alış → ALACAK (+Total), Satış → BORÇ (−Total).
         if (line.MainUnitId != Guid.Empty && line.Total != 0m)

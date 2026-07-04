@@ -60,7 +60,11 @@ public class TradeXpressEntityFrameworkCoreModule : AbpModule
 
         });
         
-        context.Services.AddAlwaysDisableUnitOfWorkTransaction();
+        // NOT: AddAlwaysDisableUnitOfWorkTransaction KALDIRILDI (2026-07): o kayıt IUnitOfWorkManager'ı
+        // decorator'la sarıp TÜM Begin çağrılarında IsTransactional'ı false'a eziyordu — açık
+        // [UnitOfWork(isTransactional: true)] opt-in'i bile sessizce etkisizleşiyordu. Default hâlâ
+        // Disabled: konvansiyonel/otomatik UoW'lar transaction'sız kalır; transaction YALNIZ açık
+        // opt-in ile gelir (ör. VoucherAppService çok-adımlı yazım yolları).
         Configure<AbpUnitOfWorkDefaultOptions>(options =>
         {
             options.TransactionBehavior = UnitOfWorkTransactionBehavior.Disabled;

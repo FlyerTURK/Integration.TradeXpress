@@ -1,8 +1,6 @@
 using System;
 using System.ComponentModel.DataAnnotations;
 using Integration.Framework.Base.Dtos;
-using Integration.Framework.Base.Dtos.Interfaces;
-using Volo.Abp.Application.Dtos;
 
 namespace Integration.TradeXpress.Countries;
 
@@ -11,47 +9,42 @@ public class CountryListRequestDto : ListRequestDto
 {
 }
 
-public class CountryListDto : EntityDto<Guid>, IListDto<Guid>, IIsActive, IHostScoped
+public class CountryListDto : CatalogListDtoBase
 {
-    public string Code { get; set; } = string.Empty;
-    public string Name { get; set; } = string.Empty;
     public string? DefaultCurrencyCode { get; set; }
     /// <summary>DefaultCurrencyCode'a karşılık gelen CurrencyUnit.Id (link için; Code'dan çözülür, FK değil).</summary>
     public Guid? DefaultCurrencyUnitId { get; set; }
-    public bool IsActive { get; set; }
     public int DisplayOrder { get; set; }
-    public bool IsGlobal { get; set; }
 }
 
-public class CountryGetDto : EntityDto<Guid>, IGetDto<Guid>, IHostScoped
+// Not: CountryGetDto bilinçli olarak IHasCode DEĞİL (başlıkta kod gösterilmez) — base bunu dayatmaz.
+public class CountryGetDto : CatalogGetDtoBase
 {
     // Client validasyonu modelin ÜZERİNDE (agnostic Form, LocalizedDataAnnotationsValidator ile doğrular).
     // Server-input doğrulaması Create/Update DTO'larında kalır. Create/Update ile aynı kurallar.
     [Required]
     [StringLength(CountryConsts.CodeMaxLength, MinimumLength = 2)]
-    public string Code { get; set; } = string.Empty;
+    public override string Code { get; set; } = string.Empty;
 
     [Required]
     [StringLength(CountryConsts.NameMaxLength)]
-    public string Name { get; set; } = string.Empty;
+    public override string Name { get; set; } = string.Empty;
 
     [Required]
     public string? DefaultCurrencyCode { get; set; }
 
-    public bool IsActive { get; set; }
     public int DisplayOrder { get; set; }
-    public bool IsGlobal { get; set; }
 }
 
-public class CountryCreateDto : ICreateDto
+public class CountryCreateDto : CatalogCreateDtoBase
 {
     [Required]
     [StringLength(CountryConsts.CodeMaxLength, MinimumLength = 2)]
-    public string Code { get; set; } = string.Empty;
+    public override string Code { get; set; } = string.Empty;
 
     [Required]
     [StringLength(CountryConsts.NameMaxLength)]
-    public string Name { get; set; } = string.Empty;
+    public override string Name { get; set; } = string.Empty;
 
     [Required]
     public string DefaultCurrencyCode { get; set; } = string.Empty;
@@ -59,15 +52,14 @@ public class CountryCreateDto : ICreateDto
     public int DisplayOrder { get; set; }
 }
 
-public class CountryUpdateDto : IUpdateDto
+public class CountryUpdateDto : CatalogUpdateDtoBase
 {
     [Required]
     [StringLength(CountryConsts.NameMaxLength)]
-    public string Name { get; set; } = string.Empty;
+    public override string Name { get; set; } = string.Empty;
 
     [Required]
     public string DefaultCurrencyCode { get; set; } = string.Empty;
 
-    public bool IsActive { get; set; }
     public int DisplayOrder { get; set; }
 }

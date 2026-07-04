@@ -15,7 +15,7 @@ namespace Integration.TradeXpress.Vouchers.Balance;
 ///         (<see cref="VoucherLine.MainUnitId"/>/<see cref="VoucherLine.Total"/>) + işçilik
 ///         (<see cref="VoucherLine.PayUnitId"/>/<see cref="VoucherLine.PayTotal"/>).</item>
 /// </list>
-/// İşaret: Giriş(Inbound)→ALACAK(+), Çıkış(Outbound)→BORÇ(−). isInflow = <c>(int)Direction % 2 == 0</c>.
+/// İşaret: Giriş(Inbound)→ALACAK(+), Çıkış(Outbound)→BORÇ(−). isInflow = <c>Direction.IsInflow()</c>.
 /// (Hurda'dan fark: Normal'de işçilik ikinci bacak olarak cari bakiyeye yansır.)
 /// </summary>
 [ExposeServices(typeof(IVoucherLineBalancePoster))]
@@ -28,7 +28,7 @@ public sealed class MetalBalancePoster : IVoucherLineBalancePoster, ITransientDe
         if (line.PaymentType == ProcessPaymentType.WithCash)
             yield break;   // Peşin → yansımaz
 
-        var sign = (((int)line.Direction % 2) == 0) ? 1m : -1m;   // Giriş +, Çıkış −
+        var sign = line.Direction.IsInflow() ? 1m : -1m;   // Giriş +, Çıkış −
 
         if (line.PaymentType == ProcessPaymentType.WithCurrency)
         {

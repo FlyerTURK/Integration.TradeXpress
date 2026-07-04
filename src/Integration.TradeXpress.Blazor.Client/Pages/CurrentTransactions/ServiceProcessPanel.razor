@@ -1,39 +1,34 @@
-@implements IVoucherLineEditPanel
-@inject IStringLocalizer<TradeXpressResource> L
-@inject Integration.TradeXpress.Services.IServiceAppService ServiceService
-@inject ICashAppService CashService
-@inject ICurrencyUnitAppService CurrencyUnitService
-@inject IVoucherAppService VoucherService
-@inject Integration.Framework.Blazor.Client.Services.Base.ITradeXpressUiService Ui
+@using Integration.TradeXpress.Services
+@inherits ProcessPanelHostBase
 
 <DxLayoutBreakpoint MaxWidth="768" @bind-IsActive="@_isMobile" />
 
-<ProcessPanelBase Direction="@_model.Direction" OnSave="@HandleSave" OnBack="@OnBack"
+<ProcessPanelBase Direction="@Model.Direction" OnSave="@HandleSave" SaveEnabled="@(!IsSaving)" OnBack="@OnBack"
                  ProcessTypeName="@L["Service"].Value"
-                 PaymentTypeName="@_paymentItems.FirstOrDefault(p => p.Value == _model.PaymentType)?.Label"
-                 AccountCode="@AccountCode"
-                 SubAccountCode="@SubAccountCode">
+                 PaymentTypeName="@_paymentItems.FirstOrDefault(p => p.Value == Model.PaymentType)?.Label"
+                 AccountCode="@Context.AccountCode"
+                 SubAccountCode="@Context.SubAccountCode">
 
     <div style="padding:8px; @(_isMobile ? "" : "overflow-x:auto;")">
     <div style="display:flex; @(_isMobile ? "flex-direction:column;" : "width:max-content;") gap:4px; align-items:flex-start;">
 
         @* Grup 1 — Yön + ödeme tipi *@
         <div style="@GroupStyle()">
-            <small style="font-weight:600; text-transform:uppercase; letter-spacing:0.05em;">@nameof(VoucherLineDto.Direction)</small>
+            <small style="@ProcessPanelStyles.Label">@nameof(VoucherLineDto.Direction)</small>
             <DxComboBox TData="DirectionItem" TValue="ProcessDirectionType"
                         Data="@_directionItems"
-                        Value="@_model.Direction"
-                        ValueChanged="@((ProcessDirectionType v) => _model.Direction = v)"
+                        Value="@Model.Direction"
+                        ValueChanged="@((ProcessDirectionType v) => Model.Direction = v)"
                         DropDownTriggerMode="DropDownTriggerMode.Click" ShowDropDownButton="true"
                         ValueFieldName="@nameof(DirectionItem.Value)" TextFieldName="@nameof(DirectionItem.Label)"
                         style="@ControlStyle()" />
             @if (_isMobile)
             {
-                <small style="font-weight:600; text-transform:uppercase; letter-spacing:0.05em;">@nameof(VoucherLineDto.PaymentType)</small>
+                <small style="@ProcessPanelStyles.Label">@nameof(VoucherLineDto.PaymentType)</small>
             }
             <DxComboBox TData="PaymentItem" TValue="ProcessPaymentType?"
                         Data="@_paymentItems"
-                        Value="@_model.PaymentType"
+                        Value="@Model.PaymentType"
                         ValueChanged="@OnPaymentTypeChanged"
                         DropDownTriggerMode="DropDownTriggerMode.Click" ShowDropDownButton="true"
                         ValueFieldName="@nameof(PaymentItem.Value)" TextFieldName="@nameof(PaymentItem.Label)"
@@ -45,18 +40,18 @@
 
                 @* Grup 2 — Hizmet (commodity) *@
                 <div style="@GroupStyle()">
-                    <small style="font-weight:600; text-transform:uppercase; letter-spacing:0.05em;">@nameof(VoucherLineDto.CommodityId)</small>
+                    <small style="@ProcessPanelStyles.Label">@nameof(VoucherLineDto.CommodityId)</small>
                     @if (_selectedService != null && !_selectedService.IsActive)
                     {
                         <DxTextBox Text="@_selectedService.Code" ReadOnly="true" style="@ControlStyle()" />
                     }
                     else
                     {
-                        <DxComboBox TData="Integration.TradeXpress.Services.ServiceListDto" TValue="Guid?"
+                        <DxComboBox TData="ServiceListDto" TValue="Guid?"
                                     Data="@_activeServices"
-                                    ValueFieldName="@nameof(Integration.TradeXpress.Services.ServiceListDto.Id)"
-                                    TextFieldName="@nameof(Integration.TradeXpress.Services.ServiceListDto.Code)"
-                                    Value="@_model.CommodityId"
+                                    ValueFieldName="@nameof(ServiceListDto.Id)"
+                                    TextFieldName="@nameof(ServiceListDto.Code)"
+                                    Value="@Model.CommodityId"
                                     ValueChanged="@OnServiceChanged"
                                     DropDownTriggerMode="DropDownTriggerMode.Click" ShowDropDownButton="true"
                                     ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Never"
@@ -66,20 +61,20 @@
 
                 @* Grup 3 — Tutar (PayFactor = PayTotal) *@
                 <div style="@GroupStyle()">
-                    <small style="font-weight:600; text-transform:uppercase; letter-spacing:0.05em;">@nameof(VoucherLineDto.PayTotal)</small>
+                    <small style="@ProcessPanelStyles.Label">@nameof(VoucherLineDto.PayTotal)</small>
                     <NumericSpinEdit TValue="decimal"
-                                     Value="@_model.PayTotal"
+                                     Value="@Model.PayTotal"
                                      ValueChanged="@OnAmountChanged" BindValueMode="BindValueMode.OnInput"
                                      ShowSpinButtons="false" DisplayFormat="N2" Mask="N2" />
                 </div>
 
                 @* Grup 4 — Karşılık birim (Normal→CurrencyUnit, Peşin→Cash) = PayCommodity *@
                 <div style="@GroupStyle()">
-                    <small style="font-weight:600; text-transform:uppercase; letter-spacing:0.05em;">@nameof(VoucherLineDto.PayCommodityId)</small>
+                    <small style="@ProcessPanelStyles.Label">@nameof(VoucherLineDto.PayCommodityId)</small>
                     <DxComboBox TData="UnitItem" TValue="Guid?"
                                 Data="@_activeUnitItems"
                                 ValueFieldName="@nameof(UnitItem.Id)" TextFieldName="@nameof(UnitItem.Code)"
-                                Value="@_model.PayCommodityId"
+                                Value="@Model.PayCommodityId"
                                 ValueChanged="@OnUnitChanged"
                                 DropDownTriggerMode="DropDownTriggerMode.Click" ShowDropDownButton="true"
                                 ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Never"
@@ -92,9 +87,9 @@
             <div style="display:flex; flex-direction:column; gap:4px;">
                 @if (_isMobile)
                 {
-                    <small style="font-weight:600; text-transform:uppercase; letter-spacing:0.05em;">@nameof(VoucherLineDto.Description)</small>
+                    <small style="@ProcessPanelStyles.Label">@nameof(VoucherLineDto.Description)</small>
                 }
-                <DxTextBox @bind-Text="@_model.Description" CssClass="w-100" />
+                <DxTextBox @bind-Text="@Model.Description" CssClass="w-100" />
             </div>
         </div>
 
@@ -102,204 +97,3 @@
     </div>
 
 </ProcessPanelBase>
-
-@code {
-    [Parameter] public EventCallback OnBack { get; set; }
-    [Parameter] public string? AccountCode { get; set; }
-    [Parameter] public string? SubAccountCode { get; set; }
-
-    [Parameter] public Guid CompanyId { get; set; }
-    [Parameter] public Guid BranchId { get; set; }
-    [Parameter] public Guid? VaultId { get; set; }
-    [Parameter] public Guid AccountId { get; set; }
-    [Parameter] public Guid? SubAccountId { get; set; }
-    [Parameter] public DateTime VoucherDate { get; set; } = DateTime.Now;
-    [Parameter] public string? VoucherDescription { get; set; }
-    [Parameter] public Guid? VoucherId { get; set; }
-    [Parameter] public EventCallback<VoucherLineDto> OnSaved { get; set; }
-
-    private bool _isMobile;
-
-    private VoucherLineDto _model = NewModel();
-    private static VoucherLineDto NewModel() => new()
-    {
-        Type        = ProcessType.Service,
-        Direction   = ProcessDirectionType.Outbound,
-        PaymentType = ProcessPaymentType.Normal,
-        Factor      = 1m,
-    };
-
-    // Hizmet listesi
-    private List<Integration.TradeXpress.Services.ServiceListDto> _allServices = new();
-    private List<Integration.TradeXpress.Services.ServiceListDto> _activeServices = new();
-    private Integration.TradeXpress.Services.ServiceListDto? _selectedService;
-
-    // Birim seçimi (Normal: CurrencyUnit, Peşin: Cash) → MainUnitId çözülür
-    // UnitItem.PayUnitId = çözülen para birimi (Normal: birim, Peşin: kasanın FollowingUnit'i)
-    private record UnitItem(Guid Id, string Code, bool IsActive, Guid PayUnitId);
-    private List<CashListDto> _allCashes = new();
-    private List<CurrencyUnitListDto> _allCurrencyUnits = new();
-    private List<UnitItem> _activeUnitItems = new();
-
-    private record DirectionItem(ProcessDirectionType Value, string Label);
-    private record PaymentItem(ProcessPaymentType Value, string Label);
-    private List<DirectionItem> _directionItems = new();
-    private List<PaymentItem> _paymentItems = new();
-
-    protected override async Task OnInitializedAsync()
-    {
-        _directionItems = new()
-        {
-            new(ProcessDirectionType.Inbound,  L["Enum:ProcessDirectionType:Inbound"].Value),
-            new(ProcessDirectionType.Outbound, L["Enum:ProcessDirectionType:Outbound"].Value),
-        };
-        _paymentItems = new()
-        {
-            new(ProcessPaymentType.Normal,   L["Enum:ProcessPaymentType:Normal"].Value),
-            new(ProcessPaymentType.WithCash, L["Enum:ProcessPaymentType:WithCash"].Value),
-        };
-
-        var svc = await ServiceService.GetPickerListAsync();
-        _allServices = svc;
-        _activeServices = svc.Where(s => s.IsActive).ToList();
-
-        var cashResult = await CashService.GetListAsync(new CashListRequestDto { MaxResultCount = 1000 });
-        _allCashes = cashResult.Items.ToList();
-        var unitResult = await CurrencyUnitService.GetListAsync(new CurrencyUnitListRequestDto { MaxResultCount = 1000 });
-        _allCurrencyUnits = unitResult.Items.ToList();
-
-        if (_activeServices.Count > 0)
-            OnServiceChanged(_activeServices[0].Id);
-
-        BuildUnitList();
-        SelectFirstUnit();
-    }
-
-    private void OnServiceChanged(Guid? id)
-    {
-        _model.CommodityId   = id;
-        _selectedService     = id.HasValue ? _allServices.FirstOrDefault(s => s.Id == id.Value) : null;
-        _model.CommodityCode = _selectedService?.Code ?? string.Empty;
-    }
-
-    private void OnAmountChanged(decimal value)
-    {
-        // Eski Amount/Total → burada PayFactor/PayTotal (eşit, tek değer).
-        _model.PayFactor = value;
-        _model.PayTotal  = value;
-    }
-
-    private void OnPaymentTypeChanged(ProcessPaymentType? value)
-    {
-        _model.PaymentType    = value;
-        _model.PayCommodityId = null;
-        _model.PayUnitId      = null;
-        BuildUnitList();
-        SelectFirstUnit();
-    }
-
-    private void BuildUnitList()
-    {
-        if (_model.PaymentType == ProcessPaymentType.WithCash)
-        {
-            _activeUnitItems = _allCashes
-                .Where(c => c.IsActive)
-                .Select(c => new UnitItem(c.Id, c.Code, c.IsActive,
-                                          c.FollowingUnitId == Guid.Empty ? Guid.Empty : c.FollowingUnitId))
-                .ToList();
-        }
-        else
-        {
-            _activeUnitItems = _allCurrencyUnits
-                .Where(u => u.IsActive)
-                .Select(u => new UnitItem(u.Id, u.Code, u.IsActive, u.Id))
-                .ToList();
-        }
-    }
-
-    private void SelectFirstUnit()
-    {
-        if (_activeUnitItems.Count > 0)
-            OnUnitChanged(_activeUnitItems[0].Id);
-    }
-
-    private void OnUnitChanged(Guid? id)
-    {
-        var item = id.HasValue ? _activeUnitItems.FirstOrDefault(u => u.Id == id.Value) : null;
-        _model.PayCommodityId   = id;                                   // seçili karşılık (birim/kasa)
-        _model.PayCommodityCode = item?.Code;
-        _model.PayUnitId        = item is { } it && it.PayUnitId != Guid.Empty ? it.PayUnitId : null;
-    }
-
-    private string GroupStyle() =>
-        "display:flex; flex-direction:column; gap:4px; " + (_isMobile ? "width:100%;" : "width:120px; flex-shrink:0;");
-
-    private string ControlStyle() => _isMobile ? "width:100%;" : "width:120px;";
-
-    private async Task HandleSave()
-    {
-        if (_model.CommodityId is null || _model.PayUnitId is null)
-            return; // hizmet/birim seçili değil
-
-        _model.VoucherId          = VoucherId;
-        _model.CompanyId          = CompanyId;
-        _model.BranchId           = BranchId;
-        _model.VaultId            = VaultId;
-        _model.AccountId          = AccountId;
-        _model.SubAccountId       = SubAccountId;
-        _model.VoucherDate        = VoucherDate;
-        _model.VoucherDescription = VoucherDescription;
-        _model.Type               = ProcessType.Service;
-        // Ana bacak boş (hizmet = Commodity; tutar pay-leg'de).
-        _model.MainUnitId = Guid.Empty;
-        _model.Amount     = 0m;
-        _model.Factor     = 0m;
-        _model.Total      = 0m;
-        _model.Profit     = 0m;
-        // PayFactor/PayTotal OnAmountChanged'de set edildi; PayCommodity/PayUnit OnUnitChanged'de.
-
-        var wasEdit = _model.Id != Guid.Empty;   // save Id'yi dolduracağı için ÖNCE yakala
-
-        VoucherLineDto result;
-        try
-        {
-            result = await VoucherService.SaveLineAsync(_model);
-        }
-        catch (Exception ex)
-        {
-            Ui.ShowErrorToast(L["Voucher_LineSaveFailed", ex.Message].Value);
-            return;
-        }
-
-        VoucherId        = result.VoucherId;
-        _model.VoucherId = result.VoucherId;
-        _model.Id        = Guid.Empty;
-        await OnSaved.InvokeAsync(result);
-        Ui.ShowSuccessToast(wasEdit ? L["Voucher_LineUpdated"].Value : L["Voucher_LineAdded"].Value);
-
-        if (wasEdit)
-        {
-            await OnBack.InvokeAsync();
-            return;
-        }
-
-        _model.PayFactor   = 0m;
-        _model.PayTotal    = 0m;
-        _model.Description = null;
-    }
-
-    /// <summary>Düzeltme: GetDto'yu model olarak alır + seçimleri kurar.</summary>
-    public Task LoadForEditAsync(VoucherLineDto dto)
-    {
-        _model = dto;
-        VoucherId = dto.VoucherId;
-
-        _selectedService = dto.CommodityId is { } cid ? _allServices.FirstOrDefault(s => s.Id == cid) : null;
-
-        // Karşılık seçimi doğrudan dto.PayCommodityId (combo Value buna bağlı).
-        BuildUnitList();
-
-        StateHasChanged();
-        return Task.CompletedTask;
-    }
-}

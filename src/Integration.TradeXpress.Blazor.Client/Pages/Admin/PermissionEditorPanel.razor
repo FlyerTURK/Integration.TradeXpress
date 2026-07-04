@@ -100,7 +100,7 @@
     [Parameter] public EventCallback<bool> DirtyChanged { get; set; }
 
     [Inject] protected IPermissionAppService PermissionAppService { get; set; } = default!;
-    [Inject] protected Integration.Framework.Blazor.Client.Services.Base.ITradeXpressUiService UiService { get; set; } = default!;
+    [Inject] protected IUiInteractionService UiService { get; set; } = default!;
 
     private bool _loading = true;
     private string? _error;

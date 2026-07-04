@@ -856,6 +856,11 @@
           "Serilog": "4.0.0"
         }
       },
+      "SQLitePCLRaw.core": {
+        "type": "Transitive",
+        "resolved": "2.1.11",
+        "contentHash": "PK0GLFkfhZzLQeR3PJf71FmhtHox+U3vcY6ZtswoMjrefkB9k6ErNJEnwXqc5KgXDSjige2XXrezqS39gkpQKA=="
+      },
       "System.ClientModel": {
         "type": "Transitive",
         "resolved": "1.5.1",
@@ -1467,6 +1472,7 @@
         "type": "Project",
         "dependencies": {
           "Integration.TradeXpress.Domain": "[1.0.0, )",
+          "Microsoft.Data.Sqlite.Core": "[10.0.9, )",
           "Microsoft.EntityFrameworkCore.Design": "[10.0.9, )",
           "Microsoft.EntityFrameworkCore.Tools": "[10.0.9, )",
           "Volo.Abp.AuditLogging.EntityFrameworkCore": "[10.4.1, )",
@@ -1479,6 +1485,15 @@
           "Volo.Abp.PermissionManagement.EntityFrameworkCore": "[10.4.1, )",
           "Volo.Abp.SettingManagement.EntityFrameworkCore": "[10.4.1, )",
           "Volo.Abp.TenantManagement.EntityFrameworkCore": "[10.4.1, )"
+        }
+      },
+      "Microsoft.Data.Sqlite.Core": {
+        "type": "CentralTransitive",
+        "requested": "[10.0.9, )",
+        "resolved": "10.0.9",
+        "contentHash": "iZrONyMKPjxfVZnUktqO30QjzNwAGH+AxM61s8lKQnVhgbQ3bn0hiXI129ZmVicEbIcwljyy2OVsIYUR51ZHKQ==",
+        "dependencies": {
+          "SQLitePCLRaw.core": "2.1.11"
         }
       },
       "Microsoft.EntityFrameworkCore.Design": {

@@ -15,7 +15,7 @@ public partial class DrillList<TItem> where TItem : class
     // Pencere durumu (fullscreen/minimize) + Toggle metotları + butonlar ARTIK EditShell'de.
     // DrillList yalnız _popupVisible + kapanış guard'ını (OnPopupClosing/OnPopupClosed) tutar.
 
-    [Inject] private ITradeXpressUiService UiService { get; set; } = default!;
+    [Inject] private IUiInteractionService UiService { get; set; } = default!;
     [Inject] private IGridExportAssemblyLoader ExportLoader { get; set; } = default!;
     [Inject] private IUiStateService UiStateService { get; set; } = default!;
 

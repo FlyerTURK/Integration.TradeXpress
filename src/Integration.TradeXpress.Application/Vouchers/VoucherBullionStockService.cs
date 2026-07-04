@@ -160,14 +160,14 @@ public class VoucherBullionStockService : ITransientDependency
     /// <summary>Takoz ÇIKIŞ satırının metal verisini (miktar/milyem/rapor/ayar evi/yan-birimler) seçilen GİRİŞ
     /// külçesinden KOPYALAR — client bu alanlara güvenilmez (yalnız işçilik + dağıtım durumlarını gönderir).
     /// Kısmi çıkış YOK: külçe bütünüyle çıkar (Amount girişten aynen). CommodityId = giriş satırı Id'si.</summary>
-    public async Task PrepareBullionExitLineAsync(VoucherLineDto input)
+    public async Task PrepareBullionExitLineAsync(VoucherLineDto input, Guid companyId)
     {
         if (input.CommodityId is not { } entryLineId || entryLineId == Guid.Empty)
         {
             throw new BusinessException("TradeXpress:Bullion:ExitEntryRequired");
         }
 
-        var entry = await FindBullionEntryLineAsync(entryLineId)
+        var entry = await FindBullionEntryLineAsync(entryLineId, companyId)
             ?? throw new BusinessException("TradeXpress:Bullion:ExitEntryNotFound");
 
         // Külçe kimliği + metal ölçüleri (giriş otoritedir).
@@ -191,11 +191,13 @@ public class VoucherBullionStockService : ITransientDependency
         input.PalladiumUnitId = entry.PalladiumUnitId;
     }
 
-    /// <summary>Bir takoz GİRİŞ satırını (külçeyi) Id ile bulur (silinmemiş, Bullion+Inbound).</summary>
-    public async Task<VoucherLine?> FindBullionEntryLineAsync(Guid entryLineId)
+    /// <summary>Bir takoz GİRİŞ satırını (külçeyi) Id ile bulur (silinmemiş, Bullion+Inbound) —
+    /// yalnız verilen şirketin fişlerinde arar (company scope; yabancı külçe YOKMUŞ gibi davranılır).</summary>
+    public async Task<VoucherLine?> FindBullionEntryLineAsync(Guid entryLineId, Guid companyId)
     {
         return await _asyncExecuter.FirstOrDefaultAsync(
             (await _repository.GetQueryableAsync())
+                .Where(v => v.CompanyId == companyId)
                 .SelectMany(v => v.Lines)
                 .Where(l => l.Id == entryLineId
                          && l.Type == ProcessType.Bullion

@@ -2,7 +2,7 @@
 
 <DxLayoutBreakpoint MaxWidth="768" @bind-IsActive="@_isMobile" />
 
-<ProcessPanelBase Direction="@_model.Direction" OnSave="@HandleSave" OnBack="@OnBack"
+<ProcessPanelBase Direction="@_model.Direction" OnSave="@HandleSave" SaveEnabled="@(!_saving)" OnBack="@OnBack"
                  ProcessTypeName="@L[ProcessTypeNameKey].Value"
                  PaymentTypeName="@_paymentItems.FirstOrDefault(p => p.Value == _model.PaymentType)?.Label"
                  AccountCode="@AccountCode"

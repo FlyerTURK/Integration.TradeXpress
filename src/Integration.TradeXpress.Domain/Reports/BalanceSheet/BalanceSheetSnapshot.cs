@@ -1,6 +1,8 @@
 using System;
 using Volo.Abp.Domain.Entities.Auditing;
 using Volo.Abp.MultiTenancy;
+using Integration.TradeXpress.Financials;
+using Integration.TradeXpress.MultiCompany;
 using Integration.TradeXpress.Reports;
 
 namespace Integration.TradeXpress.Reports.BalanceSheet;
@@ -13,7 +15,7 @@ namespace Integration.TradeXpress.Reports.BalanceSheet;
 /// <para>FK YOK — CompanyId/BranchId/UnitId/BaseUnitId id-only mantıksal referans (rapor scope filtresi; ledger deseni).
 /// TenantId nav'sız (ABP <see cref="IMultiTenant"/> insert'te otomatik basar).</para>
 /// </summary>
-public class BalanceSheetSnapshot : FullAuditedAggregateRoot<Guid>, IMultiTenant
+public class BalanceSheetSnapshot : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwned
 {
     #region Constructors
 
@@ -21,7 +23,10 @@ public class BalanceSheetSnapshot : FullAuditedAggregateRoot<Guid>, IMultiTenant
     {
     }
 
-    /// <summary>Hesaplanan bir detay satırından dondurulmuş snapshot kurar. Id/TenantId ABP tarafından atanır.</summary>
+    /// <summary>Hesaplanan bir detay satırından dondurulmuş snapshot kurar. Id/TenantId ABP tarafından atanır.
+    /// <para><b>Rounding:</b> KAYIT ANINDA <see cref="FinancialRounding"/> — Amount/Net N2, ValuationRate N5,
+    /// AwayFromZero (ERPPRO <c>Bilanco.Bilancolar</c>: Bakiye/Net decimal(…,2), Kur1/Kur2 decimal(…,5);
+    /// compute ara hesapları HAM kalır, yalnız kalıcılaşan değer yuvarlanır).</para></summary>
     public BalanceSheetSnapshot(
         BalanceSheetScope scope,
         Guid companyId,
@@ -41,9 +46,9 @@ public class BalanceSheetSnapshot : FullAuditedAggregateRoot<Guid>, IMultiTenant
         AsOfDate         = asOfDate.Date;   // yalnız gün (date-only semantiği; saat bileşeni taşınmaz)
         Category         = category;
         UnitId           = unitId;
-        Amount           = amount;
-        ValuationRate    = valuationRate;
-        Net              = net;
+        Amount           = FinancialRounding.RoundAmount(amount);
+        ValuationRate    = FinancialRounding.RoundRate(valuationRate);
+        Net              = FinancialRounding.RoundAmount(net);
         BaseUnitId       = baseUnitId;
         BaseCurrencyCode = baseCurrencyCode;
     }

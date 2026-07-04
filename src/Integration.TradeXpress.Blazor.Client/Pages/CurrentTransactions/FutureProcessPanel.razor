@@ -1,32 +1,26 @@
-@implements IVoucherLineEditPanel
-@inject IStringLocalizer<TradeXpressResource> L
-@inject Integration.TradeXpress.Futures.IFutureAppService FutureService
-@inject ICurrencyUnitAppService CurrencyUnitService
-@inject Integration.TradeXpress.Financials.CurrencyUnits.IEffectivePriceAppService PriceService
-@inject Integration.TradeXpress.Financials.Parities.IParityAppService ParityService
-@inject IVoucherAppService VoucherService
-@inject Integration.Framework.Blazor.Client.Services.Base.ITradeXpressUiService Ui
+@using Integration.TradeXpress.Futures
+@inherits ProcessPanelHostBase
 
 <DxLayoutBreakpoint MaxWidth="768" @bind-IsActive="@_isMobile" />
 
-<ProcessPanelBase Direction="@_model.Direction" OnSave="@HandleSave" OnBack="@OnBack"
+<ProcessPanelBase Direction="@Model.Direction" OnSave="@HandleSave" SaveEnabled="@(!IsSaving)" OnBack="@OnBack"
                  ProcessTypeName="@L["Future"].Value"
-                 AccountCode="@AccountCode"
-                 SubAccountCode="@SubAccountCode">
+                 AccountCode="@Context.AccountCode"
+                 SubAccountCode="@Context.SubAccountCode">
 
     <div style="padding:8px; @(_isMobile ? "" : "overflow-x:auto;")">
     <div style="display:flex; @(_isMobile ? "flex-direction:column;" : "width:max-content;") gap:4px; align-items:flex-start;">
 
         @* Grup 1 — Yön (Alış/Satış) + Vade *@
         <div style="@GroupStyle()">
-            <small style="font-weight:600; text-transform:uppercase; letter-spacing:0.05em;">@nameof(VoucherLineDto.Direction)</small>
+            <small style="@ProcessPanelStyles.Label">@nameof(VoucherLineDto.Direction)</small>
             <DxComboBox TData="DirectionItem" TValue="ProcessDirectionType"
-                        Data="@_directionItems" Value="@_model.Direction" ValueChanged="@OnDirectionChanged"
+                        Data="@_directionItems" Value="@Model.Direction" ValueChanged="@OnDirectionChanged"
                         DropDownTriggerMode="DropDownTriggerMode.Click" ShowDropDownButton="true"
                         ValueFieldName="@nameof(DirectionItem.Value)" TextFieldName="@nameof(DirectionItem.Label)"
                         style="@ControlStyle()" />
-            <small style="font-weight:600; text-transform:uppercase; letter-spacing:0.05em;">@nameof(VoucherLineDto.DueDate)</small>
-            <DxDateEdit Date="@_model.DueDate" DateChanged="@((DateTime? d) => _model.DueDate = d)"
+            <small style="@ProcessPanelStyles.Label">@nameof(VoucherLineDto.DueDate)</small>
+            <DxDateEdit Date="@Model.DueDate" DateChanged="@((DateTime? d) => Model.DueDate = d)"
                         Format="dd.MM.yyyy" style="@ControlStyle()" />
         </div>
 
@@ -35,12 +29,12 @@
 
                 @* Grup 2 — Vadeli enstrüman = Commodity *@
                 <div style="@GroupStyle()">
-                    <small style="font-weight:600; text-transform:uppercase; letter-spacing:0.05em;">@nameof(VoucherLineDto.CommodityId)</small>
-                    <DxComboBox TData="Integration.TradeXpress.Futures.FutureListDto" TValue="Guid?"
+                    <small style="@ProcessPanelStyles.Label">@nameof(VoucherLineDto.CommodityId)</small>
+                    <DxComboBox TData="FutureListDto" TValue="Guid?"
                                 Data="@_activeFutures"
-                                ValueFieldName="@nameof(Integration.TradeXpress.Futures.FutureListDto.Id)"
-                                TextFieldName="@nameof(Integration.TradeXpress.Futures.FutureListDto.Code)"
-                                Value="@_model.CommodityId" ValueChanged="@OnFutureChanged"
+                                ValueFieldName="@nameof(FutureListDto.Id)"
+                                TextFieldName="@nameof(FutureListDto.Code)"
+                                Value="@Model.CommodityId" ValueChanged="@OnFutureChanged"
                                 DropDownTriggerMode="DropDownTriggerMode.Click" ShowDropDownButton="true"
                                 ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Never"
                                 SearchMode="ListSearchMode.AutoSearch" style="@ControlStyle()" />
@@ -48,32 +42,32 @@
 
                 @* Grup 3 — Miktar (Amount) *@
                 <div style="@GroupStyle()">
-                    <small style="font-weight:600; text-transform:uppercase; letter-spacing:0.05em;">@nameof(VoucherLineDto.Amount)</small>
-                    <NumericSpinEdit TValue="decimal" Value="@_model.Amount" ValueChanged="@OnAmountChanged" BindValueMode="BindValueMode.OnInput"
+                    <small style="@ProcessPanelStyles.Label">@nameof(VoucherLineDto.Amount)</small>
+                    <NumericSpinEdit TValue="decimal" Value="@Model.Amount" ValueChanged="@OnAmountChanged" BindValueMode="BindValueMode.OnInput"
                                      ShowSpinButtons="false" DisplayFormat="N2" Mask="N2" />
                 </div>
 
                 @* Grup 4 — Çarpan (FollowingFactor, kilitli) *@
                 <div style="@GroupStyle()">
-                    <small style="font-weight:600; text-transform:uppercase; letter-spacing:0.05em;">@nameof(VoucherLineDto.Factor)</small>
-                    <NumericSpinEdit TValue="decimal" Value="@_model.Factor" Enabled="false"
+                    <small style="@ProcessPanelStyles.Label">@nameof(VoucherLineDto.Factor)</small>
+                    <NumericSpinEdit TValue="decimal" Value="@Model.Factor" Enabled="false"
                                      ShowSpinButtons="false" DisplayFormat="N5" Mask="N5" />
                 </div>
 
                 @* Grup 5 — Tutar (Total = Miktar × Çarpan, kilitli) *@
                 <div style="@GroupStyle()">
-                    <small style="font-weight:600; text-transform:uppercase; letter-spacing:0.05em;">@nameof(VoucherLineDto.Total)</small>
-                    <NumericSpinEdit TValue="decimal" Value="@_model.Total" Enabled="false"
+                    <small style="@ProcessPanelStyles.Label">@nameof(VoucherLineDto.Total)</small>
+                    <NumericSpinEdit TValue="decimal" Value="@Model.Total" Enabled="false"
                                      ShowSpinButtons="false" DisplayFormat="N2" Mask="N2" />
                 </div>
 
                 @* Grup 6 — Karşı birim (FollowingUnit hariç) = PayCommodity *@
                 <div style="@GroupStyle()">
-                    <small style="font-weight:600; text-transform:uppercase; letter-spacing:0.05em;">@nameof(VoucherLineDto.PayCommodityId)</small>
+                    <small style="@ProcessPanelStyles.Label">@nameof(VoucherLineDto.PayCommodityId)</small>
                     <DxComboBox TData="CurrencyUnitListDto" TValue="Guid?"
                                 Data="@_payUnits"
                                 ValueFieldName="@nameof(CurrencyUnitListDto.Id)" TextFieldName="@nameof(CurrencyUnitListDto.Code)"
-                                Value="@_model.PayCommodityId" ValueChanged="@OnPayUnitChanged"
+                                Value="@Model.PayCommodityId" ValueChanged="@OnPayUnitChanged"
                                 DropDownTriggerMode="DropDownTriggerMode.Click" ShowDropDownButton="true"
                                 ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Never"
                                 SearchMode="ListSearchMode.AutoSearch" style="@ControlStyle()" />
@@ -81,7 +75,7 @@
 
                 @* Grup 6b — Fiyat Tipi (Gram/Ons) — salt UI; kanonik (gram) PayFactor saklanır *@
                 <div style="@GroupStyle()">
-                    <small style="font-weight:600; text-transform:uppercase; letter-spacing:0.05em;">@L["PriceType"]</small>
+                    <small style="@ProcessPanelStyles.Label">@L["PriceType"]</small>
                     <DxComboBox TData="PriceTypeItem" TValue="PayFactorType"
                                 Data="@_priceTypeItems" Value="@_priceType" ValueChanged="@OnPriceTypeChanged"
                                 DropDownTriggerMode="DropDownTriggerMode.Click" ShowDropDownButton="true"
@@ -91,15 +85,15 @@
 
                 @* Grup 7 — Fiyat (parite; Ons modunda ×31.1035 gösterilir) *@
                 <div style="@GroupStyle()">
-                    <small style="font-weight:600; text-transform:uppercase; letter-spacing:0.05em;">@nameof(VoucherLineDto.PayFactor)</small>
+                    <small style="@ProcessPanelStyles.Label">@nameof(VoucherLineDto.PayFactor)</small>
                     <NumericSpinEdit TValue="decimal" Value="@DisplayPayFactor" ValueChanged="@OnDisplayPayFactorChanged" BindValueMode="BindValueMode.OnInput"
                                      ShowSpinButtons="false" DisplayFormat="N5" Mask="N5" />
                 </div>
 
                 @* Grup 8 — PayTutar *@
                 <div style="@GroupStyle()">
-                    <small style="font-weight:600; text-transform:uppercase; letter-spacing:0.05em;">@nameof(VoucherLineDto.PayTotal)</small>
-                    <NumericSpinEdit TValue="decimal" Value="@_model.PayTotal" ValueChanged="@OnPayTotalChanged"
+                    <small style="@ProcessPanelStyles.Label">@nameof(VoucherLineDto.PayTotal)</small>
+                    <NumericSpinEdit TValue="decimal" Value="@Model.PayTotal" ValueChanged="@OnPayTotalChanged"
                                      ShowSpinButtons="false" DisplayFormat="N2" Mask="N2" />
                 </div>
 
@@ -108,9 +102,9 @@
             <div style="display:flex; flex-direction:column; gap:4px;">
                 @if (_isMobile)
                 {
-                    <small style="font-weight:600; text-transform:uppercase; letter-spacing:0.05em;">@nameof(VoucherLineDto.Description)</small>
+                    <small style="@ProcessPanelStyles.Label">@nameof(VoucherLineDto.Description)</small>
                 }
-                <DxTextBox @bind-Text="@_model.Description" CssClass="w-100" />
+                <DxTextBox @bind-Text="@Model.Description" CssClass="w-100" />
             </div>
         </div>
 
@@ -118,231 +112,3 @@
     </div>
 
 </ProcessPanelBase>
-
-@code {
-    [Parameter] public EventCallback OnBack { get; set; }
-    [Parameter] public string? AccountCode { get; set; }
-    [Parameter] public string? SubAccountCode { get; set; }
-
-    [Parameter] public Guid CompanyId { get; set; }
-    [Parameter] public Guid BranchId { get; set; }
-    [Parameter] public Guid? VaultId { get; set; }
-    [Parameter] public Guid AccountId { get; set; }
-    [Parameter] public Guid? SubAccountId { get; set; }
-    [Parameter] public DateTime VoucherDate { get; set; } = DateTime.Now;
-    [Parameter] public string? VoucherDescription { get; set; }
-    [Parameter] public Guid? VoucherId { get; set; }
-    [Parameter] public EventCallback<VoucherLineDto> OnSaved { get; set; }
-
-    private bool _isMobile;
-
-    private VoucherLineDto _model = NewModel();
-    private static VoucherLineDto NewModel() => new()
-    {
-        Type        = ProcessType.Future,
-        Direction   = ProcessDirectionType.Buy,
-        PaymentType = null,
-        Factor      = 1m,
-        DueDate     = DateTime.Today,
-    };
-
-    private List<Integration.TradeXpress.Futures.FutureListDto> _allFutures = new();
-    private List<Integration.TradeXpress.Futures.FutureListDto> _activeFutures = new();
-
-    private List<CurrencyUnitListDto> _allCurrencyUnits = new();
-    private List<CurrencyUnitListDto> _activeUnits = new();
-    private List<CurrencyUnitListDto> _payUnits = new();   // ana (FollowingUnit) hariç
-
-    private Dictionary<Guid, decimal> _buyByUnit = new();
-    private Dictionary<Guid, string>  _codeByUnit = new();
-    private List<(Guid Base, Guid Quote)> _parityPairs = new();
-
-    private record DirectionItem(ProcessDirectionType Value, string Label);
-    private List<DirectionItem> _directionItems = new();
-
-    // Fiyat tipi (salt UI): kanonik PayFactor gram bazında saklanır; Ons modunda ×OunceGrams gösterilir.
-    private const decimal OunceGrams = 31.1035m;
-    private PayFactorType _priceType = PayFactorType.Gram;
-    private record PriceTypeItem(PayFactorType Value, string Label);
-    private List<PriceTypeItem> _priceTypeItems = new();
-
-    private decimal DisplayPayFactor => _priceType == PayFactorType.Ounce ? _model.PayFactor * OunceGrams : _model.PayFactor;
-
-    protected override async Task OnInitializedAsync()
-    {
-        _directionItems = new()
-        {
-            new(ProcessDirectionType.Buy,  L["Enum:ProcessDirectionType:Buy"].Value),
-            new(ProcessDirectionType.Sell, L["Enum:ProcessDirectionType:Sell"].Value),
-        };
-        _priceTypeItems = new()
-        {
-            new(PayFactorType.Gram,  L["Enum:PayFactorType:Gram"].Value),
-            new(PayFactorType.Ounce, L["Enum:PayFactorType:Ounce"].Value),
-        };
-
-        _allFutures = await FutureService.GetPickerListAsync();
-        _activeFutures = _allFutures.Where(f => f.IsActive).ToList();
-
-        var unitResult = await CurrencyUnitService.GetListAsync(new CurrencyUnitListRequestDto { MaxResultCount = 1000 });
-        _allCurrencyUnits = unitResult.Items.ToList();
-        _activeUnits = _allCurrencyUnits.Where(u => u.IsActive).ToList();
-        _codeByUnit = _allCurrencyUnits.ToDictionary(u => u.Id, u => u.Code);
-
-        var prices = await PriceService.GetCurrentPricesAsync();
-        _buyByUnit = prices.ToDictionary(p => p.Id, p => p.Buy);
-        var parityResult = await ParityService.GetListAsync(
-            new Integration.TradeXpress.Financials.Parities.ParityListRequestDto { MaxResultCount = 1000 });
-        _parityPairs = parityResult.Items.Select(p => (p.BaseCurrencyUnitId, p.QuoteCurrencyUnitId)).ToList();
-
-        if (_activeFutures.Count > 0)
-            OnFutureChanged(_activeFutures[0].Id);
-    }
-
-    private decimal BuyOf(Guid id) => _buyByUnit.GetValueOrDefault(id);
-    private Guid? ParityMainOf(Guid a, Guid b)
-        => Integration.TradeXpress.Financials.Parities.ParityResolver.ResolveBaseId(
-            _parityPairs, a, b,
-            id => Integration.TradeXpress.Financials.Parities.CurrencyUnitPriority.RankOf(
-                _codeByUnit.GetValueOrDefault(id, string.Empty)));
-
-    private void RecomputeTotal() => _model.Total = _model.Amount * _model.Factor;
-
-    private void Recalc(EditedField edited)
-    {
-        _model.EditedField = edited;
-        if (_model.MainUnitId == Guid.Empty || _model.PayUnitId is null)
-            return;
-
-        // Calculator'a ana bacak Total'ı (Miktar×Çarpan) Amount olarak verilir, Factor=1.
-        var r = VoucherLineCalculator.Calculate(
-            new VoucherLineCalcInput(
-                ProcessType:  ProcessType.Future,
-                Direction:    _model.Direction,
-                PaymentType:  null,
-                MainUnitId:   _model.MainUnitId,
-                PayUnitId:    _model.PayUnitId,
-                Amount:       _model.Total,
-                Factor:       1m,
-                Total:        _model.Total,
-                PayFactor:    _model.PayFactor,
-                PayTotal:     _model.PayTotal,
-                MarketPrice:  _model.MarketPrice,
-                EditedField:  edited),
-            BuyOf, ParityMainOf);
-
-        _model.PayFactor   = r.PayFactor;
-        _model.PayTotal    = r.PayTotal;
-        _model.MarketPrice = r.MarketPrice;
-    }
-
-    private void OnFutureChanged(Guid? id)
-    {
-        var f = id.HasValue ? _allFutures.FirstOrDefault(x => x.Id == id.Value) : null;
-        _model.CommodityId   = id;
-        _model.CommodityCode = f?.Code ?? string.Empty;
-        _model.MainUnitId    = f?.FollowingUnitId ?? Guid.Empty;
-        _model.Factor        = f is { } ? f.FollowingFactor : 1m;
-        RecomputeTotal();
-
-        // Karşı liste = ana (FollowingUnit) hariç; seçim geçersizse ilk farklı birime ayarla.
-        _payUnits = _activeUnits.Where(x => x.Id != _model.MainUnitId).ToList();
-        if (_model.PayCommodityId is null || _payUnits.All(x => x.Id != _model.PayCommodityId))
-        {
-            var c = _payUnits.FirstOrDefault();
-            _model.PayCommodityId   = c?.Id;
-            _model.PayCommodityCode = c?.Code;
-            _model.PayUnitId        = c?.Id;
-        }
-
-        Recalc(EditedField.Commodity);
-    }
-
-    private void OnAmountChanged(decimal value)
-    {
-        _model.Amount = value;
-        RecomputeTotal();
-        Recalc(EditedField.Amount);
-    }
-
-    private void OnPayUnitChanged(Guid? id)
-    {
-        var u = id.HasValue ? _allCurrencyUnits.FirstOrDefault(x => x.Id == id.Value) : null;
-        _model.PayCommodityId   = id;
-        _model.PayCommodityCode = u?.Code;
-        _model.PayUnitId        = id;
-        Recalc(EditedField.PayUnit);
-    }
-
-    private void OnDirectionChanged(ProcessDirectionType value) { _model.Direction = value; Recalc(EditedField.Direction); }
-    private void OnPayTotalChanged(decimal value)  { _model.PayTotal = value;  Recalc(EditedField.PayTotal); }
-
-    // Ekrandaki Fiyat → kanonik (gram) PayFactor'a çevir, sonra hesapla.
-    private void OnDisplayPayFactorChanged(decimal value)
-    {
-        _model.PayFactor = _priceType == PayFactorType.Ounce ? (OunceGrams != 0m ? value / OunceGrams : value) : value;
-        Recalc(EditedField.PayFactor);
-    }
-
-    // Gram/Ons değişimi yalnız gösterimi etkiler (kanonik değişmez) → recalc gerekmez.
-    private void OnPriceTypeChanged(PayFactorType value) => _priceType = value;
-
-    private string GroupStyle() =>
-        "display:flex; flex-direction:column; gap:4px; " + (_isMobile ? "width:100%;" : "width:120px; flex-shrink:0;");
-    private string ControlStyle() => _isMobile ? "width:100%;" : "width:120px;";
-
-    private async Task HandleSave()
-    {
-        if (_model.CommodityId is null || _model.MainUnitId == Guid.Empty || _model.PayUnitId is null)
-            return;
-
-        _model.VoucherId          = VoucherId;
-        _model.CompanyId          = CompanyId;
-        _model.BranchId           = BranchId;
-        _model.VaultId            = VaultId;
-        _model.AccountId          = AccountId;
-        _model.SubAccountId       = SubAccountId;
-        _model.VoucherDate        = VoucherDate;
-        _model.VoucherDescription = VoucherDescription;
-        _model.Type               = ProcessType.Future;
-        _model.PaymentType        = null;
-        RecomputeTotal();
-        _model.Profit             = 0m;
-        _model.PayUnitRate        = _model.PayUnitId is { } pu ? BuyOf(pu) : 0m;
-
-        var wasEdit = _model.Id != Guid.Empty;
-        VoucherLineDto result;
-        try
-        {
-            result = await VoucherService.SaveLineAsync(_model);
-        }
-        catch (Exception ex)
-        {
-            Ui.ShowErrorToast(L["Voucher_LineSaveFailed", ex.Message].Value);
-            return;
-        }
-
-        VoucherId        = result.VoucherId;
-        _model.VoucherId = result.VoucherId;
-        _model.Id        = Guid.Empty;
-        _model.EditedField = EditedField.None;
-        await OnSaved.InvokeAsync(result);
-        Ui.ShowSuccessToast(wasEdit ? L["Voucher_LineUpdated"].Value : L["Voucher_LineAdded"].Value);
-
-        if (wasEdit) { await OnBack.InvokeAsync(); return; }
-
-        _model.Amount      = 0m;
-        RecomputeTotal();
-        _model.PayTotal    = 0m;
-        _model.Description = null;
-    }
-
-    public Task LoadForEditAsync(VoucherLineDto dto)
-    {
-        _model = dto;
-        VoucherId = dto.VoucherId;
-        _payUnits = _activeUnits.Where(x => x.Id != dto.MainUnitId).ToList();
-        StateHasChanged();
-        return Task.CompletedTask;
-    }
-}

@@ -1,8 +1,6 @@
-using System;
 using System.ComponentModel.DataAnnotations;
 using Integration.Framework.Base.Dtos;
 using Integration.Framework.Base.Dtos.Interfaces;
-using Volo.Abp.Application.Dtos;
 
 namespace Integration.TradeXpress.Services;
 
@@ -11,54 +9,44 @@ public class ServiceListRequestDto : ListRequestDto
 {
 }
 
-public class ServiceListDto : EntityDto<Guid>, IListDto<Guid>, IIsActive, IHostScoped
+public class ServiceListDto : CatalogListDtoBase
 {
-    public string Code { get; set; } = string.Empty;
-    public string Name { get; set; } = string.Empty;
-    public bool IsActive { get; set; }
-    /// <summary>Host kataloğu (TenantId=null) mu? Tenant bunu düzenleyemez; salt-okur.</summary>
-    public bool IsGlobal { get; set; }
 }
 
-public class ServiceGetDto : EntityDto<Guid>, IGetDto<Guid>, IHasCode, IHostScoped
+public class ServiceGetDto : CatalogGetDtoBase, IHasCode
 {
     [Required]
     [StringLength(ServiceConsts.CodeMaxLength, MinimumLength = EntityFieldConsts.CodeMinLength)]
-    public string Code { get; set; } = string.Empty;
+    public override string Code { get; set; } = string.Empty;
 
     [Required]
     [StringLength(ServiceConsts.NameMaxLength, MinimumLength = EntityFieldConsts.NameMinLength)]
-    public string Name { get; set; } = string.Empty;
+    public override string Name { get; set; } = string.Empty;
 
     [StringLength(ServiceConsts.DescriptionMaxLength)]
     public string? Description { get; set; }
-
-    public bool IsActive { get; set; }
-    public bool IsGlobal { get; set; }
 }
 
-public class ServiceCreateDto : ICreateDto
+public class ServiceCreateDto : CatalogCreateDtoBase
 {
     [Required]
     [StringLength(ServiceConsts.CodeMaxLength, MinimumLength = EntityFieldConsts.CodeMinLength)]
-    public string Code { get; set; } = string.Empty;
+    public override string Code { get; set; } = string.Empty;
 
     [Required]
     [StringLength(ServiceConsts.NameMaxLength, MinimumLength = EntityFieldConsts.NameMinLength)]
-    public string Name { get; set; } = string.Empty;
+    public override string Name { get; set; } = string.Empty;
 
     [StringLength(ServiceConsts.DescriptionMaxLength)]
     public string? Description { get; set; }
 }
 
-public class ServiceUpdateDto : IUpdateDto
+public class ServiceUpdateDto : CatalogUpdateDtoBase
 {
     [Required]
     [StringLength(ServiceConsts.NameMaxLength, MinimumLength = EntityFieldConsts.NameMinLength)]
-    public string Name { get; set; } = string.Empty;
+    public override string Name { get; set; } = string.Empty;
 
     [StringLength(ServiceConsts.DescriptionMaxLength)]
     public string? Description { get; set; }
-
-    public bool IsActive { get; set; }
 }

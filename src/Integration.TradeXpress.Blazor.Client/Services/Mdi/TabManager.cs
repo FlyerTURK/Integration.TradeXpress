@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 using Integration.TradeXpress.Settings;
 
@@ -14,7 +15,9 @@ public sealed class TabManager : ITabManager, IMdiTabOpener
     private readonly Integration.TradeXpress.Blazor.Client.Services.Working.IWorkingContextService _working;
     private readonly List<MdiTab> _tabs = new();
     private Guid? _activeId;
-    private bool _initialized;
+
+    /// <summary>Paylaşılan init Task'ı — eşzamanlı ikinci çağıran AYNI yüklemeyi bekler (boş sekme penceresi yok).</summary>
+    private Task? _initTask;
 
     public TabManager(RouteResolver resolver, IUserUiSettingAppService uiSettings, Integration.TradeXpress.Blazor.Client.Services.Working.IWorkingContextService working)
     {
@@ -30,9 +33,23 @@ public sealed class TabManager : ITabManager, IMdiTabOpener
 
     public async Task InitializeAsync(string? defaultUrl, string? defaultTitle, string? defaultIcon)
     {
-        if (_initialized) return;
-        _initialized = true;
+        // Paylaşılan Task deseni: bayrağı await'ten önce set etmek yerine Task'ın kendisi paylaşılır —
+        // ikinci çağıran yükleme bitmeden dönmez (boş-liste yarış penceresi kapanır).
+        var task = _initTask ??= InitializeCoreAsync(defaultUrl, defaultTitle, defaultIcon);
+        try
+        {
+            await task;
+        }
+        catch
+        {
+            // Başarısız init'te Task sıfırlanır → sonraki çağrı yeniden dener (kalıcı bozuk durumda kalma).
+            if (_initTask == task) _initTask = null;
+            throw;
+        }
+    }
 
+    private async Task InitializeCoreAsync(string? defaultUrl, string? defaultTitle, string? defaultIcon)
+    {
         await RehydrateAsync();
 
         if (_tabs.Count == 0)
@@ -279,7 +296,35 @@ public sealed class TabManager : ITabManager, IMdiTabOpener
         string? ParentValue = null);
     private sealed record PersistedState(List<PersistedTab> Tabs, string? ActiveUrl);
 
-    private void Persist() => _ = PersistAsync();
+    // ── Persist coalescing: fire-and-forget çağrılar yarışmasın diye tek kuyruk ──
+    // Aktif persist sürerken gelen istek yalnız 'dirty' işaretler; aktif tur bitince güncel durum
+    // BİR kez daha yazılır → "son istenen durum kazanır", eski state yeniyi ezemez.
+    // Circuit dispatcher tek-thread olduğundan bayraklar await'ler arasında güvenli; SemaphoreSlim(1,1)
+    // yalnız "aktif persist var mı" kapısı (lock değil — await-düzeni korunur, dispatcher bloklanmaz).
+    private readonly SemaphoreSlim _persistGate = new(1, 1);
+    private bool _persistDirty;
+
+    private void Persist() => _ = PersistCoalescedAsync();
+
+    private async Task PersistCoalescedAsync()
+    {
+        _persistDirty = true;
+        if (!await _persistGate.WaitAsync(0))
+            return; // aktif persist var — dirty işaretlendi, o tur bitince son durumu yazacak
+
+        try
+        {
+            while (_persistDirty)
+            {
+                _persistDirty = false;
+                await PersistAsync(); // her turda GÜNCEL _tabs/_activeId serileştirilir
+            }
+        }
+        finally
+        {
+            _persistGate.Release();
+        }
+    }
 
     private async Task PersistAsync()
     {

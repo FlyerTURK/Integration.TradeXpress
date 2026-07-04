@@ -15,7 +15,7 @@ public abstract class TradeXpressComponentBase : AbpComponentBase
     protected IJSRuntime JsRuntime { get; set; } = default!;
 
     [Inject]
-    protected ITradeXpressUiService UiService { get; set; } = default!;
+    protected IUiInteractionService UiService { get; set; } = default!;
 
     [Inject]
     protected NavigationManager NavigationManager { get; set; } = default!;

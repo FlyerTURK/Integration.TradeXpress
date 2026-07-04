@@ -1,9 +1,7 @@
-using System;
 using System.ComponentModel.DataAnnotations;
 using Integration.Framework.Base.Dtos;
 using Integration.Framework.Base.Dtos.Interfaces;
 using Integration.TradeXpress.Commodities;
-using Volo.Abp.Application.Dtos;
 
 namespace Integration.TradeXpress.Scraps;
 
@@ -11,33 +9,21 @@ public class ScrapListRequestDto : ListRequestDto
 {
 }
 
-public class ScrapListDto : EntityDto<Guid>, IListDto<Guid>, IIsActive, IHostScoped, IFollowingUnitDto
+public class ScrapListDto : FollowingUnitCatalogListDtoBase
 {
-    public string Code { get; set; } = string.Empty;
-    public string Name { get; set; } = string.Empty;
-
-    public Guid FollowingUnitId { get; set; }
-    public string? FollowingUnitCode { get; set; }
     public decimal Factor { get; set; }
     public bool FactorChange { get; set; }
-
-    public bool IsActive { get; set; }
-    public bool IsGlobal { get; set; }
 }
 
-public class ScrapGetDto : EntityDto<Guid>, IGetDto<Guid>, IHasCode, IHostScoped, IFollowingUnitDto
+public class ScrapGetDto : FollowingUnitCatalogGetDtoBase, IHasCode
 {
     [Required]
     [StringLength(ScrapConsts.CodeMaxLength, MinimumLength = EntityFieldConsts.CodeMinLength)]
-    public string Code { get; set; } = string.Empty;
+    public override string Code { get; set; } = string.Empty;
 
     [Required]
     [StringLength(ScrapConsts.NameMaxLength, MinimumLength = EntityFieldConsts.NameMinLength)]
-    public string Name { get; set; } = string.Empty;
-
-    [Required]
-    public Guid? FollowingUnitId { get; set; }
-    public string? FollowingUnitCode { get; set; }
+    public override string Name { get; set; } = string.Empty;
 
     [Range(0.0000001, 1.0)]
     public decimal Factor { get; set; } = ScrapConsts.DefaultFactor;
@@ -46,23 +32,17 @@ public class ScrapGetDto : EntityDto<Guid>, IGetDto<Guid>, IHasCode, IHostScoped
 
     [StringLength(ScrapConsts.DescriptionMaxLength)]
     public string? Description { get; set; }
-
-    public bool IsActive { get; set; }
-    public bool IsGlobal { get; set; }
 }
 
-public class ScrapCreateDto : ICreateDto
+public class ScrapCreateDto : FollowingUnitCatalogCreateDtoBase
 {
     [Required]
     [StringLength(ScrapConsts.CodeMaxLength, MinimumLength = EntityFieldConsts.CodeMinLength)]
-    public string Code { get; set; } = string.Empty;
+    public override string Code { get; set; } = string.Empty;
 
     [Required]
     [StringLength(ScrapConsts.NameMaxLength, MinimumLength = EntityFieldConsts.NameMinLength)]
-    public string Name { get; set; } = string.Empty;
-
-    [Required]
-    public Guid? FollowingUnitId { get; set; }
+    public override string Name { get; set; } = string.Empty;
 
     [Range(0.0000001, 1.0)]
     public decimal Factor { get; set; } = ScrapConsts.DefaultFactor;
@@ -73,14 +53,11 @@ public class ScrapCreateDto : ICreateDto
     public string? Description { get; set; }
 }
 
-public class ScrapUpdateDto : IUpdateDto
+public class ScrapUpdateDto : FollowingUnitCatalogUpdateDtoBase
 {
     [Required]
     [StringLength(ScrapConsts.NameMaxLength, MinimumLength = EntityFieldConsts.NameMinLength)]
-    public string Name { get; set; } = string.Empty;
-
-    [Required]
-    public Guid? FollowingUnitId { get; set; }
+    public override string Name { get; set; } = string.Empty;
 
     [Range(0.0000001, 1.0)]
     public decimal Factor { get; set; } = ScrapConsts.DefaultFactor;
@@ -89,6 +66,4 @@ public class ScrapUpdateDto : IUpdateDto
 
     [StringLength(ScrapConsts.DescriptionMaxLength)]
     public string? Description { get; set; }
-
-    public bool IsActive { get; set; }
 }

@@ -5,7 +5,7 @@
 @inject IVoucherAppService VoucherService
 @inject IVaultAppService VaultService
 @inject Integration.TradeXpress.Blazor.Client.Services.Working.IWorkingContextService Working
-@inject ITradeXpressUiService Ui
+@inject IUiInteractionService Ui
 @inject IViewOpener ViewOpener
 @inject IPopupService PopupService
 
@@ -190,16 +190,7 @@
     <div id="tx-active-process-panel" class="tx-process-panel-wrap">
         <CashProcessPanel @ref="_cashPanel"
                           OnBack="@OnProcessBack"
-                          AccountCode="@_selectedAccountCode"
-                          SubAccountCode="@_selectedSubAccountCode"
-                          CompanyId="@_model.CompanyId"
-                          BranchId="@_model.BranchId"
-                          VaultId="@_model.VaultId"
-                          AccountId="@_model.AccountId"
-                          SubAccountId="@_model.SubAccountId"
-                          VoucherDate="@_model.VoucherDate"
-                          VoucherDescription="@_model.Description"
-                          VoucherId="@_selectedVoucherId"
+                          Context="@BuildLineContext()"
                           OnSaved="@OnLineSavedInternal" />
     </div>
 }
@@ -209,16 +200,7 @@ else if (_activeProcess == "Service")
     <div id="tx-active-process-panel" class="tx-process-panel-wrap">
         <ServiceProcessPanel @ref="_servicePanel"
                              OnBack="@OnProcessBack"
-                             AccountCode="@_selectedAccountCode"
-                             SubAccountCode="@_selectedSubAccountCode"
-                             CompanyId="@_model.CompanyId"
-                             BranchId="@_model.BranchId"
-                             VaultId="@_model.VaultId"
-                             AccountId="@_model.AccountId"
-                             SubAccountId="@_model.SubAccountId"
-                             VoucherDate="@_model.VoucherDate"
-                             VoucherDescription="@_model.Description"
-                             VoucherId="@_selectedVoucherId"
+                             Context="@BuildLineContext()"
                              OnSaved="@OnLineSavedInternal" />
     </div>
 }
@@ -228,16 +210,7 @@ else if (_activeProcess == "Convert")
     <div id="tx-active-process-panel" class="tx-process-panel-wrap">
         <ConvertProcessPanel @ref="_convertPanel"
                              OnBack="@OnProcessBack"
-                             AccountCode="@_selectedAccountCode"
-                             SubAccountCode="@_selectedSubAccountCode"
-                             CompanyId="@_model.CompanyId"
-                             BranchId="@_model.BranchId"
-                             VaultId="@_model.VaultId"
-                             AccountId="@_model.AccountId"
-                             SubAccountId="@_model.SubAccountId"
-                             VoucherDate="@_model.VoucherDate"
-                             VoucherDescription="@_model.Description"
-                             VoucherId="@_selectedVoucherId"
+                             Context="@BuildLineContext()"
                              OnSaved="@OnLineSavedInternal" />
     </div>
 }
@@ -247,16 +220,7 @@ else if (_activeProcess == "Future")
     <div id="tx-active-process-panel" class="tx-process-panel-wrap">
         <FutureProcessPanel @ref="_futurePanel"
                             OnBack="@OnProcessBack"
-                            AccountCode="@_selectedAccountCode"
-                            SubAccountCode="@_selectedSubAccountCode"
-                            CompanyId="@_model.CompanyId"
-                            BranchId="@_model.BranchId"
-                            VaultId="@_model.VaultId"
-                            AccountId="@_model.AccountId"
-                            SubAccountId="@_model.SubAccountId"
-                            VoucherDate="@_model.VoucherDate"
-                            VoucherDescription="@_model.Description"
-                            VoucherId="@_selectedVoucherId"
+                            Context="@BuildLineContext()"
                             OnSaved="@OnLineSavedInternal" />
     </div>
 }
@@ -266,16 +230,7 @@ else if (_activeProcess == "Scrap")
     <div id="tx-active-process-panel" class="tx-process-panel-wrap">
         <ScrapProcessPanel @ref="_scrapPanel"
                            OnBack="@OnProcessBack"
-                           AccountCode="@_selectedAccountCode"
-                           SubAccountCode="@_selectedSubAccountCode"
-                           CompanyId="@_model.CompanyId"
-                           BranchId="@_model.BranchId"
-                           VaultId="@_model.VaultId"
-                           AccountId="@_model.AccountId"
-                           SubAccountId="@_model.SubAccountId"
-                           VoucherDate="@_model.VoucherDate"
-                           VoucherDescription="@_model.Description"
-                           VoucherId="@_selectedVoucherId"
+                           Context="@BuildLineContext()"
                            OnSaved="@OnLineSavedInternal" />
     </div>
 }
@@ -285,16 +240,7 @@ else if (_activeProcess == "Metal")
     <div id="tx-active-process-panel" class="tx-process-panel-wrap">
         <MetalProcessPanel @ref="_metalPanel"
                            OnBack="@OnProcessBack"
-                           AccountCode="@_selectedAccountCode"
-                           SubAccountCode="@_selectedSubAccountCode"
-                           CompanyId="@_model.CompanyId"
-                           BranchId="@_model.BranchId"
-                           VaultId="@_model.VaultId"
-                           AccountId="@_model.AccountId"
-                           SubAccountId="@_model.SubAccountId"
-                           VoucherDate="@_model.VoucherDate"
-                           VoucherDescription="@_model.Description"
-                           VoucherId="@_selectedVoucherId"
+                           Context="@BuildLineContext()"
                            OnSaved="@OnLineSavedInternal" />
     </div>
 }

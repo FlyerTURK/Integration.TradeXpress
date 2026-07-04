@@ -65,7 +65,7 @@ public partial class AccountSelectionPanel
     private bool  _voucherHasMore;
     private Guid? _selectedVoucherId;
 
-    private DateTime _displayVoucherDate = DateTime.Now;
+    private DateTime _displayVoucherDate = BusinessClock.Now();
     private string   _selectedVaultDisplay = string.Empty;
 
     // ── İşlem tipi butonları — yetki gate'i (server-side kontrol VoucherAppService.SaveLineAsync'de tekrarlanır) ──
@@ -242,7 +242,7 @@ public partial class AccountSelectionPanel
         }
         else
         {
-            _displayVoucherDate   = DateTime.Now;
+            _displayVoucherDate   = BusinessClock.Now();
             _model.VoucherDate    = _displayVoucherDate;
             _selectedVaultDisplay = string.Empty;
             _model.Description    = null;
@@ -348,6 +348,23 @@ public partial class AccountSelectionPanel
         var res = await SubAccountService.GetListAsync(new SubAccountListRequestDto { BranchId = Working.CurrentBranchId, MaxResultCount = 1000 });
         _subAccounts = res.Items.ToList();
     }
+    /// <summary>Süreç paneline geçen fiş bağlamı — 10 ayrı parametre yerine tek nesne
+    /// (VoucherLineContext). ProcessPanelHostBase tabanlı 6 panel (Cash/Metal/Scrap/Future/Convert/Service)
+    /// bunu kullanır; kalanlar (Stone/Jewelry/Bullion/Assay/DebitNote/Transfer) kademeli geçecek.</summary>
+    private VoucherLineContext BuildLineContext() => new()
+    {
+        CompanyId          = _model.CompanyId,
+        BranchId           = _model.BranchId,
+        VaultId            = _model.VaultId,
+        AccountId          = _model.AccountId,
+        SubAccountId       = _model.SubAccountId,
+        VoucherDate        = _model.VoucherDate,
+        VoucherDescription = _model.Description,
+        VoucherId          = _selectedVoucherId,
+        AccountCode        = _selectedAccountCode,
+        SubAccountCode     = _selectedSubAccountCode,
+    };
+
     private Task OnProcessBack()    => SetActiveProcessAsync(null);
     private Task OnListClicked()    => OnListRequested.InvokeAsync();
 
@@ -460,7 +477,7 @@ public partial class AccountSelectionPanel
             await VoucherService.DeleteAsync(_selectedVoucherId.Value);
 
             _selectedVoucherId = null;
-            _displayVoucherDate = DateTime.Now;
+            _displayVoucherDate = BusinessClock.Now();
             _model.VoucherDate = _displayVoucherDate;
             _selectedVaultDisplay = string.Empty;
             _model.Description = null;

@@ -1,3 +1,5 @@
+using Integration.TradeXpress.MultiCompany;
+
 namespace Integration.TradeXpress.Accounts;
 
 /// <summary>
@@ -10,7 +12,7 @@ namespace Integration.TradeXpress.Accounts;
 /// (BalanceCurrencyUnit/LimitUnit); CurrencyUnit host+tenant scoped olduğundan AppService doğrulama/zenginleştirmede
 /// DataFilter.Disable kullanır.</para>
 /// </summary>
-public class Account : FullAuditedAggregateRoot<Guid>, IMultiTenant
+public class Account : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwned
 {
     #region Constructors
 

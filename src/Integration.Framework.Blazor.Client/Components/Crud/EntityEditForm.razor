@@ -113,7 +113,7 @@
     // MDI tab bağlamı (routable host tab'da açılınca) → başlığı tab şeridine sync + kapanış guard'ı tab'a bağla.
     [CascadingParameter(Name = "CurrentMdiTab")] public IMdiTab? CurrentMdiTab { get; set; }
 
-    [Inject] protected ITradeXpressUiService UiService { get; set; } = default!;
+    [Inject] protected IUiInteractionService UiService { get; set; } = default!;
     [Inject] protected IMdiTabOpener TabOpener { get; set; } = default!;
 
     // ── İç durum ──

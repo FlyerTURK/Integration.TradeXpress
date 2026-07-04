@@ -1,7 +1,7 @@
 @inject IStringLocalizer<TradeXpressResource> L
 @inject ICurrencyUnitAppService CurrencyUnitService
 @inject IVoucherAppService VoucherService
-@inject ITradeXpressUiService Ui
+@inject IUiInteractionService Ui
 
 @* BORÇ/ALACAK DEKONTU paneli (legacy BORC=999) — tek bacak, Miktar YOK (0 gider), peşin muafiyeti YOK.
    Yön combo etiketi ALACAK/BORÇ (legacy quirk: DB'de GİRİŞ/ÇIKIŞ saklanır). Kategori bu fazda serbest
@@ -9,7 +9,7 @@
 
 <DxLayoutBreakpoint MaxWidth="768" @bind-IsActive="@_isMobile" />
 
-<ProcessPanelBase Direction="@_model.Direction" OnSave="@HandleSave" OnBack="@OnBack"
+<ProcessPanelBase Direction="@_model.Direction" OnSave="@HandleSave" SaveEnabled="@(!_saving)" OnBack="@OnBack"
                   ProcessTypeName="@L["DebitNote"].Value"
                   AccountCode="@AccountCode"
                   SubAccountCode="@SubAccountCode">

@@ -215,6 +215,24 @@ public class VoucherLedgerSyncTests : TradeXpressEntityFrameworkCoreTestBase
     }
 
     [Fact]
+    public async Task Sub_cent_raw_effect_is_persisted_rounded_to_two_decimals_away_from_zero()
+    {
+        var data = await ArrangeCompanyAsync();
+
+        // Çeşni ÇIKIŞ: 10 gr × AU 0.9165 → HAM etki −9.1650 (kuruş-altı, tam midpoint);
+        // AG 0.0415 × 10 → HAM −0.4150. Poster ara hesabı HAM kalır, ledger KAYIT ANINDA
+        // N2 + AwayFromZero yuvarlar (FinancialRounding — ERPPRO SQL scale paritesi):
+        // −9.165 → −9.17 (ToEven olsaydı −9.16 yazılırdı — ayrıştırıcı senaryo), −0.415 → −0.42.
+        var assay = await _voucherAppService.SaveLineAsync(
+            VoucherTestLines.AssayLine(data, 10m, 0.9165m, 0.0415m));
+
+        var entries = await GetLedgerAsync(assay.VoucherId!.Value);
+        entries.Count.ShouldBe(2);
+        entries.Single(e => e.UnitId == data.HasUnitId).Amount.ShouldBe(-9.17m);
+        entries.Single(e => e.UnitId == data.GumUnitId).Amount.ShouldBe(-0.42m);
+    }
+
+    [Fact]
     public async Task Assay_line_without_amount_is_rejected()
     {
         var data = await ArrangeCompanyAsync();
