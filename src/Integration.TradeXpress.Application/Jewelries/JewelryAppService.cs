@@ -99,6 +99,14 @@ public class JewelryAppService
         return Task.FromResult(entity);
     }
 
+    protected override Task EnsureCreateCodeUniqueAsync(Jewelry entity)
+    {
+        // Update ile aynı scope/error-code — company-scoped: (TenantId, CompanyId, Code) unique index ile hizalı.
+        return EnsureCodeUniqueAsync(
+            entity, x => x.CompanyId == entity.CompanyId && x.Code == entity.Code,
+            "TradeXpress:Jewelry:CodeAlreadyExists", excludeSelf: false);
+    }
+
     protected override async Task MapToEntityAsync(JewelryUpdateDto updateInput, Jewelry entity)
     {
         // Kod düzenlenebilir (ürün kuralı 2026-07-04); benzersizlik scope'u DB unique index

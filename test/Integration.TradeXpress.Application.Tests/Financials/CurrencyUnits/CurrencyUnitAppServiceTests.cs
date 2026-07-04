@@ -55,6 +55,23 @@ public abstract class CurrencyUnitAppServiceTests<TStartupModule> : TradeXpressA
     }
 
     [Fact]
+    public async Task Create_with_duplicate_code_gives_friendly_error()
+    {
+        // Standalone CurrencyUnit Create ön-benzersizlik kontrolü (Update ile aynı scope).
+        await _appService.CreateAsync(new CurrencyUnitCreateDto
+        {
+            Code = "DUP", Name = "İlk", Type = CurrencyUnitType.Metal,
+        });
+
+        // Aynı kapsamda aynı kod tekrar → ham DB (TenantId, Code) unique çakışması DEĞİL, dostane hata.
+        var ex = await Should.ThrowAsync<BusinessException>(() => _appService.CreateAsync(new CurrencyUnitCreateDto
+        {
+            Code = "DUP", Name = "İkinci", Type = CurrencyUnitType.Metal,
+        }));
+        ex.Code.ShouldBe("TradeXpress:CurrencyUnit:CodeAlreadyExists");
+    }
+
+    [Fact]
     public async Task Tenant_cannot_delete_a_global_unit()
     {
         var list = await _appService.GetListAsync(

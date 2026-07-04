@@ -122,6 +122,25 @@ public class AccountCompanyScopeTests : TradeXpressEntityFrameworkCoreTestBase
     }
 
     [Fact]
+    public async Task Create_with_duplicate_code_in_same_company_gives_friendly_error()
+    {
+        var data = await SeedAsync();
+
+        using (_currentTenant.Change(data.TenantId))
+        {
+            _companyContext.CompanyId = data.Mine.CompanyId;
+
+            // İlk kayıt: "NEWACC" oluşur.
+            await WithUnitOfWorkAsync(() => _accountAppService.CreateAsync(BuildCreate(data.Mine.CompanyId, data.Mine.TryUnitId)));
+
+            // Aynı şirkette aynı kod tekrar → ham DB unique çakışması DEĞİL, dostane BusinessException.
+            (await Should.ThrowAsync<BusinessException>(
+                    () => WithUnitOfWorkAsync(() => _accountAppService.CreateAsync(BuildCreate(data.Mine.CompanyId, data.Mine.TryUnitId)))))
+                .Code.ShouldBe("TradeXpress:Account:CodeAlreadyExists");
+        }
+    }
+
+    [Fact]
     public async Task Consolidated_context_sees_all_companies()
     {
         var data = await SeedAsync();

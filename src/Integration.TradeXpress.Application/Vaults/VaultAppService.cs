@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Integration.Framework;
 using Integration.Framework.Base.Querying;
 using Integration.TradeXpress.Branches;
 using Integration.TradeXpress.Permissions;
@@ -92,6 +93,11 @@ public class VaultAppService : TradeXpressAppService, IVaultAppService
         // (Branch tenant-scoped görünür → yabancı şubeden türetme sızmaz).
         var branch = await EnsureBranchVisibleAsync(input.BranchId);
 
+        // Benzersizlik ÖN-kontrolü (şube scope): aynı şubede aynı kodlu kasa → dostane hata (Update'le simetrik).
+        var normalizedCode = StringFieldGuard.NormalizeCode(
+            input.Code, nameof(Vault.Code), EntityFieldConsts.CodeMinLength, VaultConsts.CodeMaxLength);
+        await EnsureCodeUniqueAsync(branch.Id, normalizedCode, Guid.Empty);
+
         var v = new Vault(
             branch.CompanyId,
             branch.Id,
@@ -115,7 +121,7 @@ public class VaultAppService : TradeXpressAppService, IVaultAppService
     {
         var v = await _repository.GetAsync(id);
 
-        v.SetCode(input.Code);
+        await ApplyCodeChangeAsync(v, input.Code);
         v.SetName(input.Name);
         v.SetDescription(input.Description);
         v.SetDisplayOrder(input.DisplayOrder);
@@ -145,6 +151,34 @@ public class VaultAppService : TradeXpressAppService, IVaultAppService
     }
 
     // ── helpers ───────────────────────────────────────────────────────────────
+
+    /// <summary>Kod değişikliği (kod düzenlenebilir ürün kuralı): normalize → değiştiyse AYNI ŞUBE altında
+    /// benzersizliği doğrula (kendisi hariç; dostane hata) → uygula.</summary>
+    private async Task ApplyCodeChangeAsync(Vault v, string rawCode)
+    {
+        var normalizedCode = StringFieldGuard.NormalizeCode(
+            rawCode, nameof(v.Code), EntityFieldConsts.CodeMinLength, VaultConsts.CodeMaxLength);
+        if (string.Equals(normalizedCode, v.Code, StringComparison.Ordinal))
+        {
+            return; // değişmedi
+        }
+
+        await EnsureCodeUniqueAsync(v.BranchId, normalizedCode, v.Id);
+        v.SetCode(normalizedCode);
+    }
+
+    /// <summary>Aynı ŞUBE altında Code benzersizliği. Create'te <paramref name="excludeId"/>=Guid.Empty,
+    /// Update'te v.Id. Dostane BusinessException — ham DB unique çakışmasını önler.</summary>
+    private async Task EnsureCodeUniqueAsync(Guid branchId, string normalizedCode, Guid excludeId)
+    {
+        var duplicate = await AsyncExecuter.AnyAsync(
+            (await _repository.GetQueryableAsync())
+                .Where(x => x.BranchId == branchId && x.Id != excludeId && x.Code == normalizedCode));
+        if (duplicate)
+        {
+            throw new BusinessException("TradeXpress:Vault:CodeAlreadyExists");
+        }
+    }
 
     private async Task<Branch> EnsureBranchVisibleAsync(Guid branchId)
     {

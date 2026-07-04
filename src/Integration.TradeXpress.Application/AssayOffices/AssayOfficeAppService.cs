@@ -58,6 +58,12 @@ public class AssayOfficeAppService : TradeXpressAppService, IAssayOfficeAppServi
         if (_currentCompany.Id is not { } companyId)
             throw new BusinessException("TradeXpress:Company:HostHasNoCompanies");
 
+        // Benzersizlik ÖN-kontrolü (Update ile simetrik): aynı şirkette aynı kodlu ayar evi → dostane hata,
+        // ham DB (TenantId, CompanyId, Code) unique çakışması değil. Kendisi yok → excludeId boş.
+        var normalizedCode = StringFieldGuard.NormalizeCode(
+            input.Code, nameof(AssayOffice.Code), EntityFieldConsts.CodeMinLength, AssayOfficeConsts.CodeMaxLength);
+        await EnsureCodeUniqueAsync(companyId, normalizedCode, Guid.Empty);
+
         var e = new AssayOffice(companyId, input.Code, input.Name, displayOrder: input.DisplayOrder);
         e.SetDescription(input.Description);
         await _repository.InsertAsync(e, autoSave: true);
@@ -93,15 +99,22 @@ public class AssayOfficeAppService : TradeXpressAppService, IAssayOfficeAppServi
             return; // değişmedi
         }
 
+        await EnsureCodeUniqueAsync(entity.CompanyId, normalizedCode, entity.Id);
+        entity.SetCode(normalizedCode);
+    }
+
+    /// <summary>Aynı ŞİRKET altında Code benzersizliği ((TenantId, CompanyId, Code) unique index'iyle hizalı).
+    /// Create'te <paramref name="excludeId"/>=Guid.Empty (kendisi yok), Update'te entity.Id (kendisi hariç).
+    /// Dostane BusinessException — ham DB çakışmasını önler.</summary>
+    private async Task EnsureCodeUniqueAsync(Guid companyId, string normalizedCode, Guid excludeId)
+    {
         var duplicate = await AsyncExecuter.AnyAsync(
             (await _repository.GetQueryableAsync())
-                .Where(a => a.CompanyId == entity.CompanyId && a.Id != entity.Id && a.Code == normalizedCode));
+                .Where(a => a.CompanyId == companyId && a.Id != excludeId && a.Code == normalizedCode));
         if (duplicate)
         {
             throw new BusinessException("TradeXpress:AssayOffice:CodeAlreadyExists");
         }
-
-        entity.SetCode(normalizedCode);
     }
 
     public virtual async Task<List<AssayOfficeListDto>> GetPickerListAsync()

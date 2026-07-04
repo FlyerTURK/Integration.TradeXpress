@@ -149,6 +149,18 @@ public abstract class ServiceAppServiceTests<TStartupModule> : TradeXpressApplic
     }
 
     [Fact]
+    public async Task Create_with_duplicate_code_gives_friendly_error()
+    {
+        // Katalog tabanı (HostCatalogCrudAppService) Create ön-benzersizlik kontrolü — Service pilot.
+        await _appService.CreateAsync(new ServiceCreateDto { Code = "DUP", Name = "İlk" });
+
+        // Aynı kapsamda aynı kod tekrar → ham DB unique çakışması DEĞİL, dostane hata.
+        var ex = await Should.ThrowAsync<BusinessException>(
+            () => _appService.CreateAsync(new ServiceCreateDto { Code = "DUP", Name = "İkinci" }));
+        ex.Code.ShouldBe("TradeXpress:Service:CodeAlreadyExists");
+    }
+
+    [Fact]
     public async Task Sorting_by_a_field_outside_the_whitelist_is_rejected()
     {
         await Should.ThrowAsync<ListQueryException>(() => _appService.GetListAsync(new ServiceListRequestDto

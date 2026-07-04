@@ -119,6 +119,12 @@ public class AccountAppService : TradeXpressAppService, IAccountAppService
         var balanceUnitId = await ResolveCurrencyAsync(input.BalanceCurrencyUnitId);
         var limitUnitId = await ResolveCurrencyAsync(input.LimitUnitId);
 
+        // Benzersizlik ÖN-kontrolü (ürün kuralı hizası): aynı şirkette aynı kodlu hesap → dostane hata,
+        // ham DB (TenantId,CompanyId,Code) unique çakışması değil. Update'le simetrik (kendisi yok → excludeId boş).
+        var normalizedCode = StringFieldGuard.NormalizeCode(
+            input.Code, nameof(Account.Code), EntityFieldConsts.CodeMinLength, AccountConsts.CodeMaxLength);
+        await EnsureCodeUniqueAsync(companyId, normalizedCode, Guid.Empty);
+
         var entity = new Account(
             companyId,
             input.Code,
@@ -181,15 +187,22 @@ public class AccountAppService : TradeXpressAppService, IAccountAppService
             return; // değişmedi
         }
 
+        await EnsureCodeUniqueAsync(entity.CompanyId, normalizedCode, entity.Id);
+        entity.SetCode(normalizedCode);
+    }
+
+    /// <summary>Aynı ŞİRKET altında Code benzersizliği ((TenantId,CompanyId,Code) unique index'iyle hizalı).
+    /// Create'te <paramref name="excludeId"/>=Guid.Empty (kendisi yok), Update'te entity.Id (kendisi hariç).
+    /// Dostane BusinessException — ham DB çakışmasını önler.</summary>
+    private async Task EnsureCodeUniqueAsync(Guid companyId, string normalizedCode, Guid excludeId)
+    {
         var duplicate = await AsyncExecuter.AnyAsync(
             (await _repository.GetQueryableAsync())
-                .Where(a => a.CompanyId == entity.CompanyId && a.Id != entity.Id && a.Code == normalizedCode));
+                .Where(a => a.CompanyId == companyId && a.Id != excludeId && a.Code == normalizedCode));
         if (duplicate)
         {
             throw new BusinessException("TradeXpress:Account:CodeAlreadyExists");
         }
-
-        entity.SetCode(normalizedCode);
     }
 
     // ── alt hesap grafı diff (Id + IsDeleted) → SubAccountAppService'e DELEGE ───

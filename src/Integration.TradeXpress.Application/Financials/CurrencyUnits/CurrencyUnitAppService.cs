@@ -110,6 +110,12 @@ public class CurrencyUnitAppService : TradeXpressAppService, ICurrencyUnitAppSer
     [Authorize(TradeXpressPermissions.CurrencyUnits.Create)]
     public virtual async Task<CurrencyUnitGetDto> CreateAsync(CurrencyUnitCreateDto input)
     {
+        // Benzersizlik ÖN-kontrolü (Update ile simetrik + aynı scope): (TenantId, Code) unique index'iyle hizalı,
+        // ham DB çakışması yerine dostane hata. Ambient multi-tenant filter kapsamı belirler (host→global, tenant→kendi).
+        var normalizedCode = StringFieldGuard.NormalizeCode(
+            input.Code, nameof(CurrencyUnit.Code), EntityFieldConsts.CodeMinLength, CurrencyConsts.CodeMaxLength);
+        await EnsureCodeUniqueAsync(normalizedCode, Guid.Empty);
+
         // TenantId otomatik atanır (ABP IMultiTenant): host→null (global), tenant→kendi.
         var entity = new CurrencyUnit(
             input.Code,
@@ -190,15 +196,22 @@ public class CurrencyUnitAppService : TradeXpressAppService, ICurrencyUnitAppSer
             throw new BusinessException("TradeXpress:CurrencyUnit:HostCodeLocked");
         }
 
+        await EnsureCodeUniqueAsync(normalizedCode, entity.Id);
+        entity.SetCode(normalizedCode);
+    }
+
+    /// <summary>Code benzersizliği ((TenantId, Code) unique index'iyle hizalı; kapsamı ambient multi-tenant
+    /// filter belirler — host→global, tenant→kendi). Create'te <paramref name="excludeId"/>=Guid.Empty
+    /// (kendisi yok), Update'te entity.Id (kendisi hariç). Dostane BusinessException — ham DB çakışmasını önler.</summary>
+    private async Task EnsureCodeUniqueAsync(string normalizedCode, Guid excludeId)
+    {
         var duplicate = await AsyncExecuter.AnyAsync(
             (await _repository.GetQueryableAsync())
-                .Where(u => u.Id != entity.Id && u.Code == normalizedCode));
+                .Where(u => u.Id != excludeId && u.Code == normalizedCode));
         if (duplicate)
         {
             throw new BusinessException("TradeXpress:CurrencyUnit:CodeAlreadyExists");
         }
-
-        entity.SetCode(normalizedCode);
     }
 
     /// <summary>Tenant, global (host) birimi düzenleyemez/silemez — yalnız host yönetir.</summary>

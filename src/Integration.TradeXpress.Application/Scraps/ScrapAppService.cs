@@ -73,6 +73,13 @@ public class ScrapAppService
         return Task.FromResult(entity);
     }
 
+    protected override Task EnsureCreateCodeUniqueAsync(Scrap entity)
+    {
+        // Update ile aynı scope/error-code (TenantId bacağı standart filter'dan): aynı kod → dostane hata.
+        return EnsureCodeUniqueAsync(
+            entity, x => x.Code == entity.Code, "TradeXpress:Scrap:CodeAlreadyExists", excludeSelf: false);
+    }
+
     protected override async Task MapToEntityAsync(ScrapUpdateDto updateInput, Scrap entity)
     {
         // Kod düzenlenebilir (ürün kuralı 2026-07-04); benzersizlik scope'u DB unique index (TenantId, Code) ile hizalı.

@@ -68,6 +68,13 @@ public class CountryAppService
             createInput.Code, createInput.Name, unitId, createInput.DisplayOrder);
     }
 
+    protected override Task EnsureCreateCodeUniqueAsync(Country entity)
+    {
+        // Update ile aynı scope/error-code (TenantId bacağı standart filter'dan): aynı kod → dostane hata.
+        return EnsureCodeUniqueAsync(
+            entity, x => x.Code == entity.Code, "TradeXpress:Country:CodeAlreadyExists", excludeSelf: false);
+    }
+
     protected override async Task MapToEntityAsync(CountryUpdateDto updateInput, Country entity)
     {
         // Kod düzenlenebilir (ürün kuralı 2026-07-04); ISO-2 normalize entity kuralıyla aynı (NormalizeInvariantCode).

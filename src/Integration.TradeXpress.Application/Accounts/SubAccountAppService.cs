@@ -112,6 +112,11 @@ public class SubAccountAppService : TradeXpressAppService, ISubAccountAppService
         var account = await EnsureAccountVisibleAsync(input.AccountId);
         var branchId = await ResolveBranchAsync(input.BranchId);   // opsiyonel — null geçerli
 
+        // Benzersizlik ÖN-kontrolü: aynı HESAP altında aynı kodlu alt hesap → dostane hata (Update'le simetrik).
+        var normalizedCode = StringFieldGuard.NormalizeCode(
+            input.Code, nameof(SubAccount.Code), EntityFieldConsts.CodeMinLength, AccountConsts.CodeMaxLength);
+        await EnsureCodeUniqueAsync(account.Id, normalizedCode, Guid.Empty);
+
         var entity = new SubAccount(account.CompanyId, account.Id, branchId, input.Code, input.Name);
         entity.SetDescription(input.Description);
 
@@ -146,15 +151,21 @@ public class SubAccountAppService : TradeXpressAppService, ISubAccountAppService
             return; // değişmedi
         }
 
+        await EnsureCodeUniqueAsync(entity.AccountId, normalizedCode, entity.Id);
+        entity.SetCode(normalizedCode);
+    }
+
+    /// <summary>Aynı HESAP altında Code benzersizliği. Create'te <paramref name="excludeId"/>=Guid.Empty
+    /// (kendisi yok), Update'te entity.Id (kendisi hariç). Dostane BusinessException — ham DB çakışmasını önler.</summary>
+    private async Task EnsureCodeUniqueAsync(Guid accountId, string normalizedCode, Guid excludeId)
+    {
         var duplicate = await AsyncExecuter.AnyAsync(
             (await _repository.GetQueryableAsync())
-                .Where(s => s.AccountId == entity.AccountId && s.Id != entity.Id && s.Code == normalizedCode));
+                .Where(s => s.AccountId == accountId && s.Id != excludeId && s.Code == normalizedCode));
         if (duplicate)
         {
             throw new BusinessException("TradeXpress:SubAccount:CodeAlreadyExists");
         }
-
-        entity.SetCode(normalizedCode);
     }
 
     [Authorize(TradeXpressPermissions.SubAccounts.Delete)]

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Integration.Framework;
 using Integration.Framework.Base.Querying;
 using Integration.TradeXpress.Branches;
 using Integration.TradeXpress.Countries;
@@ -128,6 +129,11 @@ public class CompanyAppService : TradeXpressAppService, ICompanyAppService
         await EnsureCurrencyVisibleAsync(input.BaseCurrencyUnitId);
         var countryId = await EnsureCountryVisibleAsync(input.CountryId);
 
+        // Benzersizlik ÖN-kontrolü (tenant scope): aynı kodlu şirket → dostane hata (Update'le simetrik).
+        var normalizedCode = StringFieldGuard.NormalizeCode(
+            input.Code, nameof(Company.Code), EntityFieldConsts.CodeMinLength, CompanyConsts.CodeMaxLength);
+        await EnsureCodeUniqueAsync(normalizedCode, Guid.Empty);
+
         var c = new Company(
             input.Code,
             input.Name,
@@ -168,7 +174,7 @@ public class CompanyAppService : TradeXpressAppService, ICompanyAppService
             throw new BusinessException("TradeXpress:Company:CannotUnsetHeadquarters");
         }
 
-        c.SetCode(input.Code);
+        await ApplyCodeChangeAsync(c, input.Code);
         c.SetName(input.Name);
         c.SetCountry(countryId);
         c.SetBaseCurrency(input.BaseCurrencyUnitId);
@@ -261,6 +267,35 @@ public class CompanyAppService : TradeXpressAppService, ICompanyAppService
     }
 
     // ── helpers ───────────────────────────────────────────────────────────────
+    /// <summary>Kod değişikliği (kod düzenlenebilir ürün kuralı): normalize → değiştiyse tenant içinde
+    /// benzersizliği doğrula (kendisi hariç; dostane hata) → uygula.</summary>
+    private async Task ApplyCodeChangeAsync(Company c, string rawCode)
+    {
+        var normalizedCode = StringFieldGuard.NormalizeCode(
+            rawCode, nameof(c.Code), EntityFieldConsts.CodeMinLength, CompanyConsts.CodeMaxLength);
+        if (string.Equals(normalizedCode, c.Code, StringComparison.Ordinal))
+        {
+            return; // değişmedi
+        }
+
+        await EnsureCodeUniqueAsync(normalizedCode, c.Id);
+        c.SetCode(normalizedCode);
+    }
+
+    /// <summary>TENANT içinde Code benzersizliği (ambient multi-tenant filtresi tenant'ı scope'lar).
+    /// Create'te <paramref name="excludeId"/>=Guid.Empty, Update'te c.Id. Dostane BusinessException —
+    /// ham DB unique çakışmasını önler.</summary>
+    private async Task EnsureCodeUniqueAsync(string normalizedCode, Guid excludeId)
+    {
+        var duplicate = await AsyncExecuter.AnyAsync(
+            (await _repository.GetQueryableAsync())
+                .Where(x => x.Id != excludeId && x.Code == normalizedCode));
+        if (duplicate)
+        {
+            throw new BusinessException("TradeXpress:Company:CodeAlreadyExists");
+        }
+    }
+
     /// <summary>Tenant başına tek HQ şirket: verilen hariç diğer HQ'ları düşürür.</summary>
     private async Task UnsetOtherHeadquartersAsync(Guid exceptCompanyId, bool autoSave = true)
     {

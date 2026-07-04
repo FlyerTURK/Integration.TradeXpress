@@ -73,6 +73,13 @@ public class FutureAppService
         return Task.FromResult(entity);
     }
 
+    protected override Task EnsureCreateCodeUniqueAsync(Future entity)
+    {
+        // Update ile aynı scope/error-code (TenantId bacağı standart filter'dan): aynı kod → dostane hata.
+        return EnsureCodeUniqueAsync(
+            entity, x => x.Code == entity.Code, "TradeXpress:Future:CodeAlreadyExists", excludeSelf: false);
+    }
+
     protected override async Task MapToEntityAsync(FutureUpdateDto updateInput, Future entity)
     {
         // Kod düzenlenebilir (ürün kuralı 2026-07-04); benzersizlik scope'u DB unique index (TenantId, Code) ile hizalı.

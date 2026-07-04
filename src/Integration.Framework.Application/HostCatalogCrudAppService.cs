@@ -98,6 +98,21 @@ public abstract class HostCatalogCrudAppService<TEntity, TGetDto, TListDto, TLis
         }
     }
 
+    public override async Task<TGetDto> CreateAsync(TCreateInput input)
+    {
+        await CheckCreatePolicyAsync();
+
+        // ABP CrudAppService.CreateAsync ile birebir akış; tek fark: insert ÖNCESİ kod-benzersizlik
+        // ön-kontrolü (dostane CodeAlreadyExists — ham DB unique çakışması yerine). TenantId önce
+        // atanır ki entity persist-edilecek nihai haliyle (Code dahil) doğrulansın.
+        var entity = await MapToEntityAsync(input);
+        TryToSetTenantId(entity);
+        await EnsureCreateCodeUniqueAsync(entity);
+        await Repository.InsertAsync(entity, autoSave: true);
+
+        return await MapToGetOutputDtoAsync(entity);
+    }
+
     public override async Task<TGetDto> UpdateAsync(Guid id, TUpdateInput input)
     {
         await CheckUpdatePolicyAsync();
@@ -191,16 +206,46 @@ public abstract class HostCatalogCrudAppService<TEntity, TGetDto, TListDto, TLis
             return; // değişmedi
         }
 
-        var duplicate = await AsyncExecuter.AnyAsync(
-            (await Repository.GetQueryableAsync())
-                .Where(x => x.Id != entity.Id)
-                .Where(buildDuplicateFilter(normalizedCode)));
-        if (duplicate)
+        // Benzersizlik sorgusu/hata fırlatma TEK yerde (EnsureCodeUniqueAsync). Update kendisi hariç.
+        await EnsureCodeUniqueAsync(entity, buildDuplicateFilter(normalizedCode), duplicateErrorCode, excludeSelf: true);
+
+        writeCode(entity, normalizedCode);
+    }
+
+    /// <summary>
+    /// Create ön-benzersizlik kontrolü hook'u — <see cref="CreateAsync"/> içinde insert ÖNCESİ çağrılır.
+    /// Kod taşıyan katalog türevleri override eder ve <see cref="EnsureCodeUniqueAsync"/>'i (entity'nin nihai
+    /// kodu üzerine kurulu duplicate-filter + Update'le AYNI error-code, <c>excludeSelf: false</c>) çağırır.
+    /// Varsayılan no-op (kod-benzersizliği olmayan katalog).
+    /// </summary>
+    protected virtual Task EnsureCreateCodeUniqueAsync(TEntity entity)
+    {
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Benzersizlik ön-kontrolünün TEK kaynağı (Create+Update ortak): <paramref name="duplicateFilter"/>'a
+    /// uyan başka kayıt varsa dostane <see cref="BusinessException"/> (<paramref name="duplicateErrorCode"/>)
+    /// fırlatır — ham DB unique çakışmasını önler. <paramref name="excludeSelf"/>: Update'te kendisi (Id)
+    /// hariç tutulur; Create'te tutulmaz (entity daha eklenmedi). Scope'un TenantId/company bacağı
+    /// <paramref name="duplicateFilter"/> + repo'nun standart multi-tenant filter'ıyla verilir.
+    /// </summary>
+    protected async Task EnsureCodeUniqueAsync(
+        TEntity entity,
+        Expression<Func<TEntity, bool>> duplicateFilter,
+        string duplicateErrorCode,
+        bool excludeSelf)
+    {
+        var query = (await Repository.GetQueryableAsync()).Where(duplicateFilter);
+        if (excludeSelf)
+        {
+            query = query.Where(x => x.Id != entity.Id);
+        }
+
+        if (await AsyncExecuter.AnyAsync(query))
         {
             throw new BusinessException(duplicateErrorCode);
         }
-
-        writeCode(entity, normalizedCode);
     }
 
     /// <summary>Tenant, global (host) kaydı düzenleyemez/silemez.</summary>
