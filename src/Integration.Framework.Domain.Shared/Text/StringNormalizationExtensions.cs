@@ -12,7 +12,8 @@ namespace Integration.Framework;
 /// </summary>
 public static class StringNormalizationExtensions
 {
-    /// <summary>Code normalizasyonu: Trim · çoklu boşluk→tek · boşluk→<c>_</c> · BÜYÜK harf (invariant, kültür-bağımsız).</summary>
+    /// <summary>Code normalizasyonu: Trim · çoklu boşluk→tek · BÜYÜK harf (invariant, kültür-bağımsız).
+    /// Boşluk KORUNUR (ürün kararı 2026-07-04: '_' dönüşümü kaldırıldı — kod "ANA KASA" gibi boşluklu yazılabilir).</summary>
     public static string NormalizeAsCode(this string? raw)
     {
         if (string.IsNullOrWhiteSpace(raw))
@@ -21,7 +22,7 @@ public static class StringNormalizationExtensions
         }
 
         var collapsed = CollapseWhitespace(raw.Trim());
-        return collapsed.Replace(' ', '_').ToUpperInvariant();
+        return collapsed.ToUpperInvariant();
     }
 
     /// <summary>Name normalizasyonu: Trim · çoklu boşluk→tek · her kelimenin ilk harfi büyük (TitleCase, CurrentUICulture).</summary>
