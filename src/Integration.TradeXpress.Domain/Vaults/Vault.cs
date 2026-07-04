@@ -1,3 +1,5 @@
+using Integration.TradeXpress.MultiCompany;
+
 namespace Integration.TradeXpress.Vaults;
 
 /// <summary>
@@ -5,10 +7,17 @@ namespace Integration.TradeXpress.Vaults;
 /// parent (<see cref="BranchId"/>, id-only referans; nav YOK). Şube oluşturulurken otomatik bir
 /// <see cref="IsDefault"/> (varsayılan) kasa açılır; bir şubenin son kasası silinemez (en az 1
 /// child kuralı). Per-tenant (IMultiTenant).
+///
+/// <para><b>Çok-şirket güvenlik sınırı:</b> <see cref="CompanyId"/> parent <see cref="Branches.Branch"/>'in
+/// şirketinden DENORMALİZE edilir (ctor'da geçer, set-once). Kasa tek başına bir company kolonu taşımasaydı
+/// cross-company IDOR açık kalırdı; <see cref="ICompanyOwned"/> ile global company query-filter yapısal kapatır.</para>
 /// </summary>
-public class Vault : FullAuditedAggregateRoot<Guid>, IMultiTenant
+public class Vault : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwned
 {
     public virtual Guid? TenantId { get; protected set; }
+
+    /// <summary>Sahip şirket — parent şubenin şirketinden denormalize (güvenlik sınırı). Oluşturmadan sonra değişmez.</summary>
+    public virtual Guid CompanyId { get; protected set; }
 
     /// <summary>Üst şube — id-only referans (nav YOK).</summary>
     public virtual Guid BranchId { get; protected set; }
@@ -28,12 +37,14 @@ public class Vault : FullAuditedAggregateRoot<Guid>, IMultiTenant
     protected Vault() { }
 
     public Vault(
+        Guid companyId,
         Guid branchId,
         string code,
         string name,
         bool isDefault = false,
         int displayOrder = 0)
     {
+        SetCompany(companyId);
         SetBranch(branchId);
         SetCode(code);
         SetName(name);
@@ -71,6 +82,30 @@ public class Vault : FullAuditedAggregateRoot<Guid>, IMultiTenant
         }
 
         BranchId = branchId;
+    }
+
+    /// <summary>Tek seferlik geçiş backfill'i (migration sonrası): <see cref="CompanyId"/> yalnız BOŞSA
+    /// parent şubenin şirketinden doldurulur. Zaten doluysa DOKUNMAZ (idempotent no-op; set-once invariant
+    /// korunur — Empty→değer geçişi mümkün, yeniden atama değil).</summary>
+    public virtual void BackfillCompanyIfMissing(Guid companyId)
+    {
+        if (CompanyId != Guid.Empty)
+        {
+            return;
+        }
+
+        SetCompany(companyId);
+    }
+
+    // Şirket (CompanyId) set-once → public mutator YOK; parent şubenin şirketinden denormalize (AppService/OrgTreeManager geçer).
+    private void SetCompany(Guid companyId)
+    {
+        if (companyId == Guid.Empty)
+        {
+            throw new BusinessException("TradeXpress:Vault:CompanyRequired");
+        }
+
+        CompanyId = companyId;
     }
 
     public virtual void SetDescription(string? description)

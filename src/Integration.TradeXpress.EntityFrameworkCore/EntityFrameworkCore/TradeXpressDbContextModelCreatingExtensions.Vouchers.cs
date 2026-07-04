@@ -55,6 +55,9 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
             b.HasIndex(x => new { x.TenantId, x.AccountId, x.Code }).IsUnique();
             b.HasIndex(x => new { x.TenantId, x.BranchId });
 
+            // Çok-şirket güvenlik sınırı (ICompanyOwned): company query-filter'ı hızlandırır (Account deseniyle hizalı).
+            b.HasIndex(x => new { x.TenantId, x.CompanyId });
+
             // Parent hesap (ZORUNLU) + şube (OPSİYONEL/nullable) — id-only (nav YOK); referans varken silme engeli (Restrict).
             b.HasOne<Account>().WithMany().HasForeignKey(x => x.AccountId).IsRequired().OnDelete(DeleteBehavior.Restrict);
             b.HasOne<Branch>().WithMany().HasForeignKey(x => x.BranchId).IsRequired(false).OnDelete(DeleteBehavior.Restrict);

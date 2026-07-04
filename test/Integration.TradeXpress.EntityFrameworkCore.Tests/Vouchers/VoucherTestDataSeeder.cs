@@ -74,7 +74,7 @@ public class VoucherTestDataSeeder : ITransientDependency
             autoSave: true);
 
         var vault = await _vaultRepository.InsertAsync(
-            new Vault(branch.Id, $"{prefix}VLT", $"{prefix} Vault", isDefault: true),
+            new Vault(company.Id, branch.Id, $"{prefix}VLT", $"{prefix} Vault", isDefault: true),
             autoSave: true);
 
         var account = await _accountRepository.InsertAsync(
@@ -82,7 +82,7 @@ public class VoucherTestDataSeeder : ITransientDependency
             autoSave: true);
 
         var subAccount = await _subAccountRepository.InsertAsync(
-            new SubAccount(account.Id, branch.Id, $"{prefix}SUB", $"{prefix} Sub Account"),
+            new SubAccount(company.Id, account.Id, branch.Id, $"{prefix}SUB", $"{prefix} Sub Account"),
             autoSave: true);
 
         return new VoucherTestData(
@@ -94,7 +94,7 @@ public class VoucherTestDataSeeder : ITransientDependency
     public async Task<Guid> SeedCounterSubAccountAsync(VoucherTestData data, string prefix = "CNT")
     {
         var sub = await _subAccountRepository.InsertAsync(
-            new SubAccount(data.AccountId, data.BranchId, $"{prefix}SUB", $"{prefix} Counter Sub"),
+            new SubAccount(data.CompanyId, data.AccountId, data.BranchId, $"{prefix}SUB", $"{prefix} Counter Sub"),
             autoSave: true);
         return sub.Id;
     }

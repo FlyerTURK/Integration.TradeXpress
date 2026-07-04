@@ -88,10 +88,13 @@ public class VaultAppService : TradeXpressAppService, IVaultAppService
         if (CurrentTenant.Id == null)
             throw new BusinessException("TradeXpress:Company:HostHasNoCompanies");
 
-        await EnsureBranchVisibleAsync(input.BranchId);
+        // Güvenlik sınırı: CompanyId client'tan DEĞİL, görünür parent şubeden DENORMALİZE edilir
+        // (Branch tenant-scoped görünür → yabancı şubeden türetme sızmaz).
+        var branch = await EnsureBranchVisibleAsync(input.BranchId);
 
         var v = new Vault(
-            input.BranchId,
+            branch.CompanyId,
+            branch.Id,
             input.Code,
             input.Name,
             isDefault: input.IsDefault,
@@ -143,10 +146,11 @@ public class VaultAppService : TradeXpressAppService, IVaultAppService
 
     // ── helpers ───────────────────────────────────────────────────────────────
 
-    private async Task EnsureBranchVisibleAsync(Guid branchId)
+    private async Task<Branch> EnsureBranchVisibleAsync(Guid branchId)
     {
-        if (await _branchRepository.FindAsync(branchId) == null)
+        if (await _branchRepository.FindAsync(branchId) is not { } branch)
             throw new EntityNotFoundException(typeof(Branch), branchId);
+        return branch;
     }
 
     private async Task UnsetOtherDefaultsAsync(Guid branchId, Guid exceptVaultId)

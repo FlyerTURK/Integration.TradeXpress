@@ -90,6 +90,9 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
             b.HasIndex(x => new { x.TenantId, x.BranchId, x.Code }).IsUnique();
             b.HasIndex(x => new { x.TenantId, x.BranchId });
             b.HasIndex(x => new { x.TenantId, x.BranchId, x.IsDefault });
+
+            // Çok-şirket güvenlik sınırı (ICompanyOwned): company query-filter'ı hızlandırır (Account deseniyle hizalı).
+            b.HasIndex(x => new { x.TenantId, x.CompanyId });
         });
     }
 

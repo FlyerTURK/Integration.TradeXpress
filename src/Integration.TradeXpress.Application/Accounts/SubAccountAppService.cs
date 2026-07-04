@@ -106,10 +106,12 @@ public class SubAccountAppService : TradeXpressAppService, ISubAccountAppService
         if (CurrentTenant.Id == null)
             throw new BusinessException("TradeXpress:Company:HostHasNoCompanies");
 
-        var accountId = await EnsureAccountVisibleAsync(input.AccountId);
+        // Güvenlik sınırı: CompanyId client'tan DEĞİL, görünür parent hesaptan DENORMALİZE edilir
+        // (Account'un kendisi company query-filter altında → yabancı şirketin hesabı görünmez → türetme sızmaz).
+        var account = await EnsureAccountVisibleAsync(input.AccountId);
         var branchId = await ResolveBranchAsync(input.BranchId);   // opsiyonel — null geçerli
 
-        var entity = new SubAccount(accountId, branchId, input.Code, input.Name);
+        var entity = new SubAccount(account.CompanyId, account.Id, branchId, input.Code, input.Name);
         entity.SetDescription(input.Description);
 
         await _repository.InsertAsync(entity, autoSave: true);
@@ -130,15 +132,22 @@ public class SubAccountAppService : TradeXpressAppService, ISubAccountAppService
     }
 
     [Authorize(TradeXpressPermissions.SubAccounts.Delete)]
-    public virtual async Task DeleteAsync(Guid id) => await _repository.DeleteAsync(id, autoSave: true);
+    public virtual async Task DeleteAsync(Guid id)
+    {
+        // Güvenlik sınırı (Account/Vault deseniyle hizalı): ÖNCE görünür kaydı yükle → yabancı şirketin
+        // alt hesabı company query-filter altında gizli → EntityNotFound (fail-loud). ABP'nin DeleteAsync(id)
+        // içi FindAsync ile SESSİZCE no-op ederdi; sınırı açık/tutarlı kılmak için GetAsync ile yüklüyoruz.
+        var entity = await _repository.GetAsync(id);
+        await _repository.DeleteAsync(entity, autoSave: true);
+    }
 
     // ── helpers ───────────────────────────────────────────────────────────────
 
-    private async Task<Guid> EnsureAccountVisibleAsync(Guid? accountId)
+    private async Task<Account> EnsureAccountVisibleAsync(Guid? accountId)
     {
-        if (accountId is not { } id || id == Guid.Empty || await _accountRepository.FindAsync(id) == null)
+        if (accountId is not { } id || id == Guid.Empty || await _accountRepository.FindAsync(id) is not { } account)
             throw new EntityNotFoundException(typeof(Account), accountId ?? Guid.Empty);
-        return id;
+        return account;
     }
 
     /// <summary>Şube OPSİYONEL: null/boş → null döner; verilmişse görünür olmalı (yoksa EntityNotFound).</summary>

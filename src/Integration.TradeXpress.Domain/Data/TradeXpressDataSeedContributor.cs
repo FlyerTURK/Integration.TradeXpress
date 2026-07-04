@@ -17,7 +17,8 @@ public class TradeXpressDataSeedContributor(
     Integration.TradeXpress.Scraps.ScrapSeeder scrapSeeder,
     Integration.TradeXpress.Metals.MetalSeeder metalSeeder,
     OrgSeeder orgSeeder,
-    Integration.TradeXpress.Vouchers.Balance.BalanceLedgerBackfiller balanceLedgerBackfiller)
+    Integration.TradeXpress.Vouchers.Balance.BalanceLedgerBackfiller balanceLedgerBackfiller,
+    Integration.TradeXpress.MultiCompany.CompanyOwnedBackfiller companyOwnedBackfiller)
     : IDataSeedContributor, ITransientDependency
 {
     #region Fields
@@ -32,6 +33,7 @@ public class TradeXpressDataSeedContributor(
     private readonly Integration.TradeXpress.Metals.MetalSeeder _metalSeeder = metalSeeder;
     private readonly OrgSeeder _orgSeeder = orgSeeder;
     private readonly Integration.TradeXpress.Vouchers.Balance.BalanceLedgerBackfiller _balanceLedgerBackfiller = balanceLedgerBackfiller;
+    private readonly Integration.TradeXpress.MultiCompany.CompanyOwnedBackfiller _companyOwnedBackfiller = companyOwnedBackfiller;
 
     #endregion
 
@@ -77,6 +79,14 @@ public class TradeXpressDataSeedContributor(
         if (context.TenantId != null)
         {
             await _balanceLedgerBackfiller.BackfillCurrentTenantAsync();
+        }
+
+        // (6) Çok-şirket güvenlik sınırı geçiş backfill'i: ICompanyOwned'a taşınan SubAccount/Vault'ta
+        //     migration'ın Guid.Empty bıraktığı CompanyId'yi parent'tan doldur (idempotent; boş satır
+        //     yoksa no-op). Org yapısı tenant-scoped → yalnız tenant'ta.
+        if (context.TenantId != null)
+        {
+            await _companyOwnedBackfiller.BackfillCurrentTenantAsync();
         }
     }
 

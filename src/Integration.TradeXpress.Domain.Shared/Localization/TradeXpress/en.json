@@ -240,6 +240,7 @@
     "Entity:Vault": "Vault",
     "TradeXpress:Vault:BranchMustHaveVault": "A branch must have at least one vault; the last vault cannot be deleted.",
     "TradeXpress:Vault:BranchRequired": "A branch is required for the vault.",
+    "TradeXpress:Vault:CompanyRequired": "A company is required for the vault.",
     "DrillMinItems": "This hierarchy must keep at least one child; the last record cannot be deleted.",
     "Vault:BranchIdHint": "The parent cannot be changed after creation.",
     "Branch:IsHeadquartersHint": "Setting as headquarters demotes the company's previous HQ branch (one HQ per company).",

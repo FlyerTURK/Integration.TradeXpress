@@ -89,6 +89,7 @@ public class OrgTreeManager : DomainService
         }
 
         var vault = new Vault(
+            branch.CompanyId,
             branch.Id,
             VaultConsts.DefaultCode,
             VaultConsts.DefaultName,

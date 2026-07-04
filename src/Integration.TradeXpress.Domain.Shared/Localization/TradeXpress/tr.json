@@ -270,6 +270,7 @@
     "Entity:Vault": "Kasa",
     "TradeXpress:Vault:BranchMustHaveVault": "Şubenin en az bir kasası olmalı; son kasa silinemez.",
     "TradeXpress:Vault:BranchRequired": "Kasa için şube seçimi zorunludur.",
+    "TradeXpress:Vault:CompanyRequired": "Kasa için şirket bilgisi zorunludur.",
     "DrillMinItems": "Bu hiyerarşinin en az bir alt kaydı olmalı; son kayıt silinemez.",
     "Vault:BranchIdHint": "Üst kayıt oluşturduktan sonra değiştirilemez.",
     "Branch:IsHeadquartersHint": "Merkez yapılırsa şirketin önceki merkez şubesi düşürülür (şirket başına tek merkez).",

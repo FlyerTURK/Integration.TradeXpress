@@ -251,9 +251,9 @@ public class BalanceSheetComputeTests : TradeXpressEntityFrameworkCoreTestBase
             var branch = await _branchRepository.InsertAsync(
                 new Branch(data.CompanyId, "TSTBR2", "TST Branch 2", isHeadquarters: false), autoSave: true);
             var vault = await _vaultRepository.InsertAsync(
-                new Vault(branch.Id, "TSTVLT2", "TST Vault 2", isDefault: true), autoSave: true);
+                new Vault(data.CompanyId, branch.Id, "TSTVLT2", "TST Vault 2", isDefault: true), autoSave: true);
             var sub = await _subAccountRepository.InsertAsync(
-                new SubAccount(data.AccountId, branch.Id, "TSTSUB2", "TST Sub Account 2"), autoSave: true);
+                new SubAccount(data.CompanyId, data.AccountId, branch.Id, "TSTSUB2", "TST Sub Account 2"), autoSave: true);
             return (branch.Id, vault.Id, sub.Id);
         });
     }
