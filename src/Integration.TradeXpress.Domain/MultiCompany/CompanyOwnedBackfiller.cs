@@ -5,8 +5,10 @@ using System.Threading.Tasks;
 using Integration.TradeXpress.Accounts;
 using Integration.TradeXpress.Branches;
 using Integration.TradeXpress.Vaults;
+using Volo.Abp.Data;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Domain.Services;
+using Volo.Abp.MultiTenancy;
 
 namespace Integration.TradeXpress.MultiCompany;
 
@@ -21,9 +23,15 @@ namespace Integration.TradeXpress.MultiCompany;
 /// doldurur. Migrate→seed penceresi tek DbMigrator koşusundadır (uygulama deploy'da down) → dışarıya sızmaz.</para>
 ///
 /// <para><b>İdempotent:</b> yalnız <c>CompanyId == Guid.Empty</c> satırlara dokunur; ikinci koşuda hiçbir şey
-/// yapmaz (boş satır kalmaz). WHERE'siz toplu yazma YOK. Aktif tenant kapsamında çalışır (org yapısı per-tenant);
-/// çağıran (seed orchestrator) her tenant için ayrı tetikler. Repository tabanlı (raw SQL YOK) → SQL Server +
+/// yapmaz (boş satır kalmaz). WHERE'siz toplu yazma YOK. Repository tabanlı (raw SQL YOK) → SQL Server +
 /// Sqlite test aynı yolu izler.</para>
+///
+/// <para><b>TÜM tenant'ları kapsar (multi-tenant):</b> geçiş backfill'i tenant-bağımsız bir veri düzeltmesidir
+/// (CompanyId denormalizasyonu). Bu yüzden <see cref="IMultiTenant"/> filtresi <c>Disable</c> edilerek çalışır —
+/// hangi tenant context'inde tetiklenirse tetiklensin (host seed dahil) SİSTEMDEKİ TÜM tenant'ların boş
+/// satırlarını görüp parent'tan (aynı BranchId/AccountId → doğru tenant'ın Branch/Account'u) doldurur. Böylece
+/// çok-tenant'lı kurulumda seed'in yalnız bir tenant'ta koşması durumunda dahi hiçbir kayıt boş kalmaz
+/// (önceki tek-tenant kapsamlı sürümün bıraktığı boşluk kapatıldı).</para>
 /// </summary>
 public class CompanyOwnedBackfiller : DomainService
 {
@@ -31,25 +39,32 @@ public class CompanyOwnedBackfiller : DomainService
     private readonly IRepository<Account, Guid> _accountRepository;
     private readonly IRepository<Vault, Guid> _vaultRepository;
     private readonly IRepository<Branch, Guid> _branchRepository;
+    private readonly IDataFilter _dataFilter;
 
     public CompanyOwnedBackfiller(
         IRepository<SubAccount, Guid> subAccountRepository,
         IRepository<Account, Guid> accountRepository,
         IRepository<Vault, Guid> vaultRepository,
-        IRepository<Branch, Guid> branchRepository)
+        IRepository<Branch, Guid> branchRepository,
+        IDataFilter dataFilter)
     {
         _subAccountRepository = subAccountRepository;
         _accountRepository    = accountRepository;
         _vaultRepository      = vaultRepository;
         _branchRepository     = branchRepository;
+        _dataFilter           = dataFilter;
     }
 
-    /// <summary>Aktif tenant'ın boş (Guid.Empty) CompanyId taşıyan SubAccount/Vault satırlarını parent'tan
-    /// doldurur. Boş satır yoksa (temiz kurulum ya da ikinci koşu) ucuz no-op.</summary>
-    public async Task BackfillCurrentTenantAsync()
+    /// <summary>Sistemdeki (tüm tenant'lar) boş (Guid.Empty) CompanyId taşıyan SubAccount/Vault satırlarını
+    /// parent'tan doldurur. Boş satır yoksa (temiz kurulum ya da ikinci koşu) ucuz no-op.</summary>
+    public async Task BackfillAllTenantsAsync()
     {
-        await BackfillSubAccountsAsync();
-        await BackfillVaultsAsync();
+        // Tenant filtresi kapalı: tüm tenant'ların boş kayıtları tek koşuda görülür ve doldurulur.
+        using (_dataFilter.Disable<IMultiTenant>())
+        {
+            await BackfillSubAccountsAsync();
+            await BackfillVaultsAsync();
+        }
     }
 
     private async Task BackfillSubAccountsAsync()

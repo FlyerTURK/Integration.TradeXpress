@@ -85,10 +85,13 @@ public class TradeXpressDataSeedContributor(
 
         // (6) Çok-şirket güvenlik sınırı geçiş backfill'i: ICompanyOwned'a taşınan SubAccount/Vault'ta
         //     migration'ın Guid.Empty bıraktığı CompanyId'yi parent'tan doldur (idempotent; boş satır
-        //     yoksa no-op). Org yapısı tenant-scoped → yalnız tenant'ta.
-        if (context.TenantId != null)
+        //     yoksa no-op). Backfill TENANT-AGNOSTİK (Disable<IMultiTenant> ile TÜM tenant'ları kapsar) →
+        //     host koşusunda BİR KEZ çağrılır; her tenant için ayrı çağrıya gerek yok (aksi halde yalnız
+        //     seed edilen tenant'ların kayıtları dolar — önceki bug buydu). Mevcut org host seed anında
+        //     DB'de olduğundan görülür; yeni kayıtlar zaten CompanyId ile oluşur (ctor).
+        if (context.TenantId == null)
         {
-            await _companyOwnedBackfiller.BackfillCurrentTenantAsync();
+            await _companyOwnedBackfiller.BackfillAllTenantsAsync();
         }
 
         // (7) Kapsam grant geri-uyumu (Faz 4 working-context): mevcut kullanıcılara tenant-geneli Grant

@@ -6,6 +6,7 @@ using Integration.TradeXpress.Vaults;
 using Integration.TradeXpress.Vouchers;
 using Microsoft.EntityFrameworkCore;
 using Shouldly;
+using Volo.Abp.Data;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.EntityFrameworkCore;
 using Volo.Abp.Guids;
@@ -31,6 +32,7 @@ public class CompanyOwnedBackfillerTests : TradeXpressEntityFrameworkCoreTestBas
     private readonly ICurrentTenant _currentTenant;
     private readonly TestCompanyContextProvider _companyContext;
     private readonly IDbContextProvider<TradeXpressDbContext> _dbContextProvider;
+    private readonly IDataFilter _dataFilter;
 
     public CompanyOwnedBackfillerTests()
     {
@@ -41,6 +43,7 @@ public class CompanyOwnedBackfillerTests : TradeXpressEntityFrameworkCoreTestBas
         _currentTenant        = GetRequiredService<ICurrentTenant>();
         _companyContext       = GetRequiredService<TestCompanyContextProvider>();
         _dbContextProvider    = GetRequiredService<IDbContextProvider<TradeXpressDbContext>>();
+        _dataFilter           = GetRequiredService<IDataFilter>();
     }
 
     [Fact]
@@ -56,7 +59,7 @@ public class CompanyOwnedBackfillerTests : TradeXpressEntityFrameworkCoreTestBas
             await ForceEmptyCompanyAsync(data);
 
             // ilk koşu: parent'tan doldurur.
-            await WithUnitOfWorkAsync(() => _backfiller.BackfillCurrentTenantAsync());
+            await WithUnitOfWorkAsync(() => _backfiller.BackfillAllTenantsAsync());
 
             var sub = await WithUnitOfWorkAsync(() => _subAccountRepository.GetAsync(data.SubAccountId));
             var vault = await WithUnitOfWorkAsync(() => _vaultRepository.GetAsync(data.VaultId));
@@ -64,7 +67,7 @@ public class CompanyOwnedBackfillerTests : TradeXpressEntityFrameworkCoreTestBas
             vault.CompanyId.ShouldBe(data.CompanyId);
 
             // ikinci koşu: idempotent → hata yok, değer bozulmaz (artık Guid.Empty satır yok).
-            await WithUnitOfWorkAsync(() => _backfiller.BackfillCurrentTenantAsync());
+            await WithUnitOfWorkAsync(() => _backfiller.BackfillAllTenantsAsync());
 
             var subAgain = await WithUnitOfWorkAsync(() => _subAccountRepository.GetAsync(data.SubAccountId));
             var vaultAgain = await WithUnitOfWorkAsync(() => _vaultRepository.GetAsync(data.VaultId));
@@ -83,7 +86,7 @@ public class CompanyOwnedBackfillerTests : TradeXpressEntityFrameworkCoreTestBas
             _companyContext.CompanyId = null;
 
             // Hiç Guid.Empty satır yok (temiz kurulum) → no-op; mevcut doğru CompanyId'ler korunur.
-            await WithUnitOfWorkAsync(() => _backfiller.BackfillCurrentTenantAsync());
+            await WithUnitOfWorkAsync(() => _backfiller.BackfillAllTenantsAsync());
 
             var sub = await WithUnitOfWorkAsync(() => _subAccountRepository.GetAsync(data.SubAccountId));
             var vault = await WithUnitOfWorkAsync(() => _vaultRepository.GetAsync(data.VaultId));
@@ -92,7 +95,62 @@ public class CompanyOwnedBackfillerTests : TradeXpressEntityFrameworkCoreTestBas
         }
     }
 
+    [Fact]
+    public async Task Backfills_all_tenants_in_a_single_run()
+    {
+        // Regresyon: seeder tenant-scoped çalışırsa yalnız aktif tenant'ın boş kayıtları dolar (canlıda
+        // 10 tenant'ın 9'u boş kalmıştı). BackfillAllTenantsAsync Disable<IMultiTenant> ile TÜM tenant'ları
+        // TEK koşuda kapsamalı — hangi tenant context'inde tetiklenirse tetiklensin.
+        var (tenantA, dataA) = await SeedAsync();
+        var (tenantB, dataB) = await SeedAsync();
+
+        _companyContext.CompanyId = null; // konsolide → Guid.Empty görünür
+
+        // İki farklı tenant'ın kayıtlarını da boşalt (migration-sonrası durum).
+        await ForceEmptyCompanyAsync(dataA);
+        await ForceEmptyCompanyAsync(dataB);
+
+        // TEK koşu, tenantA context'inde — ama tenantB'nin kayıtları da dolmalı.
+        using (_currentTenant.Change(tenantA))
+        {
+            await WithUnitOfWorkAsync(() => _backfiller.BackfillAllTenantsAsync());
+        }
+
+        // Doğrulama: her iki tenant'ın da kayıtları parent'tan dolduruldu (tenant filtresi kapalı okuma).
+        var subA = await ReadSubAccountAcrossTenantsAsync(dataA.SubAccountId);
+        var vaultA = await ReadVaultAcrossTenantsAsync(dataA.VaultId);
+        var subB = await ReadSubAccountAcrossTenantsAsync(dataB.SubAccountId);
+        var vaultB = await ReadVaultAcrossTenantsAsync(dataB.VaultId);
+
+        subA.CompanyId.ShouldBe(dataA.CompanyId);
+        vaultA.CompanyId.ShouldBe(dataA.CompanyId);
+        subB.CompanyId.ShouldBe(dataB.CompanyId);
+        vaultB.CompanyId.ShouldBe(dataB.CompanyId);
+    }
+
     // ── kurulum / yardımcılar ────────────────────────────────────────────────
+
+    private Task<SubAccount> ReadSubAccountAcrossTenantsAsync(Guid id)
+    {
+        return WithUnitOfWorkAsync(async () =>
+        {
+            using (_dataFilter.Disable<IMultiTenant>())
+            {
+                return await _subAccountRepository.GetAsync(id);
+            }
+        });
+    }
+
+    private Task<Vault> ReadVaultAcrossTenantsAsync(Guid id)
+    {
+        return WithUnitOfWorkAsync(async () =>
+        {
+            using (_dataFilter.Disable<IMultiTenant>())
+            {
+                return await _vaultRepository.GetAsync(id);
+            }
+        });
+    }
 
     private async Task<(Guid TenantId, VoucherTestData Data)> SeedAsync()
     {
