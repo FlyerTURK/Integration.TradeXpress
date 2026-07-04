@@ -55,8 +55,18 @@ public partial class AccountSelectionPanel
     private SubAccountListDto? _pendingSubAccount;
 
 
+    private List<AccountListDto>    _accounts = new();
     private List<SubAccountListDto> _subAccounts = new();
     private List<VaultListDto>      _branchVaults = new();
+
+    /// <summary>Cascade üst combosunun seçimi (ana hesap). Yalnız FİLTREDİR — voucher modeli SubAccount
+    /// seçiminden beslenir (_model.AccountId, OnSubAccountChanged'de seçili alt hesabın parent'ından atanır).</summary>
+    private Guid? _selectedAccountId;
+
+    /// <summary>Alt hesap combosunun cascade datasource'u: YALNIZ seçili ana hesabın alt hesapları.
+    /// Hesap seçili değilken boş (combo o durumda zaten gizli — akış daima hesap→alt hesap).</summary>
+    private IEnumerable<SubAccountListDto> FilteredSubAccounts
+        => _selectedAccountId is { } acc ? _subAccounts.Where(s => s.AccountId == acc) : Enumerable.Empty<SubAccountListDto>();
 
     private const int VoucherPageSize = 1000;
     private static readonly Guid SentinelId = new("00000000-0000-0000-0000-000000000001");
@@ -105,8 +115,10 @@ public partial class AccountSelectionPanel
 
         // SIRALI await (Task.WhenAll DEĞİL): Blazor Server'da bu servisler aynı circuit scope'unun
         // DbContext'ini paylaşır — paralel iki EF sorgusu aralıklı "second operation started" çökmesi üretir.
+        var accResult   = await AccountService.GetListAsync(new AccountListRequestDto { MaxResultCount = 1000 });
         var subResult   = await SubAccountService.GetListAsync(new SubAccountListRequestDto { BranchId = Working.CurrentBranchId, MaxResultCount = 1000 });
         var vaultResult = await VaultService.GetListAsync(new VaultListRequestDto { BranchId = Working.CurrentBranchId, MaxResultCount = 1000 });
+        _accounts     = accResult.Items.ToList();
         _subAccounts  = subResult.Items.ToList();
         _branchVaults = vaultResult.Items.ToList();
 
@@ -157,6 +169,14 @@ public partial class AccountSelectionPanel
         _model.AccountId        = selected?.AccountId ?? Guid.Empty;
         _selectedAccountCode    = selected?.AccountCode;
         _selectedSubAccountCode = selected?.Code;
+
+        // Cascade senkronu: alt hesap seçilince üst (Account) combo parent'ına oturur — kullanıcı alt
+        // hesabı doğrudan (üst combo boşken) seçtiğinde de iki combo tutarlı kalır. Temizlemede dokunma
+        // (üst combo filtre olarak kalabilir).
+        if (selected is not null)
+        {
+            _selectedAccountId = selected.AccountId;
+        }
 
         if (_model.VaultId == null && _branchVaults.Count > 0)
             _model.VaultId = _branchVaults[0].Id;
@@ -293,6 +313,98 @@ public partial class AccountSelectionPanel
     private Task OnDebitNoteClicked()  => SetActiveProcessAsync("DebitNote");
     private Task OnTransferClicked()   => SetActiveProcessAsync("Transfer");
 
+    /// <summary>Üst (Account) combo seçimi değişti: hesap temizlenirse alt hesap da TEMİZLENİR (combo
+    /// gizlenir); hesap seçilirse o hesabın İLK alt hesabı otomatik seçilir (mevcut seçim zaten o
+    /// hesabınsa dokunulmaz).</summary>
+    private async Task OnAccountFilterChanged(Guid? accountId)
+    {
+        _selectedAccountId = accountId;
+
+        if (accountId is not { } acc)
+        {
+            await OnSubAccountChanged(null);   // hesap yok → alt hesap seçimi de yok (combo gizli)
+            return;
+        }
+
+        var currentSub = _model.SubAccountId.HasValue
+            ? _subAccounts.FirstOrDefault(s => s.Id == _model.SubAccountId.Value)
+            : null;
+        if (currentSub?.AccountId == acc)
+        {
+            return; // seçili alt hesap zaten bu hesabın — dokunma
+        }
+
+        var firstSub = _subAccounts.FirstOrDefault(s => s.AccountId == acc);
+        await OnSubAccountChanged(firstSub?.Id);
+        if (firstSub is not null)
+        {
+            await OnSubAccountLostFocus(); // otomatik seçimi forma anında bildir (blur bekleme)
+        }
+    }
+
+    private bool _mainAccountPopupSaved;
+
+    /// <summary>Account combo "düzelt": seçili ANA HESABI standart AccountEditHost POPUP'ında açar —
+    /// alt hesap drill'i formun içinde (mevcut hesaba alt hesap ekleme/yönetme yeri TAM BURASI).</summary>
+    private async Task OnEditAccountAsync(Guid? accountId)
+    {
+        if (accountId is not { } id || id == Guid.Empty) return;
+        var acc = _accounts.FirstOrDefault(a => a.Id == id);
+        var title = acc is not null ? $"{L["Account"]}: {acc.Code}" : L["Account"].Value;
+        await OpenAccountPopupAsync(id, title);
+    }
+
+    /// <summary>Account combo "ekle": YENİ ana hesabı standart AccountEditHost POPUP'ında açar.
+    /// ANAHESAP alt hesabı formun drill'inde otomatik/görünür gelir; kaydedilince combo'lar tazelenir,
+    /// yeni hesap üst comboda seçilir ve İLK alt hesabı (ANAHESAP) alt comboda otomatik seçilir.</summary>
+    private async Task<Guid?> OnAddAccountAsync()
+    {
+        await OpenAccountPopupAsync(null, L["Account"].Value);
+        return null;   // seçim popup-sonrası refresh akışında yapılır
+    }
+
+    /// <summary>STANDART popup+refresh+odak: AccountEditHost popup'ı → kaydedilince hesap+alt hesap
+    /// listeleri TAZELENİR; ekle → yeni hesaba (ve ilk alt hesabına), düzelt → mevcut seçime odaklanır.</summary>
+    private async Task OpenAccountPopupAsync(Guid? accountId, string title)
+    {
+        _mainAccountPopupSaved = false;
+        var beforeIds = _accounts.Select(a => a.Id).ToHashSet();
+
+        await ViewOpener.OpenAsync(
+            typeof(Integration.TradeXpress.Blazor.Client.Pages.Accounts.AccountEditHost),
+            accountId, title, TradeXpressIcons.Account, MainAccountPopupExtra());
+
+        if (!_mainAccountPopupSaved) return;                   // iptal → tazeleme/odak yok
+
+        await ReloadAccountsAsync();
+        await ReloadSubAccountsAsync();                        // drill'de eklenen alt hesaplar da yansısın
+
+        // Odak: ekle → yeni hesap (before'da olmayan); düzelt → mevcut seçim (display tazelenir).
+        var focus = _accounts.FirstOrDefault(a => !beforeIds.Contains(a.Id))
+                    ?? _accounts.FirstOrDefault(a => a.Id == _selectedAccountId);
+        if (focus is not null)
+        {
+            await OnAccountFilterChanged(focus.Id);            // ilk alt hesabı (ANAHESAP) da otomatik seçer
+        }
+        await InvokeAsync(StateHasChanged);
+    }
+
+    /// <summary>Popup kancaları: kaydet → bayrak set + kapat; kapat → sadece kapat (merkezî IPopupService).</summary>
+    private Dictionary<string, object> MainAccountPopupExtra()
+    {
+        return new()
+        {
+            { "OnSaved",  EventCallback.Factory.Create(this, () => { _mainAccountPopupSaved = true; PopupService.Close(); }) },
+            { "OnClosed", EventCallback.Factory.Create(this, () => PopupService.Close()) },
+        };
+    }
+
+    private async Task ReloadAccountsAsync()
+    {
+        var res = await AccountService.GetListAsync(new AccountListRequestDto { MaxResultCount = 1000 });
+        _accounts = res.Items.ToList();
+    }
+
     private bool _accountPopupSaved;
 
     /// <summary>Cari combo "düzelt": seçili ALT-HESABI (SubAccount) POPUP'ta açar (standart popup+refresh+odak).
@@ -336,12 +448,21 @@ public partial class AccountSelectionPanel
         await InvokeAsync(StateHasChanged);
     }
 
-    /// <summary>Popup kancaları: kaydet → bayrak set + kapat; kapat → sadece kapat (merkezî IPopupService).</summary>
-    private Dictionary<string, object> AccountPopupExtra() => new()
+    /// <summary>Popup kancaları: kaydet → bayrak set + kapat; kapat → sadece kapat (merkezî IPopupService).
+    /// Üst comboda hesap seçiliyse yeni alt hesaba ÖNSEÇİLİ gider (formda Account lookup hazır gelir).</summary>
+    private Dictionary<string, object> AccountPopupExtra()
     {
-        { "OnSaved",  EventCallback.Factory.Create(this, () => { _accountPopupSaved = true; PopupService.Close(); }) },
-        { "OnClosed", EventCallback.Factory.Create(this, () => PopupService.Close()) },
-    };
+        var extra = new Dictionary<string, object>
+        {
+            { "OnSaved",  EventCallback.Factory.Create(this, () => { _accountPopupSaved = true; PopupService.Close(); }) },
+            { "OnClosed", EventCallback.Factory.Create(this, () => PopupService.Close()) },
+        };
+        if (_selectedAccountId is { } acc)
+        {
+            extra["AccountId"] = (Guid?)acc;   // SubAccountEditHost.AccountId → ApplyNewDefaults önseçimi
+        }
+        return extra;
+    }
 
     private async Task ReloadSubAccountsAsync()
     {

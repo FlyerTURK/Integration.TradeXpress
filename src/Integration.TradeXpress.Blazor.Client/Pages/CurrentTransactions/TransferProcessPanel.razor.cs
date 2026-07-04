@@ -64,17 +64,77 @@ public partial class TransferProcessPanel : IVoucherLineEditPanel
         var unitResult = await CurrencyUnitService.GetListAsync(new CurrencyUnitListRequestDto { MaxResultCount = 1000 });
         _activeUnits = unitResult.Items.Where(u => u.IsActive).ToList();
 
-        // Karşı hesap datasource: şirketin TÜM alt hesapları (şube kısıtsız) — kendi hesabı hariç,
-        // yalnız aktifler (legacy: aynı-hesap + pasif hariç filtre datasource'ta).
-        var subResult = await SubAccountService.GetListAsync(new SubAccountListRequestDto { MaxResultCount = 1000 });
-        _counterAccounts = subResult.Items
-            .Where(s => s.IsActive && s.Id != SubAccountId)
-            .ToList();
+        await ReloadCounterAccountsAsync();
 
         if (_model.PayUnitId is null && _activeUnits.Count > 0)
         {
             OnUnitChanged(_activeUnits[0].Id);
         }
+    }
+
+    /// <summary>Karşı hesap datasource: şirketin TÜM alt hesapları (şube kısıtsız) — kendi hesabı hariç,
+    /// yalnız aktifler (legacy: aynı-hesap + pasif hariç filtre datasource'ta).</summary>
+    private async Task ReloadCounterAccountsAsync()
+    {
+        var subResult = await SubAccountService.GetListAsync(new SubAccountListRequestDto { MaxResultCount = 1000 });
+        _counterAccounts = subResult.Items
+            .Where(s => s.IsActive && s.Id != SubAccountId)
+            .ToList();
+    }
+
+    private bool _counterPopupSaved;
+
+    /// <summary>Karşı hesap combo "düzelt": seçili alt-hesabı SubAccountEditHost POPUP'ında açar
+    /// (standart popup+refresh+odak deseni — AccountSelectionPanel ile aynı).</summary>
+    private async Task OnEditCounterAccountAsync(Guid? subAccountId)
+    {
+        if (subAccountId is not { } id || id == Guid.Empty) return;
+        var sub = _counterAccounts.FirstOrDefault(s => s.Id == id);
+        var title = sub is not null ? $"{L["SubAccount"]}: {sub.AccountSubCodeDisplay}" : L["SubAccount"].Value;
+        await OpenCounterPopupAsync(id, title);
+    }
+
+    /// <summary>Karşı hesap combo "ekle": yeni alt-hesabı POPUP'ta açar (standart popup+refresh+odak).</summary>
+    private async Task<Guid?> OnAddCounterAccountAsync()
+    {
+        await OpenCounterPopupAsync(null, L["SubAccount"].Value);
+        return null;   // yeni id popup akışında oluşur; seçim aşağıda (refresh sonrası) yapılır
+    }
+
+    /// <summary>STANDART davranış: SubAccount edit POPUP'ı (merkezî IViewOpener→IPopupService) →
+    /// kaydedilince combo listesini TAZELE + ilgili kayda ODAKLAN (ekle → yeni eklenen; düzelt → mevcut).
+    /// İptalde hiçbir şey yapılmaz.</summary>
+    private async Task OpenCounterPopupAsync(Guid? subAccountId, string title)
+    {
+        _counterPopupSaved = false;
+        var beforeIds = _counterAccounts.Select(s => s.Id).ToHashSet();
+
+        await ViewOpener.OpenAsync(
+            typeof(Integration.TradeXpress.Blazor.Client.Pages.Accounts.SubAccountEditHost),
+            subAccountId, title, TradeXpressIcons.SubAccount, CounterPopupExtra());
+
+        if (!_counterPopupSaved) return;                       // iptal → tazeleme/odak yok
+
+        await ReloadCounterAccountsAsync();
+
+        // Odaklan: ekle → yeni eklenen alt-hesap (before'da olmayan); düzelt → mevcut seçim (display tazelenir).
+        var focus = _counterAccounts.FirstOrDefault(s => !beforeIds.Contains(s.Id))
+                    ?? _counterAccounts.FirstOrDefault(s => s.Id == _model.CounterAccountId);
+        if (focus is not null)
+        {
+            _model.CounterAccountId = focus.Id;
+        }
+        await InvokeAsync(StateHasChanged);
+    }
+
+    /// <summary>Popup kancaları: kaydet → bayrak set + kapat; kapat → sadece kapat (merkezî IPopupService).</summary>
+    private Dictionary<string, object> CounterPopupExtra()
+    {
+        return new()
+        {
+            { "OnSaved",  EventCallback.Factory.Create(this, () => { _counterPopupSaved = true; PopupService.Close(); }) },
+            { "OnClosed", EventCallback.Factory.Create(this, () => PopupService.Close()) },
+        };
     }
 
     private void OnAmountChanged(decimal value)
@@ -104,13 +164,9 @@ public partial class TransferProcessPanel : IVoucherLineEditPanel
 
     private string CounterGroupStyle()
     {
-        // Karşı hesap combo'su kod+ad gösterdiğinden geniş tutulur.
-        return "display:flex; flex-direction:column; gap:4px; " + (_isMobile ? "width:100%;" : "width:240px; flex-shrink:0;");
-    }
-
-    private string CounterControlStyle()
-    {
-        return _isMobile ? "width:100%;" : "width:240px;";
+        // Karşı hesap combo'su kod+ad gösterdiğinden geniş tutulur (LookupComboBox içte w-100 →
+        // genişliği bu sarmalayıcı belirler; ekle/düzelt editor butonları için ekstra pay).
+        return "display:flex; flex-direction:column; gap:4px; " + (_isMobile ? "width:100%;" : "width:280px; flex-shrink:0;");
     }
 
     /// <summary>Kaydetme sürüyor mu — re-entrancy bayrağı (çift tıklama/Enter çift-gönderim koruması).</summary>

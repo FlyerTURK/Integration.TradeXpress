@@ -1,8 +1,11 @@
+@using Integration.TradeXpress.Permissions
 @inject IStringLocalizer<TradeXpressResource> L
 @inject ICurrencyUnitAppService CurrencyUnitService
 @inject ISubAccountAppService SubAccountService
 @inject IVoucherAppService VoucherService
 @inject IUiInteractionService Ui
+@inject IViewOpener ViewOpener
+@inject IPopupService PopupService
 
 @* VİRMAN paneli (Transfer=11) — çift bacak: bu satır + karşı hesabın KENDİ fişinde zıt yönlü ikiz
    (aynı LinkId; sunucu üretir). Yön combo etiketi ALACAK/BORÇ (legacy quirk: DB'de GİRİŞ/ÇIKIŞ).
@@ -34,25 +37,30 @@
         <div style="display:flex; flex-direction:column; gap:4px; @(_isMobile ? "width:100%;" : "flex-shrink:0;")">
             <div style="display:flex; @(_isMobile ? "flex-direction:column;" : "") gap:4px; align-items:flex-start;">
 
-                @* Grup 2 — Karşı Hesap (SubAccount lookup; kendi hesabı hariç + aktifler) *@
+                @* Grup 2 — Karşı Hesap (SubAccount lookup; kendi hesabı hariç + aktifler).
+                   LookupComboBox = standart cari seçim deseni (AccountSelectionPanel ile aynı):
+                   ekle/düzelt butonları SubAccountEditHost POPUP'ını açar → kaydedilince liste tazelenir + kayda odaklanır. *@
                 <div style="@CounterGroupStyle()">
                     <small style="font-weight:600; text-transform:uppercase; letter-spacing:0.05em;">@L["Transfer_CounterAccount"]</small>
-                    <DxComboBox TData="SubAccountListDto" TValue="Guid?"
-                                Data="@_counterAccounts"
-                                ValueFieldName="@nameof(SubAccountListDto.Id)"
-                                TextFieldName="@nameof(SubAccountListDto.AccountSubCodeDisplay)"
-                                Value="@_model.CounterAccountId"
-                                ValueChanged="@((Guid? id) => _model.CounterAccountId = id)"
-                                DropDownTriggerMode="DropDownTriggerMode.Click" ShowDropDownButton="true"
-                                ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Never"
-                                SearchMode="ListSearchMode.AutoSearch" style="@CounterControlStyle()">
+                    <LookupComboBox TItem="SubAccountListDto" TValue="Guid?"
+                                    Data="@_counterAccounts"
+                                    ValueFieldName="@nameof(SubAccountListDto.Id)"
+                                    TextFieldName="@nameof(SubAccountListDto.AccountSubCodeDisplay)"
+                                    Value="@_model.CounterAccountId"
+                                    ValueChanged="@((Guid? id) => _model.CounterAccountId = id)"
+                                    NullText="@L["Select"].Value"
+                                    AllowClear="false"
+                                    OnEditRequested="@OnEditCounterAccountAsync"
+                                    OnAddRequested="@OnAddCounterAccountAsync"
+                                    CreatePolicy="@TradeXpressPermissions.SubAccounts.Create"
+                                    UpdatePolicy="@TradeXpressPermissions.SubAccounts.Update">
                         <Columns>
                             <DxListEditorColumn FieldName="@nameof(SubAccountListDto.AccountDisplay)"
                                                 Caption="@L["Account"]" Width="50%" />
                             <DxListEditorColumn FieldName="@nameof(SubAccountListDto.SubAccountDisplay)"
                                                 Caption="@L["SubAccount"]" />
                         </Columns>
-                    </DxComboBox>
+                    </LookupComboBox>
                 </div>
 
                 @* Grup 3 — Tutar (PayTotal) *@
