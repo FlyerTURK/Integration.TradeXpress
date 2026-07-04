@@ -36,6 +36,7 @@ global using Integration.TradeXpress.Vaults;
 global using Integration.TradeXpress.Countries;
 global using Integration.TradeXpress.Cashes;
 global using Integration.TradeXpress.Accounts;
+global using Integration.TradeXpress.MultiCompany;
 global using Integration.TradeXpress.Organization;
 global using Integration.TradeXpress.Financials.CurrencyUnits;
 global using Integration.TradeXpress.Financials.Parities;

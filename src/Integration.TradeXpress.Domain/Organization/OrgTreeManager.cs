@@ -14,13 +14,23 @@ public class OrgTreeManager : DomainService
 {
     private readonly IRepository<Branch, Guid> _branchRepository;
     private readonly IRepository<Vault, Guid> _vaultRepository;
+    private readonly IDataFilter _dataFilter;
 
+    // Company görünürlük filtresini KAPATMAK için IDataFilter (CompanyOwnedBackfiller ile aynı desen).
+    // ICurrentCompany.Change YERİNE bu tercih edildi: ICurrentCompany'yi (ctor VEYA lazy) kullanmak DI DÖNGÜSÜ
+    // yaratıyor — CurrentCompany → WorkingCompanyContextProvider → WorkingContextService → BranchAppService →
+    // OrgTreeManager → (CurrentCompany). BranchAppService zaten OrgTreeManager'a bağımlı. IDataFilter bu zincire
+    // bağımlı DEĞİL → döngü tamamen kırılır. Org kurulumu sistem işidir; company filtresi kapalıyken BranchId-özgü
+    // kasa sorgusu doğru sonucu verir (working-context sentinel'i Guid.Empty'den etkilenmez, cross-company sızıntı
+    // yok çünkü sorgu daima BranchId ile daraltılmış).
     public OrgTreeManager(
         IRepository<Branch, Guid> branchRepository,
-        IRepository<Vault, Guid> vaultRepository)
+        IRepository<Vault, Guid> vaultRepository,
+        IDataFilter dataFilter)
     {
         _branchRepository = branchRepository;
         _vaultRepository = vaultRepository;
+        _dataFilter = dataFilter;
     }
 
     /// <summary>
@@ -72,32 +82,44 @@ public class OrgTreeManager : DomainService
     /// </summary>
     public async Task<Vault> EnsureDefaultVaultAsync(Branch branch)
     {
-        var existing = await AsyncExecuter.ToListAsync(
-            (await _vaultRepository.GetQueryableAsync()).Where(v => v.BranchId == branch.Id));
-        existing = existing.OrderBy(v => v.DisplayOrder).ToList();
-
-        var current = existing.FirstOrDefault(v => v.IsDefault);
-        if (current != null)
-            return current;
-
-        if (existing.Count > 0)
+        // Org kurulumu SİSTEM işidir → aktif kasa kontrolü kullanıcının working-context şirketine DEĞİL,
+        // şubenin KENDİ şirketine göre yapılır. Aksi halde working-context boşken (yeni tenant admin'i henüz
+        // şirket seçmemiş → izinli küme boş → Guid.Empty SENTINEL) ICompanyOwned görünürlük filtresi TÜM
+        // kasaları gizler (permissive yalnız CurrentCompanyId=null iken); mevcut kasa görünmez → yeniden
+        // "KASA" insert edilir → benzersizlik (TenantId,BranchId,Code) çakışması → BusinessException.
+        // Disable<ICompanyScoped>: company görünürlük filtresini kapatır (anahtar tek: ICompanyScoped →
+        // ICompanyOwned Vault da kapsanır). BranchId ile daraltılmış sorgu doğru kasayı bulur; DI döngüsü yok.
+        using (_dataFilter.Disable<ICompanyScoped>())
         {
-            var promote = existing.First();
-            promote.SetAsDefault(true);
-            await _vaultRepository.UpdateAsync(promote, autoSave: true);
-            return promote;
+            var existing = await AsyncExecuter.ToListAsync(
+                (await _vaultRepository.GetQueryableAsync()).Where(v => v.BranchId == branch.Id));
+            existing = existing.OrderBy(v => v.DisplayOrder).ToList();
+
+            var current = existing.FirstOrDefault(v => v.IsDefault);
+            if (current != null)
+            {
+                return current;
+            }
+
+            if (existing.Count > 0)
+            {
+                var promote = existing.First();
+                promote.SetAsDefault(true);
+                await _vaultRepository.UpdateAsync(promote, autoSave: true);
+                return promote;
+            }
+
+            var vault = new Vault(
+                branch.CompanyId,
+                branch.Id,
+                VaultConsts.DefaultCode,
+                VaultConsts.DefaultName,
+                isDefault: true,
+                displayOrder: 1);
+
+            await _vaultRepository.InsertAsync(vault, autoSave: true);
+            return vault;
         }
-
-        var vault = new Vault(
-            branch.CompanyId,
-            branch.Id,
-            VaultConsts.DefaultCode,
-            VaultConsts.DefaultName,
-            isDefault: true,
-            displayOrder: 1);
-
-        await _vaultRepository.InsertAsync(vault, autoSave: true);
-        return vault;
     }
 
     /// <summary>
