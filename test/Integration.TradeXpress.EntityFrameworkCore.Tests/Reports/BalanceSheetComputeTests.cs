@@ -169,14 +169,15 @@ public class BalanceSheetComputeTests : TradeXpressEntityFrameworkCoreTestBase
         var snapshots = await GetSnapshotsAsync(data.CompanyId);
         snapshots.Count.ShouldBe(5);
         snapshots.ShouldAllBe(s => s.Scope == BalanceSheetScope.Company && s.BranchId == null);
-        // ABP Clock DateTime'ları UTC'ye normalize eder → gün karşılaştırması yerel güne çevrilerek yapılır.
-        snapshots.ShouldAllBe(s => s.AsOfDate.ToLocalTime().Date == DateTime.Today);
+        // AsOfDate wall-clock (kaymasız): [DisableDateTimeNormalization] → UTC'ye çevrilmez, gün doğrudan bugün.
+        // (Eski assertion ToLocalTime() ile hatalı UTC-normalizasyonunu kodluyordu; artık kayma yok, direkt .Date.)
+        snapshots.ShouldAllBe(s => s.AsOfDate.Date == DateTime.Today);
 
         // PIVOT liste: tek gün → CategoryNets + TOPLAM + running türetimler (ilk gün: DEVIR=0, KARZARAR=TOPLAM).
         var list = await _balanceSheet.GetSnapshotListAsync(
             new BalanceSheetSnapshotListRequestDto { Scope = BalanceSheetScope.Company });
         var row = list.Rows.ShouldHaveSingleItem();
-        row.AsOfDate.ToLocalTime().Date.ShouldBe(DateTime.Today);   // ABP Clock UTC normalizasyonu
+        row.AsOfDate.Date.ShouldBe(DateTime.Today);   // wall-clock, kaymasız ([DisableDateTimeNormalization])
         row.BaseCurrencyCode.ShouldBe(CurrencyUnitCode.TRY);
         row.CategoryNets[BalanceSheetCategory.AccountBalance].ShouldBe(-26_050m);   // −1050 + −25000
         row.CategoryNets[BalanceSheetCategory.Stock].ShouldBe(26_000m);             // 1000 + 25000
@@ -303,11 +304,12 @@ public class BalanceSheetComputeTests : TradeXpressEntityFrameworkCoreTestBase
         row.MissingRate.ShouldBeFalse();
     }
 
-    /// <summary>ProfitResetDate bugüne ilerledi mi (ABP Clock UTC normalizasyonu → yerel güne çevrilerek).</summary>
+    /// <summary>ProfitResetDate bugüne ilerledi mi — wall-clock, kaymasız ([DisableDateTimeNormalization]).</summary>
     private static void AssertResetToToday(Branch branch)
     {
         branch.ProfitResetDate.ShouldNotBeNull();
-        branch.ProfitResetDate.Value.ToLocalTime().Date.ShouldBe(DateTime.Today);
+        // Eski assertion ToLocalTime() ile UTC-normalizasyonunu kodluyordu; artık date-only wall-clock → direkt .Date.
+        branch.ProfitResetDate.Value.Date.ShouldBe(DateTime.Today);
     }
 
     private static decimal CategoryNet(BalanceSheetReportResultDto result, string category)

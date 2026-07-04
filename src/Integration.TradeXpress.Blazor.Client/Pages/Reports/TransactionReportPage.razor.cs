@@ -31,8 +31,8 @@ public partial class TransactionReportPage
     private List<VaultListDto> _vaults = new();
 
     private readonly TransactionReportRequestDto _request = new();
-    private DateTime _start = DateTime.Today.AddMonths(-1);
-    private DateTime _end = DateTime.Today;
+    private DateTime _start = BusinessClock.Today().AddMonths(-1);
+    private DateTime _end = BusinessClock.Today();
     private ProcessType? _selectedType;
 
     private List<TransactionReportRowDto>? _rows;

@@ -26,7 +26,7 @@ public partial class BalanceSheetReportPage
 
     /// <summary>true = şirket konsolide (working şirketin tüm şubeleri); false = yalnız working şube.</summary>
     private bool _companyMode;
-    private DateTime _asOf = DateTime.Today;
+    private DateTime _asOf = BusinessClock.Today();
     private bool _busy;
     private bool _isMobile;   // DxLayoutBreakpoint (≤768px) — mobilde split dikey istiflenir.
     private object? _selectedDetailRow;   // üst detay grid seçili satırı (BalanceSheetDetailRowDto).

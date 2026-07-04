@@ -33,8 +33,8 @@ public partial class CurrentTransactionForm
 
     // Liste modu (ekstre): cari'nin tarih aralığındaki tüm satırları (fiş-bağımsız). Sağ bakiye görünür kalır.
     private bool _listMode;
-    private DateTime _listStart = DateTime.Today.AddDays(-7);
-    private DateTime _listEnd   = DateTime.Today;
+    private DateTime _listStart = BusinessClock.Today().AddDays(-7);
+    private DateTime _listEnd   = BusinessClock.Today();
 
     // Ekstre eklentileri: devreden (grid üstü) + kapanış (grid altı) + işlem-tipi filtresi + Excel export.
     private List<VoucherBalanceLineDto> _listOpening = new();

@@ -29,7 +29,7 @@ public partial class FutureProcessPanel
         Direction   = ProcessDirectionType.Buy,
         PaymentType = null,
         Factor      = 1m,
-        DueDate     = DateTime.Today,
+        DueDate     = BusinessClock.Today(),
     };
 
     private bool _isMobile;

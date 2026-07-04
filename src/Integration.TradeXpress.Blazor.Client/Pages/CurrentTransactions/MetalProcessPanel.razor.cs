@@ -31,7 +31,7 @@ public partial class MetalProcessPanel
         Direction   = ProcessDirectionType.Outbound,
         PaymentType = ProcessPaymentType.Normal,
         Factor      = 0.995m,
-        DueDate     = DateTime.Today,
+        DueDate     = BusinessClock.Today(),
     };
 
     private bool _isMobile;

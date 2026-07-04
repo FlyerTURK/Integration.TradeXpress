@@ -32,7 +32,11 @@ public class Branch : FullAuditedAggregateRoot<Guid>, IMultiTenant
 
     /// <summary>P&L (gider/gelir) dönem-başlangıç sınırı — ERPPRO <c>Subeler.RevCostDate</c> muadili. Bu tarihten
     /// SONRAKİ (strict) gider/gelir cari döneme sayılır; öncekiler kapanmış sayılır. null = hiç kapanmadı (hepsi dahil,
-    /// mevcut davranış). YALNIZ P&L kaynağını (ServicePL) sınırlar; net-varlık kaynaklarını ETKİLEMEZ.</summary>
+    /// mevcut davranış). YALNIZ P&L kaynağını (ServicePL) sınırlar; net-varlık kaynaklarını ETKİLEMEZ.
+    /// <para><b>Wall-clock (kaymasız):</b> date-only sınır; <c>[DisableDateTimeNormalization]</c> + <see cref="SetProfitResetDate"/>
+    /// içinde <see cref="BusinessClock.AsBusinessDate"/> → ServicePL'deki <c>VoucherDate &gt; ProfitResetDate</c> karşılaştırması
+    /// aynı Kind (Unspecified) üzerinde kalır, dönem kesme günü kaymaz.</para></summary>
+    [DisableDateTimeNormalization]
     public virtual DateTime? ProfitResetDate { get; protected set; }
 
     public virtual int DisplayOrder { get; protected set; }
@@ -116,7 +120,8 @@ public class Branch : FullAuditedAggregateRoot<Guid>, IMultiTenant
     /// <summary>P&L dönem-başlangıç sınırını ilerletir (dönem kapanışı — ERPPRO RevCostDate update muadili).</summary>
     public virtual void SetProfitResetDate(DateTime value)
     {
-        ProfitResetDate = value;
+        // Date-only wall-clock: saat atılır + Kind=Unspecified (dönem sınırı günü kaymaz).
+        ProfitResetDate = BusinessClock.AsBusinessDate(value);
     }
 
     public virtual void SetAsHeadquarters(bool isHeadquarters)

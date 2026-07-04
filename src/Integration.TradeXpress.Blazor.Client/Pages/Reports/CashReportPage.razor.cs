@@ -26,8 +26,8 @@ public partial class CashReportPage
 
     private CashReportFilterDto _filter = new()
     {
-        Start = DateTime.Today.AddMonths(-1),
-        End = DateTime.Today,
+        Start = BusinessClock.Today().AddMonths(-1),
+        End = BusinessClock.Today(),
     };
 
     private List<CashStockRowDto>? _stockRows;

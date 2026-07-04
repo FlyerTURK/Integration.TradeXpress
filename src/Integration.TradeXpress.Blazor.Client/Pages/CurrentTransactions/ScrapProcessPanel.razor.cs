@@ -31,7 +31,7 @@ public partial class ScrapProcessPanel
         Direction   = ProcessDirectionType.Outbound,   // hurda varsayılan: çıkış
         PaymentType = ProcessPaymentType.Normal,
         Factor      = 0.570m,                           // milyem
-        DueDate     = DateTime.Today,
+        DueDate     = BusinessClock.Today(),
     };
 
     private bool _isMobile;

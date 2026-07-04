@@ -43,7 +43,7 @@ public class BalanceSheetSnapshot : FullAuditedAggregateRoot<Guid>, IMultiTenant
         Scope            = scope;
         CompanyId        = companyId;
         BranchId         = branchId;
-        AsOfDate         = asOfDate.Date;   // yalnız gün (date-only semantiği; saat bileşeni taşınmaz)
+        AsOfDate         = BusinessClock.AsBusinessDate(asOfDate);   // yalnız gün + Kind=Unspecified (wall-clock, kaymasız)
         Category         = category;
         UnitId           = unitId;
         Amount           = FinancialRounding.RoundAmount(amount);
@@ -69,7 +69,11 @@ public class BalanceSheetSnapshot : FullAuditedAggregateRoot<Guid>, IMultiTenant
     /// <summary>Şube — id-only; null = şirket konsolide snapshot.</summary>
     public virtual Guid? BranchId { get; protected set; }
 
-    /// <summary>Bilanço tarihi — yalnız GÜN (saat yok); idempotent gün+kapsam yeniden-yazımının anahtarı.</summary>
+    /// <summary>Bilanço tarihi — yalnız GÜN (saat yok); idempotent gün+kapsam yeniden-yazımının anahtarı.
+    /// <para><b>Wall-clock (kaymasız):</b> <c>[DisableDateTimeNormalization]</c> ile ABP UTC'ye çevirmez; ctor
+    /// <see cref="BusinessClock.AsBusinessDate"/> ile Kind=Unspecified günü sabitler → DELETE/INSERT ve unique index
+    /// <c>(Scope,CompanyId,BranchId,AsOfDate)</c> aynı gün-değerini görür (idempotency korunur).</para></summary>
+    [DisableDateTimeNormalization]
     public virtual DateTime AsOfDate { get; protected set; }
 
     // ── Satır kimliği (kategori × birim) ──

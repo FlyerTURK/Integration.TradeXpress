@@ -2,7 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using Integration.TradeXpress.Branches;
 using Integration.TradeXpress.Financials.CurrencyUnits;
+using Integration.TradeXpress.Reports.BalanceSheet;
 using Integration.TradeXpress.Vouchers;
 using Integration.TradeXpress.Vouchers.Balance;
 using Shouldly;
@@ -157,11 +159,15 @@ public class EntityConventionTests
     }
 
     // WALL-CLOCK (kaymasız) iş tarihleri: ABP IClock (Kind=Utc) normalizasyonundan MUAF olmalı.
-    // Faz-1 kapsamı YALNIZ VoucherDate zinciri — aşırı-genelleme YOK (DueDate/AsOfDate/ProfitResetDate ayrı faz).
+    // Faz-1: VoucherDate zinciri. Faz-2: date-only iş tarihleri (DueDate/AsOfDate/ProfitResetDate) de
+    // aynı deseni taşır (BusinessClock.AsBusinessDate + [DisableDateTimeNormalization]) → pin buraya eklendi.
     private static readonly (Type Type, string Property)[] DisableNormalizationRequired =
     {
         (typeof(Voucher), nameof(Voucher.VoucherDate)),
         (typeof(BalanceLedgerEntry), nameof(BalanceLedgerEntry.VoucherDate)),
+        (typeof(VoucherLine), nameof(VoucherLine.DueDate)),
+        (typeof(BalanceSheetSnapshot), nameof(BalanceSheetSnapshot.AsOfDate)),
+        (typeof(Branch), nameof(Branch.ProfitResetDate)),
     };
 
     [Fact]

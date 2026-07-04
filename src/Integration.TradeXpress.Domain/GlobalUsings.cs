@@ -11,6 +11,7 @@ global using System.Threading.Tasks;
 
 // ── Framework (Integration.Framework: FrameworkErrorCodes, StringFieldGuard, tipli exception'lar, normalize extension'ları) ──
 global using Integration.Framework;
+global using Integration.Framework.Timing;
 
 // ── ABP çekirdek / domain ──
 global using Volo.Abp;

@@ -21,4 +21,20 @@ public static class BusinessClock
     {
         return DateTime.SpecifyKind(DateTime.Now, DateTimeKind.Unspecified);
     }
+
+    /// <summary>Wall-clock BUGÜN — yalnız gün (saat=00:00), <see cref="DateTimeKind.Unspecified"/>.
+    /// <c>DateTime.Today</c>'in kaymasız muadili: date-only iş tarihi (DueDate/AsOf/dönem sınırı) default'ları
+    /// ve rapor tarih filtreleri buradan üretilir → ABP UTC normalizasyonu günü kaydıramaz.</summary>
+    public static DateTime Today()
+    {
+        return DateTime.SpecifyKind(DateTime.Today, DateTimeKind.Unspecified);
+    }
+
+    /// <summary>Verilen değeri date-only wall-clock'a indirger: saat atılır (<c>.Date</c>) ve
+    /// Kind <see cref="DateTimeKind.Unspecified"/>'e sabitlenir. <c>[DisableDateTimeNormalization]</c> ile
+    /// işaretli date-only alanların entity-içi SSOT normalizeri (giriş Local/Utc gelse bile gün kaymaz).</summary>
+    public static DateTime AsBusinessDate(DateTime value)
+    {
+        return DateTime.SpecifyKind(value.Date, DateTimeKind.Unspecified);
+    }
 }

@@ -90,6 +90,11 @@ public class VoucherLine : CreationAuditedEntity<Guid>, ISoftDelete
 
     // ── Ortak ────────────────────────────────────────────────────────────────────
 
+    /// <summary>Vade tarihi — <b>date-only</b> (saat taşımaz; DxDateEdit gün seçer).
+    /// <para><b>Wall-clock (kaymasız):</b> <c>[DisableDateTimeNormalization]</c> ile ABP <c>IClock</c> (UTC) bu değeri
+    /// UTC'ye çevirmez; giriş <see cref="BusinessClock.Today"/> ile Kind=Unspecified gelir, <see cref="Set"/>
+    /// <see cref="BusinessClock.AsBusinessDate"/> ile günü sabitler → dönem/vade karşılaştırmaları gün kaymaz.</para></summary>
+    [DisableDateTimeNormalization]
     public virtual DateTime? DueDate { get; protected set; }
 
     public virtual string? Description { get; protected set; }
@@ -181,7 +186,8 @@ public class VoucherLine : CreationAuditedEntity<Guid>, ISoftDelete
         PayCommodityCode = input.PayCommodityCode;
         PayUnitId        = input.PayUnitId == Guid.Empty ? null : input.PayUnitId;
         PayUnitRate      = input.PayUnitRate;
-        DueDate          = input.DueDate;
+        // Date-only wall-clock: saat atılır + Kind=Unspecified (giriş Local/Utc gelse bile vade günü kaymaz).
+        DueDate          = input.DueDate is { } due ? BusinessClock.AsBusinessDate(due) : null;
         Description      = input.Description;
 
         // ── Virman (Transfer) alanları ──
