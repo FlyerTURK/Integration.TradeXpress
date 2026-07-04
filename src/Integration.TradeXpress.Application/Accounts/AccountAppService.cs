@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Integration.Framework;
 using Integration.Framework.Base.Querying;
 using Integration.TradeXpress.Companies;
 using Integration.TradeXpress.Financials.CurrencyUnits;
@@ -140,6 +141,8 @@ public class AccountAppService : TradeXpressAppService, IAccountAppService
         var balanceUnitId = await ResolveCurrencyAsync(input.BalanceCurrencyUnitId);
         var limitUnitId = await ResolveCurrencyAsync(input.LimitUnitId);
 
+        await ApplyCodeChangeAsync(entity, input.Code);
+
         entity.SetName(input.Name);
         entity.SetBalanceCurrencyUnit(balanceUnitId);
         entity.SetLimit(input.Limit);
@@ -166,6 +169,29 @@ public class AccountAppService : TradeXpressAppService, IAccountAppService
         await _repository.DeleteAsync(entity, autoSave: true);
     }
 
+    /// <summary>Kod değişikliği (ürün kuralı 2026-07-04: CurrencyUnit host kayıtları dışında tüm kodlar
+    /// düzenlenebilir): normalize et → değiştiyse AYNI ŞİRKET altında benzersizliği doğrula (kendisi hariç;
+    /// dostane hata, ham DB çakışması değil — (TenantId, CompanyId, Code) unique index'iyle hizalı) → uygula.</summary>
+    private async Task ApplyCodeChangeAsync(Account entity, string rawCode)
+    {
+        var normalizedCode = StringFieldGuard.NormalizeCode(
+            rawCode, nameof(entity.Code), EntityFieldConsts.CodeMinLength, AccountConsts.CodeMaxLength);
+        if (string.Equals(normalizedCode, entity.Code, StringComparison.Ordinal))
+        {
+            return; // değişmedi
+        }
+
+        var duplicate = await AsyncExecuter.AnyAsync(
+            (await _repository.GetQueryableAsync())
+                .Where(a => a.CompanyId == entity.CompanyId && a.Id != entity.Id && a.Code == normalizedCode));
+        if (duplicate)
+        {
+            throw new BusinessException("TradeXpress:Account:CodeAlreadyExists");
+        }
+
+        entity.SetCode(normalizedCode);
+    }
+
     // ── alt hesap grafı diff (Id + IsDeleted) → SubAccountAppService'e DELEGE ───
     private async Task SaveSubAccountsAsync(Guid accountId, System.Collections.Generic.List<SubAccountGraphDto> subAccounts)
     {
@@ -189,6 +215,7 @@ public class AccountAppService : TradeXpressAppService, IAccountAppService
             {
                 await _subAccountAppService.UpdateAsync(s.Id, new SubAccountUpdateDto
                 {
+                    Code = s.Code,          // kod düzenlenebilir (drill'deki değişiklik kaybolmasın)
                     Name = s.Name,
                     Description = s.Description,
                     IsActive = s.IsActive,

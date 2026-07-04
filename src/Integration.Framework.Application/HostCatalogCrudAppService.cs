@@ -169,6 +169,40 @@ public abstract class HostCatalogCrudAppService<TEntity, TGetDto, TListDto, TLis
         return Task.CompletedTask;
     }
 
+    /// <summary>
+    /// Kod değişikliği (ürün kuralı 2026-07-04: host CurrencyUnit kayıtları dışında tüm kodlar düzenlenebilir):
+    /// normalize et → değiştiyse benzersizlik scope'unda doğrula (kendisi hariç; dostane hata, ham DB çakışması
+    /// değil) → uygula. Scope'un TenantId bacağını repo'nun standart multi-tenant filter'ı verir (düzenlenebilir
+    /// kayıt daima mevcut kapsamda — tenant global'i zaten düzenleyemez); ek scope'u (ör. CompanyId) türev
+    /// <paramref name="buildDuplicateFilter"/> ile ekler. Türevler <c>MapToEntityAsync(update, entity)</c> başında çağırır.
+    /// </summary>
+    protected async Task ApplyCodeChangeAsync(
+        TEntity entity,
+        string rawCode,
+        Func<string, string> normalizeCode,
+        Func<TEntity, string> readCode,
+        Action<TEntity, string> writeCode,
+        Func<string, Expression<Func<TEntity, bool>>> buildDuplicateFilter,
+        string duplicateErrorCode)
+    {
+        var normalizedCode = normalizeCode(rawCode);
+        if (string.Equals(normalizedCode, readCode(entity), StringComparison.Ordinal))
+        {
+            return; // değişmedi
+        }
+
+        var duplicate = await AsyncExecuter.AnyAsync(
+            (await Repository.GetQueryableAsync())
+                .Where(x => x.Id != entity.Id)
+                .Where(buildDuplicateFilter(normalizedCode)));
+        if (duplicate)
+        {
+            throw new BusinessException(duplicateErrorCode);
+        }
+
+        writeCode(entity, normalizedCode);
+    }
+
     /// <summary>Tenant, global (host) kaydı düzenleyemez/silemez.</summary>
     protected virtual void EnsureEditable(TEntity entity, bool isDelete)
     {

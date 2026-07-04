@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq.Expressions;
 using System.Threading.Tasks;
+using Integration.Framework;
 using Integration.TradeXpress.Commodities;
 using Integration.TradeXpress.Financials.CurrencyUnits;
 using Integration.TradeXpress.Permissions;
@@ -72,13 +73,23 @@ public class FutureAppService
         return Task.FromResult(entity);
     }
 
-    protected override Task MapToEntityAsync(FutureUpdateDto updateInput, Future entity)
+    protected override async Task MapToEntityAsync(FutureUpdateDto updateInput, Future entity)
     {
+        // Kod düzenlenebilir (ürün kuralı 2026-07-04); benzersizlik scope'u DB unique index (TenantId, Code) ile hizalı.
+        await ApplyCodeChangeAsync(
+            entity,
+            updateInput.Code,
+            raw => StringFieldGuard.NormalizeCode(
+                raw, nameof(Future.Code), EntityFieldConsts.CodeMinLength, FutureConsts.CodeMaxLength),
+            e => e.Code,
+            (e, code) => e.SetCode(code),
+            code => x => x.Code == code,
+            "TradeXpress:Future:CodeAlreadyExists");
+
         entity.SetName(updateInput.Name);
         entity.SetFollowingUnit(updateInput.FollowingUnitId!.Value);
         entity.SetFollowingFactor(updateInput.FollowingFactor);
         entity.SetDescription(updateInput.Description);
         entity.SetActive(updateInput.IsActive);
-        return Task.CompletedTask;
     }
 }

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Threading.Tasks;
+using Integration.Framework;
 using Integration.Framework.Base.Querying;
 using Integration.TradeXpress.Permissions;
 using Microsoft.AspNetCore.Authorization;
@@ -130,6 +131,8 @@ public class CurrencyUnitAppService : TradeXpressAppService, ICurrencyUnitAppSer
         var entity = await GetInScopeAsync(id);
         EnsureEditable(entity);
 
+        await ApplyCodeChangeAsync(entity, input.Code);
+
         entity.SetName(input.Name);
         entity.SetDescription(input.Description);
         entity.SetDisplayOrder(input.DisplayOrder);
@@ -167,6 +170,35 @@ public class CurrencyUnitAppService : TradeXpressAppService, ICurrencyUnitAppSer
                 throw new EntityNotFoundException(typeof(CurrencyUnit), id);
             return entity;
         }
+    }
+
+    /// <summary>Kod değişikliği (ürün kuralı 2026-07-04): TENANT birimlerinde kod düzenlenebilir; HOST
+    /// (TenantId==null) biriminin kodu KİMSE tarafından değiştirilemez (Cash seed'i, Country.DefaultCurrencyCode
+    /// ve takip/parite türetmeleri host koduna bağlı) → <c>HostCodeLocked</c>. Değiştiyse tenant scope'unda
+    /// benzersizlik doğrulanır ((TenantId, Code) unique index'iyle hizalı; dostane hata).</summary>
+    private async Task ApplyCodeChangeAsync(CurrencyUnit entity, string rawCode)
+    {
+        var normalizedCode = StringFieldGuard.NormalizeCode(
+            rawCode, nameof(entity.Code), EntityFieldConsts.CodeMinLength, CurrencyConsts.CodeMaxLength);
+        if (string.Equals(normalizedCode, entity.Code, StringComparison.Ordinal))
+        {
+            return; // değişmedi
+        }
+
+        if (entity.TenantId == null)
+        {
+            throw new BusinessException("TradeXpress:CurrencyUnit:HostCodeLocked");
+        }
+
+        var duplicate = await AsyncExecuter.AnyAsync(
+            (await _repository.GetQueryableAsync())
+                .Where(u => u.Id != entity.Id && u.Code == normalizedCode));
+        if (duplicate)
+        {
+            throw new BusinessException("TradeXpress:CurrencyUnit:CodeAlreadyExists");
+        }
+
+        entity.SetCode(normalizedCode);
     }
 
     /// <summary>Tenant, global (host) birimi düzenleyemez/silemez — yalnız host yönetir.</summary>

@@ -131,7 +131,8 @@ public class Jewelry : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanySco
         return Code;
     }
 
-    private void SetCode(string code)
+    // Kod DÜZENLENEBİLİR (ürün kuralı 2026-07-04); benzersizlik kontrolü AppService'te (TenantId+CompanyId scope).
+    public virtual void SetCode(string code)
     {
         Code = StringFieldGuard.NormalizeCode(
             code, nameof(Code), EntityFieldConsts.CodeMinLength, JewelryConsts.CodeMaxLength);

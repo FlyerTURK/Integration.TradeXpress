@@ -41,7 +41,7 @@ public abstract class ServiceAppServiceTests<TStartupModule> : TradeXpressApplic
 
         var updated = await _appService.UpdateAsync(created.Id, new ServiceUpdateDto
         {
-            Name = "Rafinaj Ücreti", IsActive = false,
+            Code = "RAF", Name = "Rafinaj Ücreti", IsActive = false,   // Code artık UpdateDto'da zorunlu (kod düzenlenebilir ürün kuralı)
         });
 
         updated.Name.ShouldBe("Rafinaj Ücreti");
@@ -93,7 +93,7 @@ public abstract class ServiceAppServiceTests<TStartupModule> : TradeXpressApplic
             visible.IsGlobal.ShouldBeTrue();
 
             var editEx = await Should.ThrowAsync<BusinessException>(
-                () => _appService.UpdateAsync(global.Id, new ServiceUpdateDto { Name = "Hack", IsActive = true }));
+                () => _appService.UpdateAsync(global.Id, new ServiceUpdateDto { Code = "SDK", Name = "Hack", IsActive = true }));
             editEx.Code.ShouldBe("TradeXpress:Service:CannotEditGlobalAsTenant");
 
             var deleteEx = await Should.ThrowAsync<BusinessException>(
@@ -114,7 +114,7 @@ public abstract class ServiceAppServiceTests<TStartupModule> : TradeXpressApplic
 
             var updated = await _appService.UpdateAsync(own.Id, new ServiceUpdateDto
             {
-                Name = "Tamir Bakım", IsActive = true,
+                Code = "TMR", Name = "Tamir Bakım", IsActive = true,
             });
 
             updated.Name.ShouldBe("Tamir Bakım");
@@ -126,7 +126,7 @@ public abstract class ServiceAppServiceTests<TStartupModule> : TradeXpressApplic
     public async Task Picker_returns_host_and_own_records_ordered_by_code_including_passives()
     {
         var passive = await _appService.CreateAsync(new ServiceCreateDto { Code = "AAA", Name = "Pasif Hizmet" });
-        await _appService.UpdateAsync(passive.Id, new ServiceUpdateDto { Name = "Pasif Hizmet", IsActive = false });
+        await _appService.UpdateAsync(passive.Id, new ServiceUpdateDto { Code = "AAA", Name = "Pasif Hizmet", IsActive = false });
         await _appService.CreateAsync(new ServiceCreateDto { Code = "ZZZ", Name = "Son Hizmet" });
 
         using (_currentTenant.Change(Guid.NewGuid()))

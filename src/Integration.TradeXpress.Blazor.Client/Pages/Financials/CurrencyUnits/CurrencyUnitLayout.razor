@@ -17,7 +17,8 @@
 <DxFormLayout CssClass="w-100">
     <DxFormLayoutGroup Caption="@L["General"]" ColSpanMd="12">
         <DxFormLayoutItem Caption="@($"{L["Code"]} *")" ColSpanMd="6">
-            <DxTextBox @bind-Text="@Model.Code" Enabled="@IsNew" />
+            @* Kod düzenlenebilir (ürün kuralı 2026-07-04) — HOST (global) birimin kodu kilitli kalır (HostCodeLocked). *@
+            <DxTextBox @bind-Text="@Model.Code" Enabled="@(IsNew || !Model.IsGlobal)" />
         </DxFormLayoutItem>
         <DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="12">
             <DxTextBox @bind-Text="@Model.Name" />

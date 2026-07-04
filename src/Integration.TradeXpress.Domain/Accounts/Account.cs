@@ -124,8 +124,10 @@ public class Account : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwn
         return Code;
     }
 
-    // Code immutable → yalnız ctor için private normalize+validate.
-    private void SetCode(string code)
+    // Kod DÜZENLENEBİLİR (ürün kuralı 2026-07-04: host CurrencyUnit kayıtları dışında tüm entity kodları
+    // değiştirilebilir). Normalize + min/max recheck StringFieldGuard'da; benzersizlik kontrolü AppService'te
+    // (TenantId+CompanyId scope — DB unique index ile hizalı).
+    public virtual void SetCode(string code)
     {
         Code = StringFieldGuard.NormalizeCode(
             code, nameof(Code), EntityFieldConsts.CodeMinLength, AccountConsts.CodeMaxLength);

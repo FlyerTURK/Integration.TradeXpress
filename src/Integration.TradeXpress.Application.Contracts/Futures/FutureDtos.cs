@@ -50,6 +50,11 @@ public class FutureCreateDto : FollowingUnitCatalogCreateDtoBase
 
 public class FutureUpdateDto : FollowingUnitCatalogUpdateDtoBase
 {
+    // Kod DÜZENLENEBİLİR (ürün kuralı 2026-07-04: host CurrencyUnit kayıtları dışında tüm kodlar değiştirilebilir).
+    [Required]
+    [StringLength(FutureConsts.CodeMaxLength, MinimumLength = EntityFieldConsts.CodeMinLength)]
+    public override string Code { get; set; } = string.Empty;
+
     [Required]
     [StringLength(FutureConsts.NameMaxLength, MinimumLength = EntityFieldConsts.NameMinLength)]
     public override string Name { get; set; } = string.Empty;

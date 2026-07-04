@@ -13,7 +13,7 @@
 <DxFormLayout CssClass="w-100">
     <DxFormLayoutGroup Caption="@L["General"]" ColSpanMd="12">
         <DxFormLayoutItem Caption="@($"{L["Code"]} *")" ColSpanMd="6">
-            <DxTextBox @bind-Text="@Model.Code" Enabled="@IsNew" />
+            <DxTextBox @bind-Text="@Model.Code" />
         </DxFormLayoutItem>
         <DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="6">
             <DxTextBox @bind-Text="@Model.Name" />

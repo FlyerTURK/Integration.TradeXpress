@@ -95,6 +95,11 @@ public class StoneCreateDto : CatalogCreateDtoBase
 
 public class StoneUpdateDto : CatalogUpdateDtoBase
 {
+    // Kod DÜZENLENEBİLİR (ürün kuralı 2026-07-04: host CurrencyUnit kayıtları dışında tüm kodlar değiştirilebilir).
+    [Required]
+    [StringLength(StoneConsts.CodeMaxLength, MinimumLength = EntityFieldConsts.CodeMinLength)]
+    public override string Code { get; set; } = string.Empty;
+
     [Required]
     [StringLength(StoneConsts.NameMaxLength, MinimumLength = EntityFieldConsts.NameMinLength)]
     public override string Name { get; set; } = string.Empty;

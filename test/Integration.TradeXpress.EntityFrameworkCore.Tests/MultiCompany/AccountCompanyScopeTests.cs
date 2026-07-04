@@ -221,6 +221,7 @@ public class AccountCompanyScopeTests : TradeXpressEntityFrameworkCoreTestBase
     {
         return new AccountUpdateDto
         {
+            Code                  = "RENAMEDACC",   // Code artık UpdateDto'da zorunlu (kod düzenlenebilir ürün kuralı)
             Name                  = "Renamed Account",
             BalanceCurrencyUnitId = unitId,
             LimitUnitId           = unitId,

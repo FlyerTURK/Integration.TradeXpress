@@ -146,8 +146,10 @@ public class CurrencyUnit : FullAuditedAggregateRoot<Guid>, IMultiTenant
         return Code;
     }
 
-    // Code immutable (public mutator YOK) → yalnız ctor için private normalize+validate.
-    private void SetCode(string code)
+    // Kod TENANT birimlerinde DÜZENLENEBİLİR (ürün kuralı 2026-07-04); HOST (TenantId==null) biriminin kodu
+    // DEĞİŞTİRİLEMEZ — kilit AppService'te (HostCodeLocked; Cash seed'i ve türetmeler host koduna bağlı).
+    // Normalize + min/max recheck StringFieldGuard'da; benzersizlik kontrolü AppService'te (TenantId scope).
+    public virtual void SetCode(string code)
     {
         Code = StringFieldGuard.NormalizeCode(
             code,

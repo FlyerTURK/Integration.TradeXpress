@@ -39,9 +39,11 @@ public abstract class CatalogCreateDtoBase : ICreateDto
     public virtual string Name { get; set; } = string.Empty;
 }
 
-/// <summary>Katalog Update DTO ortak gövdesi — Code güncellenmez (kimlik), Name attribute'ları türevde.</summary>
+/// <summary>Katalog Update DTO ortak gövdesi — Code/Name attribute'ları türevde (bkz. <see cref="CatalogGetDtoBase"/>).
+/// Code DÜZENLENEBİLİR (ürün kuralı 2026-07-04: host CurrencyUnit kayıtları dışında tüm kodlar değiştirilebilir).</summary>
 public abstract class CatalogUpdateDtoBase : IUpdateDto
 {
+    public virtual string Code { get; set; } = string.Empty;
     public virtual string Name { get; set; } = string.Empty;
     public bool IsActive { get; set; }
 }

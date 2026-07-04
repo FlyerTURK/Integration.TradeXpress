@@ -92,6 +92,11 @@ public class AccountCreateDto : ICreateDto
 
 public class AccountUpdateDto : IUpdateDto
 {
+    // Kod DÜZENLENEBİLİR (ürün kuralı 2026-07-04: CurrencyUnit host kayıtları dışında tüm kodlar değiştirilebilir).
+    [Required]
+    [StringLength(AccountConsts.CodeMaxLength, MinimumLength = EntityFieldConsts.CodeMinLength)]
+    public string Code { get; set; } = string.Empty;
+
     [Required]
     [StringLength(AccountConsts.NameMaxLength, MinimumLength = EntityFieldConsts.NameMinLength)]
     public string Name { get; set; } = string.Empty;

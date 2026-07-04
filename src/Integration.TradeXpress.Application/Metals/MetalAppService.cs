@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq.Expressions;
 using System.Threading.Tasks;
+using Integration.Framework;
 using Integration.TradeXpress.Commodities;
 using Integration.TradeXpress.Financials.CurrencyUnits;
 using Integration.TradeXpress.Permissions;
@@ -80,8 +81,19 @@ public class MetalAppService
         return Task.FromResult(entity);
     }
 
-    protected override Task MapToEntityAsync(MetalUpdateDto updateInput, Metal entity)
+    protected override async Task MapToEntityAsync(MetalUpdateDto updateInput, Metal entity)
     {
+        // Kod düzenlenebilir (ürün kuralı 2026-07-04); benzersizlik scope'u DB unique index (TenantId, Code) ile hizalı.
+        await ApplyCodeChangeAsync(
+            entity,
+            updateInput.Code,
+            raw => StringFieldGuard.NormalizeCode(
+                raw, nameof(Metal.Code), EntityFieldConsts.CodeMinLength, MetalConsts.CodeMaxLength),
+            e => e.Code,
+            (e, code) => e.SetCode(code),
+            code => x => x.Code == code,
+            "TradeXpress:Metal:CodeAlreadyExists");
+
         entity.SetName(updateInput.Name);
         entity.SetFollowingUnit(updateInput.FollowingUnitId!.Value);
         entity.SetFactor(updateInput.Factor);
@@ -95,6 +107,5 @@ public class MetalAppService
         entity.SetBarcode(updateInput.Barcode);
         entity.SetDescription(updateInput.Description);
         entity.SetActive(updateInput.IsActive);
-        return Task.CompletedTask;
     }
 }

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq.Expressions;
 using System.Threading.Tasks;
+using Integration.Framework;
 using Integration.Framework.Application;
 using Integration.TradeXpress.Localization;
 using Integration.TradeXpress.Permissions;
@@ -62,11 +63,21 @@ public class ServiceAppService
         return Task.FromResult(entity);
     }
 
-    protected override Task MapToEntityAsync(ServiceUpdateDto updateInput, Service entity)
+    protected override async Task MapToEntityAsync(ServiceUpdateDto updateInput, Service entity)
     {
+        // Kod düzenlenebilir (ürün kuralı 2026-07-04); benzersizlik scope'u DB unique index (TenantId, Code) ile hizalı.
+        await ApplyCodeChangeAsync(
+            entity,
+            updateInput.Code,
+            raw => StringFieldGuard.NormalizeCode(
+                raw, nameof(Service.Code), EntityFieldConsts.CodeMinLength, ServiceConsts.CodeMaxLength),
+            e => e.Code,
+            (e, code) => e.SetCode(code),
+            code => x => x.Code == code,
+            "TradeXpress:Service:CodeAlreadyExists");
+
         entity.SetName(updateInput.Name);
         entity.SetDescription(updateInput.Description);
         entity.SetActive(updateInput.IsActive);
-        return Task.CompletedTask;
     }
 }

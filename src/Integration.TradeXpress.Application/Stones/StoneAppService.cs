@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Threading.Tasks;
+using Integration.Framework;
 using Integration.Framework.Application;
 using Integration.TradeXpress.Localization;
 using Integration.TradeXpress.MultiCompany;
@@ -99,8 +100,20 @@ public class StoneAppService
         return Task.FromResult(entity);
     }
 
-    protected override Task MapToEntityAsync(StoneUpdateDto updateInput, Stone entity)
+    protected override async Task MapToEntityAsync(StoneUpdateDto updateInput, Stone entity)
     {
+        // Kod düzenlenebilir (ürün kuralı 2026-07-04); benzersizlik scope'u DB unique index
+        // (TenantId, CompanyId, Code) ile hizalı — TenantId'yi standart filter verir.
+        await ApplyCodeChangeAsync(
+            entity,
+            updateInput.Code,
+            raw => StringFieldGuard.NormalizeCode(
+                raw, nameof(Stone.Code), EntityFieldConsts.CodeMinLength, StoneConsts.CodeMaxLength),
+            e => e.Code,
+            (e, code) => e.SetCode(code),
+            code => x => x.CompanyId == entity.CompanyId && x.Code == code,
+            "TradeXpress:Stone:CodeAlreadyExists");
+
         entity.SetName(updateInput.Name);
         entity.SetAttributes(updateInput.StoneKind, updateInput.StoneType, updateInput.Color, updateInput.Cut,
                              updateInput.Clarity, updateInput.Sieve, updateInput.Category, updateInput.GroupCode);
@@ -108,6 +121,5 @@ public class StoneAppService
                           updateInput.EntryPrice, updateInput.EntryPriceUnitId, updateInput.ExitPrice, updateInput.ExitPriceUnitId);
         entity.SetDescription(updateInput.Description);
         entity.SetActive(updateInput.IsActive);
-        return Task.CompletedTask;
     }
 }

@@ -172,7 +172,8 @@ public class Metal : FullAuditedAggregateRoot<Guid>, IMultiTenant
         return Code;
     }
 
-    private void SetCode(string code)
+    // Kod DÜZENLENEBİLİR (ürün kuralı 2026-07-04); benzersizlik kontrolü AppService'te (TenantId scope).
+    public virtual void SetCode(string code)
     {
         Code = StringFieldGuard.NormalizeCode(
             code, nameof(Code), EntityFieldConsts.CodeMinLength, MetalConsts.CodeMaxLength);

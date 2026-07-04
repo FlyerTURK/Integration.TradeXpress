@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Integration.Framework;
 using Integration.Framework.Base.Querying;
 using Integration.TradeXpress.Branches;
 using Integration.TradeXpress.MultiCompany;
@@ -123,12 +124,37 @@ public class SubAccountAppService : TradeXpressAppService, ISubAccountAppService
     {
         var entity = await _repository.GetAsync(id);
 
+        await ApplyCodeChangeAsync(entity, input.Code);
+
         entity.SetName(input.Name);
         entity.SetDescription(input.Description);
         entity.SetActive(input.IsActive);
 
         await _repository.UpdateAsync(entity, autoSave: true);
         return await ToGetDtoAsync(entity);
+    }
+
+    /// <summary>Kod değişikliği (ürün kuralı: CurrencyUnit host kayıtları dışında tüm kodlar düzenlenebilir):
+    /// normalize et → değiştiyse AYNI HESAP altında benzersizliği doğrula (kendisi hariç; dostane hata,
+    /// ham DB çakışması değil) → uygula. Normalize karşılaştırma DB'deki normalize değerle eşleşir.</summary>
+    private async Task ApplyCodeChangeAsync(SubAccount entity, string rawCode)
+    {
+        var normalizedCode = StringFieldGuard.NormalizeCode(
+            rawCode, nameof(entity.Code), EntityFieldConsts.CodeMinLength, AccountConsts.CodeMaxLength);
+        if (string.Equals(normalizedCode, entity.Code, StringComparison.Ordinal))
+        {
+            return; // değişmedi
+        }
+
+        var duplicate = await AsyncExecuter.AnyAsync(
+            (await _repository.GetQueryableAsync())
+                .Where(s => s.AccountId == entity.AccountId && s.Id != entity.Id && s.Code == normalizedCode));
+        if (duplicate)
+        {
+            throw new BusinessException("TradeXpress:SubAccount:CodeAlreadyExists");
+        }
+
+        entity.SetCode(normalizedCode);
     }
 
     [Authorize(TradeXpressPermissions.SubAccounts.Delete)]

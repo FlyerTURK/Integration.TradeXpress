@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Threading.Tasks;
+using Integration.Framework;
 using Integration.Framework.Application;
 using Integration.TradeXpress.Localization;
 using Integration.TradeXpress.MultiCompany;
@@ -98,14 +99,25 @@ public class JewelryAppService
         return Task.FromResult(entity);
     }
 
-    protected override Task MapToEntityAsync(JewelryUpdateDto updateInput, Jewelry entity)
+    protected override async Task MapToEntityAsync(JewelryUpdateDto updateInput, Jewelry entity)
     {
+        // Kod düzenlenebilir (ürün kuralı 2026-07-04); benzersizlik scope'u DB unique index
+        // (TenantId, CompanyId, Code) ile hizalı — TenantId'yi standart filter verir.
+        await ApplyCodeChangeAsync(
+            entity,
+            updateInput.Code,
+            raw => StringFieldGuard.NormalizeCode(
+                raw, nameof(Jewelry.Code), EntityFieldConsts.CodeMinLength, JewelryConsts.CodeMaxLength),
+            e => e.Code,
+            (e, code) => e.SetCode(code),
+            code => x => x.CompanyId == entity.CompanyId && x.Code == code,
+            "TradeXpress:Jewelry:CodeAlreadyExists");
+
         entity.SetName(updateInput.Name);
         entity.SetAttributes(updateInput.Model, updateInput.Kind, updateInput.Type, updateInput.Color, updateInput.Category, updateInput.GroupCode);
         entity.SetPricing(updateInput.IsQuantity, updateInput.PriceByQuantity, updateInput.PriceTypeChange,
                           updateInput.EntryPrice, updateInput.EntryPriceUnitId, updateInput.ExitPrice, updateInput.ExitPriceUnitId);
         entity.SetDescription(updateInput.Description);
         entity.SetActive(updateInput.IsActive);
-        return Task.CompletedTask;
     }
 }

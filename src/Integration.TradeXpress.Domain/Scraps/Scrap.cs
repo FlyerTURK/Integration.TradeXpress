@@ -106,7 +106,9 @@ public class Scrap : FullAuditedAggregateRoot<Guid>, IMultiTenant
         return Code;
     }
 
-    private void SetCode(string code)
+    // Kod DÜZENLENEBİLİR (ürün kuralı 2026-07-04); benzersizlik kontrolü AppService'te (TenantId scope).
+    // Seeder rename-backfill'i (legacy '_' kodları) de bu mutator'ı kullanır.
+    public virtual void SetCode(string code)
     {
         Code = StringFieldGuard.NormalizeCode(
             code, nameof(Code), EntityFieldConsts.CodeMinLength, ScrapConsts.CodeMaxLength);

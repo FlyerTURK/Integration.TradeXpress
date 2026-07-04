@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Integration.Framework;
 using Integration.Framework.Base.Querying;
 using Integration.TradeXpress.MultiCompany;
 using Integration.TradeXpress.Permissions;
@@ -67,7 +68,7 @@ public class AssayOfficeAppService : TradeXpressAppService, IAssayOfficeAppServi
     public virtual async Task<AssayOfficeGetDto> UpdateAsync(Guid id, AssayOfficeUpdateDto input)
     {
         var e = await _repository.GetAsync(id);
-        e.SetCode(input.Code);
+        await ApplyCodeChangeAsync(e, input.Code);
         e.SetName(input.Name);
         e.SetDescription(input.Description);
         e.SetDisplayOrder(input.DisplayOrder);
@@ -79,6 +80,29 @@ public class AssayOfficeAppService : TradeXpressAppService, IAssayOfficeAppServi
     [Authorize(TradeXpressPermissions.AssayOffices.Delete)]
     public virtual async Task DeleteAsync(Guid id)
         => await _repository.DeleteAsync(id);
+
+    /// <summary>Kod değişikliği (ürün kuralı 2026-07-04 ile hizalı desen): normalize et → değiştiyse AYNI ŞİRKET
+    /// altında benzersizliği doğrula (kendisi hariç; dostane hata, ham DB çakışması değil —
+    /// (TenantId, CompanyId, Code) unique index'iyle hizalı) → uygula.</summary>
+    private async Task ApplyCodeChangeAsync(AssayOffice entity, string rawCode)
+    {
+        var normalizedCode = StringFieldGuard.NormalizeCode(
+            rawCode, nameof(entity.Code), EntityFieldConsts.CodeMinLength, AssayOfficeConsts.CodeMaxLength);
+        if (string.Equals(normalizedCode, entity.Code, StringComparison.Ordinal))
+        {
+            return; // değişmedi
+        }
+
+        var duplicate = await AsyncExecuter.AnyAsync(
+            (await _repository.GetQueryableAsync())
+                .Where(a => a.CompanyId == entity.CompanyId && a.Id != entity.Id && a.Code == normalizedCode));
+        if (duplicate)
+        {
+            throw new BusinessException("TradeXpress:AssayOffice:CodeAlreadyExists");
+        }
+
+        entity.SetCode(normalizedCode);
+    }
 
     public virtual async Task<List<AssayOfficeListDto>> GetPickerListAsync()
     {

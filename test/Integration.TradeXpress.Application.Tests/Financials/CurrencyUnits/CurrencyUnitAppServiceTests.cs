@@ -45,7 +45,8 @@ public abstract class CurrencyUnitAppServiceTests<TStartupModule> : TradeXpressA
 
         var updated = await _appService.UpdateAsync(created.Id, new CurrencyUnitUpdateDto
         {
-            Name = "Test Gold 2", IsActive = false, DisplayOrder = 5,
+            // Code aynı gönderilir: host biriminin kodu kilitli (HostCodeLocked) — değişmeyen kod no-op.
+            Code = "XAU", Name = "Test Gold 2", IsActive = false, DisplayOrder = 5,
         });
 
         updated.Name.ShouldBe("Test Gold 2");

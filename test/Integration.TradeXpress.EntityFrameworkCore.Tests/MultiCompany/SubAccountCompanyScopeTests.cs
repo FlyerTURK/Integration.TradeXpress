@@ -170,6 +170,7 @@ public class SubAccountCompanyScopeTests : TradeXpressEntityFrameworkCoreTestBas
     {
         return new SubAccountUpdateDto
         {
+            Code     = "RENAMED",   // Code artık UpdateDto'da zorunlu (kod düzenlenebilir ürün kuralı)
             Name     = "Renamed Sub Account",
             IsActive = true,
         };

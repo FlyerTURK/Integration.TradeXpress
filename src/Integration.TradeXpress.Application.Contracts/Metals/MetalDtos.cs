@@ -99,6 +99,11 @@ public class MetalCreateDto : FollowingUnitCatalogCreateDtoBase
 
 public class MetalUpdateDto : FollowingUnitCatalogUpdateDtoBase
 {
+    // Kod DÜZENLENEBİLİR (ürün kuralı 2026-07-04: host CurrencyUnit kayıtları dışında tüm kodlar değiştirilebilir).
+    [Required]
+    [StringLength(MetalConsts.CodeMaxLength, MinimumLength = EntityFieldConsts.CodeMinLength)]
+    public override string Code { get; set; } = string.Empty;
+
     [Required]
     [StringLength(MetalConsts.NameMaxLength, MinimumLength = EntityFieldConsts.NameMinLength)]
     public override string Name { get; set; } = string.Empty;
