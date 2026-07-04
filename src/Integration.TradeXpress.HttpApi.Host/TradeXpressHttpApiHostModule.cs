@@ -89,7 +89,11 @@ public class TradeXpressHttpApiHostModule : AbpModule
         var configuration = context.Services.GetConfiguration();
         var hostingEnvironment = context.Services.GetHostingEnvironment();
 
-        if (!configuration.GetValue<bool>("App:DisablePII"))
+        // PII (token/claim detayları) SADECE Development'ta loglanabilir — prod'da kimlik token
+        // detayları loglara sızmasın. Ortam-bazlı fail-safe: prod'da App:DisablePII yanlış ayarlansa
+        // (ya da hiç set edilmese) bile ShowPII asla açılmaz. Dev'de mevcut davranış korunur
+        // (App:DisablePII=false → tam PII teşhis çıktısı açık).
+        if (hostingEnvironment.IsDevelopment() && !configuration.GetValue<bool>("App:DisablePII"))
         {
             Microsoft.IdentityModel.Logging.IdentityModelEventSource.ShowPII = true;
             Microsoft.IdentityModel.Logging.IdentityModelEventSource.LogCompleteSecurityArtifact = true;
@@ -224,6 +228,8 @@ public class TradeXpressHttpApiHostModule : AbpModule
 
     private void ConfigureCors(ServiceConfigurationContext context, IConfiguration configuration)
     {
+        var hostingEnvironment = context.Services.GetHostingEnvironment();
+
         context.Services.AddCors(options =>
         {
             options.AddDefaultPolicy(builder =>
@@ -235,8 +241,20 @@ public class TradeXpressHttpApiHostModule : AbpModule
                             .Select(o => o.Trim().RemovePostFix("/"))
                             .ToArray() ?? Array.Empty<string>()
                     )
-                    .WithAbpExposedHeaders()
-                    .SetIsOriginAllowedToAllowWildcardSubdomains()
+                    .WithAbpExposedHeaders();
+
+                // Wildcard alt-alan (*.domain) eşleşmesi + AllowCredentials birlikte = riskli:
+                // saldırgan bir alt-alanı ele geçirirse kimlik bilgili istek atabilir. Bu yüzden
+                // wildcard genişletme SADECE Development'ta açık (dev origin'leri zaten TAM origin —
+                // localhost:44318 / ts.net:44318 — bu çağrıya ihtiyaç duymaz, davranış değişmez).
+                // Prod'da wildcard eşleşmez → App:CorsOrigins TAM/açık origin listesi olmak ZORUNDA
+                // (appsettings.Production.json). Fail-safe: prod'da liste boşsa CORS reddeder (fail-open değil).
+                if (hostingEnvironment.IsDevelopment())
+                {
+                    builder.SetIsOriginAllowedToAllowWildcardSubdomains();
+                }
+
+                builder
                     .AllowAnyHeader()
                     .AllowAnyMethod()
                     .AllowCredentials();
