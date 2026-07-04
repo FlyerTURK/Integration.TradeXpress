@@ -61,18 +61,82 @@ public class CashReportAppService : TradeXpressAppService, ICashReportAppService
         DateTime VoucherDate, long VoucherNumber, ProcessType ProcessType, ProcessDirectionType Direction, ProcessPaymentType? PaymentType,
         Guid? VaultId, Guid CompanyId, Guid BranchId, Guid? SubAccountId, string? Description, DateTime CreationTime, Guid LineId);
 
+    /// <summary>
+    /// Nakit STOK: kapsam (şirket DAİMA ICurrentCompany'den) + branch/vault, TÜM geçmişin birim-bazlı Giren/Çıkan/Net'i.
+    /// K4: satırları belleğe çekip in-memory leg üretmek yerine SQL-side GROUP BY + SUM (<see cref="GetCashNetByUnitAsync"/>
+    /// deseni) — iki bacak / işaret / CashId / kapsam kuralları <see cref="QueryCashLegsAsync"/> ile BİREBİR aynı, yalnız
+    /// aggregation DB'de. Giren = Σ(leg-effect &gt; 0), Çıkan = Σ(−effect &lt; 0); Net = Giren − Çıkan (= Σ effect).
+    /// </summary>
     public virtual async Task<List<CashStockRowDto>> GetStockAsync(CashReportFilterDto filter)
     {
-        var legs = await QueryCashLegsAsync(filter, dateFiltered: false);
+        // SIZINTI ÖNLEME: rapor DAİMA çalışılan şirketle sınırlı (ICurrentCompany). Yoksa (host/API) boş.
+        if (LazyServiceProvider.LazyGetRequiredService<ICurrentCompany>().Id is not { } companyId)
+            return new List<CashStockRowDto>();
 
-        var grouped = legs
-            .GroupBy(x => x.UnitId)
-            .Select(g => new CashStockRowDto
+        var q = await _voucherRepository.GetQueryableAsync();
+
+        // Sol bacak: yalnız Cash process'te nakit (Total @ MainUnit). Giriş + / Çıkış −.
+        // IQueryable → SQL: IsInflow() extension'ı EF Core tarafından çevrilemez, ham %2 (giriş = çift) bilinçli.
+        // effect = giriş ? Total : −Total; Giren = effect>0 payı, Çıkan = effect<0 payı (mutlak).
+        var mainAgg = await AsyncExecuter.ToListAsync(
+            from v in q
+            where v.CompanyId == companyId
+               && (filter.BranchId == null || v.BranchId == filter.BranchId)
+               && (filter.VaultId == null || v.VaultId == filter.VaultId)
+            from l in v.Lines
+            where !l.IsDeleted && l.Type == ProcessType.Cash && l.MainUnitId != Guid.Empty && l.Total != 0m
+               && (filter.CashId == null || l.CommodityId == filter.CashId)
+            group l by l.MainUnitId into g
+            select new
             {
-                UnitId   = g.Key,
-                InTotal  = g.Where(x => x.Effect > 0).Sum(x => x.Effect),
-                OutTotal = g.Where(x => x.Effect < 0).Sum(x => -x.Effect),
-                Net      = g.Sum(x => x.Effect),
+                UnitId = g.Key,
+                In  = g.Sum(x => (((int)x.Direction % 2) == 0 ? x.Total : -x.Total) > 0m
+                                 ? (((int)x.Direction % 2) == 0 ? x.Total : -x.Total) : 0m),
+                Out = g.Sum(x => (((int)x.Direction % 2) == 0 ? x.Total : -x.Total) < 0m
+                                 ? (((int)x.Direction % 2) == 0 ? -x.Total : x.Total) : 0m),
+            });
+
+        // Sağ bacak: Peşin (WithCash) olan tüm process'lerde karşılık nakit (PayTotal @ PayUnit).
+        // İşaret tersi: mal Çıkış → nakit girer (+), mal Giriş → nakit çıkar (−) → effect = giriş ? −PayTotal : PayTotal.
+        var payAgg = await AsyncExecuter.ToListAsync(
+            from v in q
+            where v.CompanyId == companyId
+               && (filter.BranchId == null || v.BranchId == filter.BranchId)
+               && (filter.VaultId == null || v.VaultId == filter.VaultId)
+            from l in v.Lines
+            where !l.IsDeleted && l.PaymentType == ProcessPaymentType.WithCash && l.PayUnitId != null && l.PayTotal != 0m
+               && (filter.CashId == null || l.PayCommodityId == filter.CashId)
+            group l by l.PayUnitId into g
+            select new
+            {
+                UnitId = g.Key,
+                In  = g.Sum(x => (((int)x.Direction % 2) == 0 ? -x.PayTotal : x.PayTotal) > 0m
+                                 ? (((int)x.Direction % 2) == 0 ? -x.PayTotal : x.PayTotal) : 0m),
+                Out = g.Sum(x => (((int)x.Direction % 2) == 0 ? -x.PayTotal : x.PayTotal) < 0m
+                                 ? (((int)x.Direction % 2) == 0 ? x.PayTotal : -x.PayTotal) : 0m),
+            });
+
+        // İki bacağı birim-bazında birleştir (Giren/Çıkan ayrı toplanır; Net = Giren − Çıkan — in-memory ile birebir).
+        var byUnit = new Dictionary<Guid, (decimal In, decimal Out)>();
+        foreach (var r in mainAgg)
+        {
+            var cur = byUnit.GetValueOrDefault(r.UnitId);
+            byUnit[r.UnitId] = (cur.In + r.In, cur.Out + r.Out);
+        }
+        foreach (var r in payAgg)
+        {
+            var unitId = r.UnitId!.Value;   // where-filtresi null'ı zaten eledi
+            var cur = byUnit.GetValueOrDefault(unitId);
+            byUnit[unitId] = (cur.In + r.In, cur.Out + r.Out);
+        }
+
+        var grouped = byUnit
+            .Select(kv => new CashStockRowDto
+            {
+                UnitId   = kv.Key,
+                InTotal  = kv.Value.In,
+                OutTotal = kv.Value.Out,
+                Net      = kv.Value.In - kv.Value.Out,
             })
             .ToList();
 
