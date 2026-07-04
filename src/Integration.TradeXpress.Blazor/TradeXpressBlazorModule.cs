@@ -247,6 +247,11 @@ public class TradeXpressBlazorModule : AbpModule
         context.Services.AddScoped<Integration.TradeXpress.MultiCompany.ICompanyContextProvider,
                                    Integration.TradeXpress.Blazor.Client.Services.Working.WorkingCompanyContextProvider>();
 
+        // Working seçiminin scope-bağımsız SSOT'u (per-user, SINGLETON) — ABP UoW child scope'larındaki DbContext
+        // filtresi seçimi buradan okur; scoped WorkingContextService'in boş kopyasına düşmez (owned kayıtların
+        // "yazıldı ama görünmüyor / parent bulunamadı" kök-neden fix'i). Client modülü DependsOn'da değil → elle kayıt.
+        context.Services.AddSingleton<Integration.TradeXpress.Blazor.Client.Services.Working.WorkingSelectionStore>();
+
         // Identity Management Services
         context.Services.AddScoped<Integration.TradeXpress.Blazor.Client.Services.IIdentityUserService,
                                    Integration.TradeXpress.Blazor.Client.Services.IdentityUserService>();

@@ -2,6 +2,8 @@ using System;
 using Integration.TradeXpress.MultiCompany;
 using Microsoft.Extensions.Logging;
 using Volo.Abp.DependencyInjection;
+using Volo.Abp.MultiTenancy;
+using Volo.Abp.Users;
 
 namespace Integration.TradeXpress.Blazor.Client.Services.Working;
 
@@ -25,21 +27,36 @@ namespace Integration.TradeXpress.Blazor.Client.Services.Working;
 [Dependency(ReplaceServices = true)]
 public class WorkingCompanyContextProvider : ICompanyContextProvider, IScopedDependency
 {
-    private readonly IWorkingContextService _working;
+    private readonly WorkingSelectionStore _selectionStore;
+    private readonly ICurrentUser _currentUser;
+    private readonly ICurrentTenant _currentTenant;
     private readonly ILogger<WorkingCompanyContextProvider> _logger;
 
     public WorkingCompanyContextProvider(
-        IWorkingContextService working,
+        WorkingSelectionStore selectionStore,
+        ICurrentUser currentUser,
+        ICurrentTenant currentTenant,
         ILogger<WorkingCompanyContextProvider> logger)
     {
-        _working = working;
+        _selectionStore = selectionStore;
+        _currentUser = currentUser;
+        _currentTenant = currentTenant;
         _logger = logger;
     }
 
     public Guid? GetCurrentCompanyId()
     {
-        var selected = _working.CurrentCompanyId;
-        var allowed = _working.AllowedCompanyIds;
+        // SSOT: scope-bağımsız singleton store (per-user). Scoped IWorkingContextService'ten OKUNMAZ —
+        // ABP UoW child scope'unda o servisin boş kopyası çözülür (ölçümle kanıtlı kök neden) ve tüm
+        // owned kayıtlar sentinel'e düşerdi. Store'u UI (WorkingContextService) yükleme/seçim anında doldurur.
+        // Henüz doldurulmamışsa (login sonrası ilk anlar) davranış ESKİYLE AYNI fail-safe'tir:
+        // selected=null + allowed=boş → sentinel (owned gizli) — güvenlik sınırı gevşetilmez.
+        var entry = _currentUser.Id is { } userId
+            ? _selectionStore.Get(_currentTenant.Id, userId)
+            : null;
+
+        var selected = entry?.SelectedCompanyId;
+        var allowed = entry?.AllowedCompanyIds ?? Array.Empty<Guid>();
 
         var effective = WorkingCompanyScope.ResolveEffectiveCompanyId(selected, allowed);
 

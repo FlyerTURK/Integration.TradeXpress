@@ -4,6 +4,8 @@ using System.Linq;
 using System.Threading.Tasks;
 using Integration.TradeXpress.Branches;
 using Integration.TradeXpress.Settings;
+using Volo.Abp.MultiTenancy;
+using Volo.Abp.Users;
 
 namespace Integration.TradeXpress.Blazor.Client.Services.Working;
 
@@ -49,6 +51,9 @@ public class WorkingContextService : IWorkingContextService
 {
     private readonly IBranchAppService _branchAppService;
     private readonly IUserUiSettingAppService _uiSettings;
+    private readonly WorkingSelectionStore _selectionStore;
+    private readonly ICurrentUser _currentUser;
+    private readonly ICurrentTenant _currentTenant;
 
     private List<BranchListDto> _branches = new();
     private IReadOnlyList<Guid> _allowedCompanyIds = Array.Empty<Guid>();
@@ -57,10 +62,18 @@ public class WorkingContextService : IWorkingContextService
     /// <summary>Paylaşılan yükleme Task'ı — eşzamanlı ikinci çağıran AYNI yüklemeyi bekler (boş şube listesi penceresi yok).</summary>
     private Task? _loadTask;
 
-    public WorkingContextService(IBranchAppService branchAppService, IUserUiSettingAppService uiSettings)
+    public WorkingContextService(
+        IBranchAppService branchAppService,
+        IUserUiSettingAppService uiSettings,
+        WorkingSelectionStore selectionStore,
+        ICurrentUser currentUser,
+        ICurrentTenant currentTenant)
     {
         _branchAppService = branchAppService;
         _uiSettings = uiSettings;
+        _selectionStore = selectionStore;
+        _currentUser = currentUser;
+        _currentTenant = currentTenant;
     }
 
     public IReadOnlyList<BranchListDto> Branches => _branches;
@@ -112,7 +125,19 @@ public class WorkingContextService : IWorkingContextService
         if (_currentBranchId != stored)
             await PersistAsync();
 
+        PublishSelectionToStore();
         Changed?.Invoke();
+    }
+
+    /// <summary>Seçimi scope-bağımsız SSOT'a (singleton <see cref="WorkingSelectionStore"/>) yayınlar —
+    /// UoW child scope'larındaki DbContext filtresi (WorkingCompanyContextProvider) bu değeri okur;
+    /// circuit-scoped bu servisin boş kopyalarına düşmez (kök-neden fix'i).</summary>
+    private void PublishSelectionToStore()
+    {
+        if (_currentUser.Id is { } userId)
+        {
+            _selectionStore.Set(_currentTenant.Id, userId, CurrentCompanyId, _allowedCompanyIds);
+        }
     }
 
     public async Task SetBranchAsync(Guid? branchId)
@@ -127,6 +152,7 @@ public class WorkingContextService : IWorkingContextService
 
         _currentBranchId = branchId;
         await PersistAsync();
+        PublishSelectionToStore();
         Changed?.Invoke();
     }
 
