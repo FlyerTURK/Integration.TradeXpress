@@ -150,6 +150,14 @@ public class TradeXpressDbContext :
         builder.ConfigureBalanceSheetSnapshots();
         builder.ConfigureUserScopedGrants();
         builder.ConfigureUserGridLayouts();
+
+        // Kod kolonlarına ordinal (BIN2) collation — YALNIZ SQL Server. C# ToUpperInvariant ile hizalanır,
+        // Türkçe İ/i collation kaçağını DB tarafında da kapatır. Sqlite (test) BIN2'yi tanımaz → guard'la atlanır
+        // (Sqlite default BINARY zaten ordinal; fonksiyonel olarak aynı benzersizlik).
+        if (Database.IsSqlServer())
+        {
+            builder.ApplyCodeColumnCollations();
+        }
     }
 
     /// <summary>

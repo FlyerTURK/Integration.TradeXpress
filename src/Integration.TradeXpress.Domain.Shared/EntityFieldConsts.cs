@@ -7,6 +7,10 @@ namespace Integration.TradeXpress;
 /// </summary>
 public static class EntityFieldConsts
 {
+    // Standart kod alanının CLR property/kolon adı — tüm Code-taşıyan entity'lerde birebir aynı
+    // (EF Property(...) + collation politikası bunu tek yerden okur).
+    public const string CodePropertyName = "Code";
+
     public const int CodeMinLength = 3;
 
     // NOT: Evrensel min, en kısa meşru ada uymalı — para birimi "Euro" (4) / ileride "Yen"/"Won" (3).
