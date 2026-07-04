@@ -438,6 +438,8 @@
     "TradeXpress:Voucher:NumberConflict": "Fiş numarası eşzamanlı başka bir kayıtla çakıştı. Lütfen tekrar kaydedin.",
     "TradeXpress:Voucher:BranchNotInCompany": "Seçilen şube çalışılan şirkete ait değil.",
     "TradeXpress:Voucher:VaultNotInBranch": "Seçilen kasa bu şubeye ait değil.",
+    "TradeXpress:Voucher:BranchNotAuthorized": "Seçilen şubeye fiş yazma yetkiniz yok.",
+    "TradeXpress:Voucher:VaultNotAuthorized": "Seçilen kasaya fiş yazma yetkiniz yok.",
     "Menu:PriceBoard": "Kur Panosu",
     "PriceTypeChange": "Fiyat Tipi Değişimi",
     "AddScope": "Kapsam Ekle",

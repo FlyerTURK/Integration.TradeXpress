@@ -408,6 +408,8 @@
     "TradeXpress:Voucher:NumberConflict": "The voucher number collided with a concurrent save. Please save again.",
     "TradeXpress:Voucher:BranchNotInCompany": "The selected branch does not belong to the working company.",
     "TradeXpress:Voucher:VaultNotInBranch": "The selected vault does not belong to this branch.",
+    "TradeXpress:Voucher:BranchNotAuthorized": "You are not authorized to post vouchers to the selected branch.",
+    "TradeXpress:Voucher:VaultNotAuthorized": "You are not authorized to post vouchers to the selected vault.",
     "Menu:PriceBoard": "Price Board",
     "PriceTypeChange": "Price Type Change",
     "AddScope": "Add Scope",

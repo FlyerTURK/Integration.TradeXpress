@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Integration.TradeXpress.Authorization;
 using Integration.TradeXpress.Branches;
 using Integration.TradeXpress.MultiCompany;
 using Integration.TradeXpress.Vaults;
@@ -34,6 +35,7 @@ public partial class VoucherAppService : TradeXpressAppService, IVoucherAppServi
     private readonly IRepository<Vault, Guid> _vaultRepository;
     private readonly BalanceLedgerSynchronizer _ledgerSynchronizer;
     private readonly ICurrentCompany _currentCompany;
+    private readonly IScopedGrantResolver _scopedGrantResolver;
     private readonly VoucherNumberAllocator _numberAllocator;
     private readonly VoucherCodeResolver _codeResolver;
     private readonly VoucherStatementService _statementService;
@@ -46,6 +48,7 @@ public partial class VoucherAppService : TradeXpressAppService, IVoucherAppServi
         IRepository<Vault, Guid> vaultRepository,
         BalanceLedgerSynchronizer ledgerSynchronizer,
         ICurrentCompany currentCompany,
+        IScopedGrantResolver scopedGrantResolver,
         VoucherNumberAllocator numberAllocator,
         VoucherCodeResolver codeResolver,
         VoucherStatementService statementService,
@@ -57,6 +60,7 @@ public partial class VoucherAppService : TradeXpressAppService, IVoucherAppServi
         _vaultRepository     = vaultRepository;
         _ledgerSynchronizer  = ledgerSynchronizer;
         _currentCompany      = currentCompany;
+        _scopedGrantResolver = scopedGrantResolver;
         _numberAllocator     = numberAllocator;
         _codeResolver        = codeResolver;
         _statementService    = statementService;

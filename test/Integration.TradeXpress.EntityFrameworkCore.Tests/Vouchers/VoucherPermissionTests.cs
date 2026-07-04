@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Shouldly;
+using Volo.Abp;
 using Volo.Abp.Authorization;
 using Volo.Abp.Modularity;
 using Xunit;
@@ -101,7 +102,88 @@ public class VoucherPermissionTests : TradeXpressTestBase<VoucherPermissionTestM
         (await _voucherAppService.GetLinesAsync(voucherId)).ShouldBeEmpty();
     }
 
-    /// <summary>Org grafını kurar ve working şirketi bu şirket yapar.</summary>
+    // ---- Faz 4 working-context YETKİSİ: şube/kasa scope grant zorlaması (EnsureOrgScopeAsync) ----
+
+    /// <summary>Kullanıcı yalnız BranchA'ya grant'lıyken aynı şirketteki BranchB'ye fiş yazamaz
+    /// (yapısal aitlik geçse bile YETKİ katmanı reddeder) — tenant-geneli grant YOK (daraltılmış kullanıcı).</summary>
+    [Fact]
+    public async Task Posting_to_unauthorized_branch_is_rejected()
+    {
+        // Tenant-geneli grant KURMADAN (daraltılmış kullanıcı) org grafı + ikinci şube + yalnız BranchA grant'ı.
+        var (data, otherBranchId, otherVaultId) = await WithUnitOfWorkAsync(async () =>
+        {
+            var d = await _seeder.SeedCompanyGraphAsync(grantTenantWideAccess: false);
+            var (branchB, vaultB) = await _seeder.SeedExtraBranchAsync(d);
+            await _seeder.GrantBranchAsync(d.CompanyId, d.BranchId);   // yalnız BranchA yetkili
+            return (d, branchB, vaultB);
+        });
+        _companyContext.CompanyId = data.CompanyId;
+
+        // BranchA'ya yazım GEÇER (grant'lı).
+        var allowed = await _voucherAppService.SaveLineAsync(
+            VoucherTestLines.CashLine(data, ProcessDirectionType.Inbound, 100m));
+        allowed.VoucherId.ShouldNotBeNull();
+
+        // BranchB'ye yazım (yapısal olarak şirkete ait, ama kullanıcı yetkisiz) → BranchNotAuthorized.
+        var toBranchB = VoucherTestLines.CashLine(data, ProcessDirectionType.Inbound, 100m);
+        toBranchB.BranchId = otherBranchId;
+        toBranchB.VaultId  = otherVaultId;
+
+        (await Should.ThrowAsync<BusinessException>(() => _voucherAppService.SaveLineAsync(toBranchB)))
+            .Code.ShouldBe("TradeXpress:Voucher:BranchNotAuthorized");
+    }
+
+    /// <summary>Tenant-geneli grant (mevcut davranış) altında yetki katmanı NO-OP'tur: kullanıcı şirketteki
+    /// HER şubeye (varsayılan + ek) yazabilir.</summary>
+    [Fact]
+    public async Task Tenant_wide_grant_allows_posting_to_any_branch()
+    {
+        // ArrangeCompanyAsync tenant-geneli grant seed'ler (varsayılan) + ek bir şube.
+        var (data, otherBranchId, otherVaultId) = await WithUnitOfWorkAsync(async () =>
+        {
+            var d = await _seeder.SeedCompanyGraphAsync();   // tenant-geneli grant (no-op eşdeğeri)
+            var (branchB, vaultB) = await _seeder.SeedExtraBranchAsync(d);
+            return (d, branchB, vaultB);
+        });
+        _companyContext.CompanyId = data.CompanyId;
+
+        // Varsayılan şube.
+        (await _voucherAppService.SaveLineAsync(
+            VoucherTestLines.CashLine(data, ProcessDirectionType.Inbound, 100m))).VoucherId.ShouldNotBeNull();
+
+        // Ek şube de yazılabilir (tenant-geneli grant tüm şubeleri kapsar).
+        var toBranchB = VoucherTestLines.CashLine(data, ProcessDirectionType.Inbound, 100m);
+        toBranchB.BranchId = otherBranchId;
+        toBranchB.VaultId  = otherVaultId;
+        (await _voucherAppService.SaveLineAsync(toBranchB)).VoucherId.ShouldNotBeNull();
+    }
+
+    /// <summary>Kasa seviyesi: şube grant'lı ama tek bir kasa Deny'liyken o kasaya yazım reddedilir
+    /// (VaultNotAuthorized); aynı şubeye kasasız (VaultId=null) yazım GEÇER (yalnız şube kararına bakılır).</summary>
+    [Fact]
+    public async Task Posting_to_denied_vault_is_rejected_but_branch_level_write_passes()
+    {
+        var data = await WithUnitOfWorkAsync(async () =>
+        {
+            var d = await _seeder.SeedCompanyGraphAsync(grantTenantWideAccess: false);
+            await _seeder.GrantBranchAsync(d.CompanyId, d.BranchId);        // şube yetkili
+            await _seeder.DenyVaultAsync(d.CompanyId, d.BranchId, d.VaultId); // ama bu kasa kapalı
+            return d;
+        });
+        _companyContext.CompanyId = data.CompanyId;
+
+        // Deny'li kasaya yazım → VaultNotAuthorized (şube geçer, kasa reddeder).
+        var toVault = VoucherTestLines.CashLine(data, ProcessDirectionType.Inbound, 100m);
+        (await Should.ThrowAsync<BusinessException>(() => _voucherAppService.SaveLineAsync(toVault)))
+            .Code.ShouldBe("TradeXpress:Voucher:VaultNotAuthorized");
+
+        // Aynı şubeye kasasız yazım → GEÇER (kasa kararı devreye girmez).
+        var branchOnly = VoucherTestLines.CashLine(data, ProcessDirectionType.Inbound, 100m);
+        branchOnly.VaultId = null;
+        (await _voucherAppService.SaveLineAsync(branchOnly)).VoucherId.ShouldNotBeNull();
+    }
+
+    /// <summary>Org grafını kurar ve working şirketi bu şirket yapar (tenant-geneli grant seed'lenir — no-op).</summary>
     private async Task<VoucherTestData> ArrangeCompanyAsync()
     {
         var data = await WithUnitOfWorkAsync(() => _seeder.SeedCompanyGraphAsync());

@@ -1,6 +1,8 @@
 using System;
+using System.Linq;
 using System.Threading.Tasks;
 using Integration.TradeXpress.Accounts;
+using Integration.TradeXpress.Authorization;
 using Integration.TradeXpress.Branches;
 using Integration.TradeXpress.Companies;
 using Integration.TradeXpress.Financials.CurrencyUnits;
@@ -9,6 +11,7 @@ using Volo.Abp.Data;
 using Volo.Abp.DependencyInjection;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.MultiTenancy;
+using Volo.Abp.Users;
 
 namespace Integration.TradeXpress.Vouchers;
 
@@ -39,6 +42,8 @@ public class VoucherTestDataSeeder : ITransientDependency
     private readonly IRepository<Account, Guid> _accountRepository;
     private readonly IRepository<SubAccount, Guid> _subAccountRepository;
     private readonly IRepository<CurrencyUnit, Guid> _unitRepository;
+    private readonly IRepository<UserScopedGrant, Guid> _grantRepository;
+    private readonly ICurrentUser _currentUser;
     private readonly IDataFilter _dataFilter;
 
     public VoucherTestDataSeeder(
@@ -48,6 +53,8 @@ public class VoucherTestDataSeeder : ITransientDependency
         IRepository<Account, Guid> accountRepository,
         IRepository<SubAccount, Guid> subAccountRepository,
         IRepository<CurrencyUnit, Guid> unitRepository,
+        IRepository<UserScopedGrant, Guid> grantRepository,
+        ICurrentUser currentUser,
         IDataFilter dataFilter)
     {
         _companyRepository    = companyRepository;
@@ -56,13 +63,25 @@ public class VoucherTestDataSeeder : ITransientDependency
         _accountRepository    = accountRepository;
         _subAccountRepository = subAccountRepository;
         _unitRepository       = unitRepository;
+        _grantRepository      = grantRepository;
+        _currentUser          = currentUser;
         _dataFilter           = dataFilter;
     }
 
     /// <summary>Tam şirket grafını kurar. <paramref name="prefix"/> ile aynı testte ikinci (yabancı)
-    /// şirket kurulabilir (company-scope sızıntı senaryoları).</summary>
-    public async Task<VoucherTestData> SeedCompanyGraphAsync(string prefix = "TST")
+    /// şirket kurulabilir (company-scope sızıntı senaryoları).
+    /// <para><paramref name="grantTenantWideAccess"/> (varsayılan true): test kullanıcısına tenant-geneli
+    /// (Company/Branch/Vault=null = "her şey") coğrafi Grant seed'ler — üretimdeki ScopedGrantSeeder'ın test
+    /// eşdeğeri. Böylece Faz 4 working-context yetki katmanı mevcut voucher testlerinde NO-OP kalır (herkes
+    /// tüm şubelere yazar). Yetki DARALTMASI (belirli şube/kasa) test edecek senaryolar bunu false geçip
+    /// <see cref="GrantBranchAsync"/>/<see cref="GrantVaultAsync"/> ile dar grant kurar.</para></summary>
+    public async Task<VoucherTestData> SeedCompanyGraphAsync(string prefix = "TST", bool grantTenantWideAccess = true)
     {
+        if (grantTenantWideAccess)
+        {
+            await EnsureTenantWideGrantAsync();
+        }
+
         var (tryId, hasId, gumId) = await ResolveUnitIdsAsync();
 
         var company = await _companyRepository.InsertAsync(
@@ -89,6 +108,22 @@ public class VoucherTestDataSeeder : ITransientDependency
             company.Id, branch.Id, vault.Id, account.Id, subAccount.Id, tryId, hasId, gumId);
     }
 
+    /// <summary>Aynı şirket altında İKİNCİ bir şube (+ varsayılan kasa) kurar — şube/kasa seviyesi yetki
+    /// daraltma testleri için (kullanıcı BranchA'ya grant'lıyken BranchB'ye yazma denemesi). Dönüş:
+    /// (branchId, vaultId). UoW içinden çağrılmalıdır.</summary>
+    public async Task<(Guid BranchId, Guid VaultId)> SeedExtraBranchAsync(VoucherTestData data, string prefix = "ALT")
+    {
+        var branch = await _branchRepository.InsertAsync(
+            new Branch(data.CompanyId, $"{prefix}BR", $"{prefix} Branch", isHeadquarters: false),
+            autoSave: true);
+
+        var vault = await _vaultRepository.InsertAsync(
+            new Vault(data.CompanyId, branch.Id, $"{prefix}VLT", $"{prefix} Vault", isDefault: false),
+            autoSave: true);
+
+        return (branch.Id, vault.Id);
+    }
+
     /// <summary>Virman testleri için karşı alt hesabı kurar (aynı üst hesap altında ikinci SubAccount —
     /// virman kuralı hesap DEĞİL alt-hesap seviyesinde ayrışır). UoW içinden çağrılmalıdır.</summary>
     public async Task<Guid> SeedCounterSubAccountAsync(VoucherTestData data, string prefix = "CNT")
@@ -97,6 +132,60 @@ public class VoucherTestDataSeeder : ITransientDependency
             new SubAccount(data.CompanyId, data.AccountId, data.BranchId, $"{prefix}SUB", $"{prefix} Counter Sub"),
             autoSave: true);
         return sub.Id;
+    }
+
+    /// <summary>Test kullanıcısına tenant-geneli coğrafi Grant garantisi (idempotent) — üretimdeki
+    /// <c>ScopedGrantSeeder.EnsureTenantWideGrantsAsync</c>'in test eşdeğeri, ancak IdentityUser satırı
+    /// gerektirmeden (test kullanıcısı FakeCurrentPrincipal'dan gelir) doğrudan grant ekler.</summary>
+    public async Task EnsureTenantWideGrantAsync()
+    {
+        var userId = _currentUser.GetId();
+        var alreadyGranted = await _grantRepository.AnyAsync(g =>
+            g.UserId == userId &&
+            g.CompanyId == null &&
+            g.BranchId == null &&
+            g.VaultId == null &&
+            g.Mode == ScopedGrantMode.Grant);
+        if (alreadyGranted)
+        {
+            return;
+        }
+
+        await InsertGrantAsync(companyId: null, branchId: null, vaultId: null);
+    }
+
+    /// <summary>Test kullanıcısına belirli bir ŞUBE için coğrafi Grant ekler (yetki daraltma senaryoları).</summary>
+    public async Task GrantBranchAsync(Guid companyId, Guid branchId)
+    {
+        await InsertGrantAsync(companyId, branchId, vaultId: null);
+    }
+
+    /// <summary>Test kullanıcısına belirli bir KASA için coğrafi Grant ekler (yetki daraltma senaryoları).</summary>
+    public async Task GrantVaultAsync(Guid companyId, Guid branchId, Guid vaultId)
+    {
+        await InsertGrantAsync(companyId, branchId, vaultId, ScopedGrantMode.Grant);
+    }
+
+    /// <summary>Test kullanıcısına belirli bir KASA için Deny ekler — şube Grant'ı altında tek bir kasayı
+    /// kapatmak için (kasa-seviyesi yetki daraltmasının test edilmesi).</summary>
+    public async Task DenyVaultAsync(Guid companyId, Guid branchId, Guid vaultId)
+    {
+        await InsertGrantAsync(companyId, branchId, vaultId, ScopedGrantMode.Deny);
+    }
+
+    /// <summary>Coğrafi-only (rol/izin taşımayan) grant ekler — yalnız Company/Branch/Vault kapsamı + Mode.</summary>
+    private async Task InsertGrantAsync(Guid? companyId, Guid? branchId, Guid? vaultId, ScopedGrantMode mode = ScopedGrantMode.Grant)
+    {
+        await _grantRepository.InsertAsync(
+            new UserScopedGrant(
+                userId: _currentUser.GetId(),
+                roleId: null,
+                permissionName: null,
+                companyId: companyId,
+                branchId: branchId,
+                vaultId: vaultId,
+                mode: mode),
+            autoSave: true);
     }
 
     /// <summary>Host seed'li (TenantId=null) birimleri kod ile çözer — ambient tenant ne olursa olsun

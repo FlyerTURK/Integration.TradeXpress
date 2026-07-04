@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Authorization;
 using Volo.Abp;
 using Volo.Abp.Domain.Entities;
 using Volo.Abp.Domain.Repositories;
+using Volo.Abp.Users;
 
 namespace Integration.TradeXpress.Vouchers;
 
@@ -28,10 +29,16 @@ public partial class VoucherAppService
         return companyId;
     }
 
-    /// <summary>Şube working şirkete, kasa (varsa) o şubeye ait olmalı — aitlik doğrulaması
-    /// (client'ın başka şirketin şube/kasasını göndermesini engeller).</summary>
+    /// <summary>Şube working şirkete, kasa (varsa) o şubeye ait olmalı (YAPISAL aitlik) VE kullanıcı o
+    /// şube/kasaya erişim GRANT'ına sahip olmalı (Faz 4 working-context YETKİSİ). Aitlik client'ın başka
+    /// şirketin şube/kasasını göndermesini, yetki ise erişimi kendi şirketi içinde belirli şubeye/kasaya
+    /// daraltılmış kullanıcının başka şube/kasaya fiş yazmasını engeller.
+    /// <para>NOT: Tenant-geneli Grant (mevcut kullanıcılar + yeni-kullanıcı seed'i) altında yetki katmanı
+    /// NO-OP'tur — herkes tüm şube/kasalara erişir; ancak admin bir kullanıcıyı belirli bir şubeye
+    /// daralttığında (tenant-geneli grant kalkıp şube-özel grant gelince) bu hat AKTİF olur.</para></summary>
     private async Task EnsureOrgScopeAsync(Guid companyId, Guid branchId, Guid? vaultId)
     {
+        // 1) Yapısal aitlik (client sızıntısına karşı).
         if (!await _branchRepository.AnyAsync(b => b.Id == branchId && b.CompanyId == companyId))
         {
             throw new BusinessException("TradeXpress:Voucher:BranchNotInCompany");
@@ -40,6 +47,18 @@ public partial class VoucherAppService
         if (vaultId is { } vid && !await _vaultRepository.AnyAsync(v => v.Id == vid && v.BranchId == branchId))
         {
             throw new BusinessException("TradeXpress:Voucher:VaultNotInBranch");
+        }
+
+        // 2) Kullanıcı yetkisi (working-context scope grant'ları — en-spesifik-kazanır çözümlemesi).
+        var access = await _scopedGrantResolver.ResolveAsync(CurrentUser.GetId());
+        if (!access.CanAccessBranch(companyId, branchId))
+        {
+            throw new BusinessException("TradeXpress:Voucher:BranchNotAuthorized");
+        }
+
+        if (vaultId is { } authVaultId && !access.CanAccessVault(companyId, branchId, authVaultId))
+        {
+            throw new BusinessException("TradeXpress:Voucher:VaultNotAuthorized");
         }
     }
 
