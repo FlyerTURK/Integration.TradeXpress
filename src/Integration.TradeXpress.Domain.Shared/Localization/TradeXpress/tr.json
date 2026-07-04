@@ -287,7 +287,7 @@
     "TradeXpress:SchedulerAppointment:CompanyRequired": "Randevu için şirket seçimi zorunludur.",
     "TradeXpress:SchedulerAppointment:EndBeforeStart": "Bitiş zamanı başlangıç zamanından önce olamaz.",
     "TradeXpress:ScopedGrant:UserRequired": "Kapsamlı atama için kullanıcı seçimi zorunludur.",
-    "TradeXpress:ScopedGrant:RoleXorPermission": "Rol ya da izinden tam olarak biri belirtilmelidir.",
+    "TradeXpress:ScopedGrant:RoleXorPermission": "Rol ve izin aynı anda belirtilemez (ikisi de boş bırakılırsa yalnız coğrafi kapsam geçerli olur).",
     "TradeXpress:ScopedGrant:BranchRequiresCompany": "Şube kapsamı için şirket kapsamı da belirtilmelidir.",
     "TradeXpress:ScopedGrant:VaultRequiresBranch": "Kasa kapsamı için şube kapsamı da belirtilmelidir.",
     "CashReport": "Nakit Raporu",

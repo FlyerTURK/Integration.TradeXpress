@@ -257,7 +257,7 @@
     "TradeXpress:SchedulerAppointment:CompanyRequired": "A company is required for the appointment.",
     "TradeXpress:SchedulerAppointment:EndBeforeStart": "End time cannot be earlier than start time.",
     "TradeXpress:ScopedGrant:UserRequired": "A user is required for the scoped grant.",
-    "TradeXpress:ScopedGrant:RoleXorPermission": "Exactly one of role or permission must be specified.",
+    "TradeXpress:ScopedGrant:RoleXorPermission": "Role and permission cannot both be specified (leave both empty for a geography-only scope).",
     "TradeXpress:ScopedGrant:BranchRequiresCompany": "A branch scope also requires a company scope.",
     "TradeXpress:ScopedGrant:VaultRequiresBranch": "A vault scope also requires a branch scope.",
     "CashReport": "Cash Report",

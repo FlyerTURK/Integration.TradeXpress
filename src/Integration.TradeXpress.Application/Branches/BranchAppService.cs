@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Integration.Framework.Base.Querying;
+using Integration.TradeXpress.Authorization;
 using Integration.TradeXpress.Companies;
 using Integration.TradeXpress.Financials.CurrencyUnits;
 using Integration.TradeXpress.Organization;
@@ -15,6 +16,7 @@ using Volo.Abp.Data;
 using Volo.Abp.Domain.Entities;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.MultiTenancy;
+using Volo.Abp.Users;
 
 namespace Integration.TradeXpress.Branches;
 
@@ -34,6 +36,7 @@ public class BranchAppService : TradeXpressAppService, IBranchAppService
     private readonly IVaultAppService _vaultAppService;            // YAZMA: kasa create/update/delete buraya delege
     private readonly IDataFilter _dataFilter;
     private readonly OrgTreeManager _orgTree;
+    private readonly IScopedGrantResolver _scopedGrantResolver;   // working-context şube daraltması (yalnız OKUMA)
 
     private static readonly HashSet<string> AllowedListFields =
         new(StringComparer.OrdinalIgnoreCase) { "Code", "Name", "CompanyCode", "BaseCurrencyCode", "IsHeadquarters", "IsActive", "DisplayOrder", "CompanyId", "Id" };
@@ -45,7 +48,8 @@ public class BranchAppService : TradeXpressAppService, IBranchAppService
         IRepository<Vault, Guid> vaultRepository,
         IVaultAppService vaultAppService,
         IDataFilter dataFilter,
-        OrgTreeManager orgTree)
+        OrgTreeManager orgTree,
+        IScopedGrantResolver scopedGrantResolver)
     {
         _repository = repository;
         _companyRepository = companyRepository;
@@ -54,17 +58,48 @@ public class BranchAppService : TradeXpressAppService, IBranchAppService
         _vaultAppService = vaultAppService;
         _dataFilter = dataFilter;
         _orgTree = orgTree;
+        _scopedGrantResolver = scopedGrantResolver;
     }
 
     public virtual async Task<PagedResultDto<BranchListDto>> GetListAsync(BranchListRequestDto input)
     {
+        var rows = await BuildListRowQueryAsync();
+        if (input.CompanyId.HasValue)
+            rows = rows.Where(r => r.CompanyId == input.CompanyId.Value);
+        rows = rows.ApplyListRequest(input, AllowedListFields);
+
+        var totalCount = await AsyncExecuter.CountAsync(rows);
+        var items = await AsyncExecuter.ToListAsync(rows.Skip(input.SkipCount).Take(input.MaxResultCount));
+
+        return new PagedResultDto<BranchListDto>(totalCount, await MapRowsToDtosAsync(items));
+    }
+
+    /// <summary>
+    /// Working-context (sol menü şube seçici) için kullanıcının ERİŞEBİLDİĞİ şubeler — server-side kapsam
+    /// (scope) daraltması: <see cref="IScopedGrantResolver"/> ile çözülen erişim kümesi her satırı
+    /// <c>CanAccessBranch</c> ile eler (en-spesifik-kazanır; company-grant tüm şubelerini, company-deny +
+    /// branch-grant yalnız o şubeyi açar). Client'a ASLA güvenilmez: combo daraltması burada, sunucuda olur.
+    /// Kendi çalışma kapsamının okunması → yalnız kimliklendirilmiş kullanıcı yeter (Branches.Default gerekmez).
+    /// </summary>
+    [Authorize]
+    public virtual async Task<List<BranchListDto>> GetMyBranchesAsync()
+    {
+        var access = await _scopedGrantResolver.ResolveAsync(CurrentUser.GetId());
+
+        var rows = await BuildListRowQueryAsync();
+        var allowed = (await AsyncExecuter.ToListAsync(rows))
+            .Where(r => access.CanAccessBranch(r.CompanyId, r.Id))
+            .ToList();
+
+        return await MapRowsToDtosAsync(allowed);
+    }
+
+    // CompanyCode enrichment'tı → join ile GERÇEK kolon yap: kod ile sort/filter/arama server-side çalışsın.
+    private async Task<IQueryable<BranchListRow>> BuildListRowQueryAsync()
+    {
         var companies = await _companyRepository.GetQueryableAsync();
         var query = await _repository.GetQueryableAsync();
-        if (input.CompanyId.HasValue)
-            query = query.Where(b => b.CompanyId == input.CompanyId.Value);
-
-        // CompanyCode enrichment'tı → join ile GERÇEK kolon yap: kod ile sort/filter/arama server-side çalışsın.
-        var rows = query
+        return query
             .Join(companies, b => b.CompanyId, c => c.Id, (b, c) => new BranchListRow
             {
                 Id = b.Id,
@@ -77,12 +112,11 @@ public class BranchAppService : TradeXpressAppService, IBranchAppService
                 IsHeadquarters = b.IsHeadquarters,
                 IsActive = b.IsActive,
                 DisplayOrder = b.DisplayOrder,
-            })
-            .ApplyListRequest(input, AllowedListFields);
+            });
+    }
 
-        var totalCount = await AsyncExecuter.CountAsync(rows);
-        var items = await AsyncExecuter.ToListAsync(rows.Skip(input.SkipCount).Take(input.MaxResultCount));
-
+    private async Task<List<BranchListDto>> MapRowsToDtosAsync(List<BranchListRow> items)
+    {
         // BaseCurrencyCode: birim GLOBAL (TenantId=null) → tenant filtresi join'i düşürür; filtreyi kapatıp
         // yalnız bu sayfanın birim id'lerini bellekte koda çöz (Company.GetListAsync ile aynı yaklaşım).
         var unitIds = items.Select(r => r.BaseCurrencyUnitId).Where(id => id != Guid.Empty).Distinct().ToList();
@@ -98,22 +132,20 @@ public class BranchAppService : TradeXpressAppService, IBranchAppService
             }
         }
 
-        return new PagedResultDto<BranchListDto>(
-            totalCount,
-            items.Select(r => new BranchListDto
-            {
-                Id = r.Id,
-                CompanyId = r.CompanyId,
-                CompanyCode = r.CompanyCode,
-                CompanyName = r.CompanyName,
-                BaseCurrencyUnitId = r.BaseCurrencyUnitId,
-                BaseCurrencyCode = unitMap.GetValueOrDefault(r.BaseCurrencyUnitId, string.Empty),
-                Code = r.Code,
-                Name = r.Name,
-                IsHeadquarters = r.IsHeadquarters,
-                IsActive = r.IsActive,
-                DisplayOrder = r.DisplayOrder,
-            }).ToList());
+        return items.Select(r => new BranchListDto
+        {
+            Id = r.Id,
+            CompanyId = r.CompanyId,
+            CompanyCode = r.CompanyCode,
+            CompanyName = r.CompanyName,
+            BaseCurrencyUnitId = r.BaseCurrencyUnitId,
+            BaseCurrencyCode = unitMap.GetValueOrDefault(r.BaseCurrencyUnitId, string.Empty),
+            Code = r.Code,
+            Name = r.Name,
+            IsHeadquarters = r.IsHeadquarters,
+            IsActive = r.IsActive,
+            DisplayOrder = r.DisplayOrder,
+        }).ToList();
     }
 
     public virtual async Task<BranchGetDto> GetAsync(Guid id)

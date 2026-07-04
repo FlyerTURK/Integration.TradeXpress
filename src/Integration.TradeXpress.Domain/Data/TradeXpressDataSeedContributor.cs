@@ -18,7 +18,8 @@ public class TradeXpressDataSeedContributor(
     Integration.TradeXpress.Metals.MetalSeeder metalSeeder,
     OrgSeeder orgSeeder,
     Integration.TradeXpress.Vouchers.Balance.BalanceLedgerBackfiller balanceLedgerBackfiller,
-    Integration.TradeXpress.MultiCompany.CompanyOwnedBackfiller companyOwnedBackfiller)
+    Integration.TradeXpress.MultiCompany.CompanyOwnedBackfiller companyOwnedBackfiller,
+    Integration.TradeXpress.Authorization.ScopedGrantSeeder scopedGrantSeeder)
     : IDataSeedContributor, ITransientDependency
 {
     #region Fields
@@ -34,6 +35,7 @@ public class TradeXpressDataSeedContributor(
     private readonly OrgSeeder _orgSeeder = orgSeeder;
     private readonly Integration.TradeXpress.Vouchers.Balance.BalanceLedgerBackfiller _balanceLedgerBackfiller = balanceLedgerBackfiller;
     private readonly Integration.TradeXpress.MultiCompany.CompanyOwnedBackfiller _companyOwnedBackfiller = companyOwnedBackfiller;
+    private readonly Integration.TradeXpress.Authorization.ScopedGrantSeeder _scopedGrantSeeder = scopedGrantSeeder;
 
     #endregion
 
@@ -87,6 +89,15 @@ public class TradeXpressDataSeedContributor(
         if (context.TenantId != null)
         {
             await _companyOwnedBackfiller.BackfillCurrentTenantAsync();
+        }
+
+        // (7) Kapsam grant geri-uyumu (Faz 4 working-context): mevcut kullanıcılara tenant-geneli Grant
+        //     garanti et (rollüye rol-başı, rolsüze coğrafi-only) → resolution-time doğrulama devreye
+        //     girince kimse şube seçiminde kilitlenmez (idempotent; zaten grant'ı olan atlanır). Kullanıcılar
+        //     tenant-scoped → yalnız tenant'ta.
+        if (context.TenantId != null)
+        {
+            await _scopedGrantSeeder.SeedCurrentTenantAsync();
         }
     }
 

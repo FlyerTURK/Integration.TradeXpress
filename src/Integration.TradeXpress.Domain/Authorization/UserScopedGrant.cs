@@ -3,8 +3,10 @@ namespace Integration.TradeXpress.Authorization;
 /// <summary>
 /// Bir kullanıcıya (IdentityUser, id-only referans) kapsamlı (scoped) ROL ya da doğrudan İZİN ataması.
 /// Kapsam koordinatları nullable: hepsi null = tenant geneli; CompanyId dolu = şirket; +BranchId = şube;
-/// +VaultId = kasa (null = "aşağıdaki her şey"). Tam olarak BİRİ dolu: <see cref="RoleId"/> ya da
-/// <see cref="PermissionName"/>. <see cref="Mode"/> Grant/Deny — çözümlemede en spesifik kapsam kazanır.
+/// +VaultId = kasa (null = "aşağıdaki her şey"). <see cref="RoleId"/> ve <see cref="PermissionName"/> AYNI
+/// ANDA dolu OLAMAZ; İKİSİ DE NULL olabilir = "saf coğrafi erişim" grant'ı (rol/izin yetkisi taşımaz, yalnız
+/// Company/Branch/Vault kapsamı belirtir — geri-uyum seed'i rolsüz kullanıcıya bunu verir).
+/// <see cref="Mode"/> Grant/Deny — çözümlemede en spesifik kapsam kazanır.
 /// Per-tenant (IMultiTenant). Çözümleme/working-context Faz 2'de (bu entity yalnız atamayı saklar).
 /// </summary>
 public class UserScopedGrant : FullAuditedAggregateRoot<Guid>, IMultiTenant
@@ -50,10 +52,12 @@ public class UserScopedGrant : FullAuditedAggregateRoot<Guid>, IMultiTenant
 
         var hasRole = roleId.HasValue && roleId.Value != Guid.Empty;
         var hasPermission = !string.IsNullOrWhiteSpace(permissionName);
-        if (hasRole == hasPermission)
+        // Rol ve izin AYNI ANDA verilemez. İkisi de boş = "saf coğrafi erişim" grant'ı (yalnız
+        // Company/Branch/Vault kapsamı taşır) — bu meşru bir durumdur, hata değildir.
+        if (hasRole && hasPermission)
         {
             throw new BusinessException("TradeXpress:ScopedGrant:RoleXorPermission")
-                .WithData("detail", "Tam olarak biri (RoleId ya da PermissionName) verilmeli.");
+                .WithData("detail", "RoleId ve PermissionName aynı anda verilemez (ikisi de boş = coğrafi-only).");
         }
 
         // Kapsam hiyerarşisi tutarlılığı: alt seviye üst seviyeyi gerektirir.
