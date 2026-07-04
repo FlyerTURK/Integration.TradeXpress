@@ -130,6 +130,27 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
             b.Property(x => x.PayTotal).HasPrecision(VoucherConsts.AmountPrecision, VoucherConsts.AmountScale);
             b.Property(x => x.Profit).HasPrecision(VoucherConsts.AmountPrecision, VoucherConsts.AmountScale);
 
+            // Çeşni numune miktarı — gram ağırlık; `qty = Amount + AssayAmount` (BullionLegCalculator) ve
+            // çeşni stoğunda Amount olarak toplanır → Amount ailesiyle aynı hassasiyet (N2).
+            b.Property(x => x.AssayAmount).HasPrecision(VoucherConsts.AmountPrecision, VoucherConsts.AmountScale);
+
+            // N5: takoz metal işçilik oranları (altın işçilik = PayFactor N5; PT/PD/AG bacakları aynı aile).
+            b.Property(x => x.SilverLaborRate).HasPrecision(VoucherConsts.FactorPrecision, VoucherConsts.FactorScale);
+            b.Property(x => x.PlatinumLaborRate).HasPrecision(VoucherConsts.FactorPrecision, VoucherConsts.FactorScale);
+            b.Property(x => x.PalladiumLaborRate).HasPrecision(VoucherConsts.FactorPrecision, VoucherConsts.FactorScale);
+
+            // N5: kayıt anında dondurulan metal kur snapshot'ları (kur = N5).
+            b.Property(x => x.GoldRate).HasPrecision(VoucherConsts.FactorPrecision, VoucherConsts.FactorScale);
+            b.Property(x => x.SilverRate).HasPrecision(VoucherConsts.FactorPrecision, VoucherConsts.FactorScale);
+            b.Property(x => x.PlatinumRate).HasPrecision(VoucherConsts.FactorPrecision, VoucherConsts.FactorScale);
+            b.Property(x => x.PalladiumRate).HasPrecision(VoucherConsts.FactorPrecision, VoucherConsts.FactorScale);
+
+            // N5: işçilik tahsil birimi kur snapshot'ları (kur = N5).
+            b.Property(x => x.GoldLaborUnitRate).HasPrecision(VoucherConsts.FactorPrecision, VoucherConsts.FactorScale);
+            b.Property(x => x.SilverLaborUnitRate).HasPrecision(VoucherConsts.FactorPrecision, VoucherConsts.FactorScale);
+            b.Property(x => x.PlatinumLaborUnitRate).HasPrecision(VoucherConsts.FactorPrecision, VoucherConsts.FactorScale);
+            b.Property(x => x.PalladiumLaborUnitRate).HasPrecision(VoucherConsts.FactorPrecision, VoucherConsts.FactorScale);
+
             b.HasIndex(x => x.VoucherId);
 
             // Virman ikiz araması: LinkId (legacy RefNo) ile zıt bacak bulunur (güncelle/sil senkronu).
