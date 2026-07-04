@@ -5,7 +5,7 @@ indent_size = 2
 
 [*.cs]
 # BannedApiAnalyzers ihlali (BannedSymbols.txt) = derleme HATASI.
-# Analyzer yalnız Domain + Domain.Shared csproj'larına bağlı; diğer projelerde RS0030 üretilmez.
+# Analyzer Domain + Domain.Shared + Application (TradeXpress & Framework) csproj'larına bağlı; diğer projelerde RS0030 üretilmez.
 dotnet_diagnostic.RS0030.severity = error
 
 # Expression-bodied üye yasağı (brace zorunlu — entity-conventions). Kök seviyede UYARI

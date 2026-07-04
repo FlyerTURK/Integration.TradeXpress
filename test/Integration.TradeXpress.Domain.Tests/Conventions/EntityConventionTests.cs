@@ -3,8 +3,11 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using Integration.TradeXpress.Financials.CurrencyUnits;
+using Integration.TradeXpress.Vouchers;
+using Integration.TradeXpress.Vouchers.Balance;
 using Shouldly;
 using Volo.Abp.Domain.Entities;
+using Volo.Abp.Timing;
 using Xunit;
 
 namespace Integration.TradeXpress.Conventions;
@@ -149,6 +152,42 @@ public class EntityConventionTests
 
         violations.ShouldBeEmpty(
             "Aşağıdaki entity property'leri public setter içeriyor:"
+            + Environment.NewLine
+            + string.Join(Environment.NewLine, violations));
+    }
+
+    // WALL-CLOCK (kaymasız) iş tarihleri: ABP IClock (Kind=Utc) normalizasyonundan MUAF olmalı.
+    // Faz-1 kapsamı YALNIZ VoucherDate zinciri — aşırı-genelleme YOK (DueDate/AsOfDate/ProfitResetDate ayrı faz).
+    private static readonly (Type Type, string Property)[] DisableNormalizationRequired =
+    {
+        (typeof(Voucher), nameof(Voucher.VoucherDate)),
+        (typeof(BalanceLedgerEntry), nameof(BalanceLedgerEntry.VoucherDate)),
+    };
+
+    [Fact]
+    public void Wall_clock_business_dates_must_disable_datetime_normalization()
+    {
+        // Kural (utc-migration Faz-1): VoucherDate gece-yarısına yakın değerde UTC'ye normalize edilirse
+        // gün kayar → [DisableDateTimeNormalization] ile ABP çevirmesi kapatılmalı. Golden testin mekanik ikizi.
+        var violations = new List<string>();
+
+        foreach (var (type, property) in DisableNormalizationRequired)
+        {
+            var prop = type.GetProperty(property, BindingFlags.Public | BindingFlags.Instance);
+            if (prop == null)
+            {
+                violations.Add($"{type.Name}.{property}: property bulunamadı (yeniden adlandırıldı mı?).");
+                continue;
+            }
+
+            if (prop.GetCustomAttribute<DisableDateTimeNormalizationAttribute>() == null)
+            {
+                violations.Add($"{type.Name}.{property}: [DisableDateTimeNormalization] taşımalı (wall-clock, gün kayması guard'ı).");
+            }
+        }
+
+        violations.ShouldBeEmpty(
+            "Aşağıdaki wall-clock tarih alanları normalizasyon-muafiyeti taşımıyor:"
             + Environment.NewLine
             + string.Join(Environment.NewLine, violations));
     }

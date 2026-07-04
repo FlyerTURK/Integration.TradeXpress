@@ -48,6 +48,7 @@ Tıkanınca kolay yola sapıp mevcut işi silme/kökten değiştirme YOK. Reflek
 - **Portlar:** Blazor host `:44318` · HttpApi.Host `:44388`. Kanonik URL `https://umut.taile7a850.ts.net:44318` (WASM authority tek-değerli → localhost değil ts.net). Cert: `E:\Kodlarim\Yeni\certs\`.
 - **Org hiyerarşisi:** Şirket→Şube→Kasa (OrgTreeManager: otomatik kurulum + en-az-1-child + HQ-devir-önce-sil). Yetki: rol/izin tenant/company/branch/vault **scoped** (cascade + dar override; working context = company+branch).
 - **Yerel ≠ Bilanço birimi** — kur görüntüsü YERELE, pozisyon/değerleme BİLANÇOYA re-base; karıştırma. Detay + yön kuralları: `.claude/rules/financials.md`.
+- **Zaman: kayıt=UTC, görüntü=kullanıcı yerel saati** (2026-07-03 ürün kararı). Zaman damgaları UTC saklanır (`AbpClockOptions.Kind=Utc` hedefi); UI her kullanıcının tarayıcı/masaüstü saatine çevirip gösterir (merkezi dönüşüm — sayfa-başı elle çeviri YOK). İSTİSNA: kullanıcının seçtiği İŞ TARİHİ alanları (VoucherDate gibi) date-only semantiktir, timezone kaydırmasına GİRMEZ (gün kayması yasak). Geçiş planı: zaman/kültür denetim raporu.
 - **ViewModel emekli:** flat edit formları GetDto-direct (`CrudEditComponentBase<TGetDto>`, Save'de `ObjectMapper.Map` Mapperly); drill/tree → Contracts input-DTO + DrillList. Client-side ViewModel YOK.
 
 ## 7) Referans kaynakları (ERP iş kuralı araştırması)

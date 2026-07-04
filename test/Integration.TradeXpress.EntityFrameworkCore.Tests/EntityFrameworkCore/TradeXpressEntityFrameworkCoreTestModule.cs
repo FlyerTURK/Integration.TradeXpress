@@ -9,7 +9,7 @@ using Volo.Abp.EntityFrameworkCore.Sqlite;
 using Volo.Abp.FeatureManagement;
 using Volo.Abp.Modularity;
 using Volo.Abp.PermissionManagement;
-using Volo.Abp.Uow;
+using Volo.Abp.SettingManagement;
 
 namespace Integration.TradeXpress.EntityFrameworkCore;
 
@@ -39,7 +39,18 @@ public class TradeXpressEntityFrameworkCoreTestModule : AbpModule
             options.SaveStaticPermissionsToDatabase = false;
             options.IsDynamicPermissionStoreEnabled = false;
         });
-        context.Services.AddAlwaysDisableUnitOfWorkTransaction();
+        // FLAKY FIX (2026-07): Feature/Permission gibi SettingManagement'ın arka plan yazıcısı da KAPALI olmalı.
+        // Statik setting tanımlarını DB'ye kaydeden görev ayrı thread'de KENDİ transactional UoW'unu açıyor;
+        // paylaşımlı in-memory Sqlite bağlantısında seed sorgularıyla yarışıp rastgele
+        // "pending local transaction" hatası üretiyordu (transaction'lar Faz 2d'de aktifleşince görünür oldu).
+        Configure<SettingManagementOptions>(options =>
+        {
+            options.SaveStaticSettingsToDatabase = false;
+            options.IsDynamicSettingStoreEnabled = false;
+        });
+        // NOT: AddAlwaysDisableUnitOfWorkTransaction KALDIRILDI (2026-07) — üretim modülüyle hizalı:
+        // decorator açık transaction opt-in'ini de eziyordu. Sqlite in-memory (paylaşımlı bağlantı,
+        // tek DbContext) transaction'ları destekler; rollback regresyonu VoucherTransactionRollbackTests'te.
 
         ConfigureInMemorySqlite(context.Services);
 

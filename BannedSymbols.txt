@@ -1,15 +1,28 @@
 # ── Mekanik ağ Katman 1 — yasak API'ler (Microsoft.CodeAnalysis.BannedApiAnalyzers → RS0030) ──
-# Kapsam: yalnız Domain + Domain.Shared projeleri (csproj'larda AdditionalFiles olarak bağlı; test projeleri HARİÇ).
+# Kapsam: Domain + Domain.Shared + Application projeleri (csproj'larda AdditionalFiles olarak bağlı; test projeleri HARİÇ).
 # Kök .editorconfig RS0030'u ERROR yapar → ihlal = derleme hatası.
-# Not: parametre listesi YAZILMAYAN girdiler TÜM overload'ları yasaklar (BannedApiAnalyzers kuralı).
+# DÜZELTİLMİŞ NOT (2026-07-03, ampirik doğrulandı): parametre listesi yazılmayan `#ctor` girdisi yalnız
+# PARAMETRESİZ ctor'u yasaklar — tüm overload'ları DEĞİL. Bu yüzden her ctor overload'ı açıkça listelenir.
+# (Parametresiz metotlarda — ör. Guid.NewGuid — doc-id zaten parantezsizdir, sorun yok.)
 
 # Entity Id/TenantId'yi ABP atar (InsertAsync sıralı GUID doldurur); gerekiyorsa IGuidGenerator — CLAUDE.md entity-conventions.
 M:System.Guid.NewGuid;ABP atar — DI'da IGuidGenerator, DI'sız testte SimpleGuidGenerator.Instance.Create() kullan (entity-conventions)
 
 # Ham .NET exception YOK → ABP BusinessException (error-code + lokalize) ya da tipli Framework exception.
+# Her overload açıkça listeli (yukarıdaki not: parantezsiz #ctor yalnız parametresizi yakalar).
 M:System.ArgumentException.#ctor;BusinessException("TradeXpress:Entity:Rule") ya da tipli Framework exception (Required/TooShort/TooLongPropertyException) kullan
+M:System.ArgumentException.#ctor(System.String);BusinessException("TradeXpress:Entity:Rule") ya da tipli Framework exception kullan
+M:System.ArgumentException.#ctor(System.String,System.Exception);BusinessException("TradeXpress:Entity:Rule") ya da tipli Framework exception kullan
+M:System.ArgumentException.#ctor(System.String,System.String);BusinessException("TradeXpress:Entity:Rule") ya da tipli Framework exception kullan
+M:System.ArgumentException.#ctor(System.String,System.String,System.Exception);BusinessException("TradeXpress:Entity:Rule") ya da tipli Framework exception kullan
 M:System.ArgumentOutOfRangeException.#ctor;BusinessException ya da OutOfRangePropertyException kullan
+M:System.ArgumentOutOfRangeException.#ctor(System.String);BusinessException ya da OutOfRangePropertyException kullan
+M:System.ArgumentOutOfRangeException.#ctor(System.String,System.String);BusinessException ya da OutOfRangePropertyException kullan
+M:System.ArgumentOutOfRangeException.#ctor(System.String,System.Exception);BusinessException ya da OutOfRangePropertyException kullan
+M:System.ArgumentOutOfRangeException.#ctor(System.String,System.Object,System.String);BusinessException ya da OutOfRangePropertyException kullan
 M:System.InvalidOperationException.#ctor;BusinessException kullan (error-code + lokalize)
+M:System.InvalidOperationException.#ctor(System.String);BusinessException kullan (error-code + lokalize)
+M:System.InvalidOperationException.#ctor(System.String,System.Exception);BusinessException kullan (error-code + lokalize)
 
 # Check.NotNullOrWhiteSpace YETMEZ (normalize/min/lokalize yok) → StringFieldGuard.
 # İmza Volo.Abp.Core 10.4.1'den reflection ile DOĞRULANDI (tek overload).
