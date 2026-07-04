@@ -18,10 +18,14 @@ namespace Integration.TradeXpress.Authorization;
 public class UserScopedGrantAppService : TradeXpressAppService, IUserScopedGrantAppService
 {
     private readonly IRepository<UserScopedGrant, Guid> _repository;
+    private readonly IScopedGrantResolver _resolver;
 
-    public UserScopedGrantAppService(IRepository<UserScopedGrant, Guid> repository)
+    public UserScopedGrantAppService(
+        IRepository<UserScopedGrant, Guid> repository,
+        IScopedGrantResolver resolver)
     {
         _repository = repository;
+        _resolver = resolver;
     }
 
     public virtual async Task<List<UserScopedGrantDto>> GetByUserAsync(Guid userId)
@@ -41,6 +45,10 @@ public class UserScopedGrantAppService : TradeXpressAppService, IUserScopedGrant
             input.Mode);
 
         await _repository.InsertAsync(entity, autoSave: true);
+
+        // Grant değişti → kullanıcının çözümlenmiş erişim cache'ini geçersiz kıl.
+        await _resolver.InvalidateAsync(entity.UserId);
+
         return ObjectMapper.Map<UserScopedGrant, UserScopedGrantDto>(entity);
     }
 
@@ -50,5 +58,8 @@ public class UserScopedGrantAppService : TradeXpressAppService, IUserScopedGrant
         if (entity.TenantId != CurrentTenant.Id)
             throw new EntityNotFoundException(typeof(UserScopedGrant), id);
         await _repository.DeleteAsync(entity, autoSave: true);
+
+        // Grant silindi → kullanıcının çözümlenmiş erişim cache'ini geçersiz kıl.
+        await _resolver.InvalidateAsync(entity.UserId);
     }
 }

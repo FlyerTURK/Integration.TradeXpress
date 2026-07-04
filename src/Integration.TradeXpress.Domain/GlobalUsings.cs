@@ -7,6 +7,7 @@
 global using System;
 global using System.Collections.Generic;
 global using System.Linq;
+global using System.Text.Json.Serialization;
 global using System.Threading.Tasks;
 
 // ── Framework (Integration.Framework: FrameworkErrorCodes, StringFieldGuard, tipli exception'lar, normalize extension'ları) ──
@@ -15,6 +16,7 @@ global using Integration.Framework.Timing;
 
 // ── ABP çekirdek / domain ──
 global using Volo.Abp;
+global using Volo.Abp.Caching;
 global using Volo.Abp.Data;
 global using Volo.Abp.DependencyInjection;
 global using Volo.Abp.Domain.Entities.Auditing;
