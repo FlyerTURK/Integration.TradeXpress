@@ -175,7 +175,7 @@ public class TenantAppService : TradeXpressAppService, ITenantAppService
         {
             Code = input.Code,
             Name = input.Name,
-            CountryCode = input.CountryCode,
+            CountryId = input.CountryId,
             BaseCurrencyUnitId = input.BaseCurrencyUnitId,
             IsHeadquarters = input.IsHeadquarters,
             DisplayOrder = input.DisplayOrder,

@@ -58,7 +58,10 @@
             <GridColumns>
                 <GridLinkColumn FieldName="Code" Caption="@L["Code"]" Width="110px" FixedPosition="GridColumnFixedPosition.Left" VisibleIndex="1" OnClick="@(item => _companyDrill?.EditItem((CompanyGraphDto)item))" />
                 <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" />
-                <DxGridDataColumn FieldName="CountryCode" Caption="@L["Country"]" Width="90px" />
+                @* Ülke id-only: in-memory graf düğümünde kod alanı yok → Countries lookup'ından id ile çöz. *@
+                <DxGridDataColumn FieldName="CountryId" Caption="@L["Country"]" Width="90px" TextAlignment="GridTextAlignment.Left">
+                    <CellDisplayTemplate Context="cell">@CountryCodeOf(((CompanyGraphDto)cell.DataItem).CountryId)</CellDisplayTemplate>
+                </DxGridDataColumn>
                 <DxGridDataColumn FieldName="IsHeadquarters" Caption="@L["IsHeadquarters"]" Width="90px" TextAlignment="GridTextAlignment.Left">
                     <CellDisplayTemplate Context="cell">@(((CompanyGraphDto)cell.DataItem).IsHeadquarters ? L["Yes"].Value : "")</CellDisplayTemplate>
                 </DxGridDataColumn>
@@ -167,15 +170,15 @@
     };
 
     // ── Yeni şirket düğümü grafı (host ApplyNewDefaults de kullanır → static, units/countries parametreli). ──
-    public static CompanyGraphDto NewCompany(string code, string name, string country, bool isHeadquarters,
+    public static CompanyGraphDto NewCompany(string code, string name, Guid? countryId, bool isHeadquarters,
         IReadOnlyList<CurrencyUnitListDto> units, IReadOnlyList<CountryListDto> countries)
     {
-        var baseUnitId = DefaultUnitIdFor(country, units, countries);   // tek kaynak: şirket + HQ şube aynı base ile preset
+        var baseUnitId = DefaultUnitIdFor(countryId, units, countries);   // tek kaynak: şirket + HQ şube aynı base ile preset
         return new CompanyGraphDto
         {
             Code = code,
             Name = name,
-            CountryCode = country,
+            CountryId = countryId,
             BaseCurrencyUnitId = baseUnitId,
             IsHeadquarters = isHeadquarters,
             IsActive = true,
@@ -196,17 +199,28 @@
         };
     }
 
-    // Ülkenin varsayılan para biriminin Id'si (yoksa TRY).
-    public static Guid DefaultUnitIdFor(string country, IReadOnlyList<CurrencyUnitListDto> units, IReadOnlyList<CountryListDto> countries)
+    // Ülkenin varsayılan para biriminin Id'si (id-only zincir: Country.DefaultCurrencyUnitId; yoksa TRY).
+    public static Guid DefaultUnitIdFor(Guid? countryId, IReadOnlyList<CurrencyUnitListDto> units, IReadOnlyList<CountryListDto> countries)
     {
-        var ccy = countries.FirstOrDefault(c => string.Equals(c.Code, country, StringComparison.OrdinalIgnoreCase))?.DefaultCurrencyCode;
-        var unit = units.FirstOrDefault(u => string.Equals(u.Code, ccy, StringComparison.OrdinalIgnoreCase))
-            ?? units.FirstOrDefault(u => u.Code == CurrencyUnitCode.TRY);
-        return unit?.Id ?? Guid.Empty;
+        var unitId = countries.FirstOrDefault(c => c.Id == countryId)?.DefaultCurrencyUnitId;
+        if (unitId is { } uid && units.Any(u => u.Id == uid))
+        {
+            return uid;
+        }
+
+        return units.FirstOrDefault(u => u.Code == CurrencyUnitCode.TRY)?.Id ?? Guid.Empty;
     }
 
+    // Katalogdan ülke Id'sini koda göre bulur (yeni düğüm default'u + grid görüntü kolonu).
+    public static Guid? CountryIdOf(string code, IReadOnlyList<CountryListDto> countries)
+        => countries.FirstOrDefault(c => string.Equals(c.Code, code, StringComparison.OrdinalIgnoreCase))?.Id;
+
+    // Grid görüntü kolonu: Country.Id → kod (in-memory graf düğümünde kod alanı taşınmaz).
+    private string CountryCodeOf(Guid? countryId)
+        => Countries.FirstOrDefault(c => c.Id == countryId)?.Code ?? string.Empty;
+
     // Drill add (parametresiz): boş şirket düğümü (TR default).
-    private CompanyGraphDto NewCompanyNode() => NewCompany(string.Empty, string.Empty, "TR", isHeadquarters: false, Units, Countries);
+    private CompanyGraphDto NewCompanyNode() => NewCompany(string.Empty, string.Empty, CountryIdOf("TR", Countries), isHeadquarters: false, Units, Countries);
 
     // Clone() CompanyGraphDto'da (şube→kasa dahil tam deep-copy; tek kaynak → BaseCurrencyUnitId gibi
     // alanların "unutulan alan" bug'ı imkânsız — eski 3 kopyada biri bu yüzden boş combo veriyordu).

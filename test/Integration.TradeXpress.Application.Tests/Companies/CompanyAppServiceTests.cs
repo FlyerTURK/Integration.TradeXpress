@@ -1,5 +1,6 @@
 using System.Linq;
 using System.Threading.Tasks;
+using Integration.TradeXpress.Countries;
 using Integration.TradeXpress.Financials.CurrencyUnits;
 using Shouldly;
 using Volo.Abp;
@@ -16,11 +17,13 @@ public abstract class CompanyAppServiceTests<TStartupModule> : TradeXpressApplic
 {
     private readonly ICompanyAppService _appService;
     private readonly ICurrencyUnitAppService _currencyUnitAppService;
+    private readonly ICountryAppService _countryAppService;
 
     protected CompanyAppServiceTests()
     {
         _appService = GetRequiredService<ICompanyAppService>();
         _currencyUnitAppService = GetRequiredService<ICurrencyUnitAppService>();
+        _countryAppService = GetRequiredService<ICountryAppService>();
     }
 
     [Fact]
@@ -36,12 +39,15 @@ public abstract class CompanyAppServiceTests<TStartupModule> : TradeXpressApplic
     {
         var usd = (await _currencyUnitAppService.GetListAsync(new CurrencyUnitListRequestDto { Filter = "USD" }))
             .Items.Single(u => u.Code == CurrencyUnitCode.USD);
+        // Country id-only geçişi: DTO artık kod değil Country.Id taşır (katalogdan çözülür).
+        var us = (await _countryAppService.GetListAsync(new CountryListRequestDto { MaxResultCount = 100 }))
+            .Items.Single(c => c.Code == "US");
 
         await Should.ThrowAsync<BusinessException>(() => _appService.CreateAsync(new CompanyCreateDto
         {
             Code = "MRK",
             Name = "Olmaz",
-            CountryCode = "US",
+            CountryId = us.Id,
             BaseCurrencyUnitId = usd.Id,
         }));
     }

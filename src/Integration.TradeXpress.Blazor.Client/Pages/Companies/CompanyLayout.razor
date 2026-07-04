@@ -36,8 +36,8 @@
     // Quick-add/edit (host bağlar → +/✎ butonları) — CompanyEditFields combo'larına forward.
     [Parameter] public Func<Task<Guid>>? OnAddCurrency { get; set; }
     [Parameter] public Func<Guid, Task>? OnEditCurrency { get; set; }
-    [Parameter] public Func<Task<string?>>? OnAddCountry { get; set; }
-    [Parameter] public Func<string, Task>? OnEditCountry { get; set; }
+    [Parameter] public Func<Task<Guid?>>? OnAddCountry { get; set; }
+    [Parameter] public Func<Guid?, Task>? OnEditCountry { get; set; }
 
     // Şube/Kasa drill değişimini forma bildir (dirty/toolbar/*) — EntityEditForm EditChanged cascade'i.
     [CascadingParameter(Name = "EditChanged")] private Action? EditChanged { get; set; }

@@ -2,7 +2,7 @@ namespace Integration.TradeXpress.Countries;
 
 /// <summary>
 /// Ülke kataloğu — merkezi referans verisi (host yönetir, tenant'lar seçer). Tenant'ın merkez
-/// (HQ) şirketi bu katalogdan ülke seçer; <see cref="DefaultCurrencyCode"/> seçilen ülkeye göre
+/// (HQ) şirketi bu katalogdan ülke seçer; <see cref="DefaultCurrencyUnitId"/> seçilen ülkeye göre
 /// HQ base para birimini önerir (TR→TRY, US→USD…).
 ///
 /// <para>IMultiTenant (host null + null‖own görünürlük, CurrencyUnit gibi): host global listeyi
@@ -16,9 +16,15 @@ public class Country : FullAuditedAggregateRoot<Guid>, IMultiTenant
     public virtual string Code { get; protected set; } = null!;
     public virtual string Name { get; protected set; } = null!;
 
-    /// <summary>Ülkenin varsayılan para birimi kodu (CurrencyUnitCode; HQ base önerisi). ZORUNLU —
-    /// birimi olmayan ülkeye izin verilmez.</summary>
-    public virtual string DefaultCurrencyCode { get; protected set; } = null!;
+    /// <summary>Ülkenin varsayılan para birimi — <see cref="Financials.CurrencyUnits.CurrencyUnit"/>'e
+    /// id-only referans (nav YOK; HQ base önerisi). OTORİTER alan; legacy satırlarda backfill tamamlanana
+    /// dek null olabilir (yeni kayıtta zorunlu, ctor doğrular — birimi olmayan ülkeye izin verilmez).</summary>
+    public virtual Guid? DefaultCurrencyUnitId { get; protected set; }
+
+    /// <summary>Varsayılan para birimi KODU — ESKİ string referans. Id-only geçişiyle yerini
+    /// <see cref="DefaultCurrencyUnitId"/> aldı; yalnız backfill (kod→id eşleştirme) kaynağıdır, yeni kod yolu yazmaz.</summary>
+    [Obsolete("Country id-only geçişi; backfill sonrası kaldırılacak — DefaultCurrencyUnitId kullan.")]
+    public virtual string? DefaultCurrencyCode { get; protected set; }
 
     public virtual bool IsActive { get; protected set; }
     public virtual int DisplayOrder { get; protected set; }
@@ -28,12 +34,12 @@ public class Country : FullAuditedAggregateRoot<Guid>, IMultiTenant
     public Country(
         string code,
         string name,
-        string defaultCurrencyCode,
+        Guid defaultCurrencyUnitId,
         int displayOrder = 0)
     {
         SetCode(code);
         SetName(name);
-        SetDefaultCurrencyCode(defaultCurrencyCode);
+        SetDefaultCurrencyUnit(defaultCurrencyUnitId);
         DisplayOrder = displayOrder;
         IsActive = true;
     }
@@ -59,14 +65,24 @@ public class Country : FullAuditedAggregateRoot<Guid>, IMultiTenant
             CountryConsts.NameMaxLength);
     }
 
-    public virtual void SetDefaultCurrencyCode(string code)
+    public virtual void SetDefaultCurrencyUnit(Guid defaultCurrencyUnitId)
     {
-        // Para birimi kodu — CurrencyUnit.SetCode ile AYNI normalizasyon (NormalizeCode) ki eşleşme bozulmasın.
-        DefaultCurrencyCode = StringFieldGuard.NormalizeCode(
-            code,
-            nameof(DefaultCurrencyCode),
-            EntityFieldConsts.CodeMinLength,
-            CurrencyConsts.CodeMaxLength);
+        if (defaultCurrencyUnitId == Guid.Empty)
+        {
+            throw new BusinessException("TradeXpress:Country:DefaultCurrencyRequired");
+        }
+
+        DefaultCurrencyUnitId = defaultCurrencyUnitId;
+    }
+
+    /// <summary>Geçiş backfill'i: yalnız <see cref="DefaultCurrencyUnitId"/> boşsa doldurur (idempotent;
+    /// dolu satıra dokunmaz — CompanyOwnedBackfiller deseniyle hizalı).</summary>
+    public virtual void BackfillDefaultCurrencyUnitIfMissing(Guid defaultCurrencyUnitId)
+    {
+        if (DefaultCurrencyUnitId == null)
+        {
+            SetDefaultCurrencyUnit(defaultCurrencyUnitId);
+        }
     }
 
     public virtual void SetActive(bool value)

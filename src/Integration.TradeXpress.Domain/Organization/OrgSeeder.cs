@@ -9,6 +9,7 @@ namespace Integration.TradeXpress.Organization;
 public class OrgSeeder(
     IRepository<Company, Guid> companyRepository,
     IRepository<CurrencyUnit, Guid> currencyUnitRepository,
+    IRepository<Country, Guid> countryRepository,
     OrgTreeManager orgTree,
     IDataFilter dataFilter,
     ICurrentTenant currentTenant)
@@ -18,6 +19,7 @@ public class OrgSeeder(
 
     private readonly IRepository<Company, Guid> _companyRepository = companyRepository;
     private readonly IRepository<CurrencyUnit, Guid> _currencyUnitRepository = currencyUnitRepository;
+    private readonly IRepository<Country, Guid> _countryRepository = countryRepository;
     private readonly OrgTreeManager _orgTree = orgTree;
     private readonly IDataFilter _dataFilter = dataFilter;
     private readonly ICurrentTenant _currentTenant = currentTenant;
@@ -56,7 +58,13 @@ public class OrgSeeder(
                 return false; // base birim yok → kuramayız
             }
 
-            await _companyRepository.InsertAsync(BuildHqCompany(tryUnit.Id, owner), autoSave: true);
+            var trCountry = await GetHostTrCountry();
+            if (trCountry is null)
+            {
+                return false; // ülke kataloğu (TR) henüz yok → kuramayız, sonraki run kurar
+            }
+
+            await _companyRepository.InsertAsync(BuildHqCompany(trCountry.Id, tryUnit.Id, owner), autoSave: true);
             return true;
         }
 
@@ -79,13 +87,20 @@ public class OrgSeeder(
                 .FirstOrDefault(u => u.TenantId == null && u.Code == CurrencyUnitCode.TRY);
         }
 
+        // Global (host) Türkiye ülke kaydı — HQ'nun ülkesi (id-only referans; kod değil id yazılır).
+        async Task<Country?> GetHostTrCountry()
+        {
+            return (await _countryRepository.GetQueryableAsync())
+                .FirstOrDefault(c => c.TenantId == null && c.Code == "TR");
+        }
+
         // Varsayılan merkez şirketi (Merkez / TR / base = TRY).
-        static Company BuildHqCompany(Guid baseCurrencyUnitId, Guid? owner)
+        static Company BuildHqCompany(Guid countryId, Guid baseCurrencyUnitId, Guid? owner)
         {
             return new Company(
                 code: "MRK",
                 name: "Merkez",
-                countryCode: "TR",
+                countryId: countryId,
                 baseCurrencyUnitId: baseCurrencyUnitId,
                 isHeadquarters: true,
                 displayOrder: 1);

@@ -11,8 +11,9 @@ public class CountryListRequestDto : ListRequestDto
 
 public class CountryListDto : CatalogListDtoBase
 {
+    /// <summary>Görüntü alanı — <see cref="DefaultCurrencyUnitId"/>'den çözülen birim kodu (grid kolonu).</summary>
     public string? DefaultCurrencyCode { get; set; }
-    /// <summary>DefaultCurrencyCode'a karşılık gelen CurrencyUnit.Id (link için; Code'dan çözülür, FK değil).</summary>
+    /// <summary>Varsayılan para birimi — CurrencyUnit'e id-only referans (otoriter alan).</summary>
     public Guid? DefaultCurrencyUnitId { get; set; }
     public int DisplayOrder { get; set; }
 }
@@ -30,7 +31,11 @@ public class CountryGetDto : CatalogGetDtoBase
     [StringLength(CountryConsts.NameMaxLength)]
     public override string Name { get; set; } = string.Empty;
 
+    /// <summary>Varsayılan para birimi — CurrencyUnit'e id-only referans (otoriter alan; combo buna bağlanır).</summary>
     [Required]
+    public Guid? DefaultCurrencyUnitId { get; set; }
+
+    /// <summary>Görüntü alanı — id'den çözülen birim kodu (server doldurur; form bind ETMEZ).</summary>
     public string? DefaultCurrencyCode { get; set; }
 
     public int DisplayOrder { get; set; }
@@ -47,19 +52,24 @@ public class CountryCreateDto : CatalogCreateDtoBase
     public override string Name { get; set; } = string.Empty;
 
     [Required]
-    public string DefaultCurrencyCode { get; set; } = string.Empty;
+    public Guid? DefaultCurrencyUnitId { get; set; }
 
     public int DisplayOrder { get; set; }
 }
 
 public class CountryUpdateDto : CatalogUpdateDtoBase
 {
+    // Kod DÜZENLENEBİLİR (ürün kuralı 2026-07-04: host CurrencyUnit kayıtları dışında tüm kodlar değiştirilebilir).
+    [Required]
+    [StringLength(CountryConsts.CodeMaxLength, MinimumLength = 2)]
+    public override string Code { get; set; } = string.Empty;
+
     [Required]
     [StringLength(CountryConsts.NameMaxLength)]
     public override string Name { get; set; } = string.Empty;
 
     [Required]
-    public string DefaultCurrencyCode { get; set; } = string.Empty;
+    public Guid? DefaultCurrencyUnitId { get; set; }
 
     public int DisplayOrder { get; set; }
 }

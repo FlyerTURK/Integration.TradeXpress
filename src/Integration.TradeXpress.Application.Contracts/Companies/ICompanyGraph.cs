@@ -13,7 +13,8 @@ public interface ICompanyGraph
 {
     string Code { get; set; }
     string Name { get; set; }
-    string CountryCode { get; set; }
+    /// <summary>Ülke — Country'ye id-only referans (otoriter alan; editör combo'su buna bağlanır).</summary>
+    Guid? CountryId { get; set; }
     Guid BaseCurrencyUnitId { get; set; }
     bool IsHeadquarters { get; set; }
     bool IsActive { get; set; }

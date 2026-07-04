@@ -62,44 +62,37 @@ public class CompanyAppService : TradeXpressAppService, ICompanyAppService
 
     public virtual async Task<PagedResultDto<CompanyListDto>> GetListAsync(CompanyListRequestDto input)
     {
-        // BaseCurrencyCode join'i GLOBAL birime (ör. TRY) eşleşir; tenant context'inde multi-tenant filtresi
-        // global birimleri gizlediğinden INNER JOIN tüm şirketleri DÜŞÜRÜR. Filtreyi kapat + şirketleri
-        // AÇIKÇA tenant'a göre kapsa (host'un şirketi yok → null). (CountryCode zaten Company'de gerçek kolon.)
+        // BaseCurrencyCode/CountryCode join'leri GLOBAL kayıtlara (ör. TRY, host ülke kataloğu) eşleşir;
+        // tenant context'inde multi-tenant filtresi global kayıtları gizlediğinden filtreyi kapat +
+        // şirketleri AÇIKÇA tenant'a göre kapsa (host'un şirketi yok → null). CountryCode artık string
+        // kolon DEĞİL — CountryId (id-only referans) üzerinden Country.Code join'lenir (LEFT: backfill
+        // öncesi/eşleşmeyen legacy satır listeden düşmesin).
         using (_dataFilter.Disable<IMultiTenant>())
         {
             var tenantId = CurrentTenant.Id;
             var units = await _unitRepository.GetQueryableAsync();
+            var countries = await _countryRepository.GetQueryableAsync();
             var rows = (await _repository.GetQueryableAsync())
                 .Where(c => c.TenantId == tenantId)
-                .Join(units, c => c.BaseCurrencyUnitId, u => u.Id, (c, u) => new CompanyListRow
+                .Join(units, c => c.BaseCurrencyUnitId, u => u.Id, (c, u) => new { c, u })
+                .GroupJoin(countries, x => x.c.CountryId, ct => (Guid?)ct.Id, (x, cts) => new { x.c, x.u, cts })
+                .SelectMany(x => x.cts.DefaultIfEmpty(), (x, ct) => new CompanyListRow
                 {
-                    Id = c.Id,
-                    Code = c.Code,
-                    Name = c.Name,
-                    CountryCode = c.CountryCode,
-                    BaseCurrencyUnitId = c.BaseCurrencyUnitId,
-                    BaseCurrencyCode = u.Code,
-                    IsActive = c.IsActive,
-                    IsHeadquarters = c.IsHeadquarters,
-                    DisplayOrder = c.DisplayOrder,
+                    Id = x.c.Id,
+                    Code = x.c.Code,
+                    Name = x.c.Name,
+                    CountryId = x.c.CountryId,
+                    CountryCode = ct != null ? ct.Code : string.Empty,
+                    BaseCurrencyUnitId = x.c.BaseCurrencyUnitId,
+                    BaseCurrencyCode = x.u.Code,
+                    IsActive = x.c.IsActive,
+                    IsHeadquarters = x.c.IsHeadquarters,
+                    DisplayOrder = x.c.DisplayOrder,
                 })
                 .ApplyListRequest(input, AllowedListFields);
 
             var totalCount = await AsyncExecuter.CountAsync(rows);
             var items = await AsyncExecuter.ToListAsync(rows.Skip(input.SkipCount).Take(input.MaxResultCount));
-
-            // CountryCode bir string kolon (entity'de FK yok) → linklenebilmesi için Country.Id'yi Code'dan
-            // çöz (bellekte; yalnız bu sayfanın kodları). Kapsam: global (TenantId=null) + mevcut tenant.
-            var countryCodes = items.Select(r => r.CountryCode).Where(c => !string.IsNullOrEmpty(c)).Distinct().ToList();
-            var countryMap = new Dictionary<string, Guid>(StringComparer.OrdinalIgnoreCase);
-            if (countryCodes.Count > 0)
-            {
-                var countries = await _countryRepository.GetQueryableAsync();
-                var matched = await AsyncExecuter.ToListAsync(
-                    countries.Where(ct => countryCodes.Contains(ct.Code) && (ct.TenantId == null || ct.TenantId == tenantId)));
-                foreach (var ct in matched)
-                    countryMap[ct.Code] = ct.Id;   // code kapsam içinde tekil; çakışırsa son kazanır
-            }
 
             return new PagedResultDto<CompanyListDto>(
                 totalCount,
@@ -109,7 +102,7 @@ public class CompanyAppService : TradeXpressAppService, ICompanyAppService
                     Code = r.Code,
                     Name = r.Name,
                     CountryCode = r.CountryCode,
-                    CountryId = countryMap.TryGetValue(r.CountryCode, out var cid) ? cid : (Guid?)null,
+                    CountryId = r.CountryId,
                     BaseCurrencyUnitId = r.BaseCurrencyUnitId,
                     BaseCurrencyCode = r.BaseCurrencyCode,
                     IsActive = r.IsActive,
@@ -133,11 +126,12 @@ public class CompanyAppService : TradeXpressAppService, ICompanyAppService
             throw new BusinessException("TradeXpress:Company:HostHasNoCompanies");
 
         await EnsureCurrencyVisibleAsync(input.BaseCurrencyUnitId);
+        var countryId = await EnsureCountryVisibleAsync(input.CountryId);
 
         var c = new Company(
             input.Code,
             input.Name,
-            input.CountryCode,
+            countryId,
             input.BaseCurrencyUnitId,
             isHeadquarters: input.IsHeadquarters,
             displayOrder: input.DisplayOrder);
@@ -158,6 +152,7 @@ public class CompanyAppService : TradeXpressAppService, ICompanyAppService
     public virtual async Task<CompanyGetDto> UpdateAsync(Guid id, CompanyUpdateDto input)
     {
         await EnsureCurrencyVisibleAsync(input.BaseCurrencyUnitId);
+        var countryId = await EnsureCountryVisibleAsync(input.CountryId);
 
         var c = await _repository.GetAsync(id);
 
@@ -175,7 +170,7 @@ public class CompanyAppService : TradeXpressAppService, ICompanyAppService
 
         c.SetCode(input.Code);
         c.SetName(input.Name);
-        c.SetCountryCode(input.CountryCode);
+        c.SetCountry(countryId);
         c.SetBaseCurrency(input.BaseCurrencyUnitId);
         c.SetDescription(input.Description);
         c.SetDisplayOrder(input.DisplayOrder);
@@ -278,6 +273,27 @@ public class CompanyAppService : TradeXpressAppService, ICompanyAppService
         }
     }
 
+    /// <summary>Ülke görünür mü (global + own); değilse hata. Boş/null id fail-fast reddedilir
+    /// (ülke zorunlu — Country id-only geçişinde otoriter alan CountryId'dir).</summary>
+    private async Task<Guid> EnsureCountryVisibleAsync(Guid? countryId)
+    {
+        if (countryId is not { } id || id == Guid.Empty)
+        {
+            throw new BusinessException("TradeXpress:Company:CountryRequired");
+        }
+
+        using (_dataFilter.Disable<IMultiTenant>())
+        {
+            var tenantId = CurrentTenant.Id;
+            var q = (await _countryRepository.GetQueryableAsync())
+                .Where(ct => ct.Id == id && (ct.TenantId == null || ct.TenantId == tenantId));
+            if (!await AsyncExecuter.AnyAsync(q))
+                throw new EntityNotFoundException(typeof(Country), id);
+        }
+
+        return id;
+    }
+
     /// <summary>Base currency görünür mü (global + own); değilse hata.</summary>
     private async Task EnsureCurrencyVisibleAsync(Guid unitId)
     {
@@ -288,6 +304,24 @@ public class CompanyAppService : TradeXpressAppService, ICompanyAppService
                 .Where(u => u.Id == unitId && (u.TenantId == null || u.TenantId == tenantId));
             if (!await AsyncExecuter.AnyAsync(q))
                 throw new EntityNotFoundException(typeof(CurrencyUnit), unitId);
+        }
+    }
+
+    /// <summary>Ülke kodunu id'den çözer (görüntü alanı; null/eşleşmeyen id → boş). Global + own görünür.</summary>
+    private async Task<string> LoadCountryCodeAsync(Guid? countryId)
+    {
+        if (countryId is not { } id)
+        {
+            return string.Empty;
+        }
+
+        using (_dataFilter.Disable<IMultiTenant>())
+        {
+            var code = await AsyncExecuter.FirstOrDefaultAsync(
+                (await _countryRepository.GetQueryableAsync())
+                    .Where(ct => ct.Id == id)
+                    .Select(ct => ct.Code));
+            return code ?? string.Empty;
         }
     }
 
@@ -318,7 +352,8 @@ public class CompanyAppService : TradeXpressAppService, ICompanyAppService
             Id = c.Id,
             Code = c.Code,
             Name = c.Name,
-            CountryCode = c.CountryCode,
+            CountryId = c.CountryId,
+            CountryCode = await LoadCountryCodeAsync(c.CountryId),
             BaseCurrencyUnitId = c.BaseCurrencyUnitId,
             BaseCurrencyCode = codes.GetValueOrDefault(c.BaseCurrencyUnitId, string.Empty),
             IsActive = c.IsActive,
@@ -355,6 +390,7 @@ public class CompanyAppService : TradeXpressAppService, ICompanyAppService
         public Guid Id { get; set; }
         public string Code { get; set; } = string.Empty;
         public string Name { get; set; } = string.Empty;
+        public Guid? CountryId { get; set; }
         public string CountryCode { get; set; } = string.Empty;
         public Guid BaseCurrencyUnitId { get; set; }
         public string BaseCurrencyCode { get; set; } = string.Empty;

@@ -17,8 +17,9 @@ public class CompanyListDto : EntityDto<Guid>, IListDto<Guid>, IIsActive
 {
     public string Code { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
+    /// <summary>Görüntü alanı — <see cref="CountryId"/>'den join'lenen ülke kodu (grid kolonu).</summary>
     public string CountryCode { get; set; } = string.Empty;
-    /// <summary>CountryCode'a karşılık gelen Country.Id (link/navigasyon için; Code'dan çözülür, entity'de FK yok).</summary>
+    /// <summary>Ülke — Country'ye id-only referans (otoriter alan; link/navigasyon da bunu kullanır).</summary>
     public Guid? CountryId { get; set; }
     public Guid BaseCurrencyUnitId { get; set; }
     public string BaseCurrencyCode { get; set; } = string.Empty;
@@ -39,8 +40,11 @@ public class CompanyGetDto : EntityDto<Guid>, IGetDto<Guid>, ICompanyGraph
     [StringLength(CompanyConsts.NameMaxLength)]
     public string Name { get; set; } = string.Empty;
 
+    /// <summary>Ülke — Country'ye id-only referans (otoriter alan; combo buna bağlanır).</summary>
     [Required]
-    [StringLength(CompanyConsts.CountryCodeMaxLength, MinimumLength = 2)]
+    public Guid? CountryId { get; set; }
+
+    /// <summary>Görüntü alanı — id'den çözülen ülke kodu (server doldurur; form bind ETMEZ).</summary>
     public string CountryCode { get; set; } = string.Empty;
 
     public Guid BaseCurrencyUnitId { get; set; }
@@ -73,7 +77,7 @@ public class CompanyGraphDto : CompanyGetDto
     public CompanyGraphDto Clone() => new()
     {
         Id = Id, ClientKey = ClientKey, IsDeleted = IsDeleted,
-        Code = Code, Name = Name, CountryCode = CountryCode,
+        Code = Code, Name = Name, CountryId = CountryId, CountryCode = CountryCode,
         BaseCurrencyUnitId = BaseCurrencyUnitId, BaseCurrencyCode = BaseCurrencyCode,
         IsActive = IsActive, IsHeadquarters = IsHeadquarters,
         DisplayOrder = DisplayOrder, Description = Description,
@@ -91,9 +95,9 @@ public class CompanyCreateDto : ICreateDto
     [StringLength(CompanyConsts.NameMaxLength)]
     public string Name { get; set; } = string.Empty;
 
+    /// <summary>Ülke — Country'ye id-only referans (otoriter alan).</summary>
     [Required]
-    [StringLength(CompanyConsts.CountryCodeMaxLength, MinimumLength = 2)]
-    public string CountryCode { get; set; } = string.Empty;
+    public Guid? CountryId { get; set; }
 
     [Required]
     public Guid BaseCurrencyUnitId { get; set; }
@@ -118,9 +122,9 @@ public class CompanyUpdateDto : IUpdateDto
     [StringLength(CompanyConsts.NameMaxLength)]
     public string Name { get; set; } = string.Empty;
 
+    /// <summary>Ülke — Country'ye id-only referans (otoriter alan).</summary>
     [Required]
-    [StringLength(CompanyConsts.CountryCodeMaxLength, MinimumLength = 2)]
-    public string CountryCode { get; set; } = string.Empty;
+    public Guid? CountryId { get; set; }
 
     [Required]
     public Guid BaseCurrencyUnitId { get; set; }

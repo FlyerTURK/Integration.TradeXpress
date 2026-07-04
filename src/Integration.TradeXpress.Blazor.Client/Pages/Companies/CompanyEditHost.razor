@@ -108,20 +108,20 @@
         StateHasChanged();
     }
 
-    private async Task<string?> OnAddCountryAsync()
+    private async Task<Guid?> OnAddCountryAsync()
     {
-        var before = _countries.Select(c => c.Code).ToHashSet();
+        var before = _countries.Select(c => c.Id).ToHashSet();
         await OpenRefAsync(typeof(CountryEditHost), null);
         _countries = (await CountryAppService.GetListAsync(new CountryListRequestDto { MaxResultCount = 1000 })).Items.ToList();
         StateHasChanged();
-        return _countries.Select(c => c.Code).FirstOrDefault(c => !before.Contains(c));
+        // Yeni Id (öncekinde olmayan) → combo auto-select; yoksa null (seçim değişmez).
+        return _countries.Select(c => (Guid?)c.Id).FirstOrDefault(id => id is { } v && !before.Contains(v));
     }
 
-    private async Task OnEditCountryAsync(string code)   // country Value = Code → Id'yi bul
+    private async Task OnEditCountryAsync(Guid? id)   // country Value = Id (id-only geçiş)
     {
-        var country = _countries.FirstOrDefault(c => c.Code == code);
-        if (country is null) return;
-        await OpenRefAsync(typeof(CountryEditHost), country.Id);
+        if (id is not { } countryId || countryId == Guid.Empty) return;
+        await OpenRefAsync(typeof(CountryEditHost), countryId);
         _countries = (await CountryAppService.GetListAsync(new CountryListRequestDto { MaxResultCount = 1000 })).Items.ToList();
         StateHasChanged();
     }

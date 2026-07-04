@@ -30,11 +30,13 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
 
             b.Property(x => x.Code).IsRequired().HasMaxLength(CompanyConsts.CodeMaxLength);
             b.Property(x => x.Name).IsRequired().HasMaxLength(CompanyConsts.NameMaxLength);
-            b.Property(x => x.CountryCode).IsRequired().HasMaxLength(CompanyConsts.CountryCodeMaxLength);
+            // ESKİ string ülke kodu — Country id-only geçişiyle yalnız backfill kaynağı (artık opsiyonel;
+            // yeni kayıt yazmaz). CS0618 uyarısı BİLİNÇLİ: mapping backfill sonrası kolonla birlikte kalkacak.
+            b.Property(x => x.CountryCode).HasMaxLength(CompanyConsts.CountryCodeMaxLength);
             b.Property(x => x.Description).HasMaxLength(CompanyConsts.DescriptionMaxLength);
 
             b.HasIndex(x => new { x.TenantId, x.Code }).IsUnique();
-            b.HasIndex(x => new { x.TenantId, x.CountryCode });
+            b.HasIndex(x => new { x.TenantId, x.CountryId });
             b.HasIndex(x => new { x.TenantId, x.IsHeadquarters });
         });
     }
@@ -50,8 +52,11 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
 
             b.Property(x => x.Code).IsRequired().HasMaxLength(CountryConsts.CodeMaxLength);
             b.Property(x => x.Name).IsRequired().HasMaxLength(CountryConsts.NameMaxLength);
+            // ESKİ string birim kodu — id-only geçişiyle yalnız backfill kaynağı (opsiyonel; yeni kayıt yazmaz).
+            // CS0618 uyarısı BİLİNÇLİ: mapping backfill sonrası kolonla birlikte kalkacak.
             b.Property(x => x.DefaultCurrencyCode).HasMaxLength(CurrencyConsts.CodeMaxLength);
             b.HasIndex(x => new { x.TenantId, x.Code }).IsUnique();
+            b.HasIndex(x => x.DefaultCurrencyUnitId);
         });
     }
 

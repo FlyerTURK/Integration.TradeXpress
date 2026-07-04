@@ -10,6 +10,7 @@ using Integration.TradeXpress.Vaults;
 using Volo.Abp.Data;
 using Volo.Abp.DependencyInjection;
 using Volo.Abp.Domain.Repositories;
+using Volo.Abp.Guids;
 using Volo.Abp.MultiTenancy;
 using Volo.Abp.Users;
 
@@ -84,8 +85,10 @@ public class VoucherTestDataSeeder : ITransientDependency
 
         var (tryId, hasId, gumId) = await ResolveUnitIdsAsync();
 
+        // CountryId id-only referanstır (DB FK yok) → voucher senaryosunda sentetik id yeterli
+        // (yerel para çözümü bu testlerde kullanılmaz).
         var company = await _companyRepository.InsertAsync(
-            new Company($"{prefix}CO", $"{prefix} Company", "TR", tryId, isHeadquarters: true),
+            new Company($"{prefix}CO", $"{prefix} Company", SimpleGuidGenerator.Instance.Create(), tryId, isHeadquarters: true),
             autoSave: true);
 
         var branch = await _branchRepository.InsertAsync(

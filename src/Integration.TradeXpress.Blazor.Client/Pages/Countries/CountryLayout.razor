@@ -17,7 +17,7 @@
 <DxFormLayout CssClass="w-100">
     <DxFormLayoutGroup Caption="@L["General"]" ColSpanMd="12">
         <DxFormLayoutItem Caption="@($"{L["Code"]} *")" ColSpanMd="6">
-            <DxTextBox @bind-Text="@Model.Code" NullText="TR / US ..." Enabled="@IsNew" />
+            <DxTextBox @bind-Text="@Model.Code" NullText="TR / US ..." />
         </DxFormLayoutItem>
         <DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="12">
             <DxTextBox @bind-Text="@Model.Name" />
@@ -29,11 +29,12 @@
                              Required="true" />
             </CaptionTemplate>
             <Template>
-                <LookupComboBox TItem="CurrencyUnitListDto" TValue="string"
+                @* Id-only geçiş: combo birim KODUNA değil CurrencyUnit.Id'ye bağlanır (kod rename'ine dayanıklı). *@
+                <LookupComboBox TItem="CurrencyUnitListDto" TValue="Guid?"
                                 Data="@Currencies"
-                                ValueFieldName="@nameof(CurrencyUnitListDto.Code)"
+                                ValueFieldName="@nameof(CurrencyUnitListDto.Id)"
                                 TextFieldName="@nameof(CurrencyUnitListDto.Code)"
-                                @bind-Value="@Model.DefaultCurrencyCode"
+                                @bind-Value="@Model.DefaultCurrencyUnitId"
                                 SearchFilterCondition="ListSearchFilterCondition.Contains"
                                 NullText="@L["Select"].Value"
                                 OnEditRequested="@OnEditCurrency"
@@ -58,9 +59,9 @@
     [Parameter] public bool IsNew { get; set; }
     /// <summary>Döviz lookup verisi (read-koordinatörden; host doldurur). Dumb layout I/O yapmaz.</summary>
     [Parameter] public IReadOnlyList<CurrencyUnitListDto> Currencies { get; set; } = Array.Empty<CurrencyUnitListDto>();
-    /// <summary>Quick-add (+) — host yeni döviz formunu popup açar ve OLUŞAN kodu döndürür (combo auto-select).
-    /// null dönerse seçim yok. Boşsa + butonu görünmez.</summary>
-    [Parameter] public Func<Task<string?>>? OnAddCurrency { get; set; }
-    /// <summary>Edit (✎) — host seçili dövizi (kod) popup'ta düzenler. Boşsa ✎ butonu görünmez.</summary>
-    [Parameter] public Func<string, Task>? OnEditCurrency { get; set; }
+    /// <summary>Quick-add (+) — host yeni döviz formunu popup açar ve OLUŞAN birimin Id'sini döndürür
+    /// (combo auto-select). null dönerse seçim yok. Boşsa + butonu görünmez.</summary>
+    [Parameter] public Func<Task<Guid?>>? OnAddCurrency { get; set; }
+    /// <summary>Edit (✎) — host seçili dövizi (Id) popup'ta düzenler. Boşsa ✎ butonu görünmez.</summary>
+    [Parameter] public Func<Guid?, Task>? OnEditCurrency { get; set; }
 }

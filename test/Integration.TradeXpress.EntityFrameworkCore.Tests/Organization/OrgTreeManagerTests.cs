@@ -174,14 +174,15 @@ public class OrgTreeManagerTests : TradeXpressEntityFrameworkCoreTestBase
         }
     }
 
-    /// <summary>Test-başına benzersiz kodlu şirket kurar (paylaşılan Sqlite collection DB'si).</summary>
+    /// <summary>Test-başına benzersiz kodlu şirket kurar (paylaşılan Sqlite collection DB'si).
+    /// CountryId id-only referanstır (DB FK yok) → org-ağacı senaryosunda sentetik id yeterli.</summary>
     private static Company NewCompany(Guid baseCurrencyUnitId)
     {
         var suffix = SimpleGuidGenerator.Instance.Create().ToString("N")[..8].ToUpperInvariant();
         return new Company(
             $"C{suffix}",
             $"Org Tree Company {suffix}",
-            "TR",
+            SimpleGuidGenerator.Instance.Create(),
             baseCurrencyUnitId);
     }
 }

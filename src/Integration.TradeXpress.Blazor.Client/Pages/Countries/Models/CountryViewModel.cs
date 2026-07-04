@@ -20,6 +20,10 @@ public class CountryViewModel : IViewModel<Guid>
     [StringLength(CountryConsts.NameMaxLength)]
     public string Name { get; set; } = string.Empty;
 
+    /// <summary>Varsayılan para birimi — CurrencyUnit'e id-only referans (otoriter alan).</summary>
+    public Guid? DefaultCurrencyUnitId { get; set; }
+
+    /// <summary>Görüntü alanı — id'den çözülen birim kodu (server doldurur).</summary>
     public string? DefaultCurrencyCode { get; set; }
     public bool IsActive { get; set; } = true;
     public int DisplayOrder { get; set; }

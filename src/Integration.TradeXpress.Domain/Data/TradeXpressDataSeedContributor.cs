@@ -19,6 +19,7 @@ public class TradeXpressDataSeedContributor(
     OrgSeeder orgSeeder,
     Integration.TradeXpress.Vouchers.Balance.BalanceLedgerBackfiller balanceLedgerBackfiller,
     Integration.TradeXpress.MultiCompany.CompanyOwnedBackfiller companyOwnedBackfiller,
+    CountryReferenceBackfiller countryReferenceBackfiller,
     Integration.TradeXpress.Authorization.ScopedGrantSeeder scopedGrantSeeder)
     : IDataSeedContributor, ITransientDependency
 {
@@ -35,6 +36,7 @@ public class TradeXpressDataSeedContributor(
     private readonly OrgSeeder _orgSeeder = orgSeeder;
     private readonly Integration.TradeXpress.Vouchers.Balance.BalanceLedgerBackfiller _balanceLedgerBackfiller = balanceLedgerBackfiller;
     private readonly Integration.TradeXpress.MultiCompany.CompanyOwnedBackfiller _companyOwnedBackfiller = companyOwnedBackfiller;
+    private readonly CountryReferenceBackfiller _countryReferenceBackfiller = countryReferenceBackfiller;
     private readonly Integration.TradeXpress.Authorization.ScopedGrantSeeder _scopedGrantSeeder = scopedGrantSeeder;
 
     #endregion
@@ -92,6 +94,12 @@ public class TradeXpressDataSeedContributor(
         if (context.TenantId == null)
         {
             await _companyOwnedBackfiller.BackfillAllTenantsAsync();
+
+            // Country id-only geçiş backfill'i: string kodlardan (Company.CountryCode /
+            // Country.DefaultCurrencyCode) yeni Guid kolonları doldur. Country + CurrencyUnit
+            // seed'lerinden SONRA (adım 1) koşmalı ki kod→id eşleşecek kayıtlar mevcut olsun;
+            // tenant-agnostik (Disable<IMultiTenant>) → host koşusunda BİR KEZ yeter.
+            await _countryReferenceBackfiller.BackfillAllTenantsAsync();
         }
 
         // (7) Kapsam grant geri-uyumu (Faz 4 working-context): mevcut kullanıcılara tenant-geneli Grant

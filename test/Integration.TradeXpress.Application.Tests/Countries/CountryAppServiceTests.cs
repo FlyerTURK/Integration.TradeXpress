@@ -26,10 +26,12 @@ public abstract class CountryAppServiceTests<TStartupModule> : TradeXpressApplic
 
         var tr = list.Items.Single(c => c.Code == "TR");
         tr.Name.ShouldBe("Türkiye");
-        tr.DefaultCurrencyCode.ShouldBe(CurrencyUnitCode.TRY);
+        tr.DefaultCurrencyUnitId.ShouldNotBeNull();                   // id-only otoriter alan (FK) dolu
+        tr.DefaultCurrencyCode.ShouldBe(CurrencyUnitCode.TRY);        // görüntü kodu id'den çözülür
         tr.IsGlobal.ShouldBeTrue();
 
         var us = list.Items.Single(c => c.Code == "US");
+        us.DefaultCurrencyUnitId.ShouldNotBeNull();
         us.DefaultCurrencyCode.ShouldBe(CurrencyUnitCode.USD);
     }
 }

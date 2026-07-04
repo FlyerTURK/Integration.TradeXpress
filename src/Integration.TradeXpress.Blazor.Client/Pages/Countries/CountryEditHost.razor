@@ -59,9 +59,9 @@
     // Quick-add: yeni döviz formunu POPUP aç (Country edit tab'da → popup host serbest; CrudPageBase kalıbı:
     // OnClosed→PopupService.Close). Kaydedilince CurrencyUnitEditHost commit → EntityChange → lookup cache
     // invalidate; popup kapanınca taze çek → yeni döviz combo'da görünür.
-    private async Task<string?> OnAddCurrencyAsync()
+    private async Task<Guid?> OnAddCurrencyAsync()
     {
-        var before = new HashSet<string>(_currencies.Select(c => c.Code));   // mevcut kodlar (auto-select diff'i)
+        var before = _currencies.Select(c => c.Id).ToHashSet();   // mevcut Id'ler (auto-select diff'i)
         var extra = new Dictionary<string, object>
         {
             { "OnClosed", EventCallback.Factory.Create(this, () => PopupService.Close()) },
@@ -72,21 +72,20 @@
         _currencies = await CurrencyLookup.GetAsync();
         StateHasChanged();
 
-        // Yeni eklenen kod (öncekinde olmayan) → combo'da auto-select için döndür (yoksa null → seçim değişmez).
-        return _currencies.Select(c => c.Code).FirstOrDefault(c => !before.Contains(c));
+        // Yeni eklenen Id (öncekinde olmayan) → combo'da auto-select için döndür (yoksa null → seçim değişmez).
+        return _currencies.Select(c => (Guid?)c.Id).FirstOrDefault(id => id is { } v && !before.Contains(v));
     }
 
-    // Edit (✎): seçili dövizi (kod → Id) POPUP'ta düzenle; kapanınca cache (değiştiyse) invalidate → taze çek.
-    private async Task OnEditCurrencyAsync(string code)
+    // Edit (✎): seçili dövizi (Id) POPUP'ta düzenle; kapanınca cache (değiştiyse) invalidate → taze çek.
+    private async Task OnEditCurrencyAsync(Guid? id)
     {
-        var cur = _currencies.FirstOrDefault(c => c.Code == code);
-        if (cur is null) return;
+        if (id is not { } unitId || unitId == Guid.Empty) return;
 
         var extra = new Dictionary<string, object>
         {
             { "OnClosed", EventCallback.Factory.Create(this, () => PopupService.Close()) },
         };
-        await ViewOpener.OpenAsync(typeof(CurrencyUnitEditHost), cur.Id, L["CurrencyUnit"].Value, null, extra);
+        await ViewOpener.OpenAsync(typeof(CurrencyUnitEditHost), unitId, L["CurrencyUnit"].Value, null, extra);
 
         _currencies = await CurrencyLookup.GetAsync();
         StateHasChanged();

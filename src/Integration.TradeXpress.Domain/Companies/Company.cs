@@ -17,9 +17,14 @@ public class Company : FullAuditedAggregateRoot<Guid>, IMultiTenant
 
     public virtual string Name { get; protected set; } = null!;
 
-    /// <summary>ISO-3166 alpha-2 ülke kodu (TR, US, ...). Fiyatlar bu ülkenin değil — pivot
-    /// global; ülke yalnız kimlik/varsayılan base içindir.</summary>
-    public virtual string CountryCode { get; protected set; } = null!;
+    /// <summary>Ülke — <see cref="Countries.Country"/>'ye id-only referans (nav YOK). OTORİTER alan;
+    /// legacy satırlarda backfill tamamlanana dek null olabilir (yeni kayıtta zorunlu, ctor doğrular).</summary>
+    public virtual Guid? CountryId { get; protected set; }
+
+    /// <summary>ISO-3166 alpha-2 ülke kodu (TR, US, ...) — ESKİ string referans. Country id-only geçişiyle
+    /// yerini <see cref="CountryId"/> aldı; yalnız backfill (kod→id eşleştirme) kaynağıdır, yeni kod yolu yazmaz.</summary>
+    [Obsolete("Country id-only geçişi; backfill sonrası kaldırılacak — CountryId kullan.")]
+    public virtual string? CountryCode { get; protected set; }
 
     /// <summary>Değerleme (fonksiyonel) para birimi — global CurrencyUnit'e id-only referans.</summary>
     public virtual Guid BaseCurrencyUnitId { get; protected set; }
@@ -37,14 +42,14 @@ public class Company : FullAuditedAggregateRoot<Guid>, IMultiTenant
     public Company(
         string code,
         string name,
-        string countryCode,
+        Guid countryId,
         Guid baseCurrencyUnitId,
         bool isHeadquarters = false,
         int displayOrder = 0)
     {
         SetCode(code);
         SetName(name);
-        SetCountryCode(countryCode);
+        SetCountry(countryId);
         BaseCurrencyUnitId = baseCurrencyUnitId;
         IsHeadquarters = isHeadquarters;
         DisplayOrder = displayOrder;
@@ -72,15 +77,24 @@ public class Company : FullAuditedAggregateRoot<Guid>, IMultiTenant
             CompanyConsts.NameMaxLength);
     }
 
-    public virtual void SetCountryCode(string countryCode)
+    public virtual void SetCountry(Guid countryId)
     {
-        // ISO-3166 alpha-2 sabit uzunluk (min = max = 2). Kültür-BAĞIMSIZ UPPER (tr-TR 'i'→'İ' tuzağı yok);
-        // NormalizeCode KULLANILMAZ (evrensel CodeMinLength=3 iki harfli ISO koduna uymaz).
-        CountryCode = StringFieldGuard.NormalizeInvariantCode(
-            countryCode,
-            nameof(CountryCode),
-            CompanyConsts.CountryCodeMaxLength,
-            CompanyConsts.CountryCodeMaxLength);
+        if (countryId == Guid.Empty)
+        {
+            throw new BusinessException("TradeXpress:Company:CountryRequired");
+        }
+
+        CountryId = countryId;
+    }
+
+    /// <summary>Geçiş backfill'i: yalnız <see cref="CountryId"/> boşsa doldurur (idempotent;
+    /// dolu satıra dokunmaz — CompanyOwnedBackfiller deseniyle hizalı).</summary>
+    public virtual void BackfillCountryIfMissing(Guid countryId)
+    {
+        if (CountryId == null)
+        {
+            SetCountry(countryId);
+        }
     }
 
     public virtual void SetBaseCurrency(Guid baseCurrencyUnitId)

@@ -81,7 +81,8 @@
             Password = "1q2w3E*",
             PasswordConfirm = "1q2w3E*",
         });
-        m.Companies.Add(TenantLayout.NewCompany("MRK", "Merkez", "TR", isHeadquarters: true, _units, _countries));
+        m.Companies.Add(TenantLayout.NewCompany(
+            "MRK", "Merkez", TenantLayout.CountryIdOf("TR", _countries), isHeadquarters: true, _units, _countries));
     }
 }
 
