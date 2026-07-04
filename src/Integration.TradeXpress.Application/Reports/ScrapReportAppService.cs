@@ -56,15 +56,86 @@ public class ScrapReportAppService : TradeXpressAppService, IScrapReportAppServi
         DateTime VoucherDate, long VoucherNumber, ProcessType ProcessType, ProcessDirectionType Direction,
         Guid? VaultId, Guid CompanyId, Guid BranchId, Guid? SubAccountId, string? Description, DateTime CreationTime, Guid LineId);
 
+    /// <summary>
+    /// Hurda STOK: kapsam (şirket DAİMA ICurrentCompany'den) + branch/vault, TÜM geçmişin birim-bazlı Giren/Çıkan/Net'i.
+    /// K4: satırları belleğe çekip in-memory leg üretmek yerine SQL-side GROUP BY + SUM — bacak/işaret/kapsam/ScrapId
+    /// kuralları <see cref="QueryLegsAsync"/> ile BİREBİR aynı (yalnız aggregation DB'de): Peşin (WithCash) yansımaz;
+    /// Bedelli (WithCurrency) → PayUnit@PayTotal; diğer (Normal/İade/Emanet/null) → MainUnit@Amount. effect = giriş ? +:−.
+    /// Giren = Σ(effect &gt; 0), Çıkan = Σ(−effect &lt; 0); Net = Giren − Çıkan (= Σ effect).
+    /// </summary>
     public virtual async Task<List<ScrapStockRowDto>> GetStockAsync(ScrapReportFilterDto filter)
     {
-        var legs = await QueryLegsAsync(filter, dateFiltered: false);
-        var grouped = legs.GroupBy(x => x.UnitId).Select(g => new ScrapStockRowDto
+        // SIZINTI ÖNLEME: rapor DAİMA çalışılan şirketle sınırlı (ICurrentCompany). Yoksa (host/API) boş.
+        if (LazyServiceProvider.LazyGetRequiredService<ICurrentCompany>().Id is not { } companyId)
+            return new List<ScrapStockRowDto>();
+
+        var q = await _voucherRepository.GetQueryableAsync();
+
+        // Ana bacak: Normal/İade/Emanet (Peşin ve Bedelli HARİÇ) → MainUnit@Amount. effect = giriş ? Amount : −Amount.
+        // IQueryable → SQL: IsInflow() çevrilemez, ham %2 (giriş = çift) bilinçli. PaymentType != X karşılaştırmaları
+        // EF null-telafisiyle (NULL PaymentType dahil) QueryLegsAsync'in isBedelli=false dalıyla birebir.
+        var mainAgg = await AsyncExecuter.ToListAsync(
+            from v in q
+            where v.CompanyId == companyId
+               && (filter.BranchId == null || v.BranchId == filter.BranchId)
+               && (filter.VaultId  == null || v.VaultId  == filter.VaultId)
+            from l in v.Lines
+            where !l.IsDeleted && l.Type == ProcessType.Scrap
+               && l.PaymentType != ProcessPaymentType.WithCash
+               && l.PaymentType != ProcessPaymentType.WithCurrency
+               && l.MainUnitId != Guid.Empty && l.Amount != 0m
+               && (filter.ScrapId == null || l.CommodityId == filter.ScrapId)
+            group l by l.MainUnitId into g
+            select new
+            {
+                UnitId = g.Key,
+                In  = g.Sum(x => (((int)x.Direction % 2) == 0 ? x.Amount : -x.Amount) > 0m
+                                 ? (((int)x.Direction % 2) == 0 ? x.Amount : -x.Amount) : 0m),
+                Out = g.Sum(x => (((int)x.Direction % 2) == 0 ? x.Amount : -x.Amount) < 0m
+                                 ? (((int)x.Direction % 2) == 0 ? -x.Amount : x.Amount) : 0m),
+            });
+
+        // Bedelli bacak: WithCurrency → PayUnit@PayTotal. effect = giriş ? PayTotal : −PayTotal.
+        var payAgg = await AsyncExecuter.ToListAsync(
+            from v in q
+            where v.CompanyId == companyId
+               && (filter.BranchId == null || v.BranchId == filter.BranchId)
+               && (filter.VaultId  == null || v.VaultId  == filter.VaultId)
+            from l in v.Lines
+            where !l.IsDeleted && l.Type == ProcessType.Scrap
+               && l.PaymentType == ProcessPaymentType.WithCurrency
+               && l.PayUnitId != null && l.PayUnitId != Guid.Empty && l.PayTotal != 0m
+               && (filter.ScrapId == null || l.CommodityId == filter.ScrapId)
+            group l by l.PayUnitId into g
+            select new
+            {
+                UnitId = g.Key,
+                In  = g.Sum(x => (((int)x.Direction % 2) == 0 ? x.PayTotal : -x.PayTotal) > 0m
+                                 ? (((int)x.Direction % 2) == 0 ? x.PayTotal : -x.PayTotal) : 0m),
+                Out = g.Sum(x => (((int)x.Direction % 2) == 0 ? x.PayTotal : -x.PayTotal) < 0m
+                                 ? (((int)x.Direction % 2) == 0 ? -x.PayTotal : x.PayTotal) : 0m),
+            });
+
+        // İki bacağı birim-bazında birleştir (Giren/Çıkan ayrı toplanır; Net = Giren − Çıkan — in-memory ile birebir).
+        var byUnit = new Dictionary<Guid, (decimal In, decimal Out)>();
+        foreach (var r in mainAgg)
         {
-            UnitId   = g.Key,
-            InTotal  = g.Where(x => x.Effect > 0).Sum(x => x.Effect),
-            OutTotal = g.Where(x => x.Effect < 0).Sum(x => -x.Effect),
-            Net      = g.Sum(x => x.Effect),
+            var cur = byUnit.GetValueOrDefault(r.UnitId);
+            byUnit[r.UnitId] = (cur.In + r.In, cur.Out + r.Out);
+        }
+        foreach (var r in payAgg)
+        {
+            var unitId = r.UnitId!.Value;   // where-filtresi null'ı zaten eledi
+            var cur = byUnit.GetValueOrDefault(unitId);
+            byUnit[unitId] = (cur.In + r.In, cur.Out + r.Out);
+        }
+
+        var grouped = byUnit.Select(kv => new ScrapStockRowDto
+        {
+            UnitId   = kv.Key,
+            InTotal  = kv.Value.In,
+            OutTotal = kv.Value.Out,
+            Net      = kv.Value.In - kv.Value.Out,
         }).ToList();
 
         var unitCodes = await UnitCodesAsync(grouped.Select(r => r.UnitId));

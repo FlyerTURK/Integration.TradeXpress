@@ -197,17 +197,17 @@ public class CashReportAppService : TradeXpressAppService, ICashReportAppService
 
     public virtual async Task<List<CashMovementRowDto>> GetMovementsAsync(CashReportFilterDto filter)
     {
-        // Dönem içi satırlar
+        // Dönem içi satırlar — DETAY liste (satır-satır KALIR, aggregate edilmez).
         var legs = (await QueryCashLegsAsync(filter, dateFiltered: true))
             .OrderBy(x => x.VoucherDate).ThenBy(x => x.CreationTime).ThenBy(x => x.LineId)
             .ToList();
 
-        // Devreden: başlangıç tarihinden önceki tüm birikmiş etki (aynı kapsam + nakit filtresi, tarih hariç)
-        var carryLegs = await QueryCashLegsAsync(filter, dateFiltered: false,
-            endExclusiveOverride: filter.Start.Date);
+        // Devreden: başlangıç tarihinden önceki tüm birikmiş NET (aynı kapsam + nakit filtresi). K4: satırları belleğe
+        // çekmek yerine SQL-side GROUP BY + SUM (birim → net) — devreden yalnız birim-bazlı toplam olduğundan detay
+        // gerekmez; bacak/işaret/CashId/kapsam kuralları QueryCashLegsAsync ile BİREBİR aynı.
+        var carryNet = await QueryCashCarryNetAsync(filter, filter.Start.Date);
 
-        var allLegs    = legs.Concat(carryLegs).ToList();
-        var unitCodes    = await CodeMapAsync(_unitRepository,    allLegs.Select(x => x.UnitId),                                    u => u.Id, u => u.Code, disableMultiTenant: true);
+        var unitCodes    = await CodeMapAsync(_unitRepository,    legs.Select(x => x.UnitId).Concat(carryNet.Keys),                 u => u.Id, u => u.Code, disableMultiTenant: true);
         var vaultCodes   = await CodeMapAsync(_vaultRepository,   legs.Where(x => x.VaultId    != null).Select(x => x.VaultId!.Value),   x => x.Id, x => x.Code);
         var branchCodes  = await CodeMapAsync(_branchRepository,  legs.Select(x => x.BranchId),                                     x => x.Id, x => x.Code);
         var companyCodes = await CodeMapAsync(_companyRepository, legs.Select(x => x.CompanyId),                                    x => x.Id, x => x.Code);
@@ -215,14 +215,12 @@ public class CashReportAppService : TradeXpressAppService, ICashReportAppService
 
         var result = new List<CashMovementRowDto>();
 
-        // Birim bazında devreden grupları
-        var carryByUnit = carryLegs.GroupBy(x => x.UnitId);
+        // Birim bazında devreden (SQL-side hesaplı net); running her devreden birim için tohumlanır (net 0 olsa da).
         var runningByUnit = new Dictionary<Guid, decimal>();
 
-        foreach (var g in carryByUnit)
+        foreach (var (unitId, carry) in carryNet)
         {
-            var carry = g.Sum(x => x.Effect);
-            runningByUnit[g.Key] = carry;
+            runningByUnit[unitId] = carry;
             if (carry != 0m)
             {
                 result.Add(new CashMovementRowDto
@@ -231,8 +229,8 @@ public class CashReportAppService : TradeXpressAppService, ICashReportAppService
                     VoucherNumber  = 0,
                     Source         = "Devreden",
                     IsCarryForward = true,
-                    UnitId         = g.Key,
-                    UnitCode       = unitCodes.GetValueOrDefault(g.Key),
+                    UnitId         = unitId,
+                    UnitCode       = unitCodes.GetValueOrDefault(unitId),
                     CashAmount     = carry,
                     RunningBalance = carry,
                 });
@@ -271,6 +269,57 @@ public class CashReportAppService : TradeXpressAppService, ICashReportAppService
     }
 
     // ── ortak: kapsam + iki-bacak nakit çıkarımı ────────────────────────────────
+
+    /// <summary>
+    /// Devreden (hareket raporu): <paramref name="endExclusive"/> tarihinden ÖNCEKİ birikmiş NET, birim-bazında,
+    /// SQL-side GROUP BY + SUM (<see cref="GetCashNetByUnitAsync"/> deseni + CashId/kapsam filtresi). İki bacak / işaret /
+    /// CashId kuralları <see cref="QueryCashLegsAsync"/> ile BİREBİR aynı, yalnız aggregation DB'de. Yalnız net döner
+    /// (devreden tek satır → In/Out ayrımı gerekmez).
+    /// </summary>
+    private async Task<Dictionary<Guid, decimal>> QueryCashCarryNetAsync(CashReportFilterDto filter, DateTime endExclusive)
+    {
+        // SIZINTI ÖNLEME: rapor DAİMA çalışılan şirketle sınırlı (ICurrentCompany). Yoksa (host/API) boş.
+        if (LazyServiceProvider.LazyGetRequiredService<ICurrentCompany>().Id is not { } companyId)
+            return new Dictionary<Guid, decimal>();
+
+        var q = await _voucherRepository.GetQueryableAsync();
+
+        // Sol bacak: yalnız Cash process'te nakit (Total @ MainUnit). Giriş + / Çıkış −.
+        // IQueryable → SQL: IsInflow() extension'ı EF Core tarafından çevrilemez, ham %2 (giriş = çift) bilinçli.
+        var mainLegs = await AsyncExecuter.ToListAsync(
+            from v in q
+            where v.CompanyId == companyId
+               && (filter.BranchId == null || v.BranchId == filter.BranchId)
+               && (filter.VaultId == null || v.VaultId == filter.VaultId)
+               && v.VoucherDate < endExclusive
+            from l in v.Lines
+            where !l.IsDeleted && l.Type == ProcessType.Cash && l.MainUnitId != Guid.Empty && l.Total != 0m
+               && (filter.CashId == null || l.CommodityId == filter.CashId)
+            group l by l.MainUnitId into g
+            select new { UnitId = g.Key, Net = g.Sum(x => ((int)x.Direction % 2) == 0 ? x.Total : -x.Total) });
+
+        // Sağ bacak: Peşin (WithCash) tüm process'lerde karşılık nakit (PayTotal @ PayUnit).
+        // İşaret tersi: mal Çıkış → nakit girer (+), mal Giriş → nakit çıkar (−).
+        var payLegs = await AsyncExecuter.ToListAsync(
+            from v in q
+            where v.CompanyId == companyId
+               && (filter.BranchId == null || v.BranchId == filter.BranchId)
+               && (filter.VaultId == null || v.VaultId == filter.VaultId)
+               && v.VoucherDate < endExclusive
+            from l in v.Lines
+            where !l.IsDeleted && l.PaymentType == ProcessPaymentType.WithCash && l.PayUnitId != null && l.PayTotal != 0m
+               && (filter.CashId == null || l.PayCommodityId == filter.CashId)
+            group l by l.PayUnitId into g
+            select new { UnitId = g.Key, Net = g.Sum(x => ((int)x.Direction % 2) == 0 ? -x.PayTotal : x.PayTotal) });
+
+        var result = mainLegs.ToDictionary(r => r.UnitId, r => r.Net);
+        foreach (var r in payLegs)
+        {
+            var unitId = r.UnitId!.Value;   // where-filtresi null'ı zaten eledi
+            result[unitId] = result.GetValueOrDefault(unitId) + r.Net;
+        }
+        return result;
+    }
 
     private async Task<List<CashLeg>> QueryCashLegsAsync(CashReportFilterDto filter, bool dateFiltered,
         DateTime? endExclusiveOverride = null)
