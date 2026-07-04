@@ -24,6 +24,8 @@
                          Width="550px" />
         <Integration.Framework.Blazor.Client.Components.Shared.ConfirmDeleteDialog />
         <Integration.Framework.Blazor.Client.Components.Shared.GlobalPopupHost />
+        @* Görünmez: ilk render'da kullanıcının tarayıcı saat dilimini yakalar (UTC→yerel görüntü katmanı). *@
+        <Integration.Framework.Blazor.Client.Components.Shared.UserTimeZoneProbe />
 
         @* Kimlik guard'ı: CurrentUser.Id yoksa (kimlik doğrulanmamışsa) ana layout HİÇ render edilmez;
            doğrudan login'e yönlendirilir. Kimlik akışı sayfaları EmptyLayout kullandığı için döngü olmaz. *@
