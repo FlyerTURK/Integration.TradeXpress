@@ -31,7 +31,19 @@ public class SubAccountListDto : EntityDto<Guid>, IListDto<Guid>, IIsActive
     public string AccountSubCodeDisplay => $"{AccountCode} / {Code}";
 }
 
-public class SubAccountGetDto : EntityDto<Guid>, IGetDto<Guid>, IHasCode
+/// <summary>SubAccount'un düzenlenebilir ORTAK alanları — hem standalone edit host (<see cref="SubAccountGetDto"/>)
+/// hem Account grafı drill'i (<see cref="SubAccountGraphDto"/>) AYNI alanları düzenler. Paylaşılan
+/// <c>SubAccountEditFields.razor</c> bu arayüze bind eder → cari edit formu popup'ta da drill'de de AYNI görünür
+/// (tek ortak layout; sapma/tutarsızlık imkânsız).</summary>
+public interface ISubAccountEditableFields
+{
+    string Code { get; set; }
+    string Name { get; set; }
+    string? Description { get; set; }
+    bool IsActive { get; set; }
+}
+
+public class SubAccountGetDto : EntityDto<Guid>, IGetDto<Guid>, IHasCode, ISubAccountEditableFields
 {
     [Required]
     public Guid? AccountId { get; set; }
@@ -97,7 +109,7 @@ public class SubAccountUpdateDto : IUpdateDto
 /// Durum = <see cref="Id"/> + <see cref="IsDeleted"/>: Id boş → ekle, IsDeleted → sil, aksi → güncelle.
 /// (BranchId drill'de atanmaz; nullable şube ileride.)
 /// </summary>
-public class SubAccountGraphDto
+public class SubAccountGraphDto : ISubAccountEditableFields
 {
     public Guid Id { get; set; }
     public Guid ClientKey { get; set; } = Guid.NewGuid();

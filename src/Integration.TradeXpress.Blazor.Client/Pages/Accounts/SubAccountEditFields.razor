@@ -1,0 +1,25 @@
+@using Integration.TradeXpress.Accounts
+@using Integration.Framework.Blazor.Client.Components.Crud
+@using DevExpress.Blazor
+@inherits CrudComponentBase
+
+@* SubAccount cari edit formunun ORTAK alanları (Code/Name/Description/Status) — TEK KAYNAK.
+   Hem standalone popup (SubAccountEditHost, SubAccountGetDto) hem Account drill'i (AccountLayout, SubAccountGraphDto)
+   bu bileşeni kullanır → ISubAccountEditableFields'a bind; form popup'ta da drill'de de AYNI görünür (sapma yok).
+   Çağıran DxFormLayout'u SAĞLAR; standalone popup Account lookup'ını bu bloğun ÖNÜNE ekler.
+   Code BeginRow ile yeni satırda başlar → önünde Account lookup olsa da standart yerleşim korunur. *@
+
+<DxFormLayoutItem Caption="@($"{L["Code"]} *")" ColSpanMd="6" BeginRow="true">
+    <DxTextBox @bind-Text="@Model.Code" />
+</DxFormLayoutItem>
+<DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="12">
+    <DxTextBox @bind-Text="@Model.Name" />
+</DxFormLayoutItem>
+<DxFormLayoutItem Caption="@L["Description"]" ColSpanMd="12">
+    <DxMemo @bind-Text="@Model.Description" Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100" />
+</DxFormLayoutItem>
+<DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6">
+    <DxCheckBox @bind-Checked="@Model.IsActive" CheckType="CheckType.Switch">
+        @(Model.IsActive ? L["Active"] : L["Passive"])
+    </DxCheckBox>
+</DxFormLayoutItem>

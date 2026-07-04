@@ -44,13 +44,8 @@
                     </Columns>
                 </LookupComboBox>
             </DxFormLayoutItem>
-            <DxFormLayoutItem Caption="@($"{L["Code"]} *")" ColSpanMd="6" BeginRow="true"><DxTextBox @bind-Text="m.Code" /></DxFormLayoutItem>
-            <DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="12"><DxTextBox @bind-Text="m.Name" /></DxFormLayoutItem>
-            <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6">
-                <DxCheckBox @bind-Checked="m.IsActive" CheckType="CheckType.Switch">
-                    @(m.IsActive ? L["Active"] : L["Passive"])
-                </DxCheckBox>
-            </DxFormLayoutItem>
+            @* Ortak alanlar (Code/Name/Description/Status) TEK KAYNAK bileşenden — Account drill'iyle AYNI görünür. *@
+            <SubAccountEditFields Model="m" />
         </DxFormLayout>
 
     </CrudEditHost>

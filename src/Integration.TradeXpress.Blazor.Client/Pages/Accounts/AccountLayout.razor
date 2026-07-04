@@ -101,13 +101,9 @@
                 <StatusColumn />
             </GridColumns>
             <EditContent Context="s">
+                @* Ortak alanlar (Code/Name/Description/Status) TEK KAYNAK bileşenden — standalone popup'la AYNI görünür. *@
                 <DxFormLayout CssClass="w-100">
-                    <DxFormLayoutItem Caption="@($"{L["Code"]} *")" ColSpanMd="6"><DxTextBox @bind-Text="s.Code" /></DxFormLayoutItem>
-                    <DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="12"><DxTextBox @bind-Text="s.Name" /></DxFormLayoutItem>
-                    <DxFormLayoutItem Caption="@L["Description"]" ColSpanMd="12"><DxMemo @bind-Text="s.Description" Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100" /></DxFormLayoutItem>
-                    <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6">
-                        <DxCheckBox @bind-Checked="s.IsActive" CheckType="CheckType.Switch">@(s.IsActive ? L["Active"] : L["Passive"])</DxCheckBox>
-                    </DxFormLayoutItem>
+                    <SubAccountEditFields Model="s" />
                 </DxFormLayout>
             </EditContent>
         </DrillList>
