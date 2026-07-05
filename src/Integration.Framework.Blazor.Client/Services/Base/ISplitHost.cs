@@ -128,6 +128,15 @@ public interface ISplitEditActions
     bool CanDelete { get; }
     Task DeleteAsync();
 
+    /// <summary>Bu edit "Kaydet ve Yeni" akışını DESTEKLİYOR mu? false ise toolbar butonu GİZLER (sadece
+    /// pasif değil). Kayıtları elle eklenemeyen drill'ler (ör. üretilen varyantlar) false döner.
+    /// Default true (mevcut edit'ler değişmez; default interface member → eskiyi bozmaz.)</summary>
+    bool SupportsSaveAndNew => true;
+
+    /// <summary>Bu edit Sil aksiyonunu DESTEKLİYOR mu? false ise toolbar Sil'i GİZLER. Kayıtları elle
+    /// silinemeyen drill'ler (ör. üretilen varyantlar) false döner. Default true (eskiyi bozmaz).</summary>
+    bool SupportsDelete => true;
+
     /// <summary>Standalone/popup edit'te merkezi StateService listesinde önceki/sonraki kayda geç (guard'lı).
     /// Split'te bu yol kullanılmaz; SplitHost.GoPrevious/Next devrededir.</summary>
     bool CanGoPrevious { get; }

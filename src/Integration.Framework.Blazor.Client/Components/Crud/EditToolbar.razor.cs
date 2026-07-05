@@ -55,8 +55,8 @@ namespace Integration.Framework.Blazor.Client.Components.Crud
         private List<CrudToolbarAction> BuildActions() => new()
         {
             CrudToolbarActions.Save(L, visible: true, E.CanSave, DoSave),
-            CrudToolbarActions.SaveAndNew(L, visible: true, E.CanSave, splitDropDown: !IsPopupEdit, DoSaveNew, IsPopupEdit ? null : DoSaveClose),
-            CrudToolbarActions.Delete(L, visible: true, E.CanDelete, DoDelete),
+            CrudToolbarActions.SaveAndNew(L, visible: E.SupportsSaveAndNew, E.CanSave, splitDropDown: !IsPopupEdit, DoSaveNew, IsPopupEdit ? null : DoSaveClose),
+            CrudToolbarActions.Delete(L, visible: E.SupportsDelete, E.CanDelete, DoDelete),
             CrudToolbarActions.Previous(L, ShowNav, E.CanGoPrevious, DoPrev),
             CrudToolbarActions.Next(L, ShowNav, E.CanGoNext, DoNext),
             CrudToolbarActions.Undo(L, ShowUndoRedo, E.CanUndo, DoUndo),

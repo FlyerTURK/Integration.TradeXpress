@@ -98,6 +98,23 @@ public partial class DrillList<TItem> where TItem : class
     /// <summary>Bu sayının altına inilemez (en az N child kuralı). Sil engellenir.</summary>
     [Parameter] public int MinItems { get; set; }
 
+    /// <summary>Bu sayının üstüne çıkılamaz (en fazla N child kuralı; ör. ürün başına 5 nitelik).
+    /// Dolunca Yeni pasifleşir; null (varsayılan) = sınırsız.</summary>
+    [Parameter] public int? MaxItems { get; set; }
+
+    /// <summary>false → toolbar'dan Yeni + popup'tan "Kaydet ve Yeni" GİZLENİR (elle kayıt eklenemez;
+    /// ör. varyantlar niteliklerden ÜRETİLİR). Düzenleme etkilenmez. Varsayılan true.</summary>
+    [Parameter] public bool AllowAdd { get; set; } = true;
+
+    /// <summary>false → toolbar + edit popup'tan Sil GİZLENİR (elle kayıt silinemez; ör. üretilen
+    /// varyantlar senkronda temizlenir). Düzenleme etkilenmez. Varsayılan true.</summary>
+    [Parameter] public bool AllowDelete { get; set; } = true;
+
+    // Üst sınır dolu mu? Silinmiş işaretliler sayılmaz (FilterPredicate IsDeleted'ı gizliyor varsayımıyla
+    // görünür sayı esas alınır — MinItems/DeleteSelected ile aynı bakış).
+    private bool MaxItemsReached =>
+        MaxItems is { } max && (FilterPredicate != null ? Items.Count(FilterPredicate) : Items.Count) >= max;
+
     /// <summary>Entity'ye özel silme engeli — engel varsa lokalize mesaj döner, yoksa null.</summary>
     [Parameter] public Func<TItem, string?>? DeleteGuard { get; set; }
 
@@ -206,8 +223,8 @@ public partial class DrillList<TItem> where TItem : class
     {
         var list = new List<CrudToolbarAction>
         {
-            CrudToolbarActions.New(L, !ReadOnly && !AllowInlineEdit, !_busy, () => { StartNew(); return Task.CompletedTask; }),
-            CrudToolbarActions.Delete(L, !ReadOnly && !AllowInlineEdit, CanDeleteSelection && !_busy, DeleteSelected),
+            CrudToolbarActions.New(L, !ReadOnly && !AllowInlineEdit && AllowAdd, !_busy && !MaxItemsReached, () => { StartNew(); return Task.CompletedTask; }),
+            CrudToolbarActions.Delete(L, !ReadOnly && !AllowInlineEdit && AllowDelete, CanDeleteSelection && !_busy, DeleteSelected),
             // Arama (opt-in) — InGrid (varsayılan) yüklü veride, ServerSide ileride persistent drill için.
             CrudToolbarActions.SearchBox(ShowSearch, SearchBoxTemplate),
             // Dışa Aktar (opt-in) — Excel/PDF, paylaşılan export loader.
@@ -341,6 +358,13 @@ public partial class DrillList<TItem> where TItem : class
 
     private void StartNew()
     {
+        // Üst sınır emniyeti — buton pasifken de (Kaydet&Yeni yolu) taşma olmasın.
+        if (MaxItemsReached)
+        {
+            UiService.ShowWarningToast(L["DrillMaxItems"].Value);
+            return;
+        }
+
         _editItem = NewItemFactory();
         _editOriginal = null;
         _isNew = true;
@@ -469,8 +493,12 @@ public partial class DrillList<TItem> where TItem : class
     Task ISplitEditActions.SaveAndNewAsync() => HandleSaveAndNew();
     Task ISplitEditActions.SaveAndCloseAsync() => HandleSaveClick();   // drill Save zaten popup'ı kapatır
 
+    // Elle ekleme kapalıysa (AllowAdd=false) "Kaydet ve Yeni" gizli; silme kapalıysa Sil gizli.
+    bool ISplitEditActions.SupportsSaveAndNew => AllowAdd;
+    bool ISplitEditActions.SupportsDelete => AllowDelete;
+
     // Sil — düzenlenen öğeyi sil (grid Sil ile AYNI guard/MinItems/persist üzerinden), sonra popup'ı kapat.
-    bool ISplitEditActions.CanDelete => !_isNew && !_busy;
+    bool ISplitEditActions.CanDelete => AllowDelete && !_isNew && !_busy;
     async Task ISplitEditActions.DeleteAsync()
     {
         if (_editItem == null || _isNew) return;
