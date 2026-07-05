@@ -16,15 +16,21 @@ namespace Integration.TradeXpress.Products;
 /// <summary>
 /// Product CRUD — <b>company-owned + per-tenant</b> katalog (AssayOffice company-scope + Account graf-save deseni
 /// birleşimi). Kapsam DAİMA çalışılan şirket (<see cref="ICurrentCompany"/>; sunucu zorlar — client CompanyId
-/// GÖNDERMEZ). Kimlik (Code uppercase normalize, şirket-scope benzersizlik). Varyantlar in-memory grafla yönetilir
-/// (add/update/soft-delete); ürün başına en-az-1 + tekil-main değişmezi <see cref="ProductVariantManager"/>'da.
+/// GÖNDERMEZ). Kimlik (Code uppercase normalize, şirket-scope benzersizlik). Nitelikler + değerleri in-memory
+/// grafla yönetilir (add/update/delete; ürün başına en fazla 5 — <see cref="ProductAttributeConsts"/>).
+/// Varyantlar ELLE EKLENMEZ/SİLİNMEZ: nitelik×değer kartezyeninden <see cref="ProductVariantSynchronizer"/>
+/// ÜRETİR (save sonunda); grafla yalnız mevcut varyant GÜNCELLENİR (Code/Name/Description/IsActive).
 /// </summary>
 [Authorize(TradeXpressPermissions.Products.Default)]
 public class ProductAppService : TradeXpressAppService, IProductAppService
 {
     private readonly IRepository<Product, Guid> _repository;
     private readonly IRepository<ProductVariant, Guid> _variantRepository;
+    private readonly IRepository<ProductAttribute, Guid> _attributeRepository;
+    private readonly IRepository<ProductAttributeValue, Guid> _valueRepository;
+    private readonly IRepository<ProductVariantAttributeValue, Guid> _linkRepository;
     private readonly ProductVariantManager _variantManager;
+    private readonly ProductVariantSynchronizer _variantSynchronizer;
     private readonly ICurrentCompany _currentCompany;
 
     private static readonly HashSet<string> AllowedListFields =
@@ -33,12 +39,20 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
     public ProductAppService(
         IRepository<Product, Guid> repository,
         IRepository<ProductVariant, Guid> variantRepository,
+        IRepository<ProductAttribute, Guid> attributeRepository,
+        IRepository<ProductAttributeValue, Guid> valueRepository,
+        IRepository<ProductVariantAttributeValue, Guid> linkRepository,
         ProductVariantManager variantManager,
+        ProductVariantSynchronizer variantSynchronizer,
         ICurrentCompany currentCompany)
     {
         _repository = repository;
         _variantRepository = variantRepository;
+        _attributeRepository = attributeRepository;
+        _valueRepository = valueRepository;
+        _linkRepository = linkRepository;
         _variantManager = variantManager;
+        _variantSynchronizer = variantSynchronizer;
         _currentCompany = currentCompany;
     }
 
@@ -86,8 +100,11 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         entity.SetDescription(input.Description);
         await _repository.InsertAsync(entity, autoSave: true);
 
-        await SaveVariantsAsync(entity, input.Variants);
-        await _variantManager.EnsureMainVariantAsync(entity);   // en-az-1 + tekil-main garantisi
+        var valueIdByClientKey = await SaveAttributesAsync(entity, input.Attributes);
+        // DB mutabakatı (kartezyen üret/temizle) + en-az-1 + tekil-main garantisi; SONRA kullanıcının
+        // kaydet-öncesi varyant özelleştirmeleri (Id ya da CombinationKey eşlemesiyle) uygulanır.
+        await _variantSynchronizer.SynchronizeAsync(entity);
+        await ApplyVariantCustomizationsAsync(entity, input.Variants, valueIdByClientKey);
         return await ToGetDtoAsync(entity);
     }
 
@@ -101,9 +118,44 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         entity.SetActive(input.IsActive);
         await _repository.UpdateAsync(entity, autoSave: true);
 
-        await SaveVariantsAsync(entity, input.Variants);
-        await _variantManager.EnsureMainVariantAsync(entity);   // hiçbir koşulda varyantsız/main'siz kalmasın
+        var valueIdByClientKey = await SaveAttributesAsync(entity, input.Attributes);
+        // DB mutabakatı (kartezyen üret/temizle) + en-az-1 + tekil-main garantisi; SONRA kullanıcının
+        // kaydet-öncesi varyant özelleştirmeleri (Id ya da CombinationKey eşlemesiyle) uygulanır.
+        await _variantSynchronizer.SynchronizeAsync(entity);
+        await ApplyVariantCustomizationsAsync(entity, input.Variants, valueIdByClientKey);
         return await ToGetDtoAsync(entity);
+    }
+
+    /// <summary>Nitelik grafından varyant ÜRETİMİ — PERSISTSİZ önizleme (DB'ye yazmaz, kayıt gerekmez).
+    /// Kartezyen + kod/ad türetme <see cref="ProductVariantSynchronizer"/> ile AYNI (public static helper'lar);
+    /// ilk satır IsMain (display), hepsi aktif; <c>CombinationKey</c> = değer ClientKey'lerinin sıralı join'i
+    /// (kayıtta özelleştirme eşlemesi için round-trip edilir).</summary>
+    public virtual Task<List<ProductVariantGraphDto>> GenerateVariantsAsync(ProductVariantGenerateRequestDto input)
+    {
+        var result = new List<ProductVariantGraphDto>();
+        var axes = BuildGenerationAxes(input.Attributes);
+        if (axes.Count == 0)
+        {
+            return Task.FromResult(result);   // nitelik yok → üretilecek kombinasyon yok (base varyant save'de doğar)
+        }
+
+        foreach (var combination in BuildDtoCartesian(axes))
+        {
+            var valueNames = combination.Select(x => x.NormalizedValue).ToList();
+            // Kombinasyon özeti "Nitelik: Değer" çiftleri (attribute DisplayOrder = eksen sırası), ", " join.
+            var summary = string.Join(", ", combination.Select(x => $"{x.AttributeName}: {x.NormalizedValue}"));
+            result.Add(new ProductVariantGraphDto
+            {
+                IsMain = result.Count == 0,   // display-only; kalıcı main garantisi manager/synchronizer'da
+                Code = ProductVariantSynchronizer.BuildVariantCode(valueNames).ToUpperInvariant(),
+                Name = ProductVariantSynchronizer.BuildVariantName(input.ProductName?.Trim() ?? string.Empty, valueNames).Trim(),
+                IsActive = true,
+                AttributeSummary = summary,
+                CombinationKey = BuildCombinationKeyFromClientKeys(combination.Select(x => x.Value.ClientKey)),
+            });
+        }
+
+        return Task.FromResult(result);
     }
 
     [Authorize(TradeXpressPermissions.Products.Delete)]
@@ -112,8 +164,25 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         // Güvenlik sınırı (Account deseni): ürünü ÖNCE yükle — company query filter yabancı şirketin ürününü
         // gizler → EntityNotFoundException. Doğrulama varyant silmeden ÖNCE olmalı.
         var entity = await _repository.GetAsync(id);
+        await DeleteAttributeGraphOfProductAsync(entity.Id);
         await _variantManager.DeleteVariantsOfProductAsync(entity.Id);
         await _repository.DeleteAsync(entity, autoSave: true);
+    }
+
+    /// <summary>Ürünün nitelik grafını (bağ + değer + nitelik satırları) siler — ürün silinmeden önce.
+    /// Her bağ (link) bu ürünün bir niteliğine işaret ettiğinden attribute-id kümesi tüm bağları kapsar.</summary>
+    private async Task DeleteAttributeGraphOfProductAsync(Guid productId)
+    {
+        var attributeIds = await AsyncExecuter.ToListAsync(
+            (await _attributeRepository.GetQueryableAsync()).Where(a => a.ProductId == productId).Select(a => a.Id));
+        if (attributeIds.Count == 0)
+        {
+            return;
+        }
+
+        await _linkRepository.DeleteAsync(l => attributeIds.Contains(l.ProductAttributeId), autoSave: true);
+        await _valueRepository.DeleteAsync(v => attributeIds.Contains(v.ProductAttributeId), autoSave: true);
+        await _attributeRepository.DeleteAsync(a => a.ProductId == productId, autoSave: true);
     }
 
     /// <summary>Kod değişikliği (ürün kuralı 2026-07-04): normalize et → değiştiyse AYNI ŞİRKET altında
@@ -144,46 +213,75 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         }
     }
 
-    // ── varyant grafı diff (Id + IsDeleted) — repository üzerinden doğrudan (Account SaveSubAccountsAsync deseni) ──
-    private async Task SaveVariantsAsync(Product product, List<ProductVariantGraphDto> variants)
+    // ── varyant grafı: YALNIZ ÖZELLEŞTİRME (attribute-driven kural) — varyantlar elle EKLENMEZ/SİLİNMEZ
+    //    (synchronizer üretir/temizler; IsDeleted YOKSAYILIR). Senkron SONRASI çalışır: satır Id ile (mevcut)
+    //    ya da CombinationKey ile (üretim önizlemesinden gelen, henüz Id'siz) DB varyantına eşlenir; kullanıcının
+    //    kaydet-öncesi Code/Name/Description/IsActive dokunuşları (ör. pasife çekme) KAYBOLMAZ. ──
+    private async Task ApplyVariantCustomizationsAsync(
+        Product product,
+        List<ProductVariantGraphDto> variants,
+        Dictionary<Guid, Guid> valueIdByClientKey)
     {
-        if (variants == null) return;
+        if (variants == null || variants.Count == 0) return;
 
-        // Önce ekle + güncelle, sonra sil (Account/Branch→Vault deseniyle aynı).
-        foreach (var v in variants.Where(x => !x.IsDeleted))
+        var dbVariants = await AsyncExecuter.ToListAsync(
+            (await _variantRepository.GetQueryableAsync()).Where(v => v.ProductId == product.Id));
+        var variantIds = dbVariants.Select(v => v.Id).ToList();
+        var links = variantIds.Count == 0
+            ? new List<ProductVariantAttributeValue>()
+            : await AsyncExecuter.ToListAsync(
+                (await _linkRepository.GetQueryableAsync()).Where(l => variantIds.Contains(l.ProductVariantId)));
+
+        // Kombinasyon imzası (sıralı valueId join) → DB varyantı — synchronizer ile AYNI anahtar (DRY).
+        var byCombination = dbVariants.ToDictionary(
+            v => ProductVariantSynchronizer.BuildKey(
+                links.Where(l => l.ProductVariantId == v.Id).Select(l => l.ProductAttributeValueId)),
+            v => v);
+
+        foreach (var v in variants)
         {
-            if (v.Id == Guid.Empty)
+            var target = ResolveTargetVariant(v);
+            if (target == null)
             {
-                await InsertVariantAsync(product, v);
+                continue;   // senkronun sildiği / eşleşmeyen (bayat önizleme) satır → yoksay
             }
-            else
-            {
-                await UpdateVariantAsync(product, v);
-            }
+
+            await ApplyVariantFieldsAsync(product, target, v);
         }
 
-        foreach (var v in variants.Where(x => x.IsDeleted && x.Id != Guid.Empty))
+        // Satırın hedef DB varyantı: (a) Id doluysa Id ile; (b) Id boşsa CombinationKey'in değer
+        // ClientKey'leri persist eşlemesinden ValueId'lere çevrilir → aynı kombinasyonlu varyant.
+        ProductVariant? ResolveTargetVariant(ProductVariantGraphDto dto)
         {
-            await _variantRepository.DeleteAsync(v.Id, autoSave: true);
+            if (dto.Id != Guid.Empty)
+            {
+                return dbVariants.FirstOrDefault(x => x.Id == dto.Id);
+            }
+
+            if (string.IsNullOrEmpty(dto.CombinationKey))
+            {
+                return null;
+            }
+
+            var valueIds = new List<Guid>();
+            foreach (var part in dto.CombinationKey.Split('|'))
+            {
+                if (!Guid.TryParse(part, out var clientKey) || !valueIdByClientKey.TryGetValue(clientKey, out var valueId))
+                {
+                    return null;   // değer bu kayıtta persist edilmedi (silinmiş/bayat) → eşleşme yok
+                }
+
+                valueIds.Add(valueId);
+            }
+
+            return byCombination.GetValueOrDefault(ProductVariantSynchronizer.BuildKey(valueIds));
         }
     }
 
-    private async Task InsertVariantAsync(Product product, ProductVariantGraphDto v)
+    /// <summary>Kullanıcı özelleştirmelerini varyanta uygular — ürün-scope kod benzersizliği korunur;
+    /// IsMain'e DOKUNULMAZ (display-only; değişmez manager'da).</summary>
+    private async Task ApplyVariantFieldsAsync(Product product, ProductVariant variant, ProductVariantGraphDto v)
     {
-        var normalizedCode = StringFieldGuard.NormalizeCode(
-            v.Code, nameof(ProductVariant.Code), EntityFieldConsts.CodeMinLength, ProductConsts.CodeMaxLength);
-        await EnsureVariantCodeUniqueAsync(product.Id, normalizedCode, Guid.Empty);
-
-        // Şirket parent üründen DENORMALİZE. Main manager'a bırakılır (IsMain drill'den seçilmez → isMain:false).
-        var variant = new ProductVariant(product.CompanyId, product.Id, v.Code, v.Name, isMain: false, isActive: v.IsActive);
-        variant.SetDescription(v.Description);
-        await _variantRepository.InsertAsync(variant, autoSave: true);
-    }
-
-    private async Task UpdateVariantAsync(Product product, ProductVariantGraphDto v)
-    {
-        var variant = await _variantRepository.GetAsync(v.Id);
-
         var normalizedCode = StringFieldGuard.NormalizeCode(
             v.Code, nameof(ProductVariant.Code), EntityFieldConsts.CodeMinLength, ProductConsts.CodeMaxLength);
         if (!string.Equals(normalizedCode, variant.Code, StringComparison.Ordinal))
@@ -195,7 +293,6 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         variant.SetName(v.Name);
         variant.SetDescription(v.Description);
         variant.SetActive(v.IsActive);
-        // IsMain'e DOKUNULMAZ (display-only; değişmez manager'da). Mevcut main korunur.
         await _variantRepository.UpdateAsync(variant, autoSave: true);
     }
 
@@ -209,6 +306,198 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         {
             throw new BusinessException("TradeXpress:ProductVariant:CodeAlreadyExists");
         }
+    }
+
+    // ── nitelik grafı diff (Id + IsDeleted) — değerler nitelik başına iç graf. DÖNÜŞ: değer ClientKey →
+    //    persist-edilen ValueId eşlemesi (CombinationKey'li varyant özelleştirmelerinin çözümü için). ──
+    private async Task<Dictionary<Guid, Guid>> SaveAttributesAsync(Product product, List<ProductAttributeGraphDto> attributes)
+    {
+        var valueIdByClientKey = new Dictionary<Guid, Guid>();
+        if (attributes == null) return valueIdByClientKey;
+
+        // Önce silinenler: nitelik + TÜM değer satırları. Bağ (link) satırlarına dokunulmaz —
+        // sonda çalışan synchronizer kalkan kombinasyonların varyant+bağlarını zaten temizler.
+        foreach (var a in attributes.Where(x => x.IsDeleted && x.Id != Guid.Empty))
+        {
+            await _valueRepository.DeleteAsync(v => v.ProductAttributeId == a.Id, autoSave: true);
+            await _attributeRepository.DeleteAsync(a.Id, autoSave: true);
+        }
+
+        // Graf ürünün TAM nitelik resmi (GetAsync hepsini döner) → max-5 + ad benzersizliği girdi üzerinde.
+        var survivors = attributes.Where(x => !x.IsDeleted).ToList();
+        if (survivors.Count > ProductAttributeConsts.MaxAttributesPerProduct)
+        {
+            throw new BusinessException("TradeXpress:Product:TooManyAttributes");
+        }
+
+        EnsureAttributeNamesUnique(survivors);
+        EnsureEveryAttributeHasValue(survivors);
+
+        foreach (var a in survivors)
+        {
+            if (a.Id == Guid.Empty)
+            {
+                var attribute = new ProductAttribute(product.CompanyId, product.Id, a.Name, a.DisplayOrder);
+                await _attributeRepository.InsertAsync(attribute, autoSave: true);
+                a.Id = attribute.Id;   // değer grafı yeni niteliğe bağlanabilsin
+            }
+            else
+            {
+                var attribute = await _attributeRepository.GetAsync(a.Id);
+                attribute.SetName(a.Name);
+                attribute.SetDisplayOrder(a.DisplayOrder);
+                await _attributeRepository.UpdateAsync(attribute, autoSave: true);
+            }
+
+            await SaveAttributeValuesAsync(product, a, valueIdByClientKey);
+        }
+
+        return valueIdByClientKey;
+    }
+
+    /// <summary>Her (silinmemiş) nitelik en az bir (silinmemiş) değer içermeli — değersiz nitelik kaydedilemez;
+    /// üretim (GenerateVariants) tarafıyla AYNI kural. Synchronizer'daki değersiz-eksen dalı savunma olarak kalır.</summary>
+    private static void EnsureEveryAttributeHasValue(List<ProductAttributeGraphDto> survivors)
+    {
+        var hasEmptyAttribute = survivors.Any(a => a.Values == null || a.Values.All(v => v.IsDeleted));
+        if (hasEmptyAttribute)
+        {
+            throw new BusinessException("TradeXpress:ProductAttribute:ValueRequired");
+        }
+    }
+
+    /// <summary>Aynı üründe aynı adlı iki nitelik olamaz — normalize (TitleCase) adlar üzerinden dostane hata.</summary>
+    private static void EnsureAttributeNamesUnique(List<ProductAttributeGraphDto> survivors)
+    {
+        var names = survivors.Select(a => StringFieldGuard.NormalizeName(
+            a.Name, nameof(ProductAttribute.Name), EntityFieldConsts.NameMinLength, ProductAttributeConsts.NameMaxLength));
+        if (HasDuplicate(names))
+        {
+            throw new BusinessException("TradeXpress:ProductAttribute:NameAlreadyExists");
+        }
+    }
+
+    // ── değer grafı diff — nitelik başına (parent attribute Id'si SaveAttributesAsync'te garanti dolu).
+    //    Persist edilen her değer için ClientKey→ValueId eşlemesi doldurulur (CombinationKey çözümü). ──
+    private async Task SaveAttributeValuesAsync(
+        Product product,
+        ProductAttributeGraphDto attribute,
+        Dictionary<Guid, Guid> valueIdByClientKey)
+    {
+        if (attribute.Values == null) return;
+
+        foreach (var v in attribute.Values.Where(x => x.IsDeleted && x.Id != Guid.Empty))
+        {
+            await _valueRepository.DeleteAsync(v.Id, autoSave: true);
+        }
+
+        var survivors = attribute.Values.Where(x => !x.IsDeleted).ToList();
+        EnsureAttributeValuesUnique(survivors);
+
+        foreach (var v in survivors)
+        {
+            if (v.Id == Guid.Empty)
+            {
+                var value = new ProductAttributeValue(product.CompanyId, attribute.Id, v.Value, v.DisplayOrder);
+                await _valueRepository.InsertAsync(value, autoSave: true);
+                v.Id = value.Id;
+            }
+            else
+            {
+                var value = await _valueRepository.GetAsync(v.Id);
+                value.SetValue(v.Value);
+                value.SetDisplayOrder(v.DisplayOrder);
+                await _valueRepository.UpdateAsync(value, autoSave: true);
+            }
+
+            valueIdByClientKey[v.ClientKey] = v.Id;
+        }
+    }
+
+    /// <summary>Aynı nitelikte aynı değer iki kez olamaz — normalize değerler üzerinden dostane hata.</summary>
+    private static void EnsureAttributeValuesUnique(List<ProductAttributeValueGraphDto> survivors)
+    {
+        var values = survivors.Select(v => StringFieldGuard.NormalizeName(
+            v.Value, nameof(ProductAttributeValue.Value), EntityFieldConsts.NameMinLength, ProductAttributeConsts.ValueMaxLength));
+        if (HasDuplicate(values))
+        {
+            throw new BusinessException("TradeXpress:ProductAttributeValue:ValueAlreadyExists");
+        }
+    }
+
+    private static bool HasDuplicate(IEnumerable<string> normalized)
+    {
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        return normalized.Any(n => !seen.Add(n));
+    }
+
+    // ── persistsiz üretim (GenerateVariants) yardımcıları — sıralama/türetme synchronizer paritesinde ──
+
+    /// <summary>Üretim eksenleri: silinmemiş nitelikler (DisplayOrder→Name) × silinmemiş, NORMALİZE değerler
+    /// (DisplayOrder→Value) — synchronizer'ın entity sıralamasıyla AYNI. Her öğe niteliğin NORMALİZE adını da
+    /// taşır (kombinasyon özeti "Nitelik: Değer" için). Değersiz nitelik → dostane hata
+    /// (kayıt tarafındaki <see cref="EnsureEveryAttributeHasValue"/> ile aynı kural).</summary>
+    private static List<List<GenerationAxisItem>> BuildGenerationAxes(List<ProductAttributeGraphDto> attributes)
+    {
+        var survivors = (attributes ?? new List<ProductAttributeGraphDto>())
+            .Where(a => !a.IsDeleted)
+            .OrderBy(a => a.DisplayOrder).ThenBy(a => a.Name)
+            .ToList();
+
+        var axes = new List<List<GenerationAxisItem>>();
+        foreach (var attribute in survivors)
+        {
+            var attributeName = StringFieldGuard.NormalizeName(
+                attribute.Name, nameof(ProductAttribute.Name), EntityFieldConsts.NameMinLength, ProductAttributeConsts.NameMaxLength);
+
+            var values = (attribute.Values ?? new List<ProductAttributeValueGraphDto>())
+                .Where(v => !v.IsDeleted)
+                .Select(v => new GenerationAxisItem(
+                    v,
+                    StringFieldGuard.NormalizeName(
+                        v.Value, nameof(ProductAttributeValue.Value), EntityFieldConsts.NameMinLength, ProductAttributeConsts.ValueMaxLength),
+                    attributeName))
+                .OrderBy(x => x.Value.DisplayOrder).ThenBy(x => x.NormalizedValue)
+                .ToList();
+
+            if (values.Count == 0)
+            {
+                throw new BusinessException("TradeXpress:ProductAttribute:ValueRequired");
+            }
+
+            axes.Add(values);
+        }
+
+        return axes;
+    }
+
+    /// <summary>DTO kartezyeni — her eksenden bir değer (synchronizer BuildCartesian'ın DTO karşılığı).</summary>
+    private static List<List<GenerationAxisItem>> BuildDtoCartesian(List<List<GenerationAxisItem>> axes)
+    {
+        var result = new List<List<GenerationAxisItem>> { new() };
+        foreach (var axis in axes)
+        {
+            result = result
+                .SelectMany(prefix => axis.Select(v =>
+                {
+                    var next = new List<GenerationAxisItem>(prefix) { v };
+                    return next;
+                }))
+                .ToList();
+        }
+
+        return result;
+    }
+
+    /// <summary>Üretim ekseninin bir öğesi — değer DTO'su + normalize değer + normalize nitelik adı
+    /// (kombinasyon özeti "Nitelik: Değer" için gerekli).</summary>
+    private sealed record GenerationAxisItem(ProductAttributeValueGraphDto Value, string NormalizedValue, string AttributeName);
+
+    /// <summary>Kombinasyonun istemci-taraflı kimliği — değer ClientKey'lerinin SIRALI "|" join'i
+    /// (synchronizer BuildKey ile aynı biçim; sunucu üretir, client round-trip eder).</summary>
+    private static string BuildCombinationKeyFromClientKeys(IEnumerable<Guid> clientKeys)
+    {
+        return string.Join("|", clientKeys.OrderBy(k => k));
     }
 
     // ── helpers ───────────────────────────────────────────────────────────────
@@ -228,8 +517,29 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
 
     private async Task<ProductGetDto> ToGetDtoAsync(Product p)
     {
+        // Company filtresi AÇIK kalır (mevcut desen): tüm alt kayıtlar üründen denormalize aynı şirkette,
+        // çalışılan şirket de ürünü görünür kılan şirket → ek Disable gerekmez (varyant sorgusuyla simetrik).
         var variants = await AsyncExecuter.ToListAsync(
             (await _variantRepository.GetQueryableAsync()).Where(v => v.ProductId == p.Id).OrderBy(v => v.Code));
+
+        var attributes = (await AsyncExecuter.ToListAsync(
+                (await _attributeRepository.GetQueryableAsync()).Where(a => a.ProductId == p.Id)))
+            .OrderBy(a => a.DisplayOrder).ThenBy(a => a.Name)
+            .ToList();
+
+        var attributeIds = attributes.Select(a => a.Id).ToList();
+        var values = attributeIds.Count == 0
+            ? new List<ProductAttributeValue>()
+            : (await AsyncExecuter.ToListAsync(
+                    (await _valueRepository.GetQueryableAsync()).Where(v => attributeIds.Contains(v.ProductAttributeId))))
+                .OrderBy(v => v.DisplayOrder).ThenBy(v => v.Value)
+                .ToList();
+
+        var variantIds = variants.Select(v => v.Id).ToList();
+        var links = variantIds.Count == 0
+            ? new List<ProductVariantAttributeValue>()
+            : await AsyncExecuter.ToListAsync(
+                (await _linkRepository.GetQueryableAsync()).Where(l => variantIds.Contains(l.ProductVariantId)));
 
         return new ProductGetDto
         {
@@ -238,6 +548,19 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
             Name = p.Name,
             Description = p.Description,
             IsActive = p.IsActive,
+            Attributes = attributes.Select(a => new ProductAttributeGraphDto
+            {
+                Id = a.Id,
+                Name = a.Name,
+                DisplayOrder = a.DisplayOrder,
+                Values = values.Where(v => v.ProductAttributeId == a.Id)
+                    .Select(v => new ProductAttributeValueGraphDto
+                    {
+                        Id = v.Id,
+                        Value = v.Value,
+                        DisplayOrder = v.DisplayOrder,
+                    }).ToList(),
+            }).ToList(),
             Variants = variants.Select(v => new ProductVariantGraphDto
             {
                 Id = v.Id,
@@ -246,7 +569,32 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
                 Name = v.Name,
                 Description = v.Description,
                 IsActive = v.IsActive,
+                AttributeSummary = BuildAttributeSummary(v.Id, attributes, values, links),
             }).ToList(),
         };
+    }
+
+    /// <summary>Varyantın kombinasyon özeti — bağlı "Nitelik: Değer" çiftleri, attribute DisplayOrder
+    /// (synchronizer ile aynı: DisplayOrder→Name) sırasıyla ", " join (ör. "Renk: Kırmızı, Beden: M"). Salt görüntü.</summary>
+    private static string BuildAttributeSummary(
+        Guid variantId,
+        List<ProductAttribute> attributes,
+        List<ProductAttributeValue> values,
+        List<ProductVariantAttributeValue> links)
+    {
+        var valueById = values.ToDictionary(v => v.Id);
+        var attributeById = attributes.ToDictionary(a => a.Id);
+        var attributeOrder = attributes
+            .Select((a, index) => (a.Id, Index: index))
+            .ToDictionary(x => x.Id, x => x.Index);
+
+        var parts = links
+            .Where(l => l.ProductVariantId == variantId
+                && valueById.ContainsKey(l.ProductAttributeValueId)
+                && attributeById.ContainsKey(l.ProductAttributeId))
+            .OrderBy(l => attributeOrder.GetValueOrDefault(l.ProductAttributeId, int.MaxValue))
+            .Select(l => $"{attributeById[l.ProductAttributeId].Name}: {valueById[l.ProductAttributeValueId].Value}");
+
+        return string.Join(", ", parts);
     }
 }

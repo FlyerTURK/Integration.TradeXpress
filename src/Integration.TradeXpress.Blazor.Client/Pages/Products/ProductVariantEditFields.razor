@@ -3,6 +3,13 @@
 @* Ürün varyantı edit formunun alanları (Code/Name/Description/Status). TEK yüzey (yalnız Product drill'i) →
    ortak arayüz gerekmez (YAGNI). Çağıran DxFormLayout'u SAĞLAR. Code BeginRow ile yeni satırda başlar. *@
 
+@* Kombinasyon (Nitelik: Değer) — SALT-OKUNUR; hangi kombinasyonun düzenlendiğini gösterir. Base varyantta boş → gizle. *@
+@if (!string.IsNullOrEmpty(Model.AttributeSummary))
+{
+    <DxFormLayoutItem Caption="@L["AttributeSummary"]" ColSpanMd="12" BeginRow="true">
+        <span>@Model.AttributeSummary</span>
+    </DxFormLayoutItem>
+}
 <DxFormLayoutItem Caption="@($"{L["Code"]} *")" ColSpanMd="6" BeginRow="true">
     <DxTextBox @bind-Text="@Model.Code" />
 </DxFormLayoutItem>

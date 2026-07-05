@@ -71,6 +71,9 @@ public class TradeXpressDbContext :
     public DbSet<SubAccount> SubAccounts { get; set; } = null!;
     public DbSet<Integration.TradeXpress.Products.Product> Products { get; set; } = null!;
     public DbSet<Integration.TradeXpress.Products.ProductVariant> ProductVariants { get; set; } = null!;
+    public DbSet<Integration.TradeXpress.Products.ProductAttribute> ProductAttributes { get; set; } = null!;
+    public DbSet<Integration.TradeXpress.Products.ProductAttributeValue> ProductAttributeValues { get; set; } = null!;
+    public DbSet<Integration.TradeXpress.Products.ProductVariantAttributeValue> ProductVariantAttributeValues { get; set; } = null!;
     public DbSet<Voucher> Vouchers { get; set; } = null!;
     public DbSet<VoucherLine> VoucherLines { get; set; } = null!;
     public DbSet<Integration.TradeXpress.Vouchers.Balance.BalanceLedgerEntry> BalanceLedgerEntries { get; set; } = null!;

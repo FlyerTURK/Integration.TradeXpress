@@ -25,9 +25,86 @@
     </DxFormLayoutGroup>
 </DxFormLayout>
 
-@* Varyantlar — in-memory drill (graf); Product save'inde tek komutla yazılır. IsMain DISPLAY-ONLY (manager yönetir). *@
+@* Nitelikler + Varyantlar. Nitelik×değer kartezyeni varyantları SUNUCUDA üretir (ProductVariantSynchronizer);
+   varyant drill'i bu yüzden ekleme/silmeye KAPALI (AllowAdd/AllowDelete=false) — yalnız mevcut satır düzenlenir. *@
 <DrillTabs CssClass="mt-3">
+    <DxTabPage Text="@L["Attributes"]" TabIconCssClass="@TradeXpressIcons.Sliders">
+        <DrillList TItem="ProductAttributeGraphDto"
+                   @ref="_attributeDrill"
+                   Title="@L["Attributes"]"
+                   EntityName="@L["ProductAttribute"]"
+                   EntityIcon="@TradeXpressIcons.Sliders"
+                   Items="Model.Attributes"
+                   KeyFieldName="ClientKey"
+                   PrimaryTextSelector="@(a => a.Name)"
+                   NewItemFactory="@(() => new ProductAttributeGraphDto { DisplayOrder = NextOrder(Model.Attributes) })"
+                   MaxItems="ProductAttributeConsts.MaxAttributesPerProduct"
+                   SoftDelete="true"
+                   IsNewItem="@(a => a.Id == Guid.Empty)"
+                   MarkDeleted="@(a => a.IsDeleted = true)"
+                   FilterPredicate="@(a => !a.IsDeleted)"
+                   OnChanged="@(() => EditChanged?.Invoke())">
+            <GridColumns>
+                <GridLinkColumn FieldName="Name" Caption="@L["Name"]" FixedPosition="GridColumnFixedPosition.Left" VisibleIndex="1" OnClick="@(item => _attributeDrill?.EditItem((ProductAttributeGraphDto)item))" />
+                <DxGridDataColumn FieldName="DisplayOrder" Caption="@L["DisplayOrder"]" Width="90px" />
+            </GridColumns>
+            <EditContent Context="a">
+                <DxFormLayout CssClass="w-100">
+                    <DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="12">
+                        <DxTextBox @bind-Text="@a.Name" />
+                    </DxFormLayoutItem>
+                    <DxFormLayoutItem Caption="@L["DisplayOrder"]" ColSpanMd="6">
+                        <NumericSpinEdit @bind-Value="@a.DisplayOrder" />
+                    </DxFormLayoutItem>
+                    <DxFormLayoutGroup Caption="@L["AttributeValues"]" ColSpanMd="12" CaptionPosition="CaptionPosition.Vertical">
+                        @* İç içe DrillList DOĞRUDAN parent EditContent'te (ui-blazor: EditForm yok,
+                           CascadingValue<EditContext> doğal izolasyon — iç drill dışı shadow'lar, NRE yok). *@
+                        <DrillList TItem="ProductAttributeValueGraphDto"
+                                   @ref="_valueDrill"
+                                   Title="@L["AttributeValues"]"
+                                   EntityName="@L["AttributeValue"]"
+                                   EntityIcon="@TradeXpressIcons.Sliders"
+                                   ParentEntityName="@L["ProductAttribute"]"
+                                   ParentText="@a.Name"
+                                   Items="a.Values"
+                                   KeyFieldName="ClientKey"
+                                   PrimaryTextSelector="@(v => v.Value)"
+                                   NewItemFactory="@(() => new ProductAttributeValueGraphDto { DisplayOrder = NextOrder(a.Values) })"
+                                   SoftDelete="true"
+                                   IsNewItem="@(v => v.Id == Guid.Empty)"
+                                   MarkDeleted="@(v => v.IsDeleted = true)"
+                                   FilterPredicate="@(v => !v.IsDeleted)"
+                                   OnChanged="@(() => EditChanged?.Invoke())">
+                            <GridColumns>
+                                <GridLinkColumn FieldName="Value" Caption="@L["Value"]" FixedPosition="GridColumnFixedPosition.Left" VisibleIndex="1" OnClick="@(item => _valueDrill?.EditItem((ProductAttributeValueGraphDto)item))" />
+                                <DxGridDataColumn FieldName="DisplayOrder" Caption="@L["DisplayOrder"]" Width="90px" />
+                            </GridColumns>
+                            <EditContent Context="v">
+                                <DxFormLayout CssClass="w-100">
+                                    <DxFormLayoutItem Caption="@($"{L["Value"]} *")" ColSpanMd="12">
+                                        <DxTextBox @bind-Text="@v.Value" />
+                                    </DxFormLayoutItem>
+                                    <DxFormLayoutItem Caption="@L["DisplayOrder"]" ColSpanMd="6">
+                                        <NumericSpinEdit @bind-Value="@v.DisplayOrder" />
+                                    </DxFormLayoutItem>
+                                </DxFormLayout>
+                            </EditContent>
+                        </DrillList>
+                    </DxFormLayoutGroup>
+                </DxFormLayout>
+            </EditContent>
+        </DrillList>
+    </DxTabPage>
     <DxTabPage Text="@L["Variants"]" TabIconCssClass="@TradeXpressIcons.ProductVariant">
+        @* İnce metin satırı için Dx karşılığı yok → ham div (yalnız bilgilendirme; ui-blazor istisnası). *@
+        @* Buton + bilgi satırı: ham div YALNIZ flex sarmalayıcı (ui-blazor istisnası); buton DxButton. *@
+        <div style="display:flex; align-items:center; gap:0.75rem; flex-wrap:wrap; padding:0.5rem 0.5rem 0;">
+            <DxButton Text="@L["GenerateVariants"]"
+                      IconCssClass="@TradeXpressIcons.Refresh"
+                      RenderStyle="ButtonRenderStyle.Primary"
+                      Click="@(async () => await GenerateVariantsClickedAsync())" />
+            <span style="color:#6c757d; font-size:0.85rem;">@L["VariantsGeneratedInfo"]</span>
+        </div>
         <DrillList TItem="ProductVariantGraphDto"
                    @ref="_variantDrill"
                    Title="@L["Variants"]"
@@ -37,15 +114,14 @@
                    KeyFieldName="ClientKey"
                    PrimaryTextSelector="@(v => v.Code)"
                    NewItemFactory="@(() => new ProductVariantGraphDto())"
-                   MinItems="1"
-                   SoftDelete="true"
-                   IsNewItem="@(v => v.Id == Guid.Empty)"
-                   MarkDeleted="@(v => v.IsDeleted = true)"
+                   AllowAdd="false"
+                   AllowDelete="false"
                    FilterPredicate="@(v => !v.IsDeleted)"
                    OnChanged="@(() => EditChanged?.Invoke())">
             <GridColumns>
                 <GridLinkColumn FieldName="Code" Caption="@L["Code"]" Width="140px" FixedPosition="GridColumnFixedPosition.Left" VisibleIndex="1" OnClick="@(item => _variantDrill?.EditItem((ProductVariantGraphDto)item))" />
                 <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" />
+                <DxGridDataColumn FieldName="AttributeSummary" Caption="@L["AttributeSummary"]" />
                 <DxGridDataColumn FieldName="IsMain" Caption="@L["Main"]" Width="90px">
                     <CellDisplayTemplate Context="cell">
                         @if (cell.Value is bool b && b)

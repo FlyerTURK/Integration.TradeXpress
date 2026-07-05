@@ -40,6 +40,10 @@ public class ProductGetDto : EntityDto<Guid>, IGetDto<Guid>, IHasCode
 
     /// <summary>Varyantlar (graf düğümleri; Id + IsDeleted ile diff). Product edit formundaki drill yönetir.</summary>
     public List<ProductVariantGraphDto> Variants { get; set; } = new();
+
+    /// <summary>Nitelikler (varyant eksenleri; değerleriyle birlikte graf). Varyantlar bunların
+    /// kartezyeninden sunucuda ÜRETİLİR (ProductVariantSynchronizer).</summary>
+    public List<ProductAttributeGraphDto> Attributes { get; set; } = new();
 }
 
 public class ProductCreateDto : ICreateDto
@@ -56,6 +60,9 @@ public class ProductCreateDto : ICreateDto
     public string? Description { get; set; }
 
     public List<ProductVariantGraphDto> Variants { get; set; } = new();
+
+    /// <summary>Nitelik grafı — bkz. <see cref="ProductGetDto.Attributes"/>.</summary>
+    public List<ProductAttributeGraphDto> Attributes { get; set; } = new();
 }
 
 public class ProductUpdateDto : IUpdateDto
@@ -75,6 +82,9 @@ public class ProductUpdateDto : IUpdateDto
     public bool IsActive { get; set; }
 
     public List<ProductVariantGraphDto> Variants { get; set; } = new();
+
+    /// <summary>Nitelik grafı — bkz. <see cref="ProductGetDto.Attributes"/>.</summary>
+    public List<ProductAttributeGraphDto> Attributes { get; set; } = new();
 }
 
 /// <summary>
@@ -103,4 +113,58 @@ public class ProductVariantGraphDto
     public string? Description { get; set; }
 
     public bool IsActive { get; set; } = true;
+
+    /// <summary>Varyantın nitelik-değer KOMBİNASYON özeti (ör. "Kırmızı / M") — SALT-OKUNUR görüntü alanı.
+    /// GetAsync projeksiyonunda doldurulur (attribute DisplayOrder sırasıyla " / " join); save'de YOKSAYILIR.</summary>
+    public string AttributeSummary { get; set; } = string.Empty;
+
+    /// <summary>Kombinasyonun İSTEMCİ-taraflı kimliği — ilgili DEĞERLERİN <see cref="ProductAttributeValueGraphDto.ClientKey"/>'lerinin
+    /// sıralı "|" join'i. <c>GenerateVariantsAsync</c> doldurur, client round-trip eder; kayıtta Id'siz (henüz DB'de olmayan)
+    /// üretilmiş satırın özelleştirmelerini (Code/Name/Description/IsActive) senkron sonrası DB varyantına EŞLEMEK içindir.</summary>
+    public string CombinationKey { get; set; } = string.Empty;
+}
+
+/// <summary>Persistsiz varyant üretim isteği (önizleme): nitelik grafı + ad türetmesi için ürün adı.
+/// DB'ye YAZMAZ — kartezyen hesaplanır, varyant graf satırları döner (kalıcılaşma Product save'inde).</summary>
+public class ProductVariantGenerateRequestDto
+{
+    /// <summary>Varyant AD türetmesi için ürün adı ("Ürün Kırmızı M") — synchronizer paritesi. Boşsa yalnız değer adları.</summary>
+    public string? ProductName { get; set; }
+
+    public List<ProductAttributeGraphDto> Attributes { get; set; } = new();
+}
+
+/// <summary>
+/// Product grafının NİTELİK düğümü — varyant ekseni (ör. "Renk", "Beden"), değerleriyle birlikte.
+/// Durum = <see cref="Id"/> + <see cref="IsDeleted"/>: Id boş → ekle, IsDeleted → sil (değerleriyle), aksi → güncelle.
+/// Ürün başına en fazla <see cref="ProductAttributeConsts.MaxAttributesPerProduct"/> (AppService zorlar).
+/// </summary>
+public class ProductAttributeGraphDto
+{
+    public Guid Id { get; set; }
+    public Guid ClientKey { get; set; } = Guid.NewGuid();
+    public bool IsDeleted { get; set; }
+
+    [Required]
+    [StringLength(ProductAttributeConsts.NameMaxLength, MinimumLength = EntityFieldConsts.NameMinLength)]
+    public string Name { get; set; } = string.Empty;
+
+    public int DisplayOrder { get; set; }
+
+    /// <summary>Niteliğin değerleri (ör. Renk → Kırmızı/Mavi) — kendi in-memory drill'iyle yönetilir.</summary>
+    public List<ProductAttributeValueGraphDto> Values { get; set; } = new();
+}
+
+/// <summary>Nitelik DEĞERİ düğümü (ör. "Kırmızı") — attribute grafının çocuğu; aynı Id+IsDeleted diff'i.</summary>
+public class ProductAttributeValueGraphDto
+{
+    public Guid Id { get; set; }
+    public Guid ClientKey { get; set; } = Guid.NewGuid();
+    public bool IsDeleted { get; set; }
+
+    [Required]
+    [StringLength(ProductAttributeConsts.ValueMaxLength, MinimumLength = EntityFieldConsts.NameMinLength)]
+    public string Value { get; set; } = string.Empty;
+
+    public int DisplayOrder { get; set; }
 }

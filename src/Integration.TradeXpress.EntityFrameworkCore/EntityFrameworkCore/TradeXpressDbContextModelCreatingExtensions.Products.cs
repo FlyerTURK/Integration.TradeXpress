@@ -42,5 +42,41 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
             // Ana varyant araması (tek-main invariant).
             b.HasIndex(x => new { x.TenantId, x.ProductId, x.IsMain });
         });
+
+        builder.Entity<ProductAttribute>(b =>
+        {
+            b.ToTable(TradeXpressConsts.DbTablePrefix + "ProductAttributes", TradeXpressConsts.DbSchema);
+            b.ConfigureByConvention();
+
+            b.Property(x => x.Name).IsRequired().HasMaxLength(ProductAttributeConsts.NameMaxLength);
+
+            // Attribute adı ÜRÜN başına tekil (aynı üründe iki "Renk" olamaz).
+            b.HasIndex(x => new { x.TenantId, x.ProductId, x.Name }).IsUnique();
+            b.HasIndex(x => new { x.TenantId, x.CompanyId });
+        });
+
+        builder.Entity<ProductAttributeValue>(b =>
+        {
+            b.ToTable(TradeXpressConsts.DbTablePrefix + "ProductAttributeValues", TradeXpressConsts.DbSchema);
+            b.ConfigureByConvention();
+
+            b.Property(x => x.Value).IsRequired().HasMaxLength(ProductAttributeConsts.ValueMaxLength);
+
+            // Değer ATTRIBUTE başına tekil (Renk altında iki "Kırmızı" olamaz).
+            b.HasIndex(x => new { x.TenantId, x.ProductAttributeId, x.Value }).IsUnique();
+            b.HasIndex(x => new { x.TenantId, x.CompanyId });
+        });
+
+        builder.Entity<ProductVariantAttributeValue>(b =>
+        {
+            b.ToTable(TradeXpressConsts.DbTablePrefix + "ProductVariantAttributeValues", TradeXpressConsts.DbSchema);
+            b.ConfigureByConvention();
+
+            // Varyant başına attribute başına TEK değer (kombinasyon değişmezi; sınıf yorumuna bakınız).
+            b.HasIndex(x => new { x.TenantId, x.ProductVariantId, x.ProductAttributeId }).IsUnique();
+            // Değer-bazlı temizlik sorguları (değer silinince varyant senkronu).
+            b.HasIndex(x => new { x.TenantId, x.ProductAttributeValueId });
+            b.HasIndex(x => new { x.TenantId, x.CompanyId });
+        });
     }
 }

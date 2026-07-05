@@ -3,6 +3,7 @@ using System.Threading.Tasks;
 using Integration.Framework.Blazor.Client.Services.Base;
 using Integration.TradeXpress.Products;
 using Microsoft.AspNetCore.Components;
+using Volo.Abp;
 using Volo.Abp.ObjectMapping;
 
 namespace Integration.TradeXpress.Blazor.Client.Pages.Products;
@@ -18,6 +19,7 @@ public partial class ProductEditHost
 
     [Inject] protected IProductAppService ProductAppService { get; set; } = default!;
     [Inject] protected IObjectMapper Mapper { get; set; } = default!;
+    [Inject] protected IUiInteractionService UiService { get; set; } = default!;
 
     private ICommitCoordinator<ProductGetDto, ProductListDto, Guid, ProductListRequestDto>? _coordinator;
     private bool _ready;
@@ -35,5 +37,28 @@ public partial class ProductEditHost
     private void ApplyNew(ProductGetDto m)
     {
         m.IsActive = true;
+    }
+
+    // "Varyantları Oluştur" — layout DUMB kalır (servis inject etmez), çağrıyı host yapar. PERSISTSİZ önizleme:
+    // sunucu nitelik grafından kartezyeni hesaplar, dönen graf Model.Variants'a yazılır (kalıcılaşma Save'de).
+    private async Task GenerateVariantsAsync(ProductGetDto model)
+    {
+        try
+        {
+            var generated = await ProductAppService.GenerateVariantsAsync(new ProductVariantGenerateRequestDto
+            {
+                ProductName = model.Name,
+                Attributes = model.Attributes,
+            });
+
+            model.Variants.Clear();
+            model.Variants.AddRange(generated);
+        }
+        catch (BusinessException bex)
+        {
+            // In-process BusinessException lokalize OLMAZ (Blazor Server) → kodu resource'tan çevir
+            // (ör. TradeXpress:ProductAttribute:ValueRequired); anahtar yoksa kodun kendisi görünür.
+            UiService.ShowErrorToast(L[bex.Code ?? bex.Message].Value);
+        }
     }
 }
