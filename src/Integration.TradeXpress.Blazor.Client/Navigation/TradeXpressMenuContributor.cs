@@ -100,6 +100,13 @@ public class TradeXpressMenuContributor : IMenuContributor
             url: "/assay-offices",
             icon: "custom-icon-bullion"
         ).RequirePermissions(TradeXpressPermissions.AssayOffices.Default));
+        // Ürünler — polimorfik emtia katalogu (company-owned) + varyant drill.
+        commodities.AddItem(new ApplicationMenuItem(
+            "TradeXpress.Products",
+            l["Menu:Products"],
+            url: "/products",
+            icon: TradeXpressIcons.Product
+        ).RequirePermissions(TradeXpressPermissions.Products.Default));
         commodities.AddItem(new ApplicationMenuItem(
             TradeXpressMenus.Services,
             l["Services"],

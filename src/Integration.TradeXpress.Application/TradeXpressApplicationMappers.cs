@@ -13,6 +13,7 @@ using Integration.TradeXpress.Jewelries;
 using Integration.TradeXpress.Countries;
 using Integration.TradeXpress.Accounts;
 using Integration.TradeXpress.AssayOffices;
+using Integration.TradeXpress.Products;
 using Integration.TradeXpress.Scheduling;
 using Integration.TradeXpress.Authorization;
 using Volo.Abp.TenantManagement;
@@ -354,6 +355,19 @@ public partial class UserScopedGrantToDtoMapper : MapperBase<UserScopedGrant, Us
 
 // SubAccount edit'i PersistentCoordinator üzerinden koşulsuz Map<GetDto,Create/UpdateDto> çağırır —
 // bu mapper'lar yokken kaydet/güncelle runtime'da "No object mapping was found" fırlatıyordu (entegrasyon analizi E-3).
+// Product: PersistentCoordinator koşulsuz Map<GetDto,Create/UpdateDto> çağırır (Account grafı deseni).
+// Varyant grafı (List<ProductVariantGraphDto>) aynı tip → element-kopya; entity→GetDto elle projekte edilir (AppService).
+[Mapper] public partial class ProductGetToCreateMapper : MapperBase<ProductGetDto, ProductCreateDto>
+{
+    public override partial ProductCreateDto Map(ProductGetDto source);
+    public override partial void Map(ProductGetDto source, ProductCreateDto destination);
+}
+[Mapper] public partial class ProductGetToUpdateMapper : MapperBase<ProductGetDto, ProductUpdateDto>
+{
+    public override partial ProductUpdateDto Map(ProductGetDto source);
+    public override partial void Map(ProductGetDto source, ProductUpdateDto destination);
+}
+
 [Mapper] public partial class SubAccountGetToCreateMapper : MapperBase<SubAccountGetDto, SubAccountCreateDto>
 {
     public override partial SubAccountCreateDto Map(SubAccountGetDto source);

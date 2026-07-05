@@ -69,6 +69,8 @@ public class TradeXpressDbContext :
     public DbSet<Jewelry> Jewelries { get; set; } = null!;
     public DbSet<Account> Accounts { get; set; } = null!;
     public DbSet<SubAccount> SubAccounts { get; set; } = null!;
+    public DbSet<Integration.TradeXpress.Products.Product> Products { get; set; } = null!;
+    public DbSet<Integration.TradeXpress.Products.ProductVariant> ProductVariants { get; set; } = null!;
     public DbSet<Voucher> Vouchers { get; set; } = null!;
     public DbSet<VoucherLine> VoucherLines { get; set; } = null!;
     public DbSet<Integration.TradeXpress.Vouchers.Balance.BalanceLedgerEntry> BalanceLedgerEntries { get; set; } = null!;
@@ -136,6 +138,7 @@ public class TradeXpressDbContext :
         builder.ConfigureBranches();
         builder.ConfigureVaults();
         builder.ConfigureAssayOffices();
+        builder.ConfigureProducts();
         builder.ConfigureSchedulerAppointments();
         builder.ConfigureCashes();
         builder.ConfigureServices();

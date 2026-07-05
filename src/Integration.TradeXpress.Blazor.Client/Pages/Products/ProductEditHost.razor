@@ -1,0 +1,19 @@
+@page "/products/new"
+@page "/products/{Id:guid}"
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@*
+   Product edit host = İNCE SARMAL: coordinator + sunum. Commit/save/delete/close generic CrudEditHost'ta.
+   Agnostic CrudEditHost + dumb ProductLayout. Company-owned (sunucu CompanyId zorlar).
+*@
+
+@if (_coordinator != null && _ready)
+{
+    <CrudEditHost TGetDto="ProductGetDto" TListDto="ProductListDto" TKey="Guid" TListRequestDto="ProductListRequestDto"
+                  Coordinator="@_coordinator" Id="@(Id ?? Guid.Empty)" IsPopupMode="@IsPopupMode" OnSaved="@OnSaved" OnClosed="@OnClosed"
+                  FormCaption="@L["Product"].Value" IconCssClass="@TradeXpressIcons.Product"
+                  EntityValue="@(m => m.Code)"
+                  ApplyNewDefaults="@(m => ApplyNew(m))">
+        <ProductLayout Model="@context" IsNew="@(context.Id == Guid.Empty)" />
+    </CrudEditHost>
+}

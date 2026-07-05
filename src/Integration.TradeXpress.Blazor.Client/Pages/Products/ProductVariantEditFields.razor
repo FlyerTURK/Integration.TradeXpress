@@ -1,0 +1,19 @@
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@* Ürün varyantı edit formunun alanları (Code/Name/Description/Status). TEK yüzey (yalnız Product drill'i) →
+   ortak arayüz gerekmez (YAGNI). Çağıran DxFormLayout'u SAĞLAR. Code BeginRow ile yeni satırda başlar. *@
+
+<DxFormLayoutItem Caption="@($"{L["Code"]} *")" ColSpanMd="6" BeginRow="true">
+    <DxTextBox @bind-Text="@Model.Code" />
+</DxFormLayoutItem>
+<DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="12">
+    <DxTextBox @bind-Text="@Model.Name" />
+</DxFormLayoutItem>
+<DxFormLayoutItem Caption="@L["Description"]" ColSpanMd="12">
+    <DxMemo @bind-Text="@Model.Description" Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100" />
+</DxFormLayoutItem>
+<DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6">
+    <DxCheckBox @bind-Checked="@Model.IsActive" CheckType="CheckType.Switch">
+        @(Model.IsActive ? L["Active"] : L["Passive"])
+    </DxCheckBox>
+</DxFormLayoutItem>

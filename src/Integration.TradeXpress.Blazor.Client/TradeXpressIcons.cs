@@ -24,6 +24,10 @@ public static class TradeXpressIcons
     public const string Stone = "custom-icon-stone";
     public const string Jewelry = "custom-icon-jewelry";
 
+    // ── Ürünler ──
+    public const string Product = "custom-icon-commodities";
+    public const string ProductVariant = "custom-icon-list";
+
     // ── Hesaplar ──
     public const string Account = "custom-icon-account";
     public const string SubAccount = "custom-icon-list";

@@ -140,6 +140,15 @@ public static class TradeXpressPermissions
         public const string Delete  = Default + ".Delete";
     }
 
+    /// <summary>Ürün KATALOĞU yönetimi (polimorfik emtia + varyantlar). Company-owned; Create/Update/Delete izinli.</summary>
+    public static class Products
+    {
+        public const string Default = GroupName + ".Products";
+        public const string Create  = Default + ".Create";
+        public const string Update  = Default + ".Update";
+        public const string Delete  = Default + ".Delete";
+    }
+
     public static class Accounts
     {
         public const string Default = GroupName + ".Accounts";

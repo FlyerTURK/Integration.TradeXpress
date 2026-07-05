@@ -1,0 +1,68 @@
+@using System
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@*
+   Product DUMB Layout — ProductGetDto'yu forma yansıtır. I/O yok, karar yok, persistence yok.
+   Standart alan sırası (ui-blazor): Kod → Ad → Description → Status → varyant DrillList (en son).
+*@
+
+<DxFormLayout CssClass="w-100">
+    <DxFormLayoutGroup Caption="@L["General"]" ColSpanMd="12">
+        <DxFormLayoutItem Caption="@($"{L["Code"]} *")" ColSpanMd="6">
+            <DxTextBox @bind-Text="@Model.Code" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="12">
+            <DxTextBox @bind-Text="@Model.Name" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["Description"]" ColSpanMd="12">
+            <DxMemo @bind-Text="@Model.Description" Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6">
+            <DxCheckBox @bind-Checked="@Model.IsActive" CheckType="CheckType.Switch">
+                @(Model.IsActive ? L["Active"] : L["Passive"])
+            </DxCheckBox>
+        </DxFormLayoutItem>
+    </DxFormLayoutGroup>
+</DxFormLayout>
+
+@* Varyantlar — in-memory drill (graf); Product save'inde tek komutla yazılır. IsMain DISPLAY-ONLY (manager yönetir). *@
+<DrillTabs CssClass="mt-3">
+    <DxTabPage Text="@L["Variants"]" TabIconCssClass="@TradeXpressIcons.ProductVariant">
+        <DrillList TItem="ProductVariantGraphDto"
+                   @ref="_variantDrill"
+                   Title="@L["Variants"]"
+                   EntityName="@L["ProductVariant"]"
+                   EntityIcon="@TradeXpressIcons.ProductVariant"
+                   Items="Model.Variants"
+                   KeyFieldName="ClientKey"
+                   PrimaryTextSelector="@(v => v.Code)"
+                   NewItemFactory="@(() => new ProductVariantGraphDto())"
+                   MinItems="1"
+                   SoftDelete="true"
+                   IsNewItem="@(v => v.Id == Guid.Empty)"
+                   MarkDeleted="@(v => v.IsDeleted = true)"
+                   FilterPredicate="@(v => !v.IsDeleted)"
+                   OnChanged="@(() => EditChanged?.Invoke())">
+            <GridColumns>
+                <GridLinkColumn FieldName="Code" Caption="@L["Code"]" Width="140px" FixedPosition="GridColumnFixedPosition.Left" VisibleIndex="1" OnClick="@(item => _variantDrill?.EditItem((ProductVariantGraphDto)item))" />
+                <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" />
+                <DxGridDataColumn FieldName="IsMain" Caption="@L["Main"]" Width="90px">
+                    <CellDisplayTemplate Context="cell">
+                        @if (cell.Value is bool b && b)
+                        {
+                            <span style="display:flex; align-items:center; gap:0.35rem;">
+                                <i class="custom-icon-check-circle" aria-hidden="true" style="color:#16a34a;"></i>@L["Main"]
+                            </span>
+                        }
+                    </CellDisplayTemplate>
+                </DxGridDataColumn>
+                <StatusColumn />
+            </GridColumns>
+            <EditContent Context="v">
+                <DxFormLayout CssClass="w-100">
+                    <ProductVariantEditFields Model="v" />
+                </DxFormLayout>
+            </EditContent>
+        </DrillList>
+    </DxTabPage>
+</DrillTabs>

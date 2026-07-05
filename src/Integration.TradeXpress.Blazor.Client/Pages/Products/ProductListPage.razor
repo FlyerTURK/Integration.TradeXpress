@@ -1,0 +1,26 @@
+@page "/products"
+@inherits CrudPageBase<ProductGetDto, ProductListDto, Guid, ProductListRequestDto, ProductCreateDto, ProductUpdateDto>
+
+<CrudLayout TGetDto="ProductGetDto"
+            TListDto="ProductListDto"
+            TKey="Guid"
+            StateService="StateService"
+            DataSource="@GridDataSource"
+            EntityName="@L["Product"]"
+            EntityIcon="@TradeXpressIcons.Product"
+            PrimaryTextSelector="@(m => m.Code)"
+            PageTitle="@L["Products"]"
+            OnNewClick="BeforeCreateAsync"
+            OnUpdateClick="BeforeUpdateAsync"
+            OnDeleteClick="DeleteAsync"
+            OnRefreshClick="GetListAsync"
+            OnSearchChanged="OnSearchAsync">
+
+    <GridColumns>
+        <GridLinkColumn FieldName="Code" Caption="@L["Code"]" Width="120px" FixedPosition="GridColumnFixedPosition.Left" VisibleIndex="1"
+                        OnClick="@(o => BeforeUpdateAsync((ProductListDto)o))" />
+        <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" VisibleIndex="2" MinWidth="200" />
+        <DxGridDataColumn FieldName="VariantCount" Caption="@L["Variants"]" Width="110px" VisibleIndex="3" TextAlignment="GridTextAlignment.Right" />
+    </GridColumns>
+
+</CrudLayout>
