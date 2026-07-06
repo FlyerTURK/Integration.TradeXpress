@@ -93,6 +93,22 @@ public class ProductVariantRecipeLine : FullAuditedAggregateRoot<Guid>, IMultiTe
 
     public virtual string? Description { get; protected set; }
 
+    // ── türev/devralan satır (3b) — yalnız ComponentType == Derived'da anlamlı; aksi halde null/0 ──
+
+    /// <summary>Devralınan taban SWITCH'i (tüm üst satırlar / seçili kalemler). Türev-dışı satırda null.</summary>
+    public virtual RecipeDerivedBaseMode? DerivedBaseMode { get; protected set; }
+
+    /// <summary>Devralınan tabana uygulanan işlem (ekle/çarp/yüzde/brütleştir). Türev-dışı satırda null.</summary>
+    public virtual RecipeDerivedOperation? DerivedOperation { get; protected set; }
+
+    /// <summary>İşlem operand'ı (N5) — Add: mutlak tutar; Multiply: çarpan; Percent/GrossUp: yüzde. Türev-dışı satırda 0.</summary>
+    public virtual decimal DerivedOperand { get; protected set; }
+
+    /// <summary>SelectedLines modunda seçili kaynak satırların kalıcı Id'lerinin '|'-join CSV snapshot'ı — FK'sız
+    /// (aynı aggregate kardeşlerine gevşek referans; id-only). AllAbove ve türev-dışı satırda null. Referans-bütünlüğü
+    /// AppService save'inde doğrulanır (yalnız kendinden önceki mevcut satırlar).</summary>
+    public virtual string? DerivedSourceLineIds { get; protected set; }
+
     #endregion
 
     #region Methods
@@ -119,19 +135,38 @@ public class ProductVariantRecipeLine : FullAuditedAggregateRoot<Guid>, IMultiTe
         PaymentType          = paymentType;
         PayFactor            = payFactor;
         PayUnitId            = payUnitId;
-        // Hizmet/manuel alanları temizle (tür geçişinde artık değer kalmasın).
+        // Hizmet/manuel + türev alanlarını temizle (tür geçişinde artık değer kalmasın).
         ManualAmount = null;
         ManualUnitId = null;
+        ClearDerived();
     }
 
     /// <summary>Hizmet ya da manuel-maliyet satırının sabit tutar@birimini atar. Hizmette
     /// <paramref name="commodityId"/> opsiyonel hizmet katalog referansı; manuelde null.</summary>
-    public virtual void SetServiceOrManual(Guid? commodityId, decimal manualAmount, Guid? manualUnitId)
+    /// <summary>Hizmet satırını atar — bir hizmet referansı (<paramref name="commodityId"/>; etiket/kimlik için,
+    /// Service KATALOG entity'sine dokunulmaz) + türevsel bedel kuralı (taban modu + işlem + operand). Katalog/fiziki
+    /// alanları temizler. SelectedLines kaynakları AYRICA <see cref="SetDerivedSources"/> ile atanır (AppService
+    /// iki-geçişli save; Id'ler o aşamada çözülür). GrossUp operand'ı [0, 100) dışındaysa fail-fast.</summary>
+    public virtual void SetService(
+        Guid? commodityId, RecipeDerivedBaseMode baseMode, RecipeDerivedOperation operation, decimal operand,
+        Guid? operandUnitId)
     {
-        CommodityId  = commodityId;
-        ManualAmount = manualAmount;
-        ManualUnitId = manualUnitId;
-        // Katalog-emtia alanlarını temizle.
+        if (operation == RecipeDerivedOperation.GrossUp
+            && (operand < 0m || operand >= ProductRecipeConsts.GrossUpOperandExclusiveMax))
+        {
+            throw new BusinessException("TradeXpress:ProductRecipeLine:GrossUpRateOutOfRange");
+        }
+
+        CommodityId = commodityId;
+        DerivedBaseMode = baseMode;
+        DerivedOperation = operation;
+        DerivedOperand = operand;
+        DerivedSourceLineIds = null;   // SelectedLines kaynakları SetDerivedSources ile (2. geçiş)
+        // Add operand'ının opsiyonel birimi (ülke birimine rebase için) — PayUnitId kolonunu yeniden kullanır;
+        // yalnız Add'de anlamlı, diğer işlemlerde çağıran null geçer.
+        PayUnitId       = operandUnitId;
+
+        // Katalog/fiziki + manuel alanlarını temizle.
         CommodityProcessType = null;
         Quantity        = 0m;
         Amount          = 0m;
@@ -139,7 +174,21 @@ public class ProductVariantRecipeLine : FullAuditedAggregateRoot<Guid>, IMultiTe
         ValuationUnitId = null;
         PaymentType     = ProcessPaymentType.Normal;
         PayFactor       = 0m;
-        PayUnitId       = null;
+        ManualAmount    = null;
+        ManualUnitId    = null;
+    }
+
+    /// <summary>SelectedLines modunda seçili kaynak satırların (çözülmüş) Id CSV'sini atar — AppService iki-geçişli
+    /// save'in 2. geçişi (Id'ler 1. geçişte üretilir). AllAbove modunda kaynak GEREKMEZ (null'a düşer); SelectedLines'ta
+    /// boş kaynak fail-fast.</summary>
+    public virtual void SetDerivedSources(string? sourceLineIdsCsv)
+    {
+        if (DerivedBaseMode == RecipeDerivedBaseMode.SelectedLines && string.IsNullOrWhiteSpace(sourceLineIdsCsv))
+        {
+            throw new BusinessException("TradeXpress:ProductRecipeLine:DerivedNeedsSelection");
+        }
+
+        DerivedSourceLineIds = DerivedBaseMode == RecipeDerivedBaseMode.SelectedLines ? sourceLineIdsCsv : null;
     }
 
     public virtual void SetOrder(int lineOrder)
@@ -161,6 +210,15 @@ public class ProductVariantRecipeLine : FullAuditedAggregateRoot<Guid>, IMultiTe
     public override string ToString()
     {
         return $"{ComponentType}#{LineOrder}";
+    }
+
+    // Türev alanlarını sıfırla — katalog/hizmet setter'larının tür-temizliği için.
+    private void ClearDerived()
+    {
+        DerivedBaseMode = null;
+        DerivedOperation = null;
+        DerivedOperand = 0m;
+        DerivedSourceLineIds = null;
     }
 
     // Şirket set-once → public mutator YOK; varyanttan denormalize (AppService geçer).

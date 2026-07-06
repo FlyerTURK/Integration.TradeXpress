@@ -145,8 +145,8 @@
                     <DxFormLayoutGroup Caption="@L["Recipe"]" ColSpanMd="12" CaptionPosition="CaptionPosition.Vertical">
                         <ProductRecipePanel Lines="v.RecipeLines"
                                             Metals="Metals" Scraps="Scraps" Futures="Futures"
-                                            Jewelries="Jewelries" Stones="Stones" Units="Units"
-                                            NetCost="v.NetCost" NetCostCurrency="v.NetCostCurrency" NetCostMissingRate="v.NetCostMissingRate"
+                                            Jewelries="Jewelries" Stones="Stones" Services="Services" Units="Units"
+                                            NetCost="@v.NetCost" NetCostCurrency="@v.NetCostCurrency" NetCostMissingRate="@v.NetCostMissingRate"
                                             OnChanged="@(() => EditChanged?.Invoke())" />
                     </DxFormLayoutGroup>
                 </DxFormLayout>

@@ -13,4 +13,13 @@ public static class ProductRecipeConsts
     public const int FactorScale     = 5;   // adet/faktör/milyem (N5)
 
     public const int DescriptionMaxLength = 512;
+
+    // ── türev/devralan satır (3b) ──
+    /// <summary>Türev satırın seçili-kaynak satır Id'lerinin '|'-join CSV snapshot'ı için kolon uzunluğu.
+    /// ~108 referansa yeter (36 karakter Guid + ayraç); pratikte üst-satır sayısı çok altında.</summary>
+    public const int DerivedSourceLineIdsMaxLength = 4000;
+
+    /// <summary>GrossUp (brütleştirme) operand'ının ÜST sınırı (dışlayıcı) — payda 1−operand/100 ≤ 0 olamaz
+    /// (sıfıra/negatife bölme). operand ∈ [0, 100).</summary>
+    public const decimal GrossUpOperandExclusiveMax = 100m;
 }

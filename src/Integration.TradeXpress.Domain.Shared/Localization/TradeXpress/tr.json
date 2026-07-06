@@ -707,6 +707,8 @@
     "RecipeLine": "Reçete Satırı",
     "NetCost": "Net Maliyet",
     "LineCost": "Satır Maliyeti",
+    "AppliedBase": "Uygulanacak Bedel",
+    "RunningSubtotal": "Ara Toplam",
     "ComponentType": "Tür",
     "ManualCost": "Manuel Maliyet",
     "ManualAmount": "Tutar",
@@ -719,6 +721,20 @@
     "AddManualCost": "Manuel Maliyet Ekle",
     "MissingRate": "Kur yok",
     "RecipeMissingRate": "Bazı satırların kuru eksik; net maliyet kısmidir.",
-    "TradeXpress:ProductRecipeLine:OrderMustBeNonNegative": "Satır sırası negatif olamaz."
+    "TradeXpress:ProductRecipeLine:OrderMustBeNonNegative": "Satır sırası negatif olamaz.",
+    "TradeXpress:ProductRecipeLine:GrossUpRateOutOfRange": "Brütleştirme oranı 0 ile 100 (hariç) arasında olmalı.",
+    "TradeXpress:ProductRecipeLine:DerivedNeedsSelection": "'Belli kalemler' modunda en az bir kaynak satır seçilmeli.",
+    "TradeXpress:ProductRecipeLine:DerivedRefMustBeUpstream": "Türev satır yalnız kendinden önceki satırları referanslayabilir.",
+    "AddDerived": "Türev Satır Ekle",
+    "DerivedBaseMode": "Devralınan Taban",
+    "DerivedOperation": "İşlem",
+    "DerivedOperand": "Değer",
+    "Enum:RecipeComponentType:Derived": "Türev",
+    "Enum:RecipeDerivedBaseMode:AllAbove": "Tüm Üst Satırlar",
+    "Enum:RecipeDerivedBaseMode:SelectedLines": "Belli Kalemler",
+    "Enum:RecipeDerivedOperation:Add": "Ekle",
+    "Enum:RecipeDerivedOperation:Multiply": "Çarp",
+    "Enum:RecipeDerivedOperation:Percent": "Yüzde",
+    "Enum:RecipeDerivedOperation:GrossUp": "Brütleştir"
   }
 }

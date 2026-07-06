@@ -205,6 +205,29 @@ public class ProductRecipeLineGraphDto
 
     /// <summary>Satırın doğal-birim kuru çözülemedi mi (kur/birim eksik) — UI göstergesi (SALT-OKUNUR).</summary>
     public bool LineCostMissingRate { get; set; }
+
+    /// <summary>Uygulanacak Bedel — Hizmet satırının türev işlemi uyguladığı taban (devralınan toplam ya da seçili
+    /// satırlar toplamı), ülke birimi. Fiziki satırda null. SALT-OKUNUR (GetAsync projeksiyonu).</summary>
+    public decimal? AppliedBase { get; set; }
+
+    /// <summary>Ara Toplam — o satır DAHİL koşan toplam, Company.Country.CurrencyUnit'e rebase'li. SALT-OKUNUR.</summary>
+    public decimal? RunningSubtotal { get; set; }
+
+    // ── Hizmet satırının türevsel bedel kuralı (pilot) — yalnız ComponentType == Service'de dolu ──
+
+    /// <summary>Devralınan taban SWITCH'i (tüm üst satırlar / seçili kalemler). Türev-dışı satırda null.</summary>
+    public RecipeDerivedBaseMode? DerivedBaseMode { get; set; }
+
+    /// <summary>Devralınan tabana uygulanan işlem (ekle/çarp/yüzde/brütleştir). Türev-dışı satırda null.</summary>
+    public RecipeDerivedOperation? DerivedOperation { get; set; }
+
+    /// <summary>İşlem operand'ı — Add: mutlak tutar; Multiply: çarpan; Percent/GrossUp: yüzde.</summary>
+    public decimal DerivedOperand { get; set; }
+
+    /// <summary>SelectedLines modunda seçili kaynak satırların <see cref="ClientKey"/>'leri (aynı reçetenin KARDEŞ
+    /// satırları). Client düzenler + round-trip eder; save'de Id'lere çözülür, GetAsync'te o oturumun taze
+    /// ClientKey'lerine geri çevrilir. AllAbove/türev-dışı satırda boş.</summary>
+    public List<Guid> DerivedSourceKeys { get; set; } = new();
 }
 
 /// <summary>Persistsiz varyant üretim isteği (önizleme): nitelik grafı + ad türetmesi için ürün adı.

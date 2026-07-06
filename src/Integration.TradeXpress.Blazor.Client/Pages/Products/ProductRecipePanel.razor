@@ -3,6 +3,7 @@
 @using Integration.TradeXpress.Futures
 @using Integration.TradeXpress.Jewelries
 @using Integration.TradeXpress.Stones
+@using Integration.TradeXpress.Services
 @using Integration.TradeXpress.Blazor.Client.Pages.CurrentTransactions
 @inherits Integration.Framework.Blazor.Client.Components.Crud.EntryPanelBase<ProductRecipeLineGraphDto>
 
@@ -27,9 +28,7 @@
         <DxButton Text="@L["AddStone"]" IconCssClass="@TradeXpressIcons.Stone" RenderStyle="ButtonRenderStyle.Secondary"
                   Click="@(() => OpenCatalogDraft(ProcessType.Stone))" />
         <DxButton Text="@L["AddService"]" IconCssClass="@TradeXpressIcons.Service" RenderStyle="ButtonRenderStyle.Secondary"
-                  Click="@(() => OpenServiceOrManualDraft(RecipeComponentType.Service))" />
-        <DxButton Text="@L["AddManualCost"]" IconCssClass="@TradeXpressIcons.Add" RenderStyle="ButtonRenderStyle.Secondary"
-                  Click="@(() => OpenServiceOrManualDraft(RecipeComponentType.ManualCost))" />
+                  Click="@(() => OpenServiceDraft())" />
 
         @if (NetCost.HasValue)
         {
@@ -167,17 +166,68 @@ else if (Draft is { } d)
                 }
                 else
                 {
-                    <div style="@GroupStyle(140)">
-                        <small style="@ProcessPanelStyles.Label">@L["ManualAmount"]</small>
-                        <NumericSpinEdit TValue="decimal" Value="@d.ManualAmount" ValueChanged="@((decimal v) => OnManualAmountChanged(v))" ValueExpression="@(() => d.ManualAmount)"
-                                         BindValueMode="BindValueMode.OnInput" ShowSpinButtons="false" DisplayFormat="N2" Mask="N2" />
+                    @* Hizmet — seçici (etiket; Service katalog entity'sine dokunulmaz) + türevsel bedel kuralı. *@
+                    <div style="@GroupStyle(180)">
+                        <small style="@ProcessPanelStyles.Label">@L["Service"]</small>
+                        <LookupComboBox TItem="ServiceListDto" TValue="Guid?" Data="@Services"
+                                        ValueFieldName="@nameof(ServiceListDto.Id)" TextFieldName="@nameof(ServiceListDto.Code)"
+                                        Value="@d.CommodityId" ValueChanged="@((Guid? v) => OnServiceSelected(v))" AllowClear="false" />
                     </div>
-                    <div style="@GroupStyle(160)">
-                        <small style="@ProcessPanelStyles.Label">@L["Unit"]</small>
-                        <LookupComboBox TItem="CurrentPriceDto" TValue="Guid?" Data="@Units"
-                                        ValueFieldName="@nameof(CurrentPriceDto.Id)" TextFieldName="@nameof(CurrentPriceDto.CurrencyUnitCode)"
-                                        Value="@d.ManualUnitId" ValueChanged="@((Guid? v) => OnManualUnitChanged(v))" AllowClear="false" />
+
+                    <div style="@GroupStyle(190)">
+                        <small style="@ProcessPanelStyles.Label">@L["DerivedBaseMode"]</small>
+                        <DxComboBox TData="DerivedBaseItem" TValue="RecipeDerivedBaseMode"
+                                    Data="@_baseModeItems" Value="@(d.DerivedBaseMode ?? RecipeDerivedBaseMode.AllAbove)"
+                                    ValueChanged="@((RecipeDerivedBaseMode v) => OnDerivedBaseModeChanged(v))"
+                                    ValueFieldName="@nameof(DerivedBaseItem.Value)" TextFieldName="@nameof(DerivedBaseItem.Label)"
+                                    DropDownTriggerMode="DropDownTriggerMode.Click" ShowDropDownButton="true"
+                                    ValidationEnabled="false" CssClass="w-100" />
                     </div>
+
+                    @if (d.DerivedBaseMode == RecipeDerivedBaseMode.SelectedLines)
+                    {
+                        <div style="@GroupStyle(280)">
+                            <small style="@ProcessPanelStyles.Label">@L["RecipeLines"]</small>
+                            <DxTagBox TData="DerivedSourceItem" TValue="Guid"
+                                      Data="@UpstreamLines(d)" Values="@d.DerivedSourceKeys"
+                                      ValuesChanged="@((IEnumerable<Guid> v) => OnDerivedSourcesChanged(v))"
+                                      ValueFieldName="@nameof(DerivedSourceItem.ClientKey)" TextFieldName="@nameof(DerivedSourceItem.Code)"
+                                      ValidationEnabled="false" CssClass="w-100">
+                                <Columns>
+                                    <DxListEditorColumn FieldName="@nameof(DerivedSourceItem.Nr)" Caption="@L["Nr"].Value" Width="48px" />
+                                    <DxListEditorColumn FieldName="@nameof(DerivedSourceItem.Code)" Caption="@L["Code"].Value" />
+                                    <DxListEditorColumn FieldName="@nameof(DerivedSourceItem.Cost)" Caption="@L["LineCost"].Value" />
+                                </Columns>
+                            </DxTagBox>
+                        </div>
+                    }
+
+                    <div style="@GroupStyle(150)">
+                        <small style="@ProcessPanelStyles.Label">@L["DerivedOperation"]</small>
+                        <DxComboBox TData="DerivedOperationItem" TValue="RecipeDerivedOperation"
+                                    Data="@_operationItems" Value="@(d.DerivedOperation ?? RecipeDerivedOperation.Percent)"
+                                    ValueChanged="@((RecipeDerivedOperation v) => OnDerivedOperationChanged(v))"
+                                    ValueFieldName="@nameof(DerivedOperationItem.Value)" TextFieldName="@nameof(DerivedOperationItem.Label)"
+                                    DropDownTriggerMode="DropDownTriggerMode.Click" ShowDropDownButton="true"
+                                    ValidationEnabled="false" CssClass="w-100" />
+                    </div>
+
+                    <div style="@GroupStyle(120)">
+                        <small style="@ProcessPanelStyles.Label">@L["DerivedOperand"]</small>
+                        <NumericSpinEdit TValue="decimal" Value="@d.DerivedOperand" ValueChanged="@((decimal v) => OnDerivedOperandChanged(v))" ValueExpression="@(() => d.DerivedOperand)"
+                                         BindValueMode="BindValueMode.OnInput" ShowSpinButtons="false" DisplayFormat="N5" Mask="N5" />
+                    </div>
+
+                    @* Ekle işleminde operand mutlak tutar → yanında birim (yabancı para dahil; boş = ülke birimi). *@
+                    @if (d.DerivedOperation == RecipeDerivedOperation.Add)
+                    {
+                        <div style="@GroupStyle(140)">
+                            <small style="@ProcessPanelStyles.Label">@L["Unit"]</small>
+                            <LookupComboBox TItem="CurrentPriceDto" TValue="Guid?" Data="@Units"
+                                            ValueFieldName="@nameof(CurrentPriceDto.Id)" TextFieldName="@nameof(CurrentPriceDto.CurrencyUnitCode)"
+                                            Value="@d.PayUnitId" ValueChanged="@((Guid? v) => OnPayUnitChanged(v))" AllowClear="true" />
+                        </div>
+                    }
                 }
 
             </div>
@@ -199,7 +249,7 @@ else if (Draft is { } d)
     <Columns>
         <DxGridDataColumn AllowSort="false" FieldName="@nameof(ProductRecipeLineGraphDto.LineOrder)" Caption="@L["Nr"]" Width="50px" TextAlignment="GridTextAlignment.Right" />
         <DxGridDataColumn AllowSort="false" Caption="@L["ComponentType"]" Width="90px">
-            <CellDisplayTemplate>@ComponentLabel((ProductRecipeLineGraphDto)context.DataItem)</CellDisplayTemplate>
+            <CellDisplayTemplate><span style="@DerivedCellStyle((ProductRecipeLineGraphDto)context.DataItem)">@ComponentLabel((ProductRecipeLineGraphDto)context.DataItem)</span></CellDisplayTemplate>
         </DxGridDataColumn>
         <DxGridDataColumn AllowSort="false" Caption="@L["Commodity"]" Width="100px">
             <CellDisplayTemplate>@CommodityCodeOf((ProductRecipeLineGraphDto)context.DataItem)</CellDisplayTemplate>
@@ -208,18 +258,27 @@ else if (Draft is { } d)
             <CellDisplayTemplate>@PaymentLabelOf((ProductRecipeLineGraphDto)context.DataItem)</CellDisplayTemplate>
         </DxGridDataColumn>
         <DxGridDataColumn AllowSort="false" FieldName="@nameof(ProductRecipeLineGraphDto.Quantity)" Caption="@L["Count"]" DisplayFormat="N0" TextAlignment="GridTextAlignment.Right" Width="70px" />
-        <DxGridDataColumn AllowSort="false" FieldName="@nameof(ProductRecipeLineGraphDto.Amount)" Caption="@L["LineAmount"]" DisplayFormat="N2" TextAlignment="GridTextAlignment.Right" Width="90px" />
-        <DxGridDataColumn AllowSort="false" FieldName="@nameof(ProductRecipeLineGraphDto.Factor)" Caption="@L["Factor"]" DisplayFormat="N5" TextAlignment="GridTextAlignment.Right" Width="90px" />
+        <DxGridDataColumn AllowSort="false" Caption="@L["LineAmount"]" TextAlignment="GridTextAlignment.Right" Width="90px">
+            <CellDisplayTemplate>@GridAmountText((ProductRecipeLineGraphDto)context.DataItem)</CellDisplayTemplate>
+        </DxGridDataColumn>
+        <DxGridDataColumn AllowSort="false" Caption="@L["Factor"]" TextAlignment="GridTextAlignment.Right" Width="90px">
+            <CellDisplayTemplate>@GridFactorText((ProductRecipeLineGraphDto)context.DataItem)</CellDisplayTemplate>
+        </DxGridDataColumn>
         <DxGridDataColumn AllowSort="false" Caption="@L["Total"]" TextAlignment="GridTextAlignment.Right" Width="120px">
             <CellDisplayTemplate>@GridTotalText((ProductRecipeLineGraphDto)context.DataItem)</CellDisplayTemplate>
         </DxGridDataColumn>
-        <DxGridDataColumn AllowSort="false" FieldName="@nameof(ProductRecipeLineGraphDto.PayFactor)" Caption="@L["Labor"]" DisplayFormat="N5" TextAlignment="GridTextAlignment.Right" Width="90px" />
+        <DxGridDataColumn AllowSort="false" Caption="@L["DerivedOperation"]" Width="90px">
+            <CellDisplayTemplate><span style="@DerivedCellStyle((ProductRecipeLineGraphDto)context.DataItem)">@OperationLabel((ProductRecipeLineGraphDto)context.DataItem)</span></CellDisplayTemplate>
+        </DxGridDataColumn>
+        <DxGridDataColumn AllowSort="false" Caption="@L["Price"]" TextAlignment="GridTextAlignment.Right" Width="90px">
+            <CellDisplayTemplate>@GridPriceText((ProductRecipeLineGraphDto)context.DataItem)</CellDisplayTemplate>
+        </DxGridDataColumn>
         <DxGridDataColumn AllowSort="false" Caption="@L["PayTotal"]" TextAlignment="GridTextAlignment.Right" Width="120px">
             <CellDisplayTemplate>@GridPayTotalText((ProductRecipeLineGraphDto)context.DataItem)</CellDisplayTemplate>
         </DxGridDataColumn>
         <DxGridDataColumn AllowSort="false" FieldName="@nameof(ProductRecipeLineGraphDto.Description)" Caption="@L["Description"]" />
-        <DxGridDataColumn AllowSort="false" Caption="@L["LineCost"]" TextAlignment="GridTextAlignment.Right" Width="130px">
-            <CellDisplayTemplate>@LineCostText((ProductRecipeLineGraphDto)context.DataItem)</CellDisplayTemplate>
+        <DxGridDataColumn AllowSort="false" Caption="@L["RunningSubtotal"]" TextAlignment="GridTextAlignment.Right" Width="130px">
+            <CellDisplayTemplate><b>@RunningSubtotalText((ProductRecipeLineGraphDto)context.DataItem)</b></CellDisplayTemplate>
         </DxGridDataColumn>
         <DxGridDataColumn AllowSort="false" Width="56px" Caption="">
             <CellDisplayTemplate>

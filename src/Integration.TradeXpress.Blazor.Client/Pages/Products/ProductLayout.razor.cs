@@ -9,6 +9,7 @@ using Integration.TradeXpress.Jewelries;
 using Integration.TradeXpress.Metals;
 using Integration.TradeXpress.Products;
 using Integration.TradeXpress.Scraps;
+using Integration.TradeXpress.Services;
 using Integration.TradeXpress.Stones;
 using Microsoft.AspNetCore.Components;
 
@@ -26,6 +27,7 @@ public partial class ProductLayout
     [Parameter] public IReadOnlyList<FutureListDto> Futures { get; set; } = Array.Empty<FutureListDto>();
     [Parameter] public IReadOnlyList<JewelryListDto> Jewelries { get; set; } = Array.Empty<JewelryListDto>();
     [Parameter] public IReadOnlyList<StoneListDto> Stones { get; set; } = Array.Empty<StoneListDto>();
+    [Parameter] public IReadOnlyList<ServiceListDto> Services { get; set; } = Array.Empty<ServiceListDto>();
     [Parameter] public IReadOnlyList<CurrentPriceDto> Units { get; set; } = Array.Empty<CurrentPriceDto>();
 
     private DrillList<ProductVariantGraphDto>? _variantDrill;

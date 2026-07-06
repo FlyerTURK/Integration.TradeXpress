@@ -39,22 +39,34 @@ public class ProductRecipeCostCalculator : ITransientDependency
         ArgumentNullException.ThrowIfNull(naturalUnitSellByUnitId);
 
         var results = new List<RecipeLineCost>(lines.Count);
-        decimal net = 0m;
+        var lineCosts = new decimal?[lines.Count];   // her satırın GÖSTERİLEN maliyeti (null ⇔ MissingRate)
+        decimal net = 0m;                             // devreden = delta toplamı (= gerçek koşan toplam)
         var anyMissing = false;
+        var anyMissingSoFar = false;
 
-        foreach (var line in lines)
+        // Satırlar LineOrder sırasında; Hizmet (türevsel) satır işlenirken üsttekilerin maliyetleri (lineCosts) ve
+        // devreden (net) hazır. Her satırın maliyeti = KENDİ katkısı (fiziki: gerçek maliyet; Hizmet: uygulanan
+        // bedel/fee) → net = basit toplam. Ara Toplam = o satır DAHİL koşan toplam.
+        for (var i = 0; i < lines.Count; i++)
         {
-            var result = ComputeLine(line, naturalUnitSellByUnitId);
-            results.Add(result);
+            var line = lines[i];
+            var result = line.ComponentType == RecipeComponentType.Service
+                ? ComputeDerived(line, i, lineCosts, net, anyMissingSoFar, naturalUnitSellByUnitId)
+                : ComputeLine(line, naturalUnitSellByUnitId);
 
             if (result.MissingRate)
             {
                 anyMissing = true;
+                anyMissingSoFar = true;
+                lineCosts[i] = null;
             }
-            else if (result.Cost is { } cost)
+            else
             {
-                net += cost;
+                lineCosts[i] = result.Cost;
+                net += result.Cost!.Value;
             }
+
+            results.Add(result with { RunningSubtotal = FinancialRounding.RoundAmount(net) });
         }
 
         return new RecipeCostResult(results, FinancialRounding.RoundAmount(net), countryCurrencyCode, anyMissing);
@@ -138,6 +150,108 @@ public class ProductRecipeCostCalculator : ITransientDependency
     {
         return family is ProcessType.Metal or ProcessType.Scrap or ProcessType.Future;
     }
+
+    /// <summary>Hizmet (türevsel) satırın maliyeti — devralınan taban (AllAbove: devreden <paramref name="runningNet"/>;
+    /// SelectedLines: seçili üst satırların maliyet toplamı) üstüne işlem. Taban güvenilmezse
+    /// (AllAbove'da üstte kur-eksik satır; SelectedLines'ta boş/ileri-öz/eksik-kur referans) MissingRate.
+    /// Dönen <see cref="RecipeLineCost.Cost"/> = uygulanan bedel (fee = sonuç − taban); <see cref="RecipeLineCost.AppliedBase"/> = taban.</summary>
+    private static RecipeLineCost ComputeDerived(
+        RecipeLineCostInput line, int index, decimal?[] lineCosts, decimal runningNet, bool anyMissingSoFar,
+        IReadOnlyDictionary<Guid, decimal> sellByUnit)
+    {
+        decimal baseValue;
+        if (line.DerivedBaseMode == RecipeDerivedBaseMode.SelectedLines)
+        {
+            if (line.DerivedSourceOrdinals is not { Count: > 0 } ordinals)
+            {
+                return new RecipeLineCost(null, MissingRate: true, 0m, 0m);
+            }
+
+            decimal sum = 0m;
+            foreach (var ordinal in ordinals)
+            {
+                // Yalnız kendinden ÖNCEKİ (ordinal < index) + kur-eksik olmayan satırlar → aksi MissingRate (fail-fast).
+                if (ordinal < 0 || ordinal >= index || lineCosts[ordinal] is not { } cost)
+                {
+                    return new RecipeLineCost(null, MissingRate: true, 0m, 0m);
+                }
+
+                sum += cost;
+            }
+
+            baseValue = sum;
+        }
+        else
+        {
+            // AllAbove: devreden. Üstte kur-eksik bir satır varsa taban sessizce eksik olur → türev de MissingRate.
+            if (anyMissingSoFar)
+            {
+                return new RecipeLineCost(null, MissingRate: true, 0m, 0m);
+            }
+
+            baseValue = runningNet;
+        }
+
+        // Add = mutlak tutar (operand @ opsiyonel birim → ülke birimine rebase). Diğer işlemler tabana ORANLA.
+        if (line.DerivedOperation == RecipeDerivedOperation.Add)
+        {
+            var amount = line.DerivedOperand;
+            if (line.PayUnitId is { } addUnit)
+            {
+                if (!sellByUnit.TryGetValue(addUnit, out var addSell))
+                {
+                    return new RecipeLineCost(null, MissingRate: true, 0m, 0m, AppliedBase: baseValue);
+                }
+
+                amount = line.DerivedOperand * addSell;
+            }
+
+            return new RecipeLineCost(FinancialRounding.RoundAmount(amount), MissingRate: false, 0m, 0m, AppliedBase: baseValue);
+        }
+
+        if (!TryApplyDerivedOperation(baseValue, line.DerivedOperation, line.DerivedOperand, out var resultValue))
+        {
+            return new RecipeLineCost(null, MissingRate: true, 0m, 0m, AppliedBase: baseValue);
+        }
+
+        // Satır maliyeti = UYGULANAN BEDEL (fee = sonuç − taban); net'e bu eklenir (taban zaten devreden içinde
+        // sayılı → çift sayım yok). AppliedBase = "Uygulanacak Bedel" kolonu (işlemin tabanı).
+        var fee = FinancialRounding.RoundAmount(resultValue - baseValue);
+        return new RecipeLineCost(fee, MissingRate: false, 0m, 0m, AppliedBase: baseValue);
+    }
+
+    /// <summary>Devralınan tabana işlemi uygular (delta modeli): Add=taban+operand, Multiply=taban×operand,
+    /// Percent=taban×(1+operand/100), GrossUp=taban÷(1−operand/100). GrossUp'ta payda ≤ 0 ise BAŞARISIZ
+    /// (fail-safe; domain [0,100) zorlar ama calculator saf/savunmalı kalır).</summary>
+    private static bool TryApplyDerivedOperation(
+        decimal baseValue, RecipeDerivedOperation? operation, decimal operand, out decimal result)
+    {
+        switch (operation)
+        {
+            case RecipeDerivedOperation.Add:
+                result = baseValue + operand;
+                return true;
+            case RecipeDerivedOperation.Multiply:
+                result = baseValue * operand;
+                return true;
+            case RecipeDerivedOperation.Percent:
+                result = baseValue * (1m + operand / 100m);
+                return true;
+            case RecipeDerivedOperation.GrossUp:
+                var denominator = 1m - operand / 100m;
+                if (denominator <= 0m)
+                {
+                    result = 0m;
+                    return false;
+                }
+
+                result = baseValue / denominator;
+                return true;
+            default:
+                result = 0m;
+                return false;
+        }
+    }
 }
 
 /// <summary>Bir reçete satırının hesaba giren TÜM verisi — AppService katalogdan (StableQuantity/EntryPrice/
@@ -158,11 +272,20 @@ public sealed record RecipeLineCostInput(
     Guid? PayUnitId,         // karşı bacak birimi
     bool LaborByQuantity,    // metal: işçilik adet-bazlı mı (Metal.LaborType==Quantity)
     decimal? ManualAmount,
-    Guid? ManualUnitId);
+    Guid? ManualUnitId,
+    // ── türev/devralan satır (3b) — yalnız ComponentType == Derived'da dolu; aksi null/0/boş ──
+    RecipeDerivedBaseMode? DerivedBaseMode = null,
+    RecipeDerivedOperation? DerivedOperation = null,
+    decimal DerivedOperand = 0m,
+    IReadOnlyList<int>? DerivedSourceOrdinals = null);
 
-/// <summary>Tek satırın hesap sonucu — <see cref="Cost"/> null ⇔ <see cref="MissingRate"/>.
-/// <see cref="Total"/>/<see cref="PayTotal"/> türetilmiş görüntü değerleri (doğal/karşı birimde) — daima dolu.</summary>
-public sealed record RecipeLineCost(decimal? Cost, bool MissingRate, decimal Total, decimal PayTotal);
+/// <summary>Tek satırın hesap sonucu — <see cref="Cost"/> (Satır Maliyeti = satırın katkısı; null ⇔ <see cref="MissingRate"/>).
+/// <see cref="Total"/>/<see cref="PayTotal"/> fiziki satırın doğal/karşı birim görüntü değerleri. <see cref="AppliedBase"/> =
+/// Hizmet satırının uyguladığı taban ("Uygulanacak Bedel"; fiziki satırda null). <see cref="RunningSubtotal"/> = o satır
+/// DAHİL koşan toplam ("Ara Toplam", ülke birimi; Compute doldurur).</summary>
+public sealed record RecipeLineCost(
+    decimal? Cost, bool MissingRate, decimal Total, decimal PayTotal,
+    decimal? AppliedBase = null, decimal? RunningSubtotal = null);
 
 /// <summary>Reçetenin net-maliyet sonucu — satır tutarları + net toplam + ülke birim kodu + eksik-kur bayrağı.</summary>
 public sealed record RecipeCostResult(

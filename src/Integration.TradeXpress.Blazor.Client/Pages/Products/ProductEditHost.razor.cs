@@ -8,6 +8,7 @@ using Integration.TradeXpress.Jewelries;
 using Integration.TradeXpress.Metals;
 using Integration.TradeXpress.Products;
 using Integration.TradeXpress.Scraps;
+using Integration.TradeXpress.Services;
 using Integration.TradeXpress.Stones;
 using Microsoft.AspNetCore.Components;
 using Volo.Abp;
@@ -33,6 +34,7 @@ public partial class ProductEditHost
     [Inject] protected IFutureAppService FutureAppService { get; set; } = default!;
     [Inject] protected IJewelryAppService JewelryAppService { get; set; } = default!;
     [Inject] protected IStoneAppService StoneAppService { get; set; } = default!;
+    [Inject] protected IServiceAppService ServiceAppService { get; set; } = default!;
     [Inject] protected IEffectivePriceAppService EffectivePriceAppService { get; set; } = default!;
 
     private ICommitCoordinator<ProductGetDto, ProductListDto, Guid, ProductListRequestDto>? _coordinator;
@@ -44,6 +46,7 @@ public partial class ProductEditHost
     protected IReadOnlyList<FutureListDto> Futures { get; private set; } = Array.Empty<FutureListDto>();
     protected IReadOnlyList<JewelryListDto> Jewelries { get; private set; } = Array.Empty<JewelryListDto>();
     protected IReadOnlyList<StoneListDto> Stones { get; private set; } = Array.Empty<StoneListDto>();
+    protected IReadOnlyList<ServiceListDto> Services { get; private set; } = Array.Empty<ServiceListDto>();
     protected IReadOnlyList<CurrentPriceDto> Units { get; private set; } = Array.Empty<CurrentPriceDto>();
 
     protected override async Task OnInitializedAsync()
@@ -63,6 +66,7 @@ public partial class ProductEditHost
         Futures = await FutureAppService.GetPickerListAsync();
         Jewelries = await JewelryAppService.GetPickerListAsync();
         Stones = await StoneAppService.GetPickerListAsync();
+        Services = await ServiceAppService.GetPickerListAsync();
         Units = await EffectivePriceAppService.GetCurrentPricesAsync();
     }
 

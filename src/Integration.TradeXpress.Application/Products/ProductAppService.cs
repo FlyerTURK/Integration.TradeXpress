@@ -368,21 +368,77 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
             await _recipeLineRepository.DeleteAsync(l.Id, autoSave: true);
         }
 
-        foreach (var l in lines.Where(x => !x.IsDeleted))
+        // Kalanları client sırasında (LineOrder) sırala + 0..n-1 YENİDEN NUMARALA → benzersiz/deterministik pozisyon.
+        // Türev satırın "yalnız üsttekiler" referans filtresi + calculator ordinal'i bu sıraya dayanır.
+        var survivors = lines.Where(x => !x.IsDeleted).OrderBy(x => x.LineOrder).ToList();
+        for (var i = 0; i < survivors.Count; i++)
         {
+            survivors[i].LineOrder = i;
+        }
+
+        ValidateDerivedReferences(survivors);
+
+        // 1. geçiş: TÜM satırları insert/update (skaler alanlar; türev SelectedLines kaynakları HARİÇ) →
+        // ClientKey→Id (+ ClientKey→entity) sözlükleri (SaveAttributesAsync valueIdByClientKey deseni).
+        var idByClientKey = new Dictionary<Guid, Guid>();
+        var entityByClientKey = new Dictionary<Guid, ProductVariantRecipeLine>();
+        foreach (var l in survivors)
+        {
+            ProductVariantRecipeLine entity;
             if (l.Id == Guid.Empty)
             {
-                var entity = new ProductVariantRecipeLine(variant.CompanyId, variant.Id, l.ComponentType, l.LineOrder);
+                entity = new ProductVariantRecipeLine(variant.CompanyId, variant.Id, l.ComponentType, l.LineOrder);
                 ApplyRecipeLineFields(entity, l);
                 await _recipeLineRepository.InsertAsync(entity, autoSave: true);
                 l.Id = entity.Id;
             }
             else
             {
-                var entity = await _recipeLineRepository.GetAsync(l.Id);
+                entity = await _recipeLineRepository.GetAsync(l.Id);
                 entity.SetOrder(l.LineOrder);
                 ApplyRecipeLineFields(entity, l);
                 await _recipeLineRepository.UpdateAsync(entity, autoSave: true);
+            }
+
+            idByClientKey[l.ClientKey] = l.Id;
+            entityByClientKey[l.ClientKey] = entity;
+        }
+
+        // 2. geçiş: türev SelectedLines satırlarının kaynak ClientKey'lerini çözülmüş Id CSV'sine çevir + persist
+        // (kaynak Id'ler artık 1. geçişten hazır). AllAbove satırlarının kaynağı yok (SetDerived null'a düşürdü).
+        foreach (var l in survivors.Where(x => x.ComponentType == RecipeComponentType.Service
+            && x.DerivedBaseMode == RecipeDerivedBaseMode.SelectedLines))
+        {
+            var csv = string.Join('|', l.DerivedSourceKeys.Select(k => idByClientKey[k].ToString()));
+            var entity = entityByClientKey[l.ClientKey];
+            entity.SetDerivedSources(csv);
+            await _recipeLineRepository.UpdateAsync(entity, autoSave: true);
+        }
+    }
+
+    /// <summary>Türev satır referans-bütünlüğü (kaydetmeden ÖNCE, fail-fast): SelectedLines satırının seçili
+    /// kaynakları BOŞ olamaz, hepsi mevcut (silinmemiş) KARDEŞ satır olmalı ve yalnız kendinden ÖNCEKİ satırları
+    /// (küçük LineOrder) referanslamalı → döngüsüz + kendine-referans yok. AllAbove kaynak gerektirmez.
+    /// <paramref name="survivors"/>'ın LineOrder'ı 0..n-1 yeniden-numaralı (benzersiz pozisyon).</summary>
+    private static void ValidateDerivedReferences(List<ProductRecipeLineGraphDto> survivors)
+    {
+        var orderByClientKey = survivors.ToDictionary(x => x.ClientKey, x => x.LineOrder);
+
+        foreach (var l in survivors.Where(x => x.ComponentType == RecipeComponentType.Service
+            && x.DerivedBaseMode == RecipeDerivedBaseMode.SelectedLines))
+        {
+            if (l.DerivedSourceKeys == null || l.DerivedSourceKeys.Count == 0)
+            {
+                throw new BusinessException("TradeXpress:ProductRecipeLine:DerivedNeedsSelection");
+            }
+
+            foreach (var key in l.DerivedSourceKeys)
+            {
+                if (!orderByClientKey.TryGetValue(key, out var sourceOrder) || sourceOrder >= l.LineOrder)
+                {
+                    // kaynak yok (silinmiş/yabancı) YA DA kendini/sonrasını referanslıyor → döngü/geçersiz.
+                    throw new BusinessException("TradeXpress:ProductRecipeLine:DerivedRefMustBeUpstream");
+                }
             }
         }
     }
@@ -406,7 +462,14 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         }
         else
         {
-            entity.SetServiceOrManual(l.CommodityId, l.ManualAmount, l.ManualUnitId);
+            // Hizmet satırı: hizmet referansı (etiket) + türevsel bedel kuralı (taban modu + işlem + operand);
+            // SelectedLines kaynakları AYRICA 2. geçişte SetDerivedSources ile (Id'ler o aşamada çözülür).
+            entity.SetService(
+                l.CommodityId,
+                l.DerivedBaseMode.GetValueOrDefault(RecipeDerivedBaseMode.AllAbove),
+                l.DerivedOperation.GetValueOrDefault(RecipeDerivedOperation.Percent),
+                l.DerivedOperand,
+                l.PayUnitId);
         }
 
         entity.SetDescription(l.Description);
@@ -681,8 +744,14 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
                     ManualAmount = r.ManualAmount ?? 0m,
                     ManualUnitId = r.ManualUnitId,
                     Description = r.Description,
+                    DerivedBaseMode = r.DerivedBaseMode,
+                    DerivedOperation = r.DerivedOperation,
+                    DerivedOperand = r.DerivedOperand,
                 }).ToList(),
         }).ToList();
+
+        // Türev SelectedLines kaynak Id'lerini bu oturumun taze ClientKey'lerine çevir (UI round-trip) — CANLI hesaptan ÖNCE.
+        ResolveDerivedSourceKeys(variantDtos, recipeLines);
 
         // CANLI net maliyet — değerleme dict'i ÜRÜN başına BİR KEZ çekilir, tüm varyant/satırlarda yeniden kullanılır.
         await PopulateRecipeCostsAsync(variantDtos);
@@ -709,6 +778,42 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
             }).ToList(),
             Variants = variantDtos,
         };
+    }
+
+    /// <summary>Türev SelectedLines satırlarının persist edilmiş kaynak-Id CSV'sini, bu oturumda üretilmiş taze
+    /// ClientKey'lere çevirir (UI round-trip + canlı hesap ordinal çözümü için). Kaydetme referans-bütünlüğü
+    /// sağladığından Id'ler kardeş satırlara çözülür; çözülemeyen (teorik) parça sessizce atlanır.</summary>
+    private static void ResolveDerivedSourceKeys(
+        List<ProductVariantGraphDto> variants, List<ProductVariantRecipeLine> entities)
+    {
+        var sourceCsvById = entities
+            .Where(e => e.ComponentType == RecipeComponentType.Service && !string.IsNullOrEmpty(e.DerivedSourceLineIds))
+            .ToDictionary(e => e.Id, e => e.DerivedSourceLineIds!);
+        if (sourceCsvById.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var variant in variants)
+        {
+            var clientKeyById = variant.RecipeLines.ToDictionary(l => l.Id, l => l.ClientKey);
+            foreach (var l in variant.RecipeLines.Where(x => x.ComponentType == RecipeComponentType.Service))
+            {
+                if (!sourceCsvById.TryGetValue(l.Id, out var csv))
+                {
+                    continue;
+                }
+
+                l.DerivedSourceKeys = csv
+                    .Split('|', StringSplitOptions.RemoveEmptyEntries)
+                    .Select(part => Guid.TryParse(part, out var srcId) && clientKeyById.TryGetValue(srcId, out var ck)
+                        ? ck
+                        : (Guid?)null)
+                    .Where(ck => ck.HasValue)
+                    .Select(ck => ck!.Value)
+                    .ToList();
+            }
+        }
     }
 
     // ── CANLI reçete maliyeti (design-time; ledger'a YAZMAZ) ─────────────────────────────────────────
@@ -744,7 +849,14 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
                 continue;
             }
 
-            var inputs = variant.RecipeLines.Select(l => BuildCostInput(l, catalog)).ToList();
+            // Türev SelectedLines ordinal çözümü için ClientKey→pozisyon (satırlar LineOrder sırasında).
+            var ordinalByClientKey = new Dictionary<Guid, int>();
+            for (var idx = 0; idx < variant.RecipeLines.Count; idx++)
+            {
+                ordinalByClientKey[variant.RecipeLines[idx].ClientKey] = idx;
+            }
+
+            var inputs = variant.RecipeLines.Select(l => BuildCostInput(l, catalog, ordinalByClientKey)).ToList();
             var result = _recipeCostCalculator.Compute(inputs, sellByUnit, countryCode);
 
             for (var i = 0; i < variant.RecipeLines.Count; i++)
@@ -755,6 +867,8 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
                 line.LineCostMissingRate = r.MissingRate;
                 line.Total = r.Total;
                 line.PayTotal = r.PayTotal;
+                line.AppliedBase = r.AppliedBase;
+                line.RunningSubtotal = r.RunningSubtotal;
                 line.MainUnitCode = line.ValuationUnitId is { } mu ? codeByUnit.GetValueOrDefault(mu, string.Empty) : string.Empty;
                 line.PayUnitCode = line.PayUnitId is { } pu ? codeByUnit.GetValueOrDefault(pu, string.Empty) : string.Empty;
             }
@@ -766,7 +880,8 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
 
     /// <summary>Graf düğümünden calculator girdisi kurar — katalog canlı verisi (metal adet→gram, parasal giriş
     /// fiyatı) <paramref name="catalog"/>'dan çözülür; eksikse 0 (satır sonra MissingRate/0 verir).</summary>
-    private static RecipeLineCostInput BuildCostInput(ProductRecipeLineGraphDto l, RecipeCatalogData catalog)
+    private static RecipeLineCostInput BuildCostInput(
+        ProductRecipeLineGraphDto l, RecipeCatalogData catalog, Dictionary<Guid, int> ordinalByClientKey)
     {
         var isQuantity = false;
         var stableQuantity = 0m;
@@ -794,6 +909,12 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
             }
         }
 
+        // Türev SelectedLines: seçili kaynak ClientKey'leri → pozisyon ordinal'leri (calculator upstream doğrular).
+        var derivedOrdinals = l.ComponentType == RecipeComponentType.Service
+            && l.DerivedBaseMode == RecipeDerivedBaseMode.SelectedLines
+            ? l.DerivedSourceKeys.Where(ordinalByClientKey.ContainsKey).Select(k => ordinalByClientKey[k]).ToList()
+            : new List<int>();
+
         return new RecipeLineCostInput(
             l.ComponentType,
             l.CommodityProcessType,
@@ -810,7 +931,11 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
             l.PayUnitId,
             laborByQuantity,
             l.ManualAmount,
-            l.ManualUnitId);
+            l.ManualUnitId,
+            l.DerivedBaseMode,
+            l.DerivedOperation,
+            l.DerivedOperand,
+            derivedOrdinals);
     }
 
     /// <summary>Reçetede geçen katalog kayıtlarının hesaba giren canlı verisini (metal adet→gram; parasal giriş

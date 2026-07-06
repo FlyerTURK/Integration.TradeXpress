@@ -676,6 +676,8 @@
     "RecipeLine": "Recipe Line",
     "NetCost": "Net Cost",
     "LineCost": "Line Cost",
+    "AppliedBase": "Applied Amount",
+    "RunningSubtotal": "Subtotal",
     "ComponentType": "Type",
     "ManualCost": "Manual Cost",
     "ManualAmount": "Amount",
@@ -688,6 +690,20 @@
     "AddManualCost": "Add Manual Cost",
     "MissingRate": "No rate",
     "RecipeMissingRate": "Some lines are missing a rate; net cost is partial.",
-    "TradeXpress:ProductRecipeLine:OrderMustBeNonNegative": "Line order cannot be negative."
+    "TradeXpress:ProductRecipeLine:OrderMustBeNonNegative": "Line order cannot be negative.",
+    "TradeXpress:ProductRecipeLine:GrossUpRateOutOfRange": "Gross-up rate must be between 0 and 100 (exclusive).",
+    "TradeXpress:ProductRecipeLine:DerivedNeedsSelection": "Select at least one source line in 'Selected lines' mode.",
+    "TradeXpress:ProductRecipeLine:DerivedRefMustBeUpstream": "A derived line may only reference lines above it.",
+    "AddDerived": "Add Derived Line",
+    "DerivedBaseMode": "Inherited Base",
+    "DerivedOperation": "Operation",
+    "DerivedOperand": "Value",
+    "Enum:RecipeComponentType:Derived": "Derived",
+    "Enum:RecipeDerivedBaseMode:AllAbove": "All Lines Above",
+    "Enum:RecipeDerivedBaseMode:SelectedLines": "Selected Lines",
+    "Enum:RecipeDerivedOperation:Add": "Add",
+    "Enum:RecipeDerivedOperation:Multiply": "Multiply",
+    "Enum:RecipeDerivedOperation:Percent": "Percent",
+    "Enum:RecipeDerivedOperation:GrossUp": "Gross Up"
   }
 }

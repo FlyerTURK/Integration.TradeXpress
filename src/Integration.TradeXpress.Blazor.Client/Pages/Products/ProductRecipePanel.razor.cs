@@ -10,6 +10,7 @@ using Integration.TradeXpress.Jewelries;
 using Integration.TradeXpress.Metals;
 using Integration.TradeXpress.Products;
 using Integration.TradeXpress.Scraps;
+using Integration.TradeXpress.Services;
 using Integration.TradeXpress.Stones;
 using Integration.TradeXpress.Vouchers;
 using Microsoft.AspNetCore.Components;
@@ -33,7 +34,9 @@ public partial class ProductRecipePanel
     [Parameter] public IReadOnlyList<FutureListDto> Futures { get; set; } = Array.Empty<FutureListDto>();
     [Parameter] public IReadOnlyList<JewelryListDto> Jewelries { get; set; } = Array.Empty<JewelryListDto>();
     [Parameter] public IReadOnlyList<StoneListDto> Stones { get; set; } = Array.Empty<StoneListDto>();
-    /// <summary>Birim lookup (işçilik/bedel/manuel birimi) — CurrentPriceDto (Id + kod).</summary>
+    /// <summary>Hizmet katalogu (etiket/kimlik için — Service entity'sine dokunulmaz).</summary>
+    [Parameter] public IReadOnlyList<ServiceListDto> Services { get; set; } = Array.Empty<ServiceListDto>();
+    /// <summary>Birim lookup (işçilik/bedel birimi) — CurrentPriceDto (Id + kod).</summary>
     [Parameter] public IReadOnlyList<CurrentPriceDto> Units { get; set; } = Array.Empty<CurrentPriceDto>();
 
     /// <summary>Varyantın canlı net maliyeti (host projeksiyonu; salt görüntü).</summary>
@@ -47,6 +50,13 @@ public partial class ProductRecipePanel
     private record PaymentItem(ProcessPaymentType Value, string Label);
     private List<PaymentItem> _paymentItems = new();
 
+    // Türev/devralan satır (3b) seçenekleri.
+    private record DerivedBaseItem(RecipeDerivedBaseMode Value, string Label);
+    private record DerivedOperationItem(RecipeDerivedOperation Value, string Label);
+    private record DerivedSourceItem(Guid ClientKey, int Nr, string Code, string Cost);
+    private List<DerivedBaseItem> _baseModeItems = new();
+    private List<DerivedOperationItem> _operationItems = new();
+
     protected override void OnInitialized()
     {
         base.OnInitialized();
@@ -54,6 +64,18 @@ public partial class ProductRecipePanel
         {
             new(ProcessPaymentType.Normal, L["Enum:ProcessPaymentType:Normal"].Value),
             new(ProcessPaymentType.WithCurrency, L["Enum:ProcessPaymentType:WithCurrency"].Value),
+        };
+        _baseModeItems = new()
+        {
+            new(RecipeDerivedBaseMode.AllAbove, L["Enum:RecipeDerivedBaseMode:AllAbove"].Value),
+            new(RecipeDerivedBaseMode.SelectedLines, L["Enum:RecipeDerivedBaseMode:SelectedLines"].Value),
+        };
+        _operationItems = new()
+        {
+            new(RecipeDerivedOperation.Add, L["Enum:RecipeDerivedOperation:Add"].Value),
+            new(RecipeDerivedOperation.Multiply, L["Enum:RecipeDerivedOperation:Multiply"].Value),
+            new(RecipeDerivedOperation.Percent, L["Enum:RecipeDerivedOperation:Percent"].Value),
+            new(RecipeDerivedOperation.GrossUp, L["Enum:RecipeDerivedOperation:GrossUp"].Value),
         };
     }
 
@@ -96,6 +118,10 @@ public partial class ProductRecipePanel
             Description = s.Description,
             LineCost = s.LineCost,
             LineCostMissingRate = s.LineCostMissingRate,
+            DerivedBaseMode = s.DerivedBaseMode,
+            DerivedOperation = s.DerivedOperation,
+            DerivedOperand = s.DerivedOperand,
+            DerivedSourceKeys = new List<Guid>(s.DerivedSourceKeys),
         };
     }
 
@@ -119,6 +145,10 @@ public partial class ProductRecipePanel
         target.ManualAmount = d.ManualAmount;
         target.ManualUnitId = d.ManualUnitId;
         target.Description = d.Description;
+        target.DerivedBaseMode = d.DerivedBaseMode;
+        target.DerivedOperation = d.DerivedOperation;
+        target.DerivedOperand = d.DerivedOperand;
+        target.DerivedSourceKeys = new List<Guid>(d.DerivedSourceKeys);
     }
 
     /// <summary>Seri giriş draft'ı — uçucu alanlar sıfır (ResetVolatileFields paritesi:
@@ -135,6 +165,8 @@ public partial class ProductRecipePanel
         next.PayTotal = 0m;
         next.ManualAmount = 0m;
         next.Description = null;
+        next.DerivedOperand = 0m;              // türev: seri girişte operand + seçim sıfırlanır (tip/mod korunur)
+        next.DerivedSourceKeys = new List<Guid>();
         if (SelectedMetal(next) is { IsQuantity: true, StableQuantity: > 0m })
         {
             next.Quantity = 1m;   // adetli metalde panel default'u (Miktar kilitli, adet 1'den başlar)
@@ -160,14 +192,29 @@ public partial class ProductRecipePanel
         SelectFirstCommodity(family);
     }
 
-    private void OpenServiceOrManualDraft(RecipeComponentType type)
+    /// <summary>Hizmet satırı draft'ı — ilk hizmet seçili (etiket) + varsayılan taban Tüm Üst Satırlar + işlem Yüzde.
+    /// Türevsel bedel kuralı satırda; hizmet yalnız kimlik/etiket (Service katalog entity'sine dokunulmaz).</summary>
+    private void OpenServiceDraft()
     {
         OpenDraft(new ProductRecipeLineGraphDto
         {
-            ComponentType = type,
+            ComponentType = RecipeComponentType.Service,
             LineOrder = NextOrder(),
-            ManualUnitId = Units.FirstOrDefault()?.Id,   // birim boş açılmasın (ilk birim)
+            CommodityId = Services.FirstOrDefault()?.Id,
+            DerivedBaseMode = RecipeDerivedBaseMode.AllAbove,
+            DerivedOperation = RecipeDerivedOperation.Percent,
+            DerivedOperand = 0m,
         });
+    }
+
+    private void OnServiceSelected(Guid? id)
+    {
+        if (Draft is not { } d)
+        {
+            return;
+        }
+
+        d.CommodityId = id;
     }
 
     /// <summary>Draft açılışında ailenin ilk katalog kaydını seçer (boş combo bırakmaz); seçim handler'ı
@@ -370,26 +417,6 @@ public partial class ProductRecipePanel
         d.PayUnitId = value;
     }
 
-    private void OnManualAmountChanged(decimal value)
-    {
-        if (Draft is not { } d)
-        {
-            return;
-        }
-
-        d.ManualAmount = value;
-    }
-
-    private void OnManualUnitChanged(Guid? value)
-    {
-        if (Draft is not { } d)
-        {
-            return;
-        }
-
-        d.ManualUnitId = value;
-    }
-
     private void OnDescriptionChanged(string? value)
     {
         if (Draft is not { } d)
@@ -398,6 +425,51 @@ public partial class ProductRecipePanel
         }
 
         d.Description = value;
+    }
+
+    // ── türev/devralan satır alan değişimleri ───────────────────────────────────────────────────────
+    private void OnDerivedBaseModeChanged(RecipeDerivedBaseMode value)
+    {
+        if (Draft is not { } d)
+        {
+            return;
+        }
+
+        d.DerivedBaseMode = value;
+        if (value == RecipeDerivedBaseMode.AllAbove)
+        {
+            d.DerivedSourceKeys = new List<Guid>();   // devreden taban → seçim anlamsız, temizle
+        }
+    }
+
+    private void OnDerivedOperationChanged(RecipeDerivedOperation value)
+    {
+        if (Draft is not { } d)
+        {
+            return;
+        }
+
+        d.DerivedOperation = value;
+    }
+
+    private void OnDerivedOperandChanged(decimal value)
+    {
+        if (Draft is not { } d)
+        {
+            return;
+        }
+
+        d.DerivedOperand = value;
+    }
+
+    private void OnDerivedSourcesChanged(IEnumerable<Guid> value)
+    {
+        if (Draft is not { } d)
+        {
+            return;
+        }
+
+        d.DerivedSourceKeys = value.ToList();
     }
 
     // ── Katalog seçimi → draft default'ları (OnMetalChanged paritesi) ───────────────────────────────
@@ -564,7 +636,6 @@ public partial class ProductRecipePanel
         return l.ComponentType switch
         {
             RecipeComponentType.Service => L["Service"].Value,
-            RecipeComponentType.ManualCost => L["ManualCost"].Value,
             _ => l.CommodityProcessType switch
             {
                 ProcessType.Metal => L["Metal"].Value,
@@ -575,6 +646,52 @@ public partial class ProductRecipePanel
                 _ => L["ComponentType"].Value,
             },
         };
+    }
+
+    // ── türev/devralan satır görünüm yardımcıları ───────────────────────────────────────────────────
+
+    /// <summary>SelectedLines TagBox seçenekleri — YALNIZ kendinden önceki (küçük LineOrder) silinmemiş satırlar
+    /// (döngüsüzlük UI hattı; kendini/sonrasını referanslayamaz).</summary>
+    private IEnumerable<DerivedSourceItem> UpstreamLines(ProductRecipeLineGraphDto d)
+    {
+        return Lines
+            .Where(x => !x.IsDeleted && x.ClientKey != d.ClientKey && x.LineOrder < d.LineOrder)
+            .OrderBy(x => x.LineOrder)
+            .Select(x => new DerivedSourceItem(x.ClientKey, x.LineOrder, ShortCodeOf(x), LineCostText(x)));
+    }
+
+    /// <summary>Satırın KISA kodu (tag + dropdown kolonu için) — Hizmet: hizmet kodu; fiziki: emtia kodu.</summary>
+    private string ShortCodeOf(ProductRecipeLineGraphDto l)
+    {
+        return l.ComponentType == RecipeComponentType.Service ? ServiceCodeOf(l) : CommodityCodeOf(l);
+    }
+
+    /// <summary>Hizmet satırının grid etiketi — hizmet kodu (seçiliyse) + türevsel bedel özeti.</summary>
+    private string ServiceLabel(ProductRecipeLineGraphDto l)
+    {
+        var code = ServiceCodeOf(l);
+        var summary = DerivedSummary(l);
+        return string.IsNullOrEmpty(code) ? summary : $"{code} · {summary}";
+    }
+
+    /// <summary>Seçili hizmetin kodu (katalog etiketi) — seçili değilse boş.</summary>
+    private string ServiceCodeOf(ProductRecipeLineGraphDto l)
+    {
+        return l.CommodityId is { } id ? Services.FirstOrDefault(s => s.Id == id)?.Code ?? string.Empty : string.Empty;
+    }
+
+    /// <summary>Hizmet satırının özeti — "taban · işlem operand" (ör. "Tüm Üst Satırlar · Brütleştir 5,1").</summary>
+    private string DerivedSummary(ProductRecipeLineGraphDto l)
+    {
+        var baseLabel = _baseModeItems.FirstOrDefault(x => x.Value == l.DerivedBaseMode)?.Label ?? string.Empty;
+        var opLabel = _operationItems.FirstOrDefault(x => x.Value == l.DerivedOperation)?.Label ?? string.Empty;
+        return $"{baseLabel} · {opLabel} {l.DerivedOperand:0.#####}";
+    }
+
+    /// <summary>Hizmet satırlarına görsel işaret (italik + mavi) — grid'de fiziki satırlardan ayırt eder.</summary>
+    private static string DerivedCellStyle(ProductRecipeLineGraphDto l)
+    {
+        return l.ComponentType == RecipeComponentType.Service ? "font-style:italic; color:#2563eb;" : string.Empty;
     }
 
     /// <summary>Panel şerit başlığı — süreç paneli StripText paritesi: tip adı (+ ödeme tipi, metal-bacaklıda).</summary>
@@ -596,6 +713,11 @@ public partial class ProductRecipePanel
     // ── Grid hücre metinleri ────────────────────────────────────────────────────────────────────────
     private string CommodityCodeOf(ProductRecipeLineGraphDto l)
     {
+        if (l.ComponentType == RecipeComponentType.Service)
+        {
+            return ServiceLabel(l);   // hizmet kodu (etiket) + taban·işlem özeti
+        }
+
         if (l.CommodityId is not { } id)
         {
             return string.Empty;
@@ -614,12 +736,57 @@ public partial class ProductRecipePanel
 
     private string PaymentLabelOf(ProductRecipeLineGraphDto l)
     {
+        if (l.ComponentType == RecipeComponentType.Service)
+        {
+            return L["Enum:ProcessPaymentType:Normal"].Value;   // Hizmet satırı görünümde Normal
+        }
+
         if (l.ComponentType != RecipeComponentType.CatalogCommodity || !IsMetalLegged(l.CommodityProcessType))
         {
             return string.Empty;
         }
 
         return L[$"Enum:ProcessPaymentType:{l.PaymentType}"].Value;
+    }
+
+    /// <summary>Miktar (Amount) kolonu — fiziki: l.Amount; Hizmet: devralınan taban (Uygulanacak Bedel).</summary>
+    private string GridAmountText(ProductRecipeLineGraphDto l)
+    {
+        if (l.ComponentType == RecipeComponentType.Service)
+        {
+            return l.AppliedBase is { } b ? b.ToString("N2") : string.Empty;
+        }
+
+        return l.Amount.ToString("N2");
+    }
+
+    /// <summary>Değer (Factor) kolonu — fiziki: milyem (l.Factor); Hizmet: işlem operand'ı (değer).</summary>
+    private string GridFactorText(ProductRecipeLineGraphDto l)
+    {
+        var value = l.ComponentType == RecipeComponentType.Service ? l.DerivedOperand : l.Factor;
+        return value.ToString("N5");
+    }
+
+    /// <summary>İşlem Tipi kolonu — Hizmet: işlem adı (Ekle/Çarp/Yüzde/Brütleştir); fiziki: boş.</summary>
+    private string OperationLabel(ProductRecipeLineGraphDto l)
+    {
+        if (l.ComponentType != RecipeComponentType.Service)
+        {
+            return string.Empty;
+        }
+
+        return _operationItems.FirstOrDefault(x => x.Value == l.DerivedOperation)?.Label ?? string.Empty;
+    }
+
+    /// <summary>Fiyat kolonu (eski İşçilik) — fiziki metal: işçilik rate (PayFactor); Hizmet: boş.</summary>
+    private string GridPriceText(ProductRecipeLineGraphDto l)
+    {
+        if (l.ComponentType != RecipeComponentType.CatalogCommodity || !IsMetalLegged(l.CommodityProcessType))
+        {
+            return string.Empty;
+        }
+
+        return l.PayFactor.ToString("N5");
     }
 
     /// <summary>Ana bacak toplamı (doğal birimde) = Amount × Factor.</summary>
@@ -643,9 +810,10 @@ public partial class ProductRecipePanel
     /// tutar@fiyat-birimi; manuel/hizmet ManualAmount@birim.</summary>
     private string GridTotalText(ProductRecipeLineGraphDto l)
     {
-        if (l.ComponentType != RecipeComponentType.CatalogCommodity)
+        if (l.ComponentType == RecipeComponentType.Service)
         {
-            return $"{l.ManualAmount:N2} {UnitCodeOf(l.ManualUnitId)}".TrimEnd();
+            // Hizmet: Total = devralınan taban @ ülke birimi (ör. "1000,00 USD").
+            return l.AppliedBase is { } b ? $"{b:N2} {NetCostCurrency}".TrimEnd() : string.Empty;
         }
 
         if (IsMetalLegged(l.CommodityProcessType))
@@ -667,6 +835,11 @@ public partial class ProductRecipePanel
 
     private string GridPayTotalText(ProductRecipeLineGraphDto l)
     {
+        if (l.ComponentType == RecipeComponentType.Service)
+        {
+            return LineCostText(l);   // Hizmet: PayTotal kolonu = Satır Maliyeti (uygulanan bedel/fee)
+        }
+
         if (l.ComponentType != RecipeComponentType.CatalogCommodity || !IsMetalLegged(l.CommodityProcessType))
         {
             return string.Empty;
@@ -716,6 +889,12 @@ public partial class ProductRecipePanel
         }
 
         return l.LineCost is { } cost ? $"{cost:N2} {NetCostCurrency}" : string.Empty;
+    }
+
+    /// <summary>Ara Toplam — o satır dahil koşan toplam (ülke birimi).</summary>
+    private string RunningSubtotalText(ProductRecipeLineGraphDto l)
+    {
+        return l.RunningSubtotal is { } s ? $"{s:N2} {NetCostCurrency}" : string.Empty;
     }
 
     // Ortak panel stilleri (ProcessPanelStyles SSOT — süreç panelleriyle AYNI görünüm).

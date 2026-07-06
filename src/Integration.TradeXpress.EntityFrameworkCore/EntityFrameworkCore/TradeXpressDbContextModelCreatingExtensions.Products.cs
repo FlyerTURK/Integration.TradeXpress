@@ -91,6 +91,10 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
             b.Property(x => x.ManualAmount).HasPrecision(ProductRecipeConsts.AmountPrecision, ProductRecipeConsts.AmountScale);
             b.Property(x => x.Description).HasMaxLength(ProductRecipeConsts.DescriptionMaxLength);
 
+            // Türev/devralan satır (3b): operand N5; kaynak-Id CSV snapshot'ı; taban modu/işlem nullable enum (tinyint, convention).
+            b.Property(x => x.DerivedOperand).HasPrecision(ProductRecipeConsts.FactorPrecision, ProductRecipeConsts.FactorScale);
+            b.Property(x => x.DerivedSourceLineIds).HasMaxLength(ProductRecipeConsts.DerivedSourceLineIdsMaxLength);
+
             // Varyant reçetesi sıralı okuma (drill LineOrder sırası) + company güvenlik query-filter'ı.
             b.HasIndex(x => new { x.TenantId, x.ProductVariantId, x.LineOrder });
             b.HasIndex(x => new { x.TenantId, x.CompanyId });
