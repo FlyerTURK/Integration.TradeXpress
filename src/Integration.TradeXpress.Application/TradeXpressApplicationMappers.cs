@@ -6,6 +6,7 @@ using Integration.TradeXpress.Financials.Parities;
 using Integration.TradeXpress.Cashes;
 using Integration.TradeXpress.Services;
 using Integration.TradeXpress.SalesChannels;
+using Integration.TradeXpress.N11Categories;
 using Integration.TradeXpress.Futures;
 using Integration.TradeXpress.Scraps;
 using Integration.TradeXpress.Metals;
@@ -211,6 +212,14 @@ public partial class SalesChannelTrTrendyolToListDtoMapper : MapperBase<SalesCha
 {
     public override partial SalesChannelListDto Map(SalesChannelTrTrendyol source);
     public override partial void Map(SalesChannelTrTrendyol source, SalesChannelListDto destination);
+}
+
+// ── N11 kategori (host-global taksonomi) → ağaç düğüm DTO'su ──
+[Mapper]
+public partial class N11CategoryToTreeNodeDtoMapper : MapperBase<N11Category, N11CategoryTreeNodeDto>
+{
+    public override partial N11CategoryTreeNodeDto Map(N11Category source);
+    public override partial void Map(N11Category source, N11CategoryTreeNodeDto destination);
 }
 
 // ── Scrap (statik mapper → Mapperly; IsGlobal + FollowingUnitCode AppService'te/ApplyUnitCodes ile set) ──

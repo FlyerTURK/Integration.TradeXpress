@@ -85,6 +85,8 @@ public class TradeXpressDbContext :
     public DbSet<Integration.TradeXpress.Reports.BalanceSheet.BalanceSheetSnapshot> BalanceSheetSnapshots { get; set; } = null!;
     public DbSet<Integration.TradeXpress.Authorization.UserScopedGrant> UserScopedGrants { get; set; } = null!;
     public DbSet<Integration.TradeXpress.Settings.UserGridLayout> UserGridLayouts { get; set; } = null!;
+    // N11 kategori taksonomisi — HOST-GLOBAL (IMultiTenant değil; tüm tenant'lar paylaşır).
+    public DbSet<Integration.TradeXpress.N11Categories.N11Category> N11Categories { get; set; } = null!;
 
 
     #region Entities from the modules
@@ -162,6 +164,7 @@ public class TradeXpressDbContext :
         builder.ConfigureBalanceSheetSnapshots();
         builder.ConfigureUserScopedGrants();
         builder.ConfigureUserGridLayouts();
+        builder.ConfigureN11Categories();
 
         // Kod kolonlarına ordinal (BIN2) collation — YALNIZ SQL Server. C# ToUpperInvariant ile hizalanır,
         // Türkçe İ/i collation kaçağını DB tarafında da kapatır. Sqlite (test) BIN2'yi tanımaz → guard'la atlanır
