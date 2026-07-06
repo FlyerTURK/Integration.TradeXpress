@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using Integration.Framework.Blazor.Client.Services.Base;
 using Integration.TradeXpress.Financials.CurrencyUnits;
@@ -106,6 +107,44 @@ public partial class ProductEditHost
             // In-process BusinessException lokalize OLMAZ (Blazor Server) → kodu resource'tan çevir
             // (ör. TradeXpress:ProductAttribute:ValueRequired); anahtar yoksa kodun kendisi görünür.
             UiService.ShowErrorToast(L[bex.Code ?? bex.Message].Value);
+        }
+    }
+
+    // Reçete değişince CANLI maliyet (TAM KAYIT gerekmez): varyantın satırlarını PERSISTSİZ hesaplat → varyantı
+    // (NetCost + satır maliyet alanları) güncelle → yeniden çiz. Dumb layout servis çağırmaz; iş host'ta.
+    private async Task RecalcVariantCostAsync(ProductVariantGraphDto variant)
+    {
+        var result = await ProductAppService.CalculateRecipeCostAsync(
+            new ProductRecipeCostRequestDto { Lines = variant.RecipeLines });
+
+        variant.NetCost = result.NetCost;
+        variant.NetCostCurrency = result.NetCostCurrency;
+        variant.NetCostMissingRate = result.NetCostMissingRate;
+        ApplyLineCosts(variant.RecipeLines, result.Lines);
+        StateHasChanged();
+    }
+
+    // Hesaplanan satır maliyetlerini in-memory satırlara ClientKey ile uygular — in-process aynı nesne ise no-op
+    // (Blazor Server; PopulateRecipeCostsAsync satırları zaten yerinde günceller), aksi halde savunmalı kopya.
+    private static void ApplyLineCosts(
+        List<ProductRecipeLineGraphDto> target, List<ProductRecipeLineGraphDto> computed)
+    {
+        var byKey = computed.ToDictionary(l => l.ClientKey);
+        foreach (var l in target)
+        {
+            if (!byKey.TryGetValue(l.ClientKey, out var r) || ReferenceEquals(l, r))
+            {
+                continue;
+            }
+
+            l.LineCost = r.LineCost;
+            l.LineCostMissingRate = r.LineCostMissingRate;
+            l.Total = r.Total;
+            l.PayTotal = r.PayTotal;
+            l.AppliedBase = r.AppliedBase;
+            l.RunningSubtotal = r.RunningSubtotal;
+            l.MainUnitCode = r.MainUnitCode;
+            l.PayUnitCode = r.PayUnitCode;
         }
     }
 }

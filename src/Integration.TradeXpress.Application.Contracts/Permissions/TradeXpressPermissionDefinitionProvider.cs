@@ -94,6 +94,12 @@ public class TradeXpressPermissionDefinitionProvider : PermissionDefinitionProvi
         services.AddChild(TradeXpressPermissions.Services.Update, L("Permission:Update"));
         services.AddChild(TradeXpressPermissions.Services.Delete, L("Permission:Delete"));
 
+        var salesChannels = myGroup.AddPermission(
+            TradeXpressPermissions.SalesChannels.Default, L("Permission:SalesChannels"));
+        salesChannels.AddChild(TradeXpressPermissions.SalesChannels.Create, L("Permission:Create"));
+        salesChannels.AddChild(TradeXpressPermissions.SalesChannels.Update, L("Permission:Update"));
+        salesChannels.AddChild(TradeXpressPermissions.SalesChannels.Delete, L("Permission:Delete"));
+
         var stones = myGroup.AddPermission(
             TradeXpressPermissions.Stones.Default, L("Permission:Stones"));
         stones.AddChild(TradeXpressPermissions.Stones.Create, L("Permission:Create"));

@@ -18,6 +18,8 @@ public static class TradeXpressIcons
     public const string CurrencyUnit = "custom-icon-currency-unit";
     public const string Cash = "custom-icon-cash";
     public const string Service = "custom-icon-service";
+    // SalesChannel'a özel ikon yok — kanala özel SVG/CSS ileride ayrı polish (CSS §1 onayı). Şimdilik generic list.
+    public const string SalesChannel = "custom-icon-list";
     public const string Future = "custom-icon-future";
     public const string Scrap = "custom-icon-scrap";
     public const string Metal = "custom-icon-metal";
@@ -57,6 +59,7 @@ public static class TradeXpressIcons
 
     // �� Action & System ��
     public const string Add = "custom-icon-add";
+    public const string Edit = "custom-icon-edit";
     public const string Delete = "custom-icon-delete";
     public const string Download = "custom-icon-download";
     public const string Spinner = "custom-icon-spinner custom-spin";

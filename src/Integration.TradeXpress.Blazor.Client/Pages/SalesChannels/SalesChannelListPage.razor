@@ -1,0 +1,38 @@
+@page "/sales-channels"
+@using Integration.Framework.Blazor.Client.Components.Crud
+@using Integration.TradeXpress.SalesChannels
+@using DevExpress.Blazor
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@*
+   Satış kanalı BİRLEŞİK (polymorphic) liste — TÜM TPT alt-tiplerini tek grid'de sunar ("Tür" kolonu).
+   "Yeni ▾" dropdown tür seçtirir (N11 / Trendyol) → tipe-özel edit host açılır. Düzenle satırın türüne göre yönlenir.
+   Stok "Yeni" gizli (ShowNew=false); kolon filtresi kapalı (ChannelType whitelist dışı → global aramayla bulunur).
+*@
+
+<CrudLayout TGetDto="SalesChannelTrN11GetDto"
+            TListDto="SalesChannelListDto"
+            TKey="Guid"
+            StateService="StateService"
+            DataSource="@GridDataSource"
+            EntityName="@L["SalesChannel"]"
+            EntityIcon="@TradeXpressIcons.SalesChannel"
+            PageTitle="@L["SalesChannels"]"
+            ShowNew="false"
+            ShowColumnFilter="false"
+            CustomActions="@_customActions"
+            OnUpdateClick="RouteEditAsync"
+            OnDeleteClick="DeleteSelectedAsync"
+            OnRefreshClick="ReloadAsync"
+            OnSearchChanged="OnSearchAsync">
+
+    <GridColumns>
+        <GridLinkColumn FieldName="Code" Caption="@L["Code"]" Width="120px" FixedPosition="GridColumnFixedPosition.Left" VisibleIndex="1"
+                        OnClick="@(o => RouteEditAsync((SalesChannelListDto)o))" />
+        <DxGridDataColumn FieldName="ChannelType" Caption="@L["Type"]" Width="120px" AllowSort="false" VisibleIndex="2">
+            <CellDisplayTemplate>@ChannelTypeLabel(((SalesChannelListDto)context.DataItem).ChannelType)</CellDisplayTemplate>
+        </DxGridDataColumn>
+        <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" VisibleIndex="3" MinWidth="200" />
+    </GridColumns>
+
+</CrudLayout>

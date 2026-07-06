@@ -182,6 +182,28 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         return Task.FromResult(result);
     }
 
+    /// <summary>Reçete satırlarının CANLI maliyetini PERSISTSİZ hesaplar (tam kayıt gerekmez) — sanal varyant kurup
+    /// GetAsync ile AYNI <see cref="PopulateRecipeCostsAsync"/> motorunu çağırır (ülke birimine rebase + calculator).
+    /// Satırlar LineOrder sırasına dizilir (calculator ordinal + devreden bu sıraya dayanır). DB'ye YAZMAZ.</summary>
+    public virtual async Task<ProductRecipeCostResultDto> CalculateRecipeCostAsync(ProductRecipeCostRequestDto input)
+    {
+        var ordered = (input?.Lines ?? new List<ProductRecipeLineGraphDto>())
+            .Where(l => !l.IsDeleted)
+            .OrderBy(l => l.LineOrder)
+            .ToList();
+
+        var variant = new ProductVariantGraphDto { RecipeLines = ordered };
+        await PopulateRecipeCostsAsync(new List<ProductVariantGraphDto> { variant });
+
+        return new ProductRecipeCostResultDto
+        {
+            NetCost = variant.NetCost,
+            NetCostCurrency = variant.NetCostCurrency,
+            NetCostMissingRate = variant.NetCostMissingRate,
+            Lines = ordered,
+        };
+    }
+
     [Authorize(TradeXpressPermissions.Products.Delete)]
     public virtual async Task DeleteAsync(Guid id)
     {

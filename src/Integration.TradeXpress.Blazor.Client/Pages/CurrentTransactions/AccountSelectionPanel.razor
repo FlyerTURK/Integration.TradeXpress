@@ -184,22 +184,25 @@
     {
         <hr class="my-2" style="border-top: 1px solid var(--bs-border-color);" />
         <DxToolbar AdaptivityAutoHideRootItems="false" AdaptivityAutoCollapseItemsToIcons="false" CssClass="mt-2 tx-process-type-toolbar">
-            @* Takoz Giriş/Çıkış (kısayol 1/2) numara sırasına göre EN BAŞTA. *@
-            <DxToolbarItem BeginGroup="true" Text="@($"1-{L["Bullion_In"].ToString().ToUpper()}")" IconCssClass="custom-icon-bullion" Click="@OnBullionInClicked" Visible="@IsProcessGranted(ProcessType.Bullion)" />
-            <DxToolbarItem BeginGroup="true" Text="@($"2-{L["Bullion_Out"].ToString().ToUpper()}")" IconCssClass="custom-icon-bullion" Click="@OnBullionOutClicked" Visible="@IsProcessGranted(ProcessType.Bullion)" />
-            <DxToolbarItem BeginGroup="true" Text="@($"3-{L["Metal"].ToString().ToUpper()}")" IconCssClass="custom-icon-metal" Click="@OnMetalClicked" Visible="@IsProcessGranted(ProcessType.Metal)" />
-            <DxToolbarItem BeginGroup="true" Text="@($"4-{L["Scrap"].ToString().ToUpper()}")" IconCssClass="custom-icon-scrap" Click="@OnScrapClicked" Visible="@IsProcessGranted(ProcessType.Scrap)" />
-            <DxToolbarItem BeginGroup="true" Text="@($"5-{L["CashProcess"].ToString().ToUpper()}")" IconCssClass="custom-icon-cash" Click="@OnCashClicked" Visible="@IsProcessGranted(ProcessType.Cash)" />
-            <DxToolbarItem BeginGroup="true" Text="@($"6-{L["Convert"].ToString().ToUpper()}")" IconCssClass="custom-icon-convert" Click="@OnConvertClicked" Visible="@IsProcessGranted(ProcessType.Convert)" />
-            <DxToolbarItem BeginGroup="true" Text="@($"7-{L["Service"].ToString().ToUpper()}")" IconCssClass="custom-icon-service" Click="@OnServiceClicked" Visible="@IsProcessGranted(ProcessType.Service)" />
-            <DxToolbarItem BeginGroup="true" Text="@($"8-{L["Future"].ToString().ToUpper()}")" IconCssClass="custom-icon-future" Click="@OnFutureClicked" Visible="@IsProcessGranted(ProcessType.Future)" />
-            <DxToolbarItem BeginGroup="true" Text="@($"9-{L["Stone"].ToString().ToUpper()}")" IconCssClass="custom-icon-stone" Click="@OnStoneClicked" Visible="@IsProcessGranted(ProcessType.Stone)" />
-            <DxToolbarItem BeginGroup="true" Text="@($"M-{L["Jewelry"].ToString().ToUpper()}")" IconCssClass="custom-icon-jewelry" Click="@OnJewelryClicked" Visible="@IsProcessGranted(ProcessType.Jewelry)" />
-            @* Çeşni "Ç" / Dekont "D" — rakamlar dolu (1-9), harf kısayolu (Jewelry "M" deseni). *@
-            <DxToolbarItem BeginGroup="true" Text="@($"Ç-{L["Assay"].ToString().ToUpper()}")" IconCssClass="custom-icon-bullion" Click="@OnAssayClicked" Visible="@IsProcessGranted(ProcessType.Assay)" />
-            <DxToolbarItem BeginGroup="true" Text="@($"D-{L["DebitNote"].ToString().ToUpper()}")" IconCssClass="custom-icon-report" Click="@OnDebitNoteClicked" Visible="@IsProcessGranted(ProcessType.DebitNote)" />
-            @* Virman "V" — harf kısayolu (kısaltma kodu VGN/VCN ile hizalı). *@
-            <DxToolbarItem BeginGroup="true" Text="@($"V-{L["Transfer"].ToString().ToUpper()}")" IconCssClass="custom-icon-convert" Click="@OnTransferClicked" Visible="@IsProcessGranted(ProcessType.Transfer)" />
+            @* Tüm işlem tipleri "Yeni" dropdown'ı altında (reçete toolbar deseni); Liste AYRI buton.
+               Kısayol prefiksleri (1-9/M/Ç/D/V) hotkey ipucu olarak korunur. *@
+            <DxToolbarItem Text="@L["New"]" IconCssClass="custom-icon-add">
+                <Items>
+                    <DxToolbarItem Text="@($"1-{L["Bullion_In"].ToString().ToUpper()}")" IconCssClass="custom-icon-bullion" Click="@OnBullionInClicked" Visible="@IsProcessGranted(ProcessType.Bullion)" />
+                    <DxToolbarItem Text="@($"2-{L["Bullion_Out"].ToString().ToUpper()}")" IconCssClass="custom-icon-bullion" Click="@OnBullionOutClicked" Visible="@IsProcessGranted(ProcessType.Bullion)" />
+                    <DxToolbarItem Text="@($"3-{L["Metal"].ToString().ToUpper()}")" IconCssClass="custom-icon-metal" Click="@OnMetalClicked" Visible="@IsProcessGranted(ProcessType.Metal)" />
+                    <DxToolbarItem Text="@($"4-{L["Scrap"].ToString().ToUpper()}")" IconCssClass="custom-icon-scrap" Click="@OnScrapClicked" Visible="@IsProcessGranted(ProcessType.Scrap)" />
+                    <DxToolbarItem Text="@($"5-{L["CashProcess"].ToString().ToUpper()}")" IconCssClass="custom-icon-cash" Click="@OnCashClicked" Visible="@IsProcessGranted(ProcessType.Cash)" />
+                    <DxToolbarItem Text="@($"6-{L["Convert"].ToString().ToUpper()}")" IconCssClass="custom-icon-convert" Click="@OnConvertClicked" Visible="@IsProcessGranted(ProcessType.Convert)" />
+                    <DxToolbarItem Text="@($"7-{L["Service"].ToString().ToUpper()}")" IconCssClass="custom-icon-service" Click="@OnServiceClicked" Visible="@IsProcessGranted(ProcessType.Service)" />
+                    <DxToolbarItem Text="@($"8-{L["Future"].ToString().ToUpper()}")" IconCssClass="custom-icon-future" Click="@OnFutureClicked" Visible="@IsProcessGranted(ProcessType.Future)" />
+                    <DxToolbarItem Text="@($"9-{L["Stone"].ToString().ToUpper()}")" IconCssClass="custom-icon-stone" Click="@OnStoneClicked" Visible="@IsProcessGranted(ProcessType.Stone)" />
+                    <DxToolbarItem Text="@($"M-{L["Jewelry"].ToString().ToUpper()}")" IconCssClass="custom-icon-jewelry" Click="@OnJewelryClicked" Visible="@IsProcessGranted(ProcessType.Jewelry)" />
+                    <DxToolbarItem Text="@($"Ç-{L["Assay"].ToString().ToUpper()}")" IconCssClass="custom-icon-bullion" Click="@OnAssayClicked" Visible="@IsProcessGranted(ProcessType.Assay)" />
+                    <DxToolbarItem Text="@($"D-{L["DebitNote"].ToString().ToUpper()}")" IconCssClass="custom-icon-report" Click="@OnDebitNoteClicked" Visible="@IsProcessGranted(ProcessType.DebitNote)" />
+                    <DxToolbarItem Text="@($"V-{L["Transfer"].ToString().ToUpper()}")" IconCssClass="custom-icon-convert" Click="@OnTransferClicked" Visible="@IsProcessGranted(ProcessType.Transfer)" />
+                </Items>
+            </DxToolbarItem>
             <DxToolbarItem BeginGroup="true" Text="@($"0-{L["List"].ToString().ToUpper()}")" IconCssClass="custom-icon-list" Click="@OnListClicked" />
         </DxToolbar>
     }

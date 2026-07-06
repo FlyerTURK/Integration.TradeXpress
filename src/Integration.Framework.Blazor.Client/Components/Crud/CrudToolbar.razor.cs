@@ -15,6 +15,10 @@ namespace Integration.Framework.Blazor.Client.Components.Crud
         [Parameter] public EventCallback OnDeleteClick { get; set; }
         [Parameter] public EventCallback OnRefreshClick { get; set; }
 
+        /// <summary>Stok "Yeni" butonunu gizler (varsayılan açık). Polymorphic liste gibi sayfalar kendi tipe-özel
+        /// "Yeni ▾" dropdown'ını CustomActions ile koyar → çift buton olmasın diye stok Yeni'yi kapatır.</summary>
+        [Parameter] public bool ShowNew { get; set; } = true;
+
         [Parameter] public EventCallback OnExportToExcelClick { get; set; }
         [Parameter] public EventCallback OnPrintPdfClick { get; set; }
 
@@ -45,7 +49,7 @@ namespace Integration.Framework.Blazor.Client.Components.Crud
 
         // ── Görünürlük (matris) ──
         private bool CanCreate => IsSplit ? (SplitHost!.List?.CanCreate ?? false) : (StateService?.IsGrantedCreate ?? false);
-        private bool ShowNewItem    => !IsEdit && CanCreate;                 // Liste + Split
+        private bool ShowNewItem    => !IsEdit && CanCreate && ShowNew;      // Liste + Split (ShowNew=false → gizli)
         // Kaydet: Split + Edit'te HER ZAMAN görünür; seçim/dirty yoksa Enabled=false ile pasif.
         // Salt-okunur edit'te (ör. tenant'ta global birim) butonlar GÖRÜNÜR ama Enabled=false (CanSave/CanDelete).
         private bool ShowSaveGroup  => !IsList;

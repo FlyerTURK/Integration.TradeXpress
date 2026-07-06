@@ -37,6 +37,20 @@ public partial class ProductLayout
     // Drill değişimini forma bildir (dirty/Save) — EntityEditForm EditChanged cascade'i.
     [CascadingParameter(Name = "EditChanged")] private Action? EditChanged { get; set; }
 
+    /// <summary>Reçete değişince CANLI maliyet — host yapar (persistsiz hesap, varyant bazında); tam kayıt gerekmez.</summary>
+    [Parameter] public Func<ProductVariantGraphDto, Task>? OnRecipeChanged { get; set; }
+
+    /// <summary>Reçete satırı eklenince/değişince/silinince: önce CANLI maliyet (host), sonra form dirty.</summary>
+    private async Task HandleRecipeChangedAsync(ProductVariantGraphDto variant)
+    {
+        if (OnRecipeChanged is not null)
+        {
+            await OnRecipeChanged(variant);
+        }
+
+        EditChanged?.Invoke();
+    }
+
     /// <summary>"Varyantları Oluştur" tıklandı — layout DUMB kalır (servis çağırmaz): işi host yapar
     /// (ProductAppService.GenerateVariantsAsync → Model.Variants). Sonrasında form dirty işaretlenir.</summary>
     [Parameter] public EventCallback OnGenerateVariants { get; set; }

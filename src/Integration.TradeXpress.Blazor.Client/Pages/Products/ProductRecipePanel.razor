@@ -15,32 +15,46 @@
 
 @if (!IsPanelOpen)
 {
-    @* Buton + net maliyet satırı: ham div YALNIZ flex sarmalayıcı (ui-blazor istisnası; süreç paneli deseni). *@
-    <div style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap; padding:0.5rem 0.5rem 0;">
-        <DxButton Text="@L["AddMetal"]" IconCssClass="@TradeXpressIcons.Metal" RenderStyle="ButtonRenderStyle.Secondary"
-                  Click="@(() => OpenCatalogDraft(ProcessType.Metal))" />
-        <DxButton Text="@L["AddScrap"]" IconCssClass="@TradeXpressIcons.Scrap" RenderStyle="ButtonRenderStyle.Secondary"
-                  Click="@(() => OpenCatalogDraft(ProcessType.Scrap))" />
-        <DxButton Text="@L["AddFuture"]" IconCssClass="@TradeXpressIcons.Future" RenderStyle="ButtonRenderStyle.Secondary"
-                  Click="@(() => OpenCatalogDraft(ProcessType.Future))" />
-        <DxButton Text="@L["AddJewelry"]" IconCssClass="@TradeXpressIcons.Jewelry" RenderStyle="ButtonRenderStyle.Secondary"
-                  Click="@(() => OpenCatalogDraft(ProcessType.Jewelry))" />
-        <DxButton Text="@L["AddStone"]" IconCssClass="@TradeXpressIcons.Stone" RenderStyle="ButtonRenderStyle.Secondary"
-                  Click="@(() => OpenCatalogDraft(ProcessType.Stone))" />
-        <DxButton Text="@L["AddService"]" IconCssClass="@TradeXpressIcons.Service" RenderStyle="ButtonRenderStyle.Secondary"
-                  Click="@(() => OpenServiceDraft())" />
-
-        @if (NetCost.HasValue)
-        {
-            <span style="margin-left:auto; font-weight:600;">
-                @L["NetCost"]: @NetCost.Value.ToString("N2") @NetCostCurrency
-                @if (NetCostMissingRate)
+    @* Reçete toolbar — ekleme aksiyonları "Yeni" dropdown'ı altında; Düzenle/Sil ayrı grup; net maliyet sağda. *@
+    <DxToolbar ItemRenderStyleMode="ToolbarRenderStyleMode.Plain"
+               AdaptivityAutoCollapseItemsToIcons="false" AdaptivityAutoHideRootItems="false">
+        <DxToolbarItem Text="@L["New"]" IconCssClass="@TradeXpressIcons.Add" Tooltip="@L["New"].Value">
+            <Items>
+                <DxToolbarItem Text="@L["Metal"]" IconCssClass="@TradeXpressIcons.Metal"
+                               Click="@((ToolbarItemClickEventArgs e) => OpenCatalogDraft(ProcessType.Metal))" />
+                <DxToolbarItem Text="@L["Scrap"]" IconCssClass="@TradeXpressIcons.Scrap"
+                               Click="@((ToolbarItemClickEventArgs e) => OpenCatalogDraft(ProcessType.Scrap))" />
+                <DxToolbarItem Text="@L["Future"]" IconCssClass="@TradeXpressIcons.Future"
+                               Click="@((ToolbarItemClickEventArgs e) => OpenCatalogDraft(ProcessType.Future))" />
+                <DxToolbarItem Text="@L["Jewelry"]" IconCssClass="@TradeXpressIcons.Jewelry"
+                               Click="@((ToolbarItemClickEventArgs e) => OpenCatalogDraft(ProcessType.Jewelry))" />
+                <DxToolbarItem Text="@L["Stone"]" IconCssClass="@TradeXpressIcons.Stone"
+                               Click="@((ToolbarItemClickEventArgs e) => OpenCatalogDraft(ProcessType.Stone))" />
+                <DxToolbarItem Text="@L["Service"]" IconCssClass="@TradeXpressIcons.Service"
+                               Click="@((ToolbarItemClickEventArgs e) => OpenServiceDraft())" />
+            </Items>
+        </DxToolbarItem>
+        <DxToolbarItem Text="@L["Edit"]" IconCssClass="@TradeXpressIcons.Edit" BeginGroup="true"
+                       Enabled="@(_selectedLine is not null)"
+                       Click="@((ToolbarItemClickEventArgs e) => EditSelectedLine())" />
+        <DxToolbarItem Text="@L["Delete"]" IconCssClass="@TradeXpressIcons.Delete"
+                       Enabled="@(_selectedLine is not null)"
+                       Click="@(async (ToolbarItemClickEventArgs e) => await DeleteSelectedLineAsync())" />
+        <DxToolbarItem Alignment="ToolbarItemAlignment.Right">
+            <Template>
+                @if (NetCost.HasValue)
                 {
-                    <span style="color:#b45309; font-weight:400;"> (@L["MissingRate"])</span>
+                    <span style="font-weight:600; padding:0 0.35rem; white-space:nowrap;">
+                        @L["NetCost"]: @NetCost.Value.ToString("N2") @NetCostCurrency
+                        @if (NetCostMissingRate)
+                        {
+                            <span style="color:#b45309; font-weight:400;"> (@L["MissingRate"])</span>
+                        }
+                    </span>
                 }
-            </span>
-        }
-    </div>
+            </Template>
+        </DxToolbarItem>
+    </DxToolbar>
 }
 else if (Draft is { } d)
 {
@@ -245,7 +259,10 @@ else if (Draft is { } d)
 }
 
 @* Satır grid'i — voucher satır grid'i dizilimi (pager YOK); satıra tıkla → draft'a kopyala (buffered edit). *@
-<DxGrid Data="@VisibleLines" KeyFieldName="ClientKey" RowClick="OnRowClick" PagerVisible="false" PageSize="1000" CssClass="mt-2">
+<DxGrid Data="@VisibleLines" KeyFieldName="ClientKey" SelectionMode="GridSelectionMode.Single"
+        AllowSelectRowByClick="true"
+        SelectedDataItem="@_selectedLine" SelectedDataItemChanged="@((object item) => OnSelectedLineChanged(item))"
+        PagerVisible="false" PageSize="1000" CssClass="mt-2">
     <Columns>
         <DxGridDataColumn AllowSort="false" FieldName="@nameof(ProductRecipeLineGraphDto.LineOrder)" Caption="@L["Nr"]" Width="50px" TextAlignment="GridTextAlignment.Right" />
         <DxGridDataColumn AllowSort="false" Caption="@L["ComponentType"]" Width="90px">
@@ -276,15 +293,20 @@ else if (Draft is { } d)
         <DxGridDataColumn AllowSort="false" Caption="@L["PayTotal"]" TextAlignment="GridTextAlignment.Right" Width="120px">
             <CellDisplayTemplate>@GridPayTotalText((ProductRecipeLineGraphDto)context.DataItem)</CellDisplayTemplate>
         </DxGridDataColumn>
-        <DxGridDataColumn AllowSort="false" FieldName="@nameof(ProductRecipeLineGraphDto.Description)" Caption="@L["Description"]" />
+        <DxGridDataColumn AllowSort="false" Caption="@L["InheritedBase"]" Width="120px">
+            <CellDisplayTemplate><span style="@DerivedCellStyle((ProductRecipeLineGraphDto)context.DataItem)">@InheritedBaseLabel((ProductRecipeLineGraphDto)context.DataItem)</span></CellDisplayTemplate>
+        </DxGridDataColumn>
+        <DxGridDataColumn AllowSort="false" Caption="@L["InheritedItems"]" Width="140px">
+            <CellDisplayTemplate><span style="@DerivedCellStyle((ProductRecipeLineGraphDto)context.DataItem)">@InheritedItemsText((ProductRecipeLineGraphDto)context.DataItem)</span></CellDisplayTemplate>
+        </DxGridDataColumn>
         <DxGridDataColumn AllowSort="false" Caption="@L["RunningSubtotal"]" TextAlignment="GridTextAlignment.Right" Width="130px">
             <CellDisplayTemplate><b>@RunningSubtotalText((ProductRecipeLineGraphDto)context.DataItem)</b></CellDisplayTemplate>
         </DxGridDataColumn>
-        <DxGridDataColumn AllowSort="false" Width="56px" Caption="">
-            <CellDisplayTemplate>
-                <DxButton IconCssClass="@TradeXpressIcons.Delete" RenderStyle="ButtonRenderStyle.Link" Tooltip="@L["Delete"].Value"
-                          Click="@(async () => await DeleteLineAsync((ProductRecipeLineGraphDto)context.DataItem))" />
-            </CellDisplayTemplate>
-        </DxGridDataColumn>
     </Columns>
 </DxGrid>
+
+@* Seçili satırın açıklaması — grid ALTINDA read-only (kolon değil; satır seçilince dolar). *@
+<div style="margin-top:6px; display:flex; flex-direction:column; gap:2px;">
+    <small style="@ProcessPanelStyles.Label">@L["Description"]</small>
+    <DxTextBox Text="@(_selectedLine?.Description ?? string.Empty)" ReadOnly="true" ValidationEnabled="false" CssClass="w-100" />
+</div>

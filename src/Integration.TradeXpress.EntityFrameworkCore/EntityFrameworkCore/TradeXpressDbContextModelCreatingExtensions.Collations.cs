@@ -8,6 +8,7 @@ using Integration.TradeXpress.Vaults;
 using Integration.TradeXpress.AssayOffices;
 using Integration.TradeXpress.Cashes;
 using Integration.TradeXpress.Services;
+using Integration.TradeXpress.SalesChannels;
 using Integration.TradeXpress.Futures;
 using Integration.TradeXpress.Scraps;
 using Integration.TradeXpress.Metals;
@@ -54,6 +55,8 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
         ApplyOrdinalCodeCollation<AssayOffice>(builder);
         ApplyOrdinalCodeCollation<Cash>(builder);
         ApplyOrdinalCodeCollation<Service>(builder);
+        // SalesChannel TPT: Code kolonu SOYUT TABAN tablosunda (AppSalesChannels) → collation base'e uygulanır.
+        ApplyOrdinalCodeCollation<SalesChannelBase>(builder);
         ApplyOrdinalCodeCollation<Future>(builder);
         ApplyOrdinalCodeCollation<Scrap>(builder);
         ApplyOrdinalCodeCollation<Metal>(builder);

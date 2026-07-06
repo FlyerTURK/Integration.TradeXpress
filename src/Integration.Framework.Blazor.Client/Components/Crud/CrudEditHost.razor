@@ -10,6 +10,7 @@
 @inject IUiInteractionService UiService
 @inject IEntityChangeNotifier EntityChanges
 @inject IMdiTabOpener TabOpener
+@inject IServiceProvider ServiceProvider
 
 @*
    GENERIC edit host — persistence sahibi (ICommitCoordinator) + agnostic EntityEditForm sunumu.
@@ -153,7 +154,7 @@
         }
         catch (Exception ex)
         {
-            UiService.ShowErrorToast(ex.Message);        // form açık + dirty kalır
+            ShowError(ex);        // lokalize dostu mesaj; form açık + dirty kalır
         }
     }
 
@@ -187,8 +188,23 @@
         }
         catch (Exception ex)
         {
-            UiService.ShowErrorToast(ex.Message);
+            ShowError(ex);
         }
+    }
+
+    // In-process (Blazor Server) BusinessException.Message ham kod/generic metindir → önce kodu MapCodeNamespace
+    // kaynağıyla lokalize et (CrudErrorPresenter); dostu mesaj yoksa genel metin + teknik detayı panele raporla.
+    // Çok satırlı (validation) mesaj → satır başına ayrı toast (XAF tarzı).
+    private void ShowError(Exception ex)
+    {
+        var friendly = CrudErrorPresenter.ToFriendlyMessage(ex, ServiceProvider);
+        if (friendly is null)
+            (ServiceProvider.GetService(typeof(IClientErrorReporter)) as IClientErrorReporter)?.Report(ex.Message, ex.ToString());
+
+        var text = friendly ?? L["UnexpectedError"].Value;
+        var lines = text.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (lines.Length == 0) { UiService.ShowErrorToast(text); return; }
+        foreach (var line in lines) UiService.ShowErrorToast(line);
     }
 
     // Tab modunda (CurrentMdiTab var) sekmeyi kapat (CanCloseAsync guard'ı EntityEditForm'da kuruldu);

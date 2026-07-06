@@ -1,0 +1,20 @@
+@page "/sales-channels/trendyol/new"
+@page "/sales-channels/trendyol/{Id:guid}"
+@using Integration.TradeXpress.SalesChannels
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@*
+   Trendyol satış kanalı edit host = ince sarmal: coordinator (Trendyol DTO'ları + ISalesChannelTrTrendyolAppService).
+   Company-owned. ApiKey/ApiSecret update'te BOŞ gelir (redaksiyon); SellerId kimliktir → görünür. Trendyol'da test API'si yok.
+*@
+
+@if (_coordinator != null)
+{
+    <CrudEditHost TGetDto="SalesChannelTrTrendyolGetDto" TListDto="SalesChannelListDto" TKey="Guid" TListRequestDto="SalesChannelListRequestDto"
+                  Coordinator="@_coordinator" Id="@(Id ?? Guid.Empty)" IsPopupMode="@IsPopupMode" OnSaved="@OnSaved" OnClosed="@OnClosed"
+                  FormCaption="@L["SalesChannelType:TrTrendyol"].Value" IconCssClass="@TradeXpressIcons.SalesChannel"
+                  EntityValue="@(m => m.Code)"
+                  ApplyNewDefaults="@(m => { m.IsActive = true; })">
+        <SalesChannelTrTrendyolLayout Model="@context" IsNew="@(context.Id == Guid.Empty)" />
+    </CrudEditHost>
+}

@@ -37,6 +37,11 @@ namespace Integration.Framework.Blazor.Client.Components.Crud
         // OnSearchChanged'e gider (tüm kayıtlar).
         private string? _inGridSearchText;
         [Parameter] public EventCallback OnNewClick { get; set; }
+
+        /// <summary>Stok "Yeni" butonunu gizler (CrudToolbar'a geçilir). Polymorphic liste kendi "Yeni ▾" dropdown'ını
+        /// CustomActions ile koyar. Varsayılan açık → mevcut sayfalar etkilenmez.</summary>
+        [Parameter] public bool ShowNew { get; set; } = true;
+
         [Parameter] public EventCallback<TListDto> OnUpdateClick { get; set; }
         [Parameter] public EventCallback OnDeleteClick { get; set; }
         [Parameter] public EventCallback OnRefreshClick { get; set; }

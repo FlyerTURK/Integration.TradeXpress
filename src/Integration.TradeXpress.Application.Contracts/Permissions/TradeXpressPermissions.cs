@@ -122,6 +122,15 @@ public static class TradeXpressPermissions
         public const string Delete  = Default + ".Delete";
     }
 
+    /// <summary>Satış Kanalı KATALOĞU yönetimi (host + tenant scoped tanım).</summary>
+    public static class SalesChannels
+    {
+        public const string Default = GroupName + ".SalesChannels";
+        public const string Create  = Default + ".Create";
+        public const string Update  = Default + ".Update";
+        public const string Delete  = Default + ".Delete";
+    }
+
     /// <summary>Taş KATALOĞU yönetimi (işlem yetkisi DEĞİL — o <see cref="Transactions.Stone"/>).</summary>
     public static class Stones
     {

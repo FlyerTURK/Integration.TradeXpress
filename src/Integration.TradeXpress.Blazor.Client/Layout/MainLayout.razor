@@ -19,9 +19,10 @@
 
 <Integration.Framework.Blazor.Client.Resilience.AutoRecoverErrorBoundary @ref="_errorBoundary">
     <ChildContent>
+        @* Genişlik responsive: masaüstünde 550px (ideal), mobilde ekranı taşırmasın diye %92vw ile sınırlı (min). *@
         <DxToastProvider HorizontalAlignment="HorizontalAlignment.Center"
                          VerticalAlignment="VerticalEdge.Top"
-                         Width="550px" />
+                         Width="min(550px, 92vw)" />
         <Integration.Framework.Blazor.Client.Components.Shared.ConfirmDeleteDialog />
         <Integration.Framework.Blazor.Client.Components.Shared.GlobalPopupHost />
         @* Görünmez: ilk render'da kullanıcının tarayıcı saat dilimini yakalar (UTC→yerel görüntü katmanı). *@

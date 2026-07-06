@@ -1,0 +1,20 @@
+@page "/sales-channels/n11/new"
+@page "/sales-channels/n11/{Id:guid}"
+@using Integration.TradeXpress.SalesChannels
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@*
+   N11 satış kanalı edit host = ince sarmal: coordinator (TrN11 DTO'ları + ISalesChannelTrN11AppService) + sunum config.
+   Company-owned (sunucu CompanyId zorlar). Sir alanları update'te BOŞ gelir (redaksiyon) — form "boş = korunur" der.
+*@
+
+@if (_coordinator != null)
+{
+    <CrudEditHost TGetDto="SalesChannelTrN11GetDto" TListDto="SalesChannelListDto" TKey="Guid" TListRequestDto="SalesChannelListRequestDto"
+                  Coordinator="@_coordinator" Id="@(Id ?? Guid.Empty)" IsPopupMode="@IsPopupMode" OnSaved="@OnSaved" OnClosed="@OnClosed"
+                  FormCaption="@L["SalesChannelType:TrN11"].Value" IconCssClass="@TradeXpressIcons.SalesChannel"
+                  EntityValue="@(m => m.Code)"
+                  ApplyNewDefaults="@(m => { m.IsActive = true; })">
+        <SalesChannelTrN11Layout Model="@context" IsNew="@(context.Id == Guid.Empty)" />
+    </CrudEditHost>
+}

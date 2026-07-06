@@ -69,6 +69,13 @@ public class TradeXpressMenuContributor : IMenuContributor
             icon: TradeXpressIcons.Parity
         ).RequirePermissions(TradeXpressPermissions.Parities.Default));
         definitions.AddItem(financial);
+        // Satış Kanalları — host + tenant scoped tanım (Country deseni; host+tenant herkese görünür, emtia DEĞİL).
+        definitions.AddItem(new ApplicationMenuItem(
+            TradeXpressMenus.SalesChannels,
+            l["SalesChannels"],
+            url: "/sales-channels",
+            icon: TradeXpressIcons.SalesChannel
+        ).RequirePermissions(TradeXpressPermissions.SalesChannels.Default));
         // Emtialar — Voucher/VoucherLine'da seçilecek işaretçi emtia tipleri (alt menü). Nakitler buraya bağlı.
         var currentTenant = context.ServiceProvider.GetRequiredService<ICurrentTenant>();
         if (currentTenant.Id != null)

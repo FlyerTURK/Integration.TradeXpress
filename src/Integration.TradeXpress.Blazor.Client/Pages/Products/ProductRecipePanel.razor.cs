@@ -46,6 +46,9 @@ public partial class ProductRecipePanel
 
     private bool _isMobile;
 
+    // Grid'de seçili satır (edit/sil toolbar butonları + grid-altı açıklama bunu kullanır). Tıklama = SEÇ (edit DEĞİL).
+    private ProductRecipeLineGraphDto? _selectedLine;
+
     // Ödeme tipi seçenekleri — reçetede YALNIZ Normal (metal + işçilik) ve Bedelli (sabit bedel). Enum'a değer eklenmez.
     private record PaymentItem(ProcessPaymentType Value, string Label);
     private List<PaymentItem> _paymentItems = new();
@@ -241,12 +244,28 @@ public partial class ProductRecipePanel
         }
     }
 
-    /// <summary>Grid satırına tıklama → satırın KOPYASI draft olur (buffered; orijinal Kaydet'e dek değişmez).</summary>
-    private void OnRowClick(GridRowClickEventArgs e)
+    /// <summary>Grid seçimi değişti — satırı SEÇ (edit DEĞİL; düzenleme toolbar'daki Düzenle ile).</summary>
+    private void OnSelectedLineChanged(object? item)
     {
-        if (e.Grid.GetDataItem(e.VisibleIndex) is ProductRecipeLineGraphDto line)
+        _selectedLine = item as ProductRecipeLineGraphDto;
+    }
+
+    /// <summary>Toolbar Düzenle — seçili satırın KOPYASI draft olur (buffered; orijinal Kaydet'e dek değişmez).</summary>
+    private void EditSelectedLine()
+    {
+        if (_selectedLine is { } line)
         {
             BeginEdit(line);
+        }
+    }
+
+    /// <summary>Toolbar Sil — seçili satırı siler + seçimi temizler (silme sonrası canlı maliyet yeniden hesaplanır).</summary>
+    private async Task DeleteSelectedLineAsync()
+    {
+        if (_selectedLine is { } line)
+        {
+            await DeleteLineAsync(line);
+            _selectedLine = null;
         }
     }
 
@@ -666,26 +685,38 @@ public partial class ProductRecipePanel
         return l.ComponentType == RecipeComponentType.Service ? ServiceCodeOf(l) : CommodityCodeOf(l);
     }
 
-    /// <summary>Hizmet satırının grid etiketi — hizmet kodu (seçiliyse) + türevsel bedel özeti.</summary>
-    private string ServiceLabel(ProductRecipeLineGraphDto l)
-    {
-        var code = ServiceCodeOf(l);
-        var summary = DerivedSummary(l);
-        return string.IsNullOrEmpty(code) ? summary : $"{code} · {summary}";
-    }
-
     /// <summary>Seçili hizmetin kodu (katalog etiketi) — seçili değilse boş.</summary>
     private string ServiceCodeOf(ProductRecipeLineGraphDto l)
     {
         return l.CommodityId is { } id ? Services.FirstOrDefault(s => s.Id == id)?.Code ?? string.Empty : string.Empty;
     }
 
-    /// <summary>Hizmet satırının özeti — "taban · işlem operand" (ör. "Tüm Üst Satırlar · Brütleştir 5,1").</summary>
-    private string DerivedSummary(ProductRecipeLineGraphDto l)
+    /// <summary>Devralınan kolonu — Hizmet satırının taban modu (Tüm Üst Satırlar / Belli Kalemler); fiziki: boş.</summary>
+    private string InheritedBaseLabel(ProductRecipeLineGraphDto l)
     {
-        var baseLabel = _baseModeItems.FirstOrDefault(x => x.Value == l.DerivedBaseMode)?.Label ?? string.Empty;
-        var opLabel = _operationItems.FirstOrDefault(x => x.Value == l.DerivedOperation)?.Label ?? string.Empty;
-        return $"{baseLabel} · {opLabel} {l.DerivedOperand:0.#####}";
+        if (l.ComponentType != RecipeComponentType.Service)
+        {
+            return string.Empty;
+        }
+
+        return _baseModeItems.FirstOrDefault(x => x.Value == l.DerivedBaseMode)?.Label ?? string.Empty;
+    }
+
+    /// <summary>Kalemler kolonu — SelectedLines modunda seçili üst satırların kodları (", " ile birleştirilmiş);
+    /// AllAbove ve fiziki satırda boş.</summary>
+    private string InheritedItemsText(ProductRecipeLineGraphDto l)
+    {
+        if (l.ComponentType != RecipeComponentType.Service || l.DerivedBaseMode != RecipeDerivedBaseMode.SelectedLines)
+        {
+            return string.Empty;
+        }
+
+        var codes = l.DerivedSourceKeys
+            .Select(k => Lines.FirstOrDefault(x => x.ClientKey == k))
+            .Where(x => x is not null)
+            .Select(x => ShortCodeOf(x!))
+            .Where(c => !string.IsNullOrEmpty(c));
+        return string.Join(", ", codes);
     }
 
     /// <summary>Hizmet satırlarına görsel işaret (italik + mavi) — grid'de fiziki satırlardan ayırt eder.</summary>
@@ -715,7 +746,7 @@ public partial class ProductRecipePanel
     {
         if (l.ComponentType == RecipeComponentType.Service)
         {
-            return ServiceLabel(l);   // hizmet kodu (etiket) + taban·işlem özeti
+            return ServiceCodeOf(l);   // Emtia kolonu = yalnız hizmet kodu (taban/kalemler ayrı kolonlarda)
         }
 
         if (l.CommodityId is not { } id)
@@ -763,8 +794,19 @@ public partial class ProductRecipePanel
     /// <summary>Değer (Factor) kolonu — fiziki: milyem (l.Factor); Hizmet: işlem operand'ı (değer).</summary>
     private string GridFactorText(ProductRecipeLineGraphDto l)
     {
-        var value = l.ComponentType == RecipeComponentType.Service ? l.DerivedOperand : l.Factor;
-        return value.ToString("N5");
+        if (l.ComponentType == RecipeComponentType.Service)
+        {
+            // Yüzde/Brütleştir → oran Fiyat kolonunda %olarak; Ekle/Çarp → operand (mutlak tutar/çarpan) burada.
+            return IsPercentOperation(l.DerivedOperation) ? string.Empty : l.DerivedOperand.ToString("N5");
+        }
+
+        return l.Factor.ToString("N5");
+    }
+
+    /// <summary>İşlem yüzde-bazlı mı (Yüzde / Brütleştir) — oran %olarak Fiyat kolonunda gösterilir.</summary>
+    private static bool IsPercentOperation(RecipeDerivedOperation? op)
+    {
+        return op is RecipeDerivedOperation.Percent or RecipeDerivedOperation.GrossUp;
     }
 
     /// <summary>İşlem Tipi kolonu — Hizmet: işlem adı (Ekle/Çarp/Yüzde/Brütleştir); fiziki: boş.</summary>
@@ -781,6 +823,12 @@ public partial class ProductRecipePanel
     /// <summary>Fiyat kolonu (eski İşçilik) — fiziki metal: işçilik rate (PayFactor); Hizmet: boş.</summary>
     private string GridPriceText(ProductRecipeLineGraphDto l)
     {
+        if (l.ComponentType == RecipeComponentType.Service)
+        {
+            // Yüzde/Brütleştir → oran %olarak (ör. "%5,1"); Ekle/Çarp → boş (değeri Değer kolonunda).
+            return IsPercentOperation(l.DerivedOperation) ? $"%{l.DerivedOperand:0.##}" : string.Empty;
+        }
+
         if (l.ComponentType != RecipeComponentType.CatalogCommodity || !IsMetalLegged(l.CommodityProcessType))
         {
             return string.Empty;

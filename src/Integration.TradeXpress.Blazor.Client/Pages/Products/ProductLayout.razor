@@ -147,7 +147,7 @@
                                             Metals="Metals" Scraps="Scraps" Futures="Futures"
                                             Jewelries="Jewelries" Stones="Stones" Services="Services" Units="Units"
                                             NetCost="@v.NetCost" NetCostCurrency="@v.NetCostCurrency" NetCostMissingRate="@v.NetCostMissingRate"
-                                            OnChanged="@(() => EditChanged?.Invoke())" />
+                                            OnChanged="@(async () => await HandleRecipeChangedAsync(v))" />
                     </DxFormLayoutGroup>
                 </DxFormLayout>
             </EditContent>

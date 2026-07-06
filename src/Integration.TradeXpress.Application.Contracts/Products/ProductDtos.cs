@@ -240,6 +240,23 @@ public class ProductVariantGenerateRequestDto
     public List<ProductAttributeGraphDto> Attributes { get; set; } = new();
 }
 
+/// <summary>Persistsiz reçete maliyeti hesap isteği — bir varyantın in-memory reçete satırları (TAM KAYIT gerekmez;
+/// canlı maliyet için). DB'ye YAZMAZ.</summary>
+public class ProductRecipeCostRequestDto
+{
+    public List<ProductRecipeLineGraphDto> Lines { get; set; } = new();
+}
+
+/// <summary>Persistsiz reçete maliyeti sonucu — varyant net'i + satır-başı maliyet alanları (Uygulanacak Bedel /
+/// Satır Maliyeti / Ara Toplam, ClientKey ile eşlenir). GetAsync projeksiyonuyla AYNI motor.</summary>
+public class ProductRecipeCostResultDto
+{
+    public decimal? NetCost { get; set; }
+    public string NetCostCurrency { get; set; } = string.Empty;
+    public bool NetCostMissingRate { get; set; }
+    public List<ProductRecipeLineGraphDto> Lines { get; set; } = new();
+}
+
 /// <summary>
 /// Product grafının NİTELİK düğümü — varyant ekseni (ör. "Renk", "Beden"), değerleriyle birlikte.
 /// Durum = <see cref="Id"/> + <see cref="IsDeleted"/>: Id boş → ekle, IsDeleted → sil (değerleriyle), aksi → güncelle.

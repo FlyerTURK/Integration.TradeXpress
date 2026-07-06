@@ -15,6 +15,9 @@ export function init(dotNetRef) {
     // gerçek hata değil). Mesajı içeren her kayıt (console/js/rejection) sessizce yutulur.
     const IGNORED = [
         'ResizeObserver loop',
+        // Blazor Server circuit kopuk/yeniden-bağlanırken JS→.NET invoke'un SignalR send'i fırlatır — benign
+        // geçici gürültü (gerçek app hatası değil; host restart/ağ kesintisinde olur). Panele DÜŞMEMELİ.
+        'Cannot send data if the connection is not in the',
     ];
 
     const report = (level, source, message, stack) => {
@@ -22,7 +25,12 @@ export function init(dotNetRef) {
         if (IGNORED.some(p => text.indexOf(p) !== -1)) return;   // gürültü → atla
         // Panel (ref) yoksa ya da çağrı patlarsa sessizce geç — asla console.error'a düşme (döngü olur).
         try {
-            if (_ref) _ref.invokeMethodAsync('Report', level, source, message || '', stack || null);
+            if (_ref) {
+                const p = _ref.invokeMethodAsync('Report', level, source, message || '', stack || null);
+                // invokeMethodAsync Promise döner; circuit kopuksa REDDEDER → yakalamazsak yeni bir
+                // unhandledrejection olur ve tekrar report() çağrılır (döngü). .catch ile yut.
+                if (p && typeof p.catch === 'function') { p.catch(() => { }); }
+            }
         } catch (e) { /* yut */ }
     };
 

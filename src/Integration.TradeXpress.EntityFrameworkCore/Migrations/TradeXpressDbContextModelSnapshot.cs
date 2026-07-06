@@ -1998,6 +1998,91 @@ namespace Integration.TradeXpress.Migrations
                     b.ToTable("AppBalanceSheetSnapshots", (string)null);
                 });
 
+            modelBuilder.Entity("Integration.TradeXpress.SalesChannels.SalesChannelBase", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)")
+                        .UseCollation("Latin1_General_100_BIN2");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ConcurrencyStamp")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)")
+                        .HasColumnName("ConcurrencyStamp");
+
+                    b.Property<DateTime>("CreationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("CreationTime");
+
+                    b.Property<Guid?>("CreatorId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CreatorId");
+
+                    b.Property<Guid?>("DeleterId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("DeleterId");
+
+                    b.Property<DateTime?>("DeletionTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("DeletionTime");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
+
+                    b.Property<string>("ExtraProperties")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("ExtraProperties");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false)
+                        .HasColumnName("IsDeleted");
+
+                    b.Property<DateTime?>("LastModificationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("LastModificationTime");
+
+                    b.Property<Guid?>("LastModifierId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("LastModifierId");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("TenantId");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "CompanyId");
+
+                    b.HasIndex("TenantId", "CompanyId", "Code")
+                        .IsUnique()
+                        .HasFilter("[TenantId] IS NOT NULL");
+
+                    b.ToTable("AppSalesChannels", (string)null);
+
+                    b.UseTptMappingStrategy();
+                });
+
             modelBuilder.Entity("Integration.TradeXpress.Scheduling.SchedulerAppointment", b =>
                 {
                     b.Property<Guid>("Id")
@@ -4936,6 +5021,45 @@ namespace Integration.TradeXpress.Migrations
                     b.ToTable("AbpTenantConnectionStrings", (string)null);
                 });
 
+            modelBuilder.Entity("Integration.TradeXpress.SalesChannels.SalesChannelTrN11", b =>
+                {
+                    b.HasBaseType("Integration.TradeXpress.SalesChannels.SalesChannelBase");
+
+                    b.Property<string>("AppKey")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<string>("AppSecret")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.ToTable("AppSalesChannelTrN11", (string)null);
+                });
+
+            modelBuilder.Entity("Integration.TradeXpress.SalesChannels.SalesChannelTrTrendyol", b =>
+                {
+                    b.HasBaseType("Integration.TradeXpress.SalesChannels.SalesChannelBase");
+
+                    b.Property<string>("ApiKey")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<string>("ApiSecret")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<string>("SellerId")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.ToTable("AppSalesChannelTrTrendyol", (string)null);
+                });
+
             modelBuilder.Entity("Integration.TradeXpress.Accounts.Account", b =>
                 {
                     b.HasOne("Integration.TradeXpress.Financials.CurrencyUnits.CurrencyUnit", null)
@@ -5395,6 +5519,24 @@ namespace Integration.TradeXpress.Migrations
                     b.HasOne("Volo.Abp.TenantManagement.Tenant", null)
                         .WithMany("ConnectionStrings")
                         .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Integration.TradeXpress.SalesChannels.SalesChannelTrN11", b =>
+                {
+                    b.HasOne("Integration.TradeXpress.SalesChannels.SalesChannelBase", null)
+                        .WithOne()
+                        .HasForeignKey("Integration.TradeXpress.SalesChannels.SalesChannelTrN11", "Id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Integration.TradeXpress.SalesChannels.SalesChannelTrTrendyol", b =>
+                {
+                    b.HasOne("Integration.TradeXpress.SalesChannels.SalesChannelBase", null)
+                        .WithOne()
+                        .HasForeignKey("Integration.TradeXpress.SalesChannels.SalesChannelTrTrendyol", "Id")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

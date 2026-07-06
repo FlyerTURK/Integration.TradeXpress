@@ -5,6 +5,7 @@ using Integration.TradeXpress.Financials.CurrencyUnits;
 using Integration.TradeXpress.Financials.Parities;
 using Integration.TradeXpress.Cashes;
 using Integration.TradeXpress.Services;
+using Integration.TradeXpress.SalesChannels;
 using Integration.TradeXpress.Futures;
 using Integration.TradeXpress.Scraps;
 using Integration.TradeXpress.Metals;
@@ -173,6 +174,45 @@ public partial class ServiceToListDtoMapper : MapperBase<Service, ServiceListDto
     public override partial void Map(Service source, ServiceListDto destination);
 }
 
+// ── SalesChannel (company-owned TPT). Somut alt-tip → tipe-özel GetDto (base alanlar + alt-tip credential'ları).
+//    Polymorphic liste: base/alt-tip → SalesChannelListDto; ChannelType concrete tipten AppService'te set edilir
+//    (mapper'da source yok → unmapped, [Mapper] default: RMG012 uyarısı ignore edilir). CompanyId/TenantId source-only. ──
+
+[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
+public partial class SalesChannelTrN11ToGetDtoMapper : MapperBase<SalesChannelTrN11, SalesChannelTrN11GetDto>
+{
+    public override partial SalesChannelTrN11GetDto Map(SalesChannelTrN11 source);
+    public override partial void Map(SalesChannelTrN11 source, SalesChannelTrN11GetDto destination);
+}
+
+[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
+public partial class SalesChannelTrTrendyolToGetDtoMapper : MapperBase<SalesChannelTrTrendyol, SalesChannelTrTrendyolGetDto>
+{
+    public override partial SalesChannelTrTrendyolGetDto Map(SalesChannelTrTrendyol source);
+    public override partial void Map(SalesChannelTrTrendyol source, SalesChannelTrTrendyolGetDto destination);
+}
+
+[Mapper]
+public partial class SalesChannelBaseToListDtoMapper : MapperBase<SalesChannelBase, SalesChannelListDto>
+{
+    public override partial SalesChannelListDto Map(SalesChannelBase source);
+    public override partial void Map(SalesChannelBase source, SalesChannelListDto destination);
+}
+
+[Mapper]
+public partial class SalesChannelTrN11ToListDtoMapper : MapperBase<SalesChannelTrN11, SalesChannelListDto>
+{
+    public override partial SalesChannelListDto Map(SalesChannelTrN11 source);
+    public override partial void Map(SalesChannelTrN11 source, SalesChannelListDto destination);
+}
+
+[Mapper]
+public partial class SalesChannelTrTrendyolToListDtoMapper : MapperBase<SalesChannelTrTrendyol, SalesChannelListDto>
+{
+    public override partial SalesChannelListDto Map(SalesChannelTrTrendyol source);
+    public override partial void Map(SalesChannelTrTrendyol source, SalesChannelListDto destination);
+}
+
 // ── Scrap (statik mapper → Mapperly; IsGlobal + FollowingUnitCode AppService'te/ApplyUnitCodes ile set) ──
 
 [Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
@@ -285,6 +325,27 @@ public partial class UserScopedGrantToDtoMapper : MapperBase<UserScopedGrant, Us
 {
     public override partial ServiceUpdateDto Map(ServiceGetDto source);
     public override partial void Map(ServiceGetDto source, ServiceUpdateDto destination);
+}
+
+[Mapper] public partial class SalesChannelTrN11GetToCreateMapper : MapperBase<SalesChannelTrN11GetDto, SalesChannelTrN11CreateDto>
+{
+    public override partial SalesChannelTrN11CreateDto Map(SalesChannelTrN11GetDto source);
+    public override partial void Map(SalesChannelTrN11GetDto source, SalesChannelTrN11CreateDto destination);
+}
+[Mapper] public partial class SalesChannelTrN11GetToUpdateMapper : MapperBase<SalesChannelTrN11GetDto, SalesChannelTrN11UpdateDto>
+{
+    public override partial SalesChannelTrN11UpdateDto Map(SalesChannelTrN11GetDto source);
+    public override partial void Map(SalesChannelTrN11GetDto source, SalesChannelTrN11UpdateDto destination);
+}
+[Mapper] public partial class SalesChannelTrTrendyolGetToCreateMapper : MapperBase<SalesChannelTrTrendyolGetDto, SalesChannelTrTrendyolCreateDto>
+{
+    public override partial SalesChannelTrTrendyolCreateDto Map(SalesChannelTrTrendyolGetDto source);
+    public override partial void Map(SalesChannelTrTrendyolGetDto source, SalesChannelTrTrendyolCreateDto destination);
+}
+[Mapper] public partial class SalesChannelTrTrendyolGetToUpdateMapper : MapperBase<SalesChannelTrTrendyolGetDto, SalesChannelTrTrendyolUpdateDto>
+{
+    public override partial SalesChannelTrTrendyolUpdateDto Map(SalesChannelTrTrendyolGetDto source);
+    public override partial void Map(SalesChannelTrTrendyolGetDto source, SalesChannelTrTrendyolUpdateDto destination);
 }
 
 [Mapper] public partial class FutureGetToCreateMapper : MapperBase<FutureGetDto, FutureCreateDto>

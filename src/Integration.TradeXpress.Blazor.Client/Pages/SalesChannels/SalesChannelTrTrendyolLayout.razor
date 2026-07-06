@@ -1,0 +1,38 @@
+@using Integration.TradeXpress.SalesChannels
+@using Integration.Framework.Blazor.Client.Components.Inputs
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@*
+   Trendyol satış kanalı DUMB Layout — yalnız SalesChannelTrTrendyolGetDto'yu forma yansıtır (I/O yok).
+   Sıra (ui-blazor): Kod → Ad → SellerId → ApiKey/ApiSecret → Description → Status.
+   SellerId kimliktir (sır değil) → görünür; UI regex (yalnız rakam) DTO'daki [RegularExpression] ile doğrulanır.
+   ApiKey/ApiSecret sır → düzenlemede BOŞ gelir (redaksiyon), "boş = korunur".
+*@
+
+<DxFormLayout CssClass="w-100">
+    <DxFormLayoutGroup Caption="@L["General"]" ColSpanMd="12">
+        <DxFormLayoutItem Caption="@($"{L["Code"]} *")" ColSpanMd="6">
+            <DxTextBox @bind-Text="@Model.Code" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="12">
+            <DxTextBox @bind-Text="@Model.Name" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@($"{L["SalesChannel:SellerId"]} *")" ColSpanMd="6">
+            <DxTextBox @bind-Text="@Model.SellerId" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@(IsNew ? $"{L["SalesChannel:ApiKey"]} *" : L["SalesChannel:ApiKey"].Value)" ColSpanMd="6">
+            <DxTextBox @bind-Text="@Model.ApiKey" NullText="@SecretPlaceholder" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@(IsNew ? $"{L["SalesChannel:ApiSecret"]} *" : L["SalesChannel:ApiSecret"].Value)" ColSpanMd="6">
+            <PasswordTextEdit @bind-Text="@Model.ApiSecret" NullText="@SecretPlaceholder" Tooltip="@L["ShowPassword"]" CssClass="w-100" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["Description"]" ColSpanMd="12">
+            <DxMemo @bind-Text="@Model.Description" Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6">
+            <DxCheckBox @bind-Checked="@Model.IsActive" CheckType="CheckType.Switch">
+                @(Model.IsActive ? L["Active"] : L["Passive"])
+            </DxCheckBox>
+        </DxFormLayoutItem>
+    </DxFormLayoutGroup>
+</DxFormLayout>
