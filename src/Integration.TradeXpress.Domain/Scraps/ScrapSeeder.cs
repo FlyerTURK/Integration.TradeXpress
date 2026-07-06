@@ -54,37 +54,8 @@ public class ScrapSeeder(
                 .ToDictionary(g => g.Key, g => g.First().Id, StringComparer.OrdinalIgnoreCase);
         }
 
-        // LEGACY RENAME BACKFILL (idempotent): eski normalize kuralı boşluğu '_' yapıyordu → mevcut DB'lerde
-        // seed kodları "08_HURDA" biçiminde. Kural değişti (2026-07-04: boşluk KORUNUR) → var-kontrolü artık
-        // "08 HURDA" arar ve '_'li kaydı görmeyip DUPLICATE seed üretirdi. Eski-seed kodlarını yeni normalize'a
-        // taşı (yalnız birebir '_' varyantı eşleşen SEED kodları; kullanıcı verisine dokunmaz, ikinci koşuda no-op).
-        var legacyByNew = Seeds.ToDictionary(
-            s => s.Code.NormalizeAsCode(),
-            s => s.Code.NormalizeAsCode().Replace(' ', '_'),
-            StringComparer.OrdinalIgnoreCase);
-        var legacyRows = (await scrapRepository.GetQueryableAsync())
-            .Where(s => s.Code.Contains("_"))
-            .ToList();
-        var renamed = false;
-        foreach (var row in legacyRows)
-        {
-            var match = legacyByNew.FirstOrDefault(kv => string.Equals(kv.Value, row.Code, StringComparison.OrdinalIgnoreCase));
-            if (match.Key is not null)
-            {
-                row.SetCode(match.Key);
-                await scrapRepository.UpdateAsync(row, autoSave: false);
-                renamed = true;
-            }
-        }
-
-        // Rename'leri FLUSH et: aşağıdaki var-kontrolü server-side projeksiyondur (change tracker'ı
-        // görmez); flush edilmezse eski '_'li kod döner, yeni kod "yok" sanılır → duplicate insert
-        // (IX_AppScraps_TenantId_Code ihlali). İkinci koşuda rename yok → flush atlanır (no-op korunur).
-        if (renamed)
-        {
-            await unitOfWorkManager.Current!.SaveChangesAsync();
-        }
-
+        // NOT: legacy '_' rename-backfill KALDIRILDI (2026-07-05): tüm DB'lerdeki '_'li seed kodları
+        // boşukluya taşındı/temizlendi; yeni normalize '_' üretmez → backfill kalıcı no-op olmuştu.
         var existing = (await scrapRepository.GetQueryableAsync())
             .Select(s => s.Code)
             .ToList()

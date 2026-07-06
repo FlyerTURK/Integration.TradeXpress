@@ -52,11 +52,12 @@ public class ProductVariantManager : DomainService
                 return promote;
             }
 
+            // Base (0-attribute) ana varyant SABİT kimlikli (ürün kodundan TÜRETİLMEZ; ProductConsts SSOT).
             var variant = new ProductVariant(
                 product.CompanyId,
                 product.Id,
-                product.Code,
-                product.Name,
+                ProductConsts.MainVariantCode,
+                ProductConsts.MainVariantName,
                 isMain: true);
 
             await _variantRepository.InsertAsync(variant, autoSave: true);

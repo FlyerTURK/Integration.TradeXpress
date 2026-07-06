@@ -1,0 +1,231 @@
+@using Integration.TradeXpress.Metals
+@using Integration.TradeXpress.Scraps
+@using Integration.TradeXpress.Futures
+@using Integration.TradeXpress.Jewelries
+@using Integration.TradeXpress.Stones
+@using Integration.TradeXpress.Blazor.Client.Pages.CurrentTransactions
+@inherits Integration.Framework.Blazor.Client.Components.Crud.EntryPanelBase<ProductRecipeLineGraphDto>
+
+@* Reçete paneli — EntryPanelBase (Framework buffered giriş tabanı) türevi, süreç paneli görünümü:
+   toolbar tip seçtirir → EntryPanelShell (kırmızı gradyan başlık + Kaydet/Geri) toolbar'ın yerine açılır;
+   DRAFT üzerinde çalışılır. Kaydet = uygula + aynı tipte yeni draft (seri giriş); Geri = draft'ı at. *@
+
+<DxLayoutBreakpoint MaxWidth="768" @bind-IsActive="@_isMobile" />
+
+@if (!IsPanelOpen)
+{
+    @* Buton + net maliyet satırı: ham div YALNIZ flex sarmalayıcı (ui-blazor istisnası; süreç paneli deseni). *@
+    <div style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap; padding:0.5rem 0.5rem 0;">
+        <DxButton Text="@L["AddMetal"]" IconCssClass="@TradeXpressIcons.Metal" RenderStyle="ButtonRenderStyle.Secondary"
+                  Click="@(() => OpenCatalogDraft(ProcessType.Metal))" />
+        <DxButton Text="@L["AddScrap"]" IconCssClass="@TradeXpressIcons.Scrap" RenderStyle="ButtonRenderStyle.Secondary"
+                  Click="@(() => OpenCatalogDraft(ProcessType.Scrap))" />
+        <DxButton Text="@L["AddFuture"]" IconCssClass="@TradeXpressIcons.Future" RenderStyle="ButtonRenderStyle.Secondary"
+                  Click="@(() => OpenCatalogDraft(ProcessType.Future))" />
+        <DxButton Text="@L["AddJewelry"]" IconCssClass="@TradeXpressIcons.Jewelry" RenderStyle="ButtonRenderStyle.Secondary"
+                  Click="@(() => OpenCatalogDraft(ProcessType.Jewelry))" />
+        <DxButton Text="@L["AddStone"]" IconCssClass="@TradeXpressIcons.Stone" RenderStyle="ButtonRenderStyle.Secondary"
+                  Click="@(() => OpenCatalogDraft(ProcessType.Stone))" />
+        <DxButton Text="@L["AddService"]" IconCssClass="@TradeXpressIcons.Service" RenderStyle="ButtonRenderStyle.Secondary"
+                  Click="@(() => OpenServiceOrManualDraft(RecipeComponentType.Service))" />
+        <DxButton Text="@L["AddManualCost"]" IconCssClass="@TradeXpressIcons.Add" RenderStyle="ButtonRenderStyle.Secondary"
+                  Click="@(() => OpenServiceOrManualDraft(RecipeComponentType.ManualCost))" />
+
+        @if (NetCost.HasValue)
+        {
+            <span style="margin-left:auto; font-weight:600;">
+                @L["NetCost"]: @NetCost.Value.ToString("N2") @NetCostCurrency
+                @if (NetCostMissingRate)
+                {
+                    <span style="color:#b45309; font-weight:400;"> (@L["MissingRate"])</span>
+                }
+            </span>
+        }
+    </div>
+}
+else if (Draft is { } d)
+{
+    <EntryPanelShell Title="@EditorTitle(d)"
+                     SaveEnabled="true"
+                     OnSave="@(async () => await SaveDraftAsync())"
+                     OnBack="@(() => CloseDraft())">
+        <div style="padding:8px; @(_isMobile ? "" : "overflow-x:auto;")">
+            <div style="display:flex; @(_isMobile ? "flex-direction:column;" : "width:max-content;") gap:4px; align-items:flex-start;">
+
+                @if (d.ComponentType == RecipeComponentType.CatalogCommodity)
+                {
+                    @if (IsMetalLegged(d.CommodityProcessType))
+                    {
+                        @* Ödeme tipi — reçetede YALNIZ Normal + Bedelli; DxComboBox EditContext içinde
+                           ValidationEnabled=false ile render eder (LookupComboBox deseni). *@
+                        <div style="@GroupStyle()">
+                            <small style="@ProcessPanelStyles.Label">@L["PaymentType"]</small>
+                            <DxComboBox TData="PaymentItem" TValue="ProcessPaymentType"
+                                        Data="@_paymentItems" Value="@d.PaymentType"
+                                        ValueChanged="@((ProcessPaymentType v) => OnPaymentTypeChanged(v))"
+                                        ValueFieldName="@nameof(PaymentItem.Value)" TextFieldName="@nameof(PaymentItem.Label)"
+                                        DropDownTriggerMode="DropDownTriggerMode.Click" ShowDropDownButton="true"
+                                        ValidationEnabled="false" CssClass="w-100" />
+                        </div>
+                    }
+
+                    <div style="@GroupStyle(240)">
+                        <small style="@ProcessPanelStyles.Label">@ComponentLabel(d)</small>
+                        @if (d.CommodityProcessType == ProcessType.Metal)
+                        {
+                            <LookupComboBox TItem="MetalListDto" TValue="Guid?" Data="@Metals"
+                                            ValueFieldName="@nameof(MetalListDto.Id)" TextFieldName="@nameof(MetalListDto.Code)"
+                                            Value="@d.CommodityId" ValueChanged="@((Guid? v) => OnMetalSelected(v))" AllowClear="false" />
+                        }
+                        else if (d.CommodityProcessType == ProcessType.Scrap)
+                        {
+                            <LookupComboBox TItem="ScrapListDto" TValue="Guid?" Data="@Scraps"
+                                            ValueFieldName="@nameof(ScrapListDto.Id)" TextFieldName="@nameof(ScrapListDto.Code)"
+                                            Value="@d.CommodityId" ValueChanged="@((Guid? v) => OnScrapSelected(v))" AllowClear="false" />
+                        }
+                        else if (d.CommodityProcessType == ProcessType.Future)
+                        {
+                            <LookupComboBox TItem="FutureListDto" TValue="Guid?" Data="@Futures"
+                                            ValueFieldName="@nameof(FutureListDto.Id)" TextFieldName="@nameof(FutureListDto.Code)"
+                                            Value="@d.CommodityId" ValueChanged="@((Guid? v) => OnFutureSelected(v))" AllowClear="false" />
+                        }
+                        else if (d.CommodityProcessType == ProcessType.Jewelry)
+                        {
+                            <LookupComboBox TItem="JewelryListDto" TValue="Guid?" Data="@Jewelries"
+                                            ValueFieldName="@nameof(JewelryListDto.Id)" TextFieldName="@nameof(JewelryListDto.Code)"
+                                            Value="@d.CommodityId" ValueChanged="@((Guid? v) => OnJewelrySelected(v))" AllowClear="false" />
+                        }
+                        else if (d.CommodityProcessType == ProcessType.Stone)
+                        {
+                            <LookupComboBox TItem="StoneListDto" TValue="Guid?" Data="@Stones"
+                                            ValueFieldName="@nameof(StoneListDto.Id)" TextFieldName="@nameof(StoneListDto.Code)"
+                                            Value="@d.CommodityId" ValueChanged="@((Guid? v) => OnStoneSelected(v))" AllowClear="false" />
+                        }
+                    </div>
+
+                    @if (IsMetalLegged(d.CommodityProcessType))
+                    {
+                        @if (ShowAdet(d))
+                        {
+                            <div style="@GroupStyle(60)">
+                                <small style="@ProcessPanelStyles.Label">@L["Count"]</small>
+                                <NumericSpinEdit TValue="decimal" Value="@d.Quantity" ValueChanged="@((decimal v) => OnQuantityChanged(v))" ValueExpression="@(() => d.Quantity)"
+                                                 BindValueMode="BindValueMode.OnInput" ShowSpinButtons="false" DisplayFormat="N0" Mask="N0" />
+                            </div>
+                        }
+                        <div style="@GroupStyle()">
+                            <small style="@ProcessPanelStyles.Label">@L["LineAmount"]</small>
+                            <NumericSpinEdit TValue="decimal" Value="@d.Amount" ValueChanged="@((decimal v) => OnAmountChanged(v))" ValueExpression="@(() => d.Amount)"
+                                             Enabled="@(!AmountReadOnly(d))" BindValueMode="BindValueMode.OnInput" ShowSpinButtons="false" DisplayFormat="N2" Mask="N2" />
+                        </div>
+                        <div style="@GroupStyle()">
+                            <small style="@ProcessPanelStyles.Label">@L["Factor"]</small>
+                            <NumericSpinEdit TValue="decimal" Value="@d.Factor" ValueChanged="@((decimal v) => OnFactorChanged(v))" ValueExpression="@(() => d.Factor)"
+                                             BindValueMode="BindValueMode.OnInput" ShowSpinButtons="false" DisplayFormat="N5" Mask="N5" />
+                        </div>
+                        <div style="@GroupStyle()">
+                            <small style="@ProcessPanelStyles.Label">@L["Total"] (@MainUnitCodeOf(d))</small>
+                            <NumericSpinEdit TValue="decimal" Value="@d.Total" ValueChanged="@((decimal v) => OnTotalChanged(v))" ValueExpression="@(() => d.Total)"
+                                             ShowSpinButtons="false" DisplayFormat="N5" Mask="N5" />
+                        </div>
+                        <div style="@GroupStyle()">
+                            <small style="@ProcessPanelStyles.Label">@(d.PaymentType == ProcessPaymentType.WithCurrency ? L["PayFactor"].Value : LaborCaption(d))</small>
+                            <NumericSpinEdit TValue="decimal" Value="@d.PayFactor" ValueChanged="@((decimal v) => OnPayFactorChanged(v))" ValueExpression="@(() => d.PayFactor)"
+                                             BindValueMode="BindValueMode.OnInput" ShowSpinButtons="false" DisplayFormat="N5" Mask="N5" />
+                        </div>
+                        <div style="@GroupStyle()">
+                            <small style="@ProcessPanelStyles.Label">@L["PayTotal"] (@PayUnitCodeOf(d))</small>
+                            <NumericSpinEdit TValue="decimal" Value="@d.PayTotal" ValueChanged="@((decimal v) => OnPayTotalChanged(v))" ValueExpression="@(() => d.PayTotal)"
+                                             ShowSpinButtons="false" DisplayFormat="N2" Mask="N2" />
+                        </div>
+                        <div style="@GroupStyle(140)">
+                            <small style="@ProcessPanelStyles.Label">@L["Unit"]</small>
+                            <LookupComboBox TItem="CurrentPriceDto" TValue="Guid?" Data="@Units"
+                                            ValueFieldName="@nameof(CurrentPriceDto.Id)" TextFieldName="@nameof(CurrentPriceDto.CurrencyUnitCode)"
+                                            Value="@d.PayUnitId" ValueChanged="@((Guid? v) => OnPayUnitChanged(v))" AllowClear="false" />
+                        </div>
+                    }
+                    else
+                    {
+                        @if (PriceByQuantity(d))
+                        {
+                            <div style="@GroupStyle(60)">
+                                <small style="@ProcessPanelStyles.Label">@L["Count"]</small>
+                                <NumericSpinEdit TValue="decimal" Value="@d.Quantity" ValueChanged="@((decimal v) => OnQuantityChanged(v))" ValueExpression="@(() => d.Quantity)"
+                                                 BindValueMode="BindValueMode.OnInput" ShowSpinButtons="false" DisplayFormat="N0" Mask="N0" />
+                            </div>
+                        }
+                        else
+                        {
+                            <div style="@GroupStyle()">
+                                <small style="@ProcessPanelStyles.Label">@L["LineAmount"]</small>
+                                <NumericSpinEdit TValue="decimal" Value="@d.Amount" ValueChanged="@((decimal v) => OnAmountChanged(v))" ValueExpression="@(() => d.Amount)"
+                                                 BindValueMode="BindValueMode.OnInput" ShowSpinButtons="false" DisplayFormat="N2" Mask="N2" />
+                            </div>
+                        }
+                    }
+                }
+                else
+                {
+                    <div style="@GroupStyle(140)">
+                        <small style="@ProcessPanelStyles.Label">@L["ManualAmount"]</small>
+                        <NumericSpinEdit TValue="decimal" Value="@d.ManualAmount" ValueChanged="@((decimal v) => OnManualAmountChanged(v))" ValueExpression="@(() => d.ManualAmount)"
+                                         BindValueMode="BindValueMode.OnInput" ShowSpinButtons="false" DisplayFormat="N2" Mask="N2" />
+                    </div>
+                    <div style="@GroupStyle(160)">
+                        <small style="@ProcessPanelStyles.Label">@L["Unit"]</small>
+                        <LookupComboBox TItem="CurrentPriceDto" TValue="Guid?" Data="@Units"
+                                        ValueFieldName="@nameof(CurrentPriceDto.Id)" TextFieldName="@nameof(CurrentPriceDto.CurrencyUnitCode)"
+                                        Value="@d.ManualUnitId" ValueChanged="@((Guid? v) => OnManualUnitChanged(v))" AllowClear="false" />
+                    </div>
+                }
+
+            </div>
+
+            @* Açıklama — satır sonuna kadar genişler (MetalProcessPanel ikinci satır paritesi). *@
+            <div style="display:flex; flex-direction:column; gap:4px; margin-top:4px;">
+                @if (_isMobile)
+                {
+                    <small style="@ProcessPanelStyles.Label">@L["Description"]</small>
+                }
+                <DxTextBox Text="@d.Description" TextChanged="@((string v) => OnDescriptionChanged(v))" TextExpression="@(() => d.Description)" CssClass="w-100" />
+            </div>
+        </div>
+    </EntryPanelShell>
+}
+
+@* Satır grid'i — voucher satır grid'i dizilimi (pager YOK); satıra tıkla → draft'a kopyala (buffered edit). *@
+<DxGrid Data="@VisibleLines" KeyFieldName="ClientKey" RowClick="OnRowClick" PagerVisible="false" PageSize="1000" CssClass="mt-2">
+    <Columns>
+        <DxGridDataColumn AllowSort="false" FieldName="@nameof(ProductRecipeLineGraphDto.LineOrder)" Caption="@L["Nr"]" Width="50px" TextAlignment="GridTextAlignment.Right" />
+        <DxGridDataColumn AllowSort="false" Caption="@L["ComponentType"]" Width="90px">
+            <CellDisplayTemplate>@ComponentLabel((ProductRecipeLineGraphDto)context.DataItem)</CellDisplayTemplate>
+        </DxGridDataColumn>
+        <DxGridDataColumn AllowSort="false" Caption="@L["Commodity"]" Width="100px">
+            <CellDisplayTemplate>@CommodityCodeOf((ProductRecipeLineGraphDto)context.DataItem)</CellDisplayTemplate>
+        </DxGridDataColumn>
+        <DxGridDataColumn AllowSort="false" Caption="@L["PaymentType"]" Width="90px">
+            <CellDisplayTemplate>@PaymentLabelOf((ProductRecipeLineGraphDto)context.DataItem)</CellDisplayTemplate>
+        </DxGridDataColumn>
+        <DxGridDataColumn AllowSort="false" FieldName="@nameof(ProductRecipeLineGraphDto.Quantity)" Caption="@L["Count"]" DisplayFormat="N0" TextAlignment="GridTextAlignment.Right" Width="70px" />
+        <DxGridDataColumn AllowSort="false" FieldName="@nameof(ProductRecipeLineGraphDto.Amount)" Caption="@L["LineAmount"]" DisplayFormat="N2" TextAlignment="GridTextAlignment.Right" Width="90px" />
+        <DxGridDataColumn AllowSort="false" FieldName="@nameof(ProductRecipeLineGraphDto.Factor)" Caption="@L["Factor"]" DisplayFormat="N5" TextAlignment="GridTextAlignment.Right" Width="90px" />
+        <DxGridDataColumn AllowSort="false" Caption="@L["Total"]" TextAlignment="GridTextAlignment.Right" Width="120px">
+            <CellDisplayTemplate>@GridTotalText((ProductRecipeLineGraphDto)context.DataItem)</CellDisplayTemplate>
+        </DxGridDataColumn>
+        <DxGridDataColumn AllowSort="false" FieldName="@nameof(ProductRecipeLineGraphDto.PayFactor)" Caption="@L["Labor"]" DisplayFormat="N5" TextAlignment="GridTextAlignment.Right" Width="90px" />
+        <DxGridDataColumn AllowSort="false" Caption="@L["PayTotal"]" TextAlignment="GridTextAlignment.Right" Width="120px">
+            <CellDisplayTemplate>@GridPayTotalText((ProductRecipeLineGraphDto)context.DataItem)</CellDisplayTemplate>
+        </DxGridDataColumn>
+        <DxGridDataColumn AllowSort="false" FieldName="@nameof(ProductRecipeLineGraphDto.Description)" Caption="@L["Description"]" />
+        <DxGridDataColumn AllowSort="false" Caption="@L["LineCost"]" TextAlignment="GridTextAlignment.Right" Width="130px">
+            <CellDisplayTemplate>@LineCostText((ProductRecipeLineGraphDto)context.DataItem)</CellDisplayTemplate>
+        </DxGridDataColumn>
+        <DxGridDataColumn AllowSort="false" Width="56px" Caption="">
+            <CellDisplayTemplate>
+                <DxButton IconCssClass="@TradeXpressIcons.Delete" RenderStyle="ButtonRenderStyle.Link" Tooltip="@L["Delete"].Value"
+                          Click="@(async () => await DeleteLineAsync((ProductRecipeLineGraphDto)context.DataItem))" />
+            </CellDisplayTemplate>
+        </DxGridDataColumn>
+    </Columns>
+</DxGrid>

@@ -61,7 +61,7 @@ public class Branch : FullAuditedAggregateRoot<Guid>, IMultiTenant
 
     public virtual void SetCode(string code)
     {
-        // NormalizeCode: Trim + çoklu boşluk→tek + boşluk→'_' + UPPER, ardından zorunlu/min/max doğrulaması.
+        // NormalizeCode: Trim + çoklu boşluk→tek + UPPER (boşluk KORUNUR), ardından zorunlu/min/max doğrulaması.
         // Elle .ToUpperInvariant() gerekmez (NormalizeCode zaten UPPER yapar).
         Code = StringFieldGuard.NormalizeCode(
             code,

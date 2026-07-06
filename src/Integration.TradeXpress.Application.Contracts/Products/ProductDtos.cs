@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using Integration.Framework.Base.Dtos;
 using Integration.Framework.Base.Dtos.Interfaces;
+using Integration.TradeXpress.Vouchers;
 using Volo.Abp.Application.Dtos;
 
 namespace Integration.TradeXpress.Products;
@@ -122,6 +123,88 @@ public class ProductVariantGraphDto
     /// sıralı "|" join'i. <c>GenerateVariantsAsync</c> doldurur, client round-trip eder; kayıtta Id'siz (henüz DB'de olmayan)
     /// üretilmiş satırın özelleştirmelerini (Code/Name/Description/IsActive) senkron sonrası DB varyantına EŞLEMEK içindir.</summary>
     public string CombinationKey { get; set; } = string.Empty;
+
+    /// <summary>Varyantın REÇETE satırları (design-time maliyet bileşenleri; graf düğümleri, Id + IsDeleted diff).
+    /// Product edit formundaki reçete drill'i yönetir; Product save'inde varyant-scope kalıcılaşır.</summary>
+    public List<ProductRecipeLineGraphDto> RecipeLines { get; set; } = new();
+
+    /// <summary>Varyantın CANLI net maliyeti — ülke para birimine rebase'li toplam (SALT-OKUNUR, GetAsync projeksiyonunda
+    /// hesaplanır; save'de YOKSAYILIR). Ülke birimi ya da kur çözülemezse null.</summary>
+    public decimal? NetCost { get; set; }
+
+    /// <summary>Net maliyetin para birimi kodu (ülke birimi; ör. "TRY"). SALT-OKUNUR görüntü.</summary>
+    public string NetCostCurrency { get; set; } = string.Empty;
+
+    /// <summary>Net maliyetin en az bir satırında kur/birim eksik mi — UI uyarısı (SALT-OKUNUR).</summary>
+    public bool NetCostMissingRate { get; set; }
+}
+
+/// <summary>
+/// Bir varyant reçetesinin tek satırı (design-time maliyet bileşeni) — in-memory drill düğümü + Product save'i içindir
+/// (ProductVariantGraphDto deseni). Durum = <see cref="Id"/> + <see cref="IsDeleted"/>. <b>Net/tutar dondurulmaz</b>:
+/// <see cref="LineCost"/> SALT-OKUNUR, GetAsync projeksiyonunda canlı hesaplanır (kur değişince güncellenir).
+/// </summary>
+public class ProductRecipeLineGraphDto
+{
+    public Guid Id { get; set; }
+    public Guid ClientKey { get; set; } = Guid.NewGuid();
+    public bool IsDeleted { get; set; }
+
+    public int LineOrder { get; set; }
+
+    /// <summary>Bileşen türü — toolbar butonu belirler (Maden/Hurda/Vadeli/Mücevher/Taş → CatalogCommodity;
+    /// Hizmet → Service; Manuel → ManualCost).</summary>
+    public RecipeComponentType ComponentType { get; set; } = RecipeComponentType.CatalogCommodity;
+
+    /// <summary>Katalog emtia ailesi (Metal/Scrap/Future/Jewelry/Stone) — yalnız CatalogCommodity'de dolu.</summary>
+    public ProcessType? CommodityProcessType { get; set; }
+
+    /// <summary>Seçili katalog kaydı (snapshot ref) ya da hizmet referansı. Manuelde boş.</summary>
+    public Guid? CommodityId { get; set; }
+
+    public decimal Quantity { get; set; }
+    public decimal Amount { get; set; }
+    public decimal Factor { get; set; }
+
+    /// <summary>Doğal-birim snapshot'ı (rebase kaynağı; VoucherLine.MainUnitId rolü) — metal-bacaklıda
+    /// FollowingUnit, parasalda EntryPrice birimi.</summary>
+    public Guid? ValuationUnitId { get; set; }
+
+    /// <summary>Ana (doğal) birimin kodu (ör. "HAS") — SALT-OKUNUR görüntü (GetAsync projeksiyonu).</summary>
+    public string MainUnitCode { get; set; } = string.Empty;
+
+    /// <summary>Ödeme tipi — reçetede yalnız Normal (metal + işçilik bacağı) ve WithCurrency/Bedelli (sabit bedel = tek bacak).</summary>
+    public ProcessPaymentType PaymentType { get; set; } = ProcessPaymentType.Normal;
+
+    /// <summary>Ana bacak toplamı (Amount×Factor, doğal birimde) — TÜRETİLMİŞ, SALT-OKUNUR (persist yok).</summary>
+    public decimal Total { get; set; }
+
+    /// <summary>Karşı bacak birim fiyatı (N5) — Normal'de işçilik rate'i (adet/miktar başına), Bedelli'de 1 ana-birim başına bedel.</summary>
+    public decimal PayFactor { get; set; }
+
+    /// <summary>Karşı bacak toplamı — TÜRETİLMİŞ, SALT-OKUNUR: Normal'de PayFactor×(adet|miktar), Bedelli'de Total×PayFactor.</summary>
+    public decimal PayTotal { get; set; }
+
+    /// <summary>Karşı bacak birimi (işçilik/bedel birimi) — snapshot.</summary>
+    public Guid? PayUnitId { get; set; }
+
+    /// <summary>Karşı bacak biriminin kodu — SALT-OKUNUR görüntü (GetAsync projeksiyonu).</summary>
+    public string PayUnitCode { get; set; } = string.Empty;
+
+    /// <summary>Hizmet/manuel sabit tutar (non-null → NumericSpinEdit ValueExpression için 0m default).</summary>
+    public decimal ManualAmount { get; set; }
+
+    /// <summary>Hizmet/manuel tutar birimi.</summary>
+    public Guid? ManualUnitId { get; set; }
+
+    [StringLength(ProductRecipeConsts.DescriptionMaxLength)]
+    public string? Description { get; set; }
+
+    /// <summary>Satırın CANLI maliyeti — ülke birimine rebase'li (SALT-OKUNUR, GetAsync projeksiyonu; save'de yoksayılır).</summary>
+    public decimal? LineCost { get; set; }
+
+    /// <summary>Satırın doğal-birim kuru çözülemedi mi (kur/birim eksik) — UI göstergesi (SALT-OKUNUR).</summary>
+    public bool LineCostMissingRate { get; set; }
 }
 
 /// <summary>Persistsiz varyant üretim isteği (önizleme): nitelik grafı + ad türetmesi için ürün adı.

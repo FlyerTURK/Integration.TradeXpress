@@ -2,9 +2,13 @@
 @using System.Linq.Expressions
 @using DevExpress.Blazor
 
+@* ValidationEnabled: ValueExpression yoksa (Value=+ValueChanged= tek-yön kullanım) DevExpress alan-kimliği
+   üretemez ve EditContext İÇİNDE "requires ValueExpression" fırlatır → o durumda validation KAPALI.
+   @bind-Value'da ValueExpression otomatik dolar → validation açık. (Yorum tag DIŞINDA — ui-blazor gotcha.) *@
 <DxSpinEdit Value="@Value"
             ValueChanged="@(async (TValue v) => await OnValueChanged(v))"
             ValueExpression="@ValueExpression"
+            ValidationEnabled="@(ValueExpression != null)"
             BindValueMode="@BindValueMode"
             ClearButtonDisplayMode="@ClearButtonDisplayMode"
             ShowSpinButtons="@ShowSpinButtons"

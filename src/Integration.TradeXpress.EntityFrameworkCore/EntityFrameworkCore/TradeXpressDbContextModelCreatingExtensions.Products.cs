@@ -78,5 +78,22 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
             b.HasIndex(x => new { x.TenantId, x.ProductAttributeValueId });
             b.HasIndex(x => new { x.TenantId, x.CompanyId });
         });
+
+        builder.Entity<ProductVariantRecipeLine>(b =>
+        {
+            b.ToTable(TradeXpressConsts.DbTablePrefix + "ProductVariantRecipeLines", TradeXpressConsts.DbSchema);
+            b.ConfigureByConvention();
+
+            b.Property(x => x.Quantity).HasPrecision(ProductRecipeConsts.FactorPrecision, ProductRecipeConsts.FactorScale);
+            b.Property(x => x.Amount).HasPrecision(ProductRecipeConsts.AmountPrecision, ProductRecipeConsts.AmountScale);
+            b.Property(x => x.Factor).HasPrecision(ProductRecipeConsts.FactorPrecision, ProductRecipeConsts.FactorScale);
+            b.Property(x => x.PayFactor).HasPrecision(ProductRecipeConsts.FactorPrecision, ProductRecipeConsts.FactorScale);
+            b.Property(x => x.ManualAmount).HasPrecision(ProductRecipeConsts.AmountPrecision, ProductRecipeConsts.AmountScale);
+            b.Property(x => x.Description).HasMaxLength(ProductRecipeConsts.DescriptionMaxLength);
+
+            // Varyant reçetesi sıralı okuma (drill LineOrder sırası) + company güvenlik query-filter'ı.
+            b.HasIndex(x => new { x.TenantId, x.ProductVariantId, x.LineOrder });
+            b.HasIndex(x => new { x.TenantId, x.CompanyId });
+        });
     }
 }

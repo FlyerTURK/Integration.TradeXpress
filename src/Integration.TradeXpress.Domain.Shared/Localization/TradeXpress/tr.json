@@ -701,6 +701,24 @@
     "TradeXpress:Voucher:TransferCounterRequired": "Virman için karşı hesap seçilmelidir.",
     "TradeXpress:Voucher:TransferCounterSameAccount": "Karşı hesap, işlem yapılan hesapla aynı olamaz.",
     "TradeXpress:Voucher:TransferCounterNotFound": "Karşı hesap bulunamadı, pasif ya da çalışılan şirkete ait değil.",
-    "ShortDateFormat": "dd.MM.yy"
+    "ShortDateFormat": "dd.MM.yy",
+    "Recipe": "Reçete",
+    "RecipeLines": "Reçete Satırları",
+    "RecipeLine": "Reçete Satırı",
+    "NetCost": "Net Maliyet",
+    "LineCost": "Satır Maliyeti",
+    "ComponentType": "Tür",
+    "ManualCost": "Manuel Maliyet",
+    "ManualAmount": "Tutar",
+    "AddMetal": "Maden Ekle",
+    "AddScrap": "Hurda Ekle",
+    "AddFuture": "Vadeli Ekle",
+    "AddJewelry": "Mücevher Ekle",
+    "AddStone": "Taş Ekle",
+    "AddService": "Hizmet Ekle",
+    "AddManualCost": "Manuel Maliyet Ekle",
+    "MissingRate": "Kur yok",
+    "RecipeMissingRate": "Bazı satırların kuru eksik; net maliyet kısmidir.",
+    "TradeXpress:ProductRecipeLine:OrderMustBeNonNegative": "Satır sırası negatif olamaz."
   }
 }

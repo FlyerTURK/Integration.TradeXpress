@@ -15,6 +15,8 @@
                   EntityValue="@(m => m.Code)"
                   ApplyNewDefaults="@(m => ApplyNew(m))">
         <ProductLayout Model="@context" IsNew="@(context.Id == Guid.Empty)"
+                       Metals="Metals" Scraps="Scraps" Futures="Futures"
+                       Jewelries="Jewelries" Stones="Stones" Units="Units"
                        OnGenerateVariants="@(async () => await GenerateVariantsAsync(context))" />
     </CrudEditHost>
 }

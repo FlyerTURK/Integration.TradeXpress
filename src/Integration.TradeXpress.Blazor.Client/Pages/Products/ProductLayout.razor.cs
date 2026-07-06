@@ -3,7 +3,13 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Integration.Framework.Blazor.Client.Components.Crud;
+using Integration.TradeXpress.Financials.CurrencyUnits;
+using Integration.TradeXpress.Futures;
+using Integration.TradeXpress.Jewelries;
+using Integration.TradeXpress.Metals;
 using Integration.TradeXpress.Products;
+using Integration.TradeXpress.Scraps;
+using Integration.TradeXpress.Stones;
 using Microsoft.AspNetCore.Components;
 
 namespace Integration.TradeXpress.Blazor.Client.Pages.Products;
@@ -13,6 +19,14 @@ public partial class ProductLayout
 {
     [Parameter, EditorRequired] public ProductGetDto Model { get; set; } = default!;
     [Parameter] public bool IsNew { get; set; }
+
+    // Reçete drill'inin katalog lookup verisi — host yükler (DUMB layout servis çağırmaz).
+    [Parameter] public IReadOnlyList<MetalListDto> Metals { get; set; } = Array.Empty<MetalListDto>();
+    [Parameter] public IReadOnlyList<ScrapListDto> Scraps { get; set; } = Array.Empty<ScrapListDto>();
+    [Parameter] public IReadOnlyList<FutureListDto> Futures { get; set; } = Array.Empty<FutureListDto>();
+    [Parameter] public IReadOnlyList<JewelryListDto> Jewelries { get; set; } = Array.Empty<JewelryListDto>();
+    [Parameter] public IReadOnlyList<StoneListDto> Stones { get; set; } = Array.Empty<StoneListDto>();
+    [Parameter] public IReadOnlyList<CurrentPriceDto> Units { get; set; } = Array.Empty<CurrentPriceDto>();
 
     private DrillList<ProductVariantGraphDto>? _variantDrill;
     private DrillList<ProductAttributeGraphDto>? _attributeDrill;

@@ -22,6 +22,10 @@ public static class FrameworkIcons
     public const string LookupEdit = "xaf-edit-icon";
     public const string LookupAdd  = "xaf-new-icon";
 
+    // Giriş paneli (EntryPanelShell) butonları
+    public const string Save = "custom-icon-save";
+    public const string Back = "custom-icon-back";
+
     // Pencere kontrolleri (CrudEditView / EditShell)
     public const string Minimize       = "custom-icon-minimize";
     public const string MinimizeCorner = "custom-icon-minimize-corner";

@@ -670,6 +670,24 @@
     "TradeXpress:Voucher:TransferCounterRequired": "A counter account must be selected for a transfer.",
     "TradeXpress:Voucher:TransferCounterSameAccount": "The counter account cannot be the same as the source account.",
     "TradeXpress:Voucher:TransferCounterNotFound": "The counter account was not found, is passive, or does not belong to the working company.",
-    "ShortDateFormat": "MM/dd/yy"
+    "ShortDateFormat": "MM/dd/yy",
+    "Recipe": "Recipe",
+    "RecipeLines": "Recipe Lines",
+    "RecipeLine": "Recipe Line",
+    "NetCost": "Net Cost",
+    "LineCost": "Line Cost",
+    "ComponentType": "Type",
+    "ManualCost": "Manual Cost",
+    "ManualAmount": "Amount",
+    "AddMetal": "Add Metal",
+    "AddScrap": "Add Scrap",
+    "AddFuture": "Add Future",
+    "AddJewelry": "Add Jewelry",
+    "AddStone": "Add Stone",
+    "AddService": "Add Service",
+    "AddManualCost": "Add Manual Cost",
+    "MissingRate": "No rate",
+    "RecipeMissingRate": "Some lines are missing a rate; net cost is partial.",
+    "TradeXpress:ProductRecipeLine:OrderMustBeNonNegative": "Line order cannot be negative."
   }
 }

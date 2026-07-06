@@ -1,0 +1,33 @@
+@using DevExpress.Blazor
+@using Integration.Framework.Blazor.Client
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@* Buffered giriş panelinin CHROME'u (app-agnostik) — süreç paneli kabuğunun jenerik ikizi:
+   gradyan başlık şeridi (default KIRMIZI) + içerik + Kaydet/Geri buton şeridi. Yaşam döngüsü
+   EntryPanelBase'te; alan içeriği türev bileşenden ChildContent olarak gelir. *@
+
+<div style="display:flex; flex-direction:column; box-sizing:border-box; width:100%; max-width:100%; min-width:0; border:1px solid #dee2e6; border-radius:4px;">
+
+    <div style="@HeaderStripStyle()">
+        @Title
+    </div>
+
+    @* İçerik yatayda taşarsa kabuk DEĞİL bu sarmalayıcı kayar (min-width:0 → flex çocuğu içeriğe göre şişmez). *@
+    <div style="min-width:0; max-width:100%; overflow-x:auto;">
+        @ChildContent
+    </div>
+
+    <div style="display:flex; justify-content:flex-end; gap:8px; padding:8px 8px 4px; border-top:1px solid #ddd;">
+        <DxButton Text="@L["Save"].Value"
+                  IconCssClass="@FrameworkIcons.Save"
+                  RenderStyle="ButtonRenderStyle.Primary"
+                  RenderStyleMode="ButtonRenderStyleMode.Contained"
+                  Enabled="@SaveEnabled"
+                  Click="@OnSave" />
+        <DxButton Text="@L["Back"].Value"
+                  IconCssClass="@FrameworkIcons.Back"
+                  RenderStyle="ButtonRenderStyle.Secondary"
+                  RenderStyleMode="ButtonRenderStyleMode.Contained"
+                  Click="@OnBack" />
+    </div>
+</div>

@@ -79,7 +79,8 @@ public abstract class FollowingUnitCatalogAppService<TEntity, TGetDto, TListDto,
         }
     }
 
-    /// <summary>Süreç paneli combo'su: birim düzeni + faktör desc + Code asc, pasifler dahil.</summary>
+    /// <summary>Süreç paneli combo'su — liste API'sinin default sırasıyla AYNI (Code asc; 2026-07-05 ürün
+    /// kararı: combo, listeleme formunun özel sıralamasız gönderdiği sırayı izler), pasifler dahil.</summary>
     public virtual async Task<List<TListDto>> GetPickerListAsync()
     {
         using (DataFilter.Disable<IMultiTenant>())
@@ -88,7 +89,7 @@ public abstract class FollowingUnitCatalogAppService<TEntity, TGetDto, TListDto,
                 (await Repository.GetQueryableAsync()).Where(BuildVisibilityPredicate()));
 
             var orders = await GetUnitOrdersAsync(rows.Select(FollowingUnitIdOf));
-            var orderedEntities = OrderComposite(rows, orders);
+            var orderedEntities = rows.OrderBy(CodeOf, StringComparer.OrdinalIgnoreCase).ToList();
             var dtos = orderedEntities.Select(MapListWithIsGlobal).ToList();
             ApplyUnitCodes(orderedEntities, dtos, orders);
             await EnrichListAsync(orderedEntities, dtos);
@@ -126,28 +127,6 @@ public abstract class FollowingUnitCatalogAppService<TEntity, TGetDto, TListDto,
                     u => u.Id,
                     u => (u.TenantId == null ? 0 : 1, u.AlwaysShowInBalance, u.DisplayOrder, u.Code ?? string.Empty));
         }
-    }
-
-    // Birim düzeni (global önce → AlwaysShowInBalance desc → DisplayOrder asc → birim Code asc) + faktör desc + Code asc.
-    private List<TEntity> OrderComposite(
-        IEnumerable<TEntity> entities,
-        IReadOnlyDictionary<Guid, (int Global, bool AlwaysShow, int DisplayOrder, string Code)> orders)
-    {
-        (int Global, bool AlwaysShow, int DisplayOrder, string Code) Key(TEntity e)
-        {
-            return orders.TryGetValue(FollowingUnitIdOf(e), out var v)
-                ? v
-                : (int.MaxValue, false, int.MaxValue, string.Empty);
-        }
-
-        return entities
-            .OrderBy(e => Key(e).Global)
-            .ThenByDescending(e => Key(e).AlwaysShow)
-            .ThenBy(e => Key(e).DisplayOrder)
-            .ThenBy(e => Key(e).Code, StringComparer.OrdinalIgnoreCase)
-            .ThenByDescending(CompositeFactorOf)
-            .ThenBy(CodeOf, StringComparer.OrdinalIgnoreCase)
-            .ToList();
     }
 
     private void ApplyUnitCodes(
