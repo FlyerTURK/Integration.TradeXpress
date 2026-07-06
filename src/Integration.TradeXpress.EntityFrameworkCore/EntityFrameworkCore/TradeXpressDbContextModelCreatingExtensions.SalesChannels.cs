@@ -28,8 +28,10 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
             b.Property(x => x.Name).IsRequired().HasMaxLength(SalesChannelConsts.NameMaxLength);
             b.Property(x => x.Description).HasMaxLength(SalesChannelConsts.DescriptionMaxLength);
 
-            // Kod company-scoped benzersiz (Product deseni: (TenantId, CompanyId, Code)).
-            b.HasIndex(x => new { x.TenantId, x.CompanyId, x.Code }).IsUnique();
+            // Kod company-scoped benzersiz (Product deseni: (TenantId, CompanyId, Code)). IsDeleted=0 FİLTRESİ
+            // ZORUNLU: soft-delete'te satır tabloda kalır; filtresiz index silinmiş kaydın kodunu işgal ederek
+            // yeniden kullanımı engellerdi (app-katmanı benzersizlik kontrolü zaten soft-delete'i filtreler → hizala).
+            b.HasIndex(x => new { x.TenantId, x.CompanyId, x.Code }).IsUnique().HasFilter("[IsDeleted] = 0");
             // Company güvenlik query-filter'ını hızlandırır (ICompanyOwned).
             b.HasIndex(x => new { x.TenantId, x.CompanyId });
         });
