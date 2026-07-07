@@ -10,6 +10,7 @@ using Integration.TradeXpress.N11Categories;
 using Integration.TradeXpress.N11Cities;
 using Integration.TradeXpress.N11Shipments;
 using Integration.TradeXpress.N11Products;
+using Integration.TradeXpress.TrendyolProducts;
 using Integration.TradeXpress.Futures;
 using Integration.TradeXpress.Scraps;
 using Integration.TradeXpress.Metals;
@@ -289,6 +290,24 @@ public partial class N11ProductListingToDtoMapper : MapperBase<N11ProductListing
 {
     public override partial N11ProductListingUpdateDto Map(N11ProductListingDto source);
     public override partial void Map(N11ProductListingDto source, N11ProductListingUpdateDto destination);
+}
+
+// ── Trendyol ürün listeleme → DTO + GetDto→Create/Update (drill persist yolu). Owned Attributes (id-bazlı) nested. ──
+[Mapper]
+public partial class TrendyolProductListingToDtoMapper : MapperBase<TrendyolProductListing, TrendyolProductListingDto>
+{
+    public override partial TrendyolProductListingDto Map(TrendyolProductListing source);
+    public override partial void Map(TrendyolProductListing source, TrendyolProductListingDto destination);
+}
+[Mapper] public partial class TrendyolProductListingGetToCreateMapper : MapperBase<TrendyolProductListingDto, TrendyolProductListingCreateDto>
+{
+    public override partial TrendyolProductListingCreateDto Map(TrendyolProductListingDto source);
+    public override partial void Map(TrendyolProductListingDto source, TrendyolProductListingCreateDto destination);
+}
+[Mapper] public partial class TrendyolProductListingGetToUpdateMapper : MapperBase<TrendyolProductListingDto, TrendyolProductListingUpdateDto>
+{
+    public override partial TrendyolProductListingUpdateDto Map(TrendyolProductListingDto source);
+    public override partial void Map(TrendyolProductListingDto source, TrendyolProductListingUpdateDto destination);
 }
 
 // ── Scrap (statik mapper → Mapperly; IsGlobal + FollowingUnitCode AppService'te/ApplyUnitCodes ile set) ──
