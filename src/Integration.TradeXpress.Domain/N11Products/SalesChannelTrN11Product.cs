@@ -58,6 +58,8 @@ public class SalesChannelTrN11Product : FullAuditedAggregateRoot<Guid>, IMultiTe
         Guid companyId,
         Guid salesChannelId,
         Guid productId,
+        string sellerCode,
+        int sequenceNo,
         string categoryExternalId,
         string shipmentTemplateName,
         N11ProductCondition condition = N11ProductCondition.New)
@@ -65,6 +67,7 @@ public class SalesChannelTrN11Product : FullAuditedAggregateRoot<Guid>, IMultiTe
         SetCompany(companyId);
         SetSalesChannel(salesChannelId);
         SetProduct(productId);
+        SetSellerCode(sellerCode, sequenceNo);
         SetCategory(categoryExternalId, null);
         SetShipmentTemplate(shipmentTemplateName);
         Condition = condition;
@@ -87,6 +90,15 @@ public class SalesChannelTrN11Product : FullAuditedAggregateRoot<Guid>, IMultiTe
 
     /// <summary>Listelenen ERP ürünü (set-once; id-only, nav yok).</summary>
     public virtual Guid ProductId { get; protected set; }
+
+    /// <summary>N11 upsert kimliği (productSellerCode) — KAYIT-BAZLI benzersiz ("{ÜrünKodu}-{SequenceNo}";
+    /// 2026-07-07 kullanıcı kararı: her kayıt N11'de AYRI listeleme). Set-once: sonradan ürün kodu değişse bile
+    /// sabit kalır ki push aynı uzak listelemeye gitsin.</summary>
+    public virtual string SellerCode { get; protected set; } = null!;
+
+    /// <summary>Kayıt sırası (aynı ürün+kanal içinde; silinmişler DAHİL max+1 üretilir). Varyant stok kodu
+    /// eklerinde de kullanılır ("{VaryantKodu}-{SequenceNo}") — N11'de satıcı-geneli stok kodu çakışmasın.</summary>
+    public virtual int SequenceNo { get; protected set; }
 
     /// <summary>N11 leaf kategori id'si (ExternalId). Ürün yalnız yaprak kategoriye listelenir.</summary>
     public virtual string CategoryExternalId { get; protected set; } = null!;
@@ -250,6 +262,19 @@ public class SalesChannelTrN11Product : FullAuditedAggregateRoot<Guid>, IMultiTe
         }
 
         ProductId = productId;
+    }
+
+    // N11 upsert kimliği + sıra — SET-ONCE (yalnız ctor'dan; sonradan değişirse uzak listeleme kimliği kayar).
+    private void SetSellerCode(string sellerCode, int sequenceNo)
+    {
+        SellerCode = StringFieldGuard.EnsureRequiredText(
+            sellerCode, nameof(SellerCode), 1, N11ProductConsts.SellerCodeMaxLength);
+        if (sequenceNo < 1)
+        {
+            throw new BusinessException("TradeXpress:N11:Product:SequenceNoInvalid");
+        }
+
+        SequenceNo = sequenceNo;
     }
 
     #endregion

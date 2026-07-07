@@ -18,6 +18,7 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
             b.ToTable(TradeXpressConsts.DbTablePrefix + "SalesChannelTrN11Products", TradeXpressConsts.DbSchema);
             b.ConfigureByConvention();
 
+            b.Property(x => x.SellerCode).IsRequired().HasMaxLength(N11ProductConsts.SellerCodeMaxLength);
             b.Property(x => x.CategoryExternalId).IsRequired().HasMaxLength(N11ProductConsts.ExternalIdMaxLength);
             b.Property(x => x.CategoryName).HasMaxLength(N11ProductConsts.CategoryNameMaxLength);
             b.Property(x => x.ShipmentTemplateName).IsRequired().HasMaxLength(N11ProductConsts.ShipmentTemplateNameMaxLength);

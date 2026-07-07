@@ -18,6 +18,13 @@
         <DxFormLayoutItem Caption="@L["SalesChannel"]" ColSpanMd="6">
             <span>@ChannelName</span>
         </DxFormLayoutItem>
+        @* N11 satıcı kodu — sunucu üretir ("{ÜrünKodu}-{Sıra}"); yeni kayıtta henüz yok → kaydedilince görünür. *@
+        @if (!string.IsNullOrEmpty(Model.SellerCode))
+        {
+            <DxFormLayoutItem Caption="@L["N11Product:SellerCode"]" ColSpanMd="6">
+                <span>@Model.SellerCode</span>
+            </DxFormLayoutItem>
+        }
         <DxFormLayoutItem Caption="@L["N11ShipmentTemplate"]" ColSpanMd="6">
             <LookupComboBox TItem="N11ShipmentTemplateDto" TValue="string"
                             Data="@_templates"

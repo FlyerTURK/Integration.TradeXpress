@@ -25,6 +25,7 @@
             <DxGridDataColumn FieldName="ProductId" Caption="@L["Product"]">
                 <CellDisplayTemplate>@ProductLabelOf((SalesChannelTrN11ProductDto)context.DataItem)</CellDisplayTemplate>
             </DxGridDataColumn>
+            <DxGridDataColumn FieldName="SellerCode" Caption="@L["N11Product:SellerCode"]" Width="150px" />
             <DxGridDataColumn FieldName="CategoryName" Caption="@L["N11Product:Category"]" />
             <DxGridDataColumn FieldName="N11ProductId" Caption="@L["N11Product:SyncStatus"]" Width="160px">
                 <CellDisplayTemplate>@StatusTextOf((SalesChannelTrN11ProductDto)context.DataItem)</CellDisplayTemplate>

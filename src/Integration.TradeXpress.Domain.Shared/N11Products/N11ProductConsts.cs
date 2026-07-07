@@ -6,6 +6,9 @@ public static class N11ProductConsts
     /// <summary>N11 kategori/ürün id'si (numerik ama matematik yapılmaz → string).</summary>
     public const int ExternalIdMaxLength = 32;
 
+    /// <summary>Kayıt-bazlı N11 upsert kimliği ("{ÜrünKodu}-{SequenceNo}"). Ürün kodu (32) + ek payı.</summary>
+    public const int SellerCodeMaxLength = 64;
+
     public const int CategoryNameMaxLength = 512;
     public const int ShipmentTemplateNameMaxLength = 128;
     public const int StatusMaxLength = 32;

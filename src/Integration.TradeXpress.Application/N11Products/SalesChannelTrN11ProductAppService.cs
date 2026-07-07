@@ -94,14 +94,18 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
     public virtual async Task<SalesChannelTrN11ProductDto> CreateAsync(SalesChannelTrN11ProductCreateDto input)
     {
         // Aynı kanalda AYNI ürün için birden fazla kayıt OLABİLİR (2026-07-07 kullanıcı kararı) — benzersizlik
-        // kontrolü yok. Kanal set-once: create'te belirlenir, sonra değiştirilemez (Update input'unda alan yok).
+        // kontrolü yok; her kayıt KENDİ SellerCode'uyla N11'de AYRI listeleme olur ("Farklı Code oluşturulur").
+        // Kanal set-once: create'te belirlenir, sonra değiştirilemez (Update input'unda alan yok).
         var channel = await GetOwnedChannelAsync(input.SalesChannelId);
-        await EnsureProductOwnedAsync(input.ProductId);
+        var product = await GetOwnedProductAsync(input.ProductId);
+        var sequenceNo = await NextSequenceNoAsync(channel.Id, product.Id);
 
         var entity = new SalesChannelTrN11Product(
             channel.CompanyId,
             channel.Id,
             input.ProductId,
+            BuildSellerCode(product.Code, sequenceNo),
+            sequenceNo,
             input.CategoryExternalId,
             input.ShipmentTemplateName,
             input.Condition);
@@ -109,6 +113,26 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
         await _repository.InsertAsync(entity, autoSave: true);
 
         return ObjectMapper.Map<SalesChannelTrN11Product, SalesChannelTrN11ProductDto>(entity);
+    }
+
+    /// <summary>Kayıt sırası: aynı ürün+kanal içindeki max SequenceNo + 1 — SİLİNMİŞLER DAHİL (soft-delete
+    /// filtresi kapalı) ki silinen kaydın N11'de yaşamaya devam eden listelemesinin kodu yeniden üretilip EZİLMESİN.</summary>
+    private async Task<int> NextSequenceNoAsync(Guid salesChannelId, Guid productId)
+    {
+        using (DataFilter.Disable<ISoftDelete>())
+        {
+            var maxExisting = await AsyncExecuter.MaxAsync(
+                (await _repository.GetQueryableAsync())
+                    .Where(x => x.SalesChannelId == salesChannelId && x.ProductId == productId),
+                x => (int?)x.SequenceNo);
+            return (maxExisting ?? 0) + 1;
+        }
+    }
+
+    /// <summary>N11 upsert kimliği: "{ÜrünKodu}-{Sıra}" — kayıt-bazlı benzersiz + insan-okunur.</summary>
+    private static string BuildSellerCode(string productCode, int sequenceNo)
+    {
+        return $"{productCode}-{sequenceNo}";
     }
 
     [Authorize(TradeXpressPermissions.SalesChannels.Update)]
@@ -185,8 +209,10 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
         var currencyType = await ResolveCurrencyTypeAsync(currencyUnitIds.FirstOrDefault());
         var variantOptions = await LoadVariantOptionsAsync(product.Id, variants.Select(v => v.Id).ToList());
 
+        // Stok kodları da KAYIT-scoped ("{VaryantKodu}-{SequenceNo}") — aynı ürünün ikinci N11 listelemesinde
+        // satıcı-geneli sellerStockCode çakışmasın (N11 stok kodu satıcı genelinde benzersizdir).
         var stockItems = variants.Select(v => new N11ProductStockItem(
-            SellerStockCode: v.Code,
+            SellerStockCode: $"{v.Code}-{channelProduct.SequenceNo}",
             Quantity: v.StockQuantity,
             OptionPrice: v.SalePrice,
             Attributes: variantOptions.TryGetValue(v.Id, out var opts) ? opts : new List<N11ProductAttributePair>(),
@@ -198,7 +224,7 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
             .ToList();
 
         return new N11ProductData(
-            ProductSellerCode: product.Code,
+            ProductSellerCode: channelProduct.SellerCode,   // KAYIT-bazlı upsert kimliği — her kayıt N11'de AYRI listeleme
             Title: product.Name,
             Description: product.Description ?? product.Name,
             Domestic: channelProduct.Domestic,

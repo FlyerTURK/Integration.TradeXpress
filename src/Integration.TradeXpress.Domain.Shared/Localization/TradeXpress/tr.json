@@ -283,6 +283,8 @@
     "N11Products": "N11 Ürünleri",
     "SalesChannelProducts": "Satış Kanalı Ürünleri",
     "N11Product:ChannelMissing": "Bu şirkette tanımlı bir N11 satış kanalı yok. Önce satış kanalını oluşturun.",
+    "N11Product:SellerCode": "N11 Satıcı Kodu",
+    "TradeXpress:N11:Product:SequenceNoInvalid": "Kayıt sırası en az 1 olmalıdır.",
     "SalesChannelTrN11Product": "N11 Ürünü",
     "N11ProductCondition": "Ürün Durumu",
     "Enum:N11ProductCondition:New": "Yeni",

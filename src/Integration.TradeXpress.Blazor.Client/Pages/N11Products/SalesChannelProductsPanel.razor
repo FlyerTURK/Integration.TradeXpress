@@ -13,7 +13,7 @@
                Items="_channelProducts"
                KeyFieldName="Id"
                SoftDelete="false"
-               PrimaryTextSelector="@(l => l.CategoryName)"
+               PrimaryTextSelector="@(l => l.SellerCode)"
                NewItemFactory="@NewChannelProduct"
                CloneFactory="@CloneChannelProduct"
                AllowAdd="false"
@@ -26,8 +26,9 @@
             <DxGridDataColumn FieldName="SalesChannelId" Caption="@L["SalesChannel"]" Width="120px">
                 <CellDisplayTemplate>@ChannelCodeOf((SalesChannelTrN11ProductDto)context.DataItem)</CellDisplayTemplate>
             </DxGridDataColumn>
-            <GridLinkColumn FieldName="CategoryName" Caption="@L["N11Product:Category"]"
+            <GridLinkColumn FieldName="SellerCode" Caption="@L["N11Product:SellerCode"]" Width="150px"
                             OnClick="@(item => _drill?.EditItem((SalesChannelTrN11ProductDto)item))" />
+            <DxGridDataColumn FieldName="CategoryName" Caption="@L["N11Product:Category"]" />
             <DxGridDataColumn FieldName="Condition" Caption="@L["N11ProductCondition"]" Width="110px">
                 <CellDisplayTemplate>@EnumText(nameof(N11ProductCondition), ((SalesChannelTrN11ProductDto)context.DataItem).Condition)</CellDisplayTemplate>
             </DxGridDataColumn>

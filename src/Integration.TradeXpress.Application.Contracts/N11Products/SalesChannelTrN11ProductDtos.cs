@@ -25,6 +25,12 @@ public class SalesChannelTrN11ProductDto
     public Guid Id { get; set; }
     public Guid ProductId { get; set; }
     public Guid SalesChannelId { get; set; }
+
+    /// <summary>N11 upsert kimliği ("{ÜrünKodu}-{Sıra}") — sunucu üretir (read-only; create/update input'unda YOK).</summary>
+    public string SellerCode { get; set; } = string.Empty;
+
+    /// <summary>Kayıt sırası (read-only) — varyant stok kodu eklerinde kullanılır.</summary>
+    public int SequenceNo { get; set; }
     public string CategoryExternalId { get; set; } = string.Empty;
     public string? CategoryName { get; set; }
     public N11ProductCondition Condition { get; set; }
