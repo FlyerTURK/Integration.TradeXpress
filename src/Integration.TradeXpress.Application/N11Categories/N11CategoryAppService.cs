@@ -22,19 +22,22 @@ public class N11CategoryAppService : TradeXpressAppService, IN11CategoryAppServi
     private readonly IN11CategoryClient _client;
     private readonly IConfiguration _configuration;
     private readonly ICurrentCompany _currentCompany;
+    private readonly N11CategoryMegaGrouper _megaGrouper;
 
     public N11CategoryAppService(
         IRepository<N11Category, Guid> repository,
         IRepository<SalesChannelTrN11, Guid> channelRepository,
         IN11CategoryClient client,
         IConfiguration configuration,
-        ICurrentCompany currentCompany)
+        ICurrentCompany currentCompany,
+        N11CategoryMegaGrouper megaGrouper)
     {
         _repository = repository;
         _channelRepository = channelRepository;
         _client = client;
         _configuration = configuration;
         _currentCompany = currentCompany;
+        _megaGrouper = megaGrouper;
     }
 
     public virtual async Task<int> SyncCategoriesAsync()
@@ -83,6 +86,9 @@ public class N11CategoryAppService : TradeXpressAppService, IN11CategoryAppServi
             await _repository.UpdateManyAsync(toUpdate, autoSave: true);
         }
 
+        // Sync 79 top'u N11'in parentId=null'ıyla köke çeker → sentetik 9 mega katmanını YENİDEN uygula (breadcrumb üst seviyesi).
+        await _megaGrouper.EnsureAsync();
+
         return toInsert.Count + toUpdate.Count;
     }
 
@@ -110,17 +116,21 @@ public class N11CategoryAppService : TradeXpressAppService, IN11CategoryAppServi
             return new List<N11LeafCategoryDto>();
         }
 
-        // Host-global ağaç → id map → yaprak yolları (kökten). ~4400 satır; tek sorgu + sözlük yürüme.
-        var all = await AsyncExecuter.ToListAsync(await _repository.GetQueryableAsync());
-        var byExternalId = all.ToDictionary(c => c.ExternalId);
+        // Host-global okuma → host'a sabitle (db-per-tenant merkeziliği; GetChildrenAsync ile aynı).
+        using (CurrentTenant.Change(null))
+        {
+            // Ağaç → id map → yaprak TAM yolları (kökten mega dahil). ~4400 satır; tek sorgu + sözlük yürüme.
+            var all = await AsyncExecuter.ToListAsync(await _repository.GetQueryableAsync());
+            var byExternalId = all.ToDictionary(c => c.ExternalId);
 
-        return all
-            .Where(c => c.IsLeaf)
-            .Select(leaf => new N11LeafCategoryDto { ExternalId = leaf.ExternalId, Path = BuildPath(leaf, byExternalId) })
-            .Where(x => NormalizeForSearch(x.Path).Contains(normalizedTerm, StringComparison.Ordinal))
-            .OrderBy(x => x.Path, StringComparer.CurrentCultureIgnoreCase)
-            .Take(50)   // en fazla 50 sonuç (picker grid'i); daha fazlası için kullanıcı aramayı daraltır
-            .ToList();
+            return all
+                .Where(c => c.IsLeaf)
+                .Select(leaf => new N11LeafCategoryDto { ExternalId = leaf.ExternalId, Path = BuildPath(leaf, byExternalId) })
+                .Where(x => NormalizeForSearch(x.Path).Contains(normalizedTerm, StringComparison.Ordinal))
+                .OrderBy(x => x.Path, StringComparer.CurrentCultureIgnoreCase)
+                .Take(50)   // en fazla 50 sonuç (picker grid'i); daha fazlası için kullanıcı aramayı daraltır
+                .ToList();
+        }
     }
 
     /// <summary>Arama-normalize: Türkçe aksanları ASCII tabanına indirger + küçük harfe çevirir (tek geçiş; İ/ı/i
