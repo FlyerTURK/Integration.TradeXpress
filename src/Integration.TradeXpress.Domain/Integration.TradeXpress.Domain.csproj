@@ -20,6 +20,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Integration.TradeXpress.Domain.Shared\Integration.TradeXpress.Domain.Shared.csproj" />
+    <!-- Framework Domain katmanı: yeniden-kullanılabilir value object'ler (Address) + ileride base entity'ler. -->
+    <ProjectReference Include="..\Integration.Framework.Domain\Integration.Framework.Domain.csproj" />
   </ItemGroup>
 
   <ItemGroup>

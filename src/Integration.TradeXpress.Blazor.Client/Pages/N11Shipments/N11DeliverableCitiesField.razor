@@ -1,0 +1,32 @@
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@* Gönderilecek iller — N11 paneliyle hizalı (self-contained DxFormLayout). "Tüm illere gönder" switch'i
+   (varsayılan; boş liste = tüm iller) → dominant durumu tek tıkla. Kapatınca yalnız seçili illere: checkbox
+   listesi (DxListBox), TagBox'ın tek-tek ekleme yorgunluğu yok. EditContext içinde → ValidationEnabled kapalı. *@
+
+<DxFormLayout CssClass="w-100">
+    <DxFormLayoutGroup Caption="@L["N11ShipmentTemplate:DeliverableCities"]" ColSpanMd="12">
+        <DxFormLayoutItem ColSpanMd="12">
+            <DxCheckBox @bind-Checked="@AllCities" CheckType="CheckType.Switch">
+                @L["N11ShipmentTemplate:DeliverAllCities"]
+            </DxCheckBox>
+        </DxFormLayoutItem>
+        @if (_restrict)
+        {
+            <DxFormLayoutItem Caption="@L["N11ShipmentTemplate:DeliverableCitiesSelect"]" ColSpanMd="12">
+                <DxListBox Data="@Cities"
+                           TData="N11CityDto"
+                           TValue="string"
+                           Values="@Model.DeliverableCityCodes"
+                           ValuesChanged="@((IEnumerable<string> v) => OnCitiesChanged(v))"
+                           ValueFieldName="@nameof(N11CityDto.CityCode)"
+                           TextFieldName="@nameof(N11CityDto.Name)"
+                           SelectionMode="ListBoxSelectionMode.Multiple"
+                           ShowCheckboxes="true"
+                           ValidationEnabled="false"
+                           CssClass="w-100"
+                           style="height: 300px" />
+            </DxFormLayoutItem>
+        }
+    </DxFormLayoutGroup>
+</DxFormLayout>

@@ -5,9 +5,11 @@ using System.Threading.Tasks;
 using Integration.Framework;
 using Integration.Framework.Base.Querying;
 using Integration.TradeXpress.MultiCompany;
+using Integration.TradeXpress.N11Shipments;
 using Integration.TradeXpress.Permissions;
 using Integration.TradeXpress.SalesChannels.N11;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.Extensions.Logging;
 using Volo.Abp;
 using Volo.Abp.Application.Dtos;
 using Volo.Abp.Domain.Repositories;
@@ -27,6 +29,7 @@ public class SalesChannelTrN11AppService : TradeXpressAppService, ISalesChannelT
     private readonly IRepository<SalesChannelBase, Guid> _baseRepository;
     private readonly ICurrentCompany _currentCompany;
     private readonly IN11CredentialVerifier _credentialVerifier;
+    private readonly IN11ShipmentTemplateAppService _shipmentTemplateAppService;
 
     private static readonly HashSet<string> AllowedListFields =
         new(StringComparer.OrdinalIgnoreCase) { "Code", "Name", "IsActive", "Id" };
@@ -35,12 +38,14 @@ public class SalesChannelTrN11AppService : TradeXpressAppService, ISalesChannelT
         IRepository<SalesChannelTrN11, Guid> repository,
         IRepository<SalesChannelBase, Guid> baseRepository,
         ICurrentCompany currentCompany,
-        IN11CredentialVerifier credentialVerifier)
+        IN11CredentialVerifier credentialVerifier,
+        IN11ShipmentTemplateAppService shipmentTemplateAppService)
     {
         _repository = repository;
         _baseRepository = baseRepository;
         _currentCompany = currentCompany;
         _credentialVerifier = credentialVerifier;
+        _shipmentTemplateAppService = shipmentTemplateAppService;
     }
 
     public virtual async Task<PagedResultDto<SalesChannelListDto>> GetListAsync(SalesChannelListRequestDto input)
@@ -88,6 +93,9 @@ public class SalesChannelTrN11AppService : TradeXpressAppService, ISalesChannelT
         var entity = new SalesChannelTrN11(companyId, input.Code, input.Name, input.AppKey, input.AppSecret);
         entity.SetDescription(input.Description);
         await _repository.InsertAsync(entity, autoSave: true);
+
+        // Kanal oluşturulur oluşturulmaz N11'deki mevcut kargo şablonlarını kanalın KENDİ kimliğiyle otomatik çek.
+        await TryImportShipmentTemplatesAsync(entity.Id);
 
         return Redact(ObjectMapper.Map<SalesChannelTrN11, SalesChannelTrN11GetDto>(entity));
     }
@@ -180,6 +188,21 @@ public class SalesChannelTrN11AppService : TradeXpressAppService, ISalesChannelT
         if (duplicate)
         {
             throw new BusinessException("TradeXpress:SalesChannel:CodeAlreadyExists");
+        }
+    }
+
+    /// <summary>Kanal oluşturulunca N11 kargo şablonlarını otomatik içe aktar — BEST-EFFORT: N11 erişilemezse/başarısızsa
+    /// kanal oluşturma ETKİLENMEZ (yalnız uyarı loglanır; kullanıcı sonra drill'deki "İçe Aktar" ile elle tetikler).
+    /// Kimlik doğrulaması create'te zaten yapıldı → creds geçerli; şablon çekimi kanalın stored kimliğiyledir.</summary>
+    private async Task TryImportShipmentTemplatesAsync(Guid salesChannelId)
+    {
+        try
+        {
+            await _shipmentTemplateAppService.ImportAsync(salesChannelId);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "N11 kanalı {ChannelId} oluşturuldu ama kargo şablonları otomatik içe aktarılamadı (best-effort).", salesChannelId);
         }
     }
 

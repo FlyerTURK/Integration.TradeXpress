@@ -8,4 +8,9 @@ public static class N11ShipmentConsts
 
     public const int NameMaxLength = 128;
     public const int ShortNameMaxLength = 32;
+
+    // ── ShipmentTemplate (per-kanal kargo şablonu) ──
+    public const int TemplateNameMaxLength = 128;
+    public const int InfoMaxLength = 1024;          // shippingInfo / exchangeInfo / installmentInfo
+    public const int CargoAccountNoMaxLength = 64;
 }

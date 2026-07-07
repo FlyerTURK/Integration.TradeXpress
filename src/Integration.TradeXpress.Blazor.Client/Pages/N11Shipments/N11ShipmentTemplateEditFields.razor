@@ -1,0 +1,88 @@
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@* N11 kargo şablonu tam edit formu — DrillList EditContent'i içinde açılır. DrillList DxFormLayout SAĞLAMAZ →
+   ana alanlar kendi DxFormLayout'unda; adresler self-contained bileşenler (kendi layout'larını taşır).
+   Sıra (ui-blazor): ad üstte → tip → bayraklar → memo bilgiler → firmalar/iller → şartlı kargo (read-only) → adresler. *@
+
+<DxFormLayout CssClass="w-100">
+    <DxFormLayoutGroup Caption="@L["General"]" ColSpanMd="12">
+        <DxFormLayoutItem Caption="@($"{L["N11ShipmentTemplate:TemplateName"]} *")" ColSpanMd="12">
+            <DxTextBox @bind-Text="@Model.TemplateName" CssClass="w-100" />
+        </DxFormLayoutItem>
+
+        <DxFormLayoutItem Caption="@($"{L["N11ShipmentTemplate:DeliveryFeeType"]} *")" ColSpanMd="6">
+            <ComboBoxEnumEdit TEnum="N11DeliveryFeeType" L="@L" @bind-Value="@Model.DeliveryFeeType" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@($"{L["N11ShipmentTemplate:ShipmentMethod"]} *")" ColSpanMd="6">
+            <ComboBoxEnumEdit TEnum="N11ShipmentMethod" L="@L" @bind-Value="@Model.ShipmentMethod" />
+        </DxFormLayoutItem>
+
+        <DxFormLayoutItem Caption="@L["N11ShipmentTemplate:SpecialDelivery"]" ColSpanMd="6">
+            <DxCheckBox @bind-Checked="@Model.SpecialDelivery" CheckType="CheckType.Switch" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["N11ShipmentTemplate:CombinedShipmentAllowed"]" ColSpanMd="6">
+            <DxCheckBox @bind-Checked="@Model.CombinedShipmentAllowed" CheckType="CheckType.Switch" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["N11ShipmentTemplate:UseDmallCargo"]" ColSpanMd="6">
+            <DxCheckBox @bind-Checked="@Model.UseDmallCargo" CheckType="CheckType.Switch" />
+        </DxFormLayoutItem>
+
+        <DxFormLayoutItem Caption="@($"{L["N11ShipmentTemplate:ShippingInfo"]} *")" ColSpanMd="12">
+            <DxMemo @bind-Text="@Model.ShippingInfo" Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@($"{L["N11ShipmentTemplate:ExchangeInfo"]} *")" ColSpanMd="12">
+            <DxMemo @bind-Text="@Model.ExchangeInfo" Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@($"{L["N11ShipmentTemplate:InstallmentInfo"]} *")" ColSpanMd="12">
+            <DxMemo @bind-Text="@Model.InstallmentInfo" Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100" />
+        </DxFormLayoutItem>
+
+        <DxFormLayoutItem Caption="@L["N11ShipmentTemplate:CargoAccountNo"]" ColSpanMd="6">
+            <DxTextBox @bind-Text="@Model.CargoAccountNo" CssClass="w-100" />
+        </DxFormLayoutItem>
+
+        <DxFormLayoutItem Caption="@($"{L["N11ShipmentTemplate:ShipmentCompanies"]} *")" ColSpanMd="12">
+            <DxTagBox Data="@ShipmentCompanies"
+                      TData="N11ShipmentCompanyDto"
+                      TValue="string"
+                      Values="@Model.ShipmentCompanyExternalIds"
+                      ValuesChanged="@((IEnumerable<string> v) => OnCompaniesChanged(v))"
+                      ValueFieldName="@nameof(N11ShipmentCompanyDto.ExternalId)"
+                      TextFieldName="@nameof(N11ShipmentCompanyDto.Name)"
+                      ValidationEnabled="false"
+                      CssClass="w-100" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@($"{L["N11ShipmentTemplate:ClaimShipmentCompany"]} *")" ColSpanMd="6">
+            <DxComboBox Data="@ShipmentCompanies"
+                        TData="N11ShipmentCompanyDto"
+                        TValue="string"
+                        @bind-Value="@Model.ClaimShipmentCompanyExternalId"
+                        ValueFieldName="@nameof(N11ShipmentCompanyDto.ExternalId)"
+                        TextFieldName="@nameof(N11ShipmentCompanyDto.Name)"
+                        ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto"
+                        CssClass="w-100" />
+        </DxFormLayoutItem>
+
+        @* Şartlı kargo — DÜZENLENEBİLİR (canlı doğrulandı: push ile yazılır). Eşik boş = şartlı kargo yok. *@
+        <DxFormLayoutItem Caption="@L["N11ShipmentTemplate:ConditionalShippingThreshold"]" ColSpanMd="6">
+            <DxSpinEdit @bind-Value="@Model.ConditionalShippingThreshold" NullText="@L["N11ShipmentTemplate:ConditionalShippingNone"]" MinValue="0" CssClass="w-100" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["N11ShipmentTemplate:ConditionalShippingUnit"]" ColSpanMd="6">
+            <ComboBoxEnumEdit TEnum="N11ConditionalShippingUnit" L="@L" @bind-Value="@Model.ConditionalShippingUnit" />
+        </DxFormLayoutItem>
+    </DxFormLayoutGroup>
+</DxFormLayout>
+
+@* Gönderilecek iller — "Tüm illere gönder" switch + (kapalıysa) checkbox listesi (TagBox yerine). *@
+<N11DeliverableCitiesField Model="@Model" Cities="@Cities" />
+
+@* Depo adresi (zorunlu) — self-contained DxFormLayout. *@
+<N11AddressFields Model="@Model.WarehouseAddress" Cities="@Cities" Required="true"
+                  Caption="@L["N11ShipmentTemplate:WarehouseAddress"].Value" />
+
+@* İade/değişim adresi (zorunlu) — NewItemFactory'de new() init edilir → null olmaz. *@
+@if (Model.ExchangeAddress != null)
+{
+    <N11AddressFields Model="@Model.ExchangeAddress" Cities="@Cities" Required="true"
+                      Caption="@L["N11ShipmentTemplate:ExchangeAddress"].Value" />
+}

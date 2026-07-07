@@ -14,6 +14,7 @@
     </Folder>
     <Folder Name="/Framework/">
         <Project Path="src/Integration.Framework.Domain.Shared/Integration.Framework.Domain.Shared.csproj" />
+        <Project Path="src/Integration.Framework.Domain/Integration.Framework.Domain.csproj" />
         <Project Path="src/Integration.Framework.Application.Contracts/Integration.Framework.Application.Contracts.csproj" />
         <Project Path="src/Integration.Framework.Application/Integration.Framework.Application.csproj" />
         <Project Path="src/Integration.Framework.Blazor.Client/Integration.Framework.Blazor.Client.csproj" />

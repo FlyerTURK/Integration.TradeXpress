@@ -92,6 +92,8 @@ public class TradeXpressDbContext :
     public DbSet<Integration.TradeXpress.N11Cities.N11District> N11Districts { get; set; } = null!;
     // N11 kargo firmaları — HOST-GLOBAL.
     public DbSet<Integration.TradeXpress.N11Shipments.N11ShipmentCompany> N11ShipmentCompanies { get; set; } = null!;
+    // N11 kargo şablonları — per-kanal (company-owned).
+    public DbSet<Integration.TradeXpress.N11Shipments.N11ShipmentTemplate> N11ShipmentTemplates { get; set; } = null!;
 
 
     #region Entities from the modules

@@ -13,11 +13,13 @@ using Volo.Abp.Emailing;
 using Volo.Abp.FeatureManagement;
 using Volo.Abp.Identity;
 using Volo.Abp.TenantManagement;
+using Integration.Framework;
 
 namespace Integration.TradeXpress;
 
 [DependsOn(
     typeof(TradeXpressDomainSharedModule),
+    typeof(IntegrationFrameworkDomainModule),
     typeof(AbpAuditLoggingDomainModule),
     typeof(AbpCachingModule),
     typeof(AbpBackgroundJobsDomainModule),

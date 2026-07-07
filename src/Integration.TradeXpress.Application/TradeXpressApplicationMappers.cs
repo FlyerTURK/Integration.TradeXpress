@@ -247,6 +247,28 @@ public partial class N11ShipmentCompanyToDtoMapper : MapperBase<N11ShipmentCompa
     public override partial void Map(N11ShipmentCompany source, N11ShipmentCompanyDto destination);
 }
 
+// ── N11 kargo şablonu (per-kanal) → DTO. Gömülü Address VO → N11ShipmentAddressDto nested-otomatik;
+//    id-only ref listeleri (kargo firması/il) düz kopya. CompanyId/TenantId/audit = source-only. ──
+[Mapper]
+public partial class N11ShipmentTemplateToDtoMapper : MapperBase<N11ShipmentTemplate, N11ShipmentTemplateDto>
+{
+    public override partial N11ShipmentTemplateDto Map(N11ShipmentTemplate source);
+    public override partial void Map(N11ShipmentTemplate source, N11ShipmentTemplateDto destination);
+}
+
+// GetDto → Create/Update (drill persist yolu: DrillList düzenlenen GetDto'yu bu input'lara çevirir). Şartlı kargo
+// (read-only) hedefte yok → source-only (RMG020 uyarısı beklenir). Nested N11ShipmentAddressDto aynı tip → kopya.
+[Mapper] public partial class N11ShipmentTemplateGetToCreateMapper : MapperBase<N11ShipmentTemplateDto, N11ShipmentTemplateCreateDto>
+{
+    public override partial N11ShipmentTemplateCreateDto Map(N11ShipmentTemplateDto source);
+    public override partial void Map(N11ShipmentTemplateDto source, N11ShipmentTemplateCreateDto destination);
+}
+[Mapper] public partial class N11ShipmentTemplateGetToUpdateMapper : MapperBase<N11ShipmentTemplateDto, N11ShipmentTemplateUpdateDto>
+{
+    public override partial N11ShipmentTemplateUpdateDto Map(N11ShipmentTemplateDto source);
+    public override partial void Map(N11ShipmentTemplateDto source, N11ShipmentTemplateUpdateDto destination);
+}
+
 // ── Scrap (statik mapper → Mapperly; IsGlobal + FollowingUnitCode AppService'te/ApplyUnitCodes ile set) ──
 
 [Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]

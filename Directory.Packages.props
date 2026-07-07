@@ -59,6 +59,7 @@
     <PackageVersion Include="Volo.Abp.BlobStoring.Database.Domain.Shared" Version="10.4.1" />
     <PackageVersion Include="Volo.Abp.BlobStoring.Database.EntityFrameworkCore" Version="10.4.1" />
     <PackageVersion Include="Volo.Abp.Caching" Version="10.4.1" />
+    <PackageVersion Include="Volo.Abp.Ddd.Domain" Version="10.4.1" />
     <PackageVersion Include="Volo.Abp.Ddd.Application" Version="10.4.1" />
     <PackageVersion Include="Volo.Abp.Ddd.Application.Contracts" Version="10.4.1" />
     <PackageVersion Include="Volo.Abp.Emailing" Version="10.4.1" />

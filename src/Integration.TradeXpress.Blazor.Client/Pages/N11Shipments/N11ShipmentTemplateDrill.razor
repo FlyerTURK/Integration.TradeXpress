@@ -1,0 +1,40 @@
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@* N11 kargo şablonları drill'i — PERSISTENT (her işlem anında AppService'e yazılır). SalesChannel N11 edit
+   formunun İÇİNDE (kanal kaydedildikten sonra) açılır. İçe Aktar + N11'e Gönder toolbar aksiyonları. *@
+
+<div class="mt-3">
+    <DrillList TItem="N11ShipmentTemplateDto"
+               @ref="_drill"
+               Title="@L["N11ShipmentTemplates"]"
+               EntityName="@L["N11ShipmentTemplate"]"
+               EntityIcon="@TradeXpressIcons.SalesChannel"
+               Items="_templates"
+               KeyFieldName="Id"
+               SoftDelete="false"
+               PrimaryTextSelector="@(t => t.TemplateName)"
+               ParentEntityName="@L["SalesChannelType:TrN11"]"
+               ParentText="@Channel.Code"
+               NewItemFactory="@NewTemplate"
+               CloneFactory="@CloneTemplate"
+               PersistCreate="@PersistCreate"
+               PersistUpdate="@PersistUpdate"
+               AllowDelete="false"
+               OnChanged="StateHasChanged"
+               CustomActions="@TemplateActions">
+        <GridColumns>
+            <GridLinkColumn FieldName="TemplateName" Caption="@L["N11ShipmentTemplate:TemplateName"]"
+                            OnClick="@(item => _drill?.EditItem((N11ShipmentTemplateDto)item))" />
+            <DxGridDataColumn FieldName="DeliveryFeeType" Caption="@L["N11ShipmentTemplate:DeliveryFeeType"]" Width="140px">
+                <CellDisplayTemplate>@EnumText(nameof(N11DeliveryFeeType), ((N11ShipmentTemplateDto)context.DataItem).DeliveryFeeType)</CellDisplayTemplate>
+            </DxGridDataColumn>
+            <DxGridDataColumn FieldName="ShipmentMethod" Caption="@L["N11ShipmentTemplate:ShipmentMethod"]" Width="120px">
+                <CellDisplayTemplate>@EnumText(nameof(N11ShipmentMethod), ((N11ShipmentTemplateDto)context.DataItem).ShipmentMethod)</CellDisplayTemplate>
+            </DxGridDataColumn>
+            <DxGridDataColumn FieldName="ConditionalShippingThreshold" Caption="@L["N11ShipmentTemplate:ConditionalShipping"]" Width="120px" TextAlignment="GridTextAlignment.Right" />
+        </GridColumns>
+        <EditContent Context="t">
+            <N11ShipmentTemplateEditFields Model="@t" Cities="@_cities" ShipmentCompanies="@_shipmentCompanies" />
+        </EditContent>
+    </DrillList>
+</div>

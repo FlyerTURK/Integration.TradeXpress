@@ -1,11 +1,14 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Volo.Abp;
 using Volo.Abp.EntityFrameworkCore.Modeling;
+using Integration.Framework.Addressing;
 using Integration.TradeXpress.N11Shipments;
 
 namespace Integration.TradeXpress.EntityFrameworkCore;
 
-/// <summary>N11 kargo firması mapping'i — <b>host-global</b> (IMultiTenant değil). ExternalId global benzersiz (IsDeleted filtreli).</summary>
+/// <summary>N11 kargo firması (host-global) + kargo şablonu (per-kanal) mapping'i. Şablon adresleri yeniden-kullanılabilir
+/// <see cref="Address"/> VO (OwnsOne); firma/il id-listeleri primitive collection; kimlik (SalesChannelId, TemplateName).</summary>
 public static partial class TradeXpressDbContextModelCreatingExtensions
 {
     public static void ConfigureN11Shipments(this ModelBuilder builder)
@@ -21,5 +24,54 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
             b.Property(x => x.ShortName).IsRequired().HasMaxLength(N11ShipmentConsts.ShortNameMaxLength);
             b.HasIndex(x => x.ExternalId).IsUnique().HasFilter("[IsDeleted] = 0");
         });
+
+        builder.Entity<N11ShipmentTemplate>(b =>
+        {
+            b.ToTable(TradeXpressConsts.DbTablePrefix + "N11ShipmentTemplates", TradeXpressConsts.DbSchema);
+            b.ConfigureByConvention();
+
+            b.Property(x => x.TemplateName).IsRequired().HasMaxLength(N11ShipmentConsts.TemplateNameMaxLength);
+            b.Property(x => x.ShippingInfo).HasMaxLength(N11ShipmentConsts.InfoMaxLength);
+            b.Property(x => x.ExchangeInfo).HasMaxLength(N11ShipmentConsts.InfoMaxLength);
+            b.Property(x => x.InstallmentInfo).HasMaxLength(N11ShipmentConsts.InfoMaxLength);
+            b.Property(x => x.CargoAccountNo).HasMaxLength(N11ShipmentConsts.CargoAccountNoMaxLength);
+            b.Property(x => x.ClaimShipmentCompanyExternalId).HasMaxLength(N11ShipmentConsts.ExternalIdMaxLength);
+
+            // Şartlı kargo eşiği (N11 "Şartlı Kargo") — şablon-düzeyinde skaler. API-read-only (import ile dolar).
+            b.Property(x => x.ConditionalShippingThreshold).HasColumnType("decimal(18,2)");
+            // Enum 1'den başlar (CLR default 0 geçersiz) → sentinel'i Amount'a sabitle: DB default'u yalnız gerçekten
+            // "ayarlanmamış" halde kullansın (aksi halde EF "sentinel yok" uyarısı verir; değer zaten hep 1/2 yazılır).
+            b.Property(x => x.ConditionalShippingUnit)
+                .HasDefaultValue(N11ConditionalShippingUnit.Amount)
+                .HasSentinel(N11ConditionalShippingUnit.Amount);
+
+            // Adresler = yeniden-kullanılabilir Address VO (OwnsOne; aynı tabloda prefix'li kolonlar). Depo zorunlu,
+            // değişim opsiyonel — City/Line required (owned) → EF null-tespiti (tüm kolonlar null → değişim adresi null).
+            b.OwnsOne(x => x.WarehouseAddress, ConfigureAddress);
+            b.OwnsOne(x => x.ExchangeAddress, ConfigureAddress);
+
+            // Id-only referans listeleri → primitive collection (JSON kolonu; JOIN gerekmez, N11'e push edilir).
+            b.PrimitiveCollection(x => x.ShipmentCompanyExternalIds);
+            b.PrimitiveCollection(x => x.DeliverableCityCodes);
+
+            // Kimlik = (SalesChannelId, TemplateName) — N11'de ayrı id yok; soft-delete filtreli.
+            b.HasIndex(x => new { x.SalesChannelId, x.TemplateName }).IsUnique().HasFilter("[IsDeleted] = 0");
+        });
+    }
+
+    /// <summary>Gömülü <see cref="Address"/> VO kolon yapılandırması (depo + değişim adresi ortak). City/Line required
+    /// → opsiyonel değişim adresinde EF'in null-tespiti için (tüm owned kolonlar null ⇒ navigation null).</summary>
+    private static void ConfigureAddress<TOwner>(OwnedNavigationBuilder<TOwner, Address> a)
+        where TOwner : class
+    {
+        a.Property(p => p.Title).HasMaxLength(AddressConsts.TitleMaxLength);
+        a.Property(p => p.CountryCode).HasMaxLength(AddressConsts.CountryCodeMaxLength);
+        a.Property(p => p.City).IsRequired().HasMaxLength(AddressConsts.CityMaxLength);
+        a.Property(p => p.District).HasMaxLength(AddressConsts.DistrictMaxLength);
+        a.Property(p => p.Neighborhood).HasMaxLength(AddressConsts.NeighborhoodMaxLength);
+        a.Property(p => p.Line).IsRequired().HasMaxLength(AddressConsts.LineMaxLength);
+        a.Property(p => p.PostalCode).HasMaxLength(AddressConsts.PostalCodeMaxLength);
+        a.Property(p => p.CityCode).HasMaxLength(AddressConsts.CodeMaxLength);
+        a.Property(p => p.DistrictCode).HasMaxLength(AddressConsts.CodeMaxLength);
     }
 }

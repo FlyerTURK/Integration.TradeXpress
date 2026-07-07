@@ -32,3 +32,13 @@
         </DxFormLayoutItem>
     </DxFormLayoutGroup>
 </DxFormLayout>
+
+@* Kargo şablonları — yalnız kaydedilmiş kanalda (persistent drill kanal Id'sine bağlıdır). *@
+@if (!IsNew)
+{
+    <N11ShipmentTemplateDrill Channel="@Model" />
+}
+else
+{
+    <div class="mt-3">@L["N11ShipmentTemplate:SaveChannelFirst"]</div>
+}

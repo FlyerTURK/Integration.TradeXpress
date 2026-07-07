@@ -608,23 +608,6 @@
           "Volo.Abp.Uow": "10.4.1"
         }
       },
-      "Volo.Abp.Ddd.Domain": {
-        "type": "Transitive",
-        "resolved": "10.4.1",
-        "contentHash": "s0A9lT9PVzsKEmCKgNXS8aXLu7LgiWtywZxwDzAYugbJv0khYG5KTXgzxdWOnM0P5k63H3d8uNuKPbJoOj1Fpg==",
-        "dependencies": {
-          "Volo.Abp.Auditing": "10.4.1",
-          "Volo.Abp.Caching": "10.4.1",
-          "Volo.Abp.Data": "10.4.1",
-          "Volo.Abp.Ddd.Domain.Shared": "10.4.1",
-          "Volo.Abp.EventBus": "10.4.1",
-          "Volo.Abp.ExceptionHandling": "10.4.1",
-          "Volo.Abp.Guids": "10.4.1",
-          "Volo.Abp.ObjectMapping": "10.4.1",
-          "Volo.Abp.Specifications": "10.4.1",
-          "Volo.Abp.Timing": "10.4.1"
-        }
-      },
       "Volo.Abp.Ddd.Domain.Shared": {
         "type": "Transitive",
         "resolved": "10.4.1",
@@ -1080,6 +1063,24 @@
           "Volo.Abp.Auditing.Contracts": "10.4.1",
           "Volo.Abp.Data": "10.4.1",
           "Volo.Abp.Localization": "10.4.1"
+        }
+      },
+      "Volo.Abp.Ddd.Domain": {
+        "type": "CentralTransitive",
+        "requested": "[10.4.1, )",
+        "resolved": "10.4.1",
+        "contentHash": "s0A9lT9PVzsKEmCKgNXS8aXLu7LgiWtywZxwDzAYugbJv0khYG5KTXgzxdWOnM0P5k63H3d8uNuKPbJoOj1Fpg==",
+        "dependencies": {
+          "Volo.Abp.Auditing": "10.4.1",
+          "Volo.Abp.Caching": "10.4.1",
+          "Volo.Abp.Data": "10.4.1",
+          "Volo.Abp.Ddd.Domain.Shared": "10.4.1",
+          "Volo.Abp.EventBus": "10.4.1",
+          "Volo.Abp.ExceptionHandling": "10.4.1",
+          "Volo.Abp.Guids": "10.4.1",
+          "Volo.Abp.ObjectMapping": "10.4.1",
+          "Volo.Abp.Specifications": "10.4.1",
+          "Volo.Abp.Timing": "10.4.1"
         }
       },
       "Volo.Abp.FeatureManagement.Application.Contracts": {
