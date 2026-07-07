@@ -113,6 +113,7 @@ public class N11CategoryAppService : TradeXpressAppService, IN11CategoryAppServi
             IsMandatory = a.IsMandatory,
             IsVariant = a.IsVariant,
             IsCustomValue = a.IsCustomValue,
+            Priority = a.Priority,
             Values = a.Values.Select(v => new N11CategoryAttributeValueDto { ValueId = v.ValueId, Value = v.Value }).ToList(),
         }).ToList();
     }
