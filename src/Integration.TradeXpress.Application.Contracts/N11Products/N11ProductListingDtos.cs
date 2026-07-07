@@ -101,6 +101,9 @@ public interface IN11ProductListingAppService : IApplicationService
     /// <summary>Bir ürünün bir kanaldaki listelemesi (yoksa null).</summary>
     Task<N11ProductListingDto?> GetForProductAsync(Guid productId, Guid salesChannelId);
 
+    /// <summary>Bir KANALA ait tüm ürün listelemeleri (kanal-merkezli yönetim görünümü).</summary>
+    Task<List<N11ProductListingDto>> GetListForChannelAsync(Guid salesChannelId);
+
     Task<N11ProductListingDto> GetAsync(Guid id);
 
     Task<N11ProductListingDto> CreateAsync(N11ProductListingCreateDto input);

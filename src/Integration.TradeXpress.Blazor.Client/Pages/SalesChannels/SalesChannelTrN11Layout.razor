@@ -33,10 +33,18 @@
     </DxFormLayoutGroup>
 </DxFormLayout>
 
-@* Kargo şablonları — yalnız kaydedilmiş kanalda (persistent drill kanal Id'sine bağlıdır). *@
+@* Kargo şablonları + kanala ait N11 ürün listelemeleri — yalnız kaydedilmiş kanalda (persistent drill'ler
+   kanal Id'sine bağlıdır). Sekmeler: Kargo Şablonları · N11 Ürünleri (o kanala ait listelemeler). *@
 @if (!IsNew)
 {
-    <N11ShipmentTemplateDrill Channel="@Model" />
+    <DrillTabs CssClass="mt-3">
+        <DxTabPage Text="@L["N11ShipmentTemplates"]" TabIconCssClass="@TradeXpressIcons.SalesChannel">
+            <N11ShipmentTemplateDrill Channel="@Model" />
+        </DxTabPage>
+        <DxTabPage Text="@L["N11Listings"]" TabIconCssClass="@TradeXpressIcons.Product">
+            <N11ChannelProductsDrill Channel="@Model" />
+        </DxTabPage>
+    </DrillTabs>
 }
 else
 {

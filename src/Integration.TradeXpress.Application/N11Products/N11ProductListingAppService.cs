@@ -71,6 +71,16 @@ public class N11ProductListingAppService : TradeXpressAppService, IN11ProductLis
         return ObjectMapper.Map<N11ProductListing, N11ProductListingDto>(entity);
     }
 
+    public virtual async Task<List<N11ProductListingDto>> GetListForChannelAsync(Guid salesChannelId)
+    {
+        var companyId = EnsureCurrentCompanyId();
+        var items = await AsyncExecuter.ToListAsync(
+            (await _repository.GetQueryableAsync())
+                .Where(x => x.CompanyId == companyId && x.SalesChannelId == salesChannelId)
+                .OrderBy(x => x.CategoryName));
+        return items.Select(x => ObjectMapper.Map<N11ProductListing, N11ProductListingDto>(x)).ToList();
+    }
+
     [Authorize(TradeXpressPermissions.SalesChannels.Create)]
     public virtual async Task<N11ProductListingDto> CreateAsync(N11ProductListingCreateDto input)
     {
