@@ -24,6 +24,7 @@ public partial class N11ShipmentTemplateDrill : CrudComponentBase
     [Inject] private IN11ShipmentCompanyAppService CompanyAppService { get; set; } = default!;
     [Inject] private IObjectMapper Mapper { get; set; } = default!;
     [Inject] private IUiInteractionService UiService { get; set; } = default!;
+    [Inject] private IServiceProvider ServiceProvider { get; set; } = default!;
 
     private DrillList<N11ShipmentTemplateDto>? _drill;
 
@@ -125,7 +126,7 @@ public partial class N11ShipmentTemplateDrill : CrudComponentBase
         }
         catch (Exception ex)
         {
-            UiService.ShowErrorToast(ex.Message);
+            UiService.ShowErrorToast(CrudErrorPresenter.ToFriendlyMessage(ex, ServiceProvider) ?? L["UnexpectedError"].Value);
         }
     }
 

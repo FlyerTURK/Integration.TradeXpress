@@ -22,6 +22,7 @@ public partial class N11CategoryPicker : CrudComponentBase
 
     [Inject] private IN11CategoryAppService CategoryAppService { get; set; } = default!;
     [Inject] private IUiInteractionService UiService { get; set; } = default!;
+    [Inject] private IServiceProvider ServiceProvider { get; set; } = default!;
 
     // Her kademe: o seviyenin çocuk seçenekleri + seçili dış-id. Kök = index 0.
     private readonly List<CascadeLevel> _levels = new();
@@ -56,7 +57,7 @@ public partial class N11CategoryPicker : CrudComponentBase
         }
         catch (Exception ex)
         {
-            UiService.ShowErrorToast(ex.Message);
+            UiService.ShowErrorToast(CrudErrorPresenter.ToFriendlyMessage(ex, ServiceProvider) ?? L["UnexpectedError"].Value);
         }
     }
 

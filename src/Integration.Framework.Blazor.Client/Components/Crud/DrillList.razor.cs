@@ -18,6 +18,14 @@ public partial class DrillList<TItem> where TItem : class
     [Inject] private IUiInteractionService UiService { get; set; } = default!;
     [Inject] private IGridExportAssemblyLoader ExportLoader { get; set; } = default!;
     [Inject] private IUiStateService UiStateService { get; set; } = default!;
+    [Inject] private IServiceProvider ServiceProvider { get; set; } = default!;
+
+    // Persist (create/update/delete) hataları → LOKALİZE dostu toast. BusinessException in-process (Blazor Server)
+    // Message'ı lokalize etmez; CrudErrorPresenter kod-namespace eşlemesiyle çevirir (çeviremezse genel mesaj).
+    private void ShowExceptionToast(Exception ex)
+    {
+        UiService.ShowErrorToast(CrudErrorPresenter.ToFriendlyMessage(ex, ServiceProvider) ?? L["UnexpectedError"].Value);
+    }
 
     // Markup içeren şablonlar — .razor'ın üstündeki kod bloğunda atanır (kullanım BuildListActions +
     // popup gövdesi). Razor inline template yalnız .razor içinde yazılabilir; alan tanımı burada.
@@ -467,7 +475,7 @@ public partial class DrillList<TItem> where TItem : class
         }
         catch (Exception ex)
         {
-            UiService.ShowErrorToast(ex.Message);   // normal edit formlarıyla parite (CrudEditHost.CommitAsync); ABP HandleErrorAsync bu app'te (LeptonX kapalı) görünür toast üretmiyordu.
+            ShowExceptionToast(ex);   // lokalize (BusinessException kodu → mesaj); ham ex.Message toast'ı KALDIRILDI.
         }
         finally
         {
@@ -626,7 +634,7 @@ public partial class DrillList<TItem> where TItem : class
         }
         catch (Exception ex)
         {
-            UiService.ShowErrorToast(ex.Message);   // normal edit formlarıyla parite (CrudEditHost.CommitAsync); ABP HandleErrorAsync bu app'te (LeptonX kapalı) görünür toast üretmiyordu.
+            ShowExceptionToast(ex);   // lokalize (BusinessException kodu → mesaj); ham ex.Message toast'ı KALDIRILDI.
         }
         finally
         {
@@ -676,7 +684,7 @@ public partial class DrillList<TItem> where TItem : class
         }
         catch (Exception ex)
         {
-            UiService.ShowErrorToast(ex.Message);   // normal edit formlarıyla parite (CrudEditHost.CommitAsync); ABP HandleErrorAsync bu app'te (LeptonX kapalı) görünür toast üretmiyordu.
+            ShowExceptionToast(ex);   // lokalize (BusinessException kodu → mesaj); ham ex.Message toast'ı KALDIRILDI.
         }
         finally
         {
@@ -711,7 +719,7 @@ public partial class DrillList<TItem> where TItem : class
         }
         catch (Exception ex)
         {
-            UiService.ShowErrorToast(ex.Message);   // normal edit formlarıyla parite (CrudEditHost.CommitAsync); ABP HandleErrorAsync bu app'te (LeptonX kapalı) görünür toast üretmiyordu.
+            ShowExceptionToast(ex);   // lokalize (BusinessException kodu → mesaj); ham ex.Message toast'ı KALDIRILDI.
         }
         finally
         {

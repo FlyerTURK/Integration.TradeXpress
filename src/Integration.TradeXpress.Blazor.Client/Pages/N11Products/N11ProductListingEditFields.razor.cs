@@ -26,6 +26,7 @@ public partial class N11ProductListingEditFields : CrudComponentBase
     [Inject] private IN11ShipmentTemplateAppService ShipmentTemplateAppService { get; set; } = default!;
     [Inject] private IN11CategoryAppService CategoryAppService { get; set; } = default!;
     [Inject] private IUiInteractionService UiService { get; set; } = default!;
+    [Inject] private IServiceProvider ServiceProvider { get; set; } = default!;
 
     [CascadingParameter] private EditContext? EditContext { get; set; }
 
@@ -65,7 +66,7 @@ public partial class N11ProductListingEditFields : CrudComponentBase
         }
         catch (Exception ex)
         {
-            UiService.ShowErrorToast(ex.Message);
+            UiService.ShowErrorToast(CrudErrorPresenter.ToFriendlyMessage(ex, ServiceProvider) ?? L["UnexpectedError"].Value);
         }
     }
 
@@ -85,7 +86,7 @@ public partial class N11ProductListingEditFields : CrudComponentBase
         catch (Exception ex)
         {
             _attributeDefs = new List<N11CategoryAttributeDto>();
-            UiService.ShowErrorToast(ex.Message);
+            UiService.ShowErrorToast(CrudErrorPresenter.ToFriendlyMessage(ex, ServiceProvider) ?? L["UnexpectedError"].Value);
         }
     }
 

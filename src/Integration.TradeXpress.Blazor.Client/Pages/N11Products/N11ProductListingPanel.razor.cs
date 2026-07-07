@@ -23,6 +23,7 @@ public partial class N11ProductListingPanel : CrudComponentBase
     [Inject] private ISalesChannelAppService SalesChannelAppService { get; set; } = default!;
     [Inject] private IUiInteractionService UiService { get; set; } = default!;
     [Inject] private IObjectMapper Mapper { get; set; } = default!;
+    [Inject] private IServiceProvider ServiceProvider { get; set; } = default!;
 
     private DrillList<N11ProductListingDto>? _drill;
     private List<N11ProductListingDto> _listings = new();
@@ -104,7 +105,8 @@ public partial class N11ProductListingPanel : CrudComponentBase
         }
         catch (Exception ex)
         {
-            UiService.ShowErrorToast(ex.Message);
+            // BusinessException (ImagesRequired/NoPricedVariant...) in-process lokalize olmaz → kodu çevir.
+            UiService.ShowErrorToast(CrudErrorPresenter.ToFriendlyMessage(ex, ServiceProvider) ?? L["UnexpectedError"].Value);
         }
     }
 
