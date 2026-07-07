@@ -7,7 +7,7 @@ namespace Integration.TradeXpress.TrendyolProducts;
 
 /// <summary>Trendyol kategori attribute değeri (id-bazlı; Trendyol attributeId + attributeValueId ya da serbest
 /// customValue) — owned, JSON kolonuna serialize edilir.</summary>
-public class TrendyolListingAttribute
+public class SalesChannelTrTrendyolProductAttribute
 {
     /// <summary>Trendyol attribute id'si (kategori attribute tanımından).</summary>
     public int AttributeId { get; set; }
@@ -18,11 +18,11 @@ public class TrendyolListingAttribute
     /// <summary>Serbest (custom) değer — attribute değer listesi kabul etmiyorsa. Value id ile birlikte kullanılmaz.</summary>
     public string? CustomValue { get; set; }
 
-    public TrendyolListingAttribute()
+    public SalesChannelTrTrendyolProductAttribute()
     {
     }
 
-    public TrendyolListingAttribute(int attributeId, int? attributeValueId, string? customValue)
+    public SalesChannelTrTrendyolProductAttribute(int attributeId, int? attributeValueId, string? customValue)
     {
         AttributeId = attributeId;
         AttributeValueId = attributeValueId;
@@ -36,15 +36,15 @@ public class TrendyolListingAttribute
 /// gönderilir (submit → <see cref="BatchRequestId"/>; durum ayrıca batch-request sorgusuyla çekilir). Kanalın KENDİ
 /// kimliğiyle push edilir; varyantlar Trendyol item'larına (barcode/stockCode) eşlenir. Kimlik (SalesChannelId, ProductId) benzersiz.
 /// </summary>
-public class TrendyolProductListing : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwned
+public class SalesChannelTrTrendyolProduct : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwned
 {
     #region Constructors
 
-    protected TrendyolProductListing()
+    protected SalesChannelTrTrendyolProduct()
     {
     }
 
-    public TrendyolProductListing(
+    public SalesChannelTrTrendyolProduct(
         Guid companyId,
         Guid salesChannelId,
         Guid productId,
@@ -94,7 +94,7 @@ public class TrendyolProductListing : FullAuditedAggregateRoot<Guid>, IMultiTena
     public virtual decimal? DimensionalWeight { get; protected set; }
 
     /// <summary>Trendyol kategori attribute değerleri (id-bazlı; owned → JSON).</summary>
-    public virtual List<TrendyolListingAttribute> Attributes { get; protected set; } = new();
+    public virtual List<SalesChannelTrTrendyolProductAttribute> Attributes { get; protected set; } = new();
 
     // ── Trendyol senkron durumu (async submit sonrası) ──
     /// <summary>Trendyol'un döndürdüğü batch istek kimliği (durum bununla sorgulanır).</summary>
@@ -164,11 +164,11 @@ public class TrendyolProductListing : FullAuditedAggregateRoot<Guid>, IMultiTena
         IsActive = value;
     }
 
-    public virtual void SetAttributes(IEnumerable<TrendyolListingAttribute>? attributes)
+    public virtual void SetAttributes(IEnumerable<SalesChannelTrTrendyolProductAttribute>? attributes)
     {
-        Attributes = (attributes ?? Enumerable.Empty<TrendyolListingAttribute>())
+        Attributes = (attributes ?? Enumerable.Empty<SalesChannelTrTrendyolProductAttribute>())
             .Where(a => a.AttributeId > 0)
-            .Select(a => new TrendyolListingAttribute(
+            .Select(a => new SalesChannelTrTrendyolProductAttribute(
                 a.AttributeId,
                 a.AttributeValueId,
                 string.IsNullOrWhiteSpace(a.CustomValue) ? null : a.CustomValue!.Trim()))

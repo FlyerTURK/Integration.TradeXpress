@@ -1,6 +1,6 @@
 namespace Integration.TradeXpress.N11Products;
 
-/// <summary>N11 ürün listeleme (N11ProductListing) alan sınırları.</summary>
+/// <summary>N11 ürün listeleme (SalesChannelTrN11Product) alan sınırları.</summary>
 public static class N11ProductConsts
 {
     /// <summary>N11 kategori/ürün id'si (numerik ama matematik yapılmaz → string).</summary>

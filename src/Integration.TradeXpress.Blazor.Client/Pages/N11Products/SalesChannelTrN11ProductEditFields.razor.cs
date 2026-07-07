@@ -16,9 +16,9 @@ namespace Integration.TradeXpress.Blazor.Client.Pages.N11Products;
 /// <summary>N11 ürün listeleme edit alanları — kanal + kategori (kademeli) + kategori attribute'ları (on-demand) +
 /// kargo şablonu + condition + Seyahat özel bilgileri + N11 senkron durumu. Listeleme drill'inin EditContent'i;
 /// kendi DxFormLayout'unu sağlar. ValueExpression'sız editörlerde dirty EDitContext'e elle bildirilir.</summary>
-public partial class N11ProductListingEditFields : CrudComponentBase
+public partial class SalesChannelTrN11ProductEditFields : CrudComponentBase
 {
-    [Parameter, EditorRequired] public N11ProductListingDto Model { get; set; } = default!;
+    [Parameter, EditorRequired] public SalesChannelTrN11ProductDto Model { get; set; } = default!;
 
     /// <summary>Kanal seçici beslemesi (yalnız N11 kanalları) — create'te seçilir, edit'te sabit gösterilir.</summary>
     [Parameter] public IReadOnlyList<SalesChannelListDto> Channels { get; set; } = Array.Empty<SalesChannelListDto>();
@@ -135,7 +135,7 @@ public partial class N11ProductListingEditFields : CrudComponentBase
         }
         else
         {
-            Model.Attributes.Add(new N11ListingAttributeDto { Name = name, Value = value });
+            Model.Attributes.Add(new SalesChannelTrN11ProductAttributeDto { Name = name, Value = value });
         }
 
         MarkDirty(nameof(Model.Attributes));
@@ -163,7 +163,7 @@ public partial class N11ProductListingEditFields : CrudComponentBase
         }
         else
         {
-            Model.SpecialInfo.Add(new N11ListingSpecialInfoDto { Key = key, Value = value });
+            Model.SpecialInfo.Add(new SalesChannelTrN11ProductSpecialInfoDto { Key = key, Value = value });
         }
 
         MarkDirty(nameof(Model.SpecialInfo));

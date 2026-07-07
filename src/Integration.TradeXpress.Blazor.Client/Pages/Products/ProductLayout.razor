@@ -160,14 +160,14 @@
         </DrillList>
     </DxTabPage>
     @* N11 listelemeleri — ürün KAYDEDİLDİKTEN sonra (Id'li). Yeni üründe henüz push edilecek varyant/görsel yok. *@
-    <DxTabPage Text="@L["N11Listings"]" TabIconCssClass="@TradeXpressIcons.SalesChannel">
+    <DxTabPage Text="@L["N11Products"]" TabIconCssClass="@TradeXpressIcons.SalesChannel">
         @if (!IsNew && Model.Id != Guid.Empty)
         {
-            <N11ProductListingPanel ProductId="@Model.Id" />
+            <SalesChannelTrN11ProductPanel ProductId="@Model.Id" />
         }
         else
         {
-            <div style="padding:1rem; color:#6c757d;">@L["N11Listing:SaveProductFirst"]</div>
+            <div style="padding:1rem; color:#6c757d;">@L["N11Product:SaveProductFirst"]</div>
         }
     </DxTabPage>
 </DrillTabs>

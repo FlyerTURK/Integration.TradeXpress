@@ -16,18 +16,18 @@ namespace Integration.TradeXpress.Blazor.Client.Pages.N11Products;
 /// <summary>Bir N11 kanalına AİT ürün listelemeleri (KANAL-merkezli) — persistent drill. Kanal edit formunun içinde
 /// açılır: kanaldaki N11 listelemelerini gösterir, düzenler, N11'e gönderir (push), yerel siler. YENİ listeleme
 /// ürün tarafından yapılır (fiyat/stok/görsel orada girildiğinden) → burada AllowAdd kapalı.</summary>
-public partial class N11ChannelProductsDrill : CrudComponentBase
+public partial class SalesChannelTrN11ProductsDrill : CrudComponentBase
 {
     [Parameter, EditorRequired] public SalesChannelTrN11GetDto Channel { get; set; } = default!;
 
-    [Inject] private IN11ProductListingAppService AppService { get; set; } = default!;
+    [Inject] private ISalesChannelTrN11ProductAppService AppService { get; set; } = default!;
     [Inject] private IProductAppService ProductAppService { get; set; } = default!;
     [Inject] private IUiInteractionService UiService { get; set; } = default!;
     [Inject] private IObjectMapper Mapper { get; set; } = default!;
     [Inject] private IServiceProvider ServiceProvider { get; set; } = default!;
 
-    private DrillList<N11ProductListingDto>? _drill;
-    private List<N11ProductListingDto> _listings = new();
+    private DrillList<SalesChannelTrN11ProductDto>? _drill;
+    private List<SalesChannelTrN11ProductDto> _channelProducts = new();
 
     // Listeleme satırının ait olduğu ERP ürününün kimlik alanları (grid'de kod/ad göstermek için; DTO'da yok).
     private Dictionary<Guid, ProductListDto> _products = new();
@@ -52,45 +52,45 @@ public partial class N11ChannelProductsDrill : CrudComponentBase
         var products = await ProductAppService.GetListAsync(new ProductListRequestDto { MaxResultCount = 1000 });
         _products = products.Items.ToDictionary(p => p.Id);
 
-        await ReloadListingsAsync();
+        await ReloadChannelProductsAsync();
     }
 
-    private async Task ReloadListingsAsync()
+    private async Task ReloadChannelProductsAsync()
     {
-        _listings = await AppService.GetListForChannelAsync(Channel.Id);
+        _channelProducts = await AppService.GetListForChannelAsync(Channel.Id);
     }
 
     // Elle eklenmez (AllowAdd=false) ama DrillList NewItemFactory ister — trivial (UI'dan çağrılmaz).
-    private N11ProductListingDto NewListing()
+    private SalesChannelTrN11ProductDto NewChannelProduct()
     {
-        return new N11ProductListingDto { SalesChannelId = Channel.Id };
+        return new SalesChannelTrN11ProductDto { SalesChannelId = Channel.Id };
     }
 
-    private N11ProductListingDto CloneListing(N11ProductListingDto source)
+    private SalesChannelTrN11ProductDto CloneChannelProduct(SalesChannelTrN11ProductDto source)
     {
         var json = JsonSerializer.Serialize(source);
-        return JsonSerializer.Deserialize<N11ProductListingDto>(json)!;
+        return JsonSerializer.Deserialize<SalesChannelTrN11ProductDto>(json)!;
     }
 
-    private async Task<N11ProductListingDto> PersistUpdate(N11ProductListingDto listing)
+    private async Task<SalesChannelTrN11ProductDto> PersistUpdate(SalesChannelTrN11ProductDto channelProduct)
     {
-        var input = Mapper.Map<N11ProductListingDto, N11ProductListingUpdateDto>(listing);
-        return await AppService.UpdateAsync(listing.Id, input);
+        var input = Mapper.Map<SalesChannelTrN11ProductDto, SalesChannelTrN11ProductUpdateDto>(channelProduct);
+        return await AppService.UpdateAsync(channelProduct.Id, input);
     }
 
-    private async Task PersistDelete(N11ProductListingDto listing)
+    private async Task PersistDelete(SalesChannelTrN11ProductDto channelProduct)
     {
-        await AppService.DeleteAsync(listing.Id);
+        await AppService.DeleteAsync(channelProduct.Id);
     }
 
     // Satır push: listelemeyi N11'e gönder (SaveProduct); durum güncellensin diye listeyi tazele.
-    private async Task PushAsync(N11ProductListingDto listing)
+    private async Task PushAsync(SalesChannelTrN11ProductDto channelProduct)
     {
         try
         {
-            await AppService.ListToN11Async(listing.Id);
-            await ReloadListingsAsync();
-            UiService.ShowSuccessToast(L["N11Listing:PushSuccess"].Value);
+            await AppService.PushToN11Async(channelProduct.Id);
+            await ReloadChannelProductsAsync();
+            UiService.ShowSuccessToast(L["N11Product:PushSuccess"].Value);
             StateHasChanged();
         }
         catch (Exception ex)
@@ -99,32 +99,32 @@ public partial class N11ChannelProductsDrill : CrudComponentBase
         }
     }
 
-    private string ProductCodeOf(N11ProductListingDto listing)
+    private string ProductCodeOf(SalesChannelTrN11ProductDto channelProduct)
     {
-        return _products.TryGetValue(listing.ProductId, out var p) ? p.Code : string.Empty;
+        return _products.TryGetValue(channelProduct.ProductId, out var p) ? p.Code : string.Empty;
     }
 
-    private string ProductNameOf(N11ProductListingDto listing)
+    private string ProductNameOf(SalesChannelTrN11ProductDto channelProduct)
     {
-        return _products.TryGetValue(listing.ProductId, out var p) ? p.Name : string.Empty;
+        return _products.TryGetValue(channelProduct.ProductId, out var p) ? p.Name : string.Empty;
     }
 
     // Grid'de ürün etiketi: "KOD — Ad" (ad boşsa yalnız kod).
-    private string ProductLabelOf(N11ProductListingDto listing)
+    private string ProductLabelOf(SalesChannelTrN11ProductDto channelProduct)
     {
-        var name = ProductNameOf(listing);
-        var code = ProductCodeOf(listing);
+        var name = ProductNameOf(channelProduct);
+        var code = ProductCodeOf(channelProduct);
         return string.IsNullOrEmpty(name) ? code : $"{code} — {name}";
     }
 
     // N11'e gönderilmediyse "Gönderilmedi", gönderildiyse "SaleStatus / ApprovalStatus".
-    private string StatusTextOf(N11ProductListingDto listing)
+    private string StatusTextOf(SalesChannelTrN11ProductDto channelProduct)
     {
-        if (!listing.N11ProductId.HasValue)
+        if (!channelProduct.N11ProductId.HasValue)
         {
-            return L["N11Listing:NotSent"].Value;
+            return L["N11Product:NotSent"].Value;
         }
 
-        return $"{listing.SaleStatus} / {listing.ApprovalStatus}";
+        return $"{channelProduct.SaleStatus} / {channelProduct.ApprovalStatus}";
     }
 }

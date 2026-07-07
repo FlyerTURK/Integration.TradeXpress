@@ -6,16 +6,16 @@ using Integration.TradeXpress.MultiCompany;
 namespace Integration.TradeXpress.N11Products;
 
 /// <summary>N11 kategori attribute değeri (name/value) — owned, JSON kolonuna serialize edilir.</summary>
-public class N11ListingAttribute
+public class SalesChannelTrN11ProductAttribute
 {
     public string Name { get; set; } = string.Empty;
     public string Value { get; set; } = string.Empty;
 
-    public N11ListingAttribute()
+    public SalesChannelTrN11ProductAttribute()
     {
     }
 
-    public N11ListingAttribute(string name, string value)
+    public SalesChannelTrN11ProductAttribute(string name, string value)
     {
         Name = name;
         Value = value;
@@ -23,16 +23,16 @@ public class N11ListingAttribute
 }
 
 /// <summary>N11 Seyahat kategorisi özel bilgi (key=TurProgrami/IptalIadeKosullari/EkHizmetler, value=HTML) — owned, JSON.</summary>
-public class N11ListingSpecialInfo
+public class SalesChannelTrN11ProductSpecialInfo
 {
     public string Key { get; set; } = string.Empty;
     public string Value { get; set; } = string.Empty;
 
-    public N11ListingSpecialInfo()
+    public SalesChannelTrN11ProductSpecialInfo()
     {
     }
 
-    public N11ListingSpecialInfo(string key, string value)
+    public SalesChannelTrN11ProductSpecialInfo(string key, string value)
     {
         Key = key;
         Value = value;
@@ -46,15 +46,15 @@ public class N11ListingSpecialInfo
 /// kargo şablonu + condition + Seyahat özel bilgisi. <see cref="ProductSellerCode"/> = Ürün.Code (N11 upsert kimliği);
 /// <see cref="N11ProductId"/> ilk push'ta N11 tarafından atanır. Kimlik (SalesChannelId, ProductId) benzersiz.
 /// </summary>
-public class N11ProductListing : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwned
+public class SalesChannelTrN11Product : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwned
 {
     #region Constructors
 
-    protected N11ProductListing()
+    protected SalesChannelTrN11Product()
     {
     }
 
-    public N11ProductListing(
+    public SalesChannelTrN11Product(
         Guid companyId,
         Guid salesChannelId,
         Guid productId,
@@ -109,10 +109,10 @@ public class N11ProductListing : FullAuditedAggregateRoot<Guid>, IMultiTenant, I
     public virtual int? MaxPurchaseQuantity { get; protected set; }
 
     /// <summary>N11 kategori attribute değerleri (owned → JSON).</summary>
-    public virtual List<N11ListingAttribute> Attributes { get; protected set; } = new();
+    public virtual List<SalesChannelTrN11ProductAttribute> Attributes { get; protected set; } = new();
 
     /// <summary>Seyahat kategorisi özel bilgi (owned → JSON; kategori Seyahat ise zorunlu).</summary>
-    public virtual List<N11ListingSpecialInfo> SpecialInfo { get; protected set; } = new();
+    public virtual List<SalesChannelTrN11ProductSpecialInfo> SpecialInfo { get; protected set; } = new();
 
     // ── N11 senkron durumu (push sonrası) ──
     /// <summary>N11'in atadığı ürün id'si (ilk başarılı push'ta dolar).</summary>
@@ -184,19 +184,19 @@ public class N11ProductListing : FullAuditedAggregateRoot<Guid>, IMultiTenant, I
         IsActive = value;
     }
 
-    public virtual void SetAttributes(IEnumerable<N11ListingAttribute>? attributes)
+    public virtual void SetAttributes(IEnumerable<SalesChannelTrN11ProductAttribute>? attributes)
     {
-        Attributes = (attributes ?? Enumerable.Empty<N11ListingAttribute>())
+        Attributes = (attributes ?? Enumerable.Empty<SalesChannelTrN11ProductAttribute>())
             .Where(a => !string.IsNullOrWhiteSpace(a.Name))
-            .Select(a => new N11ListingAttribute(a.Name.Trim(), (a.Value ?? string.Empty).Trim()))
+            .Select(a => new SalesChannelTrN11ProductAttribute(a.Name.Trim(), (a.Value ?? string.Empty).Trim()))
             .ToList();
     }
 
-    public virtual void SetSpecialInfo(IEnumerable<N11ListingSpecialInfo>? specialInfo)
+    public virtual void SetSpecialInfo(IEnumerable<SalesChannelTrN11ProductSpecialInfo>? specialInfo)
     {
-        SpecialInfo = (specialInfo ?? Enumerable.Empty<N11ListingSpecialInfo>())
+        SpecialInfo = (specialInfo ?? Enumerable.Empty<SalesChannelTrN11ProductSpecialInfo>())
             .Where(s => !string.IsNullOrWhiteSpace(s.Key) && !string.IsNullOrWhiteSpace(s.Value))
-            .Select(s => new N11ListingSpecialInfo(s.Key.Trim(), s.Value))
+            .Select(s => new SalesChannelTrN11ProductSpecialInfo(s.Key.Trim(), s.Value))
             .ToList();
     }
 

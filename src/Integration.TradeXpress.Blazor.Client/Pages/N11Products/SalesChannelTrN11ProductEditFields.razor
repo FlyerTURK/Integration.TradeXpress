@@ -4,7 +4,7 @@
    Kanal + kargo şablonu + condition + kategori (kademeli) + on-demand attribute + Seyahat özel bilgi + durum. *@
 
 <DxFormLayout CssClass="w-100">
-    <DxFormLayoutGroup Caption="@L["N11Listing:General"]" ColSpanMd="12">
+    <DxFormLayoutGroup Caption="@L["N11Product:General"]" ColSpanMd="12">
         @* Kanal — create'te seçilir (yalnız N11), edit'te sabit (read-only metin). *@
         @if (IsNew)
         {
@@ -36,15 +36,15 @@
         <DxFormLayoutItem Caption="@L["N11ProductCondition"]" ColSpanMd="6">
             <ComboBoxEnumEdit TEnum="N11ProductCondition" L="@L" @bind-Value="@Model.Condition" />
         </DxFormLayoutItem>
-        <DxFormLayoutItem Caption="@L["N11Listing:Domestic"]" ColSpanMd="6">
+        <DxFormLayoutItem Caption="@L["N11Product:Domestic"]" ColSpanMd="6">
             <DxCheckBox @bind-Checked="@Model.Domestic" CheckType="CheckType.Switch">
                 @(Model.Domestic ? L["Yes"] : L["No"])
             </DxCheckBox>
         </DxFormLayoutItem>
-        <DxFormLayoutItem Caption="@L["N11Listing:PreparingDay"]" ColSpanMd="6">
+        <DxFormLayoutItem Caption="@L["N11Product:PreparingDay"]" ColSpanMd="6">
             <NumericSpinEdit TValue="int" @bind-Value="@Model.PreparingDay" />
         </DxFormLayoutItem>
-        <DxFormLayoutItem Caption="@L["N11Listing:MaxPurchaseQuantity"]" ColSpanMd="6">
+        <DxFormLayoutItem Caption="@L["N11Product:MaxPurchaseQuantity"]" ColSpanMd="6">
             <NumericSpinEdit TValue="int?" @bind-Value="@Model.MaxPurchaseQuantity"
                              ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
         </DxFormLayoutItem>
@@ -56,7 +56,7 @@
     </DxFormLayoutGroup>
 
     @* Kategori (kademeli seçici) — yaprak seçilince attribute'lar aşağıda belirir. *@
-    <DxFormLayoutGroup Caption="@L["N11Listing:Category"]" ColSpanMd="12" CaptionPosition="CaptionPosition.Vertical">
+    <DxFormLayoutGroup Caption="@L["N11Product:Category"]" ColSpanMd="12" CaptionPosition="CaptionPosition.Vertical">
         <DxFormLayoutItem ColSpanMd="12">
             <N11CategoryPicker SelectedExternalId="@Model.CategoryExternalId"
                                SelectedName="@Model.CategoryName"
@@ -67,7 +67,7 @@
     @* Kategori attribute'ları (on-demand; yaprak seçildiyse). Zorunlular * ile; değer listesi varsa combo, yoksa serbest metin. *@
     @if (_attributeDefs.Count > 0)
     {
-        <DxFormLayoutGroup Caption="@L["N11Listing:Attributes"]" ColSpanMd="12" CaptionPosition="CaptionPosition.Vertical">
+        <DxFormLayoutGroup Caption="@L["N11Product:Attributes"]" ColSpanMd="12" CaptionPosition="CaptionPosition.Vertical">
             @foreach (var def in _attributeDefs)
             {
                 var name = def.Name;
@@ -94,14 +94,14 @@
     }
 
     @* Seyahat özel bilgileri (opsiyonel; yalnız Seyahat kategorisi ürünleri). N11 specialProductInfoList HTML kabul eder. *@
-    <DxFormLayoutGroup Caption="@L["N11Listing:SpecialInfo"]" ColSpanMd="12" CaptionPosition="CaptionPosition.Vertical">
+    <DxFormLayoutGroup Caption="@L["N11Product:SpecialInfo"]" ColSpanMd="12" CaptionPosition="CaptionPosition.Vertical">
         <DxFormLayoutItem ColSpanMd="12">
-            <span style="color:#6c757d; font-size:0.85rem;">@L["N11Listing:SpecialInfoHint"]</span>
+            <span style="color:#6c757d; font-size:0.85rem;">@L["N11Product:SpecialInfoHint"]</span>
         </DxFormLayoutItem>
         @foreach (var key in SpecialInfoKeys)
         {
             var k = key;
-            <DxFormLayoutItem Caption="@L[$"N11Listing:SpecialInfo:{k}"]" ColSpanMd="12">
+            <DxFormLayoutItem Caption="@L[$"N11Product:SpecialInfo:{k}"]" ColSpanMd="12">
                 <DxMemo Text="@GetSpecialInfo(k)" TextChanged="@((string v) => SetSpecialInfo(k, v))"
                         Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100" ValidationEnabled="false" />
             </DxFormLayoutItem>
@@ -111,22 +111,22 @@
     @* N11 senkron durumu (read-only; push sonrası dolar). *@
     @if (Model.N11ProductId.HasValue || !string.IsNullOrEmpty(Model.LastError))
     {
-        <DxFormLayoutGroup Caption="@L["N11Listing:SyncStatus"]" ColSpanMd="12" CaptionPosition="CaptionPosition.Vertical">
+        <DxFormLayoutGroup Caption="@L["N11Product:SyncStatus"]" ColSpanMd="12" CaptionPosition="CaptionPosition.Vertical">
             @if (Model.N11ProductId.HasValue)
             {
-                <DxFormLayoutItem Caption="@L["N11Listing:N11ProductId"]" ColSpanMd="4">
+                <DxFormLayoutItem Caption="@L["N11Product:N11ProductId"]" ColSpanMd="4">
                     <span>@Model.N11ProductId</span>
                 </DxFormLayoutItem>
-                <DxFormLayoutItem Caption="@L["N11Listing:SaleStatus"]" ColSpanMd="4">
+                <DxFormLayoutItem Caption="@L["N11Product:SaleStatus"]" ColSpanMd="4">
                     <span>@Model.SaleStatus</span>
                 </DxFormLayoutItem>
-                <DxFormLayoutItem Caption="@L["N11Listing:ApprovalStatus"]" ColSpanMd="4">
+                <DxFormLayoutItem Caption="@L["N11Product:ApprovalStatus"]" ColSpanMd="4">
                     <span>@Model.ApprovalStatus</span>
                 </DxFormLayoutItem>
             }
             @if (!string.IsNullOrEmpty(Model.LastError))
             {
-                <DxFormLayoutItem Caption="@L["N11Listing:LastError"]" ColSpanMd="12">
+                <DxFormLayoutItem Caption="@L["N11Product:LastError"]" ColSpanMd="12">
                     <span style="color:#dc2626;">@Model.LastError</span>
                 </DxFormLayoutItem>
             }

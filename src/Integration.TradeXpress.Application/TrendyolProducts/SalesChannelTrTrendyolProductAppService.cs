@@ -15,13 +15,13 @@ namespace Integration.TradeXpress.TrendyolProducts;
 
 /// <summary>
 /// Trendyol ürün listeleme CRUD + push — <b>company-owned + per-tenant</b>. Yapılandırma (kategori/marka/KDV/kargo/
-/// attribute) bizde tutulur; <see cref="ListToTrendyolAsync"/> ürünü + varyantlarını (items) Trendyol'a ASENKRON
+/// attribute) bizde tutulur; <see cref="PushToTrendyolAsync"/> ürünü + varyantlarını (items) Trendyol'a ASENKRON
 /// gönderir (batch id döner), <see cref="RefreshStatusAsync"/> durumu çeker. Push kanalın KENDİ kimliğiyle yapılır.
 /// </summary>
 [Authorize(TradeXpressPermissions.SalesChannels.Default)]
-public class TrendyolProductListingAppService : TradeXpressAppService, ITrendyolProductListingAppService
+public class SalesChannelTrTrendyolProductAppService : TradeXpressAppService, ISalesChannelTrTrendyolProductAppService
 {
-    private readonly IRepository<TrendyolProductListing, Guid> _repository;
+    private readonly IRepository<SalesChannelTrTrendyolProduct, Guid> _repository;
     private readonly IRepository<Product, Guid> _productRepository;
     private readonly IRepository<ProductVariant, Guid> _variantRepository;
     private readonly IRepository<SalesChannelTrTrendyol, Guid> _channelRepository;
@@ -29,8 +29,8 @@ public class TrendyolProductListingAppService : TradeXpressAppService, ITrendyol
     private readonly ICurrentCompany _currentCompany;
     private readonly ITrendyolProductClient _client;
 
-    public TrendyolProductListingAppService(
-        IRepository<TrendyolProductListing, Guid> repository,
+    public SalesChannelTrTrendyolProductAppService(
+        IRepository<SalesChannelTrTrendyolProduct, Guid> repository,
         IRepository<Product, Guid> productRepository,
         IRepository<ProductVariant, Guid> variantRepository,
         IRepository<SalesChannelTrTrendyol, Guid> channelRepository,
@@ -47,29 +47,29 @@ public class TrendyolProductListingAppService : TradeXpressAppService, ITrendyol
         _client = client;
     }
 
-    public virtual async Task<TrendyolProductListingDto?> GetForProductAsync(Guid productId, Guid salesChannelId)
+    public virtual async Task<SalesChannelTrTrendyolProductDto?> GetForProductAsync(Guid productId, Guid salesChannelId)
     {
         var companyId = EnsureCurrentCompanyId();
         var entity = await AsyncExecuter.FirstOrDefaultAsync(
             (await _repository.GetQueryableAsync())
                 .Where(x => x.CompanyId == companyId && x.ProductId == productId && x.SalesChannelId == salesChannelId));
-        return entity is null ? null : ObjectMapper.Map<TrendyolProductListing, TrendyolProductListingDto>(entity);
+        return entity is null ? null : ObjectMapper.Map<SalesChannelTrTrendyolProduct, SalesChannelTrTrendyolProductDto>(entity);
     }
 
-    public virtual async Task<TrendyolProductListingDto> GetAsync(Guid id)
+    public virtual async Task<SalesChannelTrTrendyolProductDto> GetAsync(Guid id)
     {
         var entity = await GetOwnedAsync(id);
-        return ObjectMapper.Map<TrendyolProductListing, TrendyolProductListingDto>(entity);
+        return ObjectMapper.Map<SalesChannelTrTrendyolProduct, SalesChannelTrTrendyolProductDto>(entity);
     }
 
     [Authorize(TradeXpressPermissions.SalesChannels.Create)]
-    public virtual async Task<TrendyolProductListingDto> CreateAsync(TrendyolProductListingCreateDto input)
+    public virtual async Task<SalesChannelTrTrendyolProductDto> CreateAsync(SalesChannelTrTrendyolProductCreateDto input)
     {
         var channel = await GetOwnedChannelAsync(input.SalesChannelId);
         await EnsureProductOwnedAsync(input.ProductId);
         await EnsureNotListedAsync(channel.Id, input.ProductId);
 
-        var entity = new TrendyolProductListing(
+        var entity = new SalesChannelTrTrendyolProduct(
             channel.CompanyId,
             channel.Id,
             input.ProductId,
@@ -78,17 +78,17 @@ public class TrendyolProductListingAppService : TradeXpressAppService, ITrendyol
         ApplyInput(entity, input);
         await _repository.InsertAsync(entity, autoSave: true);
 
-        return ObjectMapper.Map<TrendyolProductListing, TrendyolProductListingDto>(entity);
+        return ObjectMapper.Map<SalesChannelTrTrendyolProduct, SalesChannelTrTrendyolProductDto>(entity);
     }
 
     [Authorize(TradeXpressPermissions.SalesChannels.Update)]
-    public virtual async Task<TrendyolProductListingDto> UpdateAsync(Guid id, TrendyolProductListingUpdateDto input)
+    public virtual async Task<SalesChannelTrTrendyolProductDto> UpdateAsync(Guid id, SalesChannelTrTrendyolProductUpdateDto input)
     {
         var entity = await GetOwnedAsync(id);
         ApplyInput(entity, input);
         await _repository.UpdateAsync(entity, autoSave: true);
 
-        return ObjectMapper.Map<TrendyolProductListing, TrendyolProductListingDto>(entity);
+        return ObjectMapper.Map<SalesChannelTrTrendyolProduct, SalesChannelTrTrendyolProductDto>(entity);
     }
 
     [Authorize(TradeXpressPermissions.SalesChannels.Delete)]
@@ -99,7 +99,7 @@ public class TrendyolProductListingAppService : TradeXpressAppService, ITrendyol
     }
 
     [Authorize(TradeXpressPermissions.SalesChannels.Update)]
-    public virtual async Task<TrendyolProductListingDto> ListToTrendyolAsync(Guid id)
+    public virtual async Task<SalesChannelTrTrendyolProductDto> PushToTrendyolAsync(Guid id)
     {
         var entity = await GetOwnedAsync(id);
         var channel = await GetOwnedChannelAsync(entity.SalesChannelId);
@@ -119,11 +119,11 @@ public class TrendyolProductListingAppService : TradeXpressAppService, ITrendyol
             throw;
         }
 
-        return ObjectMapper.Map<TrendyolProductListing, TrendyolProductListingDto>(entity);
+        return ObjectMapper.Map<SalesChannelTrTrendyolProduct, SalesChannelTrTrendyolProductDto>(entity);
     }
 
     [Authorize(TradeXpressPermissions.SalesChannels.Update)]
-    public virtual async Task<TrendyolProductListingDto> RefreshStatusAsync(Guid id)
+    public virtual async Task<SalesChannelTrTrendyolProductDto> RefreshStatusAsync(Guid id)
     {
         var entity = await GetOwnedAsync(id);
         if (string.IsNullOrEmpty(entity.BatchRequestId))
@@ -147,14 +147,14 @@ public class TrendyolProductListingAppService : TradeXpressAppService, ITrendyol
             throw;
         }
 
-        return ObjectMapper.Map<TrendyolProductListing, TrendyolProductListingDto>(entity);
+        return ObjectMapper.Map<SalesChannelTrTrendyolProduct, SalesChannelTrTrendyolProductDto>(entity);
     }
 
     // ── Push veri kurulumu (ürün grafı → TrendyolProductData) ─────────────────────────────────────────
 
-    private async Task<TrendyolProductData> BuildProductDataAsync(TrendyolProductListing listing)
+    private async Task<TrendyolProductData> BuildProductDataAsync(SalesChannelTrTrendyolProduct channelProduct)
     {
-        var product = await GetOwnedProductAsync(listing.ProductId);
+        var product = await GetOwnedProductAsync(channelProduct.ProductId);
 
         if (product.ImageUrls.Count == 0)
         {
@@ -194,13 +194,13 @@ public class TrendyolProductListingAppService : TradeXpressAppService, ITrendyol
             ProductMainId: product.Code,
             Title: product.Name,
             Description: product.Description ?? product.Name,
-            CategoryId: listing.CategoryId,
-            BrandId: listing.BrandId,
-            VatRate: listing.VatRate,
-            CargoCompanyId: listing.CargoCompanyId,
-            DimensionalWeight: listing.DimensionalWeight,
+            CategoryId: channelProduct.CategoryId,
+            BrandId: channelProduct.BrandId,
+            VatRate: channelProduct.VatRate,
+            CargoCompanyId: channelProduct.CargoCompanyId,
+            DimensionalWeight: channelProduct.DimensionalWeight,
             ImageUrls: product.ImageUrls.ToList(),
-            Attributes: listing.Attributes
+            Attributes: channelProduct.Attributes
                 .Select(a => new TrendyolAttributeValue(a.AttributeId, a.AttributeValueId, a.CustomValue))
                 .ToList(),
             Items: items);
@@ -230,7 +230,7 @@ public class TrendyolProductListingAppService : TradeXpressAppService, ITrendyol
         return new TrendyolCredentials(channel.SellerId, channel.ApiKey, channel.ApiSecret);
     }
 
-    private void ApplyInput(TrendyolProductListing entity, ITrendyolProductListingInput input)
+    private void ApplyInput(SalesChannelTrTrendyolProduct entity, ISalesChannelTrTrendyolProductInput input)
     {
         entity.SetCategory(input.CategoryId, input.CategoryName);
         entity.SetBrand(input.BrandId);
@@ -238,17 +238,17 @@ public class TrendyolProductListingAppService : TradeXpressAppService, ITrendyol
         entity.SetCargoCompany(input.CargoCompanyId);
         entity.SetDimensionalWeight(input.DimensionalWeight);
         entity.SetActive(input.IsActive);
-        entity.SetAttributes(input.Attributes.Select(a => new TrendyolListingAttribute(a.AttributeId, a.AttributeValueId, a.CustomValue)));
+        entity.SetAttributes(input.Attributes.Select(a => new SalesChannelTrTrendyolProductAttribute(a.AttributeId, a.AttributeValueId, a.CustomValue)));
     }
 
-    private async Task<TrendyolProductListing> GetOwnedAsync(Guid id)
+    private async Task<SalesChannelTrTrendyolProduct> GetOwnedAsync(Guid id)
     {
         var companyId = EnsureCurrentCompanyId();
         var entity = await AsyncExecuter.FirstOrDefaultAsync(
             (await _repository.GetQueryableAsync()).Where(x => x.Id == id && x.CompanyId == companyId));
         if (entity is null)
         {
-            throw new BusinessException("TradeXpress:Trendyol:Product:ListingNotFound");
+            throw new BusinessException("TradeXpress:Trendyol:Product:RecordNotFound");
         }
 
         return entity;
@@ -291,7 +291,7 @@ public class TrendyolProductListingAppService : TradeXpressAppService, ITrendyol
             (await _repository.GetQueryableAsync()).Where(x => x.SalesChannelId == salesChannelId && x.ProductId == productId));
         if (exists)
         {
-            throw new BusinessException("TradeXpress:Trendyol:Product:AlreadyListed");
+            throw new BusinessException("TradeXpress:Trendyol:Product:AlreadyOnChannel");
         }
     }
 

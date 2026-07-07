@@ -6,8 +6,8 @@
 @if (!_picking && !string.IsNullOrEmpty(SelectedName))
 {
     <div style="display:flex; align-items:center; gap:0.75rem; flex-wrap:wrap;">
-        <span><b>@L["N11Listing:SelectedCategory"]:</b> @SelectedName</span>
-        <DxButton Text="@L["N11Listing:ChangeCategory"]" RenderStyle="ButtonRenderStyle.Secondary"
+        <span><b>@L["N11Product:SelectedCategory"]:</b> @SelectedName</span>
+        <DxButton Text="@L["N11Product:ChangeCategory"]" RenderStyle="ButtonRenderStyle.Secondary"
                   IconCssClass="@TradeXpressIcons.Edit" Click="ChangeClickedAsync" />
     </div>
 }

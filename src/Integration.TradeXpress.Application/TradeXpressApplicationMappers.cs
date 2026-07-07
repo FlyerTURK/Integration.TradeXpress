@@ -260,10 +260,10 @@ public partial class N11ShipmentTemplateToDtoMapper : MapperBase<N11ShipmentTemp
 
 // ── N11 ürün listeleme → DTO. Owned Attributes/SpecialInfo (name/value · key/value) nested-otomatik eşlenir. ──
 [Mapper]
-public partial class N11ProductListingToDtoMapper : MapperBase<N11ProductListing, N11ProductListingDto>
+public partial class SalesChannelTrN11ProductToDtoMapper : MapperBase<SalesChannelTrN11Product, SalesChannelTrN11ProductDto>
 {
-    public override partial N11ProductListingDto Map(N11ProductListing source);
-    public override partial void Map(N11ProductListing source, N11ProductListingDto destination);
+    public override partial SalesChannelTrN11ProductDto Map(SalesChannelTrN11Product source);
+    public override partial void Map(SalesChannelTrN11Product source, SalesChannelTrN11ProductDto destination);
 }
 
 // GetDto → Create/Update (drill persist yolu: DrillList düzenlenen GetDto'yu bu input'lara çevirir). Şartlı kargo
@@ -281,33 +281,33 @@ public partial class N11ProductListingToDtoMapper : MapperBase<N11ProductListing
 
 // N11 ürün listeleme GetDto → Create/Update (drill persist yolu). Nested Attributes/SpecialInfo aynı tip → kopya.
 // Durum alanları (N11ProductId/SaleStatus/... ) hedef input'ta yok → source-only (RMG020 uyarısı beklenir).
-[Mapper] public partial class N11ProductListingGetToCreateMapper : MapperBase<N11ProductListingDto, N11ProductListingCreateDto>
+[Mapper] public partial class SalesChannelTrN11ProductGetToCreateMapper : MapperBase<SalesChannelTrN11ProductDto, SalesChannelTrN11ProductCreateDto>
 {
-    public override partial N11ProductListingCreateDto Map(N11ProductListingDto source);
-    public override partial void Map(N11ProductListingDto source, N11ProductListingCreateDto destination);
+    public override partial SalesChannelTrN11ProductCreateDto Map(SalesChannelTrN11ProductDto source);
+    public override partial void Map(SalesChannelTrN11ProductDto source, SalesChannelTrN11ProductCreateDto destination);
 }
-[Mapper] public partial class N11ProductListingGetToUpdateMapper : MapperBase<N11ProductListingDto, N11ProductListingUpdateDto>
+[Mapper] public partial class SalesChannelTrN11ProductGetToUpdateMapper : MapperBase<SalesChannelTrN11ProductDto, SalesChannelTrN11ProductUpdateDto>
 {
-    public override partial N11ProductListingUpdateDto Map(N11ProductListingDto source);
-    public override partial void Map(N11ProductListingDto source, N11ProductListingUpdateDto destination);
+    public override partial SalesChannelTrN11ProductUpdateDto Map(SalesChannelTrN11ProductDto source);
+    public override partial void Map(SalesChannelTrN11ProductDto source, SalesChannelTrN11ProductUpdateDto destination);
 }
 
 // ── Trendyol ürün listeleme → DTO + GetDto→Create/Update (drill persist yolu). Owned Attributes (id-bazlı) nested. ──
 [Mapper]
-public partial class TrendyolProductListingToDtoMapper : MapperBase<TrendyolProductListing, TrendyolProductListingDto>
+public partial class SalesChannelTrTrendyolProductToDtoMapper : MapperBase<SalesChannelTrTrendyolProduct, SalesChannelTrTrendyolProductDto>
 {
-    public override partial TrendyolProductListingDto Map(TrendyolProductListing source);
-    public override partial void Map(TrendyolProductListing source, TrendyolProductListingDto destination);
+    public override partial SalesChannelTrTrendyolProductDto Map(SalesChannelTrTrendyolProduct source);
+    public override partial void Map(SalesChannelTrTrendyolProduct source, SalesChannelTrTrendyolProductDto destination);
 }
-[Mapper] public partial class TrendyolProductListingGetToCreateMapper : MapperBase<TrendyolProductListingDto, TrendyolProductListingCreateDto>
+[Mapper] public partial class SalesChannelTrTrendyolProductGetToCreateMapper : MapperBase<SalesChannelTrTrendyolProductDto, SalesChannelTrTrendyolProductCreateDto>
 {
-    public override partial TrendyolProductListingCreateDto Map(TrendyolProductListingDto source);
-    public override partial void Map(TrendyolProductListingDto source, TrendyolProductListingCreateDto destination);
+    public override partial SalesChannelTrTrendyolProductCreateDto Map(SalesChannelTrTrendyolProductDto source);
+    public override partial void Map(SalesChannelTrTrendyolProductDto source, SalesChannelTrTrendyolProductCreateDto destination);
 }
-[Mapper] public partial class TrendyolProductListingGetToUpdateMapper : MapperBase<TrendyolProductListingDto, TrendyolProductListingUpdateDto>
+[Mapper] public partial class SalesChannelTrTrendyolProductGetToUpdateMapper : MapperBase<SalesChannelTrTrendyolProductDto, SalesChannelTrTrendyolProductUpdateDto>
 {
-    public override partial TrendyolProductListingUpdateDto Map(TrendyolProductListingDto source);
-    public override partial void Map(TrendyolProductListingDto source, TrendyolProductListingUpdateDto destination);
+    public override partial SalesChannelTrTrendyolProductUpdateDto Map(SalesChannelTrTrendyolProductDto source);
+    public override partial void Map(SalesChannelTrTrendyolProductDto source, SalesChannelTrTrendyolProductUpdateDto destination);
 }
 
 // ── Scrap (statik mapper → Mapperly; IsGlobal + FollowingUnitCode AppService'te/ApplyUnitCodes ile set) ──

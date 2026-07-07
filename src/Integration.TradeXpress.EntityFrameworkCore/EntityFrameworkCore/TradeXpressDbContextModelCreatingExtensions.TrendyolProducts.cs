@@ -13,9 +13,9 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
     {
         Check.NotNull(builder, nameof(builder));
 
-        builder.Entity<TrendyolProductListing>(b =>
+        builder.Entity<SalesChannelTrTrendyolProduct>(b =>
         {
-            b.ToTable(TradeXpressConsts.DbTablePrefix + "TrendyolProductListings", TradeXpressConsts.DbSchema);
+            b.ToTable(TradeXpressConsts.DbTablePrefix + "SalesChannelTrTrendyolProducts", TradeXpressConsts.DbSchema);
             b.ConfigureByConvention();
 
             b.Property(x => x.CategoryId).IsRequired().HasMaxLength(TrendyolProductConsts.CategoryIdMaxLength);

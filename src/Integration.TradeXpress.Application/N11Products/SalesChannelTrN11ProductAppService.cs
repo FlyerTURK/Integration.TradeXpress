@@ -15,13 +15,13 @@ namespace Integration.TradeXpress.N11Products;
 
 /// <summary>
 /// N11 ürün listeleme CRUD + push — <b>company-owned + per-tenant</b>. Listeleme yapılandırması (kategori/attribute/
-/// kargo şablonu/condition/özel bilgi) bizde tutulur; <see cref="ListToN11Async"/> ürünü + varyantlarını (stockItems)
+/// kargo şablonu/condition/özel bilgi) bizde tutulur; <see cref="PushToN11Async"/> ürünü + varyantlarını (stockItems)
 /// + fiyat/stok/görselleriyle N11'e SaveProduct ile gönderir (kanalın KENDİ kimliğiyle) ve durumu işaretler.
 /// </summary>
 [Authorize(TradeXpressPermissions.SalesChannels.Default)]
-public class N11ProductListingAppService : TradeXpressAppService, IN11ProductListingAppService
+public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesChannelTrN11ProductAppService
 {
-    private readonly IRepository<N11ProductListing, Guid> _repository;
+    private readonly IRepository<SalesChannelTrN11Product, Guid> _repository;
     private readonly IRepository<Product, Guid> _productRepository;
     private readonly IRepository<ProductVariant, Guid> _variantRepository;
     private readonly IRepository<ProductAttribute, Guid> _attributeRepository;
@@ -32,8 +32,8 @@ public class N11ProductListingAppService : TradeXpressAppService, IN11ProductLis
     private readonly ICurrentCompany _currentCompany;
     private readonly IN11ProductClient _client;
 
-    public N11ProductListingAppService(
-        IRepository<N11ProductListing, Guid> repository,
+    public SalesChannelTrN11ProductAppService(
+        IRepository<SalesChannelTrN11Product, Guid> repository,
         IRepository<Product, Guid> productRepository,
         IRepository<ProductVariant, Guid> variantRepository,
         IRepository<ProductAttribute, Guid> attributeRepository,
@@ -56,39 +56,39 @@ public class N11ProductListingAppService : TradeXpressAppService, IN11ProductLis
         _client = client;
     }
 
-    public virtual async Task<N11ProductListingDto?> GetForProductAsync(Guid productId, Guid salesChannelId)
+    public virtual async Task<SalesChannelTrN11ProductDto?> GetForProductAsync(Guid productId, Guid salesChannelId)
     {
         var companyId = EnsureCurrentCompanyId();
         var entity = await AsyncExecuter.FirstOrDefaultAsync(
             (await _repository.GetQueryableAsync())
                 .Where(x => x.CompanyId == companyId && x.ProductId == productId && x.SalesChannelId == salesChannelId));
-        return entity is null ? null : ObjectMapper.Map<N11ProductListing, N11ProductListingDto>(entity);
+        return entity is null ? null : ObjectMapper.Map<SalesChannelTrN11Product, SalesChannelTrN11ProductDto>(entity);
     }
 
-    public virtual async Task<N11ProductListingDto> GetAsync(Guid id)
+    public virtual async Task<SalesChannelTrN11ProductDto> GetAsync(Guid id)
     {
         var entity = await GetOwnedAsync(id);
-        return ObjectMapper.Map<N11ProductListing, N11ProductListingDto>(entity);
+        return ObjectMapper.Map<SalesChannelTrN11Product, SalesChannelTrN11ProductDto>(entity);
     }
 
-    public virtual async Task<List<N11ProductListingDto>> GetListForChannelAsync(Guid salesChannelId)
+    public virtual async Task<List<SalesChannelTrN11ProductDto>> GetListForChannelAsync(Guid salesChannelId)
     {
         var companyId = EnsureCurrentCompanyId();
         var items = await AsyncExecuter.ToListAsync(
             (await _repository.GetQueryableAsync())
                 .Where(x => x.CompanyId == companyId && x.SalesChannelId == salesChannelId)
                 .OrderBy(x => x.CategoryName));
-        return items.Select(x => ObjectMapper.Map<N11ProductListing, N11ProductListingDto>(x)).ToList();
+        return items.Select(x => ObjectMapper.Map<SalesChannelTrN11Product, SalesChannelTrN11ProductDto>(x)).ToList();
     }
 
     [Authorize(TradeXpressPermissions.SalesChannels.Create)]
-    public virtual async Task<N11ProductListingDto> CreateAsync(N11ProductListingCreateDto input)
+    public virtual async Task<SalesChannelTrN11ProductDto> CreateAsync(SalesChannelTrN11ProductCreateDto input)
     {
         var channel = await GetOwnedChannelAsync(input.SalesChannelId);
         await EnsureProductOwnedAsync(input.ProductId);
         await EnsureNotListedAsync(channel.Id, input.ProductId);
 
-        var entity = new N11ProductListing(
+        var entity = new SalesChannelTrN11Product(
             channel.CompanyId,
             channel.Id,
             input.ProductId,
@@ -98,17 +98,17 @@ public class N11ProductListingAppService : TradeXpressAppService, IN11ProductLis
         ApplyInput(entity, input);
         await _repository.InsertAsync(entity, autoSave: true);
 
-        return ObjectMapper.Map<N11ProductListing, N11ProductListingDto>(entity);
+        return ObjectMapper.Map<SalesChannelTrN11Product, SalesChannelTrN11ProductDto>(entity);
     }
 
     [Authorize(TradeXpressPermissions.SalesChannels.Update)]
-    public virtual async Task<N11ProductListingDto> UpdateAsync(Guid id, N11ProductListingUpdateDto input)
+    public virtual async Task<SalesChannelTrN11ProductDto> UpdateAsync(Guid id, SalesChannelTrN11ProductUpdateDto input)
     {
         var entity = await GetOwnedAsync(id);
         ApplyInput(entity, input);
         await _repository.UpdateAsync(entity, autoSave: true);
 
-        return ObjectMapper.Map<N11ProductListing, N11ProductListingDto>(entity);
+        return ObjectMapper.Map<SalesChannelTrN11Product, SalesChannelTrN11ProductDto>(entity);
     }
 
     [Authorize(TradeXpressPermissions.SalesChannels.Delete)]
@@ -119,7 +119,7 @@ public class N11ProductListingAppService : TradeXpressAppService, IN11ProductLis
     }
 
     [Authorize(TradeXpressPermissions.SalesChannels.Update)]
-    public virtual async Task<N11ProductListingDto> ListToN11Async(Guid id)
+    public virtual async Task<SalesChannelTrN11ProductDto> PushToN11Async(Guid id)
     {
         var entity = await GetOwnedAsync(id);
         var channel = await GetOwnedChannelAsync(entity.SalesChannelId);
@@ -139,14 +139,14 @@ public class N11ProductListingAppService : TradeXpressAppService, IN11ProductLis
             throw;
         }
 
-        return ObjectMapper.Map<N11ProductListing, N11ProductListingDto>(entity);
+        return ObjectMapper.Map<SalesChannelTrN11Product, SalesChannelTrN11ProductDto>(entity);
     }
 
     // ── Push veri kurulumu (ürün grafı → N11ProductData) ────────────────────────────────────────────
 
-    private async Task<N11ProductData> BuildProductDataAsync(N11ProductListing listing)
+    private async Task<N11ProductData> BuildProductDataAsync(SalesChannelTrN11Product channelProduct)
     {
-        var product = await GetOwnedProductAsync(listing.ProductId);
+        var product = await GetOwnedProductAsync(channelProduct.ProductId);
 
         if (product.ImageUrls.Count == 0)
         {
@@ -191,18 +191,18 @@ public class N11ProductListingAppService : TradeXpressAppService, IN11ProductLis
             ProductSellerCode: product.Code,
             Title: product.Name,
             Description: product.Description ?? product.Name,
-            Domestic: listing.Domestic,
-            CategoryId: listing.CategoryExternalId,
+            Domestic: channelProduct.Domestic,
+            CategoryId: channelProduct.CategoryExternalId,
             Price: variants[0].SalePrice!.Value,          // ana/ilk fiyatlı varyant = base fiyat
             CurrencyType: currencyType,
-            ProductCondition: (byte)listing.Condition,
-            PreparingDay: listing.PreparingDay,
-            ShipmentTemplate: listing.ShipmentTemplateName,
-            MaxPurchaseQuantity: listing.MaxPurchaseQuantity,
+            ProductCondition: (byte)channelProduct.Condition,
+            PreparingDay: channelProduct.PreparingDay,
+            ShipmentTemplate: channelProduct.ShipmentTemplateName,
+            MaxPurchaseQuantity: channelProduct.MaxPurchaseQuantity,
             Images: images,
-            Attributes: listing.Attributes.Select(a => new N11ProductAttributePair(a.Name, a.Value)).ToList(),
+            Attributes: channelProduct.Attributes.Select(a => new N11ProductAttributePair(a.Name, a.Value)).ToList(),
             StockItems: stockItems,
-            SpecialInfo: listing.SpecialInfo.Select(s => new N11ProductSpecialInfo(s.Key, s.Value)).ToList());
+            SpecialInfo: channelProduct.SpecialInfo.Select(s => new N11ProductSpecialInfo(s.Key, s.Value)).ToList());
     }
 
     /// <summary>Varyant başına option attribute (name/value) — ProductVariantAttributeValue → attribute adı + değer.</summary>
@@ -270,7 +270,7 @@ public class N11ProductListingAppService : TradeXpressAppService, IN11ProductLis
 
     // ── Uygulama + güvenlik ─────────────────────────────────────────────────────────────────────────
 
-    private void ApplyInput(N11ProductListing entity, IN11ProductListingInput input)
+    private void ApplyInput(SalesChannelTrN11Product entity, ISalesChannelTrN11ProductInput input)
     {
         entity.SetCategory(input.CategoryExternalId, input.CategoryName);
         entity.SetCondition(input.Condition);
@@ -279,18 +279,18 @@ public class N11ProductListingAppService : TradeXpressAppService, IN11ProductLis
         entity.SetPreparingDay(input.PreparingDay);
         entity.SetMaxPurchaseQuantity(input.MaxPurchaseQuantity);
         entity.SetActive(input.IsActive);
-        entity.SetAttributes(input.Attributes.Select(a => new N11ListingAttribute(a.Name, a.Value)));
-        entity.SetSpecialInfo(input.SpecialInfo.Select(s => new N11ListingSpecialInfo(s.Key, s.Value)));
+        entity.SetAttributes(input.Attributes.Select(a => new SalesChannelTrN11ProductAttribute(a.Name, a.Value)));
+        entity.SetSpecialInfo(input.SpecialInfo.Select(s => new SalesChannelTrN11ProductSpecialInfo(s.Key, s.Value)));
     }
 
-    private async Task<N11ProductListing> GetOwnedAsync(Guid id)
+    private async Task<SalesChannelTrN11Product> GetOwnedAsync(Guid id)
     {
         var companyId = EnsureCurrentCompanyId();
         var entity = await AsyncExecuter.FirstOrDefaultAsync(
             (await _repository.GetQueryableAsync()).Where(x => x.Id == id && x.CompanyId == companyId));
         if (entity is null)
         {
-            throw new BusinessException("TradeXpress:N11:Product:ListingNotFound");
+            throw new BusinessException("TradeXpress:N11:Product:RecordNotFound");
         }
 
         return entity;
@@ -333,7 +333,7 @@ public class N11ProductListingAppService : TradeXpressAppService, IN11ProductLis
             (await _repository.GetQueryableAsync()).Where(x => x.SalesChannelId == salesChannelId && x.ProductId == productId));
         if (exists)
         {
-            throw new BusinessException("TradeXpress:N11:Product:AlreadyListed");
+            throw new BusinessException("TradeXpress:N11:Product:AlreadyOnChannel");
         }
     }
 

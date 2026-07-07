@@ -13,9 +13,9 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
     {
         Check.NotNull(builder, nameof(builder));
 
-        builder.Entity<N11ProductListing>(b =>
+        builder.Entity<SalesChannelTrN11Product>(b =>
         {
-            b.ToTable(TradeXpressConsts.DbTablePrefix + "N11ProductListings", TradeXpressConsts.DbSchema);
+            b.ToTable(TradeXpressConsts.DbTablePrefix + "SalesChannelTrN11Products", TradeXpressConsts.DbSchema);
             b.ConfigureByConvention();
 
             b.Property(x => x.CategoryExternalId).IsRequired().HasMaxLength(N11ProductConsts.ExternalIdMaxLength);

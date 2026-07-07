@@ -95,9 +95,9 @@ public class TradeXpressDbContext :
     // N11 kargo şablonları — per-kanal (company-owned).
     public DbSet<Integration.TradeXpress.N11Shipments.N11ShipmentTemplate> N11ShipmentTemplates { get; set; } = null!;
     // N11 ürün listelemeleri — ürün×kanal (company-owned). DbSet ŞART: ABP default repository'leri DbSet'ten keşfeder.
-    public DbSet<Integration.TradeXpress.N11Products.N11ProductListing> N11ProductListings { get; set; } = null!;
+    public DbSet<Integration.TradeXpress.N11Products.SalesChannelTrN11Product> SalesChannelTrN11Products { get; set; } = null!;
     // Trendyol ürün listelemeleri — ürün×kanal (company-owned).
-    public DbSet<Integration.TradeXpress.TrendyolProducts.TrendyolProductListing> TrendyolProductListings { get; set; } = null!;
+    public DbSet<Integration.TradeXpress.TrendyolProducts.SalesChannelTrTrendyolProduct> SalesChannelTrTrendyolProducts { get; set; } = null!;
 
 
     #region Entities from the modules

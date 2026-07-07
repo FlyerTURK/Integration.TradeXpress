@@ -15,18 +15,18 @@ namespace Integration.TradeXpress.Blazor.Client.Pages.N11Products;
 /// <summary>Ürüne bağlı N11 listelemeleri (kanal başına bir) — PERSISTENT drill. N11 kanallarını + mevcut
 /// listelemeleri yükler; CRUD anında AppService'e yazılır. Satır başına "N11'e Gönder" (SaveProduct push,
 /// durumu tazeler). Ürün KAYDEDİLDİKTEN sonra (Id'li) açılır — yeni üründe gizli.</summary>
-public partial class N11ProductListingPanel : CrudComponentBase
+public partial class SalesChannelTrN11ProductPanel : CrudComponentBase
 {
     [Parameter, EditorRequired] public Guid ProductId { get; set; }
 
-    [Inject] private IN11ProductListingAppService AppService { get; set; } = default!;
+    [Inject] private ISalesChannelTrN11ProductAppService AppService { get; set; } = default!;
     [Inject] private ISalesChannelAppService SalesChannelAppService { get; set; } = default!;
     [Inject] private IUiInteractionService UiService { get; set; } = default!;
     [Inject] private IObjectMapper Mapper { get; set; } = default!;
     [Inject] private IServiceProvider ServiceProvider { get; set; } = default!;
 
-    private DrillList<N11ProductListingDto>? _drill;
-    private List<N11ProductListingDto> _listings = new();
+    private DrillList<SalesChannelTrN11ProductDto>? _drill;
+    private List<SalesChannelTrN11ProductDto> _channelProducts = new();
     private List<SalesChannelListDto> _channels = new();
 
     protected override async Task OnInitializedAsync()
@@ -35,29 +35,29 @@ public partial class N11ProductListingPanel : CrudComponentBase
         var paged = await SalesChannelAppService.GetListAsync(new SalesChannelListRequestDto { MaxResultCount = 1000 });
         _channels = paged.Items.Where(c => c.ChannelType == SalesChannelType.TrN11).ToList();
 
-        await ReloadListingsAsync();
+        await ReloadChannelProductsAsync();
     }
 
     // Ürünün her N11 kanalındaki listelemesini toplar (yoksa atlar).
-    private async Task ReloadListingsAsync()
+    private async Task ReloadChannelProductsAsync()
     {
-        var result = new List<N11ProductListingDto>();
+        var result = new List<SalesChannelTrN11ProductDto>();
         foreach (var channel in _channels)
         {
-            var listing = await AppService.GetForProductAsync(ProductId, channel.Id);
-            if (listing != null)
+            var channelProduct = await AppService.GetForProductAsync(ProductId, channel.Id);
+            if (channelProduct != null)
             {
-                result.Add(listing);
+                result.Add(channelProduct);
             }
         }
 
-        _listings = result;
+        _channelProducts = result;
     }
 
     // Yeni listeleme: ürün sabit; kanal + kategori edit formunda seçilir. Varsayılanlar N11 mandallarıyla.
-    private N11ProductListingDto NewListing()
+    private SalesChannelTrN11ProductDto NewChannelProduct()
     {
-        return new N11ProductListingDto
+        return new SalesChannelTrN11ProductDto
         {
             ProductId = ProductId,
             Condition = N11ProductCondition.New,
@@ -68,39 +68,39 @@ public partial class N11ProductListingPanel : CrudComponentBase
     }
 
     // Cancel geri alabilsin diye JSON deep-copy (attribute + özel bilgi listeleri dahil).
-    private N11ProductListingDto CloneListing(N11ProductListingDto source)
+    private SalesChannelTrN11ProductDto CloneChannelProduct(SalesChannelTrN11ProductDto source)
     {
         var json = JsonSerializer.Serialize(source);
-        return JsonSerializer.Deserialize<N11ProductListingDto>(json)!;
+        return JsonSerializer.Deserialize<SalesChannelTrN11ProductDto>(json)!;
     }
 
-    private async Task<N11ProductListingDto> PersistCreate(N11ProductListingDto listing)
+    private async Task<SalesChannelTrN11ProductDto> PersistCreate(SalesChannelTrN11ProductDto channelProduct)
     {
-        var input = Mapper.Map<N11ProductListingDto, N11ProductListingCreateDto>(listing);
+        var input = Mapper.Map<SalesChannelTrN11ProductDto, SalesChannelTrN11ProductCreateDto>(channelProduct);
         input.ProductId = ProductId;
-        input.SalesChannelId = listing.SalesChannelId;
+        input.SalesChannelId = channelProduct.SalesChannelId;
         return await AppService.CreateAsync(input);
     }
 
-    private async Task<N11ProductListingDto> PersistUpdate(N11ProductListingDto listing)
+    private async Task<SalesChannelTrN11ProductDto> PersistUpdate(SalesChannelTrN11ProductDto channelProduct)
     {
-        var input = Mapper.Map<N11ProductListingDto, N11ProductListingUpdateDto>(listing);
-        return await AppService.UpdateAsync(listing.Id, input);
+        var input = Mapper.Map<SalesChannelTrN11ProductDto, SalesChannelTrN11ProductUpdateDto>(channelProduct);
+        return await AppService.UpdateAsync(channelProduct.Id, input);
     }
 
-    private async Task PersistDelete(N11ProductListingDto listing)
+    private async Task PersistDelete(SalesChannelTrN11ProductDto channelProduct)
     {
-        await AppService.DeleteAsync(listing.Id);
+        await AppService.DeleteAsync(channelProduct.Id);
     }
 
     // Satır push: listelemeyi N11'e gönder (SaveProduct); durum güncellensin diye listeyi tazele.
-    private async Task PushAsync(N11ProductListingDto listing)
+    private async Task PushAsync(SalesChannelTrN11ProductDto channelProduct)
     {
         try
         {
-            await AppService.ListToN11Async(listing.Id);
-            await ReloadListingsAsync();
-            UiService.ShowSuccessToast(L["N11Listing:PushSuccess"].Value);
+            await AppService.PushToN11Async(channelProduct.Id);
+            await ReloadChannelProductsAsync();
+            UiService.ShowSuccessToast(L["N11Product:PushSuccess"].Value);
             StateHasChanged();
         }
         catch (Exception ex)
@@ -110,20 +110,20 @@ public partial class N11ProductListingPanel : CrudComponentBase
         }
     }
 
-    private string ChannelCodeOf(N11ProductListingDto listing)
+    private string ChannelCodeOf(SalesChannelTrN11ProductDto channelProduct)
     {
-        return _channels.FirstOrDefault(c => c.Id == listing.SalesChannelId)?.Code ?? string.Empty;
+        return _channels.FirstOrDefault(c => c.Id == channelProduct.SalesChannelId)?.Code ?? string.Empty;
     }
 
     // N11'e gönderilmediyse "Gönderilmedi", gönderildiyse "SaleStatus / ApprovalStatus".
-    private string StatusTextOf(N11ProductListingDto listing)
+    private string StatusTextOf(SalesChannelTrN11ProductDto channelProduct)
     {
-        if (!listing.N11ProductId.HasValue)
+        if (!channelProduct.N11ProductId.HasValue)
         {
-            return L["N11Listing:NotSent"].Value;
+            return L["N11Product:NotSent"].Value;
         }
 
-        return $"{listing.SaleStatus} / {listing.ApprovalStatus}";
+        return $"{channelProduct.SaleStatus} / {channelProduct.ApprovalStatus}";
     }
 
     // Grid enum kolonu için lokalize metin (ComboBoxEnumEdit ile aynı "Enum:{Tip}:{Değer}" anahtar formatı).
