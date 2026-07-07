@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using DevExpress.Blazor;
 using Integration.Framework.Blazor.Client.Components.Crud;
 using Integration.Framework.Blazor.Client.Services.Base;
 using Integration.TradeXpress.N11Categories;
@@ -12,6 +13,22 @@ using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
 
 namespace Integration.TradeXpress.Blazor.Client.Pages.N11Products;
+
+/// <summary>Attribute grid'inin satırı — N11 kategori attribute'u + o anki değeri. Değer editörü satır tipine göre
+/// değişir (<see cref="HasValueList"/> ? değer combo'su : serbest metin). DxGrid EditRow edit-model klonu için
+/// public parametresiz ctor + set'li property'ler.</summary>
+public class N11AttributeRow
+{
+    public string AttributeId { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public bool IsMandatory { get; set; }
+
+    /// <summary>Değer listesi var + serbest-değil → combo; aksi halde serbest metin.</summary>
+    public bool HasValueList { get; set; }
+
+    public List<N11CategoryAttributeValueDto> Values { get; set; } = new();
+    public string Value { get; set; } = string.Empty;
+}
 
 /// <summary>N11 ürün listeleme edit alanları — kanal + kategori (kademeli) + kategori attribute'ları (on-demand) +
 /// kargo şablonu + condition + Seyahat özel bilgileri + N11 senkron durumu. Listeleme drill'inin EditContent'i;
@@ -32,6 +49,9 @@ public partial class SalesChannelTrN11ProductEditFields : CrudComponentBase
 
     private List<N11ShipmentTemplateDto> _templates = new();
     private List<N11CategoryAttributeDto> _attributeDefs = new();
+
+    // Attribute grid satırları (def + o anki değer) — inline edit-row; değer editörü satır tipine göre değişir.
+    private List<N11AttributeRow> _attributeRows = new();
 
     // OnParametersSetAsync her render'da çalışır → tekrarlı ağ çağrısını son-yüklenen anahtarla önle.
     private Guid _loadedTemplatesChannelId;
@@ -99,6 +119,34 @@ public partial class SalesChannelTrN11ProductEditFields : CrudComponentBase
             _attributeDefs = new List<N11CategoryAttributeDto>();
             UiService.ShowErrorToast(CrudErrorPresenter.ToFriendlyMessage(ex, ServiceProvider) ?? L["UnexpectedError"].Value);
         }
+
+        BuildAttributeRows();
+    }
+
+    // Def + Model.Attributes'taki mevcut değerden grid satırlarını kur (def sırası korunur).
+    private void BuildAttributeRows()
+    {
+        _attributeRows = _attributeDefs.Select(def => new N11AttributeRow
+        {
+            AttributeId = def.AttributeId,
+            Name = def.Name,
+            IsMandatory = def.IsMandatory,
+            HasValueList = def.Values.Count > 0 && !def.IsCustomValue,
+            Values = def.Values,
+            Value = GetAttribute(def.Name),
+        }).ToList();
+    }
+
+    // Grid satır edit'i kaydedildi (EditRow): edit-model'in değerini orijinal satıra + Model.Attributes'a yaz.
+    private void OnAttributeRowSaving(GridEditModelSavingEventArgs e)
+    {
+        var edited = (N11AttributeRow)e.EditModel;
+        if (e.DataItem is N11AttributeRow original)
+        {
+            original.Value = edited.Value;
+        }
+
+        SetAttribute(edited.Name, edited.Value);
     }
 
     // Kanal seçimi (create) — modele yaz + şablonları tazele + dirty.

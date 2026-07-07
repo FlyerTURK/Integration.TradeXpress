@@ -4,6 +4,15 @@
    Kanal + kargo şablonu + condition + kategori (kademeli) + on-demand attribute + Seyahat özel bilgi + durum. *@
 
 <DxFormLayout CssClass="w-100">
+    @* Kategori EN BAŞTA — birincil karar (attribute'ları + Seyahat grubunu o belirler); kullanıcı önce kategoriyi seçer. *@
+    <DxFormLayoutGroup Caption="@L["N11Product:Category"]" ColSpanMd="12" CaptionPosition="CaptionPosition.Vertical">
+        <DxFormLayoutItem ColSpanMd="12">
+            <N11CategoryPicker SelectedExternalId="@Model.CategoryExternalId"
+                               SelectedName="@Model.CategoryName"
+                               OnLeafSelected="OnCategorySelectedAsync" />
+        </DxFormLayoutItem>
+    </DxFormLayoutGroup>
+
     <DxFormLayoutGroup Caption="@L["N11Product:General"]" ColSpanMd="12">
         @* Kanal — create'te seçilir (yalnız N11), edit'te sabit (read-only metin). *@
         @if (IsNew)
@@ -55,41 +64,54 @@
         </DxFormLayoutItem>
     </DxFormLayoutGroup>
 
-    @* Kategori (kademeli seçici) — yaprak seçilince attribute'lar aşağıda belirir. *@
-    <DxFormLayoutGroup Caption="@L["N11Product:Category"]" ColSpanMd="12" CaptionPosition="CaptionPosition.Vertical">
-        <DxFormLayoutItem ColSpanMd="12">
-            <N11CategoryPicker SelectedExternalId="@Model.CategoryExternalId"
-                               SelectedName="@Model.CategoryName"
-                               OnLeafSelected="OnCategorySelectedAsync" />
-        </DxFormLayoutItem>
-    </DxFormLayoutGroup>
-
-    @* Kategori attribute'ları (on-demand; yaprak seçildiyse). Zorunlular * ile; değer listesi varsa combo, yoksa serbest metin. *@
-    @if (_attributeDefs.Count > 0)
+    @* Kategori attribute'ları — inline EDIT-ROW grid (on-demand; yaprak seçildiyse). Değer kolonunun editörü SATIRA
+       göre değişir: değer listesi varsa combo, yoksa serbest metin. Nitelik adı salt-okunur (zorunlular *);
+       ekleme/silme YOK (kategori tanımlar). *@
+    @if (_attributeRows.Count > 0)
     {
         <DxFormLayoutGroup Caption="@L["N11Product:Attributes"]" ColSpanMd="12" CaptionPosition="CaptionPosition.Vertical">
-            @foreach (var def in _attributeDefs)
-            {
-                var name = def.Name;
-                <DxFormLayoutItem Caption="@(def.IsMandatory ? $"{name} *" : name)" ColSpanMd="6">
-                    @if (def.Values.Count > 0 && !def.IsCustomValue)
-                    {
-                        <LookupComboBox TItem="N11CategoryAttributeValueDto" TValue="string"
-                                        Data="@def.Values"
-                                        ValueFieldName="@nameof(N11CategoryAttributeValueDto.Value)"
-                                        TextFieldName="@nameof(N11CategoryAttributeValueDto.Value)"
-                                        Value="@GetAttribute(name)"
-                                        ValueChanged="@((string v) => SetAttribute(name, v))"
-                                        AllowClear="true" />
-                    }
-                    else
-                    {
-                        <DxTextBox Text="@GetAttribute(name)"
-                                   TextChanged="@((string v) => SetAttribute(name, v))"
-                                   ValidationEnabled="false" />
-                    }
-                </DxFormLayoutItem>
-            }
+            <DxFormLayoutItem ColSpanMd="12">
+                <DxGrid Data="@_attributeRows" KeyFieldName="AttributeId"
+                        EditMode="GridEditMode.EditRow"
+                        EditModelSaving="OnAttributeRowSaving"
+                        PageSize="200" PagerVisible="false"
+                        CssClass="w-100">
+                    <Columns>
+                        <DxGridCommandColumn Width="110px" NewButtonVisible="false" DeleteButtonVisible="false" />
+                        <DxGridDataColumn FieldName="Name" Caption="@L["ProductAttribute"]" Width="45%">
+                            <CellDisplayTemplate Context="cell">
+                                @{ var r = (N11AttributeRow)cell.DataItem; }
+                                <span>@(r.IsMandatory ? $"{r.Name} *" : r.Name)</span>
+                            </CellDisplayTemplate>
+                            <CellEditTemplate Context="cell">
+                                @{ var r = (N11AttributeRow)cell.EditModel; }
+                                <span>@(r.IsMandatory ? $"{r.Name} *" : r.Name)</span>
+                            </CellEditTemplate>
+                        </DxGridDataColumn>
+                        <DxGridDataColumn FieldName="Value" Caption="@L["Value"]">
+                            <CellEditTemplate Context="cell">
+                                @{ var row = (N11AttributeRow)cell.EditModel; }
+                                @if (row.HasValueList)
+                                {
+                                    <LookupComboBox TItem="N11CategoryAttributeValueDto" TValue="string"
+                                                    Data="@row.Values"
+                                                    ValueFieldName="@nameof(N11CategoryAttributeValueDto.Value)"
+                                                    TextFieldName="@nameof(N11CategoryAttributeValueDto.Value)"
+                                                    Value="@row.Value"
+                                                    ValueChanged="@((string v) => row.Value = v)"
+                                                    AllowClear="true" />
+                                }
+                                else
+                                {
+                                    <DxTextBox Text="@row.Value"
+                                               TextChanged="@((string v) => row.Value = v)"
+                                               TextExpression="@(() => row.Value)" />
+                                }
+                            </CellEditTemplate>
+                        </DxGridDataColumn>
+                    </Columns>
+                </DxGrid>
+            </DxFormLayoutItem>
         </DxFormLayoutGroup>
     }
 
