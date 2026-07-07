@@ -539,50 +539,15 @@ public abstract class CrudEditComponentBase<TGetDto, TListDto, TKey, TListReques
     /// </summary>
     protected void ShowError(Exception ex)
     {
-        // BusinessException/IHasErrorCode in-process'te (Blazor Server) Message lokalize olmaz → kodu elle
-        // çevir; sonra validation/remote için formatter; ikisi de yoksa teknik hata → genel mesaj + panele detay.
-        var friendly = LocalizeErrorCode(ex) ?? CrudErrorFormatter.Extract(ex);
+        // Kod çevirisi + {Placeholder} doldurma MERKEZİ CrudErrorPresenter'da (in-process BusinessException
+        // lokalizasyonu — eski private kopya placeholder'ları doldurmuyordu, "{Property} zorunludur" ham görünürdü).
+        var friendly = CrudErrorPresenter.ToFriendlyMessage(ex, ServiceProvider);
         if (friendly is null)
         {
             ServiceProvider.GetService<IClientErrorReporter>()?.Report(ex.Message, ex.ToString());
         }
 
         ShowErrorLines(friendly ?? L["UnexpectedError"]);
-    }
-
-    /// <summary>
-    /// Hata kodlu (<see cref="Volo.Abp.BusinessException"/>) exception'ın kodunu, kod-namespace eşlemesinden
-    /// (MapCodeNamespace) bulunan kaynakla lokalize eder. In-process (Blazor Server) çağrıda ABP'nin
-    /// HTTP pipeline lokalizasyonu çalışmadığından gerekir. Eşleşme/çeviri yoksa null.
-    /// </summary>
-    private string? LocalizeErrorCode(Exception ex)
-    {
-        for (var cur = ex; cur != null; cur = cur.InnerException)
-        {
-            if (cur is not Volo.Abp.BusinessException { Code: { } code } || !code.Contains(':'))
-            {
-                continue;
-            }
-
-            var ns = code.Substring(0, code.IndexOf(':'));
-            var mappings = ServiceProvider
-                .GetService<Microsoft.Extensions.Options.IOptions<Volo.Abp.Localization.ExceptionHandling.AbpExceptionLocalizationOptions>>()
-                ?.Value.ErrorCodeNamespaceMappings;
-            if (mappings is null || !mappings.TryGetValue(ns, out var resourceType))
-            {
-                continue;
-            }
-
-            var localized = ServiceProvider
-                .GetRequiredService<Microsoft.Extensions.Localization.IStringLocalizerFactory>()
-                .Create(resourceType)[code];
-            if (!localized.ResourceNotFound)
-            {
-                return localized.Value;
-            }
-        }
-
-        return null;
     }
 
     /// <summary>Çok satırlı hata metnini satır başına ayrı toast olarak gösterir (XAF tarzı).</summary>
