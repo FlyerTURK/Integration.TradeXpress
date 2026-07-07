@@ -1,0 +1,30 @@
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@* N11 kategori KADEMELİ seçici — kök→yaprak. Seçili kategori: breadcrumb + Değiştir; seçim modunda her seviye
+   için bir arama-destekli combo (LookupComboBox EditContext-güvenli: ValueExpression'sız ValidationEnabled=false). *@
+
+@if (!_picking && !string.IsNullOrEmpty(SelectedName))
+{
+    <div style="display:flex; align-items:center; gap:0.75rem; flex-wrap:wrap;">
+        <span><b>@L["N11Listing:SelectedCategory"]:</b> @SelectedName</span>
+        <DxButton Text="@L["N11Listing:ChangeCategory"]" RenderStyle="ButtonRenderStyle.Secondary"
+                  IconCssClass="@TradeXpressIcons.Edit" Click="ChangeClickedAsync" />
+    </div>
+}
+else
+{
+    <div style="display:flex; flex-direction:column; gap:0.5rem;">
+        @for (var i = 0; i < _levels.Count; i++)
+        {
+            var index = i;
+            var level = _levels[index];
+            <LookupComboBox TItem="N11CategoryTreeNodeDto" TValue="string"
+                            Data="@level.Options"
+                            ValueFieldName="@nameof(N11CategoryTreeNodeDto.ExternalId)"
+                            TextFieldName="@nameof(N11CategoryTreeNodeDto.Name)"
+                            Value="@level.SelectedId"
+                            ValueChanged="@((string v) => OnLevelChangedAsync(index, v))"
+                            AllowClear="false" />
+        }
+    </div>
+}

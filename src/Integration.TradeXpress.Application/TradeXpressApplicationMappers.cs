@@ -278,6 +278,19 @@ public partial class N11ProductListingToDtoMapper : MapperBase<N11ProductListing
     public override partial void Map(N11ShipmentTemplateDto source, N11ShipmentTemplateUpdateDto destination);
 }
 
+// N11 ürün listeleme GetDto → Create/Update (drill persist yolu). Nested Attributes/SpecialInfo aynı tip → kopya.
+// Durum alanları (N11ProductId/SaleStatus/... ) hedef input'ta yok → source-only (RMG020 uyarısı beklenir).
+[Mapper] public partial class N11ProductListingGetToCreateMapper : MapperBase<N11ProductListingDto, N11ProductListingCreateDto>
+{
+    public override partial N11ProductListingCreateDto Map(N11ProductListingDto source);
+    public override partial void Map(N11ProductListingDto source, N11ProductListingCreateDto destination);
+}
+[Mapper] public partial class N11ProductListingGetToUpdateMapper : MapperBase<N11ProductListingDto, N11ProductListingUpdateDto>
+{
+    public override partial N11ProductListingUpdateDto Map(N11ProductListingDto source);
+    public override partial void Map(N11ProductListingDto source, N11ProductListingUpdateDto destination);
+}
+
 // ── Scrap (statik mapper → Mapperly; IsGlobal + FollowingUnitCode AppService'te/ApplyUnitCodes ile set) ──
 
 [Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]

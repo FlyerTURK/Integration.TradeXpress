@@ -1,0 +1,49 @@
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@* N11 ürün listelemeleri drill'i — PERSISTENT (her işlem anında AppService'e yazılır). Product edit formunun
+   İÇİNDE (ürün kaydedildikten sonra) açılır. Satır başına "N11'e Gönder" (SaveProduct push). *@
+
+<div class="mt-3">
+    <DrillList TItem="N11ProductListingDto"
+               @ref="_drill"
+               Title="@L["N11Listings"]"
+               EntityName="@L["N11ProductListing"]"
+               EntityIcon="@TradeXpressIcons.SalesChannel"
+               Items="_listings"
+               KeyFieldName="Id"
+               SoftDelete="false"
+               PrimaryTextSelector="@(l => l.CategoryName)"
+               NewItemFactory="@NewListing"
+               CloneFactory="@CloneListing"
+               PersistCreate="@PersistCreate"
+               PersistUpdate="@PersistUpdate"
+               PersistDelete="@PersistDelete"
+               OnChanged="StateHasChanged">
+        <GridColumns>
+            <DxGridDataColumn FieldName="SalesChannelId" Caption="@L["SalesChannel"]" Width="120px">
+                <CellDisplayTemplate>@ChannelCodeOf((N11ProductListingDto)context.DataItem)</CellDisplayTemplate>
+            </DxGridDataColumn>
+            <GridLinkColumn FieldName="CategoryName" Caption="@L["N11Listing:Category"]"
+                            OnClick="@(item => _drill?.EditItem((N11ProductListingDto)item))" />
+            <DxGridDataColumn FieldName="Condition" Caption="@L["N11ProductCondition"]" Width="110px">
+                <CellDisplayTemplate>@EnumText(nameof(N11ProductCondition), ((N11ProductListingDto)context.DataItem).Condition)</CellDisplayTemplate>
+            </DxGridDataColumn>
+            <DxGridDataColumn FieldName="N11ProductId" Caption="@L["N11Listing:SyncStatus"]" Width="160px">
+                <CellDisplayTemplate>@StatusTextOf((N11ProductListingDto)context.DataItem)</CellDisplayTemplate>
+            </DxGridDataColumn>
+            <DxGridDataColumn Caption="@L["N11Listing:Push"]" Width="150px" TextAlignment="GridTextAlignment.Center">
+                <CellDisplayTemplate>
+                    @{
+                        var row = (N11ProductListingDto)context.DataItem;
+                    }
+                    <DxButton Text="@L["N11Listing:Push"]" RenderStyle="ButtonRenderStyle.Primary"
+                              IconCssClass="@TradeXpressIcons.SalesChannel"
+                              Click="@(() => PushAsync(row))" />
+                </CellDisplayTemplate>
+            </DxGridDataColumn>
+        </GridColumns>
+        <EditContent Context="l">
+            <N11ProductListingEditFields Model="@l" Channels="@_channels" />
+        </EditContent>
+    </DrillList>
+</div>
