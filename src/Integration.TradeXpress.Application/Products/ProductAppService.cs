@@ -14,6 +14,7 @@ using Integration.TradeXpress.Vouchers;
 using Microsoft.AspNetCore.Authorization;
 using Volo.Abp;
 using Volo.Abp.Application.Dtos;
+using Volo.Abp.BlobStoring;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.MultiTenancy;
 
@@ -44,6 +45,7 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
     private readonly IEffectivePriceAppService _effectivePriceAppService;
     private readonly ProductRecipeCostCalculator _recipeCostCalculator;
     private readonly ICurrentCompany _currentCompany;
+    private readonly IBlobContainer<ProductImagesContainer> _imageContainer;
 
     private static readonly HashSet<string> AllowedListFields =
         new(StringComparer.OrdinalIgnoreCase) { "Code", "Name", "IsActive", "Id" };
@@ -62,7 +64,8 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         ProductVariantSynchronizer variantSynchronizer,
         IEffectivePriceAppService effectivePriceAppService,
         ProductRecipeCostCalculator recipeCostCalculator,
-        ICurrentCompany currentCompany)
+        ICurrentCompany currentCompany,
+        IBlobContainer<ProductImagesContainer> imageContainer)
     {
         _repository = repository;
         _variantRepository = variantRepository;
@@ -78,6 +81,7 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         _effectivePriceAppService = effectivePriceAppService;
         _recipeCostCalculator = recipeCostCalculator;
         _currentCompany = currentCompany;
+        _imageContainer = imageContainer;
     }
 
     public virtual async Task<PagedResultDto<ProductListDto>> GetListAsync(ProductListRequestDto input)
@@ -122,7 +126,7 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
 
         var entity = new Product(companyId, input.Code, input.Name);
         entity.SetDescription(input.Description);
-        entity.SetImageUrls(input.ImageUrls);
+        entity.SetImages(MapImages(input.Images));
         await _repository.InsertAsync(entity, autoSave: true);
 
         var valueIdByClientKey = await SaveAttributesAsync(entity, input.Attributes);
@@ -141,7 +145,9 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         entity.SetName(input.Name);
         entity.SetDescription(input.Description);
         entity.SetActive(input.IsActive);
-        entity.SetImageUrls(input.ImageUrls);
+        var oldImages = entity.Images.ToList();   // yetim blob temizliği için değişim ÖNCESİ resim
+        entity.SetImages(MapImages(input.Images));
+        await DeleteOrphanImageBlobsAsync(oldImages, entity.Images);
         await _repository.UpdateAsync(entity, autoSave: true);
 
         var valueIdByClientKey = await SaveAttributesAsync(entity, input.Attributes);
@@ -212,6 +218,7 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         // Güvenlik sınırı (Account deseni): ürünü ÖNCE yükle — company query filter yabancı şirketin ürününü
         // gizler → EntityNotFoundException. Doğrulama varyant silmeden ÖNCE olmalı.
         var entity = await _repository.GetAsync(id);
+        await DeleteOrphanImageBlobsAsync(entity.Images, newImages: null);   // ürünle birlikte upload blobları da temizlenir
         await DeleteRecipeLinesOfProductAsync(entity.Id);
         await DeleteAttributeGraphOfProductAsync(entity.Id);
         await _variantManager.DeleteVariantsOfProductAsync(entity.Id);
@@ -693,6 +700,52 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         return string.Join("|", clientKeys.OrderBy(k => k));
     }
 
+    /// <summary>Görsel graf düğümlerini owned tiplere çevirir (normalize/kırpma entity SetImages'ta).</summary>
+    private static List<ProductImage> MapImages(List<ProductImageGraphDto> images)
+    {
+        return (images ?? new List<ProductImageGraphDto>())
+            .Select(i => new ProductImage(i.SourceType, i.Url, i.BlobName, i.FileName, i.DisplayOrder))
+            .ToList();
+    }
+
+    /// <summary>Blob (Upload) görsellerin önizleme data-URL'lerini doldurur — HEP küçük THUMBNAIL blobundan
+    /// (tam içerik DTO'ya gömülmez; review'da kanıtlanan 4MB×8 şişmesi + dirty-check maliyeti). Thumbnail
+    /// bulunamazsa önizleme boş kalır (fail-open; kayıt görünmeye devam eder).</summary>
+    private async Task PopulateImagePreviewsAsync(List<ProductImageGraphDto> images)
+    {
+        foreach (var image in images.Where(i =>
+            i.SourceType == ProductImageSourceType.Upload && !string.IsNullOrEmpty(i.BlobName)))
+        {
+            var thumbnail = await _imageContainer.GetAllBytesOrNullAsync(
+                ProductImageAppService.ThumbnailNameOf(image.BlobName!));
+            if (thumbnail is not null)
+            {
+                image.PreviewDataUrl = ProductImageAppService.BuildPreviewDataUrl(thumbnail);
+            }
+        }
+    }
+
+    /// <summary>Artık referans edilmeyen upload bloblarını (ana + thumbnail) siler — görsel silme/değiştirme
+    /// update'inde eski blob AppBlobs'ta yetim kalmasın (review bulgusu). Form iptaliyle yetim kalan
+    /// (hiç kaydedilmemiş) upload'lar burada YAKALANMAZ — ileride süpürücü işi (bilinçli kabul).</summary>
+    private async Task DeleteOrphanImageBlobsAsync(IEnumerable<ProductImage> oldImages, IEnumerable<ProductImage>? newImages)
+    {
+        var keep = new HashSet<string>(
+            (newImages ?? Enumerable.Empty<ProductImage>())
+                .Where(i => !string.IsNullOrEmpty(i.BlobName))
+                .Select(i => i.BlobName!),
+            StringComparer.Ordinal);
+
+        foreach (var image in oldImages.Where(i =>
+            i.SourceType == ProductImageSourceType.Upload
+            && !string.IsNullOrEmpty(i.BlobName)
+            && !keep.Contains(i.BlobName!)))
+        {
+            await _imageContainer.DeleteAsync(image.BlobName!);
+            await _imageContainer.DeleteAsync(ProductImageAppService.ThumbnailNameOf(image.BlobName!));
+        }
+    }
+
     // ── helpers ───────────────────────────────────────────────────────────────
 
     private async Task<Dictionary<Guid, int>> LoadVariantCountsAsync(IEnumerable<Guid> productIds)
@@ -785,6 +838,16 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         // CANLI net maliyet — değerleme dict'i ÜRÜN başına BİR KEZ çekilir, tüm varyant/satırlarda yeniden kullanılır.
         await PopulateRecipeCostsAsync(variantDtos);
 
+        var imageDtos = p.Images.Select(i => new ProductImageGraphDto
+        {
+            SourceType = i.SourceType,
+            Url = i.Url,
+            BlobName = i.BlobName,
+            FileName = i.FileName,
+            DisplayOrder = i.DisplayOrder,
+        }).ToList();
+        await PopulateImagePreviewsAsync(imageDtos);
+
         return new ProductGetDto
         {
             Id = p.Id,
@@ -792,7 +855,7 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
             Name = p.Name,
             Description = p.Description,
             IsActive = p.IsActive,
-            ImageUrls = p.ImageUrls.ToList(),
+            Images = imageDtos,
             Attributes = attributes.Select(a => new ProductAttributeGraphDto
             {
                 Id = a.Id,

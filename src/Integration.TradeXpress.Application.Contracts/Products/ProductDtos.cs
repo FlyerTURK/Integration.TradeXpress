@@ -39,9 +39,9 @@ public class ProductGetDto : EntityDto<Guid>, IGetDto<Guid>, IHasCode
 
     public bool IsActive { get; set; }
 
-    /// <summary>Ürün görsel URL'leri (sıralı; marketplace product.images — index = order). En fazla
+    /// <summary>Ürün görselleri (URL ya da yüklenmiş dosya; DisplayOrder sıralı, ilk = ana). En fazla
     /// <see cref="ProductConsts.MaxImageCount"/> (sunucu kırpar).</summary>
-    public List<string> ImageUrls { get; set; } = new();
+    public List<ProductImageGraphDto> Images { get; set; } = new();
 
     /// <summary>Varyantlar (graf düğümleri; Id + IsDeleted ile diff). Product edit formundaki drill yönetir.</summary>
     public List<ProductVariantGraphDto> Variants { get; set; } = new();
@@ -64,8 +64,8 @@ public class ProductCreateDto : ICreateDto
     [StringLength(ProductConsts.DescriptionMaxLength)]
     public string? Description { get; set; }
 
-    /// <summary>Ürün görsel URL'leri — bkz. <see cref="ProductGetDto.ImageUrls"/>.</summary>
-    public List<string> ImageUrls { get; set; } = new();
+    /// <summary>Ürün görselleri — bkz. <see cref="ProductGetDto.Images"/>.</summary>
+    public List<ProductImageGraphDto> Images { get; set; } = new();
 
     public List<ProductVariantGraphDto> Variants { get; set; } = new();
 
@@ -89,13 +89,37 @@ public class ProductUpdateDto : IUpdateDto
 
     public bool IsActive { get; set; }
 
-    /// <summary>Ürün görsel URL'leri — bkz. <see cref="ProductGetDto.ImageUrls"/>.</summary>
-    public List<string> ImageUrls { get; set; } = new();
+    /// <summary>Ürün görselleri — bkz. <see cref="ProductGetDto.Images"/>.</summary>
+    public List<ProductImageGraphDto> Images { get; set; } = new();
 
     public List<ProductVariantGraphDto> Variants { get; set; } = new();
 
     /// <summary>Nitelik grafı — bkz. <see cref="ProductGetDto.Attributes"/>.</summary>
     public List<ProductAttributeGraphDto> Attributes { get; set; } = new();
+}
+
+/// <summary>Ürün GÖRSELİ graf düğümü — görsel drill'i + Product save'i içindir. Kaynak URL ya da yüklenmiş dosya
+/// (blob; dosya seçilince ANINDA <see cref="IProductImageAppService.UploadAsync"/> ile yüklenir, ürün save'i yalnız
+/// referansı kalıcılaştırır). <see cref="PreviewDataUrl"/> SALT-OKUNUR (GetAsync/upload doldurur; save yoksayar).</summary>
+public class ProductImageGraphDto
+{
+    public Guid ClientKey { get; set; } = Guid.NewGuid();
+
+    public ProductImageSourceType SourceType { get; set; } = ProductImageSourceType.Url;
+
+    [StringLength(ProductConsts.ImageUrlMaxLength)]
+    public string? Url { get; set; }
+
+    [StringLength(ProductConsts.ImageBlobNameMaxLength)]
+    public string? BlobName { get; set; }
+
+    [StringLength(ProductConsts.ImageFileNameMaxLength)]
+    public string? FileName { get; set; }
+
+    public int DisplayOrder { get; set; }
+
+    /// <summary>Blob görselin önizlemesi (data URL) — SALT görüntü; sunucu doldurur, save'de yoksayılır.</summary>
+    public string? PreviewDataUrl { get; set; }
 }
 
 /// <summary>

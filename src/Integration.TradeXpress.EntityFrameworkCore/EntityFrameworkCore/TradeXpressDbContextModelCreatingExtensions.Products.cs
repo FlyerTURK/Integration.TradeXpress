@@ -21,8 +21,14 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
             b.Property(x => x.Code).IsRequired().HasMaxLength(ProductConsts.CodeMaxLength);
             b.Property(x => x.Name).IsRequired().HasMaxLength(ProductConsts.NameMaxLength);
             b.Property(x => x.Description).HasMaxLength(ProductConsts.DescriptionMaxLength);
-            // Görsel URL'leri — sıralı primitive collection (JSON kolonu; marketplace product.images).
-            b.PrimitiveCollection(x => x.ImageUrls);
+            // Görseller — owned collection → JSON kolonu (URL ya da blob; push edilir, sorgulanmaz).
+            b.OwnsMany(x => x.Images, i =>
+            {
+                i.ToJson();
+                i.Property(p => p.Url).HasMaxLength(ProductConsts.ImageUrlMaxLength);
+                i.Property(p => p.BlobName).HasMaxLength(ProductConsts.ImageBlobNameMaxLength);
+                i.Property(p => p.FileName).HasMaxLength(ProductConsts.ImageFileNameMaxLength);
+            });
 
             b.HasIndex(x => new { x.TenantId, x.CompanyId, x.Code }).IsUnique();
             b.HasIndex(x => new { x.TenantId, x.CompanyId });

@@ -164,7 +164,14 @@ public class SalesChannelTrTrendyolProductAppService : TradeXpressAppService, IS
     {
         var product = await GetOwnedProductAsync(channelProduct.ProductId);
 
-        if (product.ImageUrls.Count == 0)
+        // Trendyol'a YALNIZ URL-kaynaklı görseller gider; blob görsellerin dış URL üretimi production
+        // aşamasında geçici dosya-hosting entegrasyonuyla (N11 ile aynı 2026-07-07 kararı).
+        var imageUrls = product.Images
+            .Where(i => i.SourceType == ProductImageSourceType.Url && !string.IsNullOrWhiteSpace(i.Url))
+            .OrderBy(i => i.DisplayOrder)
+            .Select(i => i.Url!)
+            .ToList();
+        if (imageUrls.Count == 0)
         {
             throw new BusinessException("TradeXpress:Trendyol:Product:ImagesRequired");
         }
@@ -207,7 +214,7 @@ public class SalesChannelTrTrendyolProductAppService : TradeXpressAppService, IS
             VatRate: channelProduct.VatRate,
             CargoCompanyId: channelProduct.CargoCompanyId,
             DimensionalWeight: channelProduct.DimensionalWeight,
-            ImageUrls: product.ImageUrls.ToList(),
+            ImageUrls: imageUrls,
             Attributes: channelProduct.Attributes
                 .Select(a => new TrendyolAttributeValue(a.AttributeId, a.AttributeValueId, a.CustomValue))
                 .ToList(),

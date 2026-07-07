@@ -30,8 +30,9 @@ public class Product : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwn
 
     public virtual bool IsActive { get; protected set; }
 
-    /// <summary>Ürün görsel URL'leri (sıralı; marketplace product.images — liste index'i = order). PrimitiveCollection.</summary>
-    public virtual List<string> ImageUrls { get; protected set; } = new();
+    /// <summary>Ürün görselleri (owned → JSON) — dış URL ya da yüklenmiş dosya (blob). Sıra DisplayOrder ile
+    /// (küçük önce; ilk = ana görsel). Marketplace push'unda URL-kaynaklılar doğrudan gider.</summary>
+    public virtual List<ProductImage> Images { get; protected set; } = new();
 
     protected Product() { }
 
@@ -82,12 +83,22 @@ public class Product : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwn
         IsActive = value;
     }
 
-    /// <summary>Görsel URL'lerini ayarlar — boşları at, trim, en fazla <see cref="ProductConsts.MaxImageCount"/> (sıra korunur).</summary>
-    public virtual void SetImageUrls(IEnumerable<string> urls)
+    /// <summary>Görselleri ayarlar — kaynağı boş olanlar (URL'siz Url tipi / blob'suz Upload tipi) elenir,
+    /// DisplayOrder'a göre sıralanır, en fazla <see cref="ProductConsts.MaxImageCount"/>.</summary>
+    public virtual void SetImages(IEnumerable<ProductImage>? images)
     {
-        ImageUrls = (urls ?? Enumerable.Empty<string>())
-            .Where(u => !string.IsNullOrWhiteSpace(u))
-            .Select(u => u.Trim())
+        Images = (images ?? Enumerable.Empty<ProductImage>())
+            .Where(i => i.SourceType is ProductImageSourceType.Url or ProductImageSourceType.Upload)   // bilinmeyen tip ele
+            .Where(i => i.SourceType == ProductImageSourceType.Url
+                ? !string.IsNullOrWhiteSpace(i.Url)
+                : !string.IsNullOrWhiteSpace(i.BlobName))
+            .Select(i => new ProductImage(
+                i.SourceType,
+                string.IsNullOrWhiteSpace(i.Url) ? null : i.Url!.Trim(),
+                string.IsNullOrWhiteSpace(i.BlobName) ? null : i.BlobName!.Trim(),
+                string.IsNullOrWhiteSpace(i.FileName) ? null : i.FileName!.Trim(),
+                i.DisplayOrder))
+            .OrderBy(i => i.DisplayOrder)
             .Take(ProductConsts.MaxImageCount)
             .ToList();
     }

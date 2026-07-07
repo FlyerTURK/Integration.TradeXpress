@@ -18,12 +18,6 @@
         <DxFormLayoutItem Caption="@L["Description"]" ColSpanMd="12">
             <DxMemo @bind-Text="@Model.Description" Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100" />
         </DxFormLayoutItem>
-        @* Görsel URL'leri (marketplace product.images) — her satır bir URL, satır sırası = görsel sırası (ilk = ana).
-           Bilinçli sade editör: kanaldan bağımsız ürün medyası; N11/Trendyol listeleme push'u bu sırayı kullanır. *@
-        <DxFormLayoutItem Caption="@L["ImageUrls"]" ColSpanMd="12">
-            <DxMemo @bind-Text="@ImageUrlsText" Rows="3" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100"
-                    NullText="@L["ImageUrlsHint"]" />
-        </DxFormLayoutItem>
         <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6">
             <DxCheckBox @bind-Checked="@Model.IsActive" CheckType="CheckType.Switch">
                 @(Model.IsActive ? L["Active"] : L["Passive"])
@@ -155,6 +149,49 @@
                                             NetCost="@v.NetCost" NetCostCurrency="@v.NetCostCurrency" NetCostMissingRate="@v.NetCostMissingRate"
                                             OnChanged="@(async () => await HandleRecipeChangedAsync(v))" />
                     </DxFormLayoutGroup>
+                </DxFormLayout>
+            </EditContent>
+        </DrillList>
+    </DxTabPage>
+    @* Görseller — URL ya da yüklenen dosya (blob); DisplayOrder sıralı (ilk = ana). In-memory drill; Product save'i persist eder. *@
+    <DxTabPage Text="@L["Images"]" TabIconCssClass="@TradeXpressIcons.Product">
+        <DrillList TItem="ProductImageGraphDto"
+                   @ref="_imageDrill"
+                   Title="@L["Images"]"
+                   EntityName="@L["ProductImage"]"
+                   EntityIcon="@TradeXpressIcons.Product"
+                   Items="Model.Images"
+                   KeyFieldName="ClientKey"
+                   PrimaryTextSelector="@(i => i.FileName ?? i.Url)"
+                   NewItemFactory="@(() => new ProductImageGraphDto { DisplayOrder = NextOrder(Model.Images) })"
+                   CloneFactory="@CloneImage"
+                   MaxItems="ProductConsts.MaxImageCount"
+                   OnChanged="@(() => EditChanged?.Invoke())">
+            <GridColumns>
+                <DxGridDataColumn Caption="@L["Preview"]" Width="110px" TextAlignment="GridTextAlignment.Center">
+                    <CellDisplayTemplate Context="cell">
+                        @{ var img = (ProductImageGraphDto)cell.DataItem; }
+                        @if (!string.IsNullOrEmpty(PreviewSrcOf(img)))
+                        {
+                            @* ham img: Dx görsel bileşeni yok — küçük, sınırlı önizleme *@
+                            <img src="@PreviewSrcOf(img)" alt="" style="max-height:48px; max-width:90px; object-fit:contain;" />
+                        }
+                    </CellDisplayTemplate>
+                </DxGridDataColumn>
+                <DxGridDataColumn FieldName="SourceType" Caption="@L["ImageSource"]" Width="110px">
+                    <CellDisplayTemplate Context="cell">
+                        @L[$"Enum:{nameof(ProductImageSourceType)}:{((ProductImageGraphDto)cell.DataItem).SourceType}"]
+                    </CellDisplayTemplate>
+                </DxGridDataColumn>
+                @* TextSelector: URL satırında FileName null → link boş kalmasın (FileName ?? Url). *@
+                <GridLinkColumn FieldName="FileName" Caption="@L["Name"]"
+                                TextSelector="@(item => ((ProductImageGraphDto)item).FileName ?? ((ProductImageGraphDto)item).Url)"
+                                OnClick="@(item => _imageDrill?.EditItem((ProductImageGraphDto)item))" />
+                <DxGridDataColumn FieldName="DisplayOrder" Caption="@L["DisplayOrder"]" Width="90px" />
+            </GridColumns>
+            <EditContent Context="img">
+                <DxFormLayout CssClass="w-100">
+                    <ProductImageEditFields Model="img" />
                 </DxFormLayout>
             </EditContent>
         </DrillList>

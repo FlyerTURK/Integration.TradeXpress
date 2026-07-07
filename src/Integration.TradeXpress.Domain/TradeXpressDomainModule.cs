@@ -14,6 +14,8 @@ using Volo.Abp.FeatureManagement;
 using Volo.Abp.Identity;
 using Volo.Abp.TenantManagement;
 using Integration.Framework;
+using Integration.TradeXpress.Products;
+using Volo.Abp.BlobStoring;
 
 namespace Integration.TradeXpress;
 
@@ -45,6 +47,15 @@ public class TradeXpressDomainModule : AbpModule
         Configure<Volo.Abp.Timing.AbpClockOptions>(options =>
         {
             options.Kind = DateTimeKind.Utc;
+        });
+
+        // Ürün görselleri blob konteyneri → Database provider (AppBlobs tablosu; DbContext ConfigureBlobStoring hazır).
+        Configure<AbpBlobStoringOptions>(options =>
+        {
+            options.Containers.Configure<ProductImagesContainer>(container =>
+            {
+                container.UseDatabase();
+            });
         });
 
 #if DEBUG

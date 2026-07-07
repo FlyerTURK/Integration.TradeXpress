@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json;
 using System.Threading.Tasks;
 using Integration.Framework.Blazor.Client.Components.Crud;
 using Integration.TradeXpress.Financials.CurrencyUnits;
@@ -33,17 +34,20 @@ public partial class ProductLayout
     private DrillList<ProductVariantGraphDto>? _variantDrill;
     private DrillList<ProductAttributeGraphDto>? _attributeDrill;
     private DrillList<ProductAttributeValueGraphDto>? _valueDrill;
+    private DrillList<ProductImageGraphDto>? _imageDrill;
 
-    /// <summary>Görsel URL'leri ↔ çok-satırlı metin köprüsü (her satır bir URL; sıra korunur). DxMemo @bind-Text
-    /// ValueExpression sağlar → form dirty otomatik tetiklenir. Sunucu ayrıca trim + boş-satır ayıklar (SetImageUrls).</summary>
-    private string ImageUrlsText
+    /// <summary>Görsel önizleme kaynağı — URL tipli doğrudan URL, yüklenmişte sunucunun doldurduğu data-URL.</summary>
+    private static string? PreviewSrcOf(ProductImageGraphDto image)
     {
-        get => string.Join(Environment.NewLine, Model.ImageUrls);
-        set => Model.ImageUrls = (value ?? string.Empty)
-            .Split('\n')
-            .Select(u => u.Trim())
-            .Where(u => u.Length > 0)
-            .ToList();
+        return image.SourceType == ProductImageSourceType.Url ? image.Url : image.PreviewDataUrl;
+    }
+
+    // Cancel geri alabilsin diye kopya üzerinde düzenleme (upload'ın blob yazımı geri alınmaz — süpürücü işi;
+    // ama Model.Images'taki CANLI satır iptalde mutate edilmemiş kalır).
+    private static ProductImageGraphDto CloneImage(ProductImageGraphDto source)
+    {
+        var json = JsonSerializer.Serialize(source);
+        return JsonSerializer.Deserialize<ProductImageGraphDto>(json)!;
     }
 
     // Drill değişimini forma bildir (dirty/Save) — EntityEditForm EditChanged cascade'i.
@@ -82,5 +86,10 @@ public partial class ProductLayout
     private static int NextOrder(IEnumerable<ProductAttributeValueGraphDto> items)
     {
         return items.Where(x => !x.IsDeleted).Select(x => x.DisplayOrder).DefaultIfEmpty(0).Max() + 1;
+    }
+
+    private static int NextOrder(IEnumerable<ProductImageGraphDto> items)
+    {
+        return items.Select(x => x.DisplayOrder).DefaultIfEmpty(0).Max() + 1;
     }
 }

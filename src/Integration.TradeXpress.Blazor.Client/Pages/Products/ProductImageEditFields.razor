@@ -1,0 +1,40 @@
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@* Ürün görseli edit alanları — kaynak tipe göre URL kutusu YA DA dosya yükleme (blob'a anında). Önizleme + sıra. *@
+
+<DxFormLayoutItem Caption="@L["ImageSource"]" ColSpanMd="6" BeginRow="true">
+    <ComboBoxEnumEdit TEnum="ProductImageSourceType" L="@L"
+                      Value="@Model.SourceType"
+                      ValueChanged="@((ProductImageSourceType v) => OnSourceTypeChanged(v))"
+                      ValueExpression="@(() => Model.SourceType)" />
+</DxFormLayoutItem>
+<DxFormLayoutItem Caption="@L["DisplayOrder"]" ColSpanMd="6">
+    <NumericSpinEdit @bind-Value="@Model.DisplayOrder" />
+</DxFormLayoutItem>
+
+@if (Model.SourceType == ProductImageSourceType.Url)
+{
+    <DxFormLayoutItem Caption="@($"{L["ImageUrl"]} *")" ColSpanMd="12">
+        <DxTextBox @bind-Text="@Model.Url" />
+    </DxFormLayoutItem>
+}
+else
+{
+    <DxFormLayoutItem Caption="@($"{L["ImageFile"]} *")" ColSpanMd="12">
+        <DxFileInput FilesUploading="OnFilesUploadingAsync" />
+    </DxFormLayoutItem>
+    @if (!string.IsNullOrEmpty(Model.FileName))
+    {
+        <DxFormLayoutItem Caption="@L["Name"]" ColSpanMd="12">
+            <span>@Model.FileName</span>
+        </DxFormLayoutItem>
+    }
+}
+
+@if (!string.IsNullOrEmpty(PreviewSrc))
+{
+    <DxFormLayoutItem Caption="@L["Preview"]" ColSpanMd="12">
+        @* ham img: Dx görsel bileşeni yok — sınırlı boyutlu önizleme *@
+        <img src="@PreviewSrc" alt="" style="max-height:180px; max-width:100%; object-fit:contain;" />
+    </DxFormLayoutItem>
+}
