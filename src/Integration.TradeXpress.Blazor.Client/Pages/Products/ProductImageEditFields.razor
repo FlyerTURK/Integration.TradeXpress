@@ -11,6 +11,12 @@
 <DxFormLayoutItem Caption="@L["DisplayOrder"]" ColSpanMd="6">
     <NumericSpinEdit @bind-Value="@Model.DisplayOrder" />
 </DxFormLayoutItem>
+@* Varsayılan (ana) görsel — push'ta ilk sıraya alınır; tekil garanti sunucuda (birden fazlaysa ilki kalır). *@
+<DxFormLayoutItem Caption="@L["Default"]" ColSpanMd="6">
+    <DxCheckBox @bind-Checked="@Model.IsDefault" CheckType="CheckType.Switch">
+        @(Model.IsDefault ? L["Yes"] : L["No"])
+    </DxCheckBox>
+</DxFormLayoutItem>
 
 @if (Model.SourceType == ProductImageSourceType.Url)
 {

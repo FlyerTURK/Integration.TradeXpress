@@ -126,6 +126,10 @@ public partial class DrillList<TItem> where TItem : class
     /// <summary>Entity'ye özel silme engeli — engel varsa lokalize mesaj döner, yoksa null.</summary>
     [Parameter] public Func<TItem, string?>? DeleteGuard { get; set; }
 
+    /// <summary>Entity'ye özel KAYDETME engeli (DeleteGuard'ın Save karşılığı) — mesaj dönerse uyarı toast'ı
+    /// gösterilir, popup açık kalır (ör. aynı ürüne aynı görsel URL'si/dosya adı iki kez girilemez).</summary>
+    [Parameter] public Func<TItem, string?>? SaveGuard { get; set; }
+
     /// <summary>Toolbar'a sayfaya özel ek aksiyonlar — descriptor liste, SortIndex'li (liste sayfalarıyla AYNI
     /// sözleşme; varsayılan SortIndex 300 = Sil ile Arama arası). Eski <c>RenderFragment ToolbarActions</c> kaldırıldı.</summary>
     [Parameter] public IReadOnlyList<CrudToolbarAction>? CustomActions { get; set; }
@@ -454,6 +458,14 @@ public partial class DrillList<TItem> where TItem : class
     private async Task SaveAsync()
     {
         if (_editItem == null) return;
+
+        // Kaydetme engeli (SaveGuard): mesaj varsa uyar + popup açık kal (validation'la aynı UX).
+        if (SaveGuard?.Invoke(_editItem) is { } saveGuardMessage)
+        {
+            UiService.ShowWarningToast(saveGuardMessage);
+            return;
+        }
+
         _busy = true;
         try
         {
@@ -585,13 +597,15 @@ public partial class DrillList<TItem> where TItem : class
         };
     }
 
-    // Kapanışta Kaydet: geçersizse false (açık kal); geçerliyse kaydet (SaveAsync zaten kapatır) → true.
+    // Kapanışta Kaydet: geçersizse false (açık kal); geçerliyse kaydet. Kapanma kararı SaveAsync'in SONUCUNA
+    // bakar (_popupVisible): SaveGuard/persist hatası kaydı bloklarsa popup açık kalır — "Kaydet" dediği halde
+    // değişikliğin sessizce atılması olmaz (HandleSaveAndNew ile aynı desen).
     private async Task<bool> TrySaveForCloseAsync()
     {
         if (_editContext == null) return false;
         if (!_editContext.Validate()) { ShowValidationToasts(); return false; }
         await SaveAsync();
-        return true;
+        return !_popupVisible;
     }
 
     private async Task DeleteSelected()
@@ -663,6 +677,15 @@ public partial class DrillList<TItem> where TItem : class
     private async Task OnEditModelSaving(GridEditModelSavingEventArgs e)
     {
         if (e.EditModel is not TItem model) return;
+
+        // Kaydetme engeli — popup yoluyla AYNI sözleşme (DeleteGuard paritesi): uyar + satır editte kalsın.
+        if (SaveGuard?.Invoke(model) is { } saveGuardMessage)
+        {
+            UiService.ShowWarningToast(saveGuardMessage);
+            e.Cancel = true;
+            return;
+        }
+
         _busy = true;
         try
         {

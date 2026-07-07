@@ -704,7 +704,7 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
     private static List<ProductImage> MapImages(List<ProductImageGraphDto> images)
     {
         return (images ?? new List<ProductImageGraphDto>())
-            .Select(i => new ProductImage(i.SourceType, i.Url, i.BlobName, i.FileName, i.DisplayOrder))
+            .Select(i => new ProductImage(i.SourceType, i.Url, i.BlobName, i.FileName, i.DisplayOrder, i.IsDefault))
             .ToList();
     }
 
@@ -845,6 +845,7 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
             BlobName = i.BlobName,
             FileName = i.FileName,
             DisplayOrder = i.DisplayOrder,
+            IsDefault = i.IsDefault,
         }).ToList();
         await PopulateImagePreviewsAsync(imageDtos);
 

@@ -31,6 +31,7 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
     private readonly IRepository<CurrencyUnit, Guid> _currencyRepository;
     private readonly ICurrentCompany _currentCompany;
     private readonly IN11ProductClient _client;
+    private readonly IPublicImageLinkProvider _publicImageLink;
 
     public SalesChannelTrN11ProductAppService(
         IRepository<SalesChannelTrN11Product, Guid> repository,
@@ -42,7 +43,8 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
         IRepository<SalesChannelTrN11, Guid> channelRepository,
         IRepository<CurrencyUnit, Guid> currencyRepository,
         ICurrentCompany currentCompany,
-        IN11ProductClient client)
+        IN11ProductClient client,
+        IPublicImageLinkProvider publicImageLink)
     {
         _repository = repository;
         _productRepository = productRepository;
@@ -54,6 +56,7 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
         _currencyRepository = currencyRepository;
         _currentCompany = currentCompany;
         _client = client;
+        _publicImageLink = publicImageLink;
     }
 
     public virtual async Task<List<SalesChannelTrN11ProductDto>> GetListForProductAsync(Guid productId)
@@ -157,10 +160,12 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
     {
         var entity = await GetOwnedAsync(id);
         var channel = await GetOwnedChannelAsync(entity.SalesChannelId);
-        var data = await BuildProductDataAsync(entity);
 
         try
         {
+            // Veri kurulumu da try İÇİNDE: geçici-link (dış servis) hataları dahil her başarısızlık
+            // MarkSyncFailed'e düşsün — kayıt bayat "Synced" göstermesin (review bulgusu).
+            var data = await BuildProductDataAsync(entity);
             var result = await _client.SaveProductAsync(data, channel.AppKey, channel.AppSecret);
             entity.MarkSynced(result.N11ProductId, result.SaleStatus, result.ApprovalStatus, Clock.Now.ToUniversalTime());
             await _repository.UpdateAsync(entity, autoSave: true);
@@ -182,13 +187,26 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
     {
         var product = await GetOwnedProductAsync(channelProduct.ProductId);
 
-        // N11'e YALNIZ URL-kaynaklı görseller gider (dış link); yüklenmiş (blob) görseller için dış URL üretimi
-        // production aşamasında geçici dosya-hosting entegrasyonuyla yapılacak (2026-07-07 kullanıcı kararı).
-        var imageUrls = product.Images
-            .Where(i => i.SourceType == ProductImageSourceType.Url && !string.IsNullOrWhiteSpace(i.Url))
-            .OrderBy(i => i.DisplayOrder)
-            .Select(i => i.Url!)
-            .ToList();
+        // Görsel sırası: VARSAYILAN önce, sonra DisplayOrder. URL-kaynaklılar doğrudan; yüklenmiş (blob)
+        // görseller sağlayıcı yapılandırılmışsa GEÇİCİ dış linke çevrilir (N11 kendi sistemine import eder),
+        // yapılandırılmamışsa atlanır (2026-07-07 kullanıcı kararı; anonim endpoint YOK).
+        var imageUrls = new List<string>();
+        foreach (var image in product.Images.OrderByDescending(i => i.IsDefault).ThenBy(i => i.DisplayOrder))
+        {
+            if (image.SourceType == ProductImageSourceType.Url && !string.IsNullOrWhiteSpace(image.Url))
+            {
+                imageUrls.Add(image.Url!);
+            }
+            else if (image.SourceType == ProductImageSourceType.Upload && !string.IsNullOrEmpty(image.BlobName))
+            {
+                var link = await _publicImageLink.TryCreateTemporaryLinkAsync(image.BlobName!);
+                if (link is not null)
+                {
+                    imageUrls.Add(link);
+                }
+            }
+        }
+
         if (imageUrls.Count == 0)
         {
             throw new BusinessException("TradeXpress:N11:Product:ImagesRequired");

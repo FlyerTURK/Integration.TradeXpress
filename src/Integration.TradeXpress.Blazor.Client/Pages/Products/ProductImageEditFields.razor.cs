@@ -16,6 +16,10 @@ public partial class ProductImageEditFields
 {
     [Parameter, EditorRequired] public ProductImageGraphDto Model { get; set; } = default!;
 
+    /// <summary>Dosya adı bu üründe zaten var mı — upload'dan ÖNCE kontrol edilir ki duplicate'a takılacak
+    /// dosyanın blob'u hiç yazılmasın (yetim blob önlenir; SaveGuard zaten kaydı da engeller).</summary>
+    [Parameter] public Func<string, bool>? IsDuplicateFileName { get; set; }
+
     [Inject] private IProductImageAppService ImageAppService { get; set; } = default!;
     [Inject] private IUiInteractionService UiService { get; set; } = default!;
     [Inject] private IServiceProvider ServiceProvider { get; set; } = default!;
@@ -50,6 +54,13 @@ public partial class ProductImageEditFields
         var file = args.Files.FirstOrDefault();
         if (file is null)
         {
+            return;
+        }
+
+        // Duplicate dosya adı upload'dan ÖNCE reddedilir — blob boşa yazılıp yetim kalmasın.
+        if (IsDuplicateFileName?.Invoke(file.Name) == true)
+        {
+            UiService.ShowWarningToast(L["TradeXpress:Product:ImageDuplicate"].Value);
             return;
         }
 

@@ -28,6 +28,7 @@ public class SalesChannelTrTrendyolProductAppService : TradeXpressAppService, IS
     private readonly IRepository<CurrencyUnit, Guid> _currencyRepository;
     private readonly ICurrentCompany _currentCompany;
     private readonly ITrendyolProductClient _client;
+    private readonly IPublicImageLinkProvider _publicImageLink;
 
     public SalesChannelTrTrendyolProductAppService(
         IRepository<SalesChannelTrTrendyolProduct, Guid> repository,
@@ -36,7 +37,8 @@ public class SalesChannelTrTrendyolProductAppService : TradeXpressAppService, IS
         IRepository<SalesChannelTrTrendyol, Guid> channelRepository,
         IRepository<CurrencyUnit, Guid> currencyRepository,
         ICurrentCompany currentCompany,
-        ITrendyolProductClient client)
+        ITrendyolProductClient client,
+        IPublicImageLinkProvider publicImageLink)
     {
         _repository = repository;
         _productRepository = productRepository;
@@ -45,6 +47,7 @@ public class SalesChannelTrTrendyolProductAppService : TradeXpressAppService, IS
         _currencyRepository = currencyRepository;
         _currentCompany = currentCompany;
         _client = client;
+        _publicImageLink = publicImageLink;
     }
 
     public virtual async Task<List<SalesChannelTrTrendyolProductDto>> GetListForProductAsync(Guid productId)
@@ -111,10 +114,11 @@ public class SalesChannelTrTrendyolProductAppService : TradeXpressAppService, IS
     {
         var entity = await GetOwnedAsync(id);
         var channel = await GetOwnedChannelAsync(entity.SalesChannelId);
-        var data = await BuildProductDataAsync(entity);
 
         try
         {
+            // Veri kurulumu da try İÇİNDE — geçici-link hataları dahil MarkSyncFailed'e düşsün (N11 ile aynı).
+            var data = await BuildProductDataAsync(entity);
             var result = await _client.SubmitProductAsync(data, CredentialsOf(channel));
             entity.MarkSubmitted(result.BatchRequestId, Clock.Now.ToUniversalTime());
             await _repository.UpdateAsync(entity, autoSave: true);
@@ -164,13 +168,25 @@ public class SalesChannelTrTrendyolProductAppService : TradeXpressAppService, IS
     {
         var product = await GetOwnedProductAsync(channelProduct.ProductId);
 
-        // Trendyol'a YALNIZ URL-kaynaklı görseller gider; blob görsellerin dış URL üretimi production
-        // aşamasında geçici dosya-hosting entegrasyonuyla (N11 ile aynı 2026-07-07 kararı).
-        var imageUrls = product.Images
-            .Where(i => i.SourceType == ProductImageSourceType.Url && !string.IsNullOrWhiteSpace(i.Url))
-            .OrderBy(i => i.DisplayOrder)
-            .Select(i => i.Url!)
-            .ToList();
+        // Görsel sırası: VARSAYILAN önce, sonra DisplayOrder. URL-kaynaklılar doğrudan; blob görseller
+        // sağlayıcı yapılandırılmışsa geçici dış linke çevrilir (N11 ile aynı 2026-07-07 kararı).
+        var imageUrls = new List<string>();
+        foreach (var image in product.Images.OrderByDescending(i => i.IsDefault).ThenBy(i => i.DisplayOrder))
+        {
+            if (image.SourceType == ProductImageSourceType.Url && !string.IsNullOrWhiteSpace(image.Url))
+            {
+                imageUrls.Add(image.Url!);
+            }
+            else if (image.SourceType == ProductImageSourceType.Upload && !string.IsNullOrEmpty(image.BlobName))
+            {
+                var link = await _publicImageLink.TryCreateTemporaryLinkAsync(image.BlobName!);
+                if (link is not null)
+                {
+                    imageUrls.Add(link);
+                }
+            }
+        }
+
         if (imageUrls.Count == 0)
         {
             throw new BusinessException("TradeXpress:Trendyol:Product:ImagesRequired");

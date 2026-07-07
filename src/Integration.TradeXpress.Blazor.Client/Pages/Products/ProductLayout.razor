@@ -165,6 +165,8 @@
                    PrimaryTextSelector="@(i => i.FileName ?? i.Url)"
                    NewItemFactory="@(() => new ProductImageGraphDto { DisplayOrder = NextOrder(Model.Images) })"
                    CloneFactory="@CloneImage"
+                   SaveGuard="@ImageSaveGuard"
+                   OnItemSaved="@((ProductImageGraphDto saved) => TransferDefaultImage(saved))"
                    MaxItems="ProductConsts.MaxImageCount"
                    OnChanged="@(() => EditChanged?.Invoke())">
             <GridColumns>
@@ -187,11 +189,22 @@
                 <GridLinkColumn FieldName="FileName" Caption="@L["Name"]"
                                 TextSelector="@(item => ((ProductImageGraphDto)item).FileName ?? ((ProductImageGraphDto)item).Url)"
                                 OnClick="@(item => _imageDrill?.EditItem((ProductImageGraphDto)item))" />
+                <DxGridDataColumn FieldName="IsDefault" Caption="@L["Default"]" Width="100px">
+                    <CellDisplayTemplate Context="cell">
+                        @if (cell.Value is bool isDefault && isDefault)
+                        {
+                            <span style="display:flex; align-items:center; gap:0.35rem;">
+                                <i class="custom-icon-check-circle" aria-hidden="true" style="color:#16a34a;"></i>@L["Default"]
+                            </span>
+                        }
+                    </CellDisplayTemplate>
+                </DxGridDataColumn>
                 <DxGridDataColumn FieldName="DisplayOrder" Caption="@L["DisplayOrder"]" Width="90px" />
             </GridColumns>
             <EditContent Context="img">
                 <DxFormLayout CssClass="w-100">
-                    <ProductImageEditFields Model="img" />
+                    <ProductImageEditFields Model="img"
+                                            IsDuplicateFileName="@(name => Model.Images.Any(x => x.ClientKey != img.ClientKey && string.Equals(x.FileName, name, StringComparison.OrdinalIgnoreCase)))" />
                 </DxFormLayout>
             </EditContent>
         </DrillList>

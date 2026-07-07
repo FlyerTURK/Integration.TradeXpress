@@ -118,6 +118,9 @@ public class ProductImageGraphDto
 
     public int DisplayOrder { get; set; }
 
+    /// <summary>Varsayılan (ana) görsel — push'ta ilk sıraya alınır. Tekil garanti sunucuda (SetImages).</summary>
+    public bool IsDefault { get; set; }
+
     /// <summary>Blob görselin önizlemesi (data URL) — SALT görüntü; sunucu doldurur, save'de yoksayılır.</summary>
     public string? PreviewDataUrl { get; set; }
 }

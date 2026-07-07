@@ -50,6 +50,35 @@ public partial class ProductLayout
         return JsonSerializer.Deserialize<ProductImageGraphDto>(json)!;
     }
 
+    /// <summary>Tekil-bayrak transferi (HQ-devri deseni): kaydedilen görsel VARSAYILAN işaretliyse diğerlerinin
+    /// bayrağı düşer — aksi halde sunucu EnsureSingleDefault "ilki kalır" kuralıyla kullanıcının YENİ seçimini
+    /// sessizce geri alırdı (review bulgusu).</summary>
+    private void TransferDefaultImage(ProductImageGraphDto saved)
+    {
+        if (!saved.IsDefault)
+        {
+            return;
+        }
+
+        foreach (var other in Model.Images.Where(x => x.ClientKey != saved.ClientKey && x.IsDefault))
+        {
+            other.IsDefault = false;
+        }
+    }
+
+    /// <summary>Görsel kaydetme engeli: aynı ürüne aynı URL ya da aynı dosya adı İKİ KEZ girilemez
+    /// (2026-07-07 kullanıcı kararı; case-duyarsız). Sunucu SetImages'ta da aynı kural (savunma).</summary>
+    private string? ImageSaveGuard(ProductImageGraphDto candidate)
+    {
+        var others = Model.Images.Where(x => x.ClientKey != candidate.ClientKey);
+        var url = candidate.Url?.Trim();
+        var duplicateUrl = url is { Length: > 0 }
+            && others.Any(x => string.Equals(x.Url?.Trim(), url, StringComparison.OrdinalIgnoreCase));
+        var duplicateFile = candidate.FileName is { Length: > 0 }
+            && others.Any(x => string.Equals(x.FileName, candidate.FileName, StringComparison.OrdinalIgnoreCase));
+        return duplicateUrl || duplicateFile ? L["TradeXpress:Product:ImageDuplicate"].Value : null;
+    }
+
     // Drill değişimini forma bildir (dirty/Save) — EntityEditForm EditChanged cascade'i.
     [CascadingParameter(Name = "EditChanged")] private Action? EditChanged { get; set; }
 

@@ -84,10 +84,12 @@ public class Product : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwn
     }
 
     /// <summary>Görselleri ayarlar — kaynağı boş olanlar (URL'siz Url tipi / blob'suz Upload tipi) elenir,
-    /// DisplayOrder'a göre sıralanır, en fazla <see cref="ProductConsts.MaxImageCount"/>.</summary>
+    /// DisplayOrder'a göre sıralanır, en fazla <see cref="ProductConsts.MaxImageCount"/>. Aynı ürüne aynı URL
+    /// ya da aynı dosya adı İKİ KEZ giremez (dostane hata). Tekil-default: birden fazla işaretliyse ilki kalır,
+    /// hiç yoksa ilk görsel default olur.</summary>
     public virtual void SetImages(IEnumerable<ProductImage>? images)
     {
-        Images = (images ?? Enumerable.Empty<ProductImage>())
+        var normalized = (images ?? Enumerable.Empty<ProductImage>())
             .Where(i => i.SourceType is ProductImageSourceType.Url or ProductImageSourceType.Upload)   // bilinmeyen tip ele
             .Where(i => i.SourceType == ProductImageSourceType.Url
                 ? !string.IsNullOrWhiteSpace(i.Url)
@@ -97,10 +99,61 @@ public class Product : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwn
                 string.IsNullOrWhiteSpace(i.Url) ? null : i.Url!.Trim(),
                 string.IsNullOrWhiteSpace(i.BlobName) ? null : i.BlobName!.Trim(),
                 string.IsNullOrWhiteSpace(i.FileName) ? null : i.FileName!.Trim(),
-                i.DisplayOrder))
+                i.DisplayOrder,
+                i.IsDefault))
             .OrderBy(i => i.DisplayOrder)
             .Take(ProductConsts.MaxImageCount)
             .ToList();
+
+        EnsureImagesUnique(normalized);
+        EnsureSingleDefault(normalized);
+        Images = normalized;
+    }
+
+    /// <summary>Aynı ürüne aynı URL (case-duyarsız) ya da aynı dosya adı iki kez girilemez — dostane hata
+    /// (2026-07-07 kullanıcı kararı). UI drill'i de kaydetmeden önce aynı kuralı uygular; burası savunma.</summary>
+    private static void EnsureImagesUnique(List<ProductImage> images)
+    {
+        var duplicateUrl = images
+            .Where(i => i.Url is not null)
+            .GroupBy(i => i.Url!, StringComparer.OrdinalIgnoreCase)
+            .Any(g => g.Count() > 1);
+        var duplicateFile = images
+            .Where(i => i.FileName is not null)
+            .GroupBy(i => i.FileName!, StringComparer.OrdinalIgnoreCase)
+            .Any(g => g.Count() > 1);
+        if (duplicateUrl || duplicateFile)
+        {
+            throw new BusinessException("TradeXpress:Product:ImageDuplicate");
+        }
+    }
+
+    /// <summary>Tekil varsayılan görsel: birden fazla işaretliyse İLKİ kalır; hiç yoksa ilk görsel default olur.</summary>
+    private static void EnsureSingleDefault(List<ProductImage> images)
+    {
+        if (images.Count == 0)
+        {
+            return;
+        }
+
+        var firstDefaultSeen = false;
+        foreach (var image in images)
+        {
+            if (image.IsDefault)
+            {
+                if (firstDefaultSeen)
+                {
+                    image.IsDefault = false;
+                }
+
+                firstDefaultSeen = true;
+            }
+        }
+
+        if (!firstDefaultSeen)
+        {
+            images[0].IsDefault = true;
+        }
     }
 
     public override string ToString()

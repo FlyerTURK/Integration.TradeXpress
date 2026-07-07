@@ -8,13 +8,14 @@ public class ProductImage
     {
     }
 
-    public ProductImage(ProductImageSourceType sourceType, string? url, string? blobName, string? fileName, int displayOrder)
+    public ProductImage(ProductImageSourceType sourceType, string? url, string? blobName, string? fileName, int displayOrder, bool isDefault)
     {
         SourceType = sourceType;
         Url = url;
         BlobName = blobName;
         FileName = fileName;
         DisplayOrder = displayOrder;
+        IsDefault = isDefault;
     }
 
     public ProductImageSourceType SourceType { get; set; }
@@ -29,4 +30,8 @@ public class ProductImage
     public string? FileName { get; set; }
 
     public int DisplayOrder { get; set; }
+
+    /// <summary>Varsayılan (ana) görsel — marketplace push'unda İLK sıraya alınır. Tekil-default garantisi
+    /// <c>Product.SetImages</c>'ta (birden fazla işaretliyse ilki kalır; hiç yoksa ilk görsel default olur).</summary>
+    public bool IsDefault { get; set; }
 }
