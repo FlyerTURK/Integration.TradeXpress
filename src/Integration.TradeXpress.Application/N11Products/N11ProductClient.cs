@@ -36,6 +36,18 @@ public sealed class N11ProductClient : IN11ProductClient, ITransientDependency
         return ParseResult(response);
     }
 
+    public async Task<N11ProductDetail> GetProductAsync(long n11ProductId, string appKey, string appSecret, CancellationToken cancellationToken = default)
+    {
+        var request = new XElement(Sch + "GetProductByProductIdRequest",
+            new XAttribute(XNamespace.Xmlns + "sch", Sch),
+            Auth(appKey, appSecret),
+            new XElement("productId", n11ProductId.ToString(CultureInfo.InvariantCulture)));
+
+        var response = await PostAsync(request, appKey, appSecret, cancellationToken);
+        EnsureSuccess(response);
+        return ParseDetail(response, n11ProductId);
+    }
+
     // ── Serialize (ProductRequest — WSDL xs:sequence sırası) ────────────────────────────────────────
 
     private static XElement BuildProduct(N11ProductData p)
@@ -114,6 +126,38 @@ public sealed class N11ProductClient : IN11ProductClient, ITransientDependency
             NullIfEmpty(Local(product, "productSellerCode")),
             NullIfEmpty(Local(product, "saleStatus")),
             NullIfEmpty(Local(product, "approvalStatus")));
+    }
+
+    /// <summary>GetProductByProductId yanıtındaki product'ı N11ProductDetail'e çevirir — alan yanıtta yoksa null
+    /// (çağıran dokunmaz). Kategori adı fullName (tam yol) tercih edilir; attributes bloğu yoksa null.</summary>
+    private static N11ProductDetail ParseDetail(XDocument doc, long n11ProductId)
+    {
+        var product = doc.Descendants().FirstOrDefault(e => e.Name.LocalName == "product");
+        if (product is null)
+        {
+            return new N11ProductDetail(n11ProductId, null, null, null, null, null, null, null, null, null, null);
+        }
+
+        var category = product.Elements().FirstOrDefault(e => e.Name.LocalName == "category");
+        var attributesElement = product.Elements().FirstOrDefault(e => e.Name.LocalName == "attributes");
+        var attributes = attributesElement?
+            .Elements().Where(e => e.Name.LocalName == "attribute")
+            .Select(a => new N11ProductAttributePair(Local(a, "name") ?? string.Empty, Local(a, "value") ?? string.Empty))
+            .Where(a => a.Name.Length > 0)
+            .ToList();
+
+        return new N11ProductDetail(
+            n11ProductId,
+            NullIfEmpty(Local(product, "title")),
+            category is null ? null : NullIfEmpty(Local(category, "id")),
+            category is null ? null : NullIfEmpty(Local(category, "fullName")) ?? NullIfEmpty(Local(category, "name")),
+            NullIfEmpty(Local(product, "shipmentTemplate")),
+            byte.TryParse(Local(product, "productCondition"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var condition) ? condition : null,
+            int.TryParse(Local(product, "preparingDay"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var preparingDay) ? preparingDay : null,
+            int.TryParse(Local(product, "maxPurchaseQuantity"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var maxPurchase) ? maxPurchase : null,
+            NullIfEmpty(Local(product, "saleStatus")),
+            NullIfEmpty(Local(product, "approvalStatus")),
+            attributes);
     }
 
     // ── HTTP + yardımcılar ──────────────────────────────────────────────────────────────────────────

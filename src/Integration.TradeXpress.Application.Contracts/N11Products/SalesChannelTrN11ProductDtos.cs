@@ -48,6 +48,10 @@ public class SalesChannelTrN11ProductDto
     public DateTime? LastSyncedAt { get; set; }
     public string? LastError { get; set; }
     public bool IsActive { get; set; }
+
+    /// <summary>Push sonrası eşitleme uyarıları (LOKALİZE; ör. N11 kategoriyi değiştirdi) — SALT anlık görüntü,
+    /// persist edilmez; yalnız PushToN11Async dönüşünde dolar (UI uyarı toast'ları gösterir).</summary>
+    public List<string> SyncWarnings { get; set; } = new();
 }
 
 /// <summary>Create/Update ortak düzenlenebilir alanları.</summary>

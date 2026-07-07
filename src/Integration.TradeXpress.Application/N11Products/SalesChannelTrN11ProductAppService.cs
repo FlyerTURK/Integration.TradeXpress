@@ -160,6 +160,7 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
     {
         var entity = await GetOwnedAsync(id);
         var channel = await GetOwnedChannelAsync(entity.SalesChannelId);
+        var syncWarnings = new List<string>();
 
         try
         {
@@ -167,7 +168,28 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
             // MarkSyncFailed'e düşsün — kayıt bayat "Synced" göstermesin (review bulgusu).
             var data = await BuildProductDataAsync(entity);
             var result = await _client.SaveProductAsync(data, channel.AppKey, channel.AppSecret);
-            entity.MarkSynced(result.N11ProductId, result.SaleStatus, result.ApprovalStatus, Clock.Now.ToUniversalTime());
+
+            // N11 kuralları KENDİ tarafında oynatabilir (2026-07-07 kararı): push sonrası ürün N11'den geri
+            // okunur, SpecialInfo HARİÇ alanlar N11 GERÇEĞİYLE eşlenir; kritik fark (kategori) kullanıcıya bildirilir.
+            var saleStatus = result.SaleStatus;
+            var approvalStatus = result.ApprovalStatus;
+            if (result.N11ProductId is { } n11Id)
+            {
+                try
+                {
+                    var detail = await _client.GetProductAsync(n11Id, channel.AppKey, channel.AppSecret);
+                    ApplyN11Truth(entity, detail, syncWarnings);
+                    saleStatus = detail.SaleStatus ?? saleStatus;
+                    approvalStatus = detail.ApprovalStatus ?? approvalStatus;
+                }
+                catch
+                {
+                    // Push BAŞARILI; doğrulama okuması düştü → geri alınamaz, yalnız uyar (eşitleme bir sonraki push'ta).
+                    syncWarnings.Add(L["N11Product:PullFailed"]);
+                }
+            }
+
+            entity.MarkSynced(result.N11ProductId, saleStatus, approvalStatus, Clock.Now.ToUniversalTime());
             await _repository.UpdateAsync(entity, autoSave: true);
         }
         catch (Exception ex)
@@ -178,7 +200,54 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
             throw;
         }
 
-        return ObjectMapper.Map<SalesChannelTrN11Product, SalesChannelTrN11ProductDto>(entity);
+        var dto = ObjectMapper.Map<SalesChannelTrN11Product, SalesChannelTrN11ProductDto>(entity);
+        dto.SyncWarnings = syncWarnings;
+        return dto;
+    }
+
+    /// <summary>N11'in döndürdüğü ürün gerçeğini yerel kayda uygular — <b>SpecialInfo HARİÇ</b> (2026-07-07 kararı:
+    /// N11 kuralları kendi tarafında oynatır; yerel kayıt yayın kopyasıdır). Yanıtta OLMAYAN alana dokunulmaz
+    /// (N11'in desteklemediği alan yerel değeri silmesin). Kategori değişimi KRİTİK → kullanıcı uyarısı.</summary>
+    private void ApplyN11Truth(SalesChannelTrN11Product entity, N11ProductDetail detail, List<string> syncWarnings)
+    {
+        if (detail.CategoryId is { Length: > 0 } categoryId)
+        {
+            if (!string.Equals(categoryId, entity.CategoryExternalId, StringComparison.Ordinal))
+            {
+                // KRİTİK: N11 ürünü farklı kategoriye/gruba taşıdı — güvenli bilgilendirme (eski → yeni).
+                syncWarnings.Add(L[
+                    "N11Product:CategoryChangedByN11",
+                    entity.CategoryName ?? entity.CategoryExternalId,
+                    detail.CategoryName ?? categoryId]);
+            }
+
+            entity.SetCategory(categoryId, detail.CategoryName);
+        }
+
+        if (detail.ShipmentTemplate is { Length: > 0 } shipmentTemplate)
+        {
+            entity.SetShipmentTemplate(shipmentTemplate);
+        }
+
+        if (detail.ProductCondition is 1 or 2)
+        {
+            entity.SetCondition((N11ProductCondition)detail.ProductCondition.Value);
+        }
+
+        if (detail.PreparingDay is >= 1)
+        {
+            entity.SetPreparingDay(detail.PreparingDay.Value);
+        }
+
+        if (detail.MaxPurchaseQuantity is >= 1)
+        {
+            entity.SetMaxPurchaseQuantity(detail.MaxPurchaseQuantity.Value);
+        }
+
+        if (detail.Attributes is not null)
+        {
+            entity.SetAttributes(detail.Attributes.Select(a => new SalesChannelTrN11ProductAttribute(a.Name, a.Value)));
+        }
     }
 
     // ── Push veri kurulumu (ürün grafı → N11ProductData) ────────────────────────────────────────────

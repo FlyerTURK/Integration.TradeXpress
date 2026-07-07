@@ -88,9 +88,16 @@ public partial class SalesChannelTrN11ProductsDrill : CrudComponentBase
     {
         try
         {
-            await AppService.PushToN11Async(channelProduct.Id);
+            var pushed = await AppService.PushToN11Async(channelProduct.Id);
             await ReloadChannelProductsAsync();
             UiService.ShowSuccessToast(L["N11Product:PushSuccess"].Value);
+
+            // Eşitleme uyarıları (ör. N11 kategoriyi değiştirdi) — güvenli bilgilendirme (2026-07-07 kararı).
+            foreach (var warning in pushed.SyncWarnings)
+            {
+                UiService.ShowWarningToast(warning);
+            }
+
             StateHasChanged();
         }
         catch (Exception ex)

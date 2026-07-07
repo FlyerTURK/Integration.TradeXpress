@@ -296,6 +296,8 @@
     "SalesChannelProducts": "Satış Kanalı Ürünleri",
     "N11Product:ChannelMissing": "Bu şirkette tanımlı bir N11 satış kanalı yok. Önce satış kanalını oluşturun.",
     "N11Product:SellerCode": "N11 Satıcı Kodu",
+    "N11Product:CategoryChangedByN11": "Dikkat: N11 ürünün kategorisini değiştirdi ({0} → {1}). Kayıt N11'deki haliyle eşitlendi.",
+    "N11Product:PullFailed": "Ürün N11'e gönderildi ancak doğrulama okuması yapılamadı; kayıt bir sonraki gönderimde N11 ile eşitlenecek.",
     "DisplayName:ShipmentTemplateName": "Kargo Şablonu",
     "DisplayName:CategoryExternalId": "Kategori",
     "DisplayName:SellerCode": "N11 Satıcı Kodu",

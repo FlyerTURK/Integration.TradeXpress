@@ -13,6 +13,10 @@ public interface IN11ProductClient
 {
     /// <summary>Ürünü N11'e oluşturur/günceller. Başarısızsa BusinessException fırlatır (çağıran senkron durumunu işaretler).</summary>
     Task<N11SaveProductResult> SaveProductAsync(N11ProductData product, string appKey, string appSecret, CancellationToken cancellationToken = default);
+
+    /// <summary>Ürünü N11'den okur (GetProductByProductId) — push sonrası doğrulama/eşitleme okuması
+    /// (N11 kuralları kendi tarafında oynatabildiğinden yerel kayıt N11 GERÇEĞİYLE eşlenir; 2026-07-07 kararı).</summary>
+    Task<N11ProductDetail> GetProductAsync(long n11ProductId, string appKey, string appSecret, CancellationToken cancellationToken = default);
 }
 
 /// <summary>N11 SaveProduct — ÇÖZÜLMÜŞ ürün verisi (fiyat/kategori/attribute/stockItems dolu); XML'e serialize edilir.</summary>
@@ -53,3 +57,18 @@ public sealed record N11ProductStockItem(
 
 /// <summary>SaveProduct yanıtı — N11'in atadığı ürün id'si + durumlar.</summary>
 public sealed record N11SaveProductResult(long? N11ProductId, string? SellerCode, string? SaleStatus, string? ApprovalStatus);
+
+/// <summary>GetProductByProductId yanıtı — N11'in NORMALİZE ETTİĞİ ürün gerçeği (eşitleme okuması). Alan null =
+/// yanıtta yok/boş (çağıran o alana DOKUNMAZ — N11'in desteklemediği alan yereldeki değeri silmesin).</summary>
+public sealed record N11ProductDetail(
+    long N11ProductId,
+    string? Title,
+    string? CategoryId,
+    string? CategoryName,          // fullName (tam yol) tercih; yoksa name
+    string? ShipmentTemplate,
+    byte? ProductCondition,        // 1=Yeni, 2=İkinci El (parse edilemezse null)
+    int? PreparingDay,
+    int? MaxPurchaseQuantity,
+    string? SaleStatus,
+    string? ApprovalStatus,
+    IReadOnlyList<N11ProductAttributePair>? Attributes);   // null = yanıtta attribute bloğu yok

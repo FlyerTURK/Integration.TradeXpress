@@ -266,6 +266,8 @@
     "SalesChannelProducts": "Sales Channel Products",
     "N11Product:ChannelMissing": "There is no N11 sales channel defined for this company. Create the sales channel first.",
     "N11Product:SellerCode": "N11 Seller Code",
+    "N11Product:CategoryChangedByN11": "Attention: N11 changed the product category ({0} → {1}). The record was synced to the N11 state.",
+    "N11Product:PullFailed": "The product was sent to N11 but the verification read failed; the record will be synced on the next push.",
     "DisplayName:ShipmentTemplateName": "Shipment Template",
     "DisplayName:CategoryExternalId": "Category",
     "DisplayName:SellerCode": "N11 Seller Code",
