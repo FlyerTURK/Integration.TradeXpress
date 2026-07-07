@@ -1,13 +1,18 @@
 @inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
 
-@* N11 kategori seçici — TEK arama-destekli lookup (tüm yapraklar, TAM YOL adıyla). Yaz-ara-seç; kademeli drill yok.
-   LookupComboBox EditContext-güvenli (ValueExpression'sız → ValidationEnabled=false); ~3700 yaprak client-side filtre. *@
+@* N11 kategori seçici — SERVER-SIDE (LookupEdit): salt-okunur alan + ▼ picker (DxGrid). Kullanıcı yazınca (min 3
+   harf) sunucudan yaprak kategoriler TAM YOL adıyla çekilir; liste ön-yüklenmez. Türkçe aksan/case-duyarsız. *@
 
-<LookupComboBox TItem="N11LeafCategoryDto" TValue="string"
-                Data="@_leaves"
-                ValueFieldName="@nameof(N11LeafCategoryDto.ExternalId)"
-                TextFieldName="@nameof(N11LeafCategoryDto.Path)"
-                Value="@SelectedExternalId"
-                ValueChanged="@OnCategoryChangedAsync"
-                NullText="@L["N11Product:SelectCategory"].Value"
-                AllowClear="false" />
+<LookupEdit TItem="N11LeafCategoryDto" TValue="string"
+            Data="@_results"
+            ValueFieldName="@nameof(N11LeafCategoryDto.ExternalId)"
+            TextFieldName="@nameof(N11LeafCategoryDto.Path)"
+            Value="@SelectedExternalId"
+            ValueChanged="@OnCategoryChangedAsync"
+            SelectedDisplayText="@SelectedName"
+            OnSearch="@OnSearchAsync"
+            SearchMinLength="3"
+            SearchPlaceholder="@L["N11Product:SelectCategory"].Value"
+            Title="@L["N11Product:Category"].Value"
+            NullText="@L["N11Product:SelectCategory"].Value"
+            AllowClear="false" />

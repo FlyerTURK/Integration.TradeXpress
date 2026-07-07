@@ -37,10 +37,21 @@
          CloseOnOutsideClick="false">
     <BodyTemplate>
         <div style="display:flex; flex-direction:column; gap:0.6rem; min-height:0;">
+            @* Server-search modu (OnSearch verilmiş): DIŞ arama kutusu → host sunucudan çeker (Data tazelenir).
+               Grid'in kendi ShowSearchBox'ı kapatılır (o yalnız yüklü Data'da client filtre yapardı). *@
+            @if (ServerSearchMode)
+            {
+                <DxTextBox Text="@_searchText"
+                           TextChanged="@OnSearchTextChangedAsync"
+                           BindValueMode="BindValueMode.OnInput"
+                           NullText="@(SearchPlaceholder ?? L["Search"].Value)"
+                           ValidationEnabled="false"
+                           CssClass="w-100" />
+            }
             <DxGrid @ref="_grid"
                     Data="@Data"
                     KeyFieldName="@ValueFieldName"
-                    ShowSearchBox="true"
+                    ShowSearchBox="@(!ServerSearchMode)"
                     SelectionMode="GridSelectionMode.Single"
                     AllowSelectRowByClick="true"
                     SelectedDataItem="@_pending"
@@ -92,6 +103,23 @@
 
     /// <summary>Picker popup başlığı (null → "Seç").</summary>
     [Parameter] public string? Title { get; set; }
+
+    // ── Server-side arama modu (opt-in): OnSearch verilirse picker'da DIŞ arama kutusu çıkar; kullanıcı yazınca
+    //    host sunucudan (min-harf koşuluyla) çeker + Data'yı tazeler. Data ÖN-YÜKLENMEZ (binlerce satır istemciye inmez). ──
+
+    /// <summary>Kullanıcı arama metnini değiştirince (min <see cref="SearchMinLength"/> harf) çağrılır — host
+    /// sunucudan sonuçları çekip <see cref="Data"/>'yı tazeler. Verilmezse client-modu (Data ön-yüklü) korunur.</summary>
+    [Parameter] public EventCallback<string> OnSearch { get; set; }
+
+    /// <summary>Aramanın başlaması için en az harf sayısı (altında OnSearch tetiklenmez). Varsayılan 0.</summary>
+    [Parameter] public int SearchMinLength { get; set; }
+
+    /// <summary>Arama kutusu placeholder'ı (null → "Ara").</summary>
+    [Parameter] public string? SearchPlaceholder { get; set; }
+
+    /// <summary>Seçili değerin GÖRÜNEN metni — server-modda seçili öğe <see cref="Data"/>'da bulunmayabilir
+    /// (yalnız arama sonuçları yüklü); salt-okunur alan bunu gösterir. Client-modda null bırakılır (Data'dan bulunur).</summary>
+    [Parameter] public string? SelectedDisplayText { get; set; }
     /// <summary>Grid kolonları (çok-kolon). null → TextFieldName tek kolon fallback. Plain DxGridDataColumn'lar.</summary>
     [Parameter] public RenderFragment? Columns { get; set; }
 
@@ -107,6 +135,20 @@
     private bool _pickerVisible;
     private object? _pending;     // grid'de seçili (henüz onaylanmamış) satır
     private DxGrid? _grid;
+    private string? _searchText;  // server-modu dış arama kutusunun metni
+
+    private bool ServerSearchMode => OnSearch.HasDelegate;
+
+    // Kullanıcı yazdı: min-harf koşulu sağlanınca (ya da tamamen silinince → temizle) host'a bildir.
+    private async Task OnSearchTextChangedAsync(string text)
+    {
+        _searchText = text;
+        var trimmed = (text ?? string.Empty).Trim();
+        if (trimmed.Length >= SearchMinLength || trimmed.Length == 0)
+        {
+            await OnSearch.InvokeAsync(trimmed);
+        }
+    }
 
     private PropertyInfo? _valueProp;
     private PropertyInfo? _textProp;
@@ -146,7 +188,10 @@
         {
             if (!_hasValue) return null;
             var item = SelectedItem;
-            return item is not null ? GetItemText(item) : Value?.ToString();
+            // Önce Data'da bulunan öğe; yoksa server-modda dışarıdan verilen görünen metin; son çare değerin kendisi.
+            return item is not null
+                ? GetItemText(item)
+                : (!string.IsNullOrEmpty(SelectedDisplayText) ? SelectedDisplayText : Value?.ToString());
         }
     }
 

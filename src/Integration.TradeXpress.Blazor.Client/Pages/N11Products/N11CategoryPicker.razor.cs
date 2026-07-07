@@ -9,8 +9,9 @@ using Microsoft.AspNetCore.Components;
 
 namespace Integration.TradeXpress.Blazor.Client.Pages.N11Products;
 
-/// <summary>N11 kategori seçici — TEK arama-destekli lookup (tüm yapraklar, TAM YOL adıyla). Kademeli drill yerine
-/// doğrudan yaprak seçimi (yol ad tekrarını ayırt eder). Seçilince <see cref="OnLeafSelected"/> tetikler.</summary>
+/// <summary>N11 kategori seçici — SERVER-SIDE arama (LookupEdit). Kullanıcı yazınca (en az 3 harf) sunucudan yaprak
+/// kategoriler TAM YOL adıyla çekilir; liste ÖN-YÜKLENMEZ. Türkçe aksan/case-duyarsız ("kul"→"Kül"). Seçilince
+/// <see cref="OnLeafSelected"/> tetikler.</summary>
 public partial class N11CategoryPicker : CrudComponentBase
 {
     [Parameter] public string? SelectedExternalId { get; set; }
@@ -23,16 +24,25 @@ public partial class N11CategoryPicker : CrudComponentBase
     [Inject] private IUiInteractionService UiService { get; set; } = default!;
     [Inject] private IServiceProvider ServiceProvider { get; set; } = default!;
 
-    private List<N11LeafCategoryDto> _leaves = new();
+    // Yalnız son aramanın sonuçları (server'dan; en fazla 50). Ön-yükleme YOK.
+    private List<N11LeafCategoryDto> _results = new();
 
-    protected override async Task OnInitializedAsync()
+    // Kullanıcı arama kutusuna yazdı (LookupEdit min-3 harf koşulunu uygular) → sunucudan çek.
+    private async Task OnSearchAsync(string term)
     {
+        if (string.IsNullOrWhiteSpace(term))
+        {
+            _results = new List<N11LeafCategoryDto>();
+            return;
+        }
+
         try
         {
-            _leaves = await CategoryAppService.GetLeafCategoriesAsync();
+            _results = await CategoryAppService.SearchLeafCategoriesAsync(term);
         }
         catch (Exception ex)
         {
+            _results = new List<N11LeafCategoryDto>();
             UiService.ShowErrorToast(CrudErrorPresenter.ToFriendlyMessage(ex, ServiceProvider) ?? L["UnexpectedError"].Value);
         }
     }
@@ -41,7 +51,7 @@ public partial class N11CategoryPicker : CrudComponentBase
     private async Task OnCategoryChangedAsync(string? externalId)
     {
         SelectedExternalId = externalId;
-        var leaf = _leaves.FirstOrDefault(c => c.ExternalId == externalId);
+        var leaf = _results.FirstOrDefault(c => c.ExternalId == externalId);
         if (leaf is null)
         {
             return;

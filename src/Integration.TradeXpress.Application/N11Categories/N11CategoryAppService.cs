@@ -100,18 +100,55 @@ public class N11CategoryAppService : TradeXpressAppService, IN11CategoryAppServi
         }
     }
 
-    public virtual async Task<List<N11LeafCategoryDto>> GetLeafCategoriesAsync()
+    public virtual async Task<List<N11LeafCategoryDto>> SearchLeafCategoriesAsync(string term)
     {
-        // Host-global ağacı TEK seferde çek → id map → her yaprak için kökten yola in-memory kurulur (yaprak adları
-        // çok tekrar ettiğinden yol ayırt eder). ~4400 satır; tek indeksli sorgu + sözlük yürüme (hızlı).
+        // SERVER-SIDE arama: kullanıcı yazınca çağrılır. En az 3 harf; aksi halde boş (istemciye liste dökülmez).
+        // Türkçe aksan/DÖNÜŞÜMSÜZ eşleşme: "kul" → "Kül" bulur (NormalizeForSearch ile iki taraf da ASCII-lower).
+        var normalizedTerm = NormalizeForSearch(term);
+        if (normalizedTerm.Length < 3)
+        {
+            return new List<N11LeafCategoryDto>();
+        }
+
+        // Host-global ağaç → id map → yaprak yolları (kökten). ~4400 satır; tek sorgu + sözlük yürüme.
         var all = await AsyncExecuter.ToListAsync(await _repository.GetQueryableAsync());
         var byExternalId = all.ToDictionary(c => c.ExternalId);
 
         return all
             .Where(c => c.IsLeaf)
             .Select(leaf => new N11LeafCategoryDto { ExternalId = leaf.ExternalId, Path = BuildPath(leaf, byExternalId) })
+            .Where(x => NormalizeForSearch(x.Path).Contains(normalizedTerm, StringComparison.Ordinal))
             .OrderBy(x => x.Path, StringComparer.CurrentCultureIgnoreCase)
+            .Take(50)   // en fazla 50 sonuç (picker grid'i); daha fazlası için kullanıcı aramayı daraltır
             .ToList();
+    }
+
+    /// <summary>Arama-normalize: Türkçe aksanları ASCII tabanına indirger + küçük harfe çevirir (tek geçiş; İ/ı/i
+    /// tuzağını char-map ile atlar). "Kül"→"kul", "kul"→"kul" → aksan/case-duyarsız eşleşme.</summary>
+    private static string NormalizeForSearch(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return string.Empty;
+        }
+
+        var sb = new System.Text.StringBuilder(text.Length);
+        foreach (var ch in text.Trim())
+        {
+            sb.Append(ch switch
+            {
+                'ı' or 'I' or 'İ' or 'i' or 'î' or 'Î' => 'i',
+                'ü' or 'Ü' or 'u' or 'U' or 'û' or 'Û' => 'u',
+                'ö' or 'Ö' or 'o' or 'O' => 'o',
+                'ç' or 'Ç' or 'c' or 'C' => 'c',
+                'ş' or 'Ş' or 's' or 'S' => 's',
+                'ğ' or 'Ğ' or 'g' or 'G' => 'g',
+                'â' or 'Â' or 'a' or 'A' => 'a',
+                _ => char.ToLowerInvariant(ch),
+            });
+        }
+
+        return sb.ToString();
     }
 
     /// <summary>Yaprağın kökten tam yolu ("A &gt; B &gt; C") — parent zinciri id map'ten yürünür (döngü guard'lı).</summary>
