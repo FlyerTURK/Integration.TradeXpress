@@ -1,0 +1,166 @@
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.Linq;
+using System.Net.Http;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Xml.Linq;
+using Volo.Abp;
+using Volo.Abp.DependencyInjection;
+
+namespace Integration.TradeXpress.N11Products;
+
+/// <summary>
+/// <see cref="IN11ProductClient"/> — N11 SOAP ProductService.SaveProduct. ProductRequest'i WSDL xs:sequence sırasında
+/// serialize eder; yanıtı namespace-agnostik parse eder (result/status + product.id/durumlar). Prefix'li wrapper +
+/// unqualified children (kanıtlanmış N11 deseni). Sınıf adı arayüzle eşleştiğinden ABP auto-expose. Sir loglanmaz.
+/// </summary>
+public sealed class N11ProductClient : IN11ProductClient, ITransientDependency
+{
+    private const string Endpoint = "https://api.n11.com/ws/ProductService.wsdl";
+    private static readonly XNamespace Soapenv = "http://schemas.xmlsoap.org/soap/envelope/";
+    private static readonly XNamespace Sch = "http://www.n11.com/ws/schemas";
+    private static readonly HttpClient HttpClient = new() { Timeout = TimeSpan.FromSeconds(60) };
+
+    public async Task<N11SaveProductResult> SaveProductAsync(N11ProductData product, string appKey, string appSecret, CancellationToken cancellationToken = default)
+    {
+        var request = new XElement(Sch + "SaveProductRequest",
+            new XAttribute(XNamespace.Xmlns + "sch", Sch),
+            Auth(appKey, appSecret),
+            BuildProduct(product));
+
+        var response = await PostAsync(request, appKey, appSecret, cancellationToken);
+        EnsureSuccess(response);
+        return ParseResult(response);
+    }
+
+    // ── Serialize (ProductRequest — WSDL xs:sequence sırası) ────────────────────────────────────────
+
+    private static XElement BuildProduct(N11ProductData p)
+    {
+        return new XElement("product",
+            new XElement("productSellerCode", p.ProductSellerCode),
+            new XElement("title", p.Title),
+            new XElement("description", p.Description),
+            new XElement("domestic", Bool(p.Domestic)),
+            new XElement("category", new XElement("id", p.CategoryId)),
+            p.SpecialInfo.Count == 0
+                ? null
+                : new XElement("specialProductInfoList",
+                    p.SpecialInfo.Select(s => new XElement("specialProductInfo",
+                        new XElement("key", s.Key),
+                        new XElement("value", s.Value)))),
+            new XElement("price", p.Price.ToString(CultureInfo.InvariantCulture)),
+            new XElement("currencyType", p.CurrencyType.ToString(CultureInfo.InvariantCulture)),
+            new XElement("images", p.Images.Select(i => new XElement("image",
+                new XElement("url", i.Url),
+                new XElement("order", i.Order.ToString(CultureInfo.InvariantCulture))))),
+            new XElement("attributes", p.Attributes.Select(BuildAttribute)),
+            new XElement("productCondition", p.ProductCondition.ToString(CultureInfo.InvariantCulture)),
+            new XElement("preparingDay", p.PreparingDay.ToString(CultureInfo.InvariantCulture)),
+            new XElement("shipmentTemplate", p.ShipmentTemplate),
+            new XElement("stockItems", p.StockItems.Select(BuildStockItem)),
+            p.MaxPurchaseQuantity is { } mpq
+                ? new XElement("maxPurchaseQuantity", mpq.ToString(CultureInfo.InvariantCulture))
+                : null);
+    }
+
+    private static XElement BuildAttribute(N11ProductAttributePair a)
+    {
+        return new XElement("attribute", new XElement("name", a.Name), new XElement("value", a.Value));
+    }
+
+    private static XElement BuildStockItem(N11ProductStockItem s)
+    {
+        return new XElement("stockItem",
+            new XElement("quantity", s.Quantity.ToString(CultureInfo.InvariantCulture)),
+            new XElement("sellerStockCode", s.SellerStockCode),
+            s.Attributes.Count == 0 ? null : new XElement("attributes", s.Attributes.Select(BuildAttribute)),
+            s.OptionPrice is { } op ? new XElement("optionPrice", op.ToString(CultureInfo.InvariantCulture)) : null,
+            Optional("gtin", s.Gtin),
+            Optional("mpn", s.Mpn));
+    }
+
+    private static XElement Auth(string appKey, string appSecret)
+    {
+        return new XElement("auth", new XElement("appKey", appKey), new XElement("appSecret", appSecret));
+    }
+
+    private static XElement? Optional(string name, string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? null : new XElement(name, value);
+    }
+
+    private static string Bool(bool value)
+    {
+        return value ? "true" : "false";
+    }
+
+    // ── Parse ───────────────────────────────────────────────────────────────────────────────────────
+
+    private static N11SaveProductResult ParseResult(XDocument doc)
+    {
+        var product = doc.Descendants().FirstOrDefault(e => e.Name.LocalName == "product");
+        if (product is null)
+        {
+            return new N11SaveProductResult(null, null, null, null);
+        }
+
+        long? n11Id = long.TryParse(Local(product, "id"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var id) ? id : null;
+        return new N11SaveProductResult(
+            n11Id,
+            NullIfEmpty(Local(product, "productSellerCode")),
+            NullIfEmpty(Local(product, "saleStatus")),
+            NullIfEmpty(Local(product, "approvalStatus")));
+    }
+
+    // ── HTTP + yardımcılar ──────────────────────────────────────────────────────────────────────────
+
+    private static async Task<XDocument> PostAsync(XElement request, string appKey, string appSecret, CancellationToken cancellationToken)
+    {
+        var envelope = new XDocument(new XElement(Soapenv + "Envelope",
+            new XAttribute(XNamespace.Xmlns + "soapenv", Soapenv),
+            new XElement(Soapenv + "Header"),
+            new XElement(Soapenv + "Body", request)));
+
+        using var content = new StringContent(envelope.ToString(SaveOptions.DisableFormatting), Encoding.UTF8, "text/xml");
+        content.Headers.TryAddWithoutValidation("SOAPAction", "\"\"");
+        using var httpRequest = new HttpRequestMessage(HttpMethod.Post, Endpoint) { Content = content };
+        httpRequest.Headers.TryAddWithoutValidation("appkey", appKey);
+        httpRequest.Headers.TryAddWithoutValidation("appsecret", appSecret);
+
+        using var response = await HttpClient.SendAsync(httpRequest, cancellationToken);
+        var body = await response.Content.ReadAsStringAsync(cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new BusinessException("TradeXpress:N11:Product:SaveFailed").WithData("status", (int)response.StatusCode);
+        }
+
+        return XDocument.Parse(body);
+    }
+
+    // result/status = failure → errorMessage'ı taşıyan BusinessException.
+    private static void EnsureSuccess(XDocument doc)
+    {
+        var status = doc.Descendants().FirstOrDefault(e => e.Name.LocalName == "status")?.Value.Trim();
+        if (string.Equals(status, "success", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        var message = doc.Descendants().FirstOrDefault(e => e.Name.LocalName == "errorMessage")?.Value.Trim();
+        throw new BusinessException("TradeXpress:N11:Product:SaveRejected").WithData("message", message ?? status ?? "unknown");
+    }
+
+    private static string? Local(XElement parent, string localName)
+    {
+        return parent.Elements().FirstOrDefault(e => e.Name.LocalName == localName)?.Value.Trim();
+    }
+
+    private static string? NullIfEmpty(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? null : value;
+    }
+}

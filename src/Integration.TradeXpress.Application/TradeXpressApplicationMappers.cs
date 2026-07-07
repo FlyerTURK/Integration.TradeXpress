@@ -9,6 +9,7 @@ using Integration.TradeXpress.SalesChannels;
 using Integration.TradeXpress.N11Categories;
 using Integration.TradeXpress.N11Cities;
 using Integration.TradeXpress.N11Shipments;
+using Integration.TradeXpress.N11Products;
 using Integration.TradeXpress.Futures;
 using Integration.TradeXpress.Scraps;
 using Integration.TradeXpress.Metals;
@@ -254,6 +255,14 @@ public partial class N11ShipmentTemplateToDtoMapper : MapperBase<N11ShipmentTemp
 {
     public override partial N11ShipmentTemplateDto Map(N11ShipmentTemplate source);
     public override partial void Map(N11ShipmentTemplate source, N11ShipmentTemplateDto destination);
+}
+
+// ── N11 ürün listeleme → DTO. Owned Attributes/SpecialInfo (name/value · key/value) nested-otomatik eşlenir. ──
+[Mapper]
+public partial class N11ProductListingToDtoMapper : MapperBase<N11ProductListing, N11ProductListingDto>
+{
+    public override partial N11ProductListingDto Map(N11ProductListing source);
+    public override partial void Map(N11ProductListing source, N11ProductListingDto destination);
 }
 
 // GetDto → Create/Update (drill persist yolu: DrillList düzenlenen GetDto'yu bu input'lara çevirir). Şartlı kargo

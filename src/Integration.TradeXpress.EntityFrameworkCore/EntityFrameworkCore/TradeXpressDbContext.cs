@@ -174,6 +174,7 @@ public class TradeXpressDbContext :
         builder.ConfigureN11Categories();
         builder.ConfigureN11Cities();
         builder.ConfigureN11Shipments();
+        builder.ConfigureN11Products();
 
         // Kod kolonlarına ordinal (BIN2) collation — YALNIZ SQL Server. C# ToUpperInvariant ile hizalanır,
         // Türkçe İ/i collation kaçağını DB tarafında da kapatır. Sqlite (test) BIN2'yi tanımaz → guard'la atlanır

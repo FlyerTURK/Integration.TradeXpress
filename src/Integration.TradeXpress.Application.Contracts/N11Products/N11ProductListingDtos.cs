@@ -1,0 +1,115 @@
+using System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
+using Volo.Abp.Application.Services;
+
+namespace Integration.TradeXpress.N11Products;
+
+/// <summary>N11 kategori attribute değeri (name/value).</summary>
+public class N11ListingAttributeDto
+{
+    public string Name { get; set; } = string.Empty;
+    public string Value { get; set; } = string.Empty;
+}
+
+/// <summary>N11 Seyahat özel bilgi (key/value; key=TurProgrami/IptalIadeKosullari/EkHizmetler).</summary>
+public class N11ListingSpecialInfoDto
+{
+    public string Key { get; set; } = string.Empty;
+    public string Value { get; set; } = string.Empty;
+}
+
+/// <summary>N11 ürün listelemesi — tam okuma modeli (edit + durum görüntüsü).</summary>
+public class N11ProductListingDto
+{
+    public Guid Id { get; set; }
+    public Guid ProductId { get; set; }
+    public Guid SalesChannelId { get; set; }
+    public string CategoryExternalId { get; set; } = string.Empty;
+    public string? CategoryName { get; set; }
+    public N11ProductCondition Condition { get; set; }
+    public string ShipmentTemplateName { get; set; } = string.Empty;
+    public bool Domestic { get; set; }
+    public int PreparingDay { get; set; }
+    public int? MaxPurchaseQuantity { get; set; }
+    public List<N11ListingAttributeDto> Attributes { get; set; } = new();
+    public List<N11ListingSpecialInfoDto> SpecialInfo { get; set; } = new();
+
+    // N11 senkron durumu (read-only; push sonrası dolar).
+    public long? N11ProductId { get; set; }
+    public string? SaleStatus { get; set; }
+    public string? ApprovalStatus { get; set; }
+    public DateTime? LastSyncedAt { get; set; }
+    public string? LastError { get; set; }
+    public bool IsActive { get; set; }
+}
+
+/// <summary>Create/Update ortak düzenlenebilir alanları.</summary>
+public interface IN11ProductListingInput
+{
+    string CategoryExternalId { get; }
+    string? CategoryName { get; }
+    N11ProductCondition Condition { get; }
+    string ShipmentTemplateName { get; }
+    bool Domestic { get; }
+    int PreparingDay { get; }
+    int? MaxPurchaseQuantity { get; }
+    bool IsActive { get; }
+    List<N11ListingAttributeDto> Attributes { get; }
+    List<N11ListingSpecialInfoDto> SpecialInfo { get; }
+}
+
+/// <summary>Listeleme oluşturma — ürün + kanal (create-only; şirket sunucuda zorlanır).</summary>
+public class N11ProductListingCreateDto : IN11ProductListingInput
+{
+    public Guid ProductId { get; set; }
+    public Guid SalesChannelId { get; set; }
+    public string CategoryExternalId { get; set; } = string.Empty;
+    public string? CategoryName { get; set; }
+    public N11ProductCondition Condition { get; set; } = N11ProductCondition.New;
+    public string ShipmentTemplateName { get; set; } = string.Empty;
+    public bool Domestic { get; set; } = true;
+    public int PreparingDay { get; set; } = 1;
+    public int? MaxPurchaseQuantity { get; set; }
+    public bool IsActive { get; set; } = true;
+    public List<N11ListingAttributeDto> Attributes { get; set; } = new();
+    public List<N11ListingSpecialInfoDto> SpecialInfo { get; set; } = new();
+}
+
+/// <summary>Listeleme güncelleme — ürün/kanal set-once (route'taki id kimliktir).</summary>
+public class N11ProductListingUpdateDto : IN11ProductListingInput
+{
+    public string CategoryExternalId { get; set; } = string.Empty;
+    public string? CategoryName { get; set; }
+    public N11ProductCondition Condition { get; set; } = N11ProductCondition.New;
+    public string ShipmentTemplateName { get; set; } = string.Empty;
+    public bool Domestic { get; set; } = true;
+    public int PreparingDay { get; set; } = 1;
+    public int? MaxPurchaseQuantity { get; set; }
+    public bool IsActive { get; set; } = true;
+    public List<N11ListingAttributeDto> Attributes { get; set; } = new();
+    public List<N11ListingSpecialInfoDto> SpecialInfo { get; set; } = new();
+}
+
+/// <summary>
+/// N11 ürün listeleme — bir ERP ürününü bir N11 kanalında listeler + N11'e push eder (SaveProduct). Company-owned.
+/// Listeleme yapılandırması (kategori/attribute/kargo şablonu/condition/özel bilgi) bizde tutulur; push ürünün
+/// varyantları (stockItems) + fiyat/stok/görseliyle birlikte N11'e gider.
+/// </summary>
+public interface IN11ProductListingAppService : IApplicationService
+{
+    /// <summary>Bir ürünün bir kanaldaki listelemesi (yoksa null).</summary>
+    Task<N11ProductListingDto?> GetForProductAsync(Guid productId, Guid salesChannelId);
+
+    Task<N11ProductListingDto> GetAsync(Guid id);
+
+    Task<N11ProductListingDto> CreateAsync(N11ProductListingCreateDto input);
+
+    Task<N11ProductListingDto> UpdateAsync(Guid id, N11ProductListingUpdateDto input);
+
+    /// <summary>Yalnız yerel siler (N11'de pasifleştirme ayrı; ürün N11'de kalır).</summary>
+    Task DeleteAsync(Guid id);
+
+    /// <summary>Listelemeyi N11'e gönderir (SaveProduct): ürün + varyant + fiyat/stok/görsel. Durumu günceller + döner.</summary>
+    Task<N11ProductListingDto> ListToN11Async(Guid id);
+}
