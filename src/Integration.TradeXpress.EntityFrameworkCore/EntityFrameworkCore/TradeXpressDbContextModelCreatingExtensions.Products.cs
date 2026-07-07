@@ -21,6 +21,8 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
             b.Property(x => x.Code).IsRequired().HasMaxLength(ProductConsts.CodeMaxLength);
             b.Property(x => x.Name).IsRequired().HasMaxLength(ProductConsts.NameMaxLength);
             b.Property(x => x.Description).HasMaxLength(ProductConsts.DescriptionMaxLength);
+            // Görsel URL'leri — sıralı primitive collection (JSON kolonu; marketplace product.images).
+            b.PrimitiveCollection(x => x.ImageUrls);
 
             b.HasIndex(x => new { x.TenantId, x.CompanyId, x.Code }).IsUnique();
             b.HasIndex(x => new { x.TenantId, x.CompanyId });
@@ -34,6 +36,8 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
             b.Property(x => x.Code).IsRequired().HasMaxLength(ProductConsts.CodeMaxLength);
             b.Property(x => x.Name).IsRequired().HasMaxLength(ProductConsts.NameMaxLength);
             b.Property(x => x.Description).HasMaxLength(ProductConsts.DescriptionMaxLength);
+            // Satılabilir veri (marketplace): fiyat (decimal 18,2) + para birimi (id-only) + stok. Stok/CurrencyUnitId konvansiyonla.
+            b.Property(x => x.SalePrice).HasPrecision(ProductConsts.SalePricePrecision, ProductConsts.SalePriceScale);
 
             // Varyant kodu ÜRÜN başına tekil (SubAccount = Account başına deseniyle hizalı).
             b.HasIndex(x => new { x.TenantId, x.ProductId, x.Code }).IsUnique();

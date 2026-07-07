@@ -32,6 +32,15 @@ public class ProductVariant : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICom
 
     public virtual bool IsActive { get; protected set; }
 
+    /// <summary>Satış/liste fiyatı (marketplace price/optionPrice). Null = fiyatlanmamış (henüz listeye hazır değil).</summary>
+    public virtual decimal? SalePrice { get; protected set; }
+
+    /// <summary>Satış fiyatı para birimi (CurrencyUnit id-only; N11'e currencyType'a eşlenir). Fiyat null ise null.</summary>
+    public virtual Guid? SalePriceCurrencyUnitId { get; protected set; }
+
+    /// <summary>Stok miktarı (marketplace quantity). Varsayılan 0.</summary>
+    public virtual int StockQuantity { get; protected set; }
+
     protected ProductVariant() { }
 
     public ProductVariant(
@@ -72,6 +81,29 @@ public class ProductVariant : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICom
     public virtual void SetActive(bool value)
     {
         IsActive = value;
+    }
+
+    /// <summary>Satış fiyatı + para birimi (fiyat null → para birimi de null). Negatif fiyat geçersiz (fail-fast).</summary>
+    public virtual void SetSalePrice(decimal? price, Guid? currencyUnitId)
+    {
+        if (price is { } value && value < 0)
+        {
+            throw new BusinessException("TradeXpress:Product:SalePriceNegative");
+        }
+
+        SalePrice = price;
+        SalePriceCurrencyUnitId = price is null ? null : currencyUnitId;
+    }
+
+    /// <summary>Stok miktarı (negatif geçersiz).</summary>
+    public virtual void SetStock(int quantity)
+    {
+        if (quantity < 0)
+        {
+            throw new BusinessException("TradeXpress:Product:StockNegative");
+        }
+
+        StockQuantity = quantity;
     }
 
     /// <summary>Main bayrağını değiştirir. Tekil-main değişmezi (diğerlerini düşür) <c>ProductVariantManager</c>'da.</summary>

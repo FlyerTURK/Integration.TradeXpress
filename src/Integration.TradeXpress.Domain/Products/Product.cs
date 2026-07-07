@@ -30,6 +30,9 @@ public class Product : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwn
 
     public virtual bool IsActive { get; protected set; }
 
+    /// <summary>Ürün görsel URL'leri (sıralı; marketplace product.images — liste index'i = order). PrimitiveCollection.</summary>
+    public virtual List<string> ImageUrls { get; protected set; } = new();
+
     protected Product() { }
 
     public Product(
@@ -77,6 +80,16 @@ public class Product : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwn
     public virtual void SetActive(bool value)
     {
         IsActive = value;
+    }
+
+    /// <summary>Görsel URL'lerini ayarlar — boşları at, trim, en fazla <see cref="ProductConsts.MaxImageCount"/> (sıra korunur).</summary>
+    public virtual void SetImageUrls(IEnumerable<string> urls)
+    {
+        ImageUrls = (urls ?? Enumerable.Empty<string>())
+            .Where(u => !string.IsNullOrWhiteSpace(u))
+            .Select(u => u.Trim())
+            .Take(ProductConsts.MaxImageCount)
+            .ToList();
     }
 
     public override string ToString()
