@@ -93,20 +93,24 @@
         </DxFormLayoutGroup>
     }
 
-    @* Seyahat özel bilgileri (opsiyonel; yalnız Seyahat kategorisi ürünleri). N11 specialProductInfoList HTML kabul eder. *@
-    <DxFormLayoutGroup Caption="@L["N11Product:SpecialInfo"]" ColSpanMd="12" CaptionPosition="CaptionPosition.Vertical">
-        <DxFormLayoutItem ColSpanMd="12">
-            <span style="color:#6c757d; font-size:0.85rem;">@L["N11Product:SpecialInfoHint"]</span>
-        </DxFormLayoutItem>
-        @foreach (var key in SpecialInfoKeys)
-        {
-            var k = key;
-            <DxFormLayoutItem Caption="@L[$"N11Product:SpecialInfo:{k}"]" ColSpanMd="12">
-                <DxMemo Text="@GetSpecialInfo(k)" TextChanged="@((string v) => SetSpecialInfo(k, v))"
-                        Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100" ValidationEnabled="false" />
+    @* Seyahat özel bilgileri — YALNIZ Seyahat kategorisi seçiliyken (kategori yolu "Seyahat" içerir).
+       Diğer kategorilerde gizli (kalabalık yapmaz). N11 specialProductInfoList HTML kabul eder. *@
+    @if (IsTravelCategory)
+    {
+        <DxFormLayoutGroup Caption="@L["N11Product:SpecialInfo"]" ColSpanMd="12" CaptionPosition="CaptionPosition.Vertical">
+            <DxFormLayoutItem ColSpanMd="12">
+                <span style="color:#6c757d; font-size:0.85rem;">@L["N11Product:SpecialInfoHint"]</span>
             </DxFormLayoutItem>
-        }
-    </DxFormLayoutGroup>
+            @foreach (var key in SpecialInfoKeys)
+            {
+                var k = key;
+                <DxFormLayoutItem Caption="@L[$"N11Product:SpecialInfo:{k}"]" ColSpanMd="12">
+                    <DxMemo Text="@GetSpecialInfo(k)" TextChanged="@((string v) => SetSpecialInfo(k, v))"
+                            Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100" ValidationEnabled="false" />
+                </DxFormLayoutItem>
+            }
+        </DxFormLayoutGroup>
+    }
 
     @* N11 senkron durumu (read-only; push sonrası dolar). *@
     @if (Model.N11ProductId.HasValue || !string.IsNullOrEmpty(Model.LastError))

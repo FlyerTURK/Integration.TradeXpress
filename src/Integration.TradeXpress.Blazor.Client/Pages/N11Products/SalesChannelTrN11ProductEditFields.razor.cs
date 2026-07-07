@@ -42,8 +42,14 @@ public partial class SalesChannelTrN11ProductEditFields : CrudComponentBase
     private string ChannelName =>
         Channels.FirstOrDefault(c => c.Id == Model.SalesChannelId)?.Code ?? Model.SalesChannelId.ToString();
 
-    // Seyahat özel bilgi anahtarları (N11 specialProductInfoList) — opsiyonel; yalnız Seyahat kategorisi ürünleri.
+    // Seyahat özel bilgi anahtarları (N11 specialProductInfoList) — yalnız Seyahat kategorisi ürünleri.
     private static readonly string[] SpecialInfoKeys = { "TurProgrami", "IptalIadeKosullari", "EkHizmetler" };
+
+    /// <summary>Seçili kategori Seyahat dalında mı — TAM YOL adı "Seyahat" içeriyorsa (Model.CategoryName = kökten yol).
+    /// Yalnız o zaman Seyahat özel bilgileri grubu görünür; diğer kategorilerde gizli (form kalabalığı olmaz).</summary>
+    private bool IsTravelCategory =>
+        !string.IsNullOrEmpty(Model.CategoryName)
+        && Model.CategoryName.Contains("Seyahat", StringComparison.OrdinalIgnoreCase);
 
     protected override async Task OnParametersSetAsync()
     {
