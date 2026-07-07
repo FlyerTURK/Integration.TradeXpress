@@ -122,6 +122,7 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
 
         var entity = new Product(companyId, input.Code, input.Name);
         entity.SetDescription(input.Description);
+        entity.SetImageUrls(input.ImageUrls);
         await _repository.InsertAsync(entity, autoSave: true);
 
         var valueIdByClientKey = await SaveAttributesAsync(entity, input.Attributes);
@@ -140,6 +141,7 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         entity.SetName(input.Name);
         entity.SetDescription(input.Description);
         entity.SetActive(input.IsActive);
+        entity.SetImageUrls(input.ImageUrls);
         await _repository.UpdateAsync(entity, autoSave: true);
 
         var valueIdByClientKey = await SaveAttributesAsync(entity, input.Attributes);
@@ -361,6 +363,8 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         variant.SetName(v.Name);
         variant.SetDescription(v.Description);
         variant.SetActive(v.IsActive);
+        variant.SetSalePrice(v.SalePrice, v.SalePriceCurrencyUnitId);
+        variant.SetStock(v.StockQuantity);
         await _variantRepository.UpdateAsync(variant, autoSave: true);
     }
 
@@ -746,6 +750,9 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
             Name = v.Name,
             Description = v.Description,
             IsActive = v.IsActive,
+            SalePrice = v.SalePrice,
+            SalePriceCurrencyUnitId = v.SalePriceCurrencyUnitId,
+            StockQuantity = v.StockQuantity,
             AttributeSummary = BuildAttributeSummary(v.Id, attributes, values, links),
             RecipeLines = recipeLines
                 .Where(r => r.ProductVariantId == v.Id)
@@ -785,6 +792,7 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
             Name = p.Name,
             Description = p.Description,
             IsActive = p.IsActive,
+            ImageUrls = p.ImageUrls.ToList(),
             Attributes = attributes.Select(a => new ProductAttributeGraphDto
             {
                 Id = a.Id,

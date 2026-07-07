@@ -39,6 +39,10 @@ public class ProductGetDto : EntityDto<Guid>, IGetDto<Guid>, IHasCode
 
     public bool IsActive { get; set; }
 
+    /// <summary>Ürün görsel URL'leri (sıralı; marketplace product.images — index = order). En fazla
+    /// <see cref="ProductConsts.MaxImageCount"/> (sunucu kırpar).</summary>
+    public List<string> ImageUrls { get; set; } = new();
+
     /// <summary>Varyantlar (graf düğümleri; Id + IsDeleted ile diff). Product edit formundaki drill yönetir.</summary>
     public List<ProductVariantGraphDto> Variants { get; set; } = new();
 
@@ -59,6 +63,9 @@ public class ProductCreateDto : ICreateDto
 
     [StringLength(ProductConsts.DescriptionMaxLength)]
     public string? Description { get; set; }
+
+    /// <summary>Ürün görsel URL'leri — bkz. <see cref="ProductGetDto.ImageUrls"/>.</summary>
+    public List<string> ImageUrls { get; set; } = new();
 
     public List<ProductVariantGraphDto> Variants { get; set; } = new();
 
@@ -81,6 +88,9 @@ public class ProductUpdateDto : IUpdateDto
     public string? Description { get; set; }
 
     public bool IsActive { get; set; }
+
+    /// <summary>Ürün görsel URL'leri — bkz. <see cref="ProductGetDto.ImageUrls"/>.</summary>
+    public List<string> ImageUrls { get; set; } = new();
 
     public List<ProductVariantGraphDto> Variants { get; set; } = new();
 
@@ -114,6 +124,15 @@ public class ProductVariantGraphDto
     public string? Description { get; set; }
 
     public bool IsActive { get; set; } = true;
+
+    /// <summary>Satış/liste fiyatı (marketplace price/optionPrice). Null = fiyatlanmamış. Negatif geçersiz (sunucu zorlar).</summary>
+    public decimal? SalePrice { get; set; }
+
+    /// <summary>Satış fiyatı para birimi (CurrencyUnit id-only; N11'de currencyType'a eşlenir). Fiyat null ise yoksayılır.</summary>
+    public Guid? SalePriceCurrencyUnitId { get; set; }
+
+    /// <summary>Stok miktarı (marketplace quantity). Varsayılan 0; negatif geçersiz (sunucu zorlar).</summary>
+    public int StockQuantity { get; set; }
 
     /// <summary>Varyantın nitelik-değer KOMBİNASYON özeti (ör. "Kırmızı / M") — SALT-OKUNUR görüntü alanı.
     /// GetAsync projeksiyonunda doldurulur (attribute DisplayOrder sırasıyla " / " join); save'de YOKSAYILIR.</summary>

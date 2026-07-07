@@ -34,6 +34,18 @@ public partial class ProductLayout
     private DrillList<ProductAttributeGraphDto>? _attributeDrill;
     private DrillList<ProductAttributeValueGraphDto>? _valueDrill;
 
+    /// <summary>Görsel URL'leri ↔ çok-satırlı metin köprüsü (her satır bir URL; sıra korunur). DxMemo @bind-Text
+    /// ValueExpression sağlar → form dirty otomatik tetiklenir. Sunucu ayrıca trim + boş-satır ayıklar (SetImageUrls).</summary>
+    private string ImageUrlsText
+    {
+        get => string.Join(Environment.NewLine, Model.ImageUrls);
+        set => Model.ImageUrls = (value ?? string.Empty)
+            .Split('\n')
+            .Select(u => u.Trim())
+            .Where(u => u.Length > 0)
+            .ToList();
+    }
+
     // Drill değişimini forma bildir (dirty/Save) — EntityEditForm EditChanged cascade'i.
     [CascadingParameter(Name = "EditChanged")] private Action? EditChanged { get; set; }
 

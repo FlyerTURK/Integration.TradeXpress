@@ -18,6 +18,12 @@
         <DxFormLayoutItem Caption="@L["Description"]" ColSpanMd="12">
             <DxMemo @bind-Text="@Model.Description" Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100" />
         </DxFormLayoutItem>
+        @* Görsel URL'leri (marketplace product.images) — her satır bir URL, satır sırası = görsel sırası (ilk = ana).
+           Bilinçli sade editör: kanaldan bağımsız ürün medyası; N11/Trendyol listeleme push'u bu sırayı kullanır. *@
+        <DxFormLayoutItem Caption="@L["ImageUrls"]" ColSpanMd="12">
+            <DxMemo @bind-Text="@ImageUrlsText" Rows="3" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100"
+                    NullText="@L["ImageUrlsHint"]" />
+        </DxFormLayoutItem>
         <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6">
             <DxCheckBox @bind-Checked="@Model.IsActive" CheckType="CheckType.Switch">
                 @(Model.IsActive ? L["Active"] : L["Passive"])
@@ -140,7 +146,7 @@
             </GridColumns>
             <EditContent Context="v">
                 <DxFormLayout CssClass="w-100">
-                    <ProductVariantEditFields Model="v" />
+                    <ProductVariantEditFields Model="v" Units="Units" />
                     @* Reçete (design-time maliyet) — INLINE panel (VoucherLine giriş paneli deseni; popup YOK). *@
                     <DxFormLayoutGroup Caption="@L["Recipe"]" ColSpanMd="12" CaptionPosition="CaptionPosition.Vertical">
                         <ProductRecipePanel Lines="v.RecipeLines"
