@@ -106,9 +106,10 @@ public partial class SalesChannelTrN11ProductEditFields : CrudComponentBase
         _loadedAttributesCategoryId = Model.CategoryExternalId;
         try
         {
-            // Form sırası: ZORUNLULAR önce → N11 önceliği artan (SOAP fallback'te null → sona) → ad artan.
+            // Form sırası: ZORUNLULAR önce → içlerinde MARKA en başta → N11 önceliği artan (SOAP null → sona) → ad artan.
             _attributeDefs = (await CategoryAppService.GetLeafAttributesAsync(Model.CategoryExternalId))
                 .OrderByDescending(a => a.IsMandatory)
+                .ThenByDescending(a => string.Equals(a.Name, "Marka", StringComparison.OrdinalIgnoreCase))
                 .ThenBy(a => a.Priority ?? double.MaxValue)
                 .ThenBy(a => a.Name)
                 .ToList();
