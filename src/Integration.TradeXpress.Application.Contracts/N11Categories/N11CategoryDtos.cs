@@ -2,6 +2,14 @@ using System.Collections.Generic;
 
 namespace Integration.TradeXpress.N11Categories;
 
+/// <summary>Yaprak kategori (tek-lookup seçimi için) — dış id + TAM YOL adı ("Elektronik &gt; Telefon &gt; Akıllı Telefon").
+/// Yaprak adları çok tekrar ettiğinden (Diğer/Aksesuar...) ayırt etmek için yol gösterilir.</summary>
+public class N11LeafCategoryDto
+{
+    public string ExternalId { get; set; } = string.Empty;
+    public string Path { get; set; } = string.Empty;
+}
+
 /// <summary>Kategori ağacı düğümü (browse) — host-global taksonomiden okunur.</summary>
 public class N11CategoryTreeNodeDto
 {

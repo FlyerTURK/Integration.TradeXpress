@@ -100,6 +100,38 @@ public class N11CategoryAppService : TradeXpressAppService, IN11CategoryAppServi
         }
     }
 
+    public virtual async Task<List<N11LeafCategoryDto>> GetLeafCategoriesAsync()
+    {
+        // Host-global ağacı TEK seferde çek → id map → her yaprak için kökten yola in-memory kurulur (yaprak adları
+        // çok tekrar ettiğinden yol ayırt eder). ~4400 satır; tek indeksli sorgu + sözlük yürüme (hızlı).
+        var all = await AsyncExecuter.ToListAsync(await _repository.GetQueryableAsync());
+        var byExternalId = all.ToDictionary(c => c.ExternalId);
+
+        return all
+            .Where(c => c.IsLeaf)
+            .Select(leaf => new N11LeafCategoryDto { ExternalId = leaf.ExternalId, Path = BuildPath(leaf, byExternalId) })
+            .OrderBy(x => x.Path, StringComparer.CurrentCultureIgnoreCase)
+            .ToList();
+    }
+
+    /// <summary>Yaprağın kökten tam yolu ("A &gt; B &gt; C") — parent zinciri id map'ten yürünür (döngü guard'lı).</summary>
+    private static string BuildPath(N11Category leaf, Dictionary<string, N11Category> byExternalId)
+    {
+        var parts = new List<string>();
+        var current = leaf;
+        var guard = 0;
+        while (current is not null && guard++ < 20)
+        {
+            parts.Add(current.Name);
+            current = current.ParentExternalId is { } parentId && byExternalId.TryGetValue(parentId, out var parent)
+                ? parent
+                : null;
+        }
+
+        parts.Reverse();
+        return string.Join(" > ", parts);
+    }
+
     public virtual async Task<List<N11CategoryAttributeDto>> GetLeafAttributesAsync(string categoryExternalId)
     {
         var (appKey, appSecret) = await ResolveCurrentCompanyN11CredentialsAsync();

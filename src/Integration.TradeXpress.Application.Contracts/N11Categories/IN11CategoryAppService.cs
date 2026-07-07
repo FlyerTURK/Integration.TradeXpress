@@ -16,6 +16,9 @@ public interface IN11CategoryAppService : IApplicationService
     /// <summary>Ağaç gezinme — verilen üst kategorinin çocukları (null → 79 top). Host-global veriden okunur.</summary>
     Task<List<N11CategoryTreeNodeDto>> GetChildrenAsync(string? parentExternalId);
 
+    /// <summary>TÜM yaprak kategoriler, TAM YOL adıyla (tek-lookup seçimi için). Host-global veriden; yol in-memory kurulur.</summary>
+    Task<List<N11LeafCategoryDto>> GetLeafCategoriesAsync();
+
     /// <summary>On-demand: bir YAPRAK kategorinin attribute+value'ları — çalışılan şirketin N11 kanalının kimliğiyle çekilir.</summary>
     Task<List<N11CategoryAttributeDto>> GetLeafAttributesAsync(string categoryExternalId);
 }
