@@ -87,6 +87,11 @@ public class TradeXpressDbContext :
     public DbSet<Integration.TradeXpress.Settings.UserGridLayout> UserGridLayouts { get; set; } = null!;
     // N11 kategori taksonomisi — HOST-GLOBAL (IMultiTenant değil; tüm tenant'lar paylaşır).
     public DbSet<Integration.TradeXpress.N11Categories.N11Category> N11Categories { get; set; } = null!;
+    // N11 adres taksonomisi (İl/İlçe) — HOST-GLOBAL. Mahalleler saklanmaz (on-demand).
+    public DbSet<Integration.TradeXpress.N11Cities.N11City> N11Cities { get; set; } = null!;
+    public DbSet<Integration.TradeXpress.N11Cities.N11District> N11Districts { get; set; } = null!;
+    // N11 kargo firmaları — HOST-GLOBAL.
+    public DbSet<Integration.TradeXpress.N11Shipments.N11ShipmentCompany> N11ShipmentCompanies { get; set; } = null!;
 
 
     #region Entities from the modules
@@ -165,6 +170,8 @@ public class TradeXpressDbContext :
         builder.ConfigureUserScopedGrants();
         builder.ConfigureUserGridLayouts();
         builder.ConfigureN11Categories();
+        builder.ConfigureN11Cities();
+        builder.ConfigureN11Shipments();
 
         // Kod kolonlarına ordinal (BIN2) collation — YALNIZ SQL Server. C# ToUpperInvariant ile hizalanır,
         // Türkçe İ/i collation kaçağını DB tarafında da kapatır. Sqlite (test) BIN2'yi tanımaz → guard'la atlanır

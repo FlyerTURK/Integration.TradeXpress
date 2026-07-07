@@ -7,6 +7,8 @@ using Integration.TradeXpress.Cashes;
 using Integration.TradeXpress.Services;
 using Integration.TradeXpress.SalesChannels;
 using Integration.TradeXpress.N11Categories;
+using Integration.TradeXpress.N11Cities;
+using Integration.TradeXpress.N11Shipments;
 using Integration.TradeXpress.Futures;
 using Integration.TradeXpress.Scraps;
 using Integration.TradeXpress.Metals;
@@ -220,6 +222,29 @@ public partial class N11CategoryToTreeNodeDtoMapper : MapperBase<N11Category, N1
 {
     public override partial N11CategoryTreeNodeDto Map(N11Category source);
     public override partial void Map(N11Category source, N11CategoryTreeNodeDto destination);
+}
+
+// ── N11 adres (host-global İl/İlçe) → DTO ──
+[Mapper]
+public partial class N11CityToDtoMapper : MapperBase<N11City, N11CityDto>
+{
+    public override partial N11CityDto Map(N11City source);
+    public override partial void Map(N11City source, N11CityDto destination);
+}
+
+[Mapper]
+public partial class N11DistrictToDtoMapper : MapperBase<N11District, N11DistrictDto>
+{
+    public override partial N11DistrictDto Map(N11District source);
+    public override partial void Map(N11District source, N11DistrictDto destination);
+}
+
+// ── N11 kargo firması (host-global) → DTO ──
+[Mapper]
+public partial class N11ShipmentCompanyToDtoMapper : MapperBase<N11ShipmentCompany, N11ShipmentCompanyDto>
+{
+    public override partial N11ShipmentCompanyDto Map(N11ShipmentCompany source);
+    public override partial void Map(N11ShipmentCompany source, N11ShipmentCompanyDto destination);
 }
 
 // ── Scrap (statik mapper → Mapperly; IsGlobal + FollowingUnitCode AppService'te/ApplyUnitCodes ile set) ──

@@ -45,6 +45,20 @@ public class N11Category : FullAuditedAggregateRoot<Guid>
     /// <summary>N11'in <c>lastModifiedDate</c>'i (SOAP) — incremental sync için (REST bunu vermez).</summary>
     public DateTime? LastModifiedExternal { get; protected set; }
 
+    // ── Komisyon (YALNIZ yaprak/last-level kategoride dolu; ara/üst kategoride null). n11-commission.tsv'den. ──
+
+    /// <summary>Güncel komisyon oranı (%, KDV DAHİL). Yaprakta dolu; matematik yapılır → decimal.</summary>
+    public decimal? CommissionRate { get; protected set; }
+
+    /// <summary>Pazarlama hizmet bedeli oranı (%, KDV hariç — ör. 1 ya da 0.17).</summary>
+    public decimal? MarketingFeeRate { get; protected set; }
+
+    /// <summary>Pazaryeri hizmet bedeli oranı (%, KDV hariç — pratikte sabit 0.67).</summary>
+    public decimal? MarketplaceFeeRate { get; protected set; }
+
+    /// <summary>Hakediş hesaplama süresi (iş günü) = "otomatik bloke çözme günü" (valör).</summary>
+    public int? PayoutDays { get; protected set; }
+
     #endregion
 
     #region Methods
@@ -67,6 +81,15 @@ public class N11Category : FullAuditedAggregateRoot<Guid>
     public virtual void SetLastModifiedExternal(DateTime? lastModifiedExternal)
     {
         LastModifiedExternal = lastModifiedExternal;
+    }
+
+    /// <summary>Yaprak kategorinin komisyon/valör bilgisini set eder (n11-commission.tsv import'u). Ara/üst kategoride çağrılmaz.</summary>
+    public virtual void SetCommission(decimal? commissionRate, decimal? marketingFeeRate, decimal? marketplaceFeeRate, int? payoutDays)
+    {
+        CommissionRate = commissionRate;
+        MarketingFeeRate = marketingFeeRate;
+        MarketplaceFeeRate = marketplaceFeeRate;
+        PayoutDays = payoutDays;
     }
 
     public override string ToString()

@@ -336,6 +336,11 @@ public class TradeXpressBlazorModule : AbpModule
         });
 
         StartHaremFeedWorkerIfEnabled(context);
+
+        // N11 host-global referans (il/ilçe + kargo firması) nightly re-sync. YALNIZ Blazor host'ta kayıtlı →
+        // çift-çalışma önleme. İlk tur 24s sonra; host kimliği (N11:CategorySync) yoksa sessizce atlar.
+        Volo.Abp.Threading.AsyncHelper.RunSync(() =>
+            context.AddBackgroundWorkerAsync<Integration.TradeXpress.N11.N11ReferenceSyncWorker>());
     }
 
     /// <summary>HTTP request pipeline'ı (middleware zinciri) — sıralama duyarlı, dokunma.</summary>

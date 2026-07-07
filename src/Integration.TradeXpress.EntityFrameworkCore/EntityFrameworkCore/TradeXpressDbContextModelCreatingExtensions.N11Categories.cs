@@ -25,6 +25,11 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
             b.Property(x => x.ParentExternalId).HasMaxLength(N11CategoryConsts.ExternalIdMaxLength);
             b.Property(x => x.Name).IsRequired().HasMaxLength(N11CategoryConsts.NameMaxLength);
 
+            // Komisyon (yaprakta dolu) — matematik yapılır → decimal, oran için (9,4) yeter (ör. 20.3400, 0.6700).
+            b.Property(x => x.CommissionRate).HasPrecision(9, 4);
+            b.Property(x => x.MarketingFeeRate).HasPrecision(9, 4);
+            b.Property(x => x.MarketplaceFeeRate).HasPrecision(9, 4);
+
             b.HasIndex(x => x.ExternalId).IsUnique().HasFilter("[IsDeleted] = 0");
             b.HasIndex(x => x.ParentExternalId);
         });

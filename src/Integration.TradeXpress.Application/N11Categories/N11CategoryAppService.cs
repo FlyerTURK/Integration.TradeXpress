@@ -89,11 +89,15 @@ public class N11CategoryAppService : TradeXpressAppService, IN11CategoryAppServi
     public virtual async Task<List<N11CategoryTreeNodeDto>> GetChildrenAsync(string? parentExternalId)
     {
         var normalized = string.IsNullOrWhiteSpace(parentExternalId) ? null : parentExternalId.Trim();
-        var query = (await _repository.GetQueryableAsync())
-            .Where(x => x.ParentExternalId == normalized)
-            .OrderBy(x => x.Name);
-        var items = await AsyncExecuter.ToListAsync(query);
-        return items.Select(x => ObjectMapper.Map<N11Category, N11CategoryTreeNodeDto>(x)).ToList();
+        // Host-global okuma → host'a sabitle (db-per-tenant'a karşı merkezilik garantisi).
+        using (CurrentTenant.Change(null))
+        {
+            var query = (await _repository.GetQueryableAsync())
+                .Where(x => x.ParentExternalId == normalized)
+                .OrderBy(x => x.Name);
+            var items = await AsyncExecuter.ToListAsync(query);
+            return items.Select(x => ObjectMapper.Map<N11Category, N11CategoryTreeNodeDto>(x)).ToList();
+        }
     }
 
     public virtual async Task<List<N11CategoryAttributeDto>> GetLeafAttributesAsync(string categoryExternalId)
