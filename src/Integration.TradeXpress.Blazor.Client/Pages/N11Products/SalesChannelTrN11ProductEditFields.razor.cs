@@ -84,7 +84,7 @@ public partial class SalesChannelTrN11ProductEditFields : CrudComponentBase
             // Form sırası: ZORUNLULAR önce → N11 önceliği artan (SOAP fallback'te null → sona) → ad artan.
             _attributeDefs = (await CategoryAppService.GetLeafAttributesAsync(Model.CategoryExternalId))
                 .OrderByDescending(a => a.IsMandatory)
-                .ThenBy(a => a.Priority ?? int.MaxValue)
+                .ThenBy(a => a.Priority ?? double.MaxValue)
                 .ThenBy(a => a.Name)
                 .ToList();
         }

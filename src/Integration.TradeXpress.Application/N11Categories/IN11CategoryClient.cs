@@ -32,9 +32,10 @@ public sealed record N11LeafAttributes(
     string ExternalId, string Name, IReadOnlyList<N11AttributeDef> Attributes);
 
 /// <summary>Kategori attribute tanımı — zorunluluk/varyant/custom bayrakları + N11 öncelik sırası + value listesi.
-/// <see cref="Priority"/> REST'te dolu (N11'in form sırası); SOAP fallback yanıtı taşımıyorsa null.</summary>
+/// <see cref="Priority"/> N11'in form sırası (WSDL: <c>xs:double</c>); çözülemezse null (yalnız GetCategoryAttributes
+/// / REST taşır — özet GetCategoryAttributesId priority İÇERMEZ).</summary>
 public sealed record N11AttributeDef(
-    string AttributeId, string Name, bool IsMandatory, bool IsVariant, bool IsCustomValue, int? Priority, IReadOnlyList<N11AttributeValue> Values);
+    string AttributeId, string Name, bool IsMandatory, bool IsVariant, bool IsCustomValue, double? Priority, IReadOnlyList<N11AttributeValue> Values);
 
 /// <summary>Attribute value — REST'te <see cref="ValueId"/> dolu (listelemede zorunlu); SOAP fallback'te null (yalnız ad).</summary>
 public sealed record N11AttributeValue(string? ValueId, string Value);

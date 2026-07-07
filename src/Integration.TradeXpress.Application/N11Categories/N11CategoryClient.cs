@@ -152,7 +152,7 @@ public sealed class N11CategoryClient : IN11CategoryClient, ITransientDependency
                     a.TryGetProperty("isMandatory", out var m) && m.ValueKind == JsonValueKind.True,
                     a.TryGetProperty("isVariant", out var iv) && iv.ValueKind == JsonValueKind.True,
                     a.TryGetProperty("isCustomValue", out var cv) && cv.ValueKind == JsonValueKind.True,
-                    a.TryGetProperty("priority", out var pr) && pr.ValueKind == JsonValueKind.Number ? pr.GetInt32() : null,
+                    a.TryGetProperty("priority", out var pr) && pr.ValueKind == JsonValueKind.Number ? pr.GetDouble() : null,
                     values));
             }
         }
@@ -249,7 +249,7 @@ public sealed class N11CategoryClient : IN11CategoryClient, ITransientDependency
                 string.Equals(LocalValue(a, "mandatory"), "true", StringComparison.OrdinalIgnoreCase),
                 string.Equals(LocalValue(a, "variant"), "true", StringComparison.OrdinalIgnoreCase),
                 string.Equals(LocalValue(a, "customValue"), "true", StringComparison.OrdinalIgnoreCase),
-                int.TryParse(LocalValue(a, "priority"), out var priority) ? priority : null,   // SOAP taşımıyorsa null
+                double.TryParse(LocalValue(a, "priority"), NumberStyles.Any, CultureInfo.InvariantCulture, out var priority) ? priority : null,   // WSDL: xs:double
                 values));
         }
 

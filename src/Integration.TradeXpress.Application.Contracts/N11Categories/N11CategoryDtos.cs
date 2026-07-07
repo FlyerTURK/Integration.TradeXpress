@@ -22,8 +22,8 @@ public class N11CategoryAttributeDto
     public bool IsVariant { get; set; }
     public bool IsCustomValue { get; set; }
 
-    /// <summary>N11'in form öncelik sırası (REST'te dolu; SOAP fallback'te null). UI sıralaması bunu kullanır.</summary>
-    public int? Priority { get; set; }
+    /// <summary>N11'in form öncelik sırası (WSDL: xs:double). UI sıralaması bunu kullanır; çözülemezse null → sona.</summary>
+    public double? Priority { get; set; }
 
     public List<N11CategoryAttributeValueDto> Values { get; set; } = new();
 }
