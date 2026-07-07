@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using DevExpress.Blazor;
 using Integration.Framework.Blazor.Client.Components.Crud;
 using Integration.Framework.Blazor.Client.Services.Base;
 using Integration.TradeXpress.N11Categories;
@@ -137,16 +136,11 @@ public partial class SalesChannelTrN11ProductEditFields : CrudComponentBase
         }).ToList();
     }
 
-    // Grid satır edit'i kaydedildi (EditRow): edit-model'in değerini orijinal satıra + Model.Attributes'a yaz.
-    private void OnAttributeRowSaving(GridEditModelSavingEventArgs e)
+    // Grid hücresinde değer değişti — ANINDA uygula (edit/Save YOK): satıra yaz + Model.Attributes'a yaz + dirty.
+    private void OnAttributeValueChanged(N11AttributeRow row, string value)
     {
-        var edited = (N11AttributeRow)e.EditModel;
-        if (e.DataItem is N11AttributeRow original)
-        {
-            original.Value = edited.Value;
-        }
-
-        SetAttribute(edited.Name, edited.Value);
+        row.Value = value;
+        SetAttribute(row.Name, value);
     }
 
     // Kanal seçimi (create) — modele yaz + şablonları tazele + dirty.

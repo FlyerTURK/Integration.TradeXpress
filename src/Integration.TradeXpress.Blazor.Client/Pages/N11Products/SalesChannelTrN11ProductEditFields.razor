@@ -64,33 +64,26 @@
         </DxFormLayoutItem>
     </DxFormLayoutGroup>
 
-    @* Kategori attribute'ları — inline EDIT-ROW grid (on-demand; yaprak seçildiyse). Değer kolonunun editörü SATIRA
-       göre değişir: değer listesi varsa combo, yoksa serbest metin. Nitelik adı salt-okunur (zorunlular *);
-       ekleme/silme YOK (kategori tanımlar). *@
+    @* Kategori attribute'ları — grid (on-demand; yaprak seçildiyse). Değer kolonunun editörü HEP AKTİF (edit/Save YOK):
+       değişiklik anında Model.Attributes'a yazılır. Editör SATIRA göre değişir (değer listesi → combo, serbest → metin).
+       Nitelik adı salt-okunur (zorunlular *); ekleme/silme YOK (kategori tanımlar). *@
     @if (_attributeRows.Count > 0)
     {
         <DxFormLayoutGroup Caption="@L["N11Product:Attributes"]" ColSpanMd="12" CaptionPosition="CaptionPosition.Vertical">
             <DxFormLayoutItem ColSpanMd="12">
                 <DxGrid Data="@_attributeRows" KeyFieldName="AttributeId"
-                        EditMode="GridEditMode.EditRow"
-                        EditModelSaving="OnAttributeRowSaving"
                         PageSize="200" PagerVisible="false"
                         CssClass="w-100">
                     <Columns>
-                        <DxGridCommandColumn Width="110px" NewButtonVisible="false" DeleteButtonVisible="false" />
                         <DxGridDataColumn FieldName="Name" Caption="@L["ProductAttribute"]" Width="45%">
                             <CellDisplayTemplate Context="cell">
                                 @{ var r = (N11AttributeRow)cell.DataItem; }
                                 <span>@(r.IsMandatory ? $"{r.Name} *" : r.Name)</span>
                             </CellDisplayTemplate>
-                            <CellEditTemplate Context="cell">
-                                @{ var r = (N11AttributeRow)cell.EditModel; }
-                                <span>@(r.IsMandatory ? $"{r.Name} *" : r.Name)</span>
-                            </CellEditTemplate>
                         </DxGridDataColumn>
                         <DxGridDataColumn FieldName="Value" Caption="@L["Value"]">
-                            <CellEditTemplate Context="cell">
-                                @{ var row = (N11AttributeRow)cell.EditModel; }
+                            <CellDisplayTemplate Context="cell">
+                                @{ var row = (N11AttributeRow)cell.DataItem; }
                                 @if (row.HasValueList)
                                 {
                                     <LookupComboBox TItem="N11CategoryAttributeValueDto" TValue="string"
@@ -98,16 +91,16 @@
                                                     ValueFieldName="@nameof(N11CategoryAttributeValueDto.Value)"
                                                     TextFieldName="@nameof(N11CategoryAttributeValueDto.Value)"
                                                     Value="@row.Value"
-                                                    ValueChanged="@((string v) => row.Value = v)"
+                                                    ValueChanged="@((string v) => OnAttributeValueChanged(row, v))"
                                                     AllowClear="true" />
                                 }
                                 else
                                 {
                                     <DxTextBox Text="@row.Value"
-                                               TextChanged="@((string v) => row.Value = v)"
-                                               TextExpression="@(() => row.Value)" />
+                                               TextChanged="@((string v) => OnAttributeValueChanged(row, v))"
+                                               ValidationEnabled="false" />
                                 }
-                            </CellEditTemplate>
+                            </CellDisplayTemplate>
                         </DxGridDataColumn>
                     </Columns>
                 </DxGrid>
