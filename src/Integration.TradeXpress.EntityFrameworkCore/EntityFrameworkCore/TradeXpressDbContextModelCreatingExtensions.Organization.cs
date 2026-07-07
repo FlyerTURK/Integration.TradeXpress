@@ -165,7 +165,9 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
             b.Property(x => x.GridKey).IsRequired().HasMaxLength(UserGridLayoutConsts.GridKeyMaxLength);
             b.Property(x => x.Layout).IsRequired();   // maxlength YOK → nvarchar(max), truncate olmaz
 
-            b.HasIndex(x => new { x.TenantId, x.UserId, x.GridKey }).IsUnique();
+            // IsDeleted filtresi ŞART: entity soft-delete'li; filtresiz unique index, soft-delete edilmiş satır
+            // varken upsert INSERT'ini SONSUZA KADAR patlatıyordu (canlı bug: MdiTabs düzeni kaydedilemiyordu).
+            b.HasIndex(x => new { x.TenantId, x.UserId, x.GridKey }).IsUnique().HasFilter("[IsDeleted] = 0");
         });
     }
 }
