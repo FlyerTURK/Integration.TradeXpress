@@ -6,7 +6,7 @@ using Integration.TradeXpress.N11Products;
 namespace Integration.TradeXpress.EntityFrameworkCore;
 
 /// <summary>N11 ürün listeleme mapping'i — ürün×kanal listelemesi (company-owned). Kategori attribute + Seyahat özel
-/// bilgisi owned-collection → JSON kolonları; kimlik (SalesChannelId, ProductId) soft-delete filtreli benzersiz.</summary>
+/// bilgisi owned-collection → JSON kolonları. Aynı kanalda aynı ürün için ÇOK kayıt olabilir (2026-07-07).</summary>
 public static partial class TradeXpressDbContextModelCreatingExtensions
 {
     public static void ConfigureN11Products(this ModelBuilder builder)
@@ -39,8 +39,8 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
                 s.Property(p => p.Value).HasMaxLength(N11ProductConsts.SpecialInfoValueMaxLength);
             });
 
-            // Kimlik: bir ürün bir kanalda TEK listeleme; soft-delete filtreli (silinen yeniden listelenebilsin).
-            b.HasIndex(x => new { x.SalesChannelId, x.ProductId }).IsUnique().HasFilter("[IsDeleted] = 0");
+            // Aynı kanalda AYNI ürün için birden fazla kayıt OLABİLİR (2026-07-07 kullanıcı kararı) → normal index.
+            b.HasIndex(x => new { x.SalesChannelId, x.ProductId });
             b.HasIndex(x => new { x.TenantId, x.CompanyId });
         });
     }

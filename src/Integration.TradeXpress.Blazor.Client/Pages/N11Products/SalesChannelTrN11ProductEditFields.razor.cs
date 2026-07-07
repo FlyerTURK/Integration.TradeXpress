@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using DevExpress.Blazor;
 using Integration.Framework.Blazor.Client.Components.Crud;
 using Integration.Framework.Blazor.Client.Services.Base;
 using Integration.TradeXpress.N11Categories;
@@ -36,7 +37,8 @@ public partial class SalesChannelTrN11ProductEditFields : CrudComponentBase
 {
     [Parameter, EditorRequired] public SalesChannelTrN11ProductDto Model { get; set; } = default!;
 
-    /// <summary>Kanal seçici beslemesi (yalnız N11 kanalları) — create'te seçilir, edit'te sabit gösterilir.</summary>
+    /// <summary>Kanal AD çözümü beslemesi (yalnız N11 kanalları) — kanal HER ZAMAN salt-okunur gösterilir
+    /// (create'te otomatik atanır, set-once); seçici yok.</summary>
     [Parameter] public IReadOnlyList<SalesChannelListDto> Channels { get; set; } = Array.Empty<SalesChannelListDto>();
 
     [Inject] private IN11ShipmentTemplateAppService ShipmentTemplateAppService { get; set; } = default!;
@@ -55,8 +57,6 @@ public partial class SalesChannelTrN11ProductEditFields : CrudComponentBase
     // OnParametersSetAsync her render'da çalışır → tekrarlı ağ çağrısını son-yüklenen anahtarla önle.
     private Guid _loadedTemplatesChannelId;
     private string? _loadedAttributesCategoryId;
-
-    private bool IsNew => Model.Id == Guid.Empty;
 
     private string ChannelName =>
         Channels.FirstOrDefault(c => c.Id == Model.SalesChannelId)?.Code ?? Model.SalesChannelId.ToString();
@@ -137,19 +137,17 @@ public partial class SalesChannelTrN11ProductEditFields : CrudComponentBase
         }).ToList();
     }
 
-    // Grid hücresinde değer değişti — ANINDA uygula (edit/Save YOK): satıra yaz + Model.Attributes'a yaz + dirty.
-    private void OnAttributeValueChanged(N11AttributeRow row, string value)
+    // EditCell: hücre editöründen çıkınca otomatik tetiklenir (Edit/Save butonu YOK) — edit-model klonunun değerini
+    // orijinal satıra + Model.Attributes'a ANINDA uygula (SetAttribute → dirty).
+    private void OnAttributeRowSaving(GridEditModelSavingEventArgs e)
     {
-        row.Value = value;
-        SetAttribute(row.Name, value);
-    }
+        var edited = (N11AttributeRow)e.EditModel;
+        if (e.DataItem is N11AttributeRow original)
+        {
+            original.Value = edited.Value;
+        }
 
-    // Kanal seçimi (create) — modele yaz + şablonları tazele + dirty.
-    private async Task OnChannelChangedAsync(Guid channelId)
-    {
-        Model.SalesChannelId = channelId;
-        MarkDirty(nameof(Model.SalesChannelId));
-        await EnsureTemplatesAsync();
+        SetAttribute(edited.Name, edited.Value);
     }
 
     // Yaprak kategori seçildi — modele dış-id + ad yaz, attribute'ları tazele, dirty.

@@ -47,13 +47,21 @@ public class SalesChannelTrTrendyolProductAppService : TradeXpressAppService, IS
         _client = client;
     }
 
-    public virtual async Task<SalesChannelTrTrendyolProductDto?> GetForProductAsync(Guid productId, Guid salesChannelId)
+    public virtual async Task<List<SalesChannelTrTrendyolProductDto>> GetListForProductAsync(Guid productId)
     {
         var companyId = EnsureCurrentCompanyId();
-        var entity = await AsyncExecuter.FirstOrDefaultAsync(
+
+        // Yalnız CANLI kanalların kayıtları — soft-delete edilmiş kanalın yetim kayıtları sızmasın (N11 ile aynı).
+        var liveChannelIds = await AsyncExecuter.ToListAsync(
+            (await _channelRepository.GetQueryableAsync())
+                .Where(c => c.CompanyId == companyId)
+                .Select(c => c.Id));
+
+        var items = await AsyncExecuter.ToListAsync(
             (await _repository.GetQueryableAsync())
-                .Where(x => x.CompanyId == companyId && x.ProductId == productId && x.SalesChannelId == salesChannelId));
-        return entity is null ? null : ObjectMapper.Map<SalesChannelTrTrendyolProduct, SalesChannelTrTrendyolProductDto>(entity);
+                .Where(x => x.CompanyId == companyId && x.ProductId == productId && liveChannelIds.Contains(x.SalesChannelId))
+                .OrderBy(x => x.CategoryName));
+        return items.Select(x => ObjectMapper.Map<SalesChannelTrTrendyolProduct, SalesChannelTrTrendyolProductDto>(x)).ToList();
     }
 
     public virtual async Task<SalesChannelTrTrendyolProductDto> GetAsync(Guid id)
@@ -65,9 +73,9 @@ public class SalesChannelTrTrendyolProductAppService : TradeXpressAppService, IS
     [Authorize(TradeXpressPermissions.SalesChannels.Create)]
     public virtual async Task<SalesChannelTrTrendyolProductDto> CreateAsync(SalesChannelTrTrendyolProductCreateDto input)
     {
+        // Aynı kanalda AYNI ürün için birden fazla kayıt OLABİLİR (N11 ile aynı 2026-07-07 kararı); kanal set-once.
         var channel = await GetOwnedChannelAsync(input.SalesChannelId);
         await EnsureProductOwnedAsync(input.ProductId);
-        await EnsureNotListedAsync(channel.Id, input.ProductId);
 
         var entity = new SalesChannelTrTrendyolProduct(
             channel.CompanyId,
@@ -283,16 +291,6 @@ public class SalesChannelTrTrendyolProductAppService : TradeXpressAppService, IS
     private async Task EnsureProductOwnedAsync(Guid productId)
     {
         await GetOwnedProductAsync(productId);
-    }
-
-    private async Task EnsureNotListedAsync(Guid salesChannelId, Guid productId)
-    {
-        var exists = await AsyncExecuter.AnyAsync(
-            (await _repository.GetQueryableAsync()).Where(x => x.SalesChannelId == salesChannelId && x.ProductId == productId));
-        if (exists)
-        {
-            throw new BusinessException("TradeXpress:Trendyol:Product:AlreadyOnChannel");
-        }
     }
 
     private Guid EnsureCurrentCompanyId()

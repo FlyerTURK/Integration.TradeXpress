@@ -98,8 +98,9 @@ public class SalesChannelTrN11ProductUpdateDto : ISalesChannelTrN11ProductInput
 /// </summary>
 public interface ISalesChannelTrN11ProductAppService : IApplicationService
 {
-    /// <summary>Bir ürünün bir kanaldaki listelemesi (yoksa null).</summary>
-    Task<SalesChannelTrN11ProductDto?> GetForProductAsync(Guid productId, Guid salesChannelId);
+    /// <summary>Bir ÜRÜNE ait tüm N11 kanal ürünleri (ürün-merkezli drill). Aynı kanalda birden fazla kayıt
+    /// OLABİLİR (2026-07-07 kullanıcı kararı); kanal set-once (değiştirilemez).</summary>
+    Task<List<SalesChannelTrN11ProductDto>> GetListForProductAsync(Guid productId);
 
     /// <summary>Bir KANALA ait tüm ürün listelemeleri (kanal-merkezli yönetim görünümü).</summary>
     Task<List<SalesChannelTrN11ProductDto>> GetListForChannelAsync(Guid salesChannelId);

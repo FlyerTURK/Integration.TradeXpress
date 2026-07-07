@@ -56,13 +56,22 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
         _client = client;
     }
 
-    public virtual async Task<SalesChannelTrN11ProductDto?> GetForProductAsync(Guid productId, Guid salesChannelId)
+    public virtual async Task<List<SalesChannelTrN11ProductDto>> GetListForProductAsync(Guid productId)
     {
         var companyId = EnsureCurrentCompanyId();
-        var entity = await AsyncExecuter.FirstOrDefaultAsync(
+
+        // Yalnız CANLI kanalların kayıtları — soft-delete edilmiş kanalın yetim kayıtları drill'e sızmasın
+        // (kanal kolonu boş/ham GUID görünür + push ChannelNotFound verirdi).
+        var liveChannelIds = await AsyncExecuter.ToListAsync(
+            (await _channelRepository.GetQueryableAsync())
+                .Where(c => c.CompanyId == companyId)
+                .Select(c => c.Id));
+
+        var items = await AsyncExecuter.ToListAsync(
             (await _repository.GetQueryableAsync())
-                .Where(x => x.CompanyId == companyId && x.ProductId == productId && x.SalesChannelId == salesChannelId));
-        return entity is null ? null : ObjectMapper.Map<SalesChannelTrN11Product, SalesChannelTrN11ProductDto>(entity);
+                .Where(x => x.CompanyId == companyId && x.ProductId == productId && liveChannelIds.Contains(x.SalesChannelId))
+                .OrderBy(x => x.CategoryName));
+        return items.Select(x => ObjectMapper.Map<SalesChannelTrN11Product, SalesChannelTrN11ProductDto>(x)).ToList();
     }
 
     public virtual async Task<SalesChannelTrN11ProductDto> GetAsync(Guid id)
@@ -84,9 +93,10 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
     [Authorize(TradeXpressPermissions.SalesChannels.Create)]
     public virtual async Task<SalesChannelTrN11ProductDto> CreateAsync(SalesChannelTrN11ProductCreateDto input)
     {
+        // Aynı kanalda AYNI ürün için birden fazla kayıt OLABİLİR (2026-07-07 kullanıcı kararı) — benzersizlik
+        // kontrolü yok. Kanal set-once: create'te belirlenir, sonra değiştirilemez (Update input'unda alan yok).
         var channel = await GetOwnedChannelAsync(input.SalesChannelId);
         await EnsureProductOwnedAsync(input.ProductId);
-        await EnsureNotListedAsync(channel.Id, input.ProductId);
 
         var entity = new SalesChannelTrN11Product(
             channel.CompanyId,
@@ -325,16 +335,6 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
     private async Task EnsureProductOwnedAsync(Guid productId)
     {
         await GetOwnedProductAsync(productId);
-    }
-
-    private async Task EnsureNotListedAsync(Guid salesChannelId, Guid productId)
-    {
-        var exists = await AsyncExecuter.AnyAsync(
-            (await _repository.GetQueryableAsync()).Where(x => x.SalesChannelId == salesChannelId && x.ProductId == productId));
-        if (exists)
-        {
-            throw new BusinessException("TradeXpress:N11:Product:AlreadyOnChannel");
-        }
     }
 
     private Guid EnsureCurrentCompanyId()

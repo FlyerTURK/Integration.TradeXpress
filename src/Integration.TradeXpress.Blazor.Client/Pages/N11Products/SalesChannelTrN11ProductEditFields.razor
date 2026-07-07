@@ -14,25 +14,10 @@
     </DxFormLayoutGroup>
 
     <DxFormLayoutGroup Caption="@L["N11Product:General"]" ColSpanMd="12">
-        @* Kanal — create'te seçilir (yalnız N11), edit'te sabit (read-only metin). *@
-        @if (IsNew)
-        {
-            <DxFormLayoutItem Caption="@($"{L["SalesChannel"]} *")" ColSpanMd="6">
-                <LookupComboBox TItem="SalesChannelListDto" TValue="Guid"
-                                Data="@Channels"
-                                ValueFieldName="@nameof(SalesChannelListDto.Id)"
-                                TextFieldName="@nameof(SalesChannelListDto.Code)"
-                                Value="@Model.SalesChannelId"
-                                ValueChanged="@((Guid v) => OnChannelChangedAsync(v))"
-                                AllowClear="false" />
-            </DxFormLayoutItem>
-        }
-        else
-        {
-            <DxFormLayoutItem Caption="@L["SalesChannel"]" ColSpanMd="6">
-                <span>@ChannelName</span>
-            </DxFormLayoutItem>
-        }
+        @* Kanal — HER ZAMAN salt-okunur: create'te otomatik atanır (şirkette tek N11 kanalı), SET-ONCE (değiştirilemez). *@
+        <DxFormLayoutItem Caption="@L["SalesChannel"]" ColSpanMd="6">
+            <span>@ChannelName</span>
+        </DxFormLayoutItem>
         <DxFormLayoutItem Caption="@L["N11ShipmentTemplate"]" ColSpanMd="6">
             <LookupComboBox TItem="N11ShipmentTemplateDto" TValue="string"
                             Data="@_templates"
@@ -64,43 +49,46 @@
         </DxFormLayoutItem>
     </DxFormLayoutGroup>
 
-    @* Kategori attribute'ları — grid (on-demand; yaprak seçildiyse). Değer kolonunun editörü HEP AKTİF (edit/Save YOK):
-       değişiklik anında Model.Attributes'a yazılır. Editör SATIRA göre değişir (değer listesi → combo, serbest → metin).
-       Nitelik adı salt-okunur (zorunlular *); ekleme/silme YOK (kategori tanımlar). *@
+    @* Kategori attribute'ları — CELL-EDIT grid (on-demand; yaprak seçildiyse). Hücre normal metin görünür;
+       TIKLAYINCA editör açılır (satıra göre: değer listesi → combo, serbest → metin); hücreden çıkınca değişiklik
+       ANINDA uygulanır (Edit/Save butonu YOK). Nitelik adı salt-okunur (zorunlular *); ekleme/silme YOK. *@
     @if (_attributeRows.Count > 0)
     {
         <DxFormLayoutGroup Caption="@L["N11Product:Attributes"]" ColSpanMd="12" CaptionPosition="CaptionPosition.Vertical">
             <DxFormLayoutItem ColSpanMd="12">
                 <DxGrid Data="@_attributeRows" KeyFieldName="AttributeId"
+                        EditMode="GridEditMode.EditCell"
+                        EditModelSaving="OnAttributeRowSaving"
                         PageSize="200" PagerVisible="false"
                         CssClass="w-100">
                     <Columns>
-                        <DxGridDataColumn FieldName="Name" Caption="@L["ProductAttribute"]" Width="45%">
+                        <DxGridDataColumn FieldName="Name" Caption="@L["ProductAttribute"]" Width="45%" ReadOnly="true">
                             <CellDisplayTemplate Context="cell">
                                 @{ var r = (N11AttributeRow)cell.DataItem; }
                                 <span>@(r.IsMandatory ? $"{r.Name} *" : r.Name)</span>
                             </CellDisplayTemplate>
                         </DxGridDataColumn>
                         <DxGridDataColumn FieldName="Value" Caption="@L["Value"]">
-                            <CellDisplayTemplate Context="cell">
-                                @{ var row = (N11AttributeRow)cell.DataItem; }
+                            <CellEditTemplate Context="cell">
+                                @{ var row = (N11AttributeRow)cell.EditModel; }
                                 @if (row.HasValueList)
                                 {
-                                    <LookupComboBox TItem="N11CategoryAttributeValueDto" TValue="string"
-                                                    Data="@row.Values"
-                                                    ValueFieldName="@nameof(N11CategoryAttributeValueDto.Value)"
-                                                    TextFieldName="@nameof(N11CategoryAttributeValueDto.Value)"
-                                                    Value="@row.Value"
-                                                    ValueChanged="@((string v) => OnAttributeValueChanged(row, v))"
-                                                    AllowClear="true" />
+                                    <DxComboBox TData="N11CategoryAttributeValueDto" TValue="string"
+                                                Data="@row.Values"
+                                                ValueFieldName="@nameof(N11CategoryAttributeValueDto.Value)"
+                                                TextFieldName="@nameof(N11CategoryAttributeValueDto.Value)"
+                                                Value="@row.Value"
+                                                ValueChanged="@((string v) => row.Value = v)"
+                                                ValueExpression="@(() => row.Value)"
+                                                ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
                                 }
                                 else
                                 {
                                     <DxTextBox Text="@row.Value"
-                                               TextChanged="@((string v) => OnAttributeValueChanged(row, v))"
-                                               ValidationEnabled="false" />
+                                               TextChanged="@((string v) => row.Value = v)"
+                                               TextExpression="@(() => row.Value)" />
                                 }
-                            </CellDisplayTemplate>
+                            </CellEditTemplate>
                         </DxGridDataColumn>
                     </Columns>
                 </DxGrid>

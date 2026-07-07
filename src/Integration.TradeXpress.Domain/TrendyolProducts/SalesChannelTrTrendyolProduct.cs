@@ -34,7 +34,7 @@ public class SalesChannelTrTrendyolProductAttribute
 /// Trendyol ürün listelemesi — bir ERP <see cref="Integration.TradeXpress.Products.Product"/>'ın belirli bir Trendyol
 /// satış kanalında (SalesChannelTrTrendyol) listelenmesi. <b>Company-owned + per-tenant</b>. Trendyol'a ASENKRON
 /// gönderilir (submit → <see cref="BatchRequestId"/>; durum ayrıca batch-request sorgusuyla çekilir). Kanalın KENDİ
-/// kimliğiyle push edilir; varyantlar Trendyol item'larına (barcode/stockCode) eşlenir. Kimlik (SalesChannelId, ProductId) benzersiz.
+/// kimliğiyle push edilir; varyantlar Trendyol item'larına (barcode/stockCode) eşlenir. Aynı kanalda aynı ürün için ÇOK kayıt olabilir (2026-07-07); kanal SET-ONCE.
 /// </summary>
 public class SalesChannelTrTrendyolProduct : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwned
 {

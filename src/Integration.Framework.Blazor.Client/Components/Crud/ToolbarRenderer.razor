@@ -41,11 +41,12 @@
     }
 
     // Alt menü item'ları (Export → Excel/PDF, Kaydet&Yeni → Kaydet&Kapat) — RenderFragment attribute, null=yok.
+    // Visible=false alt öğe çizilmez (kök item'larla aynı sözleşme; çağıran koşullu tip menüsü kurabilsin).
     private RenderFragment? SubItems(CrudToolbarAction a)
     {
         if (a.Items == null || a.Items.Count == 0) return null;
         return @<text>
-            @foreach (var sub in a.Items)
+            @foreach (var sub in a.Items.Where(s => s.Visible))
             {
                 <DxToolbarItem Text="@sub.Text" Tooltip="@sub.Tooltip"
                                IconUrl="@sub.IconUrl" IconCssClass="@sub.IconCssClass"

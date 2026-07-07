@@ -44,7 +44,7 @@ public class SalesChannelTrN11ProductSpecialInfo
 /// satış kanalında (SalesChannelTrN11) listelenmesi. <b>Company-owned + per-tenant</b>. N11'e SaveProduct ile
 /// gönderilir (kanalın KENDİ kimliğiyle): ürün + varyantları (stockItems) + kategori (leaf) + attribute'lar +
 /// kargo şablonu + condition + Seyahat özel bilgisi. <see cref="ProductSellerCode"/> = Ürün.Code (N11 upsert kimliği);
-/// <see cref="N11ProductId"/> ilk push'ta N11 tarafından atanır. Kimlik (SalesChannelId, ProductId) benzersiz.
+/// <see cref="N11ProductId"/> ilk push'ta N11 tarafından atanır. Aynı kanalda aynı ürün için ÇOK kayıt olabilir (2026-07-07); kanal SET-ONCE.
 /// </summary>
 public class SalesChannelTrN11Product : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwned
 {

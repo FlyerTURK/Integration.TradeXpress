@@ -366,6 +366,14 @@ public partial class DrillList<TItem> where TItem : class
 
     private void StartNew()
     {
+        StartNewItem(NewItemFactory());
+    }
+
+    /// <summary>HAZIR bir öğe ile yeni-kayıt popup'ını açar — split "Yeni" alt aksiyonları için (çağıran öğeyi
+    /// kurar; NewItemFactory devre dışı). MaxItems sınırı yine uygulanır. Custom action'dan çağrıldığında
+    /// render'ı kendisi tetikler (Click EventCallback'i DrillList dışında üretilmiş olabilir).</summary>
+    public void StartNewItem(TItem item)
+    {
         // Üst sınır emniyeti — buton pasifken de (Kaydet&Yeni yolu) taşma olmasın.
         if (MaxItemsReached)
         {
@@ -373,12 +381,13 @@ public partial class DrillList<TItem> where TItem : class
             return;
         }
 
-        _editItem = NewItemFactory();
+        _editItem = item;
         _editOriginal = null;
         _isNew = true;
         SetEditContext(_editItem);
         _popupVisible = true;
         _pendingEditRender = true;
+        StateHasChanged();
     }
 
     public void EditItem(TItem item)

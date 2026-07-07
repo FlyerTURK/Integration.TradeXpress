@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
+using Integration.Framework.Blazor.Client;
 using Integration.Framework.Blazor.Client.Components.Crud;
 using Integration.Framework.Blazor.Client.Services.Base;
 using Integration.TradeXpress.N11Products;
@@ -12,10 +13,11 @@ using Volo.Abp.ObjectMapping;
 
 namespace Integration.TradeXpress.Blazor.Client.Pages.N11Products;
 
-/// <summary>Ürüne bağlı N11 listelemeleri (kanal başına bir) — PERSISTENT drill. N11 kanallarını + mevcut
-/// listelemeleri yükler; CRUD anında AppService'e yazılır. Satır başına "N11'e Gönder" (SaveProduct push,
-/// durumu tazeler). Ürün KAYDEDİLDİKTEN sonra (Id'li) açılır — yeni üründe gizli.</summary>
-public partial class SalesChannelTrN11ProductPanel : CrudComponentBase
+/// <summary>Ürünün SATIŞ KANALI ÜRÜNLERİ — PERSISTENT drill (ürün edit formunun içinde). "Yeni" SPLIT buton:
+/// kanal-ürün tipi alt menüden seçilir (şimdilik N11; Trendyol UI'sı gelince buraya eklenir). N11 seçilince kanal
+/// OTOMATİK çözülür (şirkette TEK N11 kanalı kuralı) — kanal seçici yok, kanal SET-ONCE. Aynı kanalda aynı ürün
+/// için birden fazla kayıt olabilir (2026-07-07). Satır başına "N11'e Gönder" (SaveProduct push).</summary>
+public partial class SalesChannelProductsPanel : CrudComponentBase
 {
     [Parameter, EditorRequired] public Guid ProductId { get; set; }
 
@@ -31,40 +33,76 @@ public partial class SalesChannelTrN11ProductPanel : CrudComponentBase
 
     protected override async Task OnInitializedAsync()
     {
-        // Yalnız N11 kanalları (create'te kanal seçici + mevcut listeleme taraması bunlardan).
+        // N11 kanalları (kanal adı çözümü + yeni kayıtta otomatik kanal ataması; şirkette TEK N11 kanalı kuralı).
         var paged = await SalesChannelAppService.GetListAsync(new SalesChannelListRequestDto { MaxResultCount = 1000 });
         _channels = paged.Items.Where(c => c.ChannelType == SalesChannelType.TrN11).ToList();
 
         await ReloadChannelProductsAsync();
     }
 
-    // Ürünün her N11 kanalındaki listelemesini toplar (yoksa atlar).
+    // Ürünün TÜM kanal ürünleri — tek sorgu (aynı kanalda çok kayıt olabilir).
     private async Task ReloadChannelProductsAsync()
     {
-        var result = new List<SalesChannelTrN11ProductDto>();
-        foreach (var channel in _channels)
-        {
-            var channelProduct = await AppService.GetForProductAsync(ProductId, channel.Id);
-            if (channelProduct != null)
-            {
-                result.Add(channelProduct);
-            }
-        }
-
-        _channelProducts = result;
+        _channelProducts = await AppService.GetListForProductAsync(ProductId);
     }
 
-    // Yeni listeleme: ürün sabit; kanal + kategori edit formunda seçilir. Varsayılanlar N11 mandallarıyla.
-    private SalesChannelTrN11ProductDto NewChannelProduct()
+    // ── "Yeni" SPLIT buton: ana tık = N11 (tek tip); ▾ alt menüden tip seçilir. Built-in Yeni kapalı (AllowAdd=false). ──
+    private IReadOnlyList<CrudToolbarAction> PanelActions => new[]
+    {
+        new CrudToolbarAction
+        {
+            SortIndex = 0,
+            Text = L["New"],
+            Tooltip = L["New"],
+            IconCssClass = FrameworkIcons.Add,
+            SplitDropDownButton = true,
+            OnClick = StartNewN11Async,
+            Items = new[]
+            {
+                new CrudToolbarAction
+                {
+                    Text = L["SalesChannelTrN11Product"],
+                    IconCssClass = TradeXpressIcons.SalesChannel,
+                    OnClick = StartNewN11Async,
+                },
+            },
+        },
+    };
+
+    /// <summary>Yeni N11 kanal ürünü: şirketin TEK N11 kanalını otomatik bul (yoksa dostane uyarı) →
+    /// kanal atanmış taslakla popup'ı aç. Kanal kullanıcıya SORULMAZ + sonradan değiştirilemez (set-once).</summary>
+    private Task StartNewN11Async()
+    {
+        var channel = _channels.FirstOrDefault();
+        if (channel is null)
+        {
+            UiService.ShowWarningToast(L["N11Product:ChannelMissing"].Value);
+            return Task.CompletedTask;
+        }
+
+        _drill?.StartNewItem(BuildNewN11Draft(channel.Id));
+        return Task.CompletedTask;
+    }
+
+    /// <summary>N11 kanal ürünü taslağı — TEK üretim yeri (split akışı + NewItemFactory aynı default'ları alır).</summary>
+    private SalesChannelTrN11ProductDto BuildNewN11Draft(Guid salesChannelId)
     {
         return new SalesChannelTrN11ProductDto
         {
             ProductId = ProductId,
+            SalesChannelId = salesChannelId,
             Condition = N11ProductCondition.New,
             Domestic = true,
             PreparingDay = 1,
             IsActive = true,
         };
+    }
+
+    // DrillList NewItemFactory zorunlu parametre — AllowAdd=false + split akışında KULLANILMAZ (StartNewItem ile
+    // açılır); yine de erişilir olursa geçerli taslak üretsin (kanal yoksa Guid.Empty → sunucu ChannelNotFound verir).
+    private SalesChannelTrN11ProductDto NewChannelProduct()
+    {
+        return BuildNewN11Draft(_channels.FirstOrDefault()?.Id ?? Guid.Empty);
     }
 
     // Cancel geri alabilsin diye JSON deep-copy (attribute + özel bilgi listeleri dahil).

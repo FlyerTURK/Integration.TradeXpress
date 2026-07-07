@@ -83,8 +83,9 @@ public class SalesChannelTrTrendyolProductUpdateDto : ISalesChannelTrTrendyolPro
 /// </summary>
 public interface ISalesChannelTrTrendyolProductAppService : IApplicationService
 {
-    /// <summary>Bir ürünün bir kanaldaki listelemesi (yoksa null).</summary>
-    Task<SalesChannelTrTrendyolProductDto?> GetForProductAsync(Guid productId, Guid salesChannelId);
+    /// <summary>Bir ÜRÜNE ait tüm Trendyol kanal ürünleri (ürün-merkezli drill). Aynı kanalda birden fazla kayıt
+    /// OLABİLİR (N11 ile aynı 2026-07-07 kararı); kanal set-once (değiştirilemez).</summary>
+    Task<List<SalesChannelTrTrendyolProductDto>> GetListForProductAsync(Guid productId);
 
     Task<SalesChannelTrTrendyolProductDto> GetAsync(Guid id);
 

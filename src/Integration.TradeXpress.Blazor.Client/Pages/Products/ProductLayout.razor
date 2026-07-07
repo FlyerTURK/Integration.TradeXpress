@@ -159,11 +159,11 @@
             </EditContent>
         </DrillList>
     </DxTabPage>
-    @* N11 listelemeleri — ürün KAYDEDİLDİKTEN sonra (Id'li). Yeni üründe henüz push edilecek varyant/görsel yok. *@
-    <DxTabPage Text="@L["N11Products"]" TabIconCssClass="@TradeXpressIcons.SalesChannel">
+    @* Satış kanalı ürünleri (N11; ileride Trendyol) — ürün KAYDEDİLDİKTEN sonra (Id'li). Yeni üründe henüz varyant/görsel yok. *@
+    <DxTabPage Text="@L["SalesChannelProducts"]" TabIconCssClass="@TradeXpressIcons.SalesChannel">
         @if (!IsNew && Model.Id != Guid.Empty)
         {
-            <SalesChannelTrN11ProductPanel ProductId="@Model.Id" />
+            <SalesChannelProductsPanel ProductId="@Model.Id" />
         }
         else
         {

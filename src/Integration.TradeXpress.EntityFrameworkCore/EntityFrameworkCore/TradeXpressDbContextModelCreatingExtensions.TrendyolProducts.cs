@@ -6,7 +6,7 @@ using Integration.TradeXpress.TrendyolProducts;
 namespace Integration.TradeXpress.EntityFrameworkCore;
 
 /// <summary>Trendyol ürün listeleme mapping'i — ürün×kanal listelemesi (company-owned). Kategori attribute (id-bazlı)
-/// owned-collection → JSON kolonu; kimlik (SalesChannelId, ProductId) soft-delete filtreli benzersiz.</summary>
+/// owned-collection → JSON kolonu. Aynı kanalda aynı ürün için ÇOK kayıt olabilir (N11 ile aynı 2026-07-07 kararı).</summary>
 public static partial class TradeXpressDbContextModelCreatingExtensions
 {
     public static void ConfigureTrendyolProducts(this ModelBuilder builder)
@@ -33,8 +33,8 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
                 a.Property(p => p.CustomValue).HasMaxLength(TrendyolProductConsts.CustomAttributeValueMaxLength);
             });
 
-            // Kimlik: bir ürün bir kanalda TEK listeleme; soft-delete filtreli (silinen yeniden listelenebilsin).
-            b.HasIndex(x => new { x.SalesChannelId, x.ProductId }).IsUnique().HasFilter("[IsDeleted] = 0");
+            // Aynı kanalda AYNI ürün için birden fazla kayıt OLABİLİR (N11 ile aynı 2026-07-07 kararı) → normal index.
+            b.HasIndex(x => new { x.SalesChannelId, x.ProductId });
             b.HasIndex(x => new { x.TenantId, x.CompanyId });
         });
     }
