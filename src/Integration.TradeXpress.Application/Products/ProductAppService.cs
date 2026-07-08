@@ -6,6 +6,7 @@ using Integration.Framework;
 using Integration.Framework.Base.Querying;
 using Integration.TradeXpress.MultiCompany;
 using Integration.TradeXpress.N11Products;
+using Integration.TradeXpress.TrendyolProducts;
 using Integration.TradeXpress.Permissions;
 using Integration.TradeXpress.Vouchers;
 using Microsoft.AspNetCore.Authorization;
@@ -40,6 +41,7 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
     private readonly ICurrentCompany _currentCompany;
     private readonly IBlobContainer<ProductImagesContainer> _imageContainer;
     private readonly ISalesChannelTrN11ProductAppService _channelProductAppService;
+    private readonly ISalesChannelTrTrendyolProductAppService _trendyolChannelProductAppService;
 
     private static readonly HashSet<string> AllowedListFields =
         new(StringComparer.OrdinalIgnoreCase) { "Code", "Name", "IsActive", "Id" };
@@ -56,7 +58,8 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         RecipeCostPopulator recipeCostPopulator,
         ICurrentCompany currentCompany,
         IBlobContainer<ProductImagesContainer> imageContainer,
-        ISalesChannelTrN11ProductAppService channelProductAppService)
+        ISalesChannelTrN11ProductAppService channelProductAppService,
+        ISalesChannelTrTrendyolProductAppService trendyolChannelProductAppService)
     {
         _repository = repository;
         _variantRepository = variantRepository;
@@ -70,6 +73,7 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         _currentCompany = currentCompany;
         _imageContainer = imageContainer;
         _channelProductAppService = channelProductAppService;
+        _trendyolChannelProductAppService = trendyolChannelProductAppService;
     }
 
     public virtual async Task<PagedResultDto<ProductListDto>> GetListAsync(ProductListRequestDto input)
@@ -128,6 +132,7 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         await _variantSynchronizer.SynchronizeAsync(entity);
         await ApplyVariantCustomizationsAsync(entity, input.Variants, valueIdByClientKey);
         await SaveChannelProductsGraphAsync(entity.Id, input.SalesChannelProducts);
+        await SaveTrendyolChannelProductsGraphAsync(entity.Id, input.SalesChannelTrendyolProducts);
         return await ToGetDtoAsync(entity);
     }
 
@@ -155,6 +160,7 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         await _variantSynchronizer.SynchronizeAsync(entity);
         await ApplyVariantCustomizationsAsync(entity, input.Variants, valueIdByClientKey);
         await SaveChannelProductsGraphAsync(entity.Id, input.SalesChannelProducts);
+        await SaveTrendyolChannelProductsGraphAsync(entity.Id, input.SalesChannelTrendyolProducts);
         return await ToGetDtoAsync(entity);
     }
 
@@ -191,6 +197,43 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
             {
                 var updateInput = ObjectMapper.Map<SalesChannelTrN11ProductDto, SalesChannelTrN11ProductUpdateDto>(cp);
                 await _channelProductAppService.UpdateAsync(cp.Id, updateInput);
+            }
+        }
+    }
+
+    /// <summary>Trendyol satış kanalı ürünleri grafını KANAL AppService'iyle işler (N11 <see cref="SaveChannelProductsGraphAsync"/>
+    /// birebir karşılığı — çift-kanal ikinci orkestrasyon; N11'e DOKUNULMAZ, additive). Yeni (Id boş) → Create (ürün Id'siyle);
+    /// mevcut → Update; IsDeleted → Delete. ProductMainId/Sıra + push mantığı Trendyol AppService'te kalır (katman ayrımı).</summary>
+    private async Task SaveTrendyolChannelProductsGraphAsync(Guid productId, List<SalesChannelTrTrendyolProductDto>? graph)
+    {
+        if (graph is null)
+        {
+            return;
+        }
+
+        foreach (var cp in graph)
+        {
+            if (cp.IsDeleted)
+            {
+                if (cp.Id != Guid.Empty)
+                {
+                    await _trendyolChannelProductAppService.DeleteAsync(cp.Id);
+                }
+
+                continue;
+            }
+
+            if (cp.Id == Guid.Empty)
+            {
+                var createInput = ObjectMapper.Map<SalesChannelTrTrendyolProductDto, SalesChannelTrTrendyolProductCreateDto>(cp);
+                createInput.ProductId = productId;
+                createInput.SalesChannelId = cp.SalesChannelId;
+                await _trendyolChannelProductAppService.CreateAsync(createInput);
+            }
+            else
+            {
+                var updateInput = ObjectMapper.Map<SalesChannelTrTrendyolProductDto, SalesChannelTrTrendyolProductUpdateDto>(cp);
+                await _trendyolChannelProductAppService.UpdateAsync(cp.Id, updateInput);
             }
         }
     }
@@ -895,6 +938,9 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         // boş dönmez ama kayıt yoktur). ClientKey kaydedilmiş satırlarda round-trip için yeniden üretilir.
         var channelProducts = await _channelProductAppService.GetListForProductAsync(p.Id);
 
+        // Trendyol kanal ürünleri grafı — N11'den AYRI ikinci liste (çift-kanal; kanal AppService'inden canlı yüklenir).
+        var trendyolChannelProducts = await _trendyolChannelProductAppService.GetListForProductAsync(p.Id);
+
         return new ProductGetDto
         {
             Id = p.Id,
@@ -922,6 +968,7 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
                 .Select(s => new ProductSpecialInfoDto { Key = s.Key, Value = s.Value })
                 .ToList(),
             SalesChannelProducts = channelProducts,
+            SalesChannelTrendyolProducts = trendyolChannelProducts,
             Attributes = attributes.Select(a => new ProductAttributeGraphDto
             {
                 Id = a.Id,

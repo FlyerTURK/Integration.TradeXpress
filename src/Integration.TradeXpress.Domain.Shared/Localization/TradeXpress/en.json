@@ -1015,9 +1015,22 @@
     "TrendyolProduct:FailedItemCount": "Failed Item Count",
     "TrendyolProduct:LastSyncedAt": "Last Synced",
     "TrendyolProduct:LastError": "Last Error",
+    "SalesChannelTrTrendyolProduct": "Trendyol Product",
+    "TrendyolProduct:ChannelProducts": "Trendyol Products",
+    "TrendyolProduct:ProductMainId": "Product Group Code",
+    "TrendyolProduct:Push": "Send to Trendyol",
+    "TrendyolProduct:RefreshStatus": "Refresh Status",
+    "TrendyolProduct:PushSuccess": "The product was sent to Trendyol.",
+    "TrendyolProduct:RefreshSuccess": "The Trendyol status was refreshed.",
+    "TrendyolProduct:ChannelMissing": "There is no Trendyol sales channel defined for this company. Create the sales channel first.",
+    "TrendyolProduct:SaveToPush": "Save the product first to push",
+    "TrendyolProduct:SaveProductFirst": "Save the product first.",
+    "TrendyolProduct:NotSaved": "Not saved",
+    "TrendyolProduct:NotSent": "Not sent",
     "Enum:TrendyolFastDeliveryType:SameDayShipping": "Same-Day Shipping",
     "Enum:TrendyolFastDeliveryType:FastDelivery": "Fast Delivery",
     "TradeXpress:SalesChannel:Trendyol:InvalidCredentials": "The Trendyol Seller ID / API Key / API Secret could not be verified. Please check the credentials.",
-    "TradeXpress:SalesChannel:Trendyol:VerificationUnavailable": "The Trendyol verification service is temporarily unavailable. Please try again later."
+    "TradeXpress:SalesChannel:Trendyol:VerificationUnavailable": "The Trendyol verification service is temporarily unavailable. Please try again later.",
+    "TrendyolProduct:PushReadonly": "Read-only phase (enabled in T8)"
   }
 }

@@ -71,10 +71,19 @@ public class SalesChannelTrTrendyolProductVariantGraphDto
     public decimal? DerivedPrice { get; set; }
 }
 
-/// <summary>Trendyol ürün listelemesi — tam okuma modeli (edit + durum görüntüsü).</summary>
+/// <summary>Trendyol ürün listelemesi — tam okuma modeli (edit + durum görüntüsü). Ürün grafının parçası olarak da
+/// kullanılır (ürün 'Kaydet'inde birlikte kaydedilir): <see cref="ClientKey"/> in-memory kimlik, <see cref="IsDeleted"/>
+/// soft-delete işareti (graf diff). Kaydedilmiş kayıtta <see cref="Id"/> dolu; yeni satırda boş (N11 DTO paritesi).</summary>
 public class SalesChannelTrTrendyolProductDto
 {
     public Guid Id { get; set; }
+
+    /// <summary>İstemci-taraflı graf kimliği (yeni satırda Id yok; graf diff için).</summary>
+    public Guid ClientKey { get; set; } = Guid.NewGuid();
+
+    /// <summary>Graf soft-delete işareti — ürün save'inde silinecek satır.</summary>
+    public bool IsDeleted { get; set; }
+
     public Guid ProductId { get; set; }
     public Guid SalesChannelId { get; set; }
 

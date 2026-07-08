@@ -4,6 +4,7 @@ using System.ComponentModel.DataAnnotations;
 using Integration.Framework.Base.Dtos;
 using Integration.Framework.Base.Dtos.Interfaces;
 using Integration.TradeXpress.N11Products;
+using Integration.TradeXpress.TrendyolProducts;
 using Integration.TradeXpress.Vouchers;
 using Volo.Abp.Application.Dtos;
 
@@ -86,6 +87,10 @@ public class ProductGetDto : EntityDto<Guid>, IGetDto<Guid>, IHasCode
     /// birlikte kaydedilir (yeni üründe de eklenebilir). Panel in-memory yönetir; sunucu SellerCode/Sıra üretir.</summary>
     public List<SalesChannelTrN11ProductDto> SalesChannelProducts { get; set; } = new();
 
+    /// <summary>Trendyol satış kanalı ürünleri (graf düğümleri; ClientKey/Id + IsDeleted diff) — N11'den AYRI ikinci
+    /// liste (eleştiri F1: iki ayrı liste). Ürün 'Kaydet'inde birlikte kaydedilir; sunucu ProductMainId/Sıra üretir.</summary>
+    public List<SalesChannelTrTrendyolProductDto> SalesChannelTrendyolProducts { get; set; } = new();
+
     /// <summary>Varyantlar (graf düğümleri; Id + IsDeleted ile diff). Product edit formundaki drill yönetir.</summary>
     public List<ProductVariantGraphDto> Variants { get; set; } = new();
 
@@ -138,6 +143,9 @@ public class ProductCreateDto : ICreateDto
 
     /// <summary>N11 satış kanalı ürünleri grafı — bkz. <see cref="ProductGetDto.SalesChannelProducts"/>.</summary>
     public List<SalesChannelTrN11ProductDto> SalesChannelProducts { get; set; } = new();
+
+    /// <summary>Trendyol satış kanalı ürünleri grafı — bkz. <see cref="ProductGetDto.SalesChannelTrendyolProducts"/>.</summary>
+    public List<SalesChannelTrTrendyolProductDto> SalesChannelTrendyolProducts { get; set; } = new();
 
     public List<ProductVariantGraphDto> Variants { get; set; } = new();
 
@@ -192,6 +200,9 @@ public class ProductUpdateDto : IUpdateDto
 
     /// <summary>N11 satış kanalı ürünleri grafı — bkz. <see cref="ProductGetDto.SalesChannelProducts"/>.</summary>
     public List<SalesChannelTrN11ProductDto> SalesChannelProducts { get; set; } = new();
+
+    /// <summary>Trendyol satış kanalı ürünleri grafı — bkz. <see cref="ProductGetDto.SalesChannelTrendyolProducts"/>.</summary>
+    public List<SalesChannelTrTrendyolProductDto> SalesChannelTrendyolProducts { get; set; } = new();
 
     public List<ProductVariantGraphDto> Variants { get; set; } = new();
 

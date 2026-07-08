@@ -1046,9 +1046,22 @@
     "TrendyolProduct:FailedItemCount": "Hatalı Öğe Sayısı",
     "TrendyolProduct:LastSyncedAt": "Son Eşitleme",
     "TrendyolProduct:LastError": "Son Hata",
+    "SalesChannelTrTrendyolProduct": "Trendyol Ürünü",
+    "TrendyolProduct:ChannelProducts": "Trendyol Ürünleri",
+    "TrendyolProduct:ProductMainId": "Ürün Grup Kodu",
+    "TrendyolProduct:Push": "Trendyol'a Gönder",
+    "TrendyolProduct:RefreshStatus": "Durumu Yenile",
+    "TrendyolProduct:PushSuccess": "Ürün Trendyol'a gönderildi.",
+    "TrendyolProduct:RefreshSuccess": "Trendyol durumu yenilendi.",
+    "TrendyolProduct:ChannelMissing": "Bu şirket için tanımlı Trendyol satış kanalı yok. Önce satış kanalını oluşturun.",
+    "TrendyolProduct:SaveToPush": "Göndermek için önce ürünü kaydedin",
+    "TrendyolProduct:SaveProductFirst": "Önce ürünü kaydedin.",
+    "TrendyolProduct:NotSaved": "Kaydedilmedi",
+    "TrendyolProduct:NotSent": "Gönderilmedi",
     "Enum:TrendyolFastDeliveryType:SameDayShipping": "Aynı Gün Kargo",
     "Enum:TrendyolFastDeliveryType:FastDelivery": "Hızlı Teslimat",
     "TradeXpress:SalesChannel:Trendyol:InvalidCredentials": "Trendyol Satıcı ID / API Key / API Secret doğrulanamadı. Bilgileri kontrol edin.",
-    "TradeXpress:SalesChannel:Trendyol:VerificationUnavailable": "Trendyol doğrulama servisine şu anda erişilemiyor. Lütfen daha sonra tekrar deneyin."
+    "TradeXpress:SalesChannel:Trendyol:VerificationUnavailable": "Trendyol doğrulama servisine şu anda erişilemiyor. Lütfen daha sonra tekrar deneyin.",
+    "TrendyolProduct:PushReadonly": "Salt-okuma aşaması (T8'de aktifleşecek)"
   }
 }
