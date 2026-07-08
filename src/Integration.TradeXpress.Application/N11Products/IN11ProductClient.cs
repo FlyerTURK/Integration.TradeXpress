@@ -71,4 +71,4 @@ public sealed record N11ProductDetail(
     int? MaxPurchaseQuantity,
     string? SaleStatus,
     string? ApprovalStatus,
-    IReadOnlyList<N11ProductAttributePair>? Attributes);   // null = yanıtta attribute bloğu yok
+    IReadOnlyList<N11ProductAttributePair>? Attributes);   // null = blok yok; BOŞ liste de "bilgi yok" sayılır (uygulayıcı silmez)

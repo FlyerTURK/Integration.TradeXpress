@@ -8,6 +8,7 @@ using Integration.TradeXpress.Permissions;
 using Integration.TradeXpress.Products;
 using Integration.TradeXpress.SalesChannels;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.Extensions.Logging;
 using Volo.Abp;
 using Volo.Abp.Domain.Repositories;
 
@@ -182,9 +183,15 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
                     saleStatus = detail.SaleStatus ?? saleStatus;
                     approvalStatus = detail.ApprovalStatus ?? approvalStatus;
                 }
-                catch
+                catch (Exception pullException)
                 {
                     // Push BAŞARILI; doğrulama okuması düştü → geri alınamaz, yalnız uyar (eşitleme bir sonraki push'ta).
+                    // Kök neden server logunda kalsın — sessiz yutma yasak (CLAUDE.md §2, review bulgusu 2026-07-07).
+                    Logger.LogWarning(
+                        pullException,
+                        "N11 push sonrası doğrulama okuması başarısız (N11ProductId {N11ProductId}, kayıt {Id}).",
+                        n11Id,
+                        entity.Id);
                     syncWarnings.Add(L["N11Product:PullFailed"]);
                 }
             }
@@ -210,23 +217,30 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
     /// (N11'in desteklemediği alan yerel değeri silmesin). Kategori değişimi KRİTİK → kullanıcı uyarısı.</summary>
     private void ApplyN11Truth(SalesChannelTrN11Product entity, N11ProductDetail detail, List<string> syncWarnings)
     {
-        if (detail.CategoryId is { Length: > 0 } categoryId)
+        // DIŞ girdi (N11 yanıtı) entity guard'larına TAKILMAMALI: setter ortasında fırlayan istisna entity'yi
+        // yarı-mutasyonlu bırakır ve MarkSynced o hâli persist eder → uzunluklar Set'ten ÖNCE kırpılır.
+        if (detail.CategoryId is { Length: > 0 and <= N11ProductConsts.ExternalIdMaxLength } categoryId)
         {
-            if (!string.Equals(categoryId, entity.CategoryExternalId, StringComparison.Ordinal))
-            {
-                // KRİTİK: N11 ürünü farklı kategoriye/gruba taşıdı — güvenli bilgilendirme (eski → yeni).
-                syncWarnings.Add(L[
-                    "N11Product:CategoryChangedByN11",
-                    entity.CategoryName ?? entity.CategoryExternalId,
-                    detail.CategoryName ?? categoryId]);
-            }
+            var previousName = entity.CategoryName ?? entity.CategoryExternalId;
+            var categoryChanged = !string.Equals(categoryId, entity.CategoryExternalId, StringComparison.Ordinal);
 
-            entity.SetCategory(categoryId, detail.CategoryName);
+            // Yanıtta ad yoksa: kategori AYNIYSA yerel ad korunur (olmayan alan silinmez); DEĞİŞTİYSE eski ad
+            // artık yanlış olduğundan null'lanır (uyarıda yeni kimlik olarak id gösterilir).
+            var incomingName = detail.CategoryName?.Truncate(N11ProductConsts.CategoryNameMaxLength)
+                ?? (categoryChanged ? null : entity.CategoryName);
+            entity.SetCategory(categoryId, incomingName);
+
+            if (categoryChanged)
+            {
+                // KRİTİK: N11 ürünü farklı kategoriye/gruba taşıdı — güvenli bilgilendirme (eski → yeni),
+                // eşitleme GERÇEKTEN uygulandıktan sonra (uyarı verilip uygulanamama çelişkisi olmasın).
+                syncWarnings.Add(L["N11Product:CategoryChangedByN11", previousName, incomingName ?? categoryId]);
+            }
         }
 
         if (detail.ShipmentTemplate is { Length: > 0 } shipmentTemplate)
         {
-            entity.SetShipmentTemplate(shipmentTemplate);
+            entity.SetShipmentTemplate(shipmentTemplate.Truncate(N11ProductConsts.ShipmentTemplateNameMaxLength)!);
         }
 
         if (detail.ProductCondition is 1 or 2)
@@ -239,14 +253,19 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
             entity.SetPreparingDay(detail.PreparingDay.Value);
         }
 
-        if (detail.MaxPurchaseQuantity is >= 1)
+        if (detail.MaxPurchaseQuantity is { } maxPurchase)
         {
-            entity.SetMaxPurchaseQuantity(detail.MaxPurchaseQuantity.Value);
+            // N11 limiti kaldırdıysa (0/-1 dönebilir) yerel bayat limit sonraki push'ta geri yazılmasın → temizle.
+            entity.SetMaxPurchaseQuantity(maxPurchase >= 1 ? maxPurchase : null);
         }
 
-        if (detail.Attributes is not null)
+        // BOŞ blok "bilgi yok" sayılır (null gibi): push hemen ardından N11 attribute'ları henüz işlememişken
+        // boş wrapper dönerse kullanıcının kategori attribute konfigürasyonu topluca silinmesin.
+        if (detail.Attributes is { Count: > 0 })
         {
-            entity.SetAttributes(detail.Attributes.Select(a => new SalesChannelTrN11ProductAttribute(a.Name, a.Value)));
+            entity.SetAttributes(detail.Attributes.Select(a => new SalesChannelTrN11ProductAttribute(
+                a.Name.Truncate(N11ProductConsts.AttributeNameMaxLength)!,
+                a.Value.Truncate(N11ProductConsts.AttributeValueMaxLength) ?? string.Empty)));
         }
     }
 
