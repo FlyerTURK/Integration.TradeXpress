@@ -372,6 +372,7 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         variant.SetActive(v.IsActive);
         variant.SetSalePrice(v.SalePrice, v.SalePriceCurrencyUnitId);
         variant.SetStock(v.StockQuantity);
+        variant.SetTradeIdentifiers(v.Barcode, v.Gtin, v.Mpn, v.Oem);
         await _variantRepository.UpdateAsync(variant, autoSave: true);
     }
 
@@ -806,6 +807,10 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
             SalePrice = v.SalePrice,
             SalePriceCurrencyUnitId = v.SalePriceCurrencyUnitId,
             StockQuantity = v.StockQuantity,
+            Barcode = v.Barcode,
+            Gtin = v.Gtin,
+            Mpn = v.Mpn,
+            Oem = v.Oem,
             AttributeSummary = BuildAttributeSummary(v.Id, attributes, values, links),
             RecipeLines = recipeLines
                 .Where(r => r.ProductVariantId == v.Id)

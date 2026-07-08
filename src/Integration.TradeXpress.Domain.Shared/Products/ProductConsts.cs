@@ -17,6 +17,9 @@ public static class ProductConsts
     public const int ImageFileNameMaxLength = 256;   // yüklenen dosyanın orijinal adı (görüntü)
     public const int MaxImageSizeBytes = 4 * 1024 * 1024;   // yükleme sınırı 4 MB (upload + önizleme yükü)
 
+    /// <summary>Varyant ticari kimlik kodları (barcode/GTIN/MPN/OEM) — marketplace SKU eşleşmesi + katalog.</summary>
+    public const int TradeIdentifierMaxLength = 64;
+
     // Base (0-attribute) ana varyantın SABİT kimliği — ürün kodundan TÜRETİLMEZ (2026-07-05 ürün kararı).
     // OrgTree HQ Branch / Default Vault deseniyle hizalı (const-tabanlı ad; BranchConsts.DefaultHeadquarters* paritesi).
     public const string MainVariantCode = "ANAVARYANT";

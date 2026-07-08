@@ -926,6 +926,10 @@
     "N11Product:LastSentOptionPrice": "Son Gönderilen Fiyat",
     "N11Product:NoChangesToSync": "Stok/fiyatta değişiklik yok; N11'e gönderim yapılmadı.",
     "N11Product:PreviewVariants": "N11'e Gidecek Varyantlar",
-    "N11Product:PreviewImages": "N11'e Gidecek Görseller"
+    "N11Product:PreviewImages": "N11'e Gidecek Görseller",
+    "Gtin": "GTIN",
+    "Mpn": "MPN",
+    "Oem": "OEM",
+    "Optional": "Opsiyonel"
   }
 }

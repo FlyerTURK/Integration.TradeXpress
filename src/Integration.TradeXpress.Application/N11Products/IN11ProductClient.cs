@@ -71,14 +71,16 @@ public sealed record N11ProductAttributePair(string Name, string Value);
 /// <summary>Seyahat özel bilgisi (key=TurProgrami/IptalIadeKosullari/EkHizmetler, value=HTML).</summary>
 public sealed record N11ProductSpecialInfo(string Key, string Value);
 
-/// <summary>N11 stok birimi (= ERP varyantı). Seçenekliyse attributes (name/value serbest).</summary>
+/// <summary>N11 stok birimi (= ERP varyantı). Seçenekliyse attributes (name/value serbest). Ticari kimlik
+/// kodları (gtin/mpn/oem) opsiyonel — katalog eşleşmesi + üretici kimliği.</summary>
 public sealed record N11ProductStockItem(
     string SellerStockCode,
     int Quantity,
     decimal? OptionPrice,
     IReadOnlyList<N11ProductAttributePair> Attributes,
     string? Gtin,
-    string? Mpn);
+    string? Mpn,
+    string? Oem);
 
 /// <summary>SaveProduct yanıtı — N11'in atadığı ürün id'si + durumlar + SKU kimlikleri (stockItems yanıt bloğundan).</summary>
 public sealed record N11SaveProductResult(

@@ -161,6 +161,22 @@ public class ProductVariantGraphDto
     /// <summary>Stok miktarı (marketplace quantity). Varsayılan 0; negatif geçersiz (sunucu zorlar).</summary>
     public int StockQuantity { get; set; }
 
+    /// <summary>Barkod (EAN/UPC) — Trendyol kimliği; opsiyonel.</summary>
+    [StringLength(ProductConsts.TradeIdentifierMaxLength)]
+    public string? Barcode { get; set; }
+
+    /// <summary>GTIN — N11 gtin; opsiyonel.</summary>
+    [StringLength(ProductConsts.TradeIdentifierMaxLength)]
+    public string? Gtin { get; set; }
+
+    /// <summary>MPN (üretici parça no) — N11 mpn; opsiyonel.</summary>
+    [StringLength(ProductConsts.TradeIdentifierMaxLength)]
+    public string? Mpn { get; set; }
+
+    /// <summary>OEM kodu — N11 oem; opsiyonel.</summary>
+    [StringLength(ProductConsts.TradeIdentifierMaxLength)]
+    public string? Oem { get; set; }
+
     /// <summary>Varyantın nitelik-değer KOMBİNASYON özeti (ör. "Kırmızı / M") — SALT-OKUNUR görüntü alanı.
     /// GetAsync projeksiyonunda doldurulur (attribute DisplayOrder sırasıyla " / " join); save'de YOKSAYILIR.</summary>
     public string AttributeSummary { get; set; } = string.Empty;

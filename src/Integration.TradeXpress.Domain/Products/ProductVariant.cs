@@ -41,6 +41,18 @@ public class ProductVariant : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICom
     /// <summary>Stok miktarı (marketplace quantity). Varsayılan 0.</summary>
     public virtual int StockQuantity { get; protected set; }
 
+    /// <summary>Barkod (EAN/UPC) — Trendyol kimliği; opsiyonel.</summary>
+    public virtual string? Barcode { get; protected set; }
+
+    /// <summary>GTIN (Global Trade Item Number) — N11 gtin; opsiyonel.</summary>
+    public virtual string? Gtin { get; protected set; }
+
+    /// <summary>MPN (Manufacturer Part Number) — N11 mpn; opsiyonel.</summary>
+    public virtual string? Mpn { get; protected set; }
+
+    /// <summary>OEM kodu — N11 oem; opsiyonel.</summary>
+    public virtual string? Oem { get; protected set; }
+
     protected ProductVariant() { }
 
     public ProductVariant(
@@ -110,6 +122,15 @@ public class ProductVariant : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICom
     public virtual void SetAsMain(bool value)
     {
         IsMain = value;
+    }
+
+    /// <summary>Ticari kimlik kodları (barcode/GTIN/MPN/OEM) — hepsi opsiyonel (boş değilse trim + max).</summary>
+    public virtual void SetTradeIdentifiers(string? barcode, string? gtin, string? mpn, string? oem)
+    {
+        Barcode = StringFieldGuard.EnsureOptionalText(barcode, nameof(Barcode), 1, ProductConsts.TradeIdentifierMaxLength);
+        Gtin = StringFieldGuard.EnsureOptionalText(gtin, nameof(Gtin), 1, ProductConsts.TradeIdentifierMaxLength);
+        Mpn = StringFieldGuard.EnsureOptionalText(mpn, nameof(Mpn), 1, ProductConsts.TradeIdentifierMaxLength);
+        Oem = StringFieldGuard.EnsureOptionalText(oem, nameof(Oem), 1, ProductConsts.TradeIdentifierMaxLength);
     }
 
     // Şirket set-once → public mutator YOK; parent üründen denormalize (AppService/Manager geçer).

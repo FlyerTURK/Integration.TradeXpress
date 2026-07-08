@@ -44,6 +44,11 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
             b.Property(x => x.Description).HasMaxLength(ProductConsts.DescriptionMaxLength);
             // Satılabilir veri (marketplace): fiyat (decimal 18,2) + para birimi (id-only) + stok. Stok/CurrencyUnitId konvansiyonla.
             b.Property(x => x.SalePrice).HasPrecision(ProductConsts.SalePricePrecision, ProductConsts.SalePriceScale);
+            // Ticari kimlik kodları (marketplace SKU eşleşmesi + katalog) — opsiyonel.
+            b.Property(x => x.Barcode).HasMaxLength(ProductConsts.TradeIdentifierMaxLength);
+            b.Property(x => x.Gtin).HasMaxLength(ProductConsts.TradeIdentifierMaxLength);
+            b.Property(x => x.Mpn).HasMaxLength(ProductConsts.TradeIdentifierMaxLength);
+            b.Property(x => x.Oem).HasMaxLength(ProductConsts.TradeIdentifierMaxLength);
 
             // Varyant kodu ÜRÜN başına tekil (SubAccount = Account başına deseniyle hizalı).
             b.HasIndex(x => new { x.TenantId, x.ProductId, x.Code }).IsUnique();

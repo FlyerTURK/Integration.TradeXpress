@@ -568,8 +568,9 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
             Quantity: v.StockQuantity,
             OptionPrice: v.SalePrice,
             Attributes: validated.VariantOptions.TryGetValue(v.Id, out var pairs) ? pairs : new List<N11ProductAttributePair>(),
-            Gtin: null,
-            Mpn: null)).ToList();
+            Gtin: v.Gtin,
+            Mpn: v.Mpn,
+            Oem: v.Oem)).ToList();
 
         var images = imageUrls
             .Select((url, index) => new N11ProductImage(url, index + 1))

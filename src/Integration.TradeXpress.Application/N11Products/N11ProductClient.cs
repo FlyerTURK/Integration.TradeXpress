@@ -139,6 +139,7 @@ public sealed class N11ProductClient : IN11ProductClient, ITransientDependency
         return new XElement("stockItem",
             Optional("mpn", s.Mpn),
             Optional("gtin", s.Gtin),
+            Optional("oem", s.Oem),
             new XElement("quantity", s.Quantity.ToString(CultureInfo.InvariantCulture)),
             new XElement("sellerStockCode", s.SellerStockCode),
             s.Attributes.Count == 0 ? null : new XElement("attributes", s.Attributes.Select(BuildAttribute)),
