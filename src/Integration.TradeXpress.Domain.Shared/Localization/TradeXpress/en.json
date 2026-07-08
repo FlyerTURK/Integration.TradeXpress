@@ -881,6 +881,18 @@
     "Enum:RecipeDerivedOperation:Multiply": "Multiply",
     "Enum:RecipeDerivedOperation:Percent": "Percent",
     "Enum:RecipeDerivedOperation:GrossUp": "Gross Up",
-    "TradeXpress:N11:Product:ProductAttributeMissing": "N11 requires the '{AttributeName}' field in this category; please fill it in."
+    "TradeXpress:N11:Product:ProductAttributeMissing": "N11 requires the '{AttributeName}' field in this category; please fill it in.",
+    "TradeXpress:N11:Product:NotPushedYet": "Push the product to N11 first; stock/price sync only works on an already-pushed product.",
+    "TradeXpress:N11:Product:NoSyncableSku": "No syncable variant; push the product to N11 first.",
+    "N11Product:VersionDrift": "A change (possible sale) was detected on N11 for variant '{0}'; local values were sent anyway.",
+    "N11Product:SkuNotPushed": "Variant '{0}' has not been pushed to N11 yet; a full push is required before stock/price sync.",
+    "N11Product:SyncStockPrice": "Sync Stock/Price",
+    "N11Product:SyncStockPriceSuccess": "Stock/price synced with N11.",
+    "N11Product:Skus": "Variant SKUs",
+    "N11Product:N11SkuId": "N11 SKU Id",
+    "N11Product:N11Version": "Version",
+    "N11Product:LastSentQuantity": "Last Sent Stock",
+    "N11Product:LastSentOptionPrice": "Last Sent Price",
+    "N11Product:NoChangesToSync": "No stock/price changes; nothing was sent to N11."
   }
 }

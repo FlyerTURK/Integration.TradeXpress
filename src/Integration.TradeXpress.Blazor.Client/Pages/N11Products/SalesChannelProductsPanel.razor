@@ -35,7 +35,7 @@
             <DxGridDataColumn FieldName="N11ProductId" Caption="@L["N11Product:SyncStatus"]" Width="160px">
                 <CellDisplayTemplate>@StatusTextOf((SalesChannelTrN11ProductDto)context.DataItem)</CellDisplayTemplate>
             </DxGridDataColumn>
-            <DxGridDataColumn Caption="@L["N11Product:Push"]" Width="150px" TextAlignment="GridTextAlignment.Center">
+            <DxGridDataColumn Caption="@L["N11Product:Push"]" Width="290px" TextAlignment="GridTextAlignment.Center">
                 <CellDisplayTemplate>
                     @{
                         var row = (SalesChannelTrN11ProductDto)context.DataItem;
@@ -43,6 +43,13 @@
                     <DxButton Text="@L["N11Product:Push"]" RenderStyle="ButtonRenderStyle.Primary"
                               IconCssClass="@TradeXpressIcons.SalesChannel"
                               Click="@(() => PushAsync(row))" />
+                    @* Stok/fiyat hafif senkronu — yalnız N11'e tam gönderilmiş satırda (UpdateProductBasic gönderilmiş ürünü adresler). *@
+                    @if (row.N11ProductId.HasValue)
+                    {
+                        <DxButton Text="@L["N11Product:SyncStockPrice"]" RenderStyle="ButtonRenderStyle.Secondary"
+                                  CssClass="ms-1"
+                                  Click="@(() => SyncStockPriceAsync(row))" />
+                    }
                 </CellDisplayTemplate>
             </DxGridDataColumn>
         </GridColumns>

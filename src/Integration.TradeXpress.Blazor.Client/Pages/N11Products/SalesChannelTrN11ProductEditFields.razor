@@ -122,6 +122,25 @@
         </DxFormLayoutGroup>
     }
 
+    @* Varyant SKU'ları (read-only) — push + stok/fiyat senkronunda dolar. sellerStockCode DONDURULMUŞ; N11 SKU
+       kimliği/sürümü + son gönderilen stok/fiyat SKU-düzeyi mutabakat + dirty-tracking görünürlüğü sağlar. *@
+    @if (Model.Skus.Count > 0)
+    {
+        <DxFormLayoutGroup Caption="@L["N11Product:Skus"]" ColSpanMd="12" CaptionPosition="CaptionPosition.Vertical">
+            <DxFormLayoutItem ColSpanMd="12">
+                <DxGrid Data="@Model.Skus" PageSize="50" PagerVisible="false" CssClass="w-100">
+                    <Columns>
+                        <DxGridDataColumn FieldName="SellerStockCode" Caption="@L["N11Product:SellerCode"]" />
+                        <DxGridDataColumn FieldName="N11SkuId" Caption="@L["N11Product:N11SkuId"]" Width="130px" />
+                        <DxGridDataColumn FieldName="LastSentQuantity" Caption="@L["N11Product:LastSentQuantity"]" Width="140px" />
+                        <DxGridDataColumn FieldName="LastSentOptionPrice" Caption="@L["N11Product:LastSentOptionPrice"]" Width="140px" />
+                        <DxGridDataColumn FieldName="N11Version" Caption="@L["N11Product:N11Version"]" Width="90px" />
+                    </Columns>
+                </DxGrid>
+            </DxFormLayoutItem>
+        </DxFormLayoutGroup>
+    }
+
     @* N11 senkron durumu (read-only; push sonrası dolar). *@
     @if (Model.N11ProductId.HasValue || !string.IsNullOrEmpty(Model.LastError))
     {

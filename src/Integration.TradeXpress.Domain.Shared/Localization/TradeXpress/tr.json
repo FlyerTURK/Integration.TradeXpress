@@ -912,6 +912,18 @@
     "Enum:RecipeDerivedOperation:Multiply": "Çarp",
     "Enum:RecipeDerivedOperation:Percent": "Yüzde",
     "Enum:RecipeDerivedOperation:GrossUp": "Brütleştir",
-    "TradeXpress:N11:Product:ProductAttributeMissing": "N11 bu kategoride '{AttributeName}' alanını zorunlu tutuyor; lütfen doldurun."
+    "TradeXpress:N11:Product:ProductAttributeMissing": "N11 bu kategoride '{AttributeName}' alanını zorunlu tutuyor; lütfen doldurun.",
+    "TradeXpress:N11:Product:NotPushedYet": "Önce ürünü N11'e tam gönderin; stok/fiyat güncellemesi ancak gönderilmiş üründe çalışır.",
+    "TradeXpress:N11:Product:NoSyncableSku": "Güncellenebilir varyant yok; ürünü önce N11'e tam gönderin.",
+    "N11Product:VersionDrift": "'{0}' varyantında N11'de değişiklik (olası satış) saptandı; yerel değerler yine de gönderildi.",
+    "N11Product:SkuNotPushed": "'{0}' varyantı henüz N11'e gönderilmemiş; stok/fiyat güncellemesi için önce tam gönderim gerekir.",
+    "N11Product:SyncStockPrice": "Stok/Fiyat Güncelle",
+    "N11Product:SyncStockPriceSuccess": "Stok/fiyat N11 ile eşitlendi.",
+    "N11Product:Skus": "Varyant SKU'ları",
+    "N11Product:N11SkuId": "N11 SKU Kimliği",
+    "N11Product:N11Version": "Sürüm",
+    "N11Product:LastSentQuantity": "Son Gönderilen Stok",
+    "N11Product:LastSentOptionPrice": "Son Gönderilen Fiyat",
+    "N11Product:NoChangesToSync": "Stok/fiyatta değişiklik yok; N11'e gönderim yapılmadı."
   }
 }

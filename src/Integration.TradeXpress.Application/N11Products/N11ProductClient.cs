@@ -48,6 +48,53 @@ public sealed class N11ProductClient : IN11ProductClient, ITransientDependency
         return ParseDetail(response, n11ProductId);
     }
 
+    public async Task<N11ProductDetail> GetProductBySellerCodeAsync(string sellerCode, string appKey, string appSecret, CancellationToken cancellationToken = default)
+    {
+        var request = new XElement(Sch + "GetProductBySellerCodeRequest",
+            new XAttribute(XNamespace.Xmlns + "sch", Sch),
+            Auth(appKey, appSecret),
+            new XElement("sellerCode", sellerCode));
+
+        var response = await PostAsync(request, appKey, appSecret, cancellationToken);
+        EnsureSuccess(response);
+
+        // Yanıttaki ürün id'si (varsa) parse edilir; yoksa 0 → çağıran N11ProductId'yi zaten biliyor.
+        var product = response.Descendants().FirstOrDefault(e => e.Name.LocalName == "product");
+        long n11Id = long.TryParse(product is null ? null : Local(product, "id"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var id) ? id : 0;
+        return ParseDetail(response, n11Id);
+    }
+
+    public async Task<N11SaveProductResult> UpdateProductBasicAsync(N11ProductBasicUpdate update, string appKey, string appSecret, CancellationToken cancellationToken = default)
+    {
+        var request = new XElement(Sch + "UpdateProductBasicRequest",
+            new XAttribute(XNamespace.Xmlns + "sch", Sch),
+            Auth(appKey, appSecret),
+            new XElement("productId", update.N11ProductId.ToString(CultureInfo.InvariantCulture)),
+            new XElement("productSellerCode", update.ProductSellerCode),
+            update.Price is { } price ? new XElement("price", price.ToString(CultureInfo.InvariantCulture)) : null,
+            // İndirim modellenmiyor → "indirimsiz" (discountType=0). Zorunlu alan (WSDL); boş bırakılamaz.
+            new XElement("productDiscount",
+                new XElement("discountType", "0"),
+                new XElement("discountValue", "0"),
+                new XElement("discountStartDate", string.Empty),
+                new XElement("discountEndDate", string.Empty)),
+            new XElement("stockItems", update.StockItems.Select(BuildBasicStockItem)),
+            new XElement("description", update.Description));
+
+        var response = await PostAsync(request, appKey, appSecret, cancellationToken);
+        EnsureSuccess(response);
+        return ParseResult(response);
+    }
+
+    private static XElement BuildBasicStockItem(N11ProductBasicStockItem s)
+    {
+        return new XElement("stockItem",
+            new XElement("sellerStockCode", s.SellerStockCode),
+            new XElement("id", s.N11SkuId.ToString(CultureInfo.InvariantCulture)),
+            s.OptionPrice is { } op ? new XElement("optionPrice", op.ToString(CultureInfo.InvariantCulture)) : null,
+            s.Quantity is { } q ? new XElement("quantity", q.ToString(CultureInfo.InvariantCulture)) : null);
+    }
+
     // ── Serialize (ProductRequest — WSDL xs:sequence sırası) ────────────────────────────────────────
 
     private static XElement BuildProduct(N11ProductData p)

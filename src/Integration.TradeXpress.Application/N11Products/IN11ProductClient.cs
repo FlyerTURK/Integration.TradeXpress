@@ -17,7 +17,32 @@ public interface IN11ProductClient
     /// <summary>Ürünü N11'den okur (GetProductByProductId) — push sonrası doğrulama/eşitleme okuması
     /// (N11 kuralları kendi tarafında oynatabildiğinden yerel kayıt N11 GERÇEĞİYLE eşlenir; 2026-07-07 kararı).</summary>
     Task<N11ProductDetail> GetProductAsync(long n11ProductId, string appKey, string appSecret, CancellationToken cancellationToken = default);
+
+    /// <summary>Ürünü satıcı koduyla okur (GetProductBySellerCode) — Faz 2 senkronundan önce eksik SKU id'lerini
+    /// doldurmak + version drift'ini görmek için. Ürün N11'de yoksa BusinessException (notFound).</summary>
+    Task<N11ProductDetail> GetProductBySellerCodeAsync(string sellerCode, string appKey, string appSecret, CancellationToken cancellationToken = default);
+
+    /// <summary>Stok+fiyatı KISMİ günceller (UpdateProductBasic) — tam SaveProduct'a gerek olmadan (Faz 2, hafif).
+    /// Her SKU N11 SKU id'siyle adreslenir; yapı/varyant-seti değişimi bu uçtan GİTMEZ (onun için SaveProduct).</summary>
+    Task<N11SaveProductResult> UpdateProductBasicAsync(N11ProductBasicUpdate update, string appKey, string appSecret, CancellationToken cancellationToken = default);
 }
+
+/// <summary>UpdateProductBasic girdisi — ürünün stok+fiyatını kısmi günceller. <see cref="StockItems"/> her SKU'yu
+/// N11 SKU id'siyle adresler (WSDL zorunlu). Description N11 tarafında ürünü ezer (değişmediyse aynısı gönderilir);
+/// indirim modellenmediğinden productDiscount client'ta "indirimsiz" gönderilir.</summary>
+public sealed record N11ProductBasicUpdate(
+    long N11ProductId,
+    string ProductSellerCode,
+    decimal? Price,
+    string Description,
+    IReadOnlyList<N11ProductBasicStockItem> StockItems);
+
+/// <summary>UpdateProductBasic SKU kalemi — id ZORUNLU (WSDL); quantity/optionPrice opsiyonel (null = dokunma).</summary>
+public sealed record N11ProductBasicStockItem(
+    string SellerStockCode,
+    long N11SkuId,
+    int? Quantity,
+    decimal? OptionPrice);
 
 /// <summary>N11 SaveProduct — ÇÖZÜLMÜŞ ürün verisi (fiyat/kategori/attribute/stockItems dolu); XML'e serialize edilir.</summary>
 public sealed record N11ProductData(

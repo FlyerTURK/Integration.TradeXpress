@@ -19,6 +19,18 @@ public class SalesChannelTrN11ProductSpecialInfoDto
     public string Value { get; set; } = string.Empty;
 }
 
+/// <summary>Varyant SKU kimlik/durum satırı (read-only; push + stok/fiyat senkronunda dolar). UI görünürlük +
+/// senkron durumu; AttributeSnapshot UI'a taşınmaz (sipariş eşleme sunucu-içi kalır).</summary>
+public class SalesChannelTrN11ProductSkuDto
+{
+    public Guid ProductVariantId { get; set; }
+    public string SellerStockCode { get; set; } = string.Empty;
+    public long? N11SkuId { get; set; }
+    public long? N11Version { get; set; }
+    public int? LastSentQuantity { get; set; }
+    public decimal? LastSentOptionPrice { get; set; }
+}
+
 /// <summary>N11 ürün listelemesi — tam okuma modeli (edit + durum görüntüsü).</summary>
 public class SalesChannelTrN11ProductDto
 {
@@ -40,6 +52,9 @@ public class SalesChannelTrN11ProductDto
     public int? MaxPurchaseQuantity { get; set; }
     public List<SalesChannelTrN11ProductAttributeDto> Attributes { get; set; } = new();
     public List<SalesChannelTrN11ProductSpecialInfoDto> SpecialInfo { get; set; } = new();
+
+    /// <summary>Varyant SKU kimlik/durum satırları (read-only; push + stok/fiyat senkronunda dolar).</summary>
+    public List<SalesChannelTrN11ProductSkuDto> Skus { get; set; } = new();
 
     // N11 senkron durumu (read-only; push sonrası dolar).
     public long? N11ProductId { get; set; }
@@ -126,4 +141,10 @@ public interface ISalesChannelTrN11ProductAppService : IApplicationService
 
     /// <summary>Listelemeyi N11'e gönderir (SaveProduct): ürün + varyant + fiyat/stok/görsel. Durumu günceller + döner.</summary>
     Task<SalesChannelTrN11ProductDto> PushToN11Async(Guid id);
+
+    /// <summary>Yalnız stok+fiyatı N11'e gönderir (UpdateProductBasic — Faz 2, hafif): tam SaveProduct'a gerek
+    /// olmadan değişen varyantların adet/fiyatını günceller. Önce N11'den okur (eksik SKU id doldurma + version
+    /// drift uyarısı), yalnız DEĞİŞEN varyantları gönderir; değişiklik yoksa no-op. Yapı/varyant-seti değiştiyse
+    /// bu YETMEZ — tam <see cref="PushToN11Async"/> gerekir.</summary>
+    Task<SalesChannelTrN11ProductDto> SyncStockAndPriceAsync(Guid id);
 }

@@ -155,6 +155,28 @@ public partial class SalesChannelProductsPanel : CrudComponentBase
         }
     }
 
+    // Satır stok/fiyat senkronu: yalnız değişen varyantları N11'e gönder (UpdateProductBasic); listeyi tazele.
+    private async Task SyncStockPriceAsync(SalesChannelTrN11ProductDto channelProduct)
+    {
+        try
+        {
+            var synced = await AppService.SyncStockAndPriceAsync(channelProduct.Id);
+            await ReloadChannelProductsAsync();
+            UiService.ShowSuccessToast(L["N11Product:SyncStockPriceSuccess"].Value);
+
+            foreach (var warning in synced.SyncWarnings)
+            {
+                UiService.ShowWarningToast(warning);
+            }
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            UiService.ShowErrorToast(CrudErrorPresenter.ToFriendlyMessage(ex, ServiceProvider) ?? L["UnexpectedError"].Value);
+        }
+    }
+
     private string ChannelCodeOf(SalesChannelTrN11ProductDto channelProduct)
     {
         return _channels.FirstOrDefault(c => c.Id == channelProduct.SalesChannelId)?.Code ?? string.Empty;

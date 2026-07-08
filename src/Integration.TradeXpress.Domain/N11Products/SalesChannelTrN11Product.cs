@@ -353,6 +353,22 @@ public class SalesChannelTrN11Product : FullAuditedAggregateRoot<Guid>, IMultiTe
             .ToList();
     }
 
+    /// <summary>Faz 2 stok/fiyat senkronu SONRASI — SKU'nun son gönderilen adet/fiyatını + version'ını günceller.
+    /// <b>AttributeSnapshot'a DOKUNMAZ</b> (stok/fiyat senkronunda seçenekler değişmez; snapshot Faz 1 push'unun
+    /// kaydıdır). Dirty-tracking temeli: sonraki senkron bu değerlerle karşılaştırır.</summary>
+    public virtual void RecordStockPriceSync(string sellerStockCode, int quantity, decimal? optionPrice, long? version)
+    {
+        var sku = FindSku(sellerStockCode);
+        if (sku is null)
+        {
+            return;
+        }
+
+        sku.LastSentQuantity = quantity;
+        sku.LastSentOptionPrice = optionPrice;
+        sku.N11Version = version ?? sku.N11Version;
+    }
+
     /// <summary>N11 yanıtındaki SKU kimliğini (id/version) yerel satıra işler — SKU-düzeyi mutabakat anahtarı.
     /// Yanıtta olmayan alan yereldekini SİLMEZ.</summary>
     public virtual void ApplySkuIdentity(string sellerStockCode, long? n11SkuId, long? version)

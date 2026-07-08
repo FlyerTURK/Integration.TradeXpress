@@ -243,6 +243,117 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
         return dto;
     }
 
+    [Authorize(TradeXpressPermissions.SalesChannels.Update)]
+    public virtual async Task<SalesChannelTrN11ProductDto> SyncStockAndPriceAsync(Guid id)
+    {
+        var entity = await GetOwnedAsync(id);
+        var channel = await GetOwnedChannelAsync(entity.SalesChannelId);
+        var syncWarnings = new List<string>();
+
+        if (entity.N11ProductId is not { } n11ProductId)
+        {
+            // Hiç tam gönderim yapılmamış → UpdateProductBasic'in adresleyeceği N11 ürünü/SKU'su yok.
+            throw new BusinessException("TradeXpress:N11:Product:NotPushedYet");
+        }
+
+        try
+        {
+            var product = await GetOwnedProductAsync(entity.ProductId);
+            var variants = (await AsyncExecuter.ToListAsync(
+                    (await _variantRepository.GetQueryableAsync())
+                        .Where(v => v.ProductId == product.Id && v.IsActive)))
+                .Where(v => v.SalePrice is not null)
+                .OrderByDescending(v => v.IsMain)   // base fiyat ANA varyanttan — tam push ile hizalı
+                .ToList();
+
+            // Önce N11'den oku: eksik SKU id'lerini doldur + version drift'ini gör (UpdateProductBasic version almaz →
+            // lost-update'i "oku-karşılaştır-yaz" disipliniyle yönet). Okuma düşerse senkron güvenli şekilde durur.
+            var detail = await _client.GetProductBySellerCodeAsync(entity.SellerCode, channel.AppKey, channel.AppSecret);
+            foreach (var sku in detail.Skus)
+            {
+                var localVersion = entity.Skus.FirstOrDefault(s => string.Equals(s.SellerStockCode, sku.SellerStockCode, StringComparison.OrdinalIgnoreCase))?.N11Version;
+                if (localVersion is { } lv && sku.Version is { } rv && lv != rv)
+                {
+                    // Version değişti = N11'de satış/değişiklik oldu; yine yazarız (ERP otorite) ama kullanıcı bilsin.
+                    syncWarnings.Add(L["N11Product:VersionDrift", sku.SellerStockCode]);
+                }
+
+                entity.ApplySkuIdentity(sku.SellerStockCode, sku.N11SkuId, sku.Version);
+            }
+
+            // Değişen varyantları (dirty) belirle: SKU satırı olan + N11 SKU id'si bilinen + adet/fiyatı sapmış.
+            var stockItems = new List<N11ProductBasicStockItem>();
+            var anyDirty = false;
+            foreach (var variant in variants)
+            {
+                var sku = entity.Skus.FirstOrDefault(s => s.ProductVariantId == variant.Id);
+                if (sku is null || sku.N11SkuId is not { } n11SkuId)
+                {
+                    // Bu varyant hiç push edilmemiş / SKU id'si yok → hafif senkron adresleyemez; tam push gerekir.
+                    syncWarnings.Add(L["N11Product:SkuNotPushed", variant.Code]);
+                    continue;
+                }
+
+                var dirty = sku.LastSentQuantity != variant.StockQuantity || sku.LastSentOptionPrice != variant.SalePrice;
+                anyDirty |= dirty;
+
+                // Merge/replace belirsizliğinden (rapor A3) kaçınmak için TÜM bilinen SKU'ları güncel değerleriyle
+                // gönderiyoruz — gönderilmeyen SKU'nun N11'de sıfırlanma riski olmasın.
+                stockItems.Add(new N11ProductBasicStockItem(
+                    sku.SellerStockCode,
+                    n11SkuId,
+                    variant.StockQuantity,
+                    variant.SalePrice));
+            }
+
+            if (stockItems.Count == 0)
+            {
+                throw new BusinessException("TradeXpress:N11:Product:NoSyncableSku");
+            }
+
+            if (!anyDirty)
+            {
+                // Değişiklik yok → N11'e gereksiz yazma yapma (60 sn kuralına + kotaya saygı).
+                syncWarnings.Add(L["N11Product:NoChangesToSync"]);
+            }
+            else
+            {
+                var update = new N11ProductBasicUpdate(
+                    n11ProductId,
+                    entity.SellerCode,
+                    variants[0].SalePrice,
+                    product.Description ?? product.Name,
+                    stockItems);
+                var result = await _client.UpdateProductBasicAsync(update, channel.AppKey, channel.AppSecret);
+
+                // Başarılı yazım → LastSent* + yanıttaki version güncellenir (dirty-tracking bir sonraki tur için).
+                var versionByCode = result.Skus.ToDictionary(s => s.SellerStockCode, s => s.Version, StringComparer.OrdinalIgnoreCase);
+                foreach (var item in stockItems)
+                {
+                    versionByCode.TryGetValue(item.SellerStockCode, out var version);
+                    entity.RecordStockPriceSync(item.SellerStockCode, item.Quantity ?? 0, item.OptionPrice, version);
+                }
+
+                entity.MarkSynced(n11ProductId, entity.SaleStatus, entity.ApprovalStatus, Clock.Now.ToUniversalTime());
+            }
+
+            await _repository.UpdateAsync(entity, autoSave: true);
+        }
+        catch (Exception ex)
+        {
+            // N11'e GİRMİŞ her başarısızlık (client notFound/SaveFailed/SaveRejected + ağ hataları) kayda geçer —
+            // Push ile simetrik. Ön-uçuş guard'ları (NotPushedYet) try'dan ÖNCE fırladığından buraya düşmez;
+            // NoSyncableSku düşerse de "senkronlanamadı" işareti bilgilendiricidir.
+            entity.MarkSyncFailed(ex.Message, Clock.Now.ToUniversalTime());
+            await _repository.UpdateAsync(entity, autoSave: true);
+            throw;
+        }
+
+        var dto = ObjectMapper.Map<SalesChannelTrN11Product, SalesChannelTrN11ProductDto>(entity);
+        dto.SyncWarnings = syncWarnings;
+        return dto;
+    }
+
     /// <summary>N11'in döndürdüğü ürün gerçeğini yerel kayda uygular — <b>SpecialInfo HARİÇ</b> (2026-07-07 kararı:
     /// N11 kuralları kendi tarafında oynatır; yerel kayıt yayın kopyasıdır). Yanıtta OLMAYAN alana dokunulmaz
     /// (N11'in desteklemediği alan yerel değeri silmesin). Kategori değişimi KRİTİK → kullanıcı uyarısı.</summary>
