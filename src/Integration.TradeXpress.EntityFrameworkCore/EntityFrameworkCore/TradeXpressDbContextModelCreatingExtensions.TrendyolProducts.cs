@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Volo.Abp;
 using Volo.Abp.EntityFrameworkCore.Modeling;
+using Integration.TradeXpress.Products;
 using Integration.TradeXpress.TrendyolProducts;
 
 namespace Integration.TradeXpress.EntityFrameworkCore;
@@ -49,6 +50,42 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
 
             // Aynı kanalda AYNI ürün için birden fazla kayıt OLABİLİR (N11 ile aynı 2026-07-07 kararı) → normal index.
             b.HasIndex(x => new { x.SalesChannelId, x.ProductId });
+            b.HasIndex(x => new { x.TenantId, x.CompanyId });
+        });
+
+        // Kanal-özel varyant override BAŞLIĞI (fiyat/stok + marj) — ERP ProductVariant'ın Trendyol-scope özelleştirmesi.
+        // null alan = ERP'den devral. Anchor (kanal-ürün + varyant) UNIQUE; türetilmiş fiyat/NetCost PERSIST EDİLMEZ.
+        builder.Entity<SalesChannelTrTrendyolProductVariant>(b =>
+        {
+            b.ToTable(TradeXpressConsts.DbTablePrefix + "SalesChannelTrTrendyolProductVariants", TradeXpressConsts.DbSchema);
+            b.ConfigureByConvention();
+
+            b.Property(x => x.OverridePrice).HasPrecision(ProductRecipeConsts.AmountPrecision, ProductRecipeConsts.AmountScale);
+            b.Property(x => x.Margin).HasPrecision(ProductRecipeConsts.FactorPrecision, ProductRecipeConsts.FactorScale);
+
+            // Kanal-ürün + varyant başına TEK override başlığı (anchor benzersiz).
+            b.HasIndex(x => new { x.TenantId, x.SalesChannelTrTrendyolProductId, x.ProductVariantId }).IsUnique();
+            b.HasIndex(x => new { x.TenantId, x.CompanyId });
+        });
+
+        // Kanal-özel varyant reçetesi (ERP ProductVariantRecipeLine klonu) — AYRI TABLO (owned değil; türev
+        // SelectedLines Id referansları JSON'da kırılgan olur). Hesap motoru (ProductRecipeCostCalculator) ortak.
+        builder.Entity<SalesChannelTrTrendyolProductVariantRecipeLine>(b =>
+        {
+            b.ToTable(TradeXpressConsts.DbTablePrefix + "SalesChannelTrTrendyolProductVariantRecipeLines", TradeXpressConsts.DbSchema);
+            b.ConfigureByConvention();
+
+            b.Property(x => x.Quantity).HasPrecision(ProductRecipeConsts.FactorPrecision, ProductRecipeConsts.FactorScale);
+            b.Property(x => x.Amount).HasPrecision(ProductRecipeConsts.AmountPrecision, ProductRecipeConsts.AmountScale);
+            b.Property(x => x.Factor).HasPrecision(ProductRecipeConsts.FactorPrecision, ProductRecipeConsts.FactorScale);
+            b.Property(x => x.PayFactor).HasPrecision(ProductRecipeConsts.FactorPrecision, ProductRecipeConsts.FactorScale);
+            b.Property(x => x.ManualAmount).HasPrecision(ProductRecipeConsts.AmountPrecision, ProductRecipeConsts.AmountScale);
+            b.Property(x => x.Description).HasMaxLength(ProductRecipeConsts.DescriptionMaxLength);
+            b.Property(x => x.DerivedOperand).HasPrecision(ProductRecipeConsts.FactorPrecision, ProductRecipeConsts.FactorScale);
+            b.Property(x => x.DerivedSourceLineIds).HasMaxLength(ProductRecipeConsts.DerivedSourceLineIdsMaxLength);
+
+            // Kanal-ürün + varyant başına sıralı okuma + company güvenlik filtresi.
+            b.HasIndex(x => new { x.TenantId, x.SalesChannelTrTrendyolProductId, x.ProductVariantId, x.LineOrder });
             b.HasIndex(x => new { x.TenantId, x.CompanyId });
         });
     }

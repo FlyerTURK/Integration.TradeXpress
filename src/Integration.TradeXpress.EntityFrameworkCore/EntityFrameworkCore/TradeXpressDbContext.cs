@@ -104,6 +104,10 @@ public class TradeXpressDbContext :
     public DbSet<Integration.TradeXpress.N11Products.SalesChannelTrN11ProductVariantRecipeLine> SalesChannelTrN11ProductVariantRecipeLines { get; set; } = null!;
     // Trendyol ürün listelemeleri — ürün×kanal (company-owned).
     public DbSet<Integration.TradeXpress.TrendyolProducts.SalesChannelTrTrendyolProduct> SalesChannelTrTrendyolProducts { get; set; } = null!;
+    // Trendyol kanal-özel varyant override başlığı (fiyat/stok + marj; ayrı tablo).
+    public DbSet<Integration.TradeXpress.TrendyolProducts.SalesChannelTrTrendyolProductVariant> SalesChannelTrTrendyolProductVariants { get; set; } = null!;
+    // Trendyol kanal-özel varyant reçete satırları (ayrı tablo; ERP reçetesi klonu).
+    public DbSet<Integration.TradeXpress.TrendyolProducts.SalesChannelTrTrendyolProductVariantRecipeLine> SalesChannelTrTrendyolProductVariantRecipeLines { get; set; } = null!;
 
 
     #region Entities from the modules

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using Integration.TradeXpress.Products;
 using Volo.Abp.Application.Services;
 
 namespace Integration.TradeXpress.TrendyolProducts;
@@ -24,6 +25,50 @@ public class SalesChannelTrTrendyolProductSkuDto
     public int? LastSentQuantity { get; set; }
     public decimal? LastSentListPrice { get; set; }
     public decimal? LastSentSalePrice { get; set; }
+}
+
+/// <summary>Trendyol kanal-özel varyant override graf düğümü — ERP varyantının (SSOT: kod/ad/ERP fiyat/stok) Trendyol-scope
+/// özelleştirmesi. LEFT JOIN: ERP varyant seti ⋈ kaydedilmiş kanal override. null override alanı = ERP'den devralınır.
+/// Reçete (<see cref="RecipeLines"/>) kaydedilmişse ondan, yoksa ERP reçetesinden KLONLANIR (Id boş = henüz persist yok).
+/// <see cref="NetCost"/>/<see cref="DerivedPrice"/> SALT-OKUNUR (GetAsync canlı hesaplar; save yoksayar).</summary>
+public class SalesChannelTrTrendyolProductVariantGraphDto
+{
+    /// <summary>ERP varyantı (anchor; save'de kanal override başlığına eşlenir). Read-only kimlik.</summary>
+    public Guid ProductVariantId { get; set; }
+
+    /// <summary>ERP varyant kodu (SALT-OKUNUR görüntü; ERP SSOT).</summary>
+    public string VariantCode { get; set; } = string.Empty;
+
+    /// <summary>ERP varyant adı (SALT-OKUNUR görüntü; ERP SSOT).</summary>
+    public string VariantName { get; set; } = string.Empty;
+
+    /// <summary>Kanal-özel mutlak fiyat (opsiyonel; null = ERP/türetilmiş devralınır).</summary>
+    public decimal? OverridePrice { get; set; }
+
+    /// <summary>Override fiyatı para birimi (id-only; fiyat null ise yoksayılır).</summary>
+    public Guid? OverridePriceCurrencyUnitId { get; set; }
+
+    /// <summary>Kanal-özel stok (opsiyonel; null = ERP StockQuantity devralınır).</summary>
+    public int? OverrideStock { get; set; }
+
+    /// <summary>Varyant-başı marj (markup yüzdesi; null = marj yok). Türetilmiş fiyat = NetCost × (1 + Margin/100).</summary>
+    public decimal? Margin { get; set; }
+
+    /// <summary>Kanal-özel reçete satırları (ERP reçetesinden klonlanır, sonra bağımsız) — Product reçetesiyle AYNI
+    /// DTO tipi (ProductRecipePanel bunu tüketir). Id + IsDeleted diff; save'de kanal reçete tablosuna yazılır.</summary>
+    public List<ProductRecipeLineGraphDto> RecipeLines { get; set; } = new();
+
+    /// <summary>Reçetenin CANLI net maliyeti — ülke birimine rebase (SALT-OKUNUR; GetAsync hesaplar, save yoksayar).</summary>
+    public decimal? NetCost { get; set; }
+
+    /// <summary>Net maliyet para birimi kodu (ülke birimi; SALT-OKUNUR).</summary>
+    public string NetCostCurrency { get; set; } = string.Empty;
+
+    /// <summary>Net maliyet satırlarından biri kur/birim-eksik mi (SALT-OKUNUR UI uyarısı).</summary>
+    public bool NetCostMissingRate { get; set; }
+
+    /// <summary>Türetilmiş fiyat = NetCost × (1 + (Margin ?? 0)/100) [MARKUP] (SALT-OKUNUR; NetCost null ise null).</summary>
+    public decimal? DerivedPrice { get; set; }
 }
 
 /// <summary>Trendyol ürün listelemesi — tam okuma modeli (edit + durum görüntüsü).</summary>
@@ -54,6 +99,10 @@ public class SalesChannelTrTrendyolProductDto
     /// <summary>Varyant SKU kimlik/durum satırları (read-only; push + reconcile sonrası dolar).</summary>
     public List<SalesChannelTrTrendyolProductSkuDto> Skus { get; set; } = new();
 
+    /// <summary>Kanal-özel varyant override'ları (fiyat/stok/marj + reçete graf düğümleri) — ERP varyant seti ⋈
+    /// kaydedilmiş override (LEFT JOIN). Ürün 'Kaydet'inde birlikte kaydedilir. NetCost/DerivedPrice SALT-OKUNUR.</summary>
+    public List<SalesChannelTrTrendyolProductVariantGraphDto> Variants { get; set; } = new();
+
     // Trendyol senkron durumu (read-only; submit/refresh sonrası dolar).
     public string? BatchRequestId { get; set; }
     public string? LastBatchRequestType { get; set; }
@@ -79,6 +128,9 @@ public interface ISalesChannelTrTrendyolProductInput
     TrendyolFastDeliveryType? FastDeliveryType { get; }
     bool IsActive { get; }
     List<SalesChannelTrTrendyolProductAttributeDto> Attributes { get; }
+
+    /// <summary>Kanal-özel varyant override grafı (fiyat/stok/marj + reçete) — kanal-ürünle birlikte kaydedilir.</summary>
+    List<SalesChannelTrTrendyolProductVariantGraphDto> Variants { get; }
 }
 
 /// <summary>Listeleme oluşturma — ürün + kanal (create-only; şirket sunucuda zorlanır).</summary>
@@ -98,6 +150,7 @@ public class SalesChannelTrTrendyolProductCreateDto : ISalesChannelTrTrendyolPro
     public TrendyolFastDeliveryType? FastDeliveryType { get; set; }
     public bool IsActive { get; set; } = true;
     public List<SalesChannelTrTrendyolProductAttributeDto> Attributes { get; set; } = new();
+    public List<SalesChannelTrTrendyolProductVariantGraphDto> Variants { get; set; } = new();
 }
 
 /// <summary>Listeleme güncelleme — ürün/kanal set-once (route'taki id kimliktir).</summary>
@@ -115,6 +168,7 @@ public class SalesChannelTrTrendyolProductUpdateDto : ISalesChannelTrTrendyolPro
     public TrendyolFastDeliveryType? FastDeliveryType { get; set; }
     public bool IsActive { get; set; } = true;
     public List<SalesChannelTrTrendyolProductAttributeDto> Attributes { get; set; } = new();
+    public List<SalesChannelTrTrendyolProductVariantGraphDto> Variants { get; set; } = new();
 }
 
 /// <summary>
