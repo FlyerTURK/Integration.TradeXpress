@@ -632,6 +632,13 @@
     "TradeXpress:N11:Product:ImagesRequired": "At least one URL-sourced image is required to list on N11 (uploaded file images are not sent until the external link integration is completed).",
     "TradeXpress:N11:Product:NoPricedVariant": "At least one active variant with a price is required to list on N11.",
     "TradeXpress:N11:Product:MixedCurrency": "All variants of a product must use the same currency (N11 accepts a single currency).",
+    "TradeXpress:N11:Product:CategoryAttributesUnavailable": "The N11 category definition could not be retrieved ({CategoryId}); the push was stopped because validation was not possible. Please try again.",
+    "TradeXpress:N11:Product:CategoryHasNoVariantAxis": "Category '{CategoryName}' does not support variants on N11; multiple variants cannot be sent in a single listing.",
+    "TradeXpress:N11:Product:VariantAxisNotAllowed": "'{AttributeName}' is not a variant axis in category '{CategoryName}'; N11 variant axes are defined by the category.",
+    "TradeXpress:N11:Product:VariantAxisMissing": "N11 requires the '{AttributeName}' variant axis in this category; it is empty on variant '{VariantCode}'.",
+    "TradeXpress:N11:Product:AttributeValueNotInList": "The value '{AttributeValue}' for '{AttributeName}' is not in the N11 value list; pick an exact value from the list.",
+    "TradeXpress:N11:Product:VariantAttributesInconsistent": "Variant option sets are inconsistent (some variants are missing options); all variants must carry the same option names.",
+    "TradeXpress:N11:Product:DuplicateVariantSignature": "Variants cannot be distinguished by their N11 options (identical option signature): {VariantCodes}.",
     "TradeXpress:Trendyol:Product:VatRateInvalid": "The VAT rate must be between 0 and 100.",
     "TradeXpress:Trendyol:Product:CargoCompanyInvalid": "The cargo company id is invalid.",
     "TradeXpress:Trendyol:Product:DimensionalWeightInvalid": "The dimensional weight cannot be negative.",
@@ -873,6 +880,7 @@
     "Enum:RecipeDerivedOperation:Add": "Add",
     "Enum:RecipeDerivedOperation:Multiply": "Multiply",
     "Enum:RecipeDerivedOperation:Percent": "Percent",
-    "Enum:RecipeDerivedOperation:GrossUp": "Gross Up"
+    "Enum:RecipeDerivedOperation:GrossUp": "Gross Up",
+    "TradeXpress:N11:Product:ProductAttributeMissing": "N11 requires the '{AttributeName}' field in this category; please fill it in."
   }
 }

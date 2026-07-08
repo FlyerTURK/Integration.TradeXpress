@@ -662,6 +662,13 @@
     "TradeXpress:N11:Product:ImagesRequired": "N11'e listelemek için en az bir URL kaynaklı görsel gerekir (yüklenen dosya görselleri dış bağlantı entegrasyonu tamamlanana kadar gönderilmez).",
     "TradeXpress:N11:Product:NoPricedVariant": "N11'e listelemek için fiyatı girilmiş en az bir aktif varyant olmalı.",
     "TradeXpress:N11:Product:MixedCurrency": "Bir ürünün tüm varyantları aynı para biriminde olmalı (N11 tek para birimi kabul eder).",
+    "TradeXpress:N11:Product:CategoryAttributesUnavailable": "N11 kategori tanımı alınamadı ({CategoryId}); doğrulama yapılamadığı için gönderim durduruldu. Lütfen tekrar deneyin.",
+    "TradeXpress:N11:Product:CategoryHasNoVariantAxis": "'{CategoryName}' kategorisi N11'de varyant desteklemiyor; birden fazla varyant tek listelemede gönderilemez.",
+    "TradeXpress:N11:Product:VariantAxisNotAllowed": "'{AttributeName}' seçeneği '{CategoryName}' kategorisinde varyant ekseni değil; N11 varyant eksenlerini kategori tanımı belirler.",
+    "TradeXpress:N11:Product:VariantAxisMissing": "N11 bu kategoride '{AttributeName}' varyant eksenini zorunlu tutuyor; '{VariantCode}' varyantında bu seçenek boş.",
+    "TradeXpress:N11:Product:AttributeValueNotInList": "'{AttributeName}' için '{AttributeValue}' değeri N11 değer listesinde yok; listeden birebir bir değer seçin.",
+    "TradeXpress:N11:Product:VariantAttributesInconsistent": "Varyantların seçenek setleri tutarsız (kiminde eksik seçenek var); tüm varyantlar aynı seçenek adlarını taşımalı.",
+    "TradeXpress:N11:Product:DuplicateVariantSignature": "Varyantlar N11 seçenekleriyle ayırt edilemiyor (aynı seçenek imzası): {VariantCodes}.",
     "TradeXpress:Trendyol:Product:VatRateInvalid": "KDV oranı 0–100 arasında olmalıdır.",
     "TradeXpress:Trendyol:Product:CargoCompanyInvalid": "Kargo firması id'si geçersiz.",
     "TradeXpress:Trendyol:Product:DimensionalWeightInvalid": "Desi (hacimsel ağırlık) negatif olamaz.",
@@ -904,6 +911,7 @@
     "Enum:RecipeDerivedOperation:Add": "Ekle",
     "Enum:RecipeDerivedOperation:Multiply": "Çarp",
     "Enum:RecipeDerivedOperation:Percent": "Yüzde",
-    "Enum:RecipeDerivedOperation:GrossUp": "Brütleştir"
+    "Enum:RecipeDerivedOperation:GrossUp": "Brütleştir",
+    "TradeXpress:N11:Product:ProductAttributeMissing": "N11 bu kategoride '{AttributeName}' alanını zorunlu tutuyor; lütfen doldurun."
   }
 }

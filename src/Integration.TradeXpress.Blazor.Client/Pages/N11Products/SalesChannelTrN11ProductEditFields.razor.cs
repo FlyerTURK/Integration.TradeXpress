@@ -106,8 +106,11 @@ public partial class SalesChannelTrN11ProductEditFields : CrudComponentBase
         _loadedAttributesCategoryId = Model.CategoryExternalId;
         try
         {
+            // Varyant eksenleri (isVariant=true) ÜRÜN seviyesinde GÖSTERİLMEZ — onlar varyantlarla (stockItems)
+            // gider; push validasyonu da ürün-seviyesinde göndermeyi reddeder (Faz 1).
             // Form sırası: ZORUNLULAR önce → içlerinde MARKA en başta → N11 önceliği artan (SOAP null → sona) → ad artan.
             _attributeDefs = (await CategoryAppService.GetLeafAttributesAsync(Model.CategoryExternalId))
+                .Where(a => !a.IsVariant)
                 .OrderByDescending(a => a.IsMandatory)
                 .ThenByDescending(a => string.Equals(a.Name, "Marka", StringComparison.OrdinalIgnoreCase))
                 .ThenBy(a => a.Priority ?? double.MaxValue)

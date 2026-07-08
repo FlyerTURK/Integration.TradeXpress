@@ -55,8 +55,17 @@ public sealed record N11ProductStockItem(
     string? Gtin,
     string? Mpn);
 
-/// <summary>SaveProduct yanıtı — N11'in atadığı ürün id'si + durumlar.</summary>
-public sealed record N11SaveProductResult(long? N11ProductId, string? SellerCode, string? SaleStatus, string? ApprovalStatus);
+/// <summary>SaveProduct yanıtı — N11'in atadığı ürün id'si + durumlar + SKU kimlikleri (stockItems yanıt bloğundan).</summary>
+public sealed record N11SaveProductResult(
+    long? N11ProductId,
+    string? SellerCode,
+    string? SaleStatus,
+    string? ApprovalStatus,
+    IReadOnlyList<N11SkuIdentity> Skus);
+
+/// <summary>Yanıttaki SKU kimliği — N11 SKU id + version (fiyat/adet değişiminde artar; drift sinyali).
+/// <see cref="SellerStockCode"/> yerel satır eşleme anahtarıdır.</summary>
+public sealed record N11SkuIdentity(string SellerStockCode, long? N11SkuId, long? Version);
 
 /// <summary>GetProductByProductId yanıtı — N11'in NORMALİZE ETTİĞİ ürün gerçeği (eşitleme okuması). Alan null =
 /// yanıtta yok/boş (çağıran o alana DOKUNMAZ — N11'in desteklemediği alan yereldeki değeri silmesin).</summary>
@@ -71,4 +80,5 @@ public sealed record N11ProductDetail(
     int? MaxPurchaseQuantity,
     string? SaleStatus,
     string? ApprovalStatus,
-    IReadOnlyList<N11ProductAttributePair>? Attributes);   // null = blok yok; BOŞ liste de "bilgi yok" sayılır (uygulayıcı silmez)
+    IReadOnlyList<N11ProductAttributePair>? Attributes,    // null = blok yok; BOŞ liste de "bilgi yok" sayılır (uygulayıcı silmez)
+    IReadOnlyList<N11SkuIdentity> Skus);                   // yanıttaki stockItems kimlikleri (yoksa boş)

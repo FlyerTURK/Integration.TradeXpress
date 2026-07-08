@@ -4,12 +4,15 @@ using System.Linq;
 using System.Threading.Tasks;
 using Integration.TradeXpress.Financials.CurrencyUnits;
 using Integration.TradeXpress.MultiCompany;
+using Integration.TradeXpress.N11Categories;
 using Integration.TradeXpress.Permissions;
 using Integration.TradeXpress.Products;
 using Integration.TradeXpress.SalesChannels;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Logging;
 using Volo.Abp;
+using Volo.Abp.Caching;
 using Volo.Abp.Domain.Repositories;
 
 namespace Integration.TradeXpress.N11Products;
@@ -33,6 +36,9 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
     private readonly ICurrentCompany _currentCompany;
     private readonly IN11ProductClient _client;
     private readonly IPublicImageLinkProvider _publicImageLink;
+    private readonly IN11CategoryClient _categoryClient;
+    private readonly N11ProductPushValidator _pushValidator;
+    private readonly IDistributedCache<N11LeafAttributes> _leafAttributeCache;
 
     public SalesChannelTrN11ProductAppService(
         IRepository<SalesChannelTrN11Product, Guid> repository,
@@ -45,7 +51,10 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
         IRepository<CurrencyUnit, Guid> currencyRepository,
         ICurrentCompany currentCompany,
         IN11ProductClient client,
-        IPublicImageLinkProvider publicImageLink)
+        IPublicImageLinkProvider publicImageLink,
+        IN11CategoryClient categoryClient,
+        N11ProductPushValidator pushValidator,
+        IDistributedCache<N11LeafAttributes> leafAttributeCache)
     {
         _repository = repository;
         _productRepository = productRepository;
@@ -58,6 +67,9 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
         _currentCompany = currentCompany;
         _client = client;
         _publicImageLink = publicImageLink;
+        _categoryClient = categoryClient;
+        _pushValidator = pushValidator;
+        _leafAttributeCache = leafAttributeCache;
     }
 
     public virtual async Task<List<SalesChannelTrN11ProductDto>> GetListForProductAsync(Guid productId)
@@ -167,8 +179,27 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
         {
             // Veri kurulumu da try İÇİNDE: geçici-link (dış servis) hataları dahil her başarısızlık
             // MarkSyncFailed'e düşsün — kayıt bayat "Synced" göstermesin (review bulgusu).
-            var data = await BuildProductDataAsync(entity);
+            var plan = await BuildProductDataAsync(entity, channel);
+            var data = plan.Data;
             var result = await _client.SaveProductAsync(data, channel.AppKey, channel.AppSecret);
+
+            // Push N11'e ULAŞTI → SKU satırları ŞİMDİ kalıcılaşır (kod donması yalnız başarılı push'ta) ve
+            // SKU-başına gönderilen adet/fiyat + seçenek snapshot'ı (Faz 2 dirty-tracking + sipariş→varyant
+            // eşleme temeli) ile yanıttaki SKU kimlikleri (id/version) kaydedilir.
+            entity.ReconcileSkus(plan.Candidates);
+            foreach (var item in data.StockItems)
+            {
+                entity.RecordSkuPush(
+                    item.SellerStockCode,
+                    item.Quantity,
+                    item.OptionPrice,
+                    item.Attributes.Select(a => new SalesChannelTrN11ProductAttribute(a.Name, a.Value)));
+            }
+
+            foreach (var sku in result.Skus)
+            {
+                entity.ApplySkuIdentity(sku.SellerStockCode, sku.N11SkuId, sku.Version);
+            }
 
             // N11 kuralları KENDİ tarafında oynatabilir (2026-07-07 kararı): push sonrası ürün N11'den geri
             // okunur, SpecialInfo HARİÇ alanlar N11 GERÇEĞİYLE eşlenir; kritik fark (kategori) kullanıcıya bildirilir.
@@ -267,11 +298,17 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
                 a.Name.Truncate(N11ProductConsts.AttributeNameMaxLength)!,
                 a.Value.Truncate(N11ProductConsts.AttributeValueMaxLength) ?? string.Empty)));
         }
+
+        // Doğrulama okumasındaki SKU kimlikleri (id/version) push yanıtından TAZEDİR → üzerine yaz.
+        foreach (var sku in detail.Skus)
+        {
+            entity.ApplySkuIdentity(sku.SellerStockCode, sku.N11SkuId, sku.Version);
+        }
     }
 
     // ── Push veri kurulumu (ürün grafı → N11ProductData) ────────────────────────────────────────────
 
-    private async Task<N11ProductData> BuildProductDataAsync(SalesChannelTrN11Product channelProduct)
+    private async Task<N11ProductPushPlan> BuildProductDataAsync(SalesChannelTrN11Product channelProduct, SalesChannelTrN11 channel)
     {
         var product = await GetOwnedProductAsync(channelProduct.ProductId);
 
@@ -322,13 +359,39 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
         var currencyType = await ResolveCurrencyTypeAsync(currencyUnitIds.FirstOrDefault());
         var variantOptions = await LoadVariantOptionsAsync(product.Id, variants.Select(v => v.Id).ToList());
 
-        // Stok kodları da KAYIT-scoped ("{VaryantKodu}-{SequenceNo}") — aynı ürünün ikinci N11 listelemesinde
-        // satıcı-geneli sellerStockCode çakışmasın (N11 stok kodu satıcı genelinde benzersizdir).
+        // ── Faz 1: kategori-farkındalıklı validasyon — varyant EKSENLERİNİ kategori belirler (isVariant seti),
+        // customValue=false değer listeden birebir, zorunlu eksen her SKU'da dolu; sapma FAIL-FAST.
+        var leaf = await GetLeafAttributesCachedAsync(channelProduct.CategoryExternalId, channel);
+        var candidates = variants
+            .Select(v => new N11SkuPushCandidate(
+                v.Id,
+                v.Code,
+                (variantOptions.TryGetValue(v.Id, out var opts) ? opts : new List<N11ProductAttributePair>())
+                    .Select(p => new SalesChannelTrN11ProductAttribute(p.Name, p.Value))
+                    .ToList()))
+            .ToList();
+        var validated = _pushValidator.Validate(leaf, channelProduct.Attributes, candidates);
+
+        // Reconcile/imza adayları KANONİK değerlerle kurulur (validated) — RecordSkuPush snapshot'ı da kanonik
+        // olduğundan, sonraki push'ta imza eşleşmesi ham/kanonik karışımından ETKİLENMEZ (review bulgusu).
+        var canonicalCandidates = variants
+            .Select(v => new N11SkuPushCandidate(
+                v.Id,
+                v.Code,
+                (validated.VariantOptions.TryGetValue(v.Id, out var cp) ? cp : new List<N11ProductAttributePair>())
+                    .Select(p => new SalesChannelTrN11ProductAttribute(p.Name, p.Value))
+                    .ToList()))
+            .ToList();
+
+        // Stok kodları PLANLANIR (entity mutasyonu YOK): mevcut dondurulmuş satır kodu tercih edilir, yoksa üretilir.
+        // Satırlar ancak BAŞARILI push sonrası ReconcileSkus ile kalıcılaşır — başarısız push bayat kod dondurmasın.
+        var stockCodePlan = channelProduct.PlanStockCodes(canonicalCandidates);
+
         var stockItems = variants.Select(v => new N11ProductStockItem(
-            SellerStockCode: $"{v.Code}-{channelProduct.SequenceNo}",
+            SellerStockCode: stockCodePlan[v.Id],
             Quantity: v.StockQuantity,
             OptionPrice: v.SalePrice,
-            Attributes: variantOptions.TryGetValue(v.Id, out var opts) ? opts : new List<N11ProductAttributePair>(),
+            Attributes: validated.VariantOptions.TryGetValue(v.Id, out var pairs) ? pairs : new List<N11ProductAttributePair>(),
             Gtin: null,
             Mpn: null)).ToList();
 
@@ -336,7 +399,7 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
             .Select((url, index) => new N11ProductImage(url, index + 1))
             .ToList();
 
-        return new N11ProductData(
+        var data = new N11ProductData(
             ProductSellerCode: channelProduct.SellerCode,   // KAYIT-bazlı upsert kimliği — her kayıt N11'de AYRI listeleme
             Title: product.Name,
             Description: product.Description ?? product.Name,
@@ -349,9 +412,42 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
             ShipmentTemplate: channelProduct.ShipmentTemplateName,
             MaxPurchaseQuantity: channelProduct.MaxPurchaseQuantity,
             Images: images,
-            Attributes: channelProduct.Attributes.Select(a => new N11ProductAttributePair(a.Name, a.Value)).ToList(),
+            Attributes: validated.ProductAttributes,       // varyant eksenleri FİLTRELİ + kanonik değerler
             StockItems: stockItems,
             SpecialInfo: channelProduct.SpecialInfo.Select(s => new N11ProductSpecialInfo(s.Key, s.Value)).ToList());
+
+        return new N11ProductPushPlan(data, canonicalCandidates);
+    }
+
+    /// <summary>Push planı — N11'e gidecek veri + BAŞARILI push sonrası SKU satırlarını kurmak için kanonik adaylar
+    /// (kod donması yalnız başarılı push'ta gerçekleşsin diye ReconcileSkus çağrısı push sonrasına ertelenir).</summary>
+    private sealed record N11ProductPushPlan(N11ProductData Data, List<N11SkuPushCandidate> Candidates);
+
+    /// <summary>Yaprak kategori attribute tanımı — REST-primary client'tan, DAĞITIK CACHE'li (6 saat; kategori
+    /// tanımları nadiren değişir, her push'ta N11'e gitmeye gerek yok). Alınamazsa push DURUR (fail-fast:
+    /// validasyonsuz gönderim N11'de tanımsız davranış üretir; kullanıcı yeniden dener).</summary>
+    private async Task<N11LeafAttributes> GetLeafAttributesCachedAsync(string categoryExternalId, SalesChannelTrN11 channel)
+    {
+        try
+        {
+            return (await _leafAttributeCache.GetOrAddAsync(
+                $"N11LeafAttributes:{categoryExternalId}",
+                async () => await _categoryClient.GetLeafAttributesAsync(categoryExternalId, channel.AppKey, channel.AppSecret),
+                () => new DistributedCacheEntryOptions
+                {
+                    AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(6),
+                }))!;
+        }
+        catch (BusinessException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "N11 kategori attribute tanımı alınamadı ({CategoryId}).", categoryExternalId);
+            throw new BusinessException("TradeXpress:N11:Product:CategoryAttributesUnavailable")
+                .WithData("CategoryId", categoryExternalId);
+        }
     }
 
     /// <summary>Varyant başına option attribute (name/value) — ProductVariantAttributeValue → attribute adı + değer.</summary>

@@ -40,6 +40,19 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
                 s.Property(p => p.Value).HasMaxLength(N11ProductConsts.SpecialInfoValueMaxLength);
             });
 
+            // Varyant-başına N11 SKU kimlik satırları (Faz 1): sellerStockCode dondurma + N11 SKU id/version +
+            // push snapshot'ı → JSON kolonu (sipariş→varyant çözümü ürün kaydı üzerinden yapılır, çapraz sorgu yok).
+            b.OwnsMany(x => x.Skus, s =>
+            {
+                s.ToJson();
+                s.Property(p => p.SellerStockCode).HasMaxLength(N11ProductConsts.StockCodeMaxLength);
+                s.OwnsMany(p => p.AttributeSnapshot, a =>
+                {
+                    a.Property(p => p.Name).HasMaxLength(N11ProductConsts.AttributeNameMaxLength);
+                    a.Property(p => p.Value).HasMaxLength(N11ProductConsts.AttributeValueMaxLength);
+                });
+            });
+
             // Aynı kanalda AYNI ürün için birden fazla kayıt OLABİLİR (2026-07-07 kullanıcı kararı) → normal index.
             b.HasIndex(x => new { x.SalesChannelId, x.ProductId });
             b.HasIndex(x => new { x.TenantId, x.CompanyId });

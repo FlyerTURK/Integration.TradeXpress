@@ -84,15 +84,18 @@ public sealed class N11ProductClient : IN11ProductClient, ITransientDependency
         return new XElement("attribute", new XElement("name", a.Name), new XElement("value", a.Value));
     }
 
+    // Element sırası WSDL ProductSkuRequest xs:sequence'ine UYAR: bundle?→mpn?→gtin?→n11CatalogId→oem?→quantity→
+    // sellerStockCode→attributes→optionPrice→images (mpn/gtin quantity'den ÖNCE — Faz 1 sıra düzeltmesi; bugün
+    // null oldukları için fark yok, dolduruldukları gün şema reddi riski sıfırlanır).
     private static XElement BuildStockItem(N11ProductStockItem s)
     {
         return new XElement("stockItem",
+            Optional("mpn", s.Mpn),
+            Optional("gtin", s.Gtin),
             new XElement("quantity", s.Quantity.ToString(CultureInfo.InvariantCulture)),
             new XElement("sellerStockCode", s.SellerStockCode),
             s.Attributes.Count == 0 ? null : new XElement("attributes", s.Attributes.Select(BuildAttribute)),
-            s.OptionPrice is { } op ? new XElement("optionPrice", op.ToString(CultureInfo.InvariantCulture)) : null,
-            Optional("gtin", s.Gtin),
-            Optional("mpn", s.Mpn));
+            s.OptionPrice is { } op ? new XElement("optionPrice", op.ToString(CultureInfo.InvariantCulture)) : null);
     }
 
     private static XElement Auth(string appKey, string appSecret)
@@ -117,7 +120,7 @@ public sealed class N11ProductClient : IN11ProductClient, ITransientDependency
         var product = doc.Descendants().FirstOrDefault(e => e.Name.LocalName == "product");
         if (product is null)
         {
-            return new N11SaveProductResult(null, null, null, null);
+            return new N11SaveProductResult(null, null, null, null, Array.Empty<N11SkuIdentity>());
         }
 
         long? n11Id = long.TryParse(Local(product, "id"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var id) ? id : null;
@@ -125,7 +128,28 @@ public sealed class N11ProductClient : IN11ProductClient, ITransientDependency
             n11Id,
             NullIfEmpty(Local(product, "productSellerCode")),
             NullIfEmpty(Local(product, "saleStatus")),
-            NullIfEmpty(Local(product, "approvalStatus")));
+            NullIfEmpty(Local(product, "approvalStatus")),
+            ParseSkus(product));
+    }
+
+    /// <summary>Yanıttaki stockItems bloğundan SKU kimliklerini çıkarır (id/version — SKU-düzeyi mutabakat).
+    /// Blok yoksa/boşsa boş liste; sellerStockCode'suz satır atlanır (eşlenemez).</summary>
+    private static IReadOnlyList<N11SkuIdentity> ParseSkus(XElement product)
+    {
+        var wrapper = product.Elements().FirstOrDefault(e => e.Name.LocalName == "stockItems");
+        if (wrapper is null)
+        {
+            return Array.Empty<N11SkuIdentity>();
+        }
+
+        return wrapper.Elements()
+            .Where(e => e.Name.LocalName == "stockItem")
+            .Select(s => new N11SkuIdentity(
+                NullIfEmpty(Local(s, "sellerStockCode")) ?? string.Empty,
+                long.TryParse(Local(s, "id"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var skuId) ? skuId : null,
+                long.TryParse(Local(s, "version"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var version) ? version : null))
+            .Where(s => s.SellerStockCode.Length > 0)
+            .ToList();
     }
 
     /// <summary>GetProductByProductId yanıtındaki product'ı N11ProductDetail'e çevirir — alan yanıtta yoksa null
@@ -135,7 +159,7 @@ public sealed class N11ProductClient : IN11ProductClient, ITransientDependency
         var product = doc.Descendants().FirstOrDefault(e => e.Name.LocalName == "product");
         if (product is null)
         {
-            return new N11ProductDetail(n11ProductId, null, null, null, null, null, null, null, null, null, null);
+            return new N11ProductDetail(n11ProductId, null, null, null, null, null, null, null, null, null, null, Array.Empty<N11SkuIdentity>());
         }
 
         var category = product.Elements().FirstOrDefault(e => e.Name.LocalName == "category");
@@ -157,7 +181,8 @@ public sealed class N11ProductClient : IN11ProductClient, ITransientDependency
             int.TryParse(Local(product, "maxPurchaseQuantity"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var maxPurchase) ? maxPurchase : null,
             NullIfEmpty(Local(product, "saleStatus")),
             NullIfEmpty(Local(product, "approvalStatus")),
-            attributes);
+            attributes,
+            ParseSkus(product));
     }
 
     // ── HTTP + yardımcılar ──────────────────────────────────────────────────────────────────────────
