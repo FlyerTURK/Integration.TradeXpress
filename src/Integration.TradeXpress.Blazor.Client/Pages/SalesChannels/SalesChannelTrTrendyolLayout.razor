@@ -4,9 +4,10 @@
 
 @*
    Trendyol satış kanalı DUMB Layout — yalnız SalesChannelTrTrendyolGetDto'yu forma yansıtır (I/O yok).
-   Sıra (ui-blazor): Kod → Ad → SellerId → ApiKey/ApiSecret → Description → Status.
+   Sıra (ui-blazor): Kod → Ad → SellerId → Token (birincil) → ApiKey/ApiSecret (alternatif) → Description → Status.
    SellerId kimliktir (sır değil) → görünür; UI regex (yalnız rakam) DTO'daki [RegularExpression] ile doğrulanır.
-   ApiKey/ApiSecret sır → düzenlemede BOŞ gelir (redaksiyon), "boş = korunur".
+   Token = base64(apiKey:apiSecret): yapıştırılınca sunucu ApiKey/ApiSecret'a ayırır (elle yazım I/l/1/O/0 karışıklığını atlatır).
+   ApiKey/ApiSecret sır → düzenlemede BOŞ gelir (redaksiyon), "boş = korunur"; Token'ın ALTERNATİFİ (biri yeter → * yok).
 *@
 
 <DxFormLayout CssClass="w-100">
@@ -20,10 +21,18 @@
         <DxFormLayoutItem Caption="@($"{L["SalesChannel:SellerId"]} *")" ColSpanMd="6">
             <DxTextBox @bind-Text="@Model.SellerId" />
         </DxFormLayoutItem>
-        <DxFormLayoutItem Caption="@(IsNew ? $"{L["SalesChannel:ApiKey"]} *" : L["SalesChannel:ApiKey"].Value)" ColSpanMd="6">
+        <DxFormLayoutItem ColSpanMd="12">
+            <CaptionTemplate>
+                <InfoCaption Text="@L["SalesChannel:Trendyol:Token"].Value" HintText="@L["SalesChannel:Trendyol:TokenHint"].Value" />
+            </CaptionTemplate>
+            <Template>
+                <DxTextBox @bind-Text="@Model.Token" NullText="@L["SalesChannel:Trendyol:TokenPlaceholder"].Value" CssClass="w-100" />
+            </Template>
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["SalesChannel:ApiKey"].Value" ColSpanMd="6">
             <DxTextBox @bind-Text="@Model.ApiKey" NullText="@SecretPlaceholder" />
         </DxFormLayoutItem>
-        <DxFormLayoutItem Caption="@(IsNew ? $"{L["SalesChannel:ApiSecret"]} *" : L["SalesChannel:ApiSecret"].Value)" ColSpanMd="6">
+        <DxFormLayoutItem Caption="@L["SalesChannel:ApiSecret"].Value" ColSpanMd="6">
             <PasswordTextEdit @bind-Text="@Model.ApiSecret" NullText="@SecretPlaceholder" Tooltip="@L["ShowPassword"]" CssClass="w-100" />
         </DxFormLayoutItem>
         <DxFormLayoutItem Caption="@L["Description"]" ColSpanMd="12">

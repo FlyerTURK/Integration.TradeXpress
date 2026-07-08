@@ -125,6 +125,12 @@ public class SalesChannelTrTrendyolGetDto : EntityDto<Guid>, IGetDto<Guid>, IHas
     [StringLength(SalesChannelConsts.ConfigMaxLength)]
     public string ApiSecret { get; set; } = string.Empty;
 
+    // YALNIZ-YAZILIR giriş kolaylığı: Trendyol panelindeki hazır Token (base64(apiKey:apiSecret)). Form GetDto'ya bind
+    // ettiğinden burada durur ki commit'te Create/Update'e map'lensin; GetAsync'te ApiKey/ApiSecret gibi DAİMA redakte
+    // edilir (sır türevi asla client'a dönmez). PERSIST EDİLMEZ — AppService decode edip ApiKey/ApiSecret'a ayırır.
+    [StringLength(SalesChannelConsts.TokenMaxLength)]
+    public string Token { get; set; } = string.Empty;
+
     public bool IsActive { get; set; }
 }
 
@@ -146,13 +152,18 @@ public class SalesChannelTrTrendyolCreateDto : ICreateDto
     [RegularExpression("^[0-9]+$", ErrorMessage = "SalesChannel:SellerIdFormat")]
     public string SellerId { get; set; } = string.Empty;
 
-    [Required]
-    [StringLength(SalesChannelConsts.ConfigMaxLength, MinimumLength = 1)]
+    // ApiKey/ApiSecret AYRI giriş yolu — ZORUNLU DEĞİL çünkü ALTERNATİF olarak tek Token yapıştırılabilir. AppService
+    // Token doluysa onu decode edip bu ikisini override eder; boşsa ApiKey/ApiSecret zorunlu (VerifyOrThrow'da sınanır).
+    [StringLength(SalesChannelConsts.ConfigMaxLength)]
     public string ApiKey { get; set; } = string.Empty;
 
-    [Required]
-    [StringLength(SalesChannelConsts.ConfigMaxLength, MinimumLength = 1)]
+    [StringLength(SalesChannelConsts.ConfigMaxLength)]
     public string ApiSecret { get; set; } = string.Empty;
+
+    // Trendyol panelindeki hazır Token = base64(apiKey:apiSecret). Doluysa ApiKey/ApiSecret'ın alternatifi/önceliklisi
+    // (SellerId İÇERMEZ → ayrı alandan gelir). Boşsa ApiKey/ApiSecret ikilisi kullanılır. PERSIST EDİLMEZ.
+    [StringLength(SalesChannelConsts.TokenMaxLength)]
+    public string Token { get; set; } = string.Empty;
 }
 
 public class SalesChannelTrTrendyolUpdateDto : IUpdateDto
@@ -174,12 +185,17 @@ public class SalesChannelTrTrendyolUpdateDto : IUpdateDto
     [RegularExpression("^[0-9]+$", ErrorMessage = "SalesChannel:SellerIdFormat")]
     public string SellerId { get; set; } = string.Empty;
 
-    // Boş = mevcut korunur; doldurulursa (İKİSİ birlikte) güncellenir (Trendyol test API'si yok → doğrulama yapılmaz).
+    // Boş = mevcut korunur; doldurulursa (İKİSİ birlikte) güncellenir. ALTERNATİF: tek Token yapıştırılabilir.
     [StringLength(SalesChannelConsts.ConfigMaxLength)]
     public string ApiKey { get; set; } = string.Empty;
 
     [StringLength(SalesChannelConsts.ConfigMaxLength)]
     public string ApiSecret { get; set; } = string.Empty;
+
+    // Trendyol panelindeki hazır Token = base64(apiKey:apiSecret). Doluysa ApiKey/ApiSecret ikilisinin alternatifi/önceliklisi
+    // (kimlik değiştirme yolu); boşsa mevcut ApiKey/ApiSecret mantığı geçerli. PERSIST EDİLMEZ.
+    [StringLength(SalesChannelConsts.TokenMaxLength)]
+    public string Token { get; set; } = string.Empty;
 
     public bool IsActive { get; set; }
 }

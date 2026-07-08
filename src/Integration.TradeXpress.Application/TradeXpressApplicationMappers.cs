@@ -193,6 +193,8 @@ public partial class SalesChannelTrN11ToGetDtoMapper : MapperBase<SalesChannelTr
 [Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
 public partial class SalesChannelTrTrendyolToGetDtoMapper : MapperBase<SalesChannelTrTrendyol, SalesChannelTrTrendyolGetDto>
 {
+    // Token = yalnız-yazılır giriş alanı (base64(apiKey:apiSecret)); entity'de karşılığı YOK → çıkışta redakte edilir.
+    [MapperIgnoreTarget(nameof(SalesChannelTrTrendyolGetDto.Token))]
     public override partial SalesChannelTrTrendyolGetDto Map(SalesChannelTrTrendyol source);
     public override partial void Map(SalesChannelTrTrendyol source, SalesChannelTrTrendyolGetDto destination);
 }

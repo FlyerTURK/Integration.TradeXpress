@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
 using Integration.Framework;
 using Integration.Framework.Base.Querying;
@@ -79,11 +80,20 @@ public class SalesChannelTrTrendyolAppService : TradeXpressAppService, ISalesCha
             input.Code, nameof(SalesChannelBase.Code), EntityFieldConsts.CodeMinLength, SalesChannelConsts.CodeMaxLength);
         await EnsureCodeUniqueAsync(companyId, normalizedCode, Guid.Empty);
 
+        // Token yapıştırıldıysa apiKey:apiSecret'a ayır (elle yazımdaki I/l/1/O/0 karışıklığını atlatır); yoksa ayrı alanlar.
+        var effectiveApiKey = input.ApiKey;
+        var effectiveApiSecret = input.ApiSecret;
+        if (TryDecodeToken(input.Token, out var tokenApiKey, out var tokenApiSecret))
+        {
+            effectiveApiKey = tokenApiKey;
+            effectiveApiSecret = tokenApiSecret;
+        }
+
         // Kimlik oluşturmada ZORUNLU → Trendyol'a doğrula (hafif authenticated GET; SellerId path'te olduğundan
         // hem kimlik hem SellerId sınanır). Geçmezse (InvalidCredentials/VerificationUnavailable) kayıt açılmaz.
-        await _credentialVerifier.VerifyOrThrowAsync(input.SellerId, input.ApiKey, input.ApiSecret);
+        await _credentialVerifier.VerifyOrThrowAsync(input.SellerId, effectiveApiKey, effectiveApiSecret);
 
-        var entity = new SalesChannelTrTrendyol(companyId, input.Code, input.Name, input.SellerId, input.ApiKey, input.ApiSecret);
+        var entity = new SalesChannelTrTrendyol(companyId, input.Code, input.Name, input.SellerId, effectiveApiKey, effectiveApiSecret);
         entity.SetDescription(input.Description);
         await _repository.InsertAsync(entity, autoSave: true);
 
@@ -98,7 +108,7 @@ public class SalesChannelTrTrendyolAppService : TradeXpressAppService, ISalesCha
         await ApplyCodeChangeAsync(entity, input.Code);
         entity.SetName(input.Name);
         entity.SetDescription(input.Description);
-        await ApplyCredentialChangeAsync(entity, input.SellerId, input.ApiKey, input.ApiSecret);
+        await ApplyCredentialChangeAsync(entity, input.SellerId, input.ApiKey, input.ApiSecret, input.Token);
         entity.SetActive(input.IsActive);
         await _repository.UpdateAsync(entity, autoSave: true);
 
@@ -107,10 +117,18 @@ public class SalesChannelTrTrendyolAppService : TradeXpressAppService, ISalesCha
 
     /// <summary>Sızıntısız edit kuralı: ApiKey/ApiSecret BOŞ = mevcut korunur; DOLU = değiştir. Tek alan doldurulmuşsa
     /// (yarım kimlik) → dostane hata. Kimlik (SellerId ya da key/secret) DEĞİŞİYORSA efektif üçlüyü Trendyol'a doğrula —
-    /// SellerId path'te olduğundan yalnız SellerId değişse de (key/secret korunsa) doğrulama gerekir.</summary>
+    /// SellerId path'te olduğundan yalnız SellerId değişse de (key/secret korunsa) doğrulama gerekir.
+    /// Token yapıştırıldıysa key/secret çiftinin ALTERNATİF/öncelikli giriş yolu → decode edip apiKey/apiSecret'ı override eder.</summary>
     private async Task ApplyCredentialChangeAsync(
-        SalesChannelTrTrendyol entity, string sellerId, string apiKey, string apiSecret)
+        SalesChannelTrTrendyol entity, string sellerId, string apiKey, string apiSecret, string token)
     {
+        // Token doluysa apiKey:apiSecret'a böl → "dolu key/secret çifti" gibi ele alınır (decode her ikisini birlikte üretir).
+        if (TryDecodeToken(token, out var tokenApiKey, out var tokenApiSecret))
+        {
+            apiKey = tokenApiKey;
+            apiSecret = tokenApiSecret;
+        }
+
         var hasApiKey = !string.IsNullOrWhiteSpace(apiKey);
         var hasApiSecret = !string.IsNullOrWhiteSpace(apiSecret);
         if (hasApiKey != hasApiSecret)
@@ -136,12 +154,47 @@ public class SalesChannelTrTrendyolAppService : TradeXpressAppService, ISalesCha
         }
     }
 
-    /// <summary>Sızıntı önleme: sir alanları (ApiKey/ApiSecret) client'a ASLA gitmez. SellerId kimliktir → görünür kalır.</summary>
+    /// <summary>Sızıntı önleme: sir alanları (ApiKey/ApiSecret) ve sır türevi Token client'a ASLA gitmez (yalnız-yazılır giriş
+    /// alanı). SellerId kimliktir → görünür kalır.</summary>
     private static SalesChannelTrTrendyolGetDto Redact(SalesChannelTrTrendyolGetDto dto)
     {
         dto.ApiKey = string.Empty;
         dto.ApiSecret = string.Empty;
+        dto.Token = string.Empty;
         return dto;
+    }
+
+    /// <summary>Trendyol "yapıştır" Token'ı = base64(apiKey:apiSecret) (Authorization: Basic değeri). Boşsa <c>false</c>
+    /// (Token kullanılmıyor → çağıran ayrı ApiKey/ApiSecret alanlarına düşer). Geçerli base64 → UTF8 çöz, İLK ':' ile böl;
+    /// apiKey boş (idx&lt;=0) ya da apiSecret boş (':' son karakter) → geçersiz. Geçersiz base64/biçim → dostane InvalidToken.</summary>
+    private static bool TryDecodeToken(string token, out string apiKey, out string apiSecret)
+    {
+        apiKey = string.Empty;
+        apiSecret = string.Empty;
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            return false;
+        }
+
+        string decoded;
+        try
+        {
+            decoded = Encoding.UTF8.GetString(Convert.FromBase64String(token.Trim()));
+        }
+        catch (FormatException)
+        {
+            throw new BusinessException("TradeXpress:SalesChannel:Trendyol:InvalidToken");
+        }
+
+        var idx = decoded.IndexOf(':');
+        if (idx <= 0 || idx >= decoded.Length - 1)
+        {
+            throw new BusinessException("TradeXpress:SalesChannel:Trendyol:InvalidToken");
+        }
+
+        apiKey = decoded.Substring(0, idx);
+        apiSecret = decoded.Substring(idx + 1);   // secret'ta ':' olabilir → yalnız ilk ':' ile bölünür
+        return true;
     }
 
     [Authorize(TradeXpressPermissions.SalesChannels.Delete)]

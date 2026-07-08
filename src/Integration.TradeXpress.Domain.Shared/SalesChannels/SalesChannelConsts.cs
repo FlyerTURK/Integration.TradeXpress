@@ -9,4 +9,8 @@ public static class SalesChannelConsts
 
     /// <summary>Kanal API kimlik bilgisi alanları (AppKey/AppSecret gibi) için ortak üst sınır.</summary>
     public const int ConfigMaxLength      = 256;
+
+    /// <summary>Trendyol "yapıştır" Token'ı = base64(apiKey:apiSecret). İki <see cref="ConfigMaxLength"/> alanı + ':'
+    /// ayıracının base64 gösterimini rahat kapsayacak üst sınır (base64 ~%37 şişme). Yalnız giriş alanı — persist edilmez.</summary>
+    public const int TokenMaxLength       = 1024;
 }
