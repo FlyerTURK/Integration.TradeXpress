@@ -130,7 +130,7 @@
                                 OnClick="@(item => _axisDrill?.EditItem((SalesChannelTrN11ProductVariantAxisDto)item))" />
                 <DxGridDataColumn Caption="@L["AttributeValues"]">
                     <CellDisplayTemplate Context="cell">
-                        @string.Join(", ", ((SalesChannelTrN11ProductVariantAxisDto)cell.DataItem).Values)
+                        @string.Join(", ", ((SalesChannelTrN11ProductVariantAxisDto)cell.DataItem).Values.Select(v => v.Value))
                     </CellDisplayTemplate>
                 </DxGridDataColumn>
             </GridColumns>
@@ -152,7 +152,8 @@
                                        NewItemFactory="@(() => new SalesChannelTrN11ProductVariantAxisValueDto())"
                                        OnChanged="@(() => MarkDirty(nameof(Model.VariantAxes)))">
                                 <GridColumns>
-                                    <GridLinkColumn FieldName="Value" Caption="@L["Value"]" VisibleIndex="1" />
+                                    <GridLinkColumn Caption="@L["Value"]" VisibleIndex="1"
+                                                    TextSelector="@(item => ((SalesChannelTrN11ProductVariantAxisValueDto)item).Value)" />
                                 </GridColumns>
                                 <EditContent Context="val">
                                     <DxFormLayout CssClass="w-100">
