@@ -143,7 +143,7 @@
                             @* Değerler — DxTagBox: yaz + Enter ile ekle (çoklu N11-uyumlu değer). *@
                             <DxTagBox Data="@axis.Values" Values="@axis.Values"
                                       ValuesChanged="@((IEnumerable<string> v) => axis.Values = v.ToList())"
-                                      AllowCustomTags="true" CssClass="w-100" />
+                                      AllowCustomTags="true" CssClass="w-100" ValidationEnabled="false" />
                         </DxFormLayoutItem>
                     </DxFormLayout>
                 </EditContent>
