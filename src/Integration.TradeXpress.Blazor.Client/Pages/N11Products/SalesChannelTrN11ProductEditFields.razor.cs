@@ -49,6 +49,7 @@ public partial class SalesChannelTrN11ProductEditFields : CrudComponentBase
 
     [CascadingParameter] private EditContext? EditContext { get; set; }
 
+    private DrillList<SalesChannelTrN11ProductVariantAxisDto>? _axisDrill;
     private List<N11ShipmentTemplateDto> _templates = new();
     private List<N11CategoryAttributeDto> _attributeDefs = new();
 

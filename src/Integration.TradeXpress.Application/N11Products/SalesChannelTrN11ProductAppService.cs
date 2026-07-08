@@ -748,6 +748,7 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
         entity.SetActive(input.IsActive);
         entity.SetAttributes(input.Attributes.Select(a => new SalesChannelTrN11ProductAttribute(a.Name, a.Value)));
         entity.SetSpecialInfo(input.SpecialInfo.Select(s => new SalesChannelTrN11ProductSpecialInfo(s.Key, s.Value)));
+        entity.SetVariantAxes(input.VariantAxes.Select(a => new SalesChannelTrN11ProductVariantAxis(a.Name, a.Values)));
     }
 
     private async Task<SalesChannelTrN11Product> GetOwnedAsync(Guid id)

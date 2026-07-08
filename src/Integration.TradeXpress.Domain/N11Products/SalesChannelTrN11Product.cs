@@ -62,6 +62,26 @@ public class SalesChannelTrN11ProductSku
     }
 }
 
+/// <summary>N11 varyant EKSENİ (owned → JSON) — kullanıcının N11 formunda tanımladığı stockItem eksen adı
+/// (N11 kategorisi isVariant setiyle uyumlu, ör. "Beden") + N11-uyumlu değerleri ("S"/"M"/"L"). Ana üründeki
+/// nitelik/değer sihirbazının N11-scope karşılığı. Push'ta bu eksenlerin KARTEZYENİ stockItem kombinasyonlarını
+/// verir; her kombinasyon isim/değer imzasıyla ERP varyantına eşleşip fiyat/stok/kod alır (SSOT ERP).</summary>
+public class SalesChannelTrN11ProductVariantAxis
+{
+    public string Name { get; set; } = string.Empty;
+    public List<string> Values { get; set; } = new();
+
+    public SalesChannelTrN11ProductVariantAxis()
+    {
+    }
+
+    public SalesChannelTrN11ProductVariantAxis(string name, IEnumerable<string> values)
+    {
+        Name = name;
+        Values = values.ToList();
+    }
+}
+
 /// <summary>Push edilecek varyant adayı — <see cref="SalesChannelTrN11Product.ReconcileSkus"/> girdisi
 /// (varyant kimliği + kodu + N11'e gidecek seçenek çiftleri).</summary>
 public sealed record N11SkuPushCandidate(
@@ -177,6 +197,10 @@ public class SalesChannelTrN11Product : FullAuditedAggregateRoot<Guid>, IMultiTe
     /// id/version + push snapshot'ı. Satır SİLİNMEZ (varyant yok olsa da N11'de yaşıyor olabilir; emeklilik Faz 3).</summary>
     public virtual List<SalesChannelTrN11ProductSku> Skus { get; protected set; } = new();
 
+    /// <summary>N11 varyant eksenleri (owned → JSON) — kullanıcının N11 formunda tanımladığı stockItem eksen/değer
+    /// sihirbazı. BOŞSA push mevcut davranışa döner (ERP varyant nitelikleri doğrudan gider).</summary>
+    public virtual List<SalesChannelTrN11ProductVariantAxis> VariantAxes { get; protected set; } = new();
+
     // ── N11 senkron durumu (push sonrası) ──
     /// <summary>N11'in atadığı ürün id'si (ilk başarılı push'ta dolar).</summary>
     public virtual long? N11ProductId { get; protected set; }
@@ -261,6 +285,29 @@ public class SalesChannelTrN11Product : FullAuditedAggregateRoot<Guid>, IMultiTe
             .Where(s => !string.IsNullOrWhiteSpace(s.Key) && !string.IsNullOrWhiteSpace(s.Value))
             .Select(s => new SalesChannelTrN11ProductSpecialInfo(s.Key.Trim(), s.Value))
             .ToList();
+    }
+
+    /// <summary>N11 varyant eksenlerini ayarlar (sihirbaz) — adı boş eksen + boş/yinelenen değer elenir; en az bir
+    /// değeri olmayan eksen atılır. Eksen adları kendi içinde benzersiz (aynı eksen iki kez tanımlanamaz).</summary>
+    public virtual void SetVariantAxes(IEnumerable<SalesChannelTrN11ProductVariantAxis>? axes)
+    {
+        var normalized = (axes ?? Enumerable.Empty<SalesChannelTrN11ProductVariantAxis>())
+            .Where(a => !string.IsNullOrWhiteSpace(a.Name))
+            .Select(a => new SalesChannelTrN11ProductVariantAxis(
+                a.Name.Trim(),
+                (a.Values ?? new List<string>())
+                    .Where(v => !string.IsNullOrWhiteSpace(v))
+                    .Select(v => v.Trim())
+                    .Distinct(StringComparer.OrdinalIgnoreCase)))
+            .Where(a => a.Values.Count > 0)
+            .ToList();
+
+        if (normalized.Select(a => a.Name.ToUpperInvariant()).Distinct().Count() != normalized.Count)
+        {
+            throw new BusinessException("TradeXpress:N11:Product:DuplicateVariantAxis");
+        }
+
+        VariantAxes = normalized;
     }
 
     /// <summary>Her varyanta gidecek sellerStockCode'u belirler — <b>entity'yi MUTASYONA UĞRATMAZ</b> (push

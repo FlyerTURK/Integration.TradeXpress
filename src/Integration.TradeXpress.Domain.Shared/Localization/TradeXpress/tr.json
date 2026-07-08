@@ -941,6 +941,10 @@
     "Product:DiscountEndDate": "Bitiş",
     "TradeXpress:Product:DiscountValueInvalid": "İndirim değeri 0'dan büyük olmalı.",
     "TradeXpress:Product:DiscountPercentageInvalid": "Yüzde indirimi 0–100 arasında olmalı.",
-    "TradeXpress:Product:DiscountDatesInvalid": "İndirim tarihleri ya ikisi de dolu ya boş olmalı; başlangıç bitişten sonra olamaz."
+    "TradeXpress:Product:DiscountDatesInvalid": "İndirim tarihleri ya ikisi de dolu ya boş olmalı; başlangıç bitişten sonra olamaz.",
+    "N11Product:VariantAxes": "N11 Varyant Eksenleri",
+    "N11Product:VariantAxis": "Varyant Ekseni",
+    "N11Product:VariantAxesHint": "N11 kategorisinin varyant eksenlerini (ör. Beden, Renk) ve değerlerini burada tanımlayın. Boş bırakılırsa ürün varyantlarının nitelikleri kullanılır. Fiyat/stok, aynı değerlere sahip ürün varyantından gelir.",
+    "TradeXpress:N11:Product:DuplicateVariantAxis": "Aynı varyant ekseni birden fazla kez tanımlanamaz."
   }
 }

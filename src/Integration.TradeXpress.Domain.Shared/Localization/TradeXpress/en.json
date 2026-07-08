@@ -910,6 +910,10 @@
     "Product:DiscountEndDate": "End",
     "TradeXpress:Product:DiscountValueInvalid": "Discount value must be greater than 0.",
     "TradeXpress:Product:DiscountPercentageInvalid": "Percentage discount must be between 0 and 100.",
-    "TradeXpress:Product:DiscountDatesInvalid": "Discount dates must both be set or both empty; start cannot be after end."
+    "TradeXpress:Product:DiscountDatesInvalid": "Discount dates must both be set or both empty; start cannot be after end.",
+    "N11Product:VariantAxes": "N11 Variant Axes",
+    "N11Product:VariantAxis": "Variant Axis",
+    "N11Product:VariantAxesHint": "Define the N11 category's variant axes (e.g. Size, Color) and their values here. If left empty, the product variants' attributes are used. Price/stock come from the product variant with matching values.",
+    "TradeXpress:N11:Product:DuplicateVariantAxis": "The same variant axis cannot be defined more than once."
   }
 }

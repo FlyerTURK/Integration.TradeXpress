@@ -103,6 +103,50 @@
         </DxFormLayoutGroup>
     }
 
+    @* N11 varyant eksen sihirbazı — ana üründeki nitelik/değer sihirbazının N11-scope karşılığı. Eksen adı
+       N11 kategorisi isVariant setiyle uyumlu (ör. "Beden"); değerler N11-uyumlu ("S"/"M"/"L"). Push'ta bu
+       eksenlerin kartezyeni stockItem kombinasyonlarını verir; fiyat/stok isim/değer imzasıyla ERP varyantından. *@
+    <DxFormLayoutGroup Caption="@L["N11Product:VariantAxes"]" ColSpanMd="12" CaptionPosition="CaptionPosition.Vertical">
+        <DxFormLayoutItem ColSpanMd="12">
+            <span style="color:#6c757d; font-size:0.85rem;">@L["N11Product:VariantAxesHint"]</span>
+        </DxFormLayoutItem>
+        <DxFormLayoutItem ColSpanMd="12" Context="axisSlot">
+            <DrillList TItem="SalesChannelTrN11ProductVariantAxisDto"
+                       @ref="_axisDrill"
+                       Title="@L["N11Product:VariantAxes"]"
+                       EntityName="@L["N11Product:VariantAxis"]"
+                       EntityIcon="@TradeXpressIcons.Sliders"
+                       Items="Model.VariantAxes"
+                       KeyFieldName="ClientKey"
+                       PrimaryTextSelector="@(a => a.Name)"
+                       NewItemFactory="@(() => new SalesChannelTrN11ProductVariantAxisDto())"
+                       OnChanged="@(() => MarkDirty(nameof(Model.VariantAxes)))">
+                <GridColumns>
+                    <GridLinkColumn FieldName="Name" Caption="@L["N11Product:VariantAxis"]" VisibleIndex="1"
+                                    OnClick="@(item => _axisDrill?.EditItem((SalesChannelTrN11ProductVariantAxisDto)item))" />
+                    <DxGridDataColumn Caption="@L["AttributeValues"]">
+                        <CellDisplayTemplate Context="cell">
+                            @string.Join(", ", ((SalesChannelTrN11ProductVariantAxisDto)cell.DataItem).Values)
+                        </CellDisplayTemplate>
+                    </DxGridDataColumn>
+                </GridColumns>
+                <EditContent Context="axis">
+                    <DxFormLayout CssClass="w-100">
+                        <DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="12">
+                            <DxTextBox @bind-Text="@axis.Name" />
+                        </DxFormLayoutItem>
+                        <DxFormLayoutItem Caption="@L["AttributeValues"]" ColSpanMd="12">
+                            @* Değerler — DxTagBox: yaz + Enter ile ekle (çoklu N11-uyumlu değer). *@
+                            <DxTagBox Data="@axis.Values" Values="@axis.Values"
+                                      ValuesChanged="@((IEnumerable<string> v) => axis.Values = v.ToList())"
+                                      AllowCustomTags="true" CssClass="w-100" />
+                        </DxFormLayoutItem>
+                    </DxFormLayout>
+                </EditContent>
+            </DrillList>
+        </DxFormLayoutItem>
+    </DxFormLayoutGroup>
+
     @* Seyahat özel bilgileri — YALNIZ Seyahat kategorisi seçiliyken (kategori yolu "Seyahat" içerir).
        Diğer kategorilerde gizli (kalabalık yapmaz). N11 specialProductInfoList HTML kabul eder. *@
     @if (IsTravelCategory)

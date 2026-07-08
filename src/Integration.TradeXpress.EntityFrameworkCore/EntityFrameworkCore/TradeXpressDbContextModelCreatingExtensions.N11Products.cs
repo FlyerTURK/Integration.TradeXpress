@@ -53,6 +53,14 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
                 });
             });
 
+            // N11 varyant eksen sihirbazı (eksen adı + N11 değerleri) → JSON kolonu. Values primitive collection.
+            b.OwnsMany(x => x.VariantAxes, a =>
+            {
+                a.ToJson();
+                a.Property(p => p.Name).HasMaxLength(N11ProductConsts.AttributeNameMaxLength);
+                a.PrimitiveCollection(p => p.Values);
+            });
+
             // Aynı kanalda AYNI ürün için birden fazla kayıt OLABİLİR (2026-07-07 kullanıcı kararı) → normal index.
             b.HasIndex(x => new { x.SalesChannelId, x.ProductId });
             b.HasIndex(x => new { x.TenantId, x.CompanyId });
