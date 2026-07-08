@@ -1,10 +1,10 @@
 @inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
 
-@* N11 ürün listeleme edit formu — kendi DxFormLayout'unu sağlar (drill EditContent DxFormLayout vermez).
-   Kanal + kargo şablonu + condition + kategori (kademeli) + on-demand attribute + Seyahat özel bilgi + durum. *@
+@* N11 ürün listeleme edit formu. Form GENELİ tanımlar (kategori + genel alanlar) üstte; ekranda yer kaplayan
+   listeler (nitelikler, varyant eksenleri, görseller, SKU'lar, durum) DrillTabs sekmelerine ayrılır. *@
 
 <DxFormLayout CssClass="w-100">
-    @* Kategori EN BAŞTA — birincil karar (attribute'ları + Seyahat grubunu o belirler); kullanıcı önce kategoriyi seçer. *@
+    @* Kategori EN BAŞTA — birincil karar (attribute'ları + Seyahat'i o belirler); kullanıcı önce kategoriyi seçer. *@
     <DxFormLayoutGroup Caption="@L["N11Product:Category"]" ColSpanMd="12" CaptionPosition="CaptionPosition.Vertical">
         <DxFormLayoutItem ColSpanMd="12">
             <N11CategoryPicker SelectedExternalId="@Model.CategoryExternalId"
@@ -14,11 +14,10 @@
     </DxFormLayoutGroup>
 
     <DxFormLayoutGroup Caption="@L["N11Product:General"]" ColSpanMd="12">
-        @* Kanal — HER ZAMAN salt-okunur: create'te otomatik atanır (şirkette tek N11 kanalı), SET-ONCE (değiştirilemez). *@
+        @* Kanal — HER ZAMAN salt-okunur: create'te otomatik atanır (şirkette tek N11 kanalı), SET-ONCE. *@
         <DxFormLayoutItem Caption="@L["SalesChannel"]" ColSpanMd="6">
             <span>@ChannelName</span>
         </DxFormLayoutItem>
-        @* N11 satıcı kodu — sunucu üretir ("{ÜrünKodu}-{Sıra}"); yeni kayıtta henüz yok → kaydedilince görünür. *@
         @if (!string.IsNullOrEmpty(Model.SellerCode))
         {
             <DxFormLayoutItem Caption="@L["N11Product:SellerCode"]" ColSpanMd="6">
@@ -59,202 +58,188 @@
                     NullText="@L["Optional"]" />
         </DxFormLayoutItem>
     </DxFormLayoutGroup>
+</DxFormLayout>
 
-    @* Kategori attribute'ları — CELL-EDIT grid (on-demand; yaprak seçildiyse). Hücre normal metin görünür;
-       TIKLAYINCA editör açılır (satıra göre: değer listesi → combo, serbest → metin); hücreden çıkınca değişiklik
-       ANINDA uygulanır (Edit/Save butonu YOK). Nitelik adı salt-okunur (zorunlular *); ekleme/silme YOK. *@
+@* ── Büyük listeler sekmelerde (form geneli dışındaki her şey) ── *@
+<DrillTabs CssClass="mt-3">
+    @* Kategori attribute'ları — CELL-EDIT grid (yaprak seçildiyse dolar). Kategori yoksa sekme gizli. *@
     @if (_attributeRows.Count > 0)
     {
-        <DxFormLayoutGroup Caption="@L["N11Product:Attributes"]" ColSpanMd="12" CaptionPosition="CaptionPosition.Vertical">
-            <DxFormLayoutItem ColSpanMd="12">
-                <DxGrid Data="@_attributeRows" KeyFieldName="AttributeId"
-                        EditMode="GridEditMode.EditCell"
-                        EditModelSaving="OnAttributeRowSaving"
-                        PageSize="200" PagerVisible="false"
-                        CssClass="w-100">
-                    <Columns>
-                        <DxGridDataColumn FieldName="Name" Caption="@L["ProductAttribute"]" Width="45%" ReadOnly="true">
-                            <CellDisplayTemplate Context="cell">
-                                @{ var r = (N11AttributeRow)cell.DataItem; }
-                                <span>@(r.IsMandatory ? $"{r.Name} *" : r.Name)</span>
-                            </CellDisplayTemplate>
-                        </DxGridDataColumn>
-                        <DxGridDataColumn FieldName="Value" Caption="@L["Value"]">
-                            <CellEditTemplate Context="cell">
-                                @{ var row = (N11AttributeRow)cell.EditModel; }
-                                @if (row.HasValueList)
-                                {
-                                    <DxComboBox TData="N11CategoryAttributeValueDto" TValue="string"
-                                                Data="@row.Values"
-                                                ValueFieldName="@nameof(N11CategoryAttributeValueDto.Value)"
-                                                TextFieldName="@nameof(N11CategoryAttributeValueDto.Value)"
-                                                Value="@row.Value"
-                                                ValueChanged="@((string v) => row.Value = v)"
-                                                ValueExpression="@(() => row.Value)"
-                                                ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
-                                }
-                                else
-                                {
-                                    <DxTextBox Text="@row.Value"
-                                               TextChanged="@((string v) => row.Value = v)"
-                                               TextExpression="@(() => row.Value)" />
-                                }
-                            </CellEditTemplate>
-                        </DxGridDataColumn>
-                    </Columns>
-                </DxGrid>
-            </DxFormLayoutItem>
-        </DxFormLayoutGroup>
-    }
-
-    @* N11 varyant eksen sihirbazı — ana üründeki nitelik/değer sihirbazının N11-scope karşılığı. Eksen adı
-       N11 kategorisi isVariant setiyle uyumlu (ör. "Beden"); değerler N11-uyumlu ("S"/"M"/"L"). Push'ta bu
-       eksenlerin kartezyeni stockItem kombinasyonlarını verir; fiyat/stok isim/değer imzasıyla ERP varyantından. *@
-    <DxFormLayoutGroup Caption="@L["N11Product:VariantAxes"]" ColSpanMd="12" CaptionPosition="CaptionPosition.Vertical">
-        <DxFormLayoutItem ColSpanMd="12">
-            <span style="color:#6c757d; font-size:0.85rem;">@L["N11Product:VariantAxesHint"]</span>
-        </DxFormLayoutItem>
-        <DxFormLayoutItem ColSpanMd="12" Context="axisSlot">
-            <DrillList TItem="SalesChannelTrN11ProductVariantAxisDto"
-                       @ref="_axisDrill"
-                       Title="@L["N11Product:VariantAxes"]"
-                       EntityName="@L["N11Product:VariantAxis"]"
-                       EntityIcon="@TradeXpressIcons.Sliders"
-                       Items="Model.VariantAxes"
-                       KeyFieldName="ClientKey"
-                       PrimaryTextSelector="@(a => a.Name)"
-                       NewItemFactory="@(() => new SalesChannelTrN11ProductVariantAxisDto())"
-                       OnChanged="@(() => MarkDirty(nameof(Model.VariantAxes)))">
-                <GridColumns>
-                    <GridLinkColumn FieldName="Name" Caption="@L["N11Product:VariantAxis"]" VisibleIndex="1"
-                                    OnClick="@(item => _axisDrill?.EditItem((SalesChannelTrN11ProductVariantAxisDto)item))" />
-                    <DxGridDataColumn Caption="@L["AttributeValues"]">
+        <DxTabPage Text="@L["N11Product:Attributes"]" TabIconCssClass="@TradeXpressIcons.Sliders">
+            <DxGrid Data="@_attributeRows" KeyFieldName="AttributeId"
+                    EditMode="GridEditMode.EditCell"
+                    EditModelSaving="OnAttributeRowSaving"
+                    PageSize="200" PagerVisible="false"
+                    CssClass="w-100">
+                <Columns>
+                    <DxGridDataColumn FieldName="Name" Caption="@L["ProductAttribute"]" Width="45%" ReadOnly="true">
                         <CellDisplayTemplate Context="cell">
-                            @string.Join(", ", ((SalesChannelTrN11ProductVariantAxisDto)cell.DataItem).Values)
+                            @{ var r = (N11AttributeRow)cell.DataItem; }
+                            <span>@(r.IsMandatory ? $"{r.Name} *" : r.Name)</span>
                         </CellDisplayTemplate>
                     </DxGridDataColumn>
-                </GridColumns>
-                <EditContent Context="axis">
-                    <DxFormLayout CssClass="w-100">
-                        <DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="12">
-                            <DxTextBox @bind-Text="@axis.Name" />
-                        </DxFormLayoutItem>
-                        <DxFormLayoutItem Caption="@L["AttributeValues"]" ColSpanMd="12">
-                            @* Değerler — DxTagBox: yaz + Enter ile ekle (çoklu N11-uyumlu değer). *@
-                            <DxTagBox Data="@axis.Values" Values="@axis.Values"
-                                      ValuesChanged="@((IEnumerable<string> v) => axis.Values = v.ToList())"
-                                      AllowCustomTags="true" CssClass="w-100" ValidationEnabled="false" />
-                        </DxFormLayoutItem>
-                    </DxFormLayout>
-                </EditContent>
-            </DrillList>
-        </DxFormLayoutItem>
-    </DxFormLayoutGroup>
+                    <DxGridDataColumn FieldName="Value" Caption="@L["Value"]">
+                        <CellEditTemplate Context="cell">
+                            @{ var row = (N11AttributeRow)cell.EditModel; }
+                            @if (row.HasValueList)
+                            {
+                                <DxComboBox TData="N11CategoryAttributeValueDto" TValue="string"
+                                            Data="@row.Values"
+                                            ValueFieldName="@nameof(N11CategoryAttributeValueDto.Value)"
+                                            TextFieldName="@nameof(N11CategoryAttributeValueDto.Value)"
+                                            Value="@row.Value"
+                                            ValueChanged="@((string v) => row.Value = v)"
+                                            ValueExpression="@(() => row.Value)"
+                                            ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
+                            }
+                            else
+                            {
+                                <DxTextBox Text="@row.Value"
+                                           TextChanged="@((string v) => row.Value = v)"
+                                           TextExpression="@(() => row.Value)" />
+                            }
+                        </CellEditTemplate>
+                    </DxGridDataColumn>
+                </Columns>
+            </DxGrid>
+        </DxTabPage>
+    }
 
-    @* Seyahat özel bilgileri — YALNIZ Seyahat kategorisi seçiliyken (kategori yolu "Seyahat" içerir).
-       Diğer kategorilerde gizli (kalabalık yapmaz). N11 specialProductInfoList HTML kabul eder. *@
+    @* N11 varyant eksen sihirbazı — eksen adı N11 kategorisi isVariant setiyle uyumlu; değerler N11-uyumlu.
+       Push'ta kartezyen stockItem kombinasyonları; fiyat/stok isim/değer imzasıyla ERP varyantından. *@
+    <DxTabPage Text="@L["N11Product:VariantAxes"]" TabIconCssClass="@TradeXpressIcons.Sliders">
+        <span style="color:#6c757d; font-size:0.85rem;">@L["N11Product:VariantAxesHint"]</span>
+        <DrillList TItem="SalesChannelTrN11ProductVariantAxisDto"
+                   @ref="_axisDrill"
+                   Title="@L["N11Product:VariantAxes"]"
+                   EntityName="@L["N11Product:VariantAxis"]"
+                   EntityIcon="@TradeXpressIcons.Sliders"
+                   Items="Model.VariantAxes"
+                   KeyFieldName="ClientKey"
+                   PrimaryTextSelector="@(a => a.Name)"
+                   NewItemFactory="@(() => new SalesChannelTrN11ProductVariantAxisDto())"
+                   OnChanged="@(() => MarkDirty(nameof(Model.VariantAxes)))">
+            <GridColumns>
+                <GridLinkColumn FieldName="Name" Caption="@L["N11Product:VariantAxis"]" VisibleIndex="1"
+                                OnClick="@(item => _axisDrill?.EditItem((SalesChannelTrN11ProductVariantAxisDto)item))" />
+                <DxGridDataColumn Caption="@L["AttributeValues"]">
+                    <CellDisplayTemplate Context="cell">
+                        @string.Join(", ", ((SalesChannelTrN11ProductVariantAxisDto)cell.DataItem).Values)
+                    </CellDisplayTemplate>
+                </DxGridDataColumn>
+            </GridColumns>
+            <EditContent Context="axis">
+                <DxFormLayout CssClass="w-100">
+                    <DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="12">
+                        <DxTextBox @bind-Text="@axis.Name" />
+                    </DxFormLayoutItem>
+                    <DxFormLayoutItem Caption="@L["AttributeValues"]" ColSpanMd="12">
+                        <DxTagBox Data="@axis.Values" Values="@axis.Values"
+                                  ValuesChanged="@((IEnumerable<string> v) => axis.Values = v.ToList())"
+                                  AllowCustomTags="true" CssClass="w-100" ValidationEnabled="false" />
+                    </DxFormLayoutItem>
+                </DxFormLayout>
+            </EditContent>
+        </DrillList>
+    </DxTabPage>
+
+    @* Seyahat özel bilgileri — YALNIZ Seyahat kategorisinde. *@
     @if (IsTravelCategory)
     {
-        <DxFormLayoutGroup Caption="@L["N11Product:SpecialInfo"]" ColSpanMd="12" CaptionPosition="CaptionPosition.Vertical">
-            <DxFormLayoutItem ColSpanMd="12">
-                <span style="color:#6c757d; font-size:0.85rem;">@L["N11Product:SpecialInfoHint"]</span>
-            </DxFormLayoutItem>
-            @foreach (var key in SpecialInfoKeys)
-            {
-                var k = key;
-                <DxFormLayoutItem Caption="@L[$"N11Product:SpecialInfo:{k}"]" ColSpanMd="12">
-                    <DxMemo Text="@GetSpecialInfo(k)" TextChanged="@((string v) => SetSpecialInfo(k, v))"
-                            Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100" ValidationEnabled="false" />
-                </DxFormLayoutItem>
-            }
-        </DxFormLayoutGroup>
+        <DxTabPage Text="@L["N11Product:SpecialInfo"]" TabIconCssClass="@TradeXpressIcons.Sliders">
+            <span style="color:#6c757d; font-size:0.85rem;">@L["N11Product:SpecialInfoHint"]</span>
+            <DxFormLayout CssClass="w-100">
+                @foreach (var key in SpecialInfoKeys)
+                {
+                    var k = key;
+                    <DxFormLayoutItem Caption="@L[$"N11Product:SpecialInfo:{k}"]" ColSpanMd="12">
+                        <DxMemo Text="@GetSpecialInfo(k)" TextChanged="@((string v) => SetSpecialInfo(k, v))"
+                                Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100" ValidationEnabled="false" />
+                    </DxFormLayoutItem>
+                }
+            </DxFormLayout>
+        </DxTabPage>
     }
 
-    @* Push ÖNİZLEMESİ (read-only) — N11'e gidecek varyantlar + görseller. TANIM ERP ürün formunda (Nitelikler/
-       Varyantlar/Görseller); burada yalnız "ne gidecek" görünür (SSOT ERP'de kalır, çift kaynak yok). *@
+    @* Görseller — N11'e GİDECEK varyantlar + görseller önizlemesi (read-only; SSOT ERP ürün formunda). *@
     @if (_preview is { Variants.Count: > 0 } or { Images.Count: > 0 })
     {
-        @if (_preview.Variants.Count > 0)
-        {
-            <DxFormLayoutGroup Caption="@L["N11Product:PreviewVariants"]" ColSpanMd="12" CaptionPosition="CaptionPosition.Vertical">
-                <DxFormLayoutItem ColSpanMd="12">
-                    <DxGrid Data="@_preview.Variants" PageSize="50" PagerVisible="false" CssClass="w-100">
-                        <Columns>
-                            <DxGridDataColumn FieldName="Code" Caption="@L["Code"]" Width="130px" />
-                            <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" />
-                            <DxGridDataColumn FieldName="Options" Caption="@L["AttributeSummary"]" />
-                            <DxGridDataColumn FieldName="StockQuantity" Caption="@L["StockQuantity"]" Width="90px" />
-                            <DxGridDataColumn FieldName="SalePrice" Caption="@L["SalePrice"]" Width="110px" />
-                        </Columns>
-                    </DxGrid>
-                </DxFormLayoutItem>
-            </DxFormLayoutGroup>
-        }
-        @if (_preview.Images.Count > 0)
-        {
-            <DxFormLayoutGroup Caption="@L["N11Product:PreviewImages"]" ColSpanMd="12" CaptionPosition="CaptionPosition.Vertical">
-                <DxFormLayoutItem ColSpanMd="12">
-                    <DxGrid Data="@_preview.Images" PageSize="50" PagerVisible="false" CssClass="w-100">
-                        <Columns>
-                            <DxGridDataColumn Caption="" Width="70px" TextAlignment="GridTextAlignment.Center">
-                                <CellDisplayTemplate Context="cell">
-                                    @{ var im = (N11PreviewImageDto)cell.DataItem; }
-                                    @if (!string.IsNullOrEmpty(im.PreviewDataUrl))
-                                    {
-                                        <img src="@im.PreviewDataUrl" style="max-width:48px; max-height:48px; object-fit:cover;" />
-                                    }
-                                </CellDisplayTemplate>
-                            </DxGridDataColumn>
-                            <DxGridDataColumn FieldName="Source" Caption="@L["ImageSource"]" />
-                            <DxGridDataColumn FieldName="IsDefault" Caption="@L["Default"]" Width="90px" />
-                        </Columns>
-                    </DxGrid>
-                </DxFormLayoutItem>
-            </DxFormLayoutGroup>
-        }
-    }
-
-    @* Varyant SKU'ları (read-only) — push + stok/fiyat senkronunda dolar. sellerStockCode DONDURULMUŞ; N11 SKU
-       kimliği/sürümü + son gönderilen stok/fiyat SKU-düzeyi mutabakat + dirty-tracking görünürlüğü sağlar. *@
-    @if (Model.Skus.Count > 0)
-    {
-        <DxFormLayoutGroup Caption="@L["N11Product:Skus"]" ColSpanMd="12" CaptionPosition="CaptionPosition.Vertical">
-            <DxFormLayoutItem ColSpanMd="12">
-                <DxGrid Data="@Model.Skus" PageSize="50" PagerVisible="false" CssClass="w-100">
+        <DxTabPage Text="@L["Images"]" TabIconCssClass="@TradeXpressIcons.Product">
+            @if (_preview.Variants.Count > 0)
+            {
+                <h6 class="mt-1">@L["N11Product:PreviewVariants"]</h6>
+                <DxGrid Data="@_preview.Variants" PageSize="50" PagerVisible="false" CssClass="w-100">
                     <Columns>
-                        <DxGridDataColumn FieldName="SellerStockCode" Caption="@L["N11Product:SellerCode"]" />
-                        <DxGridDataColumn FieldName="N11SkuId" Caption="@L["N11Product:N11SkuId"]" Width="130px" />
-                        <DxGridDataColumn FieldName="LastSentQuantity" Caption="@L["N11Product:LastSentQuantity"]" Width="140px" />
-                        <DxGridDataColumn FieldName="LastSentOptionPrice" Caption="@L["N11Product:LastSentOptionPrice"]" Width="140px" />
-                        <DxGridDataColumn FieldName="N11Version" Caption="@L["N11Product:N11Version"]" Width="90px" />
+                        <DxGridDataColumn FieldName="Code" Caption="@L["Code"]" Width="130px" />
+                        <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" />
+                        <DxGridDataColumn FieldName="Options" Caption="@L["AttributeSummary"]" />
+                        <DxGridDataColumn FieldName="StockQuantity" Caption="@L["StockQuantity"]" Width="90px" />
+                        <DxGridDataColumn FieldName="SalePrice" Caption="@L["SalePrice"]" Width="110px" />
                     </Columns>
                 </DxGrid>
-            </DxFormLayoutItem>
-        </DxFormLayoutGroup>
+            }
+            @if (_preview.Images.Count > 0)
+            {
+                <h6 class="mt-3">@L["N11Product:PreviewImages"]</h6>
+                <DxGrid Data="@_preview.Images" PageSize="50" PagerVisible="false" CssClass="w-100">
+                    <Columns>
+                        <DxGridDataColumn Caption="" Width="70px" TextAlignment="GridTextAlignment.Center">
+                            <CellDisplayTemplate Context="cell">
+                                @{ var im = (N11PreviewImageDto)cell.DataItem; }
+                                @if (!string.IsNullOrEmpty(im.PreviewDataUrl))
+                                {
+                                    <img src="@im.PreviewDataUrl" style="max-width:48px; max-height:48px; object-fit:cover;" />
+                                }
+                            </CellDisplayTemplate>
+                        </DxGridDataColumn>
+                        <DxGridDataColumn FieldName="Source" Caption="@L["ImageSource"]" />
+                        <DxGridDataColumn FieldName="IsDefault" Caption="@L["Default"]" Width="90px" />
+                    </Columns>
+                </DxGrid>
+            }
+        </DxTabPage>
+    }
+
+    @* Varyant SKU'ları (read-only) — push + stok/fiyat senkronunda dolar. *@
+    @if (Model.Skus.Count > 0)
+    {
+        <DxTabPage Text="@L["N11Product:Skus"]" TabIconCssClass="@TradeXpressIcons.SalesChannel">
+            <DxGrid Data="@Model.Skus" PageSize="50" PagerVisible="false" CssClass="w-100">
+                <Columns>
+                    <DxGridDataColumn FieldName="SellerStockCode" Caption="@L["N11Product:SellerCode"]" />
+                    <DxGridDataColumn FieldName="N11SkuId" Caption="@L["N11Product:N11SkuId"]" Width="130px" />
+                    <DxGridDataColumn FieldName="LastSentQuantity" Caption="@L["N11Product:LastSentQuantity"]" Width="140px" />
+                    <DxGridDataColumn FieldName="LastSentOptionPrice" Caption="@L["N11Product:LastSentOptionPrice"]" Width="140px" />
+                    <DxGridDataColumn FieldName="N11Version" Caption="@L["N11Product:N11Version"]" Width="90px" />
+                </Columns>
+            </DxGrid>
+        </DxTabPage>
     }
 
     @* N11 senkron durumu (read-only; push sonrası dolar). *@
     @if (Model.N11ProductId.HasValue || !string.IsNullOrEmpty(Model.LastError))
     {
-        <DxFormLayoutGroup Caption="@L["N11Product:SyncStatus"]" ColSpanMd="12" CaptionPosition="CaptionPosition.Vertical">
-            @if (Model.N11ProductId.HasValue)
-            {
-                <DxFormLayoutItem Caption="@L["N11Product:N11ProductId"]" ColSpanMd="4">
-                    <span>@Model.N11ProductId</span>
-                </DxFormLayoutItem>
-                <DxFormLayoutItem Caption="@L["N11Product:SaleStatus"]" ColSpanMd="4">
-                    <span>@Model.SaleStatus</span>
-                </DxFormLayoutItem>
-                <DxFormLayoutItem Caption="@L["N11Product:ApprovalStatus"]" ColSpanMd="4">
-                    <span>@Model.ApprovalStatus</span>
-                </DxFormLayoutItem>
-            }
-            @if (!string.IsNullOrEmpty(Model.LastError))
-            {
-                <DxFormLayoutItem Caption="@L["N11Product:LastError"]" ColSpanMd="12">
-                    <span style="color:#dc2626;">@Model.LastError</span>
-                </DxFormLayoutItem>
-            }
-        </DxFormLayoutGroup>
+        <DxTabPage Text="@L["N11Product:SyncStatus"]" TabIconCssClass="@TradeXpressIcons.SalesChannel">
+            <DxFormLayout CssClass="w-100">
+                @if (Model.N11ProductId.HasValue)
+                {
+                    <DxFormLayoutItem Caption="@L["N11Product:N11ProductId"]" ColSpanMd="4">
+                        <span>@Model.N11ProductId</span>
+                    </DxFormLayoutItem>
+                    <DxFormLayoutItem Caption="@L["N11Product:SaleStatus"]" ColSpanMd="4">
+                        <span>@Model.SaleStatus</span>
+                    </DxFormLayoutItem>
+                    <DxFormLayoutItem Caption="@L["N11Product:ApprovalStatus"]" ColSpanMd="4">
+                        <span>@Model.ApprovalStatus</span>
+                    </DxFormLayoutItem>
+                }
+                @if (!string.IsNullOrEmpty(Model.LastError))
+                {
+                    <DxFormLayoutItem Caption="@L["N11Product:LastError"]" ColSpanMd="12">
+                        <span style="color:#dc2626;">@Model.LastError</span>
+                    </DxFormLayoutItem>
+                }
+            </DxFormLayout>
+        </DxTabPage>
     }
-</DxFormLayout>
+</DrillTabs>
