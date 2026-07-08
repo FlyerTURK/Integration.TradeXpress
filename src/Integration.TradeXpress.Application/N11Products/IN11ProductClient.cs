@@ -71,7 +71,10 @@ public sealed record N11ProductData(
     string? ProductionDate,                                // "dd/MM/yyyy" (üretim); boş olabilir
     string? ExpirationDate,                                // "dd/MM/yyyy" (son kullanma); boş olabilir
     int? UnitType,                                         // N11 unitInfo/unitType (opsiyonel; null → unitInfo gönderilmez)
-    int? UnitWeight);                                      // N11 unitInfo/unitWeight (opsiyonel)
+    int? UnitWeight,                                       // N11 unitInfo/unitWeight (opsiyonel)
+    string? GroupItemCode,                                 // N11 grup ürün kodu (opsiyonel; boşsa element gitmez)
+    string? GroupAttribute,                                // N11 grubu ayıran özellik adı (opsiyonel)
+    string? ItemName);                                     // N11 grup içindeki öğe adı (opsiyonel)
 
 /// <summary>N11 ürün indirimi (SaveProduct ProductDiscountRequest) — tümü string serialize. Type: "1"=tutar,
 /// "2"=yüzde (N11 konvansiyonu; canlı doğrulanacak). Tarihler N11 formatında ("dd/MM/yyyy"); boş olabilir.</summary>

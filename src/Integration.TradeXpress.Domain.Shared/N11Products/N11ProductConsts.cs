@@ -20,6 +20,12 @@ public static class N11ProductConsts
     /// <summary>N11 kanal-özel açıklama (description; HTML — DxHtmlEditor). Boşsa push'ta ürün açıklaması devralınır.</summary>
     public const int DescriptionMaxLength = 20000;
 
+    // Grup ürün (SaveProduct opsiyonel): aynı grup üyeleri groupItemCode'da eşleşir, groupAttribute grubu ayıran
+    // özellik adı (ör. "Renk"), itemName grup içindeki öğe adı. N11 belgesi net üst sınır vermez → makul limit.
+    public const int GroupItemCodeMaxLength = 64;
+    public const int GroupAttributeMaxLength = 64;
+    public const int ItemNameMaxLength = 128;
+
     /// <summary>Varyant SKU stok kodu ("{VaryantKodu}-{SequenceNo}") — satıcı-geneli benzersiz N11 kimliği.</summary>
     public const int StockCodeMaxLength = 128;
 

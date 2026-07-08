@@ -113,6 +113,15 @@ public class SalesChannelTrN11ProductDto
 
     /// <summary>N11 kanal-özel açıklama (HTML; opsiyonel). Boşsa push'ta ürün açıklaması devralınır.</summary>
     public string? Description { get; set; }
+
+    /// <summary>N11 grup ürün kodu (opsiyonel; aynı grup üyeleri eşleşir).</summary>
+    public string? GroupItemCode { get; set; }
+
+    /// <summary>N11 grubu ayıran özellik adı (opsiyonel, ör. "Renk").</summary>
+    public string? GroupAttribute { get; set; }
+
+    /// <summary>N11 grup içindeki öğe adı (opsiyonel).</summary>
+    public string? ItemName { get; set; }
     public List<SalesChannelTrN11ProductAttributeDto> Attributes { get; set; } = new();
     public List<SalesChannelTrN11ProductSpecialInfoDto> SpecialInfo { get; set; } = new();
 
@@ -151,6 +160,9 @@ public interface ISalesChannelTrN11ProductInput
     bool IsActive { get; }
     string? SellerNote { get; }
     string? Description { get; }
+    string? GroupItemCode { get; }
+    string? GroupAttribute { get; }
+    string? ItemName { get; }
     List<SalesChannelTrN11ProductAttributeDto> Attributes { get; }
     List<SalesChannelTrN11ProductSpecialInfoDto> SpecialInfo { get; }
 }
@@ -175,6 +187,9 @@ public class SalesChannelTrN11ProductCreateDto : ISalesChannelTrN11ProductInput
     public bool IsActive { get; set; } = true;
     public string? SellerNote { get; set; }
     public string? Description { get; set; }
+    public string? GroupItemCode { get; set; }
+    public string? GroupAttribute { get; set; }
+    public string? ItemName { get; set; }
     public List<SalesChannelTrN11ProductAttributeDto> Attributes { get; set; } = new();
     public List<SalesChannelTrN11ProductSpecialInfoDto> SpecialInfo { get; set; } = new();
 }
@@ -197,6 +212,9 @@ public class SalesChannelTrN11ProductUpdateDto : ISalesChannelTrN11ProductInput
     public bool IsActive { get; set; } = true;
     public string? SellerNote { get; set; }
     public string? Description { get; set; }
+    public string? GroupItemCode { get; set; }
+    public string? GroupAttribute { get; set; }
+    public string? ItemName { get; set; }
     public List<SalesChannelTrN11ProductAttributeDto> Attributes { get; set; } = new();
     public List<SalesChannelTrN11ProductSpecialInfoDto> SpecialInfo { get; set; } = new();
 }

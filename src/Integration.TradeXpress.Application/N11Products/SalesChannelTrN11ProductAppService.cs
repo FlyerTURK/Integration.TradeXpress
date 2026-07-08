@@ -636,7 +636,11 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
             ProductionDate: FormatN11Date(channelProduct.ProductionDate ?? product.ProductionDate),
             ExpirationDate: FormatN11Date(channelProduct.ExpirationDate ?? product.ExpirationDate),
             UnitType: channelProduct.UnitType ?? product.UnitType,         // kanal → ürün varsayılanı
-            UnitWeight: channelProduct.UnitWeight ?? product.UnitWeight);
+            UnitWeight: channelProduct.UnitWeight ?? product.UnitWeight,
+            // Grup ürün (kanal-özel; N11-only): boşsa push'ta element gönderilmez.
+            GroupItemCode: channelProduct.GroupItemCode,
+            GroupAttribute: channelProduct.GroupAttribute,
+            ItemName: channelProduct.ItemName);
 
         return new N11ProductPushPlan(data, canonicalCandidates);
     }
@@ -795,6 +799,9 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
         entity.SetActive(input.IsActive);
         entity.SetSellerNote(input.SellerNote);
         entity.SetDescription(input.Description);
+        entity.SetGroupItemCode(input.GroupItemCode);
+        entity.SetGroupAttribute(input.GroupAttribute);
+        entity.SetItemName(input.ItemName);
         entity.SetAttributes(input.Attributes.Select(a => new SalesChannelTrN11ProductAttribute(a.Name, a.Value)));
         entity.SetSpecialInfo(input.SpecialInfo.Select(s => new SalesChannelTrN11ProductSpecialInfo(s.Key, s.Value)));
     }

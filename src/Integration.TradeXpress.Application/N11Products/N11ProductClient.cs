@@ -116,6 +116,11 @@ public sealed class N11ProductClient : IN11ProductClient, ITransientDependency
             new XElement("images", p.Images.Select(i => new XElement("image",
                 new XElement("url", i.Url),
                 new XElement("order", i.Order.ToString(CultureInfo.InvariantCulture))))),
+            // WSDL sırası: images → (approvalStatus okuma-only, gönderilmez) → groupAttribute → groupItemCode →
+            // itemName → attributes. Grup ürün alanları opsiyonel; yalnız dolu olan gönderilir.
+            Optional("groupAttribute", p.GroupAttribute),
+            Optional("groupItemCode", p.GroupItemCode),
+            Optional("itemName", p.ItemName),
             new XElement("attributes", p.Attributes.Select(BuildAttribute)),
             // WSDL sırası: attributes → productionDate → expirationDate → productCondition. Boşsa gönderilmez.
             Optional("productionDate", p.ProductionDate),

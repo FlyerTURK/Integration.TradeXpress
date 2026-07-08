@@ -88,6 +88,22 @@
             <DxMemo @bind-Text="@Model.SellerNote" Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100"
                     NullText="@L["Optional"]" />
         </DxFormLayoutItem>
+        @* Grup ürün (opsiyonel; N11-only) — aynı grup üyeleri groupItemCode'da eşleşir. *@
+        <DxFormLayoutItem ColSpanMd="12">
+            <span style="color:#6c757d; font-size:0.85rem;">@L["N11Product:GroupProductHint"]</span>
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["N11Product:GroupItemCode"]" ColSpanMd="4">
+            <DxTextBox @bind-Text="@Model.GroupItemCode" NullText="@L["Optional"]"
+                       ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["N11Product:GroupAttribute"]" ColSpanMd="4">
+            <DxTextBox @bind-Text="@Model.GroupAttribute" NullText="@L["Optional"]"
+                       ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["N11Product:ItemName"]" ColSpanMd="4">
+            <DxTextBox @bind-Text="@Model.ItemName" NullText="@L["Optional"]"
+                       ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
+        </DxFormLayoutItem>
     </DxFormLayoutGroup>
 </DxFormLayout>
 

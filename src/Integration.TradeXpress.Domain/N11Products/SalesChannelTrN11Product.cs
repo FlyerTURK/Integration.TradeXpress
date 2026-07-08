@@ -189,6 +189,15 @@ public class SalesChannelTrN11Product : FullAuditedAggregateRoot<Guid>, IMultiTe
     /// <summary>N11 kanal-özel açıklama (HTML; opsiyonel). Boşsa push'ta ürün açıklaması devralınır.</summary>
     public virtual string? Description { get; protected set; }
 
+    /// <summary>N11 grup ürün kodu (groupItemCode; opsiyonel). Aynı grup üyeleri bunda eşleşir.</summary>
+    public virtual string? GroupItemCode { get; protected set; }
+
+    /// <summary>N11 grubu ayıran özellik adı (groupAttribute; opsiyonel, ör. "Renk").</summary>
+    public virtual string? GroupAttribute { get; protected set; }
+
+    /// <summary>N11 grup içindeki öğe adı (itemName; opsiyonel).</summary>
+    public virtual string? ItemName { get; protected set; }
+
     /// <summary>N11 kategori attribute değerleri (owned → JSON).</summary>
     public virtual List<SalesChannelTrN11ProductAttribute> Attributes { get; protected set; } = new();
 
@@ -315,6 +324,24 @@ public class SalesChannelTrN11Product : FullAuditedAggregateRoot<Guid>, IMultiTe
     public virtual void SetDescription(string? description)
     {
         Description = StringFieldGuard.EnsureOptionalText(description, nameof(Description), 1, N11ProductConsts.DescriptionMaxLength);
+    }
+
+    /// <summary>N11 grup ürün kodu (opsiyonel; boş=null).</summary>
+    public virtual void SetGroupItemCode(string? groupItemCode)
+    {
+        GroupItemCode = StringFieldGuard.EnsureOptionalText(groupItemCode, nameof(GroupItemCode), 1, N11ProductConsts.GroupItemCodeMaxLength);
+    }
+
+    /// <summary>N11 grubu ayıran özellik adı (opsiyonel; boş=null).</summary>
+    public virtual void SetGroupAttribute(string? groupAttribute)
+    {
+        GroupAttribute = StringFieldGuard.EnsureOptionalText(groupAttribute, nameof(GroupAttribute), 1, N11ProductConsts.GroupAttributeMaxLength);
+    }
+
+    /// <summary>N11 grup içindeki öğe adı (opsiyonel; boş=null).</summary>
+    public virtual void SetItemName(string? itemName)
+    {
+        ItemName = StringFieldGuard.EnsureOptionalText(itemName, nameof(ItemName), 1, N11ProductConsts.ItemNameMaxLength);
     }
 
     public virtual void SetActive(bool value)
