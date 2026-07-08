@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
 using Integration.TradeXpress.Financials.CurrencyUnits;
@@ -327,7 +328,8 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
                     entity.SellerCode,
                     variants[0].SalePrice,
                     product.Description ?? product.Name,
-                    stockItems);
+                    stockItems,
+                    BuildSellerDiscount(product));
                 var result = await _client.UpdateProductBasicAsync(update, channel.AppKey, channel.AppSecret);
 
                 // Başarılı yazım → LastSent* + yanıttaki version güncellenir (dirty-tracking bir sonraki tur için).
@@ -591,7 +593,8 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
             Images: images,
             Attributes: validated.ProductAttributes,       // varyant eksenleri FİLTRELİ + kanonik değerler
             StockItems: stockItems,
-            SpecialInfo: channelProduct.SpecialInfo.Select(s => new N11ProductSpecialInfo(s.Key, s.Value)).ToList());
+            SpecialInfo: channelProduct.SpecialInfo.Select(s => new N11ProductSpecialInfo(s.Key, s.Value)).ToList(),
+            Discount: BuildDiscount(product));             // ürün-seviyesi indirim (None ise null)
 
         return new N11ProductPushPlan(data, canonicalCandidates);
     }
@@ -599,6 +602,48 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
     /// <summary>Push planı — N11'e gidecek veri + BAŞARILI push sonrası SKU satırlarını kurmak için kanonik adaylar
     /// (kod donması yalnız başarılı push'ta gerçekleşsin diye ReconcileSkus çağrısı push sonrasına ertelenir).</summary>
     private sealed record N11ProductPushPlan(N11ProductData Data, List<N11SkuPushCandidate> Candidates);
+
+    // Ürün-seviyesi indirimi N11 ProductDiscountRequest'e çevirir (SaveProduct; None → null → elementi gitmez).
+    // N11 type: Amount="1", Percentage="2" (canlı doğrulanacak). Tarih N11 formatı "dd/MM/yyyy"; yoksa boş.
+    private static N11ProductDiscount? BuildDiscount(Product product)
+    {
+        if (product.DiscountType == ProductDiscountType.None || product.DiscountValue is not { } value)
+        {
+            return null;
+        }
+
+        return new N11ProductDiscount(
+            DiscountTypeCode(product.DiscountType),
+            value.ToString(CultureInfo.InvariantCulture),
+            FormatDiscountDate(product.DiscountStartDate),
+            FormatDiscountDate(product.DiscountEndDate));
+    }
+
+    // UpdateProductBasic indirimi (SellerProductDiscount; ZORUNLU alan). None → Type=0/Value=0 (yine gönderilir,
+    // yoksa sabit-0 N11'deki indirimi silerdi). Aynı type/tarih dönüşümü SaveProduct ile paylaşılır (SSOT).
+    private static N11SellerDiscount BuildSellerDiscount(Product product)
+    {
+        if (product.DiscountType == ProductDiscountType.None || product.DiscountValue is not { } value)
+        {
+            return new N11SellerDiscount(0, 0m, string.Empty, string.Empty);
+        }
+
+        return new N11SellerDiscount(
+            int.Parse(DiscountTypeCode(product.DiscountType), CultureInfo.InvariantCulture),
+            value,
+            FormatDiscountDate(product.DiscountStartDate),
+            FormatDiscountDate(product.DiscountEndDate));
+    }
+
+    private static string DiscountTypeCode(ProductDiscountType type)
+    {
+        return type == ProductDiscountType.Percentage ? "2" : "1";
+    }
+
+    private static string FormatDiscountDate(DateTime? date)
+    {
+        return date?.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture) ?? string.Empty;
+    }
 
     /// <summary>Yaprak kategori attribute tanımı — REST-primary client'tan, DAĞITIK CACHE'li (6 saat; kategori
     /// tanımları nadiren değişir, her push'ta N11'e gitmeye gerek yok). Alınamazsa push DURUR (fail-fast:

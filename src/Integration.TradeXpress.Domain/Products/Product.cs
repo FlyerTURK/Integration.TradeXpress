@@ -34,6 +34,18 @@ public class Product : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwn
     /// (küçük önce; ilk = ana görsel). Marketplace push'unda URL-kaynaklılar doğrudan gider.</summary>
     public virtual List<ProductImage> Images { get; protected set; } = new();
 
+    /// <summary>Marketplace listeleme indirimi tipi (ürün-seviyesi; tüm varyant + kanallar). None = indirim yok.</summary>
+    public virtual ProductDiscountType DiscountType { get; protected set; }
+
+    /// <summary>İndirim değeri — Amount'ta tutar, Percentage'ta yüzde (0–100). None ise null.</summary>
+    public virtual decimal? DiscountValue { get; protected set; }
+
+    /// <summary>İndirim başlangıcı — İŞ TARİHİ (date-only; timezone kaydırmasına girmez). None ise null.</summary>
+    public virtual DateTime? DiscountStartDate { get; protected set; }
+
+    /// <summary>İndirim bitişi — İŞ TARİHİ (date-only). None ise null.</summary>
+    public virtual DateTime? DiscountEndDate { get; protected set; }
+
     protected Product() { }
 
     public Product(
@@ -81,6 +93,45 @@ public class Product : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwn
     public virtual void SetActive(bool value)
     {
         IsActive = value;
+    }
+
+    /// <summary>Marketplace indirimi (ürün-seviyesi). None → değer/tarihler temizlenir. Amount &gt; 0; Percentage
+    /// 0–100 arası. Tarihler ya İKİSİ de dolu ya da İKİSİ de boş; başlangıç ≤ bitiş (fail-fast).</summary>
+    public virtual void SetDiscount(ProductDiscountType type, decimal? value, DateTime? startDate, DateTime? endDate)
+    {
+        if (type == ProductDiscountType.None)
+        {
+            DiscountType = ProductDiscountType.None;
+            DiscountValue = null;
+            DiscountStartDate = null;
+            DiscountEndDate = null;
+            return;
+        }
+
+        if (value is not { } v || v <= 0)
+        {
+            throw new BusinessException("TradeXpress:Product:DiscountValueInvalid");
+        }
+
+        if (type == ProductDiscountType.Percentage && v > 100)
+        {
+            throw new BusinessException("TradeXpress:Product:DiscountPercentageInvalid");
+        }
+
+        if ((startDate is null) != (endDate is null))
+        {
+            throw new BusinessException("TradeXpress:Product:DiscountDatesInvalid");
+        }
+
+        if (startDate is { } s && endDate is { } e && s.Date > e.Date)
+        {
+            throw new BusinessException("TradeXpress:Product:DiscountDatesInvalid");
+        }
+
+        DiscountType = type;
+        DiscountValue = v;
+        DiscountStartDate = startDate?.Date;
+        DiscountEndDate = endDate?.Date;
     }
 
     /// <summary>Görselleri ayarlar — kaynağı boş olanlar (URL'siz Url tipi / blob'suz Upload tipi) elenir,

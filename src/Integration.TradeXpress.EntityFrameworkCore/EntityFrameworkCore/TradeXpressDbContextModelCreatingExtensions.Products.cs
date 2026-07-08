@@ -30,6 +30,9 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
                 i.Property(p => p.FileName).HasMaxLength(ProductConsts.ImageFileNameMaxLength);
             });
 
+            // Marketplace indirimi (ürün-seviyesi) — tip (enum→int) + değer (18,2) + iş tarihleri.
+            b.Property(x => x.DiscountValue).HasPrecision(ProductConsts.SalePricePrecision, ProductConsts.SalePriceScale);
+
             b.HasIndex(x => new { x.TenantId, x.CompanyId, x.Code }).IsUnique();
             b.HasIndex(x => new { x.TenantId, x.CompanyId });
         });

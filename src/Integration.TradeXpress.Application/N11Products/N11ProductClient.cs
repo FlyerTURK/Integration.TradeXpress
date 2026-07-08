@@ -72,12 +72,12 @@ public sealed class N11ProductClient : IN11ProductClient, ITransientDependency
             new XElement("productId", update.N11ProductId.ToString(CultureInfo.InvariantCulture)),
             new XElement("productSellerCode", update.ProductSellerCode),
             update.Price is { } price ? new XElement("price", price.ToString(CultureInfo.InvariantCulture)) : null,
-            // İndirim modellenmiyor → "indirimsiz" (discountType=0). Zorunlu alan (WSDL); boş bırakılamaz.
+            // İndirim ZORUNLU (WSDL); ürün-seviyesi indirimden beslenir (Type=0 = indirimsiz).
             new XElement("productDiscount",
-                new XElement("discountType", "0"),
-                new XElement("discountValue", "0"),
-                new XElement("discountStartDate", string.Empty),
-                new XElement("discountEndDate", string.Empty)),
+                new XElement("discountType", update.Discount.Type.ToString(CultureInfo.InvariantCulture)),
+                new XElement("discountValue", update.Discount.Value.ToString(CultureInfo.InvariantCulture)),
+                new XElement("discountStartDate", update.Discount.StartDate),
+                new XElement("discountEndDate", update.Discount.EndDate)),
             new XElement("stockItems", update.StockItems.Select(BuildBasicStockItem)),
             new XElement("description", update.Description));
 
@@ -119,6 +119,14 @@ public sealed class N11ProductClient : IN11ProductClient, ITransientDependency
             new XElement("attributes", p.Attributes.Select(BuildAttribute)),
             new XElement("productCondition", p.ProductCondition.ToString(CultureInfo.InvariantCulture)),
             new XElement("preparingDay", p.PreparingDay.ToString(CultureInfo.InvariantCulture)),
+            // WSDL ProductRequest sırası: preparingDay → discount → shipmentTemplate. İndirim yoksa gönderilmez.
+            p.Discount is { } d
+                ? new XElement("discount",
+                    new XElement("startDate", d.StartDate),
+                    new XElement("endDate", d.EndDate),
+                    new XElement("type", d.Type),
+                    new XElement("value", d.Value))
+                : null,
             new XElement("shipmentTemplate", p.ShipmentTemplate),
             new XElement("stockItems", p.StockItems.Select(BuildStockItem)),
             p.MaxPurchaseQuantity is { } mpq

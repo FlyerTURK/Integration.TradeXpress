@@ -29,13 +29,18 @@ public interface IN11ProductClient
 
 /// <summary>UpdateProductBasic girdisi — ürünün stok+fiyatını kısmi günceller. <see cref="StockItems"/> her SKU'yu
 /// N11 SKU id'siyle adresler (WSDL zorunlu). Description N11 tarafında ürünü ezer (değişmediyse aynısı gönderilir);
-/// indirim modellenmediğinden productDiscount client'ta "indirimsiz" gönderilir.</summary>
+/// <see cref="Discount"/> ürün-seviyesi indirimden beslenir (ERP-otorite: hafif senkron indirimi de ERP durumuyla eşitler).</summary>
 public sealed record N11ProductBasicUpdate(
     long N11ProductId,
     string ProductSellerCode,
     decimal? Price,
     string Description,
-    IReadOnlyList<N11ProductBasicStockItem> StockItems);
+    IReadOnlyList<N11ProductBasicStockItem> StockItems,
+    N11SellerDiscount Discount);
+
+/// <summary>UpdateProductBasic indirimi (SellerProductDiscount) — ZORUNLU (WSDL). Type: 0=indirimsiz, 1=tutar,
+/// 2=yüzde. İndirim yoksa Type=0 + Value=0 (yine de gönderilir; sabit "0" göndermek N11'deki indirimi silerdi).</summary>
+public sealed record N11SellerDiscount(int Type, decimal Value, string StartDate, string EndDate);
 
 /// <summary>UpdateProductBasic SKU kalemi — id ZORUNLU (WSDL); quantity/optionPrice opsiyonel (null = dokunma).</summary>
 public sealed record N11ProductBasicStockItem(
@@ -60,7 +65,12 @@ public sealed record N11ProductData(
     IReadOnlyList<N11ProductImage> Images,
     IReadOnlyList<N11ProductAttributePair> Attributes,     // kategori attribute (name/value)
     IReadOnlyList<N11ProductStockItem> StockItems,
-    IReadOnlyList<N11ProductSpecialInfo> SpecialInfo);     // Seyahat kategorisi (key/value)
+    IReadOnlyList<N11ProductSpecialInfo> SpecialInfo,      // Seyahat kategorisi (key/value)
+    N11ProductDiscount? Discount);                         // ürün-seviyesi indirim (null = indirim yok)
+
+/// <summary>N11 ürün indirimi (SaveProduct ProductDiscountRequest) — tümü string serialize. Type: "1"=tutar,
+/// "2"=yüzde (N11 konvansiyonu; canlı doğrulanacak). Tarihler N11 formatında ("dd/MM/yyyy"); boş olabilir.</summary>
+public sealed record N11ProductDiscount(string Type, string Value, string StartDate, string EndDate);
 
 /// <summary>Ürün görseli (url + sıra).</summary>
 public sealed record N11ProductImage(string Url, int Order);

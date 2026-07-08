@@ -24,6 +24,26 @@
             </DxCheckBox>
         </DxFormLayoutItem>
     </DxFormLayoutGroup>
+
+    @* Marketplace indirimi (ürün-seviyesi; tüm varyant + kanallara aynı gider). None dışında değer + tarih görünür. *@
+    <DxFormLayoutGroup Caption="@L["Product:Discount"]" ColSpanMd="12">
+        <DxFormLayoutItem Caption="@L["Product:DiscountType"]" ColSpanMd="4" BeginRow="true">
+            <ComboBoxEnumEdit TEnum="ProductDiscountType" L="@L" @bind-Value="@Model.DiscountType" />
+        </DxFormLayoutItem>
+        @if (Model.DiscountType != ProductDiscountType.None)
+        {
+            <DxFormLayoutItem Caption="@L["Product:DiscountValue"]" ColSpanMd="4">
+                <NumericSpinEdit TValue="decimal?" @bind-Value="@Model.DiscountValue" DisplayFormat="N2"
+                                 ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
+            </DxFormLayoutItem>
+            <DxFormLayoutItem Caption="@L["Product:DiscountStartDate"]" ColSpanMd="4">
+                <DxDateEdit @bind-Date="@Model.DiscountStartDate" ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
+            </DxFormLayoutItem>
+            <DxFormLayoutItem Caption="@L["Product:DiscountEndDate"]" ColSpanMd="4">
+                <DxDateEdit @bind-Date="@Model.DiscountEndDate" ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
+            </DxFormLayoutItem>
+        }
+    </DxFormLayoutGroup>
 </DxFormLayout>
 
 @* Nitelikler + Varyantlar. Nitelik×değer kartezyeni varyantları SUNUCUDA üretir (ProductVariantSynchronizer);

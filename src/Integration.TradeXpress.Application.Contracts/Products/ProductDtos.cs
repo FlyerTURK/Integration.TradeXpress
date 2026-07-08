@@ -43,6 +43,18 @@ public class ProductGetDto : EntityDto<Guid>, IGetDto<Guid>, IHasCode
     /// <see cref="ProductConsts.MaxImageCount"/> (sunucu kırpar).</summary>
     public List<ProductImageGraphDto> Images { get; set; } = new();
 
+    /// <summary>Marketplace indirimi (ürün-seviyesi; tüm varyant + kanallar). None = indirim yok.</summary>
+    public ProductDiscountType DiscountType { get; set; } = ProductDiscountType.None;
+
+    /// <summary>İndirim değeri — Amount'ta tutar, Percentage'ta yüzde (0–100). None ise yoksayılır.</summary>
+    public decimal? DiscountValue { get; set; }
+
+    /// <summary>İndirim başlangıcı (iş tarihi, date-only). None ise yoksayılır.</summary>
+    public DateTime? DiscountStartDate { get; set; }
+
+    /// <summary>İndirim bitişi (iş tarihi, date-only). None ise yoksayılır.</summary>
+    public DateTime? DiscountEndDate { get; set; }
+
     /// <summary>Varyantlar (graf düğümleri; Id + IsDeleted ile diff). Product edit formundaki drill yönetir.</summary>
     public List<ProductVariantGraphDto> Variants { get; set; } = new();
 
@@ -66,6 +78,12 @@ public class ProductCreateDto : ICreateDto
 
     /// <summary>Ürün görselleri — bkz. <see cref="ProductGetDto.Images"/>.</summary>
     public List<ProductImageGraphDto> Images { get; set; } = new();
+
+    /// <summary>Marketplace indirimi — bkz. <see cref="ProductGetDto.DiscountType"/>.</summary>
+    public ProductDiscountType DiscountType { get; set; } = ProductDiscountType.None;
+    public decimal? DiscountValue { get; set; }
+    public DateTime? DiscountStartDate { get; set; }
+    public DateTime? DiscountEndDate { get; set; }
 
     public List<ProductVariantGraphDto> Variants { get; set; } = new();
 
@@ -91,6 +109,12 @@ public class ProductUpdateDto : IUpdateDto
 
     /// <summary>Ürün görselleri — bkz. <see cref="ProductGetDto.Images"/>.</summary>
     public List<ProductImageGraphDto> Images { get; set; } = new();
+
+    /// <summary>Marketplace indirimi — bkz. <see cref="ProductGetDto.DiscountType"/>.</summary>
+    public ProductDiscountType DiscountType { get; set; } = ProductDiscountType.None;
+    public decimal? DiscountValue { get; set; }
+    public DateTime? DiscountStartDate { get; set; }
+    public DateTime? DiscountEndDate { get; set; }
 
     public List<ProductVariantGraphDto> Variants { get; set; } = new();
 

@@ -899,6 +899,17 @@
     "Gtin": "GTIN",
     "Mpn": "MPN",
     "Oem": "OEM",
-    "Optional": "Optional"
+    "Optional": "Optional",
+    "Enum:ProductDiscountType:None": "No discount",
+    "Enum:ProductDiscountType:Amount": "Amount",
+    "Enum:ProductDiscountType:Percentage": "Percentage",
+    "Product:Discount": "Discount",
+    "Product:DiscountType": "Discount Type",
+    "Product:DiscountValue": "Discount Value",
+    "Product:DiscountStartDate": "Start",
+    "Product:DiscountEndDate": "End",
+    "TradeXpress:Product:DiscountValueInvalid": "Discount value must be greater than 0.",
+    "TradeXpress:Product:DiscountPercentageInvalid": "Percentage discount must be between 0 and 100.",
+    "TradeXpress:Product:DiscountDatesInvalid": "Discount dates must both be set or both empty; start cannot be after end."
   }
 }

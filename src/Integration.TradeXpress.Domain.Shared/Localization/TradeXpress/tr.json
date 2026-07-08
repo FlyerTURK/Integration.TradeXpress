@@ -930,6 +930,17 @@
     "Gtin": "GTIN",
     "Mpn": "MPN",
     "Oem": "OEM",
-    "Optional": "Opsiyonel"
+    "Optional": "Opsiyonel",
+    "Enum:ProductDiscountType:None": "İndirim yok",
+    "Enum:ProductDiscountType:Amount": "Tutar",
+    "Enum:ProductDiscountType:Percentage": "Yüzde",
+    "Product:Discount": "İndirim",
+    "Product:DiscountType": "İndirim Tipi",
+    "Product:DiscountValue": "İndirim Değeri",
+    "Product:DiscountStartDate": "Başlangıç",
+    "Product:DiscountEndDate": "Bitiş",
+    "TradeXpress:Product:DiscountValueInvalid": "İndirim değeri 0'dan büyük olmalı.",
+    "TradeXpress:Product:DiscountPercentageInvalid": "Yüzde indirimi 0–100 arasında olmalı.",
+    "TradeXpress:Product:DiscountDatesInvalid": "İndirim tarihleri ya ikisi de dolu ya boş olmalı; başlangıç bitişten sonra olamaz."
   }
 }

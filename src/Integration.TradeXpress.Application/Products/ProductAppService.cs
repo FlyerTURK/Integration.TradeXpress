@@ -127,6 +127,7 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         var entity = new Product(companyId, input.Code, input.Name);
         entity.SetDescription(input.Description);
         entity.SetImages(MapImages(input.Images));
+        entity.SetDiscount(input.DiscountType, input.DiscountValue, input.DiscountStartDate, input.DiscountEndDate);
         await _repository.InsertAsync(entity, autoSave: true);
 
         var valueIdByClientKey = await SaveAttributesAsync(entity, input.Attributes);
@@ -147,6 +148,7 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         entity.SetActive(input.IsActive);
         var oldImages = entity.Images.ToList();   // yetim blob temizliği için değişim ÖNCESİ resim
         entity.SetImages(MapImages(input.Images));
+        entity.SetDiscount(input.DiscountType, input.DiscountValue, input.DiscountStartDate, input.DiscountEndDate);
         await DeleteOrphanImageBlobsAsync(oldImages, entity.Images);
         await _repository.UpdateAsync(entity, autoSave: true);
 
@@ -862,6 +864,10 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
             Description = p.Description,
             IsActive = p.IsActive,
             Images = imageDtos,
+            DiscountType = p.DiscountType,
+            DiscountValue = p.DiscountValue,
+            DiscountStartDate = p.DiscountStartDate,
+            DiscountEndDate = p.DiscountEndDate,
             Attributes = attributes.Select(a => new ProductAttributeGraphDto
             {
                 Id = a.Id,
