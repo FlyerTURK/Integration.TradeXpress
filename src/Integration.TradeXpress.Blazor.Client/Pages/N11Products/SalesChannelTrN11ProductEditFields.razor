@@ -139,11 +139,31 @@
                     <DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="12">
                         <DxTextBox @bind-Text="@axis.Name" />
                     </DxFormLayoutItem>
-                    <DxFormLayoutItem Caption="@L["AttributeValues"]" ColSpanMd="12">
-                        <DxTagBox Data="@axis.Values" Values="@axis.Values"
-                                  ValuesChanged="@((IEnumerable<string> v) => axis.Values = v.ToList())"
-                                  AllowCustomTags="true" CssClass="w-100" ValidationEnabled="false" />
-                    </DxFormLayoutItem>
+                    @* Değerler — drill grid (ana üründeki nitelik/değer deseni): her değer kendi satırı, ekle/düzenle/sil. *@
+                    <DxFormLayoutGroup Caption="@L["AttributeValues"]" ColSpanMd="12" CaptionPosition="CaptionPosition.Vertical">
+                        <DxFormLayoutItem ColSpanMd="12" Context="valueSlot">
+                            <DrillList TItem="SalesChannelTrN11ProductVariantAxisValueDto"
+                                       Title="@L["AttributeValues"]"
+                                       EntityName="@L["AttributeValue"]"
+                                       EntityIcon="@TradeXpressIcons.Sliders"
+                                       Items="axis.Values"
+                                       KeyFieldName="ClientKey"
+                                       PrimaryTextSelector="@(v => v.Value)"
+                                       NewItemFactory="@(() => new SalesChannelTrN11ProductVariantAxisValueDto())"
+                                       OnChanged="@(() => MarkDirty(nameof(Model.VariantAxes)))">
+                                <GridColumns>
+                                    <GridLinkColumn FieldName="Value" Caption="@L["Value"]" VisibleIndex="1" />
+                                </GridColumns>
+                                <EditContent Context="val">
+                                    <DxFormLayout CssClass="w-100">
+                                        <DxFormLayoutItem Caption="@($"{L["Value"]} *")" ColSpanMd="12">
+                                            <DxTextBox @bind-Text="@val.Value" />
+                                        </DxFormLayoutItem>
+                                    </DxFormLayout>
+                                </EditContent>
+                            </DrillList>
+                        </DxFormLayoutItem>
+                    </DxFormLayoutGroup>
                 </DxFormLayout>
             </EditContent>
         </DrillList>

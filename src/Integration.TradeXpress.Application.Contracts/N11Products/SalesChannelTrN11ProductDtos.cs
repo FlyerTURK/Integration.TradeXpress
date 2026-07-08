@@ -19,12 +19,20 @@ public class SalesChannelTrN11ProductSpecialInfoDto
     public string Value { get; set; } = string.Empty;
 }
 
-/// <summary>N11 varyant ekseni (sihirbaz) — eksen adı + N11-uyumlu değerler. Graf düğümü (drill + save).</summary>
+/// <summary>N11 varyant ekseni (sihirbaz) — eksen adı + N11-uyumlu değerler. Graf düğümü (drill + save).
+/// Değerler drill-grid ile düzenlenir → her değer kendi ClientKey'li satır (<see cref="SalesChannelTrN11ProductVariantAxisValueDto"/>).</summary>
 public class SalesChannelTrN11ProductVariantAxisDto
 {
     public Guid ClientKey { get; set; } = Guid.NewGuid();
     public string Name { get; set; } = string.Empty;
-    public List<string> Values { get; set; } = new();
+    public List<SalesChannelTrN11ProductVariantAxisValueDto> Values { get; set; } = new();
+}
+
+/// <summary>N11 varyant ekseni DEĞERİ (drill satırı) — domain'de düz string; UI'da satır anahtarı için sarmalanır.</summary>
+public class SalesChannelTrN11ProductVariantAxisValueDto
+{
+    public Guid ClientKey { get; set; } = Guid.NewGuid();
+    public string Value { get; set; } = string.Empty;
 }
 
 /// <summary>Varyant SKU kimlik/durum satırı (read-only; push + stok/fiyat senkronunda dolar). UI görünürlük +

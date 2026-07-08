@@ -238,7 +238,7 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
         catch (Exception ex)
         {
             // Hatayı kaydet (kullanıcı görsün) + yeniden fırlat (toast). Gizleme YOK — kayıt + propagate.
-            entity.MarkSyncFailed(ex.Message, Clock.Now.ToUniversalTime());
+            entity.MarkSyncFailed(FriendlyError(ex), Clock.Now.ToUniversalTime());
             await _repository.UpdateAsync(entity, autoSave: true);
             throw;
         }
@@ -350,7 +350,7 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
             // N11'e GİRMİŞ her başarısızlık (client notFound/SaveFailed/SaveRejected + ağ hataları) kayda geçer —
             // Push ile simetrik. Ön-uçuş guard'ları (NotPushedYet) try'dan ÖNCE fırladığından buraya düşmez;
             // NoSyncableSku düşerse de "senkronlanamadı" işareti bilgilendiricidir.
-            entity.MarkSyncFailed(ex.Message, Clock.Now.ToUniversalTime());
+            entity.MarkSyncFailed(FriendlyError(ex), Clock.Now.ToUniversalTime());
             await _repository.UpdateAsync(entity, autoSave: true);
             throw;
         }
@@ -358,6 +358,25 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
         var dto = ObjectMapper.Map<SalesChannelTrN11Product, SalesChannelTrN11ProductDto>(entity);
         dto.SyncWarnings = syncWarnings;
         return dto;
+    }
+
+    /// <summary>Başarısız push/sync hatasını LastError'a DOSTANE yazar: in-process BusinessException'ın ham
+    /// mesajı "ABP Exception was thrown" olduğundan, Code'u sunucu-tarafı lokalize eder + {Key} placeholder'larını
+    /// exception Data'sıyla doldurur. BusinessException değilse ham mesaj (ağ/altyapı hatası zaten okunabilir).</summary>
+    private string FriendlyError(Exception ex)
+    {
+        if (ex is not BusinessException { Code: { Length: > 0 } code })
+        {
+            return ex.Message;
+        }
+
+        var message = L[code].Value;
+        foreach (System.Collections.DictionaryEntry entry in ex.Data)
+        {
+            message = message.Replace($"{{{entry.Key}}}", entry.Value?.ToString() ?? string.Empty, StringComparison.Ordinal);
+        }
+
+        return message;
     }
 
     [Authorize(TradeXpressPermissions.SalesChannels.Default)]
@@ -833,7 +852,7 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
         entity.SetDescription(input.Description);
         entity.SetAttributes(input.Attributes.Select(a => new SalesChannelTrN11ProductAttribute(a.Name, a.Value)));
         entity.SetSpecialInfo(input.SpecialInfo.Select(s => new SalesChannelTrN11ProductSpecialInfo(s.Key, s.Value)));
-        entity.SetVariantAxes(input.VariantAxes.Select(a => new SalesChannelTrN11ProductVariantAxis(a.Name, a.Values)));
+        entity.SetVariantAxes(input.VariantAxes.Select(a => new SalesChannelTrN11ProductVariantAxis(a.Name, a.Values.Select(v => v.Value))));
     }
 
     private async Task<SalesChannelTrN11Product> GetOwnedAsync(Guid id)
