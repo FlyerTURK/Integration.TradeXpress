@@ -1,5 +1,6 @@
 @inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
 @using Integration.TradeXpress.Blazor.Client.Pages.Financials.CurrencyUnits
+@using Integration.TradeXpress.Blazor.Client.Pages.Products
 @using Integration.TradeXpress.Permissions
 
 @* N11 ürün listeleme edit formu. Form GENELİ tanımlar (kategori + genel alanlar) üstte; ekranda yer kaplayan
@@ -158,6 +159,95 @@
         </DxTabPage>
     }
 
+
+    @* Varyantlar — ERP varyant seti SABİT (kanalda eksen eklenmez/silinmez): kanal-özel fiyat/stok/marj + reçete.
+       Türetilmiş fiyat = NetCost×(1+Marj/100) SALT-OKUNUR. Varyant yoksa (bağlı ürün varyantsız) sekme gizli. *@
+    @if (Model.Variants.Count > 0)
+    {
+        <DxTabPage Text="@L["N11Product:Variants"]" TabIconCssClass="@TradeXpressIcons.ProductVariant">
+            <span style="color:#6c757d; font-size:0.85rem;">@L["N11Product:PushPriceChainHint"]</span>
+            <DrillList TItem="SalesChannelTrN11ProductVariantGraphDto"
+                       @ref="_variantDrill"
+                       Title="@L["N11Product:Variants"]"
+                       EntityName="@L["ProductVariant"]"
+                       EntityIcon="@TradeXpressIcons.ProductVariant"
+                       Items="@Model.Variants"
+                       KeyFieldName="ProductVariantId"
+                       PrimaryTextSelector="@(v => v.VariantCode)"
+                       NewItemFactory="@(() => new SalesChannelTrN11ProductVariantGraphDto())"
+                       AllowAdd="false"
+                       AllowDelete="false"
+                       ShowActiveFilter="false"
+                       OnChanged="@(() => MarkDirty(nameof(Model.Variants)))">
+                <GridColumns>
+                    <GridLinkColumn FieldName="VariantCode" Caption="@L["Code"]" Width="140px" FixedPosition="GridColumnFixedPosition.Left" VisibleIndex="1" OnClick="@(item => _variantDrill?.EditItem((SalesChannelTrN11ProductVariantGraphDto)item))" />
+                    <DxGridDataColumn FieldName="VariantName" Caption="@L["Name"]" />
+                    <DxGridDataColumn FieldName="OverrideStock" Caption="@L["N11Product:OverrideStock"]" Width="110px" TextAlignment="GridTextAlignment.Right" />
+                    <DxGridDataColumn FieldName="Margin" Caption="@L["N11Product:Margin"]" Width="100px" DisplayFormat="N2" TextAlignment="GridTextAlignment.Right" />
+                    <DxGridDataColumn FieldName="OverridePrice" Caption="@L["N11Product:OverridePrice"]" Width="120px" DisplayFormat="N2" TextAlignment="GridTextAlignment.Right" />
+                    <DxGridDataColumn FieldName="DerivedPrice" Caption="@L["N11Product:DerivedPrice"]" Width="130px" DisplayFormat="N2" TextAlignment="GridTextAlignment.Right" />
+                </GridColumns>
+                <EditContent Context="v">
+                    <DxFormLayout CssClass="w-100">
+                        @* Kimlik — SALT-OKUNUR (ERP SSOT; kod/ad kanalda değiştirilmez). *@
+                        <DxFormLayoutItem Caption="@L["Code"]" ColSpanMd="6" BeginRow="true">
+                            <span>@v.VariantCode</span>
+                        </DxFormLayoutItem>
+                        <DxFormLayoutItem Caption="@L["Name"]" ColSpanMd="6">
+                            <span>@v.VariantName</span>
+                        </DxFormLayoutItem>
+                        @* Kanal-özel override — boş = ERP/türetilmiş devralınır (temizle butonuyla boşaltılır). *@
+                        <DxFormLayoutItem Caption="@L["N11Product:OverridePrice"]" ColSpanMd="4" BeginRow="true">
+                            <NumericSpinEdit TValue="decimal?" @bind-Value="@v.OverridePrice" DisplayFormat="N2"
+                                             ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
+                        </DxFormLayoutItem>
+                        <DxFormLayoutItem Caption="@L["N11Product:OverridePriceCurrency"]" ColSpanMd="4">
+                            <LookupComboBox TItem="CurrencyUnitListDto" TValue="Guid?"
+                                            Data="@_units"
+                                            ValueFieldName="@nameof(CurrencyUnitListDto.Id)"
+                                            TextFieldName="@nameof(CurrencyUnitListDto.Code)"
+                                            Value="@v.OverridePriceCurrencyUnitId"
+                                            ValueChanged="@((Guid? id) => OnOverrideCurrencyChanged(v, id))"
+                                            AllowClear="true" />
+                        </DxFormLayoutItem>
+                        <DxFormLayoutItem Caption="@L["N11Product:OverrideStock"]" ColSpanMd="4">
+                            <NumericSpinEdit TValue="int?" @bind-Value="@v.OverrideStock"
+                                             ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
+                        </DxFormLayoutItem>
+                        @* Marj % — türetilmiş fiyatı sürer (ValueExpression'sız değil ama DerivedPrice canlı güncellensin diye handler'lı). *@
+                        <DxFormLayoutItem Caption="@L["N11Product:Margin"]" ColSpanMd="4" BeginRow="true">
+                            <NumericSpinEdit TValue="decimal?" Value="@v.Margin" DisplayFormat="N2"
+                                             ValueChanged="@((decimal? m) => OnVariantMarginChanged(v, m))"
+                                             ValueExpression="@(() => v.Margin)"
+                                             ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
+                        </DxFormLayoutItem>
+                        @* Net maliyet + türetilmiş fiyat — SALT-OKUNUR (reçeteden canlı; kur eksikse uyarı). *@
+                        <DxFormLayoutItem Caption="@L["N11Product:NetCost"]" ColSpanMd="4">
+                            @if (v.NetCostMissingRate)
+                            {
+                                <span style="color:#b45309;">@L["MissingRate"]</span>
+                            }
+                            else
+                            {
+                                <span>@(v.NetCost is { } nc ? $"{nc:N2} {v.NetCostCurrency}" : "-")</span>
+                            }
+                        </DxFormLayoutItem>
+                        <DxFormLayoutItem Caption="@L["N11Product:DerivedPrice"]" ColSpanMd="4">
+                            <span>@(v.DerivedPrice is { } dp ? $"{dp:N2} {v.NetCostCurrency}" : "-")</span>
+                        </DxFormLayoutItem>
+                        @* Kanal-özel reçete — ERP reçetesinden klonlanır, sonra bağımsız (ERP paneli AYNEN yeniden kullanılır). *@
+                        <DxFormLayoutGroup Caption="@L["Recipe"]" ColSpanMd="12" CaptionPosition="CaptionPosition.Vertical">
+                            <ProductRecipePanel Lines="v.RecipeLines"
+                                                Metals="_metals" Scraps="_scraps" Futures="_futures"
+                                                Jewelries="_jewelries" Stones="_stones" Services="_services" Units="_priceUnits"
+                                                NetCost="@v.NetCost" NetCostCurrency="@v.NetCostCurrency" NetCostMissingRate="@v.NetCostMissingRate"
+                                                OnChanged="@(async () => await HandleVariantRecipeChangedAsync(v))" />
+                        </DxFormLayoutGroup>
+                    </DxFormLayout>
+                </EditContent>
+            </DrillList>
+        </DxTabPage>
+    }
 
     @* Ürün özel bilgileri — KOŞULSUZ (her kategoride): serbest key/value satırları. Boş key kabul edilmez. *@
     <DxTabPage Text="@L["N11Product:SpecialInfo"]" TabIconCssClass="@TradeXpressIcons.Sliders">
