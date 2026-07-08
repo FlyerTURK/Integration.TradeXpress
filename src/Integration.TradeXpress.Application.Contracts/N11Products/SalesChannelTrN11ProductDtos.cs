@@ -61,10 +61,19 @@ public class N11PreviewImageDto
     public string? PreviewDataUrl { get; set; }
 }
 
-/// <summary>N11 ürün listelemesi — tam okuma modeli (edit + durum görüntüsü).</summary>
+/// <summary>N11 ürün listelemesi — tam okuma modeli (edit + durum görüntüsü). Ürün grafının parçası olarak da
+/// kullanılır (ürün 'Kaydet'inde birlikte kaydedilir): <see cref="ClientKey"/> in-memory kimlik, <see cref="IsDeleted"/>
+/// soft-delete işareti (graf diff). Kaydedilmiş kayıtta <see cref="Id"/> dolu; yeni satırda boş.</summary>
 public class SalesChannelTrN11ProductDto
 {
     public Guid Id { get; set; }
+
+    /// <summary>İstemci-taraflı graf kimliği (yeni satırda Id yok; graf diff için).</summary>
+    public Guid ClientKey { get; set; } = Guid.NewGuid();
+
+    /// <summary>Graf soft-delete işareti — ürün save'inde silinecek satır.</summary>
+    public bool IsDeleted { get; set; }
+
     public Guid ProductId { get; set; }
     public Guid SalesChannelId { get; set; }
 
