@@ -64,6 +64,21 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
             b.HasIndex(x => new { x.TenantId, x.CompanyId });
         });
 
+        // Kanal-özel varyant override BAŞLIĞI (fiyat/stok + marj) — ERP ProductVariant'ın N11-scope özelleştirmesi.
+        // null alan = ERP'den devral. Anchor (kanal-ürün + varyant) UNIQUE; türetilmiş fiyat/NetCost PERSIST EDİLMEZ.
+        builder.Entity<SalesChannelTrN11ProductVariant>(b =>
+        {
+            b.ToTable(TradeXpressConsts.DbTablePrefix + "SalesChannelTrN11ProductVariants", TradeXpressConsts.DbSchema);
+            b.ConfigureByConvention();
+
+            b.Property(x => x.OverridePrice).HasPrecision(ProductRecipeConsts.AmountPrecision, ProductRecipeConsts.AmountScale);
+            b.Property(x => x.Margin).HasPrecision(ProductRecipeConsts.FactorPrecision, ProductRecipeConsts.FactorScale);
+
+            // Kanal-ürün + varyant başına TEK override başlığı (anchor benzersiz).
+            b.HasIndex(x => new { x.TenantId, x.SalesChannelTrN11ProductId, x.ProductVariantId }).IsUnique();
+            b.HasIndex(x => new { x.TenantId, x.CompanyId });
+        });
+
         // Kanal-özel varyant reçetesi (ERP ProductVariantRecipeLine klonu) — AYRI TABLO (owned değil; türev
         // SelectedLines Id referansları JSON'da kırılgan olur). Hesap motoru (ProductRecipeCostCalculator) ortak.
         builder.Entity<SalesChannelTrN11ProductVariantRecipeLine>(b =>

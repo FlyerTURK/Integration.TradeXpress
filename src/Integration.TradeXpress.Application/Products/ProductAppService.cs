@@ -4,13 +4,9 @@ using System.Linq;
 using System.Threading.Tasks;
 using Integration.Framework;
 using Integration.Framework.Base.Querying;
-using Integration.TradeXpress.Financials.CurrencyUnits;
-using Integration.TradeXpress.Jewelries;
-using Integration.TradeXpress.Metals;
 using Integration.TradeXpress.MultiCompany;
 using Integration.TradeXpress.N11Products;
 using Integration.TradeXpress.Permissions;
-using Integration.TradeXpress.Stones;
 using Integration.TradeXpress.Vouchers;
 using Microsoft.AspNetCore.Authorization;
 using Volo.Abp;
@@ -38,13 +34,9 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
     private readonly IRepository<ProductAttributeValue, Guid> _valueRepository;
     private readonly IRepository<ProductVariantAttributeValue, Guid> _linkRepository;
     private readonly IRepository<ProductVariantRecipeLine, Guid> _recipeLineRepository;
-    private readonly IRepository<Metal, Guid> _metalRepository;
-    private readonly IRepository<Jewelry, Guid> _jewelryRepository;
-    private readonly IRepository<Stone, Guid> _stoneRepository;
     private readonly ProductVariantManager _variantManager;
     private readonly ProductVariantSynchronizer _variantSynchronizer;
-    private readonly IEffectivePriceAppService _effectivePriceAppService;
-    private readonly ProductRecipeCostCalculator _recipeCostCalculator;
+    private readonly RecipeCostPopulator _recipeCostPopulator;
     private readonly ICurrentCompany _currentCompany;
     private readonly IBlobContainer<ProductImagesContainer> _imageContainer;
     private readonly ISalesChannelTrN11ProductAppService _channelProductAppService;
@@ -59,13 +51,9 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         IRepository<ProductAttributeValue, Guid> valueRepository,
         IRepository<ProductVariantAttributeValue, Guid> linkRepository,
         IRepository<ProductVariantRecipeLine, Guid> recipeLineRepository,
-        IRepository<Metal, Guid> metalRepository,
-        IRepository<Jewelry, Guid> jewelryRepository,
-        IRepository<Stone, Guid> stoneRepository,
         ProductVariantManager variantManager,
         ProductVariantSynchronizer variantSynchronizer,
-        IEffectivePriceAppService effectivePriceAppService,
-        ProductRecipeCostCalculator recipeCostCalculator,
+        RecipeCostPopulator recipeCostPopulator,
         ICurrentCompany currentCompany,
         IBlobContainer<ProductImagesContainer> imageContainer,
         ISalesChannelTrN11ProductAppService channelProductAppService)
@@ -76,13 +64,9 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         _valueRepository = valueRepository;
         _linkRepository = linkRepository;
         _recipeLineRepository = recipeLineRepository;
-        _metalRepository = metalRepository;
-        _jewelryRepository = jewelryRepository;
-        _stoneRepository = stoneRepository;
         _variantManager = variantManager;
         _variantSynchronizer = variantSynchronizer;
-        _effectivePriceAppService = effectivePriceAppService;
-        _recipeCostCalculator = recipeCostCalculator;
+        _recipeCostPopulator = recipeCostPopulator;
         _currentCompany = currentCompany;
         _imageContainer = imageContainer;
         _channelProductAppService = channelProductAppService;
@@ -463,7 +447,7 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
             survivors[i].LineOrder = i;
         }
 
-        ValidateDerivedReferences(survivors);
+        RecipeCostPopulator.ValidateDerivedReferences(survivors);
 
         // 1. geçiş: TÜM satırları insert/update (skaler alanlar; türev SelectedLines kaynakları HARİÇ) →
         // ClientKey→Id (+ ClientKey→entity) sözlükleri (SaveAttributesAsync valueIdByClientKey deseni).
@@ -500,33 +484,6 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
             var entity = entityByClientKey[l.ClientKey];
             entity.SetDerivedSources(csv);
             await _recipeLineRepository.UpdateAsync(entity, autoSave: true);
-        }
-    }
-
-    /// <summary>Türev satır referans-bütünlüğü (kaydetmeden ÖNCE, fail-fast): SelectedLines satırının seçili
-    /// kaynakları BOŞ olamaz, hepsi mevcut (silinmemiş) KARDEŞ satır olmalı ve yalnız kendinden ÖNCEKİ satırları
-    /// (küçük LineOrder) referanslamalı → döngüsüz + kendine-referans yok. AllAbove kaynak gerektirmez.
-    /// <paramref name="survivors"/>'ın LineOrder'ı 0..n-1 yeniden-numaralı (benzersiz pozisyon).</summary>
-    private static void ValidateDerivedReferences(List<ProductRecipeLineGraphDto> survivors)
-    {
-        var orderByClientKey = survivors.ToDictionary(x => x.ClientKey, x => x.LineOrder);
-
-        foreach (var l in survivors.Where(x => x.ComponentType == RecipeComponentType.Service
-            && x.DerivedBaseMode == RecipeDerivedBaseMode.SelectedLines))
-        {
-            if (l.DerivedSourceKeys == null || l.DerivedSourceKeys.Count == 0)
-            {
-                throw new BusinessException("TradeXpress:ProductRecipeLine:DerivedNeedsSelection");
-            }
-
-            foreach (var key in l.DerivedSourceKeys)
-            {
-                if (!orderByClientKey.TryGetValue(key, out var sourceOrder) || sourceOrder >= l.LineOrder)
-                {
-                    // kaynak yok (silinmiş/yabancı) YA DA kendini/sonrasını referanslıyor → döngü/geçersiz.
-                    throw new BusinessException("TradeXpress:ProductRecipeLine:DerivedRefMustBeUpstream");
-                }
-            }
         }
     }
 
@@ -991,213 +948,26 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         var sourceCsvById = entities
             .Where(e => e.ComponentType == RecipeComponentType.Service && !string.IsNullOrEmpty(e.DerivedSourceLineIds))
             .ToDictionary(e => e.Id, e => e.DerivedSourceLineIds!);
-        if (sourceCsvById.Count == 0)
-        {
-            return;
-        }
 
         foreach (var variant in variants)
         {
-            var clientKeyById = variant.RecipeLines.ToDictionary(l => l.Id, l => l.ClientKey);
-            foreach (var l in variant.RecipeLines.Where(x => x.ComponentType == RecipeComponentType.Service))
-            {
-                if (!sourceCsvById.TryGetValue(l.Id, out var csv))
-                {
-                    continue;
-                }
-
-                l.DerivedSourceKeys = csv
-                    .Split('|', StringSplitOptions.RemoveEmptyEntries)
-                    .Select(part => Guid.TryParse(part, out var srcId) && clientKeyById.TryGetValue(srcId, out var ck)
-                        ? ck
-                        : (Guid?)null)
-                    .Where(ck => ck.HasValue)
-                    .Select(ck => ck!.Value)
-                    .ToList();
-            }
+            RecipeCostPopulator.ResolveDerivedSourceKeys(variant.RecipeLines, sourceCsvById);
         }
     }
 
     // ── CANLI reçete maliyeti (design-time; ledger'a YAZMAZ) ─────────────────────────────────────────
-    // Değerleme dict'i (ülke birimine rebase, SELL bacağı) + katalog canlı verisi ÜRÜN başına BİR KEZ; tüm
-    // varyant/satırlarda yeniden kullanılır (perf). Ülke birimi çözülemezse NetCost boş bırakılır.
+    // ORTAK motor RecipeCostPopulator'a delege (ERP + N11 aynı SSOT). Satır-başı alanlar yerinde doldurulur;
+    // set-başı net özet varyant DTO'suna yazılır. Değerleme + katalog ÜRÜN başına TEK çekilir (populator içinde).
     private async Task PopulateRecipeCostsAsync(List<ProductVariantGraphDto> variants)
     {
-        var allLines = variants.SelectMany(v => v.RecipeLines).ToList();
-        if (allLines.Count == 0)
+        var costs = await _recipeCostPopulator.PopulateAsync(variants.Select(v => v.RecipeLines).ToList());
+        for (var i = 0; i < variants.Count; i++)
         {
-            return;
-        }
-
-        var countryUnitId = await _effectivePriceAppService.GetWorkingLocalCurrencyUnitIdAsync();
-        if (countryUnitId is not { } targetUnitId)
-        {
-            return;   // ülke (rebase hedefi) birimi yok → net maliyet hesaplanamaz (boş)
-        }
-
-        // Değerleme: ülke birimine rebase'li efektifler (SELL bacağı — reçete kararı). ÜRÜN başına TEK çağrı.
-        var valuation = await _effectivePriceAppService.GetValuationByBaseAsync(targetUnitId);
-        var sellByUnit = valuation.ToDictionary(v => v.Id, v => v.Sell);
-        var codeByUnit = valuation.ToDictionary(v => v.Id, v => v.CurrencyUnitCode);
-        var countryCode = valuation.FirstOrDefault()?.BaseCurrencyCode ?? string.Empty;
-
-        var catalog = await LoadRecipeCatalogAsync(allLines);
-
-        foreach (var variant in variants)
-        {
-            variant.NetCostCurrency = countryCode;
-            if (variant.RecipeLines.Count == 0)
-            {
-                continue;
-            }
-
-            // Türev SelectedLines ordinal çözümü için ClientKey→pozisyon (satırlar LineOrder sırasında).
-            var ordinalByClientKey = new Dictionary<Guid, int>();
-            for (var idx = 0; idx < variant.RecipeLines.Count; idx++)
-            {
-                ordinalByClientKey[variant.RecipeLines[idx].ClientKey] = idx;
-            }
-
-            var inputs = variant.RecipeLines.Select(l => BuildCostInput(l, catalog, ordinalByClientKey)).ToList();
-            var result = _recipeCostCalculator.Compute(inputs, sellByUnit, countryCode);
-
-            for (var i = 0; i < variant.RecipeLines.Count; i++)
-            {
-                var line = variant.RecipeLines[i];
-                var r = result.Lines[i];
-                line.LineCost = r.Cost;
-                line.LineCostMissingRate = r.MissingRate;
-                line.Total = r.Total;
-                line.PayTotal = r.PayTotal;
-                line.AppliedBase = r.AppliedBase;
-                line.RunningSubtotal = r.RunningSubtotal;
-                line.MainUnitCode = line.ValuationUnitId is { } mu ? codeByUnit.GetValueOrDefault(mu, string.Empty) : string.Empty;
-                line.PayUnitCode = line.PayUnitId is { } pu ? codeByUnit.GetValueOrDefault(pu, string.Empty) : string.Empty;
-            }
-
-            variant.NetCost = result.Net;
-            variant.NetCostMissingRate = result.AnyMissingRate;
+            variants[i].NetCost = costs[i].NetCost;
+            variants[i].NetCostCurrency = costs[i].NetCostCurrency;
+            variants[i].NetCostMissingRate = costs[i].NetCostMissingRate;
         }
     }
-
-    /// <summary>Graf düğümünden calculator girdisi kurar — katalog canlı verisi (metal adet→gram, parasal giriş
-    /// fiyatı) <paramref name="catalog"/>'dan çözülür; eksikse 0 (satır sonra MissingRate/0 verir).</summary>
-    private static RecipeLineCostInput BuildCostInput(
-        ProductRecipeLineGraphDto l, RecipeCatalogData catalog, Dictionary<Guid, int> ordinalByClientKey)
-    {
-        var isQuantity = false;
-        var stableQuantity = 0m;
-        var priceByQuantity = false;
-        var entryPrice = 0m;
-        var laborByQuantity = false;
-
-        if (l.ComponentType == RecipeComponentType.CatalogCommodity && l.CommodityId is { } commodityId)
-        {
-            if (l.CommodityProcessType == ProcessType.Metal && catalog.Metals.TryGetValue(commodityId, out var m))
-            {
-                isQuantity = m.IsQuantity;
-                stableQuantity = m.StableQuantity;
-                laborByQuantity = m.LaborByQuantity;
-            }
-            else if (l.CommodityProcessType == ProcessType.Jewelry && catalog.Jewelries.TryGetValue(commodityId, out var j))
-            {
-                entryPrice = j.EntryPrice;
-                priceByQuantity = j.PriceByQuantity;
-            }
-            else if (l.CommodityProcessType == ProcessType.Stone && catalog.Stones.TryGetValue(commodityId, out var s))
-            {
-                entryPrice = s.EntryPrice;
-                priceByQuantity = s.PriceByQuantity;
-            }
-        }
-
-        // Türev SelectedLines: seçili kaynak ClientKey'leri → pozisyon ordinal'leri (calculator upstream doğrular).
-        var derivedOrdinals = l.ComponentType == RecipeComponentType.Service
-            && l.DerivedBaseMode == RecipeDerivedBaseMode.SelectedLines
-            ? l.DerivedSourceKeys.Where(ordinalByClientKey.ContainsKey).Select(k => ordinalByClientKey[k]).ToList()
-            : new List<int>();
-
-        return new RecipeLineCostInput(
-            l.ComponentType,
-            l.CommodityProcessType,
-            l.Quantity,
-            l.Amount,
-            l.Factor,
-            isQuantity,
-            stableQuantity,
-            priceByQuantity,
-            entryPrice,
-            l.ValuationUnitId,
-            l.PaymentType,
-            l.PayFactor,
-            l.PayUnitId,
-            laborByQuantity,
-            l.ManualAmount,
-            l.ManualUnitId,
-            l.DerivedBaseMode,
-            l.DerivedOperation,
-            l.DerivedOperand,
-            derivedOrdinals);
-    }
-
-    /// <summary>Reçetede geçen katalog kayıtlarının hesaba giren canlı verisini (metal adet→gram; parasal giriş
-    /// fiyatı) TEK batch'te yükler. Filtreler kapalı (host/global katalog kaydı da çözülsün — salt-okuma).</summary>
-    private async Task<RecipeCatalogData> LoadRecipeCatalogAsync(List<ProductRecipeLineGraphDto> lines)
-    {
-        Guid[] IdsOfFamily(ProcessType family)
-        {
-            return lines
-                .Where(l => l.ComponentType == RecipeComponentType.CatalogCommodity
-                    && l.CommodityProcessType == family
-                    && l.CommodityId is not null)
-                .Select(l => l.CommodityId!.Value)
-                .Distinct()
-                .ToArray();
-        }
-
-        var metalIds = IdsOfFamily(ProcessType.Metal);
-        var jewelryIds = IdsOfFamily(ProcessType.Jewelry);
-        var stoneIds = IdsOfFamily(ProcessType.Stone);
-
-        var metals = new Dictionary<Guid, MetalCatalogCost>();
-        var jewelries = new Dictionary<Guid, PricedCatalogCost>();
-        var stones = new Dictionary<Guid, PricedCatalogCost>();
-
-        using (DataFilter.Disable<IMultiTenant>())
-        using (DataFilter.Disable<ICompanyScoped>())
-        {
-            if (metalIds.Length > 0)
-            {
-                metals = (await AsyncExecuter.ToListAsync(
-                        (await _metalRepository.GetQueryableAsync()).Where(m => metalIds.Contains(m.Id))))
-                    .ToDictionary(m => m.Id, m => new MetalCatalogCost(
-                        m.IsQuantity, m.StableQuantity, m.LaborType == MetalLaborType.Quantity));
-            }
-
-            if (jewelryIds.Length > 0)
-            {
-                jewelries = (await AsyncExecuter.ToListAsync(
-                        (await _jewelryRepository.GetQueryableAsync()).Where(j => jewelryIds.Contains(j.Id))))
-                    .ToDictionary(j => j.Id, j => new PricedCatalogCost(j.EntryPrice, j.PriceByQuantity));
-            }
-
-            if (stoneIds.Length > 0)
-            {
-                stones = (await AsyncExecuter.ToListAsync(
-                        (await _stoneRepository.GetQueryableAsync()).Where(s => stoneIds.Contains(s.Id))))
-                    .ToDictionary(s => s.Id, s => new PricedCatalogCost(s.EntryPrice, s.PriceByQuantity));
-            }
-        }
-
-        return new RecipeCatalogData(metals, jewelries, stones);
-    }
-
-    private sealed record MetalCatalogCost(bool IsQuantity, decimal StableQuantity, bool LaborByQuantity);
-    private sealed record PricedCatalogCost(decimal EntryPrice, bool PriceByQuantity);
-    private sealed record RecipeCatalogData(
-        Dictionary<Guid, MetalCatalogCost> Metals,
-        Dictionary<Guid, PricedCatalogCost> Jewelries,
-        Dictionary<Guid, PricedCatalogCost> Stones);
 
     /// <summary>Varyantın kombinasyon özeti — bağlı "Nitelik: Değer" çiftleri, attribute DisplayOrder
     /// (synchronizer ile aynı: DisplayOrder→Name) sırasıyla ", " join (ör. "Renk: Kırmızı, Beden: M"). Salt görüntü.</summary>

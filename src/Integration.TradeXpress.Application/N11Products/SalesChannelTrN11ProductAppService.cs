@@ -9,6 +9,7 @@ using Integration.TradeXpress.N11Categories;
 using Integration.TradeXpress.Permissions;
 using Integration.TradeXpress.Products;
 using Integration.TradeXpress.SalesChannels;
+using Integration.TradeXpress.Vouchers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Logging;
@@ -35,6 +36,10 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
     private readonly IRepository<ProductVariantAttributeValue, Guid> _variantAttributeRepository;
     private readonly IRepository<SalesChannelTrN11, Guid> _channelRepository;
     private readonly IRepository<CurrencyUnit, Guid> _currencyRepository;
+    private readonly IRepository<SalesChannelTrN11ProductVariant, Guid> _variantOverrideRepository;
+    private readonly IRepository<SalesChannelTrN11ProductVariantRecipeLine, Guid> _channelRecipeLineRepository;
+    private readonly IRepository<ProductVariantRecipeLine, Guid> _erpRecipeLineRepository;
+    private readonly RecipeCostPopulator _recipeCostPopulator;
     private readonly ICurrentCompany _currentCompany;
     private readonly IN11ProductClient _client;
     private readonly IPublicImageLinkProvider _publicImageLink;
@@ -52,6 +57,10 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
         IRepository<ProductVariantAttributeValue, Guid> variantAttributeRepository,
         IRepository<SalesChannelTrN11, Guid> channelRepository,
         IRepository<CurrencyUnit, Guid> currencyRepository,
+        IRepository<SalesChannelTrN11ProductVariant, Guid> variantOverrideRepository,
+        IRepository<SalesChannelTrN11ProductVariantRecipeLine, Guid> channelRecipeLineRepository,
+        IRepository<ProductVariantRecipeLine, Guid> erpRecipeLineRepository,
+        RecipeCostPopulator recipeCostPopulator,
         ICurrentCompany currentCompany,
         IN11ProductClient client,
         IPublicImageLinkProvider publicImageLink,
@@ -68,6 +77,10 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
         _variantAttributeRepository = variantAttributeRepository;
         _channelRepository = channelRepository;
         _currencyRepository = currencyRepository;
+        _variantOverrideRepository = variantOverrideRepository;
+        _channelRecipeLineRepository = channelRecipeLineRepository;
+        _erpRecipeLineRepository = erpRecipeLineRepository;
+        _recipeCostPopulator = recipeCostPopulator;
         _currentCompany = currentCompany;
         _client = client;
         _publicImageLink = publicImageLink;
@@ -92,13 +105,24 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
             (await _repository.GetQueryableAsync())
                 .Where(x => x.CompanyId == companyId && x.ProductId == productId && liveChannelIds.Contains(x.SalesChannelId))
                 .OrderBy(x => x.CategoryName));
-        return items.Select(x => ObjectMapper.Map<SalesChannelTrN11Product, SalesChannelTrN11ProductDto>(x)).ToList();
+
+        var dtos = new List<SalesChannelTrN11ProductDto>(items.Count);
+        foreach (var item in items)
+        {
+            var dto = ObjectMapper.Map<SalesChannelTrN11Product, SalesChannelTrN11ProductDto>(item);
+            dto.Variants = await BuildVariantGraphAsync(item);
+            dtos.Add(dto);
+        }
+
+        return dtos;
     }
 
     public virtual async Task<SalesChannelTrN11ProductDto> GetAsync(Guid id)
     {
         var entity = await GetOwnedAsync(id);
-        return ObjectMapper.Map<SalesChannelTrN11Product, SalesChannelTrN11ProductDto>(entity);
+        var dto = ObjectMapper.Map<SalesChannelTrN11Product, SalesChannelTrN11ProductDto>(entity);
+        dto.Variants = await BuildVariantGraphAsync(entity);
+        return dto;
     }
 
     public virtual async Task<List<SalesChannelTrN11ProductDto>> GetListForChannelAsync(Guid salesChannelId)
@@ -132,8 +156,11 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
             input.Condition);
         ApplyInput(entity, input);
         await _repository.InsertAsync(entity, autoSave: true);
+        await SaveVariantOverridesAsync(entity, input.Variants);
 
-        return ObjectMapper.Map<SalesChannelTrN11Product, SalesChannelTrN11ProductDto>(entity);
+        var dto = ObjectMapper.Map<SalesChannelTrN11Product, SalesChannelTrN11ProductDto>(entity);
+        dto.Variants = await BuildVariantGraphAsync(entity);
+        return dto;
     }
 
     /// <summary>Kayıt sırası: aynı ürün+kanal içindeki max SequenceNo + 1 — SİLİNMİŞLER DAHİL (soft-delete
@@ -162,14 +189,20 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
         var entity = await GetOwnedAsync(id);
         ApplyInput(entity, input);
         await _repository.UpdateAsync(entity, autoSave: true);
+        await SaveVariantOverridesAsync(entity, input.Variants);
 
-        return ObjectMapper.Map<SalesChannelTrN11Product, SalesChannelTrN11ProductDto>(entity);
+        var dto = ObjectMapper.Map<SalesChannelTrN11Product, SalesChannelTrN11ProductDto>(entity);
+        dto.Variants = await BuildVariantGraphAsync(entity);
+        return dto;
     }
 
     [Authorize(TradeXpressPermissions.SalesChannels.Delete)]
     public virtual async Task DeleteAsync(Guid id)
     {
         var entity = await GetOwnedAsync(id);
+        // Kanal-özel varyant override başlıkları + reçete satırları (ayrı tablolar) — kanal-ürünle birlikte temizlenir.
+        await _channelRecipeLineRepository.DeleteAsync(r => r.SalesChannelTrN11ProductId == entity.Id, autoSave: true);
+        await _variantOverrideRepository.DeleteAsync(v => v.SalesChannelTrN11ProductId == entity.Id, autoSave: true);
         await _repository.DeleteAsync(entity, autoSave: true);
     }
 
@@ -546,6 +579,10 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
             throw new BusinessException("TradeXpress:N11:Product:NoPricedVariant");
         }
 
+        // Kanal-özel fiyat/stok override + türetilmiş fiyat (kaydedilmiş marj + reçete → NetCost×marj) — CANLI hesap.
+        // Zincir: OverridePrice ?? türetilmiş ?? ERP SalePrice; stok: OverrideStock ?? ERP StockQuantity (kullanıcı kararı).
+        var pushPricing = await ResolveVariantPushPricingAsync(channelProduct, variants);
+
         // Tek para birimi zorunlu (N11 ürün başına tek currencyType). Kanal para birimi seçiliyse O belirler
         // → varyantlar farklı birimde olsa da karışıklık yok (MixedCurrency yalnız kanal seçilmemişken denetlenir).
         var currencyUnitIds = variants.Select(v => v.SalePriceCurrencyUnitId).Where(x => x is not null).Distinct().ToList();
@@ -597,10 +634,11 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
         var stockItems = canonicalCandidates.Select(c =>
         {
             var v = variantById[c.VariantId];
+            var pricing = pushPricing[c.VariantId];
             return new N11ProductStockItem(
                 SellerStockCode: stockCodePlan[c.VariantId],
-                Quantity: v.StockQuantity,
-                OptionPrice: v.SalePrice,
+                Quantity: pricing.Stock,                       // OverrideStock ?? ERP StockQuantity
+                OptionPrice: pricing.Price,                    // OverridePrice ?? türetilmiş ?? ERP SalePrice
                 Attributes: validated.VariantOptions.TryGetValue(c.VariantId, out var pairs) ? pairs : new List<N11ProductAttributePair>(),
                 Gtin: v.Gtin,
                 Mpn: v.Mpn,
@@ -617,7 +655,7 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
             Description: channelProduct.Description ?? product.Description ?? product.Name,   // kanal-özel açıklama önce, yoksa ürün
             Domestic: channelProduct.Domestic,
             CategoryId: channelProduct.CategoryExternalId,
-            Price: variants[0].SalePrice!.Value,          // ana/ilk fiyatlı varyant = base fiyat
+            Price: pushPricing[variants[0].Id].Price!.Value,   // ana/ilk varyantın efektif fiyatı = base (override zinciri)
             CurrencyType: currencyType,
             ProductCondition: (byte)channelProduct.Condition,
             PreparingDay: channelProduct.PreparingDay,
@@ -780,6 +818,363 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
             _ => 1,     // TRY/TL + bilinmeyen → TL
         };
     }
+
+    // ── Kanal-özel varyant override (fiyat/stok/marj + reçete) ──────────────────────────────────────
+    // Graf = ERP varyant seti (aktif) ⋈ kaydedilmiş kanal override (LEFT JOIN). Kaydedilmiş reçete varsa ondan,
+    // yoksa ERP reçetesi KLONLANIR. NetCost + türetilmiş fiyat CANLI hesaplanır (ProductAppService ile ORTAK motor).
+
+    /// <summary>Bir kanal-ürünün varyant override grafını kurar: aktif ERP varyantları × kaydedilmiş override başlığı
+    /// (fiyat/stok/marj) + reçete (kaydedilmişse ondan, yoksa ERP reçetesinden klon). NetCost + türetilmiş fiyat
+    /// (NetCost×(1+Margin/100)) canlı hesaplanır. Varyant yoksa boş liste.</summary>
+    private async Task<List<SalesChannelTrN11ProductVariantGraphDto>> BuildVariantGraphAsync(SalesChannelTrN11Product channelProduct)
+    {
+        var variants = await AsyncExecuter.ToListAsync(
+            (await _variantRepository.GetQueryableAsync())
+                .Where(v => v.ProductId == channelProduct.ProductId && v.IsActive)
+                .OrderByDescending(v => v.IsMain).ThenBy(v => v.Code));
+        if (variants.Count == 0)
+        {
+            return new List<SalesChannelTrN11ProductVariantGraphDto>();
+        }
+
+        var variantIds = variants.Select(v => v.Id).ToList();
+
+        var headers = (await AsyncExecuter.ToListAsync(
+                (await _variantOverrideRepository.GetQueryableAsync())
+                    .Where(h => h.SalesChannelTrN11ProductId == channelProduct.Id)))
+            .ToDictionary(h => h.ProductVariantId);
+
+        var savedByVariant = (await AsyncExecuter.ToListAsync(
+                (await _channelRecipeLineRepository.GetQueryableAsync())
+                    .Where(r => r.SalesChannelTrN11ProductId == channelProduct.Id)))
+            .GroupBy(r => r.ProductVariantId)
+            .ToDictionary(g => g.Key, g => g.ToList());
+
+        // ERP reçetesi — yalnız kaydedilmiş kanal reçetesi OLMAYAN varyantlarda klonlanır (LEFT JOIN eksiği ERP'den).
+        var erpByVariant = (await AsyncExecuter.ToListAsync(
+                (await _erpRecipeLineRepository.GetQueryableAsync())
+                    .Where(r => variantIds.Contains(r.ProductVariantId))))
+            .GroupBy(r => r.ProductVariantId)
+            .ToDictionary(g => g.Key, g => g.ToList());
+
+        var nodes = new List<SalesChannelTrN11ProductVariantGraphDto>(variants.Count);
+        foreach (var v in variants)
+        {
+            var node = new SalesChannelTrN11ProductVariantGraphDto
+            {
+                ProductVariantId = v.Id,
+                VariantCode = v.Code,
+                VariantName = v.Name,
+            };
+
+            if (headers.TryGetValue(v.Id, out var header))
+            {
+                node.OverridePrice = header.OverridePrice;
+                node.OverridePriceCurrencyUnitId = header.OverridePriceCurrencyUnitId;
+                node.OverrideStock = header.OverrideStock;
+                node.Margin = header.Margin;
+            }
+
+            node.RecipeLines = savedByVariant.TryGetValue(v.Id, out var saved)
+                ? MapSavedRecipeLines(saved)
+                : (erpByVariant.TryGetValue(v.Id, out var erp) ? CloneErpRecipeLines(erp) : new List<ProductRecipeLineGraphDto>());
+
+            nodes.Add(node);
+        }
+
+        var costs = await _recipeCostPopulator.PopulateAsync(nodes.Select(n => n.RecipeLines).ToList());
+        for (var i = 0; i < nodes.Count; i++)
+        {
+            var node = nodes[i];
+            node.NetCost = costs[i].NetCost;
+            node.NetCostCurrency = costs[i].NetCostCurrency;
+            node.NetCostMissingRate = costs[i].NetCostMissingRate;
+            node.DerivedPrice = costs[i].NetCost is { } nc && !costs[i].NetCostMissingRate
+                ? nc * (1m + (node.Margin ?? 0m) / 100m)
+                : null;
+        }
+
+        return nodes;
+    }
+
+    /// <summary>Push için varyant-başı efektif fiyat/stok — zincir: OverridePrice ?? türetilmiş (KAYDEDİLMİŞ reçete
+    /// NetCost × (1+Margin/100)) ?? ERP SalePrice; stok: OverrideStock ?? ERP StockQuantity. Push PERSIST edilmiş
+    /// gerçeği kullanır (ERP klonu değil) — kaydedilmemiş reçete türetilmiş fiyat üretmez.</summary>
+    private async Task<IReadOnlyDictionary<Guid, VariantPushPricing>> ResolveVariantPushPricingAsync(
+        SalesChannelTrN11Product channelProduct, List<ProductVariant> variants)
+    {
+        var variantIds = variants.Select(v => v.Id).ToList();
+
+        var headers = (await AsyncExecuter.ToListAsync(
+                (await _variantOverrideRepository.GetQueryableAsync())
+                    .Where(h => h.SalesChannelTrN11ProductId == channelProduct.Id && variantIds.Contains(h.ProductVariantId))))
+            .ToDictionary(h => h.ProductVariantId);
+
+        var savedByVariant = (await AsyncExecuter.ToListAsync(
+                (await _channelRecipeLineRepository.GetQueryableAsync())
+                    .Where(r => r.SalesChannelTrN11ProductId == channelProduct.Id && variantIds.Contains(r.ProductVariantId))))
+            .GroupBy(r => r.ProductVariantId)
+            .ToDictionary(g => g.Key, g => g.ToList());
+
+        var lineSets = variants
+            .Select(v => savedByVariant.TryGetValue(v.Id, out var l) ? MapSavedRecipeLines(l) : new List<ProductRecipeLineGraphDto>())
+            .ToList();
+        var costs = await _recipeCostPopulator.PopulateAsync(lineSets);
+
+        var result = new Dictionary<Guid, VariantPushPricing>(variants.Count);
+        for (var i = 0; i < variants.Count; i++)
+        {
+            var v = variants[i];
+            headers.TryGetValue(v.Id, out var header);
+            decimal? derived = costs[i].NetCost is { } nc && !costs[i].NetCostMissingRate
+                ? nc * (1m + (header?.Margin ?? 0m) / 100m)
+                : null;
+            var price = header?.OverridePrice ?? derived ?? v.SalePrice;
+            var stock = header?.OverrideStock ?? v.StockQuantity;
+            result[v.Id] = new VariantPushPricing(price, stock);
+        }
+
+        return result;
+    }
+
+    /// <summary>Kanal-özel varyant override grafını persist eder — override sinyali (OverridePrice/OverrideStock/Margin
+    /// herhangi biri dolu) olan varyantın başlığı + reçetesi yazılır; TÜMÜ boşsa (saf ERP devralma) kaydedilmiş
+    /// override/reçete TEMİZLENİR (ölü satır şişmesini önle — kullanıcı kararı: tutarlı ol). Türetilmiş fiyat/NetCost
+    /// hesap alanları PERSIST EDİLMEZ (canlı).</summary>
+    private async Task SaveVariantOverridesAsync(SalesChannelTrN11Product channelProduct, List<SalesChannelTrN11ProductVariantGraphDto> variants)
+    {
+        if (variants == null || variants.Count == 0)
+        {
+            return;
+        }
+
+        var existingHeaders = (await AsyncExecuter.ToListAsync(
+                (await _variantOverrideRepository.GetQueryableAsync())
+                    .Where(h => h.SalesChannelTrN11ProductId == channelProduct.Id)))
+            .ToDictionary(h => h.ProductVariantId);
+
+        foreach (var node in variants)
+        {
+            if (node.ProductVariantId == Guid.Empty)
+            {
+                continue;   // anchor yok → atla (bayat/geçersiz düğüm)
+            }
+
+            var hasOverride = node.OverridePrice is not null || node.OverrideStock is not null || node.Margin is not null;
+            existingHeaders.TryGetValue(node.ProductVariantId, out var header);
+
+            if (!hasOverride)
+            {
+                // Saf devralma → kaydedilmiş override başlığı + reçete satırlarını sil (ERP'ye geri dön).
+                if (header is not null)
+                {
+                    await _variantOverrideRepository.DeleteAsync(header, autoSave: true);
+                }
+
+                await _channelRecipeLineRepository.DeleteAsync(
+                    r => r.SalesChannelTrN11ProductId == channelProduct.Id && r.ProductVariantId == node.ProductVariantId,
+                    autoSave: true);
+                continue;
+            }
+
+            if (header is null)
+            {
+                header = new SalesChannelTrN11ProductVariant(channelProduct.CompanyId, channelProduct.Id, node.ProductVariantId);
+                header.SetOverridePrice(node.OverridePrice, node.OverridePriceCurrencyUnitId);
+                header.SetOverrideStock(node.OverrideStock);
+                header.SetMargin(node.Margin);
+                await _variantOverrideRepository.InsertAsync(header, autoSave: true);
+            }
+            else
+            {
+                header.SetOverridePrice(node.OverridePrice, node.OverridePriceCurrencyUnitId);
+                header.SetOverrideStock(node.OverrideStock);
+                header.SetMargin(node.Margin);
+                await _variantOverrideRepository.UpdateAsync(header, autoSave: true);
+            }
+
+            await SaveChannelRecipeLinesAsync(channelProduct, node.ProductVariantId, node.RecipeLines);
+        }
+    }
+
+    /// <summary>Bir varyantın kanal-özel reçete satırlarını persist eder (ERP SaveRecipeLinesAsync deseni, iki-geçişli):
+    /// silinenler → LineOrder 0..n yeniden-numara → referans doğrulama → skaler insert/update (1. geçiş) → türev
+    /// SelectedLines kaynak Id CSV çözümü (2. geçiş). ComponentType set-once (ctor'da).</summary>
+    private async Task SaveChannelRecipeLinesAsync(SalesChannelTrN11Product channelProduct, Guid variantId, List<ProductRecipeLineGraphDto> lines)
+    {
+        lines ??= new List<ProductRecipeLineGraphDto>();
+
+        foreach (var l in lines.Where(x => x.IsDeleted && x.Id != Guid.Empty))
+        {
+            await _channelRecipeLineRepository.DeleteAsync(l.Id, autoSave: true);
+        }
+
+        var survivors = lines.Where(x => !x.IsDeleted).OrderBy(x => x.LineOrder).ToList();
+        for (var i = 0; i < survivors.Count; i++)
+        {
+            survivors[i].LineOrder = i;
+        }
+
+        RecipeCostPopulator.ValidateDerivedReferences(survivors);
+
+        // 1. geçiş: skaler alanlar (türev SelectedLines kaynakları HARİÇ) → ClientKey→Id (+ entity) sözlükleri.
+        var idByClientKey = new Dictionary<Guid, Guid>();
+        var entityByClientKey = new Dictionary<Guid, SalesChannelTrN11ProductVariantRecipeLine>();
+        foreach (var l in survivors)
+        {
+            SalesChannelTrN11ProductVariantRecipeLine entity;
+            if (l.Id == Guid.Empty)
+            {
+                entity = new SalesChannelTrN11ProductVariantRecipeLine(
+                    channelProduct.CompanyId, channelProduct.Id, variantId, l.ComponentType, l.LineOrder);
+                ApplyChannelRecipeLineFields(entity, l);
+                await _channelRecipeLineRepository.InsertAsync(entity, autoSave: true);
+                l.Id = entity.Id;
+            }
+            else
+            {
+                entity = await _channelRecipeLineRepository.GetAsync(l.Id);
+                entity.SetOrder(l.LineOrder);
+                ApplyChannelRecipeLineFields(entity, l);
+                await _channelRecipeLineRepository.UpdateAsync(entity, autoSave: true);
+            }
+
+            idByClientKey[l.ClientKey] = l.Id;
+            entityByClientKey[l.ClientKey] = entity;
+        }
+
+        // 2. geçiş: türev SelectedLines kaynak ClientKey'lerini çözülmüş Id CSV'sine çevir + persist.
+        foreach (var l in survivors.Where(x => x.ComponentType == RecipeComponentType.Service
+            && x.DerivedBaseMode == RecipeDerivedBaseMode.SelectedLines))
+        {
+            var csv = string.Join('|', l.DerivedSourceKeys.Select(k => idByClientKey[k].ToString()));
+            var entity = entityByClientKey[l.ClientKey];
+            entity.SetDerivedSources(csv);
+            await _channelRecipeLineRepository.UpdateAsync(entity, autoSave: true);
+        }
+    }
+
+    /// <summary>Graf düğümünün alanlarını kanal reçete satırına uygular (ERP ApplyRecipeLineFields ile birebir;
+    /// ComponentType ctor'da atanır → burada değiştirilmez).</summary>
+    private static void ApplyChannelRecipeLineFields(SalesChannelTrN11ProductVariantRecipeLine entity, ProductRecipeLineGraphDto l)
+    {
+        if (l.ComponentType == RecipeComponentType.CatalogCommodity)
+        {
+            entity.SetCatalogCommodity(
+                l.CommodityProcessType.GetValueOrDefault(),
+                l.CommodityId,
+                l.Quantity,
+                l.Amount,
+                l.Factor,
+                l.ValuationUnitId,
+                l.PaymentType,
+                l.PayFactor,
+                l.PayUnitId);
+        }
+        else
+        {
+            entity.SetService(
+                l.CommodityId,
+                l.DerivedBaseMode.GetValueOrDefault(RecipeDerivedBaseMode.AllAbove),
+                l.DerivedOperation.GetValueOrDefault(RecipeDerivedOperation.Percent),
+                l.DerivedOperand,
+                l.PayUnitId);
+        }
+
+        entity.SetDescription(l.Description);
+    }
+
+    /// <summary>Kaydedilmiş kanal reçete satırlarını graf DTO'suna projekte eder (Id KORUNUR — mevcut satır) +
+    /// türev SelectedLines kaynaklarını taze ClientKey'lere çözer (ORTAK resolver).</summary>
+    private static List<ProductRecipeLineGraphDto> MapSavedRecipeLines(List<SalesChannelTrN11ProductVariantRecipeLine> saved)
+    {
+        var ordered = saved.OrderBy(r => r.LineOrder).ThenBy(r => r.CreationTime).ToList();
+        var dtos = ordered.Select(r => new ProductRecipeLineGraphDto
+        {
+            Id = r.Id,
+            LineOrder = r.LineOrder,
+            ComponentType = r.ComponentType,
+            CommodityProcessType = r.CommodityProcessType,
+            CommodityId = r.CommodityId,
+            Quantity = r.Quantity,
+            Amount = r.Amount,
+            Factor = r.Factor,
+            ValuationUnitId = r.ValuationUnitId,
+            PaymentType = r.PaymentType,
+            PayFactor = r.PayFactor,
+            PayUnitId = r.PayUnitId,
+            ManualAmount = r.ManualAmount ?? 0m,
+            ManualUnitId = r.ManualUnitId,
+            Description = r.Description,
+            DerivedBaseMode = r.DerivedBaseMode,
+            DerivedOperation = r.DerivedOperation,
+            DerivedOperand = r.DerivedOperand,
+        }).ToList();
+
+        var sourceCsvById = ordered
+            .Where(e => e.ComponentType == RecipeComponentType.Service && !string.IsNullOrEmpty(e.DerivedSourceLineIds))
+            .ToDictionary(e => e.Id, e => e.DerivedSourceLineIds!);
+        RecipeCostPopulator.ResolveDerivedSourceKeys(dtos, sourceCsvById);
+
+        return dtos;
+    }
+
+    /// <summary>ERP varyant reçete satırlarını KANAL grafına klonlar (Id BOŞ = kaydedilirse yeni bağımsız kanal satırı;
+    /// ERP satırıyla kalıcı bağı yok). Türev SelectedLines kaynakları ERP satır Id'sinden klon ClientKey'ine çevrilir
+    /// (tek geçiş; klonlar taze ClientKey). İlk açılışta ERP reçetesi = kanal reçetesi başlangıcı, sonra bağımsız.</summary>
+    private static List<ProductRecipeLineGraphDto> CloneErpRecipeLines(List<ProductVariantRecipeLine> erpLines)
+    {
+        var ordered = erpLines.OrderBy(r => r.LineOrder).ThenBy(r => r.CreationTime).ToList();
+        var dtos = ordered.Select(r => new ProductRecipeLineGraphDto
+        {
+            LineOrder = r.LineOrder,
+            ComponentType = r.ComponentType,
+            CommodityProcessType = r.CommodityProcessType,
+            CommodityId = r.CommodityId,
+            Quantity = r.Quantity,
+            Amount = r.Amount,
+            Factor = r.Factor,
+            ValuationUnitId = r.ValuationUnitId,
+            PaymentType = r.PaymentType,
+            PayFactor = r.PayFactor,
+            PayUnitId = r.PayUnitId,
+            ManualAmount = r.ManualAmount ?? 0m,
+            ManualUnitId = r.ManualUnitId,
+            Description = r.Description,
+            DerivedBaseMode = r.DerivedBaseMode,
+            DerivedOperation = r.DerivedOperation,
+            DerivedOperand = r.DerivedOperand,
+        }).ToList();
+
+        var clientKeyByErpId = new Dictionary<Guid, Guid>();
+        for (var i = 0; i < ordered.Count; i++)
+        {
+            clientKeyByErpId[ordered[i].Id] = dtos[i].ClientKey;
+        }
+
+        for (var i = 0; i < ordered.Count; i++)
+        {
+            var src = ordered[i];
+            if (src.ComponentType == RecipeComponentType.Service
+                && src.DerivedBaseMode == RecipeDerivedBaseMode.SelectedLines
+                && !string.IsNullOrEmpty(src.DerivedSourceLineIds))
+            {
+                dtos[i].DerivedSourceKeys = src.DerivedSourceLineIds!
+                    .Split('|', StringSplitOptions.RemoveEmptyEntries)
+                    .Select(part => Guid.TryParse(part, out var eid) && clientKeyByErpId.TryGetValue(eid, out var ck)
+                        ? ck
+                        : (Guid?)null)
+                    .Where(ck => ck.HasValue)
+                    .Select(ck => ck!.Value)
+                    .ToList();
+            }
+        }
+
+        return dtos;
+    }
+
+    /// <summary>Push için varyant-başı efektif fiyat (override zinciri sonucu) + stok.</summary>
+    private sealed record VariantPushPricing(decimal? Price, int Stock);
 
     // ── Uygulama + güvenlik ─────────────────────────────────────────────────────────────────────────
 

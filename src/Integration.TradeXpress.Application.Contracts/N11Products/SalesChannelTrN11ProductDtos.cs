@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using Integration.TradeXpress.Products;
 using Volo.Abp.Application.Services;
 
 namespace Integration.TradeXpress.N11Products;
@@ -32,6 +33,50 @@ public class SalesChannelTrN11ProductSkuDto
     public long? N11Version { get; set; }
     public int? LastSentQuantity { get; set; }
     public decimal? LastSentOptionPrice { get; set; }
+}
+
+/// <summary>N11 kanal-özel varyant override graf düğümü — ERP varyantının (SSOT: kod/ad/ERP fiyat/stok) N11-scope
+/// özelleştirmesi. LEFT JOIN: ERP varyant seti ⋈ kaydedilmiş kanal override. null override alanı = ERP'den devralınır.
+/// Reçete (<see cref="RecipeLines"/>) kaydedilmişse ondan, yoksa ERP reçetesinden KLONLANIR (Id boş = henüz persist yok).
+/// <see cref="NetCost"/>/<see cref="DerivedPrice"/> SALT-OKUNUR (GetAsync canlı hesaplar; save yoksayar).</summary>
+public class SalesChannelTrN11ProductVariantGraphDto
+{
+    /// <summary>ERP varyantı (anchor; save'de kanal override başlığına eşlenir). Read-only kimlik.</summary>
+    public Guid ProductVariantId { get; set; }
+
+    /// <summary>ERP varyant kodu (SALT-OKUNUR görüntü; ERP SSOT).</summary>
+    public string VariantCode { get; set; } = string.Empty;
+
+    /// <summary>ERP varyant adı (SALT-OKUNUR görüntü; ERP SSOT).</summary>
+    public string VariantName { get; set; } = string.Empty;
+
+    /// <summary>Kanal-özel mutlak fiyat (opsiyonel; null = ERP/türetilmiş devralınır).</summary>
+    public decimal? OverridePrice { get; set; }
+
+    /// <summary>Override fiyatı para birimi (id-only; fiyat null ise yoksayılır).</summary>
+    public Guid? OverridePriceCurrencyUnitId { get; set; }
+
+    /// <summary>Kanal-özel stok (opsiyonel; null = ERP StockQuantity devralınır).</summary>
+    public int? OverrideStock { get; set; }
+
+    /// <summary>Varyant-başı marj (markup yüzdesi; null = marj yok). Türetilmiş fiyat = NetCost × (1 + Margin/100).</summary>
+    public decimal? Margin { get; set; }
+
+    /// <summary>Kanal-özel reçete satırları (ERP reçetesinden klonlanır, sonra bağımsız) — Product reçetesiyle AYNI
+    /// DTO tipi (ProductRecipePanel bunu tüketir). Id + IsDeleted diff; save'de kanal reçete tablosuna yazılır.</summary>
+    public List<ProductRecipeLineGraphDto> RecipeLines { get; set; } = new();
+
+    /// <summary>Reçetenin CANLI net maliyeti — ülke birimine rebase (SALT-OKUNUR; GetAsync hesaplar, save yoksayar).</summary>
+    public decimal? NetCost { get; set; }
+
+    /// <summary>Net maliyet para birimi kodu (ülke birimi; SALT-OKUNUR).</summary>
+    public string NetCostCurrency { get; set; } = string.Empty;
+
+    /// <summary>Net maliyet satırlarından biri kur/birim-eksik mi (SALT-OKUNUR UI uyarısı).</summary>
+    public bool NetCostMissingRate { get; set; }
+
+    /// <summary>Türetilmiş fiyat = NetCost × (1 + (Margin ?? 0)/100) [MARKUP] (SALT-OKUNUR; NetCost null ise null).</summary>
+    public decimal? DerivedPrice { get; set; }
 }
 
 /// <summary>N11 push ÖNİZLEMESİ (read-only) — bu listelemede N11'e GİDECEK varyantlar + görseller. Kaynak ERP
@@ -125,6 +170,9 @@ public class SalesChannelTrN11ProductDto
     public List<SalesChannelTrN11ProductAttributeDto> Attributes { get; set; } = new();
     public List<SalesChannelTrN11ProductSpecialInfoDto> SpecialInfo { get; set; } = new();
 
+    /// <summary>Kanal-özel varyant override'ları (fiyat/stok/marj + reçete graf düğümleri) — ERP varyant seti ⋈
+    /// kaydedilmiş override (LEFT JOIN). Ürün 'Kaydet'inde birlikte kaydedilir. NetCost/DerivedPrice SALT-OKUNUR.</summary>
+    public List<SalesChannelTrN11ProductVariantGraphDto> Variants { get; set; } = new();
 
     /// <summary>Varyant SKU kimlik/durum satırları (read-only; push + stok/fiyat senkronunda dolar).</summary>
     public List<SalesChannelTrN11ProductSkuDto> Skus { get; set; } = new();
@@ -165,6 +213,9 @@ public interface ISalesChannelTrN11ProductInput
     string? ItemName { get; }
     List<SalesChannelTrN11ProductAttributeDto> Attributes { get; }
     List<SalesChannelTrN11ProductSpecialInfoDto> SpecialInfo { get; }
+
+    /// <summary>Kanal-özel varyant override grafı (fiyat/stok/marj + reçete) — kanal-ürünle birlikte kaydedilir.</summary>
+    List<SalesChannelTrN11ProductVariantGraphDto> Variants { get; }
 }
 
 /// <summary>Listeleme oluşturma — ürün + kanal (create-only; şirket sunucuda zorlanır).</summary>
@@ -192,6 +243,7 @@ public class SalesChannelTrN11ProductCreateDto : ISalesChannelTrN11ProductInput
     public string? ItemName { get; set; }
     public List<SalesChannelTrN11ProductAttributeDto> Attributes { get; set; } = new();
     public List<SalesChannelTrN11ProductSpecialInfoDto> SpecialInfo { get; set; } = new();
+    public List<SalesChannelTrN11ProductVariantGraphDto> Variants { get; set; } = new();
 }
 
 /// <summary>Listeleme güncelleme — ürün/kanal set-once (route'taki id kimliktir).</summary>
@@ -217,6 +269,7 @@ public class SalesChannelTrN11ProductUpdateDto : ISalesChannelTrN11ProductInput
     public string? ItemName { get; set; }
     public List<SalesChannelTrN11ProductAttributeDto> Attributes { get; set; } = new();
     public List<SalesChannelTrN11ProductSpecialInfoDto> SpecialInfo { get; set; } = new();
+    public List<SalesChannelTrN11ProductVariantGraphDto> Variants { get; set; } = new();
 }
 
 /// <summary>
