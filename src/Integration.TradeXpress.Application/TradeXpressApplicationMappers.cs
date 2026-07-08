@@ -258,19 +258,12 @@ public partial class N11ShipmentTemplateToDtoMapper : MapperBase<N11ShipmentTemp
     public override partial void Map(N11ShipmentTemplate source, N11ShipmentTemplateDto destination);
 }
 
-// ── N11 ürün listeleme → DTO. Owned Attributes/SpecialInfo (name/value · key/value) nested-otomatik eşlenir.
-// VariantAxes.Values düz string listesi → drill satırlarına (ClientKey'li) MapAxisValue ile sarmalanır. ──
+// ── N11 ürün listeleme → DTO. Owned Attributes/SpecialInfo (name/value · key/value) nested-otomatik eşlenir. ──
 [Mapper]
 public partial class SalesChannelTrN11ProductToDtoMapper : MapperBase<SalesChannelTrN11Product, SalesChannelTrN11ProductDto>
 {
     public override partial SalesChannelTrN11ProductDto Map(SalesChannelTrN11Product source);
     public override partial void Map(SalesChannelTrN11Product source, SalesChannelTrN11ProductDto destination);
-
-    // Eksen değeri (düz string) → drill satırı (Mapperly List<string> → List<ValueDto> için element eşlemesi).
-    private static SalesChannelTrN11ProductVariantAxisValueDto MapAxisValue(string value)
-    {
-        return new SalesChannelTrN11ProductVariantAxisValueDto { Value = value };
-    }
 }
 
 // GetDto → Create/Update (drill persist yolu: DrillList düzenlenen GetDto'yu bu input'lara çevirir). Şartlı kargo

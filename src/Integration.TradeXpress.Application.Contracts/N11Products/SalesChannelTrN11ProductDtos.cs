@@ -19,22 +19,6 @@ public class SalesChannelTrN11ProductSpecialInfoDto
     public string Value { get; set; } = string.Empty;
 }
 
-/// <summary>N11 varyant ekseni (sihirbaz) — eksen adı + N11-uyumlu değerler. Graf düğümü (drill + save).
-/// Değerler drill-grid ile düzenlenir → her değer kendi ClientKey'li satır (<see cref="SalesChannelTrN11ProductVariantAxisValueDto"/>).</summary>
-public class SalesChannelTrN11ProductVariantAxisDto
-{
-    public Guid ClientKey { get; set; } = Guid.NewGuid();
-    public string Name { get; set; } = string.Empty;
-    public List<SalesChannelTrN11ProductVariantAxisValueDto> Values { get; set; } = new();
-}
-
-/// <summary>N11 varyant ekseni DEĞERİ (drill satırı) — domain'de düz string; UI'da satır anahtarı için sarmalanır.</summary>
-public class SalesChannelTrN11ProductVariantAxisValueDto
-{
-    public Guid ClientKey { get; set; } = Guid.NewGuid();
-    public string Value { get; set; } = string.Empty;
-}
-
 /// <summary>Varyant SKU kimlik/durum satırı (read-only; push + stok/fiyat senkronunda dolar). UI görünürlük +
 /// senkron durumu; AttributeSnapshot UI'a taşınmaz (sipariş eşleme sunucu-içi kalır).</summary>
 public class SalesChannelTrN11ProductSkuDto
@@ -105,8 +89,6 @@ public class SalesChannelTrN11ProductDto
     public List<SalesChannelTrN11ProductAttributeDto> Attributes { get; set; } = new();
     public List<SalesChannelTrN11ProductSpecialInfoDto> SpecialInfo { get; set; } = new();
 
-    /// <summary>N11 varyant eksen sihirbazı (eksen adı + değerler). Boşsa push ERP varyant nitelikleri kullanır.</summary>
-    public List<SalesChannelTrN11ProductVariantAxisDto> VariantAxes { get; set; } = new();
 
     /// <summary>Varyant SKU kimlik/durum satırları (read-only; push + stok/fiyat senkronunda dolar).</summary>
     public List<SalesChannelTrN11ProductSkuDto> Skus { get; set; } = new();
@@ -139,7 +121,6 @@ public interface ISalesChannelTrN11ProductInput
     string? Description { get; }
     List<SalesChannelTrN11ProductAttributeDto> Attributes { get; }
     List<SalesChannelTrN11ProductSpecialInfoDto> SpecialInfo { get; }
-    List<SalesChannelTrN11ProductVariantAxisDto> VariantAxes { get; }
 }
 
 /// <summary>Listeleme oluşturma — ürün + kanal (create-only; şirket sunucuda zorlanır).</summary>
@@ -159,7 +140,6 @@ public class SalesChannelTrN11ProductCreateDto : ISalesChannelTrN11ProductInput
     public string? Description { get; set; }
     public List<SalesChannelTrN11ProductAttributeDto> Attributes { get; set; } = new();
     public List<SalesChannelTrN11ProductSpecialInfoDto> SpecialInfo { get; set; } = new();
-    public List<SalesChannelTrN11ProductVariantAxisDto> VariantAxes { get; set; } = new();
 }
 
 /// <summary>Listeleme güncelleme — ürün/kanal set-once (route'taki id kimliktir).</summary>
@@ -177,7 +157,6 @@ public class SalesChannelTrN11ProductUpdateDto : ISalesChannelTrN11ProductInput
     public string? Description { get; set; }
     public List<SalesChannelTrN11ProductAttributeDto> Attributes { get; set; } = new();
     public List<SalesChannelTrN11ProductSpecialInfoDto> SpecialInfo { get; set; } = new();
-    public List<SalesChannelTrN11ProductVariantAxisDto> VariantAxes { get; set; } = new();
 }
 
 /// <summary>
