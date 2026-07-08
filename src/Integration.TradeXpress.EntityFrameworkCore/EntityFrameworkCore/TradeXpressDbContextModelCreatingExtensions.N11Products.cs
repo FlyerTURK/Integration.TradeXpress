@@ -25,6 +25,7 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
             b.Property(x => x.SaleStatus).HasMaxLength(N11ProductConsts.StatusMaxLength);
             b.Property(x => x.ApprovalStatus).HasMaxLength(N11ProductConsts.StatusMaxLength);
             b.Property(x => x.LastError).HasMaxLength(N11ProductConsts.LastErrorMaxLength);
+            b.Property(x => x.SellerNote).HasMaxLength(N11ProductConsts.SellerNoteMaxLength);
 
             // Kategori attribute değerleri + Seyahat özel bilgisi → JSON kolonları (owned collection; N11'e push edilir, sorgulanmaz).
             b.OwnsMany(x => x.Attributes, a =>

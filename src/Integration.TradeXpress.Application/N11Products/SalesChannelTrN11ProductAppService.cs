@@ -597,7 +597,10 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
             Attributes: validated.ProductAttributes,       // varyant eksenleri FİLTRELİ + kanonik değerler
             StockItems: stockItems,
             SpecialInfo: channelProduct.SpecialInfo.Select(s => new N11ProductSpecialInfo(s.Key, s.Value)).ToList(),
-            Discount: BuildDiscount(product));             // ürün-seviyesi indirim (None ise null)
+            Discount: BuildDiscount(product),              // ürün-seviyesi indirim (None ise null)
+            SellerNote: channelProduct.SellerNote,         // kanal-özel not
+            ProductionDate: FormatN11Date(product.ProductionDate),   // "dd/MM/yyyy" (boşsa boş → gönderilmez)
+            ExpirationDate: FormatN11Date(product.ExpirationDate));
 
         return new N11ProductPushPlan(data, canonicalCandidates);
     }
@@ -695,8 +698,8 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
         return new N11ProductDiscount(
             DiscountTypeCode(product.DiscountType),
             value.ToString(CultureInfo.InvariantCulture),
-            FormatDiscountDate(product.DiscountStartDate),
-            FormatDiscountDate(product.DiscountEndDate));
+            FormatN11Date(product.DiscountStartDate),
+            FormatN11Date(product.DiscountEndDate));
     }
 
     // UpdateProductBasic indirimi (SellerProductDiscount; ZORUNLU alan). None → Type=0/Value=0 (yine gönderilir,
@@ -711,8 +714,8 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
         return new N11SellerDiscount(
             int.Parse(DiscountTypeCode(product.DiscountType), CultureInfo.InvariantCulture),
             value,
-            FormatDiscountDate(product.DiscountStartDate),
-            FormatDiscountDate(product.DiscountEndDate));
+            FormatN11Date(product.DiscountStartDate),
+            FormatN11Date(product.DiscountEndDate));
     }
 
     private static string DiscountTypeCode(ProductDiscountType type)
@@ -720,7 +723,7 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
         return type == ProductDiscountType.Percentage ? "2" : "1";
     }
 
-    private static string FormatDiscountDate(DateTime? date)
+    private static string FormatN11Date(DateTime? date)
     {
         return date?.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture) ?? string.Empty;
     }
@@ -826,6 +829,7 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
         entity.SetPreparingDay(input.PreparingDay);
         entity.SetMaxPurchaseQuantity(input.MaxPurchaseQuantity);
         entity.SetActive(input.IsActive);
+        entity.SetSellerNote(input.SellerNote);
         entity.SetAttributes(input.Attributes.Select(a => new SalesChannelTrN11ProductAttribute(a.Name, a.Value)));
         entity.SetSpecialInfo(input.SpecialInfo.Select(s => new SalesChannelTrN11ProductSpecialInfo(s.Key, s.Value)));
         entity.SetVariantAxes(input.VariantAxes.Select(a => new SalesChannelTrN11ProductVariantAxis(a.Name, a.Values)));

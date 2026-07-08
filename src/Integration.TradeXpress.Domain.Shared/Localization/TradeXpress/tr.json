@@ -946,6 +946,10 @@
     "N11Product:VariantAxis": "Varyant Ekseni",
     "N11Product:VariantAxesHint": "N11 kategorisinin varyant eksenlerini (ör. Beden, Renk) ve değerlerini burada tanımlayın. Boş bırakılırsa ürün varyantlarının nitelikleri kullanılır. Fiyat/stok, aynı değerlere sahip ürün varyantından gelir.",
     "TradeXpress:N11:Product:DuplicateVariantAxis": "Aynı varyant ekseni birden fazla kez tanımlanamaz.",
-    "TradeXpress:N11:Product:AxisCombinationNoVariant": "'{Combination}' varyant kombinasyonuna karşılık gelen bir ürün varyantı yok. N11 eksenleri ürün varyantının niteliklerini BİREBİR kapsamalı (fazladan/eksik nitelik eşleşmeyi bozar); aynı değerlere sahip bir varyant tanımlayın."
+    "TradeXpress:N11:Product:AxisCombinationNoVariant": "'{Combination}' varyant kombinasyonuna karşılık gelen bir ürün varyantı yok. N11 eksenleri ürün varyantının niteliklerini BİREBİR kapsamalı (fazladan/eksik nitelik eşleşmeyi bozar); aynı değerlere sahip bir varyant tanımlayın.",
+    "N11Product:SellerNote": "Satıcı Notu",
+    "Product:ProductionDate": "Üretim Tarihi",
+    "Product:ExpirationDate": "Son Kullanma Tarihi",
+    "TradeXpress:Product:ShelfLifeInvalid": "Üretim tarihi son kullanma tarihinden sonra olamaz."
   }
 }

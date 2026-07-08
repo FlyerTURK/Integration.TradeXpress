@@ -187,6 +187,9 @@ public class SalesChannelTrN11Product : FullAuditedAggregateRoot<Guid>, IMultiTe
     /// <summary>Alıcı başına maksimum satın alım adedi (opsiyonel).</summary>
     public virtual int? MaxPurchaseQuantity { get; protected set; }
 
+    /// <summary>N11 satıcı notu (sellerNote) — kanal-özel serbest metin (opsiyonel).</summary>
+    public virtual string? SellerNote { get; protected set; }
+
     /// <summary>N11 kategori attribute değerleri (owned → JSON).</summary>
     public virtual List<SalesChannelTrN11ProductAttribute> Attributes { get; protected set; } = new();
 
@@ -264,6 +267,12 @@ public class SalesChannelTrN11Product : FullAuditedAggregateRoot<Guid>, IMultiTe
         }
 
         MaxPurchaseQuantity = maxPurchaseQuantity;
+    }
+
+    /// <summary>N11 satıcı notu (opsiyonel; boş değilse trim + max).</summary>
+    public virtual void SetSellerNote(string? sellerNote)
+    {
+        SellerNote = StringFieldGuard.EnsureOptionalText(sellerNote, nameof(SellerNote), 1, N11ProductConsts.SellerNoteMaxLength);
     }
 
     public virtual void SetActive(bool value)

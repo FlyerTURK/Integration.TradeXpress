@@ -54,6 +54,10 @@
                 @(Model.IsActive ? L["Active"] : L["Passive"])
             </DxCheckBox>
         </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["N11Product:SellerNote"]" ColSpanMd="12">
+            <DxMemo @bind-Text="@Model.SellerNote" Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100"
+                    NullText="@L["Optional"]" />
+        </DxFormLayoutItem>
     </DxFormLayoutGroup>
 
     @* Kategori attribute'ları — CELL-EDIT grid (on-demand; yaprak seçildiyse). Hücre normal metin görünür;

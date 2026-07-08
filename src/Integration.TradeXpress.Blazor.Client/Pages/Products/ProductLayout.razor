@@ -23,6 +23,13 @@
                 @(Model.IsActive ? L["Active"] : L["Passive"])
             </DxCheckBox>
         </DxFormLayoutItem>
+        @* Üretim / son kullanma tarihi (opsiyonel; N11 productionDate/expirationDate). İş tarihi (date-only). *@
+        <DxFormLayoutItem Caption="@L["Product:ProductionDate"]" ColSpanMd="6" BeginRow="true">
+            <DxDateEdit @bind-Date="@Model.ProductionDate" ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["Product:ExpirationDate"]" ColSpanMd="6">
+            <DxDateEdit @bind-Date="@Model.ExpirationDate" ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
+        </DxFormLayoutItem>
     </DxFormLayoutGroup>
 
     @* Marketplace indirimi (ürün-seviyesi; tüm varyant + kanallara aynı gider). None dışında değer + tarih görünür. *@

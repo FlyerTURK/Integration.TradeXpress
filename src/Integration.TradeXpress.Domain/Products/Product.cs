@@ -46,6 +46,12 @@ public class Product : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwn
     /// <summary>İndirim bitişi — İŞ TARİHİ (date-only). None ise null.</summary>
     public virtual DateTime? DiscountEndDate { get; protected set; }
 
+    /// <summary>Üretim tarihi — İŞ TARİHİ (date-only; N11 productionDate). Opsiyonel.</summary>
+    public virtual DateTime? ProductionDate { get; protected set; }
+
+    /// <summary>Son kullanma tarihi — İŞ TARİHİ (date-only; N11 expirationDate). Opsiyonel.</summary>
+    public virtual DateTime? ExpirationDate { get; protected set; }
+
     protected Product() { }
 
     public Product(
@@ -93,6 +99,18 @@ public class Product : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwn
     public virtual void SetActive(bool value)
     {
         IsActive = value;
+    }
+
+    /// <summary>Üretim + son kullanma tarihleri (iş tarihi, date-only). İkisi de doluysa üretim ≤ son kullanma.</summary>
+    public virtual void SetShelfLife(DateTime? productionDate, DateTime? expirationDate)
+    {
+        if (productionDate is { } p && expirationDate is { } e && p.Date > e.Date)
+        {
+            throw new BusinessException("TradeXpress:Product:ShelfLifeInvalid");
+        }
+
+        ProductionDate = productionDate?.Date;
+        ExpirationDate = expirationDate?.Date;
     }
 
     /// <summary>Marketplace indirimi (ürün-seviyesi). None → değer/tarihler temizlenir. Amount &gt; 0; Percentage

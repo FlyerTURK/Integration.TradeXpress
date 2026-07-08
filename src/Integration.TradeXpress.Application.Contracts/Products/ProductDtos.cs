@@ -55,6 +55,12 @@ public class ProductGetDto : EntityDto<Guid>, IGetDto<Guid>, IHasCode
     /// <summary>İndirim bitişi (iş tarihi, date-only). None ise yoksayılır.</summary>
     public DateTime? DiscountEndDate { get; set; }
 
+    /// <summary>Üretim tarihi (iş tarihi, date-only; N11 productionDate). Opsiyonel.</summary>
+    public DateTime? ProductionDate { get; set; }
+
+    /// <summary>Son kullanma tarihi (iş tarihi, date-only; N11 expirationDate). Opsiyonel.</summary>
+    public DateTime? ExpirationDate { get; set; }
+
     /// <summary>Varyantlar (graf düğümleri; Id + IsDeleted ile diff). Product edit formundaki drill yönetir.</summary>
     public List<ProductVariantGraphDto> Variants { get; set; } = new();
 
@@ -84,6 +90,10 @@ public class ProductCreateDto : ICreateDto
     public decimal? DiscountValue { get; set; }
     public DateTime? DiscountStartDate { get; set; }
     public DateTime? DiscountEndDate { get; set; }
+
+    /// <summary>Üretim/son kullanma tarihleri — bkz. <see cref="ProductGetDto.ProductionDate"/>.</summary>
+    public DateTime? ProductionDate { get; set; }
+    public DateTime? ExpirationDate { get; set; }
 
     public List<ProductVariantGraphDto> Variants { get; set; } = new();
 
@@ -115,6 +125,10 @@ public class ProductUpdateDto : IUpdateDto
     public decimal? DiscountValue { get; set; }
     public DateTime? DiscountStartDate { get; set; }
     public DateTime? DiscountEndDate { get; set; }
+
+    /// <summary>Üretim/son kullanma tarihleri — bkz. <see cref="ProductGetDto.ProductionDate"/>.</summary>
+    public DateTime? ProductionDate { get; set; }
+    public DateTime? ExpirationDate { get; set; }
 
     public List<ProductVariantGraphDto> Variants { get; set; } = new();
 

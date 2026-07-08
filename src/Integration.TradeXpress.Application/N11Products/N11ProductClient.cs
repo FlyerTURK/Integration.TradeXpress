@@ -117,6 +117,9 @@ public sealed class N11ProductClient : IN11ProductClient, ITransientDependency
                 new XElement("url", i.Url),
                 new XElement("order", i.Order.ToString(CultureInfo.InvariantCulture))))),
             new XElement("attributes", p.Attributes.Select(BuildAttribute)),
+            // WSDL sırası: attributes → productionDate → expirationDate → productCondition. Boşsa gönderilmez.
+            Optional("productionDate", p.ProductionDate),
+            Optional("expirationDate", p.ExpirationDate),
             new XElement("productCondition", p.ProductCondition.ToString(CultureInfo.InvariantCulture)),
             new XElement("preparingDay", p.PreparingDay.ToString(CultureInfo.InvariantCulture)),
             // WSDL ProductRequest sırası: preparingDay → discount → shipmentTemplate. İndirim yoksa gönderilmez.
@@ -131,7 +134,9 @@ public sealed class N11ProductClient : IN11ProductClient, ITransientDependency
             new XElement("stockItems", p.StockItems.Select(BuildStockItem)),
             p.MaxPurchaseQuantity is { } mpq
                 ? new XElement("maxPurchaseQuantity", mpq.ToString(CultureInfo.InvariantCulture))
-                : null);
+                : null,
+            // WSDL sırası sonu: ...maxPurchaseQuantity → sellerNote. Boşsa gönderilmez.
+            Optional("sellerNote", p.SellerNote));
     }
 
     private static XElement BuildAttribute(N11ProductAttributePair a)

@@ -88,6 +88,9 @@ public class SalesChannelTrN11ProductDto
     public bool Domestic { get; set; }
     public int PreparingDay { get; set; }
     public int? MaxPurchaseQuantity { get; set; }
+
+    /// <summary>N11 satıcı notu (kanal-özel serbest metin; opsiyonel).</summary>
+    public string? SellerNote { get; set; }
     public List<SalesChannelTrN11ProductAttributeDto> Attributes { get; set; } = new();
     public List<SalesChannelTrN11ProductSpecialInfoDto> SpecialInfo { get; set; } = new();
 
@@ -121,6 +124,7 @@ public interface ISalesChannelTrN11ProductInput
     int PreparingDay { get; }
     int? MaxPurchaseQuantity { get; }
     bool IsActive { get; }
+    string? SellerNote { get; }
     List<SalesChannelTrN11ProductAttributeDto> Attributes { get; }
     List<SalesChannelTrN11ProductSpecialInfoDto> SpecialInfo { get; }
     List<SalesChannelTrN11ProductVariantAxisDto> VariantAxes { get; }
@@ -139,6 +143,7 @@ public class SalesChannelTrN11ProductCreateDto : ISalesChannelTrN11ProductInput
     public int PreparingDay { get; set; } = 1;
     public int? MaxPurchaseQuantity { get; set; }
     public bool IsActive { get; set; } = true;
+    public string? SellerNote { get; set; }
     public List<SalesChannelTrN11ProductAttributeDto> Attributes { get; set; } = new();
     public List<SalesChannelTrN11ProductSpecialInfoDto> SpecialInfo { get; set; } = new();
     public List<SalesChannelTrN11ProductVariantAxisDto> VariantAxes { get; set; } = new();
@@ -155,6 +160,7 @@ public class SalesChannelTrN11ProductUpdateDto : ISalesChannelTrN11ProductInput
     public int PreparingDay { get; set; } = 1;
     public int? MaxPurchaseQuantity { get; set; }
     public bool IsActive { get; set; } = true;
+    public string? SellerNote { get; set; }
     public List<SalesChannelTrN11ProductAttributeDto> Attributes { get; set; } = new();
     public List<SalesChannelTrN11ProductSpecialInfoDto> SpecialInfo { get; set; } = new();
     public List<SalesChannelTrN11ProductVariantAxisDto> VariantAxes { get; set; } = new();

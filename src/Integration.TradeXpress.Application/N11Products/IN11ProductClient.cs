@@ -66,7 +66,10 @@ public sealed record N11ProductData(
     IReadOnlyList<N11ProductAttributePair> Attributes,     // kategori attribute (name/value)
     IReadOnlyList<N11ProductStockItem> StockItems,
     IReadOnlyList<N11ProductSpecialInfo> SpecialInfo,      // Seyahat kategorisi (key/value)
-    N11ProductDiscount? Discount);                         // ürün-seviyesi indirim (null = indirim yok)
+    N11ProductDiscount? Discount,                          // ürün-seviyesi indirim (null = indirim yok)
+    string? SellerNote,                                    // kanal-özel satıcı notu
+    string? ProductionDate,                                // "dd/MM/yyyy" (üretim); boş olabilir
+    string? ExpirationDate);                               // "dd/MM/yyyy" (son kullanma); boş olabilir
 
 /// <summary>N11 ürün indirimi (SaveProduct ProductDiscountRequest) — tümü string serialize. Type: "1"=tutar,
 /// "2"=yüzde (N11 konvansiyonu; canlı doğrulanacak). Tarihler N11 formatında ("dd/MM/yyyy"); boş olabilir.</summary>
