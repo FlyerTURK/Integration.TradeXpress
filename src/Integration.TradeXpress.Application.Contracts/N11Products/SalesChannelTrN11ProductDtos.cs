@@ -31,6 +31,36 @@ public class SalesChannelTrN11ProductSkuDto
     public decimal? LastSentOptionPrice { get; set; }
 }
 
+/// <summary>N11 push ÖNİZLEMESİ (read-only) — bu listelemede N11'e GİDECEK varyantlar + görseller. Kaynak ERP
+/// ürünü (SSOT); N11 formunda yalnız görünürlük (tanım ERP ürün formunda yapılır). Push anındaki fiili veri.</summary>
+public class N11PushPreviewDto
+{
+    public List<N11PreviewVariantDto> Variants { get; set; } = new();
+    public List<N11PreviewImageDto> Images { get; set; } = new();
+}
+
+/// <summary>Önizleme varyant satırı — N11'e stockItem olarak gidecek (kod/ad/stok/fiyat + seçenek özeti).</summary>
+public class N11PreviewVariantDto
+{
+    public string Code { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public int StockQuantity { get; set; }
+    public decimal? SalePrice { get; set; }
+
+    /// <summary>Seçenek özeti ("Renk: Kırmızı; Beden: M") — varyant eksenleri (name/value).</summary>
+    public string Options { get; set; } = string.Empty;
+}
+
+/// <summary>Önizleme görsel satırı — N11'e gidecek görsel (kaynak metni + ana bayrağı + varsa küçük önizleme).</summary>
+public class N11PreviewImageDto
+{
+    public string Source { get; set; } = string.Empty;
+    public bool IsDefault { get; set; }
+
+    /// <summary>Yüklenmiş (blob) görsel için thumbnail data-URL'i; URL kaynaklı görselde boş (dış link).</summary>
+    public string? PreviewDataUrl { get; set; }
+}
+
 /// <summary>N11 ürün listelemesi — tam okuma modeli (edit + durum görüntüsü).</summary>
 public class SalesChannelTrN11ProductDto
 {
@@ -147,4 +177,7 @@ public interface ISalesChannelTrN11ProductAppService : IApplicationService
     /// drift uyarısı), yalnız DEĞİŞEN varyantları gönderir; değişiklik yoksa no-op. Yapı/varyant-seti değiştiyse
     /// bu YETMEZ — tam <see cref="PushToN11Async"/> gerekir.</summary>
     Task<SalesChannelTrN11ProductDto> SyncStockAndPriceAsync(Guid id);
+
+    /// <summary>Push önizlemesi (read-only): bu listelemede N11'e GİDECEK varyantlar + görseller (kaynak ERP ürünü).</summary>
+    Task<N11PushPreviewDto> GetPushPreviewAsync(Guid id);
 }

@@ -12,6 +12,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Logging;
 using Volo.Abp;
+using Volo.Abp.BlobStoring;
 using Volo.Abp.Caching;
 using Volo.Abp.Domain.Repositories;
 
@@ -39,6 +40,7 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
     private readonly IN11CategoryClient _categoryClient;
     private readonly N11ProductPushValidator _pushValidator;
     private readonly IDistributedCache<N11LeafAttributes> _leafAttributeCache;
+    private readonly IBlobContainer<ProductImagesContainer> _imageContainer;
 
     public SalesChannelTrN11ProductAppService(
         IRepository<SalesChannelTrN11Product, Guid> repository,
@@ -54,7 +56,8 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
         IPublicImageLinkProvider publicImageLink,
         IN11CategoryClient categoryClient,
         N11ProductPushValidator pushValidator,
-        IDistributedCache<N11LeafAttributes> leafAttributeCache)
+        IDistributedCache<N11LeafAttributes> leafAttributeCache,
+        IBlobContainer<ProductImagesContainer> imageContainer)
     {
         _repository = repository;
         _productRepository = productRepository;
@@ -70,6 +73,7 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
         _categoryClient = categoryClient;
         _pushValidator = pushValidator;
         _leafAttributeCache = leafAttributeCache;
+        _imageContainer = imageContainer;
     }
 
     public virtual async Task<List<SalesChannelTrN11ProductDto>> GetListForProductAsync(Guid productId)
@@ -352,6 +356,67 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
         var dto = ObjectMapper.Map<SalesChannelTrN11Product, SalesChannelTrN11ProductDto>(entity);
         dto.SyncWarnings = syncWarnings;
         return dto;
+    }
+
+    [Authorize(TradeXpressPermissions.SalesChannels.Default)]
+    public virtual async Task<N11PushPreviewDto> GetPushPreviewAsync(Guid id)
+    {
+        var entity = await GetOwnedAsync(id);
+        var product = await GetOwnedProductAsync(entity.ProductId);
+
+        // Push'ta gidecek varyant seti — SaveProduct ile AYNI filtre/sıra (aktif + fiyatlı + IsMain önce).
+        var variants = (await AsyncExecuter.ToListAsync(
+                (await _variantRepository.GetQueryableAsync())
+                    .Where(v => v.ProductId == product.Id && v.IsActive)))
+            .Where(v => v.SalePrice is not null)
+            .OrderByDescending(v => v.IsMain)
+            .ToList();
+
+        var options = await LoadVariantOptionsAsync(product.Id, variants.Select(v => v.Id).ToList());
+        var preview = new N11PushPreviewDto
+        {
+            Variants = variants.Select(v => new N11PreviewVariantDto
+            {
+                Code = v.Code,
+                Name = v.Name,
+                StockQuantity = v.StockQuantity,
+                SalePrice = v.SalePrice,
+                Options = options.TryGetValue(v.Id, out var pairs)
+                    ? string.Join("; ", pairs.Select(p => $"{p.Name}: {p.Value}"))
+                    : string.Empty,
+            }).ToList(),
+            Images = await BuildPreviewImagesAsync(product),
+        };
+
+        return preview;
+    }
+
+    // Push'ta gidecek görseller (VARSAYILAN önce, sonra DisplayOrder — SaveProduct ile aynı sıra). Yüklenmiş
+    // (blob) görsel için thumbnail data-URL'i; URL kaynaklı görselde dış link olduğundan önizleme resmi yok.
+    private async Task<List<N11PreviewImageDto>> BuildPreviewImagesAsync(Product product)
+    {
+        var images = new List<N11PreviewImageDto>();
+        foreach (var image in product.Images.OrderByDescending(i => i.IsDefault).ThenBy(i => i.DisplayOrder))
+        {
+            string? previewDataUrl = null;
+            if (image.SourceType == ProductImageSourceType.Upload && !string.IsNullOrEmpty(image.BlobName))
+            {
+                var thumbnail = await _imageContainer.GetAllBytesOrNullAsync(ProductImageAppService.ThumbnailNameOf(image.BlobName!));
+                if (thumbnail is not null)
+                {
+                    previewDataUrl = ProductImageAppService.BuildPreviewDataUrl(thumbnail);
+                }
+            }
+
+            images.Add(new N11PreviewImageDto
+            {
+                Source = image.SourceType == ProductImageSourceType.Url ? (image.Url ?? string.Empty) : (image.FileName ?? image.BlobName ?? string.Empty),
+                IsDefault = image.IsDefault,
+                PreviewDataUrl = previewDataUrl,
+            });
+        }
+
+        return images;
     }
 
     /// <summary>N11'in döndürdüğü ürün gerçeğini yerel kayda uygular — <b>SpecialInfo HARİÇ</b> (2026-07-07 kararı:

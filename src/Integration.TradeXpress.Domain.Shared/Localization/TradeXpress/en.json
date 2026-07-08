@@ -893,6 +893,8 @@
     "N11Product:N11Version": "Version",
     "N11Product:LastSentQuantity": "Last Sent Stock",
     "N11Product:LastSentOptionPrice": "Last Sent Price",
-    "N11Product:NoChangesToSync": "No stock/price changes; nothing was sent to N11."
+    "N11Product:NoChangesToSync": "No stock/price changes; nothing was sent to N11.",
+    "N11Product:PreviewVariants": "Variants Going to N11",
+    "N11Product:PreviewImages": "Images Going to N11"
   }
 }

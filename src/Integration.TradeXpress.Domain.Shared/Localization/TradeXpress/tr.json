@@ -924,6 +924,8 @@
     "N11Product:N11Version": "Sürüm",
     "N11Product:LastSentQuantity": "Son Gönderilen Stok",
     "N11Product:LastSentOptionPrice": "Son Gönderilen Fiyat",
-    "N11Product:NoChangesToSync": "Stok/fiyatta değişiklik yok; N11'e gönderim yapılmadı."
+    "N11Product:NoChangesToSync": "Stok/fiyatta değişiklik yok; N11'e gönderim yapılmadı.",
+    "N11Product:PreviewVariants": "N11'e Gidecek Varyantlar",
+    "N11Product:PreviewImages": "N11'e Gidecek Görseller"
   }
 }

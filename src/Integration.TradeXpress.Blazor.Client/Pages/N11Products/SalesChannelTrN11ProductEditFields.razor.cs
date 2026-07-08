@@ -43,6 +43,7 @@ public partial class SalesChannelTrN11ProductEditFields : CrudComponentBase
 
     [Inject] private IN11ShipmentTemplateAppService ShipmentTemplateAppService { get; set; } = default!;
     [Inject] private IN11CategoryAppService CategoryAppService { get; set; } = default!;
+    [Inject] private ISalesChannelTrN11ProductAppService ProductAppService { get; set; } = default!;
     [Inject] private IUiInteractionService UiService { get; set; } = default!;
     [Inject] private IServiceProvider ServiceProvider { get; set; } = default!;
 
@@ -57,6 +58,10 @@ public partial class SalesChannelTrN11ProductEditFields : CrudComponentBase
     // OnParametersSetAsync her render'da çalışır → tekrarlı ağ çağrısını son-yüklenen anahtarla önle.
     private Guid _loadedTemplatesChannelId;
     private string? _loadedAttributesCategoryId;
+
+    // Push önizlemesi (read-only) — N11'e gidecek varyantlar + görseller (kaynak ERP ürünü, SSOT).
+    private N11PushPreviewDto? _preview;
+    private Guid _loadedPreviewId;
 
     private string ChannelName =>
         Channels.FirstOrDefault(c => c.Id == Model.SalesChannelId)?.Code ?? Model.SalesChannelId.ToString();
@@ -74,6 +79,27 @@ public partial class SalesChannelTrN11ProductEditFields : CrudComponentBase
     {
         await EnsureTemplatesAsync();
         await EnsureAttributesAsync();
+        await EnsurePreviewAsync();
+    }
+
+    // N11'e gidecek varyant/görsel önizlemesi — yalnız KAYDEDİLMİŞ kayıtta (ProductId server'da çözülür).
+    private async Task EnsurePreviewAsync()
+    {
+        if (Model.Id == Guid.Empty || Model.Id == _loadedPreviewId)
+        {
+            return;
+        }
+
+        _loadedPreviewId = Model.Id;
+        try
+        {
+            _preview = await ProductAppService.GetPushPreviewAsync(Model.Id);
+        }
+        catch (Exception ex)
+        {
+            _preview = null;
+            UiService.ShowErrorToast(CrudErrorPresenter.ToFriendlyMessage(ex, ServiceProvider) ?? L["UnexpectedError"].Value);
+        }
     }
 
     // Kanalın kargo şablonlarını (dropdown) yükler — kanal değişince tazelenir.

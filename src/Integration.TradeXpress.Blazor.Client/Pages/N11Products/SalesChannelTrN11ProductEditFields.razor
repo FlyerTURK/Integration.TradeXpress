@@ -122,6 +122,50 @@
         </DxFormLayoutGroup>
     }
 
+    @* Push ÖNİZLEMESİ (read-only) — N11'e gidecek varyantlar + görseller. TANIM ERP ürün formunda (Nitelikler/
+       Varyantlar/Görseller); burada yalnız "ne gidecek" görünür (SSOT ERP'de kalır, çift kaynak yok). *@
+    @if (_preview is { Variants.Count: > 0 } or { Images.Count: > 0 })
+    {
+        @if (_preview.Variants.Count > 0)
+        {
+            <DxFormLayoutGroup Caption="@L["N11Product:PreviewVariants"]" ColSpanMd="12" CaptionPosition="CaptionPosition.Vertical">
+                <DxFormLayoutItem ColSpanMd="12">
+                    <DxGrid Data="@_preview.Variants" PageSize="50" PagerVisible="false" CssClass="w-100">
+                        <Columns>
+                            <DxGridDataColumn FieldName="Code" Caption="@L["Code"]" Width="130px" />
+                            <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" />
+                            <DxGridDataColumn FieldName="Options" Caption="@L["AttributeSummary"]" />
+                            <DxGridDataColumn FieldName="StockQuantity" Caption="@L["StockQuantity"]" Width="90px" />
+                            <DxGridDataColumn FieldName="SalePrice" Caption="@L["SalePrice"]" Width="110px" />
+                        </Columns>
+                    </DxGrid>
+                </DxFormLayoutItem>
+            </DxFormLayoutGroup>
+        }
+        @if (_preview.Images.Count > 0)
+        {
+            <DxFormLayoutGroup Caption="@L["N11Product:PreviewImages"]" ColSpanMd="12" CaptionPosition="CaptionPosition.Vertical">
+                <DxFormLayoutItem ColSpanMd="12">
+                    <DxGrid Data="@_preview.Images" PageSize="50" PagerVisible="false" CssClass="w-100">
+                        <Columns>
+                            <DxGridDataColumn Caption="" Width="70px" TextAlignment="GridTextAlignment.Center">
+                                <CellDisplayTemplate Context="cell">
+                                    @{ var im = (N11PreviewImageDto)cell.DataItem; }
+                                    @if (!string.IsNullOrEmpty(im.PreviewDataUrl))
+                                    {
+                                        <img src="@im.PreviewDataUrl" style="max-width:48px; max-height:48px; object-fit:cover;" />
+                                    }
+                                </CellDisplayTemplate>
+                            </DxGridDataColumn>
+                            <DxGridDataColumn FieldName="Source" Caption="@L["ImageSource"]" />
+                            <DxGridDataColumn FieldName="IsDefault" Caption="@L["Default"]" Width="90px" />
+                        </Columns>
+                    </DxGrid>
+                </DxFormLayoutItem>
+            </DxFormLayoutGroup>
+        }
+    }
+
     @* Varyant SKU'ları (read-only) — push + stok/fiyat senkronunda dolar. sellerStockCode DONDURULMUŞ; N11 SKU
        kimliği/sürümü + son gönderilen stok/fiyat SKU-düzeyi mutabakat + dirty-tracking görünürlüğü sağlar. *@
     @if (Model.Skus.Count > 0)
