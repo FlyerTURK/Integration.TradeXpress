@@ -584,7 +584,7 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
         var data = new N11ProductData(
             ProductSellerCode: channelProduct.SellerCode,   // KAYIT-bazlı upsert kimliği — her kayıt N11'de AYRI listeleme
             Title: product.Name,
-            Description: product.Description ?? product.Name,
+            Description: channelProduct.Description ?? product.Description ?? product.Name,   // kanal-özel açıklama önce, yoksa ürün
             Domestic: channelProduct.Domestic,
             CategoryId: channelProduct.CategoryExternalId,
             Price: variants[0].SalePrice!.Value,          // ana/ilk fiyatlı varyant = base fiyat
@@ -830,6 +830,7 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
         entity.SetMaxPurchaseQuantity(input.MaxPurchaseQuantity);
         entity.SetActive(input.IsActive);
         entity.SetSellerNote(input.SellerNote);
+        entity.SetDescription(input.Description);
         entity.SetAttributes(input.Attributes.Select(a => new SalesChannelTrN11ProductAttribute(a.Name, a.Value)));
         entity.SetSpecialInfo(input.SpecialInfo.Select(s => new SalesChannelTrN11ProductSpecialInfo(s.Key, s.Value)));
         entity.SetVariantAxes(input.VariantAxes.Select(a => new SalesChannelTrN11ProductVariantAxis(a.Name, a.Values)));

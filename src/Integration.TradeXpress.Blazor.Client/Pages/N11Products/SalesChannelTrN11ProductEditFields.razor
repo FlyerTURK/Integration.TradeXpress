@@ -62,6 +62,12 @@
 
 @* ── Büyük listeler sekmelerde (form geneli dışındaki her şey) ── *@
 <DrillTabs CssClass="mt-3">
+    @* Kanal-özel açıklama — zengin metin (DxHtmlEditor). Boşsa push'ta ürün açıklaması devralınır. *@
+    <DxTabPage Text="@L["Description"]" TabIconCssClass="@TradeXpressIcons.Product">
+        <span style="color:#6c757d; font-size:0.85rem;">@L["N11Product:DescriptionHint"]</span>
+        <DxHtmlEditor @bind-Markup="@Model.Description" CssClass="w-100" Height="360px" />
+    </DxTabPage>
+
     @* Kategori attribute'ları — CELL-EDIT grid (yaprak seçildiyse dolar). Kategori yoksa sekme gizli. *@
     @if (_attributeRows.Count > 0)
     {

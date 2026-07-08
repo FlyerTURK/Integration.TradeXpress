@@ -919,6 +919,7 @@
     "N11Product:SellerNote": "Seller Note",
     "Product:ProductionDate": "Production Date",
     "Product:ExpirationDate": "Expiration Date",
-    "TradeXpress:Product:ShelfLifeInvalid": "Production date cannot be after the expiration date."
+    "TradeXpress:Product:ShelfLifeInvalid": "Production date cannot be after the expiration date.",
+    "N11Product:DescriptionHint": "Channel-specific description (HTML). If left empty, the product description is sent to N11."
   }
 }

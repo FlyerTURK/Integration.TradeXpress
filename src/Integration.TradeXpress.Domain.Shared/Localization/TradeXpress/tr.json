@@ -950,6 +950,7 @@
     "N11Product:SellerNote": "Satıcı Notu",
     "Product:ProductionDate": "Üretim Tarihi",
     "Product:ExpirationDate": "Son Kullanma Tarihi",
-    "TradeXpress:Product:ShelfLifeInvalid": "Üretim tarihi son kullanma tarihinden sonra olamaz."
+    "TradeXpress:Product:ShelfLifeInvalid": "Üretim tarihi son kullanma tarihinden sonra olamaz.",
+    "N11Product:DescriptionHint": "Kanal-özel açıklama (HTML). Boş bırakılırsa N11'e ürün açıklaması gönderilir."
   }
 }

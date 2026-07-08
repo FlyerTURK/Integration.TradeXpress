@@ -14,8 +14,11 @@ public static class N11ProductConsts
     public const int StatusMaxLength = 32;
     public const int LastErrorMaxLength = 2000;
 
-    /// <summary>N11 satıcı notu (sellerNote) — kanal-özel serbest metin.</summary>
+    /// <summary>N11 satıcı notu (sellerNote) — kanal-özel kısa düz metin (MemoEdit).</summary>
     public const int SellerNoteMaxLength = 500;
+
+    /// <summary>N11 kanal-özel açıklama (description; HTML — DxHtmlEditor). Boşsa push'ta ürün açıklaması devralınır.</summary>
+    public const int DescriptionMaxLength = 20000;
 
     /// <summary>Varyant SKU stok kodu ("{VaryantKodu}-{SequenceNo}") — satıcı-geneli benzersiz N11 kimliği.</summary>
     public const int StockCodeMaxLength = 128;

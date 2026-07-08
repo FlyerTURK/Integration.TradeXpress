@@ -89,8 +89,11 @@ public class SalesChannelTrN11ProductDto
     public int PreparingDay { get; set; }
     public int? MaxPurchaseQuantity { get; set; }
 
-    /// <summary>N11 satıcı notu (kanal-özel serbest metin; opsiyonel).</summary>
+    /// <summary>N11 satıcı notu (kanal-özel kısa düz not; opsiyonel).</summary>
     public string? SellerNote { get; set; }
+
+    /// <summary>N11 kanal-özel açıklama (HTML; opsiyonel). Boşsa push'ta ürün açıklaması devralınır.</summary>
+    public string? Description { get; set; }
     public List<SalesChannelTrN11ProductAttributeDto> Attributes { get; set; } = new();
     public List<SalesChannelTrN11ProductSpecialInfoDto> SpecialInfo { get; set; } = new();
 
@@ -125,6 +128,7 @@ public interface ISalesChannelTrN11ProductInput
     int? MaxPurchaseQuantity { get; }
     bool IsActive { get; }
     string? SellerNote { get; }
+    string? Description { get; }
     List<SalesChannelTrN11ProductAttributeDto> Attributes { get; }
     List<SalesChannelTrN11ProductSpecialInfoDto> SpecialInfo { get; }
     List<SalesChannelTrN11ProductVariantAxisDto> VariantAxes { get; }
@@ -144,6 +148,7 @@ public class SalesChannelTrN11ProductCreateDto : ISalesChannelTrN11ProductInput
     public int? MaxPurchaseQuantity { get; set; }
     public bool IsActive { get; set; } = true;
     public string? SellerNote { get; set; }
+    public string? Description { get; set; }
     public List<SalesChannelTrN11ProductAttributeDto> Attributes { get; set; } = new();
     public List<SalesChannelTrN11ProductSpecialInfoDto> SpecialInfo { get; set; } = new();
     public List<SalesChannelTrN11ProductVariantAxisDto> VariantAxes { get; set; } = new();
@@ -161,6 +166,7 @@ public class SalesChannelTrN11ProductUpdateDto : ISalesChannelTrN11ProductInput
     public int? MaxPurchaseQuantity { get; set; }
     public bool IsActive { get; set; } = true;
     public string? SellerNote { get; set; }
+    public string? Description { get; set; }
     public List<SalesChannelTrN11ProductAttributeDto> Attributes { get; set; } = new();
     public List<SalesChannelTrN11ProductSpecialInfoDto> SpecialInfo { get; set; } = new();
     public List<SalesChannelTrN11ProductVariantAxisDto> VariantAxes { get; set; } = new();
