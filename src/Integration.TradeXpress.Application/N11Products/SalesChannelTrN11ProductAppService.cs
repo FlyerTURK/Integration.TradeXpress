@@ -304,6 +304,10 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
                 .OrderByDescending(v => v.IsMain)   // base fiyat ANA varyanttan — tam push ile hizalı
                 .ToList();
 
+            // Kanal override/türetilmiş fiyat+stok zinciri — TAM PUSH ile birebir aynı (aksi halde hafif senkron ERP
+            // ham fiyatını gönderip full push'un yazdığı kanal fiyatını EZER + her turda dirty görünürdü).
+            var pushPricing = await ResolveVariantPushPricingAsync(entity, variants);
+
             // Önce N11'den oku: eksik SKU id'lerini doldur + version drift'ini gör (UpdateProductBasic version almaz →
             // lost-update'i "oku-karşılaştır-yaz" disipliniyle yönet). Okuma düşerse senkron güvenli şekilde durur.
             var detail = await _client.GetProductBySellerCodeAsync(entity.SellerCode, channel.AppKey, channel.AppSecret);
@@ -332,7 +336,8 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
                     continue;
                 }
 
-                var dirty = sku.LastSentQuantity != variant.StockQuantity || sku.LastSentOptionPrice != variant.SalePrice;
+                var pricing = pushPricing[variant.Id];   // OverridePrice ?? türetilmiş ?? ERP; stok OverrideStock ?? ERP
+                var dirty = sku.LastSentQuantity != pricing.Stock || sku.LastSentOptionPrice != pricing.Price;
                 anyDirty |= dirty;
 
                 // Merge/replace belirsizliğinden (rapor A3) kaçınmak için TÜM bilinen SKU'ları güncel değerleriyle
@@ -340,8 +345,8 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
                 stockItems.Add(new N11ProductBasicStockItem(
                     sku.SellerStockCode,
                     n11SkuId,
-                    variant.StockQuantity,
-                    variant.SalePrice));
+                    pricing.Stock,
+                    pricing.Price));
             }
 
             if (stockItems.Count == 0)
@@ -359,7 +364,7 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
                 var update = new N11ProductBasicUpdate(
                     n11ProductId,
                     entity.SellerCode,
-                    variants[0].SalePrice,
+                    pushPricing[variants[0].Id].Price,   // ana varyantın efektif base fiyatı (override zinciri) — full push ile hizalı
                     product.Description ?? product.Name,
                     stockItems,
                     BuildSellerDiscount(product));
@@ -960,7 +965,11 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
                 continue;   // anchor yok → atla (bayat/geçersiz düğüm)
             }
 
-            var hasOverride = node.OverridePrice is not null || node.OverrideStock is not null || node.Margin is not null;
+            // Persist sinyali: override alanı VEYA kanal-özel reçete girilmişse korunur (reçete-only + boş marj de
+            // emek → silinmesin). Hepsi gerçekten boşsa (saf ERP devralma) kaydedilmiş override/reçete temizlenir.
+            var hasRecipe = node.RecipeLines?.Any(l => !l.IsDeleted) == true;
+            var hasOverride = node.OverridePrice is not null || node.OverrideStock is not null
+                || node.Margin is not null || hasRecipe;
             existingHeaders.TryGetValue(node.ProductVariantId, out var header);
 
             if (!hasOverride)
