@@ -7,6 +7,7 @@ using Integration.TradeXpress.Cashes;
 using Integration.TradeXpress.Services;
 using Integration.TradeXpress.SalesChannels;
 using Integration.TradeXpress.N11Categories;
+using Integration.TradeXpress.TrendyolCategories;
 using Integration.TradeXpress.N11Cities;
 using Integration.TradeXpress.N11Shipments;
 using Integration.TradeXpress.N11Products;
@@ -226,6 +227,14 @@ public partial class N11CategoryToTreeNodeDtoMapper : MapperBase<N11Category, N1
 {
     public override partial N11CategoryTreeNodeDto Map(N11Category source);
     public override partial void Map(N11Category source, N11CategoryTreeNodeDto destination);
+}
+
+// ── Trendyol kategori (host-global taksonomi) → ağaç düğüm DTO'su ──
+[Mapper]
+public partial class TrendyolCategoryToTreeNodeDtoMapper : MapperBase<TrendyolCategory, TrendyolCategoryTreeNodeDto>
+{
+    public override partial TrendyolCategoryTreeNodeDto Map(TrendyolCategory source);
+    public override partial void Map(TrendyolCategory source, TrendyolCategoryTreeNodeDto destination);
 }
 
 // ── N11 adres (host-global İl/İlçe) → DTO ──

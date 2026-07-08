@@ -87,6 +87,8 @@ public class TradeXpressDbContext :
     public DbSet<Integration.TradeXpress.Settings.UserGridLayout> UserGridLayouts { get; set; } = null!;
     // N11 kategori taksonomisi — HOST-GLOBAL (IMultiTenant değil; tüm tenant'lar paylaşır).
     public DbSet<Integration.TradeXpress.N11Categories.N11Category> N11Categories { get; set; } = null!;
+    // Trendyol kategori taksonomisi — HOST-GLOBAL (IMultiTenant değil; tüm tenant'lar paylaşır).
+    public DbSet<Integration.TradeXpress.TrendyolCategories.TrendyolCategory> TrendyolCategories { get; set; } = null!;
     // N11 adres taksonomisi (İl/İlçe) — HOST-GLOBAL. Mahalleler saklanmaz (on-demand).
     public DbSet<Integration.TradeXpress.N11Cities.N11City> N11Cities { get; set; } = null!;
     public DbSet<Integration.TradeXpress.N11Cities.N11District> N11Districts { get; set; } = null!;
@@ -180,6 +182,7 @@ public class TradeXpressDbContext :
         builder.ConfigureUserScopedGrants();
         builder.ConfigureUserGridLayouts();
         builder.ConfigureN11Categories();
+        builder.ConfigureTrendyolCategories();
         builder.ConfigureN11Cities();
         builder.ConfigureN11Shipments();
         builder.ConfigureN11Products();
