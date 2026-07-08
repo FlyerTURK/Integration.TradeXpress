@@ -966,6 +966,8 @@
     "N11Product:DescriptionHint": "Channel-specific description (HTML). If left empty, the product description is sent to N11.",
     "N11Product:GeneratedVariants": "Generated Variants",
     "N11Product:NotSaved": "Not saved",
-    "N11Product:SaveToPush": "Save the product first to push"
+    "N11Product:SaveToPush": "Save the product first to push",
+    "TradeXpress:SalesChannel:Trendyol:InvalidCredentials": "The Trendyol Seller ID / API Key / API Secret could not be verified. Please check the credentials.",
+    "TradeXpress:SalesChannel:Trendyol:VerificationUnavailable": "The Trendyol verification service is temporarily unavailable. Please try again later."
   }
 }

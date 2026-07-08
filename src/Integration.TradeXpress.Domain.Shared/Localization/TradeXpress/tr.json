@@ -997,6 +997,8 @@
     "N11Product:DescriptionHint": "Kanal-özel açıklama (HTML). Boş bırakılırsa N11'e ürün açıklaması gönderilir.",
     "N11Product:GeneratedVariants": "Oluşan Varyantlar",
     "N11Product:NotSaved": "Kaydedilmedi",
-    "N11Product:SaveToPush": "Göndermek için önce ürünü kaydedin"
+    "N11Product:SaveToPush": "Göndermek için önce ürünü kaydedin",
+    "TradeXpress:SalesChannel:Trendyol:InvalidCredentials": "Trendyol Satıcı ID / API Key / API Secret doğrulanamadı. Bilgileri kontrol edin.",
+    "TradeXpress:SalesChannel:Trendyol:VerificationUnavailable": "Trendyol doğrulama servisine şu anda erişilemiyor. Lütfen daha sonra tekrar deneyin."
   }
 }

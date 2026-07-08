@@ -6,6 +6,7 @@ using Integration.Framework;
 using Integration.Framework.Base.Querying;
 using Integration.TradeXpress.MultiCompany;
 using Integration.TradeXpress.Permissions;
+using Integration.TradeXpress.SalesChannels.Trendyol;
 using Microsoft.AspNetCore.Authorization;
 using Volo.Abp;
 using Volo.Abp.Application.Dtos;
@@ -24,6 +25,7 @@ public class SalesChannelTrTrendyolAppService : TradeXpressAppService, ISalesCha
     private readonly IRepository<SalesChannelTrTrendyol, Guid> _repository;
     private readonly IRepository<SalesChannelBase, Guid> _baseRepository;
     private readonly ICurrentCompany _currentCompany;
+    private readonly ITrendyolCredentialVerifier _credentialVerifier;
 
     private static readonly HashSet<string> AllowedListFields =
         new(StringComparer.OrdinalIgnoreCase) { "Code", "Name", "IsActive", "Id" };
@@ -31,11 +33,13 @@ public class SalesChannelTrTrendyolAppService : TradeXpressAppService, ISalesCha
     public SalesChannelTrTrendyolAppService(
         IRepository<SalesChannelTrTrendyol, Guid> repository,
         IRepository<SalesChannelBase, Guid> baseRepository,
-        ICurrentCompany currentCompany)
+        ICurrentCompany currentCompany,
+        ITrendyolCredentialVerifier credentialVerifier)
     {
         _repository = repository;
         _baseRepository = baseRepository;
         _currentCompany = currentCompany;
+        _credentialVerifier = credentialVerifier;
     }
 
     public virtual async Task<PagedResultDto<SalesChannelListDto>> GetListAsync(SalesChannelListRequestDto input)
@@ -75,7 +79,10 @@ public class SalesChannelTrTrendyolAppService : TradeXpressAppService, ISalesCha
             input.Code, nameof(SalesChannelBase.Code), EntityFieldConsts.CodeMinLength, SalesChannelConsts.CodeMaxLength);
         await EnsureCodeUniqueAsync(companyId, normalizedCode, Guid.Empty);
 
-        // Trendyol'da test API'si YOK → kimlik doğrulaması yapılmaz (yalnız N11'de var).
+        // Kimlik oluşturmada ZORUNLU → Trendyol'a doğrula (hafif authenticated GET; SellerId path'te olduğundan
+        // hem kimlik hem SellerId sınanır). Geçmezse (InvalidCredentials/VerificationUnavailable) kayıt açılmaz.
+        await _credentialVerifier.VerifyOrThrowAsync(input.SellerId, input.ApiKey, input.ApiSecret);
+
         var entity = new SalesChannelTrTrendyol(companyId, input.Code, input.Name, input.SellerId, input.ApiKey, input.ApiSecret);
         entity.SetDescription(input.Description);
         await _repository.InsertAsync(entity, autoSave: true);
@@ -91,32 +98,42 @@ public class SalesChannelTrTrendyolAppService : TradeXpressAppService, ISalesCha
         await ApplyCodeChangeAsync(entity, input.Code);
         entity.SetName(input.Name);
         entity.SetDescription(input.Description);
-        entity.SetSellerId(input.SellerId);   // SellerId sır değil → görünür/daima güncellenir
-        ApplyKeyChange(entity, input.ApiKey, input.ApiSecret);
+        await ApplyCredentialChangeAsync(entity, input.SellerId, input.ApiKey, input.ApiSecret);
         entity.SetActive(input.IsActive);
         await _repository.UpdateAsync(entity, autoSave: true);
 
         return Redact(ObjectMapper.Map<SalesChannelTrTrendyol, SalesChannelTrTrendyolGetDto>(entity));
     }
 
-    /// <summary>Sızıntısız edit kuralı: ApiKey/ApiSecret BOŞ = mevcut korunur; DOLU = değiştir (Trendyol'da test API'si
-    /// yok → doğrulama yapılmaz). Tek alan doldurulmuşsa (yarım kimlik) → dostane hata.</summary>
-    private static void ApplyKeyChange(SalesChannelTrTrendyol entity, string apiKey, string apiSecret)
+    /// <summary>Sızıntısız edit kuralı: ApiKey/ApiSecret BOŞ = mevcut korunur; DOLU = değiştir. Tek alan doldurulmuşsa
+    /// (yarım kimlik) → dostane hata. Kimlik (SellerId ya da key/secret) DEĞİŞİYORSA efektif üçlüyü Trendyol'a doğrula —
+    /// SellerId path'te olduğundan yalnız SellerId değişse de (key/secret korunsa) doğrulama gerekir.</summary>
+    private async Task ApplyCredentialChangeAsync(
+        SalesChannelTrTrendyol entity, string sellerId, string apiKey, string apiSecret)
     {
         var hasApiKey = !string.IsNullOrWhiteSpace(apiKey);
         var hasApiSecret = !string.IsNullOrWhiteSpace(apiSecret);
-        if (!hasApiKey && !hasApiSecret)
-        {
-            return;   // boş bırakıldı → mevcut anahtar korunur
-        }
-
-        if (!hasApiKey || !hasApiSecret)
+        if (hasApiKey != hasApiSecret)
         {
             throw new BusinessException("TradeXpress:SalesChannel:Trendyol:CredentialPairRequired");
         }
 
-        entity.SetApiKey(apiKey);
-        entity.SetApiSecret(apiSecret);
+        // Efektif kimlik: yeni girildiyse yeni, yoksa mevcut (sızıntısız — DOLU değilse korunur).
+        var effectiveApiKey = hasApiKey ? apiKey : entity.ApiKey;
+        var effectiveApiSecret = hasApiSecret ? apiSecret : entity.ApiSecret;
+        var sellerIdChanged = !string.Equals(sellerId, entity.SellerId, StringComparison.Ordinal);
+
+        if (sellerIdChanged || hasApiKey)
+        {
+            await _credentialVerifier.VerifyOrThrowAsync(sellerId, effectiveApiKey, effectiveApiSecret);
+        }
+
+        entity.SetSellerId(sellerId);   // SellerId sır değil → görünür/daima güncellenir
+        if (hasApiKey)
+        {
+            entity.SetApiKey(apiKey);
+            entity.SetApiSecret(apiSecret);
+        }
     }
 
     /// <summary>Sızıntı önleme: sir alanları (ApiKey/ApiSecret) client'a ASLA gitmez. SellerId kimliktir → görünür kalır.</summary>
