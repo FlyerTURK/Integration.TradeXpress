@@ -322,6 +322,7 @@
        (yeni üründe de eklenebilir). Push/Stok-Fiyat yalnız kaydedilmiş satırda. *@
     <DxTabPage Text="@L["SalesChannelProducts"]" TabIconCssClass="@TradeXpressIcons.SalesChannel">
         <SalesChannelProductsPanel Items="Model.SalesChannelProducts" ProductId="@Model.Id"
+                                   ProductDefaults="Model"
                                    OnChanged="@(() => EditChanged?.Invoke())" />
     </DxTabPage>
 </DrillTabs>

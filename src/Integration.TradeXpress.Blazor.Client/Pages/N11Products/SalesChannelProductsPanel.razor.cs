@@ -7,6 +7,7 @@ using Integration.Framework.Blazor.Client;
 using Integration.Framework.Blazor.Client.Components.Crud;
 using Integration.Framework.Blazor.Client.Services.Base;
 using Integration.TradeXpress.N11Products;
+using Integration.TradeXpress.Products;
 using Integration.TradeXpress.SalesChannels;
 using Microsoft.AspNetCore.Components;
 
@@ -23,6 +24,12 @@ public partial class SalesChannelProductsPanel : CrudComponentBase
 
     /// <summary>Bağlı ürünün Id'si (kaydedilmişse dolu; yeni üründe Guid.Empty). Push/sync + create için.</summary>
     [Parameter] public Guid ProductId { get; set; }
+
+    /// <summary>Bağlı ürünün canlı grafı (ProductLayout.Model) — yeni N11 taslağının ürün-genel varsayılanlarını
+    /// (Domestic/Condition/PreparingDay/... özel bilgi) create-copy ile devralması için. Panel yalnız OKUR (dumb);
+    /// mutate ETMEZ. Boşsa (henüz bağlanmamış) sade default'lar kullanılır. Push'ta zaten server fallback var —
+    /// bu UI kolaylığı (form açılınca alanlar dolu gelir), çift güvence.</summary>
+    [Parameter] public ProductGetDto? ProductDefaults { get; set; }
 
     /// <summary>Graf değişti — parent (ProductLayout) EditChanged'i tetikler (Save aktifliği).</summary>
     [Parameter] public EventCallback OnChanged { get; set; }
@@ -84,7 +91,7 @@ public partial class SalesChannelProductsPanel : CrudComponentBase
     /// Id boş (yeni graf düğümü); ClientKey DTO ctor'unda üretilir.</summary>
     private SalesChannelTrN11ProductDto BuildNewN11Draft(Guid salesChannelId)
     {
-        return new SalesChannelTrN11ProductDto
+        var draft = new SalesChannelTrN11ProductDto
         {
             ProductId = ProductId,
             SalesChannelId = salesChannelId,
@@ -93,6 +100,31 @@ public partial class SalesChannelProductsPanel : CrudComponentBase
             PreparingDay = 1,
             IsActive = true,
         };
+
+        // Ürün-genel varsayılanlardan create-copy: form açılınca alanlar DOLU gelir, kullanıcı düzenler.
+        // Kanal-özel/N11-özel alanlara (Category/Attributes/SellerCode/Group...) DOKUNULMAZ — kullanıcı N11'de girer.
+        if (ProductDefaults is { } p)
+        {
+            // ProductCondition (New/Used) → N11ProductCondition (New/Used) eşlemesi (değerler farklı: 0/1 vs 1/2).
+            draft.Condition = p.Condition == ProductCondition.Used ? N11ProductCondition.Used : N11ProductCondition.New;
+            draft.Domestic = p.Domestic;
+            draft.PreparingDay = p.PreparingDay;
+            draft.MaxPurchaseQuantity = p.MaxPurchaseQuantity;
+            draft.ShipmentTemplateName = p.ShipmentTemplateName ?? string.Empty;
+            draft.SellerNote = p.SellerNote;
+            draft.CurrencyUnitId = p.CurrencyUnitId;
+            draft.UnitType = p.UnitType;
+            draft.UnitWeight = p.UnitWeight;
+            draft.ProductionDate = p.ProductionDate;
+            draft.ExpirationDate = p.ExpirationDate;
+            draft.Description = p.Description;
+            // Özel bilgi listesi kopyalanır (yeni DTO satırları; ClientKey ctor'da üretilir) — referans paylaşılmaz.
+            draft.SpecialInfo = p.SpecialInfo
+                .Select(s => new SalesChannelTrN11ProductSpecialInfoDto { Key = s.Key, Value = s.Value })
+                .ToList();
+        }
+
+        return draft;
     }
 
     private SalesChannelTrN11ProductDto NewChannelProduct()
