@@ -9,26 +9,30 @@ using Integration.Framework.Blazor.Client.Services.Base;
 using Integration.TradeXpress.N11Products;
 using Integration.TradeXpress.SalesChannels;
 using Microsoft.AspNetCore.Components;
-using Volo.Abp.ObjectMapping;
 
 namespace Integration.TradeXpress.Blazor.Client.Pages.N11Products;
 
-/// <summary>Ürünün SATIŞ KANALI ÜRÜNLERİ — PERSISTENT drill (ürün edit formunun içinde). "Yeni" SPLIT buton:
-/// kanal-ürün tipi alt menüden seçilir (şimdilik N11; Trendyol UI'sı gelince buraya eklenir). N11 seçilince kanal
-/// OTOMATİK çözülür (şirkette TEK N11 kanalı kuralı) — kanal seçici yok, kanal SET-ONCE. Aynı kanalda aynı ürün
-/// için birden fazla kayıt olabilir (2026-07-07). Satır başına "N11'e Gönder" (SaveProduct push).</summary>
+/// <summary>Ürünün SATIŞ KANALI ÜRÜNLERİ — IN-MEMORY GRAF drill (ürün grafının parçası; ürün 'Kaydet'inde birlikte
+/// kaydedilir, ürün önceden kaydedilmese de eklenebilir — 2026-07-08 kullanıcı kararı). "Yeni" SPLIT buton: tip alt
+/// menüden (şimdilik N11). Kanal OTOMATİK (şirkette TEK N11 kanalı) + SET-ONCE. Push/Stok-Fiyat yalnız KAYDEDİLMİŞ
+/// (Id'li) satırda (yeni satır önce ürünle kaydedilmeli). Attribute/özel bilgi listeleri graf düğümünde taşınır.</summary>
 public partial class SalesChannelProductsPanel : CrudComponentBase
 {
-    [Parameter, EditorRequired] public Guid ProductId { get; set; }
+    /// <summary>Ürün grafındaki N11 kanal ürünleri (Model.SalesChannelProducts) — in-memory düzenlenir.</summary>
+    [Parameter, EditorRequired] public List<SalesChannelTrN11ProductDto> Items { get; set; } = default!;
+
+    /// <summary>Bağlı ürünün Id'si (kaydedilmişse dolu; yeni üründe Guid.Empty). Push/sync + create için.</summary>
+    [Parameter] public Guid ProductId { get; set; }
+
+    /// <summary>Graf değişti — parent (ProductLayout) EditChanged'i tetikler (Save aktifliği).</summary>
+    [Parameter] public EventCallback OnChanged { get; set; }
 
     [Inject] private ISalesChannelTrN11ProductAppService AppService { get; set; } = default!;
     [Inject] private ISalesChannelAppService SalesChannelAppService { get; set; } = default!;
     [Inject] private IUiInteractionService UiService { get; set; } = default!;
-    [Inject] private IObjectMapper Mapper { get; set; } = default!;
     [Inject] private IServiceProvider ServiceProvider { get; set; } = default!;
 
     private DrillList<SalesChannelTrN11ProductDto>? _drill;
-    private List<SalesChannelTrN11ProductDto> _channelProducts = new();
     private List<SalesChannelListDto> _channels = new();
 
     protected override async Task OnInitializedAsync()
@@ -36,14 +40,6 @@ public partial class SalesChannelProductsPanel : CrudComponentBase
         // N11 kanalları (kanal adı çözümü + yeni kayıtta otomatik kanal ataması; şirkette TEK N11 kanalı kuralı).
         var paged = await SalesChannelAppService.GetListAsync(new SalesChannelListRequestDto { MaxResultCount = 1000 });
         _channels = paged.Items.Where(c => c.ChannelType == SalesChannelType.TrN11).ToList();
-
-        await ReloadChannelProductsAsync();
-    }
-
-    // Ürünün TÜM kanal ürünleri — tek sorgu (aynı kanalda çok kayıt olabilir).
-    private async Task ReloadChannelProductsAsync()
-    {
-        _channelProducts = await AppService.GetListForProductAsync(ProductId);
     }
 
     // ── "Yeni" SPLIT buton: ana tık = N11 (tek tip); ▾ alt menüden tip seçilir. Built-in Yeni kapalı (AllowAdd=false). ──
@@ -84,7 +80,8 @@ public partial class SalesChannelProductsPanel : CrudComponentBase
         return Task.CompletedTask;
     }
 
-    /// <summary>N11 kanal ürünü taslağı — TEK üretim yeri (split akışı + NewItemFactory aynı default'ları alır).</summary>
+    /// <summary>N11 kanal ürünü taslağı — TEK üretim yeri (split akışı + NewItemFactory aynı default'ları alır).
+    /// Id boş (yeni graf düğümü); ClientKey DTO ctor'unda üretilir.</summary>
     private SalesChannelTrN11ProductDto BuildNewN11Draft(Guid salesChannelId)
     {
         return new SalesChannelTrN11ProductDto
@@ -98,8 +95,6 @@ public partial class SalesChannelProductsPanel : CrudComponentBase
         };
     }
 
-    // DrillList NewItemFactory zorunlu parametre — AllowAdd=false + split akışında KULLANILMAZ (StartNewItem ile
-    // açılır); yine de erişilir olursa geçerli taslak üretsin (kanal yoksa Guid.Empty → sunucu ChannelNotFound verir).
     private SalesChannelTrN11ProductDto NewChannelProduct()
     {
         return BuildNewN11Draft(_channels.FirstOrDefault()?.Id ?? Guid.Empty);
@@ -112,35 +107,21 @@ public partial class SalesChannelProductsPanel : CrudComponentBase
         return JsonSerializer.Deserialize<SalesChannelTrN11ProductDto>(json)!;
     }
 
-    private async Task<SalesChannelTrN11ProductDto> PersistCreate(SalesChannelTrN11ProductDto channelProduct)
-    {
-        var input = Mapper.Map<SalesChannelTrN11ProductDto, SalesChannelTrN11ProductCreateDto>(channelProduct);
-        input.ProductId = ProductId;
-        input.SalesChannelId = channelProduct.SalesChannelId;
-        return await AppService.CreateAsync(input);
-    }
-
-    private async Task<SalesChannelTrN11ProductDto> PersistUpdate(SalesChannelTrN11ProductDto channelProduct)
-    {
-        var input = Mapper.Map<SalesChannelTrN11ProductDto, SalesChannelTrN11ProductUpdateDto>(channelProduct);
-        return await AppService.UpdateAsync(channelProduct.Id, input);
-    }
-
-    private async Task PersistDelete(SalesChannelTrN11ProductDto channelProduct)
-    {
-        await AppService.DeleteAsync(channelProduct.Id);
-    }
-
-    // Satır push: listelemeyi N11'e gönder (SaveProduct); durum güncellensin diye listeyi tazele.
+    // Satır push: yalnız KAYDEDİLMİŞ (Id'li) satırda. Yeni satır (Id boş) → önce ürünü kaydet uyarısı.
     private async Task PushAsync(SalesChannelTrN11ProductDto channelProduct)
     {
+        if (channelProduct.Id == Guid.Empty)
+        {
+            UiService.ShowWarningToast(L["N11Product:SaveProductFirst"].Value);
+            return;
+        }
+
         try
         {
             var pushed = await AppService.PushToN11Async(channelProduct.Id);
-            await ReloadChannelProductsAsync();
+            CopyStatusInto(channelProduct, pushed);
             UiService.ShowSuccessToast(L["N11Product:PushSuccess"].Value);
 
-            // Eşitleme uyarıları (ör. N11 kategoriyi değiştirdi) — güvenli bilgilendirme (2026-07-07 kararı).
             foreach (var warning in pushed.SyncWarnings)
             {
                 UiService.ShowWarningToast(warning);
@@ -150,18 +131,23 @@ public partial class SalesChannelProductsPanel : CrudComponentBase
         }
         catch (Exception ex)
         {
-            // BusinessException (ImagesRequired/NoPricedVariant...) in-process lokalize olmaz → kodu çevir.
             UiService.ShowErrorToast(CrudErrorPresenter.ToFriendlyMessage(ex, ServiceProvider) ?? L["UnexpectedError"].Value);
         }
     }
 
-    // Satır stok/fiyat senkronu: yalnız değişen varyantları N11'e gönder (UpdateProductBasic); listeyi tazele.
+    // Satır stok/fiyat senkronu: yalnız KAYDEDİLMİŞ satırda.
     private async Task SyncStockPriceAsync(SalesChannelTrN11ProductDto channelProduct)
     {
+        if (channelProduct.Id == Guid.Empty)
+        {
+            UiService.ShowWarningToast(L["N11Product:SaveProductFirst"].Value);
+            return;
+        }
+
         try
         {
             var synced = await AppService.SyncStockAndPriceAsync(channelProduct.Id);
-            await ReloadChannelProductsAsync();
+            CopyStatusInto(channelProduct, synced);
             UiService.ShowSuccessToast(L["N11Product:SyncStockPriceSuccess"].Value);
 
             foreach (var warning in synced.SyncWarnings)
@@ -177,14 +163,30 @@ public partial class SalesChannelProductsPanel : CrudComponentBase
         }
     }
 
+    // Push/sync sonrası N11 durumunu (read-only) grafteki satıra yansıt — reload yok (in-memory graf).
+    private static void CopyStatusInto(SalesChannelTrN11ProductDto target, SalesChannelTrN11ProductDto source)
+    {
+        target.N11ProductId = source.N11ProductId;
+        target.SaleStatus = source.SaleStatus;
+        target.ApprovalStatus = source.ApprovalStatus;
+        target.LastSyncedAt = source.LastSyncedAt;
+        target.LastError = source.LastError;
+        target.Skus = source.Skus;
+    }
+
     private string ChannelCodeOf(SalesChannelTrN11ProductDto channelProduct)
     {
         return _channels.FirstOrDefault(c => c.Id == channelProduct.SalesChannelId)?.Code ?? string.Empty;
     }
 
-    // N11'e gönderilmediyse "Gönderilmedi", gönderildiyse "SaleStatus / ApprovalStatus".
+    // Kaydedilmemiş (Id boş) → "Kaydedilmedi"; gönderilmemiş → "Gönderilmedi"; gönderildiyse durum.
     private string StatusTextOf(SalesChannelTrN11ProductDto channelProduct)
     {
+        if (channelProduct.Id == Guid.Empty)
+        {
+            return L["N11Product:NotSaved"].Value;
+        }
+
         if (!channelProduct.N11ProductId.HasValue)
         {
             return L["N11Product:NotSent"].Value;

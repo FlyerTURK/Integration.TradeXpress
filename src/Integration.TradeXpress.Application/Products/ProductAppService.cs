@@ -8,6 +8,7 @@ using Integration.TradeXpress.Financials.CurrencyUnits;
 using Integration.TradeXpress.Jewelries;
 using Integration.TradeXpress.Metals;
 using Integration.TradeXpress.MultiCompany;
+using Integration.TradeXpress.N11Products;
 using Integration.TradeXpress.Permissions;
 using Integration.TradeXpress.Stones;
 using Integration.TradeXpress.Vouchers;
@@ -46,6 +47,7 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
     private readonly ProductRecipeCostCalculator _recipeCostCalculator;
     private readonly ICurrentCompany _currentCompany;
     private readonly IBlobContainer<ProductImagesContainer> _imageContainer;
+    private readonly ISalesChannelTrN11ProductAppService _channelProductAppService;
 
     private static readonly HashSet<string> AllowedListFields =
         new(StringComparer.OrdinalIgnoreCase) { "Code", "Name", "IsActive", "Id" };
@@ -65,7 +67,8 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         IEffectivePriceAppService effectivePriceAppService,
         ProductRecipeCostCalculator recipeCostCalculator,
         ICurrentCompany currentCompany,
-        IBlobContainer<ProductImagesContainer> imageContainer)
+        IBlobContainer<ProductImagesContainer> imageContainer,
+        ISalesChannelTrN11ProductAppService channelProductAppService)
     {
         _repository = repository;
         _variantRepository = variantRepository;
@@ -82,6 +85,7 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         _recipeCostCalculator = recipeCostCalculator;
         _currentCompany = currentCompany;
         _imageContainer = imageContainer;
+        _channelProductAppService = channelProductAppService;
     }
 
     public virtual async Task<PagedResultDto<ProductListDto>> GetListAsync(ProductListRequestDto input)
@@ -136,6 +140,7 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         // kaydet-öncesi varyant özelleştirmeleri (Id ya da CombinationKey eşlemesiyle) uygulanır.
         await _variantSynchronizer.SynchronizeAsync(entity);
         await ApplyVariantCustomizationsAsync(entity, input.Variants, valueIdByClientKey);
+        await SaveChannelProductsGraphAsync(entity.Id, input.SalesChannelProducts);
         return await ToGetDtoAsync(entity);
     }
 
@@ -159,7 +164,45 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         // kaydet-öncesi varyant özelleştirmeleri (Id ya da CombinationKey eşlemesiyle) uygulanır.
         await _variantSynchronizer.SynchronizeAsync(entity);
         await ApplyVariantCustomizationsAsync(entity, input.Variants, valueIdByClientKey);
+        await SaveChannelProductsGraphAsync(entity.Id, input.SalesChannelProducts);
         return await ToGetDtoAsync(entity);
+    }
+
+    /// <summary>N11 satış kanalı ürünleri grafını KANAL AppService'iyle işler (orkestrasyon; SellerCode/Sıra + push
+    /// mantığı N11 AppService'te kalır — katman ayrımı). Yeni (Id boş) → Create (ürün Id'siyle); mevcut → Update;
+    /// IsDeleted → Delete. Böylece ürün 'Kaydet'inde N11 ürünleri de birlikte kaydedilir (ürün önce kaydedilmiş olur).</summary>
+    private async Task SaveChannelProductsGraphAsync(Guid productId, List<SalesChannelTrN11ProductDto>? graph)
+    {
+        if (graph is null)
+        {
+            return;
+        }
+
+        foreach (var cp in graph)
+        {
+            if (cp.IsDeleted)
+            {
+                if (cp.Id != Guid.Empty)
+                {
+                    await _channelProductAppService.DeleteAsync(cp.Id);
+                }
+
+                continue;
+            }
+
+            if (cp.Id == Guid.Empty)
+            {
+                var createInput = ObjectMapper.Map<SalesChannelTrN11ProductDto, SalesChannelTrN11ProductCreateDto>(cp);
+                createInput.ProductId = productId;
+                createInput.SalesChannelId = cp.SalesChannelId;
+                await _channelProductAppService.CreateAsync(createInput);
+            }
+            else
+            {
+                var updateInput = ObjectMapper.Map<SalesChannelTrN11ProductDto, SalesChannelTrN11ProductUpdateDto>(cp);
+                await _channelProductAppService.UpdateAsync(cp.Id, updateInput);
+            }
+        }
     }
 
     /// <summary>Nitelik grafından varyant ÜRETİMİ — PERSISTSİZ önizleme (DB'ye yazmaz, kayıt gerekmez).
@@ -858,6 +901,10 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         }).ToList();
         await PopulateImagePreviewsAsync(imageDtos);
 
+        // N11 kanal ürünleri grafı — kanal AppService'inden (canlı kanal filtreli). Yeni üründe boş (Id yok → GetList
+        // boş dönmez ama kayıt yoktur). ClientKey kaydedilmiş satırlarda round-trip için yeniden üretilir.
+        var channelProducts = await _channelProductAppService.GetListForProductAsync(p.Id);
+
         return new ProductGetDto
         {
             Id = p.Id,
@@ -872,6 +919,7 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
             DiscountEndDate = p.DiscountEndDate,
             ProductionDate = p.ProductionDate,
             ExpirationDate = p.ExpirationDate,
+            SalesChannelProducts = channelProducts,
             Attributes = attributes.Select(a => new ProductAttributeGraphDto
             {
                 Id = a.Id,

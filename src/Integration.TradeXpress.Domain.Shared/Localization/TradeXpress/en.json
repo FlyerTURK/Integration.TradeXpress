@@ -921,6 +921,8 @@
     "Product:ExpirationDate": "Expiration Date",
     "TradeXpress:Product:ShelfLifeInvalid": "Production date cannot be after the expiration date.",
     "N11Product:DescriptionHint": "Channel-specific description (HTML). If left empty, the product description is sent to N11.",
-    "N11Product:GeneratedVariants": "Generated Variants"
+    "N11Product:GeneratedVariants": "Generated Variants",
+    "N11Product:NotSaved": "Not saved",
+    "N11Product:SaveToPush": "Save the product first to push"
   }
 }

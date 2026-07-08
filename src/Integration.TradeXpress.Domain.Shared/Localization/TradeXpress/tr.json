@@ -952,6 +952,8 @@
     "Product:ExpirationDate": "Son Kullanma Tarihi",
     "TradeXpress:Product:ShelfLifeInvalid": "Üretim tarihi son kullanma tarihinden sonra olamaz.",
     "N11Product:DescriptionHint": "Kanal-özel açıklama (HTML). Boş bırakılırsa N11'e ürün açıklaması gönderilir.",
-    "N11Product:GeneratedVariants": "Oluşan Varyantlar"
+    "N11Product:GeneratedVariants": "Oluşan Varyantlar",
+    "N11Product:NotSaved": "Kaydedilmedi",
+    "N11Product:SaveToPush": "Göndermek için önce ürünü kaydedin"
   }
 }
