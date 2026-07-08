@@ -25,7 +25,8 @@ namespace Integration.TradeXpress.TrendyolProducts;
 /// <item>Create: <c>POST /integration/product/sellers/{sellerId}/products</c> · gövde <c>{ "items": [ ... ] }</c> → <c>{ "batchRequestId": "..." }</c>.</item>
 /// <item>Durum: <c>GET /integration/product/sellers/{sellerId}/products/batch-requests/{batchRequestId}</c>.</item>
 /// <item>Item alanları: barcode, title, productMainId, brandId, categoryId, quantity, stockCode, dimensionalWeight,
-/// description, currencyType, listPrice, salePrice, vatRate, cargoCompanyId, images[{url}], attributes[{attributeId, attributeValueId|customAttributeValue}].</item>
+/// description, listPrice, salePrice, vatRate, deliveryOption{deliveryDuration,fastDeliveryType}, images[{url}],
+/// attributes[{attributeId, attributeValueId|customAttributeValue}]. (currencyType/cargoCompanyId V2 create'de YOK.)</item>
 /// </list>
 /// </summary>
 public sealed class TrendyolProductClient : ITrendyolProductClient, ITransientDependency
@@ -111,7 +112,6 @@ public sealed class TrendyolProductClient : ITrendyolProductClient, ITransientDe
                 ["quantity"] = item.Quantity,
                 ["stockCode"] = item.StockCode,
                 ["description"] = p.Description,
-                ["currencyType"] = item.CurrencyType,
                 ["listPrice"] = item.ListPrice,
                 ["salePrice"] = item.SalePrice,
                 ["vatRate"] = p.VatRate,
@@ -119,14 +119,28 @@ public sealed class TrendyolProductClient : ITrendyolProductClient, ITransientDe
                 ["attributes"] = attributes,
             };
 
-            if (p.CargoCompanyId is { } cargo)
-            {
-                dict["cargoCompanyId"] = cargo;
-            }
-
             if (p.DimensionalWeight is { } weight)
             {
                 dict["dimensionalWeight"] = weight;
+            }
+
+            // deliveryOption: { deliveryDuration, fastDeliveryType } — hızlı teslimat kullanılırsa deliveryDuration=1 zorunlu.
+            if (p.DeliveryDuration is { } duration || p.FastDeliveryType is not null)
+            {
+                var delivery = new Dictionary<string, object?>();
+                if (p.DeliveryDuration is { } d)
+                {
+                    delivery["deliveryDuration"] = d;
+                }
+
+                if (p.FastDeliveryType is { } fast)
+                {
+                    delivery["fastDeliveryType"] = fast == TrendyolFastDeliveryType.SameDayShipping
+                        ? "SAME_DAY_SHIPPING"
+                        : "FAST_DELIVERY";
+                }
+
+                dict["deliveryOption"] = delivery;
             }
 
             return dict;

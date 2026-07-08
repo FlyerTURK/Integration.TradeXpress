@@ -13,23 +13,52 @@ public class SalesChannelTrTrendyolProductAttributeDto
     public string? CustomValue { get; set; }
 }
 
+/// <summary>Varyant Trendyol SKU kimlik/durum satırı (read-only; push + reconcile sonrası dolar). Barcode DONDURULMUŞ;
+/// AttributeSnapshot UI'a taşınmaz (yeniden-bağlama imzası sunucu-içi kalır).</summary>
+public class SalesChannelTrTrendyolProductSkuDto
+{
+    public Guid ProductVariantId { get; set; }
+    public string Barcode { get; set; } = string.Empty;
+    public string StockCode { get; set; } = string.Empty;
+    public long? RemoteContentId { get; set; }
+    public int? LastSentQuantity { get; set; }
+    public decimal? LastSentListPrice { get; set; }
+    public decimal? LastSentSalePrice { get; set; }
+}
+
 /// <summary>Trendyol ürün listelemesi — tam okuma modeli (edit + durum görüntüsü).</summary>
 public class SalesChannelTrTrendyolProductDto
 {
     public Guid Id { get; set; }
     public Guid ProductId { get; set; }
     public Guid SalesChannelId { get; set; }
+
+    /// <summary>Varyant grup anahtarı (productMainId — "{ÜrünKodu}-{SequenceNo}", read-only/frozen).</summary>
+    public string ProductMainId { get; set; } = string.Empty;
+
+    /// <summary>Kayıt sırası (read-only; soft-delete dahil max+1).</summary>
+    public int SequenceNo { get; set; }
+
     public string CategoryId { get; set; } = string.Empty;
     public string? CategoryName { get; set; }
     public string BrandId { get; set; } = string.Empty;
+    public string? BrandName { get; set; }
     public int VatRate { get; set; } = 20;
     public int? CargoCompanyId { get; set; }
     public decimal? DimensionalWeight { get; set; }
+    public string? Description { get; set; }
+    public int? DeliveryDuration { get; set; }
+    public TrendyolFastDeliveryType? FastDeliveryType { get; set; }
     public List<SalesChannelTrTrendyolProductAttributeDto> Attributes { get; set; } = new();
+
+    /// <summary>Varyant SKU kimlik/durum satırları (read-only; push + reconcile sonrası dolar).</summary>
+    public List<SalesChannelTrTrendyolProductSkuDto> Skus { get; set; } = new();
 
     // Trendyol senkron durumu (read-only; submit/refresh sonrası dolar).
     public string? BatchRequestId { get; set; }
+    public string? LastBatchRequestType { get; set; }
     public string? Status { get; set; }
+    public int? FailedItemCount { get; set; }
     public DateTime? LastSyncedAt { get; set; }
     public string? LastError { get; set; }
     public bool IsActive { get; set; }
@@ -41,9 +70,13 @@ public interface ISalesChannelTrTrendyolProductInput
     string CategoryId { get; }
     string? CategoryName { get; }
     string BrandId { get; }
+    string? BrandName { get; }
     int VatRate { get; }
     int? CargoCompanyId { get; }
     decimal? DimensionalWeight { get; }
+    string? Description { get; }
+    int? DeliveryDuration { get; }
+    TrendyolFastDeliveryType? FastDeliveryType { get; }
     bool IsActive { get; }
     List<SalesChannelTrTrendyolProductAttributeDto> Attributes { get; }
 }
@@ -56,9 +89,13 @@ public class SalesChannelTrTrendyolProductCreateDto : ISalesChannelTrTrendyolPro
     public string CategoryId { get; set; } = string.Empty;
     public string? CategoryName { get; set; }
     public string BrandId { get; set; } = string.Empty;
+    public string? BrandName { get; set; }
     public int VatRate { get; set; } = 20;
     public int? CargoCompanyId { get; set; }
     public decimal? DimensionalWeight { get; set; }
+    public string? Description { get; set; }
+    public int? DeliveryDuration { get; set; }
+    public TrendyolFastDeliveryType? FastDeliveryType { get; set; }
     public bool IsActive { get; set; } = true;
     public List<SalesChannelTrTrendyolProductAttributeDto> Attributes { get; set; } = new();
 }
@@ -69,9 +106,13 @@ public class SalesChannelTrTrendyolProductUpdateDto : ISalesChannelTrTrendyolPro
     public string CategoryId { get; set; } = string.Empty;
     public string? CategoryName { get; set; }
     public string BrandId { get; set; } = string.Empty;
+    public string? BrandName { get; set; }
     public int VatRate { get; set; } = 20;
     public int? CargoCompanyId { get; set; }
     public decimal? DimensionalWeight { get; set; }
+    public string? Description { get; set; }
+    public int? DeliveryDuration { get; set; }
+    public TrendyolFastDeliveryType? FastDeliveryType { get; set; }
     public bool IsActive { get; set; } = true;
     public List<SalesChannelTrTrendyolProductAttributeDto> Attributes { get; set; } = new();
 }

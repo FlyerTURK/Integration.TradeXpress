@@ -24,28 +24,30 @@ public interface ITrendyolProductClient
 /// <summary>Trendyol kanal kimliği (SellerId + ApiKey + ApiSecret) — Basic auth + User-Agent için.</summary>
 public sealed record TrendyolCredentials(string SellerId, string ApiKey, string ApiSecret);
 
-/// <summary>Trendyol ürün verisi (ÇÖZÜLMÜŞ) — ürün başlığı/kategori/marka + varyantlar (Items) + kategori attribute'ları.</summary>
+/// <summary>Trendyol ürün verisi (ÇÖZÜLMÜŞ) — ürün başlığı/kategori/marka + varyantlar (Items) + kategori attribute'ları.
+/// <c>currencyType</c>/<c>cargoCompanyId</c> V2 create şemasında YOKTUR (para birimi TRY zımnî; kargo panel/satıcı
+/// seviyesi) → push payload'ında taşınmaz.</summary>
 public sealed record TrendyolProductData(
-    string ProductMainId,     // varyantları gruplar (Ürün.Code)
+    string ProductMainId,     // varyantları gruplar ("{ÜrünKodu}-{SequenceNo}", frozen)
     string Title,
     string Description,
     string CategoryId,        // numerik
     string BrandId,           // numerik
     int VatRate,
-    int? CargoCompanyId,
     decimal? DimensionalWeight,
+    int? DeliveryDuration,
+    TrendyolFastDeliveryType? FastDeliveryType,
     IReadOnlyList<string> ImageUrls,
     IReadOnlyList<TrendyolAttributeValue> Attributes,   // kategori attribute (id-bazlı)
     IReadOnlyList<TrendyolProductItem> Items);          // varyantlar (barcode başına)
 
-/// <summary>Trendyol satılabilir kalem (= ERP varyantı) — barcode + stok + fiyat.</summary>
+/// <summary>Trendyol satılabilir kalem (= ERP varyantı) — barcode + stok + fiyat (para birimi TRY zımnî).</summary>
 public sealed record TrendyolProductItem(
     string Barcode,
     string StockCode,
     int Quantity,
     decimal ListPrice,
-    decimal SalePrice,
-    string CurrencyType);     // "TRY"
+    decimal SalePrice);
 
 /// <summary>Trendyol attribute değeri (id-bazlı) — value id ile listeden ya da customValue ile serbest.</summary>
 public sealed record TrendyolAttributeValue(int AttributeId, int? AttributeValueId, string? CustomValue);

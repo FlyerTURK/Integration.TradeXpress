@@ -11,8 +11,28 @@ public static class TrendyolProductConsts
     /// <summary>Trendyol marka id'si (numerik ama string tutulur).</summary>
     public const int BrandIdMaxLength = 32;
 
+    /// <summary>Marka görüntü adı (arama sonucundan; opsiyonel).</summary>
+    public const int BrandNameMaxLength = 256;
+
+    /// <summary>Varyant grup anahtarı (productMainId — "{ÜrünKodu}-{SequenceNo}", frozen). Trendyol V2 sınırı 40;
+    /// ürün kodu (32) + sıra eki payı.</summary>
+    public const int ProductMainIdMaxLength = 64;
+
+    /// <summary>Trendyol satıcı-geneli barcode (DONDURULMUŞ, "{VaryantKodu}-{SequenceNo}"). Trendyol V2 sınırı 40;
+    /// üretilen/GTIN kodlar için pay.</summary>
+    public const int BarcodeMaxLength = 64;
+
+    /// <summary>Trendyol stok kodu (= merchantSku; mutable). Trendyol V2 sınırı 100.</summary>
+    public const int StockCodeMaxLength = 100;
+
+    /// <summary>Kanal-özel açıklama (HTML; opsiyonel). Boşsa push'ta ürün açıklaması devralınır. Trendyol V2 sınırı 30.000.</summary>
+    public const int DescriptionMaxLength = 30000;
+
     /// <summary>Batch istek kimliği (async submit yanıtı).</summary>
     public const int BatchRequestIdMaxLength = 128;
+
+    /// <summary>Batch işlem tipi (ProductV2OnBoarding/ProductV2Update/ProductInventoryUpdate ...).</summary>
+    public const int BatchRequestTypeMaxLength = 64;
 
     /// <summary>Batch/işlem durumu (PROCESSING/COMPLETED/FAILED ...).</summary>
     public const int StatusMaxLength = 64;
