@@ -1,0 +1,18 @@
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@* Trendyol kategori seçici — SERVER-SIDE (LookupEdit): salt-okunur alan + ▼ picker (DxGrid). Kullanıcı yazınca (min 3
+   harf) sunucudan yaprak kategoriler TAM YOL adıyla çekilir; liste ön-yüklenmez. Türkçe aksan/case-duyarsız. N11 paritesi. *@
+
+<LookupEdit TItem="TrendyolLeafCategoryDto" TValue="string"
+            Data="@_results"
+            ValueFieldName="@nameof(TrendyolLeafCategoryDto.ExternalId)"
+            TextFieldName="@nameof(TrendyolLeafCategoryDto.Path)"
+            Value="@SelectedExternalId"
+            ValueChanged="@OnCategoryChangedAsync"
+            SelectedDisplayText="@SelectedName"
+            OnSearch="@OnSearchAsync"
+            SearchMinLength="3"
+            SearchPlaceholder="@L["TrendyolProduct:SelectCategory"].Value"
+            Title="@L["TrendyolProduct:Category"].Value"
+            NullText="@L["TrendyolProduct:SelectCategory"].Value"
+            AllowClear="false" />
