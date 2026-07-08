@@ -168,6 +168,22 @@
                 </DxFormLayout>
             </EditContent>
         </DrillList>
+
+        @* Oluşan varyantlar — eksenlerin DEĞER KARTEZYENİ (canlı; push'ta bu kombinasyonlar stockItem olur,
+           fiyat/stok imza eşleşen ERP varyantından gelir). Eksen/değer değiştikçe otomatik güncellenir. *@
+        @{ var combos = BuildAxisCombinations(); }
+        @if (combos.Count > 0)
+        {
+            <div class="mt-3">
+                <h6>@L["N11Product:GeneratedVariants"] (@combos.Count)</h6>
+                <DxGrid Data="@combos" PageSize="50" PagerVisible="false" CssClass="w-100">
+                    <Columns>
+                        <DxGridDataColumn FieldName="No" Caption="#" Width="50px" />
+                        <DxGridDataColumn FieldName="Combination" Caption="@L["N11Product:VariantAxes"]" />
+                    </Columns>
+                </DxGrid>
+            </div>
+        }
     </DxTabPage>
 
     @* Seyahat özel bilgileri — YALNIZ Seyahat kategorisinde. *@

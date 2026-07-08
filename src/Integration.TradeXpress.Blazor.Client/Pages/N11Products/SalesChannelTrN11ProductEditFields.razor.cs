@@ -30,6 +30,13 @@ public class N11AttributeRow
     public string Value { get; set; } = string.Empty;
 }
 
+/// <summary>Sihirbaz eksenlerinden OLUŞAN varyant kombinasyonu satırı (client-side kartezyen önizleme; No + metin).</summary>
+public class N11AxisComboRow
+{
+    public int No { get; set; }
+    public string Combination { get; set; } = string.Empty;
+}
+
 /// <summary>N11 ürün listeleme edit alanları — kanal + kategori (kademeli) + kategori attribute'ları (on-demand) +
 /// kargo şablonu + condition + Seyahat özel bilgileri + N11 senkron durumu. Listeleme drill'inin EditContent'i;
 /// kendi DxFormLayout'unu sağlar. ValueExpression'sız editörlerde dirty EDitContext'e elle bildirilir.</summary>
@@ -249,6 +256,42 @@ public partial class SalesChannelTrN11ProductEditFields : CrudComponentBase
         }
 
         MarkDirty(nameof(Model.SpecialInfo));
+    }
+
+    // Sihirbaz eksenlerinin DEĞER KARTEZYENİ (client-side; push'taki BuildAxisCombinations ile aynı mantık) —
+    // "oluşan varyantlar" canlı önizlemesi. Fiyat/stok push'ta imza eşleşen ERP varyantından gelir (burada gösterilmez).
+    private List<N11AxisComboRow> BuildAxisCombinations()
+    {
+        var axes = Model.VariantAxes
+            .Where(a => !string.IsNullOrWhiteSpace(a.Name) && a.Values.Any(v => !string.IsNullOrWhiteSpace(v.Value)))
+            .ToList();
+        if (axes.Count == 0)
+        {
+            return new List<N11AxisComboRow>();
+        }
+
+        var combos = new List<List<(string Name, string Value)>> { new() };
+        foreach (var axis in axes)
+        {
+            var next = new List<List<(string, string)>>();
+            foreach (var partial in combos)
+            {
+                foreach (var value in axis.Values.Where(v => !string.IsNullOrWhiteSpace(v.Value)))
+                {
+                    next.Add(new List<(string, string)>(partial) { (axis.Name.Trim(), value.Value.Trim()) });
+                }
+            }
+
+            combos = next;
+        }
+
+        return combos
+            .Select((c, i) => new N11AxisComboRow
+            {
+                No = i + 1,
+                Combination = string.Join(", ", c.Select(p => $"{p.Name}: {p.Value}")),
+            })
+            .ToList();
     }
 
     // ValueExpression'sız editörler EditContext'e bildirmez → dirty ELLE tetiklenir (DrillList Save aktifliği).
