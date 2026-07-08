@@ -62,6 +62,26 @@ public class ProductGetDto : EntityDto<Guid>, IGetDto<Guid>, IHasCode
     /// <summary>Son kullanma tarihi (iş tarihi, date-only; N11 expirationDate). Opsiyonel.</summary>
     public DateTime? ExpirationDate { get; set; }
 
+    /// <summary>Pazaryeri-genel varsayılanlar (kanal-ürünü devralır + override eder).</summary>
+    public bool Domestic { get; set; } = true;
+    public ProductCondition Condition { get; set; } = ProductCondition.New;
+    public int PreparingDay { get; set; } = 1;
+
+    [StringLength(ProductConsts.ShipmentTemplateNameMaxLength)]
+    public string? ShipmentTemplateName { get; set; }
+    public int? MaxPurchaseQuantity { get; set; }
+
+    [StringLength(ProductConsts.SellerNoteMaxLength)]
+    public string? SellerNote { get; set; }
+
+    /// <summary>Varsayılan para birimi (id-only; kanal-ürünü boşsa devralır).</summary>
+    public Guid? CurrencyUnitId { get; set; }
+    public int? UnitType { get; set; }
+    public int? UnitWeight { get; set; }
+
+    /// <summary>Ürün özelleştirme alanları (key zorunlu / value opsiyonel; in-memory drill).</summary>
+    public List<ProductSpecialInfoDto> SpecialInfo { get; set; } = new();
+
     /// <summary>N11 satış kanalı ürünleri (graf düğümleri; ClientKey/Id + IsDeleted diff) — ürün 'Kaydet'inde
     /// birlikte kaydedilir (yeni üründe de eklenebilir). Panel in-memory yönetir; sunucu SellerCode/Sıra üretir.</summary>
     public List<SalesChannelTrN11ProductDto> SalesChannelProducts { get; set; } = new();
@@ -99,6 +119,22 @@ public class ProductCreateDto : ICreateDto
     /// <summary>Üretim/son kullanma tarihleri — bkz. <see cref="ProductGetDto.ProductionDate"/>.</summary>
     public DateTime? ProductionDate { get; set; }
     public DateTime? ExpirationDate { get; set; }
+
+    /// <summary>Pazaryeri-genel varsayılanlar — bkz. <see cref="ProductGetDto.Domestic"/>.</summary>
+    public bool Domestic { get; set; } = true;
+    public ProductCondition Condition { get; set; } = ProductCondition.New;
+    public int PreparingDay { get; set; } = 1;
+
+    [StringLength(ProductConsts.ShipmentTemplateNameMaxLength)]
+    public string? ShipmentTemplateName { get; set; }
+    public int? MaxPurchaseQuantity { get; set; }
+
+    [StringLength(ProductConsts.SellerNoteMaxLength)]
+    public string? SellerNote { get; set; }
+    public Guid? CurrencyUnitId { get; set; }
+    public int? UnitType { get; set; }
+    public int? UnitWeight { get; set; }
+    public List<ProductSpecialInfoDto> SpecialInfo { get; set; } = new();
 
     /// <summary>N11 satış kanalı ürünleri grafı — bkz. <see cref="ProductGetDto.SalesChannelProducts"/>.</summary>
     public List<SalesChannelTrN11ProductDto> SalesChannelProducts { get; set; } = new();
@@ -138,6 +174,22 @@ public class ProductUpdateDto : IUpdateDto
     public DateTime? ProductionDate { get; set; }
     public DateTime? ExpirationDate { get; set; }
 
+    /// <summary>Pazaryeri-genel varsayılanlar — bkz. <see cref="ProductGetDto.Domestic"/>.</summary>
+    public bool Domestic { get; set; } = true;
+    public ProductCondition Condition { get; set; } = ProductCondition.New;
+    public int PreparingDay { get; set; } = 1;
+
+    [StringLength(ProductConsts.ShipmentTemplateNameMaxLength)]
+    public string? ShipmentTemplateName { get; set; }
+    public int? MaxPurchaseQuantity { get; set; }
+
+    [StringLength(ProductConsts.SellerNoteMaxLength)]
+    public string? SellerNote { get; set; }
+    public Guid? CurrencyUnitId { get; set; }
+    public int? UnitType { get; set; }
+    public int? UnitWeight { get; set; }
+    public List<ProductSpecialInfoDto> SpecialInfo { get; set; } = new();
+
     /// <summary>N11 satış kanalı ürünleri grafı — bkz. <see cref="ProductGetDto.SalesChannelProducts"/>.</summary>
     public List<SalesChannelTrN11ProductDto> SalesChannelProducts { get; set; } = new();
 
@@ -145,6 +197,20 @@ public class ProductUpdateDto : IUpdateDto
 
     /// <summary>Nitelik grafı — bkz. <see cref="ProductGetDto.Attributes"/>.</summary>
     public List<ProductAttributeGraphDto> Attributes { get; set; } = new();
+}
+
+/// <summary>Ürün özelleştirme alanı (serbest key/value; her pazaryerine varsayılan). <see cref="ClientKey"/> yalnız
+/// in-memory DrillList satır kimliği (persist edilmez; entity Key/Value tutar). Key zorunlu, Value opsiyonel.</summary>
+public class ProductSpecialInfoDto
+{
+    /// <summary>İstemci-taraflı satır kimliği (DrillList grid identity) — persist edilmez.</summary>
+    public Guid ClientKey { get; set; } = Guid.NewGuid();
+
+    [StringLength(ProductConsts.SpecialInfoKeyMaxLength)]
+    public string Key { get; set; } = string.Empty;
+
+    [StringLength(ProductConsts.SpecialInfoValueMaxLength)]
+    public string Value { get; set; } = string.Empty;
 }
 
 /// <summary>Ürün GÖRSELİ graf düğümü — görsel drill'i + Product save'i içindir. Kaynak URL ya da yüklenmiş dosya

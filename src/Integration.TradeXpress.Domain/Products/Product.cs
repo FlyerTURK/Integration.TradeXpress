@@ -52,6 +52,39 @@ public class Product : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwn
     /// <summary>Son kullanma tarihi — İŞ TARİHİ (date-only; N11 expirationDate). Opsiyonel.</summary>
     public virtual DateTime? ExpirationDate { get; protected set; }
 
+    // ── Pazaryeri-genel varsayılanlar (kanal-ürünü devralır + override eder; N11 ürün-seviyesi alanların karşılığı) ──
+
+    /// <summary>Yerli üretim mi (N11 domestic). Varsayılan true.</summary>
+    public virtual bool Domestic { get; protected set; }
+
+    /// <summary>Ürün durumu (pazaryeri-genel; her kanala kendi karşılığına eşlenir). Varsayılan New.</summary>
+    public virtual ProductCondition Condition { get; protected set; }
+
+    /// <summary>Kargoya verilme süresi (gün) — en az 1. Varsayılan 1.</summary>
+    public virtual int PreparingDay { get; protected set; }
+
+    /// <summary>Varsayılan kargo şablonu adı (opsiyonel; pazaryeri kanal-ürünü override eder).</summary>
+    public virtual string? ShipmentTemplateName { get; protected set; }
+
+    /// <summary>Alıcı başına maksimum satın alım adedi (opsiyonel).</summary>
+    public virtual int? MaxPurchaseQuantity { get; protected set; }
+
+    /// <summary>Satıcı notu — kısa düz metin (opsiyonel). Kanal-ürünü boşsa devralır.</summary>
+    public virtual string? SellerNote { get; protected set; }
+
+    /// <summary>Varsayılan para birimi (opsiyonel; id-only, nav YOK). Kanal-ürünü boşsa devralır.</summary>
+    public virtual Guid? CurrencyUnitId { get; protected set; }
+
+    /// <summary>Birim tipi (N11 unitInfo/unitType; opsiyonel).</summary>
+    public virtual int? UnitType { get; protected set; }
+
+    /// <summary>Birim ağırlığı (N11 unitInfo/unitWeight; opsiyonel).</summary>
+    public virtual int? UnitWeight { get; protected set; }
+
+    /// <summary>Ürün özelleştirme alanları (owned → JSON; key=müşteri giriş etiketi zorunlu, value opsiyonel).
+    /// Kanal-ürünü boşsa devralır.</summary>
+    public virtual List<ProductSpecialInfo> SpecialInfo { get; protected set; } = new();
+
     protected Product() { }
 
     public Product(
@@ -63,6 +96,9 @@ public class Product : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwn
         SetCode(code);
         SetName(name);
         IsActive = true;
+        Domestic = true;
+        Condition = ProductCondition.New;
+        PreparingDay = 1;
     }
 
     public virtual void SetCompany(Guid companyId)
@@ -111,6 +147,87 @@ public class Product : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwn
 
         ProductionDate = productionDate?.Date;
         ExpirationDate = expirationDate?.Date;
+    }
+
+    // ── Pazaryeri-genel varsayılan setterları (fail-fast; N11 kanal-ürünü setterlarıyla hizalı) ──
+
+    public virtual void SetDomestic(bool domestic)
+    {
+        Domestic = domestic;
+    }
+
+    public virtual void SetCondition(ProductCondition condition)
+    {
+        Condition = condition;
+    }
+
+    /// <summary>Kargoya verilme süresi (gün) — en az 1 (fail-fast).</summary>
+    public virtual void SetPreparingDay(int preparingDay)
+    {
+        if (preparingDay < 1)
+        {
+            throw new BusinessException("TradeXpress:Product:PreparingDayInvalid");
+        }
+
+        PreparingDay = preparingDay;
+    }
+
+    /// <summary>Varsayılan kargo şablonu adı (opsiyonel; boş değilse trim + max).</summary>
+    public virtual void SetShipmentTemplate(string? shipmentTemplateName)
+    {
+        ShipmentTemplateName = StringFieldGuard.EnsureOptionalText(
+            shipmentTemplateName, nameof(ShipmentTemplateName), 1, ProductConsts.ShipmentTemplateNameMaxLength);
+    }
+
+    /// <summary>Alıcı başına maksimum satın alım adedi (opsiyonel) — en az 1 (fail-fast).</summary>
+    public virtual void SetMaxPurchaseQuantity(int? maxPurchaseQuantity)
+    {
+        if (maxPurchaseQuantity is { } value && value < 1)
+        {
+            throw new BusinessException("TradeXpress:Product:MaxPurchaseQuantityInvalid");
+        }
+
+        MaxPurchaseQuantity = maxPurchaseQuantity;
+    }
+
+    /// <summary>Satıcı notu (opsiyonel; boş değilse trim + max).</summary>
+    public virtual void SetSellerNote(string? sellerNote)
+    {
+        SellerNote = StringFieldGuard.EnsureOptionalText(
+            sellerNote, nameof(SellerNote), 1, ProductConsts.SellerNoteMaxLength);
+    }
+
+    /// <summary>Varsayılan para birimi (opsiyonel; sadece atama, boş=null).</summary>
+    public virtual void SetCurrencyUnit(Guid? currencyUnitId)
+    {
+        CurrencyUnitId = currencyUnitId == Guid.Empty ? null : currencyUnitId;
+    }
+
+    /// <summary>Birim bilgisi (opsiyonel) — negatif değer fail-fast.</summary>
+    public virtual void SetUnitInfo(int? unitType, int? unitWeight)
+    {
+        if (unitType is { } t && t < 0)
+        {
+            throw new BusinessException("TradeXpress:Product:UnitTypeInvalid");
+        }
+
+        if (unitWeight is { } w && w < 0)
+        {
+            throw new BusinessException("TradeXpress:Product:UnitWeightInvalid");
+        }
+
+        UnitType = unitType;
+        UnitWeight = unitWeight;
+    }
+
+    /// <summary>Ürün özelleştirme alanları — yalnız KEY zorunlu (boş key'li satır elenir), value opsiyonel (trim).
+    /// N11 SetSpecialInfo deseninin ürün-genel karşılığı.</summary>
+    public virtual void SetSpecialInfo(IEnumerable<ProductSpecialInfo>? specialInfo)
+    {
+        SpecialInfo = (specialInfo ?? Enumerable.Empty<ProductSpecialInfo>())
+            .Where(s => !string.IsNullOrWhiteSpace(s.Key))
+            .Select(s => new ProductSpecialInfo(s.Key.Trim(), (s.Value ?? string.Empty).Trim()))
+            .ToList();
     }
 
     /// <summary>Marketplace indirimi (ürün-seviyesi). None → değer/tarihler temizlenir. Amount &gt; 0; Percentage

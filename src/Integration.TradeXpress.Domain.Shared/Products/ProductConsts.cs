@@ -20,6 +20,17 @@ public static class ProductConsts
     /// <summary>Varyant ticari kimlik kodları (barcode/GTIN/MPN/OEM) — marketplace SKU eşleşmesi + katalog.</summary>
     public const int TradeIdentifierMaxLength = 64;
 
+    // ── Pazaryeri-genel varsayılan alanlar (ürün-seviyesi; kanal-ürünü devralır + override eder) ──
+    /// <summary>Varsayılan kargo şablonu adı (N11ProductConsts.ShipmentTemplateNameMaxLength paritesi).</summary>
+    public const int ShipmentTemplateNameMaxLength = 128;
+
+    /// <summary>Satıcı notu (kısa düz metin; N11ProductConsts.SellerNoteMaxLength paritesi).</summary>
+    public const int SellerNoteMaxLength = 500;
+
+    // Ürün özelleştirme alanı (owned → JSON; N11 SpecialInfo sınırlarıyla hizalı — key=müşteri giriş etiketi zorunlu).
+    public const int SpecialInfoKeyMaxLength = 64;
+    public const int SpecialInfoValueMaxLength = 20000;   // HTML/uzun örnek olabilir
+
     // Base (0-attribute) ana varyantın SABİT kimliği — ürün kodundan TÜRETİLMEZ (2026-07-05 ürün kararı).
     // OrgTree HQ Branch / Default Vault deseniyle hizalı (const-tabanlı ad; BranchConsts.DefaultHeadquarters* paritesi).
     public const string MainVariantCode = "ANAVARYANT";

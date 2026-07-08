@@ -549,12 +549,16 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
         // Tek para birimi zorunlu (N11 ürün başına tek currencyType). Kanal para birimi seçiliyse O belirler
         // → varyantlar farklı birimde olsa da karışıklık yok (MixedCurrency yalnız kanal seçilmemişken denetlenir).
         var currencyUnitIds = variants.Select(v => v.SalePriceCurrencyUnitId).Where(x => x is not null).Distinct().ToList();
-        if (channelProduct.CurrencyUnitId is null && currencyUnitIds.Count > 1)
+        // Kanal ya da ÜRÜN para birimi belirleyiciyse mixed-currency serbest (o birim tüm SKU'lara uygulanır);
+        // yalnız ne kanalda ne üründe birim yokken varyantlar farklı birimdeyse belirsizlik → fail-fast.
+        if (channelProduct.CurrencyUnitId is null && product.CurrencyUnitId is null && currencyUnitIds.Count > 1)
         {
             throw new BusinessException("TradeXpress:N11:Product:MixedCurrency");
         }
 
-        var currencyType = await ResolveCurrencyTypeAsync(channelProduct.CurrencyUnitId ?? currencyUnitIds.FirstOrDefault());
+        // Para birimi çözümü: kanal → ürün varsayılanı → varyant (fallback zinciri).
+        var currencyType = await ResolveCurrencyTypeAsync(
+            channelProduct.CurrencyUnitId ?? product.CurrencyUnitId ?? currencyUnitIds.FirstOrDefault());
         var variantOptions = await LoadVariantOptionsAsync(product.Id, variants.Select(v => v.Id).ToList());
 
         // ── Faz 1: kategori-farkındalıklı validasyon — varyant EKSENLERİNİ kategori belirler (isVariant seti),
@@ -618,18 +622,21 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
             ProductCondition: (byte)channelProduct.Condition,
             PreparingDay: channelProduct.PreparingDay,
             ShipmentTemplate: channelProduct.ShipmentTemplateName,
-            MaxPurchaseQuantity: channelProduct.MaxPurchaseQuantity,
+            MaxPurchaseQuantity: channelProduct.MaxPurchaseQuantity ?? product.MaxPurchaseQuantity,   // kanal → ürün varsayılanı
             Images: images,
             Attributes: validated.ProductAttributes,       // varyant eksenleri FİLTRELİ + kanonik değerler
             StockItems: stockItems,
-            SpecialInfo: channelProduct.SpecialInfo.Select(s => new N11ProductSpecialInfo(s.Key, s.Value)).ToList(),
+            // Kanal özel bilgisi boşsa ürün varsayılanı devralınır (her ikisi de key-zorunlu/value-opsiyonel).
+            SpecialInfo: (channelProduct.SpecialInfo.Count > 0 ? channelProduct.SpecialInfo.Select(s => (s.Key, s.Value))
+                             : product.SpecialInfo.Select(s => (s.Key, s.Value)))
+                         .Select(s => new N11ProductSpecialInfo(s.Key, s.Value)).ToList(),
             Discount: BuildDiscount(product),              // ürün-seviyesi indirim (None ise null)
-            SellerNote: channelProduct.SellerNote,         // kanal-özel not
+            SellerNote: channelProduct.SellerNote ?? product.SellerNote,   // kanal-özel not → ürün varsayılanı
             // Kanal-özel tarih önce, yoksa ürün tarihi devralınır ("dd/MM/yyyy"; boşsa boş → gönderilmez).
             ProductionDate: FormatN11Date(channelProduct.ProductionDate ?? product.ProductionDate),
             ExpirationDate: FormatN11Date(channelProduct.ExpirationDate ?? product.ExpirationDate),
-            UnitType: channelProduct.UnitType,             // N11 unitInfo (opsiyonel; yalnız UnitType doluysa gönderilir)
-            UnitWeight: channelProduct.UnitWeight);
+            UnitType: channelProduct.UnitType ?? product.UnitType,         // kanal → ürün varsayılanı
+            UnitWeight: channelProduct.UnitWeight ?? product.UnitWeight);
 
         return new N11ProductPushPlan(data, canonicalCandidates);
     }

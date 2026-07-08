@@ -31,6 +31,12 @@ public partial class ProductLayout
     [Parameter] public IReadOnlyList<ServiceListDto> Services { get; set; } = Array.Empty<ServiceListDto>();
     [Parameter] public IReadOnlyList<CurrentPriceDto> Units { get; set; } = Array.Empty<CurrentPriceDto>();
 
+    /// <summary>Varsayılan para birimi lookup verisi — host yükler (DUMB layout servis çağırmaz).</summary>
+    [Parameter] public IReadOnlyList<CurrencyUnitListDto> CurrencyUnits { get; set; } = Array.Empty<CurrencyUnitListDto>();
+
+    /// <summary>Inline döviz ekle/düzelt sonrası lookup listesini host tazeler (EntityChange tetikler).</summary>
+    [Parameter] public EventCallback OnReloadCurrencyUnits { get; set; }
+
     private DrillList<ProductVariantGraphDto>? _variantDrill;
     private DrillList<ProductAttributeGraphDto>? _attributeDrill;
     private DrillList<ProductAttributeValueGraphDto>? _valueDrill;
@@ -77,6 +83,12 @@ public partial class ProductLayout
         var duplicateFile = candidate.FileName is { Length: > 0 }
             && others.Any(x => string.Equals(x.FileName, candidate.FileName, StringComparison.OrdinalIgnoreCase));
         return duplicateUrl || duplicateFile ? L["TradeXpress:Product:ImageDuplicate"].Value : null;
+    }
+
+    /// <summary>Özel bilgi satırı kaydetme engeli — key boşsa satır kabul edilmez (SetSpecialInfo sunucuda da boş key eler).</summary>
+    private string? SpecialInfoSaveGuard(ProductSpecialInfoDto item)
+    {
+        return string.IsNullOrWhiteSpace(item.Key) ? L["Product:SpecialInfoKeyRequired"].Value : null;
     }
 
     // Drill değişimini forma bildir (dirty/Save) — EntityEditForm EditChanged cascade'i.

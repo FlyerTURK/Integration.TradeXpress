@@ -37,6 +37,7 @@ public partial class ProductEditHost
     [Inject] protected IStoneAppService StoneAppService { get; set; } = default!;
     [Inject] protected IServiceAppService ServiceAppService { get; set; } = default!;
     [Inject] protected IEffectivePriceAppService EffectivePriceAppService { get; set; } = default!;
+    [Inject] protected ILookupCache<CurrencyUnitListDto> CurrencyLookup { get; set; } = default!;
 
     private ICommitCoordinator<ProductGetDto, ProductListDto, Guid, ProductListRequestDto>? _coordinator;
     private bool _ready;
@@ -49,6 +50,9 @@ public partial class ProductEditHost
     protected IReadOnlyList<StoneListDto> Stones { get; private set; } = Array.Empty<StoneListDto>();
     protected IReadOnlyList<ServiceListDto> Services { get; private set; } = Array.Empty<ServiceListDto>();
     protected IReadOnlyList<CurrentPriceDto> Units { get; private set; } = Array.Empty<CurrentPriceDto>();
+
+    // Varsayılan para birimi lookup verisi — inline ekle/düzelt sonrası ReloadCurrencyUnitsAsync ile tazelenir.
+    protected IReadOnlyList<CurrencyUnitListDto> CurrencyUnits { get; private set; } = Array.Empty<CurrencyUnitListDto>();
 
     protected override async Task OnInitializedAsync()
     {
@@ -69,6 +73,15 @@ public partial class ProductEditHost
         Stones = await StoneAppService.GetPickerListAsync();
         Services = await ServiceAppService.GetPickerListAsync();
         Units = await EffectivePriceAppService.GetCurrentPricesAsync();
+        CurrencyUnits = await CurrencyLookup.GetAsync();
+    }
+
+    // Inline döviz ekle/düzelt sonrası lookup listesini tazeler (yeni birim anında combo'ya düşsün).
+    private async Task ReloadCurrencyUnitsAsync()
+    {
+        CurrencyLookup.Invalidate();
+        CurrencyUnits = await CurrencyLookup.GetAsync();
+        StateHasChanged();
     }
 
     // Yeni kayıt: aktif + gridde görünsün diye base ANA VARYANT satırı seed'lenir (SABİT kimlik ANAVARYANT/Ana

@@ -33,6 +33,17 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
             // Marketplace indirimi (ürün-seviyesi) — tip (enum→int) + değer (18,2) + iş tarihleri.
             b.Property(x => x.DiscountValue).HasPrecision(ProductConsts.SalePricePrecision, ProductConsts.SalePriceScale);
 
+            // Pazaryeri-genel varsayılanlar (kanal-ürünü devralır) — Domestic/Condition/PreparingDay/MaxPurchaseQuantity/
+            // CurrencyUnitId/UnitType/UnitWeight konvansiyonla (enum→int, Guid?, int?). Metin alanları + owned özel bilgi:
+            b.Property(x => x.ShipmentTemplateName).HasMaxLength(ProductConsts.ShipmentTemplateNameMaxLength);
+            b.Property(x => x.SellerNote).HasMaxLength(ProductConsts.SellerNoteMaxLength);
+            b.OwnsMany(x => x.SpecialInfo, s =>
+            {
+                s.ToJson();
+                s.Property(p => p.Key).HasMaxLength(ProductConsts.SpecialInfoKeyMaxLength);
+                s.Property(p => p.Value).HasMaxLength(ProductConsts.SpecialInfoValueMaxLength);
+            });
+
             b.HasIndex(x => new { x.TenantId, x.CompanyId, x.Code }).IsUnique();
             b.HasIndex(x => new { x.TenantId, x.CompanyId });
         });

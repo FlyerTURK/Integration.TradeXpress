@@ -1,5 +1,8 @@
 @using System
 @using System.Linq
+@using Integration.TradeXpress.Financials.CurrencyUnits
+@using Integration.TradeXpress.Blazor.Client.Pages.Financials.CurrencyUnits
+@using Integration.TradeXpress.Permissions
 @inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
 
 @*
@@ -47,6 +50,53 @@
                 <DxDateEdit @bind-Date="@Model.DiscountEndDate" ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
             </DxFormLayoutItem>
         }
+    </DxFormLayoutGroup>
+
+    @* Pazaryeri-genel varsayılanlar — tüm pazaryerleri için ortak; kanal-ürünü boş bıraktığı alanlarda bunu devralır. *@
+    <DxFormLayoutGroup Caption="@L["Product:MarketplaceDefaults"]" ColSpanMd="12">
+        <DxFormLayoutItem Caption="@L["Product:Domestic"]" ColSpanMd="6" BeginRow="true">
+            <DxCheckBox @bind-Checked="@Model.Domestic" CheckType="CheckType.Switch">
+                @(Model.Domestic ? L["Yes"] : L["No"])
+            </DxCheckBox>
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["Product:Condition"]" ColSpanMd="6">
+            <ComboBoxEnumEdit TEnum="ProductCondition" L="@L" @bind-Value="@Model.Condition" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["Product:PreparingDay"]" ColSpanMd="6" BeginRow="true">
+            <NumericSpinEdit TValue="int" @bind-Value="@Model.PreparingDay" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["Product:MaxPurchaseQuantity"]" ColSpanMd="6">
+            <NumericSpinEdit TValue="int?" @bind-Value="@Model.MaxPurchaseQuantity"
+                             ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["Product:ShipmentTemplate"]" ColSpanMd="6" BeginRow="true">
+            <DxTextBox @bind-Text="@Model.ShipmentTemplateName" NullText="@L["Optional"]" />
+        </DxFormLayoutItem>
+        @* Varsayılan para birimi — opsiyonel; inline ekle/düzelt (popup + refresh standardı). *@
+        <DxFormLayoutItem Caption="@L["Product:CurrencyUnit"]" ColSpanMd="6">
+            <LookupComboBox TItem="CurrencyUnitListDto" TValue="Guid?"
+                            Data="@CurrencyUnits"
+                            ValueFieldName="@nameof(CurrencyUnitListDto.Id)"
+                            TextFieldName="@nameof(CurrencyUnitListDto.Code)"
+                            @bind-Value="@Model.CurrencyUnitId"
+                            EditComponentType="typeof(CurrencyUnitEditHost)"
+                            OnLookupReloadRequested="@OnReloadCurrencyUnits"
+                            CreatePolicy="@TradeXpressPermissions.CurrencyUnits.Create"
+                            UpdatePolicy="@TradeXpressPermissions.CurrencyUnits.Update"
+                            AllowClear="true" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["Product:UnitType"]" ColSpanMd="6" BeginRow="true">
+            <NumericSpinEdit TValue="int?" @bind-Value="@Model.UnitType"
+                             ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["Product:UnitWeight"]" ColSpanMd="6">
+            <NumericSpinEdit TValue="int?" @bind-Value="@Model.UnitWeight"
+                             ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["Product:SellerNote"]" ColSpanMd="12">
+            <DxMemo @bind-Text="@Model.SellerNote" Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100"
+                    NullText="@L["Optional"]" />
+        </DxFormLayoutItem>
     </DxFormLayoutGroup>
 </DxFormLayout>
 
@@ -233,6 +283,37 @@
                 <DxFormLayout CssClass="w-100">
                     <ProductImageEditFields Model="img"
                                             IsDuplicateFileName="@(name => Model.Images.Any(x => x.ClientKey != img.ClientKey && string.Equals(x.FileName, name, StringComparison.OrdinalIgnoreCase)))" />
+                </DxFormLayout>
+            </EditContent>
+        </DrillList>
+    </DxTabPage>
+    @* Ürün özelleştirme alanları — pazaryeri-genel varsayılan (key zorunlu / value opsiyonel). Kanal-ürünü boşsa devralır. *@
+    <DxTabPage Text="@L["Product:SpecialInfo"]" TabIconCssClass="@TradeXpressIcons.Sliders">
+        <span style="color:#6c757d; font-size:0.85rem;">@L["Product:SpecialInfoHint"]</span>
+        <DrillList TItem="ProductSpecialInfoDto"
+                   Title="@L["Product:SpecialInfo"]"
+                   EntityName="@L["Product:SpecialInfo"]"
+                   EntityIcon="@TradeXpressIcons.Sliders"
+                   Items="@Model.SpecialInfo"
+                   PrimaryTextSelector="@(s => s.Key)"
+                   NewItemFactory="@(() => new ProductSpecialInfoDto())"
+                   SaveGuard="@SpecialInfoSaveGuard"
+                   ShowActiveFilter="false"
+                   ShowExport="false"
+                   ShowSearch="false"
+                   OnChanged="@(() => EditChanged?.Invoke())">
+            <GridColumns>
+                <DxGridDataColumn FieldName="Key" Caption="@L["Product:SpecialInfoKey"]" Width="30%" />
+                <DxGridDataColumn FieldName="Value" Caption="@L["Product:SpecialInfoValue"]" />
+            </GridColumns>
+            <EditContent Context="s">
+                <DxFormLayout CssClass="w-100">
+                    <DxFormLayoutItem Caption="@($"{L["Product:SpecialInfoKey"]} *")" ColSpanMd="12">
+                        <DxTextBox @bind-Text="@s.Key" />
+                    </DxFormLayoutItem>
+                    <DxFormLayoutItem Caption="@L["Product:SpecialInfoValue"]" ColSpanMd="12">
+                        <DxMemo @bind-Text="@s.Value" Rows="4" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100" />
+                    </DxFormLayoutItem>
                 </DxFormLayout>
             </EditContent>
         </DrillList>

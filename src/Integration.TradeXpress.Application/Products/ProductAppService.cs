@@ -133,6 +133,9 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         entity.SetImages(MapImages(input.Images));
         entity.SetDiscount(input.DiscountType, input.DiscountValue, input.DiscountStartDate, input.DiscountEndDate);
         entity.SetShelfLife(input.ProductionDate, input.ExpirationDate);
+        ApplyMarketplaceDefaults(entity, input.Domestic, input.Condition, input.PreparingDay,
+            input.ShipmentTemplateName, input.MaxPurchaseQuantity, input.SellerNote, input.CurrencyUnitId,
+            input.UnitType, input.UnitWeight, input.SpecialInfo);
         await _repository.InsertAsync(entity, autoSave: true);
 
         var valueIdByClientKey = await SaveAttributesAsync(entity, input.Attributes);
@@ -156,6 +159,9 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         entity.SetImages(MapImages(input.Images));
         entity.SetDiscount(input.DiscountType, input.DiscountValue, input.DiscountStartDate, input.DiscountEndDate);
         entity.SetShelfLife(input.ProductionDate, input.ExpirationDate);
+        ApplyMarketplaceDefaults(entity, input.Domestic, input.Condition, input.PreparingDay,
+            input.ShipmentTemplateName, input.MaxPurchaseQuantity, input.SellerNote, input.CurrencyUnitId,
+            input.UnitType, input.UnitWeight, input.SpecialInfo);
         await DeleteOrphanImageBlobsAsync(oldImages, entity.Images);
         await _repository.UpdateAsync(entity, autoSave: true);
 
@@ -748,6 +754,33 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         return string.Join("|", clientKeys.OrderBy(k => k));
     }
 
+    /// <summary>Pazaryeri-genel varsayılanları üründe ayarlar (Create+Update ortak; entity setterları fail-fast +
+    /// normalize eder). SpecialInfo boş key'li satırları eler (SetSpecialInfo).</summary>
+    private static void ApplyMarketplaceDefaults(
+        Product entity,
+        bool domestic,
+        ProductCondition condition,
+        int preparingDay,
+        string? shipmentTemplateName,
+        int? maxPurchaseQuantity,
+        string? sellerNote,
+        Guid? currencyUnitId,
+        int? unitType,
+        int? unitWeight,
+        List<ProductSpecialInfoDto> specialInfo)
+    {
+        entity.SetDomestic(domestic);
+        entity.SetCondition(condition);
+        entity.SetPreparingDay(preparingDay);
+        entity.SetShipmentTemplate(shipmentTemplateName);
+        entity.SetMaxPurchaseQuantity(maxPurchaseQuantity);
+        entity.SetSellerNote(sellerNote);
+        entity.SetCurrencyUnit(currencyUnitId);
+        entity.SetUnitInfo(unitType, unitWeight);
+        entity.SetSpecialInfo((specialInfo ?? new List<ProductSpecialInfoDto>())
+            .Select(s => new ProductSpecialInfo(s.Key, s.Value)));
+    }
+
     /// <summary>Görsel graf düğümlerini owned tiplere çevirir (normalize/kırpma entity SetImages'ta).</summary>
     private static List<ProductImage> MapImages(List<ProductImageGraphDto> images)
     {
@@ -919,6 +952,18 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
             DiscountEndDate = p.DiscountEndDate,
             ProductionDate = p.ProductionDate,
             ExpirationDate = p.ExpirationDate,
+            Domestic = p.Domestic,
+            Condition = p.Condition,
+            PreparingDay = p.PreparingDay,
+            ShipmentTemplateName = p.ShipmentTemplateName,
+            MaxPurchaseQuantity = p.MaxPurchaseQuantity,
+            SellerNote = p.SellerNote,
+            CurrencyUnitId = p.CurrencyUnitId,
+            UnitType = p.UnitType,
+            UnitWeight = p.UnitWeight,
+            SpecialInfo = p.SpecialInfo
+                .Select(s => new ProductSpecialInfoDto { Key = s.Key, Value = s.Value })
+                .ToList(),
             SalesChannelProducts = channelProducts,
             Attributes = attributes.Select(a => new ProductAttributeGraphDto
             {
