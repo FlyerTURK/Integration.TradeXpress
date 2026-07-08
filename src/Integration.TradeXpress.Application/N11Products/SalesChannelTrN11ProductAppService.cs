@@ -540,23 +540,20 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
         // ── Faz 1: kategori-farkındalıklı validasyon — varyant EKSENLERİNİ kategori belirler (isVariant seti),
         // customValue=false değer listeden birebir, zorunlu eksen her SKU'da dolu; sapma FAIL-FAST.
         var leaf = await GetLeafAttributesCachedAsync(channelProduct.CategoryExternalId, channel);
-        var candidates = variants
-            .Select(v => new N11SkuPushCandidate(
-                v.Id,
-                v.Code,
-                (variantOptions.TryGetValue(v.Id, out var opts) ? opts : new List<N11ProductAttributePair>())
-                    .Select(p => new SalesChannelTrN11ProductAttribute(p.Name, p.Value))
-                    .ToList()))
-            .ToList();
+
+        // Adaylar: N11 SİHİRBAZI (VariantAxes) doluysa eksen kartezyeni → her kombinasyon isim/değer imzasıyla
+        // ERP varyantına eşleşir (fiyat/stok/kod ORADAN); boşsa ERP varyantları doğrudan (mevcut davranış).
+        var variantById = variants.ToDictionary(v => v.Id);
+        var candidates = BuildPushCandidates(channelProduct, variants, variantOptions);
         var validated = _pushValidator.Validate(leaf, channelProduct.Attributes, candidates);
 
         // Reconcile/imza adayları KANONİK değerlerle kurulur (validated) — RecordSkuPush snapshot'ı da kanonik
         // olduğundan, sonraki push'ta imza eşleşmesi ham/kanonik karışımından ETKİLENMEZ (review bulgusu).
-        var canonicalCandidates = variants
-            .Select(v => new N11SkuPushCandidate(
-                v.Id,
-                v.Code,
-                (validated.VariantOptions.TryGetValue(v.Id, out var cp) ? cp : new List<N11ProductAttributePair>())
+        var canonicalCandidates = candidates
+            .Select(c => new N11SkuPushCandidate(
+                c.VariantId,
+                c.VariantCode,
+                (validated.VariantOptions.TryGetValue(c.VariantId, out var cp) ? cp : new List<N11ProductAttributePair>())
                     .Select(p => new SalesChannelTrN11ProductAttribute(p.Name, p.Value))
                     .ToList()))
             .ToList();
@@ -565,14 +562,20 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
         // Satırlar ancak BAŞARILI push sonrası ReconcileSkus ile kalıcılaşır — başarısız push bayat kod dondurmasın.
         var stockCodePlan = channelProduct.PlanStockCodes(canonicalCandidates);
 
-        var stockItems = variants.Select(v => new N11ProductStockItem(
-            SellerStockCode: stockCodePlan[v.Id],
-            Quantity: v.StockQuantity,
-            OptionPrice: v.SalePrice,
-            Attributes: validated.VariantOptions.TryGetValue(v.Id, out var pairs) ? pairs : new List<N11ProductAttributePair>(),
-            Gtin: v.Gtin,
-            Mpn: v.Mpn,
-            Oem: v.Oem)).ToList();
+        // stockItem'lar ADAY-bazlı: fiyat/stok/kimlik eşleşen ERP varyantından, attribute'ler validasyondan geçen
+        // (sihirbaz kullanıldıysa N11-uyumlu ad/değer, aksi halde ERP nitelikleri).
+        var stockItems = canonicalCandidates.Select(c =>
+        {
+            var v = variantById[c.VariantId];
+            return new N11ProductStockItem(
+                SellerStockCode: stockCodePlan[c.VariantId],
+                Quantity: v.StockQuantity,
+                OptionPrice: v.SalePrice,
+                Attributes: validated.VariantOptions.TryGetValue(c.VariantId, out var pairs) ? pairs : new List<N11ProductAttributePair>(),
+                Gtin: v.Gtin,
+                Mpn: v.Mpn,
+                Oem: v.Oem);
+        }).ToList();
 
         var images = imageUrls
             .Select((url, index) => new N11ProductImage(url, index + 1))
@@ -602,6 +605,83 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
     /// <summary>Push planı — N11'e gidecek veri + BAŞARILI push sonrası SKU satırlarını kurmak için kanonik adaylar
     /// (kod donması yalnız başarılı push'ta gerçekleşsin diye ReconcileSkus çağrısı push sonrasına ertelenir).</summary>
     private sealed record N11ProductPushPlan(N11ProductData Data, List<N11SkuPushCandidate> Candidates);
+
+    // Push adayları: sihirbaz (VariantAxes) varsa eksen kartezyeni → her kombinasyon imza eşleşen ERP varyantından
+    // fiyat/stok/kod alır (attribute = N11 ad/değer); yoksa ERP varyantları doğrudan (nitelikleri stockItem'a gider).
+    private List<N11SkuPushCandidate> BuildPushCandidates(
+        SalesChannelTrN11Product channelProduct,
+        List<ProductVariant> variants,
+        Dictionary<Guid, List<N11ProductAttributePair>> variantOptions)
+    {
+        if (channelProduct.VariantAxes.Count == 0)
+        {
+            return variants
+                .Select(v => new N11SkuPushCandidate(
+                    v.Id,
+                    v.Code,
+                    (variantOptions.TryGetValue(v.Id, out var opts) ? opts : new List<N11ProductAttributePair>())
+                        .Select(p => new SalesChannelTrN11ProductAttribute(p.Name, p.Value))
+                        .ToList()))
+                .ToList();
+        }
+
+        var combinations = BuildAxisCombinations(channelProduct.VariantAxes);
+        var result = new List<N11SkuPushCandidate>();
+        foreach (var combo in combinations)
+        {
+            // TAM imza eşleşmesi: N11 eksen seti, ERP varyantının nitelik setini BİREBİR kapsamalı (isim/değer kararı).
+            // Fazladan/eksik nitelik → imza farkı → eşleşme yok → net hata (kullanıcı N11 eksenlerini üründekiyle hizalar).
+            var signature = AxisSignature(combo.Select(p => (p.Name, p.Value)));
+            var match = variants.FirstOrDefault(v =>
+                variantOptions.TryGetValue(v.Id, out var opts)
+                && AxisSignature(opts.Select(p => (p.Name, p.Value))) == signature);
+            if (match is null)
+            {
+                var comboText = string.Join(", ", combo.Select(p => $"{p.Name}: {p.Value}"));
+                throw new BusinessException("TradeXpress:N11:Product:AxisCombinationNoVariant").WithData("Combination", comboText);
+            }
+
+            result.Add(new N11SkuPushCandidate(
+                match.Id,
+                match.Code,
+                combo.Select(p => new SalesChannelTrN11ProductAttribute(p.Name, p.Value)).ToList()));
+        }
+
+        return result;
+    }
+
+    // Eksenlerin DEĞER KARTEZYENİ — [Beden:{S,M}, Renk:{K,M}] → {Beden:S,Renk:K}, {Beden:S,Renk:M}, ...
+    private static List<List<N11ProductAttributePair>> BuildAxisCombinations(List<SalesChannelTrN11ProductVariantAxis> axes)
+    {
+        var result = new List<List<N11ProductAttributePair>> { new() };
+        foreach (var axis in axes)
+        {
+            var next = new List<List<N11ProductAttributePair>>();
+            foreach (var partial in result)
+            {
+                foreach (var value in axis.Values)
+                {
+                    next.Add(new List<N11ProductAttributePair>(partial) { new(axis.Name, value) });
+                }
+            }
+
+            result = next;
+        }
+
+        return result;
+    }
+
+    // Ada göre sıralı, Türkçe-normalize "NAME<US>VALUE" çiftleri <RS> ile — entity SignatureOf ile aynı mantık
+    // (İ/ı katlaması tutarlı; ayraçlar metinde geçmez → birleşim belirsizliği yok).
+    private static string AxisSignature(IEnumerable<(string Name, string Value)> pairs)
+    {
+        var turkish = CultureInfo.GetCultureInfo("tr-TR");
+        return string.Join(
+            '',
+            pairs
+                .Select(p => $"{p.Name.Trim().ToUpper(turkish)}{p.Value.Trim().ToUpper(turkish)}")
+                .OrderBy(x => x, StringComparer.Ordinal));
+    }
 
     // Ürün-seviyesi indirimi N11 ProductDiscountRequest'e çevirir (SaveProduct; None → null → elementi gitmez).
     // N11 type: Amount="1", Percentage="2" (canlı doğrulanacak). Tarih N11 formatı "dd/MM/yyyy"; yoksa boş.

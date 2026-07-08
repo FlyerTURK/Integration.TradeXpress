@@ -914,6 +914,7 @@
     "N11Product:VariantAxes": "N11 Variant Axes",
     "N11Product:VariantAxis": "Variant Axis",
     "N11Product:VariantAxesHint": "Define the N11 category's variant axes (e.g. Size, Color) and their values here. If left empty, the product variants' attributes are used. Price/stock come from the product variant with matching values.",
-    "TradeXpress:N11:Product:DuplicateVariantAxis": "The same variant axis cannot be defined more than once."
+    "TradeXpress:N11:Product:DuplicateVariantAxis": "The same variant axis cannot be defined more than once.",
+    "TradeXpress:N11:Product:AxisCombinationNoVariant": "No product variant matches the '{Combination}' variant combination. N11 axes must cover the product variant's attributes EXACTLY (extra/missing attribute breaks matching); define a variant with the same values."
   }
 }
