@@ -4,6 +4,10 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Integration.TradeXpress.Trendyol;
+using Microsoft.Extensions.Caching.Distributed;
+using Microsoft.Extensions.Logging;
+using Volo.Abp;
+using Volo.Abp.Caching;
 using Volo.Abp.Domain.Repositories;
 
 namespace Integration.TradeXpress.TrendyolCategories;
@@ -19,15 +23,18 @@ public class TrendyolCategoryAppService : TradeXpressAppService, ITrendyolCatego
     private readonly IRepository<TrendyolCategory, Guid> _repository;
     private readonly ITrendyolCategoryClient _client;
     private readonly ITrendyolCredentialResolver _credentialResolver;
+    private readonly IDistributedCache<TrendyolLeafAttributes> _leafAttributeCache;
 
     public TrendyolCategoryAppService(
         IRepository<TrendyolCategory, Guid> repository,
         ITrendyolCategoryClient client,
-        ITrendyolCredentialResolver credentialResolver)
+        ITrendyolCredentialResolver credentialResolver,
+        IDistributedCache<TrendyolLeafAttributes> leafAttributeCache)
     {
         _repository = repository;
         _client = client;
         _credentialResolver = credentialResolver;
+        _leafAttributeCache = leafAttributeCache;
     }
 
     public virtual async Task<int> SyncCategoriesAsync()
@@ -108,6 +115,52 @@ public class TrendyolCategoryAppService : TradeXpressAppService, ITrendyolCatego
                 .OrderBy(x => x.Path, StringComparer.CurrentCultureIgnoreCase)
                 .Take(50)
                 .ToList();
+        }
+    }
+
+    public virtual async Task<List<TrendyolLeafAttributeDto>> GetLeafAttributesAsync(string categoryExternalId)
+    {
+        var leaf = await GetLeafAttributesCachedAsync(categoryExternalId);
+
+        // Client kayıtları → DTO (entity değil → inline map serbest). Varianter filtreleme UI'ya bırakılır (SKU seviyesi).
+        return leaf.Attributes.Select(a => new TrendyolLeafAttributeDto
+        {
+            AttributeId = a.AttributeId,
+            Name = a.Name,
+            Required = a.Required,
+            Varianter = a.Varianter,
+            AllowCustom = a.AllowCustom,
+            Values = a.Values.Select(v => new TrendyolAttributeValueDto { ValueId = v.ValueId, Value = v.Value }).ToList(),
+        }).ToList();
+    }
+
+    /// <summary>Yaprak attribute tanımını 6 saat dağıtık cache'ler (N11 <c>GetLeafAttributesCachedAsync</c> deseni; tanımlar
+    /// nadiren değişir, her seçimde Trendyol'a gitmeye gerek yok). Kimlik yalnız cache-miss'te çözülür. Alınamazsa fail-fast.</summary>
+    private async Task<TrendyolLeafAttributes> GetLeafAttributesCachedAsync(string categoryExternalId)
+    {
+        try
+        {
+            return (await _leafAttributeCache.GetOrAddAsync(
+                $"TrendyolLeafAttributes:{categoryExternalId}",
+                async () =>
+                {
+                    var credentials = await _credentialResolver.ResolveForCurrentCompanyAsync();
+                    return await _client.GetLeafAttributesAsync(credentials, categoryExternalId);
+                },
+                () => new DistributedCacheEntryOptions
+                {
+                    AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(6),
+                }))!;
+        }
+        catch (BusinessException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Trendyol kategori attribute tanımı alınamadı ({CategoryId}).", categoryExternalId);
+            throw new BusinessException("TradeXpress:Trendyol:Category:AttributesUnavailable")
+                .WithData("CategoryId", categoryExternalId);
         }
     }
 

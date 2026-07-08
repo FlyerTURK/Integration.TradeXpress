@@ -668,6 +668,8 @@
     "TradeXpress:Trendyol:Product:ProductNotFound": "Product not found.",
     "TradeXpress:Trendyol:Product:CompanyRequired": "A working company must be selected for this operation.",
     "TradeXpress:Trendyol:Category:FetchFailed": "The Trendyol category data could not be fetched (HTTP {status}).",
+    "TradeXpress:Trendyol:Category:AttributesFetchFailed": "The Trendyol category attributes could not be fetched ({CategoryId}, HTTP {status}).",
+    "TradeXpress:Trendyol:Category:AttributesUnavailable": "The Trendyol category definition could not be retrieved ({CategoryId}). Please try again.",
     "TradeXpress:Trendyol:Brand:SearchFailed": "The Trendyol brand data could not be fetched (HTTP {status}).",
     "TradeXpress:Trendyol:NoChannelForCompany": "This company has no Trendyol sales channel; the category tree cannot be fetched.",
     "TradeXpress:Trendyol:ChannelNotFound": "The Trendyol sales channel was not found.",

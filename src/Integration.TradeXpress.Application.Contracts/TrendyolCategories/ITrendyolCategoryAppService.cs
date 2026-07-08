@@ -20,4 +20,8 @@ public interface ITrendyolCategoryAppService : IApplicationService
     /// <summary>Yaprak kategori SERVER-SIDE arama (LookupEdit): en az 3 harf; Türkçe aksan/case-duyarsız ("kul"→"Kül").
     /// Tam yol adıyla döner (yaprak adları tekrar ettiğinden), en fazla 50 sonuç. &lt;3 harf → boş.</summary>
     Task<List<TrendyolLeafCategoryDto>> SearchLeafCategoriesAsync(string term);
+
+    /// <summary>Bir YAPRAK kategorinin attribute+value tanımlarını (id-bazlı) çeker — 6 saat dağıtık cache'li (kanalın
+    /// KENDİ kimliğiyle Trendyol'dan; tanımlar nadiren değişir). Alınamazsa <c>BusinessException</c> (fail-fast).</summary>
+    Task<List<TrendyolLeafAttributeDto>> GetLeafAttributesAsync(string categoryExternalId);
 }
