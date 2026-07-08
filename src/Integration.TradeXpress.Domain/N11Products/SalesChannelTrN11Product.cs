@@ -167,6 +167,22 @@ public class SalesChannelTrN11Product : FullAuditedAggregateRoot<Guid>, IMultiTe
     /// <summary>Alıcı başına maksimum satın alım adedi (opsiyonel).</summary>
     public virtual int? MaxPurchaseQuantity { get; protected set; }
 
+    /// <summary>N11 para birimi (opsiyonel; id-only, nav yok). Push'ta currencyType bundan çözülür — boşsa varyant
+    /// para birimi devralınır.</summary>
+    public virtual Guid? CurrencyUnitId { get; protected set; }
+
+    /// <summary>Kanal-özel üretim tarihi (opsiyonel). Push'ta kanal değeri ürün üretim tarihinden önce gelir.</summary>
+    public virtual DateTime? ProductionDate { get; protected set; }
+
+    /// <summary>Kanal-özel son kullanma tarihi (opsiyonel). Push'ta kanal değeri ürün son kullanma tarihinden önce gelir.</summary>
+    public virtual DateTime? ExpirationDate { get; protected set; }
+
+    /// <summary>N11 unitInfo/unitType (opsiyonel; semantiği canlı-test belirsiz → düz sayı).</summary>
+    public virtual int? UnitType { get; protected set; }
+
+    /// <summary>N11 unitInfo/unitWeight (opsiyonel).</summary>
+    public virtual int? UnitWeight { get; protected set; }
+
     /// <summary>N11 satıcı notu (sellerNote) — kanal-özel kısa düz not (opsiyonel).</summary>
     public virtual string? SellerNote { get; protected set; }
 
@@ -247,6 +263,46 @@ public class SalesChannelTrN11Product : FullAuditedAggregateRoot<Guid>, IMultiTe
         }
 
         MaxPurchaseQuantity = maxPurchaseQuantity;
+    }
+
+    /// <summary>N11 para birimi (opsiyonel; sadece atama, boş=null). Push'ta currencyType bunu önceler.</summary>
+    public virtual void SetCurrencyUnit(Guid? currencyUnitId)
+    {
+        CurrencyUnitId = currencyUnitId == Guid.Empty ? null : currencyUnitId;
+    }
+
+    /// <summary>Kanal-özel üretim tarihi (opsiyonel; sadece atama).</summary>
+    public virtual void SetProductionDate(DateTime? productionDate)
+    {
+        ProductionDate = productionDate;
+    }
+
+    /// <summary>Kanal-özel son kullanma tarihi (opsiyonel; sadece atama).</summary>
+    public virtual void SetExpirationDate(DateTime? expirationDate)
+    {
+        ExpirationDate = expirationDate;
+    }
+
+    /// <summary>N11 unitInfo/unitType (opsiyonel) — negatif değer fail-fast.</summary>
+    public virtual void SetUnitType(int? unitType)
+    {
+        if (unitType is { } value && value < 0)
+        {
+            throw new BusinessException("TradeXpress:N11:Product:UnitTypeInvalid");
+        }
+
+        UnitType = unitType;
+    }
+
+    /// <summary>N11 unitInfo/unitWeight (opsiyonel) — negatif değer fail-fast.</summary>
+    public virtual void SetUnitWeight(int? unitWeight)
+    {
+        if (unitWeight is { } value && value < 0)
+        {
+            throw new BusinessException("TradeXpress:N11:Product:UnitWeightInvalid");
+        }
+
+        UnitWeight = unitWeight;
     }
 
     /// <summary>N11 satıcı notu (opsiyonel; boş değilse trim + max).</summary>

@@ -546,14 +546,15 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
             throw new BusinessException("TradeXpress:N11:Product:NoPricedVariant");
         }
 
-        // Tek para birimi zorunlu (N11 ürün başına tek currencyType).
+        // Tek para birimi zorunlu (N11 ürün başına tek currencyType). Kanal para birimi seçiliyse O belirler
+        // → varyantlar farklı birimde olsa da karışıklık yok (MixedCurrency yalnız kanal seçilmemişken denetlenir).
         var currencyUnitIds = variants.Select(v => v.SalePriceCurrencyUnitId).Where(x => x is not null).Distinct().ToList();
-        if (currencyUnitIds.Count > 1)
+        if (channelProduct.CurrencyUnitId is null && currencyUnitIds.Count > 1)
         {
             throw new BusinessException("TradeXpress:N11:Product:MixedCurrency");
         }
 
-        var currencyType = await ResolveCurrencyTypeAsync(currencyUnitIds.FirstOrDefault());
+        var currencyType = await ResolveCurrencyTypeAsync(channelProduct.CurrencyUnitId ?? currencyUnitIds.FirstOrDefault());
         var variantOptions = await LoadVariantOptionsAsync(product.Id, variants.Select(v => v.Id).ToList());
 
         // ── Faz 1: kategori-farkındalıklı validasyon — varyant EKSENLERİNİ kategori belirler (isVariant seti),
@@ -624,8 +625,11 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
             SpecialInfo: channelProduct.SpecialInfo.Select(s => new N11ProductSpecialInfo(s.Key, s.Value)).ToList(),
             Discount: BuildDiscount(product),              // ürün-seviyesi indirim (None ise null)
             SellerNote: channelProduct.SellerNote,         // kanal-özel not
-            ProductionDate: FormatN11Date(product.ProductionDate),   // "dd/MM/yyyy" (boşsa boş → gönderilmez)
-            ExpirationDate: FormatN11Date(product.ExpirationDate));
+            // Kanal-özel tarih önce, yoksa ürün tarihi devralınır ("dd/MM/yyyy"; boşsa boş → gönderilmez).
+            ProductionDate: FormatN11Date(channelProduct.ProductionDate ?? product.ProductionDate),
+            ExpirationDate: FormatN11Date(channelProduct.ExpirationDate ?? product.ExpirationDate),
+            UnitType: channelProduct.UnitType,             // N11 unitInfo (opsiyonel; yalnız UnitType doluysa gönderilir)
+            UnitWeight: channelProduct.UnitWeight);
 
         return new N11ProductPushPlan(data, canonicalCandidates);
     }
@@ -776,6 +780,11 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
         entity.SetDomestic(input.Domestic);
         entity.SetPreparingDay(input.PreparingDay);
         entity.SetMaxPurchaseQuantity(input.MaxPurchaseQuantity);
+        entity.SetCurrencyUnit(input.CurrencyUnitId);
+        entity.SetProductionDate(input.ProductionDate);
+        entity.SetExpirationDate(input.ExpirationDate);
+        entity.SetUnitType(input.UnitType);
+        entity.SetUnitWeight(input.UnitWeight);
         entity.SetActive(input.IsActive);
         entity.SetSellerNote(input.SellerNote);
         entity.SetDescription(input.Description);

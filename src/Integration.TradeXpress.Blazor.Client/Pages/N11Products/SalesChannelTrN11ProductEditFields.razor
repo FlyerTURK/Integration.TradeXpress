@@ -1,4 +1,6 @@
 @inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+@using Integration.TradeXpress.Blazor.Client.Pages.Financials.CurrencyUnits
+@using Integration.TradeXpress.Permissions
 
 @* N11 ürün listeleme edit formu. Form GENELİ tanımlar (kategori + genel alanlar) üstte; ekranda yer kaplayan
    listeler (nitelikler, varyant eksenleri, görseller, SKU'lar, durum) DrillTabs sekmelerine ayrılır. *@
@@ -46,6 +48,35 @@
         </DxFormLayoutItem>
         <DxFormLayoutItem Caption="@L["N11Product:MaxPurchaseQuantity"]" ColSpanMd="6">
             <NumericSpinEdit TValue="int?" @bind-Value="@Model.MaxPurchaseQuantity"
+                             ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
+        </DxFormLayoutItem>
+        @* N11 para birimi — opsiyonel; boşsa push'ta varyant para birimi devralınır. Inline ekle/düzelt (popup + refresh standardı). *@
+        <DxFormLayoutItem Caption="@L["N11Product:CurrencyUnit"]" ColSpanMd="6">
+            <LookupComboBox TItem="CurrencyUnitListDto" TValue="Guid?"
+                            Data="@_units"
+                            ValueFieldName="@nameof(CurrencyUnitListDto.Id)"
+                            TextFieldName="@nameof(CurrencyUnitListDto.Code)"
+                            @bind-Value="@Model.CurrencyUnitId"
+                            EditComponentType="typeof(CurrencyUnitEditHost)"
+                            OnLookupReloadRequested="@ReloadCurrencyUnitsAsync"
+                            CreatePolicy="@TradeXpressPermissions.CurrencyUnits.Create"
+                            UpdatePolicy="@TradeXpressPermissions.CurrencyUnits.Update"
+                            AllowClear="true" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["N11Product:ProductionDate"]" ColSpanMd="6">
+            <DxDateEdit @bind-Date="@Model.ProductionDate" NullText="@L["Optional"]"
+                        ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["N11Product:ExpirationDate"]" ColSpanMd="6">
+            <DxDateEdit @bind-Date="@Model.ExpirationDate" NullText="@L["Optional"]"
+                        ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["N11Product:UnitType"]" ColSpanMd="6">
+            <NumericSpinEdit TValue="int?" @bind-Value="@Model.UnitType"
+                             ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["N11Product:UnitWeight"]" ColSpanMd="6">
+            <NumericSpinEdit TValue="int?" @bind-Value="@Model.UnitWeight"
                              ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
         </DxFormLayoutItem>
         <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6">
@@ -112,23 +143,37 @@
     }
 
 
-    @* Seyahat özel bilgileri — YALNIZ Seyahat kategorisinde. *@
-    @if (IsTravelCategory)
-    {
-        <DxTabPage Text="@L["N11Product:SpecialInfo"]" TabIconCssClass="@TradeXpressIcons.Sliders">
-            <span style="color:#6c757d; font-size:0.85rem;">@L["N11Product:SpecialInfoHint"]</span>
-            <DxFormLayout CssClass="w-100">
-                @foreach (var key in SpecialInfoKeys)
-                {
-                    var k = key;
-                    <DxFormLayoutItem Caption="@L[$"N11Product:SpecialInfo:{k}"]" ColSpanMd="12">
-                        <DxMemo Text="@GetSpecialInfo(k)" TextChanged="@((string v) => SetSpecialInfo(k, v))"
-                                Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100" ValidationEnabled="false" />
+    @* Ürün özel bilgileri — KOŞULSUZ (her kategoride): serbest key/value satırları. Boş key kabul edilmez. *@
+    <DxTabPage Text="@L["N11Product:SpecialInfo"]" TabIconCssClass="@TradeXpressIcons.Sliders">
+        <span style="color:#6c757d; font-size:0.85rem;">@L["N11Product:SpecialInfoHint"]</span>
+        <DrillList TItem="SalesChannelTrN11ProductSpecialInfoDto"
+                   Title="@L["N11Product:SpecialInfo"]"
+                   EntityName="@L["N11Product:SpecialInfo"]"
+                   EntityIcon="@TradeXpressIcons.Sliders"
+                   Items="@Model.SpecialInfo"
+                   PrimaryTextSelector="@(s => s.Key)"
+                   NewItemFactory="@(() => new SalesChannelTrN11ProductSpecialInfoDto())"
+                   SaveGuard="@SpecialInfoSaveGuard"
+                   ShowActiveFilter="false"
+                   ShowExport="false"
+                   ShowSearch="false"
+                   OnChanged="@(() => MarkDirty(nameof(Model.SpecialInfo)))">
+            <GridColumns>
+                <DxGridDataColumn FieldName="Key" Caption="@L["N11Product:SpecialInfoKey"]" Width="30%" />
+                <DxGridDataColumn FieldName="Value" Caption="@L["N11Product:SpecialInfoValue"]" />
+            </GridColumns>
+            <EditContent Context="s">
+                <DxFormLayout CssClass="w-100">
+                    <DxFormLayoutItem Caption="@($"{L["N11Product:SpecialInfoKey"]} *")" ColSpanMd="12">
+                        <DxTextBox @bind-Text="@s.Key" />
                     </DxFormLayoutItem>
-                }
-            </DxFormLayout>
-        </DxTabPage>
-    }
+                    <DxFormLayoutItem Caption="@L["N11Product:SpecialInfoValue"]" ColSpanMd="12">
+                        <DxMemo @bind-Text="@s.Value" Rows="4" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100" />
+                    </DxFormLayoutItem>
+                </DxFormLayout>
+            </EditContent>
+        </DrillList>
+    </DxTabPage>
 
     @* Görseller — N11'e GİDECEK varyantlar + görseller önizlemesi (read-only; SSOT ERP ürün formunda). *@
     @if (_preview is { Variants.Count: > 0 } or { Images.Count: > 0 })

@@ -132,6 +132,13 @@ public sealed class N11ProductClient : IN11ProductClient, ITransientDependency
                 : null,
             new XElement("shipmentTemplate", p.ShipmentTemplate),
             new XElement("stockItems", p.StockItems.Select(BuildStockItem)),
+            // WSDL sırası: stockItems → unitInfo → maxPurchaseQuantity → sellerNote. Yalnız unitType doluysa gönderilir
+            // (opsiyonel blok; unitWeight boşsa 0). ProductUnitInfoModel: unitType → unitWeight.
+            p.UnitType is { } unitType
+                ? new XElement("unitInfo",
+                    new XElement("unitType", unitType.ToString(CultureInfo.InvariantCulture)),
+                    new XElement("unitWeight", (p.UnitWeight ?? 0).ToString(CultureInfo.InvariantCulture)))
+                : null,
             p.MaxPurchaseQuantity is { } mpq
                 ? new XElement("maxPurchaseQuantity", mpq.ToString(CultureInfo.InvariantCulture))
                 : null,

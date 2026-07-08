@@ -12,9 +12,12 @@ public class SalesChannelTrN11ProductAttributeDto
     public string Value { get; set; } = string.Empty;
 }
 
-/// <summary>N11 Seyahat özel bilgi (key/value; key=TurProgrami/IptalIadeKosullari/EkHizmetler).</summary>
+/// <summary>N11 ürün özel bilgi (serbest key/value; her kategoride kullanılabilir). <see cref="ClientKey"/> yalnız
+/// in-memory DrillList satır kimliği (persist edilmez; entity Key/Value tutar).</summary>
 public class SalesChannelTrN11ProductSpecialInfoDto
 {
+    /// <summary>İstemci-taraflı satır kimliği (DrillList grid identity) — persist edilmez.</summary>
+    public Guid ClientKey { get; set; } = Guid.NewGuid();
     public string Key { get; set; } = string.Empty;
     public string Value { get; set; } = string.Empty;
 }
@@ -90,6 +93,21 @@ public class SalesChannelTrN11ProductDto
     public int PreparingDay { get; set; }
     public int? MaxPurchaseQuantity { get; set; }
 
+    /// <summary>N11 para birimi (opsiyonel; push'ta currencyType bundan çözülür).</summary>
+    public Guid? CurrencyUnitId { get; set; }
+
+    /// <summary>Kanal-özel üretim tarihi (opsiyonel).</summary>
+    public DateTime? ProductionDate { get; set; }
+
+    /// <summary>Kanal-özel son kullanma tarihi (opsiyonel).</summary>
+    public DateTime? ExpirationDate { get; set; }
+
+    /// <summary>N11 unitInfo/unitType (opsiyonel).</summary>
+    public int? UnitType { get; set; }
+
+    /// <summary>N11 unitInfo/unitWeight (opsiyonel).</summary>
+    public int? UnitWeight { get; set; }
+
     /// <summary>N11 satıcı notu (kanal-özel kısa düz not; opsiyonel).</summary>
     public string? SellerNote { get; set; }
 
@@ -125,6 +143,11 @@ public interface ISalesChannelTrN11ProductInput
     bool Domestic { get; }
     int PreparingDay { get; }
     int? MaxPurchaseQuantity { get; }
+    Guid? CurrencyUnitId { get; }
+    DateTime? ProductionDate { get; }
+    DateTime? ExpirationDate { get; }
+    int? UnitType { get; }
+    int? UnitWeight { get; }
     bool IsActive { get; }
     string? SellerNote { get; }
     string? Description { get; }
@@ -144,6 +167,11 @@ public class SalesChannelTrN11ProductCreateDto : ISalesChannelTrN11ProductInput
     public bool Domestic { get; set; } = true;
     public int PreparingDay { get; set; } = 1;
     public int? MaxPurchaseQuantity { get; set; }
+    public Guid? CurrencyUnitId { get; set; }
+    public DateTime? ProductionDate { get; set; }
+    public DateTime? ExpirationDate { get; set; }
+    public int? UnitType { get; set; }
+    public int? UnitWeight { get; set; }
     public bool IsActive { get; set; } = true;
     public string? SellerNote { get; set; }
     public string? Description { get; set; }
@@ -161,6 +189,11 @@ public class SalesChannelTrN11ProductUpdateDto : ISalesChannelTrN11ProductInput
     public bool Domestic { get; set; } = true;
     public int PreparingDay { get; set; } = 1;
     public int? MaxPurchaseQuantity { get; set; }
+    public Guid? CurrencyUnitId { get; set; }
+    public DateTime? ProductionDate { get; set; }
+    public DateTime? ExpirationDate { get; set; }
+    public int? UnitType { get; set; }
+    public int? UnitWeight { get; set; }
     public bool IsActive { get; set; } = true;
     public string? SellerNote { get; set; }
     public string? Description { get; set; }

@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using DevExpress.Blazor;
 using Integration.Framework.Blazor.Client.Components.Crud;
 using Integration.Framework.Blazor.Client.Services.Base;
+using Integration.TradeXpress.Financials.CurrencyUnits;
 using Integration.TradeXpress.N11Categories;
 using Integration.TradeXpress.N11Products;
 using Integration.TradeXpress.N11Shipments;
@@ -44,6 +45,7 @@ public partial class SalesChannelTrN11ProductEditFields : CrudComponentBase
     [Inject] private IN11ShipmentTemplateAppService ShipmentTemplateAppService { get; set; } = default!;
     [Inject] private IN11CategoryAppService CategoryAppService { get; set; } = default!;
     [Inject] private ISalesChannelTrN11ProductAppService ProductAppService { get; set; } = default!;
+    [Inject] private ILookupCache<CurrencyUnitListDto> CurrencyLookup { get; set; } = default!;
     [Inject] private IUiInteractionService UiService { get; set; } = default!;
     [Inject] private IServiceProvider ServiceProvider { get; set; } = default!;
 
@@ -51,6 +53,10 @@ public partial class SalesChannelTrN11ProductEditFields : CrudComponentBase
 
     private List<N11ShipmentTemplateDto> _templates = new();
     private List<N11CategoryAttributeDto> _attributeDefs = new();
+
+    // N11 para birimi lookup verisi (döviz cache; inline ekle/düzelt sonrası ReloadCurrencyUnitsAsync ile tazelenir).
+    private List<CurrencyUnitListDto> _units = new();
+    private bool _unitsLoaded;
 
     // Attribute grid satırları (def + o anki değer) — inline edit-row; değer editörü satır tipine göre değişir.
     private List<N11AttributeRow> _attributeRows = new();
@@ -66,20 +72,45 @@ public partial class SalesChannelTrN11ProductEditFields : CrudComponentBase
     private string ChannelName =>
         Channels.FirstOrDefault(c => c.Id == Model.SalesChannelId)?.Code ?? Model.SalesChannelId.ToString();
 
-    // Seyahat özel bilgi anahtarları (N11 specialProductInfoList) — yalnız Seyahat kategorisi ürünleri.
-    private static readonly string[] SpecialInfoKeys = { "TurProgrami", "IptalIadeKosullari", "EkHizmetler" };
-
-    /// <summary>Seçili kategori Seyahat dalında mı — TAM YOL adı "Seyahat" içeriyorsa (Model.CategoryName = kökten yol).
-    /// Yalnız o zaman Seyahat özel bilgileri grubu görünür; diğer kategorilerde gizli (form kalabalığı olmaz).</summary>
-    private bool IsTravelCategory =>
-        !string.IsNullOrEmpty(Model.CategoryName)
-        && Model.CategoryName.Contains("Seyahat", StringComparison.OrdinalIgnoreCase);
-
     protected override async Task OnParametersSetAsync()
     {
+        await EnsureCurrencyUnitsAsync();
         await EnsureTemplatesAsync();
         await EnsureAttributesAsync();
         await EnsurePreviewAsync();
+    }
+
+    // N11 para birimi lookup listesini bir kez yükler (döviz cache TTL + auto-invalidate).
+    private async Task EnsureCurrencyUnitsAsync()
+    {
+        if (_unitsLoaded)
+        {
+            return;
+        }
+
+        _unitsLoaded = true;
+        try
+        {
+            _units = new List<CurrencyUnitListDto>(await CurrencyLookup.GetAsync());
+        }
+        catch (Exception ex)
+        {
+            UiService.ShowErrorToast(CrudErrorPresenter.ToFriendlyMessage(ex, ServiceProvider) ?? L["UnexpectedError"].Value);
+        }
+    }
+
+    // Inline döviz ekle/düzelt sonrası lookup listesini tazeler (yeni birim anında combo'ya düşsün).
+    private async Task ReloadCurrencyUnitsAsync()
+    {
+        CurrencyLookup.Invalidate();
+        _units = new List<CurrencyUnitListDto>(await CurrencyLookup.GetAsync());
+        StateHasChanged();
+    }
+
+    // Özel bilgi satırı kaydetme engeli — key boşsa satır kabul edilmez (SetSpecialInfo sunucuda da boş key eler).
+    private string? SpecialInfoSaveGuard(SalesChannelTrN11ProductSpecialInfoDto item)
+    {
+        return string.IsNullOrWhiteSpace(item.Key) ? L["N11Product:SpecialInfoKeyRequired"].Value : null;
     }
 
     // N11'e gidecek varyant/görsel önizlemesi — yalnız KAYDEDİLMİŞ kayıtta (ProductId server'da çözülür).
@@ -220,34 +251,6 @@ public partial class SalesChannelTrN11ProductEditFields : CrudComponentBase
         }
 
         MarkDirty(nameof(Model.Attributes));
-    }
-
-    // ── Seyahat özel bilgileri (key/value) — Model.SpecialInfo ile senkron ──
-    private string GetSpecialInfo(string key)
-    {
-        return Model.SpecialInfo.FirstOrDefault(s => s.Key == key)?.Value ?? string.Empty;
-    }
-
-    private void SetSpecialInfo(string key, string? value)
-    {
-        var existing = Model.SpecialInfo.FirstOrDefault(s => s.Key == key);
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            if (existing != null)
-            {
-                Model.SpecialInfo.Remove(existing);
-            }
-        }
-        else if (existing != null)
-        {
-            existing.Value = value;
-        }
-        else
-        {
-            Model.SpecialInfo.Add(new SalesChannelTrN11ProductSpecialInfoDto { Key = key, Value = value });
-        }
-
-        MarkDirty(nameof(Model.SpecialInfo));
     }
 
     // ValueExpression'sız editörler EditContext'e bildirmez → dirty ELLE tetiklenir (DrillList Save aktifliği).
