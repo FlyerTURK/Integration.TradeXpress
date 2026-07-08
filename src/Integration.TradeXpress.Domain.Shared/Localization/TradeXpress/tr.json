@@ -698,6 +698,7 @@
     "TradeXpress:Trendyol:Product:ProductNotFound": "Ürün bulunamadı.",
     "TradeXpress:Trendyol:Product:CompanyRequired": "Bu işlem için çalışılan bir şirket seçili olmalıdır.",
     "TradeXpress:Trendyol:Category:FetchFailed": "Trendyol kategori verisi alınamadı (HTTP {status}).",
+    "TradeXpress:Trendyol:Brand:SearchFailed": "Trendyol marka verisi alınamadı (HTTP {status}).",
     "TradeXpress:Trendyol:NoChannelForCompany": "Bu şirkette Trendyol satış kanalı yok; kategori ağacı çekilemez.",
     "TradeXpress:Trendyol:ChannelNotFound": "Trendyol satış kanalı bulunamadı.",
     "TradeXpress:N11:ShipmentTemplateFailed": "N11 kargo şablonu servisine erişilemedi (HTTP {status}).",
