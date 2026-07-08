@@ -330,11 +330,14 @@ public class SalesChannelTrN11Product : FullAuditedAggregateRoot<Guid>, IMultiTe
             .ToList();
     }
 
+    /// <summary>N11 ürün özelleştirme alanları (specialProductInfoList): satıcı yalnız KEY'i (müşteri giriş alanı
+    /// etiketi — "Üst Yazı" vb.) tanımlar; VALUE'yu müşteri sipariş anında doldurur → satıcıda value OPSİYONEL
+    /// (varsayılan/örnek). Yalnız key zorunlu; boş key'li satır elenir.</summary>
     public virtual void SetSpecialInfo(IEnumerable<SalesChannelTrN11ProductSpecialInfo>? specialInfo)
     {
         SpecialInfo = (specialInfo ?? Enumerable.Empty<SalesChannelTrN11ProductSpecialInfo>())
-            .Where(s => !string.IsNullOrWhiteSpace(s.Key) && !string.IsNullOrWhiteSpace(s.Value))
-            .Select(s => new SalesChannelTrN11ProductSpecialInfo(s.Key.Trim(), s.Value))
+            .Where(s => !string.IsNullOrWhiteSpace(s.Key))
+            .Select(s => new SalesChannelTrN11ProductSpecialInfo(s.Key.Trim(), (s.Value ?? string.Empty).Trim()))
             .ToList();
     }
 
