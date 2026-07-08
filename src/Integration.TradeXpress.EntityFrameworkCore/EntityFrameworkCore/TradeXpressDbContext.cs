@@ -96,6 +96,8 @@ public class TradeXpressDbContext :
     public DbSet<Integration.TradeXpress.N11Shipments.N11ShipmentTemplate> N11ShipmentTemplates { get; set; } = null!;
     // N11 ürün listelemeleri — ürün×kanal (company-owned). DbSet ŞART: ABP default repository'leri DbSet'ten keşfeder.
     public DbSet<Integration.TradeXpress.N11Products.SalesChannelTrN11Product> SalesChannelTrN11Products { get; set; } = null!;
+    // N11 kanal-özel varyant reçete satırları (ayrı tablo; ERP reçetesi klonu).
+    public DbSet<Integration.TradeXpress.N11Products.SalesChannelTrN11ProductVariantRecipeLine> SalesChannelTrN11ProductVariantRecipeLines { get; set; } = null!;
     // Trendyol ürün listelemeleri — ürün×kanal (company-owned).
     public DbSet<Integration.TradeXpress.TrendyolProducts.SalesChannelTrTrendyolProduct> SalesChannelTrTrendyolProducts { get; set; } = null!;
 
