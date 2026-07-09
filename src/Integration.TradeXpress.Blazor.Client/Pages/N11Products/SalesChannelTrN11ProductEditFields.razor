@@ -116,107 +116,66 @@
         <DxHtmlEditor @bind-Markup="@Model.Description" CssClass="w-100" Height="360px" />
     </DxTabPage>
 
-    @* Kategori attribute'ları — 2 katmanlı drill (Product deseniyle AYNI): üst = attribute tanımı (kategoriden
-       gelir, sabit — ekle/silinmez), alt = o attribute'a girilmiş değer(ler) (serbest ekle/sil). Bir Name'e
-       birden çok değer eklenmesi N11 WSDL'in "aynı isim, ayrı eleman" temsiliyle birebir uyumlu push edilir
-       (N11ProductPushValidator + N11ProductClient DEĞİŞMEDİ). Sekme HER ZAMAN görünür (kategori yokken/attribute
-       boşken tab'ı @if ile gizlemek DxTabs'in async-sonrası yeni sekmeyi tanımamasına yol açabiliyordu — kullanıcı
-       sekmeyi hiç göremiyordu); boşsa içeride açıklayıcı mesaj. *@
+    @* Kategori attribute'ları — HÜCRE-İÇİ düzenleme (Trendyol EditCell deseniyle AYNI): tek satır = bir attribute
+       tanımı (kategoriden gelir, sabit); değer hücresine tıklanınca ANINDA düzenlenebilir, ayrı düzenle/kaydet
+       tuşu ya da popup form YOK. Değer-listeli attribute'larda DxTagBox (ÇOKLU seçim — N11 WSDL'in "aynı isim,
+       ayrı eleman" temsiliyle birebir uyumlu push edilir, N11ProductPushValidator + N11ProductClient DEĞİŞMEDİ);
+       serbest-metin attribute'larda tek değerli DxTextBox. Paging YOK (tüm satırlar tek sayfada). Sekme HER ZAMAN
+       görünür (b9e5066 dersi — koşul içeride, konteynerde değil). *@
     <DxTabPage Text="@L["N11Product:Attributes"]" TabIconCssClass="@TradeXpressIcons.Sliders">
         @if (string.IsNullOrEmpty(Model.CategoryExternalId))
         {
             <span style="color:#6c757d; font-size:0.85rem;">@L["N11Product:SelectCategoryFirst"]</span>
         }
-        else if (_attributeGroups.Count == 0)
+        else if (_attributeRows.Count == 0)
         {
             <span style="color:#6c757d; font-size:0.85rem;">@L["N11Product:NoAttributesForCategory"]</span>
         }
         else
         {
-            <DrillList TItem="N11AttributeGroupRow"
-                       @ref="_attributeDrill"
-                       Title="@L["N11Product:Attributes"]"
-                       EntityName="@L["ProductAttribute"]"
-                       EntityIcon="@TradeXpressIcons.Sliders"
-                       Items="@_attributeGroups"
-                       KeyFieldName="AttributeId"
-                       PrimaryTextSelector="@(g => g.Name)"
-                       NewItemFactory="@(() => new N11AttributeGroupRow())"
-                       AllowAdd="false"
-                       AllowDelete="false"
-                       ShowActiveFilter="false"
-                       ShowExport="false"
-                       OnChanged="@(() => MarkDirty(nameof(Model.Attributes)))">
-                <GridColumns>
-                    <GridLinkColumn FieldName="Name" Caption="@L["ProductAttribute"]" Width="45%"
-                                    FixedPosition="GridColumnFixedPosition.Left" VisibleIndex="1"
-                                    TextSelector="@(item => ((N11AttributeGroupRow)item).IsMandatory ? $"{((N11AttributeGroupRow)item).Name} *" : ((N11AttributeGroupRow)item).Name)"
-                                    OnClick="@(item => _attributeDrill?.EditItem((N11AttributeGroupRow)item))" />
-                    <DxGridDataColumn Caption="@L["AttributeValues"]">
+            <DxGrid Data="@_attributeRows" KeyFieldName="AttributeId"
+                    EditMode="GridEditMode.EditCell"
+                    EditModelSaving="OnAttributeRowSaving"
+                    PageSize="200" PagerVisible="false"
+                    CssClass="w-100">
+                <Columns>
+                    <DxGridDataColumn FieldName="Name" Caption="@L["ProductAttribute"]" Width="35%" ReadOnly="true">
                         <CellDisplayTemplate Context="cell">
-                            @{ var grp = (N11AttributeGroupRow)cell.DataItem; }
-                            <span>@(grp.Values.Count > 0 ? string.Join(", ", grp.Values.Select(v => v.Value)) : "-")</span>
+                            @{ var r = (N11AttributeCellRow)cell.DataItem; }
+                            <span>@(r.IsMandatory ? $"{r.Name} *" : r.Name)</span>
                         </CellDisplayTemplate>
                     </DxGridDataColumn>
-                </GridColumns>
-                <EditContent Context="g">
-                    <DxFormLayout CssClass="w-100">
-                        <DxFormLayoutItem Caption="@L["ProductAttribute"]" ColSpanMd="6" BeginRow="true">
-                            <span>@g.Name</span>
-                        </DxFormLayoutItem>
-                        <DxFormLayoutItem Caption="@L["N11Product:AttributeMandatory"]" ColSpanMd="6">
-                            <DxCheckBox Checked="@g.IsMandatory" Enabled="false" ValidationEnabled="false" CheckType="CheckType.Switch">
-                                @(g.IsMandatory ? L["Yes"] : L["No"])
-                            </DxCheckBox>
-                        </DxFormLayoutItem>
-                        <DxFormLayoutGroup Caption="@L["AttributeValues"]" ColSpanMd="12" CaptionPosition="CaptionPosition.Vertical">
-                            @* İç içe DrillList DOĞRUDAN parent EditContent'te (ui-blazor: EditForm yok,
-                               CascadingValue<EditContext> doğal izolasyon — nested EditForm NRE'ye girer). *@
-                            <DrillList TItem="N11AttributeValueRow"
-                                       @ref="_attributeValueDrill"
-                                       Title="@L["AttributeValues"]"
-                                       EntityName="@L["AttributeValue"]"
-                                       EntityIcon="@TradeXpressIcons.Sliders"
-                                       ParentEntityName="@L["ProductAttribute"]"
-                                       ParentText="@g.Name"
-                                       Items="@g.Values"
-                                       KeyFieldName="ClientKey"
-                                       PrimaryTextSelector="@(v => v.Value)"
-                                       NewItemFactory="@(() => new N11AttributeValueRow())"
-                                       SaveGuard="@AttributeValueSaveGuard"
-                                       ShowActiveFilter="false"
-                                       OnChanged="@(() => FlattenGroupToModel(g))">
-                                <GridColumns>
-                                    <GridLinkColumn FieldName="Value" Caption="@L["Value"]"
-                                                    FixedPosition="GridColumnFixedPosition.Left" VisibleIndex="1"
-                                                    OnClick="@(item => _attributeValueDrill?.EditItem((N11AttributeValueRow)item))" />
-                                </GridColumns>
-                                <EditContent Context="v">
-                                    <DxFormLayout CssClass="w-100">
-                                        @if (g.HasValueList)
-                                        {
-                                            <DxFormLayoutItem Caption="@($"{L["Value"]} *")" ColSpanMd="12">
-                                                <DxComboBox TData="N11CategoryAttributeValueDto" TValue="string"
-                                                            Data="@g.DefinitionValues"
-                                                            ValueFieldName="@nameof(N11CategoryAttributeValueDto.Value)"
-                                                            TextFieldName="@nameof(N11CategoryAttributeValueDto.Value)"
-                                                            @bind-Value="@v.Value"
-                                                            ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
-                                            </DxFormLayoutItem>
-                                        }
-                                        else
-                                        {
-                                            <DxFormLayoutItem Caption="@($"{L["Value"]} *")" ColSpanMd="12">
-                                                <DxTextBox @bind-Text="@v.Value" />
-                                            </DxFormLayoutItem>
-                                        }
-                                    </DxFormLayout>
-                                </EditContent>
-                            </DrillList>
-                        </DxFormLayoutGroup>
-                    </DxFormLayout>
-                </EditContent>
-            </DrillList>
+                    <DxGridDataColumn Caption="@L["AttributeValues"]">
+                        <CellDisplayTemplate Context="cell">
+                            @{ var r = (N11AttributeCellRow)cell.DataItem; }
+                            <span>@(r.HasValueList
+                                ? (r.SelectedValues.Count > 0 ? string.Join(", ", r.SelectedValues) : "-")
+                                : (string.IsNullOrEmpty(r.CustomValue) ? "-" : r.CustomValue))</span>
+                        </CellDisplayTemplate>
+                        <CellEditTemplate Context="cell">
+                            @{ var row = (N11AttributeCellRow)cell.EditModel; }
+                            @if (row.HasValueList)
+                            {
+                                <DxTagBox Data="@row.DefinitionValues"
+                                          TData="N11CategoryAttributeValueDto"
+                                          TValue="string"
+                                          Values="@row.SelectedValues"
+                                          ValuesChanged="@((IEnumerable<string> v) => row.SelectedValues = v.ToList())"
+                                          ValueFieldName="@nameof(N11CategoryAttributeValueDto.Value)"
+                                          TextFieldName="@nameof(N11CategoryAttributeValueDto.Value)"
+                                          ValidationEnabled="false"
+                                          CssClass="w-100" />
+                            }
+                            else
+                            {
+                                <DxTextBox Text="@row.CustomValue"
+                                           TextChanged="@((string v) => row.CustomValue = v)"
+                                           TextExpression="@(() => row.CustomValue)" />
+                            }
+                        </CellEditTemplate>
+                    </DxGridDataColumn>
+                </Columns>
+            </DxGrid>
         }
     </DxTabPage>
 
