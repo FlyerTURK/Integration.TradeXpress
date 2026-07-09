@@ -8,7 +8,9 @@ using Integration.Framework.Base.Querying;
 using Integration.TradeXpress.MultiCompany;
 using Integration.TradeXpress.Permissions;
 using Integration.TradeXpress.SalesChannels.Trendyol;
+using Integration.TradeXpress.TrendyolCategories;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.Extensions.Logging;
 using Volo.Abp;
 using Volo.Abp.Application.Dtos;
 using Volo.Abp.Domain.Repositories;
@@ -27,6 +29,7 @@ public class SalesChannelTrTrendyolAppService : TradeXpressAppService, ISalesCha
     private readonly IRepository<SalesChannelBase, Guid> _baseRepository;
     private readonly ICurrentCompany _currentCompany;
     private readonly ITrendyolCredentialVerifier _credentialVerifier;
+    private readonly ITrendyolCategoryAppService _categoryAppService;
 
     private static readonly HashSet<string> AllowedListFields =
         new(StringComparer.OrdinalIgnoreCase) { "Code", "Name", "IsActive", "Id" };
@@ -35,12 +38,14 @@ public class SalesChannelTrTrendyolAppService : TradeXpressAppService, ISalesCha
         IRepository<SalesChannelTrTrendyol, Guid> repository,
         IRepository<SalesChannelBase, Guid> baseRepository,
         ICurrentCompany currentCompany,
-        ITrendyolCredentialVerifier credentialVerifier)
+        ITrendyolCredentialVerifier credentialVerifier,
+        ITrendyolCategoryAppService categoryAppService)
     {
         _repository = repository;
         _baseRepository = baseRepository;
         _currentCompany = currentCompany;
         _credentialVerifier = credentialVerifier;
+        _categoryAppService = categoryAppService;
     }
 
     public virtual async Task<PagedResultDto<SalesChannelListDto>> GetListAsync(SalesChannelListRequestDto input)
@@ -97,7 +102,26 @@ public class SalesChannelTrTrendyolAppService : TradeXpressAppService, ISalesCha
         entity.SetDescription(input.Description);
         await _repository.InsertAsync(entity, autoSave: true);
 
+        // Kanal oluşturulur oluşturulmaz Trendyol kategori ağacını (host-global) otomatik senkronize et — kimlik create'te
+        // zaten doğrulandı. Kategori picker'ının ilk açılışta dolu gelmesi için (N11 kargo şablonu otomatik-import deseni).
+        await TrySyncCategoriesAsync();
+
         return Redact(ObjectMapper.Map<SalesChannelTrTrendyol, SalesChannelTrTrendyolGetDto>(entity));
+    }
+
+    /// <summary>Kanal oluşturulunca Trendyol kategori ağacını otomatik senkronize et — BEST-EFFORT: Trendyol erişilemezse/
+    /// başarısızsa kanal oluşturma ETKİLENMEZ (yalnız uyarı loglanır; kullanıcı sonra kanal formundaki "Kategorileri
+    /// Senkronize Et" ile elle tetikler). Kimlik create'te zaten doğrulandı; sync kanalın stored kimliğiyle çözülür.</summary>
+    private async Task TrySyncCategoriesAsync()
+    {
+        try
+        {
+            await _categoryAppService.SyncCategoriesAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Trendyol kanalı oluşturuldu ama kategori ağacı otomatik senkronize edilemedi (best-effort).");
+        }
     }
 
     [Authorize(TradeXpressPermissions.SalesChannels.Update)]

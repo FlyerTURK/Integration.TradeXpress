@@ -45,3 +45,10 @@
         </DxFormLayoutItem>
     </DxFormLayoutGroup>
 </DxFormLayout>
+
+@* Kategori senkronizasyonu — yalnız kaydedilmiş kanalda (host-global ağaç kanal kimliğiyle çekilir). Kategori
+   picker'ının dolu gelmesi için tetikleyici; kanal ilk oluşturulduğunda otomatik de senkronlanır (AppService hook). *@
+@if (!IsNew)
+{
+    <TrendyolCategorySyncPanel />
+}
