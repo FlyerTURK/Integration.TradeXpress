@@ -124,7 +124,16 @@ public class TradeXpressBlazorModule : AbpModule
 
         // Add services to the container.
         context.Services.AddRazorComponents()
-            .AddInteractiveServerComponents()
+            .AddInteractiveServerComponents(options =>
+            {
+                // Blazor Server oturum (circuit) dayanıklılığı: kullanıcı sayfadan ayrılınca (sekme arka plana geçince
+                // / inaktivite) SignalR bağlantısı kopar. Varsayılan saklama süresi ~3 dk olduğundan, biraz sonra
+                // dönen kullanıcı oturumunu bulamaz → tüm açık tablar/state SIFIRLANIR. Süreyi 30 dk'ya çıkarıp
+                // saklanan circuit sayısını artırıyoruz → makul terk-dönüşlerde reconnect aynı oturuma bağlanır,
+                // açık ekran/tablar korunur.
+                options.DisconnectedCircuitRetentionPeriod = TimeSpan.FromMinutes(30);
+                options.DisconnectedCircuitMaxRetained = 200;
+            })
             .AddInteractiveWebAssemblyComponents();
 
         Configure<AbpMvcLibsOptions>(options =>
