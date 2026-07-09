@@ -1089,6 +1089,16 @@
     "TrendyolProduct:Preview:MandatoryAttributeMissing": "Zorunlu kategori niteliği eksik: {0}",
     "Trendyol:Category:AutoSyncing": "Kategoriler ilk kez senkronize ediliyor, lütfen bekleyin…",
     "N11Product:SelectCategoryFirst": "Nitelikleri görmek için önce bir kategori seçin.",
-    "N11Product:NoAttributesForCategory": "Bu kategoride tanımlı nitelik bulunmuyor."
+    "N11Product:NoAttributesForCategory": "Bu kategoride tanımlı nitelik bulunmuyor.",
+    "N11Product:AttributeAxes": "Nitelik Eksenleri",
+    "N11Product:AttributeAxis": "Nitelik Ekseni",
+    "N11Product:AttributeAxisName": "Eksen Adı",
+    "N11Product:AttributeAxisNameRequired": "Eksen adı boş olamaz.",
+    "N11Product:AttributeAxesHint": "Bu eksenler başlangıçta ana ürünün varyant eksenlerinden kopyalanır; buradan bağımsız olarak düzenleyebilirsiniz (ana ürünü etkilemez). Kaydettiğinizde varyant listesi bu eksenlerin kombinasyonlarından yeniden oluşturulur.",
+    "N11Product:AxisValues": "Eksen Değerleri",
+    "N11Product:AxisValue": "Eksen Değeri",
+    "N11Product:Source": "Kaynak",
+    "N11Product:N11Only": "N11-özel",
+    "N11Product:OverrideRequiredForN11OnlyHint": "* Bu satırın ERP karşılığı yok — Özel Fiyat ve Özel Stok zorunludur."
   }
 }

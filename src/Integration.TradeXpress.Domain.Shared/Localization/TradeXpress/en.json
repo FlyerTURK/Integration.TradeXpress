@@ -1058,6 +1058,16 @@
     "TrendyolProduct:Preview:MandatoryAttributeMissing": "Mandatory category attribute is missing: {0}",
     "Trendyol:Category:AutoSyncing": "Loading categories for the first time, please wait…",
     "N11Product:SelectCategoryFirst": "Select a category first to see attributes.",
-    "N11Product:NoAttributesForCategory": "No attributes are defined for this category."
+    "N11Product:NoAttributesForCategory": "No attributes are defined for this category.",
+    "N11Product:AttributeAxes": "Attribute Axes",
+    "N11Product:AttributeAxis": "Attribute Axis",
+    "N11Product:AttributeAxisName": "Axis Name",
+    "N11Product:AttributeAxisNameRequired": "Axis name cannot be empty.",
+    "N11Product:AttributeAxesHint": "These axes are initially cloned from the main product's variant axes; you can edit them here independently (this does not affect the main product). Saving regenerates the variant list from the combinations of these axes.",
+    "N11Product:AxisValues": "Axis Values",
+    "N11Product:AxisValue": "Axis Value",
+    "N11Product:Source": "Source",
+    "N11Product:N11Only": "N11-only",
+    "N11Product:OverrideRequiredForN11OnlyHint": "* This row has no ERP counterpart — Override Price and Override Stock are required."
   }
 }

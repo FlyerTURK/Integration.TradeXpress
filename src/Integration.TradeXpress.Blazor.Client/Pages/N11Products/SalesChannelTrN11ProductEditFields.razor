@@ -221,8 +221,98 @@
     </DxTabPage>
 
 
-    @* Varyantlar — ERP varyant seti SABİT (kanalda eksen eklenmez/silinmez): kanal-özel fiyat/stok/marj + reçete.
-       Türetilmiş fiyat = NetCost×(1+Marj/100) SALT-OKUNUR. Varyant yoksa (bağlı ürün varyantsız) sekme gizli. *@
+    @* Nitelik Eksenleri — VARYANT ÜRETİMİ amaçlı (kategori-attribute-push seçimi DEĞİL, o "Attributes" sekmesi ayrı).
+       İlk açılışta ERP ürününün varyant eksenlerinden bir kez KLONLANIR (backend BuildDraftAxesFromErpAsync); sonrası
+       tamamen bağımsız — kullanıcı burada serbestçe ekseni/değeri ekler-siler, ERP'ye dokunmaz. Kaydet'te sunucu
+       kartezyen kombinasyonu YENİDEN ÜRETİR ("Varyantlar" sekmesindeki liste). Desen "Attributes" sekmesiyle AYNI
+       (üst = eksen, alt = değerler) — tek fark burada üst satır da serbestçe ekle/silinebilir (klon-sonra-ayrış).
+       Sekme HER ZAMAN görünür (b9e5066 dersi: koşul içeride, konteynerde değil). *@
+    <DxTabPage Text="@L["N11Product:AttributeAxes"]" TabIconCssClass="@TradeXpressIcons.Sliders">
+        <span style="color:#6c757d; font-size:0.85rem;">@L["N11Product:AttributeAxesHint"]</span>
+        <DrillList TItem="SalesChannelTrN11ProductAttributeAxisDto"
+                   @ref="_axisDrill"
+                   Title="@L["N11Product:AttributeAxes"]"
+                   EntityName="@L["N11Product:AttributeAxis"]"
+                   EntityIcon="@TradeXpressIcons.Sliders"
+                   Items="@Model.AttributeAxes"
+                   KeyFieldName="ClientKey"
+                   PrimaryTextSelector="@(a => a.Name)"
+                   NewItemFactory="@(() => new SalesChannelTrN11ProductAttributeAxisDto { DisplayOrder = NextAxisOrder(Model.AttributeAxes) })"
+                   SoftDelete="true"
+                   IsNewItem="@(a => a.Id == Guid.Empty)"
+                   MarkDeleted="@(a => a.IsDeleted = true)"
+                   FilterPredicate="@(a => !a.IsDeleted)"
+                   SaveGuard="@AxisSaveGuard"
+                   ShowActiveFilter="false"
+                   OnChanged="@(() => MarkDirty(nameof(Model.AttributeAxes)))">
+            <GridColumns>
+                <GridLinkColumn FieldName="Name" Caption="@L["N11Product:AttributeAxisName"]" Width="35%"
+                                FixedPosition="GridColumnFixedPosition.Left" VisibleIndex="1"
+                                OnClick="@(item => _axisDrill?.EditItem((SalesChannelTrN11ProductAttributeAxisDto)item))" />
+                <DxGridDataColumn Caption="@L["N11Product:AxisValues"]">
+                    <CellDisplayTemplate Context="cell">
+                        @{ var ax = (SalesChannelTrN11ProductAttributeAxisDto)cell.DataItem; }
+                        <span>@(ax.Values.Any(v => !v.IsDeleted) ? string.Join(", ", ax.Values.Where(v => !v.IsDeleted).Select(v => v.Value)) : "-")</span>
+                    </CellDisplayTemplate>
+                </DxGridDataColumn>
+            </GridColumns>
+            <EditContent Context="ax">
+                <DxFormLayout CssClass="w-100">
+                    <DxFormLayoutItem Caption="@($"{L["N11Product:AttributeAxisName"]} *")" ColSpanMd="6" BeginRow="true">
+                        <DxTextBox @bind-Text="@ax.Name" />
+                    </DxFormLayoutItem>
+                    <DxFormLayoutItem Caption="@L["DisplayOrder"]" ColSpanMd="6">
+                        <NumericSpinEdit @bind-Value="@ax.DisplayOrder" />
+                    </DxFormLayoutItem>
+                    <DxFormLayoutGroup Caption="@L["N11Product:AxisValues"]" ColSpanMd="12" CaptionPosition="CaptionPosition.Vertical">
+                        @* İç içe DrillList DOĞRUDAN parent EditContent'te (ui-blazor: EditForm yok,
+                           CascadingValue<EditContext> doğal izolasyon — nested EditForm NRE'ye girer). *@
+                        <DrillList TItem="SalesChannelTrN11ProductAttributeAxisValueDto"
+                                   @ref="_axisValueDrill"
+                                   Title="@L["N11Product:AxisValues"]"
+                                   EntityName="@L["N11Product:AxisValue"]"
+                                   EntityIcon="@TradeXpressIcons.Sliders"
+                                   ParentEntityName="@L["N11Product:AttributeAxis"]"
+                                   ParentText="@ax.Name"
+                                   Items="@ax.Values"
+                                   KeyFieldName="ClientKey"
+                                   PrimaryTextSelector="@(v => v.Value)"
+                                   NewItemFactory="@(() => new SalesChannelTrN11ProductAttributeAxisValueDto { DisplayOrder = NextAxisValueOrder(ax.Values) })"
+                                   SoftDelete="true"
+                                   IsNewItem="@(v => v.Id == Guid.Empty)"
+                                   MarkDeleted="@(v => v.IsDeleted = true)"
+                                   FilterPredicate="@(v => !v.IsDeleted)"
+                                   SaveGuard="@AxisValueSaveGuard"
+                                   ShowActiveFilter="false"
+                                   OnChanged="@(() => MarkDirty(nameof(Model.AttributeAxes)))">
+                            <GridColumns>
+                                <GridLinkColumn FieldName="Value" Caption="@L["Value"]"
+                                                FixedPosition="GridColumnFixedPosition.Left" VisibleIndex="1"
+                                                OnClick="@(item => _axisValueDrill?.EditItem((SalesChannelTrN11ProductAttributeAxisValueDto)item))" />
+                                <DxGridDataColumn FieldName="DisplayOrder" Caption="@L["DisplayOrder"]" Width="90px" />
+                            </GridColumns>
+                            <EditContent Context="v">
+                                <DxFormLayout CssClass="w-100">
+                                    <DxFormLayoutItem Caption="@($"{L["Value"]} *")" ColSpanMd="12">
+                                        <DxTextBox @bind-Text="@v.Value" />
+                                    </DxFormLayoutItem>
+                                    <DxFormLayoutItem Caption="@L["DisplayOrder"]" ColSpanMd="6">
+                                        <NumericSpinEdit @bind-Value="@v.DisplayOrder" />
+                                    </DxFormLayoutItem>
+                                </DxFormLayout>
+                            </EditContent>
+                        </DrillList>
+                    </DxFormLayoutGroup>
+                </DxFormLayout>
+            </EditContent>
+        </DrillList>
+    </DxTabPage>
+
+    @* Varyantlar — SUNUCU TARAFINDA "Nitelik Eksenleri"nin kartezyen kombinasyonundan ÜRETİLİR (reconcile);
+       satır elle eklenmez/silinmez (AllowAdd/Delete=false), eksen/değer üzerinden dolaylı kontrol edilir. ERP
+       karşılığı olmayan (IsErpBacked=false) satırlar "N11-özel" rozetiyle ayırt edilir — bunlarda OverridePrice/
+       OverrideStock ZORUNLU (server fail-fast; burada yalnız hint). Türetilmiş fiyat = NetCost×(1+Marj/100)
+       SALT-OKUNUR. Varyant yoksa (bağlı ürün varyantsız) sekme gizli. *@
     @if (Model.Variants.Count > 0)
     {
         <DxTabPage Text="@L["N11Product:Variants"]" TabIconCssClass="@TradeXpressIcons.ProductVariant">
@@ -233,7 +323,7 @@
                        EntityName="@L["ProductVariant"]"
                        EntityIcon="@TradeXpressIcons.ProductVariant"
                        Items="@Model.Variants"
-                       KeyFieldName="ProductVariantId"
+                       KeyFieldName="Id"
                        PrimaryTextSelector="@(v => v.VariantCode)"
                        NewItemFactory="@(() => new SalesChannelTrN11ProductVariantGraphDto())"
                        AllowAdd="false"
@@ -241,8 +331,21 @@
                        ShowActiveFilter="false"
                        OnChanged="@(() => MarkDirty(nameof(Model.Variants)))">
                 <GridColumns>
-                    <GridLinkColumn FieldName="VariantCode" Caption="@L["Code"]" Width="140px" FixedPosition="GridColumnFixedPosition.Left" VisibleIndex="1" OnClick="@(item => _variantDrill?.EditItem((SalesChannelTrN11ProductVariantGraphDto)item))" />
+                    <GridLinkColumn Caption="@L["Code"]" Width="160px" FixedPosition="GridColumnFixedPosition.Left" VisibleIndex="1"
+                                    TextSelector="@(item => VariantCodeOrLabel((SalesChannelTrN11ProductVariantGraphDto)item))"
+                                    OnClick="@(item => _variantDrill?.EditItem((SalesChannelTrN11ProductVariantGraphDto)item))" />
                     <DxGridDataColumn FieldName="VariantName" Caption="@L["Name"]" />
+                    <DxGridDataColumn Caption="@L["N11Product:Source"]" Width="120px">
+                        <CellDisplayTemplate Context="cell">
+                            @{ var vv = (SalesChannelTrN11ProductVariantGraphDto)cell.DataItem; }
+                            @if (!vv.IsErpBacked)
+                            {
+                                <span style="display:flex; align-items:center; gap:0.35rem; color:#0369a1;">
+                                    <i class="@TradeXpressIcons.SalesChannel" aria-hidden="true"></i>@L["N11Product:N11Only"]
+                                </span>
+                            }
+                        </CellDisplayTemplate>
+                    </DxGridDataColumn>
                     <DxGridDataColumn FieldName="OverrideStock" Caption="@L["N11Product:OverrideStock"]" Width="110px" TextAlignment="GridTextAlignment.Right" />
                     <DxGridDataColumn FieldName="Margin" Caption="@L["N11Product:Margin"]" Width="100px" DisplayFormat="N2" TextAlignment="GridTextAlignment.Right" />
                     <DxGridDataColumn FieldName="OverridePrice" Caption="@L["N11Product:OverridePrice"]" Width="120px" DisplayFormat="N2" TextAlignment="GridTextAlignment.Right" />
@@ -250,13 +353,20 @@
                 </GridColumns>
                 <EditContent Context="v">
                     <DxFormLayout CssClass="w-100">
-                        @* Kimlik — SALT-OKUNUR (ERP SSOT; kod/ad kanalda değiştirilmez). *@
+                        @* Kimlik — SALT-OKUNUR. ERP-backed'te ERP kod/ad (SSOT); N11-only'de CombinationLabel (eksen
+                           değerlerinin özeti) — ERP karşılığı yok. *@
                         <DxFormLayoutItem Caption="@L["Code"]" ColSpanMd="6" BeginRow="true">
-                            <span>@v.VariantCode</span>
+                            <span>@(v.IsErpBacked ? v.VariantCode : VariantCodeOrLabel(v))</span>
                         </DxFormLayoutItem>
                         <DxFormLayoutItem Caption="@L["Name"]" ColSpanMd="6">
-                            <span>@v.VariantName</span>
+                            <span>@(v.IsErpBacked ? v.VariantName : L["N11Product:N11Only"].Value)</span>
                         </DxFormLayoutItem>
+                        @if (!v.IsErpBacked)
+                        {
+                            <DxFormLayoutItem ColSpanMd="12">
+                                <span style="color:#b45309; font-size:0.85rem;">@L["N11Product:OverrideRequiredForN11OnlyHint"]</span>
+                            </DxFormLayoutItem>
+                        }
                         @* Kanal-özel override — boş = ERP/türetilmiş devralınır (temizle butonuyla boşaltılır). *@
                         <DxFormLayoutItem Caption="@L["N11Product:OverridePrice"]" ColSpanMd="4" BeginRow="true">
                             <NumericSpinEdit TValue="decimal?" @bind-Value="@v.OverridePrice" DisplayFormat="N2"

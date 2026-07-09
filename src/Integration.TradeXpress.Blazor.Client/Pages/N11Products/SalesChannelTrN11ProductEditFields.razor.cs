@@ -99,6 +99,12 @@ public partial class SalesChannelTrN11ProductEditFields : CrudComponentBase
     private DrillList<N11AttributeGroupRow>? _attributeDrill;
     private DrillList<N11AttributeValueRow>? _attributeValueDrill;
 
+    // Nitelik Eksenleri drill'i (varyant ÜRETİMİ amaçlı — kategori-attribute-push'tan AYRI) — üst = eksen
+    // (Model.AttributeAxes, ilk açılışta ERP'den klonlanmış taslak gelir), alt = eksen değerleri. İkisi de serbest
+    // ekle/sil (klon-sonra-ayrış felsefesi).
+    private DrillList<SalesChannelTrN11ProductAttributeAxisDto>? _axisDrill;
+    private DrillList<SalesChannelTrN11ProductAttributeAxisValueDto>? _axisValueDrill;
+
     // OnParametersSetAsync her render'da çalışır → tekrarlı ağ çağrısını son-yüklenen anahtarla önle.
     private Guid _loadedTemplatesChannelId;
     private string? _loadedAttributesCategoryId;
@@ -296,6 +302,40 @@ public partial class SalesChannelTrN11ProductEditFields : CrudComponentBase
     private string? AttributeValueSaveGuard(N11AttributeValueRow item)
     {
         return string.IsNullOrWhiteSpace(item.Value) ? L["N11Product:AttributeValueRequired"].Value : null;
+    }
+
+    // ── Nitelik Eksenleri (varyant üretimi) — sıra no + boş-alan guard'ları (Product ProductAttributeGraphDto
+    // deseniyle AYNI: silinmemişlerin max sırası + 1).
+    private static int NextAxisOrder(IEnumerable<SalesChannelTrN11ProductAttributeAxisDto> items)
+    {
+        return items.Where(x => !x.IsDeleted).Select(x => x.DisplayOrder).DefaultIfEmpty(0).Max() + 1;
+    }
+
+    private static int NextAxisValueOrder(IEnumerable<SalesChannelTrN11ProductAttributeAxisValueDto> items)
+    {
+        return items.Where(x => !x.IsDeleted).Select(x => x.DisplayOrder).DefaultIfEmpty(0).Max() + 1;
+    }
+
+    private string? AxisSaveGuard(SalesChannelTrN11ProductAttributeAxisDto item)
+    {
+        return string.IsNullOrWhiteSpace(item.Name) ? L["N11Product:AttributeAxisNameRequired"].Value : null;
+    }
+
+    private string? AxisValueSaveGuard(SalesChannelTrN11ProductAttributeAxisValueDto item)
+    {
+        return string.IsNullOrWhiteSpace(item.Value) ? L["N11Product:AttributeValueRequired"].Value : null;
+    }
+
+    // Varyant grid/edit'te kod hücresi — ERP-backed satırda ERP kodu, N11-only satırda (ERP karşılığı yok)
+    // eksen-değer özeti (CombinationLabel); ikisi de boşsa "-" (henüz reconcile edilmemiş/legacy taslak).
+    private static string VariantCodeOrLabel(SalesChannelTrN11ProductVariantGraphDto variant)
+    {
+        if (!string.IsNullOrEmpty(variant.VariantCode))
+        {
+            return variant.VariantCode;
+        }
+
+        return string.IsNullOrEmpty(variant.CombinationLabel) ? "-" : variant.CombinationLabel;
     }
 
     // ── Kanal-özel varyant override'ları (fiyat/stok/marj + reçete) ──────────────────────────────────
