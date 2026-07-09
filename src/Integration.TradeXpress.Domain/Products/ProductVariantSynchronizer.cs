@@ -1,4 +1,5 @@
 using Integration.TradeXpress.MultiCompany;
+using Integration.TradeXpress.SalesChannels.Variants;
 
 namespace Integration.TradeXpress.Products;
 
@@ -152,29 +153,20 @@ public class ProductVariantSynchronizer : DomainService
     }
 
     // Kartezyen: her attribute'tan (axis) bir değer — kombinasyon listesi ((attr,val) çiftleri, attribute sırasıyla).
+    // Matematik çekirdekte (VariantCombinationEngine, S2 2026-07-09) — davranış birebir, burası ince delege.
     private static List<List<(ProductAttribute Attribute, ProductAttributeValue Value)>> BuildCartesian(
         List<(ProductAttribute Attribute, List<ProductAttributeValue> Values)> axes)
     {
-        var result = new List<List<(ProductAttribute, ProductAttributeValue)>> { new() };
-        foreach (var (attribute, axisValues) in axes)
-        {
-            result = result
-                .SelectMany(prefix => axisValues.Select(v =>
-                {
-                    var next = new List<(ProductAttribute, ProductAttributeValue)>(prefix) { (attribute, v) };
-                    return next;
-                }))
-                .ToList();
-        }
-
-        return result;
+        return VariantCombinationEngine.BuildCartesian(
+            axes.Select(a => (a.Attribute, (IReadOnlyList<ProductAttributeValue>)a.Values)).ToList());
     }
 
     /// <summary>Kombinasyon imzası — sıralı valueId dizisi (kombinasyon eşitliği için deterministik anahtar).
-    /// PUBLIC: AppService, kayıt-öncesi üretilen (Id'siz) varyantı DB kombinasyonuyla eşlerken AYNI imzayı kullanır (DRY).</summary>
+    /// PUBLIC: AppService, kayıt-öncesi üretilen (Id'siz) varyantı DB kombinasyonuyla eşlerken AYNI imzayı kullanır (DRY).
+    /// Format çekirdekte (<see cref="VariantCombinationEngine.BuildKey"/>) — birebir aynı ("|" ayraçlı artan Guid).</summary>
     public static string BuildKey(IEnumerable<Guid> valueIds)
     {
-        return string.Join("|", valueIds.OrderBy(id => id));
+        return VariantCombinationEngine.BuildKey(valueIds);
     }
 
     /// <summary>Varyant kodu değer adlarından OTOMATİK türer ("KIRMIZI-M"); üst sınıra sığdırılır (ürün-scope tekil,

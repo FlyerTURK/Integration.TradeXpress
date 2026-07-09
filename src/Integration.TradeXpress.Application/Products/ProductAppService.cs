@@ -6,6 +6,7 @@ using Integration.Framework;
 using Integration.Framework.Base.Querying;
 using Integration.TradeXpress.MultiCompany;
 using Integration.TradeXpress.N11Products;
+using Integration.TradeXpress.SalesChannels.Variants;
 using Integration.TradeXpress.TrendyolProducts;
 using Integration.TradeXpress.Permissions;
 using Integration.TradeXpress.Vouchers;
@@ -288,7 +289,8 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
             return Task.FromResult(result);   // nitelik yok → üretilecek kombinasyon yok (base varyant save'de doğar)
         }
 
-        foreach (var combination in BuildDtoCartesian(axes))
+        // DTO kartezyeni — çekirdek motor (synchronizer'la AYNI matematik; eski BuildDtoCartesian duplikasyonu eridi).
+        foreach (var combination in VariantCombinationEngine.BuildCartesian<GenerationAxisItem>(axes))
         {
             var valueNames = combination.Select(x => x.NormalizedValue).ToList();
             // Kombinasyon özeti "Nitelik: Değer" çiftleri (attribute DisplayOrder = eksen sırası), ", " join.
@@ -760,24 +762,6 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         }
 
         return axes;
-    }
-
-    /// <summary>DTO kartezyeni — her eksenden bir değer (synchronizer BuildCartesian'ın DTO karşılığı).</summary>
-    private static List<List<GenerationAxisItem>> BuildDtoCartesian(List<List<GenerationAxisItem>> axes)
-    {
-        var result = new List<List<GenerationAxisItem>> { new() };
-        foreach (var axis in axes)
-        {
-            result = result
-                .SelectMany(prefix => axis.Select(v =>
-                {
-                    var next = new List<GenerationAxisItem>(prefix) { v };
-                    return next;
-                }))
-                .ToList();
-        }
-
-        return result;
     }
 
     /// <summary>Üretim ekseninin bir öğesi — değer DTO'su + normalize değer + normalize nitelik adı
