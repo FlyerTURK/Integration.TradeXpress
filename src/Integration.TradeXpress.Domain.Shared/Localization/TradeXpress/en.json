@@ -1052,6 +1052,7 @@
     "TrendyolProduct:Preview:SalePrice": "Sale Price",
     "TrendyolProduct:Preview:CategoryRequired": "Category is required (not selected).",
     "TrendyolProduct:Preview:BrandRequired": "Brand is required (Trendyol requires a brand).",
-    "TrendyolProduct:Preview:MandatoryAttributeMissing": "Mandatory category attribute is missing: {0}"
+    "TrendyolProduct:Preview:MandatoryAttributeMissing": "Mandatory category attribute is missing: {0}",
+    "Trendyol:Category:AutoSyncing": "Loading categories for the first time, please wait…"
   }
 }

@@ -37,6 +37,45 @@ public partial class TrendyolCategoryPicker : CrudComponentBase
     // Cascade'de en dipteki seçim yaprak mı — false ise "yaprağa inin" uyarısı gösterilir (geçerli kategori yok).
     private bool _treeReachedLeaf;
 
+    // İlk-kullanım otomatik senkron kontrolü (bir kez): DB boşsa hem arama hem Ağaç modu boş kalırdı → kullanıcı
+    // hiçbir butona basmadan kategoriler gelsin diye picker açılışında lazy senkron.
+    private bool _syncChecked;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await EnsureCategoriesSyncedAsync();
+    }
+
+    // DB'de hiç kategori yoksa (ilk kullanım) Trendyol'dan bir kez çek (host-global upsert). Doluysa no-op (ucuz kök sorgusu).
+    private async Task EnsureCategoriesSyncedAsync()
+    {
+        if (_syncChecked)
+        {
+            return;
+        }
+
+        _syncChecked = true;
+        try
+        {
+            var roots = await CategoryAppService.GetChildrenAsync(null);
+            if (roots.Count > 0)
+            {
+                return; // Zaten senkron.
+            }
+
+            UiService.ShowWarningToast(L["Trendyol:Category:AutoSyncing"].Value);
+            var count = await CategoryAppService.SyncCategoriesAsync();
+            if (count > 0)
+            {
+                UiService.ShowSuccessToast(L["Trendyol:Category:SyncSuccess", count].Value);
+            }
+        }
+        catch (Exception ex)
+        {
+            UiService.ShowErrorToast(CrudErrorPresenter.ToFriendlyMessage(ex, ServiceProvider) ?? L["UnexpectedError"].Value);
+        }
+    }
+
     // Mod değişti: "Ağaç" moduna ilk geçişte kök kategorileri yükle (lazy — Arama modunda gereksiz sorgu atma).
     private async Task OnModeChangedAsync(int mode)
     {
