@@ -60,6 +60,7 @@ public partial class SalesChannelTrTrendyolProductEditFields : CrudComponentBase
 
     [Inject] private ITrendyolCategoryAppService CategoryAppService { get; set; } = default!;
     [Inject] private ITrendyolBrandAppService BrandAppService { get; set; } = default!;
+    [Inject] private ISalesChannelTrTrendyolProductAppService ChannelProductAppService { get; set; } = default!;
     [Inject] private ILookupCache<CurrencyUnitListDto> CurrencyLookup { get; set; } = default!;
     [Inject] private IUiInteractionService UiService { get; set; } = default!;
     [Inject] private IServiceProvider ServiceProvider { get; set; } = default!;
@@ -103,6 +104,10 @@ public partial class SalesChannelTrTrendyolProductEditFields : CrudComponentBase
     // OnParametersSetAsync her render'da çalışır → tekrarlı ağ çağrısını son-yüklenen anahtarla önle.
     private string? _loadedAttributesCategoryId;
 
+    // Push önizlemesi (read-only, T6) — Trendyol'a GİDECEK ürün-seviyesi özet + kalemler + uyarılar (submit YOK).
+    private TrendyolPushPreviewDto? _preview;
+    private Guid _loadedPreviewId;
+
     private string ChannelName =>
         Channels.FirstOrDefault(c => c.Id == Model.SalesChannelId)?.Code ?? Model.SalesChannelId.ToString();
 
@@ -111,6 +116,27 @@ public partial class SalesChannelTrTrendyolProductEditFields : CrudComponentBase
         await EnsureCurrencyUnitsAsync();
         await EnsureRecipeCatalogsAsync();
         await EnsureAttributesAsync();
+        await EnsurePreviewAsync();
+    }
+
+    // Trendyol'a gidecek veri önizlemesi — yalnız KAYDEDİLMİŞ (Id'li) kayıtta; BuildProductData read-only çalışır (submit yok).
+    private async Task EnsurePreviewAsync()
+    {
+        if (Model.Id == Guid.Empty || Model.Id == _loadedPreviewId)
+        {
+            return;
+        }
+
+        _loadedPreviewId = Model.Id;
+        try
+        {
+            _preview = await ChannelProductAppService.GetPushPreviewAsync(Model.Id);
+        }
+        catch (Exception ex)
+        {
+            _preview = null;
+            UiService.ShowErrorToast(CrudErrorPresenter.ToFriendlyMessage(ex, ServiceProvider) ?? L["UnexpectedError"].Value);
+        }
     }
 
     // Reçete satırı lookup beslemesi (aktif katalog + birimler) — bir kez yüklenir; server working-company ile scope'lar.

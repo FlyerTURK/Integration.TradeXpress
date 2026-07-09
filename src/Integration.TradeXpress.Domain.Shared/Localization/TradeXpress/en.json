@@ -1034,6 +1034,19 @@
     "Enum:TrendyolFastDeliveryType:FastDelivery": "Fast Delivery",
     "TradeXpress:SalesChannel:Trendyol:InvalidCredentials": "The Trendyol Seller ID / API Key / API Secret could not be verified. Please check the credentials.",
     "TradeXpress:SalesChannel:Trendyol:VerificationUnavailable": "The Trendyol verification service is temporarily unavailable. Please try again later.",
-    "TrendyolProduct:PushReadonly": "Read-only phase (enabled in T8)"
+    "TrendyolProduct:PushReadonly": "Read-only phase (enabled in T8)",
+    "TrendyolProduct:Preview:Tab": "Preview",
+    "TrendyolProduct:Preview:Hint": "This is exactly what will be sent to Trendyol (not sent yet).",
+    "TrendyolProduct:Preview:ProductLevel": "Product-Level Summary",
+    "TrendyolProduct:Preview:Items": "Items Going to Trendyol",
+    "TrendyolProduct:Preview:Warnings": "Warnings",
+    "TrendyolProduct:Preview:Warning": "Warning",
+    "TrendyolProduct:Preview:Description": "Description Included",
+    "TrendyolProduct:Preview:ImageCount": "Image Count",
+    "TrendyolProduct:Preview:ListPrice": "List Price",
+    "TrendyolProduct:Preview:SalePrice": "Sale Price",
+    "TrendyolProduct:Preview:CategoryRequired": "Category is required (not selected).",
+    "TrendyolProduct:Preview:BrandRequired": "Brand is required (Trendyol requires a brand).",
+    "TrendyolProduct:Preview:MandatoryAttributeMissing": "Mandatory category attribute is missing: {0}"
   }
 }

@@ -6,6 +6,7 @@ using Integration.TradeXpress.MultiCompany;
 using Integration.TradeXpress.Permissions;
 using Integration.TradeXpress.Products;
 using Integration.TradeXpress.SalesChannels;
+using Integration.TradeXpress.TrendyolCategories;
 using Integration.TradeXpress.Vouchers;
 using Microsoft.AspNetCore.Authorization;
 using Volo.Abp;
@@ -24,6 +25,9 @@ public class SalesChannelTrTrendyolProductAppService : TradeXpressAppService, IS
     private readonly IRepository<SalesChannelTrTrendyolProduct, Guid> _repository;
     private readonly IRepository<Product, Guid> _productRepository;
     private readonly IRepository<ProductVariant, Guid> _variantRepository;
+    private readonly IRepository<ProductAttribute, Guid> _attributeRepository;
+    private readonly IRepository<ProductAttributeValue, Guid> _attributeValueRepository;
+    private readonly IRepository<ProductVariantAttributeValue, Guid> _variantAttributeRepository;
     private readonly IRepository<SalesChannelTrTrendyol, Guid> _channelRepository;
     private readonly IRepository<SalesChannelTrTrendyolProductVariant, Guid> _variantOverrideRepository;
     private readonly IRepository<SalesChannelTrTrendyolProductVariantRecipeLine, Guid> _channelRecipeLineRepository;
@@ -31,12 +35,16 @@ public class SalesChannelTrTrendyolProductAppService : TradeXpressAppService, IS
     private readonly RecipeCostPopulator _recipeCostPopulator;
     private readonly ICurrentCompany _currentCompany;
     private readonly ITrendyolProductClient _client;
+    private readonly ITrendyolCategoryAppService _categoryAppService;
     private readonly IPublicImageLinkProvider _publicImageLink;
 
     public SalesChannelTrTrendyolProductAppService(
         IRepository<SalesChannelTrTrendyolProduct, Guid> repository,
         IRepository<Product, Guid> productRepository,
         IRepository<ProductVariant, Guid> variantRepository,
+        IRepository<ProductAttribute, Guid> attributeRepository,
+        IRepository<ProductAttributeValue, Guid> attributeValueRepository,
+        IRepository<ProductVariantAttributeValue, Guid> variantAttributeRepository,
         IRepository<SalesChannelTrTrendyol, Guid> channelRepository,
         IRepository<SalesChannelTrTrendyolProductVariant, Guid> variantOverrideRepository,
         IRepository<SalesChannelTrTrendyolProductVariantRecipeLine, Guid> channelRecipeLineRepository,
@@ -44,11 +52,15 @@ public class SalesChannelTrTrendyolProductAppService : TradeXpressAppService, IS
         RecipeCostPopulator recipeCostPopulator,
         ICurrentCompany currentCompany,
         ITrendyolProductClient client,
+        ITrendyolCategoryAppService categoryAppService,
         IPublicImageLinkProvider publicImageLink)
     {
         _repository = repository;
         _productRepository = productRepository;
         _variantRepository = variantRepository;
+        _attributeRepository = attributeRepository;
+        _attributeValueRepository = attributeValueRepository;
+        _variantAttributeRepository = variantAttributeRepository;
         _channelRepository = channelRepository;
         _variantOverrideRepository = variantOverrideRepository;
         _channelRecipeLineRepository = channelRecipeLineRepository;
@@ -56,6 +68,7 @@ public class SalesChannelTrTrendyolProductAppService : TradeXpressAppService, IS
         _recipeCostPopulator = recipeCostPopulator;
         _currentCompany = currentCompany;
         _client = client;
+        _categoryAppService = categoryAppService;
         _publicImageLink = publicImageLink;
     }
 
@@ -214,9 +227,197 @@ public class SalesChannelTrTrendyolProductAppService : TradeXpressAppService, IS
         return ObjectMapper.Map<SalesChannelTrTrendyolProduct, SalesChannelTrTrendyolProductDto>(entity);
     }
 
+    [Authorize(TradeXpressPermissions.SalesChannels.Default)]
+    public virtual async Task<TrendyolPushPreviewDto> GetPushPreviewAsync(Guid id)
+    {
+        var entity = await GetOwnedAsync(id);
+        var product = await GetOwnedProductAsync(entity.ProductId);
+        var warnings = new List<string>();
+
+        // BuildProductData'yı READ-ONLY çalıştır (SUBMIT YOK) — fail-fast'ler warnings'e düşer, fırlatmaz.
+        TrendyolProductData? data;
+        try
+        {
+            data = await BuildProductDataAsync(entity, warnings);
+        }
+        catch (BusinessException ex)
+        {
+            // Savunma amaçlı: warnings modunda normalde fırlamaz; yine de önizleme dönsün diye uyarıya çevir.
+            data = null;
+            warnings.Add(ex.Code is { Length: > 0 } code ? L[code].Value : ex.Message);
+        }
+
+        // Kategori attribute tanımları (best-effort; ad + zorunlu çözümü). Alınamazsa id-only + zorunlu denetimi atlanır.
+        var attrDefs = await TryLoadLeafAttributesAsync(entity.CategoryId);
+        AppendRequiredFieldWarnings(entity, attrDefs, warnings);
+
+        var previewProduct = new TrendyolPreviewProductDto
+        {
+            ProductMainId = entity.ProductMainId,
+            Title = product.Name,
+            CategoryId = entity.CategoryId,
+            CategoryName = entity.CategoryName,
+            BrandId = entity.BrandId,
+            BrandName = entity.BrandName,
+            VatRate = entity.VatRate,
+            DimensionalWeight = entity.DimensionalWeight,
+            DeliveryDuration = entity.DeliveryDuration,
+            FastDeliveryType = entity.FastDeliveryType,
+            HasDescription = !string.IsNullOrWhiteSpace(entity.Description ?? product.Description),
+            ImageCount = data?.ImageUrls.Count ?? 0,
+            Attributes = BuildAttributeSummary(entity.Attributes, attrDefs),
+        };
+
+        // Kalemler (barcode başına) — BuildProductData'nın Items'ı + varyant eksen özeti (StockCode = varyant kodu ile eşle).
+        var optionsByStockCode = await LoadVariantOptionSummariesAsync(entity.ProductId);
+        var items = (data?.Items ?? new List<TrendyolProductItem>()).Select(it => new TrendyolPreviewItemDto
+        {
+            Barcode = it.Barcode,
+            StockCode = it.StockCode,
+            Quantity = it.Quantity,
+            ListPrice = it.ListPrice,
+            SalePrice = it.SalePrice,
+            Options = optionsByStockCode.TryGetValue(it.StockCode, out var opt) ? opt : string.Empty,
+        }).ToList();
+
+        return new TrendyolPushPreviewDto { Product = previewProduct, Items = items, Warnings = warnings };
+    }
+
+    /// <summary>Yaprak kategori attribute tanımlarını best-effort çeker (önizleme). Kategori boşsa ya da REST/kimlik
+    /// hatası varsa boş liste döner — önizleme KIRILMAZ (ad çözümü id'ye düşer, zorunlu denetimi atlanır).</summary>
+    private async Task<List<TrendyolLeafAttributeDto>> TryLoadLeafAttributesAsync(string categoryId)
+    {
+        if (string.IsNullOrWhiteSpace(categoryId))
+        {
+            return new List<TrendyolLeafAttributeDto>();
+        }
+
+        try
+        {
+            return await _categoryAppService.GetLeafAttributesAsync(categoryId);
+        }
+        catch (Exception)
+        {
+            // Önizleme best-effort: tanımlar alınamazsa uyarı zenginleştirmesi düşer, önizleme yine döner.
+            return new List<TrendyolLeafAttributeDto>();
+        }
+    }
+
+    /// <summary>Eksik zorunlu alan uyarıları (T6 read-only; TAM push validator T8 kapsamı): kategori/marka boş +
+    /// zorunlu (Required, varyant-ekseni-olmayan) kategori attribute'u eksik.</summary>
+    private void AppendRequiredFieldWarnings(SalesChannelTrTrendyolProduct entity, List<TrendyolLeafAttributeDto> attrDefs, List<string> warnings)
+    {
+        if (string.IsNullOrWhiteSpace(entity.CategoryId))
+        {
+            warnings.Add(L["TrendyolProduct:Preview:CategoryRequired"].Value);
+        }
+
+        if (string.IsNullOrWhiteSpace(entity.BrandId))
+        {
+            warnings.Add(L["TrendyolProduct:Preview:BrandRequired"].Value);
+        }
+
+        foreach (var def in attrDefs.Where(a => a.Required && !a.Varianter))
+        {
+            var filled = entity.Attributes.Any(a => a.AttributeId == def.AttributeId
+                && (a.AttributeValueId is not null || !string.IsNullOrWhiteSpace(a.CustomValue)));
+            if (!filled)
+            {
+                warnings.Add(L["TrendyolProduct:Preview:MandatoryAttributeMissing", def.Name].Value);
+            }
+        }
+    }
+
+    /// <summary>Ürün-seviyesi attribute özeti ("Renk: Gri; Materyal: Pamuk") — ad/değer kategori tanımından çözülür;
+    /// tanım yoksa "#id: değer" (valueId ya da customValue). Boşsa boş metin.</summary>
+    private static string BuildAttributeSummary(IReadOnlyCollection<SalesChannelTrTrendyolProductAttribute> attributes, List<TrendyolLeafAttributeDto> attrDefs)
+    {
+        if (attributes.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        var defById = attrDefs.ToDictionary(d => d.AttributeId);
+        var parts = attributes.Select(a =>
+        {
+            var hasDef = defById.TryGetValue(a.AttributeId, out var def);
+            var name = hasDef ? def!.Name : $"#{a.AttributeId}";
+            string value;
+            if (a.AttributeValueId is { } valueId)
+            {
+                value = hasDef
+                    ? def!.Values.FirstOrDefault(v => v.ValueId == valueId)?.Value ?? $"#{valueId}"
+                    : $"#{valueId}";
+            }
+            else
+            {
+                value = a.CustomValue ?? string.Empty;
+            }
+
+            return $"{name}: {value}";
+        });
+
+        return string.Join("; ", parts);
+    }
+
+    /// <summary>Varyant eksen özetleri, STOK KODU bazlı ("Renk: Kırmızı; Beden: M") — push StockCode = varyant kodu
+    /// olduğundan önizleme kalemleriyle kod üstünden eşleşir. Niteliksiz ürün → boş sözlük.</summary>
+    private async Task<Dictionary<string, string>> LoadVariantOptionSummariesAsync(Guid productId)
+    {
+        var variants = await AsyncExecuter.ToListAsync(
+            (await _variantRepository.GetQueryableAsync()).Where(v => v.ProductId == productId));
+        if (variants.Count == 0)
+        {
+            return new Dictionary<string, string>();
+        }
+
+        var attributeNames = (await AsyncExecuter.ToListAsync(
+                (await _attributeRepository.GetQueryableAsync()).Where(a => a.ProductId == productId)))
+            .ToDictionary(a => a.Id, a => a.Name);
+        if (attributeNames.Count == 0)
+        {
+            return new Dictionary<string, string>();   // niteliksiz ürün (tek varyant) → eksen yok
+        }
+
+        var valueTexts = (await AsyncExecuter.ToListAsync(
+                (await _attributeValueRepository.GetQueryableAsync())
+                    .Where(v => attributeNames.Keys.Contains(v.ProductAttributeId))))
+            .ToDictionary(v => v.Id, v => v.Value);
+
+        var variantIds = variants.Select(v => v.Id).ToList();
+        var links = await AsyncExecuter.ToListAsync(
+            (await _variantAttributeRepository.GetQueryableAsync())
+                .Where(l => variantIds.Contains(l.ProductVariantId)));
+
+        var byVariant = new Dictionary<Guid, List<string>>();
+        foreach (var link in links)
+        {
+            if (!attributeNames.TryGetValue(link.ProductAttributeId, out var name)
+                || !valueTexts.TryGetValue(link.ProductAttributeValueId, out var value))
+            {
+                continue;
+            }
+
+            if (!byVariant.TryGetValue(link.ProductVariantId, out var list))
+            {
+                list = new List<string>();
+                byVariant[link.ProductVariantId] = list;
+            }
+
+            list.Add($"{name}: {value}");
+        }
+
+        return variants
+            .Where(v => byVariant.ContainsKey(v.Id))
+            .ToDictionary(v => v.Code, v => string.Join("; ", byVariant[v.Id]));
+    }
+
     // ── Push veri kurulumu (ürün grafı → TrendyolProductData) ─────────────────────────────────────────
 
-    private async Task<TrendyolProductData> BuildProductDataAsync(SalesChannelTrTrendyolProduct channelProduct)
+    /// <summary>Ürün grafından push payload'unu kurar. <paramref name="warnings"/> verilirse (T6 ÖNİZLEME) fail-fast
+    /// koşulları exception yerine uyarıya çevrilir + kurulum devam eder (kısmi önizleme); null ise (gerçek push T8)
+    /// eskisi gibi BusinessException fırlatır. Her iki modda da Trendyol'a HİÇBİR ŞEY gönderilmez (submit çağıran üstte).</summary>
+    private async Task<TrendyolProductData> BuildProductDataAsync(SalesChannelTrTrendyolProduct channelProduct, List<string>? warnings = null)
     {
         var product = await GetOwnedProductAsync(channelProduct.ProductId);
 
@@ -241,7 +442,13 @@ public class SalesChannelTrTrendyolProductAppService : TradeXpressAppService, IS
 
         if (imageUrls.Count == 0)
         {
-            throw new BusinessException("TradeXpress:Trendyol:Product:ImagesRequired");
+            // Önizleme (warnings dolu) modunda fırlatma → uyarı; gerçek push'ta (warnings null) fail-fast.
+            if (warnings is null)
+            {
+                throw new BusinessException("TradeXpress:Trendyol:Product:ImagesRequired");
+            }
+
+            warnings.Add(L["TradeXpress:Trendyol:Product:ImagesRequired"].Value);
         }
 
         // Aktif + fiyatlı varyantlar = Trendyol items (barcode başına). En az 1 zorunlu.
@@ -253,14 +460,24 @@ public class SalesChannelTrTrendyolProductAppService : TradeXpressAppService, IS
             .ToList();
         if (variants.Count == 0)
         {
-            throw new BusinessException("TradeXpress:Trendyol:Product:NoPricedVariant");
+            if (warnings is null)
+            {
+                throw new BusinessException("TradeXpress:Trendyol:Product:NoPricedVariant");
+            }
+
+            warnings.Add(L["TradeXpress:Trendyol:Product:NoPricedVariant"].Value);
         }
 
         // Trendyol yalnız TRY (V2 create'de currencyType yok) → tek para birimi zorunlu; TRY-dışı karışım fail-fast.
         var currencyUnitIds = variants.Select(v => v.SalePriceCurrencyUnitId).Where(x => x is not null).Distinct().ToList();
         if (currencyUnitIds.Count > 1)
         {
-            throw new BusinessException("TradeXpress:Trendyol:Product:MixedCurrency");
+            if (warnings is null)
+            {
+                throw new BusinessException("TradeXpress:Trendyol:Product:MixedCurrency");
+            }
+
+            warnings.Add(L["TradeXpress:Trendyol:Product:MixedCurrency"].Value);
         }
 
         // Kanal-özel fiyat/stok override + türetilmiş fiyat (kaydedilmiş marj + reçete → NetCost×marj) — CANLI hesap.

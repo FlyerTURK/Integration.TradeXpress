@@ -1065,6 +1065,19 @@
     "Enum:TrendyolFastDeliveryType:FastDelivery": "Hızlı Teslimat",
     "TradeXpress:SalesChannel:Trendyol:InvalidCredentials": "Trendyol Satıcı ID / API Key / API Secret doğrulanamadı. Bilgileri kontrol edin.",
     "TradeXpress:SalesChannel:Trendyol:VerificationUnavailable": "Trendyol doğrulama servisine şu anda erişilemiyor. Lütfen daha sonra tekrar deneyin.",
-    "TrendyolProduct:PushReadonly": "Salt-okuma aşaması (T8'de aktifleşecek)"
+    "TrendyolProduct:PushReadonly": "Salt-okuma aşaması (T8'de aktifleşecek)",
+    "TrendyolProduct:Preview:Tab": "Önizleme",
+    "TrendyolProduct:Preview:Hint": "Bu veriler Trendyol'a gönderilecek (henüz gönderilmedi).",
+    "TrendyolProduct:Preview:ProductLevel": "Ürün-Seviyesi Özet",
+    "TrendyolProduct:Preview:Items": "Trendyol'a Gidecek Kalemler",
+    "TrendyolProduct:Preview:Warnings": "Uyarılar",
+    "TrendyolProduct:Preview:Warning": "Uyarı",
+    "TrendyolProduct:Preview:Description": "Açıklama Gönderilecek",
+    "TrendyolProduct:Preview:ImageCount": "Görsel Adedi",
+    "TrendyolProduct:Preview:ListPrice": "Liste Fiyatı",
+    "TrendyolProduct:Preview:SalePrice": "Satış Fiyatı",
+    "TrendyolProduct:Preview:CategoryRequired": "Kategori zorunlu (seçilmemiş).",
+    "TrendyolProduct:Preview:BrandRequired": "Marka zorunlu (Trendyol marka ister).",
+    "TrendyolProduct:Preview:MandatoryAttributeMissing": "Zorunlu kategori niteliği eksik: {0}"
   }
 }

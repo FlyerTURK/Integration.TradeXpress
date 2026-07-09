@@ -71,6 +71,58 @@ public class SalesChannelTrTrendyolProductVariantGraphDto
     public decimal? DerivedPrice { get; set; }
 }
 
+/// <summary>Trendyol push ÖNİZLEMESİ (read-only, T6) — bu listelemede Trendyol'a GİDECEK ürün-seviyesi özet +
+/// barcode başına kalemler + fail-fast/eksik-zorunlu-alan UYARILARI (lokalize). GERÇEK PUSH YOK: <c>BuildProductData</c>
+/// read-only çalıştırılır, Trendyol'a submit EDİLMEZ. N11PushPreviewDto ile simetrik (Trendyol id-bazlı alanlar).</summary>
+public class TrendyolPushPreviewDto
+{
+    /// <summary>Ürün-seviyesi gönderilecek özet (tüm kalemler için ortak alanlar).</summary>
+    public TrendyolPreviewProductDto Product { get; set; } = new();
+
+    /// <summary>Barcode başına gidecek kalemler (varyant = SKU satırı).</summary>
+    public List<TrendyolPreviewItemDto> Items { get; set; } = new();
+
+    /// <summary>Fail-fast / eksik zorunlu alan uyarıları (LOKALİZE) — push'u engelleyebilecek durumlar (exception değil).</summary>
+    public List<string> Warnings { get; set; } = new();
+}
+
+/// <summary>Önizleme ürün-seviyesi özeti — Trendyol'a gidecek ortak alanlar (tek kayıt, tüm kalemler için).</summary>
+public class TrendyolPreviewProductDto
+{
+    public string ProductMainId { get; set; } = string.Empty;
+    public string Title { get; set; } = string.Empty;
+    public string CategoryId { get; set; } = string.Empty;
+    public string? CategoryName { get; set; }
+    public string BrandId { get; set; } = string.Empty;
+    public string? BrandName { get; set; }
+    public int VatRate { get; set; }
+    public decimal? DimensionalWeight { get; set; }
+    public int? DeliveryDuration { get; set; }
+    public TrendyolFastDeliveryType? FastDeliveryType { get; set; }
+
+    /// <summary>Açıklama gönderilecek mi (kanal ya da ürün açıklaması dolu mu) — metin değil, var/yok.</summary>
+    public bool HasDescription { get; set; }
+
+    /// <summary>Gönderilecek görsel adedi (URL + geçici-linke çevrilmiş blob).</summary>
+    public int ImageCount { get; set; }
+
+    /// <summary>Ürün-seviyesi kategori attribute özeti ("Renk: Gri; Materyal: Pamuk"; ad çözülemezse "#id: değer").</summary>
+    public string Attributes { get; set; } = string.Empty;
+}
+
+/// <summary>Önizleme kalem satırı — Trendyol'a bir barcode (varyant SKU) olarak gidecek (kod/barkod/stok/fiyat + eksen özeti).</summary>
+public class TrendyolPreviewItemDto
+{
+    public string Barcode { get; set; } = string.Empty;
+    public string StockCode { get; set; } = string.Empty;
+    public int Quantity { get; set; }
+    public decimal ListPrice { get; set; }
+    public decimal SalePrice { get; set; }
+
+    /// <summary>Varyant eksen özeti ("Renk: Kırmızı; Beden: M") — ERP varyant nitelikleri.</summary>
+    public string Options { get; set; } = string.Empty;
+}
+
 /// <summary>Trendyol ürün listelemesi — tam okuma modeli (edit + durum görüntüsü). Ürün grafının parçası olarak da
 /// kullanılır (ürün 'Kaydet'inde birlikte kaydedilir): <see cref="ClientKey"/> in-memory kimlik, <see cref="IsDeleted"/>
 /// soft-delete işareti (graf diff). Kaydedilmiş kayıtta <see cref="Id"/> dolu; yeni satırda boş (N11 DTO paritesi).</summary>
@@ -205,4 +257,9 @@ public interface ISalesChannelTrTrendyolProductAppService : IApplicationService
 
     /// <summary>Kaydedilmiş batch id ile Trendyol'dan işlem durumunu çeker + günceller (COMPLETED/FAILED).</summary>
     Task<SalesChannelTrTrendyolProductDto> RefreshStatusAsync(Guid id);
+
+    /// <summary>Trendyol'a NE gideceğinin READ-ONLY önizlemesi (T6): <c>BuildProductData</c> read-only çalıştırılır,
+    /// Trendyol'a SUBMIT EDİLMEZ. Fail-fast/eksik zorunlu alanlar exception yerine
+    /// <see cref="TrendyolPushPreviewDto.Warnings"/>'e (lokalize) yazılır — önizleme yine döner.</summary>
+    Task<TrendyolPushPreviewDto> GetPushPreviewAsync(Guid id);
 }

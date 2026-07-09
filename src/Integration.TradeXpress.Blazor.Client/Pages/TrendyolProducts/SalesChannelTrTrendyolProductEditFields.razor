@@ -223,6 +223,80 @@
         </DxTabPage>
     }
 
+    @* Push önizlemesi (read-only, T6) — Trendyol'a NE gideceği + uyarılar. GERÇEK PUSH YOK (henüz gönderilmedi). *@
+    @if (_preview is not null)
+    {
+        <DxTabPage Text="@L["TrendyolProduct:Preview:Tab"]" TabIconCssClass="@TradeXpressIcons.SalesChannel">
+            <span style="color:#6c757d; font-size:0.85rem;">@L["TrendyolProduct:Preview:Hint"]</span>
+
+            @if (_preview.Warnings.Count > 0)
+            {
+                <h6 class="mt-2" style="color:#dc2626;">@L["TrendyolProduct:Preview:Warnings"]</h6>
+                <DxGrid Data="@_preview.Warnings" PageSize="50" PagerVisible="false" CssClass="w-100">
+                    <Columns>
+                        <DxGridDataColumn Caption="@L["TrendyolProduct:Preview:Warning"]">
+                            <CellDisplayTemplate Context="cell">
+                                <span style="color:#dc2626;">@cell.DataItem</span>
+                            </CellDisplayTemplate>
+                        </DxGridDataColumn>
+                    </Columns>
+                </DxGrid>
+            }
+
+            <h6 class="mt-3">@L["TrendyolProduct:Preview:ProductLevel"]</h6>
+            <DxFormLayout CssClass="w-100">
+                <DxFormLayoutItem Caption="@L["TrendyolProduct:ProductMainId"]" ColSpanMd="6">
+                    <span>@_preview.Product.ProductMainId</span>
+                </DxFormLayoutItem>
+                <DxFormLayoutItem Caption="@L["Name"]" ColSpanMd="6">
+                    <span>@_preview.Product.Title</span>
+                </DxFormLayoutItem>
+                <DxFormLayoutItem Caption="@L["TrendyolProduct:Category"]" ColSpanMd="6">
+                    <span>@(string.IsNullOrEmpty(_preview.Product.CategoryName) ? _preview.Product.CategoryId : _preview.Product.CategoryName)</span>
+                </DxFormLayoutItem>
+                <DxFormLayoutItem Caption="@L["TrendyolProduct:Brand"]" ColSpanMd="6">
+                    <span>@(string.IsNullOrEmpty(_preview.Product.BrandName) ? _preview.Product.BrandId : _preview.Product.BrandName)</span>
+                </DxFormLayoutItem>
+                <DxFormLayoutItem Caption="@L["TrendyolProduct:VatRate"]" ColSpanMd="6">
+                    <span>@_preview.Product.VatRate</span>
+                </DxFormLayoutItem>
+                <DxFormLayoutItem Caption="@L["TrendyolProduct:DimensionalWeight"]" ColSpanMd="6">
+                    <span>@(_preview.Product.DimensionalWeight?.ToString("N2") ?? "-")</span>
+                </DxFormLayoutItem>
+                <DxFormLayoutItem Caption="@L["TrendyolProduct:DeliveryDuration"]" ColSpanMd="6">
+                    <span>@(_preview.Product.DeliveryDuration?.ToString() ?? "-")</span>
+                </DxFormLayoutItem>
+                <DxFormLayoutItem Caption="@L["TrendyolProduct:FastDeliveryType"]" ColSpanMd="6">
+                    <span>@(_preview.Product.FastDeliveryType is { } fdt ? L[$"Enum:TrendyolFastDeliveryType:{fdt}"].Value : "-")</span>
+                </DxFormLayoutItem>
+                <DxFormLayoutItem Caption="@L["TrendyolProduct:Preview:Description"]" ColSpanMd="6">
+                    <span>@(_preview.Product.HasDescription ? L["Yes"] : L["No"])</span>
+                </DxFormLayoutItem>
+                <DxFormLayoutItem Caption="@L["TrendyolProduct:Preview:ImageCount"]" ColSpanMd="6">
+                    <span>@_preview.Product.ImageCount</span>
+                </DxFormLayoutItem>
+                <DxFormLayoutItem Caption="@L["TrendyolProduct:Attributes"]" ColSpanMd="12">
+                    <span>@(string.IsNullOrEmpty(_preview.Product.Attributes) ? "-" : _preview.Product.Attributes)</span>
+                </DxFormLayoutItem>
+            </DxFormLayout>
+
+            @if (_preview.Items.Count > 0)
+            {
+                <h6 class="mt-3">@L["TrendyolProduct:Preview:Items"]</h6>
+                <DxGrid Data="@_preview.Items" PageSize="50" PagerVisible="false" CssClass="w-100">
+                    <Columns>
+                        <DxGridDataColumn FieldName="Barcode" Caption="@L["TrendyolProduct:Barcode"]" Width="150px" />
+                        <DxGridDataColumn FieldName="StockCode" Caption="@L["TrendyolProduct:StockCode"]" Width="140px" />
+                        <DxGridDataColumn FieldName="Options" Caption="@L["AttributeSummary"]" />
+                        <DxGridDataColumn FieldName="Quantity" Caption="@L["StockQuantity"]" Width="90px" TextAlignment="GridTextAlignment.Right" />
+                        <DxGridDataColumn FieldName="ListPrice" Caption="@L["TrendyolProduct:Preview:ListPrice"]" Width="120px" DisplayFormat="N2" TextAlignment="GridTextAlignment.Right" />
+                        <DxGridDataColumn FieldName="SalePrice" Caption="@L["TrendyolProduct:Preview:SalePrice"]" Width="120px" DisplayFormat="N2" TextAlignment="GridTextAlignment.Right" />
+                    </Columns>
+                </DxGrid>
+            }
+        </DxTabPage>
+    }
+
     @* Trendyol senkron durumu (read-only; submit/refresh sonrası dolar). *@
     @if (!string.IsNullOrEmpty(Model.BatchRequestId) || !string.IsNullOrEmpty(Model.LastError))
     {
