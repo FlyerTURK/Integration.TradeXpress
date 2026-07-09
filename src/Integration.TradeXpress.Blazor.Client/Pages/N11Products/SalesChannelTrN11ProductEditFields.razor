@@ -165,7 +165,7 @@
                             <span>@g.Name</span>
                         </DxFormLayoutItem>
                         <DxFormLayoutItem Caption="@L["N11Product:AttributeMandatory"]" ColSpanMd="6">
-                            <DxCheckBox Checked="@g.IsMandatory" Enabled="false" CheckType="CheckType.Switch">
+                            <DxCheckBox Checked="@g.IsMandatory" Enabled="false" ValidationEnabled="false" CheckType="CheckType.Switch">
                                 @(g.IsMandatory ? L["Yes"] : L["No"])
                             </DxCheckBox>
                         </DxFormLayoutItem>
