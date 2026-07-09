@@ -24,6 +24,10 @@ public class ProductListDto : EntityDto<Guid>, IListDto<Guid>, IIsActive
 
     /// <summary>Ürüne bağlı (silinmemiş) varyant sayısı — grid göstergesi.</summary>
     public int VariantCount { get; set; }
+
+    /// <summary>Varsayılan (ana) görselin küçük önizlemesi — grid thumbnail'i. Url kaynağında direkt bağlantı,
+    /// Upload kaynağında THUMBNAIL data-URL'i (tam çözünürlük DTO'ya gömülmez). Görsel yoksa null.</summary>
+    public string? ImagePreviewUrl { get; set; }
 }
 
 public class ProductGetDto : EntityDto<Guid>, IGetDto<Guid>, IHasCode

@@ -89,6 +89,7 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         var items = await AsyncExecuter.ToListAsync(query.Skip(input.SkipCount).Take(input.MaxResultCount));
 
         var counts = await LoadVariantCountsAsync(items.Select(p => p.Id));
+        var previewUrls = await LoadImagePreviewUrlsAsync(items);
 
         return new PagedResultDto<ProductListDto>(
             totalCount,
@@ -99,7 +100,43 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
                 Name = p.Name,
                 IsActive = p.IsActive,
                 VariantCount = counts.GetValueOrDefault(p.Id),
+                ImagePreviewUrl = previewUrls.GetValueOrDefault(p.Id),
             }).ToList());
+    }
+
+    /// <summary>Grid önizlemesi için ürün başına VARSAYILAN görselin küçük gösterimi. <c>Product.Images</c> owned
+    /// koleksiyonu JSON kolonuna map'li (<c>ToJson()</c>) — sahibiyle AYNI satırda gelir, <paramref name="products"/>
+    /// zaten materyalize (yukarıdaki <c>ToListAsync</c>'ten); ek DB sorgusu YOK. Url kaynağında direkt bağlantı;
+    /// Upload kaynağında THUMBNAIL blobundan data-URL (<see cref="PopulateImagePreviewsAsync"/> ile AYNI desen —
+    /// tam çözünürlük gömülmez). Sayfa-başı satır sayısı kadar blob okuması (DxGrid zaten sayfalı, N+1 riski sınırlı).</summary>
+    private async Task<Dictionary<Guid, string>> LoadImagePreviewUrlsAsync(List<Product> products)
+    {
+        var result = new Dictionary<Guid, string>();
+        foreach (var p in products)
+        {
+            var defaultImage = p.Images.FirstOrDefault(i => i.IsDefault)
+                ?? p.Images.OrderBy(i => i.DisplayOrder).FirstOrDefault();
+            if (defaultImage is null)
+            {
+                continue;
+            }
+
+            if (defaultImage.SourceType == ProductImageSourceType.Url && !string.IsNullOrEmpty(defaultImage.Url))
+            {
+                result[p.Id] = defaultImage.Url;
+            }
+            else if (defaultImage.SourceType == ProductImageSourceType.Upload && !string.IsNullOrEmpty(defaultImage.BlobName))
+            {
+                var thumbnail = await _imageContainer.GetAllBytesOrNullAsync(
+                    ProductImageAppService.ThumbnailNameOf(defaultImage.BlobName));
+                if (thumbnail is not null)
+                {
+                    result[p.Id] = ProductImageAppService.BuildPreviewDataUrl(thumbnail);
+                }
+            }
+        }
+
+        return result;
     }
 
     public virtual async Task<ProductGetDto> GetAsync(Guid id) => await ToGetDtoAsync(await _repository.GetAsync(id));
