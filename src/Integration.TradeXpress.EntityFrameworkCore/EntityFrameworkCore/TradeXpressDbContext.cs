@@ -62,10 +62,11 @@ public class TradeXpressDbContext :
     public DbSet<SchedulerAppointment> SchedulerAppointments { get; set; } = null!;
     public DbSet<Cash> Cashes { get; set; } = null!;
     public DbSet<Service> Services { get; set; } = null!;
-    // SalesChannel TPT: soyut taban + somut alt-tipler (N11, Trendyol) — ABP repository'si concrete tip üzerinden.
+    // SalesChannel TPT: soyut taban + somut alt-tipler (N11, Trendyol, Etsy) — ABP repository'si concrete tip üzerinden.
     public DbSet<Integration.TradeXpress.SalesChannels.SalesChannelBase> SalesChannels { get; set; } = null!;
     public DbSet<Integration.TradeXpress.SalesChannels.SalesChannelTrN11> SalesChannelTrN11s { get; set; } = null!;
     public DbSet<Integration.TradeXpress.SalesChannels.SalesChannelTrTrendyol> SalesChannelTrTrendyols { get; set; } = null!;
+    public DbSet<Integration.TradeXpress.SalesChannels.SalesChannelEtsy> SalesChannelEtsys { get; set; } = null!;
     public DbSet<Future> Futures { get; set; } = null!;
     public DbSet<Scrap> Scraps { get; set; } = null!;
     public DbSet<Metal> Metals { get; set; } = null!;

@@ -19,6 +19,7 @@ public abstract class SalesChannelAppServiceResolutionTests<TStartupModule> : Tr
         GetRequiredService<ISalesChannelAppService>().ShouldNotBeNull();
         GetRequiredService<ISalesChannelTrN11AppService>().ShouldNotBeNull();
         GetRequiredService<ISalesChannelTrTrendyolAppService>().ShouldNotBeNull();
+        GetRequiredService<ISalesChannelEtsyAppService>().ShouldNotBeNull();
         GetRequiredService<IN11CredentialVerifier>().ShouldNotBeNull();
     }
 }
