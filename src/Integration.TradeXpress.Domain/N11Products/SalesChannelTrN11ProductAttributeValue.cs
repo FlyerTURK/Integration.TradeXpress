@@ -1,28 +1,28 @@
 namespace Integration.TradeXpress.N11Products;
 
 /// <summary>
-/// <see cref="SalesChannelTrN11ProductAttributeAxis"/> ekseninin bir DEĞERİ (ör. Renk → "Kırmızı"/"Yeşil"/"Siyah").
+/// <see cref="SalesChannelTrN11ProductAttribute"/> özelliğinin bir DEĞERİ (ör. Renk → "Kırmızı"/"Yeşil"/"Siyah").
 /// ERP <see cref="Integration.TradeXpress.Products.ProductAttributeValue"/> deseninin N11-scope klonu — klon-sonra-ayrış
 /// (2026-07-09 kullanıcı kararı): ERP'de karşılığı olmayan değerler (ör. sadece N11'de satılan "Siyah") burada serbestçe
-/// eklenebilir; bu tür değerlerin doğurduğu varyant kombinasyonları N11-only SKU'lardır (<see cref="SalesChannelTrN11ProductVariant.ProductVariantId"/>
+/// eklenebilir; bu tür değerlerin doğurduğu varyant kombinasyonları N11-only SKU'lardır (<see cref="SalesChannelTrN11ProductStockItem.ProductVariantId"/>
 /// null). <b>Company-owned</b> (denormalize) + per-tenant.
 /// </summary>
-public class SalesChannelTrN11ProductAttributeAxisValue : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwned
+public class SalesChannelTrN11ProductAttributeValue : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwned
 {
     #region Constructors
 
-    protected SalesChannelTrN11ProductAttributeAxisValue()
+    protected SalesChannelTrN11ProductAttributeValue()
     {
     }
 
-    public SalesChannelTrN11ProductAttributeAxisValue(
+    public SalesChannelTrN11ProductAttributeValue(
         Guid companyId,
-        Guid axisId,
+        Guid attributeId,
         string value,
         int displayOrder = 0)
     {
         SetCompany(companyId);
-        SetAxis(axisId);
+        SetAttribute(attributeId);
         SetValue(value);
         DisplayOrder = displayOrder;
     }
@@ -36,8 +36,8 @@ public class SalesChannelTrN11ProductAttributeAxisValue : FullAuditedAggregateRo
     /// <summary>Sahip şirket — denormalize (güvenlik sınırı). Set-once.</summary>
     public virtual Guid CompanyId { get; protected set; }
 
-    /// <summary>Sahip eksen — id-only referans. Set-once.</summary>
-    public virtual Guid AxisId { get; protected set; }
+    /// <summary>Sahip özellik — id-only referans. Set-once.</summary>
+    public virtual Guid AttributeId { get; protected set; }
 
     public virtual string Value { get; protected set; } = null!;
 
@@ -50,7 +50,7 @@ public class SalesChannelTrN11ProductAttributeAxisValue : FullAuditedAggregateRo
     public virtual void SetValue(string value)
     {
         Value = StringFieldGuard.NormalizeName(
-            value, nameof(Value), EntityFieldConsts.NameMinLength, N11ProductConsts.AttributeAxisValueMaxLength);
+            value, nameof(Value), EntityFieldConsts.NameMinLength, N11ProductConsts.AttributeValueMaxLength);
     }
 
     public virtual void SetDisplayOrder(int order)
@@ -73,14 +73,14 @@ public class SalesChannelTrN11ProductAttributeAxisValue : FullAuditedAggregateRo
         CompanyId = companyId;
     }
 
-    private void SetAxis(Guid axisId)
+    private void SetAttribute(Guid attributeId)
     {
-        if (axisId == Guid.Empty)
+        if (attributeId == Guid.Empty)
         {
-            throw new RequiredPropertyException(nameof(AxisId));
+            throw new RequiredPropertyException(nameof(AttributeId));
         }
 
-        AxisId = axisId;
+        AttributeId = attributeId;
     }
 
     #endregion

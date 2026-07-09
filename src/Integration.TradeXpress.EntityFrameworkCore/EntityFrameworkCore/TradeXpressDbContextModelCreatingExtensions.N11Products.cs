@@ -33,11 +33,11 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
             b.Property(x => x.ItemName).HasMaxLength(N11ProductConsts.ItemNameMaxLength);
 
             // Kategori attribute değerleri + Seyahat özel bilgisi → JSON kolonları (owned collection; N11'e push edilir, sorgulanmaz).
-            b.OwnsMany(x => x.Attributes, a =>
+            b.OwnsMany(x => x.CategoryAttributes, a =>
             {
-                a.ToJson();
-                a.Property(p => p.Name).HasMaxLength(N11ProductConsts.AttributeNameMaxLength);
-                a.Property(p => p.Value).HasMaxLength(N11ProductConsts.AttributeValueMaxLength);
+                a.ToJson("Attributes");   // kolon adı SABİT — S3 rename şema değiştirmez
+                a.Property(p => p.Name).HasMaxLength(N11ProductConsts.CategoryAttributeNameMaxLength);
+                a.Property(p => p.Value).HasMaxLength(N11ProductConsts.CategoryAttributeValueMaxLength);
             });
             b.OwnsMany(x => x.SpecialInfo, s =>
             {
@@ -54,8 +54,8 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
                 s.Property(p => p.SellerStockCode).HasMaxLength(N11ProductConsts.StockCodeMaxLength);
                 s.OwnsMany(p => p.AttributeSnapshot, a =>
                 {
-                    a.Property(p => p.Name).HasMaxLength(N11ProductConsts.AttributeNameMaxLength);
-                    a.Property(p => p.Value).HasMaxLength(N11ProductConsts.AttributeValueMaxLength);
+                    a.Property(p => p.Name).HasMaxLength(N11ProductConsts.CategoryAttributeNameMaxLength);
+                    a.Property(p => p.Value).HasMaxLength(N11ProductConsts.CategoryAttributeValueMaxLength);
                 });
             });
 
@@ -64,27 +64,27 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
             b.HasIndex(x => new { x.TenantId, x.CompanyId });
         });
 
-        // Kanal-özel varyant EKSENİ (ör. "Renk") — ERP ProductAttribute'ın N11-scope klonu (klon-sonra-ayrış).
-        builder.Entity<SalesChannelTrN11ProductAttributeAxis>(b =>
+        // Kanal-özel varyant ÖZELLİĞİ (ör. "Renk") — ERP ProductAttribute'ın N11-scope klonu (klon-sonra-ayrış).
+        builder.Entity<SalesChannelTrN11ProductAttribute>(b =>
         {
-            b.ToTable(TradeXpressConsts.DbTablePrefix + "SalesChannelTrN11ProductAttributeAxes", TradeXpressConsts.DbSchema);
+            b.ToTable(TradeXpressConsts.DbTablePrefix + "SalesChannelTrN11ProductAttributes", TradeXpressConsts.DbSchema);
             b.ConfigureByConvention();
 
-            b.Property(x => x.Name).IsRequired().HasMaxLength(N11ProductConsts.AttributeAxisNameMaxLength);
+            b.Property(x => x.Name).IsRequired().HasMaxLength(N11ProductConsts.AttributeNameMaxLength);
 
             b.HasIndex(x => new { x.TenantId, x.SalesChannelTrN11ProductId });
             b.HasIndex(x => new { x.TenantId, x.CompanyId });
         });
 
-        // Eksen DEĞERİ (ör. "Kırmızı"/"Siyah") — ERP ProductAttributeValue'nun N11-scope klonu.
-        builder.Entity<SalesChannelTrN11ProductAttributeAxisValue>(b =>
+        // Özellik DEĞERİ (ör. "Kırmızı"/"Siyah") — ERP ProductAttributeValue'nun N11-scope klonu.
+        builder.Entity<SalesChannelTrN11ProductAttributeValue>(b =>
         {
-            b.ToTable(TradeXpressConsts.DbTablePrefix + "SalesChannelTrN11ProductAttributeAxisValues", TradeXpressConsts.DbSchema);
+            b.ToTable(TradeXpressConsts.DbTablePrefix + "SalesChannelTrN11ProductAttributeValues", TradeXpressConsts.DbSchema);
             b.ConfigureByConvention();
 
-            b.Property(x => x.Value).IsRequired().HasMaxLength(N11ProductConsts.AttributeAxisValueMaxLength);
+            b.Property(x => x.Value).IsRequired().HasMaxLength(N11ProductConsts.AttributeValueMaxLength);
 
-            b.HasIndex(x => new { x.TenantId, x.AxisId });
+            b.HasIndex(x => new { x.TenantId, x.AttributeId });
             b.HasIndex(x => new { x.TenantId, x.CompanyId });
         });
 
@@ -92,9 +92,9 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
         // null alan = ERP'den devral. Anchor artık BU entity'nin KENDİ Id'si (2026-07-09 kararı, klon-sonra-ayrış);
         // ProductVariantId opsiyonel (null = N11-only kombinasyon) → unique index NULL'ları çakışma saymaz olsa da
         // açık filtre daha okunur/güvenli.
-        builder.Entity<SalesChannelTrN11ProductVariant>(b =>
+        builder.Entity<SalesChannelTrN11ProductStockItem>(b =>
         {
-            b.ToTable(TradeXpressConsts.DbTablePrefix + "SalesChannelTrN11ProductVariants", TradeXpressConsts.DbSchema);
+            b.ToTable(TradeXpressConsts.DbTablePrefix + "SalesChannelTrN11ProductStockItems", TradeXpressConsts.DbSchema);
             b.ConfigureByConvention();
 
             b.Property(x => x.OverridePrice).HasPrecision(ProductRecipeConsts.AmountPrecision, ProductRecipeConsts.AmountScale);
@@ -107,8 +107,8 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
                 .IsUnique()
                 .HasFilter("[ProductVariantId] IS NOT NULL");
 
-            // Kartezyen motor reconcile anahtarı — kanal-ürün başına TEK satır per imza (ID-bazlı; axis/değer
-            // yeniden adlandırılsa da bozulmaz). Yalnız axis-kaynaklı satırlarda dolu (legacy ERP-doğrudan null).
+            // Kartezyen motor reconcile anahtarı — kanal-ürün başına TEK satır per imza (ID-bazlı; özellik/değer
+            // yeniden adlandırılsa da bozulmaz). Yalnız özellik-kaynaklı satırlarda dolu (legacy ERP-doğrudan null).
             b.HasIndex(x => new { x.TenantId, x.SalesChannelTrN11ProductId, x.CombinationSignature })
                 .IsUnique()
                 .HasFilter("[CombinationSignature] IS NOT NULL");
@@ -117,9 +117,9 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
 
         // Kanal-özel varyant reçetesi (ERP ProductVariantRecipeLine klonu) — AYRI TABLO (owned değil; türev
         // SelectedLines Id referansları JSON'da kırılgan olur). Hesap motoru (ProductRecipeCostCalculator) ortak.
-        builder.Entity<SalesChannelTrN11ProductVariantRecipeLine>(b =>
+        builder.Entity<SalesChannelTrN11ProductStockItemRecipeLine>(b =>
         {
-            b.ToTable(TradeXpressConsts.DbTablePrefix + "SalesChannelTrN11ProductVariantRecipeLines", TradeXpressConsts.DbSchema);
+            b.ToTable(TradeXpressConsts.DbTablePrefix + "SalesChannelTrN11ProductStockItemRecipeLines", TradeXpressConsts.DbSchema);
             b.ConfigureByConvention();
 
             b.Property(x => x.Quantity).HasPrecision(ProductRecipeConsts.FactorPrecision, ProductRecipeConsts.FactorScale);
@@ -132,7 +132,7 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
             b.Property(x => x.DerivedSourceLineIds).HasMaxLength(ProductRecipeConsts.DerivedSourceLineIdsMaxLength);
 
             // Kanal-ürün + override başlığı başına sıralı okuma + company güvenlik filtresi.
-            b.HasIndex(x => new { x.TenantId, x.SalesChannelTrN11ProductId, x.OverrideHeaderId, x.LineOrder });
+            b.HasIndex(x => new { x.TenantId, x.SalesChannelTrN11ProductId, x.StockItemId, x.LineOrder });
             b.HasIndex(x => new { x.TenantId, x.CompanyId });
         });
     }

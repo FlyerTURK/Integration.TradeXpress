@@ -30,16 +30,16 @@ public static class N11ProductConsts
     public const int StockCodeMaxLength = 128;
 
     // Attribute / özel bilgi (owned → JSON) alan sınırları.
-    public const int AttributeNameMaxLength = 256;
-    public const int AttributeValueMaxLength = 4000;
+    public const int CategoryAttributeNameMaxLength = 256;
+    public const int CategoryAttributeValueMaxLength = 4000;
     public const int SpecialInfoKeyMaxLength = 64;
     public const int SpecialInfoValueMaxLength = 20000;   // HTML olabilir
 
-    // Kanal-özel varyant EKSENİ/DEĞERİ (SalesChannelTrN11ProductAttributeAxis/Value) — ERP ProductAttributeConsts
+    // Kanal-özel varyant ÖZELLİĞİ/DEĞERİ (SalesChannelTrN11ProductAttribute/Value) — ERP ProductAttributeConsts
     // (Products/ProductAttributeConsts.cs) ile HİZALI (klon-sonra-ayrış deseni; aynı alan sınırları).
-    public const int AttributeAxisNameMaxLength = 64;    // ör. "Renk", "Beden"
-    public const int AttributeAxisValueMaxLength = 128;  // ör. "Kırmızı", "Siyah"
+    public const int AttributeNameMaxLength = 64;    // ör. "Renk", "Beden"
+    public const int AttributeValueMaxLength = 128;  // ör. "Kırmızı", "Siyah"
 
-    /// <summary>Kartezyen kombinasyon imzası ("{AxisId}={AxisValueId}|...") üst sınırı — makul eksen sayısı × Guid uzunluğu.</summary>
+    /// <summary>Kartezyen kombinasyon imzası ("{AttributeId}={ValueId}|...") üst sınırı — makul özellik sayısı × Guid uzunluğu.</summary>
     public const int CombinationSignatureMaxLength = 600;
 }

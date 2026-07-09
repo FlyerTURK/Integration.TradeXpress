@@ -79,7 +79,7 @@ public partial class SalesChannelTrN11ProductEditFields : CrudComponentBase
     private bool _unitsLoaded;
 
     // Kanal-özel varyant override drill'i (satır düzenleme aç/kapa) + reçete katalog lookup verisi (bir kez yüklenir).
-    private DrillList<SalesChannelTrN11ProductVariantGraphDto>? _variantDrill;
+    private DrillList<SalesChannelTrN11ProductStockItemGraphDto>? _stockItemDrill;
     private IReadOnlyList<MetalListDto> _metals = Array.Empty<MetalListDto>();
     private IReadOnlyList<ScrapListDto> _scraps = Array.Empty<ScrapListDto>();
     private IReadOnlyList<FutureListDto> _futures = Array.Empty<FutureListDto>();
@@ -92,11 +92,11 @@ public partial class SalesChannelTrN11ProductEditFields : CrudComponentBase
     // Kategori attribute grid satırları (def + o anki değerler) — hücre-içi düzenleme, paging yok.
     private List<N11AttributeCellRow> _attributeRows = new();
 
-    // Nitelik Eksenleri drill'i (varyant ÜRETİMİ amaçlı — kategori-attribute-push'tan AYRI) — üst = eksen
-    // (Model.AttributeAxes, ilk açılışta ERP'den klonlanmış taslak gelir), alt = eksen değerleri. İkisi de serbest
+    // Özellikler drill'i (kombinasyon ÜRETİMİ amaçlı — kategori-attribute-push'tan AYRI) — üst = özellik
+    // (Model.ProductAttributes, ilk açılışta ERP'den klonlanmış taslak gelir), alt = özellik değerleri. İkisi de serbest
     // ekle/sil (klon-sonra-ayrış felsefesi).
-    private DrillList<SalesChannelTrN11ProductAttributeAxisDto>? _axisDrill;
-    private DrillList<SalesChannelTrN11ProductAttributeAxisValueDto>? _axisValueDrill;
+    private DrillList<SalesChannelTrN11ProductAttributeDto>? _attributeDrill;
+    private DrillList<SalesChannelTrN11ProductAttributeValueDto>? _attributeValueDrill;
 
     // OnParametersSetAsync her render'da çalışır → tekrarlı ağ çağrısını son-yüklenen anahtarla önle.
     private Guid _loadedTemplatesChannelId;
@@ -246,7 +246,7 @@ public partial class SalesChannelTrN11ProductEditFields : CrudComponentBase
         BuildAttributeRows();
     }
 
-    // Def + Model.Attributes'taki mevcut değerlerden grid satırlarını kur (def sırası korunur) — bir Name'e ait
+    // Def + Model.CategoryAttributes'taki mevcut değerlerden grid satırlarını kur (def sırası korunur) — bir Name'e ait
     // TÜM mevcut Attribute girdileri (N11 tel formatı zaten "aynı isim, ayrı eleman") değer-listeli attribute'ta
     // SelectedValues'a toplanır, serbest-metin attribute'ta ilk (tek) değer CustomValue'ya alınır.
     private void BuildAttributeRows()
@@ -254,7 +254,7 @@ public partial class SalesChannelTrN11ProductEditFields : CrudComponentBase
         _attributeRows = _attributeDefs.Select(def =>
         {
             var hasValueList = def.Values.Count > 0 && !def.IsCustomValue;
-            var existingValues = Model.Attributes.Where(a => a.Name == def.Name).Select(a => a.Value).ToList();
+            var existingValues = Model.CategoryAttributes.Where(a => a.Name == def.Name).Select(a => a.Value).ToList();
             return new N11AttributeCellRow
             {
                 AttributeId = def.AttributeId,
@@ -269,7 +269,7 @@ public partial class SalesChannelTrN11ProductEditFields : CrudComponentBase
     }
 
     // Hücre düzenlemesi kapanınca (EditCell — ayrı kaydet/düzenle tuşu yok) edit-model klonunun değerini orijinal
-    // satıra + gerçek Model.Attributes'a ANINDA uygular: o Name'e ait TÜM eski girdiler silinip yeniden kurulur
+    // satıra + gerçek Model.CategoryAttributes'a ANINDA uygular: o Name'e ait TÜM eski girdiler silinip yeniden kurulur
     // (değer-listeli → SelectedValues'taki her seçim ayrı (Name,Value) çifti; serbest-metin → tek CustomValue).
     private void OnAttributeRowSaving(GridEditModelSavingEventArgs e)
     {
@@ -280,16 +280,16 @@ public partial class SalesChannelTrN11ProductEditFields : CrudComponentBase
             original.CustomValue = edited.CustomValue;
         }
 
-        Model.Attributes.RemoveAll(a => a.Name == edited.Name);
+        Model.CategoryAttributes.RemoveAll(a => a.Name == edited.Name);
         var values = edited.HasValueList
             ? edited.SelectedValues.Where(v => !string.IsNullOrWhiteSpace(v))
             : (string.IsNullOrWhiteSpace(edited.CustomValue) ? Enumerable.Empty<string>() : new[] { edited.CustomValue });
         foreach (var value in values)
         {
-            Model.Attributes.Add(new SalesChannelTrN11ProductAttributeDto { Name = edited.Name, Value = value });
+            Model.CategoryAttributes.Add(new SalesChannelTrN11ProductCategoryAttributeDto { Name = edited.Name, Value = value });
         }
 
-        MarkDirty(nameof(Model.Attributes));
+        MarkDirty(nameof(Model.CategoryAttributes));
     }
 
     // Yaprak kategori seçildi — modele dış-id + ad yaz, attribute'ları tazele, dirty.
@@ -307,31 +307,31 @@ public partial class SalesChannelTrN11ProductEditFields : CrudComponentBase
         MarkDirty(nameof(Model.ShipmentTemplateName));
     }
 
-    // ── Nitelik Eksenleri (varyant üretimi) — sıra no + boş-alan guard'ları (Product ProductAttributeGraphDto
+    // ── Özellikler (kombinasyon üretimi) — sıra no + boş-alan guard'ları (Product ProductAttributeGraphDto
     // deseniyle AYNI: silinmemişlerin max sırası + 1).
-    private static int NextAxisOrder(IEnumerable<SalesChannelTrN11ProductAttributeAxisDto> items)
+    private static int NextAttributeOrder(IEnumerable<SalesChannelTrN11ProductAttributeDto> items)
     {
         return items.Where(x => !x.IsDeleted).Select(x => x.DisplayOrder).DefaultIfEmpty(0).Max() + 1;
     }
 
-    private static int NextAxisValueOrder(IEnumerable<SalesChannelTrN11ProductAttributeAxisValueDto> items)
+    private static int NextAttributeValueOrder(IEnumerable<SalesChannelTrN11ProductAttributeValueDto> items)
     {
         return items.Where(x => !x.IsDeleted).Select(x => x.DisplayOrder).DefaultIfEmpty(0).Max() + 1;
     }
 
-    private string? AxisSaveGuard(SalesChannelTrN11ProductAttributeAxisDto item)
+    private string? AttributeSaveGuard(SalesChannelTrN11ProductAttributeDto item)
     {
-        return string.IsNullOrWhiteSpace(item.Name) ? L["N11Product:AttributeAxisNameRequired"].Value : null;
+        return string.IsNullOrWhiteSpace(item.Name) ? L["N11Product:AttributeNameRequired"].Value : null;
     }
 
-    private string? AxisValueSaveGuard(SalesChannelTrN11ProductAttributeAxisValueDto item)
+    private string? AttributeValueSaveGuard(SalesChannelTrN11ProductAttributeValueDto item)
     {
         return string.IsNullOrWhiteSpace(item.Value) ? L["N11Product:AttributeValueRequired"].Value : null;
     }
 
-    // Eksen/değer grafını PERSIST EDER + kartezyen reconcile'ı hemen tetikler — yalnız KAYDEDİLMİŞ (Id'li) kayıtta.
-    // Tüm ürünü kaydetmeye gerek yok (RegenerateVariantsAsync, Full Update ile AYNI reconcile mekanizmasını kullanır).
-    private async Task RegenerateVariantsAsync()
+    // Özellik/değer grafını PERSIST EDER + kartezyen reconcile'ı hemen tetikler — yalnız KAYDEDİLMİŞ (Id'li) kayıtta.
+    // Tüm ürünü kaydetmeye gerek yok (RegenerateStockItemsAsync, Full Update ile AYNI reconcile mekanizmasını kullanır).
+    private async Task RegenerateStockItemsAsync()
     {
         if (Model.Id == Guid.Empty)
         {
@@ -341,11 +341,11 @@ public partial class SalesChannelTrN11ProductEditFields : CrudComponentBase
 
         try
         {
-            var result = await ProductAppService.RegenerateVariantsAsync(Model.Id, Model.AttributeAxes);
-            Model.AttributeAxes = result.AttributeAxes;
-            Model.Variants = result.Variants;
-            MarkDirty(nameof(Model.Variants));
-            UiService.ShowSuccessToast(string.Format(L["N11Product:VariantsRegenerated"].Value, Model.Variants.Count));
+            var result = await ProductAppService.RegenerateStockItemsAsync(Model.Id, Model.ProductAttributes);
+            Model.ProductAttributes = result.ProductAttributes;
+            Model.StockItems = result.StockItems;
+            MarkDirty(nameof(Model.StockItems));
+            UiService.ShowSuccessToast(string.Format(L["N11Product:StockItemsRegenerated"].Value, Model.StockItems.Count));
             StateHasChanged();
         }
         catch (Exception ex)
@@ -355,55 +355,55 @@ public partial class SalesChannelTrN11ProductEditFields : CrudComponentBase
     }
 
     // Varyant grid/edit'te kod hücresi — ERP-backed satırda ERP kodu, N11-only satırda (ERP karşılığı yok)
-    // eksen-değer özeti (CombinationLabel); ikisi de boşsa "-" (henüz reconcile edilmemiş/legacy taslak).
-    private static string VariantCodeOrLabel(SalesChannelTrN11ProductVariantGraphDto variant)
+    // özellik-değer özeti (CombinationLabel); ikisi de boşsa "-" (henüz reconcile edilmemiş/legacy taslak).
+    private static string StockItemCodeOrLabel(SalesChannelTrN11ProductStockItemGraphDto stockItem)
     {
-        if (!string.IsNullOrEmpty(variant.VariantCode))
+        if (!string.IsNullOrEmpty(stockItem.VariantCode))
         {
-            return variant.VariantCode;
+            return stockItem.VariantCode;
         }
 
-        return string.IsNullOrEmpty(variant.CombinationLabel) ? "-" : variant.CombinationLabel;
+        return string.IsNullOrEmpty(stockItem.CombinationLabel) ? "-" : stockItem.CombinationLabel;
     }
 
     // ── Kanal-özel varyant override'ları (fiyat/stok/marj + reçete) ──────────────────────────────────
 
     // Reçete satırı eklendi/değişti/silindi → CANLI net maliyet (ERP ile ORTAK persistsiz hesap motoru) + türetilmiş
     // fiyat yeniden hesaplanır (satır maliyet alanları grid'e döner). Tam kayıt gerekmez.
-    private async Task HandleVariantRecipeChangedAsync(SalesChannelTrN11ProductVariantGraphDto variant)
+    private async Task HandleStockItemRecipeChangedAsync(SalesChannelTrN11ProductStockItemGraphDto stockItem)
     {
         var result = await RecipeCostAppService.CalculateRecipeCostAsync(
-            new ProductRecipeCostRequestDto { Lines = variant.RecipeLines });
+            new ProductRecipeCostRequestDto { Lines = stockItem.RecipeLines });
 
-        variant.NetCost = result.NetCost;
-        variant.NetCostCurrency = result.NetCostCurrency;
-        variant.NetCostMissingRate = result.NetCostMissingRate;
-        ApplyLineCosts(variant.RecipeLines, result.Lines);
-        RecomputeDerivedPrice(variant);
-        MarkDirty(nameof(Model.Variants));
+        stockItem.NetCost = result.NetCost;
+        stockItem.NetCostCurrency = result.NetCostCurrency;
+        stockItem.NetCostMissingRate = result.NetCostMissingRate;
+        ApplyLineCosts(stockItem.RecipeLines, result.Lines);
+        RecomputeDerivedPrice(stockItem);
+        MarkDirty(nameof(Model.StockItems));
         StateHasChanged();
     }
 
     // Marj değişti → türetilmiş fiyatı ANINDA güncelle (NetCost sunucu çağrısı gerekmez; markup salt aritmetik) + dirty.
-    private void OnVariantMarginChanged(SalesChannelTrN11ProductVariantGraphDto variant, decimal? margin)
+    private void OnStockItemMarginChanged(SalesChannelTrN11ProductStockItemGraphDto stockItem, decimal? margin)
     {
-        variant.Margin = margin;
-        RecomputeDerivedPrice(variant);
-        MarkDirty(nameof(Model.Variants));
+        stockItem.Margin = margin;
+        RecomputeDerivedPrice(stockItem);
+        MarkDirty(nameof(Model.StockItems));
     }
 
     // Override fiyat para birimi (ValueExpression'sız) → değeri yaz + dirty.
-    private void OnOverrideCurrencyChanged(SalesChannelTrN11ProductVariantGraphDto variant, Guid? currencyUnitId)
+    private void OnOverrideCurrencyChanged(SalesChannelTrN11ProductStockItemGraphDto stockItem, Guid? currencyUnitId)
     {
-        variant.OverridePriceCurrencyUnitId = currencyUnitId;
-        MarkDirty(nameof(Model.Variants));
+        stockItem.OverridePriceCurrencyUnitId = currencyUnitId;
+        MarkDirty(nameof(Model.StockItems));
     }
 
     // Türetilmiş fiyat = NetCost × (1 + Marj/100) [MARKUP] — kur eksik/NetCost yoksa null (backend ile AYNI formül).
-    private static void RecomputeDerivedPrice(SalesChannelTrN11ProductVariantGraphDto variant)
+    private static void RecomputeDerivedPrice(SalesChannelTrN11ProductStockItemGraphDto stockItem)
     {
-        variant.DerivedPrice = variant.NetCost is { } netCost && !variant.NetCostMissingRate
-            ? netCost * (1m + (variant.Margin ?? 0m) / 100m)
+        stockItem.DerivedPrice = stockItem.NetCost is { } netCost && !stockItem.NetCostMissingRate
+            ? netCost * (1m + (stockItem.Margin ?? 0m) / 100m)
             : null;
     }
 

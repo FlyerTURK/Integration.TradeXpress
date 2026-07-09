@@ -7,7 +7,7 @@ using Volo.Abp.Application.Services;
 namespace Integration.TradeXpress.N11Products;
 
 /// <summary>N11 kategori attribute değeri (name/value).</summary>
-public class SalesChannelTrN11ProductAttributeDto
+public class SalesChannelTrN11ProductCategoryAttributeDto
 {
     public string Name { get; set; } = string.Empty;
     public string Value { get; set; } = string.Empty;
@@ -39,20 +39,20 @@ public class SalesChannelTrN11ProductSkuDto
 /// özelleştirmesi. LEFT JOIN: ERP varyant seti ⋈ kaydedilmiş kanal override. null override alanı = ERP'den devralınır.
 /// Reçete (<see cref="RecipeLines"/>) kaydedilmişse ondan, yoksa ERP reçetesinden KLONLANIR (Id boş = henüz persist yok).
 /// <see cref="NetCost"/>/<see cref="DerivedPrice"/> SALT-OKUNUR (GetAsync canlı hesaplar; save yoksayar).</summary>
-public class SalesChannelTrN11ProductVariantGraphDto
+public class SalesChannelTrN11ProductStockItemGraphDto
 {
     /// <summary>Override BAŞLIĞININ kendi id'si (2026-07-09 kararı: anchor budur) — SALT-OKUNUR kimlik, round-trip
-    /// bununla yapılır. Axis-kaynaklı (kartezyen) satırlarda ZORUNLU dolu (reconcile server-side üretir, client
+    /// bununla yapılır. Özellik-kaynaklı (kartezyen) satırlarda ZORUNLU dolu (reconcile server-side üretir, client
     /// yeni satır açamaz); henüz persist edilmemiş/legacy düğümde <c>Guid.Empty</c>.</summary>
     public Guid Id { get; set; }
 
-    /// <summary>ERP varyantı — id-only, OPSİYONEL. Axis-kaynaklı satırlarda yalnız fiyat/stok FALLBACK kaynağı
-    /// (reconcile anahtarı DEĞİL — bkz. <see cref="SalesChannelTrN11ProductAttributeAxisDto"/>); null = N11-only
-    /// kombinasyon (ERP'de karşılığı yok — N11 kendi ekseninde sonradan eklenen bir değerden doğdu).</summary>
+    /// <summary>ERP varyantı — id-only, OPSİYONEL. Özellik-kaynaklı satırlarda yalnız fiyat/stok FALLBACK kaynağı
+    /// (reconcile anahtarı DEĞİL — bkz. <see cref="SalesChannelTrN11ProductAttributeDto"/>); null = N11-only
+    /// kombinasyon (ERP'de karşılığı yok — N11 kendi özelliğinde sonradan eklenen bir değerden doğdu).</summary>
     public Guid? ProductVariantId { get; set; }
 
-    /// <summary>Kombinasyonu oluşturan eksen değerlerinin SALT-OKUNUR görüntüsü (ör. "Renk: Kırmızı; Beden: M") —
-    /// yalnız axis-kaynaklı (kartezyen) satırlarda dolu; legacy ERP-doğrudan satırda boş (VariantCode/Name kullanılır).</summary>
+    /// <summary>Kombinasyonu oluşturan özellik değerlerinin SALT-OKUNUR görüntüsü (ör. "Renk: Kırmızı; Beden: M") —
+    /// yalnız özellik-kaynaklı (kartezyen) satırlarda dolu; legacy ERP-doğrudan satırda boş (VariantCode/Name kullanılır).</summary>
     public string CombinationLabel { get; set; } = string.Empty;
 
     /// <summary>SALT-OKUNUR türetilmiş bayrak: <c>true</c> = ERP varyantından izleniyor, <c>false</c> = N11-only
@@ -94,24 +94,24 @@ public class SalesChannelTrN11ProductVariantGraphDto
     public decimal? DerivedPrice { get; set; }
 }
 
-/// <summary>N11 kanal-özel varyant EKSENİ (ör. "Renk", "Beden") — ERP <c>ProductAttributeGraphDto</c> deseninin
-/// N11-scope klonu (klon-sonra-ayrış). Id boş = yeni eksen; <see cref="ClientKey"/> in-memory graf diff kimliği
+/// <summary>N11 kanal-özel varyant ÖZELLİĞİ (ör. "Renk", "Beden") — ERP <c>ProductAttributeGraphDto</c> deseninin
+/// N11-scope klonu (klon-sonra-ayrış). Id boş = yeni özellik; <see cref="ClientKey"/> in-memory graf diff kimliği
 /// (Product ProductAttributeGraphDto ile aynı desen). <see cref="IsDeleted"/> = save'de silinecek.</summary>
-public class SalesChannelTrN11ProductAttributeAxisDto
+public class SalesChannelTrN11ProductAttributeDto
 {
-    /// <summary>İstemci-taraflı graf kimliği (yeni eksende Id yok; graf diff için).</summary>
+    /// <summary>İstemci-taraflı graf kimliği (yeni özellikte Id yok; graf diff için).</summary>
     public Guid ClientKey { get; set; } = Guid.NewGuid();
 
     public Guid Id { get; set; }
     public string Name { get; set; } = string.Empty;
     public int DisplayOrder { get; set; }
     public bool IsDeleted { get; set; }
-    public List<SalesChannelTrN11ProductAttributeAxisValueDto> Values { get; set; } = new();
+    public List<SalesChannelTrN11ProductAttributeValueDto> Values { get; set; } = new();
 }
 
-/// <summary>N11 kanal-özel varyant eksen DEĞERİ (ör. "Kırmızı") — ERP <c>ProductAttributeValueGraphDto</c>
+/// <summary>N11 kanal-özel varyant özellik DEĞERİ (ör. "Kırmızı") — ERP <c>ProductAttributeValueGraphDto</c>
 /// deseninin N11-scope klonu.</summary>
-public class SalesChannelTrN11ProductAttributeAxisValueDto
+public class SalesChannelTrN11ProductAttributeValueDto
 {
     /// <summary>İstemci-taraflı graf kimliği (yeni değerde Id yok; graf diff için).</summary>
     public Guid ClientKey { get; set; } = Guid.NewGuid();
@@ -210,17 +210,17 @@ public class SalesChannelTrN11ProductDto
 
     /// <summary>N11 grup içindeki öğe adı (opsiyonel).</summary>
     public string? ItemName { get; set; }
-    public List<SalesChannelTrN11ProductAttributeDto> Attributes { get; set; } = new();
+    public List<SalesChannelTrN11ProductCategoryAttributeDto> CategoryAttributes { get; set; } = new();
     public List<SalesChannelTrN11ProductSpecialInfoDto> SpecialInfo { get; set; } = new();
 
     /// <summary>Kanal-özel varyant override'ları (fiyat/stok/marj + reçete graf düğümleri) — ERP varyant seti ⋈
     /// kaydedilmiş override (LEFT JOIN). Ürün 'Kaydet'inde birlikte kaydedilir. NetCost/DerivedPrice SALT-OKUNUR.</summary>
-    public List<SalesChannelTrN11ProductVariantGraphDto> Variants { get; set; } = new();
+    public List<SalesChannelTrN11ProductStockItemGraphDto> StockItems { get; set; } = new();
 
-    /// <summary>N11 kendi varyant eksenleri (ör. "Renk"/"Beden") — İLK açılışta ERP nitelik/değerlerinden bir kez
-    /// KLONLANIR, sonrasında ERP'den bağımsız yaşar. <see cref="Variants"/> bu eksenlerin kartezyen kombinasyonundan
+    /// <summary>N11 kendi varyant özellikleri (ör. "Renk"/"Beden") — İLK açılışta ERP nitelik/değerlerinden bir kez
+    /// KLONLANIR, sonrasında ERP'den bağımsız yaşar. <see cref="StockItems"/> bu özelliklerin kartezyen kombinasyonundan
     /// üretilir (kaydet'te sunucu reconcile eder).</summary>
-    public List<SalesChannelTrN11ProductAttributeAxisDto> AttributeAxes { get; set; } = new();
+    public List<SalesChannelTrN11ProductAttributeDto> ProductAttributes { get; set; } = new();
 
     /// <summary>Varyant SKU kimlik/durum satırları (read-only; push + stok/fiyat senkronunda dolar).</summary>
     public List<SalesChannelTrN11ProductSkuDto> Skus { get; set; } = new();
@@ -259,14 +259,14 @@ public interface ISalesChannelTrN11ProductInput
     string? GroupItemCode { get; }
     string? GroupAttribute { get; }
     string? ItemName { get; }
-    List<SalesChannelTrN11ProductAttributeDto> Attributes { get; }
+    List<SalesChannelTrN11ProductCategoryAttributeDto> CategoryAttributes { get; }
     List<SalesChannelTrN11ProductSpecialInfoDto> SpecialInfo { get; }
 
     /// <summary>Kanal-özel varyant override grafı (fiyat/stok/marj + reçete) — kanal-ürünle birlikte kaydedilir.</summary>
-    List<SalesChannelTrN11ProductVariantGraphDto> Variants { get; }
+    List<SalesChannelTrN11ProductStockItemGraphDto> StockItems { get; }
 
-    /// <summary>N11 kendi varyant eksenleri — kanal-ürünle birlikte kaydedilir (kartezyen reconcile tetikler).</summary>
-    List<SalesChannelTrN11ProductAttributeAxisDto> AttributeAxes { get; }
+    /// <summary>N11 kendi varyant özellikleri — kanal-ürünle birlikte kaydedilir (kartezyen reconcile tetikler).</summary>
+    List<SalesChannelTrN11ProductAttributeDto> ProductAttributes { get; }
 }
 
 /// <summary>Listeleme oluşturma — ürün + kanal (create-only; şirket sunucuda zorlanır).</summary>
@@ -292,10 +292,10 @@ public class SalesChannelTrN11ProductCreateDto : ISalesChannelTrN11ProductInput
     public string? GroupItemCode { get; set; }
     public string? GroupAttribute { get; set; }
     public string? ItemName { get; set; }
-    public List<SalesChannelTrN11ProductAttributeDto> Attributes { get; set; } = new();
+    public List<SalesChannelTrN11ProductCategoryAttributeDto> CategoryAttributes { get; set; } = new();
     public List<SalesChannelTrN11ProductSpecialInfoDto> SpecialInfo { get; set; } = new();
-    public List<SalesChannelTrN11ProductVariantGraphDto> Variants { get; set; } = new();
-    public List<SalesChannelTrN11ProductAttributeAxisDto> AttributeAxes { get; set; } = new();
+    public List<SalesChannelTrN11ProductStockItemGraphDto> StockItems { get; set; } = new();
+    public List<SalesChannelTrN11ProductAttributeDto> ProductAttributes { get; set; } = new();
 }
 
 /// <summary>Listeleme güncelleme — ürün/kanal set-once (route'taki id kimliktir).</summary>
@@ -319,10 +319,10 @@ public class SalesChannelTrN11ProductUpdateDto : ISalesChannelTrN11ProductInput
     public string? GroupItemCode { get; set; }
     public string? GroupAttribute { get; set; }
     public string? ItemName { get; set; }
-    public List<SalesChannelTrN11ProductAttributeDto> Attributes { get; set; } = new();
+    public List<SalesChannelTrN11ProductCategoryAttributeDto> CategoryAttributes { get; set; } = new();
     public List<SalesChannelTrN11ProductSpecialInfoDto> SpecialInfo { get; set; } = new();
-    public List<SalesChannelTrN11ProductVariantGraphDto> Variants { get; set; } = new();
-    public List<SalesChannelTrN11ProductAttributeAxisDto> AttributeAxes { get; set; } = new();
+    public List<SalesChannelTrN11ProductStockItemGraphDto> StockItems { get; set; } = new();
+    public List<SalesChannelTrN11ProductAttributeDto> ProductAttributes { get; set; } = new();
 }
 
 /// <summary>
@@ -360,8 +360,8 @@ public interface ISalesChannelTrN11ProductAppService : IApplicationService
     /// <summary>Push önizlemesi (read-only): bu listelemede N11'e GİDECEK varyantlar + görseller (kaynak ERP ürünü).</summary>
     Task<N11PushPreviewDto> GetPushPreviewAsync(Guid id);
 
-    /// <summary>Eksen/değer grafını PERSIST EDER + kartezyen reconcile'ı hemen tetikler — TÜM ürünü kaydetmeden
-    /// yalnız bu N11 kaydının varyant setini yeniler. Full Update ile aynı reconcile mekanizmasını kullanır
-    /// (SaveAxesAndReconcileAsync).</summary>
-    Task<SalesChannelTrN11ProductDto> RegenerateVariantsAsync(Guid id, List<SalesChannelTrN11ProductAttributeAxisDto> attributeAxes);
+    /// <summary>Özellik/değer grafını PERSIST EDER + kartezyen reconcile'ı hemen tetikler — TÜM ürünü kaydetmeden
+    /// yalnız bu N11 kaydının kombinasyon setini yeniler. Full Update ile aynı reconcile mekanizmasını kullanır
+    /// (SaveAttributesAndReconcileAsync).</summary>
+    Task<SalesChannelTrN11ProductDto> RegenerateStockItemsAsync(Guid id, List<SalesChannelTrN11ProductAttributeDto> productAttributes);
 }

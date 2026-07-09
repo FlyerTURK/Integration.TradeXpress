@@ -36,11 +36,11 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
     private readonly IRepository<ProductVariantAttributeValue, Guid> _variantAttributeRepository;
     private readonly IRepository<SalesChannelTrN11, Guid> _channelRepository;
     private readonly IRepository<CurrencyUnit, Guid> _currencyRepository;
-    private readonly IRepository<SalesChannelTrN11ProductVariant, Guid> _variantOverrideRepository;
-    private readonly IRepository<SalesChannelTrN11ProductVariantRecipeLine, Guid> _channelRecipeLineRepository;
+    private readonly IRepository<SalesChannelTrN11ProductStockItem, Guid> _stockItemRepository;
+    private readonly IRepository<SalesChannelTrN11ProductStockItemRecipeLine, Guid> _channelRecipeLineRepository;
     private readonly IRepository<ProductVariantRecipeLine, Guid> _erpRecipeLineRepository;
-    private readonly IRepository<SalesChannelTrN11ProductAttributeAxis, Guid> _attributeAxisRepository;
-    private readonly IRepository<SalesChannelTrN11ProductAttributeAxisValue, Guid> _attributeAxisValueRepository;
+    private readonly IRepository<SalesChannelTrN11ProductAttribute, Guid> _channelAttributeRepository;
+    private readonly IRepository<SalesChannelTrN11ProductAttributeValue, Guid> _channelAttributeValueRepository;
     private readonly RecipeCostPopulator _recipeCostPopulator;
     private readonly ICurrentCompany _currentCompany;
     private readonly IN11ProductClient _client;
@@ -59,11 +59,11 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
         IRepository<ProductVariantAttributeValue, Guid> variantAttributeRepository,
         IRepository<SalesChannelTrN11, Guid> channelRepository,
         IRepository<CurrencyUnit, Guid> currencyRepository,
-        IRepository<SalesChannelTrN11ProductVariant, Guid> variantOverrideRepository,
-        IRepository<SalesChannelTrN11ProductVariantRecipeLine, Guid> channelRecipeLineRepository,
+        IRepository<SalesChannelTrN11ProductStockItem, Guid> stockItemRepository,
+        IRepository<SalesChannelTrN11ProductStockItemRecipeLine, Guid> channelRecipeLineRepository,
         IRepository<ProductVariantRecipeLine, Guid> erpRecipeLineRepository,
-        IRepository<SalesChannelTrN11ProductAttributeAxis, Guid> attributeAxisRepository,
-        IRepository<SalesChannelTrN11ProductAttributeAxisValue, Guid> attributeAxisValueRepository,
+        IRepository<SalesChannelTrN11ProductAttribute, Guid> channelAttributeRepository,
+        IRepository<SalesChannelTrN11ProductAttributeValue, Guid> channelAttributeValueRepository,
         RecipeCostPopulator recipeCostPopulator,
         ICurrentCompany currentCompany,
         IN11ProductClient client,
@@ -81,11 +81,11 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
         _variantAttributeRepository = variantAttributeRepository;
         _channelRepository = channelRepository;
         _currencyRepository = currencyRepository;
-        _variantOverrideRepository = variantOverrideRepository;
+        _stockItemRepository = stockItemRepository;
         _channelRecipeLineRepository = channelRecipeLineRepository;
         _erpRecipeLineRepository = erpRecipeLineRepository;
-        _attributeAxisRepository = attributeAxisRepository;
-        _attributeAxisValueRepository = attributeAxisValueRepository;
+        _channelAttributeRepository = channelAttributeRepository;
+        _channelAttributeValueRepository = channelAttributeValueRepository;
         _recipeCostPopulator = recipeCostPopulator;
         _currentCompany = currentCompany;
         _client = client;
@@ -116,7 +116,7 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
         foreach (var item in items)
         {
             var dto = ObjectMapper.Map<SalesChannelTrN11Product, SalesChannelTrN11ProductDto>(item);
-            await PopulateVariantGraphAsync(item, dto);
+            await PopulateStockItemGraphAsync(item, dto);
             dtos.Add(dto);
         }
 
@@ -127,31 +127,31 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
     {
         var entity = await GetOwnedAsync(id);
         var dto = ObjectMapper.Map<SalesChannelTrN11Product, SalesChannelTrN11ProductDto>(entity);
-        await PopulateVariantGraphAsync(entity, dto);
+        await PopulateStockItemGraphAsync(entity, dto);
         return dto;
     }
 
-    /// <summary>Okuma tarafı dispatch: axis modu AKTİFSE (en az 1 persist edilmiş eksen) kartezyen kombinasyon
-    /// grafı, DEĞİLSE legacy ERP-doğrudan graf doldurulur. Axis modu HİÇ aktive edilmemişse (persist edilmiş eksen
-    /// yok) klon-sonra-ayrış TETİKLENİR: ERP ProductAttribute/Value'lardan bir TASLAK eksen grafı üretilir (Id boş
-    /// = henüz persist YOK) — kullanıcı düzenleyip Kaydet'e bastığında SaveAxesGraphAsync bunu kalıcılaştırır.
+    /// <summary>Okuma tarafı dispatch: özellik modu AKTİFSE (en az 1 persist edilmiş özellik) kartezyen kombinasyon
+    /// grafı, DEĞİLSE legacy ERP-doğrudan graf doldurulur. Özellik modu HİÇ aktive edilmemişse (persist edilmiş özellik
+    /// yok) klon-sonra-ayrış TETİKLENİR: ERP ProductAttribute/Value'lardan bir TASLAK özellik grafı üretilir (Id boş
+    /// = henüz persist YOK) — kullanıcı düzenleyip Kaydet'e bastığında SaveAttributesGraphAsync bunu kalıcılaştırır.
     /// Salt-okuma çağrılarında (ör. drill listesi) DB'ye YAZILMAZ; klon yalnız kullanıcı save'inde gerçekleşir.</summary>
-    private async Task PopulateVariantGraphAsync(SalesChannelTrN11Product entity, SalesChannelTrN11ProductDto dto)
+    private async Task PopulateStockItemGraphAsync(SalesChannelTrN11Product entity, SalesChannelTrN11ProductDto dto)
     {
-        var axisEntities = await LoadAxisEntitiesAsync(entity.Id);
-        var axisValues = await LoadAxisValueEntitiesAsync(axisEntities.Select(a => a.Id).ToList());
-        dto.AttributeAxes = axisEntities.Count > 0
-            ? BuildAxesDto(axisEntities, axisValues)
-            : await BuildDraftAxesFromErpAsync(entity.ProductId);
-        dto.Variants = axisEntities.Count > 0
-            ? await BuildAttributeAxisVariantsAsync(entity, ToAxisWithValues(axisEntities, axisValues))
-            : await BuildVariantGraphAsync(entity);
+        var attributeEntities = await LoadChannelAttributeEntitiesAsync(entity.Id);
+        var channelAttributeValues = await LoadChannelAttributeValueEntitiesAsync(attributeEntities.Select(a => a.Id).ToList());
+        dto.ProductAttributes = attributeEntities.Count > 0
+            ? BuildAttributesDto(attributeEntities, channelAttributeValues)
+            : await BuildDraftAttributesFromErpAsync(entity.ProductId);
+        dto.StockItems = attributeEntities.Count > 0
+            ? await BuildAttributeStockItemsAsync(entity, ToAttributeWithValues(attributeEntities, channelAttributeValues))
+            : await BuildStockItemGraphAsync(entity);
     }
 
-    /// <summary>Klon-sonra-ayrış TETİĞİ: axis modu hiç aktive edilmemiş bir kanal-ürün açıldığında ERP
-    /// ProductAttribute/Value'lardan TASLAK eksen grafı üretir (Id boş — henüz persist YOK, salt görüntü). ERP
-    /// niteliksiz ürün (tek varyant) için boş liste — kullanıcı isterse elle eksen ekler.</summary>
-    private async Task<List<SalesChannelTrN11ProductAttributeAxisDto>> BuildDraftAxesFromErpAsync(Guid productId)
+    /// <summary>Klon-sonra-ayrış TETİĞİ: channelAttribute modu hiç aktive edilmemiş bir kanal-ürün açıldığında ERP
+    /// ProductAttribute/Value'lardan TASLAK özellik grafı üretir (Id boş — henüz persist YOK, salt görüntü). ERP
+    /// niteliksiz ürün (tek varyant) için boş liste — kullanıcı isterse elle özellik ekler.</summary>
+    private async Task<List<SalesChannelTrN11ProductAttributeDto>> BuildDraftAttributesFromErpAsync(Guid productId)
     {
         var attributes = await AsyncExecuter.ToListAsync(
             (await _attributeRepository.GetQueryableAsync())
@@ -159,7 +159,7 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
                 .OrderBy(a => a.DisplayOrder));
         if (attributes.Count == 0)
         {
-            return new List<SalesChannelTrN11ProductAttributeAxisDto>();
+            return new List<SalesChannelTrN11ProductAttributeDto>();
         }
 
         var attributeIds = attributes.Select(a => a.Id).ToList();
@@ -169,12 +169,12 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
                 .OrderBy(v => v.DisplayOrder));
         var valuesByAttribute = values.GroupBy(v => v.ProductAttributeId).ToDictionary(g => g.Key, g => g.ToList());
 
-        return attributes.Select(a => new SalesChannelTrN11ProductAttributeAxisDto
+        return attributes.Select(a => new SalesChannelTrN11ProductAttributeDto
         {
             Name = a.Name,
             DisplayOrder = a.DisplayOrder,
             Values = (valuesByAttribute.TryGetValue(a.Id, out var vs) ? vs : new List<ProductAttributeValue>())
-                .Select(v => new SalesChannelTrN11ProductAttributeAxisValueDto
+                .Select(v => new SalesChannelTrN11ProductAttributeValueDto
                 {
                     Value = v.Value,
                     DisplayOrder = v.DisplayOrder,
@@ -214,10 +214,10 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
             input.Condition);
         ApplyInput(entity, input);
         await _repository.InsertAsync(entity, autoSave: true);
-        await SaveVariantsAsync(entity, input.AttributeAxes, input.Variants);
+        await SaveStockItemsAsync(entity, input.ProductAttributes, input.StockItems);
 
         var dto = ObjectMapper.Map<SalesChannelTrN11Product, SalesChannelTrN11ProductDto>(entity);
-        await PopulateVariantGraphAsync(entity, dto);
+        await PopulateStockItemGraphAsync(entity, dto);
         return dto;
     }
 
@@ -247,28 +247,28 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
         var entity = await GetOwnedAsync(id);
         ApplyInput(entity, input);
         await _repository.UpdateAsync(entity, autoSave: true);
-        await SaveVariantsAsync(entity, input.AttributeAxes, input.Variants);
+        await SaveStockItemsAsync(entity, input.ProductAttributes, input.StockItems);
 
         var dto = ObjectMapper.Map<SalesChannelTrN11Product, SalesChannelTrN11ProductDto>(entity);
-        await PopulateVariantGraphAsync(entity, dto);
+        await PopulateStockItemGraphAsync(entity, dto);
         return dto;
     }
 
-    /// <summary>Yazma tarafı dispatch: eksen grafını persist eder + persist-sonrası axis-modu AKTİFSE (en az 1
-    /// eksen var) kartezyen reconcile + combo-satır override/reçete kaydı; DEĞİLSE legacy ERP-doğrudan override yolu.</summary>
-    private async Task SaveVariantsAsync(
+    /// <summary>Yazma tarafı dispatch: özellik grafını persist eder + persist-sonrası özellik-modu AKTİFSE (en az 1
+    /// özellik var) kartezyen reconcile + combo-satır override/reçete kaydı; DEĞİLSE legacy ERP-doğrudan override yolu.</summary>
+    private async Task SaveStockItemsAsync(
         SalesChannelTrN11Product entity,
-        List<SalesChannelTrN11ProductAttributeAxisDto> axesInput,
-        List<SalesChannelTrN11ProductVariantGraphDto> variantsInput)
+        List<SalesChannelTrN11ProductAttributeDto> attributesInput,
+        List<SalesChannelTrN11ProductStockItemGraphDto> stockItemsInput)
     {
-        var axisModeActive = await SaveAxesAndReconcileAsync(entity, axesInput);
-        if (axisModeActive)
+        var attributeModeActive = await SaveAttributesAndReconcileAsync(entity, attributesInput);
+        if (attributeModeActive)
         {
-            await SaveAxisVariantOverridesAsync(entity, variantsInput);
+            await SaveAttributeStockItemOverridesAsync(entity, stockItemsInput);
         }
         else
         {
-            await SaveVariantOverridesAsync(entity, variantsInput);
+            await SaveStockItemOverridesAsync(entity, stockItemsInput);
         }
     }
 
@@ -276,34 +276,34 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
     public virtual async Task DeleteAsync(Guid id)
     {
         var entity = await GetOwnedAsync(id);
-        // Kanal-özel varyant override başlıkları + reçete satırları + eksen/değer grafı (ayrı tablolar) —
+        // Kanal-özel varyant override başlıkları + reçete satırları + özellik/değer grafı (ayrı tablolar) —
         // kanal-ürünle birlikte temizlenir.
         await _channelRecipeLineRepository.DeleteAsync(r => r.SalesChannelTrN11ProductId == entity.Id, autoSave: true);
-        await _variantOverrideRepository.DeleteAsync(v => v.SalesChannelTrN11ProductId == entity.Id, autoSave: true);
-        var axisIds = await AsyncExecuter.ToListAsync(
-            (await _attributeAxisRepository.GetQueryableAsync())
+        await _stockItemRepository.DeleteAsync(v => v.SalesChannelTrN11ProductId == entity.Id, autoSave: true);
+        var channelAttributeIds = await AsyncExecuter.ToListAsync(
+            (await _channelAttributeRepository.GetQueryableAsync())
                 .Where(a => a.SalesChannelTrN11ProductId == entity.Id)
                 .Select(a => a.Id));
-        if (axisIds.Count > 0)
+        if (channelAttributeIds.Count > 0)
         {
-            await _attributeAxisValueRepository.DeleteAsync(v => axisIds.Contains(v.AxisId), autoSave: true);
-            await _attributeAxisRepository.DeleteAsync(a => a.SalesChannelTrN11ProductId == entity.Id, autoSave: true);
+            await _channelAttributeValueRepository.DeleteAsync(v => channelAttributeIds.Contains(v.AttributeId), autoSave: true);
+            await _channelAttributeRepository.DeleteAsync(a => a.SalesChannelTrN11ProductId == entity.Id, autoSave: true);
         }
 
         await _repository.DeleteAsync(entity, autoSave: true);
     }
 
-    /// <summary>Eksen/değer grafını PERSIST EDER + kartezyen reconcile'ı hemen tetikler — TÜM ürünü kaydetmeden
-    /// yalnız bu N11 kaydının varyant setini yeniler. Full Update ile aynı reconcile mekanizmasını kullanır
-    /// (<see cref="SaveAxesAndReconcileAsync"/>).</summary>
+    /// <summary>Özellik/değer grafını PERSIST EDER + kartezyen reconcile'ı hemen tetikler — TÜM ürünü kaydetmeden
+    /// yalnız bu N11 kaydının kombinasyon setini yeniler. Full Update ile aynı reconcile mekanizmasını kullanır
+    /// (<see cref="SaveAttributesAndReconcileAsync"/>).</summary>
     [Authorize(TradeXpressPermissions.SalesChannels.Update)]
-    public virtual async Task<SalesChannelTrN11ProductDto> RegenerateVariantsAsync(Guid id, List<SalesChannelTrN11ProductAttributeAxisDto> attributeAxes)
+    public virtual async Task<SalesChannelTrN11ProductDto> RegenerateStockItemsAsync(Guid id, List<SalesChannelTrN11ProductAttributeDto> productAttributes)
     {
         var entity = await GetOwnedAsync(id);
-        await SaveAxesAndReconcileAsync(entity, attributeAxes);
+        await SaveAttributesAndReconcileAsync(entity, productAttributes);
 
         var dto = ObjectMapper.Map<SalesChannelTrN11Product, SalesChannelTrN11ProductDto>(entity);
-        await PopulateVariantGraphAsync(entity, dto);
+        await PopulateStockItemGraphAsync(entity, dto);
         return dto;
     }
 
@@ -332,7 +332,7 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
                     item.SellerStockCode,
                     item.Quantity,
                     item.OptionPrice,
-                    item.Attributes.Select(a => new SalesChannelTrN11ProductAttribute(a.Name, a.Value)));
+                    item.Attributes.Select(a => new SalesChannelTrN11ProductCategoryAttribute(a.Name, a.Value)));
             }
 
             foreach (var sku in result.Skus)
@@ -630,9 +630,9 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
         // boş wrapper dönerse kullanıcının kategori attribute konfigürasyonu topluca silinmesin.
         if (detail.Attributes is { Count: > 0 })
         {
-            entity.SetAttributes(detail.Attributes.Select(a => new SalesChannelTrN11ProductAttribute(
-                a.Name.Truncate(N11ProductConsts.AttributeNameMaxLength)!,
-                a.Value.Truncate(N11ProductConsts.AttributeValueMaxLength) ?? string.Empty)));
+            entity.SetCategoryAttributes(detail.Attributes.Select(a => new SalesChannelTrN11ProductCategoryAttribute(
+                a.Name.Truncate(N11ProductConsts.CategoryAttributeNameMaxLength)!,
+                a.Value.Truncate(N11ProductConsts.CategoryAttributeValueMaxLength) ?? string.Empty)));
         }
 
         // Doğrulama okumasındaki SKU kimlikleri (id/version) push yanıtından TAZEDİR → üzerine yaz.
@@ -715,10 +715,10 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
                 v.Id,
                 v.Code,
                 (variantOptions.TryGetValue(v.Id, out var opts) ? opts : new List<N11ProductAttributePair>())
-                    .Select(p => new SalesChannelTrN11ProductAttribute(p.Name, p.Value))
+                    .Select(p => new SalesChannelTrN11ProductCategoryAttribute(p.Name, p.Value))
                     .ToList()))
             .ToList();
-        var validated = _pushValidator.Validate(leaf, channelProduct.Attributes, candidates);
+        var validated = _pushValidator.Validate(leaf, channelProduct.CategoryAttributes, candidates);
 
         // Reconcile/imza adayları KANONİK değerlerle kurulur (validated) — RecordSkuPush snapshot'ı da kanonik
         // olduğundan, sonraki push'ta imza eşleşmesi ham/kanonik karışımından ETKİLENMEZ (review bulgusu).
@@ -727,7 +727,7 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
                 c.VariantId,
                 c.VariantCode,
                 (validated.VariantOptions.TryGetValue(c.VariantId, out var cp) ? cp : new List<N11ProductAttributePair>())
-                    .Select(p => new SalesChannelTrN11ProductAttribute(p.Name, p.Value))
+                    .Select(p => new SalesChannelTrN11ProductCategoryAttribute(p.Name, p.Value))
                     .ToList()))
             .ToList();
 
@@ -925,50 +925,50 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
         };
     }
 
-    // ── N11 varyant EKSENLERİ (klon-sonra-ayrış) + kartezyen kombinasyon RECONCILE ─────────────────────
-    // AttributeAxes = N11'in KENDİ varyant eksenleri (klon-sonra-ayrış, 2026-07-09 kararı). Tanımlıysa (persist
-    // edilmiş en az 1 eksen varsa) kanal-ürünün varyant seti ARTIK bu eksenlerin kartezyen kombinasyonundan
-    // üretilir — legacy ERP-doğrudan graf (BuildVariantGraphAsync/SaveVariantOverridesAsync) devre dışı kalır.
-    // Reconcile anahtarı CombinationSignature ("{AxisId}={AxisValueId}|...", AxisId sıralı) — STABİL ID'lerden
+    // ── N11 varyant ÖZELLİKLERİ (klon-sonra-ayrış) + kartezyen kombinasyon RECONCILE ─────────────────────
+    // ProductAttributes = N11'in KENDİ varyant özellikleri (klon-sonra-ayrış, 2026-07-09 kararı). Tanımlıysa (persist
+    // edilmiş en az 1 özellik varsa) kanal-ürünün kombinasyon seti ARTIK bu özelliklerin kartezyen kombinasyonundan
+    // üretilir — legacy ERP-doğrudan graf (BuildStockItemGraphAsync/SaveStockItemOverridesAsync) devre dışı kalır.
+    // Reconcile anahtarı CombinationSignature ("{AttributeId}={ValueId}|...", AttributeId sıralı) — STABİL ID'lerden
     // kurulur, ERP ProductVariantId yalnız fiyat/stok fallback KAYNAĞI (bir kerelik fırsatçı eşleştirme; reconcile
-    // anahtarı DEĞİL). Axis/değer silinip kombinasyon artık üretilemezse o satır + reçetesi TEMİZLENİR (türetilmiş
-    // satır — kaynağı kalkınca o da kalkar; SaveVariantOverridesAsync'teki "tutarlı ol" temizlik konvansiyonuyla simetrik).
+    // anahtarı DEĞİL). Özellik/değer silinip kombinasyon artık üretilemezse o satır + reçetesi TEMİZLENİR (türetilmiş
+    // satır — kaynağı kalkınca o da kalkar; SaveStockItemOverridesAsync'teki "tutarlı ol" temizlik konvansiyonuyla simetrik).
 
-    /// <summary>Bellek-içi eksen + değer görünümü — reconcile matematiği (kartezyen + imza) için.</summary>
-    private sealed record AxisWithValues(Guid AxisId, string AxisName, List<(Guid ValueId, string Value)> Values);
+    /// <summary>Bellek-içi özellik + değer görünümü — reconcile matematiği (kartezyen + imza) için.</summary>
+    private sealed record AttributeWithValues(Guid AttributeId, string AttributeName, List<(Guid ValueId, string Value)> Values);
 
-    private async Task<List<SalesChannelTrN11ProductAttributeAxis>> LoadAxisEntitiesAsync(Guid channelProductId)
+    private async Task<List<SalesChannelTrN11ProductAttribute>> LoadChannelAttributeEntitiesAsync(Guid channelProductId)
     {
         return await AsyncExecuter.ToListAsync(
-            (await _attributeAxisRepository.GetQueryableAsync())
+            (await _channelAttributeRepository.GetQueryableAsync())
                 .Where(a => a.SalesChannelTrN11ProductId == channelProductId)
                 .OrderBy(a => a.DisplayOrder).ThenBy(a => a.CreationTime));
     }
 
-    private async Task<List<SalesChannelTrN11ProductAttributeAxisValue>> LoadAxisValueEntitiesAsync(List<Guid> axisIds)
+    private async Task<List<SalesChannelTrN11ProductAttributeValue>> LoadChannelAttributeValueEntitiesAsync(List<Guid> channelAttributeIds)
     {
-        if (axisIds.Count == 0)
+        if (channelAttributeIds.Count == 0)
         {
-            return new List<SalesChannelTrN11ProductAttributeAxisValue>();
+            return new List<SalesChannelTrN11ProductAttributeValue>();
         }
 
         return await AsyncExecuter.ToListAsync(
-            (await _attributeAxisValueRepository.GetQueryableAsync())
-                .Where(v => axisIds.Contains(v.AxisId))
+            (await _channelAttributeValueRepository.GetQueryableAsync())
+                .Where(v => channelAttributeIds.Contains(v.AttributeId))
                 .OrderBy(v => v.DisplayOrder).ThenBy(v => v.CreationTime));
     }
 
-    private static List<SalesChannelTrN11ProductAttributeAxisDto> BuildAxesDto(
-        List<SalesChannelTrN11ProductAttributeAxis> axes, List<SalesChannelTrN11ProductAttributeAxisValue> values)
+    private static List<SalesChannelTrN11ProductAttributeDto> BuildAttributesDto(
+        List<SalesChannelTrN11ProductAttribute> channelAttributes, List<SalesChannelTrN11ProductAttributeValue> values)
     {
-        var valuesByAxis = values.GroupBy(v => v.AxisId).ToDictionary(g => g.Key, g => g.ToList());
-        return axes.Select(a => new SalesChannelTrN11ProductAttributeAxisDto
+        var valuesByChannelAttribute = values.GroupBy(v => v.AttributeId).ToDictionary(g => g.Key, g => g.ToList());
+        return channelAttributes.Select(a => new SalesChannelTrN11ProductAttributeDto
         {
             Id = a.Id,
             Name = a.Name,
             DisplayOrder = a.DisplayOrder,
-            Values = (valuesByAxis.TryGetValue(a.Id, out var vs) ? vs : new List<SalesChannelTrN11ProductAttributeAxisValue>())
-                .Select(v => new SalesChannelTrN11ProductAttributeAxisValueDto
+            Values = (valuesByChannelAttribute.TryGetValue(a.Id, out var vs) ? vs : new List<SalesChannelTrN11ProductAttributeValue>())
+                .Select(v => new SalesChannelTrN11ProductAttributeValueDto
                 {
                     Id = v.Id,
                     Value = v.Value,
@@ -978,121 +978,121 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
         }).ToList();
     }
 
-    private static List<AxisWithValues> ToAxisWithValues(
-        List<SalesChannelTrN11ProductAttributeAxis> axes, List<SalesChannelTrN11ProductAttributeAxisValue> values)
+    private static List<AttributeWithValues> ToAttributeWithValues(
+        List<SalesChannelTrN11ProductAttribute> channelAttributes, List<SalesChannelTrN11ProductAttributeValue> values)
     {
-        var valuesByAxis = values.GroupBy(v => v.AxisId).ToDictionary(g => g.Key, g => g.ToList());
-        return axes.Select(a => new AxisWithValues(
+        var valuesByChannelAttribute = values.GroupBy(v => v.AttributeId).ToDictionary(g => g.Key, g => g.ToList());
+        return channelAttributes.Select(a => new AttributeWithValues(
             a.Id,
             a.Name,
-            (valuesByAxis.TryGetValue(a.Id, out var vs) ? vs : new List<SalesChannelTrN11ProductAttributeAxisValue>())
+            (valuesByChannelAttribute.TryGetValue(a.Id, out var vs) ? vs : new List<SalesChannelTrN11ProductAttributeValue>())
                 .Select(v => (v.Id, v.Value))
                 .ToList())).ToList();
     }
 
-    /// <summary>Eksen + değer grafını persist eder (RecipeLines ile AYNI iki-öge diff deseni: silinenler → upsert;
-    /// ClientKey→Id input DTO'suna geri yazılır). Boş/null girdi no-op (mevcut eksenlere DOKUNMAZ).</summary>
-    private async Task SaveAxesGraphAsync(SalesChannelTrN11Product channelProduct, List<SalesChannelTrN11ProductAttributeAxisDto>? axesInput)
+    /// <summary>Özellik + değer grafını persist eder (RecipeLines ile AYNI iki-öge diff deseni: silinenler → upsert;
+    /// ClientKey→Id input DTO'suna geri yazılır). Boş/null girdi no-op (mevcut özelliklere DOKUNMAZ).</summary>
+    private async Task SaveAttributesGraphAsync(SalesChannelTrN11Product channelProduct, List<SalesChannelTrN11ProductAttributeDto>? attributesInput)
     {
-        if (axesInput is not { Count: > 0 })
+        if (attributesInput is not { Count: > 0 })
         {
             return;
         }
 
-        foreach (var axis in axesInput.Where(a => a.IsDeleted && a.Id != Guid.Empty))
+        foreach (var channelAttribute in attributesInput.Where(a => a.IsDeleted && a.Id != Guid.Empty))
         {
-            await _attributeAxisValueRepository.DeleteAsync(v => v.AxisId == axis.Id, autoSave: true);
-            await _attributeAxisRepository.DeleteAsync(axis.Id, autoSave: true);
+            await _channelAttributeValueRepository.DeleteAsync(v => v.AttributeId == channelAttribute.Id, autoSave: true);
+            await _channelAttributeRepository.DeleteAsync(channelAttribute.Id, autoSave: true);
         }
 
-        foreach (var axis in axesInput.Where(a => !a.IsDeleted))
+        foreach (var channelAttribute in attributesInput.Where(a => !a.IsDeleted))
         {
-            SalesChannelTrN11ProductAttributeAxis entity;
-            if (axis.Id == Guid.Empty)
+            SalesChannelTrN11ProductAttribute entity;
+            if (channelAttribute.Id == Guid.Empty)
             {
-                entity = new SalesChannelTrN11ProductAttributeAxis(channelProduct.CompanyId, channelProduct.Id, axis.Name, axis.DisplayOrder);
-                await _attributeAxisRepository.InsertAsync(entity, autoSave: true);
-                axis.Id = entity.Id;
+                entity = new SalesChannelTrN11ProductAttribute(channelProduct.CompanyId, channelProduct.Id, channelAttribute.Name, channelAttribute.DisplayOrder);
+                await _channelAttributeRepository.InsertAsync(entity, autoSave: true);
+                channelAttribute.Id = entity.Id;
             }
             else
             {
-                entity = await _attributeAxisRepository.GetAsync(axis.Id);
-                entity.SetName(axis.Name);
-                entity.SetDisplayOrder(axis.DisplayOrder);
-                await _attributeAxisRepository.UpdateAsync(entity, autoSave: true);
+                entity = await _channelAttributeRepository.GetAsync(channelAttribute.Id);
+                entity.SetName(channelAttribute.Name);
+                entity.SetDisplayOrder(channelAttribute.DisplayOrder);
+                await _channelAttributeRepository.UpdateAsync(entity, autoSave: true);
             }
 
-            foreach (var value in axis.Values.Where(v => v.IsDeleted && v.Id != Guid.Empty))
+            foreach (var value in channelAttribute.Values.Where(v => v.IsDeleted && v.Id != Guid.Empty))
             {
-                await _attributeAxisValueRepository.DeleteAsync(value.Id, autoSave: true);
+                await _channelAttributeValueRepository.DeleteAsync(value.Id, autoSave: true);
             }
 
-            foreach (var value in axis.Values.Where(v => !v.IsDeleted))
+            foreach (var value in channelAttribute.Values.Where(v => !v.IsDeleted))
             {
                 if (value.Id == Guid.Empty)
                 {
-                    var valueEntity = new SalesChannelTrN11ProductAttributeAxisValue(channelProduct.CompanyId, axis.Id, value.Value, value.DisplayOrder);
-                    await _attributeAxisValueRepository.InsertAsync(valueEntity, autoSave: true);
+                    var valueEntity = new SalesChannelTrN11ProductAttributeValue(channelProduct.CompanyId, channelAttribute.Id, value.Value, value.DisplayOrder);
+                    await _channelAttributeValueRepository.InsertAsync(valueEntity, autoSave: true);
                     value.Id = valueEntity.Id;
                 }
                 else
                 {
-                    var valueEntity = await _attributeAxisValueRepository.GetAsync(value.Id);
+                    var valueEntity = await _channelAttributeValueRepository.GetAsync(value.Id);
                     valueEntity.SetValue(value.Value);
                     valueEntity.SetDisplayOrder(value.DisplayOrder);
-                    await _attributeAxisValueRepository.UpdateAsync(valueEntity, autoSave: true);
+                    await _channelAttributeValueRepository.UpdateAsync(valueEntity, autoSave: true);
                 }
             }
         }
     }
 
-    /// <summary>Eksen grafını persist eder + persist-sonrası DB durumuna göre kartezyen kombinasyon satırlarını
-    /// reconcile eder. Döndürdüğü bool = axis-modu AKTİF mi (en az 1 persist edilmiş eksen var) — false ise çağıran
-    /// legacy ERP-doğrudan yola (<see cref="BuildVariantGraphAsync"/>/<see cref="SaveVariantOverridesAsync"/>) düşer.</summary>
-    private async Task<bool> SaveAxesAndReconcileAsync(SalesChannelTrN11Product channelProduct, List<SalesChannelTrN11ProductAttributeAxisDto>? axesInput)
+    /// <summary>Özellik grafını persist eder + persist-sonrası DB durumuna göre kartezyen kombinasyon satırlarını
+    /// reconcile eder. Döndürdüğü bool = channelAttribute-modu AKTİF mi (en az 1 persist edilmiş özellik var) — false ise çağıran
+    /// legacy ERP-doğrudan yola (<see cref="BuildStockItemGraphAsync"/>/<see cref="SaveStockItemOverridesAsync"/>) düşer.</summary>
+    private async Task<bool> SaveAttributesAndReconcileAsync(SalesChannelTrN11Product channelProduct, List<SalesChannelTrN11ProductAttributeDto>? attributesInput)
     {
-        await SaveAxesGraphAsync(channelProduct, axesInput);
+        await SaveAttributesGraphAsync(channelProduct, attributesInput);
 
-        var axisEntities = await LoadAxisEntitiesAsync(channelProduct.Id);
-        if (axisEntities.Count == 0)
+        var attributeEntities = await LoadChannelAttributeEntitiesAsync(channelProduct.Id);
+        if (attributeEntities.Count == 0)
         {
             return false;
         }
 
-        var axisValues = await LoadAxisValueEntitiesAsync(axisEntities.Select(a => a.Id).ToList());
-        await SynchronizeAttributeAxisVariantsAsync(channelProduct, ToAxisWithValues(axisEntities, axisValues));
+        var channelAttributeValues = await LoadChannelAttributeValueEntitiesAsync(attributeEntities.Select(a => a.Id).ToList());
+        await SynchronizeStockItemsAsync(channelProduct, ToAttributeWithValues(attributeEntities, channelAttributeValues));
         return true;
     }
 
-    private static List<List<(Guid AxisId, Guid ValueId)>> BuildCombinations(List<AxisWithValues> axes)
+    private static List<List<(Guid AttributeId, Guid ValueId)>> BuildCombinations(List<AttributeWithValues> channelAttributes)
     {
-        if (axes.Count == 0)
+        if (channelAttributes.Count == 0)
         {
-            return new List<List<(Guid AxisId, Guid ValueId)>>();
+            return new List<List<(Guid AttributeId, Guid ValueId)>>();
         }
 
-        var result = new List<List<(Guid AxisId, Guid ValueId)>> { new() };
-        foreach (var axis in axes)
+        var result = new List<List<(Guid AttributeId, Guid ValueId)>> { new() };
+        foreach (var channelAttribute in channelAttributes)
         {
-            var next = new List<List<(Guid AxisId, Guid ValueId)>>();
+            var next = new List<List<(Guid AttributeId, Guid ValueId)>>();
             foreach (var combo in result)
             {
-                foreach (var value in axis.Values)
+                foreach (var value in channelAttribute.Values)
                 {
-                    var extended = new List<(Guid AxisId, Guid ValueId)>(combo) { (axis.AxisId, value.ValueId) };
+                    var extended = new List<(Guid AttributeId, Guid ValueId)>(combo) { (channelAttribute.AttributeId, value.ValueId) };
                     next.Add(extended);
                 }
             }
 
-            result = next;   // bir eksenin değeri yoksa 'next' boş kalır → kombinasyon üretilemez (matematiksel doğru)
+            result = next;   // bir özelliğin değeri yoksa 'next' boş kalır → kombinasyon üretilemez (matematiksel doğru)
         }
 
         return result;
     }
 
-    private static string BuildCombinationSignature(IEnumerable<(Guid AxisId, Guid ValueId)> pairs)
+    private static string BuildCombinationSignature(IEnumerable<(Guid AttributeId, Guid ValueId)> pairs)
     {
-        return string.Join('|', pairs.OrderBy(p => p.AxisId).Select(p => $"{p.AxisId}={p.ValueId}"));
+        return string.Join('|', pairs.OrderBy(p => p.AttributeId).Select(p => $"{p.AttributeId}={p.ValueId}"));
     }
 
     /// <summary>ERP varyantlarının (AttributeName, ValueText) normalize edilmiş küme indeksi — fırsatçı eşleştirme kaynağı.</summary>
@@ -1111,7 +1111,7 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
         return value.Trim().ToUpperInvariant();
     }
 
-    /// <summary>Bir N11 kombinasyonunun (Axis.Name/AxisValue.Value seti) ERP varyantlarından TAM örtüşen tekini bulur
+    /// <summary>Bir N11 kombinasyonunun (Attribute.Name/AttributeValue.Value seti) ERP varyantlarından TAM örtüşen tekini bulur
     /// (bir kerelik fırsatçı eşleştirme — reconcile anahtarı DEĞİL). Örtüşme YOKSA ya da BİRDEN FAZLA varyant aynı
     /// sete sahipse (belirsiz) null döner — yanlış atamaktansa N11-only kalması güvenli.</summary>
     private static Guid? MatchErpVariant(List<(string Name, string Value)> comboOptionSet, Dictionary<Guid, HashSet<(string Name, string Value)>> erpIndex)
@@ -1136,25 +1136,25 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
         return match;
     }
 
-    /// <summary>Kartezyen kombinasyon satırlarını (<see cref="SalesChannelTrN11ProductVariant"/>, CombinationSignature
-    /// ile) mevcut eksen/değer setiyle reconcile eder: artık üretilemeyen kombinasyonlar (satır + reçetesi) SİLİNİR
+    /// <summary>Kartezyen kombinasyon satırlarını (<see cref="SalesChannelTrN11ProductStockItem"/>, CombinationSignature
+    /// ile) mevcut özellik/değer setiyle reconcile eder: artık üretilemeyen kombinasyonlar (satır + reçetesi) SİLİNİR
     /// (orphan temizliği — 2026-07-09 kararı), eksik kombinasyonlar İNSERT edilir (fırsatçı ERP eşleştirmesiyle).
     /// Var olan satırlara (imzası hâlâ üretilebilir) DOKUNULMAZ — kullanıcı override/reçete verisi korunur.</summary>
-    private async Task SynchronizeAttributeAxisVariantsAsync(SalesChannelTrN11Product channelProduct, List<AxisWithValues> axes)
+    private async Task SynchronizeStockItemsAsync(SalesChannelTrN11Product channelProduct, List<AttributeWithValues> channelAttributes)
     {
-        var combos = BuildCombinations(axes);
+        var combos = BuildCombinations(channelAttributes);
         var wantedSignatures = combos.Select(BuildCombinationSignature).ToHashSet(StringComparer.Ordinal);
 
         var existingHeaders = await AsyncExecuter.ToListAsync(
-            (await _variantOverrideRepository.GetQueryableAsync())
+            (await _stockItemRepository.GetQueryableAsync())
                 .Where(h => h.SalesChannelTrN11ProductId == channelProduct.Id && h.CombinationSignature != null));
 
         foreach (var orphan in existingHeaders.Where(h => !wantedSignatures.Contains(h.CombinationSignature!)))
         {
             await _channelRecipeLineRepository.DeleteAsync(
-                r => r.SalesChannelTrN11ProductId == channelProduct.Id && r.OverrideHeaderId == orphan.Id,
+                r => r.SalesChannelTrN11ProductId == channelProduct.Id && r.StockItemId == orphan.Id,
                 autoSave: true);
-            await _variantOverrideRepository.DeleteAsync(orphan, autoSave: true);
+            await _stockItemRepository.DeleteAsync(orphan, autoSave: true);
         }
 
         var existingSignatures = existingHeaders
@@ -1168,36 +1168,36 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
         }
 
         var erpIndex = await BuildErpVariantOptionSetIndexAsync(channelProduct.ProductId);
-        var axisById = axes.ToDictionary(a => a.AxisId);
+        var attributeById = channelAttributes.ToDictionary(a => a.AttributeId);
 
         foreach (var combo in missing)
         {
             var optionSet = combo
-                .Select(p => (Name: axisById[p.AxisId].AxisName, Value: axisById[p.AxisId].Values.First(v => v.ValueId == p.ValueId).Value))
+                .Select(p => (Name: attributeById[p.AttributeId].AttributeName, Value: attributeById[p.AttributeId].Values.First(v => v.ValueId == p.ValueId).Value))
                 .ToList();
             var matchedVariantId = MatchErpVariant(optionSet, erpIndex);
 
-            var header = new SalesChannelTrN11ProductVariant(channelProduct.CompanyId, channelProduct.Id, matchedVariantId);
+            var header = new SalesChannelTrN11ProductStockItem(channelProduct.CompanyId, channelProduct.Id, matchedVariantId);
             header.SetCombinationSignature(BuildCombinationSignature(combo));
-            await _variantOverrideRepository.InsertAsync(header, autoSave: true);
+            await _stockItemRepository.InsertAsync(header, autoSave: true);
         }
     }
 
-    private static string BuildCombinationLabel(string signature, Dictionary<Guid, AxisWithValues> axisById)
+    private static string BuildCombinationLabel(string signature, Dictionary<Guid, AttributeWithValues> attributeById)
     {
         var parts = new List<string>();
         foreach (var pair in signature.Split('|', StringSplitOptions.RemoveEmptyEntries))
         {
             var segments = pair.Split('=');
-            if (segments.Length != 2 || !Guid.TryParse(segments[0], out var axisId) || !Guid.TryParse(segments[1], out var valueId))
+            if (segments.Length != 2 || !Guid.TryParse(segments[0], out var attributeId) || !Guid.TryParse(segments[1], out var valueId))
             {
                 continue;
             }
 
-            if (axisById.TryGetValue(axisId, out var axis))
+            if (attributeById.TryGetValue(attributeId, out var channelAttribute))
             {
-                var value = axis.Values.FirstOrDefault(v => v.ValueId == valueId).Value;
-                parts.Add($"{axis.AxisName}: {value}");
+                var value = channelAttribute.Values.FirstOrDefault(v => v.ValueId == valueId).Value;
+                parts.Add($"{channelAttribute.AttributeName}: {value}");
             }
         }
 
@@ -1206,23 +1206,23 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
 
     /// <summary>Kartezyen kombinasyon satırlarını graf DTO'suna projekte eder (reconcile'ın ÜRETTİĞİ set — reconcile
     /// bu metottan ÖNCE çağrılmış olmalı). ERP-backed (ProductVariantId dolu) satırda da anchor HALA header.Id'dir.</summary>
-    private async Task<List<SalesChannelTrN11ProductVariantGraphDto>> BuildAttributeAxisVariantsAsync(
-        SalesChannelTrN11Product channelProduct, List<AxisWithValues> axes)
+    private async Task<List<SalesChannelTrN11ProductStockItemGraphDto>> BuildAttributeStockItemsAsync(
+        SalesChannelTrN11Product channelProduct, List<AttributeWithValues> channelAttributes)
     {
         var headers = await AsyncExecuter.ToListAsync(
-            (await _variantOverrideRepository.GetQueryableAsync())
+            (await _stockItemRepository.GetQueryableAsync())
                 .Where(h => h.SalesChannelTrN11ProductId == channelProduct.Id && h.CombinationSignature != null)
                 .OrderBy(h => h.CreationTime));
         if (headers.Count == 0)
         {
-            return new List<SalesChannelTrN11ProductVariantGraphDto>();
+            return new List<SalesChannelTrN11ProductStockItemGraphDto>();
         }
 
         var headerIds = headers.Select(h => h.Id).ToList();
         var savedByHeader = (await AsyncExecuter.ToListAsync(
                 (await _channelRecipeLineRepository.GetQueryableAsync())
-                    .Where(r => r.SalesChannelTrN11ProductId == channelProduct.Id && headerIds.Contains(r.OverrideHeaderId))))
-            .GroupBy(r => r.OverrideHeaderId)
+                    .Where(r => r.SalesChannelTrN11ProductId == channelProduct.Id && headerIds.Contains(r.StockItemId))))
+            .GroupBy(r => r.StockItemId)
             .ToDictionary(g => g.Key, g => g.ToList());
 
         var erpVariantIds = headers.Where(h => h.ProductVariantId is not null).Select(h => h.ProductVariantId!.Value).Distinct().ToList();
@@ -1232,18 +1232,18 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
                     (await _variantRepository.GetQueryableAsync()).Where(v => erpVariantIds.Contains(v.Id))))
                 .ToDictionary(v => v.Id);
 
-        var axisById = axes.ToDictionary(a => a.AxisId);
-        var nodes = new List<SalesChannelTrN11ProductVariantGraphDto>(headers.Count);
+        var attributeById = channelAttributes.ToDictionary(a => a.AttributeId);
+        var nodes = new List<SalesChannelTrN11ProductStockItemGraphDto>(headers.Count);
         foreach (var header in headers)
         {
             var erpVariant = header.ProductVariantId is { } erpId && erpVariantsById.TryGetValue(erpId, out var v) ? v : null;
-            var node = new SalesChannelTrN11ProductVariantGraphDto
+            var node = new SalesChannelTrN11ProductStockItemGraphDto
             {
                 Id = header.Id,
                 ProductVariantId = header.ProductVariantId,
                 VariantCode = erpVariant?.Code ?? string.Empty,
                 VariantName = erpVariant?.Name ?? string.Empty,
-                CombinationLabel = BuildCombinationLabel(header.CombinationSignature!, axisById),
+                CombinationLabel = BuildCombinationLabel(header.CombinationSignature!, attributeById),
                 OverridePrice = header.OverridePrice,
                 OverridePriceCurrencyUnitId = header.OverridePriceCurrencyUnitId,
                 OverrideStock = header.OverrideStock,
@@ -1272,7 +1272,7 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
     /// alanlarını (OverridePrice/OverrideStock/Margin/RecipeLines) kullanıcı girdisinden persist eder. Client YENİ
     /// satır AÇAMAZ (Id boş düğüm atlanır — reconcile tek üretici); yabancı/bayat Id sessizce atlanır. N11-only
     /// (ProductVariantId null) satırda ERP fallback'i YOKTUR → OverridePrice + OverrideStock ZORUNLU (fail-fast).</summary>
-    private async Task SaveAxisVariantOverridesAsync(SalesChannelTrN11Product channelProduct, List<SalesChannelTrN11ProductVariantGraphDto>? variants)
+    private async Task SaveAttributeStockItemOverridesAsync(SalesChannelTrN11Product channelProduct, List<SalesChannelTrN11ProductStockItemGraphDto>? variants)
     {
         if (variants is not { Count: > 0 })
         {
@@ -1286,7 +1286,7 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
                 continue;
             }
 
-            var header = await _variantOverrideRepository.FindAsync(node.Id);
+            var header = await _stockItemRepository.FindAsync(node.Id);
             if (header is null || header.SalesChannelTrN11ProductId != channelProduct.Id)
             {
                 continue;
@@ -1300,7 +1300,7 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
             header.SetOverridePrice(node.OverridePrice, node.OverridePriceCurrencyUnitId);
             header.SetOverrideStock(node.OverrideStock);
             header.SetMargin(node.Margin);
-            await _variantOverrideRepository.UpdateAsync(header, autoSave: true);
+            await _stockItemRepository.UpdateAsync(header, autoSave: true);
 
             await SaveChannelRecipeLinesAsync(channelProduct, header.Id, node.RecipeLines);
         }
@@ -1313,7 +1313,7 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
     /// <summary>Bir kanal-ürünün varyant override grafını kurar: aktif ERP varyantları × kaydedilmiş override başlığı
     /// (fiyat/stok/marj) + reçete (kaydedilmişse ondan, yoksa ERP reçetesinden klon). NetCost + türetilmiş fiyat
     /// (NetCost×(1+Margin/100)) canlı hesaplanır. Varyant yoksa boş liste.</summary>
-    private async Task<List<SalesChannelTrN11ProductVariantGraphDto>> BuildVariantGraphAsync(SalesChannelTrN11Product channelProduct)
+    private async Task<List<SalesChannelTrN11ProductStockItemGraphDto>> BuildStockItemGraphAsync(SalesChannelTrN11Product channelProduct)
     {
         var variants = await AsyncExecuter.ToListAsync(
             (await _variantRepository.GetQueryableAsync())
@@ -1321,25 +1321,25 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
                 .OrderByDescending(v => v.IsMain).ThenBy(v => v.Code));
         if (variants.Count == 0)
         {
-            return new List<SalesChannelTrN11ProductVariantGraphDto>();
+            return new List<SalesChannelTrN11ProductStockItemGraphDto>();
         }
 
         var variantIds = variants.Select(v => v.Id).ToList();
 
         // Yalnız ERP-backed başlıklar (ProductVariantId dolu) — N11-only satırlar bu ERP-varyant grafına girmez
-        // (kendi grubunda ayrıca listelenir; bkz. BuildAttributeAxisVariantsAsync).
+        // (kendi grubunda ayrıca listelenir; bkz. BuildAttributeStockItemsAsync).
         var headers = (await AsyncExecuter.ToListAsync(
-                (await _variantOverrideRepository.GetQueryableAsync())
+                (await _stockItemRepository.GetQueryableAsync())
                     .Where(h => h.SalesChannelTrN11ProductId == channelProduct.Id && h.ProductVariantId != null)))
             .ToDictionary(h => h.ProductVariantId!.Value);
 
-        // Reçete satırları artık override BAŞLIĞININ kendi Id'sine bağlı (2026-07-09 kararı — OverrideHeaderId),
+        // Reçete satırları artık override BAŞLIĞININ kendi Id'sine bağlı (2026-07-09 kararı — StockItemId),
         // ERP ProductVariantId'ye DEĞİL; bu yüzden önce header.Id'ye, sonra ERP varyantına eşleniyor.
         var headerIds = headers.Values.Select(h => h.Id).ToList();
         var savedByHeader = (await AsyncExecuter.ToListAsync(
                 (await _channelRecipeLineRepository.GetQueryableAsync())
-                    .Where(r => r.SalesChannelTrN11ProductId == channelProduct.Id && headerIds.Contains(r.OverrideHeaderId))))
-            .GroupBy(r => r.OverrideHeaderId)
+                    .Where(r => r.SalesChannelTrN11ProductId == channelProduct.Id && headerIds.Contains(r.StockItemId))))
+            .GroupBy(r => r.StockItemId)
             .ToDictionary(g => g.Key, g => g.ToList());
 
         // ERP reçetesi — yalnız kaydedilmiş kanal reçetesi OLMAYAN varyantlarda klonlanır (LEFT JOIN eksiği ERP'den).
@@ -1349,10 +1349,10 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
             .GroupBy(r => r.ProductVariantId)
             .ToDictionary(g => g.Key, g => g.ToList());
 
-        var nodes = new List<SalesChannelTrN11ProductVariantGraphDto>(variants.Count);
+        var nodes = new List<SalesChannelTrN11ProductStockItemGraphDto>(variants.Count);
         foreach (var v in variants)
         {
-            var node = new SalesChannelTrN11ProductVariantGraphDto
+            var node = new SalesChannelTrN11ProductStockItemGraphDto
             {
                 ProductVariantId = v.Id,
                 VariantCode = v.Code,
@@ -1401,7 +1401,7 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
         // Yalnız ERP-backed başlıklar — N11-only satırlar (ProductVariantId null) burada ERP varyantına eşlenemez,
         // kendi push zincirleri J3'te ele alınır.
         var headers = (await AsyncExecuter.ToListAsync(
-                (await _variantOverrideRepository.GetQueryableAsync())
+                (await _stockItemRepository.GetQueryableAsync())
                     .Where(h => h.SalesChannelTrN11ProductId == channelProduct.Id && h.ProductVariantId != null
                         && variantIds.Contains(h.ProductVariantId!.Value))))
             .ToDictionary(h => h.ProductVariantId!.Value);
@@ -1410,8 +1410,8 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
         var headerIds = headers.Values.Select(h => h.Id).ToList();
         var savedByHeader = (await AsyncExecuter.ToListAsync(
                 (await _channelRecipeLineRepository.GetQueryableAsync())
-                    .Where(r => r.SalesChannelTrN11ProductId == channelProduct.Id && headerIds.Contains(r.OverrideHeaderId))))
-            .GroupBy(r => r.OverrideHeaderId)
+                    .Where(r => r.SalesChannelTrN11ProductId == channelProduct.Id && headerIds.Contains(r.StockItemId))))
+            .GroupBy(r => r.StockItemId)
             .ToDictionary(g => g.Key, g => g.ToList());
 
         var lineSets = variants
@@ -1441,7 +1441,7 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
     /// herhangi biri dolu) olan varyantın başlığı + reçetesi yazılır; TÜMÜ boşsa (saf ERP devralma) kaydedilmiş
     /// override/reçete TEMİZLENİR (ölü satır şişmesini önle — kullanıcı kararı: tutarlı ol). Türetilmiş fiyat/NetCost
     /// hesap alanları PERSIST EDİLMEZ (canlı).</summary>
-    private async Task SaveVariantOverridesAsync(SalesChannelTrN11Product channelProduct, List<SalesChannelTrN11ProductVariantGraphDto> variants)
+    private async Task SaveStockItemOverridesAsync(SalesChannelTrN11Product channelProduct, List<SalesChannelTrN11ProductStockItemGraphDto> variants)
     {
         if (variants == null || variants.Count == 0)
         {
@@ -1449,9 +1449,9 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
         }
 
         // Yalnız ERP-backed başlıklar — N11-only satırlar (ProductVariantId null) bu ERP-anchor'lı override yolundan
-        // GEÇMEZ, kartezyen motor (SynchronizeAttributeAxisVariantsAsync) tarafından ayrıca üretilir/güncellenir.
+        // GEÇMEZ, kartezyen motor (SynchronizeStockItemsAsync) tarafından ayrıca üretilir/güncellenir.
         var existingHeaders = (await AsyncExecuter.ToListAsync(
-                (await _variantOverrideRepository.GetQueryableAsync())
+                (await _stockItemRepository.GetQueryableAsync())
                     .Where(h => h.SalesChannelTrN11ProductId == channelProduct.Id && h.ProductVariantId != null)))
             .ToDictionary(h => h.ProductVariantId!.Value);
 
@@ -1472,13 +1472,13 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
             if (!hasOverride)
             {
                 // Saf devralma → kaydedilmiş override başlığı + reçete satırlarını sil (ERP'ye geri dön). Reçete
-                // satırları header'ın KENDİ Id'sine bağlı (OverrideHeaderId) — önce onunla sil, sonra başlığı.
+                // satırları header'ın KENDİ Id'sine bağlı (StockItemId) — önce onunla sil, sonra başlığı.
                 if (header is not null)
                 {
                     await _channelRecipeLineRepository.DeleteAsync(
-                        r => r.SalesChannelTrN11ProductId == channelProduct.Id && r.OverrideHeaderId == header.Id,
+                        r => r.SalesChannelTrN11ProductId == channelProduct.Id && r.StockItemId == header.Id,
                         autoSave: true);
-                    await _variantOverrideRepository.DeleteAsync(header, autoSave: true);
+                    await _stockItemRepository.DeleteAsync(header, autoSave: true);
                 }
 
                 continue;
@@ -1486,30 +1486,30 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
 
             if (header is null)
             {
-                header = new SalesChannelTrN11ProductVariant(channelProduct.CompanyId, channelProduct.Id, node.ProductVariantId);
+                header = new SalesChannelTrN11ProductStockItem(channelProduct.CompanyId, channelProduct.Id, node.ProductVariantId);
                 header.SetOverridePrice(node.OverridePrice, node.OverridePriceCurrencyUnitId);
                 header.SetOverrideStock(node.OverrideStock);
                 header.SetMargin(node.Margin);
-                await _variantOverrideRepository.InsertAsync(header, autoSave: true);
+                await _stockItemRepository.InsertAsync(header, autoSave: true);
             }
             else
             {
                 header.SetOverridePrice(node.OverridePrice, node.OverridePriceCurrencyUnitId);
                 header.SetOverrideStock(node.OverrideStock);
                 header.SetMargin(node.Margin);
-                await _variantOverrideRepository.UpdateAsync(header, autoSave: true);
+                await _stockItemRepository.UpdateAsync(header, autoSave: true);
             }
 
             await SaveChannelRecipeLinesAsync(channelProduct, header.Id, node.RecipeLines);
         }
     }
 
-    /// <summary>Bir override BAŞLIĞININ (ERP-backed veya N11-only fark etmez — <paramref name="overrideHeaderId"/> her
-    /// zaman <see cref="SalesChannelTrN11ProductVariant"/>'ın KENDİ Id'sidir) kanal-özel reçete satırlarını persist
+    /// <summary>Bir override BAŞLIĞININ (ERP-backed veya N11-only fark etmez — <paramref name="stockItemId"/> her
+    /// zaman <see cref="SalesChannelTrN11ProductStockItem"/>'ın KENDİ Id'sidir) kanal-özel reçete satırlarını persist
     /// eder (ERP SaveRecipeLinesAsync deseni, iki-geçişli): silinenler → LineOrder 0..n yeniden-numara → referans
     /// doğrulama → skaler insert/update (1. geçiş) → türev SelectedLines kaynak Id CSV çözümü (2. geçiş).
     /// ComponentType set-once (ctor'da).</summary>
-    private async Task SaveChannelRecipeLinesAsync(SalesChannelTrN11Product channelProduct, Guid overrideHeaderId, List<ProductRecipeLineGraphDto> lines)
+    private async Task SaveChannelRecipeLinesAsync(SalesChannelTrN11Product channelProduct, Guid stockItemId, List<ProductRecipeLineGraphDto> lines)
     {
         lines ??= new List<ProductRecipeLineGraphDto>();
 
@@ -1528,14 +1528,14 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
 
         // 1. geçiş: skaler alanlar (türev SelectedLines kaynakları HARİÇ) → ClientKey→Id (+ entity) sözlükleri.
         var idByClientKey = new Dictionary<Guid, Guid>();
-        var entityByClientKey = new Dictionary<Guid, SalesChannelTrN11ProductVariantRecipeLine>();
+        var entityByClientKey = new Dictionary<Guid, SalesChannelTrN11ProductStockItemRecipeLine>();
         foreach (var l in survivors)
         {
-            SalesChannelTrN11ProductVariantRecipeLine entity;
+            SalesChannelTrN11ProductStockItemRecipeLine entity;
             if (l.Id == Guid.Empty)
             {
-                entity = new SalesChannelTrN11ProductVariantRecipeLine(
-                    channelProduct.CompanyId, channelProduct.Id, overrideHeaderId, l.ComponentType, l.LineOrder);
+                entity = new SalesChannelTrN11ProductStockItemRecipeLine(
+                    channelProduct.CompanyId, channelProduct.Id, stockItemId, l.ComponentType, l.LineOrder);
                 ApplyChannelRecipeLineFields(entity, l);
                 await _channelRecipeLineRepository.InsertAsync(entity, autoSave: true);
                 l.Id = entity.Id;
@@ -1565,7 +1565,7 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
 
     /// <summary>Graf düğümünün alanlarını kanal reçete satırına uygular (ERP ApplyRecipeLineFields ile birebir;
     /// ComponentType ctor'da atanır → burada değiştirilmez).</summary>
-    private static void ApplyChannelRecipeLineFields(SalesChannelTrN11ProductVariantRecipeLine entity, ProductRecipeLineGraphDto l)
+    private static void ApplyChannelRecipeLineFields(SalesChannelTrN11ProductStockItemRecipeLine entity, ProductRecipeLineGraphDto l)
     {
         if (l.ComponentType == RecipeComponentType.CatalogCommodity)
         {
@@ -1595,7 +1595,7 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
 
     /// <summary>Kaydedilmiş kanal reçete satırlarını graf DTO'suna projekte eder (Id KORUNUR — mevcut satır) +
     /// türev SelectedLines kaynaklarını taze ClientKey'lere çözer (ORTAK resolver).</summary>
-    private static List<ProductRecipeLineGraphDto> MapSavedRecipeLines(List<SalesChannelTrN11ProductVariantRecipeLine> saved)
+    private static List<ProductRecipeLineGraphDto> MapSavedRecipeLines(List<SalesChannelTrN11ProductStockItemRecipeLine> saved)
     {
         var ordered = saved.OrderBy(r => r.LineOrder).ThenBy(r => r.CreationTime).ToList();
         var dtos = ordered.Select(r => new ProductRecipeLineGraphDto
@@ -1706,7 +1706,7 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
         entity.SetGroupItemCode(input.GroupItemCode);
         entity.SetGroupAttribute(input.GroupAttribute);
         entity.SetItemName(input.ItemName);
-        entity.SetAttributes(input.Attributes.Select(a => new SalesChannelTrN11ProductAttribute(a.Name, a.Value)));
+        entity.SetCategoryAttributes(input.CategoryAttributes.Select(a => new SalesChannelTrN11ProductCategoryAttribute(a.Name, a.Value)));
         entity.SetSpecialInfo(input.SpecialInfo.Select(s => new SalesChannelTrN11ProductSpecialInfo(s.Key, s.Value)));
     }
 

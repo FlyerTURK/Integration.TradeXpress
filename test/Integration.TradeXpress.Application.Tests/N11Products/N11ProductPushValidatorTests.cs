@@ -35,7 +35,7 @@ public class N11ProductPushValidatorTests
         return new N11SkuPushCandidate(
             Guid.NewGuid(),
             code,
-            attributes.Select(a => new SalesChannelTrN11ProductAttribute(a.Name, a.Value)).ToList());
+            attributes.Select(a => new SalesChannelTrN11ProductCategoryAttribute(a.Name, a.Value)).ToList());
     }
 
     [Fact]
@@ -44,7 +44,7 @@ public class N11ProductPushValidatorTests
         // "s"/"m" küçük yazılmış → listedeki kanonik "S"/"M" ile gönderilmeli (Türkçe-duyarsız eşleşme).
         var result = _validator.Validate(
             ClothingLeaf(),
-            new List<SalesChannelTrN11ProductAttribute> { new("Marka", "TestMarka") },
+            new List<SalesChannelTrN11ProductCategoryAttribute> { new("Marka", "TestMarka") },
             new List<N11SkuPushCandidate> { Candidate("V1", ("Beden", "s")), Candidate("V2", ("beden", "m")) });
 
         result.VariantOptions.Values.SelectMany(x => x).Select(p => p.Value).ShouldBe(new[] { "S", "M" });
@@ -58,7 +58,7 @@ public class N11ProductPushValidatorTests
         // Giyimde Renk variant=false → SKU ekseni olarak gönderilemez (grup-ürün mekanizmasına sessiz bölme yok).
         var exception = Should.Throw<BusinessException>(() => _validator.Validate(
             ClothingLeaf(),
-            new List<SalesChannelTrN11ProductAttribute>(),
+            new List<SalesChannelTrN11ProductCategoryAttribute>(),
             new List<N11SkuPushCandidate> { Candidate("V1", ("Beden", "S"), ("Renk", "Mavi")) }));
 
         exception.Code.ShouldBe("TradeXpress:N11:Product:VariantAxisNotAllowed");
@@ -69,7 +69,7 @@ public class N11ProductPushValidatorTests
     {
         var exception = Should.Throw<BusinessException>(() => _validator.Validate(
             ClothingLeaf(),
-            new List<SalesChannelTrN11ProductAttribute>(),
+            new List<SalesChannelTrN11ProductCategoryAttribute>(),
             new List<N11SkuPushCandidate> { Candidate("V1") }));
 
         exception.Code.ShouldBe("TradeXpress:N11:Product:VariantAxisMissing");
@@ -80,7 +80,7 @@ public class N11ProductPushValidatorTests
     {
         var exception = Should.Throw<BusinessException>(() => _validator.Validate(
             ClothingLeaf(),
-            new List<SalesChannelTrN11ProductAttribute>(),
+            new List<SalesChannelTrN11ProductCategoryAttribute>(),
             new List<N11SkuPushCandidate> { Candidate("V1", ("Beden", "XXL")) }));
 
         exception.Code.ShouldBe("TradeXpress:N11:Product:AttributeValueNotInList");
@@ -98,7 +98,7 @@ public class N11ProductPushValidatorTests
 
         var exception = Should.Throw<BusinessException>(() => _validator.Validate(
             leaf,
-            new List<SalesChannelTrN11ProductAttribute>(),
+            new List<SalesChannelTrN11ProductCategoryAttribute>(),
             new List<N11SkuPushCandidate> { Candidate("V1", ("Numara", "42")), Candidate("V2") }));
 
         exception.Code.ShouldBe("TradeXpress:N11:Product:VariantAttributesInconsistent");
@@ -109,7 +109,7 @@ public class N11ProductPushValidatorTests
     {
         var exception = Should.Throw<BusinessException>(() => _validator.Validate(
             ClothingLeaf(),
-            new List<SalesChannelTrN11ProductAttribute>(),
+            new List<SalesChannelTrN11ProductCategoryAttribute>(),
             new List<N11SkuPushCandidate> { Candidate("V1", ("Beden", "S")), Candidate("V2", ("Beden", "s")) }));
 
         exception.Code.ShouldBe("TradeXpress:N11:Product:DuplicateVariantSignature");
@@ -126,7 +126,7 @@ public class N11ProductPushValidatorTests
 
         var exception = Should.Throw<BusinessException>(() => _validator.Validate(
             leaf,
-            new List<SalesChannelTrN11ProductAttribute>(),
+            new List<SalesChannelTrN11ProductCategoryAttribute>(),
             new List<N11SkuPushCandidate> { Candidate("V1"), Candidate("V2") }));
 
         exception.Code.ShouldBe("TradeXpress:N11:Product:CategoryHasNoVariantAxis");
@@ -139,7 +139,7 @@ public class N11ProductPushValidatorTests
         // zorunlu Marka doldurulmuş, Renk ürün-seviyesinde kalır.
         var result = _validator.Validate(
             ClothingLeaf(),
-            new List<SalesChannelTrN11ProductAttribute> { new("Marka", "TestMarka"), new("Beden", "S"), new("Renk", "Mavi") },
+            new List<SalesChannelTrN11ProductCategoryAttribute> { new("Marka", "TestMarka"), new("Beden", "S"), new("Renk", "Mavi") },
             new List<N11SkuPushCandidate> { Candidate("V1", ("Beden", "S")) });
 
         result.ProductAttributes.Select(p => p.Name).ShouldBe(new[] { "Marka", "Renk" });
@@ -151,7 +151,7 @@ public class N11ProductPushValidatorTests
         // Marka zorunlu (mandatory + variant DEĞİL) ama ürün-seviyesinde yok → N11'e gitmeden fail-fast.
         var exception = Should.Throw<BusinessException>(() => _validator.Validate(
             ClothingLeaf(),
-            new List<SalesChannelTrN11ProductAttribute>(),
+            new List<SalesChannelTrN11ProductCategoryAttribute>(),
             new List<N11SkuPushCandidate> { Candidate("V1", ("Beden", "S")) }));
 
         exception.Code.ShouldBe("TradeXpress:N11:Product:ProductAttributeMissing");
@@ -169,7 +169,7 @@ public class N11ProductPushValidatorTests
 
         var result = _validator.Validate(
             leaf,
-            new List<SalesChannelTrN11ProductAttribute>(),
+            new List<SalesChannelTrN11ProductCategoryAttribute>(),
             new List<N11SkuPushCandidate> { Candidate("V1", ("Kumaş Tipi", "İPEK")), Candidate("V2", ("Kumaş Tipi", "pamuk")) });
 
         result.VariantOptions.Values.SelectMany(x => x).Select(p => p.Value).ShouldBe(new[] { "İpek", "Pamuk" });
@@ -183,7 +183,7 @@ public class N11ProductPushValidatorTests
 
         var result = _validator.Validate(
             leaf,
-            new List<SalesChannelTrN11ProductAttribute>(),
+            new List<SalesChannelTrN11ProductCategoryAttribute>(),
             new List<N11SkuPushCandidate> { Candidate("V1") });
 
         result.VariantOptions.Single().Value.ShouldBeEmpty();

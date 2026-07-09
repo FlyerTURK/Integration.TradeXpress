@@ -1,22 +1,22 @@
 namespace Integration.TradeXpress.N11Products;
 
 /// <summary>
-/// N11 kanal-ürününe özel varyant EKSENİ (ör. "Renk", "Beden") — ERP <see cref="Integration.TradeXpress.Products.ProductAttribute"/>
-/// deseninin N11-scope KLONU. Klon-sonra-ayrış (2026-07-09 kullanıcı kararı): oluşturulduğunda ERP eksenlerinden
-/// üretilir (klonlama mantığı Application katmanında), ama sonrasında ERP'den BAĞIMSIZ yaşar — N11'de yeni eksen
-/// eklenebilir/var olan silinebilir, ERP'ye dokunmadan. Değerleri <see cref="SalesChannelTrN11ProductAttributeAxisValue"/>'lardır;
-/// varyantlar (<see cref="SalesChannelTrN11ProductVariant"/>) bu eksenlerin değer KOMBİNASYONLARINDAN doğar.
+/// N11 kanal-ürününe özel varyant ÖZELLİĞİ (ör. "Renk", "Beden") — ERP <see cref="Integration.TradeXpress.Products.ProductAttribute"/>
+/// deseninin N11-scope KLONU. Klon-sonra-ayrış (2026-07-09 kullanıcı kararı): oluşturulduğunda ERP niteliklerinden
+/// üretilir (klonlama mantığı Application katmanında), ama sonrasında ERP'den BAĞIMSIZ yaşar — N11'de yeni özellik
+/// eklenebilir/var olan silinebilir, ERP'ye dokunmadan. Değerleri <see cref="SalesChannelTrN11ProductAttributeValue"/>'lardır;
+/// kombinasyonlar (<see cref="SalesChannelTrN11ProductStockItem"/>) bu özelliklerin değer KOMBİNASYONLARINDAN doğar.
 /// <b>Company-owned</b> (kanal-üründen denormalize) + per-tenant.
 /// </summary>
-public class SalesChannelTrN11ProductAttributeAxis : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwned
+public class SalesChannelTrN11ProductAttribute : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwned
 {
     #region Constructors
 
-    protected SalesChannelTrN11ProductAttributeAxis()
+    protected SalesChannelTrN11ProductAttribute()
     {
     }
 
-    public SalesChannelTrN11ProductAttributeAxis(
+    public SalesChannelTrN11ProductAttribute(
         Guid companyId,
         Guid salesChannelTrN11ProductId,
         string name,
@@ -51,7 +51,7 @@ public class SalesChannelTrN11ProductAttributeAxis : FullAuditedAggregateRoot<Gu
     public virtual void SetName(string name)
     {
         Name = StringFieldGuard.NormalizeName(
-            name, nameof(Name), EntityFieldConsts.NameMinLength, N11ProductConsts.AttributeAxisNameMaxLength);
+            name, nameof(Name), EntityFieldConsts.NameMinLength, N11ProductConsts.AttributeNameMaxLength);
     }
 
     public virtual void SetDisplayOrder(int order)

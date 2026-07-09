@@ -7,16 +7,16 @@ using Integration.TradeXpress.MultiCompany;
 namespace Integration.TradeXpress.N11Products;
 
 /// <summary>N11 kategori attribute değeri (name/value) — owned, JSON kolonuna serialize edilir.</summary>
-public class SalesChannelTrN11ProductAttribute
+public class SalesChannelTrN11ProductCategoryAttribute
 {
     public string Name { get; set; } = string.Empty;
     public string Value { get; set; } = string.Empty;
 
-    public SalesChannelTrN11ProductAttribute()
+    public SalesChannelTrN11ProductCategoryAttribute()
     {
     }
 
-    public SalesChannelTrN11ProductAttribute(string name, string value)
+    public SalesChannelTrN11ProductCategoryAttribute(string name, string value)
     {
         Name = name;
         Value = value;
@@ -27,7 +27,10 @@ public class SalesChannelTrN11ProductAttribute
 /// ve DONDURULUR: ProductVariant.Code sonradan değişse ya da synchronizer varyantı silip yeniden üretse bile push
 /// aynı uzak SKU'ya gider (Faz 1 — sellerStockCode kayması koruması). <see cref="AttributeSnapshot"/> = push edilen
 /// name/value çiftleri (sipariş→varyant çözümünün ve yeniden-bağlama imzasının temeli; N11 sipariş kaleminde
-/// sellerStockCode YOK, varyant yalnız attribute imzasıyla bulunur).</summary>
+/// sellerStockCode YOK, varyant yalnız attribute imzasıyla bulunur).
+/// <para><b>Sözlük (S3):</b> Sku = N11 push KİMLİK satırı (sellerStockCode/N11SkuId — fiilen gönderilenin kaydı);
+/// StockItem (<see cref="SalesChannelTrN11ProductStockItem"/>) = kanal KOMBİNASYON satırı (özellik değerleri +
+/// override/reçete — kullanıcının yönettiği niyet).</para></summary>
 public class SalesChannelTrN11ProductSku
 {
     /// <summary>Bağlı ERP varyantı (yeniden üretilirse kod/imza üzerinden bu alana yeniden bağlanır).</summary>
@@ -49,7 +52,7 @@ public class SalesChannelTrN11ProductSku
     public decimal? LastSentOptionPrice { get; set; }
 
     /// <summary>Push edilen varyant seçenekleri (name/value) — sipariş eşleme + imza.</summary>
-    public List<SalesChannelTrN11ProductAttribute> AttributeSnapshot { get; set; } = new();
+    public List<SalesChannelTrN11ProductCategoryAttribute> AttributeSnapshot { get; set; } = new();
 
     public SalesChannelTrN11ProductSku()
     {
@@ -67,7 +70,7 @@ public class SalesChannelTrN11ProductSku
 public sealed record N11SkuPushCandidate(
     Guid VariantId,
     string VariantCode,
-    List<SalesChannelTrN11ProductAttribute> Attributes);
+    List<SalesChannelTrN11ProductCategoryAttribute> Attributes);
 
 /// <summary>N11 Seyahat kategorisi özel bilgi (key=TurProgrami/IptalIadeKosullari/EkHizmetler, value=HTML) — owned, JSON.</summary>
 public class SalesChannelTrN11ProductSpecialInfo
@@ -198,8 +201,8 @@ public class SalesChannelTrN11Product : FullAuditedAggregateRoot<Guid>, IMultiTe
     /// <summary>N11 grup içindeki öğe adı (itemName; opsiyonel).</summary>
     public virtual string? ItemName { get; protected set; }
 
-    /// <summary>N11 kategori attribute değerleri (owned → JSON).</summary>
-    public virtual List<SalesChannelTrN11ProductAttribute> Attributes { get; protected set; } = new();
+    /// <summary>N11 kategori attribute değerleri (owned → JSON; DB kolon adı "Attributes" SABİT).</summary>
+    public virtual List<SalesChannelTrN11ProductCategoryAttribute> CategoryAttributes { get; protected set; } = new();
 
     /// <summary>Seyahat kategorisi özel bilgi (owned → JSON; kategori Seyahat ise zorunlu).</summary>
     public virtual List<SalesChannelTrN11ProductSpecialInfo> SpecialInfo { get; protected set; } = new();
@@ -349,11 +352,11 @@ public class SalesChannelTrN11Product : FullAuditedAggregateRoot<Guid>, IMultiTe
         IsActive = value;
     }
 
-    public virtual void SetAttributes(IEnumerable<SalesChannelTrN11ProductAttribute>? attributes)
+    public virtual void SetCategoryAttributes(IEnumerable<SalesChannelTrN11ProductCategoryAttribute>? attributes)
     {
-        Attributes = (attributes ?? Enumerable.Empty<SalesChannelTrN11ProductAttribute>())
+        CategoryAttributes = (attributes ?? Enumerable.Empty<SalesChannelTrN11ProductCategoryAttribute>())
             .Where(a => !string.IsNullOrWhiteSpace(a.Name))
-            .Select(a => new SalesChannelTrN11ProductAttribute(a.Name.Trim(), (a.Value ?? string.Empty).Trim()))
+            .Select(a => new SalesChannelTrN11ProductCategoryAttribute(a.Name.Trim(), (a.Value ?? string.Empty).Trim()))
             .ToList();
     }
 
@@ -443,7 +446,7 @@ public class SalesChannelTrN11Product : FullAuditedAggregateRoot<Guid>, IMultiTe
 
     /// <summary>Başarılı SaveProduct SONRASI gönderilen SKU verisini kaydeder (dirty-tracking + sipariş-eşleme
     /// snapshot'ı). Push başarısızsa çağrılmaz — LastSent* yalnız N11'e GERÇEKTEN ulaşan değerleri yansıtır.</summary>
-    public virtual void RecordSkuPush(string sellerStockCode, int quantity, decimal? optionPrice, IEnumerable<SalesChannelTrN11ProductAttribute> snapshot)
+    public virtual void RecordSkuPush(string sellerStockCode, int quantity, decimal? optionPrice, IEnumerable<SalesChannelTrN11ProductCategoryAttribute> snapshot)
     {
         var sku = FindSku(sellerStockCode);
         if (sku is null)
@@ -454,7 +457,7 @@ public class SalesChannelTrN11Product : FullAuditedAggregateRoot<Guid>, IMultiTe
         sku.LastSentQuantity = quantity;
         sku.LastSentOptionPrice = optionPrice;
         sku.AttributeSnapshot = snapshot
-            .Select(a => new SalesChannelTrN11ProductAttribute(a.Name, a.Value))
+            .Select(a => new SalesChannelTrN11ProductCategoryAttribute(a.Name, a.Value))
             .ToList();
     }
 
@@ -562,7 +565,7 @@ public class SalesChannelTrN11Product : FullAuditedAggregateRoot<Guid>, IMultiTe
 
     // Sahiplenilmemiş satırlar içinde attribute imzası eşleşmesi — aynı seçenek kombinasyonu = aynı uzak SKU.
     private SalesChannelTrN11ProductSku? MatchUnclaimedBySignature(
-        List<SalesChannelTrN11ProductAttribute> attributes, HashSet<SalesChannelTrN11ProductSku> claimed)
+        List<SalesChannelTrN11ProductCategoryAttribute> attributes, HashSet<SalesChannelTrN11ProductSku> claimed)
     {
         if (attributes.Count == 0)
         {
@@ -579,7 +582,7 @@ public class SalesChannelTrN11Product : FullAuditedAggregateRoot<Guid>, IMultiTe
     // Seçenek imzası: ada göre sıralı, "NAME<US>VALUE" çiftleri <RS> ile birleştirilir. Ayraçlar (Unit/Record
     // Separator) metinde geçemez → birleşim belirsizliği yok. Normalizasyon Türkçe kültürle (tr-TR): validator
     // "beden"="Beden" sayarken imza da aynı katlamayı yapsın (İ/ı invariant/tr-TR ayrışması eşleşmeyi bozmasın).
-    private static string SignatureOf(IEnumerable<SalesChannelTrN11ProductAttribute> attributes)
+    private static string SignatureOf(IEnumerable<SalesChannelTrN11ProductCategoryAttribute> attributes)
     {
         return string.Join(
             '',

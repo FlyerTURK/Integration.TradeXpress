@@ -6,22 +6,25 @@ namespace Integration.TradeXpress.N11Products;
 /// <b>Company-owned</b> (<see cref="CompanyId"/> kanal-üründen denormalize) + per-tenant. Anchor artık BU entity'nin
 /// KENDİ <see cref="Entity.Id"/>'sidir — N11'in gerçek varyant kimliği (2026-07-09 kullanıcı kararı, "klon-sonra-ayrış"
 /// felsefesi: N11 ürünü ERP'den yalnız genetik alır, sonrasında ERP'ye dokunmadan bağımsız yaşar). Kanal-özel reçete
-/// satırları (<see cref="SalesChannelTrN11ProductVariantRecipeLine"/>) bu başlığa <see cref="SalesChannelTrN11ProductId"/> +
+/// satırları (<see cref="SalesChannelTrN11ProductStockItemRecipeLine"/>) bu başlığa <see cref="SalesChannelTrN11ProductId"/> +
 /// <see cref="ProductVariantId"/> çiftiyle eşlenir (ayrı tablo; nav yok, id-only).
 ///
 /// <para><b>Türetilmiş fiyat/NetCost PERSIST EDİLMEZ</b> — canlı hesaplanır (<c>ProductRecipeCostCalculator</c>):
 /// türetilmiş fiyat = NetCost × (1 + <see cref="Margin"/>/100) [MARKUP]. <see cref="Margin"/> varyant-başı yüzde marj.
 /// Push fiyat zinciri: <see cref="OverridePrice"/> ?? türetilmiş ?? ERP SalePrice; stok: <see cref="OverrideStock"/> ?? ERP StockQuantity.</para>
+/// /// <para><b>Sözlük (S3):</b> StockItem = kanal KOMBİNASYON satırı (özellik değerleri + override/reçete — kullanıcının
+/// yönettiği niyet); Sku (<see cref="SalesChannelTrN11ProductSku"/>) = N11 push KİMLİK satırı (sellerStockCode/N11SkuId —
+/// fiilen gönderilenin kaydı).</para>
 /// </summary>
-public class SalesChannelTrN11ProductVariant : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwned
+public class SalesChannelTrN11ProductStockItem : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwned
 {
     #region Constructors
 
-    protected SalesChannelTrN11ProductVariant()
+    protected SalesChannelTrN11ProductStockItem()
     {
     }
 
-    public SalesChannelTrN11ProductVariant(
+    public SalesChannelTrN11ProductStockItem(
         Guid companyId,
         Guid salesChannelTrN11ProductId,
         Guid? productVariantId)
@@ -65,11 +68,11 @@ public class SalesChannelTrN11ProductVariant : FullAuditedAggregateRoot<Guid>, I
     public virtual decimal? Margin { get; protected set; }
 
     /// <summary>
-    /// Kartezyen kombinasyon KİMLİĞİ — <c>"{AxisId}={AxisValueId}|..."</c>, AxisId'ye göre sıralı (2026-07-09 kararı:
-    /// STABİL ID'lerden kurulur, Name/Value METİN değil — eksen/değer yeniden adlandırılırsa imza bozulmaz).
-    /// <see cref="SalesChannelTrN11ProductAttributeAxis"/>/<see cref="SalesChannelTrN11ProductAttributeAxisValue"/>
+    /// Kartezyen kombinasyon KİMLİĞİ — <c>"{AttributeId}={ValueId}|..."</c>, AttributeId'ye göre sıralı (2026-07-09 kararı:
+    /// STABİL ID'lerden kurulur, Name/Value METİN değil — özellik/değer yeniden adlandırılırsa imza bozulmaz).
+    /// <see cref="SalesChannelTrN11ProductAttribute"/>/<see cref="SalesChannelTrN11ProductAttributeValue"/>
     /// tarafından üretilen HER kombinasyon satırı (ERP-backed VE N11-only fark etmez) bu imzayla reconcile edilir —
-    /// <see cref="ProductVariantId"/> artık yalnız fiyat/stok fallback KAYNAĞI, reconcile anahtarı DEĞİL. Axis
+    /// <see cref="ProductVariantId"/> artık yalnız fiyat/stok fallback KAYNAĞI, reconcile anahtarı DEĞİL. Özellik
     /// tanımlanmamış (legacy ERP-doğrudan) kanal ürünlerinde null.
     /// </summary>
     public virtual string? CombinationSignature { get; protected set; }

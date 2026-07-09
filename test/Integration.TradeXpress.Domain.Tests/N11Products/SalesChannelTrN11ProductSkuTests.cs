@@ -28,7 +28,7 @@ public class SalesChannelTrN11ProductSkuTests
         return new N11SkuPushCandidate(
             variantId,
             code,
-            attrs.Select(a => new SalesChannelTrN11ProductAttribute(a.Item1, a.Item2)).ToList());
+            attrs.Select(a => new SalesChannelTrN11ProductCategoryAttribute(a.Item1, a.Item2)).ToList());
     }
 
     [Fact]
@@ -51,7 +51,7 @@ public class SalesChannelTrN11ProductSkuTests
 
         // İlk push: satır kurulur + snapshot (RecordSkuPush) → imza temeli oluşur.
         product.ReconcileSkus(new[] { Candidate(oldVariantId, "KIRMIZI", ("Renk", "Kırmızı")) });
-        product.RecordSkuPush("KIRMIZI-1", 5, 100m, new[] { new SalesChannelTrN11ProductAttribute("Renk", "Kırmızı") });
+        product.RecordSkuPush("KIRMIZI-1", 5, 100m, new[] { new SalesChannelTrN11ProductCategoryAttribute("Renk", "Kırmızı") });
 
         // Synchronizer varyantı sildi + YENİ id + YENİ kod ile yeniden üretti (aynı seçenek kombinasyonu).
         var newVariantId = Guid.NewGuid();
@@ -109,7 +109,7 @@ public class SalesChannelTrN11ProductSkuTests
         var variantId = Guid.NewGuid();
         product.ReconcileSkus(new[] { Candidate(variantId, "V1", ("Beden", "M")) });
 
-        product.RecordSkuPush("V1-1", 7, 250m, new[] { new SalesChannelTrN11ProductAttribute("Beden", "M") });
+        product.RecordSkuPush("V1-1", 7, 250m, new[] { new SalesChannelTrN11ProductCategoryAttribute("Beden", "M") });
         product.ApplySkuIdentity("V1-1", n11SkuId: 999, version: 3);
 
         var sku = product.Skus.Single();

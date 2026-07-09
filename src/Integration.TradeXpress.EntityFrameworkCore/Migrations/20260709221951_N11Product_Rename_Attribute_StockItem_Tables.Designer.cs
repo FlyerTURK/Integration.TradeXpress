@@ -4,6 +4,7 @@ using Integration.TradeXpress.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Volo.Abp.EntityFrameworkCore;
 
@@ -12,9 +13,11 @@ using Volo.Abp.EntityFrameworkCore;
 namespace Integration.TradeXpress.Migrations
 {
     [DbContext(typeof(TradeXpressDbContext))]
-    partial class TradeXpressDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260709221951_N11Product_Rename_Attribute_StockItem_Tables")]
+    partial class N11Product_Rename_Attribute_StockItem_Tables
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1768,7 +1771,7 @@ namespace Integration.TradeXpress.Migrations
                     b.ToTable("AppSalesChannelTrN11Products", (string)null);
                 });
 
-            modelBuilder.Entity("Integration.TradeXpress.N11Products.SalesChannelTrN11ProductAttribute", b =>
+            modelBuilder.Entity("Integration.TradeXpress.N11Products.SalesChannelTrN11ProductAttributeAxis", b =>
                 {
                     b.Property<Guid>("Id")
                         .HasColumnType("uniqueidentifier");
@@ -1842,13 +1845,14 @@ namespace Integration.TradeXpress.Migrations
                     b.ToTable("AppSalesChannelTrN11ProductAttributes", (string)null);
                 });
 
-            modelBuilder.Entity("Integration.TradeXpress.N11Products.SalesChannelTrN11ProductAttributeValue", b =>
+            modelBuilder.Entity("Integration.TradeXpress.N11Products.SalesChannelTrN11ProductAttributeAxisValue", b =>
                 {
                     b.Property<Guid>("Id")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<Guid>("AttributeId")
-                        .HasColumnType("uniqueidentifier");
+                    b.Property<Guid>("AxisId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("AttributeId");
 
                     b.Property<Guid>("CompanyId")
                         .HasColumnType("uniqueidentifier");
@@ -1909,14 +1913,14 @@ namespace Integration.TradeXpress.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("TenantId", "AttributeId");
+                    b.HasIndex("TenantId", "AxisId");
 
                     b.HasIndex("TenantId", "CompanyId");
 
                     b.ToTable("AppSalesChannelTrN11ProductAttributeValues", (string)null);
                 });
 
-            modelBuilder.Entity("Integration.TradeXpress.N11Products.SalesChannelTrN11ProductStockItem", b =>
+            modelBuilder.Entity("Integration.TradeXpress.N11Products.SalesChannelTrN11ProductVariant", b =>
                 {
                     b.Property<Guid>("Id")
                         .HasColumnType("uniqueidentifier");
@@ -2009,7 +2013,7 @@ namespace Integration.TradeXpress.Migrations
                     b.ToTable("AppSalesChannelTrN11ProductStockItems", (string)null);
                 });
 
-            modelBuilder.Entity("Integration.TradeXpress.N11Products.SalesChannelTrN11ProductStockItemRecipeLine", b =>
+            modelBuilder.Entity("Integration.TradeXpress.N11Products.SalesChannelTrN11ProductVariantRecipeLine", b =>
                 {
                     b.Property<Guid>("Id")
                         .HasColumnType("uniqueidentifier");
@@ -2104,6 +2108,10 @@ namespace Integration.TradeXpress.Migrations
                     b.Property<Guid?>("ManualUnitId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<Guid>("OverrideHeaderId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("StockItemId");
+
                     b.Property<decimal>("PayFactor")
                         .HasPrecision(18, 5)
                         .HasColumnType("decimal(18,5)");
@@ -2121,9 +2129,6 @@ namespace Integration.TradeXpress.Migrations
                     b.Property<Guid>("SalesChannelTrN11ProductId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<Guid>("StockItemId")
-                        .HasColumnType("uniqueidentifier");
-
                     b.Property<Guid?>("TenantId")
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("TenantId");
@@ -2135,7 +2140,7 @@ namespace Integration.TradeXpress.Migrations
 
                     b.HasIndex("TenantId", "CompanyId");
 
-                    b.HasIndex("TenantId", "SalesChannelTrN11ProductId", "StockItemId", "LineOrder");
+                    b.HasIndex("TenantId", "SalesChannelTrN11ProductId", "OverrideHeaderId", "LineOrder");
 
                     b.ToTable("AppSalesChannelTrN11ProductStockItemRecipeLines", (string)null);
                 });

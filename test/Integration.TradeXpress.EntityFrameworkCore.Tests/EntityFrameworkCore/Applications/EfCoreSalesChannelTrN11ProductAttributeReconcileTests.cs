@@ -4,6 +4,6 @@ using Xunit;
 namespace Integration.TradeXpress.EntityFrameworkCore.Applications;
 
 [Collection(TradeXpressTestConsts.CollectionDefinitionName)]
-public class EfCoreSalesChannelTrN11ProductAxisReconcileTests : SalesChannelTrN11ProductAxisReconcileTests<TradeXpressEntityFrameworkCoreTestModule>
+public class EfCoreSalesChannelTrN11ProductAttributeReconcileTests : SalesChannelTrN11ProductAttributeReconcileTests<TradeXpressEntityFrameworkCoreTestModule>
 {
 }

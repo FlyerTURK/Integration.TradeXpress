@@ -14,12 +14,12 @@ using Xunit;
 namespace Integration.TradeXpress.N11Products;
 
 /// <summary>
-/// KARAKTERİZASYON ağı (S1, 2026-07-09) — N11 axis-reconcile mekaniğinin MEVCUT davranışını kilitler
-/// (SynchronizeAttributeAxisVariantsAsync + klon-sonra-ayrış taslağı; public AppService yüzeyinden, gerçek
-/// Sqlite repository'leriyle — EfCore concrete: EfCoreSalesChannelTrN11ProductAxisReconcileTests). S2-S4
+/// KARAKTERİZASYON ağı (S1, 2026-07-09) — N11 attribute-reconcile mekaniğinin MEVCUT davranışını kilitler
+/// (SynchronizeStockItemsAsync + klon-sonra-ayrış taslağı; public AppService yüzeyinden, gerçek
+/// Sqlite repository'leriyle — EfCore concrete: EfCoreSalesChannelTrN11ProductAttributeReconcileTests). S2-S4
 /// paylaşılan çekirdeğe taşıma sırasında imza formatı/koruma/silme/eşleştirme davranışı değişirse KIRMIZI olur.
 /// </summary>
-public abstract class SalesChannelTrN11ProductAxisReconcileTests<TStartupModule> : TradeXpressApplicationTestBase<TStartupModule>
+public abstract class SalesChannelTrN11ProductAttributeReconcileTests<TStartupModule> : TradeXpressApplicationTestBase<TStartupModule>
     where TStartupModule : IAbpModule
 {
     private readonly ISalesChannelTrN11ProductAppService _appService;
@@ -29,13 +29,13 @@ public abstract class SalesChannelTrN11ProductAxisReconcileTests<TStartupModule>
     private readonly IRepository<ProductAttribute, Guid> _erpAttributeRepository;
     private readonly IRepository<ProductAttributeValue, Guid> _erpValueRepository;
     private readonly IRepository<ProductVariant, Guid> _erpVariantRepository;
-    private readonly IRepository<SalesChannelTrN11ProductAttributeAxis, Guid> _axisRepository;
-    private readonly IRepository<SalesChannelTrN11ProductAttributeAxisValue, Guid> _axisValueRepository;
-    private readonly IRepository<SalesChannelTrN11ProductVariant, Guid> _headerRepository;
-    private readonly IRepository<SalesChannelTrN11ProductVariantRecipeLine, Guid> _recipeLineRepository;
+    private readonly IRepository<SalesChannelTrN11ProductAttribute, Guid> _channelAttributeRepository;
+    private readonly IRepository<SalesChannelTrN11ProductAttributeValue, Guid> _channelAttributeValueRepository;
+    private readonly IRepository<SalesChannelTrN11ProductStockItem, Guid> _headerRepository;
+    private readonly IRepository<SalesChannelTrN11ProductStockItemRecipeLine, Guid> _recipeLineRepository;
     private readonly ICurrentCompany _currentCompany;
 
-    protected SalesChannelTrN11ProductAxisReconcileTests()
+    protected SalesChannelTrN11ProductAttributeReconcileTests()
     {
         _appService = GetRequiredService<ISalesChannelTrN11ProductAppService>();
         _erpSynchronizer = GetRequiredService<ProductVariantSynchronizer>();
@@ -44,44 +44,44 @@ public abstract class SalesChannelTrN11ProductAxisReconcileTests<TStartupModule>
         _erpAttributeRepository = GetRequiredService<IRepository<ProductAttribute, Guid>>();
         _erpValueRepository = GetRequiredService<IRepository<ProductAttributeValue, Guid>>();
         _erpVariantRepository = GetRequiredService<IRepository<ProductVariant, Guid>>();
-        _axisRepository = GetRequiredService<IRepository<SalesChannelTrN11ProductAttributeAxis, Guid>>();
-        _axisValueRepository = GetRequiredService<IRepository<SalesChannelTrN11ProductAttributeAxisValue, Guid>>();
-        _headerRepository = GetRequiredService<IRepository<SalesChannelTrN11ProductVariant, Guid>>();
-        _recipeLineRepository = GetRequiredService<IRepository<SalesChannelTrN11ProductVariantRecipeLine, Guid>>();
+        _channelAttributeRepository = GetRequiredService<IRepository<SalesChannelTrN11ProductAttribute, Guid>>();
+        _channelAttributeValueRepository = GetRequiredService<IRepository<SalesChannelTrN11ProductAttributeValue, Guid>>();
+        _headerRepository = GetRequiredService<IRepository<SalesChannelTrN11ProductStockItem, Guid>>();
+        _recipeLineRepository = GetRequiredService<IRepository<SalesChannelTrN11ProductStockItemRecipeLine, Guid>>();
         _currentCompany = GetRequiredService<ICurrentCompany>();
     }
 
     // ── Kartezyen + CombinationSignature formatı ─────────────────────────────────────────────────────
 
     [Fact]
-    public async Task Create_with_two_axes_generates_cartesian_rows_with_axis_sorted_id_signatures()
+    public async Task Create_with_two_attributes_generates_cartesian_rows_with_attribute_sorted_id_signatures()
     {
         var companyId = Guid.NewGuid();
         using (_currentCompany.Change(companyId))
         {
             var (channel, product) = await SeedChannelAndProductAsync(companyId, "AXPROD1");
             var created = await CreateChannelProductAsync(channel, product,
-                Axis("Renk", 0, "Red", "Blue"),
-                Axis("Beden", 1, "Small", "Medium"));
+                BuildAttribute("Renk", 0, "Red", "Blue"),
+                BuildAttribute("Beden", 1, "Small", "Medium"));
 
             // Eksen grafı persist edildi (2 eksen × 2 değer).
-            var axes = await GetAxesAsync(created.Id);
-            axes.Select(a => a.Name).ShouldBe(new[] { "Renk", "Beden" });
-            var valuesByAxis = await GetAxisValuesAsync(axes.Select(a => a.Id).ToList());
-            valuesByAxis.Values.SelectMany(v => v).Count().ShouldBe(4);
+            var channelAttributes = await GetChannelAttributesAsync(created.Id);
+            channelAttributes.Select(a => a.Name).ShouldBe(new[] { "Renk", "Beden" });
+            var valuesByAttribute = await GetChannelAttributeValuesAsync(channelAttributes.Select(a => a.Id).ToList());
+            valuesByAttribute.Values.SelectMany(v => v).Count().ShouldBe(4);
 
             // 2×2 kartezyen → 4 imzalı StockItem satırı.
             var headers = await GetSignedHeadersAsync(created.Id);
             headers.Count.ShouldBe(4);
 
-            // İmza SNAPSHOT'ı: "{AxisId}={ValueId}|..." — çiftler AxisId'ye göre ARTAN sıralı (Guid.CompareTo).
+            // İmza SNAPSHOT'ı: "{AttributeId}={ValueId}|..." — çiftler AttributeId'ye göre ARTAN sıralı (Guid.CompareTo).
             // S3/S4 formatı bozarsa (ör. Name tabanlı imza, farklı ayraç, sırasız) burada KIRMIZI.
             var expected = new HashSet<string>(StringComparer.Ordinal);
-            var renk = axes.Single(a => a.Name == "Renk");
-            var beden = axes.Single(a => a.Name == "Beden");
-            foreach (var renkValue in valuesByAxis[renk.Id])
+            var renk = channelAttributes.Single(a => a.Name == "Renk");
+            var beden = channelAttributes.Single(a => a.Name == "Beden");
+            foreach (var renkValue in valuesByAttribute[renk.Id])
             {
-                foreach (var bedenValue in valuesByAxis[beden.Id])
+                foreach (var bedenValue in valuesByAttribute[beden.Id])
                 {
                     expected.Add(BuildExpectedSignature((renk.Id, renkValue.Id), (beden.Id, bedenValue.Id)));
                 }
@@ -93,7 +93,7 @@ public abstract class SalesChannelTrN11ProductAxisReconcileTests<TStartupModule>
             {
                 var pairs = ParseSignature(header.CombinationSignature!);
                 pairs.Count.ShouldBe(2);
-                pairs[0].AxisId.CompareTo(pairs[1].AxisId).ShouldBeLessThan(0);   // AxisId artan sıralı
+                pairs[0].AttributeId.CompareTo(pairs[1].AttributeId).ShouldBeLessThan(0);   // AttributeId artan sıralı
 
                 // ERP'de attribute yok → fırsatçı eşleşme kaynağı yok → tüm satırlar N11-only.
                 header.ProductVariantId.ShouldBeNull();
@@ -111,12 +111,12 @@ public abstract class SalesChannelTrN11ProductAxisReconcileTests<TStartupModule>
         {
             var (channel, product) = await SeedChannelAndProductAsync(companyId, "AXPROD2");
             var created = await CreateChannelProductAsync(channel, product,
-                Axis("Renk", 0, "Red", "Blue"),
-                Axis("Beden", 1, "Small", "Medium"));
+                BuildAttribute("Renk", 0, "Red", "Blue"),
+                BuildAttribute("Beden", 1, "Small", "Medium"));
 
             // Kullanıcı emeği: 4 satıra override yaz (N11-only → fiyat + stok İKİSİ de zorunlu).
             var dto = await _appService.GetAsync(created.Id);
-            foreach (var node in dto.Variants)
+            foreach (var node in dto.StockItems)
             {
                 node.OverridePrice = 150m;
                 node.OverrideStock = 7;
@@ -128,13 +128,13 @@ public abstract class SalesChannelTrN11ProductAxisReconcileTests<TStartupModule>
             before.Count.ShouldBe(4);
 
             // Beden eksenine "Large" eklenir → yalnız 2 EKSİK kombinasyon insert edilir.
-            var axesInput = ToAxesInput(await GetAxesAsync(created.Id), await GetAxisValuesAsync((await GetAxesAsync(created.Id)).Select(a => a.Id).ToList()));
-            axesInput.Single(a => a.Name == "Beden").Values.Add(new SalesChannelTrN11ProductAttributeAxisValueDto
+            var attributesInput = ToAttributesInput(await GetChannelAttributesAsync(created.Id), await GetChannelAttributeValuesAsync((await GetChannelAttributesAsync(created.Id)).Select(a => a.Id).ToList()));
+            attributesInput.Single(a => a.Name == "Beden").Values.Add(new SalesChannelTrN11ProductAttributeValueDto
             {
                 Value = "Large",
                 DisplayOrder = 2,
             });
-            await _appService.RegenerateVariantsAsync(created.Id, axesInput);
+            await _appService.RegenerateStockItemsAsync(created.Id, attributesInput);
 
             var after = await GetSignedHeadersAsync(created.Id);
             after.Count.ShouldBe(6);
@@ -160,39 +160,39 @@ public abstract class SalesChannelTrN11ProductAxisReconcileTests<TStartupModule>
     // ── Kaldırılan kombinasyon: satır + reçetesi cascade silinir ─────────────────────────────────────
 
     [Fact]
-    public async Task Removed_axis_value_deletes_orphan_rows_and_cascades_their_recipe_lines()
+    public async Task Removed_attribute_value_deletes_orphan_rows_and_cascades_their_recipe_lines()
     {
         var companyId = Guid.NewGuid();
         using (_currentCompany.Change(companyId))
         {
             var (channel, product) = await SeedChannelAndProductAsync(companyId, "AXPROD3");
             var created = await CreateChannelProductAsync(channel, product,
-                Axis("Renk", 0, "Red", "Blue"),
-                Axis("Beden", 1, "Small", "Medium"));
+                BuildAttribute("Renk", 0, "Red", "Blue"),
+                BuildAttribute("Beden", 1, "Small", "Medium"));
 
             var headers = await GetSignedHeadersAsync(created.Id);
-            var axes = await GetAxesAsync(created.Id);
-            var valuesByAxis = await GetAxisValuesAsync(axes.Select(a => a.Id).ToList());
-            var renk = axes.Single(a => a.Name == "Renk");
-            var blue = valuesByAxis[renk.Id].Single(v => v.Value == "Blue");
+            var channelAttributes = await GetChannelAttributesAsync(created.Id);
+            var valuesByAttribute = await GetChannelAttributeValuesAsync(channelAttributes.Select(a => a.Id).ToList());
+            var renk = channelAttributes.Single(a => a.Name == "Renk");
+            var blue = valuesByAttribute[renk.Id].Single(v => v.Value == "Blue");
 
             // "Blue" içeren bir satıra kanal reçete satırı iliştir (cascade'in kanıt nesnesi).
             var blueHeader = headers.Single(h =>
                 ParseSignature(h.CombinationSignature!).Any(p => p.ValueId == blue.Id)
-                && ParseSignature(h.CombinationSignature!).Any(p => p.ValueId == valuesByAxis[axes.Single(a => a.Name == "Beden").Id].Single(v => v.Value == "Small").Id));
+                && ParseSignature(h.CombinationSignature!).Any(p => p.ValueId == valuesByAttribute[channelAttributes.Single(a => a.Name == "Beden").Id].Single(v => v.Value == "Small").Id));
             var recipeLineId = await WithUnitOfWorkAsync(async () =>
             {
                 var line = await _recipeLineRepository.InsertAsync(
-                    new SalesChannelTrN11ProductVariantRecipeLine(
+                    new SalesChannelTrN11ProductStockItemRecipeLine(
                         companyId, created.Id, blueHeader.Id, RecipeComponentType.CatalogCommodity, 0),
                     autoSave: true);
                 return line.Id;
             });
 
             // "Blue" değeri silinir → Blue'lu 2 kombinasyon artık üretilemez.
-            var axesInput = ToAxesInput(axes, valuesByAxis);
-            axesInput.Single(a => a.Name == "Renk").Values.Single(v => v.Value == "Blue").IsDeleted = true;
-            await _appService.RegenerateVariantsAsync(created.Id, axesInput);
+            var attributesInput = ToAttributesInput(channelAttributes, valuesByAttribute);
+            attributesInput.Single(a => a.Name == "Renk").Values.Single(v => v.Value == "Blue").IsDeleted = true;
+            await _appService.RegenerateStockItemsAsync(created.Id, attributesInput);
 
             var after = await GetSignedHeadersAsync(created.Id);
             after.Count.ShouldBe(2);
@@ -231,14 +231,14 @@ public abstract class SalesChannelTrN11ProductAxisReconcileTests<TStartupModule>
             // N11 tarafı: aynı eksen adı + değerler ("red" küçük harf → normalize eşleşme TRIM+UPPER)
             // + ERP'de OLMAYAN "Green".
             var created = await CreateChannelProductAsync(channel, product,
-                Axis("Renk", 0, "red", "Blue", "Green"));
+                BuildAttribute("Renk", 0, "red", "Blue", "Green"));
 
             var headers = await GetSignedHeadersAsync(created.Id);
             headers.Count.ShouldBe(3);
 
-            var axes = await GetAxesAsync(created.Id);
-            var values = (await GetAxisValuesAsync(axes.Select(a => a.Id).ToList())).Values.Single();
-            SalesChannelTrN11ProductVariant HeaderOf(string value)
+            var channelAttributes = await GetChannelAttributesAsync(created.Id);
+            var values = (await GetChannelAttributeValuesAsync(channelAttributes.Select(a => a.Id).ToList())).Values.Single();
+            SalesChannelTrN11ProductStockItem HeaderOf(string value)
             {
                 var valueId = values.Single(v => v.Value == value).Id;
                 return headers.Single(h => ParseSignature(h.CombinationSignature!).Any(p => p.ValueId == valueId));
@@ -260,10 +260,10 @@ public abstract class SalesChannelTrN11ProductAxisReconcileTests<TStartupModule>
         using (_currentCompany.Change(companyId))
         {
             var (channel, product) = await SeedChannelAndProductAsync(companyId, "AXPROD5");
-            var created = await CreateChannelProductAsync(channel, product, Axis("Renk", 0, "Red"));
+            var created = await CreateChannelProductAsync(channel, product, BuildAttribute("Renk", 0, "Red"));
 
             var dto = await _appService.GetAsync(created.Id);
-            var node = dto.Variants.ShouldHaveSingleItem();
+            var node = dto.StockItems.ShouldHaveSingleItem();
             node.ProductVariantId.ShouldBeNull();   // ön koşul: ERP eşleşmesi yok → N11-only
 
             // Fiyat VE stok boş → fail-fast (ERP fallback kaynağı yok).
@@ -290,10 +290,10 @@ public abstract class SalesChannelTrN11ProductAxisReconcileTests<TStartupModule>
         }
     }
 
-    // ── Klon-sonra-ayrış taslağı (BuildDraftAxesFromErpAsync) ────────────────────────────────────────
+    // ── Klon-sonra-ayrış taslağı (BuildDraftAttributesFromErpAsync) ────────────────────────────────────────
 
     [Fact]
-    public async Task Get_without_persisted_axes_builds_draft_axes_from_erp_without_writing_to_db()
+    public async Task Get_without_persisted_attributes_builds_draft_attributes_from_erp_without_writing_to_db()
     {
         var companyId = Guid.NewGuid();
         using (_currentCompany.Change(companyId))
@@ -310,27 +310,27 @@ public abstract class SalesChannelTrN11ProductAxisReconcileTests<TStartupModule>
                 await _erpValueRepository.InsertAsync(new ProductAttributeValue(companyId, beden.Id, "Small", 0), autoSave: true);
             });
 
-            // Axis HİÇ aktive edilmemiş kayıt (create'te eksen girilmedi).
+            // Özellik modu HİÇ aktive edilmemiş kayıt (create'te özellik girilmedi).
             var created = await CreateChannelProductAsync(channel, product);
 
             var dto = await _appService.GetAsync(created.Id);
 
             // Taslak: ERP attribute/value'larından üretilir, TÜM Id'ler boş (persist YOK).
-            dto.AttributeAxes.Count.ShouldBe(2);
-            dto.AttributeAxes.Select(a => a.Name).ShouldBe(new[] { "Renk", "Beden" });
-            dto.AttributeAxes.ShouldAllBe(a => a.Id == Guid.Empty);
-            dto.AttributeAxes.Single(a => a.Name == "Renk").Values.Select(v => v.Value).ShouldBe(new[] { "Red", "Blue" });
-            dto.AttributeAxes.Single(a => a.Name == "Beden").Values.Select(v => v.Value).ShouldBe(new[] { "Small" });
-            dto.AttributeAxes.SelectMany(a => a.Values).ShouldAllBe(v => v.Id == Guid.Empty);
+            dto.ProductAttributes.Count.ShouldBe(2);
+            dto.ProductAttributes.Select(a => a.Name).ShouldBe(new[] { "Renk", "Beden" });
+            dto.ProductAttributes.ShouldAllBe(a => a.Id == Guid.Empty);
+            dto.ProductAttributes.Single(a => a.Name == "Renk").Values.Select(v => v.Value).ShouldBe(new[] { "Red", "Blue" });
+            dto.ProductAttributes.Single(a => a.Name == "Beden").Values.Select(v => v.Value).ShouldBe(new[] { "Small" });
+            dto.ProductAttributes.SelectMany(a => a.Values).ShouldAllBe(v => v.Id == Guid.Empty);
 
             // Salt-okuma DB'ye YAZMADI: eksen tablosu bu kayıt için hâlâ boş.
-            (await GetAxesAsync(created.Id)).ShouldBeEmpty();
+            (await GetChannelAttributesAsync(created.Id)).ShouldBeEmpty();
             (await GetSignedHeadersAsync(created.Id)).ShouldBeEmpty();
         }
     }
 
     [Fact]
-    public async Task Get_for_erp_product_without_attributes_yields_empty_draft_axes()
+    public async Task Get_for_erp_product_without_attributes_yields_empty_draft_attributes()
     {
         var companyId = Guid.NewGuid();
         using (_currentCompany.Change(companyId))
@@ -340,8 +340,8 @@ public abstract class SalesChannelTrN11ProductAxisReconcileTests<TStartupModule>
 
             var dto = await _appService.GetAsync(created.Id);
 
-            dto.AttributeAxes.ShouldBeEmpty();   // niteliksiz ürün → kullanıcı isterse elle eksen ekler
-            (await GetAxesAsync(created.Id)).ShouldBeEmpty();
+            dto.ProductAttributes.ShouldBeEmpty();   // niteliksiz ürün → kullanıcı isterse elle eksen ekler
+            (await GetChannelAttributesAsync(created.Id)).ShouldBeEmpty();
         }
     }
 
@@ -361,7 +361,7 @@ public abstract class SalesChannelTrN11ProductAxisReconcileTests<TStartupModule>
     }
 
     private async Task<SalesChannelTrN11ProductDto> CreateChannelProductAsync(
-        SalesChannelTrN11 channel, Product product, params SalesChannelTrN11ProductAttributeAxisDto[] axes)
+        SalesChannelTrN11 channel, Product product, params SalesChannelTrN11ProductAttributeDto[] channelAttributes)
     {
         return await _appService.CreateAsync(new SalesChannelTrN11ProductCreateDto
         {
@@ -369,34 +369,34 @@ public abstract class SalesChannelTrN11ProductAxisReconcileTests<TStartupModule>
             SalesChannelId = channel.Id,
             CategoryExternalId = "1000846",
             ShipmentTemplateName = "Standart Teslimat",
-            AttributeAxes = axes.ToList(),
+            ProductAttributes = channelAttributes.ToList(),
         });
     }
 
-    private static SalesChannelTrN11ProductAttributeAxisDto Axis(string name, int displayOrder, params string[] values)
+    private static SalesChannelTrN11ProductAttributeDto BuildAttribute(string name, int displayOrder, params string[] values)
     {
-        return new SalesChannelTrN11ProductAttributeAxisDto
+        return new SalesChannelTrN11ProductAttributeDto
         {
             Name = name,
             DisplayOrder = displayOrder,
             Values = values
-                .Select((v, i) => new SalesChannelTrN11ProductAttributeAxisValueDto { Value = v, DisplayOrder = i })
+                .Select((v, i) => new SalesChannelTrN11ProductAttributeValueDto { Value = v, DisplayOrder = i })
                 .ToList(),
         };
     }
 
     /// <summary>Persist edilmiş eksen/değer grafını Update/Regenerate input DTO'suna çevirir (Id'ler dolu).</summary>
-    private static List<SalesChannelTrN11ProductAttributeAxisDto> ToAxesInput(
-        List<SalesChannelTrN11ProductAttributeAxis> axes,
-        Dictionary<Guid, List<SalesChannelTrN11ProductAttributeAxisValue>> valuesByAxis)
+    private static List<SalesChannelTrN11ProductAttributeDto> ToAttributesInput(
+        List<SalesChannelTrN11ProductAttribute> channelAttributes,
+        Dictionary<Guid, List<SalesChannelTrN11ProductAttributeValue>> valuesByAttribute)
     {
-        return axes.Select(a => new SalesChannelTrN11ProductAttributeAxisDto
+        return channelAttributes.Select(a => new SalesChannelTrN11ProductAttributeDto
         {
             Id = a.Id,
             Name = a.Name,
             DisplayOrder = a.DisplayOrder,
-            Values = (valuesByAxis.TryGetValue(a.Id, out var values) ? values : new List<SalesChannelTrN11ProductAttributeAxisValue>())
-                .Select(v => new SalesChannelTrN11ProductAttributeAxisValueDto
+            Values = (valuesByAttribute.TryGetValue(a.Id, out var values) ? values : new List<SalesChannelTrN11ProductAttributeValue>())
+                .Select(v => new SalesChannelTrN11ProductAttributeValueDto
                 {
                     Id = v.Id,
                     Value = v.Value,
@@ -428,49 +428,49 @@ public abstract class SalesChannelTrN11ProductAxisReconcileTests<TStartupModule>
             GroupItemCode = dto.GroupItemCode,
             GroupAttribute = dto.GroupAttribute,
             ItemName = dto.ItemName,
-            Attributes = dto.Attributes,
+            CategoryAttributes = dto.CategoryAttributes,
             SpecialInfo = dto.SpecialInfo,
-            Variants = dto.Variants,
-            AttributeAxes = dto.AttributeAxes,
+            StockItems = dto.StockItems,
+            ProductAttributes = dto.ProductAttributes,
         };
     }
 
-    /// <summary>İmza formatı SNAPSHOT'ı: "{AxisId}={ValueId}|..." — çiftler AxisId'ye göre artan (Guid.CompareTo).</summary>
-    private static string BuildExpectedSignature(params (Guid AxisId, Guid ValueId)[] pairs)
+    /// <summary>İmza formatı SNAPSHOT'ı: "{AttributeId}={ValueId}|..." — çiftler AttributeId'ye göre artan (Guid.CompareTo).</summary>
+    private static string BuildExpectedSignature(params (Guid AttributeId, Guid ValueId)[] pairs)
     {
-        return string.Join('|', pairs.OrderBy(p => p.AxisId).Select(p => $"{p.AxisId}={p.ValueId}"));
+        return string.Join('|', pairs.OrderBy(p => p.AttributeId).Select(p => $"{p.AttributeId}={p.ValueId}"));
     }
 
-    private static List<(Guid AxisId, Guid ValueId)> ParseSignature(string signature)
+    private static List<(Guid AttributeId, Guid ValueId)> ParseSignature(string signature)
     {
         return signature
             .Split('|', StringSplitOptions.RemoveEmptyEntries)
             .Select(pair =>
             {
                 var parts = pair.Split('=');
-                parts.Length.ShouldBe(2, $"imza çifti '{pair}' 'AxisId=ValueId' formatında olmalı");
+                parts.Length.ShouldBe(2, $"imza çifti '{pair}' 'AttributeId=ValueId' formatında olmalı");
                 return (Guid.Parse(parts[0]), Guid.Parse(parts[1]));
             })
             .ToList();
     }
 
-    private async Task<List<SalesChannelTrN11ProductAttributeAxis>> GetAxesAsync(Guid channelProductId)
+    private async Task<List<SalesChannelTrN11ProductAttribute>> GetChannelAttributesAsync(Guid channelProductId)
     {
-        var axes = await WithUnitOfWorkAsync(async () =>
-            await _axisRepository.GetListAsync(a => a.SalesChannelTrN11ProductId == channelProductId));
-        return axes.OrderBy(a => a.DisplayOrder).ToList();
+        var channelAttributes = await WithUnitOfWorkAsync(async () =>
+            await _channelAttributeRepository.GetListAsync(a => a.SalesChannelTrN11ProductId == channelProductId));
+        return channelAttributes.OrderBy(a => a.DisplayOrder).ToList();
     }
 
-    private async Task<Dictionary<Guid, List<SalesChannelTrN11ProductAttributeAxisValue>>> GetAxisValuesAsync(List<Guid> axisIds)
+    private async Task<Dictionary<Guid, List<SalesChannelTrN11ProductAttributeValue>>> GetChannelAttributeValuesAsync(List<Guid> attributeIds)
     {
         var values = await WithUnitOfWorkAsync(async () =>
-            await _axisValueRepository.GetListAsync(v => axisIds.Contains(v.AxisId)));
+            await _channelAttributeValueRepository.GetListAsync(v => attributeIds.Contains(v.AttributeId)));
         return values
-            .GroupBy(v => v.AxisId)
+            .GroupBy(v => v.AttributeId)
             .ToDictionary(g => g.Key, g => g.OrderBy(v => v.DisplayOrder).ToList());
     }
 
-    private async Task<List<SalesChannelTrN11ProductVariant>> GetSignedHeadersAsync(Guid channelProductId)
+    private async Task<List<SalesChannelTrN11ProductStockItem>> GetSignedHeadersAsync(Guid channelProductId)
     {
         return await WithUnitOfWorkAsync(async () =>
             await _headerRepository.GetListAsync(h =>

@@ -23,7 +23,7 @@ public sealed class N11ProductPushValidator : ITransientDependency
     /// varyant-başına seçenek listeleri. Ürün-seviyesinden isVariant=true olanlar FİLTRELENİR (SKU seviyesinde gider).</summary>
     public N11PushValidationResult Validate(
         N11LeafAttributes leaf,
-        IReadOnlyList<SalesChannelTrN11ProductAttribute> productAttributes,
+        IReadOnlyList<SalesChannelTrN11ProductCategoryAttribute> productAttributes,
         IReadOnlyList<N11SkuPushCandidate> variants)
     {
         var variantDefs = leaf.Attributes.Where(a => a.IsVariant).ToList();
@@ -135,7 +135,7 @@ public sealed class N11ProductPushValidator : ITransientDependency
     // ── Ürün-seviyesi attribute'lar ─────────────────────────────────────────────────────────────────
 
     private List<N11ProductAttributePair> ValidateProductAttributes(
-        N11LeafAttributes leaf, IReadOnlyList<SalesChannelTrN11ProductAttribute> productAttributes)
+        N11LeafAttributes leaf, IReadOnlyList<SalesChannelTrN11ProductCategoryAttribute> productAttributes)
     {
         // Zorunlu ürün-seviyesi (variant OLMAYAN) eksen — ör. Marka — dolu olmalı; N11'e gitmeden fail-fast.
         foreach (var def in leaf.Attributes.Where(d => d.IsMandatory && !d.IsVariant))
