@@ -98,6 +98,9 @@ public class TradeXpressDbContext :
     public DbSet<Integration.TradeXpress.N11Shipments.N11ShipmentTemplate> N11ShipmentTemplates { get; set; } = null!;
     // N11 ürün listelemeleri — ürün×kanal (company-owned). DbSet ŞART: ABP default repository'leri DbSet'ten keşfeder.
     public DbSet<Integration.TradeXpress.N11Products.SalesChannelTrN11Product> SalesChannelTrN11Products { get; set; } = null!;
+    // N11 kanal-özel varyant EKSENİ/DEĞERİ (ERP ProductAttribute/Value klonu; klon-sonra-ayrış).
+    public DbSet<Integration.TradeXpress.N11Products.SalesChannelTrN11ProductAttributeAxis> SalesChannelTrN11ProductAttributeAxes { get; set; } = null!;
+    public DbSet<Integration.TradeXpress.N11Products.SalesChannelTrN11ProductAttributeAxisValue> SalesChannelTrN11ProductAttributeAxisValues { get; set; } = null!;
     // N11 kanal-özel varyant override başlığı (fiyat/stok + marj; ayrı tablo).
     public DbSet<Integration.TradeXpress.N11Products.SalesChannelTrN11ProductVariant> SalesChannelTrN11ProductVariants { get; set; } = null!;
     // N11 kanal-özel varyant reçete satırları (ayrı tablo; ERP reçetesi klonu).

@@ -34,4 +34,12 @@ public static class N11ProductConsts
     public const int AttributeValueMaxLength = 4000;
     public const int SpecialInfoKeyMaxLength = 64;
     public const int SpecialInfoValueMaxLength = 20000;   // HTML olabilir
+
+    // Kanal-özel varyant EKSENİ/DEĞERİ (SalesChannelTrN11ProductAttributeAxis/Value) — ERP ProductAttributeConsts
+    // (Products/ProductAttributeConsts.cs) ile HİZALI (klon-sonra-ayrış deseni; aynı alan sınırları).
+    public const int AttributeAxisNameMaxLength = 64;    // ör. "Renk", "Beden"
+    public const int AttributeAxisValueMaxLength = 128;  // ör. "Kırmızı", "Siyah"
+
+    /// <summary>Kartezyen kombinasyon imzası ("{AxisId}={AxisValueId}|...") üst sınırı — makul eksen sayısı × Guid uzunluğu.</summary>
+    public const int CombinationSignatureMaxLength = 600;
 }

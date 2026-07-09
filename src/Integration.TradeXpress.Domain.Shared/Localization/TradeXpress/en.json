@@ -640,6 +640,7 @@
     "TradeXpress:N11:ProductVariant:OverridePriceNegative": "The channel override price cannot be negative.",
     "TradeXpress:N11:ProductVariant:OverrideStockNegative": "The channel override stock cannot be negative.",
     "TradeXpress:N11:ProductVariant:MarginNegative": "The variant margin cannot be negative.",
+    "TradeXpress:N11:ProductVariant:OverrideRequiredForN11Only": "This combination has no matching ERP variant (N11-only) — override price and stock are required since there is nothing to fall back to.",
     "TradeXpress:N11:Product:SaveFailed": "Could not reach the N11 product service (HTTP {status}).",
     "TradeXpress:N11:Product:SaveRejected": "N11 rejected the product: {message}",
     "TradeXpress:N11:Product:CompanyRequired": "A working company must be selected for this operation.",

@@ -4,6 +4,7 @@ using Integration.TradeXpress.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Volo.Abp.EntityFrameworkCore;
 
@@ -12,9 +13,11 @@ using Volo.Abp.EntityFrameworkCore;
 namespace Integration.TradeXpress.Migrations
 {
     [DbContext(typeof(TradeXpressDbContext))]
-    partial class TradeXpressDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260709071507_N11Product_AttributeAxis")]
+    partial class N11Product_AttributeAxis
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1921,10 +1924,6 @@ namespace Integration.TradeXpress.Migrations
                     b.Property<Guid>("Id")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<string>("CombinationSignature")
-                        .HasMaxLength(600)
-                        .HasColumnType("nvarchar(600)");
-
                     b.Property<Guid>("CompanyId")
                         .HasColumnType("uniqueidentifier");
 
@@ -1997,10 +1996,6 @@ namespace Integration.TradeXpress.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("TenantId", "CompanyId");
-
-                    b.HasIndex("TenantId", "SalesChannelTrN11ProductId", "CombinationSignature")
-                        .IsUnique()
-                        .HasFilter("[CombinationSignature] IS NOT NULL");
 
                     b.HasIndex("TenantId", "SalesChannelTrN11ProductId", "ProductVariantId")
                         .IsUnique()
@@ -2104,9 +2099,6 @@ namespace Integration.TradeXpress.Migrations
                     b.Property<Guid?>("ManualUnitId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<Guid>("OverrideHeaderId")
-                        .HasColumnType("uniqueidentifier");
-
                     b.Property<decimal>("PayFactor")
                         .HasPrecision(18, 5)
                         .HasColumnType("decimal(18,5)");
@@ -2116,6 +2108,9 @@ namespace Integration.TradeXpress.Migrations
 
                     b.Property<byte>("PaymentType")
                         .HasColumnType("tinyint");
+
+                    b.Property<Guid>("ProductVariantId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<decimal>("Quantity")
                         .HasPrecision(18, 5)
@@ -2135,7 +2130,7 @@ namespace Integration.TradeXpress.Migrations
 
                     b.HasIndex("TenantId", "CompanyId");
 
-                    b.HasIndex("TenantId", "SalesChannelTrN11ProductId", "OverrideHeaderId", "LineOrder");
+                    b.HasIndex("TenantId", "SalesChannelTrN11ProductId", "ProductVariantId", "LineOrder");
 
                     b.ToTable("AppSalesChannelTrN11ProductVariantRecipeLines", (string)null);
                 });

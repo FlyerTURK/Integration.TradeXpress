@@ -41,8 +41,23 @@ public class SalesChannelTrN11ProductSkuDto
 /// <see cref="NetCost"/>/<see cref="DerivedPrice"/> SALT-OKUNUR (GetAsync canlı hesaplar; save yoksayar).</summary>
 public class SalesChannelTrN11ProductVariantGraphDto
 {
-    /// <summary>ERP varyantı (anchor; save'de kanal override başlığına eşlenir). Read-only kimlik.</summary>
-    public Guid ProductVariantId { get; set; }
+    /// <summary>Override BAŞLIĞININ kendi id'si (2026-07-09 kararı: anchor budur) — SALT-OKUNUR kimlik, round-trip
+    /// bununla yapılır. Axis-kaynaklı (kartezyen) satırlarda ZORUNLU dolu (reconcile server-side üretir, client
+    /// yeni satır açamaz); henüz persist edilmemiş/legacy düğümde <c>Guid.Empty</c>.</summary>
+    public Guid Id { get; set; }
+
+    /// <summary>ERP varyantı — id-only, OPSİYONEL. Axis-kaynaklı satırlarda yalnız fiyat/stok FALLBACK kaynağı
+    /// (reconcile anahtarı DEĞİL — bkz. <see cref="SalesChannelTrN11ProductAttributeAxisDto"/>); null = N11-only
+    /// kombinasyon (ERP'de karşılığı yok — N11 kendi ekseninde sonradan eklenen bir değerden doğdu).</summary>
+    public Guid? ProductVariantId { get; set; }
+
+    /// <summary>Kombinasyonu oluşturan eksen değerlerinin SALT-OKUNUR görüntüsü (ör. "Renk: Kırmızı; Beden: M") —
+    /// yalnız axis-kaynaklı (kartezyen) satırlarda dolu; legacy ERP-doğrudan satırda boş (VariantCode/Name kullanılır).</summary>
+    public string CombinationLabel { get; set; } = string.Empty;
+
+    /// <summary>SALT-OKUNUR türetilmiş bayrak: <c>true</c> = ERP varyantından izleniyor, <c>false</c> = N11-only
+    /// (ERP karşılığı yok; <see cref="OverridePrice"/>/<see cref="OverrideStock"/> ZORUNLUdur).</summary>
+    public bool IsErpBacked => ProductVariantId.HasValue;
 
     /// <summary>ERP varyant kodu (SALT-OKUNUR görüntü; ERP SSOT).</summary>
     public string VariantCode { get; set; } = string.Empty;
@@ -77,6 +92,34 @@ public class SalesChannelTrN11ProductVariantGraphDto
 
     /// <summary>Türetilmiş fiyat = NetCost × (1 + (Margin ?? 0)/100) [MARKUP] (SALT-OKUNUR; NetCost null ise null).</summary>
     public decimal? DerivedPrice { get; set; }
+}
+
+/// <summary>N11 kanal-özel varyant EKSENİ (ör. "Renk", "Beden") — ERP <c>ProductAttributeGraphDto</c> deseninin
+/// N11-scope klonu (klon-sonra-ayrış). Id boş = yeni eksen; <see cref="ClientKey"/> in-memory graf diff kimliği
+/// (Product ProductAttributeGraphDto ile aynı desen). <see cref="IsDeleted"/> = save'de silinecek.</summary>
+public class SalesChannelTrN11ProductAttributeAxisDto
+{
+    /// <summary>İstemci-taraflı graf kimliği (yeni eksende Id yok; graf diff için).</summary>
+    public Guid ClientKey { get; set; } = Guid.NewGuid();
+
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public int DisplayOrder { get; set; }
+    public bool IsDeleted { get; set; }
+    public List<SalesChannelTrN11ProductAttributeAxisValueDto> Values { get; set; } = new();
+}
+
+/// <summary>N11 kanal-özel varyant eksen DEĞERİ (ör. "Kırmızı") — ERP <c>ProductAttributeValueGraphDto</c>
+/// deseninin N11-scope klonu.</summary>
+public class SalesChannelTrN11ProductAttributeAxisValueDto
+{
+    /// <summary>İstemci-taraflı graf kimliği (yeni değerde Id yok; graf diff için).</summary>
+    public Guid ClientKey { get; set; } = Guid.NewGuid();
+
+    public Guid Id { get; set; }
+    public string Value { get; set; } = string.Empty;
+    public int DisplayOrder { get; set; }
+    public bool IsDeleted { get; set; }
 }
 
 /// <summary>N11 push ÖNİZLEMESİ (read-only) — bu listelemede N11'e GİDECEK varyantlar + görseller. Kaynak ERP
@@ -174,6 +217,11 @@ public class SalesChannelTrN11ProductDto
     /// kaydedilmiş override (LEFT JOIN). Ürün 'Kaydet'inde birlikte kaydedilir. NetCost/DerivedPrice SALT-OKUNUR.</summary>
     public List<SalesChannelTrN11ProductVariantGraphDto> Variants { get; set; } = new();
 
+    /// <summary>N11 kendi varyant eksenleri (ör. "Renk"/"Beden") — İLK açılışta ERP nitelik/değerlerinden bir kez
+    /// KLONLANIR, sonrasında ERP'den bağımsız yaşar. <see cref="Variants"/> bu eksenlerin kartezyen kombinasyonundan
+    /// üretilir (kaydet'te sunucu reconcile eder).</summary>
+    public List<SalesChannelTrN11ProductAttributeAxisDto> AttributeAxes { get; set; } = new();
+
     /// <summary>Varyant SKU kimlik/durum satırları (read-only; push + stok/fiyat senkronunda dolar).</summary>
     public List<SalesChannelTrN11ProductSkuDto> Skus { get; set; } = new();
 
@@ -216,6 +264,9 @@ public interface ISalesChannelTrN11ProductInput
 
     /// <summary>Kanal-özel varyant override grafı (fiyat/stok/marj + reçete) — kanal-ürünle birlikte kaydedilir.</summary>
     List<SalesChannelTrN11ProductVariantGraphDto> Variants { get; }
+
+    /// <summary>N11 kendi varyant eksenleri — kanal-ürünle birlikte kaydedilir (kartezyen reconcile tetikler).</summary>
+    List<SalesChannelTrN11ProductAttributeAxisDto> AttributeAxes { get; }
 }
 
 /// <summary>Listeleme oluşturma — ürün + kanal (create-only; şirket sunucuda zorlanır).</summary>
@@ -244,6 +295,7 @@ public class SalesChannelTrN11ProductCreateDto : ISalesChannelTrN11ProductInput
     public List<SalesChannelTrN11ProductAttributeDto> Attributes { get; set; } = new();
     public List<SalesChannelTrN11ProductSpecialInfoDto> SpecialInfo { get; set; } = new();
     public List<SalesChannelTrN11ProductVariantGraphDto> Variants { get; set; } = new();
+    public List<SalesChannelTrN11ProductAttributeAxisDto> AttributeAxes { get; set; } = new();
 }
 
 /// <summary>Listeleme güncelleme — ürün/kanal set-once (route'taki id kimliktir).</summary>
@@ -270,6 +322,7 @@ public class SalesChannelTrN11ProductUpdateDto : ISalesChannelTrN11ProductInput
     public List<SalesChannelTrN11ProductAttributeDto> Attributes { get; set; } = new();
     public List<SalesChannelTrN11ProductSpecialInfoDto> SpecialInfo { get; set; } = new();
     public List<SalesChannelTrN11ProductVariantGraphDto> Variants { get; set; } = new();
+    public List<SalesChannelTrN11ProductAttributeAxisDto> AttributeAxes { get; set; } = new();
 }
 
 /// <summary>

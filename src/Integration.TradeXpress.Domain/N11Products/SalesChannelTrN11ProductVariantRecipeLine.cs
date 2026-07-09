@@ -8,7 +8,9 @@ namespace Integration.TradeXpress.N11Products;
 /// (ürün-geneli reçete) kanal-scope KLONU. İlk açılışta ERP varyant reçetesinden kopyalanır, sonra BAĞIMSIZ
 /// düzenlenir (kullanıcı kararı 2026-07-08): kanal maliyeti + marj → N11 türetilmiş fiyatı. <b>Company-owned</b>
 /// (<see cref="CompanyId"/> kanal-üründen denormalize) + per-tenant. Anchor: <see cref="SalesChannelTrN11ProductId"/>
-/// + <see cref="ProductVariantId"/> (set-once). Net/tutar CANLI hesaplanır (<c>ProductRecipeCostCalculator</c>
+/// + <see cref="OverrideHeaderId"/> (set-once) — <see cref="OverrideHeaderId"/> <see cref="SalesChannelTrN11ProductVariant"/>'ın
+/// KENDİ Id'sidir (2026-07-09 kararı: ERP ProductVariantId DEĞİL — böylece ERP-backed VE N11-only override başlıkları
+/// AYNI anahtar şemasıyla reçete satırına sahip olabilir). Net/tutar CANLI hesaplanır (<c>ProductRecipeCostCalculator</c>
 /// AYNEN yeniden kullanılır — saf/DB'siz); katalog/StableQuantity/EntryPrice hesap anında canlı okunur.
 /// Ürün reçetesiyle AYNI alan seti — hesap motoru ortak kalsın diye birebir hizalı.
 /// </summary>
@@ -23,13 +25,13 @@ public class SalesChannelTrN11ProductVariantRecipeLine : FullAuditedAggregateRoo
     public SalesChannelTrN11ProductVariantRecipeLine(
         Guid companyId,
         Guid salesChannelTrN11ProductId,
-        Guid productVariantId,
+        Guid overrideHeaderId,
         RecipeComponentType componentType,
         int lineOrder)
     {
         SetCompany(companyId);
         SetChannelProduct(salesChannelTrN11ProductId);
-        SetProductVariant(productVariantId);
+        SetOverrideHeader(overrideHeaderId);
         ComponentType = componentType;
         PaymentType = ProcessPaymentType.Normal;
         SetOrder(lineOrder);
@@ -47,8 +49,10 @@ public class SalesChannelTrN11ProductVariantRecipeLine : FullAuditedAggregateRoo
     /// <summary>Sahip N11 kanal ürünü — id-only referans. Set-once.</summary>
     public virtual Guid SalesChannelTrN11ProductId { get; protected set; }
 
-    /// <summary>Reçetenin ait olduğu ERP varyantı — id-only referans (kanal-üründeki SKU ile aynı varyant). Set-once.</summary>
-    public virtual Guid ProductVariantId { get; protected set; }
+    /// <summary>Reçetenin ait olduğu override başlığının (<see cref="SalesChannelTrN11ProductVariant"/>) KENDİ id'si —
+    /// id-only referans, set-once. ERP ProductVariantId DEĞİL (2026-07-09 kararı öncesi öyleydi) — böylece
+    /// ProductVariantId'si null olan N11-only kombinasyon satırları da reçete taşıyabilir.</summary>
+    public virtual Guid OverrideHeaderId { get; protected set; }
 
     /// <summary>Satır sırası (türev-satır referans sırası). Kullanıcı sıralaması korunur.</summary>
     public virtual int LineOrder { get; protected set; }
@@ -222,14 +226,14 @@ public class SalesChannelTrN11ProductVariantRecipeLine : FullAuditedAggregateRoo
         SalesChannelTrN11ProductId = salesChannelTrN11ProductId;
     }
 
-    private void SetProductVariant(Guid productVariantId)
+    private void SetOverrideHeader(Guid overrideHeaderId)
     {
-        if (productVariantId == Guid.Empty)
+        if (overrideHeaderId == Guid.Empty)
         {
-            throw new RequiredPropertyException(nameof(ProductVariantId));
+            throw new RequiredPropertyException(nameof(OverrideHeaderId));
         }
 
-        ProductVariantId = productVariantId;
+        OverrideHeaderId = overrideHeaderId;
     }
 
     #endregion

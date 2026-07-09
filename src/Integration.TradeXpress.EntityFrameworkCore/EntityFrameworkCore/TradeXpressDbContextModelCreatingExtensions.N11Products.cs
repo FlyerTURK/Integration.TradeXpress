@@ -64,8 +64,34 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
             b.HasIndex(x => new { x.TenantId, x.CompanyId });
         });
 
+        // Kanal-özel varyant EKSENİ (ör. "Renk") — ERP ProductAttribute'ın N11-scope klonu (klon-sonra-ayrış).
+        builder.Entity<SalesChannelTrN11ProductAttributeAxis>(b =>
+        {
+            b.ToTable(TradeXpressConsts.DbTablePrefix + "SalesChannelTrN11ProductAttributeAxes", TradeXpressConsts.DbSchema);
+            b.ConfigureByConvention();
+
+            b.Property(x => x.Name).IsRequired().HasMaxLength(N11ProductConsts.AttributeAxisNameMaxLength);
+
+            b.HasIndex(x => new { x.TenantId, x.SalesChannelTrN11ProductId });
+            b.HasIndex(x => new { x.TenantId, x.CompanyId });
+        });
+
+        // Eksen DEĞERİ (ör. "Kırmızı"/"Siyah") — ERP ProductAttributeValue'nun N11-scope klonu.
+        builder.Entity<SalesChannelTrN11ProductAttributeAxisValue>(b =>
+        {
+            b.ToTable(TradeXpressConsts.DbTablePrefix + "SalesChannelTrN11ProductAttributeAxisValues", TradeXpressConsts.DbSchema);
+            b.ConfigureByConvention();
+
+            b.Property(x => x.Value).IsRequired().HasMaxLength(N11ProductConsts.AttributeAxisValueMaxLength);
+
+            b.HasIndex(x => new { x.TenantId, x.AxisId });
+            b.HasIndex(x => new { x.TenantId, x.CompanyId });
+        });
+
         // Kanal-özel varyant override BAŞLIĞI (fiyat/stok + marj) — ERP ProductVariant'ın N11-scope özelleştirmesi.
-        // null alan = ERP'den devral. Anchor (kanal-ürün + varyant) UNIQUE; türetilmiş fiyat/NetCost PERSIST EDİLMEZ.
+        // null alan = ERP'den devral. Anchor artık BU entity'nin KENDİ Id'si (2026-07-09 kararı, klon-sonra-ayrış);
+        // ProductVariantId opsiyonel (null = N11-only kombinasyon) → unique index NULL'ları çakışma saymaz olsa da
+        // açık filtre daha okunur/güvenli.
         builder.Entity<SalesChannelTrN11ProductVariant>(b =>
         {
             b.ToTable(TradeXpressConsts.DbTablePrefix + "SalesChannelTrN11ProductVariants", TradeXpressConsts.DbSchema);
@@ -73,9 +99,19 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
 
             b.Property(x => x.OverridePrice).HasPrecision(ProductRecipeConsts.AmountPrecision, ProductRecipeConsts.AmountScale);
             b.Property(x => x.Margin).HasPrecision(ProductRecipeConsts.FactorPrecision, ProductRecipeConsts.FactorScale);
+            b.Property(x => x.CombinationSignature).HasMaxLength(N11ProductConsts.CombinationSignatureMaxLength);
 
-            // Kanal-ürün + varyant başına TEK override başlığı (anchor benzersiz).
-            b.HasIndex(x => new { x.TenantId, x.SalesChannelTrN11ProductId, x.ProductVariantId }).IsUnique();
+            // Kanal-ürün + ERP varyant başına TEK override başlığı — yalnız ProductVariantId doluyken (N11-only
+            // satırlarda birden çok null aynı kanal-ürüne bağlanabilir; filtre bu yüzden şart).
+            b.HasIndex(x => new { x.TenantId, x.SalesChannelTrN11ProductId, x.ProductVariantId })
+                .IsUnique()
+                .HasFilter("[ProductVariantId] IS NOT NULL");
+
+            // Kartezyen motor reconcile anahtarı — kanal-ürün başına TEK satır per imza (ID-bazlı; axis/değer
+            // yeniden adlandırılsa da bozulmaz). Yalnız axis-kaynaklı satırlarda dolu (legacy ERP-doğrudan null).
+            b.HasIndex(x => new { x.TenantId, x.SalesChannelTrN11ProductId, x.CombinationSignature })
+                .IsUnique()
+                .HasFilter("[CombinationSignature] IS NOT NULL");
             b.HasIndex(x => new { x.TenantId, x.CompanyId });
         });
 
@@ -95,8 +131,8 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
             b.Property(x => x.DerivedOperand).HasPrecision(ProductRecipeConsts.FactorPrecision, ProductRecipeConsts.FactorScale);
             b.Property(x => x.DerivedSourceLineIds).HasMaxLength(ProductRecipeConsts.DerivedSourceLineIdsMaxLength);
 
-            // Kanal-ürün + varyant başına sıralı okuma + company güvenlik filtresi.
-            b.HasIndex(x => new { x.TenantId, x.SalesChannelTrN11ProductId, x.ProductVariantId, x.LineOrder });
+            // Kanal-ürün + override başlığı başına sıralı okuma + company güvenlik filtresi.
+            b.HasIndex(x => new { x.TenantId, x.SalesChannelTrN11ProductId, x.OverrideHeaderId, x.LineOrder });
             b.HasIndex(x => new { x.TenantId, x.CompanyId });
         });
     }

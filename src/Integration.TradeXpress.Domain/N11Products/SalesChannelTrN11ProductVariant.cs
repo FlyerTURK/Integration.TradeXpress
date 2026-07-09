@@ -3,9 +3,11 @@ namespace Integration.TradeXpress.N11Products;
 /// <summary>
 /// N11 kanal-ürününde bir VARYANTIN <b>kanal-özel override başlığı</b> — ERP <see cref="Integration.TradeXpress.Products.ProductVariant"/>'ın
 /// (fiyat/stok SSOT'u) N11-scope özelleştirmesi. null alan = ERP'den DEVRAL (kullanıcı kararı 2026-07-08).
-/// <b>Company-owned</b> (<see cref="CompanyId"/> kanal-üründen denormalize) + per-tenant. Anchor:
-/// <see cref="SalesChannelTrN11ProductId"/> + <see cref="ProductVariantId"/> (set-once). Kanal-özel reçete satırları
-/// (<see cref="SalesChannelTrN11ProductVariantRecipeLine"/>) bu başlığa AYNI çift-anahtarla eşlenir (ayrı tablo; nav yok, id-only).
+/// <b>Company-owned</b> (<see cref="CompanyId"/> kanal-üründen denormalize) + per-tenant. Anchor artık BU entity'nin
+/// KENDİ <see cref="Entity.Id"/>'sidir — N11'in gerçek varyant kimliği (2026-07-09 kullanıcı kararı, "klon-sonra-ayrış"
+/// felsefesi: N11 ürünü ERP'den yalnız genetik alır, sonrasında ERP'ye dokunmadan bağımsız yaşar). Kanal-özel reçete
+/// satırları (<see cref="SalesChannelTrN11ProductVariantRecipeLine"/>) bu başlığa <see cref="SalesChannelTrN11ProductId"/> +
+/// <see cref="ProductVariantId"/> çiftiyle eşlenir (ayrı tablo; nav yok, id-only).
 ///
 /// <para><b>Türetilmiş fiyat/NetCost PERSIST EDİLMEZ</b> — canlı hesaplanır (<c>ProductRecipeCostCalculator</c>):
 /// türetilmiş fiyat = NetCost × (1 + <see cref="Margin"/>/100) [MARKUP]. <see cref="Margin"/> varyant-başı yüzde marj.
@@ -22,7 +24,7 @@ public class SalesChannelTrN11ProductVariant : FullAuditedAggregateRoot<Guid>, I
     public SalesChannelTrN11ProductVariant(
         Guid companyId,
         Guid salesChannelTrN11ProductId,
-        Guid productVariantId)
+        Guid? productVariantId)
     {
         SetCompany(companyId);
         SetChannelProduct(salesChannelTrN11ProductId);
@@ -41,8 +43,14 @@ public class SalesChannelTrN11ProductVariant : FullAuditedAggregateRoot<Guid>, I
     /// <summary>Sahip N11 kanal ürünü — id-only referans. Set-once.</summary>
     public virtual Guid SalesChannelTrN11ProductId { get; protected set; }
 
-    /// <summary>Override'ın ait olduğu ERP varyantı — id-only referans. Set-once.</summary>
-    public virtual Guid ProductVariantId { get; protected set; }
+    /// <summary>
+    /// Override'ın ait olduğu ERP varyantı — id-only referans, OPSİYONEL (set-once; null da set edilebilir).
+    /// null → N11-only kombinasyon (ERP'de karşılığı yok; ör. N11'de sonradan eklenen "Siyah" rengi).
+    /// dolu → ERP varyantından türedi/izleniyor. <b>ProductVariantId null iken <see cref="OverridePrice"/> ve
+    /// <see cref="OverrideStock"/> ZORUNLU olacaktır (ERP'den devralınacak kaynak yok) — bu kural burada
+    /// ZORLANMAZ, üst katmanda (UI/AppService) doğrulanır.</b>
+    /// </summary>
+    public virtual Guid? ProductVariantId { get; protected set; }
 
     /// <summary>Kanal-özel mutlak liste fiyatı (opsiyonel). null = ERP/türetilmiş fiyat devralınır.</summary>
     public virtual decimal? OverridePrice { get; protected set; }
@@ -55,6 +63,16 @@ public class SalesChannelTrN11ProductVariant : FullAuditedAggregateRoot<Guid>, I
 
     /// <summary>Varyant-başı marj (markup yüzdesi; ör. 20 → türetilmiş = NetCost × 1.20). null = marj yok.</summary>
     public virtual decimal? Margin { get; protected set; }
+
+    /// <summary>
+    /// Kartezyen kombinasyon KİMLİĞİ — <c>"{AxisId}={AxisValueId}|..."</c>, AxisId'ye göre sıralı (2026-07-09 kararı:
+    /// STABİL ID'lerden kurulur, Name/Value METİN değil — eksen/değer yeniden adlandırılırsa imza bozulmaz).
+    /// <see cref="SalesChannelTrN11ProductAttributeAxis"/>/<see cref="SalesChannelTrN11ProductAttributeAxisValue"/>
+    /// tarafından üretilen HER kombinasyon satırı (ERP-backed VE N11-only fark etmez) bu imzayla reconcile edilir —
+    /// <see cref="ProductVariantId"/> artık yalnız fiyat/stok fallback KAYNAĞI, reconcile anahtarı DEĞİL. Axis
+    /// tanımlanmamış (legacy ERP-doğrudan) kanal ürünlerinde null.
+    /// </summary>
+    public virtual string? CombinationSignature { get; protected set; }
 
     #endregion
 
@@ -94,9 +112,17 @@ public class SalesChannelTrN11ProductVariant : FullAuditedAggregateRoot<Guid>, I
         Margin = margin;
     }
 
+    /// <summary>Kartezyen kombinasyon imzasını atar — kartezyen motor yalnız İNSERT'te çağırır (kombinasyon değişirse
+    /// reconcile eski satırı SİLİP yenisini üretir; mevcut satırın imzası sonradan değiştirilmez).</summary>
+    public virtual void SetCombinationSignature(string? signature)
+    {
+        CombinationSignature = StringFieldGuard.EnsureOptionalText(
+            signature, nameof(CombinationSignature), EntityFieldConsts.DescriptionMinLength, N11ProductConsts.CombinationSignatureMaxLength);
+    }
+
     public override string ToString()
     {
-        return $"{SalesChannelTrN11ProductId}/{ProductVariantId}";
+        return $"{SalesChannelTrN11ProductId}/{Id}";
     }
 
     private void SetCompany(Guid companyId)
@@ -119,8 +145,9 @@ public class SalesChannelTrN11ProductVariant : FullAuditedAggregateRoot<Guid>, I
         SalesChannelTrN11ProductId = salesChannelTrN11ProductId;
     }
 
-    private void SetProductVariant(Guid productVariantId)
+    private void SetProductVariant(Guid? productVariantId)
     {
+        // null serbest (N11-only kombinasyon); dolu ise Guid.Empty geçersiz (fail-fast).
         if (productVariantId == Guid.Empty)
         {
             throw new RequiredPropertyException(nameof(ProductVariantId));
