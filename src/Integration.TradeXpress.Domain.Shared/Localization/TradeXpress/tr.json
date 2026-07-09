@@ -1086,6 +1086,8 @@
     "TrendyolProduct:Preview:CategoryRequired": "Kategori zorunlu (seçilmemiş).",
     "TrendyolProduct:Preview:BrandRequired": "Marka zorunlu (Trendyol marka ister).",
     "TrendyolProduct:Preview:MandatoryAttributeMissing": "Zorunlu kategori niteliği eksik: {0}",
-    "Trendyol:Category:AutoSyncing": "Kategoriler ilk kez senkronize ediliyor, lütfen bekleyin…"
+    "Trendyol:Category:AutoSyncing": "Kategoriler ilk kez senkronize ediliyor, lütfen bekleyin…",
+    "N11Product:SelectCategoryFirst": "Nitelikleri görmek için önce bir kategori seçin.",
+    "N11Product:NoAttributesForCategory": "Bu kategoride tanımlı nitelik bulunmuyor."
   }
 }

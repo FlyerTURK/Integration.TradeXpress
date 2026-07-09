@@ -1055,6 +1055,8 @@
     "TrendyolProduct:Preview:CategoryRequired": "Category is required (not selected).",
     "TrendyolProduct:Preview:BrandRequired": "Brand is required (Trendyol requires a brand).",
     "TrendyolProduct:Preview:MandatoryAttributeMissing": "Mandatory category attribute is missing: {0}",
-    "Trendyol:Category:AutoSyncing": "Loading categories for the first time, please wait…"
+    "Trendyol:Category:AutoSyncing": "Loading categories for the first time, please wait…",
+    "N11Product:SelectCategoryFirst": "Select a category first to see attributes.",
+    "N11Product:NoAttributesForCategory": "No attributes are defined for this category."
   }
 }

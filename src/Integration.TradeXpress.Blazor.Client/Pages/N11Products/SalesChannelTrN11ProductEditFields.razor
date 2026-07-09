@@ -119,10 +119,20 @@
     @* Kategori attribute'ları — 2 katmanlı drill (Product deseniyle AYNI): üst = attribute tanımı (kategoriden
        gelir, sabit — ekle/silinmez), alt = o attribute'a girilmiş değer(ler) (serbest ekle/sil). Bir Name'e
        birden çok değer eklenmesi N11 WSDL'in "aynı isim, ayrı eleman" temsiliyle birebir uyumlu push edilir
-       (N11ProductPushValidator + N11ProductClient DEĞİŞMEDİ). Kategori yoksa sekme gizli. *@
-    @if (_attributeGroups.Count > 0)
-    {
-        <DxTabPage Text="@L["N11Product:Attributes"]" TabIconCssClass="@TradeXpressIcons.Sliders">
+       (N11ProductPushValidator + N11ProductClient DEĞİŞMEDİ). Sekme HER ZAMAN görünür (kategori yokken/attribute
+       boşken tab'ı @if ile gizlemek DxTabs'in async-sonrası yeni sekmeyi tanımamasına yol açabiliyordu — kullanıcı
+       sekmeyi hiç göremiyordu); boşsa içeride açıklayıcı mesaj. *@
+    <DxTabPage Text="@L["N11Product:Attributes"]" TabIconCssClass="@TradeXpressIcons.Sliders">
+        @if (string.IsNullOrEmpty(Model.CategoryExternalId))
+        {
+            <span style="color:#6c757d; font-size:0.85rem;">@L["N11Product:SelectCategoryFirst"]</span>
+        }
+        else if (_attributeGroups.Count == 0)
+        {
+            <span style="color:#6c757d; font-size:0.85rem;">@L["N11Product:NoAttributesForCategory"]</span>
+        }
+        else
+        {
             <DrillList TItem="N11AttributeGroupRow"
                        @ref="_attributeDrill"
                        Title="@L["N11Product:Attributes"]"
@@ -207,8 +217,8 @@
                     </DxFormLayout>
                 </EditContent>
             </DrillList>
-        </DxTabPage>
-    }
+        }
+    </DxTabPage>
 
 
     @* Varyantlar — ERP varyant seti SABİT (kanalda eksen eklenmez/silinmez): kanal-özel fiyat/stok/marj + reçete.
