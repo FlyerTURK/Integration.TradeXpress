@@ -36,7 +36,8 @@
          MaxHeight="90vh"
          CloseOnOutsideClick="false">
     <BodyTemplate>
-        <div style="display:flex; flex-direction:column; gap:0.6rem; min-height:0;">
+        @* Mobil: popup MaxHeight'e sığ → grid SCROLL alanı, arama+footer SABİT (Seç/İptal her zaman görünür). *@
+        <div style="display:flex; flex-direction:column; gap:0.6rem; min-height:0; max-height:78vh;">
             @* Server-search modu (OnSearch verilmiş): DIŞ arama kutusu → host sunucudan çeker (Data tazelenir).
                Grid'in kendi ShowSearchBox'ı kapatılır (o yalnız yüklü Data'da client filtre yapardı). *@
             @if (ServerSearchMode)
@@ -48,30 +49,33 @@
                            ValidationEnabled="false"
                            CssClass="w-100" />
             }
-            <DxGrid @ref="_grid"
-                    Data="@Data"
-                    KeyFieldName="@ValueFieldName"
-                    ShowSearchBox="@(!ServerSearchMode)"
-                    SelectionMode="GridSelectionMode.Single"
-                    AllowSelectRowByClick="true"
-                    SelectedDataItem="@_pending"
-                    SelectedDataItemChanged="@OnSelectedItemChanged"
-                    RowDoubleClick="@OnRowDoubleClick"
-                    PageSize="12"
-                    CssClass="w-100">
-                <Columns>
-                    @if (Columns is not null)
-                    {
-                        @Columns
-                    }
-                    else
-                    {
-                        <DxGridDataColumn FieldName="@TextFieldName" />
-                    }
-                </Columns>
-            </DxGrid>
+            @* Grid kendi scroll alanında (flex:1 + min-height:0) — uzasa da footer'ı ekran dışına itmez. *@
+            <div style="flex:1 1 auto; min-height:0; overflow-y:auto;">
+                <DxGrid @ref="_grid"
+                        Data="@Data"
+                        KeyFieldName="@ValueFieldName"
+                        ShowSearchBox="@(!ServerSearchMode)"
+                        SelectionMode="GridSelectionMode.Single"
+                        AllowSelectRowByClick="true"
+                        SelectedDataItem="@_pending"
+                        SelectedDataItemChanged="@OnSelectedItemChanged"
+                        RowDoubleClick="@OnRowDoubleClick"
+                        PageSize="12"
+                        CssClass="w-100">
+                    <Columns>
+                        @if (Columns is not null)
+                        {
+                            @Columns
+                        }
+                        else
+                        {
+                            <DxGridDataColumn FieldName="@TextFieldName" />
+                        }
+                    </Columns>
+                </DxGrid>
+            </div>
 
-            <div style="display:flex; justify-content:flex-end; gap:0.5rem;">
+            <div style="display:flex; justify-content:flex-end; gap:0.5rem; flex-shrink:0;">
                 @if (OnAddRequested is not null)
                 {
                     <DxButton Text="@L["New"].Value" IconCssClass="custom-icon-add"
