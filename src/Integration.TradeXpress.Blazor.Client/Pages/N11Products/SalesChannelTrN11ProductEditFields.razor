@@ -312,10 +312,22 @@
        satır elle eklenmez/silinmez (AllowAdd/Delete=false), eksen/değer üzerinden dolaylı kontrol edilir. ERP
        karşılığı olmayan (IsErpBacked=false) satırlar "N11-özel" rozetiyle ayırt edilir — bunlarda OverridePrice/
        OverrideStock ZORUNLU (server fail-fast; burada yalnız hint). Türetilmiş fiyat = NetCost×(1+Marj/100)
-       SALT-OKUNUR. Varyant yoksa (bağlı ürün varyantsız) sekme gizli. *@
-    @if (Model.Variants.Count > 0)
-    {
-        <DxTabPage Text="@L["N11Product:Variants"]" TabIconCssClass="@TradeXpressIcons.ProductVariant">
+       SALT-OKUNUR. Sekme HER ZAMAN görünür (b9e5066 dersi — @if ile tüm sekmeyi gizlemek DxTabs'in async-sonrası
+       yeni sekmeyi tanımamasına yol açıp kullanıcının sekmeyi hiç görememesine sebep oluyordu); boşsa içeride hint. *@
+    <DxTabPage Text="@L["N11Product:Variants"]" TabIconCssClass="@TradeXpressIcons.ProductVariant">
+        @* Eksen/değer düzenlendikten sonra TÜM ürünü kaydetmeden yalnız bu N11 kaydının varyant setini yeniler
+           (RegenerateVariantsAsync — Full Update ile AYNI reconcile mekanizması, SaveAxesAndReconcileAsync). *@
+        <span style="color:#6c757d; font-size:0.85rem;">@L["N11Product:RegenerateVariantsHint"]</span>
+        <DxButton Text="@L["N11Product:RegenerateVariants"]" RenderStyle="ButtonRenderStyle.Primary"
+                  CssClass="mb-2"
+                  IconCssClass="@TradeXpressIcons.ProductVariant"
+                  Click="@RegenerateVariantsAsync" />
+        @if (Model.Variants.Count == 0)
+        {
+            <span style="color:#6c757d; font-size:0.85rem;">@L["N11Product:NoVariantsYetHint"]</span>
+        }
+        else
+        {
             <span style="color:#6c757d; font-size:0.85rem;">@L["N11Product:PushPriceChainHint"]</span>
             <DrillList TItem="SalesChannelTrN11ProductVariantGraphDto"
                        @ref="_variantDrill"
@@ -417,8 +429,8 @@
                     </DxFormLayout>
                 </EditContent>
             </DrillList>
-        </DxTabPage>
-    }
+        }
+    </DxTabPage>
 
     @* Ürün özel bilgileri — KOŞULSUZ (her kategoride): serbest key/value satırları. Boş key kabul edilmez. *@
     <DxTabPage Text="@L["N11Product:SpecialInfo"]" TabIconCssClass="@TradeXpressIcons.Sliders">

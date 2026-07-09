@@ -326,6 +326,31 @@ public partial class SalesChannelTrN11ProductEditFields : CrudComponentBase
         return string.IsNullOrWhiteSpace(item.Value) ? L["N11Product:AttributeValueRequired"].Value : null;
     }
 
+    // Eksen/değer grafını PERSIST EDER + kartezyen reconcile'ı hemen tetikler — yalnız KAYDEDİLMİŞ (Id'li) kayıtta.
+    // Tüm ürünü kaydetmeye gerek yok (RegenerateVariantsAsync, Full Update ile AYNI reconcile mekanizmasını kullanır).
+    private async Task RegenerateVariantsAsync()
+    {
+        if (Model.Id == Guid.Empty)
+        {
+            UiService.ShowWarningToast(L["N11Product:SaveProductFirst"].Value);
+            return;
+        }
+
+        try
+        {
+            var result = await ProductAppService.RegenerateVariantsAsync(Model.Id, Model.AttributeAxes);
+            Model.AttributeAxes = result.AttributeAxes;
+            Model.Variants = result.Variants;
+            MarkDirty(nameof(Model.Variants));
+            UiService.ShowSuccessToast(string.Format(L["N11Product:VariantsRegenerated"].Value, Model.Variants.Count));
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            UiService.ShowErrorToast(CrudErrorPresenter.ToFriendlyMessage(ex, ServiceProvider) ?? L["UnexpectedError"].Value);
+        }
+    }
+
     // Varyant grid/edit'te kod hücresi — ERP-backed satırda ERP kodu, N11-only satırda (ERP karşılığı yok)
     // eksen-değer özeti (CombinationLabel); ikisi de boşsa "-" (henüz reconcile edilmemiş/legacy taslak).
     private static string VariantCodeOrLabel(SalesChannelTrN11ProductVariantGraphDto variant)

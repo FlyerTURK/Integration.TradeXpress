@@ -1099,6 +1099,10 @@
     "N11Product:AxisValue": "Eksen Değeri",
     "N11Product:Source": "Kaynak",
     "N11Product:N11Only": "N11-özel",
-    "N11Product:OverrideRequiredForN11OnlyHint": "* Bu satırın ERP karşılığı yok — Özel Fiyat ve Özel Stok zorunludur."
+    "N11Product:OverrideRequiredForN11OnlyHint": "* Bu satırın ERP karşılığı yok — Özel Fiyat ve Özel Stok zorunludur.",
+    "N11Product:NoVariantsYetHint": "Henüz varyant yok. Bağlı ürünün varyantı yoksa ya da \"Nitelik Eksenleri\" sekmesinde eksen/değer tanımlamadıysanız, kaydettiğinizde varyant listesi burada oluşur.",
+    "N11Product:RegenerateVariants": "Varyantları Oluştur",
+    "N11Product:VariantsRegenerated": "{0} varyant oluşturuldu.",
+    "N11Product:RegenerateVariantsHint": "Aşağıdaki eksenlerden yalnız bu N11 kaydının varyant setini yeniden üretir — tüm ürünü kaydetmeye gerek kalmadan."
   }
 }

@@ -359,4 +359,9 @@ public interface ISalesChannelTrN11ProductAppService : IApplicationService
 
     /// <summary>Push önizlemesi (read-only): bu listelemede N11'e GİDECEK varyantlar + görseller (kaynak ERP ürünü).</summary>
     Task<N11PushPreviewDto> GetPushPreviewAsync(Guid id);
+
+    /// <summary>Eksen/değer grafını PERSIST EDER + kartezyen reconcile'ı hemen tetikler — TÜM ürünü kaydetmeden
+    /// yalnız bu N11 kaydının varyant setini yeniler. Full Update ile aynı reconcile mekanizmasını kullanır
+    /// (SaveAxesAndReconcileAsync).</summary>
+    Task<SalesChannelTrN11ProductDto> RegenerateVariantsAsync(Guid id, List<SalesChannelTrN11ProductAttributeAxisDto> attributeAxes);
 }

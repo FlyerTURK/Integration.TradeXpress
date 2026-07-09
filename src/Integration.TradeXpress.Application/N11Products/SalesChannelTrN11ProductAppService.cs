@@ -293,6 +293,20 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
         await _repository.DeleteAsync(entity, autoSave: true);
     }
 
+    /// <summary>Eksen/değer grafını PERSIST EDER + kartezyen reconcile'ı hemen tetikler — TÜM ürünü kaydetmeden
+    /// yalnız bu N11 kaydının varyant setini yeniler. Full Update ile aynı reconcile mekanizmasını kullanır
+    /// (<see cref="SaveAxesAndReconcileAsync"/>).</summary>
+    [Authorize(TradeXpressPermissions.SalesChannels.Update)]
+    public virtual async Task<SalesChannelTrN11ProductDto> RegenerateVariantsAsync(Guid id, List<SalesChannelTrN11ProductAttributeAxisDto> attributeAxes)
+    {
+        var entity = await GetOwnedAsync(id);
+        await SaveAxesAndReconcileAsync(entity, attributeAxes);
+
+        var dto = ObjectMapper.Map<SalesChannelTrN11Product, SalesChannelTrN11ProductDto>(entity);
+        await PopulateVariantGraphAsync(entity, dto);
+        return dto;
+    }
+
     [Authorize(TradeXpressPermissions.SalesChannels.Update)]
     public virtual async Task<SalesChannelTrN11ProductDto> PushToN11Async(Guid id)
     {
