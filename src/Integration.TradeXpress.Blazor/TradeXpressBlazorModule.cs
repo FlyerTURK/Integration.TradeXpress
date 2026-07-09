@@ -341,6 +341,7 @@ public class TradeXpressBlazorModule : AbpModule
         {
             MapSignInCookieEndpoint(builder);
             MapFindTenantEndpoint(builder);
+            MapEtsyOAuthCallbackEndpoint(builder);
             MapBlazorComponents(builder);
         });
 
@@ -447,6 +448,32 @@ public class TradeXpressBlazorModule : AbpModule
                 }
             }).AllowAnonymous();
 
+    }
+
+    // /etsy/oauth-callback: Etsy OAuth 2.0 (PKCE) geri dönüşü — satıcı Etsy'de onay verince Etsy tarayıcıyı buraya
+    // yönlendirir (redirect URI Etsy uygulama kaydında birebir tanımlı: App:SelfUrl + /etsy/oauth-callback).
+    // Minimal-API deseni (sign-in-cookie/find-tenant emsali). Endpoint'te [Authorize] YOK (fallback policy de yok →
+    // ASP.NET varsayılanıyla erişilebilir): OAuth callback'inin kimliği sunucuda saklanan TEK-KULLANIMLIK STATE'tir
+    // (CSRF nonce → kanal/tenant/verifier cache'te, 10 dk TTL; bilinmeyen state reddedilir) — cross-site redirect'te
+    // auth cookie'ye güvenmek SameSite'a göre kırılgan olurdu. İş mantığı (state doğrula → token değişimi → kanala
+    // yaz) IEtsyOAuthService'te; endpoint yalnız sonucu kullanıcı yönlendirmesine çevirir.
+    private static void MapEtsyOAuthCallbackEndpoint(IEndpointRouteBuilder builder)
+    {
+        builder.MapGet("/etsy/oauth-callback", async (
+                string? state,
+                string? code,
+                string? error,
+                [Microsoft.AspNetCore.Mvc.FromServices] Integration.TradeXpress.SalesChannels.Etsy.IEtsyOAuthService oauthService) =>
+            {
+                var result = await oauthService.HandleCallbackAsync(state, code, error);
+
+                // Kanal biliniyorsa Etsy edit sayfasına (başarı/hata bayrağıyla — UI toast gösterir), bilinmiyorsa
+                // (state çözülemedi) genel kanal listesine dön.
+                var target = result.ChannelId is { } channelId
+                    ? $"/sales-channels/etsy/{channelId}?oauth={(result.Success ? "ok" : "err")}"
+                    : "/sales-channels?oauth=err";
+                return Microsoft.AspNetCore.Http.Results.Redirect(target);
+            });
     }
 
     /// <summary>Razor Components kök haritası (Server + WASM render modları + client assembly'leri).</summary>

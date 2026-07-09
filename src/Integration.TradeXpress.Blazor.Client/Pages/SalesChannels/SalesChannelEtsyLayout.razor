@@ -1,0 +1,64 @@
+@using Integration.TradeXpress.SalesChannels
+@using Integration.Framework.Blazor.Client.Components.Inputs
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@*
+   Etsy satış kanalı DUMB Layout — yalnız SalesChannelEtsyGetDto'yu forma yansıtır (I/O yok; OAuth başlatma host'a
+   OnConnectClick ile delege edilir). Sıra (ui-blazor): Kod → Ad → Keystring/SharedSecret → Mağaza (salt-okunur) →
+   Description → Status. Keystring = OAuth client_id (PUBLIC — sır değil) → görünür; SharedSecret sır → düzenlemede
+   BOŞ gelir (redaksiyon), "boş = korunur". Token'lar DTO'da HİÇ yok — bağlantı yalnız IsConnected ile görünür.
+   Trendyol'un Token-yapıştır deseni Etsy'de YOK: kimlik satıcı onayıyla (OAuth 2.0 PKCE, "Etsy'ye Bağlan") kurulur.
+*@
+
+<DxFormLayout CssClass="w-100">
+    <DxFormLayoutGroup Caption="@L["General"]" ColSpanMd="12">
+        <DxFormLayoutItem Caption="@($"{L["Code"]} *")" ColSpanMd="6">
+            <DxTextBox @bind-Text="@Model.Code" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="12">
+            <DxTextBox @bind-Text="@Model.Name" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem ColSpanMd="6">
+            <CaptionTemplate>
+                <InfoCaption Text="@($"{L["SalesChannel:Etsy:Keystring"]} *")" HintText="@L["SalesChannel:Etsy:KeystringHint"].Value" />
+            </CaptionTemplate>
+            <Template>
+                <DxTextBox @bind-Text="@Model.Keystring" CssClass="w-100" />
+            </Template>
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@EtsySecretCaption" ColSpanMd="6">
+            <PasswordTextEdit @bind-Text="@Model.SharedSecret" NullText="@SecretPlaceholder" Tooltip="@L["ShowPassword"]" CssClass="w-100" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["SalesChannel:Etsy:ShopName"].Value" ColSpanMd="6">
+            <DxTextBox Text="@Model.ShopName" ReadOnly="true" NullText="@ShopPlaceholder" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["SalesChannel:Etsy:ShopId"].Value" ColSpanMd="6">
+            <DxTextBox Text="@Model.ShopId" ReadOnly="true" NullText="@ShopPlaceholder" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["Description"]" ColSpanMd="12">
+            <DxMemo @bind-Text="@Model.Description" Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6">
+            <DxCheckBox @bind-Checked="@Model.IsActive" CheckType="CheckType.Switch">
+                @(Model.IsActive ? L["Active"] : L["Passive"])
+            </DxCheckBox>
+        </DxFormLayoutItem>
+    </DxFormLayoutGroup>
+
+    @* Bağlantı grubu — yalnız kaydedilmiş kanalda (OAuth için kalıcı kanal kimliği gerekir; yeni kayıtta önce Kaydet).
+       "Etsy'ye Bağlan" satıcıyı Etsy onay sayfasına götürür (StartOAuth → tam yönlendirme); dönüş callback endpoint'te. *@
+    @if (!IsNew)
+    {
+        <DxFormLayoutGroup Caption="@L["SalesChannel:Etsy:Connection"]" ColSpanMd="12">
+            <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6">
+                <DxTextBox Text="@ConnectionStatusText" ReadOnly="true" />
+            </DxFormLayoutItem>
+            <DxFormLayoutItem ColSpanMd="6">
+                <DxButton Text="@ConnectButtonText"
+                          RenderStyle="ButtonRenderStyle.Primary"
+                          IconCssClass="@TradeXpressIcons.SalesChannel"
+                          Click="@(async () => await OnConnectClick.InvokeAsync())" />
+            </DxFormLayoutItem>
+        </DxFormLayoutGroup>
+    }
+</DxFormLayout>

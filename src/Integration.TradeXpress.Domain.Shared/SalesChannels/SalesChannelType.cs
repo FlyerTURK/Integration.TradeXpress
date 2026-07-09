@@ -12,4 +12,8 @@ public enum SalesChannelType : byte
 
     /// <summary>Trendyol (Türkiye) — <c>SalesChannelTrTrendyol</c> (SellerId/ApiKey/ApiSecret).</summary>
     TrTrendyol = 2,
+
+    /// <summary>Etsy (global platform — ülke öneki YOK; ülke yalnız shop location) — <c>SalesChannelEtsy</c>
+    /// (Keystring/SharedSecret + OAuth 2.0 PKCE token'ları).</summary>
+    Etsy = 3,
 }

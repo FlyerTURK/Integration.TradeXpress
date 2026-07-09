@@ -13,4 +13,8 @@ public static class SalesChannelConsts
     /// <summary>Trendyol "yapıştır" Token'ı = base64(apiKey:apiSecret). İki <see cref="ConfigMaxLength"/> alanı + ':'
     /// ayıracının base64 gösterimini rahat kapsayacak üst sınır (base64 ~%37 şişme). Yalnız giriş alanı — persist edilmez.</summary>
     public const int TokenMaxLength       = 1024;
+
+    /// <summary>Etsy OAuth token kolonları (access "{user_id}.{token}" + rotasyonlu refresh). Etsy token'ları
+    /// pratikte ~100 karakter; ileriye dönük rahat pay (opak sır — normalize edilmez, kırpılmaz).</summary>
+    public const int OAuthTokenMaxLength  = 1024;
 }

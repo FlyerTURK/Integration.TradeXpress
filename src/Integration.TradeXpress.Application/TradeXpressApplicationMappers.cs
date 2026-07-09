@@ -221,6 +221,23 @@ public partial class SalesChannelTrTrendyolToListDtoMapper : MapperBase<SalesCha
     public override partial void Map(SalesChannelTrTrendyol source, SalesChannelListDto destination);
 }
 
+[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
+public partial class SalesChannelEtsyToGetDtoMapper : MapperBase<SalesChannelEtsy, SalesChannelEtsyGetDto>
+{
+    // IsConnected türetilmiş durum (refresh token dolu + süresi geçmemiş) — AppService clock'la hesaplar. Access/refresh
+    // token'ları DTO'da HİÇ yok (sızıntı yüzeyi sıfır); SharedSecret map'lenir ama AppService çıkışta redakte eder.
+    [MapperIgnoreTarget(nameof(SalesChannelEtsyGetDto.IsConnected))]
+    public override partial SalesChannelEtsyGetDto Map(SalesChannelEtsy source);
+    public override partial void Map(SalesChannelEtsy source, SalesChannelEtsyGetDto destination);
+}
+
+[Mapper]
+public partial class SalesChannelEtsyToListDtoMapper : MapperBase<SalesChannelEtsy, SalesChannelListDto>
+{
+    public override partial SalesChannelListDto Map(SalesChannelEtsy source);
+    public override partial void Map(SalesChannelEtsy source, SalesChannelListDto destination);
+}
+
 // ── N11 kategori (host-global taksonomi) → ağaç düğüm DTO'su ──
 [Mapper]
 public partial class N11CategoryToTreeNodeDtoMapper : MapperBase<N11Category, N11CategoryTreeNodeDto>
@@ -454,6 +471,18 @@ public partial class UserScopedGrantToDtoMapper : MapperBase<UserScopedGrant, Us
 {
     public override partial SalesChannelTrTrendyolUpdateDto Map(SalesChannelTrTrendyolGetDto source);
     public override partial void Map(SalesChannelTrTrendyolGetDto source, SalesChannelTrTrendyolUpdateDto destination);
+}
+// Etsy GetDto → Create/Update (edit host persist yolu). Salt-okunur durum/görüntü alanları (IsConnected/ShopId/ShopName)
+// hedef input'ta yok → source-only (RMG020 uyarısı beklenir).
+[Mapper] public partial class SalesChannelEtsyGetToCreateMapper : MapperBase<SalesChannelEtsyGetDto, SalesChannelEtsyCreateDto>
+{
+    public override partial SalesChannelEtsyCreateDto Map(SalesChannelEtsyGetDto source);
+    public override partial void Map(SalesChannelEtsyGetDto source, SalesChannelEtsyCreateDto destination);
+}
+[Mapper] public partial class SalesChannelEtsyGetToUpdateMapper : MapperBase<SalesChannelEtsyGetDto, SalesChannelEtsyUpdateDto>
+{
+    public override partial SalesChannelEtsyUpdateDto Map(SalesChannelEtsyGetDto source);
+    public override partial void Map(SalesChannelEtsyGetDto source, SalesChannelEtsyUpdateDto destination);
 }
 
 [Mapper] public partial class FutureGetToCreateMapper : MapperBase<FutureGetDto, FutureCreateDto>

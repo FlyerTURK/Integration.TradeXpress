@@ -100,6 +100,7 @@ public partial class SalesChannelListPage : IDisposable
             {
                 NewTypeItem(SalesChannelType.TrN11),
                 NewTypeItem(SalesChannelType.TrTrendyol),
+                NewTypeItem(SalesChannelType.Etsy),
             },
         },
     };
@@ -121,6 +122,7 @@ public partial class SalesChannelListPage : IDisposable
     private string ChannelTypeLabel(SalesChannelType type) => type switch
     {
         SalesChannelType.TrTrendyol => L["SalesChannelType:TrTrendyol"],
+        SalesChannelType.Etsy => L["SalesChannelType:Etsy"],
         _ => L["SalesChannelType:TrN11"],
     };
 
@@ -143,6 +145,7 @@ public partial class SalesChannelListPage : IDisposable
         var (hostType, basePath) = type switch
         {
             SalesChannelType.TrTrendyol => (typeof(SalesChannelTrTrendyolEditHost), "/sales-channels/trendyol"),
+            SalesChannelType.Etsy => (typeof(SalesChannelEtsyEditHost), "/sales-channels/etsy"),
             _ => (typeof(SalesChannelTrN11EditHost), "/sales-channels/n11"),
         };
 

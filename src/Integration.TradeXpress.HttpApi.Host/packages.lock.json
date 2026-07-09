@@ -1191,23 +1191,6 @@
           "Volo.Abp.Uow": "10.4.1"
         }
       },
-      "Volo.Abp.Ddd.Domain": {
-        "type": "Transitive",
-        "resolved": "10.4.1",
-        "contentHash": "s0A9lT9PVzsKEmCKgNXS8aXLu7LgiWtywZxwDzAYugbJv0khYG5KTXgzxdWOnM0P5k63H3d8uNuKPbJoOj1Fpg==",
-        "dependencies": {
-          "Volo.Abp.Auditing": "10.4.1",
-          "Volo.Abp.Caching": "10.4.1",
-          "Volo.Abp.Data": "10.4.1",
-          "Volo.Abp.Ddd.Domain.Shared": "10.4.1",
-          "Volo.Abp.EventBus": "10.4.1",
-          "Volo.Abp.ExceptionHandling": "10.4.1",
-          "Volo.Abp.Guids": "10.4.1",
-          "Volo.Abp.ObjectMapping": "10.4.1",
-          "Volo.Abp.Specifications": "10.4.1",
-          "Volo.Abp.Timing": "10.4.1"
-        }
-      },
       "Volo.Abp.Ddd.Domain.Shared": {
         "type": "Transitive",
         "resolved": "10.4.1",
@@ -1619,6 +1602,13 @@
           "Volo.Abp.Ddd.Application.Contracts": "[10.4.1, )"
         }
       },
+      "integration.framework.domain": {
+        "type": "Project",
+        "dependencies": {
+          "Integration.Framework.Domain.Shared": "[1.0.0, )",
+          "Volo.Abp.Ddd.Domain": "[10.4.1, )"
+        }
+      },
       "integration.framework.domain.shared": {
         "type": "Project",
         "dependencies": {
@@ -1633,6 +1623,7 @@
           "Integration.TradeXpress.Application.Contracts": "[1.0.0, )",
           "Integration.TradeXpress.Domain": "[1.0.0, )",
           "Microsoft.Playwright": "[1.49.0, )",
+          "SixLabors.ImageSharp": "[3.1.12, )",
           "Volo.Abp.Account.Application": "[10.4.1, )",
           "Volo.Abp.FeatureManagement.Application": "[10.4.1, )",
           "Volo.Abp.Identity.Application": "[10.4.1, )",
@@ -1657,6 +1648,7 @@
       "integration.tradexpress.domain": {
         "type": "Project",
         "dependencies": {
+          "Integration.Framework.Domain": "[1.0.0, )",
           "Integration.TradeXpress.Domain.Shared": "[1.0.0, )",
           "Volo.Abp.AuditLogging.Domain": "[10.4.1, )",
           "Volo.Abp.BackgroundJobs.Domain": "[10.4.1, )",
@@ -1770,6 +1762,12 @@
           "Microsoft.Bcl.AsyncInterfaces": "6.0.0",
           "System.ComponentModel.Annotations": "5.0.0"
         }
+      },
+      "SixLabors.ImageSharp": {
+        "type": "CentralTransitive",
+        "requested": "[3.1.12, )",
+        "resolved": "3.1.12",
+        "contentHash": "iAg6zifihXEFS/t7fiHhZBGAdCp3FavsF4i2ZIDp0JfeYeDVzvmlbY1CNhhIKimaIzrzSi5M/NBFcWvZT2rB/A=="
       },
       "Volo.Abp.Account.Application": {
         "type": "CentralTransitive",
@@ -2010,6 +2008,24 @@
           "Volo.Abp.Auditing.Contracts": "10.4.1",
           "Volo.Abp.Data": "10.4.1",
           "Volo.Abp.Localization": "10.4.1"
+        }
+      },
+      "Volo.Abp.Ddd.Domain": {
+        "type": "CentralTransitive",
+        "requested": "[10.4.1, )",
+        "resolved": "10.4.1",
+        "contentHash": "s0A9lT9PVzsKEmCKgNXS8aXLu7LgiWtywZxwDzAYugbJv0khYG5KTXgzxdWOnM0P5k63H3d8uNuKPbJoOj1Fpg==",
+        "dependencies": {
+          "Volo.Abp.Auditing": "10.4.1",
+          "Volo.Abp.Caching": "10.4.1",
+          "Volo.Abp.Data": "10.4.1",
+          "Volo.Abp.Ddd.Domain.Shared": "10.4.1",
+          "Volo.Abp.EventBus": "10.4.1",
+          "Volo.Abp.ExceptionHandling": "10.4.1",
+          "Volo.Abp.Guids": "10.4.1",
+          "Volo.Abp.ObjectMapping": "10.4.1",
+          "Volo.Abp.Specifications": "10.4.1",
+          "Volo.Abp.Timing": "10.4.1"
         }
       },
       "Volo.Abp.Emailing": {

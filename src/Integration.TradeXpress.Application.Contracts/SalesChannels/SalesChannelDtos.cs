@@ -199,3 +199,89 @@ public class SalesChannelTrTrendyolUpdateDto : IUpdateDto
 
     public bool IsActive { get; set; }
 }
+
+// ── Etsy (SalesChannelEtsy): Keystring/SharedSecret + OAuth 2.0 PKCE bağlantısı ─────────────────────
+//    Kimlik modeli N11/Trendyol'dan FARKLI: statik credential yerine satıcı-onaylı OAuth. Token'lar (access/refresh)
+//    DTO'da HİÇ YOK — sunucuda yaşar (sızıntı yüzeyi sıfır); UI yalnız türetilmiş IsConnected durumunu görür.
+
+public class SalesChannelEtsyGetDto : EntityDto<Guid>, IGetDto<Guid>, IHasCode
+{
+    [Required]
+    [StringLength(SalesChannelConsts.CodeMaxLength, MinimumLength = EntityFieldConsts.CodeMinLength)]
+    public string Code { get; set; } = string.Empty;
+
+    [Required]
+    [StringLength(SalesChannelConsts.NameMaxLength, MinimumLength = EntityFieldConsts.NameMinLength)]
+    public string Name { get; set; } = string.Empty;
+
+    [StringLength(SalesChannelConsts.DescriptionMaxLength)]
+    public string? Description { get; set; }
+
+    // Keystring = Etsy OAuth client_id + x-api-key — PUBLIC uygulama kimliği, SIR DEĞİL → görünür kalır (SellerId gibi).
+    [Required]
+    [StringLength(SalesChannelConsts.ConfigMaxLength, MinimumLength = 1)]
+    public string Keystring { get; set; } = string.Empty;
+
+    // SIZINTI ÖNLEME: SharedSecret GetDto'da DAİMA boş döner (redakte). Update'te boş = korunur, dolu = değişir.
+    [StringLength(SalesChannelConsts.ConfigMaxLength)]
+    public string SharedSecret { get; set; } = string.Empty;
+
+    // OAuth bağlantısında Etsy API'den çözülür (best-effort) — SALT-OKUNUR görüntü; client'tan yazılmaz.
+    public string? ShopId { get; set; }
+    public string? ShopName { get; set; }
+
+    /// <summary>Türetilmiş bağlantı durumu (refresh token dolu + süresi geçmemiş) — sunucu hesaplar, token sızmaz.</summary>
+    public bool IsConnected { get; set; }
+
+    public bool IsActive { get; set; }
+}
+
+public class SalesChannelEtsyCreateDto : ICreateDto
+{
+    [Required]
+    [StringLength(SalesChannelConsts.CodeMaxLength, MinimumLength = EntityFieldConsts.CodeMinLength)]
+    public string Code { get; set; } = string.Empty;
+
+    [Required]
+    [StringLength(SalesChannelConsts.NameMaxLength, MinimumLength = EntityFieldConsts.NameMinLength)]
+    public string Name { get; set; } = string.Empty;
+
+    [StringLength(SalesChannelConsts.DescriptionMaxLength)]
+    public string? Description { get; set; }
+
+    // Oluşturmada uygulama kimliği ZORUNLU. Keystring Etsy'nin public ping ucuyla doğrulanır (OAuth'suz);
+    // SharedSecret ping'le sınanamaz — OAuth token değişiminde dolaylı doğrulanır.
+    [Required]
+    [StringLength(SalesChannelConsts.ConfigMaxLength, MinimumLength = 1)]
+    public string Keystring { get; set; } = string.Empty;
+
+    [Required]
+    [StringLength(SalesChannelConsts.ConfigMaxLength, MinimumLength = 1)]
+    public string SharedSecret { get; set; } = string.Empty;
+}
+
+public class SalesChannelEtsyUpdateDto : IUpdateDto
+{
+    [Required]
+    [StringLength(SalesChannelConsts.CodeMaxLength, MinimumLength = EntityFieldConsts.CodeMinLength)]
+    public string Code { get; set; } = string.Empty;
+
+    [Required]
+    [StringLength(SalesChannelConsts.NameMaxLength, MinimumLength = EntityFieldConsts.NameMinLength)]
+    public string Name { get; set; } = string.Empty;
+
+    [StringLength(SalesChannelConsts.DescriptionMaxLength)]
+    public string? Description { get; set; }
+
+    // Keystring görünür kimlik → daima gönderilir. DEĞİŞİRSE mevcut token'lar eski uygulamaya ait olur →
+    // sunucu token'ları temizler (yeniden "Etsy'ye Bağlan" gerekir).
+    [Required]
+    [StringLength(SalesChannelConsts.ConfigMaxLength, MinimumLength = 1)]
+    public string Keystring { get; set; } = string.Empty;
+
+    // Boş = mevcut korunur; dolu = değişir (redaksiyonlu edit — Trendyol deseni).
+    [StringLength(SalesChannelConsts.ConfigMaxLength)]
+    public string SharedSecret { get; set; } = string.Empty;
+
+    public bool IsActive { get; set; }
+}

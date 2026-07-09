@@ -54,7 +54,12 @@ public class SalesChannelAppService : TradeXpressAppService, ISalesChannelAppSer
             items.Select(e =>
             {
                 var dto = ObjectMapper.Map<SalesChannelBase, SalesChannelListDto>(e);
-                dto.ChannelType = e is SalesChannelTrTrendyol ? SalesChannelType.TrTrendyol : SalesChannelType.TrN11;
+                dto.ChannelType = e switch
+                {
+                    SalesChannelTrTrendyol => SalesChannelType.TrTrendyol,
+                    SalesChannelEtsy => SalesChannelType.Etsy,
+                    _ => SalesChannelType.TrN11,
+                };
                 return dto;
             }).ToList());
     }
@@ -86,6 +91,11 @@ public class SalesChannelAppService : TradeXpressAppService, ISalesChannelAppSer
         if (await AsyncExecuter.AnyAsync(baseQuery.OfType<SalesChannelTrTrendyol>()))
         {
             existing.Add(SalesChannelType.TrTrendyol);
+        }
+
+        if (await AsyncExecuter.AnyAsync(baseQuery.OfType<SalesChannelEtsy>()))
+        {
+            existing.Add(SalesChannelType.Etsy);
         }
 
         return existing;

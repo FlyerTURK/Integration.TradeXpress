@@ -56,5 +56,23 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
             b.Property(x => x.ApiKey).IsRequired().HasMaxLength(SalesChannelConsts.ConfigMaxLength);
             b.Property(x => x.ApiSecret).IsRequired().HasMaxLength(SalesChannelConsts.ConfigMaxLength);
         });
+
+        // ── Somut alt-tip: Etsy (global platform — Tr öneki YOK) → AppSalesChannelEtsy (OAuth 2.0 PKCE kimliği) ──
+        builder.Entity<SalesChannelEtsy>(b =>
+        {
+            b.ToTable(TradeXpressConsts.DbTablePrefix + "SalesChannelEtsy", TradeXpressConsts.DbSchema);
+
+            // Uygulama kimliği (opak; normalize edilmez). Keystring = public client_id (sır değil), SharedSecret = sır.
+            // TODO(hardening): SharedSecret + token'lar at-rest şifrelenmeli (Trendyol ApiSecret TODO'suyla hizalı).
+            b.Property(x => x.Keystring).IsRequired().HasMaxLength(SalesChannelConsts.ConfigMaxLength);
+            b.Property(x => x.SharedSecret).IsRequired().HasMaxLength(SalesChannelConsts.ConfigMaxLength);
+
+            // OAuth bağlantı verisi — TÜMÜ nullable (bağlanmamış kanal geçerli durumdur; "Bağlan" akışı doldurur).
+            b.Property(x => x.ShopId).HasMaxLength(SalesChannelConsts.ConfigMaxLength);
+            b.Property(x => x.ShopName).HasMaxLength(SalesChannelConsts.NameMaxLength);
+            b.Property(x => x.EtsyUserId).HasMaxLength(SalesChannelConsts.ConfigMaxLength);
+            b.Property(x => x.AccessToken).HasMaxLength(SalesChannelConsts.OAuthTokenMaxLength);
+            b.Property(x => x.RefreshToken).HasMaxLength(SalesChannelConsts.OAuthTokenMaxLength);
+        });
     }
 }
