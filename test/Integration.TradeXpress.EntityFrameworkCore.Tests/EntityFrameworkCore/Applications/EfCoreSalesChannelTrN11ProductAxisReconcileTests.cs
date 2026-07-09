@@ -1,0 +1,9 @@
+using Integration.TradeXpress.N11Products;
+using Xunit;
+
+namespace Integration.TradeXpress.EntityFrameworkCore.Applications;
+
+[Collection(TradeXpressTestConsts.CollectionDefinitionName)]
+public class EfCoreSalesChannelTrN11ProductAxisReconcileTests : SalesChannelTrN11ProductAxisReconcileTests<TradeXpressEntityFrameworkCoreTestModule>
+{
+}
