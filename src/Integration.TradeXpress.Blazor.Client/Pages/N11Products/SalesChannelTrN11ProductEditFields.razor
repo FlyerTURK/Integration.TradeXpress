@@ -64,6 +64,21 @@
                             UpdatePolicy="@TradeXpressPermissions.CurrencyUnits.Update"
                             AllowClear="true" />
         </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6">
+            <DxCheckBox @bind-Checked="@Model.IsActive" CheckType="CheckType.Switch">
+                @(Model.IsActive ? L["Active"] : L["Passive"])
+            </DxCheckBox>
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["N11Product:SellerNote"]" ColSpanMd="12">
+            <DxMemo @bind-Text="@Model.SellerNote" Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100"
+                    NullText="@L["Optional"]" />
+        </DxFormLayoutItem>
+    </DxFormLayoutGroup>
+
+    @* İsteğe bağlı alanlar — varsayılan KAPALI (Expanded=false); tıklayınca açılır. Üretim/son kullanma tarihi,
+       birim tipi/ağırlığı, grup ürün alanları — hiçbiri zorunlu değil, formu kalabalıklaştırmasın diye ayrı grupta. *@
+    <DxFormLayoutGroup Caption="@L["N11Product:OptionalFields"]" ColSpanMd="12"
+                        Expanded="false" ExpandButtonDisplayMode="GroupExpandButtonDisplayMode.Start">
         <DxFormLayoutItem Caption="@L["N11Product:ProductionDate"]" ColSpanMd="6">
             <DxDateEdit @bind-Date="@Model.ProductionDate" NullText="@L["Optional"]"
                         ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
@@ -79,15 +94,6 @@
         <DxFormLayoutItem Caption="@L["N11Product:UnitWeight"]" ColSpanMd="6">
             <NumericSpinEdit TValue="int?" @bind-Value="@Model.UnitWeight"
                              ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
-        </DxFormLayoutItem>
-        <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6">
-            <DxCheckBox @bind-Checked="@Model.IsActive" CheckType="CheckType.Switch">
-                @(Model.IsActive ? L["Active"] : L["Passive"])
-            </DxCheckBox>
-        </DxFormLayoutItem>
-        <DxFormLayoutItem Caption="@L["N11Product:SellerNote"]" ColSpanMd="12">
-            <DxMemo @bind-Text="@Model.SellerNote" Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100"
-                    NullText="@L["Optional"]" />
         </DxFormLayoutItem>
         @* Grup ürün (opsiyonel; N11-only) — aynı grup üyeleri groupItemCode'da eşleşir. *@
         <DxFormLayoutItem ColSpanMd="12">

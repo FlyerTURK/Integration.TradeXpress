@@ -1072,6 +1072,7 @@
     "N11Product:NoVariantsYetHint": "No variants yet. If the linked product has no variants, or you haven't defined axes/values in the \"Attribute Axes\" tab, the variant list will appear here once you save.",
     "N11Product:RegenerateVariants": "Generate Variants",
     "N11Product:VariantsRegenerated": "{0} variants generated.",
-    "N11Product:RegenerateVariantsHint": "Regenerates only this N11 record's variant set from the axes below — without saving the whole product."
+    "N11Product:RegenerateVariantsHint": "Regenerates only this N11 record's variant set from the axes below — without saving the whole product.",
+    "N11Product:OptionalFields": "Optional Fields"
   }
 }
