@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using DevExpress.Blazor;
 using Integration.Framework.Blazor.Client.Components.Crud;
 using Integration.Framework.Blazor.Client.Services.Base;
 using Integration.TradeXpress.Financials.CurrencyUnits;
@@ -22,10 +21,10 @@ using Microsoft.AspNetCore.Components.Forms;
 
 namespace Integration.TradeXpress.Blazor.Client.Pages.N11Products;
 
-/// <summary>Attribute grid'inin satırı — N11 kategori attribute'u + o anki değeri. Değer editörü satır tipine göre
-/// değişir (<see cref="HasValueList"/> ? değer combo'su : serbest metin). DxGrid EditRow edit-model klonu için
-/// public parametresiz ctor + set'li property'ler.</summary>
-public class N11AttributeRow
+/// <summary>Attribute drill'inin ÜST satırı — N11 kategori attribute'u (tanım sabit; kategoriden gelir, ekle/silinmez)
+/// + o attribute'a girilmiş DEĞERLER (bir Name'e birden çok değer — N11 WSDL "aynı isim, ayrı eleman" temsiliyle
+/// birebir örtüşür). Client-side view-model — DrillList edit-model klonu için public parametresiz ctor + set'li property'ler.</summary>
+public class N11AttributeGroupRow
 {
     public string AttributeId { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
@@ -34,7 +33,15 @@ public class N11AttributeRow
     /// <summary>Değer listesi var + serbest-değil → combo; aksi halde serbest metin.</summary>
     public bool HasValueList { get; set; }
 
-    public List<N11CategoryAttributeValueDto> Values { get; set; } = new();
+    public List<N11CategoryAttributeValueDto> DefinitionValues { get; set; } = new();
+    public List<N11AttributeValueRow> Values { get; set; } = new();
+}
+
+/// <summary>Attribute drill'inin ALT satırı — bir attribute adına girilmiş TEK değer. ClientKey kalıcı-id-olmayan
+/// view-model @key'i (entity-conventions.md meşru Guid.NewGuid istisnası).</summary>
+public class N11AttributeValueRow
+{
+    public Guid ClientKey { get; set; } = Guid.NewGuid();
     public string Value { get; set; } = string.Empty;
 }
 
@@ -87,8 +94,10 @@ public partial class SalesChannelTrN11ProductEditFields : CrudComponentBase
     private IReadOnlyList<CurrentPriceDto> _priceUnits = Array.Empty<CurrentPriceDto>();
     private bool _catalogsLoaded;
 
-    // Attribute grid satırları (def + o anki değer) — inline edit-row; değer editörü satır tipine göre değişir.
-    private List<N11AttributeRow> _attributeRows = new();
+    // Attribute drill grupları (def + o anki değerler) — üst = attribute tanımı (sabit), alt = değerler (ekle/sil serbest).
+    private List<N11AttributeGroupRow> _attributeGroups = new();
+    private DrillList<N11AttributeGroupRow>? _attributeDrill;
+    private DrillList<N11AttributeValueRow>? _attributeValueDrill;
 
     // OnParametersSetAsync her render'da çalışır → tekrarlı ağ çağrısını son-yüklenen anahtarla önle.
     private Guid _loadedTemplatesChannelId;
@@ -235,34 +244,37 @@ public partial class SalesChannelTrN11ProductEditFields : CrudComponentBase
             UiService.ShowErrorToast(CrudErrorPresenter.ToFriendlyMessage(ex, ServiceProvider) ?? L["UnexpectedError"].Value);
         }
 
-        BuildAttributeRows();
+        BuildAttributeGroups();
     }
 
-    // Def + Model.Attributes'taki mevcut değerden grid satırlarını kur (def sırası korunur).
-    private void BuildAttributeRows()
+    // Def + Model.Attributes'taki mevcut değerlerden drill gruplarını kur (def sırası korunur) — bir Name'e ait
+    // TÜM mevcut Attribute girdileri o grubun Values'ına toplanır (N11 tel formatı zaten "aynı isim, ayrı eleman").
+    private void BuildAttributeGroups()
     {
-        _attributeRows = _attributeDefs.Select(def => new N11AttributeRow
+        _attributeGroups = _attributeDefs.Select(def => new N11AttributeGroupRow
         {
             AttributeId = def.AttributeId,
             Name = def.Name,
             IsMandatory = def.IsMandatory,
             HasValueList = def.Values.Count > 0 && !def.IsCustomValue,
-            Values = def.Values,
-            Value = GetAttribute(def.Name),
+            DefinitionValues = def.Values,
+            Values = Model.Attributes.Where(a => a.Name == def.Name)
+                .Select(a => new N11AttributeValueRow { Value = a.Value })
+                .ToList(),
         }).ToList();
     }
 
-    // EditCell: hücre editöründen çıkınca otomatik tetiklenir (Edit/Save butonu YOK) — edit-model klonunun değerini
-    // orijinal satıra + Model.Attributes'a ANINDA uygula (SetAttribute → dirty).
-    private void OnAttributeRowSaving(GridEditModelSavingEventArgs e)
+    // Bir grubun Values'ı değişince (alt drill ekle/düzenle/sil) gerçek Model.Attributes'a yazar — o Name'e ait
+    // TÜM eski girdiler silinip Values'taki her dolu satır yeniden eklenir (grup = SSOT'nin görünümü).
+    private void FlattenGroupToModel(N11AttributeGroupRow group)
     {
-        var edited = (N11AttributeRow)e.EditModel;
-        if (e.DataItem is N11AttributeRow original)
+        Model.Attributes.RemoveAll(a => a.Name == group.Name);
+        foreach (var v in group.Values.Where(v => !string.IsNullOrWhiteSpace(v.Value)))
         {
-            original.Value = edited.Value;
+            Model.Attributes.Add(new SalesChannelTrN11ProductAttributeDto { Name = group.Name, Value = v.Value });
         }
 
-        SetAttribute(edited.Name, edited.Value);
+        MarkDirty(nameof(Model.Attributes));
     }
 
     // Yaprak kategori seçildi — modele dış-id + ad yaz, attribute'ları tazele, dirty.
@@ -280,32 +292,10 @@ public partial class SalesChannelTrN11ProductEditFields : CrudComponentBase
         MarkDirty(nameof(Model.ShipmentTemplateName));
     }
 
-    // ── Kategori attribute değerleri (name/value) — Model.Attributes ile senkron ──
-    private string GetAttribute(string name)
+    // Alt drill SaveGuard — boş değer satırı kaydedilemez (FlattenGroupToModel zaten boşları eler; bu erken uyarır).
+    private string? AttributeValueSaveGuard(N11AttributeValueRow item)
     {
-        return Model.Attributes.FirstOrDefault(a => a.Name == name)?.Value ?? string.Empty;
-    }
-
-    private void SetAttribute(string name, string? value)
-    {
-        var existing = Model.Attributes.FirstOrDefault(a => a.Name == name);
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            if (existing != null)
-            {
-                Model.Attributes.Remove(existing);
-            }
-        }
-        else if (existing != null)
-        {
-            existing.Value = value;
-        }
-        else
-        {
-            Model.Attributes.Add(new SalesChannelTrN11ProductAttributeDto { Name = name, Value = value });
-        }
-
-        MarkDirty(nameof(Model.Attributes));
+        return string.IsNullOrWhiteSpace(item.Value) ? L["N11Product:AttributeValueRequired"].Value : null;
     }
 
     // ── Kanal-özel varyant override'ları (fiyat/stok/marj + reçete) ──────────────────────────────────

@@ -283,6 +283,8 @@
     "N11Product:ChangeCategory": "Change",
     "N11Product:SelectCategory": "Search and select a category...",
     "N11Product:Attributes": "Category Attributes",
+    "N11Product:AttributeMandatory": "Mandatory",
+    "N11Product:AttributeValueRequired": "Value cannot be empty.",
     "N11Product:Domestic": "Domestic",
     "N11Product:PreparingDay": "Preparing Time (days)",
     "N11Product:MaxPurchaseQuantity": "Maximum Purchase Quantity",

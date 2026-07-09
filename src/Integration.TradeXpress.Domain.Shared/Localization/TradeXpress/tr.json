@@ -313,6 +313,8 @@
     "N11Product:ChangeCategory": "Değiştir",
     "N11Product:SelectCategory": "Kategori arayın ve seçin...",
     "N11Product:Attributes": "Kategori Nitelikleri",
+    "N11Product:AttributeMandatory": "Zorunlu",
+    "N11Product:AttributeValueRequired": "Değer boş olamaz.",
     "N11Product:Domestic": "Yurt İçi",
     "N11Product:PreparingDay": "Hazırlık Süresi (gün)",
     "N11Product:MaxPurchaseQuantity": "Maksimum Alım Adedi",
