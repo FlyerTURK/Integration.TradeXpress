@@ -1,18 +1,53 @@
 @inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
 
-@* Trendyol kategori seçici — SERVER-SIDE (LookupEdit): salt-okunur alan + ▼ picker (DxGrid). Kullanıcı yazınca (min 3
-   harf) sunucudan yaprak kategoriler TAM YOL adıyla çekilir; liste ön-yüklenmez. Türkçe aksan/case-duyarsız. N11 paritesi. *@
+@* Trendyol kategori seçici — İKİ mod (kullanıcı geçebilir):
+   1. "Arama" (LookupEdit): min 3 harf → sunucudan yaprak kategoriler TAM YOL adıyla; liste ön-yüklenmez.
+   2. "Ağaç" (cascade DxComboBox'lar): kökten zincir; her seçimde alt combo GetChildrenAsync ile dolar. Yaprak (IsLeaf)
+      seçilince zincir biter (alt combo yok) + tam yol callback'e gider. Üst combo değişince alt combolar sıfırlanır.
+   Her iki mod da AYNI OnLeafSelected callback'ini besler. N11 paritesi (id-bazlı string dış id). *@
 
-<LookupEdit TItem="TrendyolLeafCategoryDto" TValue="string"
-            Data="@_results"
-            ValueFieldName="@nameof(TrendyolLeafCategoryDto.ExternalId)"
-            TextFieldName="@nameof(TrendyolLeafCategoryDto.Path)"
-            Value="@SelectedExternalId"
-            ValueChanged="@OnCategoryChangedAsync"
-            SelectedDisplayText="@SelectedName"
-            OnSearch="@OnSearchAsync"
-            SearchMinLength="3"
-            SearchPlaceholder="@L["TrendyolProduct:SelectCategory"].Value"
-            Title="@L["TrendyolProduct:Category"].Value"
-            NullText="@L["TrendyolProduct:SelectCategory"].Value"
-            AllowClear="false" />
+<DxTabs ActiveTabIndex="@_activeMode" ActiveTabIndexChanged="@OnModeChangedAsync">
+    <DxTabPage Text="@L["TrendyolProduct:CategorySearchMode"]">
+        <div class="pt-2">
+            <LookupEdit TItem="TrendyolLeafCategoryDto" TValue="string"
+                        Data="@_results"
+                        ValueFieldName="@nameof(TrendyolLeafCategoryDto.ExternalId)"
+                        TextFieldName="@nameof(TrendyolLeafCategoryDto.Path)"
+                        Value="@SelectedExternalId"
+                        ValueChanged="@OnCategoryChangedAsync"
+                        SelectedDisplayText="@SelectedName"
+                        OnSearch="@OnSearchAsync"
+                        SearchMinLength="3"
+                        SearchPlaceholder="@L["TrendyolProduct:SelectCategory"].Value"
+                        Title="@L["TrendyolProduct:Category"].Value"
+                        NullText="@L["TrendyolProduct:SelectCategory"].Value"
+                        AllowClear="false" />
+        </div>
+    </DxTabPage>
+
+    <DxTabPage Text="@L["TrendyolProduct:CategoryTreeMode"]">
+        @* Zincir combolar — her seviye bir DxComboBox; alt seviyeler seçime göre eklenir/sıfırlanır. *@
+        <div class="pt-2" style="display:flex; flex-direction:column; gap:0.5rem;">
+            @for (var i = 0; i < _levels.Count; i++)
+            {
+                var index = i;
+                var level = _levels[i];
+                <DxComboBox TData="TrendyolCategoryTreeNodeDto" TValue="string"
+                            Data="@level.Options"
+                            ValueFieldName="@nameof(TrendyolCategoryTreeNodeDto.ExternalId)"
+                            TextFieldName="@nameof(TrendyolCategoryTreeNodeDto.Name)"
+                            Value="@level.SelectedExternalId"
+                            ValueChanged="@(async (string? v) => await OnLevelChangedAsync(index, v))"
+                            NullText="@L["TrendyolProduct:SelectCategoryLevel"].Value"
+                            ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto"
+                            CssClass="w-100" />
+            }
+
+            @* Yaprağa inilmediyse uyarı (ara seviyede kalındı → henüz geçerli kategori yok). *@
+            @if (_levels.Count > 0 && !_treeReachedLeaf)
+            {
+                <span style="color:#6c757d; font-size:0.85rem;">@L["TrendyolProduct:CategoryLeafRequiredHint"]</span>
+            }
+        </div>
+    </DxTabPage>
+</DxTabs>

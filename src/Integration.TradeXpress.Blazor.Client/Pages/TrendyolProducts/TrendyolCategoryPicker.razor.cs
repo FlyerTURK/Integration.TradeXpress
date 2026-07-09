@@ -9,9 +9,10 @@ using Microsoft.AspNetCore.Components;
 
 namespace Integration.TradeXpress.Blazor.Client.Pages.TrendyolProducts;
 
-/// <summary>Trendyol kategori seçici — SERVER-SIDE arama (LookupEdit). Kullanıcı yazınca (en az 3 harf) sunucudan yaprak
-/// kategoriler TAM YOL adıyla çekilir; liste ÖN-YÜKLENMEZ. Türkçe aksan/case-duyarsız ("kul"→"Kül"). Seçilince
-/// <see cref="OnLeafSelected"/> tetikler. N11CategoryPicker paritesi (id-bazlı fark yok — her ikisi de string dış id).</summary>
+/// <summary>Trendyol kategori seçici — İKİ mod: (1) SERVER-SIDE yaprak arama (LookupEdit, en az 3 harf, tam yol),
+/// (2) kökten zincirleme cascade DxComboBox'lar (her seviye <see cref="ITrendyolCategoryAppService.GetChildrenAsync"/>
+/// ile dolar; yaprak seçilince zincir biter). İki mod da AYNI <see cref="OnLeafSelected"/> callback'ini besler.
+/// Türkçe aksan/case-duyarsız arama ("kul"→"Kül"). N11CategoryPicker paritesi (id-bazlı string dış id).</summary>
 public partial class TrendyolCategoryPicker : CrudComponentBase
 {
     [Parameter] public string? SelectedExternalId { get; set; }
@@ -24,10 +25,112 @@ public partial class TrendyolCategoryPicker : CrudComponentBase
     [Inject] private IUiInteractionService UiService { get; set; } = default!;
     [Inject] private IServiceProvider ServiceProvider { get; set; } = default!;
 
-    // Yalnız son aramanın sonuçları (server'dan; en fazla 50). Ön-yükleme YOK.
+    // 0 = Arama (LookupEdit), 1 = Ağaç (cascade). Varsayılan: Arama.
+    private int _activeMode;
+
+    // ── Mod 1: Arama ── Yalnız son aramanın sonuçları (server'dan; en fazla 50). Ön-yükleme YOK.
     private List<TrendyolLeafCategoryDto> _results = new();
 
-    // Kullanıcı arama kutusuna yazdı (LookupEdit min-3 harf koşulunu uygular) → sunucudan çek.
+    // ── Mod 2: Ağaç (cascade) ── Zincir seviyeleri: her seviye bir combo (parent + seçenekler + seçim).
+    private readonly List<CascadeLevel> _levels = new();
+
+    // Cascade'de en dipteki seçim yaprak mı — false ise "yaprağa inin" uyarısı gösterilir (geçerli kategori yok).
+    private bool _treeReachedLeaf;
+
+    // Mod değişti: "Ağaç" moduna ilk geçişte kök kategorileri yükle (lazy — Arama modunda gereksiz sorgu atma).
+    private async Task OnModeChangedAsync(int mode)
+    {
+        _activeMode = mode;
+        if (mode == 1 && _levels.Count == 0)
+        {
+            await LoadRootLevelAsync();
+        }
+    }
+
+    // Kök kategoriler = GetChildrenAsync(null) → ilk combo. Zincir buradan başlar.
+    private async Task LoadRootLevelAsync()
+    {
+        try
+        {
+            var roots = await CategoryAppService.GetChildrenAsync(null);
+            _levels.Clear();
+            _levels.Add(new CascadeLevel { ParentExternalId = null, Options = roots });
+            _treeReachedLeaf = false;
+        }
+        catch (Exception ex)
+        {
+            _levels.Clear();
+            UiService.ShowErrorToast(CrudErrorPresenter.ToFriendlyMessage(ex, ServiceProvider) ?? L["UnexpectedError"].Value);
+        }
+    }
+
+    // Cascade seviye seçimi değişti: alttaki tüm combolar sıfırlanır; seçim yaprak ise zincir biter + callback,
+    // değilse hemen altına yeni combo (o seviyenin çocukları) eklenir.
+    private async Task OnLevelChangedAsync(int levelIndex, string? externalId)
+    {
+        var level = _levels[levelIndex];
+        level.SelectedExternalId = externalId;
+
+        // Bu seviyenin ALTINDAKİ tüm seviyeleri kaldır (stale alt seçim kalmasın).
+        if (_levels.Count > levelIndex + 1)
+        {
+            _levels.RemoveRange(levelIndex + 1, _levels.Count - levelIndex - 1);
+        }
+
+        _treeReachedLeaf = false;
+
+        if (string.IsNullOrEmpty(externalId))
+        {
+            return; // Seçim temizlendi → ara seviye; geçerli kategori yok.
+        }
+
+        var node = level.Options.FirstOrDefault(o => o.ExternalId == externalId);
+        if (node is null)
+        {
+            return;
+        }
+
+        if (node.IsLeaf)
+        {
+            // Yaprak: zincir tamam → tam yolu (seçili seviyelerin adları) kur + callback.
+            _treeReachedLeaf = true;
+            var path = BuildSelectedPath(levelIndex);
+            SelectedExternalId = node.ExternalId;
+            SelectedName = path;
+            await OnLeafSelected.InvokeAsync(new TrendyolCategorySelection(node.ExternalId, path));
+            return;
+        }
+
+        // Yaprak değil: çocukları yükle → altına yeni combo.
+        try
+        {
+            var children = await CategoryAppService.GetChildrenAsync(node.ExternalId);
+            _levels.Add(new CascadeLevel { ParentExternalId = node.ExternalId, Options = children });
+        }
+        catch (Exception ex)
+        {
+            UiService.ShowErrorToast(CrudErrorPresenter.ToFriendlyMessage(ex, ServiceProvider) ?? L["UnexpectedError"].Value);
+        }
+    }
+
+    // Seçili zincir adlarını "Kök > ... > Yaprak" olarak birleştirir (0..levelIndex seviyelerinin seçimleri).
+    private string BuildSelectedPath(int levelIndex)
+    {
+        var names = new List<string>();
+        for (var i = 0; i <= levelIndex; i++)
+        {
+            var lv = _levels[i];
+            var selected = lv.Options.FirstOrDefault(o => o.ExternalId == lv.SelectedExternalId);
+            if (selected is not null)
+            {
+                names.Add(selected.Name);
+            }
+        }
+
+        return string.Join(" > ", names);
+    }
+
+    // ── Mod 1: Arama ── Kullanıcı yazdı (LookupEdit min-3 harf koşulunu uygular) → sunucudan çek.
     private async Task OnSearchAsync(string term)
     {
         if (string.IsNullOrWhiteSpace(term))
@@ -47,7 +150,7 @@ public partial class TrendyolCategoryPicker : CrudComponentBase
         }
     }
 
-    // Yaprak seçildi: modeli güncelle + tam yolu ad olarak taşı + callback.
+    // Yaprak seçildi (arama modu): modeli güncelle + tam yolu ad olarak taşı + callback.
     private async Task OnCategoryChangedAsync(string? externalId)
     {
         SelectedExternalId = externalId;
@@ -59,6 +162,14 @@ public partial class TrendyolCategoryPicker : CrudComponentBase
 
         SelectedName = leaf.Path;
         await OnLeafSelected.InvokeAsync(new TrendyolCategorySelection(leaf.ExternalId, leaf.Path));
+    }
+
+    /// <summary>Cascade tek seviye durumu — parent dış id + o seviyenin seçenekleri + seçilen dış id.</summary>
+    private sealed class CascadeLevel
+    {
+        public string? ParentExternalId { get; init; }
+        public List<TrendyolCategoryTreeNodeDto> Options { get; init; } = new();
+        public string? SelectedExternalId { get; set; }
     }
 }
 
