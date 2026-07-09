@@ -30,10 +30,10 @@
             <PasswordTextEdit @bind-Text="@Model.SharedSecret" NullText="@SecretPlaceholder" Tooltip="@L["ShowPassword"]" CssClass="w-100" />
         </DxFormLayoutItem>
         <DxFormLayoutItem Caption="@L["SalesChannel:Etsy:ShopName"].Value" ColSpanMd="6">
-            <DxTextBox Text="@Model.ShopName" ReadOnly="true" NullText="@ShopPlaceholder" />
+            <DxTextBox Text="@Model.ShopName" ReadOnly="true" ValidationEnabled="false" NullText="@ShopPlaceholder" />
         </DxFormLayoutItem>
         <DxFormLayoutItem Caption="@L["SalesChannel:Etsy:ShopId"].Value" ColSpanMd="6">
-            <DxTextBox Text="@Model.ShopId" ReadOnly="true" NullText="@ShopPlaceholder" />
+            <DxTextBox Text="@Model.ShopId" ReadOnly="true" ValidationEnabled="false" NullText="@ShopPlaceholder" />
         </DxFormLayoutItem>
         <DxFormLayoutItem Caption="@L["Description"]" ColSpanMd="12">
             <DxMemo @bind-Text="@Model.Description" Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100" />
@@ -51,7 +51,7 @@
     {
         <DxFormLayoutGroup Caption="@L["SalesChannel:Etsy:Connection"]" ColSpanMd="12">
             <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6">
-                <DxTextBox Text="@ConnectionStatusText" ReadOnly="true" />
+                <DxTextBox Text="@ConnectionStatusText" ReadOnly="true" ValidationEnabled="false" />
             </DxFormLayoutItem>
             <DxFormLayoutItem ColSpanMd="6">
                 <DxButton Text="@ConnectButtonText"
