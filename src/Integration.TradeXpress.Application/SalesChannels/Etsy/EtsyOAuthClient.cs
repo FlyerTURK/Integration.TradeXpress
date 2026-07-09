@@ -62,14 +62,14 @@ public sealed class EtsyOAuthClient : IEtsyOAuthClient, ITransientDependency
     }
 
     public async Task<(string? ShopId, string? ShopName)> TryGetShopInfoAsync(
-        string keystring,
+        string apiKeyHeader,
         string accessToken,
         CancellationToken cancellationToken = default)
     {
         try
         {
             // getMe → shop_id (scope: shops_r). Sonra getShop → shop_name (görüntü alanı).
-            using var meDoc = await GetJsonAsync($"{EtsyOAuthConsts.ApiBaseUrl}/application/users/me", keystring, accessToken, cancellationToken);
+            using var meDoc = await GetJsonAsync($"{EtsyOAuthConsts.ApiBaseUrl}/application/users/me", apiKeyHeader, accessToken, cancellationToken);
             if (meDoc == null || !meDoc.RootElement.TryGetProperty("shop_id", out var shopIdElement))
             {
                 return (null, null);
@@ -83,7 +83,7 @@ public sealed class EtsyOAuthClient : IEtsyOAuthClient, ITransientDependency
                 return (null, null);
             }
 
-            using var shopDoc = await GetJsonAsync($"{EtsyOAuthConsts.ApiBaseUrl}/application/shops/{Uri.EscapeDataString(shopId)}", keystring, accessToken, cancellationToken);
+            using var shopDoc = await GetJsonAsync($"{EtsyOAuthConsts.ApiBaseUrl}/application/shops/{Uri.EscapeDataString(shopId)}", apiKeyHeader, accessToken, cancellationToken);
             var shopName = shopDoc != null && shopDoc.RootElement.TryGetProperty("shop_name", out var nameElement)
                 ? nameElement.GetString()
                 : null;
@@ -97,12 +97,13 @@ public sealed class EtsyOAuthClient : IEtsyOAuthClient, ITransientDependency
         }
     }
 
-    /// <summary>x-api-key + Bearer başlıklı GET → JSON belge (başarısız durum kodunda null — best-effort çağıranlar için).</summary>
+    /// <summary>x-api-key (BİRLEŞİK {keystring}:{secret} — canlı teyitli Etsy gerekliliği) + Bearer başlıklı GET →
+    /// JSON belge (başarısız durum kodunda null — best-effort çağıranlar için).</summary>
     private static async Task<JsonDocument?> GetJsonAsync(
-        string url, string keystring, string accessToken, CancellationToken cancellationToken)
+        string url, string apiKeyHeader, string accessToken, CancellationToken cancellationToken)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
-        request.Headers.TryAddWithoutValidation("x-api-key", keystring);
+        request.Headers.TryAddWithoutValidation("x-api-key", apiKeyHeader);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
         using var response = await HttpClient.SendAsync(request, cancellationToken);

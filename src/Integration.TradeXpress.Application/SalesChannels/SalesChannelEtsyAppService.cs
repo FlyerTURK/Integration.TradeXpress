@@ -88,9 +88,9 @@ public class SalesChannelEtsyAppService : TradeXpressAppService, ISalesChannelEt
             input.Code, nameof(SalesChannelBase.Code), EntityFieldConsts.CodeMinLength, SalesChannelConsts.CodeMaxLength);
         await EnsureCodeUniqueAsync(companyId, normalizedCode, Guid.Empty);
 
-        // Keystring oluşturmada ZORUNLU doğrulanır (OAuth'suz public ping ucu — x-api-key sınanır). SharedSecret bu
-        // uçla sınanamaz; OAuth token değişiminde dolaylı doğrulanır. Geçmezse kayıt açılmaz.
-        await _credentialVerifier.VerifyOrThrowAsync(input.Keystring);
+        // Kimlik oluşturmada ZORUNLU doğrulanır (OAuth'suz public ping — x-api-key {keystring}:{secret} BİRLEŞİK,
+        // canlı teyitli: probe HEM keystring HEM SharedSecret'ı sınar). Geçmezse kayıt açılmaz.
+        await _credentialVerifier.VerifyOrThrowAsync(input.Keystring, input.SharedSecret);
 
         var entity = new SalesChannelEtsy(companyId, input.Code, input.Name, input.Keystring, input.SharedSecret);
         entity.SetDescription(input.Description);
@@ -132,18 +132,22 @@ public class SalesChannelEtsyAppService : TradeXpressAppService, ISalesChannelEt
 
     /// <summary>Sızıntısız edit kuralı: SharedSecret BOŞ = mevcut korunur; DOLU = değiştir. Keystring görünür kimlik →
     /// daima güncellenir; DEĞİŞİRSE entity mevcut token'ları temizler (token'lar eski uygulamaya aittir — yeniden
-    /// "Etsy'ye Bağlan" gerekir) ve yeni keystring ping'le doğrulanır.</summary>
+    /// "Etsy'ye Bağlan" gerekir). Kimliğin herhangi bir parçası değişiyorsa EFEKTİF çift ping'le doğrulanır (probe
+    /// birleşik x-api-key ile HEM keystring HEM secret'ı sınar — canlı teyitli).</summary>
     private async Task ApplyCredentialChangeAsync(SalesChannelEtsy entity, string keystring, string sharedSecret)
     {
         var keystringChanged = !string.Equals(keystring, entity.Keystring, StringComparison.Ordinal);
-        if (keystringChanged)
+        var hasSecret = !string.IsNullOrWhiteSpace(sharedSecret);
+        var effectiveSecret = hasSecret ? sharedSecret : entity.SharedSecret;
+
+        if (keystringChanged || hasSecret)
         {
-            await _credentialVerifier.VerifyOrThrowAsync(keystring);
+            await _credentialVerifier.VerifyOrThrowAsync(keystring, effectiveSecret);
         }
 
         entity.SetKeystring(keystring);   // değiştiyse token'ları da temizler (entity invariant'ı)
 
-        if (!string.IsNullOrWhiteSpace(sharedSecret))
+        if (hasSecret)
         {
             entity.SetSharedSecret(sharedSecret);
         }

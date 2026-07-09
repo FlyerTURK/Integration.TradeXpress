@@ -25,9 +25,11 @@ public interface IEtsyOAuthClient
         CancellationToken cancellationToken = default);
 
     /// <summary>Bağlanan kullanıcının mağazasını çözer (getMe → shop_id, getShop → shop_name). BEST-EFFORT:
-    /// başarısızlık OAuth bağlantısını ETKİLEMEZ — (null, null) döner, uyarı loglanır.</summary>
+    /// başarısızlık OAuth bağlantısını ETKİLEMEZ — (null, null) döner, uyarı loglanır.
+    /// <paramref name="apiKeyHeader"/> = <c>{keystring}:{sharedSecret}</c> BİRLEŞİK x-api-key değeri (canlı teyitli
+    /// Etsy gerekliliği — yalnız keystring 403 "Shared secret is required" verir).</summary>
     Task<(string? ShopId, string? ShopName)> TryGetShopInfoAsync(
-        string keystring,
+        string apiKeyHeader,
         string accessToken,
         CancellationToken cancellationToken = default);
 }

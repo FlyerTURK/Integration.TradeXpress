@@ -130,7 +130,9 @@ public class EtsyOAuthService : IEtsyOAuthService, ITransientDependency
                 ApplyTokens(channel, tokens);
 
                 // Mağaza bilgisi best-effort (getMe/getShop) — başarısızlık bağlantıyı düşürmez.
-                var (shopId, shopName) = await _oauthClient.TryGetShopInfoAsync(channel.Keystring, tokens.AccessToken);
+                // x-api-key BİRLEŞİK {keystring}:{secret} (canlı teyitli Etsy gerekliliği).
+                var (shopId, shopName) = await _oauthClient.TryGetShopInfoAsync(
+                    $"{channel.Keystring}:{channel.SharedSecret}", tokens.AccessToken);
                 if (shopId != null)
                 {
                     channel.SetShopInfo(shopId, shopName);

@@ -10,9 +10,11 @@ using Volo.Abp.DependencyInjection;
 namespace Integration.TradeXpress.SalesChannels.Etsy;
 
 /// <summary>
-/// Etsy keystring doğrulayıcı — OAuth'suz public <b>ping</b> ucu (<c>GET /v3/application/openapi-ping</c>,
-/// header <c>x-api-key: {keystring}</c>). 2xx → anahtar geçerli. SharedSecret bu uçla sınanamaz (OAuth token
-/// değişiminde dolaylı doğrulanır) — probe yalnız keystring'i teyit eder.
+/// Etsy kimlik doğrulayıcı — OAuth'suz public <b>ping</b> ucu (<c>GET /v3/application/openapi-ping</c>,
+/// header <c>x-api-key: {keystring}:{sharedSecret}</c> BİRLEŞİK format). CANLI DOĞRULANMIŞ (2026-07-09): Etsy
+/// yeni uygulamalarda secret'ı da x-api-key içinde istiyor — yalnız keystring gönderilirse 403 "Shared secret is
+/// required in x-api-key header" döner; birleşik format 200 + application_id döndürür. Yani bu probe HEM keystring
+/// HEM SharedSecret'ı teyit eder.
 ///
 /// <para>Durum yorumu (N11/Trendyol verifier'larıyla simetrik): 401/403 → geçersiz; 2xx → geçerli; ağ/timeout/diğer
 /// durum → belirsiz → çağıran persist ETMEZ. Sir ASLA loglanmaz. Endpoint/sürüm değişirse tek nokta
@@ -33,9 +35,9 @@ public sealed class EtsyPingCredentialVerifier : IEtsyCredentialVerifier, ITrans
         _logger = logger;
     }
 
-    public async Task VerifyOrThrowAsync(string keystring, CancellationToken cancellationToken = default)
+    public async Task VerifyOrThrowAsync(string keystring, string sharedSecret, CancellationToken cancellationToken = default)
     {
-        var result = await ProbeAsync(keystring, cancellationToken);
+        var result = await ProbeAsync(keystring, sharedSecret, cancellationToken);
         if (result == ProbeResult.Valid)
         {
             return;
@@ -49,13 +51,13 @@ public sealed class EtsyPingCredentialVerifier : IEtsyCredentialVerifier, ITrans
         throw new BusinessException("TradeXpress:SalesChannel:Etsy:VerificationUnavailable");
     }
 
-    private async Task<ProbeResult> ProbeAsync(string keystring, CancellationToken cancellationToken)
+    private async Task<ProbeResult> ProbeAsync(string keystring, string sharedSecret, CancellationToken cancellationToken)
     {
         try
         {
-            // Public ping — OAuth gerektirmez; yalnız x-api-key başlığını sınar (dokümante keystring doğrulama yolu).
+            // Public ping — OAuth gerektirmez; x-api-key BİRLEŞİK ({keystring}:{sharedSecret}) sınanır (canlı teyitli).
             using var request = new HttpRequestMessage(HttpMethod.Get, $"{EtsyOAuthConsts.ApiBaseUrl}/application/openapi-ping");
-            request.Headers.TryAddWithoutValidation("x-api-key", keystring);
+            request.Headers.TryAddWithoutValidation("x-api-key", $"{keystring}:{sharedSecret}");
 
             using var response = await HttpClient.SendAsync(request, cancellationToken);
 
