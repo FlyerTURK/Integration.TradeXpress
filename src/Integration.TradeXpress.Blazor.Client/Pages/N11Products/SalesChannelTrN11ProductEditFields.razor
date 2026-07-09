@@ -95,19 +95,25 @@
             <NumericSpinEdit TValue="int?" @bind-Value="@Model.UnitWeight"
                              ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
         </DxFormLayoutItem>
-        @* Grup ürün (opsiyonel; N11-only) — aynı grup üyeleri groupItemCode'da eşleşir. *@
-        <DxFormLayoutItem ColSpanMd="12">
-            <span style="color:#6c757d; font-size:0.85rem;">@L["N11Product:GroupProductHint"]</span>
+        @* Grup ürün (opsiyonel; N11-only) — aynı grup üyeleri groupItemCode'da eşleşir. Açıklama artık ayrı hint
+           span'ı değil, Grup Kodu caption'ına tıklayınca açılan InfoCaption flyout'unda. Grup Kodu boşsa Grup
+           Özelliği + Öğe Adı GİZLİ (bu ikisi yalnız bir grup kurulduysa anlamlı). *@
+        <DxFormLayoutItem ColSpanMd="4">
+            <CaptionTemplate>
+                <InfoCaption Text="@L["N11Product:GroupItemCode"].Value" HintText="@L["N11Product:GroupProductHint"].Value" />
+            </CaptionTemplate>
+            <Template>
+                <DxTextBox @bind-Text="@Model.GroupItemCode" NullText="@L["Optional"]"
+                           ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
+            </Template>
         </DxFormLayoutItem>
-        <DxFormLayoutItem Caption="@L["N11Product:GroupItemCode"]" ColSpanMd="4">
-            <DxTextBox @bind-Text="@Model.GroupItemCode" NullText="@L["Optional"]"
-                       ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
-        </DxFormLayoutItem>
-        <DxFormLayoutItem Caption="@L["N11Product:GroupAttribute"]" ColSpanMd="4">
+        <DxFormLayoutItem Caption="@L["N11Product:GroupAttribute"]" ColSpanMd="4"
+                           Visible="@(!string.IsNullOrEmpty(Model.GroupItemCode))">
             <DxTextBox @bind-Text="@Model.GroupAttribute" NullText="@L["Optional"]"
                        ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
         </DxFormLayoutItem>
-        <DxFormLayoutItem Caption="@L["N11Product:ItemName"]" ColSpanMd="4">
+        <DxFormLayoutItem Caption="@L["N11Product:ItemName"]" ColSpanMd="4"
+                           Visible="@(!string.IsNullOrEmpty(Model.GroupItemCode))">
             <DxTextBox @bind-Text="@Model.ItemName" NullText="@L["Optional"]"
                        ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
         </DxFormLayoutItem>
