@@ -294,6 +294,7 @@
     "TradeXpress:Product:ImageTypeNotSupported": "Desteklenmeyen görsel türü (jpg, png, webp, gif yükleyin).",
     "N11Products": "N11 Ürünleri",
     "SalesChannelProducts": "Satış Kanalı Ürünleri",
+    "SalesChannelProduct:Actions": "İşlemler",
     "N11Product:ChannelMissing": "Bu şirkette tanımlı bir N11 satış kanalı yok. Önce satış kanalını oluşturun.",
     "N11Product:SellerCode": "N11 Satıcı Kodu",
     "N11Product:CategoryChangedByN11": "Dikkat: N11 ürünün kategorisini değiştirdi ({0} → {1}). Kayıt N11'deki haliyle eşitlendi.",

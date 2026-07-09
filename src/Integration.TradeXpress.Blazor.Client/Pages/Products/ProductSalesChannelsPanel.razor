@@ -1,0 +1,91 @@
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@* Birleşik SATIŞ KANALI ÜRÜNLERİ paneli — N11 + Trendyol kanal ürünleri TEK grid'de (Kanal kolonu). IN-MEMORY GRAF
+   (ürün 'Kaydet'inde birlikte kaydedilir; ürün önceden kaydedilmese de eklenebilir). "Yeni" SPLIT buton: alt menüden
+   tip (N11 / Trendyol) → ilgili taslak (create-copy). Satır düzenleme ChannelType'a göre AYRI edit formu açar. İşlem
+   kolonu tipe göre: N11 → Push + Stok/Fiyat; Trendyol → Push (read-only devre dışı) + Durum Yenile. Push/Sync yalnız
+   KAYDEDİLMİŞ (Id'li) satırda. C# mantığı .razor.cs'te (ui-blazor: @@code yasak). *@
+
+<div class="mt-3">
+    <DrillList TItem="SalesChannelProductRow"
+               @ref="_drill"
+               Title="@L["SalesChannelProducts"]"
+               EntityName="@L["SalesChannelProducts"]"
+               EntityIcon="@TradeXpressIcons.SalesChannel"
+               Items="_rows"
+               KeyFieldName="ClientKey"
+               SoftDelete="true"
+               IsNewItem="@(r => r.Id == Guid.Empty)"
+               MarkDeleted="@(r => r.MarkDeleted())"
+               FilterPredicate="@(r => !r.IsDeleted)"
+               PrimaryTextSelector="@(r => r.DisplayCode)"
+               NewItemFactory="@NewRowFactory"
+               CloneFactory="@CloneRow"
+               AllowAdd="false"
+               CustomActions="@PanelActions"
+               OnItemSaved="@OnRowSaved"
+               OnItemDeleted="@OnRowDeleted"
+               OnChanged="@(() => OnChanged.InvokeAsync())">
+        <GridColumns>
+            <DxGridDataColumn FieldName="ChannelLabel" Caption="@L["SalesChannel"]" Width="120px" />
+            <GridLinkColumn Caption="@L["Code"]" Width="160px"
+                            TextSelector="@(item => ((SalesChannelProductRow)item).DisplayCode)"
+                            OnClick="@(item => _drill?.EditItem((SalesChannelProductRow)item))" />
+            <DxGridDataColumn FieldName="CategoryName" Caption="@L["Category"]" />
+            <DxGridDataColumn Caption="@L["Status"]" Width="170px">
+                <CellDisplayTemplate>@StatusTextOf((SalesChannelProductRow)context.DataItem)</CellDisplayTemplate>
+            </DxGridDataColumn>
+            <DxGridDataColumn Caption="@L["SalesChannelProduct:Actions"]" Width="320px" TextAlignment="GridTextAlignment.Center">
+                <CellDisplayTemplate>
+                    @{
+                        var row = (SalesChannelProductRow)context.DataItem;
+                    }
+                    @* Push/Sync yalnız KAYDEDİLMİŞ (Id'li) satırda — yeni satır önce ürünle kaydedilir. *@
+                    @if (row.Id == Guid.Empty)
+                    {
+                        <span style="color:#6c757d; font-size:0.85rem;">@L["N11Product:SaveToPush"]</span>
+                    }
+                    else if (row.IsN11)
+                    {
+                        <DxButton Text="@L["N11Product:Push"]" RenderStyle="ButtonRenderStyle.Primary"
+                                  IconCssClass="@TradeXpressIcons.SalesChannel"
+                                  Click="@(() => PushN11Async(row.N11!))" />
+                        @if (row.N11!.N11ProductId.HasValue)
+                        {
+                            <DxButton Text="@L["N11Product:SyncStockPrice"]" RenderStyle="ButtonRenderStyle.Secondary"
+                                      CssClass="ms-1"
+                                      Click="@(() => SyncN11StockPriceAsync(row.N11!))" />
+                        }
+                    }
+                    else
+                    {
+                        @* READ-ONLY AŞAMA: Trendyol gerçek push GERİ-DÖNÜŞSÜZ ürün yaratır (POST /products) →
+                           buton T8'e kadar DEVRE DIŞI (kazara yazma önlemi). *@
+                        <DxButton Text="@L["TrendyolProduct:Push"]" RenderStyle="ButtonRenderStyle.Primary"
+                                  IconCssClass="@TradeXpressIcons.SalesChannel"
+                                  Enabled="false"
+                                  Click="@(() => PushTrendyolAsync(row.Trendyol!))" />
+                        <span style="color:#6c757d; font-size:0.8rem;" class="ms-1">@L["TrendyolProduct:PushReadonly"]</span>
+                        @if (!string.IsNullOrEmpty(row.Trendyol!.BatchRequestId))
+                        {
+                            <DxButton Text="@L["TrendyolProduct:RefreshStatus"]" RenderStyle="ButtonRenderStyle.Secondary"
+                                      CssClass="ms-1"
+                                      Click="@(() => RefreshTrendyolStatusAsync(row.Trendyol!))" />
+                        }
+                    }
+                </CellDisplayTemplate>
+            </DxGridDataColumn>
+        </GridColumns>
+        <EditContent Context="row">
+            @* Edit formu ChannelType'a göre AYRI (mevcut formlar AYNEN yeniden kullanılır). *@
+            @if (row.IsN11)
+            {
+                <SalesChannelTrN11ProductEditFields Model="row.N11!" Channels="_n11Channels" />
+            }
+            else
+            {
+                <SalesChannelTrTrendyolProductEditFields Model="row.Trendyol!" Channels="_trendyolChannels" />
+            }
+        </EditContent>
+    </DrillList>
+</div>

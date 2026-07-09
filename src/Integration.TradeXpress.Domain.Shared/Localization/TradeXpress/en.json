@@ -264,6 +264,7 @@
     "TradeXpress:Product:ImageTypeNotSupported": "Unsupported image type (upload jpg, png, webp or gif).",
     "N11Products": "N11 Products",
     "SalesChannelProducts": "Sales Channel Products",
+    "SalesChannelProduct:Actions": "Actions",
     "N11Product:ChannelMissing": "There is no N11 sales channel defined for this company. Create the sales channel first.",
     "N11Product:SellerCode": "N11 Seller Code",
     "N11Product:CategoryChangedByN11": "Attention: N11 changed the product category ({0} → {1}). The record was synced to the N11 state.",

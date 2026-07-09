@@ -318,17 +318,13 @@
             </EditContent>
         </DrillList>
     </DxTabPage>
-    @* N11 satış kanalı ürünleri — IN-MEMORY GRAF: ürün 'Kaydet'inde birlikte kaydedilir (yeni üründe de eklenebilir).
-       Push/Stok-Fiyat yalnız kaydedilmiş satırda. *@
+    @* Satış kanalı ürünleri — N11 + Trendyol TEK grid'de (Kanal kolonu); edit formları tipe göre AYRI. IN-MEMORY GRAF:
+       ürün 'Kaydet'inde birlikte kaydedilir (yeni üründe de eklenebilir). Push/Stok-Fiyat yalnız kaydedilmiş satırda. *@
     <DxTabPage Text="@L["SalesChannelProducts"]" TabIconCssClass="@TradeXpressIcons.SalesChannel">
-        <SalesChannelProductsPanel Items="Model.SalesChannelProducts" ProductId="@Model.Id"
+        <ProductSalesChannelsPanel N11Items="Model.SalesChannelProducts"
+                                   TrendyolItems="Model.SalesChannelTrendyolProducts"
+                                   ProductId="@Model.Id"
                                    ProductDefaults="Model"
                                    OnChanged="@(() => EditChanged?.Invoke())" />
-    </DxTabPage>
-    @* Trendyol satış kanalı ürünleri — N11'den AYRI ikinci panel (çift-kanal; eleştiri F1: iki ayrı liste). *@
-    <DxTabPage Text="@L["TrendyolProduct:ChannelProducts"]" TabIconCssClass="@TradeXpressIcons.SalesChannel">
-        <SalesChannelTrendyolProductsPanel Items="Model.SalesChannelTrendyolProducts" ProductId="@Model.Id"
-                                           ProductDefaults="Model"
-                                           OnChanged="@(() => EditChanged?.Invoke())" />
     </DxTabPage>
 </DrillTabs>
