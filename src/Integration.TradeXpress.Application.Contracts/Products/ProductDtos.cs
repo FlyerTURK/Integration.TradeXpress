@@ -231,7 +231,7 @@ public class ProductSpecialInfoDto
 /// <summary>Ürün GÖRSELİ graf düğümü — görsel drill'i + Product save'i içindir. Kaynak URL ya da yüklenmiş dosya
 /// (blob; dosya seçilince ANINDA <see cref="IProductImageAppService.UploadAsync"/> ile yüklenir, ürün save'i yalnız
 /// referansı kalıcılaştırır). <see cref="PreviewDataUrl"/> SALT-OKUNUR (GetAsync/upload doldurur; save yoksayar).</summary>
-public class ProductImageGraphDto
+public class ProductImageGraphDto : ISingleImageEditModel
 {
     public Guid ClientKey { get; set; } = Guid.NewGuid();
 

@@ -14,6 +14,7 @@ using Volo.Abp.FeatureManagement;
 using Volo.Abp.Identity;
 using Volo.Abp.TenantManagement;
 using Integration.Framework;
+using Integration.TradeXpress.Metals;
 using Integration.TradeXpress.Products;
 using Volo.Abp.BlobStoring;
 
@@ -49,10 +50,14 @@ public class TradeXpressDomainModule : AbpModule
             options.Kind = DateTimeKind.Utc;
         });
 
-        // Ürün görselleri blob konteyneri → Database provider (AppBlobs tablosu; DbContext ConfigureBlobStoring hazır).
+        // Ürün + maden görselleri blob konteynerleri → Database provider (AppBlobs tablosu; DbContext ConfigureBlobStoring hazır).
         Configure<AbpBlobStoringOptions>(options =>
         {
             options.Containers.Configure<ProductImagesContainer>(container =>
+            {
+                container.UseDatabase();
+            });
+            options.Containers.Configure<MetalImagesContainer>(container =>
             {
                 container.UseDatabase();
             });

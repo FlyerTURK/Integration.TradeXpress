@@ -118,7 +118,7 @@ public class RazorConventionTests
         "src/Integration.TradeXpress.Blazor.Client/Pages/Jewelries/JewelryEditHost.razor",
         "src/Integration.TradeXpress.Blazor.Client/Pages/Jewelries/JewelryLayout.razor",
         "src/Integration.TradeXpress.Blazor.Client/Pages/Metals/MetalEditHost.razor",
-        "src/Integration.TradeXpress.Blazor.Client/Pages/Metals/MetalLayout.razor",
+        // MetalLayout.razor 2026-07-10'da code-behind'a taşındı (maden görseli işi) — listeden çıktı.
         "src/Integration.TradeXpress.Blazor.Client/Pages/ResetTabs.razor",
         "src/Integration.TradeXpress.Blazor.Client/Pages/Scheduling/SchedulerPage.razor",
         "src/Integration.TradeXpress.Blazor.Client/Pages/Scraps/ScrapEditHost.razor",

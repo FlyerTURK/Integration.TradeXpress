@@ -1,12 +1,5 @@
-@using System
-@using System.Collections.Generic
 @using Integration.TradeXpress.Metals
-@using Integration.TradeXpress.Vouchers
-@using Integration.TradeXpress.Financials.CurrencyUnits
 @using Integration.TradeXpress.Permissions
-@using Integration.Framework.Blazor.Client.Components.Crud
-@using DevExpress.Blazor
-@using Microsoft.Extensions.Localization
 @inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
 
 @* Metal DUMB Layout — MetalGetDto. FollowingUnit ZORUNLU + Factor(>0) + işçilik + sikke/adet. *@
@@ -16,7 +9,7 @@
         <DxFormLayoutItem Caption="@($"{L["Code"]} *")" ColSpanMd="6">
             <DxTextBox @bind-Text="@Model.Code" />
         </DxFormLayoutItem>
-        <DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="6">
+        <DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="12">
             <DxTextBox @bind-Text="@Model.Name" />
         </DxFormLayoutItem>
         <DxFormLayoutItem Caption="@($"{L["CurrencyUnit"]} *")" ColSpanMd="4">
@@ -82,6 +75,14 @@
         </DxFormLayoutItem>
     </DxFormLayoutGroup>
 
+    @* Temsili görsel (TEK) — çekirdek paylaşılan bileşende (Product ile ortak); kaynağı boş bırakılan görsel save'de temizlenir. *@
+    <DxFormLayoutGroup Caption="@L["Image"]" ColSpanMd="12">
+        <SingleImageEditFields Model="@ImageModel"
+                               UploadAsync="@UploadImageAsync"
+                               MaxImageSizeBytes="@MetalConsts.MaxImageSizeBytes"
+                               TooLargeErrorKey="TradeXpress:Metal:ImageTooLarge" />
+    </DxFormLayoutGroup>
+
     <DxFormLayoutGroup Caption="@L["Other"]" ColSpanMd="12">
         <DxFormLayoutItem Caption="@L["Barcode"]" ColSpanMd="6">
             <DxTextBox @bind-Text="@Model.Barcode" />
@@ -94,21 +95,3 @@
         </DxFormLayoutItem>
     </DxFormLayoutGroup>
 </DxFormLayout>
-
-@code {
-    [Parameter, EditorRequired] public MetalGetDto Model { get; set; } = default!;
-    [Parameter] public bool IsNew { get; set; }
-    [Parameter] public IReadOnlyList<CurrencyUnitListDto> CurrencyUnits { get; set; } = Array.Empty<CurrencyUnitListDto>();
-
-    private record LaborTypeItem(MetalLaborType Value, string Label);
-    private List<LaborTypeItem> _laborTypes = new();
-
-    protected override void OnInitialized()
-    {
-        _laborTypes = new()
-        {
-            new(MetalLaborType.Amount,   L["Enum:MetalLaborType:Amount"].Value),
-            new(MetalLaborType.Quantity, L["Enum:MetalLaborType:Quantity"].Value),
-        };
-    }
-}

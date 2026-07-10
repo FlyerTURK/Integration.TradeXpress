@@ -22,6 +22,7 @@ using Integration.TradeXpress.Accounts;
 using Integration.TradeXpress.AssayOffices;
 using Integration.TradeXpress.Products;
 using Integration.TradeXpress.Scheduling;
+using Integration.TradeXpress.Substitutions;
 using Integration.TradeXpress.Authorization;
 using Volo.Abp.TenantManagement;
 
@@ -374,6 +375,7 @@ public partial class MetalToListDtoMapper : MapperBase<Metal, MetalListDto>
 {
     [MapperIgnoreTarget(nameof(MetalListDto.IsGlobal))]
     [MapperIgnoreTarget(nameof(MetalListDto.FollowingUnitCode))]
+    [MapperIgnoreTarget(nameof(MetalListDto.ImagePreviewUrl))]   // EnrichListAsync doldurur (thumbnail/URL)
     public override partial MetalListDto Map(Metal source);
     public override partial void Map(Metal source, MetalListDto destination);
 }
@@ -564,6 +566,36 @@ public partial class UserScopedGrantToDtoMapper : MapperBase<UserScopedGrant, Us
 {
     public override partial ProductUpdateDto Map(ProductGetDto source);
     public override partial void Map(ProductGetDto source, ProductUpdateDto destination);
+}
+
+// ── SubstitutionGroup (Muadil grubu — Account grafı deseni) ──
+// Items grafı entity'de karşılıksız (ayrı aggregate satırlar) → GetDto'da AppService doldurur (ignore).
+// GetDto→Create/Update: PersistentCoordinator koşulsuz Map çağırır; Items aynı tip → element-kopya.
+
+[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
+public partial class SubstitutionGroupToGetDtoMapper : MapperBase<SubstitutionGroup, SubstitutionGroupGetDto>
+{
+    [MapperIgnoreTarget(nameof(SubstitutionGroupGetDto.Items))]
+    public override partial SubstitutionGroupGetDto Map(SubstitutionGroup source);
+    public override partial void Map(SubstitutionGroup source, SubstitutionGroupGetDto destination);
+}
+
+[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
+public partial class SubstitutionGroupToListDtoMapper : MapperBase<SubstitutionGroup, SubstitutionGroupListDto>
+{
+    public override partial SubstitutionGroupListDto Map(SubstitutionGroup source);
+    public override partial void Map(SubstitutionGroup source, SubstitutionGroupListDto destination);
+}
+
+[Mapper] public partial class SubstitutionGroupGetToCreateMapper : MapperBase<SubstitutionGroupGetDto, SubstitutionGroupCreateDto>
+{
+    public override partial SubstitutionGroupCreateDto Map(SubstitutionGroupGetDto source);
+    public override partial void Map(SubstitutionGroupGetDto source, SubstitutionGroupCreateDto destination);
+}
+[Mapper] public partial class SubstitutionGroupGetToUpdateMapper : MapperBase<SubstitutionGroupGetDto, SubstitutionGroupUpdateDto>
+{
+    public override partial SubstitutionGroupUpdateDto Map(SubstitutionGroupGetDto source);
+    public override partial void Map(SubstitutionGroupGetDto source, SubstitutionGroupUpdateDto destination);
 }
 
 [Mapper] public partial class SubAccountGetToCreateMapper : MapperBase<SubAccountGetDto, SubAccountCreateDto>

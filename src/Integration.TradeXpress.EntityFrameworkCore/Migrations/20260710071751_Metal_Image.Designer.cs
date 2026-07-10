@@ -4,6 +4,7 @@ using Integration.TradeXpress.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Volo.Abp.EntityFrameworkCore;
 
@@ -12,9 +13,11 @@ using Volo.Abp.EntityFrameworkCore;
 namespace Integration.TradeXpress.Migrations
 {
     [DbContext(typeof(TradeXpressDbContext))]
-    partial class TradeXpressDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260710071751_Metal_Image")]
+    partial class Metal_Image
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -3761,10 +3764,6 @@ namespace Integration.TradeXpress.Migrations
                     b.HasIndex("TenantId", "MetalId");
 
                     b.HasIndex("TenantId", "SubstitutionGroupId", "DisplayOrder");
-
-                    b.HasIndex("TenantId", "SubstitutionGroupId", "MetalId")
-                        .IsUnique()
-                        .HasFilter("[TenantId] IS NOT NULL AND [MetalId] IS NOT NULL");
 
                     b.ToTable("AppSubstitutionGroupItems", (string)null);
                 });

@@ -92,7 +92,7 @@ public abstract class FollowingUnitCatalogAppService<TEntity, TGetDto, TListDto,
             var orderedEntities = rows.OrderBy(CodeOf, StringComparer.OrdinalIgnoreCase).ToList();
             var dtos = orderedEntities.Select(MapListWithIsGlobal).ToList();
             ApplyUnitCodes(orderedEntities, dtos, orders);
-            await EnrichListAsync(orderedEntities, dtos);
+            await EnrichPickerListAsync(orderedEntities, dtos);
 
             return dtos;
         }

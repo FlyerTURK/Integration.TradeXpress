@@ -2,6 +2,8 @@ using Microsoft.EntityFrameworkCore;
 using Volo.Abp;
 using Volo.Abp.EntityFrameworkCore.Modeling;
 using Integration.TradeXpress.Cashes;
+using Integration.TradeXpress.Financials.CurrencyUnits;
+using Integration.TradeXpress.Metals;
 
 namespace Integration.TradeXpress.EntityFrameworkCore;
 
@@ -105,27 +107,36 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
     {
         Check.NotNull(builder, nameof(builder));
 
-        builder.Entity<Integration.TradeXpress.Metals.Metal>(b =>
+        builder.Entity<Metal>(b =>
         {
             b.ToTable(TradeXpressConsts.DbTablePrefix + "Metals", TradeXpressConsts.DbSchema);
             b.ConfigureByConvention();
 
-            b.Property(x => x.Code).IsRequired().HasMaxLength(Integration.TradeXpress.Metals.MetalConsts.CodeMaxLength);
-            b.Property(x => x.Name).IsRequired().HasMaxLength(Integration.TradeXpress.Metals.MetalConsts.NameMaxLength);
-            b.Property(x => x.Description).HasMaxLength(Integration.TradeXpress.Metals.MetalConsts.DescriptionMaxLength);
-            b.Property(x => x.Barcode).HasMaxLength(Integration.TradeXpress.Metals.MetalConsts.BarcodeMaxLength);
+            b.Property(x => x.Code).IsRequired().HasMaxLength(MetalConsts.CodeMaxLength);
+            b.Property(x => x.Name).IsRequired().HasMaxLength(MetalConsts.NameMaxLength);
+            b.Property(x => x.Description).HasMaxLength(MetalConsts.DescriptionMaxLength);
+            b.Property(x => x.Barcode).HasMaxLength(MetalConsts.BarcodeMaxLength);
             b.Property(x => x.Factor).HasPrecision(
-                Integration.TradeXpress.Metals.MetalConsts.DecimalPrecision, Integration.TradeXpress.Metals.MetalConsts.DecimalScale);
+                MetalConsts.DecimalPrecision, MetalConsts.DecimalScale);
             b.Property(x => x.StableQuantity).HasPrecision(
-                Integration.TradeXpress.Metals.MetalConsts.DecimalPrecision, Integration.TradeXpress.Metals.MetalConsts.DecimalScale);
+                MetalConsts.DecimalPrecision, MetalConsts.DecimalScale);
             b.Property(x => x.EntryLabor).HasPrecision(
-                Integration.TradeXpress.Metals.MetalConsts.DecimalPrecision, Integration.TradeXpress.Metals.MetalConsts.DecimalScale);
+                MetalConsts.DecimalPrecision, MetalConsts.DecimalScale);
             b.Property(x => x.ExitLabor).HasPrecision(
-                Integration.TradeXpress.Metals.MetalConsts.DecimalPrecision, Integration.TradeXpress.Metals.MetalConsts.DecimalScale);
+                MetalConsts.DecimalPrecision, MetalConsts.DecimalScale);
+
+            // Temsili görsel — owned → JSON kolonu (TEK görsel; URL ya da blob referansı, Product.Images deseni).
+            b.OwnsOne(x => x.Image, i =>
+            {
+                i.ToJson();
+                i.Property(p => p.Url).HasMaxLength(MetalConsts.ImageUrlMaxLength);
+                i.Property(p => p.BlobName).HasMaxLength(MetalConsts.ImageBlobNameMaxLength);
+                i.Property(p => p.FileName).HasMaxLength(MetalConsts.ImageFileNameMaxLength);
+            });
 
             b.HasIndex(x => new { x.TenantId, x.Code }).IsUnique();
 
-            b.HasOne<Integration.TradeXpress.Financials.CurrencyUnits.CurrencyUnit>().WithMany()
+            b.HasOne<CurrencyUnit>().WithMany()
                 .HasForeignKey(x => x.FollowingUnitId).IsRequired().OnDelete(DeleteBehavior.Restrict);
             b.HasIndex(x => new { x.TenantId, x.FollowingUnitId });
         });

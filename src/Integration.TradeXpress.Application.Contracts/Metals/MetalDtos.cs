@@ -3,9 +3,29 @@ using System.ComponentModel.DataAnnotations;
 using Integration.Framework.Base.Dtos;
 using Integration.Framework.Base.Dtos.Interfaces;
 using Integration.TradeXpress.Commodities;
+using Integration.TradeXpress.Products;
 using Integration.TradeXpress.Vouchers;
 
 namespace Integration.TradeXpress.Metals;
+
+/// <summary>Maden TEK temsili görseli — düzenleme modeli (paylaşılan <c>SingleImageEditFields</c> bileşenine
+/// bağlanır). Kaynağı boş bırakılan görsel save'de temizlenir (<c>Metal.SetImage</c>).</summary>
+public class MetalImageDto : ISingleImageEditModel
+{
+    public ProductImageSourceType SourceType { get; set; } = ProductImageSourceType.Url;
+
+    [StringLength(MetalConsts.ImageUrlMaxLength)]
+    public string? Url { get; set; }
+
+    [StringLength(MetalConsts.ImageBlobNameMaxLength)]
+    public string? BlobName { get; set; }
+
+    [StringLength(MetalConsts.ImageFileNameMaxLength)]
+    public string? FileName { get; set; }
+
+    /// <summary>Blob görselin önizlemesi (data URL) — SALT görüntü; sunucu/upload doldurur, save yoksayar.</summary>
+    public string? PreviewDataUrl { get; set; }
+}
 
 public class MetalListRequestDto : ListRequestDto
 {
@@ -29,6 +49,9 @@ public class MetalListDto : FollowingUnitCatalogListDtoBase
     public Guid? ExitLaborUnitId { get; set; }
     public bool ExitLaborChange { get; set; }
     public Guid? CostUnitId { get; set; }
+
+    /// <summary>Grid önizlemesi — Url tipinde doğrudan URL, Upload'da thumbnail data-URL'i (sunucu doldurur).</summary>
+    public string? ImagePreviewUrl { get; set; }
 }
 
 public class MetalGetDto : FollowingUnitCatalogGetDtoBase, IHasCode
@@ -62,6 +85,10 @@ public class MetalGetDto : FollowingUnitCatalogGetDtoBase, IHasCode
     public string? Barcode { get; set; }
     [StringLength(MetalConsts.DescriptionMaxLength)]
     public string? Description { get; set; }
+
+    /// <summary>Temsili görsel (TEK) — kaynağı boşsa save'de temizlenir. Client binding için daima non-null başlar;
+    /// sunucu Get'te de non-null garanti eder (EnrichGet).</summary>
+    public MetalImageDto? Image { get; set; } = new();
 }
 
 public class MetalCreateDto : FollowingUnitCatalogCreateDtoBase
@@ -95,6 +122,10 @@ public class MetalCreateDto : FollowingUnitCatalogCreateDtoBase
     public string? Barcode { get; set; }
     [StringLength(MetalConsts.DescriptionMaxLength)]
     public string? Description { get; set; }
+
+    /// <summary>Temsili görsel (TEK) — kaynağı boşsa save'de temizlenir. Client binding için daima non-null başlar;
+    /// sunucu Get'te de non-null garanti eder (EnrichGet).</summary>
+    public MetalImageDto? Image { get; set; } = new();
 }
 
 public class MetalUpdateDto : FollowingUnitCatalogUpdateDtoBase
@@ -129,4 +160,8 @@ public class MetalUpdateDto : FollowingUnitCatalogUpdateDtoBase
     public string? Barcode { get; set; }
     [StringLength(MetalConsts.DescriptionMaxLength)]
     public string? Description { get; set; }
+
+    /// <summary>Temsili görsel (TEK) — kaynağı boşsa save'de temizlenir. Client binding için daima non-null başlar;
+    /// sunucu Get'te de non-null garanti eder (EnrichGet).</summary>
+    public MetalImageDto? Image { get; set; } = new();
 }

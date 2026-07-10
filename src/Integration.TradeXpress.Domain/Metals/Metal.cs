@@ -1,4 +1,5 @@
 using Integration.TradeXpress.Financials.CurrencyUnits;
+using Integration.TradeXpress.Products;
 using Integration.TradeXpress.Vouchers;
 
 namespace Integration.TradeXpress.Metals;
@@ -92,6 +93,10 @@ public class Metal : FullAuditedAggregateRoot<Guid>, IMultiTenant
 
     public virtual bool IsActive { get; protected set; }
 
+    /// <summary>Temsili görsel (owned → JSON kolonu) — TEK görsel: dış URL ya da yüklenmiş dosya (blob).
+    /// Yoksa null. Bkz. <see cref="SetImage"/>/<see cref="ClearImage"/>.</summary>
+    public virtual MetalImage? Image { get; protected set; }
+
     #endregion
 
     #region Methods
@@ -165,6 +170,36 @@ public class Metal : FullAuditedAggregateRoot<Guid>, IMultiTenant
     public virtual void SetActive(bool value)
     {
         IsActive = value;
+    }
+
+    /// <summary>Görseli ayarlar — kaynağı boş görsel (URL'siz Url tipi / blob'suz Upload tipi / bilinmeyen tip)
+    /// temizlenmiş sayılır (<see cref="ClearImage"/>). Alanlar trim'lenir; karşı kaynağın alanı taşınmaz
+    /// (Url tipinde blob alanları, Upload tipinde URL null — bayat değer JSON'a persist olmasın).</summary>
+    public virtual void SetImage(MetalImage? image)
+    {
+        if (image is null || !image.HasSource())
+        {
+            ClearImage();
+            return;
+        }
+
+        if (image.SourceType == ProductImageSourceType.Url)
+        {
+            Image = new MetalImage(ProductImageSourceType.Url, image.Url!.Trim(), null, null);
+            return;
+        }
+
+        Image = new MetalImage(
+            ProductImageSourceType.Upload,
+            null,
+            image.BlobName!.Trim(),
+            string.IsNullOrWhiteSpace(image.FileName) ? null : image.FileName!.Trim());
+    }
+
+    /// <summary>Görseli kaldırır (blob temizliği AppService'te — entity yalnız referansı taşır).</summary>
+    public virtual void ClearImage()
+    {
+        Image = null;
     }
 
     public override string ToString()

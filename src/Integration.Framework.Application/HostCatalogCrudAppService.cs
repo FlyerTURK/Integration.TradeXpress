@@ -92,7 +92,7 @@ public abstract class HostCatalogCrudAppService<TEntity, TGetDto, TListDto, TLis
             var entities = await AsyncExecuter.ToListAsync(query.OrderBy(PickerOrderSelector));
 
             var dtos = entities.Select(MapListWithIsGlobal).ToList();
-            await EnrichListAsync(entities, dtos);
+            await EnrichPickerListAsync(entities, dtos);
 
             return dtos;
         }
@@ -133,7 +133,18 @@ public abstract class HostCatalogCrudAppService<TEntity, TGetDto, TListDto, TLis
         var entity = await GetEntityByIdAsync(id);
         EnsureEditable(entity, isDelete: true);
 
+        await BeforeDeleteAsync(entity);
         await Repository.DeleteAsync(entity, autoSave: true);
+    }
+
+    /// <summary>
+    /// Silme guard'ları (policy + <see cref="EnsureEditable"/>) GEÇTİKTEN sonra, entity silinmeden hemen önce
+    /// çağrılır — türev bağlı kaynakları temizler (ör. Metal upload blob'ları). Guard'lar tabanda kaldığından
+    /// türevin <c>DeleteAsync</c> gövdesini kopyalaması gerekmez (sessiz ayrışma riski yok). Varsayılan no-op.
+    /// </summary>
+    protected virtual Task BeforeDeleteAsync(TEntity entity)
+    {
+        return Task.CompletedTask;
     }
 
     /// <summary>Create input → yeni entity. Türev zengin ctor + SetX ile kurar (ObjectMapper YOK).</summary>
@@ -176,6 +187,16 @@ public abstract class HostCatalogCrudAppService<TEntity, TGetDto, TListDto, TLis
     protected virtual Task EnrichListAsync(List<TEntity> entities, List<TListDto> dtos)
     {
         return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Picker (combo) yanıtının zenginleştirmesi — varsayılan grid listesiyle AYNI (<see cref="EnrichListAsync"/>).
+    /// Ağır alan üreten türev (ör. Metal thumbnail data-URL'leri) override edip atlar: combo görsel çizmez,
+    /// picker sık çağrılır → satır başına blob sorgusu + MB'lık payload taşınmasın.
+    /// </summary>
+    protected virtual Task EnrichPickerListAsync(List<TEntity> entities, List<TListDto> dtos)
+    {
+        return EnrichListAsync(entities, dtos);
     }
 
     /// <summary>Get DTO'suna ek zenginleştirme. Varsayılan no-op.</summary>
