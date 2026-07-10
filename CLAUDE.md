@@ -51,6 +51,7 @@ Tıkanınca kolay yola sapıp mevcut işi silme/kökten değiştirme YOK. Reflek
 - **Yerel ≠ Bilanço birimi** — kur görüntüsü YERELE, pozisyon/değerleme BİLANÇOYA re-base; karıştırma. Detay + yön kuralları: `.claude/rules/financials.md`.
 - **Zaman: kayıt=UTC, görüntü=kullanıcı yerel saati** (2026-07-03 ürün kararı). Zaman damgaları UTC saklanır (`AbpClockOptions.Kind=Utc` hedefi); UI her kullanıcının tarayıcı/masaüstü saatine çevirip gösterir (merkezi dönüşüm — sayfa-başı elle çeviri YOK). İSTİSNA: kullanıcının seçtiği İŞ TARİHİ alanları (VoucherDate gibi) date-only semantiktir, timezone kaydırmasına GİRMEZ (gün kayması yasak). Geçiş planı: zaman/kültür denetim raporu.
 - **ViewModel emekli:** flat edit formları GetDto-direct (`CrudEditComponentBase<TGetDto>`, Save'de `ObjectMapper.Map` Mapperly); drill/tree → Contracts input-DTO + DrillList. Client-side ViewModel YOK.
+- **TEK fiziksel DB** (2026-07-10 keşfi): `AbpTenantConnectionStrings` boş — 14 tenant'ın tümü tek `TradeXpress` DB'sini paylaşıyor; migration'lar TEK DB'ye uygulanır ("3 DB'ye uygula" adımı YOK). `Integration.TradeXpress_company1/_ekuyumcu/_Service` DB'leri ESKİ projelerin kalıntısı, bu app'in değil (DOKUNMA). DbMigrator secrets için proje klasöründen çalıştırılır (repo kökünden content-root bulunamaz).
 
 ## 7) Referans kaynakları (ERP iş kuralı araştırması)
 "Eski projeye kendiliğinden referans yapma" kuralı **eski KOD/desen/karar taşımak** içindir. **İSTİSNA — bunlar tasarlanmış canlı araştırma kaynağı, voucher/cari/maden/bilanço işinde serbestçe bakılır:**
