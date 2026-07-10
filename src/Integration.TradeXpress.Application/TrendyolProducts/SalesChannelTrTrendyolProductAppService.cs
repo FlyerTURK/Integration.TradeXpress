@@ -7,6 +7,7 @@ using Integration.TradeXpress.Permissions;
 using Integration.TradeXpress.Products;
 using Integration.TradeXpress.SalesChannels;
 using Integration.TradeXpress.SalesChannels.Variants;
+using Integration.TradeXpress.Substitutions;
 using Integration.TradeXpress.TrendyolCategories;
 using Integration.TradeXpress.Vouchers;
 using Microsoft.AspNetCore.Authorization;
@@ -38,6 +39,7 @@ public class SalesChannelTrTrendyolProductAppService : TradeXpressAppService, IS
     private readonly IRepository<SalesChannelTrTrendyolProductAttribute, Guid> _channelAttributeRepository;
     private readonly IRepository<SalesChannelTrTrendyolProductAttributeValue, Guid> _channelAttributeValueRepository;
     private readonly RecipeCostPopulator _recipeCostPopulator;
+    private readonly SubstitutionChannelPlanProvider _substitutionPlanProvider;
     private readonly ICurrentCompany _currentCompany;
     private readonly ITrendyolProductClient _client;
     private readonly ITrendyolCategoryAppService _categoryAppService;
@@ -57,6 +59,7 @@ public class SalesChannelTrTrendyolProductAppService : TradeXpressAppService, IS
         IRepository<SalesChannelTrTrendyolProductAttribute, Guid> channelAttributeRepository,
         IRepository<SalesChannelTrTrendyolProductAttributeValue, Guid> channelAttributeValueRepository,
         RecipeCostPopulator recipeCostPopulator,
+        SubstitutionChannelPlanProvider substitutionPlanProvider,
         ICurrentCompany currentCompany,
         ITrendyolProductClient client,
         ITrendyolCategoryAppService categoryAppService,
@@ -75,6 +78,7 @@ public class SalesChannelTrTrendyolProductAppService : TradeXpressAppService, IS
         _channelAttributeRepository = channelAttributeRepository;
         _channelAttributeValueRepository = channelAttributeValueRepository;
         _recipeCostPopulator = recipeCostPopulator;
+        _substitutionPlanProvider = substitutionPlanProvider;
         _currentCompany = currentCompany;
         _client = client;
         _categoryAppService = categoryAppService;
@@ -105,6 +109,18 @@ public class SalesChannelTrTrendyolProductAppService : TradeXpressAppService, IS
         }
 
         return dtos;
+    }
+
+    public virtual async Task<List<SalesChannelTrTrendyolProductDto>> GetListForChannelAsync(Guid salesChannelId)
+    {
+        var companyId = EnsureCurrentCompanyId();
+        var items = await AsyncExecuter.ToListAsync(
+            (await _repository.GetQueryableAsync())
+                .Where(x => x.CompanyId == companyId && x.SalesChannelId == salesChannelId)
+                .OrderBy(x => x.CategoryName));
+        return items
+            .Select(x => ObjectMapper.Map<SalesChannelTrTrendyolProduct, SalesChannelTrTrendyolProductDto>(x))
+            .ToList();
     }
 
     public virtual async Task<SalesChannelTrTrendyolProductDto> GetAsync(Guid id)
@@ -275,6 +291,82 @@ public class SalesChannelTrTrendyolProductAppService : TradeXpressAppService, IS
         var dto = ObjectMapper.Map<SalesChannelTrTrendyolProduct, SalesChannelTrTrendyolProductDto>(entity);
         await PopulateStockItemGraphAsync(entity, dto);
         return dto;
+    }
+
+    /// <summary>Muadil M4 köprüsü — Top-N BAŞARILI kombinasyonu bu Trendyol ürününün StockItem'larına dönüştürür.
+    /// N11 adaptörüyle AYNI nötr planı (<see cref="SubstitutionStockItemPlanner"/>, <see cref="SubstitutionChannelPlanProvider"/>)
+    /// tüketir; uygulama MEVCUT kartezyen reconcile yolundan (<see cref="SaveAttributesAndReconcileAsync"/>) geçer —
+    /// paralel kayıt yolu YOK. Reçete → maliyet zinciri → türetilmiş fiyat; OverrideStock = paket sayısı;
+    /// Rank sırası = değer DisplayOrder'ı (ilk sıra = ANA varyant). Yalnız "Kombinasyon" özelliği yönetilir.</summary>
+    [Authorize(TradeXpressPermissions.SalesChannels.Update)]
+    public virtual async Task<SubstitutionApplyResultDto> ApplySubstitutionAsync(Guid id, SubstitutionApplyInput input)
+    {
+        var entity = await GetOwnedAsync(id);
+
+        // Orkestrasyon KANAL-AGNOSTİK gövdede (SubstitutionChannelPlanProvider.ApplyAsync — N11 ile TEK akış);
+        // bu adaptör yalnız Trendyol graf tiplerini bağlar: özellik/değer okuma, upsert planı → Trendyol DTO
+        // çevirisi + MEVCUT persist/reconcile yolu (SaveAttributesAndReconcileAsync) ve StockItem
+        // paket stoğu + reçete yazımı (ReplaceChannelRecipeLinesAsync).
+        return await _substitutionPlanProvider.ApplyAsync<SalesChannelTrTrendyolProductStockItem>(
+            input,
+            loadChannelAttributesAsync: async () =>
+                (await LoadChannelAttributeEntitiesAsync(entity.Id))
+                    .Select(a => new SubstitutionChannelAttributeRef(a.Id, a.Name, a.DisplayOrder))
+                    .ToList(),
+            loadCombinationValuesAsync: async attributeId =>
+                (await LoadChannelAttributeValueEntitiesAsync(new List<Guid> { attributeId }))
+                    .Select(v => (v.Id, v.Value))
+                    .ToList(),
+            persistAndReconcileAsync: async upsert =>
+            {
+                var attributeInput = ToCombinationAttributeDto(upsert);
+                await SaveAttributesAndReconcileAsync(entity, new List<SalesChannelTrTrendyolProductAttributeDto> { attributeInput });
+
+                // Upsert sonrası geri yazılmış GERÇEK id'ler — girdi sırası korunur (binding i ↔ ValueIds[i]).
+                return (attributeInput.Id, attributeInput.Values.Where(v => !v.IsDeleted).Select(v => v.Id).ToList());
+            },
+            loadCombinationHeadersAsync: async () => await AsyncExecuter.ToListAsync(
+                (await _stockItemRepository.GetQueryableAsync())
+                    .Where(h => h.SalesChannelTrTrendyolProductId == entity.Id && h.CombinationSignature != null)),
+            signatureOf: h => h.CombinationSignature!,
+            applyCombinationToHeaderAsync: async (header, packageCount, recipeLines) =>
+            {
+                header.SetOverrideStock(packageCount);
+                await _stockItemRepository.UpdateAsync(header, autoSave: true);
+                await ReplaceChannelRecipeLinesAsync(entity, header.Id, recipeLines);
+            });
+    }
+
+    /// <summary>Kanal-nötr upsert planı → Trendyol attribute DTO'su. Silinen değerde yalnız Id + IsDeleted taşınır
+    /// (mevcut davranışla birebir — SaveAttributesGraphAsync silme dalı yalnız Id'ye bakar).</summary>
+    private static SalesChannelTrTrendyolProductAttributeDto ToCombinationAttributeDto(SubstitutionCombinationAttributeUpsert upsert)
+    {
+        return new SalesChannelTrTrendyolProductAttributeDto
+        {
+            Id           = upsert.AttributeId,
+            Name         = upsert.Name,
+            DisplayOrder = upsert.DisplayOrder,
+            Values = upsert.Values
+                .Select(v => v.IsDeleted
+                    ? new SalesChannelTrTrendyolProductAttributeValueDto { Id = v.Id, IsDeleted = true }
+                    : new SalesChannelTrTrendyolProductAttributeValueDto { Id = v.Id, Value = v.ValueText, DisplayOrder = v.DisplayOrder })
+                .ToList(),
+        };
+    }
+
+    /// <summary>Köprü, kombinasyon StockItem REÇETESİNİN sahibidir: mevcut satırlar silinir + plan satırları yazılır.
+    /// Persist mekaniği MEVCUT <see cref="SaveChannelRecipeLinesAsync"/> (paralel kayıt yolu açılmaz).</summary>
+    private async Task ReplaceChannelRecipeLinesAsync(
+        SalesChannelTrTrendyolProduct channelProduct, Guid stockItemId, List<ProductRecipeLineGraphDto> freshLines)
+    {
+        var existing = await AsyncExecuter.ToListAsync(
+            (await _channelRecipeLineRepository.GetQueryableAsync())
+                .Where(r => r.SalesChannelTrTrendyolProductId == channelProduct.Id && r.StockItemId == stockItemId));
+        var lines = existing
+            .Select(r => new ProductRecipeLineGraphDto { Id = r.Id, IsDeleted = true, ComponentType = r.ComponentType })
+            .Concat(freshLines)
+            .ToList();
+        await SaveChannelRecipeLinesAsync(channelProduct, stockItemId, lines);
     }
 
     [Authorize(TradeXpressPermissions.SalesChannels.Update)]

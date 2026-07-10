@@ -1,0 +1,22 @@
+@page "/substitutions/new"
+@page "/substitutions/{Id:guid}"
+@using System
+@using Integration.TradeXpress.Substitutions
+@using Integration.Framework.Blazor.Client.Components.Crud
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@*
+   Muadil grubu edit host = ince sarmal (Account deseni): coordinator + maden picker adayları.
+   CompanyId sunucuda working-context'ten zorlanır (client göndermez). commit/save generic host'ta.
+*@
+
+@if (_coordinator != null && _ready)
+{
+    <CrudEditHost TGetDto="SubstitutionGroupGetDto" TListDto="SubstitutionGroupListDto" TKey="Guid" TListRequestDto="SubstitutionGroupListRequestDto"
+                  Coordinator="@_coordinator" Id="@(Id ?? Guid.Empty)" IsPopupMode="@IsPopupMode" OnSaved="@OnSaved" OnClosed="@OnClosed"
+                  FormCaption="@L["SubstitutionGroup"].Value" IconCssClass="@TradeXpressIcons.Substitution"
+                  EntityValue="@(m => m.Code)"
+                  ApplyNewDefaults="@(m => ApplyNew(m))">
+        <SubstitutionGroupLayout Model="@context" IsNew="@(context.Id == Guid.Empty)" Metals="@_metals" />
+    </CrudEditHost>
+}

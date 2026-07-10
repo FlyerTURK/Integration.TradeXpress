@@ -1,0 +1,38 @@
+@page "/substitutions"
+@using Integration.Framework.Blazor.Client.Components.Crud
+@using Integration.TradeXpress.Substitutions
+@using DevExpress.Blazor
+@inherits CrudPageBase<SubstitutionGroupGetDto, SubstitutionGroupListDto, Guid, SubstitutionGroupListRequestDto, SubstitutionGroupCreateDto, SubstitutionGroupUpdateDto>
+
+@* Muadil Grupları listesi — server-side grid standardı (ListRequestDto + ListQueryableExtensions).
+   IsActive switch filtresi otomatik (TListDto IIsActive) → Status kolonu KOYULMAZ (ui-blazor kuralı). *@
+
+<CrudLayout TGetDto="SubstitutionGroupGetDto"
+            TListDto="SubstitutionGroupListDto"
+            TKey="Guid"
+            StateService="StateService"
+            DataSource="@GridDataSource"
+            EntityName="@L["SubstitutionGroup"]"
+            EntityIcon="@TradeXpressIcons.Substitution"
+            PrimaryTextSelector="@(m => m.Code)"
+            PageTitle="@L["SubstitutionGroups"]"
+            OnNewClick="BeforeCreateAsync"
+            OnUpdateClick="BeforeUpdateAsync"
+            OnDeleteClick="DeleteAsync"
+            OnRefreshClick="GetListAsync"
+            OnSearchChanged="OnSearchAsync">
+
+    <GridColumns>
+        <GridLinkColumn FieldName="Code" Caption="@L["Code"]" Width="140px" FixedPosition="GridColumnFixedPosition.Left" VisibleIndex="1"
+                        OnClick="@(o => BeforeUpdateAsync((SubstitutionGroupListDto)o))" />
+        <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" VisibleIndex="1" MinWidth="200" />
+        <DxGridDataColumn FieldName="ToleranceType" Caption="@L["ToleranceType"]" Width="130px" VisibleIndex="2">
+            <CellDisplayTemplate>
+                @L[$"Enum:ToleranceType:{((SubstitutionGroupListDto)context.DataItem).ToleranceType}"]
+            </CellDisplayTemplate>
+        </DxGridDataColumn>
+        <DxGridDataColumn FieldName="ToleranceValue" Caption="@L["ToleranceValue"]" Width="130px" VisibleIndex="3"
+                          TextAlignment="GridTextAlignment.Right" DisplayFormat="N3" />
+    </GridColumns>
+
+</CrudLayout>

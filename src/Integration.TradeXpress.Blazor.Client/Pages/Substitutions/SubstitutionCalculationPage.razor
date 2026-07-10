@@ -1,0 +1,147 @@
+@page "/substitutions/calculation"
+@using Integration.TradeXpress.Substitutions
+@inherits CrudComponentBase
+
+<PageTitle>@L["SubstitutionCalculation"]</PageTitle>
+
+@*
+   Muadil hesaplama ekranı — grup + talep miktarı + Top-N → solver'ın TÜM denemeleri (başarılı/başarısız)
+   kullanıcının ONAYLADIĞI tablo formatında (konsept.md örnek tabloları). Rank 1 = ANA kombinasyon (vurgulu).
+*@
+
+<div style="padding:12px; display:flex; flex-direction:column; gap:12px; height:100%;">
+
+    @* ── Girdi şeridi ── *@
+    <DxFormLayout CssClass="w-100">
+        <DxFormLayoutItem Caption="@L["SubstitutionGroup"]" ColSpanMd="4">
+            <DxComboBox Data="@_groups"
+                        TextFieldName="@nameof(SubstitutionGroupListDto.Name)"
+                        ValueFieldName="@nameof(SubstitutionGroupListDto.Id)"
+                        @bind-Value="_groupId"
+                        NullText="@L["Select"].Value"
+                        SearchMode="ListSearchMode.AutoSearch"
+                        SearchFilterCondition="ListSearchFilterCondition.Contains"
+                        ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["Substitution:TargetQuantity"]" ColSpanMd="3">
+            <NumericSpinEdit @bind-Value="_targetQuantity" DisplayFormat="N5" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["Substitution:TopN"]" ColSpanMd="2">
+            <NumericSpinEdit @bind-Value="_topN" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem ColSpanMd="3">
+            <DxButton Text="@L["Substitution:Calculate"]"
+                      Click="@CalculateAsync"
+                      Enabled="@(!_busy && _groupId != null && _targetQuantity > 0m)"
+                      RenderStyleMode="ButtonRenderStyleMode.Contained"
+                      RenderStyle="ButtonRenderStyle.Primary"
+                      IconCssClass="@(_busy ? TradeXpressIcons.Spinner : TradeXpressIcons.Check)"
+                      CssClass="mt-1" />
+        </DxFormLayoutItem>
+    </DxFormLayout>
+
+    @if (_result != null)
+    {
+        @* ── Özet şeridi: deneme/başarılı sayısı · etkin tolerans · elenen emtialar ── *@
+        <div style="display:flex; flex-wrap:wrap; gap:16px; align-items:center; font-size:13px;">
+            <span><b>@L["Substitution:TrialCount"]:</b> @_result.TrialCount</span>
+            <span><b>@L["Substitution:SuccessCount"]:</b> @_result.SuccessCount</span>
+            <span><b>@L["Substitution:EffectiveTolerance"]:</b> @_result.EffectiveTolerance.ToString("0.#####") gr</span>
+            @if (_result.FilteredOut.Count > 0)
+            {
+                <span>
+                    <b>@L["Substitution:FilteredOut"]:</b>
+                    @string.Join(" · ", _result.FilteredOut.Select(f => $"{f.MetalCode} ({FilterReasonText(f.Reason)})"))
+                </span>
+            }
+        </div>
+
+        @* Toplam kapasite talebin altında → numaralandırma hiç başlatılmadı (2026-07-10 kararı) — bilgi bandı. *@
+        @if (_result.InsufficientStock)
+        {
+            <div style="padding:8px 12px; border-left:3px solid #dc2626; background:rgba(220,38,38,0.08); font-size:13px;">
+                @L["Substitution:InsufficientStock",
+                   _result.TotalAvailableWeight.ToString("0.#####"),
+                   _result.TargetQuantity.ToString("0.#####")]
+            </div>
+        }
+
+        @* ── Kanala Uygula (M4 köprüsü) — yalnız başarılı hesap sonrası; Top-N girdisi yukarıdan
+             yeniden kullanılır. Pazaryerine GÖNDERMEZ: yerel kanal ürününe "Kombinasyon" özelliği +
+             varyantları yazılır (read-only pazaryeri ilkesi; canlı push ayrı onaylı adım). ── *@
+        @if (_result.SuccessCount > 0)
+        {
+            <DxFormLayout CssClass="w-100">
+                <DxFormLayoutGroup Caption="@L["Substitution:ApplyToChannel"]" ColSpanMd="12">
+                    <DxFormLayoutItem Caption="@L["Substitution:ChannelProduct"]" ColSpanMd="6">
+                        <DxComboBox Data="@_channelProductOptions"
+                                    TextFieldName="@nameof(ChannelProductOption.Label)"
+                                    ValueFieldName="@nameof(ChannelProductOption.Id)"
+                                    @bind-Value="_selectedChannelProductId"
+                                    NullText="@L["Select"].Value"
+                                    SearchMode="ListSearchMode.AutoSearch"
+                                    SearchFilterCondition="ListSearchFilterCondition.Contains"
+                                    ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
+                    </DxFormLayoutItem>
+                    <DxFormLayoutItem ColSpanMd="3">
+                        <DxButton Text="@L["Substitution:Apply"]"
+                                  Click="@ApplyToChannelAsync"
+                                  Enabled="@(!_applyBusy && _selectedChannelProductId != null)"
+                                  RenderStyleMode="ButtonRenderStyleMode.Contained"
+                                  RenderStyle="ButtonRenderStyle.Primary"
+                                  IconCssClass="@(_applyBusy ? TradeXpressIcons.Spinner : TradeXpressIcons.Swap)"
+                                  CssClass="mt-1" />
+                    </DxFormLayoutItem>
+                    <DxFormLayoutItem ColSpanMd="12">
+                        <div style="display:flex; align-items:center; gap:8px; font-size:12px; opacity:0.8;">
+                            <i class="@TradeXpressIcons.Lightbulb" aria-hidden="true"></i>
+                            <span>@L["Substitution:ApplyInfo", _topN > 0 ? _topN : SubstitutionCalculationConsts.DefaultTopN]</span>
+                        </div>
+                    </DxFormLayoutItem>
+                </DxFormLayoutGroup>
+            </DxFormLayout>
+        }
+
+        @* ── Deneme tablosu: TÜM kombinasyonlar — başarılılar üstte Rank sırasıyla (2026-07-10 kullanıcı
+             kararı), sayfalama YOK (sanal kaydırma — liste tek parça akar; Rank 1 = ANA, belirgin).
+             AllowSort=false: veri kullanıcı kararıyla ÖN-SIRALI (BuildRows) — kolon sort'u StateKey ile
+             kalıcılaşıp bu dizilimi ezerdi (Rank artan sort'ta null-Rank başarısızlar üste çıkar);
+             StateKey kolon genişlik/sıra kalıcılığı için kalır. ── *@
+        <TxGrid Data="@_rows" StateKey="substitution:calculation" CustomizeElement="OnCustomizeRow"
+                PagerVisible="false" VirtualScrollingEnabled="true" AllowSort="false" style="flex:1; min-height:0;">
+            <Columns>
+                <DxGridDataColumn FieldName="@nameof(TrialRow.TrialNo)" Caption="#" Width="60px"
+                                  TextAlignment="GridTextAlignment.Right" />
+                <DxGridDataColumn FieldName="@nameof(TrialRow.Combination)" Caption="@L["Substitution:Combination"]" MinWidth="220" />
+                <DxGridDataColumn FieldName="@nameof(TrialRow.TotalWeight)" Caption="@L["Substitution:TotalWeight"]" Width="110px"
+                                  TextAlignment="GridTextAlignment.Right" DisplayFormat="n4" />
+                <DxGridDataColumn FieldName="@nameof(TrialRow.Deviation)" Caption="@L["Substitution:Deviation"]" Width="100px"
+                                  TextAlignment="GridTextAlignment.Right" DisplayFormat="n4" />
+                <DxGridDataColumn FieldName="@nameof(TrialRow.TotalCost)" Caption="@CostCaption" Width="130px"
+                                  TextAlignment="GridTextAlignment.Right" DisplayFormat="n2" />
+                <DxGridDataColumn FieldName="@nameof(TrialRow.PieceCount)" Caption="@L["Substitution:PieceCount"]" Width="90px"
+                                  TextAlignment="GridTextAlignment.Right" />
+                <DxGridDataColumn FieldName="@nameof(TrialRow.PackageCount)" Caption="@L["Substitution:PackageCount"]" Width="90px"
+                                  TextAlignment="GridTextAlignment.Right" />
+                <DxGridDataColumn FieldName="@nameof(TrialRow.StatusText)" Caption="@L["Status"]" MinWidth="160">
+                    <CellDisplayTemplate>
+                        @{ var row = (TrialRow)context.DataItem; }
+                        @if (row.Success)
+                        {
+                            <span style="display:flex; align-items:center; gap:0.35rem;">
+                                <i class="@TradeXpressIcons.CheckCircle" aria-hidden="true" style="color:#16a34a;"></i>@row.StatusText
+                            </span>
+                        }
+                        else
+                        {
+                            <span style="color:#dc2626;">@row.StatusText</span>
+                        }
+                    </CellDisplayTemplate>
+                </DxGridDataColumn>
+                <DxGridDataColumn FieldName="@nameof(TrialRow.Rank)" Caption="@L["Substitution:Rank"]" Width="80px"
+                                  TextAlignment="GridTextAlignment.Right" />
+            </Columns>
+        </TxGrid>
+    }
+
+</div>

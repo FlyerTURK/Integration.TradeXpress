@@ -118,6 +118,12 @@ public class TradeXpressPermissionDefinitionProvider : PermissionDefinitionProvi
         products.AddChild(TradeXpressPermissions.Products.Update, L("Permission:Update"));
         products.AddChild(TradeXpressPermissions.Products.Delete, L("Permission:Delete"));
 
+        var substitutions = myGroup.AddPermission(
+            TradeXpressPermissions.Substitutions.Default, L("Permission:Substitutions"));
+        substitutions.AddChild(TradeXpressPermissions.Substitutions.Create, L("Permission:Create"));
+        substitutions.AddChild(TradeXpressPermissions.Substitutions.Update, L("Permission:Update"));
+        substitutions.AddChild(TradeXpressPermissions.Substitutions.Delete, L("Permission:Delete"));
+
         var accounts = myGroup.AddPermission(
             TradeXpressPermissions.Accounts.Default, L("Permission:Accounts"));
         accounts.AddChild(TradeXpressPermissions.Accounts.Create, L("Permission:Create"));

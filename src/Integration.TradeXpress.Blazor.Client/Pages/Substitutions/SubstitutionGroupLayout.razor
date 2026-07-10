@@ -1,0 +1,89 @@
+@using System
+@using Integration.TradeXpress.Substitutions
+@using Integration.TradeXpress.Metals
+@using Integration.Framework.Blazor.Client.Components.Crud
+@using Integration.Framework.Blazor.Client.Components.Shared
+@using DevExpress.Blazor
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@*
+   Muadil grubu DUMB Layout — SubstitutionGroupGetDto. Standart form sırası: Kod yarım → Ad tam →
+   Tür (şimdilik yalnız Metal — sabit/disabled) + Tolerans türü/değeri → Description → Status →
+   EN SON emtia drill'i (liste sırası = tüketim önceliği; üsttekiler önce tüketilir).
+*@
+
+<DxFormLayout CssClass="w-100">
+    <DxFormLayoutGroup Caption="@L["General"]" ColSpanMd="12">
+        <DxFormLayoutItem Caption="@($"{L["Code"]} *")" ColSpanMd="6">
+            <DxTextBox @bind-Text="@Model.Code" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="12">
+            <DxTextBox @bind-Text="@Model.Name" />
+        </DxFormLayoutItem>
+
+        @* Tür şimdilik yalnız Metal → disabled combo (ileride Mamül vb. genişleyince açılır). *@
+        <DxFormLayoutItem Caption="@L["SubstitutionType"]" ColSpanMd="4">
+            <ComboBoxEnumEdit TEnum="SubstitutionType" L="@L" @bind-Value="@Model.Type" Enabled="false" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["ToleranceType"]" ColSpanMd="4">
+            <ComboBoxEnumEdit TEnum="ToleranceType" L="@L" @bind-Value="@Model.ToleranceType" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["ToleranceValue"]" ColSpanMd="4">
+            <NumericSpinEdit @bind-Value="@Model.ToleranceValue" DisplayFormat="N5" />
+        </DxFormLayoutItem>
+
+        <DxFormLayoutItem Caption="@L["Description"]" ColSpanMd="12">
+            <DxMemo @bind-Text="@Model.Description" Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6">
+            <DxCheckBox @bind-Checked="@Model.IsActive" CheckType="CheckType.Switch">
+                @(Model.IsActive ? L["Active"] : L["Passive"])
+            </DxCheckBox>
+        </DxFormLayoutItem>
+    </DxFormLayoutGroup>
+</DxFormLayout>
+
+@* Emtia satırları — in-memory drill (graf); grup save'inde tek komutla yazılır (Account→SubAccount deseni).
+   DisplayOrder = tüketim önceliği: küçük önce tüketilir, zor bulunan emtia listenin SONUNA konur. *@
+<DrillTabs CssClass="mt-3">
+    <DxTabPage Text="@L["SubstitutionItems"]" TabIconCssClass="@TradeXpressIcons.Metal">
+        <DrillList TItem="SubstitutionGroupItemGraphDto"
+                   @ref="_itemsDrill"
+                   Title="@L["SubstitutionItems"]"
+                   EntityName="@L["Metal"]"
+                   EntityIcon="@TradeXpressIcons.Metal"
+                   Items="Model.Items"
+                   KeyFieldName="ClientKey"
+                   PrimaryTextSelector="@(i => i.MetalCode)"
+                   NewItemFactory="@NewItem"
+                   SoftDelete="true"
+                   IsNewItem="@(i => i.Id == Guid.Empty)"
+                   MarkDeleted="@(i => i.IsDeleted = true)"
+                   FilterPredicate="@(i => !i.IsDeleted)"
+                   OnItemSaved="@OnItemSaved"
+                   OnChanged="@(() => EditChanged?.Invoke())">
+            <GridColumns>
+                <GridLinkColumn FieldName="MetalCode" Caption="@L["Metal"]" Width="180px" FixedPosition="GridColumnFixedPosition.Left" VisibleIndex="1"
+                                OnClick="@(item => _itemsDrill?.EditItem((SubstitutionGroupItemGraphDto)item))" />
+                <DxGridDataColumn FieldName="DisplayOrder" Caption="@L["ConsumptionOrder"]" Width="170px" VisibleIndex="2"
+                                  TextAlignment="GridTextAlignment.Right" SortIndex="0" SortOrder="GridColumnSortOrder.Ascending" />
+            </GridColumns>
+            <EditContent Context="item">
+                <DxFormLayout CssClass="w-100">
+                    <DxFormLayoutItem Caption="@($"{L["Metal"]} *")" ColSpanMd="12">
+                        <LookupComboBox TItem="MetalListDto" TValue="Guid?"
+                                        Data="@Metals"
+                                        ValueFieldName="@nameof(MetalListDto.Id)"
+                                        TextFieldName="@nameof(MetalListDto.Code)"
+                                        @bind-Value="@item.MetalId"
+                                        SearchFilterCondition="ListSearchFilterCondition.Contains"
+                                        NullText="@L["Select"].Value" />
+                    </DxFormLayoutItem>
+                    <DxFormLayoutItem Caption="@L["ConsumptionOrder"]" ColSpanMd="6">
+                        <NumericSpinEdit @bind-Value="@item.DisplayOrder" />
+                    </DxFormLayoutItem>
+                </DxFormLayout>
+            </EditContent>
+        </DrillList>
+    </DxTabPage>
+</DrillTabs>

@@ -159,6 +159,25 @@ public class TradeXpressMenuContributor : IMenuContributor
         ));
 
         commodities.AddItem(metalsMenu);
+
+        // Muadil Grupları — madenlerin ikame tanımı (adet-hesaplı + standart gramaj); Metals'in hemen altında.
+        // Alt kalem: Muadil Hesaplama (grup + talep miktarı → Top-N kombinasyon tablosu).
+        var substitutionsMenu = new ApplicationMenuItem(
+            TradeXpressMenus.Substitutions,
+            l["SubstitutionGroups"],
+            url: "/substitutions",
+            icon: TradeXpressIcons.Substitution
+        ).RequirePermissions(TradeXpressPermissions.Substitutions.Default);
+        substitutionsMenu.CssClass = "underline-menu-item";
+
+        substitutionsMenu.AddItem(new ApplicationMenuItem(
+            TradeXpressMenus.SubstitutionCalculation,
+            l["SubstitutionCalculation"],
+            url: "/substitutions/calculation",
+            icon: TradeXpressIcons.Report
+        ));
+
+        commodities.AddItem(substitutionsMenu);
         commodities.AddItem(new ApplicationMenuItem(
             TradeXpressMenus.Stones,
             l["Stones"],

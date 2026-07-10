@@ -92,6 +92,12 @@
     [Parameter] public bool? AllowSelectRowByClick { get; set; }
     [Parameter] public bool? PagerVisible { get; set; }
     [Parameter] public GridEditMode? EditMode { get; set; }
+    [Parameter] public bool? VirtualScrollingEnabled { get; set; }
+
+    /// <summary>false → kullanıcı kolon sort'u KAPALI (analitik/ön-sıralı tablolar için). StateKey varsa daha önce
+    /// KAYDEDİLMİŞ sort da restore edilmez (DxGrid layout restore sort'u AllowSort'tan bağımsız programatik uygular
+    /// — bayat sort ön-sıralı dizilimi ezmesin); genişlik/sıra kalıcılığı aynen sürer. null = DxGrid default (true).</summary>
+    [Parameter] public bool? AllowSort { get; set; }
 
     /// <summary>Yukarıda tanımlı OLMAYAN DxGrid parametreleri (style/class + ileride eklenecekler).
     /// Non-string bir param LİTERAL verilecekse önce yukarıya tipli [Parameter] olarak ekle (literal=string → cast hatası).</summary>
@@ -108,7 +114,7 @@
     {
         get
         {
-            if (SelectionMode is null && PageSize is null && AllowSelectRowByClick is null && PagerVisible is null && EditMode is null)
+            if (SelectionMode is null && PageSize is null && AllowSelectRowByClick is null && PagerVisible is null && EditMode is null && VirtualScrollingEnabled is null && AllowSort is null)
                 return Attributes;
             var d = Attributes is null ? new() : new Dictionary<string, object>(Attributes);
             if (SelectionMode.HasValue) d["SelectionMode"] = SelectionMode.Value;
@@ -116,6 +122,8 @@
             if (AllowSelectRowByClick.HasValue) d["AllowSelectRowByClick"] = AllowSelectRowByClick.Value;
             if (PagerVisible.HasValue) d["PagerVisible"] = PagerVisible.Value;
             if (EditMode.HasValue) d["EditMode"] = EditMode.Value;
+            if (VirtualScrollingEnabled.HasValue) d["VirtualScrollingEnabled"] = VirtualScrollingEnabled.Value;
+            if (AllowSort.HasValue) d["AllowSort"] = AllowSort.Value;
             return d;
         }
     }
@@ -129,6 +137,19 @@
         var json = await UiState.GetGridStateAsync(StateKey);
         if (!string.IsNullOrWhiteSpace(json))
             try { e.Layout = System.Text.Json.JsonSerializer.Deserialize<GridPersistentLayout>(json); } catch { }
+
+        // Sort kapalıyken (AllowSort=false) DAHA ÖNCE kaydedilmiş sort restore edilmez: layout restore
+        // SortIndex'i AllowSort'tan bağımsız programatik uygular → bayat sort ön-sıralı veriyi ezerdi
+        // (üstelik sort UI'ı kapalı olduğundan kullanıcı temizleyemezdi). Genişlik/sıra aynen yüklenir.
+        // Layout tipleri record (init-only) → kolonlar SortIndex=-1 kopyalarıyla yeniden kurulur.
+        if (AllowSort == false && e.Layout is { Columns: { } columns })
+        {
+            e.Layout = e.Layout with
+            {
+                Columns = new GridPersistentLayoutCollection<GridPersistentLayoutColumn>(
+                    columns.Select(c => c with { SortIndex = -1 })),
+            };
+        }
     }
 
     private async Task OnLayoutSaving(GridPersistentLayoutEventArgs e)

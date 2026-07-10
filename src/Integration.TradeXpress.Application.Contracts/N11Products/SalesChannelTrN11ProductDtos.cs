@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Integration.TradeXpress.Products;
+using Integration.TradeXpress.Substitutions;
 using Volo.Abp.Application.Services;
 
 namespace Integration.TradeXpress.N11Products;
@@ -368,4 +369,8 @@ public interface ISalesChannelTrN11ProductAppService : IApplicationService
     /// yalnız bu N11 kaydının kombinasyon setini yeniler. Full Update ile aynı reconcile mekanizmasını kullanır
     /// (SaveAttributesAndReconcileAsync).</summary>
     Task<SalesChannelTrN11ProductDto> RegenerateStockItemsAsync(Guid id, List<SalesChannelTrN11ProductAttributeDto> productAttributes);
+
+    /// <summary>Muadil M4 köprüsü: Top-N başarılı kombinasyonu bu ürünün "Kombinasyon" özelliği + StockItem'ları
+    /// (reçete + paket stoğu) olarak uygular — tek motor zinciri; yeniden uygulama imza-bazlı reconcile'dır.</summary>
+    Task<SubstitutionApplyResultDto> ApplySubstitutionAsync(Guid id, SubstitutionApplyInput input);
 }

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Integration.TradeXpress.Products;
+using Integration.TradeXpress.Substitutions;
 using Volo.Abp.Application.Services;
 
 namespace Integration.TradeXpress.TrendyolProducts;
@@ -299,6 +300,9 @@ public interface ISalesChannelTrTrendyolProductAppService : IApplicationService
     /// OLABİLİR (N11 ile aynı 2026-07-07 kararı); kanal set-once (değiştirilemez).</summary>
     Task<List<SalesChannelTrTrendyolProductDto>> GetListForProductAsync(Guid productId);
 
+    /// <summary>Bir KANALA ait tüm ürün listelemeleri (kanal-merkezli yönetim görünümü — N11 paritesi).</summary>
+    Task<List<SalesChannelTrTrendyolProductDto>> GetListForChannelAsync(Guid salesChannelId);
+
     Task<SalesChannelTrTrendyolProductDto> GetAsync(Guid id);
 
     Task<SalesChannelTrTrendyolProductDto> CreateAsync(SalesChannelTrTrendyolProductCreateDto input);
@@ -323,4 +327,9 @@ public interface ISalesChannelTrTrendyolProductAppService : IApplicationService
     /// yalnız bu Trendyol kaydının kombinasyon setini yeniler. Full Update ile aynı reconcile mekanizmasını kullanır
     /// (SaveAttributesAndReconcileAsync).</summary>
     Task<SalesChannelTrTrendyolProductDto> RegenerateStockItemsAsync(Guid id, List<SalesChannelTrTrendyolProductAttributeDto> productAttributes);
+
+    /// <summary>Muadil M4 köprüsü: Top-N başarılı kombinasyonu bu ürünün "Kombinasyon" özelliği + StockItem'ları
+    /// (reçete + paket stoğu) olarak uygular — tek motor zinciri; yeniden uygulama imza-bazlı reconcile'dır.
+    /// N11 adaptörüyle AYNI nötr planı (SubstitutionStockItemPlanner) tüketir.</summary>
+    Task<SubstitutionApplyResultDto> ApplySubstitutionAsync(Guid id, SubstitutionApplyInput input);
 }

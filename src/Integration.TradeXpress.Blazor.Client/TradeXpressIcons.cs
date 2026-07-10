@@ -30,6 +30,9 @@ public static class TradeXpressIcons
     public const string Product = "custom-icon-commodities";
     public const string ProductVariant = "custom-icon-list";
 
+    // ── Muadil (Substitution) ── mevcut swap ikonu yeniden kullanılır (ikame = takas; yeni CSS yok).
+    public const string Substitution = "custom-icon-swap";
+
     // ── Hesaplar ──
     public const string Account = "custom-icon-account";
     public const string SubAccount = "custom-icon-list";
@@ -71,6 +74,7 @@ public static class TradeXpressIcons
     public const string Swap = "custom-icon-swap";
     public const string AddressCard = "custom-icon-address-card";
     public const string Check = "custom-icon-check";
+    public const string CheckCircle = "custom-icon-check-circle";
     public const string Refresh = "custom-icon-refresh";
     public const string Warning = "custom-icon-warning";
     public const string Percent = "custom-icon-percent";

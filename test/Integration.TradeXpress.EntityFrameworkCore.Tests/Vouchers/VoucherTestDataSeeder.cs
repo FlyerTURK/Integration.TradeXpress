@@ -5,6 +5,7 @@ using Integration.TradeXpress.Accounts;
 using Integration.TradeXpress.Authorization;
 using Integration.TradeXpress.Branches;
 using Integration.TradeXpress.Companies;
+using Integration.TradeXpress.Countries;
 using Integration.TradeXpress.Financials.CurrencyUnits;
 using Integration.TradeXpress.Vaults;
 using Volo.Abp.Data;
@@ -43,6 +44,7 @@ public class VoucherTestDataSeeder : ITransientDependency
     private readonly IRepository<Account, Guid> _accountRepository;
     private readonly IRepository<SubAccount, Guid> _subAccountRepository;
     private readonly IRepository<CurrencyUnit, Guid> _unitRepository;
+    private readonly IRepository<Country, Guid> _countryRepository;
     private readonly IRepository<UserScopedGrant, Guid> _grantRepository;
     private readonly ICurrentUser _currentUser;
     private readonly IDataFilter _dataFilter;
@@ -54,6 +56,7 @@ public class VoucherTestDataSeeder : ITransientDependency
         IRepository<Account, Guid> accountRepository,
         IRepository<SubAccount, Guid> subAccountRepository,
         IRepository<CurrencyUnit, Guid> unitRepository,
+        IRepository<Country, Guid> countryRepository,
         IRepository<UserScopedGrant, Guid> grantRepository,
         ICurrentUser currentUser,
         IDataFilter dataFilter)
@@ -64,6 +67,7 @@ public class VoucherTestDataSeeder : ITransientDependency
         _accountRepository    = accountRepository;
         _subAccountRepository = subAccountRepository;
         _unitRepository       = unitRepository;
+        _countryRepository    = countryRepository;
         _grantRepository      = grantRepository;
         _currentUser          = currentUser;
         _dataFilter           = dataFilter;
@@ -135,6 +139,36 @@ public class VoucherTestDataSeeder : ITransientDependency
             new SubAccount(data.CompanyId, data.AccountId, data.BranchId, $"{prefix}SUB", $"{prefix} Counter Sub"),
             autoSave: true);
         return sub.Id;
+    }
+
+    /// <summary>Şirkete YEREL PARASI ÇÖZÜLEBİLEN gerçek bir ülke bağlar: Country(DefaultCurrencyUnitId=TRY)
+    /// insert + Company.CountryId güncellenir → <c>LocalCurrencyResolver</c> TRY'yi çözer; host seed'i TRY'ye
+    /// ham 1/1 kur yazdığından değerleme (GetValuationByBaseAsync) dolu döner (tüm birimler 1/1 varsayılan).
+    /// Kur-bağımlı senaryolar (muadil maliyet fail-fast'i) çağırır — varsayılan graf sentetik CountryId ile
+    /// kalır (yerel para bilinçli ÇÖZÜLMEZ). UoW içinden çağrılmalıdır.</summary>
+    public async Task AttachLocalCurrencyCountryAsync(VoucherTestData data, string prefix)
+    {
+        var country = await _countryRepository.InsertAsync(
+            new Country(BuildCountryCode(prefix), $"{prefix} Country", data.TryUnitId),
+            autoSave: true);
+
+        var company = await _companyRepository.GetAsync(data.CompanyId);
+        company.SetCountry(country.Id);
+        await _companyRepository.UpdateAsync(company, autoSave: true);
+    }
+
+    /// <summary>Ülke kodu ISO alpha-2 ile sınırlı (CountryConsts.CodeMaxLength=2) — prefix'ten deterministik
+    /// 2 harf türetir (aynı prefix aynı kod; farklı prefix'ler pratikte çakışmaz, test DB'leri izole).</summary>
+    private static string BuildCountryCode(string prefix)
+    {
+        var hash = 17;
+        foreach (var ch in prefix)
+        {
+            hash = unchecked(hash * 31 + ch);
+        }
+
+        hash = Math.Abs(hash);
+        return new string(new[] { (char)('A' + hash % 26), (char)('A' + hash / 26 % 26) });
     }
 
     /// <summary>Test kullanıcısına tenant-geneli coğrafi Grant garantisi (idempotent) — üretimdeki

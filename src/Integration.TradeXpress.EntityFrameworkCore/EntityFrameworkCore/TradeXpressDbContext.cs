@@ -115,6 +115,9 @@ public class TradeXpressDbContext :
     public DbSet<Integration.TradeXpress.TrendyolProducts.SalesChannelTrTrendyolProductStockItem> SalesChannelTrTrendyolProductStockItems { get; set; } = null!;
     // Trendyol kanal-özel varyant reçete satırları (ayrı tablo; ERP reçetesi klonu).
     public DbSet<Integration.TradeXpress.TrendyolProducts.SalesChannelTrTrendyolProductStockItemRecipeLine> SalesChannelTrTrendyolProductStockItemRecipeLines { get; set; } = null!;
+    // Muadil grubu — company-owned başlık + sıralı emtia satırları (ayrı aggregate, id-only referans).
+    public DbSet<Integration.TradeXpress.Substitutions.SubstitutionGroup> SubstitutionGroups { get; set; } = null!;
+    public DbSet<Integration.TradeXpress.Substitutions.SubstitutionGroupItem> SubstitutionGroupItems { get; set; } = null!;
 
 
     #region Entities from the modules
@@ -198,6 +201,7 @@ public class TradeXpressDbContext :
         builder.ConfigureN11Shipments();
         builder.ConfigureN11Products();
         builder.ConfigureTrendyolProducts();
+        builder.ConfigureSubstitutions();
 
         // Kod kolonlarına ordinal (BIN2) collation — YALNIZ SQL Server. C# ToUpperInvariant ile hizalanır,
         // Türkçe İ/i collation kaçağını DB tarafında da kapatır. Sqlite (test) BIN2'yi tanımaz → guard'la atlanır

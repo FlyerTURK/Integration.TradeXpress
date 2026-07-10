@@ -10,6 +10,7 @@ using Integration.TradeXpress.Permissions;
 using Integration.TradeXpress.Products;
 using Integration.TradeXpress.SalesChannels;
 using Integration.TradeXpress.SalesChannels.Variants;
+using Integration.TradeXpress.Substitutions;
 using Integration.TradeXpress.Vouchers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Caching.Distributed;
@@ -43,6 +44,7 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
     private readonly IRepository<SalesChannelTrN11ProductAttribute, Guid> _channelAttributeRepository;
     private readonly IRepository<SalesChannelTrN11ProductAttributeValue, Guid> _channelAttributeValueRepository;
     private readonly RecipeCostPopulator _recipeCostPopulator;
+    private readonly SubstitutionChannelPlanProvider _substitutionPlanProvider;
     private readonly ICurrentCompany _currentCompany;
     private readonly IN11ProductClient _client;
     private readonly IPublicImageLinkProvider _publicImageLink;
@@ -66,6 +68,7 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
         IRepository<SalesChannelTrN11ProductAttribute, Guid> channelAttributeRepository,
         IRepository<SalesChannelTrN11ProductAttributeValue, Guid> channelAttributeValueRepository,
         RecipeCostPopulator recipeCostPopulator,
+        SubstitutionChannelPlanProvider substitutionPlanProvider,
         ICurrentCompany currentCompany,
         IN11ProductClient client,
         IPublicImageLinkProvider publicImageLink,
@@ -88,6 +91,7 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
         _channelAttributeRepository = channelAttributeRepository;
         _channelAttributeValueRepository = channelAttributeValueRepository;
         _recipeCostPopulator = recipeCostPopulator;
+        _substitutionPlanProvider = substitutionPlanProvider;
         _currentCompany = currentCompany;
         _client = client;
         _publicImageLink = publicImageLink;
@@ -306,6 +310,85 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
         var dto = ObjectMapper.Map<SalesChannelTrN11Product, SalesChannelTrN11ProductDto>(entity);
         await PopulateStockItemGraphAsync(entity, dto);
         return dto;
+    }
+
+    /// <summary>Muadil M4 köprüsü — Top-N BAŞARILI kombinasyonu bu N11 ürününün StockItem'larına dönüştürür.
+    /// Zincir (bağlayıcı karar 1): hesap TEK motordan koşulur → saf plan (<see cref="SubstitutionStockItemPlanner"/>)
+    /// → "Kombinasyon" ÖZELLİĞİ + kombinasyon-başına DEĞER → MEVCUT kartezyen reconcile yolu
+    /// (<see cref="SaveAttributesAndReconcileAsync"/> — paralel kayıt yolu YOK) StockItem'ları üretir/korur/siler
+    /// → her kombinasyon satırına REÇETE (metal satırları; fiyat ELLE YAZILMAZ, maliyet zincirinden türer) +
+    /// OverrideStock = paket sayısı yazılır. Rank sırası = değer DisplayOrder'ı (ilk sıra = ANA varyant).
+    /// Yeniden uygulama = reconcile: imzası korunan satırların id/override/marj'ı yaşar; kullanıcının elle
+    /// eklediği DİĞER özellikler/değerlere DOKUNULMAZ (yalnız "Kombinasyon" özelliği yönetilir).</summary>
+    [Authorize(TradeXpressPermissions.SalesChannels.Update)]
+    public virtual async Task<SubstitutionApplyResultDto> ApplySubstitutionAsync(Guid id, SubstitutionApplyInput input)
+    {
+        var entity = await GetOwnedAsync(id);
+
+        // Orkestrasyon KANAL-AGNOSTİK gövdede (SubstitutionChannelPlanProvider.ApplyAsync — Trendyol ile TEK
+        // akış); bu adaptör yalnız N11 graf tiplerini bağlar: özellik/değer okuma, upsert planı → N11 DTO
+        // çevirisi + MEVCUT persist/reconcile yolu (SaveAttributesAndReconcileAsync) ve StockItem
+        // paket stoğu + reçete yazımı (ReplaceChannelRecipeLinesAsync).
+        return await _substitutionPlanProvider.ApplyAsync<SalesChannelTrN11ProductStockItem>(
+            input,
+            loadChannelAttributesAsync: async () =>
+                (await LoadChannelAttributeEntitiesAsync(entity.Id))
+                    .Select(a => new SubstitutionChannelAttributeRef(a.Id, a.Name, a.DisplayOrder))
+                    .ToList(),
+            loadCombinationValuesAsync: async attributeId =>
+                (await LoadChannelAttributeValueEntitiesAsync(new List<Guid> { attributeId }))
+                    .Select(v => (v.Id, v.Value))
+                    .ToList(),
+            persistAndReconcileAsync: async upsert =>
+            {
+                var attributeInput = ToCombinationAttributeDto(upsert);
+                await SaveAttributesAndReconcileAsync(entity, new List<SalesChannelTrN11ProductAttributeDto> { attributeInput });
+
+                // Upsert sonrası geri yazılmış GERÇEK id'ler — girdi sırası korunur (binding i ↔ ValueIds[i]).
+                return (attributeInput.Id, attributeInput.Values.Where(v => !v.IsDeleted).Select(v => v.Id).ToList());
+            },
+            loadCombinationHeadersAsync: async () => await AsyncExecuter.ToListAsync(
+                (await _stockItemRepository.GetQueryableAsync())
+                    .Where(h => h.SalesChannelTrN11ProductId == entity.Id && h.CombinationSignature != null)),
+            signatureOf: h => h.CombinationSignature!,
+            applyCombinationToHeaderAsync: async (header, packageCount, recipeLines) =>
+            {
+                header.SetOverrideStock(packageCount);
+                await _stockItemRepository.UpdateAsync(header, autoSave: true);
+                await ReplaceChannelRecipeLinesAsync(entity, header.Id, recipeLines);
+            });
+    }
+
+    /// <summary>Kanal-nötr upsert planı → N11 attribute DTO'su. Silinen değerde yalnız Id + IsDeleted taşınır
+    /// (mevcut davranışla birebir — SaveAttributesGraphAsync silme dalı yalnız Id'ye bakar).</summary>
+    private static SalesChannelTrN11ProductAttributeDto ToCombinationAttributeDto(SubstitutionCombinationAttributeUpsert upsert)
+    {
+        return new SalesChannelTrN11ProductAttributeDto
+        {
+            Id           = upsert.AttributeId,
+            Name         = upsert.Name,
+            DisplayOrder = upsert.DisplayOrder,
+            Values = upsert.Values
+                .Select(v => v.IsDeleted
+                    ? new SalesChannelTrN11ProductAttributeValueDto { Id = v.Id, IsDeleted = true }
+                    : new SalesChannelTrN11ProductAttributeValueDto { Id = v.Id, Value = v.ValueText, DisplayOrder = v.DisplayOrder })
+                .ToList(),
+        };
+    }
+
+    /// <summary>Köprü, kombinasyon StockItem REÇETESİNİN sahibidir: mevcut satırlar silinir + plan satırları yazılır.
+    /// Persist mekaniği MEVCUT <see cref="SaveChannelRecipeLinesAsync"/> (paralel kayıt yolu açılmaz).</summary>
+    private async Task ReplaceChannelRecipeLinesAsync(
+        SalesChannelTrN11Product channelProduct, Guid stockItemId, List<ProductRecipeLineGraphDto> freshLines)
+    {
+        var existing = await AsyncExecuter.ToListAsync(
+            (await _channelRecipeLineRepository.GetQueryableAsync())
+                .Where(r => r.SalesChannelTrN11ProductId == channelProduct.Id && r.StockItemId == stockItemId));
+        var lines = existing
+            .Select(r => new ProductRecipeLineGraphDto { Id = r.Id, IsDeleted = true, ComponentType = r.ComponentType })
+            .Concat(freshLines)
+            .ToList();
+        await SaveChannelRecipeLinesAsync(channelProduct, stockItemId, lines);
     }
 
     [Authorize(TradeXpressPermissions.SalesChannels.Update)]

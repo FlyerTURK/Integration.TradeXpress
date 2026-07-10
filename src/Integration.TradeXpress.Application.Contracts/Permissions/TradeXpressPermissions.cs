@@ -158,6 +158,16 @@ public static class TradeXpressPermissions
         public const string Delete  = Default + ".Delete";
     }
 
+    /// <summary>Muadil (Substitution) grupları + hesaplama beslemesi. Company-owned tanım;
+    /// CRUD çocukları grup yönetim servisiyle (M5) eklendi — Accounts deseniyle aynı.</summary>
+    public static class Substitutions
+    {
+        public const string Default = GroupName + ".Substitutions";
+        public const string Create  = Default + ".Create";
+        public const string Update  = Default + ".Update";
+        public const string Delete  = Default + ".Delete";
+    }
+
     public static class Accounts
     {
         public const string Default = GroupName + ".Accounts";
