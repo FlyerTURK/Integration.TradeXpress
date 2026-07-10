@@ -33,7 +33,9 @@ public class SalesChannelTrN11ProductCategoryAttribute
 /// override/reçete — kullanıcının yönettiği niyet).</para></summary>
 public class SalesChannelTrN11ProductSku
 {
-    /// <summary>Bağlı ERP varyantı (yeniden üretilirse kod/imza üzerinden bu alana yeniden bağlanır).</summary>
+    /// <summary>Bağlı KOMBİNASYON kimliği — ERP-backed satırda <c>ProductVariant.Id</c>, N11-only satırda
+    /// <c>SalesChannelTrN11ProductStockItem.Id</c> (J3 2026-07-09: kanal-özel kombinasyonlar da push edilir; her iki
+    /// kimlik de Guid, çakışmaz). Kaynak yeniden üretilirse kod/imza üzerinden bu alana yeniden bağlanır.</summary>
     public Guid ProductVariantId { get; set; }
 
     /// <summary>N11 satıcı-geneli SKU stok kodu — DONDURULMUŞ ("{VaryantKodu}-{SequenceNo}", kuruluş anındaki kod).</summary>
@@ -65,8 +67,10 @@ public class SalesChannelTrN11ProductSku
     }
 }
 
-/// <summary>Push edilecek varyant adayı — <see cref="SalesChannelTrN11Product.ReconcileSkus"/> girdisi
-/// (varyant kimliği + kodu + N11'e gidecek seçenek çiftleri).</summary>
+/// <summary>Push edilecek kombinasyon adayı — <see cref="SalesChannelTrN11Product.ReconcileSkus"/> girdisi
+/// (kimlik + kod + N11'e gidecek seçenek çiftleri). <see cref="VariantId"/> = kombinasyon kimliği: ERP-backed
+/// satırda <c>ProductVariant.Id</c>, N11-only satırda <c>SalesChannelTrN11ProductStockItem.Id</c> (J3);
+/// <see cref="VariantCode"/> N11-only satırda kombinasyon-türevli koddur (ör. "SIYAH-42").</summary>
 public sealed record N11SkuPushCandidate(
     Guid VariantId,
     string VariantCode,

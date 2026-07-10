@@ -689,6 +689,8 @@
     "TradeXpress:N11:ProductVariant:OverrideStockNegative": "Kanal override stoğu negatif olamaz.",
     "TradeXpress:N11:ProductVariant:MarginNegative": "Varyant marjı negatif olamaz.",
     "TradeXpress:N11:ProductVariant:OverrideRequiredForN11Only": "Bu kombinasyonun ERP'de karşılığı yok (N11-only) — devralınacak kaynak olmadığından override fiyat ve stok zorunludur.",
+    "TradeXpress:N11:StockItem:PriceMissingForPush": "'{Combination}' kombinasyonunun N11'e gönderilecek fiyatı/stoğu çözülemedi — override fiyat ve stok girin (ERP karşılığı olmayan satırda devralınacak kaynak yoktur).",
+    "TradeXpress:N11:Product:DuplicateStockCode": "'{StockCode}' stok kodu birden fazla satır için üretildi — N11 aynı stok kodlu iki SKU kabul etmez; kombinasyon değer adlarını ya da varyant kodunu ayrıştırın.",
     "TradeXpress:N11:Product:SaveFailed": "N11 ürün servisine erişilemedi (HTTP {status}).",
     "TradeXpress:N11:Product:SaveRejected": "N11 ürünü reddetti: {message}",
     "TradeXpress:N11:Product:CompanyRequired": "İşlem için çalışılan şirket seçili olmalı.",

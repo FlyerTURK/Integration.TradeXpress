@@ -447,6 +447,18 @@
                         <DxGridDataColumn FieldName="Code" Caption="@L["Code"]" Width="130px" />
                         <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" />
                         <DxGridDataColumn FieldName="Options" Caption="@L["AttributeSummary"]" />
+                        @* Kaynak rozeti — kombinasyon grid'iyle AYNI desen: ERP-backed boş, N11-özel rozetli (J3). *@
+                        <DxGridDataColumn Caption="@L["N11Product:Source"]" Width="120px">
+                            <CellDisplayTemplate Context="cell">
+                                @{ var pv = (N11PreviewVariantDto)cell.DataItem; }
+                                @if (!pv.IsErpBacked)
+                                {
+                                    <span style="display:flex; align-items:center; gap:0.35rem; color:#0369a1;">
+                                        <i class="@TradeXpressIcons.SalesChannel" aria-hidden="true"></i>@L["N11Product:N11Only"]
+                                    </span>
+                                }
+                            </CellDisplayTemplate>
+                        </DxGridDataColumn>
                         <DxGridDataColumn FieldName="StockQuantity" Caption="@L["StockQuantity"]" Width="90px" />
                         <DxGridDataColumn FieldName="SalePrice" Caption="@L["SalePrice"]" Width="110px" />
                     </Columns>

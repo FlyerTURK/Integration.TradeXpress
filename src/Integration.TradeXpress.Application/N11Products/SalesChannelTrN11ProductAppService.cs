@@ -399,16 +399,12 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
         try
         {
             var product = await GetOwnedProductAsync(entity.ProductId);
-            var variants = (await AsyncExecuter.ToListAsync(
-                    (await _variantRepository.GetQueryableAsync())
-                        .Where(v => v.ProductId == product.Id && v.IsActive)))
-                .Where(v => v.SalePrice is not null)
-                .OrderByDescending(v => v.IsMain)   // base fiyat ANA varyanttan — tam push ile hizalı
-                .ToList();
 
-            // Kanal override/türetilmiş fiyat+stok zinciri — TAM PUSH ile birebir aynı (aksi halde hafif senkron ERP
-            // ham fiyatını gönderip full push'un yazdığı kanal fiyatını EZER + her turda dirty görünürdü).
-            var pushPricing = await ResolveVariantPushPricingAsync(entity, variants);
+            // Aday seti + fiyat/stok zinciri TAM PUSH ile birebir aynı kaynaktan (BuildPushRowsAsync): axis-modu
+            // aktifse kombinasyon satırları (ERP-backed + N11-only), değilse legacy ERP varyantları. Aksi halde
+            // hafif senkron ERP ham fiyatını gönderip full push'un yazdığı kanal fiyatını EZER + her turda dirty görünürdü.
+            var rows = (await BuildPushRowsAsync(entity)).Rows;
+            EnsurePushRowsPriced(rows);
 
             // Önce N11'den oku: eksik SKU id'lerini doldur + version drift'ini gör (UpdateProductBasic version almaz →
             // lost-update'i "oku-karşılaştır-yaz" disipliniyle yönet). Okuma düşerse senkron güvenli şekilde durur.
@@ -425,21 +421,21 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
                 entity.ApplySkuIdentity(sku.SellerStockCode, sku.N11SkuId, sku.Version);
             }
 
-            // Değişen varyantları (dirty) belirle: SKU satırı olan + N11 SKU id'si bilinen + adet/fiyatı sapmış.
+            // Değişen adayları (dirty) belirle: SKU satırı olan + N11 SKU id'si bilinen + adet/fiyatı sapmış.
             var stockItems = new List<N11ProductBasicStockItem>();
             var anyDirty = false;
-            foreach (var variant in variants)
+            foreach (var row in rows)
             {
-                var sku = entity.Skus.FirstOrDefault(s => s.ProductVariantId == variant.Id);
+                // Kombinasyon kimliği: ERP-backed satırda ProductVariant.Id, N11-only satırda StockItem.Id (J3).
+                var sku = entity.Skus.FirstOrDefault(s => s.ProductVariantId == row.CandidateId);
                 if (sku is null || sku.N11SkuId is not { } n11SkuId)
                 {
-                    // Bu varyant hiç push edilmemiş / SKU id'si yok → hafif senkron adresleyemez; tam push gerekir.
-                    syncWarnings.Add(L["N11Product:SkuNotPushed", variant.Code]);
+                    // Bu aday hiç push edilmemiş / SKU id'si yok → hafif senkron adresleyemez; tam push gerekir.
+                    syncWarnings.Add(L["N11Product:SkuNotPushed", row.Code]);
                     continue;
                 }
 
-                var pricing = pushPricing[variant.Id];   // OverridePrice ?? türetilmiş ?? ERP; stok OverrideStock ?? ERP
-                var dirty = sku.LastSentQuantity != pricing.Stock || sku.LastSentOptionPrice != pricing.Price;
+                var dirty = sku.LastSentQuantity != row.Stock || sku.LastSentOptionPrice != row.Price;
                 anyDirty |= dirty;
 
                 // Merge/replace belirsizliğinden (rapor A3) kaçınmak için TÜM bilinen SKU'ları güncel değerleriyle
@@ -447,8 +443,8 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
                 stockItems.Add(new N11ProductBasicStockItem(
                     sku.SellerStockCode,
                     n11SkuId,
-                    pricing.Stock,
-                    pricing.Price));
+                    row.Stock,
+                    row.Price));
             }
 
             if (stockItems.Count == 0)
@@ -466,7 +462,7 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
                 var update = new N11ProductBasicUpdate(
                     n11ProductId,
                     entity.SellerCode,
-                    pushPricing[variants[0].Id].Price,   // ana varyantın efektif base fiyatı (override zinciri) — full push ile hizalı
+                    rows[0].Price,   // ilk (ana) adayın efektif base fiyatı (override zinciri) — full push ile hizalı
                     product.Description ?? product.Name,
                     stockItems,
                     BuildSellerDiscount(product));
@@ -525,18 +521,36 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
         var entity = await GetOwnedAsync(id);
         var product = await GetOwnedProductAsync(entity.ProductId);
 
-        // Push'ta gidecek varyant seti — SaveProduct ile AYNI filtre/sıra (aktif + fiyatlı + IsMain önce).
-        var variants = (await AsyncExecuter.ToListAsync(
-                (await _variantRepository.GetQueryableAsync())
-                    .Where(v => v.ProductId == product.Id && v.IsActive)))
-            .Where(v => v.SalePrice is not null)
-            .OrderByDescending(v => v.IsMain)
-            .ToList();
-
-        var options = await LoadVariantOptionsAsync(product.Id, variants.Select(v => v.Id).ToList());
-        var preview = new N11PushPreviewDto
+        // Özellik modu AKTİFSE push aday seti kombinasyon satırlarından gelir (SaveProduct ile AYNI kaynak) —
+        // N11-only satırlar da önizlemeye girer (kaynak rozeti IsErpBacked=false; fiyat/stok override zincirinden,
+        // çözülemiyorsa boş görünür — önizleme fail-fast ETMEZ, eksiği göstermek bilgilendiricidir).
+        List<N11PreviewVariantDto> previewVariants;
+        var attributeModeActive = (await LoadChannelAttributeEntitiesAsync(entity.Id)).Count > 0;
+        if (attributeModeActive)
         {
-            Variants = variants.Select(v => new N11PreviewVariantDto
+            var rows = (await BuildPushRowsAsync(entity)).Rows;
+            previewVariants = rows.Select(r => new N11PreviewVariantDto
+            {
+                Code = r.Code,
+                Name = r.DisplayName,
+                StockQuantity = r.Stock ?? 0,
+                SalePrice = r.Price,
+                Options = string.Join("; ", r.Attributes.Select(a => $"{a.Name}: {a.Value}")),
+                IsErpBacked = r.IsErpBacked,
+            }).ToList();
+        }
+        else
+        {
+            // Legacy ERP-doğrudan görünüm — push'la AYNI filtre/sıra (aktif + fiyatlı + IsMain önce), ham ERP değerleri.
+            var variants = (await AsyncExecuter.ToListAsync(
+                    (await _variantRepository.GetQueryableAsync())
+                        .Where(v => v.ProductId == product.Id && v.IsActive)))
+                .Where(v => v.SalePrice is not null)
+                .OrderByDescending(v => v.IsMain)
+                .ToList();
+
+            var options = await LoadVariantOptionsAsync(product.Id, variants.Select(v => v.Id).ToList());
+            previewVariants = variants.Select(v => new N11PreviewVariantDto
             {
                 Code = v.Code,
                 Name = v.Name,
@@ -545,11 +559,14 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
                 Options = options.TryGetValue(v.Id, out var pairs)
                     ? string.Join("; ", pairs.Select(p => $"{p.Name}: {p.Value}"))
                     : string.Empty,
-            }).ToList(),
+            }).ToList();
+        }
+
+        return new N11PushPreviewDto
+        {
+            Variants = previewVariants,
             Images = await BuildPreviewImagesAsync(product),
         };
-
-        return preview;
     }
 
     // Push'ta gidecek görseller (VARSAYILAN önce, sonra DisplayOrder — SaveProduct ile aynı sıra). Yüklenmiş
@@ -674,50 +691,40 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
             throw new BusinessException("TradeXpress:N11:Product:ImagesRequired");
         }
 
-        // Aktif + fiyatlı varyantlar = N11 stockItems. En az 1 zorunlu.
-        var variants = (await AsyncExecuter.ToListAsync(
-                (await _variantRepository.GetQueryableAsync())
-                    .Where(v => v.ProductId == product.Id && v.IsActive)))
-            .Where(v => v.SalePrice is not null)
-            .OrderByDescending(v => v.IsMain)
-            .ToList();
-        if (variants.Count == 0)
+        // Push aday satırları — axis-modu aktifse kombinasyon (StockItem) satırlarından (ERP-backed + N11-only),
+        // değilse legacy ERP varyantlarından. Fiyat/stok zinciri satır içinde ÇÖZÜLMÜŞ gelir. En az 1 aday zorunlu.
+        var rows = (await BuildPushRowsAsync(channelProduct)).Rows;
+        if (rows.Count == 0)
         {
             throw new BusinessException("TradeXpress:N11:Product:NoPricedVariant");
         }
 
-        // Kanal-özel fiyat/stok override + türetilmiş fiyat (kaydedilmiş marj + reçete → NetCost×marj) — CANLI hesap.
-        // Zincir: OverridePrice ?? türetilmiş ?? ERP SalePrice; stok: OverrideStock ?? ERP StockQuantity (kullanıcı kararı).
-        var pushPricing = await ResolveVariantPushPricingAsync(channelProduct, variants);
+        // N11-only satırda ERP fallback YOK (zincir: OverridePrice ?? türetilmiş) — çözülemeyen fiyat/stok N11'e
+        // gitmeden fail-fast (sessiz atlama = kapsam düşürme; kullanıcı override girip yeniden dener).
+        EnsurePushRowsPriced(rows);
 
         // Tek para birimi zorunlu (N11 ürün başına tek currencyType). Kanal para birimi seçiliyse O belirler
-        // → varyantlar farklı birimde olsa da karışıklık yok (MixedCurrency yalnız kanal seçilmemişken denetlenir).
-        var currencyUnitIds = variants.Select(v => v.SalePriceCurrencyUnitId).Where(x => x is not null).Distinct().ToList();
+        // → satırlar farklı birimde olsa da karışıklık yok (MixedCurrency yalnız kanal seçilmemişken denetlenir).
+        var currencyUnitIds = rows.Select(r => r.PriceCurrencyUnitId).Where(x => x is not null).Distinct().ToList();
         // Kanal ya da ÜRÜN para birimi belirleyiciyse mixed-currency serbest (o birim tüm SKU'lara uygulanır);
-        // yalnız ne kanalda ne üründe birim yokken varyantlar farklı birimdeyse belirsizlik → fail-fast.
+        // yalnız ne kanalda ne üründe birim yokken satırlar farklı birimdeyse belirsizlik → fail-fast.
         if (channelProduct.CurrencyUnitId is null && product.CurrencyUnitId is null && currencyUnitIds.Count > 1)
         {
             throw new BusinessException("TradeXpress:N11:Product:MixedCurrency");
         }
 
-        // Para birimi çözümü: kanal → ürün varsayılanı → varyant (fallback zinciri).
+        // Para birimi çözümü: kanal → ürün varsayılanı → satır (varyant/override) birimi (fallback zinciri).
         var currencyType = await ResolveCurrencyTypeAsync(
             channelProduct.CurrencyUnitId ?? product.CurrencyUnitId ?? currencyUnitIds.FirstOrDefault());
-        var variantOptions = await LoadVariantOptionsAsync(product.Id, variants.Select(v => v.Id).ToList());
 
         // ── Faz 1: kategori-farkındalıklı validasyon — varyant EKSENLERİNİ kategori belirler (isVariant seti),
         // customValue=false değer listeden birebir, zorunlu eksen her SKU'da dolu; sapma FAIL-FAST.
         var leaf = await GetLeafAttributesCachedAsync(channelProduct.CategoryExternalId, channel);
 
-        // Adaylar ERP varyantlarından doğrudan (nitelikleri stockItem'a gider) — SSOT ERP.
-        var variantById = variants.ToDictionary(v => v.Id);
-        var candidates = variants
-            .Select(v => new N11SkuPushCandidate(
-                v.Id,
-                v.Code,
-                (variantOptions.TryGetValue(v.Id, out var opts) ? opts : new List<N11ProductAttributePair>())
-                    .Select(p => new SalesChannelTrN11ProductCategoryAttribute(p.Name, p.Value))
-                    .ToList()))
+        // Adaylar push satırlarından: ERP-backed satırda ERP varyant kimliği/kodu/nitelikleri, N11-only satırda
+        // StockItem.Id + kombinasyon-türevli kod + kanal Attribute/Value adları — validator'a AYNI biçimde girer.
+        var candidates = rows
+            .Select(r => new N11SkuPushCandidate(r.CandidateId, r.Code, r.Attributes))
             .ToList();
         var validated = _pushValidator.Validate(leaf, channelProduct.CategoryAttributes, candidates);
 
@@ -735,21 +742,22 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
         // Stok kodları PLANLANIR (entity mutasyonu YOK): mevcut dondurulmuş satır kodu tercih edilir, yoksa üretilir.
         // Satırlar ancak BAŞARILI push sonrası ReconcileSkus ile kalıcılaşır — başarısız push bayat kod dondurmasın.
         var stockCodePlan = channelProduct.PlanStockCodes(canonicalCandidates);
+        EnsureUniqueStockCodes(stockCodePlan);
 
-        // stockItem'lar ADAY-bazlı: fiyat/stok/kimlik eşleşen ERP varyantından, attribute'ler validasyondan geçen
-        // (sihirbaz kullanıldıysa N11-uyumlu ad/değer, aksi halde ERP nitelikleri).
+        // stockItem'lar ADAY-bazlı: fiyat/stok/kimlik push satırından (ERP-backed: Override ?? türetilmiş ?? ERP;
+        // N11-only: Override ?? türetilmiş), attribute'ler validasyondan geçen kanonik ad/değerler.
+        var rowByCandidateId = rows.ToDictionary(r => r.CandidateId);
         var stockItems = canonicalCandidates.Select(c =>
         {
-            var v = variantById[c.VariantId];
-            var pricing = pushPricing[c.VariantId];
+            var row = rowByCandidateId[c.VariantId];
             return new N11ProductStockItem(
                 SellerStockCode: stockCodePlan[c.VariantId],
-                Quantity: pricing.Stock,                       // OverrideStock ?? ERP StockQuantity
-                OptionPrice: pricing.Price,                    // OverridePrice ?? türetilmiş ?? ERP SalePrice
+                Quantity: row.Stock!.Value,                    // EnsurePushRowsPriced garantisi — null olamaz
+                OptionPrice: row.Price,
                 Attributes: validated.VariantOptions.TryGetValue(c.VariantId, out var pairs) ? pairs : new List<N11ProductAttributePair>(),
-                Gtin: v.Gtin,
-                Mpn: v.Mpn,
-                Oem: v.Oem);
+                Gtin: row.Gtin,
+                Mpn: row.Mpn,
+                Oem: row.Oem);
         }).ToList();
 
         var images = imageUrls
@@ -762,7 +770,7 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
             Description: channelProduct.Description ?? product.Description ?? product.Name,   // kanal-özel açıklama önce, yoksa ürün
             Domestic: channelProduct.Domestic,
             CategoryId: channelProduct.CategoryExternalId,
-            Price: pushPricing[variants[0].Id].Price!.Value,   // ana/ilk varyantın efektif fiyatı = base (override zinciri)
+            Price: rows[0].Price!.Value,   // ilk (ana) adayın efektif fiyatı = base (override zinciri)
             CurrencyType: currencyType,
             ProductCondition: (byte)channelProduct.Condition,
             PreparingDay: channelProduct.PreparingDay,
@@ -793,6 +801,208 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
     /// <summary>Push planı — N11'e gidecek veri + BAŞARILI push sonrası SKU satırlarını kurmak için kanonik adaylar
     /// (kod donması yalnız başarılı push'ta gerçekleşsin diye ReconcileSkus çağrısı push sonrasına ertelenir).</summary>
     private sealed record N11ProductPushPlan(N11ProductData Data, List<N11SkuPushCandidate> Candidates);
+
+    // ── Push aday satırları (J3: N11-only kombinasyonlar da push edilir) ─────────────────────────────
+
+    /// <summary>Push aday satırı — SaveProduct stockItem'ının çözülmüş hâli. <see cref="CandidateId"/> = kombinasyon
+    /// kimliği (ERP-backed satırda ProductVariant.Id, N11-only satırda StockItem.Id); <see cref="Price"/>/<see cref="Stock"/>
+    /// efektif zincir sonucu (null = çözülemedi — push fail-fast eder, önizleme boş gösterir).</summary>
+    private sealed record N11PushRow(
+        Guid CandidateId,
+        string Code,
+        string DisplayName,
+        bool IsErpBacked,
+        List<SalesChannelTrN11ProductCategoryAttribute> Attributes,
+        decimal? Price,
+        int? Stock,
+        Guid? PriceCurrencyUnitId,
+        string? Gtin,
+        string? Mpn,
+        string? Oem);
+
+    /// <summary>Aday satır seti + hangi moddan üretildiği (axis-modu aktif mi).</summary>
+    private sealed record N11PushRowSet(bool AttributeModeActive, List<N11PushRow> Rows);
+
+    /// <summary>Push/senkron/önizleme aday satırlarını kurar (ORTAK kaynak — üçü de aynı seti görsün):
+    /// <b>axis-modu AKTİFKEN</b> (en az 1 persist edilmiş kanal özelliği) kombinasyon seti StockItem satırlarından —
+    /// ERP-backed satır (ProductVariantId dolu) legacy davranışla (aktif + fiyatlı ERP varyant kimliği/kodu/nitelikleri,
+    /// zincir Override ?? türetilmiş ?? ERP), N11-only satır StockItem.Id kimliği + kombinasyon-türevli kod + kanal
+    /// Attribute/Value adları (zincir Override ?? türetilmiş; ERP fallback YOK) ile. <b>Axis-modu PASİFKEN</b> legacy
+    /// ERP-doğrudan aday seti AYNEN (regresyon sıfır).</summary>
+    private async Task<N11PushRowSet> BuildPushRowsAsync(SalesChannelTrN11Product channelProduct)
+    {
+        // Aktif + fiyatlı ERP varyantları (IsMain önce) — legacy aday seti + axis-modda ERP-backed satır kaynağı.
+        var variants = (await AsyncExecuter.ToListAsync(
+                (await _variantRepository.GetQueryableAsync())
+                    .Where(v => v.ProductId == channelProduct.ProductId && v.IsActive)))
+            .Where(v => v.SalePrice is not null)
+            .OrderByDescending(v => v.IsMain)
+            .ToList();
+
+        var attributeEntities = await LoadChannelAttributeEntitiesAsync(channelProduct.Id);
+        if (attributeEntities.Count == 0)
+        {
+            // Legacy ERP-doğrudan yol (özellik modu hiç aktive edilmemiş) — J3 öncesi davranış AYNEN.
+            var pushPricing = await ResolveVariantPushPricingAsync(channelProduct, variants);
+            var variantOptions = await LoadVariantOptionsAsync(channelProduct.ProductId, variants.Select(v => v.Id).ToList());
+            return new N11PushRowSet(
+                false,
+                variants.Select(v => BuildErpRow(v, pushPricing[v.Id], variantOptions)).ToList());
+        }
+
+        // Axis-modu: kombinasyon seti = imzalı StockItem satırları (SSOT kanal; reconcile üretti).
+        var channelAttributeValues = await LoadChannelAttributeValueEntitiesAsync(attributeEntities.Select(a => a.Id).ToList());
+        var attributeById = ToAttributeWithValues(attributeEntities, channelAttributeValues).ToDictionary(a => a.AttributeId);
+        var headers = await AsyncExecuter.ToListAsync(
+            (await _stockItemRepository.GetQueryableAsync())
+                .Where(h => h.SalesChannelTrN11ProductId == channelProduct.Id && h.CombinationSignature != null)
+                .OrderBy(h => h.CreationTime));
+
+        // ERP-backed satırlar: varyantı hâlâ aktif + fiyatlı olanlar (legacy eleme semantiği). Aynı varyanta bağlı
+        // mükerrer başlık (teorik) tek satıra iner — aday sözlükleri VariantId ile kurulur, çakışma fail üretmesin.
+        var variantById = variants.ToDictionary(v => v.Id);
+        var erpVariants = headers
+            .Where(h => h.ProductVariantId is { } vid && variantById.ContainsKey(vid))
+            .Select(h => variantById[h.ProductVariantId!.Value])
+            .DistinctBy(v => v.Id)
+            .OrderByDescending(v => v.IsMain)
+            .ToList();
+        var erpPricing = await ResolveVariantPushPricingAsync(channelProduct, erpVariants);
+        var erpOptions = await LoadVariantOptionsAsync(channelProduct.ProductId, erpVariants.Select(v => v.Id).ToList());
+
+        var rows = erpVariants.Select(v => BuildErpRow(v, erpPricing[v.Id], erpOptions)).ToList();
+
+        // N11-only satırlar: kimlik StockItem.Id; nitelikler imzadan kanal Attribute.Name/AttributeValue.Value'a çözülür.
+        var n11OnlyHeaders = headers.Where(h => h.ProductVariantId is null).ToList();
+        var n11OnlyPricing = await ResolveN11OnlyPushPricingAsync(channelProduct, n11OnlyHeaders);
+        foreach (var header in n11OnlyHeaders)
+        {
+            var pairs = ResolveCombinationPairs(header.CombinationSignature!, attributeById);
+            var pricing = n11OnlyPricing[header.Id];
+            rows.Add(new N11PushRow(
+                CandidateId: header.Id,
+                Code: BuildCombinationCode(pairs, channelProduct.SequenceNo),
+                DisplayName: BuildLabel(pairs),
+                IsErpBacked: false,
+                Attributes: pairs
+                    .Select(p => new SalesChannelTrN11ProductCategoryAttribute(p.Name, p.Value ?? string.Empty))
+                    .ToList(),
+                Price: pricing.Price,
+                Stock: pricing.Stock,
+                PriceCurrencyUnitId: header.OverridePriceCurrencyUnitId,
+                Gtin: null,
+                Mpn: null,
+                Oem: null));
+        }
+
+        return new N11PushRowSet(true, rows);
+    }
+
+    /// <summary>ERP-backed push satırı — legacy davranış: kimlik/kod/ad/ticari kimlikler ERP varyantından,
+    /// fiyat/stok zinciri Override ?? türetilmiş ?? ERP (<see cref="ResolveVariantPushPricingAsync"/> sonucu).</summary>
+    private static N11PushRow BuildErpRow(
+        ProductVariant variant, VariantPushPricing pricing, Dictionary<Guid, List<N11ProductAttributePair>> variantOptions)
+    {
+        return new N11PushRow(
+            CandidateId: variant.Id,
+            Code: variant.Code,
+            DisplayName: variant.Name,
+            IsErpBacked: true,
+            Attributes: (variantOptions.TryGetValue(variant.Id, out var opts) ? opts : new List<N11ProductAttributePair>())
+                .Select(p => new SalesChannelTrN11ProductCategoryAttribute(p.Name, p.Value))
+                .ToList(),
+            Price: pricing.Price,
+            Stock: pricing.Stock,
+            PriceCurrencyUnitId: variant.SalePriceCurrencyUnitId,
+            Gtin: variant.Gtin,
+            Mpn: variant.Mpn,
+            Oem: variant.Oem);
+    }
+
+    /// <summary>N11-only (ERP karşılıksız) kombinasyon satırlarının push fiyat/stok'u — zincir: OverridePrice ??
+    /// türetilmiş (kaydedilmiş reçete NetCost × (1+Margin/100)); stok: OverrideStock (ERP fallback YOK). Çözülemeyen
+    /// değer null döner — fail-fast kararı çağıranda (push <see cref="EnsurePushRowsPriced"/>; önizleme boş gösterir).</summary>
+    private async Task<IReadOnlyDictionary<Guid, VariantPushPricingNullable>> ResolveN11OnlyPushPricingAsync(
+        SalesChannelTrN11Product channelProduct, List<SalesChannelTrN11ProductStockItem> headers)
+    {
+        var result = new Dictionary<Guid, VariantPushPricingNullable>(headers.Count);
+        if (headers.Count == 0)
+        {
+            return result;
+        }
+
+        var headerIds = headers.Select(h => h.Id).ToList();
+        var savedByHeader = (await AsyncExecuter.ToListAsync(
+                (await _channelRecipeLineRepository.GetQueryableAsync())
+                    .Where(r => r.SalesChannelTrN11ProductId == channelProduct.Id && headerIds.Contains(r.StockItemId))))
+            .GroupBy(r => r.StockItemId)
+            .ToDictionary(g => g.Key, g => g.ToList());
+
+        var lineSets = headers
+            .Select(h => savedByHeader.TryGetValue(h.Id, out var lines)
+                ? MapSavedRecipeLines(lines)
+                : new List<ProductRecipeLineGraphDto>())
+            .ToList();
+        var costs = await _recipeCostPopulator.PopulateAsync(lineSets);
+
+        for (var i = 0; i < headers.Count; i++)
+        {
+            var header = headers[i];
+            decimal? derived = costs[i].NetCost is { } nc && !costs[i].NetCostMissingRate
+                ? nc * (1m + (header.Margin ?? 0m) / 100m)
+                : null;
+            result[header.Id] = new VariantPushPricingNullable(header.OverridePrice ?? derived, header.OverrideStock);
+        }
+
+        return result;
+    }
+
+    /// <summary>N11-only satırın efektif fiyat/stok'u — İKİSİ de nullable (ERP fallback yok; çözüm çağıranda).</summary>
+    private sealed record VariantPushPricingNullable(decimal? Price, int? Stock);
+
+    /// <summary>Push'a girecek her satırın efektif fiyat+stok'unun ÇÖZÜLMÜŞ olduğunu doğrular — N11-only satırda
+    /// ERP fallback yoktur (zincir: OverridePrice ?? türetilmiş / OverrideStock); çözülemiyorsa N11'e gitmeden fail-fast.</summary>
+    private static void EnsurePushRowsPriced(List<N11PushRow> rows)
+    {
+        var unpriced = rows.FirstOrDefault(r => r.Price is null || r.Stock is null);
+        if (unpriced is not null)
+        {
+            throw new BusinessException("TradeXpress:N11:StockItem:PriceMissingForPush")
+                .WithData("Combination", unpriced.DisplayName);
+        }
+    }
+
+    /// <summary>Planlanan stok kodlarının benzersizliğini doğrular — ERP varyant kodu ile N11-only kombinasyon-türevli
+    /// kod teorik olarak çakışabilir (aynı değer adları); N11 aynı sellerStockCode'lu iki SKU'da tanımsız davranır → fail-fast.</summary>
+    private static void EnsureUniqueStockCodes(IReadOnlyDictionary<Guid, string> stockCodePlan)
+    {
+        var duplicate = stockCodePlan.Values
+            .GroupBy(code => code, StringComparer.OrdinalIgnoreCase)
+            .FirstOrDefault(g => g.Count() > 1);
+        if (duplicate is not null)
+        {
+            throw new BusinessException("TradeXpress:N11:Product:DuplicateStockCode")
+                .WithData("StockCode", duplicate.Key);
+        }
+    }
+
+    /// <summary>N11-only kombinasyon satırının stok kodu GÖVDESİ — değer adlarından türetilir (ERP
+    /// <c>ProductVariantSynchronizer.BuildVariantCode</c> deseni: "SIYAH-42"); "-{SequenceNo}" sonekini entity
+    /// <see cref="SalesChannelTrN11Product.BuildStockCode"/> ekler. Sonek payı düşülerek
+    /// <see cref="N11ProductConsts.StockCodeMaxLength"/>'e kesilir (deterministik — aynı kombinasyon hep aynı kod).</summary>
+    private static string BuildCombinationCode(List<(string Name, string? Value)> pairs, int sequenceNo)
+    {
+        var joined = string.Join("-", pairs.Select(p => p.Value)).ToUpperInvariant();
+        var suffixLength = sequenceNo.ToString(CultureInfo.InvariantCulture).Length + 1;   // "-{SequenceNo}"
+        var maxLength = N11ProductConsts.StockCodeMaxLength - suffixLength;
+        return joined.Length <= maxLength ? joined : joined[..maxLength];
+    }
+
+    /// <summary>Kombinasyon çiftlerinin insan-okunur etiketi ("Renk: Kırmızı; Beden: M").</summary>
+    private static string BuildLabel(List<(string Name, string? Value)> pairs)
+    {
+        return string.Join("; ", pairs.Select(p => $"{p.Name}: {p.Value}"));
+    }
 
     // Ürün-seviyesi indirimi N11 ProductDiscountRequest'e çevirir (SaveProduct; None → null → elementi gitmez).
     // N11 type: Amount="1", Percentage="2" (canlı doğrulanacak). Tarih N11 formatı "dd/MM/yyyy"; yoksa boş.
@@ -1202,7 +1412,14 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
 
     private static string BuildCombinationLabel(string signature, Dictionary<Guid, AttributeWithValues> attributeById)
     {
-        var parts = new List<string>();
+        return BuildLabel(ResolveCombinationPairs(signature, attributeById));
+    }
+
+    /// <summary>İmzadaki (AttributeId=ValueId) çiftlerini kanal özellik/değer METİNLERİNE çözer (imza sırası —
+    /// AttributeId artan). Sözlükte bulunamayan bayat attribute çifti atlanır (reconcile orphan'ı zaten siler; savunmacı).</summary>
+    private static List<(string Name, string? Value)> ResolveCombinationPairs(string signature, Dictionary<Guid, AttributeWithValues> attributeById)
+    {
+        var pairs = new List<(string Name, string? Value)>();
         foreach (var pair in signature.Split('|', StringSplitOptions.RemoveEmptyEntries))
         {
             var segments = pair.Split('=');
@@ -1214,11 +1431,11 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
             if (attributeById.TryGetValue(attributeId, out var channelAttribute))
             {
                 var value = channelAttribute.Values.FirstOrDefault(v => v.ValueId == valueId).Value;
-                parts.Add($"{channelAttribute.AttributeName}: {value}");
+                pairs.Add((channelAttribute.AttributeName, value));
             }
         }
 
-        return string.Join("; ", parts);
+        return pairs;
     }
 
     /// <summary>Kartezyen kombinasyon satırlarını graf DTO'suna projekte eder (reconcile'ın ÜRETTİĞİ set — reconcile
@@ -1416,7 +1633,7 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
         var variantIds = variants.Select(v => v.Id).ToList();
 
         // Yalnız ERP-backed başlıklar — N11-only satırlar (ProductVariantId null) burada ERP varyantına eşlenemez,
-        // kendi push zincirleri J3'te ele alınır.
+        // kendi push zincirleri ResolveN11OnlyPushPricingAsync'te (Override ?? türetilmiş; ERP fallback YOK).
         var headers = (await AsyncExecuter.ToListAsync(
                 (await _stockItemRepository.GetQueryableAsync())
                     .Where(h => h.SalesChannelTrN11ProductId == channelProduct.Id && h.ProductVariantId != null

@@ -140,6 +140,10 @@ public class N11PreviewVariantDto
 
     /// <summary>Seçenek özeti ("Renk: Kırmızı; Beden: M") — varyant eksenleri (name/value).</summary>
     public string Options { get; set; } = string.Empty;
+
+    /// <summary>Kaynak rozeti: <c>true</c> = ERP varyantından, <c>false</c> = N11-özel kombinasyon (ERP karşılığı yok;
+    /// fiyat/stok override zincirinden gelir). Legacy (özellik modu pasif) satırlar hep ERP-backed.</summary>
+    public bool IsErpBacked { get; set; } = true;
 }
 
 /// <summary>Önizleme görsel satırı — N11'e gidecek görsel (kaynak metni + ana bayrağı + varsa küçük önizleme).</summary>

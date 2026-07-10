@@ -1,4 +1,8 @@
-﻿using Volo.Abp.Modularity;
+using Integration.TradeXpress.N11Categories;
+using Integration.TradeXpress.N11Products;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Volo.Abp.Modularity;
 
 namespace Integration.TradeXpress;
 
@@ -8,5 +12,14 @@ namespace Integration.TradeXpress;
 )]
 public class TradeXpressApplicationTestModule : AbpModule
 {
-
+    public override void ConfigureServices(ServiceConfigurationContext context)
+    {
+        // Dış N11 SOAP/REST istemcileri testte SAHTE — test ortamında ağ yok; push planı sahtede yakalanıp
+        // karakterizasyon assert'leriyle doğrulanır (SalesChannelTrN11ProductPushTests). Aynı singleton instance
+        // hem interface hem somut tip üzerinden çözülür (test somut tipten yakalanan veriyi okur).
+        context.Services.AddSingleton<FakeN11ProductClient>();
+        context.Services.Replace(ServiceDescriptor.Singleton<IN11ProductClient>(sp => sp.GetRequiredService<FakeN11ProductClient>()));
+        context.Services.AddSingleton<FakeN11CategoryClient>();
+        context.Services.Replace(ServiceDescriptor.Singleton<IN11CategoryClient>(sp => sp.GetRequiredService<FakeN11CategoryClient>()));
+    }
 }

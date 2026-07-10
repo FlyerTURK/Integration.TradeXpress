@@ -659,6 +659,8 @@
     "TradeXpress:N11:ProductVariant:OverrideStockNegative": "The channel override stock cannot be negative.",
     "TradeXpress:N11:ProductVariant:MarginNegative": "The variant margin cannot be negative.",
     "TradeXpress:N11:ProductVariant:OverrideRequiredForN11Only": "This combination has no matching ERP variant (N11-only) — override price and stock are required since there is nothing to fall back to.",
+    "TradeXpress:N11:StockItem:PriceMissingForPush": "The price/stock to push to N11 could not be resolved for combination '{Combination}' — enter an override price and stock (an N11-only row has no ERP source to inherit from).",
+    "TradeXpress:N11:Product:DuplicateStockCode": "Stock code '{StockCode}' was generated for more than one row — N11 does not accept two SKUs with the same stock code; differentiate the combination value names or the variant code.",
     "TradeXpress:N11:Product:SaveFailed": "Could not reach the N11 product service (HTTP {status}).",
     "TradeXpress:N11:Product:SaveRejected": "N11 rejected the product: {message}",
     "TradeXpress:N11:Product:CompanyRequired": "A working company must be selected for this operation.",
