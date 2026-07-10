@@ -290,6 +290,28 @@ public abstract class SalesChannelTrN11ProductAttributeReconcileTests<TStartupMo
         }
     }
 
+    // ── Özellik sayısı üst-sınırı (ERP MaxAttributesPerProduct=5 simetriği, S4 guard) ─────────────────
+
+    [Fact]
+    public async Task Creating_with_six_attributes_fails_fast_with_too_many_attributes()
+    {
+        var companyId = Guid.NewGuid();
+        using (_currentCompany.Change(companyId))
+        {
+            var (channel, product) = await SeedChannelAndProductAsync(companyId, "AXPROD8");
+
+            var exception = await Should.ThrowAsync<BusinessException>(() => CreateChannelProductAsync(channel, product,
+                BuildAttribute("Renk", 0, "Red"),
+                BuildAttribute("Beden", 1, "Small"),
+                BuildAttribute("Kumas", 2, "Cotton"),
+                BuildAttribute("Desen", 3, "Plain"),
+                BuildAttribute("Yaka", 4, "Round"),
+                BuildAttribute("Kol", 5, "Short")));
+
+            exception.Code.ShouldBe("TradeXpress:N11:Product:TooManyAttributes");
+        }
+    }
+
     // ── Klon-sonra-ayrış taslağı (BuildDraftAttributesFromErpAsync) ────────────────────────────────────────
 
     [Fact]

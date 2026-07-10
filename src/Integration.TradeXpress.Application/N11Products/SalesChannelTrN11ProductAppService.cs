@@ -9,6 +9,7 @@ using Integration.TradeXpress.N11Categories;
 using Integration.TradeXpress.Permissions;
 using Integration.TradeXpress.Products;
 using Integration.TradeXpress.SalesChannels;
+using Integration.TradeXpress.SalesChannels.Variants;
 using Integration.TradeXpress.Vouchers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Caching.Distributed;
@@ -999,6 +1000,8 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
             return;
         }
 
+        await EnsureAttributeCountWithinLimitAsync(channelProduct.Id, attributesInput);
+
         foreach (var channelAttribute in attributesInput.Where(a => a.IsDeleted && a.Id != Guid.Empty))
         {
             await _channelAttributeValueRepository.DeleteAsync(v => v.AttributeId == channelAttribute.Id, autoSave: true);
@@ -1046,6 +1049,26 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
         }
     }
 
+    /// <summary>Persist SONRASI oluşacak özellik sayısını (mevcut − silinen + yeni) ERP simetriği üst-sınıra
+    /// (<see cref="ProductAttributeConsts.MaxAttributesPerProduct"/> = 5) karşı doğrular — persist BAŞLAMADAN
+    /// fail-fast (analiz 1.1 güçlendirmesi, 2026-07-09). Üst-sınır CombinationSignature kolon kapasitesini de
+    /// korur (600 karakter ≈ 8 "{AttributeId}={ValueId}" çifti; sabit 8'i AŞMAMALI).</summary>
+    private async Task EnsureAttributeCountWithinLimitAsync(Guid channelProductId, List<SalesChannelTrN11ProductAttributeDto> attributesInput)
+    {
+        var deletedIds = attributesInput
+            .Where(a => a.IsDeleted && a.Id != Guid.Empty)
+            .Select(a => a.Id)
+            .ToHashSet();
+        var survivingExistingCount = (await LoadChannelAttributeEntitiesAsync(channelProductId))
+            .Count(a => !deletedIds.Contains(a.Id));
+        var newCount = attributesInput.Count(a => !a.IsDeleted && a.Id == Guid.Empty);
+        if (survivingExistingCount + newCount > ProductAttributeConsts.MaxAttributesPerProduct)
+        {
+            throw new BusinessException("TradeXpress:N11:Product:TooManyAttributes")
+                .WithData("Max", ProductAttributeConsts.MaxAttributesPerProduct);
+        }
+    }
+
     /// <summary>Özellik grafını persist eder + persist-sonrası DB durumuna göre kartezyen kombinasyon satırlarını
     /// reconcile eder. Döndürdüğü bool = channelAttribute-modu AKTİF mi (en az 1 persist edilmiş özellik var) — false ise çağıran
     /// legacy ERP-doğrudan yola (<see cref="BuildStockItemGraphAsync"/>/<see cref="SaveStockItemOverridesAsync"/>) düşer.</summary>
@@ -1064,6 +1087,9 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
         return true;
     }
 
+    /// <summary>Kanal özelliklerinin (AttributeId, ValueId) kartezyeni — matematik <see cref="VariantCombinationEngine"/>'e
+    /// devredildi (kod tabanındaki son yerel kartezyen kopyası 2026-07-09'da silindi). "0 özellik → kombinasyon yok"
+    /// yorumu çağıran guard'ıdır (motorun birim elemanına — tek boş kombinasyon — düşülmez).</summary>
     private static List<List<(Guid AttributeId, Guid ValueId)>> BuildCombinations(List<AttributeWithValues> channelAttributes)
     {
         if (channelAttributes.Count == 0)
@@ -1071,25 +1097,15 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
             return new List<List<(Guid AttributeId, Guid ValueId)>>();
         }
 
-        var result = new List<List<(Guid AttributeId, Guid ValueId)>> { new() };
-        foreach (var channelAttribute in channelAttributes)
-        {
-            var next = new List<List<(Guid AttributeId, Guid ValueId)>>();
-            foreach (var combo in result)
-            {
-                foreach (var value in channelAttribute.Values)
-                {
-                    var extended = new List<(Guid AttributeId, Guid ValueId)>(combo) { (channelAttribute.AttributeId, value.ValueId) };
-                    next.Add(extended);
-                }
-            }
-
-            result = next;   // bir özelliğin değeri yoksa 'next' boş kalır → kombinasyon üretilemez (matematiksel doğru)
-        }
-
-        return result;
+        var axes = channelAttributes
+            .Select(a => (Axis: a.AttributeId, Values: (IReadOnlyList<Guid>)a.Values.Select(v => v.ValueId).ToList()))
+            .ToList();
+        return VariantCombinationEngine.BuildCartesian<Guid, Guid>(axes);
     }
 
+    /// <summary>Kombinasyon imzası — N11-yerel format ("{AttributeId}={ValueId}|...", AttributeId artan sıralı).
+    /// BİLİNÇLİ olarak <see cref="VariantCombinationEngine.BuildKey"/>'e delege EDİLMEZ: format farklı (BuildKey düz
+    /// Guid join) ve tüketici-yerel/opak (analiz 1.1) — S1 karakterizasyon testleri bu formatı snapshot'ladı, DEĞİŞTİRME.</summary>
     private static string BuildCombinationSignature(IEnumerable<(Guid AttributeId, Guid ValueId)> pairs)
     {
         return string.Join('|', pairs.OrderBy(p => p.AttributeId).Select(p => $"{p.AttributeId}={p.ValueId}"));
@@ -1137,50 +1153,51 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
     }
 
     /// <summary>Kartezyen kombinasyon satırlarını (<see cref="SalesChannelTrN11ProductStockItem"/>, CombinationSignature
-    /// ile) mevcut özellik/değer setiyle reconcile eder: artık üretilemeyen kombinasyonlar (satır + reçetesi) SİLİNİR
-    /// (orphan temizliği — 2026-07-09 kararı), eksik kombinasyonlar İNSERT edilir (fırsatçı ERP eşleştirmesiyle).
-    /// Var olan satırlara (imzası hâlâ üretilebilir) DOKUNULMAZ — kullanıcı override/reçete verisi korunur.</summary>
+    /// ile) mevcut özellik/değer setiyle reconcile eder — diff/sıra mekaniği <see cref="VariantSetReconciler"/>'a
+    /// devredildi (2026-07-09): artık üretilemeyen kombinasyonlar (satır + reçetesi) removeAsync'te SİLİNİR (orphan
+    /// temizliği), eksik kombinasyonlar addAsync'te İNSERT edilir (fırsatçı ERP eşleştirmesiyle — KANAL politikası,
+    /// çekirdekte değil). Var olan satırlara (imzası hâlâ üretilebilir) DOKUNULMAZ — kullanıcı override/reçete verisi korunur.</summary>
     private async Task SynchronizeStockItemsAsync(SalesChannelTrN11Product channelProduct, List<AttributeWithValues> channelAttributes)
     {
         var combos = BuildCombinations(channelAttributes);
-        var wantedSignatures = combos.Select(BuildCombinationSignature).ToHashSet(StringComparer.Ordinal);
+        var comboBySignature = new Dictionary<string, List<(Guid AttributeId, Guid ValueId)>>(StringComparer.Ordinal);
+        foreach (var combo in combos)
+        {
+            comboBySignature[BuildCombinationSignature(combo)] = combo;
+        }
 
         var existingHeaders = await AsyncExecuter.ToListAsync(
             (await _stockItemRepository.GetQueryableAsync())
                 .Where(h => h.SalesChannelTrN11ProductId == channelProduct.Id && h.CombinationSignature != null));
 
-        foreach (var orphan in existingHeaders.Where(h => !wantedSignatures.Contains(h.CombinationSignature!)))
-        {
-            await _channelRecipeLineRepository.DeleteAsync(
-                r => r.SalesChannelTrN11ProductId == channelProduct.Id && r.StockItemId == orphan.Id,
-                autoSave: true);
-            await _stockItemRepository.DeleteAsync(orphan, autoSave: true);
-        }
-
-        var existingSignatures = existingHeaders
-            .Where(h => wantedSignatures.Contains(h.CombinationSignature!))
-            .Select(h => h.CombinationSignature!)
-            .ToHashSet(StringComparer.Ordinal);
-        var missing = combos.Where(c => !existingSignatures.Contains(BuildCombinationSignature(c))).ToList();
-        if (missing.Count == 0)
-        {
-            return;
-        }
-
-        var erpIndex = await BuildErpVariantOptionSetIndexAsync(channelProduct.ProductId);
+        // ERP indeksi TEMBEL: ilk eksik kombinasyonda yüklenir — eksik yoksa ERP sorgusu hiç atılmaz (eski davranış).
+        Dictionary<Guid, HashSet<(string Name, string Value)>>? erpIndex = null;
         var attributeById = channelAttributes.ToDictionary(a => a.AttributeId);
 
-        foreach (var combo in missing)
-        {
-            var optionSet = combo
-                .Select(p => (Name: attributeById[p.AttributeId].AttributeName, Value: attributeById[p.AttributeId].Values.First(v => v.ValueId == p.ValueId).Value))
-                .ToList();
-            var matchedVariantId = MatchErpVariant(optionSet, erpIndex);
+        await VariantSetReconciler.ReconcileAsync(
+            targetKeys: combos.Select(BuildCombinationSignature).ToList(),
+            existingItems: existingHeaders,
+            keySelector: h => h.CombinationSignature!,
+            removeAsync: async orphan =>
+            {
+                await _channelRecipeLineRepository.DeleteAsync(
+                    r => r.SalesChannelTrN11ProductId == channelProduct.Id && r.StockItemId == orphan.Id,
+                    autoSave: true);
+                await _stockItemRepository.DeleteAsync(orphan, autoSave: true);
+            },
+            addAsync: async signature =>
+            {
+                erpIndex ??= await BuildErpVariantOptionSetIndexAsync(channelProduct.ProductId);
+                var combo = comboBySignature[signature];
+                var optionSet = combo
+                    .Select(p => (Name: attributeById[p.AttributeId].AttributeName, Value: attributeById[p.AttributeId].Values.First(v => v.ValueId == p.ValueId).Value))
+                    .ToList();
+                var matchedVariantId = MatchErpVariant(optionSet, erpIndex);
 
-            var header = new SalesChannelTrN11ProductStockItem(channelProduct.CompanyId, channelProduct.Id, matchedVariantId);
-            header.SetCombinationSignature(BuildCombinationSignature(combo));
-            await _stockItemRepository.InsertAsync(header, autoSave: true);
-        }
+                var header = new SalesChannelTrN11ProductStockItem(channelProduct.CompanyId, channelProduct.Id, matchedVariantId);
+                header.SetCombinationSignature(signature);
+                await _stockItemRepository.InsertAsync(header, autoSave: true);
+            });
     }
 
     private static string BuildCombinationLabel(string signature, Dictionary<Guid, AttributeWithValues> attributeById)

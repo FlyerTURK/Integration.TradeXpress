@@ -966,6 +966,7 @@
     "TradeXpress:N11:Product:ProductAttributeMissing": "N11 bu kategoride '{AttributeName}' alanını zorunlu tutuyor; lütfen doldurun.",
     "TradeXpress:N11:Product:NotPushedYet": "Önce ürünü N11'e tam gönderin; stok/fiyat güncellemesi ancak gönderilmiş üründe çalışır.",
     "TradeXpress:N11:Product:NoSyncableSku": "Güncellenebilir varyant yok; ürünü önce N11'e tam gönderin.",
+    "TradeXpress:N11:Product:TooManyAttributes": "Bir kanal ürününe en fazla {Max} özellik tanımlanabilir.",
     "N11Product:VersionDrift": "'{0}' varyantında N11'de değişiklik (olası satış) saptandı; yerel değerler yine de gönderildi.",
     "N11Product:SkuNotPushed": "'{0}' varyantı henüz N11'e gönderilmemiş; stok/fiyat güncellemesi için önce tam gönderim gerekir.",
     "N11Product:SyncStockPrice": "Stok/Fiyat Güncelle",
