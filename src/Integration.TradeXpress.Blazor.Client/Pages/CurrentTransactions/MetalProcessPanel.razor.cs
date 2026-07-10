@@ -111,6 +111,8 @@ public partial class MetalProcessPanel
             new(ProcessPaymentType.WithCurrency, L["Enum:ProcessPaymentType:WithCurrency"].Value),
             new(ProcessPaymentType.Return,       L["Enum:ProcessPaymentType:Return"].Value),
             new(ProcessPaymentType.Consignment,  L["Enum:ProcessPaymentType:Consignment"].Value),
+            // Rezervasyon yalnız MADEN işlemlerinde seçilebilir (Muadil M0 kararı) — diğer panellere eklenmez.
+            new(ProcessPaymentType.Reservation,  L["Enum:ProcessPaymentType:Reservation"].Value),
         };
         await ReloadMetalsAsync();
 
@@ -262,8 +264,10 @@ public partial class MetalProcessPanel
         }
         else
         {
+            // Ana birim dışlaması yalnız Bedelli'de (karşı bacak farklı birim olmalı); işçilik modunda
+            // (Normal/İade/Emanet/Rezervasyon) TÜM birimler — madenin kendi takip/işçilik birimi de seçilebilir.
             _activePayItems = _activeUnits
-                .Where(u => u.Id != Model.MainUnitId)
+                .Where(u => !HasPriceMode || u.Id != Model.MainUnitId)
                 .Select(u => new PayComboItem(u.Id, u.Code, true, u.Id, u.Code))
                 .ToList();
         }

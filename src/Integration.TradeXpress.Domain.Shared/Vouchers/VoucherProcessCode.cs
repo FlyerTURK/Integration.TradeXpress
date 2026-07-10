@@ -71,6 +71,8 @@ public static class VoucherProcessCode
             ProcessPaymentType.Return       => "I",
             ProcessPaymentType.Consignment  => "E",
             ProcessPaymentType.WithUnit     => "M",
+            // "R" hiçbir ProcessType/Direction harfiyle çakışma üretmez ("A" değil → Takoz ayrışması korunur).
+            ProcessPaymentType.Reservation  => "R",
             _ => "?",
         };
     }

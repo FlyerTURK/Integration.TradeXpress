@@ -82,6 +82,13 @@
                         <DxGridDataColumn FieldName="@nameof(MetalStockRowDto.OutAmount)"   Caption="Çıkış (Miktar)" DisplayFormat="n4" Width="140" />
                         <DxGridDataColumn FieldName="@nameof(MetalStockRowDto.NetQuantity)" Caption="Net (Adet)"   DisplayFormat="n2" Width="130" />
                         <DxGridDataColumn FieldName="@nameof(MetalStockRowDto.NetAmount)"   Caption="Net (Miktar)" DisplayFormat="n4" Width="140" />
+                        @* Rezervasyon sayaçları — fiziksel Net'e dahil değil; Kullanılabilir = Net − Rez.Çıkış *@
+                        <DxGridDataColumn FieldName="@nameof(MetalStockRowDto.ReservedOutQuantity)" Caption="Rez.Çıkış (Adet)"     DisplayFormat="n2" Width="140" />
+                        <DxGridDataColumn FieldName="@nameof(MetalStockRowDto.ReservedOutAmount)"   Caption="Rez.Çıkış (Miktar)"   DisplayFormat="n4" Width="150" />
+                        <DxGridDataColumn FieldName="@nameof(MetalStockRowDto.ReservedInQuantity)"  Caption="Rez.Giriş (Adet)"     DisplayFormat="n2" Width="140" />
+                        <DxGridDataColumn FieldName="@nameof(MetalStockRowDto.ReservedInAmount)"    Caption="Rez.Giriş (Miktar)"   DisplayFormat="n4" Width="150" />
+                        <DxGridDataColumn FieldName="@nameof(MetalStockRowDto.AvailableQuantity)"   Caption="Kullanılabilir (Adet)"   DisplayFormat="n2" Width="160" />
+                        <DxGridDataColumn FieldName="@nameof(MetalStockRowDto.AvailableAmount)"     Caption="Kullanılabilir (Miktar)" DisplayFormat="n4" Width="170" />
                     </Columns>
                     <TotalSummary>
                         <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum" FieldName="@nameof(MetalStockRowDto.InQuantity)"  DisplayFormat="n2" />

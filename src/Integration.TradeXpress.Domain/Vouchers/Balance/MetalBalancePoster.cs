@@ -8,6 +8,8 @@ namespace Integration.TradeXpress.Vouchers.Balance;
 /// Maden (<see cref="ProcessType.Metal"/>) satırlarının bakiye etkisi (ERPPROV3 paritesi):
 /// <list type="bullet">
 ///   <item><b>Peşin</b> (<see cref="ProcessPaymentType.WithCash"/>): bakiyeye yansımaz → etki yok.</item>
+///   <item><b>Rezervasyon</b> (<see cref="ProcessPaymentType.Reservation"/>): taahhüt sayacı —
+///         bakiyeye yansımaz → etki yok (yalnız stok kullanılabilirliğini etkiler, o da raporda).</item>
 ///   <item><b>Bedelli</b> (<see cref="ProcessPaymentType.WithCurrency"/>): tek bacak — bedel
 ///         (<see cref="VoucherLine.PayUnitId"/>/<see cref="VoucherLine.PayTotal"/>). Maden bacağı yok
 ///         (işçilik Factor'a yedirildiği için Total bedele zaten yansır).</item>
@@ -25,8 +27,8 @@ public sealed class MetalBalancePoster : IVoucherLineBalancePoster, ITransientDe
 
     public IEnumerable<BalanceEffect> Post(VoucherLine line)
     {
-        if (line.PaymentType == ProcessPaymentType.WithCash)
-            yield break;   // Peşin → yansımaz
+        if (line.PaymentType is ProcessPaymentType.WithCash or ProcessPaymentType.Reservation)
+            yield break;   // Peşin → yansımaz; Rezervasyon → taahhüt sayacı, bakiye-dışı
 
         var sign = line.Direction.IsInflow() ? 1m : -1m;   // Giriş +, Çıkış −
 

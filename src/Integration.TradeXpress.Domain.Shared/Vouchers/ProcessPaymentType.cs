@@ -24,4 +24,8 @@ public enum ProcessPaymentType : byte
 
     /// <summary>Birim bazlı (legacy <c>MIKTAR</c>).</summary>
     WithUnit     = 5,
+
+    /// <summary>Rezervasyon — bakiyeye YANSIMAZ, fiziksel stok hareketi YARATMAZ; yalnız
+    /// kullanılabilir stoğu düşüren taahhüt sayacı. Kapanma elle [ilk faz].</summary>
+    Reservation  = 6,
 }

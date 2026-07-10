@@ -46,11 +46,26 @@ public class MetalStockRowDto
     public decimal OutQuantity { get; set; }
     /// <summary>Net adet (InQuantity − OutQuantity).</summary>
     public decimal NetQuantity { get; set; }
+
+    // ── Rezervasyon (ProcessPaymentType.Reservation) — fiziksel Net'e GİRMEZ, ayrı sayaç ──
+    /// <summary>Çıkış rezervasyonu net adedi — müşteriye ayrılan (kullanılabilirden düşer).</summary>
+    public decimal ReservedOutQuantity { get; set; }
+    /// <summary>Çıkış rezervasyonu net ağırlığı (Amount).</summary>
+    public decimal ReservedOutAmount { get; set; }
+    /// <summary>Giriş rezervasyonu net adedi — tedarikçiden beklenen (bilgi amaçlı; kullanılabilire eklenmez).</summary>
+    public decimal ReservedInQuantity { get; set; }
+    /// <summary>Giriş rezervasyonu net ağırlığı (Amount).</summary>
+    public decimal ReservedInAmount { get; set; }
+    /// <summary>Kullanılabilir adet = NetQuantity − ReservedOutQuantity.</summary>
+    public decimal AvailableQuantity { get; set; }
+    /// <summary>Kullanılabilir ağırlık = NetAmount − ReservedOutAmount.</summary>
+    public decimal AvailableAmount { get; set; }
 }
 
 /// <summary>
 /// Maden hareket satırı. Tüm ödeme tipleri dahil; fiziksel maden miktarı (Amount @ MainUnit) esaslıdır.
-/// <see cref="Source"/>: ödeme tipi Türkçesi (Normal / Peşin / Bedelli / İade / Emanet / Miktar) veya "Devreden".
+/// <see cref="Source"/>: ödeme tipi Türkçesi (Normal / Peşin / Bedelli / İade / Emanet / Miktar / Rezervasyon) veya "Devreden".
+/// Rezervasyon satırları listede görünür ama fiziksel kümülatife (RunningBalance/RunningQty) KATILMAZ.
 /// </summary>
 public class MetalMovementRowDto
 {
@@ -86,17 +101,21 @@ public class MetalMovementRowDto
     public string? Description { get; set; }
     /// <summary>true = başlangıç tarihinden önceki birikimi gösteren devreden satırı.</summary>
     public bool IsCarryForward { get; set; }
+    /// <summary>true = rezervasyon satırı — Giren/Çıkan rezerve miktarı gösterir ama
+    /// fiziksel kümülatife (RunningBalance/RunningQty) katılmaz.</summary>
+    public bool IsReservation { get; set; }
 
     // Computed — grid kolonları için
-    /// <summary>Bu satırdan önceki Amount bakiyesi (Devir = RunningBalance − Effect).</summary>
-    public decimal Devir => RunningBalance - Effect;
+    /// <summary>Bu satırdan önceki Amount bakiyesi (Devir = RunningBalance − Effect;
+    /// rezervasyonda Effect kümülatife girmediği için Devir = RunningBalance).</summary>
+    public decimal Devir => RunningBalance - (IsReservation ? 0m : Effect);
     /// <summary>Giren ağırlık (girişte pozitif; çıkışta 0).</summary>
     public decimal Giren => Effect > 0 ? Effect : 0m;
     /// <summary>Çıkan ağırlık (çıkışta pozitif gösterim; girişte 0).</summary>
     public decimal Cikan => Effect < 0 ? -Effect : 0m;
 
     /// <summary>Bu satırdan önceki Quantity bakiyesi.</summary>
-    public decimal DevirQty => RunningQty - EffectQty;
+    public decimal DevirQty => RunningQty - (IsReservation ? 0m : EffectQty);
     /// <summary>Giren adet.</summary>
     public decimal GirenQty => EffectQty > 0 ? EffectQty : 0m;
     /// <summary>Çıkan adet.</summary>

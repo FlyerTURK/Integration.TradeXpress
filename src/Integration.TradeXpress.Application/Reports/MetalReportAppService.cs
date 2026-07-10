@@ -24,7 +24,10 @@ namespace Integration.TradeXpress.Reports;
 /// her ödeme tipinde yalnız tek bacak üretilir: kaç birim maden girdi veya çıktı.
 /// <list type="bullet">
 ///   <item>Etki = <c>±Amount</c> (<see cref="VoucherLine.Amount"/>), birim = <see cref="VoucherLine.MainUnitId"/>.</item>
-///   <item>Source kolonu ödeme tipini bilgi amaçlı gösterir (Normal / Peşin / Bedelli / İade / Emanet / Miktar).</item>
+///   <item>Source kolonu ödeme tipini bilgi amaçlı gösterir (Normal / Peşin / Bedelli / İade / Emanet / Miktar / Rezervasyon).</item>
+///   <item><b>Rezervasyon</b> (<see cref="ProcessPaymentType.Reservation"/>) İSTİSNA: fiziksel hareket
+///   YARATMAZ — stok Net'ine/kümülatife girmez; ayrı Rezerve sayaçlarında toplanır
+///   (Kullanılabilir = Net − RezerveÇıkış).</item>
 /// </list>
 /// İşaret: Giriş(Inbound) → +, Çıkış(Outbound) → −. isInflow = <c>Direction.IsInflow()</c>.
 /// </summary>
@@ -79,19 +82,35 @@ public class MetalReportAppService : TradeXpressAppService, IMetalReportAppServi
     {
         var legs = await QueryLegsAsync(filter, dateFiltered: false);
 
+        // Rezervasyon (Reservation) fiziksel Net'e GİRMEZ — ayrı taahhüt sayacı olarak toplanır:
+        // ReservedOut = müşteriye ayrılan (kullanılabilirden düşer), ReservedIn = tedarikçiden beklenen (bilgi).
         var grouped = legs
             .GroupBy(x => new { x.CommodityId, x.CommodityCode, x.UnitId })
-            .Select(g => new MetalStockRowDto
+            .Select(g =>
             {
-                MetalId     = g.Key.CommodityId,
-                MetalCode   = g.Key.CommodityCode,
-                UnitId      = g.Key.UnitId,
-                InAmount    = g.Where(x => x.Effect    > 0).Sum(x => x.Effect),
-                OutAmount   = g.Where(x => x.Effect    < 0).Sum(x => -x.Effect),
-                NetAmount   = g.Sum(x => x.Effect),
-                InQuantity  = g.Where(x => x.EffectQty > 0).Sum(x => x.EffectQty),
-                OutQuantity = g.Where(x => x.EffectQty < 0).Sum(x => -x.EffectQty),
-                NetQuantity = g.Sum(x => x.EffectQty),
+                var physical = g.Where(x => x.PaymentType != ProcessPaymentType.Reservation).ToList();
+                var reserved = g.Where(x => x.PaymentType == ProcessPaymentType.Reservation).ToList();
+
+                var row = new MetalStockRowDto
+                {
+                    MetalId     = g.Key.CommodityId,
+                    MetalCode   = g.Key.CommodityCode,
+                    UnitId      = g.Key.UnitId,
+                    InAmount    = physical.Where(x => x.Effect    > 0).Sum(x => x.Effect),
+                    OutAmount   = physical.Where(x => x.Effect    < 0).Sum(x => -x.Effect),
+                    NetAmount   = physical.Sum(x => x.Effect),
+                    InQuantity  = physical.Where(x => x.EffectQty > 0).Sum(x => x.EffectQty),
+                    OutQuantity = physical.Where(x => x.EffectQty < 0).Sum(x => -x.EffectQty),
+                    NetQuantity = physical.Sum(x => x.EffectQty),
+
+                    ReservedOutAmount   = reserved.Where(x => x.Effect    < 0).Sum(x => -x.Effect),
+                    ReservedInAmount    = reserved.Where(x => x.Effect    > 0).Sum(x => x.Effect),
+                    ReservedOutQuantity = reserved.Where(x => x.EffectQty < 0).Sum(x => -x.EffectQty),
+                    ReservedInQuantity  = reserved.Where(x => x.EffectQty > 0).Sum(x => x.EffectQty),
+                };
+                row.AvailableAmount   = row.NetAmount   - row.ReservedOutAmount;
+                row.AvailableQuantity = row.NetQuantity - row.ReservedOutQuantity;
+                return row;
             })
             .ToList();
 
@@ -143,6 +162,8 @@ public class MetalReportAppService : TradeXpressAppService, IMetalReportAppServi
                && v.VoucherDate < asOfExclusive
             from l in v.Lines
             where !l.IsDeleted && l.Type == ProcessType.Metal && l.MainUnitId != Guid.Empty && l.Amount != 0m
+               // Rezervasyon fiziksel hareket YARATMAZ → bilanço fiziksel holding'ine girmez.
+               && l.PaymentType != ProcessPaymentType.Reservation
             group l by l.MainUnitId into g
             // IQueryable → SQL: IsInflow() extension'ı EF Core tarafından çevrilemez, ham %2 bilinçli.
             select new
@@ -210,7 +231,8 @@ public class MetalReportAppService : TradeXpressAppService, IMetalReportAppServi
         var legs = await QueryLegsAsync(
             new MetalReportFilterDto { BranchId = branchId },
             dateFiltered: false, endExclusiveOverride: asOfExclusive);
-        return legs.Where(x => x.UnitId == unitId)
+        // Rezervasyon fiziksel stok DEĞİL → bilanço drill'ine girmez.
+        return legs.Where(x => x.UnitId == unitId && x.PaymentType != ProcessPaymentType.Reservation)
             .GroupBy(x => x.CommodityCode ?? "?")
             .Select(g => new { Code = g.Key, Net = g.Sum(x => x.Effect * x.Factor) })
             .Where(x => x.Net != 0m)
@@ -276,11 +298,12 @@ public class MetalReportAppService : TradeXpressAppService, IMetalReportAppServi
         var running     = new Dictionary<Guid, decimal>();   // Amount running
         var runningQty  = new Dictionary<Guid, decimal>();   // Quantity running
 
-        // Devreden satırları — birim bazında
+        // Devreden satırları — birim bazında. Rezervasyon fiziksel kümülatife KATILMAZ
+        // (stok raporu Net'i ile tutarlılık: Son Durum = fiziksel bakiye).
         foreach (var g in carryLegs.GroupBy(x => x.UnitId))
         {
-            var carry    = g.Sum(x => x.Effect);
-            var carryQty = g.Sum(x => x.EffectQty);
+            var carry    = g.Where(x => x.PaymentType != ProcessPaymentType.Reservation).Sum(x => x.Effect);
+            var carryQty = g.Where(x => x.PaymentType != ProcessPaymentType.Reservation).Sum(x => x.EffectQty);
             running[g.Key]    = carry;
             runningQty[g.Key] = carryQty;
             if (carry != 0m || carryQty != 0m)
@@ -298,13 +321,15 @@ public class MetalReportAppService : TradeXpressAppService, IMetalReportAppServi
                 });
         }
 
-        // Dönem hareketleri
+        // Dönem hareketleri. Rezervasyon satırı listede GÖRÜNÜR (Source="Rezervasyon", Giren/Çıkan
+        // rezerve miktarı gösterir) ama fiziksel kümülatife (Son Durum) KATILMAZ — fiziken yerinden oynamıyor.
         foreach (var x in legs)
         {
+            var isReservation = x.PaymentType == ProcessPaymentType.Reservation;
             running.TryGetValue(x.UnitId, out var prev);
             runningQty.TryGetValue(x.UnitId, out var prevQty);
-            var rb    = prev    + x.Effect;
-            var rbQty = prevQty + x.EffectQty;
+            var rb    = prev    + (isReservation ? 0m : x.Effect);
+            var rbQty = prevQty + (isReservation ? 0m : x.EffectQty);
             running[x.UnitId]    = rb;
             runningQty[x.UnitId] = rbQty;
 
@@ -330,6 +355,7 @@ public class MetalReportAppService : TradeXpressAppService, IMetalReportAppServi
                 RunningBalance = rb,
                 EffectQty      = x.EffectQty,
                 RunningQty     = rbQty,
+                IsReservation  = isReservation,
                 Description    = x.Description,
             });
         }
@@ -384,6 +410,7 @@ public class MetalReportAppService : TradeXpressAppService, IMetalReportAppServi
             ProcessPaymentType.Return      => "İade",
             ProcessPaymentType.Consignment => "Emanet",
             ProcessPaymentType.WithUnit    => "Miktar",
+            ProcessPaymentType.Reservation => "Rezervasyon",
             _                              => "Diğer",
         };
 

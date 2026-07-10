@@ -169,8 +169,10 @@ public partial class ScrapProcessPanel
         Model.MainUnitId    = s?.FollowingUnitId ?? Guid.Empty;
         if (s is { }) { Model.Factor = s.Factor; _milyemReadOnly = !s.FactorChange; }
 
-        BuildPayList();
-        EnsurePayItem();
+        // Hurda'da fiyat bacağı yalnız Peşin/Bedelli'de var; Normal/İade/Emanet'te pay kontrolleri
+        // görünmez → PayCommodity NULL kalmalı (kayda hayalet birim yazılmasın).
+        if (HasPriceLeg) { BuildPayList(); EnsurePayItem(); }
+        else             { ApplyPayItem(null); }
         Recalc(EditedField.Commodity);
     }
 
@@ -228,6 +230,7 @@ public partial class ScrapProcessPanel
     {
         Model.PaymentType = value;
         if (HasPriceLeg) { BuildPayList(); EnsurePayItem(); }
+        else             { ApplyPayItem(null); }   // fiyat bacağı yok → pay seçimi temizlenir
         Recalc(EditedField.PaymentType);
     }
 

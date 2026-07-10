@@ -228,6 +228,22 @@ public class BalancePosterTests
     }
 
     [Fact]
+    public void Metal_reservation_has_no_effect_in_both_directions()
+    {
+        // Rezervasyon = taahhüt sayacı — bakiyeye YANSIMAZ (Peşin gibi bakiye-dışı),
+        // ana Has + işçilik alanları dolu olsa bile hiçbir bacak yazılmaz.
+        var inbound  = Create(ProcessType.Metal, ProcessDirectionType.Inbound,
+                              paymentType: ProcessPaymentType.Reservation,
+                              mainUnitId: HasUnit, total: 100m, payUnitId: LaborUnit, payTotal: 20m);
+        var outbound = Create(ProcessType.Metal, ProcessDirectionType.Outbound,
+                              paymentType: ProcessPaymentType.Reservation,
+                              mainUnitId: HasUnit, total: 100m, payUnitId: LaborUnit, payTotal: 20m);
+
+        new MetalBalancePoster().Post(inbound).ShouldBeEmpty();
+        new MetalBalancePoster().Post(outbound).ShouldBeEmpty();
+    }
+
+    [Fact]
     public void Metal_with_currency_posts_only_price_leg()
     {
         // Bedelli: maden bacağı YOK (işçilik Factor'a yedirilmiş) → yalnız bedel.

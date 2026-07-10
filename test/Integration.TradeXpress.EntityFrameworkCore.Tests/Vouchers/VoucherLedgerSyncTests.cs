@@ -87,6 +87,20 @@ public class VoucherLedgerSyncTests : TradeXpressEntityFrameworkCoreTestBase
     }
 
     [Fact]
+    public async Task Metal_reservation_line_does_not_reach_ledger()
+    {
+        var data = await ArrangeCompanyAsync();
+
+        // Rezervasyon (taahhüt sayacı) bakiyeye YANSIMAZ → ana Has + işçilik dolu olsa bile
+        // poster boş döner, hiçbir ledger bacağı yazılmaz.
+        var dto = VoucherTestLines.MetalLine(data, ProcessDirectionType.Outbound, 10m, 150m);
+        dto.PaymentType = ProcessPaymentType.Reservation;
+        var line = await _voucherAppService.SaveLineAsync(dto);
+
+        (await GetLedgerAsync(line.VoucherId!.Value)).ShouldBeEmpty();
+    }
+
+    [Fact]
     public async Task Updating_a_line_rewrites_ledger_idempotently()
     {
         var data = await ArrangeCompanyAsync();
