@@ -9,7 +9,7 @@ public partial class SalesChannelEtsyLayout
     [Parameter, EditorRequired] public SalesChannelEtsyGetDto Model { get; set; } = default!;
     [Parameter] public bool IsNew { get; set; }
 
-    /// <summary>"Etsy'ye Bağlan" — host StartOAuthAsync çağırıp tarayıcıyı Etsy onay sayfasına yönlendirir.</summary>
+    /// <summary>"Etsy'ye Bağlan" — host StartOAuthAsync çağırıp onay sayfasını yeni sekmede açar.</summary>
     [Parameter] public EventCallback OnConnectClick { get; set; }
 
     /// <summary>Düzenlemede sir alanı (SharedSecret) boş gelir → in-field ipucu; yeni kayıtta placeholder yok.</summary>

@@ -3,12 +3,13 @@ using System.Threading.Tasks;
 using Integration.Framework.Blazor.Client.Services.Base;
 using Integration.TradeXpress.SalesChannels;
 using Microsoft.AspNetCore.Components;
+using Microsoft.JSInterop;
 using Volo.Abp.ObjectMapping;
 
 namespace Integration.TradeXpress.Blazor.Client.Pages.SalesChannels;
 
 /// <summary>Etsy satış kanalı edit host code-behind — coordinator kurulumu (tipe-özel ISalesChannelEtsyAppService)
-/// + OAuth köprüsü ("Bağlan" → authorize URL'e tam yönlendirme; callback dönüşünde ?oauth=ok|err toast'u).</summary>
+/// + OAuth köprüsü ("Bağlan" → authorize URL YENİ SEKMEDE; callback dönüşünde ?oauth=ok|err toast'u).</summary>
 public partial class SalesChannelEtsyEditHost
 {
     [Parameter] public Guid? Id { get; set; }
@@ -20,6 +21,7 @@ public partial class SalesChannelEtsyEditHost
     [Inject] protected IObjectMapper Mapper { get; set; } = default!;
     [Inject] protected NavigationManager Navigation { get; set; } = default!;
     [Inject] protected IUiInteractionService UiService { get; set; } = default!;
+    [Inject] protected IJSRuntime Js { get; set; } = default!;
 
     private ICommitCoordinator<SalesChannelEtsyGetDto, SalesChannelListDto, Guid, SalesChannelListRequestDto>? _coordinator;
 
@@ -49,14 +51,16 @@ public partial class SalesChannelEtsyEditHost
         }
     }
 
-    /// <summary>"Etsy'ye Bağlan": sunucu PKCE state/verifier üretip authorize URL döner → TAM yönlendirme
-    /// (forceLoad — Etsy harici sayfa; circuit'ten çıkılır, dönüş callback endpoint üzerinden olur).</summary>
+    /// <summary>"Etsy'ye Bağlan": sunucu PKCE state/verifier üretip authorize URL döner → YENİ SEKMEDE açılır
+    /// (window.open — aynı sekmede forceLoad circuit'i öldürüp açık MDI sekmelerini kapatıyordu). Onay yeni
+    /// sekmede tamamlanır (callback ?oauth=ok oraya döner); bu sekmedeki oturum ve formlar aynen kalır.
+    /// Not: popup engelleyici sekmeyi bloklarsa sessizce hiçbir şey olmaz — kullanıcı izin verip tekrar tıklar.</summary>
     private async Task StartOAuthAsync(SalesChannelEtsyGetDto model)
     {
         try
         {
             var url = await AppService.StartOAuthAsync(model.Id);
-            Navigation.NavigateTo(url, forceLoad: true);
+            await Js.InvokeVoidAsync("window.open", url, "_blank");
         }
         catch (Exception ex)
         {

@@ -46,7 +46,7 @@
     </DxFormLayoutGroup>
 
     @* Bağlantı grubu — yalnız kaydedilmiş kanalda (OAuth için kalıcı kanal kimliği gerekir; yeni kayıtta önce Kaydet).
-       "Etsy'ye Bağlan" satıcıyı Etsy onay sayfasına götürür (StartOAuth → tam yönlendirme); dönüş callback endpoint'te. *@
+       "Etsy'ye Bağlan" onay sayfasını YENİ SEKMEDE açar (bu sekmedeki circuit/MDI korunur); dönüş callback endpoint'te. *@
     @if (!IsNew)
     {
         <DxFormLayoutGroup Caption="@L["SalesChannel:Etsy:Connection"]" ColSpanMd="12">
