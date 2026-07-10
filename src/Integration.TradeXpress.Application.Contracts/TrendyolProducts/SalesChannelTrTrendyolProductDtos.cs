@@ -6,8 +6,10 @@ using Volo.Abp.Application.Services;
 
 namespace Integration.TradeXpress.TrendyolProducts;
 
-/// <summary>Trendyol kategori attribute değeri (id-bazlı; attributeValueId ile listeden ya da customValue ile serbest).</summary>
-public class SalesChannelTrTrendyolProductAttributeDto
+/// <summary>Trendyol KATEGORİ attribute değeri (id-bazlı; attributeValueId ile listeden ya da customValue ile serbest).
+/// Ad "CategoryAttribute" (N11 sözlüğüyle hizalı, S6 rename): kombinasyon üreten
+/// <see cref="SalesChannelTrTrendyolProductAttributeDto"/>'dan tamamen ayrıdır.</summary>
+public class SalesChannelTrTrendyolProductCategoryAttributeDto
 {
     public int AttributeId { get; set; }
     public int? AttributeValueId { get; set; }
@@ -31,10 +33,25 @@ public class SalesChannelTrTrendyolProductSkuDto
 /// özelleştirmesi. LEFT JOIN: ERP varyant seti ⋈ kaydedilmiş kanal override. null override alanı = ERP'den devralınır.
 /// Reçete (<see cref="RecipeLines"/>) kaydedilmişse ondan, yoksa ERP reçetesinden KLONLANIR (Id boş = henüz persist yok).
 /// <see cref="NetCost"/>/<see cref="DerivedPrice"/> SALT-OKUNUR (GetAsync canlı hesaplar; save yoksayar).</summary>
-public class SalesChannelTrTrendyolProductVariantGraphDto
+public class SalesChannelTrTrendyolProductStockItemGraphDto
 {
-    /// <summary>ERP varyantı (anchor; save'de kanal override başlığına eşlenir). Read-only kimlik.</summary>
-    public Guid ProductVariantId { get; set; }
+    /// <summary>Override BAŞLIĞININ kendi id'si (anchor budur — N11 portu) — SALT-OKUNUR kimlik, round-trip bununla
+    /// yapılır. Özellik-kaynaklı (kartezyen) satırlarda ZORUNLU dolu (reconcile server-side üretir, client yeni satır
+    /// açamaz); henüz persist edilmemiş/legacy düğümde <c>Guid.Empty</c>.</summary>
+    public Guid Id { get; set; }
+
+    /// <summary>ERP varyantı — id-only, OPSİYONEL. Özellik-kaynaklı satırlarda yalnız fiyat/stok FALLBACK kaynağı
+    /// (reconcile anahtarı DEĞİL — bkz. <see cref="SalesChannelTrTrendyolProductAttributeDto"/>); null = Trendyol-only
+    /// kombinasyon (ERP'de karşılığı yok — Trendyol kendi özelliğinde sonradan eklenen bir değerden doğdu).</summary>
+    public Guid? ProductVariantId { get; set; }
+
+    /// <summary>Kombinasyonu oluşturan özellik değerlerinin SALT-OKUNUR görüntüsü (ör. "Renk: Kırmızı; Beden: M") —
+    /// yalnız özellik-kaynaklı (kartezyen) satırlarda dolu; legacy ERP-doğrudan satırda boş (VariantCode/Name kullanılır).</summary>
+    public string CombinationLabel { get; set; } = string.Empty;
+
+    /// <summary>SALT-OKUNUR türetilmiş bayrak: <c>true</c> = ERP varyantından izleniyor, <c>false</c> = Trendyol-only
+    /// (ERP karşılığı yok; <see cref="OverridePrice"/>/<see cref="OverrideStock"/> ZORUNLUdur).</summary>
+    public bool IsErpBacked => ProductVariantId.HasValue;
 
     /// <summary>ERP varyant kodu (SALT-OKUNUR görüntü; ERP SSOT).</summary>
     public string VariantCode { get; set; } = string.Empty;
@@ -69,6 +86,34 @@ public class SalesChannelTrTrendyolProductVariantGraphDto
 
     /// <summary>Türetilmiş fiyat = NetCost × (1 + (Margin ?? 0)/100) [MARKUP] (SALT-OKUNUR; NetCost null ise null).</summary>
     public decimal? DerivedPrice { get; set; }
+}
+
+/// <summary>Trendyol kanal-özel varyant ÖZELLİĞİ (ör. "Renk", "Beden") — ERP <c>ProductAttributeGraphDto</c> deseninin
+/// Trendyol-scope klonu (klon-sonra-ayrış; N11 paritesi). Id boş = yeni özellik; <see cref="ClientKey"/> in-memory graf
+/// diff kimliği. <see cref="IsDeleted"/> = save'de silinecek.</summary>
+public class SalesChannelTrTrendyolProductAttributeDto
+{
+    /// <summary>İstemci-taraflı graf kimliği (yeni özellikte Id yok; graf diff için).</summary>
+    public Guid ClientKey { get; set; } = Guid.NewGuid();
+
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public int DisplayOrder { get; set; }
+    public bool IsDeleted { get; set; }
+    public List<SalesChannelTrTrendyolProductAttributeValueDto> Values { get; set; } = new();
+}
+
+/// <summary>Trendyol kanal-özel varyant özellik DEĞERİ (ör. "Kırmızı") — ERP <c>ProductAttributeValueGraphDto</c>
+/// deseninin Trendyol-scope klonu.</summary>
+public class SalesChannelTrTrendyolProductAttributeValueDto
+{
+    /// <summary>İstemci-taraflı graf kimliği (yeni değerde Id yok; graf diff için).</summary>
+    public Guid ClientKey { get; set; } = Guid.NewGuid();
+
+    public Guid Id { get; set; }
+    public string Value { get; set; } = string.Empty;
+    public int DisplayOrder { get; set; }
+    public bool IsDeleted { get; set; }
 }
 
 /// <summary>Trendyol push ÖNİZLEMESİ (read-only, T6) — bu listelemede Trendyol'a GİDECEK ürün-seviyesi özet +
@@ -155,14 +200,20 @@ public class SalesChannelTrTrendyolProductDto
     public string? Description { get; set; }
     public int? DeliveryDuration { get; set; }
     public TrendyolFastDeliveryType? FastDeliveryType { get; set; }
-    public List<SalesChannelTrTrendyolProductAttributeDto> Attributes { get; set; } = new();
+    public List<SalesChannelTrTrendyolProductCategoryAttributeDto> Attributes { get; set; } = new();
 
     /// <summary>Varyant SKU kimlik/durum satırları (read-only; push + reconcile sonrası dolar).</summary>
     public List<SalesChannelTrTrendyolProductSkuDto> Skus { get; set; } = new();
 
     /// <summary>Kanal-özel varyant override'ları (fiyat/stok/marj + reçete graf düğümleri) — ERP varyant seti ⋈
-    /// kaydedilmiş override (LEFT JOIN). Ürün 'Kaydet'inde birlikte kaydedilir. NetCost/DerivedPrice SALT-OKUNUR.</summary>
-    public List<SalesChannelTrTrendyolProductVariantGraphDto> Variants { get; set; } = new();
+    /// kaydedilmiş override (LEFT JOIN) ya da özellik-kaynaklı kartezyen kombinasyonlar. Ürün 'Kaydet'inde birlikte
+    /// kaydedilir. NetCost/DerivedPrice SALT-OKUNUR.</summary>
+    public List<SalesChannelTrTrendyolProductStockItemGraphDto> StockItems { get; set; } = new();
+
+    /// <summary>Trendyol'un kendi varyant özellikleri (ör. "Renk"/"Beden") — İLK açılışta ERP nitelik/değerlerinden bir
+    /// kez KLONLANIR, sonrasında ERP'den bağımsız yaşar. <see cref="StockItems"/> bu özelliklerin kartezyen
+    /// kombinasyonundan üretilir (kaydet'te sunucu reconcile eder).</summary>
+    public List<SalesChannelTrTrendyolProductAttributeDto> ProductAttributes { get; set; } = new();
 
     // Trendyol senkron durumu (read-only; submit/refresh sonrası dolar).
     public string? BatchRequestId { get; set; }
@@ -188,10 +239,13 @@ public interface ISalesChannelTrTrendyolProductInput
     int? DeliveryDuration { get; }
     TrendyolFastDeliveryType? FastDeliveryType { get; }
     bool IsActive { get; }
-    List<SalesChannelTrTrendyolProductAttributeDto> Attributes { get; }
+    List<SalesChannelTrTrendyolProductCategoryAttributeDto> Attributes { get; }
 
     /// <summary>Kanal-özel varyant override grafı (fiyat/stok/marj + reçete) — kanal-ürünle birlikte kaydedilir.</summary>
-    List<SalesChannelTrTrendyolProductVariantGraphDto> Variants { get; }
+    List<SalesChannelTrTrendyolProductStockItemGraphDto> StockItems { get; }
+
+    /// <summary>Trendyol'un kendi varyant özellikleri — kanal-ürünle birlikte kaydedilir (kartezyen reconcile tetikler).</summary>
+    List<SalesChannelTrTrendyolProductAttributeDto> ProductAttributes { get; }
 }
 
 /// <summary>Listeleme oluşturma — ürün + kanal (create-only; şirket sunucuda zorlanır).</summary>
@@ -210,8 +264,9 @@ public class SalesChannelTrTrendyolProductCreateDto : ISalesChannelTrTrendyolPro
     public int? DeliveryDuration { get; set; }
     public TrendyolFastDeliveryType? FastDeliveryType { get; set; }
     public bool IsActive { get; set; } = true;
-    public List<SalesChannelTrTrendyolProductAttributeDto> Attributes { get; set; } = new();
-    public List<SalesChannelTrTrendyolProductVariantGraphDto> Variants { get; set; } = new();
+    public List<SalesChannelTrTrendyolProductCategoryAttributeDto> Attributes { get; set; } = new();
+    public List<SalesChannelTrTrendyolProductStockItemGraphDto> StockItems { get; set; } = new();
+    public List<SalesChannelTrTrendyolProductAttributeDto> ProductAttributes { get; set; } = new();
 }
 
 /// <summary>Listeleme güncelleme — ürün/kanal set-once (route'taki id kimliktir).</summary>
@@ -228,8 +283,9 @@ public class SalesChannelTrTrendyolProductUpdateDto : ISalesChannelTrTrendyolPro
     public int? DeliveryDuration { get; set; }
     public TrendyolFastDeliveryType? FastDeliveryType { get; set; }
     public bool IsActive { get; set; } = true;
-    public List<SalesChannelTrTrendyolProductAttributeDto> Attributes { get; set; } = new();
-    public List<SalesChannelTrTrendyolProductVariantGraphDto> Variants { get; set; } = new();
+    public List<SalesChannelTrTrendyolProductCategoryAttributeDto> Attributes { get; set; } = new();
+    public List<SalesChannelTrTrendyolProductStockItemGraphDto> StockItems { get; set; } = new();
+    public List<SalesChannelTrTrendyolProductAttributeDto> ProductAttributes { get; set; } = new();
 }
 
 /// <summary>
@@ -262,4 +318,9 @@ public interface ISalesChannelTrTrendyolProductAppService : IApplicationService
     /// Trendyol'a SUBMIT EDİLMEZ. Fail-fast/eksik zorunlu alanlar exception yerine
     /// <see cref="TrendyolPushPreviewDto.Warnings"/>'e (lokalize) yazılır — önizleme yine döner.</summary>
     Task<TrendyolPushPreviewDto> GetPushPreviewAsync(Guid id);
+
+    /// <summary>Özellik/değer grafını PERSIST EDER + kartezyen reconcile'ı hemen tetikler — TÜM ürünü kaydetmeden
+    /// yalnız bu Trendyol kaydının kombinasyon setini yeniler. Full Update ile aynı reconcile mekanizmasını kullanır
+    /// (SaveAttributesAndReconcileAsync).</summary>
+    Task<SalesChannelTrTrendyolProductDto> RegenerateStockItemsAsync(Guid id, List<SalesChannelTrTrendyolProductAttributeDto> productAttributes);
 }

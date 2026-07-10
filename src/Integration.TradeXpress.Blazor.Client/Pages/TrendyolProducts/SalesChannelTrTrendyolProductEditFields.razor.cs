@@ -88,7 +88,13 @@ public partial class SalesChannelTrTrendyolProductEditFields : CrudComponentBase
     private bool _unitsLoaded;
 
     // Kanal-özel varyant override drill'i (satır düzenleme aç/kapa) + reçete katalog lookup verisi (bir kez yüklenir).
-    private DrillList<SalesChannelTrTrendyolProductVariantGraphDto>? _variantDrill;
+    private DrillList<SalesChannelTrTrendyolProductStockItemGraphDto>? _stockItemDrill;
+
+    // Özellikler drill'i (kombinasyon ÜRETİMİ amaçlı — kategori-attribute-push'tan AYRI) — üst = özellik
+    // (Model.ProductAttributes, ilk açılışta ERP'den klonlanmış taslak gelir), alt = özellik değerleri. İkisi de serbest
+    // ekle/sil (klon-sonra-ayrış felsefesi; N11 paritesi).
+    private DrillList<SalesChannelTrTrendyolProductAttributeDto>? _attributeDrill;
+    private DrillList<SalesChannelTrTrendyolProductAttributeValueDto>? _attributeValueDrill;
     private IReadOnlyList<MetalListDto> _metals = Array.Empty<MetalListDto>();
     private IReadOnlyList<ScrapListDto> _scraps = Array.Empty<ScrapListDto>();
     private IReadOnlyList<FutureListDto> _futures = Array.Empty<FutureListDto>();
@@ -278,7 +284,7 @@ public partial class SalesChannelTrTrendyolProductEditFields : CrudComponentBase
             }
             else
             {
-                Model.Attributes.Add(new SalesChannelTrTrendyolProductAttributeDto
+                Model.Attributes.Add(new SalesChannelTrTrendyolProductCategoryAttributeDto
                 {
                     AttributeId = row.AttributeId,
                     AttributeValueId = valueId,
@@ -299,7 +305,7 @@ public partial class SalesChannelTrTrendyolProductEditFields : CrudComponentBase
         }
         else
         {
-            Model.Attributes.Add(new SalesChannelTrTrendyolProductAttributeDto
+            Model.Attributes.Add(new SalesChannelTrTrendyolProductCategoryAttributeDto
             {
                 AttributeId = row.AttributeId,
                 CustomValue = row.CustomValue,
@@ -355,44 +361,103 @@ public partial class SalesChannelTrTrendyolProductEditFields : CrudComponentBase
         MarkDirty(nameof(Model.Description));
     }
 
+    // ── Özellikler (kombinasyon üretimi) — sıra no + boş-alan guard'ları (N11 EditFields ile AYNI:
+    // silinmemişlerin max sırası + 1).
+    private static int NextAttributeOrder(IEnumerable<SalesChannelTrTrendyolProductAttributeDto> items)
+    {
+        return items.Where(x => !x.IsDeleted).Select(x => x.DisplayOrder).DefaultIfEmpty(0).Max() + 1;
+    }
+
+    private static int NextAttributeValueOrder(IEnumerable<SalesChannelTrTrendyolProductAttributeValueDto> items)
+    {
+        return items.Where(x => !x.IsDeleted).Select(x => x.DisplayOrder).DefaultIfEmpty(0).Max() + 1;
+    }
+
+    private string? AttributeSaveGuard(SalesChannelTrTrendyolProductAttributeDto item)
+    {
+        return string.IsNullOrWhiteSpace(item.Name) ? L["TrendyolProduct:AttributeNameRequired"].Value : null;
+    }
+
+    private string? AttributeValueSaveGuard(SalesChannelTrTrendyolProductAttributeValueDto item)
+    {
+        return string.IsNullOrWhiteSpace(item.Value) ? L["TrendyolProduct:AttributeValueRequired"].Value : null;
+    }
+
+    // Özellik/değer grafını PERSIST EDER + kartezyen reconcile'ı hemen tetikler — yalnız KAYDEDİLMİŞ (Id'li) kayıtta.
+    // Tüm ürünü kaydetmeye gerek yok (RegenerateStockItemsAsync, Full Update ile AYNI reconcile mekanizmasını kullanır).
+    private async Task RegenerateStockItemsAsync()
+    {
+        if (Model.Id == Guid.Empty)
+        {
+            UiService.ShowWarningToast(L["TrendyolProduct:SaveProductFirst"].Value);
+            return;
+        }
+
+        try
+        {
+            var result = await ChannelProductAppService.RegenerateStockItemsAsync(Model.Id, Model.ProductAttributes);
+            Model.ProductAttributes = result.ProductAttributes;
+            Model.StockItems = result.StockItems;
+            MarkDirty(nameof(Model.StockItems));
+            UiService.ShowSuccessToast(string.Format(L["TrendyolProduct:StockItemsRegenerated"].Value, Model.StockItems.Count));
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            UiService.ShowErrorToast(CrudErrorPresenter.ToFriendlyMessage(ex, ServiceProvider) ?? L["UnexpectedError"].Value);
+        }
+    }
+
+    // Kombinasyon grid/edit'te kod hücresi — ERP-backed satırda ERP kodu, Trendyol-only satırda (ERP karşılığı yok)
+    // özellik-değer özeti (CombinationLabel); ikisi de boşsa "-" (henüz reconcile edilmemiş/legacy taslak).
+    private static string StockItemCodeOrLabel(SalesChannelTrTrendyolProductStockItemGraphDto stockItem)
+    {
+        if (!string.IsNullOrEmpty(stockItem.VariantCode))
+        {
+            return stockItem.VariantCode;
+        }
+
+        return string.IsNullOrEmpty(stockItem.CombinationLabel) ? "-" : stockItem.CombinationLabel;
+    }
+
     // ── Kanal-özel varyant override'ları (fiyat/stok/marj + reçete) ──────────────────────────────────
 
     // Reçete satırı eklendi/değişti/silindi → CANLI net maliyet (ERP ile ORTAK persistsiz hesap motoru) + türetilmiş
     // fiyat yeniden hesaplanır (satır maliyet alanları grid'e döner). Tam kayıt gerekmez.
-    private async Task HandleVariantRecipeChangedAsync(SalesChannelTrTrendyolProductVariantGraphDto variant)
+    private async Task HandleStockItemRecipeChangedAsync(SalesChannelTrTrendyolProductStockItemGraphDto stockItem)
     {
         var result = await RecipeCostAppService.CalculateRecipeCostAsync(
-            new ProductRecipeCostRequestDto { Lines = variant.RecipeLines });
+            new ProductRecipeCostRequestDto { Lines = stockItem.RecipeLines });
 
-        variant.NetCost = result.NetCost;
-        variant.NetCostCurrency = result.NetCostCurrency;
-        variant.NetCostMissingRate = result.NetCostMissingRate;
-        ApplyLineCosts(variant.RecipeLines, result.Lines);
-        RecomputeDerivedPrice(variant);
-        MarkDirty(nameof(Model.Variants));
+        stockItem.NetCost = result.NetCost;
+        stockItem.NetCostCurrency = result.NetCostCurrency;
+        stockItem.NetCostMissingRate = result.NetCostMissingRate;
+        ApplyLineCosts(stockItem.RecipeLines, result.Lines);
+        RecomputeDerivedPrice(stockItem);
+        MarkDirty(nameof(Model.StockItems));
         StateHasChanged();
     }
 
     // Marj değişti → türetilmiş fiyatı ANINDA güncelle (NetCost sunucu çağrısı gerekmez; markup salt aritmetik) + dirty.
-    private void OnVariantMarginChanged(SalesChannelTrTrendyolProductVariantGraphDto variant, decimal? margin)
+    private void OnStockItemMarginChanged(SalesChannelTrTrendyolProductStockItemGraphDto stockItem, decimal? margin)
     {
-        variant.Margin = margin;
-        RecomputeDerivedPrice(variant);
-        MarkDirty(nameof(Model.Variants));
+        stockItem.Margin = margin;
+        RecomputeDerivedPrice(stockItem);
+        MarkDirty(nameof(Model.StockItems));
     }
 
     // Override fiyat para birimi (ValueExpression'sız) → değeri yaz + dirty.
-    private void OnOverrideCurrencyChanged(SalesChannelTrTrendyolProductVariantGraphDto variant, Guid? currencyUnitId)
+    private void OnOverrideCurrencyChanged(SalesChannelTrTrendyolProductStockItemGraphDto stockItem, Guid? currencyUnitId)
     {
-        variant.OverridePriceCurrencyUnitId = currencyUnitId;
-        MarkDirty(nameof(Model.Variants));
+        stockItem.OverridePriceCurrencyUnitId = currencyUnitId;
+        MarkDirty(nameof(Model.StockItems));
     }
 
     // Türetilmiş fiyat = NetCost × (1 + Marj/100) [MARKUP] — kur eksik/NetCost yoksa null (backend ile AYNI formül).
-    private static void RecomputeDerivedPrice(SalesChannelTrTrendyolProductVariantGraphDto variant)
+    private static void RecomputeDerivedPrice(SalesChannelTrTrendyolProductStockItemGraphDto stockItem)
     {
-        variant.DerivedPrice = variant.NetCost is { } netCost && !variant.NetCostMissingRate
-            ? netCost * (1m + (variant.Margin ?? 0m) / 100m)
+        stockItem.DerivedPrice = stockItem.NetCost is { } netCost && !stockItem.NetCostMissingRate
+            ? netCost * (1m + (stockItem.Margin ?? 0m) / 100m)
             : null;
     }
 

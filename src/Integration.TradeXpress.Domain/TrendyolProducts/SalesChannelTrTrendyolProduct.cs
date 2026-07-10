@@ -5,9 +5,10 @@ using Integration.TradeXpress.MultiCompany;
 
 namespace Integration.TradeXpress.TrendyolProducts;
 
-/// <summary>Trendyol kategori attribute değeri (id-bazlı; Trendyol attributeId + attributeValueId ya da serbest
-/// customValue) — owned, JSON kolonuna serialize edilir.</summary>
-public class SalesChannelTrTrendyolProductAttribute
+/// <summary>Trendyol KATEGORİ attribute değeri (id-bazlı; Trendyol attributeId + attributeValueId ya da serbest
+/// customValue) — owned, JSON kolonuna serialize edilir. Ad "CategoryAttribute" (N11 sözlüğüyle hizalı, S6 rename):
+/// varyant-kombinasyon üreten <see cref="SalesChannelTrTrendyolProductAttribute"/> ENTITY'sinden tamamen ayrıdır.</summary>
+public class SalesChannelTrTrendyolProductCategoryAttribute
 {
     /// <summary>Trendyol attribute id'si (kategori attribute tanımından).</summary>
     public int AttributeId { get; set; }
@@ -18,11 +19,11 @@ public class SalesChannelTrTrendyolProductAttribute
     /// <summary>Serbest (custom) değer — attribute değer listesi kabul etmiyorsa. Value id ile birlikte kullanılmaz.</summary>
     public string? CustomValue { get; set; }
 
-    public SalesChannelTrTrendyolProductAttribute()
+    public SalesChannelTrTrendyolProductCategoryAttribute()
     {
     }
 
-    public SalesChannelTrTrendyolProductAttribute(int attributeId, int? attributeValueId, string? customValue)
+    public SalesChannelTrTrendyolProductCategoryAttribute(int attributeId, int? attributeValueId, string? customValue)
     {
         AttributeId = attributeId;
         AttributeValueId = attributeValueId;
@@ -191,8 +192,9 @@ public class SalesChannelTrTrendyolProduct : FullAuditedAggregateRoot<Guid>, IMu
     /// <summary>Hızlı teslimat tipi (opsiyonel). Doluysa <see cref="DeliveryDuration"/>=1 zorunludur.</summary>
     public virtual TrendyolFastDeliveryType? FastDeliveryType { get; protected set; }
 
-    /// <summary>Trendyol kategori attribute değerleri (id-bazlı; owned → JSON).</summary>
-    public virtual List<SalesChannelTrTrendyolProductAttribute> Attributes { get; protected set; } = new();
+    /// <summary>Trendyol kategori attribute değerleri (id-bazlı; owned → JSON kolonu "Attributes" — S6 tip rename'i
+    /// şemayı DEĞİŞTİRMEZ).</summary>
+    public virtual List<SalesChannelTrTrendyolProductCategoryAttribute> Attributes { get; protected set; } = new();
 
     /// <summary>Varyant-başına Trendyol SKU kimlik satırları (owned → JSON) — barcode dondurma + contentId + push
     /// snapshot'ı. Satır SİLİNMEZ (varyant yok olsa da Trendyol'da yaşıyor olabilir; emeklilik ileride).</summary>
@@ -298,11 +300,11 @@ public class SalesChannelTrTrendyolProduct : FullAuditedAggregateRoot<Guid>, IMu
         IsActive = value;
     }
 
-    public virtual void SetAttributes(IEnumerable<SalesChannelTrTrendyolProductAttribute>? attributes)
+    public virtual void SetAttributes(IEnumerable<SalesChannelTrTrendyolProductCategoryAttribute>? attributes)
     {
-        Attributes = (attributes ?? Enumerable.Empty<SalesChannelTrTrendyolProductAttribute>())
+        Attributes = (attributes ?? Enumerable.Empty<SalesChannelTrTrendyolProductCategoryAttribute>())
             .Where(a => a.AttributeId > 0)
-            .Select(a => new SalesChannelTrTrendyolProductAttribute(
+            .Select(a => new SalesChannelTrTrendyolProductCategoryAttribute(
                 a.AttributeId,
                 a.AttributeValueId,
                 string.IsNullOrWhiteSpace(a.CustomValue) ? null : a.CustomValue!.Trim()))

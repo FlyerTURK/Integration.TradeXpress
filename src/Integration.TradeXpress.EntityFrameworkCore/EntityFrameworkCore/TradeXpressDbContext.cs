@@ -108,10 +108,13 @@ public class TradeXpressDbContext :
     public DbSet<Integration.TradeXpress.N11Products.SalesChannelTrN11ProductStockItemRecipeLine> SalesChannelTrN11ProductStockItemRecipeLines { get; set; } = null!;
     // Trendyol ürün listelemeleri — ürün×kanal (company-owned).
     public DbSet<Integration.TradeXpress.TrendyolProducts.SalesChannelTrTrendyolProduct> SalesChannelTrTrendyolProducts { get; set; } = null!;
+    // Trendyol kanal-özel varyant EKSENİ/DEĞERİ (ERP ProductAttribute/Value klonu; klon-sonra-ayrış).
+    public DbSet<Integration.TradeXpress.TrendyolProducts.SalesChannelTrTrendyolProductAttribute> SalesChannelTrTrendyolProductAttributes { get; set; } = null!;
+    public DbSet<Integration.TradeXpress.TrendyolProducts.SalesChannelTrTrendyolProductAttributeValue> SalesChannelTrTrendyolProductAttributeValues { get; set; } = null!;
     // Trendyol kanal-özel varyant override başlığı (fiyat/stok + marj; ayrı tablo).
-    public DbSet<Integration.TradeXpress.TrendyolProducts.SalesChannelTrTrendyolProductVariant> SalesChannelTrTrendyolProductVariants { get; set; } = null!;
+    public DbSet<Integration.TradeXpress.TrendyolProducts.SalesChannelTrTrendyolProductStockItem> SalesChannelTrTrendyolProductStockItems { get; set; } = null!;
     // Trendyol kanal-özel varyant reçete satırları (ayrı tablo; ERP reçetesi klonu).
-    public DbSet<Integration.TradeXpress.TrendyolProducts.SalesChannelTrTrendyolProductVariantRecipeLine> SalesChannelTrTrendyolProductVariantRecipeLines { get; set; } = null!;
+    public DbSet<Integration.TradeXpress.TrendyolProducts.SalesChannelTrTrendyolProductStockItemRecipeLine> SalesChannelTrTrendyolProductStockItemRecipeLines { get; set; } = null!;
 
 
     #region Entities from the modules

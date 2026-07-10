@@ -118,28 +118,141 @@
         </DxTabPage>
     }
 
-    @* Varyantlar — ERP varyant seti SABİT (kanalda eksen eklenmez/silinmez): kanal-özel fiyat/stok/marj + reçete.
-       Türetilmiş fiyat = NetCost×(1+Marj/100) SALT-OKUNUR. Varyant yoksa (bağlı ürün varyantsız) sekme gizli. *@
-    @if (Model.Variants.Count > 0)
-    {
-        <DxTabPage Text="@L["TrendyolProduct:Variants"]" TabIconCssClass="@TradeXpressIcons.ProductVariant">
+    @* Özellikler — KOMBİNASYON ÜRETİMİ amaçlı (kategori-attribute-push seçimi DEĞİL, o "Kategori Nitelikleri" sekmesi ayrı).
+       İlk açılışta ERP ürününün niteliklerinden bir kez KLONLANIR (backend BuildDraftAttributesFromErpAsync); sonrası
+       tamamen bağımsız — kullanıcı burada serbestçe özelliği/değeri ekler-siler, ERP'ye dokunmaz. Kaydet'te sunucu
+       kartezyen kombinasyonu YENİDEN ÜRETİR ("Kombinasyonlar" sekmesindeki liste). N11 final UI'ından BİREBİR uyarlandı.
+       Sekme HER ZAMAN görünür (b9e5066 dersi: koşul içeride, konteynerde değil). *@
+    <DxTabPage Text="@L["TrendyolProduct:ProductAttributes"]" TabIconCssClass="@TradeXpressIcons.Sliders">
+        <span style="color:#6c757d; font-size:0.85rem;">@L["TrendyolProduct:ProductAttributesHint"]</span>
+        <DrillList TItem="SalesChannelTrTrendyolProductAttributeDto"
+                   @ref="_attributeDrill"
+                   Title="@L["TrendyolProduct:ProductAttributes"]"
+                   EntityName="@L["TrendyolProduct:ProductAttribute"]"
+                   EntityIcon="@TradeXpressIcons.Sliders"
+                   Items="@Model.ProductAttributes"
+                   KeyFieldName="ClientKey"
+                   PrimaryTextSelector="@(a => a.Name)"
+                   NewItemFactory="@(() => new SalesChannelTrTrendyolProductAttributeDto { DisplayOrder = NextAttributeOrder(Model.ProductAttributes) })"
+                   SoftDelete="true"
+                   IsNewItem="@(a => a.Id == Guid.Empty)"
+                   MarkDeleted="@(a => a.IsDeleted = true)"
+                   FilterPredicate="@(a => !a.IsDeleted)"
+                   SaveGuard="@AttributeSaveGuard"
+                   ShowActiveFilter="false"
+                   OnChanged="@(() => MarkDirty(nameof(Model.ProductAttributes)))">
+            <GridColumns>
+                <GridLinkColumn FieldName="Name" Caption="@L["TrendyolProduct:AttributeName"]" Width="35%"
+                                FixedPosition="GridColumnFixedPosition.Left" VisibleIndex="1"
+                                OnClick="@(item => _attributeDrill?.EditItem((SalesChannelTrTrendyolProductAttributeDto)item))" />
+                <DxGridDataColumn Caption="@L["TrendyolProduct:AttributeValues"]">
+                    <CellDisplayTemplate Context="cell">
+                        @{ var ax = (SalesChannelTrTrendyolProductAttributeDto)cell.DataItem; }
+                        <span>@(ax.Values.Any(v => !v.IsDeleted) ? string.Join(", ", ax.Values.Where(v => !v.IsDeleted).Select(v => v.Value)) : "-")</span>
+                    </CellDisplayTemplate>
+                </DxGridDataColumn>
+            </GridColumns>
+            <EditContent Context="ax">
+                <DxFormLayout CssClass="w-100">
+                    <DxFormLayoutItem Caption="@($"{L["TrendyolProduct:AttributeName"]} *")" ColSpanMd="6" BeginRow="true">
+                        <DxTextBox @bind-Text="@ax.Name" />
+                    </DxFormLayoutItem>
+                    <DxFormLayoutItem Caption="@L["DisplayOrder"]" ColSpanMd="6">
+                        <NumericSpinEdit @bind-Value="@ax.DisplayOrder" />
+                    </DxFormLayoutItem>
+                    <DxFormLayoutGroup Caption="@L["TrendyolProduct:AttributeValues"]" ColSpanMd="12" CaptionPosition="CaptionPosition.Vertical">
+                        @* İç içe DrillList DOĞRUDAN parent EditContent'te (ui-blazor: EditForm yok,
+                           CascadingValue<EditContext> doğal izolasyon — nested EditForm NRE'ye girer). *@
+                        <DrillList TItem="SalesChannelTrTrendyolProductAttributeValueDto"
+                                   @ref="_attributeValueDrill"
+                                   Title="@L["TrendyolProduct:AttributeValues"]"
+                                   EntityName="@L["TrendyolProduct:AttributeValue"]"
+                                   EntityIcon="@TradeXpressIcons.Sliders"
+                                   ParentEntityName="@L["TrendyolProduct:ProductAttribute"]"
+                                   ParentText="@ax.Name"
+                                   Items="@ax.Values"
+                                   KeyFieldName="ClientKey"
+                                   PrimaryTextSelector="@(v => v.Value)"
+                                   NewItemFactory="@(() => new SalesChannelTrTrendyolProductAttributeValueDto { DisplayOrder = NextAttributeValueOrder(ax.Values) })"
+                                   SoftDelete="true"
+                                   IsNewItem="@(v => v.Id == Guid.Empty)"
+                                   MarkDeleted="@(v => v.IsDeleted = true)"
+                                   FilterPredicate="@(v => !v.IsDeleted)"
+                                   SaveGuard="@AttributeValueSaveGuard"
+                                   ShowActiveFilter="false"
+                                   OnChanged="@(() => MarkDirty(nameof(Model.ProductAttributes)))">
+                            <GridColumns>
+                                <GridLinkColumn FieldName="Value" Caption="@L["Value"]"
+                                                FixedPosition="GridColumnFixedPosition.Left" VisibleIndex="1"
+                                                OnClick="@(item => _attributeValueDrill?.EditItem((SalesChannelTrTrendyolProductAttributeValueDto)item))" />
+                                <DxGridDataColumn FieldName="DisplayOrder" Caption="@L["DisplayOrder"]" Width="90px" />
+                            </GridColumns>
+                            <EditContent Context="v">
+                                <DxFormLayout CssClass="w-100">
+                                    <DxFormLayoutItem Caption="@($"{L["Value"]} *")" ColSpanMd="12">
+                                        <DxTextBox @bind-Text="@v.Value" />
+                                    </DxFormLayoutItem>
+                                    <DxFormLayoutItem Caption="@L["DisplayOrder"]" ColSpanMd="6">
+                                        <NumericSpinEdit @bind-Value="@v.DisplayOrder" />
+                                    </DxFormLayoutItem>
+                                </DxFormLayout>
+                            </EditContent>
+                        </DrillList>
+                    </DxFormLayoutGroup>
+                </DxFormLayout>
+            </EditContent>
+        </DrillList>
+    </DxTabPage>
+
+    @* Kombinasyonlar — SUNUCU TARAFINDA "Özellikler"in kartezyen kombinasyonundan ÜRETİLİR (reconcile);
+       satır elle eklenmez/silinmez (AllowAdd/Delete=false), özellik/değer üzerinden dolaylı kontrol edilir. ERP
+       karşılığı olmayan (IsErpBacked=false) satırlar "Trendyol-özel" rozetiyle ayırt edilir — bunlarda OverridePrice/
+       OverrideStock ZORUNLU (server fail-fast; burada yalnız hint). Türetilmiş fiyat = NetCost×(1+Marj/100)
+       SALT-OKUNUR. Sekme HER ZAMAN görünür (b9e5066 dersi); boşsa içeride hint. *@
+    <DxTabPage Text="@L["TrendyolProduct:StockItems"]" TabIconCssClass="@TradeXpressIcons.ProductVariant">
+        @* Özellik/değer düzenlendikten sonra TÜM ürünü kaydetmeden yalnız bu Trendyol kaydının kombinasyon setini
+           yeniler (RegenerateStockItemsAsync — Full Update ile AYNI reconcile mekanizması). *@
+        <span style="color:#6c757d; font-size:0.85rem;">@L["TrendyolProduct:RegenerateStockItemsHint"]</span>
+        <DxButton Text="@L["TrendyolProduct:RegenerateStockItems"]" RenderStyle="ButtonRenderStyle.Primary"
+                  CssClass="mb-2"
+                  IconCssClass="@TradeXpressIcons.ProductVariant"
+                  Click="@RegenerateStockItemsAsync" />
+        @if (Model.StockItems.Count == 0)
+        {
+            <span style="color:#6c757d; font-size:0.85rem;">@L["TrendyolProduct:NoStockItemsYetHint"]</span>
+        }
+        else
+        {
             <span style="color:#6c757d; font-size:0.85rem;">@L["TrendyolProduct:PushPriceChainHint"]</span>
-            <DrillList TItem="SalesChannelTrTrendyolProductVariantGraphDto"
-                       @ref="_variantDrill"
-                       Title="@L["TrendyolProduct:Variants"]"
-                       EntityName="@L["ProductVariant"]"
+            <DrillList TItem="SalesChannelTrTrendyolProductStockItemGraphDto"
+                       @ref="_stockItemDrill"
+                       Title="@L["TrendyolProduct:StockItems"]"
+                       EntityName="@L["TrendyolProduct:StockItem"]"
                        EntityIcon="@TradeXpressIcons.ProductVariant"
-                       Items="@Model.Variants"
-                       KeyFieldName="ProductVariantId"
+                       Items="@Model.StockItems"
+                       KeyFieldName="Id"
                        PrimaryTextSelector="@(v => v.VariantCode)"
-                       NewItemFactory="@(() => new SalesChannelTrTrendyolProductVariantGraphDto())"
+                       NewItemFactory="@(() => new SalesChannelTrTrendyolProductStockItemGraphDto())"
                        AllowAdd="false"
                        AllowDelete="false"
                        ShowActiveFilter="false"
-                       OnChanged="@(() => MarkDirty(nameof(Model.Variants)))">
+                       OnChanged="@(() => MarkDirty(nameof(Model.StockItems)))">
                 <GridColumns>
-                    <GridLinkColumn FieldName="VariantCode" Caption="@L["Code"]" Width="140px" FixedPosition="GridColumnFixedPosition.Left" VisibleIndex="1" OnClick="@(item => _variantDrill?.EditItem((SalesChannelTrTrendyolProductVariantGraphDto)item))" />
+                    <GridLinkColumn Caption="@L["Code"]" Width="160px" FixedPosition="GridColumnFixedPosition.Left" VisibleIndex="1"
+                                    TextSelector="@(item => StockItemCodeOrLabel((SalesChannelTrTrendyolProductStockItemGraphDto)item))"
+                                    OnClick="@(item => _stockItemDrill?.EditItem((SalesChannelTrTrendyolProductStockItemGraphDto)item))" />
                     <DxGridDataColumn FieldName="VariantName" Caption="@L["Name"]" />
+                    <DxGridDataColumn Caption="@L["TrendyolProduct:Source"]" Width="120px">
+                        <CellDisplayTemplate Context="cell">
+                            @{ var vv = (SalesChannelTrTrendyolProductStockItemGraphDto)cell.DataItem; }
+                            @if (!vv.IsErpBacked)
+                            {
+                                <span style="display:flex; align-items:center; gap:0.35rem; color:#0369a1;">
+                                    <i class="@TradeXpressIcons.SalesChannel" aria-hidden="true"></i>@L["TrendyolProduct:TrendyolOnly"]
+                                </span>
+                            }
+                        </CellDisplayTemplate>
+                    </DxGridDataColumn>
                     <DxGridDataColumn FieldName="OverrideStock" Caption="@L["TrendyolProduct:OverrideStock"]" Width="110px" TextAlignment="GridTextAlignment.Right" />
                     <DxGridDataColumn FieldName="Margin" Caption="@L["TrendyolProduct:Margin"]" Width="100px" DisplayFormat="N2" TextAlignment="GridTextAlignment.Right" />
                     <DxGridDataColumn FieldName="OverridePrice" Caption="@L["TrendyolProduct:OverridePrice"]" Width="120px" DisplayFormat="N2" TextAlignment="GridTextAlignment.Right" />
@@ -147,13 +260,20 @@
                 </GridColumns>
                 <EditContent Context="v">
                     <DxFormLayout CssClass="w-100">
-                        @* Kimlik — SALT-OKUNUR (ERP SSOT; kod/ad kanalda değiştirilmez). *@
+                        @* Kimlik — SALT-OKUNUR. ERP-backed'te ERP kod/ad (SSOT); Trendyol-only'de CombinationLabel
+                           (özellik değerlerinin özeti) — ERP karşılığı yok. *@
                         <DxFormLayoutItem Caption="@L["Code"]" ColSpanMd="6" BeginRow="true">
-                            <span>@v.VariantCode</span>
+                            <span>@(v.IsErpBacked ? v.VariantCode : StockItemCodeOrLabel(v))</span>
                         </DxFormLayoutItem>
                         <DxFormLayoutItem Caption="@L["Name"]" ColSpanMd="6">
-                            <span>@v.VariantName</span>
+                            <span>@(v.IsErpBacked ? v.VariantName : L["TrendyolProduct:TrendyolOnly"].Value)</span>
                         </DxFormLayoutItem>
+                        @if (!v.IsErpBacked)
+                        {
+                            <DxFormLayoutItem ColSpanMd="12">
+                                <span style="color:#b45309; font-size:0.85rem;">@L["TrendyolProduct:OverrideRequiredForTrendyolOnlyHint"]</span>
+                            </DxFormLayoutItem>
+                        }
                         @* Kanal-özel override — boş = ERP/türetilmiş devralınır (temizle butonuyla boşaltılır). *@
                         <DxFormLayoutItem Caption="@L["TrendyolProduct:OverridePrice"]" ColSpanMd="4" BeginRow="true">
                             <NumericSpinEdit TValue="decimal?" @bind-Value="@v.OverridePrice" DisplayFormat="N2"
@@ -175,7 +295,7 @@
                         @* Marj % — türetilmiş fiyatı sürer (DerivedPrice canlı güncellensin diye handler'lı). *@
                         <DxFormLayoutItem Caption="@L["TrendyolProduct:Margin"]" ColSpanMd="4" BeginRow="true">
                             <NumericSpinEdit TValue="decimal?" Value="@v.Margin" DisplayFormat="N2"
-                                             ValueChanged="@((decimal? m) => OnVariantMarginChanged(v, m))"
+                                             ValueChanged="@((decimal? m) => OnStockItemMarginChanged(v, m))"
                                              ValueExpression="@(() => v.Margin)"
                                              ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
                         </DxFormLayoutItem>
@@ -199,13 +319,13 @@
                                                 Metals="_metals" Scraps="_scraps" Futures="_futures"
                                                 Jewelries="_jewelries" Stones="_stones" Services="_services" Units="_priceUnits"
                                                 NetCost="@v.NetCost" NetCostCurrency="@v.NetCostCurrency" NetCostMissingRate="@v.NetCostMissingRate"
-                                                OnChanged="@(async () => await HandleVariantRecipeChangedAsync(v))" />
+                                                OnChanged="@(async () => await HandleStockItemRecipeChangedAsync(v))" />
                         </DxFormLayoutGroup>
                     </DxFormLayout>
                 </EditContent>
             </DrillList>
-        </DxTabPage>
-    }
+        }
+    </DxTabPage>
 
     @* Varyant SKU'ları (read-only) — push + reconcile sonrası dolar. *@
     @if (Model.Skus.Count > 0)

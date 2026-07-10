@@ -6,6 +6,7 @@ using Integration.TradeXpress.MultiCompany;
 using Integration.TradeXpress.Permissions;
 using Integration.TradeXpress.Products;
 using Integration.TradeXpress.SalesChannels;
+using Integration.TradeXpress.SalesChannels.Variants;
 using Integration.TradeXpress.TrendyolCategories;
 using Integration.TradeXpress.Vouchers;
 using Microsoft.AspNetCore.Authorization;
@@ -18,6 +19,8 @@ namespace Integration.TradeXpress.TrendyolProducts;
 /// Trendyol ürün listeleme CRUD + push — <b>company-owned + per-tenant</b>. Yapılandırma (kategori/marka/KDV/kargo/
 /// attribute) bizde tutulur; <see cref="PushToTrendyolAsync"/> ürünü + varyantlarını (items) Trendyol'a ASENKRON
 /// gönderir (batch id döner), <see cref="RefreshStatusAsync"/> durumu çeker. Push kanalın KENDİ kimliğiyle yapılır.
+/// Varyant yönetimi N11 final deseniyle BİREBİR: kanal-özel özellik/değer grafı (klon-sonra-ayrış) → kartezyen
+/// kombinasyon (StockItem) reconcile (CombinationSignature anahtarlı) → override/reçete satırları.
 /// </summary>
 [Authorize(TradeXpressPermissions.SalesChannels.Default)]
 public class SalesChannelTrTrendyolProductAppService : TradeXpressAppService, ISalesChannelTrTrendyolProductAppService
@@ -29,9 +32,11 @@ public class SalesChannelTrTrendyolProductAppService : TradeXpressAppService, IS
     private readonly IRepository<ProductAttributeValue, Guid> _attributeValueRepository;
     private readonly IRepository<ProductVariantAttributeValue, Guid> _variantAttributeRepository;
     private readonly IRepository<SalesChannelTrTrendyol, Guid> _channelRepository;
-    private readonly IRepository<SalesChannelTrTrendyolProductVariant, Guid> _variantOverrideRepository;
-    private readonly IRepository<SalesChannelTrTrendyolProductVariantRecipeLine, Guid> _channelRecipeLineRepository;
+    private readonly IRepository<SalesChannelTrTrendyolProductStockItem, Guid> _stockItemRepository;
+    private readonly IRepository<SalesChannelTrTrendyolProductStockItemRecipeLine, Guid> _channelRecipeLineRepository;
     private readonly IRepository<ProductVariantRecipeLine, Guid> _erpRecipeLineRepository;
+    private readonly IRepository<SalesChannelTrTrendyolProductAttribute, Guid> _channelAttributeRepository;
+    private readonly IRepository<SalesChannelTrTrendyolProductAttributeValue, Guid> _channelAttributeValueRepository;
     private readonly RecipeCostPopulator _recipeCostPopulator;
     private readonly ICurrentCompany _currentCompany;
     private readonly ITrendyolProductClient _client;
@@ -46,9 +51,11 @@ public class SalesChannelTrTrendyolProductAppService : TradeXpressAppService, IS
         IRepository<ProductAttributeValue, Guid> attributeValueRepository,
         IRepository<ProductVariantAttributeValue, Guid> variantAttributeRepository,
         IRepository<SalesChannelTrTrendyol, Guid> channelRepository,
-        IRepository<SalesChannelTrTrendyolProductVariant, Guid> variantOverrideRepository,
-        IRepository<SalesChannelTrTrendyolProductVariantRecipeLine, Guid> channelRecipeLineRepository,
+        IRepository<SalesChannelTrTrendyolProductStockItem, Guid> stockItemRepository,
+        IRepository<SalesChannelTrTrendyolProductStockItemRecipeLine, Guid> channelRecipeLineRepository,
         IRepository<ProductVariantRecipeLine, Guid> erpRecipeLineRepository,
+        IRepository<SalesChannelTrTrendyolProductAttribute, Guid> channelAttributeRepository,
+        IRepository<SalesChannelTrTrendyolProductAttributeValue, Guid> channelAttributeValueRepository,
         RecipeCostPopulator recipeCostPopulator,
         ICurrentCompany currentCompany,
         ITrendyolProductClient client,
@@ -62,9 +69,11 @@ public class SalesChannelTrTrendyolProductAppService : TradeXpressAppService, IS
         _attributeValueRepository = attributeValueRepository;
         _variantAttributeRepository = variantAttributeRepository;
         _channelRepository = channelRepository;
-        _variantOverrideRepository = variantOverrideRepository;
+        _stockItemRepository = stockItemRepository;
         _channelRecipeLineRepository = channelRecipeLineRepository;
         _erpRecipeLineRepository = erpRecipeLineRepository;
+        _channelAttributeRepository = channelAttributeRepository;
+        _channelAttributeValueRepository = channelAttributeValueRepository;
         _recipeCostPopulator = recipeCostPopulator;
         _currentCompany = currentCompany;
         _client = client;
@@ -91,7 +100,7 @@ public class SalesChannelTrTrendyolProductAppService : TradeXpressAppService, IS
         foreach (var item in items)
         {
             var dto = ObjectMapper.Map<SalesChannelTrTrendyolProduct, SalesChannelTrTrendyolProductDto>(item);
-            dto.Variants = await BuildVariantGraphAsync(item);
+            await PopulateStockItemGraphAsync(item, dto);
             dtos.Add(dto);
         }
 
@@ -102,8 +111,59 @@ public class SalesChannelTrTrendyolProductAppService : TradeXpressAppService, IS
     {
         var entity = await GetOwnedAsync(id);
         var dto = ObjectMapper.Map<SalesChannelTrTrendyolProduct, SalesChannelTrTrendyolProductDto>(entity);
-        dto.Variants = await BuildVariantGraphAsync(entity);
+        await PopulateStockItemGraphAsync(entity, dto);
         return dto;
+    }
+
+    /// <summary>Okuma tarafı dispatch (N11 ile birebir): özellik modu AKTİFSE (en az 1 persist edilmiş özellik)
+    /// kartezyen kombinasyon grafı, DEĞİLSE legacy ERP-doğrudan graf doldurulur. Özellik modu HİÇ aktive edilmemişse
+    /// klon-sonra-ayrış TETİKLENİR: ERP ProductAttribute/Value'lardan TASLAK özellik grafı üretilir (Id boş = henüz
+    /// persist YOK) — kullanıcı Kaydet'e bastığında SaveAttributesGraphAsync kalıcılaştırır. Salt-okuma DB'ye YAZMAZ.</summary>
+    private async Task PopulateStockItemGraphAsync(SalesChannelTrTrendyolProduct entity, SalesChannelTrTrendyolProductDto dto)
+    {
+        var attributeEntities = await LoadChannelAttributeEntitiesAsync(entity.Id);
+        var channelAttributeValues = await LoadChannelAttributeValueEntitiesAsync(attributeEntities.Select(a => a.Id).ToList());
+        dto.ProductAttributes = attributeEntities.Count > 0
+            ? BuildAttributesDto(attributeEntities, channelAttributeValues)
+            : await BuildDraftAttributesFromErpAsync(entity.ProductId);
+        dto.StockItems = attributeEntities.Count > 0
+            ? await BuildAttributeStockItemsAsync(entity, ToAttributeWithValues(attributeEntities, channelAttributeValues))
+            : await BuildStockItemGraphAsync(entity);
+    }
+
+    /// <summary>Klon-sonra-ayrış TETİĞİ: channelAttribute modu hiç aktive edilmemiş bir kanal-ürün açıldığında ERP
+    /// ProductAttribute/Value'lardan TASLAK özellik grafı üretir (Id boş — henüz persist YOK, salt görüntü). ERP
+    /// niteliksiz ürün (tek varyant) için boş liste — kullanıcı isterse elle özellik ekler.</summary>
+    private async Task<List<SalesChannelTrTrendyolProductAttributeDto>> BuildDraftAttributesFromErpAsync(Guid productId)
+    {
+        var attributes = await AsyncExecuter.ToListAsync(
+            (await _attributeRepository.GetQueryableAsync())
+                .Where(a => a.ProductId == productId)
+                .OrderBy(a => a.DisplayOrder));
+        if (attributes.Count == 0)
+        {
+            return new List<SalesChannelTrTrendyolProductAttributeDto>();
+        }
+
+        var attributeIds = attributes.Select(a => a.Id).ToList();
+        var values = await AsyncExecuter.ToListAsync(
+            (await _attributeValueRepository.GetQueryableAsync())
+                .Where(v => attributeIds.Contains(v.ProductAttributeId))
+                .OrderBy(v => v.DisplayOrder));
+        var valuesByAttribute = values.GroupBy(v => v.ProductAttributeId).ToDictionary(g => g.Key, g => g.ToList());
+
+        return attributes.Select(a => new SalesChannelTrTrendyolProductAttributeDto
+        {
+            Name = a.Name,
+            DisplayOrder = a.DisplayOrder,
+            Values = (valuesByAttribute.TryGetValue(a.Id, out var vs) ? vs : new List<ProductAttributeValue>())
+                .Select(v => new SalesChannelTrTrendyolProductAttributeValueDto
+                {
+                    Value = v.Value,
+                    DisplayOrder = v.DisplayOrder,
+                })
+                .ToList(),
+        }).ToList();
     }
 
     [Authorize(TradeXpressPermissions.SalesChannels.Create)]
@@ -124,10 +184,10 @@ public class SalesChannelTrTrendyolProductAppService : TradeXpressAppService, IS
             input.BrandId);
         ApplyInput(entity, input);
         await _repository.InsertAsync(entity, autoSave: true);
-        await SaveVariantOverridesAsync(entity, input.Variants);
+        await SaveStockItemsAsync(entity, input.ProductAttributes, input.StockItems);
 
         var dto = ObjectMapper.Map<SalesChannelTrTrendyolProduct, SalesChannelTrTrendyolProductDto>(entity);
-        dto.Variants = await BuildVariantGraphAsync(entity);
+        await PopulateStockItemGraphAsync(entity, dto);
         return dto;
     }
 
@@ -157,21 +217,64 @@ public class SalesChannelTrTrendyolProductAppService : TradeXpressAppService, IS
         var entity = await GetOwnedAsync(id);
         ApplyInput(entity, input);
         await _repository.UpdateAsync(entity, autoSave: true);
-        await SaveVariantOverridesAsync(entity, input.Variants);
+        await SaveStockItemsAsync(entity, input.ProductAttributes, input.StockItems);
 
         var dto = ObjectMapper.Map<SalesChannelTrTrendyolProduct, SalesChannelTrTrendyolProductDto>(entity);
-        dto.Variants = await BuildVariantGraphAsync(entity);
+        await PopulateStockItemGraphAsync(entity, dto);
         return dto;
+    }
+
+    /// <summary>Yazma tarafı dispatch (N11 ile birebir): özellik grafını persist eder + persist-sonrası özellik-modu
+    /// AKTİFSE kartezyen reconcile + combo-satır override/reçete kaydı; DEĞİLSE legacy ERP-doğrudan override yolu.</summary>
+    private async Task SaveStockItemsAsync(
+        SalesChannelTrTrendyolProduct entity,
+        List<SalesChannelTrTrendyolProductAttributeDto> attributesInput,
+        List<SalesChannelTrTrendyolProductStockItemGraphDto> stockItemsInput)
+    {
+        var attributeModeActive = await SaveAttributesAndReconcileAsync(entity, attributesInput);
+        if (attributeModeActive)
+        {
+            await SaveAttributeStockItemOverridesAsync(entity, stockItemsInput);
+        }
+        else
+        {
+            await SaveStockItemOverridesAsync(entity, stockItemsInput);
+        }
     }
 
     [Authorize(TradeXpressPermissions.SalesChannels.Delete)]
     public virtual async Task DeleteAsync(Guid id)
     {
         var entity = await GetOwnedAsync(id);
-        // Kanal-özel varyant override başlıkları + reçete satırları (ayrı tablolar) — kanal-ürünle birlikte temizlenir.
+        // Kanal-özel varyant override başlıkları + reçete satırları + özellik/değer grafı (ayrı tablolar) —
+        // kanal-ürünle birlikte temizlenir.
         await _channelRecipeLineRepository.DeleteAsync(r => r.SalesChannelTrTrendyolProductId == entity.Id, autoSave: true);
-        await _variantOverrideRepository.DeleteAsync(v => v.SalesChannelTrTrendyolProductId == entity.Id, autoSave: true);
+        await _stockItemRepository.DeleteAsync(v => v.SalesChannelTrTrendyolProductId == entity.Id, autoSave: true);
+        var channelAttributeIds = await AsyncExecuter.ToListAsync(
+            (await _channelAttributeRepository.GetQueryableAsync())
+                .Where(a => a.SalesChannelTrTrendyolProductId == entity.Id)
+                .Select(a => a.Id));
+        if (channelAttributeIds.Count > 0)
+        {
+            await _channelAttributeValueRepository.DeleteAsync(v => channelAttributeIds.Contains(v.AttributeId), autoSave: true);
+            await _channelAttributeRepository.DeleteAsync(a => a.SalesChannelTrTrendyolProductId == entity.Id, autoSave: true);
+        }
+
         await _repository.DeleteAsync(entity, autoSave: true);
+    }
+
+    /// <summary>Özellik/değer grafını PERSIST EDER + kartezyen reconcile'ı hemen tetikler — TÜM ürünü kaydetmeden
+    /// yalnız bu Trendyol kaydının kombinasyon setini yeniler. Full Update ile aynı reconcile mekanizmasını kullanır
+    /// (<see cref="SaveAttributesAndReconcileAsync"/>).</summary>
+    [Authorize(TradeXpressPermissions.SalesChannels.Update)]
+    public virtual async Task<SalesChannelTrTrendyolProductDto> RegenerateStockItemsAsync(Guid id, List<SalesChannelTrTrendyolProductAttributeDto> productAttributes)
+    {
+        var entity = await GetOwnedAsync(id);
+        await SaveAttributesAndReconcileAsync(entity, productAttributes);
+
+        var dto = ObjectMapper.Map<SalesChannelTrTrendyolProduct, SalesChannelTrTrendyolProductDto>(entity);
+        await PopulateStockItemGraphAsync(entity, dto);
+        return dto;
     }
 
     [Authorize(TradeXpressPermissions.SalesChannels.Update)]
@@ -330,7 +433,7 @@ public class SalesChannelTrTrendyolProductAppService : TradeXpressAppService, IS
 
     /// <summary>Ürün-seviyesi attribute özeti ("Renk: Gri; Materyal: Pamuk") — ad/değer kategori tanımından çözülür;
     /// tanım yoksa "#id: değer" (valueId ya da customValue). Boşsa boş metin.</summary>
-    private static string BuildAttributeSummary(IReadOnlyCollection<SalesChannelTrTrendyolProductAttribute> attributes, List<TrendyolLeafAttributeDto> attrDefs)
+    private static string BuildAttributeSummary(IReadOnlyCollection<SalesChannelTrTrendyolProductCategoryAttribute> attributes, List<TrendyolLeafAttributeDto> attrDefs)
     {
         if (attributes.Count == 0)
         {
@@ -371,12 +474,28 @@ public class SalesChannelTrTrendyolProductAppService : TradeXpressAppService, IS
             return new Dictionary<string, string>();
         }
 
+        var options = await LoadVariantOptionsAsync(productId, variants.Select(v => v.Id).ToList());
+        return variants
+            .Where(v => options.ContainsKey(v.Id))
+            .ToDictionary(v => v.Code, v => string.Join("; ", options[v.Id].Select(p => $"{p.Name}: {p.Value}")));
+    }
+
+    /// <summary>Varyant başına ERP option çiftleri (name/value) — ProductVariantAttributeValue → attribute adı + değer.
+    /// Hem önizleme eksen özetinin hem fırsatçı ERP eşleştirme indeksinin ORTAK kaynağı (N11 LoadVariantOptionsAsync paritesi).</summary>
+    private async Task<Dictionary<Guid, List<(string Name, string Value)>>> LoadVariantOptionsAsync(Guid productId, List<Guid> variantIds)
+    {
+        var result = new Dictionary<Guid, List<(string Name, string Value)>>();
+        if (variantIds.Count == 0)
+        {
+            return result;
+        }
+
         var attributeNames = (await AsyncExecuter.ToListAsync(
                 (await _attributeRepository.GetQueryableAsync()).Where(a => a.ProductId == productId)))
             .ToDictionary(a => a.Id, a => a.Name);
         if (attributeNames.Count == 0)
         {
-            return new Dictionary<string, string>();   // niteliksiz ürün (tek varyant) → eksen yok
+            return result;   // niteliksiz ürün (tek varyant) → option attribute yok
         }
 
         var valueTexts = (await AsyncExecuter.ToListAsync(
@@ -384,32 +503,28 @@ public class SalesChannelTrTrendyolProductAppService : TradeXpressAppService, IS
                     .Where(v => attributeNames.Keys.Contains(v.ProductAttributeId))))
             .ToDictionary(v => v.Id, v => v.Value);
 
-        var variantIds = variants.Select(v => v.Id).ToList();
         var links = await AsyncExecuter.ToListAsync(
             (await _variantAttributeRepository.GetQueryableAsync())
                 .Where(l => variantIds.Contains(l.ProductVariantId)));
 
-        var byVariant = new Dictionary<Guid, List<string>>();
         foreach (var link in links)
         {
-            if (!attributeNames.TryGetValue(link.ProductAttributeId, out var name)
-                || !valueTexts.TryGetValue(link.ProductAttributeValueId, out var value))
+            if (!attributeNames.TryGetValue(link.ProductAttributeId, out var name) ||
+                !valueTexts.TryGetValue(link.ProductAttributeValueId, out var value))
             {
                 continue;
             }
 
-            if (!byVariant.TryGetValue(link.ProductVariantId, out var list))
+            if (!result.TryGetValue(link.ProductVariantId, out var list))
             {
-                list = new List<string>();
-                byVariant[link.ProductVariantId] = list;
+                list = new List<(string Name, string Value)>();
+                result[link.ProductVariantId] = list;
             }
 
-            list.Add($"{name}: {value}");
+            list.Add((name, value));
         }
 
-        return variants
-            .Where(v => byVariant.ContainsKey(v.Id))
-            .ToDictionary(v => v.Code, v => string.Join("; ", byVariant[v.Id]));
+        return result;
     }
 
     // ── Push veri kurulumu (ürün grafı → TrendyolProductData) ─────────────────────────────────────────
@@ -521,14 +636,400 @@ public class SalesChannelTrTrendyolProductAppService : TradeXpressAppService, IS
             Items: items);
     }
 
-    // ── Kanal-özel varyant override (fiyat/stok/marj + reçete) ──────────────────────────────────────
+    // ── Trendyol varyant ÖZELLİKLERİ (klon-sonra-ayrış) + kartezyen kombinasyon RECONCILE ─────────────────────
+    // ProductAttributes = Trendyol'un KENDİ varyant özellikleri (N11 deseninin portu). Tanımlıysa (persist edilmiş en
+    // az 1 özellik varsa) kanal-ürünün kombinasyon seti ARTIK bu özelliklerin kartezyen kombinasyonundan üretilir —
+    // legacy ERP-doğrudan graf (BuildStockItemGraphAsync/SaveStockItemOverridesAsync) devre dışı kalır.
+    // Reconcile anahtarı CombinationSignature ("{AttributeId}={ValueId}|...", AttributeId sıralı) — STABİL ID'lerden
+    // kurulur, ERP ProductVariantId yalnız fiyat/stok fallback KAYNAĞI (bir kerelik fırsatçı eşleştirme; reconcile
+    // anahtarı DEĞİL). Özellik/değer silinip kombinasyon artık üretilemezse o satır + reçetesi TEMİZLENİR.
+
+    /// <summary>Bellek-içi özellik + değer görünümü — reconcile matematiği (kartezyen + imza) için.</summary>
+    private sealed record AttributeWithValues(Guid AttributeId, string AttributeName, List<(Guid ValueId, string Value)> Values);
+
+    private async Task<List<SalesChannelTrTrendyolProductAttribute>> LoadChannelAttributeEntitiesAsync(Guid channelProductId)
+    {
+        return await AsyncExecuter.ToListAsync(
+            (await _channelAttributeRepository.GetQueryableAsync())
+                .Where(a => a.SalesChannelTrTrendyolProductId == channelProductId)
+                .OrderBy(a => a.DisplayOrder).ThenBy(a => a.CreationTime));
+    }
+
+    private async Task<List<SalesChannelTrTrendyolProductAttributeValue>> LoadChannelAttributeValueEntitiesAsync(List<Guid> channelAttributeIds)
+    {
+        if (channelAttributeIds.Count == 0)
+        {
+            return new List<SalesChannelTrTrendyolProductAttributeValue>();
+        }
+
+        return await AsyncExecuter.ToListAsync(
+            (await _channelAttributeValueRepository.GetQueryableAsync())
+                .Where(v => channelAttributeIds.Contains(v.AttributeId))
+                .OrderBy(v => v.DisplayOrder).ThenBy(v => v.CreationTime));
+    }
+
+    private static List<SalesChannelTrTrendyolProductAttributeDto> BuildAttributesDto(
+        List<SalesChannelTrTrendyolProductAttribute> channelAttributes, List<SalesChannelTrTrendyolProductAttributeValue> values)
+    {
+        var valuesByChannelAttribute = values.GroupBy(v => v.AttributeId).ToDictionary(g => g.Key, g => g.ToList());
+        return channelAttributes.Select(a => new SalesChannelTrTrendyolProductAttributeDto
+        {
+            Id = a.Id,
+            Name = a.Name,
+            DisplayOrder = a.DisplayOrder,
+            Values = (valuesByChannelAttribute.TryGetValue(a.Id, out var vs) ? vs : new List<SalesChannelTrTrendyolProductAttributeValue>())
+                .Select(v => new SalesChannelTrTrendyolProductAttributeValueDto
+                {
+                    Id = v.Id,
+                    Value = v.Value,
+                    DisplayOrder = v.DisplayOrder,
+                })
+                .ToList(),
+        }).ToList();
+    }
+
+    private static List<AttributeWithValues> ToAttributeWithValues(
+        List<SalesChannelTrTrendyolProductAttribute> channelAttributes, List<SalesChannelTrTrendyolProductAttributeValue> values)
+    {
+        var valuesByChannelAttribute = values.GroupBy(v => v.AttributeId).ToDictionary(g => g.Key, g => g.ToList());
+        return channelAttributes.Select(a => new AttributeWithValues(
+            a.Id,
+            a.Name,
+            (valuesByChannelAttribute.TryGetValue(a.Id, out var vs) ? vs : new List<SalesChannelTrTrendyolProductAttributeValue>())
+                .Select(v => (v.Id, v.Value))
+                .ToList())).ToList();
+    }
+
+    /// <summary>Özellik + değer grafını persist eder (RecipeLines ile AYNI iki-öge diff deseni: silinenler → upsert;
+    /// ClientKey→Id input DTO'suna geri yazılır). Boş/null girdi no-op (mevcut özelliklere DOKUNMAZ).</summary>
+    private async Task SaveAttributesGraphAsync(SalesChannelTrTrendyolProduct channelProduct, List<SalesChannelTrTrendyolProductAttributeDto>? attributesInput)
+    {
+        if (attributesInput is not { Count: > 0 })
+        {
+            return;
+        }
+
+        await EnsureAttributeCountWithinLimitAsync(channelProduct.Id, attributesInput);
+
+        foreach (var channelAttribute in attributesInput.Where(a => a.IsDeleted && a.Id != Guid.Empty))
+        {
+            await _channelAttributeValueRepository.DeleteAsync(v => v.AttributeId == channelAttribute.Id, autoSave: true);
+            await _channelAttributeRepository.DeleteAsync(channelAttribute.Id, autoSave: true);
+        }
+
+        foreach (var channelAttribute in attributesInput.Where(a => !a.IsDeleted))
+        {
+            SalesChannelTrTrendyolProductAttribute entity;
+            if (channelAttribute.Id == Guid.Empty)
+            {
+                entity = new SalesChannelTrTrendyolProductAttribute(channelProduct.CompanyId, channelProduct.Id, channelAttribute.Name, channelAttribute.DisplayOrder);
+                await _channelAttributeRepository.InsertAsync(entity, autoSave: true);
+                channelAttribute.Id = entity.Id;
+            }
+            else
+            {
+                entity = await _channelAttributeRepository.GetAsync(channelAttribute.Id);
+                entity.SetName(channelAttribute.Name);
+                entity.SetDisplayOrder(channelAttribute.DisplayOrder);
+                await _channelAttributeRepository.UpdateAsync(entity, autoSave: true);
+            }
+
+            foreach (var value in channelAttribute.Values.Where(v => v.IsDeleted && v.Id != Guid.Empty))
+            {
+                await _channelAttributeValueRepository.DeleteAsync(value.Id, autoSave: true);
+            }
+
+            foreach (var value in channelAttribute.Values.Where(v => !v.IsDeleted))
+            {
+                if (value.Id == Guid.Empty)
+                {
+                    var valueEntity = new SalesChannelTrTrendyolProductAttributeValue(channelProduct.CompanyId, channelAttribute.Id, value.Value, value.DisplayOrder);
+                    await _channelAttributeValueRepository.InsertAsync(valueEntity, autoSave: true);
+                    value.Id = valueEntity.Id;
+                }
+                else
+                {
+                    var valueEntity = await _channelAttributeValueRepository.GetAsync(value.Id);
+                    valueEntity.SetValue(value.Value);
+                    valueEntity.SetDisplayOrder(value.DisplayOrder);
+                    await _channelAttributeValueRepository.UpdateAsync(valueEntity, autoSave: true);
+                }
+            }
+        }
+    }
+
+    /// <summary>Persist SONRASI oluşacak özellik sayısını (mevcut − silinen + yeni) ERP simetriği üst-sınıra
+    /// (<see cref="ProductAttributeConsts.MaxAttributesPerProduct"/> = 5) karşı doğrular — persist BAŞLAMADAN
+    /// fail-fast (N11 S4 guard'ının portu). Üst-sınır CombinationSignature kolon kapasitesini de korur
+    /// (600 karakter ≈ 8 "{AttributeId}={ValueId}" çifti; sabit 8'i AŞMAMALI).</summary>
+    private async Task EnsureAttributeCountWithinLimitAsync(Guid channelProductId, List<SalesChannelTrTrendyolProductAttributeDto> attributesInput)
+    {
+        var deletedIds = attributesInput
+            .Where(a => a.IsDeleted && a.Id != Guid.Empty)
+            .Select(a => a.Id)
+            .ToHashSet();
+        var survivingExistingCount = (await LoadChannelAttributeEntitiesAsync(channelProductId))
+            .Count(a => !deletedIds.Contains(a.Id));
+        var newCount = attributesInput.Count(a => !a.IsDeleted && a.Id == Guid.Empty);
+        if (survivingExistingCount + newCount > ProductAttributeConsts.MaxAttributesPerProduct)
+        {
+            throw new BusinessException("TradeXpress:Trendyol:Product:TooManyAttributes")
+                .WithData("Max", ProductAttributeConsts.MaxAttributesPerProduct);
+        }
+    }
+
+    /// <summary>Özellik grafını persist eder + persist-sonrası DB durumuna göre kartezyen kombinasyon satırlarını
+    /// reconcile eder. Döndürdüğü bool = channelAttribute-modu AKTİF mi (en az 1 persist edilmiş özellik var) — false
+    /// ise çağıran legacy ERP-doğrudan yola (<see cref="BuildStockItemGraphAsync"/>/<see cref="SaveStockItemOverridesAsync"/>) düşer.</summary>
+    private async Task<bool> SaveAttributesAndReconcileAsync(SalesChannelTrTrendyolProduct channelProduct, List<SalesChannelTrTrendyolProductAttributeDto>? attributesInput)
+    {
+        await SaveAttributesGraphAsync(channelProduct, attributesInput);
+
+        var attributeEntities = await LoadChannelAttributeEntitiesAsync(channelProduct.Id);
+        if (attributeEntities.Count == 0)
+        {
+            return false;
+        }
+
+        var channelAttributeValues = await LoadChannelAttributeValueEntitiesAsync(attributeEntities.Select(a => a.Id).ToList());
+        await SynchronizeStockItemsAsync(channelProduct, ToAttributeWithValues(attributeEntities, channelAttributeValues));
+        return true;
+    }
+
+    /// <summary>Kanal özelliklerinin (AttributeId, ValueId) kartezyeni — matematik <see cref="VariantCombinationEngine"/>'e
+    /// devredilmiştir (N11 S4 bağlama şekliyle BİREBİR). "0 özellik → kombinasyon yok" yorumu çağıran guard'ıdır
+    /// (motorun birim elemanına — tek boş kombinasyon — düşülmez).</summary>
+    private static List<List<(Guid AttributeId, Guid ValueId)>> BuildCombinations(List<AttributeWithValues> channelAttributes)
+    {
+        if (channelAttributes.Count == 0)
+        {
+            return new List<List<(Guid AttributeId, Guid ValueId)>>();
+        }
+
+        var axes = channelAttributes
+            .Select(a => (Axis: a.AttributeId, Values: (IReadOnlyList<Guid>)a.Values.Select(v => v.ValueId).ToList()))
+            .ToList();
+        return VariantCombinationEngine.BuildCartesian<Guid, Guid>(axes);
+    }
+
+    /// <summary>Kombinasyon imzası — N11 ile AYNI format ("{AttributeId}={ValueId}|...", AttributeId artan sıralı).
+    /// BİLİNÇLİ olarak <see cref="VariantCombinationEngine.BuildKey"/>'e delege EDİLMEZ: format farklı (BuildKey düz
+    /// Guid join) ve tüketici-yerel/opak — S1 karakterizasyon testleri bu formatı snapshot'ladı, DEĞİŞTİRME.</summary>
+    private static string BuildCombinationSignature(IEnumerable<(Guid AttributeId, Guid ValueId)> pairs)
+    {
+        return string.Join('|', pairs.OrderBy(p => p.AttributeId).Select(p => $"{p.AttributeId}={p.ValueId}"));
+    }
+
+    /// <summary>ERP varyantlarının (AttributeName, ValueText) normalize edilmiş küme indeksi — fırsatçı eşleştirme kaynağı.</summary>
+    private async Task<Dictionary<Guid, HashSet<(string Name, string Value)>>> BuildErpVariantOptionSetIndexAsync(Guid productId)
+    {
+        var variantIds = await AsyncExecuter.ToListAsync(
+            (await _variantRepository.GetQueryableAsync()).Where(v => v.ProductId == productId).Select(v => v.Id));
+        var options = await LoadVariantOptionsAsync(productId, variantIds);
+        return options.ToDictionary(
+            kv => kv.Key,
+            kv => kv.Value.Select(p => (Name: NormalizeForMatch(p.Name), Value: NormalizeForMatch(p.Value))).ToHashSet());
+    }
+
+    private static string NormalizeForMatch(string value)
+    {
+        return value.Trim().ToUpperInvariant();
+    }
+
+    /// <summary>Bir Trendyol kombinasyonunun (Attribute.Name/AttributeValue.Value seti) ERP varyantlarından TAM örtüşen
+    /// tekini bulur (bir kerelik fırsatçı eşleştirme — reconcile anahtarı DEĞİL). Örtüşme YOKSA ya da BİRDEN FAZLA
+    /// varyant aynı sete sahipse (belirsiz) null döner — yanlış atamaktansa Trendyol-only kalması güvenli.</summary>
+    private static Guid? MatchErpVariant(List<(string Name, string Value)> comboOptionSet, Dictionary<Guid, HashSet<(string Name, string Value)>> erpIndex)
+    {
+        var normalizedCombo = comboOptionSet.Select(p => (Name: NormalizeForMatch(p.Name), Value: NormalizeForMatch(p.Value))).ToHashSet();
+        Guid? match = null;
+        foreach (var (variantId, optionSet) in erpIndex)
+        {
+            if (optionSet.Count != normalizedCombo.Count || !optionSet.SetEquals(normalizedCombo))
+            {
+                continue;
+            }
+
+            if (match is not null)
+            {
+                return null;   // birden fazla ERP varyantı aynı sete sahip → belirsiz
+            }
+
+            match = variantId;
+        }
+
+        return match;
+    }
+
+    /// <summary>Kartezyen kombinasyon satırlarını (<see cref="SalesChannelTrTrendyolProductStockItem"/>, CombinationSignature
+    /// ile) mevcut özellik/değer setiyle reconcile eder — diff/sıra mekaniği <see cref="VariantSetReconciler"/>'da
+    /// (N11 S4 bağlama şekli BİREBİR): artık üretilemeyen kombinasyonlar (satır + reçetesi) removeAsync'te SİLİNİR
+    /// (orphan temizliği), eksik kombinasyonlar addAsync'te İNSERT edilir (fırsatçı ERP eşleştirmesiyle — KANAL
+    /// politikası, çekirdekte değil). Var olan satırlara (imzası hâlâ üretilebilir) DOKUNULMAZ — kullanıcı
+    /// override/reçete verisi korunur.</summary>
+    private async Task SynchronizeStockItemsAsync(SalesChannelTrTrendyolProduct channelProduct, List<AttributeWithValues> channelAttributes)
+    {
+        var combos = BuildCombinations(channelAttributes);
+        var comboBySignature = new Dictionary<string, List<(Guid AttributeId, Guid ValueId)>>(StringComparer.Ordinal);
+        foreach (var combo in combos)
+        {
+            comboBySignature[BuildCombinationSignature(combo)] = combo;
+        }
+
+        var existingHeaders = await AsyncExecuter.ToListAsync(
+            (await _stockItemRepository.GetQueryableAsync())
+                .Where(h => h.SalesChannelTrTrendyolProductId == channelProduct.Id && h.CombinationSignature != null));
+
+        // ERP indeksi TEMBEL: ilk eksik kombinasyonda yüklenir — eksik yoksa ERP sorgusu hiç atılmaz.
+        Dictionary<Guid, HashSet<(string Name, string Value)>>? erpIndex = null;
+        var attributeById = channelAttributes.ToDictionary(a => a.AttributeId);
+
+        await VariantSetReconciler.ReconcileAsync(
+            targetKeys: combos.Select(BuildCombinationSignature).ToList(),
+            existingItems: existingHeaders,
+            keySelector: h => h.CombinationSignature!,
+            removeAsync: async orphan =>
+            {
+                await _channelRecipeLineRepository.DeleteAsync(
+                    r => r.SalesChannelTrTrendyolProductId == channelProduct.Id && r.StockItemId == orphan.Id,
+                    autoSave: true);
+                await _stockItemRepository.DeleteAsync(orphan, autoSave: true);
+            },
+            addAsync: async signature =>
+            {
+                erpIndex ??= await BuildErpVariantOptionSetIndexAsync(channelProduct.ProductId);
+                var combo = comboBySignature[signature];
+                var optionSet = combo
+                    .Select(p => (Name: attributeById[p.AttributeId].AttributeName, Value: attributeById[p.AttributeId].Values.First(v => v.ValueId == p.ValueId).Value))
+                    .ToList();
+                var matchedVariantId = MatchErpVariant(optionSet, erpIndex);
+
+                var header = new SalesChannelTrTrendyolProductStockItem(channelProduct.CompanyId, channelProduct.Id, matchedVariantId);
+                header.SetCombinationSignature(signature);
+                await _stockItemRepository.InsertAsync(header, autoSave: true);
+            });
+    }
+
+    private static string BuildCombinationLabel(string signature, Dictionary<Guid, AttributeWithValues> attributeById)
+    {
+        var parts = new List<string>();
+        foreach (var pair in signature.Split('|', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var segments = pair.Split('=');
+            if (segments.Length != 2 || !Guid.TryParse(segments[0], out var attributeId) || !Guid.TryParse(segments[1], out var valueId))
+            {
+                continue;
+            }
+
+            if (attributeById.TryGetValue(attributeId, out var channelAttribute))
+            {
+                var value = channelAttribute.Values.FirstOrDefault(v => v.ValueId == valueId).Value;
+                parts.Add($"{channelAttribute.AttributeName}: {value}");
+            }
+        }
+
+        return string.Join("; ", parts);
+    }
+
+    /// <summary>Kartezyen kombinasyon satırlarını graf DTO'suna projekte eder (reconcile'ın ÜRETTİĞİ set — reconcile
+    /// bu metottan ÖNCE çağrılmış olmalı). ERP-backed (ProductVariantId dolu) satırda da anchor HALA header.Id'dir.</summary>
+    private async Task<List<SalesChannelTrTrendyolProductStockItemGraphDto>> BuildAttributeStockItemsAsync(
+        SalesChannelTrTrendyolProduct channelProduct, List<AttributeWithValues> channelAttributes)
+    {
+        var headers = await AsyncExecuter.ToListAsync(
+            (await _stockItemRepository.GetQueryableAsync())
+                .Where(h => h.SalesChannelTrTrendyolProductId == channelProduct.Id && h.CombinationSignature != null)
+                .OrderBy(h => h.CreationTime));
+        if (headers.Count == 0)
+        {
+            return new List<SalesChannelTrTrendyolProductStockItemGraphDto>();
+        }
+
+        var headerIds = headers.Select(h => h.Id).ToList();
+        var savedByHeader = (await AsyncExecuter.ToListAsync(
+                (await _channelRecipeLineRepository.GetQueryableAsync())
+                    .Where(r => r.SalesChannelTrTrendyolProductId == channelProduct.Id && headerIds.Contains(r.StockItemId))))
+            .GroupBy(r => r.StockItemId)
+            .ToDictionary(g => g.Key, g => g.ToList());
+
+        var erpVariantIds = headers.Where(h => h.ProductVariantId is not null).Select(h => h.ProductVariantId!.Value).Distinct().ToList();
+        var erpVariantsById = erpVariantIds.Count == 0
+            ? new Dictionary<Guid, ProductVariant>()
+            : (await AsyncExecuter.ToListAsync(
+                    (await _variantRepository.GetQueryableAsync()).Where(v => erpVariantIds.Contains(v.Id))))
+                .ToDictionary(v => v.Id);
+
+        var attributeById = channelAttributes.ToDictionary(a => a.AttributeId);
+        var nodes = new List<SalesChannelTrTrendyolProductStockItemGraphDto>(headers.Count);
+        foreach (var header in headers)
+        {
+            var erpVariant = header.ProductVariantId is { } erpId && erpVariantsById.TryGetValue(erpId, out var v) ? v : null;
+            var node = new SalesChannelTrTrendyolProductStockItemGraphDto
+            {
+                Id = header.Id,
+                ProductVariantId = header.ProductVariantId,
+                VariantCode = erpVariant?.Code ?? string.Empty,
+                VariantName = erpVariant?.Name ?? string.Empty,
+                CombinationLabel = BuildCombinationLabel(header.CombinationSignature!, attributeById),
+                OverridePrice = header.OverridePrice,
+                OverridePriceCurrencyUnitId = header.OverridePriceCurrencyUnitId,
+                OverrideStock = header.OverrideStock,
+                Margin = header.Margin,
+                RecipeLines = savedByHeader.TryGetValue(header.Id, out var saved) ? MapSavedRecipeLines(saved) : new List<ProductRecipeLineGraphDto>(),
+            };
+            nodes.Add(node);
+        }
+
+        await PopulateNodeCostsAsync(nodes);
+        return nodes;
+    }
+
+    /// <summary>Kartezyen kombinasyon satırlarının (zaten reconcile ile server-side üretilmiş) düzenlenebilir
+    /// alanlarını (OverridePrice/OverrideStock/Margin/RecipeLines) kullanıcı girdisinden persist eder. Client YENİ
+    /// satır AÇAMAZ (Id boş düğüm atlanır — reconcile tek üretici); yabancı/bayat Id sessizce atlanır. Trendyol-only
+    /// (ProductVariantId null) satırda ERP fallback'i YOKTUR → OverridePrice + OverrideStock ZORUNLU (fail-fast).</summary>
+    private async Task SaveAttributeStockItemOverridesAsync(SalesChannelTrTrendyolProduct channelProduct, List<SalesChannelTrTrendyolProductStockItemGraphDto>? variants)
+    {
+        if (variants is not { Count: > 0 })
+        {
+            return;
+        }
+
+        foreach (var node in variants)
+        {
+            if (node.Id == Guid.Empty)
+            {
+                continue;
+            }
+
+            var header = await _stockItemRepository.FindAsync(node.Id);
+            if (header is null || header.SalesChannelTrTrendyolProductId != channelProduct.Id)
+            {
+                continue;
+            }
+
+            if (header.ProductVariantId is null && (node.OverridePrice is null || node.OverrideStock is null))
+            {
+                throw new BusinessException("TradeXpress:Trendyol:ProductVariant:OverrideRequiredForTrendyolOnly");
+            }
+
+            header.SetOverridePrice(node.OverridePrice, node.OverridePriceCurrencyUnitId);
+            header.SetOverrideStock(node.OverrideStock);
+            header.SetMargin(node.Margin);
+            await _stockItemRepository.UpdateAsync(header, autoSave: true);
+
+            await SaveChannelRecipeLinesAsync(channelProduct, header.Id, node.RecipeLines);
+        }
+    }
+
+    // ── Kanal-özel varyant override (fiyat/stok/marj + reçete) — LEGACY ERP-doğrudan yol ─────────────
     // Graf = ERP varyant seti (aktif) ⋈ kaydedilmiş kanal override (LEFT JOIN). Kaydedilmiş reçete varsa ondan,
     // yoksa ERP reçetesi KLONLANIR. NetCost + türetilmiş fiyat CANLI hesaplanır (ProductAppService ile ORTAK motor).
 
     /// <summary>Bir kanal-ürünün varyant override grafını kurar: aktif ERP varyantları × kaydedilmiş override başlığı
     /// (fiyat/stok/marj) + reçete (kaydedilmişse ondan, yoksa ERP reçetesinden klon). NetCost + türetilmiş fiyat
     /// (NetCost×(1+Margin/100)) canlı hesaplanır. Varyant yoksa boş liste.</summary>
-    private async Task<List<SalesChannelTrTrendyolProductVariantGraphDto>> BuildVariantGraphAsync(SalesChannelTrTrendyolProduct channelProduct)
+    private async Task<List<SalesChannelTrTrendyolProductStockItemGraphDto>> BuildStockItemGraphAsync(SalesChannelTrTrendyolProduct channelProduct)
     {
         var variants = await AsyncExecuter.ToListAsync(
             (await _variantRepository.GetQueryableAsync())
@@ -536,20 +1037,24 @@ public class SalesChannelTrTrendyolProductAppService : TradeXpressAppService, IS
                 .OrderByDescending(v => v.IsMain).ThenBy(v => v.Code));
         if (variants.Count == 0)
         {
-            return new List<SalesChannelTrTrendyolProductVariantGraphDto>();
+            return new List<SalesChannelTrTrendyolProductStockItemGraphDto>();
         }
 
         var variantIds = variants.Select(v => v.Id).ToList();
 
+        // Yalnız ERP-backed başlıklar (ProductVariantId dolu) — Trendyol-only satırlar bu ERP-varyant grafına girmez
+        // (kendi grubunda listelenir; bkz. BuildAttributeStockItemsAsync).
         var headers = (await AsyncExecuter.ToListAsync(
-                (await _variantOverrideRepository.GetQueryableAsync())
-                    .Where(h => h.SalesChannelTrTrendyolProductId == channelProduct.Id)))
-            .ToDictionary(h => h.ProductVariantId);
+                (await _stockItemRepository.GetQueryableAsync())
+                    .Where(h => h.SalesChannelTrTrendyolProductId == channelProduct.Id && h.ProductVariantId != null)))
+            .ToDictionary(h => h.ProductVariantId!.Value);
 
-        var savedByVariant = (await AsyncExecuter.ToListAsync(
+        // Reçete satırları override BAŞLIĞININ kendi Id'sine bağlı (StockItemId) — önce header.Id'ye, sonra ERP varyantına eşlenir.
+        var headerIds = headers.Values.Select(h => h.Id).ToList();
+        var savedByHeader = (await AsyncExecuter.ToListAsync(
                 (await _channelRecipeLineRepository.GetQueryableAsync())
-                    .Where(r => r.SalesChannelTrTrendyolProductId == channelProduct.Id)))
-            .GroupBy(r => r.ProductVariantId)
+                    .Where(r => r.SalesChannelTrTrendyolProductId == channelProduct.Id && headerIds.Contains(r.StockItemId))))
+            .GroupBy(r => r.StockItemId)
             .ToDictionary(g => g.Key, g => g.ToList());
 
         // ERP reçetesi — yalnız kaydedilmiş kanal reçetesi OLMAYAN varyantlarda klonlanır (LEFT JOIN eksiği ERP'den).
@@ -559,10 +1064,10 @@ public class SalesChannelTrTrendyolProductAppService : TradeXpressAppService, IS
             .GroupBy(r => r.ProductVariantId)
             .ToDictionary(g => g.Key, g => g.ToList());
 
-        var nodes = new List<SalesChannelTrTrendyolProductVariantGraphDto>(variants.Count);
+        var nodes = new List<SalesChannelTrTrendyolProductStockItemGraphDto>(variants.Count);
         foreach (var v in variants)
         {
-            var node = new SalesChannelTrTrendyolProductVariantGraphDto
+            var node = new SalesChannelTrTrendyolProductStockItemGraphDto
             {
                 ProductVariantId = v.Id,
                 VariantCode = v.Code,
@@ -571,19 +1076,27 @@ public class SalesChannelTrTrendyolProductAppService : TradeXpressAppService, IS
 
             if (headers.TryGetValue(v.Id, out var header))
             {
+                node.Id = header.Id;
                 node.OverridePrice = header.OverridePrice;
                 node.OverridePriceCurrencyUnitId = header.OverridePriceCurrencyUnitId;
                 node.OverrideStock = header.OverrideStock;
                 node.Margin = header.Margin;
             }
 
-            node.RecipeLines = savedByVariant.TryGetValue(v.Id, out var saved)
+            node.RecipeLines = header is not null && savedByHeader.TryGetValue(header.Id, out var saved)
                 ? MapSavedRecipeLines(saved)
                 : (erpByVariant.TryGetValue(v.Id, out var erp) ? CloneErpRecipeLines(erp) : new List<ProductRecipeLineGraphDto>());
 
             nodes.Add(node);
         }
 
+        await PopulateNodeCostsAsync(nodes);
+        return nodes;
+    }
+
+    /// <summary>Düğümlerin CANLI net maliyet + türetilmiş fiyatını doldurur (kartezyen ve legacy graf ORTAK sonu).</summary>
+    private async Task PopulateNodeCostsAsync(List<SalesChannelTrTrendyolProductStockItemGraphDto> nodes)
+    {
         var costs = await _recipeCostPopulator.PopulateAsync(nodes.Select(n => n.RecipeLines).ToList());
         for (var i = 0; i < nodes.Count; i++)
         {
@@ -595,8 +1108,6 @@ public class SalesChannelTrTrendyolProductAppService : TradeXpressAppService, IS
                 ? nc * (1m + (node.Margin ?? 0m) / 100m)
                 : null;
         }
-
-        return nodes;
     }
 
     /// <summary>Push için varyant-başı efektif fiyat/stok — zincir: OverridePrice ?? türetilmiş (KAYDEDİLMİŞ reçete
@@ -607,19 +1118,26 @@ public class SalesChannelTrTrendyolProductAppService : TradeXpressAppService, IS
     {
         var variantIds = variants.Select(v => v.Id).ToList();
 
+        // Yalnız ERP-backed başlıklar — Trendyol-only satırlar (ProductVariantId null) burada ERP varyantına
+        // eşlenemez; kendi push zincirleri push fazında (T8) ele alınır (N11 J3 simetriği).
         var headers = (await AsyncExecuter.ToListAsync(
-                (await _variantOverrideRepository.GetQueryableAsync())
-                    .Where(h => h.SalesChannelTrTrendyolProductId == channelProduct.Id && variantIds.Contains(h.ProductVariantId))))
-            .ToDictionary(h => h.ProductVariantId);
+                (await _stockItemRepository.GetQueryableAsync())
+                    .Where(h => h.SalesChannelTrTrendyolProductId == channelProduct.Id && h.ProductVariantId != null
+                        && variantIds.Contains(h.ProductVariantId!.Value))))
+            .ToDictionary(h => h.ProductVariantId!.Value);
 
-        var savedByVariant = (await AsyncExecuter.ToListAsync(
+        // Reçete satırları header'ın KENDİ Id'sine bağlı (StockItemId) — ERP ProductVariantId'ye değil.
+        var headerIds = headers.Values.Select(h => h.Id).ToList();
+        var savedByHeader = (await AsyncExecuter.ToListAsync(
                 (await _channelRecipeLineRepository.GetQueryableAsync())
-                    .Where(r => r.SalesChannelTrTrendyolProductId == channelProduct.Id && variantIds.Contains(r.ProductVariantId))))
-            .GroupBy(r => r.ProductVariantId)
+                    .Where(r => r.SalesChannelTrTrendyolProductId == channelProduct.Id && headerIds.Contains(r.StockItemId))))
+            .GroupBy(r => r.StockItemId)
             .ToDictionary(g => g.Key, g => g.ToList());
 
         var lineSets = variants
-            .Select(v => savedByVariant.TryGetValue(v.Id, out var l) ? MapSavedRecipeLines(l) : new List<ProductRecipeLineGraphDto>())
+            .Select(v => headers.TryGetValue(v.Id, out var h) && savedByHeader.TryGetValue(h.Id, out var l)
+                ? MapSavedRecipeLines(l)
+                : new List<ProductRecipeLineGraphDto>())
             .ToList();
         var costs = await _recipeCostPopulator.PopulateAsync(lineSets);
 
@@ -639,26 +1157,29 @@ public class SalesChannelTrTrendyolProductAppService : TradeXpressAppService, IS
         return result;
     }
 
-    /// <summary>Kanal-özel varyant override grafını persist eder — override sinyali (OverridePrice/OverrideStock/Margin
-    /// herhangi biri dolu) olan varyantın başlığı + reçetesi yazılır; TÜMÜ boşsa (saf ERP devralma) kaydedilmiş
-    /// override/reçete TEMİZLENİR (ölü satır şişmesini önle). Türetilmiş fiyat/NetCost hesap alanları PERSIST EDİLMEZ.</summary>
-    private async Task SaveVariantOverridesAsync(SalesChannelTrTrendyolProduct channelProduct, List<SalesChannelTrTrendyolProductVariantGraphDto> variants)
+    /// <summary>Kanal-özel varyant override grafını persist eder (LEGACY ERP-doğrudan yol) — override sinyali
+    /// (OverridePrice/OverrideStock/Margin herhangi biri dolu) olan varyantın başlığı + reçetesi yazılır; TÜMÜ boşsa
+    /// (saf ERP devralma) kaydedilmiş override/reçete TEMİZLENİR (ölü satır şişmesini önle). Türetilmiş fiyat/NetCost
+    /// hesap alanları PERSIST EDİLMEZ (canlı).</summary>
+    private async Task SaveStockItemOverridesAsync(SalesChannelTrTrendyolProduct channelProduct, List<SalesChannelTrTrendyolProductStockItemGraphDto> variants)
     {
         if (variants == null || variants.Count == 0)
         {
             return;
         }
 
+        // Yalnız ERP-backed başlıklar — Trendyol-only satırlar (ProductVariantId null) bu ERP-anchor'lı override
+        // yolundan GEÇMEZ, kartezyen motor (SynchronizeStockItemsAsync) tarafından ayrıca üretilir/güncellenir.
         var existingHeaders = (await AsyncExecuter.ToListAsync(
-                (await _variantOverrideRepository.GetQueryableAsync())
-                    .Where(h => h.SalesChannelTrTrendyolProductId == channelProduct.Id)))
-            .ToDictionary(h => h.ProductVariantId);
+                (await _stockItemRepository.GetQueryableAsync())
+                    .Where(h => h.SalesChannelTrTrendyolProductId == channelProduct.Id && h.ProductVariantId != null)))
+            .ToDictionary(h => h.ProductVariantId!.Value);
 
         foreach (var node in variants)
         {
-            if (node.ProductVariantId == Guid.Empty)
+            if (node.ProductVariantId is null || node.ProductVariantId == Guid.Empty)
             {
-                continue;   // anchor yok → atla (bayat/geçersiz düğüm)
+                continue;   // anchor yok (Trendyol-only ya da bayat düğüm) → atla; kartezyen motor ele alır
             }
 
             // Persist sinyali: override alanı VEYA kanal-özel reçete girilmişse korunur (reçete-only + boş marj de
@@ -666,46 +1187,49 @@ public class SalesChannelTrTrendyolProductAppService : TradeXpressAppService, IS
             var hasRecipe = node.RecipeLines?.Any(l => !l.IsDeleted) == true;
             var hasOverride = node.OverridePrice is not null || node.OverrideStock is not null
                 || node.Margin is not null || hasRecipe;
-            existingHeaders.TryGetValue(node.ProductVariantId, out var header);
+            existingHeaders.TryGetValue(node.ProductVariantId.Value, out var header);
 
             if (!hasOverride)
             {
-                // Saf devralma → kaydedilmiş override başlığı + reçete satırlarını sil (ERP'ye geri dön).
+                // Saf devralma → kaydedilmiş override başlığı + reçete satırlarını sil (ERP'ye geri dön). Reçete
+                // satırları header'ın KENDİ Id'sine bağlı (StockItemId) — önce onunla sil, sonra başlığı.
                 if (header is not null)
                 {
-                    await _variantOverrideRepository.DeleteAsync(header, autoSave: true);
+                    await _channelRecipeLineRepository.DeleteAsync(
+                        r => r.SalesChannelTrTrendyolProductId == channelProduct.Id && r.StockItemId == header.Id,
+                        autoSave: true);
+                    await _stockItemRepository.DeleteAsync(header, autoSave: true);
                 }
 
-                await _channelRecipeLineRepository.DeleteAsync(
-                    r => r.SalesChannelTrTrendyolProductId == channelProduct.Id && r.ProductVariantId == node.ProductVariantId,
-                    autoSave: true);
                 continue;
             }
 
             if (header is null)
             {
-                header = new SalesChannelTrTrendyolProductVariant(channelProduct.CompanyId, channelProduct.Id, node.ProductVariantId);
+                header = new SalesChannelTrTrendyolProductStockItem(channelProduct.CompanyId, channelProduct.Id, node.ProductVariantId);
                 header.SetOverridePrice(node.OverridePrice, node.OverridePriceCurrencyUnitId);
                 header.SetOverrideStock(node.OverrideStock);
                 header.SetMargin(node.Margin);
-                await _variantOverrideRepository.InsertAsync(header, autoSave: true);
+                await _stockItemRepository.InsertAsync(header, autoSave: true);
             }
             else
             {
                 header.SetOverridePrice(node.OverridePrice, node.OverridePriceCurrencyUnitId);
                 header.SetOverrideStock(node.OverrideStock);
                 header.SetMargin(node.Margin);
-                await _variantOverrideRepository.UpdateAsync(header, autoSave: true);
+                await _stockItemRepository.UpdateAsync(header, autoSave: true);
             }
 
-            await SaveChannelRecipeLinesAsync(channelProduct, node.ProductVariantId, node.RecipeLines);
+            await SaveChannelRecipeLinesAsync(channelProduct, header.Id, node.RecipeLines);
         }
     }
 
-    /// <summary>Bir varyantın kanal-özel reçete satırlarını persist eder (ERP SaveRecipeLinesAsync deseni, iki-geçişli):
-    /// silinenler → LineOrder 0..n yeniden-numara → referans doğrulama → skaler insert/update (1. geçiş) → türev
-    /// SelectedLines kaynak Id CSV çözümü (2. geçiş). ComponentType set-once (ctor'da).</summary>
-    private async Task SaveChannelRecipeLinesAsync(SalesChannelTrTrendyolProduct channelProduct, Guid variantId, List<ProductRecipeLineGraphDto> lines)
+    /// <summary>Bir override BAŞLIĞININ (ERP-backed veya Trendyol-only fark etmez — <paramref name="stockItemId"/> her
+    /// zaman <see cref="SalesChannelTrTrendyolProductStockItem"/>'ın KENDİ Id'sidir) kanal-özel reçete satırlarını
+    /// persist eder (ERP SaveRecipeLinesAsync deseni, iki-geçişli): silinenler → LineOrder 0..n yeniden-numara →
+    /// referans doğrulama → skaler insert/update (1. geçiş) → türev SelectedLines kaynak Id CSV çözümü (2. geçiş).
+    /// ComponentType set-once (ctor'da).</summary>
+    private async Task SaveChannelRecipeLinesAsync(SalesChannelTrTrendyolProduct channelProduct, Guid stockItemId, List<ProductRecipeLineGraphDto> lines)
     {
         lines ??= new List<ProductRecipeLineGraphDto>();
 
@@ -724,14 +1248,14 @@ public class SalesChannelTrTrendyolProductAppService : TradeXpressAppService, IS
 
         // 1. geçiş: skaler alanlar (türev SelectedLines kaynakları HARİÇ) → ClientKey→Id (+ entity) sözlükleri.
         var idByClientKey = new Dictionary<Guid, Guid>();
-        var entityByClientKey = new Dictionary<Guid, SalesChannelTrTrendyolProductVariantRecipeLine>();
+        var entityByClientKey = new Dictionary<Guid, SalesChannelTrTrendyolProductStockItemRecipeLine>();
         foreach (var l in survivors)
         {
-            SalesChannelTrTrendyolProductVariantRecipeLine entity;
+            SalesChannelTrTrendyolProductStockItemRecipeLine entity;
             if (l.Id == Guid.Empty)
             {
-                entity = new SalesChannelTrTrendyolProductVariantRecipeLine(
-                    channelProduct.CompanyId, channelProduct.Id, variantId, l.ComponentType, l.LineOrder);
+                entity = new SalesChannelTrTrendyolProductStockItemRecipeLine(
+                    channelProduct.CompanyId, channelProduct.Id, stockItemId, l.ComponentType, l.LineOrder);
                 ApplyChannelRecipeLineFields(entity, l);
                 await _channelRecipeLineRepository.InsertAsync(entity, autoSave: true);
                 l.Id = entity.Id;
@@ -761,7 +1285,7 @@ public class SalesChannelTrTrendyolProductAppService : TradeXpressAppService, IS
 
     /// <summary>Graf düğümünün alanlarını kanal reçete satırına uygular (ERP ApplyRecipeLineFields ile birebir;
     /// ComponentType ctor'da atanır → burada değiştirilmez).</summary>
-    private static void ApplyChannelRecipeLineFields(SalesChannelTrTrendyolProductVariantRecipeLine entity, ProductRecipeLineGraphDto l)
+    private static void ApplyChannelRecipeLineFields(SalesChannelTrTrendyolProductStockItemRecipeLine entity, ProductRecipeLineGraphDto l)
     {
         if (l.ComponentType == RecipeComponentType.CatalogCommodity)
         {
@@ -791,7 +1315,7 @@ public class SalesChannelTrTrendyolProductAppService : TradeXpressAppService, IS
 
     /// <summary>Kaydedilmiş kanal reçete satırlarını graf DTO'suna projekte eder (Id KORUNUR — mevcut satır) +
     /// türev SelectedLines kaynaklarını taze ClientKey'lere çözer (ORTAK resolver).</summary>
-    private static List<ProductRecipeLineGraphDto> MapSavedRecipeLines(List<SalesChannelTrTrendyolProductVariantRecipeLine> saved)
+    private static List<ProductRecipeLineGraphDto> MapSavedRecipeLines(List<SalesChannelTrTrendyolProductStockItemRecipeLine> saved)
     {
         var ordered = saved.OrderBy(r => r.LineOrder).ThenBy(r => r.CreationTime).ToList();
         var dtos = ordered.Select(r => new ProductRecipeLineGraphDto
@@ -898,7 +1422,7 @@ public class SalesChannelTrTrendyolProductAppService : TradeXpressAppService, IS
         entity.SetDescription(input.Description);
         entity.SetDeliveryOption(input.DeliveryDuration, input.FastDeliveryType);
         entity.SetActive(input.IsActive);
-        entity.SetAttributes(input.Attributes.Select(a => new SalesChannelTrTrendyolProductAttribute(a.AttributeId, a.AttributeValueId, a.CustomValue)));
+        entity.SetAttributes(input.Attributes.Select(a => new SalesChannelTrTrendyolProductCategoryAttribute(a.AttributeId, a.AttributeValueId, a.CustomValue)));
     }
 
     private async Task<SalesChannelTrTrendyolProduct> GetOwnedAsync(Guid id)

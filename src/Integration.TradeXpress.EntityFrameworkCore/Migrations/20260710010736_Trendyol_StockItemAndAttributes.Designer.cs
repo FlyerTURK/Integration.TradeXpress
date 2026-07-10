@@ -4,6 +4,7 @@ using Integration.TradeXpress.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Volo.Abp.EntityFrameworkCore;
 
@@ -12,9 +13,11 @@ using Volo.Abp.EntityFrameworkCore;
 namespace Integration.TradeXpress.Migrations
 {
     [DbContext(typeof(TradeXpressDbContext))]
-    partial class TradeXpressDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260710010736_Trendyol_StockItemAndAttributes")]
+    partial class Trendyol_StockItemAndAttributes
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -4049,7 +4052,7 @@ namespace Integration.TradeXpress.Migrations
                         .IsUnique()
                         .HasFilter("[ProductVariantId] IS NOT NULL");
 
-                    b.ToTable("AppSalesChannelTrTrendyolProductStockItems", (string)null);
+                    b.ToTable("AppSalesChannelTrTrendyolProductVariants", (string)null);
                 });
 
             modelBuilder.Entity("Integration.TradeXpress.TrendyolProducts.SalesChannelTrTrendyolProductStockItemRecipeLine", b =>
@@ -4165,7 +4168,8 @@ namespace Integration.TradeXpress.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<Guid>("StockItemId")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("ProductVariantId");
 
                     b.Property<Guid?>("TenantId")
                         .HasColumnType("uniqueidentifier")
@@ -4180,7 +4184,7 @@ namespace Integration.TradeXpress.Migrations
 
                     b.HasIndex("TenantId", "SalesChannelTrTrendyolProductId", "StockItemId", "LineOrder");
 
-                    b.ToTable("AppSalesChannelTrTrendyolProductStockItemRecipeLines", (string)null);
+                    b.ToTable("AppSalesChannelTrTrendyolProductVariantRecipeLines", (string)null);
                 });
 
             modelBuilder.Entity("Integration.TradeXpress.Vaults.Vault", b =>

@@ -31,10 +31,11 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
             b.Property(x => x.LastError).HasMaxLength(TrendyolProductConsts.LastErrorMaxLength);
             b.Property(x => x.DimensionalWeight).HasPrecision(18, 3);
 
-            // Kategori attribute değerleri (id-bazlı) → JSON kolonu (owned collection; Trendyol'a push edilir, sorgulanmaz).
+            // Kategori attribute değerleri (id-bazlı) → JSON kolonu (owned collection; Trendyol'a push edilir,
+            // sorgulanmaz). Kolon adı SABİT "Attributes" — S6 CategoryAttribute tip rename'i şemayı değiştirmez.
             b.OwnsMany(x => x.Attributes, a =>
             {
-                a.ToJson();
+                a.ToJson("Attributes");
                 a.Property(p => p.CustomValue).HasMaxLength(TrendyolProductConsts.CustomAttributeValueMaxLength);
             });
 
@@ -53,26 +54,61 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
             b.HasIndex(x => new { x.TenantId, x.CompanyId });
         });
 
-        // Kanal-özel varyant override BAŞLIĞI (fiyat/stok + marj) — ERP ProductVariant'ın Trendyol-scope özelleştirmesi.
-        // null alan = ERP'den devral. Anchor (kanal-ürün + varyant) UNIQUE; türetilmiş fiyat/NetCost PERSIST EDİLMEZ.
-        builder.Entity<SalesChannelTrTrendyolProductVariant>(b =>
+        // Kanal-özel varyant ÖZELLİĞİ (ör. "Renk") — ERP ProductAttribute'ın Trendyol-scope klonu (klon-sonra-ayrış).
+        builder.Entity<SalesChannelTrTrendyolProductAttribute>(b =>
         {
-            b.ToTable(TradeXpressConsts.DbTablePrefix + "SalesChannelTrTrendyolProductVariants", TradeXpressConsts.DbSchema);
+            b.ToTable(TradeXpressConsts.DbTablePrefix + "SalesChannelTrTrendyolProductAttributes", TradeXpressConsts.DbSchema);
+            b.ConfigureByConvention();
+
+            b.Property(x => x.Name).IsRequired().HasMaxLength(TrendyolProductConsts.AttributeNameMaxLength);
+
+            b.HasIndex(x => new { x.TenantId, x.SalesChannelTrTrendyolProductId });
+            b.HasIndex(x => new { x.TenantId, x.CompanyId });
+        });
+
+        // Özellik DEĞERİ (ör. "Kırmızı"/"Siyah") — ERP ProductAttributeValue'nun Trendyol-scope klonu.
+        builder.Entity<SalesChannelTrTrendyolProductAttributeValue>(b =>
+        {
+            b.ToTable(TradeXpressConsts.DbTablePrefix + "SalesChannelTrTrendyolProductAttributeValues", TradeXpressConsts.DbSchema);
+            b.ConfigureByConvention();
+
+            b.Property(x => x.Value).IsRequired().HasMaxLength(TrendyolProductConsts.AttributeValueMaxLength);
+
+            b.HasIndex(x => new { x.TenantId, x.AttributeId });
+            b.HasIndex(x => new { x.TenantId, x.CompanyId });
+        });
+
+        // Kanal-özel varyant override BAŞLIĞI (fiyat/stok + marj) — ERP ProductVariant'ın Trendyol-scope özelleştirmesi.
+        // null alan = ERP'den devral. Anchor artık BU entity'nin KENDİ Id'si (N11 portu, klon-sonra-ayrış);
+        // ProductVariantId opsiyonel (null = Trendyol-only kombinasyon).
+        builder.Entity<SalesChannelTrTrendyolProductStockItem>(b =>
+        {
+            b.ToTable(TradeXpressConsts.DbTablePrefix + "SalesChannelTrTrendyolProductStockItems", TradeXpressConsts.DbSchema);
             b.ConfigureByConvention();
 
             b.Property(x => x.OverridePrice).HasPrecision(ProductRecipeConsts.AmountPrecision, ProductRecipeConsts.AmountScale);
             b.Property(x => x.Margin).HasPrecision(ProductRecipeConsts.FactorPrecision, ProductRecipeConsts.FactorScale);
+            b.Property(x => x.CombinationSignature).HasMaxLength(TrendyolProductConsts.CombinationSignatureMaxLength);
 
-            // Kanal-ürün + varyant başına TEK override başlığı (anchor benzersiz).
-            b.HasIndex(x => new { x.TenantId, x.SalesChannelTrTrendyolProductId, x.ProductVariantId }).IsUnique();
+            // Kanal-ürün + ERP varyant başına TEK override başlığı — yalnız ProductVariantId doluyken (Trendyol-only
+            // satırlarda birden çok null aynı kanal-ürüne bağlanabilir; filtre bu yüzden şart).
+            b.HasIndex(x => new { x.TenantId, x.SalesChannelTrTrendyolProductId, x.ProductVariantId })
+                .IsUnique()
+                .HasFilter("[ProductVariantId] IS NOT NULL");
+
+            // Kartezyen motor reconcile anahtarı — kanal-ürün başına TEK satır per imza (ID-bazlı; özellik/değer
+            // yeniden adlandırılsa da bozulmaz). Yalnız özellik-kaynaklı satırlarda dolu (legacy ERP-doğrudan null).
+            b.HasIndex(x => new { x.TenantId, x.SalesChannelTrTrendyolProductId, x.CombinationSignature })
+                .IsUnique()
+                .HasFilter("[CombinationSignature] IS NOT NULL");
             b.HasIndex(x => new { x.TenantId, x.CompanyId });
         });
 
         // Kanal-özel varyant reçetesi (ERP ProductVariantRecipeLine klonu) — AYRI TABLO (owned değil; türev
         // SelectedLines Id referansları JSON'da kırılgan olur). Hesap motoru (ProductRecipeCostCalculator) ortak.
-        builder.Entity<SalesChannelTrTrendyolProductVariantRecipeLine>(b =>
+        builder.Entity<SalesChannelTrTrendyolProductStockItemRecipeLine>(b =>
         {
-            b.ToTable(TradeXpressConsts.DbTablePrefix + "SalesChannelTrTrendyolProductVariantRecipeLines", TradeXpressConsts.DbSchema);
+            b.ToTable(TradeXpressConsts.DbTablePrefix + "SalesChannelTrTrendyolProductStockItemRecipeLines", TradeXpressConsts.DbSchema);
             b.ConfigureByConvention();
 
             b.Property(x => x.Quantity).HasPrecision(ProductRecipeConsts.FactorPrecision, ProductRecipeConsts.FactorScale);
@@ -84,8 +120,8 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
             b.Property(x => x.DerivedOperand).HasPrecision(ProductRecipeConsts.FactorPrecision, ProductRecipeConsts.FactorScale);
             b.Property(x => x.DerivedSourceLineIds).HasMaxLength(ProductRecipeConsts.DerivedSourceLineIdsMaxLength);
 
-            // Kanal-ürün + varyant başına sıralı okuma + company güvenlik filtresi.
-            b.HasIndex(x => new { x.TenantId, x.SalesChannelTrTrendyolProductId, x.ProductVariantId, x.LineOrder });
+            // Kanal-ürün + override başlığı başına sıralı okuma + company güvenlik filtresi.
+            b.HasIndex(x => new { x.TenantId, x.SalesChannelTrTrendyolProductId, x.StockItemId, x.LineOrder });
             b.HasIndex(x => new { x.TenantId, x.CompanyId });
         });
     }

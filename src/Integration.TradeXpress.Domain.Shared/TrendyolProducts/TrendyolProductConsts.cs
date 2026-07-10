@@ -41,4 +41,12 @@ public static class TrendyolProductConsts
 
     /// <summary>Serbest (custom) attribute değeri — id'siz metin.</summary>
     public const int CustomAttributeValueMaxLength = 2000;
+
+    // Kanal-özel varyant ÖZELLİĞİ/DEĞERİ (SalesChannelTrTrendyolProductAttribute/Value) — ERP ProductAttributeConsts
+    // ve N11ProductConsts ile HİZALI (klon-sonra-ayrış deseni; aynı alan sınırları).
+    public const int AttributeNameMaxLength = 64;    // ör. "Renk", "Beden"
+    public const int AttributeValueMaxLength = 128;  // ör. "Kırmızı", "Siyah"
+
+    /// <summary>Kartezyen kombinasyon imzası ("{AttributeId}={ValueId}|...") üst sınırı — makul özellik sayısı × Guid uzunluğu.</summary>
+    public const int CombinationSignatureMaxLength = 600;
 }

@@ -8,28 +8,30 @@ namespace Integration.TradeXpress.TrendyolProducts;
 /// (ürün-geneli reçete) kanal-scope KLONU. İlk açılışta ERP varyant reçetesinden kopyalanır, sonra BAĞIMSIZ
 /// düzenlenir (N11 ile aynı desen): kanal maliyeti + marj → Trendyol türetilmiş fiyatı. <b>Company-owned</b>
 /// (<see cref="CompanyId"/> kanal-üründen denormalize) + per-tenant. Anchor: <see cref="SalesChannelTrTrendyolProductId"/>
-/// + <see cref="ProductVariantId"/> (set-once). Net/tutar CANLI hesaplanır (<c>ProductRecipeCostCalculator</c>
-/// AYNEN yeniden kullanılır — saf/DB'siz); katalog/StableQuantity/EntryPrice hesap anında canlı okunur.
-/// Ürün reçetesiyle AYNI alan seti — hesap motoru ortak kalsın diye birebir hizalı.
+/// + <see cref="StockItemId"/> (set-once) — <see cref="StockItemId"/> <see cref="SalesChannelTrTrendyolProductStockItem"/>'ın
+/// KENDİ Id'sidir (N11'in 2026-07-09 kararının portu: ERP ProductVariantId DEĞİL — böylece ERP-backed VE Trendyol-only
+/// override başlıkları AYNI anahtar şemasıyla reçete satırına sahip olabilir). Net/tutar CANLI hesaplanır
+/// (<c>ProductRecipeCostCalculator</c> AYNEN yeniden kullanılır — saf/DB'siz); katalog/StableQuantity/EntryPrice hesap
+/// anında canlı okunur. Ürün reçetesiyle AYNI alan seti — hesap motoru ortak kalsın diye birebir hizalı.
 /// </summary>
-public class SalesChannelTrTrendyolProductVariantRecipeLine : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwned
+public class SalesChannelTrTrendyolProductStockItemRecipeLine : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwned
 {
     #region Constructors
 
-    protected SalesChannelTrTrendyolProductVariantRecipeLine()
+    protected SalesChannelTrTrendyolProductStockItemRecipeLine()
     {
     }
 
-    public SalesChannelTrTrendyolProductVariantRecipeLine(
+    public SalesChannelTrTrendyolProductStockItemRecipeLine(
         Guid companyId,
         Guid salesChannelTrTrendyolProductId,
-        Guid productVariantId,
+        Guid stockItemId,
         RecipeComponentType componentType,
         int lineOrder)
     {
         SetCompany(companyId);
         SetChannelProduct(salesChannelTrTrendyolProductId);
-        SetProductVariant(productVariantId);
+        SetStockItem(stockItemId);
         ComponentType = componentType;
         PaymentType = ProcessPaymentType.Normal;
         SetOrder(lineOrder);
@@ -47,8 +49,10 @@ public class SalesChannelTrTrendyolProductVariantRecipeLine : FullAuditedAggrega
     /// <summary>Sahip Trendyol kanal ürünü — id-only referans. Set-once.</summary>
     public virtual Guid SalesChannelTrTrendyolProductId { get; protected set; }
 
-    /// <summary>Reçetenin ait olduğu ERP varyantı — id-only referans (kanal-üründeki SKU ile aynı varyant). Set-once.</summary>
-    public virtual Guid ProductVariantId { get; protected set; }
+    /// <summary>Reçetenin ait olduğu override başlığının (<see cref="SalesChannelTrTrendyolProductStockItem"/>) KENDİ
+    /// id'si — id-only referans, set-once. ERP ProductVariantId DEĞİL (N11 portu) — böylece ProductVariantId'si null
+    /// olan Trendyol-only kombinasyon satırları da reçete taşıyabilir.</summary>
+    public virtual Guid StockItemId { get; protected set; }
 
     /// <summary>Satır sırası (türev-satır referans sırası). Kullanıcı sıralaması korunur.</summary>
     public virtual int LineOrder { get; protected set; }
@@ -222,14 +226,14 @@ public class SalesChannelTrTrendyolProductVariantRecipeLine : FullAuditedAggrega
         SalesChannelTrTrendyolProductId = salesChannelTrTrendyolProductId;
     }
 
-    private void SetProductVariant(Guid productVariantId)
+    private void SetStockItem(Guid stockItemId)
     {
-        if (productVariantId == Guid.Empty)
+        if (stockItemId == Guid.Empty)
         {
-            throw new RequiredPropertyException(nameof(ProductVariantId));
+            throw new RequiredPropertyException(nameof(StockItemId));
         }
 
-        ProductVariantId = productVariantId;
+        StockItemId = stockItemId;
     }
 
     #endregion
