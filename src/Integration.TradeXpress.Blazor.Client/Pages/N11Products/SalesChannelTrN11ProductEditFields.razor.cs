@@ -22,21 +22,29 @@ using Microsoft.AspNetCore.Components.Forms;
 
 namespace Integration.TradeXpress.Blazor.Client.Pages.N11Products;
 
-/// <summary>Kategori attribute grid'inin satırı — HÜCRE-İÇİ düzenleme (Trendyol EditCell deseniyle AYNI). Değer
-/// listeli attribute'larda <see cref="SelectedValues"/> (DxTagBox ÇOKLU seçim — N11 WSDL "aynı isim, ayrı eleman"
-/// temsiliyle birebir örtüşür); serbest-metin attribute'larda tek değerli <see cref="CustomValue"/>. DxGrid edit-model
-/// klonu için public parametresiz ctor + set'li property'ler.</summary>
+/// <summary>Kategori attribute grid'inin satırı — HÜCRE-İÇİ düzenleme (Trendyol EditCell deseniyle AYNI). Her N11
+/// kategori attribute'ı TEK DEĞERLİDİR (N11'de çoklu-seçim bayrağı yok — 2026-07-11 kullanıcı kararı: "MultiSelection
+/// yoksa combo olmalı"): değer listeli attribute → tek-seçim DxComboBox, serbest-metin attribute → DxTextBox; ikisi de
+/// değeri <see cref="CustomValue"/>'da tutar. DxGrid edit-model klonu için public parametresiz ctor + set'li
+/// property'ler.</summary>
 public class N11AttributeCellRow
 {
     public string AttributeId { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public bool IsMandatory { get; set; }
 
-    /// <summary>Değer listesi var + serbest-değil → DxTagBox (çoklu); aksi halde serbest metin (tekli).</summary>
+    /// <summary>Değer listesi dolu → tek-seçim DxComboBox; aksi halde serbest metin DxTextBox. N11'de
+    /// isCustomValue=true olsa da (ör. Marka) valueList dolu gelebilir → combo GÖSTERİLİR, custom değere
+    /// <see cref="AllowCustomValues"/> ile açılır (liste-dışı marka da yazılabilir).</summary>
     public bool HasValueList { get; set; }
 
+    /// <summary>N11 isCustomValue=true → combo listeye kapalı DEĞİL, kullanıcı liste-dışı değer de girebilir
+    /// (DxComboBox.AllowUserInput).</summary>
+    public bool AllowCustomValues { get; set; }
+
     public List<N11CategoryAttributeValueDto> DefinitionValues { get; set; } = new();
-    public List<string> SelectedValues { get; set; } = new();
+
+    /// <summary>Seçili/yazılı tek değer (combo seçimi, custom giriş ya da serbest metin — hepsi buraya).</summary>
     public string CustomValue { get; set; } = string.Empty;
 }
 
@@ -74,7 +82,7 @@ public partial class SalesChannelTrN11ProductEditFields : CrudComponentBase
     private List<N11ShipmentTemplateDto> _templates = new();
     private List<N11CategoryAttributeDto> _attributeDefs = new();
 
-    // N11 para birimi lookup verisi (döviz cache; inline ekle/düzelt sonrası ReloadCurrencyUnitsAsync ile tazelenir).
+    // N11 para birimi lookup verisi (döviz cache → TRY/USD/EUR'e filtreli; inline ekle/düzelt YOK).
     private List<CurrencyUnitListDto> _units = new();
     private bool _unitsLoaded;
 
@@ -154,7 +162,7 @@ public partial class SalesChannelTrN11ProductEditFields : CrudComponentBase
         _unitsLoaded = true;
         try
         {
-            _units = new List<CurrencyUnitListDto>(await CurrencyLookup.GetAsync());
+            _units = FilterN11Currencies(await CurrencyLookup.GetAsync());
         }
         catch (Exception ex)
         {
@@ -162,12 +170,13 @@ public partial class SalesChannelTrN11ProductEditFields : CrudComponentBase
         }
     }
 
-    // Inline döviz ekle/düzelt sonrası lookup listesini tazeler (yeni birim anında combo'ya düşsün).
-    private async Task ReloadCurrencyUnitsAsync()
+    // N11 yalnız TRY/USD/EUR ile listeleme kabul eder (2026-07-11 kullanıcı kararı) → para birimi seçicileri bu 3
+    // koda daraltılır (tüm sistem dövizleri değil). Kod karşılaştırması normalize (UPPER-invariant) kodlarla.
+    private static List<CurrencyUnitListDto> FilterN11Currencies(IEnumerable<CurrencyUnitListDto> units)
     {
-        CurrencyLookup.Invalidate();
-        _units = new List<CurrencyUnitListDto>(await CurrencyLookup.GetAsync());
-        StateHasChanged();
+        return units
+            .Where(u => N11ProductConsts.SupportedCurrencyCodes.Contains(u.Code))
+            .ToList();
     }
 
     // Özel bilgi satırı kaydetme engeli — key boşsa satır kabul edilmez (SetSpecialInfo sunucuda da boş key eler).
@@ -246,47 +255,44 @@ public partial class SalesChannelTrN11ProductEditFields : CrudComponentBase
         BuildAttributeRows();
     }
 
-    // Def + Model.CategoryAttributes'taki mevcut değerlerden grid satırlarını kur (def sırası korunur) — bir Name'e ait
-    // TÜM mevcut Attribute girdileri (N11 tel formatı zaten "aynı isim, ayrı eleman") değer-listeli attribute'ta
-    // SelectedValues'a toplanır, serbest-metin attribute'ta ilk (tek) değer CustomValue'ya alınır.
+    // Def + Model.CategoryAttributes'taki mevcut değerden grid satırlarını kur (def sırası korunur) — her attribute
+    // TEK DEĞERLİ: o Name'e ait ilk (tek) mevcut değer CustomValue'ya alınır (combo seçimi ya da serbest metin).
     private void BuildAttributeRows()
     {
         _attributeRows = _attributeDefs.Select(def =>
         {
-            var hasValueList = def.Values.Count > 0 && !def.IsCustomValue;
-            var existingValues = Model.CategoryAttributes.Where(a => a.Name == def.Name).Select(a => a.Value).ToList();
+            // N11'de bir attribute'ın hem valueList'i dolu hem isCustomValue=true olabilir (ör. Marka: 69 marka +
+            // liste-dışı marka girişine izin). Combo'yu SADECE değer listesi doluluğuna bak → göster; custom giriş
+            // AllowCustomValues ile ayrıca açılır.
+            var existingValue = Model.CategoryAttributes.FirstOrDefault(a => a.Name == def.Name)?.Value ?? string.Empty;
             return new N11AttributeCellRow
             {
                 AttributeId = def.AttributeId,
                 Name = def.Name,
                 IsMandatory = def.IsMandatory,
-                HasValueList = hasValueList,
+                HasValueList = def.Values.Count > 0,
+                AllowCustomValues = def.IsCustomValue,
                 DefinitionValues = def.Values,
-                SelectedValues = hasValueList ? existingValues : new List<string>(),
-                CustomValue = hasValueList ? string.Empty : (existingValues.FirstOrDefault() ?? string.Empty),
+                CustomValue = existingValue,
             };
         }).ToList();
     }
 
-    // Hücre düzenlemesi kapanınca (EditCell — ayrı kaydet/düzenle tuşu yok) edit-model klonunun değerini orijinal
-    // satıra + gerçek Model.CategoryAttributes'a ANINDA uygular: o Name'e ait TÜM eski girdiler silinip yeniden kurulur
-    // (değer-listeli → SelectedValues'taki her seçim ayrı (Name,Value) çifti; serbest-metin → tek CustomValue).
+    // Hücre düzenlemesi kapanınca (EditCell — ayrı kaydet/düzenle tuşu yok) edit-model klonunun tek değerini orijinal
+    // satıra + gerçek Model.CategoryAttributes'a ANINDA uygular: o Name'e ait eski girdi silinip (varsa) tek (Name,Value)
+    // çifti yeniden kurulur; boş değer o attribute'ı kaldırır.
     private void OnAttributeRowSaving(GridEditModelSavingEventArgs e)
     {
         var edited = (N11AttributeCellRow)e.EditModel;
         if (e.DataItem is N11AttributeCellRow original)
         {
-            original.SelectedValues = edited.SelectedValues;
             original.CustomValue = edited.CustomValue;
         }
 
         Model.CategoryAttributes.RemoveAll(a => a.Name == edited.Name);
-        var values = edited.HasValueList
-            ? edited.SelectedValues.Where(v => !string.IsNullOrWhiteSpace(v))
-            : (string.IsNullOrWhiteSpace(edited.CustomValue) ? Enumerable.Empty<string>() : new[] { edited.CustomValue });
-        foreach (var value in values)
+        if (!string.IsNullOrWhiteSpace(edited.CustomValue))
         {
-            Model.CategoryAttributes.Add(new SalesChannelTrN11ProductCategoryAttributeDto { Name = edited.Name, Value = value });
+            Model.CategoryAttributes.Add(new SalesChannelTrN11ProductCategoryAttributeDto { Name = edited.Name, Value = edited.CustomValue });
         }
 
         MarkDirty(nameof(Model.CategoryAttributes));

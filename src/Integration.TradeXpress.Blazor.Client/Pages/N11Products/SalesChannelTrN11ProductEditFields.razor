@@ -1,7 +1,5 @@
 @inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
-@using Integration.TradeXpress.Blazor.Client.Pages.Financials.CurrencyUnits
 @using Integration.TradeXpress.Blazor.Client.Pages.Products
-@using Integration.TradeXpress.Permissions
 
 @* N11 ürün listeleme edit formu. Form GENELİ tanımlar (kategori + genel alanlar) üstte; ekranda yer kaplayan
    listeler (nitelikler, varyant eksenleri, görseller, SKU'lar, durum) DrillTabs sekmelerine ayrılır. *@
@@ -51,17 +49,14 @@
             <NumericSpinEdit TValue="int?" @bind-Value="@Model.MaxPurchaseQuantity"
                              ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
         </DxFormLayoutItem>
-        @* N11 para birimi — opsiyonel; boşsa push'ta varyant para birimi devralınır. Inline ekle/düzelt (popup + refresh standardı). *@
+        @* N11 para birimi — opsiyonel; boşsa push'ta varyant para birimi devralınır. Liste TRY/USD/EUR ile sabit
+           (N11 yalnız bunları kabul eder) → inline ekle/düzelt YOK (EditComponentType/Create/UpdatePolicy verilmez). *@
         <DxFormLayoutItem Caption="@L["N11Product:CurrencyUnit"]" ColSpanMd="6">
             <LookupComboBox TItem="CurrencyUnitListDto" TValue="Guid?"
                             Data="@_units"
                             ValueFieldName="@nameof(CurrencyUnitListDto.Id)"
                             TextFieldName="@nameof(CurrencyUnitListDto.Code)"
                             @bind-Value="@Model.CurrencyUnitId"
-                            EditComponentType="typeof(CurrencyUnitEditHost)"
-                            OnLookupReloadRequested="@ReloadCurrencyUnitsAsync"
-                            CreatePolicy="@TradeXpressPermissions.CurrencyUnits.Create"
-                            UpdatePolicy="@TradeXpressPermissions.CurrencyUnits.Update"
                             AllowClear="true" />
         </DxFormLayoutItem>
         <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6">
@@ -122,9 +117,9 @@
 
     @* Kategori attribute'ları — HÜCRE-İÇİ düzenleme (Trendyol EditCell deseniyle AYNI): tek satır = bir attribute
        tanımı (kategoriden gelir, sabit); değer hücresine tıklanınca ANINDA düzenlenebilir, ayrı düzenle/kaydet
-       tuşu ya da popup form YOK. Değer-listeli attribute'larda DxTagBox (ÇOKLU seçim — N11 WSDL'in "aynı isim,
-       ayrı eleman" temsiliyle birebir uyumlu push edilir, N11ProductPushValidator + N11ProductClient DEĞİŞMEDİ);
-       serbest-metin attribute'larda tek değerli DxTextBox. Paging YOK (tüm satırlar tek sayfada). Sekme HER ZAMAN
+       tuşu ya da popup form YOK. Her attribute TEK DEĞERLİ (N11'de çoklu-seçim yok): değer-listeli attribute →
+       tek-seçim DxComboBox (isCustomValue=true ise AllowUserInput ile liste-dışı değer de yazılır, ör. Marka);
+       serbest-metin attribute'larda DxTextBox. Paging YOK (tüm satırlar tek sayfada). Sekme HER ZAMAN
        görünür (b9e5066 dersi — koşul içeride, konteynerde değil). *@
     <DxTabPage Text="@L["N11Product:CategoryAttributes"]" TabIconCssClass="@TradeXpressIcons.Sliders">
         @if (string.IsNullOrEmpty(Model.CategoryExternalId))
@@ -149,26 +144,35 @@
                             <span>@(r.IsMandatory ? $"{r.Name} *" : r.Name)</span>
                         </CellDisplayTemplate>
                     </DxGridDataColumn>
-                    <DxGridDataColumn Caption="@L["AttributeValues"]">
+                    @* FieldName ŞART: EditCell modunda FieldName'siz kolon "düzenlenebilir hücre" sayılmaz
+                       (satır seçilir ama hücre edit açılmaz — Trendyol'daki çalışan grid'de FieldName="CustomValue" var).
+                       Değer TagBox/TextBox'ta düzenlenir; CustomValue anchor alan olarak yeter (OnAttributeRowSaving
+                       hem SelectedValues hem CustomValue'yu geri uygular). *@
+                    <DxGridDataColumn FieldName="CustomValue" Caption="@L["AttributeValues"]">
                         <CellDisplayTemplate Context="cell">
                             @{ var r = (N11AttributeCellRow)cell.DataItem; }
-                            <span>@(r.HasValueList
-                                ? (r.SelectedValues.Count > 0 ? string.Join(", ", r.SelectedValues) : "-")
-                                : (string.IsNullOrEmpty(r.CustomValue) ? "-" : r.CustomValue))</span>
+                            <span>@(string.IsNullOrEmpty(r.CustomValue) ? "-" : r.CustomValue)</span>
                         </CellDisplayTemplate>
                         <CellEditTemplate Context="cell">
                             @{ var row = (N11AttributeCellRow)cell.EditModel; }
                             @if (row.HasValueList)
                             {
-                                <DxTagBox Data="@row.DefinitionValues"
-                                          TData="N11CategoryAttributeValueDto"
-                                          TValue="string"
-                                          Values="@row.SelectedValues"
-                                          ValuesChanged="@((IEnumerable<string> v) => row.SelectedValues = v.ToList())"
-                                          ValueFieldName="@nameof(N11CategoryAttributeValueDto.Value)"
-                                          TextFieldName="@nameof(N11CategoryAttributeValueDto.Value)"
-                                          ValidationEnabled="false"
-                                          CssClass="w-100" />
+                                @* Tek-seçim combo. AllowUserInput=true (isCustomValue) → liste-dışı değer de yazılır
+                                   (ör. Marka). Text=Value=marka adı; seçim/yazım tek değer olarak CustomValue'ya düşer.
+                                   Tek-yönlü Text bağı → TextExpression ŞART (EditForm/@bind yok). *@
+                                <DxComboBox Data="@row.DefinitionValues"
+                                            TData="N11CategoryAttributeValueDto"
+                                            TValue="string"
+                                            ValueFieldName="@nameof(N11CategoryAttributeValueDto.Value)"
+                                            TextFieldName="@nameof(N11CategoryAttributeValueDto.Value)"
+                                            AllowUserInput="@row.AllowCustomValues"
+                                            SearchMode="ListSearchMode.AutoSearch"
+                                            Text="@row.CustomValue"
+                                            TextChanged="@((string v) => row.CustomValue = v)"
+                                            TextExpression="@(() => row.CustomValue)"
+                                            ValidationEnabled="false"
+                                            ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto"
+                                            CssClass="w-100" />
                             }
                             else
                             {

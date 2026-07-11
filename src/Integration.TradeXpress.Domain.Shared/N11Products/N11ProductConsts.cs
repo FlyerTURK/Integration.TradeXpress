@@ -1,8 +1,17 @@
+using System;
+using System.Collections.Generic;
+
 namespace Integration.TradeXpress.N11Products;
 
 /// <summary>N11 ürün listeleme (SalesChannelTrN11Product) alan sınırları.</summary>
 public static class N11ProductConsts
 {
+    /// <summary>N11'in listelemede kabul ettiği para birimi kodları (2026-07-11 kullanıcı kararı: yalnız bu 3).
+    /// Kodlar normalize (UPPER-invariant) saklandığından ordinal karşılaştırma yeterli.</summary>
+    public static readonly IReadOnlyCollection<string> SupportedCurrencyCodes =
+        new HashSet<string>(StringComparer.Ordinal) { "TRY", "USD", "EUR" };
+
+
     /// <summary>N11 kategori/ürün id'si (numerik ama matematik yapılmaz → string).</summary>
     public const int ExternalIdMaxLength = 32;
 
