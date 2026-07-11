@@ -34,7 +34,7 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
             b.Property(x => x.DiscountValue).HasPrecision(ProductConsts.SalePricePrecision, ProductConsts.SalePriceScale);
 
             // Pazaryeri-genel varsayılanlar (kanal-ürünü devralır) — Domestic/Condition/PreparingDay/MaxPurchaseQuantity/
-            // CurrencyUnitId/UnitType/UnitWeight konvansiyonla (enum→int, Guid?, int?). Metin alanları + owned özel bilgi:
+            // CurrencyUnitId konvansiyonla (enum→int, Guid?, int?). Metin alanları + owned özel bilgi:
             b.Property(x => x.ShipmentTemplateName).HasMaxLength(ProductConsts.ShipmentTemplateNameMaxLength);
             b.Property(x => x.SellerNote).HasMaxLength(ProductConsts.SellerNoteMaxLength);
             b.OwnsMany(x => x.SpecialInfo, s =>
@@ -66,6 +66,9 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
 
             // Varyant kodu ÜRÜN başına tekil (SubAccount = Account başına deseniyle hizalı).
             b.HasIndex(x => new { x.TenantId, x.ProductId, x.Code }).IsUnique();
+            // Barcode tenant-genelinde TEKİL (yalnız doluysa — FILTERED): Trendyol import'unun idempotent upsert
+            // bel kemiği — "barcode ile ProductVariant ara" güvenle TEK kayda düşer (Trendyol_ProductSync).
+            b.HasIndex(x => new { x.TenantId, x.Barcode }).IsUnique().HasFilter("[Barcode] IS NOT NULL");
             // Company güvenlik query-filter'ını hızlandırır (ICompanyOwned).
             b.HasIndex(x => new { x.TenantId, x.CompanyId });
             // Ana varyant araması (tek-main invariant).

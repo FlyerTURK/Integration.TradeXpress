@@ -113,8 +113,6 @@ public partial class SalesChannelProductsPanel : CrudComponentBase
             draft.ShipmentTemplateName = p.ShipmentTemplateName ?? string.Empty;
             draft.SellerNote = p.SellerNote;
             draft.CurrencyUnitId = p.CurrencyUnitId;
-            draft.UnitType = p.UnitType;
-            draft.UnitWeight = p.UnitWeight;
             draft.ProductionDate = p.ProductionDate;
             draft.ExpirationDate = p.ExpirationDate;
             draft.Description = p.Description;

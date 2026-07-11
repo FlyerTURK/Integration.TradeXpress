@@ -184,12 +184,6 @@ public class SalesChannelTrN11Product : FullAuditedAggregateRoot<Guid>, IMultiTe
     /// <summary>Kanal-özel son kullanma tarihi (opsiyonel). Push'ta kanal değeri ürün son kullanma tarihinden önce gelir.</summary>
     public virtual DateTime? ExpirationDate { get; protected set; }
 
-    /// <summary>N11 unitInfo/unitType (opsiyonel; semantiği canlı-test belirsiz → düz sayı).</summary>
-    public virtual int? UnitType { get; protected set; }
-
-    /// <summary>N11 unitInfo/unitWeight (opsiyonel).</summary>
-    public virtual int? UnitWeight { get; protected set; }
-
     /// <summary>N11 satıcı notu (sellerNote) — kanal-özel kısa düz not (opsiyonel).</summary>
     public virtual string? SellerNote { get; protected set; }
 
@@ -297,28 +291,6 @@ public class SalesChannelTrN11Product : FullAuditedAggregateRoot<Guid>, IMultiTe
     public virtual void SetExpirationDate(DateTime? expirationDate)
     {
         ExpirationDate = expirationDate;
-    }
-
-    /// <summary>N11 unitInfo/unitType (opsiyonel) — negatif değer fail-fast.</summary>
-    public virtual void SetUnitType(int? unitType)
-    {
-        if (unitType is { } value && value < 0)
-        {
-            throw new BusinessException("TradeXpress:N11:Product:UnitTypeInvalid");
-        }
-
-        UnitType = unitType;
-    }
-
-    /// <summary>N11 unitInfo/unitWeight (opsiyonel) — negatif değer fail-fast.</summary>
-    public virtual void SetUnitWeight(int? unitWeight)
-    {
-        if (unitWeight is { } value && value < 0)
-        {
-            throw new BusinessException("TradeXpress:N11:Product:UnitWeightInvalid");
-        }
-
-        UnitWeight = unitWeight;
     }
 
     /// <summary>N11 satıcı notu (opsiyonel; boş değilse trim + max).</summary>

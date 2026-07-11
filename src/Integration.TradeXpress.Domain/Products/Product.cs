@@ -75,12 +75,6 @@ public class Product : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwn
     /// <summary>Varsayılan para birimi (opsiyonel; id-only, nav YOK). Kanal-ürünü boşsa devralır.</summary>
     public virtual Guid? CurrencyUnitId { get; protected set; }
 
-    /// <summary>Birim tipi (N11 unitInfo/unitType; opsiyonel).</summary>
-    public virtual int? UnitType { get; protected set; }
-
-    /// <summary>Birim ağırlığı (N11 unitInfo/unitWeight; opsiyonel).</summary>
-    public virtual int? UnitWeight { get; protected set; }
-
     /// <summary>Ürün özelleştirme alanları (owned → JSON; key=müşteri giriş etiketi zorunlu, value opsiyonel).
     /// Kanal-ürünü boşsa devralır.</summary>
     public virtual List<ProductSpecialInfo> SpecialInfo { get; protected set; } = new();
@@ -123,6 +117,22 @@ public class Product : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwn
     public virtual void SetName(string name)
     {
         Name = StringFieldGuard.NormalizeName(
+            name, nameof(Name), EntityFieldConsts.NameMinLength, ProductConsts.NameMaxLength);
+    }
+
+    /// <summary>Ad ataması, TitleCase normalizasyonu SEÇMELİ — <c>normalizeTitle=false</c> pazaryeri IMPORT yolu
+    /// içindir: Trendyol başlığı satıcının yazdığı casing'le korunur ("iPhone 15" → "İphone 15" olmaz), yalnız
+    /// trim + zorunlu/min/max doğrulanır. EN AZ İSTİLACI çözüm bilinçli tercih: mevcut SetName davranışı (tüm UI/
+    /// seed yolları) DEĞİŞMEDEN kalır; import tek çağrı yerinde bu overload'u kullanır.</summary>
+    public virtual void SetName(string name, bool normalizeTitle)
+    {
+        if (normalizeTitle)
+        {
+            SetName(name);
+            return;
+        }
+
+        Name = StringFieldGuard.EnsureRequiredText(
             name, nameof(Name), EntityFieldConsts.NameMinLength, ProductConsts.NameMaxLength);
     }
 
@@ -201,23 +211,6 @@ public class Product : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwn
     public virtual void SetCurrencyUnit(Guid? currencyUnitId)
     {
         CurrencyUnitId = currencyUnitId == Guid.Empty ? null : currencyUnitId;
-    }
-
-    /// <summary>Birim bilgisi (opsiyonel) — negatif değer fail-fast.</summary>
-    public virtual void SetUnitInfo(int? unitType, int? unitWeight)
-    {
-        if (unitType is { } t && t < 0)
-        {
-            throw new BusinessException("TradeXpress:Product:UnitTypeInvalid");
-        }
-
-        if (unitWeight is { } w && w < 0)
-        {
-            throw new BusinessException("TradeXpress:Product:UnitWeightInvalid");
-        }
-
-        UnitType = unitType;
-        UnitWeight = unitWeight;
     }
 
     /// <summary>Ürün özelleştirme alanları — yalnız KEY zorunlu (boş key'li satır elenir), value opsiyonel (trim).

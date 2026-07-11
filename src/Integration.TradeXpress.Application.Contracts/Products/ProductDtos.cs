@@ -81,8 +81,6 @@ public class ProductGetDto : EntityDto<Guid>, IGetDto<Guid>, IHasCode
 
     /// <summary>Varsayılan para birimi (id-only; kanal-ürünü boşsa devralır).</summary>
     public Guid? CurrencyUnitId { get; set; }
-    public int? UnitType { get; set; }
-    public int? UnitWeight { get; set; }
 
     /// <summary>Ürün özelleştirme alanları (key zorunlu / value opsiyonel; in-memory drill).</summary>
     public List<ProductSpecialInfoDto> SpecialInfo { get; set; } = new();
@@ -141,8 +139,6 @@ public class ProductCreateDto : ICreateDto
     [StringLength(ProductConsts.SellerNoteMaxLength)]
     public string? SellerNote { get; set; }
     public Guid? CurrencyUnitId { get; set; }
-    public int? UnitType { get; set; }
-    public int? UnitWeight { get; set; }
     public List<ProductSpecialInfoDto> SpecialInfo { get; set; } = new();
 
     /// <summary>N11 satış kanalı ürünleri grafı — bkz. <see cref="ProductGetDto.SalesChannelProducts"/>.</summary>
@@ -198,8 +194,6 @@ public class ProductUpdateDto : IUpdateDto
     [StringLength(ProductConsts.SellerNoteMaxLength)]
     public string? SellerNote { get; set; }
     public Guid? CurrencyUnitId { get; set; }
-    public int? UnitType { get; set; }
-    public int? UnitWeight { get; set; }
     public List<ProductSpecialInfoDto> SpecialInfo { get; set; } = new();
 
     /// <summary>N11 satış kanalı ürünleri grafı — bkz. <see cref="ProductGetDto.SalesChannelProducts"/>.</summary>
@@ -420,6 +414,10 @@ public class ProductRecipeLineGraphDto
     /// satırları). Client düzenler + round-trip eder; save'de Id'lere çözülür, GetAsync'te o oturumun taze
     /// ClientKey'lerine geri çevrilir. AllAbove/türev-dışı satırda boş.</summary>
     public List<Guid> DerivedSourceKeys { get; set; } = new();
+
+    /// <summary>Yan-maliyet türü — kanal gider ayarlarından OTOMATİK üretilen satır işareti (SideCostRecipeComposer
+    /// idempotent reconcile anahtarı). Null = kullanıcı satırı. UI'da görsel ayırt için de kullanılır.</summary>
+    public SideCostKind? SideCostKind { get; set; }
 }
 
 /// <summary>Persistsiz varyant üretim isteği (önizleme): nitelik grafı + ad türetmesi için ürün adı.

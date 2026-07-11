@@ -85,14 +85,6 @@
                             UpdatePolicy="@TradeXpressPermissions.CurrencyUnits.Update"
                             AllowClear="true" />
         </DxFormLayoutItem>
-        <DxFormLayoutItem Caption="@L["Product:UnitType"]" ColSpanMd="6" BeginRow="true">
-            <NumericSpinEdit TValue="int?" @bind-Value="@Model.UnitType"
-                             ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
-        </DxFormLayoutItem>
-        <DxFormLayoutItem Caption="@L["Product:UnitWeight"]" ColSpanMd="6">
-            <NumericSpinEdit TValue="int?" @bind-Value="@Model.UnitWeight"
-                             ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
-        </DxFormLayoutItem>
         <DxFormLayoutItem Caption="@L["Product:SellerNote"]" ColSpanMd="12">
             <DxMemo @bind-Text="@Model.SellerNote" Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100"
                     NullText="@L["Optional"]" />

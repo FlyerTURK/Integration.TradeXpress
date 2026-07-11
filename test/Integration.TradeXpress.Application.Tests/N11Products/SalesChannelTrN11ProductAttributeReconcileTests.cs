@@ -442,8 +442,6 @@ public abstract class SalesChannelTrN11ProductAttributeReconcileTests<TStartupMo
             CurrencyUnitId = dto.CurrencyUnitId,
             ProductionDate = dto.ProductionDate,
             ExpirationDate = dto.ExpirationDate,
-            UnitType = dto.UnitType,
-            UnitWeight = dto.UnitWeight,
             IsActive = dto.IsActive,
             SellerNote = dto.SellerNote,
             Description = dto.Description,

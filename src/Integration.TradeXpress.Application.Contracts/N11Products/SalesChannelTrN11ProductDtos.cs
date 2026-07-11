@@ -78,6 +78,10 @@ public class SalesChannelTrN11ProductStockItemGraphDto
     /// <summary>Varyant-başı marj (markup yüzdesi; null = marj yok). Türetilmiş fiyat = NetCost × (1 + Margin/100).</summary>
     public decimal? Margin { get; set; }
 
+    /// <summary>Sigortalı gönderim (Loomis deseni) bu varyantta açık mı — kanal gider ayarı tanımlı olsa bile
+    /// VARSAYILAN kapalı; açılınca composer InsuredShipping reçete satırı üretir (yeni klon/yeniden-uygula'da).</summary>
+    public bool InsuredShippingEnabled { get; set; }
+
     /// <summary>Kanal-özel reçete satırları (ERP reçetesinden klonlanır, sonra bağımsız) — Product reçetesiyle AYNI
     /// DTO tipi (ProductRecipePanel bunu tüketir). Id + IsDeleted diff; save'de kanal reçete tablosuna yazılır.</summary>
     public List<ProductRecipeLineGraphDto> RecipeLines { get; set; } = new();
@@ -195,12 +199,6 @@ public class SalesChannelTrN11ProductDto
     /// <summary>Kanal-özel son kullanma tarihi (opsiyonel).</summary>
     public DateTime? ExpirationDate { get; set; }
 
-    /// <summary>N11 unitInfo/unitType (opsiyonel).</summary>
-    public int? UnitType { get; set; }
-
-    /// <summary>N11 unitInfo/unitWeight (opsiyonel).</summary>
-    public int? UnitWeight { get; set; }
-
     /// <summary>N11 satıcı notu (kanal-özel kısa düz not; opsiyonel).</summary>
     public string? SellerNote { get; set; }
 
@@ -256,8 +254,6 @@ public interface ISalesChannelTrN11ProductInput
     Guid? CurrencyUnitId { get; }
     DateTime? ProductionDate { get; }
     DateTime? ExpirationDate { get; }
-    int? UnitType { get; }
-    int? UnitWeight { get; }
     bool IsActive { get; }
     string? SellerNote { get; }
     string? Description { get; }
@@ -289,8 +285,6 @@ public class SalesChannelTrN11ProductCreateDto : ISalesChannelTrN11ProductInput
     public Guid? CurrencyUnitId { get; set; }
     public DateTime? ProductionDate { get; set; }
     public DateTime? ExpirationDate { get; set; }
-    public int? UnitType { get; set; }
-    public int? UnitWeight { get; set; }
     public bool IsActive { get; set; } = true;
     public string? SellerNote { get; set; }
     public string? Description { get; set; }
@@ -316,8 +310,6 @@ public class SalesChannelTrN11ProductUpdateDto : ISalesChannelTrN11ProductInput
     public Guid? CurrencyUnitId { get; set; }
     public DateTime? ProductionDate { get; set; }
     public DateTime? ExpirationDate { get; set; }
-    public int? UnitType { get; set; }
-    public int? UnitWeight { get; set; }
     public bool IsActive { get; set; } = true;
     public string? SellerNote { get; set; }
     public string? Description { get; set; }
@@ -369,6 +361,11 @@ public interface ISalesChannelTrN11ProductAppService : IApplicationService
     /// yalnız bu N11 kaydının kombinasyon setini yeniler. Full Update ile aynı reconcile mekanizmasını kullanır
     /// (SaveAttributesAndReconcileAsync).</summary>
     Task<SalesChannelTrN11ProductDto> RegenerateStockItemsAsync(Guid id, List<SalesChannelTrN11ProductAttributeDto> productAttributes);
+
+    /// <summary>Yan-maliyet satırlarını KAYDEDİLMİŞ varyant reçetelerinde kanal gider ayarlarından TAZELER
+    /// ("yeniden uygula"): otomatik (SideCostKind işaretli) satırlar düşürülüp yeniden üretilir; kullanıcı
+    /// satırlarına dokunulmaz. Kanal ayarı değişince / silinen otomatik satırı geri getirmek için. İdempotent.</summary>
+    Task<SalesChannelTrN11ProductDto> ReapplySideCostsAsync(Guid id);
 
     /// <summary>Muadil M4 köprüsü: Top-N başarılı kombinasyonu bu ürünün "Kombinasyon" özelliği + StockItem'ları
     /// (reçete + paket stoğu) olarak uygular — tek motor zinciri; yeniden uygulama imza-bazlı reconcile'dır.</summary>

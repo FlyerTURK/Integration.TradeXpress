@@ -76,7 +76,7 @@
     </DxFormLayoutGroup>
 
     @* İsteğe bağlı alanlar — varsayılan KAPALI (Expanded=false); tıklayınca açılır. Üretim/son kullanma tarihi,
-       birim tipi/ağırlığı, grup ürün alanları — hiçbiri zorunlu değil, formu kalabalıklaştırmasın diye ayrı grupta. *@
+       grup ürün alanları — hiçbiri zorunlu değil, formu kalabalıklaştırmasın diye ayrı grupta. *@
     <DxFormLayoutGroup Caption="@L["N11Product:OptionalFields"]" ColSpanMd="12"
                         Expanded="false" ExpandButtonDisplayMode="GroupExpandButtonDisplayMode.Start">
         <DxFormLayoutItem Caption="@L["N11Product:ProductionDate"]" ColSpanMd="6">
@@ -86,14 +86,6 @@
         <DxFormLayoutItem Caption="@L["N11Product:ExpirationDate"]" ColSpanMd="6">
             <DxDateEdit @bind-Date="@Model.ExpirationDate" NullText="@L["Optional"]"
                         ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
-        </DxFormLayoutItem>
-        <DxFormLayoutItem Caption="@L["N11Product:UnitType"]" ColSpanMd="6">
-            <NumericSpinEdit TValue="int?" @bind-Value="@Model.UnitType"
-                             ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
-        </DxFormLayoutItem>
-        <DxFormLayoutItem Caption="@L["N11Product:UnitWeight"]" ColSpanMd="6">
-            <NumericSpinEdit TValue="int?" @bind-Value="@Model.UnitWeight"
-                             ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
         </DxFormLayoutItem>
         @* Grup ürün (opsiyonel; N11-only) — aynı grup üyeleri groupItemCode'da eşleşir. Açıklama artık ayrı hint
            span'ı değil, Grup Kodu caption'ına tıklayınca açılan InfoCaption flyout'unda. Grup Kodu boşsa Grup
@@ -293,6 +285,12 @@
                   CssClass="mb-2"
                   IconCssClass="@TradeXpressIcons.ProductVariant"
                   Click="@RegenerateStockItemsAsync" />
+        @* Yan-maliyet satırlarını kanal gider ayarlarından TAZELER (idempotent): otomatik (işaretli) satırlar
+           yeniden üretilir, kullanıcı satırlarına DOKUNULMAZ. Silinen otomatik satır da bununla geri gelir. *@
+        <DxButton Text="@L["SideCost:Reapply"]" RenderStyle="ButtonRenderStyle.Secondary"
+                  CssClass="mb-2 ms-1"
+                  IconCssClass="@TradeXpressIcons.SalesChannel"
+                  Click="@ReapplySideCostsAsync" />
         @if (Model.StockItems.Count == 0)
         {
             <span style="color:#6c757d; font-size:0.85rem;">@L["N11Product:NoStockItemsYetHint"]</span>
@@ -374,6 +372,14 @@
                                              ValueChanged="@((decimal? m) => OnStockItemMarginChanged(v, m))"
                                              ValueExpression="@(() => v.Margin)"
                                              ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
+                        </DxFormLayoutItem>
+                        @* Sigortalı gönderim (Loomis deseni) — kanal ayarında tanımlı olsa bile VARSAYILAN KAPALI;
+                           varyant bazında açılır (kullanıcı kararı 2026-07-10). Açınca satır 'Giderleri Yeniden
+                           Uygula' ya da yeni klonda reçeteye girer. *@
+                        <DxFormLayoutItem Caption="@L["SideCost:InsuredShipping"]" ColSpanMd="4">
+                            <DxCheckBox @bind-Checked="@v.InsuredShippingEnabled" CheckType="CheckType.Switch">
+                                @(v.InsuredShippingEnabled ? L["Active"] : L["Passive"])
+                            </DxCheckBox>
                         </DxFormLayoutItem>
                         @* Net maliyet + türetilmiş fiyat — SALT-OKUNUR (reçeteden canlı; kur eksikse uyarı). *@
                         <DxFormLayoutItem Caption="@L["N11Product:NetCost"]" ColSpanMd="4">

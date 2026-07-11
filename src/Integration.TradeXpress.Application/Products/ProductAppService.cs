@@ -161,7 +161,7 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         entity.SetShelfLife(input.ProductionDate, input.ExpirationDate);
         ApplyMarketplaceDefaults(entity, input.Domestic, input.Condition, input.PreparingDay,
             input.ShipmentTemplateName, input.MaxPurchaseQuantity, input.SellerNote, input.CurrencyUnitId,
-            input.UnitType, input.UnitWeight, input.SpecialInfo);
+            input.SpecialInfo);
         await _repository.InsertAsync(entity, autoSave: true);
 
         var valueIdByClientKey = await SaveAttributesAsync(entity, input.Attributes);
@@ -188,7 +188,7 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         entity.SetShelfLife(input.ProductionDate, input.ExpirationDate);
         ApplyMarketplaceDefaults(entity, input.Domestic, input.Condition, input.PreparingDay,
             input.ShipmentTemplateName, input.MaxPurchaseQuantity, input.SellerNote, input.CurrencyUnitId,
-            input.UnitType, input.UnitWeight, input.SpecialInfo);
+            input.SpecialInfo);
         await DeleteOrphanImageBlobsAsync(oldImages, entity.Images);
         await _repository.UpdateAsync(entity, autoSave: true);
 
@@ -786,8 +786,6 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         int? maxPurchaseQuantity,
         string? sellerNote,
         Guid? currencyUnitId,
-        int? unitType,
-        int? unitWeight,
         List<ProductSpecialInfoDto> specialInfo)
     {
         entity.SetDomestic(domestic);
@@ -797,7 +795,6 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         entity.SetMaxPurchaseQuantity(maxPurchaseQuantity);
         entity.SetSellerNote(sellerNote);
         entity.SetCurrencyUnit(currencyUnitId);
-        entity.SetUnitInfo(unitType, unitWeight);
         entity.SetSpecialInfo((specialInfo ?? new List<ProductSpecialInfoDto>())
             .Select(s => new ProductSpecialInfo(s.Key, s.Value)));
     }
@@ -983,8 +980,6 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
             MaxPurchaseQuantity = p.MaxPurchaseQuantity,
             SellerNote = p.SellerNote,
             CurrencyUnitId = p.CurrencyUnitId,
-            UnitType = p.UnitType,
-            UnitWeight = p.UnitWeight,
             SpecialInfo = p.SpecialInfo
                 .Select(s => new ProductSpecialInfoDto { Key = s.Key, Value = s.Value })
                 .ToList(),
