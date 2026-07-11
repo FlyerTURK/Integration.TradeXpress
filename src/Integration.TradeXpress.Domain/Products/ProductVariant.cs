@@ -84,6 +84,22 @@ public class ProductVariant : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICom
             name, nameof(Name), EntityFieldConsts.NameMinLength, ProductConsts.NameMaxLength);
     }
 
+    /// <summary>Ad ataması, TitleCase normalizasyonu SEÇMELİ — <c>normalizeTitle=false</c> pazaryeri IMPORT yolu
+    /// içindir (Product.SetName overload'u ile AYNI desen): Trendyol başlığı satıcının yazdığı casing'le korunur
+    /// ("iPhone 15" → "İphone 15" olmaz), yalnız trim + zorunlu/min/max doğrulanır. Mevcut tek-parametreli SetName
+    /// (tüm UI/seed yolları) DEĞİŞMEDEN kalır.</summary>
+    public virtual void SetName(string name, bool normalizeTitle)
+    {
+        if (normalizeTitle)
+        {
+            SetName(name);
+            return;
+        }
+
+        Name = StringFieldGuard.EnsureRequiredText(
+            name, nameof(Name), EntityFieldConsts.NameMinLength, ProductConsts.NameMaxLength);
+    }
+
     public virtual void SetDescription(string? description)
     {
         Description = StringFieldGuard.EnsureOptionalText(

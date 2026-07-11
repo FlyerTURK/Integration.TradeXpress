@@ -197,8 +197,30 @@ public class SalesChannelTrTrendyolProduct : FullAuditedAggregateRoot<Guid>, IMu
     public virtual List<SalesChannelTrTrendyolProductCategoryAttribute> Attributes { get; protected set; } = new();
 
     /// <summary>Varyant-başına Trendyol SKU kimlik satırları (owned → JSON) — barcode dondurma + contentId + push
-    /// snapshot'ı. Satır SİLİNMEZ (varyant yok olsa da Trendyol'da yaşıyor olabilir; emeklilik ileride).</summary>
+    /// snapshot'ı. Satır SİLİNMEZ (varyant yok olsa da Trendyol'da yaşıyor olabilir; emeklilik ileride).
+    /// İKİ dolum yolu vardır: (1) PUSH — barcode YEREL üretilir ("{VaryantKodu}-{SequenceNo}", <see cref="BuildBarcode"/>)
+    /// ve ilk başarılı push'ta dondurulur; (2) IMPORT (<see cref="UpsertImportedSku"/>) — barcode REMOTE'tan gelir
+    /// (Trendyol'da zaten yaşayan değer) ve DOĞDUĞU GİBİ dondurulur; yerel üretim bu satıra HİÇ uygulanmaz
+    /// (sonraki push'lar dondurulmuş remote barcode'u aynen kullanır — çatışma yok).</summary>
     public virtual List<SalesChannelTrTrendyolProductSku> Skus { get; protected set; } = new();
+
+    // ── Uzak (Trendyol'daki) kayıt görüntüsü — IMPORT ile dolar, salt bilgi (push'a girmez) ──
+
+    /// <summary>TRENDYOL'un varyant grup anahtarı (satıcının pazaryerine girdiği <c>productMainId</c>) — bizim
+    /// ürettiğimiz kayıt-bazlı <see cref="ProductMainId"/>'den ("{ÜrünKodu}-{SequenceNo}", frozen) TAMAMEN AYRI:
+    /// bizimki push kimliğidir ve bizde üretilir; bu alan ise pazaryerindeki MEVCUT kaydın kimliğidir ve import'un
+    /// kanal-kaydı eşleşme anahtarıdır (ikinci import aynı kaydı bulur, dublike üretmez).</summary>
+    public virtual string? RemoteProductMainId { get; protected set; }
+
+    /// <summary>Uzak kayıt Trendyol tarafından ONAYLI mı (listing approved). null = henüz import edilmedi/bilinmiyor.</summary>
+    public virtual bool? RemoteApproved { get; protected set; }
+
+    /// <summary>Uzak kayıt SATIŞTA mı (onSale). null = henüz import edilmedi/bilinmiyor.</summary>
+    public virtual bool? RemoteOnSale { get; protected set; }
+
+    /// <summary>Uzak kayıttaki liste fiyatı (listPrice; indirim öncesi referans). Import görüntüsü — push fiyat
+    /// zinciri StockItem override'larından yürür, bu alan zinciri ETKİLEMEZ.</summary>
+    public virtual decimal? ListPrice { get; protected set; }
 
     // ── Trendyol senkron durumu (async submit sonrası) ──
     /// <summary>Trendyol'un döndürdüğü batch istek kimliği (durum bununla sorgulanır).</summary>
@@ -398,6 +420,53 @@ public class SalesChannelTrTrendyolProduct : FullAuditedAggregateRoot<Guid>, IMu
         FailedItemCount = failedItemCount;
         LastError = StringFieldGuard.EnsureOptionalText(error, nameof(LastError), 1, TrendyolProductConsts.LastErrorMaxLength);
         LastSyncedAt = syncedAtUtc;
+    }
+
+    /// <summary>Import'ta uzak kayıt görüntüsünü işler (remote productMainId + onay/satış bayrakları + listPrice).
+    /// Salt bilgi alanlarıdır — push kimliği <see cref="ProductMainId"/> ve fiyat zinciri DEĞİŞMEZ.</summary>
+    public virtual void ApplyRemoteSnapshot(string? remoteProductMainId, bool? approved, bool? onSale, decimal? listPrice)
+    {
+        if (listPrice is { } value && value < 0m)
+        {
+            throw new BusinessException("TradeXpress:Trendyol:Product:ListPriceNegative");
+        }
+
+        RemoteProductMainId = StringFieldGuard.EnsureOptionalText(
+            remoteProductMainId, nameof(RemoteProductMainId), 1, TrendyolProductConsts.ProductMainIdMaxLength);
+        RemoteApproved = approved;
+        RemoteOnSale = onSale;
+        ListPrice = listPrice;
+    }
+
+    /// <summary>Import'tan gelen SKU kimlik satırını upsert eder — anahtar BARCODE (remote'tan gelir, DONDURULMUŞ;
+    /// yerel "{Kod}-{Sıra}" üretimi bu satıra uygulanmaz). Var olan satırda barcode ASLA değişmez; varyant bağı /
+    /// stockCode / contentId tazelenir. Yeni satır remote kimliğiyle doğar.</summary>
+    public virtual void UpsertImportedSku(Guid productVariantId, string barcode, string stockCode, long? remoteContentId)
+    {
+        // Varyant bağı zorunlu — fail-fast konvansiyonu (SetProduct/SetSalesChannel ile simetrik guard).
+        if (productVariantId == Guid.Empty)
+        {
+            throw new RequiredPropertyException(nameof(SalesChannelTrTrendyolProductSku.ProductVariantId));
+        }
+
+        var normalizedBarcode = StringFieldGuard.EnsureRequiredText(
+            barcode, nameof(SalesChannelTrTrendyolProductSku.Barcode), 1, TrendyolProductConsts.BarcodeMaxLength);
+        var normalizedStockCode = StringFieldGuard.EnsureRequiredText(
+            stockCode, nameof(SalesChannelTrTrendyolProductSku.StockCode), 1, TrendyolProductConsts.StockCodeMaxLength);
+
+        var sku = FindSku(normalizedBarcode);
+        if (sku is null)
+        {
+            sku = new SalesChannelTrTrendyolProductSku(productVariantId, normalizedBarcode, normalizedStockCode);
+            Skus.Add(sku);
+        }
+        else
+        {
+            sku.ProductVariantId = productVariantId;   // yeniden-bağlama; barcode DONDURULMUŞ kalır
+            sku.StockCode = normalizedStockCode;
+        }
+
+        sku.RemoteContentId = remoteContentId ?? sku.RemoteContentId;
     }
 
     /// <summary>Başarısız submit/sorgu sonrası hatayı kaydeder.</summary>

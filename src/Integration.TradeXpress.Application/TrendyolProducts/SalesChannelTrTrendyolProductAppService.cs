@@ -2,12 +2,14 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Integration.TradeXpress.Financials.CurrencyUnits;
 using Integration.TradeXpress.MultiCompany;
 using Integration.TradeXpress.Permissions;
 using Integration.TradeXpress.Products;
 using Integration.TradeXpress.SalesChannels;
 using Integration.TradeXpress.SalesChannels.Variants;
 using Integration.TradeXpress.Substitutions;
+using Integration.TradeXpress.Trendyol;
 using Integration.TradeXpress.TrendyolCategories;
 using Integration.TradeXpress.Vouchers;
 using Microsoft.AspNetCore.Authorization;
@@ -22,9 +24,11 @@ namespace Integration.TradeXpress.TrendyolProducts;
 /// gönderir (batch id döner), <see cref="RefreshStatusAsync"/> durumu çeker. Push kanalın KENDİ kimliğiyle yapılır.
 /// Varyant yönetimi N11 final deseniyle BİREBİR: kanal-özel özellik/değer grafı (klon-sonra-ayrış) → kartezyen
 /// kombinasyon (StockItem) reconcile (CombinationSignature anahtarlı) → override/reçete satırları.
+/// Pazaryerinden İÇE AKTARMA (<c>ImportFromMarketplaceAsync</c>) partial dosyada:
+/// <c>SalesChannelTrTrendyolProductAppService.Import.cs</c>.
 /// </summary>
 [Authorize(TradeXpressPermissions.SalesChannels.Default)]
-public class SalesChannelTrTrendyolProductAppService : TradeXpressAppService, ISalesChannelTrTrendyolProductAppService
+public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppService, ISalesChannelTrTrendyolProductAppService
 {
     private readonly IRepository<SalesChannelTrTrendyolProduct, Guid> _repository;
     private readonly IRepository<Product, Guid> _productRepository;
@@ -38,6 +42,9 @@ public class SalesChannelTrTrendyolProductAppService : TradeXpressAppService, IS
     private readonly IRepository<ProductVariantRecipeLine, Guid> _erpRecipeLineRepository;
     private readonly IRepository<SalesChannelTrTrendyolProductAttribute, Guid> _channelAttributeRepository;
     private readonly IRepository<SalesChannelTrTrendyolProductAttributeValue, Guid> _channelAttributeValueRepository;
+    private readonly IRepository<TrendyolCategory, Guid> _trendyolCategoryRepository;
+    private readonly IRepository<CurrencyUnit, Guid> _currencyUnitRepository;
+    private readonly ProductVariantManager _variantManager;
     private readonly RecipeCostPopulator _recipeCostPopulator;
     private readonly SubstitutionChannelPlanProvider _substitutionPlanProvider;
     private readonly ICurrentCompany _currentCompany;
@@ -58,6 +65,9 @@ public class SalesChannelTrTrendyolProductAppService : TradeXpressAppService, IS
         IRepository<ProductVariantRecipeLine, Guid> erpRecipeLineRepository,
         IRepository<SalesChannelTrTrendyolProductAttribute, Guid> channelAttributeRepository,
         IRepository<SalesChannelTrTrendyolProductAttributeValue, Guid> channelAttributeValueRepository,
+        IRepository<TrendyolCategory, Guid> trendyolCategoryRepository,
+        IRepository<CurrencyUnit, Guid> currencyUnitRepository,
+        ProductVariantManager variantManager,
         RecipeCostPopulator recipeCostPopulator,
         SubstitutionChannelPlanProvider substitutionPlanProvider,
         ICurrentCompany currentCompany,
@@ -77,6 +87,9 @@ public class SalesChannelTrTrendyolProductAppService : TradeXpressAppService, IS
         _erpRecipeLineRepository = erpRecipeLineRepository;
         _channelAttributeRepository = channelAttributeRepository;
         _channelAttributeValueRepository = channelAttributeValueRepository;
+        _trendyolCategoryRepository = trendyolCategoryRepository;
+        _currencyUnitRepository = currencyUnitRepository;
+        _variantManager = variantManager;
         _recipeCostPopulator = recipeCostPopulator;
         _substitutionPlanProvider = substitutionPlanProvider;
         _currentCompany = currentCompany;
@@ -221,10 +234,15 @@ public class SalesChannelTrTrendyolProductAppService : TradeXpressAppService, IS
         }
     }
 
-    /// <summary>Trendyol varyant grup anahtarı: "{ÜrünKodu}-{Sıra}" — kayıt-bazlı benzersiz + insan-okunur (frozen).</summary>
+    /// <summary>Trendyol varyant grup anahtarı: "{ÜrünKodu}-{Sıra}" — kayıt-bazlı benzersiz + insan-okunur (frozen).
+    /// Ürün kodu üst sınıra yakınsa kod kısmı KIRPILIR (Code 64 + "-{Sıra}" &gt; ProductMainId 64 taşardı — entity
+    /// guard'ı ham fail yerine burada dostane onarım; sıra son eki korunur, benzersizlik bozulmaz).</summary>
     private static string BuildProductMainId(string productCode, int sequenceNo)
     {
-        return $"{productCode}-{sequenceNo}";
+        var suffix = $"-{sequenceNo}";
+        var maxCodeLength = TrendyolProductConsts.ProductMainIdMaxLength - suffix.Length;
+        var codePart = productCode.Length <= maxCodeLength ? productCode : productCode.Substring(0, maxCodeLength);
+        return $"{codePart}{suffix}";
     }
 
     [Authorize(TradeXpressPermissions.SalesChannels.Update)]
@@ -307,6 +325,9 @@ public class SalesChannelTrTrendyolProductAppService : TradeXpressAppService, IS
         // bu adaptör yalnız Trendyol graf tiplerini bağlar: özellik/değer okuma, upsert planı → Trendyol DTO
         // çevirisi + MEVCUT persist/reconcile yolu (SaveAttributesAndReconcileAsync) ve StockItem
         // paket stoğu + reçete yazımı (ReplaceChannelRecipeLinesAsync).
+        // Yan-maliyet planı — Muadil'in yazdığı TAZE reçetelere de kanal giderleri eklenir (klon yoluyla hizalı).
+        var sideCostPlan = await BuildSideCostPlanAsync(entity);
+
         return await _substitutionPlanProvider.ApplyAsync<SalesChannelTrTrendyolProductStockItem>(
             input,
             loadChannelAttributesAsync: async () =>
@@ -333,6 +354,8 @@ public class SalesChannelTrTrendyolProductAppService : TradeXpressAppService, IS
             {
                 header.SetOverrideStock(packageCount);
                 await _stockItemRepository.UpdateAsync(header, autoSave: true);
+                SideCostRecipeComposer.EnsureLines(
+                    recipeLines, sideCostPlan with { VariantOptInEnabled = header.InsuredShippingEnabled });
                 await ReplaceChannelRecipeLinesAsync(entity, header.Id, recipeLines);
             });
     }
@@ -996,6 +1019,24 @@ public class SalesChannelTrTrendyolProductAppService : TradeXpressAppService, IS
                     .ToList();
                 var matchedVariantId = MatchErpVariant(optionSet, erpIndex);
 
+                // Aynı ERP varyantına bağlı İMZASIZ (legacy/import kökenli) başlık varsa YENİ satır AÇILMAZ — filtered
+                // unique index (TenantId, kanal ürünü, ProductVariantId) ikinci satırı DB'de reddederdi. Mevcut satır
+                // imzaya TERFİ eder: kullanıcı override/reçetesi korunur, attribute-modu UI'ında görünmezken görünür olur.
+                if (matchedVariantId is not null)
+                {
+                    var legacyHeader = await AsyncExecuter.FirstOrDefaultAsync(
+                        (await _stockItemRepository.GetQueryableAsync())
+                            .Where(h => h.SalesChannelTrTrendyolProductId == channelProduct.Id
+                                && h.ProductVariantId == matchedVariantId
+                                && h.CombinationSignature == null));
+                    if (legacyHeader is not null)
+                    {
+                        legacyHeader.SetCombinationSignature(signature);
+                        await _stockItemRepository.UpdateAsync(legacyHeader, autoSave: true);
+                        return;
+                    }
+                }
+
                 var header = new SalesChannelTrTrendyolProductStockItem(channelProduct.CompanyId, channelProduct.Id, matchedVariantId);
                 header.SetCombinationSignature(signature);
                 await _stockItemRepository.InsertAsync(header, autoSave: true);
@@ -1051,11 +1092,42 @@ public class SalesChannelTrTrendyolProductAppService : TradeXpressAppService, IS
                     (await _variantRepository.GetQueryableAsync()).Where(v => erpVariantIds.Contains(v.Id))))
                 .ToDictionary(v => v.Id);
 
+        // ERP reçetesi + yan-maliyet planı — kaydedilmiş kanal reçetesi OLMAYAN, ERP-eşleşmiş kombinasyon satırında
+        // klon-sonra-ayrış (legacy graf BuildStockItemGraphAsync ile AYNI davranış; kartezyen üretilen satır
+        // reçetesiz/yan-maliyetsiz kalmasın — inceleme bulgusu; N11 simetriği). Trendyol-only satırda (ERP eşleşmesi
+        // yok) taban maliyet bilinmez → reçete boş kalır (OverridePrice zaten zorunlu).
+        var erpByVariant = erpVariantIds.Count == 0
+            ? new Dictionary<Guid, List<ProductVariantRecipeLine>>()
+            : (await AsyncExecuter.ToListAsync(
+                    (await _erpRecipeLineRepository.GetQueryableAsync())
+                        .Where(r => erpVariantIds.Contains(r.ProductVariantId))))
+                .GroupBy(r => r.ProductVariantId)
+                .ToDictionary(g => g.Key, g => g.ToList());
+        var sideCostPlan = await BuildSideCostPlanAsync(channelProduct);
+
         var attributeById = channelAttributes.ToDictionary(a => a.AttributeId);
         var nodes = new List<SalesChannelTrTrendyolProductStockItemGraphDto>(headers.Count);
         foreach (var header in headers)
         {
             var erpVariant = header.ProductVariantId is { } erpId && erpVariantsById.TryGetValue(erpId, out var v) ? v : null;
+
+            List<ProductRecipeLineGraphDto> recipeLines;
+            if (savedByHeader.TryGetValue(header.Id, out var saved))
+            {
+                recipeLines = MapSavedRecipeLines(saved);
+            }
+            else if (header.ProductVariantId is { } variantId && erpByVariant.TryGetValue(variantId, out var erp))
+            {
+                // Klon-sonra-ayrış: ERP reçetesi kanal reçetesinin başlangıcı — yan-maliyet satırları burada eklenir.
+                recipeLines = CloneErpRecipeLines(erp);
+                SideCostRecipeComposer.EnsureLines(
+                    recipeLines, sideCostPlan with { VariantOptInEnabled = header.InsuredShippingEnabled });
+            }
+            else
+            {
+                recipeLines = new List<ProductRecipeLineGraphDto>();
+            }
+
             var node = new SalesChannelTrTrendyolProductStockItemGraphDto
             {
                 Id = header.Id,
@@ -1067,7 +1139,8 @@ public class SalesChannelTrTrendyolProductAppService : TradeXpressAppService, IS
                 OverridePriceCurrencyUnitId = header.OverridePriceCurrencyUnitId,
                 OverrideStock = header.OverrideStock,
                 Margin = header.Margin,
-                RecipeLines = savedByHeader.TryGetValue(header.Id, out var saved) ? MapSavedRecipeLines(saved) : new List<ProductRecipeLineGraphDto>(),
+                InsuredShippingEnabled = header.InsuredShippingEnabled,
+                RecipeLines = recipeLines,
             };
             nodes.Add(node);
         }
@@ -1087,6 +1160,8 @@ public class SalesChannelTrTrendyolProductAppService : TradeXpressAppService, IS
             return;
         }
 
+        SideCostPlan? sideCostPlan = null;   // tembel — yalnız sigorta anahtarı değişen satır varsa kurulur
+
         foreach (var node in variants)
         {
             if (node.Id == Guid.Empty)
@@ -1105,10 +1180,23 @@ public class SalesChannelTrTrendyolProductAppService : TradeXpressAppService, IS
                 throw new BusinessException("TradeXpress:Trendyol:ProductVariant:OverrideRequiredForTrendyolOnly");
             }
 
+            var insuredShippingChanged = header.InsuredShippingEnabled != node.InsuredShippingEnabled;
             header.SetOverridePrice(node.OverridePrice, node.OverridePriceCurrencyUnitId);
             header.SetOverrideStock(node.OverrideStock);
             header.SetMargin(node.Margin);
+            header.SetInsuredShippingEnabled(node.InsuredShippingEnabled);
             await _stockItemRepository.UpdateAsync(header, autoSave: true);
+
+            // Sigortalı-gönderim anahtarı bu save'de DEĞİŞTİYSE reçeteye hemen işlenir (yalnız sigorta satırı —
+            // kullanıcının sildiği diğer otomatik satırlar geri getirilmez); yoksa türetilmiş fiyat açık
+            // "Giderleri Yeniden Uygula"ya kadar bayat kalırdı (inceleme bulgusu; N11 simetriği).
+            if (insuredShippingChanged)
+            {
+                sideCostPlan ??= await BuildSideCostPlanAsync(channelProduct);
+                node.RecipeLines ??= new List<ProductRecipeLineGraphDto>();
+                SideCostRecipeComposer.SyncVariantOptInLines(
+                    node.RecipeLines, sideCostPlan with { VariantOptInEnabled = node.InsuredShippingEnabled });
+            }
 
             await SaveChannelRecipeLinesAsync(channelProduct, header.Id, node.RecipeLines);
         }
@@ -1156,6 +1244,10 @@ public class SalesChannelTrTrendyolProductAppService : TradeXpressAppService, IS
             .GroupBy(r => r.ProductVariantId)
             .ToDictionary(g => g.Key, g => g.ToList());
 
+        // Yan-maliyet planı (kanal ayarı; komisyon = kanal varsayılanı) — yalnız KLON yoluna uygulanır (kaydedilmiş
+        // reçeteye dokunulmaz; silinen otomatik satır kendiliğinden geri gelmesin — açık "yeniden uygula" var).
+        var sideCostPlan = await BuildSideCostPlanAsync(channelProduct);
+
         var nodes = new List<SalesChannelTrTrendyolProductStockItemGraphDto>(variants.Count);
         foreach (var v in variants)
         {
@@ -1173,11 +1265,28 @@ public class SalesChannelTrTrendyolProductAppService : TradeXpressAppService, IS
                 node.OverridePriceCurrencyUnitId = header.OverridePriceCurrencyUnitId;
                 node.OverrideStock = header.OverrideStock;
                 node.Margin = header.Margin;
+                node.InsuredShippingEnabled = header.InsuredShippingEnabled;
             }
 
-            node.RecipeLines = header is not null && savedByHeader.TryGetValue(header.Id, out var saved)
-                ? MapSavedRecipeLines(saved)
-                : (erpByVariant.TryGetValue(v.Id, out var erp) ? CloneErpRecipeLines(erp) : new List<ProductRecipeLineGraphDto>());
+            // BİLİNEN SINIR (klon-sonra-ayrış deseni): "kaydedilmiş reçete var mı" ayrımı SATIR-varlığına dayalıdır —
+            // kullanıcı kaydedilmiş reçetenin TÜM satırlarını silerse "hiç kurulmadı" ile ayırt edilemez ve sonraki
+            // açılışta klon dalı ERP reçetesini + yan-maliyet satırlarını yeniden üretir (tam-boşaltma kararı kalıcı
+            // değildir). Kabul edilmiş davranış: boş reçete = "ERP'den yeniden devral" sinyali sayılır.
+            if (header is not null && savedByHeader.TryGetValue(header.Id, out var saved))
+            {
+                node.RecipeLines = MapSavedRecipeLines(saved);
+            }
+            else if (erpByVariant.TryGetValue(v.Id, out var erp))
+            {
+                // Klon-sonra-ayrış: ERP reçetesi kanal reçetesinin başlangıcı — yan-maliyet satırları burada eklenir.
+                node.RecipeLines = CloneErpRecipeLines(erp);
+                SideCostRecipeComposer.EnsureLines(
+                    node.RecipeLines, sideCostPlan with { VariantOptInEnabled = node.InsuredShippingEnabled });
+            }
+            else
+            {
+                node.RecipeLines = new List<ProductRecipeLineGraphDto>();
+            }
 
             nodes.Add(node);
         }
@@ -1197,9 +1306,58 @@ public class SalesChannelTrTrendyolProductAppService : TradeXpressAppService, IS
             node.NetCostCurrency = costs[i].NetCostCurrency;
             node.NetCostMissingRate = costs[i].NetCostMissingRate;
             node.DerivedPrice = costs[i].NetCost is { } nc && !costs[i].NetCostMissingRate
-                ? nc * (1m + (node.Margin ?? 0m) / 100m)
+                ? DerivedPriceCalculator.Calculate(nc, node.Margin)
                 : null;
         }
+    }
+
+    /// <summary>Yan-maliyet planını kurar: kanal gider satırları; çözülmüş komisyon oranı YOK (Trendyol ilk fazda
+    /// kategori komisyon tablosu yok — backlog; komisyon gider satırı oranını doğrudan Value'sundan alır, AutoRate
+    /// açıksa da Value fallback'ine düşer). Varyant opt-in anahtarı varyant-başı olduğundan burada KAPALI döner —
+    /// çağıran <c>plan with { VariantOptInEnabled = ... }</c> ile varyanta göre açar.</summary>
+    private async Task<SideCostPlan> BuildSideCostPlanAsync(SalesChannelTrTrendyolProduct channelProduct)
+    {
+        var channel = await _channelRepository.FindAsync(channelProduct.SalesChannelId);
+        return SideCostPlan.From(channel?.SideCosts, resolvedCommissionRate: null, variantOptInEnabled: false);
+    }
+
+    /// <summary>Yan-maliyet satırlarını KAYDEDİLMİŞ reçetelerde ayarlardan TAZELER ("yeniden uygula"): işaretli
+    /// (otomatik) satırlar düşürülüp yeniden üretilir, kullanıcı satırlarına dokunulmaz. Kaydedilmemiş reçeteler
+    /// atlanır (klon yolu zaten ekler). Kanal gider ayarı değişince ya da silinen otomatik satırı geri getirmek
+    /// için kullanılır; idempotent (N11 simetriği).</summary>
+    [Authorize(TradeXpressPermissions.SalesChannels.Update)]
+    public virtual async Task<SalesChannelTrTrendyolProductDto> ReapplySideCostsAsync(Guid id)
+    {
+        var entity = await GetOwnedAsync(id);
+        var plan = await BuildSideCostPlanAsync(entity);
+
+        var headers = await AsyncExecuter.ToListAsync(
+            (await _stockItemRepository.GetQueryableAsync())
+                .Where(h => h.SalesChannelTrTrendyolProductId == entity.Id));
+        var headerIds = headers.Select(h => h.Id).ToList();
+        var savedByHeader = (await AsyncExecuter.ToListAsync(
+                (await _channelRecipeLineRepository.GetQueryableAsync())
+                    .Where(r => r.SalesChannelTrTrendyolProductId == entity.Id && headerIds.Contains(r.StockItemId))))
+            .GroupBy(r => r.StockItemId)
+            .ToDictionary(g => g.Key, g => g.ToList());
+
+        foreach (var header in headers)
+        {
+            if (!savedByHeader.TryGetValue(header.Id, out var saved))
+            {
+                continue;   // kaydedilmiş reçete yok → klon yolu (BuildStockItemGraphAsync) zaten ekler
+            }
+
+            var lines = MapSavedRecipeLines(saved);
+            if (SideCostRecipeComposer.ReapplyLines(lines, plan with { VariantOptInEnabled = header.InsuredShippingEnabled }))
+            {
+                await SaveChannelRecipeLinesAsync(entity, header.Id, lines);
+            }
+        }
+
+        var dto = ObjectMapper.Map<SalesChannelTrTrendyolProduct, SalesChannelTrTrendyolProductDto>(entity);
+        await PopulateStockItemGraphAsync(entity, dto);
+        return dto;
     }
 
     /// <summary>Push için varyant-başı efektif fiyat/stok — zincir: OverridePrice ?? türetilmiş (KAYDEDİLMİŞ reçete
@@ -1239,7 +1397,7 @@ public class SalesChannelTrTrendyolProductAppService : TradeXpressAppService, IS
             var v = variants[i];
             headers.TryGetValue(v.Id, out var header);
             decimal? derived = costs[i].NetCost is { } nc && !costs[i].NetCostMissingRate
-                ? nc * (1m + (header?.Margin ?? 0m) / 100m)
+                ? DerivedPriceCalculator.Calculate(nc, header?.Margin)
                 : null;
             var price = header?.OverridePrice ?? derived ?? v.SalePrice;
             var stock = header?.OverrideStock ?? v.StockQuantity;
@@ -1267,6 +1425,8 @@ public class SalesChannelTrTrendyolProductAppService : TradeXpressAppService, IS
                     .Where(h => h.SalesChannelTrTrendyolProductId == channelProduct.Id && h.ProductVariantId != null)))
             .ToDictionary(h => h.ProductVariantId!.Value);
 
+        SideCostPlan? sideCostPlan = null;   // tembel — yalnız sigorta anahtarı değişen satır varsa kurulur
+
         foreach (var node in variants)
         {
             if (node.ProductVariantId is null || node.ProductVariantId == Guid.Empty)
@@ -1278,7 +1438,7 @@ public class SalesChannelTrTrendyolProductAppService : TradeXpressAppService, IS
             // emek → silinmesin). Hepsi gerçekten boşsa (saf ERP devralma) kaydedilmiş override/reçete temizlenir.
             var hasRecipe = node.RecipeLines?.Any(l => !l.IsDeleted) == true;
             var hasOverride = node.OverridePrice is not null || node.OverrideStock is not null
-                || node.Margin is not null || hasRecipe;
+                || node.Margin is not null || node.InsuredShippingEnabled || hasRecipe;
             existingHeaders.TryGetValue(node.ProductVariantId.Value, out var header);
 
             if (!hasOverride)
@@ -1296,12 +1456,14 @@ public class SalesChannelTrTrendyolProductAppService : TradeXpressAppService, IS
                 continue;
             }
 
+            var insuredShippingChanged = (header?.InsuredShippingEnabled ?? false) != node.InsuredShippingEnabled;
             if (header is null)
             {
                 header = new SalesChannelTrTrendyolProductStockItem(channelProduct.CompanyId, channelProduct.Id, node.ProductVariantId);
                 header.SetOverridePrice(node.OverridePrice, node.OverridePriceCurrencyUnitId);
                 header.SetOverrideStock(node.OverrideStock);
                 header.SetMargin(node.Margin);
+                header.SetInsuredShippingEnabled(node.InsuredShippingEnabled);
                 await _stockItemRepository.InsertAsync(header, autoSave: true);
             }
             else
@@ -1309,7 +1471,19 @@ public class SalesChannelTrTrendyolProductAppService : TradeXpressAppService, IS
                 header.SetOverridePrice(node.OverridePrice, node.OverridePriceCurrencyUnitId);
                 header.SetOverrideStock(node.OverrideStock);
                 header.SetMargin(node.Margin);
+                header.SetInsuredShippingEnabled(node.InsuredShippingEnabled);
                 await _stockItemRepository.UpdateAsync(header, autoSave: true);
+            }
+
+            // Sigortalı-gönderim anahtarı bu save'de DEĞİŞTİYSE reçeteye hemen işlenir (yalnız sigorta satırı —
+            // kullanıcının sildiği diğer otomatik satırlar geri getirilmez); yoksa türetilmiş fiyat açık
+            // "Giderleri Yeniden Uygula"ya kadar bayat kalırdı (inceleme bulgusu; N11 simetriği).
+            if (insuredShippingChanged)
+            {
+                sideCostPlan ??= await BuildSideCostPlanAsync(channelProduct);
+                node.RecipeLines ??= new List<ProductRecipeLineGraphDto>();
+                SideCostRecipeComposer.SyncVariantOptInLines(
+                    node.RecipeLines, sideCostPlan with { VariantOptInEnabled = node.InsuredShippingEnabled });
             }
 
             await SaveChannelRecipeLinesAsync(channelProduct, header.Id, node.RecipeLines);
@@ -1403,6 +1577,7 @@ public class SalesChannelTrTrendyolProductAppService : TradeXpressAppService, IS
         }
 
         entity.SetDescription(l.Description);
+        entity.SetSideCostKind(l.SideCostKind);
     }
 
     /// <summary>Kaydedilmiş kanal reçete satırlarını graf DTO'suna projekte eder (Id KORUNUR — mevcut satır) +
@@ -1430,6 +1605,7 @@ public class SalesChannelTrTrendyolProductAppService : TradeXpressAppService, IS
             DerivedBaseMode = r.DerivedBaseMode,
             DerivedOperation = r.DerivedOperation,
             DerivedOperand = r.DerivedOperand,
+            SideCostKind = r.SideCostKind,
         }).ToList();
 
         var sourceCsvById = ordered
@@ -1465,6 +1641,7 @@ public class SalesChannelTrTrendyolProductAppService : TradeXpressAppService, IS
             DerivedBaseMode = r.DerivedBaseMode,
             DerivedOperation = r.DerivedOperation,
             DerivedOperand = r.DerivedOperand,
+            SideCostKind = r.SideCostKind,
         }).ToList();
 
         var clientKeyByErpId = new Dictionary<Guid, Guid>();

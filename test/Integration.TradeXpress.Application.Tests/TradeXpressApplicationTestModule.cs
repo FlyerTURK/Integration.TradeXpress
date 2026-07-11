@@ -1,5 +1,6 @@
 using Integration.TradeXpress.N11Categories;
 using Integration.TradeXpress.N11Products;
+using Integration.TradeXpress.TrendyolProducts;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Volo.Abp.Modularity;
@@ -21,5 +22,10 @@ public class TradeXpressApplicationTestModule : AbpModule
         context.Services.Replace(ServiceDescriptor.Singleton<IN11ProductClient>(sp => sp.GetRequiredService<FakeN11ProductClient>()));
         context.Services.AddSingleton<FakeN11CategoryClient>();
         context.Services.Replace(ServiceDescriptor.Singleton<IN11CategoryClient>(sp => sp.GetRequiredService<FakeN11CategoryClient>()));
+
+        // Trendyol ürün REST istemcisi de testte SAHTE — import testleri sahte envanteri okur (READ-ONLY ilke);
+        // gruplama mantığı gerçek client'ın static'inden gelir (davranış sahtelenmiyor, yalnız ağ kesiliyor).
+        context.Services.AddSingleton<FakeTrendyolProductClient>();
+        context.Services.Replace(ServiceDescriptor.Singleton<ITrendyolProductClient>(sp => sp.GetRequiredService<FakeTrendyolProductClient>()));
     }
 }

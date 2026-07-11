@@ -31,6 +31,11 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
             b.Property(x => x.LastError).HasMaxLength(TrendyolProductConsts.LastErrorMaxLength);
             b.Property(x => x.DimensionalWeight).HasPrecision(18, 3);
 
+            // Import görüntü alanları (Trendyol_ProductSync): RemoteProductMainId = TRENDYOL'un grup anahtarı
+            // (bizim ürettiğimiz ProductMainId'den AYRI — import eşleşme anahtarı); ListPrice = uzak liste fiyatı.
+            b.Property(x => x.RemoteProductMainId).HasMaxLength(TrendyolProductConsts.ProductMainIdMaxLength);
+            b.Property(x => x.ListPrice).HasPrecision(ProductConsts.SalePricePrecision, ProductConsts.SalePriceScale);
+
             // Kategori attribute değerleri (id-bazlı) → JSON kolonu (owned collection; Trendyol'a push edilir,
             // sorgulanmaz). Kolon adı SABİT "Attributes" — S6 CategoryAttribute tip rename'i şemayı değiştirmez.
             b.OwnsMany(x => x.Attributes, a =>

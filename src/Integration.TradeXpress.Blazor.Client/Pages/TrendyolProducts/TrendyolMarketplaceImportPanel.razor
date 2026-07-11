@@ -1,0 +1,34 @@
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@* Trendyol'dan ÜRÜN içe aktarma paneli — kayıtlı kanalın kimliğiyle pazaryerindeki mevcut satıcı ürünlerini salt
+   GET ile çeker (Trendyol'a SIFIR yazma) ve tam zinciri (şablon ürün + varyant + kanal ürünü grafı) yazar.
+   Yalnız kaydedilmiş kanalda gösterilir (TrendyolCategorySyncPanel deseni); sonuç raporu EKRANDA — sessiz geçilmez
+   (N11 komisyon import raporu deseni). *@
+
+<div class="mt-3">
+    <DxButton Text="@L["TrendyolProduct:ImportFromMarketplace"]"
+              IconCssClass="@TradeXpressIcons.Download"
+              RenderStyle="ButtonRenderStyle.Secondary"
+              Enabled="@(!_importing)"
+              Click="@ImportAsync" />
+</div>
+@if (_result is { } r)
+{
+    <div style="font-size:0.85rem; display:flex; flex-direction:column; gap:2px; margin-top:6px;">
+        <span>@L["TrendyolProduct:Import:Summary", r.TotalFetchedItems, r.TotalRemoteProducts, r.CreatedProducts, r.CreatedChannelProducts, r.UpdatedChannelProducts]</span>
+        @if (r.UnmatchedCategories.Count > 0)
+        {
+            <span style="color:#b45309;">@L["TrendyolProduct:Import:UnmatchedCategories", r.UnmatchedCategories.Count]</span>
+        }
+        @if (r.SkippedRows.Count > 0)
+        {
+            <span style="color:#b45309;">@L["TrendyolProduct:Import:Skipped", r.SkippedRows.Count]</span>
+        }
+        @if (IssueLines.Count > 0)
+        {
+            @* Tek yönlü Text bağı → ValidationEnabled=false ŞART (TextExpression yok — tekrarlayan DevExpress tuzağı). *@
+            <DxMemo Text="@string.Join('\n', IssueLines)" ReadOnly="true" Rows="6"
+                    ValidationEnabled="false" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100" />
+        }
+    </div>
+}

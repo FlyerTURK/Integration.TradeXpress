@@ -217,6 +217,12 @@
                   CssClass="mb-2"
                   IconCssClass="@TradeXpressIcons.ProductVariant"
                   Click="@RegenerateStockItemsAsync" />
+        @* Yan-maliyet satırlarını kanal gider ayarlarından TAZELER (idempotent): otomatik (işaretli) satırlar
+           yeniden üretilir, kullanıcı satırlarına DOKUNULMAZ. Silinen otomatik satır da bununla geri gelir. *@
+        <DxButton Text="@L["SideCost:Reapply"]" RenderStyle="ButtonRenderStyle.Secondary"
+                  CssClass="mb-2 ms-1"
+                  IconCssClass="@TradeXpressIcons.SalesChannel"
+                  Click="@ReapplySideCostsAsync" />
         @if (Model.StockItems.Count == 0)
         {
             <span style="color:#6c757d; font-size:0.85rem;">@L["TrendyolProduct:NoStockItemsYetHint"]</span>
@@ -298,6 +304,14 @@
                                              ValueChanged="@((decimal? m) => OnStockItemMarginChanged(v, m))"
                                              ValueExpression="@(() => v.Margin)"
                                              ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
+                        </DxFormLayoutItem>
+                        @* Sigortalı gönderim (Loomis deseni) — kanal ayarında tanımlı olsa bile VARSAYILAN KAPALI;
+                           varyant bazında açılır (kullanıcı kararı 2026-07-10). Açınca satır 'Giderleri Yeniden
+                           Uygula' ya da yeni klonda reçeteye girer. *@
+                        <DxFormLayoutItem Caption="@L["SideCost:InsuredShipping"]" ColSpanMd="4">
+                            <DxCheckBox @bind-Checked="@v.InsuredShippingEnabled" CheckType="CheckType.Switch">
+                                @(v.InsuredShippingEnabled ? L["Active"] : L["Passive"])
+                            </DxCheckBox>
                         </DxFormLayoutItem>
                         @* Net maliyet + türetilmiş fiyat — SALT-OKUNUR (reçeteden canlı; kur eksikse uyarı). *@
                         <DxFormLayoutItem Caption="@L["TrendyolProduct:NetCost"]" ColSpanMd="4">

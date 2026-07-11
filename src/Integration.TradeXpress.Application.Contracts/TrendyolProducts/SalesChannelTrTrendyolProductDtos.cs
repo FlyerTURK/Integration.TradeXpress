@@ -72,6 +72,10 @@ public class SalesChannelTrTrendyolProductStockItemGraphDto
     /// <summary>Varyant-başı marj (markup yüzdesi; null = marj yok). Türetilmiş fiyat = NetCost × (1 + Margin/100).</summary>
     public decimal? Margin { get; set; }
 
+    /// <summary>Sigortalı gönderim (Loomis deseni) bu varyantta açık mı — kanal gider ayarı tanımlı olsa bile
+    /// VARSAYILAN kapalı; açılınca composer InsuredShipping reçete satırı üretir (yeni klon/yeniden-uygula'da).</summary>
+    public bool InsuredShippingEnabled { get; set; }
+
     /// <summary>Kanal-özel reçete satırları (ERP reçetesinden klonlanır, sonra bağımsız) — Product reçetesiyle AYNI
     /// DTO tipi (ProductRecipePanel bunu tüketir). Id + IsDeleted diff; save'de kanal reçete tablosuna yazılır.</summary>
     public List<ProductRecipeLineGraphDto> RecipeLines { get; set; } = new();
@@ -289,6 +293,51 @@ public class SalesChannelTrTrendyolProductUpdateDto : ISalesChannelTrTrendyolPro
     public List<SalesChannelTrTrendyolProductAttributeDto> ProductAttributes { get; set; } = new();
 }
 
+/// <summary>Pazaryerinden içe aktarma SONUÇ RAPORU — sessiz geçilmez: toplam çekilen / üretilen şablon / kanal
+/// kaydı sayıları + atlanan satırlar (nedenli) + eşleşmeyen kategoriler ekranda gösterilir (N11 komisyon import
+/// raporu deseni).</summary>
+public class TrendyolImportResultDto
+{
+    /// <summary>Trendyol'dan çekilen toplam KALEM (barcode) sayısı.</summary>
+    public int TotalFetchedItems { get; set; }
+
+    /// <summary>productMainId gruplaması sonrası uzak ÜRÜN sayısı.</summary>
+    public int TotalRemoteProducts { get; set; }
+
+    /// <summary>Bu import'ta üretilen YENİ şablon Product sayısı.</summary>
+    public int CreatedProducts { get; set; }
+
+    /// <summary>Bu import'ta üretilen YENİ kanal ürünü (SalesChannelTrTrendyolProduct) sayısı.</summary>
+    public int CreatedChannelProducts { get; set; }
+
+    /// <summary>Mevcut olup GÜNCELLENEN kanal ürünü sayısı (idempotent ikinci geçiş).</summary>
+    public int UpdatedChannelProducts { get; set; }
+
+    /// <summary>Atlanan satırlar + nedenleri (LOKALİZE) — barcode'suz/duplike/geçersiz kalemler.</summary>
+    public List<TrendyolImportIssueDto> SkippedRows { get; set; } = new();
+
+    /// <summary>Yerel kategori ağacında karşılığı OLMAYAN uzak kategoriler ("id — ad") — ürün ATLANMAZ, kanal
+    /// kaydı ham kategoriyle yazılır; kullanıcı sonradan eşler.</summary>
+    public List<string> UnmatchedCategories { get; set; } = new();
+
+    /// <summary>Import-geneli uyarılar (LOKALİZE) — kalem-bazlı olmayan riskli fallback'ler (ör. TRY para birimi
+    /// çözülemedi → fiyatlar para-birimsiz yazıldı). Sessiz geçilmez.</summary>
+    public List<string> Warnings { get; set; } = new();
+}
+
+/// <summary>Import'ta atlanan tek satır — kimlik ipuçları + lokalize neden.</summary>
+public class TrendyolImportIssueDto
+{
+    public string? Barcode { get; set; }
+    public string? StockCode { get; set; }
+    public string Reason { get; set; } = string.Empty;
+
+    public override string ToString()
+    {
+        return $"{Barcode ?? StockCode}: {Reason}";
+    }
+}
+
 /// <summary>
 /// Trendyol ürün listeleme — bir ERP ürününü bir Trendyol kanalında listeler + Trendyol'a ASENKRON push eder.
 /// Yapılandırma (kategori/marka/KDV/kargo/attribute) bizde tutulur; <see cref="PushToTrendyolAsync"/> ürünü +
@@ -328,8 +377,20 @@ public interface ISalesChannelTrTrendyolProductAppService : IApplicationService
     /// (SaveAttributesAndReconcileAsync).</summary>
     Task<SalesChannelTrTrendyolProductDto> RegenerateStockItemsAsync(Guid id, List<SalesChannelTrTrendyolProductAttributeDto> productAttributes);
 
+    /// <summary>Yan-maliyet satırlarını KAYDEDİLMİŞ varyant reçetelerinde kanal gider ayarlarından TAZELER
+    /// ("yeniden uygula"): otomatik (SideCostKind işaretli) satırlar düşürülüp yeniden üretilir; kullanıcı
+    /// satırlarına dokunulmaz. Kanal ayarı değişince / silinen otomatik satırı geri getirmek için. İdempotent.</summary>
+    Task<SalesChannelTrTrendyolProductDto> ReapplySideCostsAsync(Guid id);
+
     /// <summary>Muadil M4 köprüsü: Top-N başarılı kombinasyonu bu ürünün "Kombinasyon" özelliği + StockItem'ları
     /// (reçete + paket stoğu) olarak uygular — tek motor zinciri; yeniden uygulama imza-bazlı reconcile'dır.
     /// N11 adaptörüyle AYNI nötr planı (SubstitutionStockItemPlanner) tüketir.</summary>
     Task<SubstitutionApplyResultDto> ApplySubstitutionAsync(Guid id, SubstitutionApplyInput input);
+
+    /// <summary>Pazaryerindeki MEVCUT satıcı ürünlerini içeri alır (salt GET — Trendyol'a SIFIR yazma): her uzak
+    /// ürün için TAM ZİNCİR yazılır — şablon <c>Product</c> + varyant(lar) (yoksa otomatik üretilir) + bağlı kanal
+    /// ürünü grafı (kategori/marka/attribute + Sku + StockItem fiyat/stok override). İDEMPOTENT: barcode (varyant) ve
+    /// RemoteProductMainId ?? stockCode (kanal kaydı) anahtarlarıyla ikinci çağrı dublike üretmez, yalnız kanal
+    /// grafını günceller; kullanıcı düzenlemiş şablon alanları EZİLMEZ. Sonuç raporu sessiz geçilmez.</summary>
+    Task<TrendyolImportResultDto> ImportFromMarketplaceAsync(Guid salesChannelId);
 }

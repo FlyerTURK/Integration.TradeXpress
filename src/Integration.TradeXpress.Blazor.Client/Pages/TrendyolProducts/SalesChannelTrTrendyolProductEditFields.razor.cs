@@ -408,6 +408,31 @@ public partial class SalesChannelTrTrendyolProductEditFields : CrudComponentBase
         }
     }
 
+    // Yan-maliyet satırlarını kanal gider ayarlarından TAZELER ("yeniden uygula") — yalnız KAYDEDİLMİŞ kayıtta.
+    // İdempotent: otomatik (SideCostKind işaretli) satırlar yeniden üretilir, kullanıcı satırlarına dokunulmaz;
+    // silinen otomatik satır da bununla geri gelir (kendiliğinden GERİ GELMEZ — açık tetik). N11 simetriği.
+    private async Task ReapplySideCostsAsync()
+    {
+        if (Model.Id == Guid.Empty)
+        {
+            UiService.ShowWarningToast(L["TrendyolProduct:SaveProductFirst"].Value);
+            return;
+        }
+
+        try
+        {
+            var result = await ChannelProductAppService.ReapplySideCostsAsync(Model.Id);
+            Model.StockItems = result.StockItems;
+            MarkDirty(nameof(Model.StockItems));
+            UiService.ShowSuccessToast(L["SideCost:Reapplied"].Value);
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            UiService.ShowErrorToast(CrudErrorPresenter.ToFriendlyMessage(ex, ServiceProvider) ?? L["UnexpectedError"].Value);
+        }
+    }
+
     // Kombinasyon grid/edit'te kod hücresi — ERP-backed satırda ERP kodu, Trendyol-only satırda (ERP karşılığı yok)
     // özellik-değer özeti (CombinationLabel); ikisi de boşsa "-" (henüz reconcile edilmemiş/legacy taslak).
     private static string StockItemCodeOrLabel(SalesChannelTrTrendyolProductStockItemGraphDto stockItem)
@@ -453,11 +478,11 @@ public partial class SalesChannelTrTrendyolProductEditFields : CrudComponentBase
         MarkDirty(nameof(Model.StockItems));
     }
 
-    // Türetilmiş fiyat = NetCost × (1 + Marj/100) [MARKUP] — kur eksik/NetCost yoksa null (backend ile AYNI formül).
+    // Türetilmiş fiyat — backend ile AYNI merkezi formül (DerivedPriceCalculator); kur eksik/NetCost yoksa null.
     private static void RecomputeDerivedPrice(SalesChannelTrTrendyolProductStockItemGraphDto stockItem)
     {
         stockItem.DerivedPrice = stockItem.NetCost is { } netCost && !stockItem.NetCostMissingRate
-            ? netCost * (1m + (stockItem.Margin ?? 0m) / 100m)
+            ? DerivedPriceCalculator.Calculate(netCost, stockItem.Margin)
             : null;
     }
 
