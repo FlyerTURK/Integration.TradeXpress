@@ -10,6 +10,7 @@ using Integration.TradeXpress.Products;
 using Integration.TradeXpress.SalesChannels;
 using Microsoft.AspNetCore.Authorization;
 using Volo.Abp;
+using Volo.Abp.MultiTenancy;
 
 namespace Integration.TradeXpress.TrendyolProducts;
 
@@ -22,18 +23,22 @@ namespace Integration.TradeXpress.TrendyolProducts;
 ///
 /// <para><b>İdempotency anahtarları:</b> varyant = BARCODE (filtered unique index <c>(TenantId, Barcode)</c>);
 /// kanal kaydı = <c>RemoteProductMainId ?? stockCode/barcode</c> (Skus üzerinden). İkinci import dublike üretmez,
-/// yalnız kanal grafını (fiyat/stok override dahil) günceller.</para>
+/// yalnız kanal grafını (fiyat/stok override dahil) günceller. Aynı anahtar yorumuyla stockCode PAYLAŞAN uzak
+/// gruplar okuma katmanında TEK ürüne birleştirilir (<see cref="MergeGroupsSharingStockCode"/>) — İLK import kardeş
+/// varyantların tamamını kurar, kod çakışması son-ekle ("-2", "-3"...) ayrışır.</para>
 ///
-/// <para><b>Minimal-güncelleme kuralı:</b> yerelde ZATEN var olan şablon/varyant alanları EZİLMEZ (kullanıcı düzenlemiş
-/// olabilir) — ilk import'ta üretilen şablon serbesttir; sonraki geçişler yalnız kanal grafını upsert eder. Uzak
-/// fiyat/stok kanal katmanına <see cref="SalesChannelTrTrendyolProductStockItem.OverridePrice"/> /
+/// <para><b>Minimal-güncelleme kuralı (2026-07-11 netleşen hâli):</b> yerelde ZATEN var olan şablon/varyant ALANLARI
+/// GÜNCELLENMEZ (kullanıcı düzenlemiş olabilir) — ama remote'ta olup yerelde OLMAYAN barkodlu kalemler şablona
+/// OTOMATİK varyant olarak EKLENİR (eski "Eksik Varyantları Tamamla" ucu import'a gömüldü; ekleme-only, ana varyant
+/// değişmez). Uzak fiyat/stok kanal katmanına <see cref="SalesChannelTrTrendyolProductStockItem.OverridePrice"/> /
 /// <see cref="SalesChannelTrTrendyolProductStockItem.OverrideStock"/> olarak yazılır (kullanıcı onaylı yön).</para>
 /// </summary>
 public partial class SalesChannelTrTrendyolProductAppService
 {
-    /// <summary>Uzak kayıtta kategori/marka id'si hiç yoksa yazılan sentinel — entity CategoryId/BrandId zorunlu
-    /// (min 1); "0" Trendyol'da geçersiz id'dir, kullanıcı düzenleyene dek push zaten NumericId geçerli ama onaysız
-    /// kalır. Bu satırlar raporda da işaretlenir (sessiz geçilmez).</summary>
+    /// <summary>Uzak kayıtta MARKA id'si hiç yoksa yazılan sentinel — entity BrandId zorunlu (min 1); "0" Trendyol'da
+    /// geçersiz id'dir, kullanıcı düzenleyene dek push zaten NumericId geçerli ama onaysız kalır. KATEGORİ için
+    /// sentinel KALKTI (Trendyol_CategoryOptional, 2026-07-11): eksik/taşan kategori NULL yazılır
+    /// (<see cref="SafeCategoryId"/>) ve UnmatchedCategories raporunda görünür.</summary>
     private const string UnknownExternalId = "0";
 
     [Authorize(TradeXpressPermissions.SalesChannels.Update)]
@@ -41,8 +46,9 @@ public partial class SalesChannelTrTrendyolProductAppService
     {
         var channel = await GetOwnedChannelAsync(salesChannelId);
 
-        // Salt GET: tüm satıcı ürünleri sayfa sayfa çekilir + productMainId'ye göre gruplanır (P1 sarmalayıcı).
-        var remoteProducts = await _client.GetAllSellerProductsAsync(CredentialsOf(channel));
+        // Salt GET: tüm satıcı ürünleri sayfa sayfa çekilir + productMainId'ye göre gruplanır (P1 sarmalayıcı)
+        // + stockCode paylaşan gruplar TEK ürüne birleştirilir (kardeş varyant kuruluşu — canlı vaka düzeltmesi).
+        var remoteProducts = await FetchRemoteProductsAsync(channel);
 
         var report = new TrendyolImportResultDto
         {
@@ -79,7 +85,7 @@ public partial class SalesChannelTrTrendyolProductAppService
 
         foreach (var remote in remoteProducts)
         {
-            var validVariants = FilterImportableVariants(remote, seenBarcodes, foreignBarcodes, report);
+            var validVariants = FilterImportableVariants(remote, seenBarcodes, foreignBarcodes, report.SkippedRows);
             if (validVariants.Count == 0)
             {
                 continue;   // grubun tüm kalemleri raporlanarak elendi
@@ -90,6 +96,10 @@ public partial class SalesChannelTrTrendyolProductAppService
             var existing = FindExistingChannelRecord(remote, validVariants, existingRecords);
             var product = await ResolveOrCreateTemplateAsync(
                 channel, remote, validVariants, existing, variantsByBarcode, tryCurrencyUnitId, report);
+
+            // MEVCUT şablonda karşılığı olmayan barkodlu kalemler şablona OTOMATİK varyant olur (ekleme-only;
+            // 2026-07-11 kullanıcı kararı — eski "Eksik Varyantları Tamamla" düğmesi import'a gömüldü).
+            await EnsureTemplateVariantsAsync(remote, validVariants, product, variantsByBarcode, tryCurrencyUnitId, report);
 
             var entity = await UpsertChannelRecordAsync(channel, remote, validVariants, existing, product, variantsByBarcode, report);
             if (existing is null)
@@ -103,15 +113,78 @@ public partial class SalesChannelTrTrendyolProductAppService
         return report;
     }
 
+    // ── Uzak okuma katmanı ──────────────────────────────────────────────────────────────────────────
+
+    /// <summary>Uzak satıcı ürünlerini çeker (salt GET, productMainId gruplu) + STOKKODU PAYLAŞAN grupları TEK ürüne
+    /// birleştirir. Gerekçe (canlı vaka "Velvet Ruj", 2026-07-11): satıcı 11 renk kalemini productMainId'siz ama AYNI
+    /// stockCode ile listeler → gruplama her rengi ayrı ürün sayar; ilk kalem şablonu kurar, kalan kalemler
+    /// <see cref="FindExistingChannelRecord"/>'un stockCode fallback'iyle AYNI kanal kaydına düşer ve "şablonda varyant
+    /// yok" diye atlanırdı (12 renk sessizce 1 varyanta düşer). Kanal kaydı eşleşmesi zaten
+    /// "RemoteProductMainId ?? stockCode" (kullanıcı kararı) — "aynı stockCode = aynı ürün" yorumu şablon KURULUŞUNA da
+    /// uygulanır ki İLK import tüm kardeş varyantları doğursun.</summary>
+    private async Task<IReadOnlyList<TrendyolRemoteProduct>> FetchRemoteProductsAsync(SalesChannelTrTrendyol channel)
+    {
+        var remoteProducts = await _client.GetAllSellerProductsAsync(CredentialsOf(channel));
+        return MergeGroupsSharingStockCode(remoteProducts);
+    }
+
+    /// <summary>stockCode kesişen uzak grupları birleştirir — ortak alanlar İLK gruptan (GroupByProductMainId ile aynı
+    /// ilke), varyantlar geliş sırasıyla eklenir. Kod-çakışan kardeşlerin varyant kodları şablon kuruluşunda
+    /// <see cref="BuildUniqueVariantCode"/> son-ekiyle ("-2", "-3"...) ayrışır. Bir grup birden fazla önceki gruba
+    /// köprü kuruyorsa İLK eşleşen kazanır (deterministik); zaten eşlenmiş stockCode yeniden eşlenmez.</summary>
+    private static IReadOnlyList<TrendyolRemoteProduct> MergeGroupsSharingStockCode(IReadOnlyList<TrendyolRemoteProduct> groups)
+    {
+        var merged = new List<TrendyolRemoteProduct>();
+        var indexByStockCode = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var group in groups)
+        {
+            var stockCodes = group.Variants
+                .Where(v => v.StockCode is { Length: > 0 })
+                .Select(v => v.StockCode!)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            var targetIndex = -1;
+            foreach (var stockCode in stockCodes)
+            {
+                if (indexByStockCode.TryGetValue(stockCode, out var index))
+                {
+                    targetIndex = index;
+                    break;
+                }
+            }
+
+            if (targetIndex < 0)
+            {
+                merged.Add(group);
+                targetIndex = merged.Count - 1;
+            }
+            else
+            {
+                var target = merged[targetIndex];
+                merged[targetIndex] = target with { Variants = target.Variants.Concat(group.Variants).ToList() };
+            }
+
+            foreach (var stockCode in stockCodes)
+            {
+                indexByStockCode.TryAdd(stockCode, targetIndex);
+            }
+        }
+
+        return merged;
+    }
+
     // ── Uzak kalem eleme + rapor ────────────────────────────────────────────────────────────────────
 
     /// <summary>İçe alınabilir kalemleri süzer: barcode'suz kalem, barcode uzunluk taşması, aynı tenant'taki BAŞKA
-    /// şirketin sahiplendiği barcode ve import-içi duplike barcode ATLANIR + raporlanır (sessiz geçilmez).</summary>
+    /// şirketin sahiplendiği barcode ve import-içi duplike barcode ATLANIR + raporlanır (sessiz geçilmez).
+    /// Atlanan satırlar <paramref name="skippedRows"/>'a yazılır.</summary>
     private List<TrendyolRemoteVariant> FilterImportableVariants(
         TrendyolRemoteProduct remote,
         HashSet<string> seenBarcodes,
         HashSet<string> foreignBarcodes,
-        TrendyolImportResultDto report)
+        List<TrendyolImportIssueDto> skippedRows)
     {
         var result = new List<TrendyolRemoteVariant>();
         foreach (var variant in remote.Variants)
@@ -119,7 +192,7 @@ public partial class SalesChannelTrTrendyolProductAppService
             if (string.IsNullOrWhiteSpace(variant.Barcode)
                 || variant.Barcode.Length > TrendyolProductConsts.BarcodeMaxLength)
             {
-                AddSkipped(report, variant, L["TrendyolProduct:Import:InvalidBarcode"].Value);
+                AddSkipped(skippedRows, variant, L["TrendyolProduct:Import:InvalidBarcode"].Value);
                 continue;
             }
 
@@ -127,13 +200,13 @@ public partial class SalesChannelTrTrendyolProductAppService
             // ham DbUpdateException'la TÜM importu düşürür ve o veri düzelmeden import hiç tamamlanamaz → atla+raporla.
             if (foreignBarcodes.Contains(variant.Barcode))
             {
-                AddSkipped(report, variant, L["TrendyolProduct:Import:BarcodeOwnedByOtherCompany"].Value);
+                AddSkipped(skippedRows, variant, L["TrendyolProduct:Import:BarcodeOwnedByOtherCompany"].Value);
                 continue;
             }
 
             if (!seenBarcodes.Add(variant.Barcode))
             {
-                AddSkipped(report, variant, L["TrendyolProduct:Import:DuplicateBarcode"].Value);
+                AddSkipped(skippedRows, variant, L["TrendyolProduct:Import:DuplicateBarcode"].Value);
                 continue;
             }
 
@@ -160,9 +233,9 @@ public partial class SalesChannelTrTrendyolProductAppService
         }
     }
 
-    private static void AddSkipped(TrendyolImportResultDto report, TrendyolRemoteVariant variant, string reason)
+    private static void AddSkipped(List<TrendyolImportIssueDto> skippedRows, TrendyolRemoteVariant variant, string reason)
     {
-        report.SkippedRows.Add(new TrendyolImportIssueDto
+        skippedRows.Add(new TrendyolImportIssueDto
         {
             Barcode = variant.Barcode.Length > 0 ? variant.Barcode : null,   // barcode'suz kalemde StockCode'a düşsün
             StockCode = variant.StockCode,
@@ -295,6 +368,77 @@ public partial class SalesChannelTrTrendyolProductAppService
         return product;
     }
 
+    /// <summary>Uzakta olup YEREL şablonda karşılığı OLMAYAN barkodlu kalemleri şablona varyant olarak EKLER
+    /// (2026-07-11 kullanıcı kararı: eski "Eksik Varyantları Tamamla" düğmesi geçici çözümdü — davranış import'a
+    /// gömüldü). Minimal-güncelleme kuralının kalan kısmı: mevcut hiçbir varyant/şablon ALANI GÜNCELLENMEZ, yalnız
+    /// varyant EKLENİR; ANA VARYANT DEĞİŞMEZ (yeni eklenen main doğmaz; tekil-main değişmezi merkezî kapıdan —
+    /// <see cref="ProductVariantManager.EnsureMainVariantAsync"/>). Barkodu BAŞKA şablonun varyantında kayıtlı kalem
+    /// eklenemez (atla+raporla — unique index (TenantId, Barcode) zaten reddederdi). Kod çakışması son-ekle
+    /// ("-2", "-3"...) çözülür. İDEMPOTENT: ikinci geçiş 0 ekler. Eklenenler rapora sayı+barkod olarak düşer.</summary>
+    private async Task EnsureTemplateVariantsAsync(
+        TrendyolRemoteProduct remote,
+        List<TrendyolRemoteVariant> variants,
+        Product product,
+        Dictionary<string, ProductVariant> variantsByBarcode,
+        Guid? tryCurrencyUnitId,
+        TrendyolImportResultDto report)
+    {
+        HashSet<string>? usedCodes = null;   // tembel — grubun eksik kalemi yoksa kod sorgusu hiç atılmaz
+        var addedAny = false;
+
+        foreach (var remoteVariant in variants)
+        {
+            if (variantsByBarcode.TryGetValue(remoteVariant.Barcode, out var localVariant))
+            {
+                if (localVariant.ProductId != product.Id)
+                {
+                    AddSkipped(report.SkippedRows, remoteVariant, L["TrendyolProduct:Import:BarcodeOnAnotherTemplate"].Value);
+                }
+
+                continue;   // varyant zaten var → idempotent no-op (mevcut alanlara DOKUNULMAZ)
+            }
+
+            usedCodes ??= await LoadVariantCodesAsync(product.Id);
+            var variantCode = BuildUniqueVariantCode(remoteVariant.StockCode ?? remoteVariant.Barcode, usedCodes);
+
+            // Kuruluş importuyla AYNI desen: geçici ad = kod (ctor SetName'i TitleCase normalize eder ama hemen
+            // ezilir), gerçek başlık casing-korumalı atanır; yeni eklenen ASLA main doğmaz (kırmızı çizgi).
+            var variant = new ProductVariant(product.CompanyId, product.Id, variantCode, variantCode, isMain: false);
+            variant.SetName(BuildSafeName(remote.Title, variantCode), normalizeTitle: false);
+            variant.SetTradeIdentifiers(remoteVariant.Barcode, null, null, null);
+            var salePrice = remoteVariant.SalePrice is >= 0 ? remoteVariant.SalePrice : null;
+            variant.SetSalePrice(salePrice, salePrice is null ? null : tryCurrencyUnitId);
+            variant.SetStock(Math.Max(0, remoteVariant.Quantity));
+            await _variantRepository.InsertAsync(variant, autoSave: true);
+            variantsByBarcode[remoteVariant.Barcode] = variant;
+
+            addedAny = true;
+            report.AddedVariants++;
+            report.AddedBarcodes.Add(remoteVariant.Barcode);
+        }
+
+        if (addedAny)
+        {
+            // Ana-varyant değişmezi MERKEZÎ kapıdan (idempotent): mevcut main KORUNUR — yeni eklenenler main OLMAZ.
+            await _variantManager.EnsureMainVariantAsync(product);
+        }
+    }
+
+    /// <summary>Ürünün MEVCUT varyant kodları — soft-delete filtresi KAPALI okunur: unique index
+    /// <c>(TenantId, ProductId, Code)</c> IsDeleted filtresizdir, silinmiş satır kodu hâlâ işgal eder
+    /// (<see cref="BuildUniqueProductCodeAsync"/> ile aynı bilinçli simetri).</summary>
+    private async Task<HashSet<string>> LoadVariantCodesAsync(Guid productId)
+    {
+        using (DataFilter.Disable<ISoftDelete>())
+        {
+            var codes = await AsyncExecuter.ToListAsync(
+                (await _variantRepository.GetQueryableAsync())
+                    .Where(v => v.ProductId == productId)
+                    .Select(v => v.Code));
+            return codes.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        }
+    }
+
     /// <summary>Şablon kodu: stockCode/barcode normalize edilir (UPPER + tek boşluk), kısa ise "TY-" ön eki, uzun ise
     /// kırpılır; şirket içinde benzersizlik "-2/-3..." son ekiyle döngülü sağlanır (Code unique index'i ham DB hatasına
     /// düşmesin).</summary>
@@ -401,8 +545,8 @@ public partial class SalesChannelTrTrendyolProductAppService
     /// <summary>Kanal ürününü upsert eder: yeni kayıtta bizim ProductMainId'imiz üretilir ("{Kod}-{Sıra}", frozen);
     /// her geçişte kategori/marka/KDV/desi/açıklama/teslimat/attribute + uzak görüntü alanları
     /// (RemoteProductMainId/RemoteApproved/RemoteOnSale/ListPrice) tazelenir ve eşleşen yerel varyantların Sku
-    /// kimlikleri (barcode remote'tan, FROZEN) işlenir. Yerel varyantı OLMAYAN kalem (mevcut şablonda eksik varyant)
-    /// raporlanır — şablon import'ta değiştirilmez.</summary>
+    /// kimlikleri (barcode remote'tan, FROZEN) işlenir. Eksik varyant bu noktada kalmaz —
+    /// <see cref="EnsureTemplateVariantsAsync"/> önceden ekledi (2026-07-11).</summary>
     private async Task<SalesChannelTrTrendyolProduct> UpsertChannelRecordAsync(
         SalesChannelTrTrendyol channel,
         TrendyolRemoteProduct remote,
@@ -422,12 +566,12 @@ public partial class SalesChannelTrTrendyolProductAppService
                 product.Id,
                 BuildProductMainId(product.Code, sequenceNo),
                 sequenceNo,
-                SafeExternalId(remote.CategoryId, TrendyolProductConsts.CategoryIdMaxLength),
+                SafeCategoryId(remote.CategoryId),
                 SafeExternalId(remote.BrandId, TrendyolProductConsts.BrandIdMaxLength));
         }
 
         entity.SetCategory(
-            SafeExternalId(remote.CategoryId, TrendyolProductConsts.CategoryIdMaxLength),
+            SafeCategoryId(remote.CategoryId),
             TruncateOptional(remote.CategoryName, TrendyolProductConsts.CategoryNameMaxLength));
         entity.SetBrand(
             SafeExternalId(remote.BrandId, TrendyolProductConsts.BrandIdMaxLength),
@@ -467,27 +611,27 @@ public partial class SalesChannelTrTrendyolProductAppService
             first.ListPrice is >= 0 ? first.ListPrice : null);
 
         // Sku kimlikleri: yalnız YEREL varyantı çözülen kalemler (barcode remote'tan gelir, FROZEN — yerel
-        // "{Kod}-{Sıra}" üretimi bu satırlara uygulanmaz). Eksik varyant raporlanır (şablon EZİLMEZ).
+        // "{Kod}-{Sıra}" üretimi bu satırlara uygulanmaz). Eksik varyant burada artık OLAMAZ (EnsureTemplateVariants
+        // önceden ekledi); çözülemeyen tek durum barkodu BAŞKA şablonun varyantında kayıtlı kalemdir — o da orada
+        // zaten raporlandı (çift rapor üretme).
         foreach (var remoteVariant in variants)
         {
-            if (variantsByBarcode.TryGetValue(remoteVariant.Barcode, out var localVariant)
-                && localVariant.ProductId == product.Id)
+            if (!variantsByBarcode.TryGetValue(remoteVariant.Barcode, out var localVariant)
+                || localVariant.ProductId != product.Id)
             {
-                // stockCode uzunluk emniyeti: 100'ü aşan uzak kod kırpılır (entity guard fail-fast'i tek anomali
-                // kalemle TÜM importu düşürmesin — NormalizeImportCode'daki bilinçli onarım felsefesiyle aynı).
-                var stockCode = remoteVariant.StockCode is { Length: > 0 } rawStockCode
-                    ? Truncate(rawStockCode, TrendyolProductConsts.StockCodeMaxLength)
-                    : remoteVariant.Barcode;
-                entity.UpsertImportedSku(
-                    localVariant.Id,
-                    remoteVariant.Barcode,
-                    stockCode,
-                    remoteVariant.ProductContentId);
+                continue;   // başka şablonun barkodu — EnsureTemplateVariantsAsync raporladı
             }
-            else
-            {
-                AddSkipped(report, remoteVariant, L["TrendyolProduct:Import:VariantMissingOnTemplate"].Value);
-            }
+
+            // stockCode uzunluk emniyeti: 100'ü aşan uzak kod kırpılır (entity guard fail-fast'i tek anomali
+            // kalemle TÜM importu düşürmesin — NormalizeImportCode'daki bilinçli onarım felsefesiyle aynı).
+            var stockCode = remoteVariant.StockCode is { Length: > 0 } rawStockCode
+                ? Truncate(rawStockCode, TrendyolProductConsts.StockCodeMaxLength)
+                : remoteVariant.Barcode;
+            entity.UpsertImportedSku(
+                localVariant.Id,
+                remoteVariant.Barcode,
+                stockCode,
+                remoteVariant.ProductContentId);
         }
 
         if (existing is null)
@@ -504,14 +648,26 @@ public partial class SalesChannelTrTrendyolProductAppService
         return entity;
     }
 
-    /// <summary>Uzak kategori/marka id emniyeti: boş → sentinel; entity üst sınırını aşan id de sentinel'e düşer
-    /// (SetCategory/SetBrand fail-fast guard'ı tek anomali kalemle TÜM importu düşürmesin — kayıt zaten
-    /// "eşleşmeyen kategori" olarak raporlanır, kullanıcı sonradan eşler).</summary>
+    /// <summary>Uzak MARKA id emniyeti: boş → sentinel; entity üst sınırını aşan id de sentinel'e düşer
+    /// (SetBrand fail-fast guard'ı tek anomali kalemle TÜM importu düşürmesin — kullanıcı sonradan eşler).</summary>
     private static string SafeExternalId(string? id, int maxLength)
     {
         if (string.IsNullOrWhiteSpace(id) || id.Length > maxLength)
         {
             return UnknownExternalId;
+        }
+
+        return id;
+    }
+
+    /// <summary>Uzak KATEGORİ id emniyeti — kategori OPSİYONEL (Trendyol_CategoryOptional, 2026-07-11): boş ya da
+    /// üst sınırı aşan id NULL yazılır (sentinel "0" kalktı); satır UnmatchedCategories raporunda zaten görünür,
+    /// kullanıcı kategoriyi sonradan seçer. Yerel ağaçta eşleşmeyen ama GEÇERLİ uzak id HAM yazılmaya devam eder.</summary>
+    private static string? SafeCategoryId(string? id)
+    {
+        if (string.IsNullOrWhiteSpace(id) || id.Length > TrendyolProductConsts.CategoryIdMaxLength)
+        {
+            return null;
         }
 
         return id;
@@ -611,9 +767,17 @@ public partial class SalesChannelTrTrendyolProductAppService
     /// (yerel birim varsayılır; import kırılmaz).</summary>
     private async Task<Guid?> ResolveTryCurrencyUnitIdAsync()
     {
-        var tryUnit = await AsyncExecuter.FirstOrDefaultAsync(
-            (await _currencyUnitRepository.GetQueryableAsync()).Where(c => c.Code == CurrencyUnitCode.TRY));
-        return tryUnit?.Id;
+        // TRY tipik kurulumda HOST kaydıdır (CurrencyUnit host‖tenant çapraz katalog) — tenant data-filter'ı
+        // host satırını gizleyince fiyatlar para-birimsiz düşüyordu (canlıda yaşandı, 2026-07-11). Maden
+        // kataloğu deseniyle filtre KAPALI okunur; tenant kendi TRY'sini tanımlamışsa o tercih edilir.
+        using (DataFilter.Disable<IMultiTenant>())
+        {
+            var candidates = await AsyncExecuter.ToListAsync(
+                (await _currencyUnitRepository.GetQueryableAsync()).Where(c => c.Code == CurrencyUnitCode.TRY));
+            var preferred = candidates.FirstOrDefault(c => c.TenantId == CurrentTenant.Id)
+                            ?? candidates.FirstOrDefault(c => c.TenantId == null);
+            return preferred?.Id;
+        }
     }
 
     /// <summary>Uzak barcode'ları yerel varyantlara TEK geçişte çözer (parça parça IN sorgusu). Arama kapsamı

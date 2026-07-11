@@ -123,7 +123,7 @@ public class SalesChannelTrTrendyolProduct : FullAuditedAggregateRoot<Guid>, IMu
         Guid productId,
         string productMainId,
         int sequenceNo,
-        string categoryId,
+        string? categoryId,
         string brandId)
     {
         SetCompany(companyId);
@@ -160,8 +160,10 @@ public class SalesChannelTrTrendyolProduct : FullAuditedAggregateRoot<Guid>, IMu
     /// eklerinde de kullanılır ("{VaryantKodu}-{SequenceNo}") — Trendyol'da satıcı-geneli çakışmasın.</summary>
     public virtual int SequenceNo { get; protected set; }
 
-    /// <summary>Trendyol kategori id'si (numerik; string tutulur).</summary>
-    public virtual string CategoryId { get; protected set; } = null!;
+    /// <summary>Trendyol kategori id'si (numerik; string tutulur). OPSİYONEL (2026-07-11 "gevşek kategori" kararı:
+    /// pazaryeri kayıtlarında kategori eksik olabilir) — boş kalabilir; Trendyol'a push'ta zorunluluk dostane
+    /// fail-fast ile aranır (kategorisiz kayıt gönderilemez).</summary>
+    public virtual string? CategoryId { get; protected set; }
 
     /// <summary>Kategori görüntü adı (opsiyonel; UI kolaylığı).</summary>
     public virtual string? CategoryName { get; protected set; }
@@ -246,9 +248,11 @@ public class SalesChannelTrTrendyolProduct : FullAuditedAggregateRoot<Guid>, IMu
 
     #region Methods
 
-    public virtual void SetCategory(string categoryId, string? categoryName)
+    /// <summary>Kategori OPSİYONEL (2026-07-11): boş/null → NULL yazılır (push'ta fail-fast aranır);
+    /// doluysa uzunluk guard'ı uygulanır.</summary>
+    public virtual void SetCategory(string? categoryId, string? categoryName)
     {
-        CategoryId = StringFieldGuard.EnsureRequiredText(
+        CategoryId = StringFieldGuard.EnsureOptionalText(
             categoryId, nameof(CategoryId), 1, TrendyolProductConsts.CategoryIdMaxLength);
         CategoryName = StringFieldGuard.EnsureOptionalText(
             categoryName, nameof(CategoryName), 1, TrendyolProductConsts.CategoryNameMaxLength);

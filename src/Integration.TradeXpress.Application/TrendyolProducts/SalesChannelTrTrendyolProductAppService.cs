@@ -501,9 +501,9 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
         return new TrendyolPushPreviewDto { Product = previewProduct, Items = items, Warnings = warnings };
     }
 
-    /// <summary>Yaprak kategori attribute tanımlarını best-effort çeker (önizleme). Kategori boşsa ya da REST/kimlik
-    /// hatası varsa boş liste döner — önizleme KIRILMAZ (ad çözümü id'ye düşer, zorunlu denetimi atlanır).</summary>
-    private async Task<List<TrendyolLeafAttributeDto>> TryLoadLeafAttributesAsync(string categoryId)
+    /// <summary>Yaprak kategori attribute tanımlarını best-effort çeker (önizleme). Kategori boşsa (opsiyonel alan)
+    /// ya da REST/kimlik hatası varsa boş liste döner — önizleme KIRILMAZ (ad çözümü id'ye düşer, zorunlu denetimi atlanır).</summary>
+    private async Task<List<TrendyolLeafAttributeDto>> TryLoadLeafAttributesAsync(string? categoryId)
     {
         if (string.IsNullOrWhiteSpace(categoryId))
         {
@@ -651,6 +651,14 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
     {
         var product = await GetOwnedProductAsync(channelProduct.ProductId);
 
+        // Kategori KAYITTA opsiyonel (gevşek kategori, 2026-07-11) ama Trendyol create şemasında ZORUNLU →
+        // kategorisiz listeleme GERÇEK push'ta dostane fail-fast. Önizleme modunda (warnings dolu) fırlatılmaz;
+        // uyarı AppendRequiredFieldWarnings'ten zaten gelir (duplike uyarı üretme).
+        if (warnings is null && string.IsNullOrWhiteSpace(channelProduct.CategoryId))
+        {
+            throw new BusinessException("TradeXpress:Trendyol:Product:CategoryRequired");
+        }
+
         // Görsel sırası: VARSAYILAN önce, sonra DisplayOrder. URL-kaynaklılar doğrudan; blob görseller
         // sağlayıcı yapılandırılmışsa geçici dış linke çevrilir (N11 ile aynı 2026-07-07 kararı).
         var imageUrls = new List<string>();
@@ -738,7 +746,7 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
             ProductMainId: channelProduct.ProductMainId,
             Title: product.Name,
             Description: channelProduct.Description ?? product.Description ?? product.Name,
-            CategoryId: channelProduct.CategoryId,
+            CategoryId: channelProduct.CategoryId ?? string.Empty,   // yalnız ÖNİZLEME modunda boş olabilir (push'ta üstte fail-fast)
             BrandId: channelProduct.BrandId,
             VatRate: channelProduct.VatRate,
             DimensionalWeight: channelProduct.DimensionalWeight,

@@ -243,6 +243,16 @@ public class TradeXpressMenuContributor : IMenuContributor
                 order: 1
             ).RequireAuthenticated());
 
+            // Siparişler — ORTAK sipariş paneli (tüm satış kanallarının siparişleri tek grid). Salt-okuma çekim (O0);
+            // kanal menüsü gibi tenant-only (company-owned operasyonel kayıt). İzin: SalesChannels (ayrı Order izni O0'da yok).
+            context.Menu.AddItem(new ApplicationMenuItem(
+                TradeXpressMenus.Orders,
+                l["Orders"],
+                url: "/orders",
+                icon: TradeXpressIcons.SalesChannel,
+                order: 2
+            ).RequirePermissions(TradeXpressPermissions.SalesChannels.Default));
+
             // Takvim — DevExpress DxScheduler (company-scoped randevular). İkon: placeholder (history); özel takvim ikonu onay sonrası.
             context.Menu.AddItem(new ApplicationMenuItem(
                 TradeXpressMenus.Scheduler,

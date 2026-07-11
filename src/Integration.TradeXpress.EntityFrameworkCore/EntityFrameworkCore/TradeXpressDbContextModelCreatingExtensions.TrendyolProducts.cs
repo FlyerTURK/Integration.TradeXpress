@@ -20,7 +20,9 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
             b.ConfigureByConvention();
 
             b.Property(x => x.ProductMainId).IsRequired().HasMaxLength(TrendyolProductConsts.ProductMainIdMaxLength);
-            b.Property(x => x.CategoryId).IsRequired().HasMaxLength(TrendyolProductConsts.CategoryIdMaxLength);
+            // Kategori OPSİYONEL (Trendyol_CategoryOptional, 2026-07-11): eksik/eşleşmeyen kategori NULL kalır;
+            // eski "0" sentinel satırları migration'da NULL'a çevrildi. Marka zorunlu kalır.
+            b.Property(x => x.CategoryId).HasMaxLength(TrendyolProductConsts.CategoryIdMaxLength);
             b.Property(x => x.CategoryName).HasMaxLength(TrendyolProductConsts.CategoryNameMaxLength);
             b.Property(x => x.BrandId).IsRequired().HasMaxLength(TrendyolProductConsts.BrandIdMaxLength);
             b.Property(x => x.BrandName).HasMaxLength(TrendyolProductConsts.BrandNameMaxLength);

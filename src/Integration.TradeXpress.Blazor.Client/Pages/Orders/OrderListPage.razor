@@ -1,0 +1,72 @@
+@page "/orders"
+@using Integration.Framework.Blazor.Client.Components.Crud
+@using Integration.TradeXpress.Orders
+@using Integration.TradeXpress.SalesChannels
+@using DevExpress.Blazor
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@*
+   ORTAK SİPARİŞ PANELİ (Sipariş Fazı O0) — TÜM satış kanallarının siparişleri TEK grid'de (kanal yalnız kolon/filtre).
+   SALT-OKUMA: "Siparişleri Çek" düğmesi pazaryerinden GET ile çeker + idempotent upsert eder (fiş/rezervasyon/stok YOK).
+   Satırlar SNAPSHOT'tan çizilir (ürün-agnostik). Kolon filtre satırı: Kanal (Tür) + Durum + Tarih.
+*@
+
+<CrudLayout TGetDto="OrderDto"
+            TListDto="OrderListDto"
+            TKey="Guid"
+            StateService="StateService"
+            DataSource="@GridDataSource"
+            EntityName="@L["Order"]"
+            EntityIcon="@TradeXpressIcons.SalesChannel"
+            PageTitle="@L["Orders"]"
+            ShowNew="false"
+            ShowColumnFilter="true"
+            CustomActions="@_customActions"
+            OnRefreshClick="ReloadAsync"
+            OnSearchChanged="OnSearchAsync">
+
+    <GridColumns>
+        <DxGridDataColumn FieldName="ChannelType" Caption="@L["Order:Channel"]" Width="140px" VisibleIndex="1">
+            <CellDisplayTemplate>
+                @{
+                    var row = (OrderListDto)context.DataItem;
+                }
+                @(!string.IsNullOrWhiteSpace(row.SalesChannelCode) ? row.SalesChannelCode : ChannelTypeLabel(row.ChannelType))
+            </CellDisplayTemplate>
+        </DxGridDataColumn>
+        <DxGridDataColumn FieldName="OrderNumber" Caption="@L["Order:OrderNumber"]" Width="160px" VisibleIndex="2" />
+        <DxGridDataColumn FieldName="OrderDate" Caption="@L["Order:Date"]" Width="150px" DisplayFormat="g" VisibleIndex="3" />
+        <DxGridDataColumn FieldName="CustomerName" Caption="@L["Order:Customer"]" MinWidth="160" VisibleIndex="4" />
+        <DxGridDataColumn FieldName="TotalAmount" Caption="@L["Order:Amount"]" Width="120px" DisplayFormat="N2" VisibleIndex="5" />
+        <DxGridDataColumn FieldName="NeutralStatus" Caption="@L["Order:Status"]" Width="130px" VisibleIndex="6">
+            <CellDisplayTemplate>@StatusLabel(((OrderListDto)context.DataItem).NeutralStatus)</CellDisplayTemplate>
+        </DxGridDataColumn>
+    </GridColumns>
+
+</CrudLayout>
+
+<DxPopup @bind-Visible="_showReport"
+         HeaderText="@L["Order:Fetch:ReportTitle"]"
+         Width="520px"
+         CloseOnEscape="true"
+         ShowFooter="true">
+    <BodyContentTemplate>
+        <div style="display:flex; flex-direction:column; gap:8px;">
+            <div>@ReportSummary</div>
+            @if (!string.IsNullOrEmpty(ReportWindow))
+            {
+                <div style="font-size:0.85rem; color:#6c757d;">@ReportWindow</div>
+            }
+            <DxMemo Text="@ReportIssues"
+                    ReadOnly="true"
+                    ValidationEnabled="false"
+                    Rows="8"
+                    ResizeMode="MemoResizeMode.Disabled"
+                    CssClass="w-100"
+                    Visible="@(!string.IsNullOrEmpty(ReportIssues))" />
+        </div>
+    </BodyContentTemplate>
+    <FooterContentTemplate>
+        <DxButton Text="@L["Close"]" RenderStyle="ButtonRenderStyle.Secondary" Click="@(() => _showReport = false)" />
+    </FooterContentTemplate>
+</DxPopup>

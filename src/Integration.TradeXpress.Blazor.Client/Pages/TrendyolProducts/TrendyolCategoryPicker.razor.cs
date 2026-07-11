@@ -190,9 +190,17 @@ public partial class TrendyolCategoryPicker : CrudComponentBase
     }
 
     // Yaprak seçildi (arama modu): modeli güncelle + tam yolu ad olarak taşı + callback.
+    // TEMİZLEME serbest (kategori OPSİYONEL, 2026-07-11): boş değer çağırana BOŞ seçim olarak bildirilir.
     private async Task OnCategoryChangedAsync(string? externalId)
     {
         SelectedExternalId = externalId;
+        if (string.IsNullOrEmpty(externalId))
+        {
+            SelectedName = null;
+            await OnLeafSelected.InvokeAsync(new TrendyolCategorySelection(null, null));
+            return;
+        }
+
         var leaf = _results.FirstOrDefault(c => c.ExternalId == externalId);
         if (leaf is null)
         {
@@ -212,5 +220,6 @@ public partial class TrendyolCategoryPicker : CrudComponentBase
     }
 }
 
-/// <summary>Seçilen yaprak kategori — dış id + tam yol adı.</summary>
-public record TrendyolCategorySelection(string ExternalId, string Name);
+/// <summary>Seçilen yaprak kategori — dış id + tam yol adı. Kategori OPSİYONEL (2026-07-11): temizleme
+/// boş seçim (null, null) olarak bildirilir.</summary>
+public record TrendyolCategorySelection(string? ExternalId, string? Name);

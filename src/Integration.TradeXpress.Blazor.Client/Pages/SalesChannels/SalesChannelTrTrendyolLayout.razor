@@ -56,6 +56,7 @@
     <TrendyolCategorySyncPanel />
 
     @* Pazaryerinden ürün içe aktarma — mevcut Trendyol listelemeleri şablon ürün + varyant + kanal grafı olarak
-       içeri alınır (salt GET; idempotent). Sonuç raporu panelin altında gösterilir. *@
-    <TrendyolMarketplaceImportPanel SalesChannelId="@Model.Id" />
+       içeri alınır (salt GET; idempotent). Sonuç raporu panelin altında gösterilir. Kanal bu oturumda YENİ
+       oluşturulduysa (AutoImport) panel ilk görünümünde importu otomatik başlatır. *@
+    <TrendyolMarketplaceImportPanel SalesChannelId="@Model.Id" AutoImport="@AutoImportProducts" />
 }

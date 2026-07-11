@@ -59,9 +59,7 @@ public sealed class TrendyolProductClient : TrendyolRestClientBase, ITrendyolPro
     {
         var url = $"{BaseUrl}/integration/product/sellers/{credentials.SellerId}/products/batch-requests/{batchRequestId}";
 
-        var request = CreateRequest(HttpMethod.Get, url, credentials);
-
-        var (ok, status, payload) = await SendAsync(request, cancellationToken);
+        var (ok, status, payload) = await SendGetWithRetryAsync(url, credentials, cancellationToken);
         if (!ok)
         {
             throw new BusinessException("TradeXpress:Trendyol:Product:StatusFailed")
@@ -78,9 +76,8 @@ public sealed class TrendyolProductClient : TrendyolRestClientBase, ITrendyolPro
         TrendyolCredentials credentials, int page, int size, CancellationToken cancellationToken = default)
     {
         var url = $"{BaseUrl}/integration/product/sellers/{credentials.SellerId}/products?page={page}&size={size}";
-        var request = CreateRequest(HttpMethod.Get, url, credentials);
 
-        var (ok, status, payload) = await SendAsync(request, cancellationToken);
+        var (ok, status, payload) = await SendGetWithRetryAsync(url, credentials, cancellationToken);
         if (!ok)
         {
             throw new BusinessException("TradeXpress:Trendyol:Product:ListFailed")

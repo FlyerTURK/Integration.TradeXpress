@@ -15,6 +15,7 @@ public class TradeXpressMenus
     public const string Scheduler           = Prefix + ".Scheduler";
 
     public const string SalesChannels       = Prefix + ".SalesChannels";
+    public const string Orders              = Prefix + ".Orders";
 
     public const string Currencies          = Prefix + ".Currencies";
     public const string Financial           = Prefix + ".Financial";

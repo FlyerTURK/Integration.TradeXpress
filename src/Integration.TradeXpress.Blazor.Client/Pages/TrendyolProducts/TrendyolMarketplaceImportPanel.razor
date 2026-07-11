@@ -2,20 +2,31 @@
 
 @* Trendyol'dan ÜRÜN içe aktarma paneli — kayıtlı kanalın kimliğiyle pazaryerindeki mevcut satıcı ürünlerini salt
    GET ile çeker (Trendyol'a SIFIR yazma) ve tam zinciri (şablon ürün + varyant + kanal ürünü grafı) yazar.
+   Eksik varyant tamamlama AYRI DÜĞME DEĞİL (2026-07-11 kullanıcı kararı): import, remote'ta olup yerelde OLMAYAN
+   barkodlu kalemleri şablona OTOMATİK ekler; rapora eklenen varyant sayısı + barkodları düşer. Kanal bu oturumda
+   YENİ oluşturulduysa (AutoImport) panel ilk görünümünde importu KENDİLİĞİNDEN başlatır (create-anı akışı).
    Yalnız kaydedilmiş kanalda gösterilir (TrendyolCategorySyncPanel deseni); sonuç raporu EKRANDA — sessiz geçilmez
    (N11 komisyon import raporu deseni). *@
 
-<div class="mt-3">
+<div class="mt-3" style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
     <DxButton Text="@L["TrendyolProduct:ImportFromMarketplace"]"
               IconCssClass="@TradeXpressIcons.Download"
               RenderStyle="ButtonRenderStyle.Secondary"
-              Enabled="@(!_importing)"
+              Enabled="@(!_busy)"
               Click="@ImportAsync" />
+    @if (_busy)
+    {
+        <span style="font-size:0.85rem; color:#6c757d;">@L["TrendyolProduct:Importing"]</span>
+    }
 </div>
 @if (_result is { } r)
 {
     <div style="font-size:0.85rem; display:flex; flex-direction:column; gap:2px; margin-top:6px;">
         <span>@L["TrendyolProduct:Import:Summary", r.TotalFetchedItems, r.TotalRemoteProducts, r.CreatedProducts, r.CreatedChannelProducts, r.UpdatedChannelProducts]</span>
+        @if (r.AddedVariants > 0)
+        {
+            <span>@L["TrendyolProduct:Import:AddedVariants", r.AddedVariants]</span>
+        }
         @if (r.UnmatchedCategories.Count > 0)
         {
             <span style="color:#b45309;">@L["TrendyolProduct:Import:UnmatchedCategories", r.UnmatchedCategories.Count]</span>

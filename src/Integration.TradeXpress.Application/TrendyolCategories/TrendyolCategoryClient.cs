@@ -29,8 +29,7 @@ public sealed class TrendyolCategoryClient : TrendyolRestClientBase, ITrendyolCa
         TrendyolCredentials credentials, CancellationToken cancellationToken = default)
     {
         var url = $"{BaseUrl}/integration/product/product-categories";
-        using var request = CreateRequest(HttpMethod.Get, url, credentials);
-        var response = await SendAsync(request, cancellationToken);
+        var response = await SendGetWithRetryAsync(url, credentials, cancellationToken);
 
         if (!response.Ok)
         {
@@ -67,8 +66,7 @@ public sealed class TrendyolCategoryClient : TrendyolRestClientBase, ITrendyolCa
         TrendyolCredentials credentials, string categoryExternalId, CancellationToken cancellationToken = default)
     {
         var url = $"{BaseUrl}/integration/product/product-categories/{categoryExternalId}/attributes";
-        using var request = CreateRequest(HttpMethod.Get, url, credentials);
-        var response = await SendAsync(request, cancellationToken);
+        var response = await SendGetWithRetryAsync(url, credentials, cancellationToken);
 
         if (!response.Ok)
         {

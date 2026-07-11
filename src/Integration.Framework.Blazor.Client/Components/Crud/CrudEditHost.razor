@@ -92,6 +92,10 @@
     /// <summary>Ana commit'ten SONRA çalışır (taze model ile) — AYRI servise yazan paneller için. Role/User:
     /// izin paneli, rol/kullanıcı kaydedildikten (ProviderKey artık geçerli) sonra izinlerini kendi servisine yazar.</summary>
     [Parameter] public Func<TGetDto, Task>? OnAfterCommit { get; set; }
+    /// <summary>Yalnız YENİ kaydın commit'inden SONRA çalışır (taze model ile; OnAfterCommit'in ardından) —
+    /// create-anı orkestrasyonları için (ör. Trendyol kanalı oluşturulunca ürün importunun otomatik tetiklenmesi).
+    /// Update commit'lerinde ÇALIŞMAZ.</summary>
+    [Parameter] public Func<TGetDto, Task>? OnAfterCreate { get; set; }
 
     private TGetDto? _model;
     private bool _isNew = true;
@@ -147,6 +151,8 @@
                 TabOpener.UpdateTabUrl(savedTab.Id, _newTabUrl[..^3] + _model.Id);
             // Extra-commit: ana kayıt SONRASI ayrı servise yazan paneller (ör. izinler → artık var olan rol/kullanıcı adına).
             if (OnAfterCommit != null) await OnAfterCommit(_model);
+            // Create-anı orkestrasyonu: yalnız YENİ kaydın commit'inde (update'te asla).
+            if (wasNew && OnAfterCreate != null) await OnAfterCreate(_model);
             UiService.ShowSuccessToast(L["SuccessfullySaved"].Value);
             EntityChanges.Notify(ResolvedKey, wasNew ? EntityChangeKind.Created : EntityChangeKind.Updated, _model.Id);  // cross-tab liste tazele
             await OnSaved.InvokeAsync();                 // popup açan listeyi de tazele (varsa)

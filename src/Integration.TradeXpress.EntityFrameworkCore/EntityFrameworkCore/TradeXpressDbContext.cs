@@ -118,6 +118,9 @@ public class TradeXpressDbContext :
     // Muadil grubu — company-owned başlık + sıralı emtia satırları (ayrı aggregate, id-only referans).
     public DbSet<Integration.TradeXpress.Substitutions.SubstitutionGroup> SubstitutionGroups { get; set; } = null!;
     public DbSet<Integration.TradeXpress.Substitutions.SubstitutionGroupItem> SubstitutionGroupItems { get; set; } = null!;
+    // Sipariş (NÖTR) — tüm satış kanallarının siparişleri tek tabloda (company-owned); salt-okuma çekim (O0).
+    public DbSet<Integration.TradeXpress.Orders.Order> Orders { get; set; } = null!;
+    public DbSet<Integration.TradeXpress.Orders.OrderLine> OrderLines { get; set; } = null!;
 
 
     #region Entities from the modules
@@ -202,6 +205,7 @@ public class TradeXpressDbContext :
         builder.ConfigureN11Products();
         builder.ConfigureTrendyolProducts();
         builder.ConfigureSubstitutions();
+        builder.ConfigureOrders();
 
         // Kod kolonlarına ordinal (BIN2) collation — YALNIZ SQL Server. C# ToUpperInvariant ile hizalanır,
         // Türkçe İ/i collation kaçağını DB tarafında da kapatır. Sqlite (test) BIN2'yi tanımaz → guard'la atlanır

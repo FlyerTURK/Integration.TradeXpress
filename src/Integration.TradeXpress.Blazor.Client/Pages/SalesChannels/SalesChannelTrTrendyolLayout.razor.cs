@@ -9,6 +9,10 @@ public partial class SalesChannelTrTrendyolLayout
     [Parameter, EditorRequired] public SalesChannelTrTrendyolGetDto Model { get; set; } = default!;
     [Parameter] public bool IsNew { get; set; }
 
+    /// <summary>Kanal bu oturumda YENİ oluşturuldu (create-success) — import paneline akar; panel ilk görünümünde
+    /// importu otomatik başlatır (2026-07-11 kullanıcı kararı). Update yolunda host bunu asla kurmaz.</summary>
+    [Parameter] public bool AutoImportProducts { get; set; }
+
     /// <summary>Düzenlemede sir alanları (ApiKey/ApiSecret) boş gelir → in-field ipucu; yeni kayıtta placeholder yok.</summary>
     private string? SecretPlaceholder => IsNew ? null : L["SalesChannel:SecretKept"].Value;
 

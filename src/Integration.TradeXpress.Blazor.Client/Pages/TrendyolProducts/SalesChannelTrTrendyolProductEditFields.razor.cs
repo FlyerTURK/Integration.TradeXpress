@@ -316,11 +316,20 @@ public partial class SalesChannelTrTrendyolProductEditFields : CrudComponentBase
     }
 
     // Yaprak kategori seçildi — modele dış-id + ad yaz, attribute'ları tazele, dirty.
+    // Kategori OPSİYONEL (2026-07-11): temizleme boş seçim gelir → bayat attribute satırları da temizlenir.
     private async Task OnCategorySelectedAsync(TrendyolCategorySelection selection)
     {
         Model.CategoryId = selection.ExternalId;
         Model.CategoryName = selection.Name;
         MarkDirty(nameof(Model.CategoryId));
+        if (string.IsNullOrEmpty(selection.ExternalId))
+        {
+            _loadedAttributesCategoryId = null;
+            _attributeDefs = new List<TrendyolLeafAttributeDto>();
+            _attributeRows = new List<TrendyolAttributeRow>();
+            return;
+        }
+
         await EnsureAttributesAsync();
     }
 

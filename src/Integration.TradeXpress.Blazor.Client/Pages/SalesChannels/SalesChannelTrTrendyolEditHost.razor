@@ -6,6 +6,8 @@
 @*
    Trendyol satış kanalı edit host = ince sarmal: coordinator (Trendyol DTO'ları + ISalesChannelTrTrendyolAppService).
    Company-owned. ApiKey/ApiSecret update'te BOŞ gelir (redaksiyon); SellerId kimliktir → görünür. Trendyol'da test API'si yok.
+   CREATE-SUCCESS sonrası (OnAfterCreate — yalnız yeni kayıt) ürün importu OTOMATİK tetiklenir: işaret layout üzerinden
+   TrendyolMarketplaceImportPanel'e akar, panel ilk görünümünde importu kendisi başlatır (rapor/spinner panelde).
 *@
 
 @if (_coordinator != null)
@@ -14,7 +16,8 @@
                   Coordinator="@_coordinator" Id="@(Id ?? Guid.Empty)" IsPopupMode="@IsPopupMode" OnSaved="@OnSaved" OnClosed="@OnClosed"
                   FormCaption="@L["SalesChannelType:TrTrendyol"].Value" IconCssClass="@TradeXpressIcons.SalesChannel"
                   EntityValue="@(m => m.Code)"
-                  ApplyNewDefaults="@(m => { m.IsActive = true; })">
-        <SalesChannelTrTrendyolLayout Model="@context" IsNew="@(context.Id == Guid.Empty)" />
+                  ApplyNewDefaults="@(m => { m.IsActive = true; })"
+                  OnAfterCreate="@OnChannelCreatedAsync">
+        <SalesChannelTrTrendyolLayout Model="@context" IsNew="@(context.Id == Guid.Empty)" AutoImportProducts="@_autoImportProducts" />
     </CrudEditHost>
 }

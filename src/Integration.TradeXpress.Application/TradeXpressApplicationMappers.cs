@@ -23,6 +23,7 @@ using Integration.TradeXpress.AssayOffices;
 using Integration.TradeXpress.Products;
 using Integration.TradeXpress.Scheduling;
 using Integration.TradeXpress.Substitutions;
+using Integration.TradeXpress.Orders;
 using Integration.TradeXpress.Authorization;
 using Volo.Abp.TenantManagement;
 
@@ -596,6 +597,33 @@ public partial class SubstitutionGroupToListDtoMapper : MapperBase<SubstitutionG
 {
     public override partial SubstitutionGroupUpdateDto Map(SubstitutionGroupGetDto source);
     public override partial void Map(SubstitutionGroupGetDto source, SubstitutionGroupUpdateDto destination);
+}
+
+// ── Order (NÖTR sipariş — company-owned). SalesChannelCode enrich (id-only referanstan) + Lines (ayrı repo)
+//    AppService'te doldurulur → mapper'da ignore. CompanyId/TenantId/audit = source-only. ──
+
+[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
+public partial class OrderToListDtoMapper : MapperBase<Order, OrderListDto>
+{
+    [MapperIgnoreTarget(nameof(OrderListDto.SalesChannelCode))]
+    public override partial OrderListDto Map(Order source);
+    public override partial void Map(Order source, OrderListDto destination);
+}
+
+[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
+public partial class OrderToDtoMapper : MapperBase<Order, OrderDto>
+{
+    [MapperIgnoreTarget(nameof(OrderDto.SalesChannelCode))]
+    [MapperIgnoreTarget(nameof(OrderDto.Lines))]
+    public override partial OrderDto Map(Order source);
+    public override partial void Map(Order source, OrderDto destination);
+}
+
+[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
+public partial class OrderLineToDtoMapper : MapperBase<OrderLine, OrderLineDto>
+{
+    public override partial OrderLineDto Map(OrderLine source);
+    public override partial void Map(OrderLine source, OrderLineDto destination);
 }
 
 [Mapper] public partial class SubAccountGetToCreateMapper : MapperBase<SubAccountGetDto, SubAccountCreateDto>

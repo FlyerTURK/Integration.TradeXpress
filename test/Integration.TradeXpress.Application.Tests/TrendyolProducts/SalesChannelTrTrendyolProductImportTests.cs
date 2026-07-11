@@ -2,10 +2,12 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Integration.TradeXpress.Financials.CurrencyUnits;
 using Integration.TradeXpress.MultiCompany;
 using Integration.TradeXpress.Products;
 using Integration.TradeXpress.SalesChannels;
 using Shouldly;
+using Volo.Abp;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Modularity;
 using Volo.Abp.MultiTenancy;
@@ -30,6 +32,7 @@ public abstract class SalesChannelTrTrendyolProductImportTests<TStartupModule> :
     private readonly IRepository<Product, Guid> _productRepository;
     private readonly IRepository<ProductVariant, Guid> _variantRepository;
     private readonly IRepository<SalesChannelTrTrendyolProductStockItem, Guid> _headerRepository;
+    private readonly IRepository<CurrencyUnit, Guid> _currencyUnitRepository;
     private readonly ICurrentCompany _currentCompany;
 
     protected SalesChannelTrTrendyolProductImportTests()
@@ -41,6 +44,7 @@ public abstract class SalesChannelTrTrendyolProductImportTests<TStartupModule> :
         _productRepository = GetRequiredService<IRepository<Product, Guid>>();
         _variantRepository = GetRequiredService<IRepository<ProductVariant, Guid>>();
         _headerRepository = GetRequiredService<IRepository<SalesChannelTrTrendyolProductStockItem, Guid>>();
+        _currencyUnitRepository = GetRequiredService<IRepository<CurrencyUnit, Guid>>();
         _currentCompany = GetRequiredService<ICurrentCompany>();
     }
 
@@ -384,9 +388,247 @@ public abstract class SalesChannelTrTrendyolProductImportTests<TStartupModule> :
 
             var record = (await WithUnitOfWorkAsync(async () =>
                 await _channelProductRepository.GetListAsync(r => r.SalesChannelId == channel.Id))).ShouldHaveSingleItem();
-            record.CategoryId.ShouldBe("0");        // 32 sınırını aşan uzak kategori id → sentinel (raporlu)
+            record.CategoryId.ShouldBeNull();       // 32 sınırını aşan uzak kategori id → NULL (sentinel "0" kalktı; raporlu)
             record.Skus.ShouldHaveSingleItem().StockCode.Length.ShouldBe(100);   // taşan stockCode kırpıldı
             report.UnmatchedCategories.ShouldNotBeEmpty();
+        }
+    }
+
+    // ── Kod-çakışan kardeş varyantlar: İLK kuruluş TÜM renkleri doğurur (canlı vaka "Velvet Ruj") ────
+
+    [Fact]
+    public async Task First_import_creates_all_suffixed_variants_for_stockcode_sharing_siblings()
+    {
+        var companyId = Guid.NewGuid();
+        using (_currentCompany.Change(companyId))
+        {
+            var channel = await SeedChannelAsync(companyId, "IMP8");
+            _fakeClient.RemoteItems.Clear();
+
+            // Canlı vaka: renk kalemleri productMainId'SİZ + AYNI stockCode ile gelir. Eski davranış: her kalem
+            // ayrı ürün sayılır, ilk kalem şablonu kurar, kalanlar stockCode fallback'iyle AYNI kanal kaydına düşüp
+            // "şablonda varyant yok" diye atlanırdı (sessizce tek varyant). Yeni davranış: stockCode birleştirmesi
+            // hepsini TEK şablonun kardeş varyantları yapar; kod çakışması son-ekle ("-2", "-3") ayrışır.
+            _fakeClient.RemoteItems.Add(BuildRemoteItem(
+                mainId: null, barcode: "BR-LIP-1", stockCode: "207040879", title: "Velvet Ruj",
+                quantity: 5, salePrice: 199.90m, listPrice: null, contentId: 801, approved: true));
+            _fakeClient.RemoteItems.Add(BuildRemoteItem(
+                mainId: null, barcode: "BR-LIP-2", stockCode: "207040879", title: "Velvet Ruj",
+                quantity: 3, salePrice: 199.90m, listPrice: null, contentId: 802, approved: true));
+            _fakeClient.RemoteItems.Add(BuildRemoteItem(
+                mainId: null, barcode: "BR-LIP-3", stockCode: "207040879", title: "Velvet Ruj",
+                quantity: 8, salePrice: 209.90m, listPrice: null, contentId: 803, approved: true));
+
+            var report = await _appService.ImportFromMarketplaceAsync(channel.Id);
+
+            report.TotalFetchedItems.ShouldBe(3);
+            report.TotalRemoteProducts.ShouldBe(1);   // stockCode birleştirmesi: 3 kalem = 1 ürün
+            report.CreatedProducts.ShouldBe(1);
+            report.CreatedChannelProducts.ShouldBe(1);
+            report.SkippedRows.ShouldBeEmpty();       // "şablonda varyant yok" satırı YOK — kardeşler kuruldu
+
+            var product = (await WithUnitOfWorkAsync(async () =>
+                await _productRepository.GetListAsync(p => p.CompanyId == companyId))).ShouldHaveSingleItem();
+            product.Code.ShouldBe("207040879");
+
+            var variants = await WithUnitOfWorkAsync(async () =>
+                await _variantRepository.GetListAsync(v => v.ProductId == product.Id));
+            variants.Count.ShouldBe(3);
+            variants.Select(v => v.Code).OrderBy(c => c)
+                .ShouldBe(new[] { "207040879", "207040879-2", "207040879-3" });
+            variants.Count(v => v.IsMain).ShouldBe(1);
+            variants.Single(v => v.Barcode == "BR-LIP-1").IsMain.ShouldBeTrue();   // İLK kalem main
+
+            var record = (await WithUnitOfWorkAsync(async () =>
+                await _channelProductRepository.GetListAsync(r => r.SalesChannelId == channel.Id))).ShouldHaveSingleItem();
+            record.Skus.Count.ShouldBe(3);
+        }
+    }
+
+    // ── Eksik varyant tamamlama IMPORT'A GÖMÜLÜ (2026-07-11): import yalnız EKLER — mevcut şablon/varyant
+    // ALANLARI GÜNCELLENMEZ, ana varyant değişmez; ikinci import 0 ekler (idempotent). ──────────────
+
+    [Fact]
+    public async Task Import_adds_missing_variants_to_existing_template_and_preserves_existing_fields()
+    {
+        var companyId = Guid.NewGuid();
+        using (_currentCompany.Change(companyId))
+        {
+            var channel = await SeedChannelAsync(companyId, "IMP9");
+            _fakeClient.RemoteItems.Clear();
+            _fakeClient.RemoteItems.Add(BuildRemoteItem(
+                mainId: "MAIN-9", barcode: "BR-C-1", stockCode: "STK-C", title: "Velvet Ruj",
+                quantity: 5, salePrice: 100m, listPrice: null, contentId: 901, approved: true));
+            await _appService.ImportFromMarketplaceAsync(channel.Id);
+
+            var product = (await WithUnitOfWorkAsync(async () =>
+                await _productRepository.GetListAsync(p => p.CompanyId == companyId))).ShouldHaveSingleItem();
+
+            // Kullanıcı emeği: mevcut varyantın fiyatını düzenledi — sonraki import DOKUNMAMALI (ekleme-only).
+            await WithUnitOfWorkAsync(async () =>
+            {
+                var variant = (await _variantRepository.GetListAsync(v => v.ProductId == product.Id)).Single();
+                variant.SetSalePrice(777m, null);
+                await _variantRepository.UpdateAsync(variant, autoSave: true);
+                return true;
+            });
+
+            // Uzakta 2 YENİ renk kalemi belirdi (aynı grup, AYNI stockCode → kod çakışması son-ekle çözülmeli);
+            // mevcut kalemin uzak fiyatı da değişti — mevcut ERP varyant ALANLARINA yansıtılmaz (yalnız kanal
+            // override katmanı tazelenir; kullanıcı onaylı yön — Second_import kilidiyle aynı).
+            _fakeClient.RemoteItems.Clear();
+            _fakeClient.RemoteItems.Add(BuildRemoteItem(
+                mainId: "MAIN-9", barcode: "BR-C-1", stockCode: "STK-C", title: "Velvet Ruj",
+                quantity: 9, salePrice: 150m, listPrice: null, contentId: 901, approved: true));
+            _fakeClient.RemoteItems.Add(BuildRemoteItem(
+                mainId: "MAIN-9", barcode: "BR-C-2", stockCode: "STK-C", title: "Velvet Ruj",
+                quantity: 3, salePrice: 120m, listPrice: null, contentId: 902, approved: true));
+            _fakeClient.RemoteItems.Add(BuildRemoteItem(
+                mainId: "MAIN-9", barcode: "BR-C-3", stockCode: "STK-C", title: "Velvet Ruj",
+                quantity: 4, salePrice: 130m, listPrice: null, contentId: 903, approved: true));
+
+            var result = await _appService.ImportFromMarketplaceAsync(channel.Id);
+
+            result.AddedVariants.ShouldBe(2);
+            result.AddedBarcodes.OrderBy(b => b).ShouldBe(new[] { "BR-C-2", "BR-C-3" });
+            result.SkippedRows.ShouldBeEmpty();          // 'VariantMissingOnTemplate' skip nedeni KALKTI
+            result.CreatedProducts.ShouldBe(0);          // şablon yeniden üretilmedi
+            result.UpdatedChannelProducts.ShouldBe(1);
+
+            var variants = await WithUnitOfWorkAsync(async () =>
+                await _variantRepository.GetListAsync(v => v.ProductId == product.Id));
+            variants.Count.ShouldBe(3);
+
+            var original = variants.Single(v => v.Barcode == "BR-C-1");
+            original.IsMain.ShouldBeTrue();        // ANA VARYANT DEĞİŞMEDİ
+            original.SalePrice.ShouldBe(777m);     // kullanıcı-düzenlenmiş alan AYNEN korunur
+            original.StockQuantity.ShouldBe(5);    // uzak stok değişimi mevcut ERP varyantına YANSITILMAZ
+
+            var added = variants.Single(v => v.Barcode == "BR-C-2");
+            added.IsMain.ShouldBeFalse();          // yeni eklenen main OLMAZ
+            added.SalePrice.ShouldBe(120m);
+            added.StockQuantity.ShouldBe(3);
+            added.Code.ShouldStartWith("STK-C-");  // kod çakışması son-ekle ("-2"/"-3") çözüldü
+
+            var record = (await WithUnitOfWorkAsync(async () =>
+                await _channelProductRepository.GetListAsync(r => r.SalesChannelId == channel.Id))).ShouldHaveSingleItem();
+            record.Skus.Count.ShouldBe(3);
+
+            // StockItem zinciri: eklenenlerin başlığı kuruldu; mevcut başlığın override'ı IMPORT semantiğiyle
+            // TAZELENDİ (uzak fiyat kanal katmanına yazılır — ERP varyantı değil; Second_import kilidiyle tutarlı).
+            var headers = await WithUnitOfWorkAsync(async () =>
+                await _headerRepository.GetListAsync(h => h.SalesChannelTrTrendyolProductId == record.Id));
+            headers.Count.ShouldBe(3);
+            headers.Single(h => h.ProductVariantId == original.Id).OverridePrice.ShouldBe(150m);   // kanal katmanı tazelendi
+            headers.Single(h => h.ProductVariantId == added.Id).OverridePrice.ShouldBe(120m);
+
+            // Üçüncü geçiş İDEMPOTENT: 0 ekleme, varyant sayısı sabit, ana varyant aynı.
+            var third = await _appService.ImportFromMarketplaceAsync(channel.Id);
+            third.AddedVariants.ShouldBe(0);
+            third.AddedBarcodes.ShouldBeEmpty();
+            var variantsAfter = await WithUnitOfWorkAsync(async () =>
+                await _variantRepository.GetListAsync(v => v.ProductId == product.Id));
+            variantsAfter.Count.ShouldBe(3);
+            variantsAfter.Single(v => v.IsMain).Barcode.ShouldBe("BR-C-1");
+        }
+    }
+
+    // ── Gevşek kategori (Trendyol_CategoryOptional): kategorisiz uzak kayıt NULL kategoriyle yazılır + raporlanır ──
+
+    [Fact]
+    public async Task Import_without_category_writes_null_and_reports()
+    {
+        var companyId = Guid.NewGuid();
+        using (_currentCompany.Change(companyId))
+        {
+            var channel = await SeedChannelAsync(companyId, "IMP11");
+            _fakeClient.RemoteItems.Clear();
+            var item = BuildRemoteItem(
+                mainId: "MAIN-11", barcode: "BR-NC-1", stockCode: "STK-NC-1", title: "Kategorisiz Kalem",
+                quantity: 2, salePrice: 50m, listPrice: null, contentId: 1101, approved: null);
+            _fakeClient.RemoteItems.Add(item with { CategoryId = null, CategoryName = null });
+
+            var report = await _appService.ImportFromMarketplaceAsync(channel.Id);
+
+            // Ürün ATLANMAZ: kanal kaydı kategorisiz (NULL) yazılır; eksik kategori raporda görünür (sessiz geçilmez).
+            report.CreatedChannelProducts.ShouldBe(1);
+            report.UnmatchedCategories.ShouldNotBeEmpty();
+
+            var record = (await WithUnitOfWorkAsync(async () =>
+                await _channelProductRepository.GetListAsync(r => r.SalesChannelId == channel.Id))).ShouldHaveSingleItem();
+            record.CategoryId.ShouldBeNull();      // sentinel "0" YOK — kategori boş kalır (kullanıcı sonradan seçer)
+            record.CategoryName.ShouldBeNull();
+            record.BrandId.ShouldBe("82");         // marka sentineli/akışı DEĞİŞMEDİ
+        }
+    }
+
+    // ── Gevşek kategori: kategorisiz kanal ürünü PUSH'ta dostane fail-fast (Trendyol şemasında kategori zorunlu) ──
+
+    [Fact]
+    public async Task Push_without_category_fails_fast_with_friendly_error()
+    {
+        var companyId = Guid.NewGuid();
+        using (_currentCompany.Change(companyId))
+        {
+            var channel = await SeedChannelAsync(companyId, "IMP12");
+            var product = await WithUnitOfWorkAsync(async () =>
+                await _productRepository.InsertAsync(new Product(companyId, "PUSHCAT", "Kategorisiz Push Urunu"), autoSave: true));
+
+            var dto = await _appService.CreateAsync(new SalesChannelTrTrendyolProductCreateDto
+            {
+                ProductId = product.Id,
+                SalesChannelId = channel.Id,
+                CategoryId = null,                 // kategori OPSİYONEL — kayıt açılabilir
+                BrandId = "82",
+            });
+
+            var ex = await Should.ThrowAsync<BusinessException>(() => _appService.PushToTrendyolAsync(dto.Id));
+            ex.Code.ShouldBe("TradeXpress:Trendyol:Product:CategoryRequired");
+        }
+    }
+
+    // ── TRY para birimi HOST kaydından, TENANT bağlamında çözülür (filtre-kapalı okuma — regresyon kilidi) ──
+
+    [Fact]
+    public async Task Import_resolves_try_currency_from_host_record_in_tenant_context()
+    {
+        var companyId = Guid.NewGuid();
+        var currentTenant = GetRequiredService<ICurrentTenant>();
+        using (currentTenant.Change(Guid.NewGuid()))
+        {
+            // TRY tipik kurulumda HOST kaydıdır (CurrencyUnit host‖tenant çapraz katalog) — tenant data-filter'ı
+            // host satırını gizleyince fiyatlar para-birimsiz düşüyordu (canlıda yaşandı, 2026-07-11). Kilit:
+            // tenant bağlamındaki import host TRY'sini bulmalı, uyarı üretmemeli.
+            Guid hostTryId;
+            using (currentTenant.Change(null))
+            {
+                // Bul-ya-da-oluştur: paylaşılan test DB'sinde başka bir test host TRY'yi kurmuş olabilir —
+                // unique index (TenantId, Code) + deterministik kimlik doğrulaması için tek satır garanti edilir.
+                hostTryId = (await WithUnitOfWorkAsync(async () =>
+                {
+                    var existing = (await _currencyUnitRepository.GetListAsync(c => c.Code == "TRY")).FirstOrDefault();
+                    return existing
+                        ?? await _currencyUnitRepository.InsertAsync(new CurrencyUnit("TRY", "Türk Lirası"), autoSave: true);
+                })).Id;
+            }
+
+            using (_currentCompany.Change(companyId))
+            {
+                var channel = await SeedChannelAsync(companyId, "IMP10");
+                _fakeClient.RemoteItems.Clear();
+                _fakeClient.RemoteItems.Add(BuildRemoteItem(
+                    mainId: "MAIN-10", barcode: "BR-TRY-1", stockCode: "STK-TRY-1", title: "Fiyatlı Kalem",
+                    quantity: 2, salePrice: 250m, listPrice: null, contentId: 1001, approved: true));
+
+                var report = await _appService.ImportFromMarketplaceAsync(channel.Id);
+
+                report.Warnings.ShouldBeEmpty();   // TryCurrencyMissing uyarısı YOK — host kaydı çözüldü
+
+                var variant = (await WithUnitOfWorkAsync(async () =>
+                    await _variantRepository.GetListAsync(v => v.CompanyId == companyId))).ShouldHaveSingleItem();
+                variant.SalePrice.ShouldBe(250m);
+                variant.SalePriceCurrencyUnitId.ShouldBe(hostTryId);
+            }
         }
     }
 

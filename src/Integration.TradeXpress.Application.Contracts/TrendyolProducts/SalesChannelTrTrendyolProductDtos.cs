@@ -141,7 +141,9 @@ public class TrendyolPreviewProductDto
 {
     public string ProductMainId { get; set; } = string.Empty;
     public string Title { get; set; } = string.Empty;
-    public string CategoryId { get; set; } = string.Empty;
+
+    /// <summary>Kategori OPSİYONEL (2026-07-11 gevşek kategori) — boşsa önizleme uyarısı zaten üretilir.</summary>
+    public string? CategoryId { get; set; }
     public string? CategoryName { get; set; }
     public string BrandId { get; set; } = string.Empty;
     public string? BrandName { get; set; }
@@ -195,7 +197,8 @@ public class SalesChannelTrTrendyolProductDto
     /// <summary>Kayıt sırası (read-only; soft-delete dahil max+1).</summary>
     public int SequenceNo { get; set; }
 
-    public string CategoryId { get; set; } = string.Empty;
+    /// <summary>Trendyol kategori id'si — OPSİYONEL (2026-07-11 gevşek kategori kararı; push'ta fail-fast aranır).</summary>
+    public string? CategoryId { get; set; }
     public string? CategoryName { get; set; }
     public string BrandId { get; set; } = string.Empty;
     public string? BrandName { get; set; }
@@ -230,10 +233,10 @@ public class SalesChannelTrTrendyolProductDto
     public bool IsActive { get; set; }
 }
 
-/// <summary>Create/Update ortak düzenlenebilir alanları.</summary>
+/// <summary>Create/Update ortak düzenlenebilir alanları. Kategori OPSİYONEL (2026-07-11).</summary>
 public interface ISalesChannelTrTrendyolProductInput
 {
-    string CategoryId { get; }
+    string? CategoryId { get; }
     string? CategoryName { get; }
     string BrandId { get; }
     string? BrandName { get; }
@@ -258,7 +261,7 @@ public class SalesChannelTrTrendyolProductCreateDto : ISalesChannelTrTrendyolPro
 {
     public Guid ProductId { get; set; }
     public Guid SalesChannelId { get; set; }
-    public string CategoryId { get; set; } = string.Empty;
+    public string? CategoryId { get; set; }
     public string? CategoryName { get; set; }
     public string BrandId { get; set; } = string.Empty;
     public string? BrandName { get; set; }
@@ -277,7 +280,7 @@ public class SalesChannelTrTrendyolProductCreateDto : ISalesChannelTrTrendyolPro
 /// <summary>Listeleme güncelleme — ürün/kanal set-once (route'taki id kimliktir).</summary>
 public class SalesChannelTrTrendyolProductUpdateDto : ISalesChannelTrTrendyolProductInput
 {
-    public string CategoryId { get; set; } = string.Empty;
+    public string? CategoryId { get; set; }
     public string? CategoryName { get; set; }
     public string BrandId { get; set; } = string.Empty;
     public string? BrandName { get; set; }
@@ -301,7 +304,7 @@ public class TrendyolImportResultDto
     /// <summary>Trendyol'dan çekilen toplam KALEM (barcode) sayısı.</summary>
     public int TotalFetchedItems { get; set; }
 
-    /// <summary>productMainId gruplaması sonrası uzak ÜRÜN sayısı.</summary>
+    /// <summary>productMainId gruplaması + stockCode birleştirmesi (kardeş varyant kuruluşu) sonrası uzak ÜRÜN sayısı.</summary>
     public int TotalRemoteProducts { get; set; }
 
     /// <summary>Bu import'ta üretilen YENİ şablon Product sayısı.</summary>
@@ -313,11 +316,18 @@ public class TrendyolImportResultDto
     /// <summary>Mevcut olup GÜNCELLENEN kanal ürünü sayısı (idempotent ikinci geçiş).</summary>
     public int UpdatedChannelProducts { get; set; }
 
+    /// <summary>Mevcut şablonlara bu import'ta EKLENEN eksik varyant sayısı (2026-07-11: eski "Eksik Varyantları
+    /// Tamamla" akışı import'a gömüldü — remote'ta olup yerelde olmayan barkodlu kalem otomatik varyant olur).</summary>
+    public int AddedVariants { get; set; }
+
+    /// <summary>Eklenen varyantların barkodları (kullanıcı doğrulaması için; sessiz geçilmez).</summary>
+    public List<string> AddedBarcodes { get; set; } = new();
+
     /// <summary>Atlanan satırlar + nedenleri (LOKALİZE) — barcode'suz/duplike/geçersiz kalemler.</summary>
     public List<TrendyolImportIssueDto> SkippedRows { get; set; } = new();
 
-    /// <summary>Yerel kategori ağacında karşılığı OLMAYAN uzak kategoriler ("id — ad") — ürün ATLANMAZ, kanal
-    /// kaydı ham kategoriyle yazılır; kullanıcı sonradan eşler.</summary>
+    /// <summary>Yerel kategori ağacında karşılığı OLMAYAN uzak kategoriler ("id — ad") — ürün ATLANMAZ; geçerli
+    /// uzak id ham yazılır (kullanıcı sonradan eşler), eksik/taşan kategori NULL kalır (gevşek kategori).</summary>
     public List<string> UnmatchedCategories { get; set; } = new();
 
     /// <summary>Import-geneli uyarılar (LOKALİZE) — kalem-bazlı olmayan riskli fallback'ler (ör. TRY para birimi
@@ -389,8 +399,11 @@ public interface ISalesChannelTrTrendyolProductAppService : IApplicationService
 
     /// <summary>Pazaryerindeki MEVCUT satıcı ürünlerini içeri alır (salt GET — Trendyol'a SIFIR yazma): her uzak
     /// ürün için TAM ZİNCİR yazılır — şablon <c>Product</c> + varyant(lar) (yoksa otomatik üretilir) + bağlı kanal
-    /// ürünü grafı (kategori/marka/attribute + Sku + StockItem fiyat/stok override). İDEMPOTENT: barcode (varyant) ve
-    /// RemoteProductMainId ?? stockCode (kanal kaydı) anahtarlarıyla ikinci çağrı dublike üretmez, yalnız kanal
-    /// grafını günceller; kullanıcı düzenlemiş şablon alanları EZİLMEZ. Sonuç raporu sessiz geçilmez.</summary>
+    /// ürünü grafı (kategori/marka/attribute + Sku + StockItem fiyat/stok override). Remote'ta olup MEVCUT şablonda
+    /// karşılığı OLMAYAN barkodlu kalemler şablona OTOMATİK varyant olarak eklenir (2026-07-11: eski
+    /// "Eksik Varyantları Tamamla" ucu import'a gömüldü) — mevcut varyant/şablon ALANLARI GÜNCELLENMEZ, ANA VARYANT
+    /// DEĞİŞMEZ (yeni eklenen main olmaz), kod çakışması son-ekle ("-2", "-3"...) çözülür. İDEMPOTENT: barcode
+    /// (varyant) ve RemoteProductMainId ?? stockCode (kanal kaydı) anahtarlarıyla ikinci çağrı dublike/ekleme
+    /// üretmez, yalnız kanal grafını günceller. Sonuç raporu sessiz geçilmez.</summary>
     Task<TrendyolImportResultDto> ImportFromMarketplaceAsync(Guid salesChannelId);
 }
