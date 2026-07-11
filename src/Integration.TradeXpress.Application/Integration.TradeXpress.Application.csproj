@@ -16,6 +16,12 @@
     <PackageReference Include="SixLabors.ImageSharp" />
   </ItemGroup>
 
+  <!-- N11 komisyon tablosu (panelden derlenen TSV) — EMBEDDED: runtime'da .claude yoluna bağımlılık YOK
+       (o klasör deploy'da bulunmaz). Kaynak kopya: .claude/research/n11-taxonomy/n11-commission.tsv -->
+  <ItemGroup>
+    <EmbeddedResource Include="N11Categories\n11-commission.tsv" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\Integration.TradeXpress.Domain\Integration.TradeXpress.Domain.csproj" />
     <ProjectReference Include="..\Integration.TradeXpress.Application.Contracts\Integration.TradeXpress.Application.Contracts.csproj" />

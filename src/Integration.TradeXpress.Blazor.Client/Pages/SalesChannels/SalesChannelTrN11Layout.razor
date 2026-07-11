@@ -33,6 +33,10 @@
     </DxFormLayoutGroup>
 </DxFormLayout>
 
+@* Giderler — kanal yan-maliyet ayarları (paketleme/kargo/sigortalı gönderim/komisyon) + N11 komisyon importu.
+   Ortak editör (3 kanal formu aynı bileşeni tüketir); ilgisiz alanlar kanala göre gizli. *@
+<SideCostSettingsEditor Settings="@SideCosts" ChannelType="SalesChannelType.TrN11" SuggestDefaults="@SuggestSideCostDefaults" />
+
 @* Kargo şablonları + kanala ait N11 ürün listelemeleri — yalnız kaydedilmiş kanalda (persistent drill'ler
    kanal Id'sine bağlıdır). Sekmeler: Kargo Şablonları · N11 Ürünleri (o kanala ait listelemeler). *@
 @if (!IsNew)

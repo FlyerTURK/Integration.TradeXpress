@@ -3,7 +3,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Integration.TradeXpress.Permissions;
 using Integration.TradeXpress.Trendyol;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Logging;
 using Volo.Abp;
@@ -17,7 +19,10 @@ namespace Integration.TradeXpress.TrendyolCategories;
 /// KENDİ kimliğiyle çekilir (kategori endpoint'i public ama zorunlu <c>User-Agent</c> için SellerId lazım; kimlik
 /// per-kanal çözülür — eleştiri F-kimlik) ve HOST-GLOBAL tabloya yazılır (tüm tenant'lar paylaşır). Okuma host'a
 /// sabitlenir (<c>CurrentTenant.Change(null)</c>). N11 kategori AppService deseniyle simetrik; komisyon/mega katmanı yok.
+/// Yetki: kanal ailesiyle AYNI sınır (SalesChannels.*) — kimliksiz/izinsiz erişime kapalı (N11 simetriği;
+/// inceleme bulgusu).
 /// </summary>
+[Authorize(TradeXpressPermissions.SalesChannels.Default)]
 public class TrendyolCategoryAppService : TradeXpressAppService, ITrendyolCategoryAppService
 {
     private readonly IRepository<TrendyolCategory, Guid> _repository;
@@ -37,6 +42,9 @@ public class TrendyolCategoryAppService : TradeXpressAppService, ITrendyolCatego
         _leafAttributeCache = leafAttributeCache;
     }
 
+    // Sync sınıf-seviyesi Default'ta kalır (Update DEĞİL): kategori picker ilk kullanımda otomatik sync tetikler
+    // (DB boşsa; TrendyolCategoryPicker) — salt-görüntüleyen kullanıcıyı kırmamak için. Taksonomi upsert'i
+    // idempotent + dış kaynaktan birebir (N11 simetriği).
     public virtual async Task<int> SyncCategoriesAsync()
     {
         // Kimlik önce çözülür (company bağlamında — SellerId zorunlu User-Agent için); yazım sonra host'a sabitlenir.

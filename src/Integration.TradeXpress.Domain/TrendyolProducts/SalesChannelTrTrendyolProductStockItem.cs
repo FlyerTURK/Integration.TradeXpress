@@ -67,6 +67,11 @@ public class SalesChannelTrTrendyolProductStockItem : FullAuditedAggregateRoot<G
     /// <summary>Varyant-başı marj (markup yüzdesi; ör. 20 → türetilmiş = NetCost × 1.20). null = marj yok.</summary>
     public virtual decimal? Margin { get; protected set; }
 
+    /// <summary>Sigortalı gönderim (Loomis deseni) bu varyantta AÇIK mı — kanal ayarı tanımlı olsa bile kalem
+    /// VARSAYILAN kapalıdır, varyant bazında açılır (kullanıcı kararı 2026-07-10). Composer yalnız açıkken
+    /// InsuredShipping reçete satırı üretir.</summary>
+    public virtual bool InsuredShippingEnabled { get; protected set; }
+
     /// <summary>
     /// Kartezyen kombinasyon KİMLİĞİ — <c>"{AttributeId}={ValueId}|..."</c>, AttributeId'ye göre sıralı (N11 ile AYNI
     /// format: STABİL ID'lerden kurulur, Name/Value METİN değil — özellik/değer yeniden adlandırılırsa imza bozulmaz).
@@ -113,6 +118,12 @@ public class SalesChannelTrTrendyolProductStockItem : FullAuditedAggregateRoot<G
         }
 
         Margin = margin;
+    }
+
+    /// <summary>Sigortalı gönderim kalemini bu varyantta açar/kapatır (varsayılan kapalı).</summary>
+    public virtual void SetInsuredShippingEnabled(bool value)
+    {
+        InsuredShippingEnabled = value;
     }
 
     /// <summary>Kartezyen kombinasyon imzasını atar — kartezyen motor yalnız İNSERT'te çağırır (kombinasyon değişirse

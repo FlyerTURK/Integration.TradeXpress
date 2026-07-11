@@ -28,4 +28,32 @@ public partial class SalesChannelEtsyLayout
     private string ConnectButtonText => Model.IsConnected
         ? L["SalesChannel:Etsy:Reconnect"].Value
         : L["SalesChannel:Etsy:Connect"].Value;
+
+    private bool _sideCostsWereNull;
+
+    /// <summary>Giderler formu daima dolu DTO'ya bağlanır — null ilk erişimde boş DTO olur; null'dan geldiği
+    /// BİLGİSİ saklanır: tohum önerisi yalnız bu durumda (N11 layout paritesi).</summary>
+    private SideCostSettingsDto SideCosts
+    {
+        get
+        {
+            if (Model.SideCosts is null)
+            {
+                _sideCostsWereNull = true;
+                Model.SideCosts = new SideCostSettingsDto();
+            }
+
+            return Model.SideCosts;
+        }
+    }
+
+    /// <summary>Tohum önerisi bayrağı — attribute sırasından bağımsız: önce getter null→boş dönüşümünü işler.</summary>
+    private bool SuggestSideCostDefaults
+    {
+        get
+        {
+            _ = SideCosts;
+            return _sideCostsWereNull;
+        }
+    }
 }

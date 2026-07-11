@@ -69,15 +69,21 @@ public class TradeXpressMenuContributor : IMenuContributor
             icon: TradeXpressIcons.Parity
         ).RequirePermissions(TradeXpressPermissions.Parities.Default));
         definitions.AddItem(financial);
-        // Satış Kanalları — host + tenant scoped tanım (Country deseni; host+tenant herkese görünür, emtia DEĞİL).
-        definitions.AddItem(new ApplicationMenuItem(
-            TradeXpressMenus.SalesChannels,
-            l["SalesChannels"],
-            url: "/sales-channels",
-            icon: TradeXpressIcons.SalesChannel
-        ).RequirePermissions(TradeXpressPermissions.SalesChannels.Default));
         // Emtialar — Voucher/VoucherLine'da seçilecek işaretçi emtia tipleri (alt menü). Nakitler buraya bağlı.
         var currentTenant = context.ServiceProvider.GetRequiredService<ICurrentTenant>();
+        // Satış Kanalları — YALNIZ tenant (2026-07-10 kullanıcı kararı: kanal company-owned operasyonel
+        // kayıttır, host'ta tanımlanamaz → menüsü de host'ta görünmez; host-global kataloglar [N11/Trendyol
+        // kategorileri] tenant'tan Change(null) ile beslenir).
+        if (currentTenant.Id != null)
+        {
+            definitions.AddItem(new ApplicationMenuItem(
+                TradeXpressMenus.SalesChannels,
+                l["SalesChannels"],
+                url: "/sales-channels",
+                icon: TradeXpressIcons.SalesChannel
+            ).RequirePermissions(TradeXpressPermissions.SalesChannels.Default));
+        }
+
         if (currentTenant.Id != null)
         {
             var commodities = new ApplicationMenuItem(

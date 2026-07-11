@@ -652,6 +652,13 @@ public partial class ProductRecipePanel
 
     private string ComponentLabel(ProductRecipeLineGraphDto l)
     {
+        // Yan-maliyet (otomatik) satırı: tür etiketi gösterilir (Paketleme/Kargo/Komisyon...) — kanal gider
+        // ayarlarından üretildiği grid'de ilk bakışta anlaşılır (kullanıcı satırından ayırt).
+        if (l.SideCostKind is { } kind)
+        {
+            return SideCostKindLabel(kind);
+        }
+
         return l.ComponentType switch
         {
             RecipeComponentType.Service => L["Service"].Value,
@@ -664,6 +671,20 @@ public partial class ProductRecipePanel
                 ProcessType.Stone => L["Stone"].Value,
                 _ => L["ComponentType"].Value,
             },
+        };
+    }
+
+    /// <summary>Yan-maliyet türünün lokalize etiketi (kanal gider ayarlarından otomatik üretilen satırlar).</summary>
+    private string SideCostKindLabel(SideCostKind kind)
+    {
+        return kind switch
+        {
+            SideCostKind.Packaging => L["SideCost:Kind:Packaging"].Value,
+            SideCostKind.Cargo => L["SideCost:Kind:Cargo"].Value,
+            SideCostKind.InsuredShipping => L["SideCost:Kind:InsuredShipping"].Value,
+            SideCostKind.Commission => L["SideCost:Kind:Commission"].Value,
+            SideCostKind.ChannelFixed => L["SideCost:Kind:ChannelFixed"].Value,
+            _ => L["Service"].Value,
         };
     }
 
@@ -719,9 +740,16 @@ public partial class ProductRecipePanel
         return string.Join(", ", codes);
     }
 
-    /// <summary>Hizmet satırlarına görsel işaret (italik + mavi) — grid'de fiziki satırlardan ayırt eder.</summary>
+    /// <summary>Hizmet satırlarına görsel işaret (italik + mavi); YAN-MALİYET (otomatik) satırları TEAL — kanal
+    /// gider ayarlarından üretildiğini gösterir (mevcut hücre stili deseni). Kullanıcı otomatik satırı silerse
+    /// kendiliğinden GERİ GELMEZ — varyant sekmesindeki "Giderleri Yeniden Uygula" ile ayarlardan tazelenir.</summary>
     private static string DerivedCellStyle(ProductRecipeLineGraphDto l)
     {
+        if (l.SideCostKind is not null)
+        {
+            return "font-style:italic; color:#0d9488;";
+        }
+
         return l.ComponentType == RecipeComponentType.Service ? "font-style:italic; color:#2563eb;" : string.Empty;
     }
 

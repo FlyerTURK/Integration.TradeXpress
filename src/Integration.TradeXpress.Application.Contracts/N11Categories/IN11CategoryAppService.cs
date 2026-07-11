@@ -22,4 +22,8 @@ public interface IN11CategoryAppService : IApplicationService
 
     /// <summary>On-demand: bir YAPRAK kategorinin attribute+value'ları — çalışılan şirketin N11 kanalının kimliğiyle çekilir.</summary>
     Task<List<N11CategoryAttributeDto>> GetLeafAttributesAsync(string categoryExternalId);
+
+    /// <summary>Host-only: gömülü komisyon tablosunu (TSV) yaprak kategorilere AD YOLUYLA eşleyip
+    /// <c>N11Category.SetCommission</c> uygular. Eşleşmeyen/muğlak satırlar RAPORLANIR (sessiz geçilmez).</summary>
+    Task<N11CommissionImportResultDto> ImportCommissionsAsync();
 }

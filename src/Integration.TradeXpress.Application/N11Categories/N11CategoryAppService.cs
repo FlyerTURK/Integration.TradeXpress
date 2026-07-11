@@ -3,7 +3,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Integration.TradeXpress.MultiCompany;
+using Integration.TradeXpress.Permissions;
 using Integration.TradeXpress.SalesChannels;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Configuration;
 using Volo.Abp;
 using Volo.Abp.Domain.Repositories;
@@ -14,7 +16,10 @@ namespace Integration.TradeXpress.N11Categories;
 /// N11 kategori taksonomisi AppService — host-global ağaç sync/okuma + on-demand attribute. Ağaç HOST kimliğiyle
 /// (config <c>N11:CategorySync:*</c>) bir kez çekilir; attribute'lar çalışılan şirketin N11 kanalının KENDİ
 /// AppKey/AppSecret'ıyla (server entity'den okur — client sırrı görmez). REST primary, SOAP fallback client'ta.
+/// Yetki: kanal ailesiyle AYNI sınır (SalesChannels.*) — fiyatlamayı değiştiren komisyon import'u ayrıca Update
+/// ister; "host-only" tenant kontrolü TEK BAŞINA yetki DEĞİLDİR (inceleme bulgusu).
 /// </summary>
+[Authorize(TradeXpressPermissions.SalesChannels.Default)]
 public class N11CategoryAppService : TradeXpressAppService, IN11CategoryAppService
 {
     private readonly IRepository<N11Category, Guid> _repository;
@@ -40,14 +45,14 @@ public class N11CategoryAppService : TradeXpressAppService, IN11CategoryAppServi
         _megaGrouper = megaGrouper;
     }
 
+    // Sync sınıf-seviyesi Default'ta kalır (Update DEĞİL): kategori picker ilk kullanımda otomatik sync tetikler
+    // (DB boşsa) — salt-görüntüleyen kullanıcıyı kırmamak için. Taksonomi upsert'i idempotent + dış kaynaktan
+    // birebir; fiyatlamayı DEĞİŞTİREN komisyon import'u ise Update ister.
     public virtual async Task<int> SyncCategoriesAsync()
     {
-        // Host-only: global taksonomiyi yalnız host günceller (CurrentTenant null). Tenant'lar okur.
-        if (CurrentTenant.Id is not null)
-        {
-            throw new BusinessException("TradeXpress:N11:CategorySyncHostOnly");
-        }
-
+        // Katalog HOST-GLOBAL yazılır ama uç TENANT'tan da çağrılabilir (2026-07-10 kullanıcı kararı:
+        // kanal/ürün operasyonu tenant'ta yaşar, host'ta kanal menüsü yok → picker ilk-kullanım
+        // auto-sync'i tenant'tan tetiklenir). Yazım Change(null) ile host bağlamına sabitlenir.
         var appKey = _configuration["N11:CategorySync:AppKey"];
         var appSecret = _configuration["N11:CategorySync:AppSecret"];
         if (string.IsNullOrWhiteSpace(appKey) || string.IsNullOrWhiteSpace(appSecret))
@@ -57,39 +62,42 @@ public class N11CategoryAppService : TradeXpressAppService, IN11CategoryAppServi
 
         var nodes = await _client.GetCategoryTreeAsync(appKey, appSecret);
 
-        var existing = (await _repository.GetListAsync()).ToDictionary(x => x.ExternalId, StringComparer.Ordinal);
-        var toInsert = new List<N11Category>();
-        var toUpdate = new List<N11Category>();
-
-        foreach (var node in nodes)
+        using (CurrentTenant.Change(null))
         {
-            if (existing.TryGetValue(node.ExternalId, out var entity))
+            var existing = (await _repository.GetListAsync()).ToDictionary(x => x.ExternalId, StringComparer.Ordinal);
+            var toInsert = new List<N11Category>();
+            var toUpdate = new List<N11Category>();
+
+            foreach (var node in nodes)
             {
-                if (ApplyChanges(entity, node))
+                if (existing.TryGetValue(node.ExternalId, out var entity))
                 {
-                    toUpdate.Add(entity);
+                    if (ApplyChanges(entity, node))
+                    {
+                        toUpdate.Add(entity);
+                    }
+                }
+                else
+                {
+                    toInsert.Add(new N11Category(node.ExternalId, node.ParentExternalId, node.Name, node.IsLeaf, node.LastModifiedExternal));
                 }
             }
-            else
+
+            if (toInsert.Count > 0)
             {
-                toInsert.Add(new N11Category(node.ExternalId, node.ParentExternalId, node.Name, node.IsLeaf, node.LastModifiedExternal));
+                await _repository.InsertManyAsync(toInsert, autoSave: true);
             }
+
+            if (toUpdate.Count > 0)
+            {
+                await _repository.UpdateManyAsync(toUpdate, autoSave: true);
+            }
+
+            // Sync 79 top'u N11'in parentId=null'ıyla köke çeker → sentetik 9 mega katmanını YENİDEN uygula (breadcrumb üst seviyesi).
+            await _megaGrouper.EnsureAsync();
+
+            return toInsert.Count + toUpdate.Count;
         }
-
-        if (toInsert.Count > 0)
-        {
-            await _repository.InsertManyAsync(toInsert, autoSave: true);
-        }
-
-        if (toUpdate.Count > 0)
-        {
-            await _repository.UpdateManyAsync(toUpdate, autoSave: true);
-        }
-
-        // Sync 79 top'u N11'in parentId=null'ıyla köke çeker → sentetik 9 mega katmanını YENİDEN uygula (breadcrumb üst seviyesi).
-        await _megaGrouper.EnsureAsync();
-
-        return toInsert.Count + toUpdate.Count;
     }
 
     public virtual async Task<List<N11CategoryTreeNodeDto>> GetChildrenAsync(string? parentExternalId)
@@ -133,32 +141,50 @@ public class N11CategoryAppService : TradeXpressAppService, IN11CategoryAppServi
         }
     }
 
-    /// <summary>Arama-normalize: Türkçe aksanları ASCII tabanına indirger + küçük harfe çevirir (tek geçiş; İ/ı/i
-    /// tuzağını char-map ile atlar). "Kül"→"kul", "kul"→"kul" → aksan/case-duyarsız eşleşme.</summary>
+    /// <summary>Arama-normalize — merkezi <see cref="N11NameNormalizer"/> (komisyon TSV eşlemesiyle AYNI kural).</summary>
     private static string NormalizeForSearch(string? text)
     {
-        if (string.IsNullOrWhiteSpace(text))
-        {
-            return string.Empty;
-        }
+        return N11NameNormalizer.Normalize(text);
+    }
 
-        var sb = new System.Text.StringBuilder(text.Length);
-        foreach (var ch in text.Trim())
+    /// <summary>Gömülü komisyon TSV'sini (panelden derlenen tablo) yaprak kategorilere AD YOLUYLA eşleyip
+    /// <c>SetCommission</c> uygular. HOST-ONLY (ağaç host-global — SyncCategoriesAsync ile aynı sınır).
+    /// Eşleşmeyen/muğlak/geçersiz satırlar raporda döner (görev kuralı: sessiz geçilmez).</summary>
+    [Authorize(TradeXpressPermissions.SalesChannels.Update)]
+    public virtual async Task<N11CommissionImportResultDto> ImportCommissionsAsync()
+    {
+        // Tenant'tan çağrılabilir (2026-07-10 kararı — sync ile simetrik); yazım aşağıda Change(null)
+        // ile host-global kataloğa sabitlenir. Yetki: SalesChannels.Update (fiyatlamayı değiştirir).
+        var parse = N11CategoryCommissionImporter.ParseTsv(N11CategoryCommissionImporter.ReadEmbeddedTsv());
+
+        using (CurrentTenant.Change(null))
         {
-            sb.Append(ch switch
+            var categories = await _repository.GetListAsync();
+            var match = N11CategoryCommissionImporter.Match(parse.Rows, categories);
+
+            var toUpdate = new List<N11Category>();
+            foreach (var (category, row) in match.Matches)
             {
-                'ı' or 'I' or 'İ' or 'i' or 'î' or 'Î' => 'i',
-                'ü' or 'Ü' or 'u' or 'U' or 'û' or 'Û' => 'u',
-                'ö' or 'Ö' or 'o' or 'O' => 'o',
-                'ç' or 'Ç' or 'c' or 'C' => 'c',
-                'ş' or 'Ş' or 's' or 'S' => 's',
-                'ğ' or 'Ğ' or 'g' or 'G' => 'g',
-                'â' or 'Â' or 'a' or 'A' => 'a',
-                _ => char.ToLowerInvariant(ch),
-            });
-        }
+                category.SetCommission(row.CommissionRate, row.MarketingFeeRate, row.MarketplaceFeeRate, row.PayoutDays);
+                toUpdate.Add(category);
+            }
 
-        return sb.ToString();
+            if (toUpdate.Count > 0)
+            {
+                await _repository.UpdateManyAsync(toUpdate, autoSave: true);
+            }
+
+            return new N11CommissionImportResultDto
+            {
+                TotalRowCount = parse.Rows.Count,
+                MatchedCount = match.Matches.Count,
+                UpdatedCategoryCount = toUpdate.Count,
+                LeafCount = match.LeafCount,
+                UnmatchedRows = match.Unmatched.ToList(),
+                ConflictRows = match.Conflicts.ToList(),
+                InvalidRows = parse.InvalidRows.ToList(),
+            };
+        }
     }
 
     /// <summary>Yaprağın kökten tam yolu ("A &gt; B &gt; C") — parent zinciri id map'ten yürünür (döngü guard'lı).</summary>

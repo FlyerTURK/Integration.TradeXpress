@@ -45,6 +45,11 @@ public abstract class SalesChannelBase : FullAuditedAggregateRoot<Guid>, IMultiT
     public virtual string? Description { get; protected set; }
     public virtual bool IsActive { get; protected set; }
 
+    /// <summary>Kanalın yan-maliyet (gider) ayarları — owned JSON (<c>SideCosts</c> kolonu). Null = hiç
+    /// yapılandırılmamış. Kanal-agnostik TEK tip: hangi kanal hangi alanı kullanıyorsa doldurur.
+    /// <c>SideCostRecipeComposer</c> buradan kanal varyant reçetesine otomatik satırlar üretir.</summary>
+    public virtual SideCostSettings? SideCosts { get; protected set; }
+
     #endregion
 
     #region Methods
@@ -70,6 +75,13 @@ public abstract class SalesChannelBase : FullAuditedAggregateRoot<Guid>, IMultiT
     public virtual void SetActive(bool value)
     {
         IsActive = value;
+    }
+
+    /// <summary>Yan-maliyet ayarlarını ATOMİK atar (yarım güncelleme yok — VO ctor'u guard'ları çalıştırmış
+    /// gelir: negatif tutar/oran, GrossUp [0,100) sınırı). Null = ayarları temizle.</summary>
+    public virtual void SetSideCosts(SideCostSettings? sideCosts)
+    {
+        SideCosts = sideCosts;
     }
 
     public override string ToString()

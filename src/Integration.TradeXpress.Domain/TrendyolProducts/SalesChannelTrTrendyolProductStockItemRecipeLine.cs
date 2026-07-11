@@ -107,6 +107,10 @@ public class SalesChannelTrTrendyolProductStockItemRecipeLine : FullAuditedAggre
     /// gevşek referans; id-only). AllAbove ve türev-dışı satırda null.</summary>
     public virtual string? DerivedSourceLineIds { get; protected set; }
 
+    /// <summary>Yan-maliyet türü — kanal gider ayarlarından OTOMATİK üretilen satırları kullanıcı satırlarından
+    /// ayırır (idempotent reconcile anahtarı; SideCostRecipeComposer). Null = kullanıcı satırı.</summary>
+    public virtual SideCostKind? SideCostKind { get; protected set; }
+
     #endregion
 
     #region Methods
@@ -191,6 +195,12 @@ public class SalesChannelTrTrendyolProductStockItemRecipeLine : FullAuditedAggre
     {
         Description = StringFieldGuard.EnsureOptionalText(
             description, nameof(Description), EntityFieldConsts.DescriptionMinLength, ProductRecipeConsts.DescriptionMaxLength);
+    }
+
+    /// <summary>Yan-maliyet türünü atar (composer otomatik satırı işaretler; null = kullanıcı satırı).</summary>
+    public virtual void SetSideCostKind(SideCostKind? sideCostKind)
+    {
+        SideCostKind = sideCostKind;
     }
 
     public override string ToString()

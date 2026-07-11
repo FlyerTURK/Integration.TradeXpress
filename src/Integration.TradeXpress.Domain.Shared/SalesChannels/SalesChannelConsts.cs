@@ -17,4 +17,7 @@ public static class SalesChannelConsts
     /// <summary>Etsy OAuth token kolonları (access "{user_id}.{token}" + rotasyonlu refresh). Etsy token'ları
     /// pratikte ~100 karakter; ileriye dönük rahat pay (opak sır — normalize edilmez, kırpılmaz).</summary>
     public const int OAuthTokenMaxLength  = 1024;
+
+    /// <summary>Gider satırının serbest görünen adı (SideCostItem.DisplayName) — boş = tür lokalizesi.</summary>
+    public const int SideCostDisplayNameMaxLength = 64;
 }

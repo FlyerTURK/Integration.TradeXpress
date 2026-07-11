@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Volo.Abp;
 using Volo.Abp.EntityFrameworkCore.Modeling;
 using Integration.TradeXpress.SalesChannels;
@@ -34,6 +35,20 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
             b.HasIndex(x => new { x.TenantId, x.CompanyId, x.Code }).IsUnique().HasFilter("[IsDeleted] = 0");
             // Company güvenlik query-filter'ını hızlandırır (ICompanyOwned).
             b.HasIndex(x => new { x.TenantId, x.CompanyId });
+
+            // Yan-maliyet (gider) ayarları — kanal-agnostik VO, TEK JSON kolonu (base tabloda; alt tiplere alan
+            // yayılmaz). EF native ToJson() TPT'de DESTEKLENMİYOR ("Only TPH inheritance is supported") → değer
+            // dönüştürücü (SideCostSettingsJson; gerekçe orada). Değişim tespiti: SetSideCosts bütün-nesne değişimi
+            // yapar; comparer serileştirilmiş metin üstünden (iç mutasyon yok — VO immutable kullanılır).
+            b.Property(x => x.SideCosts)
+                .HasColumnName("SideCosts")
+                .HasConversion(
+                    v => SideCostSettingsJson.Serialize(v),
+                    v => SideCostSettingsJson.Deserialize(v),
+                    new ValueComparer<SideCostSettings>(
+                        (l, r) => SideCostSettingsJson.Serialize(l) == SideCostSettingsJson.Serialize(r),
+                        v => (SideCostSettingsJson.Serialize(v) ?? string.Empty).GetHashCode(),
+                        v => SideCostSettingsJson.Deserialize(SideCostSettingsJson.Serialize(v))!));
         });
 
         // ── Somut alt-tip: N11 (Türkiye pazaryeri) → AppSalesChannelTrN11 (API kimlik bilgileri) ──

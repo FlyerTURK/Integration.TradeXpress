@@ -92,6 +92,7 @@ public class SalesChannelTrN11AppService : TradeXpressAppService, ISalesChannelT
 
         var entity = new SalesChannelTrN11(companyId, input.Code, input.Name, input.AppKey, input.AppSecret);
         entity.SetDescription(input.Description);
+        entity.SetSideCosts(SideCostSettingsFactory.Build(input.SideCosts));
         await _repository.InsertAsync(entity, autoSave: true);
 
         // Kanal oluşturulur oluşturulmaz N11'deki mevcut kargo şablonlarını kanalın KENDİ kimliğiyle otomatik çek.
@@ -110,6 +111,7 @@ public class SalesChannelTrN11AppService : TradeXpressAppService, ISalesChannelT
         entity.SetName(input.Name);
         entity.SetDescription(input.Description);
         await ApplyCredentialChangeAsync(entity, input.AppKey, input.AppSecret);
+        entity.SetSideCosts(SideCostSettingsFactory.Build(input.SideCosts));
         entity.SetActive(input.IsActive);
         await _repository.UpdateAsync(entity, autoSave: true);
 

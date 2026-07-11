@@ -100,6 +100,7 @@ public class SalesChannelTrTrendyolAppService : TradeXpressAppService, ISalesCha
 
         var entity = new SalesChannelTrTrendyol(companyId, input.Code, input.Name, input.SellerId, effectiveApiKey, effectiveApiSecret);
         entity.SetDescription(input.Description);
+        entity.SetSideCosts(SideCostSettingsFactory.Build(input.SideCosts));
         await _repository.InsertAsync(entity, autoSave: true);
 
         // Kanal oluşturulur oluşturulmaz Trendyol kategori ağacını (host-global) otomatik senkronize et — kimlik create'te
@@ -133,6 +134,7 @@ public class SalesChannelTrTrendyolAppService : TradeXpressAppService, ISalesCha
         entity.SetName(input.Name);
         entity.SetDescription(input.Description);
         await ApplyCredentialChangeAsync(entity, input.SellerId, input.ApiKey, input.ApiSecret, input.Token);
+        entity.SetSideCosts(SideCostSettingsFactory.Build(input.SideCosts));
         entity.SetActive(input.IsActive);
         await _repository.UpdateAsync(entity, autoSave: true);
 
