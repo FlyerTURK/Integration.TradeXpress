@@ -20,6 +20,16 @@
             OnSearchChanged="OnSearchAsync">
 
     <GridColumns>
+        <DxGridDataColumn Caption="@L["Preview"]" Width="60px" VisibleIndex="0" TextAlignment="GridTextAlignment.Center">
+            <CellDisplayTemplate Context="cell">
+                @{ var item = (StoneListDto)cell.DataItem; }
+                @if (!string.IsNullOrEmpty(item.ImagePreviewUrl))
+                {
+                    @* ham img: Dx görsel bileşeni yok — küçük, sınırlı önizleme (Good/Metal deseniyle aynı) *@
+                    <img src="@item.ImagePreviewUrl" alt="" style="max-height:32px; max-width:48px; object-fit:contain;" />
+                }
+            </CellDisplayTemplate>
+        </DxGridDataColumn>
         <GridLinkColumn FieldName="Code" Caption="@L["Code"]" Width="120px" FixedPosition="GridColumnFixedPosition.Left" VisibleIndex="1"
                         OnClick="@(o => BeforeUpdateAsync((StoneListDto)o))" />
         <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" VisibleIndex="1"  MinWidth="200" />

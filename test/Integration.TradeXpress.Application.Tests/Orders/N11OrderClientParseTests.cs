@@ -103,18 +103,18 @@ public class N11OrderClientParseTests
     [Fact]
     public void Status_5_maps_to_delivered()
     {
-        // Canlı doğrulandı: order-status 5 = tamamlanmış/teslim.
+        // order-status 5 = Tamamlandı → Delivered (SOAP ref v4.6; kalem-status 10 + tracking/shippingDate).
         N11OrderStatusMapper.Map("5").ShouldBe(OrderStatus.Delivered);
     }
 
     [Theory]
-    [InlineData("1")]
+    [InlineData("4")]      // Geçersiz — belirsiz, nötr duruma zorlanmaz
     [InlineData("99")]
     [InlineData(null)]
     [InlineData("abc")]
     public void Status_mapper_is_conservative_unknown_for_unseen_codes(string? raw)
     {
-        // Henüz gözlenmemiş kodlar ihtiyatlı: Unknown (ham değer RemoteStatus'te korunur).
+        // Bilinmeyen/geçersiz kodlar ihtiyatlı: Unknown (ham değer RemoteStatus'te korunur).
         N11OrderStatusMapper.Map(raw).ShouldBe(OrderStatus.Unknown);
     }
 }

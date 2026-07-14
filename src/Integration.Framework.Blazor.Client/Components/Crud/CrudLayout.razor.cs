@@ -70,6 +70,16 @@ namespace Integration.Framework.Blazor.Client.Components.Crud
         /// <summary>Toolbar'a sayfaya özel ek aksiyonlar (descriptor liste, SortIndex'li — ör. "Marj Ayarla", "Şubeler").</summary>
         [Parameter] public IReadOnlyList<CrudToolbarAction>? CustomActions { get; set; }
 
+        /// <summary>OPSİYONEL salt-okuma satır tıklama — set edildiğinde <c>IsGrantedUpdate</c>'ten BAĞIMSIZ tetiklenir ve
+        /// edit yolunun ÖNÜNE geçer (read-only detay panelleri için: satıra tıkla → detay popup). Unset (default) =
+        /// mevcut davranış korunur (yalnız update yetkisi varken edit açılır).</summary>
+        [Parameter] public EventCallback<TListDto> OnRowSelect { get; set; }
+
+        /// <summary>OPSİYONEL master-detail satır şablonu — set edildiğinde DxGrid her satıra genişletme düğmesi ekler ve
+        /// açılınca bu şablonu satır-altında render eder (context = <see cref="GridDetailRowTemplateContext"/>,
+        /// <c>context.DataItem</c> = satır DTO'su). Unset (default) = master-detail kapalı (mevcut davranış).</summary>
+        [Parameter] public RenderFragment<GridDetailRowTemplateContext>? DetailRowTemplate { get; set; }
+
         // "Yeni" tıklaması — sayfanın popup/tab akışını çağırır.
         private async Task HandleNewClick()
         {
@@ -279,16 +289,27 @@ namespace Integration.Framework.Blazor.Client.Components.Crud
         // -- Row Events --
         private async Task OnRowClick(GridRowClickEventArgs e)
         {
+            var item = (TListDto)Grid.GetDataItem(e.VisibleIndex);
+            if (item == null)
+            {
+                return;
+            }
+
+            // Salt-okuma satır tıklama (detay panelleri): update yetkisinden BAĞIMSIZ; edit yolunun ÖNÜNE geçer.
+            if (OnRowSelect.HasDelegate)
+            {
+                StateService.SetDataRowSelected(item);
+                await OnRowSelect.InvokeAsync(item);
+                return;
+            }
+
             if (!StateService.IsGrantedUpdate)
             {
                 return;
             }
-            var item = (TListDto)Grid.GetDataItem(e.VisibleIndex);
-            if (item != null)
-            {
-                StateService.SetDataRowSelected(item);   // tıklanan satırı SEÇ (odak/FocusedRow yok) → toolbar senkron
-                await HandleRowEdit(item);               // popup/edit açan (BeforeUpdate)
-            }
+
+            StateService.SetDataRowSelected(item);   // tıklanan satırı SEÇ (odak/FocusedRow yok) → toolbar senkron
+            await HandleRowEdit(item);               // popup/edit açan (BeforeUpdate)
         }
 
         // -- Layout Persistence --

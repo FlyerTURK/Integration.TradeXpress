@@ -30,6 +30,10 @@ public sealed record VoucherLineInput(
     DateTime?            DueDate,
     string?              Description,
 
+    // ── Varyant (Good gibi çok-varyantlı emtiada) — id-only snapshot; tek/varyantsız emtiada null ──
+    Guid?                VariantId              = null,
+    string?              VariantCode            = null,
+
     // ── Virman (Transfer) — diğer tiplerde null. CounterAccountId = karşı SubAccount (id-only),
     //    LinkId = çift bacağı bağlayan ortak kimlik (legacy RefNo). ──
     Guid?                CounterAccountId       = null,

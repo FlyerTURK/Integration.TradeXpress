@@ -1,14 +1,15 @@
 @page "/orders"
-@using Integration.Framework.Blazor.Client.Components.Crud
 @using Integration.TradeXpress.Orders
 @using Integration.TradeXpress.SalesChannels
 @using DevExpress.Blazor
 @inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
 
 @*
-   ORTAK SİPARİŞ PANELİ (Sipariş Fazı O0) — TÜM satış kanallarının siparişleri TEK grid'de (kanal yalnız kolon/filtre).
-   SALT-OKUMA: "Siparişleri Çek" düğmesi pazaryerinden GET ile çeker + idempotent upsert eder (fiş/rezervasyon/stok YOK).
-   Satırlar SNAPSHOT'tan çizilir (ürün-agnostik). Kolon filtre satırı: Kanal (Tür) + Durum + Tarih.
+   ORTAK SİPARİŞ PANELİ — MASTER-DETAIL CrudLayout server-side grid. MASTER satır = SİPARİŞ (kanal/no/tarih/müşteri/
+   durum/tutar); satırı genişletince DETAIL = o siparişin KALEMLERİ (ürün/adet/fiyat + komisyon/indirim/kargo/nitelik).
+   Sıralama: order status → tarih (yeni→eski). Create/Delete YOK (Order yalnız senkronizasyondan gelir) — yalnız
+   DÜZENLEME (STANDART CrudEditHost/EntityEditForm akışı: OnUpdateClick → ViewOpener → OrderEditHost). "Siparişleri Çek"
+   pazaryerinden (Trendyol + N11) çeker; arka planda OrderSyncBackgroundWorker boş kanalları kendiliğinden doldurur.
 *@
 
 <CrudLayout TGetDto="OrderDto"
@@ -22,32 +23,37 @@
             ShowNew="false"
             ShowColumnFilter="true"
             CustomActions="@_customActions"
+            OnUpdateClick="OpenDetailAsync"
             OnRefreshClick="ReloadAsync"
             OnSearchChanged="OnSearchAsync">
 
     <GridColumns>
         <DxGridDataColumn FieldName="ChannelType" Caption="@L["Order:Channel"]" Width="140px" VisibleIndex="1">
-            <CellDisplayTemplate>
-                @{
-                    var row = (OrderListDto)context.DataItem;
-                }
-                @(!string.IsNullOrWhiteSpace(row.SalesChannelCode) ? row.SalesChannelCode : ChannelTypeLabel(row.ChannelType))
-            </CellDisplayTemplate>
+            <CellDisplayTemplate>@ChannelLabel((OrderListDto)context.DataItem)</CellDisplayTemplate>
         </DxGridDataColumn>
         <DxGridDataColumn FieldName="OrderNumber" Caption="@L["Order:OrderNumber"]" Width="160px" VisibleIndex="2" />
         <DxGridDataColumn FieldName="OrderDate" Caption="@L["Order:Date"]" Width="150px" DisplayFormat="g" VisibleIndex="3" />
-        <DxGridDataColumn FieldName="CustomerName" Caption="@L["Order:Customer"]" MinWidth="160" VisibleIndex="4" />
-        <DxGridDataColumn FieldName="TotalAmount" Caption="@L["Order:Amount"]" Width="120px" DisplayFormat="N2" VisibleIndex="5" />
-        <DxGridDataColumn FieldName="NeutralStatus" Caption="@L["Order:Status"]" Width="130px" VisibleIndex="6">
+        <DxGridDataColumn FieldName="CustomerName" Caption="@L["Order:Customer"]" MinWidth="180" VisibleIndex="4" />
+        <DxGridDataColumn FieldName="NeutralStatus" Caption="@L["Order:Status"]" Width="130px" VisibleIndex="5">
             <CellDisplayTemplate>@StatusLabel(((OrderListDto)context.DataItem).NeutralStatus)</CellDisplayTemplate>
         </DxGridDataColumn>
+        <DxGridDataColumn FieldName="TotalAmount" Caption="@L["Order:Amount"]" Width="120px"
+                          DisplayFormat="N2" TextAlignment="GridTextAlignment.Right" VisibleIndex="6" />
     </GridColumns>
+
+    @* Master-detail: satırı genişletince o siparişin KALEMLERİ (nested grid) — ürün/adet/fiyat + komisyon/indirim/
+       kargo/durum/nitelik. Veri master satırda hazır (list sorgusunda enrich; ekstra sorgu yok). *@
+    <DetailRowTemplate Context="detailCtx">
+        <OrderItemsGrid Order="@((OrderListDto)detailCtx.DataItem)" />
+    </DetailRowTemplate>
 
 </CrudLayout>
 
+@* Çekim sonuç raporu (sessiz geçilmez) — çekilen/yeni/güncellenen + pencere + uyarılar. *@
 <DxPopup @bind-Visible="_showReport"
          HeaderText="@L["Order:Fetch:ReportTitle"]"
-         Width="520px"
+         Width="min(520px, 96vw)"
+         MaxHeight="90vh"
          CloseOnEscape="true"
          ShowFooter="true">
     <BodyContentTemplate>

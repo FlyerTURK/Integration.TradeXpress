@@ -16,7 +16,7 @@
    (dirty/toolbar/*). Şirketin kendi HQ switch'i: form içi devir yok → yüklü (orijinal) HQ ise kilitli.
 *@
 <CompanyEditFields Model="@Model" Units="@Units" Countries="@Countries"
-                   HeadquartersEnabled="@(!_originalWasHq)" CodeEnabled="@IsNew"
+                   HeadquartersEnabled="@(!_originalWasHq)" CodeEnabled="true"
                    OnAddCurrency="@OnAddCurrency" OnEditCurrency="@OnEditCurrency"
                    OnAddCountry="@OnAddCountry" OnEditCountry="@OnEditCountry" />
 

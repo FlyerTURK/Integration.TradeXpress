@@ -31,6 +31,9 @@
                     CanDeleteRecord="@((CanDelete?.Invoke(_model) ?? true) && !_isNew)"
                     IsReadOnly="@(IsReadOnly?.Invoke(_model) ?? false)"
                     ReadOnlyNoticeText="@ReadOnlyNotice"
+                    SupportsSaveAndNew="@SupportsSaveAndNew"
+                    SupportsDelete="@SupportsDelete"
+                    BuildCustomActions="@BuildCustomActions"
                     Placement="@Placement"
                     ValidateContext="@ValidateContext"
                     HasExtraChanges="@HasExtraChanges"
@@ -83,6 +86,13 @@
     /// <summary>Salt-okunur mu (ör. tenant'ta global kayıt).</summary>
     [Parameter] public Func<TGetDto, bool>? IsReadOnly { get; set; }
     [Parameter] public string? ReadOnlyNotice { get; set; }
+    /// <summary>Bu edit "Kaydet ve Yeni"yi destekliyor mu? false ise toolbar butonu gizlenir (EntityEditForm'a pas).
+    /// Default true (mevcut TÜM edit host'ları değişmez). Create'i olmayan edit-only entity'ler false verir.</summary>
+    [Parameter] public bool SupportsSaveAndNew { get; set; } = true;
+    /// <summary>Bu edit Sil'i destekliyor mu? false ise toolbar Sil'i gizler (EntityEditForm'a pas). Default true.</summary>
+    [Parameter] public bool SupportsDelete { get; set; } = true;
+    /// <summary>Edite özel ek toolbar aksiyonları (EntityEditForm'a pas — bkz. orada). Default null.</summary>
+    [Parameter] public Func<TGetDto, IReadOnlyList<CrudToolbarAction>>? BuildCustomActions { get; set; }
     /// <summary>Bağlamsal validasyon (model attribute'larına EK; ör. Guid FK boş değil).</summary>
     [Parameter] public Func<TGetDto, IReadOnlyList<KeyValuePair<string, string>>>? ValidateContext { get; set; }
     [Parameter] public ToolbarPlacement Placement { get; set; } = ToolbarPlacement.Top;

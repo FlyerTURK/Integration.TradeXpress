@@ -86,6 +86,11 @@ public class Order : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwned
     /// <summary>Bu kaydın pazaryerinden en son çekildiği an (UTC) — çekim tazeliği göstergesi.</summary>
     public virtual DateTime FetchedAt { get; protected set; }
 
+    /// <summary>ZENGİN sipariş detayı (N11 getOrderDetail projeksiyonu) — owned JSON (value-converter). Sipariş DETAY
+    /// popup'ının kaynağı: alıcı/adresler/tutar kırılımı/kalem komisyon+nitelik. null = detay henüz çekilmedi
+    /// (enrichment; grid/başlık yine tam anlamlı — snapshot felsefesi).</summary>
+    public virtual OrderDetailSnapshot? Detail { get; protected set; }
+
     #endregion
 
     #region Methods
@@ -114,6 +119,16 @@ public class Order : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwned
         CargoProvider = Clip(cargoProvider, OrderConsts.CargoProviderMaxLength);
         CargoTrackingNumber = Clip(cargoTrackingNumber, OrderConsts.CargoTrackingNumberMaxLength);
         FetchedAt = fetchedAt;
+    }
+
+    /// <summary>Zengin detay snapshot'ını (getOrderDetail) ayarlar — enrichment yolu. null geçilirse detay TEMİZLENMEZ
+    /// (çekim başarısızsa eski detay korunur); yalnız dolu snapshot yazar.</summary>
+    public virtual void SetDetail(OrderDetailSnapshot? detail)
+    {
+        if (detail is not null)
+        {
+            Detail = detail;
+        }
     }
 
     public override string ToString()

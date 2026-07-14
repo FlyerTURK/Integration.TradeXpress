@@ -3,10 +3,12 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Integration.Framework.Blazor.Client.Services.Base;
+using Integration.Framework.Blazor.Client.Services.Mdi;
 using Integration.TradeXpress.Blazor.Client.Services.Working;
 using Integration.TradeXpress.Cashes;
 using Integration.TradeXpress.Financials.CurrencyUnits;
 using Integration.TradeXpress.Localization;
+using Integration.TradeXpress.Variants;
 using Integration.TradeXpress.Vouchers;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.Localization;
@@ -26,6 +28,8 @@ public abstract partial class CommodityProcessPanelBase<TListDto> : IVoucherLine
     [Inject] private IVoucherAppService VoucherService { get; set; } = default!;
     [Inject] private IWorkingContextService Working { get; set; } = default!;
     [Inject] private IUiInteractionService Ui { get; set; } = default!;
+    [Inject] private IViewOpener ViewOpener { get; set; } = default!;   // emtia/varyant lookup ✎/+ → merkezî popup yolu
+    [Inject] private IPopupService PopupService { get; set; } = default!;
 
     [Parameter] public EventCallback OnBack { get; set; }
     [Parameter] public string? AccountCode { get; set; }
@@ -52,6 +56,43 @@ public abstract partial class CommodityProcessPanelBase<TListDto> : IVoucherLine
     /// <summary>Emtia picker listesi (çalışılan şirket scope'lu).</summary>
     protected abstract Task<List<TListDto>> GetCommodityPickerListAsync(Guid? companyId);
 
+    /// <summary>Panel varyant destekliyor mu (yalnız Good gibi çok-varyantlı emtiada true) — base varyant combo'sunu buna göre çizer.</summary>
+    protected virtual bool SupportsVariants
+    {
+        get { return false; }
+    }
+
+    /// <summary>Varyantların KENDİ fiyatı var mı (Good → GoodVariantDetail). false ise varyant seçimi fiyatı DEĞİŞTİRMEZ
+    /// (yalnız VariantId kaydeder); fiyat emtia seviyesinde kalır (Jewelry/Stone: milyem/manuel fiyat).</summary>
+    protected virtual bool VariantsHaveOwnPricing
+    {
+        get { return false; }
+    }
+
+    /// <summary>Seçili emtianın (commodityId) AKTİF varyant seçeneklerini yükler — yalnız SupportsVariants panelde override edilir.</summary>
+    protected virtual Task<List<CommodityVariantOptionDto>> GetVariantOptionsAsync(Guid commodityId)
+    {
+        return Task.FromResult(new List<CommodityVariantOptionDto>());
+    }
+
+    /// <summary>Emtia lookup combo'sunun ✎/+ butonlarının açtığı edit host tipi (ör. <c>typeof(GoodEditHost)</c>). null → butonlar gizli.</summary>
+    protected virtual Type? CommodityEditComponentType
+    {
+        get { return null; }
+    }
+
+    /// <summary>Emtia Ekle(+) izin adı (UI kapısı; server-side policy asıl denetim). null → kısıt yok.</summary>
+    protected virtual string? CommodityCreatePolicy
+    {
+        get { return null; }
+    }
+
+    /// <summary>Emtia Düzelt(✎) izin adı. null → kısıt yok.</summary>
+    protected virtual string? CommodityUpdatePolicy
+    {
+        get { return null; }
+    }
+
     private const string LabelStyle = "font-weight:600; text-transform:uppercase; letter-spacing:0.05em;";
 
     private bool _isMobile;
@@ -66,6 +107,11 @@ public abstract partial class CommodityProcessPanelBase<TListDto> : IVoucherLine
 
     private List<TListDto> _allCommodities = new();
     private List<TListDto> _activeCommodities = new();
+    private List<CommodityVariantOptionDto> _variantOptions = new();
+
+    // Yön-bazlı fiyat/birim kaynağı — emtia ya da (varsa) seçili varyanttan doldurulur.
+    private decimal _srcEntryPrice, _srcExitPrice;
+    private Guid? _srcEntryUnitId, _srcExitUnitId;
 
     private List<CurrencyUnitListDto> _activeUnits = new();
     private List<CashListDto> _allCashes = new();
@@ -120,9 +166,13 @@ public abstract partial class CommodityProcessPanelBase<TListDto> : IVoucherLine
         _codeByUnit = unitResult.Items.ToDictionary(u => u.Id, u => u.Code);
 
         if (_activeCommodities.Count > 0)
-            OnCommodityChanged(_activeCommodities[0].Id);
+        {
+            await OnCommodityChangedAsync(_activeCommodities[0].Id);
+        }
         else
+        {
             BuildPayList();
+        }
     }
 
     // Tutar = (Adet | Miktar) × Fiyat.
@@ -132,35 +182,138 @@ public abstract partial class CommodityProcessPanelBase<TListDto> : IVoucherLine
         _model.PayTotal = basis * _model.PayFactor;
     }
 
-    private void OnCommodityChanged(Guid? id)
+    private async Task OnCommodityChangedAsync(Guid? id)
     {
         var c = id.HasValue ? _allCommodities.FirstOrDefault(x => x.Id == id.Value) : null;
         _model.CommodityId   = id;
         _model.CommodityCode = c?.Code ?? string.Empty;
+        _model.VariantId     = null;
+        _model.VariantCode   = null;
+        _variantOptions      = new();
         if (c is { })
         {
             _showAdet          = c.IsQuantity;
             _priceByQuantity   = c.PriceByQuantity;
             _priceTypeReadOnly = !c.PriceTypeChange;
-            ApplyDirectionPrice(c);
+            SetPriceSource(c.EntryPrice, c.ExitPrice, c.EntryPriceUnitId, c.ExitPriceUnitId);
+
+            // Varyantlı emtia (Good): AKTİF varyantları yükle. Tek varyant → VariantId null (anlamlı varyant boyutu yok);
+            // çoklu → ana varyant varsayılan seçilir, fiyatı (varsa) o belirler.
+            if (SupportsVariants && id is { } commodityId)
+            {
+                _variantOptions = await GetVariantOptionsAsync(commodityId);
+                if (_variantOptions.Count > 1)
+                {
+                    var main = _variantOptions.FirstOrDefault(v => v.IsMain) ?? _variantOptions[0];
+                    ApplyVariant(main);
+                }
+            }
         }
+
+        ApplyDirectionPrice();
         BuildPayList();
         EnsurePayItem(SuggestedUnit());
         Recompute();
     }
 
-    private void ApplyDirectionPrice(TListDto c)
+    private void OnVariantChanged(Guid? id)
+    {
+        var v = id.HasValue ? _variantOptions.FirstOrDefault(x => x.Id == id.Value) : null;
+        if (v is { })
+        {
+            ApplyVariant(v);
+        }
+        else
+        {
+            _model.VariantId   = null;
+            _model.VariantCode = null;
+        }
+
+        ApplyDirectionPrice();
+        EnsurePayItem(SuggestedUnit());
+        Recompute();
+    }
+
+    // Seçili varyantı modele işler — VariantId/Code + (varyant-başı fiyatı olan emtiada) fiyat kaynağını varyanta çevirir.
+    private void ApplyVariant(CommodityVariantOptionDto v)
+    {
+        _model.VariantId   = v.Id;
+        _model.VariantCode = v.Code;
+        if (VariantsHaveOwnPricing)
+        {
+            SetPriceSource(v.EntryPrice, v.ExitPrice, v.EntryPriceUnitId, v.ExitPriceUnitId);
+        }
+    }
+
+    // Emtia veya seçili varyanttan yön-bazlı fiyat/birim kaynağını belirler (ApplyDirectionPrice/SuggestedUnit buradan okur).
+    private void SetPriceSource(decimal entry, decimal exit, Guid? entryUnitId, Guid? exitUnitId)
+    {
+        _srcEntryPrice  = entry;
+        _srcExitPrice   = exit;
+        _srcEntryUnitId = entryUnitId;
+        _srcExitUnitId  = exitUnitId;
+    }
+
+    private void ApplyDirectionPrice()
     {
         var inflow = _model.Direction.IsInflow();   // Giriş
-        _model.PayFactor = inflow ? c.EntryPrice : c.ExitPrice;
+        _model.PayFactor = inflow ? _srcEntryPrice : _srcExitPrice;
     }
 
     private Guid? SuggestedUnit()
     {
-        var c = _allCommodities.FirstOrDefault(x => x.Id == _model.CommodityId);
-        if (c is null) return null;
+        if (_model.CommodityId is null)
+        {
+            return null;
+        }
+
         var inflow = _model.Direction.IsInflow();
-        return inflow ? c.EntryPriceUnitId : c.ExitPriceUnitId;
+        return inflow ? _srcEntryUnitId : _srcExitUnitId;
+    }
+
+    // Emtia lookup ✎/+ sonrası (EntityChange) listeyi tazele + seçili emtia varyantlarını da yenile.
+    private async Task ReloadCommoditiesAsync()
+    {
+        _allCommodities = await GetCommodityPickerListAsync(Working.CurrentCompanyId);
+        _activeCommodities = _allCommodities.Where(c => c.IsActive).ToList();
+        if (SupportsVariants && _model.CommodityId is { } id)
+        {
+            _variantOptions = await GetVariantOptionsAsync(id);
+        }
+
+        StateHasChanged();
+    }
+
+    // Varyant lookup'ın tazeleme kancası (TItem farklı olduğundan EntityChange doğrudan tetiklemez; el ile).
+    private async Task ReloadVariantsAsync()
+    {
+        if (SupportsVariants && _model.CommodityId is { } id)
+        {
+            _variantOptions = await GetVariantOptionsAsync(id);
+            StateHasChanged();
+        }
+    }
+
+    // Seçili emtianın KARTINI açar (varyant yönetimi orada) — commodity id ile (varyant id DEĞİL). Varyant lookup'ın ✎/+ butonları buraya bağlanır.
+    private Task OpenCommodityCardAsync()
+    {
+        if (CommodityEditComponentType is null || _model.CommodityId is not { } id)
+        {
+            return Task.CompletedTask;
+        }
+
+        var extra = new Dictionary<string, object>
+        {
+            { "OnClosed", EventCallback.Factory.Create(this, () => PopupService.Close()) },
+        };
+        return ViewOpener.OpenAsync(CommodityEditComponentType, id, string.Empty, null, extra);
+    }
+
+    // Varyant Ekle(+) → seçili mamülün kartını açar (yeni varyant orada nitelik tanımıyla üretilir); combo'ya seçilecek değer yok.
+    private async Task<Guid?> OpenCommodityCardForAddAsync()
+    {
+        await OpenCommodityCardAsync();
+        return null;
     }
 
     private void BuildPayList()
@@ -206,8 +359,11 @@ public abstract partial class CommodityProcessPanelBase<TListDto> : IVoucherLine
     private void OnDirectionChanged(ProcessDirectionType value)
     {
         _model.Direction = value;
-        var c = _allCommodities.FirstOrDefault(x => x.Id == _model.CommodityId);
-        if (c is { }) ApplyDirectionPrice(c);
+        if (_model.CommodityId is not null)
+        {
+            ApplyDirectionPrice();
+        }
+
         EnsurePayItem(SuggestedUnit());
         Recompute();
     }
@@ -242,6 +398,11 @@ public abstract partial class CommodityProcessPanelBase<TListDto> : IVoucherLine
     private string GroupStyle() =>
         "display:flex; flex-direction:column; gap:4px; " + (_isMobile ? "width:100%;" : "width:120px; flex-shrink:0;");
     private string ControlStyle() => _isMobile ? "width:100%;" : "width:120px;";
+
+    // Varyant grubu — emtia+varyant combo'ları alt alta; emtia combo'sunun 2 KATI genişlik (Good paneli).
+    private string VariantGroupStyle() =>
+        "display:flex; flex-direction:column; gap:4px; " + (_isMobile ? "width:100%;" : "width:240px; flex-shrink:0;");
+    private string VariantControlStyle() => _isMobile ? "width:100%;" : "width:240px;";
 
     /// <summary>Kaydetme sürüyor mu — re-entrancy bayrağı (çift tıklama/Enter çift-gönderim koruması).</summary>
     private bool _saving;
@@ -302,7 +463,7 @@ public abstract partial class CommodityProcessPanelBase<TListDto> : IVoucherLine
         _model.Description = null;
     }
 
-    public Task LoadForEditAsync(VoucherLineDto dto)
+    public async Task LoadForEditAsync(VoucherLineDto dto)
     {
         _model = dto;
         VoucherId = dto.VoucherId;
@@ -313,9 +474,15 @@ public abstract partial class CommodityProcessPanelBase<TListDto> : IVoucherLine
             _priceByQuantity   = c.PriceByQuantity;
             _priceTypeReadOnly = !c.PriceTypeChange;
         }
+
+        // Varyantlı emtiada varyant combo'sunu kayıtlı VariantId ile gösterebilmek için seçenekleri yükle (fiyat WYSIWYG — dokunma).
+        if (SupportsVariants && dto.CommodityId is { } commodityId)
+        {
+            _variantOptions = await GetVariantOptionsAsync(commodityId);
+        }
+
         BuildPayList();
         EnsurePayItem();
         StateHasChanged();
-        return Task.CompletedTask;
     }
 }

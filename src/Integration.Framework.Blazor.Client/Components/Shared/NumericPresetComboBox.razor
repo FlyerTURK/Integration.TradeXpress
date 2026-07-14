@@ -1,0 +1,22 @@
+@using System
+@using System.Collections.Generic
+@using System.Linq.Expressions
+@using DevExpress.Blazor
+
+@* Sayısal ön-tanımlı (preset) combo — hazır değerler (ör. KDV %: 1/10/20) dropdown'da seçilir YA DA
+   AllowUserInput ile liste-dışı serbest sayı yazılır. Text TEK KAYNAK: seçim de yazım da Text üzerinden
+   parse edilip decimal Value'ya düşer (DevExpress AllowUserInput'ta Value yalnız liste eşleşmesinde dolduğundan).
+   Dirty: ValueExpression (@bind-Value) varsa EditContext'e bildirilir. ValidationEnabled=false (tek-yön Text). *@
+
+<DxComboBox TData="decimal" TValue="decimal"
+            Data="@Presets"
+            AllowUserInput="true"
+            SearchMode="ListSearchMode.AutoSearch"
+            Text="@_text"
+            TextChanged="@OnTextChangedAsync"
+            TextExpression="@(() => _text)"
+            Enabled="@Enabled"
+            NullText="@NullText"
+            ValidationEnabled="false"
+            ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Never"
+            CssClass="w-100" />

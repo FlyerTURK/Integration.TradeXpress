@@ -14,6 +14,8 @@ using Integration.TradeXpress.Scraps;
 using Integration.TradeXpress.Metals;
 using Integration.TradeXpress.Stones;
 using Integration.TradeXpress.Jewelries;
+using Integration.TradeXpress.Goods;
+using Integration.TradeXpress.SpecialCodes;
 using Integration.TradeXpress.Accounts;
 
 namespace Integration.TradeXpress.EntityFrameworkCore;
@@ -62,6 +64,8 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
         ApplyOrdinalCodeCollation<Metal>(builder);
         ApplyOrdinalCodeCollation<Stone>(builder);
         ApplyOrdinalCodeCollation<Jewelry>(builder);
+        ApplyOrdinalCodeCollation<Good>(builder);
+        ApplyOrdinalCodeCollation<SpecialCode>(builder);
         ApplyOrdinalCodeCollation<Account>(builder);
         ApplyOrdinalCodeCollation<SubAccount>(builder);
     }

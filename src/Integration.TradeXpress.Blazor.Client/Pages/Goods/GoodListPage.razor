@@ -1,0 +1,40 @@
+@page "/goods"
+@using Integration.Framework.Blazor.Client.Components.Crud
+@using Integration.TradeXpress.Goods
+@using DevExpress.Blazor
+@inherits CrudPageBase<GoodGetDto, GoodListDto, Guid, GoodListRequestDto, GoodCreateDto, GoodUpdateDto>
+
+<CrudLayout TGetDto="GoodGetDto"
+            TListDto="GoodListDto"
+            TKey="Guid"
+            StateService="StateService"
+            DataSource="@GridDataSource"
+            EntityName="@L["Good"]"
+            EntityIcon="@TradeXpressIcons.Good"
+            PrimaryTextSelector="@(m => m.Code)"
+            PageTitle="@L["Goods"]"
+            OnNewClick="BeforeCreateAsync"
+            OnUpdateClick="BeforeUpdateAsync"
+            OnDeleteClick="DeleteAsync"
+            OnRefreshClick="GetListAsync"
+            OnSearchChanged="OnSearchAsync">
+
+    <GridColumns>
+        <DxGridDataColumn Caption="@L["Preview"]" Width="60px" VisibleIndex="0" TextAlignment="GridTextAlignment.Center">
+            <CellDisplayTemplate Context="cell">
+                @{ var item = (GoodListDto)cell.DataItem; }
+                @if (!string.IsNullOrEmpty(item.ImagePreviewUrl))
+                {
+                    @* ham img: Dx görsel bileşeni yok — küçük, sınırlı önizleme (Metal/Product liste deseniyle aynı) *@
+                    <img src="@item.ImagePreviewUrl" alt="" style="max-height:32px; max-width:48px; object-fit:contain;" />
+                }
+            </CellDisplayTemplate>
+        </DxGridDataColumn>
+        <GridLinkColumn FieldName="Code" Caption="@L["Code"]" Width="120px" FixedPosition="GridColumnFixedPosition.Left" VisibleIndex="1"
+                        OnClick="@(o => BeforeUpdateAsync((GoodListDto)o))" />
+        <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" VisibleIndex="1" MinWidth="200" />
+        <DxGridDataColumn FieldName="Brand" Caption="@L["GoodBrand"]" Width="120px" VisibleIndex="2" />
+        <DxGridDataColumn FieldName="Category" Caption="@L["GoodCategory"]" Width="120px" VisibleIndex="3" />
+    </GridColumns>
+
+</CrudLayout>

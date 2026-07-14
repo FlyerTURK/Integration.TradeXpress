@@ -1,16 +1,19 @@
 @page "/metals/new"
 @page "/metals/{Id:guid}"
 @using System
-@using System.Linq
-@using System.Collections.Generic
 @using Integration.TradeXpress.Metals
 @using Integration.TradeXpress.Financials.CurrencyUnits
 @using Integration.Framework.Blazor.Client.Components.Crud
-@using Microsoft.Extensions.Localization
+@using Volo.Abp.ObjectMapping
 @inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
 @inject IMetalAppService MetalAppService
 @inject ICurrencyUnitAppService CurrencyUnitAppService
-@inject Volo.Abp.ObjectMapping.IObjectMapper Mapper
+@inject IObjectMapper Mapper
+@inject IUiInteractionService UiService
+
+@*
+   Maden edit host — STANDART CrudEditHost akışı. Yeni kayıt default'ları + standart ana varyant tohumu.
+*@
 
 @if (_coordinator != null && _ready)
 {
@@ -19,29 +22,8 @@
                   FormCaption="@L["Metal"].Value" IconCssClass="@TradeXpressIcons.Metal"
                   EntityValue="@(m => m.Code)"
                   IsReadOnly="@(m => m.IsGlobal && CurrentTenant?.Id != null)"
-                  ApplyNewDefaults="@(m => { m.IsActive = true; m.Factor = 0.995m; })">
-        <MetalLayout Model="@context" IsNew="@(context.Id == Guid.Empty)" CurrencyUnits="@_units" />
+                  ApplyNewDefaults="@ApplyNewDefaults">
+        <MetalLayout Model="@context" IsNew="@(context.Id == Guid.Empty)" CurrencyUnits="@_units"
+                     OnGenerateVariants="@(async () => await GenerateVariantsAsync(context))" />
     </CrudEditHost>
-}
-
-@code {
-    [Parameter] public Guid? Id { get; set; }
-    [Parameter] public bool IsPopupMode { get; set; }
-    [Parameter] public EventCallback OnSaved { get; set; }
-    [Parameter] public EventCallback OnClosed { get; set; }
-
-    private List<CurrencyUnitListDto> _units = new();
-    private ICommitCoordinator<MetalGetDto, MetalListDto, Guid, MetalListRequestDto>? _coordinator;
-    private bool _ready;
-
-    protected override async Task OnInitializedAsync()
-    {
-        _coordinator = new PersistentCoordinator<MetalGetDto, MetalListDto, Guid, MetalListRequestDto, MetalCreateDto, MetalUpdateDto>(
-            MetalAppService, Mapper);
-
-        var result = await CurrencyUnitAppService.GetListAsync(new CurrencyUnitListRequestDto { MaxResultCount = 1000 });
-        _units = result.Items.ToList();
-
-        _ready = true;
-    }
 }

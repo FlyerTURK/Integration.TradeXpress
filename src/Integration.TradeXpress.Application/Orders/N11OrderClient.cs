@@ -28,7 +28,6 @@ public sealed class N11OrderClient : IN11OrderClient, ITransientDependency
     private static readonly HttpClient HttpClient = new() { Timeout = TimeSpan.FromSeconds(40) };
 
     private const int PageSize = 100;
-    private const int MaxPageLoops = 500;
     private const int MaxThrottleRetries = 5;
     private const int ThrottleWaitSeconds = 6;
 
@@ -39,23 +38,75 @@ public sealed class N11OrderClient : IN11OrderClient, ITransientDependency
         _logger = logger;
     }
 
-    public async Task<IReadOnlyList<RemoteOrder>> GetAllOrdersAsync(
-        string appKey, string appSecret, CancellationToken cancellationToken = default)
+    public async Task<N11OrdersPage> GetOrdersPageAsync(
+        string appKey, string appSecret, int page, CancellationToken cancellationToken = default)
     {
-        var all = new List<RemoteOrder>();
+        var request = BuildListRequest(appKey, appSecret, page);
+        var doc = await PostWithThrottleRetryAsync(
+            request, "TradeXpress:N11:Order:ListFailed", "TradeXpress:N11:Order:ListRejected", cancellationToken);
+        var pageCount = ReadInt(doc, "pageCount") ?? 0;
+        return new N11OrdersPage(ParseOrders(doc), pageCount);
+    }
 
-        var page = 0;
-        int pageCount;
-        do
+    public async Task<OrderDetailSnapshot?> GetOrderDetailAsync(
+        string appKey, string appSecret, string n11OrderId, DateTime fetchedAt, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(n11OrderId))
         {
-            var doc = await PostWithThrottleRetryAsync(appKey, appSecret, page, cancellationToken);
-            pageCount = ReadInt(doc, "pageCount") ?? 0;
-            all.AddRange(ParseOrders(doc));
-            page++;
+            return null;
         }
-        while (page < pageCount && page < MaxPageLoops);
 
-        return all;
+        var request = BuildDetailRequest(appKey, appSecret, n11OrderId);
+        var doc = await PostWithThrottleRetryAsync(
+            request, "TradeXpress:N11:Order:DetailFailed", "TradeXpress:N11:Order:DetailRejected", cancellationToken);
+        return ParseOrderDetail(doc, fetchedAt);
+    }
+
+    // ── YAZMA uçları (Sipariş Fazı O2) — GERÇEK pazaryerine, geri alınamaz. Throttle-retry YOK (çift-aksiyon riski). ──
+
+    public async Task AcceptOrderItemAsync(
+        string appKey, string appSecret, IReadOnlyList<long> n11OrderItemIds, int numberOfPackages, CancellationToken cancellationToken = default)
+    {
+        var request = new XElement(Sch + "OrderItemAcceptRequest",
+            new XAttribute(XNamespace.Xmlns + "sch", Sch),
+            new XElement("auth", new XElement("appKey", appKey), new XElement("appSecret", appSecret)),
+            new XElement("orderItemList", BuildOrderItemIdElements(n11OrderItemIds)),
+            new XElement("numberOfPackages", numberOfPackages));
+        await PostWriteEnvelopeAsync(request, "TradeXpress:N11:Order:AcceptFailed", "TradeXpress:N11:Order:AcceptRejected", cancellationToken);
+    }
+
+    public async Task RejectOrderItemAsync(
+        string appKey, string appSecret, IReadOnlyList<long> n11OrderItemIds, string reason, CancellationToken cancellationToken = default)
+    {
+        var request = new XElement(Sch + "OrderItemRejectRequest",
+            new XAttribute(XNamespace.Xmlns + "sch", Sch),
+            new XElement("auth", new XElement("appKey", appKey), new XElement("appSecret", appSecret)),
+            new XElement("orderItemList", BuildOrderItemIdElements(n11OrderItemIds)),
+            new XElement("rejectReason", reason));
+        await PostWriteEnvelopeAsync(request, "TradeXpress:N11:Order:RejectFailed", "TradeXpress:N11:Order:RejectRejected", cancellationToken);
+    }
+
+    private static IEnumerable<XElement> BuildOrderItemIdElements(IReadOnlyList<long> n11OrderItemIds)
+    {
+        return n11OrderItemIds.Select(id => new XElement("orderItem", new XElement("id", id)));
+    }
+
+    public async Task MakeShipmentAsync(
+        string appKey, string appSecret, long n11OrderItemId, string shipmentCompanyId,
+        string trackingNumber, string? campaignNumber, int shipmentMethod, CancellationToken cancellationToken = default)
+    {
+        var request = new XElement(Sch + "MakeOrderItemShipmentRequest",
+            new XAttribute(XNamespace.Xmlns + "sch", Sch),
+            new XElement("auth", new XElement("appKey", appKey), new XElement("appSecret", appSecret)),
+            new XElement("orderItemList",
+                new XElement("orderItem",
+                    new XElement("id", n11OrderItemId),
+                    new XElement("shipmentInfo",
+                        new XElement("shipmentCompany", new XElement("id", shipmentCompanyId)),
+                        new XElement("campaignNumber", campaignNumber ?? string.Empty),
+                        new XElement("trackingNumber", trackingNumber),
+                        new XElement("shipmentMethod", shipmentMethod)))));
+        await PostWriteEnvelopeAsync(request, "TradeXpress:N11:Order:ShipmentFailed", "TradeXpress:N11:Order:ShipmentRejected", cancellationToken);
     }
 
     // ── Parse (testlenebilir saf statik) ─────────────────────────────────────────────────────────────
@@ -132,14 +183,159 @@ public sealed class N11OrderClient : IN11OrderClient, ITransientDependency
         return sum;
     }
 
+    // ── getOrderDetail parse (testlenebilir saf statik) → zengin snapshot VO ───────────────────────────
+
+    /// <summary>OrderDetailResponse'u kanal-agnostik <see cref="OrderDetailSnapshot"/>'a çevirir (namespace/sıra
+    /// agnostik). Alıcı + fatura/teslimat adresi + billingTemplate tutar kırılımı + itemList (komisyon/indirim/kargo/
+    /// nitelik). Alan yolları N11 SOAP ref v4.6'dan. Boş/eksik alanlar null (tolerant snapshot).</summary>
+    public static OrderDetailSnapshot? ParseOrderDetail(XDocument doc, DateTime fetchedAt)
+    {
+        var detail = doc.Descendants().FirstOrDefault(e => e.Name.LocalName == "orderDetail");
+        if (detail is null)
+        {
+            return null;
+        }
+
+        var buyerEl = FindChild(detail, "buyer");
+        var buyer = new OrderDetailParty(
+            Local(buyerEl, "fullName"), Local(buyerEl, "email"), Local(buyerEl, "tcId"),
+            Local(buyerEl, "taxId"), Local(buyerEl, "taxOffice"));
+
+        var template = FindChild(detail, "billingTemplate");
+        var totals = template is null ? null : new OrderDetailTotals(
+            ParseDecimal(Local(template, "originalPrice")),
+            ParseDecimal(Local(template, "dueAmount")),
+            ParseDecimal(Local(template, "sellerInvoiceAmount")),
+            ParseDecimal(Local(template, "totalMallDiscountPrice")),
+            ParseDecimal(Local(template, "totalSellerDiscount")),
+            ParseDecimal(Local(template, "totalServiceItemOriginalPrice")));
+
+        return new OrderDetailSnapshot(
+            buyer,
+            ParseAddress(FindChild(detail, "billingAddress")),
+            ParseAddress(FindChild(detail, "shippingAddress")),
+            ParseInt(Local(detail, "invoiceType")),
+            NullIfEmpty(Local(detail, "paymentType")),
+            NullIfEmpty(Local(detail, "citizenshipId")),
+            totals,
+            ParseDetailItems(detail),
+            fetchedAt);
+    }
+
+    private static OrderDetailAddress? ParseAddress(XElement? el)
+    {
+        if (el is null)
+        {
+            return null;
+        }
+
+        var address = new OrderDetailAddress(
+            Local(el, "fullName"), Local(el, "address"), Local(el, "neighborhood"), Local(el, "district"),
+            Local(el, "city"), Local(el, "postalCode"), Local(el, "gsm"), Local(el, "tcId"),
+            Local(el, "taxId"), Local(el, "taxOffice"));
+        return address.HasAny() ? address : null;
+    }
+
+    private static List<OrderDetailItem> ParseDetailItems(XElement detail)
+    {
+        var items = new List<OrderDetailItem>();
+        var itemList = FindChild(detail, "itemList");
+        if (itemList is null)
+        {
+            return items;
+        }
+
+        foreach (var item in itemList.Elements().Where(e => e.Name.LocalName == "item" || e.Name.LocalName == "orderItem"))
+        {
+            var shipmentInfo = FindChild(item, "shipmentInfo");
+            items.Add(new OrderDetailItem(
+                remoteLineId: NullIfEmpty(Local(item, "id")),
+                productId: NullIfEmpty(Local(item, "productId")),
+                productName: Local(item, "productName"),
+                productSellerCode: NullIfEmpty(Local(item, "productSellerCode")),
+                skuId: NullIfEmpty(Local(item, "stockKeepingUnitId")),
+                quantity: ParseDecimal(Local(item, "quantity")) ?? 0m,
+                price: ParseDecimal(Local(item, "price")) ?? 0m,
+                commission: ParseDecimal(Local(item, "commission")),
+                dueAmount: ParseDecimal(Local(item, "dueAmount")),
+                mallDiscount: ParseDecimal(Local(item, "mallDiscount")),
+                sellerDiscount: ParseDecimal(Local(item, "sellerDiscount")),
+                sellerInvoiceAmount: ParseDecimal(Local(item, "sellerInvoiceAmount")),
+                status: NullIfEmpty(Local(item, "status")),
+                // N11 CANLI yanıtı (2026-07-11 doğrulandı, order 136043971): alan adları DOC'tan FARKLI — "approvedDate"
+                // ('d' ile, doc "approveDate" YANLIŞ) + "shippingDate" (doc "shipmentDate" YANLIŞ). Yanlış adla 0/252 null'du.
+                approveDate: ParseN11DateTimeUtc(Local(item, "approvedDate")),
+                shipmentDate: ParseN11DateTimeUtc(Local(item, "shippingDate")),
+                shipmentCompany: NullIfEmpty(Local(FindChild(shipmentInfo, "shipmentCompany"), "name")),
+                shipmentMethod: ParseInt(Local(shipmentInfo, "shipmentMethod")),
+                shipmentCode: NullIfEmpty(Local(shipmentInfo, "shipmentCode")),
+                shipmentCompanyId: NullIfEmpty(Local(FindChild(shipmentInfo, "shipmentCompany"), "id")),
+                shipmentCompanyShortName: NullIfEmpty(Local(FindChild(shipmentInfo, "shipmentCompany"), "shortName")),
+                trackingNumber: NullIfEmpty(Local(shipmentInfo, "trackingNumber")),
+                campaignNumber: NullIfEmpty(Local(shipmentInfo, "campaignNumber")),
+                campaignNumberStatus: NullIfEmpty(Local(shipmentInfo, "campaignNumberStatus")),
+                attributes: ParseItemAttributes(item),
+                customTexts: ParseCustomTexts(item)));
+        }
+
+        return items;
+    }
+
+    private static List<OrderDetailItemAttribute> ParseItemAttributes(XElement item)
+    {
+        var result = new List<OrderDetailItemAttribute>();
+        var attributes = FindChild(item, "attributes");
+        if (attributes is null)
+        {
+            return result;
+        }
+
+        foreach (var attr in attributes.Elements().Where(e => e.Name.LocalName == "attribute"))
+        {
+            var name = NullIfEmpty(Local(attr, "name"));
+            var value = NullIfEmpty(Local(attr, "value"));
+            if (name is not null || value is not null)
+            {
+                result.Add(new OrderDetailItemAttribute(name, value));
+            }
+        }
+
+        return result;
+    }
+
+    // Alıcının girdiği özel metinler (customTextOptionValues.customTextOptionValue → option/text). Kişiselleştirilmiş
+    // üründe ne yazılacağı (kaşe/mühür metni, mürekkep rengi). text çok satırlı olabilir (adres) — Value korunur.
+    private static List<OrderDetailItemCustomText> ParseCustomTexts(XElement item)
+    {
+        var result = new List<OrderDetailItemCustomText>();
+        var container = FindChild(item, "customTextOptionValues");
+        if (container is null)
+        {
+            return result;
+        }
+
+        foreach (var v in container.Elements().Where(e => e.Name.LocalName == "customTextOptionValue"))
+        {
+            var option = NullIfEmpty(Local(v, "option"));
+            var text = NullIfEmpty(Local(v, "text"));
+            if (option is not null || text is not null)
+            {
+                result.Add(new OrderDetailItemCustomText(option, text));
+            }
+        }
+
+        return result;
+    }
+
     // ── SOAP gönderim + throttle retry ───────────────────────────────────────────────────────────────
 
+    // Ortak SOAP retry döngüsü (liste + detay paylaşır): success → döner; throttle → bekle+tekrar; aksi → reject hatası.
     private async Task<XDocument> PostWithThrottleRetryAsync(
-        string appKey, string appSecret, int page, CancellationToken cancellationToken)
+        XElement requestBody, string transportErrorCode, string rejectErrorCode, CancellationToken cancellationToken)
     {
         for (var attempt = 1; ; attempt++)
         {
-            var doc = await PostAsync(appKey, appSecret, page, cancellationToken);
+            var doc = await PostEnvelopeAsync(requestBody, transportErrorCode, cancellationToken);
             var status = doc.Descendants().FirstOrDefault(e => e.Name.LocalName == "status")?.Value.Trim();
             if (string.Equals(status, "success", StringComparison.OrdinalIgnoreCase))
             {
@@ -154,7 +350,7 @@ public sealed class N11OrderClient : IN11OrderClient, ITransientDependency
                 continue;
             }
 
-            throw new BusinessException("TradeXpress:N11:Order:ListRejected").WithData("message", message ?? status ?? "unknown");
+            throw new BusinessException(rejectErrorCode).WithData("message", message ?? status ?? "unknown");
         }
     }
 
@@ -164,21 +360,49 @@ public sealed class N11OrderClient : IN11OrderClient, ITransientDependency
         return message is not null && message.Contains("belli süre", StringComparison.OrdinalIgnoreCase);
     }
 
+    // YAZMA uçları için: TEK deneme (retry YOK — throttle'da tekrar denemek çift-aksiyon riski taşır; GERÇEK
+    // pazaryerine yazan bir çağrının belirsiz sonucunda kör tekrar yapmak yerine hata dostane fırlatılır).
+    private async Task PostWriteEnvelopeAsync(
+        XElement requestBody, string transportErrorCode, string rejectErrorCode, CancellationToken cancellationToken)
+    {
+        var doc = await PostEnvelopeAsync(requestBody, transportErrorCode, cancellationToken);
+        var status = doc.Descendants().FirstOrDefault(e => e.Name.LocalName == "status")?.Value.Trim();
+        if (string.Equals(status, "success", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        var message = doc.Descendants().FirstOrDefault(e => e.Name.LocalName == "errorMessage")?.Value.Trim();
+        throw new BusinessException(rejectErrorCode).WithData("message", message ?? status ?? "unknown");
+    }
+
     // TARİH FİLTRESİ YOK (searchData boş) → N11 tüm sipariş geçmişini döndürür. period gönderilseydi eski siparişler
     // (test hesabında 2017) gizlenirdi — canlı doğrulandı (2026-07-11): period'suz totalCount=106, period'lu (son 40 gün)=0.
-    private static async Task<XDocument> PostAsync(
-        string appKey, string appSecret, int page, CancellationToken cancellationToken)
+    private static XElement BuildListRequest(string appKey, string appSecret, int page)
     {
-        var request = new XElement(Sch + "DetailedOrderListRequest",
+        return new XElement(Sch + "DetailedOrderListRequest",
             new XAttribute(XNamespace.Xmlns + "sch", Sch),
             new XElement("auth", new XElement("appKey", appKey), new XElement("appSecret", appSecret)),
             new XElement("searchData"),
             new XElement("pagingData", new XElement("currentPage", page), new XElement("pageSize", PageSize)));
+    }
 
+    // getOrderDetail isteği (SOAP ref v4.6): auth + orderRequest.id (N11 sipariş id).
+    private static XElement BuildDetailRequest(string appKey, string appSecret, string n11OrderId)
+    {
+        return new XElement(Sch + "OrderDetailRequest",
+            new XAttribute(XNamespace.Xmlns + "sch", Sch),
+            new XElement("auth", new XElement("appKey", appKey), new XElement("appSecret", appSecret)),
+            new XElement("orderRequest", new XElement("id", n11OrderId)));
+    }
+
+    private static async Task<XDocument> PostEnvelopeAsync(
+        XElement requestBody, string transportErrorCode, CancellationToken cancellationToken)
+    {
         var envelope = new XDocument(new XElement(Soapenv + "Envelope",
             new XAttribute(XNamespace.Xmlns + "soapenv", Soapenv),
             new XElement(Soapenv + "Header"),
-            new XElement(Soapenv + "Body", request)));
+            new XElement(Soapenv + "Body", requestBody)));
 
         using var content = new StringContent(envelope.ToString(SaveOptions.DisableFormatting), Encoding.UTF8, "text/xml");
         content.Headers.TryAddWithoutValidation("SOAPAction", "\"\"");
@@ -188,7 +412,7 @@ public sealed class N11OrderClient : IN11OrderClient, ITransientDependency
         var body = await response.Content.ReadAsStringAsync(cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
-            throw new BusinessException("TradeXpress:N11:Order:ListFailed").WithData("status", (int)response.StatusCode);
+            throw new BusinessException(transportErrorCode).WithData("status", (int)response.StatusCode);
         }
 
         return XDocument.Parse(body);
@@ -232,6 +456,11 @@ public sealed class N11OrderClient : IN11OrderClient, ITransientDependency
     private static decimal? ParseDecimal(string? value)
     {
         return decimal.TryParse(value, NumberStyles.Number, CultureInfo.InvariantCulture, out var d) ? d : null;
+    }
+
+    private static int? ParseInt(string? value)
+    {
+        return int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var i) ? i : null;
     }
 
     private static string? NullIfEmpty(string? value)

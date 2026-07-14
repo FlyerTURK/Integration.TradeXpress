@@ -21,6 +21,7 @@ public static class ProcessTypePermissionMap
         ProcessType.Future  => TradeXpressPermissions.Transactions.Future,
         ProcessType.Stone   => TradeXpressPermissions.Transactions.Stone,
         ProcessType.Jewelry => TradeXpressPermissions.Transactions.Jewelry,
+        ProcessType.Good    => TradeXpressPermissions.Transactions.Good,
         ProcessType.Bullion => TradeXpressPermissions.Transactions.Bullion,
         ProcessType.Assay   => TradeXpressPermissions.Transactions.Assay,
         ProcessType.DebitNote => TradeXpressPermissions.Transactions.DebitNote,

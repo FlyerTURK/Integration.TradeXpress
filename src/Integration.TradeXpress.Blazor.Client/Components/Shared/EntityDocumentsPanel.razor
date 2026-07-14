@@ -1,0 +1,56 @@
+@using System
+@using System.Linq
+@using Integration.TradeXpress.Attachments
+@using Integration.Framework.Blazor.Client.Components.Crud
+@using DevExpress.Blazor
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@* Entity-agnostik doküman paneli — reusable DrillList<EntityDocumentEditDto>. Sahip form bir DxTabPage İÇİNE koyar
+   (bu bileşen DxTabPage ÜRETMEZ, içeriği üretir). Yükleme blob'a anında (EntityDocumentEditFields); persist sahip
+   AppService'te (ReplaceForAsync). İndirme yalnız KAYDEDİLMİŞ dokümanlar için (Id dolu → DownloadAsync). *@
+
+<DrillList TItem="EntityDocumentEditDto"
+           @ref="_drill"
+           Title="@L["Documents"]"
+           EntityName="@L["Document"]"
+           EntityIcon="@TradeXpressIcons.Report"
+           Items="Documents"
+           KeyFieldName="ClientKey"
+           PrimaryTextSelector="@(d => d.FileName)"
+           NewItemFactory="@(() => new EntityDocumentEditDto { DisplayOrder = NextOrder() })"
+           SaveGuard="@DocumentSaveGuard"
+           OnChanged="@(() => EditChanged?.Invoke())">
+    <GridColumns>
+        <GridLinkColumn FieldName="FileName" Caption="@L["Name"]"
+                        FixedPosition="GridColumnFixedPosition.Left" VisibleIndex="1"
+                        TextSelector="@(item => ((EntityDocumentEditDto)item).FileName)"
+                        OnClick="@(item => _drill?.EditItem((EntityDocumentEditDto)item))" />
+        <DxGridDataColumn FieldName="ContentType" Caption="@L["DocumentContentType"]" Width="180px" />
+        <DxGridDataColumn Caption="@L["DocumentSize"]" Width="110px" TextAlignment="GridTextAlignment.Right">
+            <CellDisplayTemplate Context="cell">
+                @EntityDocumentSize.Format(((EntityDocumentEditDto)cell.DataItem).Size)
+            </CellDisplayTemplate>
+        </DxGridDataColumn>
+        <DxGridDataColumn FieldName="Description" Caption="@L["Description"]" />
+        <DxGridDataColumn FieldName="DisplayOrder" Caption="@L["DisplayOrder"]" Width="90px" />
+        <DxGridDataColumn Caption="@L["Download"]" Width="110px" TextAlignment="GridTextAlignment.Center">
+            <CellDisplayTemplate Context="cell">
+                @{ var doc = (EntityDocumentEditDto)cell.DataItem; }
+                @if (doc.Id != Guid.Empty)
+                {
+                    <DxButton RenderStyle="ButtonRenderStyle.Link"
+                              IconCssClass="@TradeXpressIcons.Download"
+                              Text="@L["Download"]"
+                              Click="@(() => DownloadAsync(doc))"
+                              Enabled="@(!_downloading)" />
+                }
+            </CellDisplayTemplate>
+        </DxGridDataColumn>
+    </GridColumns>
+    <EditContent Context="doc">
+        <DxFormLayout CssClass="w-100">
+            <EntityDocumentEditFields Model="doc"
+                                      IsDuplicateFileName="@(name => Documents.Any(x => x.ClientKey != doc.ClientKey && string.Equals(x.FileName, name, StringComparison.OrdinalIgnoreCase)))" />
+        </DxFormLayout>
+    </EditContent>
+</DrillList>

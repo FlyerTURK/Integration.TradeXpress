@@ -198,6 +198,7 @@
                     <DxToolbarItem Text="@($"8-{L["Future"].ToString().ToUpper()}")" IconCssClass="custom-icon-future" Click="@OnFutureClicked" Visible="@IsProcessGranted(ProcessType.Future)" />
                     <DxToolbarItem Text="@($"9-{L["Stone"].ToString().ToUpper()}")" IconCssClass="custom-icon-stone" Click="@OnStoneClicked" Visible="@IsProcessGranted(ProcessType.Stone)" />
                     <DxToolbarItem Text="@($"M-{L["Jewelry"].ToString().ToUpper()}")" IconCssClass="custom-icon-jewelry" Click="@OnJewelryClicked" Visible="@IsProcessGranted(ProcessType.Jewelry)" />
+                    <DxToolbarItem Text="@($"U-{L["Good"].ToString().ToUpper()}")" IconCssClass="custom-icon-commodities" Click="@OnGoodClicked" Visible="@IsProcessGranted(ProcessType.Good)" />
                     <DxToolbarItem Text="@($"Ç-{L["Assay"].ToString().ToUpper()}")" IconCssClass="custom-icon-bullion" Click="@OnAssayClicked" Visible="@IsProcessGranted(ProcessType.Assay)" />
                     <DxToolbarItem Text="@($"D-{L["DebitNote"].ToString().ToUpper()}")" IconCssClass="custom-icon-report" Click="@OnDebitNoteClicked" Visible="@IsProcessGranted(ProcessType.DebitNote)" />
                     <DxToolbarItem Text="@($"V-{L["Transfer"].ToString().ToUpper()}")" IconCssClass="custom-icon-convert" Click="@OnTransferClicked" Visible="@IsProcessGranted(ProcessType.Transfer)" />
@@ -293,6 +294,25 @@ else if (_activeProcess == "Jewelry")
     @* Aynı anda tek panel render olur → id DOM'da benzersizdir (Düzelt-sonrası scroll+odak hedefi). *@
     <div id="tx-active-process-panel" class="tx-process-panel-wrap">
         <JewelryProcessPanel @ref="_jewelryPanel"
+                           OnBack="@OnProcessBack"
+                           AccountCode="@_selectedAccountCode"
+                           SubAccountCode="@_selectedSubAccountCode"
+                           CompanyId="@_model.CompanyId"
+                           BranchId="@_model.BranchId"
+                           VaultId="@_model.VaultId"
+                           AccountId="@_model.AccountId"
+                           SubAccountId="@_model.SubAccountId"
+                           VoucherDate="@_model.VoucherDate"
+                           VoucherDescription="@_model.Description"
+                           VoucherId="@_selectedVoucherId"
+                           OnSaved="@OnLineSavedInternal" />
+    </div>
+}
+else if (_activeProcess == "Good")
+{
+    @* Aynı anda tek panel render olur → id DOM'da benzersizdir (Düzelt-sonrası scroll+odak hedefi). *@
+    <div id="tx-active-process-panel" class="tx-process-panel-wrap">
+        <GoodProcessPanel @ref="_goodPanel"
                            OnBack="@OnProcessBack"
                            AccountCode="@_selectedAccountCode"
                            SubAccountCode="@_selectedSubAccountCode"

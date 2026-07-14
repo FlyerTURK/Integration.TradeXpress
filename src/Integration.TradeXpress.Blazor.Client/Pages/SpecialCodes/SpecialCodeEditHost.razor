@@ -1,0 +1,27 @@
+@using System
+@using Integration.TradeXpress.SpecialCodes
+@using Integration.Framework.Blazor.Client.Components.Crud
+@using Volo.Abp.ObjectMapping
+@using Integration.TradeXpress.Blazor.Client.Services.Working
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+@inject ISpecialCodeAppService SpecialCodeAppService
+@inject IObjectMapper Mapper
+@inject IWorkingContextService Working
+
+@*
+   Özel Kod edit host — POPUP-only (route yok; picker ViewOpener ile açar). Bağlam (EntityName/PropertyName)
+   picker'dan extraParams ile gelir → yeni kayıt default'una uygulanır (set-once). Aynı bağlamdaki kodlar parent
+   combo'suna beslenir (kendini hariç tutar).
+*@
+
+@if (_coordinator != null && _ready)
+{
+    <CrudEditHost TGetDto="SpecialCodeGetDto" TListDto="SpecialCodeListDto" TKey="Guid" TListRequestDto="SpecialCodeListRequestDto"
+                  Coordinator="@_coordinator" Id="@(Id ?? Guid.Empty)" IsPopupMode="@IsPopupMode" OnSaved="@OnSaved" OnClosed="@OnClosed"
+                  FormCaption="@L["SpecialCode"].Value" IconCssClass="@TradeXpressIcons.SpecialCode"
+                  EntityValue="@(m => m.Code)"
+                  IsReadOnly="@(m => m.IsGlobal && CurrentTenant?.Id != null)"
+                  ApplyNewDefaults="@(m => { m.IsActive = true; m.EntityName = EntityName; m.PropertyName = PropertyName; m.CompanyId = Working.CurrentCompanyId; })">
+        <SpecialCodeLayout Model="@context" ParentOptions="@_parentOptions" />
+    </CrudEditHost>
+}

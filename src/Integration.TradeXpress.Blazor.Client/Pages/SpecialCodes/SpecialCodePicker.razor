@@ -1,0 +1,30 @@
+@using System
+@using System.Collections.Generic
+@using System.Linq
+@using System.Linq.Expressions
+@using Integration.TradeXpress.SpecialCodes
+@using Integration.TradeXpress.Permissions
+@using Integration.Framework.Blazor.Client.Components.Crud
+@using DevExpress.Blazor
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+@inject ISpecialCodeAppService SpecialCodeAppService
+
+@*
+   Özel Kod PICKER — herhangi bir entity edit formuna gömülür: <SpecialCodePicker EntityName="Good"
+   PropertyName="Category" @bind-Value="@Model.Category" />. Değer = seçilen özel kodun Code'u (string); tüketen
+   entity kendi mevcut string property'sinde saklar (FK yok). Ekle/Düzelt merkezî popup yoluyla (ViewOpener),
+   bağlam (EntityName/PropertyName) ön-dolu; kaydedilince liste otomatik tazelenir (EntityChange).
+*@
+
+<LookupComboBox TItem="SpecialCodeListDto" TValue="string"
+                Data="@_data"
+                ValueFieldName="@nameof(SpecialCodeListDto.Code)"
+                TextFieldName="@nameof(SpecialCodeListDto.Name)"
+                Value="@Value" ValueChanged="@ValueChanged" ValueExpression="@ValueExpression"
+                NullText="@(NullText ?? L["Select"].Value)"
+                Enabled="@Enabled" ReadOnly="@ReadOnly"
+                CreatePolicy="@TradeXpressPermissions.SpecialCodes.Create"
+                UpdatePolicy="@TradeXpressPermissions.SpecialCodes.Update"
+                OnAddRequested="@OnAddRequestedAsync"
+                OnEditRequested="@OnEditRequestedAsync"
+                OnLookupReloadRequested="@ReloadAsync" />

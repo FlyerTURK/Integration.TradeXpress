@@ -35,6 +35,10 @@ public enum ProcessType : byte
     /// <summary>Mücevher (bitmiş ürün) alış-satış işlemi — parasal/adet, company-scoped.</summary>
     Jewelry  = 8,
 
+    /// <summary>Mamül (genel ticari mal — kuyumculuk dışı: buzdolabı/ayakkabı/un…) alış-satış işlemi —
+    /// parasal/adet, company-scoped. Jewelry deseniyle hizalı.</summary>
+    Good     = 9,
+
     /// <summary>Virman — hesaplar arası aktarım (satır-seviyesi karşı kayıt ile).</summary>
     Transfer = 11,
 

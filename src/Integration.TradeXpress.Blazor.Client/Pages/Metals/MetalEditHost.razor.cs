@@ -1,0 +1,75 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
+using Integration.Framework.Blazor.Client.Components.Crud;
+using Integration.Framework.Blazor.Client.Services.Base;
+using Integration.TradeXpress.Financials.CurrencyUnits;
+using Integration.TradeXpress.Metals;
+using Integration.TradeXpress.Variants;
+using Microsoft.AspNetCore.Components;
+using Volo.Abp;
+
+namespace Integration.TradeXpress.Blazor.Client.Pages.Metals;
+
+/// <summary>Maden edit host — ince sarmal (coordinator + para birimi listesi + "Varyantları Oluştur" delegesi).
+/// DUMB layout servis çağırmaz → lookup + varyant üretimi host'ta (Good/Jewelry deseni).</summary>
+public partial class MetalEditHost
+{
+    [Parameter] public Guid? Id { get; set; }
+    [Parameter] public bool IsPopupMode { get; set; }
+    [Parameter] public EventCallback OnSaved { get; set; }
+    [Parameter] public EventCallback OnClosed { get; set; }
+
+    private List<CurrencyUnitListDto> _units = new();
+    private ICommitCoordinator<MetalGetDto, MetalListDto, Guid, MetalListRequestDto>? _coordinator;
+    private bool _ready;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _coordinator = new PersistentCoordinator<MetalGetDto, MetalListDto, Guid, MetalListRequestDto, MetalCreateDto, MetalUpdateDto>(
+            MetalAppService, Mapper);
+
+        var result = await CurrencyUnitAppService.GetListAsync(new CurrencyUnitListRequestDto { MaxResultCount = 1000 });
+        _units = result.Items.ToList();
+
+        _ready = true;
+    }
+
+    // Yeni maden default'ları + standart ana varyant (kullanıcı nitelik eklemeden barkod/GTIN girebilsin).
+    private void ApplyNewDefaults(MetalGetDto m)
+    {
+        m.IsActive = true;
+        m.Factor = 0.995m;
+
+        // Nitelik×değer üretilince (GenerateVariants) liste değişir; üretilmezse save'de synchronizer bu main'i kalıcılaştırır.
+        m.Variants.Add(new EntityVariantGraphDto
+        {
+            IsMain = true,
+            Code = EntityVariantConsts.MainVariantCode,
+            Name = EntityVariantConsts.MainVariantName,
+            IsActive = true,
+        });
+    }
+
+    // "Varyantları Oluştur" — host servisi çağırır (persistsiz kartezyen); dönen graf Model.Variants'a yazılır (Save'de kalıcı).
+    private async Task GenerateVariantsAsync(MetalGetDto model)
+    {
+        try
+        {
+            var generated = await MetalAppService.GenerateVariantsAsync(new EntityVariantGenerateRequestDto
+            {
+                OwnerName = model.Name,
+                Attributes = model.Attributes,
+            });
+
+            model.Variants.Clear();
+            model.Variants.AddRange(generated);
+        }
+        catch (BusinessException bex)
+        {
+            // In-process BusinessException lokalize OLMAZ (Blazor Server) → kodu resource'tan çevir.
+            UiService.ShowErrorToast(L[bex.Code ?? bex.Message].Value);
+        }
+    }
+}

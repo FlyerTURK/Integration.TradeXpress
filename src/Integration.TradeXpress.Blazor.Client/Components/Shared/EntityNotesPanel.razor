@@ -1,0 +1,52 @@
+@using System
+@using System.Linq
+@using Integration.TradeXpress.Attachments
+@using Integration.Framework.Blazor.Client.Components.Crud
+@using DevExpress.Blazor
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@* Entity-agnostik not paneli — reusable DrillList<EntityNoteEditDto> (blob yok, en sade). Sahip form bir DxTabPage
+   İÇİNE koyar (bu bileşen DxTabPage ÜRETMEZ, içeriği üretir). Persist sahip AppService'te (ReplaceForAsync). *@
+
+<DrillList TItem="EntityNoteEditDto"
+           @ref="_drill"
+           Title="@L["Notes"]"
+           EntityName="@L["Note"]"
+           EntityIcon="@TradeXpressIcons.Comments"
+           Items="Notes"
+           KeyFieldName="ClientKey"
+           PrimaryTextSelector="@(n => TitleOrTextOf(n))"
+           NewItemFactory="@(() => new EntityNoteEditDto { DisplayOrder = NextOrder() })"
+           SaveGuard="@NoteSaveGuard"
+           OnChanged="@(() => EditChanged?.Invoke())">
+    <GridColumns>
+        <GridLinkColumn FieldName="Title" Caption="@L["Title"]"
+                        FixedPosition="GridColumnFixedPosition.Left" VisibleIndex="1"
+                        TextSelector="@(item => TitleOrTextOf((EntityNoteEditDto)item))"
+                        OnClick="@(item => _drill?.EditItem((EntityNoteEditDto)item))" />
+        <DxGridDataColumn Caption="@L["NoteText"]">
+            <CellDisplayTemplate Context="cell">
+                @Preview(((EntityNoteEditDto)cell.DataItem).Text)
+            </CellDisplayTemplate>
+        </DxGridDataColumn>
+        <DxGridDataColumn Caption="@L["CreationTime"]" Width="160px">
+            <CellDisplayTemplate Context="cell">
+                @(((EntityNoteEditDto)cell.DataItem).CreationTime?.ToString("g"))
+            </CellDisplayTemplate>
+        </DxGridDataColumn>
+        <DxGridDataColumn FieldName="DisplayOrder" Caption="@L["DisplayOrder"]" Width="90px" />
+    </GridColumns>
+    <EditContent Context="note">
+        <DxFormLayout CssClass="w-100">
+            <DxFormLayoutItem Caption="@L["Title"]" ColSpanMd="12">
+                <DxTextBox @bind-Text="@note.Title" />
+            </DxFormLayoutItem>
+            <DxFormLayoutItem Caption="@($"{L["NoteText"]} *")" ColSpanMd="12">
+                <DxMemo @bind-Text="@note.Text" Rows="5" CssClass="w-100" />
+            </DxFormLayoutItem>
+            <DxFormLayoutItem Caption="@L["DisplayOrder"]" ColSpanMd="6">
+                <NumericSpinEdit @bind-Value="@note.DisplayOrder" />
+            </DxFormLayoutItem>
+        </DxFormLayout>
+    </EditContent>
+</DrillList>

@@ -1,0 +1,28 @@
+@using System
+@using Integration.TradeXpress.Orders
+@using Integration.Framework.Blazor.Client.Components.Crud
+@using Integration.Framework.Blazor.Client.Services.Base
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+@inject IOrderAppService OrderAppService
+@inject IUiInteractionService UiService
+@inject IServiceProvider ServiceProvider
+
+@*
+   Sipariş edit host — STANDART CrudEditHost akışı (Account/Branch ile AYNI desen; EditContext/dirty/validasyon/
+   merkezi EditToolbar otomatik). Order'da Create/Delete YOK (yalnız senkronizasyondan gelir) → SupportsSaveAndNew/
+   SupportsDelete=false, toolbar bu aksiyonları GİZLER.
+
+   Toolbar'a "Kabul Et"/"Reddet" (BuildOrderActions) — siparişin TÜM bekleyen kalemlerini TEK N11 isteğiyle
+   işler (AcceptOrderAsync/RejectOrderAsync — GERÇEK, geri alınamaz); başarı sonrası kalem drill'i (_layout ref
+   zinciriyle) tazelenir.
+*@
+
+<CrudEditHost TGetDto="OrderDto" TListDto="OrderListDto" TKey="Guid" TListRequestDto="OrderListRequestDto"
+              Coordinator="@_coordinator" Id="@(Id ?? Guid.Empty)" IsPopupMode="@IsPopupMode" OnSaved="@OnSaved" OnClosed="@OnClosed"
+              FormCaption="@L["Order"].Value" IconCssClass="@TradeXpressIcons.SalesChannel"
+              EntityValue="@(m => m.OrderNumber)"
+              SupportsSaveAndNew="false"
+              SupportsDelete="false"
+              BuildCustomActions="@BuildOrderActions">
+    <OrderEditLayout @ref="_layout" Model="@context" />
+</CrudEditHost>

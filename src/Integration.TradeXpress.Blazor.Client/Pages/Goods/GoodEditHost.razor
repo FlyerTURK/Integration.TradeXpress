@@ -1,0 +1,38 @@
+@page "/goods/new"
+@page "/goods/{Id:guid}"
+@using System
+@using Integration.TradeXpress.Goods
+@using Integration.TradeXpress.Financials.CurrencyUnits
+@using Integration.Framework.Blazor.Client.Components.Crud
+@using Volo.Abp.ObjectMapping
+@using Integration.TradeXpress.Blazor.Client.Services.Working
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+@inject IGoodAppService GoodAppService
+@inject ICurrencyUnitAppService CurrencyUnitAppService
+@inject IAccountAppService AccountAppService
+@inject ISubAccountAppService SubAccountAppService
+@inject IEffectivePriceAppService EffectivePriceAppService
+@inject IObjectMapper Mapper
+@inject IWorkingContextService Working
+@inject IUiInteractionService UiService
+
+@*
+   Mamül edit host — STANDART CrudEditHost akışı (Jewelry ile birebir desen). Company-scoped: tenant, host(global)
+   kayıtları düzenleyemez (IsReadOnly). Yeni kayıt default'ları working şirkete atanır.
+*@
+
+@if (_coordinator != null && _ready)
+{
+    <CrudEditHost TGetDto="GoodGetDto" TListDto="GoodListDto" TKey="Guid" TListRequestDto="GoodListRequestDto"
+                  Coordinator="@_coordinator" Id="@(Id ?? Guid.Empty)" IsPopupMode="@IsPopupMode" OnSaved="@OnSaved" OnClosed="@OnClosed"
+                  FormCaption="@L["Good"].Value" IconCssClass="@TradeXpressIcons.Good"
+                  EntityValue="@(m => m.Code)"
+                  IsReadOnly="@(m => m.IsGlobal && CurrentTenant?.Id != null)"
+                  ApplyNewDefaults="@ApplyNewDefaults">
+        <GoodLayout Model="@context" IsNew="@(context.Id == Guid.Empty)" CurrencyUnits="@_units"
+                    Accounts="@_accounts" SubAccounts="@_subAccounts" LocalCurrencyUnitId="@_localCurrencyUnitId"
+                    OnReloadAccounts="ReloadAccountsAsync" OnReloadSubAccounts="ReloadSubAccountsAsync"
+                    OnReloadCurrencyUnits="ReloadCurrencyUnitsAsync"
+                    OnGenerateVariants="@(async () => await GenerateVariantsAsync(context))" />
+    </CrudEditHost>
+}

@@ -34,4 +34,19 @@ public static class OrderConsts
 
     /// <summary>Uzak satır durumu (kanal line status — opsiyonel).</summary>
     public const int RemoteLineStatusMaxLength = 64;
+
+    // ── OrderDetailSnapshot (owned JSON — getOrderDetail zengin detayı; TEK nvarchar(max) kolon) ──
+    /// <summary>Detay snapshot'ındaki KISA metin alanları (ad/e-posta/il/ilçe/telefon/vergi/durum vb.) — JSON blob'da
+    /// kolon-uzunluğu yok ama şişme/DoS'a karşı savunmacı kırpma sınırı.</summary>
+    public const int DetailShortTextMaxLength = 256;
+
+    /// <summary>Detay snapshot'ındaki UZUN metin alanları (açık adres, nitelik değeri) — savunmacı kırpma sınırı.</summary>
+    public const int DetailLongTextMaxLength = 1024;
+
+    // ── OrderLineOperationalData (O2 — state machine) ──────────────────────────
+    /// <summary>N11 OrderItemReject'e gönderilen serbest metin gerekçe.</summary>
+    public const int RejectReasonMaxLength = 512;
+
+    /// <summary>N11 kargo firması id'si (shipmentCompany.id) — MakeOrderItemShipment isteği.</summary>
+    public const int ShipmentCompanyIdMaxLength = 32;
 }

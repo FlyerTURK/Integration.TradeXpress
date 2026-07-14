@@ -1,5 +1,6 @@
 @using Integration.TradeXpress.Metals
 @using Integration.TradeXpress.Permissions
+@using Integration.TradeXpress.Variants
 @using Integration.TradeXpress.Blazor.Client.Pages.Metals
 @inherits ProcessPanelHostBase
 
@@ -34,8 +35,7 @@
         <div style="display:flex; flex-direction:column; gap:4px; @(_isMobile ? "width:100%;" : "flex-shrink:0;")">
             <div style="display:flex; @(_isMobile ? "flex-direction:column;" : "") gap:4px; align-items:flex-start;">
 
-                @* Maden = Commodity *@
-                @* CommodityId — iki kat genişlik (240px) *@
+                @* Maden = Commodity (+ altında varyant combo'su, alt alta) — iki kat genişlik (240px) *@
                 <div style="@GroupStyle(240)">
                     <small style="@ProcessPanelStyles.Label">@nameof(VoucherLineDto.CommodityId)</small>
                     @* Standart lookup: ✎/+ butonları Metals Update/Create iznine bağlı; add/edit MetalEditHost
@@ -44,12 +44,27 @@
                                     Data="@_activeMetals"
                                     ValueFieldName="@nameof(MetalListDto.Id)"
                                     TextFieldName="@nameof(MetalListDto.Code)"
-                                    Value="@Model.CommodityId" ValueChanged="@((Guid? v) => OnMetalChanged(v))"
+                                    Value="@Model.CommodityId" ValueChanged="@(async (Guid? v) => await OnMetalChangedAsync(v))"
                                     AllowClear="false"
                                     EditComponentType="typeof(MetalEditHost)"
                                     CreatePolicy="@TradeXpressPermissions.Metals.Create"
                                     UpdatePolicy="@TradeXpressPermissions.Metals.Update"
                                     OnLookupReloadRequested="@ReloadMetalsAsync" />
+                    @* Varyant — caption masaüstünde GİZLİ (yalnız mobilde). Tek varyant → combo pasif + VariantId null; çoklu → ana varsayılan.
+                       ✎/+ seçili MADENin kartını açar (varyant yönetimi orada; commodity id ile — varyant id DEĞİL). *@
+                    @if (_isMobile)
+                    {
+                        <small style="@ProcessPanelStyles.Label">@L["Variant"]</small>
+                    }
+                    <LookupComboBox TItem="CommodityVariantOptionDto" TValue="Guid?"
+                                    Data="@_variantOptions"
+                                    ValueFieldName="@nameof(CommodityVariantOptionDto.Id)" TextFieldName="@nameof(CommodityVariantOptionDto.Code)"
+                                    Value="@Model.VariantId" ValueChanged="@OnVariantChanged"
+                                    AllowClear="false" Enabled="@(_variantOptions.Count > 1)"
+                                    CreatePolicy="@TradeXpressPermissions.Metals.Create" UpdatePolicy="@TradeXpressPermissions.Metals.Update"
+                                    OnEditRequested="@(_ => OpenMetalCardAsync())"
+                                    OnAddRequested="@OpenMetalCardForAddAsync"
+                                    OnLookupReloadRequested="@ReloadVariantsForCurrentMetalAsync" />
                 </div>
 
                 @if (_showAdet)

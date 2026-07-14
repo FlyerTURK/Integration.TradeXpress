@@ -196,6 +196,28 @@ public class TradeXpressMenuContributor : IMenuContributor
             url: "/jewelries",
             icon: TradeXpressIcons.Jewelry
         ));
+        var goodsMenu = new ApplicationMenuItem(
+            TradeXpressMenus.Goods,
+            l["Goods"],
+            url: "/goods",
+            icon: TradeXpressIcons.Good
+        );
+        goodsMenu.CssClass = "underline-menu-item";
+
+        goodsMenu.AddItem(new ApplicationMenuItem(
+            TradeXpressMenus.Reports + ".GoodStock",
+            l["GoodStockReport"],
+            url: "/reports/good-stock",
+            icon: "custom-icon-report"
+        ));
+        goodsMenu.AddItem(new ApplicationMenuItem(
+            TradeXpressMenus.Reports + ".GoodMovement",
+            l["GoodMovementReport"],
+            url: "/reports/good-movement",
+            icon: "custom-icon-report"
+        ));
+
+        commodities.AddItem(goodsMenu);
         definitions.AddItem(commodities);
         }
         // Değerleme (re-base) ayrı kullanıcı sayfası DEĞİL — kullanıcı daima piyasa/alışık

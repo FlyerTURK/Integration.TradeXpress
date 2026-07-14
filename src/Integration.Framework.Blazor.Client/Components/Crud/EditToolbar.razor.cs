@@ -52,16 +52,28 @@ namespace Integration.Framework.Blazor.Client.Components.Crud
 
         // Kimlik merkezî CrudToolbarActions kataloğundan (CrudToolbar/DrillList ile AYNI); burada yalnız
         // ISplitEditActions yetenek bayraklarından gelen Visible/Enabled/OnClick → EntityEditForm değişmez.
-        private List<CrudToolbarAction> BuildActions() => new()
+        private List<CrudToolbarAction> BuildActions()
         {
-            CrudToolbarActions.Save(L, visible: true, E.CanSave, DoSave),
-            CrudToolbarActions.SaveAndNew(L, visible: E.SupportsSaveAndNew, E.CanSave, splitDropDown: !IsPopupEdit, DoSaveNew, IsPopupEdit ? null : DoSaveClose),
-            CrudToolbarActions.Delete(L, visible: E.SupportsDelete, E.CanDelete, DoDelete),
-            CrudToolbarActions.Previous(L, ShowNav, E.CanGoPrevious, DoPrev),
-            CrudToolbarActions.Next(L, ShowNav, E.CanGoNext, DoNext),
-            CrudToolbarActions.Undo(L, ShowUndoRedo, E.CanUndo, DoUndo),
-            CrudToolbarActions.Redo(L, ShowUndoRedo, E.CanRedo, DoRedo),
-            CrudToolbarActions.Reset(L, visible: true, E.CanSave, DoReset),
-        };
+            var actions = new List<CrudToolbarAction>
+            {
+                CrudToolbarActions.Save(L, visible: true, E.CanSave, DoSave),
+                CrudToolbarActions.SaveAndNew(L, visible: E.SupportsSaveAndNew, E.CanSave, splitDropDown: !IsPopupEdit, DoSaveNew, IsPopupEdit ? null : DoSaveClose),
+                CrudToolbarActions.Delete(L, visible: E.SupportsDelete, E.CanDelete, DoDelete),
+                CrudToolbarActions.Previous(L, ShowNav, E.CanGoPrevious, DoPrev),
+                CrudToolbarActions.Next(L, ShowNav, E.CanGoNext, DoNext),
+                CrudToolbarActions.Undo(L, ShowUndoRedo, E.CanUndo, DoUndo),
+                CrudToolbarActions.Redo(L, ShowUndoRedo, E.CanRedo, DoRedo),
+                CrudToolbarActions.Reset(L, visible: true, E.CanSave, DoReset),
+            };
+
+            // Edite özel ek aksiyonlar (ör. Order "Kabul Et"/"Reddet") — SortIndex'leri host belirler, Delete(100)
+            // ile Previous(700) arasına yerleşir (liste toolbar'ının custom=300 slotuyla AYNI aralık).
+            if (E.CustomActions is { Count: > 0 } custom)
+            {
+                actions.AddRange(custom);
+            }
+
+            return actions;
+        }
     }
 }

@@ -1,9 +1,12 @@
 using System;
+using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using Integration.Framework.Base.Dtos;
 using Integration.Framework.Base.Dtos.Interfaces;
+using Integration.TradeXpress.Attachments;
 using Integration.TradeXpress.Commodities;
 using Integration.TradeXpress.Products;
+using Integration.TradeXpress.Variants;
 using Integration.TradeXpress.Vouchers;
 
 namespace Integration.TradeXpress.Metals;
@@ -89,6 +92,13 @@ public class MetalGetDto : FollowingUnitCatalogGetDtoBase, IHasCode
     /// <summary>Temsili görsel (TEK) — kaynağı boşsa save'de temizlenir. Client binding için daima non-null başlar;
     /// sunucu Get'te de non-null garanti eder (EnrichGet).</summary>
     public MetalImageDto? Image { get; set; } = new();
+
+    // ── Agnostik graf (in-memory; kayıtta AppService persist eder). Maden ANA görseli OWNED tek kaldığından agnostik
+    //    çoklu Görsel YOK; Doküman/Not + Nitelik/Varyant (varyant-özel görselleriyle) eklenir. ──
+    public List<EntityDocumentEditDto> Documents { get; set; } = new();
+    public List<EntityNoteEditDto> Notes { get; set; } = new();
+    public List<EntityAttributeGraphDto> Attributes { get; set; } = new();
+    public List<EntityVariantGraphDto> Variants { get; set; } = new();
 }
 
 public class MetalCreateDto : FollowingUnitCatalogCreateDtoBase
@@ -126,6 +136,11 @@ public class MetalCreateDto : FollowingUnitCatalogCreateDtoBase
     /// <summary>Temsili görsel (TEK) — kaynağı boşsa save'de temizlenir. Client binding için daima non-null başlar;
     /// sunucu Get'te de non-null garanti eder (EnrichGet).</summary>
     public MetalImageDto? Image { get; set; } = new();
+
+    public List<EntityDocumentEditDto> Documents { get; set; } = new();
+    public List<EntityNoteEditDto> Notes { get; set; } = new();
+    public List<EntityAttributeGraphDto> Attributes { get; set; } = new();
+    public List<EntityVariantGraphDto> Variants { get; set; } = new();
 }
 
 public class MetalUpdateDto : FollowingUnitCatalogUpdateDtoBase
@@ -164,4 +179,9 @@ public class MetalUpdateDto : FollowingUnitCatalogUpdateDtoBase
     /// <summary>Temsili görsel (TEK) — kaynağı boşsa save'de temizlenir. Client binding için daima non-null başlar;
     /// sunucu Get'te de non-null garanti eder (EnrichGet).</summary>
     public MetalImageDto? Image { get; set; } = new();
+
+    public List<EntityDocumentEditDto> Documents { get; set; } = new();
+    public List<EntityNoteEditDto> Notes { get; set; } = new();
+    public List<EntityAttributeGraphDto> Attributes { get; set; } = new();
+    public List<EntityVariantGraphDto> Variants { get; set; } = new();
 }

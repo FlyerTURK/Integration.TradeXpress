@@ -1,0 +1,62 @@
+@using System
+@using System.Linq
+@using Integration.TradeXpress.Attachments
+@using Integration.TradeXpress.Products
+@using Integration.Framework.Blazor.Client.Components.Crud
+@using DevExpress.Blazor
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@* Agnostik GÖRSEL paneli — bir emtia kartının görselleri (URL ya da yüklenen blob). İlk/varsayılan = ana görsel.
+   Sahip AppService save/load'ı agnostik EntityImage (EntityName bağlamı) ile bağlar. Good hariç tüm emtia kartları PAYLAŞIR (DRY). *@
+
+<DrillList TItem="EntityImageEditDto"
+           @ref="_imageDrill"
+           Title="@L["Images"]"
+           EntityName="@L["Image"]"
+           EntityIcon="@(EntityIcon ?? TradeXpressIcons.Product)"
+           Items="Images"
+           KeyFieldName="ClientKey"
+           PrimaryTextSelector="@(i => i.FileName ?? i.Url)"
+           NewItemFactory="@(() => new EntityImageEditDto { DisplayOrder = NextImageOrder() })"
+           SaveGuard="@ImageSaveGuard"
+           OnItemSaved="@((EntityImageEditDto saved) => TransferDefaultImage(saved))"
+           MaxItems="MaxItems"
+           OnChanged="@(() => EditChanged?.Invoke())">
+    <GridColumns>
+        <DxGridDataColumn Caption="@L["Preview"]" Width="110px" TextAlignment="GridTextAlignment.Center">
+            <CellDisplayTemplate Context="cell">
+                @{ var img = (EntityImageEditDto)cell.DataItem; }
+                @if (!string.IsNullOrEmpty(PreviewSrcOf(img)))
+                {
+                    @* ham img: Dx görsel bileşeni yok — küçük, sınırlı önizleme (Good/Metal deseniyle aynı) *@
+                    <img src="@PreviewSrcOf(img)" alt="" style="max-height:48px; max-width:90px; object-fit:contain;" />
+                }
+            </CellDisplayTemplate>
+        </DxGridDataColumn>
+        <DxGridDataColumn FieldName="SourceType" Caption="@L["ImageSource"]" Width="110px">
+            <CellDisplayTemplate Context="cell">
+                @L[$"Enum:{nameof(ProductImageSourceType)}:{((EntityImageEditDto)cell.DataItem).SourceType}"]
+            </CellDisplayTemplate>
+        </DxGridDataColumn>
+        <GridLinkColumn FieldName="FileName" Caption="@L["Name"]"
+                        TextSelector="@(item => ((EntityImageEditDto)item).FileName ?? ((EntityImageEditDto)item).Url)"
+                        OnClick="@(item => _imageDrill?.EditItem((EntityImageEditDto)item))" />
+        <DxGridDataColumn FieldName="IsDefault" Caption="@L["Default"]" Width="100px">
+            <CellDisplayTemplate Context="cell">
+                @if (cell.Value is bool isDefault && isDefault)
+                {
+                    <span style="display:flex; align-items:center; gap:0.35rem;">
+                        <i class="custom-icon-check-circle" aria-hidden="true" style="color:#16a34a;"></i>@L["Default"]
+                    </span>
+                }
+            </CellDisplayTemplate>
+        </DxGridDataColumn>
+        <DxGridDataColumn FieldName="DisplayOrder" Caption="@L["DisplayOrder"]" Width="90px" />
+    </GridColumns>
+    <EditContent Context="img">
+        <DxFormLayout CssClass="w-100">
+            <EntityImageEditFields Model="img"
+                                   IsDuplicateFileName="@(name => Images.Any(x => x.ClientKey != img.ClientKey && string.Equals(x.FileName, name, StringComparison.OrdinalIgnoreCase)))" />
+        </DxFormLayout>
+    </EditContent>
+</DrillList>

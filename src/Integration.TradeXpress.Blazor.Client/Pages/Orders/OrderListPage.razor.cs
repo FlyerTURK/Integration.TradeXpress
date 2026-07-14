@@ -1,27 +1,29 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 using Integration.Framework.Base.Dtos;
 using Integration.Framework.Blazor.Client.Components.Crud;
 using Integration.Framework.Blazor.Client.Services.Base;
 using Integration.TradeXpress.Orders;
 using Integration.TradeXpress.SalesChannels;
 using Microsoft.AspNetCore.Components;
+using System.Threading.Tasks;
 using Volo.Abp.Application.Dtos;
 
 namespace Integration.TradeXpress.Blazor.Client.Pages.Orders;
 
 /// <summary>
-/// Ortak sipariş paneli (Sipariş Fazı O0) — TÜM kanalların siparişleri tek server-side grid'de (kanal yalnız
-/// kolon/filtre). SALT-OKUMA: "Siparişleri Çek" düğmesi pazaryerinden GET ile çeker + idempotent upsert eder
-/// (fiş/rezervasyon/stok YOK). Grid düzenleme/silme kapalı (read-only); sonuç raporu popup'ta gösterilir.
+/// Ortak sipariş paneli — MASTER-DETAIL CrudLayout server-side grid. MASTER satır = SİPARİŞ (kanal/no/tarih/müşteri/
+/// durum/tutar); genişletince DETAIL = o siparişin KALEMLERİ (nested grid). Sıralama: order status → tarih (yeni→eski).
+/// Create/Delete YOK (Order yalnız senkronizasyondan gelir) — yalnız DÜZENLEME, STANDART CrudEditHost/EntityEditForm
+/// akışıyla (OnUpdateClick → ViewOpener → OrderEditHost popup). "Siparişleri Çek" pazaryerinden (Trendyol + N11) çeker;
+/// arka planda OrderSyncBackgroundWorker boş kanalları kendiliğinden doldurur. Bu düğme manuel/anında tazeleme.
 /// </summary>
 public partial class OrderListPage : IDisposable
 {
     [Inject] protected IOrderAppService OrderAppService { get; set; } = default!;
     [Inject] public ICrudStateService<OrderListDto, Guid> StateService { get; set; } = default!;
     [Inject] protected IUiInteractionService UiService { get; set; } = default!;
+    [Inject] protected IViewOpener ViewOpener { get; set; } = default!;
     [Inject] private IServiceProvider ServiceProvider { get; set; } = default!;
 
     private IReadOnlyList<CrudToolbarAction>? _customActions;
@@ -30,10 +32,10 @@ public partial class OrderListPage : IDisposable
     private bool _showReport;
     private OrderFetchResultDto? _result;
 
-    /// <summary>Server-side grid kaynağı — birleşik <see cref="IOrderAppService.GetListAsync"/>'e bağlı.</summary>
+    /// <summary>Server-side grid kaynağı — <see cref="IOrderAppService.GetListAsync"/>'e bağlı (MASTER = sipariş).</summary>
     public GridListDataSource<OrderListDto> GridDataSource
         => _gridDataSource ??= new GridListDataSource<OrderListDto>(FetchPageAsync)
-        { OnError = ex => InvokeAsync(() => HandleErrorAsync(ex)) };
+        { OnError = ex => InvokeAsync(() => ShowErrorAsync(ex)) };
 
     private Task<PagedResultDto<OrderListDto>> FetchPageAsync(ListRequestDto request)
     {
@@ -52,15 +54,16 @@ public partial class OrderListPage : IDisposable
 
     protected override Task OnInitializedAsync()
     {
-        // SALT-OKUMA panel: düzenleme/oluşturma/silme yok (rows tıklanabilir değil). Çekim ayrı custom action.
-        StateService.IsGrantedCreate = StateService.IsGrantedUpdate = StateService.IsGrantedDelete = false;
+        // Create/Delete YOK (Order yalnız senkronizasyondan gelir); DÜZENLEME var (Sipariş Fazı O1). Çekim ayrı custom action.
+        StateService.IsGrantedCreate = StateService.IsGrantedDelete = false;
+        StateService.IsGrantedUpdate = true;
         StateService.OnStateChanged += OnStateChangedHandler;
 
         _customActions = BuildCustomActions();
         return Task.CompletedTask;
     }
 
-    // "Siparişleri Çek" — şirketin TÜM bağlı Trendyol kanallarından siparişleri çeker (tek düğme; kanal-başına dolaşma yok).
+    // "Siparişleri Çek" — TÜM bağlı kanallardan (Trendyol + N11) manuel çeker (streaming). Worker zaten arka planda seed'ler.
     private IReadOnlyList<CrudToolbarAction> BuildCustomActions() => new List<CrudToolbarAction>
     {
         new()
@@ -87,7 +90,7 @@ public partial class OrderListPage : IDisposable
         }
         catch (Exception ex)
         {
-            await HandleErrorAsync(ex);
+            await ShowErrorAsync(ex);
         }
         finally
         {
@@ -100,12 +103,27 @@ public partial class OrderListPage : IDisposable
         ? string.Format(L["Order:Fetch:Summary"], r.FetchedOrders, r.NewOrders, r.UpdatedOrders, r.TotalLines, r.ChannelsProcessed)
         : string.Empty;
 
-    // Çekim penceresi (şeffaflık): siparişler bu tarihten bugüne tarandı — pazaryerinin daralttığı aralık gizlenmez.
     private string ReportWindow => _result?.FetchedSinceUtc is { } since
         ? string.Format(L["Order:Fetch:Window"], since.ToString("yyyy-MM-dd"))
         : string.Empty;
 
     private string ReportIssues => _result is { } r ? string.Join(Environment.NewLine, r.Warnings) : string.Empty;
+
+    // Satır tıklaması → STANDART edit akışı (Account/Branch ile AYNI): ViewOpener popup'ta OrderEditHost açar.
+    // OnSaved → grid tazele; OnClosed → popup zaten ViewOpener/PopupService tarafından yönetilir.
+    private Task OpenDetailAsync(OrderListDto row)
+    {
+        var extra = new Dictionary<string, object>
+        {
+            { "OnSaved", EventCallback.Factory.Create(this, ReloadAsync) },
+        };
+        return ViewOpener.OpenAsync(typeof(OrderEditHost), row.Id, string.Empty, TradeXpressIcons.SalesChannel, extra);
+    }
+
+    private string ChannelLabel(OrderListDto row) => ChannelText(row.ChannelType, row.SalesChannelCode);
+
+    private string ChannelText(SalesChannelType type, string? code)
+        => !string.IsNullOrWhiteSpace(code) ? code! : ChannelTypeLabel(type);
 
     private string ChannelTypeLabel(SalesChannelType type) => type switch
     {
@@ -129,7 +147,7 @@ public partial class OrderListPage : IDisposable
         return Task.CompletedTask;
     }
 
-    private async Task HandleErrorAsync(Exception ex)
+    private async Task ShowErrorAsync(Exception ex)
     {
         UiService.ShowErrorToast(CrudErrorPresenter.ToFriendlyMessage(ex, ServiceProvider) ?? ex.Message);
         await Task.CompletedTask;

@@ -1,6 +1,7 @@
 @using System
 @using System.Collections.Generic
 @using Integration.TradeXpress.Jewelries
+@using Integration.TradeXpress.Variants
 @using Integration.TradeXpress.Financials.CurrencyUnits
 @using Integration.TradeXpress.Permissions
 @using Integration.Framework.Blazor.Client.Components.Crud
@@ -8,7 +9,8 @@
 @using Microsoft.Extensions.Localization
 @inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
 
-@* Jewelry (Mücevher) DUMB Layout — JewelryGetDto. Basit parasal/adet; Model + tanım nitelikleri + fiyat. *@
+@* Jewelry (Mücevher) DUMB Layout — JewelryGetDto. Basit parasal/adet + tanım nitelikleri + fiyat; agnostik graf
+   (Nitelikler/Varyantlar/Görseller/Dokümanlar/Notlar) alt drill sekmelerinde (Good deseni; fiyat mücevher seviyesinde). *@
 
 <DxFormLayout CssClass="w-100">
     <DxFormLayoutGroup Caption="@L["General"]" ColSpanMd="12">
@@ -68,8 +70,24 @@
     </DxFormLayoutGroup>
 </DxFormLayout>
 
-@code {
-    [Parameter, EditorRequired] public JewelryGetDto Model { get; set; } = default!;
-    [Parameter] public bool IsNew { get; set; }
-    [Parameter] public IReadOnlyList<CurrencyUnitListDto> CurrencyUnits { get; set; } = Array.Empty<CurrencyUnitListDto>();
-}
+@* En son: alt drill'ler — agnostik graf (in-memory; Jewelry 'Kaydet'inde birlikte persist). Paneller DxTabPage ÜRETMEZ,
+   içeriği üretir (DrillTabs CollectionFiller wrapper gotcha'sı). Kod/ad/varyant üretimi sunucuda (synchronizer). *@
+<DrillTabs CssClass="mt-3">
+    <DxTabPage Text="@L["Attributes"]" TabIconCssClass="@TradeXpressIcons.Sliders">
+        <EntityAttributesPanel Attributes="@Model.Attributes" />
+    </DxTabPage>
+    @* Varyant-başı fiyat/stok YOK (fiyat mücevherde) → ExtraFields yok. Stok Adedi GİZLİ (stok VoucherLine ledger'ından). *@
+    <DxTabPage Text="@L["Variants"]" TabIconCssClass="@TradeXpressIcons.ProductVariant">
+        <EntityVariantsPanel TVariant="EntityVariantGraphDto" Variants="@Model.Variants" Attributes="@Model.Attributes"
+                             OnGenerate="@OnGenerateVariants" ShowStockQuantity="false" ShowImages="true" />
+    </DxTabPage>
+    <DxTabPage Text="@L["Images"]" TabIconCssClass="@TradeXpressIcons.Jewelry">
+        <EntityImagesPanel Images="@Model.Images" EntityIcon="@TradeXpressIcons.Jewelry" />
+    </DxTabPage>
+    <DxTabPage Text="@L["Documents"]" TabIconCssClass="@TradeXpressIcons.Report">
+        <EntityDocumentsPanel Documents="@Model.Documents" />
+    </DxTabPage>
+    <DxTabPage Text="@L["Notes"]" TabIconCssClass="@TradeXpressIcons.Comments">
+        <EntityNotesPanel Notes="@Model.Notes" />
+    </DxTabPage>
+</DrillTabs>

@@ -144,6 +144,21 @@ public class BalancePosterTests
         new JewelryBalancePoster().Post(outbound).ShouldBe(new[] { new BalanceEffect(TryUnit, -900m) });
     }
 
+    [Fact]
+    public void Good_mirrors_jewelry_behavior()
+    {
+        var cash     = Create(ProcessType.Good, paymentType: ProcessPaymentType.WithCash,
+                              payUnitId: TryUnit, payTotal: 100m);
+        var inbound  = Create(ProcessType.Good, ProcessDirectionType.Inbound,
+                              payUnitId: TryUnit, payTotal: 750m);
+        var outbound = Create(ProcessType.Good, ProcessDirectionType.Outbound,
+                              payUnitId: TryUnit, payTotal: 750m);
+
+        new GoodBalancePoster().Post(cash).ShouldBeEmpty();
+        new GoodBalancePoster().Post(inbound).ShouldBe(new[] { new BalanceEffect(TryUnit, 750m) });
+        new GoodBalancePoster().Post(outbound).ShouldBe(new[] { new BalanceEffect(TryUnit, -750m) });
+    }
+
     // ── ÇEVİR (Convert) — iki bacak: ana − / karşı + (Alacak yönünde) ────────
 
     [Fact]
@@ -400,6 +415,7 @@ public class BalancePosterTests
         new ScrapBalancePoster().ProcessType.ShouldBe(ProcessType.Scrap);
         new StoneBalancePoster().ProcessType.ShouldBe(ProcessType.Stone);
         new JewelryBalancePoster().ProcessType.ShouldBe(ProcessType.Jewelry);
+        new GoodBalancePoster().ProcessType.ShouldBe(ProcessType.Good);
         new TransferBalancePoster().ProcessType.ShouldBe(ProcessType.Transfer);
         new AssayBalancePoster().ProcessType.ShouldBe(ProcessType.Assay);
         new BullionBalancePoster().ProcessType.ShouldBe(ProcessType.Bullion);

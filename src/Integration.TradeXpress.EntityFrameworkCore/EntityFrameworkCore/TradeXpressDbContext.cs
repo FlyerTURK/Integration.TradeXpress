@@ -38,6 +38,9 @@ using Integration.TradeXpress.Metals;
 using Integration.TradeXpress.MultiCompany;
 using Integration.TradeXpress.Stones;
 using Integration.TradeXpress.Jewelries;
+using Integration.TradeXpress.Goods;
+using Integration.TradeXpress.SpecialCodes;
+using Integration.TradeXpress.Attachments;
 
 namespace Integration.TradeXpress.EntityFrameworkCore;
 
@@ -72,6 +75,17 @@ public class TradeXpressDbContext :
     public DbSet<Metal> Metals { get; set; } = null!;
     public DbSet<Stone> Stones { get; set; } = null!;
     public DbSet<Jewelry> Jewelries { get; set; } = null!;
+    public DbSet<Good> Goods { get; set; } = null!;
+    public DbSet<GoodSupplier> GoodSuppliers { get; set; } = null!;
+    public DbSet<GoodVariantDetail> GoodVariantDetails { get; set; } = null!;
+    public DbSet<Variants.EntityAttribute> EntityAttributes { get; set; } = null!;
+    public DbSet<Variants.EntityAttributeValue> EntityAttributeValues { get; set; } = null!;
+    public DbSet<Variants.EntityVariant> EntityVariants { get; set; } = null!;
+    public DbSet<Variants.EntityVariantAttributeValue> EntityVariantAttributeValues { get; set; } = null!;
+    public DbSet<SpecialCode> SpecialCodes { get; set; } = null!;
+    public DbSet<EntityImage> EntityImages { get; set; } = null!;
+    public DbSet<EntityDocument> EntityDocuments { get; set; } = null!;
+    public DbSet<EntityNote> EntityNotes { get; set; } = null!;
     public DbSet<Account> Accounts { get; set; } = null!;
     public DbSet<SubAccount> SubAccounts { get; set; } = null!;
     public DbSet<Integration.TradeXpress.Products.Product> Products { get; set; } = null!;
@@ -121,6 +135,9 @@ public class TradeXpressDbContext :
     // Sipariş (NÖTR) — tüm satış kanallarının siparişleri tek tabloda (company-owned); salt-okuma çekim (O0).
     public DbSet<Integration.TradeXpress.Orders.Order> Orders { get; set; } = null!;
     public DbSet<Integration.TradeXpress.Orders.OrderLine> OrderLines { get; set; } = null!;
+    // Sipariş YEREL/OPERASYONEL katmanı (O1) — resync'ten bağımsız düzeltme/versiyon bağı (bkz. entity XML doc).
+    public DbSet<Integration.TradeXpress.Orders.OrderOperationalData> OrderOperationalData { get; set; } = null!;
+    public DbSet<Integration.TradeXpress.Orders.OrderLineOperationalData> OrderLineOperationalData { get; set; } = null!;
 
 
     #region Entities from the modules
@@ -192,6 +209,14 @@ public class TradeXpressDbContext :
         builder.ConfigureMetals();
         builder.ConfigureStones();
         builder.ConfigureJewelries();
+        builder.ConfigureGoods();
+        builder.ConfigureGoodSuppliers();
+        builder.ConfigureGoodVariantDetails();
+        builder.ConfigureEntityVariants();
+        builder.ConfigureSpecialCodes();
+        builder.ConfigureEntityImages();
+        builder.ConfigureEntityDocuments();
+        builder.ConfigureEntityNotes();
         builder.ConfigureAccounts();
         builder.ConfigureVouchers();
         builder.ConfigureBalanceLedger();

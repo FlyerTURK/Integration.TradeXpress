@@ -1,4 +1,5 @@
 @typeparam TListDto where TListDto : class, IPricedCommodityListDto
+@using Integration.TradeXpress.Variants
 
 <DxLayoutBreakpoint MaxWidth="768" @bind-IsActive="@_isMobile" />
 
@@ -28,18 +29,54 @@
         <div style="display:flex; flex-direction:column; gap:4px; @(_isMobile ? "width:100%;" : "flex-shrink:0;")">
             <div style="display:flex; @(_isMobile ? "flex-direction:column;" : "") gap:4px; align-items:flex-start;">
 
-                @* Emtia (Taş/Mücevher) = Commodity *@
-                <div style="@GroupStyle()">
-                    <small style="@LabelStyle">@nameof(VoucherLineDto.CommodityId)</small>
-                    <DxComboBox TData="TListDto" TValue="Guid?"
-                                Data="@_activeCommodities"
-                                ValueFieldName="@nameof(IPricedCommodityListDto.Id)"
-                                TextFieldName="@nameof(IPricedCommodityListDto.Code)"
-                                Value="@_model.CommodityId" ValueChanged="@OnCommodityChanged"
-                                DropDownTriggerMode="DropDownTriggerMode.Click" ShowDropDownButton="true"
-                                ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Never"
-                                SearchMode="ListSearchMode.AutoSearch" style="@ControlStyle()" />
-                </div>
+                @* Emtia = Commodity (LookupComboBox — ✎/+ ile mamül ekle/düzelt). Good (SupportsVariants): emtia + varyant
+                   combo'ları ALT ALTA, emtia combo'sunun 2× genişliği; varyant caption'ı masaüstünde GİZLİ (yalnız mobilde).
+                   Tek varyant → combo pasif + VariantId null (buton çıkmaz). Diğer emtia: tek combo. *@
+                @if (SupportsVariants)
+                {
+                    <div style="@VariantGroupStyle()">
+                        <small style="@LabelStyle">@nameof(VoucherLineDto.CommodityId)</small>
+                        <LookupComboBox TItem="TListDto" TValue="Guid?"
+                                        Data="@_activeCommodities"
+                                        ValueFieldName="@nameof(IPricedCommodityListDto.Id)"
+                                        TextFieldName="@nameof(IPricedCommodityListDto.Code)"
+                                        Value="@_model.CommodityId" ValueChanged="@(async (Guid? id) => await OnCommodityChangedAsync(id))"
+                                        AllowClear="false"
+                                        EditComponentType="@CommodityEditComponentType"
+                                        CreatePolicy="@CommodityCreatePolicy" UpdatePolicy="@CommodityUpdatePolicy"
+                                        OnLookupReloadRequested="@ReloadCommoditiesAsync" />
+                        @if (_isMobile)
+                        {
+                            <small style="@LabelStyle">@L["Variant"]</small>
+                        }
+                        @* Varyant — ✎/+ seçili MAMÜLün kartını açar (varyant yönetimi orada; commodity id ile — varyant id DEĞİL). *@
+                        <LookupComboBox TItem="CommodityVariantOptionDto" TValue="Guid?"
+                                        Data="@_variantOptions"
+                                        ValueFieldName="@nameof(CommodityVariantOptionDto.Id)"
+                                        TextFieldName="@nameof(CommodityVariantOptionDto.Code)"
+                                        Value="@_model.VariantId" ValueChanged="@OnVariantChanged"
+                                        AllowClear="false" Enabled="@(_variantOptions.Count > 1)"
+                                        CreatePolicy="@CommodityCreatePolicy" UpdatePolicy="@CommodityUpdatePolicy"
+                                        OnEditRequested="@(_ => OpenCommodityCardAsync())"
+                                        OnAddRequested="@OpenCommodityCardForAddAsync"
+                                        OnLookupReloadRequested="@ReloadVariantsAsync" />
+                    </div>
+                }
+                else
+                {
+                    <div style="@VariantGroupStyle()">
+                        <small style="@LabelStyle">@nameof(VoucherLineDto.CommodityId)</small>
+                        <LookupComboBox TItem="TListDto" TValue="Guid?"
+                                        Data="@_activeCommodities"
+                                        ValueFieldName="@nameof(IPricedCommodityListDto.Id)"
+                                        TextFieldName="@nameof(IPricedCommodityListDto.Code)"
+                                        Value="@_model.CommodityId" ValueChanged="@(async (Guid? id) => await OnCommodityChangedAsync(id))"
+                                        AllowClear="false"
+                                        EditComponentType="@CommodityEditComponentType"
+                                        CreatePolicy="@CommodityCreatePolicy" UpdatePolicy="@CommodityUpdatePolicy"
+                                        OnLookupReloadRequested="@ReloadCommoditiesAsync" />
+                    </div>
+                }
 
                 @if (_showAdet)
                 {

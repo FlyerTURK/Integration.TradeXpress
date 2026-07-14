@@ -1,0 +1,98 @@
+@using Integration.TradeXpress.Orders
+@using Integration.TradeXpress.SalesChannels
+@using DevExpress.Blazor
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@*
+   Sipariş edit formu İÇERİĞİ (dumb Layout — EntityEditForm/CrudEditHost bunu sarar). Başlık/totals SALT-OKUMA
+   referans (N11'den); Buyer/Fatura/Teslimat adresi/Kargo EDİTABLE (Model üzerinden — değer zaten AppService'te
+   düzeltme??orijinal ile dolu geldi). Kalemler ayrı bileşende (OrderItemsDrill, kendi verisini kendi yükler).
+*@
+
+<div style="display:flex; flex-direction:column; gap:14px;">
+
+    @* ── Sipariş bilgileri (salt-okuma referans) + Kargo (editable) ── *@
+    <DxFormLayout>
+        <DxFormLayoutItem Caption="@L["Order:Channel"]" ColSpanMd="4">@ChannelText(Model.ChannelType, Model.SalesChannelCode)</DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["Order:OrderNumber"]" ColSpanMd="4">@Model.OrderNumber</DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["Order:Date"]" ColSpanMd="4">@Model.OrderDate.ToString("g")</DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["Order:Status"]" ColSpanMd="4">@StatusLabel(Model.NeutralStatus)</DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["Order:RemoteStatus"]" ColSpanMd="4">@RemoteOrderStatusText(Model)</DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["Order:Amount"]" ColSpanMd="4">@Model.TotalAmount.ToString("N2")</DxFormLayoutItem>
+        @if (Model.Detail?.PaymentType is { Length: > 0 } payment)
+        {
+            <DxFormLayoutItem Caption="@L["Order:Detail:PaymentType"]" ColSpanMd="4">@PaymentTypeText(payment)</DxFormLayoutItem>
+        }
+        @if (Model.Detail?.InvoiceType is { } invoiceType)
+        {
+            <DxFormLayoutItem Caption="@L["Order:Detail:InvoiceType"]" ColSpanMd="4">@InvoiceTypeLabel(invoiceType)</DxFormLayoutItem>
+        }
+        <DxFormLayoutItem Caption="@L["Order:Cargo"]" ColSpanMd="4">
+            <DxTextBox @bind-Text="@Model.CargoProvider" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["Order:Tracking"]" ColSpanMd="8">
+            <DxTextBox @bind-Text="@Model.CargoTrackingNumber" />
+        </DxFormLayoutItem>
+    </DxFormLayout>
+
+    @* ── Alıcı (editable) ── *@
+    <DxFormLayout>
+        <DxFormLayoutItem Caption="@L["Order:Detail:Buyer"]" ColSpanMd="4">
+            <DxTextBox @bind-Text="@Model.Buyer.FullName" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["Order:Detail:Email"]" ColSpanMd="4">
+            <DxTextBox @bind-Text="@Model.Buyer.Email" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["Order:Detail:TcId"]" ColSpanMd="4">
+            <DxTextBox @bind-Text="@Model.Buyer.TcId" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["Order:Detail:TaxId"]" ColSpanMd="6">
+            <DxTextBox @bind-Text="@Model.Buyer.TaxId" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["Order:Detail:TaxOffice"]" ColSpanMd="6">
+            <DxTextBox @bind-Text="@Model.Buyer.TaxOffice" />
+        </DxFormLayoutItem>
+    </DxFormLayout>
+
+    @* ── Adresler (editable) ── *@
+    <DxFormLayout>
+        <DxFormLayoutGroup Caption="@L["Order:Detail:BillingAddress"]" ColSpanMd="6">
+            <OrderAddressEditFields Model="@Model.BillingAddress" />
+        </DxFormLayoutGroup>
+        <DxFormLayoutGroup Caption="@L["Order:Detail:ShippingAddress"]" ColSpanMd="6">
+            <OrderAddressEditFields Model="@Model.ShippingAddress" />
+        </DxFormLayoutGroup>
+    </DxFormLayout>
+
+    @* ── Sipariş Fazı O2 — edit formu toolbar'ındaki "Kabul Et" için paket sayısı girdisi (yalnız N11). Reddet'in
+       gerekçesi burada DEĞİL — tıklanınca UiService.PromptAsync ile GERÇEKTEN SORULUR (OrderEditHost). ── *@
+    @if (Model.ChannelType == SalesChannelType.TrN11)
+    {
+        <DxFormLayout>
+            <DxFormLayoutGroup Caption="@L["Order:Action:Title"]" ColSpanMd="12">
+                <DxFormLayoutItem Caption="@L["Order:Action:NumberOfPackages"]" ColSpanMd="4">
+                    <NumericSpinEdit @bind-Value="@Model.ActionInputNumberOfPackages" />
+                </DxFormLayoutItem>
+            </DxFormLayoutGroup>
+        </DxFormLayout>
+    }
+
+    @* ── Tutar kırılımı (salt-okuma — N11 hesaplaması) ── *@
+    @if (Model.Detail?.Totals is { } totals)
+    {
+        <DxFormLayout>
+            <DxFormLayoutItem Caption="@L["Order:Detail:OriginalPrice"]" ColSpanMd="4">@Money(totals.OriginalPrice)</DxFormLayoutItem>
+            <DxFormLayoutItem Caption="@L["Order:Detail:SellerInvoice"]" ColSpanMd="4">@Money(totals.SellerInvoiceAmount)</DxFormLayoutItem>
+            <DxFormLayoutItem Caption="@L["Order:Detail:Due"]" ColSpanMd="4">@Money(totals.DueAmount)</DxFormLayoutItem>
+            @if (DerivedShipping(totals) is { } shipping)
+            {
+                <DxFormLayoutItem Caption="@L["Order:Detail:ShippingFee"]" ColSpanMd="4">@Money(shipping)</DxFormLayoutItem>
+            }
+            <DxFormLayoutItem Caption="@L["Order:Detail:MallDiscount"]" ColSpanMd="4">@Money(totals.TotalMallDiscountPrice)</DxFormLayoutItem>
+            <DxFormLayoutItem Caption="@L["Order:Detail:SellerDiscount"]" ColSpanMd="4">@Money(totals.TotalSellerDiscount)</DxFormLayoutItem>
+        </DxFormLayout>
+    }
+
+    @* ── Kalemler — drill (AllowAdd/AllowDelete=false: sipariş kalemi eklenip silinemez, yalnız düzenlenir). ── *@
+    <OrderItemsDrill @ref="_itemsDrill" OrderId="@Model.Id" ChannelType="@Model.ChannelType" />
+</div>

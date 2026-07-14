@@ -71,8 +71,9 @@
             CssClass="flex-grow-1 overflow-hidden"
             @attributes="GridAttributes"
             AllowColumnReordering="true"
-            AllowColumnResizing="true">
-        
+            AllowColumnResizing="true"
+            DetailRowTemplate="@DetailRowTemplate">
+
         <Columns>
             <DxGridSelectionColumn Width="48px" AllowSelectAll="true" FixedPosition="GridColumnFixedPosition.Left" AllowReorder="false" VisibleIndex="0" />
             @if (GridColumns != null)

@@ -5,33 +5,46 @@ using System.Linq.Expressions;
 using System.Threading.Tasks;
 using Integration.Framework;
 using Integration.Framework.Application;
+using Integration.TradeXpress.Attachments;
+using Integration.TradeXpress.Commodities;
 using Integration.TradeXpress.Localization;
 using Integration.TradeXpress.MultiCompany;
 using Integration.TradeXpress.Permissions;
+using Integration.TradeXpress.Variants;
 using Microsoft.AspNetCore.Authorization;
+using Volo.Abp.Application.Dtos;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.MultiTenancy;
 
 namespace Integration.TradeXpress.Jewelries;
 
 /// <summary>
-/// Jewelry (Mücevher) CRUD — company-scoped. Görünür = host(TenantId null) + çalışılan şirkete-özel
-/// (CompanyId == çalışılan; CompanyId null = holding-host). Sıralama: Code artan. CRUD/guard davranışı
-/// <see cref="HostCatalogCrudAppService{TEntity,TGetDto,TListDto,TListRequest,TCreateInput,TUpdateInput}"/> tabanından.
+/// Jewelry (Mücevher) CRUD — company-scoped. Scalar alanlar + guard davranışı <see cref="HostCatalogCrudAppService{TEntity,
+/// TGetDto,TListDto,TListRequest,TCreateInput,TUpdateInput}"/> tabanından; agnostik GRAF (görsel/doküman/not + nitelik/varyant
+/// sistemi + varyant görselleri) <see cref="CommodityAgnosticGraph"/>'a delege edilir (Good deseni; fiyat/stok uzantısı YOK —
+/// mücevher fiyatı entity seviyesinde). Görünür = host(TenantId null) + çalışılan şirkete-özel; sıralama Code artan.
 /// </summary>
 [Authorize]
 public class JewelryAppService
     : HostCatalogCrudAppService<Jewelry, JewelryGetDto, JewelryListDto, JewelryListRequestDto, JewelryCreateDto, JewelryUpdateDto>,
       IJewelryAppService
 {
+    private const string JewelryEntityName = "Jewelry";
+    private const string VariantImageEntityName = "JewelryVariant";   // varyant-özel görsellerin agnostik EntityImage anahtarı
+
+    private readonly IRepository<Jewelry, Guid> _jewelryRepository;
     private readonly ICurrentCompany _currentCompany;
+    private readonly CommodityAgnosticGraph _graph;
 
     public JewelryAppService(
         IRepository<Jewelry, Guid> repository,
-        ICurrentCompany currentCompany)
+        ICurrentCompany currentCompany,
+        CommodityAgnosticGraph graph)
         : base(repository)
     {
+        _jewelryRepository = repository;
         _currentCompany = currentCompany;
+        _graph = graph;
         LocalizationResource = typeof(TradeXpressResource);
 
         // Katalog yönetimi izinli (okuma/liste serbest — [Authorize] yeter): Metal deseniyle hizalı.
@@ -69,6 +82,28 @@ public class JewelryAppService
         using (DataFilter.Disable<ICompanyScoped>())
         {
             return await GetPickerListCoreAsync(scope);
+        }
+    }
+
+    // Liste — base + agnostik varsayılan görsel thumbnail'i (Good deseniyle aynı; tek batch, N+1 yok).
+    public override async Task<PagedResultDto<JewelryListDto>> GetListAsync(JewelryListRequestDto input)
+    {
+        var page = await base.GetListAsync(input);
+        await EnrichImagesAsync(page.Items);
+        return page;
+    }
+
+    private async Task EnrichImagesAsync(IReadOnlyList<JewelryListDto> items)
+    {
+        if (items.Count == 0)
+        {
+            return;
+        }
+
+        var previews = await _graph.GetImagePreviewMapAsync(JewelryEntityName, items.Select(i => i.Id).ToList());
+        foreach (var i in items)
+        {
+            i.ImagePreviewUrl = previews.GetValueOrDefault(i.Id);
         }
     }
 
@@ -127,5 +162,61 @@ public class JewelryAppService
                           updateInput.EntryPrice, updateInput.EntryPriceUnitId, updateInput.ExitPrice, updateInput.ExitPriceUnitId);
         entity.SetDescription(updateInput.Description);
         entity.SetActive(updateInput.IsActive);
+    }
+
+    // ── Graf: Create/Update override → scalar save (base) + agnostik graf (görsel/doküman/not + nitelik/varyant). ──
+
+    public override async Task<JewelryGetDto> CreateAsync(JewelryCreateDto input)
+    {
+        var dto = await base.CreateAsync(input);
+        await SaveGraphAsync(dto.Id, input.Images, input.Documents, input.Notes, input.Attributes, input.Variants);
+        return await GetAsync(dto.Id);
+    }
+
+    public override async Task<JewelryGetDto> UpdateAsync(Guid id, JewelryUpdateDto input)
+    {
+        var dto = await base.UpdateAsync(id, input);
+        await SaveGraphAsync(id, input.Images, input.Documents, input.Notes, input.Attributes, input.Variants);
+        return await GetAsync(id);
+    }
+
+    private async Task SaveGraphAsync(
+        Guid jewelryId, List<EntityImageEditDto> images, List<EntityDocumentEditDto> documents,
+        List<EntityNoteEditDto> notes, List<EntityAttributeGraphDto> attributes, List<EntityVariantGraphDto> variants)
+    {
+        var jewelry = await _jewelryRepository.GetAsync(jewelryId);
+        await _graph.SaveAsync(
+            JewelryEntityName, VariantImageEntityName, jewelryId, jewelry.CompanyId, jewelry.Name,
+            images, documents, notes, attributes, variants);
+    }
+
+    public override async Task<JewelryGetDto> GetAsync(Guid id)
+    {
+        var dto = await base.GetAsync(id);
+        var graph = await _graph.LoadAsync(JewelryEntityName, VariantImageEntityName, id);
+        dto.Images = graph.Images;
+        dto.Documents = graph.Documents;
+        dto.Notes = graph.Notes;
+        dto.Attributes = graph.Attributes;
+        dto.Variants = graph.Variants;
+        return dto;
+    }
+
+    // Mücevher silinmeden ÖNCE (guard'lar geçti) — varyant grafı (+ varyant görselleri) + görsel/doküman/not temizlenir.
+    protected override Task BeforeDeleteAsync(Jewelry entity)
+    {
+        return _graph.DeleteAsync(JewelryEntityName, VariantImageEntityName, entity.Id);
+    }
+
+    // ── Varyant sistemi — jenerik agnostik servise delege (fiyat/stok uzantısı YOK; fiyat mücevherde). ──
+
+    public virtual Task<List<EntityVariantGraphDto>> GenerateVariantsAsync(EntityVariantGenerateRequestDto input)
+    {
+        return Task.FromResult(_graph.GenerateVariants(input));
+    }
+
+    public virtual Task<List<CommodityVariantOptionDto>> GetVariantPickerListAsync(Guid jewelryId)
+    {
+        return _graph.GetVariantPickerAsync(JewelryEntityName, jewelryId);
     }
 }

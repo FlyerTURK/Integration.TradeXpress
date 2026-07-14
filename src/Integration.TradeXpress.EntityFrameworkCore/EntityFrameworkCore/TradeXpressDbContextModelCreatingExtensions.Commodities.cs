@@ -194,4 +194,48 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
             b.HasOne<Integration.TradeXpress.Financials.CurrencyUnits.CurrencyUnit>().WithMany().HasForeignKey(x => x.ExitPriceUnitId).OnDelete(DeleteBehavior.Restrict);
         });
     }
+
+    public static void ConfigureGoods(this ModelBuilder builder)
+    {
+        Check.NotNull(builder, nameof(builder));
+
+        builder.Entity<Integration.TradeXpress.Goods.Good>(b =>
+        {
+            b.ToTable(TradeXpressConsts.DbTablePrefix + "Goods", TradeXpressConsts.DbSchema);
+            b.ConfigureByConvention();
+
+            b.Property(x => x.Code).IsRequired().HasMaxLength(Integration.TradeXpress.Goods.GoodConsts.CodeMaxLength);
+            b.Property(x => x.Name).IsRequired().HasMaxLength(Integration.TradeXpress.Goods.GoodConsts.NameMaxLength);
+            b.Property(x => x.Description).HasMaxLength(Integration.TradeXpress.Goods.GoodConsts.DescriptionMaxLength);
+            foreach (var p in new[] { nameof(Integration.TradeXpress.Goods.Good.Brand), nameof(Integration.TradeXpress.Goods.Good.Model),
+                nameof(Integration.TradeXpress.Goods.Good.Kind), nameof(Integration.TradeXpress.Goods.Good.Type),
+                nameof(Integration.TradeXpress.Goods.Good.Color), nameof(Integration.TradeXpress.Goods.Good.Size),
+                nameof(Integration.TradeXpress.Goods.Good.Category), nameof(Integration.TradeXpress.Goods.Good.GroupCode) })
+                b.Property(p).HasMaxLength(Integration.TradeXpress.Goods.GoodConsts.AttributeMaxLength);
+            b.Property(x => x.StockUnitCode).HasMaxLength(Integration.TradeXpress.Goods.GoodConsts.StockUnitMaxLength);
+            // Fiyat (alış/kâr/satış) + Min/Max ana mamülde DEĞİL → varyantta (GoodVariantDetail config'i orada). Vergiler kalır.
+            foreach (var r in new[] { nameof(Integration.TradeXpress.Goods.Good.VatPurchaseRate), nameof(Integration.TradeXpress.Goods.Good.VatSaleRate),
+                nameof(Integration.TradeXpress.Goods.Good.OtvRate), nameof(Integration.TradeXpress.Goods.Good.WithholdingRate) })
+                b.Property(r).HasPrecision(Integration.TradeXpress.Goods.GoodConsts.RatePrecision, Integration.TradeXpress.Goods.GoodConsts.RateScale);
+
+            b.HasIndex(x => new { x.TenantId, x.CompanyId, x.Code }).IsUnique();
+        });
+    }
+
+    public static void ConfigureGoodSuppliers(this ModelBuilder builder)
+    {
+        Check.NotNull(builder, nameof(builder));
+
+        builder.Entity<Integration.TradeXpress.Goods.GoodSupplier>(b =>
+        {
+            b.ToTable(TradeXpressConsts.DbTablePrefix + "GoodSuppliers", TradeXpressConsts.DbSchema);
+            b.ConfigureByConvention();
+
+            b.Property(x => x.Price).HasPrecision(Integration.TradeXpress.Goods.GoodConsts.PricePrecision, Integration.TradeXpress.Goods.GoodConsts.PriceScale);
+
+            // GoodId/SubAccountId/AccountId/CurrencyUnitId id-only (OrderLine deseni; sert FK yok — parent silme guard'ı AppService'te).
+            b.HasIndex(x => x.GoodId);
+            b.HasIndex(x => x.SubAccountId);
+        });
+    }
 }

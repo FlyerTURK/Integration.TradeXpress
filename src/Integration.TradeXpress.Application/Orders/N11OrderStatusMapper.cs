@@ -3,12 +3,12 @@ using System.Globalization;
 namespace Integration.TradeXpress.Orders;
 
 /// <summary>
-/// N11 ham sipariş durumu (DetailedOrderData.status — <c>xs:integer</c>) → NÖTR <see cref="OrderStatus"/> eşlemesi
-/// (SAF STATİK; birim testli). Ham durum ayrıca <c>Order.RemoteStatus</c>'te saklanır (bilgi kaybı yok).
-/// <para><b>DİKKAT — integer→anlam eşlemesi CANLI DOĞRULANMADI:</b> N11 sipariş durum tam sayılarının anlamı kamuya
-/// net dokümante değil ve elimizde canlı sipariş yok. Yanlış eşleme (ör. iptali "Teslim" göstermek) yanıltıcı
-/// olacağından ihtiyatlı davranılır: bilinmeyen değer <see cref="OrderStatus.Unknown"/>'a düşer, ham kod korunur.
-/// İlk gerçek siparişler görüldüğünde <see cref="Map"/> gövdesine bilinen kodlar eklenerek rafine edilir (tek yer).</para>
+/// N11 ham sipariş durumu (order.status — <c>xs:integer</c>) → NÖTR <see cref="OrderStatus"/> eşlemesi
+/// (SAF STATİK; birim testli). Ham durum ayrıca <c>Order.RemoteStatus</c>'te saklanır (bilgi kaybı yok); insan-okunur
+/// N11 etiketi için bkz. <see cref="N11OrderStatusCatalog"/>.
+/// <para><b>Kod tablosu N11 SOAP Referans Dokümantasyonu v4.6'dan (GROUND TRUTH):</b> order.status yalnız 5 kaba durum
+/// döner (kalem-durumu daha zengindir — bkz. katalog). <see cref="OrderStatus.Unknown"/> yalnız çözülemeyen/geçersiz
+/// koda düşer (ham kod RemoteStatus'te korunur).</para>
 /// </summary>
 public static class N11OrderStatusMapper
 {
@@ -23,16 +23,19 @@ public static class N11OrderStatusMapper
         return MapCode(code);
     }
 
-    /// <summary>Bilinen N11 sipariş durum kodlarını nötr duruma eşler. Canlı doğrulandı (2026-07-11): order-status
-    /// <b>5</b> = tamamlanmış/teslim (kalem-status 10; trackingNumber + shippingDate dolu 2017 siparişleri) → Delivered.
-    /// Diğer kodlar henüz gözlenmedi → Unknown (sessizce varsayMAZ; ham değer RemoteStatus'te korunur, yeni kod
-    /// görüldükçe buraya eklenir).</summary>
+    /// <summary>N11 order.status kodlarını nötr duruma eşler (SOAP ref v4.6): 1 İşlem Bekliyor→New · 2 İşlemde→Processing ·
+    /// 3 İptal Edilmiş→Cancelled · 4 Geçersiz→Unknown (belirsiz; ham korunur) · 5 Tamamlandı→Delivered (canlı gözlem
+    /// 2017: kalem-status 10 + trackingNumber + shippingDate dolu). N11 order-status yalnız bu 5 kaba durumu döner;
+    /// zengin kalem-durumu ayrıdır (bkz. <see cref="N11OrderStatusCatalog"/>).</summary>
     private static OrderStatus MapCode(int code)
     {
         return code switch
         {
-            5 => OrderStatus.Delivered,
-            _ => OrderStatus.Unknown,
+            1 => OrderStatus.New,           // İşlem Bekliyor
+            2 => OrderStatus.Processing,    // İşlemde
+            3 => OrderStatus.Cancelled,     // İptal Edilmiş
+            5 => OrderStatus.Delivered,     // Tamamlandı
+            _ => OrderStatus.Unknown,       // 4 Geçersiz + bilinmeyen → belirsiz (ham RemoteStatus korunur)
         };
     }
 }

@@ -108,6 +108,7 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
             b.ConfigureByConvention();
 
             b.Property(x => x.CommodityCode).HasMaxLength(VoucherConsts.CommodityCodeMaxLength);
+            b.Property(x => x.VariantCode).HasMaxLength(VoucherConsts.CommodityCodeMaxLength);
             b.Property(x => x.PayCommodityCode).HasMaxLength(VoucherConsts.CommodityCodeMaxLength);
             b.Property(x => x.Description).HasMaxLength(VoucherConsts.DescriptionMaxLength);
 

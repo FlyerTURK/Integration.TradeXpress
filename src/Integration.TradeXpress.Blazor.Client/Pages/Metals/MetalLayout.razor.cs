@@ -17,6 +17,9 @@ public partial class MetalLayout
     [Parameter] public bool IsNew { get; set; }
     [Parameter] public IReadOnlyList<CurrencyUnitListDto> CurrencyUnits { get; set; } = Array.Empty<CurrencyUnitListDto>();
 
+    /// <summary>"Varyantları Oluştur" — layout DUMB (servis çağırmaz): host yapar (MetalAppService.GenerateVariantsAsync → Model.Variants).</summary>
+    [Parameter] public EventCallback OnGenerateVariants { get; set; }
+
     [Inject] private IMetalImageAppService MetalImageAppService { get; set; } = default!;
 
     private record LaborTypeItem(MetalLaborType Value, string Label);

@@ -2,10 +2,14 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Integration.Framework.Blazor.Client.Services.Base;
+using Integration.Framework.Blazor.Client.Services.Mdi;
+using Integration.TradeXpress.Blazor.Client.Pages.Metals;
 using Integration.TradeXpress.Cashes;
 using Integration.TradeXpress.Financials.CurrencyUnits;
 using Integration.TradeXpress.Financials.Parities;
 using Integration.TradeXpress.Metals;
+using Integration.TradeXpress.Variants;
 using Integration.TradeXpress.Vouchers;
 using Microsoft.AspNetCore.Components;
 
@@ -22,6 +26,8 @@ public partial class MetalProcessPanel
     [Inject] private ICurrencyUnitAppService CurrencyUnitService { get; set; } = default!;
     [Inject] private IEffectivePriceAppService PriceService { get; set; } = default!;
     [Inject] private IParityAppService ParityService { get; set; } = default!;
+    [Inject] private IViewOpener ViewOpener { get; set; } = default!;   // varyant lookup ✎/+ → maden kartı popup'ı
+    [Inject] private IPopupService PopupService { get; set; } = default!;
 
     protected override ProcessType ProcessType => ProcessType.Metal;
 
@@ -38,6 +44,7 @@ public partial class MetalProcessPanel
 
     private List<MetalListDto> _allMetals = new();
     private List<MetalListDto> _activeMetals = new();
+    private List<CommodityVariantOptionDto> _variantOptions = new();   // seçili madenin AKTİF varyantları (varyant combo'su)
 
     private List<CurrencyUnitListDto> _allCurrencyUnits = new();
     private List<CurrencyUnitListDto> _activeUnits = new();
@@ -132,7 +139,9 @@ public partial class MetalProcessPanel
         _localUnitId = await PriceService.GetWorkingLocalCurrencyUnitIdAsync();   // Peşin/Bedelli default karşı bacak
 
         if (!_editLoaded && _activeMetals.Count > 0)   // edit yükleniyorsa default metal SEÇME (loaded değerleri ezmesin)
-            OnMetalChanged(_activeMetals[0].Id);
+        {
+            await OnMetalChangedAsync(_activeMetals[0].Id);
+        }
     }
 
     /// <summary>Maden listesini (lookup verisi) yükler/tazeler — combo, LISTELEME GRIDIYLE AYNI sırada:
@@ -145,6 +154,12 @@ public partial class MetalProcessPanel
             .Where(m => m.IsActive)
             .OrderBy(m => m.Code, StringComparer.OrdinalIgnoreCase)
             .ToList();
+
+        // Maden lookup ✎/+ sonrası seçili madenin varyantlarını da tazele (varyant combo bayat kalmasın).
+        if (Model.CommodityId is { } id)
+        {
+            _variantOptions = await MetalService.GetVariantPickerListAsync(id);
+        }
     }
 
     private decimal BuyOf(Guid id) => _buyByUnit.GetValueOrDefault(id);
@@ -236,6 +251,70 @@ public partial class MetalProcessPanel
         BuildPayList();
         EnsurePayItem();
         Recalc(EditedField.Commodity);
+    }
+
+    // Maden seçimi (async sarmal) — sync mantık (fiyat/milyem/pay) + AKTİF varyantları yükle. Fiyatı DEĞİŞTİRMEZ (maden fiyatı milyem/işçilik).
+    private async Task OnMetalChangedAsync(Guid? id)
+    {
+        OnMetalChanged(id);
+        await LoadVariantOptionsAsync(id);
+    }
+
+    // Seçili madenin AKTİF varyantlarını yükler. Tek varyant → VariantId null (anlamlı boyut yok); çoklu → ana varyant varsayılan.
+    private async Task LoadVariantOptionsAsync(Guid? metalId)
+    {
+        Model.VariantId = null;
+        Model.VariantCode = null;
+        _variantOptions = new();
+        if (metalId is { } id)
+        {
+            _variantOptions = await MetalService.GetVariantPickerListAsync(id);
+            if (_variantOptions.Count > 1)
+            {
+                var main = _variantOptions.FirstOrDefault(v => v.IsMain) ?? _variantOptions[0];
+                Model.VariantId = main.Id;
+                Model.VariantCode = main.Code;
+            }
+        }
+    }
+
+    private void OnVariantChanged(Guid? id)
+    {
+        var v = id.HasValue ? _variantOptions.FirstOrDefault(x => x.Id == id.Value) : null;
+        Model.VariantId = v?.Id;
+        Model.VariantCode = v?.Code;
+        // Maden fiyatı milyem/işçilik — varyant seçimi fiyatı DEĞİŞTİRMEZ (yalnız hangi SKU olduğunu kaydeder).
+    }
+
+    // Varyant lookup ✎/+ → seçili madenin KARTINI açar (varyant yönetimi orada; commodity id ile — varyant id DEĞİL).
+    private Task OpenMetalCardAsync()
+    {
+        if (Model.CommodityId is not { } id)
+        {
+            return Task.CompletedTask;
+        }
+
+        var extra = new Dictionary<string, object>
+        {
+            { "OnClosed", EventCallback.Factory.Create(this, () => PopupService.Close()) },
+        };
+        return ViewOpener.OpenAsync(typeof(MetalEditHost), id, string.Empty, null, extra);
+    }
+
+    private async Task<Guid?> OpenMetalCardForAddAsync()
+    {
+        await OpenMetalCardAsync();
+        return null;
+    }
+
+    // Varyant lookup tazeleme kancası — seçili madenin varyantlarını yeniden yükler.
+    private async Task ReloadVariantsForCurrentMetalAsync()
+    {
+        if (Model.CommodityId is { } id)
+        {
+            _variantOptions = await MetalService.GetVariantPickerListAsync(id);
+            StateHasChanged();
+        }
     }
 
     // Yön'e göre işçilik kilidini + (yalnız işçilik modunda) işçilik DEFAULT'unu pay alanlarına uygular.
@@ -447,5 +526,11 @@ public partial class MetalProcessPanel
         if (Model.PayCommodityId is { } pcid && _activePayItems.All(x => x.Id != pcid))
             _activePayItems.Insert(0, new PayComboItem(pcid, Model.PayCommodityCode ?? string.Empty, true, Model.PayUnitId, Model.PayUnitCode));
         _selectedPayItem = _activePayItems.FirstOrDefault(x => x.Id == Model.PayCommodityId);
+
+        // Varyant seçeneklerini yükle (kayıtlı Model.VariantId combo'da görünsün; VariantId dto'dan zaten geldi — dokunma).
+        if (Model.CommodityId is { } metalId)
+        {
+            _variantOptions = await MetalService.GetVariantPickerListAsync(metalId);
+        }
     }
 }

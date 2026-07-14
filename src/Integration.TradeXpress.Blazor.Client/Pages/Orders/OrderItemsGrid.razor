@@ -1,0 +1,49 @@
+@using Integration.TradeXpress.Orders
+@using Integration.TradeXpress.SalesChannels
+@using DevExpress.Blazor
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@*
+   Master-detail DETAIL grid'i — bir SİPARİŞİN KALEMLERİ (<see cref="OrderListDto.Items"/>). Kolonlar: ürün/stok/SKU,
+   adet, birim fiyat, satır tutarı, komisyon, indirim, kargo (firma+yöntem), durum (kanal-farkında etiket), nitelikler.
+   Veri master satırda hazır (list sorgusunda enrich; ekstra sorgu yok). Kalem yoksa kısa uyarı.
+*@
+
+@if (Order?.Items is { Count: > 0 } items)
+{
+    <div style="padding:6px 10px;">
+        <DxGrid Data="@items"
+                KeyFieldName="Id"
+                ShowAllRows="true"
+                ShowFilterRow="false"
+                PagerVisible="false"
+                ColumnResizeMode="GridColumnResizeMode.ColumnsContainer">
+            <Columns>
+                <DxGridDataColumn FieldName="ProductNameSnapshot" Caption="@L["Order:Line:Product"]" MinWidth="200" />
+                <DxGridDataColumn FieldName="StockCode" Caption="@L["Order:Line:StockCode"]" Width="120px" />
+                <DxGridDataColumn FieldName="ItemDetail.SkuId" Caption="@L["Order:Detail:Sku"]" Width="110px" />
+                <DxGridDataColumn FieldName="Quantity" Caption="@L["Order:Line:Quantity"]" Width="60px"
+                                  DisplayFormat="N0" TextAlignment="GridTextAlignment.Right" />
+                <DxGridDataColumn FieldName="UnitPrice" Caption="@L["Order:Line:UnitPrice"]" Width="95px"
+                                  DisplayFormat="N2" TextAlignment="GridTextAlignment.Right" />
+                <DxGridDataColumn FieldName="LineTotal" Caption="@L["Order:Line:Total"]" Width="100px"
+                                  DisplayFormat="N2" TextAlignment="GridTextAlignment.Right" />
+                <DxGridDataColumn FieldName="ItemDetail.Commission" Caption="@L["Order:Detail:Commission"]" Width="95px"
+                                  DisplayFormat="N2" TextAlignment="GridTextAlignment.Right" />
+                <DxGridDataColumn FieldName="ItemDetail.DiscountTotal" Caption="@L["Order:Detail:Discount"]" Width="95px"
+                                  DisplayFormat="N2" TextAlignment="GridTextAlignment.Right" />
+                <DxGridDataColumn FieldName="ItemDetail.ShipmentCompany" Caption="@L["Order:Detail:Shipment"]" Width="150px">
+                    <CellDisplayTemplate>@ShipmentText(((OrderItemListDto)context.DataItem).ItemDetail)</CellDisplayTemplate>
+                </DxGridDataColumn>
+                <DxGridDataColumn FieldName="RemoteLineStatus" Caption="@L["Order:Line:Status"]" Width="150px">
+                    <CellDisplayTemplate>@ItemStatusText((OrderItemListDto)context.DataItem)</CellDisplayTemplate>
+                </DxGridDataColumn>
+                <DxGridDataColumn FieldName="ItemDetail.Attributes" Caption="@L["Order:Detail:Attributes"]" MinWidth="140" />
+            </Columns>
+        </DxGrid>
+    </div>
+}
+else
+{
+    <div style="padding:8px 10px; color:#6c757d; font-size:0.85rem;">@L["Order:Detail:NoItems"]</div>
+}

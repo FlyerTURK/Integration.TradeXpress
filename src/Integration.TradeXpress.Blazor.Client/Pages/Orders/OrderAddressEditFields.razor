@@ -1,0 +1,39 @@
+@using Integration.TradeXpress.Orders
+@using DevExpress.Blazor
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@*
+   Sipariş adresi EDİT alanları (PAYLAŞILAN — Fatura + Teslimat AYNI şekli kullanır, DRY). Değerler önceden
+   düzeltme??orijinal ile dolu gelir (OrderAppService.GetOrderEditAsync); burada sadece editable form.
+*@
+
+<DxFormLayoutItem Caption="@L["Order:Detail:Buyer"]" ColSpanMd="12">
+    <DxTextBox @bind-Text="@Model.FullName" />
+</DxFormLayoutItem>
+<DxFormLayoutItem Caption="@L["Order:Address:Line"]" ColSpanMd="12">
+    <DxMemo @bind-Text="@Model.Line" Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100" />
+</DxFormLayoutItem>
+<DxFormLayoutItem Caption="@L["Order:Address:Neighborhood"]" ColSpanMd="6">
+    <DxTextBox @bind-Text="@Model.Neighborhood" />
+</DxFormLayoutItem>
+<DxFormLayoutItem Caption="@L["Order:Address:District"]" ColSpanMd="6">
+    <DxTextBox @bind-Text="@Model.District" />
+</DxFormLayoutItem>
+<DxFormLayoutItem Caption="@L["Order:Address:City"]" ColSpanMd="6">
+    <DxTextBox @bind-Text="@Model.City" />
+</DxFormLayoutItem>
+<DxFormLayoutItem Caption="@L["Order:Address:PostalCode"]" ColSpanMd="6">
+    <DxTextBox @bind-Text="@Model.PostalCode" />
+</DxFormLayoutItem>
+<DxFormLayoutItem Caption="@L["Order:Address:Gsm"]" ColSpanMd="6">
+    <DxTextBox @bind-Text="@Model.Gsm" />
+</DxFormLayoutItem>
+<DxFormLayoutItem Caption="@L["Order:Detail:TcId"]" ColSpanMd="6">
+    <DxTextBox @bind-Text="@Model.TcId" />
+</DxFormLayoutItem>
+<DxFormLayoutItem Caption="@L["Order:Detail:TaxId"]" ColSpanMd="6">
+    <DxTextBox @bind-Text="@Model.TaxId" />
+</DxFormLayoutItem>
+<DxFormLayoutItem Caption="@L["Order:Detail:TaxOffice"]" ColSpanMd="6">
+    <DxTextBox @bind-Text="@Model.TaxOffice" />
+</DxFormLayoutItem>

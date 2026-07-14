@@ -54,6 +54,7 @@ public partial class TransactionReportPage
         new(ProcessType.Future,   "Vadeli"),
         new(ProcessType.Stone,    "Taş"),
         new(ProcessType.Jewelry,  "Mücevher"),
+        new(ProcessType.Good,     "Mamül"),
         new(ProcessType.Transfer, "Virman"),
         new(ProcessType.Assay,    "Çeşni"),
         new(ProcessType.Bullion,  "Takoz"),

@@ -106,7 +106,8 @@ public class BalanceSheetReportAppService : TradeXpressAppService, IBalanceSheet
             result.Supported = true;
             result.Movements = await GetStockMovementsAsync(branchId, input.UnitId, cutoff);
         }
-        else if (input.Category == BalanceSheetCategory.Stone || input.Category == BalanceSheetCategory.Jewelry)
+        else if (input.Category == BalanceSheetCategory.Stone || input.Category == BalanceSheetCategory.Jewelry
+              || input.Category == BalanceSheetCategory.Good)
         {
             // Kaynak drill desteklemiyorsa Supported=false kalır (mevcut davranış).
             var movements = await GetCommodityDrillMovementsAsync(input.Category, companyId, branchId, input.AsOf, input.UnitId);

@@ -93,6 +93,20 @@
     [Parameter] public bool IsReadOnly { get; set; }
     [Parameter] public string? ReadOnlyNoticeText { get; set; }
 
+    /// <summary>Bu edit "Kaydet ve Yeni" akışını destekliyor mu? false ise toolbar butonu GİZLENİR. Default true
+    /// (mevcut TÜM edit formları değişmez). Create'i olmayan edit-only entity'ler (ör. Order — yalnız senkronizasyondan
+    /// gelir, elle oluşturulamaz) false verir.</summary>
+    [Parameter] public bool SupportsSaveAndNew { get; set; } = true;
+
+    /// <summary>Bu edit Sil aksiyonunu destekliyor mu? false ise toolbar Sil'i GİZLER. Default true (mevcut TÜM
+    /// edit formları değişmez). Delete'i olmayan edit-only entity'ler false verir.</summary>
+    [Parameter] public bool SupportsDelete { get; set; } = true;
+
+    /// <summary>Edite özel ek toolbar aksiyonları — Model'in GÜNCEL haliyle her render'da yeniden hesaplanır (ör.
+    /// Order "Kabul Et"/"Reddet": model.ActionInputRejectReason gibi UI-only alanları okur). Default null (mevcut
+    /// TÜM edit formları değişmez).</summary>
+    [Parameter] public Func<TGetDto, IReadOnlyList<CrudToolbarAction>>? BuildCustomActions { get; set; }
+
     // Navigasyon: host (koordinatör) hesaplar + verir; Form yalnız niyet fırlatır.
     [Parameter] public bool CanGoPreviousRecord { get; set; }
     [Parameter] public bool CanGoNextRecord { get; set; }
@@ -264,6 +278,7 @@
         if (PopupChrome is not null)
             await OnSaveAndClose.InvokeAsync();
     }
+    bool ISplitEditActions.SupportsSaveAndNew => SupportsSaveAndNew;
     async Task ISplitEditActions.SaveAndNewAsync() { if (await ValidateAndCommitAsync()) await OnSaveAndNew.InvokeAsync(); }
     async Task ISplitEditActions.SaveAndCloseAsync() { if (await ValidateAndCommitAsync()) await OnSaveAndClose.InvokeAsync(); }
 
@@ -297,6 +312,8 @@
         finally { _busy = false; }
     }
 
+    bool ISplitEditActions.SupportsDelete => SupportsDelete;
+    IReadOnlyList<CrudToolbarAction>? ISplitEditActions.CustomActions => BuildCustomActions?.Invoke(Model);
     bool ISplitEditActions.CanDelete => !IsReadOnly && CanDeleteRecord && !IsNew;
     async Task ISplitEditActions.DeleteAsync()
     {

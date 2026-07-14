@@ -46,6 +46,7 @@ public partial class AccountSelectionPanel
     private MetalProcessPanel? _metalPanel;
     private StoneProcessPanel? _stonePanel;
     private JewelryProcessPanel? _jewelryPanel;
+    private GoodProcessPanel? _goodPanel;
     private BullionProcessPanel? _bullionPanel;
     private BullionExitPanel? _bullionExitPanel;
     private AssayProcessPanel? _assayPanel;
@@ -96,6 +97,7 @@ public partial class AccountSelectionPanel
             [ProcessType.Metal]     = () => _metalPanel,
             [ProcessType.Stone]     = () => _stonePanel,
             [ProcessType.Jewelry]   = () => _jewelryPanel,
+            [ProcessType.Good]      = () => _goodPanel,
             [ProcessType.Assay]     = () => _assayPanel,
             [ProcessType.DebitNote] = () => _debitNotePanel,
             [ProcessType.Transfer]  = () => _transferPanel,
@@ -307,6 +309,7 @@ public partial class AccountSelectionPanel
     private Task OnMetalClicked()   => SetActiveProcessAsync("Metal");
     private Task OnStoneClicked()   => SetActiveProcessAsync("Stone");
     private Task OnJewelryClicked() => SetActiveProcessAsync("Jewelry");
+    private Task OnGoodClicked()    => SetActiveProcessAsync("Good");
     private Task OnBullionInClicked()  => SetActiveProcessAsync("Bullion");
     private Task OnBullionOutClicked() => SetActiveProcessAsync("BullionOut");
     private Task OnAssayClicked()      => SetActiveProcessAsync("Assay");
@@ -503,6 +506,7 @@ public partial class AccountSelectionPanel
             ProcessType.Metal   => "Metal",
             ProcessType.Stone   => "Stone",
             ProcessType.Jewelry => "Jewelry",
+            ProcessType.Good    => "Good",
             // Takoz: yön'e göre giriş (Inbound) veya çıkış (Outbound) paneli.
             ProcessType.Bullion => dto.Direction == ProcessDirectionType.Outbound ? "BullionOut" : "Bullion",
             ProcessType.Assay     => "Assay",

@@ -16,6 +16,10 @@ public class UiInteractionService : IUiInteractionService, IScopedDependency
     public bool DialogShowCancel { get; private set; } = true;
     public bool DialogShowNo { get; private set; } = true;
     public bool DialogDefaultYes { get; private set; }
+    public bool DialogShowInput { get; private set; }
+    public string? DialogInputLabel { get; private set; }
+    public string? DialogInputValue { get; set; }
+    public bool DialogInputRequired { get; private set; }
 
     private TaskCompletionSource<ConfirmDialogResult>? _dialogTcs;
 
@@ -43,11 +47,40 @@ public class UiInteractionService : IUiInteractionService, IScopedDependency
         DialogShowCancel = showCancel;
         DialogShowNo = showNo;
         DialogDefaultYes = defaultYes;
+        DialogShowInput = false;   // düz onay — girdi alanı YOK (PromptAsync'ten miras kalmış stale true olmasın)
         IsDialogVisible = true;
 
         OnDialogChanged?.Invoke();
 
         return _dialogTcs.Task;
+    }
+
+    public async Task<(ConfirmDialogResult Result, string? Text)> PromptAsync(
+        string message, string? title, string inputLabel, string yesText, string? noText,
+        bool showCancel, bool inputRequired = true, string? initialValue = null, bool showNo = true)
+    {
+        _dialogTcs?.TrySetResult(ConfirmDialogResult.Cancel);
+
+        _dialogTcs = new TaskCompletionSource<ConfirmDialogResult>();
+        DialogMessage = message;
+        DialogTitle = title ?? "Onay";
+        DialogYesText = yesText;
+        DialogNoText = noText;
+        DialogShowCancel = showCancel;
+        DialogShowNo = showNo;
+        DialogDefaultYes = false;
+        DialogShowInput = true;
+        DialogInputLabel = inputLabel;
+        DialogInputValue = initialValue;
+        DialogInputRequired = inputRequired;
+        IsDialogVisible = true;
+
+        OnDialogChanged?.Invoke();
+
+        var result = await _dialogTcs.Task;
+        var text = result == ConfirmDialogResult.Yes ? DialogInputValue : null;
+        DialogShowInput = false;   // kapandı — sonraki düz ConfirmAsync çağrısına sızmasın
+        return (result, text);
     }
 
     public void CloseDialog(ConfirmDialogResult result)

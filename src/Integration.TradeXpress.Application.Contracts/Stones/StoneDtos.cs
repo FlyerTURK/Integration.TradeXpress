@@ -1,7 +1,10 @@
 using System;
+using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using Integration.Framework.Base.Dtos;
 using Integration.Framework.Base.Dtos.Interfaces;
+using Integration.TradeXpress.Attachments;
+using Integration.TradeXpress.Variants;
 using Integration.TradeXpress.Vouchers;
 
 namespace Integration.TradeXpress.Stones;
@@ -16,6 +19,9 @@ public class StoneListDto : CatalogListDtoBase, IPricedCommodityListDto
 {
     public string? StoneKind { get; set; }
     public string? Color { get; set; }
+
+    /// <summary>Liste grid thumbnail'i — VARSAYILAN görselin önizleme URL'i (agnostik EntityImage; AppService enrich eder).</summary>
+    public string? ImagePreviewUrl { get; set; }
 
     public bool IsQuantity { get; set; }
     public bool PriceByQuantity { get; set; }
@@ -57,6 +63,13 @@ public class StoneGetDto : CatalogGetDtoBase, IHasCode
     public string? Description { get; set; }
 
     public Guid? CompanyId { get; set; }
+
+    // ── Agnostik graf (in-memory; kayıtta AppService persist eder) — Good deseniyle aynı; fiyat/stok uzantısı YOK (fiyat entity'de). ──
+    public List<EntityImageEditDto> Images { get; set; } = new();
+    public List<EntityDocumentEditDto> Documents { get; set; } = new();
+    public List<EntityNoteEditDto> Notes { get; set; } = new();
+    public List<EntityAttributeGraphDto> Attributes { get; set; } = new();
+    public List<EntityVariantGraphDto> Variants { get; set; } = new();
 }
 
 public class StoneCreateDto : CatalogCreateDtoBase
@@ -91,6 +104,12 @@ public class StoneCreateDto : CatalogCreateDtoBase
 
     [StringLength(StoneConsts.DescriptionMaxLength)]
     public string? Description { get; set; }
+
+    public List<EntityImageEditDto> Images { get; set; } = new();
+    public List<EntityDocumentEditDto> Documents { get; set; } = new();
+    public List<EntityNoteEditDto> Notes { get; set; } = new();
+    public List<EntityAttributeGraphDto> Attributes { get; set; } = new();
+    public List<EntityVariantGraphDto> Variants { get; set; } = new();
 }
 
 public class StoneUpdateDto : CatalogUpdateDtoBase
@@ -123,4 +142,10 @@ public class StoneUpdateDto : CatalogUpdateDtoBase
 
     [StringLength(StoneConsts.DescriptionMaxLength)]
     public string? Description { get; set; }
+
+    public List<EntityImageEditDto> Images { get; set; } = new();
+    public List<EntityDocumentEditDto> Documents { get; set; } = new();
+    public List<EntityNoteEditDto> Notes { get; set; } = new();
+    public List<EntityAttributeGraphDto> Attributes { get; set; } = new();
+    public List<EntityVariantGraphDto> Variants { get; set; } = new();
 }

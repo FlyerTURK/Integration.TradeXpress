@@ -51,6 +51,12 @@ public class VoucherLine : CreationAuditedEntity<Guid>, ISoftDelete
 
     public virtual string CommodityCode { get; protected set; } = string.Empty;
 
+    /// <summary>Seçili varyant Id'si (snapshot referans, FK/nav DEĞİL) — yalnız çok-varyantlı emtiada (ör. Good) dolu.</summary>
+    public virtual Guid? VariantId { get; protected set; }
+
+    /// <summary>Varyant kodu snapshot (gösterim) — DB'de saklanır, relational değil.</summary>
+    public virtual string? VariantCode { get; protected set; }
+
     /// <summary>Adet / miktar — N5.</summary>
     public virtual decimal Quantity { get; protected set; }
 
@@ -173,6 +179,8 @@ public class VoucherLine : CreationAuditedEntity<Guid>, ISoftDelete
         PaymentType      = input.PaymentType;
         CommodityId      = input.CommodityId == Guid.Empty ? null : input.CommodityId;
         CommodityCode    = input.CommodityCode ?? string.Empty;
+        VariantId        = input.VariantId == Guid.Empty ? null : input.VariantId;
+        VariantCode      = input.VariantCode;
         Quantity         = input.Quantity;
         Amount           = input.Amount;
         Factor           = input.Factor;

@@ -30,6 +30,7 @@ public class TradeXpressMenus
     public const string Metals              = Commodities + ".Metals";
     public const string Stones              = Commodities + ".Stones";
     public const string Jewelries           = Commodities + ".Jewelries";
+    public const string Goods               = Commodities + ".Goods";
 
     public const string Substitutions           = Commodities + ".Substitutions";
     public const string SubstitutionCalculation = Substitutions + ".Calculation";

@@ -1,0 +1,35 @@
+@using System
+@using System.Collections.Generic
+@using System.Linq
+@using Integration.TradeXpress.SpecialCodes
+@using DevExpress.Blazor
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@* Özel Kod DUMB Layout — SpecialCodeGetDto. Bağlam (EntityName/PropertyName) salt-okuma; Kod/Ad + opsiyonel üst
+   kod (aynı bağlam, kendini hariç) + açıklama + durum. *@
+
+<DxFormLayout CssClass="w-100">
+    <DxFormLayoutGroup Caption="@L["General"]" ColSpanMd="12">
+        <DxFormLayoutItem Caption="@($"{L["Code"]} *")" ColSpanMd="6">
+            <DxTextBox @bind-Text="@Model.Code" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="12">
+            <DxTextBox @bind-Text="@Model.Name" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["SpecialCode:Parent"]" ColSpanMd="6">
+            <DxComboBox Data="@ParentCandidates" @bind-Value="@Model.ParentId"
+                        ValueFieldName="@nameof(SpecialCodeListDto.Id)" TextFieldName="@nameof(SpecialCodeListDto.Name)"
+                        NullText="@L["Select"].Value" ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto"
+                        CssClass="w-100" />
+        </DxFormLayoutItem>
+    </DxFormLayoutGroup>
+
+    <DxFormLayoutGroup Caption="@L["Other"]" ColSpanMd="12">
+        <DxFormLayoutItem Caption="@L["Description"]" ColSpanMd="12">
+            <DxMemo @bind-Text="@Model.Description" Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6">
+            <DxCheckBox @bind-Checked="@Model.IsActive" CheckType="CheckType.Switch">@(Model.IsActive ? L["Active"] : L["Passive"])</DxCheckBox>
+        </DxFormLayoutItem>
+    </DxFormLayoutGroup>
+</DxFormLayout>

@@ -351,6 +351,10 @@ public class TradeXpressBlazorModule : AbpModule
         // çift-çalışma önleme. İlk tur 24s sonra; host kimliği (N11:CategorySync) yoksa sessizce atlar.
         Volo.Abp.Threading.AsyncHelper.RunSync(() =>
             context.AddBackgroundWorkerAsync<Integration.TradeXpress.N11.N11ReferenceSyncWorker>());
+
+        // Sipariş SEED worker — boş kanalları streaming (order başına commit) doldurur. YALNIZ Blazor host'ta.
+        Volo.Abp.Threading.AsyncHelper.RunSync(() =>
+            context.AddBackgroundWorkerAsync<Integration.TradeXpress.Orders.OrderSyncBackgroundWorker>());
     }
 
     /// <summary>HTTP request pipeline'ı (middleware zinciri) — sıralama duyarlı, dokunma.</summary>

@@ -6,6 +6,7 @@ using Integration.Framework.Base.Querying;
 using Integration.TradeXpress.Financials.CurrencyUnits;
 using Integration.TradeXpress.MultiCompany;
 using Integration.TradeXpress.Permissions;
+using Integration.TradeXpress.Products;
 using Integration.TradeXpress.SalesChannels;
 using Integration.TradeXpress.Trendyol;
 using Microsoft.AspNetCore.Authorization;
@@ -17,58 +18,49 @@ namespace Integration.TradeXpress.Orders;
 
 /// <summary>
 /// NÖTR sipariş uygulaması — ORTAK SİPARİŞ PANELİ (tüm kanallar tek grid, kanal yalnız discriminator) + pazaryerinden
-/// SALT-OKUMA çekim (O0). <b>Company-owned + per-tenant</b> (sunucu <see cref="ICurrentCompany"/> zorlar). FİŞ YOK,
-/// REZERVASYON YOK, STOK HAREKETİ YOK, pazaryerine YAZMA YOK — yalnız GET + kendi tablomuza idempotent upsert +
-/// görüntüleme. İdempotency anahtarı (SalesChannelId, RemoteOrderId): ikinci çekim durumu/satırları günceller,
-/// dublike üretmez. Satırlar KENDİ tablosunda (id-only OrderId) — çekimde sil+yaz (snapshot, ürün-agnostik).
+/// SALT-OKUMA çekim (O0) + YEREL düzeltme katmanı (O1) + N11'e YAZAN state machine aksiyonları (O2 — kabul/red/kargo,
+/// GERÇEK ve geri alınamaz). <b>Company-owned + per-tenant</b> (sunucu <see cref="ICurrentCompany"/> zorlar).
+/// FİŞ YOK, REZERVASYON YOK, STOK HAREKETİ YOK. İdempotency anahtarı (SalesChannelId, RemoteOrderId): ikinci çekim
+/// durumu/satırları günceller, dublike üretmez. Satırlar KENDİ tablosunda (id-only OrderId) — çekimde sil+yaz.
 /// </summary>
 [Authorize(TradeXpressPermissions.SalesChannels.Default)]
 public class OrderAppService : TradeXpressAppService, IOrderAppService
 {
     private readonly IRepository<Order, Guid> _orderRepository;
     private readonly IRepository<OrderLine, Guid> _orderLineRepository;
+    private readonly IRepository<OrderOperationalData, Guid> _operationalDataRepository;
+    private readonly IRepository<OrderLineOperationalData, Guid> _operationalLineRepository;
+    private readonly IRepository<ProductVariant, Guid> _productVariantRepository;
     private readonly IRepository<SalesChannelBase, Guid> _channelRepository;
-    private readonly IRepository<SalesChannelTrTrendyol, Guid> _trendyolChannelRepository;
     private readonly IRepository<SalesChannelTrN11, Guid> _n11ChannelRepository;
-    private readonly IRepository<CurrencyUnit, Guid> _currencyUnitRepository;
-    private readonly ITrendyolOrderClient _orderClient;
+    private readonly OrderSyncManager _orderSyncManager;
+    private readonly OrderLineProductSnapshotBuilder _snapshotBuilder;
     private readonly IN11OrderClient _n11OrderClient;
     private readonly ICurrentCompany _currentCompany;
-
-    // Grid whitelist — Order ENTITY property adları (ApplyListRequest bunlara karşı doğrular; global arama string
-    // alanlarında OR-Contains). Sir/iç alanlar (RemoteOrderId) listede filtrelenmez.
-    private static readonly HashSet<string> AllowedListFields = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "Id", "ChannelType", "OrderNumber", "OrderDate", "NeutralStatus",
-        "RemoteStatus", "CustomerName", "TotalAmount", "CargoProvider", "CargoTrackingNumber", "FetchedAt",
-    };
-
-    /// <summary>Çekim geriye-bakış penceresi. Trendyol sipariş ucu YALNIZ son ~1 ayı servis eder (retention, resmî
-    /// doküman) ve <c>PackageLastModifiedDate</c>'e göre filtreler → daha geriye gitmek boşuna (boş pencereler +
-    /// gereksiz rate-limit baskısı). 1 ay + tampon; 14 günlük dilimlerle taranır. Tam tarihsel backfill AYRI iştir
-    /// (<c>getShipmentPackagesStream</c> ucu). lastModified filtresi sayesinde durum değişen siparişler de yakalanır
-    /// (idempotent upsert güncelleme yapar).</summary>
-    private static readonly TimeSpan FetchLookback = TimeSpan.FromDays(40);
 
     public OrderAppService(
         IRepository<Order, Guid> orderRepository,
         IRepository<OrderLine, Guid> orderLineRepository,
+        IRepository<OrderOperationalData, Guid> operationalDataRepository,
+        IRepository<OrderLineOperationalData, Guid> operationalLineRepository,
+        IRepository<ProductVariant, Guid> productVariantRepository,
         IRepository<SalesChannelBase, Guid> channelRepository,
-        IRepository<SalesChannelTrTrendyol, Guid> trendyolChannelRepository,
         IRepository<SalesChannelTrN11, Guid> n11ChannelRepository,
-        IRepository<CurrencyUnit, Guid> currencyUnitRepository,
-        ITrendyolOrderClient orderClient,
+        OrderSyncManager orderSyncManager,
+        OrderLineProductSnapshotBuilder snapshotBuilder,
         IN11OrderClient n11OrderClient,
         ICurrentCompany currentCompany)
     {
         _orderRepository = orderRepository;
         _orderLineRepository = orderLineRepository;
+        _operationalDataRepository = operationalDataRepository;
+        _operationalLineRepository = operationalLineRepository;
+        _productVariantRepository = productVariantRepository;
         _channelRepository = channelRepository;
-        _trendyolChannelRepository = trendyolChannelRepository;
         _n11ChannelRepository = n11ChannelRepository;
-        _currencyUnitRepository = currencyUnitRepository;
-        _orderClient = orderClient;
         _n11OrderClient = n11OrderClient;
+        _orderSyncManager = orderSyncManager;
+        _snapshotBuilder = snapshotBuilder;
         _currentCompany = currentCompany;
     }
 
@@ -81,19 +73,49 @@ public class OrderAppService : TradeXpressAppService, IOrderAppService
             return new PagedResultDto<OrderListDto>(0, new List<OrderListDto>());
         }
 
-        var query = (await _orderRepository.GetQueryableAsync())
-            .Where(x => x.CompanyId == companyId)
-            .ApplyListRequest(input, AllowedListFields);
+        // MASTER = SİPARİŞ (order düzeyinde sayfalı). Sıralama: order status → tarih (yeni→eski). DETAIL = siparişin
+        // kalemleri (master-detail grid), master satır açılınca gösterilir.
+        var orderQuery = (await _orderRepository.GetQueryableAsync())
+            .Where(o => o.CompanyId == companyId)
+            .OrderBy(o => o.NeutralStatus).ThenByDescending(o => o.OrderDate).ThenBy(o => o.Id);
 
-        var totalCount = await AsyncExecuter.CountAsync(query);
-        var items = await AsyncExecuter.ToListAsync(query.Skip(input.SkipCount).Take(input.MaxResultCount));
+        var totalCount = await AsyncExecuter.CountAsync(orderQuery);
+        var orders = await AsyncExecuter.ToListAsync(orderQuery.Skip(input.SkipCount).Take(input.MaxResultCount));
 
-        var dtos = items
-            .Select(e => ObjectMapper.Map<Order, OrderListDto>(e))
-            .ToList();
-        await EnrichChannelCodesAsync(companyId, dtos);
+        // Sayfadaki siparişlerin TÜM kalemlerini TEK sorguda çek (N+1 yok), OrderId'ye grupla.
+        var orderIds = orders.Select(o => o.Id).ToList();
+        var lines = orderIds.Count == 0
+            ? new List<OrderLine>()
+            : await AsyncExecuter.ToListAsync(
+                (await _orderLineRepository.GetQueryableAsync()).Where(l => orderIds.Contains(l.OrderId)));
+        var linesByOrder = lines.GroupBy(l => l.OrderId).ToDictionary(g => g.Key, g => g.ToList());
+
+        var dtos = orders.Select(order =>
+        {
+            var dto = ObjectMapper.Map<Order, OrderListDto>(order);
+            if (linesByOrder.TryGetValue(order.Id, out var orderLines))
+            {
+                dto.Items = orderLines
+                    .OrderBy(l => l.RemoteLineStatus).ThenBy(l => l.CreationTime).ThenBy(l => l.Id)
+                    .Select(l => BuildItemRow(order, l))
+                    .ToList();
+            }
+
+            return dto;
+        }).ToList();
+        await EnrichOrderChannelCodesAsync(companyId, dtos);
 
         return new PagedResultDto<OrderListDto>(totalCount, dtos);
+    }
+
+    /// <summary>Bir kalemi DETAIL grid satırına çevirir — line alanları (Mapperly) + kanal (durum etiketi kanal-farkında)
+    /// + zengin kalem detayı (snapshot'tan RemoteLineId ile). Order-header alanları kalem DTO'sunda kullanılmaz.</summary>
+    private OrderItemListDto BuildItemRow(Order order, OrderLine line)
+    {
+        var dto = ObjectMapper.Map<OrderLine, OrderItemListDto>(line);
+        dto.ChannelType = order.ChannelType;
+        ApplyItemDetail(dto, order, line);
+        return dto;
     }
 
     public virtual async Task<OrderDto> GetAsync(Guid id)
@@ -109,35 +131,82 @@ public class OrderAppService : TradeXpressAppService, IOrderAppService
 
         var code = await ResolveChannelCodeAsync(order.SalesChannelId);
         dto.SalesChannelCode = code;
+
+        // Editable alanlar — değer = düzeltme (OrderOperationalData) ?? orijinal (Order/Order.Detail). Kaydedilen
+        // SADECE OrderOperationalData'ya gider; orijinal burada HİÇ değişmez (denetim kanıtı).
+        var operational = await FindOperationalDataAsync(id);
+        var buyer = order.Detail?.Buyer;
+        dto.Buyer = new OrderEditPartyDto
+        {
+            FullName = operational?.BuyerCorrection?.FullName ?? buyer?.FullName,
+            Email = operational?.BuyerCorrection?.Email ?? buyer?.Email,
+            TcId = operational?.BuyerCorrection?.TcId ?? buyer?.TcId,
+            TaxId = operational?.BuyerCorrection?.TaxId ?? buyer?.TaxId,
+            TaxOffice = operational?.BuyerCorrection?.TaxOffice ?? buyer?.TaxOffice,
+        };
+        dto.BillingAddress = MapEditAddress(operational?.BillingAddressCorrection, order.Detail?.BillingAddress);
+        dto.ShippingAddress = MapEditAddress(operational?.ShippingAddressCorrection, order.Detail?.ShippingAddress);
+        dto.CargoProvider = operational?.CargoProviderOverride ?? order.CargoProvider;
+        dto.CargoTrackingNumber = operational?.CargoTrackingNumberOverride ?? order.CargoTrackingNumber;
+
+        dto.PendingLineCount = order.ChannelType == SalesChannelType.TrN11
+            ? await CountPendingLinesAsync(order.Id, lines)
+            : 0;
+
         return dto;
     }
 
+    /// <summary>Hâlâ Pending olan (N11'e hiç Kabul/Red bildirilmemiş) kalem sayısı — edit formu toolbar'ındaki
+    /// Kabul Et/Reddet'in GÖRÜNÜRLÜĞÜ bunu okur. Operasyonel kaydı OLMAYAN kalem de Pending sayılır (henüz hiç
+    /// aksiyon alınmamış demektir; <see cref="PrepareBulkActionAsync"/> ile AYNI varsayılan).</summary>
+    private async Task<int> CountPendingLinesAsync(Guid orderId, List<OrderLine> lines)
+    {
+        var remoteLineIds = lines.Where(l => l.RemoteLineId != null).Select(l => l.RemoteLineId!).ToList();
+        if (remoteLineIds.Count == 0)
+        {
+            return 0;
+        }
+
+        var actionedCount = await AsyncExecuter.CountAsync(
+            (await _operationalLineRepository.GetQueryableAsync())
+                .Where(x => x.OrderId == orderId && remoteLineIds.Contains(x.RemoteLineId)
+                    && x.ActionStatus != OrderLineActionStatus.Pending));
+
+        return remoteLineIds.Count - actionedCount;
+    }
+
+    /// <summary>Sipariş edit formunu kaydeder — SADECE OrderOperationalData'ya yazar (orijinal Order.Detail HİÇ
+    /// değişmez). ICommitCoordinator sözleşmesi: taze OrderDto döner (Id her zaman dolu — Order'da Create yok).</summary>
+    public virtual async Task<OrderDto> UpdateAsync(Guid id, OrderDto input)
+    {
+        await GetOwnedOrderAsync(id);   // sahiplik + varlık doğrulaması
+        var operational = await FindOperationalDataAsync(id);
+        if (operational is null)
+        {
+            operational = new OrderOperationalData(EnsureCurrentCompanyId(), id);
+            await _operationalDataRepository.InsertAsync(operational, autoSave: false);
+        }
+
+        operational.CorrectBuyer(input.Buyer.FullName, input.Buyer.Email, input.Buyer.TcId, input.Buyer.TaxId, input.Buyer.TaxOffice);
+        operational.CorrectBillingAddress(BuildOperationalAddress(input.BillingAddress));
+        operational.CorrectShippingAddress(BuildOperationalAddress(input.ShippingAddress));
+        operational.OverrideCargo(input.CargoProvider, input.CargoTrackingNumber);
+
+        await _operationalDataRepository.UpdateAsync(operational);
+        return await GetAsync(id);
+    }
+
     // ── Çekim (salt GET → idempotent upsert) ──────────────────────────────────────────────────────────
+
+    // Çekim ÇEKİRDEĞİ OrderSyncManager'da (streaming, order-başına-save, auth'suz; worker + bu AppService ortak kullanır).
+    // Buradaki metodlar yalnız yetki + current-company scope ekleyip delege eder.
 
     [Authorize(TradeXpressPermissions.SalesChannels.Update)]
     public virtual async Task<OrderFetchResultDto> FetchOrdersAsync(Guid salesChannelId)
     {
         var companyId = EnsureCurrentCompanyId();
         var report = new OrderFetchResultDto();
-        var tryCurrencyUnitId = await ResolveTryCurrencyUnitIdAsync(report);
-
-        // Kanal tipini discriminator'dan çöz → doğru istemciyle çek (Trendyol REST / N11 SOAP), upsert ORTAK.
-        var trendyol = await AsyncExecuter.FirstOrDefaultAsync(
-            (await _trendyolChannelRepository.GetQueryableAsync())
-                .Where(c => c.Id == salesChannelId && c.CompanyId == companyId));
-        if (trendyol is not null)
-        {
-            await FetchTrendyolIntoAsync(trendyol, tryCurrencyUnitId, report);
-        }
-        else
-        {
-            var n11 = await AsyncExecuter.FirstOrDefaultAsync(
-                (await _n11ChannelRepository.GetQueryableAsync())
-                    .Where(c => c.Id == salesChannelId && c.CompanyId == companyId))
-                ?? throw new BusinessException("TradeXpress:Order:ChannelNotFound");
-            await FetchN11IntoAsync(n11, tryCurrencyUnitId, report);
-        }
-
+        await _orderSyncManager.SyncSingleChannelAsync(companyId, salesChannelId, report);
         report.ChannelsProcessed = 1;
         return report;
     }
@@ -147,152 +216,396 @@ public class OrderAppService : TradeXpressAppService, IOrderAppService
     {
         var companyId = EnsureCurrentCompanyId();
         var report = new OrderFetchResultDto();
-        var tryCurrencyUnitId = await ResolveTryCurrencyUnitIdAsync(report);
-
-        var trendyolChannels = await AsyncExecuter.ToListAsync(
-            (await _trendyolChannelRepository.GetQueryableAsync()).Where(c => c.CompanyId == companyId));
-        foreach (var channel in trendyolChannels)
-        {
-            await FetchTrendyolIntoAsync(channel, tryCurrencyUnitId, report);
-            report.ChannelsProcessed++;
-        }
-
-        var n11Channels = await AsyncExecuter.ToListAsync(
-            (await _n11ChannelRepository.GetQueryableAsync()).Where(c => c.CompanyId == companyId));
-        foreach (var channel in n11Channels)
-        {
-            await FetchN11IntoAsync(channel, tryCurrencyUnitId, report);
-            report.ChannelsProcessed++;
-        }
-
-        if (trendyolChannels.Count == 0 && n11Channels.Count == 0)
-        {
-            report.Warnings.Add(L["Order:Fetch:NoChannel"].Value);
-        }
-
+        await _orderSyncManager.SyncCompanyAsync(companyId, onlyEmpty: false, report);
         return report;
     }
 
-    // ── Kanal-özel çekim (parse istemcide) → ORTAK upsert ──────────────────────────────────────────────
+    // ── Kalem edit satırları (OrderItemsDrill kaynağı) ────────────────────────────────────────────────
 
-    private async Task FetchTrendyolIntoAsync(SalesChannelTrTrendyol channel, Guid? tryCurrencyUnitId, OrderFetchResultDto report)
+    public virtual async Task<List<OrderLineEditDto>> GetOrderLineEditsAsync(Guid orderId)
     {
-        var credentials = new TrendyolCredentials(channel.SellerId, channel.ApiKey, channel.ApiSecret);
-        var remoteOrders = await _orderClient.GetAllOrdersAsync(credentials, RecordWindow(report));
-        await UpsertOrdersAsync(channel.CompanyId, channel.Id, SalesChannelType.TrTrendyol,
-            remoteOrders, TrendyolOrderStatusMapper.Map, tryCurrencyUnitId, report);
+        var order = await GetOwnedOrderAsync(orderId);
+        var lines = await AsyncExecuter.ToListAsync(
+            (await _orderLineRepository.GetQueryableAsync())
+                .Where(l => l.OrderId == orderId)
+                .OrderBy(l => l.CreationTime).ThenBy(l => l.Id));
+
+        var remoteLineIds = lines.Where(l => l.RemoteLineId != null).Select(l => l.RemoteLineId!).ToList();
+        var operationalRows = remoteLineIds.Count == 0
+            ? new List<OrderLineOperationalData>()
+            : await AsyncExecuter.ToListAsync(
+                (await _operationalLineRepository.GetQueryableAsync())
+                    .Where(x => x.OrderId == orderId && remoteLineIds.Contains(x.RemoteLineId)));
+        var operationalByRemoteId = operationalRows.ToDictionary(x => x.RemoteLineId, x => x);
+
+        return lines
+            .Select(line => BuildLineEditDto(order, line, operationalByRemoteId.GetValueOrDefault(line.RemoteLineId ?? string.Empty)))
+            .ToList();
     }
 
-    // N11 tarih filtresi göndermez → TÜM geçmiş gelir (N11 uzun retention). Bu yüzden N11'de "çekim penceresi" YOK
-    // (report.FetchedSinceUtc yalnız Trendyol'un retention-sınırlı penceresini yansıtır).
-    private async Task FetchN11IntoAsync(SalesChannelTrN11 channel, Guid? tryCurrencyUnitId, OrderFetchResultDto report)
+    public virtual async Task<OrderLineEditDto> SaveOrderLineEditAsync(OrderLineEditDto input)
     {
-        var remoteOrders = await _n11OrderClient.GetAllOrdersAsync(channel.AppKey, channel.AppSecret);
-        await UpsertOrdersAsync(channel.CompanyId, channel.Id, SalesChannelType.TrN11,
-            remoteOrders, N11OrderStatusMapper.Map, tryCurrencyUnitId, report);
-    }
-
-    // Çekim geriye-bakış penceresini hesaplar + rapora yazar (en eski since; şeffaflık — sessiz kapsam düşürme yasak).
-    private DateTime RecordWindow(OrderFetchResultDto report)
-    {
-        var sinceUtc = Clock.Now.ToUniversalTime() - FetchLookback;
-        report.FetchedSinceUtc = report.FetchedSinceUtc is { } prev && prev < sinceUtc ? prev : sinceUtc;
-        return sinceUtc;
-    }
-
-    /// <summary>KANAL-AGNOSTİK idempotent upsert ((SalesChannelId, RemoteOrderId)): mevcut sipariş bulunursa
-    /// durumu/satırları güncellenir (dublike yok), yoksa yeni sipariş açılır. Satırlar sil+yaz (snapshot;
-    /// ProductVariantId şimdilik null — O1 doldurur). Nötr durum <paramref name="statusMapper"/> ile (kanala göre).</summary>
-    private async Task UpsertOrdersAsync(
-        Guid companyId, Guid channelId, SalesChannelType channelType, IReadOnlyList<RemoteOrder> remoteOrders,
-        Func<string?, OrderStatus> statusMapper, Guid? tryCurrencyUnitId, OrderFetchResultDto report)
-    {
-        // Kanalın mevcut siparişleri — RemoteOrderId anahtarıyla eşleşme (bellek-içi; çekim bağlamında yeterli).
-        var existing = (await AsyncExecuter.ToListAsync(
-                (await _orderRepository.GetQueryableAsync())
-                    .Where(o => o.CompanyId == companyId && o.SalesChannelId == channelId)))
-            .ToDictionary(o => o.RemoteOrderId, StringComparer.Ordinal);
-
-        var fetchedAt = Clock.Now.ToUniversalTime();
-
-        foreach (var remote in remoteOrders)
+        var order = await GetOwnedOrderAsync(input.OrderId);
+        var operational = await AsyncExecuter.FirstOrDefaultAsync(
+            (await _operationalLineRepository.GetQueryableAsync())
+                .Where(x => x.OrderId == input.OrderId && x.RemoteLineId == input.RemoteLineId));
+        if (operational is null)
         {
-            report.FetchedOrders++;
+            operational = new OrderLineOperationalData(EnsureCurrentCompanyId(), input.OrderId, input.RemoteLineId);
+            await _operationalLineRepository.InsertAsync(operational, autoSave: false);
+        }
 
-            if (string.IsNullOrWhiteSpace(remote.RemoteOrderId))
+        var now = Clock.Now.ToUniversalTime();
+        foreach (var customText in input.CustomTexts)
+        {
+            if (string.IsNullOrWhiteSpace(customText.CorrectedText))
             {
-                // Anahtarsız uzak kayıt idempotent upsert edilemez → sessizce ATLA değil, raporla.
-                report.Warnings.Add(L["Order:Fetch:MissingRemoteId", remote.OrderNumber].Value);
-                continue;
-            }
-
-            var neutralStatus = statusMapper(remote.RemoteStatus);
-
-            if (existing.TryGetValue(remote.RemoteOrderId, out var order))
-            {
-                order.ApplyRemote(
-                    remote.OrderNumber, remote.OrderDate, neutralStatus, remote.RemoteStatus, remote.CustomerName,
-                    remote.TotalAmount, tryCurrencyUnitId, remote.CargoProvider, remote.CargoTrackingNumber, fetchedAt);
-                await _orderRepository.UpdateAsync(order, autoSave: true);
-                await ReplaceLinesAsync(companyId, order.Id, remote.Lines, report);
-                report.UpdatedOrders++;
+                operational.ClearCustomTextCorrection(customText.Option);
             }
             else
             {
-                order = new Order(companyId, channelId, channelType, remote.RemoteOrderId, remote.OrderNumber);
-                order.ApplyRemote(
-                    remote.OrderNumber, remote.OrderDate, neutralStatus, remote.RemoteStatus, remote.CustomerName,
-                    remote.TotalAmount, tryCurrencyUnitId, remote.CargoProvider, remote.CargoTrackingNumber, fetchedAt);
-                await _orderRepository.InsertAsync(order, autoSave: true);
-                existing[remote.RemoteOrderId] = order;
-                await ReplaceLinesAsync(companyId, order.Id, remote.Lines, report);
-                report.NewOrders++;
+                operational.CorrectCustomText(customText.Option, customText.CorrectedText, now);
             }
         }
+
+        if (input.ProductVariantId != operational.ProductVariantId)
+        {
+            await ApplyProductMatchAsync(operational, input.ProductVariantId, now);
+        }
+
+        await _operationalLineRepository.UpdateAsync(operational);
+
+        var line = await AsyncExecuter.FirstOrDefaultAsync(
+            (await _orderLineRepository.GetQueryableAsync())
+                .Where(l => l.OrderId == input.OrderId && l.RemoteLineId == input.RemoteLineId));
+        if (line is null)
+        {
+            throw new BusinessException("TradeXpress:Order:LineNotFound");
+        }
+
+        return BuildLineEditDto(order, line, operational);
     }
 
-    /// <summary>Satırları SİL+YAZ ile tazeler (snapshot; idempotent — ikinci çekim aynı sonucu üretir). Ürün adı
-    /// boş gelirse barkod/stok koduna, o da yoksa "-" fallback'ine düşer (entity zorunlu alan guard'ını tetiklemeden;
-    /// import onarım felsefesiyle aynı — kalem kaybetmek daha kötü).</summary>
-    private async Task ReplaceLinesAsync(Guid companyId, Guid orderId, IReadOnlyList<RemoteOrderLine> lines, OrderFetchResultDto report)
-    {
-        await _orderLineRepository.DeleteAsync(l => l.OrderId == orderId, autoSave: true);
+    // ── Sipariş Fazı O2 — state machine aksiyonları (N11'e YAZAR — GERÇEK, geri alınamaz; yalnız N11 kanalı) ──
 
-        foreach (var remoteLine in lines)
+    [Authorize(TradeXpressPermissions.SalesChannels.Update)]
+    public virtual async Task<OrderLineEditDto> AcceptOrderLineAsync(OrderLineAcceptDto input)
+    {
+        var (order, channel, operational, itemId) = await PrepareActionAsync(input.OrderId, input.RemoteLineId);
+        await _n11OrderClient.AcceptOrderItemAsync(channel.AppKey, channel.AppSecret, new[] { itemId }, input.NumberOfPackages);
+
+        var now = Clock.Now.ToUniversalTime();
+        operational.MarkAccepted(now);
+        await _operationalLineRepository.UpdateAsync(operational);
+
+        return await RebuildLineEditDtoAsync(order, input.RemoteLineId, operational);
+    }
+
+    [Authorize(TradeXpressPermissions.SalesChannels.Update)]
+    public virtual async Task<OrderLineEditDto> RejectOrderLineAsync(OrderLineRejectDto input)
+    {
+        var (order, channel, operational, itemId) = await PrepareActionAsync(input.OrderId, input.RemoteLineId);
+        await _n11OrderClient.RejectOrderItemAsync(channel.AppKey, channel.AppSecret, new[] { itemId }, input.Reason);
+
+        var now = Clock.Now.ToUniversalTime();
+        operational.MarkRejected(input.Reason, now);
+        await _operationalLineRepository.UpdateAsync(operational);
+
+        return await RebuildLineEditDtoAsync(order, input.RemoteLineId, operational);
+    }
+
+    // ── Sipariş edit formu toolbar'ı — TÜM bekleyen kalemleri TEK N11 isteğiyle işler (WSDL orderItemList zaten
+    // liste; siparişin tüm kalemleri aynı pakette gönderilirken bu N11'in kendi doğal biçimidir). ──
+
+    [Authorize(TradeXpressPermissions.SalesChannels.Update)]
+    public virtual async Task<OrderBulkActionResultDto> AcceptOrderAsync(OrderAcceptDto input)
+    {
+        var (channel, pending) = await PrepareBulkActionAsync(input.OrderId);
+        if (pending.Count == 0)
         {
-            var name = FirstNonEmpty(remoteLine.ProductName, remoteLine.Barcode, remoteLine.StockCode) ?? "-";
-            var snapshot = new OrderLineSnapshot(
-                RemoteLineId: remoteLine.RemoteLineId,
-                Barcode: remoteLine.Barcode,
-                StockCode: remoteLine.StockCode,
-                ProductNameSnapshot: name,
-                Quantity: remoteLine.Quantity,
-                UnitPrice: remoteLine.UnitPrice,
-                LineTotal: remoteLine.LineTotal,
-                RemoteLineStatus: remoteLine.RemoteLineStatus,
-                ProductVariantId: null);   // O1 rezerve — snapshot esas, link opsiyonel
-            await _orderLineRepository.InsertAsync(new OrderLine(companyId, orderId, snapshot), autoSave: true);
-            report.TotalLines++;
+            return new OrderBulkActionResultDto { AffectedCount = 0 };
         }
+
+        await _n11OrderClient.AcceptOrderItemAsync(
+            channel.AppKey, channel.AppSecret, pending.Select(p => p.ItemId).ToList(), input.NumberOfPackages);
+
+        var now = Clock.Now.ToUniversalTime();
+        foreach (var (operational, _) in pending)
+        {
+            operational.MarkAccepted(now);
+            await _operationalLineRepository.UpdateAsync(operational);
+        }
+
+        return new OrderBulkActionResultDto { AffectedCount = pending.Count };
+    }
+
+    [Authorize(TradeXpressPermissions.SalesChannels.Update)]
+    public virtual async Task<OrderBulkActionResultDto> RejectOrderAsync(OrderRejectDto input)
+    {
+        var (channel, pending) = await PrepareBulkActionAsync(input.OrderId);
+        if (pending.Count == 0)
+        {
+            return new OrderBulkActionResultDto { AffectedCount = 0 };
+        }
+
+        await _n11OrderClient.RejectOrderItemAsync(
+            channel.AppKey, channel.AppSecret, pending.Select(p => p.ItemId).ToList(), input.Reason);
+
+        var now = Clock.Now.ToUniversalTime();
+        foreach (var (operational, _) in pending)
+        {
+            operational.MarkRejected(input.Reason, now);
+            await _operationalLineRepository.UpdateAsync(operational);
+        }
+
+        return new OrderBulkActionResultDto { AffectedCount = pending.Count };
+    }
+
+    /// <summary>Toplu aksiyon ortak hazırlığı: sahiplik + N11 kanal guard'ı + kanal kimlik bilgisi + siparişin TÜM
+    /// kalemleri için operasyonel kayıt (yoksa oluşturulur) + yalnız HÂLÂ Pending olanlar (N11 id'siyle) süzülür.</summary>
+    private async Task<(SalesChannelTrN11 Channel, List<(OrderLineOperationalData Operational, long ItemId)> Pending)> PrepareBulkActionAsync(Guid orderId)
+    {
+        var order = await GetOwnedOrderAsync(orderId);
+        if (order.ChannelType != SalesChannelType.TrN11)
+        {
+            throw new BusinessException("TradeXpress:Order:ActionsOnlySupportedForN11");
+        }
+
+        var channel = await _n11ChannelRepository.FindAsync(order.SalesChannelId);
+        if (channel is null)
+        {
+            throw new BusinessException("TradeXpress:Order:ChannelNotFound");
+        }
+
+        var lines = await AsyncExecuter.ToListAsync(
+            (await _orderLineRepository.GetQueryableAsync())
+                .Where(l => l.OrderId == orderId && l.RemoteLineId != null));
+
+        var remoteLineIds = lines.Select(l => l.RemoteLineId!).ToList();
+        var operationalRows = remoteLineIds.Count == 0
+            ? new List<OrderLineOperationalData>()
+            : await AsyncExecuter.ToListAsync(
+                (await _operationalLineRepository.GetQueryableAsync())
+                    .Where(x => x.OrderId == orderId && remoteLineIds.Contains(x.RemoteLineId)));
+        var operationalByRemoteId = operationalRows.ToDictionary(x => x.RemoteLineId, x => x);
+
+        var pending = new List<(OrderLineOperationalData Operational, long ItemId)>();
+        foreach (var line in lines)
+        {
+            var remoteLineId = line.RemoteLineId!;
+            if (!long.TryParse(remoteLineId, out var itemId))
+            {
+                continue;   // biçimsiz kanal id'si — sessizce atla (tekil aksiyon zaten bunu tipli hatayla fırlatır)
+            }
+
+            var operational = operationalByRemoteId.GetValueOrDefault(remoteLineId);
+            if (operational is null)
+            {
+                operational = new OrderLineOperationalData(EnsureCurrentCompanyId(), orderId, remoteLineId);
+                await _operationalLineRepository.InsertAsync(operational, autoSave: false);
+            }
+
+            if (operational.ActionStatus == OrderLineActionStatus.Pending)
+            {
+                pending.Add((operational, itemId));
+            }
+        }
+
+        return (channel, pending);
+    }
+
+    [Authorize(TradeXpressPermissions.SalesChannels.Update)]
+    public virtual async Task<OrderLineEditDto> ShipOrderLineAsync(OrderLineShipDto input)
+    {
+        var (order, channel, operational, itemId) = await PrepareActionAsync(input.OrderId, input.RemoteLineId);
+        await _n11OrderClient.MakeShipmentAsync(
+            channel.AppKey, channel.AppSecret, itemId,
+            input.ShipmentCompanyId, input.TrackingNumber, input.CampaignNumber, input.ShipmentMethod);
+
+        var now = Clock.Now.ToUniversalTime();
+        operational.MarkShipped(now);
+        await _operationalLineRepository.UpdateAsync(operational);
+
+        return await RebuildLineEditDtoAsync(order, input.RemoteLineId, operational);
+    }
+
+    /// <summary>Aksiyon ortak hazırlığı: sahiplik + N11 kanal guard'ı + kanal kimlik bilgisi + operasyonel kayıt
+    /// (yoksa oluşturulur) + RemoteLineId'nin N11 sayısal id'sine çözümü (Accept/Reject/Shipment isteği budur).</summary>
+    private async Task<(Order Order, SalesChannelTrN11 Channel, OrderLineOperationalData Operational, long ItemId)> PrepareActionAsync(
+        Guid orderId, string remoteLineId)
+    {
+        var order = await GetOwnedOrderAsync(orderId);
+        if (order.ChannelType != SalesChannelType.TrN11)
+        {
+            throw new BusinessException("TradeXpress:Order:ActionsOnlySupportedForN11");
+        }
+
+        if (!long.TryParse(remoteLineId, out var itemId))
+        {
+            throw new BusinessException("TradeXpress:Order:InvalidRemoteLineId").WithData("RemoteLineId", remoteLineId);
+        }
+
+        var channel = await _n11ChannelRepository.FindAsync(order.SalesChannelId);
+        if (channel is null)
+        {
+            throw new BusinessException("TradeXpress:Order:ChannelNotFound");
+        }
+
+        var operational = await AsyncExecuter.FirstOrDefaultAsync(
+            (await _operationalLineRepository.GetQueryableAsync())
+                .Where(x => x.OrderId == orderId && x.RemoteLineId == remoteLineId));
+        if (operational is null)
+        {
+            operational = new OrderLineOperationalData(EnsureCurrentCompanyId(), orderId, remoteLineId);
+            await _operationalLineRepository.InsertAsync(operational, autoSave: true);
+        }
+
+        return (order, channel, operational, itemId);
+    }
+
+    private async Task<OrderLineEditDto> RebuildLineEditDtoAsync(Order order, string remoteLineId, OrderLineOperationalData operational)
+    {
+        var line = await AsyncExecuter.FirstOrDefaultAsync(
+            (await _orderLineRepository.GetQueryableAsync())
+                .Where(l => l.OrderId == order.Id && l.RemoteLineId == remoteLineId));
+        if (line is null)
+        {
+            throw new BusinessException("TradeXpress:Order:LineNotFound");
+        }
+
+        return BuildLineEditDto(order, line, operational);
+    }
+
+    private async Task ApplyProductMatchAsync(OrderLineOperationalData operational, Guid? productVariantId, DateTime matchedAt)
+    {
+        if (productVariantId is not { } variantId)
+        {
+            operational.SetProductMatch(null, null, null, matchedAt);
+            return;
+        }
+
+        var variant = await _productVariantRepository.FindAsync(variantId);
+        if (variant is null)
+        {
+            throw new BusinessException("TradeXpress:Order:ProductVariantNotFound");
+        }
+
+        var (name, imageUrl) = await _snapshotBuilder.BuildAsync(variant);
+        operational.SetProductMatch(variantId, name, imageUrl, matchedAt);
+    }
+
+    private static OrderLineEditDto BuildLineEditDto(Order order, OrderLine line, OrderLineOperationalData? operational)
+    {
+        var detailItem = order.Detail?.Items.FirstOrDefault(i =>
+            !string.IsNullOrEmpty(i.RemoteLineId) && i.RemoteLineId == line.RemoteLineId);
+
+        var hasDiscount = detailItem?.MallDiscount is not null || detailItem?.SellerDiscount is not null;
+        var dto = new OrderLineEditDto
+        {
+            RemoteLineId = line.RemoteLineId ?? string.Empty,
+            OrderId = order.Id,
+            ProductName = detailItem?.ProductName ?? line.ProductNameSnapshot,
+            ProductSellerCode = detailItem?.ProductSellerCode ?? line.StockCode,
+            Quantity = line.Quantity,
+            Price = detailItem?.Price ?? line.UnitPrice,
+            Commission = detailItem?.Commission,
+            DiscountTotal = hasDiscount ? (detailItem!.MallDiscount ?? 0m) + (detailItem.SellerDiscount ?? 0m) : null,
+            Status = detailItem?.Status ?? line.RemoteLineStatus,
+            Attributes = FormatAttributes(detailItem?.Attributes ?? new List<OrderDetailItemAttribute>()),
+            ShipmentCompany = detailItem?.ShipmentCompany,
+            TrackingNumber = detailItem?.TrackingNumber,
+            ProductVariantId = operational?.ProductVariantId,
+            ProductSnapshotName = operational?.ProductSnapshotName,
+            ProductSnapshotImageUrl = operational?.ProductSnapshotImageUrl,
+            MatchedAt = operational?.MatchedAt,
+            ActionStatus = operational?.ActionStatus ?? OrderLineActionStatus.Pending,
+            RejectReason = operational?.RejectReason,
+            ActionAt = operational?.ActionAt,
+        };
+
+        var originalTexts = detailItem?.CustomTexts ?? new List<OrderDetailItemCustomText>();
+        var corrections = operational?.CustomTextCorrections ?? new List<OrderLineCustomTextCorrection>();
+        dto.CustomTexts = originalTexts.Select(t => new OrderLineCustomTextEditDto
+        {
+            Option = t.Option ?? string.Empty,
+            OriginalText = t.Text,
+            CorrectedText = corrections.FirstOrDefault(c => string.Equals(c.Option, t.Option, StringComparison.OrdinalIgnoreCase))?.CorrectedText,
+        }).ToList();
+
+        return dto;
+    }
+
+    private static OrderEditAddressDto MapEditAddress(OrderOperationalAddress? correction, OrderDetailAddress? original)
+    {
+        return new OrderEditAddressDto
+        {
+            FullName = correction?.FullName ?? original?.FullName,
+            Line = correction?.Line ?? original?.Line,
+            Neighborhood = correction?.Neighborhood ?? original?.Neighborhood,
+            District = correction?.District ?? original?.District,
+            City = correction?.City ?? original?.City,
+            PostalCode = correction?.PostalCode ?? original?.PostalCode,
+            Gsm = correction?.Gsm ?? original?.Gsm,
+            TcId = correction?.TcId ?? original?.TcId,
+            TaxId = correction?.TaxId ?? original?.TaxId,
+            TaxOffice = correction?.TaxOffice ?? original?.TaxOffice,
+        };
+    }
+
+    private static OrderOperationalAddress BuildOperationalAddress(OrderEditAddressDto dto)
+    {
+        return new OrderOperationalAddress(
+            dto.FullName, dto.Line, dto.Neighborhood, dto.District, dto.City,
+            dto.PostalCode, dto.Gsm, dto.TcId, dto.TaxId, dto.TaxOffice);
+    }
+
+    private async Task<OrderOperationalData?> FindOperationalDataAsync(Guid orderId)
+    {
+        return await AsyncExecuter.FirstOrDefaultAsync(
+            (await _operationalDataRepository.GetQueryableAsync()).Where(x => x.OrderId == orderId));
     }
 
     // ── Yardımcılar ──────────────────────────────────────────────────────────────────────────────────
 
-    private static string? FirstNonEmpty(params string?[] values)
+    /// <summary>Melez satırı, siparişin zengin detay snapshot'ındaki EŞLEŞEN kalemle (RemoteLineId) zenginleştirir —
+    /// master-detail satırında bu kaleme özel komisyon/indirim/kargo/nitelik/tarihler. Detay yoksa (snapshot null /
+    /// eşleşme yok) ItemDetail null kalır (panel "detay yok" gösterir). Mapperly değil (snapshot OrderLine'da değil).</summary>
+    private static void ApplyItemDetail(OrderItemListDto dto, Order order, OrderLine line)
     {
-        foreach (var value in values)
+        var item = order.Detail?.Items.FirstOrDefault(i =>
+            !string.IsNullOrEmpty(i.RemoteLineId) && i.RemoteLineId == line.RemoteLineId);
+        if (item is null)
         {
-            if (!string.IsNullOrWhiteSpace(value))
-            {
-                return value;
-            }
+            return;
         }
 
-        return null;
+        var hasDiscount = item.MallDiscount is not null || item.SellerDiscount is not null;
+        dto.ItemDetail = new OrderItemDetailDto
+        {
+            SkuId = item.SkuId,
+            Commission = item.Commission,
+            DiscountTotal = hasDiscount ? (item.MallDiscount ?? 0m) + (item.SellerDiscount ?? 0m) : null,
+            ShipmentCompany = item.ShipmentCompany,
+            ShipmentMethod = item.ShipmentMethod,
+            Attributes = FormatAttributes(item.Attributes),
+        };
     }
 
-    /// <summary>Liste satırlarının kanal kodunu enrich eder (id-only referanstan; mapper doldurmaz).</summary>
-    private async Task EnrichChannelCodesAsync(Guid companyId, List<OrderListDto> dtos)
+    private static string? FormatAttributes(IReadOnlyList<OrderDetailItemAttribute> attributes)
+    {
+        if (attributes.Count == 0)
+        {
+            return null;
+        }
+
+        var text = string.Join(", ", attributes
+            .Where(a => !string.IsNullOrWhiteSpace(a.Name) || !string.IsNullOrWhiteSpace(a.Value))
+            .Select(a => string.IsNullOrWhiteSpace(a.Name) ? a.Value : $"{a.Name}: {a.Value}"));
+        return string.IsNullOrWhiteSpace(text) ? null : text;
+    }
+
+    /// <summary>Sipariş (master) satırlarının kanal kodunu enrich eder (id-only referanstan; mapper doldurmaz).</summary>
+    private async Task EnrichOrderChannelCodesAsync(Guid companyId, List<OrderListDto> dtos)
     {
         if (dtos.Count == 0)
         {
@@ -318,25 +631,6 @@ public class OrderAppService : TradeXpressAppService, IOrderAppService
             (await _channelRepository.GetQueryableAsync())
                 .Where(c => c.Id == salesChannelId)
                 .Select(c => c.Code));
-    }
-
-    /// <summary>TRY para birimi (Trendyol tutarı HER ZAMAN TRY) — HOST kaydından TENANT bağlamında çözülür
-    /// (filtre-kapalı okuma; import ResolveTryCurrencyUnitIdAsync deseni). Bulunamazsa null + rapora uyarı.</summary>
-    private async Task<Guid?> ResolveTryCurrencyUnitIdAsync(OrderFetchResultDto report)
-    {
-        using (DataFilter.Disable<Volo.Abp.MultiTenancy.IMultiTenant>())
-        {
-            var candidates = await AsyncExecuter.ToListAsync(
-                (await _currencyUnitRepository.GetQueryableAsync()).Where(c => c.Code == CurrencyUnitCode.TRY));
-            var preferred = candidates.FirstOrDefault(c => c.TenantId == CurrentTenant.Id)
-                            ?? candidates.FirstOrDefault(c => c.TenantId == null);
-            if (preferred is null)
-            {
-                report.Warnings.Add(L["Order:Fetch:TryCurrencyMissing"].Value);
-            }
-
-            return preferred?.Id;
-        }
     }
 
     private async Task<Order> GetOwnedOrderAsync(Guid id)

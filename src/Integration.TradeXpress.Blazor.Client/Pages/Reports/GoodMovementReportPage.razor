@@ -1,0 +1,117 @@
+@page "/reports/good-movement"
+@using Integration.TradeXpress.Branches
+@using Integration.TradeXpress.Goods
+@using Integration.TradeXpress.Reports
+@using Integration.TradeXpress.Vaults
+@using Integration.TradeXpress.Variants
+@using DevExpress.Blazor
+@using Integration.Framework.Blazor.Client.Components.Crud
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+<PageTitle>Mamül Hareket Raporu</PageTitle>
+
+<div style="padding:12px; display:flex; flex-direction:column; gap:12px; height:100%;">
+
+    @* ── Kapsam + tarih + mamül/varyant filtresi ── *@
+    <div style="display:flex; flex-wrap:wrap; gap:8px; align-items:flex-end;">
+
+        <div style="display:flex; flex-direction:column; gap:2px;">
+            <label style="font-size:11px; color:var(--dxbl-text-secondary);">Şube</label>
+            <DxComboBox Data="@_branches"
+                        TextFieldName="@nameof(BranchListDto.Name)"
+                        ValueFieldName="@nameof(BranchListDto.Id)"
+                        Value="_filter.BranchId"
+                        ValueChanged="@((Guid? v) => OnBranchChanged(v))"
+                        NullText="(Tümü)"
+                        ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto"
+                        Enabled="@(_filter.CompanyId != null)"
+                        style="min-width:160px;" />
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:2px;">
+            <label style="font-size:11px; color:var(--dxbl-text-secondary);">Kasa</label>
+            <DxComboBox Data="@_vaults"
+                        TextFieldName="@nameof(VaultListDto.Name)"
+                        ValueFieldName="@nameof(VaultListDto.Id)"
+                        @bind-Value="_filter.VaultId"
+                        NullText="(Tümü)"
+                        ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto"
+                        Enabled="@(_filter.BranchId != null)"
+                        style="min-width:140px;" />
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:2px;">
+            <label style="font-size:11px; color:var(--dxbl-text-secondary);">Başlangıç</label>
+            <DxDateEdit @bind-Date="_filter.Start" style="min-width:130px;" />
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:2px;">
+            <label style="font-size:11px; color:var(--dxbl-text-secondary);">Bitiş</label>
+            <DxDateEdit @bind-Date="_filter.End" style="min-width:130px;" />
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:2px;">
+            <label style="font-size:11px; color:var(--dxbl-text-secondary);">Mamül</label>
+            <DxComboBox Data="@_goods"
+                        TextFieldName="@nameof(GoodListDto.Name)"
+                        ValueFieldName="@nameof(GoodListDto.Id)"
+                        Value="_filter.GoodId"
+                        ValueChanged="@((Guid? v) => OnGoodChanged(v))"
+                        NullText="(Tümü)"
+                        ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto"
+                        style="min-width:180px;" />
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:2px;">
+            <label style="font-size:11px; color:var(--dxbl-text-secondary);">Varyant</label>
+            <DxComboBox Data="@_variants"
+                        TextFieldName="@nameof(CommodityVariantOptionDto.Code)"
+                        ValueFieldName="@nameof(CommodityVariantOptionDto.Id)"
+                        @bind-Value="_filter.VariantId"
+                        NullText="(Tümü)"
+                        ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto"
+                        Enabled="@(_filter.GoodId != null)"
+                        style="min-width:160px;" />
+        </div>
+
+        <DxButton Text="Getir" Click="@LoadAsync" RenderStyleMode="ButtonRenderStyleMode.Contained" RenderStyle="ButtonRenderStyle.Primary" />
+    </div>
+
+    @* ── Sadece hareket grid'i (sekme YOK) ── *@
+    @if (_movementRows != null)
+    {
+        <TxGrid Data="@_movementRows" StateKey="report:good-movement" ShowFilterRow="true" style="height:100%;">
+            <Columns>
+                <DxGridDataColumn FieldName="@nameof(GoodMovementRowDto.VoucherDate)"    Caption="Tarih"      DisplayFormat="d"  Width="95"  />
+                <DxGridDataColumn FieldName="@nameof(GoodMovementRowDto.SubAccountCode)" Caption="Hesap"                         Width="160" />
+                <DxGridDataColumn FieldName="@nameof(GoodMovementRowDto.CompanyCode)"    Caption="Şirket"                        Width="90"  />
+                <DxGridDataColumn FieldName="@nameof(GoodMovementRowDto.BranchCode)"     Caption="Şube"                          Width="90"  />
+                <DxGridDataColumn FieldName="@nameof(GoodMovementRowDto.VaultCode)"      Caption="Kasa"                          Width="90"  />
+                <DxGridDataColumn FieldName="@nameof(GoodMovementRowDto.ProcessCode)"    Caption="İşlem"                         Width="65"  />
+                <DxGridDataColumn FieldName="@nameof(GoodMovementRowDto.Source)"         Caption="Öd.Tipi"                       Width="80"  />
+                <DxGridDataColumn FieldName="@nameof(GoodMovementRowDto.CommodityCode)"  Caption="Mamül"                         Width="120" />
+                <DxGridDataColumn FieldName="@nameof(GoodMovementRowDto.VariantCode)"    Caption="Varyant"                       Width="110" />
+                <DxGridDataColumn FieldName="@nameof(GoodMovementRowDto.UnitCode)"       Caption="Birim"                         Width="65"  />
+                @* ── Adet (Quantity) kolonları — birincil ── *@
+                <DxGridDataColumn FieldName="@nameof(GoodMovementRowDto.Devir)"          Caption="Dev.Adet"   DisplayFormat="n2"  Width="110" />
+                <DxGridDataColumn FieldName="@nameof(GoodMovementRowDto.Giren)"          Caption="Giren Adet" DisplayFormat="n2"  Width="110" />
+                <DxGridDataColumn FieldName="@nameof(GoodMovementRowDto.Cikan)"          Caption="Çıkan Adet" DisplayFormat="n2"  Width="110" />
+                <DxGridDataColumn FieldName="@nameof(GoodMovementRowDto.RunningBalance)" Caption="Son Adet"   DisplayFormat="n2"  Width="110" />
+                @* ── Miktar (Amount) kolonları ── *@
+                <DxGridDataColumn FieldName="@nameof(GoodMovementRowDto.DevirAmount)"    Caption="Dev.Miktar" DisplayFormat="n2"  Width="120" />
+                <DxGridDataColumn FieldName="@nameof(GoodMovementRowDto.GirenAmount)"    Caption="Giren Mik." DisplayFormat="n2"  Width="120" />
+                <DxGridDataColumn FieldName="@nameof(GoodMovementRowDto.CikanAmount)"    Caption="Çıkan Mik." DisplayFormat="n2"  Width="120" />
+                <DxGridDataColumn FieldName="@nameof(GoodMovementRowDto.RunningAmount)"  Caption="Son Miktar" DisplayFormat="n2"  Width="120" />
+                <DxGridDataColumn FieldName="@nameof(GoodMovementRowDto.Description)"    Caption="Açıklama" />
+            </Columns>
+            <TotalSummary>
+                <DxGridSummaryItem SummaryType="GridSummaryItemType.Count" FieldName="@nameof(GoodMovementRowDto.VoucherDate)" Caption="Kayıt:" />
+                <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum"   FieldName="@nameof(GoodMovementRowDto.Giren)"       DisplayFormat="n2" />
+                <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum"   FieldName="@nameof(GoodMovementRowDto.Cikan)"       DisplayFormat="n2" />
+                <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum"   FieldName="@nameof(GoodMovementRowDto.GirenAmount)" DisplayFormat="n2" />
+                <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum"   FieldName="@nameof(GoodMovementRowDto.CikanAmount)" DisplayFormat="n2" />
+            </TotalSummary>
+        </TxGrid>
+    }
+
+</div>

@@ -34,6 +34,8 @@ public static class VoucherProcessCode
             ProcessType.Future   => "V",
             ProcessType.Stone    => "T",
             ProcessType.Jewelry  => "J",
+            // Mamül — mam"U"l; hiçbir yön/ödeme harfiyle çakışmaz (bileşik kodda ayrışma garantili).
+            ProcessType.Good     => "U",
             // Transfer 'V' harfini Future ile PAYLAŞIR ama BİLEŞİK kodlar çakışmaz (kullanıcı kararı
             // 2026-07-03): Future yönü Buy/Sell → "VA"/"VS"; Virman yönü Giriş/Çıkış + ödeme Normal →
             // "VGN"/"VCN". Hiçbir Future kodu 3. harf üretmez (ödeme tipi eklenmez) → ayrışma garantili.

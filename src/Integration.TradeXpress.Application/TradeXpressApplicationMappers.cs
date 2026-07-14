@@ -17,6 +17,8 @@ using Integration.TradeXpress.Scraps;
 using Integration.TradeXpress.Metals;
 using Integration.TradeXpress.Stones;
 using Integration.TradeXpress.Jewelries;
+using Integration.TradeXpress.Goods;
+using Integration.TradeXpress.SpecialCodes;
 using Integration.TradeXpress.Countries;
 using Integration.TradeXpress.Accounts;
 using Integration.TradeXpress.AssayOffices;
@@ -367,6 +369,10 @@ public partial class MetalToGetDtoMapper : MapperBase<Metal, MetalGetDto>
 {
     [MapperIgnoreTarget(nameof(MetalGetDto.IsGlobal))]
     [MapperIgnoreTarget(nameof(MetalGetDto.FollowingUnitCode))]
+    [MapperIgnoreTarget(nameof(MetalGetDto.Documents))]     // agnostik Document — AppService yükler
+    [MapperIgnoreTarget(nameof(MetalGetDto.Notes))]         // agnostik Note — AppService yükler
+    [MapperIgnoreTarget(nameof(MetalGetDto.Attributes))]    // varyant grafı — AppService yükler
+    [MapperIgnoreTarget(nameof(MetalGetDto.Variants))]      // varyant grafı — AppService yükler
     public override partial MetalGetDto Map(Metal source);
     public override partial void Map(Metal source, MetalGetDto destination);
 }
@@ -407,6 +413,11 @@ public partial class FutureToListDtoMapper : MapperBase<Future, FutureListDto>
 public partial class JewelryToGetDtoMapper : MapperBase<Jewelry, JewelryGetDto>
 {
     [MapperIgnoreTarget(nameof(JewelryGetDto.IsGlobal))]
+    [MapperIgnoreTarget(nameof(JewelryGetDto.Images))]       // agnostik Image — AppService yükler
+    [MapperIgnoreTarget(nameof(JewelryGetDto.Documents))]    // agnostik Document — AppService yükler
+    [MapperIgnoreTarget(nameof(JewelryGetDto.Notes))]        // agnostik Note — AppService yükler
+    [MapperIgnoreTarget(nameof(JewelryGetDto.Attributes))]   // varyant grafı — AppService yükler
+    [MapperIgnoreTarget(nameof(JewelryGetDto.Variants))]     // varyant grafı — AppService yükler
     public override partial JewelryGetDto Map(Jewelry source);
     public override partial void Map(Jewelry source, JewelryGetDto destination);
 }
@@ -415,14 +426,68 @@ public partial class JewelryToGetDtoMapper : MapperBase<Jewelry, JewelryGetDto>
 public partial class JewelryToListDtoMapper : MapperBase<Jewelry, JewelryListDto>
 {
     [MapperIgnoreTarget(nameof(JewelryListDto.IsGlobal))]
+    [MapperIgnoreTarget(nameof(JewelryListDto.ImagePreviewUrl))]   // agnostik varsayılan görsel — AppService enrich eder
     public override partial JewelryListDto Map(Jewelry source);
     public override partial void Map(Jewelry source, JewelryListDto destination);
+}
+
+// ── Good / Mamül (Jewelry deseni: yalnız IsGlobal ignore) ──
+
+[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
+public partial class GoodToGetDtoMapper : MapperBase<Good, GoodGetDto>
+{
+    [MapperIgnoreTarget(nameof(GoodGetDto.IsGlobal))]
+    [MapperIgnoreTarget(nameof(GoodGetDto.Suppliers))]      // ayrı tablo — AppService yükler
+    [MapperIgnoreTarget(nameof(GoodGetDto.Images))]         // agnostik Image — AppService yükler
+    [MapperIgnoreTarget(nameof(GoodGetDto.Documents))]      // agnostik Document — AppService yükler
+    [MapperIgnoreTarget(nameof(GoodGetDto.Notes))]          // agnostik Note — AppService yükler
+    [MapperIgnoreTarget(nameof(GoodGetDto.Attributes))]     // varyant grafı — AppService yükler
+    [MapperIgnoreTarget(nameof(GoodGetDto.Variants))]       // varyant grafı — AppService yükler
+    public override partial GoodGetDto Map(Good source);
+    public override partial void Map(Good source, GoodGetDto destination);
+}
+
+[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
+public partial class GoodToListDtoMapper : MapperBase<Good, GoodListDto>
+{
+    // Fiyat (alış/satış + birim) artık Good'da DEĞİL → ANA VARYANT'tan enrich edilir (GoodAppService.EnrichListPricingAsync).
+    [MapperIgnoreTarget(nameof(GoodListDto.IsGlobal))]
+    [MapperIgnoreTarget(nameof(GoodListDto.ImagePreviewUrl))]   // agnostik varsayılan görsel — AppService enrich eder
+    [MapperIgnoreTarget(nameof(GoodListDto.EntryPrice))]
+    [MapperIgnoreTarget(nameof(GoodListDto.EntryPriceUnitId))]
+    [MapperIgnoreTarget(nameof(GoodListDto.ExitPrice))]
+    [MapperIgnoreTarget(nameof(GoodListDto.ExitPriceUnitId))]
+    public override partial GoodListDto Map(Good source);
+    public override partial void Map(Good source, GoodListDto destination);
+}
+
+// ── SpecialCode / Özel Kod (Good deseni: yalnız IsGlobal ignore) ──
+
+[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
+public partial class SpecialCodeToGetDtoMapper : MapperBase<SpecialCode, SpecialCodeGetDto>
+{
+    [MapperIgnoreTarget(nameof(SpecialCodeGetDto.IsGlobal))]
+    public override partial SpecialCodeGetDto Map(SpecialCode source);
+    public override partial void Map(SpecialCode source, SpecialCodeGetDto destination);
+}
+
+[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
+public partial class SpecialCodeToListDtoMapper : MapperBase<SpecialCode, SpecialCodeListDto>
+{
+    [MapperIgnoreTarget(nameof(SpecialCodeListDto.IsGlobal))]
+    public override partial SpecialCodeListDto Map(SpecialCode source);
+    public override partial void Map(SpecialCode source, SpecialCodeListDto destination);
 }
 
 [Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
 public partial class StoneToGetDtoMapper : MapperBase<Stone, StoneGetDto>
 {
     [MapperIgnoreTarget(nameof(StoneGetDto.IsGlobal))]
+    [MapperIgnoreTarget(nameof(StoneGetDto.Images))]        // agnostik Image — AppService yükler
+    [MapperIgnoreTarget(nameof(StoneGetDto.Documents))]     // agnostik Document — AppService yükler
+    [MapperIgnoreTarget(nameof(StoneGetDto.Notes))]         // agnostik Note — AppService yükler
+    [MapperIgnoreTarget(nameof(StoneGetDto.Attributes))]    // varyant grafı — AppService yükler
+    [MapperIgnoreTarget(nameof(StoneGetDto.Variants))]      // varyant grafı — AppService yükler
     public override partial StoneGetDto Map(Stone source);
     public override partial void Map(Stone source, StoneGetDto destination);
 }
@@ -431,6 +496,7 @@ public partial class StoneToGetDtoMapper : MapperBase<Stone, StoneGetDto>
 public partial class StoneToListDtoMapper : MapperBase<Stone, StoneListDto>
 {
     [MapperIgnoreTarget(nameof(StoneListDto.IsGlobal))]
+    [MapperIgnoreTarget(nameof(StoneListDto.ImagePreviewUrl))]   // agnostik varsayılan görsel — AppService enrich eder
     public override partial StoneListDto Map(Stone source);
     public override partial void Map(Stone source, StoneListDto destination);
 }
@@ -543,6 +609,28 @@ public partial class UserScopedGrantToDtoMapper : MapperBase<UserScopedGrant, Us
     public override partial void Map(JewelryGetDto source, JewelryUpdateDto destination);
 }
 
+[Mapper] public partial class GoodGetToCreateMapper : MapperBase<GoodGetDto, GoodCreateDto>
+{
+    public override partial GoodCreateDto Map(GoodGetDto source);
+    public override partial void Map(GoodGetDto source, GoodCreateDto destination);
+}
+[Mapper] public partial class GoodGetToUpdateMapper : MapperBase<GoodGetDto, GoodUpdateDto>
+{
+    public override partial GoodUpdateDto Map(GoodGetDto source);
+    public override partial void Map(GoodGetDto source, GoodUpdateDto destination);
+}
+
+[Mapper] public partial class SpecialCodeGetToCreateMapper : MapperBase<SpecialCodeGetDto, SpecialCodeCreateDto>
+{
+    public override partial SpecialCodeCreateDto Map(SpecialCodeGetDto source);
+    public override partial void Map(SpecialCodeGetDto source, SpecialCodeCreateDto destination);
+}
+[Mapper] public partial class SpecialCodeGetToUpdateMapper : MapperBase<SpecialCodeGetDto, SpecialCodeUpdateDto>
+{
+    public override partial SpecialCodeUpdateDto Map(SpecialCodeGetDto source);
+    public override partial void Map(SpecialCodeGetDto source, SpecialCodeUpdateDto destination);
+}
+
 [Mapper] public partial class AccountGetToCreateMapper : MapperBase<AccountGetDto, AccountCreateDto>
 {
     public override partial AccountCreateDto Map(AccountGetDto source);
@@ -606,6 +694,7 @@ public partial class SubstitutionGroupToListDtoMapper : MapperBase<SubstitutionG
 public partial class OrderToListDtoMapper : MapperBase<Order, OrderListDto>
 {
     [MapperIgnoreTarget(nameof(OrderListDto.SalesChannelCode))]
+    [MapperIgnoreTarget(nameof(OrderListDto.Items))]   // AppService enrich (ayrı repo + zengin kalem detayı)
     public override partial OrderListDto Map(Order source);
     public override partial void Map(Order source, OrderListDto destination);
 }
@@ -615,6 +704,13 @@ public partial class OrderToDtoMapper : MapperBase<Order, OrderDto>
 {
     [MapperIgnoreTarget(nameof(OrderDto.SalesChannelCode))]
     [MapperIgnoreTarget(nameof(OrderDto.Lines))]
+    [MapperIgnoreTarget(nameof(OrderDto.CargoProvider))]        // AppService enrich eder (düzeltme ?? orijinal)
+    [MapperIgnoreTarget(nameof(OrderDto.CargoTrackingNumber))]  // AppService enrich eder (düzeltme ?? orijinal)
+    [MapperIgnoreTarget(nameof(OrderDto.Buyer))]                // AppService enrich eder (Order'da yok — Detail'den)
+    [MapperIgnoreTarget(nameof(OrderDto.BillingAddress))]       // AppService enrich eder (Order'da yok — Detail'den)
+    [MapperIgnoreTarget(nameof(OrderDto.ShippingAddress))]      // AppService enrich eder (Order'da yok — Detail'den)
+    [MapperIgnoreTarget(nameof(OrderDto.ActionInputNumberOfPackages))]   // UI-only (property default'u geçerli)
+    [MapperIgnoreTarget(nameof(OrderDto.PendingLineCount))]              // AppService ayrı sorguyla hesaplar
     public override partial OrderDto Map(Order source);
     public override partial void Map(Order source, OrderDto destination);
 }
@@ -624,6 +720,28 @@ public partial class OrderLineToDtoMapper : MapperBase<OrderLine, OrderLineDto>
 {
     public override partial OrderLineDto Map(OrderLine source);
     public override partial void Map(OrderLine source, OrderLineDto destination);
+}
+
+// MELEZ sipariş-kalemi satırı: line alanları buradan (OrderLine.Id → OrderLineId); order başlığı (kanal/no/müşteri/
+// tarih/tutar/kargo) AppService'te enrich edilir → ignore.
+[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
+public partial class OrderLineToItemListDtoMapper : MapperBase<OrderLine, OrderItemListDto>
+{
+    [MapProperty(nameof(OrderLine.Id), nameof(OrderItemListDto.Id))]
+    [MapperIgnoreTarget(nameof(OrderItemListDto.SalesChannelId))]
+    [MapperIgnoreTarget(nameof(OrderItemListDto.ChannelType))]
+    [MapperIgnoreTarget(nameof(OrderItemListDto.SalesChannelCode))]
+    [MapperIgnoreTarget(nameof(OrderItemListDto.OrderNumber))]
+    [MapperIgnoreTarget(nameof(OrderItemListDto.OrderDate))]
+    [MapperIgnoreTarget(nameof(OrderItemListDto.NeutralStatus))]
+    [MapperIgnoreTarget(nameof(OrderItemListDto.RemoteStatus))]
+    [MapperIgnoreTarget(nameof(OrderItemListDto.CustomerName))]
+    [MapperIgnoreTarget(nameof(OrderItemListDto.OrderTotalAmount))]
+    [MapperIgnoreTarget(nameof(OrderItemListDto.CargoProvider))]
+    [MapperIgnoreTarget(nameof(OrderItemListDto.CargoTrackingNumber))]
+    [MapperIgnoreTarget(nameof(OrderItemListDto.ItemDetail))]   // AppService enrich (snapshot'tan RemoteLineId ile)
+    public override partial OrderItemListDto Map(OrderLine source);
+    public override partial void Map(OrderLine source, OrderItemListDto destination);
 }
 
 [Mapper] public partial class SubAccountGetToCreateMapper : MapperBase<SubAccountGetDto, SubAccountCreateDto>

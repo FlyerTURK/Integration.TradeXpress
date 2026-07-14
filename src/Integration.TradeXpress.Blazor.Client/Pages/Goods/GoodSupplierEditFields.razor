@@ -1,0 +1,76 @@
+@using System
+@using System.Collections.Generic
+@using Integration.TradeXpress.Accounts
+@using Integration.TradeXpress.Goods
+@using Integration.TradeXpress.Financials.CurrencyUnits
+@using Integration.TradeXpress.Permissions
+@using Integration.TradeXpress.Blazor.Client.Pages.Accounts
+@using Integration.TradeXpress.Blazor.Client.Pages.Financials.CurrencyUnits
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@* Bir mamül TEDARİKÇİSİ (drill satırı) edit alanları — hangi cari (Account→SubAccount cascade),
+   hangi fiyatla/para biriminde (vergi dahil/hariç), kaç günde temin. Cari seçimi AccountSelectionPanel
+   cascade deseniyle hizalı (üst Account seçilince alt SubAccount o hesaba filtrelenir). *@
+
+<DxFormLayout CssClass="w-100">
+    @* Cari hesap ZORUNLU → AllowClear=false (temizle butonu yok). *@
+    <DxFormLayoutItem Caption="@($"{L["Account"]} *")" ColSpanMd="12">
+        <LookupComboBox TItem="AccountListDto" TValue="Guid?"
+                        Data="@Accounts"
+                        ValueFieldName="@nameof(AccountListDto.Id)"
+                        TextFieldName="@nameof(AccountListDto.Code)"
+                        Value="@SelectedAccountId" ValueChanged="@OnAccountChanged"
+                        NullText="@L["Select"].Value"
+                        AllowClear="false"
+                        EditComponentType="typeof(AccountEditHost)"
+                        OnLookupReloadRequested="@OnReloadAccounts"
+                        CreatePolicy="@TradeXpressPermissions.Accounts.Create"
+                        UpdatePolicy="@TradeXpressPermissions.Accounts.Update">
+            <Columns>
+                <DxListEditorColumn FieldName="@nameof(AccountListDto.Code)" Caption="@L["Code"]" Width="40%" />
+                <DxListEditorColumn FieldName="@nameof(AccountListDto.Name)" Caption="@L["Name"]" />
+            </Columns>
+        </LookupComboBox>
+    </DxFormLayoutItem>
+
+    @* Alt hesap OPSİYONEL (cari hesap tek başına yeterli) → caption'da "*" yok, temizlenebilir. Cari hesap seçilince görünür. *@
+    <DxFormLayoutItem Caption="@L["SubAccount"]" ColSpanMd="12" Visible="@(Model.AccountId != Guid.Empty)">
+        <LookupComboBox TItem="SubAccountListDto" TValue="Guid?"
+                        Data="@FilteredSubAccounts"
+                        ValueFieldName="@nameof(SubAccountListDto.Id)"
+                        TextFieldName="@nameof(SubAccountListDto.Code)"
+                        @bind-Value="@Model.SubAccountId"
+                        NullText="@L["Select"].Value"
+                        EditComponentType="typeof(SubAccountEditHost)"
+                        OnLookupReloadRequested="@OnReloadSubAccounts"
+                        CreatePolicy="@TradeXpressPermissions.SubAccounts.Create"
+                        UpdatePolicy="@TradeXpressPermissions.SubAccounts.Update" />
+    </DxFormLayoutItem>
+
+    @* Temin Fiyatı — özel NumericSpinEdit (sağa hizalı); caption'lı olduğundan 5 kolon (yanındaki caption'sızlar sığar). *@
+    <DxFormLayoutItem Caption="@L["GoodSupplierPrice"]" ColSpanMd="5" BeginRow="true">
+        <NumericSpinEdit TValue="decimal" @bind-Value="@Model.Price" DisplayFormat="N2" ShowSpinButtons="false" />
+    </DxFormLayoutItem>
+    @* Para birimi — caption yok (Temin Fiyatı'nın yanında birim seçici). *@
+    <DxFormLayoutItem Caption="" ColSpanMd="4">
+        <LookupComboBox TItem="CurrencyUnitListDto" TValue="Guid?"
+                        Data="@CurrencyUnits"
+                        ValueFieldName="@nameof(CurrencyUnitListDto.Id)"
+                        TextFieldName="@nameof(CurrencyUnitListDto.Code)"
+                        @bind-Value="@Model.CurrencyUnitId" NullText="@L["Select"].Value"
+                        EditComponentType="typeof(CurrencyUnitEditHost)"
+                        OnLookupReloadRequested="@OnReloadCurrencyUnits"
+                        CreatePolicy="@TradeXpressPermissions.CurrencyUnits.Create"
+                        UpdatePolicy="@TradeXpressPermissions.CurrencyUnits.Update" />
+    </DxFormLayoutItem>
+    @* KDV dahil/hariç — caption yok; durum switch'in kendi label'ında (KDV Dahil / KDV Hariç). *@
+    <DxFormLayoutItem Caption="" ColSpanMd="3">
+        <DxCheckBox @bind-Checked="@Model.TaxIncluded" CheckType="CheckType.Switch">
+            @(Model.TaxIncluded ? L["GoodTaxIncluded"] : L["GoodTaxExcluded"])
+        </DxCheckBox>
+    </DxFormLayoutItem>
+
+    <DxFormLayoutItem Caption="@L["GoodLeadDays"]" ColSpanMd="4">
+        <NumericSpinEdit @bind-Value="@Model.LeadDays" />
+    </DxFormLayoutItem>
+</DxFormLayout>

@@ -168,6 +168,11 @@ public interface ISplitEditActions
     /// geçmiş yığını olmayan edit'ler (yeni pilot Form) false döner. (Default interface member → eskiyi bozmaz.)</summary>
     bool SupportsUndoRedo => true;
 
+    /// <summary>Bu edite özel ek toolbar aksiyonları (ör. Order "Kabul Et"/"Reddet") — descriptor liste, SortIndex'li
+    /// (liste toolbar'ının ISplitGridActions.CustomActions'ı ile AYNI desen). Default null (mevcut edit'ler değişmez;
+    /// default interface member → eskiyi bozmaz).</summary>
+    System.Collections.Generic.IReadOnlyList<Integration.Framework.Blazor.Client.Components.Crud.CrudToolbarAction>? CustomActions => null;
+
     // ── Form değişiklik sinyalleri (DOM event delegation) ──
     // DevExpress editörleri @bind ile EditModel'i değiştiriyor ama EditContext.NotifyFieldChanged
     // ÇAĞIRMIYOR → OnFieldChanged ölü. Bu yüzden formu saran div'in oninput/onchange'i kullanılır.

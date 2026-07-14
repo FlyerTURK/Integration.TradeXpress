@@ -15,6 +15,7 @@ public static class BalanceSheetCategory
     public const string Stone          = "Stone";            // Kıymetli taşlar (Stone entity) — maliyet envanteri (ERPPRO TAS)
     public const string Bullion        = "Bullion";          // ERPPRO TAKOZ — külçe metal içeriği (HAS/GUM/PLT/PLD); işçilik YOK (cari/BAKİYE'de). BullionCategorySource ile beslenir
     public const string Jewelry        = "Jewelry";          // Kıymetli taş barındıran TAKILAR (mücevher); ERPPRO bunu yanlışlıkla "PIRLANTA" adlandırmış — maliyet envanteri
+    public const string Good           = "Good";             // Mamül (genel ticari mal — kuyumculuk dışı); maliyet envanteri, giriş fiyatıyla değerlenir
     public const string Expense        = "Expense";          // ERPPRO GIDER — P&L gider (değerlenmez, TOPLAM dışı)
     public const string Income         = "Income";           // ERPPRO GELIR — P&L gelir (değerlenmez, TOPLAM dışı)
 

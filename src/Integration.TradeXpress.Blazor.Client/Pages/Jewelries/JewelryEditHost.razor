@@ -1,17 +1,22 @@
 @page "/jewelries/new"
 @page "/jewelries/{Id:guid}"
 @using System
-@using System.Linq
-@using System.Collections.Generic
 @using Integration.TradeXpress.Jewelries
 @using Integration.TradeXpress.Financials.CurrencyUnits
 @using Integration.Framework.Blazor.Client.Components.Crud
-@using Microsoft.Extensions.Localization
+@using Volo.Abp.ObjectMapping
+@using Integration.TradeXpress.Blazor.Client.Services.Working
 @inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
 @inject IJewelryAppService JewelryAppService
 @inject ICurrencyUnitAppService CurrencyUnitAppService
-@inject Volo.Abp.ObjectMapping.IObjectMapper Mapper
-@inject Integration.TradeXpress.Blazor.Client.Services.Working.IWorkingContextService Working
+@inject IObjectMapper Mapper
+@inject IWorkingContextService Working
+@inject IUiInteractionService UiService
+
+@*
+   Mücevher edit host — STANDART CrudEditHost akışı (Good ile birebir desen). Company-scoped: tenant, host(global)
+   kayıtları düzenleyemez (IsReadOnly). Yeni kayıt default'ları working şirkete + standart ana varyanta atanır.
+*@
 
 @if (_coordinator != null && _ready)
 {
@@ -20,31 +25,8 @@
                   FormCaption="@L["Jewelry"].Value" IconCssClass="@TradeXpressIcons.Jewelry"
                   EntityValue="@(m => m.Code)"
                   IsReadOnly="@(m => m.IsGlobal && CurrentTenant?.Id != null)"
-                  ApplyNewDefaults="@(m => { m.IsActive = true; m.PriceTypeChange = true; m.CompanyId = Working.CurrentCompanyId; })">
-        <JewelryLayout Model="@context" IsNew="@(context.Id == Guid.Empty)" CurrencyUnits="@_units" />
+                  ApplyNewDefaults="@ApplyNewDefaults">
+        <JewelryLayout Model="@context" IsNew="@(context.Id == Guid.Empty)" CurrencyUnits="@_units"
+                       OnGenerateVariants="@(async () => await GenerateVariantsAsync(context))" />
     </CrudEditHost>
-}
-
-@code {
-    [Parameter] public Guid? Id { get; set; }
-    [Parameter] public bool IsPopupMode { get; set; }
-    [Parameter] public EventCallback OnSaved { get; set; }
-    [Parameter] public EventCallback OnClosed { get; set; }
-
-    private List<CurrencyUnitListDto> _units = new();
-    private ICommitCoordinator<JewelryGetDto, JewelryListDto, Guid, JewelryListRequestDto>? _coordinator;
-    private bool _ready;
-
-    protected override async Task OnInitializedAsync()
-    {
-        _coordinator = new PersistentCoordinator<JewelryGetDto, JewelryListDto, Guid, JewelryListRequestDto, JewelryCreateDto, JewelryUpdateDto>(
-            JewelryAppService, Mapper);
-
-        await Working.EnsureLoadedAsync();
-
-        var result = await CurrencyUnitAppService.GetListAsync(new CurrencyUnitListRequestDto { MaxResultCount = 1000 });
-        _units = result.Items.ToList();
-
-        _ready = true;
-    }
 }

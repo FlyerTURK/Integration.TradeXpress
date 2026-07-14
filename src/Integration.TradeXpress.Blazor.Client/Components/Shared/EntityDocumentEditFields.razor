@@ -1,0 +1,29 @@
+@using Integration.TradeXpress.Attachments
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@* Entity-agnostik doküman edit alanları — DxFileInput ile blob'a ANINDA yükleme (entity save yalnız referansı
+   persist eder) + ad/tip/boyut görüntüsü + açıklama + sıra. Çağıran DxFormLayout'u sağlar (GoodLayout görsel deseni). *@
+
+<DxFormLayoutItem Caption="@($"{L["DocumentFile"]} *")" ColSpanMd="12" BeginRow="true">
+    <DxFileInput FilesUploading="OnFilesUploadingAsync" />
+</DxFormLayoutItem>
+
+@if (!string.IsNullOrEmpty(Model.FileName))
+{
+    <DxFormLayoutItem Caption="@L["Name"]" ColSpanMd="12">
+        <span>@Model.FileName</span>
+    </DxFormLayoutItem>
+    <DxFormLayoutItem Caption="@L["DocumentContentType"]" ColSpanMd="6">
+        <span>@Model.ContentType</span>
+    </DxFormLayoutItem>
+    <DxFormLayoutItem Caption="@L["DocumentSize"]" ColSpanMd="6">
+        <span>@SizeText</span>
+    </DxFormLayoutItem>
+}
+
+<DxFormLayoutItem Caption="@L["Description"]" ColSpanMd="12">
+    <DxMemo @bind-Text="@Model.Description" Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100" />
+</DxFormLayoutItem>
+<DxFormLayoutItem Caption="@L["DisplayOrder"]" ColSpanMd="6">
+    <NumericSpinEdit @bind-Value="@Model.DisplayOrder" />
+</DxFormLayoutItem>

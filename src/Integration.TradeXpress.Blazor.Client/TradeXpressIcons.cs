@@ -25,6 +25,10 @@ public static class TradeXpressIcons
     public const string Metal = "custom-icon-metal";
     public const string Stone = "custom-icon-stone";
     public const string Jewelry = "custom-icon-jewelry";
+    // Mamül'e özel ikon yok — genel ticari mal = emtia; mevcut commodities ikonu yeniden kullanılır (yeni CSS §1 onayı gerektirir, ileride polish).
+    public const string Good = "custom-icon-commodities";
+    // Özel Kod (gruplama sözlüğü) — mevcut sliders/ayar ikonu yeniden kullanılır (yeni CSS §1 onayı gerektirir).
+    public const string SpecialCode = "custom-icon-sliders";
 
     // ── Ürünler ──
     public const string Product = "custom-icon-commodities";

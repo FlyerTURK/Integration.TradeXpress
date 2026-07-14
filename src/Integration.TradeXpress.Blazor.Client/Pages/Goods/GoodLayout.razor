@@ -1,0 +1,283 @@
+@using System
+@using System.Collections.Generic
+@using System.Linq
+@using Integration.TradeXpress.Goods
+@using Integration.TradeXpress.Attachments
+@using Integration.TradeXpress.Financials.CurrencyUnits
+@using Integration.TradeXpress.Permissions
+@using Integration.TradeXpress.Blazor.Client.Pages.SpecialCodes
+@using Integration.TradeXpress.Blazor.Client.Pages.Financials.CurrencyUnits
+@using Integration.Framework.Blazor.Client.Components.Crud
+@using DevExpress.Blazor
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@* Good (Mamül) perakende stok kartı — GoodGetDto. Kimlik/sınıflandırma (SpecialCode picker, hiyerarşik),
+   stok limitleri, ana tedarikçi (cari) + tedarikçi drill'i, vergi (katalog %), alış fiyatı + kâr şekli →
+   türetilmiş satış (salt-okuma), görseller. Tedarikçi/görsel = alt drill (DrillTabs, formun en sonu). *@
+
+<DxFormLayout CssClass="w-100">
+    @* 1) Genel — Kod (yarım) → Ad (tam) → Barkod (yarım satır). *@
+    <DxFormLayoutGroup Caption="@L["General"]" ColSpanMd="12">
+        <DxFormLayoutItem Caption="@($"{L["Code"]} *")" ColSpanMd="6">
+            <DxTextBox @bind-Text="@Model.Code" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="12">
+            <DxTextBox @bind-Text="@Model.Name" />
+        </DxFormLayoutItem>
+        @* Barkod ana üründen çıkarıldı → varyant seviyesinde (her SKU'nun kendi barkodu). Entity alanı VP4'te sökülecek. *@
+    </DxFormLayoutGroup>
+
+    @* 2) Sınıflandırma — SpecialCode picker'lar 2'şer kolon. Hiyerarşi SpecialCode entity'sinin ParentId'sinde
+       yaşar (picker popup'ında düzenlenir); çift-bazlı cascade filtre ayrı geliştirme. Beden picker DEĞİL (düz metin). *@
+    <DxFormLayoutGroup Caption="@L["GoodClassification"]" ColSpanMd="12">
+        <DxFormLayoutItem Caption="@L["GoodKind"]" ColSpanMd="6">
+            <SpecialCodePicker EntityName="Good" PropertyName="Kind" @bind-Value="@Model.Kind" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["GoodType"]" ColSpanMd="6">
+            <SpecialCodePicker EntityName="Good" PropertyName="Type" @bind-Value="@Model.Type" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["GoodGroup"]" ColSpanMd="6">
+            <SpecialCodePicker EntityName="Good" PropertyName="GroupCode" @bind-Value="@Model.GroupCode" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["GoodCategory"]" ColSpanMd="6">
+            <SpecialCodePicker EntityName="Good" PropertyName="Category" @bind-Value="@Model.Category" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["GoodBrand"]" ColSpanMd="6">
+            <SpecialCodePicker EntityName="Good" PropertyName="Brand" @bind-Value="@Model.Brand" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["GoodModel"]" ColSpanMd="6">
+            <SpecialCodePicker EntityName="Good" PropertyName="Model" @bind-Value="@Model.Model" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["GoodColor"]" ColSpanMd="6">
+            <SpecialCodePicker EntityName="Good" PropertyName="Color" @bind-Value="@Model.Color" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["GoodSize"]" ColSpanMd="6">
+            <DxTextBox @bind-Text="@Model.Size" />
+        </DxFormLayoutItem>
+    </DxFormLayoutGroup>
+
+    @* 3) Stok — birim (SpecialCode: adet/kilo/cm...) + adet-takipli mi + min/max. *@
+    <DxFormLayoutGroup Caption="@L["GoodStock"]" ColSpanMd="12">
+        <DxFormLayoutItem Caption="@L["GoodStockUnit"]" ColSpanMd="6">
+            <SpecialCodePicker EntityName="Good" PropertyName="StockUnit" @bind-Value="@Model.StockUnitCode" SelectFirstWhenEmpty="@IsNew" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["IsQuantity"]" ColSpanMd="6">
+            <DxCheckBox @bind-Checked="@Model.IsQuantity" CheckType="CheckType.Switch">
+                @(Model.IsQuantity ? L["Yes"] : L["No"])
+            </DxCheckBox>
+        </DxFormLayoutItem>
+        @* Min/Max stok ana mamülde DEĞİL → varyant-başı (Varyantlar sekmesi). Birim + adet-bazlı ana mamülde (ortak). *@
+    </DxFormLayoutGroup>
+
+    @* Tedarikçi bilgisi ANA formda DEĞİL — yalnız Tedarikçiler drill'inde (her tedarikçi kendi cari/fiyat/birim/vergi/gününü taşır). *@
+
+    @* 4) Vergi — katalog % bilgisi (voucher net'i DEĞİL). KDV alış/satış + ÖTV + Tevkifat. *@
+    <DxFormLayoutGroup Caption="@L["GoodTax"]" ColSpanMd="12">
+        @* KDV — hazır oranlar (1/10/20) combo'da; liste-dışı serbest oran da yazılabilir. *@
+        <DxFormLayoutItem Caption="@L["GoodVatPurchase"]" ColSpanMd="6">
+            <NumericPresetComboBox @bind-Value="@Model.VatPurchaseRate" Presets="@VatPresets" DisplayFormat="N1" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["GoodVatSale"]" ColSpanMd="6">
+            <NumericPresetComboBox @bind-Value="@Model.VatSaleRate" Presets="@VatPresets" DisplayFormat="N1" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["GoodOtv"]" ColSpanMd="6">
+            <DxSpinEdit @bind-Value="@Model.OtvRate" DisplayFormat="N2" ShowSpinButtons="false" CssClass="w-100" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["GoodWithholding"]" ColSpanMd="6">
+            <DxSpinEdit @bind-Value="@Model.WithholdingRate" DisplayFormat="N2" ShowSpinButtons="false" CssClass="w-100" />
+        </DxFormLayoutItem>
+    </DxFormLayoutGroup>
+
+    @* Fiyatlandırma (alış/kâr/satış) ana mamülde DEĞİL → VARYANT-BAŞI (Varyantlar sekmesi, GoodVariantDetail).
+       Bir mamülün "temsili fiyatı" = ana varyantınki (bilanço + voucher oradan besler; IGoodPricingResolver). *@
+
+    @* Durum — Açıklama artık drill sekmesinde (HTML editor). *@
+    <DxFormLayoutGroup Caption="@L["Other"]" ColSpanMd="12">
+        <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6">
+            <DxCheckBox @bind-Checked="@Model.IsActive" CheckType="CheckType.Switch">
+                @(Model.IsActive ? L["Active"] : L["Passive"])
+            </DxCheckBox>
+        </DxFormLayoutItem>
+    </DxFormLayoutGroup>
+</DxFormLayout>
+
+@* En son: alt drill'ler — Tedarikçiler + Görseller (in-memory graf; Good 'Kaydet'inde birlikte persist). *@
+<DrillTabs CssClass="mt-3">
+    @* Açıklama — zengin metin (DxHtmlEditor); marketplace açıklaması HTML kabul eder. *@
+    <DxTabPage Text="@L["Description"]" TabIconCssClass="@TradeXpressIcons.Good">
+        <DxHtmlEditor @bind-Markup="@Model.Description" CssClass="w-100" Height="360px" />
+    </DxTabPage>
+
+    @* Nitelikler + Varyantlar — JENERİK agnostik varyant bileşenleri (EntityName="Good"). Panel DxTabPage ÜRETMEZ,
+       içeriği üretir (DrillTabs CollectionFiller wrapper gotcha'sı). Kod/ad/varyant üretimi sunucuda (synchronizer). *@
+    <DxTabPage Text="@L["Attributes"]" TabIconCssClass="@TradeXpressIcons.Sliders">
+        <EntityAttributesPanel Attributes="@Model.Attributes" />
+    </DxTabPage>
+    <DxTabPage Text="@L["Variants"]" TabIconCssClass="@TradeXpressIcons.ProductVariant">
+        @* Varyant-başı fiyat/stok — ExtraFields slot'unda (Good-özel; GoodVariantDetail'e saklanır). Stok birimi ana mamülde. *@
+        @* Stok Adedi GİZLİ — Good stoğu VoucherLine ledger'ından türetilir (statik stok anlamsız). *@
+        <EntityVariantsPanel TVariant="GoodVariantGraphDto" Variants="@Model.Variants" Attributes="@Model.Attributes"
+                             OnGenerate="@OnGenerateVariants" ShowStockQuantity="false" ShowImages="true">
+            <ExtraFields Context="v">
+                @* Stok limitleri (varyant-başı). *@
+                <DxFormLayoutItem Caption="@L["GoodMinQty"]" ColSpanMd="6" BeginRow="true">
+                    <DxSpinEdit @bind-Value="@v.MinQuantity" DisplayFormat="N3" ShowSpinButtons="false"
+                                ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" CssClass="w-100" />
+                </DxFormLayoutItem>
+                <DxFormLayoutItem Caption="@L["GoodMaxQty"]" ColSpanMd="6">
+                    <DxSpinEdit @bind-Value="@v.MaxQuantity" DisplayFormat="N3" ShowSpinButtons="false"
+                                ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" CssClass="w-100" />
+                </DxFormLayoutItem>
+                @* Alış — fiyat (caption'lı) + para birimi (caption GİZLİ; mamül takip birimi default) + KDV dahil/hariç. *@
+                <DxFormLayoutItem Caption="@L["EntryPrice"]" ColSpanMd="4" BeginRow="true">
+                    <DxSpinEdit @bind-Value="@v.EntryPrice" DisplayFormat="N2" ShowSpinButtons="false" CssClass="w-100" />
+                </DxFormLayoutItem>
+                <DxFormLayoutItem Caption="" ColSpanMd="4">
+                    <LookupComboBox TItem="CurrencyUnitListDto" TValue="Guid?" Data="@CurrencyUnits"
+                                    ValueFieldName="@nameof(CurrencyUnitListDto.Id)" TextFieldName="@nameof(CurrencyUnitListDto.Code)"
+                                    @bind-Value="@v.EntryPriceUnitId" NullText="@L["Select"].Value"
+                                    EditComponentType="typeof(CurrencyUnitEditHost)" OnLookupReloadRequested="@OnReloadCurrencyUnits"
+                                    CreatePolicy="@TradeXpressPermissions.CurrencyUnits.Create"
+                                    UpdatePolicy="@TradeXpressPermissions.CurrencyUnits.Update" />
+                </DxFormLayoutItem>
+                <DxFormLayoutItem Caption="" ColSpanMd="4">
+                    <DxCheckBox @bind-Checked="@v.EntryPriceTaxIncluded" CheckType="CheckType.Switch">
+                        @(v.EntryPriceTaxIncluded ? L["GoodTaxIncluded"] : L["GoodTaxExcluded"])
+                    </DxCheckBox>
+                </DxFormLayoutItem>
+                @* Kâr şekli + değer. *@
+                <DxFormLayoutItem Caption="@L["GoodMarginType"]" ColSpanMd="4" BeginRow="true">
+                    <ComboBoxEnumEdit TEnum="MarginType" L="@L" @bind-Value="@v.MarginType" />
+                </DxFormLayoutItem>
+                <DxFormLayoutItem Caption="" ColSpanMd="4">
+                    <DxSpinEdit @bind-Value="@v.MarginValue" DisplayFormat="N4" ShowSpinButtons="false" CssClass="w-100" />
+                </DxFormLayoutItem>
+                @* Satış — YENİ SATIR: türetilmiş fiyat (salt-okuma) + birim + KDV dahil/hariç. Sabit Fiyat'ta birim
+                   EDİTABLE (bağımsız mutlak fiyat); diğer marjlarda alış birimiyle AYNI (disabled). *@
+                <DxFormLayoutItem Caption="@L["ExitPrice"]" ColSpanMd="4" BeginRow="true">
+                    <DxSpinEdit Value="@ExitPreviewOf(v)" DisplayFormat="N2" ShowSpinButtons="false"
+                                Enabled="false" ValidationEnabled="false" CssClass="w-100" />
+                </DxFormLayoutItem>
+                <DxFormLayoutItem Caption="" ColSpanMd="4">
+                    @if (v.MarginType == MarginType.FinalPrice)
+                    {
+                        <LookupComboBox TItem="CurrencyUnitListDto" TValue="Guid?" Data="@CurrencyUnits"
+                                        ValueFieldName="@nameof(CurrencyUnitListDto.Id)" TextFieldName="@nameof(CurrencyUnitListDto.Code)"
+                                        @bind-Value="@v.ExitPriceUnitId" NullText="@L["Select"].Value"
+                                        EditComponentType="typeof(CurrencyUnitEditHost)" OnLookupReloadRequested="@OnReloadCurrencyUnits"
+                                        CreatePolicy="@TradeXpressPermissions.CurrencyUnits.Create"
+                                        UpdatePolicy="@TradeXpressPermissions.CurrencyUnits.Update" />
+                    }
+                    else
+                    {
+                        <LookupComboBox TItem="CurrencyUnitListDto" TValue="Guid?" Data="@CurrencyUnits"
+                                        ValueFieldName="@nameof(CurrencyUnitListDto.Id)" TextFieldName="@nameof(CurrencyUnitListDto.Code)"
+                                        Value="@v.EntryPriceUnitId" ValueChanged="@((Guid? _) => { })" ReadOnly="true"
+                                        NullText="@L["Select"].Value" />
+                    }
+                </DxFormLayoutItem>
+                <DxFormLayoutItem Caption="" ColSpanMd="4">
+                    <DxCheckBox @bind-Checked="@v.ExitPriceTaxIncluded" CheckType="CheckType.Switch">
+                        @(v.ExitPriceTaxIncluded ? L["GoodTaxIncluded"] : L["GoodTaxExcluded"])
+                    </DxCheckBox>
+                </DxFormLayoutItem>
+            </ExtraFields>
+        </EntityVariantsPanel>
+    </DxTabPage>
+
+    @* Tedarikçiler — her tedarikçi: hangi cari, hangi fiyat/birim/vergi-dahil, kaç günde temin. *@
+    <DxTabPage Text="@L["GoodSuppliers"]" TabIconCssClass="@TradeXpressIcons.Account">
+        <DrillList TItem="GoodSupplierDto"
+                   @ref="_supplierDrill"
+                   Title="@L["GoodSuppliers"]"
+                   EntityName="@L["GoodSupplier"]"
+                   EntityIcon="@TradeXpressIcons.Account"
+                   Items="Model.Suppliers"
+                   KeyFieldName="ClientKey"
+                   PrimaryTextSelector="@(s => s.SubAccountCode ?? s.AccountCode)"
+                   NewItemFactory="@(() => new GoodSupplierDto { LeadDays = 3, CurrencyUnitId = LocalCurrencyUnitId })"
+                   SaveGuard="@SupplierSaveGuard"
+                   OnChanged="@(() => EditChanged?.Invoke())">
+            <GridColumns>
+                <GridLinkColumn FieldName="SubAccountCode" Caption="@L["SubAccount"]"
+                                FixedPosition="GridColumnFixedPosition.Left" VisibleIndex="1"
+                                TextSelector="@(item => ((GoodSupplierDto)item).SubAccountCode ?? ((GoodSupplierDto)item).AccountCode)"
+                                OnClick="@(item => _supplierDrill?.EditItem((GoodSupplierDto)item))" />
+                <DxGridDataColumn FieldName="AccountCode" Caption="@L["Account"]" />
+                <DxGridDataColumn FieldName="Price" Caption="@L["GoodSupplierPrice"]" Width="120px" />
+                <DxGridDataColumn FieldName="CurrencyCode" Caption="@L["CurrencyUnit"]" Width="90px" />
+                <DxGridDataColumn FieldName="LeadDays" Caption="@L["GoodLeadDays"]" Width="120px" />
+            </GridColumns>
+            <EditContent Context="s">
+                <GoodSupplierEditFields Model="s" Accounts="@Accounts" SubAccounts="@SubAccounts" CurrencyUnits="@CurrencyUnits"
+                                        OnReloadAccounts="@OnReloadAccounts" OnReloadSubAccounts="@OnReloadSubAccounts"
+                                        OnReloadCurrencyUnits="@OnReloadCurrencyUnits" />
+            </EditContent>
+        </DrillList>
+    </DxTabPage>
+
+    @* Görseller — URL ya da yüklenen dosya (blob); agnostik EntityImage ("Good" bağlamı). İlk/varsayılan = ana. *@
+    <DxTabPage Text="@L["Images"]" TabIconCssClass="@TradeXpressIcons.Good">
+        <DrillList TItem="EntityImageEditDto"
+                   @ref="_imageDrill"
+                   Title="@L["Images"]"
+                   EntityName="@L["Image"]"
+                   EntityIcon="@TradeXpressIcons.Good"
+                   Items="Model.Images"
+                   KeyFieldName="ClientKey"
+                   PrimaryTextSelector="@(i => i.FileName ?? i.Url)"
+                   NewItemFactory="@(() => new EntityImageEditDto { DisplayOrder = NextImageOrder() })"
+                   SaveGuard="@ImageSaveGuard"
+                   OnItemSaved="@((EntityImageEditDto saved) => TransferDefaultImage(saved))"
+                   MaxItems="GoodConsts.MaxImageCount"
+                   OnChanged="@(() => EditChanged?.Invoke())">
+            <GridColumns>
+                <DxGridDataColumn Caption="@L["Preview"]" Width="110px" TextAlignment="GridTextAlignment.Center">
+                    <CellDisplayTemplate Context="cell">
+                        @{ var img = (EntityImageEditDto)cell.DataItem; }
+                        @if (!string.IsNullOrEmpty(PreviewSrcOf(img)))
+                        {
+                            @* ham img: Dx görsel bileşeni yok — küçük, sınırlı önizleme *@
+                            <img src="@PreviewSrcOf(img)" alt="" style="max-height:48px; max-width:90px; object-fit:contain;" />
+                        }
+                    </CellDisplayTemplate>
+                </DxGridDataColumn>
+                <DxGridDataColumn FieldName="SourceType" Caption="@L["ImageSource"]" Width="110px">
+                    <CellDisplayTemplate Context="cell">
+                        @L[$"Enum:{nameof(ProductImageSourceType)}:{((EntityImageEditDto)cell.DataItem).SourceType}"]
+                    </CellDisplayTemplate>
+                </DxGridDataColumn>
+                <GridLinkColumn FieldName="FileName" Caption="@L["Name"]"
+                                TextSelector="@(item => ((EntityImageEditDto)item).FileName ?? ((EntityImageEditDto)item).Url)"
+                                OnClick="@(item => _imageDrill?.EditItem((EntityImageEditDto)item))" />
+                <DxGridDataColumn FieldName="IsDefault" Caption="@L["Default"]" Width="100px">
+                    <CellDisplayTemplate Context="cell">
+                        @if (cell.Value is bool isDefault && isDefault)
+                        {
+                            <span style="display:flex; align-items:center; gap:0.35rem;">
+                                <i class="custom-icon-check-circle" aria-hidden="true" style="color:#16a34a;"></i>@L["Default"]
+                            </span>
+                        }
+                    </CellDisplayTemplate>
+                </DxGridDataColumn>
+                <DxGridDataColumn FieldName="DisplayOrder" Caption="@L["DisplayOrder"]" Width="90px" />
+            </GridColumns>
+            <EditContent Context="img">
+                <DxFormLayout CssClass="w-100">
+                    <EntityImageEditFields Model="img"
+                                           IsDuplicateFileName="@(name => Model.Images.Any(x => x.ClientKey != img.ClientKey && string.Equals(x.FileName, name, StringComparison.OrdinalIgnoreCase)))" />
+                </DxFormLayout>
+            </EditContent>
+        </DrillList>
+    </DxTabPage>
+
+    @* Dokümanlar — agnostik EntityDocument ("Good" bağlamı); yüklenen blob dosya ekleri (PDF/Word/Excel…). *@
+    <DxTabPage Text="@L["Documents"]" TabIconCssClass="@TradeXpressIcons.Report">
+        <EntityDocumentsPanel Documents="@Model.Documents" />
+    </DxTabPage>
+
+    @* Notlar — agnostik EntityNote ("Good" bağlamı); sade metin notları (kim/ne zaman audit'ten). *@
+    <DxTabPage Text="@L["Notes"]" TabIconCssClass="@TradeXpressIcons.Comments">
+        <EntityNotesPanel Notes="@Model.Notes" />
+    </DxTabPage>
+</DrillTabs>

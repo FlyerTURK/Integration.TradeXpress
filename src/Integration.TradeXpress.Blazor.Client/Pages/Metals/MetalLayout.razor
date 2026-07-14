@@ -1,5 +1,6 @@
 @using Integration.TradeXpress.Metals
 @using Integration.TradeXpress.Permissions
+@using Integration.TradeXpress.Variants
 @inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
 
 @* Metal DUMB Layout — MetalGetDto. FollowingUnit ZORUNLU + Factor(>0) + işçilik + sikke/adet. *@
@@ -95,3 +96,21 @@
         </DxFormLayoutItem>
     </DxFormLayoutGroup>
 </DxFormLayout>
+
+@* En son: alt drill'ler — agnostik graf (in-memory; Metal 'Kaydet'inde birlikte persist). ANA görsel OWNED (yukarıda, tek);
+   agnostik çoklu Görsel YOK. Varyantlar KENDİ görsellerini taşır (ShowImages). Fiyat mücevher/madende entity seviyesinde (ExtraFields yok). *@
+<DrillTabs CssClass="mt-3">
+    <DxTabPage Text="@L["Attributes"]" TabIconCssClass="@TradeXpressIcons.Sliders">
+        <EntityAttributesPanel Attributes="@Model.Attributes" />
+    </DxTabPage>
+    <DxTabPage Text="@L["Variants"]" TabIconCssClass="@TradeXpressIcons.ProductVariant">
+        <EntityVariantsPanel TVariant="EntityVariantGraphDto" Variants="@Model.Variants" Attributes="@Model.Attributes"
+                             OnGenerate="@OnGenerateVariants" ShowStockQuantity="false" ShowImages="true" />
+    </DxTabPage>
+    <DxTabPage Text="@L["Documents"]" TabIconCssClass="@TradeXpressIcons.Report">
+        <EntityDocumentsPanel Documents="@Model.Documents" />
+    </DxTabPage>
+    <DxTabPage Text="@L["Notes"]" TabIconCssClass="@TradeXpressIcons.Comments">
+        <EntityNotesPanel Notes="@Model.Notes" />
+    </DxTabPage>
+</DrillTabs>

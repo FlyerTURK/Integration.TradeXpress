@@ -46,6 +46,10 @@ public class VoucherLineDto
     public Guid? CommodityId { get; set; }
     [StringLength(VoucherConsts.CommodityCodeMaxLength)]
     public string CommodityCode { get; set; } = string.Empty;
+    /// <summary>Seçili varyant (çok-varyantlı emtiada, ör. Good) — id-only snapshot; tek/varyantsızda null.</summary>
+    public Guid? VariantId { get; set; }
+    [StringLength(VoucherConsts.CommodityCodeMaxLength)]
+    public string? VariantCode { get; set; }
     public decimal Quantity { get; set; }
     public decimal Amount { get; set; }
     public decimal Factor { get; set; }

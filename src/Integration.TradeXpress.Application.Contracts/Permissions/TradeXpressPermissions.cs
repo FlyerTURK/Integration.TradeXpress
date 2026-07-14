@@ -149,6 +149,25 @@ public static class TradeXpressPermissions
         public const string Delete  = Default + ".Delete";
     }
 
+    /// <summary>Mamül KATALOĞU yönetimi (genel ticari mal; işlem yetkisi DEĞİL — o <see cref="Transactions.Good"/>).</summary>
+    public static class Goods
+    {
+        public const string Default = GroupName + ".Goods";
+        public const string Create  = Default + ".Create";
+        public const string Update  = Default + ".Update";
+        public const string Delete  = Default + ".Delete";
+    }
+
+    /// <summary>Özel Kod (SpecialCode) yönetimi — entity gruplama kod sözlüğü. Sol menüde değil, entity edit
+    /// formundaki picker'dan yönetilir. Liste/okuma serbest ([Authorize]); Create/Update/Delete izinlidir.</summary>
+    public static class SpecialCodes
+    {
+        public const string Default = GroupName + ".SpecialCodes";
+        public const string Create  = Default + ".Create";
+        public const string Update  = Default + ".Update";
+        public const string Delete  = Default + ".Delete";
+    }
+
     /// <summary>Ürün KATALOĞU yönetimi (polimorfik emtia + varyantlar). Company-owned; Create/Update/Delete izinli.</summary>
     public static class Products
     {
@@ -194,6 +213,7 @@ public static class TradeXpressPermissions
         public const string Cash  = Default + ".Cash";
         public const string Metal = Default + ".Metal";
         public const string Scrap = Default + ".Scrap";
+        public const string Good  = Default + ".Good";
     }
 
     /// <summary>Cari işlem (voucher satırı) tipleri — her işlem tipi için AYRI yetki (List yetki gerektirmez).</summary>
@@ -208,6 +228,7 @@ public static class TradeXpressPermissions
         public const string Future  = Default + ".Future";
         public const string Stone   = Default + ".Stone";
         public const string Jewelry = Default + ".Jewelry";
+        public const string Good    = Default + ".Good";
         public const string Bullion = Default + ".Bullion";
         public const string Assay   = Default + ".Assay";
         public const string DebitNote = Default + ".DebitNote";

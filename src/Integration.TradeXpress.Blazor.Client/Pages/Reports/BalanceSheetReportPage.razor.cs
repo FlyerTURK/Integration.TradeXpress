@@ -208,6 +208,7 @@ public partial class BalanceSheetReportPage
             Bakiye:   r.CategoryNets.GetValueOrDefault(BalanceSheetCategory.AccountBalance),
             Stok:     r.CategoryNets.GetValueOrDefault(BalanceSheetCategory.Stock),
             Pirlanta: r.CategoryNets.GetValueOrDefault(BalanceSheetCategory.Jewelry),   // ERPPRO PIRLANTA kolonu = bizde Jewelry (Mücevher)
+            Mamul:    r.CategoryNets.GetValueOrDefault(BalanceSheetCategory.Good),
             Tas:      r.CategoryNets.GetValueOrDefault(BalanceSheetCategory.Stone),
             Iscilik:  r.CategoryNets.GetValueOrDefault(BalanceSheetCategory.Labor),
             Takoz:    r.CategoryNets.GetValueOrDefault(BalanceSheetCategory.Bullion),
@@ -234,7 +235,7 @@ public partial class BalanceSheetReportPage
     public sealed record BilancoSummaryRow(
         string Sube, DateTime Tarih,
         decimal Gider, decimal Gelir, decimal Gunluk, decimal MToplam, decimal KurFarki,
-        decimal Bakiye, decimal Stok, decimal Pirlanta, decimal Tas, decimal Iscilik, decimal Takoz,
+        decimal Bakiye, decimal Stok, decimal Pirlanta, decimal Mamul, decimal Tas, decimal Iscilik, decimal Takoz,
         decimal Devir, decimal KarZarar, decimal Toplam, string Birim);
 
     public void Dispose()

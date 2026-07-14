@@ -3,10 +3,12 @@ using System.Collections.Generic;
 using System.Linq.Expressions;
 using System.Threading.Tasks;
 using Integration.Framework;
+using Integration.TradeXpress.Attachments;
 using Integration.TradeXpress.Commodities;
 using Integration.TradeXpress.Financials.CurrencyUnits;
 using Integration.TradeXpress.Permissions;
 using Integration.TradeXpress.Products;
+using Integration.TradeXpress.Variants;
 using Microsoft.AspNetCore.Authorization;
 using Volo.Abp.BlobStoring;
 using Volo.Abp.Domain.Repositories;
@@ -24,15 +26,21 @@ public class MetalAppService
     : FollowingUnitCatalogAppService<Metal, MetalGetDto, MetalListDto, MetalListRequestDto, MetalCreateDto, MetalUpdateDto>,
       IMetalAppService
 {
+    private const string MetalEntityName = "Metal";
+    private const string VariantImageEntityName = "MetalVariant";   // varyant-özel görsellerin agnostik EntityImage anahtarı
+
     private readonly IBlobContainer<MetalImagesContainer> _imageContainer;
+    private readonly CommodityAgnosticGraph _graph;
 
     public MetalAppService(
         IRepository<Metal, Guid> repository,
         IRepository<CurrencyUnit, Guid> unitRepository,
-        IBlobContainer<MetalImagesContainer> imageContainer)
+        IBlobContainer<MetalImagesContainer> imageContainer,
+        CommodityAgnosticGraph graph)
         : base(repository, unitRepository)
     {
         _imageContainer = imageContainer;
+        _graph = graph;
         // Katalog yönetimi izinli (okuma/liste serbest — [Authorize] yeter): combo ✎/+ görünürlüğüyle hizalı.
         CreatePolicyName = TradeXpressPermissions.Metals.Create;
         UpdatePolicyName = TradeXpressPermissions.Metals.Update;
@@ -135,6 +143,9 @@ public class MetalAppService
         // Guard'lar (policy + EnsureEditable) tabanda geçti — blob, yalnız gerçekten silinecek kayıt için temizlenir
         // (tenant'ın global kaydı silme denemesi hook'a hiç ulaşmaz).
         await DeleteOrphanImageBlobAsync(entity.TenantId, entity.Image, newImage: null);
+
+        // Agnostik graf (varyant + varyant görselleri + doküman/not) temizliği — yetim önleme.
+        await _graph.DeleteAsync(MetalEntityName, VariantImageEntityName, entity.Id);
     }
 
     protected override async Task EnrichGetAsync(Metal entity, MetalGetDto dto)
@@ -153,6 +164,13 @@ public class MetalAppService
                 dto.Image.PreviewDataUrl = ImageUploadPipeline.BuildPreviewDataUrl(thumbnail);
             }
         }
+
+        // Agnostik graf (Doküman/Not + Nitelik/Varyant + varyant görselleri) — ANA görsel OWNED tek olduğundan graph.Images YOKSAYILIR.
+        var graph = await _graph.LoadAsync(MetalEntityName, VariantImageEntityName, entity.Id);
+        dto.Documents = graph.Documents;
+        dto.Notes = graph.Notes;
+        dto.Attributes = graph.Attributes;
+        dto.Variants = graph.Variants;
     }
 
     protected override async Task EnrichListAsync(List<Metal> entities, List<MetalListDto> dtos)
@@ -248,5 +266,41 @@ public class MetalAppService
             await _imageContainer.DeleteAsync(oldImage.BlobName);
             await _imageContainer.DeleteAsync(ImageUploadPipeline.ThumbnailNameOf(oldImage.BlobName));
         }
+    }
+
+    // ── Agnostik graf: Create/Update override → scalar save (base) + graf (doküman/not + nitelik/varyant). Fiyat/stok uzantısı YOK (maden fiyatı milyem/işçilik). ──
+
+    public override async Task<MetalGetDto> CreateAsync(MetalCreateDto input)
+    {
+        var dto = await base.CreateAsync(input);
+        await SaveGraphAsync(dto.Id, input.Name, input.Documents, input.Notes, input.Attributes, input.Variants);
+        return await GetAsync(dto.Id);
+    }
+
+    public override async Task<MetalGetDto> UpdateAsync(Guid id, MetalUpdateDto input)
+    {
+        var dto = await base.UpdateAsync(id, input);
+        await SaveGraphAsync(id, input.Name, input.Documents, input.Notes, input.Attributes, input.Variants);
+        return await GetAsync(id);
+    }
+
+    // Maden company-scoped DEĞİL → companyId null (varyant/nitelik tenant-geneli). Ana görsel OWNED tek → agnostik ana görsel BOŞ geçilir.
+    private Task SaveGraphAsync(
+        Guid metalId, string ownerName, List<EntityDocumentEditDto> documents,
+        List<EntityNoteEditDto> notes, List<EntityAttributeGraphDto> attributes, List<EntityVariantGraphDto> variants)
+    {
+        return _graph.SaveAsync(
+            MetalEntityName, VariantImageEntityName, metalId, companyId: null, ownerName,
+            new List<EntityImageEditDto>(), documents, notes, attributes, variants);
+    }
+
+    public virtual Task<List<EntityVariantGraphDto>> GenerateVariantsAsync(EntityVariantGenerateRequestDto input)
+    {
+        return Task.FromResult(_graph.GenerateVariants(input));
+    }
+
+    public virtual Task<List<CommodityVariantOptionDto>> GetVariantPickerListAsync(Guid metalId)
+    {
+        return _graph.GetVariantPickerAsync(MetalEntityName, metalId);
     }
 }

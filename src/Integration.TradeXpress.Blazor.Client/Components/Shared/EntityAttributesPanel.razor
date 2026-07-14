@@ -1,0 +1,77 @@
+@using System
+@using System.Linq
+@using Integration.TradeXpress.Variants
+@using Integration.Framework.Blazor.Client.Components.Crud
+@using DevExpress.Blazor
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@* JENERİK nitelik paneli — herhangi bir entity'nin (Good, Product, Metal…) varyant eksenleri (Nitelik → Değer).
+   İç içe DrillList (nitelik → değerleri). Sahip form bir DxTabPage İÇİNE koyar (DrillTabs wrapper gotcha'sı: bu
+   bileşen DxTabPage ÜRETMEZ, içeriği üretir). List<EntityAttributeGraphDto> soft-delete graf; save sahip AppService'te. *@
+
+<DrillList TItem="EntityAttributeGraphDto"
+           @ref="_attributeDrill"
+           Title="@L["Attributes"]"
+           EntityName="@L["Attribute"]"
+           EntityIcon="@TradeXpressIcons.Sliders"
+           Items="Attributes"
+           KeyFieldName="ClientKey"
+           PrimaryTextSelector="@(a => a.Name)"
+           NewItemFactory="@(() => new EntityAttributeGraphDto { DisplayOrder = NextAttributeOrder() })"
+           MaxItems="EntityVariantConsts.MaxAttributesPerEntity"
+           SoftDelete="true"
+           IsNewItem="@(a => a.Id == Guid.Empty)"
+           MarkDeleted="@(a => a.IsDeleted = true)"
+           FilterPredicate="@(a => !a.IsDeleted)"
+           OnChanged="@(() => EditChanged?.Invoke())">
+    <GridColumns>
+        <GridLinkColumn FieldName="Name" Caption="@L["Name"]" FixedPosition="GridColumnFixedPosition.Left" VisibleIndex="1"
+                        OnClick="@(item => _attributeDrill?.EditItem((EntityAttributeGraphDto)item))" />
+        <DxGridDataColumn FieldName="DisplayOrder" Caption="@L["DisplayOrder"]" Width="90px" />
+    </GridColumns>
+    <EditContent Context="a">
+        <DxFormLayout CssClass="w-100">
+            <DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="12">
+                <DxTextBox @bind-Text="@a.Name" />
+            </DxFormLayoutItem>
+            <DxFormLayoutItem Caption="@L["DisplayOrder"]" ColSpanMd="6">
+                <NumericSpinEdit @bind-Value="@a.DisplayOrder" />
+            </DxFormLayoutItem>
+            <DxFormLayoutGroup Caption="@L["AttributeValues"]" ColSpanMd="12" CaptionPosition="CaptionPosition.Vertical">
+                @* İç içe DrillList DOĞRUDAN parent EditContent'te (ui-blazor: nested EditForm yok, CascadingValue izolasyonu). *@
+                <DrillList TItem="EntityAttributeValueGraphDto"
+                           @ref="_valueDrill"
+                           Title="@L["AttributeValues"]"
+                           EntityName="@L["AttributeValue"]"
+                           EntityIcon="@TradeXpressIcons.Sliders"
+                           ParentEntityName="@L["Attribute"]"
+                           ParentText="@a.Name"
+                           Items="a.Values"
+                           KeyFieldName="ClientKey"
+                           PrimaryTextSelector="@(v => v.Value)"
+                           NewItemFactory="@(() => new EntityAttributeValueGraphDto { DisplayOrder = NextValueOrder(a) })"
+                           SoftDelete="true"
+                           IsNewItem="@(v => v.Id == Guid.Empty)"
+                           MarkDeleted="@(v => v.IsDeleted = true)"
+                           FilterPredicate="@(v => !v.IsDeleted)"
+                           OnChanged="@(() => EditChanged?.Invoke())">
+                    <GridColumns>
+                        <GridLinkColumn FieldName="Value" Caption="@L["Value"]" FixedPosition="GridColumnFixedPosition.Left" VisibleIndex="1"
+                                        OnClick="@(item => _valueDrill?.EditItem((EntityAttributeValueGraphDto)item))" />
+                        <DxGridDataColumn FieldName="DisplayOrder" Caption="@L["DisplayOrder"]" Width="90px" />
+                    </GridColumns>
+                    <EditContent Context="v">
+                        <DxFormLayout CssClass="w-100">
+                            <DxFormLayoutItem Caption="@($"{L["Value"]} *")" ColSpanMd="12">
+                                <DxTextBox @bind-Text="@v.Value" />
+                            </DxFormLayoutItem>
+                            <DxFormLayoutItem Caption="@L["DisplayOrder"]" ColSpanMd="6">
+                                <NumericSpinEdit @bind-Value="@v.DisplayOrder" />
+                            </DxFormLayoutItem>
+                        </DxFormLayout>
+                    </EditContent>
+                </DrillList>
+            </DxFormLayoutGroup>
+        </DxFormLayout>
+    </EditContent>
+</DrillList>

@@ -112,6 +112,18 @@ public class TradeXpressPermissionDefinitionProvider : PermissionDefinitionProvi
         jewelries.AddChild(TradeXpressPermissions.Jewelries.Update, L("Permission:Update"));
         jewelries.AddChild(TradeXpressPermissions.Jewelries.Delete, L("Permission:Delete"));
 
+        var goods = myGroup.AddPermission(
+            TradeXpressPermissions.Goods.Default, L("Permission:Goods"));
+        goods.AddChild(TradeXpressPermissions.Goods.Create, L("Permission:Create"));
+        goods.AddChild(TradeXpressPermissions.Goods.Update, L("Permission:Update"));
+        goods.AddChild(TradeXpressPermissions.Goods.Delete, L("Permission:Delete"));
+
+        var specialCodes = myGroup.AddPermission(
+            TradeXpressPermissions.SpecialCodes.Default, L("Permission:SpecialCodes"));
+        specialCodes.AddChild(TradeXpressPermissions.SpecialCodes.Create, L("Permission:Create"));
+        specialCodes.AddChild(TradeXpressPermissions.SpecialCodes.Update, L("Permission:Update"));
+        specialCodes.AddChild(TradeXpressPermissions.SpecialCodes.Delete, L("Permission:Delete"));
+
         var products = myGroup.AddPermission(
             TradeXpressPermissions.Products.Default, L("Permission:Products"));
         products.AddChild(TradeXpressPermissions.Products.Create, L("Permission:Create"));
@@ -144,6 +156,7 @@ public class TradeXpressPermissionDefinitionProvider : PermissionDefinitionProvi
         reports.AddChild(TradeXpressPermissions.Reports.Cash, L("Permission:CashReport"));
         reports.AddChild(TradeXpressPermissions.Reports.Metal, L("Permission:MetalReport"));
         reports.AddChild(TradeXpressPermissions.Reports.Scrap, L("Permission:ScrapReport"));
+        reports.AddChild(TradeXpressPermissions.Reports.Good, L("Permission:GoodReport"));
 
         var transactions = myGroup.AddPermission(
             TradeXpressPermissions.Transactions.Default, L("Permission:Transactions"));
@@ -155,6 +168,7 @@ public class TradeXpressPermissionDefinitionProvider : PermissionDefinitionProvi
         transactions.AddChild(TradeXpressPermissions.Transactions.Future, L("Permission:Transactions:Future"));
         transactions.AddChild(TradeXpressPermissions.Transactions.Stone, L("Permission:Transactions:Stone"));
         transactions.AddChild(TradeXpressPermissions.Transactions.Jewelry, L("Permission:Transactions:Jewelry"));
+        transactions.AddChild(TradeXpressPermissions.Transactions.Good, L("Permission:Transactions:Good"));
         transactions.AddChild(TradeXpressPermissions.Transactions.Bullion, L("Permission:Transactions:Bullion"));
         transactions.AddChild(TradeXpressPermissions.Transactions.Assay, L("Permission:Transactions:Assay"));
         transactions.AddChild(TradeXpressPermissions.Transactions.DebitNote, L("Permission:Transactions:DebitNote"));
