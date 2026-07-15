@@ -205,8 +205,7 @@ public partial class EntityMediaPanel
         }
         catch (Exception ex)
         {
-            // GEÇİCİ TEŞHİS — poster concurrency fix'i doğrulanınca friendly mesaja döndürülecek.
-            Ui.ShowErrorToast($"[{ex.GetType().Name}] {ex.Message}");
+            Ui.ShowErrorToast(CrudErrorPresenter.ToFriendlyMessage(ex, ServiceProvider) ?? L["UnexpectedError"].Value);
         }
         finally
         {
