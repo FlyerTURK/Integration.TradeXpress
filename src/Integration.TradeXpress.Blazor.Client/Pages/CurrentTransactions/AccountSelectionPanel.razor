@@ -1,10 +1,12 @@
 @using Integration.TradeXpress.Vaults
+@using Integration.TradeXpress.Branches
 @using Integration.TradeXpress.Permissions
 @inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
 @inject IAccountAppService AccountService
 @inject ISubAccountAppService SubAccountService
 @inject IVoucherAppService VoucherService
 @inject IVaultAppService VaultService
+@inject IBranchAppService BranchService
 @inject Integration.TradeXpress.Blazor.Client.Services.Working.IWorkingContextService Working
 @inject IUiInteractionService Ui
 @inject IViewOpener ViewOpener
@@ -51,9 +53,15 @@
         <!-- Sol Panel -->
         <div style="flex: 0 0 auto; width: 100%; max-width: 700px;">
             <DxFormLayout>
+                <!-- KARŞI TARAF KİPİ ROTADAN gelir (Mode parametresi) — form içinde kip combo'su YOKTUR
+                     (kullanıcı kararı): /cari-islemler → Cari (Hesap→Alt Hesap) · /transfers → İç Kasa
+                     (Şube→Kasa; kayıt postlanmaz, Teyit teklifi kurulur). İki kipin seçim ekseni farklı
+                     olduğu için aşağıdaki iki combo çifti Visible ile birbirini dışlar. -->
+
                 <!-- Row 1a: ANA HESAP (Account) — cascade'in üst combosu. Ekle/düzelt STANDART AccountEditHost
-                     popup'ını açar (SubAccount drill'i içinde: ANAHESAP görünür, custom alt hesap orada eklenir). -->
-                <DxFormLayoutItem Caption="@L["Account"]" ColSpanMd="12">
+                     popup'ını açar (SubAccount drill'i içinde: ANAHESAP görünür, custom alt hesap orada eklenir).
+                     İç kipte gizli: orada üst combo ŞUBE'dir. -->
+                <DxFormLayoutItem Caption="@L["Account"]" ColSpanMd="12" Visible="@(!IsInternalMode)">
                     <LookupComboBox TItem="AccountListDto" TValue="Guid?"
                                     Data="@_accounts"
                                     ValueFieldName="@nameof(AccountListDto.Id)"
@@ -80,7 +88,7 @@
                      (bağımsız alt hesap seçimi yok; akış daima hesap→alt hesap). Clear butonu da yok — boşaltma
                      yalnız üst combodan (hesap temizlenince bu combo null'lanıp gizlenir).
                      Ekle/düzelt orijinal SubAccountEditHost popup'ını açar (Account panelden önseçili gider). -->
-                <DxFormLayoutItem Caption="@L["SubAccount"]" ColSpanMd="12" Visible="@(_selectedAccountId.HasValue)">
+                <DxFormLayoutItem Caption="@L["SubAccount"]" ColSpanMd="12" Visible="@(!IsInternalMode && _selectedAccountId.HasValue)">
                     <LookupComboBox TItem="SubAccountListDto" TValue="Guid?"
                                     Data="@FilteredSubAccounts"
                                     ValueFieldName="@nameof(SubAccountListDto.Id)"
@@ -97,8 +105,42 @@
                                     UpdatePolicy="@TradeXpressPermissions.SubAccounts.Update" />
                 </DxFormLayoutItem>
 
+                <!-- Row 1c/1d: İÇ KASA kipi — Cari cascade'inin YERİNE Şube→Kasa (spec §7). Seçilen kasa
+                     KARŞI TARAFTIR; kayıt postlanmaz, onun GELEN kutusuna Teyit teklifi düşer. -->
+                <DxFormLayoutItem Caption="@L["Confirmation:CounterpartyBranch"]" ColSpanMd="12" Visible="@IsInternalMode">
+                    <DxComboBox TData="BranchListDto" TValue="Guid?"
+                                Data="@_counterpartyBranches"
+                                ValueFieldName="@nameof(BranchListDto.Id)"
+                                TextFieldName="@nameof(BranchListDto.Code)"
+                                Value="@_counterpartyBranchId"
+                                ValueChanged="@(async (Guid? id) => await OnCounterpartyBranchChangedAsync(id))"
+                                NullText="@L["Select"].Value"
+                                Enabled="@(!_locked)"
+                                CssClass="w-100">
+                        <DxListEditorColumn FieldName="@nameof(BranchListDto.Code)" Caption="@L["Code"].Value" Width="40%" />
+                        <DxListEditorColumn FieldName="@nameof(BranchListDto.Name)" Caption="@L["Name"].Value" />
+                    </DxComboBox>
+                </DxFormLayoutItem>
+
+                <DxFormLayoutItem Caption="@L["Confirmation:CounterpartyVault"]" ColSpanMd="12"
+                                  Visible="@(IsInternalMode && _counterpartyBranchId.HasValue)">
+                    <DxComboBox TData="VaultListDto" TValue="Guid?"
+                                Data="@CounterpartyVaultOptions"
+                                ValueFieldName="@nameof(VaultListDto.Id)"
+                                TextFieldName="@nameof(VaultListDto.Code)"
+                                Value="@_counterpartyVaultId"
+                                ValueChanged="@(async (Guid? id) => await OnCounterpartyVaultChangedAsync(id))"
+                                NullText="@L["SelectVault"].Value"
+                                Enabled="@(!_locked)"
+                                CssClass="w-100">
+                        <DxListEditorColumn FieldName="@nameof(VaultListDto.Code)" Caption="@L["Code"].Value" Width="100px" />
+                        <DxListEditorColumn FieldName="@nameof(VaultListDto.Name)" Caption="@L["Name"].Value" />
+                    </DxComboBox>
+                </DxFormLayoutItem>
+
                 <!-- Row 2 -->
-                <DxFormLayoutItem Caption="@L["VoucherSelection"].Value" ColSpanMd="6" Visible="@(_model.SubAccountId.HasValue)">
+                <!-- Fiş seçimi yalnız Cari kipinde: iç kipte fiş oluşmaz (postlama Teyit'e ertelenir). -->
+                <DxFormLayoutItem Caption="@L["VoucherSelection"].Value" ColSpanMd="6" Visible="@(SelectionReady && !IsInternalMode)">
                     <DxComboBox TData="VoucherComboItem" TValue="Guid?"
                                 Data="@_voucherItems"
                                 ValueFieldName="@nameof(VoucherComboItem.Id)"
@@ -122,7 +164,8 @@
                     </DxComboBox>
                 </DxFormLayoutItem>
 
-                <DxFormLayoutItem Caption="@L["Vault"].Value" ColSpanMd="6" Visible="@(_model.SubAccountId.HasValue)">
+                <!-- Kendi kasam — iç kipte BAŞLATAN (gönderen) kasadır. -->
+                <DxFormLayoutItem Caption="@L["Vault"].Value" ColSpanMd="6" Visible="@SelectionReady">
                     @if (_selectedVoucherId.HasValue)
                     {
                         <DxTextBox Text="@_selectedVaultDisplay" Enabled="false" CssClass="w-100" />
@@ -147,14 +190,15 @@
                 </DxFormLayoutItem>
 
                 <!-- Row 3 -->
-                <DxFormLayoutItem Caption="@L["Description"]" ColSpanMd="12" Visible="@(_model.SubAccountId.HasValue)">
+                <DxFormLayoutItem Caption="@L["Description"]" ColSpanMd="12" Visible="@SelectionReady">
                     <DxTextBox @bind-Text="@_model.Description"
                                Enabled="@(!_locked && !_selectedVoucherId.HasValue)"
                                CssClass="w-100" />
                 </DxFormLayoutItem>
 
                 <!-- Row 4 -->
-                <DxFormLayoutItem Caption="@L["Date"].Value" ColSpanMd="6" Visible="@(_model.SubAccountId.HasValue)">
+                <!-- Fiş tarihi yalnız Cari kipinde: iç kipte fiş yok, tarih Teyit teklifine girmez (yanıltmasın). -->
+                <DxFormLayoutItem Caption="@L["Date"].Value" ColSpanMd="6" Visible="@(SelectionReady && !IsInternalMode)">
                     <DxDateEdit Date="@_displayVoucherDate"
                                 DateChanged="@((DateTime? d) => OnVoucherDateChanged(d ?? DateTime.Now))"
                                 Enabled="@(!_locked && !_selectedVoucherId.HasValue)"
@@ -163,7 +207,7 @@
                                 CssClass="w-100" />
                 </DxFormLayoutItem>
 
-                <DxFormLayoutItem ColSpanMd="6" Visible="@(_model.SubAccountId.HasValue)">
+                <DxFormLayoutItem ColSpanMd="6" Visible="@SelectionReady">
                     <div style="display:flex; justify-content:flex-end; width:100%; height:100%; align-items:flex-end;">
                         <DxButton Text="@(_locked ? L["SelectAccount"].Value : L["Confirm"].Value)"
                                   IconCssClass="@(_locked ? "custom-icon-address-card" : "custom-icon-check")"
@@ -188,23 +232,24 @@
                Kısayol prefiksleri (1-9/M/Ç/D/V) hotkey ipucu olarak korunur. *@
             <DxToolbarItem Text="@L["New"]" IconCssClass="custom-icon-add">
                 <Items>
-                    <DxToolbarItem Text="@($"1-{L["Bullion_In"].ToString().ToUpper()}")" IconCssClass="custom-icon-bullion" Click="@OnBullionInClicked" Visible="@IsProcessGranted(ProcessType.Bullion)" />
-                    <DxToolbarItem Text="@($"2-{L["Bullion_Out"].ToString().ToUpper()}")" IconCssClass="custom-icon-bullion" Click="@OnBullionOutClicked" Visible="@IsProcessGranted(ProcessType.Bullion)" />
-                    <DxToolbarItem Text="@($"3-{L["Metal"].ToString().ToUpper()}")" IconCssClass="custom-icon-metal" Click="@OnMetalClicked" Visible="@IsProcessGranted(ProcessType.Metal)" />
-                    <DxToolbarItem Text="@($"4-{L["Scrap"].ToString().ToUpper()}")" IconCssClass="custom-icon-scrap" Click="@OnScrapClicked" Visible="@IsProcessGranted(ProcessType.Scrap)" />
-                    <DxToolbarItem Text="@($"5-{L["CashProcess"].ToString().ToUpper()}")" IconCssClass="custom-icon-cash" Click="@OnCashClicked" Visible="@IsProcessGranted(ProcessType.Cash)" />
-                    <DxToolbarItem Text="@($"6-{L["Convert"].ToString().ToUpper()}")" IconCssClass="custom-icon-convert" Click="@OnConvertClicked" Visible="@IsProcessGranted(ProcessType.Convert)" />
-                    <DxToolbarItem Text="@($"7-{L["Service"].ToString().ToUpper()}")" IconCssClass="custom-icon-service" Click="@OnServiceClicked" Visible="@IsProcessGranted(ProcessType.Service)" />
-                    <DxToolbarItem Text="@($"8-{L["Future"].ToString().ToUpper()}")" IconCssClass="custom-icon-future" Click="@OnFutureClicked" Visible="@IsProcessGranted(ProcessType.Future)" />
-                    <DxToolbarItem Text="@($"9-{L["Stone"].ToString().ToUpper()}")" IconCssClass="custom-icon-stone" Click="@OnStoneClicked" Visible="@IsProcessGranted(ProcessType.Stone)" />
-                    <DxToolbarItem Text="@($"M-{L["Jewelry"].ToString().ToUpper()}")" IconCssClass="custom-icon-jewelry" Click="@OnJewelryClicked" Visible="@IsProcessGranted(ProcessType.Jewelry)" />
-                    <DxToolbarItem Text="@($"U-{L["Good"].ToString().ToUpper()}")" IconCssClass="custom-icon-commodities" Click="@OnGoodClicked" Visible="@IsProcessGranted(ProcessType.Good)" />
-                    <DxToolbarItem Text="@($"Ç-{L["Assay"].ToString().ToUpper()}")" IconCssClass="custom-icon-bullion" Click="@OnAssayClicked" Visible="@IsProcessGranted(ProcessType.Assay)" />
-                    <DxToolbarItem Text="@($"D-{L["DebitNote"].ToString().ToUpper()}")" IconCssClass="custom-icon-report" Click="@OnDebitNoteClicked" Visible="@IsProcessGranted(ProcessType.DebitNote)" />
-                    <DxToolbarItem Text="@($"V-{L["Transfer"].ToString().ToUpper()}")" IconCssClass="custom-icon-convert" Click="@OnTransferClicked" Visible="@IsProcessGranted(ProcessType.Transfer)" />
+                    <DxToolbarItem Text="@($"1-{L["Bullion_In"].ToString().ToUpper()}")" IconCssClass="custom-icon-bullion" Click="@OnBullionInClicked" Visible="@IsProcessVisible(ProcessType.Bullion)" />
+                    <DxToolbarItem Text="@($"2-{L["Bullion_Out"].ToString().ToUpper()}")" IconCssClass="custom-icon-bullion" Click="@OnBullionOutClicked" Visible="@IsProcessVisible(ProcessType.Bullion)" />
+                    <DxToolbarItem Text="@($"3-{L["Metal"].ToString().ToUpper()}")" IconCssClass="custom-icon-metal" Click="@OnMetalClicked" Visible="@IsProcessVisible(ProcessType.Metal)" />
+                    <DxToolbarItem Text="@($"4-{L["Scrap"].ToString().ToUpper()}")" IconCssClass="custom-icon-scrap" Click="@OnScrapClicked" Visible="@IsProcessVisible(ProcessType.Scrap)" />
+                    <DxToolbarItem Text="@($"5-{L["CashProcess"].ToString().ToUpper()}")" IconCssClass="custom-icon-cash" Click="@OnCashClicked" Visible="@IsProcessVisible(ProcessType.Cash)" />
+                    <DxToolbarItem Text="@($"6-{L["Convert"].ToString().ToUpper()}")" IconCssClass="custom-icon-convert" Click="@OnConvertClicked" Visible="@IsProcessVisible(ProcessType.Convert)" />
+                    <DxToolbarItem Text="@($"7-{L["Service"].ToString().ToUpper()}")" IconCssClass="custom-icon-service" Click="@OnServiceClicked" Visible="@IsProcessVisible(ProcessType.Service)" />
+                    <DxToolbarItem Text="@($"8-{L["Future"].ToString().ToUpper()}")" IconCssClass="custom-icon-future" Click="@OnFutureClicked" Visible="@IsProcessVisible(ProcessType.Future)" />
+                    <DxToolbarItem Text="@($"9-{L["Stone"].ToString().ToUpper()}")" IconCssClass="custom-icon-stone" Click="@OnStoneClicked" Visible="@IsProcessVisible(ProcessType.Stone)" />
+                    <DxToolbarItem Text="@($"M-{L["Jewelry"].ToString().ToUpper()}")" IconCssClass="custom-icon-jewelry" Click="@OnJewelryClicked" Visible="@IsProcessVisible(ProcessType.Jewelry)" />
+                    <DxToolbarItem Text="@($"U-{L["Good"].ToString().ToUpper()}")" IconCssClass="custom-icon-good" Click="@OnGoodClicked" Visible="@IsProcessVisible(ProcessType.Good)" />
+                    <DxToolbarItem Text="@($"Ç-{L["Assay"].ToString().ToUpper()}")" IconCssClass="custom-icon-bullion" Click="@OnAssayClicked" Visible="@IsProcessVisible(ProcessType.Assay)" />
+                    <DxToolbarItem Text="@($"D-{L["DebitNote"].ToString().ToUpper()}")" IconCssClass="custom-icon-report" Click="@OnDebitNoteClicked" Visible="@IsProcessVisible(ProcessType.DebitNote)" />
+                    <DxToolbarItem Text="@($"V-{L["Transfer"].ToString().ToUpper()}")" IconCssClass="custom-icon-convert" Click="@OnTransferClicked" Visible="@IsProcessVisible(ProcessType.Transfer)" />
                 </Items>
             </DxToolbarItem>
-            <DxToolbarItem BeginGroup="true" Text="@($"0-{L["List"].ToString().ToUpper()}")" IconCssClass="custom-icon-list" Click="@OnListClicked" />
+            @* Fiş listesi yalnız Cari kipinde anlamlı (iç kipte fiş yok — bekleyenler Teyit kutusunda). *@
+            <DxToolbarItem BeginGroup="true" Text="@($"0-{L["List"].ToString().ToUpper()}")" IconCssClass="custom-icon-list" Click="@OnListClicked" Visible="@(!IsInternalMode)" />
         </DxToolbar>
     }
 </div>
@@ -286,6 +331,7 @@ else if (_activeProcess == "Stone")
                            VoucherDate="@_model.VoucherDate"
                            VoucherDescription="@_model.Description"
                            VoucherId="@_selectedVoucherId"
+                           CounterpartyVaultId="@(IsInternalMode ? _counterpartyVaultId : null)"
                            OnSaved="@OnLineSavedInternal" />
     </div>
 }
@@ -305,6 +351,7 @@ else if (_activeProcess == "Jewelry")
                            VoucherDate="@_model.VoucherDate"
                            VoucherDescription="@_model.Description"
                            VoucherId="@_selectedVoucherId"
+                           CounterpartyVaultId="@(IsInternalMode ? _counterpartyVaultId : null)"
                            OnSaved="@OnLineSavedInternal" />
     </div>
 }
@@ -324,6 +371,7 @@ else if (_activeProcess == "Good")
                            VoucherDate="@_model.VoucherDate"
                            VoucherDescription="@_model.Description"
                            VoucherId="@_selectedVoucherId"
+                           CounterpartyVaultId="@(IsInternalMode ? _counterpartyVaultId : null)"
                            OnSaved="@OnLineSavedInternal" />
     </div>
 }
@@ -380,6 +428,7 @@ else if (_activeProcess == "DebitNote")
                                VoucherDate="@_model.VoucherDate"
                                VoucherDescription="@_model.Description"
                                VoucherId="@_selectedVoucherId"
+                               CounterpartyVaultId="@(IsInternalMode ? _counterpartyVaultId : null)"
                                OnSaved="@OnLineSavedInternal" />
     </div>
 }

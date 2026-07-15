@@ -265,6 +265,37 @@ public class TradeXpressMenuContributor : IMenuContributor
                 order: 1
             ).RequireAuthenticated());
 
+            // Transferler — AYRI bir ekran DEĞİL: Cari İşlemler ile AYNI voucher formunun organizasyon-içi
+            // kipi (Cari Hesap→Alt Hesap yerine Şube→Kasa). Kipi MENÜ/ROTA belirler; form içinde karşı-taraf
+            // combo'su yoktur. İzin yaptığı işe göre: iç kipte kayıt postlanmaz, karşı kasaya Teyit TEKLİFİ
+            // düşer → Confirmations.Propose. (Eski bağımsız Transfer aggregate'i + Transfers.* izinleri SÖKÜLDÜ.)
+            context.Menu.AddItem(new ApplicationMenuItem(
+                TradeXpressMenus.Transfers,
+                l["Menu:Transfers"],
+                url: "/transfers",
+                icon: TradeXpressIcons.Transfer,
+                order: 1
+            ).RequirePermissions(TradeXpressPermissions.Confirmations.Propose));
+
+            // Teyitler — organizasyon-içi karşılıklı ayna onayı gelen/giden kutusu (kasa↔kasa; postlama
+            // yalnız iki taraf da kendi kaydını yazıp teyitleyince). Tenant-only (kasa operasyonu).
+            context.Menu.AddItem(new ApplicationMenuItem(
+                TradeXpressMenus.Confirmations,
+                l["Menu:Confirmations"],
+                url: "/confirmations",
+                icon: TradeXpressIcons.Confirmation,
+                order: 1
+            ).RequirePermissions(TradeXpressPermissions.Confirmations.View));
+
+            // Medya Kütüphanesi — şirket-kapsamlı DAM yönetimi (görsel/video blob storage).
+            context.Menu.AddItem(new ApplicationMenuItem(
+                TradeXpressMenus.MediaLibrary,
+                l["MediaLibrary"],
+                url: "/media",
+                icon: TradeXpressIcons.Report,
+                order: 3
+            ).RequireAuthenticated());
+
             // Siparişler — ORTAK sipariş paneli (tüm satış kanallarının siparişleri tek grid). Salt-okuma çekim (O0);
             // kanal menüsü gibi tenant-only (company-owned operasyonel kayıt). İzin: SalesChannels (ayrı Order izni O0'da yok).
             context.Menu.AddItem(new ApplicationMenuItem(

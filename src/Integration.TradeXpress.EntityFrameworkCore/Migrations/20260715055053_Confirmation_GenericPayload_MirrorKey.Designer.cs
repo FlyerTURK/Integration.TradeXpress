@@ -4,6 +4,7 @@ using Integration.TradeXpress.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Volo.Abp.EntityFrameworkCore;
 
@@ -12,9 +13,11 @@ using Volo.Abp.EntityFrameworkCore;
 namespace Integration.TradeXpress.Migrations
 {
     [DbContext(typeof(TradeXpressDbContext))]
-    partial class TradeXpressDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260715055053_Confirmation_GenericPayload_MirrorKey")]
+    partial class Confirmation_GenericPayload_MirrorKey
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -5193,6 +5196,121 @@ namespace Integration.TradeXpress.Migrations
                     b.ToTable("AppSubstitutionGroupItems", (string)null);
                 });
 
+            modelBuilder.Entity("Integration.TradeXpress.Transfers.Transfer", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ConcurrencyStamp")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)")
+                        .HasColumnName("ConcurrencyStamp");
+
+                    b.Property<DateTime>("CreationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("CreationTime");
+
+                    b.Property<Guid?>("CreatorId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CreatorId");
+
+                    b.Property<Guid>("CurrencyUnitId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("DecisionNote")
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
+
+                    b.Property<Guid?>("DeleterId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("DeleterId");
+
+                    b.Property<DateTime?>("DeletionTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("DeletionTime");
+
+                    b.Property<Guid>("DestinationVaultId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("DestinationVoucherId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ExtraProperties")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("ExtraProperties");
+
+                    b.Property<byte>("Initiation")
+                        .HasColumnType("tinyint");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false)
+                        .HasColumnName("IsDeleted");
+
+                    b.Property<DateTime?>("LastModificationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("LastModificationTime");
+
+                    b.Property<Guid?>("LastModifierId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("LastModifierId");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
+
+                    b.Property<Guid>("SourceVaultId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("SourceVoucherId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<byte>("Status")
+                        .HasColumnType("tinyint");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("TenantId");
+
+                    b.Property<Guid?>("TransitInVoucherId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("TransitOutVoucherId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("TransitVaultId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompanyId");
+
+                    b.HasIndex("CurrencyUnitId");
+
+                    b.HasIndex("DestinationVaultId");
+
+                    b.HasIndex("SourceVaultId");
+
+                    b.HasIndex("TransitVaultId");
+
+                    b.HasIndex("TenantId", "CompanyId", "DestinationVaultId", "Status");
+
+                    b.HasIndex("TenantId", "CompanyId", "SourceVaultId", "Status");
+
+                    b.ToTable("AppTransfers", (string)null);
+                });
+
             modelBuilder.Entity("Integration.TradeXpress.TrendyolCategories.TrendyolCategory", b =>
                 {
                     b.Property<Guid>("Id")
@@ -9307,6 +9425,38 @@ namespace Integration.TradeXpress.Migrations
                     b.HasOne("Integration.TradeXpress.Financials.CurrencyUnits.CurrencyUnit", null)
                         .WithMany()
                         .HasForeignKey("ExitPriceUnitId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("Integration.TradeXpress.Transfers.Transfer", b =>
+                {
+                    b.HasOne("Integration.TradeXpress.Companies.Company", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Integration.TradeXpress.Financials.CurrencyUnits.CurrencyUnit", null)
+                        .WithMany()
+                        .HasForeignKey("CurrencyUnitId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Integration.TradeXpress.Vaults.Vault", null)
+                        .WithMany()
+                        .HasForeignKey("DestinationVaultId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Integration.TradeXpress.Vaults.Vault", null)
+                        .WithMany()
+                        .HasForeignKey("SourceVaultId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Integration.TradeXpress.Vaults.Vault", null)
+                        .WithMany()
+                        .HasForeignKey("TransitVaultId")
                         .OnDelete(DeleteBehavior.Restrict);
                 });
 

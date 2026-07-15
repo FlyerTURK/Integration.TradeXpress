@@ -1,0 +1,66 @@
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@* Teyit satır grid'i — GELEN/GİDEN sekmelerinin ORTAK gövdesi (aynı kolon seti iki kez yazılmasın).
+   Aksiyon butonları duruma + TARAFA göre gate'lenir; gerçek yetki aksiyon çağrısında sunucuda TEKRAR enforce edilir.
+   İPTAL BUTONU YOKTUR: gönderen teklifi geri çekemez — süreci yalnız alıcı Reddet ile durdurur. *@
+<DxGrid Data="@Rows" ShowSearchBox="false" PageSize="50" CssClass="w-100 tx-grid-fill"
+        KeyFieldName="@nameof(ConfirmationDto.Id)">
+    <Columns>
+        <DxGridDataColumn FieldName="@nameof(ConfirmationDto.Status)" Caption="@L["Confirmation:Status"]" Width="130px">
+            <CellDisplayTemplate>
+                @{ var row = (ConfirmationDto)context.DataItem; }
+                <span style="@StatusBadgeStyle(row.Status)">@L[$"Enum:ConfirmationStatus:{row.Status}"]</span>
+            </CellDisplayTemplate>
+        </DxGridDataColumn>
+        <DxGridDataColumn FieldName="@nameof(ConfirmationDto.InitiatorVaultCode)" Caption="@L["Confirmation:InitiatorVault"]" Width="120px" />
+        <DxGridDataColumn FieldName="@nameof(ConfirmationDto.CounterpartyVaultCode)" Caption="@L["Confirmation:CounterpartyVault"]" Width="120px" />
+        <DxGridDataColumn FieldName="@nameof(ConfirmationDto.ProcessType)" Caption="@L["Confirmation:ProcessType"]" Width="100px">
+            <CellDisplayTemplate>
+                @{ var row = (ConfirmationDto)context.DataItem; }
+                @L[$"Enum:ProcessType:{row.ProcessType}"]
+            </CellDisplayTemplate>
+        </DxGridDataColumn>
+        <DxGridDataColumn FieldName="@nameof(ConfirmationDto.Direction)" Caption="@L["Confirmation:Direction"]" Width="90px">
+            <CellDisplayTemplate>
+                @{ var row = (ConfirmationDto)context.DataItem; }
+                @L[$"Enum:ProcessDirectionType:{row.Direction}"]
+            </CellDisplayTemplate>
+        </DxGridDataColumn>
+        <DxGridDataColumn FieldName="@nameof(ConfirmationDto.Quantity)" Caption="@L["Quantity"]" DisplayFormat="N2"
+                          TextAlignment="GridTextAlignment.Right" Width="100px" />
+        <DxGridDataColumn FieldName="@nameof(ConfirmationDto.Amount)" Caption="@L["Amount"]" DisplayFormat="N2"
+                          TextAlignment="GridTextAlignment.Right" Width="120px" />
+        <DxGridDataColumn FieldName="@nameof(ConfirmationDto.MainUnitCode)" Caption="@L["Confirmation:MainUnit"]" Width="80px" />
+        <DxGridDataColumn FieldName="@nameof(ConfirmationDto.PayTotal)" Caption="@L["Confirmation:PayTotal"]" DisplayFormat="N2"
+                          TextAlignment="GridTextAlignment.Right" Width="120px" />
+        <DxGridDataColumn FieldName="@nameof(ConfirmationDto.PayUnitCode)" Caption="@L["Confirmation:PayUnit"]" Width="80px" />
+        <DxGridDataColumn FieldName="@nameof(ConfirmationDto.CreationTime)" Caption="@L["Date"]" DisplayFormat="dd.MM.yyyy HH:mm" Width="140px" />
+        <DxGridDataColumn FieldName="@nameof(ConfirmationDto.Note)" Caption="@L["Confirmation:Note"]" MinWidth="140" />
+        <DxGridDataColumn Caption="@L["Confirmation:Actions"]" AllowSort="false" AllowFilter="false"
+                          MinWidth="240" FixedPosition="GridColumnFixedPosition.Right">
+            <CellDisplayTemplate>
+                @{ var row = (ConfirmationDto)context.DataItem; }
+                <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                    @if (CanDeclareRow(row))
+                    {
+                        <DxButton Text="@L["Confirmation:Action:Declare"]" IconCssClass="@TradeXpressIcons.Edit" SizeMode="SizeMode.Small"
+                                  RenderStyle="ButtonRenderStyle.Primary" RenderStyleMode="ButtonRenderStyleMode.Contained"
+                                  Click="@(() => RaiseAsync(row, ConfirmationAction.Declare))" />
+                    }
+                    @if (CanRejectRow(row))
+                    {
+                        <DxButton Text="@L["Confirmation:Action:Reject"]" IconCssClass="@TradeXpressIcons.Warning" SizeMode="SizeMode.Small"
+                                  RenderStyle="ButtonRenderStyle.Danger" RenderStyleMode="ButtonRenderStyleMode.Outline"
+                                  Click="@(() => RaiseAsync(row, ConfirmationAction.Reject))" />
+                    }
+                    @if (CanConfirmRow(row))
+                    {
+                        <DxButton Text="@L["Confirmation:Action:Confirm"]" IconCssClass="@TradeXpressIcons.Check" SizeMode="SizeMode.Small"
+                                  RenderStyle="ButtonRenderStyle.Success" RenderStyleMode="ButtonRenderStyleMode.Contained"
+                                  Click="@(() => RaiseAsync(row, ConfirmationAction.Confirm))" />
+                    }
+                </div>
+            </CellDisplayTemplate>
+        </DxGridDataColumn>
+    </Columns>
+</DxGrid>

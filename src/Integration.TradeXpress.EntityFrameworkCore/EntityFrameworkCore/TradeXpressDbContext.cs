@@ -83,9 +83,11 @@ public class TradeXpressDbContext :
     public DbSet<Variants.EntityVariant> EntityVariants { get; set; } = null!;
     public DbSet<Variants.EntityVariantAttributeValue> EntityVariantAttributeValues { get; set; } = null!;
     public DbSet<SpecialCode> SpecialCodes { get; set; } = null!;
-    public DbSet<EntityImage> EntityImages { get; set; } = null!;
     public DbSet<EntityDocument> EntityDocuments { get; set; } = null!;
     public DbSet<EntityNote> EntityNotes { get; set; } = null!;
+    public DbSet<Media> MediaItems { get; set; } = null!;
+    public DbSet<EntityMediaLink> EntityMediaLinks { get; set; } = null!;
+    public DbSet<MediaFolder> MediaFolders { get; set; } = null!;
     public DbSet<Account> Accounts { get; set; } = null!;
     public DbSet<SubAccount> SubAccounts { get; set; } = null!;
     public DbSet<Integration.TradeXpress.Products.Product> Products { get; set; } = null!;
@@ -94,10 +96,13 @@ public class TradeXpressDbContext :
     public DbSet<Integration.TradeXpress.Products.ProductAttributeValue> ProductAttributeValues { get; set; } = null!;
     public DbSet<Integration.TradeXpress.Products.ProductVariantAttributeValue> ProductVariantAttributeValues { get; set; } = null!;
     public DbSet<Integration.TradeXpress.Products.ProductVariantRecipeLine> ProductVariantRecipeLines { get; set; } = null!;
+    public DbSet<Integration.TradeXpress.Products.ProductVariantDetail> ProductVariantDetails { get; set; } = null!;
     public DbSet<Voucher> Vouchers { get; set; } = null!;
     public DbSet<VoucherLine> VoucherLines { get; set; } = null!;
     public DbSet<Integration.TradeXpress.Vouchers.Balance.BalanceLedgerEntry> BalanceLedgerEntries { get; set; } = null!;
     public DbSet<Integration.TradeXpress.Reports.BalanceSheet.BalanceSheetSnapshot> BalanceSheetSnapshots { get; set; } = null!;
+    // Teyit (organizasyon-içi karşılıklı ayna onayı) — company-owned staging kaydı.
+    public DbSet<Integration.TradeXpress.Confirmations.Confirmation> Confirmations { get; set; } = null!;
     public DbSet<Integration.TradeXpress.Authorization.UserScopedGrant> UserScopedGrants { get; set; } = null!;
     public DbSet<Integration.TradeXpress.Settings.UserGridLayout> UserGridLayouts { get; set; } = null!;
     // N11 kategori taksonomisi — HOST-GLOBAL (IMultiTenant değil; tüm tenant'lar paylaşır).
@@ -212,15 +217,17 @@ public class TradeXpressDbContext :
         builder.ConfigureGoods();
         builder.ConfigureGoodSuppliers();
         builder.ConfigureGoodVariantDetails();
+        builder.ConfigureProductVariantDetails();
         builder.ConfigureEntityVariants();
         builder.ConfigureSpecialCodes();
-        builder.ConfigureEntityImages();
         builder.ConfigureEntityDocuments();
         builder.ConfigureEntityNotes();
+        builder.ConfigureMedia();
         builder.ConfigureAccounts();
         builder.ConfigureVouchers();
         builder.ConfigureBalanceLedger();
         builder.ConfigureBalanceSheetSnapshots();
+        builder.ConfigureConfirmations();
         builder.ConfigureUserScopedGrants();
         builder.ConfigureUserGridLayouts();
         builder.ConfigureN11Categories();

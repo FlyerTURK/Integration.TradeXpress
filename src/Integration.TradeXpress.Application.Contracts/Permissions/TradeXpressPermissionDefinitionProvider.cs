@@ -148,6 +148,14 @@ public class TradeXpressPermissionDefinitionProvider : PermissionDefinitionProvi
         subAccounts.AddChild(TradeXpressPermissions.SubAccounts.Update, L("Permission:Update"));
         subAccounts.AddChild(TradeXpressPermissions.SubAccounts.Delete, L("Permission:Delete"));
 
+        var confirmations = myGroup.AddPermission(
+            TradeXpressPermissions.Confirmations.Default, L("Permission:Confirmations"));
+        confirmations.AddChild(TradeXpressPermissions.Confirmations.Propose, L("Permission:Confirmations:Propose"));
+        confirmations.AddChild(TradeXpressPermissions.Confirmations.Declare, L("Permission:Confirmations:Declare"));
+        confirmations.AddChild(TradeXpressPermissions.Confirmations.Confirm, L("Permission:Confirmations:Confirm"));
+        confirmations.AddChild(TradeXpressPermissions.Confirmations.Reject, L("Permission:Confirmations:Reject"));
+        confirmations.AddChild(TradeXpressPermissions.Confirmations.View, L("Permission:Confirmations:View"));
+
         var reports = myGroup.AddPermission(
             TradeXpressPermissions.Reports.Default, L("Permission:Reports"));
         reports.AddChild(TradeXpressPermissions.Reports.Position, L("Permission:Position"));

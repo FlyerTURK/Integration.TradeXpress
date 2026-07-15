@@ -30,6 +30,22 @@ public partial class DebitNoteProcessPanel : IVoucherLineEditPanel
     [Parameter] public Guid? VoucherId { get; set; }
     [Parameter] public EventCallback<VoucherLineDto> OnSaved { get; set; }
 
+    /// <summary>İÇ KARŞI TARAF (Teyit) kipi: doluysa satır POSTLANMAZ — Teyit teklifi kurulur. Null = bugünkü
+    /// normal cari akışı (davranış birebir aynı). <i>(Bu panel henüz <see cref="VoucherLineContext"/>'e geçmedi
+    /// — spec'teki olgunlaştırma işi; şimdilik eklemeli tek parametre.)</i></summary>
+    [Parameter] public Guid? CounterpartyVaultId { get; set; }
+
+    /// <summary>BEYAN kipi (gelen kutusundan "Kendi Girişimi Yaz"): doluysa yeni teklif açılmaz, bu Teyit'e
+    /// alıcının KENDİ satırı yazılır (sunucu ayna doğrular).</summary>
+    [Parameter] public Guid? DeclareConfirmationId { get; set; }
+
+    /// <summary>Teyit yoluna gidildiğinde (teklif/beyan) tetiklenir — fiş OLUŞMADIĞI için <see cref="OnSaved"/>
+    /// tetiklenmez. Gelen kutusu bunu dinleyip popup'ı kapatır/listeyi tazeler.</summary>
+    [Parameter] public EventCallback<VoucherLinePersistOutcome> OnConfirmationSubmitted { get; set; }
+
+    /// <summary>Kaydın normal fiş yoluna mı Teyit yoluna mı gideceğinin TEK karar noktası (SSOT).</summary>
+    [Inject] private VoucherLinePersister Persister { get; set; } = default!;
+
     private bool _isMobile;
 
     private VoucherLineDto _model = NewModel();
@@ -136,14 +152,28 @@ public partial class DebitNoteProcessPanel : IVoucherLineEditPanel
 
         var wasEdit = _model.Id != Guid.Empty;   // save Id'yi dolduracağı için ÖNCE yakala
 
-        VoucherLineDto result;
+        // Kararı persister verir (TEK yer): dış cari → normal fiş kaydı · iç kasa → Teyit teklifi ·
+        // beyan kipi → alıcının kendi satırı. Teyit yollarında fiş OLUŞMAZ → result.Line null.
+        VoucherLinePersistResult persisted;
         try
         {
-            result = await VoucherService.SaveLineAsync(_model);
+            persisted = await Persister.PersistAsync(new VoucherLinePersistRequest(
+                _model, CounterpartyVaultId, VaultId, DeclareConfirmationId));
         }
         catch (Exception ex)
         {
             Ui.ShowErrorToast(L["Voucher_LineSaveFailed", ex.Message].Value);
+            return;
+        }
+
+        if (persisted.Line is not { } result)
+        {
+            // Teyit kuruldu/beyan edildi ya da ön koşul sağlanmadı: fiş/grid durumu ELLENMEZ, toast'ı persister verdi.
+            ResetVolatileFields();
+            if (persisted.Outcome != VoucherLinePersistOutcome.Blocked)
+            {
+                await OnConfirmationSubmitted.InvokeAsync(persisted.Outcome);
+            }
             return;
         }
 
@@ -159,6 +189,12 @@ public partial class DebitNoteProcessPanel : IVoucherLineEditPanel
             return;
         }
 
+        ResetVolatileFields();
+    }
+
+    /// <summary>Yeni ekleme sonrası bir sonraki satır için uçucu alanları sıfırlar.</summary>
+    private void ResetVolatileFields()
+    {
         _model.PayFactor   = 0m;
         _model.PayTotal    = 0m;
         _model.Description = null;

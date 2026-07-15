@@ -27,6 +27,8 @@ using Integration.TradeXpress.Scheduling;
 using Integration.TradeXpress.Substitutions;
 using Integration.TradeXpress.Orders;
 using Integration.TradeXpress.Authorization;
+using Integration.TradeXpress.Confirmations;
+using Integration.TradeXpress.Attachments;
 using Volo.Abp.TenantManagement;
 
 namespace Integration.TradeXpress;
@@ -413,7 +415,6 @@ public partial class FutureToListDtoMapper : MapperBase<Future, FutureListDto>
 public partial class JewelryToGetDtoMapper : MapperBase<Jewelry, JewelryGetDto>
 {
     [MapperIgnoreTarget(nameof(JewelryGetDto.IsGlobal))]
-    [MapperIgnoreTarget(nameof(JewelryGetDto.Images))]       // agnostik Image — AppService yükler
     [MapperIgnoreTarget(nameof(JewelryGetDto.Documents))]    // agnostik Document — AppService yükler
     [MapperIgnoreTarget(nameof(JewelryGetDto.Notes))]        // agnostik Note — AppService yükler
     [MapperIgnoreTarget(nameof(JewelryGetDto.Attributes))]   // varyant grafı — AppService yükler
@@ -426,7 +427,7 @@ public partial class JewelryToGetDtoMapper : MapperBase<Jewelry, JewelryGetDto>
 public partial class JewelryToListDtoMapper : MapperBase<Jewelry, JewelryListDto>
 {
     [MapperIgnoreTarget(nameof(JewelryListDto.IsGlobal))]
-    [MapperIgnoreTarget(nameof(JewelryListDto.ImagePreviewUrl))]   // agnostik varsayılan görsel — AppService enrich eder
+    [MapperIgnoreTarget(nameof(JewelryListDto.ImagePreviewUrl))]   // EnrichListAsync doldurur (ana varyant poster'ı)
     public override partial JewelryListDto Map(Jewelry source);
     public override partial void Map(Jewelry source, JewelryListDto destination);
 }
@@ -438,7 +439,6 @@ public partial class GoodToGetDtoMapper : MapperBase<Good, GoodGetDto>
 {
     [MapperIgnoreTarget(nameof(GoodGetDto.IsGlobal))]
     [MapperIgnoreTarget(nameof(GoodGetDto.Suppliers))]      // ayrı tablo — AppService yükler
-    [MapperIgnoreTarget(nameof(GoodGetDto.Images))]         // agnostik Image — AppService yükler
     [MapperIgnoreTarget(nameof(GoodGetDto.Documents))]      // agnostik Document — AppService yükler
     [MapperIgnoreTarget(nameof(GoodGetDto.Notes))]          // agnostik Note — AppService yükler
     [MapperIgnoreTarget(nameof(GoodGetDto.Attributes))]     // varyant grafı — AppService yükler
@@ -452,11 +452,11 @@ public partial class GoodToListDtoMapper : MapperBase<Good, GoodListDto>
 {
     // Fiyat (alış/satış + birim) artık Good'da DEĞİL → ANA VARYANT'tan enrich edilir (GoodAppService.EnrichListPricingAsync).
     [MapperIgnoreTarget(nameof(GoodListDto.IsGlobal))]
-    [MapperIgnoreTarget(nameof(GoodListDto.ImagePreviewUrl))]   // agnostik varsayılan görsel — AppService enrich eder
     [MapperIgnoreTarget(nameof(GoodListDto.EntryPrice))]
     [MapperIgnoreTarget(nameof(GoodListDto.EntryPriceUnitId))]
     [MapperIgnoreTarget(nameof(GoodListDto.ExitPrice))]
     [MapperIgnoreTarget(nameof(GoodListDto.ExitPriceUnitId))]
+    [MapperIgnoreTarget(nameof(GoodListDto.ImagePreviewUrl))]   // EnrichPreviewsAsync doldurur (ana varyant poster'ı)
     public override partial GoodListDto Map(Good source);
     public override partial void Map(Good source, GoodListDto destination);
 }
@@ -483,7 +483,6 @@ public partial class SpecialCodeToListDtoMapper : MapperBase<SpecialCode, Specia
 public partial class StoneToGetDtoMapper : MapperBase<Stone, StoneGetDto>
 {
     [MapperIgnoreTarget(nameof(StoneGetDto.IsGlobal))]
-    [MapperIgnoreTarget(nameof(StoneGetDto.Images))]        // agnostik Image — AppService yükler
     [MapperIgnoreTarget(nameof(StoneGetDto.Documents))]     // agnostik Document — AppService yükler
     [MapperIgnoreTarget(nameof(StoneGetDto.Notes))]         // agnostik Note — AppService yükler
     [MapperIgnoreTarget(nameof(StoneGetDto.Attributes))]    // varyant grafı — AppService yükler
@@ -496,7 +495,7 @@ public partial class StoneToGetDtoMapper : MapperBase<Stone, StoneGetDto>
 public partial class StoneToListDtoMapper : MapperBase<Stone, StoneListDto>
 {
     [MapperIgnoreTarget(nameof(StoneListDto.IsGlobal))]
-    [MapperIgnoreTarget(nameof(StoneListDto.ImagePreviewUrl))]   // agnostik varsayılan görsel — AppService enrich eder
+    [MapperIgnoreTarget(nameof(StoneListDto.ImagePreviewUrl))]   // EnrichListAsync doldurur (ana varyant poster'ı)
     public override partial StoneListDto Map(Stone source);
     public override partial void Map(Stone source, StoneListDto destination);
 }
@@ -753,4 +752,40 @@ public partial class OrderLineToItemListDtoMapper : MapperBase<OrderLine, OrderI
 {
     public override partial SubAccountUpdateDto Map(SubAccountGetDto source);
     public override partial void Map(SubAccountGetDto source, SubAccountUpdateDto destination);
+}
+
+// ── Confirmation / Teyit (organizasyon-içi ayna onayı; entity→DTO). Vault/CurrencyUnit kodları (id-only
+//    referanstan) AppService'te çözülür → mapper'da ignore. Payload'lar (her tarafın KENDİ satırı; opak)
+//    listede TAŞINMAZ → DTO'da YOK; ayrıca GetPayloadAsync ile istenir. TenantId/CompanyId source-only. ──
+[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
+public partial class ConfirmationToDtoMapper : MapperBase<Confirmation, ConfirmationDto>
+{
+    [MapperIgnoreTarget(nameof(ConfirmationDto.InitiatorVaultCode))]
+    [MapperIgnoreTarget(nameof(ConfirmationDto.CounterpartyVaultCode))]
+    [MapperIgnoreTarget(nameof(ConfirmationDto.MainUnitCode))]
+    [MapperIgnoreTarget(nameof(ConfirmationDto.PayUnitCode))]
+    // UI-gating bayrakları entity'de YOK → AppService.GetListAsync elle set eder (IScopedGrantResolver sonucu).
+    [MapperIgnoreTarget(nameof(ConfirmationDto.IsInitiatorMine))]
+    [MapperIgnoreTarget(nameof(ConfirmationDto.IsCounterpartyMine))]
+    public override partial ConfirmationDto Map(Confirmation source);
+    public override partial void Map(Confirmation source, ConfirmationDto destination);
+}
+
+// ── Media (DAM; entity→DTO). PosterUrl/ContentUrl/HasPoster AppService'te hesaplanır (Id-scoped stream endpoint +
+//    LastModificationTime cache-buster) → mapper'da ignore. ──
+[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
+public partial class MediaToDtoMapper : MapperBase<Media, MediaDto>
+{
+    [MapperIgnoreTarget(nameof(MediaDto.HasPoster))]
+    [MapperIgnoreTarget(nameof(MediaDto.PosterUrl))]
+    [MapperIgnoreTarget(nameof(MediaDto.ContentUrl))]
+    public override partial MediaDto Map(Media source);
+    public override partial void Map(Media source, MediaDto destination);
+}
+
+[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
+public partial class MediaFolderToDtoMapper : MapperBase<MediaFolder, MediaFolderDto>
+{
+    public override partial MediaFolderDto Map(MediaFolder source);
+    public override partial void Map(MediaFolder source, MediaFolderDto destination);
 }

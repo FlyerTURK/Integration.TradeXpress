@@ -1,0 +1,13 @@
+@page "/transfers"
+@using Integration.TradeXpress.Permissions
+@attribute [Authorize(TradeXpressPermissions.Confirmations.Propose)]
+
+@* Transferler = AYRI bir özellik DEĞİL: aynı voucher/VoucherLine formunun ORGANİZASYON-İÇİ kipi
+   (spec: .claude/research/transfers/teyit-spec.md §1 — "yeni transfer özelliği YOK").
+   Kipi ROTA belirler (form içinde karşı-taraf combo'su YOKTUR): bu sayfa /transfers rotasını
+   InternalVault kipine, CurrentTransactionForm'un kendi /cari-islemler rotası ise varsayılan
+   CurrentAccount (dış cari) kipine bağlar. Sayfa bilinçli olarak ince: tek işi kipi vermek.
+
+   İzin = yaptığı iş: iç kipte kayıt postlanmaz, karşı kasaya Teyit TEKLİFİ düşer → Confirmations.Propose.
+   (Eski bağımsız Transfer aggregate'i + Transfers.* izinleri SÖKÜLDÜ.) *@
+<CurrentTransactionForm Mode="CounterpartyMode.InternalVault" />

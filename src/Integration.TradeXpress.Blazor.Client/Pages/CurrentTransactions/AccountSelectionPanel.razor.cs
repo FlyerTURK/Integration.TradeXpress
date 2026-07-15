@@ -4,6 +4,8 @@ using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
 using Integration.TradeXpress.Accounts;
+using Integration.TradeXpress.Branches;
+using Integration.TradeXpress.Confirmations;
 using Integration.TradeXpress.Permissions;
 using Integration.TradeXpress.Vaults;
 using Integration.TradeXpress.Vouchers;
@@ -14,9 +16,24 @@ using Microsoft.JSInterop;
 
 namespace Integration.TradeXpress.Blazor.Client.Pages.CurrentTransactions;
 
+/// <summary>Karşı taraf kipi — panelin üst iki combosunun ANLAMINI değiştirir (spec §7):
+/// <b>Cari</b> = bugünkü akış (Hesap→Alt Hesap; kayıt normal postlanır) · <b>İç Kasa</b> = Şube→Kasa
+/// (seçilen kasa karşı taraf; kayıt POSTLANMAZ, Teyit teklifi kurulur).
+/// <para>Kipi ROTA/MENÜ belirler (form içinde seçilmez): <c>/cari-islemler</c> → <see cref="CurrentAccount"/>,
+/// <c>/transfers</c> → <see cref="InternalVault"/>.</para></summary>
+public enum CounterpartyMode
+{
+    CurrentAccount,
+    InternalVault,
+}
+
 public partial class AccountSelectionPanel
 {
     [Inject] private IJSRuntime JS { get; set; } = default!;
+
+    /// <summary>Karşı taraf kipi — ROTADAN gelir (form içinde combo YOK). Kip sabittir: bir sekme
+    /// ömrü boyunca kip değişmez, dolayısıyla kip-değişimi sıfırlama akışına gerek yoktur.</summary>
+    [Parameter] public CounterpartyMode Mode { get; set; } = CounterpartyMode.CurrentAccount;
 
     [Parameter] public Guid? InitialSubAccountId { get; set; }
     [Parameter] public Guid? InitialVoucherId { get; set; }
@@ -68,6 +85,23 @@ public partial class AccountSelectionPanel
     /// Hesap seçili değilken boş (combo o durumda zaten gizli — akış daima hesap→alt hesap).</summary>
     private IEnumerable<SubAccountListDto> FilteredSubAccounts
         => _selectedAccountId is { } acc ? _subAccounts.Where(s => s.AccountId == acc) : Enumerable.Empty<SubAccountListDto>();
+
+    // ── İç karşı taraf (Teyit) kipi ────────────────────────────────────────────────────
+    private List<BranchListDto> _counterpartyBranches = new();
+    private List<VaultListDto>  _counterpartyVaults   = new();
+    private Guid? _counterpartyBranchId;
+    private Guid? _counterpartyVaultId;
+
+    /// <summary>Kip rotadan sabit gelir (<see cref="Mode"/>) — kullanıcı form içinden değiştiremez.</summary>
+    private bool IsInternalMode => Mode == CounterpartyMode.InternalVault;
+
+    /// <summary>Alt satırların (fiş/kasa/açıklama/TAMAM) görünürlük koşulu: Cari kipinde alt hesap,
+    /// İç Kasa kipinde karşı kasa seçilmiş olmalı.</summary>
+    private bool SelectionReady => IsInternalMode ? _counterpartyVaultId.HasValue : _model.SubAccountId.HasValue;
+
+    /// <summary>Karşı kasa seçenekleri — kendi kasam (başlatan) karşı taraf OLAMAZ (sunucu da reddeder).</summary>
+    private IEnumerable<VaultListDto> CounterpartyVaultOptions
+        => _counterpartyVaults.Where(v => v.Id != _model.VaultId);
 
     private const int VoucherPageSize = 1000;
     private static readonly Guid SentinelId = new("00000000-0000-0000-0000-000000000001");
@@ -124,6 +158,24 @@ public partial class AccountSelectionPanel
         _subAccounts  = subResult.Items.ToList();
         _branchVaults = vaultResult.Items.ToList();
 
+        // İç kip rotadan sabit → karşı ŞUBE listesi baştan hazır olmalı (kip combo'su yok, tetikleyecek
+        // "kip değişti" anı da yok). Cari kipte bu sorgu HİÇ atılmaz — dış akışın maliyeti değişmez.
+        if (IsInternalMode)
+        {
+            try
+            {
+                await EnsureCounterpartyBranchesAsync();
+            }
+            catch (Exception ex)
+            {
+                // Şube listesi okunamıyorsa iç kip kullanılamaz. Artık Cari'ye DÜŞÜLMEZ (kip rotanın
+                // sözleşmesi; sessizce dış cariye kaymak kullanıcıyı yanlış deftere yazdırabilirdi) →
+                // sebep gösterilir, Şube combo'su boş kalır ve akış ilerlemez.
+                Ui.ShowErrorToast(ex.Message);
+            }
+            return;   // iç kipte cari ön-seçimi (subAccount/voucher) anlamsız — o URL state'i dış akışın
+        }
+
         if (InitialSubAccountId.HasValue)
         {
             await OnSubAccountChanged(InitialSubAccountId);
@@ -151,6 +203,69 @@ public partial class AccountSelectionPanel
     private bool IsProcessGranted(ProcessType type)
     {
         return _grantedProcesses.TryGetValue(type, out var granted) && granted;
+    }
+
+    /// <summary>İşlem tipi butonu çizilsin mi: yetki + kip. İç kasa kipinde desteklenen tipler
+    /// <see cref="ConfirmationProcessPolicy"/>'dedir (SSOT — sunucu Propose'da AYNI kuralı zorlar; burası
+    /// yalnız UI gate'i). Kapalı tiplerin gerekçesi policy'nin içinde.</summary>
+    private bool IsProcessVisible(ProcessType type)
+    {
+        if (IsInternalMode && !ConfirmationProcessPolicy.IsInternalModeSupported(type))
+        {
+            return false;
+        }
+
+        return IsProcessGranted(type);
+    }
+
+    /// <summary>Karşı ŞUBE listesi (working şirket) — yalnız iç kipte, panel açılışında okunur.</summary>
+    private async Task EnsureCounterpartyBranchesAsync()
+    {
+        if (_counterpartyBranches.Count > 0)
+        {
+            return;
+        }
+
+        var result = await BranchService.GetListAsync(new BranchListRequestDto
+        {
+            CompanyId      = Working.CurrentCompanyId,
+            MaxResultCount = 1000,
+        });
+        _counterpartyBranches = result.Items.Where(b => b.IsActive).ToList();
+    }
+
+    /// <summary>Karşı şube seçildi → o şubenin kasaları yüklenir (cascade: Şube→Kasa).</summary>
+    private async Task OnCounterpartyBranchChangedAsync(Guid? branchId)
+    {
+        _counterpartyBranchId = branchId;
+        _counterpartyVaultId  = null;
+        _counterpartyVaults   = new();
+        _locked            = false;
+        _showActionToolbar = false;
+        await SetActiveProcessAsync(null);
+
+        if (branchId is not { } id)
+        {
+            return;
+        }
+
+        var result = await VaultService.GetListAsync(new VaultListRequestDto { BranchId = id, MaxResultCount = 1000 });
+        _counterpartyVaults = result.Items.Where(v => v.IsActive).ToList();
+    }
+
+    /// <summary>Karşı KASA seçildi = karşı taraf belirlendi (Teyit'in muhatabı).</summary>
+    private async Task OnCounterpartyVaultChangedAsync(Guid? vaultId)
+    {
+        _counterpartyVaultId = vaultId;
+        _locked            = false;
+        _showActionToolbar = false;
+        await SetActiveProcessAsync(null);
+
+        // Kendi kasam boşsa şubemin ilk kasasını başlatan yap (Cari akışındaki varsayılanla aynı davranış).
+        if (_model.VaultId == null && _branchVaults.Count > 0)
+        {
+            _model.VaultId = _branchVaults[0].Id;
+        }
     }
 
     /// <summary>Cari seçimini dışarıdan temizler — form, aynı cari BAŞKA bir Cari İşlemler sekmesinde
@@ -487,6 +602,8 @@ public partial class AccountSelectionPanel
         VoucherId          = _selectedVoucherId,
         AccountCode        = _selectedAccountCode,
         SubAccountCode     = _selectedSubAccountCode,
+        // Yalnız iç kipte dolu: panel kaydı postlamaz, Teyit teklifi kurar. Cari kipinde null → akış değişmez.
+        CounterpartyVaultId = IsInternalMode ? _counterpartyVaultId : null,
     };
 
     private Task OnProcessBack()    => SetActiveProcessAsync(null);

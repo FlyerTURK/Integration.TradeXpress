@@ -17,6 +17,7 @@
     @* Liste modunda gizli (display:none) — state korunur (Geri'de cari/fiş seçimi kaybolmaz). *@
     <div style="@($"{PanelBox()} grid-area:p1; min-height:unset; overflow:hidden;{(_listMode && !_processActive ? " display:none;" : "")}")">
         <AccountSelectionPanel @ref="_accountPanel"
+                               Mode="@Mode"
                                InitialSubAccountId="@SubAccountId"
                                InitialVoucherId="@VoucherId"
                                OnLineSaved="@OnLineSaved"

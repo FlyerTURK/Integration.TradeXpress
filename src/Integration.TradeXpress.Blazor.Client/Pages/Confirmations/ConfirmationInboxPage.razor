@@ -1,0 +1,74 @@
+@page "/confirmations"
+@using Integration.TradeXpress.Permissions
+@attribute [Authorize(TradeXpressPermissions.Confirmations.View)]
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@* Teyit gelen/giden kutusu — organizasyon-içi karşılıklı AYNA ONAYI (spec: .claude/research/transfers/teyit-spec.md).
+   GELEN = karşı kasa benim (kaydımı/teyidimi bekleyenler) · GİDEN = benim başlattıklarım. Tüm statüler görünür
+   (kapananların izi sürülsün). İPTAL YOKTUR — gönderen teklifi geri çekemez; süreci yalnız alıcı Reddet ile durdurur. *@
+<div style="display:flex; flex-direction:column; height:100%; padding:6px; box-sizing:border-box; min-height:0;">
+
+    <DxToolbar AdaptivityAutoHideRootItems="false" AdaptivityAutoCollapseItemsToIcons="false">
+        <DxToolbarItem Alignment="ToolbarItemAlignment.Right" Text="@L["Refresh"]"
+                       IconCssClass="@TradeXpressIcons.Refresh" Click="@ReloadAsync" />
+    </DxToolbar>
+
+    <div style="flex:1; min-height:0; min-width:0; overflow:hidden; display:flex; flex-direction:column; margin-top:6px;">
+        <DxTabs @bind-ActiveTabIndex="@_activeTabIndex" CssClass="w-100">
+            <DxTabPage Text="@L["Confirmation:Tab:Incoming"]">
+                <ConfirmationGrid Rows="@IncomingRows" Side="ConfirmationSide.Incoming"
+                                  CanDeclare="@_canDeclare" CanConfirm="@_canConfirm" CanReject="@_canReject"
+                                  OnAction="@OnActionRequested" />
+            </DxTabPage>
+            <DxTabPage Text="@L["Confirmation:Tab:Outgoing"]">
+                <ConfirmationGrid Rows="@OutgoingRows" Side="ConfirmationSide.Outgoing"
+                                  CanDeclare="@_canDeclare" CanConfirm="@_canConfirm" CanReject="@_canReject"
+                                  OnAction="@OnActionRequested" />
+            </DxTabPage>
+        </DxTabs>
+    </div>
+</div>
+
+@* BEYAN popup'ı — "Kendi Girişimi Yaz". Alıcı, teklifin tipine karşılık gelen GERÇEK process panelinde
+   KENDİ satırını yazar (ayrı/sahte beyan formu YOK; gönderenle aynı araç). ÖN-DOLDURMA YOK: paneller boş
+   doğar, gönderenin değerleri gösterilmez. Ayna sunucuda doğrulanır; uyuşmazlıkta panel kendi hata
+   toast'ını verir (MirrorMismatch — beklenen/girilen fark). *@
+<DxPopup @bind-Visible="@_declareVisible" HeaderText="@L["Confirmation:Action:Declare"]" Width="90vw" ShowFooter="false">
+    <BodyContentTemplate Context="declareContext">
+        <ConfirmationDeclarePanelHost Row="@_row"
+                                      OnDeclared="@OnDeclaredAsync"
+                                      OnCancel="@(() => _declareVisible = false)" />
+    </BodyContentTemplate>
+</DxPopup>
+
+@* Teyit/Red popup'ı — karar + not (satır yazımı yok). *@
+<DxPopup @bind-Visible="@_popupVisible" HeaderText="@ActionTitle" Width="480px" ShowFooter="false">
+    <BodyContentTemplate Context="popupContext">
+        <div style="display:flex; flex-direction:column; gap:10px;">
+            @if (_action == ConfirmationAction.Confirm)
+            {
+                <div>@L["Confirmation:ConfirmHint"]</div>
+            }
+            @if (_action == ConfirmationAction.Reject)
+            {
+                <div>@L["Confirmation:RejectHint"]</div>
+            }
+
+            <DxTextBox @bind-Text="@_note"
+                       NullText="@(_action == ConfirmationAction.Reject ? L["Confirmation:ReasonPlaceholder"].Value : L["Confirmation:NotePlaceholder"].Value)"
+                       CssClass="w-100" />
+
+            @if (!string.IsNullOrEmpty(_error))
+            {
+                <div style="padding:8px; border-radius:6px; border:1px solid #dc2626; color:#dc2626; white-space:pre-line;">@_error</div>
+            }
+
+            <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:4px;">
+                <DxButton Text="@ActionTitle" RenderStyle="@ActionButtonStyle" RenderStyleMode="ButtonRenderStyleMode.Contained"
+                          Enabled="@(!_busy)" Click="@ExecuteActionAsync" />
+                <DxButton Text="@L["Cancel"]" RenderStyle="ButtonRenderStyle.Secondary" RenderStyleMode="ButtonRenderStyleMode.Contained"
+                          Click="@(() => _popupVisible = false)" />
+            </div>
+        </div>
+    </BodyContentTemplate>
+</DxPopup>

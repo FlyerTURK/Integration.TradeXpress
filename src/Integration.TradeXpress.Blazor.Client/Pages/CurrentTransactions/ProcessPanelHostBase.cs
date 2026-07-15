@@ -21,6 +21,9 @@ public abstract class ProcessPanelHostBase : ComponentBase, IVoucherLineEditPane
     [Inject] protected IVoucherAppService VoucherService { get; set; } = default!;
     [Inject] protected IUiInteractionService Ui { get; set; } = default!;
 
+    /// <summary>Kaydın normal fiş yoluna mı Teyit yoluna mı gideceğinin TEK karar noktası (SSOT).</summary>
+    [Inject] protected VoucherLinePersister Persister { get; set; } = default!;
+
     /// <summary>Fiş bağlamı — AccountSelectionPanel'den tek nesne olarak gelir.</summary>
     [Parameter] public VoucherLineContext Context { get; set; } = new();
 
@@ -28,6 +31,10 @@ public abstract class ProcessPanelHostBase : ComponentBase, IVoucherLineEditPane
 
     /// <summary>Satır kaydedilince (VoucherId döner → sonraki satırlar aynı fişe).</summary>
     [Parameter] public EventCallback<VoucherLineDto> OnSaved { get; set; }
+
+    /// <summary>Teyit yoluna gidildiğinde (teklif kuruldu ya da beyan edildi) tetiklenir — fiş OLUŞMADIĞI için
+    /// <see cref="OnSaved"/> tetiklenmez. Gelen kutusu bunu dinleyip popup'ı kapatır/listeyi tazeler.</summary>
+    [Parameter] public EventCallback<VoucherLinePersistOutcome> OnConfirmationSubmitted { get; set; }
 
     /// <summary>Aktif fiş: bağlamdan gelir; kayıt sonrası sunucudan dönen değere güncellenir.</summary>
     protected Guid? VoucherId { get; set; }
@@ -79,6 +86,19 @@ public abstract class ProcessPanelHostBase : ComponentBase, IVoucherLineEditPane
     /// <summary>Düzelt akışında model yüklendikten sonra panel-özel lookup/kilit senkronu.</summary>
     protected virtual Task OnLoadedForEditAsync(VoucherLineDto dto) => Task.CompletedTask;
 
+    /// <summary>Kalıcılaştırma seam'i — kararı <see cref="VoucherLinePersister"/> verir (TEK yerde, tüm paneller
+    /// için): dış cari → normal fiş satırı kaydı (bugünkü davranış, birebir aynı) · iç kasa → Teyit teklifi ·
+    /// beyan kipi → alıcının kendi satırı. Teyit yollarında <b>fiş oluşmaz</b> → <c>Line</c> null gelir ve
+    /// çağıran fiş/grid durumuna DOKUNMAZ.</summary>
+    protected virtual async Task<VoucherLinePersistResult> PersistAsync()
+    {
+        return await Persister.PersistAsync(new VoucherLinePersistRequest(
+            Model,
+            Context.CounterpartyVaultId,
+            Context.VaultId,
+            Context.DeclareConfirmationId));
+    }
+
     protected override void OnParametersSet()
     {
         // Eski parametre davranışıyla parite: parent her render'da VoucherId'yi bağlamdan tazeler.
@@ -125,14 +145,28 @@ public abstract class ProcessPanelHostBase : ComponentBase, IVoucherLineEditPane
 
         var wasEdit = Model.Id != Guid.Empty;   // güncelleme mi, yeni ekleme mi?
 
-        VoucherLineDto result;
+        VoucherLinePersistResult persisted;
         try
         {
-            result = await VoucherService.SaveLineAsync(Model);
+            persisted = await PersistAsync();
         }
         catch (Exception ex)
         {
             Ui.ShowErrorToast(L["Voucher_LineSaveFailed", ex.Message].Value);
+            return;
+        }
+
+        if (persisted.Line is not { } result)
+        {
+            // Fiş oluşmadı (Teyit teklifi/beyanı kuruldu — postlama iki tarafın onayına ertelendi, ya da ön koşul
+            // sağlanmadı): fiş/grid durumu ELLENMEZ. Toast'ı VoucherLinePersister verir (kayıt değil TEKLİF/BEYAN
+            // olduğu net söylensin) — kural nerede, bildirimi orada.
+            ResetVolatileFields();
+            await OnAfterResetAsync();
+            if (persisted.Outcome != VoucherLinePersistOutcome.Blocked)
+            {
+                await OnConfirmationSubmitted.InvokeAsync(persisted.Outcome);
+            }
             return;
         }
 

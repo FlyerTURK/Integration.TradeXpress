@@ -11,6 +11,9 @@ public class TradeXpressMenus
     public const string Vaults              = Prefix + ".Vaults";
     public const string Countries           = Prefix + ".Countries";
     public const string CurrentTransactions = Prefix + ".CurrentTransactions";
+    public const string Transfers           = Prefix + ".Transfers";
+    public const string Confirmations       = Prefix + ".Confirmations";
+    public const string MediaLibrary        = Prefix + ".MediaLibrary";
     public const string Reports             = Prefix + ".Reports";
     public const string Scheduler           = Prefix + ".Scheduler";
 

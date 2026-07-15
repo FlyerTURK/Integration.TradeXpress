@@ -24,4 +24,15 @@ public sealed record VoucherLineContext
 
     /// <summary>Başlık şeridi görüntüsü için alt-hesap kodu.</summary>
     public string? SubAccountCode { get; init; }
+
+    /// <summary>İÇ KARŞI TARAF (Teyit modu): karşı taraf bir iç kasa ise onun id'si; aksi halde null.
+    /// Dolu olduğunda panel kaydı POSTLAMAZ — <see cref="Confirmations.IConfirmationAppService.ProposeAsync"/>
+    /// ile Teyit kurar (iki taraf kendi kaydını yazıp teyitleyene dek ledger kımıldamaz). Null = bugünkü
+    /// normal cari akışı (davranış değişmez).</summary>
+    public Guid? CounterpartyVaultId { get; init; }
+
+    /// <summary>BEYAN kipi (gelen kutusundan "Kendi Girişimi Yaz"): doluysa panel yeni bir teklif AÇMAZ,
+    /// bu Teyit'e alıcının KENDİ satırını yazar (<see cref="Confirmations.IConfirmationAppService.DeclareAsync"/>).
+    /// Sunucu satırın gönderenin satırıyla AYNA olduğunu doğrular. Null = normal (teklif/cari) akışı.</summary>
+    public Guid? DeclareConfirmationId { get; init; }
 }

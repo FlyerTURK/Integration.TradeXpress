@@ -71,6 +71,23 @@ public partial class CurrentTransactionForm
     [CascadingParameter(Name = "CurrentMdiTab")]
     private Integration.Framework.Blazor.Client.Services.Mdi.IMdiTab? CurrentMdiTab { get; set; }
 
+    /// <summary>Karşı taraf kipi — ROTADAN gelir, form içinde seçilmez (kullanıcı kararı: karşı-taraf
+    /// combo'su kaldırıldı). <c>/cari-islemler</c> doğrudan bu formu çizer → varsayılan dış cari kipi;
+    /// <c>/transfers</c> ise <see cref="TransferTransactionPage"/> üzerinden InternalVault verir.</summary>
+    [Parameter]
+    public CounterpartyMode Mode { get; set; } = CounterpartyMode.CurrentAccount;
+
+    private bool IsInternalMode => Mode == CounterpartyMode.InternalVault;
+
+    /// <summary>Sekme URL'sinin kök rotası — kip hangi rotadan geldiyse o (PushStateToUrl sekmeyi
+    /// yanlış rotaya yazmasın: iç kipteki sekme /transfers olarak kalmalı).</summary>
+    private string RouteBase => IsInternalMode ? "/transfers" : "/cari-islemler";
+
+    /// <summary>Sekme başlığı/ikonu kipe göre (menüyle hizalı: Transferler vs Cari İşlemler).</summary>
+    private string ModeCaption => IsInternalMode ? L["Menu:Transfers"] : L["Menu:CurrentTransactions"];
+
+    private string ModeIcon => IsInternalMode ? TradeXpressIcons.Transfer : TradeXpressIcons.CurrentTransactions;
+
     [Parameter]
     [SupplyParameterFromQuery(Name = "subAccountId")]
     public Guid? SubAccountId { get; set; }
@@ -86,7 +103,7 @@ public partial class CurrentTransactionForm
         if (_currentSubAccountId.HasValue) q.Add($"subAccountId={_currentSubAccountId.Value}");
         if (_currentVoucherId.HasValue) q.Add($"voucherId={_currentVoucherId.Value}");
 
-        var url = "/cari-islemler";
+        var url = RouteBase;
         if (q.Any()) url += "?" + string.Join("&", q);
         Tabs.UpdateTabUrl(CurrentMdiTab.Id, url);
     }
@@ -100,7 +117,7 @@ public partial class CurrentTransactionForm
             var needle = $"subAccountId={sa.Id}";
             var existing = Tabs.Tabs.FirstOrDefault(t =>
                 t.Id != CurrentMdiTab.Id
-                && t.Url.StartsWith("/cari-islemler", StringComparison.OrdinalIgnoreCase)
+                && t.Url.StartsWith(RouteBase, StringComparison.OrdinalIgnoreCase)
                 && t.Url.Contains(needle, StringComparison.OrdinalIgnoreCase));
             if (existing != null)
             {
@@ -122,16 +139,21 @@ public partial class CurrentTransactionForm
         if (CurrentMdiTab != null)
         {
             var header = sa is null
-                ? new Integration.Framework.Blazor.Client.Services.Mdi.TabHeaderData { FormCaption = L["Menu:CurrentTransactions"] }
+                ? new Integration.Framework.Blazor.Client.Services.Mdi.TabHeaderData
+                {
+                    FormCaption = ModeCaption,
+                    IconCssClass = ModeIcon,
+                }
                 : new Integration.Framework.Blazor.Client.Services.Mdi.TabHeaderData
                 {
-                    FormCaption = L["Menu:CurrentTransactions"],
+                    FormCaption = ModeCaption,
                     // Sekme dar alan — yalnız KODLAR (Code/Name değil; kullanıcı isteği). Diğer kullanım
                     // yerleri etkilenmez: TabHeaderData altyapısı aynı, yalnız bu formun değerleri kısaldı.
                     EntityValue = sa.Code,
                     ParentLabel = L["Entity:Account"],
                     ParentValue = sa.AccountCode,
-                    IconCssClass = "custom-icon-swap",
+                    // Tab başlığı ikonu menü/entity ile hizalı (hardcoded custom-icon-swap değil; merkezî sabit).
+                    IconCssClass = ModeIcon,
                 };
             Tabs.UpdateTabHeader(CurrentMdiTab.Id, header);
         }
@@ -362,14 +384,14 @@ public partial class CurrentTransactionForm
         {
             return _isMobile
                 ? "display:grid; gap:0px; grid-template-columns:1fr; grid-template-areas:'p1'; overflow-y:auto; max-height:calc(100vh - 110px);"
-                : "display:grid; gap:0px; height:calc(100vh - 110px); grid-template-columns:1fr; grid-template-areas:'p1';";
+                : "display:grid; gap:0px; height:100%; grid-template-columns:1fr; grid-template-areas:'p1';";
         }
 
         if (!_accountLocked)
         {
             return _isMobile
                 ? "display:grid; gap:0px; grid-template-columns:1fr; grid-template-areas:'p1' 'p3'; overflow-y:auto; max-height:calc(100vh - 110px);"
-                : "display:grid; gap:0px; height:calc(100vh - 110px); grid-template-columns:minmax(0,1fr) 300px; grid-template-areas:'p1 p3';";
+                : "display:grid; gap:0px; height:100%; grid-template-columns:minmax(0,1fr) 300px; grid-template-areas:'p1 p3';";
         }
 
         if (_isMobile)
@@ -378,8 +400,8 @@ public partial class CurrentTransactionForm
                 : "display:grid; gap:0px; grid-template-columns:1fr; grid-template-areas:'p1' 'p3' 'p2'; overflow-y:auto; max-height:calc(100vh - 110px);";
 
         return _listMode && !_processActive
-            ? "display:grid; gap:0px; height:calc(100vh - 110px); grid-template-columns:minmax(0,1fr) 300px; grid-template-areas:'p2 p3';"
-            : "display:grid; gap:0px; height:calc(100vh - 110px); grid-template-columns:minmax(0,1fr) 300px; grid-template-rows:auto 1fr; grid-template-areas:'p1 p3' 'p2 p3';";
+            ? "display:grid; gap:0px; height:100%; grid-template-columns:minmax(0,1fr) 300px; grid-template-areas:'p2 p3';"
+            : "display:grid; gap:0px; height:100%; grid-template-columns:minmax(0,1fr) 300px; grid-template-rows:auto 1fr; grid-template-areas:'p1 p3' 'p2 p3';";
     }
 
     private static string PanelBox() =>

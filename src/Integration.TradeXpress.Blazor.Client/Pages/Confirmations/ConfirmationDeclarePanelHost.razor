@@ -1,0 +1,98 @@
+@using Integration.TradeXpress.Blazor.Client.Pages.CurrentTransactions
+@using Integration.TradeXpress.Vouchers
+@inherits Integration.TradeXpress.Blazor.Client.TradeXpressComponentBase
+
+@* "Kendi Girişimi Yaz" — alıcı KENDİ satırını KENDİ ELİYLE yazar; teklifin process tipine karşılık gelen
+   GERÇEK panel host edilir (ayrı/sahte bir beyan formu YOK → alıcı, gönderenle aynı aracı kullanır).
+   ÖN-DOLDURMA YOK: paneller boş doğar, gönderenin değerleri gösterilmez/kopyalanmaz (spec §6 — sistem
+   aynalamaz). Sunucu iki satırın AYNA olduğunu doğrular; tutmazsa MirrorMismatch ekrana düşer.
+   Paneller iki hiyerarşide yaşadığı için parametre setleri farklı (Context vs düz parametreler) —
+   olgunlaştırmada VoucherLineContext'te birleşecek (bkz. teyit-spec.md §11). *@
+
+@if (Row is null)
+{
+    return;
+}
+
+<div style="display:flex; flex-direction:column; gap:8px; min-height:0;">
+    <div style="font-size:12px; color:var(--bs-secondary-color);">@L["Confirmation:DeclareHint"]</div>
+
+    @if (UsesContext)
+    {
+        @switch (Row.ProcessType)
+        {
+            case ProcessType.Cash:
+                <CashProcessPanel Context="@BuildContext()" OnBack="@OnCancel"
+                                  OnConfirmationSubmitted="@OnSubmitted" />
+                break;
+            case ProcessType.Metal:
+                <MetalProcessPanel Context="@BuildContext()" OnBack="@OnCancel"
+                                   OnConfirmationSubmitted="@OnSubmitted" />
+                break;
+            case ProcessType.Scrap:
+                <ScrapProcessPanel Context="@BuildContext()" OnBack="@OnCancel"
+                                   OnConfirmationSubmitted="@OnSubmitted" />
+                break;
+            case ProcessType.Service:
+                <ServiceProcessPanel Context="@BuildContext()" OnBack="@OnCancel"
+                                     OnConfirmationSubmitted="@OnSubmitted" />
+                break;
+            case ProcessType.Future:
+                <FutureProcessPanel Context="@BuildContext()" OnBack="@OnCancel"
+                                    OnConfirmationSubmitted="@OnSubmitted" />
+                break;
+        }
+    }
+    else if (Row.ProcessType == ProcessType.Stone)
+    {
+        <StoneProcessPanel OnBack="@OnCancel"
+                           CompanyId="@CompanyId"
+                           BranchId="@BranchId"
+                           VaultId="@Row.CounterpartyVaultId"
+                           VoucherDate="@BusinessClock.Now()"
+                           CounterpartyVaultId="@Row.InitiatorVaultId"
+                           DeclareConfirmationId="@Row.Id"
+                           OnConfirmationSubmitted="@OnSubmitted" />
+    }
+    else if (Row.ProcessType == ProcessType.Jewelry)
+    {
+        <JewelryProcessPanel OnBack="@OnCancel"
+                             CompanyId="@CompanyId"
+                             BranchId="@BranchId"
+                             VaultId="@Row.CounterpartyVaultId"
+                             VoucherDate="@BusinessClock.Now()"
+                             CounterpartyVaultId="@Row.InitiatorVaultId"
+                             DeclareConfirmationId="@Row.Id"
+                             OnConfirmationSubmitted="@OnSubmitted" />
+    }
+    else if (Row.ProcessType == ProcessType.Good)
+    {
+        <GoodProcessPanel OnBack="@OnCancel"
+                          CompanyId="@CompanyId"
+                          BranchId="@BranchId"
+                          VaultId="@Row.CounterpartyVaultId"
+                          VoucherDate="@BusinessClock.Now()"
+                          CounterpartyVaultId="@Row.InitiatorVaultId"
+                          DeclareConfirmationId="@Row.Id"
+                          OnConfirmationSubmitted="@OnSubmitted" />
+    }
+    else if (Row.ProcessType == ProcessType.DebitNote)
+    {
+        <DebitNoteProcessPanel OnBack="@OnCancel"
+                               CompanyId="@CompanyId"
+                               BranchId="@BranchId"
+                               VaultId="@Row.CounterpartyVaultId"
+                               VoucherDate="@BusinessClock.Now()"
+                               CounterpartyVaultId="@Row.InitiatorVaultId"
+                               DeclareConfirmationId="@Row.Id"
+                               OnConfirmationSubmitted="@OnSubmitted" />
+    }
+    else
+    {
+        @* Policy'de KAPALI tip (Çevrim/Çeşni/Virman/Takoz) — teklif sunucuda zaten reddedilir; bu yalnız
+           eski/bozuk kayıt için savunma hattı. *@
+        <div style="padding:8px; border-radius:6px; border:1px solid #dc2626; color:#dc2626;">
+            @L["TradeXpress:Confirmation:ProcessTypeNotSupported"]
+        </div>
+    }
+</div>
