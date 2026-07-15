@@ -40,6 +40,25 @@ public class OrderAppService : TradeXpressAppService, IOrderAppService
     private readonly IN11OrderClient _n11OrderClient;
     private readonly ICurrentCompany _currentCompany;
 
+    // Ortak panel liste sorgusunda filtre/sıralama/aramaya İZİN VERİLEN alanlar (whitelist — Order entity property
+    // adları). CompanyId sunucu-zorlamalı olduğundan whitelist'te YOK (client daraltamaz). Id tie-breaker için dahil.
+    private static readonly HashSet<string> OrderListAllowedFields = new(StringComparer.OrdinalIgnoreCase)
+    {
+        nameof(Order.Id),
+        nameof(Order.SalesChannelId),
+        nameof(Order.ChannelType),
+        nameof(Order.OrderNumber),
+        nameof(Order.OrderDate),
+        nameof(Order.NeutralStatus),
+        nameof(Order.RemoteStatus),
+        nameof(Order.CustomerName),
+        nameof(Order.TotalAmount),
+        nameof(Order.CurrencyUnitId),
+        nameof(Order.CargoProvider),
+        nameof(Order.CargoTrackingNumber),
+        nameof(Order.FetchedAt),
+    };
+
     public OrderAppService(
         IRepository<Order, Guid> orderRepository,
         IRepository<OrderLine, Guid> orderLineRepository,
@@ -75,11 +94,21 @@ public class OrderAppService : TradeXpressAppService, IOrderAppService
             return new PagedResultDto<OrderListDto>(0, new List<OrderListDto>());
         }
 
-        // MASTER = SİPARİŞ (order düzeyinde sayfalı). Sıralama: order status → tarih (yeni→eski). DETAIL = siparişin
-        // kalemleri (master-detail grid), master satır açılınca gösterilir.
+        // MASTER = SİPARİŞ (order düzeyinde sayfalı). DETAIL = siparişin kalemleri (master-detail grid), master satır
+        // açılınca gösterilir. Şirket kapsamı (company-owned) SUNUCU zorlar; kanal/durum/tarih filtreleri + global arama
+        // MERKEZİ whitelist'li motorla (ApplyListRequest) uygulanır — kolon filtresi sessizce düşmez.
         var orderQuery = (await _orderRepository.GetQueryableAsync())
             .Where(o => o.CompanyId == companyId)
-            .OrderBy(o => o.NeutralStatus).ThenByDescending(o => o.OrderDate).ThenBy(o => o.Id);
+            .ApplyListRequest(input, OrderListAllowedFields);
+
+        // Client açık sıralama vermediyse alan-özel varsayılan sıralamayı uygula: order status → tarih (yeni→eski) → Id
+        // (ApplyListRequest'in yalnız-Id fallback'ini ezer). Açık sıralama varsa merkezi motorun kararına dokunma.
+        var hasExplicitSort = (input.Sorts is { Count: > 0 }) || !string.IsNullOrWhiteSpace(input.Sorting);
+        if (!hasExplicitSort)
+        {
+            orderQuery = orderQuery
+                .OrderBy(o => o.NeutralStatus).ThenByDescending(o => o.OrderDate).ThenBy(o => o.Id);
+        }
 
         var totalCount = await AsyncExecuter.CountAsync(orderQuery);
         var orders = await AsyncExecuter.ToListAsync(orderQuery.Skip(input.SkipCount).Take(input.MaxResultCount));

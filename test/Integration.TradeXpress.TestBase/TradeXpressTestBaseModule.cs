@@ -1,4 +1,5 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Http;
 using Volo.Abp;
 using Volo.Abp.Authorization;
 using Volo.Abp.Autofac;
@@ -25,6 +26,9 @@ public class TradeXpressTestBaseModule : AbpModule
         });
 
         context.Services.AddAlwaysAllowAuthorization();
+
+        // MediaAppService IHttpClientFactory ister (URL-import); testte gerçek dış çağrı yapılmaz, sadece DI çözülür.
+        context.Services.AddHttpClient();
     }
 
     public override void OnApplicationInitialization(ApplicationInitializationContext context)
