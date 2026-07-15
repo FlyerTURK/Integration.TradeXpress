@@ -4,7 +4,8 @@
    Aksiyon butonları duruma + TARAFA göre gate'lenir; gerçek yetki aksiyon çağrısında sunucuda TEKRAR enforce edilir.
    İPTAL BUTONU YOKTUR: gönderen teklifi geri çekemez — süreci yalnız alıcı Reddet ile durdurur. *@
 <DxGrid Data="@Rows" ShowSearchBox="false" PageSize="50" CssClass="w-100 tx-grid-fill"
-        KeyFieldName="@nameof(ConfirmationDto.Id)">
+        KeyFieldName="@nameof(ConfirmationDto.Id)"
+        SelectionMode="GridSelectionMode.Single" AllowSelectRowByClick="true">
     <Columns>
         <DxGridDataColumn FieldName="@nameof(ConfirmationDto.Status)" Caption="@L["Confirmation:Status"]" Width="130px">
             <CellDisplayTemplate>
@@ -36,8 +37,11 @@
         <DxGridDataColumn FieldName="@nameof(ConfirmationDto.PayUnitCode)" Caption="@L["Confirmation:PayUnit"]" Width="80px" />
         <DxGridDataColumn FieldName="@nameof(ConfirmationDto.CreationTime)" Caption="@L["Date"]" DisplayFormat="dd.MM.yyyy HH:mm" Width="140px" />
         <DxGridDataColumn FieldName="@nameof(ConfirmationDto.Note)" Caption="@L["Confirmation:Note"]" MinWidth="140" />
-        <DxGridDataColumn Caption="@L["Confirmation:Actions"]" AllowSort="false" AllowFilter="false"
-                          MinWidth="240" FixedPosition="GridColumnFixedPosition.Right">
+        @* Aksiyon kolonu. FieldName ZORUNLU: DxGridDataColumn, FieldName'siz HİÇ render edilmiyor (DOM kanıtı:
+           grid 12 kolonla çiziliyordu, "İşlemler" yoktu → kabul/red butonları hiç görünmüyordu). Gösterim
+           tamamen CellDisplayTemplate'ten geldiği için bağlanan alanın değeri ekrana çıkmaz; Id nötr taşıyıcı. *@
+        <DxGridDataColumn FieldName="@nameof(ConfirmationDto.Id)" Caption="@L["Confirmation:Actions"]"
+                          AllowSort="false" AllowFilter="false" Width="240px">
             <CellDisplayTemplate>
                 @{ var row = (ConfirmationDto)context.DataItem; }
                 <div style="display:flex; gap:6px; flex-wrap:wrap;">

@@ -29,8 +29,8 @@ namespace Integration.TradeXpress.Confirmations;
 ///
 /// <para><b>Generic (process-agnostik):</b> her taraf kendi TAM <see cref="VoucherLineDto"/>'sunu yazar,
 /// payload olarak saklanır ve teyitte <see cref="ConfirmationVoucherMaterializer"/> ile o tipin KENDİ poster'ı
-/// üzerinden materyalize edilir. Nakit'e özel dal YOKTUR; desteklenen tipler
-/// <see cref="ConfirmationProcessPolicy"/>'dedir (SSOT — UI aynı kuralı okur).</para>
+/// üzerinden materyalize edilir. Nakit'e özel dal YOKTUR ve TİP KISITI YOKTUR — her process tipi iç kipte
+/// açıktır (yalnız o tipin kendi izni aranır).</para>
 ///
 /// <para><b>Zero-trust:</b> tek taraflı beyan ötekinin defterini kımıldatmaz — Confirmed öncesi ledger'a
 /// HİÇBİR ŞEY yazılmaz. Ayna TAM tutmalıdır (emtia+varyant+miktar+tutar+ana/karşılık birimi+karşılık tutarı,
@@ -124,8 +124,8 @@ public class ConfirmationAppService : TradeXpressAppService, IConfirmationAppSer
 
     /// <summary>TEYİT: gönderen alıcının kaydını teyit eder → iki ayna bacak AYNI transaction'da atomik
     /// postlanır. Her bacak, o tarafın KENDİ payload'undan, o process tipinin KENDİ poster'ı üzerinden
-    /// materyalize edilir; fiş başlığı KARŞI kasanın vault-cari'sidir → karşılıklı borç/alacak kendiliğinden
-    /// doğar. Gerçekleşen fişler Teyit'e iliştirilir. Yetki = BAŞLATAN kasa.</summary>
+    /// materyalize edilir; fiş başlığının karşı tarafı KARŞI KASADIR (AccountType=Vault) → karşılıklı
+    /// borç/alacak kendiliğinden doğar. Gerçekleşen fişler Teyit'e iliştirilir. Yetki = BAŞLATAN kasa.</summary>
     [Authorize(TradeXpressPermissions.Confirmations.Confirm)]
     [UnitOfWork(isTransactional: true)]
     public virtual async Task<ConfirmationDto> ConfirmAsync(ConfirmConfirmationInput input)
@@ -146,13 +146,10 @@ public class ConfirmationAppService : TradeXpressAppService, IConfirmationAppSer
         var initiatorLine    = ConfirmationPayloadSerializer.Deserialize(confirmation.InitiatorPayloadJson);
         var counterpartyLine = ConfirmationPayloadSerializer.Deserialize(confirmation.CounterpartyPayloadJson);
 
-        // Kasa sistem carileri (idempotent lazy garanti) — her bacağın BAŞLIĞI KARŞI tarafın carisidir:
-        // A'nın satırı cari(B)'ye, B'nin satırı cari(A)'ya düşer → karşılıklı borç/alacak kendiliğinden doğar.
-        var initiatorCari    = await _materializer.EnsureVaultCurrentAccountAsync(company, initiator);
-        var counterpartyCari = await _materializer.EnsureVaultCurrentAccountAsync(company, counterparty);
-
-        var initiatorVoucher    = await _materializer.MaterializeAsync(company, initiator, counterpartyCari, initiatorLine);
-        var counterpartyVoucher = await _materializer.MaterializeAsync(company, counterparty, initiatorCari, counterpartyLine);
+        // Her bacağın BAŞLIĞI KARŞI KASADIR (AccountType=Vault; sahte cari YOK — 2026-07-15 ürün kararı):
+        // A'nın satırı B kasasına, B'nin satırı A kasasına düşer → karşılıklı borç/alacak kendiliğinden doğar.
+        var initiatorVoucher    = await _materializer.MaterializeAsync(company, initiator, counterparty, initiatorLine);
+        var counterpartyVoucher = await _materializer.MaterializeAsync(company, counterparty, initiator, counterpartyLine);
 
         confirmation.Confirm(initiatorVoucher.Id, counterpartyVoucher.Id, input.Note);
         await _confirmationRepository.UpdateAsync(confirmation, autoSave: true);
@@ -323,17 +320,12 @@ public class ConfirmationAppService : TradeXpressAppService, IConfirmationAppSer
         return companyId;
     }
 
-    /// <summary>İç kip guard'ı: tip <see cref="ConfirmationProcessPolicy"/>'de AÇIK olmalı (UI gate'i bypass eden
-    /// doğrudan API çağrısına karşı) + kullanıcı o process tipinin KENDİ iznine sahip olmalı — Teyit, normal
-    /// yolda yazamayacağı bir satırı yazmanın arka kapısı OLAMAZ (ProcessTypePermissionMap tek kaynak).</summary>
+    /// <summary>İç kip guard'ı: kullanıcı o process tipinin KENDİ iznine sahip olmalı — Teyit, normal yolda
+    /// yazamayacağı bir satırı yazmanın arka kapısı OLAMAZ (ProcessTypePermissionMap tek kaynak).
+    /// <para><b>Tip kısıtı YOK</b> (2026-07-15 kullanıcı kararı): iç kipte TÜM process tipleri açıktır —
+    /// Teyit process-agnostiktir, her tip kendi poster'ı üzerinden materyalize olur.</para></summary>
     private async Task EnsureProcessAllowedAsync(ProcessType type)
     {
-        if (!ConfirmationProcessPolicy.IsInternalModeSupported(type))
-        {
-            throw new BusinessException("TradeXpress:Confirmation:ProcessTypeNotSupported")
-                .WithData("processType", type);
-        }
-
         await AuthorizationService.CheckAsync(ProcessTypePermissionMap.PermissionFor(type));
     }
 

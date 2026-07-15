@@ -5,7 +5,6 @@ using System.Linq;
 using System.Threading.Tasks;
 using Integration.TradeXpress.Accounts;
 using Integration.TradeXpress.Branches;
-using Integration.TradeXpress.Confirmations;
 using Integration.TradeXpress.Permissions;
 using Integration.TradeXpress.Vaults;
 using Integration.TradeXpress.Vouchers;
@@ -73,18 +72,15 @@ public partial class AccountSelectionPanel
     private SubAccountListDto? _pendingSubAccount;
 
 
-    private List<AccountListDto>    _accounts = new();
     private List<SubAccountListDto> _subAccounts = new();
-    private List<VaultListDto>      _branchVaults = new();
+    // Kendi kasa listem = "o şubede + YETKİLİ olduğum" kasalar (GetMyVaultsAsync — kapsam-grant'i sunucuda
+    // eler). Genel VaultAppService.GetListAsync yönetim listesidir, kapsam daraltmaz → burada kullanılmaz.
+    private List<MyVaultDto>        _branchVaults = new();
 
-    /// <summary>Cascade üst combosunun seçimi (ana hesap). Yalnız FİLTREDİR — voucher modeli SubAccount
-    /// seçiminden beslenir (_model.AccountId, OnSubAccountChanged'de seçili alt hesabın parent'ından atanır).</summary>
+    /// <summary>Seçili alt hesabın AccountId'si (2026-07-15: ayrı Account combo YOK — tek kaynak
+    /// <see cref="OnSubAccountChanged"/>; burada yalnız SubAccount edit-popup önseçimi için tutulur,
+    /// bkz. <see cref="AccountPopupExtra"/>).</summary>
     private Guid? _selectedAccountId;
-
-    /// <summary>Alt hesap combosunun cascade datasource'u: YALNIZ seçili ana hesabın alt hesapları.
-    /// Hesap seçili değilken boş (combo o durumda zaten gizli — akış daima hesap→alt hesap).</summary>
-    private IEnumerable<SubAccountListDto> FilteredSubAccounts
-        => _selectedAccountId is { } acc ? _subAccounts.Where(s => s.AccountId == acc) : Enumerable.Empty<SubAccountListDto>();
 
     // ── İç karşı taraf (Teyit) kipi ────────────────────────────────────────────────────
     private List<BranchListDto> _counterpartyBranches = new();
@@ -95,13 +91,17 @@ public partial class AccountSelectionPanel
     /// <summary>Kip rotadan sabit gelir (<see cref="Mode"/>) — kullanıcı form içinden değiştiremez.</summary>
     private bool IsInternalMode => Mode == CounterpartyMode.InternalVault;
 
-    /// <summary>Alt satırların (fiş/kasa/açıklama/TAMAM) görünürlük koşulu: Cari kipinde alt hesap,
-    /// İç Kasa kipinde karşı kasa seçilmiş olmalı.</summary>
-    private bool SelectionReady => IsInternalMode ? _counterpartyVaultId.HasValue : _model.SubAccountId.HasValue;
+    /// <summary>Alt satırların (fiş/kasa/açıklama/tarih/TAMAM) görünürlük koşulu — KİPTEN BAĞIMSIZ: cari
+    /// seçilmiş olmalı. İç kipte de dolar: seçilen KASA doğrudan bu alana oturur
+    /// (<see cref="OnCounterpartyVaultChangedAsync"/>) → form dış cari formuyla birebir aynı sürer.</summary>
+    private bool SelectionReady => _model.SubAccountId.HasValue;
 
-    /// <summary>Karşı kasa seçenekleri — kendi kasam (başlatan) karşı taraf OLAMAZ (sunucu da reddeder).</summary>
+    /// <summary>Karşı kasa seçenekleri — kendi kasam (başlatan) karşı taraf OLAMAZ (sunucu da reddeder).
+    /// İki kaynak hariç tutulur: formdaki seçili gönderen kasa (<see cref="_model"/>.VaultId) VE çalışma
+    /// parametrelerindeki (üst menü) çalıştığım kasa (<see cref="IWorkingContextService.CurrentVaultId"/>) —
+    /// ikincisi form henüz senkronize olmadan/kullanıcı "Kendi kasam" combosunu değiştirdiğinde de korunsun diye.</summary>
     private IEnumerable<VaultListDto> CounterpartyVaultOptions
-        => _counterpartyVaults.Where(v => v.Id != _model.VaultId);
+        => _counterpartyVaults.Where(v => v.Id != _model.VaultId && v.Id != Working.CurrentVaultId);
 
     private const int VoucherPageSize = 1000;
     private static readonly Guid SentinelId = new("00000000-0000-0000-0000-000000000001");
@@ -151,12 +151,10 @@ public partial class AccountSelectionPanel
 
         // SIRALI await (Task.WhenAll DEĞİL): Blazor Server'da bu servisler aynı circuit scope'unun
         // DbContext'ini paylaşır — paralel iki EF sorgusu aralıklı "second operation started" çökmesi üretir.
-        var accResult   = await AccountService.GetListAsync(new AccountListRequestDto { MaxResultCount = 1000 });
         var subResult   = await SubAccountService.GetListAsync(new SubAccountListRequestDto { BranchId = Working.CurrentBranchId, MaxResultCount = 1000 });
-        var vaultResult = await VaultService.GetListAsync(new VaultListRequestDto { BranchId = Working.CurrentBranchId, MaxResultCount = 1000 });
-        _accounts     = accResult.Items.ToList();
+        var myVaults    = await VaultService.GetMyVaultsAsync(Working.CurrentBranchId);
         _subAccounts  = subResult.Items.ToList();
-        _branchVaults = vaultResult.Items.ToList();
+        _branchVaults = myVaults;
 
         // İç kip rotadan sabit → karşı ŞUBE listesi baştan hazır olmalı (kip combo'su yok, tetikleyecek
         // "kip değişti" anı da yok). Cari kipte bu sorgu HİÇ atılmaz — dış akışın maliyeti değişmez.
@@ -205,16 +203,10 @@ public partial class AccountSelectionPanel
         return _grantedProcesses.TryGetValue(type, out var granted) && granted;
     }
 
-    /// <summary>İşlem tipi butonu çizilsin mi: yetki + kip. İç kasa kipinde desteklenen tipler
-    /// <see cref="ConfirmationProcessPolicy"/>'dedir (SSOT — sunucu Propose'da AYNI kuralı zorlar; burası
-    /// yalnız UI gate'i). Kapalı tiplerin gerekçesi policy'nin içinde.</summary>
+    /// <summary>İşlem tipi butonu çizilsin mi: YALNIZ yetki. Kipe göre tip kısıtı YOKTUR (2026-07-15 kullanıcı
+    /// kararı) — iç kip cari kipiyle birebir aynı işlem setini sunar; sunucu da yalnız izni arar.</summary>
     private bool IsProcessVisible(ProcessType type)
     {
-        if (IsInternalMode && !ConfirmationProcessPolicy.IsInternalModeSupported(type))
-        {
-            return false;
-        }
-
         return IsProcessGranted(type);
     }
 
@@ -240,9 +232,9 @@ public partial class AccountSelectionPanel
         _counterpartyBranchId = branchId;
         _counterpartyVaultId  = null;
         _counterpartyVaults   = new();
-        _locked            = false;
-        _showActionToolbar = false;
-        await SetActiveProcessAsync(null);
+
+        // Şube düştü → seçili kasa da düşer (Cari kipinde hesap temizlenince alt hesabın düşmesiyle simetrik).
+        await ApplyCounterpartyVaultSelectionAsync(null);
 
         if (branchId is not { } id)
         {
@@ -253,25 +245,76 @@ public partial class AccountSelectionPanel
         _counterpartyVaults = result.Items.Where(v => v.IsActive).ToList();
     }
 
-    /// <summary>Karşı KASA seçildi = karşı taraf belirlendi (Teyit'in muhatabı).</summary>
+    /// <summary>Karşı KASA seçildi = karşı taraf belirlendi (Teyit'in muhatabı).
+    /// <para><b>Kasa KASADIR (2026-07-15 ürün kararı):</b> artık sahte bir cariye ÇÖZÜLMEZ — Şube→Kasa
+    /// DOĞRUDAN karşı-taraf alanlarına oturur (<c>_model.AccountId</c>=Şube, <c>_model.SubAccountId</c>=Kasa;
+    /// fişte <c>AccountType=Vault</c>). Alanlar polimorfik olduğu için formun geri kalanı (işlem gridi ·
+    /// bakiye gridi · fiş combosu · tarih · Liste) BİREBİR dış cari akışıyla, tek satır değişmeden çalışır —
+    /// hepsi SubAccountId ile sürülür.</para></summary>
     private async Task OnCounterpartyVaultChangedAsync(Guid? vaultId)
     {
         _counterpartyVaultId = vaultId;
-        _locked            = false;
-        _showActionToolbar = false;
-        await SetActiveProcessAsync(null);
 
         // Kendi kasam boşsa şubemin ilk kasasını başlatan yap (Cari akışındaki varsayılanla aynı davranış).
         if (_model.VaultId == null && _branchVaults.Count > 0)
         {
             _model.VaultId = _branchVaults[0].Id;
         }
+
+        await ApplyCounterpartyVaultSelectionAsync(vaultId);
+    }
+
+    /// <summary>Seçilen karşı KASAYI (ya da temizlemeyi) Cari kipiyle AYNI kanaldan uygular: model + kodlar +
+    /// fiş listesi + forma bildirim. Böylece iç kip için ikinci bir "seçim uygulama" yolu doğmaz.
+    /// <para>Polimorfik eşleme: Şube → AccountId/AccountCode · Kasa → SubAccountId/SubAccountCode. Başlık
+    /// zaten Şube/Kasa kodunu gösterir; kod artık fişe de SNAPSHOT olarak yazılır (ham GUID gösterimi bitti).</para></summary>
+    private async Task ApplyCounterpartyVaultSelectionAsync(Guid? vaultId)
+    {
+        var vault  = vaultId.HasValue ? _counterpartyVaults.FirstOrDefault(v => v.Id == vaultId.Value) : null;
+        var branch = vault is null ? null : _counterpartyBranches.FirstOrDefault(b => b.Id == _counterpartyBranchId);
+
+        _model.AccountType      = vault is null ? AccountType.CurrentAccount : AccountType.Vault;
+        _model.AccountId        = branch?.Id ?? Guid.Empty;      // üst kimlik = ŞUBE
+        _model.SubAccountId     = vault?.Id;                     // alt kimlik = KASA
+        _selectedAccountCode    = branch?.Code;
+        _selectedSubAccountCode = vault?.Code;
+        _selectedVoucherId      = null;
+
+        _locked            = false;
+        _showActionToolbar = false;
+        await SetActiveProcessAsync(null);
+
+        _voucherItems  = new();
+        _voucherOffset = 0;
+        if (vault is not null)
+        {
+            await LoadVouchersAsync();
+        }
+
+        // Form seçimi Cari kipiyle aynı sözleşmeden öğrenir (sekme başlığı + bakiye + grid tek yoldan sürülür).
+        await OnSubAccountSelected.InvokeAsync(vault is null
+            ? null
+            : new SubAccountListDto
+            {
+                Id          = vault.Id,
+                AccountId   = branch?.Id ?? Guid.Empty,
+                Code        = vault.Code,
+                AccountCode = branch?.Code ?? string.Empty,
+            });
     }
 
     /// <summary>Cari seçimini dışarıdan temizler — form, aynı cari BAŞKA bir Cari İşlemler sekmesinde
     /// zaten açıksa seçimi geri alıp o sekmeye geçer (aynı carinin ikinci sekmesi açılmaz).</summary>
     public async Task ClearSubAccountSelectionAsync()
     {
+        // İç kipte seçim ekseni kasadır → carinin yanında KASA seçimi de düşmeli (aksi halde combo dolu
+        // görünürken form boş kalırdı). Cari kipinde davranış aynen korunur.
+        if (IsInternalMode)
+        {
+            await OnCounterpartyVaultChangedAsync(null);
+            return;
+        }
+
         await OnSubAccountChanged(null);
     }
 
@@ -430,98 +473,6 @@ public partial class AccountSelectionPanel
     private Task OnAssayClicked()      => SetActiveProcessAsync("Assay");
     private Task OnDebitNoteClicked()  => SetActiveProcessAsync("DebitNote");
     private Task OnTransferClicked()   => SetActiveProcessAsync("Transfer");
-
-    /// <summary>Üst (Account) combo seçimi değişti: hesap temizlenirse alt hesap da TEMİZLENİR (combo
-    /// gizlenir); hesap seçilirse o hesabın İLK alt hesabı otomatik seçilir (mevcut seçim zaten o
-    /// hesabınsa dokunulmaz).</summary>
-    private async Task OnAccountFilterChanged(Guid? accountId)
-    {
-        _selectedAccountId = accountId;
-
-        if (accountId is not { } acc)
-        {
-            await OnSubAccountChanged(null);   // hesap yok → alt hesap seçimi de yok (combo gizli)
-            return;
-        }
-
-        var currentSub = _model.SubAccountId.HasValue
-            ? _subAccounts.FirstOrDefault(s => s.Id == _model.SubAccountId.Value)
-            : null;
-        if (currentSub?.AccountId == acc)
-        {
-            return; // seçili alt hesap zaten bu hesabın — dokunma
-        }
-
-        var firstSub = _subAccounts.FirstOrDefault(s => s.AccountId == acc);
-        await OnSubAccountChanged(firstSub?.Id);
-        if (firstSub is not null)
-        {
-            await OnSubAccountLostFocus(); // otomatik seçimi forma anında bildir (blur bekleme)
-        }
-    }
-
-    private bool _mainAccountPopupSaved;
-
-    /// <summary>Account combo "düzelt": seçili ANA HESABI standart AccountEditHost POPUP'ında açar —
-    /// alt hesap drill'i formun içinde (mevcut hesaba alt hesap ekleme/yönetme yeri TAM BURASI).</summary>
-    private async Task OnEditAccountAsync(Guid? accountId)
-    {
-        if (accountId is not { } id || id == Guid.Empty) return;
-        var acc = _accounts.FirstOrDefault(a => a.Id == id);
-        var title = acc is not null ? $"{L["Account"]}: {acc.Code}" : L["Account"].Value;
-        await OpenAccountPopupAsync(id, title);
-    }
-
-    /// <summary>Account combo "ekle": YENİ ana hesabı standart AccountEditHost POPUP'ında açar.
-    /// ANAHESAP alt hesabı formun drill'inde otomatik/görünür gelir; kaydedilince combo'lar tazelenir,
-    /// yeni hesap üst comboda seçilir ve İLK alt hesabı (ANAHESAP) alt comboda otomatik seçilir.</summary>
-    private async Task<Guid?> OnAddAccountAsync()
-    {
-        await OpenAccountPopupAsync(null, L["Account"].Value);
-        return null;   // seçim popup-sonrası refresh akışında yapılır
-    }
-
-    /// <summary>STANDART popup+refresh+odak: AccountEditHost popup'ı → kaydedilince hesap+alt hesap
-    /// listeleri TAZELENİR; ekle → yeni hesaba (ve ilk alt hesabına), düzelt → mevcut seçime odaklanır.</summary>
-    private async Task OpenAccountPopupAsync(Guid? accountId, string title)
-    {
-        _mainAccountPopupSaved = false;
-        var beforeIds = _accounts.Select(a => a.Id).ToHashSet();
-
-        await ViewOpener.OpenAsync(
-            typeof(Integration.TradeXpress.Blazor.Client.Pages.Accounts.AccountEditHost),
-            accountId, title, TradeXpressIcons.Account, MainAccountPopupExtra());
-
-        if (!_mainAccountPopupSaved) return;                   // iptal → tazeleme/odak yok
-
-        await ReloadAccountsAsync();
-        await ReloadSubAccountsAsync();                        // drill'de eklenen alt hesaplar da yansısın
-
-        // Odak: ekle → yeni hesap (before'da olmayan); düzelt → mevcut seçim (display tazelenir).
-        var focus = _accounts.FirstOrDefault(a => !beforeIds.Contains(a.Id))
-                    ?? _accounts.FirstOrDefault(a => a.Id == _selectedAccountId);
-        if (focus is not null)
-        {
-            await OnAccountFilterChanged(focus.Id);            // ilk alt hesabı (ANAHESAP) da otomatik seçer
-        }
-        await InvokeAsync(StateHasChanged);
-    }
-
-    /// <summary>Popup kancaları: kaydet → bayrak set + kapat; kapat → sadece kapat (merkezî IPopupService).</summary>
-    private Dictionary<string, object> MainAccountPopupExtra()
-    {
-        return new()
-        {
-            { "OnSaved",  EventCallback.Factory.Create(this, () => { _mainAccountPopupSaved = true; PopupService.Close(); }) },
-            { "OnClosed", EventCallback.Factory.Create(this, () => PopupService.Close()) },
-        };
-    }
-
-    private async Task ReloadAccountsAsync()
-    {
-        var res = await AccountService.GetListAsync(new AccountListRequestDto { MaxResultCount = 1000 });
-        _accounts = res.Items.ToList();
-    }
 
     private bool _accountPopupSaved;
 

@@ -38,9 +38,11 @@ public partial class VoucherAppService : TradeXpressAppService, IVoucherAppServi
     private readonly IScopedGrantResolver _scopedGrantResolver;
     private readonly VoucherNumberAllocator _numberAllocator;
     private readonly VoucherCodeResolver _codeResolver;
+    private readonly VoucherCounterpartyResolver _counterpartyResolver;
     private readonly VoucherStatementService _statementService;
     private readonly VoucherBullionStockService _bullionStockService;
     private readonly VoucherTransferService _transferService;
+    private readonly VoucherLineHistoryRecorder _historyRecorder;
 
     public VoucherAppService(
         IRepository<Voucher, Guid> repository,
@@ -51,9 +53,11 @@ public partial class VoucherAppService : TradeXpressAppService, IVoucherAppServi
         IScopedGrantResolver scopedGrantResolver,
         VoucherNumberAllocator numberAllocator,
         VoucherCodeResolver codeResolver,
+        VoucherCounterpartyResolver counterpartyResolver,
         VoucherStatementService statementService,
         VoucherBullionStockService bullionStockService,
-        VoucherTransferService transferService)
+        VoucherTransferService transferService,
+        VoucherLineHistoryRecorder historyRecorder)
     {
         _repository          = repository;
         _branchRepository    = branchRepository;
@@ -62,10 +66,12 @@ public partial class VoucherAppService : TradeXpressAppService, IVoucherAppServi
         _currentCompany      = currentCompany;
         _scopedGrantResolver = scopedGrantResolver;
         _numberAllocator     = numberAllocator;
-        _codeResolver        = codeResolver;
+        _codeResolver         = codeResolver;
+        _counterpartyResolver = counterpartyResolver;
         _statementService    = statementService;
         _bullionStockService = bullionStockService;
         _transferService     = transferService;
+        _historyRecorder     = historyRecorder;
     }
 
     public async Task<VoucherGetDto> CreateAsync(VoucherCreateDto input)
@@ -74,12 +80,20 @@ public partial class VoucherAppService : TradeXpressAppService, IVoucherAppServi
         var companyId = EnsureCurrentCompanyId();
         await EnsureOrgScopeAsync(companyId, input.BranchId, input.VaultId);
 
+        // Karşı taraf kodları SUNUCU-OTORİTER çözülür (istemciden gelen koda güvenilmez).
+        var counterparty = input.AccountType == AccountType.Vault
+            ? await _counterpartyResolver.ResolveVaultAsync(companyId, input.SubAccountId ?? Guid.Empty)
+            : await _counterpartyResolver.ResolveCurrentAccountAsync(companyId, input.AccountId, input.SubAccountId);
+
         var entity = new Voucher(
             companyId,
             input.BranchId,
             input.VaultId,
-            input.AccountId,
-            input.SubAccountId,
+            counterparty.AccountType,
+            counterparty.AccountId,
+            counterparty.AccountCode,
+            counterparty.SubAccountId,
+            counterparty.SubAccountCode,
             await _numberAllocator.NextNumberAsync(companyId),
             input.VoucherDate,
             input.Description);
@@ -88,15 +102,18 @@ public partial class VoucherAppService : TradeXpressAppService, IVoucherAppServi
 
         return new VoucherGetDto
         {
-            Id            = entity.Id,
-            CompanyId     = entity.CompanyId,
-            BranchId      = entity.BranchId,
-            VaultId       = entity.VaultId,
-            AccountId     = entity.AccountId,
-            SubAccountId  = entity.SubAccountId,
-            VoucherNumber = entity.VoucherNumber,
-            VoucherDate   = entity.VoucherDate,
-            Description   = entity.Description,
+            Id             = entity.Id,
+            CompanyId      = entity.CompanyId,
+            BranchId       = entity.BranchId,
+            VaultId        = entity.VaultId,
+            AccountType    = entity.AccountType,
+            AccountId      = entity.AccountId,
+            AccountCode    = entity.AccountCode,
+            SubAccountId   = entity.SubAccountId,
+            SubAccountCode = entity.SubAccountCode,
+            VoucherNumber  = entity.VoucherNumber,
+            VoucherDate    = entity.VoucherDate,
+            Description    = entity.Description,
         };
     }
 
@@ -158,17 +175,26 @@ public partial class VoucherAppService : TradeXpressAppService, IVoucherAppServi
             // Bayat istemci kontrolü: okuma anındaki stamp değişmişse (başkası düzenledi) reddet.
             EnsureVoucherNotStale(voucher, input.VoucherConcurrencyStamp);
 
+            VoucherLine savedLine;
+            VoucherLineChangeType changeType;
             if (input.Id != Guid.Empty)
             {
                 voucher.UpdateLine(input.Id, lineInput);
                 lineId = input.Id;
+                savedLine  = voucher.Lines.First(l => l.Id == lineId);
+                changeType = VoucherLineChangeType.Updated;
             }
             else
             {
-                lineId = voucher.AddLine(GuidGenerator.Create(), lineInput).Id;
+                savedLine  = voucher.AddLine(GuidGenerator.Create(), lineInput);
+                lineId     = savedLine.Id;
+                changeType = VoucherLineChangeType.Created;
             }
 
             await _repository.UpdateAsync(voucher, autoSave: true);   // ABP stamp döngüsü paralel isteği zaten yakalar
+
+            // Gölge günlük — çekirdek posting/bakiyeyi ETKİLEMEZ, AYNI UoW içinde (2026-07-15 kullanıcı isteği).
+            await _historyRecorder.RecordAsync(voucher, savedLine, changeType);
         }
         else
         {
@@ -177,19 +203,31 @@ public partial class VoucherAppService : TradeXpressAppService, IVoucherAppServi
             var companyId = EnsureCurrentCompanyId();
             await EnsureOrgScopeAsync(companyId, input.BranchId, input.VaultId);
 
+            // Satır kaydı DAİMA dış cari yoludur: iç kip satırı postlamaz, Teyit kurar (materyalizasyon
+            // ConfirmationVoucherMaterializer'da, kasa başlıklı fişle). Kodlar sunucu-otoriter çözülür.
+            var counterparty = await _counterpartyResolver.ResolveCurrentAccountAsync(
+                companyId, input.AccountId, input.SubAccountId);
+
             voucher = new Voucher(
                 companyId,
                 input.BranchId,
                 input.VaultId,
-                input.AccountId,
-                input.SubAccountId,
+                counterparty.AccountType,
+                counterparty.AccountId,
+                counterparty.AccountCode,
+                counterparty.SubAccountId,
+                counterparty.SubAccountCode,
                 await _numberAllocator.NextNumberAsync(companyId),
                 input.VoucherDate,
                 input.VoucherDescription);
 
-            lineId = voucher.AddLine(GuidGenerator.Create(), lineInput).Id;
+            var newLine = voucher.AddLine(GuidGenerator.Create(), lineInput);
+            lineId = newLine.Id;
 
             await _numberAllocator.InsertNumberedAsync(voucher);
+
+            // Gölge günlük — çekirdek posting/bakiyeyi ETKİLEMEZ, AYNI UoW içinde (2026-07-15 kullanıcı isteği).
+            await _historyRecorder.RecordAsync(voucher, newLine, VoucherLineChangeType.Created);
         }
 
         // Ledger senkronu (poster çıktısı → kalıcı): voucher kaydedildikten sonra, aynı UoW içinde.
@@ -213,6 +251,8 @@ public partial class VoucherAppService : TradeXpressAppService, IVoucherAppServi
     {
         // Company scope: yalnız working şirketin fişleri (sızıntı önleme).
         var companyId = EnsureCurrentCompanyId();
+        // SubAccountId POLİMORFİK anahtardır (cari kipinde alt hesap, kasa kipinde kasa) → kasa fiş listesi
+        // de bu sorgudan, imza/filtre değişmeden gelir.
         var voucherQ = (await _repository.GetQueryableAsync())
             .Where(v => v.CompanyId == companyId && v.SubAccountId == input.SubAccountId)
             .OrderByDescending(v => v.VoucherDate);
@@ -277,8 +317,9 @@ public partial class VoucherAppService : TradeXpressAppService, IVoucherAppServi
         await _codeResolver.ResolveCreatorNamesAsync(dtos);
 
         // Yürüyen bakiye: devreden (ilk satırdan ÖNCEKİ tüm satırlar) + satır-satır birikim.
-        if (displayed.Count > 0 && voucher.SubAccountId is { } subId)
+        if (displayed.Count > 0)
         {
+            var subId    = voucher.SubAccountId;
             var boundary = displayed[0].CreationTime;
             var carryLines = await AsyncExecuter.ToListAsync(
                 (await _repository.GetQueryableAsync())
@@ -351,6 +392,10 @@ public partial class VoucherAppService : TradeXpressAppService, IVoucherAppServi
                    ?? throw new EntityNotFoundException(typeof(VoucherLine), lineId);
         await EnsureTransactionPermissionAsync(line.Type);
 
+        // Silmeden ÖNCE snapshot: soft-delete olduğundan satır hâlâ okunabilir ama anlamlı anlık görüntü
+        // (silinmemiş SON hâl) IsDeleted işaretinden ÖNCE alınmalı.
+        await _historyRecorder.RecordAsync(voucher, line, VoucherLineChangeType.Deleted);
+
         voucher.RemoveLine(lineId);
         await _repository.UpdateAsync(voucher, autoSave: true);   // ABP stamp döngüsü paralel isteği zaten yakalar
         await _ledgerSynchronizer.SyncVoucherAsync(voucher);
@@ -370,6 +415,20 @@ public partial class VoucherAppService : TradeXpressAppService, IVoucherAppServi
         var companyId = EnsureCurrentCompanyId();   // company scope (sızıntı önleme)
         return await _statementService.GetBalancesAsync(companyId, subAccountId, upTo);
     }
+
+    public async Task<AccountBalanceDto> GetAccountBalancesAsync(Guid accountId, DateTime? upTo = null)
+    {
+        var companyId = EnsureCurrentCompanyId();   // company scope (sızıntı önleme)
+        return await _statementService.GetAccountScopedBalancesAsync(companyId, accountId, upTo);
+    }
+
+    public async Task<UnitStatementDto> GetUnitStatementAsync(
+        Guid scopeId, bool scopeIsAccount, Guid unitId, DateTime start, DateTime endExclusive)
+    {
+        var companyId = EnsureCurrentCompanyId();   // company scope (sızıntı önleme)
+        return await _statementService.GetUnitStatementAsync(companyId, scopeIsAccount, scopeId, unitId, start, endExclusive);
+    }
+
 
     public async Task<List<BullionStockItemDto>> GetBullionStockAsync(bool? inStock = null)
     {

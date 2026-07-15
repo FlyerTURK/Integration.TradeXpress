@@ -24,8 +24,10 @@ public class VoucherTransferService : ITransientDependency
     private readonly IRepository<Account, Guid> _accountRepository;
     private readonly BalanceLedgerSynchronizer _ledgerSynchronizer;
     private readonly VoucherNumberAllocator _numberAllocator;
+    private readonly VoucherCounterpartyResolver _counterpartyResolver;
     private readonly IGuidGenerator _guidGenerator;
     private readonly IAsyncQueryableExecuter _asyncExecuter;
+    private readonly VoucherLineHistoryRecorder _historyRecorder;
 
     public VoucherTransferService(
         IRepository<Voucher, Guid> repository,
@@ -33,16 +35,20 @@ public class VoucherTransferService : ITransientDependency
         IRepository<Account, Guid> accountRepository,
         BalanceLedgerSynchronizer ledgerSynchronizer,
         VoucherNumberAllocator numberAllocator,
+        VoucherCounterpartyResolver counterpartyResolver,
         IGuidGenerator guidGenerator,
-        IAsyncQueryableExecuter asyncExecuter)
+        IAsyncQueryableExecuter asyncExecuter,
+        VoucherLineHistoryRecorder historyRecorder)
     {
         _repository           = repository;
         _subAccountRepository = subAccountRepository;
         _accountRepository    = accountRepository;
         _ledgerSynchronizer   = ledgerSynchronizer;
         _numberAllocator      = numberAllocator;
+        _counterpartyResolver = counterpartyResolver;
         _guidGenerator        = guidGenerator;
         _asyncExecuter        = asyncExecuter;
+        _historyRecorder      = historyRecorder;
     }
 
     /// <summary>Virman hazırlığının taşıyıcısı: kaynak/karşı alt hesap kimlikleri + karşı hesabın üst
@@ -138,11 +144,15 @@ public class VoucherTransferService : ITransientDependency
             twinVoucher.UpdateLine(twin.Id, twinInput);
             await _repository.UpdateAsync(twinVoucher, autoSave: true);
             await _ledgerSynchronizer.SyncVoucherAsync(twinVoucher);
+
+            var updatedTwin = twinVoucher.Lines.First(l => l.Id == twin.Id);
+            await _historyRecorder.RecordAsync(twinVoucher, updatedTwin, VoucherLineChangeType.Updated);
             return;
         }
 
         // Karşı hesap değişti: fiş = tek cari olduğundan ikiz taşınamaz — eski fişten düşer,
         // yeni karşı hesabın fişinde yeniden açılır (LinkId aynı kalır).
+        await _historyRecorder.RecordAsync(twinVoucher, twin, VoucherLineChangeType.Deleted);
         twinVoucher.RemoveLine(twin.Id);
         await _repository.UpdateAsync(twinVoucher, autoSave: true);
         await _ledgerSynchronizer.SyncVoucherAsync(twinVoucher);
@@ -164,6 +174,9 @@ public class VoucherTransferService : ITransientDependency
 
         var twinVoucher = await _repository.GetAsync(twin.VoucherId);
         await _repository.EnsureCollectionLoadedAsync(twinVoucher, v => v.Lines);
+
+        await _historyRecorder.RecordAsync(twinVoucher, twin, VoucherLineChangeType.Deleted);
+
         twinVoucher.RemoveLine(twin.Id);
         await _repository.UpdateAsync(twinVoucher, autoSave: true);
         await _ledgerSynchronizer.SyncVoucherAsync(twinVoucher);
@@ -176,21 +189,31 @@ public class VoucherTransferService : ITransientDependency
     private async Task CreateTransferTwinVoucherAsync(
         Voucher primaryVoucher, VoucherLineInput twinInput, TransferContext ctx)
     {
+        // Virman DAİMA cari↔cari'dir (kasa karşı tarafı Teyit yolundan gelir) → karşı taraf CurrentAccount;
+        // kod snapshot'ları sunucu-otoriter çözülür (fişin diğer yazma yollarıyla aynı kapı).
+        var counterparty = await _counterpartyResolver.ResolveCurrentAccountAsync(
+            primaryVoucher.CompanyId, ctx.CounterParentAccountId, ctx.CounterSubAccountId);
+
         var counterVoucher = new Voucher(
             primaryVoucher.CompanyId,
             primaryVoucher.BranchId,
             primaryVoucher.VaultId,
-            ctx.CounterParentAccountId,
-            ctx.CounterSubAccountId,
+            counterparty.AccountType,
+            counterparty.AccountId,
+            counterparty.AccountCode,
+            counterparty.SubAccountId,
+            counterparty.SubAccountCode,
             await _numberAllocator.NextNumberAsync(primaryVoucher.CompanyId),
             primaryVoucher.VoucherDate,
             primaryVoucher.Description);
 
-        counterVoucher.AddLine(_guidGenerator.Create(), twinInput);
+        var twinLine = counterVoucher.AddLine(_guidGenerator.Create(), twinInput);
 
         await _numberAllocator.InsertNumberedAsync(counterVoucher);
 
         await _ledgerSynchronizer.SyncVoucherAsync(counterVoucher);
+
+        await _historyRecorder.RecordAsync(counterVoucher, twinLine, VoucherLineChangeType.Created);
     }
 
     /// <summary>İkiz satır girdisi: birincil satırın kopyası, yön TERS (Giriş↔Çıkış), karşı referans

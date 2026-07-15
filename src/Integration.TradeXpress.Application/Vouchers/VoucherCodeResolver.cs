@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Integration.TradeXpress.Accounts;
 using Integration.TradeXpress.Bullions;
+using Integration.TradeXpress.Companies;
 using Integration.TradeXpress.Financials.CurrencyUnits;
 using Volo.Abp.Data;
 using Volo.Abp.DependencyInjection;
@@ -24,6 +25,7 @@ public class VoucherCodeResolver : ITransientDependency
     private readonly IRepository<CurrencyUnit, Guid> _unitRepository;
     private readonly IRepository<SubAccount, Guid> _subAccountRepository;
     private readonly IRepository<Account, Guid> _accountRepository;
+    private readonly IRepository<Company, Guid> _companyRepository;
     private readonly IDataFilter _dataFilter;
     private readonly ICurrentTenant _currentTenant;
     private readonly IAsyncQueryableExecuter _asyncExecuter;
@@ -33,6 +35,7 @@ public class VoucherCodeResolver : ITransientDependency
         IRepository<CurrencyUnit, Guid> unitRepository,
         IRepository<SubAccount, Guid> subAccountRepository,
         IRepository<Account, Guid> accountRepository,
+        IRepository<Company, Guid> companyRepository,
         IDataFilter dataFilter,
         ICurrentTenant currentTenant,
         IAsyncQueryableExecuter asyncExecuter,
@@ -41,6 +44,7 @@ public class VoucherCodeResolver : ITransientDependency
         _unitRepository       = unitRepository;
         _subAccountRepository = subAccountRepository;
         _accountRepository    = accountRepository;
+        _companyRepository    = companyRepository;
         _dataFilter           = dataFilter;
         _currentTenant        = currentTenant;
         _asyncExecuter        = asyncExecuter;
@@ -149,6 +153,32 @@ public class VoucherCodeResolver : ITransientDependency
         }
     }
 
+    /// <summary>Karşı tarafın bakiye para birimi — TİPE göre kaynak değişir:
+    /// <list type="bullet">
+    /// <item><b>Cari:</b> SubAccount → Account → BalanceCurrencyUnit (bugünkü davranış, aynen).</item>
+    /// <item><b>Kasa:</b> cari YOKTUR (<paramref name="subAccountId"/> burada bir KASA id'sidir) →
+    /// şirketin bilanço/base birimi. Bu, emekli edilen sahte vault-cari'nin taşıdığı birimin AYNISIDIR
+    /// (<c>OrgTreeManager</c> onu company base'iyle kuruyordu) → kasa bakiye ekranının birimi model
+    /// değişiminden ETKİLENMEZ.</item>
+    /// </list></summary>
+    public async Task<(Guid Id, string Code)> ResolveBalanceUnitAsync(
+        Guid companyId, AccountType accountType, Guid subAccountId)
+    {
+        if (accountType == AccountType.Vault)
+        {
+            var company = await _companyRepository.FindAsync(companyId);
+            if (company is null || company.BaseCurrencyUnitId == Guid.Empty)
+            {
+                return (Guid.Empty, string.Empty);
+            }
+
+            var baseCode = await ResolveUnitCodeAsync(company.BaseCurrencyUnitId);
+            return (company.BaseCurrencyUnitId, baseCode ?? string.Empty);
+        }
+
+        return await ResolveBalanceUnitAsync(subAccountId);
+    }
+
     /// <summary>Hesabın bakiye para birimi (konsolide hedefi): SubAccount → Account → BalanceCurrencyUnit.</summary>
     public async Task<(Guid Id, string Code)> ResolveBalanceUnitAsync(Guid subAccountId)
     {
@@ -159,6 +189,41 @@ public class VoucherCodeResolver : ITransientDependency
         }
 
         var account = await _accountRepository.FindAsync(sub.AccountId);
+        if (account is null)
+        {
+            return (Guid.Empty, string.Empty);
+        }
+
+        using (_dataFilter.Disable<IMultiTenant>())
+        {
+            var code = await _asyncExecuter.FirstOrDefaultAsync(
+                (await _unitRepository.GetQueryableAsync())
+                    .Where(u => u.Id == account.BalanceCurrencyUnitId)
+                    .Select(u => u.Code));
+            return (account.BalanceCurrencyUnitId, code ?? string.Empty);
+        }
+    }
+
+    /// <summary>Bakiye Gösterim Modu = AccountScoped iken bakiye birimi: <paramref name="accountId"/> tip-agnostik
+    /// (cari kipte Account, iç kipte Şube) — <see cref="ResolveBalanceUnitAsync(Guid,AccountType,Guid)"/> ile
+    /// AYNI kaynaklar, ama SubAccount/Kasa'ya değil doğrudan üst kimliğe göre çözülür (tek alt hesap/kasa şart
+    /// değil — konsolide görünümün amacı budur).</summary>
+    public async Task<(Guid Id, string Code)> ResolveBalanceUnitByAccountScopeAsync(
+        Guid companyId, AccountType accountType, Guid accountId)
+    {
+        if (accountType == AccountType.Vault)
+        {
+            var company = await _companyRepository.FindAsync(companyId);
+            if (company is null || company.BaseCurrencyUnitId == Guid.Empty)
+            {
+                return (Guid.Empty, string.Empty);
+            }
+
+            var baseCode = await ResolveUnitCodeAsync(company.BaseCurrencyUnitId);
+            return (company.BaseCurrencyUnitId, baseCode ?? string.Empty);
+        }
+
+        var account = await _accountRepository.FindAsync(accountId);
         if (account is null)
         {
             return (Guid.Empty, string.Empty);

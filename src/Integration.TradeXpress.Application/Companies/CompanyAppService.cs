@@ -150,6 +150,8 @@ public class CompanyAppService : TradeXpressAppService, ICompanyAppService
 
         await SaveBranchesAsync(c, input.Branches);
         await _orgTree.EnsureHeadquartersBranchAsync(c);   // en az 1 HQ şube + varsayılan kasa (Branches boşsa da)
+        // NOT: kasa→kasa akışında CARİ HİÇ ÜRETİLMEZ (2026-07-15 ürün kararı) — kasa fişte doğrudan karşı
+        // taraftır (Voucher.AccountType=Vault). Company-create yolunda takas/kasa carisi kurulumu YOKTUR.
 
         return await ToGetDtoAsync(c);
     }
@@ -185,6 +187,7 @@ public class CompanyAppService : TradeXpressAppService, ICompanyAppService
 
         await SaveBranchesAsync(c, input.Branches);
         await _orgTree.EnsureHeadquartersBranchAsync(c);   // hiçbir koşulda şubesiz/HQ'suz kalmasın
+        // NOT: transfer carileri per-vault + lazy (yukarıdaki Create ile aynı gerekçe).
 
         return await ToGetDtoAsync(c);
     }

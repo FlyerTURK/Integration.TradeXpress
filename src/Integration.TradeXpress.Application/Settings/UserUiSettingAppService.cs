@@ -100,4 +100,14 @@ public class UserUiSettingAppService : TradeXpressAppService, IUserUiSettingAppS
     {
         await _settingManager.SetForCurrentUserAsync(TradeXpressUiSettingNames.WorkingBranch, branchId ?? "");
     }
+
+    public async Task<string?> GetWorkingVaultAsync()
+    {
+        return await SettingProvider.GetOrNullAsync(TradeXpressUiSettingNames.WorkingVault);
+    }
+
+    public async Task SetWorkingVaultAsync(string? vaultId)
+    {
+        await _settingManager.SetForCurrentUserAsync(TradeXpressUiSettingNames.WorkingVault, vaultId ?? "");
+    }
 }

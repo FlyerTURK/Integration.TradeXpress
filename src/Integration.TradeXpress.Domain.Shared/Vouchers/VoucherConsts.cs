@@ -18,6 +18,15 @@ public static class VoucherConsts
     /// <summary>CommodityCode / PayCommodityCode — relational olmayan snapshot gösterim kodu.</summary>
     public const int CommodityCodeMaxLength = 64;
 
+    /// <summary>AccountCode / SubAccountCode — karşı tarafın kod SNAPSHOT'ı (tipe göre Account/SubAccount ‖
+    /// Branch/Vault kodu). Sınır, kaynak kod alanlarının en genişi olan <see cref="Accounts.AccountConsts.CodeMaxLength"/>
+    /// ile hizalıdır (Branch/Vault kodları da bu sınırın altında).</summary>
+    public const int CounterpartyCodeMaxLength = 32;
+
+    /// <summary>Karşı taraf kod snapshot'ının alt sınırı — kaynak entity'lerin kod kuralıyla (EntityFieldConsts.
+    /// CodeMinLength) hizalı; snapshot kaynağından daha gevşek/sıkı olmamalı.</summary>
+    public const int CounterpartyCodeMinLength = 3;
+
     public const int DescriptionMaxLength = 512;
 
     /// <summary>VoucherLineLog.Reason — değişiklik gerekçesi.</summary>

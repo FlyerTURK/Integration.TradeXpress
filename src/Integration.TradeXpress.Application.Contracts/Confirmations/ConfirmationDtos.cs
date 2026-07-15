@@ -63,7 +63,7 @@ public class ConfirmationDto : AuditedEntityDto<Guid>
 /// Teyit kaydı <see cref="ConfirmationStatus.Proposed"/> doğar, alıcının GELEN'ine düşer.
 /// <para><see cref="Line"/> panelin ürettiği TAM satırdır; sunucu ayna anahtarını ONDAN TÜRETİR (client
 /// anahtarı ayrıca göndermez — çift kaynak olmasın). Fiş BAŞLIĞI (hesap/cari) replay EDİLMEZ: teyitte
-/// sunucu karşı kasanın vault-cari'sinden türetir.</para></summary>
+/// sunucu karşı KASADAN türetir (AccountType=Vault; cari üretilmez).</para></summary>
 public class ProposeConfirmationInput
 {
     /// <summary>Başlatan (gönderen) kasa — oturum kullanıcısının yetkili olduğu kasa.</summary>

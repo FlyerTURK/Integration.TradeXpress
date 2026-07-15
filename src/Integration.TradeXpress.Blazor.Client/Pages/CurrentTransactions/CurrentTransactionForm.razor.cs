@@ -12,6 +12,15 @@ using Microsoft.AspNetCore.Components.Web;
 
 namespace Integration.TradeXpress.Blazor.Client.Pages.CurrentTransactions;
 
+/// <summary>Bakiye Gösterim Modu (2026-07-15 kullanıcı kararı) — Bakiye sekmesindeki grid'in kapsamı.
+/// <b>SubAccountScoped</b> = seçili tek alt hesap/kasa (bugünkü davranış) · <b>AccountScoped</b> = seçili
+/// alt hesabın/kasanın bağlı olduğu cari hesabın/şubenin TÜM alt hesaplarının/kasalarının KONSOLİDE toplamı.</summary>
+public enum BalanceViewMode
+{
+    SubAccountScoped,
+    AccountScoped,
+}
+
 public partial class CurrentTransactionForm
 {
     private bool _isMobile;
@@ -49,6 +58,8 @@ public partial class CurrentTransactionForm
     // Bakiye (p3 Bakiye sekmesi) — anlık hesap.
     private List<VoucherBalanceLineDto> _balanceRows = new();
     private Guid? _currentSubAccountId;
+    private Guid? _currentAccountId;   // seçili alt hesabın/kasanın bağlı olduğu Account/Şube — AccountScoped kaynağı
+    private BalanceViewMode _balanceViewMode = BalanceViewMode.SubAccountScoped;
 
     // Konsolide toplam — hesabın bakiye birimi cinsinden, canlı kurla (her tikte).
     private Guid    _baseUnitId;
@@ -65,6 +76,7 @@ public partial class CurrentTransactionForm
             _voucherLines = await VoucherService.GetLinesAsync(voucherId);
         _selectedLine = null;
         await RefreshBalanceAsync();
+        await ReloadLineHistoryAsync();
         await InvokeAsync(StateHasChanged);
     }
 
@@ -133,6 +145,8 @@ public partial class CurrentTransactionForm
         }
 
         _currentSubAccountId = sa?.Id;
+        _currentAccountId    = sa?.AccountId;
+        _balanceViewMode      = BalanceViewMode.SubAccountScoped;   // yeni cari seçimi → varsayılana dön
         _voucherLines = new();   // farklı cari → satır gridini temizle
 
         // Sekme başlığı: cari seçilince 2 satır (L1=Hesap, L2=Alt hesap); seçim yoksa tek satır.
@@ -159,6 +173,7 @@ public partial class CurrentTransactionForm
         }
 
         await RefreshBalanceAsync();
+        await ReloadLineHistoryAsync();
         PushStateToUrl();
         await InvokeAsync(StateHasChanged);
     }
@@ -301,6 +316,7 @@ public partial class CurrentTransactionForm
         _selectedLines = Array.Empty<object>();
         _selectedLine = null;
         await RefreshBalanceAsync();
+        await ReloadLineHistoryAsync();
         await InvokeAsync(StateHasChanged);
         Ui.ShowSuccessToast(lines.Count == 1 ? L["LineDeleted"] : L["LinesDeleted", lines.Count]);
     }
@@ -327,9 +343,121 @@ public partial class CurrentTransactionForm
         await OnLineSelected(_selectedLines.Count == 1 ? _selectedLines[0] : null);
     }
 
+    /// <summary>Bakiye Gösterim Modu değişti: seçili cari için kapsamı yeniden çeker.</summary>
+    private async Task OnBalanceViewModeChanged(bool accountScoped)
+    {
+        _balanceViewMode = accountScoped ? BalanceViewMode.AccountScoped : BalanceViewMode.SubAccountScoped;
+        await RefreshBalanceAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    // ── Birim tarihçesi popup'ı (Bakiye satırına çift-tık) ──
+    private bool             _showUnitStatement;
+    private Guid              _unitStatementUnitId;
+    private string            _unitStatementUnitCode = string.Empty;
+    private DateTime          _unitStatementStart = BusinessClock.Today().AddDays(-7);
+    private DateTime          _unitStatementEnd   = BusinessClock.Today();
+    private UnitStatementDto? _unitStatement;
+
+    /// <summary>Bakiye gridinde bir birime çift-tıklanınca o birimin tarihçe popup'ını açar — kapsam Bakiye
+    /// Gösterim Modu'yla aynıdır (SubAccountScoped → seçili alt hesap/kasa, AccountScoped → bağlı hesap/şube).</summary>
+    private async Task OnBalanceRowDoubleClick(DevExpress.Blazor.GridRowClickEventArgs e)
+    {
+        if (e.Grid.GetDataItem(e.VisibleIndex) is not VoucherBalanceLineDto row)
+        {
+            return;
+        }
+
+        _unitStatementUnitId   = row.UnitId;
+        _unitStatementUnitCode = row.UnitCode;
+        _unitStatementStart    = BusinessClock.Today().AddDays(-7);
+        _unitStatementEnd      = BusinessClock.Today();
+        _showUnitStatement     = true;
+        await ReloadUnitStatementAsync();
+    }
+
+    // ── Log sekmesi (fiş satırı değişim günlüğü) + satır-tarihçesi popup'ı ──
+    private List<VoucherLineHistoryDto> _lineHistory = new();
+    private DateTime _historyStart = BusinessClock.Today().AddDays(-7);
+    private DateTime _historyEnd   = BusinessClock.Today();
+
+    private bool _showLineHistory;
+    private List<VoucherLineHistoryDto> _selectedLineHistory = new();
+
+    /// <summary>Rozet rengi — Confirmation grid'in (StatusBadgeStyle) görsel diliyle hizalı: yeşil=eklendi,
+    /// mavi=güncellendi, kırmızı=silindi.</summary>
+    private static string ChangeTypeBadgeStyle(VoucherLineChangeType changeType)
+    {
+        var background = changeType switch
+        {
+            VoucherLineChangeType.Created => "#16a34a",
+            VoucherLineChangeType.Updated => "#3b82f6",
+            VoucherLineChangeType.Deleted => "#dc2626",
+            _ => "#6b7280",
+        };
+        return $"display:inline-block; padding:2px 8px; border-radius:10px; font-size:12px; font-weight:600; color:#fff; background:{background};";
+    }
+
+    private async Task OnHistoryRangeChanged(DateTime start, DateTime end)
+    {
+        _historyStart = start;
+        _historyEnd   = end;
+        await ReloadLineHistoryAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task ReloadLineHistoryAsync()
+    {
+        _lineHistory = _currentSubAccountId is { } id
+            ? await VoucherLineHistoryService.GetBySubAccountAsync(id, _historyStart.Date, _historyEnd.Date.AddDays(1))
+            : new List<VoucherLineHistoryDto>();
+    }
+
+    /// <summary>Fiş satırı gridinde bir satıra çift-tıklanınca o SATIRIN tam tarihçesini popup'ta gösterir.</summary>
+    private async Task OnVoucherLineRowDoubleClick(DevExpress.Blazor.GridRowClickEventArgs e)
+    {
+        if (e.Grid.GetDataItem(e.VisibleIndex) is not VoucherLineDto row || row.Id == Guid.Empty)
+        {
+            return;
+        }
+
+        _selectedLineHistory = await VoucherLineHistoryService.GetByLineAsync(row.Id);
+        _showLineHistory = true;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task OnUnitStatementRangeChanged(DateTime start, DateTime end)
+    {
+        _unitStatementStart = start;
+        _unitStatementEnd   = end;
+        await ReloadUnitStatementAsync();
+    }
+
+    private async Task ReloadUnitStatementAsync()
+    {
+        var scopeIsAccount = _balanceViewMode == BalanceViewMode.AccountScoped;
+        var scopeId = scopeIsAccount ? _currentAccountId : _currentSubAccountId;
+        if (scopeId is not { } id)
+        {
+            _unitStatement = null;
+            return;
+        }
+
+        _unitStatement = await VoucherService.GetUnitStatementAsync(
+            id, scopeIsAccount, _unitStatementUnitId, _unitStatementStart.Date, _unitStatementEnd.Date.AddDays(1));
+        await InvokeAsync(StateHasChanged);
+    }
+
     private async Task RefreshBalanceAsync()
     {
-        if (_currentSubAccountId is { } id)
+        if (_balanceViewMode == BalanceViewMode.AccountScoped && _currentAccountId is { } accountId)
+        {
+            var res = await VoucherService.GetAccountBalancesAsync(accountId);
+            _balanceRows  = res.Lines;
+            _baseUnitId   = res.BalanceUnitId;
+            _baseCode     = res.BalanceCode;
+        }
+        else if (_currentSubAccountId is { } id)
         {
             var res = await VoucherService.GetBalancesAsync(id);
             _balanceRows  = res.Lines;

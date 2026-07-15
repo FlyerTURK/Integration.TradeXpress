@@ -14,7 +14,9 @@
     </DxToolbar>
 
     <div style="flex:1; min-height:0; min-width:0; overflow:hidden; display:flex; flex-direction:column; margin-top:6px;">
-        <DxTabs @bind-ActiveTabIndex="@_activeTabIndex" CssClass="w-100">
+        @* Çalışan referans deseni (CurrentTransactionForm:34): w-100 + h-100 + tx-tabs-stretched ÜÇÜ BİRDEN.
+           h-100 olmadan tek başına tx-tabs-stretched düzeni bozar (sekme başlıkları sola kayar). *@
+        <DxTabs @bind-ActiveTabIndex="@_activeTabIndex" CssClass="w-100 h-100 tx-tabs-stretched">
             <DxTabPage Text="@L["Confirmation:Tab:Incoming"]">
                 <ConfirmationGrid Rows="@IncomingRows" Side="ConfirmationSide.Incoming"
                                   CanDeclare="@_canDeclare" CanConfirm="@_canConfirm" CanReject="@_canReject"

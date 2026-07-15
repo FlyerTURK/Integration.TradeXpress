@@ -108,10 +108,13 @@ public class VoucherNumberAllocatorTests : TradeXpressEntityFrameworkCoreTestBas
                 data.CompanyId,
                 SimpleGuidGenerator.Instance.Create(),   // var olmayan şube → FK Restrict ihlali
                 data.VaultId,
+                AccountType.CurrentAccount,
                 data.AccountId,
+                "ACC",
                 data.SubAccountId,
+                "SUB",
                 voucherNumber: 77,
-                DateTime.Now);
+                voucherDate: DateTime.Now);
 
             var ex = await Should.ThrowAsync<Exception>(
                 () => WithUnitOfWorkAsync(() => _allocator.InsertNumberedAsync(orphan)));
@@ -154,8 +157,11 @@ public class VoucherNumberAllocatorTests : TradeXpressEntityFrameworkCoreTestBas
             data.CompanyId,
             data.BranchId,
             data.VaultId,
+            AccountType.CurrentAccount,
             data.AccountId,
+            "ACC",
             data.SubAccountId,
+            "SUB",
             number,
             DateTime.Now,
             "allocator testi");

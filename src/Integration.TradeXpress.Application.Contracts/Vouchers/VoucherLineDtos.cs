@@ -164,3 +164,32 @@ public class VoucherBalanceLineDto
     public decimal Credit => Net > 0 ? Net : 0m;
     public decimal Debt   => Net < 0 ? -Net : 0m;
 }
+
+/// <summary>Bakiye sekmesinde bir birime çift-tıklayınca açılan "bu birimin tarihçesi" popup'ının kaynağı —
+/// yalnız o birimi etkileyen satırlar (Delta≠0) + devreden/kapanış imzalı net. Kapsam Bakiye Gösterim Modu'yla
+/// aynıdır (seçili alt hesap/kasa ya da bağlı olduğu hesabın/şubenin konsolide toplamı).</summary>
+public class UnitStatementDto
+{
+    public Guid UnitId { get; set; }
+    public string UnitCode { get; set; } = string.Empty;
+
+    /// <summary>Devreden — start'tan önceki satırların bu birime ait imzalı net toplamı.</summary>
+    public decimal OpeningNet { get; set; }
+
+    public List<UnitStatementLineDto> Lines { get; set; } = new();
+
+    /// <summary>Kapanış — son satırın yürüyen neti; satır yoksa devredene eşit.</summary>
+    public decimal ClosingNet { get; set; }
+}
+
+/// <summary>Tarihçedeki tek satır — orijinal fiş satırı + bu birime ait imzalı delta + o ana kadarki yürüyen net.</summary>
+public class UnitStatementLineDto
+{
+    public VoucherLineDto Line { get; set; } = null!;
+
+    /// <summary>Bu satırın seçili birime etkisi (imzalı, +/-).</summary>
+    public decimal Delta { get; set; }
+
+    /// <summary>Devredenden başlayarak bu satıra kadarki yürüyen net.</summary>
+    public decimal RunningNet { get; set; }
+}

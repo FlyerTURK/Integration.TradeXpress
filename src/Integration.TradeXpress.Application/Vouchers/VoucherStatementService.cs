@@ -98,7 +98,10 @@ public class VoucherStatementService : ITransientDependency
         };
     }
 
-    /// <summary>Hesabın (opsiyonel tarihe kadar) birim-bazlı net bakiyesi + bakiye para birimi.</summary>
+    /// <summary>Karşı tarafın (opsiyonel tarihe kadar) birim-bazlı net bakiyesi + bakiye para birimi.
+    /// <para><b>Tip-agnostik:</b> <paramref name="subAccountId"/> cari kipinde SubAccount, kasa kipinde
+    /// KASA id'sidir (Voucher.SubAccountId polimorfiktir) → kasa bakiyeleri sahte cari olmadan, bu sorgu
+    /// hiç değişmeden ayrışır.</para></summary>
     public async Task<AccountBalanceDto> GetBalancesAsync(Guid companyId, Guid subAccountId, DateTime? upTo = null)
     {
         var q = (await _repository.GetQueryableAsync())
@@ -114,14 +117,124 @@ public class VoucherStatementService : ITransientDependency
         var net  = _balanceCalculator.Aggregate(lines);   // UnitId → işaretli net
         var rows = await ToBalanceRowsAsync(net);
 
-        // Hesabın bakiye para birimi (konsolide hedefi): SubAccount → Account → BalanceCurrencyUnit.
-        var (baseUnitId, baseCode) = await _codeResolver.ResolveBalanceUnitAsync(subAccountId);
+        // Karşı tarafın TİPİ veriden okunur (id polimorfik: cari kipinde SubAccount, kasa kipinde Kasa) —
+        // bakiye biriminin kaynağı tipe göre değişir. Hiç fiş yoksa cari kabul edilir (bugünkü davranış).
+        var accountType = await _asyncExecuter.FirstOrDefaultAsync(
+            q.Select(v => (AccountType?)v.AccountType)) ?? AccountType.CurrentAccount;
+        var (baseUnitId, baseCode) = await _codeResolver.ResolveBalanceUnitAsync(companyId, accountType, subAccountId);
 
         return new AccountBalanceDto
         {
             BalanceUnitId = baseUnitId,
             BalanceCode   = baseCode,
             Lines         = rows,
+        };
+    }
+
+    /// <summary>Bakiye Gösterim Modu = AccountScoped: <paramref name="accountId"/>'nin (cari kipte Account,
+    /// iç kipte Şube) TÜM alt hesaplarının/kasalarının KONSOLİDE net bakiyesi — seçili tek alt hesap/kasa değil.
+    /// <see cref="GetBalancesAsync(Guid,Guid,DateTime?)"/> ile aynı hesap mantığı, filtre yalnız
+    /// <c>AccountId</c> üzerinden (SubAccountId yok).</summary>
+    public async Task<AccountBalanceDto> GetAccountScopedBalancesAsync(Guid companyId, Guid accountId, DateTime? upTo = null)
+    {
+        var q = (await _repository.GetQueryableAsync())
+            .Where(v => v.CompanyId == companyId && v.AccountId == accountId);
+        if (upTo.HasValue)
+        {
+            q = q.Where(v => v.VoucherDate <= upTo.Value);
+        }
+
+        var lines = await _asyncExecuter.ToListAsync(
+            q.SelectMany(v => v.Lines).Where(l => !l.IsDeleted));
+
+        var net  = _balanceCalculator.Aggregate(lines);
+        var rows = await ToBalanceRowsAsync(net);
+
+        var accountType = await _asyncExecuter.FirstOrDefaultAsync(
+            q.Select(v => (AccountType?)v.AccountType)) ?? AccountType.CurrentAccount;
+        var (baseUnitId, baseCode) = await _codeResolver.ResolveBalanceUnitByAccountScopeAsync(companyId, accountType, accountId);
+
+        return new AccountBalanceDto
+        {
+            BalanceUnitId = baseUnitId,
+            BalanceCode   = baseCode,
+            Lines         = rows,
+        };
+    }
+
+    /// <summary>Bakiye sekmesinde bir birime çift-tıklayınca açılan tarihçe: seçili kapsamın (
+    /// <paramref name="scopeIsAccount"/> false → SubAccount/Kasa id'si, true → Account/Şube id'si —
+    /// Bakiye Gösterim Modu'yla aynı ayrım) [start, endExclusive) aralığında YALNIZ <paramref name="unitId"/>'yi
+    /// etkileyen satırlar (Delta≠0), devreden + yürüyen net ile. Diğer birimleri etkileyen satırlar atlanır —
+    /// "bu birimin tarihçesi" budur.</summary>
+    public async Task<UnitStatementDto> GetUnitStatementAsync(
+        Guid companyId, bool scopeIsAccount, Guid scopeId, Guid unitId, DateTime start, DateTime endExclusive)
+    {
+        var baseQuery = (await _repository.GetQueryableAsync()).Where(v => v.CompanyId == companyId);
+        baseQuery = scopeIsAccount
+            ? baseQuery.Where(v => v.AccountId == scopeId)
+            : baseQuery.Where(v => v.SubAccountId == scopeId);
+
+        var rangeQuery =
+            from v in baseQuery
+            where v.VoucherDate >= start && v.VoucherDate < endExclusive
+            from l in v.Lines
+            where !l.IsDeleted
+            select new { Line = l, v.VoucherDate, v.VoucherNumber };
+        var rows = await _asyncExecuter.ToListAsync(rangeQuery);
+
+        var ordered = rows
+            .OrderBy(r => r.VoucherDate).ThenBy(r => r.Line.CreationTime).ThenBy(r => r.Line.Id)
+            .ToList();
+
+        var carryLines = await _asyncExecuter.ToListAsync(
+            baseQuery.Where(v => v.VoucherDate < start)
+                .SelectMany(v => v.Lines)
+                .Where(l => !l.IsDeleted));
+
+        var opening = _balanceCalculator.Aggregate(carryLines).GetValueOrDefault(unitId);
+        var running = opening;
+        var lines = new List<UnitStatementLineDto>();
+
+        foreach (var r in ordered)
+        {
+            var effect = _balanceCalculator.Post(r.Line).FirstOrDefault(e => e.UnitId == unitId);
+            if (effect.UnitId != unitId)
+            {
+                continue;   // bu satır seçili birimi etkilemiyor → tarihçede görünmez
+            }
+
+            running += effect.Amount;
+
+            var dto = VoucherLineDtoFactory.MapLine(r.Line);
+            dto.VoucherDate   = r.VoucherDate;
+            dto.VoucherNumber = r.VoucherNumber;
+
+            lines.Add(new UnitStatementLineDto
+            {
+                Line       = dto,
+                Delta      = effect.Amount,
+                RunningNet = running,
+            });
+        }
+
+        if (lines.Count > 0)
+        {
+            var dtos = lines.Select(l => l.Line).ToList();
+            await _codeResolver.ResolveUnitCodesAsync(dtos);
+            await _codeResolver.ResolveCounterAccountCodesAsync(dtos);
+            await _codeResolver.ResolveCreatorNamesAsync(dtos);
+        }
+
+        var unitCode = await _codeResolver.ResolveUnitCodeAsync(unitId) ?? string.Empty;
+
+        return new UnitStatementDto
+        {
+            UnitId     = unitId,
+            UnitCode   = unitCode,
+            OpeningNet = opening,
+            Lines      = lines,
+            ClosingNet = lines.Count > 0 ? lines[^1].RunningNet : opening,
         };
     }
 

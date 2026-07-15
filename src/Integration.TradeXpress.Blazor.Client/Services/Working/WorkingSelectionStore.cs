@@ -27,14 +27,30 @@ namespace Integration.TradeXpress.Blazor.Client.Services.Working;
 /// </summary>
 public class WorkingSelectionStore : ISingletonDependency
 {
-    /// <summary>Kullanıcının working seçimi: seçili şube→şirket + sunucu-filtreli izinli şirket kümesi.</summary>
-    public sealed record Entry(Guid? SelectedCompanyId, IReadOnlyList<Guid> AllowedCompanyIds);
+    /// <summary>
+    /// Kullanıcının working seçimi: seçili kasa→şube→şirket + sunucu-filtreli izinli şirket kümesi.
+    /// <para>Şube/kasa da burada saklanır (<c>WorkingBranchContextProvider</c>/<c>WorkingVaultContextProvider</c>
+    /// bunları okur) — scoped servis okuma tuzağının şube/kasa için de tekrarlanmaması içindir. Şube/kasa için
+    /// AYRI bir "izinli küme" TUTULMAZ: seçim zaten sunucu-filtreli listelerden (<c>GetMyBranchesAsync</c> /
+    /// <c>GetMyVaultsAsync</c>) yapılır ve store'a yalnız sunucu yazar (client erişemez).</para>
+    /// </summary>
+    public sealed record Entry(
+        Guid? SelectedCompanyId,
+        IReadOnlyList<Guid> AllowedCompanyIds,
+        Guid? SelectedBranchId = null,
+        Guid? SelectedVaultId = null);
 
     private readonly ConcurrentDictionary<(Guid? TenantId, Guid UserId), Entry> _entries = new();
 
-    public void Set(Guid? tenantId, Guid userId, Guid? selectedCompanyId, IReadOnlyList<Guid> allowedCompanyIds)
+    public void Set(
+        Guid? tenantId,
+        Guid userId,
+        Guid? selectedCompanyId,
+        IReadOnlyList<Guid> allowedCompanyIds,
+        Guid? selectedBranchId = null,
+        Guid? selectedVaultId = null)
     {
-        _entries[(tenantId, userId)] = new Entry(selectedCompanyId, allowedCompanyIds);
+        _entries[(tenantId, userId)] = new Entry(selectedCompanyId, allowedCompanyIds, selectedBranchId, selectedVaultId);
     }
 
     public Entry? Get(Guid? tenantId, Guid userId)

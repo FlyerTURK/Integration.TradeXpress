@@ -1,8 +1,6 @@
 using System;
 using System.Threading.Tasks;
-using Integration.TradeXpress.Accounts;
 using Integration.TradeXpress.Companies;
-using Integration.TradeXpress.Organization;
 using Integration.TradeXpress.Vaults;
 using Integration.TradeXpress.Vouchers;
 using Integration.TradeXpress.Vouchers.Balance;
@@ -18,12 +16,17 @@ namespace Integration.TradeXpress.Confirmations;
 /// <para><b>Process-agnostik (tasarımın kilit taşı):</b> hiçbir +/− kuralı burada yoktur. Satır fişe eklenir,
 /// <see cref="BalanceLedgerSynchronizer"/> onu ProcessType'ın KENDİ poster'ına yönlendirir
 /// (<c>VoucherBalanceCalculator</c> → DI'daki <c>IVoucherLineBalancePoster</c>). Poster'lar yalnız SATIRI okur;
-/// ledger kaydı ise kapsamı (kasa/hesap/cari) fiş BAŞLIĞINDAN alır. Sonuç: Nakit'ten Mamül'e her tip, çekirdeğe
+/// ledger kaydı ise kapsamı (kasa/karşı taraf) fiş BAŞLIĞINDAN alır. Sonuç: Nakit'ten Mamül'e her tip, çekirdeğe
 /// tek satır dokunmadan doğal çalışır.</para>
 ///
-/// <para><b>Karşılıklı borç/alacak kendiliğinden doğar:</b> her bacağın fiş başlığı = {kendi kasası, KARŞI
-/// kasanın vault-cari'si}. Böylece A'nın satırı cari(B)'ye, B'nin satırı cari(A)'ya düşer → iki taraf birbirinin
-/// carisinde ters işaretle görünür. Ayrı bir "karşı kayıt üretme" adımı YOKTUR (spec §5).</para>
+/// <para><b>Karşılıklı borç/alacak kendiliğinden doğar:</b> her bacağın fiş başlığı = {kendi kasası, karşı taraf
+/// <c>AccountType=Vault</c> → KARŞI kasa}. A'nın satırı B kasasına, B'nin satırı A kasasına düşer → iki taraf
+/// birbirinin defterinde ters işaretle görünür. Ayrı "karşı kayıt üretme" adımı YOKTUR (spec §5).</para>
+///
+/// <para><b>Sahte cari YOK (2026-07-15 ürün kararı):</b> karşı taraf eskiden kasa için üretilen sahte bir
+/// Account/SubAccount ("vault-cari") idi — cari listesini kirletiyor, kodu ham GUID olduğundan okunmuyordu.
+/// Artık kasa DOĞRUDAN karşı taraftır: üst kimlik = karşı kasanın ŞUBESİ, alt kimlik = KASA; kod snapshot'ları
+/// <see cref="VoucherCounterpartyResolver"/> ile sunucu-otoriter dondurulur.</para>
 ///
 /// <para><b>Yetki burada YOK — bilinçli:</b> yetki AUTHORING anında alınır (Propose → başlatanın kasası,
 /// Declare → alıcının kasası). Teyit yeni bir yetki iddiası değil, iki zaten-yetkilendirilmiş beyanın
@@ -38,51 +41,57 @@ public class ConfirmationVoucherMaterializer : ITransientDependency
 {
     private readonly VoucherNumberAllocator _numberAllocator;
     private readonly BalanceLedgerSynchronizer _ledgerSynchronizer;
-    private readonly OrgTreeManager _orgTree;
+    private readonly VoucherCounterpartyResolver _counterpartyResolver;
     private readonly IGuidGenerator _guidGenerator;
+    private readonly VoucherLineHistoryRecorder _historyRecorder;
 
     public ConfirmationVoucherMaterializer(
         VoucherNumberAllocator numberAllocator,
         BalanceLedgerSynchronizer ledgerSynchronizer,
-        OrgTreeManager orgTree,
-        IGuidGenerator guidGenerator)
+        VoucherCounterpartyResolver counterpartyResolver,
+        IGuidGenerator guidGenerator,
+        VoucherLineHistoryRecorder historyRecorder)
     {
-        _numberAllocator    = numberAllocator;
-        _ledgerSynchronizer = ledgerSynchronizer;
-        _orgTree            = orgTree;
-        _guidGenerator      = guidGenerator;
+        _numberAllocator      = numberAllocator;
+        _ledgerSynchronizer   = ledgerSynchronizer;
+        _counterpartyResolver = counterpartyResolver;
+        _guidGenerator        = guidGenerator;
+        _historyRecorder      = historyRecorder;
     }
 
-    /// <summary>Kasanın sistem carisini garanti eder (idempotent lazy — mevcut kasalar dahil).</summary>
-    public async Task<SubAccount> EnsureVaultCurrentAccountAsync(Company company, Vault vault)
-    {
-        var (_, subAccount) = await _orgTree.EnsureVaultCurrentAccountAsync(vault, company.BaseCurrencyUnitId);
-        return subAccount;
-    }
-
-    /// <summary>Bir bacağı postlar: KARŞI kasanın carisi başlıklı yeni fiş (numaralı) + tarafın KENDİ satırı +
-    /// ledger senkronu. <paramref name="line"/> o tarafın yazdığı satırdır — İÇERİĞİ DEĞİŞTİRİLMEZ (WYSIWYG:
+    /// <summary>Bir bacağı postlar: KARŞI KASA başlıklı yeni fiş (numaralı) + tarafın KENDİ satırı + ledger
+    /// senkronu. <paramref name="line"/> o tarafın yazdığı satırdır — İÇERİĞİ DEĞİŞTİRİLMEZ (WYSIWYG:
     /// beyan edilen neyse o postlanır).</summary>
     public async Task<Voucher> MaterializeAsync(
         Company company,
         Vault vault,
-        SubAccount counterCari,
+        Vault counterpartyVault,
         VoucherLineDto line)
     {
+        // Karşı taraf = KASA (cari ÜRETİLMEZ): Şube→üst kimlik, Kasa→alt kimlik; kodlar sunucudan dondurulur.
+        var counterparty = await _counterpartyResolver.ResolveVaultAsync(company.Id, counterpartyVault.Id);
+
         var voucher = new Voucher(
             company.Id,
             vault.BranchId,
             vault.Id,
-            counterCari.AccountId,
-            counterCari.Id,
+            counterparty.AccountType,
+            counterparty.AccountId,
+            counterparty.AccountCode,
+            counterparty.SubAccountId,
+            counterparty.SubAccountCode,
             await _numberAllocator.NextNumberAsync(company.Id),
             line.VoucherDate,
             line.VoucherDescription);
 
-        voucher.AddLine(_guidGenerator.Create(), VoucherLineDtoFactory.ToLineInput(line));
+        var materializedLine = voucher.AddLine(_guidGenerator.Create(), VoucherLineDtoFactory.ToLineInput(line));
 
         await _numberAllocator.InsertNumberedAsync(voucher);
         await _ledgerSynchronizer.SyncVoucherAsync(voucher);
+
+        // Gölge günlük — Teyit materyalizasyonu da CREATE'tir (2026-07-15 kullanıcı isteği: her cari işlem kaydı).
+        await _historyRecorder.RecordAsync(voucher, materializedLine, VoucherLineChangeType.Created);
+
         return voucher;
     }
 }

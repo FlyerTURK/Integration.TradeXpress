@@ -41,6 +41,10 @@
                 <FutureProcessPanel Context="@BuildContext()" OnBack="@OnCancel"
                                     OnConfirmationSubmitted="@OnSubmitted" />
                 break;
+            case ProcessType.Convert:
+                <ConvertProcessPanel Context="@BuildContext()" OnBack="@OnCancel"
+                                     OnConfirmationSubmitted="@OnSubmitted" />
+                break;
         }
     }
     else if (Row.ProcessType == ProcessType.Stone)
@@ -87,12 +91,52 @@
                                DeclareConfirmationId="@Row.Id"
                                OnConfirmationSubmitted="@OnSubmitted" />
     }
-    else
+    else if (Row.ProcessType == ProcessType.Assay)
     {
-        @* Policy'de KAPALI tip (Çevrim/Çeşni/Virman/Takoz) — teklif sunucuda zaten reddedilir; bu yalnız
-           eski/bozuk kayıt için savunma hattı. *@
-        <div style="padding:8px; border-radius:6px; border:1px solid #dc2626; color:#dc2626;">
-            @L["TradeXpress:Confirmation:ProcessTypeNotSupported"]
-        </div>
+        <AssayProcessPanel OnBack="@OnCancel"
+                           CompanyId="@CompanyId"
+                           BranchId="@BranchId"
+                           VaultId="@Row.CounterpartyVaultId"
+                           VoucherDate="@BusinessClock.Now()"
+                           CounterpartyVaultId="@Row.InitiatorVaultId"
+                           DeclareConfirmationId="@Row.Id"
+                           OnConfirmationSubmitted="@OnSubmitted" />
+    }
+    else if (Row.ProcessType == ProcessType.Transfer)
+    {
+        <TransferProcessPanel OnBack="@OnCancel"
+                              CompanyId="@CompanyId"
+                              BranchId="@BranchId"
+                              VaultId="@Row.CounterpartyVaultId"
+                              VoucherDate="@BusinessClock.Now()"
+                              CounterpartyVaultId="@Row.InitiatorVaultId"
+                              DeclareConfirmationId="@Row.Id"
+                              OnConfirmationSubmitted="@OnSubmitted" />
+    }
+    else if (Row.ProcessType == ProcessType.Bullion)
+    {
+        @* Takoz: gönderenin yönü ÇIKIŞ ise alıcının aynası GİRİŞ'tir (ve tersi) → alıcıya ZIT yönün paneli açılır. *@
+        @if (Row.Direction == ProcessDirectionType.Outbound)
+        {
+            <BullionProcessPanel OnBack="@OnCancel"
+                                 CompanyId="@CompanyId"
+                                 BranchId="@BranchId"
+                                 VaultId="@Row.CounterpartyVaultId"
+                                 VoucherDate="@BusinessClock.Now()"
+                                 CounterpartyVaultId="@Row.InitiatorVaultId"
+                                 DeclareConfirmationId="@Row.Id"
+                                 OnConfirmationSubmitted="@OnSubmitted" />
+        }
+        else
+        {
+            <BullionExitPanel OnBack="@OnCancel"
+                              CompanyId="@CompanyId"
+                              BranchId="@BranchId"
+                              VaultId="@Row.CounterpartyVaultId"
+                              VoucherDate="@BusinessClock.Now()"
+                              CounterpartyVaultId="@Row.InitiatorVaultId"
+                              DeclareConfirmationId="@Row.Id"
+                              OnConfirmationSubmitted="@OnSubmitted" />
+        }
     }
 </div>

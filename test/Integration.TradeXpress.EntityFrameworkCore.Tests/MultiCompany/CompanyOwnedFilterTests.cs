@@ -193,8 +193,11 @@ public class CompanyOwnedFilterTests : TradeXpressEntityFrameworkCoreTestBase
             graph.CompanyId,
             graph.BranchId,
             graph.VaultId,
+            AccountType.CurrentAccount,
             graph.AccountId,
+            "ACC",
             graph.SubAccountId,
+            "SUB",
             voucherNumber: 1,
             voucherDate: DateTime.UtcNow);
     }
@@ -206,8 +209,11 @@ public class CompanyOwnedFilterTests : TradeXpressEntityFrameworkCoreTestBase
             companyId,
             SimpleGuidGenerator.Instance.Create(),
             vaultId: null,
+            AccountType.CurrentAccount,
             SimpleGuidGenerator.Instance.Create(),
-            subAccountId: null,
+            "ACC",
+            SimpleGuidGenerator.Instance.Create(),
+            "SUB",
             voucherNumber: 1,
             voucherDate: DateTime.UtcNow);
         var line = voucher.AddLine(SimpleGuidGenerator.Instance.Create(), MinimalLineInput());

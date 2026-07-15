@@ -6251,8 +6251,16 @@ namespace Integration.TradeXpress.Migrations
                     b.Property<Guid>("Id")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("AccountCode")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
                     b.Property<Guid>("AccountId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<byte>("AccountType")
+                        .HasColumnType("tinyint");
 
                     b.Property<decimal>("Amount")
                         .HasPrecision(18, 2)
@@ -6293,7 +6301,12 @@ namespace Integration.TradeXpress.Migrations
                     b.Property<byte>("ProcessType")
                         .HasColumnType("tinyint");
 
-                    b.Property<Guid?>("SubAccountId")
+                    b.Property<string>("SubAccountCode")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<Guid>("SubAccountId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<Guid?>("TenantId")
@@ -6332,8 +6345,16 @@ namespace Integration.TradeXpress.Migrations
                     b.Property<Guid>("Id")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("AccountCode")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
                     b.Property<Guid>("AccountId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<byte>("AccountType")
+                        .HasColumnType("tinyint");
 
                     b.Property<Guid>("BranchId")
                         .HasColumnType("uniqueidentifier");
@@ -6387,7 +6408,12 @@ namespace Integration.TradeXpress.Migrations
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("LastModifierId");
 
-                    b.Property<Guid?>("SubAccountId")
+                    b.Property<string>("SubAccountCode")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<Guid>("SubAccountId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<Guid?>("TenantId")
@@ -6405,13 +6431,9 @@ namespace Integration.TradeXpress.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("AccountId");
-
                     b.HasIndex("BranchId");
 
                     b.HasIndex("CompanyId");
-
-                    b.HasIndex("SubAccountId");
 
                     b.HasIndex("VaultId");
 
@@ -6653,6 +6675,92 @@ namespace Integration.TradeXpress.Migrations
                     b.HasIndex("VoucherId");
 
                     b.ToTable("AppVoucherLines", (string)null);
+                });
+
+            modelBuilder.Entity("Integration.TradeXpress.Vouchers.VoucherLineHistory", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("ChangeType")
+                        .HasColumnType("int");
+
+                    b.Property<string>("CommodityCode")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("CreationTime");
+
+                    b.Property<Guid?>("CreatorId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CreatorId");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
+
+                    b.Property<string>("MainUnitCode")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("ProcessCode")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<byte>("ProcessType")
+                        .HasColumnType("tinyint");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("SnapshotJson")
+                        .IsRequired()
+                        .HasMaxLength(8192)
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid>("SubAccountId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("TenantId");
+
+                    b.Property<decimal>("Total")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime>("VoucherDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("VoucherId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("VoucherLineId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("VoucherNumber")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("VoucherLineId");
+
+                    b.HasIndex("TenantId", "CompanyId", "SubAccountId", "CreationTime");
+
+                    b.ToTable("AppVoucherLineHistories", (string)null);
                 });
 
             modelBuilder.Entity("Volo.Abp.AuditLogging.AuditLog", b =>
@@ -9405,12 +9513,6 @@ namespace Integration.TradeXpress.Migrations
 
             modelBuilder.Entity("Integration.TradeXpress.Vouchers.Voucher", b =>
                 {
-                    b.HasOne("Integration.TradeXpress.Accounts.Account", null)
-                        .WithMany()
-                        .HasForeignKey("AccountId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
                     b.HasOne("Integration.TradeXpress.Branches.Branch", null)
                         .WithMany()
                         .HasForeignKey("BranchId")
@@ -9422,11 +9524,6 @@ namespace Integration.TradeXpress.Migrations
                         .HasForeignKey("CompanyId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
-
-                    b.HasOne("Integration.TradeXpress.Accounts.SubAccount", null)
-                        .WithMany()
-                        .HasForeignKey("SubAccountId")
-                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("Integration.TradeXpress.Vaults.Vault", null)
                         .WithMany()

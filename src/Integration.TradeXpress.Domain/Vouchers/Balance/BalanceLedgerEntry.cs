@@ -23,8 +23,25 @@ public class BalanceLedgerEntry : CreationAuditedAggregateRoot<Guid>, IMultiTena
     public virtual Guid CompanyId { get; protected set; }
     public virtual Guid BranchId { get; protected set; }
     public virtual Guid? VaultId { get; protected set; }
+
+    /// <summary>Karşı taraf TİPİ (fiş başlığından) — karşı-taraf alanlarının ANLAMINI belirler; kasa
+    /// bakiyeleri bu ayrımla, sahte cari üretilmeden ayrışır. Varsayılan
+    /// <see cref="Vouchers.AccountType.CurrentAccount"/> (=0) → mevcut satırlar backfill'siz doğru.</summary>
+    public virtual AccountType AccountType { get; protected set; }
+
+    /// <summary>Karşı tarafın üst kimliği — <b>tipe göre polimorfik</b>: CurrentAccount → Account.Id ·
+    /// Vault → Branch.Id. id-only snapshot (navigation/FK YOK — fiş başlığıyla aynı desen).</summary>
     public virtual Guid AccountId { get; protected set; }
-    public virtual Guid? SubAccountId { get; protected set; }
+
+    /// <summary>Üst kimliğin kod snapshot'ı (Account.Code ‖ Branch.Code).</summary>
+    public virtual string AccountCode { get; protected set; } = string.Empty;
+
+    /// <summary>Karşı tarafın alt kimliği — <b>tipe göre polimorfik</b>: CurrentAccount → SubAccount.Id ·
+    /// Vault → Vault.Id. Bakiye/pozisyon okumaları daima bu alanla anahtarlanır.</summary>
+    public virtual Guid SubAccountId { get; protected set; }
+
+    /// <summary>Alt kimliğin kod snapshot'ı (SubAccount.Code ‖ Vault.Code).</summary>
+    public virtual string SubAccountCode { get; protected set; } = string.Empty;
 
     // ── Bakiye etkisi (poster çıktısı) ──
     /// <summary>Etkilenen para/emtia birimi (BalanceEffect.UnitId).</summary>
@@ -62,8 +79,13 @@ public class BalanceLedgerEntry : CreationAuditedAggregateRoot<Guid>, IMultiTena
         CompanyId     = voucher.CompanyId;
         BranchId      = voucher.BranchId;
         VaultId       = voucher.VaultId;
-        AccountId     = voucher.AccountId;
-        SubAccountId  = voucher.SubAccountId;
+        // Karşı taraf kapsamı fiş BAŞLIĞINDAN kopyalanır (tip + id'ler + kod snapshot'ları) — poster'lar
+        // yalnız SATIRI okur; cari/kasa ayrımı buradan taşınır.
+        AccountType    = voucher.AccountType;
+        AccountId      = voucher.AccountId;
+        AccountCode    = voucher.AccountCode;
+        SubAccountId   = voucher.SubAccountId;
+        SubAccountCode = voucher.SubAccountCode;
         UnitId        = unitId;
         Amount        = FinancialRounding.RoundAmount(amount);
         VoucherId     = voucher.Id;

@@ -26,6 +26,11 @@ public class TradeXpressUiSettingDefinitionProvider : SettingDefinitionProvider
                 TradeXpressUiSettingNames.WorkingBranch,
                 defaultValue: "",
                 isVisibleToClients: true
+            ),
+            new SettingDefinition(
+                TradeXpressUiSettingNames.WorkingVault,
+                defaultValue: "",
+                isVisibleToClients: true
             )
         );
     }

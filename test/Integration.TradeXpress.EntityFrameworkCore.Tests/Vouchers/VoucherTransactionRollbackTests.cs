@@ -68,11 +68,14 @@ public class VoucherTransactionRollbackTests : TradeXpressEntityFrameworkCoreTes
                     data.CompanyId,
                     data.BranchId,
                     data.VaultId,
+                    AccountType.CurrentAccount,
                     data.AccountId,
+                    "ACC",
                     data.SubAccountId,
+                    "SUB",
                     voucherNumber: 2,
-                    DateTime.Now,
-                    "numara tuzağı");
+                    voucherDate: DateTime.Now,
+                    description: "numara tuzağı");
                 await _voucherRepository.InsertAsync(decoy, autoSave: true);
                 await _voucherRepository.DeleteAsync(decoy, autoSave: true);   // soft-delete: index satırı kalır
             });

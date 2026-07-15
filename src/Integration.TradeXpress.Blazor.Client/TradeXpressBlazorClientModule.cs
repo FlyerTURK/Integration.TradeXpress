@@ -76,6 +76,11 @@ public class TradeXpressBlazorClientModule : AbpModule
         // Çalışma bağlamı (working context) — seçili çalışma şubesi (company+branch); sol menü footer combo'su sürer.
         context.Services.AddScoped<Services.Working.IWorkingContextService, Services.Working.WorkingContextService>();
 
+        // Fiş satırı kaydının TEK karar noktası: dış cari → normal fiş yolu · iç kasa → Teyit (ayna onayı).
+        // Üç panel hiyerarşisi de (ProcessPanelHostBase / CommodityProcessPanelBase / DebitNoteProcessPanel)
+        // bunu tüketir → kural tek yerde yaşar.
+        context.Services.AddScoped<Pages.CurrentTransactions.VoucherLinePersister>();
+
         // Identity Management Services
         context.Services.AddScoped<Services.IIdentityUserService, Services.IdentityUserService>();
         context.Services.AddScoped<Services.IIdentityRoleService, Services.IdentityRoleService>();

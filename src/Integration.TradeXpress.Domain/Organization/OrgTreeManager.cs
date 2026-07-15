@@ -14,6 +14,8 @@ public class OrgTreeManager : DomainService
 {
     private readonly IRepository<Branch, Guid> _branchRepository;
     private readonly IRepository<Vault, Guid> _vaultRepository;
+    private readonly IRepository<Account, Guid> _accountRepository;
+    private readonly IRepository<SubAccount, Guid> _subAccountRepository;
     private readonly IDataFilter _dataFilter;
 
     // Company görünürlük filtresini KAPATMAK için IDataFilter (CompanyOwnedBackfiller ile aynı desen).
@@ -26,10 +28,14 @@ public class OrgTreeManager : DomainService
     public OrgTreeManager(
         IRepository<Branch, Guid> branchRepository,
         IRepository<Vault, Guid> vaultRepository,
+        IRepository<Account, Guid> accountRepository,
+        IRepository<SubAccount, Guid> subAccountRepository,
         IDataFilter dataFilter)
     {
         _branchRepository = branchRepository;
         _vaultRepository = vaultRepository;
+        _accountRepository = accountRepository;
+        _subAccountRepository = subAccountRepository;
         _dataFilter = dataFilter;
     }
 
@@ -121,6 +127,12 @@ public class OrgTreeManager : DomainService
             return vault;
         }
     }
+
+    // NOT (2026-07-15 ürün kararı — vault-cari EMEKLİ): Burada bir zamanlar EnsureVaultCurrentAccountAsync
+    // vardı; her kasa için SAHTE bir Account + SubAccount üretiyordu ("Sandık Kasa Carisi" gibi) → cari
+    // listesini kirletiyor, kodu ham GUID olduğu için okunmuyordu. Doğru model: kasa KASADIR, cari CARİDİR;
+    // ayrım Voucher/BalanceLedgerEntry'deki AccountType (CurrentAccount|Vault) alanındadır — karşı taraf kasa
+    // iken doğrudan CounterpartyVaultId referanslanır, hiçbir cari üretilmez. Bir daha sahte cari DOĞMASIN.
 
     /// <summary>
     /// Şube-otoriter bilanço birimi değişmezi (bkz. .claude/rules/financials.md): şube kendi

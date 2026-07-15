@@ -1,6 +1,6 @@
 @using System
 @using DevExpress.Blazor
-@using Integration.TradeXpress.Branches
+@using Integration.TradeXpress.Vaults
 @using Integration.TradeXpress.Blazor.Client.Services.Working
 @implements IDisposable
 @inject IWorkingContextService Working
@@ -9,26 +9,29 @@
 @inject IUiInteractionService Ui
 
 @*
-   Çalışma bağlamı (working context) şube seçici — sol menü drawer'ının FooterTemplate'inde.
-   İki kolonlu combo: Company (kod) + Branch (ad). Değer WorkingContextService'te tutulur; ilk yüklemede
-   son seçim ya da İLK şube otomatik seçilir (combo boş kalmaz). Şube yoksa (host) hiç render edilmez.
+   Çalışma bağlamı (working context) seçici — sol menü drawer'ının FooterTemplate'inde.
+   KASA HASSASİYETİ: satırlar KASA'dır, üç kolon Şirket + Şube + Kasa. Seçim kasanın şubesini ve şirketini
+   de set eder (çalışma bağlamı = şirket + şube + kasa). Değer WorkingContextService'te tutulur; ilk
+   yüklemede son seçim ya da çalışma şubesinin varsayılan kasası otomatik seçilir (combo boş kalmaz).
+   Kasa yoksa (host / yetkili kasa yok) hiç render edilmez — fail-safe.
 *@
 
-@if (Working.Branches.Count > 0)
+@if (Working.Vaults.Count > 0)
 {
     <div style="display:flex; flex-direction:column; gap:0.2rem;">
-        <span style="font-size:0.75rem; opacity:0.7;">@L["WorkingBranchCaption"]</span>
-        <DxComboBox TData="BranchListDto" TValue="Guid?"
-                    Data="@Working.Branches"
-                    Value="@Working.CurrentBranchId"
-                    ValueChanged="@OnBranchChanged"
-                    ValueFieldName="@nameof(BranchListDto.Id)"
-                    TextFieldName="@nameof(BranchListDto.CompanyBranchCode)"
-                    NullText="@L["WorkingBranchCaption"].Value"
+        <span style="font-size:0.75rem; opacity:0.7;">@L["WorkingVaultCaption"]</span>
+        <DxComboBox TData="MyVaultDto" TValue="Guid?"
+                    Data="@Working.Vaults"
+                    Value="@Working.CurrentVaultId"
+                    ValueChanged="@OnVaultChanged"
+                    ValueFieldName="@nameof(MyVaultDto.Id)"
+                    TextFieldName="@nameof(MyVaultDto.CompanyBranchVaultCode)"
+                    NullText="@L["WorkingVaultCaption"].Value"
                     CssClass="w-100">
             <Columns>
-                <DxListEditorColumn FieldName="@nameof(BranchListDto.CompanyDisplay)" Caption="@L["Company"].Value" Width="50%" />
-                <DxListEditorColumn FieldName="@nameof(BranchListDto.BranchDisplay)" Caption="@L["Branch"].Value" />
+                <DxListEditorColumn FieldName="@nameof(MyVaultDto.CompanyDisplay)" Caption="@L["Company"].Value" Width="34%" />
+                <DxListEditorColumn FieldName="@nameof(MyVaultDto.BranchDisplay)" Caption="@L["Branch"].Value" Width="33%" />
+                <DxListEditorColumn FieldName="@nameof(MyVaultDto.VaultDisplay)" Caption="@L["Vault"].Value" />
             </Columns>
         </DxComboBox>
     </div>
@@ -40,17 +43,17 @@
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
-            await Working.EnsureLoadedAsync(); // branch listesi + localStorage (JS interop → afterRender)
+            await Working.EnsureLoadedAsync(); // kasa/şube listesi + saklı seçim (server ayarı)
     }
 
     // Combo boş kalmamalı → null seçim yok sayılır (mevcut seçim korunur).
-    private async Task OnBranchChanged(Guid? branchId)
+    private async Task OnVaultChanged(Guid? vaultId)
     {
-        if (branchId is null || branchId == Working.CurrentBranchId) return;
+        if (vaultId is null || vaultId == Working.CurrentVaultId) return;
 
         if (TabManager.HasDirtyTabs)
         {
-            var result = await Ui.ConfirmAsync("Değişiklik yapılmış ancak kaydedilmemiş sekmeler var. Şube değiştirirseniz bu değişiklikler kaybolacak. Devam etmek istediğinize emin misiniz?", "Uyarı", "Yine de Değiştir", "İptal", false, false);
+            var result = await Ui.ConfirmAsync("Değişiklik yapılmış ancak kaydedilmemiş sekmeler var. Kasa değiştirirseniz bu değişiklikler kaybolacak. Devam etmek istediğinize emin misiniz?", "Uyarı", "Yine de Değiştir", "İptal", false, false);
             if (result != Integration.Framework.Blazor.Client.Services.Base.ConfirmDialogResult.Yes)
             {
                 // Combo seçimini geri almak için UI'ı zorla güncelliyoruz.
@@ -59,7 +62,7 @@
             }
         }
 
-        await Working.SetBranchAsync(branchId);
+        await Working.SetVaultAsync(vaultId);
         await TabManager.ReloadTabsAsync();
     }
 

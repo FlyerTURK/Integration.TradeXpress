@@ -4,6 +4,7 @@
 @implements IDisposable
 @inject IEffectivePriceAppService PriceService
 @inject IVoucherAppService VoucherService
+@inject IVoucherLineHistoryAppService VoucherLineHistoryService
 @inject IUiInteractionService Ui
 @inject ITabManager Tabs
 @inject IGridExportAssemblyLoader ExportLoader
@@ -103,7 +104,8 @@
                                     SelectionMode="GridSelectionMode.Multiple"
                                     AllowSelectRowByClick="true"
                                     SelectedDataItems="@_selectedLines"
-                                    SelectedDataItemsChanged="@OnLinesSelected">
+                                    SelectedDataItemsChanged="@OnLinesSelected"
+                                    RowDoubleClick="@OnVoucherLineRowDoubleClick">
                                 <Columns>
                                     @if (_accountLocked && !_processActive)
                                     {
@@ -161,6 +163,38 @@
                         }
                     </div>
                 </DxTabPage>
+                <DxTabPage Text="@L["Log"].Value" TabIconCssClass="custom-icon-history">
+                    <div style="display:flex; flex-direction:column; height:100%;">
+                        <div style="flex-shrink:0; padding:8px 12px; display:flex; justify-content:flex-end; border-left:1px solid color-mix(in srgb, var(--tx-theme-primary, var(--bs-primary, #0d6efd)) 8%, transparent); border-right:1px solid color-mix(in srgb, var(--tx-theme-primary, var(--bs-primary, #0d6efd)) 8%, transparent);">
+                            <DxDateRangePicker StartDate="@_historyStart" EndDate="@_historyEnd"
+                                               StartDateChanged="@((DateTime? d) => OnHistoryRangeChanged(d ?? _historyStart, _historyEnd))"
+                                               EndDateChanged="@((DateTime? d) => OnHistoryRangeChanged(_historyStart, d ?? _historyEnd))"
+                                               DisplayFormat="@L["ShortDateFormat"].Value" style="width:280px;" />
+                        </div>
+                        <div style="flex:1; min-height:0; min-width:0; overflow:hidden; display:flex; flex-direction:column;">
+                            <DxGrid Data="@_lineHistory" ShowSearchBox="false" PageSize="50" CssClass="w-100 tx-grid-fill"
+                                    KeyFieldName="@nameof(VoucherLineHistoryDto.Id)">
+                                <Columns>
+                                    <DxGridDataColumn AllowSort="false" FieldName="@nameof(VoucherLineHistoryDto.CreationTime)" FixedPosition="GridColumnFixedPosition.Left" Caption="@L["Date"].ToString().ToUpper()" DisplayFormat="dd.MM.yyyy HH:mm" Width="130px" />
+                                    <DxGridDataColumn AllowSort="false" FieldName="@nameof(VoucherLineHistoryDto.ChangeType)" Caption="@L["VoucherLineHistory:ChangeType"].ToString().ToUpper()" Width="110px">
+                                        <CellDisplayTemplate>
+                                            @{ var row = (VoucherLineHistoryDto)context.DataItem; }
+                                            <span style="@ChangeTypeBadgeStyle(row.ChangeType)">@L[$"Enum:VoucherLineChangeType:{row.ChangeType}"]</span>
+                                        </CellDisplayTemplate>
+                                    </DxGridDataColumn>
+                                    <DxGridDataColumn AllowSort="false" FieldName="@nameof(VoucherLineHistoryDto.VoucherNumber)" Caption="@L["Nr"].ToString().ToUpper()" Width="80px" />
+                                    <DxGridDataColumn AllowSort="false" FieldName="@nameof(VoucherLineHistoryDto.ProcessCode)" Caption="@L["Process"].ToString().ToUpper()" Width="70px" />
+                                    <DxGridDataColumn AllowSort="false" FieldName="@nameof(VoucherLineHistoryDto.CommodityCode)" Caption="@L["Code"].ToString().ToUpper()" Width="90px" />
+                                    <DxGridDataColumn AllowSort="false" FieldName="@nameof(VoucherLineHistoryDto.Quantity)" Caption="@L["Quantity"].ToString().ToUpper()" DisplayFormat="N0" TextAlignment="GridTextAlignment.Right" Width="70px" />
+                                    <DxGridDataColumn AllowSort="false" FieldName="@nameof(VoucherLineHistoryDto.Amount)" Caption="@L["Amount"].ToString().ToUpper()" DisplayFormat="N2" TextAlignment="GridTextAlignment.Right" Width="100px" />
+                                    <DxGridDataColumn AllowSort="false" FieldName="@nameof(VoucherLineHistoryDto.MainUnitCode)" Caption="@L["Unit"].ToString().ToUpper()" Width="100px" />
+                                    <DxGridDataColumn AllowSort="false" FieldName="@nameof(VoucherLineHistoryDto.CreatorName)" Caption="@L["User"].ToString().ToUpper()" Width="120px" />
+                                    <DxGridDataColumn AllowSort="false" FieldName="@nameof(VoucherLineHistoryDto.Description)" Caption="@L["Description"].ToString().ToUpper()" />
+                                </Columns>
+                            </DxGrid>
+                        </div>
+                    </div>
+                </DxTabPage>
             </DxTabs>
         </div>
     }
@@ -180,7 +214,8 @@
                             </div>
                         }
                         <div style="flex:1; min-height:0; overflow:hidden; display:flex; flex-direction:column;">
-                            <DxGrid Data="@_balanceRows" ShowSearchBox="false" PageSize="1000" CssClass="w-100 tx-grid-fill">
+                            <DxGrid Data="@_balanceRows" ShowSearchBox="false" PageSize="1000" CssClass="w-100 tx-grid-fill"
+                                    RowDoubleClick="@OnBalanceRowDoubleClick">
                         <Columns>
                             <DxGridDataColumn FieldName="@nameof(VoucherBalanceLineDto.UnitCode)" Caption="@L["Code"].Value.ToString().ToUpper()" Width="70px" TextAlignment="GridTextAlignment.Left" CaptionAlignment="GridTextAlignment.Center"/>
                             <DxGridDataColumn FieldName="@nameof(VoucherBalanceLineDto.Credit)" Caption="@L["Credit"].Value.ToString().ToUpper()" TextAlignment="GridTextAlignment.Right" CaptionAlignment="GridTextAlignment.Center">
@@ -203,6 +238,16 @@
                             </DxGridDataColumn>
                         </Columns>
                     </DxGrid>
+                        </div>
+                        @* Bakiye Gösterim Modu (2026-07-15 kullanıcı kararı): SubAccountScoped (seçili tek alt
+                           hesap/kasa) ↔ AccountScoped (bağlı olduğu cari hesabın/şubenin TÜM alt hesaplarının/
+                           kasalarının konsolide toplamı). Yeni cari seçiminde varsayılana (SubAccountScoped) döner. *@
+                        <div style="flex-shrink:0; padding:6px 4px 2px; display:flex; align-items:center; gap:6px;">
+                            <DxCheckBox CheckType="CheckType.Switch"
+                                        Checked="@(_balanceViewMode == BalanceViewMode.AccountScoped)"
+                                        CheckedChanged="@((bool v) => OnBalanceViewModeChanged(v))">
+                                @L["BalanceViewMode"]: @(_balanceViewMode == BalanceViewMode.AccountScoped ? L["BalanceViewMode:Account"] : L["BalanceViewMode:SubAccount"])
+                            </DxCheckBox>
                         </div>
                     </div>
                 </DxTabPage>
@@ -252,6 +297,130 @@
                 <DxButton Text="@L["Cancel"]"
                           RenderStyle="ButtonRenderStyle.Secondary" RenderStyleMode="ButtonRenderStyleMode.Contained"
                           Click="@(() => _showDeleteDialog = false)" />
+            </div>
+        </div>
+    </BodyContentTemplate>
+</DxPopup>
+
+@* Birim tarihçesi (Bakiye satırına çift-tık) — Liste modunun görsel diliyle (devreden/kapanış şeridi + grid). *@
+<DxPopup @bind-Visible="@_showUnitStatement" HeaderText="@($"{L["UnitStatement"]}: {_unitStatementUnitCode}")"
+         Width="90vw" ShowFooter="false">
+    <BodyContentTemplate Context="popupContext">
+        <div style="display:flex; flex-direction:column; gap:6px; height:75vh;">
+            <div style="flex-shrink:0; display:flex; justify-content:flex-end;">
+                <DxDateRangePicker StartDate="@_unitStatementStart" EndDate="@_unitStatementEnd"
+                                   StartDateChanged="@((DateTime? d) => OnUnitStatementRangeChanged(d ?? _unitStatementStart, _unitStatementEnd))"
+                                   EndDateChanged="@((DateTime? d) => OnUnitStatementRangeChanged(_unitStatementStart, d ?? _unitStatementEnd))"
+                                   DisplayFormat="@L["ShortDateFormat"].Value" style="width:280px;" />
+            </div>
+
+            @* Devreden şeridi — Liste modu _listOpening ile AYNI stil. *@
+            <div style="flex-shrink:0; display:flex; align-items:center; gap:14px; padding:5px 12px; font-size:12px; border-radius:4px 4px 0 0; background-color:color-mix(in srgb, var(--tx-theme-primary, var(--bs-primary, #0d6efd)) 4%, transparent);">
+                <span style="font-weight:700; letter-spacing:0.5px;">@L["OpeningBalance"].Value.ToUpper()</span>
+                @{ var opening = _unitStatement?.OpeningNet ?? 0m; }
+                @if (opening != 0m)
+                {
+                    <span style="font-weight:600; color:@(opening > 0m ? "#2e7d32" : "#c62828");">@Math.Abs(opening).ToString("N2") @_unitStatementUnitCode @(opening > 0m ? "(A)" : "(B)")</span>
+                }
+                else
+                {
+                    <span style="opacity:0.6;">—</span>
+                }
+            </div>
+
+            <div style="flex:1; min-height:0; overflow:hidden; display:flex; flex-direction:column;">
+                <DxGrid Data="@(_unitStatement?.Lines ?? new List<UnitStatementLineDto>())" ShowSearchBox="false" PageSize="1000" CssClass="w-100 tx-grid-fill">
+                    <Columns>
+                        <DxGridDataColumn AllowSort="false" FieldName="@nameof(UnitStatementLineDto.Line)" FixedPosition="GridColumnFixedPosition.Left"
+                                          Caption="@L["Date"].ToString().ToUpper()" Width="120px">
+                            <CellDisplayTemplate>
+                                @(((UnitStatementLineDto)context.DataItem).Line.VoucherDate.ToString("dd.MM.yyyy HH:mm"))
+                            </CellDisplayTemplate>
+                        </DxGridDataColumn>
+                        <DxGridDataColumn AllowSort="false" FieldName="@nameof(VoucherLineDto.VoucherNumber)" Caption="@L["Nr"].ToString().ToUpper()" Width="80px">
+                            <CellDisplayTemplate>
+                                @(((UnitStatementLineDto)context.DataItem).Line.VoucherNumber)
+                            </CellDisplayTemplate>
+                        </DxGridDataColumn>
+                        <DxGridDataColumn AllowSort="false" FieldName="@nameof(VoucherLineDto.ProcessCode)" Caption="@L["Process"].ToString().ToUpper()" Width="70px">
+                            <CellDisplayTemplate>
+                                @(((UnitStatementLineDto)context.DataItem).Line.ProcessCode)
+                            </CellDisplayTemplate>
+                        </DxGridDataColumn>
+                        <DxGridDataColumn AllowSort="false" FieldName="@nameof(VoucherLineDto.Description)" Caption="@L["Description"].ToString().ToUpper()">
+                            <CellDisplayTemplate>
+                                @(((UnitStatementLineDto)context.DataItem).Line.Description)
+                            </CellDisplayTemplate>
+                        </DxGridDataColumn>
+                        <DxGridDataColumn AllowSort="false" FieldName="@nameof(UnitStatementLineDto.Delta)" FixedPosition="GridColumnFixedPosition.Right"
+                                          Caption="@L["UnitStatement:Delta"].ToString().ToUpper()" TextAlignment="GridTextAlignment.Right" Width="110px">
+                            <CellDisplayTemplate>
+                                @{ var d = ((UnitStatementLineDto)context.DataItem).Delta; }
+                                <span style="font-weight:600; color:@(d >= 0m ? "#2e7d32" : "#c62828");">@(d >= 0m ? "+" : "")@d.ToString("N2")</span>
+                            </CellDisplayTemplate>
+                        </DxGridDataColumn>
+                        <DxGridDataColumn AllowSort="false" FieldName="@nameof(UnitStatementLineDto.RunningNet)" FixedPosition="GridColumnFixedPosition.Right"
+                                          Caption="@L["UnitStatement:RunningNet"].ToString().ToUpper()" TextAlignment="GridTextAlignment.Right" Width="140px">
+                            <CellDisplayTemplate>
+                                @{ var rn = ((UnitStatementLineDto)context.DataItem).RunningNet; }
+                                <span style="font-weight:600; color:@(rn >= 0m ? "#2e7d32" : "#c62828");">@Math.Abs(rn).ToString("N2") @_unitStatementUnitCode @(rn >= 0m ? "(A)" : "(B)")</span>
+                            </CellDisplayTemplate>
+                        </DxGridDataColumn>
+                    </Columns>
+                </DxGrid>
+            </div>
+
+            @* Kapanış şeridi — Liste modu _listClosing ile AYNI stil. *@
+            <div style="flex-shrink:0; display:flex; align-items:center; gap:14px; padding:5px 12px; font-size:12px; border-radius:0 0 4px 4px; background-color:color-mix(in srgb, var(--tx-theme-primary, var(--bs-primary, #0d6efd)) 8%, transparent);">
+                <span style="font-weight:700; letter-spacing:0.5px;">@L["ClosingBalance"].Value.ToUpper()</span>
+                @{ var closing = _unitStatement?.ClosingNet ?? 0m; }
+                @if (closing != 0m)
+                {
+                    <span style="font-weight:600; color:@(closing > 0m ? "#2e7d32" : "#c62828");">@Math.Abs(closing).ToString("N2") @_unitStatementUnitCode @(closing > 0m ? "(A)" : "(B)")</span>
+                }
+                else
+                {
+                    <span style="opacity:0.6;">—</span>
+                }
+            </div>
+
+            <div style="flex-shrink:0; display:flex; justify-content:flex-end;">
+                <DxButton Text="@L["Close"]" RenderStyle="ButtonRenderStyle.Secondary" RenderStyleMode="ButtonRenderStyleMode.Contained"
+                          Click="@(() => _showUnitStatement = false)" />
+            </div>
+        </div>
+    </BodyContentTemplate>
+</DxPopup>
+
+@* Satır geçmişi (fiş satırına çift-tık) — o SATIRIN tam tarihçesi, Log sekmesiyle AYNI kolon seti. *@
+<DxPopup @bind-Visible="@_showLineHistory" HeaderText="@L["VoucherLineHistory:LineHistory"]" Width="90vw" ShowFooter="false">
+    <BodyContentTemplate Context="lineHistoryPopupContext">
+        <div style="display:flex; flex-direction:column; gap:6px; height:75vh;">
+            <div style="flex:1; min-height:0; overflow:hidden; display:flex; flex-direction:column;">
+                <DxGrid Data="@_selectedLineHistory" ShowSearchBox="false" PageSize="1000" CssClass="w-100 tx-grid-fill"
+                        KeyFieldName="@nameof(VoucherLineHistoryDto.Id)">
+                    <Columns>
+                        <DxGridDataColumn AllowSort="false" FieldName="@nameof(VoucherLineHistoryDto.CreationTime)" FixedPosition="GridColumnFixedPosition.Left" Caption="@L["Date"].ToString().ToUpper()" DisplayFormat="dd.MM.yyyy HH:mm" Width="130px" />
+                        <DxGridDataColumn AllowSort="false" FieldName="@nameof(VoucherLineHistoryDto.ChangeType)" Caption="@L["VoucherLineHistory:ChangeType"].ToString().ToUpper()" Width="110px">
+                            <CellDisplayTemplate>
+                                @{ var row = (VoucherLineHistoryDto)context.DataItem; }
+                                <span style="@ChangeTypeBadgeStyle(row.ChangeType)">@L[$"Enum:VoucherLineChangeType:{row.ChangeType}"]</span>
+                            </CellDisplayTemplate>
+                        </DxGridDataColumn>
+                        <DxGridDataColumn AllowSort="false" FieldName="@nameof(VoucherLineHistoryDto.VoucherNumber)" Caption="@L["Nr"].ToString().ToUpper()" Width="80px" />
+                        <DxGridDataColumn AllowSort="false" FieldName="@nameof(VoucherLineHistoryDto.ProcessCode)" Caption="@L["Process"].ToString().ToUpper()" Width="70px" />
+                        <DxGridDataColumn AllowSort="false" FieldName="@nameof(VoucherLineHistoryDto.CommodityCode)" Caption="@L["Code"].ToString().ToUpper()" Width="90px" />
+                        <DxGridDataColumn AllowSort="false" FieldName="@nameof(VoucherLineHistoryDto.Quantity)" Caption="@L["Quantity"].ToString().ToUpper()" DisplayFormat="N0" TextAlignment="GridTextAlignment.Right" Width="70px" />
+                        <DxGridDataColumn AllowSort="false" FieldName="@nameof(VoucherLineHistoryDto.Amount)" Caption="@L["Amount"].ToString().ToUpper()" DisplayFormat="N2" TextAlignment="GridTextAlignment.Right" Width="100px" />
+                        <DxGridDataColumn AllowSort="false" FieldName="@nameof(VoucherLineHistoryDto.MainUnitCode)" Caption="@L["Unit"].ToString().ToUpper()" Width="100px" />
+                        <DxGridDataColumn AllowSort="false" FieldName="@nameof(VoucherLineHistoryDto.CreatorName)" Caption="@L["User"].ToString().ToUpper()" Width="120px" />
+                        <DxGridDataColumn AllowSort="false" FieldName="@nameof(VoucherLineHistoryDto.Description)" Caption="@L["Description"].ToString().ToUpper()" />
+                    </Columns>
+                </DxGrid>
+            </div>
+            <div style="flex-shrink:0; display:flex; justify-content:flex-end;">
+                <DxButton Text="@L["Close"]" RenderStyle="ButtonRenderStyle.Secondary" RenderStyleMode="ButtonRenderStyleMode.Contained"
+                          Click="@(() => _showLineHistory = false)" />
             </div>
         </div>
     </BodyContentTemplate>

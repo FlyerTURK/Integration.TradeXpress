@@ -131,6 +131,16 @@ public class VoucherTestDataSeeder : ITransientDependency
         return (branch.Id, vault.Id);
     }
 
+    /// <summary>AYNI şubede İKİNCİ bir kasa kurar (aynı-şube kasa→kasa transfer senaryosu — slice-1a; hedef
+    /// kasa Y). Dönüş: yeni kasa Id'si. UoW içinden çağrılmalıdır.</summary>
+    public async Task<Guid> SeedExtraVaultAsync(VoucherTestData data, string prefix = "ALT")
+    {
+        var vault = await _vaultRepository.InsertAsync(
+            new Vault(data.CompanyId, data.BranchId, $"{prefix}VLT", $"{prefix} Vault", isDefault: false),
+            autoSave: true);
+        return vault.Id;
+    }
+
     /// <summary>Virman testleri için karşı alt hesabı kurar (aynı üst hesap altında ikinci SubAccount —
     /// virman kuralı hesap DEĞİL alt-hesap seviyesinde ayrışır). UoW içinden çağrılmalıdır.</summary>
     public async Task<Guid> SeedCounterSubAccountAsync(VoucherTestData data, string prefix = "CNT")

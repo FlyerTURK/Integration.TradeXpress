@@ -4,13 +4,18 @@ using System.Linq;
 using System.Threading.Tasks;
 using Integration.Framework;
 using Integration.Framework.Base.Querying;
+using Integration.TradeXpress.Authorization;
 using Integration.TradeXpress.Branches;
+using Integration.TradeXpress.Companies;
+using Integration.TradeXpress.MultiCompany;
 using Integration.TradeXpress.Permissions;
 using Microsoft.AspNetCore.Authorization;
 using Volo.Abp;
 using Volo.Abp.Application.Dtos;
+using Volo.Abp.Data;
 using Volo.Abp.Domain.Entities;
 using Volo.Abp.Domain.Repositories;
+using Volo.Abp.Users;
 
 namespace Integration.TradeXpress.Vaults;
 
@@ -24,16 +29,43 @@ public class VaultAppService : TradeXpressAppService, IVaultAppService
 {
     private readonly IRepository<Vault, Guid> _repository;
     private readonly IRepository<Branch, Guid> _branchRepository;
+    private readonly IRepository<Company, Guid> _companyRepository;
+    private readonly ICurrentCompany _currentCompany;
+    private readonly IScopedGrantResolver _scopedGrantResolver;   // working-context kasa daraltması (yalnız OKUMA)
+    private readonly IDataFilter _dataFilter;
 
     private static readonly HashSet<string> AllowedListFields =
         new(StringComparer.OrdinalIgnoreCase) { "Code", "Name", "BranchCode", "IsDefault", "IsActive", "DisplayOrder", "BranchId", "Id" };
 
     public VaultAppService(
         IRepository<Vault, Guid> repository,
-        IRepository<Branch, Guid> branchRepository)
+        IRepository<Branch, Guid> branchRepository,
+        IRepository<Company, Guid> companyRepository,
+        ICurrentCompany currentCompany,
+        IScopedGrantResolver scopedGrantResolver,
+        IDataFilter dataFilter)
     {
+        _scopedGrantResolver = scopedGrantResolver;
+        _dataFilter = dataFilter;
         _repository = repository;
         _branchRepository = branchRepository;
+        _companyRepository = companyRepository;
+        _currentCompany = currentCompany;
+    }
+
+    // NOT (2026-07-15 ürün kararı): burada GetCurrentAccountAsync vardı — seçilen kasayı SAHTE bir cariye
+    // (vault-cari) çözüyordu. Emekli edildi: kasa artık fişte DOĞRUDAN karşı taraftır (AccountType=Vault;
+    // Şube→AccountId/AccountCode, Kasa→SubAccountId/SubAccountCode) → cari üretilmez, cari listesi kirlenmez.
+
+    /// <summary>Sızıntı önleme: CompanyId DAİMA working-context'ten zorlanır (client'a güvenilmez).</summary>
+    private Guid EnsureCurrentCompanyId()
+    {
+        if (_currentCompany.Id is not { } companyId)
+        {
+            throw new BusinessException("TradeXpress:Vault:CompanyContextRequired");
+        }
+
+        return companyId;
     }
 
     public virtual async Task<PagedResultDto<VaultListDto>> GetListAsync(VaultListRequestDto input)
@@ -74,6 +106,78 @@ public class VaultAppService : TradeXpressAppService, IVaultAppService
                 IsActive = r.IsActive,
                 DisplayOrder = r.DisplayOrder,
             }).ToList());
+    }
+
+    /// <summary>
+    /// Kullanıcının ÇALIŞABİLDİĞİ kasalar — <c>BranchAppService.GetMyBranchesAsync</c>'in kasa AYNASI:
+    /// server-side kapsam (scope) daraltması, her satır <see cref="ScopedAccessSet.CanAccessVault"/> ile elenir
+    /// (en-spesifik-kazanır). Kendi çalışma kapsamının okunması → yalnız kimliklendirilmiş kullanıcı yeter.
+    ///
+    /// <para><b>ŞİRKET FİLTRESİ GEVŞETMESİ (yalnız BU OKUMADA — onaylı):</b> <see cref="Vault"/>
+    /// <c>ICompanyOwned</c>'dır (global company query-filter'a girer) ama <c>Branch</c> değildir. Filtre açık
+    /// kalsaydı kullanıcı yalnız AKTİF şirketinin kasalarını görür, seçiciden başka şirkete GEÇEMEZ, yani
+    /// kendini aktif şirkete KİLİTLERDİ (şirket seçimi de bu combo'dan yapılır — tavuk-yumurta). Gevşetme
+    /// güvenlik açmaz: satırlar yine kapsam-grant'i ile elenir; tenant filtresi AÇIK kalır; bu bir salt-OKUMA
+    /// yoludur (yazma yolu yok). Yetkiyi filtre değil grant belirler.</para>
+    /// </summary>
+    [Authorize]
+    public virtual async Task<List<MyVaultDto>> GetMyVaultsAsync(Guid? branchId = null)
+    {
+        var access = await _scopedGrantResolver.ResolveAsync(CurrentUser.GetId());
+
+        List<MyVaultRow> rows;
+        using (_dataFilter.Disable<ICompanyScoped>())   // yalnız company filtresi (tenant filtresi AÇIK kalır)
+        {
+            var vaults = await _repository.GetQueryableAsync();
+            if (branchId.HasValue)
+                vaults = vaults.Where(v => v.BranchId == branchId.Value);
+
+            var branches = await _branchRepository.GetQueryableAsync();
+            var companies = await _companyRepository.GetQueryableAsync();
+
+            var query = vaults
+                .Join(branches, v => v.BranchId, b => b.Id, (v, b) => new { v, b })
+                .Join(companies, x => x.b.CompanyId, c => c.Id, (x, c) => new MyVaultRow
+                {
+                    Id = x.v.Id,
+                    CompanyId = c.Id,
+                    CompanyCode = c.Code,
+                    CompanyName = c.Name,
+                    BranchId = x.b.Id,
+                    BranchCode = x.b.Code,
+                    BranchName = x.b.Name,
+                    Code = x.v.Code,
+                    Name = x.v.Name,
+                    IsDefault = x.v.IsDefault,
+                    IsActive = x.v.IsActive,
+                    DisplayOrder = x.v.DisplayOrder,
+                });
+
+            rows = await AsyncExecuter.ToListAsync(query);
+        }
+
+        return rows
+            .Where(r => r.IsActive && access.CanAccessVault(r.CompanyId, r.BranchId, r.Id))
+            .OrderBy(r => r.CompanyCode, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(r => r.BranchCode, StringComparer.OrdinalIgnoreCase)
+            .ThenByDescending(r => r.IsDefault)
+            .ThenBy(r => r.DisplayOrder)
+            .ThenBy(r => r.Code, StringComparer.OrdinalIgnoreCase)
+            .Select(r => new MyVaultDto
+            {
+                Id = r.Id,
+                CompanyId = r.CompanyId,
+                CompanyCode = r.CompanyCode,
+                CompanyName = r.CompanyName,
+                BranchId = r.BranchId,
+                BranchCode = r.BranchCode,
+                BranchName = r.BranchName,
+                Code = r.Code,
+                Name = r.Name,
+                IsDefault = r.IsDefault,
+                DisplayOrder = r.DisplayOrder,
+            })
+            .ToList();
     }
 
     public virtual async Task<VaultGetDto> GetAsync(Guid id)
@@ -226,6 +330,23 @@ public class VaultAppService : TradeXpressAppService, IVaultAppService
         public Guid Id { get; set; }
         public Guid BranchId { get; set; }
         public string BranchCode { get; set; } = string.Empty;
+        public string Code { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public bool IsDefault { get; set; }
+        public bool IsActive { get; set; }
+        public int DisplayOrder { get; set; }
+    }
+
+    // Working-context projeksiyonu: Vault + join'lenmiş şube/şirket (combo kolonları tek sorguda).
+    private sealed class MyVaultRow
+    {
+        public Guid Id { get; set; }
+        public Guid CompanyId { get; set; }
+        public string CompanyCode { get; set; } = string.Empty;
+        public string CompanyName { get; set; } = string.Empty;
+        public Guid BranchId { get; set; }
+        public string BranchCode { get; set; } = string.Empty;
+        public string BranchName { get; set; } = string.Empty;
         public string Code { get; set; } = string.Empty;
         public string Name { get; set; } = string.Empty;
         public bool IsDefault { get; set; }

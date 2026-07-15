@@ -14,7 +14,7 @@ namespace Integration.TradeXpress.Confirmations;
 /// <c>WhenWritingDefault</c> ile yalnız DOLU alanlar yazılır; tipik satır birkaç yüz karakter kalır.</para>
 ///
 /// <para><b>Kapsam dışı alanlar okumada temizlenir:</b> id/fiş başlığı/denormalize kodlar ve yürüyen bakiye
-/// payload'da anlamsızdır — teyitte fiş başlığını SUNUCU türetir (karşı kasanın vault-cari'si), satır id'si
+/// payload'da anlamsızdır — teyitte fiş başlığını SUNUCU türetir (karşı KASA; AccountType=Vault), satır id'si
 /// yeni fişte yeniden doğar. Bunları taşımak bayat veri sızdırır.</para>
 /// </summary>
 public static class ConfirmationPayloadSerializer
@@ -61,7 +61,7 @@ public static class ConfirmationPayloadSerializer
     }
 
     /// <summary>Payload'a girmeyecek alanları temizler: kimlik + fiş başlığı (sunucu türetir) + okuma-zamanı
-    /// denormalize kodlar/bakiyeler + virman alanları (Virman iç kipte KAPALI — sızan değere güvenilmez).</summary>
+    /// denormalize kodlar/bakiyeler + sunucu-otoriteli virman <c>LinkId</c>'si.</summary>
     private static VoucherLineDto Sanitize(VoucherLineDto line)
     {
         line.Id                      = default;
@@ -69,7 +69,7 @@ public static class ConfirmationPayloadSerializer
         line.VoucherNumber           = default;
         line.VoucherConcurrencyStamp = null;
 
-        // Fiş başlığı: teyitte SUNUCU türetir (kasa + karşı kasanın vault-cari'si) → payload'da taşınmaz.
+        // Fiş başlığı: teyitte SUNUCU türetir (kendi kasası + karşı KASA) → payload'da taşınmaz.
         line.CompanyId    = default;
         line.BranchId     = default;
         line.VaultId      = null;
@@ -85,9 +85,9 @@ public static class ConfirmationPayloadSerializer
         line.CreationTime       = default;
         line.RunningBalances    = new();
 
-        // Virman'a özel alanlar — iç kipte Virman desteklenmez (ConfirmationProcessPolicy).
-        line.CounterAccountId = null;
-        line.LinkId           = null;
+        // Virman ikiz kimliği: sunucu otoritedir (VoucherAppService de client değerini yok sayar) → replay'de
+        // yeniden üretilir. CounterAccountId KULLANICININ seçimidir (virman karşı hesabı) → payload'da KALIR.
+        line.LinkId = null;
 
         return line;
     }

@@ -23,8 +23,11 @@ public class Voucher : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwn
         Guid companyId,
         Guid branchId,
         Guid? vaultId,
+        AccountType accountType,
         Guid accountId,
-        Guid? subAccountId,
+        string accountCode,
+        Guid subAccountId,
+        string subAccountCode,
         long voucherNumber,
         DateTime voucherDate,
         string? description = null)
@@ -32,8 +35,7 @@ public class Voucher : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwn
         SetCompanyId(companyId);
         SetBranchId(branchId);
         VaultId = vaultId == Guid.Empty ? null : vaultId;
-        SetAccountId(accountId);
-        SubAccountId = subAccountId == Guid.Empty ? null : subAccountId;
+        SetCounterparty(accountType, accountId, accountCode, subAccountId, subAccountCode);
         VoucherNumber = voucherNumber;
         VoucherDate   = TruncateToSeconds(voucherDate);
         SetDescription(description);
@@ -54,11 +56,31 @@ public class Voucher : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwn
     /// <summary>Kasa (opsiyonel) — oluşturmadan sonra değişmez.</summary>
     public virtual Guid? VaultId { get; protected set; }
 
-    /// <summary>Cari hesap — oluşturmadan sonra değişmez.</summary>
+    /// <summary>Karşı taraf TİPİ — karşı-taraf alanlarının ANLAMINI belirler (polimorfik; legacy ERPPRO
+    /// <c>HesapType</c> paritesi). Varsayılan <see cref="Vouchers.AccountType.CurrentAccount"/> (=0) →
+    /// mevcut fişler backfill'siz doğru. Oluşturmadan sonra değişmez.</summary>
+    public virtual AccountType AccountType { get; protected set; }
+
+    /// <summary>Karşı tarafın ÜST kimliği — <b>tipe göre polimorfik</b> (2026-07-15 ürün kararı):
+    /// <see cref="Vouchers.AccountType.CurrentAccount"/> → <c>Account.Id</c> ·
+    /// <see cref="Vouchers.AccountType.Vault"/> → <c>Branch.Id</c>.
+    /// <para><b>id-only snapshot — navigation/FK YOK</b> (VoucherLine'daki emtia alanlarıyla aynı desen):
+    /// tek kolon iki farklı tabloya işaret ettiği için FK kurulamaz; bütünlük tip+guard ile korunur.</para></summary>
     public virtual Guid AccountId { get; protected set; }
 
-    /// <summary>Alt hesap (opsiyonel) — oluşturmadan sonra değişmez.</summary>
-    public virtual Guid? SubAccountId { get; protected set; }
+    /// <summary>Karşı tarafın üst kimliğinin KOD SNAPSHOT'ı (Account.Code ‖ Branch.Code) — kayıt anında
+    /// dondurulur; kaynak sonradan yeniden adlandırılsa da fişin gösterdiği kod değişmez.</summary>
+    public virtual string AccountCode { get; protected set; } = string.Empty;
+
+    /// <summary>Karşı tarafın ALT kimliği — <b>tipe göre polimorfik</b>:
+    /// <see cref="Vouchers.AccountType.CurrentAccount"/> → <c>SubAccount.Id</c> ·
+    /// <see cref="Vouchers.AccountType.Vault"/> → <c>Vault.Id</c>.
+    /// <para>Okuma yolları (liste/ekstre/bakiye) DAİMA bu alanla anahtarlanır → kasa bakiyeleri sahte cari
+    /// üretilmeden, sorgu imzaları değişmeden ayrışır.</para></summary>
+    public virtual Guid SubAccountId { get; protected set; }
+
+    /// <summary>Karşı tarafın alt kimliğinin KOD SNAPSHOT'ı (SubAccount.Code ‖ Vault.Code).</summary>
+    public virtual string SubAccountCode { get; protected set; } = string.Empty;
 
     /// <summary>Şirket bazında otomatik artan fiş numarası.</summary>
     public virtual long VoucherNumber { get; protected set; }
@@ -131,10 +153,30 @@ public class Voucher : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwn
         BranchId = value;
     }
 
-    private void SetAccountId(Guid value)
+    /// <summary>Fişin karşı tarafını (tip + id'ler + kod snapshot'ları) kurar ve DEĞİŞMEZİ zorlar (fail-fast).
+    /// <para>Dört alan da TİPTEN BAĞIMSIZ ZORUNLUDUR: cari fişte Account/SubAccount, kasa fişinde Şube/Kasa
+    /// doldurur. Şema tek olduğu için okuma yolları (liste/ekstre/bakiye) tipe bakmadan, imza değiştirmeden
+    /// çalışır; kasa bakiyeleri sahte cari ÜRETİLMEDEN ayrışır (2026-07-15 ürün kararı).</para></summary>
+    private void SetCounterparty(
+        AccountType accountType, Guid accountId, string accountCode, Guid subAccountId, string subAccountCode)
     {
-        if (value == Guid.Empty) throw new RequiredPropertyException(nameof(AccountId));
-        AccountId = value;
+        if (accountId == Guid.Empty)
+        {
+            throw new RequiredPropertyException(nameof(AccountId));
+        }
+
+        if (subAccountId == Guid.Empty)
+        {
+            throw new RequiredPropertyException(nameof(SubAccountId));
+        }
+
+        AccountType    = accountType;
+        AccountId      = accountId;
+        AccountCode    = StringFieldGuard.NormalizeCode(
+            accountCode, nameof(AccountCode), VoucherConsts.CounterpartyCodeMinLength, VoucherConsts.CounterpartyCodeMaxLength);
+        SubAccountId   = subAccountId;
+        SubAccountCode = StringFieldGuard.NormalizeCode(
+            subAccountCode, nameof(SubAccountCode), VoucherConsts.CounterpartyCodeMinLength, VoucherConsts.CounterpartyCodeMaxLength);
     }
 
     /// <summary>Saniye-altını atar VE Kind'ı <see cref="DateTimeKind.Unspecified"/>'e sabitler:

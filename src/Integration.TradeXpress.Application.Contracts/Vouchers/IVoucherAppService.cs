@@ -31,8 +31,15 @@ public interface IVoucherAppService : IApplicationService
     /// <summary>Satırı soft-delete eder (silme nedeni ile).</summary>
     Task DeleteLineAsync(Guid voucherId, Guid lineId, string reason);
 
-    /// <summary>Bir cari (SubAccount) için birim bazında anlık bakiye + hesabın bakiye birimi (opsiyonel tarih sınırı).</summary>
+    /// <summary>Karşı taraf için birim bazında anlık bakiye + bakiye birimi (opsiyonel tarih sınırı).
+    /// <paramref name="subAccountId"/> POLİMORFİKTİR: cari kipinde SubAccount, iç kasa kipinde KASA id'si
+    /// (fişin <c>AccountType</c>'ı belirler) → kasa bakiyeleri sahte cari olmadan aynı sözleşmeden okunur.</summary>
     Task<AccountBalanceDto> GetBalancesAsync(Guid subAccountId, DateTime? upTo = null);
+
+    /// <summary>Bakiye Gösterim Modu = AccountScoped: <paramref name="accountId"/>'nin (cari kipte Account, iç
+    /// kipte Şube) TÜM alt hesaplarının/kasalarının KONSOLİDE net bakiyesi + bakiye birimi. Tek bir alt hesap/kasa
+    /// değil, aynı üst kimliğe bağlı hepsinin toplamı — <see cref="GetBalancesAsync"/>'in geniş-kapsamlı eşi.</summary>
+    Task<AccountBalanceDto> GetAccountBalancesAsync(Guid accountId, DateTime? upTo = null);
 
     /// <summary>Takoz stoğu (aktif giriş külçeleri) — takoz ÇIKIŞ panelinin combo kaynağı.
     /// <paramref name="inStock"/> true → yalnız stokta olanlar (aktif çıkışı olmayan); null → hepsi (düzeltme için).</summary>
@@ -44,4 +51,10 @@ public interface IVoucherAppService : IApplicationService
 
     /// <summary>Bir fişi (ve altındaki tüm satırları) siler.</summary>
     Task DeleteAsync(Guid id);
+
+    /// <summary>Bakiye sekmesinde bir birime çift-tıklayınca açılan tarihçe: <paramref name="scopeIsAccount"/>
+    /// false ise <paramref name="scopeId"/> SubAccount/Kasa (tek alt hesap/kasa — GetBalancesAsync ile aynı
+    /// kapsam), true ise Account/Şube (konsolide — GetAccountBalancesAsync ile aynı kapsam). Yalnız
+    /// <paramref name="unitId"/>'yi etkileyen satırlar döner (devreden + yürüyen net dahil).</summary>
+    Task<UnitStatementDto> GetUnitStatementAsync(Guid scopeId, bool scopeIsAccount, Guid unitId, DateTime start, DateTime endExclusive);
 }

@@ -16,9 +16,15 @@ public class VoucherCreateDto
 
     public Guid? VaultId { get; set; }
 
+    /// <summary>Karşı taraf tipi — alttaki id/kod alanlarının ANLAMINI belirler. Varsayılan cari (dış akış).</summary>
+    public AccountType AccountType { get; set; } = AccountType.CurrentAccount;
+
+    /// <summary>Üst kimlik — cari kipinde Account, kasa kipinde ŞUBE id'si.</summary>
     [Required]
     public Guid AccountId { get; set; }
 
+    /// <summary>Alt kimlik — cari kipinde SubAccount, kasa kipinde KASA id'si. DTO'da nullable: form
+    /// "henüz seçilmedi" halini taşır. Fişte ZORUNLUDUR (Voucher.SetCounterparty guard'ı).</summary>
     public Guid? SubAccountId { get; set; }
 
     [Required]
@@ -33,8 +39,11 @@ public class VoucherGetDto : EntityDto<Guid>
     public Guid CompanyId { get; set; }
     public Guid BranchId { get; set; }
     public Guid? VaultId { get; set; }
+    public AccountType AccountType { get; set; }
     public Guid AccountId { get; set; }
-    public Guid? SubAccountId { get; set; }
+    public string AccountCode { get; set; } = string.Empty;
+    public Guid SubAccountId { get; set; }
+    public string SubAccountCode { get; set; } = string.Empty;
     public long VoucherNumber { get; set; }
     public DateTime VoucherDate { get; set; }
     public string? Description { get; set; }
@@ -42,7 +51,10 @@ public class VoucherGetDto : EntityDto<Guid>
 
 public class VoucherListRequestDto
 {
+    /// <summary>Karşı taraf anahtarı — POLİMORFİK: cari kipinde SubAccount, iç kasa kipinde KASA id'si.
+    /// Kip ayrımı için ek alan GEREKMEZ (fişin AccountType'ı zaten kaydın kendisinde).</summary>
     public Guid? SubAccountId { get; set; }
+
     public int SkipCount { get; set; }
     public int MaxResultCount { get; set; } = 1000;
 }

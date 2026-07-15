@@ -99,6 +99,7 @@ public class TradeXpressDbContext :
     public DbSet<Integration.TradeXpress.Products.ProductVariantDetail> ProductVariantDetails { get; set; } = null!;
     public DbSet<Voucher> Vouchers { get; set; } = null!;
     public DbSet<VoucherLine> VoucherLines { get; set; } = null!;
+    public DbSet<VoucherLineHistory> VoucherLineHistories { get; set; } = null!;
     public DbSet<Integration.TradeXpress.Vouchers.Balance.BalanceLedgerEntry> BalanceLedgerEntries { get; set; } = null!;
     public DbSet<Integration.TradeXpress.Reports.BalanceSheet.BalanceSheetSnapshot> BalanceSheetSnapshots { get; set; } = null!;
     // Teyit (organizasyon-içi karşılıklı ayna onayı) — company-owned staging kaydı.
@@ -225,6 +226,7 @@ public class TradeXpressDbContext :
         builder.ConfigureMedia();
         builder.ConfigureAccounts();
         builder.ConfigureVouchers();
+        builder.ConfigureVoucherLineHistories();
         builder.ConfigureBalanceLedger();
         builder.ConfigureBalanceSheetSnapshots();
         builder.ConfigureConfirmations();

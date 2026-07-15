@@ -27,6 +27,41 @@ public class VaultListDto : EntityDto<Guid>, IListDto<Guid>, IIsActive
     public int CurrentTransactionCount { get; set; }
 }
 
+/// <summary>
+/// Çalışma bağlamı (working context) seçicisinin SATIRI — kullanıcının ÇALIŞABİLDİĞİ bir kasa, şirket/şube
+/// bilgisiyle birlikte düzleştirilmiş. <see cref="Branches.BranchListDto"/>'nun kasa hassasiyetindeki aynası:
+/// combo satırları kasadır, kolonlar Şirket / Şube / Kasa'dır.
+///
+/// <para><b>Yönetim listesinden ayrı olması kasıtlı:</b> <see cref="VaultListDto"/> = <i>yönetim listesi</i>
+/// (grid/drill; kapsam-grant'i ile daraltılmaz), bu DTO = <i>çalışabildiğim kasalar</i>. İki kavram
+/// karıştırılmaz.</para>
+/// </summary>
+public class MyVaultDto : EntityDto<Guid>
+{
+    public Guid CompanyId { get; set; }
+    public string CompanyCode { get; set; } = string.Empty;
+    public string CompanyName { get; set; } = string.Empty;
+    public Guid BranchId { get; set; }
+    public string BranchCode { get; set; } = string.Empty;
+    public string BranchName { get; set; } = string.Empty;
+    public string Code { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public bool IsDefault { get; set; }
+    public int DisplayOrder { get; set; }
+
+    /// <summary>Combo kapalı gösterimi: "ŞirketKodu / ŞubeKodu / KasaKodu".</summary>
+    public string CompanyBranchVaultCode => $"{CompanyCode} / {BranchCode} / {Code}";
+
+    /// <summary>Combo 1. kolon: "ŞirketKodu / ŞirketAdı".</summary>
+    public string CompanyDisplay => $"{CompanyCode} / {CompanyName}";
+
+    /// <summary>Combo 2. kolon: "ŞubeKodu / ŞubeAdı".</summary>
+    public string BranchDisplay => $"{BranchCode} / {BranchName}";
+
+    /// <summary>Combo 3. kolon: "KasaKodu / KasaAdı".</summary>
+    public string VaultDisplay => $"{Code} / {Name}";
+}
+
 public class VaultGetDto : EntityDto<Guid>, IGetDto<Guid>
 {
     public Guid BranchId { get; set; }

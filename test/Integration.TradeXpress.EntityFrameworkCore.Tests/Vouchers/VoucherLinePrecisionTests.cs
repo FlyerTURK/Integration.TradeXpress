@@ -123,7 +123,8 @@ public class VoucherLinePrecisionTests : TradeXpressEntityFrameworkCoreTestBase
         {
             var voucher = new Voucher(
                 data.CompanyId, data.BranchId, data.VaultId,
-                data.AccountId, data.SubAccountId,
+                AccountType.CurrentAccount,
+                data.AccountId, "ACC", data.SubAccountId, "SUB",
                 voucherNumber: 1L, voucherDate: DateTime.Today);
             voucher.AddLine(_guidGenerator.Create(), input);
             await _voucherRepository.InsertAsync(voucher, autoSave: true);

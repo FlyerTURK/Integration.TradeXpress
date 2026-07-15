@@ -50,7 +50,9 @@ public class UnitOfWorkTransactionTests : TradeXpressEntityFrameworkCoreTestBase
                 await _voucherRepository.InsertAsync(
                     new Voucher(
                         data.CompanyId, data.BranchId, data.VaultId,
-                        data.AccountId, data.SubAccountId, 99, DateTime.Now, "probe"),
+                        AccountType.CurrentAccount,
+                        data.AccountId, "ACC", data.SubAccountId, "SUB",
+                        99, DateTime.Now, "probe"),
                     autoSave: true);
                 // Complete YOK — dispose'da rollback beklenir.
             }

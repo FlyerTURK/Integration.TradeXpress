@@ -135,28 +135,16 @@ public class BalanceSheetReportAppService : TradeXpressAppService, IBalanceSheet
                && (branchId == null || e.BranchId == branchId)
                && e.UnitId == unitId
                && e.VoucherDate < cutoff
-            group e by new { e.AccountId, e.SubAccountId } into g
-            select new { g.Key.AccountId, g.Key.SubAccountId, Amount = g.Sum(x => x.Amount) });
-
-        // Kodları memory'de çöz (Account zorunlu; SubAccount opsiyonel → "cari / althesap").
-        var accountIds = grouped.Select(r => r.AccountId).Distinct().ToList();
-        var subIds     = grouped.Where(r => r.SubAccountId != null).Select(r => r.SubAccountId!.Value).Distinct().ToList();
-
-        var accountCodes = (await AsyncExecuter.ToListAsync(
-                (await _accounts.GetQueryableAsync()).Where(a => accountIds.Contains(a.Id)).Select(a => new { a.Id, a.Code })))
-            .ToDictionary(a => a.Id, a => a.Code);
-        var subCodes = subIds.Count == 0
-            ? new Dictionary<Guid, string>()
-            : (await AsyncExecuter.ToListAsync(
-                (await _subAccounts.GetQueryableAsync()).Where(s => subIds.Contains(s.Id)).Select(s => new { s.Id, s.Code })))
-              .ToDictionary(s => s.Id, s => s.Code);
+            // Kodlar ledger'ın KENDİ snapshot'ından gelir (Account/SubAccount lookup'ı YOK): alanlar
+            // polimorfiktir — kasa karşı tarafında "Şube / Kasa", cari karşı tarafında "cari / althesap"
+            // okunur; ikisi de kayıt anındaki kodu gösterir (sonradan yeniden adlandırmadan etkilenmez).
+            group e by new { e.AccountCode, e.SubAccountCode } into g
+            select new { g.Key.AccountCode, g.Key.SubAccountCode, Amount = g.Sum(x => x.Amount) });
 
         return grouped
             .Select(r => new BalanceSheetMovementDto
             {
-                Code = r.SubAccountId is { } sid && subCodes.TryGetValue(sid, out var sc)
-                    ? $"{accountCodes.GetValueOrDefault(r.AccountId, "?")} / {sc}"
-                    : accountCodes.GetValueOrDefault(r.AccountId, "?"),
+                Code   = $"{r.AccountCode} / {r.SubAccountCode}",
                 Amount = -r.Amount,
             })
             .Where(m => m.Amount != 0m)

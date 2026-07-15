@@ -77,6 +77,10 @@ public class OrgSeeder(
             foreach (var company in companies)
             {
                 await _orgTree.EnsureHeadquartersBranchAsync(company);
+
+                // NOT: kasa→kasa akışında CARİ HİÇ ÜRETİLMEZ (2026-07-15 ürün kararı) — kasa fişte doğrudan
+                // karşı taraftır (Voucher.AccountType=Vault; Şube→AccountId, Kasa→SubAccountId). Seed yolunda
+                // takas/kasa carisi kurulumu YOKTUR (eski şirket-geneli TRF-CLEARING modeli de emekli).
             }
         }
 

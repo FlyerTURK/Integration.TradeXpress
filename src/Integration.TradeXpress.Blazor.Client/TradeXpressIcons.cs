@@ -25,14 +25,15 @@ public static class TradeXpressIcons
     public const string Metal = "custom-icon-metal";
     public const string Stone = "custom-icon-stone";
     public const string Jewelry = "custom-icon-jewelry";
-    // Mamül'e özel ikon yok — genel ticari mal = emtia; mevcut commodities ikonu yeniden kullanılır (yeni CSS §1 onayı gerektirir, ileride polish).
-    public const string Good = "custom-icon-commodities";
-    // Özel Kod (gruplama sözlüğü) — mevcut sliders/ayar ikonu yeniden kullanılır (yeni CSS §1 onayı gerektirir).
-    public const string SpecialCode = "custom-icon-sliders";
+    // Mamül (bitmiş/paketlenmiş ürün) — kendi kutu ikonu (mavi + turuncu bant); emtia ailesiyle uyumlu, commodities'ten ayrık.
+    public const string Good = "custom-icon-good";
+    // Özel Kod (gruplama sözlüğü) — kendi etiket ikonu (mor tag).
+    public const string SpecialCode = "custom-icon-special-code";
 
     // ── Ürünler ──
     public const string Product = "custom-icon-commodities";
-    public const string ProductVariant = "custom-icon-list";
+    // ProductVariant — kendi varyant ikonu (üst üste yeşil kartlar = kopyalar).
+    public const string ProductVariant = "custom-icon-product-variant";
 
     // ── Muadil (Substitution) ── mevcut swap ikonu yeniden kullanılır (ikame = takas; yeni CSS yok).
     public const string Substitution = "custom-icon-swap";
@@ -46,6 +47,10 @@ public static class TradeXpressIcons
 
     // ── İşlemler ──
     public const string CurrentTransactions = "custom-icon-current-transactions";
+    // Kasa→kasa transfer — mevcut swap (takas) ikonu reuse (kasalar arası değer taşıma); yeni CSS yok.
+    public const string Transfer = "custom-icon-swap";
+    // Teyit (karşılıklı ayna onayı) — mevcut check-circle (onay) ikonu reuse; yeni CSS yok.
+    public const string Confirmation = "custom-icon-check-circle";
 
     // ── Yönetim ──
     public const string Tenant = "custom-icon-tenant";

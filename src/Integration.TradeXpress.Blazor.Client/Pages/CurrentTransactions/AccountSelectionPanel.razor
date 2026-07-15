@@ -2,7 +2,6 @@
 @using Integration.TradeXpress.Branches
 @using Integration.TradeXpress.Permissions
 @inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
-@inject IAccountAppService AccountService
 @inject ISubAccountAppService SubAccountService
 @inject IVoucherAppService VoucherService
 @inject IVaultAppService VaultService
@@ -54,43 +53,18 @@
         <div style="flex: 0 0 auto; width: 100%; max-width: 700px;">
             <DxFormLayout>
                 <!-- KARŞI TARAF KİPİ ROTADAN gelir (Mode parametresi) — form içinde kip combo'su YOKTUR
-                     (kullanıcı kararı): /cari-islemler → Cari (Hesap→Alt Hesap) · /transfers → İç Kasa
+                     (kullanıcı kararı): /cari-islemler → Cari (tek combo: Alt Hesap) · /transfers → İç Kasa
                      (Şube→Kasa; kayıt postlanmaz, Teyit teklifi kurulur). İki kipin seçim ekseni farklı
-                     olduğu için aşağıdaki iki combo çifti Visible ile birbirini dışlar. -->
+                     olduğu için aşağıdaki combo'lar Visible ile birbirini dışlar. -->
 
-                <!-- Row 1a: ANA HESAP (Account) — cascade'in üst combosu. Ekle/düzelt STANDART AccountEditHost
-                     popup'ını açar (SubAccount drill'i içinde: ANAHESAP görünür, custom alt hesap orada eklenir).
-                     İç kipte gizli: orada üst combo ŞUBE'dir. -->
-                <DxFormLayoutItem Caption="@L["Account"]" ColSpanMd="12" Visible="@(!IsInternalMode)">
-                    <LookupComboBox TItem="AccountListDto" TValue="Guid?"
-                                    Data="@_accounts"
-                                    ValueFieldName="@nameof(AccountListDto.Id)"
-                                    TextFieldName="@nameof(AccountListDto.Code)"
-                                    Value="@_selectedAccountId"
-                                    ValueChanged="@OnAccountFilterChanged"
-                                    NullText="@L["Select"].Value"
-                                    AllowClear="true"
-                                    Enabled="@(!_locked)"
-                                    OnEditRequested="@OnEditAccountAsync"
-                                    OnAddRequested="@OnAddAccountAsync"
-                                    CreatePolicy="@TradeXpressPermissions.Accounts.Create"
-                                    UpdatePolicy="@TradeXpressPermissions.Accounts.Update">
-                        <Columns>
-                            <DxListEditorColumn FieldName="@nameof(AccountListDto.Code)"
-                                                Caption="@L["Code"]" Width="40%" />
-                            <DxListEditorColumn FieldName="@nameof(AccountListDto.Name)"
-                                                Caption="@L["Name"]" />
-                        </Columns>
-                    </LookupComboBox>
-                </DxFormLayoutItem>
-
-                <!-- Row 1b: ALT HESAP (SubAccount) — üstteki Account'a CASCADE: hesap seçili DEĞİLKEN GİZLİ
-                     (bağımsız alt hesap seçimi yok; akış daima hesap→alt hesap). Clear butonu da yok — boşaltma
-                     yalnız üst combodan (hesap temizlenince bu combo null'lanıp gizlenir).
-                     Ekle/düzelt orijinal SubAccountEditHost popup'ını açar (Account panelden önseçili gider). -->
-                <DxFormLayoutItem Caption="@L["SubAccount"]" ColSpanMd="12" Visible="@(!IsInternalMode && _selectedAccountId.HasValue)">
+                <!-- ALT HESAP (SubAccount) — TEK combo (2026-07-15 kullanıcı kararı: ayrı Account seviyesi
+                     GEREKMEZ). Ana hesap seçimi yerine dropdown'da Account kodu bir KOLON olarak görünür;
+                     Account, seçilen alt hesabın kendi AccountId'sinden türer (_model.AccountId zaten
+                     OnSubAccountChanged'de böyle atanıyordu — üst combo hiçbir zaman kaynak DEĞİLDİ).
+                     Ekle/düzelt orijinal SubAccountEditHost popup'ını açar. -->
+                <DxFormLayoutItem Caption="@L["SubAccount"]" ColSpanMd="12" Visible="@(!IsInternalMode)">
                     <LookupComboBox TItem="SubAccountListDto" TValue="Guid?"
-                                    Data="@FilteredSubAccounts"
+                                    Data="@_subAccounts"
                                     ValueFieldName="@nameof(SubAccountListDto.Id)"
                                     TextFieldName="@nameof(SubAccountListDto.Code)"
                                     Value="@_model.SubAccountId"
@@ -102,7 +76,16 @@
                                     OnEditRequested="@OnEditSubAccountAsync"
                                     OnAddRequested="@OnAddSubAccountAsync"
                                     CreatePolicy="@TradeXpressPermissions.SubAccounts.Create"
-                                    UpdatePolicy="@TradeXpressPermissions.SubAccounts.Update" />
+                                    UpdatePolicy="@TradeXpressPermissions.SubAccounts.Update">
+                        <Columns>
+                            <DxListEditorColumn FieldName="@nameof(SubAccountListDto.AccountCode)"
+                                                Caption="@L["Account"]" Width="35%" />
+                            <DxListEditorColumn FieldName="@nameof(SubAccountListDto.Code)"
+                                                Caption="@L["Code"]" Width="25%" />
+                            <DxListEditorColumn FieldName="@nameof(SubAccountListDto.Name)"
+                                                Caption="@L["Name"]" />
+                        </Columns>
+                    </LookupComboBox>
                 </DxFormLayoutItem>
 
                 <!-- Row 1c/1d: İÇ KASA kipi — Cari cascade'inin YERİNE Şube→Kasa (spec §7). Seçilen kasa
@@ -139,8 +122,7 @@
                 </DxFormLayoutItem>
 
                 <!-- Row 2 -->
-                <!-- Fiş seçimi yalnız Cari kipinde: iç kipte fiş oluşmaz (postlama Teyit'e ertelenir). -->
-                <DxFormLayoutItem Caption="@L["VoucherSelection"].Value" ColSpanMd="6" Visible="@(SelectionReady && !IsInternalMode)">
+                <DxFormLayoutItem Caption="@L["VoucherSelection"].Value" ColSpanMd="6" Visible="@SelectionReady">
                     <DxComboBox TData="VoucherComboItem" TValue="Guid?"
                                 Data="@_voucherItems"
                                 ValueFieldName="@nameof(VoucherComboItem.Id)"
@@ -172,10 +154,10 @@
                     }
                     else
                     {
-                        <DxComboBox TData="VaultListDto" TValue="Guid?"
+                        <DxComboBox TData="MyVaultDto" TValue="Guid?"
                                     Data="@_branchVaults"
-                                    ValueFieldName="@nameof(VaultListDto.Id)"
-                                    TextFieldName="@nameof(VaultListDto.Code)"
+                                    ValueFieldName="@nameof(MyVaultDto.Id)"
+                                    TextFieldName="@nameof(MyVaultDto.Code)"
                                     Value="@_model.VaultId"
                                     ValueChanged="@((Guid? id) => { _model.VaultId = id; })"
                                     DropDownTriggerMode="DropDownTriggerMode.Click" ShowDropDownButton="true"
@@ -183,8 +165,8 @@
                                     ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto"
                                     Enabled="@(!_locked)"
                                     CssClass="w-100">
-                            <DxListEditorColumn FieldName="@nameof(VaultListDto.Code)" Caption="@L["Code"].Value" Width="100px" />
-                            <DxListEditorColumn FieldName="@nameof(VaultListDto.Name)" Caption="@L["Name"].Value" />
+                            <DxListEditorColumn FieldName="@nameof(MyVaultDto.Code)" Caption="@L["Code"].Value" Width="100px" />
+                            <DxListEditorColumn FieldName="@nameof(MyVaultDto.Name)" Caption="@L["Name"].Value" />
                         </DxComboBox>
                     }
                 </DxFormLayoutItem>
@@ -197,8 +179,7 @@
                 </DxFormLayoutItem>
 
                 <!-- Row 4 -->
-                <!-- Fiş tarihi yalnız Cari kipinde: iç kipte fiş yok, tarih Teyit teklifine girmez (yanıltmasın). -->
-                <DxFormLayoutItem Caption="@L["Date"].Value" ColSpanMd="6" Visible="@(SelectionReady && !IsInternalMode)">
+                <DxFormLayoutItem Caption="@L["Date"].Value" ColSpanMd="6" Visible="@SelectionReady">
                     <DxDateEdit Date="@_displayVoucherDate"
                                 DateChanged="@((DateTime? d) => OnVoucherDateChanged(d ?? DateTime.Now))"
                                 Enabled="@(!_locked && !_selectedVoucherId.HasValue)"
@@ -248,8 +229,7 @@
                     <DxToolbarItem Text="@($"V-{L["Transfer"].ToString().ToUpper()}")" IconCssClass="custom-icon-convert" Click="@OnTransferClicked" Visible="@IsProcessVisible(ProcessType.Transfer)" />
                 </Items>
             </DxToolbarItem>
-            @* Fiş listesi yalnız Cari kipinde anlamlı (iç kipte fiş yok — bekleyenler Teyit kutusunda). *@
-            <DxToolbarItem BeginGroup="true" Text="@($"0-{L["List"].ToString().ToUpper()}")" IconCssClass="custom-icon-list" Click="@OnListClicked" Visible="@(!IsInternalMode)" />
+            <DxToolbarItem BeginGroup="true" Text="@($"0-{L["List"].ToString().ToUpper()}")" IconCssClass="custom-icon-list" Click="@OnListClicked" />
         </DxToolbar>
     }
 </div>
@@ -390,6 +370,7 @@ else if (_activeProcess == "Bullion")
                            SubAccountId="@_model.SubAccountId"
                            VoucherDate="@_model.VoucherDate"
                            VoucherId="@_selectedVoucherId"
+                           CounterpartyVaultId="@(IsInternalMode ? _counterpartyVaultId : null)"
                            OnSaved="@OnLineSavedInternal" />
     </div>
 }
@@ -409,6 +390,7 @@ else if (_activeProcess == "Assay")
                            VoucherDate="@_model.VoucherDate"
                            VoucherDescription="@_model.Description"
                            VoucherId="@_selectedVoucherId"
+                           CounterpartyVaultId="@(IsInternalMode ? _counterpartyVaultId : null)"
                            OnSaved="@OnLineSavedInternal" />
     </div>
 }
@@ -448,6 +430,7 @@ else if (_activeProcess == "Transfer")
                               VoucherDate="@_model.VoucherDate"
                               VoucherDescription="@_model.Description"
                               VoucherId="@_selectedVoucherId"
+                              CounterpartyVaultId="@(IsInternalMode ? _counterpartyVaultId : null)"
                               OnSaved="@OnLineSavedInternal" />
     </div>
 }
@@ -466,6 +449,7 @@ else if (_activeProcess == "BullionOut")
                            SubAccountId="@_model.SubAccountId"
                            VoucherDate="@_model.VoucherDate"
                            VoucherId="@_selectedVoucherId"
+                           CounterpartyVaultId="@(IsInternalMode ? _counterpartyVaultId : null)"
                            OnSaved="@OnLineSavedInternal" />
     </div>
 }

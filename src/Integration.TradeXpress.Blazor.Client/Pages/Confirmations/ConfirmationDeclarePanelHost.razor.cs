@@ -21,7 +21,7 @@ namespace Integration.TradeXpress.Blazor.Client.Pages.Confirmations;
 /// (<see cref="ConfirmationDto.InitiatorVaultId"/>). <c>DeclareConfirmationId</c> dolu olduğundan panel yeni
 /// teklif AÇMAZ, bu Teyit'e beyan yazar (<see cref="VoucherLinePersister"/>).</para>
 ///
-/// <para>Fiş başlığı (hesap/cari) BURADA seçilmez — teyit kapanınca sunucu karşı kasanın vault-cari'sinden
+/// <para>Fiş başlığı (karşı taraf) BURADA seçilmez — teyit kapanınca sunucu karşı KASADAN
 /// türetir. Bu yüzden AccountId/SubAccountId geçilmez.</para>
 /// </summary>
 public partial class ConfirmationDeclarePanelHost
@@ -65,6 +65,7 @@ public partial class ConfirmationDeclarePanelHost
                 case ProcessType.Scrap:
                 case ProcessType.Service:
                 case ProcessType.Future:
+                case ProcessType.Convert:
                     return true;
                 default:
                     return false;

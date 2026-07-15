@@ -20,4 +20,8 @@ public interface IUserUiSettingAppService : IApplicationService
     /// <summary>Seçili çalışma şubesi (Branch.Id) — per-user, cihazdan bağımsız.</summary>
     Task<string?> GetWorkingBranchAsync();
     Task SetWorkingBranchAsync(string? branchId);
+
+    /// <summary>Seçili çalışma kasası (Vault.Id) — per-user, cihazdan bağımsız.</summary>
+    Task<string?> GetWorkingVaultAsync();
+    Task SetWorkingVaultAsync(string? vaultId);
 }

@@ -86,6 +86,10 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
             b.HasIndex(x => new { x.TenantId, x.CompanyId, x.VoucherDate });
             b.HasIndex(x => new { x.TenantId, x.CompanyId, x.SubAccountId, x.VoucherDate });
 
+            // Karşı taraf kod snapshot'ları — ZORUNLU (tipten bağımsız; Account/Branch ‖ SubAccount/Vault kodu).
+            b.Property(x => x.AccountCode).IsRequired().HasMaxLength(VoucherConsts.CounterpartyCodeMaxLength);
+            b.Property(x => x.SubAccountCode).IsRequired().HasMaxLength(VoucherConsts.CounterpartyCodeMaxLength);
+
             // FK'lar — referans varken kaynak silinemez (Restrict).
             b.HasOne<Companies.Company>().WithMany()
                 .HasForeignKey(x => x.CompanyId).IsRequired().OnDelete(DeleteBehavior.Restrict);
@@ -93,10 +97,11 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
                 .HasForeignKey(x => x.BranchId).IsRequired().OnDelete(DeleteBehavior.Restrict);
             b.HasOne<Vaults.Vault>().WithMany()
                 .HasForeignKey(x => x.VaultId).IsRequired(false).OnDelete(DeleteBehavior.Restrict);
-            b.HasOne<Accounts.Account>().WithMany()
-                .HasForeignKey(x => x.AccountId).IsRequired().OnDelete(DeleteBehavior.Restrict);
-            b.HasOne<Accounts.SubAccount>().WithMany()
-                .HasForeignKey(x => x.SubAccountId).IsRequired(false).OnDelete(DeleteBehavior.Restrict);
+
+            // AccountId/SubAccountId'de FK ve navigation YOKTUR (2026-07-15 ürün kararı): alanlar POLİMORFİKTİR —
+            // AccountType'a göre Account/SubAccount ya da Branch/Vault gösterirler; tek kolon iki tabloya işaret
+            // ettiği için FK kurulamaz (VoucherLine'daki emtia id+kod snapshot deseniyle aynı). Bütünlük
+            // Voucher.SetCounterparty guard'ı + kod snapshot'ları ile korunur.
 
             b.HasMany(x => x.Lines).WithOne(l => l.Voucher).HasForeignKey(l => l.VoucherId)
                 .IsRequired().OnDelete(DeleteBehavior.Cascade);
@@ -176,6 +181,10 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
 
             // Rapor: scope + birim bazında GROUP BY/SUM (kapsayan index — DB-tarafı toplam hızlı).
             b.HasIndex(x => new { x.TenantId, x.CompanyId, x.BranchId, x.UnitId });
+
+            // Karşı taraf kod snapshot'ları — fiş başlığındaki sınırlarla birebir (id-only desen: FK/nav yok).
+            b.Property(x => x.AccountCode).IsRequired().HasMaxLength(VoucherConsts.CounterpartyCodeMaxLength);
+            b.Property(x => x.SubAccountCode).IsRequired().HasMaxLength(VoucherConsts.CounterpartyCodeMaxLength);
             // Senkron: voucher bazında sil + yeniden yaz.
             b.HasIndex(x => x.VoucherId);
         });

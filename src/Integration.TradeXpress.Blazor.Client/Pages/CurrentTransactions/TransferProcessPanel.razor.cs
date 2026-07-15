@@ -32,6 +32,18 @@ public partial class TransferProcessPanel : IVoucherLineEditPanel
     [Parameter] public Guid? VoucherId { get; set; }
     [Parameter] public EventCallback<VoucherLineDto> OnSaved { get; set; }
 
+    /// <summary>İÇ KARŞI TARAF (Teyit) kipi: doluysa satır POSTLANMAZ — Teyit teklifi kurulur.
+    /// Null = normal cari akışı (davranış birebir aynı).</summary>
+    [Parameter] public Guid? CounterpartyVaultId { get; set; }
+
+    /// <summary>BEYAN kipi (gelen kutusundan "Kendi Girişimi Yaz").</summary>
+    [Parameter] public Guid? DeclareConfirmationId { get; set; }
+
+    /// <summary>Teyit yoluna gidildiğinde tetiklenir (fiş oluşmadığı için <see cref="OnSaved"/> tetiklenmez).</summary>
+    [Parameter] public EventCallback<VoucherLinePersistOutcome> OnConfirmationSubmitted { get; set; }
+
+    [Inject] private VoucherLinePersister Persister { get; set; } = default!;
+
     private bool _isMobile;
 
     private VoucherLineDto _model = NewModel();
@@ -208,14 +220,32 @@ public partial class TransferProcessPanel : IVoucherLineEditPanel
 
         var wasEdit = _model.Id != Guid.Empty;   // save Id'yi dolduracağı için ÖNCE yakala
 
-        VoucherLineDto result;
+        // Kararı persister verir (TEK yer): dış cari → normal fiş kaydı · iç kasa → Teyit teklifi ·
+        // beyan kipi → alıcının kendi satırı. Teyit yollarında fiş OLUŞMAZ → result.Line null.
+        VoucherLinePersistResult persisted;
         try
         {
-            result = await VoucherService.SaveLineAsync(_model);
+            persisted = await Persister.PersistAsync(new VoucherLinePersistRequest(
+                _model, CounterpartyVaultId, VaultId, DeclareConfirmationId));
         }
         catch (Exception ex)
         {
             Ui.ShowErrorToast(L["Voucher_LineSaveFailed", ex.Message].Value);
+            return;
+        }
+
+        if (persisted.Line is not { } result)
+        {
+            // Teyit kuruldu/beyan edildi ya da ön koşul sağlanmadı: fiş/grid durumu ELLENMEZ (toast persister'da).
+            if (persisted.Outcome != VoucherLinePersistOutcome.Blocked)
+            {
+                _model.PayFactor        = 0m;
+                _model.PayTotal         = 0m;
+                _model.Description      = null;
+                _model.CounterAccountId = null;
+                _model.LinkId           = null;
+                await OnConfirmationSubmitted.InvokeAsync(persisted.Outcome);
+            }
             return;
         }
 

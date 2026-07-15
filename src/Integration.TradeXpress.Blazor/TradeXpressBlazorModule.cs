@@ -122,6 +122,13 @@ public class TradeXpressBlazorModule : AbpModule
             options.SuppressCheckForUnhandledSecurityMetadata = true;
         });
 
+        // Blazor Server circuit'i JS→.NET büyük dönüşlerde (ör. istemci-yakalanan video poster JPEG'i) varsayılan 32KB
+        // SignalR mesaj sınırını aşınca TaskCanceledException veriyordu → sınırı 16 MB'a çıkar.
+        Configure<Microsoft.AspNetCore.SignalR.HubOptions>(options =>
+        {
+            options.MaximumReceiveMessageSize = 16 * 1024 * 1024;
+        });
+
         // Add services to the container.
         context.Services.AddRazorComponents()
             .AddInteractiveServerComponents(options =>
@@ -256,10 +263,23 @@ public class TradeXpressBlazorModule : AbpModule
         context.Services.AddScoped<Integration.TradeXpress.MultiCompany.ICompanyContextProvider,
                                    Integration.TradeXpress.Blazor.Client.Services.Working.WorkingCompanyContextProvider>();
 
+        // ICurrentBranch / ICurrentVault köprüsü — çalışma bağlamı artık KASA hassasiyetinde (şirket+şube+kasa).
+        // Aynı gerekçe: client modülü DependsOn'da değil → [Dependency(ReplaceServices)] sunucuda çalışmaz, elle kaydet.
+        // Kaynak singleton WorkingSelectionStore'dur (UoW child scope'unda boş kopya tuzağı).
+        // NOT: kasa ambient'i hiçbir query-filter'a BAĞLANMAZ — ortam varsayılanı, kısıtlama değil.
+        context.Services.AddScoped<Integration.TradeXpress.Branches.IBranchContextProvider,
+                                   Integration.TradeXpress.Blazor.Client.Services.Working.WorkingBranchContextProvider>();
+        context.Services.AddScoped<Integration.TradeXpress.Vaults.IVaultContextProvider,
+                                   Integration.TradeXpress.Blazor.Client.Services.Working.WorkingVaultContextProvider>();
+
         // Working seçiminin scope-bağımsız SSOT'u (per-user, SINGLETON) — ABP UoW child scope'larındaki DbContext
         // filtresi seçimi buradan okur; scoped WorkingContextService'in boş kopyasına düşmez (owned kayıtların
         // "yazıldı ama görünmüyor / parent bulunamadı" kök-neden fix'i). Client modülü DependsOn'da değil → elle kayıt.
         context.Services.AddSingleton<Integration.TradeXpress.Blazor.Client.Services.Working.WorkingSelectionStore>();
+
+        // Fiş satırı kaydının TEK karar noktası (dış cari → normal fiş yolu · iç kasa → Teyit ayna onayı).
+        // Client modülü DependsOn zincirinde değil → server'da da ELLE kaydedilir, yoksa paneller DI'da patlar.
+        context.Services.AddScoped<Integration.TradeXpress.Blazor.Client.Pages.CurrentTransactions.VoucherLinePersister>();
 
         // Identity Management Services
         context.Services.AddScoped<Integration.TradeXpress.Blazor.Client.Services.IIdentityUserService,

@@ -78,7 +78,9 @@ public class TransactionReportAppService : TradeXpressAppService, ITransactionRe
             select new
             {
                 v.VoucherDate, v.VoucherNumber,
-                v.AccountId, v.SubAccountId, v.BranchId, v.VaultId,
+                // Karşı taraf kodları fişin KENDİ snapshot'ından gelir (Account/SubAccount join'i YOK):
+                // alanlar polimorfiktir (kasa kipinde Şube/Kasa kodu) → join zaten eşleşmezdi.
+                v.AccountCode, v.SubAccountCode, v.BranchId, v.VaultId,
                 l.Type, l.Direction, l.PaymentType,
                 l.CommodityCode, l.Quantity, l.Amount, l.Total, l.MainUnitId,
                 l.PayTotal, l.PayUnitId, l.CounterAccountId,
@@ -107,12 +109,11 @@ public class TransactionReportAppService : TradeXpressAppService, ITransactionRe
             _unitRepository,
             page.Select(x => x.MainUnitId).Concat(page.Where(x => x.PayUnitId != null).Select(x => x.PayUnitId!.Value)),
             u => u.Id, u => u.Code, disableMultiTenant: true);
-        var accountCodes = await CodeMapAsync(_accountRepository, page.Select(x => x.AccountId), x => x.Id, x => x.Code);
-        // Alt hesap kodları: fiş carisi + virman karşı hesabı AYNI haritadan çözülür (tek sorgu).
+        // Alt hesap kodları: YALNIZ virman karşı hesabı için (fişin kendi karşı-taraf kodları artık
+        // snapshot — lookup gerekmiyor).
         var subCodes = await CodeMapAsync(
             _subAccountRepository,
-            page.Where(x => x.SubAccountId != null).Select(x => x.SubAccountId!.Value)
-                .Concat(page.Where(x => x.CounterAccountId != null).Select(x => x.CounterAccountId!.Value)),
+            page.Where(x => x.CounterAccountId != null).Select(x => x.CounterAccountId!.Value),
             x => x.Id, x => x.Code);
         var branchCodes = await CodeMapAsync(_branchRepository, page.Select(x => x.BranchId), x => x.Id, x => x.Code);
         var vaultCodes = await CodeMapAsync(
@@ -129,8 +130,8 @@ public class TransactionReportAppService : TradeXpressAppService, ITransactionRe
                 VoucherDate    = x.VoucherDate,
                 VoucherNumber  = x.VoucherNumber,
                 ProcessCode    = VoucherProcessCode.Of(x.Type, x.Direction, x.PaymentType),
-                AccountCode    = accountCodes.GetValueOrDefault(x.AccountId),
-                SubAccountCode = x.SubAccountId is { } s ? subCodes.GetValueOrDefault(s) : null,
+                AccountCode    = x.AccountCode,
+                SubAccountCode = x.SubAccountCode,
                 CounterAccountCode = x.CounterAccountId is { } cnt ? subCodes.GetValueOrDefault(cnt) : null,
                 BranchCode     = branchCodes.GetValueOrDefault(x.BranchId),
                 VaultCode      = x.VaultId is { } v ? vaultCodes.GetValueOrDefault(v) : null,

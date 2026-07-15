@@ -23,6 +23,18 @@ public partial class BullionProcessPanel : IVoucherLineEditPanel
     [Parameter] public Guid? VoucherId { get; set; }
     [Parameter] public EventCallback<VoucherLineDto> OnSaved { get; set; }
 
+    /// <summary>İÇ KARŞI TARAF (Teyit) kipi: doluysa satır POSTLANMAZ — Teyit teklifi kurulur.
+    /// Null = normal cari akışı (davranış birebir aynı).</summary>
+    [Parameter] public Guid? CounterpartyVaultId { get; set; }
+
+    /// <summary>BEYAN kipi (gelen kutusundan "Kendi Girişimi Yaz").</summary>
+    [Parameter] public Guid? DeclareConfirmationId { get; set; }
+
+    /// <summary>Teyit yoluna gidildiğinde tetiklenir (fiş oluşmadığı için <see cref="OnSaved"/> tetiklenmez).</summary>
+    [Parameter] public EventCallback<VoucherLinePersistOutcome> OnConfirmationSubmitted { get; set; }
+
+    [Inject] private VoucherLinePersister Persister { get; set; } = default!;
+
     // ── Lookup ──
     private List<TypeOpt>  _bullionTypes  = new();
     private List<BoolOpt>  _reportOptions = new();
@@ -272,7 +284,22 @@ public partial class BullionProcessPanel : IVoucherLineEditPanel
         var wasEdit = _editingLineId != Guid.Empty;   // Düzelt akışı mı, yeni ekleme mi?
         try
         {
-            var saved = await VoucherService.SaveLineAsync(dto);
+            // Kararı persister verir (TEK yer): dış cari → normal fiş kaydı · iç kasa → Teyit teklifi ·
+            // beyan kipi → alıcının kendi satırı. Teyit yollarında fiş OLUŞMAZ → result.Line null.
+            var persisted = await Persister.PersistAsync(new VoucherLinePersistRequest(
+                dto, CounterpartyVaultId, VaultId, DeclareConfirmationId));
+
+            if (persisted.Line is not { } saved)
+            {
+                // Teyit kuruldu/beyan edildi ya da ön koşul sağlanmadı: fiş/grid durumu ELLENMEZ (toast persister'da).
+                if (persisted.Outcome != VoucherLinePersistOutcome.Blocked)
+                {
+                    _editingLineId = Guid.Empty;
+                    await OnConfirmationSubmitted.InvokeAsync(persisted.Outcome);
+                }
+                return;
+            }
+
             VoucherId = saved.VoucherId;
             await OnSaved.InvokeAsync(saved);
             Ui.ShowSuccessToast(wasEdit ? L["Voucher_LineUpdated"].Value : L["Voucher_LineAdded"].Value);
