@@ -6,6 +6,7 @@ using Integration.TradeXpress.Financials.CurrencyUnits;
 using Integration.TradeXpress.MultiCompany;
 using Integration.TradeXpress.Products;
 using Integration.TradeXpress.SalesChannels;
+using Integration.TradeXpress.Variants;
 using Shouldly;
 using Volo.Abp;
 using Volo.Abp.Domain.Repositories;
@@ -25,12 +26,16 @@ namespace Integration.TradeXpress.TrendyolProducts;
 public abstract class SalesChannelTrTrendyolProductImportTests<TStartupModule> : TradeXpressApplicationTestBase<TStartupModule>
     where TStartupModule : IAbpModule
 {
+    // Agnostik varyant tablosunda Product varyantları bu sahip-adıyla tutulur (production: ProductEntityName).
+    private const string ProductEntityName = "Product";
+
     private readonly ISalesChannelTrTrendyolProductAppService _appService;
     private readonly FakeTrendyolProductClient _fakeClient;
     private readonly IRepository<SalesChannelTrTrendyol, Guid> _channelRepository;
     private readonly IRepository<SalesChannelTrTrendyolProduct, Guid> _channelProductRepository;
     private readonly IRepository<Product, Guid> _productRepository;
-    private readonly IRepository<ProductVariant, Guid> _variantRepository;
+    private readonly IRepository<EntityVariant, Guid> _variantRepository;
+    private readonly IRepository<ProductVariantDetail, Guid> _variantDetailRepository;
     private readonly IRepository<SalesChannelTrTrendyolProductStockItem, Guid> _headerRepository;
     private readonly IRepository<CurrencyUnit, Guid> _currencyUnitRepository;
     private readonly ICurrentCompany _currentCompany;
@@ -42,10 +47,31 @@ public abstract class SalesChannelTrTrendyolProductImportTests<TStartupModule> :
         _channelRepository = GetRequiredService<IRepository<SalesChannelTrTrendyol, Guid>>();
         _channelProductRepository = GetRequiredService<IRepository<SalesChannelTrTrendyolProduct, Guid>>();
         _productRepository = GetRequiredService<IRepository<Product, Guid>>();
-        _variantRepository = GetRequiredService<IRepository<ProductVariant, Guid>>();
+        _variantRepository = GetRequiredService<IRepository<EntityVariant, Guid>>();
+        _variantDetailRepository = GetRequiredService<IRepository<ProductVariantDetail, Guid>>();
         _headerRepository = GetRequiredService<IRepository<SalesChannelTrTrendyolProductStockItem, Guid>>();
         _currencyUnitRepository = GetRequiredService<IRepository<CurrencyUnit, Guid>>();
         _currentCompany = GetRequiredService<ICurrentCompany>();
+    }
+
+    // ── Varyant satış-fiyatı artık EntityVariant'ta DEĞİL, Product uzantısı ProductVariantDetail'de (1:1,
+    // EntityVariantId). Testler fiyatı buradan okur/yazar (production LoadVariantSalePricesAsync ile aynı yol). ──
+
+    private async Task<ProductVariantDetail> GetVariantDetailAsync(Guid entityVariantId)
+    {
+        return await WithUnitOfWorkAsync(async () =>
+            (await _variantDetailRepository.GetListAsync(d => d.EntityVariantId == entityVariantId)).Single());
+    }
+
+    private async Task SetVariantSalePriceAsync(Guid entityVariantId, decimal? price, Guid? currencyUnitId)
+    {
+        await WithUnitOfWorkAsync(async () =>
+        {
+            var detail = (await _variantDetailRepository.GetListAsync(d => d.EntityVariantId == entityVariantId)).Single();
+            detail.SetSalePrice(price, currencyUnitId);
+            await _variantDetailRepository.UpdateAsync(detail, autoSave: true);
+            return true;
+        });
     }
 
     // ── İlk import: tam zincir ───────────────────────────────────────────────────────────────────────
@@ -85,16 +111,16 @@ public abstract class SalesChannelTrTrendyolProductImportTests<TStartupModule> :
 
             // Varyantlar: kalem başına bir tane; barcode ticari kimliğe yazıldı; İLK kalem MAIN.
             var variants = await WithUnitOfWorkAsync(async () =>
-                await _variantRepository.GetListAsync(v => v.ProductId == product.Id));
+                await _variantRepository.GetListAsync(v => v.EntityName == ProductEntityName && v.EntityId == product.Id));
             variants.Count.ShouldBe(2);
             var red = variants.Single(v => v.Barcode == "BR-RED-1");
             var blue = variants.Single(v => v.Barcode == "BR-BLUE-1");
             red.IsMain.ShouldBeTrue();
             blue.IsMain.ShouldBeFalse();
             red.Name.ShouldBe("iPhone 15 Deri Kılıf");   // varyant adında da TitleCase EZMEDİ (SetName normalizeTitle:false)
-            red.SalePrice.ShouldBe(1299.90m);
+            (await GetVariantDetailAsync(red.Id)).SalePrice.ShouldBe(1299.90m);   // fiyat ProductVariantDetail'de
             red.StockQuantity.ShouldBe(7);
-            blue.SalePrice.ShouldBe(1349.90m);
+            (await GetVariantDetailAsync(blue.Id)).SalePrice.ShouldBe(1349.90m);
             blue.StockQuantity.ShouldBe(3);
 
             // Kanal kaydı: RemoteProductMainId (Trendyol anahtarı) + bizim ProductMainId'imiz AYRI üretildi;
@@ -191,9 +217,11 @@ public abstract class SalesChannelTrTrendyolProductImportTests<TStartupModule> :
                 tracked.SetName("Kullanıcı Ürün Adı", normalizeTitle: false);
                 await _productRepository.UpdateAsync(tracked, autoSave: true);
 
-                var variant = (await _variantRepository.GetListAsync(v => v.ProductId == product.Id)).Single();
-                variant.SetSalePrice(999m, null);
-                await _variantRepository.UpdateAsync(variant, autoSave: true);
+                var variant = (await _variantRepository.GetListAsync(
+                    v => v.EntityName == ProductEntityName && v.EntityId == product.Id)).Single();
+                var detail = (await _variantDetailRepository.GetListAsync(d => d.EntityVariantId == variant.Id)).Single();
+                detail.SetSalePrice(999m, null);   // fiyat artık ProductVariantDetail'de
+                await _variantDetailRepository.UpdateAsync(detail, autoSave: true);
                 return true;
             });
 
@@ -208,8 +236,8 @@ public abstract class SalesChannelTrTrendyolProductImportTests<TStartupModule> :
             after.Name.ShouldBe("Kullanıcı Ürün Adı");   // şablon korunur
 
             var variantAfter = (await WithUnitOfWorkAsync(async () =>
-                await _variantRepository.GetListAsync(v => v.ProductId == product.Id))).ShouldHaveSingleItem();
-            variantAfter.SalePrice.ShouldBe(999m);       // ERP varyant fiyatı korunur
+                await _variantRepository.GetListAsync(v => v.EntityName == ProductEntityName && v.EntityId == product.Id))).ShouldHaveSingleItem();
+            (await GetVariantDetailAsync(variantAfter.Id)).SalePrice.ShouldBe(999m);   // ERP varyant fiyatı korunur
 
             // Uzak fiyat kanal katmanına gitti (OverridePrice) — kullanıcı onaylı yön.
             var record = (await WithUnitOfWorkAsync(async () =>
@@ -275,8 +303,8 @@ public abstract class SalesChannelTrTrendyolProductImportTests<TStartupModule> :
 
             await WithUnitOfWorkAsync(async () =>
             {
-                var v1 = new ProductVariant(companyId, productA.Id, "VARA", "Varyant A");
-                v1.SetTradeIdentifiers("BR-UNIQUE-1", null, null, null);
+                var v1 = new EntityVariant(companyId, ProductEntityName, productA.Id, "VARA", "Varyant A");
+                v1.SetBarcode("BR-UNIQUE-1");
                 await _variantRepository.InsertAsync(v1, autoSave: true);
                 return true;
             });
@@ -286,8 +314,8 @@ public abstract class SalesChannelTrTrendyolProductImportTests<TStartupModule> :
             {
                 await WithUnitOfWorkAsync(async () =>
                 {
-                    var v2 = new ProductVariant(companyId, productB.Id, "VARB", "Varyant B");
-                    v2.SetTradeIdentifiers("BR-UNIQUE-1", null, null, null);
+                    var v2 = new EntityVariant(companyId, ProductEntityName, productB.Id, "VARB", "Varyant B");
+                    v2.SetBarcode("BR-UNIQUE-1");
                     await _variantRepository.InsertAsync(v2, autoSave: true);
                     return true;
                 });
@@ -302,9 +330,9 @@ public abstract class SalesChannelTrTrendyolProductImportTests<TStartupModule> :
             // Barcode'suz (NULL) satırlar filtreye takılmaz — ikinci null-barcode varyant serbest.
             await WithUnitOfWorkAsync(async () =>
             {
-                var v3 = new ProductVariant(companyId, productB.Id, "VARC", "Varyant C");
+                var v3 = new EntityVariant(companyId, ProductEntityName, productB.Id, "VARC", "Varyant C");
                 await _variantRepository.InsertAsync(v3, autoSave: true);
-                var v4 = new ProductVariant(companyId, productB.Id, "VARD", "Varyant D");
+                var v4 = new EntityVariant(companyId, ProductEntityName, productB.Id, "VARD", "Varyant D");
                 await _variantRepository.InsertAsync(v4, autoSave: true);
                 return true;
             });
@@ -327,8 +355,8 @@ public abstract class SalesChannelTrTrendyolProductImportTests<TStartupModule> :
                 await WithUnitOfWorkAsync(async () =>
                 {
                     var product = await _productRepository.InsertAsync(new Product(companyA, "OWNEDA", "Urun A"), autoSave: true);
-                    var variant = new ProductVariant(companyA, product.Id, "VARA", "Varyant A");
-                    variant.SetTradeIdentifiers("BR-SHARED-1", null, null, null);
+                    var variant = new EntityVariant(companyA, ProductEntityName, product.Id, "VARA", "Varyant A");
+                    variant.SetBarcode("BR-SHARED-1");
                     await _variantRepository.InsertAsync(variant, autoSave: true);
                     return true;
                 });
@@ -382,8 +410,8 @@ public abstract class SalesChannelTrTrendyolProductImportTests<TStartupModule> :
             report.CreatedChannelProducts.ShouldBe(1);
 
             var variant = (await WithUnitOfWorkAsync(async () =>
-                await _variantRepository.GetListAsync(v => v.CompanyId == companyId))).ShouldHaveSingleItem();
-            variant.SalePrice.ShouldBeNull();       // negatif uzak fiyat upsert guard'ıyla AYNI şekilde süzüldü
+                await _variantRepository.GetListAsync(v => v.EntityName == ProductEntityName && v.CompanyId == companyId))).ShouldHaveSingleItem();
+            (await GetVariantDetailAsync(variant.Id)).SalePrice.ShouldBeNull();   // negatif uzak fiyat upsert guard'ıyla AYNI şekilde süzüldü
             variant.StockQuantity.ShouldBe(0);
 
             var record = (await WithUnitOfWorkAsync(async () =>
@@ -432,7 +460,7 @@ public abstract class SalesChannelTrTrendyolProductImportTests<TStartupModule> :
             product.Code.ShouldBe("207040879");
 
             var variants = await WithUnitOfWorkAsync(async () =>
-                await _variantRepository.GetListAsync(v => v.ProductId == product.Id));
+                await _variantRepository.GetListAsync(v => v.EntityName == ProductEntityName && v.EntityId == product.Id));
             variants.Count.ShouldBe(3);
             variants.Select(v => v.Code).OrderBy(c => c)
                 .ShouldBe(new[] { "207040879", "207040879-2", "207040879-3" });
@@ -467,9 +495,11 @@ public abstract class SalesChannelTrTrendyolProductImportTests<TStartupModule> :
             // Kullanıcı emeği: mevcut varyantın fiyatını düzenledi — sonraki import DOKUNMAMALI (ekleme-only).
             await WithUnitOfWorkAsync(async () =>
             {
-                var variant = (await _variantRepository.GetListAsync(v => v.ProductId == product.Id)).Single();
-                variant.SetSalePrice(777m, null);
-                await _variantRepository.UpdateAsync(variant, autoSave: true);
+                var variant = (await _variantRepository.GetListAsync(
+                    v => v.EntityName == ProductEntityName && v.EntityId == product.Id)).Single();
+                var detail = (await _variantDetailRepository.GetListAsync(d => d.EntityVariantId == variant.Id)).Single();
+                detail.SetSalePrice(777m, null);   // fiyat ProductVariantDetail'de
+                await _variantDetailRepository.UpdateAsync(detail, autoSave: true);
                 return true;
             });
 
@@ -496,17 +526,17 @@ public abstract class SalesChannelTrTrendyolProductImportTests<TStartupModule> :
             result.UpdatedChannelProducts.ShouldBe(1);
 
             var variants = await WithUnitOfWorkAsync(async () =>
-                await _variantRepository.GetListAsync(v => v.ProductId == product.Id));
+                await _variantRepository.GetListAsync(v => v.EntityName == ProductEntityName && v.EntityId == product.Id));
             variants.Count.ShouldBe(3);
 
             var original = variants.Single(v => v.Barcode == "BR-C-1");
             original.IsMain.ShouldBeTrue();        // ANA VARYANT DEĞİŞMEDİ
-            original.SalePrice.ShouldBe(777m);     // kullanıcı-düzenlenmiş alan AYNEN korunur
+            (await GetVariantDetailAsync(original.Id)).SalePrice.ShouldBe(777m);   // kullanıcı-düzenlenmiş alan AYNEN korunur
             original.StockQuantity.ShouldBe(5);    // uzak stok değişimi mevcut ERP varyantına YANSITILMAZ
 
             var added = variants.Single(v => v.Barcode == "BR-C-2");
             added.IsMain.ShouldBeFalse();          // yeni eklenen main OLMAZ
-            added.SalePrice.ShouldBe(120m);
+            (await GetVariantDetailAsync(added.Id)).SalePrice.ShouldBe(120m);
             added.StockQuantity.ShouldBe(3);
             added.Code.ShouldStartWith("STK-C-");  // kod çakışması son-ekle ("-2"/"-3") çözüldü
 
@@ -527,7 +557,7 @@ public abstract class SalesChannelTrTrendyolProductImportTests<TStartupModule> :
             third.AddedVariants.ShouldBe(0);
             third.AddedBarcodes.ShouldBeEmpty();
             var variantsAfter = await WithUnitOfWorkAsync(async () =>
-                await _variantRepository.GetListAsync(v => v.ProductId == product.Id));
+                await _variantRepository.GetListAsync(v => v.EntityName == ProductEntityName && v.EntityId == product.Id));
             variantsAfter.Count.ShouldBe(3);
             variantsAfter.Single(v => v.IsMain).Barcode.ShouldBe("BR-C-1");
         }
@@ -625,9 +655,10 @@ public abstract class SalesChannelTrTrendyolProductImportTests<TStartupModule> :
                 report.Warnings.ShouldBeEmpty();   // TryCurrencyMissing uyarısı YOK — host kaydı çözüldü
 
                 var variant = (await WithUnitOfWorkAsync(async () =>
-                    await _variantRepository.GetListAsync(v => v.CompanyId == companyId))).ShouldHaveSingleItem();
-                variant.SalePrice.ShouldBe(250m);
-                variant.SalePriceCurrencyUnitId.ShouldBe(hostTryId);
+                    await _variantRepository.GetListAsync(v => v.EntityName == ProductEntityName && v.CompanyId == companyId))).ShouldHaveSingleItem();
+                var detail = await GetVariantDetailAsync(variant.Id);
+                detail.SalePrice.ShouldBe(250m);
+                detail.SalePriceCurrencyUnitId.ShouldBe(hostTryId);
             }
         }
     }

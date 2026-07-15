@@ -61,13 +61,13 @@ public class TradeXpressDomainModule : AbpModule
             {
                 container.UseDatabase();
             });
-            // Entity-agnostik görsel container'ı (Good/GoodVariant/… + ileride Product/Metal buraya taşınır).
-            options.Containers.Configure<Integration.TradeXpress.Attachments.EntityImagesContainer>(container =>
+            // Entity-agnostik doküman container'ı (ham blob; thumbnail yok).
+            options.Containers.Configure<Integration.TradeXpress.Attachments.EntityDocumentsContainer>(container =>
             {
                 container.UseDatabase();
             });
-            // Entity-agnostik doküman container'ı (ham blob; thumbnail yok).
-            options.Containers.Configure<Integration.TradeXpress.Attachments.EntityDocumentsContainer>(container =>
+            // Merkezi medya container'ı (görsel/video içerik + poster; DAM — self-contained blob).
+            options.Containers.Configure<Integration.TradeXpress.Attachments.MediaContainer>(container =>
             {
                 container.UseDatabase();
             });

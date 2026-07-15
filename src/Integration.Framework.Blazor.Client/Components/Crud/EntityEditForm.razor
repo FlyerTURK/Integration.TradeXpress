@@ -22,10 +22,11 @@
    (Undo/Redo v1'de devre dışı — ertelendi.)
 *@
 
-@* Sabit header + toolbar (flex-shrink:0), KAYAN body (flex:1 + overflow-y:auto). Yükseklik açık max-height:88vh
-   (popup 90vh içine sığar) — h-100 popup'ta çözülmediğinden EXPLICIT bound veriyoruz → body güvenilir kayar.
+@* Sabit header + toolbar (flex-shrink:0), KAYAN body (flex:1 + overflow-y:auto). Yükseklik MOD-DUYARLI (bkz. RootHeightStyle):
+   TAB modunda MDI sekme gövdesini DOLDURUR (height:100% — liste CrudLayout gibi; alt kısım erken kesilmez); POPUP/drill'de
+   h-100 çözülmediğinden EXPLICIT viewport bound (calc(90vh - 84px)) → body güvenilir kayar.
    Header = paylaşılan EditHeaderView (Components.Shared import edildi → artık çözülür/görünür). *@
-<div id="@_formId" style="display:flex; flex-direction:column; max-height:calc(90vh - 84px); max-height:calc(90dvh - 84px); min-height:0; overflow-x:hidden; max-width:100%;">
+<div id="@_formId" style="display:flex; flex-direction:column; @RootHeightStyle min-height:0; overflow-x:hidden; max-width:100%;">
     @if (Placement == ToolbarPlacement.Top)
     {
         @* Yapısal başlık ENGINE'den gelir (tek kaynak BuildHeader→TabHeaderData → sekme şeridi + app-header üst-paneli).
@@ -138,6 +139,12 @@
     private string? _lastSeenJson;
     private bool _busy;
     private string _formId = "edit_form_" + Guid.NewGuid().ToString("N");
+
+    // Kök yükseklik MOD-DUYARLI: TAB'da (CurrentMdiTab var, popup değil) MDI sekme gövdesini DOLDUR (height:100% — liste
+    // CrudLayout gibi) → form altı erken kesilmez. POPUP/drill/standalone'da h-100 çözülmez → viewport bound (body kayar).
+    private string RootHeightStyle => CurrentMdiTab != null && PopupChrome == null
+        ? "height:100%; max-height:100%;"
+        : "max-height:calc(90vh - 84px); max-height:calc(90dvh - 84px);";
 
     protected override void OnParametersSet()
     {

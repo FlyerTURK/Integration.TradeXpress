@@ -1,19 +1,16 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading.Tasks;
 using Integration.Framework.Blazor.Client.Components.Crud;
 using Integration.TradeXpress.Accounts;
-using Integration.TradeXpress.Attachments;
 using Integration.TradeXpress.Financials.CurrencyUnits;
 using Integration.TradeXpress.Goods;
-using Integration.TradeXpress.Products;
 using Microsoft.AspNetCore.Components;
 
 namespace Integration.TradeXpress.Blazor.Client.Pages.Goods;
 
 /// <summary>Mamül perakende stok kartı (dumb Layout) — GoodGetDto'ya bind eder; servis çağırmaz (lookup
-/// verisini host yükleyip geçer). Ana tedarikçi cascade + türetilmiş satış önizlemesi + tedarikçi/görsel
+/// verisini host yükleyip geçer). Ana tedarikçi cascade + türetilmiş satış önizlemesi + tedarikçi
 /// drill yardımcıları burada.</summary>
 public partial class GoodLayout
 {
@@ -35,7 +32,6 @@ public partial class GoodLayout
     [CascadingParameter(Name = "EditChanged")] private Action? EditChanged { get; set; }
 
     private DrillList<GoodSupplierDto>? _supplierDrill;
-    private DrillList<EntityImageEditDto>? _imageDrill;
 
     // KDV hazır oranları (TR: %1/%10/%20) — combo'da quick-pick; liste-dışı serbest oran da yazılabilir.
     private static readonly decimal[] VatPresets = { 1m, 10m, 20m };
@@ -57,46 +53,6 @@ public partial class GoodLayout
             MarginType.Percent => v.EntryPrice * (1m + v.MarginValue / 100m),
             _ => v.EntryPrice,
         };
-    }
-
-    // Yeni görsel eklenince Sıra No otomatik artar (mevcutların max'ı + 1; boşsa 1).
-    private int NextImageOrder()
-    {
-        return Model.Images.Select(x => x.DisplayOrder).DefaultIfEmpty(0).Max() + 1;
-    }
-
-    /// <summary>Görsel önizleme kaynağı — URL tipli doğrudan URL, yüklenmişte sunucunun doldurduğu data-URL.</summary>
-    private static string? PreviewSrcOf(EntityImageEditDto image)
-    {
-        return image.SourceType == ProductImageSourceType.Url ? image.Url : image.PreviewDataUrl;
-    }
-
-    /// <summary>Tekil-varsayılan transferi: kaydedilen görsel VARSAYILAN işaretliyse diğerlerinin bayrağı düşer
-    /// (sunucu ReplaceFor "ilki kalır" kuralı kullanıcının YENİ seçimini sessizce geri almasın).</summary>
-    private void TransferDefaultImage(EntityImageEditDto saved)
-    {
-        if (!saved.IsDefault)
-        {
-            return;
-        }
-
-        foreach (var other in Model.Images.Where(x => x.ClientKey != saved.ClientKey && x.IsDefault))
-        {
-            other.IsDefault = false;
-        }
-    }
-
-    /// <summary>Görsel kaydetme engeli: aynı kayda aynı URL ya da dosya adı iki kez girilemez (case-duyarsız;
-    /// sunucu ReplaceFor'da da dedup eder — savunma).</summary>
-    private string? ImageSaveGuard(EntityImageEditDto candidate)
-    {
-        var others = Model.Images.Where(x => x.ClientKey != candidate.ClientKey).ToList();
-        var url = candidate.Url?.Trim();
-        var duplicateUrl = url is { Length: > 0 }
-            && others.Any(x => string.Equals(x.Url?.Trim(), url, StringComparison.OrdinalIgnoreCase));
-        var duplicateFile = candidate.FileName is { Length: > 0 }
-            && others.Any(x => string.Equals(x.FileName, candidate.FileName, StringComparison.OrdinalIgnoreCase));
-        return duplicateUrl || duplicateFile ? L["TradeXpress:Image:ImageDuplicate"].Value : null;
     }
 
     /// <summary>Tedarikçi kaydetme engeli: CARİ HESAP seçilmemişse satır kabul edilmez (alt hesap opsiyonel). Aksi halde

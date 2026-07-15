@@ -74,15 +74,12 @@
    içeriği üretir (DrillTabs CollectionFiller wrapper gotcha'sı). Kod/ad/varyant üretimi sunucuda (synchronizer). *@
 <DrillTabs CssClass="mt-3">
     <DxTabPage Text="@L["Attributes"]" TabIconCssClass="@TradeXpressIcons.Sliders">
-        <EntityAttributesPanel Attributes="@Model.Attributes" />
+        <EntityAttributesPanel Attributes="@Model.Attributes" OnAttributesChanged="@OnGenerateVariants" />
     </DxTabPage>
     @* Varyant-başı fiyat/stok YOK (fiyat mücevherde) → ExtraFields yok. Stok Adedi GİZLİ (stok VoucherLine ledger'ından). *@
     <DxTabPage Text="@L["Variants"]" TabIconCssClass="@TradeXpressIcons.ProductVariant">
         <EntityVariantsPanel TVariant="EntityVariantGraphDto" Variants="@Model.Variants" Attributes="@Model.Attributes"
-                             OnGenerate="@OnGenerateVariants" ShowStockQuantity="false" ShowImages="true" />
-    </DxTabPage>
-    <DxTabPage Text="@L["Images"]" TabIconCssClass="@TradeXpressIcons.Jewelry">
-        <EntityImagesPanel Images="@Model.Images" EntityIcon="@TradeXpressIcons.Jewelry" />
+                             ShowStockQuantity="false" ShowImages="true" />
     </DxTabPage>
     <DxTabPage Text="@L["Documents"]" TabIconCssClass="@TradeXpressIcons.Report">
         <EntityDocumentsPanel Documents="@Model.Documents" />

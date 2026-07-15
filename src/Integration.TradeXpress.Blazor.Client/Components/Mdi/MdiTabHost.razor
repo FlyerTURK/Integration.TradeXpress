@@ -41,7 +41,7 @@
                         @* Edit sekmesi yapısal başlık (3-satır + dirty); düz menü/liste tab'ı sade metin.
                            Sağ-tık → Chrome benzeri sekme yönetim context menüsü. *@
                         <span @oncontextmenu:preventDefault @oncontextmenu="@(e => OnTabContextMenuAsync(e, captured))"
-                              style="display:inline-flex; align-items:center;">
+                              class="mdi-tab-caption">
                             @if (captured.Header is not null)
                             {
                                 <EditHeaderView Header="@captured.Header" IsDirty="@captured.IsDirty"

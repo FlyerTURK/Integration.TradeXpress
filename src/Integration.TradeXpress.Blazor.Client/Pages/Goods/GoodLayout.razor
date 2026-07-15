@@ -111,13 +111,13 @@
     @* Nitelikler + Varyantlar — JENERİK agnostik varyant bileşenleri (EntityName="Good"). Panel DxTabPage ÜRETMEZ,
        içeriği üretir (DrillTabs CollectionFiller wrapper gotcha'sı). Kod/ad/varyant üretimi sunucuda (synchronizer). *@
     <DxTabPage Text="@L["Attributes"]" TabIconCssClass="@TradeXpressIcons.Sliders">
-        <EntityAttributesPanel Attributes="@Model.Attributes" />
+        <EntityAttributesPanel Attributes="@Model.Attributes" OnAttributesChanged="@OnGenerateVariants" />
     </DxTabPage>
     <DxTabPage Text="@L["Variants"]" TabIconCssClass="@TradeXpressIcons.ProductVariant">
         @* Varyant-başı fiyat/stok — ExtraFields slot'unda (Good-özel; GoodVariantDetail'e saklanır). Stok birimi ana mamülde. *@
         @* Stok Adedi GİZLİ — Good stoğu VoucherLine ledger'ından türetilir (statik stok anlamsız). *@
         <EntityVariantsPanel TVariant="GoodVariantGraphDto" Variants="@Model.Variants" Attributes="@Model.Attributes"
-                             OnGenerate="@OnGenerateVariants" ShowStockQuantity="false" ShowImages="true">
+                             ShowStockQuantity="false" ShowImages="true">
             <ExtraFields Context="v">
                 @* Stok limitleri (varyant-başı). *@
                 <DxFormLayoutItem Caption="@L["GoodMinQty"]" ColSpanMd="6" BeginRow="true">
@@ -212,61 +212,6 @@
                 <GoodSupplierEditFields Model="s" Accounts="@Accounts" SubAccounts="@SubAccounts" CurrencyUnits="@CurrencyUnits"
                                         OnReloadAccounts="@OnReloadAccounts" OnReloadSubAccounts="@OnReloadSubAccounts"
                                         OnReloadCurrencyUnits="@OnReloadCurrencyUnits" />
-            </EditContent>
-        </DrillList>
-    </DxTabPage>
-
-    @* Görseller — URL ya da yüklenen dosya (blob); agnostik EntityImage ("Good" bağlamı). İlk/varsayılan = ana. *@
-    <DxTabPage Text="@L["Images"]" TabIconCssClass="@TradeXpressIcons.Good">
-        <DrillList TItem="EntityImageEditDto"
-                   @ref="_imageDrill"
-                   Title="@L["Images"]"
-                   EntityName="@L["Image"]"
-                   EntityIcon="@TradeXpressIcons.Good"
-                   Items="Model.Images"
-                   KeyFieldName="ClientKey"
-                   PrimaryTextSelector="@(i => i.FileName ?? i.Url)"
-                   NewItemFactory="@(() => new EntityImageEditDto { DisplayOrder = NextImageOrder() })"
-                   SaveGuard="@ImageSaveGuard"
-                   OnItemSaved="@((EntityImageEditDto saved) => TransferDefaultImage(saved))"
-                   MaxItems="GoodConsts.MaxImageCount"
-                   OnChanged="@(() => EditChanged?.Invoke())">
-            <GridColumns>
-                <DxGridDataColumn Caption="@L["Preview"]" Width="110px" TextAlignment="GridTextAlignment.Center">
-                    <CellDisplayTemplate Context="cell">
-                        @{ var img = (EntityImageEditDto)cell.DataItem; }
-                        @if (!string.IsNullOrEmpty(PreviewSrcOf(img)))
-                        {
-                            @* ham img: Dx görsel bileşeni yok — küçük, sınırlı önizleme *@
-                            <img src="@PreviewSrcOf(img)" alt="" style="max-height:48px; max-width:90px; object-fit:contain;" />
-                        }
-                    </CellDisplayTemplate>
-                </DxGridDataColumn>
-                <DxGridDataColumn FieldName="SourceType" Caption="@L["ImageSource"]" Width="110px">
-                    <CellDisplayTemplate Context="cell">
-                        @L[$"Enum:{nameof(ProductImageSourceType)}:{((EntityImageEditDto)cell.DataItem).SourceType}"]
-                    </CellDisplayTemplate>
-                </DxGridDataColumn>
-                <GridLinkColumn FieldName="FileName" Caption="@L["Name"]"
-                                TextSelector="@(item => ((EntityImageEditDto)item).FileName ?? ((EntityImageEditDto)item).Url)"
-                                OnClick="@(item => _imageDrill?.EditItem((EntityImageEditDto)item))" />
-                <DxGridDataColumn FieldName="IsDefault" Caption="@L["Default"]" Width="100px">
-                    <CellDisplayTemplate Context="cell">
-                        @if (cell.Value is bool isDefault && isDefault)
-                        {
-                            <span style="display:flex; align-items:center; gap:0.35rem;">
-                                <i class="custom-icon-check-circle" aria-hidden="true" style="color:#16a34a;"></i>@L["Default"]
-                            </span>
-                        }
-                    </CellDisplayTemplate>
-                </DxGridDataColumn>
-                <DxGridDataColumn FieldName="DisplayOrder" Caption="@L["DisplayOrder"]" Width="90px" />
-            </GridColumns>
-            <EditContent Context="img">
-                <DxFormLayout CssClass="w-100">
-                    <EntityImageEditFields Model="img"
-                                           IsDuplicateFileName="@(name => Model.Images.Any(x => x.ClientKey != img.ClientKey && string.Equals(x.FileName, name, StringComparison.OrdinalIgnoreCase)))" />
-                </DxFormLayout>
             </EditContent>
         </DrillList>
     </DxTabPage>

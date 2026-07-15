@@ -97,7 +97,10 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
 
             b.Property(x => x.RemoteLineId).IsRequired().HasMaxLength(OrderConsts.RemoteLineIdMaxLength);
             b.Property(x => x.ProductSnapshotName).HasMaxLength(OrderConsts.ProductNameSnapshotMaxLength);
-            b.Property(x => x.ProductSnapshotImageUrl).HasColumnType("nvarchar(max)");
+            // Sınırsız (uzun marketplace görsel URL'i) — string default zaten SqlServer'da nvarchar(max). Açık
+            // HasColumnType("nvarchar(max)") SQLite test provider'ını ("near max: syntax error") kırdığından kaldırıldı;
+            // SqlServer davranışı DEĞİŞMEZ (convention ile yine nvarchar(max)).
+            b.Property(x => x.ProductSnapshotImageUrl);
             b.Property(x => x.RejectReason).HasMaxLength(OrderConsts.RejectReasonMaxLength);
 
             // CustomTextCorrections — küçük liste (Option başına 1), OrderDetailSnapshotJson deseniyle AYNI JSON kolonu.

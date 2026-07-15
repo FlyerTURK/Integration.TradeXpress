@@ -153,6 +153,15 @@
     overflow: hidden;
 }
 
+/* MDI tabları EŞİT yükseklik (ERPPROV3 sabit tab-yükseklik tekniği uyarlaması): tab caption'ı 1-3 satır arası
+   değişir (menü=1 · edit=2 · cari=3) → değişken yükseklik = ragged şerit. Ortak caption sarmalına sabit min-height
+   (3-satır compact ≈ 2.36rem) + dikey orta → kısa tab'lar da aynı boya çekilir, şerit hizalı çizilir. */
+.mdi-tab-caption {
+    display: inline-flex;
+    align-items: center;
+    min-height: 2.5rem;
+}
+
 /* Alt sekmelerin (nested DxTabs) de h-100 verilince tam esnemesi için fix */
 .tx-tabs-stretched {
     display: flex !important;
@@ -897,6 +906,9 @@
 .custom-icon-home { background-image: url('/images/custom/home.svg'); background-color: transparent; -webkit-mask-image: none; mask-image: none; }
 .custom-icon-identity { background-image: url('/images/custom/identity.svg'); background-color: transparent; -webkit-mask-image: none; mask-image: none; }
 .custom-icon-commodities { background-image: url('/images/custom/commodities.svg'); background-color: transparent; -webkit-mask-image: none; mask-image: none; }
+.custom-icon-good { background-image: url('/images/custom/good.svg'); background-color: transparent; -webkit-mask-image: none; mask-image: none; }
+.custom-icon-special-code { background-image: url('/images/custom/special-code.svg'); background-color: transparent; -webkit-mask-image: none; mask-image: none; }
+.custom-icon-product-variant { background-image: url('/images/custom/product-variant.svg'); background-color: transparent; -webkit-mask-image: none; mask-image: none; }
 .custom-icon-current-transactions { background-image: url('/images/custom/current-transactions.svg'); background-color: transparent; -webkit-mask-image: none; mask-image: none; }
 .custom-icon-definitions { background-image: url('/images/custom/definitions.svg'); background-color: transparent; -webkit-mask-image: none; mask-image: none; }
 .custom-icon-financial { background-image: url('/images/custom/financial.svg'); background-color: transparent; -webkit-mask-image: none; mask-image: none; }
@@ -910,38 +922,39 @@
 /* ========================================================= */
 /* ACTION / SYSTEM ICONS (Use Mask + currentColor)           */
 /* ========================================================= */
-.custom-icon-add { -webkit-mask-image: url('/images/custom/add.svg'); mask-image: url('/images/custom/add.svg'); background-color: currentColor; background-image: none; }
-.custom-icon-delete { -webkit-mask-image: url('/images/custom/delete.svg'); mask-image: url('/images/custom/delete.svg'); background-color: currentColor; background-image: none; }
-.custom-icon-download { -webkit-mask-image: url('/images/custom/download.svg'); mask-image: url('/images/custom/download.svg'); background-color: currentColor; background-image: none; }
+/* Add/Edit/Delete: kullanici karari - listeleme toolbar/lookup ile ayni RENKLI XAF ikonlari (mask+currentColor "siyah" degil). Base kural 16x16 contain verir. */
+.custom-icon-add { background-image: url('/images/xaf/action_new.svg'); background-color: transparent; -webkit-mask-image: none; mask-image: none; }
+.custom-icon-delete { background-image: url('/images/xaf/action_delete.svg'); background-color: transparent; -webkit-mask-image: none; mask-image: none; }
+.custom-icon-download { background-image: url('/images/xaf/action_export.svg'); background-color: transparent; -webkit-mask-image: none; mask-image: none; }
 .custom-icon-spinner { -webkit-mask-image: url('/images/custom/spinner.svg'); mask-image: url('/images/custom/spinner.svg'); background-color: currentColor; background-image: none; }
 .custom-icon-comments { -webkit-mask-image: url('/images/custom/comments.svg'); mask-image: url('/images/custom/comments.svg'); background-color: currentColor; background-image: none; }
 .custom-icon-report { -webkit-mask-image: url('/images/custom/report.svg'); mask-image: url('/images/custom/report.svg'); background-color: currentColor; background-image: none; }
-.custom-icon-save { -webkit-mask-image: url('/images/custom/save.svg'); mask-image: url('/images/custom/save.svg'); background-color: currentColor; background-image: none; }
+.custom-icon-save { background-image: url('/images/xaf/action_save.svg'); background-color: transparent; -webkit-mask-image: none; mask-image: none; }
 .custom-icon-sliders { -webkit-mask-image: url('/images/custom/sliders.svg'); mask-image: url('/images/custom/sliders.svg'); background-color: currentColor; background-image: none; }
-.custom-icon-back { -webkit-mask-image: url('/images/custom/back.svg'); mask-image: url('/images/custom/back.svg'); background-color: currentColor; background-image: none; }
+.custom-icon-back { background-image: url('/images/xaf/arrow_left.svg'); background-color: transparent; -webkit-mask-image: none; mask-image: none; }
 .custom-icon-swap { -webkit-mask-image: url('/images/custom/swap.svg'); mask-image: url('/images/custom/swap.svg'); background-color: currentColor; background-image: none; }
 .custom-icon-address-card { -webkit-mask-image: url('/images/custom/address-card.svg'); mask-image: url('/images/custom/address-card.svg'); background-color: currentColor; background-image: none; }
-.custom-icon-check { -webkit-mask-image: url('/images/custom/check.svg'); mask-image: url('/images/custom/check.svg'); background-color: currentColor; background-image: none; }
-.custom-icon-check-circle { -webkit-mask-image: url('/images/custom/check-circle.svg'); mask-image: url('/images/custom/check-circle.svg'); background-color: currentColor; background-image: none; }
-.custom-icon-refresh { -webkit-mask-image: url('/images/custom/refresh.svg'); mask-image: url('/images/custom/refresh.svg'); background-color: currentColor; background-image: none; }
-.custom-icon-warning { -webkit-mask-image: url('/images/custom/warning.svg'); mask-image: url('/images/custom/warning.svg'); background-color: currentColor; background-image: none; }
+.custom-icon-check { background-image: url('/images/xaf/state_validation_valid.svg'); background-color: transparent; -webkit-mask-image: none; mask-image: none; }
+.custom-icon-check-circle { background-image: url('/images/xaf/state_validation_valid.svg'); background-color: transparent; -webkit-mask-image: none; mask-image: none; }
+.custom-icon-refresh { background-image: url('/images/xaf/action_refresh.svg'); background-color: transparent; -webkit-mask-image: none; mask-image: none; }
+.custom-icon-warning { background-image: url('/images/xaf/alert_warning.svg'); background-color: transparent; -webkit-mask-image: none; mask-image: none; }
 .custom-icon-percent { -webkit-mask-image: url('/images/custom/percent.svg'); mask-image: url('/images/custom/percent.svg'); background-color: currentColor; background-image: none; }
 .custom-icon-history { -webkit-mask-image: url('/images/custom/history.svg'); mask-image: url('/images/custom/history.svg'); background-color: currentColor; background-image: none; }
-.custom-icon-close { -webkit-mask-image: url('/images/custom/close.svg'); mask-image: url('/images/custom/close.svg'); background-color: currentColor; background-image: none; }
+.custom-icon-close { background-image: url('/images/xaf/action_close.svg'); background-color: transparent; -webkit-mask-image: none; mask-image: none; }
 .custom-icon-eye { -webkit-mask-image: url('/images/custom/eye.svg'); mask-image: url('/images/custom/eye.svg'); background-color: currentColor; background-image: none; }
 .custom-icon-eye-off { -webkit-mask-image: url('/images/custom/eye-off.svg'); mask-image: url('/images/custom/eye-off.svg'); background-color: currentColor; background-image: none; }
 .custom-icon-sign-out { -webkit-mask-image: url('/images/custom/sign-out.svg'); mask-image: url('/images/custom/sign-out.svg'); background-color: currentColor; background-image: none; }
 .custom-icon-server { -webkit-mask-image: url('/images/custom/server.svg'); mask-image: url('/images/custom/server.svg'); background-color: currentColor; background-image: none; }
 .custom-icon-permission { -webkit-mask-image: url('/images/custom/permission.svg'); mask-image: url('/images/custom/permission.svg'); background-color: currentColor; background-image: none; }
 .custom-icon-bug { -webkit-mask-image: url('/images/custom/bug.svg'); mask-image: url('/images/custom/bug.svg'); background-color: currentColor; background-image: none; }
-.custom-icon-copy { -webkit-mask-image: url('/images/custom/copy.svg'); mask-image: url('/images/custom/copy.svg'); background-color: currentColor; background-image: none; }
+.custom-icon-copy { background-image: url('/images/xaf/action_copy.svg'); background-color: transparent; -webkit-mask-image: none; mask-image: none; }
 .custom-icon-chevron-down { -webkit-mask-image: url('/images/custom/chevron-down.svg'); mask-image: url('/images/custom/chevron-down.svg'); background-color: currentColor; background-image: none; }
 .custom-icon-lightbulb { -webkit-mask-image: url('/images/custom/lightbulb.svg'); mask-image: url('/images/custom/lightbulb.svg'); background-color: currentColor; background-image: none; }
-.custom-icon-edit { -webkit-mask-image: url('/images/custom/edit.svg'); mask-image: url('/images/custom/edit.svg'); background-color: currentColor; background-image: none; }
-.custom-icon-search { -webkit-mask-image: url('/images/custom/search.svg'); mask-image: url('/images/custom/search.svg'); background-color: currentColor; background-image: none; }
-.custom-icon-more { -webkit-mask-image: url('/images/custom/more.svg'); mask-image: url('/images/custom/more.svg'); background-color: currentColor; background-image: none; }
-.custom-icon-info { -webkit-mask-image: url('/images/custom/info.svg'); mask-image: url('/images/custom/info.svg'); background-color: currentColor; background-image: none; }
-.custom-icon-eraser { -webkit-mask-image: url('/images/custom/eraser.svg'); mask-image: url('/images/custom/eraser.svg'); background-color: currentColor; background-image: none; }
+.custom-icon-edit { background-image: url('/images/xaf/action_edit.svg'); background-color: transparent; -webkit-mask-image: none; mask-image: none; }
+.custom-icon-search { background-image: url('/images/xaf/action_search.svg'); background-color: transparent; -webkit-mask-image: none; mask-image: none; }
+.custom-icon-more { background-image: url('/images/xaf/action_more.svg'); background-color: transparent; -webkit-mask-image: none; mask-image: none; }
+.custom-icon-info { background-image: url('/images/xaf/alert_info.svg'); background-color: transparent; -webkit-mask-image: none; mask-image: none; }
+.custom-icon-eraser { background-image: url('/images/xaf/action_clear.svg'); background-color: transparent; -webkit-mask-image: none; mask-image: none; }
 .custom-icon-maximize { -webkit-mask-image: url('/images/custom/maximize.svg'); mask-image: url('/images/custom/maximize.svg'); background-color: currentColor; background-image: none; }
 .custom-icon-minimize-corner { -webkit-mask-image: url('/images/custom/minimize-corner.svg'); mask-image: url('/images/custom/minimize-corner.svg'); background-color: currentColor; background-image: none; }
 .custom-icon-restore-min { -webkit-mask-image: url('/images/custom/restore-min.svg'); mask-image: url('/images/custom/restore-min.svg'); background-color: currentColor; background-image: none; }

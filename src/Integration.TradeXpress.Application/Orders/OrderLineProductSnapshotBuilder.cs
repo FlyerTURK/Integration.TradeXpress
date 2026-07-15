@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using System.Threading.Tasks;
 using Integration.TradeXpress.Products;
+using Integration.TradeXpress.Variants;
 using Volo.Abp.BlobStoring;
 using Volo.Abp.DependencyInjection;
 using Volo.Abp.Domain.Repositories;
@@ -9,9 +10,9 @@ using Volo.Abp.Domain.Repositories;
 namespace Integration.TradeXpress.Orders;
 
 /// <summary>
-/// Bir <see cref="ProductVariant"/>'ın "eşleşme anı" görünümünü (isim + görsel) donduran PAYLAŞILAN yardımcı —
-/// hem otomatik eşleştirme (<c>OrderLineProductMatcher</c>, sync sırasında) hem manuel eşleştirme
-/// (<c>OrderAppService.SaveOrderLineEditAsync</c>) kullanır (DRY). Görsel: Product.Images'taki varsayılan görsel —
+/// Bir <see cref="EntityVariant"/>'ın (Product uzantısı; EntityName="Product") "eşleşme anı" görünümünü (isim + görsel)
+/// donduran PAYLAŞILAN yardımcı — hem otomatik eşleştirme (<c>OrderLineProductMatcher</c>, sync sırasında) hem manuel
+/// eşleştirme (<c>OrderAppService.SaveOrderLineEditAsync</c>) kullanır (DRY). Görsel: Product.Images'taki varsayılan görsel —
 /// Url tipi doğrudan, Upload tipi THUMBNAIL blob'undan data-URL (<see cref="ProductImageAppService"/> ile AYNI desen;
 /// tam çözünürlük hiç gömülmez).
 /// </summary>
@@ -28,10 +29,11 @@ public class OrderLineProductSnapshotBuilder : ITransientDependency
         _imageContainer = imageContainer;
     }
 
-    /// <summary>Varyantın o ANDAKİ isim + görselini döner (isim her zaman dolu; görsel yoksa null).</summary>
-    public async Task<(string Name, string? ImageUrl)> BuildAsync(ProductVariant variant)
+    /// <summary>Varyantın o ANDAKİ isim + görselini döner (isim her zaman dolu; görsel yoksa null). Jenerik
+    /// <see cref="EntityVariant"/> — sahip ürün Id'si <see cref="EntityVariant.EntityId"/>'de (EntityName="Product").</summary>
+    public async Task<(string Name, string? ImageUrl)> BuildAsync(EntityVariant variant)
     {
-        var product = await _productRepository.FindAsync(variant.ProductId);
+        var product = await _productRepository.FindAsync(variant.EntityId);
         var image = product?.Images.FirstOrDefault(i => i.IsDefault)
             ?? product?.Images.OrderBy(i => i.DisplayOrder).FirstOrDefault();
         var imageUrl = await ResolveImageUrlAsync(image);

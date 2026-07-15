@@ -22,8 +22,8 @@ namespace Integration.TradeXpress.Goods;
 
 /// <summary>
 /// Good (Mamül — perakende stok kartı) CRUD — company-scoped. Scalar alanlar HostCatalogCrudAppService tabanından;
-/// GRAF (tedarikçiler drill'i + görseller) ve ana-tedarikçi auto-sync + türetilmiş satış fiyatı bu serviste
-/// orkestre edilir. Görseller entity-agnostik <see cref="IEntityImageAppService"/> ("Good" bağlamı) ile saklanır.
+/// GRAF (tedarikçiler drill'i + doküman/not + varyant sistemi) ve ana-tedarikçi auto-sync + türetilmiş satış fiyatı bu
+/// serviste orkestre edilir. Görseller VARYANT seviyesinde MEDYA (<see cref="IEntityMediaAppService"/>) ile taşınır.
 /// </summary>
 [Authorize]
 public class GoodAppService
@@ -42,9 +42,9 @@ public class GoodAppService
     private readonly IRepository<GoodVariantDetail, Guid> _variantDetailRepository;
     private readonly IRepository<EntityVariant, Guid> _variantRepository;
     private readonly IGoodPricingResolver _pricingResolver;
-    private readonly IEntityImageAppService _imageService;
     private readonly IEntityDocumentAppService _documentService;
     private readonly IEntityNoteAppService _noteService;
+    private readonly IEntityMediaAppService _entityMedia;
     private readonly ICurrentCompany _currentCompany;
 
     public GoodAppService(
@@ -57,9 +57,9 @@ public class GoodAppService
         IRepository<GoodVariantDetail, Guid> variantDetailRepository,
         IRepository<EntityVariant, Guid> variantRepository,
         IGoodPricingResolver pricingResolver,
-        IEntityImageAppService imageService,
         IEntityDocumentAppService documentService,
         IEntityNoteAppService noteService,
+        IEntityMediaAppService entityMedia,
         ICurrentCompany currentCompany)
         : base(repository)
     {
@@ -72,9 +72,9 @@ public class GoodAppService
         _variantDetailRepository = variantDetailRepository;
         _variantRepository = variantRepository;
         _pricingResolver = pricingResolver;
-        _imageService = imageService;
         _documentService = documentService;
         _noteService = noteService;
+        _entityMedia = entityMedia;
         _currentCompany = currentCompany;
         LocalizationResource = typeof(TradeXpressResource);
 
@@ -154,27 +154,36 @@ public class GoodAppService
         }
     }
 
-    // Liste — base + ANA VARYANT fiyat enrich'i (fiyat artık Good'da DEĞİL → varyantta; voucher-liste bunu okur) + görsel thumbnail.
+    // Liste — base + ANA VARYANT fiyat enrich'i (fiyat artık Good'da DEĞİL → varyantta; voucher-liste bunu okur).
     public override async Task<PagedResultDto<GoodListDto>> GetListAsync(GoodListRequestDto input)
     {
         var page = await base.GetListAsync(input);
         await EnrichPricingAsync(page.Items);
-        await EnrichImagesAsync(page.Items);
+        await EnrichPreviewsAsync(page.Items);
         return page;
     }
 
-    // GoodListDto.ImagePreviewUrl'i agnostik varsayılan görselden (tek batch sorgu; N+1 yok) doldurur.
-    private async Task EnrichImagesAsync(IReadOnlyList<GoodListDto> items)
+    // GoodListDto.ImagePreviewUrl'i ana varyantın varsayılan medyasının poster'ından doldurur (tek batch; N+1 yok).
+    private async Task EnrichPreviewsAsync(IReadOnlyList<GoodListDto> dtos)
     {
-        if (items.Count == 0)
+        if (dtos.Count == 0)
         {
             return;
         }
 
-        var previews = await _imageService.GetDefaultPreviewMapAsync(GoodEntityName, items.Select(i => i.Id).ToList());
-        foreach (var i in items)
+        var mainVariants = await _entityVariant.GetMainVariantMapAsync(GoodEntityName, dtos.Select(d => d.Id).ToList());
+        if (mainVariants.Count == 0)
         {
-            i.ImagePreviewUrl = previews.GetValueOrDefault(i.Id);
+            return;
+        }
+
+        var posters = await _entityMedia.GetDefaultPosterMapAsync(VariantImageEntityName, mainVariants.Values.ToList());
+        foreach (var dto in dtos)
+        {
+            if (mainVariants.TryGetValue(dto.Id, out var vId) && posters.TryGetValue(vId, out var url))
+            {
+                dto.ImagePreviewUrl = url;
+            }
         }
     }
 
@@ -272,24 +281,23 @@ public class GoodAppService
     public override async Task<GoodGetDto> CreateAsync(GoodCreateDto input)
     {
         var dto = await base.CreateAsync(input);
-        await SaveGraphAsync(dto.Id, input.Suppliers, input.Images, input.Documents, input.Notes, input.Attributes, input.Variants);
+        await SaveGraphAsync(dto.Id, input.Suppliers, input.Documents, input.Notes, input.Attributes, input.Variants);
         return await GetAsync(dto.Id);
     }
 
     public override async Task<GoodGetDto> UpdateAsync(Guid id, GoodUpdateDto input)
     {
         var dto = await base.UpdateAsync(id, input);
-        await SaveGraphAsync(id, input.Suppliers, input.Images, input.Documents, input.Notes, input.Attributes, input.Variants);
+        await SaveGraphAsync(id, input.Suppliers, input.Documents, input.Notes, input.Attributes, input.Variants);
         return await GetAsync(id);
     }
 
-    /// <summary>Grafı saklar: tedarikçiler drill'i (replace-all) + görseller (agnostik ReplaceFor) + VARYANT sistemi
-    /// (nitelik/değer graf-diff → synchronizer kartezyen üretimi → varyant özelleştirmeleri). Tedarikçi bilgisi YALNIZ
-    /// drill seviyesinde (her tedarikçi kendi fiyat/birim/vergi/gününü taşır).</summary>
+    /// <summary>Grafı saklar: tedarikçiler drill'i (replace-all) + doküman/not (agnostik ReplaceFor) + VARYANT sistemi
+    /// (nitelik/değer graf-diff → synchronizer kartezyen üretimi → varyant özelleştirmeleri; görsel VARYANT medyasında).
+    /// Tedarikçi bilgisi YALNIZ drill seviyesinde (her tedarikçi kendi fiyat/birim/vergi/gününü taşır).</summary>
     private async Task SaveGraphAsync(
         Guid goodId,
         List<GoodSupplierDto> suppliers,
-        List<EntityImageEditDto> images,
         List<EntityDocumentEditDto> documents,
         List<EntityNoteEditDto> notes,
         List<EntityAttributeGraphDto> attributes,
@@ -314,10 +322,7 @@ public class GoodAppService
             await _supplierRepository.InsertAsync(row, autoSave: false);
         }
 
-        // Görseller — entity-agnostik ("Good" bağlamı).
-        await _imageService.ReplaceForAsync(GoodEntityName, goodId, images);
-
-        // Dokümanlar + notlar — entity-agnostik ("Good" bağlamı).
+        // Dokümanlar + notlar — entity-agnostik ("Good" bağlamı). Görsel ana kayıtta DEĞİL → varyant medyasında.
         await _documentService.ReplaceForAsync(GoodEntityName, goodId, documents);
         await _noteService.ReplaceForAsync(GoodEntityName, goodId, notes);
 
@@ -357,8 +362,10 @@ public class GoodAppService
             await _variantDetailRepository.UpdateAsync(detail, autoSave: true);
         }
 
-        // Varyant-özel görseller — agnostik ("GoodVariant" bağlamı, varyant DB Id'siyle).
-        await _imageService.ReplaceForAsync(VariantImageEntityName, variantId, g.Images);
+        // Varyant-özel ekler — agnostik ("GoodVariant" bağlamı): MEDYA (görsel+video link) + doküman + not.
+        await _entityMedia.ReplaceForAsync(VariantImageEntityName, variantId, companyId, g.Media);
+        await _documentService.ReplaceForAsync(VariantImageEntityName, variantId, g.Documents);
+        await _noteService.ReplaceForAsync(VariantImageEntityName, variantId, g.Notes);
     }
 
     // ── Get: scalar (base) + tedarikçiler (enrich) + görseller + varyant grafı (fiyat varyantta). ──
@@ -368,18 +375,6 @@ public class GoodAppService
         var dto = await base.GetAsync(id);
 
         dto.Suppliers = await LoadSuppliersAsync(id);
-        dto.Images = (await _imageService.GetForAsync(GoodEntityName, id))
-            .Select(i => new EntityImageEditDto
-            {
-                SourceType = i.SourceType,
-                Url = i.Url,
-                BlobName = i.BlobName,
-                FileName = i.FileName,
-                DisplayOrder = i.DisplayOrder,
-                IsDefault = i.IsDefault,
-                PreviewDataUrl = i.PreviewDataUrl,
-            })
-            .ToList();
 
         // Dokümanlar + notlar — entity-agnostik ("Good" bağlamı). Id taşınır → doküman indirmesi (DownloadAsync) için.
         dto.Documents = (await _documentService.GetForAsync(GoodEntityName, id))
@@ -469,7 +464,7 @@ public class GoodAppService
         return Task.FromResult(_entityVariant.GenerateVariants(input).Select(CopyCore).ToList());
     }
 
-    // Mamül silinmeden ÖNCE (guard'lar geçti) — varyant grafı (+ Good detay uzantısı) + tedarikçiler + görseller temizlenir.
+    // Mamül silinmeden ÖNCE (guard'lar geçti) — varyant grafı (+ Good detay uzantısı + varyant medyası) + tedarikçiler + doküman/not temizlenir.
     protected override async Task BeforeDeleteAsync(Good entity)
     {
         await _entityVariant.DeleteForAsync(
@@ -479,7 +474,9 @@ public class GoodAppService
                 await _variantDetailRepository.DeleteAsync(d => ids.Contains(d.EntityVariantId), autoSave: true);
                 foreach (var vid in ids)
                 {
-                    await _imageService.ReplaceForAsync(VariantImageEntityName, vid, new List<EntityImageEditDto>());
+                    await _entityMedia.ReplaceForAsync(VariantImageEntityName, vid, null, new List<EntityMediaLinkEditDto>());
+                    await _documentService.ReplaceForAsync(VariantImageEntityName, vid, new List<EntityDocumentEditDto>());
+                    await _noteService.ReplaceForAsync(VariantImageEntityName, vid, new List<EntityNoteEditDto>());
                 }
             });
 
@@ -487,7 +484,6 @@ public class GoodAppService
             (await _supplierRepository.GetQueryableAsync()).Where(x => x.GoodId == entity.Id));
         await _supplierRepository.DeleteManyAsync(suppliers, autoSave: true);
 
-        await _imageService.ReplaceForAsync(GoodEntityName, entity.Id, new List<EntityImageEditDto>());
         await _documentService.ReplaceForAsync(GoodEntityName, entity.Id, new List<EntityDocumentEditDto>());
         await _noteService.ReplaceForAsync(GoodEntityName, entity.Id, new List<EntityNoteEditDto>());
     }
@@ -524,17 +520,30 @@ public class GoodAppService
                 g.ExitPriceTaxIncluded = d.ExitPriceTaxIncluded;
             }
 
-            // Varyant-özel görseller — agnostik ("GoodVariant" bağlamı).
-            g.Images = (await _imageService.GetForAsync(VariantImageEntityName, v.Id))
-                .Select(i => new EntityImageEditDto
+            // Varyant-özel MEDYA link'leri — merkezi kütüphaneye referans (görsel+video birlikte).
+            g.Media = await _entityMedia.GetForAsync(VariantImageEntityName, v.Id);
+
+            // Varyant-özel doküman + not — agnostik ("GoodVariant" bağlamı).
+            g.Documents = (await _documentService.GetForAsync(VariantImageEntityName, v.Id))
+                .Select(dd => new EntityDocumentEditDto
                 {
-                    SourceType = i.SourceType,
-                    Url = i.Url,
-                    BlobName = i.BlobName,
-                    FileName = i.FileName,
-                    DisplayOrder = i.DisplayOrder,
-                    IsDefault = i.IsDefault,
-                    PreviewDataUrl = i.PreviewDataUrl,
+                    Id = dd.Id,
+                    FileName = dd.FileName,
+                    BlobName = dd.BlobName,
+                    ContentType = dd.ContentType,
+                    Size = dd.Size,
+                    Description = dd.Description,
+                    DisplayOrder = dd.DisplayOrder,
+                })
+                .ToList();
+            g.Notes = (await _noteService.GetForAsync(VariantImageEntityName, v.Id))
+                .Select(nn => new EntityNoteEditDto
+                {
+                    Id = nn.Id,
+                    Title = nn.Title,
+                    Text = nn.Text,
+                    DisplayOrder = nn.DisplayOrder,
+                    CreationTime = nn.CreationTime,
                 })
                 .ToList();
 

@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Integration.Framework.Blazor.Client.Components.Crud;
 using Integration.Framework.Blazor.Client.Services.Base;
+using Integration.TradeXpress.Blazor.Client.Components.Shared;
 using Integration.TradeXpress.Financials.CurrencyUnits;
 using Integration.TradeXpress.Stones;
 using Integration.TradeXpress.Variants;
@@ -60,6 +61,11 @@ public partial class StoneEditHost
     // grafından kartezyeni hesaplar (jenerik EntityVariantGraphService), dönen graf Model.Variants'a yazılır (Save'de kalıcı).
     private async Task GenerateVariantsAsync(StoneGetDto model)
     {
+        if (VariantGraphMerge.HasIncompleteAttribute(model.Attributes))
+        {
+            return;
+        }
+
         try
         {
             var generated = await StoneAppService.GenerateVariantsAsync(new EntityVariantGenerateRequestDto
@@ -68,8 +74,7 @@ public partial class StoneEditHost
                 Attributes = model.Attributes,
             });
 
-            model.Variants.Clear();
-            model.Variants.AddRange(generated);
+            VariantGraphMerge.Apply(model.Variants, generated);
         }
         catch (BusinessException bex)
         {

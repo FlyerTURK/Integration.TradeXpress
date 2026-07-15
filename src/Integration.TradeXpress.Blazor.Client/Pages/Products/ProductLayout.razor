@@ -99,129 +99,38 @@
     <DxTabPage Text="@L["Description"]" TabIconCssClass="@TradeXpressIcons.Product">
         <DxHtmlEditor @bind-Markup="@Model.Description" CssClass="w-100" Height="360px" />
     </DxTabPage>
+    @* Nitelikler — JENERİK agnostik nitelik paneli (EntityName="Product" AppService'te). Panel DxTabPage ÜRETMEZ,
+       içeriği üretir. Nitelik/değer değişimi OnAttributesChanged → host varyant regen'ini (OTOMATİK senkron) tetikler. *@
     <DxTabPage Text="@L["Attributes"]" TabIconCssClass="@TradeXpressIcons.Sliders">
-        <DrillList TItem="ProductAttributeGraphDto"
-                   @ref="_attributeDrill"
-                   Title="@L["Attributes"]"
-                   EntityName="@L["ProductAttribute"]"
-                   EntityIcon="@TradeXpressIcons.Sliders"
-                   Items="Model.Attributes"
-                   KeyFieldName="ClientKey"
-                   PrimaryTextSelector="@(a => a.Name)"
-                   NewItemFactory="@(() => new ProductAttributeGraphDto { DisplayOrder = NextOrder(Model.Attributes) })"
-                   MaxItems="ProductAttributeConsts.MaxAttributesPerProduct"
-                   SoftDelete="true"
-                   IsNewItem="@(a => a.Id == Guid.Empty)"
-                   MarkDeleted="@(a => a.IsDeleted = true)"
-                   FilterPredicate="@(a => !a.IsDeleted)"
-                   OnChanged="@(() => EditChanged?.Invoke())">
-            <GridColumns>
-                <GridLinkColumn FieldName="Name" Caption="@L["Name"]" FixedPosition="GridColumnFixedPosition.Left" VisibleIndex="1" OnClick="@(item => _attributeDrill?.EditItem((ProductAttributeGraphDto)item))" />
-                <DxGridDataColumn FieldName="DisplayOrder" Caption="@L["DisplayOrder"]" Width="90px" />
-            </GridColumns>
-            <EditContent Context="a">
-                <DxFormLayout CssClass="w-100">
-                    <DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="12">
-                        <DxTextBox @bind-Text="@a.Name" />
-                    </DxFormLayoutItem>
-                    <DxFormLayoutItem Caption="@L["DisplayOrder"]" ColSpanMd="6">
-                        <NumericSpinEdit @bind-Value="@a.DisplayOrder" />
-                    </DxFormLayoutItem>
-                    <DxFormLayoutGroup Caption="@L["AttributeValues"]" ColSpanMd="12" CaptionPosition="CaptionPosition.Vertical">
-                        @* İç içe DrillList DOĞRUDAN parent EditContent'te (ui-blazor: EditForm yok,
-                           CascadingValue<EditContext> doğal izolasyon — iç drill dışı shadow'lar, NRE yok). *@
-                        <DrillList TItem="ProductAttributeValueGraphDto"
-                                   @ref="_valueDrill"
-                                   Title="@L["AttributeValues"]"
-                                   EntityName="@L["AttributeValue"]"
-                                   EntityIcon="@TradeXpressIcons.Sliders"
-                                   ParentEntityName="@L["ProductAttribute"]"
-                                   ParentText="@a.Name"
-                                   Items="a.Values"
-                                   KeyFieldName="ClientKey"
-                                   PrimaryTextSelector="@(v => v.Value)"
-                                   NewItemFactory="@(() => new ProductAttributeValueGraphDto { DisplayOrder = NextOrder(a.Values) })"
-                                   SoftDelete="true"
-                                   IsNewItem="@(v => v.Id == Guid.Empty)"
-                                   MarkDeleted="@(v => v.IsDeleted = true)"
-                                   FilterPredicate="@(v => !v.IsDeleted)"
-                                   OnChanged="@(() => EditChanged?.Invoke())">
-                            <GridColumns>
-                                <GridLinkColumn FieldName="Value" Caption="@L["Value"]" FixedPosition="GridColumnFixedPosition.Left" VisibleIndex="1" OnClick="@(item => _valueDrill?.EditItem((ProductAttributeValueGraphDto)item))" />
-                                <DxGridDataColumn FieldName="DisplayOrder" Caption="@L["DisplayOrder"]" Width="90px" />
-                            </GridColumns>
-                            <EditContent Context="v">
-                                <DxFormLayout CssClass="w-100">
-                                    <DxFormLayoutItem Caption="@($"{L["Value"]} *")" ColSpanMd="12">
-                                        <DxTextBox @bind-Text="@v.Value" />
-                                    </DxFormLayoutItem>
-                                    <DxFormLayoutItem Caption="@L["DisplayOrder"]" ColSpanMd="6">
-                                        <NumericSpinEdit @bind-Value="@v.DisplayOrder" />
-                                    </DxFormLayoutItem>
-                                </DxFormLayout>
-                            </EditContent>
-                        </DrillList>
-                    </DxFormLayoutGroup>
-                </DxFormLayout>
-            </EditContent>
-        </DrillList>
+        <EntityAttributesPanel Attributes="@Model.Attributes" OnAttributesChanged="@OnGenerateVariants" />
     </DxTabPage>
     <DxTabPage Text="@L["Variants"]" TabIconCssClass="@TradeXpressIcons.ProductVariant">
-        @* Buton + bilgi satırı YALNIZ nitelik varken görünür — 0 attribute'ta base ana varyant zaten seed'li,
-           üretilecek kombinasyon yok (ham div = flex sarmalayıcı, ui-blazor istisnası; buton DxButton). *@
-        @if (Model.Attributes.Any(a => !a.IsDeleted))
-        {
-            <div style="display:flex; align-items:center; gap:0.75rem; flex-wrap:wrap; padding:0.5rem 0.5rem 0;">
-                <DxButton Text="@L["GenerateVariants"]"
-                          IconCssClass="@TradeXpressIcons.Refresh"
-                          RenderStyle="ButtonRenderStyle.Primary"
-                          Click="@(async () => await GenerateVariantsClickedAsync())" />
-                <span style="color:#6c757d; font-size:0.85rem;">@L["VariantsGeneratedInfo"]</span>
-            </div>
-        }
-        <DrillList TItem="ProductVariantGraphDto"
-                   @ref="_variantDrill"
-                   Title="@L["Variants"]"
-                   EntityName="@L["ProductVariant"]"
-                   EntityIcon="@TradeXpressIcons.ProductVariant"
-                   Items="Model.Variants"
-                   KeyFieldName="ClientKey"
-                   PrimaryTextSelector="@(v => v.Code)"
-                   NewItemFactory="@(() => new ProductVariantGraphDto())"
-                   AllowAdd="false"
-                   AllowDelete="false"
-                   FilterPredicate="@(v => !v.IsDeleted)"
-                   OnChanged="@(() => EditChanged?.Invoke())">
-            <GridColumns>
-                <GridLinkColumn FieldName="Code" Caption="@L["Code"]" Width="140px" FixedPosition="GridColumnFixedPosition.Left" VisibleIndex="1" OnClick="@(item => _variantDrill?.EditItem((ProductVariantGraphDto)item))" />
-                <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" />
-                <DxGridDataColumn FieldName="AttributeSummary" Caption="@L["AttributeSummary"]" />
-                <DxGridDataColumn FieldName="IsMain" Caption="@L["Main"]" Width="90px">
-                    <CellDisplayTemplate Context="cell">
-                        @if (cell.Value is bool b && b)
-                        {
-                            <span style="display:flex; align-items:center; gap:0.35rem;">
-                                <i class="custom-icon-check-circle" aria-hidden="true" style="color:#16a34a;"></i>@L["Main"]
-                            </span>
-                        }
-                    </CellDisplayTemplate>
-                </DxGridDataColumn>
-                <StatusColumn />
-            </GridColumns>
-            <EditContent Context="v">
-                <DxFormLayout CssClass="w-100">
-                    <ProductVariantEditFields Model="v" Units="Units" />
-                    @* Reçete (design-time maliyet) — INLINE panel (VoucherLine giriş paneli deseni; popup YOK). *@
-                    <DxFormLayoutGroup Caption="@L["Recipe"]" ColSpanMd="12" CaptionPosition="CaptionPosition.Vertical">
-                        <ProductRecipePanel Lines="v.RecipeLines"
-                                            Metals="Metals" Scraps="Scraps" Futures="Futures"
-                                            Jewelries="Jewelries" Stones="Stones" Services="Services" Units="Units"
-                                            NetCost="@v.NetCost" NetCostCurrency="@v.NetCostCurrency" NetCostMissingRate="@v.NetCostMissingRate"
-                                            OnChanged="@(async () => await HandleRecipeChangedAsync(v))" />
-                    </DxFormLayoutGroup>
-                </DxFormLayout>
-            </EditContent>
-        </DrillList>
+        @* JENERİK agnostik varyant paneli — kartezyenden üretilen varyantlar (ekleme/silme KAPALI; synchronizer üretir).
+           Çekirdek alanlar (Kod/Barkod/GTIN/Stok/Durum) panelde; Product-ÖZEL satış fiyatı + reçete ExtraFields slot'unda
+           (GoodLayout deseni). Kod/Ad AGNOSTİK-üretilir (elle düzenlenmez). *@
+        <EntityVariantsPanel TVariant="ProductVariantGraphDto" Variants="@Model.Variants" Attributes="@Model.Attributes">
+            <ExtraFields Context="v">
+                @* Satılabilir veri (marketplace) — satış fiyatı + para birimi. N11/Trendyol listeleme push'u bunları kullanır;
+                   fiyat null = fiyatlanmamış (temizle butonuyla boşaltılabilir). Stok/barkod/GTIN panel çekirdeğinde. *@
+                <DxFormLayoutItem Caption="@L["SalePrice"]" ColSpanMd="6" BeginRow="true">
+                    <NumericSpinEdit TValue="decimal?" @bind-Value="@v.SalePrice" DisplayFormat="N2"
+                                     ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
+                </DxFormLayoutItem>
+                <DxFormLayoutItem Caption="@L["Currency"]" ColSpanMd="6">
+                    <LookupComboBox TItem="CurrentPriceDto" TValue="Guid?" Data="@Units"
+                                    ValueFieldName="@nameof(CurrentPriceDto.Id)" TextFieldName="@nameof(CurrentPriceDto.CurrencyUnitCode)"
+                                    @bind-Value="@v.SalePriceCurrencyUnitId" AllowClear="true" />
+                </DxFormLayoutItem>
+                @* Reçete (design-time maliyet) — INLINE panel (VoucherLine giriş paneli deseni; popup YOK). *@
+                <DxFormLayoutGroup Caption="@L["Recipe"]" ColSpanMd="12" CaptionPosition="CaptionPosition.Vertical">
+                    <ProductRecipePanel Lines="v.RecipeLines"
+                                        Metals="Metals" Scraps="Scraps" Futures="Futures"
+                                        Jewelries="Jewelries" Stones="Stones" Services="Services" Units="Units"
+                                        NetCost="@v.NetCost" NetCostCurrency="@v.NetCostCurrency" NetCostMissingRate="@v.NetCostMissingRate"
+                                        OnChanged="@(async () => await HandleRecipeChangedAsync(v))" />
+                </DxFormLayoutGroup>
+            </ExtraFields>
+        </EntityVariantsPanel>
     </DxTabPage>
     @* Görseller — URL ya da yüklenen dosya (blob); DisplayOrder sıralı (ilk = ana). In-memory drill; Product save'i persist eder. *@
     <DxTabPage Text="@L["Images"]" TabIconCssClass="@TradeXpressIcons.Product">

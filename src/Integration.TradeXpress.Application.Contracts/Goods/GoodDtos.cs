@@ -21,9 +21,6 @@ public class GoodListDto : CatalogListDtoBase, IPricedCommodityListDto
     public string? Brand { get; set; }
     public string? Category { get; set; }
 
-    /// <summary>Liste grid thumbnail'i — VARSAYILAN görselin önizleme URL'i (agnostik EntityImage; AppService enrich eder).</summary>
-    public string? ImagePreviewUrl { get; set; }
-
     public bool IsQuantity { get; set; }
     public bool PriceByQuantity { get; set; }
     public bool PriceTypeChange { get; set; }
@@ -33,6 +30,9 @@ public class GoodListDto : CatalogListDtoBase, IPricedCommodityListDto
     public Guid? ExitPriceUnitId { get; set; }
 
     public Guid? CompanyId { get; set; }
+
+    /// <summary>Grid önizlemesi — ana varyantın varsayılan medyasının poster URL'i (sunucu doldurur).</summary>
+    public string? ImagePreviewUrl { get; set; }
 }
 
 /// <summary>Bir mamülün TEDARİKÇİSİ (drill satırı) — hangi cari, hangi fiyatla, kaç günde. Display alanları
@@ -99,7 +99,6 @@ public class GoodGetDto : CatalogGetDtoBase, IHasCode
 
     // ── Graf (in-memory; kayıtta AppService persist eder) ──
     public List<GoodSupplierDto> Suppliers { get; set; } = new();
-    public List<EntityImageEditDto> Images { get; set; } = new();
     public List<EntityDocumentEditDto> Documents { get; set; } = new();
     public List<EntityNoteEditDto> Notes { get; set; } = new();
     public List<EntityAttributeGraphDto> Attributes { get; set; } = new();
@@ -142,7 +141,6 @@ public class GoodCreateDto : CatalogCreateDtoBase
     public string? Description { get; set; }
 
     public List<GoodSupplierDto> Suppliers { get; set; } = new();
-    public List<EntityImageEditDto> Images { get; set; } = new();
     public List<EntityDocumentEditDto> Documents { get; set; } = new();
     public List<EntityNoteEditDto> Notes { get; set; } = new();
     public List<EntityAttributeGraphDto> Attributes { get; set; } = new();
@@ -183,7 +181,6 @@ public class GoodUpdateDto : CatalogUpdateDtoBase
     public string? Description { get; set; }
 
     public List<GoodSupplierDto> Suppliers { get; set; } = new();
-    public List<EntityImageEditDto> Images { get; set; } = new();
     public List<EntityDocumentEditDto> Documents { get; set; } = new();
     public List<EntityNoteEditDto> Notes { get; set; } = new();
     public List<EntityAttributeGraphDto> Attributes { get; set; } = new();

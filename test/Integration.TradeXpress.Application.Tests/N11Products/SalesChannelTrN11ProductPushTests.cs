@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Integration.TradeXpress.MultiCompany;
 using Integration.TradeXpress.Products;
 using Integration.TradeXpress.SalesChannels;
+using Integration.TradeXpress.Variants;
 using Shouldly;
 using Volo.Abp;
 using Volo.Abp.Domain.Repositories;
@@ -22,13 +23,17 @@ namespace Integration.TradeXpress.N11Products;
 public abstract class SalesChannelTrN11ProductPushTests<TStartupModule> : TradeXpressApplicationTestBase<TStartupModule>
     where TStartupModule : IAbpModule
 {
+    // Agnostik varyant tablosunda Product varyantları bu sahip-adıyla tutulur (production: ProductEntityName).
+    private const string ProductEntityName = "Product";
+
     private readonly ISalesChannelTrN11ProductAppService _appService;
-    private readonly ProductVariantSynchronizer _erpSynchronizer;
+    private readonly EntityVariantSynchronizer _erpSynchronizer;
     private readonly IRepository<SalesChannelTrN11, Guid> _channelRepository;
     private readonly IRepository<Product, Guid> _productRepository;
-    private readonly IRepository<ProductAttribute, Guid> _erpAttributeRepository;
-    private readonly IRepository<ProductAttributeValue, Guid> _erpValueRepository;
-    private readonly IRepository<ProductVariant, Guid> _erpVariantRepository;
+    private readonly IRepository<EntityAttribute, Guid> _erpAttributeRepository;
+    private readonly IRepository<EntityAttributeValue, Guid> _erpValueRepository;
+    private readonly IRepository<EntityVariant, Guid> _erpVariantRepository;
+    private readonly IRepository<ProductVariantDetail, Guid> _variantDetailRepository;
     private readonly IRepository<SalesChannelTrN11ProductStockItem, Guid> _headerRepository;
     private readonly ICurrentCompany _currentCompany;
     private readonly FakeN11ProductClient _fakeClient;
@@ -36,12 +41,13 @@ public abstract class SalesChannelTrN11ProductPushTests<TStartupModule> : TradeX
     protected SalesChannelTrN11ProductPushTests()
     {
         _appService = GetRequiredService<ISalesChannelTrN11ProductAppService>();
-        _erpSynchronizer = GetRequiredService<ProductVariantSynchronizer>();
+        _erpSynchronizer = GetRequiredService<EntityVariantSynchronizer>();
         _channelRepository = GetRequiredService<IRepository<SalesChannelTrN11, Guid>>();
         _productRepository = GetRequiredService<IRepository<Product, Guid>>();
-        _erpAttributeRepository = GetRequiredService<IRepository<ProductAttribute, Guid>>();
-        _erpValueRepository = GetRequiredService<IRepository<ProductAttributeValue, Guid>>();
-        _erpVariantRepository = GetRequiredService<IRepository<ProductVariant, Guid>>();
+        _erpAttributeRepository = GetRequiredService<IRepository<EntityAttribute, Guid>>();
+        _erpValueRepository = GetRequiredService<IRepository<EntityAttributeValue, Guid>>();
+        _erpVariantRepository = GetRequiredService<IRepository<EntityVariant, Guid>>();
+        _variantDetailRepository = GetRequiredService<IRepository<ProductVariantDetail, Guid>>();
         _headerRepository = GetRequiredService<IRepository<SalesChannelTrN11ProductStockItem, Guid>>();
         _currentCompany = GetRequiredService<ICurrentCompany>();
         _fakeClient = GetRequiredService<FakeN11ProductClient>();
@@ -216,25 +222,31 @@ public abstract class SalesChannelTrN11ProductPushTests<TStartupModule> : TradeX
         await WithUnitOfWorkAsync(async () =>
         {
             var attribute = await _erpAttributeRepository.InsertAsync(
-                new ProductAttribute(companyId, product.Id, "Renk", 0), autoSave: true);
+                new EntityAttribute(companyId, ProductEntityName, product.Id, "Renk", 0), autoSave: true);
             for (var i = 0; i < values.Length; i++)
             {
                 await _erpValueRepository.InsertAsync(
-                    new ProductAttributeValue(companyId, attribute.Id, values[i].Value, i), autoSave: true);
+                    new EntityAttributeValue(companyId, attribute.Id, values[i].Value, i), autoSave: true);
             }
 
-            await _erpSynchronizer.SynchronizeAsync(product);
+            await _erpSynchronizer.SynchronizeAsync(ProductEntityName, product.Id, companyId, product.Name);
         });
 
         await WithUnitOfWorkAsync(async () =>
         {
-            var variants = await _erpVariantRepository.GetListAsync(v => v.ProductId == product.Id);
+            var variants = await _erpVariantRepository.GetListAsync(
+                v => v.EntityName == ProductEntityName && v.EntityId == product.Id);
             foreach (var (value, price, stock) in values)
             {
                 var variant = variants.Single(v => v.Code == value.ToUpperInvariant());
-                variant.SetSalePrice(price, null);
-                variant.SetStock(stock);
+                variant.SetStock(stock);   // stok agnostik EntityVariant'ta kalır
                 await _erpVariantRepository.UpdateAsync(variant, autoSave: true);
+
+                // Satış fiyatı Product uzantısı ProductVariantDetail'de (1:1, EntityVariantId) — synchronizer detay
+                // üretmez, testin fiyat kurulumu buradan yazılır (production LoadVariantSalePricesAsync ile aynı yol).
+                var detail = new ProductVariantDetail(companyId, variant.Id);
+                detail.SetSalePrice(price, null);
+                await _variantDetailRepository.InsertAsync(detail, autoSave: true);
             }
         });
     }

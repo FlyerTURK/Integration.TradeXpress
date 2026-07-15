@@ -92,9 +92,17 @@ public class EntityVariantGraphDto
     /// doldurur; kayıtta Id'siz üretilmiş satırın özelleştirmelerini senkron sonrası DB varyantına EŞLEMEK içindir.</summary>
     public string CombinationKey { get; set; } = string.Empty;
 
-    /// <summary>Varyant-özel görseller (agnostik EntityImage; in-memory graf). Sahip AppService varyant DB Id'si
-    /// çözülünce ReplaceForAsync ile bağlar/yükler. Panel <c>ShowImages</c> ile görsel drill'ini açar.</summary>
-    public List<EntityImageEditDto> Images { get; set; } = new();
+    /// <summary>Varyant-özel MEDYA link'leri (merkezi kütüphaneye referans — görsel+video birlikte; yeni DAM). Sahip
+    /// AppService varyant DB Id'si çözülünce EntityMediaAppService ReplaceFor/GetFor ("{Entity}Variant" bağlamı) ile
+    /// bağlar/yükler. Panel <c>ShowImages</c> ile medya panelini + grid poster önizlemesini açar.</summary>
+    public List<EntityMediaLinkEditDto> Media { get; set; } = new();
+
+    /// <summary>Varyant-özel dokümanlar (agnostik EntityDocument; in-memory graf). Sahip AppService varyant DB Id'si
+    /// çözülünce ReplaceForAsync ile bağlar/yükler (medya ile AYNI varyant bağlamı/desen).</summary>
+    public List<EntityDocumentEditDto> Documents { get; set; } = new();
+
+    /// <summary>Varyant-özel notlar (agnostik EntityNote; in-memory graf). Sahip AppService ReplaceForAsync ile bağlar/yükler.</summary>
+    public List<EntityNoteEditDto> Notes { get; set; } = new();
 }
 
 /// <summary>Persistsiz varyant üretim isteği (önizleme): nitelik grafı + ad türetmesi için sahip adı. DB'ye YAZMAZ.</summary>

@@ -7,25 +7,6 @@ namespace Integration.TradeXpress.EntityFrameworkCore;
 
 public static class TradeXpressDbContextModelCreatingExtensionsAttachments
 {
-    public static void ConfigureEntityImages(this ModelBuilder builder)
-    {
-        Check.NotNull(builder, nameof(builder));
-
-        builder.Entity<EntityImage>(b =>
-        {
-            b.ToTable(TradeXpressConsts.DbTablePrefix + "EntityImages", TradeXpressConsts.DbSchema);
-            b.ConfigureByConvention();
-
-            b.Property(x => x.EntityName).IsRequired().HasMaxLength(EntityImageConsts.EntityNameMaxLength);
-            b.Property(x => x.Url).HasMaxLength(EntityImageConsts.UrlMaxLength);
-            b.Property(x => x.BlobName).HasMaxLength(EntityImageConsts.BlobNameMaxLength);
-            b.Property(x => x.FileName).HasMaxLength(EntityImageConsts.FileNameMaxLength);
-
-            // Sahip-kayıt sorgusu (EntityName + EntityId) + sıra — picker/GetFor bağlam sorgusu.
-            b.HasIndex(x => new { x.EntityName, x.EntityId, x.DisplayOrder });
-        });
-    }
-
     public static void ConfigureEntityDocuments(this ModelBuilder builder)
     {
         Check.NotNull(builder, nameof(builder));
@@ -61,6 +42,52 @@ public static class TradeXpressDbContextModelCreatingExtensionsAttachments
 
             // Sahip-kayıt sorgusu (tenant + EntityName + EntityId) + sıra — GetFor bağlam sorgusu.
             b.HasIndex(x => new { x.TenantId, x.EntityName, x.EntityId, x.DisplayOrder });
+        });
+    }
+
+    // Merkezi medya kütüphanesi (DAM) — Media (self-contained blob) + EntityMediaLink (entity→media referansı).
+    public static void ConfigureMedia(this ModelBuilder builder)
+    {
+        Check.NotNull(builder, nameof(builder));
+
+        builder.Entity<Media>(b =>
+        {
+            b.ToTable(TradeXpressConsts.DbTablePrefix + "Media", TradeXpressConsts.DbSchema);
+            b.ConfigureByConvention();
+
+            b.Property(x => x.BlobName).IsRequired().HasMaxLength(MediaConsts.BlobNameMaxLength);
+            b.Property(x => x.PosterBlobName).HasMaxLength(MediaConsts.BlobNameMaxLength);
+            b.Property(x => x.FileName).IsRequired().HasMaxLength(MediaConsts.FileNameMaxLength);
+            b.Property(x => x.ContentType).IsRequired().HasMaxLength(MediaConsts.ContentTypeMaxLength);
+            b.Property(x => x.ContentHash).IsRequired().HasMaxLength(MediaConsts.ContentHashMaxLength);
+
+            // Company içinde içerik-hash dedup + kütüphane listeleme sorgusu (tenant + company + hash).
+            b.HasIndex(x => new { x.TenantId, x.CompanyId, x.ContentHash });
+
+            // Klasöre göre kütüphane filtresi.
+            b.HasIndex(x => x.FolderId);
+        });
+
+        builder.Entity<MediaFolder>(b =>
+        {
+            b.ToTable(TradeXpressConsts.DbTablePrefix + "MediaFolders", TradeXpressConsts.DbSchema);
+            b.ConfigureByConvention();
+
+            b.Property(x => x.Name).IsRequired().HasMaxLength(MediaConsts.FolderNameMaxLength);
+
+            // Company klasör ağacı + üst-klasör çocukları sorgusu.
+            b.HasIndex(x => new { x.TenantId, x.CompanyId, x.ParentId });
+        });
+
+        builder.Entity<EntityMediaLink>(b =>
+        {
+            b.ToTable(TradeXpressConsts.DbTablePrefix + "EntityMediaLinks", TradeXpressConsts.DbSchema);
+            b.ConfigureByConvention();
+
+            b.Property(x => x.EntityName).IsRequired().HasMaxLength(MediaConsts.EntityNameMaxLength);
+
+            // Sahip-kayıt link sorgusu (EntityName + EntityId) + sıra — GetFor bağlam sorgusu.
+            b.HasIndex(x => new { x.EntityName, x.EntityId, x.DisplayOrder });
         });
     }
 }

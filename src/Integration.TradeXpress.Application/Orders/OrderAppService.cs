@@ -9,6 +9,7 @@ using Integration.TradeXpress.Permissions;
 using Integration.TradeXpress.Products;
 using Integration.TradeXpress.SalesChannels;
 using Integration.TradeXpress.Trendyol;
+using Integration.TradeXpress.Variants;
 using Microsoft.AspNetCore.Authorization;
 using Volo.Abp;
 using Volo.Abp.Application.Dtos;
@@ -30,7 +31,8 @@ public class OrderAppService : TradeXpressAppService, IOrderAppService
     private readonly IRepository<OrderLine, Guid> _orderLineRepository;
     private readonly IRepository<OrderOperationalData, Guid> _operationalDataRepository;
     private readonly IRepository<OrderLineOperationalData, Guid> _operationalLineRepository;
-    private readonly IRepository<ProductVariant, Guid> _productVariantRepository;
+    // Sku.ProductVariantId artık JENERİK EntityVariant.Id taşır (agnostik varyant geçişi) — eşleşme agnostik tabloya çözülür.
+    private readonly IRepository<EntityVariant, Guid> _productVariantRepository;
     private readonly IRepository<SalesChannelBase, Guid> _channelRepository;
     private readonly IRepository<SalesChannelTrN11, Guid> _n11ChannelRepository;
     private readonly OrderSyncManager _orderSyncManager;
@@ -43,7 +45,7 @@ public class OrderAppService : TradeXpressAppService, IOrderAppService
         IRepository<OrderLine, Guid> orderLineRepository,
         IRepository<OrderOperationalData, Guid> operationalDataRepository,
         IRepository<OrderLineOperationalData, Guid> operationalLineRepository,
-        IRepository<ProductVariant, Guid> productVariantRepository,
+        IRepository<EntityVariant, Guid> productVariantRepository,
         IRepository<SalesChannelBase, Guid> channelRepository,
         IRepository<SalesChannelTrN11, Guid> n11ChannelRepository,
         OrderSyncManager orderSyncManager,

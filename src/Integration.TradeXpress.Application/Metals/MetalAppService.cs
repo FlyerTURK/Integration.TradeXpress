@@ -27,7 +27,7 @@ public class MetalAppService
       IMetalAppService
 {
     private const string MetalEntityName = "Metal";
-    private const string VariantImageEntityName = "MetalVariant";   // varyant-özel görsellerin agnostik EntityImage anahtarı
+    private const string VariantImageEntityName = "MetalVariant";   // varyant-özel medya/doküman/notun agnostik bağlam anahtarı
 
     private readonly IBlobContainer<MetalImagesContainer> _imageContainer;
     private readonly CommodityAgnosticGraph _graph;
@@ -165,7 +165,7 @@ public class MetalAppService
             }
         }
 
-        // Agnostik graf (Doküman/Not + Nitelik/Varyant + varyant görselleri) — ANA görsel OWNED tek olduğundan graph.Images YOKSAYILIR.
+        // Agnostik graf (Doküman/Not + Nitelik/Varyant + varyant medyası) — ANA görsel OWNED tek (agnostik ana görsel yok).
         var graph = await _graph.LoadAsync(MetalEntityName, VariantImageEntityName, entity.Id);
         dto.Documents = graph.Documents;
         dto.Notes = graph.Notes;
@@ -284,14 +284,14 @@ public class MetalAppService
         return await GetAsync(id);
     }
 
-    // Maden company-scoped DEĞİL → companyId null (varyant/nitelik tenant-geneli). Ana görsel OWNED tek → agnostik ana görsel BOŞ geçilir.
+    // Maden company-scoped DEĞİL → companyId null (varyant/nitelik tenant-geneli). Ana görsel OWNED tek (agnostik ana görsel yok).
     private Task SaveGraphAsync(
         Guid metalId, string ownerName, List<EntityDocumentEditDto> documents,
         List<EntityNoteEditDto> notes, List<EntityAttributeGraphDto> attributes, List<EntityVariantGraphDto> variants)
     {
         return _graph.SaveAsync(
             MetalEntityName, VariantImageEntityName, metalId, companyId: null, ownerName,
-            new List<EntityImageEditDto>(), documents, notes, attributes, variants);
+            documents, notes, attributes, variants);
     }
 
     public virtual Task<List<EntityVariantGraphDto>> GenerateVariantsAsync(EntityVariantGenerateRequestDto input)

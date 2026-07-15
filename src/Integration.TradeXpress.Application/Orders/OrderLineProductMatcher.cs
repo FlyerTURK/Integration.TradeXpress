@@ -6,13 +6,14 @@ using System.Threading.Tasks;
 using Integration.TradeXpress.N11Products;
 using Integration.TradeXpress.Products;
 using Integration.TradeXpress.SalesChannels;
+using Integration.TradeXpress.Variants;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Domain.Services;
 
 namespace Integration.TradeXpress.Orders;
 
 /// <summary>
-/// N11 sipariş kalemlerini yerel <see cref="ProductVariant"/>'a OTOMATİK eşleştirir (Sipariş Fazı O1, task #57) —
+/// N11 sipariş kalemlerini yerel <see cref="EntityVariant"/>'a (Product varyantı) OTOMATİK eşleştirir (Sipariş Fazı O1, task #57) —
 /// <c>OrderLine.StockCode</c> (=N11 <c>productSellerCode</c>) ile aynı kanaldaki <see cref="SalesChannelTrN11ProductSku.SellerStockCode"/>
 /// eşleşirse <see cref="OrderLineOperationalData"/>'ya İNSERT-ONLY-IF-MISSING yazılır — zaten eşleşmiş/manuel
 /// düzeltilmiş satırlara ASLA dokunmaz (resync'te tekrar tekrar çağrılsa bile idempotent).
@@ -26,13 +27,14 @@ namespace Integration.TradeXpress.Orders;
 public class OrderLineProductMatcher : DomainService
 {
     private readonly IRepository<SalesChannelTrN11Product, Guid> _n11ProductRepository;
-    private readonly IRepository<ProductVariant, Guid> _productVariantRepository;
+    // Sku.ProductVariantId artık JENERİK EntityVariant.Id taşır (agnostik varyant geçişi) — eşleştirme agnostik tabloya çözülür.
+    private readonly IRepository<EntityVariant, Guid> _productVariantRepository;
     private readonly IRepository<OrderLineOperationalData, Guid> _operationalLineRepository;
     private readonly OrderLineProductSnapshotBuilder _snapshotBuilder;
 
     public OrderLineProductMatcher(
         IRepository<SalesChannelTrN11Product, Guid> n11ProductRepository,
-        IRepository<ProductVariant, Guid> productVariantRepository,
+        IRepository<EntityVariant, Guid> productVariantRepository,
         IRepository<OrderLineOperationalData, Guid> operationalLineRepository,
         OrderLineProductSnapshotBuilder snapshotBuilder)
     {
@@ -91,7 +93,7 @@ public class OrderLineProductMatcher : DomainService
                 continue;   // yok ya da belirsiz (birden fazla aday)
             }
 
-            // ProductVariantId N11-only satırlarda GERÇEK ProductVariant OLMAYABİLİR (StockItem id olabilir) —
+            // ProductVariantId N11-only satırlarda GERÇEK EntityVariant OLMAYABİLİR (StockItem id olabilir) —
             // bulunamazsa sessizce atla (eşleşme yok sayılır).
             var variant = await _productVariantRepository.FindAsync(candidateVariantIds[0]);
             if (variant is null)

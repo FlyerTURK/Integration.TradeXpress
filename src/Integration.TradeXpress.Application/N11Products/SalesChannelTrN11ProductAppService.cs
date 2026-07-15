@@ -11,6 +11,7 @@ using Integration.TradeXpress.Products;
 using Integration.TradeXpress.SalesChannels;
 using Integration.TradeXpress.SalesChannels.Variants;
 using Integration.TradeXpress.Substitutions;
+using Integration.TradeXpress.Variants;
 using Integration.TradeXpress.Vouchers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Caching.Distributed;
@@ -30,12 +31,15 @@ namespace Integration.TradeXpress.N11Products;
 [Authorize(TradeXpressPermissions.SalesChannels.Default)]
 public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesChannelTrN11ProductAppService
 {
+    private const string ProductEntityName = "Product";
+
     private readonly IRepository<SalesChannelTrN11Product, Guid> _repository;
     private readonly IRepository<Product, Guid> _productRepository;
-    private readonly IRepository<ProductVariant, Guid> _variantRepository;
-    private readonly IRepository<ProductAttribute, Guid> _attributeRepository;
-    private readonly IRepository<ProductAttributeValue, Guid> _attributeValueRepository;
-    private readonly IRepository<ProductVariantAttributeValue, Guid> _variantAttributeRepository;
+    private readonly IRepository<EntityVariant, Guid> _variantRepository;
+    private readonly IRepository<ProductVariantDetail, Guid> _variantDetailRepository;
+    private readonly IRepository<EntityAttribute, Guid> _attributeRepository;
+    private readonly IRepository<EntityAttributeValue, Guid> _attributeValueRepository;
+    private readonly IRepository<EntityVariantAttributeValue, Guid> _variantAttributeRepository;
     private readonly IRepository<SalesChannelTrN11, Guid> _channelRepository;
     private readonly IRepository<CurrencyUnit, Guid> _currencyRepository;
     private readonly IRepository<SalesChannelTrN11ProductStockItem, Guid> _stockItemRepository;
@@ -57,10 +61,11 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
     public SalesChannelTrN11ProductAppService(
         IRepository<SalesChannelTrN11Product, Guid> repository,
         IRepository<Product, Guid> productRepository,
-        IRepository<ProductVariant, Guid> variantRepository,
-        IRepository<ProductAttribute, Guid> attributeRepository,
-        IRepository<ProductAttributeValue, Guid> attributeValueRepository,
-        IRepository<ProductVariantAttributeValue, Guid> variantAttributeRepository,
+        IRepository<EntityVariant, Guid> variantRepository,
+        IRepository<ProductVariantDetail, Guid> variantDetailRepository,
+        IRepository<EntityAttribute, Guid> attributeRepository,
+        IRepository<EntityAttributeValue, Guid> attributeValueRepository,
+        IRepository<EntityVariantAttributeValue, Guid> variantAttributeRepository,
         IRepository<SalesChannelTrN11, Guid> channelRepository,
         IRepository<CurrencyUnit, Guid> currencyRepository,
         IRepository<SalesChannelTrN11ProductStockItem, Guid> stockItemRepository,
@@ -82,6 +87,7 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
         _repository = repository;
         _productRepository = productRepository;
         _variantRepository = variantRepository;
+        _variantDetailRepository = variantDetailRepository;
         _attributeRepository = attributeRepository;
         _attributeValueRepository = attributeValueRepository;
         _variantAttributeRepository = variantAttributeRepository;
@@ -163,7 +169,7 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
     {
         var attributes = await AsyncExecuter.ToListAsync(
             (await _attributeRepository.GetQueryableAsync())
-                .Where(a => a.ProductId == productId)
+                .Where(a => a.EntityName == ProductEntityName && a.EntityId == productId)
                 .OrderBy(a => a.DisplayOrder));
         if (attributes.Count == 0)
         {
@@ -173,15 +179,15 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
         var attributeIds = attributes.Select(a => a.Id).ToList();
         var values = await AsyncExecuter.ToListAsync(
             (await _attributeValueRepository.GetQueryableAsync())
-                .Where(v => attributeIds.Contains(v.ProductAttributeId))
+                .Where(v => attributeIds.Contains(v.EntityAttributeId))
                 .OrderBy(v => v.DisplayOrder));
-        var valuesByAttribute = values.GroupBy(v => v.ProductAttributeId).ToDictionary(g => g.Key, g => g.ToList());
+        var valuesByAttribute = values.GroupBy(v => v.EntityAttributeId).ToDictionary(g => g.Key, g => g.ToList());
 
         return attributes.Select(a => new SalesChannelTrN11ProductAttributeDto
         {
             Name = a.Name,
             DisplayOrder = a.DisplayOrder,
-            Values = (valuesByAttribute.TryGetValue(a.Id, out var vs) ? vs : new List<ProductAttributeValue>())
+            Values = (valuesByAttribute.TryGetValue(a.Id, out var vs) ? vs : new List<EntityAttributeValue>())
                 .Select(v => new SalesChannelTrN11ProductAttributeValueDto
                 {
                     Value = v.Value,
@@ -633,10 +639,13 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
         else
         {
             // Legacy ERP-doğrudan görünüm — push'la AYNI filtre/sıra (aktif + fiyatlı + IsMain önce), ham ERP değerleri.
-            var variants = (await AsyncExecuter.ToListAsync(
-                    (await _variantRepository.GetQueryableAsync())
-                        .Where(v => v.ProductId == product.Id && v.IsActive)))
-                .Where(v => v.SalePrice is not null)
+            // Satış fiyatı artık ProductVariantDetail'de (agnostik EntityVariant'ın Product uzantısı) → EntityVariantId ile batch yüklenir.
+            var activeVariants = await AsyncExecuter.ToListAsync(
+                (await _variantRepository.GetQueryableAsync())
+                    .Where(v => v.EntityName == ProductEntityName && v.EntityId == product.Id && v.IsActive));
+            var salePrices = await LoadVariantSalePricesAsync(activeVariants.Select(v => v.Id).ToList());
+            var variants = activeVariants
+                .Where(v => salePrices.GetValueOrDefault(v.Id).SalePrice is not null)
                 .OrderByDescending(v => v.IsMain)
                 .ToList();
 
@@ -646,7 +655,7 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
                 Code = v.Code,
                 Name = v.Name,
                 StockQuantity = v.StockQuantity,
-                SalePrice = v.SalePrice,
+                SalePrice = salePrices.GetValueOrDefault(v.Id).SalePrice,
                 Options = options.TryGetValue(v.Id, out var pairs)
                     ? string.Join("; ", pairs.Select(p => $"{p.Name}: {p.Value}"))
                     : string.Empty,
@@ -921,10 +930,13 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
     private async Task<N11PushRowSet> BuildPushRowsAsync(SalesChannelTrN11Product channelProduct)
     {
         // Aktif + fiyatlı ERP varyantları (IsMain önce) — legacy aday seti + axis-modda ERP-backed satır kaynağı.
-        var variants = (await AsyncExecuter.ToListAsync(
-                (await _variantRepository.GetQueryableAsync())
-                    .Where(v => v.ProductId == channelProduct.ProductId && v.IsActive)))
-            .Where(v => v.SalePrice is not null)
+        // Satış fiyatı ProductVariantDetail'de (agnostik EntityVariant Product uzantısı) → fiyatlı filtresi detail üzerinden.
+        var activeVariants = await AsyncExecuter.ToListAsync(
+            (await _variantRepository.GetQueryableAsync())
+                .Where(v => v.EntityName == ProductEntityName && v.EntityId == channelProduct.ProductId && v.IsActive));
+        var salePrices = await LoadVariantSalePricesAsync(activeVariants.Select(v => v.Id).ToList());
+        var variants = activeVariants
+            .Where(v => salePrices.GetValueOrDefault(v.Id).SalePrice is not null)
             .OrderByDescending(v => v.IsMain)
             .ToList();
 
@@ -990,7 +1002,7 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
     /// <summary>ERP-backed push satırı — legacy davranış: kimlik/kod/ad/ticari kimlikler ERP varyantından,
     /// fiyat/stok zinciri Override ?? türetilmiş ?? ERP (<see cref="ResolveVariantPushPricingAsync"/> sonucu).</summary>
     private static N11PushRow BuildErpRow(
-        ProductVariant variant, VariantPushPricing pricing, Dictionary<Guid, List<N11ProductAttributePair>> variantOptions)
+        EntityVariant variant, VariantPushPricing pricing, Dictionary<Guid, List<N11ProductAttributePair>> variantOptions)
     {
         return new N11PushRow(
             CandidateId: variant.Id,
@@ -1002,7 +1014,7 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
                 .ToList(),
             Price: pricing.Price,
             Stock: pricing.Stock,
-            PriceCurrencyUnitId: variant.SalePriceCurrencyUnitId,
+            PriceCurrencyUnitId: pricing.PriceCurrencyUnitId,   // satış fiyatı birimi artık ProductVariantDetail'den (pricing içinde çözülür)
             Gtin: variant.Gtin,
             Mpn: variant.Mpn,
             Oem: variant.Oem);
@@ -1172,7 +1184,8 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
         }
 
         var attributeNames = (await AsyncExecuter.ToListAsync(
-                (await _attributeRepository.GetQueryableAsync()).Where(a => a.ProductId == productId)))
+                (await _attributeRepository.GetQueryableAsync())
+                    .Where(a => a.EntityName == ProductEntityName && a.EntityId == productId)))
             .ToDictionary(a => a.Id, a => a.Name);
         if (attributeNames.Count == 0)
         {
@@ -1181,25 +1194,25 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
 
         var valueTexts = (await AsyncExecuter.ToListAsync(
                 (await _attributeValueRepository.GetQueryableAsync())
-                    .Where(v => attributeNames.Keys.Contains(v.ProductAttributeId))))
+                    .Where(v => attributeNames.Keys.Contains(v.EntityAttributeId))))
             .ToDictionary(v => v.Id, v => v.Value);
 
         var links = await AsyncExecuter.ToListAsync(
             (await _variantAttributeRepository.GetQueryableAsync())
-                .Where(l => variantIds.Contains(l.ProductVariantId)));
+                .Where(l => variantIds.Contains(l.EntityVariantId)));
 
         foreach (var link in links)
         {
-            if (!attributeNames.TryGetValue(link.ProductAttributeId, out var name) ||
-                !valueTexts.TryGetValue(link.ProductAttributeValueId, out var value))
+            if (!attributeNames.TryGetValue(link.EntityAttributeId, out var name) ||
+                !valueTexts.TryGetValue(link.EntityAttributeValueId, out var value))
             {
                 continue;
             }
 
-            if (!result.TryGetValue(link.ProductVariantId, out var list))
+            if (!result.TryGetValue(link.EntityVariantId, out var list))
             {
                 list = new List<N11ProductAttributePair>();
-                result[link.ProductVariantId] = list;
+                result[link.EntityVariantId] = list;
             }
 
             list.Add(new N11ProductAttributePair(name, value));
@@ -1414,7 +1427,8 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
     private async Task<Dictionary<Guid, HashSet<(string Name, string Value)>>> BuildErpVariantOptionSetIndexAsync(Guid productId)
     {
         var variantIds = await AsyncExecuter.ToListAsync(
-            (await _variantRepository.GetQueryableAsync()).Where(v => v.ProductId == productId).Select(v => v.Id));
+            (await _variantRepository.GetQueryableAsync())
+                .Where(v => v.EntityName == ProductEntityName && v.EntityId == productId).Select(v => v.Id));
         var options = await LoadVariantOptionsAsync(productId, variantIds);
         return options.ToDictionary(
             kv => kv.Key,
@@ -1550,7 +1564,7 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
 
         var erpVariantIds = headers.Where(h => h.ProductVariantId is not null).Select(h => h.ProductVariantId!.Value).Distinct().ToList();
         var erpVariantsById = erpVariantIds.Count == 0
-            ? new Dictionary<Guid, ProductVariant>()
+            ? new Dictionary<Guid, EntityVariant>()
             : (await AsyncExecuter.ToListAsync(
                     (await _variantRepository.GetQueryableAsync()).Where(v => erpVariantIds.Contains(v.Id))))
                 .ToDictionary(v => v.Id);
@@ -1687,7 +1701,7 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
     {
         var variants = await AsyncExecuter.ToListAsync(
             (await _variantRepository.GetQueryableAsync())
-                .Where(v => v.ProductId == channelProduct.ProductId && v.IsActive)
+                .Where(v => v.EntityName == ProductEntityName && v.EntityId == channelProduct.ProductId && v.IsActive)
                 .OrderByDescending(v => v.IsMain).ThenBy(v => v.Code));
         if (variants.Count == 0)
         {
@@ -1858,9 +1872,12 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
     /// NetCost × (1+Margin/100)) ?? ERP SalePrice; stok: OverrideStock ?? ERP StockQuantity. Push PERSIST edilmiş
     /// gerçeği kullanır (ERP klonu değil) — kaydedilmemiş reçete türetilmiş fiyat üretmez.</summary>
     private async Task<IReadOnlyDictionary<Guid, VariantPushPricing>> ResolveVariantPushPricingAsync(
-        SalesChannelTrN11Product channelProduct, List<ProductVariant> variants)
+        SalesChannelTrN11Product channelProduct, List<EntityVariant> variants)
     {
         var variantIds = variants.Select(v => v.Id).ToList();
+
+        // Satış fiyatı/birimi ProductVariantDetail'de (agnostik EntityVariant Product uzantısı) — EntityVariantId ile batch yüklenir.
+        var salePrices = await LoadVariantSalePricesAsync(variantIds);
 
         // Yalnız ERP-backed başlıklar — N11-only satırlar (ProductVariantId null) burada ERP varyantına eşlenemez,
         // kendi push zincirleri ResolveN11OnlyPushPricingAsync'te (Override ?? türetilmiş; ERP fallback YOK).
@@ -1890,15 +1907,30 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
         {
             var v = variants[i];
             headers.TryGetValue(v.Id, out var header);
+            var (salePrice, saleCurrencyUnitId) = salePrices.GetValueOrDefault(v.Id);
             decimal? derived = costs[i].NetCost is { } nc && !costs[i].NetCostMissingRate
                 ? DerivedPriceCalculator.Calculate(nc, header?.Margin)
                 : null;
-            var price = header?.OverridePrice ?? derived ?? v.SalePrice;
+            var price = header?.OverridePrice ?? derived ?? salePrice;
             var stock = header?.OverrideStock ?? v.StockQuantity;
-            result[v.Id] = new VariantPushPricing(price, stock);
+            result[v.Id] = new VariantPushPricing(price, stock, saleCurrencyUnitId);
         }
 
         return result;
+    }
+
+    /// <summary>Varyant satış-fiyatı + para birimini <see cref="ProductVariantDetail"/>'den (agnostik EntityVariant'ın
+    /// Product uzantısı) EntityVariantId ile batch yükler (N+1 yok). Fiyatlanmamış varyantta (detail yok) (null, null).</summary>
+    private async Task<Dictionary<Guid, (decimal? SalePrice, Guid? CurrencyUnitId)>> LoadVariantSalePricesAsync(IReadOnlyCollection<Guid> variantIds)
+    {
+        if (variantIds.Count == 0)
+        {
+            return new Dictionary<Guid, (decimal?, Guid?)>();
+        }
+
+        var details = await AsyncExecuter.ToListAsync(
+            (await _variantDetailRepository.GetQueryableAsync()).Where(d => variantIds.Contains(d.EntityVariantId)));
+        return details.ToDictionary(d => d.EntityVariantId, d => (d.SalePrice, d.SalePriceCurrencyUnitId));
     }
 
     /// <summary>Kanal-özel varyant override grafını persist eder — override sinyali (OverridePrice/OverrideStock/Margin
@@ -2165,8 +2197,8 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
         return dtos;
     }
 
-    /// <summary>Push için varyant-başı efektif fiyat (override zinciri sonucu) + stok.</summary>
-    private sealed record VariantPushPricing(decimal? Price, int Stock);
+    /// <summary>Push için varyant-başı efektif fiyat (override zinciri sonucu) + stok + satış fiyatı birimi (ProductVariantDetail'den).</summary>
+    private sealed record VariantPushPricing(decimal? Price, int Stock, Guid? PriceCurrencyUnitId);
 
     // ── Uygulama + güvenlik ─────────────────────────────────────────────────────────────────────────
 

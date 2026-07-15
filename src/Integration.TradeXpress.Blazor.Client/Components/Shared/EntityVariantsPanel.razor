@@ -11,14 +11,11 @@
    varsa) sahibin OnGenerate'ini çağırır (sunucu üretir → Variants). Drill ekleme/silmeye KAPALI (synchronizer üretir);
    yalnız çekirdek alanlar (Barkod/Stok/Açıklama/Aktif) düzenlenir. Entity-özel alanlar ExtraFields slot'unda. *@
 
+@* Varyantlar nitelik/değer değişiminde OTOMATİK senkronlanır (buton yok) — sahip layout EntityAttributesPanel.OnAttributesChanged'i host regen'ine bağlar. *@
 @if (Attributes.Any(a => !a.IsDeleted))
 {
-    <div style="display:flex; align-items:center; gap:0.75rem; flex-wrap:wrap; padding:0.5rem 0.5rem 0;">
-        <DxButton Text="@L["GenerateVariants"]"
-                  IconCssClass="@TradeXpressIcons.Refresh"
-                  RenderStyle="ButtonRenderStyle.Primary"
-                  Click="@GenerateClickedAsync" />
-        <span style="color:#6c757d; font-size:0.85rem;">@L["VariantsGeneratedInfo"]</span>
+    <div style="padding:0.5rem 0.5rem 0; color:#6c757d; font-size:0.85rem;">
+        @L["VariantsAutoSyncInfo"]
     </div>
 }
 
@@ -72,27 +69,29 @@
     </GridColumns>
     <EditContent Context="v">
         <DxFormLayout CssClass="w-100">
-            @* Kod (salt-okuma, otomatik) + Barkod (düzenlenebilir). Tek-yönlü Text → ValidationEnabled=false şart. *@
+            @* Kod (salt-okuma, otomatik) — yarım satır. Tek-yönlü Text → ValidationEnabled=false şart. *@
             <DxFormLayoutItem Caption="@L["Code"]" ColSpanMd="6">
                 <DxTextBox Text="@v.Code" ReadOnly="true" ValidationEnabled="false" />
             </DxFormLayoutItem>
-            <DxFormLayoutItem Caption="@L["Barcode"]" ColSpanMd="6">
-                <DxTextBox @bind-Text="@v.Barcode" />
-            </DxFormLayoutItem>
-            @* Ticari kimlikler — GTIN / MPN / OEM (per-SKU, opsiyonel). *@
-            <DxFormLayoutItem Caption="@L["Gtin"]" ColSpanMd="4" BeginRow="true">
-                <DxTextBox @bind-Text="@v.Gtin" />
-            </DxFormLayoutItem>
-            <DxFormLayoutItem Caption="@L["Mpn"]" ColSpanMd="4">
-                <DxTextBox @bind-Text="@v.Mpn" />
-            </DxFormLayoutItem>
-            <DxFormLayoutItem Caption="@L["Oem"]" ColSpanMd="4">
-                <DxTextBox @bind-Text="@v.Oem" />
-            </DxFormLayoutItem>
-            @* Kombinasyon özeti — TEK SATIR (salt-okuma). *@
+            @* Kombinasyon özeti — TAM SATIR (salt-okuma). *@
             <DxFormLayoutItem Caption="@L["AttributeSummary"]" ColSpanMd="12" BeginRow="true">
                 <DxTextBox Text="@v.AttributeSummary" ReadOnly="true" ValidationEnabled="false" />
             </DxFormLayoutItem>
+            @* Tanımlama değerleri (per-SKU ticari kimlikler) — TAM SATIR grup, içinde yarımşar (2×2). *@
+            <DxFormLayoutGroup Caption="@L["IdentificationValues"]" ColSpanMd="12">
+                <DxFormLayoutItem Caption="@L["Barcode"]" ColSpanMd="6">
+                    <DxTextBox @bind-Text="@v.Barcode" />
+                </DxFormLayoutItem>
+                <DxFormLayoutItem Caption="@L["Gtin"]" ColSpanMd="6">
+                    <DxTextBox @bind-Text="@v.Gtin" />
+                </DxFormLayoutItem>
+                <DxFormLayoutItem Caption="@L["Mpn"]" ColSpanMd="6">
+                    <DxTextBox @bind-Text="@v.Mpn" />
+                </DxFormLayoutItem>
+                <DxFormLayoutItem Caption="@L["Oem"]" ColSpanMd="6">
+                    <DxTextBox @bind-Text="@v.Oem" />
+                </DxFormLayoutItem>
+            </DxFormLayoutGroup>
             @if (ShowStockQuantity)
             {
                 <DxFormLayoutItem Caption="@L["StockQuantity"]" ColSpanMd="6" BeginRow="true">
@@ -101,53 +100,27 @@
             }
             @* Uzantı slot'u — entity-özel alanlar (Good: fiyat/stok). *@
             @ExtraFields?.Invoke(v)
-            @* Varyant-özel görseller (agnostik EntityImage; ShowImages). İç içe drill — parent popup EditContent'te. *@
-            @if (ShowImages)
-            {
-                <DxFormLayoutGroup Caption="@L["Images"]" ColSpanMd="12" CaptionPosition="CaptionPosition.Vertical">
-                    <DrillList TItem="EntityImageEditDto"
-                               @ref="_imageDrill"
-                               Title="@L["Images"]"
-                               EntityName="@L["Image"]"
-                               EntityIcon="@TradeXpressIcons.Product"
-                               Items="v.Images"
-                               KeyFieldName="ClientKey"
-                               PrimaryTextSelector="@(i => i.FileName ?? i.Url)"
-                               NewItemFactory="@(() => new EntityImageEditDto { DisplayOrder = NextImageOrder(v.Images) })"
-                               SaveGuard="@(img => ImageSaveGuard(v.Images, img))"
-                               OnItemSaved="@((EntityImageEditDto saved) => TransferDefaultImage(v.Images, saved))"
-                               OnChanged="@(() => EditChanged?.Invoke())">
-                        <GridColumns>
-                            <DxGridDataColumn Caption="@L["Preview"]" Width="90px" TextAlignment="GridTextAlignment.Center">
-                                <CellDisplayTemplate Context="cell">
-                                    @{ var img = (EntityImageEditDto)cell.DataItem; }
-                                    @if (!string.IsNullOrEmpty(PreviewSrcOf(img)))
-                                    {
-                                        @* ham img: Dx görsel bileşeni yok — küçük önizleme *@
-                                        <img src="@PreviewSrcOf(img)" alt="" style="max-height:40px; max-width:80px; object-fit:contain;" />
-                                    }
-                                </CellDisplayTemplate>
-                            </DxGridDataColumn>
-                            <GridLinkColumn FieldName="FileName" Caption="@L["Name"]"
-                                            TextSelector="@(item => ((EntityImageEditDto)item).FileName ?? ((EntityImageEditDto)item).Url)"
-                                            OnClick="@(item => _imageDrill?.EditItem((EntityImageEditDto)item))" />
-                            <DxGridDataColumn FieldName="DisplayOrder" Caption="@L["DisplayOrder"]" Width="80px" />
-                        </GridColumns>
-                        <EditContent Context="img">
-                            <DxFormLayout CssClass="w-100">
-                                <EntityImageEditFields Model="img"
-                                                       IsDuplicateFileName="@(name => v.Images.Any(x => x.ClientKey != img.ClientKey && string.Equals(x.FileName, name, StringComparison.OrdinalIgnoreCase)))" />
-                            </DxFormLayout>
-                        </EditContent>
-                    </DrillList>
-                </DxFormLayoutGroup>
-            }
-            @* Durum — EN SON alan, yeni satır. *@
+            @* Durum — yarım satır. *@
             <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6" BeginRow="true">
                 <DxCheckBox @bind-Checked="@v.IsActive" CheckType="CheckType.Switch">
                     @(v.IsActive ? L["Active"] : L["Passive"])
                 </DxCheckBox>
             </DxFormLayoutItem>
         </DxFormLayout>
+        @* Varyant-özel ekler (agnostik EntityImage/Document/Note; ShowImages) — Resimler + Dokümanlar + Notlar sekmeleri (altta). *@
+        @if (ShowImages)
+        {
+            <DrillTabs CssClass="mt-2">
+                <DxTabPage Text="@L["Media"]" TabIconCssClass="@TradeXpressIcons.Product">
+                    <EntityMediaPanel Media="@v.Media" />
+                </DxTabPage>
+                <DxTabPage Text="@L["Documents"]" TabIconCssClass="@TradeXpressIcons.Report">
+                    <EntityDocumentsPanel Documents="@v.Documents" />
+                </DxTabPage>
+                <DxTabPage Text="@L["Notes"]" TabIconCssClass="@TradeXpressIcons.Comments">
+                    <EntityNotesPanel Notes="@v.Notes" />
+                </DxTabPage>
+            </DrillTabs>
+        }
     </EditContent>
 </DrillList>

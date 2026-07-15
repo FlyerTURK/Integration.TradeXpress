@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Integration.Framework.Blazor.Client.Components.Crud;
 using Integration.Framework.Blazor.Client.Services.Base;
+using Integration.TradeXpress.Blazor.Client.Components.Shared;
 using Integration.TradeXpress.Financials.CurrencyUnits;
 using Integration.TradeXpress.Metals;
 using Integration.TradeXpress.Variants;
@@ -52,9 +53,16 @@ public partial class MetalEditHost
         });
     }
 
-    // "Varyantları Oluştur" — host servisi çağırır (persistsiz kartezyen); dönen graf Model.Variants'a yazılır (Save'de kalıcı).
+    // OTOMATİK varyant senkronu — nitelik/değer add/edit/delete'te çağrılır (EntityAttributesPanel.OnAttributesChanged;
+    // "Oluştur" butonuna bağlı DEĞİL). MERGE: var olan kombinasyonların düzenlemeleri (barkod/GTIN) KORUNUR. Değersiz
+    // nitelik varken (kullanıcı hâlâ değer ekliyor) SESSİZCE atlar (transient; toast/veri değişikliği yok).
     private async Task GenerateVariantsAsync(MetalGetDto model)
     {
+        if (VariantGraphMerge.HasIncompleteAttribute(model.Attributes))
+        {
+            return;
+        }
+
         try
         {
             var generated = await MetalAppService.GenerateVariantsAsync(new EntityVariantGenerateRequestDto
@@ -63,8 +71,7 @@ public partial class MetalEditHost
                 Attributes = model.Attributes,
             });
 
-            model.Variants.Clear();
-            model.Variants.AddRange(generated);
+            VariantGraphMerge.Apply(model.Variants, generated);
         }
         catch (BusinessException bex)
         {

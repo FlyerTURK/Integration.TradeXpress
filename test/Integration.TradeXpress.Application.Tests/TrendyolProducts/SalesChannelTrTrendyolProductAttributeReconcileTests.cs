@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Integration.TradeXpress.MultiCompany;
 using Integration.TradeXpress.Products;
 using Integration.TradeXpress.SalesChannels;
+using Integration.TradeXpress.Variants;
 using Shouldly;
 using Volo.Abp;
 using Volo.Abp.Domain.Repositories;
@@ -23,13 +24,16 @@ namespace Integration.TradeXpress.TrendyolProducts;
 public abstract class SalesChannelTrTrendyolProductAttributeReconcileTests<TStartupModule> : TradeXpressApplicationTestBase<TStartupModule>
     where TStartupModule : IAbpModule
 {
+    // Agnostik varyant tablosunda Product varyantları bu sahip-adıyla tutulur (production: ProductEntityName).
+    private const string ProductEntityName = "Product";
+
     private readonly ISalesChannelTrTrendyolProductAppService _appService;
-    private readonly ProductVariantSynchronizer _erpSynchronizer;
+    private readonly EntityVariantSynchronizer _erpSynchronizer;
     private readonly IRepository<SalesChannelTrTrendyol, Guid> _channelRepository;
     private readonly IRepository<Product, Guid> _productRepository;
-    private readonly IRepository<ProductAttribute, Guid> _erpAttributeRepository;
-    private readonly IRepository<ProductAttributeValue, Guid> _erpValueRepository;
-    private readonly IRepository<ProductVariant, Guid> _erpVariantRepository;
+    private readonly IRepository<EntityAttribute, Guid> _erpAttributeRepository;
+    private readonly IRepository<EntityAttributeValue, Guid> _erpValueRepository;
+    private readonly IRepository<EntityVariant, Guid> _erpVariantRepository;
     private readonly IRepository<SalesChannelTrTrendyolProductAttribute, Guid> _channelAttributeRepository;
     private readonly IRepository<SalesChannelTrTrendyolProductAttributeValue, Guid> _channelAttributeValueRepository;
     private readonly IRepository<SalesChannelTrTrendyolProductStockItem, Guid> _headerRepository;
@@ -39,12 +43,12 @@ public abstract class SalesChannelTrTrendyolProductAttributeReconcileTests<TStar
     protected SalesChannelTrTrendyolProductAttributeReconcileTests()
     {
         _appService = GetRequiredService<ISalesChannelTrTrendyolProductAppService>();
-        _erpSynchronizer = GetRequiredService<ProductVariantSynchronizer>();
+        _erpSynchronizer = GetRequiredService<EntityVariantSynchronizer>();
         _channelRepository = GetRequiredService<IRepository<SalesChannelTrTrendyol, Guid>>();
         _productRepository = GetRequiredService<IRepository<Product, Guid>>();
-        _erpAttributeRepository = GetRequiredService<IRepository<ProductAttribute, Guid>>();
-        _erpValueRepository = GetRequiredService<IRepository<ProductAttributeValue, Guid>>();
-        _erpVariantRepository = GetRequiredService<IRepository<ProductVariant, Guid>>();
+        _erpAttributeRepository = GetRequiredService<IRepository<EntityAttribute, Guid>>();
+        _erpValueRepository = GetRequiredService<IRepository<EntityAttributeValue, Guid>>();
+        _erpVariantRepository = GetRequiredService<IRepository<EntityVariant, Guid>>();
         _channelAttributeRepository = GetRequiredService<IRepository<SalesChannelTrTrendyolProductAttribute, Guid>>();
         _channelAttributeValueRepository = GetRequiredService<IRepository<SalesChannelTrTrendyolProductAttributeValue, Guid>>();
         _headerRepository = GetRequiredService<IRepository<SalesChannelTrTrendyolProductStockItem, Guid>>();
@@ -214,17 +218,17 @@ public abstract class SalesChannelTrTrendyolProductAttributeReconcileTests<TStar
         {
             var (channel, product) = await SeedChannelAndProductAsync(companyId, "TYPROD4");
 
-            // ERP tarafı: Renk[Red,Blue] → synchronizer 2 ERP varyantı + bağlarını üretir.
+            // ERP tarafı: Renk[Red,Blue] → synchronizer 2 ERP varyantı + bağlarını üretir (agnostik EntityVariant).
             await WithUnitOfWorkAsync(async () =>
             {
                 var attribute = await _erpAttributeRepository.InsertAsync(
-                    new ProductAttribute(companyId, product.Id, "Renk", 0), autoSave: true);
-                await _erpValueRepository.InsertAsync(new ProductAttributeValue(companyId, attribute.Id, "Red", 0), autoSave: true);
-                await _erpValueRepository.InsertAsync(new ProductAttributeValue(companyId, attribute.Id, "Blue", 1), autoSave: true);
-                await _erpSynchronizer.SynchronizeAsync(product);
+                    new EntityAttribute(companyId, ProductEntityName, product.Id, "Renk", 0), autoSave: true);
+                await _erpValueRepository.InsertAsync(new EntityAttributeValue(companyId, attribute.Id, "Red", 0), autoSave: true);
+                await _erpValueRepository.InsertAsync(new EntityAttributeValue(companyId, attribute.Id, "Blue", 1), autoSave: true);
+                await _erpSynchronizer.SynchronizeAsync(ProductEntityName, product.Id, companyId, product.Name);
             });
             var erpVariants = await WithUnitOfWorkAsync(async () =>
-                await _erpVariantRepository.GetListAsync(v => v.ProductId == product.Id));
+                await _erpVariantRepository.GetListAsync(v => v.EntityName == ProductEntityName && v.EntityId == product.Id));
             var erpRed = erpVariants.Single(v => v.Code == "RED");
             var erpBlue = erpVariants.Single(v => v.Code == "BLUE");
 
@@ -324,12 +328,12 @@ public abstract class SalesChannelTrTrendyolProductAttributeReconcileTests<TStar
             await WithUnitOfWorkAsync(async () =>
             {
                 var renk = await _erpAttributeRepository.InsertAsync(
-                    new ProductAttribute(companyId, product.Id, "Renk", 0), autoSave: true);
-                await _erpValueRepository.InsertAsync(new ProductAttributeValue(companyId, renk.Id, "Red", 0), autoSave: true);
-                await _erpValueRepository.InsertAsync(new ProductAttributeValue(companyId, renk.Id, "Blue", 1), autoSave: true);
+                    new EntityAttribute(companyId, ProductEntityName, product.Id, "Renk", 0), autoSave: true);
+                await _erpValueRepository.InsertAsync(new EntityAttributeValue(companyId, renk.Id, "Red", 0), autoSave: true);
+                await _erpValueRepository.InsertAsync(new EntityAttributeValue(companyId, renk.Id, "Blue", 1), autoSave: true);
                 var beden = await _erpAttributeRepository.InsertAsync(
-                    new ProductAttribute(companyId, product.Id, "Beden", 1), autoSave: true);
-                await _erpValueRepository.InsertAsync(new ProductAttributeValue(companyId, beden.Id, "Small", 0), autoSave: true);
+                    new EntityAttribute(companyId, ProductEntityName, product.Id, "Beden", 1), autoSave: true);
+                await _erpValueRepository.InsertAsync(new EntityAttributeValue(companyId, beden.Id, "Small", 0), autoSave: true);
             });
 
             // Özellik modu HİÇ aktive edilmemiş kayıt (create'te özellik girilmedi).

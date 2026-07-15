@@ -37,9 +37,8 @@ public partial class ProductLayout
     /// <summary>Inline döviz ekle/düzelt sonrası lookup listesini host tazeler (EntityChange tetikler).</summary>
     [Parameter] public EventCallback OnReloadCurrencyUnits { get; set; }
 
-    private DrillList<ProductVariantGraphDto>? _variantDrill;
-    private DrillList<ProductAttributeGraphDto>? _attributeDrill;
-    private DrillList<ProductAttributeValueGraphDto>? _valueDrill;
+    // Nitelik + varyant drill'leri artık JENERİK paylaşılan panellerde (EntityAttributesPanel / EntityVariantsPanel);
+    // yalnız görsel drill'i bu layout'ta kalır.
     private DrillList<ProductImageGraphDto>? _imageDrill;
 
     /// <summary>Görsel önizleme kaynağı — URL tipli doğrudan URL, yüklenmişte sunucunun doldurduğu data-URL.</summary>
@@ -108,27 +107,11 @@ public partial class ProductLayout
         EditChanged?.Invoke();
     }
 
-    /// <summary>"Varyantları Oluştur" tıklandı — layout DUMB kalır (servis çağırmaz): işi host yapar
-    /// (ProductAppService.GenerateVariantsAsync → Model.Variants). Sonrasında form dirty işaretlenir.</summary>
+    /// <summary>Nitelik/değer değişince (EntityAttributesPanel.OnAttributesChanged) host varyantları OTOMATİK yeniden
+    /// üretir (VariantGraphMerge — kullanıcı düzenlemeleri korunur). Layout DUMB kalır (servis çağırmaz); işi host yapar.</summary>
     [Parameter] public EventCallback OnGenerateVariants { get; set; }
 
-    private async Task GenerateVariantsClickedAsync()
-    {
-        await OnGenerateVariants.InvokeAsync();
-        EditChanged?.Invoke();
-    }
-
-    // Yeni nitelik/değer eklenince Sıra No OTOMATİK artar (silinmemişlerin max'ı + 1; boşsa 1).
-    private static int NextOrder(IEnumerable<ProductAttributeGraphDto> items)
-    {
-        return items.Where(x => !x.IsDeleted).Select(x => x.DisplayOrder).DefaultIfEmpty(0).Max() + 1;
-    }
-
-    private static int NextOrder(IEnumerable<ProductAttributeValueGraphDto> items)
-    {
-        return items.Where(x => !x.IsDeleted).Select(x => x.DisplayOrder).DefaultIfEmpty(0).Max() + 1;
-    }
-
+    // Yeni görsel eklenince Sıra No OTOMATİK artar (max + 1; boşsa 1). Nitelik/değer sırası JENERİK panelde.
     private static int NextOrder(IEnumerable<ProductImageGraphDto> items)
     {
         return items.Select(x => x.DisplayOrder).DefaultIfEmpty(0).Max() + 1;

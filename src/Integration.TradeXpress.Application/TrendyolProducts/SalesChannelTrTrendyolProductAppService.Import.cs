@@ -8,6 +8,7 @@ using Integration.TradeXpress.MultiCompany;
 using Integration.TradeXpress.Permissions;
 using Integration.TradeXpress.Products;
 using Integration.TradeXpress.SalesChannels;
+using Integration.TradeXpress.Variants;
 using Microsoft.AspNetCore.Authorization;
 using Volo.Abp;
 using Volo.Abp.MultiTenancy;
@@ -292,7 +293,7 @@ public partial class SalesChannelTrTrendyolProductAppService
         TrendyolRemoteProduct remote,
         List<TrendyolRemoteVariant> variants,
         SalesChannelTrTrendyolProduct? existing,
-        Dictionary<string, ProductVariant> variantsByBarcode,
+        Dictionary<string, EntityVariant> variantsByBarcode,
         Guid? tryCurrencyUnitId,
         TrendyolImportResultDto report)
     {
@@ -306,7 +307,7 @@ public partial class SalesChannelTrTrendyolProductAppService
             .FirstOrDefault(local => local is not null);
         if (matched is not null)
         {
-            return await GetOwnedProductAsync(matched.ProductId);
+            return await GetOwnedProductAsync(matched.EntityId);
         }
 
         var product = await CreateTemplateProductAsync(channel, remote, variants, variantsByBarcode, tryCurrencyUnitId);
@@ -320,12 +321,12 @@ public partial class SalesChannelTrTrendyolProductAppService
     /// Name = Trendyol başlığı CASING KORUNARAK (<c>SetName(name, normalizeTitle:false)</c> — TitleCase import'ta
     /// başlığı bozar), Description (şablon sınırına kırpılır), görseller URL-kaynaklı, para birimi TRY. Her uzak kalem
     /// için varyant üretilir (ilk kalem MAIN); ana-varyant değişmezi MERKEZİ kapıdan geçer
-    /// (<see cref="ProductVariantManager.EnsureMainVariantAsync"/>).</summary>
+    /// (<see cref="EntityVariantManager.EnsureMainVariantAsync"/>).</summary>
     private async Task<Product> CreateTemplateProductAsync(
         SalesChannelTrTrendyol channel,
         TrendyolRemoteProduct remote,
         List<TrendyolRemoteVariant> variants,
-        Dictionary<string, ProductVariant> variantsByBarcode,
+        Dictionary<string, EntityVariant> variantsByBarcode,
         Guid? tryCurrencyUnitId)
     {
         var first = variants[0];
@@ -345,26 +346,32 @@ public partial class SalesChannelTrTrendyolProductAppService
         {
             var remoteVariant = variants[i];
             var variantCode = BuildUniqueVariantCode(remoteVariant.StockCode ?? remoteVariant.Barcode, usedCodes);
-            var variant = new ProductVariant(
+
+            // Agnostik EntityVariant — Ad CASE-KORUR (EnsureRequiredText; TitleCase YOK) → gerçek başlık doğrudan ctor'a
+            // (ProductVariant'ın temp-ad dansı GEREKMEZ; satıcı casing'i "iPhone 15" korunur). Barkod ayrı (SetBarcode).
+            var variant = new EntityVariant(
                 channel.CompanyId,
+                ProductEntityName,
                 product.Id,
                 variantCode,
-                variantCode,   // geçici ad — hemen altta casing-korumalı gerçek ad atanır (Product ile aynı desen)
+                BuildSafeName(remote.Title, variantCode),
                 isMain: i == 0);
-            variant.SetName(BuildSafeName(remote.Title, variantCode), normalizeTitle: false);
-            variant.SetTradeIdentifiers(remoteVariant.Barcode, null, null, null);
-
-            // Negatif uzak fiyat upsert yolundaki guard'la AYNI şekilde süzülür — pazaryerinden gelen tek anomali
-            // kalem (SetSalePrice fail-fast) TÜM importu düşürmesin.
-            var salePrice = remoteVariant.SalePrice is >= 0 ? remoteVariant.SalePrice : null;
-            variant.SetSalePrice(salePrice, salePrice is null ? null : tryCurrencyUnitId);
+            variant.SetBarcode(remoteVariant.Barcode);
             variant.SetStock(Math.Max(0, remoteVariant.Quantity));
             await _variantRepository.InsertAsync(variant, autoSave: true);
+
+            // Satış fiyatı Product uzantısında (ProductVariantDetail; EntityVariantId ile bağlı). Negatif uzak fiyat
+            // guard'la süzülür — pazaryerinden gelen tek anomali kalem (SetSalePrice fail-fast) TÜM importu düşürmesin.
+            var salePrice = remoteVariant.SalePrice is >= 0 ? remoteVariant.SalePrice : null;
+            var detail = new ProductVariantDetail(channel.CompanyId, variant.Id);
+            detail.SetSalePrice(salePrice, salePrice is null ? null : tryCurrencyUnitId);
+            await _variantDetailRepository.InsertAsync(detail, autoSave: true);
+
             variantsByBarcode[remoteVariant.Barcode] = variant;
         }
 
-        // Ana-varyant değişmezi merkezi kapıdan (tekil main garanti; idempotent).
-        await _variantManager.EnsureMainVariantAsync(product);
+        // Ana-varyant değişmezi merkezi kapıdan (tekil main garanti; idempotent) — agnostik EntityVariantManager.
+        await _variantManager.EnsureMainVariantAsync(ProductEntityName, product.Id, product.CompanyId);
         return product;
     }
 
@@ -372,14 +379,14 @@ public partial class SalesChannelTrTrendyolProductAppService
     /// (2026-07-11 kullanıcı kararı: eski "Eksik Varyantları Tamamla" düğmesi geçici çözümdü — davranış import'a
     /// gömüldü). Minimal-güncelleme kuralının kalan kısmı: mevcut hiçbir varyant/şablon ALANI GÜNCELLENMEZ, yalnız
     /// varyant EKLENİR; ANA VARYANT DEĞİŞMEZ (yeni eklenen main doğmaz; tekil-main değişmezi merkezî kapıdan —
-    /// <see cref="ProductVariantManager.EnsureMainVariantAsync"/>). Barkodu BAŞKA şablonun varyantında kayıtlı kalem
+    /// <see cref="EntityVariantManager.EnsureMainVariantAsync"/>). Barkodu BAŞKA şablonun varyantında kayıtlı kalem
     /// eklenemez (atla+raporla — unique index (TenantId, Barcode) zaten reddederdi). Kod çakışması son-ekle
     /// ("-2", "-3"...) çözülür. İDEMPOTENT: ikinci geçiş 0 ekler. Eklenenler rapora sayı+barkod olarak düşer.</summary>
     private async Task EnsureTemplateVariantsAsync(
         TrendyolRemoteProduct remote,
         List<TrendyolRemoteVariant> variants,
         Product product,
-        Dictionary<string, ProductVariant> variantsByBarcode,
+        Dictionary<string, EntityVariant> variantsByBarcode,
         Guid? tryCurrencyUnitId,
         TrendyolImportResultDto report)
     {
@@ -390,7 +397,7 @@ public partial class SalesChannelTrTrendyolProductAppService
         {
             if (variantsByBarcode.TryGetValue(remoteVariant.Barcode, out var localVariant))
             {
-                if (localVariant.ProductId != product.Id)
+                if (localVariant.EntityId != product.Id)
                 {
                     AddSkipped(report.SkippedRows, remoteVariant, L["TrendyolProduct:Import:BarcodeOnAnotherTemplate"].Value);
                 }
@@ -401,15 +408,19 @@ public partial class SalesChannelTrTrendyolProductAppService
             usedCodes ??= await LoadVariantCodesAsync(product.Id);
             var variantCode = BuildUniqueVariantCode(remoteVariant.StockCode ?? remoteVariant.Barcode, usedCodes);
 
-            // Kuruluş importuyla AYNI desen: geçici ad = kod (ctor SetName'i TitleCase normalize eder ama hemen
-            // ezilir), gerçek başlık casing-korumalı atanır; yeni eklenen ASLA main doğmaz (kırmızı çizgi).
-            var variant = new ProductVariant(product.CompanyId, product.Id, variantCode, variantCode, isMain: false);
-            variant.SetName(BuildSafeName(remote.Title, variantCode), normalizeTitle: false);
-            variant.SetTradeIdentifiers(remoteVariant.Barcode, null, null, null);
-            var salePrice = remoteVariant.SalePrice is >= 0 ? remoteVariant.SalePrice : null;
-            variant.SetSalePrice(salePrice, salePrice is null ? null : tryCurrencyUnitId);
+            // Kuruluş importuyla AYNI desen (agnostik EntityVariant; Ad CASE-KORUR): gerçek başlık doğrudan ctor'a,
+            // barkod ayrı (SetBarcode); yeni eklenen ASLA main doğmaz (kırmızı çizgi). Satış fiyatı ProductVariantDetail'e.
+            var variant = new EntityVariant(product.CompanyId, ProductEntityName, product.Id, variantCode,
+                BuildSafeName(remote.Title, variantCode), isMain: false);
+            variant.SetBarcode(remoteVariant.Barcode);
             variant.SetStock(Math.Max(0, remoteVariant.Quantity));
             await _variantRepository.InsertAsync(variant, autoSave: true);
+
+            var salePrice = remoteVariant.SalePrice is >= 0 ? remoteVariant.SalePrice : null;
+            var detail = new ProductVariantDetail(product.CompanyId, variant.Id);
+            detail.SetSalePrice(salePrice, salePrice is null ? null : tryCurrencyUnitId);
+            await _variantDetailRepository.InsertAsync(detail, autoSave: true);
+
             variantsByBarcode[remoteVariant.Barcode] = variant;
 
             addedAny = true;
@@ -420,7 +431,7 @@ public partial class SalesChannelTrTrendyolProductAppService
         if (addedAny)
         {
             // Ana-varyant değişmezi MERKEZÎ kapıdan (idempotent): mevcut main KORUNUR — yeni eklenenler main OLMAZ.
-            await _variantManager.EnsureMainVariantAsync(product);
+            await _variantManager.EnsureMainVariantAsync(ProductEntityName, product.Id, product.CompanyId);
         }
     }
 
@@ -433,7 +444,7 @@ public partial class SalesChannelTrTrendyolProductAppService
         {
             var codes = await AsyncExecuter.ToListAsync(
                 (await _variantRepository.GetQueryableAsync())
-                    .Where(v => v.ProductId == productId)
+                    .Where(v => v.EntityName == ProductEntityName && v.EntityId == productId)
                     .Select(v => v.Code));
             return codes.ToHashSet(StringComparer.OrdinalIgnoreCase);
         }
@@ -553,7 +564,7 @@ public partial class SalesChannelTrTrendyolProductAppService
         List<TrendyolRemoteVariant> variants,
         SalesChannelTrTrendyolProduct? existing,
         Product product,
-        Dictionary<string, ProductVariant> variantsByBarcode,
+        Dictionary<string, EntityVariant> variantsByBarcode,
         TrendyolImportResultDto report)
     {
         var entity = existing;
@@ -617,7 +628,7 @@ public partial class SalesChannelTrTrendyolProductAppService
         foreach (var remoteVariant in variants)
         {
             if (!variantsByBarcode.TryGetValue(remoteVariant.Barcode, out var localVariant)
-                || localVariant.ProductId != product.Id)
+                || localVariant.EntityId != product.Id)
             {
                 continue;   // başka şablonun barkodu — EnsureTemplateVariantsAsync raporladı
             }
@@ -705,7 +716,7 @@ public partial class SalesChannelTrTrendyolProductAppService
     private async Task UpsertStockItemsAsync(
         SalesChannelTrTrendyolProduct entity,
         List<TrendyolRemoteVariant> variants,
-        Dictionary<string, ProductVariant> variantsByBarcode,
+        Dictionary<string, EntityVariant> variantsByBarcode,
         Guid? tryCurrencyUnitId,
         SideCostPlan sideCostPlan)
     {
@@ -717,7 +728,7 @@ public partial class SalesChannelTrTrendyolProductAppService
         foreach (var remoteVariant in variants)
         {
             if (!variantsByBarcode.TryGetValue(remoteVariant.Barcode, out var localVariant)
-                || localVariant.ProductId != entity.ProductId)
+                || localVariant.EntityId != entity.ProductId)
             {
                 continue;   // yerel varyant yok — Sku aşamasında zaten raporlandı
             }
@@ -785,18 +796,21 @@ public partial class SalesChannelTrTrendyolProductAppService
     /// KONMAZ, yoksa başka şirketin sahiplendiği barcode görünmez kalır ve insert ham unique ihlaliyle TÜM importu
     /// düşürür. Kanalın şirketine ait varyantlar sözlüğe, diğer şirketlerinkiler ForeignBarcodes kümesine ayrışır
     /// (kalem atla+raporla için). Barcode başına en çok BİR varyant döner (index güvencesi).</summary>
-    private async Task<(Dictionary<string, ProductVariant> OwnedByBarcode, HashSet<string> ForeignBarcodes)> LoadVariantsByBarcodeAsync(
+    private async Task<(Dictionary<string, EntityVariant> OwnedByBarcode, HashSet<string> ForeignBarcodes)> LoadVariantsByBarcodeAsync(
         Guid companyId, List<string> barcodes)
     {
-        var owned = new Dictionary<string, ProductVariant>(StringComparer.OrdinalIgnoreCase);
+        var owned = new Dictionary<string, EntityVariant>(StringComparer.OrdinalIgnoreCase);
         var foreign = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var distinct = barcodes
             .Where(b => !string.IsNullOrWhiteSpace(b))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        // Company görünürlük filtresi (IDataFilter<ICompanyScoped>) KAPALI: index tenant kapsamlı olduğundan
-        // diğer şirketlerin varyantları da görünmeli ki çakışan barcode atla+raporla ile yakalanabilsin.
+        // Company görünürlük filtresi (IDataFilter<ICompanyScoped>) KAPALI: agnostik varyant tablosu tenant kapsamlı
+        // olduğundan diğer şirketlerin varyantları da görünmeli ki çakışan barcode atla+raporla ile yakalanabilsin.
+        // EntityName=="Product" ZORUNLU: agnostik tablo TÜM entity'lerin (Good/Metal/…) varyantlarını tutar; eski
+        // ProductVariant filtered-unique-index'i (TenantId, Barcode) yalnız ürün varyantlarını kapsıyordu → aynı
+        // barkod-tekilliği/import-idempotency kapsamını EntityName filtresiyle koru (ürün varyantına daralt).
         using (DataFilter.Disable<ICompanyScoped>())
         {
             const int chunkSize = 500;
@@ -804,7 +818,7 @@ public partial class SalesChannelTrTrendyolProductAppService
             {
                 var variants = await AsyncExecuter.ToListAsync(
                     (await _variantRepository.GetQueryableAsync())
-                        .Where(v => v.Barcode != null && chunk.Contains(v.Barcode)));
+                        .Where(v => v.EntityName == ProductEntityName && v.Barcode != null && chunk.Contains(v.Barcode)));
                 foreach (var variant in variants)
                 {
                     if (variant.CompanyId == companyId)

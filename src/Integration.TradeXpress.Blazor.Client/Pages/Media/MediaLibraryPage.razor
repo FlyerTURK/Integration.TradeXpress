@@ -1,0 +1,168 @@
+@page "/media"
+@using System
+@using Integration.TradeXpress.Attachments
+@using Integration.Framework.Blazor.Client.Services.Base
+@using DevExpress.Blazor
+@using Microsoft.JSInterop
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+@inject IMediaAppService MediaService
+@inject IUiInteractionService Ui
+@inject IJSRuntime JS
+@inject IServiceProvider ServiceProvider
+
+@* Şirket-kapsamlı MEDYA KÜTÜPHANESİ (DAM) — kendi blob storage'ının yönetimi: sol klasör ağacı (Tümü/Klasörsüz/hiyerarşi),
+   sağ medya gridi. Yükle / URL'den içe aktar (seçili klasöre) / poster galeri / video→kare-yakalama→kapak / klasöre taşı / sil.
+   Medya self-contained (URL saklanmaz); entity'ler buna link verir (ayrı panel). *@
+
+<div class="h-100 d-flex" style="gap:0.5rem;">
+    @* Sol: klasör ağacı + yönetim *@
+    <div style="width:240px; flex:0 0 240px; display:flex; flex-direction:column; border-right:1px solid var(--dxbl-border-color, #dee2e6); padding-right:0.5rem;">
+        <div style="display:flex; align-items:center; gap:0.25rem; padding:0.5rem 0.25rem;">
+            <span style="font-weight:600; flex:1 1 auto;">@L["MediaFolders"]</span>
+            <DxButton IconCssClass="@TradeXpressIcons.Add" RenderStyle="ButtonRenderStyle.Link" Click="@OpenCreateFolder" />
+            <DxButton IconCssClass="@TradeXpressIcons.Edit" RenderStyle="ButtonRenderStyle.Link" Click="@OpenRenameFolder" Enabled="@CanEditSelectedFolder" />
+            <DxButton IconCssClass="@TradeXpressIcons.Delete" RenderStyle="ButtonRenderStyle.Link" Click="@DeleteFolderAsync" Enabled="@CanEditSelectedFolder" />
+        </div>
+        <DxTreeView Data="@_folderNodes" AllowSelectNodes="true" CssClass="flex-grow-1"
+                    NodeExpandCollapseAction="TreeViewNodeExpandCollapseAction.NodeClick"
+                    NodeClick="OnFolderNodeClick">
+            <DataMappings>
+                <DxTreeViewDataMapping Key="Key" ParentKey="ParentKey" Text="Name" />
+            </DataMappings>
+        </DxTreeView>
+    </div>
+
+    @* Sağ: araç çubuğu + medya gridi *@
+    <div class="flex-grow-1 d-flex flex-column" style="min-width:0;">
+        <div style="display:flex; align-items:center; gap:0.75rem; flex-wrap:wrap; padding:0.5rem 0.25rem;">
+            <DxFileInput FilesUploading="OnFilesUploadingAsync"
+                         AllowedFileExtensions="@_allowedExtensions"
+                         CssClass="media-upload" />
+            <DxButton Text="@L["MediaImportUrl"]" IconCssClass="@TradeXpressIcons.Download" RenderStyle="ButtonRenderStyle.Secondary"
+                      Click="@(() => _importPopupVisible = true)" />
+            <div style="flex:1 1 auto;"></div>
+            <DxTextBox Text="@_filter" TextChanged="@(async (string v) => await OnFilterChangedAsync(v))"
+                       NullText="@L["Search"].Value" style="max-width:240px;"
+                       BindValueMode="BindValueMode.OnDelayedInput" />
+            <DxButton IconCssClass="@TradeXpressIcons.Refresh" RenderStyle="ButtonRenderStyle.Secondary"
+                      Click="@ReloadAsync" />
+        </div>
+
+        <DxGrid Data="@_items" CssClass="flex-grow-1 overflow-hidden" PageSize="24" PagerVisible="true">
+            <Columns>
+                <DxGridDataColumn Caption="@L["Preview"]" Width="120px" TextAlignment="GridTextAlignment.Center" AllowSort="false">
+                    <CellDisplayTemplate Context="cell">
+                        @{ var m = (MediaDto)cell.DataItem; }
+                        <div style="position:relative; display:inline-block; width:96px; height:64px; background:#20242c; border-radius:6px; overflow:hidden;">
+                            @if (!string.IsNullOrEmpty(m.PosterUrl))
+                            {
+                                <img src="@m.PosterUrl" alt="" style="width:96px; height:64px; object-fit:cover;" />
+                            }
+                            @if (m.MediaType == MediaType.Video)
+                            {
+                                <span style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center;">
+                                    <svg width="26" height="26" viewBox="0 0 24 24" style="filter:drop-shadow(0 0 2px rgba(0,0,0,.6));">
+                                        <circle cx="12" cy="12" r="11" fill="rgba(0,0,0,.45)"/>
+                                        <path d="M9.5 7.5v9l7-4.5z" fill="#fff"/>
+                                    </svg>
+                                </span>
+                            }
+                        </div>
+                    </CellDisplayTemplate>
+                </DxGridDataColumn>
+                <DxGridDataColumn FieldName="FileName" Caption="@L["Name"]" MinWidth="180" />
+                <DxGridDataColumn FieldName="MediaType" Caption="@L["MediaTypeCaption"]" Width="100px">
+                    <CellDisplayTemplate Context="cell">
+                        @L[$"Enum:MediaType:{((MediaDto)cell.DataItem).MediaType}"]
+                    </CellDisplayTemplate>
+                </DxGridDataColumn>
+                <DxGridDataColumn Caption="@L["DocumentSize"]" Width="100px" TextAlignment="GridTextAlignment.Right" FieldName="Size">
+                    <CellDisplayTemplate Context="cell">
+                        @FormatSize(((MediaDto)cell.DataItem).Size)
+                    </CellDisplayTemplate>
+                </DxGridDataColumn>
+                <DxGridDataColumn FieldName="CreationTime" Caption="@L["CreationTime"]" Width="150px" DisplayFormat="g" />
+                <DxGridDataColumn Caption="" Width="260px" AllowSort="false" TextAlignment="GridTextAlignment.Center">
+                    <CellDisplayTemplate Context="cell">
+                        @{ var m = (MediaDto)cell.DataItem; }
+                        <DxButton Text="@L["MediaMove"]" RenderStyle="ButtonRenderStyle.Link"
+                                  Click="@(() => OpenMove(m))" />
+                        @if (m.MediaType == MediaType.Video)
+                        {
+                            <DxButton Text="@L["MediaSetPoster"]" RenderStyle="ButtonRenderStyle.Link"
+                                      Click="@(() => OpenCapture(m))" />
+                        }
+                        <DxButton IconCssClass="@TradeXpressIcons.Delete" RenderStyle="ButtonRenderStyle.Link"
+                                  Click="@(() => DeleteAsync(m))" />
+                    </CellDisplayTemplate>
+                </DxGridDataColumn>
+            </Columns>
+        </DxGrid>
+    </div>
+</div>
+
+@* URL'den içe aktar *@
+<DxPopup @bind-Visible="@_importPopupVisible" HeaderText="@L["MediaImportUrl"]" Width="min(95vw, 560px)" ShowFooter="true">
+    <BodyContentTemplate Context="__importBody">
+        <DxFormLayout CssClass="w-100">
+            <DxFormLayoutItem Caption="@L["MediaUrl"]" ColSpanMd="12">
+                <DxTextBox @bind-Text="@_importUrl" NullText="https://..." />
+            </DxFormLayoutItem>
+        </DxFormLayout>
+    </BodyContentTemplate>
+    <FooterContentTemplate>
+        <DxButton Text="@L["Import"]" RenderStyle="ButtonRenderStyle.Primary" Click="@ImportUrlAsync" Enabled="@(!_busy)" />
+        <DxButton Text="@L["Cancel"]" RenderStyle="ButtonRenderStyle.Secondary" Click="@(() => _importPopupVisible = false)" />
+    </FooterContentTemplate>
+</DxPopup>
+
+@* Klasör oluştur / yeniden adlandır *@
+<DxPopup @bind-Visible="@_folderPopupVisible" HeaderText="@(_editingFolderId is null ? L["MediaFolderNew"].Value : L["MediaFolderRename"].Value)" Width="min(95vw, 480px)" ShowFooter="true">
+    <BodyContentTemplate Context="__folderBody">
+        <DxFormLayout CssClass="w-100">
+            <DxFormLayoutItem Caption="@L["Name"]" ColSpanMd="12">
+                <DxTextBox @bind-Text="@_folderName" />
+            </DxFormLayoutItem>
+        </DxFormLayout>
+    </BodyContentTemplate>
+    <FooterContentTemplate>
+        <DxButton Text="@L["Save"]" RenderStyle="ButtonRenderStyle.Primary" Click="@SaveFolderAsync" Enabled="@(!_busy)" />
+        <DxButton Text="@L["Cancel"]" RenderStyle="ButtonRenderStyle.Secondary" Click="@(() => _folderPopupVisible = false)" />
+    </FooterContentTemplate>
+</DxPopup>
+
+@* Medyayı klasöre taşı *@
+<DxPopup @bind-Visible="@_movePopupVisible" HeaderText="@L["MediaMoveToFolder"]" Width="min(95vw, 480px)" ShowFooter="true">
+    <BodyContentTemplate Context="__moveBody">
+        <DxFormLayout CssClass="w-100">
+            <DxFormLayoutItem Caption="@L["MediaFolder"]" ColSpanMd="12">
+                <DxComboBox Data="@_folders" @bind-Value="@_moveTargetFolderId"
+                            ValueFieldName="@nameof(MediaFolderDto.Id)" TextFieldName="@nameof(MediaFolderDto.Name)"
+                            NullText="@L["MediaFolderRoot"].Value" ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
+            </DxFormLayoutItem>
+        </DxFormLayout>
+    </BodyContentTemplate>
+    <FooterContentTemplate>
+        <DxButton Text="@L["Save"]" RenderStyle="ButtonRenderStyle.Primary" Click="@MoveAsync" Enabled="@(!_busy)" />
+        <DxButton Text="@L["Cancel"]" RenderStyle="ButtonRenderStyle.Secondary" Click="@(() => _movePopupVisible = false)" />
+    </FooterContentTemplate>
+</DxPopup>
+
+@* Video → kareyi kapak yap *@
+<DxPopup @bind-Visible="@_capturePopupVisible" HeaderText="@L["MediaSetPoster"]" Width="min(95vw, 720px)" ShowFooter="true">
+    <BodyContentTemplate Context="__captureBody">
+        @if (_captureMedia is not null)
+        {
+            <div style="display:flex; flex-direction:column; gap:0.5rem;">
+                <span style="color:var(--dxbl-text-muted, #6c757d); font-size:0.85rem;">@L["MediaCaptureHint"]</span>
+                @* ham video: Dx video bileşeni yok — istediğin anda durdurup "Bu kareyi kapak yap" *@
+                <video id="@_captureVideoId" src="@_captureMedia.ContentUrl" controls playsinline webkit-playsinline
+                       style="width:100%; max-height:420px; background:#000; border-radius:6px;"></video>
+            </div>
+        }
+    </BodyContentTemplate>
+    <FooterContentTemplate>
+        <DxButton Text="@L["MediaCaptureFrame"]" RenderStyle="ButtonRenderStyle.Primary" Click="@CaptureFrameAsync" Enabled="@(!_busy)" />
+        <DxButton Text="@L["Close"]" RenderStyle="ButtonRenderStyle.Secondary" Click="@(() => _capturePopupVisible = false)" />
+    </FooterContentTemplate>
+</DxPopup>

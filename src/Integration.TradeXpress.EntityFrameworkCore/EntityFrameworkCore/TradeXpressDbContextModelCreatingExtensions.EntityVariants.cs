@@ -35,6 +35,13 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
             b.HasIndex(x => new { x.TenantId, x.CompanyId });
             // Ana varyant araması (tek-main invariant).
             b.HasIndex(x => new { x.TenantId, x.EntityName, x.EntityId, x.IsMain });
+
+            // Barkod PRODUCT varyantlarında tenant-genelinde TEKİL — pazaryeri (N11/Trendyol) idempotent import'un
+            // DB-backstop'u (eski ProductVariant'ta vardı; Product→agnostik geçişte istemeden düşmüştü → çift-import/race
+            // açığı). YALNIZ "Product" ile filtrelenir (Good/Metal/Stone barkodları etkilenmez); null barkod hariç.
+            // SQLite kısmi-index'i de bu filtreyi destekler.
+            b.HasIndex(x => new { x.TenantId, x.Barcode }).IsUnique()
+                .HasFilter("[EntityName] = 'Product' AND [Barcode] IS NOT NULL");
         });
 
         builder.Entity<EntityAttribute>(b =>

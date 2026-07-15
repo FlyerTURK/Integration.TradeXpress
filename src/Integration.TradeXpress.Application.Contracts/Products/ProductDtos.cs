@@ -5,6 +5,7 @@ using Integration.Framework.Base.Dtos;
 using Integration.Framework.Base.Dtos.Interfaces;
 using Integration.TradeXpress.N11Products;
 using Integration.TradeXpress.TrendyolProducts;
+using Integration.TradeXpress.Variants;
 using Integration.TradeXpress.Vouchers;
 using Volo.Abp.Application.Dtos;
 
@@ -98,7 +99,7 @@ public class ProductGetDto : EntityDto<Guid>, IGetDto<Guid>, IHasCode
 
     /// <summary>Nitelikler (varyant eksenleri; değerleriyle birlikte graf). Varyantlar bunların
     /// kartezyeninden sunucuda ÜRETİLİR (ProductVariantSynchronizer).</summary>
-    public List<ProductAttributeGraphDto> Attributes { get; set; } = new();
+    public List<EntityAttributeGraphDto> Attributes { get; set; } = new();
 }
 
 public class ProductCreateDto : ICreateDto
@@ -150,7 +151,7 @@ public class ProductCreateDto : ICreateDto
     public List<ProductVariantGraphDto> Variants { get; set; } = new();
 
     /// <summary>Nitelik grafı — bkz. <see cref="ProductGetDto.Attributes"/>.</summary>
-    public List<ProductAttributeGraphDto> Attributes { get; set; } = new();
+    public List<EntityAttributeGraphDto> Attributes { get; set; } = new();
 }
 
 public class ProductUpdateDto : IUpdateDto
@@ -205,7 +206,7 @@ public class ProductUpdateDto : IUpdateDto
     public List<ProductVariantGraphDto> Variants { get; set; } = new();
 
     /// <summary>Nitelik grafı — bkz. <see cref="ProductGetDto.Attributes"/>.</summary>
-    public List<ProductAttributeGraphDto> Attributes { get; set; } = new();
+    public List<EntityAttributeGraphDto> Attributes { get; set; } = new();
 }
 
 /// <summary>Ürün özelleştirme alanı (serbest key/value; her pazaryerine varsayılan). <see cref="ClientKey"/> yalnız
@@ -250,65 +251,19 @@ public class ProductImageGraphDto : ISingleImageEditModel
 }
 
 /// <summary>
-/// Product grafının varyant DÜĞÜMÜ — Product edit'inde in-memory drill + Product save'i içindir (SubAccountGraphDto
-/// deseni). Durum = <see cref="Id"/> + <see cref="IsDeleted"/>: Id boş → ekle, IsDeleted → sil, aksi → güncelle.
-/// <see cref="IsMain"/> DISPLAY-ONLY (ana varyant değişmezi <c>ProductVariantManager</c>'da; Adım 1'de UI'dan seçilmez).
+/// Product grafının varyant DÜĞÜMÜ — jenerik <see cref="EntityVariantGraphDto"/> (çekirdek: Kod/Ad/Barkod/Stok/…)
+/// + Product-ÖZEL satış fiyatı + reçete UZANTISI. Satış fiyatı VARYANT seviyesinde (ProductVariantDetail tablosu),
+/// reçete satırları EntityVariantId'ye bağlı. <c>EntityVariantsPanel&lt;ProductVariantGraphDto&gt;</c>'ın ExtraFields
+/// slot'unda bu alanlar bind edilir; ProductAppService jenerik çekirdeği kaydettikten sonra bu alanları
+/// ProductVariantDetail + reçete satırlarına (EntityVariantId ile) saklar/yükler. GoodVariantGraphDto deseni.
 /// </summary>
-public class ProductVariantGraphDto
+public class ProductVariantGraphDto : EntityVariantGraphDto
 {
-    public Guid Id { get; set; }
-    public Guid ClientKey { get; set; } = Guid.NewGuid();
-    public bool IsDeleted { get; set; }
-
-    /// <summary>Ana (main) varyant mı — DISPLAY-ONLY göstergesi (manager yönetir; drill'de düzenlenmez).</summary>
-    public bool IsMain { get; set; }
-
-    [Required]
-    [StringLength(ProductConsts.CodeMaxLength, MinimumLength = EntityFieldConsts.CodeMinLength)]
-    public string Code { get; set; } = string.Empty;
-
-    [Required]
-    [StringLength(ProductConsts.NameMaxLength, MinimumLength = EntityFieldConsts.NameMinLength)]
-    public string Name { get; set; } = string.Empty;
-
-    [StringLength(ProductConsts.DescriptionMaxLength)]
-    public string? Description { get; set; }
-
-    public bool IsActive { get; set; } = true;
-
     /// <summary>Satış/liste fiyatı (marketplace price/optionPrice). Null = fiyatlanmamış. Negatif geçersiz (sunucu zorlar).</summary>
     public decimal? SalePrice { get; set; }
 
     /// <summary>Satış fiyatı para birimi (CurrencyUnit id-only; N11'de currencyType'a eşlenir). Fiyat null ise yoksayılır.</summary>
     public Guid? SalePriceCurrencyUnitId { get; set; }
-
-    /// <summary>Stok miktarı (marketplace quantity). Varsayılan 0; negatif geçersiz (sunucu zorlar).</summary>
-    public int StockQuantity { get; set; }
-
-    /// <summary>Barkod (EAN/UPC) — Trendyol kimliği; opsiyonel.</summary>
-    [StringLength(ProductConsts.TradeIdentifierMaxLength)]
-    public string? Barcode { get; set; }
-
-    /// <summary>GTIN — N11 gtin; opsiyonel.</summary>
-    [StringLength(ProductConsts.TradeIdentifierMaxLength)]
-    public string? Gtin { get; set; }
-
-    /// <summary>MPN (üretici parça no) — N11 mpn; opsiyonel.</summary>
-    [StringLength(ProductConsts.TradeIdentifierMaxLength)]
-    public string? Mpn { get; set; }
-
-    /// <summary>OEM kodu — N11 oem; opsiyonel.</summary>
-    [StringLength(ProductConsts.TradeIdentifierMaxLength)]
-    public string? Oem { get; set; }
-
-    /// <summary>Varyantın nitelik-değer KOMBİNASYON özeti (ör. "Kırmızı / M") — SALT-OKUNUR görüntü alanı.
-    /// GetAsync projeksiyonunda doldurulur (attribute DisplayOrder sırasıyla " / " join); save'de YOKSAYILIR.</summary>
-    public string AttributeSummary { get; set; } = string.Empty;
-
-    /// <summary>Kombinasyonun İSTEMCİ-taraflı kimliği — ilgili DEĞERLERİN <see cref="ProductAttributeValueGraphDto.ClientKey"/>'lerinin
-    /// sıralı "|" join'i. <c>GenerateVariantsAsync</c> doldurur, client round-trip eder; kayıtta Id'siz (henüz DB'de olmayan)
-    /// üretilmiş satırın özelleştirmelerini (Code/Name/Description/IsActive) senkron sonrası DB varyantına EŞLEMEK içindir.</summary>
-    public string CombinationKey { get; set; } = string.Empty;
 
     /// <summary>Varyantın REÇETE satırları (design-time maliyet bileşenleri; graf düğümleri, Id + IsDeleted diff).
     /// Product edit formundaki reçete drill'i yönetir; Product save'inde varyant-scope kalıcılaşır.</summary>
@@ -427,7 +382,7 @@ public class ProductVariantGenerateRequestDto
     /// <summary>Varyant AD türetmesi için ürün adı ("Ürün Kırmızı M") — synchronizer paritesi. Boşsa yalnız değer adları.</summary>
     public string? ProductName { get; set; }
 
-    public List<ProductAttributeGraphDto> Attributes { get; set; } = new();
+    public List<EntityAttributeGraphDto> Attributes { get; set; } = new();
 }
 
 /// <summary>Persistsiz reçete maliyeti hesap isteği — bir varyantın in-memory reçete satırları (TAM KAYIT gerekmez;

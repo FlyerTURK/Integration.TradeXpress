@@ -76,14 +76,6 @@
         </DxFormLayoutItem>
     </DxFormLayoutGroup>
 
-    @* Temsili görsel (TEK) — çekirdek paylaşılan bileşende (Product ile ortak); kaynağı boş bırakılan görsel save'de temizlenir. *@
-    <DxFormLayoutGroup Caption="@L["Image"]" ColSpanMd="12">
-        <SingleImageEditFields Model="@ImageModel"
-                               UploadAsync="@UploadImageAsync"
-                               MaxImageSizeBytes="@MetalConsts.MaxImageSizeBytes"
-                               TooLargeErrorKey="TradeXpress:Metal:ImageTooLarge" />
-    </DxFormLayoutGroup>
-
     <DxFormLayoutGroup Caption="@L["Other"]" ColSpanMd="12">
         <DxFormLayoutItem Caption="@L["Barcode"]" ColSpanMd="6">
             <DxTextBox @bind-Text="@Model.Barcode" />
@@ -97,15 +89,21 @@
     </DxFormLayoutGroup>
 </DxFormLayout>
 
-@* En son: alt drill'ler — agnostik graf (in-memory; Metal 'Kaydet'inde birlikte persist). ANA görsel OWNED (yukarıda, tek);
-   agnostik çoklu Görsel YOK. Varyantlar KENDİ görsellerini taşır (ShowImages). Fiyat mücevher/madende entity seviyesinde (ExtraFields yok). *@
+@* En son: alt drill'ler — agnostik graf (in-memory; Metal 'Kaydet'inde birlikte persist). ANA görsel YOK (kaldırıldı) —
+   görseller VARYANT seviyesinde (EntityVariantsPanel ShowImages). Nitelikler + Varyantlar TEK tab'da yan yana:
+   sol Nitelikler (kendi ekle/düzelt/sil toolbar'ı), sağ üretilen Varyant gridi. Fiyat madende entity seviyesinde (ExtraFields yok). *@
 <DrillTabs CssClass="mt-3">
-    <DxTabPage Text="@L["Attributes"]" TabIconCssClass="@TradeXpressIcons.Sliders">
-        <EntityAttributesPanel Attributes="@Model.Attributes" />
-    </DxTabPage>
-    <DxTabPage Text="@L["Variants"]" TabIconCssClass="@TradeXpressIcons.ProductVariant">
-        <EntityVariantsPanel TVariant="EntityVariantGraphDto" Variants="@Model.Variants" Attributes="@Model.Attributes"
-                             OnGenerate="@OnGenerateVariants" ShowStockQuantity="false" ShowImages="true" />
+    <DxTabPage Text="@L["AttributesAndVariants"]" TabIconCssClass="@TradeXpressIcons.ProductVariant">
+        @* Yan yana: sol Nitelikler paneli (kendi toolbar'ı), sağ üretilen Varyant gridi. Dar ekranda alt alta sarar. *@
+        <div style="display:flex; gap:1rem; align-items:flex-start; flex-wrap:wrap;">
+            <div style="flex:1 1 340px; min-width:300px;">
+                <EntityAttributesPanel Attributes="@Model.Attributes" OnAttributesChanged="@OnGenerateVariants" />
+            </div>
+            <div style="flex:1 1 340px; min-width:300px;">
+                <EntityVariantsPanel TVariant="EntityVariantGraphDto" Variants="@Model.Variants" Attributes="@Model.Attributes"
+                                     ShowStockQuantity="false" ShowImages="true" />
+            </div>
+        </div>
     </DxTabPage>
     <DxTabPage Text="@L["Documents"]" TabIconCssClass="@TradeXpressIcons.Report">
         <EntityDocumentsPanel Documents="@Model.Documents" />

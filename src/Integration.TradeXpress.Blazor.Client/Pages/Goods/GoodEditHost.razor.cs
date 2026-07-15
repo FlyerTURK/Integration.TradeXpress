@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Integration.Framework.Blazor.Client.Components.Crud;
 using Integration.Framework.Blazor.Client.Services.Base;
+using Integration.TradeXpress.Blazor.Client.Components.Shared;
 using Integration.TradeXpress.Accounts;
 using Integration.TradeXpress.Financials.CurrencyUnits;
 using Integration.TradeXpress.Goods;
@@ -113,6 +114,11 @@ public partial class GoodEditHost
     // grafından kartezyeni hesaplar (jenerik EntityVariantGraphService), dönen graf Model.Variants'a yazılır (Save'de kalıcı).
     private async Task GenerateVariantsAsync(GoodGetDto model)
     {
+        if (VariantGraphMerge.HasIncompleteAttribute(model.Attributes))
+        {
+            return;
+        }
+
         try
         {
             var generated = await GoodAppService.GenerateVariantsAsync(new EntityVariantGenerateRequestDto
@@ -127,8 +133,7 @@ public partial class GoodEditHost
                 g.EntryPriceUnitId ??= _localCurrencyUnitId;
             }
 
-            model.Variants.Clear();
-            model.Variants.AddRange(generated);
+            VariantGraphMerge.Apply(model.Variants, generated);
         }
         catch (BusinessException bex)
         {

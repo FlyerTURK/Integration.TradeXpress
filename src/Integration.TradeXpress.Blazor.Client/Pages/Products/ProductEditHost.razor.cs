@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Integration.Framework.Blazor.Client.Services.Base;
+using Integration.TradeXpress.Blazor.Client.Components.Shared;
 using Integration.TradeXpress.Financials.CurrencyUnits;
 using Integration.TradeXpress.Futures;
 using Integration.TradeXpress.Jewelries;
@@ -104,6 +105,12 @@ public partial class ProductEditHost
     // sunucu nitelik grafından kartezyeni hesaplar, dönen graf Model.Variants'a yazılır (kalıcılaşma Save'de).
     private async Task GenerateVariantsAsync(ProductGetDto model)
     {
+        // Değeri olmayan (silinmemiş) nitelik varsa kartezyen tanımsız (kullanıcı hâlâ değer ekliyor) → otomatik regen ATLA.
+        if (VariantGraphMerge.HasIncompleteAttribute(model.Attributes))
+        {
+            return;
+        }
+
         try
         {
             var generated = await ProductAppService.GenerateVariantsAsync(new ProductVariantGenerateRequestDto
@@ -112,13 +119,14 @@ public partial class ProductEditHost
                 Attributes = model.Attributes,
             });
 
-            model.Variants.Clear();
-            model.Variants.AddRange(generated);
+            // MERGE: mevcut varyantların kullanıcı düzenlemeleri (fiyat/reçete/barkod/Id + uzantı alanları) CombinationKey
+            // ile KORUNUR; yalnız türetilen alanlar (Kod/Ad/Özet/IsMain) tazelenir → otomatik senkron veri kaybetmez (Good deseni).
+            VariantGraphMerge.Apply(model.Variants, generated);
         }
         catch (BusinessException bex)
         {
             // In-process BusinessException lokalize OLMAZ (Blazor Server) → kodu resource'tan çevir
-            // (ör. TradeXpress:ProductAttribute:ValueRequired); anahtar yoksa kodun kendisi görünür.
+            // (ör. TradeXpress:EntityAttribute:ValueRequired); anahtar yoksa kodun kendisi görünür.
             UiService.ShowErrorToast(L[bex.Code ?? bex.Message].Value);
         }
     }

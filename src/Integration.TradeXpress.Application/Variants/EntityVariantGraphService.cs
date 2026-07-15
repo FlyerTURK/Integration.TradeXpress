@@ -50,6 +50,9 @@ public interface IEntityVariantGraphService
     /// entity-özel uzantısını (ör. GoodVariantDetail) temizler (orphan önleme).</summary>
     [DisableValidation]   // deleteExtensionAsync Func — SaveGraphAsync ile aynı gerekçe (delegate doğrulaması patlıyor).
     Task DeleteForAsync(string entityName, Guid entityId, Func<IReadOnlyList<Guid>, Task>? deleteExtensionAsync = null);
+
+    /// <summary>Sahip kayıtların ANA varyant Id'leri (EntityName + entityIds → entityId→mainVariantId) — liste önizlemesi için tek batch.</summary>
+    Task<Dictionary<Guid, Guid>> GetMainVariantMapAsync(string entityName, IReadOnlyCollection<Guid> entityIds);
 }
 
 [RemoteService(false)]
@@ -117,6 +120,31 @@ public class EntityVariantGraphService : ApplicationService, IEntityVariantGraph
             : await AsyncExecuter.ToListAsync(
                 (await _linkRepository.GetQueryableAsync()).Where(l => variantIds.Contains(l.EntityVariantId)));
 
+        // Değer DTO'ları ÖNCE kur (ClientKey'leriyle) → hem nitelik projeksiyonu hem varyant CombinationKey AYNI ClientKey'leri
+        // kullansın. Böylece yükleme sonrası otomatik regen MERGE'i (değer ClientKey imzası) yüklenen varyantı EŞLER → düzenleme korunur.
+        var valueDtoByDbId = values.ToDictionary(
+            v => v.Id,
+            v => new EntityAttributeValueGraphDto { Id = v.Id, Value = v.Value, DisplayOrder = v.DisplayOrder });
+
+        var variantDtos = variants.Select(v => new EntityVariantGraphDto
+        {
+            Id = v.Id,
+            IsMain = v.IsMain,
+            Code = v.Code,
+            Name = v.Name,
+            Description = v.Description,
+            IsActive = v.IsActive,
+            Barcode = v.Barcode,
+            Gtin = v.Gtin,
+            Mpn = v.Mpn,
+            Oem = v.Oem,
+            StockQuantity = v.StockQuantity,
+            AttributeSummary = BuildAttributeSummary(v.Id, attributes, values, links),
+            CombinationKey = BuildLoadedCombinationKey(v.Id, links, valueDtoByDbId),
+        }).ToList();
+
+        EnsureMainVariant(variantDtos);
+
         return new EntityVariantGraphResult
         {
             Attributes = attributes.Select(a => new EntityAttributeGraphDto
@@ -124,26 +152,29 @@ public class EntityVariantGraphService : ApplicationService, IEntityVariantGraph
                 Id = a.Id,
                 Name = a.Name,
                 DisplayOrder = a.DisplayOrder,
-                Values = values.Where(v => v.EntityAttributeId == a.Id)
-                    .Select(v => new EntityAttributeValueGraphDto { Id = v.Id, Value = v.Value, DisplayOrder = v.DisplayOrder })
-                    .ToList(),
+                Values = values.Where(v => v.EntityAttributeId == a.Id).Select(v => valueDtoByDbId[v.Id]).ToList(),
             }).ToList(),
-            Variants = variants.Select(v => new EntityVariantGraphDto
-            {
-                Id = v.Id,
-                IsMain = v.IsMain,
-                Code = v.Code,
-                Name = v.Name,
-                Description = v.Description,
-                IsActive = v.IsActive,
-                Barcode = v.Barcode,
-                Gtin = v.Gtin,
-                Mpn = v.Mpn,
-                Oem = v.Oem,
-                StockQuantity = v.StockQuantity,
-                AttributeSummary = BuildAttributeSummary(v.Id, attributes, values, links),
-            }).ToList(),
+            Variants = variantDtos,
         };
+    }
+
+    // Eski kayıtlar (varyant sistemi eklenmeden ÖNCE oluşmuş) DB'de hiç varyant taşımaz → yükleme anında EN AZ BİR
+    // ANAVARYANT göster (yeni-kayıt ApplyNewDefaults deseniyle simetrik). Id'siz + boş CombinationKey → kullanıcı
+    // kaydettiğinde synchronizer bunu kalıcı ana varyanta çevirir. Varyantı OLAN kayıt etkilenmez.
+    private static void EnsureMainVariant(List<EntityVariantGraphDto> variants)
+    {
+        if (variants.Count > 0)
+        {
+            return;
+        }
+
+        variants.Add(new EntityVariantGraphDto
+        {
+            IsMain = true,
+            Code = EntityVariantConsts.MainVariantCode,
+            Name = EntityVariantConsts.MainVariantName,
+            IsActive = true,
+        });
     }
 
     public List<EntityVariantGraphDto> GenerateVariants(EntityVariantGenerateRequestDto input)
@@ -185,6 +216,28 @@ public class EntityVariantGraphService : ApplicationService, IEntityVariantGraph
                     .OrderByDescending(v => v.IsMain).ThenBy(v => v.Code)
                     .Select(v => new CommodityVariantOptionDto { Id = v.Id, Code = v.Code, IsMain = v.IsMain }));
         }
+    }
+
+    public virtual async Task<Dictionary<Guid, Guid>> GetMainVariantMapAsync(string entityName, IReadOnlyCollection<Guid> entityIds)
+    {
+        var result = new Dictionary<Guid, Guid>();
+        if (entityIds == null || entityIds.Count == 0)
+        {
+            return result;
+        }
+
+        var en = (entityName ?? string.Empty).Trim();
+        var ids = entityIds.Distinct().ToList();
+        var rows = await AsyncExecuter.ToListAsync(
+            (await _variantRepository.GetQueryableAsync())
+                .Where(v => v.EntityName == en && ids.Contains(v.EntityId) && v.IsMain)
+                .Select(v => new { v.EntityId, v.Id }));
+        foreach (var r in rows)
+        {
+            result[r.EntityId] = r.Id;   // ana varyant değişmezi: entity başına tek
+        }
+
+        return result;
     }
 
     [DisableValidation]
@@ -447,6 +500,21 @@ public class EntityVariantGraphService : ApplicationService, IEntityVariantGraph
     private static string BuildCombinationKeyFromClientKeys(IEnumerable<Guid> clientKeys)
     {
         return string.Join("|", clientKeys.OrderBy(k => k));
+    }
+
+    // Yüklenen varyantın CombinationKey'i — bağlarındaki değer DB Id'lerini YÜKLÜ değer DTO'larının ClientKey'lerine map'ler
+    // (GenerateVariants ile AYNI format: sıralı "|" join). Yükleme sonrası otomatik regen MERGE'i bununla eşler → düzenleme korunur.
+    // Bağı olmayan (base main) → boş (GenerateVariants ana-kombinasyonuyla tutarlı; save Id ile eşlediğinden yan etki yok).
+    private static string BuildLoadedCombinationKey(
+        Guid variantId,
+        List<EntityVariantAttributeValue> links,
+        Dictionary<Guid, EntityAttributeValueGraphDto> valueDtoByDbId)
+    {
+        var clientKeys = links
+            .Where(l => l.EntityVariantId == variantId && valueDtoByDbId.ContainsKey(l.EntityAttributeValueId))
+            .Select(l => valueDtoByDbId[l.EntityAttributeValueId].ClientKey)
+            .ToList();
+        return clientKeys.Count == 0 ? string.Empty : BuildCombinationKeyFromClientKeys(clientKeys);
     }
 
     private static string BuildAttributeSummary(

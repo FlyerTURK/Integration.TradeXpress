@@ -11,6 +11,7 @@ using Integration.TradeXpress.SalesChannels.Variants;
 using Integration.TradeXpress.Substitutions;
 using Integration.TradeXpress.Trendyol;
 using Integration.TradeXpress.TrendyolCategories;
+using Integration.TradeXpress.Variants;
 using Integration.TradeXpress.Vouchers;
 using Microsoft.AspNetCore.Authorization;
 using Volo.Abp;
@@ -30,12 +31,15 @@ namespace Integration.TradeXpress.TrendyolProducts;
 [Authorize(TradeXpressPermissions.SalesChannels.Default)]
 public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppService, ISalesChannelTrTrendyolProductAppService
 {
+    private const string ProductEntityName = "Product";
+
     private readonly IRepository<SalesChannelTrTrendyolProduct, Guid> _repository;
     private readonly IRepository<Product, Guid> _productRepository;
-    private readonly IRepository<ProductVariant, Guid> _variantRepository;
-    private readonly IRepository<ProductAttribute, Guid> _attributeRepository;
-    private readonly IRepository<ProductAttributeValue, Guid> _attributeValueRepository;
-    private readonly IRepository<ProductVariantAttributeValue, Guid> _variantAttributeRepository;
+    private readonly IRepository<EntityVariant, Guid> _variantRepository;
+    private readonly IRepository<ProductVariantDetail, Guid> _variantDetailRepository;
+    private readonly IRepository<EntityAttribute, Guid> _attributeRepository;
+    private readonly IRepository<EntityAttributeValue, Guid> _attributeValueRepository;
+    private readonly IRepository<EntityVariantAttributeValue, Guid> _variantAttributeRepository;
     private readonly IRepository<SalesChannelTrTrendyol, Guid> _channelRepository;
     private readonly IRepository<SalesChannelTrTrendyolProductStockItem, Guid> _stockItemRepository;
     private readonly IRepository<SalesChannelTrTrendyolProductStockItemRecipeLine, Guid> _channelRecipeLineRepository;
@@ -44,7 +48,7 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
     private readonly IRepository<SalesChannelTrTrendyolProductAttributeValue, Guid> _channelAttributeValueRepository;
     private readonly IRepository<TrendyolCategory, Guid> _trendyolCategoryRepository;
     private readonly IRepository<CurrencyUnit, Guid> _currencyUnitRepository;
-    private readonly ProductVariantManager _variantManager;
+    private readonly EntityVariantManager _variantManager;
     private readonly RecipeCostPopulator _recipeCostPopulator;
     private readonly SubstitutionChannelPlanProvider _substitutionPlanProvider;
     private readonly ICurrentCompany _currentCompany;
@@ -55,10 +59,11 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
     public SalesChannelTrTrendyolProductAppService(
         IRepository<SalesChannelTrTrendyolProduct, Guid> repository,
         IRepository<Product, Guid> productRepository,
-        IRepository<ProductVariant, Guid> variantRepository,
-        IRepository<ProductAttribute, Guid> attributeRepository,
-        IRepository<ProductAttributeValue, Guid> attributeValueRepository,
-        IRepository<ProductVariantAttributeValue, Guid> variantAttributeRepository,
+        IRepository<EntityVariant, Guid> variantRepository,
+        IRepository<ProductVariantDetail, Guid> variantDetailRepository,
+        IRepository<EntityAttribute, Guid> attributeRepository,
+        IRepository<EntityAttributeValue, Guid> attributeValueRepository,
+        IRepository<EntityVariantAttributeValue, Guid> variantAttributeRepository,
         IRepository<SalesChannelTrTrendyol, Guid> channelRepository,
         IRepository<SalesChannelTrTrendyolProductStockItem, Guid> stockItemRepository,
         IRepository<SalesChannelTrTrendyolProductStockItemRecipeLine, Guid> channelRecipeLineRepository,
@@ -67,7 +72,7 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
         IRepository<SalesChannelTrTrendyolProductAttributeValue, Guid> channelAttributeValueRepository,
         IRepository<TrendyolCategory, Guid> trendyolCategoryRepository,
         IRepository<CurrencyUnit, Guid> currencyUnitRepository,
-        ProductVariantManager variantManager,
+        EntityVariantManager variantManager,
         RecipeCostPopulator recipeCostPopulator,
         SubstitutionChannelPlanProvider substitutionPlanProvider,
         ICurrentCompany currentCompany,
@@ -78,6 +83,7 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
         _repository = repository;
         _productRepository = productRepository;
         _variantRepository = variantRepository;
+        _variantDetailRepository = variantDetailRepository;
         _attributeRepository = attributeRepository;
         _attributeValueRepository = attributeValueRepository;
         _variantAttributeRepository = variantAttributeRepository;
@@ -167,7 +173,7 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
     {
         var attributes = await AsyncExecuter.ToListAsync(
             (await _attributeRepository.GetQueryableAsync())
-                .Where(a => a.ProductId == productId)
+                .Where(a => a.EntityName == ProductEntityName && a.EntityId == productId)
                 .OrderBy(a => a.DisplayOrder));
         if (attributes.Count == 0)
         {
@@ -177,15 +183,15 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
         var attributeIds = attributes.Select(a => a.Id).ToList();
         var values = await AsyncExecuter.ToListAsync(
             (await _attributeValueRepository.GetQueryableAsync())
-                .Where(v => attributeIds.Contains(v.ProductAttributeId))
+                .Where(v => attributeIds.Contains(v.EntityAttributeId))
                 .OrderBy(v => v.DisplayOrder));
-        var valuesByAttribute = values.GroupBy(v => v.ProductAttributeId).ToDictionary(g => g.Key, g => g.ToList());
+        var valuesByAttribute = values.GroupBy(v => v.EntityAttributeId).ToDictionary(g => g.Key, g => g.ToList());
 
         return attributes.Select(a => new SalesChannelTrTrendyolProductAttributeDto
         {
             Name = a.Name,
             DisplayOrder = a.DisplayOrder,
-            Values = (valuesByAttribute.TryGetValue(a.Id, out var vs) ? vs : new List<ProductAttributeValue>())
+            Values = (valuesByAttribute.TryGetValue(a.Id, out var vs) ? vs : new List<EntityAttributeValue>())
                 .Select(v => new SalesChannelTrTrendyolProductAttributeValueDto
                 {
                     Value = v.Value,
@@ -583,7 +589,8 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
     private async Task<Dictionary<string, string>> LoadVariantOptionSummariesAsync(Guid productId)
     {
         var variants = await AsyncExecuter.ToListAsync(
-            (await _variantRepository.GetQueryableAsync()).Where(v => v.ProductId == productId));
+            (await _variantRepository.GetQueryableAsync())
+                .Where(v => v.EntityName == ProductEntityName && v.EntityId == productId));
         if (variants.Count == 0)
         {
             return new Dictionary<string, string>();
@@ -606,7 +613,8 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
         }
 
         var attributeNames = (await AsyncExecuter.ToListAsync(
-                (await _attributeRepository.GetQueryableAsync()).Where(a => a.ProductId == productId)))
+                (await _attributeRepository.GetQueryableAsync())
+                    .Where(a => a.EntityName == ProductEntityName && a.EntityId == productId)))
             .ToDictionary(a => a.Id, a => a.Name);
         if (attributeNames.Count == 0)
         {
@@ -615,25 +623,25 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
 
         var valueTexts = (await AsyncExecuter.ToListAsync(
                 (await _attributeValueRepository.GetQueryableAsync())
-                    .Where(v => attributeNames.Keys.Contains(v.ProductAttributeId))))
+                    .Where(v => attributeNames.Keys.Contains(v.EntityAttributeId))))
             .ToDictionary(v => v.Id, v => v.Value);
 
         var links = await AsyncExecuter.ToListAsync(
             (await _variantAttributeRepository.GetQueryableAsync())
-                .Where(l => variantIds.Contains(l.ProductVariantId)));
+                .Where(l => variantIds.Contains(l.EntityVariantId)));
 
         foreach (var link in links)
         {
-            if (!attributeNames.TryGetValue(link.ProductAttributeId, out var name) ||
-                !valueTexts.TryGetValue(link.ProductAttributeValueId, out var value))
+            if (!attributeNames.TryGetValue(link.EntityAttributeId, out var name) ||
+                !valueTexts.TryGetValue(link.EntityAttributeValueId, out var value))
             {
                 continue;
             }
 
-            if (!result.TryGetValue(link.ProductVariantId, out var list))
+            if (!result.TryGetValue(link.EntityVariantId, out var list))
             {
                 list = new List<(string Name, string Value)>();
-                result[link.ProductVariantId] = list;
+                result[link.EntityVariantId] = list;
             }
 
             list.Add((name, value));
@@ -690,10 +698,13 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
         }
 
         // Aktif + fiyatlı varyantlar = Trendyol items (barcode başına). En az 1 zorunlu.
-        var variants = (await AsyncExecuter.ToListAsync(
-                (await _variantRepository.GetQueryableAsync())
-                    .Where(v => v.ProductId == product.Id && v.IsActive)))
-            .Where(v => v.SalePrice is not null)
+        // Satış fiyatı/birimi ProductVariantDetail'de (agnostik EntityVariant Product uzantısı) → EntityVariantId ile batch yüklenir.
+        var activeVariants = await AsyncExecuter.ToListAsync(
+            (await _variantRepository.GetQueryableAsync())
+                .Where(v => v.EntityName == ProductEntityName && v.EntityId == product.Id && v.IsActive));
+        var salePrices = await LoadVariantSalePricesAsync(activeVariants.Select(v => v.Id).ToList());
+        var variants = activeVariants
+            .Where(v => salePrices.GetValueOrDefault(v.Id).SalePrice is not null)
             .OrderByDescending(v => v.IsMain)
             .ToList();
         if (variants.Count == 0)
@@ -707,7 +718,7 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
         }
 
         // Trendyol yalnız TRY (V2 create'de currencyType yok) → tek para birimi zorunlu; TRY-dışı karışım fail-fast.
-        var currencyUnitIds = variants.Select(v => v.SalePriceCurrencyUnitId).Where(x => x is not null).Distinct().ToList();
+        var currencyUnitIds = variants.Select(v => salePrices.GetValueOrDefault(v.Id).CurrencyUnitId).Where(x => x is not null).Distinct().ToList();
         if (currencyUnitIds.Count > 1)
         {
             if (warnings is null)
@@ -947,7 +958,8 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
     private async Task<Dictionary<Guid, HashSet<(string Name, string Value)>>> BuildErpVariantOptionSetIndexAsync(Guid productId)
     {
         var variantIds = await AsyncExecuter.ToListAsync(
-            (await _variantRepository.GetQueryableAsync()).Where(v => v.ProductId == productId).Select(v => v.Id));
+            (await _variantRepository.GetQueryableAsync())
+                .Where(v => v.EntityName == ProductEntityName && v.EntityId == productId).Select(v => v.Id));
         var options = await LoadVariantOptionsAsync(productId, variantIds);
         return options.ToDictionary(
             kv => kv.Key,
@@ -1095,7 +1107,7 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
 
         var erpVariantIds = headers.Where(h => h.ProductVariantId is not null).Select(h => h.ProductVariantId!.Value).Distinct().ToList();
         var erpVariantsById = erpVariantIds.Count == 0
-            ? new Dictionary<Guid, ProductVariant>()
+            ? new Dictionary<Guid, EntityVariant>()
             : (await AsyncExecuter.ToListAsync(
                     (await _variantRepository.GetQueryableAsync()).Where(v => erpVariantIds.Contains(v.Id))))
                 .ToDictionary(v => v.Id);
@@ -1221,7 +1233,7 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
     {
         var variants = await AsyncExecuter.ToListAsync(
             (await _variantRepository.GetQueryableAsync())
-                .Where(v => v.ProductId == channelProduct.ProductId && v.IsActive)
+                .Where(v => v.EntityName == ProductEntityName && v.EntityId == channelProduct.ProductId && v.IsActive)
                 .OrderByDescending(v => v.IsMain).ThenBy(v => v.Code));
         if (variants.Count == 0)
         {
@@ -1372,9 +1384,12 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
     /// NetCost × (1+Margin/100)) ?? ERP SalePrice; stok: OverrideStock ?? ERP StockQuantity. Push PERSIST edilmiş
     /// gerçeği kullanır (ERP klonu değil) — kaydedilmemiş reçete türetilmiş fiyat üretmez.</summary>
     private async Task<IReadOnlyDictionary<Guid, VariantPushPricing>> ResolveVariantPushPricingAsync(
-        SalesChannelTrTrendyolProduct channelProduct, List<ProductVariant> variants)
+        SalesChannelTrTrendyolProduct channelProduct, List<EntityVariant> variants)
     {
         var variantIds = variants.Select(v => v.Id).ToList();
+
+        // Satış fiyatı/birimi ProductVariantDetail'de (agnostik EntityVariant Product uzantısı) — EntityVariantId ile batch yüklenir.
+        var salePrices = await LoadVariantSalePricesAsync(variantIds);
 
         // Yalnız ERP-backed başlıklar — Trendyol-only satırlar (ProductVariantId null) burada ERP varyantına
         // eşlenemez; kendi push zincirleri push fazında (T8) ele alınır (N11 J3 simetriği).
@@ -1404,15 +1419,30 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
         {
             var v = variants[i];
             headers.TryGetValue(v.Id, out var header);
+            var (salePrice, saleCurrencyUnitId) = salePrices.GetValueOrDefault(v.Id);
             decimal? derived = costs[i].NetCost is { } nc && !costs[i].NetCostMissingRate
                 ? DerivedPriceCalculator.Calculate(nc, header?.Margin)
                 : null;
-            var price = header?.OverridePrice ?? derived ?? v.SalePrice;
+            var price = header?.OverridePrice ?? derived ?? salePrice;
             var stock = header?.OverrideStock ?? v.StockQuantity;
-            result[v.Id] = new VariantPushPricing(price, stock);
+            result[v.Id] = new VariantPushPricing(price, stock, saleCurrencyUnitId);
         }
 
         return result;
+    }
+
+    /// <summary>Varyant satış-fiyatı + para birimini <see cref="ProductVariantDetail"/>'den (agnostik EntityVariant'ın
+    /// Product uzantısı) EntityVariantId ile batch yükler (N+1 yok). Fiyatlanmamış varyantta (detail yok) (null, null).</summary>
+    private async Task<Dictionary<Guid, (decimal? SalePrice, Guid? CurrencyUnitId)>> LoadVariantSalePricesAsync(IReadOnlyCollection<Guid> variantIds)
+    {
+        if (variantIds.Count == 0)
+        {
+            return new Dictionary<Guid, (decimal?, Guid?)>();
+        }
+
+        var details = await AsyncExecuter.ToListAsync(
+            (await _variantDetailRepository.GetQueryableAsync()).Where(d => variantIds.Contains(d.EntityVariantId)));
+        return details.ToDictionary(d => d.EntityVariantId, d => (d.SalePrice, d.SalePriceCurrencyUnitId));
     }
 
     /// <summary>Kanal-özel varyant override grafını persist eder (LEGACY ERP-doğrudan yol) — override sinyali
@@ -1679,8 +1709,8 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
         return dtos;
     }
 
-    /// <summary>Push için varyant-başı efektif fiyat (override zinciri sonucu) + stok.</summary>
-    private sealed record VariantPushPricing(decimal? Price, int Stock);
+    /// <summary>Push için varyant-başı efektif fiyat (override zinciri sonucu) + stok + satış fiyatı birimi (ProductVariantDetail'den).</summary>
+    private sealed record VariantPushPricing(decimal? Price, int Stock, Guid? PriceCurrencyUnitId);
 
     // ── Uygulama + güvenlik ─────────────────────────────────────────────────────────────────────────
 

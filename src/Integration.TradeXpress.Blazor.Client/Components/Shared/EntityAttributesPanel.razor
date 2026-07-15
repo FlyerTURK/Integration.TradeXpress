@@ -23,7 +23,7 @@
            IsNewItem="@(a => a.Id == Guid.Empty)"
            MarkDeleted="@(a => a.IsDeleted = true)"
            FilterPredicate="@(a => !a.IsDeleted)"
-           OnChanged="@(() => EditChanged?.Invoke())">
+           OnChanged="@(async () => await NotifyChangedAsync())">
     <GridColumns>
         <GridLinkColumn FieldName="Name" Caption="@L["Name"]" FixedPosition="GridColumnFixedPosition.Left" VisibleIndex="1"
                         OnClick="@(item => _attributeDrill?.EditItem((EntityAttributeGraphDto)item))" />
@@ -54,7 +54,7 @@
                            IsNewItem="@(v => v.Id == Guid.Empty)"
                            MarkDeleted="@(v => v.IsDeleted = true)"
                            FilterPredicate="@(v => !v.IsDeleted)"
-                           OnChanged="@(() => EditChanged?.Invoke())">
+                           OnChanged="@(async () => await NotifyChangedAsync())">
                     <GridColumns>
                         <GridLinkColumn FieldName="Value" Caption="@L["Value"]" FixedPosition="GridColumnFixedPosition.Left" VisibleIndex="1"
                                         OnClick="@(item => _valueDrill?.EditItem((EntityAttributeValueGraphDto)item))" />

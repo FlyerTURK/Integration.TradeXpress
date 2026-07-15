@@ -131,6 +131,35 @@ window.erpFetchFindTenant = async function (name) {
         }, 100);
     };
 
+    // Video'nun O ANKİ karesini yakala → JPEG base64 + boyut/süre döndür (poster olarak yüklenir).
+    // Medya kendi stream endpoint'imizden (same-origin) oynadığından canvas TAINT olmaz; kullanıcı istediği anda durdurup çağırır.
+    ux.captureVideoFrame = function (videoId) {
+        const video = document.getElementById(videoId);
+        // readyState < 2 (HAVE_CURRENT_DATA) → henüz decode edilmiş kare YOK → siyah frame yakalamayı engelle (oynatılması istenir).
+        if (!video || !video.videoWidth || !video.videoHeight || video.readyState < 2) {
+            return null;
+        }
+        try {
+            // Poster'ı makul boyuta küçült (en uzun kenar 720px) → base64 payload'ı SignalR mesaj sınırında rahat kalır.
+            const maxEdge = 720;
+            const scale = Math.min(1, maxEdge / Math.max(video.videoWidth, video.videoHeight));
+            const canvas = document.createElement('canvas');
+            canvas.width = Math.round(video.videoWidth * scale);
+            canvas.height = Math.round(video.videoHeight * scale);
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
+            return {
+                base64: dataUrl.substring(dataUrl.indexOf(',') + 1),
+                width: video.videoWidth,      // orijinal video boyutu (metadata)
+                height: video.videoHeight,
+                duration: isFinite(video.duration) ? video.duration : null,
+            };
+        } catch {
+            return null;   // taint (dış-origin) ya da decode hatası → poster üretilmez
+        }
+    };
+
     // Konteyneri görünüme kaydır + içindeki ilk düzenlenebilir input'a odaklan.
     // Kullanım: işlem grid'inde Düzelt → açılan process paneline odak (özellikle mobilde panel ekran dışıysa).
     ux.scrollFocusPanel = function (containerId) {

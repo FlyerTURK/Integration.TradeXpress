@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <!-- ProductVariant (bir urunun varyantlari = ust uste kopyalar) - duz dolgu, entity ikon ailesiyle uyumlu -->
+  <rect x="3.5" y="3.5" width="12" height="12" rx="2.5" fill="#AEDCC0"/>
+  <rect x="8.5" y="8.5" width="12" height="12" rx="2.5" fill="#27AE60"/>
+</svg>
