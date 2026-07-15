@@ -401,38 +401,3 @@ public class ProductRecipeCostResultDto
     public bool NetCostMissingRate { get; set; }
     public List<ProductRecipeLineGraphDto> Lines { get; set; } = new();
 }
-
-/// <summary>
-/// Product grafının NİTELİK düğümü — varyant ekseni (ör. "Renk", "Beden"), değerleriyle birlikte.
-/// Durum = <see cref="Id"/> + <see cref="IsDeleted"/>: Id boş → ekle, IsDeleted → sil (değerleriyle), aksi → güncelle.
-/// Ürün başına en fazla <see cref="ProductAttributeConsts.MaxAttributesPerProduct"/> (AppService zorlar).
-/// </summary>
-public class ProductAttributeGraphDto
-{
-    public Guid Id { get; set; }
-    public Guid ClientKey { get; set; } = Guid.NewGuid();
-    public bool IsDeleted { get; set; }
-
-    [Required]
-    [StringLength(ProductAttributeConsts.NameMaxLength, MinimumLength = EntityFieldConsts.NameMinLength)]
-    public string Name { get; set; } = string.Empty;
-
-    public int DisplayOrder { get; set; }
-
-    /// <summary>Niteliğin değerleri (ör. Renk → Kırmızı/Mavi) — kendi in-memory drill'iyle yönetilir.</summary>
-    public List<ProductAttributeValueGraphDto> Values { get; set; } = new();
-}
-
-/// <summary>Nitelik DEĞERİ düğümü (ör. "Kırmızı") — attribute grafının çocuğu; aynı Id+IsDeleted diff'i.</summary>
-public class ProductAttributeValueGraphDto
-{
-    public Guid Id { get; set; }
-    public Guid ClientKey { get; set; } = Guid.NewGuid();
-    public bool IsDeleted { get; set; }
-
-    [Required]
-    [StringLength(ProductAttributeConsts.ValueMaxLength, MinimumLength = EntityFieldConsts.NameMinLength)]
-    public string Value { get; set; } = string.Empty;
-
-    public int DisplayOrder { get; set; }
-}

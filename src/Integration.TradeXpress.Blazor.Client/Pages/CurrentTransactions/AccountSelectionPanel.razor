@@ -1,11 +1,9 @@
 @using Integration.TradeXpress.Vaults
-@using Integration.TradeXpress.Branches
 @using Integration.TradeXpress.Permissions
 @inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
 @inject ISubAccountAppService SubAccountService
 @inject IVoucherAppService VoucherService
 @inject IVaultAppService VaultService
-@inject IBranchAppService BranchService
 @inject Integration.TradeXpress.Blazor.Client.Services.Working.IWorkingContextService Working
 @inject IUiInteractionService Ui
 @inject IViewOpener ViewOpener
@@ -71,7 +69,7 @@
                                     ValueChanged="@OnSubAccountChanged"
                                     LostFocus="@OnSubAccountLostFocus"
                                     NullText="@L["Select"].Value"
-                                    AllowClear="false"
+                                    AllowClear="true"
                                     Enabled="@(!_locked)"
                                     OnEditRequested="@OnEditSubAccountAsync"
                                     OnAddRequested="@OnAddSubAccountAsync"
@@ -88,25 +86,11 @@
                     </LookupComboBox>
                 </DxFormLayoutItem>
 
-                <!-- Row 1c/1d: İÇ KASA kipi — Cari cascade'inin YERİNE Şube→Kasa (spec §7). Seçilen kasa
-                     KARŞI TARAFTIR; kayıt postlanmaz, onun GELEN kutusuna Teyit teklifi düşer. -->
-                <DxFormLayoutItem Caption="@L["Confirmation:CounterpartyBranch"]" ColSpanMd="12" Visible="@IsInternalMode">
-                    <DxComboBox TData="BranchListDto" TValue="Guid?"
-                                Data="@_counterpartyBranches"
-                                ValueFieldName="@nameof(BranchListDto.Id)"
-                                TextFieldName="@nameof(BranchListDto.Code)"
-                                Value="@_counterpartyBranchId"
-                                ValueChanged="@(async (Guid? id) => await OnCounterpartyBranchChangedAsync(id))"
-                                NullText="@L["Select"].Value"
-                                Enabled="@(!_locked)"
-                                CssClass="w-100">
-                        <DxListEditorColumn FieldName="@nameof(BranchListDto.Code)" Caption="@L["Code"].Value" Width="40%" />
-                        <DxListEditorColumn FieldName="@nameof(BranchListDto.Name)" Caption="@L["Name"].Value" />
-                    </DxComboBox>
-                </DxFormLayoutItem>
-
-                <DxFormLayoutItem Caption="@L["Confirmation:CounterpartyVault"]" ColSpanMd="12"
-                                  Visible="@(IsInternalMode && _counterpartyBranchId.HasValue)">
+                <!-- Row 1c: İÇ KASA kipi — Cari cascade'inin YERİNE TEK Kasa combosu (2026-07-16 kullanıcı kararı:
+                     Cari işlemlerde Account+SubAccount'u tek comboya indirdiğimiz AYNI desen — ayrı Şube seviyesi
+                     GEREKMEZ, Şube kodu dropdown'da bir KOLON olarak görünür). Seçilen kasa KARŞI TARAFTIR;
+                     kayıt postlanmaz, onun GELEN kutusuna Teyit teklifi düşer. -->
+                <DxFormLayoutItem Caption="@L["Confirmation:CounterpartyVault"]" ColSpanMd="12" Visible="@IsInternalMode">
                     <DxComboBox TData="VaultListDto" TValue="Guid?"
                                 Data="@CounterpartyVaultOptions"
                                 ValueFieldName="@nameof(VaultListDto.Id)"
@@ -115,8 +99,10 @@
                                 ValueChanged="@(async (Guid? id) => await OnCounterpartyVaultChangedAsync(id))"
                                 NullText="@L["SelectVault"].Value"
                                 Enabled="@(!_locked)"
+                                ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto"
                                 CssClass="w-100">
-                        <DxListEditorColumn FieldName="@nameof(VaultListDto.Code)" Caption="@L["Code"].Value" Width="100px" />
+                        <DxListEditorColumn FieldName="@nameof(VaultListDto.BranchCode)" Caption="@L["Confirmation:CounterpartyBranch"]" Width="35%" />
+                        <DxListEditorColumn FieldName="@nameof(VaultListDto.Code)" Caption="@L["Code"].Value" Width="25%" />
                         <DxListEditorColumn FieldName="@nameof(VaultListDto.Name)" Caption="@L["Name"].Value" />
                     </DxComboBox>
                 </DxFormLayoutItem>
@@ -193,6 +179,7 @@
                         <DxButton Text="@(_locked ? L["SelectAccount"].Value : L["Confirm"].Value)"
                                   IconCssClass="@(_locked ? "custom-icon-address-card" : "custom-icon-check")"
                                   RenderStyle="ButtonRenderStyle.Primary"
+                                  Enabled="@(_locked || CanConfirm)"
                                   Click="@OnConfirmClicked" />
                     </div>
                 </DxFormLayoutItem>

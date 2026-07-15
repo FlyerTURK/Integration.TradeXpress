@@ -6,6 +6,7 @@ using Integration.Framework.Base.Querying;
 using Integration.TradeXpress.MultiCompany;
 using Integration.TradeXpress.Products;
 using Integration.TradeXpress.SalesChannels;
+using Integration.TradeXpress.Variants;
 using Shouldly;
 using Volo.Abp;
 using Volo.Abp.Domain.Repositories;
@@ -30,7 +31,7 @@ public abstract class OrderFetchTests<TStartupModule> : TradeXpressApplicationTe
     private readonly IRepository<Order, Guid> _orderRepository;
     private readonly IRepository<OrderLine, Guid> _lineRepository;
     private readonly IRepository<Product, Guid> _productRepository;
-    private readonly IRepository<ProductVariant, Guid> _variantRepository;
+    private readonly IRepository<EntityVariant, Guid> _variantRepository;
     private readonly ICurrentCompany _currentCompany;
 
     protected OrderFetchTests()
@@ -41,7 +42,7 @@ public abstract class OrderFetchTests<TStartupModule> : TradeXpressApplicationTe
         _orderRepository = GetRequiredService<IRepository<Order, Guid>>();
         _lineRepository = GetRequiredService<IRepository<OrderLine, Guid>>();
         _productRepository = GetRequiredService<IRepository<Product, Guid>>();
-        _variantRepository = GetRequiredService<IRepository<ProductVariant, Guid>>();
+        _variantRepository = GetRequiredService<IRepository<EntityVariant, Guid>>();
         _currentCompany = GetRequiredService<ICurrentCompany>();
     }
 
@@ -163,7 +164,8 @@ public abstract class OrderFetchTests<TStartupModule> : TradeXpressApplicationTe
             var variant = await WithUnitOfWorkAsync(async () =>
             {
                 var product = await _productRepository.InsertAsync(new Product(companyId, "PRD-1", "Ürün Bir"), autoSave: true);
-                return await _variantRepository.InsertAsync(new ProductVariant(companyId, product.Id, "VAR-1", "Varyant"), autoSave: true);
+                return await _variantRepository.InsertAsync(
+                    new EntityVariant(companyId, "Product", product.Id, "VAR-1", "Varyant"), autoSave: true);
             });
 
             // Sipariş + varyanta BAĞLI bir satır (id-only ProductVariantId dolu) elle kurulur.

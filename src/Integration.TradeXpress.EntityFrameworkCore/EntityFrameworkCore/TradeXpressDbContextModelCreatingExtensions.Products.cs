@@ -5,8 +5,10 @@ using Integration.TradeXpress.Products;
 
 namespace Integration.TradeXpress.EntityFrameworkCore;
 
-/// <summary>Ürün/varyant mapping'leri — marketplace-hazır Product çekirdeği (Faz 1, Adım 1).
-/// Product = company-owned vitrin; ProductVariant = ürüne bağlı (kod ürün başına tekil, tekil main).</summary>
+/// <summary>Ürün mapping'leri — marketplace-hazır Product çekirdeği (Faz 1, Adım 1).
+/// Product = company-owned vitrin; varyantlar agnostik EntityVariant sisteminde yaşar (bkz.
+/// <c>ConfigureEntityVariants</c>). Reçete satırı (<c>ProductVariantRecipeLine</c>) varyanta
+/// EntityVariant.Id ile bağlanır.</summary>
 public static partial class TradeXpressDbContextModelCreatingExtensions
 {
     public static void ConfigureProducts(this ModelBuilder builder)
@@ -45,69 +47,6 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
             });
 
             b.HasIndex(x => new { x.TenantId, x.CompanyId, x.Code }).IsUnique();
-            b.HasIndex(x => new { x.TenantId, x.CompanyId });
-        });
-
-        builder.Entity<ProductVariant>(b =>
-        {
-            b.ToTable(TradeXpressConsts.DbTablePrefix + "ProductVariants", TradeXpressConsts.DbSchema);
-            b.ConfigureByConvention();
-
-            b.Property(x => x.Code).IsRequired().HasMaxLength(ProductConsts.CodeMaxLength);
-            b.Property(x => x.Name).IsRequired().HasMaxLength(ProductConsts.NameMaxLength);
-            b.Property(x => x.Description).HasMaxLength(ProductConsts.DescriptionMaxLength);
-            // Satılabilir veri (marketplace): fiyat (decimal 18,2) + para birimi (id-only) + stok. Stok/CurrencyUnitId konvansiyonla.
-            b.Property(x => x.SalePrice).HasPrecision(ProductConsts.SalePricePrecision, ProductConsts.SalePriceScale);
-            // Ticari kimlik kodları (marketplace SKU eşleşmesi + katalog) — opsiyonel.
-            b.Property(x => x.Barcode).HasMaxLength(ProductConsts.TradeIdentifierMaxLength);
-            b.Property(x => x.Gtin).HasMaxLength(ProductConsts.TradeIdentifierMaxLength);
-            b.Property(x => x.Mpn).HasMaxLength(ProductConsts.TradeIdentifierMaxLength);
-            b.Property(x => x.Oem).HasMaxLength(ProductConsts.TradeIdentifierMaxLength);
-
-            // Varyant kodu ÜRÜN başına tekil (SubAccount = Account başına deseniyle hizalı).
-            b.HasIndex(x => new { x.TenantId, x.ProductId, x.Code }).IsUnique();
-            // Barcode tenant-genelinde TEKİL (yalnız doluysa — FILTERED): Trendyol import'unun idempotent upsert
-            // bel kemiği — "barcode ile ProductVariant ara" güvenle TEK kayda düşer (Trendyol_ProductSync).
-            b.HasIndex(x => new { x.TenantId, x.Barcode }).IsUnique().HasFilter("[Barcode] IS NOT NULL");
-            // Company güvenlik query-filter'ını hızlandırır (ICompanyOwned).
-            b.HasIndex(x => new { x.TenantId, x.CompanyId });
-            // Ana varyant araması (tek-main invariant).
-            b.HasIndex(x => new { x.TenantId, x.ProductId, x.IsMain });
-        });
-
-        builder.Entity<ProductAttribute>(b =>
-        {
-            b.ToTable(TradeXpressConsts.DbTablePrefix + "ProductAttributes", TradeXpressConsts.DbSchema);
-            b.ConfigureByConvention();
-
-            b.Property(x => x.Name).IsRequired().HasMaxLength(ProductAttributeConsts.NameMaxLength);
-
-            // Attribute adı ÜRÜN başına tekil (aynı üründe iki "Renk" olamaz).
-            b.HasIndex(x => new { x.TenantId, x.ProductId, x.Name }).IsUnique();
-            b.HasIndex(x => new { x.TenantId, x.CompanyId });
-        });
-
-        builder.Entity<ProductAttributeValue>(b =>
-        {
-            b.ToTable(TradeXpressConsts.DbTablePrefix + "ProductAttributeValues", TradeXpressConsts.DbSchema);
-            b.ConfigureByConvention();
-
-            b.Property(x => x.Value).IsRequired().HasMaxLength(ProductAttributeConsts.ValueMaxLength);
-
-            // Değer ATTRIBUTE başına tekil (Renk altında iki "Kırmızı" olamaz).
-            b.HasIndex(x => new { x.TenantId, x.ProductAttributeId, x.Value }).IsUnique();
-            b.HasIndex(x => new { x.TenantId, x.CompanyId });
-        });
-
-        builder.Entity<ProductVariantAttributeValue>(b =>
-        {
-            b.ToTable(TradeXpressConsts.DbTablePrefix + "ProductVariantAttributeValues", TradeXpressConsts.DbSchema);
-            b.ConfigureByConvention();
-
-            // Varyant başına attribute başına TEK değer (kombinasyon değişmezi; sınıf yorumuna bakınız).
-            b.HasIndex(x => new { x.TenantId, x.ProductVariantId, x.ProductAttributeId }).IsUnique();
-            // Değer-bazlı temizlik sorguları (değer silinince varyant senkronu).
-            b.HasIndex(x => new { x.TenantId, x.ProductAttributeValueId });
             b.HasIndex(x => new { x.TenantId, x.CompanyId });
         });
 

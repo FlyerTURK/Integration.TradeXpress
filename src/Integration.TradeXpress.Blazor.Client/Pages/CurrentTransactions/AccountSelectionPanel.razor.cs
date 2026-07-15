@@ -4,7 +4,6 @@ using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
 using Integration.TradeXpress.Accounts;
-using Integration.TradeXpress.Branches;
 using Integration.TradeXpress.Permissions;
 using Integration.TradeXpress.Vaults;
 using Integration.TradeXpress.Vouchers;
@@ -82,10 +81,8 @@ public partial class AccountSelectionPanel
     /// bkz. <see cref="AccountPopupExtra"/>).</summary>
     private Guid? _selectedAccountId;
 
-    // ── İç karşı taraf (Teyit) kipi ────────────────────────────────────────────────────
-    private List<BranchListDto> _counterpartyBranches = new();
-    private List<VaultListDto>  _counterpartyVaults   = new();
-    private Guid? _counterpartyBranchId;
+    // ── İç karşı taraf (Teyit) kipi — TEK combo (2026-07-16): Şube kodu, Kasa combosunda bir KOLON.
+    private List<VaultListDto> _counterpartyVaults = new();
     private Guid? _counterpartyVaultId;
 
     /// <summary>Kip rotadan sabit gelir (<see cref="Mode"/>) — kullanıcı form içinden değiştiremez.</summary>
@@ -95,6 +92,13 @@ public partial class AccountSelectionPanel
     /// seçilmiş olmalı. İç kipte de dolar: seçilen KASA doğrudan bu alana oturur
     /// (<see cref="OnCounterpartyVaultChangedAsync"/>) → form dış cari formuyla birebir aynı sürer.</summary>
     private bool SelectionReady => _model.SubAccountId.HasValue;
+
+    /// <summary>TAMAM butonunun aktiflik koşulu (2026-07-16 kullanıcı kararı): fiş seçimi HARİÇ, alt satırların
+    /// (Kasa/Açıklama) HERHANGİ biri boşsa buton pasif kalır. Tarih dahil edilmedi — <see cref="_displayVoucherDate"/>
+    /// nullable değil, her zaman varsayılan bir değerle dolu gelir (gerçek anlamda "boş" olamaz).</summary>
+    private bool CanConfirm =>
+        _model.VaultId.HasValue &&
+        !string.IsNullOrWhiteSpace(_model.Description);
 
     /// <summary>Karşı kasa seçenekleri — kendi kasam (başlatan) karşı taraf OLAMAZ (sunucu da reddeder).
     /// İki kaynak hariç tutulur: formdaki seçili gönderen kasa (<see cref="_model"/>.VaultId) VE çalışma
@@ -156,19 +160,19 @@ public partial class AccountSelectionPanel
         _subAccounts  = subResult.Items.ToList();
         _branchVaults = myVaults;
 
-        // İç kip rotadan sabit → karşı ŞUBE listesi baştan hazır olmalı (kip combo'su yok, tetikleyecek
+        // İç kip rotadan sabit → karşı KASA listesi baştan hazır olmalı (kip combo'su yok, tetikleyecek
         // "kip değişti" anı da yok). Cari kipte bu sorgu HİÇ atılmaz — dış akışın maliyeti değişmez.
         if (IsInternalMode)
         {
             try
             {
-                await EnsureCounterpartyBranchesAsync();
+                await EnsureCounterpartyVaultsAsync();
             }
             catch (Exception ex)
             {
-                // Şube listesi okunamıyorsa iç kip kullanılamaz. Artık Cari'ye DÜŞÜLMEZ (kip rotanın
+                // Kasa listesi okunamıyorsa iç kip kullanılamaz. Artık Cari'ye DÜŞÜLMEZ (kip rotanın
                 // sözleşmesi; sessizce dış cariye kaymak kullanıcıyı yanlış deftere yazdırabilirdi) →
-                // sebep gösterilir, Şube combo'su boş kalır ve akış ilerlemez.
+                // sebep gösterilir, Kasa combo'su boş kalır ve akış ilerlemez.
                 Ui.ShowErrorToast(ex.Message);
             }
             return;   // iç kipte cari ön-seçimi (subAccount/voucher) anlamsız — o URL state'i dış akışın
@@ -210,38 +214,17 @@ public partial class AccountSelectionPanel
         return IsProcessGranted(type);
     }
 
-    /// <summary>Karşı ŞUBE listesi (working şirket) — yalnız iç kipte, panel açılışında okunur.</summary>
-    private async Task EnsureCounterpartyBranchesAsync()
+    /// <summary>Karşı KASA listesi (working şirket, TÜM şubeler) — yalnız iç kipte, panel açılışında okunur.
+    /// Tek combo (2026-07-16 kullanıcı kararı — Cari işlemlerdeki Account+SubAccount sadeleştirmesiyle AYNI
+    /// desen): ayrı bir Şube cascade adımı YOK, Şube kodu dropdown'da bir KOLON olarak görünür.</summary>
+    private async Task EnsureCounterpartyVaultsAsync()
     {
-        if (_counterpartyBranches.Count > 0)
+        if (_counterpartyVaults.Count > 0)
         {
             return;
         }
 
-        var result = await BranchService.GetListAsync(new BranchListRequestDto
-        {
-            CompanyId      = Working.CurrentCompanyId,
-            MaxResultCount = 1000,
-        });
-        _counterpartyBranches = result.Items.Where(b => b.IsActive).ToList();
-    }
-
-    /// <summary>Karşı şube seçildi → o şubenin kasaları yüklenir (cascade: Şube→Kasa).</summary>
-    private async Task OnCounterpartyBranchChangedAsync(Guid? branchId)
-    {
-        _counterpartyBranchId = branchId;
-        _counterpartyVaultId  = null;
-        _counterpartyVaults   = new();
-
-        // Şube düştü → seçili kasa da düşer (Cari kipinde hesap temizlenince alt hesabın düşmesiyle simetrik).
-        await ApplyCounterpartyVaultSelectionAsync(null);
-
-        if (branchId is not { } id)
-        {
-            return;
-        }
-
-        var result = await VaultService.GetListAsync(new VaultListRequestDto { BranchId = id, MaxResultCount = 1000 });
+        var result = await VaultService.GetListAsync(new VaultListRequestDto { MaxResultCount = 1000 });
         _counterpartyVaults = result.Items.Where(v => v.IsActive).ToList();
     }
 
@@ -270,13 +253,19 @@ public partial class AccountSelectionPanel
     /// zaten Şube/Kasa kodunu gösterir; kod artık fişe de SNAPSHOT olarak yazılır (ham GUID gösterimi bitti).</para></summary>
     private async Task ApplyCounterpartyVaultSelectionAsync(Guid? vaultId)
     {
-        var vault  = vaultId.HasValue ? _counterpartyVaults.FirstOrDefault(v => v.Id == vaultId.Value) : null;
-        var branch = vault is null ? null : _counterpartyBranches.FirstOrDefault(b => b.Id == _counterpartyBranchId);
+        var vault = vaultId.HasValue ? _counterpartyVaults.FirstOrDefault(v => v.Id == vaultId.Value) : null;
+
+        // Yeni kasa seçiminde ARADAKİ await'lerde (LoadVouchersAsync) combo zaten yeni kasayı gösterirken
+        // grid/bakiye eski kasaya ait kalmasın diye (2026-07-16 kullanıcı kararı) önce null'la temizletiyoruz.
+        if (vault is not null)
+        {
+            await OnSubAccountSelected.InvokeAsync(null);
+        }
 
         _model.AccountType      = vault is null ? AccountType.CurrentAccount : AccountType.Vault;
-        _model.AccountId        = branch?.Id ?? Guid.Empty;      // üst kimlik = ŞUBE
-        _model.SubAccountId     = vault?.Id;                     // alt kimlik = KASA
-        _selectedAccountCode    = branch?.Code;
+        _model.AccountId        = vault?.BranchId ?? Guid.Empty;   // üst kimlik = ŞUBE (kasanın kendi şubesi)
+        _model.SubAccountId     = vault?.Id;                       // alt kimlik = KASA
+        _selectedAccountCode    = vault?.BranchCode;
         _selectedSubAccountCode = vault?.Code;
         _selectedVoucherId      = null;
 
@@ -297,9 +286,9 @@ public partial class AccountSelectionPanel
             : new SubAccountListDto
             {
                 Id          = vault.Id,
-                AccountId   = branch?.Id ?? Guid.Empty,
+                AccountId   = vault.BranchId,
                 Code        = vault.Code,
-                AccountCode = branch?.Code ?? string.Empty,
+                AccountCode = vault.BranchCode,
             });
     }
 
@@ -349,7 +338,9 @@ public partial class AccountSelectionPanel
         if (subAccountId.HasValue)
             await LoadVouchersAsync();
 
-        // Seçim null ise (temizleme) direkt bildir; değilse blur'da bildirilecek.
+        // Seçim null ise (temizleme) direkt bildir; değilse blur'da GERÇEK cari bildirilecek. Ama YENİ bir
+        // seçimde de ARADAKİ pencerede combo zaten yeni cariyi gösterirken grid/bakiye eski cariye ait
+        // kalmasın diye (2026-07-16 kullanıcı kararı) önce null'la temizletiyoruz — karışıklığı giderir.
         if (selected == null)
         {
             _pendingSubAccount = null;
@@ -358,6 +349,7 @@ public partial class AccountSelectionPanel
         else
         {
             _pendingSubAccount = selected;
+            await OnSubAccountSelected.InvokeAsync(null);
         }
     }
 
