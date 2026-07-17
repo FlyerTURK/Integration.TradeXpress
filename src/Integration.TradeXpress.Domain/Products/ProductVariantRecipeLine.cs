@@ -61,6 +61,9 @@ public class ProductVariantRecipeLine : FullAuditedAggregateRoot<Guid>, IMultiTe
     /// <summary>Katalog kaydı (Metal/Scrap/Future/Jewelry/Stone ya da hizmet) — FK'sız <b>snapshot</b>. Manuel maliyette null.</summary>
     public virtual Guid? CommodityId { get; protected set; }
 
+    /// <summary>Seçili katalog varyantı (snapshot) — Çoklu varyantı olan emtialarda (Metal vb.) seçili varyant id'si.</summary>
+    public virtual Guid? CommodityVariantId { get; protected set; }
+
     /// <summary>Adet (sikke/parça bazlı emtiada). Adet→gram: <c>Amount = Quantity × StableQuantity</c> (katalog).</summary>
     public virtual decimal Quantity { get; protected set; }
 
@@ -122,6 +125,7 @@ public class ProductVariantRecipeLine : FullAuditedAggregateRoot<Guid>, IMultiTe
     public virtual void SetCatalogCommodity(
         ProcessType family,
         Guid? commodityId,
+        Guid? commodityVariantId,
         decimal quantity,
         decimal amount,
         decimal factor,
@@ -132,6 +136,7 @@ public class ProductVariantRecipeLine : FullAuditedAggregateRoot<Guid>, IMultiTe
     {
         CommodityProcessType = family;
         CommodityId          = commodityId;
+        CommodityVariantId   = commodityVariantId;
         Quantity             = quantity;
         Amount               = amount;
         Factor               = factor;

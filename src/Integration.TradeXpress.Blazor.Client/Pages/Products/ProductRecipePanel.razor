@@ -86,9 +86,16 @@ else if (Draft is { } d)
                         <small style="@ProcessPanelStyles.Label">@ComponentLabel(d)</small>
                         @if (d.CommodityProcessType == ProcessType.Metal)
                         {
-                            <LookupComboBox TItem="MetalListDto" TValue="Guid?" Data="@Metals"
-                                            ValueFieldName="@nameof(MetalListDto.Id)" TextFieldName="@nameof(MetalListDto.Code)"
-                                            Value="@d.CommodityId" ValueChanged="@((Guid? v) => OnMetalSelected(v))" AllowClear="false" />
+                            <LookupComboBox TItem="MetalVariantLookupDto" TValue="Guid?" Data="@MetalVariants"
+                                            ValueFieldName="@nameof(MetalVariantLookupDto.VariantId)" TextFieldName="@nameof(MetalVariantLookupDto.DisplayText)"
+                                            Value="@d.CommodityVariantId" ValueChanged="@((Guid? v) => OnMetalSelected(v))" AllowClear="false">
+                                <Columns>
+                                    <DxListEditorColumn FieldName="@nameof(MetalVariantLookupDto.MetalCode)" Caption="@L["MetalCode"]" />
+                                    <DxListEditorColumn FieldName="@nameof(MetalVariantLookupDto.MetalName)" Caption="@L["MetalName"]" />
+                                    <DxListEditorColumn FieldName="@nameof(MetalVariantLookupDto.VariantCode)" Caption="@L["VariantCode"]" />
+                                    <DxListEditorColumn FieldName="@nameof(MetalVariantLookupDto.VariantName)" Caption="@L["VariantName"]" />
+                                </Columns>
+                            </LookupComboBox>
                         }
                         else if (d.CommodityProcessType == ProcessType.Scrap)
                         {

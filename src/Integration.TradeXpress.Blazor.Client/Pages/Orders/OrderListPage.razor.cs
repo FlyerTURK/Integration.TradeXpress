@@ -35,7 +35,13 @@ public partial class OrderListPage : IDisposable
     /// <summary>Server-side grid kaynağı — <see cref="IOrderAppService.GetListAsync"/>'e bağlı (MASTER = sipariş).</summary>
     public GridListDataSource<OrderListDto> GridDataSource
         => _gridDataSource ??= new GridListDataSource<OrderListDto>(FetchPageAsync)
-        { OnError = ex => InvokeAsync(() => ShowErrorAsync(ex)) };
+        { 
+            OnError = ex => InvokeAsync(() => 
+            {
+                UiService?.ShowErrorToast(ex.Message);
+                StateHasChanged();
+            }) 
+        };
 
     private Task<PagedResultDto<OrderListDto>> FetchPageAsync(ListRequestDto request)
     {

@@ -458,6 +458,7 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
             entity.SetCatalogCommodity(
                 l.CommodityProcessType.GetValueOrDefault(),
                 l.CommodityId,
+                l.CommodityVariantId,
                 l.Quantity,
                 l.Amount,
                 l.Factor,
@@ -733,6 +734,7 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
             ComponentType = r.ComponentType,
             CommodityProcessType = r.CommodityProcessType,
             CommodityId = r.CommodityId,
+            CommodityVariantId = r.CommodityVariantId,
             Quantity = r.Quantity,
             Amount = r.Amount,
             Factor = r.Factor,

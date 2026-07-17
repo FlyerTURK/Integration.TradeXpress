@@ -45,6 +45,7 @@ public partial class ProductEditHost
 
     // Reçete katalog lookup verisi — açılışta bir kez yüklenir (varyant reçete drill'lerinin ortak beslemesi).
     protected IReadOnlyList<MetalListDto> Metals { get; private set; } = Array.Empty<MetalListDto>();
+    protected IReadOnlyList<MetalVariantLookupDto> MetalVariants { get; private set; } = Array.Empty<MetalVariantLookupDto>();
     protected IReadOnlyList<ScrapListDto> Scraps { get; private set; } = Array.Empty<ScrapListDto>();
     protected IReadOnlyList<FutureListDto> Futures { get; private set; } = Array.Empty<FutureListDto>();
     protected IReadOnlyList<JewelryListDto> Jewelries { get; private set; } = Array.Empty<JewelryListDto>();
@@ -68,6 +69,7 @@ public partial class ProductEditHost
     private async Task LoadRecipeCatalogsAsync()
     {
         Metals = await MetalAppService.GetPickerListAsync();
+        MetalVariants = await MetalAppService.GetVariantLookupAsync();
         Scraps = await ScrapAppService.GetPickerListAsync();
         Futures = await FutureAppService.GetPickerListAsync();
         Jewelries = await JewelryAppService.GetPickerListAsync();

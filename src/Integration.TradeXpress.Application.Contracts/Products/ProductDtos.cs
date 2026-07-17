@@ -303,6 +303,9 @@ public class ProductRecipeLineGraphDto
     /// <summary>Seçili katalog kaydı (snapshot ref) ya da hizmet referansı. Manuelde boş.</summary>
     public Guid? CommodityId { get; set; }
 
+    /// <summary>Seçili katalog varyantı (snapshot ref) — Çoklu varyantı olan emtialarda seçili varyant.</summary>
+    public Guid? CommodityVariantId { get; set; }
+
     public decimal Quantity { get; set; }
     public decimal Amount { get; set; }
     public decimal Factor { get; set; }

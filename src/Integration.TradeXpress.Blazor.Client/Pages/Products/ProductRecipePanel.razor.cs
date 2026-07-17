@@ -30,6 +30,7 @@ public partial class ProductRecipePanel
     [Parameter, EditorRequired] public List<ProductRecipeLineGraphDto> Lines { get; set; } = default!;
 
     [Parameter] public IReadOnlyList<MetalListDto> Metals { get; set; } = Array.Empty<MetalListDto>();
+    [Parameter] public IReadOnlyList<MetalVariantLookupDto> MetalVariants { get; set; } = Array.Empty<MetalVariantLookupDto>();
     [Parameter] public IReadOnlyList<ScrapListDto> Scraps { get; set; } = Array.Empty<ScrapListDto>();
     [Parameter] public IReadOnlyList<FutureListDto> Futures { get; set; } = Array.Empty<FutureListDto>();
     [Parameter] public IReadOnlyList<JewelryListDto> Jewelries { get; set; } = Array.Empty<JewelryListDto>();
@@ -227,7 +228,7 @@ public partial class ProductRecipePanel
         switch (family)
         {
             case ProcessType.Metal:
-                OnMetalSelected(Metals.FirstOrDefault()?.Id);
+                OnMetalSelected(MetalVariants.FirstOrDefault()?.VariantId);
                 break;
             case ProcessType.Scrap:
                 OnScrapSelected(Scraps.FirstOrDefault()?.Id);
@@ -413,10 +414,11 @@ public partial class ProductRecipePanel
 
         // Bedelli→Normal geçişinde madenin işçilik default'u geri yüklenir (panel paritesi); Normal→Bedelli'de
         // bedel kullanıcı girer → PayFactor sıfırlanır (işçilik rate'i bedel sanılmasın).
-        if (value == ProcessPaymentType.Normal && SelectedMetal(d) is { } m)
+        if (value == ProcessPaymentType.Normal && SelectedMetal(d) is { } mv)
         {
-            d.PayFactor = m.EntryLabor;
-            d.PayUnitId = m.EntryLaborUnitId ?? m.FollowingUnitId;
+            d.PayFactor = mv.EntryLabor;
+            var mFu = Metals.FirstOrDefault(x => x.Id == mv.CommodityId);
+            d.PayUnitId = mv.EntryLaborUnitId ?? mFu?.FollowingUnitId;
         }
         else if (value == ProcessPaymentType.WithCurrency)
         {
@@ -492,30 +494,37 @@ public partial class ProductRecipePanel
     }
 
     // ── Katalog seçimi → draft default'ları (OnMetalChanged paritesi) ───────────────────────────────
-    private void OnMetalSelected(Guid? id)
+    private void OnMetalSelected(Guid? variantId)
     {
         if (Draft is not { } d)
         {
             return;
         }
 
-        d.CommodityId = id;
-        var m = id is { } gid ? Metals.FirstOrDefault(x => x.Id == gid) : null;
-        if (m != null)
+        d.CommodityVariantId = variantId;
+        var mv = variantId is { } gid ? MetalVariants.FirstOrDefault(x => x.VariantId == gid) : null;
+        if (mv != null)
         {
-            d.Factor = m.Factor;
-            d.ValuationUnitId = m.FollowingUnitId;
-            if (m is { IsQuantity: true, StableQuantity: > 0m } && d.Quantity == 0m)
+            d.CommodityId = mv.CommodityId;
+            var m = Metals.FirstOrDefault(x => x.Id == mv.CommodityId);
+            if (m != null)
             {
-                d.Quantity = 1m;
-            }
+                d.Factor = m.Factor;
+                d.ValuationUnitId = m.FollowingUnitId;
+                if (m is { IsQuantity: true, StableQuantity: > 0m } && d.Quantity == 0m)
+                {
+                    d.Quantity = 1m;
+                    d.Amount = m.StableQuantity;
+                }
 
-            // İşçilik default'u = GİRİŞ bacağı (bileşen EDİNİLİR); birim yoksa ana birime düşer (LaborHas paritesi).
-            if (d.PaymentType == ProcessPaymentType.Normal)
-            {
-                d.PayFactor = m.EntryLabor;
-                d.PayUnitId = m.EntryLaborUnitId ?? m.FollowingUnitId;
+                d.PaymentType = ProcessPaymentType.Normal;
+                d.PayFactor = mv.EntryLabor;
+                d.PayUnitId = mv.EntryLaborUnitId ?? m.FollowingUnitId;
             }
+        }
+        else
+        {
+            d.CommodityId = null;
         }
 
         RecalcDraft(d);
@@ -588,10 +597,10 @@ public partial class ProductRecipePanel
     }
 
     // ── Görünüm/durum yardımcıları ──────────────────────────────────────────────────────────────────
-    private MetalListDto? SelectedMetal(ProductRecipeLineGraphDto l)
+    private MetalVariantLookupDto? SelectedMetal(ProductRecipeLineGraphDto l)
     {
-        return l is { CommodityProcessType: ProcessType.Metal, CommodityId: { } id }
-            ? Metals.FirstOrDefault(x => x.Id == id)
+        return l is { CommodityProcessType: ProcessType.Metal, CommodityVariantId: { } vid }
+            ? MetalVariants.FirstOrDefault(x => x.VariantId == vid)
             : null;
     }
 
@@ -784,7 +793,9 @@ public partial class ProductRecipePanel
 
         return l.CommodityProcessType switch
         {
-            ProcessType.Metal => Metals.FirstOrDefault(x => x.Id == id)?.Code ?? string.Empty,
+            ProcessType.Metal => l.CommodityVariantId is { } vid
+                ? MetalVariants.FirstOrDefault(x => x.VariantId == vid)?.DisplayText ?? string.Empty
+                : (l.CommodityId is { } cid ? Metals.FirstOrDefault(x => x.Id == cid)?.Code ?? string.Empty : string.Empty),
             ProcessType.Scrap => Scraps.FirstOrDefault(x => x.Id == id)?.Code ?? string.Empty,
             ProcessType.Future => Futures.FirstOrDefault(x => x.Id == id)?.Code ?? string.Empty,
             ProcessType.Jewelry => Jewelries.FirstOrDefault(x => x.Id == id)?.Code ?? string.Empty,
@@ -929,7 +940,7 @@ public partial class ProductRecipePanel
     {
         var live = l.CommodityProcessType switch
         {
-            ProcessType.Metal => SelectedMetal(l)?.FollowingUnitCode,
+            ProcessType.Metal => SelectedMetal(l) is { } mv ? Metals.FirstOrDefault(x => x.Id == mv.CommodityId)?.FollowingUnitCode : null,
             ProcessType.Scrap => l.CommodityId is { } sid ? Scraps.FirstOrDefault(x => x.Id == sid)?.FollowingUnitCode : null,
             ProcessType.Future => l.CommodityId is { } fid ? Futures.FirstOrDefault(x => x.Id == fid)?.FollowingUnitCode : null,
             _ => null,

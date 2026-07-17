@@ -33,7 +33,13 @@ public abstract class CrudPageBase<TGetDto, TListDto, TKey, TListRequestDto, TCr
         // DevExpress grid veri callback'i ARKA PLAN thread'inde çalışır → hata yönetimini Dispatcher'a marshal et,
         // yoksa HandleErrorAsync.StateHasChanged "thread not associated with the Dispatcher" ile çöker (gerçek hatayı maskeler).
         => _gridDataSource ??= new GridListDataSource<TListDto>(FetchPageAsync)
-        { OnError = ex => InvokeAsync(() => HandleErrorAsync(ex)) };
+        { 
+            OnError = ex => InvokeAsync(() => 
+            {
+                UiService?.ShowErrorToast(ex.Message);
+                StateHasChanged();
+            }) 
+        };
 
     private Task<PagedResultDto<TListDto>> FetchPageAsync(ListRequestDto request)
     {

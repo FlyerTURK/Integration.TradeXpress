@@ -36,18 +36,21 @@ public class MetalAppService
     private readonly IBlobContainer<MetalImagesContainer> _imageContainer;
     private readonly CommodityAgnosticGraph _graph;
     private readonly IRepository<MetalVariantDetail, Guid> _variantDetailRepository;
+    private readonly IRepository<Integration.TradeXpress.Variants.EntityVariant, Guid> _entityVariantRepository;
 
     public MetalAppService(
         IRepository<Metal, Guid> repository,
         IRepository<CurrencyUnit, Guid> unitRepository,
         IBlobContainer<MetalImagesContainer> imageContainer,
         CommodityAgnosticGraph graph,
-        IRepository<MetalVariantDetail, Guid> variantDetailRepository)
+        IRepository<MetalVariantDetail, Guid> variantDetailRepository,
+        IRepository<Integration.TradeXpress.Variants.EntityVariant, Guid> entityVariantRepository)
         : base(repository, unitRepository)
     {
         _imageContainer = imageContainer;
         _graph = graph;
         _variantDetailRepository = variantDetailRepository;
+        _entityVariantRepository = entityVariantRepository;
         // Katalog yönetimi izinli (okuma/liste serbest — [Authorize] yeter): combo ✎/+ görünürlüğüyle hizalı.
         CreatePolicyName = TradeXpressPermissions.Metals.Create;
         UpdatePolicyName = TradeXpressPermissions.Metals.Update;
@@ -387,12 +390,24 @@ public class MetalAppService
 
     private async Task SaveVariantDetailAsync(Guid? companyId, MetalVariantGraphDto dto, Guid variantId)
     {
-        var detail = await _variantDetailRepository.FirstOrDefaultAsync(x => x.EntityVariantId == variantId)
-            ?? new MetalVariantDetail(companyId, variantId);
+        var detail = await _variantDetailRepository.FirstOrDefaultAsync(x => x.EntityVariantId == variantId);
+        var isNew = detail == null;
+
+        if (isNew)
+        {
+            detail = new MetalVariantDetail(companyId, variantId);
+        }
 
         detail.SetLabor(dto.LaborType, false, dto.EntryLabor, dto.EntryLaborUnitId, false, dto.ExitLabor, dto.ExitLaborUnitId, false, null);
 
-        await _variantDetailRepository.InsertAsync(detail, autoSave: false);
+        if (isNew)
+        {
+            await _variantDetailRepository.InsertAsync(detail, autoSave: false);
+        }
+        else
+        {
+            await _variantDetailRepository.UpdateAsync(detail, autoSave: false);
+        }
     }
 
     public virtual Task<List<EntityVariantGraphDto>> GenerateVariantsAsync(EntityVariantGenerateRequestDto input)
@@ -435,6 +450,66 @@ public class MetalAppService
         }
 
         return variants;
+    }
+
+    public virtual async Task<List<MetalVariantLookupDto>> GetVariantLookupAsync()
+    {
+        // Adım 1: Metal+Varyant listesi (soft-delete filtreli)
+        var metalsQuery = await Repository.GetQueryableAsync();
+        var variantsQuery = await _entityVariantRepository.GetQueryableAsync();
+
+        var baseQuery = from metal in metalsQuery
+                        join variant in variantsQuery on metal.Id equals variant.EntityId
+                        where variant.EntityName == MetalEntityName && !variant.IsDeleted && !metal.IsDeleted
+                        select new
+                        {
+                            CommodityId   = metal.Id,
+                            MetalCode     = metal.Code,
+                            MetalName     = metal.Name,
+                            VariantId     = variant.Id,
+                            VariantCode   = variant.Code,
+                            VariantName   = variant.Name,
+                            IsQuantity    = metal.IsQuantity,
+                            StableQuantity = metal.StableQuantity
+                        };
+
+        var rows = await AsyncExecuter.ToListAsync(baseQuery);
+
+        // Adım 2: MetalVariantDetail (CompanyScoped — ayrı sorgu, filter disable)
+        Dictionary<Guid, MetalVariantDetail> details;
+        using (DataFilter.Disable<ICompanyScoped>())
+        {
+            var variantIds = rows.Select(r => r.VariantId).ToList();
+            var detailsQuery = (await _variantDetailRepository.GetQueryableAsync())
+                .Where(d => variantIds.Contains(d.EntityVariantId));
+            var detailList = await AsyncExecuter.ToListAsync(detailsQuery);
+            details = detailList.ToDictionary(d => d.EntityVariantId);
+        }
+
+        return rows
+            .Select(r =>
+            {
+                details.TryGetValue(r.VariantId, out var d);
+                return new MetalVariantLookupDto
+                {
+                    CommodityId    = r.CommodityId,
+                    MetalCode      = r.MetalCode,
+                    MetalName      = r.MetalName,
+                    VariantId      = r.VariantId,
+                    VariantCode    = r.VariantCode,
+                    VariantName    = r.VariantName,
+                    IsQuantity     = r.IsQuantity,
+                    StableQuantity = r.StableQuantity,
+                    LaborType      = d?.LaborType ?? MetalLaborType.Amount,
+                    EntryLabor     = d?.EntryLabor ?? 0m,
+                    EntryLaborUnitId = d?.EntryLaborUnitId,
+                    ExitLabor      = d?.ExitLabor ?? 0m,
+                    ExitLaborUnitId  = d?.ExitLaborUnitId,
+                };
+            })
+            .OrderBy(x => x.MetalCode)
+            .ThenBy(x => x.VariantCode)
+            .ToList();
     }
 }
 

@@ -22,4 +22,7 @@ public interface IMetalAppService : ICrudAppService<
 
     /// <summary>Bir madenin AKTİF varyantları (fiş satırı panelindeki varyant combo'su) — fiyatsız (maden fiyatı milyem/işçilik).</summary>
     Task<List<CommodityVariantOptionDto>> GetVariantPickerListAsync(Guid metalId);
+
+    /// <summary>Ürün reçetesi panelinde kullanılacak yassılaştırılmış maden varyantları (Metal + Varyant bilgisi).</summary>
+    Task<List<MetalVariantLookupDto>> GetVariantLookupAsync();
 }

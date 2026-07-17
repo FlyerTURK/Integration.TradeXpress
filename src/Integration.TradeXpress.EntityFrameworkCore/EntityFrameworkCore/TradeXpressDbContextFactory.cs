@@ -26,6 +26,7 @@ public class TradeXpressDbContextFactory : IDesignTimeDbContextFactory<TradeXpre
         var builder = new ConfigurationBuilder()
             .SetBasePath(Path.Combine(Directory.GetCurrentDirectory(), "../Integration.TradeXpress.DbMigrator/"))
             .AddJsonFile("appsettings.json", optional: false)
+            .AddJsonFile("appsettings.secrets.json", optional: true)
             .AddEnvironmentVariables();
 
         return builder.Build();

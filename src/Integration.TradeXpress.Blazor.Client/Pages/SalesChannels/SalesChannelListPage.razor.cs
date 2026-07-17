@@ -43,7 +43,13 @@ public partial class SalesChannelListPage : IDisposable
     /// <summary>Server-side grid kaynağı — birleşik <see cref="ISalesChannelAppService.GetListAsync"/>'e bağlı.</summary>
     public GridListDataSource<SalesChannelListDto> GridDataSource
         => _gridDataSource ??= new GridListDataSource<SalesChannelListDto>(FetchPageAsync)
-        { OnError = ex => InvokeAsync(() => HandleErrorAsync(ex)) };
+        { 
+            OnError = ex => InvokeAsync(() => 
+            {
+                UiService?.ShowErrorToast(ex.Message);
+                StateHasChanged();
+            }) 
+        };
 
     private Task<PagedResultDto<SalesChannelListDto>> FetchPageAsync(ListRequestDto request)
     {
