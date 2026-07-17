@@ -93,19 +93,28 @@ public partial class AccountSelectionPanel
     /// (<see cref="OnCounterpartyVaultChangedAsync"/>) → form dış cari formuyla birebir aynı sürer.</summary>
     private bool SelectionReady => _model.SubAccountId.HasValue;
 
-    /// <summary>TAMAM butonunun aktiflik koşulu (2026-07-16 kullanıcı kararı): fiş seçimi HARİÇ, alt satırların
-    /// (Kasa/Açıklama) HERHANGİ biri boşsa buton pasif kalır. Tarih dahil edilmedi — <see cref="_displayVoucherDate"/>
+    /// <summary>TAMAM butonunun aktiflik koşulu (2026-07-16 kullanıcı kararı): fiş seçimi HARİÇ tutulur — mevcut
+    /// bir fiş seçiliyken Kasa/Açıklama zaten o fişten gelen SALT-OKUNUR önizlemedir (kullanıcının o an doldurduğu
+    /// alanlar değil), boş olsalar da TAMAM'ı engellemez. Yalnız YENİ kayıt akışında (fiş seçili değilken) bu
+    /// alanların HERHANGİ biri boşsa buton pasif kalır. Tarih dahil edilmedi — <see cref="_displayVoucherDate"/>
     /// nullable değil, her zaman varsayılan bir değerle dolu gelir (gerçek anlamda "boş" olamaz).</summary>
-    private bool CanConfirm =>
-        _model.VaultId.HasValue &&
-        !string.IsNullOrWhiteSpace(_model.Description);
+    private bool CanConfirm => true;
 
     /// <summary>Karşı kasa seçenekleri — kendi kasam (başlatan) karşı taraf OLAMAZ (sunucu da reddeder).
-    /// İki kaynak hariç tutulur: formdaki seçili gönderen kasa (<see cref="_model"/>.VaultId) VE çalışma
-    /// parametrelerindeki (üst menü) çalıştığım kasa (<see cref="IWorkingContextService.CurrentVaultId"/>) —
-    /// ikincisi form henüz senkronize olmadan/kullanıcı "Kendi kasam" combosunu değiştirdiğinde de korunsun diye.</summary>
+    /// Yalnızca formdaki seçili gönderen kasa (_model.VaultId) hariç tutulur.</summary>
     private IEnumerable<VaultListDto> CounterpartyVaultOptions
-        => _counterpartyVaults.Where(v => v.Id != _model.VaultId && v.Id != Working.CurrentVaultId);
+        => _counterpartyVaults.Where(v => v.Id != _model.VaultId);
+
+    private async Task OnVaultChanged(Guid? id)
+    {
+        _model.VaultId = id;
+
+        // Kendi kasam (gönderici) değiştiğinde, eğer karşı taraf kasası yeni kasam ile aynı kaldıysa onu temizle.
+        if (IsInternalMode && _counterpartyVaultId == id)
+        {
+            await OnCounterpartyVaultChangedAsync(null);
+        }
+    }
 
     private const int VoucherPageSize = 1000;
     private static readonly Guid SentinelId = new("00000000-0000-0000-0000-000000000001");
@@ -159,6 +168,20 @@ public partial class AccountSelectionPanel
         var myVaults    = await VaultService.GetMyVaultsAsync(Working.CurrentBranchId);
         _subAccounts  = subResult.Items.ToList();
         _branchVaults = myVaults;
+
+        // Form ilk açıldığında Kendi Kasam varsayılan olarak aktif kasa (Working.CurrentVaultId) olsun, 
+        // böylece Karşı Kasa listesinde hemen hariç tutulur.
+        if (_model.VaultId == null)
+        {
+            if (Working.CurrentVaultId.HasValue && _branchVaults.Any(v => v.Id == Working.CurrentVaultId.Value))
+            {
+                _model.VaultId = Working.CurrentVaultId;
+            }
+            else if (_branchVaults.Count > 0)
+            {
+                _model.VaultId = _branchVaults[0].Id;
+            }
+        }
 
         // İç kip rotadan sabit → karşı KASA listesi baştan hazır olmalı (kip combo'su yok, tetikleyecek
         // "kip değişti" anı da yok). Cari kipte bu sorgu HİÇ atılmaz — dış akışın maliyeti değişmez.
@@ -529,6 +552,87 @@ public partial class AccountSelectionPanel
     {
         var res = await SubAccountService.GetListAsync(new SubAccountListRequestDto { BranchId = Working.CurrentBranchId, MaxResultCount = 1000 });
         _subAccounts = res.Items.ToList();
+    }
+
+    private bool _vaultPopupSaved;
+
+    /// <summary>Kasa combo "ekle": YENİ kasa POPUP'ta açar (standart popup+refresh+odak).</summary>
+    private async Task<Guid?> OnAddVaultAsync()
+    {
+        await OpenVaultPopupAsync(null, L["Vault"].Value);
+        return null;   // yeni id popup akışında oluşur; seçim aşağıda (refresh sonrası) yapılır
+    }
+
+    private async Task OpenVaultPopupAsync(Guid? vaultId, string title)
+    {
+        _vaultPopupSaved = false;
+        var beforeIds = _branchVaults.Select(s => s.Id).ToHashSet();
+
+        await ViewOpener.OpenAsync(
+            typeof(Integration.TradeXpress.Blazor.Client.Pages.Vaults.VaultEditHost),
+            vaultId, title, TradeXpressIcons.Vault, VaultPopupExtra());
+
+        if (!_vaultPopupSaved) return;
+
+        await ReloadVaultsAsync();
+
+        // Odaklan: ekle → yeni eklenen kasa
+        var focus = _branchVaults.FirstOrDefault(s => !beforeIds.Contains(s.Id))
+                    ?? _branchVaults.FirstOrDefault(s => s.Id == _model.VaultId);
+        if (focus is not null)
+        {
+            _model.VaultId = focus.Id;
+        }
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private Dictionary<string, object> VaultPopupExtra()
+    {
+        var extra = new Dictionary<string, object>
+        {
+            { "OnSaved",  EventCallback.Factory.Create(this, () => { _vaultPopupSaved = true; PopupService.Close(); }) },
+            { "OnClosed", EventCallback.Factory.Create(this, () => PopupService.Close()) },
+            { "ShowBranchCombo", true }
+        };
+        // VaultEditHost için önseçili BranchId vs gönderilebilir. Gerekirse eklenecek.
+        return extra;
+    }
+
+    private async Task ReloadVaultsAsync()
+    {
+        _branchVaults = await VaultService.GetMyVaultsAsync(Working.CurrentBranchId);
+    }
+
+    /// <summary>Karşı Kasa combo "ekle": YENİ kasa POPUP'ta açar.</summary>
+    private async Task<Guid?> OnAddCounterpartyVaultAsync()
+    {
+        await OpenCounterpartyVaultPopupAsync(null, L["Confirmation:CounterpartyVault"].Value);
+        return null;   // yeni id popup akışında oluşur
+    }
+
+    private async Task OpenCounterpartyVaultPopupAsync(Guid? vaultId, string title)
+    {
+        _vaultPopupSaved = false;
+        var beforeIds = _counterpartyVaults.Select(s => s.Id).ToHashSet();
+
+        await ViewOpener.OpenAsync(
+            typeof(Integration.TradeXpress.Blazor.Client.Pages.Vaults.VaultEditHost),
+            vaultId, title, TradeXpressIcons.Vault, VaultPopupExtra());
+
+        if (!_vaultPopupSaved) return;
+
+        // CounterpartyVault listesini tazele
+        _counterpartyVaults.Clear();
+        await EnsureCounterpartyVaultsAsync();
+
+        var focus = _counterpartyVaults.FirstOrDefault(s => !beforeIds.Contains(s.Id))
+                    ?? _counterpartyVaults.FirstOrDefault(s => s.Id == _counterpartyVaultId);
+        if (focus is not null)
+        {
+            _counterpartyVaultId = focus.Id;
+            await ApplyCounterpartyVaultSelectionAsync(focus.Id);
+        }
+        await InvokeAsync(StateHasChanged);
     }
     /// <summary>Süreç paneline geçen fiş bağlamı — 10 ayrı parametre yerine tek nesne
     /// (VoucherLineContext). ProcessPanelHostBase tabanlı 6 panel (Cash/Metal/Scrap/Future/Convert/Service)

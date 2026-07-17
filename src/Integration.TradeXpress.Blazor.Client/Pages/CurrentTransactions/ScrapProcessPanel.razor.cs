@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -12,8 +12,8 @@ using Microsoft.AspNetCore.Components;
 namespace Integration.TradeXpress.Blazor.Client.Pages.CurrentTransactions;
 
 /// <summary>
-/// Hurda (Scrap) fiş satırı paneli — ortak iskelet ProcessPanelHostBase'te; burada hurda lookup'ı,
-/// Has (Miktar×Milyem) ana bacağı ve Peşin/Bedelli fiyat bacağı var.
+/// Hurda (Scrap) fiÅŸ satÄ±rÄ± paneli â€” ortak iskelet ProcessPanelHostBase'te; burada hurda lookup'Ä±,
+/// Has (MiktarÃ—Milyem) ana bacaÄŸÄ± ve PeÅŸin/Bedelli fiyat bacaÄŸÄ± var.
 /// </summary>
 public partial class ScrapProcessPanel
 {
@@ -28,7 +28,7 @@ public partial class ScrapProcessPanel
     protected override VoucherLineDto CreateModel() => new()
     {
         Type        = ProcessType.Scrap,
-        Direction   = ProcessDirectionType.Outbound,   // hurda varsayılan: çıkış
+        Direction   = ProcessDirectionType.Outbound,   // hurda varsayÄ±lan: Ã§Ä±kÄ±ÅŸ
         PaymentType = ProcessPaymentType.Normal,
         Factor      = 0.570m,                           // milyem
         DueDate     = BusinessClock.Today(),
@@ -44,7 +44,7 @@ public partial class ScrapProcessPanel
 
     private List<CashListDto> _allCashes = new();
 
-    // Karşı bacak (Peşin→Cash, Bedelli→para birimi). Id=combo değeri, PayUnitId=gerçek para birimi (bakiye/parite).
+    // KarÅŸÄ± bacak (PeÅŸinâ†’Cash, Bedelliâ†’para birimi). Id=combo deÄŸeri, PayUnitId=gerÃ§ek para birimi (bakiye/parite).
     private record PayComboItem(Guid Id, string Code, bool IsActive, Guid? PayUnitId, string? PayUnitCode);
     private List<PayComboItem> _activePayItems = new();
     private PayComboItem? _selectedPayItem;
@@ -60,7 +60,7 @@ public partial class ScrapProcessPanel
     private record PaymentItem(ProcessPaymentType? Value, string Label);
     private List<PaymentItem> _paymentItems = new();
 
-    // Fiyat tipi (salt UI): kanonik PayFactor Has başına; Miktar modunda ×Factor gösterilir.
+    // Fiyat tipi (salt UI): kanonik PayFactor Has baÅŸÄ±na; Miktar modunda Ã—Factor gÃ¶sterilir.
     private PayFactorType _priceType = PayFactorType.Has;
     private record PriceTypeItem(PayFactorType Value, string Label);
     private List<PriceTypeItem> _priceTypeItems = new();
@@ -75,16 +75,16 @@ public partial class ScrapProcessPanel
     {
         _directionItems = new()
         {
-            new(ProcessDirectionType.Inbound,  L["Enum:ProcessDirectionType:Inbound"].Value),
-            new(ProcessDirectionType.Outbound, L["Enum:ProcessDirectionType:Outbound"].Value),
+            new(ProcessDirectionType.Inbound,  L["UI:ProcessDirectionType:Inbound"].Value),
+            new(ProcessDirectionType.Outbound, L["UI:ProcessDirectionType:Outbound"].Value),
         };
         _paymentItems = new()
         {
-            new(ProcessPaymentType.Normal,       L["Enum:ProcessPaymentType:Normal"].Value),
-            new(ProcessPaymentType.WithCash,     L["Enum:ProcessPaymentType:WithCash"].Value),
-            new(ProcessPaymentType.WithCurrency, L["Enum:ProcessPaymentType:WithCurrency"].Value),
-            new(ProcessPaymentType.Return,       L["Enum:ProcessPaymentType:Return"].Value),
-            new(ProcessPaymentType.Consignment,  L["Enum:ProcessPaymentType:Consignment"].Value),
+            new(ProcessPaymentType.Normal,       L["UI:ProcessPaymentType:Normal"].Value),
+            new(ProcessPaymentType.WithCash,     L["UI:ProcessPaymentType:WithCash"].Value),
+            new(ProcessPaymentType.WithCurrency, L["UI:ProcessPaymentType:WithCurrency"].Value),
+            new(ProcessPaymentType.Return,       L["UI:ProcessPaymentType:Return"].Value),
+            new(ProcessPaymentType.Consignment,  L["UI:ProcessPaymentType:Consignment"].Value),
         };
         _priceTypeItems = new()
         {
@@ -118,7 +118,7 @@ public partial class ScrapProcessPanel
             _parityPairs, a, b,
             id => CurrencyUnitPriority.RankOf(_codeByUnit.GetValueOrDefault(id, string.Empty)));
 
-    // Has = Miktar × Milyem = Amount × Factor = Total (ana bacak).
+    // Has = Miktar Ã— Milyem = Amount Ã— Factor = Total (ana bacak).
     private void RecomputeHas()
     {
         Model.Total = Model.Amount * Model.Factor;
@@ -131,14 +131,14 @@ public partial class ScrapProcessPanel
 
         if (!HasPriceLeg || Model.MainUnitId == Guid.Empty || Model.PayUnitId is null)
         {
-            // Fiyat bacağı yok (Normal/İade/Emanet) → yalnız Has; pay alanları sıfır.
+            // Fiyat bacaÄŸÄ± yok (Normal/Ä°ade/Emanet) â†’ yalnÄ±z Has; pay alanlarÄ± sÄ±fÄ±r.
             Model.PayFactor = 0m;
             Model.PayTotal  = 0m;
             Model.Profit    = 0m;
             return;
         }
 
-        // Calculator'a ana bacak Has (=Total), Factor=1 verilir → PayTotal = Has × parite, Profit hesaplanır.
+        // Calculator'a ana bacak Has (=Total), Factor=1 verilir â†’ PayTotal = Has Ã— parite, Profit hesaplanÄ±r.
         var r = VoucherLineCalculator.Calculate(
             new VoucherLineCalcInput(
                 ProcessType:  ProcessType.Scrap,
@@ -169,14 +169,14 @@ public partial class ScrapProcessPanel
         Model.MainUnitId    = s?.FollowingUnitId ?? Guid.Empty;
         if (s is { }) { Model.Factor = s.Factor; _milyemReadOnly = !s.FactorChange; }
 
-        // Hurda'da fiyat bacağı yalnız Peşin/Bedelli'de var; Normal/İade/Emanet'te pay kontrolleri
-        // görünmez → PayCommodity NULL kalmalı (kayda hayalet birim yazılmasın).
+        // Hurda'da fiyat bacaÄŸÄ± yalnÄ±z PeÅŸin/Bedelli'de var; Normal/Ä°ade/Emanet'te pay kontrolleri
+        // gÃ¶rÃ¼nmez â†’ PayCommodity NULL kalmalÄ± (kayda hayalet birim yazÄ±lmasÄ±n).
         if (HasPriceLeg) { BuildPayList(); EnsurePayItem(); }
         else             { ApplyPayItem(null); }
         Recalc(EditedField.Commodity);
     }
 
-    // Peşin → Cash kayıtları (PayUnit = Cash.FollowingUnit); Bedelli → para birimi (ana hariç).
+    // PeÅŸin â†’ Cash kayÄ±tlarÄ± (PayUnit = Cash.FollowingUnit); Bedelli â†’ para birimi (ana hariÃ§).
     private void BuildPayList()
     {
         if (Model.PaymentType == ProcessPaymentType.WithCash)
@@ -217,7 +217,7 @@ public partial class ScrapProcessPanel
     private void OnAmountChanged(decimal value) { Model.Amount = value; Recalc(EditedField.Amount); }
     private void OnFactorChanged(decimal value) { Model.Factor = value; Recalc(EditedField.Amount); }
 
-    // Total (HAS) elle düzenlenince milyemi (Factor) geri-hesapla → Amount × Factor = value korunur.
+    // Total (HAS) elle dÃ¼zenlenince milyemi (Factor) geri-hesapla â†’ Amount Ã— Factor = value korunur.
     private void OnTotalChanged(decimal value)
     {
         Model.Factor = Model.Amount != 0m ? value / Model.Amount : Model.Factor;
@@ -230,7 +230,7 @@ public partial class ScrapProcessPanel
     {
         Model.PaymentType = value;
         if (HasPriceLeg) { BuildPayList(); EnsurePayItem(); }
-        else             { ApplyPayItem(null); }   // fiyat bacağı yok → pay seçimi temizlenir
+        else             { ApplyPayItem(null); }   // fiyat bacaÄŸÄ± yok â†’ pay seÃ§imi temizlenir
         Recalc(EditedField.PaymentType);
     }
 
@@ -240,7 +240,7 @@ public partial class ScrapProcessPanel
         Recalc(EditedField.PayUnit);
     }
 
-    // Ekrandaki Fiyat → kanonik (Has başına) PayFactor'a çevir.
+    // Ekrandaki Fiyat â†’ kanonik (Has baÅŸÄ±na) PayFactor'a Ã§evir.
     private void OnDisplayPayFactorChanged(decimal value)
     {
         Model.PayFactor = _priceType == PayFactorType.Quantity
@@ -256,7 +256,7 @@ public partial class ScrapProcessPanel
     private string GroupStyle()   => ProcessPanelStyles.Group(_isMobile);
     private string ControlStyle() => ProcessPanelStyles.Control(_isMobile);
 
-    // ── Base kancaları (HandleSave / LoadForEditAsync iskeleti ProcessPanelHostBase'te) ──
+    // â”€â”€ Base kancalarÄ± (HandleSave / LoadForEditAsync iskeleti ProcessPanelHostBase'te) â”€â”€
 
     protected override bool CanSave() => Model.CommodityId is not null && Model.MainUnitId != Guid.Empty;
 
@@ -266,7 +266,7 @@ public partial class ScrapProcessPanel
 
         if (!HasPriceLeg)
         {
-            // Fiyat bacağı yok → pay alanları temizlenir.
+            // Fiyat bacaÄŸÄ± yok â†’ pay alanlarÄ± temizlenir.
             Model.PayCommodityId   = null;
             Model.PayCommodityCode = null;
             Model.PayUnitId   = null;
@@ -302,3 +302,4 @@ public partial class ScrapProcessPanel
         return Task.CompletedTask;
     }
 }
+

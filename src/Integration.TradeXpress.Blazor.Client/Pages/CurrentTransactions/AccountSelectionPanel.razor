@@ -64,7 +64,7 @@
                     <LookupComboBox TItem="SubAccountListDto" TValue="Guid?"
                                     Data="@_subAccounts"
                                     ValueFieldName="@nameof(SubAccountListDto.Id)"
-                                    TextFieldName="@nameof(SubAccountListDto.Code)"
+                                    TextFieldName="@nameof(SubAccountListDto.AccountSubCodeDisplay)"
                                     Value="@_model.SubAccountId"
                                     ValueChanged="@OnSubAccountChanged"
                                     LostFocus="@OnSubAccountLostFocus"
@@ -91,20 +91,23 @@
                      GEREKMEZ, Şube kodu dropdown'da bir KOLON olarak görünür). Seçilen kasa KARŞI TARAFTIR;
                      kayıt postlanmaz, onun GELEN kutusuna Teyit teklifi düşer. -->
                 <DxFormLayoutItem Caption="@L["Confirmation:CounterpartyVault"]" ColSpanMd="12" Visible="@IsInternalMode">
-                    <DxComboBox TData="VaultListDto" TValue="Guid?"
-                                Data="@CounterpartyVaultOptions"
-                                ValueFieldName="@nameof(VaultListDto.Id)"
-                                TextFieldName="@nameof(VaultListDto.Code)"
-                                Value="@_counterpartyVaultId"
-                                ValueChanged="@(async (Guid? id) => await OnCounterpartyVaultChangedAsync(id))"
-                                NullText="@L["SelectVault"].Value"
-                                Enabled="@(!_locked)"
-                                ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto"
-                                CssClass="w-100">
-                        <DxListEditorColumn FieldName="@nameof(VaultListDto.BranchCode)" Caption="@L["Confirmation:CounterpartyBranch"]" Width="35%" />
-                        <DxListEditorColumn FieldName="@nameof(VaultListDto.Code)" Caption="@L["Code"].Value" Width="25%" />
-                        <DxListEditorColumn FieldName="@nameof(VaultListDto.Name)" Caption="@L["Name"].Value" />
-                    </DxComboBox>
+                    <LookupComboBox TItem="VaultListDto" TValue="Guid?"
+                                    Data="@CounterpartyVaultOptions"
+                                    ValueFieldName="@nameof(VaultListDto.Id)"
+                                    TextFieldName="@nameof(VaultListDto.BranchVaultCodeDisplay)"
+                                    Value="@_counterpartyVaultId"
+                                    ValueChanged="@(async (Guid? id) => await OnCounterpartyVaultChangedAsync(id))"
+                                    NullText="@L["SelectVault"].Value"
+                                    AllowClear="true"
+                                    Enabled="@(!_locked)"
+                                    OnAddRequested="@OnAddCounterpartyVaultAsync"
+                                    CreatePolicy="@TradeXpressPermissions.Vaults.Create">
+                        <Columns>
+                            <DxListEditorColumn FieldName="@nameof(VaultListDto.BranchCode)" Caption="@L["Confirmation:CounterpartyBranch"]" Width="35%" />
+                            <DxListEditorColumn FieldName="@nameof(VaultListDto.Code)" Caption="@L["Code"].Value" Width="25%" />
+                            <DxListEditorColumn FieldName="@nameof(VaultListDto.Name)" Caption="@L["Name"].Value" />
+                        </Columns>
+                    </LookupComboBox>
                 </DxFormLayoutItem>
 
                 <!-- Row 2 -->
@@ -140,20 +143,23 @@
                     }
                     else
                     {
-                        <DxComboBox TData="MyVaultDto" TValue="Guid?"
+                        <LookupComboBox TItem="MyVaultDto" TValue="Guid?"
                                     Data="@_branchVaults"
                                     ValueFieldName="@nameof(MyVaultDto.Id)"
-                                    TextFieldName="@nameof(MyVaultDto.Code)"
+                                    TextFieldName="@nameof(MyVaultDto.BranchVaultCodeDisplay)"
                                     Value="@_model.VaultId"
-                                    ValueChanged="@((Guid? id) => { _model.VaultId = id; })"
-                                    DropDownTriggerMode="DropDownTriggerMode.Click" ShowDropDownButton="true"
+                                    ValueChanged="@OnVaultChanged"
+                                    OnAddRequested="@OnAddVaultAsync"
+                                    CreatePolicy="@TradeXpressPermissions.Vaults.Create"
                                     NullText="@L["SelectVault"].Value"
-                                    ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto"
-                                    Enabled="@(!_locked)"
-                                    CssClass="w-100">
-                            <DxListEditorColumn FieldName="@nameof(MyVaultDto.Code)" Caption="@L["Code"].Value" Width="100px" />
-                            <DxListEditorColumn FieldName="@nameof(MyVaultDto.Name)" Caption="@L["Name"].Value" />
-                        </DxComboBox>
+                                    AllowClear="false"
+                                    Enabled="@(!_locked)">
+                            <Columns>
+                                <DxListEditorColumn FieldName="@nameof(MyVaultDto.BranchCode)" Caption="@L["Branch"]" Width="35%" />
+                                <DxListEditorColumn FieldName="@nameof(MyVaultDto.Code)" Caption="@L["Code"].Value" Width="25%" />
+                                <DxListEditorColumn FieldName="@nameof(MyVaultDto.Name)" Caption="@L["Name"].Value" />
+                            </Columns>
+                        </LookupComboBox>
                     }
                 </DxFormLayoutItem>
 
@@ -176,8 +182,8 @@
 
                 <DxFormLayoutItem ColSpanMd="6" Visible="@SelectionReady">
                     <div style="display:flex; justify-content:flex-end; width:100%; height:100%; align-items:flex-end;">
-                        <DxButton Text="@(_locked ? L["SelectAccount"].Value : L["Confirm"].Value)"
-                                  IconCssClass="@(_locked ? "custom-icon-address-card" : "custom-icon-check")"
+                        <DxButton Text="@(_locked ? (IsInternalMode ? L["ButtonSelectVault"].Value.ToString().ToUpper() : L["SelectAccount"].Value.ToString().ToUpper()) : L["Confirm"].Value.ToString().ToUpper())"
+                                  IconCssClass="@(_locked ? (IsInternalMode ? "custom-icon-select-vault" : "custom-icon-select-account") : "custom-icon-tick-green")"
                                   RenderStyle="ButtonRenderStyle.Primary"
                                   Enabled="@(_locked || CanConfirm)"
                                   Click="@OnConfirmClicked" />

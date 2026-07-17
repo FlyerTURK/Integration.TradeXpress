@@ -17,14 +17,14 @@
 
         @* Grup 1 — Yön + Ödeme tipi *@
         <div style="@GroupStyle()">
-            <small style="@ProcessPanelStyles.Label">@nameof(VoucherLineDto.Direction)</small>
+            <small style="@ProcessPanelStyles.Label">@(_isMobile ? L["Confirmation:Direction"].Value : L["ProcessType"].Value)</small>
             <DxComboBox TData="DirectionItem" TValue="ProcessDirectionType"
                         Data="@_directionItems" Value="@Model.Direction" ValueChanged="@OnDirectionChanged"
                         DropDownTriggerMode="DropDownTriggerMode.Click" ShowDropDownButton="true"
                         ValueFieldName="@nameof(DirectionItem.Value)" TextFieldName="@nameof(DirectionItem.Label)" style="@ControlStyle()" />
             @if (_isMobile)
             {
-                <small style="@ProcessPanelStyles.Label">@nameof(VoucherLineDto.PaymentType)</small>
+                <small style="@ProcessPanelStyles.Label">@L["PaymentType"]</small>
             }
             <DxComboBox TData="PaymentItem" TValue="ProcessPaymentType?"
                         Data="@_paymentItems" Value="@Model.PaymentType" ValueChanged="@OnPaymentTypeChanged"
@@ -33,11 +33,13 @@
         </div>
 
         <div style="display:flex; flex-direction:column; gap:4px; @(_isMobile ? "width:100%;" : "flex-shrink:0;")">
+            
+            @* SATIR 1 *@
             <div style="display:flex; @(_isMobile ? "flex-direction:column;" : "") gap:4px; align-items:flex-start;">
-
-                @* Maden = Commodity (+ altında varyant combo'su, alt alta) — iki kat genişlik (240px) *@
+                
+                @* Maden = Commodity (genişlik: 240px) *@
                 <div style="@GroupStyle(240)">
-                    <small style="@ProcessPanelStyles.Label">@nameof(VoucherLineDto.CommodityId)</small>
+                    <small style="@ProcessPanelStyles.Label">@L["CommodityId:MetalPanel"].Value</small>
                     @* Standart lookup: ✎/+ butonları Metals Update/Create iznine bağlı; add/edit MetalEditHost
                        popup'ıyla açılır, kayıt sonrası liste EntityChange ile tazelenip yeni kayıt auto-select olur. *@
                     <LookupComboBox TItem="MetalListDto" TValue="Guid?"
@@ -50,22 +52,21 @@
                                     CreatePolicy="@TradeXpressPermissions.Metals.Create"
                                     UpdatePolicy="@TradeXpressPermissions.Metals.Update"
                                     OnLookupReloadRequested="@ReloadMetalsAsync" />
-                    @* Varyant — caption masaüstünde GİZLİ (yalnız mobilde). Tek varyant → combo pasif + VariantId null; çoklu → ana varsayılan.
-                       ✎/+ seçili MADENin kartını açar (varyant yönetimi orada; commodity id ile — varyant id DEĞİL). *@
-                    @if (_isMobile)
-                    {
-                        <small style="@ProcessPanelStyles.Label">@L["Variant"]</small>
-                    }
-                    <LookupComboBox TItem="CommodityVariantOptionDto" TValue="Guid?"
-                                    Data="@_variantOptions"
-                                    ValueFieldName="@nameof(CommodityVariantOptionDto.Id)" TextFieldName="@nameof(CommodityVariantOptionDto.Code)"
-                                    Value="@Model.VariantId" ValueChanged="@OnVariantChanged"
-                                    AllowClear="false" Enabled="@(_variantOptions.Count > 1)"
-                                    CreatePolicy="@TradeXpressPermissions.Metals.Create" UpdatePolicy="@TradeXpressPermissions.Metals.Update"
-                                    OnEditRequested="@(_ => OpenMetalCardAsync())"
-                                    OnAddRequested="@OpenMetalCardForAddAsync"
-                                    OnLookupReloadRequested="@ReloadVariantsForCurrentMetalAsync" />
                 </div>
+
+                @if (_isMobile && _variantOptions.Count > 1)
+                {
+                    @* Varyant (Mobil Ekran) - Maden seçiminin hemen altında *@
+                    <div style="@GroupStyle(240)">
+                        <small style="@ProcessPanelStyles.Label">@L["Variant"]</small>
+                        <LookupComboBox TItem="CommodityVariantOptionDto" TValue="Guid?"
+                                        Data="@_variantOptions"
+                                        ValueFieldName="@nameof(CommodityVariantOptionDto.Id)" TextFieldName="@nameof(CommodityVariantOptionDto.Code)"
+                                        Value="@Model.VariantId" ValueChanged="@OnVariantChanged"
+                                        AllowClear="false" Enabled="true"
+                                        OnLookupReloadRequested="@ReloadVariantsForCurrentMetalAsync" />
+                    </div>
+                }
 
                 @if (_showAdet)
                 {
@@ -79,40 +80,43 @@
 
                 @* Miktar (gram) = Amount *@
                 <div style="@GroupStyle()">
-                    <small style="@ProcessPanelStyles.Label">@nameof(VoucherLineDto.Amount)</small>
+                    <small style="@ProcessPanelStyles.Label">@L["Amount:MetalPanel"].Value</small>
                     <NumericSpinEdit TValue="decimal" Value="@Model.Amount" ValueChanged="@OnAmountChanged" BindValueMode="BindValueMode.OnInput"
                                      Enabled="@(!_amountReadOnly)" ShowSpinButtons="false" DisplayFormat="N2" Mask="N2" />
                 </div>
 
-                @* Milyem = Factor: Normal'de saf milyem (düzenlenebilir), Peşin/Bedelli'de efektif Factor (işçilik yedirilmiş, salt-okunur) *@
+                @* Milyem = Factor *@
                 <div style="@GroupStyle()">
-                    <small style="@ProcessPanelStyles.Label">@L["Factor"]</small>
+                    <small style="@ProcessPanelStyles.Label">@L["Factor:MetalPanel"].Value</small>
                     <NumericSpinEdit TValue="decimal" Value="@(HasPriceMode ? Model.Factor : _baseFactor)" ValueChanged="@OnFactorChanged" BindValueMode="BindValueMode.OnInput"
                                      Enabled="@(!_factorReadOnly && !HasPriceMode)" ShowSpinButtons="false" DisplayFormat="N5" Mask="N5" />
                 </div>
 
-                @* Has = Total (= Amount × Factor). Amount veya Factor düzenlenebilirse Total da düzenlenebilir (geri-hesap). *@
+                @* Has = Total *@
                 <div style="@GroupStyle()">
-                    <small style="@ProcessPanelStyles.Label">@L["Has"]</small>
+                    <small style="@ProcessPanelStyles.Label">@TotalCaption</small>
                     <NumericSpinEdit TValue="decimal" Value="@Model.Total" ValueChanged="@OnTotalChanged"
                                      Enabled="@(!_amountReadOnly || (!_factorReadOnly && !HasPriceMode))"
                                      ShowSpinButtons="false" DisplayFormat="N5" Mask="N5" />
                 </div>
 
-                @* TEK PAY SETİ (ERPPROV3 paritesi) — işçilik + bedel TEK Model.Pay* alanlarında; ödeme tipine göre yalnız
-                   RATE caption'ı + hesap dalı değişir. Normal/İade/Emanet → işçilik (caption "İşçilik (Adet/Miktar)"); Peşin/Bedelli → bedel. *@
+                @* PayRate *@
                 <div style="@GroupStyle()">
                     <small style="@ProcessPanelStyles.Label">@PayRateCaption</small>
                     <NumericSpinEdit TValue="decimal" Value="@Model.PayFactor" ValueChanged="@OnPayFactorChanged" BindValueMode="BindValueMode.OnInput"
                                      Enabled="@(HasPriceMode || !_laborReadOnly)" ShowSpinButtons="false" DisplayFormat="N5" Mask="N5" />
                 </div>
+
+                @* PayTotal *@
                 <div style="@GroupStyle()">
-                    <small style="@ProcessPanelStyles.Label">@nameof(VoucherLineDto.PayTotal)</small>
+                    <small style="@ProcessPanelStyles.Label">@PayTotalCaption</small>
                     <NumericSpinEdit TValue="decimal" Value="@Model.PayTotal" ValueChanged="@OnPayTotalChanged"
                                      Enabled="@(HasPriceMode || !_laborReadOnly)" ShowSpinButtons="false" DisplayFormat="N2" Mask="N2" />
                 </div>
+
+                @* PayCommodity *@
                 <div style="@GroupStyle()">
-                    <small style="@ProcessPanelStyles.Label">@nameof(VoucherLineDto.PayCommodityId)</small>
+                    <small style="@ProcessPanelStyles.Label">@L["PayCommodity:MetalPanel"]</small>
                     <DxComboBox TData="PayComboItem" TValue="Guid?"
                                 Data="@_activePayItems"
                                 ValueFieldName="@nameof(PayComboItem.Id)" TextFieldName="@nameof(PayComboItem.Code)"
@@ -124,27 +128,54 @@
 
             </div>
 
-            @* Vade (CommodityId altında, boyut sabit) + Açıklama (satır sonuna kadar genişler) *@
+            @* SATIR 2 *@
             <div style="display:flex; @(_isMobile ? "flex-direction:column;" : "") gap:4px; align-items:flex-start;">
+                
+                @if (!_isMobile && _variantOptions.Count > 1)
+                {
+                    @* Varyant (Masaüstü Ekran) *@
+                    <div style="@GroupStyle(240)">
+                        <LookupComboBox TItem="CommodityVariantOptionDto" TValue="Guid?"
+                                        Data="@_variantOptions"
+                                        ValueFieldName="@nameof(CommodityVariantOptionDto.Id)" TextFieldName="@nameof(CommodityVariantOptionDto.Code)"
+                                        Value="@Model.VariantId" ValueChanged="@OnVariantChanged"
+                                        AllowClear="false" Enabled="true"
+                                        OnLookupReloadRequested="@ReloadVariantsForCurrentMetalAsync" />
+                    </div>
+                }
+
+                @* Vade *@
                 <div style="@GroupStyle()">
                     @if (_isMobile)
                     {
-                        <small style="@ProcessPanelStyles.Label">@nameof(VoucherLineDto.DueDate)</small>
+                        <small style="@ProcessPanelStyles.Label">@L["DueDate"]</small>
                     }
                     <DxDateEdit Date="@Model.DueDate" DateChanged="@((DateTime? d) => Model.DueDate = d)"
                                 Format="dd.MM.yyyy" style="@ControlStyle()" />
                 </div>
-                <div style="display:flex; flex-direction:column; gap:4px; @(_isMobile ? "width:100%;" : "flex:1; min-width:0;")">
+
+                @* Açıklama *@
+                @{
+                    // Üst satırın genişliğine tam hizalamak için gap'leri de (4px) dahil ederek hesaplıyoruz.
+                    // Adet gizliyse 616px, gösteriliyorsa 680px.
+                    int descWidth = _showAdet ? 680 : 616;
+                    
+                    // Varyant (240px + 4px gap) gizlenirse bu boşluk açıklamaya eklenmeli
+                    if (_variantOptions.Count <= 1)
+                    {
+                        descWidth += 244;
+                    }
+                }
+                <div style="@GroupStyle(descWidth)">
                     @if (_isMobile)
                     {
-                        <small style="@ProcessPanelStyles.Label">@nameof(VoucherLineDto.Description)</small>
+                        <small style="@ProcessPanelStyles.Label">@L["Description"]</small>
                     }
                     <DxTextBox @bind-Text="@Model.Description" CssClass="w-100" />
                 </div>
+
             </div>
         </div>
-
     </div>
     </div>
-
 </ProcessPanelBase>

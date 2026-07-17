@@ -25,6 +25,7 @@ public class VaultListDto : EntityDto<Guid>, IListDto<Guid>, IIsActive
     public bool IsActive { get; set; }
     public int DisplayOrder { get; set; }
     public int CurrentTransactionCount { get; set; }
+    public string BranchVaultCodeDisplay => $"{BranchCode} / {Code}";
 }
 
 /// <summary>
@@ -48,6 +49,9 @@ public class MyVaultDto : EntityDto<Guid>
     public string Name { get; set; } = string.Empty;
     public bool IsDefault { get; set; }
     public int DisplayOrder { get; set; }
+
+    /// <summary>Combo kapalı gösterimi: "ŞubeKodu / KasaKodu".</summary>
+    public string BranchVaultCodeDisplay => $"{BranchCode} / {Code}";
 
     /// <summary>Combo kapalı gösterimi: "ŞirketKodu / ŞubeKodu / KasaKodu".</summary>
     public string CompanyBranchVaultCode => $"{CompanyCode} / {BranchCode} / {Code}";

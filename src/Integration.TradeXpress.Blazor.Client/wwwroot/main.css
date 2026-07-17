@@ -897,11 +897,13 @@
 .custom-icon-bullion { background-image: url('/images/custom/bullion.svg'); background-color: transparent; -webkit-mask-image: none; mask-image: none; }
 .custom-icon-company { background-image: url('/images/custom/company.svg'); background-color: transparent; -webkit-mask-image: none; mask-image: none; }
 .custom-icon-branch { background-image: url('/images/custom/branch.svg'); background-color: transparent; -webkit-mask-image: none; mask-image: none; }
-.custom-icon-vault { background-image: url('/images/custom/vault.svg'); background-color: transparent; -webkit-mask-image: none; mask-image: none; }
+.custom-icon-vault { background-image: url('/images/custom/vault.svg?v=2'); background-color: transparent; -webkit-mask-image: none; mask-image: none; background-size: contain; background-repeat: no-repeat; background-position: center; }
 .custom-icon-country { background-image: url('/images/custom/country.svg'); background-color: transparent; -webkit-mask-image: none; mask-image: none; }
 .custom-icon-currency-unit { background-image: url('/images/custom/currency-unit.svg'); background-color: transparent; -webkit-mask-image: none; mask-image: none; }
 .custom-icon-account { background-image: url('/images/custom/account.svg'); background-color: transparent; -webkit-mask-image: none; mask-image: none; }
 .custom-icon-accounts { background-image: url('/images/custom/accounts.svg'); background-color: transparent; -webkit-mask-image: none; mask-image: none; }
+.custom-icon-select-vault { background-image: url('/images/custom/select-vault.svg'); background-color: transparent; -webkit-mask-image: none; mask-image: none; }
+.custom-icon-select-account { background-image: url('/images/custom/select-account.svg'); background-color: transparent; -webkit-mask-image: none; mask-image: none; }
 .custom-icon-currency-margin { background-image: url('/images/custom/currency-margin.svg'); background-color: transparent; -webkit-mask-image: none; mask-image: none; }
 .custom-icon-home { background-image: url('/images/custom/home.svg'); background-color: transparent; -webkit-mask-image: none; mask-image: none; }
 .custom-icon-identity { background-image: url('/images/custom/identity.svg'); background-color: transparent; -webkit-mask-image: none; mask-image: none; }
@@ -1056,3 +1058,6 @@
     min-width: 0 !important;
     width: 100% !important;
 }
+
+.custom-icon-tick-green { -webkit-mask-image: url('/images/custom/tick.svg'); mask-image: url('/images/custom/tick.svg'); background-color: #28a745 !important; background-image: none !important; }
+

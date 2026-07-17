@@ -13,13 +13,25 @@
 
 <DxFormLayout CssClass="w-100">
     <DxFormLayoutGroup Caption="@L["General"]" ColSpanMd="12">
+        @if (ShowBranchCombo)
+        {
+            <DxFormLayoutItem Caption="@($"{L["Branch"]} *")" ColSpanMd="12">
+                <LookupComboBox TItem="BranchListDto" TValue="Guid?"
+                                Data="@Branches"
+                                ValueFieldName="@nameof(BranchListDto.Id)"
+                                TextFieldName="@nameof(BranchListDto.Name)"
+                                Value="@(Model.BranchId == Guid.Empty ? null : Model.BranchId)"
+                                ValueChanged="@( (Guid? v) => Model.BranchId = v ?? Guid.Empty )"
+                                SearchFilterCondition="ListSearchFilterCondition.Contains"
+                                Enabled="@IsNew" />
+            </DxFormLayoutItem>
+        }
         <DxFormLayoutItem Caption="@($"{L["Code"]} *")" ColSpanMd="6">
             <DxTextBox @bind-Text="@Model.Code" Enabled="@IsNew" />
         </DxFormLayoutItem>
         <DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="12">
             <DxTextBox @bind-Text="@Model.Name" />
         </DxFormLayoutItem>
-        @* Şube combosu YOK: kasa her zaman bir şube bağlamında açılır (BranchId host'tan gelir, sabit). *@
         <DxFormLayoutItem ColSpanMd="6">
             <CaptionTemplate>
                 <InfoCaption Text="@L["IsDefault"].Value"
@@ -53,4 +65,6 @@
     [Parameter] public bool IsNew { get; set; }
     /// <summary>IsDefault switch'i etkin mi? Drill'de "tek varsayılan kapatılamaz" için host false geçirir.</summary>
     [Parameter] public bool IsDefaultEnabled { get; set; } = true;
+    [Parameter] public bool ShowBranchCombo { get; set; } = false;
+    [Parameter] public IEnumerable<BranchListDto>? Branches { get; set; }
 }
