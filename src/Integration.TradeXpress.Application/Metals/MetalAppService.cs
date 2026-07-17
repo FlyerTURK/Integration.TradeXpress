@@ -454,26 +454,34 @@ public class MetalAppService
 
     public virtual async Task<List<MetalVariantLookupDto>> GetVariantLookupAsync()
     {
-        // Adım 1: Metal+Varyant listesi (soft-delete filtreli)
-        var metalsQuery = await Repository.GetQueryableAsync();
-        var variantsQuery = await _entityVariantRepository.GetQueryableAsync();
+        // Metal entity'leri host-level (TenantId = NULL) saklanır.
+        // IMultiTenant filtresi aktifken EF Core → TenantId = @param üretir;
+        // param NULL ise SQL'de NULL = NULL → false → sıfır satır döner.
+        // GetPickerListAsync'teki aynı desen: Disable<IMultiTenant>() zorunlu.
+        List<(Guid CommodityId, string MetalCode, string MetalName, Guid VariantId, string VariantCode, string VariantName, bool IsQuantity, decimal StableQuantity)> rows;
+        using (DataFilter.Disable<Volo.Abp.MultiTenancy.IMultiTenant>())
+        {
+            var metalsQuery = await Repository.GetQueryableAsync();
+            var variantsQuery = await _entityVariantRepository.GetQueryableAsync();
 
-        var baseQuery = from metal in metalsQuery
-                        join variant in variantsQuery on metal.Id equals variant.EntityId
-                        where variant.EntityName == MetalEntityName && !variant.IsDeleted && !metal.IsDeleted
-                        select new
-                        {
-                            CommodityId   = metal.Id,
-                            MetalCode     = metal.Code,
-                            MetalName     = metal.Name,
-                            VariantId     = variant.Id,
-                            VariantCode   = variant.Code,
-                            VariantName   = variant.Name,
-                            IsQuantity    = metal.IsQuantity,
-                            StableQuantity = metal.StableQuantity
-                        };
+            var baseQuery = from metal in metalsQuery
+                            join variant in variantsQuery on metal.Id equals variant.EntityId
+                            where variant.EntityName == MetalEntityName && !variant.IsDeleted && !metal.IsDeleted
+                            select new
+                            {
+                                CommodityId    = metal.Id,
+                                MetalCode      = metal.Code,
+                                MetalName      = metal.Name,
+                                VariantId      = variant.Id,
+                                VariantCode    = variant.Code,
+                                VariantName    = variant.Name,
+                                IsQuantity     = metal.IsQuantity,
+                                StableQuantity = metal.StableQuantity
+                            };
 
-        var rows = await AsyncExecuter.ToListAsync(baseQuery);
+            var raw = await AsyncExecuter.ToListAsync(baseQuery);
+            rows = raw.Select(r => (r.CommodityId, r.MetalCode, r.MetalName, r.VariantId, r.VariantCode, r.VariantName, r.IsQuantity, r.StableQuantity)).ToList();
+        }
 
         // Adım 2: MetalVariantDetail (CompanyScoped — ayrı sorgu, filter disable)
         Dictionary<Guid, MetalVariantDetail> details;
@@ -492,18 +500,18 @@ public class MetalAppService
                 details.TryGetValue(r.VariantId, out var d);
                 return new MetalVariantLookupDto
                 {
-                    CommodityId    = r.CommodityId,
-                    MetalCode      = r.MetalCode,
-                    MetalName      = r.MetalName,
-                    VariantId      = r.VariantId,
-                    VariantCode    = r.VariantCode,
-                    VariantName    = r.VariantName,
-                    IsQuantity     = r.IsQuantity,
-                    StableQuantity = r.StableQuantity,
-                    LaborType      = d?.LaborType ?? MetalLaborType.Amount,
-                    EntryLabor     = d?.EntryLabor ?? 0m,
+                    CommodityId      = r.CommodityId,
+                    MetalCode        = r.MetalCode,
+                    MetalName        = r.MetalName,
+                    VariantId        = r.VariantId,
+                    VariantCode      = r.VariantCode,
+                    VariantName      = r.VariantName,
+                    IsQuantity       = r.IsQuantity,
+                    StableQuantity   = r.StableQuantity,
+                    LaborType        = d?.LaborType ?? MetalLaborType.Amount,
+                    EntryLabor       = d?.EntryLabor ?? 0m,
                     EntryLaborUnitId = d?.EntryLaborUnitId,
-                    ExitLabor      = d?.ExitLabor ?? 0m,
+                    ExitLabor        = d?.ExitLabor ?? 0m,
                     ExitLaborUnitId  = d?.ExitLaborUnitId,
                 };
             })
