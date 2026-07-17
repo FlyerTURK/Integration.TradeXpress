@@ -93,6 +93,7 @@ public class TradeXpressDbContext :
     public DbSet<Integration.TradeXpress.Products.Product> Products { get; set; } = null!;
     public DbSet<Integration.TradeXpress.Products.ProductVariantRecipeLine> ProductVariantRecipeLines { get; set; } = null!;
     public DbSet<Integration.TradeXpress.Products.ProductVariantDetail> ProductVariantDetails { get; set; } = null!;
+    public DbSet<Integration.TradeXpress.Metals.MetalVariantDetail> MetalVariantDetails { get; set; } = null!;
     public DbSet<Voucher> Vouchers { get; set; } = null!;
     public DbSet<VoucherLine> VoucherLines { get; set; } = null!;
     public DbSet<VoucherLineHistory> VoucherLineHistories { get; set; } = null!;
@@ -215,6 +216,7 @@ public class TradeXpressDbContext :
         builder.ConfigureGoodSuppliers();
         builder.ConfigureGoodVariantDetails();
         builder.ConfigureProductVariantDetails();
+        builder.ConfigureMetalVariantDetails();
         builder.ConfigureEntityVariants();
         builder.ConfigureSpecialCodes();
         builder.ConfigureEntityDocuments();

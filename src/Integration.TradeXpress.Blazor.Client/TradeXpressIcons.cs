@@ -11,7 +11,7 @@ public static class TradeXpressIcons
     // ── Org hiyerarşisi ──
     public const string Company = "custom-icon-company";
     public const string Branch = "custom-icon-branch";
-    public const string Vault = "custom-icon-vault";
+    public const string Vault = "custom-icon-select-vault";
 
     // ── Tanımlar ──
     public const string Country = "custom-icon-country";
@@ -97,4 +97,5 @@ public static class TradeXpressIcons
     public const string ChevronDown = "custom-icon-chevron-down";
     public const string Lightbulb = "custom-icon-lightbulb";
 }
+
 

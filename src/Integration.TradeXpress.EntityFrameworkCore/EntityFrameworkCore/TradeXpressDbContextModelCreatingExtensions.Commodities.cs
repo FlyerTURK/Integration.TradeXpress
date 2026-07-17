@@ -120,10 +120,6 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
                 MetalConsts.DecimalPrecision, MetalConsts.DecimalScale);
             b.Property(x => x.StableQuantity).HasPrecision(
                 MetalConsts.DecimalPrecision, MetalConsts.DecimalScale);
-            b.Property(x => x.EntryLabor).HasPrecision(
-                MetalConsts.DecimalPrecision, MetalConsts.DecimalScale);
-            b.Property(x => x.ExitLabor).HasPrecision(
-                MetalConsts.DecimalPrecision, MetalConsts.DecimalScale);
 
             // Temsili görsel — owned → JSON kolonu (TEK görsel; URL ya da blob referansı, Product.Images deseni).
             b.OwnsOne(x => x.Image, i =>

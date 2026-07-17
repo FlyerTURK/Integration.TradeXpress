@@ -2,10 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using Integration.TradeXpress.Financials.CurrencyUnits;
 using Integration.TradeXpress.Metals;
 using Integration.TradeXpress.Permissions;
+using Integration.TradeXpress.Variants;
 using Integration.TradeXpress.Products;
+using Integration.TradeXpress.Financials.CurrencyUnits;
 using Integration.TradeXpress.Reports;
 using Integration.TradeXpress.Vouchers;
 using Microsoft.AspNetCore.Authorization;
@@ -38,6 +39,8 @@ public class SubstitutionCalculationAppService : TradeXpressAppService, ISubstit
     private readonly IRepository<SubstitutionGroup, Guid> _groupRepository;
     private readonly IRepository<SubstitutionGroupItem, Guid> _itemRepository;
     private readonly IRepository<Metal, Guid> _metalRepository;
+    private readonly IRepository<EntityVariant, Guid> _entityVariantRepository;
+    private readonly IRepository<MetalVariantDetail, Guid> _metalVariantDetailRepository;
     private readonly IMetalReportAppService _metalReportAppService;
     private readonly IEffectivePriceAppService _effectivePriceAppService;
     private readonly ProductRecipeCostCalculator _recipeCostCalculator;
@@ -47,6 +50,8 @@ public class SubstitutionCalculationAppService : TradeXpressAppService, ISubstit
         IRepository<SubstitutionGroup, Guid> groupRepository,
         IRepository<SubstitutionGroupItem, Guid> itemRepository,
         IRepository<Metal, Guid> metalRepository,
+        IRepository<EntityVariant, Guid> entityVariantRepository,
+        IRepository<MetalVariantDetail, Guid> metalVariantDetailRepository,
         IMetalReportAppService metalReportAppService,
         IEffectivePriceAppService effectivePriceAppService,
         ProductRecipeCostCalculator recipeCostCalculator,
@@ -55,6 +60,8 @@ public class SubstitutionCalculationAppService : TradeXpressAppService, ISubstit
         _groupRepository          = groupRepository;
         _itemRepository           = itemRepository;
         _metalRepository          = metalRepository;
+        _entityVariantRepository  = entityVariantRepository;
+        _metalVariantDetailRepository = metalVariantDetailRepository;
         _metalReportAppService    = metalReportAppService;
         _effectivePriceAppService = effectivePriceAppService;
         _recipeCostCalculator     = recipeCostCalculator;
@@ -215,7 +222,23 @@ public class SubstitutionCalculationAppService : TradeXpressAppService, ISubstit
         var sellByUnit = valuation.ToDictionary(v => v.Id, v => v.Sell);
         var countryCode = valuation[0].BaseCurrencyCode;
 
-        var inputs = metals.Select(BuildPieceCostInput).ToList();
+        var metalIds = metals.Select(m => m.Id).ToList();
+        var variantsQuery = await _entityVariantRepository.GetQueryableAsync();
+        var detailsQuery = await _metalVariantDetailRepository.GetQueryableAsync();
+        
+        var laborDetails = await AsyncExecuter.ToListAsync(
+            from v in variantsQuery
+            join d in detailsQuery on v.Id equals d.EntityVariantId
+            where v.IsMain && metalIds.Contains(v.EntityId)
+            select new { v.EntityId, d.EntryLabor, d.EntryLaborUnitId, d.LaborType }
+        );
+        var laborDict = laborDetails.ToDictionary(x => x.EntityId, x => x);
+
+        var inputs = metals.Select(m => BuildPieceCostInput(m, 
+            laborDict.TryGetValue(m.Id, out var labor) ? labor.EntryLabor : 0m,
+            laborDict.TryGetValue(m.Id, out var laborU) ? laborU.EntryLaborUnitId : (Guid?)null,
+            laborDict.TryGetValue(m.Id, out var laborT) ? laborT.LaborType : MetalLaborType.Amount
+        )).ToList();
         var computed = _recipeCostCalculator.Compute(inputs, sellByUnit, countryCode);
 
         var unitCostByMetal = new Dictionary<Guid, decimal>(metals.Count);
@@ -249,7 +272,7 @@ public class SubstitutionCalculationAppService : TradeXpressAppService, ISubstit
     }
 
     /// <summary>1 adet parçayı reçete calculator satırına çevirir (Normal ödeme = metal + işçilik bacağı).</summary>
-    private static RecipeLineCostInput BuildPieceCostInput(Metal metal)
+    private static RecipeLineCostInput BuildPieceCostInput(Metal metal, decimal entryLabor, Guid? entryLaborUnitId, MetalLaborType laborType)
     {
         return new RecipeLineCostInput(
             RecipeComponentType.CatalogCommodity,
@@ -263,9 +286,9 @@ public class SubstitutionCalculationAppService : TradeXpressAppService, ISubstit
             EntryPrice: 0m,
             NaturalUnitId: metal.FollowingUnitId,
             PaymentType: ProcessPaymentType.Normal,
-            PayFactor: metal.EntryLabor,
-            PayUnitId: metal.EntryLaborUnitId,
-            LaborByQuantity: metal.LaborType == MetalLaborType.Quantity,
+            PayFactor: entryLabor,
+            PayUnitId: entryLaborUnitId,
+            LaborByQuantity: laborType == MetalLaborType.Quantity,
             ManualAmount: null,
             ManualUnitId: null);
     }

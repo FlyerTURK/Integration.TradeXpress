@@ -7,6 +7,7 @@ using Integration.TradeXpress.Jewelries;
 using Integration.TradeXpress.Metals;
 using Integration.TradeXpress.MultiCompany;
 using Integration.TradeXpress.Stones;
+using Integration.TradeXpress.Variants;
 using Integration.TradeXpress.Vouchers;
 using Volo.Abp;
 using Volo.Abp.Data;
@@ -35,6 +36,8 @@ public class RecipeCostPopulator : ITransientDependency
     private readonly IRepository<Metal, Guid> _metalRepository;
     private readonly IRepository<Jewelry, Guid> _jewelryRepository;
     private readonly IRepository<Stone, Guid> _stoneRepository;
+    private readonly IRepository<EntityVariant, Guid> _entityVariantRepository;
+    private readonly IRepository<MetalVariantDetail, Guid> _metalVariantDetailRepository;
     private readonly IDataFilter _dataFilter;
     private readonly IAsyncQueryableExecuter _asyncExecuter;
 
@@ -44,6 +47,8 @@ public class RecipeCostPopulator : ITransientDependency
         IRepository<Metal, Guid> metalRepository,
         IRepository<Jewelry, Guid> jewelryRepository,
         IRepository<Stone, Guid> stoneRepository,
+        IRepository<EntityVariant, Guid> entityVariantRepository,
+        IRepository<MetalVariantDetail, Guid> metalVariantDetailRepository,
         IDataFilter dataFilter,
         IAsyncQueryableExecuter asyncExecuter)
     {
@@ -52,6 +57,8 @@ public class RecipeCostPopulator : ITransientDependency
         _metalRepository = metalRepository;
         _jewelryRepository = jewelryRepository;
         _stoneRepository = stoneRepository;
+        _entityVariantRepository = entityVariantRepository;
+        _metalVariantDetailRepository = metalVariantDetailRepository;
         _dataFilter = dataFilter;
         _asyncExecuter = asyncExecuter;
     }
@@ -214,10 +221,23 @@ public class RecipeCostPopulator : ITransientDependency
         {
             if (metalIds.Length > 0)
             {
-                metals = (await _asyncExecuter.ToListAsync(
-                        (await _metalRepository.GetQueryableAsync()).Where(m => metalIds.Contains(m.Id))))
-                    .ToDictionary(m => m.Id, m => new MetalCatalogCost(
-                        m.IsQuantity, m.StableQuantity, m.LaborType == MetalLaborType.Quantity));
+                var metalsList = await _asyncExecuter.ToListAsync(
+                    (await _metalRepository.GetQueryableAsync()).Where(m => metalIds.Contains(m.Id)));
+
+                var variantsQuery = await _entityVariantRepository.GetQueryableAsync();
+                var detailsQuery = await _metalVariantDetailRepository.GetQueryableAsync();
+
+                var laborTypes = await _asyncExecuter.ToListAsync(
+                    from v in variantsQuery
+                    join d in detailsQuery on v.Id equals d.EntityVariantId
+                    where v.IsMain && metalIds.Contains(v.EntityId)
+                    select new { v.EntityId, d.LaborType }
+                );
+                var laborTypeDict = laborTypes.ToDictionary(x => x.EntityId, x => x.LaborType);
+
+                metals = metalsList.ToDictionary(m => m.Id, m => new MetalCatalogCost(
+                        m.IsQuantity, m.StableQuantity, 
+                        laborTypeDict.TryGetValue(m.Id, out var lt) ? lt == MetalLaborType.Quantity : false));
             }
 
             if (jewelryIds.Length > 0)

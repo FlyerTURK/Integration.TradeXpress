@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Linq.Expressions;
 using System.Threading.Tasks;
 using Integration.Framework;
@@ -9,10 +10,13 @@ using Integration.TradeXpress.Financials.CurrencyUnits;
 using Integration.TradeXpress.Permissions;
 using Integration.TradeXpress.Products;
 using Integration.TradeXpress.Variants;
+using Integration.TradeXpress.Vouchers;
 using Microsoft.AspNetCore.Authorization;
+using Volo.Abp.Application.Dtos;
 using Volo.Abp.BlobStoring;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.MultiTenancy;
+using Integration.TradeXpress.MultiCompany;
 
 namespace Integration.TradeXpress.Metals;
 
@@ -31,22 +35,95 @@ public class MetalAppService
 
     private readonly IBlobContainer<MetalImagesContainer> _imageContainer;
     private readonly CommodityAgnosticGraph _graph;
+    private readonly IRepository<MetalVariantDetail, Guid> _variantDetailRepository;
 
     public MetalAppService(
         IRepository<Metal, Guid> repository,
         IRepository<CurrencyUnit, Guid> unitRepository,
         IBlobContainer<MetalImagesContainer> imageContainer,
-        CommodityAgnosticGraph graph)
+        CommodityAgnosticGraph graph,
+        IRepository<MetalVariantDetail, Guid> variantDetailRepository)
         : base(repository, unitRepository)
     {
         _imageContainer = imageContainer;
         _graph = graph;
+        _variantDetailRepository = variantDetailRepository;
         // Katalog yönetimi izinli (okuma/liste serbest — [Authorize] yeter): combo ✎/+ görünürlüğüyle hizalı.
         CreatePolicyName = TradeXpressPermissions.Metals.Create;
         UpdatePolicyName = TradeXpressPermissions.Metals.Update;
         DeletePolicyName = TradeXpressPermissions.Metals.Delete;
     }
 
+    public override async Task<PagedResultDto<MetalListDto>> GetListAsync(MetalListRequestDto input)
+    {
+        var page = await base.GetListAsync(input);
+        
+        if (page.Items.Count > 0)
+        {
+            var mainVariants = await _graph.GetMainVariantMapAsync(MetalEntityName, page.Items.Select(d => d.Id).ToList());
+            if (mainVariants.Count > 0)
+            {
+                var vIds = mainVariants.Values.Distinct().ToList();
+                var details = (await AsyncExecuter.ToListAsync(
+                        (await _variantDetailRepository.GetQueryableAsync()).Where(d => vIds.Contains(d.EntityVariantId))))
+                    .ToDictionary(d => d.EntityVariantId);
+
+                foreach (var dto in page.Items)
+                {
+                    if (mainVariants.TryGetValue(dto.Id, out var vId) && details.TryGetValue(vId, out var d))
+                    {
+                        dto.LaborType = d.LaborType;
+                        dto.EntryLabor = d.EntryLabor;
+                        dto.EntryLaborUnitId = d.EntryLaborUnitId;
+                        dto.ExitLabor = d.ExitLabor;
+                        dto.ExitLaborUnitId = d.ExitLaborUnitId;
+                    }
+                    else
+                    {
+                        dto.LaborType = Integration.TradeXpress.Vouchers.MetalLaborType.Amount;
+                    }
+                }
+            }
+        }
+        
+        return page;
+    }
+
+    protected override async Task EnrichPickerListAsync(List<Metal> entities, List<MetalListDto> dtos)
+    {
+        await base.EnrichPickerListAsync(entities, dtos);
+        
+        if (dtos.Count > 0)
+        {
+            var mainVariants = await _graph.GetMainVariantMapAsync(MetalEntityName, dtos.Select(d => d.Id).ToList());
+            if (mainVariants.Count > 0)
+            {
+                var vIds = mainVariants.Values.Distinct().ToList();
+                using (DataFilter.Disable<ICompanyScoped>())
+                {
+                    var details = (await AsyncExecuter.ToListAsync(
+                            (await _variantDetailRepository.GetQueryableAsync()).Where(d => vIds.Contains(d.EntityVariantId))))
+                        .ToDictionary(d => d.EntityVariantId);
+
+                    foreach (var dto in dtos)
+                    {
+                        if (mainVariants.TryGetValue(dto.Id, out var vId) && details.TryGetValue(vId, out var d))
+                        {
+                            dto.LaborType = d.LaborType;
+                            dto.EntryLabor = d.EntryLabor;
+                            dto.EntryLaborUnitId = d.EntryLaborUnitId;
+                            dto.ExitLabor = d.ExitLabor;
+                            dto.ExitLaborUnitId = d.ExitLaborUnitId;
+                        }
+                        else
+                        {
+                            dto.LaborType = Integration.TradeXpress.Vouchers.MetalLaborType.Amount;
+                        }
+                    }
+                }
+            }
+        }
+    }
     protected override ISet<string> AllowedListFields { get; } =
         new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "Code", "Name", "IsActive", "Id" };
 
@@ -86,11 +163,7 @@ public class MetalAppService
         var entity = new Metal(
             createInput.Code, createInput.Name, createInput.FollowingUnitId!.Value,
             createInput.Factor, createInput.FactorChange,
-            createInput.IsQuantity, createInput.StableQuantity,
-            createInput.LaborType, createInput.LaborTypeChange,
-            createInput.EntryLabor, createInput.EntryLaborUnitId, createInput.EntryLaborChange,
-            createInput.ExitLabor, createInput.ExitLaborUnitId, createInput.ExitLaborChange,
-            createInput.CostUnitId);
+            createInput.IsQuantity, createInput.StableQuantity);
         entity.SetBarcode(createInput.Barcode);
         entity.SetDescription(createInput.Description);
         entity.SetImage(MapImage(createInput.Image));
@@ -122,11 +195,6 @@ public class MetalAppService
         entity.SetFactor(updateInput.Factor);
         entity.SetFactorChange(updateInput.FactorChange);
         entity.SetQuantityTracking(updateInput.IsQuantity, updateInput.StableQuantity);
-        entity.SetLabor(
-            updateInput.LaborType, updateInput.LaborTypeChange,
-            updateInput.EntryLabor, updateInput.EntryLaborUnitId, updateInput.EntryLaborChange,
-            updateInput.ExitLabor, updateInput.ExitLaborUnitId, updateInput.ExitLaborChange,
-            updateInput.CostUnitId);
         entity.SetBarcode(updateInput.Barcode);
         entity.SetDescription(updateInput.Description);
         entity.SetActive(updateInput.IsActive);
@@ -165,12 +233,40 @@ public class MetalAppService
             }
         }
 
-        // Agnostik graf (Doküman/Not + Nitelik/Varyant + varyant medyası) — ANA görsel OWNED tek (agnostik ana görsel yok).
         var graph = await _graph.LoadAsync(MetalEntityName, VariantImageEntityName, entity.Id);
         dto.Documents = graph.Documents;
         dto.Notes = graph.Notes;
         dto.Attributes = graph.Attributes;
-        dto.Variants = graph.Variants;
+
+        // Map agnostic variants to Metal-specific variants
+        var metalVariants = ObjectMapper.Map<List<EntityVariantGraphDto>, List<MetalVariantGraphDto>>(graph.Variants);
+
+        if (metalVariants.Any())
+        {
+            var variantIds = metalVariants.Select(x => x.Id).ToList();
+            var details = await AsyncExecuter.ToListAsync(
+                (await _variantDetailRepository.GetQueryableAsync()).Where(x => variantIds.Contains(x.EntityVariantId))
+            );
+            var detailDict = details.ToDictionary(x => x.EntityVariantId);
+
+            foreach (var v in metalVariants)
+            {
+                if (detailDict.TryGetValue(v.Id, out var d))
+                {
+                    v.LaborType = d.LaborType;
+                    v.EntryLabor = d.EntryLabor;
+                    v.EntryLaborUnitId = d.EntryLaborUnitId;
+                    v.ExitLabor = d.ExitLabor;
+                    v.ExitLaborUnitId = d.ExitLaborUnitId;
+                }
+                else
+                {
+                    v.LaborType = MetalLaborType.Amount;
+                }
+            }
+        }
+
+        dto.Variants = metalVariants;
     }
 
     protected override async Task EnrichListAsync(List<Metal> entities, List<MetalListDto> dtos)
@@ -185,12 +281,6 @@ public class MetalAppService
         }
     }
 
-    protected override Task EnrichPickerListAsync(List<Metal> entities, List<MetalListDto> dtos)
-    {
-        // Picker (combo) görsel çizmez ve sık çağrılır — satır başına blob sorgusu (N+1) + base64 payload'ı
-        // circuit'e taşımamak için görsel zenginleştirmesi ATLANIR (review bulgusu; FollowingUnitCode tabanda dolar).
-        return Task.CompletedTask;
-    }
 
     /// <summary>Liste önizleme URL'i — Url kaynağı doğrudan, Upload kaynağı thumbnail data-URL'i (yoksa null).</summary>
     private async Task<string?> BuildPreviewUrlAsync(Guid? ownerTenantId, MetalImage? image)
@@ -287,11 +377,22 @@ public class MetalAppService
     // Maden company-scoped DEĞİL → companyId null (varyant/nitelik tenant-geneli). Ana görsel OWNED tek (agnostik ana görsel yok).
     private Task SaveGraphAsync(
         Guid metalId, string ownerName, List<EntityDocumentEditDto> documents,
-        List<EntityNoteEditDto> notes, List<EntityAttributeGraphDto> attributes, List<EntityVariantGraphDto> variants)
+        List<EntityNoteEditDto> notes, List<EntityAttributeGraphDto> attributes, List<MetalVariantGraphDto> variants)
     {
         return _graph.SaveAsync(
             MetalEntityName, VariantImageEntityName, metalId, companyId: null, ownerName,
-            documents, notes, attributes, variants);
+            documents, notes, attributes, variants,
+            additionalSaveAction: (dto, variantId) => SaveVariantDetailAsync(null, (MetalVariantGraphDto)dto, variantId));
+    }
+
+    private async Task SaveVariantDetailAsync(Guid? companyId, MetalVariantGraphDto dto, Guid variantId)
+    {
+        var detail = await _variantDetailRepository.FirstOrDefaultAsync(x => x.EntityVariantId == variantId)
+            ?? new MetalVariantDetail(companyId, variantId);
+
+        detail.SetLabor(dto.LaborType, false, dto.EntryLabor, dto.EntryLaborUnitId, false, dto.ExitLabor, dto.ExitLaborUnitId, false, null);
+
+        await _variantDetailRepository.InsertAsync(detail, autoSave: false);
     }
 
     public virtual Task<List<EntityVariantGraphDto>> GenerateVariantsAsync(EntityVariantGenerateRequestDto input)
@@ -299,8 +400,45 @@ public class MetalAppService
         return Task.FromResult(_graph.GenerateVariants(input));
     }
 
-    public virtual Task<List<CommodityVariantOptionDto>> GetVariantPickerListAsync(Guid metalId)
+    public virtual async Task<List<CommodityVariantOptionDto>> GetVariantPickerListAsync(Guid metalId)
     {
-        return _graph.GetVariantPickerAsync(MetalEntityName, metalId);
+        var variants = await _graph.GetVariantPickerAsync(MetalEntityName, metalId);
+        if (variants.Count == 0)
+        {
+            return variants;
+        }
+
+        var ids = variants.Select(v => v.Id).ToList();
+        using (DataFilter.Disable<ICompanyScoped>())
+        {
+            var details = (await AsyncExecuter.ToListAsync(
+                    (await _variantDetailRepository.GetQueryableAsync()).Where(d => ids.Contains(d.EntityVariantId))))
+                .ToDictionary(d => d.EntityVariantId);
+
+            foreach (var v in variants)
+            {
+                if (details.TryGetValue(v.Id, out var d))
+                {
+                    v.LaborType = d.LaborType;
+                    v.EntryLabor = d.EntryLabor;
+                    v.EntryLaborUnitId = d.EntryLaborUnitId;
+                    v.ExitLabor = d.ExitLabor;
+                    v.ExitLaborUnitId = d.ExitLaborUnitId;
+                }
+                else
+                {
+                    v.LaborType = Integration.TradeXpress.Vouchers.MetalLaborType.Amount;
+                    v.EntryLabor = 0m;
+                    v.ExitLabor = 0m;
+                }
+            }
+        }
+
+        return variants;
     }
 }
+
+
+
+
+

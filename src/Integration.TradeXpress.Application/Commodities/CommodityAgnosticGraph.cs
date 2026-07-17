@@ -39,7 +39,8 @@ public class CommodityAgnosticGraph : ITransientDependency
     public async Task SaveAsync(
         string entityName, string variantImageEntityName, Guid entityId, Guid? companyId, string ownerName,
         List<EntityDocumentEditDto> documents, List<EntityNoteEditDto> notes,
-        List<EntityAttributeGraphDto> attributes, IReadOnlyList<EntityVariantGraphDto> variants)
+        List<EntityAttributeGraphDto> attributes, IReadOnlyList<EntityVariantGraphDto> variants,
+        Func<EntityVariantGraphDto, Guid, Task>? additionalSaveAction = null)
     {
         await _documents.ReplaceForAsync(entityName, entityId, documents);
         await _notes.ReplaceForAsync(entityName, entityId, notes);
@@ -51,6 +52,11 @@ public class CommodityAgnosticGraph : ITransientDependency
                 await _entityMedia.ReplaceForAsync(variantImageEntityName, variantId, companyId, dto.Media);
                 await _documents.ReplaceForAsync(variantImageEntityName, variantId, dto.Documents);
                 await _notes.ReplaceForAsync(variantImageEntityName, variantId, dto.Notes);
+
+                if (additionalSaveAction != null)
+                {
+                    await additionalSaveAction(dto, variantId);
+                }
             });
     }
 
@@ -106,6 +112,11 @@ public class CommodityAgnosticGraph : ITransientDependency
     public Task<List<CommodityVariantOptionDto>> GetVariantPickerAsync(string entityName, Guid entityId)
     {
         return _variants.GetActiveVariantOptionsAsync(entityName, entityId);
+    }
+
+    public Task<Dictionary<Guid, Guid>> GetMainVariantMapAsync(string entityName, IReadOnlyCollection<Guid> entityIds)
+    {
+        return _variants.GetMainVariantMapAsync(entityName, entityIds);
     }
 
     /// <summary>Liste grid thumbnail'leri — her sahip kaydın ANA varyantının VARSAYILAN medyasının poster'ı (tek batch; N+1 yok).</summary>

@@ -28,15 +28,6 @@ public class Metal : FullAuditedAggregateRoot<Guid>, IMultiTenant
         bool factorChange = false,
         bool isQuantity = false,
         decimal stableQuantity = 0m,
-        MetalLaborType laborType = MetalLaborType.Amount,
-        bool laborTypeChange = false,
-        decimal entryLabor = 0m,
-        Guid? entryLaborUnitId = null,
-        bool entryLaborChange = false,
-        decimal exitLabor = 0m,
-        Guid? exitLaborUnitId = null,
-        bool exitLaborChange = false,
-        Guid? costUnitId = null,
         bool isActive = true)
     {
         SetCode(code);
@@ -46,15 +37,6 @@ public class Metal : FullAuditedAggregateRoot<Guid>, IMultiTenant
         FactorChange     = factorChange;
         IsQuantity       = isQuantity;
         StableQuantity   = stableQuantity;
-        LaborType        = laborType;
-        LaborTypeChange  = laborTypeChange;
-        EntryLabor       = entryLabor;
-        EntryLaborUnitId = entryLaborUnitId;
-        EntryLaborChange = entryLaborChange;
-        ExitLabor        = exitLabor;
-        ExitLaborUnitId  = exitLaborUnitId;
-        ExitLaborChange  = exitLaborChange;
-        CostUnitId       = costUnitId;
         SetActive(isActive);
     }
 
@@ -80,16 +62,8 @@ public class Metal : FullAuditedAggregateRoot<Guid>, IMultiTenant
     /// <summary>Adet başına sabit miktar (gram). IsQuantity + &gt;0 ise Miktar = Adet × StableQuantity.</summary>
     public virtual decimal StableQuantity { get; protected set; }
 
-    // ── İşçilik ──
-    public virtual MetalLaborType LaborType { get; protected set; }
-    public virtual bool LaborTypeChange { get; protected set; }
-    public virtual decimal EntryLabor { get; protected set; }
-    public virtual Guid? EntryLaborUnitId { get; protected set; }
-    public virtual bool EntryLaborChange { get; protected set; }
-    public virtual decimal ExitLabor { get; protected set; }
-    public virtual Guid? ExitLaborUnitId { get; protected set; }
-    public virtual bool ExitLaborChange { get; protected set; }
-    public virtual Guid? CostUnitId { get; protected set; }
+    // (İşçilik varyant detayına taşındı)
+
 
     public virtual bool IsActive { get; protected set; }
 
@@ -139,22 +113,6 @@ public class Metal : FullAuditedAggregateRoot<Guid>, IMultiTenant
         Barcode = StringFieldGuard.EnsureOptionalText(barcode, nameof(Barcode), 0, MetalConsts.BarcodeMaxLength);
     }
 
-    public virtual void SetLabor(
-        MetalLaborType laborType, bool laborTypeChange,
-        decimal entryLabor, Guid? entryLaborUnitId, bool entryLaborChange,
-        decimal exitLabor, Guid? exitLaborUnitId, bool exitLaborChange,
-        Guid? costUnitId)
-    {
-        LaborType        = laborType;
-        LaborTypeChange  = laborTypeChange;
-        EntryLabor       = entryLabor;
-        EntryLaborUnitId = entryLaborUnitId;
-        EntryLaborChange = entryLaborChange;
-        ExitLabor        = exitLabor;
-        ExitLaborUnitId  = exitLaborUnitId;
-        ExitLaborChange  = exitLaborChange;
-        CostUnitId       = costUnitId;
-    }
 
     public virtual void SetQuantityTracking(bool isQuantity, decimal stableQuantity)
     {

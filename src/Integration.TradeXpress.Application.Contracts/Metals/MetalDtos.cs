@@ -43,18 +43,19 @@ public class MetalListDto : FollowingUnitCatalogListDtoBase
     public bool IsQuantity { get; set; }
     public decimal StableQuantity { get; set; }
 
-    public MetalLaborType LaborType { get; set; }
-    public bool LaborTypeChange { get; set; }
+    public Guid? CostUnitId { get; set; }
+
+    /// <summary>Grid önizlemesi — Url tipinde doğrudan URL, Upload'da thumbnail data-URL'i (sunucu doldurur).</summary>
+    public string? ImagePreviewUrl { get; set; }
+
+    // -- Variant-derived Labor properties --
+    public Integration.TradeXpress.Vouchers.MetalLaborType LaborType { get; set; }
     public decimal EntryLabor { get; set; }
     public Guid? EntryLaborUnitId { get; set; }
     public bool EntryLaborChange { get; set; }
     public decimal ExitLabor { get; set; }
     public Guid? ExitLaborUnitId { get; set; }
     public bool ExitLaborChange { get; set; }
-    public Guid? CostUnitId { get; set; }
-
-    /// <summary>Grid önizlemesi — Url tipinde doğrudan URL, Upload'da thumbnail data-URL'i (sunucu doldurur).</summary>
-    public string? ImagePreviewUrl { get; set; }
 }
 
 public class MetalGetDto : FollowingUnitCatalogGetDtoBase, IHasCode
@@ -74,14 +75,6 @@ public class MetalGetDto : FollowingUnitCatalogGetDtoBase, IHasCode
     public bool IsQuantity { get; set; }
     public decimal StableQuantity { get; set; }
 
-    public MetalLaborType LaborType { get; set; }
-    public bool LaborTypeChange { get; set; }
-    public decimal EntryLabor { get; set; }
-    public Guid? EntryLaborUnitId { get; set; }
-    public bool EntryLaborChange { get; set; }
-    public decimal ExitLabor { get; set; }
-    public Guid? ExitLaborUnitId { get; set; }
-    public bool ExitLaborChange { get; set; }
     public Guid? CostUnitId { get; set; }
 
     [StringLength(MetalConsts.BarcodeMaxLength)]
@@ -98,7 +91,7 @@ public class MetalGetDto : FollowingUnitCatalogGetDtoBase, IHasCode
     public List<EntityDocumentEditDto> Documents { get; set; } = new();
     public List<EntityNoteEditDto> Notes { get; set; } = new();
     public List<EntityAttributeGraphDto> Attributes { get; set; } = new();
-    public List<EntityVariantGraphDto> Variants { get; set; } = new();
+    public List<MetalVariantGraphDto> Variants { get; set; } = new();
 }
 
 public class MetalCreateDto : FollowingUnitCatalogCreateDtoBase
@@ -118,14 +111,6 @@ public class MetalCreateDto : FollowingUnitCatalogCreateDtoBase
     public bool IsQuantity { get; set; }
     public decimal StableQuantity { get; set; }
 
-    public MetalLaborType LaborType { get; set; }
-    public bool LaborTypeChange { get; set; }
-    public decimal EntryLabor { get; set; }
-    public Guid? EntryLaborUnitId { get; set; }
-    public bool EntryLaborChange { get; set; }
-    public decimal ExitLabor { get; set; }
-    public Guid? ExitLaborUnitId { get; set; }
-    public bool ExitLaborChange { get; set; }
     public Guid? CostUnitId { get; set; }
 
     [StringLength(MetalConsts.BarcodeMaxLength)]
@@ -140,7 +125,7 @@ public class MetalCreateDto : FollowingUnitCatalogCreateDtoBase
     public List<EntityDocumentEditDto> Documents { get; set; } = new();
     public List<EntityNoteEditDto> Notes { get; set; } = new();
     public List<EntityAttributeGraphDto> Attributes { get; set; } = new();
-    public List<EntityVariantGraphDto> Variants { get; set; } = new();
+    public List<MetalVariantGraphDto> Variants { get; set; } = new();
 }
 
 public class MetalUpdateDto : FollowingUnitCatalogUpdateDtoBase
@@ -161,14 +146,6 @@ public class MetalUpdateDto : FollowingUnitCatalogUpdateDtoBase
     public bool IsQuantity { get; set; }
     public decimal StableQuantity { get; set; }
 
-    public MetalLaborType LaborType { get; set; }
-    public bool LaborTypeChange { get; set; }
-    public decimal EntryLabor { get; set; }
-    public Guid? EntryLaborUnitId { get; set; }
-    public bool EntryLaborChange { get; set; }
-    public decimal ExitLabor { get; set; }
-    public Guid? ExitLaborUnitId { get; set; }
-    public bool ExitLaborChange { get; set; }
     public Guid? CostUnitId { get; set; }
 
     [StringLength(MetalConsts.BarcodeMaxLength)]
@@ -183,5 +160,15 @@ public class MetalUpdateDto : FollowingUnitCatalogUpdateDtoBase
     public List<EntityDocumentEditDto> Documents { get; set; } = new();
     public List<EntityNoteEditDto> Notes { get; set; } = new();
     public List<EntityAttributeGraphDto> Attributes { get; set; } = new();
-    public List<EntityVariantGraphDto> Variants { get; set; } = new();
+    public List<MetalVariantGraphDto> Variants { get; set; } = new();
 }
+
+public class MetalVariantGraphDto : EntityVariantGraphDto
+{
+    public MetalLaborType LaborType { get; set; }
+    public decimal EntryLabor { get; set; }
+    public Guid? EntryLaborUnitId { get; set; }
+    public decimal ExitLabor { get; set; }
+    public Guid? ExitLaborUnitId { get; set; }
+}
+

@@ -21,8 +21,15 @@ public class CommodityVariantOptionDto
     public decimal ExitPrice { get; set; }
     public Guid? ExitPriceUnitId { get; set; }
 
+    public Integration.TradeXpress.Vouchers.MetalLaborType LaborType { get; set; }
+    public decimal EntryLabor { get; set; }
+    public Guid? EntryLaborUnitId { get; set; }
+    public decimal ExitLabor { get; set; }
+    public Guid? ExitLaborUnitId { get; set; }
+
     public override string ToString()
     {
         return Code;
     }
 }
+

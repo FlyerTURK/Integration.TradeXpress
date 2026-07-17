@@ -4,7 +4,11 @@ using System.Linq;
 using System.Threading.Tasks;
 using Integration.Framework;
 using Integration.TradeXpress.Financials.CurrencyUnits;
+using Integration.TradeXpress.Variants;
+using Integration.TradeXpress.Metals;
 using Integration.TradeXpress.Vouchers;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Volo.Abp.Data;
 using Volo.Abp.DependencyInjection;
 using Volo.Abp.Domain.Repositories;
@@ -21,6 +25,8 @@ namespace Integration.TradeXpress.Metals;
 public class MetalSeeder(
     IRepository<Metal, Guid> metalRepository,
     IRepository<CurrencyUnit, Guid> currencyUnitRepository,
+    IRepository<EntityVariant, Guid> entityVariantRepository,
+    IRepository<MetalVariantDetail, Guid> metalVariantDetailRepository,
     IDataFilter dataFilter,
     IUnitOfWorkManager unitOfWorkManager)
     : ITransientDependency
@@ -100,16 +106,30 @@ public class MetalSeeder(
             if (existing.Contains(code.NormalizeAsCode())) continue;
             Guid? costUnitId = unitIdByCode.TryGetValue(costUnit, out var cu) ? cu : null;
 
-            await metalRepository.InsertAsync(
-                new Metal(
-                    code: code, name: name, followingUnitId: hasId,
-                    factor: factor, factorChange: factorChange,
-                    isQuantity: true, stableQuantity: stable,
-                    laborType: laborType, laborTypeChange: false,
-                    entryLabor: entry, entryLaborUnitId: hasId, entryLaborChange: true,
-                    exitLabor: exit, exitLaborUnitId: hasId, exitLaborChange: true,
-                    costUnitId: costUnitId),
-                autoSave: false);
+            var metal = new Metal(
+                code: code, name: name, followingUnitId: hasId,
+                factor: factor, factorChange: factorChange,
+                isQuantity: true, stableQuantity: stable);
+            await metalRepository.InsertAsync(metal, autoSave: false);
+
+            var variantCode = $"{code}-01";
+            var variant = new EntityVariant(
+                companyId: null,
+                entityName: "Metal",
+                entityId: metal.Id,
+                code: variantCode,
+                name: name,
+                isMain: true,
+                isActive: true);
+            await entityVariantRepository.InsertAsync(variant, autoSave: false);
+
+            var detail = new MetalVariantDetail(companyId: null, entityVariantId: variant.Id);
+            detail.SetLabor(
+                laborType: laborType, laborTypeChange: false,
+                entryLabor: entry, entryLaborUnitId: hasId, entryLaborChange: true,
+                exitLabor: exit, exitLaborUnitId: hasId, exitLaborChange: true,
+                costUnitId: costUnitId);
+            await metalVariantDetailRepository.InsertAsync(detail, autoSave: false);
         }
 
         await unitOfWorkManager.Current!.SaveChangesAsync();

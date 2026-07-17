@@ -218,7 +218,7 @@
                     <DxToolbarItem Text="@($"M-{L["Jewelry"].ToString().ToUpper()}")" IconCssClass="custom-icon-jewelry" Click="@OnJewelryClicked" Visible="@IsProcessVisible(ProcessType.Jewelry)" />
                     <DxToolbarItem Text="@($"U-{L["Good"].ToString().ToUpper()}")" IconCssClass="custom-icon-good" Click="@OnGoodClicked" Visible="@IsProcessVisible(ProcessType.Good)" />
                     <DxToolbarItem Text="@($"Ç-{L["Assay"].ToString().ToUpper()}")" IconCssClass="custom-icon-bullion" Click="@OnAssayClicked" Visible="@IsProcessVisible(ProcessType.Assay)" />
-                    <DxToolbarItem Text="@($"D-{L["DebitNote"].ToString().ToUpper()}")" IconCssClass="custom-icon-report" Click="@OnDebitNoteClicked" Visible="@IsProcessVisible(ProcessType.DebitNote)" />
+                    <DxToolbarItem Text="@L["DebitNote"].ToString().ToUpper()" IconCssClass="custom-icon-report" Click="@OnDebitNoteClicked" Visible="@IsProcessVisible(ProcessType.DebitNote)" />
                     <DxToolbarItem Text="@($"V-{L["Transfer"].ToString().ToUpper()}")" IconCssClass="custom-icon-convert" Click="@OnTransferClicked" Visible="@IsProcessVisible(ProcessType.Transfer)" />
                 </Items>
             </DxToolbarItem>

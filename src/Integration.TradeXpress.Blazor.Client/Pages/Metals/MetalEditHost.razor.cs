@@ -44,7 +44,7 @@ public partial class MetalEditHost
         m.Factor = 0.995m;
 
         // Nitelik×değer üretilince (GenerateVariants) liste değişir; üretilmezse save'de synchronizer bu main'i kalıcılaştırır.
-        m.Variants.Add(new EntityVariantGraphDto
+        m.Variants.Add(new MetalVariantGraphDto
         {
             IsMain = true,
             Code = EntityVariantConsts.MainVariantCode,
@@ -70,8 +70,19 @@ public partial class MetalEditHost
                 OwnerName = model.Name,
                 Attributes = model.Attributes,
             });
+            var generatedMetals = generated.Select(g => new MetalVariantGraphDto
+            {
+                Id = g.Id,
+                Code = g.Code,
+                Name = g.Name,
+                IsMain = g.IsMain,
+                IsActive = g.IsActive,
+                CombinationKey = g.CombinationKey,
+                AttributeSummary = g.AttributeSummary,
+                ClientKey = g.ClientKey
+            }).ToList();
 
-            VariantGraphMerge.Apply(model.Variants, generated);
+            VariantGraphMerge.Apply(model.Variants, generatedMetals);
         }
         catch (BusinessException bex)
         {
@@ -80,3 +91,5 @@ public partial class MetalEditHost
         }
     }
 }
+
+

@@ -789,3 +789,9 @@ public partial class MediaFolderToDtoMapper : MapperBase<MediaFolder, MediaFolde
     public override partial MediaFolderDto Map(MediaFolder source);
     public override partial void Map(MediaFolder source, MediaFolderDto destination);
 }
+
+[Mapper] public partial class EntityVariantGraphDtoToMetalVariantGraphDtoMapper : MapperBase<Integration.TradeXpress.Variants.EntityVariantGraphDto, Integration.TradeXpress.Metals.MetalVariantGraphDto>
+{
+    public override partial Integration.TradeXpress.Metals.MetalVariantGraphDto Map(Integration.TradeXpress.Variants.EntityVariantGraphDto source);
+    public override partial void Map(Integration.TradeXpress.Variants.EntityVariantGraphDto source, Integration.TradeXpress.Metals.MetalVariantGraphDto destination);
+}

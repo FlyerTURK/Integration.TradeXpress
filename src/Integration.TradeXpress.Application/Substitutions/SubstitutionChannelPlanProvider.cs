@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Integration.Framework;
 using Integration.TradeXpress.Metals;
 using Integration.TradeXpress.Products;
+using Integration.TradeXpress.Variants;
 using Integration.TradeXpress.Vouchers;
 using Volo.Abp;
 using Volo.Abp.Data;
@@ -34,19 +35,25 @@ public class SubstitutionChannelPlanProvider : ITransientDependency
 {
     private readonly ISubstitutionCalculationAppService _calculationAppService;
     private readonly IRepository<Metal, Guid> _metalRepository;
+    private readonly IRepository<EntityVariant, Guid> _entityVariantRepository;
+    private readonly IRepository<MetalVariantDetail, Guid> _metalVariantDetailRepository;
     private readonly IDataFilter _dataFilter;
     private readonly IAsyncQueryableExecuter _asyncExecuter;
 
     public SubstitutionChannelPlanProvider(
         ISubstitutionCalculationAppService calculationAppService,
         IRepository<Metal, Guid> metalRepository,
+        IRepository<EntityVariant, Guid> entityVariantRepository,
+        IRepository<MetalVariantDetail, Guid> metalVariantDetailRepository,
         IDataFilter dataFilter,
         IAsyncQueryableExecuter asyncExecuter)
     {
         _calculationAppService = calculationAppService;
-        _metalRepository       = metalRepository;
-        _dataFilter            = dataFilter;
-        _asyncExecuter         = asyncExecuter;
+        _metalRepository = metalRepository;
+        _entityVariantRepository = entityVariantRepository;
+        _metalVariantDetailRepository = metalVariantDetailRepository;
+        _dataFilter = dataFilter;
+        _asyncExecuter = asyncExecuter;
     }
 
     /// <summary>Hesabı koşar + planı kurar + plandaki madenleri çözer. Başarılı kombinasyon yoksa
@@ -233,16 +240,17 @@ public class SubstitutionChannelPlanProvider : ITransientDependency
     /// böylece StockItem NetCost'u hesap maliyetiyle aynı motordan aynı sonucu üretir). Her çağrı TAZE DTO listesi
     /// döner (Id boş = insert) — aynı plan kaydı birden çok StockItem'a uygulanabilir.</summary>
     public static List<ProductRecipeLineGraphDto> BuildRecipeLineDtos(
-        SubstitutionStockItemPlanItem item, IReadOnlyDictionary<Guid, Metal> metalById)
+        SubstitutionStockItemPlanItem item, IReadOnlyDictionary<Guid, (Metal Metal, decimal EntryLabor, Guid? EntryLaborUnitId)> metalById)
     {
         var lines = new List<ProductRecipeLineGraphDto>(item.RecipeLines.Count);
         for (var i = 0; i < item.RecipeLines.Count; i++)
         {
             var planLine = item.RecipeLines[i];
-            if (!metalById.TryGetValue(planLine.MetalId, out var metal))
+            if (!metalById.TryGetValue(planLine.MetalId, out var info))
             {
                 throw new BusinessException("TradeXpress:Substitution:MetalNotFound");
             }
+            var metal = info.Metal;
 
             lines.Add(new ProductRecipeLineGraphDto
             {
@@ -255,8 +263,8 @@ public class SubstitutionChannelPlanProvider : ITransientDependency
                 Factor               = metal.Factor,
                 ValuationUnitId      = metal.FollowingUnitId,
                 PaymentType          = ProcessPaymentType.Normal,
-                PayFactor            = metal.EntryLabor,
-                PayUnitId            = metal.EntryLaborUnitId,
+                PayFactor            = info.EntryLabor,
+                PayUnitId            = info.EntryLaborUnitId,
             });
         }
 
@@ -275,7 +283,8 @@ public class SubstitutionChannelPlanProvider : ITransientDependency
 
     /// <summary>Plandaki madenleri tek batch'te yükler — host (TenantId=null) katalog kaydı tenant altında da
     /// görünmeli (SubstitutionCalculationAppService/RecipeCostPopulator ile aynı desen). Eksik maden fail-fast.</summary>
-    private async Task<IReadOnlyDictionary<Guid, Metal>> LoadPlanMetalsAsync(SubstitutionStockItemPlan plan)
+    private async Task<IReadOnlyDictionary<Guid, (Metal Metal, decimal EntryLabor, Guid? EntryLaborUnitId)>> LoadPlanMetalsAsync(
+        SubstitutionStockItemPlan plan)
     {
         var metalIds = plan.Items
             .SelectMany(i => i.RecipeLines)
@@ -283,13 +292,27 @@ public class SubstitutionChannelPlanProvider : ITransientDependency
             .Distinct()
             .ToList();
 
-        Dictionary<Guid, Metal> metalById;
+        Dictionary<Guid, (Metal Metal, decimal EntryLabor, Guid? EntryLaborUnitId)> metalById;
         using (_dataFilter.Disable<IMultiTenant>())
         {
             var metals = await _asyncExecuter.ToListAsync(
                 (await _metalRepository.GetQueryableAsync()).Where(m => metalIds.Contains(m.Id)));
-            metalById = metals.ToDictionary(m => m.Id);
-        }
+            
+            var variantsQuery = await _entityVariantRepository.GetQueryableAsync();
+            var detailsQuery = await _metalVariantDetailRepository.GetQueryableAsync();
+            
+            var laborDetails = await _asyncExecuter.ToListAsync(
+                from v in variantsQuery
+                join d in detailsQuery on v.Id equals d.EntityVariantId
+                where v.IsMain && metalIds.Contains(v.EntityId)
+                select new { v.EntityId, d.EntryLabor, d.EntryLaborUnitId }
+            );
+        var laborDict = laborDetails.ToDictionary(x => x.EntityId, x => x);
+
+        metalById = metals.ToDictionary(m => m.Id, m => (m, 
+            laborDict.TryGetValue(m.Id, out var labor) ? labor.EntryLabor : 0m,
+            laborDict.TryGetValue(m.Id, out var laborU) ? laborU.EntryLaborUnitId : (Guid?)null));
+    }
 
         if (metalById.Count != metalIds.Count)
         {
@@ -303,7 +326,7 @@ public class SubstitutionChannelPlanProvider : ITransientDependency
 /// <summary>Köprü bağlamı — nötr plan + plandaki madenlerin çözülmüş katalog kayıtları.</summary>
 public sealed record SubstitutionChannelPlanContext(
     SubstitutionStockItemPlan Plan,
-    IReadOnlyDictionary<Guid, Metal> MetalById);
+    IReadOnlyDictionary<Guid, (Metal Metal, decimal EntryLabor, Guid? EntryLaborUnitId)> MetalById);
 
 /// <summary>Değer diff sonucu — plan↔mevcut değer eşlemeleri + artık plan dışı kalan (silinecek) değer id'leri.</summary>
 public sealed record SubstitutionCombinationValueDiff(
