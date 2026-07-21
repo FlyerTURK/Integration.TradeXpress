@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Integration.Framework.Blazor.Client;
 using Integration.Framework.Blazor.Client.Components.Crud;
 using Integration.Framework.Blazor.Client.Services.Base;
+using Integration.TradeXpress.EtsyProducts;
 using Integration.TradeXpress.N11Products;
 using Integration.TradeXpress.Products;
 using Integration.TradeXpress.SalesChannels;
@@ -27,6 +28,9 @@ public partial class ProductSalesChannelsPanel : CrudComponentBase
 
     /// <summary>Ürün grafındaki Trendyol kanal ürünleri (Model.SalesChannelTrendyolProducts) — in-memory düzenlenir.</summary>
     [Parameter, EditorRequired] public List<SalesChannelTrTrendyolProductDto> TrendyolItems { get; set; } = default!;
+
+    /// <summary>Ürün grafındaki Etsy kanal ürünleri (Model.SalesChannelEtsyProducts) — in-memory düzenlenir.</summary>
+    [Parameter, EditorRequired] public List<SalesChannelEtsyProductDto> EtsyItems { get; set; } = default!;
 
     /// <summary>Bağlı ürünün Id'si (kaydedilmişse dolu; yeni üründe Guid.Empty). Push/sync + create için.</summary>
     [Parameter] public Guid ProductId { get; set; }
@@ -52,10 +56,12 @@ public partial class ProductSalesChannelsPanel : CrudComponentBase
     // Reload (yeni graf listeleri) tespiti — kaynak liste referansı değişince _rows yeniden kurulur.
     private List<SalesChannelTrN11ProductDto>? _seededN11;
     private List<SalesChannelTrTrendyolProductDto>? _seededTrendyol;
+    private List<SalesChannelEtsyProductDto>? _seededEtsy;
 
     // Kanal AD çözümü + create'te otomatik kanal ataması (şirkette tip başına TEK kanal kuralı).
     private List<SalesChannelListDto> _n11Channels = new();
     private List<SalesChannelListDto> _trendyolChannels = new();
+    private List<SalesChannelListDto> _etsyChannels = new();
 
     protected override async Task OnInitializedAsync()
     {
@@ -63,15 +69,19 @@ public partial class ProductSalesChannelsPanel : CrudComponentBase
         var paged = await SalesChannelAppService.GetListAsync(new SalesChannelListRequestDto { MaxResultCount = 1000 });
         _n11Channels = paged.Items.Where(c => c.ChannelType == SalesChannelType.TrN11).ToList();
         _trendyolChannels = paged.Items.Where(c => c.ChannelType == SalesChannelType.TrTrendyol).ToList();
+        _etsyChannels = paged.Items.Where(c => c.ChannelType == SalesChannelType.Etsy).ToList();
     }
 
     protected override void OnParametersSet()
     {
         // Kaynak liste referansı değiştiyse (ilk bağlama ya da ürün reload'u) grid satırlarını yeniden kur.
-        if (!ReferenceEquals(_seededN11, N11Items) || !ReferenceEquals(_seededTrendyol, TrendyolItems))
+        if (!ReferenceEquals(_seededN11, N11Items)
+            || !ReferenceEquals(_seededTrendyol, TrendyolItems)
+            || !ReferenceEquals(_seededEtsy, EtsyItems))
         {
             _seededN11 = N11Items;
             _seededTrendyol = TrendyolItems;
+            _seededEtsy = EtsyItems;
             RebuildRows();
         }
     }
@@ -80,7 +90,7 @@ public partial class ProductSalesChannelsPanel : CrudComponentBase
     // FilterPredicate grid'de gizler ama graf diff'i için arka planda kalırlar).
     private void RebuildRows()
     {
-        _rows = new List<SalesChannelProductRow>(N11Items.Count + TrendyolItems.Count);
+        _rows = new List<SalesChannelProductRow>(N11Items.Count + TrendyolItems.Count + EtsyItems.Count);
         foreach (var n11 in N11Items)
         {
             _rows.Add(SalesChannelProductRow.ForN11(n11));
@@ -89,6 +99,11 @@ public partial class ProductSalesChannelsPanel : CrudComponentBase
         foreach (var trendyol in TrendyolItems)
         {
             _rows.Add(SalesChannelProductRow.ForTrendyol(trendyol));
+        }
+
+        foreach (var etsy in EtsyItems)
+        {
+            _rows.Add(SalesChannelProductRow.ForEtsy(etsy));
         }
     }
 
@@ -116,6 +131,12 @@ public partial class ProductSalesChannelsPanel : CrudComponentBase
                     Text = L["SalesChannelTrTrendyolProduct"],
                     IconCssClass = TradeXpressIcons.SalesChannel,
                     OnClick = StartNewTrendyolAsync,
+                },
+                new CrudToolbarAction
+                {
+                    Text = L["SalesChannelEtsyProduct"],
+                    IconCssClass = TradeXpressIcons.SalesChannel,
+                    OnClick = StartNewEtsyAsync,
                 },
             },
         },
@@ -146,6 +167,19 @@ public partial class ProductSalesChannelsPanel : CrudComponentBase
         }
 
         _drill?.StartNewItem(SalesChannelProductRow.ForTrendyol(BuildNewTrendyolDraft(channel.Id)));
+        return Task.CompletedTask;
+    }
+
+    private Task StartNewEtsyAsync()
+    {
+        var channel = _etsyChannels.FirstOrDefault();
+        if (channel is null)
+        {
+            UiService.ShowWarningToast(L["EtsyProduct:ChannelMissing"].Value);
+            return Task.CompletedTask;
+        }
+
+        _drill?.StartNewItem(SalesChannelProductRow.ForEtsy(BuildNewEtsyDraft(channel.Id)));
         return Task.CompletedTask;
     }
 
@@ -206,6 +240,35 @@ public partial class ProductSalesChannelsPanel : CrudComponentBase
         return draft;
     }
 
+    /// <summary>Etsy kanal ürünü taslağı — ürün-genel varsayılanlardan create-copy. Etsy-özel alanlar
+    /// (taksonomi/etiket/malzeme/kargo profili) BOŞ bırakılır (kullanıcı edit formunda doldurur); listeleme türü
+    /// varsayılan Physical.</summary>
+    private SalesChannelEtsyProductDto BuildNewEtsyDraft(Guid salesChannelId)
+    {
+        var draft = new SalesChannelEtsyProductDto
+        {
+            ProductId = ProductId,
+            SalesChannelId = salesChannelId,
+            ListingType = EtsyListingType.Physical,
+            PreparingDay = 1,
+            IsActive = true,
+        };
+
+        if (ProductDefaults is { } p)
+        {
+            draft.DescriptionOverride = p.Description;
+            draft.SellerNote = p.SellerNote;
+            draft.CurrencyUnitId = p.CurrencyUnitId;
+            draft.PreparingDay = p.PreparingDay;
+            // Özel bilgi listesi kopyalanır (yeni DTO satırları; ClientKey ctor'da üretilir) — referans paylaşılmaz.
+            draft.SpecialInfo = p.SpecialInfo
+                .Select(s => new SalesChannelEtsyProductSpecialInfoDto { Key = s.Key, Value = s.Value })
+                .ToList();
+        }
+
+        return draft;
+    }
+
     // Built-in Yeni (AllowAdd=false → gizli) + Kaydet&Yeni için gereken factory; pratikte kullanılmaz (split akışı esas).
     private SalesChannelProductRow NewRowFactory()
     {
@@ -249,6 +312,18 @@ public partial class ProductSalesChannelsPanel : CrudComponentBase
                 TrendyolItems.Add(trendyol);
             }
         }
+        else if (row.Etsy is { } etsy)
+        {
+            var idx = EtsyItems.FindIndex(x => x.ClientKey == etsy.ClientKey);
+            if (idx >= 0)
+            {
+                EtsyItems[idx] = etsy;
+            }
+            else
+            {
+                EtsyItems.Add(etsy);
+            }
+        }
     }
 
     // Silinen satırı grafa yansıt: YENİ (Id boş, hiç kaydedilmemiş) → kaynak listeden TAMAMEN çıkar. MEVCUT → MarkDeleted
@@ -268,6 +343,10 @@ public partial class ProductSalesChannelsPanel : CrudComponentBase
         {
             TrendyolItems.RemoveAll(x => x.ClientKey == trendyol.ClientKey);
         }
+        else if (row.Etsy is { } etsy)
+        {
+            EtsyItems.RemoveAll(x => x.ClientKey == etsy.ClientKey);
+        }
     }
 
     // ── Durum metni (grid Status kolonu) — tipe göre (iki eski panelin StatusTextOf'undan). ──
@@ -275,6 +354,11 @@ public partial class ProductSalesChannelsPanel : CrudComponentBase
     {
         if (row.Id == Guid.Empty)
         {
+            if (row.IsEtsy)
+            {
+                return L["EtsyProduct:NotSaved"].Value;
+            }
+
             return (row.IsN11 ? L["N11Product:NotSaved"] : L["TrendyolProduct:NotSaved"]).Value;
         }
 
@@ -287,6 +371,17 @@ public partial class ProductSalesChannelsPanel : CrudComponentBase
             }
 
             return $"{n11.SaleStatus} / {n11.ApprovalStatus}";
+        }
+
+        if (row.IsEtsy)
+        {
+            var etsy = row.Etsy!;
+            if (!etsy.EtsyListingId.HasValue)
+            {
+                return L["EtsyProduct:NotSent"].Value;
+            }
+
+            return etsy.ListingState ?? string.Empty;
         }
 
         var trendyol = row.Trendyol!;

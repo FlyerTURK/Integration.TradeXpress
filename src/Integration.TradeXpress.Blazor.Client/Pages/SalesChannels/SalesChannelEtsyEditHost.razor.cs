@@ -25,10 +25,25 @@ public partial class SalesChannelEtsyEditHost
 
     private ICommitCoordinator<SalesChannelEtsyGetDto, SalesChannelListDto, Guid, SalesChannelListRequestDto>? _coordinator;
 
+    // Create-success işareti — layout'a AutoRun olarak akar; ChannelProvisioningPanel İLK görünümünde kanal kurulumunu
+    // (kategori ağacı + kargo profili reachability + ürün importu) kendisi başlatır (adım-adım rapor panelde). Kanal
+    // create'te sunucuda ZATEN doğrulanır; update yolunda ASLA tetiklenmez (OnAfterCreate yalnız yeni kayıtta çalışır).
+    // Not: OAuth henüz yapılmadıysa shop-scoped adımlar dostane "atlandı" olur (kullanıcı "Etsy'ye Bağlan"dan sonra
+    // "Yeniden Kur"a basar).
+    private bool _autoImportProducts;
+
     protected override void OnInitialized()
     {
         _coordinator = new PersistentCoordinator<SalesChannelEtsyGetDto, SalesChannelListDto, Guid, SalesChannelListRequestDto, SalesChannelEtsyCreateDto, SalesChannelEtsyUpdateDto>(
             AppService, Mapper);
+    }
+
+    /// <summary>Kanal BAŞARIYLA oluşturuldu (create-success) — import işaretini kur; re-render'da panel görünür olur
+    /// ve importu otomatik başlatır (Trendyol OnChannelCreatedAsync ikizi).</summary>
+    private Task OnChannelCreatedAsync(SalesChannelEtsyGetDto _)
+    {
+        _autoImportProducts = true;
+        return Task.CompletedTask;
     }
 
     protected override void OnAfterRender(bool firstRender)

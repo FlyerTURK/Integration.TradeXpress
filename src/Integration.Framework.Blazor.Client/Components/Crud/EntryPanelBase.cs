@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Components;
 
@@ -46,11 +47,15 @@ public abstract class EntryPanelBase<TItem> : CrudComponentBase
     /// <summary>Kaydet sonrası SIRADAKİ draft (seri giriş): uçucu alanlar sıfır, sınıflandırma/seçimler korunur.</summary>
     protected abstract TItem CreateNextDraft(TItem saved);
 
+    // Açılış anındaki draft JSON'u — Reset (standart toolbar) bunu geri yükler.
+    private string? _draftSnapshot;
+
     /// <summary>Yeni öğe draft'ı ile paneli açar (toolbar butonu çağırır).</summary>
     protected void OpenDraft(TItem draft)
     {
         EditingItem = null;
         Draft = draft;
+        _draftSnapshot = SnapshotOf(draft);
     }
 
     /// <summary>Mevcut öğeyi düzenlemeye alır — draft = KOPYA (orijinal Kaydet'e dek değişmez).</summary>
@@ -58,6 +63,41 @@ public abstract class EntryPanelBase<TItem> : CrudComponentBase
     {
         EditingItem = item;
         Draft = CloneItem(item);
+        _draftSnapshot = SnapshotOf(Draft);
+    }
+
+    /// <summary>Draft'ı açılış anındaki haline geri yükler (standart toolbar "Reset"). Snapshot yoksa no-op.</summary>
+    protected void ResetDraft()
+    {
+        if (_draftSnapshot is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var restored = JsonSerializer.Deserialize<TItem>(_draftSnapshot);
+            if (restored != null)
+            {
+                Draft = restored;
+            }
+        }
+        catch
+        {
+            // Serileştirme başarısızsa mevcut draft'ı bırak (fail-safe).
+        }
+    }
+
+    private static string? SnapshotOf(TItem item)
+    {
+        try
+        {
+            return JsonSerializer.Serialize(item);
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     /// <summary>Draft'ı ATAR (iptal) — panel kapanır, toolbar döner; düzenlenen orijinal DEĞİŞMEMİŞ kalır.</summary>
@@ -88,6 +128,28 @@ public abstract class EntryPanelBase<TItem> : CrudComponentBase
 
         EditingItem = null;
         Draft = CreateNextDraft(draft);
+    }
+
+    /// <summary>Draft'ı uygular (yeni → ekle, düzenleme → güncelle) + <see cref="OnChanged"/> + paneli KAPATIR
+    /// (Kaydet = uygula &amp; kapat; seri-giriş YOK). Seri-giriş isteyen panel <see cref="SaveDraftAsync"/> kullanır.</summary>
+    protected async Task SaveDraftAndCloseAsync()
+    {
+        if (Draft is not { } draft)
+        {
+            return;
+        }
+
+        if (EditingItem is { } target)
+        {
+            ApplyDraft(draft, target);
+        }
+        else
+        {
+            ItemsSource.Add(draft);
+        }
+
+        await OnChanged.InvokeAsync();
+        CloseDraft();
     }
 
     /// <summary>Öğe silindiğinde çağrılır: silinen öğe düzenleniyorduysa draft da atılır + değişiklik bildirilir.

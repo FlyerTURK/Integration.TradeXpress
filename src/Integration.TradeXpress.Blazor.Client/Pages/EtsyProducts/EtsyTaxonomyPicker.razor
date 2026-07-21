@@ -1,0 +1,55 @@
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@* Etsy taksonomi (kategori) seçici — İKİ mod (kullanıcı geçebilir):
+   1. "Arama" (LookupEdit): min 3 harf → sunucudan yaprak kategoriler TAM YOL adıyla; liste ön-yüklenmez.
+   2. "Ağaç" (cascade DxComboBox'lar): kökten zincir; her seçimde alt combo GetChildrenAsync ile dolar. Yaprak (IsLeaf)
+      seçilince zincir biter (alt combo yok) + tam yol callback'e gider. Üst combo değişince alt combolar sıfırlanır.
+   Etsy taksonomisi derin+büyük olduğundan cascade özellikle değerli. Her iki mod da AYNI OnLeafSelected callback'ini
+   besler. TrendyolCategoryPicker ikizi (Etsy taxonomy dış id string). *@
+
+<DxTabs ActiveTabIndex="@_activeMode" ActiveTabIndexChanged="@OnModeChangedAsync">
+    <DxTabPage Text="@L["EtsyProduct:TaxonomySearchMode"]">
+        <div class="pt-2">
+            <LookupEdit TItem="EtsyLeafCategoryDto" TValue="string"
+                        Data="@_results"
+                        ValueFieldName="@nameof(EtsyLeafCategoryDto.ExternalId)"
+                        TextFieldName="@nameof(EtsyLeafCategoryDto.FullPathName)"
+                        Value="@SelectedExternalId"
+                        ValueChanged="@OnTaxonomyChangedAsync"
+                        SelectedDisplayText="@SelectedName"
+                        OnSearch="@OnSearchAsync"
+                        SearchMinLength="3"
+                        SearchPlaceholder="@L["EtsyProduct:SelectTaxonomy"].Value"
+                        Title="@L["EtsyProduct:Taxonomy"].Value"
+                        NullText="@L["EtsyProduct:SelectTaxonomy"].Value"
+                        AllowClear="true" />
+        </div>
+    </DxTabPage>
+
+    <DxTabPage Text="@L["EtsyProduct:TaxonomyTreeMode"]">
+        @* Zincir combolar — her seviye bir DxComboBox; alt seviyeler seçime göre eklenir/sıfırlanır. *@
+        <div class="pt-2" style="display:flex; flex-direction:column; gap:0.5rem;">
+            @for (var i = 0; i < _levels.Count; i++)
+            {
+                var index = i;
+                var level = _levels[i];
+                <DxComboBox TData="EtsyTaxonomyTreeNodeDto" TValue="string"
+                            Data="@level.Options"
+                            ValueFieldName="@nameof(EtsyTaxonomyTreeNodeDto.ExternalId)"
+                            TextFieldName="@nameof(EtsyTaxonomyTreeNodeDto.Name)"
+                            Value="@level.SelectedExternalId"
+                            ValueChanged="@(async (string? v) => await OnLevelChangedAsync(index, v))"
+                            NullText="@L["EtsyProduct:SelectTaxonomyLevel"].Value"
+                            ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto"
+                            ValidationEnabled="false"
+                            CssClass="w-100" />
+            }
+
+            @* Yaprağa inilmediyse uyarı (ara seviyede kalındı → henüz geçerli taksonomi yok). *@
+            @if (_levels.Count > 0 && !_treeReachedLeaf)
+            {
+                <span style="color:#6c757d; font-size:0.85rem;">@L["EtsyProduct:TaxonomyLeafRequiredHint"]</span>
+            }
+        </div>
+    </DxTabPage>
+</DxTabs>

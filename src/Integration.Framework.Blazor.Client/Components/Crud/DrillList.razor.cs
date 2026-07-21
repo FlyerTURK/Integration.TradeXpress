@@ -565,6 +565,11 @@ public partial class DrillList<TItem> where TItem : class
     void ISplitEditActions.NotifyInput() { }
     void ISplitEditActions.CommitUndoStep() { }
 
+    // List toolbar'ın custom aksiyonları (public CustomActions parametresi) EDIT toolbar'ına SIZMASIN. EditToolbar
+    // E.CustomActions'ı da basar; public CustomActions ISplitEditActions.CustomActions'ı (aynı ad → implicit) karşıladığı
+    // için list aksiyonları edit popup'ında da görünürdü. Explicit null → list aksiyonları YALNIZ list toolbar'da.
+    IReadOnlyList<CrudToolbarAction>? ISplitEditActions.CustomActions => null;
+
     // Kapanma ÖNCESİ (Closing): kullanıcı kapanışında (X/Escape) kirli ise onay; reddedilirse iptal → açık kal.
     private async Task OnPopupClosing(PopupClosingEventArgs args)
     {

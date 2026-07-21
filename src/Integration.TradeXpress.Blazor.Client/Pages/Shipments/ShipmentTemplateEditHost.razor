@@ -1,0 +1,20 @@
+@page "/shipment-templates/new"
+@page "/shipment-templates/{Id:guid}"
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@*
+   ShipmentTemplate edit host = İNCE SARMAL: coordinator + sunum. Commit/save/delete/close generic CrudEditHost'ta.
+   Agnostic CrudEditHost + dumb ShipmentTemplateLayout. Company-owned (sunucu CompanyId zorlar). Dış lookup verisi
+   YOK — menşei/iade adresi form içinde düz metin (kanal-nötr çekirdek).
+*@
+
+@if (_coordinator != null && _ready)
+{
+    <CrudEditHost TGetDto="ShipmentTemplateGetDto" TListDto="ShipmentTemplateListDto" TKey="Guid" TListRequestDto="ShipmentTemplateListRequestDto"
+                  Coordinator="@_coordinator" Id="@(Id ?? Guid.Empty)" IsPopupMode="@IsPopupMode" OnSaved="@OnSaved" OnClosed="@OnClosed"
+                  FormCaption="@L["ShipmentTemplate"].Value" IconCssClass="@TradeXpressIcons.ShipmentTemplate"
+                  EntityValue="@(m => m.Code)"
+                  ApplyNewDefaults="@(m => ApplyNew(m))">
+        <ShipmentTemplateLayout Model="@context" IsNew="@(context.Id == Guid.Empty)" Carriers="@_carriers" />
+    </CrudEditHost>
+}

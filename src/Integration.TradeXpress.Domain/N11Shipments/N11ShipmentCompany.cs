@@ -35,6 +35,10 @@ public class N11ShipmentCompany : FullAuditedAggregateRoot<Guid>
     /// <summary>Kısa kod (ör. ARAS, YK).</summary>
     public string ShortName { get; protected set; } = string.Empty;
 
+    /// <summary>Çekirdek kargo firmasına gevşek köprü — eşlenen <see cref="Shipments.Carrier"/> id'si (nav YOK;
+    /// N11 çekirdeği BİLMEZ). CarrierSeeder doldurur; null = henüz eşlenmedi.</summary>
+    public Guid? CoreCarrierId { get; protected set; }
+
     #endregion
 
     #region Methods
@@ -47,6 +51,12 @@ public class N11ShipmentCompany : FullAuditedAggregateRoot<Guid>
     public virtual void SetShortName(string shortName)
     {
         ShortName = StringFieldGuard.EnsureRequiredText(shortName, nameof(ShortName), 1, N11ShipmentConsts.ShortNameMaxLength);
+    }
+
+    /// <summary>Çekirdek kargo firması köprüsünü set eder (boş Guid → null). CarrierSeeder çağırır.</summary>
+    public virtual void SetCoreCarrier(Guid? carrierId)
+    {
+        CoreCarrierId = carrierId == Guid.Empty ? null : carrierId;
     }
 
     public override string ToString()

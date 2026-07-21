@@ -23,6 +23,8 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
             b.Property(x => x.CityId).IsRequired().HasMaxLength(N11CityConsts.CodeMaxLength);
             b.Property(x => x.Name).IsRequired().HasMaxLength(N11CityConsts.NameMaxLength);
             b.HasIndex(x => x.CityCode).IsUnique().HasFilter("[IsDeleted] = 0");
+            // Çekirdek coğrafyaya gevşek köprü (nullable) — eşleme sorgusunu hızlandırır.
+            b.HasIndex(x => x.CoreAdministrativeAreaId);
         });
 
         builder.Entity<N11District>(b =>
@@ -34,6 +36,8 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
             b.Property(x => x.Name).IsRequired().HasMaxLength(N11CityConsts.NameMaxLength);
             b.HasIndex(x => x.DistrictId).IsUnique().HasFilter("[IsDeleted] = 0");
             b.HasIndex(x => x.CityCode);
+            // Çekirdek coğrafyaya gevşek köprü (nullable) — eşleme sorgusunu hızlandırır.
+            b.HasIndex(x => x.CoreLocalityId);
         });
     }
 }

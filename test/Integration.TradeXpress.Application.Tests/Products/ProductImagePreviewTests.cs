@@ -42,6 +42,7 @@ public abstract class ProductImagePreviewTests<TStartupModule> : TradeXpressAppl
             {
                 FileName = "test.png",
                 Content = TinyPng,
+                ProductCode = "IMGUP",
             });
 
             var uploadProduct = await _productAppService.CreateAsync(new ProductCreateDto

@@ -31,8 +31,11 @@ public class ProductImageAppService : TradeXpressAppService, IProductImageAppSer
         await ImageUploadPipeline.EnsureCanUploadAsync(
             AuthorizationService, TradeXpressPermissions.Products.Create, TradeXpressPermissions.Products.Update);
 
-        var uploaded = await ImageUploadPipeline.UploadAsync(
-            _container, GuidGenerator, input.FileName, input.Content, ProductConsts.MaxImageSizeBytes, ErrorCodePrefix);
+        // Blob adı artık path anahtarı: "Products/{ÜrünKodu}[/{VaryantKodu}]/GORSEL0001.ext" — sunucu ilk boş
+        // sırayı probe eder (aynı klasöre tekrar yükleme çakışmaz).
+        var folder = ProductImageBlobPath.Folder(input.ProductCode, input.VariantCode);
+        var uploaded = await ImageUploadPipeline.UploadToFolderAsync(
+            _container, folder, input.FileName, input.Content, ProductConsts.MaxImageSizeBytes, ErrorCodePrefix);
 
         return new ProductImageUploadResultDto
         {

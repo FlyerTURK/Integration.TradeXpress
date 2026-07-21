@@ -34,10 +34,12 @@ public class OrderSyncManager : DomainService
     private readonly IRepository<OrderLine, Guid> _orderLineRepository;
     private readonly IRepository<SalesChannelTrN11, Guid> _n11ChannelRepository;
     private readonly IRepository<SalesChannelTrTrendyol, Guid> _trendyolChannelRepository;
+    private readonly IRepository<SalesChannelEtsy, Guid> _etsyChannelRepository;
     private readonly IRepository<CurrencyUnit, Guid> _currencyUnitRepository;
     private readonly IRepository<Tenant, Guid> _tenantRepository;
     private readonly IN11OrderClient _n11OrderClient;
     private readonly ITrendyolOrderClient _trendyolOrderClient;
+    private readonly IEtsyOrderClient _etsyOrderClient;
     private readonly OrderLineProductMatcher _productMatcher;
     private readonly IDataFilter _dataFilter;
     private readonly IUnitOfWorkManager _uowManager;
@@ -51,10 +53,12 @@ public class OrderSyncManager : DomainService
         IRepository<OrderLine, Guid> orderLineRepository,
         IRepository<SalesChannelTrN11, Guid> n11ChannelRepository,
         IRepository<SalesChannelTrTrendyol, Guid> trendyolChannelRepository,
+        IRepository<SalesChannelEtsy, Guid> etsyChannelRepository,
         IRepository<CurrencyUnit, Guid> currencyUnitRepository,
         IRepository<Tenant, Guid> tenantRepository,
         IN11OrderClient n11OrderClient,
         ITrendyolOrderClient trendyolOrderClient,
+        IEtsyOrderClient etsyOrderClient,
         OrderLineProductMatcher productMatcher,
         IDataFilter dataFilter,
         IUnitOfWorkManager uowManager,
@@ -64,10 +68,12 @@ public class OrderSyncManager : DomainService
         _orderLineRepository = orderLineRepository;
         _n11ChannelRepository = n11ChannelRepository;
         _trendyolChannelRepository = trendyolChannelRepository;
+        _etsyChannelRepository = etsyChannelRepository;
         _currencyUnitRepository = currencyUnitRepository;
         _tenantRepository = tenantRepository;
         _n11OrderClient = n11OrderClient;
         _trendyolOrderClient = trendyolOrderClient;
+        _etsyOrderClient = etsyOrderClient;
         _productMatcher = productMatcher;
         _dataFilter = dataFilter;
         _uowManager = uowManager;
@@ -107,11 +113,12 @@ public class OrderSyncManager : DomainService
             {
                 var n11Channels = await AsyncExecuter.ToListAsync(await _n11ChannelRepository.GetQueryableAsync());
                 var trendyolChannels = await AsyncExecuter.ToListAsync(await _trendyolChannelRepository.GetQueryableAsync());
+                var etsyChannels = await AsyncExecuter.ToListAsync(await _etsyChannelRepository.GetQueryableAsync());
 
-                if (n11Channels.Count > 0 || trendyolChannels.Count > 0)
+                if (n11Channels.Count > 0 || trendyolChannels.Count > 0 || etsyChannels.Count > 0)
                 {
-                    Logger.LogInformation("Sipariş seed: tenant {Tenant} → {N11} N11 + {Trendyol} Trendyol kanal.",
-                        tenantId, n11Channels.Count, trendyolChannels.Count);
+                    Logger.LogInformation("Sipariş seed: tenant {Tenant} → {N11} N11 + {Trendyol} Trendyol + {Etsy} Etsy kanal.",
+                        tenantId, n11Channels.Count, trendyolChannels.Count, etsyChannels.Count);
                 }
 
                 foreach (var channel in n11Channels)
@@ -124,6 +131,12 @@ public class OrderSyncManager : DomainService
                 {
                     await SeedChannelIfEmptyAsync(channel.Id, channel.CompanyId,
                         () => StreamTrendyolChannelAsync(channel, report, cancellationToken), "Trendyol");
+                }
+
+                foreach (var channel in etsyChannels)
+                {
+                    await SeedChannelIfEmptyAsync(channel.Id, channel.CompanyId,
+                        () => StreamEtsyChannelAsync(channel, report, cancellationToken), "Etsy");
                 }
 
                 await uow.CompleteAsync();
@@ -175,7 +188,19 @@ public class OrderSyncManager : DomainService
             await StreamTrendyolChannelAsync(channel, report, cancellationToken);
         }
 
-        if (n11Channels.Count == 0 && trendyolChannels.Count == 0)
+        var etsyChannels = await AsyncExecuter.ToListAsync(
+            (await _etsyChannelRepository.GetQueryableAsync()).Where(c => c.CompanyId == companyId));
+        foreach (var channel in etsyChannels)
+        {
+            if (onlyEmpty && await ChannelHasOrdersAsync(companyId, channel.Id))
+            {
+                continue;
+            }
+
+            await StreamEtsyChannelAsync(channel, report, cancellationToken);
+        }
+
+        if (n11Channels.Count == 0 && trendyolChannels.Count == 0 && etsyChannels.Count == 0)
         {
             report.Warnings.Add(_l["Order:Fetch:NoChannel"]);
         }
@@ -190,6 +215,14 @@ public class OrderSyncManager : DomainService
         if (trendyol is not null)
         {
             await StreamTrendyolChannelAsync(trendyol, report, cancellationToken);
+            return;
+        }
+
+        var etsy = await AsyncExecuter.FirstOrDefaultAsync(
+            (await _etsyChannelRepository.GetQueryableAsync()).Where(c => c.Id == channelId && c.CompanyId == companyId));
+        if (etsy is not null)
+        {
+            await StreamEtsyChannelAsync(etsy, report, cancellationToken);
             return;
         }
 
@@ -241,6 +274,32 @@ public class OrderSyncManager : DomainService
         {
             await UpsertOrderAsync(channel.CompanyId, channel.Id, SalesChannelType.TrTrendyol, remote,
                 TrendyolOrderStatusMapper.Map, tryCurrencyUnitId, report);
+        }
+
+        report.ChannelsProcessed++;
+    }
+
+    private async Task StreamEtsyChannelAsync(SalesChannelEtsy channel, OrderFetchResultDto report, CancellationToken cancellationToken)
+    {
+        // Bağlı değilse (ShopId yok / token yok / refresh süresi geçmiş) → çekim DENEMEDEN uyar + atla
+        // (token sağlayıcı aksi halde NotConnected fırlatırdı; fail-fast yerine dostane rapor).
+        if (string.IsNullOrWhiteSpace(channel.ShopId) || !channel.IsConnected(Clock.Now.ToUniversalTime()))
+        {
+            report.Warnings.Add(_l["Order:Fetch:EtsyNotConnected", channel.Name]);
+            return;
+        }
+
+        var credentials = new EtsyCredentials(channel.Id, $"{channel.Keystring}:{channel.SharedSecret}", channel.ShopId);
+
+        // Etsy shop para birimi tek olsa da defansif: receipt-başı currency_code'u id'ye çevir (kanal-başı cache).
+        var currencyCache = new Dictionary<string, Guid?>(StringComparer.OrdinalIgnoreCase);
+
+        var remoteOrders = await _etsyOrderClient.GetAllOrdersAsync(credentials, cancellationToken: cancellationToken);
+        foreach (var remote in remoteOrders)
+        {
+            var currencyUnitId = await ResolveCurrencyUnitIdByCodeAsync(remote.CurrencyCode, currencyCache, report);
+            await UpsertOrderAsync(channel.CompanyId, channel.Id, SalesChannelType.Etsy, remote,
+                EtsyOrderStatusMapper.Map, currencyUnitId, report);
         }
 
         report.ChannelsProcessed++;
@@ -367,6 +426,38 @@ public class OrderSyncManager : DomainService
                 report.Warnings.Add(_l["Order:Fetch:TryCurrencyMissing"]);
             }
 
+            return preferred?.Id;
+        }
+    }
+
+    /// <summary>Verilen ISO para birimi KODUNU (ör. Etsy "USD"/"EUR") yerel CurrencyUnitId'ye çevirir (HOST/TENANT
+    /// kaydı; filtre-kapalı). Kanal-başı <paramref name="cache"/> ile tek sorgu. Bulunamazsa null + rapora uyarı
+    /// (tutar yine saklanır; yalnız para birimi bağı boş kalır). Kod boşsa null (Tr-pazaryerleri TRY yolunu kullanır).</summary>
+    private async Task<Guid?> ResolveCurrencyUnitIdByCodeAsync(string? code, Dictionary<string, Guid?> cache, OrderFetchResultDto report)
+    {
+        if (string.IsNullOrWhiteSpace(code))
+        {
+            return null;
+        }
+
+        var normalized = code.Trim().ToUpperInvariant();
+        if (cache.TryGetValue(normalized, out var cached))
+        {
+            return cached;
+        }
+
+        using (_dataFilter.Disable<IMultiTenant>())
+        {
+            var candidates = await AsyncExecuter.ToListAsync(
+                (await _currencyUnitRepository.GetQueryableAsync()).Where(c => c.Code == normalized));
+            var preferred = candidates.FirstOrDefault(c => c.TenantId == CurrentTenant.Id)
+                            ?? candidates.FirstOrDefault(c => c.TenantId == null);
+            if (preferred is null)
+            {
+                report.Warnings.Add(_l["Order:Fetch:CurrencyMissing", normalized]);
+            }
+
+            cache[normalized] = preferred?.Id;
             return preferred?.Id;
         }
     }

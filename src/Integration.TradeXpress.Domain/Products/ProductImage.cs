@@ -8,7 +8,7 @@ public class ProductImage
     {
     }
 
-    public ProductImage(ProductImageSourceType sourceType, string? url, string? blobName, string? fileName, int displayOrder, bool isDefault)
+    public ProductImage(ProductImageSourceType sourceType, string? url, string? blobName, string? fileName, int displayOrder, bool isDefault, Guid? variantId, string? variantCode)
     {
         SourceType = sourceType;
         Url = url;
@@ -16,6 +16,8 @@ public class ProductImage
         FileName = fileName;
         DisplayOrder = displayOrder;
         IsDefault = isDefault;
+        VariantId = variantId;
+        VariantCode = variantCode;
     }
 
     public ProductImageSourceType SourceType { get; set; }
@@ -30,6 +32,13 @@ public class ProductImage
     public string? FileName { get; set; }
 
     public int DisplayOrder { get; set; }
+
+    /// <summary>Görselin bağlı olduğu VARYANT (null = ürün-geneli görsel; tüm varyantlara ortak).</summary>
+    public Guid? VariantId { get; set; }
+
+    /// <summary>Varyant kodu (denormalize — blob path'i + gösterim için; <see cref="FileName"/> gibi taşınır).
+    /// null/boş = ürün-geneli.</summary>
+    public string? VariantCode { get; set; }
 
     /// <summary>Varsayılan (ana) görsel — marketplace push'unda İLK sıraya alınır. Tekil-default garantisi
     /// <c>Product.SetImages</c>'ta (birden fazla işaretliyse ilki kalır; hiç yoksa ilk görsel default olur).</summary>

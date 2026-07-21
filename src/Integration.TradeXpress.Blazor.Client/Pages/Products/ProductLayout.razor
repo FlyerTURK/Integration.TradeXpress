@@ -2,6 +2,7 @@
 @using System.Linq
 @using Integration.TradeXpress.Financials.CurrencyUnits
 @using Integration.TradeXpress.Blazor.Client.Pages.Financials.CurrencyUnits
+@using Integration.TradeXpress.Blazor.Client.Pages.AddOns
 @using Integration.TradeXpress.Permissions
 @inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
 
@@ -72,8 +73,21 @@
         <DxFormLayoutItem Caption="@L["Product:ShipmentTemplate"]" ColSpanMd="6" BeginRow="true">
             <DxTextBox @bind-Text="@Model.ShipmentTemplateName" NullText="@L["Optional"]" />
         </DxFormLayoutItem>
+        @* Kargo şablonu referansı — birleşik ERP katalogu; inline ekle/düzelt (popup + refresh standardı). Opsiyonel. *@
+        <DxFormLayoutItem Caption="@L["Product:ShipmentTemplateRef"]" ColSpanMd="6">
+            <LookupComboBox TItem="ShipmentTemplateListDto" TValue="Guid?"
+                            Data="@ShipmentTemplates"
+                            ValueFieldName="@nameof(ShipmentTemplateListDto.Id)"
+                            TextFieldName="@nameof(ShipmentTemplateListDto.Name)"
+                            @bind-Value="@Model.ShipmentTemplateId"
+                            EditComponentType="typeof(ShipmentTemplateEditHost)"
+                            OnLookupReloadRequested="@OnReloadShipmentTemplates"
+                            CreatePolicy="@TradeXpressPermissions.ShipmentTemplates.Create"
+                            UpdatePolicy="@TradeXpressPermissions.ShipmentTemplates.Update"
+                            AllowClear="true" />
+        </DxFormLayoutItem>
         @* Varsayılan para birimi — opsiyonel; inline ekle/düzelt (popup + refresh standardı). *@
-        <DxFormLayoutItem Caption="@L["Product:CurrencyUnit"]" ColSpanMd="6">
+        <DxFormLayoutItem Caption="@L["Product:CurrencyUnit"]" ColSpanMd="6" BeginRow="true">
             <LookupComboBox TItem="CurrencyUnitListDto" TValue="Guid?"
                             Data="@CurrencyUnits"
                             ValueFieldName="@nameof(CurrencyUnitListDto.Id)"
@@ -90,6 +104,33 @@
                     NullText="@L["Optional"]" />
         </DxFormLayoutItem>
     </DxFormLayoutGroup>
+
+    @* Kişiselleştirme (pazaryeri-genel; Etsy who_made deseni). Açıkken talimat + zorunluluk + karakter sınırı görünür.
+       Kanal-ürünü push'ta bunları devralır (SONRAKİ iş). *@
+    <DxFormLayoutGroup Caption="@L["Product:Personalization"]" ColSpanMd="12">
+        <DxFormLayoutItem Caption="@L["Product:IsPersonalizable"]" ColSpanMd="6" BeginRow="true">
+            <DxCheckBox @bind-Checked="@Model.IsPersonalizable" CheckType="CheckType.Switch">
+                @(Model.IsPersonalizable ? L["Yes"] : L["No"])
+            </DxCheckBox>
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["Product:PersonalizationIsRequired"]" ColSpanMd="6"
+                          Visible="@Model.IsPersonalizable">
+            <DxCheckBox @bind-Checked="@Model.PersonalizationIsRequired" CheckType="CheckType.Switch">
+                @(Model.PersonalizationIsRequired ? L["Yes"] : L["No"])
+            </DxCheckBox>
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["Product:PersonalizationCharCountMax"]" ColSpanMd="6" BeginRow="true"
+                          Visible="@Model.IsPersonalizable">
+            <NumericSpinEdit TValue="int?" @bind-Value="@Model.PersonalizationCharCountMax"
+                             MinValue="1" MaxValue="ProductConsts.PersonalizationCharCountMaxLimit"
+                             ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["Product:PersonalizationInstructions"]" ColSpanMd="12"
+                          Visible="@Model.IsPersonalizable">
+            <DxMemo @bind-Text="@Model.PersonalizationInstructions" Rows="2" ResizeMode="MemoResizeMode.Disabled"
+                    CssClass="w-100" NullText="@L["Optional"]" />
+        </DxFormLayoutItem>
+    </DxFormLayoutGroup>
 </DxFormLayout>
 
 @* Nitelikler + Varyantlar. Nitelik×değer kartezyeni varyantları SUNUCUDA üretir (ProductVariantSynchronizer);
@@ -99,16 +140,14 @@
     <DxTabPage Text="@L["Description"]" TabIconCssClass="@TradeXpressIcons.Product">
         <DxHtmlEditor @bind-Markup="@Model.Description" CssClass="w-100" Height="360px" />
     </DxTabPage>
-    @* Nitelikler — JENERİK agnostik nitelik paneli (EntityName="Product" AppService'te). Panel DxTabPage ÜRETMEZ,
-       içeriği üretir. Nitelik/değer değişimi OnAttributesChanged → host varyant regen'ini (OTOMATİK senkron) tetikler. *@
-    <DxTabPage Text="@L["Attributes"]" TabIconCssClass="@TradeXpressIcons.Sliders">
-        <EntityAttributesPanel Attributes="@Model.Attributes" OnAttributesChanged="@OnGenerateVariants" />
-    </DxTabPage>
+    @* Nitelikler ayrı sekmede DEĞİL → varyant panelinin "Özellikleri Düzenle" toolbar butonundan popup'ta yönetilir
+       (OnAttributesChanged bağlı). Nitelik/değer değişimi host varyant regen'ini (OTOMATİK senkron) tetikler. *@
     <DxTabPage Text="@L["Variants"]" TabIconCssClass="@TradeXpressIcons.ProductVariant">
         @* JENERİK agnostik varyant paneli — kartezyenden üretilen varyantlar (ekleme/silme KAPALI; synchronizer üretir).
            Çekirdek alanlar (Kod/Barkod/GTIN/Stok/Durum) panelde; Product-ÖZEL satış fiyatı + reçete ExtraFields slot'unda
            (GoodLayout deseni). Kod/Ad AGNOSTİK-üretilir (elle düzenlenmez). *@
-        <EntityVariantsPanel TVariant="ProductVariantGraphDto" Variants="@Model.Variants" Attributes="@Model.Attributes">
+        <EntityVariantsPanel TVariant="ProductVariantGraphDto" Variants="@Model.Variants" Attributes="@Model.Attributes"
+                             OnAttributesChanged="@OnGenerateVariants">
             <ExtraFields Context="v">
                 @* Satılabilir veri (marketplace) — satış fiyatı + para birimi. N11/Trendyol listeleme push'u bunları kullanır;
                    fiyat null = fiyatlanmamış (temizle butonuyla boşaltılabilir). Stok/barkod/GTIN panel çekirdeğinde. *@
@@ -126,6 +165,8 @@
                     <ProductRecipePanel Lines="v.RecipeLines"
                                         Metals="Metals" MetalVariants="MetalVariants" Scraps="Scraps" Futures="Futures"
                                         Jewelries="Jewelries" Stones="Stones" Services="Services" Units="Units"
+                                        AllVariants="@Model.Variants"
+                                        OnVariantRecipeChanged="@(async (ProductVariantGraphDto variant) => await HandleRecipeChangedAsync(variant))"
                                         NetCost="@v.NetCost" NetCostCurrency="@v.NetCostCurrency" NetCostMissingRate="@v.NetCostMissingRate"
                                         OnChanged="@(async () => await HandleRecipeChangedAsync(v))" />
                 </DxFormLayoutGroup>
@@ -168,6 +209,13 @@
                 <GridLinkColumn FieldName="FileName" Caption="@L["Name"]"
                                 TextSelector="@(item => ((ProductImageGraphDto)item).FileName ?? ((ProductImageGraphDto)item).Url)"
                                 OnClick="@(item => _imageDrill?.EditItem((ProductImageGraphDto)item))" />
+                @* Bağlı varyant — boşsa ürün-geneli. *@
+                <DxGridDataColumn FieldName="VariantCode" Caption="@L["Variant"]" Width="120px">
+                    <CellDisplayTemplate Context="cell">
+                        @{ var vc = ((ProductImageGraphDto)cell.DataItem).VariantCode; }
+                        @(string.IsNullOrEmpty(vc) ? L["ProductImage:ProductWide"].Value : vc)
+                    </CellDisplayTemplate>
+                </DxGridDataColumn>
                 <DxGridDataColumn FieldName="IsDefault" Caption="@L["Default"]" Width="100px">
                     <CellDisplayTemplate Context="cell">
                         @if (cell.Value is bool isDefault && isDefault)
@@ -183,10 +231,17 @@
             <EditContent Context="img">
                 <DxFormLayout CssClass="w-100">
                     <ProductImageEditFields Model="img"
-                                            IsDuplicateFileName="@(name => Model.Images.Any(x => x.ClientKey != img.ClientKey && string.Equals(x.FileName, name, StringComparison.OrdinalIgnoreCase)))" />
+                                            ProductCode="@Model.Code"
+                                            Variants="@Model.Variants" />
                 </DxFormLayout>
             </EditContent>
         </DrillList>
+    </DxTabPage>
+    @* Medya / Video — merkezi kütüphane (görsel + video birlikte; yükle / URL-import / kütüphaneden reuse; video 100MB, poster
+       yakala). ProductImage görsel drill'inden AYRI (o pazaryeri push görselleridir). Panel kendi servisini çağırır (DUMB layout). *@
+    <DxTabPage Text="@L["Product:Media"]" TabIconCssClass="@TradeXpressIcons.Product">
+        <span style="color:#6c757d; font-size:0.85rem;">@L["Product:MediaHint"]</span>
+        <EntityMediaPanel Media="@Model.Media" />
     </DxTabPage>
     @* Ürün özelleştirme alanları — pazaryeri-genel varsayılan (key zorunlu / value opsiyonel). Kanal-ürünü boşsa devralır. *@
     <DxTabPage Text="@L["Product:SpecialInfo"]" TabIconCssClass="@TradeXpressIcons.Sliders">
@@ -219,11 +274,76 @@
             </EditContent>
         </DrillList>
     </DxTabPage>
+    @* Seçenekler — sipariş anı eklentileri (katalogdan seç + satır override: fiyat/para birimi/zorunluluk/not).
+       Pazaryerine push'ta native "seçenek" olmadığından VARYANT olarak yansıtılır (Faz 2 projeksiyonu). *@
+    <DxTabPage Text="@L["Product:AddOns"]" TabIconCssClass="@TradeXpressIcons.AddOn">
+        <span style="color:#6c757d; font-size:0.85rem;">@L["Product:AddOnsHint"]</span>
+        <DrillList TItem="ProductAddOnDto"
+                   Title="@L["Product:AddOns"]"
+                   EntityName="@L["AddOn"]"
+                   EntityIcon="@TradeXpressIcons.AddOn"
+                   Items="@Model.AddOns"
+                   PrimaryTextSelector="@(a => AddOnName(a.AddOnId))"
+                   NewItemFactory="@(() => new ProductAddOnDto { DisplayOrder = NextAddOnOrder() })"
+                   SaveGuard="@AddOnSaveGuard"
+                   ShowActiveFilter="false"
+                   ShowExport="false"
+                   OnChanged="@(() => EditChanged?.Invoke())">
+            <GridColumns>
+                <DxGridDataColumn Caption="@L["AddOn"]" FieldName="AddOnId" MinWidth="180">
+                    <CellDisplayTemplate>@AddOnName((context.DataItem as ProductAddOnDto)!.AddOnId)</CellDisplayTemplate>
+                </DxGridDataColumn>
+                <DxGridDataColumn FieldName="PriceOverride" Caption="@L["AddOn:PriceOverride"]" Width="140px" />
+                <DxGridDataColumn FieldName="IsRequired" Caption="@L["AddOn:IsRequired"]" Width="110px" />
+                <DxGridDataColumn FieldName="DisplayOrder" Caption="@L["DisplayOrder"]" Width="100px" />
+            </GridColumns>
+            <EditContent Context="a">
+                <DxFormLayout CssClass="w-100">
+                    <DxFormLayoutItem Caption="@($"{L["AddOn"]} *")" ColSpanMd="12">
+                        <LookupComboBox TItem="AddOnListDto" TValue="Guid?"
+                                        Data="@AddOnCatalog"
+                                        ValueFieldName="@nameof(AddOnListDto.Id)"
+                                        TextFieldName="@nameof(AddOnListDto.Name)"
+                                        Value="@(a.AddOnId == Guid.Empty ? (Guid?)null : a.AddOnId)"
+                                        ValueChanged="@((Guid? v) => a.AddOnId = v ?? Guid.Empty)"
+                                        EditComponentType="typeof(AddOnEditHost)"
+                                        OnLookupReloadRequested="@OnReloadAddOns"
+                                        CreatePolicy="@TradeXpressPermissions.AddOns.Create"
+                                        UpdatePolicy="@TradeXpressPermissions.AddOns.Update"
+                                        AllowClear="false" />
+                    </DxFormLayoutItem>
+                    <DxFormLayoutItem Caption="@L["AddOn:PriceOverride"]" ColSpanMd="6">
+                        <DxSpinEdit @bind-Value="@a.PriceOverride" MinValue="0m" DisplayFormat="N2"
+                                    NullText="@L["AddOn:CatalogDefault"]" CssClass="w-100" />
+                    </DxFormLayoutItem>
+                    <DxFormLayoutItem Caption="@L["AddOn:CurrencyOverride"]" ColSpanMd="6">
+                        <LookupComboBox TItem="CurrencyUnitListDto" TValue="Guid?"
+                                        Data="@CurrencyUnits"
+                                        ValueFieldName="@nameof(CurrencyUnitListDto.Id)"
+                                        TextFieldName="@nameof(CurrencyUnitListDto.Code)"
+                                        @bind-Value="@a.CurrencyUnitOverrideId"
+                                        NullText="@L["AddOn:CatalogDefault"]"
+                                        AllowClear="true" />
+                    </DxFormLayoutItem>
+                    <DxFormLayoutItem Caption="@L["AddOn:IsRequired"]" ColSpanMd="6">
+                        <DxCheckBox @bind-Checked="@a.IsRequired" CheckType="CheckType.Switch" />
+                    </DxFormLayoutItem>
+                    <DxFormLayoutItem Caption="@L["DisplayOrder"]" ColSpanMd="6">
+                        <NumericSpinEdit @bind-Value="@a.DisplayOrder" />
+                    </DxFormLayoutItem>
+                    <DxFormLayoutItem Caption="@L["AddOn:Note"]" ColSpanMd="12">
+                        <DxMemo @bind-Text="@a.Note" Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100" />
+                    </DxFormLayoutItem>
+                </DxFormLayout>
+            </EditContent>
+        </DrillList>
+    </DxTabPage>
     @* Satış kanalı ürünleri — N11 + Trendyol TEK grid'de (Kanal kolonu); edit formları tipe göre AYRI. IN-MEMORY GRAF:
        ürün 'Kaydet'inde birlikte kaydedilir (yeni üründe de eklenebilir). Push/Stok-Fiyat yalnız kaydedilmiş satırda. *@
     <DxTabPage Text="@L["SalesChannelProducts"]" TabIconCssClass="@TradeXpressIcons.SalesChannel">
         <ProductSalesChannelsPanel N11Items="Model.SalesChannelProducts"
                                    TrendyolItems="Model.SalesChannelTrendyolProducts"
+                                   EtsyItems="Model.SalesChannelEtsyProducts"
                                    ProductId="@Model.Id"
                                    ProductDefaults="Model"
                                    OnChanged="@(() => EditChanged?.Invoke())" />

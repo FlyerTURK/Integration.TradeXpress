@@ -1,0 +1,97 @@
+@using Integration.TradeXpress.VariantTemplates
+@using Integration.Framework.Blazor.Client.Components.Crud
+@using DevExpress.Blazor
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@*
+   VariantTemplate DUMB Layout — VariantTemplateGetDto'yu forma yansıtır. Standart kimlik (Kod→Ad→Description→Status)
+   + özellik grupları demeti (iç içe DrillList: grup → değerler; EntityAttributesPanel deseni, plain in-memory —
+   save'de tüm liste replace). Bu şablon ürünlerde "Katalogtan Uygula" ile nitelik grafına kopyalanır.
+*@
+
+<DxFormLayout CssClass="w-100">
+    <DxFormLayoutGroup Caption="@L["General"]" ColSpanMd="12">
+        <DxFormLayoutItem Caption="@($"{L["Code"]} *")" ColSpanMd="6">
+            <DxTextBox @bind-Text="@Model.Code" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="12">
+            <DxTextBox @bind-Text="@Model.Name" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["Description"]" ColSpanMd="12">
+            <DxMemo @bind-Text="@Model.Description" Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6">
+            <DxCheckBox @bind-Checked="@Model.IsActive" CheckType="CheckType.Switch">
+                @(Model.IsActive ? L["Active"] : L["Passive"])
+            </DxCheckBox>
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["DisplayOrder"]" ColSpanMd="6">
+            <NumericSpinEdit @bind-Value="@Model.DisplayOrder" />
+        </DxFormLayoutItem>
+    </DxFormLayoutGroup>
+
+    <DxFormLayoutGroup Caption="@L["Attributes"]" ColSpanMd="12" CaptionPosition="CaptionPosition.Vertical">
+        <span style="color:#6c757d; font-size:0.85rem;">@L["VariantTemplate:AttributesHint"]</span>
+        <DrillList TItem="VariantTemplateAttributeDto"
+                   @ref="_attributeDrill"
+                   Title="@L["Attributes"]"
+                   EntityName="@L["Attribute"]"
+                   EntityIcon="@TradeXpressIcons.Sliders"
+                   Items="@Model.Attributes"
+                   KeyFieldName="ClientKey"
+                   PrimaryTextSelector="@(a => a.Name)"
+                   NewItemFactory="@(() => new VariantTemplateAttributeDto { DisplayOrder = NextAttributeOrder() })"
+                   ShowActiveFilter="false"
+                   ShowExport="false"
+                   OnChanged="@(() => EditChanged?.Invoke())">
+            <GridColumns>
+                <GridLinkColumn FieldName="Name" Caption="@L["Name"]" FixedPosition="GridColumnFixedPosition.Left" VisibleIndex="1"
+                                OnClick="@(item => _attributeDrill?.EditItem((VariantTemplateAttributeDto)item))" />
+                <DxGridDataColumn FieldName="DisplayOrder" Caption="@L["DisplayOrder"]" Width="90px" />
+            </GridColumns>
+            <EditContent Context="a">
+                <DxFormLayout CssClass="w-100">
+                    <DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="12">
+                        <DxTextBox @bind-Text="@a.Name" />
+                    </DxFormLayoutItem>
+                    <DxFormLayoutItem Caption="@L["DisplayOrder"]" ColSpanMd="6">
+                        <NumericSpinEdit @bind-Value="@a.DisplayOrder" />
+                    </DxFormLayoutItem>
+                    <DxFormLayoutGroup Caption="@L["AttributeValues"]" ColSpanMd="12" CaptionPosition="CaptionPosition.Vertical">
+                        @* İç içe DrillList DOĞRUDAN parent EditContent'te (ui-blazor: nested EditForm yok, CascadingValue izolasyonu). *@
+                        <DrillList TItem="VariantTemplateAttributeValueDto"
+                                   @ref="_valueDrill"
+                                   Title="@L["AttributeValues"]"
+                                   EntityName="@L["AttributeValue"]"
+                                   ParentEntityName="@L["Attribute"]"
+                                   ParentText="@a.Name"
+                                   EntityIcon="@TradeXpressIcons.Sliders"
+                                   Items="@a.Values"
+                                   KeyFieldName="ClientKey"
+                                   PrimaryTextSelector="@(v => v.Value)"
+                                   NewItemFactory="@(() => new VariantTemplateAttributeValueDto { DisplayOrder = NextValueOrder(a) })"
+                                   ShowActiveFilter="false"
+                                   ShowExport="false"
+                                   OnChanged="@(() => EditChanged?.Invoke())">
+                            <GridColumns>
+                                <GridLinkColumn FieldName="Value" Caption="@L["Value"]" FixedPosition="GridColumnFixedPosition.Left" VisibleIndex="1"
+                                                OnClick="@(item => _valueDrill?.EditItem((VariantTemplateAttributeValueDto)item))" />
+                                <DxGridDataColumn FieldName="DisplayOrder" Caption="@L["DisplayOrder"]" Width="90px" />
+                            </GridColumns>
+                            <EditContent Context="v">
+                                <DxFormLayout CssClass="w-100">
+                                    <DxFormLayoutItem Caption="@($"{L["Value"]} *")" ColSpanMd="12">
+                                        <DxTextBox @bind-Text="@v.Value" />
+                                    </DxFormLayoutItem>
+                                    <DxFormLayoutItem Caption="@L["DisplayOrder"]" ColSpanMd="6">
+                                        <NumericSpinEdit @bind-Value="@v.DisplayOrder" />
+                                    </DxFormLayoutItem>
+                                </DxFormLayout>
+                            </EditContent>
+                        </DrillList>
+                    </DxFormLayoutGroup>
+                </DxFormLayout>
+            </EditContent>
+        </DrillList>
+    </DxFormLayoutGroup>
+</DxFormLayout>

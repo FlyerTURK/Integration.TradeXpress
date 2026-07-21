@@ -130,11 +130,11 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
                 i.Property(p => p.FileName).HasMaxLength(MetalConsts.ImageFileNameMaxLength);
             });
 
-            b.HasIndex(x => new { x.TenantId, x.Code }).IsUnique();
+            b.HasIndex(x => new { x.TenantId, x.CompanyId, x.Code }).IsUnique();
 
             b.HasOne<CurrencyUnit>().WithMany()
                 .HasForeignKey(x => x.FollowingUnitId).IsRequired().OnDelete(DeleteBehavior.Restrict);
-            b.HasIndex(x => new { x.TenantId, x.FollowingUnitId });
+            b.HasIndex(x => new { x.TenantId, x.CompanyId, x.FollowingUnitId });
         });
     }
 

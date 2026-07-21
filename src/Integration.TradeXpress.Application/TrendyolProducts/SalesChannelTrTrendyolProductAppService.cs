@@ -55,6 +55,7 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
     private readonly ITrendyolProductClient _client;
     private readonly ITrendyolCategoryAppService _categoryAppService;
     private readonly IPublicImageLinkProvider _publicImageLink;
+    private readonly MarketplaceImageDownloader _imageDownloader;
 
     public SalesChannelTrTrendyolProductAppService(
         IRepository<SalesChannelTrTrendyolProduct, Guid> repository,
@@ -78,7 +79,8 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
         ICurrentCompany currentCompany,
         ITrendyolProductClient client,
         ITrendyolCategoryAppService categoryAppService,
-        IPublicImageLinkProvider publicImageLink)
+        IPublicImageLinkProvider publicImageLink,
+        MarketplaceImageDownloader imageDownloader)
     {
         _repository = repository;
         _productRepository = productRepository;
@@ -102,6 +104,7 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
         _client = client;
         _categoryAppService = categoryAppService;
         _publicImageLink = publicImageLink;
+        _imageDownloader = imageDownloader;
     }
 
     public virtual async Task<List<SalesChannelTrTrendyolProductDto>> GetListForProductAsync(Guid productId)

@@ -338,7 +338,7 @@ public partial class SalesChannelTrTrendyolProductAppService
         product.SetName(BuildSafeName(remote.Title, code), normalizeTitle: false);
         product.SetDescription(BuildTemplateDescription(remote.Description));
         product.SetCurrencyUnit(tryCurrencyUnitId);
-        product.SetImages(BuildImages(remote.ImageUrls));
+        product.SetImages(await _imageDownloader.BuildFromUrlsAsync(code, remote.ImageUrls));
         await _productRepository.InsertAsync(product, autoSave: true);
 
         var usedCodes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -532,18 +532,6 @@ public partial class SalesChannelTrTrendyolProductAppService
         }
 
         return Truncate(trimmed, ProductConsts.DescriptionMaxLength);
-    }
-
-    /// <summary>Uzak görsel URL'leri → şablon görselleri (URL-kaynaklı; ilk görsel default). Duplike/aşırı-uzun
-    /// URL elenir; adet sınırı Product.SetImages'te (MaxImageCount) zaten kesilir.</summary>
-    private static List<ProductImage> BuildImages(IReadOnlyList<string> imageUrls)
-    {
-        return imageUrls
-            .Where(u => !string.IsNullOrWhiteSpace(u) && u.Length <= ProductConsts.ImageUrlMaxLength)
-            .Select(u => u.Trim())
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Select((u, i) => new ProductImage(ProductImageSourceType.Url, u, null, null, i, i == 0))
-            .ToList();
     }
 
     private static string Truncate(string value, int maxLength)

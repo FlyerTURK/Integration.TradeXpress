@@ -106,6 +106,12 @@ public class CountryAppService
             DefaultCurrencyUnitId = entity.DefaultCurrencyUnitId,
             IsActive = entity.IsActive,
             DisplayOrder = entity.DisplayOrder,
+            UsesAdministrativeArea = entity.UsesAdministrativeArea,
+            UsesSubLocality = entity.UsesSubLocality,
+            AdministrativeAreaType = entity.AdministrativeAreaType,
+            LocalityType = entity.LocalityType,
+            SubLocalityType = entity.SubLocalityType,
+            PostalCodeType = entity.PostalCodeType,
         };
     }
 
@@ -121,6 +127,10 @@ public class CountryAppService
             IsActive = entity.IsActive,
             DisplayOrder = entity.DisplayOrder,
             IsGlobal = entity.TenantId == null,
+            AdministrativeAreaType = entity.AdministrativeAreaType,
+            LocalityType = entity.LocalityType,
+            SubLocalityType = entity.SubLocalityType,
+            PostalCodeType = entity.PostalCodeType,
         };
     }
 

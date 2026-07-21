@@ -68,6 +68,32 @@ public static class TradeXpressPermissions
         public const string Delete  = Default + ".Delete";
     }
 
+    public static class AddOns
+    {
+        public const string Default = GroupName + ".AddOns";
+        public const string Create  = Default + ".Create";
+        public const string Update  = Default + ".Update";
+        public const string Delete  = Default + ".Delete";
+    }
+
+    public static class VariantTemplates
+    {
+        public const string Default = GroupName + ".VariantTemplates";
+        public const string Create  = Default + ".Create";
+        public const string Update  = Default + ".Update";
+        public const string Delete  = Default + ".Delete";
+    }
+
+    /// <summary>Birleşik ERP kargo şablonu KATALOĞU yönetimi (company-owned, kanal-nötr). Liste/okuma serbest
+    /// ([Authorize]); Create/Update/Delete izinlidir (Product formu combo ✎/+ görünürlüğü de buna bakar).</summary>
+    public static class ShipmentTemplates
+    {
+        public const string Default = GroupName + ".ShipmentTemplates";
+        public const string Create  = Default + ".Create";
+        public const string Update  = Default + ".Update";
+        public const string Delete  = Default + ".Delete";
+    }
+
     public static class Appointments
     {
         public const string Default = GroupName + ".Appointments";

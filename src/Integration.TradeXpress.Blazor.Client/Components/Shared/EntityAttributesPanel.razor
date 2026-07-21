@@ -16,6 +16,7 @@
            EntityIcon="@TradeXpressIcons.Sliders"
            Items="Attributes"
            KeyFieldName="ClientKey"
+           CustomActions="@TemplateActions"
            PrimaryTextSelector="@(a => a.Name)"
            NewItemFactory="@(() => new EntityAttributeGraphDto { DisplayOrder = NextAttributeOrder() })"
            MaxItems="EntityVariantConsts.MaxAttributesPerEntity"
@@ -75,3 +76,28 @@
         </DxFormLayout>
     </EditContent>
 </DrillList>
+
+@* Katalogtan Uygula — varyant tanım katalogundan (demet) bir şablon seç → grupları+değerleri yukarıdaki grafa MERGE et
+   (mevcut nitelik/değerler KORUNUR; ad/değer bazında dedup). Regen bu panelin dışındaki "Uygula" ile tetiklenir. *@
+<DxPopup @bind-Visible="@_templatePopupVisible" HeaderText="@L["ApplyFromCatalog"]" Width="min(95vw, 560px)"
+         ShowFooter="true" CloseOnOutsideClick="false">
+    <BodyContentTemplate Context="__tplBody">
+        <div style="color:#6c757d; font-size:0.85rem; margin-bottom:0.6rem;">@L["ApplyFromCatalogHint"]</div>
+        <DxComboBox Data="@_templates" TData="VariantTemplateListDto" TValue="Guid?"
+                    ValueFieldName="@nameof(VariantTemplateListDto.Id)"
+                    TextFieldName="@nameof(VariantTemplateListDto.Name)"
+                    @bind-Value="@_selectedTemplateId"
+                    NullText="@L["ApplyFromCatalogSelect"]"
+                    ValidationEnabled="false"
+                    CssClass="w-100" />
+    </BodyContentTemplate>
+    <FooterContentTemplate Context="__tplFtr">
+        <DxButton Text="@L["Apply"].Value"
+                  RenderStyle="ButtonRenderStyle.Primary" RenderStyleMode="ButtonRenderStyleMode.Contained"
+                  Enabled="@(_selectedTemplateId is not null)"
+                  Click="@ApplyTemplateAsync" />
+        <DxButton Text="@L["Close"].Value"
+                  RenderStyle="ButtonRenderStyle.Secondary" RenderStyleMode="ButtonRenderStyleMode.Contained"
+                  Click="@(() => _templatePopupVisible = false)" />
+    </FooterContentTemplate>
+</DxPopup>

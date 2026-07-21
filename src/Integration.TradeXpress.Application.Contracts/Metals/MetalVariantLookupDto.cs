@@ -12,7 +12,7 @@ public class MetalVariantLookupDto
     public string MetalCode { get; set; } = string.Empty;
     public string MetalName { get; set; } = string.Empty;
     
-    public Guid VariantId { get; set; }
+    public Guid? VariantId { get; set; }
     public string VariantCode { get; set; } = string.Empty;
     public string VariantName { get; set; } = string.Empty;
 

@@ -1,0 +1,49 @@
+@using Integration.TradeXpress.AddOns
+@using Integration.TradeXpress.Financials.CurrencyUnits
+@using Integration.TradeXpress.Blazor.Client.Pages.Financials.CurrencyUnits
+@using Integration.TradeXpress.Permissions
+@using Integration.Framework.Blazor.Client.Components.Crud
+@using DevExpress.Blazor
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@*
+   AddOn DUMB Layout — yalnız AddOnGetDto'yu forma yansıtır/düzenler. I/O yok, karar yok, persistence yok.
+   Para birimi lookup verisi host'tan gelir (CurrencyUnits param). CurrencyUnitId ZORUNLU → combo AllowClear=false.
+*@
+
+<DxFormLayout CssClass="w-100">
+    <DxFormLayoutGroup Caption="@L["General"]" ColSpanMd="12">
+        <DxFormLayoutItem Caption="@($"{L["Code"]} *")" ColSpanMd="6">
+            <DxTextBox @bind-Text="@Model.Code" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="12">
+            <DxTextBox @bind-Text="@Model.Name" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["AddOn:Price"]" ColSpanMd="6">
+            <DxSpinEdit @bind-Value="@Model.Price" MinValue="0m" DisplayFormat="N2" CssClass="w-100" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@($"{L["AddOn:CurrencyUnit"]} *")" ColSpanMd="6">
+            <LookupComboBox TItem="CurrencyUnitListDto" TValue="Guid?"
+                            Data="@CurrencyUnits"
+                            ValueFieldName="@nameof(CurrencyUnitListDto.Id)"
+                            TextFieldName="@nameof(CurrencyUnitListDto.Code)"
+                            @bind-Value="@CurrencyUnitIdNullable"
+                            EditComponentType="typeof(CurrencyUnitEditHost)"
+                            OnLookupReloadRequested="@OnReloadCurrencyUnits"
+                            CreatePolicy="@TradeXpressPermissions.CurrencyUnits.Create"
+                            UpdatePolicy="@TradeXpressPermissions.CurrencyUnits.Update"
+                            AllowClear="false" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["Description"]" ColSpanMd="12">
+            <DxMemo @bind-Text="@Model.Description" Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6">
+            <DxCheckBox @bind-Checked="@Model.IsActive" CheckType="CheckType.Switch">
+                @(Model.IsActive ? L["Active"] : L["Passive"])
+            </DxCheckBox>
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["DisplayOrder"]" ColSpanMd="6">
+            <NumericSpinEdit @bind-Value="@Model.DisplayOrder" />
+        </DxFormLayoutItem>
+    </DxFormLayoutGroup>
+</DxFormLayout>

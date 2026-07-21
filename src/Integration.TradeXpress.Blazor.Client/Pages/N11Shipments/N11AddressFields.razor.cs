@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Integration.Framework.Blazor.Client.Components.Crud;
+using Integration.TradeXpress.Blazor.Client.Components.Shared;
 using Integration.TradeXpress.N11Cities;
 using Integration.TradeXpress.N11Shipments;
 using Microsoft.AspNetCore.Components;
@@ -45,6 +46,47 @@ public partial class N11AddressFields : CrudComponentBase
         {
             await LoadDistrictsAsync(Model.CityCode);
         }
+    }
+
+    // Coğrafya cascade seçimi → N11 adres modelini doldur (il → City + CityCode [N11 plaka], ilçe → District +
+    // DistrictCode, mahalle → Neighborhood; ülke → CountryCode) + additive geo-ref'ler. Ana N11 il/ilçe combo'ları
+    // AYNI modele bağlı → seçim onlarda da yansır; yeni ilin ilçeleri combo gösterebilsin diye on-demand yeniden
+    // yüklenir. Sembolik ana alanlı ülkede City/CityCode null gelir (kullanıcı yine N11 combo'sundan seçebilir).
+    private async Task OnGeographySelected(GeographySelection selection)
+    {
+        Model.CountryCode = selection.CountryCode;
+        Model.City = selection.AdministrativeAreaName ?? string.Empty;
+        Model.CityCode = selection.AdministrativeAreaCode;
+        Model.District = selection.LocalityName;
+        Model.DistrictCode = selection.LocalityCode;
+
+        // Coğrafya referansları (additive) — id-only köprü + ISO 3166-2 kodu. N11 push OKUMAZ (hâlâ City/District/kod
+        // okur); yalnız zenginleştirme (fatura/UBL) için taşınır. Sembolik/seçimsiz durumda null gelir.
+        Model.AdministrativeAreaId = selection.AdministrativeAreaId;
+        Model.LocalityId = selection.LocalityId;
+        Model.AdministrativeAreaIsoCode = selection.AdministrativeAreaIsoCode;
+
+        // Mahalle ADI yalnız seçildiğinde doldurulur (mahalle seviyesi kullanılmayan ülkede serbest-metin fallback korunur).
+        if (!string.IsNullOrEmpty(selection.NeighborhoodName))
+        {
+            Model.Neighborhood = selection.NeighborhoodName;
+        }
+
+        // Ana N11 ilçe combo'su seçili ilin ilçelerini gösterebilsin diye on-demand yükle (picker CityCode'u değiştirdi).
+        if (!string.IsNullOrEmpty(Model.CityCode))
+        {
+            if (_loadedDistrictsForCity != Model.CityCode)
+            {
+                await LoadDistrictsAsync(Model.CityCode);
+            }
+        }
+        else
+        {
+            _districts = new();
+            _loadedDistrictsForCity = null;
+        }
+
+        NotifyChanged();
     }
 
     // İl değişti → kod + ad (görüntü) set et, ilçeyi temizle, yeni ilin ilçelerini yükle.

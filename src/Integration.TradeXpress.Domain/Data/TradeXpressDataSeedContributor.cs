@@ -11,6 +11,8 @@ public class TradeXpressDataSeedContributor(
     CurrencyUnitSeeder currencyUnitSeeder,
     ParitySeeder paritySeeder,
     CountrySeeder countrySeeder,
+    Integration.TradeXpress.Geography.GeographySeeder geographySeeder,
+    Integration.TradeXpress.Shipments.CarrierSeeder carrierSeeder,
     CashSeeder cashSeeder,
     Integration.TradeXpress.Services.ServiceSeeder serviceSeeder,
     Integration.TradeXpress.Futures.FutureSeeder futureSeeder,
@@ -28,6 +30,8 @@ public class TradeXpressDataSeedContributor(
     private readonly CurrencyUnitSeeder _currencyUnitSeeder = currencyUnitSeeder;
     private readonly ParitySeeder _paritySeeder = paritySeeder;
     private readonly CountrySeeder _countrySeeder = countrySeeder;
+    private readonly Integration.TradeXpress.Geography.GeographySeeder _geographySeeder = geographySeeder;
+    private readonly Integration.TradeXpress.Shipments.CarrierSeeder _carrierSeeder = carrierSeeder;
     private readonly CashSeeder _cashSeeder = cashSeeder;
     private readonly Integration.TradeXpress.Services.ServiceSeeder _serviceSeeder = serviceSeeder;
     private readonly Integration.TradeXpress.Futures.FutureSeeder _futureSeeder = futureSeeder;
@@ -56,7 +60,9 @@ public class TradeXpressDataSeedContributor(
         {
             await _currencyUnitSeeder.SeedCatalogAsync(); // birimler + TRY ham kuru — HER ŞEYDEN ÖNCE
             await _paritySeeder.SeedAsync();              // host-global pariteler
-            await _countrySeeder.SeedAsync();             // host-global ülke kataloğu
+            await _countrySeeder.SeedAsync();             // host-global ülke kataloğu (desteklenen birimli ülkeler)
+            await _geographySeeder.SeedAsync();           // ISO 3166-1 tam ülke listesi (249) + TR il/ilçe (N11'den) + US eyalet
+            await _carrierSeeder.SeedAsync();             // çekirdek kargo firması kataloğu (N11 firmalarından türer; N11 boşsa atlar)
             await _cashSeeder.SeedAsync();                // host-global nakit kataloğu (Type=Cash birimlerden türetilir)
             await _serviceSeeder.SeedAsync();             // host-global hizmet kataloğu (şu an boş — gerçek liste bekleniyor)
         }
@@ -69,13 +75,18 @@ public class TradeXpressDataSeedContributor(
         {
             await _futureSeeder.SeedAsync();
             await _scrapSeeder.SeedAsync();
-            await _metalSeeder.SeedAsync();
         }
 
         // (4) Org ağacı yalnız tenant'a aittir (host'ta company yok). Onboarding org'u kendi kuruyorsa atla.
         if (context.TenantId != null && context[SkipOrgSeedProperty] is not true)
         {
             await _orgSeeder.SeedHqCompanyAsync(context.TenantId);
+        }
+
+        // MetalSeeder needs Companies to exist if it is CompanyScoped
+        if (context.TenantId != null)
+        {
+            await _metalSeeder.SeedAsync();
         }
 
         // (5) Bakiye ledger'ı (Path B) — mevcut voucher'lardan birim-net etkileri doldur (idempotent;

@@ -16,8 +16,10 @@
                   Coordinator="@_coordinator" Id="@(Id ?? Guid.Empty)" IsPopupMode="@IsPopupMode" OnSaved="@OnSaved" OnClosed="@OnClosed"
                   FormCaption="@L["SalesChannelType:Etsy"].Value" IconCssClass="@TradeXpressIcons.SalesChannel"
                   EntityValue="@(m => m.Code)"
-                  ApplyNewDefaults="@(m => { m.IsActive = true; })">
+                  ApplyNewDefaults="@(m => { m.IsActive = true; })"
+                  OnAfterCreate="@OnChannelCreatedAsync">
         <SalesChannelEtsyLayout Model="@context" IsNew="@(context.Id == Guid.Empty)"
+                                AutoImportProducts="@_autoImportProducts"
                                 OnConnectClick="@(async () => await StartOAuthAsync(context))" />
     </CrudEditHost>
 }

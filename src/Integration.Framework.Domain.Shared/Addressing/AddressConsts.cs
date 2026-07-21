@@ -13,4 +13,8 @@ public static class AddressConsts
 
     /// <summary>Opsiyonel yapısal kod (CityCode/DistrictCode — plaka / N11 gibi kodlu sistemler).</summary>
     public const int CodeMaxLength = 16;
+
+    /// <summary>Opsiyonel ISO 3166-2 idari-alan kodu (<c>AdministrativeAreaIsoCode</c>, ör. "TR-34", "US-AL") — UBL
+    /// <c>CountrySubentityCode</c>'a projekte edilir. Çekirdek coğrafyanın kod uzunluğuyla (Iso3166_2CodeMaxLength) hizalı.</summary>
+    public const int IsoSubentityCodeMaxLength = 16;
 }

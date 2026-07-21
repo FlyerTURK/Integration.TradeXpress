@@ -23,6 +23,8 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
             b.Property(x => x.Name).IsRequired().HasMaxLength(N11ShipmentConsts.NameMaxLength);
             b.Property(x => x.ShortName).IsRequired().HasMaxLength(N11ShipmentConsts.ShortNameMaxLength);
             b.HasIndex(x => x.ExternalId).IsUnique().HasFilter("[IsDeleted] = 0");
+            // Çekirdek kargo firmasına gevşek köprü (nullable) — eşleme sorgusunu hızlandırır (N11City deseni).
+            b.HasIndex(x => x.CoreCarrierId);
         });
 
         builder.Entity<N11ShipmentTemplate>(b =>
@@ -56,6 +58,10 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
 
             // Kimlik = (SalesChannelId, TemplateName) — N11'de ayrı id yok; soft-delete filtreli.
             b.HasIndex(x => new { x.SalesChannelId, x.TemplateName }).IsUnique().HasFilter("[IsDeleted] = 0");
+
+            // K1 köprüsü — çekirdek ERP kargo şablonu referansı (id-only, nav/FK YOK); çekirdek şablonun
+            // silme-guard sorgusu (ShipmentTemplateId == id) bu index'i kullanır.
+            b.HasIndex(x => x.ShipmentTemplateId);
         });
     }
 
@@ -73,5 +79,11 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
         a.Property(p => p.PostalCode).HasMaxLength(AddressConsts.PostalCodeMaxLength);
         a.Property(p => p.CityCode).HasMaxLength(AddressConsts.CodeMaxLength);
         a.Property(p => p.DistrictCode).HasMaxLength(AddressConsts.CodeMaxLength);
+
+        // Opsiyonel coğrafya referansları (additive) — id-only köprü + ISO 3166-2 kodu; hepsi NULLABLE (IsRequired YOK).
+        // Nullable CLR tipleri konvansiyonla nullable kolona map olur; ISO kodu için uzunluk açıkça sabitlenir.
+        a.Property(p => p.AdministrativeAreaId);
+        a.Property(p => p.LocalityId);
+        a.Property(p => p.AdministrativeAreaIsoCode).HasMaxLength(AddressConsts.IsoSubentityCodeMaxLength);
     }
 }

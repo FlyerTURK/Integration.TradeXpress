@@ -1,0 +1,92 @@
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@* Yeniden kullanılabilir coğrafya cascade seçici — Ülke → İl/Eyalet → İlçe. Ülke seçilince o ülkenin idari
+   alanları IGeographyAppService'ten çekilir (DB'de yoksa ilk seferde LAZY IMPORT tetiklenir → birkaç sn; combolar
+   pasif + hint). Ülke UsesAdministrativeArea=false ise (ya da yalnız sembolik ana alan dönerse) il/eyalet combo'su
+   GİZLENİR, tek alan otomatik seçilip doğrudan ilçe combo'su gösterilir. Seçim SelectionChanged callback'i ile
+   çağırana (ör. ShipmentAddressFields) bildirilir; picker adres modelini DOLDURUR ama alanlar düzenlenebilir kalır.
+   DUMB-layout istisnası: reusable picker kendi servislerini INJECT eder (LookupComboBox gibi). EditContext altındaki
+   manuel-bağlı combolar salt UI durumu → ValidationEnabled="false" ([validation-expr]). *@
+
+<DxFormLayout CssClass="w-100">
+    <DxFormLayoutGroup Caption="@L["Geography:Picker:Section"]" ColSpanMd="12">
+        <DxFormLayoutItem Caption="@L["Country"]" ColSpanMd="6">
+            <DxComboBox TData="CountryListDto" TValue="Guid?"
+                        Data="@_countries"
+                        ValueFieldName="@nameof(CountryListDto.Id)"
+                        TextFieldName="@nameof(CountryListDto.Name)"
+                        Value="@_selectedCountryId"
+                        ValueChanged="@(async (Guid? id) => await OnCountrySelectedAsync(id))"
+                        NullText="@L["Select"].Value"
+                        Enabled="@(!IsBusy)"
+                        ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto"
+                        ValidationEnabled="false"
+                        CssClass="w-100" />
+        </DxFormLayoutItem>
+
+        @* İl/Eyalet — yalnız ülke idari-alan seviyesi kullanıyorsa görünür (sembolik ana alanlı ülkede gizli). *@
+        @if (_usesAreaLevel)
+        {
+            <DxFormLayoutItem Caption="@AreaCaption" ColSpanMd="6">
+                <DxComboBox TData="AdministrativeAreaDto" TValue="Guid?"
+                            Data="@_areas"
+                            ValueFieldName="@nameof(AdministrativeAreaDto.Id)"
+                            TextFieldName="@nameof(AdministrativeAreaDto.Name)"
+                            Value="@_selectedAreaId"
+                            ValueChanged="@(async (Guid? id) => await OnAreaSelectedAsync(id))"
+                            NullText="@L["Select"].Value"
+                            Enabled="@(!IsBusy && _selectedCountryId != null)"
+                            ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto"
+                            ValidationEnabled="false"
+                            CssClass="w-100" />
+            </DxFormLayoutItem>
+        }
+
+        <DxFormLayoutItem Caption="@LocalityCaption" ColSpanMd="6">
+            <DxComboBox TData="LocalityDto" TValue="Guid?"
+                        Data="@_localities"
+                        ValueFieldName="@nameof(LocalityDto.Id)"
+                        TextFieldName="@nameof(LocalityDto.Name)"
+                        Value="@_selectedLocalityId"
+                        ValueChanged="@(async (Guid? id) => await OnLocalitySelectedAsync(id))"
+                        NullText="@L["Select"].Value"
+                        Enabled="@(!IsBusy && _selectedAreaId != null)"
+                        ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto"
+                        ValidationEnabled="false"
+                        CssClass="w-100" />
+        </DxFormLayoutItem>
+
+        @* Mahalle — yalnız ülke mahalle seviyesi kullanıyorsa görünür (ör. TR; ABD/diğerlerinde gizli). CANLI N11 çekimi
+           (saklanmaz; her ilçe seçiminde taze). Değer N11 mahalle id'si (string) — kalıcı çekirdek id değil. *@
+        @if (_usesSubLocalityLevel)
+        {
+            <DxFormLayoutItem Caption="@NeighborhoodCaption" ColSpanMd="6">
+                <DxComboBox TData="NeighborhoodDto" TValue="string"
+                            Data="@_neighborhoods"
+                            ValueFieldName="@nameof(NeighborhoodDto.Id)"
+                            TextFieldName="@nameof(NeighborhoodDto.Name)"
+                            Value="@_selectedNeighborhoodId"
+                            ValueChanged="@(async (string? id) => await OnNeighborhoodSelectedAsync(id))"
+                            NullText="@L["Select"].Value"
+                            Enabled="@(!IsBusy && _selectedLocalityId != null)"
+                            ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto"
+                            ValidationEnabled="false"
+                            CssClass="w-100" />
+            </DxFormLayoutItem>
+        }
+
+        @* Busy göstergesi — il/eyalet dataset'i ilk seferde indirilirken ya da mahalle CANLI N11'den çekilirken (birkaç sn). *@
+        @if (_importing)
+        {
+            <DxFormLayoutItem ColSpanMd="12">
+                <span style="color:#6c757d; font-size:0.85rem;">@L["Geography:Picker:Importing"]</span>
+            </DxFormLayoutItem>
+        }
+        else if (_loadingNeighborhoods)
+        {
+            <DxFormLayoutItem ColSpanMd="12">
+                <span style="color:#6c757d; font-size:0.85rem;">@L["Geography:Picker:LoadingNeighborhoods"]</span>
+            </DxFormLayoutItem>
+        }
+    </DxFormLayoutGroup>
+</DxFormLayout>

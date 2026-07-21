@@ -108,16 +108,13 @@
         <DxHtmlEditor @bind-Markup="@Model.Description" CssClass="w-100" Height="360px" />
     </DxTabPage>
 
-    @* Nitelikler + Varyantlar — JENERİK agnostik varyant bileşenleri (EntityName="Good"). Panel DxTabPage ÜRETMEZ,
-       içeriği üretir (DrillTabs CollectionFiller wrapper gotcha'sı). Kod/ad/varyant üretimi sunucuda (synchronizer). *@
-    <DxTabPage Text="@L["Attributes"]" TabIconCssClass="@TradeXpressIcons.Sliders">
-        <EntityAttributesPanel Attributes="@Model.Attributes" OnAttributesChanged="@OnGenerateVariants" />
-    </DxTabPage>
+    @* Varyantlar — JENERİK agnostik varyant bileşeni (EntityName="Good"). Nitelikler ayrı sekmede DEĞİL → varyant
+       panelinin "Özellikleri Düzenle" toolbar butonundan popup'ta (OnAttributesChanged bağlı). Üretim sunucuda (synchronizer). *@
     <DxTabPage Text="@L["Variants"]" TabIconCssClass="@TradeXpressIcons.ProductVariant">
         @* Varyant-başı fiyat/stok — ExtraFields slot'unda (Good-özel; GoodVariantDetail'e saklanır). Stok birimi ana mamülde. *@
         @* Stok Adedi GİZLİ — Good stoğu VoucherLine ledger'ından türetilir (statik stok anlamsız). *@
         <EntityVariantsPanel TVariant="GoodVariantGraphDto" Variants="@Model.Variants" Attributes="@Model.Attributes"
-                             ShowStockQuantity="false" ShowImages="true">
+                             ShowStockQuantity="false" ShowImages="true" OnAttributesChanged="@OnGenerateVariants">
             <ExtraFields Context="v">
                 @* Stok limitleri (varyant-başı). *@
                 <DxFormLayoutItem Caption="@L["GoodMinQty"]" ColSpanMd="6" BeginRow="true">

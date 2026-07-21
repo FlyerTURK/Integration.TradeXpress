@@ -375,6 +375,11 @@ public class TradeXpressBlazorModule : AbpModule
         // Sipariş SEED worker — boş kanalları streaming (order başına commit) doldurur. YALNIZ Blazor host'ta.
         Volo.Abp.Threading.AsyncHelper.RunSync(() =>
             context.AddBackgroundWorkerAsync<Integration.TradeXpress.Orders.OrderSyncBackgroundWorker>());
+
+        // Etsy taxonomy TAM-RECONCILE worker (günlük; RunOnStart=true → açılışta İLK bayatlık kontrolü). Bayat/boşsa
+        // reconcile (ekle/güncelle/HARD-sil); değilse atlar. YALNIZ Blazor host'ta → çift-çalışma yok.
+        Volo.Abp.Threading.AsyncHelper.RunSync(() =>
+            context.AddBackgroundWorkerAsync<Integration.TradeXpress.EtsyTaxonomies.EtsyTaxonomySyncWorker>());
     }
 
     /// <summary>HTTP request pipeline'ı (middleware zinciri) — sıralama duyarlı, dokunma.</summary>

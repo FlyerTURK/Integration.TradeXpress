@@ -27,6 +27,8 @@ using Integration.TradeXpress.Countries;
 using Integration.TradeXpress.Branches;
 using Integration.TradeXpress.Vaults;
 using Integration.TradeXpress.AssayOffices;
+using Integration.TradeXpress.AddOns;
+using Integration.TradeXpress.VariantTemplates;
 using Integration.TradeXpress.Scheduling;
 using Integration.TradeXpress.Cashes;
 using Integration.TradeXpress.Accounts;
@@ -62,6 +64,11 @@ public class TradeXpressDbContext :
     public DbSet<Branch> Branches { get; set; } = null!;
     public DbSet<Vault> Vaults { get; set; } = null!;
     public DbSet<AssayOffice> AssayOffices { get; set; } = null!;
+    public DbSet<AddOn> AddOns { get; set; } = null!;
+    public DbSet<Integration.TradeXpress.Shipments.ShipmentTemplate> ShipmentTemplates { get; set; } = null!;
+    // Çekirdek kargo firması — HOST-GLOBAL (IMultiTenant değil; tüm tenant'lar paylaşır; Geography deseni).
+    public DbSet<Integration.TradeXpress.Shipments.Carrier> Carriers { get; set; } = null!;
+    public DbSet<VariantTemplate> VariantTemplates { get; set; } = null!;
     public DbSet<SchedulerAppointment> SchedulerAppointments { get; set; } = null!;
     public DbSet<Cash> Cashes { get; set; } = null!;
     public DbSet<Service> Services { get; set; } = null!;
@@ -107,9 +114,15 @@ public class TradeXpressDbContext :
     public DbSet<Integration.TradeXpress.N11Categories.N11Category> N11Categories { get; set; } = null!;
     // Trendyol kategori taksonomisi — HOST-GLOBAL (IMultiTenant değil; tüm tenant'lar paylaşır).
     public DbSet<Integration.TradeXpress.TrendyolCategories.TrendyolCategory> TrendyolCategories { get; set; } = null!;
+    // Etsy seller taxonomy — HOST-GLOBAL (IMultiTenant değil; tüm tenant'lar paylaşır).
+    public DbSet<Integration.TradeXpress.EtsyTaxonomies.EtsyTaxonomy> EtsyTaxonomies { get; set; } = null!;
     // N11 adres taksonomisi (İl/İlçe) — HOST-GLOBAL. Mahalleler saklanmaz (on-demand).
     public DbSet<Integration.TradeXpress.N11Cities.N11City> N11Cities { get; set; } = null!;
     public DbSet<Integration.TradeXpress.N11Cities.N11District> N11Districts { get; set; } = null!;
+    // Çekirdek coğrafya (idari alan/yerellik/alt-yerellik — ISO 3166-2 hizalı) — HOST-seed, IMultiTenant.
+    public DbSet<Integration.TradeXpress.Geography.AdministrativeArea> AdministrativeAreas { get; set; } = null!;
+    public DbSet<Integration.TradeXpress.Geography.Locality> Localities { get; set; } = null!;
+    public DbSet<Integration.TradeXpress.Geography.SubLocality> SubLocalities { get; set; } = null!;
     // N11 kargo firmaları — HOST-GLOBAL.
     public DbSet<Integration.TradeXpress.N11Shipments.N11ShipmentCompany> N11ShipmentCompanies { get; set; } = null!;
     // N11 kargo şablonları — per-kanal (company-owned).
@@ -123,6 +136,15 @@ public class TradeXpressDbContext :
     public DbSet<Integration.TradeXpress.N11Products.SalesChannelTrN11ProductStockItem> SalesChannelTrN11ProductStockItems { get; set; } = null!;
     // N11 kanal-özel varyant reçete satırları (ayrı tablo; ERP reçetesi klonu).
     public DbSet<Integration.TradeXpress.N11Products.SalesChannelTrN11ProductStockItemRecipeLine> SalesChannelTrN11ProductStockItemRecipeLines { get; set; } = null!;
+    // Etsy ürün listelemeleri — ürün×kanal (company-owned). N11 ikizi.
+    public DbSet<Integration.TradeXpress.EtsyProducts.SalesChannelEtsyProduct> SalesChannelEtsyProducts { get; set; } = null!;
+    // Etsy kanal-özel varyant EKSENİ/DEĞERİ (ERP ProductAttribute/Value klonu; klon-sonra-ayrış).
+    public DbSet<Integration.TradeXpress.EtsyProducts.SalesChannelEtsyProductAttribute> SalesChannelEtsyProductAttributes { get; set; } = null!;
+    public DbSet<Integration.TradeXpress.EtsyProducts.SalesChannelEtsyProductAttributeValue> SalesChannelEtsyProductAttributeValues { get; set; } = null!;
+    // Etsy kanal-özel varyant override başlığı (fiyat/stok + marj; ayrı tablo).
+    public DbSet<Integration.TradeXpress.EtsyProducts.SalesChannelEtsyProductStockItem> SalesChannelEtsyProductStockItems { get; set; } = null!;
+    // Etsy kanal-özel varyant reçete satırları (ayrı tablo; ERP reçetesi klonu).
+    public DbSet<Integration.TradeXpress.EtsyProducts.SalesChannelEtsyProductStockItemRecipeLine> SalesChannelEtsyProductStockItemRecipeLines { get; set; } = null!;
     // Trendyol ürün listelemeleri — ürün×kanal (company-owned).
     public DbSet<Integration.TradeXpress.TrendyolProducts.SalesChannelTrTrendyolProduct> SalesChannelTrTrendyolProducts { get; set; } = null!;
     // Trendyol kanal-özel varyant EKSENİ/DEĞERİ (ERP ProductAttribute/Value klonu; klon-sonra-ayrış).
@@ -199,9 +221,14 @@ public class TradeXpressDbContext :
         builder.ConfigureCurrencies();
         builder.ConfigureCompanies();
         builder.ConfigureCountries();
+        builder.ConfigureGeography();
         builder.ConfigureBranches();
         builder.ConfigureVaults();
         builder.ConfigureAssayOffices();
+        builder.ConfigureAddOns();
+        builder.ConfigureShipmentTemplates();
+        builder.ConfigureCarriers();
+        builder.ConfigureVariantTemplates();
         builder.ConfigureProducts();
         builder.ConfigureSchedulerAppointments();
         builder.ConfigureCashes();
@@ -232,10 +259,12 @@ public class TradeXpressDbContext :
         builder.ConfigureUserGridLayouts();
         builder.ConfigureN11Categories();
         builder.ConfigureTrendyolCategories();
+        builder.ConfigureEtsyTaxonomies();
         builder.ConfigureN11Cities();
         builder.ConfigureN11Shipments();
         builder.ConfigureN11Products();
         builder.ConfigureTrendyolProducts();
+        builder.ConfigureEtsyProducts();
         builder.ConfigureSubstitutions();
         builder.ConfigureOrders();
 

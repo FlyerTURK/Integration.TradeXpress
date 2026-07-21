@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using Integration.Framework.Base.Dtos;
 using Integration.Framework.Base.Dtos.Interfaces;
+using Integration.TradeXpress.Attachments;
+using Integration.TradeXpress.EtsyProducts;
 using Integration.TradeXpress.N11Products;
 using Integration.TradeXpress.TrendyolProducts;
 using Integration.TradeXpress.Variants;
@@ -75,6 +77,10 @@ public class ProductGetDto : EntityDto<Guid>, IGetDto<Guid>, IHasCode
 
     [StringLength(ProductConsts.ShipmentTemplateNameMaxLength)]
     public string? ShipmentTemplateName { get; set; }
+
+    /// <summary>Birleşik ERP kargo şablonu referansı (<c>ShipmentTemplate.Id</c>; id-only, opsiyonel).</summary>
+    public Guid? ShipmentTemplateId { get; set; }
+
     public int? MaxPurchaseQuantity { get; set; }
 
     [StringLength(ProductConsts.SellerNoteMaxLength)]
@@ -86,6 +92,23 @@ public class ProductGetDto : EntityDto<Guid>, IGetDto<Guid>, IHasCode
     /// <summary>Ürün özelleştirme alanları (key zorunlu / value opsiyonel; in-memory drill).</summary>
     public List<ProductSpecialInfoDto> SpecialInfo { get; set; } = new();
 
+    /// <summary>Ürüne atanan eklentiler (katalogdan seçim + satır override; in-memory drill).</summary>
+    public List<ProductAddOnDto> AddOns { get; set; } = new();
+
+    /// <summary>Kişiselleştirme (pazaryeri-genel; Etsy who_made deseni). Kanal-ürünü push'ta devralır (SONRAKİ iş).</summary>
+    public bool IsPersonalizable { get; set; }
+
+    [StringLength(ProductConsts.PersonalizationInstructionsMaxLength)]
+    public string? PersonalizationInstructions { get; set; }
+
+    public bool PersonalizationIsRequired { get; set; }
+
+    public int? PersonalizationCharCountMax { get; set; }
+
+    /// <summary>Ürün MEDYA linkleri (merkezi kütüphane; görsel + video birlikte — <see cref="IEntityMediaAppService"/>).
+    /// Pazaryeri push görselleri (<see cref="Images"/>) AYRI kalır; bu ürün-seviyesi genel medya/video kütüphanesidir.</summary>
+    public List<EntityMediaLinkEditDto> Media { get; set; } = new();
+
     /// <summary>N11 satış kanalı ürünleri (graf düğümleri; ClientKey/Id + IsDeleted diff) — ürün 'Kaydet'inde
     /// birlikte kaydedilir (yeni üründe de eklenebilir). Panel in-memory yönetir; sunucu SellerCode/Sıra üretir.</summary>
     public List<SalesChannelTrN11ProductDto> SalesChannelProducts { get; set; } = new();
@@ -93,6 +116,10 @@ public class ProductGetDto : EntityDto<Guid>, IGetDto<Guid>, IHasCode
     /// <summary>Trendyol satış kanalı ürünleri (graf düğümleri; ClientKey/Id + IsDeleted diff) — N11'den AYRI ikinci
     /// liste (eleştiri F1: iki ayrı liste). Ürün 'Kaydet'inde birlikte kaydedilir; sunucu ProductMainId/Sıra üretir.</summary>
     public List<SalesChannelTrTrendyolProductDto> SalesChannelTrendyolProducts { get; set; } = new();
+
+    /// <summary>Etsy satış kanalı ürünleri (graf düğümleri; ClientKey/Id + IsDeleted diff) — N11/Trendyol'dan AYRI
+    /// üçüncü liste. Ürün 'Kaydet'inde birlikte kaydedilir; sunucu SellerSkuBase/Sıra üretir.</summary>
+    public List<SalesChannelEtsyProductDto> SalesChannelEtsyProducts { get; set; } = new();
 
     /// <summary>Varyantlar (graf düğümleri; Id + IsDeleted ile diff). Product edit formundaki drill yönetir.</summary>
     public List<ProductVariantGraphDto> Variants { get; set; } = new();
@@ -135,6 +162,10 @@ public class ProductCreateDto : ICreateDto
 
     [StringLength(ProductConsts.ShipmentTemplateNameMaxLength)]
     public string? ShipmentTemplateName { get; set; }
+
+    /// <summary>Birleşik ERP kargo şablonu referansı (<c>ShipmentTemplate.Id</c>; id-only, opsiyonel).</summary>
+    public Guid? ShipmentTemplateId { get; set; }
+
     public int? MaxPurchaseQuantity { get; set; }
 
     [StringLength(ProductConsts.SellerNoteMaxLength)]
@@ -142,11 +173,30 @@ public class ProductCreateDto : ICreateDto
     public Guid? CurrencyUnitId { get; set; }
     public List<ProductSpecialInfoDto> SpecialInfo { get; set; } = new();
 
+    /// <summary>Ürüne atanan eklentiler (katalogdan seçim + satır override; in-memory drill).</summary>
+    public List<ProductAddOnDto> AddOns { get; set; } = new();
+
+    /// <summary>Kişiselleştirme — bkz. <see cref="ProductGetDto.IsPersonalizable"/>.</summary>
+    public bool IsPersonalizable { get; set; }
+
+    [StringLength(ProductConsts.PersonalizationInstructionsMaxLength)]
+    public string? PersonalizationInstructions { get; set; }
+
+    public bool PersonalizationIsRequired { get; set; }
+
+    public int? PersonalizationCharCountMax { get; set; }
+
+    /// <summary>Ürün MEDYA linkleri (görsel + video kütüphanesi) — bkz. <see cref="ProductGetDto.Media"/>.</summary>
+    public List<EntityMediaLinkEditDto> Media { get; set; } = new();
+
     /// <summary>N11 satış kanalı ürünleri grafı — bkz. <see cref="ProductGetDto.SalesChannelProducts"/>.</summary>
     public List<SalesChannelTrN11ProductDto> SalesChannelProducts { get; set; } = new();
 
     /// <summary>Trendyol satış kanalı ürünleri grafı — bkz. <see cref="ProductGetDto.SalesChannelTrendyolProducts"/>.</summary>
     public List<SalesChannelTrTrendyolProductDto> SalesChannelTrendyolProducts { get; set; } = new();
+
+    /// <summary>Etsy satış kanalı ürünleri grafı — bkz. <see cref="ProductGetDto.SalesChannelEtsyProducts"/>.</summary>
+    public List<SalesChannelEtsyProductDto> SalesChannelEtsyProducts { get; set; } = new();
 
     public List<ProductVariantGraphDto> Variants { get; set; } = new();
 
@@ -190,6 +240,10 @@ public class ProductUpdateDto : IUpdateDto
 
     [StringLength(ProductConsts.ShipmentTemplateNameMaxLength)]
     public string? ShipmentTemplateName { get; set; }
+
+    /// <summary>Birleşik ERP kargo şablonu referansı (<c>ShipmentTemplate.Id</c>; id-only, opsiyonel).</summary>
+    public Guid? ShipmentTemplateId { get; set; }
+
     public int? MaxPurchaseQuantity { get; set; }
 
     [StringLength(ProductConsts.SellerNoteMaxLength)]
@@ -197,11 +251,30 @@ public class ProductUpdateDto : IUpdateDto
     public Guid? CurrencyUnitId { get; set; }
     public List<ProductSpecialInfoDto> SpecialInfo { get; set; } = new();
 
+    /// <summary>Ürüne atanan eklentiler (katalogdan seçim + satır override; in-memory drill).</summary>
+    public List<ProductAddOnDto> AddOns { get; set; } = new();
+
+    /// <summary>Kişiselleştirme — bkz. <see cref="ProductGetDto.IsPersonalizable"/>.</summary>
+    public bool IsPersonalizable { get; set; }
+
+    [StringLength(ProductConsts.PersonalizationInstructionsMaxLength)]
+    public string? PersonalizationInstructions { get; set; }
+
+    public bool PersonalizationIsRequired { get; set; }
+
+    public int? PersonalizationCharCountMax { get; set; }
+
+    /// <summary>Ürün MEDYA linkleri (görsel + video kütüphanesi) — bkz. <see cref="ProductGetDto.Media"/>.</summary>
+    public List<EntityMediaLinkEditDto> Media { get; set; } = new();
+
     /// <summary>N11 satış kanalı ürünleri grafı — bkz. <see cref="ProductGetDto.SalesChannelProducts"/>.</summary>
     public List<SalesChannelTrN11ProductDto> SalesChannelProducts { get; set; } = new();
 
     /// <summary>Trendyol satış kanalı ürünleri grafı — bkz. <see cref="ProductGetDto.SalesChannelTrendyolProducts"/>.</summary>
     public List<SalesChannelTrTrendyolProductDto> SalesChannelTrendyolProducts { get; set; } = new();
+
+    /// <summary>Etsy satış kanalı ürünleri grafı — bkz. <see cref="ProductGetDto.SalesChannelEtsyProducts"/>.</summary>
+    public List<SalesChannelEtsyProductDto> SalesChannelEtsyProducts { get; set; } = new();
 
     public List<ProductVariantGraphDto> Variants { get; set; } = new();
 
@@ -223,6 +296,28 @@ public class ProductSpecialInfoDto
     public string Value { get; set; } = string.Empty;
 }
 
+/// <summary>Ürüne atanan eklenti satırı (katalog referansı + override). <see cref="ClientKey"/> yalnız in-memory
+/// DrillList satır kimliği (persist edilmez). <see cref="AddOnId"/> zorunlu (boş satır elenir); fiyat/para birimi
+/// override null ise katalog varsayılanı devralınır.</summary>
+public class ProductAddOnDto
+{
+    /// <summary>İstemci-taraflı satır kimliği (DrillList grid identity) — persist edilmez.</summary>
+    public Guid ClientKey { get; set; } = Guid.NewGuid();
+
+    public Guid AddOnId { get; set; }
+
+    public decimal? PriceOverride { get; set; }
+
+    public Guid? CurrencyUnitOverrideId { get; set; }
+
+    public bool IsRequired { get; set; }
+
+    public int DisplayOrder { get; set; }
+
+    [StringLength(ProductConsts.AddOnNoteMaxLength)]
+    public string? Note { get; set; }
+}
+
 /// <summary>Ürün GÖRSELİ graf düğümü — görsel drill'i + Product save'i içindir. Kaynak URL ya da yüklenmiş dosya
 /// (blob; dosya seçilince ANINDA <see cref="IProductImageAppService.UploadAsync"/> ile yüklenir, ürün save'i yalnız
 /// referansı kalıcılaştırır). <see cref="PreviewDataUrl"/> SALT-OKUNUR (GetAsync/upload doldurur; save yoksayar).</summary>
@@ -242,6 +337,13 @@ public class ProductImageGraphDto : ISingleImageEditModel
     public string? FileName { get; set; }
 
     public int DisplayOrder { get; set; }
+
+    /// <summary>Görselin bağlı olduğu VARYANT (null = ürün-geneli; tüm varyantlara ortak).</summary>
+    public Guid? VariantId { get; set; }
+
+    /// <summary>Varyant kodu (denormalize — blob path'i + gösterim). null/boş = ürün-geneli.</summary>
+    [StringLength(EntityVariantConsts.VariantCodeMaxLength)]
+    public string? VariantCode { get; set; }
 
     /// <summary>Varsayılan (ana) görsel — push'ta ilk sıraya alınır. Tekil garanti sunucuda (SetImages).</summary>
     public bool IsDefault { get; set; }

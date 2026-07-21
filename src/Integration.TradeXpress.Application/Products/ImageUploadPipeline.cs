@@ -28,10 +28,16 @@ public static class ImageUploadPipeline
     /// küçük dosya (4MB guard'ı geçer) devasa boyut bildirip sunucuda GB'larca buffer ayırtamasın.</summary>
     public const long MaxDecodedPixels = 40_000_000;
 
-    /// <summary>Thumbnail blob adı — ana blob'dan türetilir (silme/okuma tek kuraldan).</summary>
+    /// <summary>Thumbnail blob adı — ana blob'dan türetilir (silme/okuma tek kuraldan). Path-aware:
+    /// son '/'a göre klasör + dosya ayrılır → thumbnail dosya adının başına "thumb-" eklenir, klasör KORUNUR
+    /// ("Products/KOD/GORSEL0001.jpg" → "Products/KOD/thumb-GORSEL0001.jpg.jpg"). Slash yoksa klasör boş →
+    /// eski flat davranışla ("thumb-" + blobName + ".jpg") BİREBİR aynı (mevcut Guid-adlı bloblar bozulmaz).</summary>
     public static string ThumbnailNameOf(string blobName)
     {
-        return "thumb-" + blobName + ".jpg";
+        var slash = blobName.LastIndexOf('/');
+        var dir = slash >= 0 ? blobName.Substring(0, slash + 1) : string.Empty;
+        var file = slash >= 0 ? blobName.Substring(slash + 1) : blobName;
+        return dir + "thumb-" + file + ".jpg";
     }
 
     /// <summary>Thumbnail JPEG içeriğinden önizleme data-URL'i.</summary>
@@ -115,6 +121,48 @@ public static class ImageUploadPipeline
         await container.SaveAsync(ThumbnailNameOf(blobName), thumbnail);
 
         return new ImageUploadResult(blobName, BuildPreviewDataUrl(thumbnail));
+    }
+
+    /// <summary>
+    /// PATH ön-ekli upload (Product görselleri — anlamlı blob anahtarı): guard'lar → thumbnail → İLK BOŞ SIRAYI
+    /// probe et ("GORSEL0001", "GORSEL0002", …; <paramref name="blobFolder"/> + "/" altında ExistsAsync ile) →
+    /// ana blob + thumbnail kaydı → önizleme data-URL. <paramref name="blobFolder"/> trailing slash İSTEMEZ
+    /// (ör. "Products/KOD/VARYANTKOD"). Flat Guid-adlı <see cref="UploadAsync"/> ile çekirdeği (guard/thumbnail) paylaşır.
+    /// </summary>
+    public static async Task<ImageUploadResult> UploadToFolderAsync(
+        IBlobContainer container,
+        string blobFolder,
+        string fileName,
+        byte[] content,
+        int maxSizeBytes,
+        string errorCodePrefix)
+    {
+        EnsureValidUpload(content, fileName, maxSizeBytes, errorCodePrefix);
+        var thumbnail = BuildThumbnail(content, errorCodePrefix);
+
+        var extension = Path.GetExtension(fileName).ToLowerInvariant();
+        var blobName = await ProbeNextFreeNameAsync(container, blobFolder, extension);
+        await container.SaveAsync(blobName, content);
+        await container.SaveAsync(ThumbnailNameOf(blobName), thumbnail);
+
+        return new ImageUploadResult(blobName, BuildPreviewDataUrl(thumbnail));
+    }
+
+    /// <summary>İlk boş "GORSEL{n:D4}{ext}" adını bulur — n=1'den başlar, klasördeki ad DOLUYSA artırır
+    /// (aynı klasöre tekrar yükleme çakışmasın; blob adı tekilliğin TEK kaynağı olur).</summary>
+    private static async Task<string> ProbeNextFreeNameAsync(IBlobContainer container, string blobFolder, string extension)
+    {
+        var index = 1;
+        while (true)
+        {
+            var candidate = blobFolder + "/GORSEL" + index.ToString("D4") + extension;
+            if (!await container.ExistsAsync(candidate))
+            {
+                return candidate;
+            }
+
+            index++;
+        }
     }
 
     /// <summary>Upload yetkisi: Create YA DA Update yeterli (yeni kayıt oluştururken de yüklenir;

@@ -57,6 +57,11 @@
                                       Click="@(() => SyncN11StockPriceAsync(row.N11!))" />
                         }
                     }
+                    else if (row.IsEtsy)
+                    {
+                        @* Etsy push/sync bu dilimde YOK (CRUD + listeleme yapılandırması); push metotları push dilimiyle gelecek. *@
+                        <span style="color:#6c757d; font-size:0.85rem;">@L["EtsyProduct:PushComingSoon"]</span>
+                    }
                     else
                     {
                         @* READ-ONLY AŞAMA: Trendyol gerçek push GERİ-DÖNÜŞSÜZ ürün yaratır (POST /products) →
@@ -81,6 +86,10 @@
             @if (row.IsN11)
             {
                 <SalesChannelTrN11ProductEditFields Model="row.N11!" Channels="_n11Channels" />
+            }
+            else if (row.IsEtsy)
+            {
+                <SalesChannelEtsyProductEditFields Model="row.Etsy!" Channels="_etsyChannels" />
             }
             else
             {

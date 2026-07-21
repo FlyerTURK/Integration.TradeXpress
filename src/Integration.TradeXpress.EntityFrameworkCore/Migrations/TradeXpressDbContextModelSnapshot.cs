@@ -216,6 +216,101 @@ namespace Integration.TradeXpress.Migrations
                     b.ToTable("AppSubAccounts", (string)null);
                 });
 
+            modelBuilder.Entity("Integration.TradeXpress.AddOns.AddOn", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)")
+                        .UseCollation("Latin1_General_100_BIN2");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ConcurrencyStamp")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)")
+                        .HasColumnName("ConcurrencyStamp");
+
+                    b.Property<DateTime>("CreationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("CreationTime");
+
+                    b.Property<Guid?>("CreatorId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CreatorId");
+
+                    b.Property<Guid>("CurrencyUnitId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("DeleterId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("DeleterId");
+
+                    b.Property<DateTime?>("DeletionTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("DeletionTime");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
+
+                    b.Property<int>("DisplayOrder")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ExtraProperties")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("ExtraProperties");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false)
+                        .HasColumnName("IsDeleted");
+
+                    b.Property<DateTime?>("LastModificationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("LastModificationTime");
+
+                    b.Property<Guid?>("LastModifierId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("LastModifierId");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<decimal>("Price")
+                        .HasPrecision(18, 5)
+                        .HasColumnType("decimal(18,5)");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("TenantId");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CurrencyUnitId");
+
+                    b.HasIndex("TenantId", "CompanyId");
+
+                    b.HasIndex("TenantId", "CompanyId", "Code")
+                        .IsUnique()
+                        .HasFilter("[TenantId] IS NOT NULL");
+
+                    b.ToTable("AppAddOns", (string)null);
+                });
+
             modelBuilder.Entity("Integration.TradeXpress.AssayOffices.AssayOffice", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1229,6 +1324,15 @@ namespace Integration.TradeXpress.Migrations
                     b.Property<Guid>("Id")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<int>("AdministrativeAreaType")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0);
+
+                    b.Property<string>("Alpha3Code")
+                        .HasMaxLength(3)
+                        .HasColumnType("nvarchar(3)");
+
                     b.Property<string>("Code")
                         .IsRequired()
                         .HasMaxLength(2)
@@ -1273,6 +1377,9 @@ namespace Integration.TradeXpress.Migrations
                         .HasColumnType("nvarchar(max)")
                         .HasColumnName("ExtraProperties");
 
+                    b.Property<DateTime?>("GeographyImportedAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
 
@@ -1290,14 +1397,43 @@ namespace Integration.TradeXpress.Migrations
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("LastModifierId");
 
+                    b.Property<int>("LocalityType")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0);
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(128)
                         .HasColumnType("nvarchar(128)");
 
+                    b.Property<string>("NumericCode")
+                        .HasMaxLength(3)
+                        .HasColumnType("nvarchar(3)");
+
+                    b.Property<int>("PostalCodeType")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0);
+
+                    b.Property<int>("SubLocalityType")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0);
+
                     b.Property<Guid?>("TenantId")
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("TenantId");
+
+                    b.Property<bool>("UsesAdministrativeArea")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<bool>("UsesSubLocality")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
 
                     b.HasKey("Id");
 
@@ -1308,6 +1444,611 @@ namespace Integration.TradeXpress.Migrations
                         .HasFilter("[TenantId] IS NOT NULL");
 
                     b.ToTable("AppCountries", (string)null);
+                });
+
+            modelBuilder.Entity("Integration.TradeXpress.EtsyProducts.SalesChannelEtsyProduct", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ConcurrencyStamp")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)")
+                        .HasColumnName("ConcurrencyStamp");
+
+                    b.Property<DateTime>("CreationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("CreationTime");
+
+                    b.Property<Guid?>("CreatorId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CreatorId");
+
+                    b.Property<Guid?>("CurrencyUnitId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("DeleterId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("DeleterId");
+
+                    b.Property<DateTime?>("DeletionTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("DeletionTime");
+
+                    b.Property<string>("DescriptionOverride")
+                        .HasMaxLength(20000)
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<long?>("EtsyListingId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("ExtraProperties")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("ExtraProperties");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false)
+                        .HasColumnName("IsDeleted");
+
+                    b.Property<bool>("IsPersonalizable")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("LastError")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<DateTime?>("LastModificationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("LastModificationTime");
+
+                    b.Property<Guid?>("LastModifierId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("LastModifierId");
+
+                    b.Property<DateTime?>("LastSyncedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ListingState")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<int>("ListingType")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("PersonalizationCharCountMax")
+                        .HasColumnType("int");
+
+                    b.Property<string>("PersonalizationInstructions")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<bool>("PersonalizationIsRequired")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("PreparingDay")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("ProcessingMax")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("ProcessingMin")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<long?>("ReturnPolicyId")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid>("SalesChannelId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("SellerNote")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("SellerSkuBase")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<int>("SequenceNo")
+                        .HasColumnType("int");
+
+                    b.Property<long?>("ShippingProfileId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long?>("ShopSectionId")
+                        .HasColumnType("bigint");
+
+                    b.Property<bool>("ShouldAutoRenew")
+                        .HasColumnType("bit");
+
+                    b.Property<long?>("TaxonomyId")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("TenantId");
+
+                    b.Property<string>("TitleOverride")
+                        .HasMaxLength(140)
+                        .HasColumnType("nvarchar(140)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SalesChannelId", "ProductId");
+
+                    b.HasIndex("TenantId", "CompanyId");
+
+                    b.ToTable("AppSalesChannelEtsyProducts", (string)null);
+                });
+
+            modelBuilder.Entity("Integration.TradeXpress.EtsyProducts.SalesChannelEtsyProductAttribute", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ConcurrencyStamp")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)")
+                        .HasColumnName("ConcurrencyStamp");
+
+                    b.Property<DateTime>("CreationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("CreationTime");
+
+                    b.Property<Guid?>("CreatorId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CreatorId");
+
+                    b.Property<Guid?>("DeleterId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("DeleterId");
+
+                    b.Property<DateTime?>("DeletionTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("DeletionTime");
+
+                    b.Property<int>("DisplayOrder")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ExtraProperties")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("ExtraProperties");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false)
+                        .HasColumnName("IsDeleted");
+
+                    b.Property<DateTime?>("LastModificationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("LastModificationTime");
+
+                    b.Property<Guid?>("LastModifierId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("LastModifierId");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<Guid>("SalesChannelEtsyProductId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("TenantId");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "CompanyId");
+
+                    b.HasIndex("TenantId", "SalesChannelEtsyProductId");
+
+                    b.ToTable("AppSalesChannelEtsyProductAttributes", (string)null);
+                });
+
+            modelBuilder.Entity("Integration.TradeXpress.EtsyProducts.SalesChannelEtsyProductAttributeValue", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("AttributeId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ConcurrencyStamp")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)")
+                        .HasColumnName("ConcurrencyStamp");
+
+                    b.Property<DateTime>("CreationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("CreationTime");
+
+                    b.Property<Guid?>("CreatorId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CreatorId");
+
+                    b.Property<Guid?>("DeleterId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("DeleterId");
+
+                    b.Property<DateTime?>("DeletionTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("DeletionTime");
+
+                    b.Property<int>("DisplayOrder")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ExtraProperties")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("ExtraProperties");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false)
+                        .HasColumnName("IsDeleted");
+
+                    b.Property<DateTime?>("LastModificationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("LastModificationTime");
+
+                    b.Property<Guid?>("LastModifierId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("LastModifierId");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("TenantId");
+
+                    b.Property<string>("Value")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "AttributeId");
+
+                    b.HasIndex("TenantId", "CompanyId");
+
+                    b.ToTable("AppSalesChannelEtsyProductAttributeValues", (string)null);
+                });
+
+            modelBuilder.Entity("Integration.TradeXpress.EtsyProducts.SalesChannelEtsyProductStockItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("CombinationSignature")
+                        .HasMaxLength(600)
+                        .HasColumnType("nvarchar(600)");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ConcurrencyStamp")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)")
+                        .HasColumnName("ConcurrencyStamp");
+
+                    b.Property<DateTime>("CreationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("CreationTime");
+
+                    b.Property<Guid?>("CreatorId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CreatorId");
+
+                    b.Property<Guid?>("DeleterId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("DeleterId");
+
+                    b.Property<DateTime?>("DeletionTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("DeletionTime");
+
+                    b.Property<string>("ExtraProperties")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("ExtraProperties");
+
+                    b.Property<bool>("InsuredShippingEnabled")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false)
+                        .HasColumnName("IsDeleted");
+
+                    b.Property<DateTime?>("LastModificationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("LastModificationTime");
+
+                    b.Property<Guid?>("LastModifierId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("LastModifierId");
+
+                    b.Property<decimal?>("Margin")
+                        .HasPrecision(18, 5)
+                        .HasColumnType("decimal(18,5)");
+
+                    b.Property<decimal?>("OverridePrice")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<Guid?>("OverridePriceCurrencyUnitId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int?>("OverrideStock")
+                        .HasColumnType("int");
+
+                    b.Property<Guid?>("ProductVariantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("SalesChannelEtsyProductId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("TenantId");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "CompanyId");
+
+                    b.HasIndex("TenantId", "SalesChannelEtsyProductId", "CombinationSignature")
+                        .IsUnique()
+                        .HasFilter("[CombinationSignature] IS NOT NULL");
+
+                    b.HasIndex("TenantId", "SalesChannelEtsyProductId", "ProductVariantId")
+                        .IsUnique()
+                        .HasFilter("[ProductVariantId] IS NOT NULL");
+
+                    b.ToTable("AppSalesChannelEtsyProductStockItems", (string)null);
+                });
+
+            modelBuilder.Entity("Integration.TradeXpress.EtsyProducts.SalesChannelEtsyProductStockItemRecipeLine", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<Guid?>("CommodityId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<byte?>("CommodityProcessType")
+                        .HasColumnType("tinyint");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<byte>("ComponentType")
+                        .HasColumnType("tinyint");
+
+                    b.Property<string>("ConcurrencyStamp")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)")
+                        .HasColumnName("ConcurrencyStamp");
+
+                    b.Property<DateTime>("CreationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("CreationTime");
+
+                    b.Property<Guid?>("CreatorId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CreatorId");
+
+                    b.Property<Guid?>("DeleterId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("DeleterId");
+
+                    b.Property<DateTime?>("DeletionTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("DeletionTime");
+
+                    b.Property<byte?>("DerivedBaseMode")
+                        .HasColumnType("tinyint");
+
+                    b.Property<decimal>("DerivedOperand")
+                        .HasPrecision(18, 5)
+                        .HasColumnType("decimal(18,5)");
+
+                    b.Property<byte?>("DerivedOperation")
+                        .HasColumnType("tinyint");
+
+                    b.Property<string>("DerivedSourceLineIds")
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
+
+                    b.Property<string>("ExtraProperties")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("ExtraProperties");
+
+                    b.Property<decimal>("Factor")
+                        .HasPrecision(18, 5)
+                        .HasColumnType("decimal(18,5)");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false)
+                        .HasColumnName("IsDeleted");
+
+                    b.Property<DateTime?>("LastModificationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("LastModificationTime");
+
+                    b.Property<Guid?>("LastModifierId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("LastModifierId");
+
+                    b.Property<int>("LineOrder")
+                        .HasColumnType("int");
+
+                    b.Property<decimal?>("ManualAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<Guid?>("ManualUnitId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("PayFactor")
+                        .HasPrecision(18, 5)
+                        .HasColumnType("decimal(18,5)");
+
+                    b.Property<Guid?>("PayUnitId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<byte>("PaymentType")
+                        .HasColumnType("tinyint");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(18, 5)
+                        .HasColumnType("decimal(18,5)");
+
+                    b.Property<Guid>("SalesChannelEtsyProductId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<byte?>("SideCostKind")
+                        .HasColumnType("tinyint");
+
+                    b.Property<Guid>("StockItemId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("TenantId");
+
+                    b.Property<Guid?>("ValuationUnitId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "CompanyId");
+
+                    b.HasIndex("TenantId", "SalesChannelEtsyProductId", "StockItemId", "LineOrder");
+
+                    b.ToTable("AppSalesChannelEtsyProductStockItemRecipeLines", (string)null);
+                });
+
+            modelBuilder.Entity("Integration.TradeXpress.EtsyTaxonomies.EtsyTaxonomy", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ConcurrencyStamp")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)")
+                        .HasColumnName("ConcurrencyStamp");
+
+                    b.Property<DateTime>("CreationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("CreationTime");
+
+                    b.Property<Guid?>("CreatorId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CreatorId");
+
+                    b.Property<Guid?>("DeleterId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("DeleterId");
+
+                    b.Property<DateTime?>("DeletionTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("DeletionTime");
+
+                    b.Property<string>("ExternalId")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("ExtraProperties")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("ExtraProperties");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false)
+                        .HasColumnName("IsDeleted");
+
+                    b.Property<bool>("IsLeaf")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime?>("LastModificationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("LastModificationTime");
+
+                    b.Property<Guid?>("LastModifierId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("LastModifierId");
+
+                    b.Property<int>("Level")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<string>("ParentExternalId")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ExternalId")
+                        .IsUnique()
+                        .HasFilter("[IsDeleted] = 0");
+
+                    b.HasIndex("ParentExternalId");
+
+                    b.ToTable("AppEtsyTaxonomies", (string)null);
                 });
 
             modelBuilder.Entity("Integration.TradeXpress.Financials.CurrencyUnits.CurrencyUnit", b =>
@@ -1668,6 +2409,224 @@ namespace Integration.TradeXpress.Migrations
                     b.HasIndex("TenantId", "FollowingUnitId");
 
                     b.ToTable("AppFutures", (string)null);
+                });
+
+            modelBuilder.Entity("Integration.TradeXpress.Geography.AdministrativeArea", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Category")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("ConcurrencyStamp")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)")
+                        .HasColumnName("ConcurrencyStamp");
+
+                    b.Property<Guid>("CountryId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("CreationTime");
+
+                    b.Property<Guid?>("CreatorId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CreatorId");
+
+                    b.Property<Guid?>("DeleterId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("DeleterId");
+
+                    b.Property<DateTime?>("DeletionTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("DeletionTime");
+
+                    b.Property<string>("ExtraProperties")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("ExtraProperties");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false)
+                        .HasColumnName("IsDeleted");
+
+                    b.Property<string>("Iso3166_2Code")
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<DateTime?>("LastModificationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("LastModificationTime");
+
+                    b.Property<Guid?>("LastModifierId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("LastModifierId");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CountryId");
+
+                    b.HasIndex("CountryId", "Iso3166_2Code")
+                        .IsUnique()
+                        .HasFilter("[IsDeleted] = 0 AND [Iso3166_2Code] IS NOT NULL");
+
+                    b.ToTable("AppAdministrativeAreas", (string)null);
+                });
+
+            modelBuilder.Entity("Integration.TradeXpress.Geography.Locality", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("AdministrativeAreaId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("ConcurrencyStamp")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)")
+                        .HasColumnName("ConcurrencyStamp");
+
+                    b.Property<Guid>("CountryId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("CreationTime");
+
+                    b.Property<Guid?>("CreatorId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CreatorId");
+
+                    b.Property<Guid?>("DeleterId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("DeleterId");
+
+                    b.Property<DateTime?>("DeletionTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("DeletionTime");
+
+                    b.Property<string>("ExtraProperties")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("ExtraProperties");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false)
+                        .HasColumnName("IsDeleted");
+
+                    b.Property<DateTime?>("LastModificationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("LastModificationTime");
+
+                    b.Property<Guid?>("LastModifierId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("LastModifierId");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AdministrativeAreaId");
+
+                    b.HasIndex("CountryId");
+
+                    b.ToTable("AppLocalities", (string)null);
+                });
+
+            modelBuilder.Entity("Integration.TradeXpress.Geography.SubLocality", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("ConcurrencyStamp")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)")
+                        .HasColumnName("ConcurrencyStamp");
+
+                    b.Property<DateTime>("CreationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("CreationTime");
+
+                    b.Property<Guid?>("CreatorId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CreatorId");
+
+                    b.Property<Guid?>("DeleterId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("DeleterId");
+
+                    b.Property<DateTime?>("DeletionTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("DeletionTime");
+
+                    b.Property<string>("ExtraProperties")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("ExtraProperties");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false)
+                        .HasColumnName("IsDeleted");
+
+                    b.Property<DateTime?>("LastModificationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("LastModificationTime");
+
+                    b.Property<Guid?>("LastModifierId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("LastModifierId");
+
+                    b.Property<Guid>("LocalityId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LocalityId");
+
+                    b.ToTable("AppSubLocalities", (string)null);
                 });
 
             modelBuilder.Entity("Integration.TradeXpress.Goods.Good", b =>
@@ -2147,6 +3106,9 @@ namespace Integration.TradeXpress.Migrations
                         .HasColumnType("nvarchar(16)")
                         .UseCollation("Latin1_General_100_BIN2");
 
+                    b.Property<Guid?>("CompanyId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<string>("ConcurrencyStamp")
                         .IsConcurrencyToken()
                         .IsRequired()
@@ -2226,11 +3188,11 @@ namespace Integration.TradeXpress.Migrations
 
                     b.HasIndex("FollowingUnitId");
 
-                    b.HasIndex("TenantId", "Code")
+                    b.HasIndex("TenantId", "CompanyId", "Code")
                         .IsUnique()
-                        .HasFilter("[TenantId] IS NOT NULL");
+                        .HasFilter("[TenantId] IS NOT NULL AND [CompanyId] IS NOT NULL");
 
-                    b.HasIndex("TenantId", "FollowingUnitId");
+                    b.HasIndex("TenantId", "CompanyId", "FollowingUnitId");
 
                     b.ToTable("AppMetals", (string)null);
                 });
@@ -2447,6 +3409,9 @@ namespace Integration.TradeXpress.Migrations
                         .HasColumnType("nvarchar(40)")
                         .HasColumnName("ConcurrencyStamp");
 
+                    b.Property<Guid?>("CoreAdministrativeAreaId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<DateTime>("CreationTime")
                         .HasColumnType("datetime2")
                         .HasColumnName("CreationTime");
@@ -2493,6 +3458,8 @@ namespace Integration.TradeXpress.Migrations
                         .IsUnique()
                         .HasFilter("[IsDeleted] = 0");
 
+                    b.HasIndex("CoreAdministrativeAreaId");
+
                     b.ToTable("AppN11Cities", (string)null);
                 });
 
@@ -2512,6 +3479,9 @@ namespace Integration.TradeXpress.Migrations
                         .HasMaxLength(40)
                         .HasColumnType("nvarchar(40)")
                         .HasColumnName("ConcurrencyStamp");
+
+                    b.Property<Guid?>("CoreLocalityId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTime>("CreationTime")
                         .HasColumnType("datetime2")
@@ -2561,6 +3531,8 @@ namespace Integration.TradeXpress.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("CityCode");
+
+                    b.HasIndex("CoreLocalityId");
 
                     b.HasIndex("DistrictId")
                         .IsUnique()
@@ -3112,6 +4084,9 @@ namespace Integration.TradeXpress.Migrations
                         .HasColumnType("nvarchar(40)")
                         .HasColumnName("ConcurrencyStamp");
 
+                    b.Property<Guid?>("CoreCarrierId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<DateTime>("CreationTime")
                         .HasColumnType("datetime2")
                         .HasColumnName("CreationTime");
@@ -3163,6 +4138,8 @@ namespace Integration.TradeXpress.Migrations
                         .HasColumnType("nvarchar(32)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("CoreCarrierId");
 
                     b.HasIndex("ExternalId")
                         .IsUnique()
@@ -3265,6 +4242,9 @@ namespace Integration.TradeXpress.Migrations
                     b.Property<byte>("ShipmentMethod")
                         .HasColumnType("tinyint");
 
+                    b.Property<Guid?>("ShipmentTemplateId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<string>("ShippingInfo")
                         .HasMaxLength(1024)
                         .HasColumnType("nvarchar(1024)");
@@ -3285,6 +4265,8 @@ namespace Integration.TradeXpress.Migrations
                         .HasColumnType("bit");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ShipmentTemplateId");
 
                     b.HasIndex("SalesChannelId", "TemplateName")
                         .IsUnique()
@@ -3726,6 +4708,12 @@ namespace Integration.TradeXpress.Migrations
                         .HasDefaultValue(false)
                         .HasColumnName("IsDeleted");
 
+                    b.Property<bool>("IsPersonalizable")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsSupply")
+                        .HasColumnType("bit");
+
                     b.Property<DateTime?>("LastModificationTime")
                         .HasColumnType("datetime2")
                         .HasColumnName("LastModificationTime");
@@ -3742,6 +4730,16 @@ namespace Integration.TradeXpress.Migrations
                         .HasMaxLength(256)
                         .HasColumnType("nvarchar(256)");
 
+                    b.Property<int?>("PersonalizationCharCountMax")
+                        .HasColumnType("int");
+
+                    b.Property<string>("PersonalizationInstructions")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<bool>("PersonalizationIsRequired")
+                        .HasColumnType("bit");
+
                     b.Property<int>("PreparingDay")
                         .HasColumnType("int");
 
@@ -3752,6 +4750,9 @@ namespace Integration.TradeXpress.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
+                    b.Property<Guid?>("ShipmentTemplateId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<string>("ShipmentTemplateName")
                         .HasMaxLength(128)
                         .HasColumnType("nvarchar(128)");
@@ -3760,7 +4761,15 @@ namespace Integration.TradeXpress.Migrations
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("TenantId");
 
+                    b.Property<int>("WhenMade")
+                        .HasColumnType("int");
+
+                    b.Property<int>("WhoMade")
+                        .HasColumnType("int");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("ShipmentTemplateId");
 
                     b.HasIndex("TenantId", "CompanyId");
 
@@ -4503,6 +5512,193 @@ namespace Integration.TradeXpress.Migrations
                         .HasFilter("[IsDeleted] = 0");
 
                     b.ToTable("AppUserGridLayouts", (string)null);
+                });
+
+            modelBuilder.Entity("Integration.TradeXpress.Shipments.Carrier", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("ConcurrencyStamp")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)")
+                        .HasColumnName("ConcurrencyStamp");
+
+                    b.Property<DateTime>("CreationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("CreationTime");
+
+                    b.Property<Guid?>("CreatorId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CreatorId");
+
+                    b.Property<Guid?>("DeleterId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("DeleterId");
+
+                    b.Property<DateTime?>("DeletionTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("DeletionTime");
+
+                    b.Property<string>("ExtraProperties")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("ExtraProperties");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false)
+                        .HasColumnName("IsDeleted");
+
+                    b.Property<DateTime?>("LastModificationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("LastModificationTime");
+
+                    b.Property<Guid?>("LastModifierId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("LastModifierId");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique()
+                        .HasFilter("[IsDeleted] = 0");
+
+                    b.ToTable("AppCarriers", (string)null);
+                });
+
+            modelBuilder.Entity("Integration.TradeXpress.Shipments.ShipmentTemplate", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("CarrierId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("CarrierName")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ConcurrencyStamp")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)")
+                        .HasColumnName("ConcurrencyStamp");
+
+                    b.Property<decimal?>("ConditionalThreshold")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<byte?>("ConditionalUnit")
+                        .HasColumnType("tinyint");
+
+                    b.Property<DateTime>("CreationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("CreationTime");
+
+                    b.Property<Guid?>("CreatorId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CreatorId");
+
+                    b.Property<Guid?>("DeleterId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("DeleterId");
+
+                    b.Property<DateTime?>("DeletionTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("DeletionTime");
+
+                    b.Property<int?>("DeliveryDaysMax")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("DeliveryDaysMin")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
+
+                    b.Property<string>("ExtraProperties")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("ExtraProperties");
+
+                    b.Property<byte>("FeeModel")
+                        .HasColumnType("tinyint");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false)
+                        .HasColumnName("IsDeleted");
+
+                    b.Property<DateTime?>("LastModificationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("LastModificationTime");
+
+                    b.Property<Guid?>("LastModifierId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("LastModifierId");
+
+                    b.Property<int?>("MaxPurchaseQuantity")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<int>("ProcessingDaysMax")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ProcessingDaysMin")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("ReturnAccepted")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("ReturnInfo")
+                        .HasMaxLength(1024)
+                        .HasColumnType("nvarchar(1024)");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("TenantId");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "CompanyId");
+
+                    b.HasIndex("TenantId", "CompanyId", "Code")
+                        .IsUnique()
+                        .HasFilter("[IsDeleted] = 0");
+
+                    b.ToTable("AppShipmentTemplates", (string)null);
                 });
 
             modelBuilder.Entity("Integration.TradeXpress.SpecialCodes.SpecialCode", b =>
@@ -5520,6 +6716,92 @@ namespace Integration.TradeXpress.Migrations
                     b.HasIndex("TenantId", "SalesChannelTrTrendyolProductId", "StockItemId", "LineOrder");
 
                     b.ToTable("AppSalesChannelTrTrendyolProductStockItemRecipeLines", (string)null);
+                });
+
+            modelBuilder.Entity("Integration.TradeXpress.VariantTemplates.VariantTemplate", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)")
+                        .UseCollation("Latin1_General_100_BIN2");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ConcurrencyStamp")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)")
+                        .HasColumnName("ConcurrencyStamp");
+
+                    b.Property<DateTime>("CreationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("CreationTime");
+
+                    b.Property<Guid?>("CreatorId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CreatorId");
+
+                    b.Property<Guid?>("DeleterId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("DeleterId");
+
+                    b.Property<DateTime?>("DeletionTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("DeletionTime");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
+
+                    b.Property<int>("DisplayOrder")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ExtraProperties")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("ExtraProperties");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false)
+                        .HasColumnName("IsDeleted");
+
+                    b.Property<DateTime?>("LastModificationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("LastModificationTime");
+
+                    b.Property<Guid?>("LastModifierId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("LastModifierId");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("TenantId");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "CompanyId");
+
+                    b.HasIndex("TenantId", "CompanyId", "Code")
+                        .IsUnique()
+                        .HasFilter("[TenantId] IS NOT NULL");
+
+                    b.ToTable("AppVariantTemplates", (string)null);
                 });
 
             modelBuilder.Entity("Integration.TradeXpress.Variants.EntityAttribute", b =>
@@ -8599,6 +9881,179 @@ namespace Integration.TradeXpress.Migrations
                         .OnDelete(DeleteBehavior.Restrict);
                 });
 
+            modelBuilder.Entity("Integration.TradeXpress.EtsyProducts.SalesChannelEtsyProduct", b =>
+                {
+                    b.OwnsMany("Integration.TradeXpress.EtsyProducts.SalesChannelEtsyProductListingAttribute", "ListingAttributes", b1 =>
+                        {
+                            b1.Property<Guid>("SalesChannelEtsyProductId");
+
+                            b1.Property<int>("__synthesizedOrdinal")
+                                .ValueGeneratedOnAddOrUpdate();
+
+                            b1.Property<string>("Name")
+                                .IsRequired()
+                                .HasMaxLength(256);
+
+                            b1.Property<string>("Value")
+                                .IsRequired()
+                                .HasMaxLength(4000);
+
+                            b1.HasKey("SalesChannelEtsyProductId", "__synthesizedOrdinal");
+
+                            b1.ToTable("AppSalesChannelEtsyProducts");
+
+                            b1
+                                .ToJson("Attributes")
+                                .HasColumnType("nvarchar(max)");
+
+                            b1.WithOwner()
+                                .HasForeignKey("SalesChannelEtsyProductId");
+                        });
+
+                    b.OwnsMany("Integration.TradeXpress.EtsyProducts.SalesChannelEtsyProductMaterial", "Materials", b1 =>
+                        {
+                            b1.Property<Guid>("SalesChannelEtsyProductId");
+
+                            b1.Property<int>("__synthesizedOrdinal")
+                                .ValueGeneratedOnAddOrUpdate();
+
+                            b1.Property<string>("Value")
+                                .IsRequired()
+                                .HasMaxLength(45);
+
+                            b1.HasKey("SalesChannelEtsyProductId", "__synthesizedOrdinal");
+
+                            b1.ToTable("AppSalesChannelEtsyProducts");
+
+                            b1
+                                .ToJson("Materials")
+                                .HasColumnType("nvarchar(max)");
+
+                            b1.WithOwner()
+                                .HasForeignKey("SalesChannelEtsyProductId");
+                        });
+
+                    b.OwnsMany("Integration.TradeXpress.EtsyProducts.SalesChannelEtsyProductSku", "Skus", b1 =>
+                        {
+                            b1.Property<Guid>("SalesChannelEtsyProductId");
+
+                            b1.Property<int>("__synthesizedOrdinal")
+                                .ValueGeneratedOnAddOrUpdate();
+
+                            b1.Property<long?>("EtsyOfferingVersion");
+
+                            b1.Property<long?>("EtsyProductId");
+
+                            b1.Property<string>("FrozenSku")
+                                .IsRequired()
+                                .HasMaxLength(128);
+
+                            b1.Property<decimal?>("LastSentPrice");
+
+                            b1.Property<int?>("LastSentQuantity");
+
+                            b1.Property<Guid>("ProductVariantId");
+
+                            b1.HasKey("SalesChannelEtsyProductId", "__synthesizedOrdinal");
+
+                            b1.ToTable("AppSalesChannelEtsyProducts");
+
+                            b1
+                                .ToJson("Skus")
+                                .HasColumnType("nvarchar(max)");
+
+                            b1.WithOwner()
+                                .HasForeignKey("SalesChannelEtsyProductId");
+
+                            b1.OwnsMany("Integration.TradeXpress.EtsyProducts.SalesChannelEtsyProductListingAttribute", "PropertySnapshot", b2 =>
+                                {
+                                    b2.Property<Guid>("SalesChannelEtsyProductSkuSalesChannelEtsyProductId");
+
+                                    b2.Property<int>("SalesChannelEtsyProductSku__synthesizedOrdinal");
+
+                                    b2.Property<int>("__synthesizedOrdinal")
+                                        .ValueGeneratedOnAddOrUpdate();
+
+                                    b2.Property<string>("Name")
+                                        .IsRequired()
+                                        .HasMaxLength(256);
+
+                                    b2.Property<string>("Value")
+                                        .IsRequired()
+                                        .HasMaxLength(4000);
+
+                                    b2.HasKey("SalesChannelEtsyProductSkuSalesChannelEtsyProductId", "SalesChannelEtsyProductSku__synthesizedOrdinal", "__synthesizedOrdinal");
+
+                                    b2.ToTable("AppSalesChannelEtsyProducts");
+
+                                    b2.WithOwner()
+                                        .HasForeignKey("SalesChannelEtsyProductSkuSalesChannelEtsyProductId", "SalesChannelEtsyProductSku__synthesizedOrdinal");
+                                });
+
+                            b1.Navigation("PropertySnapshot");
+                        });
+
+                    b.OwnsMany("Integration.TradeXpress.EtsyProducts.SalesChannelEtsyProductSpecialInfo", "SpecialInfo", b1 =>
+                        {
+                            b1.Property<Guid>("SalesChannelEtsyProductId");
+
+                            b1.Property<int>("__synthesizedOrdinal")
+                                .ValueGeneratedOnAddOrUpdate();
+
+                            b1.Property<string>("Key")
+                                .IsRequired()
+                                .HasMaxLength(64);
+
+                            b1.Property<string>("Value")
+                                .IsRequired()
+                                .HasMaxLength(20000);
+
+                            b1.HasKey("SalesChannelEtsyProductId", "__synthesizedOrdinal");
+
+                            b1.ToTable("AppSalesChannelEtsyProducts");
+
+                            b1
+                                .ToJson("SpecialInfo")
+                                .HasColumnType("nvarchar(max)");
+
+                            b1.WithOwner()
+                                .HasForeignKey("SalesChannelEtsyProductId");
+                        });
+
+                    b.OwnsMany("Integration.TradeXpress.EtsyProducts.SalesChannelEtsyProductTag", "Tags", b1 =>
+                        {
+                            b1.Property<Guid>("SalesChannelEtsyProductId");
+
+                            b1.Property<int>("__synthesizedOrdinal")
+                                .ValueGeneratedOnAddOrUpdate();
+
+                            b1.Property<string>("Value")
+                                .IsRequired()
+                                .HasMaxLength(20);
+
+                            b1.HasKey("SalesChannelEtsyProductId", "__synthesizedOrdinal");
+
+                            b1.ToTable("AppSalesChannelEtsyProducts");
+
+                            b1
+                                .ToJson("Tags")
+                                .HasColumnType("nvarchar(max)");
+
+                            b1.WithOwner()
+                                .HasForeignKey("SalesChannelEtsyProductId");
+                        });
+
+                    b.Navigation("ListingAttributes");
+
+                    b.Navigation("Materials");
+
+                    b.Navigation("Skus");
+
+                    b.Navigation("SpecialInfo");
+
+                    b.Navigation("Tags");
+                });
+
             modelBuilder.Entity("Integration.TradeXpress.Financials.CurrencyUnits.CurrencyUnit", b =>
                 {
                     b.OwnsOne("Integration.TradeXpress.Financials.CurrencyUnits.MarginSetting", "FollowingMargin", b1 =>
@@ -8783,7 +10238,7 @@ namespace Integration.TradeXpress.Migrations
                             b1.Property<Guid>("MetalId");
 
                             b1.Property<string>("BlobName")
-                                .HasMaxLength(64);
+                                .HasMaxLength(256);
 
                             b1.Property<string>("FileName")
                                 .HasMaxLength(256);
@@ -8947,6 +10402,13 @@ namespace Integration.TradeXpress.Migrations
                             b1.Property<Guid>("N11ShipmentTemplateId")
                                 .HasColumnType("uniqueidentifier");
 
+                            b1.Property<Guid?>("AdministrativeAreaId")
+                                .HasColumnType("uniqueidentifier");
+
+                            b1.Property<string>("AdministrativeAreaIsoCode")
+                                .HasMaxLength(16)
+                                .HasColumnType("nvarchar(16)");
+
                             b1.Property<string>("City")
                                 .IsRequired()
                                 .HasMaxLength(64)
@@ -8973,6 +10435,9 @@ namespace Integration.TradeXpress.Migrations
                                 .IsRequired()
                                 .HasMaxLength(512)
                                 .HasColumnType("nvarchar(512)");
+
+                            b1.Property<Guid?>("LocalityId")
+                                .HasColumnType("uniqueidentifier");
 
                             b1.Property<string>("Neighborhood")
                                 .HasMaxLength(128)
@@ -8999,6 +10464,13 @@ namespace Integration.TradeXpress.Migrations
                             b1.Property<Guid>("N11ShipmentTemplateId")
                                 .HasColumnType("uniqueidentifier");
 
+                            b1.Property<Guid?>("AdministrativeAreaId")
+                                .HasColumnType("uniqueidentifier");
+
+                            b1.Property<string>("AdministrativeAreaIsoCode")
+                                .HasMaxLength(16)
+                                .HasColumnType("nvarchar(16)");
+
                             b1.Property<string>("City")
                                 .IsRequired()
                                 .HasMaxLength(64)
@@ -9025,6 +10497,9 @@ namespace Integration.TradeXpress.Migrations
                                 .IsRequired()
                                 .HasMaxLength(512)
                                 .HasColumnType("nvarchar(512)");
+
+                            b1.Property<Guid?>("LocalityId")
+                                .HasColumnType("uniqueidentifier");
 
                             b1.Property<string>("Neighborhood")
                                 .HasMaxLength(128)
@@ -9054,6 +10529,38 @@ namespace Integration.TradeXpress.Migrations
 
             modelBuilder.Entity("Integration.TradeXpress.Products.Product", b =>
                 {
+                    b.OwnsMany("Integration.TradeXpress.Products.ProductAddOn", "AddOns", b1 =>
+                        {
+                            b1.Property<Guid>("ProductId");
+
+                            b1.Property<int>("__synthesizedOrdinal")
+                                .ValueGeneratedOnAddOrUpdate();
+
+                            b1.Property<Guid>("AddOnId");
+
+                            b1.Property<Guid?>("CurrencyUnitOverrideId");
+
+                            b1.Property<int>("DisplayOrder");
+
+                            b1.Property<bool>("IsRequired");
+
+                            b1.Property<string>("Note")
+                                .HasMaxLength(512);
+
+                            b1.Property<decimal?>("PriceOverride");
+
+                            b1.HasKey("ProductId", "__synthesizedOrdinal");
+
+                            b1.ToTable("AppProducts");
+
+                            b1
+                                .ToJson("AddOns")
+                                .HasColumnType("nvarchar(max)");
+
+                            b1.WithOwner()
+                                .HasForeignKey("ProductId");
+                        });
+
                     b.OwnsMany("Integration.TradeXpress.Products.ProductImage", "Images", b1 =>
                         {
                             b1.Property<Guid>("ProductId");
@@ -9062,7 +10569,7 @@ namespace Integration.TradeXpress.Migrations
                                 .ValueGeneratedOnAddOrUpdate();
 
                             b1.Property<string>("BlobName")
-                                .HasMaxLength(64);
+                                .HasMaxLength(256);
 
                             b1.Property<int>("DisplayOrder");
 
@@ -9075,6 +10582,11 @@ namespace Integration.TradeXpress.Migrations
 
                             b1.Property<string>("Url")
                                 .HasMaxLength(1000);
+
+                            b1.Property<string>("VariantCode")
+                                .HasMaxLength(64);
+
+                            b1.Property<Guid?>("VariantId");
 
                             b1.HasKey("ProductId", "__synthesizedOrdinal");
 
@@ -9115,6 +10627,8 @@ namespace Integration.TradeXpress.Migrations
                                 .HasForeignKey("ProductId");
                         });
 
+                    b.Navigation("AddOns");
+
                     b.Navigation("Images");
 
                     b.Navigation("SpecialInfo");
@@ -9127,6 +10641,138 @@ namespace Integration.TradeXpress.Migrations
                         .HasForeignKey("FollowingUnitId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("Integration.TradeXpress.Shipments.ShipmentTemplate", b =>
+                {
+                    b.OwnsOne("Integration.Framework.Addressing.Address", "OriginAddress", b1 =>
+                        {
+                            b1.Property<Guid>("ShipmentTemplateId")
+                                .HasColumnType("uniqueidentifier");
+
+                            b1.Property<Guid?>("AdministrativeAreaId")
+                                .HasColumnType("uniqueidentifier");
+
+                            b1.Property<string>("AdministrativeAreaIsoCode")
+                                .HasMaxLength(16)
+                                .HasColumnType("nvarchar(16)");
+
+                            b1.Property<string>("City")
+                                .IsRequired()
+                                .HasMaxLength(64)
+                                .HasColumnType("nvarchar(64)");
+
+                            b1.Property<string>("CityCode")
+                                .HasMaxLength(16)
+                                .HasColumnType("nvarchar(16)");
+
+                            b1.Property<string>("CountryCode")
+                                .IsRequired()
+                                .HasMaxLength(2)
+                                .HasColumnType("nvarchar(2)");
+
+                            b1.Property<string>("District")
+                                .HasMaxLength(64)
+                                .HasColumnType("nvarchar(64)");
+
+                            b1.Property<string>("DistrictCode")
+                                .HasMaxLength(16)
+                                .HasColumnType("nvarchar(16)");
+
+                            b1.Property<string>("Line")
+                                .IsRequired()
+                                .HasMaxLength(512)
+                                .HasColumnType("nvarchar(512)");
+
+                            b1.Property<Guid?>("LocalityId")
+                                .HasColumnType("uniqueidentifier");
+
+                            b1.Property<string>("Neighborhood")
+                                .HasMaxLength(128)
+                                .HasColumnType("nvarchar(128)");
+
+                            b1.Property<string>("PostalCode")
+                                .HasMaxLength(16)
+                                .HasColumnType("nvarchar(16)");
+
+                            b1.Property<string>("Title")
+                                .HasMaxLength(64)
+                                .HasColumnType("nvarchar(64)");
+
+                            b1.HasKey("ShipmentTemplateId");
+
+                            b1.ToTable("AppShipmentTemplates");
+
+                            b1.WithOwner()
+                                .HasForeignKey("ShipmentTemplateId");
+                        });
+
+                    b.OwnsOne("Integration.Framework.Addressing.Address", "ReturnAddress", b1 =>
+                        {
+                            b1.Property<Guid>("ShipmentTemplateId")
+                                .HasColumnType("uniqueidentifier");
+
+                            b1.Property<Guid?>("AdministrativeAreaId")
+                                .HasColumnType("uniqueidentifier");
+
+                            b1.Property<string>("AdministrativeAreaIsoCode")
+                                .HasMaxLength(16)
+                                .HasColumnType("nvarchar(16)");
+
+                            b1.Property<string>("City")
+                                .IsRequired()
+                                .HasMaxLength(64)
+                                .HasColumnType("nvarchar(64)");
+
+                            b1.Property<string>("CityCode")
+                                .HasMaxLength(16)
+                                .HasColumnType("nvarchar(16)");
+
+                            b1.Property<string>("CountryCode")
+                                .IsRequired()
+                                .HasMaxLength(2)
+                                .HasColumnType("nvarchar(2)");
+
+                            b1.Property<string>("District")
+                                .HasMaxLength(64)
+                                .HasColumnType("nvarchar(64)");
+
+                            b1.Property<string>("DistrictCode")
+                                .HasMaxLength(16)
+                                .HasColumnType("nvarchar(16)");
+
+                            b1.Property<string>("Line")
+                                .IsRequired()
+                                .HasMaxLength(512)
+                                .HasColumnType("nvarchar(512)");
+
+                            b1.Property<Guid?>("LocalityId")
+                                .HasColumnType("uniqueidentifier");
+
+                            b1.Property<string>("Neighborhood")
+                                .HasMaxLength(128)
+                                .HasColumnType("nvarchar(128)");
+
+                            b1.Property<string>("PostalCode")
+                                .HasMaxLength(16)
+                                .HasColumnType("nvarchar(16)");
+
+                            b1.Property<string>("Title")
+                                .HasMaxLength(64)
+                                .HasColumnType("nvarchar(64)");
+
+                            b1.HasKey("ShipmentTemplateId");
+
+                            b1.ToTable("AppShipmentTemplates");
+
+                            b1.WithOwner()
+                                .HasForeignKey("ShipmentTemplateId");
+                        });
+
+                    b.Navigation("OriginAddress")
+                        .IsRequired();
+
+                    b.Navigation("ReturnAddress");
                 });
 
             modelBuilder.Entity("Integration.TradeXpress.SpecialCodes.SpecialCode", b =>
@@ -9241,6 +10887,61 @@ namespace Integration.TradeXpress.Migrations
                     b.Navigation("Attributes");
 
                     b.Navigation("Skus");
+                });
+
+            modelBuilder.Entity("Integration.TradeXpress.VariantTemplates.VariantTemplate", b =>
+                {
+                    b.OwnsMany("Integration.TradeXpress.VariantTemplates.VariantTemplateAttribute", "Attributes", b1 =>
+                        {
+                            b1.Property<Guid>("VariantTemplateId");
+
+                            b1.Property<int>("__synthesizedOrdinal")
+                                .ValueGeneratedOnAddOrUpdate();
+
+                            b1.Property<int>("DisplayOrder");
+
+                            b1.Property<string>("Name")
+                                .IsRequired()
+                                .HasMaxLength(64);
+
+                            b1.HasKey("VariantTemplateId", "__synthesizedOrdinal");
+
+                            b1.ToTable("AppVariantTemplates");
+
+                            b1
+                                .ToJson("Attributes")
+                                .HasColumnType("nvarchar(max)");
+
+                            b1.WithOwner()
+                                .HasForeignKey("VariantTemplateId");
+
+                            b1.OwnsMany("Integration.TradeXpress.VariantTemplates.VariantTemplateAttributeValue", "Values", b2 =>
+                                {
+                                    b2.Property<Guid>("VariantTemplateAttributeVariantTemplateId");
+
+                                    b2.Property<int>("VariantTemplateAttribute__synthesizedOrdinal");
+
+                                    b2.Property<int>("__synthesizedOrdinal")
+                                        .ValueGeneratedOnAddOrUpdate();
+
+                                    b2.Property<int>("DisplayOrder");
+
+                                    b2.Property<string>("Value")
+                                        .IsRequired()
+                                        .HasMaxLength(128);
+
+                                    b2.HasKey("VariantTemplateAttributeVariantTemplateId", "VariantTemplateAttribute__synthesizedOrdinal", "__synthesizedOrdinal");
+
+                                    b2.ToTable("AppVariantTemplates");
+
+                                    b2.WithOwner()
+                                        .HasForeignKey("VariantTemplateAttributeVariantTemplateId", "VariantTemplateAttribute__synthesizedOrdinal");
+                                });
+
+                            b1.Navigation("Values");
+                        });
+
+                    b.Navigation("Attributes");
                 });
 
             modelBuilder.Entity("Integration.TradeXpress.Vouchers.Voucher", b =>

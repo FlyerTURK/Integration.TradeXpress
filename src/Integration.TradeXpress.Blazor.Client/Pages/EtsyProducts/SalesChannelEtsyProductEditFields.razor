@@ -1,0 +1,652 @@
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+@using Integration.Framework.Blazor.Client
+@using Integration.TradeXpress.Blazor.Client.Pages.Products
+
+@* Etsy ürün listeleme edit formu (N11 formunun ikizi; Etsy alan delta'sıyla). Form GENELİ tanımlar (kanal + taksonomi +
+   listeleme türü/kargo/işleme) üstte; ekranda yer kaplayan listeler (açıklama, etiket, malzeme, listeleme attribute'ları,
+   özellikler, kombinasyonlar, özel bilgi, SKU'lar, senkron durumu) DrillTabs sekmelerine ayrılır. Push/Sync/Regenerate
+   uçları bu dilimde YOK (Etsy AppService CRUD-only) → StockItems/ProductAttributes ürün 'Kaydet'inde sunucuda reconcile edilir. *@
+
+<DxFormLayout CssClass="w-100">
+    <DxFormLayoutGroup Caption="@L["EtsyProduct:General"]" ColSpanMd="12">
+        @* Kanal — HER ZAMAN salt-okunur: create'te otomatik atanır (şirketin ilk Etsy kanalı), SET-ONCE. *@
+        <DxFormLayoutItem Caption="@L["SalesChannel"]" ColSpanMd="6">
+            <span>@ChannelName</span>
+        </DxFormLayoutItem>
+        @if (!string.IsNullOrEmpty(Model.SellerSkuBase))
+        {
+            <DxFormLayoutItem Caption="@L["EtsyProduct:SellerSku"]" ColSpanMd="6">
+                <span>@Model.SellerSkuBase</span>
+            </DxFormLayoutItem>
+        }
+        @* Taksonomi — yaprak seçici (arama + ağaç); yayın için zorunlu, taslakta boş olabilir. Ham numerik id yerine
+           picker (TrendyolCategoryPicker deseni). Ad KALICI saklanmaz → okuma anında synced taxonomy tablosundan çözülür
+           (SelectedName); reload'da tam yol görünür. Id bayatladıysa (reconcile sildi) altta "yeniden seç" uyarısı. *@
+        <DxFormLayoutItem Caption="@L["EtsyProduct:Taxonomy"]" ColSpanMd="12">
+            <EtsyTaxonomyPicker SelectedExternalId="@(Model.TaxonomyId?.ToString())"
+                                SelectedName="@Model.TaxonomyName"
+                                OnLeafSelected="OnTaxonomySelectedAsync" />
+        </DxFormLayoutItem>
+        @if (Model.TaxonomyIsStale)
+        {
+            <DxFormLayoutItem ColSpanMd="12">
+                <span style="color:#b45309; font-size:0.85rem;">@L["EtsyProduct:TaxonomyStaleHint", Model.TaxonomyId ?? 0]</span>
+            </DxFormLayoutItem>
+        }
+        <DxFormLayoutItem Caption="@L["EtsyProduct:ListingType"]" ColSpanMd="6">
+            <ComboBoxEnumEdit TEnum="EtsyListingType" L="@L" @bind-Value="@Model.ListingType" />
+        </DxFormLayoutItem>
+        @* Kargo profili — ham numerik id yerine mağazanın profillerini getShopShippingProfiles ile listeleyen picker
+           (taksonomi picker on-demand yükleme deseninin ikizi). Gevşek referans: yerelde yalnız ShippingProfileId
+           saklanır. @bind-Value → ValueExpression otomatik gelir (EditContext altında ValidationEnabled gerekmez).
+           Saklı id çekilen listede yoksa altta "yeniden seç" uyarısı. *@
+        <DxFormLayoutItem Caption="@L["EtsyProduct:ShippingProfile"]" ColSpanMd="6">
+            <DxComboBox Data="@_shippingProfiles"
+                        TData="EtsyShippingProfileDto"
+                        TValue="long?"
+                        ValueFieldName="@nameof(EtsyShippingProfileDto.Id)"
+                        TextFieldName="@nameof(EtsyShippingProfileDto.Title)"
+                        @bind-Value="@Model.ShippingProfileId"
+                        NullText="@L["EtsyProduct:ShippingProfileSelect"]"
+                        ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto"
+                        CssClass="w-100" />
+        </DxFormLayoutItem>
+        @if (ShippingProfileStale)
+        {
+            <DxFormLayoutItem ColSpanMd="12">
+                <span style="color:#b45309; font-size:0.85rem;">@L["EtsyProduct:ShippingProfileStaleHint", Model.ShippingProfileId ?? 0]</span>
+            </DxFormLayoutItem>
+        }
+        @* İade politikası — ham numerik id yerine mağazanın iade politikalarını getShopReturnPolicies ile listeleyen
+           picker (kargo profili picker on-demand yükleme deseninin ikizi). Etsy politikasının başlığı olmadığından etiket
+           sunucuda (lokalize) türetilir. @bind-Value → ValueExpression otomatik. Saklı id listede yoksa "yeniden seç" uyarısı. *@
+        @* Dış-veri picker (LookupComboBox GÖRÜNÜMÜ): combo + Ekle(+)/Düzenle(✎). Ekle/Düzenle Etsy'ye YAZAR
+           (createShopReturnPolicy/updateShopReturnPolicy) → popup Kaydet'inde. Düzenle yalnız seçili politika varken. *@
+        <DxFormLayoutItem Caption="@L["EtsyProduct:ReturnPolicy"]" ColSpanMd="6">
+            <DxComboBox Data="@_returnPolicies"
+                        TData="EtsyReturnPolicyDto"
+                        TValue="long?"
+                        ValueFieldName="@nameof(EtsyReturnPolicyDto.Id)"
+                        TextFieldName="@nameof(EtsyReturnPolicyDto.Label)"
+                        @bind-Value="@Model.ReturnPolicyId"
+                        NullText="@L["EtsyProduct:ReturnPolicySelect"]"
+                        ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto"
+                        CssClass="w-100">
+                <Buttons>
+                    <DxEditorButton IconCssClass="@FrameworkIcons.LookupEdit" Visible="@(Model.ReturnPolicyId is not null)"
+                                    Click="@(() => OpenEditReturnPolicy())" Tooltip="@L["EtsyProduct:ReturnPolicyEdit"].Value" />
+                    <DxEditorButton IconCssClass="@FrameworkIcons.LookupAdd"
+                                    Click="@(() => OpenAddReturnPolicy())" Tooltip="@L["EtsyProduct:ReturnPolicyAdd"].Value" />
+                </Buttons>
+            </DxComboBox>
+        </DxFormLayoutItem>
+        @* Dükkân bölümü — ham numerik id yerine mağazanın bölümlerini getShopSections ile listeleyen picker (kargo
+           profili picker ikizi). *@
+        @* Dış-veri picker (LookupComboBox GÖRÜNÜMÜ): combo + Ekle(+)/Düzenle(✎) ikon-butonları. Ekle/Düzenle Etsy'ye
+           YAZAR (createShopSection/updateShopSection) → popup Kaydet'inde. Düzenle yalnız seçili bölüm varken görünür. *@
+        <DxFormLayoutItem Caption="@L["EtsyProduct:ShopSection"]" ColSpanMd="6">
+            <DxComboBox Data="@_shopSections"
+                        TData="EtsyShopSectionDto"
+                        TValue="long?"
+                        ValueFieldName="@nameof(EtsyShopSectionDto.Id)"
+                        TextFieldName="@nameof(EtsyShopSectionDto.Title)"
+                        @bind-Value="@Model.ShopSectionId"
+                        NullText="@L["EtsyProduct:ShopSectionSelect"]"
+                        ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto"
+                        CssClass="w-100">
+                <Buttons>
+                    <DxEditorButton IconCssClass="@FrameworkIcons.LookupEdit" Visible="@(Model.ShopSectionId is not null)"
+                                    Click="@(() => OpenEditShopSection())" Tooltip="@L["EtsyProduct:ShopSectionEdit"].Value" />
+                    <DxEditorButton IconCssClass="@FrameworkIcons.LookupAdd"
+                                    Click="@(() => OpenAddShopSection())" Tooltip="@L["EtsyProduct:ShopSectionAdd"].Value" />
+                </Buttons>
+            </DxComboBox>
+        </DxFormLayoutItem>
+        @if (ReturnPolicyStale)
+        {
+            <DxFormLayoutItem ColSpanMd="12">
+                <span style="color:#b45309; font-size:0.85rem;">@L["EtsyProduct:ReturnPolicyStaleHint", Model.ReturnPolicyId ?? 0]</span>
+            </DxFormLayoutItem>
+        }
+        @if (ShopSectionStale)
+        {
+            <DxFormLayoutItem ColSpanMd="12">
+                <span style="color:#b45309; font-size:0.85rem;">@L["EtsyProduct:ShopSectionStaleHint", Model.ShopSectionId ?? 0]</span>
+            </DxFormLayoutItem>
+        }
+        <DxFormLayoutItem Caption="@L["EtsyProduct:ProcessingMin"]" ColSpanMd="6">
+            <NumericSpinEdit TValue="int?" @bind-Value="@Model.ProcessingMin"
+                             ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["EtsyProduct:ProcessingMax"]" ColSpanMd="6">
+            <NumericSpinEdit TValue="int?" @bind-Value="@Model.ProcessingMax"
+                             ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["EtsyProduct:PreparingDay"]" ColSpanMd="6">
+            <NumericSpinEdit TValue="int" @bind-Value="@Model.PreparingDay" />
+        </DxFormLayoutItem>
+        @* Etsy para birimi — opsiyonel; boşsa push'ta varyant para birimi devralınır (N11 gibi TRY/USD/EUR kısıtı YOK). *@
+        <DxFormLayoutItem Caption="@L["EtsyProduct:CurrencyUnit"]" ColSpanMd="6">
+            <LookupComboBox TItem="CurrencyUnitListDto" TValue="Guid?"
+                            Data="@_units"
+                            ValueFieldName="@nameof(CurrencyUnitListDto.Id)"
+                            TextFieldName="@nameof(CurrencyUnitListDto.Code)"
+                            @bind-Value="@Model.CurrencyUnitId"
+                            AllowClear="true" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6">
+            <DxCheckBox @bind-Checked="@Model.IsActive" CheckType="CheckType.Switch">
+                @(Model.IsActive ? L["Active"] : L["Passive"])
+            </DxCheckBox>
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["EtsyProduct:TitleOverride"]" ColSpanMd="12">
+            <DxTextBox @bind-Text="@Model.TitleOverride" NullText="@L["Optional"]"
+                       ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
+        </DxFormLayoutItem>
+        @* Otomatik yenileme — Etsy-özel (should_auto_renew; varsayılan açık). Listeleme süresi dolunca Etsy'de yenilenir. *@
+        <DxFormLayoutItem Caption="@L["EtsyProduct:ShouldAutoRenew"]" ColSpanMd="6">
+            <DxCheckBox @bind-Checked="@Model.ShouldAutoRenew" CheckType="CheckType.Switch">
+                @(Model.ShouldAutoRenew ? L["Yes"] : L["No"])
+            </DxCheckBox>
+        </DxFormLayoutItem>
+        @* Kişiselleştirme — açıkken talimat + zorunluluk + karakter sınırı görünür (Etsy personalization). *@
+        <DxFormLayoutItem Caption="@L["EtsyProduct:IsPersonalizable"]" ColSpanMd="6">
+            <DxCheckBox @bind-Checked="@Model.IsPersonalizable" CheckType="CheckType.Switch">
+                @(Model.IsPersonalizable ? L["Yes"] : L["No"])
+            </DxCheckBox>
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["EtsyProduct:PersonalizationIsRequired"]" ColSpanMd="6"
+                          Visible="@Model.IsPersonalizable">
+            <DxCheckBox @bind-Checked="@Model.PersonalizationIsRequired" CheckType="CheckType.Switch">
+                @(Model.PersonalizationIsRequired ? L["Yes"] : L["No"])
+            </DxCheckBox>
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["EtsyProduct:PersonalizationCharCountMax"]" ColSpanMd="6"
+                          Visible="@Model.IsPersonalizable">
+            <NumericSpinEdit TValue="int?" @bind-Value="@Model.PersonalizationCharCountMax"
+                             MinValue="1" MaxValue="SalesChannelEtsyProductConsts.PersonalizationCharCountMaxLimit"
+                             ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["EtsyProduct:PersonalizationInstructions"]" ColSpanMd="12"
+                          Visible="@Model.IsPersonalizable">
+            <DxMemo @bind-Text="@Model.PersonalizationInstructions" Rows="2" ResizeMode="MemoResizeMode.Disabled"
+                    CssClass="w-100" NullText="@L["Optional"]" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["EtsyProduct:SellerNote"]" ColSpanMd="12">
+            <DxMemo @bind-Text="@Model.SellerNote" Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100"
+                    NullText="@L["Optional"]" />
+        </DxFormLayoutItem>
+    </DxFormLayoutGroup>
+</DxFormLayout>
+
+@* ── Büyük listeler sekmelerde (form geneli dışındaki her şey) ── *@
+<DrillTabs CssClass="mt-3">
+    @* Kanal-özel açıklama — zengin metin (DxHtmlEditor). Boşsa push'ta ürün açıklaması devralınır. *@
+    <DxTabPage Text="@L["Description"]" TabIconCssClass="@TradeXpressIcons.Product">
+        <span style="color:#6c757d; font-size:0.85rem;">@L["EtsyProduct:DescriptionHint"]</span>
+        <DxHtmlEditor @bind-Markup="@DescriptionMarkup" CssClass="w-100" Height="360px" />
+    </DxTabPage>
+
+    @* Etiketler — serbest metin (≤13; sunucu kırpar). DxTagBox AllowCustomTags: liste-dışı değer yazılır. *@
+    <DxTabPage Text="@L["EtsyProduct:Tags"]" TabIconCssClass="@TradeXpressIcons.Sliders">
+        <span style="color:#6c757d; font-size:0.85rem;">@L["EtsyProduct:TagsHint"]</span>
+        <DxTagBox Data="@_emptyStrings" TData="string" TValue="string"
+                  AllowCustomTags="true"
+                  Tags="@Model.Tags"
+                  TagsChanged="@((IEnumerable<string> v) => OnTagsChanged(v))"
+                  ValidationEnabled="false"
+                  ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto"
+                  CssClass="w-100" />
+    </DxTabPage>
+
+    @* Malzemeler — serbest metin (≤13; sunucu kırpar). *@
+    <DxTabPage Text="@L["EtsyProduct:Materials"]" TabIconCssClass="@TradeXpressIcons.Sliders">
+        <span style="color:#6c757d; font-size:0.85rem;">@L["EtsyProduct:MaterialsHint"]</span>
+        <DxTagBox Data="@_emptyStrings" TData="string" TValue="string"
+                  AllowCustomTags="true"
+                  Tags="@Model.Materials"
+                  TagsChanged="@((IEnumerable<string> v) => OnMaterialsChanged(v))"
+                  ValidationEnabled="false"
+                  ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto"
+                  CssClass="w-100" />
+    </DxTabPage>
+
+    @* Listeleme nitelikleri — TAKSONOMİ-GÜDÜMLÜ, hücre-içi düzenleme (N11 kategori-attribute grid ikizi): kategori
+       (TaxonomyId) seçilince Etsy getPropertiesByTaxonomyId tanımları yüklenir; her tanım TEK satır (sabit). Değer
+       hücresine tıklanınca ANINDA düzenlenir (ayrı düzenle/kaydet tuşu YOK). Bu iterasyonda her nitelik TEK DEĞERLİ
+       (çoklu-seçim SONRAKİ iş): önerilen değeri olan nitelik → tek-seçim DxComboBox (liste-dışı değer de girilir),
+       serbest nitelik → DxTextBox. SupportsVariations/IsRequired/IsMultivalued yalnız İŞARETLENİR. Kategori seçili
+       değilse yönlendirme metni. Paging YOK. *@
+    <DxTabPage Text="@L["EtsyProduct:ListingAttributes"]" TabIconCssClass="@TradeXpressIcons.Sliders">
+        <span style="color:#6c757d; font-size:0.85rem;">@L["EtsyProduct:ListingAttributesHint"]</span>
+        @if (Model.TaxonomyId is null)
+        {
+            <div><span style="color:#6c757d; font-size:0.85rem;">@L["EtsyProduct:SelectTaxonomyFirst"]</span></div>
+        }
+        else if (_propertyRows.Count == 0)
+        {
+            <div><span style="color:#6c757d; font-size:0.85rem;">@L["EtsyProduct:NoPropertiesForTaxonomy"]</span></div>
+        }
+        else
+        {
+            <DxGrid Data="@_propertyRows" KeyFieldName="PropertyId"
+                    EditMode="GridEditMode.EditCell"
+                    EditModelSaving="OnPropertyRowSaving"
+                    PageSize="200" PagerVisible="false"
+                    CssClass="w-100">
+                <Columns>
+                    <DxGridDataColumn FieldName="Name" Caption="@L["EtsyProduct:ListingAttributeName"]" Width="30%" ReadOnly="true" />
+                    @* İşaretler — SupportsVariations/IsRequired/IsMultivalued yalnız görsel rozet (ad-hoc ikon YOK;
+                       dosyadaki mevcut inline-stilli span deseni). Değer atamaz, filtre değil → salt bilgi. *@
+                    <DxGridDataColumn Caption="@L["EtsyProduct:PropertyFlags"]" Width="30%" ReadOnly="true" AllowSort="false">
+                        <CellDisplayTemplate Context="cell">
+                            @{ var pr = (EtsyPropertyCellRow)cell.DataItem; }
+                            <span style="display:flex; flex-wrap:wrap; gap:0.35rem; align-items:center;">
+                                @if (pr.IsRequired)
+                                {
+                                    <span style="color:#b45309; font-size:0.8rem;">@L["EtsyProduct:PropertyRequired"]</span>
+                                }
+                                @if (pr.SupportsVariations)
+                                {
+                                    <span style="color:#0369a1; font-size:0.8rem;">@L["EtsyProduct:PropertyVariantAxis"]</span>
+                                }
+                                @if (pr.IsMultivalued)
+                                {
+                                    <span style="color:#6c757d; font-size:0.8rem;">@L["EtsyProduct:PropertyMultivalued"]</span>
+                                }
+                            </span>
+                        </CellDisplayTemplate>
+                    </DxGridDataColumn>
+                    @* FieldName ŞART: EditCell modunda FieldName'siz kolon "düzenlenebilir hücre" sayılmaz. CustomValue
+                       anchor alan → değer combo/textbox'ta düzenlenir, OnPropertyRowSaving Model.ListingAttributes'a yazar. *@
+                    <DxGridDataColumn FieldName="CustomValue" Caption="@L["EtsyProduct:ListingAttributeValue"]">
+                        <CellDisplayTemplate Context="cell">
+                            @{ var pr = (EtsyPropertyCellRow)cell.DataItem; }
+                            @if (pr.IsMultivalued)
+                            {
+                                <span>@(pr.SelectedValues.Count > 0 ? string.Join(", ", pr.SelectedValues) : "-")</span>
+                            }
+                            else
+                            {
+                                <span>@(string.IsNullOrEmpty(pr.CustomValue) ? "-" : pr.CustomValue)</span>
+                            }
+                        </CellDisplayTemplate>
+                        <CellEditTemplate Context="cell">
+                            @{ var row = (EtsyPropertyCellRow)cell.EditModel; }
+                            @if (row.IsMultivalued)
+                            {
+                                @* Çoklu-seçim TagBox — her seçim ayrı ListingAttributes satırı olur. Data=önerilen değerler;
+                                   AllowCustomTags=true → liste-dışı değer de yazılır (öneri listesi boş olsa da çalışır).
+                                   MaxValuesAllowed OnMultiValuesChanged'de kırpılır. EditContext altı manuel bağ → ValidationEnabled="false". *@
+                                <DxTagBox Data="@row.DefinitionValues"
+                                          TData="EtsyTaxonomyPropertyValueDto"
+                                          TValue="string"
+                                          ValueFieldName="@nameof(EtsyTaxonomyPropertyValueDto.Name)"
+                                          TextFieldName="@nameof(EtsyTaxonomyPropertyValueDto.Name)"
+                                          AllowCustomTags="true"
+                                          Values="@row.SelectedValues"
+                                          ValuesChanged="@((IEnumerable<string> v) => OnMultiValuesChanged(row, v))"
+                                          ValidationEnabled="false"
+                                          ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto"
+                                          CssClass="w-100" />
+                            }
+                            else if (row.HasValueList)
+                            {
+                                @* Tek-seçim combo. AllowUserInput=true → liste-dışı değer de yazılır. Tek-yönlü Text
+                                   bağı → TextExpression ŞART; EditContext altı manuel bağ → ValidationEnabled="false". *@
+                                <DxComboBox Data="@row.DefinitionValues"
+                                            TData="EtsyTaxonomyPropertyValueDto"
+                                            TValue="string"
+                                            ValueFieldName="@nameof(EtsyTaxonomyPropertyValueDto.Name)"
+                                            TextFieldName="@nameof(EtsyTaxonomyPropertyValueDto.Name)"
+                                            AllowUserInput="true"
+                                            SearchMode="ListSearchMode.AutoSearch"
+                                            Text="@row.CustomValue"
+                                            TextChanged="@((string v) => row.CustomValue = v)"
+                                            TextExpression="@(() => row.CustomValue)"
+                                            ValidationEnabled="false"
+                                            ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto"
+                                            CssClass="w-100" />
+                            }
+                            else
+                            {
+                                <DxTextBox Text="@row.CustomValue"
+                                           TextChanged="@((string v) => row.CustomValue = v)"
+                                           TextExpression="@(() => row.CustomValue)"
+                                           ValidationEnabled="false" />
+                            }
+                        </CellEditTemplate>
+                    </DxGridDataColumn>
+                </Columns>
+            </DxGrid>
+        }
+    </DxTabPage>
+
+    @* Özellikler — KOMBİNASYON ÜRETİMİ amaçlı. İlk açılışta ERP niteliklerinden bir kez KLONLANIR (backend); sonrası
+       tamamen bağımsız. Kaydet'te sunucu kartezyen kombinasyonu üretir ("Kombinasyonlar" sekmesi). Üst = özellik, alt =
+       değerler; ikisi de serbestçe ekle/silinir (klon-sonra-ayrış). *@
+    <DxTabPage Text="@L["EtsyProduct:ProductAttributes"]" TabIconCssClass="@TradeXpressIcons.Sliders">
+        <span style="color:#6c757d; font-size:0.85rem;">@L["EtsyProduct:ProductAttributesHint"]</span>
+        <DrillList TItem="SalesChannelEtsyProductAttributeDto"
+                   @ref="_attributeDrill"
+                   Title="@L["EtsyProduct:ProductAttributes"]"
+                   EntityName="@L["EtsyProduct:ProductAttribute"]"
+                   EntityIcon="@TradeXpressIcons.Sliders"
+                   Items="@Model.ProductAttributes"
+                   KeyFieldName="ClientKey"
+                   PrimaryTextSelector="@(a => a.Name)"
+                   NewItemFactory="@(() => new SalesChannelEtsyProductAttributeDto { DisplayOrder = NextAttributeOrder(Model.ProductAttributes) })"
+                   SoftDelete="true"
+                   IsNewItem="@(a => a.Id == Guid.Empty)"
+                   MarkDeleted="@(a => a.IsDeleted = true)"
+                   FilterPredicate="@(a => !a.IsDeleted)"
+                   SaveGuard="@AttributeSaveGuard"
+                   ShowActiveFilter="false"
+                   OnChanged="@(() => MarkDirty(nameof(Model.ProductAttributes)))">
+            <GridColumns>
+                <GridLinkColumn FieldName="Name" Caption="@L["EtsyProduct:AttributeName"]" Width="35%"
+                                FixedPosition="GridColumnFixedPosition.Left" VisibleIndex="1"
+                                OnClick="@(item => _attributeDrill?.EditItem((SalesChannelEtsyProductAttributeDto)item))" />
+                <DxGridDataColumn Caption="@L["EtsyProduct:AttributeValues"]">
+                    <CellDisplayTemplate Context="cell">
+                        @{ var ax = (SalesChannelEtsyProductAttributeDto)cell.DataItem; }
+                        <span>@(ax.Values.Any(v => !v.IsDeleted) ? string.Join(", ", ax.Values.Where(v => !v.IsDeleted).Select(v => v.Value)) : "-")</span>
+                    </CellDisplayTemplate>
+                </DxGridDataColumn>
+            </GridColumns>
+            <EditContent Context="ax">
+                <DxFormLayout CssClass="w-100">
+                    <DxFormLayoutItem Caption="@($"{L["EtsyProduct:AttributeName"]} *")" ColSpanMd="6" BeginRow="true">
+                        <DxTextBox @bind-Text="@ax.Name" />
+                    </DxFormLayoutItem>
+                    <DxFormLayoutItem Caption="@L["DisplayOrder"]" ColSpanMd="6">
+                        <NumericSpinEdit @bind-Value="@ax.DisplayOrder" />
+                    </DxFormLayoutItem>
+                    <DxFormLayoutGroup Caption="@L["EtsyProduct:AttributeValues"]" ColSpanMd="12" CaptionPosition="CaptionPosition.Vertical">
+                        @* İç içe DrillList DOĞRUDAN parent EditContent'te (ui-blazor: EditForm yok,
+                           CascadingValue<EditContext> doğal izolasyon — nested EditForm NRE'ye girer). *@
+                        <DrillList TItem="SalesChannelEtsyProductAttributeValueDto"
+                                   @ref="_attributeValueDrill"
+                                   Title="@L["EtsyProduct:AttributeValues"]"
+                                   EntityName="@L["EtsyProduct:AttributeValue"]"
+                                   EntityIcon="@TradeXpressIcons.Sliders"
+                                   ParentEntityName="@L["EtsyProduct:ProductAttribute"]"
+                                   ParentText="@ax.Name"
+                                   Items="@ax.Values"
+                                   KeyFieldName="ClientKey"
+                                   PrimaryTextSelector="@(v => v.Value)"
+                                   NewItemFactory="@(() => new SalesChannelEtsyProductAttributeValueDto { DisplayOrder = NextAttributeValueOrder(ax.Values) })"
+                                   SoftDelete="true"
+                                   IsNewItem="@(v => v.Id == Guid.Empty)"
+                                   MarkDeleted="@(v => v.IsDeleted = true)"
+                                   FilterPredicate="@(v => !v.IsDeleted)"
+                                   SaveGuard="@AttributeValueSaveGuard"
+                                   ShowActiveFilter="false"
+                                   OnChanged="@(() => MarkDirty(nameof(Model.ProductAttributes)))">
+                            <GridColumns>
+                                <GridLinkColumn FieldName="Value" Caption="@L["Value"]"
+                                                FixedPosition="GridColumnFixedPosition.Left" VisibleIndex="1"
+                                                OnClick="@(item => _attributeValueDrill?.EditItem((SalesChannelEtsyProductAttributeValueDto)item))" />
+                                <DxGridDataColumn FieldName="DisplayOrder" Caption="@L["DisplayOrder"]" Width="90px" />
+                            </GridColumns>
+                            <EditContent Context="v">
+                                <DxFormLayout CssClass="w-100">
+                                    <DxFormLayoutItem Caption="@($"{L["Value"]} *")" ColSpanMd="12">
+                                        <DxTextBox @bind-Text="@v.Value" />
+                                    </DxFormLayoutItem>
+                                    <DxFormLayoutItem Caption="@L["DisplayOrder"]" ColSpanMd="6">
+                                        <NumericSpinEdit @bind-Value="@v.DisplayOrder" />
+                                    </DxFormLayoutItem>
+                                </DxFormLayout>
+                            </EditContent>
+                        </DrillList>
+                    </DxFormLayoutGroup>
+                </DxFormLayout>
+            </EditContent>
+        </DrillList>
+    </DxTabPage>
+
+    @* Kombinasyonlar — SUNUCU TARAFINDA "Özellikler"in kartezyen kombinasyonundan ÜRETİLİR (ürün Kaydet'inde reconcile);
+       satır elle eklenmez/silinmez (AllowAdd/Delete=false). ERP karşılığı olmayan (IsErpBacked=false) satırlar "Etsy-özel"
+       rozetiyle ayırt edilir — bunlarda OverridePrice/OverrideStock ZORUNLU (server fail-fast; burada yalnız hint).
+       Türetilmiş fiyat = NetCost×(1+Marj/100) SALT-OKUNUR. Boşsa içeride hint. *@
+    <DxTabPage Text="@L["EtsyProduct:StockItems"]" TabIconCssClass="@TradeXpressIcons.ProductVariant">
+        @if (Model.StockItems.Count == 0)
+        {
+            <span style="color:#6c757d; font-size:0.85rem;">@L["EtsyProduct:NoStockItemsYetHint"]</span>
+        }
+        else
+        {
+            <span style="color:#6c757d; font-size:0.85rem;">@L["EtsyProduct:PushPriceChainHint"]</span>
+            <DrillList TItem="SalesChannelEtsyProductStockItemGraphDto"
+                       @ref="_stockItemDrill"
+                       Title="@L["EtsyProduct:StockItems"]"
+                       EntityName="@L["EtsyProduct:StockItem"]"
+                       EntityIcon="@TradeXpressIcons.ProductVariant"
+                       Items="@Model.StockItems"
+                       KeyFieldName="Id"
+                       PrimaryTextSelector="@(v => v.VariantCode)"
+                       NewItemFactory="@(() => new SalesChannelEtsyProductStockItemGraphDto())"
+                       AllowAdd="false"
+                       AllowDelete="false"
+                       ShowActiveFilter="false"
+                       OnChanged="@(() => MarkDirty(nameof(Model.StockItems)))">
+                <GridColumns>
+                    <GridLinkColumn Caption="@L["Code"]" Width="160px" FixedPosition="GridColumnFixedPosition.Left" VisibleIndex="1"
+                                    TextSelector="@(item => StockItemCodeOrLabel((SalesChannelEtsyProductStockItemGraphDto)item))"
+                                    OnClick="@(item => _stockItemDrill?.EditItem((SalesChannelEtsyProductStockItemGraphDto)item))" />
+                    <DxGridDataColumn FieldName="VariantName" Caption="@L["Name"]" />
+                    <DxGridDataColumn Caption="@L["EtsyProduct:Source"]" Width="120px">
+                        <CellDisplayTemplate Context="cell">
+                            @{ var vv = (SalesChannelEtsyProductStockItemGraphDto)cell.DataItem; }
+                            @if (!vv.IsErpBacked)
+                            {
+                                <span style="display:flex; align-items:center; gap:0.35rem; color:#0369a1;">
+                                    <i class="@TradeXpressIcons.SalesChannel" aria-hidden="true"></i>@L["EtsyProduct:EtsyOnly"]
+                                </span>
+                            }
+                        </CellDisplayTemplate>
+                    </DxGridDataColumn>
+                    <DxGridDataColumn FieldName="OverrideStock" Caption="@L["EtsyProduct:OverrideStock"]" Width="110px" TextAlignment="GridTextAlignment.Right" />
+                    <DxGridDataColumn FieldName="Margin" Caption="@L["EtsyProduct:Margin"]" Width="100px" DisplayFormat="N2" TextAlignment="GridTextAlignment.Right" />
+                    <DxGridDataColumn FieldName="OverridePrice" Caption="@L["EtsyProduct:OverridePrice"]" Width="120px" DisplayFormat="N2" TextAlignment="GridTextAlignment.Right" />
+                    <DxGridDataColumn FieldName="DerivedPrice" Caption="@L["EtsyProduct:DerivedPrice"]" Width="130px" DisplayFormat="N2" TextAlignment="GridTextAlignment.Right" />
+                </GridColumns>
+                <EditContent Context="v">
+                    <DxFormLayout CssClass="w-100">
+                        @* Kimlik — SALT-OKUNUR. ERP-backed'te ERP kod/ad (SSOT); Etsy-only'de CombinationLabel. *@
+                        <DxFormLayoutItem Caption="@L["Code"]" ColSpanMd="6" BeginRow="true">
+                            <span>@(v.IsErpBacked ? v.VariantCode : StockItemCodeOrLabel(v))</span>
+                        </DxFormLayoutItem>
+                        <DxFormLayoutItem Caption="@L["Name"]" ColSpanMd="6">
+                            <span>@(v.IsErpBacked ? v.VariantName : L["EtsyProduct:EtsyOnly"].Value)</span>
+                        </DxFormLayoutItem>
+                        @if (!v.IsErpBacked)
+                        {
+                            <DxFormLayoutItem ColSpanMd="12">
+                                <span style="color:#b45309; font-size:0.85rem;">@L["EtsyProduct:OverrideRequiredForEtsyOnlyHint"]</span>
+                            </DxFormLayoutItem>
+                        }
+                        @* Kanal-özel override — boş = ERP/türetilmiş devralınır (temizle butonuyla boşaltılır). *@
+                        <DxFormLayoutItem Caption="@L["EtsyProduct:OverridePrice"]" ColSpanMd="4" BeginRow="true">
+                            <NumericSpinEdit TValue="decimal?" @bind-Value="@v.OverridePrice" DisplayFormat="N2"
+                                             ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
+                        </DxFormLayoutItem>
+                        <DxFormLayoutItem Caption="@L["EtsyProduct:OverridePriceCurrency"]" ColSpanMd="4">
+                            <LookupComboBox TItem="CurrencyUnitListDto" TValue="Guid?"
+                                            Data="@_units"
+                                            ValueFieldName="@nameof(CurrencyUnitListDto.Id)"
+                                            TextFieldName="@nameof(CurrencyUnitListDto.Code)"
+                                            Value="@v.OverridePriceCurrencyUnitId"
+                                            ValueChanged="@((Guid? id) => OnOverrideCurrencyChanged(v, id))"
+                                            AllowClear="true" />
+                        </DxFormLayoutItem>
+                        <DxFormLayoutItem Caption="@L["EtsyProduct:OverrideStock"]" ColSpanMd="4">
+                            <NumericSpinEdit TValue="int?" @bind-Value="@v.OverrideStock"
+                                             ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
+                        </DxFormLayoutItem>
+                        @* Marj % — türetilmiş fiyatı sürer (DerivedPrice canlı güncellensin diye handler'lı). *@
+                        <DxFormLayoutItem Caption="@L["EtsyProduct:Margin"]" ColSpanMd="4" BeginRow="true">
+                            <NumericSpinEdit TValue="decimal?" Value="@v.Margin" DisplayFormat="N2"
+                                             ValueChanged="@((decimal? m) => OnStockItemMarginChanged(v, m))"
+                                             ValueExpression="@(() => v.Margin)"
+                                             ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
+                        </DxFormLayoutItem>
+                        @* Sigortalı gönderim — kanal ayarında tanımlı olsa bile VARSAYILAN KAPALI; varyant bazında açılır. *@
+                        <DxFormLayoutItem Caption="@L["SideCost:InsuredShipping"]" ColSpanMd="4">
+                            <DxCheckBox @bind-Checked="@v.InsuredShippingEnabled" CheckType="CheckType.Switch">
+                                @(v.InsuredShippingEnabled ? L["Active"] : L["Passive"])
+                            </DxCheckBox>
+                        </DxFormLayoutItem>
+                        @* Net maliyet + türetilmiş fiyat — SALT-OKUNUR (reçeteden canlı; kur eksikse uyarı). *@
+                        <DxFormLayoutItem Caption="@L["EtsyProduct:NetCost"]" ColSpanMd="4">
+                            @if (v.NetCostMissingRate)
+                            {
+                                <span style="color:#b45309;">@L["MissingRate"]</span>
+                            }
+                            else
+                            {
+                                <span>@(v.NetCost is { } nc ? $"{nc:N2} {v.NetCostCurrency}" : "-")</span>
+                            }
+                        </DxFormLayoutItem>
+                        <DxFormLayoutItem Caption="@L["EtsyProduct:DerivedPrice"]" ColSpanMd="4">
+                            <span>@(v.DerivedPrice is { } dp ? $"{dp:N2} {v.NetCostCurrency}" : "-")</span>
+                        </DxFormLayoutItem>
+                        @* Kanal-özel reçete — ERP reçetesinden klonlanır, sonra bağımsız (ERP paneli AYNEN yeniden kullanılır). *@
+                        <DxFormLayoutGroup Caption="@L["Recipe"]" ColSpanMd="12" CaptionPosition="CaptionPosition.Vertical">
+                            <ProductRecipePanel Lines="v.RecipeLines"
+                                                Metals="_metals" Scraps="_scraps" Futures="_futures"
+                                                Jewelries="_jewelries" Stones="_stones" Services="_services" Units="_priceUnits"
+                                                NetCost="@v.NetCost" NetCostCurrency="@v.NetCostCurrency" NetCostMissingRate="@v.NetCostMissingRate"
+                                                OnChanged="@(async () => await HandleStockItemRecipeChangedAsync(v))" />
+                        </DxFormLayoutGroup>
+                    </DxFormLayout>
+                </EditContent>
+            </DrillList>
+        }
+    </DxTabPage>
+
+    @* Kişiselleştirme özel bilgileri — KOŞULSUZ: serbest key/value satırları. Boş key kabul edilmez. *@
+    <DxTabPage Text="@L["EtsyProduct:SpecialInfo"]" TabIconCssClass="@TradeXpressIcons.Sliders">
+        <span style="color:#6c757d; font-size:0.85rem;">@L["EtsyProduct:SpecialInfoHint"]</span>
+        <DrillList TItem="SalesChannelEtsyProductSpecialInfoDto"
+                   Title="@L["EtsyProduct:SpecialInfo"]"
+                   EntityName="@L["EtsyProduct:SpecialInfo"]"
+                   EntityIcon="@TradeXpressIcons.Sliders"
+                   Items="@Model.SpecialInfo"
+                   PrimaryTextSelector="@(s => s.Key)"
+                   NewItemFactory="@(() => new SalesChannelEtsyProductSpecialInfoDto())"
+                   SaveGuard="@SpecialInfoSaveGuard"
+                   ShowActiveFilter="false"
+                   ShowExport="false"
+                   ShowSearch="false"
+                   OnChanged="@(() => MarkDirty(nameof(Model.SpecialInfo)))">
+            <GridColumns>
+                <DxGridDataColumn FieldName="Key" Caption="@L["EtsyProduct:SpecialInfoKey"]" Width="30%" />
+                <DxGridDataColumn FieldName="Value" Caption="@L["EtsyProduct:SpecialInfoValue"]" />
+            </GridColumns>
+            <EditContent Context="s">
+                <DxFormLayout CssClass="w-100">
+                    <DxFormLayoutItem Caption="@($"{L["EtsyProduct:SpecialInfoKey"]} *")" ColSpanMd="12">
+                        <DxTextBox @bind-Text="@s.Key" />
+                    </DxFormLayoutItem>
+                    <DxFormLayoutItem Caption="@L["EtsyProduct:SpecialInfoValue"]" ColSpanMd="12">
+                        <DxMemo @bind-Text="@s.Value" Rows="4" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100" />
+                    </DxFormLayoutItem>
+                </DxFormLayout>
+            </EditContent>
+        </DrillList>
+    </DxTabPage>
+
+    @* Varyant SKU'ları (read-only) — push + stok/fiyat senkronunda dolar. *@
+    @if (Model.Skus.Count > 0)
+    {
+        <DxTabPage Text="@L["EtsyProduct:Skus"]" TabIconCssClass="@TradeXpressIcons.SalesChannel">
+            <DxGrid Data="@Model.Skus" PageSize="50" PagerVisible="false" CssClass="w-100">
+                <Columns>
+                    <DxGridDataColumn FieldName="FrozenSku" Caption="@L["EtsyProduct:SellerSku"]" />
+                    <DxGridDataColumn FieldName="EtsyProductId" Caption="@L["EtsyProduct:EtsyProductId"]" Width="140px" />
+                    <DxGridDataColumn FieldName="EtsyOfferingVersion" Caption="@L["EtsyProduct:EtsyOfferingVersion"]" Width="120px" />
+                    <DxGridDataColumn FieldName="LastSentQuantity" Caption="@L["EtsyProduct:LastSentQuantity"]" Width="140px" />
+                    <DxGridDataColumn FieldName="LastSentPrice" Caption="@L["EtsyProduct:LastSentPrice"]" Width="140px" />
+                </Columns>
+            </DxGrid>
+        </DxTabPage>
+    }
+
+    @* Etsy senkron durumu (read-only; push sonrası dolar). *@
+    @if (Model.EtsyListingId.HasValue || !string.IsNullOrEmpty(Model.LastError))
+    {
+        <DxTabPage Text="@L["EtsyProduct:SyncStatus"]" TabIconCssClass="@TradeXpressIcons.SalesChannel">
+            <DxFormLayout CssClass="w-100">
+                @if (Model.EtsyListingId.HasValue)
+                {
+                    <DxFormLayoutItem Caption="@L["EtsyProduct:EtsyListingId"]" ColSpanMd="4">
+                        <span>@Model.EtsyListingId</span>
+                    </DxFormLayoutItem>
+                    <DxFormLayoutItem Caption="@L["EtsyProduct:ListingState"]" ColSpanMd="4">
+                        <span>@Model.ListingState</span>
+                    </DxFormLayoutItem>
+                    <DxFormLayoutItem Caption="@L["EtsyProduct:LastSyncedAt"]" ColSpanMd="4">
+                        <span>@Model.LastSyncedAt</span>
+                    </DxFormLayoutItem>
+                }
+                @if (!string.IsNullOrEmpty(Model.LastError))
+                {
+                    <DxFormLayoutItem Caption="@L["EtsyProduct:LastError"]" ColSpanMd="12">
+                        <span style="color:#dc2626;">@Model.LastError</span>
+                    </DxFormLayoutItem>
+                }
+            </DxFormLayout>
+        </DxTabPage>
+    }
+</DrillTabs>
+
+@* ── Dükkân bölümü ekle/düzenle popup'ı — Kaydet Etsy'ye YAZAR (yalnız kullanıcı formu doldurup basınca). Başlık tek alan. ── *@
+<DxPopup @bind-Visible="_shopSectionPopupVisible"
+         HeaderText="@(_shopSectionEditId is null ? L["EtsyProduct:ShopSectionAdd"] : L["EtsyProduct:ShopSectionEdit"])"
+         Width="95%" MaxWidth="480px" CloseOnOutsideClick="false" ShowCloseButton="true" CloseOnEscape="true" ShowFooter="true">
+    <Content>
+        <DxFormLayout CssClass="w-100">
+            <DxFormLayoutItem Caption="@L["EtsyProduct:ShopSectionTitle"]" ColSpanMd="12">
+                <DxTextBox @bind-Text="@_shopSectionTitle" MaxLength="SalesChannelEtsyProductConsts.ShopSectionTitleMaxLength"
+                           CssClass="w-100" />
+            </DxFormLayoutItem>
+        </DxFormLayout>
+    </Content>
+    <FooterContentTemplate Context="popup">
+        <CrudFooterToolbar OnSave="SaveShopSectionAsync" OnCancel="@(() => _shopSectionPopupVisible = false)"
+                           CanSave="@(!_shopSectionSaving)" IsBusy="@_shopSectionSaving" />
+    </FooterContentTemplate>
+</DxPopup>
+
+@* ── İade politikası ekle/düzenle popup'ı — Kaydet Etsy'ye YAZAR. İade/değişim switch'leri + (kabul varsa) iade süresi. ── *@
+<DxPopup @bind-Visible="_returnPolicyPopupVisible"
+         HeaderText="@(_returnPolicyEditId is null ? L["EtsyProduct:ReturnPolicyAdd"] : L["EtsyProduct:ReturnPolicyEdit"])"
+         Width="95%" MaxWidth="480px" CloseOnOutsideClick="false" ShowCloseButton="true" CloseOnEscape="true" ShowFooter="true">
+    <Content>
+        <DxFormLayout CssClass="w-100">
+            <DxFormLayoutItem Caption="@L["EtsyProduct:ReturnPolicyAcceptsReturnsLabel"]" ColSpanMd="12">
+                <DxCheckBox @bind-Checked="@_returnPolicyAcceptsReturns" CheckType="CheckType.Switch">
+                    @(_returnPolicyAcceptsReturns ? L["Yes"] : L["No"])
+                </DxCheckBox>
+            </DxFormLayoutItem>
+            <DxFormLayoutItem Caption="@L["EtsyProduct:ReturnPolicyAcceptsExchangesLabel"]" ColSpanMd="12">
+                <DxCheckBox @bind-Checked="@_returnPolicyAcceptsExchanges" CheckType="CheckType.Switch">
+                    @(_returnPolicyAcceptsExchanges ? L["Yes"] : L["No"])
+                </DxCheckBox>
+            </DxFormLayoutItem>
+            @* İade süresi yalnız iade/değişim kabul varken anlamlı (Etsy kabul varken zorunlu tutar). *@
+            <DxFormLayoutItem Caption="@L["EtsyProduct:ReturnPolicyDeadlineDaysLabel"]" ColSpanMd="12"
+                              Visible="@(_returnPolicyAcceptsReturns || _returnPolicyAcceptsExchanges)">
+                <NumericSpinEdit TValue="int?" @bind-Value="@_returnPolicyDeadlineDays"
+                                 MinValue="1" MaxValue="SalesChannelEtsyProductConsts.ReturnDeadlineMaxDays"
+                                 ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
+            </DxFormLayoutItem>
+        </DxFormLayout>
+    </Content>
+    <FooterContentTemplate Context="popup">
+        <CrudFooterToolbar OnSave="SaveReturnPolicyAsync" OnCancel="@(() => _returnPolicyPopupVisible = false)"
+                           CanSave="@(!_returnPolicySaving)" IsBusy="@_returnPolicySaving" />
+    </FooterContentTemplate>
+</DxPopup>

@@ -1,3 +1,4 @@
+using Integration.TradeXpress.EtsyProducts;
 using Integration.TradeXpress.MultiCompany;
 
 namespace Integration.TradeXpress.Products;
@@ -60,11 +61,28 @@ public class Product : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwn
     /// <summary>Ürün durumu (pazaryeri-genel; her kanala kendi karşılığına eşlenir). Varsayılan New.</summary>
     public virtual ProductCondition Condition { get; protected set; }
 
+    // ── Etsy zorunlu menşe alanları (ürün-özü karar 2026-07-18; Etsy who_made/when_made/is_supply). N11/Trendyol
+    // bunları tüketmez; Etsy kanal-ürünü bu ürün-seviyesi değerleri push'ta devralır. ──
+
+    /// <summary>Ürünü kim yaptı (Etsy who_made). Varsayılan IDid.</summary>
+    public virtual EtsyWhoMade WhoMade { get; protected set; }
+
+    /// <summary>Ürün ne zaman yapıldı / dönem kovası (Etsy when_made). Varsayılan MadeToOrder.</summary>
+    public virtual EtsyWhenMade WhenMade { get; protected set; }
+
+    /// <summary>Bu bir üretim malzemesi/sarf mı (Etsy is_supply). Varsayılan false.</summary>
+    public virtual bool IsSupply { get; protected set; }
+
     /// <summary>Kargoya verilme süresi (gün) — en az 1. Varsayılan 1.</summary>
     public virtual int PreparingDay { get; protected set; }
 
-    /// <summary>Varsayılan kargo şablonu adı (opsiyonel; pazaryeri kanal-ürünü override eder).</summary>
+    /// <summary>Varsayılan kargo şablonu adı (opsiyonel; pazaryeri kanal-ürünü override eder). LEGACY (loose string;
+    /// kanal devralma hâlâ kullanıyor). Yeni <see cref="ShipmentTemplateId"/> FK'si bunun yanında yaşar.</summary>
     public virtual string? ShipmentTemplateName { get; protected set; }
+
+    /// <summary>Birleşik ERP kargo şablonu referansı (<c>ShipmentTemplate.Id</c>; id-only, nav YOK). Opsiyonel.
+    /// Referans bütünlüğü ShipmentTemplate silme-guard'ıyla korunur (sert FK/cascade DEĞİL).</summary>
+    public virtual Guid? ShipmentTemplateId { get; protected set; }
 
     /// <summary>Alıcı başına maksimum satın alım adedi (opsiyonel).</summary>
     public virtual int? MaxPurchaseQuantity { get; protected set; }
@@ -78,6 +96,26 @@ public class Product : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwn
     /// <summary>Ürün özelleştirme alanları (owned → JSON; key=müşteri giriş etiketi zorunlu, value opsiyonel).
     /// Kanal-ürünü boşsa devralır.</summary>
     public virtual List<ProductSpecialInfo> SpecialInfo { get; protected set; } = new();
+
+    /// <summary>Ürüne atanan eklentiler (owned → JSON; katalogdan seçim + satır override). Pazaryerine push'ta
+    /// varyant olarak yansıtılır (Faz 2).</summary>
+    public virtual List<ProductAddOn> AddOns { get; protected set; } = new();
+
+    // ── Kişiselleştirme (pazaryeri-genel; Etsy who_made/is_supply deseni. Kanal-ürünü push'ta devralır — SONRAKİ iş). ──
+
+    /// <summary>Ürün kişiselleştirilebilir mi (Etsy is_personalizable). Varsayılan false.</summary>
+    public virtual bool IsPersonalizable { get; protected set; }
+
+    /// <summary>Kişiselleştirme talimatı (Etsy personalization_instructions; personalizable ise anlamlı). Opsiyonel.</summary>
+    public virtual string? PersonalizationInstructions { get; protected set; }
+
+    /// <summary>Kişiselleştirme zorunlu mu (Etsy personalization_is_required). Yalnız kişiselleştirilebilir üründe
+    /// anlamlı; zorlanmaz, olduğu gibi saklanır. Varsayılan false.</summary>
+    public virtual bool PersonalizationIsRequired { get; protected set; }
+
+    /// <summary>Müşteri girişinin maksimum karakter sayısı (Etsy personalization_char_count_max). Opsiyonel;
+    /// dolu ise 1..<see cref="ProductConsts.PersonalizationCharCountMaxLimit"/> aralığında (fail-fast).</summary>
+    public virtual int? PersonalizationCharCountMax { get; protected set; }
 
     protected Product() { }
 
@@ -93,6 +131,11 @@ public class Product : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwn
         Domestic = true;
         Condition = ProductCondition.New;
         PreparingDay = 1;
+        WhoMade = EtsyWhoMade.IDid;
+        WhenMade = EtsyWhenMade.MadeToOrder;
+        IsSupply = false;
+        IsPersonalizable = false;
+        PersonalizationIsRequired = false;
     }
 
     public virtual void SetCompany(Guid companyId)
@@ -171,6 +214,24 @@ public class Product : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwn
         Condition = condition;
     }
 
+    /// <summary>Etsy who_made (ürünü kim yaptı; varsayılan IDid).</summary>
+    public virtual void SetWhoMade(EtsyWhoMade whoMade)
+    {
+        WhoMade = whoMade;
+    }
+
+    /// <summary>Etsy when_made (dönem kovası; varsayılan MadeToOrder).</summary>
+    public virtual void SetWhenMade(EtsyWhenMade whenMade)
+    {
+        WhenMade = whenMade;
+    }
+
+    /// <summary>Etsy is_supply (üretim malzemesi/sarf mı; varsayılan false).</summary>
+    public virtual void SetSupply(bool isSupply)
+    {
+        IsSupply = isSupply;
+    }
+
     /// <summary>Kargoya verilme süresi (gün) — en az 1 (fail-fast).</summary>
     public virtual void SetPreparingDay(int preparingDay)
     {
@@ -187,6 +248,12 @@ public class Product : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwn
     {
         ShipmentTemplateName = StringFieldGuard.EnsureOptionalText(
             shipmentTemplateName, nameof(ShipmentTemplateName), 1, ProductConsts.ShipmentTemplateNameMaxLength);
+    }
+
+    /// <summary>Birleşik ERP kargo şablonu referansı (opsiyonel; id-only atama, boş=null).</summary>
+    public virtual void SetShipmentTemplateId(Guid? shipmentTemplateId)
+    {
+        ShipmentTemplateId = shipmentTemplateId == Guid.Empty ? null : shipmentTemplateId;
     }
 
     /// <summary>Alıcı başına maksimum satın alım adedi (opsiyonel) — en az 1 (fail-fast).</summary>
@@ -220,6 +287,23 @@ public class Product : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwn
         SpecialInfo = (specialInfo ?? Enumerable.Empty<ProductSpecialInfo>())
             .Where(s => !string.IsNullOrWhiteSpace(s.Key))
             .Select(s => new ProductSpecialInfo(s.Key.Trim(), (s.Value ?? string.Empty).Trim()))
+            .ToList();
+    }
+
+    /// <summary>Ürüne atanan eklentiler — yalnız GEÇERLİ (AddOnId dolu) satırlar; DisplayOrder'a göre sıralanır,
+    /// Note trim'lenir. Katalog referansı; boş AddOnId'li satır elenir.</summary>
+    public virtual void SetAddOns(IEnumerable<ProductAddOn>? addOns)
+    {
+        AddOns = (addOns ?? Enumerable.Empty<ProductAddOn>())
+            .Where(a => a.AddOnId != Guid.Empty)
+            .OrderBy(a => a.DisplayOrder)
+            .Select(a => new ProductAddOn(
+                a.AddOnId,
+                a.PriceOverride,
+                a.CurrencyUnitOverrideId,
+                a.IsRequired,
+                a.DisplayOrder,
+                string.IsNullOrWhiteSpace(a.Note) ? null : a.Note.Trim()))
             .ToList();
     }
 
@@ -264,7 +348,7 @@ public class Product : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwn
 
     /// <summary>Görselleri ayarlar — kaynağı boş olanlar (URL'siz Url tipi / blob'suz Upload tipi) elenir,
     /// DisplayOrder'a göre sıralanır, en fazla <see cref="ProductConsts.MaxImageCount"/>. Aynı ürüne aynı URL
-    /// ya da aynı dosya adı İKİ KEZ giremez (dostane hata). Tekil-default: birden fazla işaretliyse ilki kalır,
+    /// ya da aynı BLOB adı İKİ KEZ giremez (dostane hata). Tekil-default: birden fazla işaretliyse ilki kalır,
     /// hiç yoksa ilk görsel default olur.</summary>
     public virtual void SetImages(IEnumerable<ProductImage>? images)
     {
@@ -279,7 +363,9 @@ public class Product : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwn
                 string.IsNullOrWhiteSpace(i.BlobName) ? null : i.BlobName!.Trim(),
                 string.IsNullOrWhiteSpace(i.FileName) ? null : i.FileName!.Trim(),
                 i.DisplayOrder,
-                i.IsDefault))
+                i.IsDefault,
+                i.VariantId,
+                string.IsNullOrWhiteSpace(i.VariantCode) ? null : i.VariantCode!.Trim()))
             .OrderBy(i => i.DisplayOrder)
             .Take(ProductConsts.MaxImageCount)
             .ToList();
@@ -289,22 +375,41 @@ public class Product : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwn
         Images = normalized;
     }
 
-    /// <summary>Aynı ürüne aynı URL (case-duyarsız) ya da aynı dosya adı iki kez girilemez — dostane hata
-    /// (2026-07-07 kullanıcı kararı). UI drill'i de kaydetmeden önce aynı kuralı uygular; burası savunma.</summary>
+    /// <summary>Aynı ürüne aynı URL (case-duyarsız) ya da aynı BLOB adı iki kez girilemez — dostane hata.
+    /// Dosya adı ARTIK dedupe anahtarı DEĞİL (2026-07-18 kullanıcı kararı: aynı dosya adı farklı varyant
+    /// klasöründe meşru; blob adı path-önekli ve sunucu ilk-boş-sıra probe'uyla zaten TEKİL). UI drill'i de
+    /// kaydetmeden önce aynı kuralı uygular; burası savunma.</summary>
     private static void EnsureImagesUnique(List<ProductImage> images)
     {
         var duplicateUrl = images
             .Where(i => i.Url is not null)
             .GroupBy(i => i.Url!, StringComparer.OrdinalIgnoreCase)
             .Any(g => g.Count() > 1);
-        var duplicateFile = images
-            .Where(i => i.FileName is not null)
-            .GroupBy(i => i.FileName!, StringComparer.OrdinalIgnoreCase)
+        var duplicateBlob = images
+            .Where(i => i.BlobName is not null)
+            .GroupBy(i => i.BlobName!, StringComparer.Ordinal)
             .Any(g => g.Count() > 1);
-        if (duplicateUrl || duplicateFile)
+        if (duplicateUrl || duplicateBlob)
         {
             throw new BusinessException("TradeXpress:Product:ImageDuplicate");
         }
+    }
+
+    /// <summary>Kişiselleştirme alanlarını ayarlar (pazaryeri-genel; kanal-ürünü push'ta devralır — SONRAKİ iş).
+    /// Talimat boş değilse trim + max; karakter sınırı dolu ise 1..<see cref="ProductConsts.PersonalizationCharCountMaxLimit"/>
+    /// (fail-fast). <paramref name="isRequired"/> yalnız kişiselleştirilebilir üründe anlamlı — zorlanmaz, olduğu gibi saklanır.</summary>
+    public virtual void SetPersonalization(bool isPersonalizable, string? instructions, bool isRequired, int? charCountMax)
+    {
+        if (charCountMax is { } max && (max < 1 || max > ProductConsts.PersonalizationCharCountMaxLimit))
+        {
+            throw new BusinessException("TradeXpress:Product:PersonalizationCharCountMaxInvalid");
+        }
+
+        IsPersonalizable = isPersonalizable;
+        PersonalizationInstructions = StringFieldGuard.EnsureOptionalText(
+            instructions, nameof(PersonalizationInstructions), 1, ProductConsts.PersonalizationInstructionsMaxLength);
+        PersonalizationIsRequired = isRequired;
+        PersonalizationCharCountMax = charCountMax;
     }
 
     /// <summary>Tekil varsayılan görsel: birden fazla işaretliyse İLKİ kalır; hiç yoksa ilk görsel default olur.</summary>

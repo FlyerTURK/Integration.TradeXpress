@@ -35,6 +35,10 @@ public class N11District : FullAuditedAggregateRoot<Guid>
 
     public string Name { get; protected set; } = string.Empty;
 
+    /// <summary>Çekirdek coğrafyaya gevşek köprü — eşlenen <see cref="Geography.Locality"/> id'si (nav YOK;
+    /// N11 Country'yi BİLMEZ). GeographySeeder doldurur; null = henüz eşlenmedi.</summary>
+    public Guid? CoreLocalityId { get; protected set; }
+
     #endregion
 
     #region Methods
@@ -47,6 +51,12 @@ public class N11District : FullAuditedAggregateRoot<Guid>
     public virtual void SetCityCode(string cityCode)
     {
         CityCode = StringFieldGuard.EnsureRequiredText(cityCode, nameof(CityCode), 1, N11CityConsts.CodeMaxLength);
+    }
+
+    /// <summary>Çekirdek yerellik köprüsünü set eder (boş Guid → null). GeographySeeder çağırır.</summary>
+    public virtual void SetCoreLocality(Guid? localityId)
+    {
+        CoreLocalityId = localityId == Guid.Empty ? null : localityId;
     }
 
     public override string ToString()

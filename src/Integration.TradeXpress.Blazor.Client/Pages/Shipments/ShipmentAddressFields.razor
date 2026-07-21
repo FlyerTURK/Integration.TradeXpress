@@ -1,0 +1,36 @@
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@* Tek bir ShipmentAddressDto için adres formu (menşei/iade ortak, SELF-CONTAINED DxFormLayout) — kanal-nötr
+   çekirdek: düz metin alanları (kanal il/ilçe KOD eşlemesi sonraki fazlarda). DrillList/EditContent DxFormLayout
+   sağlamadığından bileşen kendi layout'unu taşır. Zorunluysa İl/Adres caption'larına " *" eklenir. *@
+
+@* Coğrafya cascade seçici (üstte) — Ülke → İl/Eyalet → İlçe. Seçim aşağıdaki serbest-metin alanlarını DOLDURUR
+   (kullanıcı sonra override edebilir — fallback). Mevcut CountryCode ile geri yüklenir. *@
+<GeographyCascadePicker SelectedCountryCode="@Model.CountryCode"
+                        SelectionChanged="@OnGeographySelected" />
+
+<DxFormLayout CssClass="w-100">
+    <DxFormLayoutGroup Caption="@GroupCaption" ColSpanMd="12">
+        <DxFormLayoutItem Caption="@L["ShipmentAddress:Title"]" ColSpanMd="6">
+            <DxTextBox @bind-Text="@Model.Title" CssClass="w-100" NullText="@L["Optional"]" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["ShipmentAddress:PostalCode"]" ColSpanMd="6">
+            <DxTextBox @bind-Text="@Model.PostalCode" CssClass="w-100" NullText="@L["Optional"]" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@(Required ? $"{L["ShipmentAddress:Line"]} *" : L["ShipmentAddress:Line"].Value)" ColSpanMd="12">
+            <DxMemo @bind-Text="@Model.Line" Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@(Required ? $"{L["ShipmentAddress:City"]} *" : L["ShipmentAddress:City"].Value)" ColSpanMd="6">
+            <DxTextBox @bind-Text="@Model.City" CssClass="w-100" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["ShipmentAddress:District"]" ColSpanMd="6">
+            <DxTextBox @bind-Text="@Model.District" CssClass="w-100" NullText="@L["Optional"]" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["ShipmentAddress:Neighborhood"]" ColSpanMd="6">
+            <DxTextBox @bind-Text="@Model.Neighborhood" CssClass="w-100" NullText="@L["Optional"]" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["ShipmentAddress:CountryCode"]" ColSpanMd="6">
+            <DxTextBox @bind-Text="@Model.CountryCode" CssClass="w-100" />
+        </DxFormLayoutItem>
+    </DxFormLayoutGroup>
+</DxFormLayout>

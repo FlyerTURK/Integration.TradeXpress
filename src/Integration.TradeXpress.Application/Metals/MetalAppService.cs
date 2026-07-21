@@ -37,6 +37,7 @@ public class MetalAppService
     private readonly CommodityAgnosticGraph _graph;
     private readonly IRepository<MetalVariantDetail, Guid> _variantDetailRepository;
     private readonly IRepository<Integration.TradeXpress.Variants.EntityVariant, Guid> _entityVariantRepository;
+    private readonly ICurrentCompany _currentCompany;
 
     public MetalAppService(
         IRepository<Metal, Guid> repository,
@@ -44,13 +45,15 @@ public class MetalAppService
         IBlobContainer<MetalImagesContainer> imageContainer,
         CommodityAgnosticGraph graph,
         IRepository<MetalVariantDetail, Guid> variantDetailRepository,
-        IRepository<Integration.TradeXpress.Variants.EntityVariant, Guid> entityVariantRepository)
+        IRepository<Integration.TradeXpress.Variants.EntityVariant, Guid> entityVariantRepository,
+        ICurrentCompany currentCompany)
         : base(repository, unitRepository)
     {
         _imageContainer = imageContainer;
         _graph = graph;
         _variantDetailRepository = variantDetailRepository;
         _entityVariantRepository = entityVariantRepository;
+        _currentCompany = currentCompany;
         // Katalog yönetimi izinli (okuma/liste serbest — [Authorize] yeter): combo ✎/+ görünürlüğüyle hizalı.
         CreatePolicyName = TradeXpressPermissions.Metals.Create;
         UpdatePolicyName = TradeXpressPermissions.Metals.Update;
@@ -165,6 +168,7 @@ public class MetalAppService
         // TenantId otomatik (host→null, tenant→kendi); zengin ctor + SetX.
         var entity = new Metal(
             createInput.Code, createInput.Name, createInput.FollowingUnitId!.Value,
+            createInput.CompanyId,
             createInput.Factor, createInput.FactorChange,
             createInput.IsQuantity, createInput.StableQuantity);
         entity.SetBarcode(createInput.Barcode);
@@ -177,7 +181,7 @@ public class MetalAppService
     {
         // Update ile aynı scope/error-code (TenantId bacağı standart filter'dan): aynı kod → dostane hata.
         return EnsureCodeUniqueAsync(
-            entity, x => x.Code == entity.Code, "TradeXpress:Metal:CodeAlreadyExists", excludeSelf: false);
+            entity, x => x.Code == entity.Code && x.CompanyId == entity.CompanyId, "TradeXpress:Metal:CodeAlreadyExists", excludeSelf: false);
     }
 
     protected override async Task MapToEntityAsync(MetalUpdateDto updateInput, Metal entity)
@@ -190,7 +194,7 @@ public class MetalAppService
                 raw, nameof(Metal.Code), EntityFieldConsts.CodeMinLength, MetalConsts.CodeMaxLength),
             e => e.Code,
             (e, code) => e.SetCode(code),
-            code => x => x.Code == code,
+            code => x => x.Code == code && x.CompanyId == entity.CompanyId,
             "TradeXpress:Metal:CodeAlreadyExists");
 
         entity.SetName(updateInput.Name);
@@ -452,20 +456,25 @@ public class MetalAppService
         return variants;
     }
 
+    protected override Expression<Func<Metal, bool>> BuildVisibilityPredicate()
+    {
+        return CompanyScopedQueryable.CompanyVisiblePredicate<Metal>(CurrentTenant.Id, _currentCompany.Id);
+    }
+
     public virtual async Task<List<MetalVariantLookupDto>> GetVariantLookupAsync()
     {
-        // Metal entity'leri host-level (TenantId = NULL) saklanır.
-        // IMultiTenant filtresi aktifken EF Core → TenantId = @param üretir;
-        // param NULL ise SQL'de NULL = NULL → false → sıfır satır döner.
-        // GetPickerListAsync'teki aynı desen: Disable<IMultiTenant>() zorunlu.
-        List<(Guid CommodityId, string MetalCode, string MetalName, Guid VariantId, string VariantCode, string VariantName, bool IsQuantity, decimal StableQuantity)> rows;
+        List<(Guid CommodityId, string MetalCode, string MetalName, Guid? VariantId, string VariantCode, string VariantName, bool IsQuantity, decimal StableQuantity)> rows;
         using (DataFilter.Disable<Volo.Abp.MultiTenancy.IMultiTenant>())
+        using (DataFilter.Disable<ICompanyScoped>())
         {
             var metalsQuery = await Repository.GetQueryableAsync();
             var variantsQuery = await _entityVariantRepository.GetQueryableAsync();
 
-            var baseQuery = from metal in metalsQuery
-                            join variant in variantsQuery on metal.Id equals variant.EntityId
+            var metalPredicate = CompanyScopedQueryable.CompanyVisiblePredicate<Metal>(CurrentTenant.Id, _currentCompany.Id);
+            var variantPredicate = CompanyScopedQueryable.CompanyVisiblePredicate<Integration.TradeXpress.Variants.EntityVariant>(CurrentTenant.Id, _currentCompany.Id);
+
+            var baseQuery = from metal in metalsQuery.Where(metalPredicate)
+                            join variant in variantsQuery.Where(variantPredicate) on metal.Id equals variant.EntityId
                             where variant.EntityName == MetalEntityName && !variant.IsDeleted && !metal.IsDeleted
                             select new
                             {
@@ -480,14 +489,14 @@ public class MetalAppService
                             };
 
             var raw = await AsyncExecuter.ToListAsync(baseQuery);
-            rows = raw.Select(r => (r.CommodityId, r.MetalCode, r.MetalName, r.VariantId, r.VariantCode, r.VariantName, r.IsQuantity, r.StableQuantity)).ToList();
+            rows = raw.Select(r => (r.CommodityId, r.MetalCode, r.MetalName, (Guid?)r.VariantId, r.VariantCode, r.VariantName, r.IsQuantity, r.StableQuantity)).ToList();
+            Microsoft.Extensions.Logging.LoggerExtensions.LogInformation(Logger, "GetVariantLookupAsync returned {Count} rows for Tenant: {Tenant}, Company: {Company}", rows.Count, CurrentTenant.Id, _currentCompany.Id);
         }
 
-        // Adım 2: MetalVariantDetail (CompanyScoped — ayrı sorgu, filter disable)
         Dictionary<Guid, MetalVariantDetail> details;
         using (DataFilter.Disable<ICompanyScoped>())
         {
-            var variantIds = rows.Select(r => r.VariantId).ToList();
+            var variantIds = rows.Select(r => r.VariantId.GetValueOrDefault()).ToList();
             var detailsQuery = (await _variantDetailRepository.GetQueryableAsync())
                 .Where(d => variantIds.Contains(d.EntityVariantId));
             var detailList = await AsyncExecuter.ToListAsync(detailsQuery);
@@ -497,7 +506,7 @@ public class MetalAppService
         return rows
             .Select(r =>
             {
-                details.TryGetValue(r.VariantId, out var d);
+                details.TryGetValue(r.VariantId.GetValueOrDefault(), out var d);
                 return new MetalVariantLookupDto
                 {
                     CommodityId      = r.CommodityId,

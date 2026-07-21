@@ -15,7 +15,8 @@ public sealed record RemoteOrder(
     decimal TotalAmount,
     string? CargoProvider,
     string? CargoTrackingNumber,
-    IReadOnlyList<RemoteOrderLine> Lines);
+    IReadOnlyList<RemoteOrderLine> Lines,
+    string? CurrencyCode = null);   // Tr-pazaryerleri null → TRY varsayılır; Etsy shop para birimi kodunu doldurur (USD/EUR…).
 
 /// <summary>Uzak sipariş satırı (kalem) — ürün-agnostik snapshot (yerel ürün olmasa da tam anlamlı).</summary>
 public sealed record RemoteOrderLine(

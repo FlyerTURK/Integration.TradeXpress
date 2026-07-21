@@ -1,0 +1,51 @@
+@using Integration.TradeXpress.Channels
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@* Kanal KURULUM paneli (kanal-nötr) — kayıtlı bir satış kanalı için orkestratörü çağırır (IChannelProvisioningAppService)
+   ve adım-adım sonucu DxGrid'de gösterir (durum rozeti: Success yeşil / Skipped gri / Failed kırmızı + mesaj). Kanal bu
+   oturumda YENİ oluşturulduysa (AutoRun) panel ilk görünümünde kurulumu KENDİLİĞİNDEN başlatır; "Yeniden Kur" idempotent
+   tekrarlar. Mevcut Etsy AutoImport panelinin genellemesi — ürün importu artık bir kurulum ADIMIDIR. *@
+
+<div class="mt-3">
+    <DxToolbar ItemRenderStyleMode="ToolbarRenderStyleMode.Plain"
+               AdaptivityAutoCollapseItemsToIcons="false" AdaptivityAutoHideRootItems="false">
+        <DxToolbarItem Text="@L["ChannelProvisioning:Reprovision"]" IconCssClass="@TradeXpressIcons.SalesChannel"
+                       Tooltip="@L["ChannelProvisioning:Reprovision"].Value"
+                       Enabled="@(!_busy)"
+                       Click="@(async (ToolbarItemClickEventArgs e) => await ProvisionAsync())" />
+    </DxToolbar>
+
+    @if (_busy)
+    {
+        <span style="font-size:0.85rem; color:#6c757d;">@L["ChannelProvisioning:Running"]</span>
+    }
+
+    @if (_result is { } r)
+    {
+        <div style="display:flex; flex-direction:column; gap:4px; margin-top:6px;">
+            <span style="font-size:0.85rem; color:@(r.AllReady ? "#16a34a" : "#b45309");">
+                @(r.AllReady ? L["ChannelProvisioning:AllReady"] : L["ChannelProvisioning:HasFailures"])
+            </span>
+
+            @* Adım sonuçları — kararlı sıra (yürütme sırası); sayfalama yok (adım sayısı küçük). *@
+            <DxGrid Data="@r.Steps" PagerVisible="false" PageSize="100" CssClass="mt-1">
+                <Columns>
+                    <DxGridDataColumn AllowSort="false" Caption="@L["ChannelProvisioning:Column:Step"]" Width="220px">
+                        <CellDisplayTemplate>@(((ProvisioningStepResultDto)context.DataItem).Title)</CellDisplayTemplate>
+                    </DxGridDataColumn>
+                    <DxGridDataColumn AllowSort="false" Caption="@L["Status"]" Width="120px">
+                        <CellDisplayTemplate>
+                            @{
+                                var status = ((ProvisioningStepResultDto)context.DataItem).Status;
+                            }
+                            <span style="display:inline-block; padding:2px 10px; border-radius:10px; font-size:0.8rem; color:#fff; background:@StatusColor(status);">@StatusLabel(status)</span>
+                        </CellDisplayTemplate>
+                    </DxGridDataColumn>
+                    <DxGridDataColumn AllowSort="false" Caption="@L["ChannelProvisioning:Column:Message"]">
+                        <CellDisplayTemplate>@(((ProvisioningStepResultDto)context.DataItem).Message)</CellDisplayTemplate>
+                    </DxGridDataColumn>
+                </Columns>
+            </DxGrid>
+        </div>
+    }
+</div>

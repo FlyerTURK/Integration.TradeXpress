@@ -1,6 +1,8 @@
 using Integration.TradeXpress.Financials.CurrencyUnits;
 using Integration.TradeXpress.Products;
 using Integration.TradeXpress.Vouchers;
+using Integration.TradeXpress.MultiCompany;
+using Volo.Abp.MultiTenancy;
 
 namespace Integration.TradeXpress.Metals;
 
@@ -12,7 +14,7 @@ namespace Integration.TradeXpress.Metals;
 /// <para>Host + tenant scoped (Scrap gibi): host kataloğu (TenantId=null) herkese görünür, tenant
 /// düzenleyemez/silemez; tenant kendi kayıtlarını ekleyebilir.</para>
 /// </summary>
-public class Metal : FullAuditedAggregateRoot<Guid>, IMultiTenant
+public class Metal : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyScoped
 {
     #region Constructors
 
@@ -24,6 +26,7 @@ public class Metal : FullAuditedAggregateRoot<Guid>, IMultiTenant
         string code,
         string name,
         Guid followingUnitId,
+        Guid? companyId = null,
         decimal factor = MetalConsts.DefaultFactor,
         bool factorChange = false,
         bool isQuantity = false,
@@ -33,6 +36,7 @@ public class Metal : FullAuditedAggregateRoot<Guid>, IMultiTenant
         SetCode(code);
         SetName(name);
         SetFollowingUnit(followingUnitId);
+        CompanyId = companyId;
         SetFactor(factor);
         FactorChange     = factorChange;
         IsQuantity       = isQuantity;
@@ -45,6 +49,7 @@ public class Metal : FullAuditedAggregateRoot<Guid>, IMultiTenant
     #region Properties
 
     public virtual Guid? TenantId { get; protected set; }
+    public virtual Guid? CompanyId { get; protected set; }
     public virtual string Code { get; protected set; } = null!;
     public virtual string Name { get; protected set; } = null!;
     public virtual string? Description { get; protected set; }

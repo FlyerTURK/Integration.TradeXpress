@@ -3,6 +3,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using DevExpress.Blazor;
+using Integration.Framework.Blazor.Client.Components.Crud;
+using Integration.Framework.Blazor.Client.Services.Base;
+using Integration.TradeXpress.Blazor.Client;
 using Integration.TradeXpress.Blazor.Client.Pages.CurrentTransactions;
 using Integration.TradeXpress.Financials.CurrencyUnits;
 using Integration.TradeXpress.Futures;
@@ -19,9 +22,9 @@ namespace Integration.TradeXpress.Blazor.Client.Pages.Products;
 
 /// <summary>
 /// Bir varyantın REÇETE paneli — <c>EntryPanelBase</c>'in (Framework, buffered giriş paneli tabanı) İLK türevi.
-/// Süreç paneli davranışı (MetalProcessPanel paritesi): toolbar tip seçtirir → toolbar'ın yerine kırmızı-gradyan
-/// başlıklı panel (<c>EntryPanelShell</c>) açılır; DRAFT üzerinde çalışılır (satıra ANLIK yazılmaz). Kaydet
-/// draft'ı uygular + AYNI tipte yeni draft hazırlar (seri giriş); Geri draft'ı atar. Ters-hesaplar
+/// Süreç paneli davranışı (MetalProcessPanel paritesi): toolbar tip seçtirir → kırmızı-gradyan başlıklı POPUP
+/// (<c>EntryPanelShell Popup</c>) açılır; DRAFT üzerinde çalışılır (satıra ANLIK yazılmaz). Kaydet draft'ı uygular
+/// &amp; POPUP'ı KAPATIR (footer "Tüm varyantlara uygula" checkbox'ı açıksa tüm varyantlara upsert); Geri draft'ı atar. Ters-hesaplar
 /// MetalProcessPanel.Recalc paritesi: Total→Factor, PayTotal→PayFactor geri-hesap. Bu sınıf yalnız TradeXpress'e
 /// özgü kısmı taşır (emtia aileleri + Recalc + grid); yaşam döngüsü + chrome Framework tabanında (§4: generic → Framework).
 /// </summary>
@@ -39,6 +42,13 @@ public partial class ProductRecipePanel
     [Parameter] public IReadOnlyList<ServiceListDto> Services { get; set; } = Array.Empty<ServiceListDto>();
     /// <summary>Birim lookup (işçilik/bedel birimi) — CurrentPriceDto (Id + kod).</summary>
     [Parameter] public IReadOnlyList<CurrentPriceDto> Units { get; set; } = Array.Empty<CurrentPriceDto>();
+
+    /// <summary>Ürünün TÜM varyantları — "Tüm Varyantlar" (ekle/sil) aksiyonları bunların reçetesine upsert/silme yapar.
+    /// Verilirse draft popup'ta "Bu Varyant / Tüm Varyantlar" + silme kapsam popup'ı görünür.</summary>
+    [Parameter] public IReadOnlyList<ProductVariantGraphDto>? AllVariants { get; set; }
+
+    /// <summary>Bir varyantın reçetesi değişince (tüm-varyant işleminde her varyant için) host'un maliyet recalc'ı + dirty.</summary>
+    [Parameter] public Func<ProductVariantGraphDto, Task>? OnVariantRecipeChanged { get; set; }
 
     /// <summary>Varyantın canlı net maliyeti (host projeksiyonu; salt görüntü).</summary>
     [Parameter] public decimal? NetCost { get; set; }
@@ -66,8 +76,8 @@ public partial class ProductRecipePanel
         base.OnInitialized();
         _paymentItems = new()
         {
-            new(ProcessPaymentType.Normal, L["Enum:ProcessPaymentType:Normal"].Value),
-            new(ProcessPaymentType.WithCurrency, L["Enum:ProcessPaymentType:WithCurrency"].Value),
+            new(ProcessPaymentType.Normal, L["Enum:ProcessPaymentType:Normal"].Value.ToUpper()),
+            new(ProcessPaymentType.WithCurrency, L["Enum:ProcessPaymentType:WithCurrency"].Value.ToUpper()),
         };
         _baseModeItems = new()
         {
@@ -106,6 +116,8 @@ public partial class ProductRecipePanel
             ComponentType = s.ComponentType,
             CommodityProcessType = s.CommodityProcessType,
             CommodityId = s.CommodityId,
+            CommodityVariantId = s.CommodityVariantId,
+            SideCostKind = s.SideCostKind,
             Quantity = s.Quantity,
             Amount = s.Amount,
             Factor = s.Factor,
@@ -135,6 +147,7 @@ public partial class ProductRecipePanel
         target.LineOrder = d.LineOrder;
         target.CommodityProcessType = d.CommodityProcessType;
         target.CommodityId = d.CommodityId;
+        target.CommodityVariantId = d.CommodityVariantId;
         target.Quantity = d.Quantity;
         target.Amount = d.Amount;
         target.Factor = d.Factor;
@@ -260,7 +273,32 @@ public partial class ProductRecipePanel
         }
     }
 
-    /// <summary>Toolbar Sil — seçili satırı siler + seçimi temizler (silme sonrası canlı maliyet yeniden hesaplanır).</summary>
+    // Tüm-varyant desteği aktif mi (host TÜM varyantları + recalc callback'ini verdi).
+    private bool HasAllVariants
+    {
+        get { return AllVariants is { Count: > 0 } && OnVariantRecipeChanged is not null; }
+    }
+
+    // "Tüm varyantlara uygula" checkbox'ı — YALNIZ yeni satır EKLERKEN görünür (düzenlemede gizli). AÇIK: Kaydet
+    // satırı TÜM varyantlara ekler; KAPALI: yalnız bu varyant. Düzenleme + silme HER ZAMAN yalnız bu varyant
+    // (kazara toplu ezme/silme riski — bilinçli olarak tüm-varyanta yalnız yeni ekleme için izin verilir).
+    private bool _applyToAllVariants;
+
+    /// <summary>Kaydet (dispatch) — YENİ satırda checkbox açıksa TÜM varyantlara ekler; DÜZENLEMEDE daima yalnız bu
+    /// varyant. Her durumda paneli KAPATIR (seri-giriş yok — Kaydet = uygula &amp; kapat).</summary>
+    private async Task SaveDraftDispatchAsync()
+    {
+        if (_applyToAllVariants && HasAllVariants && EditingItem is null)
+        {
+            await SaveDraftToAllVariantsAsync();
+        }
+        else
+        {
+            await SaveDraftAndCloseAsync();
+        }
+    }
+
+    /// <summary>Toolbar Sil — seçili satırı YALNIZ bu varyanttan siler (tüm-varyant silme YOK — kazara toplu silme riski).</summary>
     private async Task DeleteSelectedLineAsync()
     {
         if (_selectedLine is { } line)
@@ -268,6 +306,50 @@ public partial class ProductRecipePanel
             await DeleteLineAsync(line);
             _selectedLine = null;
         }
+    }
+
+    /// <summary>İki reçete satırı AYNI emtia/hizmet mi — tüm-varyant upsert/silme eşleşme ölçütü (emtia kimliği).</summary>
+    private static bool IsSameCommodityLine(ProductRecipeLineGraphDto a, ProductRecipeLineGraphDto b)
+    {
+        return a.ComponentType == b.ComponentType
+            && a.CommodityProcessType == b.CommodityProcessType
+            && a.CommodityId == b.CommodityId
+            && a.CommodityVariantId == b.CommodityVariantId
+            && a.SideCostKind == b.SideCostKind;
+    }
+
+    /// <summary>Checkbox açıkken Kaydet — draft'ı HER varyantın reçetesine upsert eder (aynı emtia varsa değerleri
+    /// günceller, yoksa kopya ekler) + her varyantı recalc. Sonra paneli KAPATIR.</summary>
+    private async Task SaveDraftToAllVariantsAsync()
+    {
+        if (Draft is not { } draft || AllVariants is null)
+        {
+            return;
+        }
+
+        foreach (var variant in AllVariants.Where(x => !x.IsDeleted))
+        {
+            var match = variant.RecipeLines.FirstOrDefault(l => !l.IsDeleted && IsSameCommodityLine(l, draft));
+            if (match != null)
+            {
+                ApplyDraft(draft, match);   // aynı emtia zaten var → değerleri güncelle
+            }
+            else
+            {
+                var copy = CloneItem(draft);
+                copy.Id = Guid.Empty;
+                copy.ClientKey = Guid.NewGuid();   // client key (view-model) — entity id değil
+                copy.LineOrder = variant.RecipeLines.Where(x => !x.IsDeleted).Select(x => x.LineOrder).DefaultIfEmpty(0).Max() + 1;
+                variant.RecipeLines.Add(copy);
+            }
+
+            if (OnVariantRecipeChanged is not null)
+            {
+                await OnVariantRecipeChanged(variant);   // her varyant: recalc + dirty
+            }
+        }
+
+        CloseDraft();   // Kaydet = uygula & kapat (seri-giriş yok)
     }
 
     private async Task DeleteLineAsync(ProductRecipeLineGraphDto line)
@@ -994,4 +1076,79 @@ public partial class ProductRecipePanel
     {
         return ProcessPanelStyles.Group(_isMobile, w);
     }
+
+    /// <summary>Reçete draft popup başlık ikonu (standart header icon+caption) — bileşen ailesine göre.</summary>
+    private string EditorIcon(ProductRecipeLineGraphDto l)
+    {
+        if (l.SideCostKind is not null)
+        {
+            return TradeXpressIcons.Service;
+        }
+
+        return l.ComponentType switch
+        {
+            RecipeComponentType.Service => TradeXpressIcons.Service,
+            _ => l.CommodityProcessType switch
+            {
+                ProcessType.Metal => TradeXpressIcons.Metal,
+                ProcessType.Scrap => TradeXpressIcons.Scrap,
+                ProcessType.Future => TradeXpressIcons.Future,
+                ProcessType.Jewelry => TradeXpressIcons.Jewelry,
+                ProcessType.Stone => TradeXpressIcons.Stone,
+                _ => TradeXpressIcons.ProductVariant,
+            },
+        };
+    }
+
+    // ── ISplitEditActions — reçete draft popup'ı STANDART EditToolbar'ı kullansın (edit formlarıyla AYNI). Görünür:
+    //    Kaydet + Reset (Kaydet&Yeni/Sil/nav/undo GİZLİ). Sil AYRI (grid toolbar + onay dialogu). ──
+    bool ISplitEditActions.CanSave => Draft is not null;
+    bool ISplitEditActions.IsNew => EditingItem is null;
+    bool ISplitEditActions.IsReadOnly => false;
+    string? ISplitEditActions.ReadOnlyNotice => null;
+
+    async Task ISplitEditActions.SaveAsync()
+    {
+        await SaveDraftDispatchAsync();
+        StateHasChanged();
+    }
+
+    Task ISplitEditActions.SaveAndNewAsync() => Task.CompletedTask;
+
+    async Task ISplitEditActions.SaveAndCloseAsync()
+    {
+        await SaveDraftDispatchAsync();
+        StateHasChanged();
+    }
+
+    bool ISplitEditActions.SupportsSaveAndNew => false;
+    bool ISplitEditActions.SupportsDelete => false;
+    bool ISplitEditActions.CanDelete => false;
+    Task ISplitEditActions.DeleteAsync() => Task.CompletedTask;
+
+    bool ISplitEditActions.CanGoPrevious => false;
+    bool ISplitEditActions.CanGoNext => false;
+    Task ISplitEditActions.GoPreviousAsync() => Task.CompletedTask;
+    Task ISplitEditActions.GoNextAsync() => Task.CompletedTask;
+    bool ISplitEditActions.SupportsRecordNavigation => false;
+
+    Task<bool> ISplitEditActions.CanLeaveAsync() => Task.FromResult(true);
+
+    Task ISplitEditActions.ResetAsync()
+    {
+        ResetDraft();
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+    bool ISplitEditActions.CanUndo => false;
+    bool ISplitEditActions.CanRedo => false;
+    Task ISplitEditActions.UndoAsync() => Task.CompletedTask;
+    Task ISplitEditActions.RedoAsync() => Task.CompletedTask;
+    bool ISplitEditActions.SupportsUndoRedo => false;
+
+    IReadOnlyList<CrudToolbarAction>? ISplitEditActions.CustomActions => null;
+
+    void ISplitEditActions.NotifyInput() { }
+    void ISplitEditActions.CommitUndoStep() { }
 }

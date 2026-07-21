@@ -22,6 +22,15 @@ public class N11ShipmentAddressDto
 
     /// <summary>N11 ilçe id'si — <see cref="Integration.TradeXpress.N11Cities.N11DistrictDto.DistrictId"/>.</summary>
     public string? DistrictCode { get; set; }
+
+    /// <summary>Opsiyonel çekirdek coğrafya idari-alan (il/eyalet) id'si — picker doldurur (id-only köprü). N11 push OKUMAZ.</summary>
+    public Guid? AdministrativeAreaId { get; set; }
+
+    /// <summary>Opsiyonel çekirdek coğrafya yerellik (ilçe) id'si — picker doldurur. N11 push OKUMAZ.</summary>
+    public Guid? LocalityId { get; set; }
+
+    /// <summary>Opsiyonel ISO 3166-2 idari-alan kodu (ör. "TR-34") — UBL projeksiyonu için. N11 push OKUMAZ.</summary>
+    public string? AdministrativeAreaIsoCode { get; set; }
 }
 
 /// <summary>N11 kargo şablonu — tam okuma modeli (edit formu + tekil görüntü).</summary>
@@ -29,6 +38,11 @@ public class N11ShipmentTemplateDto
 {
     public Guid Id { get; set; }
     public Guid SalesChannelId { get; set; }
+
+    /// <summary>Çekirdek ERP kargo şablonu referansı (K1 köprüsü; id-only, opsiyonel). Kopyalama istemli
+    /// ("Çekirdekten Uygula"); canlı miras yok.</summary>
+    public Guid? ShipmentTemplateId { get; set; }
+
     public string TemplateName { get; set; } = string.Empty;
     public N11DeliveryFeeType DeliveryFeeType { get; set; }
     public N11ShipmentMethod ShipmentMethod { get; set; }
@@ -63,6 +77,9 @@ public class N11ShipmentTemplateDto
 /// Şartlı kargo dahil (feeCondition push ile yazılabilir — canlı doğrulandı).</summary>
 public interface IN11ShipmentTemplateInput
 {
+    /// <summary>Çekirdek ERP kargo şablonu referansı (K1 köprüsü; id-only, opsiyonel).</summary>
+    Guid? ShipmentTemplateId { get; }
+
     string TemplateName { get; }
     N11DeliveryFeeType DeliveryFeeType { get; }
     N11ShipmentMethod ShipmentMethod { get; }
@@ -86,6 +103,10 @@ public interface IN11ShipmentTemplateInput
 public class N11ShipmentTemplateCreateDto : IN11ShipmentTemplateInput
 {
     public Guid SalesChannelId { get; set; }
+
+    /// <summary>Çekirdek ERP kargo şablonu referansı (K1 köprüsü; id-only, opsiyonel).</summary>
+    public Guid? ShipmentTemplateId { get; set; }
+
     public string TemplateName { get; set; } = string.Empty;
     public N11DeliveryFeeType DeliveryFeeType { get; set; }
     public N11ShipmentMethod ShipmentMethod { get; set; }
@@ -108,6 +129,9 @@ public class N11ShipmentTemplateCreateDto : IN11ShipmentTemplateInput
 /// <summary>Şablon güncelleme girdisi — kanal set-once (route'taki id kimliktir; kanal değişmez).</summary>
 public class N11ShipmentTemplateUpdateDto : IN11ShipmentTemplateInput
 {
+    /// <summary>Çekirdek ERP kargo şablonu referansı (K1 köprüsü; id-only, opsiyonel).</summary>
+    public Guid? ShipmentTemplateId { get; set; }
+
     public string TemplateName { get; set; } = string.Empty;
     public N11DeliveryFeeType DeliveryFeeType { get; set; }
     public N11ShipmentMethod ShipmentMethod { get; set; }

@@ -34,6 +34,9 @@ public class TradeXpressMenus
     public const string Stones              = Commodities + ".Stones";
     public const string Jewelries           = Commodities + ".Jewelries";
     public const string Goods               = Commodities + ".Goods";
+    public const string AddOns              = Commodities + ".AddOns";
+    public const string VariantTemplates    = Commodities + ".VariantTemplates";
+    public const string ShipmentTemplates   = Commodities + ".ShipmentTemplates";
 
     public const string Substitutions           = Commodities + ".Substitutions";
     public const string SubstitutionCalculation = Substitutions + ".Calculation";

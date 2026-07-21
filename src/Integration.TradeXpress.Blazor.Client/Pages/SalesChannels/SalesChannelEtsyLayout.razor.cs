@@ -9,6 +9,10 @@ public partial class SalesChannelEtsyLayout
     [Parameter, EditorRequired] public SalesChannelEtsyGetDto Model { get; set; } = default!;
     [Parameter] public bool IsNew { get; set; }
 
+    /// <summary>Kanal bu oturumda YENİ oluşturuldu (create-success) — import paneline akar; panel ilk görünümünde
+    /// importu otomatik başlatır (Trendyol deseni). Update yolunda host bunu asla kurmaz.</summary>
+    [Parameter] public bool AutoImportProducts { get; set; }
+
     /// <summary>"Etsy'ye Bağlan" — host StartOAuthAsync çağırıp onay sayfasını yeni sekmede açar.</summary>
     [Parameter] public EventCallback OnConnectClick { get; set; }
 

@@ -4,6 +4,8 @@ using System.Linq;
 using System.Threading.Tasks;
 using Integration.Framework;
 using Integration.Framework.Base.Querying;
+using Integration.TradeXpress.Attachments;
+using Integration.TradeXpress.EtsyProducts;
 using Integration.TradeXpress.MultiCompany;
 using Integration.TradeXpress.N11Products;
 using Integration.TradeXpress.SalesChannels.Variants;
@@ -33,6 +35,9 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
 {
     private const string ProductEntityName = "Product";
 
+    // Ürün-seviyesi medya (görsel + video kütüphanesi) agnostik EntityMedia anahtarı — Good'un VariantImageEntityName deseni ürün-seviyesinde.
+    private const string ProductMediaEntityName = "Product";
+
     private readonly IRepository<Product, Guid> _repository;
     private readonly IEntityVariantGraphService _entityVariant;
     private readonly IRepository<EntityVariant, Guid> _variantRepository;
@@ -43,6 +48,8 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
     private readonly IBlobContainer<ProductImagesContainer> _imageContainer;
     private readonly ISalesChannelTrN11ProductAppService _channelProductAppService;
     private readonly ISalesChannelTrTrendyolProductAppService _trendyolChannelProductAppService;
+    private readonly ISalesChannelEtsyProductAppService _etsyChannelProductAppService;
+    private readonly IEntityMediaAppService _entityMedia;
 
     private static readonly HashSet<string> AllowedListFields =
         new(StringComparer.OrdinalIgnoreCase) { "Code", "Name", "IsActive", "Id" };
@@ -57,7 +64,9 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         ICurrentCompany currentCompany,
         IBlobContainer<ProductImagesContainer> imageContainer,
         ISalesChannelTrN11ProductAppService channelProductAppService,
-        ISalesChannelTrTrendyolProductAppService trendyolChannelProductAppService)
+        ISalesChannelTrTrendyolProductAppService trendyolChannelProductAppService,
+        ISalesChannelEtsyProductAppService etsyChannelProductAppService,
+        IEntityMediaAppService entityMedia)
     {
         _repository = repository;
         _entityVariant = entityVariant;
@@ -69,6 +78,8 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         _imageContainer = imageContainer;
         _channelProductAppService = channelProductAppService;
         _trendyolChannelProductAppService = trendyolChannelProductAppService;
+        _etsyChannelProductAppService = etsyChannelProductAppService;
+        _entityMedia = entityMedia;
     }
 
     public virtual async Task<PagedResultDto<ProductListDto>> GetListAsync(ProductListRequestDto input)
@@ -153,9 +164,11 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         entity.SetImages(MapImages(input.Images));
         entity.SetDiscount(input.DiscountType, input.DiscountValue, input.DiscountStartDate, input.DiscountEndDate);
         entity.SetShelfLife(input.ProductionDate, input.ExpirationDate);
+        entity.SetPersonalization(input.IsPersonalizable, input.PersonalizationInstructions,
+            input.PersonalizationIsRequired, input.PersonalizationCharCountMax);
         ApplyMarketplaceDefaults(entity, input.Domestic, input.Condition, input.PreparingDay,
-            input.ShipmentTemplateName, input.MaxPurchaseQuantity, input.SellerNote, input.CurrencyUnitId,
-            input.SpecialInfo);
+            input.ShipmentTemplateName, input.ShipmentTemplateId, input.MaxPurchaseQuantity, input.SellerNote,
+            input.CurrencyUnitId, input.SpecialInfo, input.AddOns);
         await _repository.InsertAsync(entity, autoSave: true);
 
         // Varyant sistemi — JENERİK agnostik servise delege ("Product" bağlamı). Çekirdek (nitelik/değer/varyant)
@@ -163,6 +176,9 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         await SaveVariantGraphAsync(entity, input.Attributes, input.Variants);
         await SaveChannelProductsGraphAsync(entity.Id, input.SalesChannelProducts);
         await SaveTrendyolChannelProductsGraphAsync(entity.Id, input.SalesChannelTrendyolProducts);
+        await SaveEtsyChannelProductsGraphAsync(entity.Id, input.SalesChannelEtsyProducts);
+        // Ürün-seviyesi medya (görsel + video kütüphanesi) link setini persist et (GoodAppService deseni; entity.Id + companyId hazır).
+        await _entityMedia.ReplaceForAsync(ProductMediaEntityName, entity.Id, entity.CompanyId, input.Media);
         return await ToGetDtoAsync(entity);
     }
 
@@ -178,9 +194,11 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         entity.SetImages(MapImages(input.Images));
         entity.SetDiscount(input.DiscountType, input.DiscountValue, input.DiscountStartDate, input.DiscountEndDate);
         entity.SetShelfLife(input.ProductionDate, input.ExpirationDate);
+        entity.SetPersonalization(input.IsPersonalizable, input.PersonalizationInstructions,
+            input.PersonalizationIsRequired, input.PersonalizationCharCountMax);
         ApplyMarketplaceDefaults(entity, input.Domestic, input.Condition, input.PreparingDay,
-            input.ShipmentTemplateName, input.MaxPurchaseQuantity, input.SellerNote, input.CurrencyUnitId,
-            input.SpecialInfo);
+            input.ShipmentTemplateName, input.ShipmentTemplateId, input.MaxPurchaseQuantity, input.SellerNote,
+            input.CurrencyUnitId, input.SpecialInfo, input.AddOns);
         await DeleteOrphanImageBlobsAsync(oldImages, entity.Images);
         await _repository.UpdateAsync(entity, autoSave: true);
 
@@ -189,6 +207,9 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         await SaveVariantGraphAsync(entity, input.Attributes, input.Variants);
         await SaveChannelProductsGraphAsync(entity.Id, input.SalesChannelProducts);
         await SaveTrendyolChannelProductsGraphAsync(entity.Id, input.SalesChannelTrendyolProducts);
+        await SaveEtsyChannelProductsGraphAsync(entity.Id, input.SalesChannelEtsyProducts);
+        // Ürün-seviyesi medya (görsel + video kütüphanesi) link setini persist et (GoodAppService deseni).
+        await _entityMedia.ReplaceForAsync(ProductMediaEntityName, entity.Id, entity.CompanyId, input.Media);
         return await ToGetDtoAsync(entity);
     }
 
@@ -266,6 +287,43 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         }
     }
 
+    /// <summary>Etsy satış kanalı ürünleri grafını KANAL AppService'iyle işler (N11/Trendyol <see cref="SaveChannelProductsGraphAsync"/>
+    /// birebir karşılığı — üçüncü kanal orkestrasyonu; N11/Trendyol'a DOKUNULMAZ, additive). Yeni (Id boş) → Create (ürün
+    /// Id'siyle); mevcut → Update; IsDeleted → Delete. SellerSkuBase/Sıra mantığı Etsy AppService'te kalır (katman ayrımı).</summary>
+    private async Task SaveEtsyChannelProductsGraphAsync(Guid productId, List<SalesChannelEtsyProductDto>? graph)
+    {
+        if (graph is null)
+        {
+            return;
+        }
+
+        foreach (var cp in graph)
+        {
+            if (cp.IsDeleted)
+            {
+                if (cp.Id != Guid.Empty)
+                {
+                    await _etsyChannelProductAppService.DeleteAsync(cp.Id);
+                }
+
+                continue;
+            }
+
+            if (cp.Id == Guid.Empty)
+            {
+                var createInput = ObjectMapper.Map<SalesChannelEtsyProductDto, SalesChannelEtsyProductCreateDto>(cp);
+                createInput.ProductId = productId;
+                createInput.SalesChannelId = cp.SalesChannelId;
+                await _etsyChannelProductAppService.CreateAsync(createInput);
+            }
+            else
+            {
+                var updateInput = ObjectMapper.Map<SalesChannelEtsyProductDto, SalesChannelEtsyProductUpdateDto>(cp);
+                await _etsyChannelProductAppService.UpdateAsync(cp.Id, updateInput);
+            }
+        }
+    }
+
     /// <summary>Nitelik grafından varyant ÜRETİMİ — PERSISTSİZ önizleme (DB'ye yazmaz). Çekirdek üretim JENERİK
     /// agnostik serviste (<see cref="IEntityVariantGraphService.GenerateVariants"/>); Product türevine re-project
     /// (satış fiyatı/reçete default — kullanıcı sonra düzenler). Kod/ad + CombinationKey serviste (synchronizer paritesi).</summary>
@@ -307,6 +365,8 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         // gizler → EntityNotFoundException. Doğrulama varyant silmeden ÖNCE olmalı.
         var entity = await _repository.GetAsync(id);
         await DeleteOrphanImageBlobsAsync(entity.Images, newImages: null);   // ürünle birlikte upload blobları da temizlenir
+        // Ürün-seviyesi medya linklerini temizle (içerik kütüphanede kalır; yalnız link'ler kaldırılır — GoodAppService deseni).
+        await _entityMedia.ReplaceForAsync(ProductMediaEntityName, id, companyId: null, new List<EntityMediaLinkEditDto>());
 
         // Varyant grafı (nitelik/değer/bağ/varyant) — JENERİK agnostik servise delege ("Product" bağlamı). Varyantlar
         // silinmeden ÖNCE deleteExtension Product-özel uzantıyı (ProductVariantDetail + reçete satırları) temizler (orphan önleme).
@@ -490,27 +550,34 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         ProductCondition condition,
         int preparingDay,
         string? shipmentTemplateName,
+        Guid? shipmentTemplateId,
         int? maxPurchaseQuantity,
         string? sellerNote,
         Guid? currencyUnitId,
-        List<ProductSpecialInfoDto> specialInfo)
+        List<ProductSpecialInfoDto> specialInfo,
+        List<ProductAddOnDto> addOns)
     {
         entity.SetDomestic(domestic);
         entity.SetCondition(condition);
         entity.SetPreparingDay(preparingDay);
         entity.SetShipmentTemplate(shipmentTemplateName);
+        entity.SetShipmentTemplateId(shipmentTemplateId);
         entity.SetMaxPurchaseQuantity(maxPurchaseQuantity);
         entity.SetSellerNote(sellerNote);
         entity.SetCurrencyUnit(currencyUnitId);
         entity.SetSpecialInfo((specialInfo ?? new List<ProductSpecialInfoDto>())
             .Select(s => new ProductSpecialInfo(s.Key, s.Value)));
+        entity.SetAddOns((addOns ?? new List<ProductAddOnDto>())
+            .Select(a => new ProductAddOn(
+                a.AddOnId, a.PriceOverride, a.CurrencyUnitOverrideId, a.IsRequired, a.DisplayOrder, a.Note)));
     }
 
     /// <summary>Görsel graf düğümlerini owned tiplere çevirir (normalize/kırpma entity SetImages'ta).</summary>
     private static List<ProductImage> MapImages(List<ProductImageGraphDto> images)
     {
         return (images ?? new List<ProductImageGraphDto>())
-            .Select(i => new ProductImage(i.SourceType, i.Url, i.BlobName, i.FileName, i.DisplayOrder, i.IsDefault))
+            .Select(i => new ProductImage(
+                i.SourceType, i.Url, i.BlobName, i.FileName, i.DisplayOrder, i.IsDefault, i.VariantId, i.VariantCode))
             .ToList();
     }
 
@@ -584,6 +651,8 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
             FileName = i.FileName,
             DisplayOrder = i.DisplayOrder,
             IsDefault = i.IsDefault,
+            VariantId = i.VariantId,
+            VariantCode = i.VariantCode,
         }).ToList();
         await PopulateImagePreviewsAsync(imageDtos);
 
@@ -593,6 +662,12 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
 
         // Trendyol kanal ürünleri grafı — N11'den AYRI ikinci liste (çift-kanal; kanal AppService'inden canlı yüklenir).
         var trendyolChannelProducts = await _trendyolChannelProductAppService.GetListForProductAsync(p.Id);
+
+        // Etsy kanal ürünleri grafı — üçüncü kanal listesi (kanal AppService'inden canlı yüklenir; N11/Trendyol'dan AYRI).
+        var etsyChannelProducts = await _etsyChannelProductAppService.GetListForProductAsync(p.Id);
+
+        // Ürün-seviyesi medya linkleri (görsel + video kütüphanesi) — agnostik EntityMedia servisinden (GoodAppService deseni).
+        var media = await _entityMedia.GetForAsync(ProductMediaEntityName, p.Id);
 
         return new ProductGetDto
         {
@@ -612,14 +687,32 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
             Condition = p.Condition,
             PreparingDay = p.PreparingDay,
             ShipmentTemplateName = p.ShipmentTemplateName,
+            ShipmentTemplateId = p.ShipmentTemplateId,
             MaxPurchaseQuantity = p.MaxPurchaseQuantity,
             SellerNote = p.SellerNote,
             CurrencyUnitId = p.CurrencyUnitId,
             SpecialInfo = p.SpecialInfo
                 .Select(s => new ProductSpecialInfoDto { Key = s.Key, Value = s.Value })
                 .ToList(),
+            AddOns = p.AddOns
+                .Select(a => new ProductAddOnDto
+                {
+                    AddOnId = a.AddOnId,
+                    PriceOverride = a.PriceOverride,
+                    CurrencyUnitOverrideId = a.CurrencyUnitOverrideId,
+                    IsRequired = a.IsRequired,
+                    DisplayOrder = a.DisplayOrder,
+                    Note = a.Note,
+                })
+                .ToList(),
+            IsPersonalizable = p.IsPersonalizable,
+            PersonalizationInstructions = p.PersonalizationInstructions,
+            PersonalizationIsRequired = p.PersonalizationIsRequired,
+            PersonalizationCharCountMax = p.PersonalizationCharCountMax,
+            Media = media,
             SalesChannelProducts = channelProducts,
             SalesChannelTrendyolProducts = trendyolChannelProducts,
+            SalesChannelEtsyProducts = etsyChannelProducts,
             Attributes = graph.Attributes,
             Variants = variantDtos,
         };

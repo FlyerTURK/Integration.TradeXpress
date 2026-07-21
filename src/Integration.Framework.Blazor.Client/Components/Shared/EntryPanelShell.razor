@@ -1,33 +1,83 @@
 @using DevExpress.Blazor
 @using Integration.Framework.Blazor.Client
+@using Integration.Framework.Blazor.Client.Components.Crud
 @inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
 
 @* Buffered giriş panelinin CHROME'u (app-agnostik) — süreç paneli kabuğunun jenerik ikizi:
    gradyan başlık şeridi (default KIRMIZI) + içerik + Kaydet/Geri buton şeridi. Yaşam döngüsü
-   EntryPanelBase'te; alan içeriği türev bileşenden ChildContent olarak gelir. *@
+   EntryPanelBase'te; alan içeriği türev bileşenden ChildContent olarak gelir.
+   Popup=true → STANDART EditShell chrome'u (crud-edit-popup + minimize/fullscreen/kapat/sürükle/boyutlandır +
+   kirli-guard) içinde; kırmızı gradyan ChromeHeader'da (kimlik korunur). X/Escape = Geri (draft iptal). *@
 
-<div style="display:flex; flex-direction:column; box-sizing:border-box; width:100%; max-width:100%; min-width:0; border:1px solid #dee2e6; border-radius:4px;">
+@if (Popup)
+{
+    <EditShell Mode="EditShellMode.Popup"
+               Buttons="EditShellButtons.Minimize | EditShellButtons.Fullscreen"
+               Visible="@Visible"
+               VisibleChanged="@OnPopupVisibleChanged"
+               Header="@BuildHeader()"
+               MaxWidth="@Width">
+        <ChildContent>
+            @* Standart edit-form popup deseni: ÜSTTE sabit toolbar (opsiyonel checkbox + STANDART EditToolbar),
+               altta kayan gövde. Başlık standart (icon+caption); gradyan şerit gövde İÇİNDE. *@
+            <div style="display:flex; flex-direction:column; max-height:calc(90dvh - 96px); min-height:0; overflow-x:hidden; max-width:100%;">
+                <div style="flex-shrink:0; display:flex; align-items:center; gap:8px; padding-bottom:0.5rem; margin-bottom:0.5rem; border-bottom:1px solid #ddd;">
+                    @if (EditController is not null)
+                    {
+                        @* STANDART edit toolbar (edit formlarıyla AYNI: Kaydet + Reset). *@
+                        <EditToolbar EditController="@EditController" IsPopup="true" OnActionInvoked="StateHasChanged" />
+                    }
+                    else
+                    {
+                        <DxButton Text="@L["Save"].Value" IconCssClass="@FrameworkIcons.Save"
+                                  RenderStyle="ButtonRenderStyle.Primary" RenderStyleMode="ButtonRenderStyleMode.Contained"
+                                  Enabled="@SaveEnabled" Click="@OnSave" />
+                        <DxButton Text="@L["Back"].Value" IconCssClass="@FrameworkIcons.Back"
+                                  RenderStyle="ButtonRenderStyle.Secondary" RenderStyleMode="ButtonRenderStyleMode.Contained"
+                                  Click="@OnBack" />
+                    }
+                    @* Ek içerik (ör. "Tüm varyantlara uygula" checkbox'ı) — EN SAĞDA, sağa dayalı, begingroup (sol ayraç). *@
+                    @if (FooterLeading is not null)
+                    {
+                        <div style="margin-left:auto; padding-left:12px; border-left:1px solid #ccc; display:flex; align-items:center;">
+                            @FooterLeading
+                        </div>
+                    }
+                </div>
+                <div style="flex:1 1 auto; overflow-y:auto; overflow-x:hidden; min-height:0; min-width:0;">
+                    @* Kırmızı gradyan şerit — form içeriğinin (grid layout) İÇİNDE, alan bölümü başlığı. *@
+                    <div style="@HeaderStripStyle()width:100%; margin-bottom:6px;">@Title</div>
+                    @ChildContent
+                </div>
+            </div>
+        </ChildContent>
+    </EditShell>
+}
+else
+{
+    <div style="display:flex; flex-direction:column; box-sizing:border-box; width:100%; max-width:100%; min-width:0; border:1px solid #dee2e6; border-radius:4px;">
 
-    <div style="@HeaderStripStyle()">
-        @Title
+        <div style="@HeaderStripStyle()">
+            @Title
+        </div>
+
+        @* İçerik yatayda taşarsa kabuk DEĞİL bu sarmalayıcı kayar (min-width:0 → flex çocuğu içeriğe göre şişmez). *@
+        <div style="min-width:0; max-width:100%; overflow-x:auto;">
+            @ChildContent
+        </div>
+
+        <div style="display:flex; justify-content:flex-end; gap:8px; padding:8px 8px 4px; border-top:1px solid #ddd;">
+            <DxButton Text="@L["Save"].Value"
+                      IconCssClass="@FrameworkIcons.Save"
+                      RenderStyle="ButtonRenderStyle.Primary"
+                      RenderStyleMode="ButtonRenderStyleMode.Contained"
+                      Enabled="@SaveEnabled"
+                      Click="@OnSave" />
+            <DxButton Text="@L["Back"].Value"
+                      IconCssClass="@FrameworkIcons.Back"
+                      RenderStyle="ButtonRenderStyle.Secondary"
+                      RenderStyleMode="ButtonRenderStyleMode.Contained"
+                      Click="@OnBack" />
+        </div>
     </div>
-
-    @* İçerik yatayda taşarsa kabuk DEĞİL bu sarmalayıcı kayar (min-width:0 → flex çocuğu içeriğe göre şişmez). *@
-    <div style="min-width:0; max-width:100%; overflow-x:auto;">
-        @ChildContent
-    </div>
-
-    <div style="display:flex; justify-content:flex-end; gap:8px; padding:8px 8px 4px; border-top:1px solid #ddd;">
-        <DxButton Text="@L["Save"].Value"
-                  IconCssClass="@FrameworkIcons.Save"
-                  RenderStyle="ButtonRenderStyle.Primary"
-                  RenderStyleMode="ButtonRenderStyleMode.Contained"
-                  Enabled="@SaveEnabled"
-                  Click="@OnSave" />
-        <DxButton Text="@L["Back"].Value"
-                  IconCssClass="@FrameworkIcons.Back"
-                  RenderStyle="ButtonRenderStyle.Secondary"
-                  RenderStyleMode="ButtonRenderStyleMode.Contained"
-                  Click="@OnBack" />
-    </div>
-</div>
+}

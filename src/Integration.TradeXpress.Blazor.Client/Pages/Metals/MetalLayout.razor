@@ -57,45 +57,38 @@
    görseller VARYANT seviyesinde (EntityVariantsPanel ShowImages). Nitelikler + Varyantlar TEK tab'da yan yana:
    sol Nitelikler (kendi ekle/düzelt/sil toolbar'ı), sağ üretilen Varyant gridi. Fiyat madende entity seviyesinde (ExtraFields yok). *@
 <DrillTabs CssClass="mt-3">
-    <DxTabPage Text="@L["AttributesAndVariants"]" TabIconCssClass="@TradeXpressIcons.ProductVariant">
-        @* Yan yana: sol Nitelikler paneli (kendi toolbar'ı), sağ üretilen Varyant gridi. Dar ekranda alt alta sarar. *@
-        <div style="display:flex; gap:1rem; align-items:flex-start; flex-wrap:wrap;">
-            <div style="flex:1 1 340px; min-width:300px;">
-                <EntityAttributesPanel Attributes="@Model.Attributes" OnAttributesChanged="@OnGenerateVariants" />
-            </div>
-            <div style="flex:1 1 340px; min-width:300px;">
-                <EntityVariantsPanel TVariant="MetalVariantGraphDto" Variants="@Model.Variants" Attributes="@Model.Attributes"
-                                     ShowStockQuantity="false" ShowImages="true">
-                    <ExtraFields Context="v">
-                        <DxFormLayoutItem Caption="@L["LaborType"]" ColSpanMd="12" BeginRow="true">
-                            <DxComboBox TData="LaborTypeItem" TValue="MetalLaborType" Data="@_laborTypes"
-                                        @bind-Value="@v.LaborType"
-                                        ValueFieldName="@nameof(LaborTypeItem.Value)" TextFieldName="@nameof(LaborTypeItem.Label)" CssClass="w-100" />
-                        </DxFormLayoutItem>
-                        <DxFormLayoutItem Caption="@L["EntryLabor"]" ColSpanMd="6" BeginRow="true">
-                            <DxSpinEdit @bind-Value="@v.EntryLabor" DisplayFormat="N5" ShowSpinButtons="false" CssClass="w-100" />
-                        </DxFormLayoutItem>
-                        <DxFormLayoutItem Caption="@L["CurrencyUnit"]" ColSpanMd="6">
-                            <LookupComboBox TItem="CurrencyUnitListDto" TValue="Guid?" Data="@CurrencyUnits"
-                                            ValueFieldName="@nameof(CurrencyUnitListDto.Id)" TextFieldName="@nameof(CurrencyUnitListDto.Code)"
-                                            @bind-Value="@v.EntryLaborUnitId" NullText="@L["Select"].Value"
-                                            CreatePolicy="@TradeXpressPermissions.CurrencyUnits.Create"
-                                            UpdatePolicy="@TradeXpressPermissions.CurrencyUnits.Update" />
-                        </DxFormLayoutItem>
-                        <DxFormLayoutItem Caption="@L["ExitLabor"]" ColSpanMd="6" BeginRow="true">
-                            <DxSpinEdit @bind-Value="@v.ExitLabor" DisplayFormat="N5" ShowSpinButtons="false" CssClass="w-100" />
-                        </DxFormLayoutItem>
-                        <DxFormLayoutItem Caption="@L["CurrencyUnit"]" ColSpanMd="6">
-                            <LookupComboBox TItem="CurrencyUnitListDto" TValue="Guid?" Data="@CurrencyUnits"
-                                            ValueFieldName="@nameof(CurrencyUnitListDto.Id)" TextFieldName="@nameof(CurrencyUnitListDto.Code)"
-                                            @bind-Value="@v.ExitLaborUnitId" NullText="@L["Select"].Value"
-                                            CreatePolicy="@TradeXpressPermissions.CurrencyUnits.Create"
-                                            UpdatePolicy="@TradeXpressPermissions.CurrencyUnits.Update" />
-                        </DxFormLayoutItem>
-                    </ExtraFields>
-                </EntityVariantsPanel>
-            </div>
-        </div>
+    <DxTabPage Text="@L["Variants"]" TabIconCssClass="@TradeXpressIcons.ProductVariant">
+        @* Nitelikler ayrı panelde DEĞİL → varyant gridinin "Özellikleri Düzenle" toolbar butonundan popup'ta (OnAttributesChanged bağlı). *@
+        <EntityVariantsPanel TVariant="MetalVariantGraphDto" Variants="@Model.Variants" Attributes="@Model.Attributes"
+                             ShowStockQuantity="false" ShowImages="true" OnAttributesChanged="@OnGenerateVariants">
+            <ExtraFields Context="v">
+                <DxFormLayoutItem Caption="@L["LaborType"]" ColSpanMd="12" BeginRow="true">
+                    <DxComboBox TData="LaborTypeItem" TValue="MetalLaborType" Data="@_laborTypes"
+                                @bind-Value="@v.LaborType"
+                                ValueFieldName="@nameof(LaborTypeItem.Value)" TextFieldName="@nameof(LaborTypeItem.Label)" CssClass="w-100" />
+                </DxFormLayoutItem>
+                <DxFormLayoutItem Caption="@L["EntryLabor"]" ColSpanMd="6" BeginRow="true">
+                    <DxSpinEdit @bind-Value="@v.EntryLabor" DisplayFormat="N5" ShowSpinButtons="false" CssClass="w-100" />
+                </DxFormLayoutItem>
+                <DxFormLayoutItem Caption="@L["CurrencyUnit"]" ColSpanMd="6">
+                    <LookupComboBox TItem="CurrencyUnitListDto" TValue="Guid?" Data="@CurrencyUnits"
+                                    ValueFieldName="@nameof(CurrencyUnitListDto.Id)" TextFieldName="@nameof(CurrencyUnitListDto.Code)"
+                                    @bind-Value="@v.EntryLaborUnitId" NullText="@L["Select"].Value"
+                                    CreatePolicy="@TradeXpressPermissions.CurrencyUnits.Create"
+                                    UpdatePolicy="@TradeXpressPermissions.CurrencyUnits.Update" />
+                </DxFormLayoutItem>
+                <DxFormLayoutItem Caption="@L["ExitLabor"]" ColSpanMd="6" BeginRow="true">
+                    <DxSpinEdit @bind-Value="@v.ExitLabor" DisplayFormat="N5" ShowSpinButtons="false" CssClass="w-100" />
+                </DxFormLayoutItem>
+                <DxFormLayoutItem Caption="@L["CurrencyUnit"]" ColSpanMd="6">
+                    <LookupComboBox TItem="CurrencyUnitListDto" TValue="Guid?" Data="@CurrencyUnits"
+                                    ValueFieldName="@nameof(CurrencyUnitListDto.Id)" TextFieldName="@nameof(CurrencyUnitListDto.Code)"
+                                    @bind-Value="@v.ExitLaborUnitId" NullText="@L["Select"].Value"
+                                    CreatePolicy="@TradeXpressPermissions.CurrencyUnits.Create"
+                                    UpdatePolicy="@TradeXpressPermissions.CurrencyUnits.Update" />
+                </DxFormLayoutItem>
+            </ExtraFields>
+        </EntityVariantsPanel>
     </DxTabPage>
     <DxTabPage Text="@L["Documents"]" TabIconCssClass="@TradeXpressIcons.Report">
         <EntityDocumentsPanel Documents="@Model.Documents" />

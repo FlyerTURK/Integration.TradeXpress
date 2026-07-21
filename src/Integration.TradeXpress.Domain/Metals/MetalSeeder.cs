@@ -6,6 +6,7 @@ using Integration.Framework;
 using Integration.TradeXpress.Financials.CurrencyUnits;
 using Integration.TradeXpress.Variants;
 using Integration.TradeXpress.Metals;
+using Integration.TradeXpress.MultiCompany;
 using Integration.TradeXpress.Vouchers;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -27,6 +28,7 @@ public class MetalSeeder(
     IRepository<CurrencyUnit, Guid> currencyUnitRepository,
     IRepository<EntityVariant, Guid> entityVariantRepository,
     IRepository<MetalVariantDetail, Guid> metalVariantDetailRepository,
+    IRepository<Company, Guid> companyRepository,
     IDataFilter dataFilter,
     IUnitOfWorkManager unitOfWorkManager)
     : ITransientDependency
@@ -96,40 +98,48 @@ public class MetalSeeder(
         if (!unitIdByCode.TryGetValue(CurrencyUnitCode.HAS, out var hasId))
             return;   // HAS yoksa madenler seed edilemez
 
-        var existing = (await metalRepository.GetQueryableAsync())
-            .Select(m => m.Code)
-            .ToList()
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var companies = await companyRepository.GetListAsync();
 
-        foreach (var (code, name, factor, factorChange, laborType, stable, entry, exit, costUnit) in Seeds)
+        foreach (var company in companies)
         {
+            var existing = (await metalRepository.GetQueryableAsync())
+                .Where(m => m.CompanyId == company.Id)
+                .Select(m => m.Code)
+                .ToList()
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var (code, name, factor, factorChange, laborType, stable, entry, exit, costUnit) in Seeds)
+            {
             if (existing.Contains(code.NormalizeAsCode())) continue;
             Guid? costUnitId = unitIdByCode.TryGetValue(costUnit, out var cu) ? cu : null;
 
-            var metal = new Metal(
-                code: code, name: name, followingUnitId: hasId,
-                factor: factor, factorChange: factorChange,
-                isQuantity: true, stableQuantity: stable);
-            await metalRepository.InsertAsync(metal, autoSave: false);
+                var metal = new Metal(
+                    code: code, name: name, followingUnitId: hasId,
+                    companyId: company.Id,
+                    factor: factor, factorChange: factorChange,
+                    isQuantity: true, stableQuantity: stable);
+                await metalRepository.InsertAsync(metal, autoSave: false);
 
-            var variantCode = $"{code}-01";
-            var variant = new EntityVariant(
-                companyId: null,
-                entityName: "Metal",
-                entityId: metal.Id,
-                code: variantCode,
-                name: name,
-                isMain: true,
-                isActive: true);
-            await entityVariantRepository.InsertAsync(variant, autoSave: false);
+                // Ana varyant kod/adı agnostik SSOT'tan (EntityVariantConsts) — MetalEditHost + diğer tüm
+                // entity yollarıyla AYNI ("ANAVARYANT" / "Ana Varyant"). Seeder'a özel {kod}-01 üretme YOK.
+                var variant = new EntityVariant(
+                    companyId: company.Id,
+                    entityName: "Metal",
+                    entityId: metal.Id,
+                    code: EntityVariantConsts.MainVariantCode,
+                    name: EntityVariantConsts.MainVariantName,
+                    isMain: true,
+                    isActive: true);
+                await entityVariantRepository.InsertAsync(variant, autoSave: false);
 
-            var detail = new MetalVariantDetail(companyId: null, entityVariantId: variant.Id);
-            detail.SetLabor(
-                laborType: laborType, laborTypeChange: false,
-                entryLabor: entry, entryLaborUnitId: hasId, entryLaborChange: true,
-                exitLabor: exit, exitLaborUnitId: hasId, exitLaborChange: true,
-                costUnitId: costUnitId);
-            await metalVariantDetailRepository.InsertAsync(detail, autoSave: false);
+                var detail = new MetalVariantDetail(companyId: company.Id, entityVariantId: variant.Id);
+                detail.SetLabor(
+                    laborType: laborType, laborTypeChange: false,
+                    entryLabor: entry, entryLaborUnitId: hasId, entryLaborChange: true,
+                    exitLabor: exit, exitLaborUnitId: hasId, exitLaborChange: true,
+                    costUnitId: costUnitId);
+                await metalVariantDetailRepository.InsertAsync(detail, autoSave: false);
+            }
         }
 
         await unitOfWorkManager.Current!.SaveChangesAsync();

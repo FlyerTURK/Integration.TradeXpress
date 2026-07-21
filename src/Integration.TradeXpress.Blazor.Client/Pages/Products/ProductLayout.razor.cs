@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Integration.Framework.Blazor.Client.Components.Crud;
+using Integration.TradeXpress.AddOns;
 using Integration.TradeXpress.Financials.CurrencyUnits;
 using Integration.TradeXpress.Futures;
 using Integration.TradeXpress.Jewelries;
@@ -11,6 +12,7 @@ using Integration.TradeXpress.Metals;
 using Integration.TradeXpress.Products;
 using Integration.TradeXpress.Scraps;
 using Integration.TradeXpress.Services;
+using Integration.TradeXpress.Shipments;
 using Integration.TradeXpress.Stones;
 using Microsoft.AspNetCore.Components;
 
@@ -37,6 +39,20 @@ public partial class ProductLayout
 
     /// <summary>Inline döviz ekle/düzelt sonrası lookup listesini host tazeler (EntityChange tetikler).</summary>
     [Parameter] public EventCallback OnReloadCurrencyUnits { get; set; }
+
+    /// <summary>Eklenti katalogu lookup verisi — host yükler (DUMB layout servis çağırmaz). "Seçenekler" sekmesinde
+    /// katalogdan seçim için.</summary>
+    [Parameter] public IReadOnlyList<AddOnListDto> AddOnCatalog { get; set; } = Array.Empty<AddOnListDto>();
+
+    /// <summary>Inline eklenti ekle/düzelt sonrası katalog listesini host tazeler (EntityChange tetikler).</summary>
+    [Parameter] public EventCallback OnReloadAddOns { get; set; }
+
+    /// <summary>Kargo şablonu lookup verisi — host yükler (DUMB layout servis çağırmaz). Ürün formunda
+    /// varsayılan kargo şablonu ataması için (GetPickerListAsync).</summary>
+    [Parameter] public IReadOnlyList<ShipmentTemplateListDto> ShipmentTemplates { get; set; } = Array.Empty<ShipmentTemplateListDto>();
+
+    /// <summary>Inline kargo şablonu ekle/düzelt sonrası lookup listesini host tazeler (EntityChange tetikler).</summary>
+    [Parameter] public EventCallback OnReloadShipmentTemplates { get; set; }
 
     // Nitelik + varyant drill'leri artık JENERİK paylaşılan panellerde (EntityAttributesPanel / EntityVariantsPanel);
     // yalnız görsel drill'i bu layout'ta kalır.
@@ -72,17 +88,18 @@ public partial class ProductLayout
         }
     }
 
-    /// <summary>Görsel kaydetme engeli: aynı ürüne aynı URL ya da aynı dosya adı İKİ KEZ girilemez
-    /// (2026-07-07 kullanıcı kararı; case-duyarsız). Sunucu SetImages'ta da aynı kural (savunma).</summary>
+    /// <summary>Görsel kaydetme engeli: aynı ürüne aynı URL (case-duyarsız) ya da aynı BLOB adı İKİ KEZ girilemez.
+    /// Dosya adı ARTIK dedupe anahtarı DEĞİL (blob adı path-önekli + sunucu ilk-boş-sıra probe'uyla tekil; aynı
+    /// dosya adı farklı varyant klasöründe meşru). Sunucu SetImages'ta da aynı kural (savunma).</summary>
     private string? ImageSaveGuard(ProductImageGraphDto candidate)
     {
         var others = Model.Images.Where(x => x.ClientKey != candidate.ClientKey);
         var url = candidate.Url?.Trim();
         var duplicateUrl = url is { Length: > 0 }
             && others.Any(x => string.Equals(x.Url?.Trim(), url, StringComparison.OrdinalIgnoreCase));
-        var duplicateFile = candidate.FileName is { Length: > 0 }
-            && others.Any(x => string.Equals(x.FileName, candidate.FileName, StringComparison.OrdinalIgnoreCase));
-        return duplicateUrl || duplicateFile ? L["TradeXpress:Product:ImageDuplicate"].Value : null;
+        var duplicateBlob = candidate.BlobName is { Length: > 0 }
+            && others.Any(x => string.Equals(x.BlobName, candidate.BlobName, StringComparison.Ordinal));
+        return duplicateUrl || duplicateBlob ? L["TradeXpress:Product:ImageDuplicate"].Value : null;
     }
 
     /// <summary>Özel bilgi satırı kaydetme engeli — key boşsa satır kabul edilmez (SetSpecialInfo sunucuda da boş key eler).</summary>
@@ -116,5 +133,29 @@ public partial class ProductLayout
     private static int NextOrder(IEnumerable<ProductImageGraphDto> items)
     {
         return items.Select(x => x.DisplayOrder).DefaultIfEmpty(0).Max() + 1;
+    }
+
+    // Yeni eklenti satırı eklenince Sıra No OTOMATİK artar (max + 1; boşsa 1).
+    private int NextAddOnOrder()
+    {
+        return Model.AddOns.Select(x => x.DisplayOrder).DefaultIfEmpty(0).Max() + 1;
+    }
+
+    // Eklenti satırının katalog adını çözer (grid gösterimi) — bulunamazsa boş.
+    private string AddOnName(Guid addOnId)
+    {
+        return AddOnCatalog.FirstOrDefault(a => a.Id == addOnId)?.Name ?? string.Empty;
+    }
+
+    // Aynı eklentinin ürüne İKİ KEZ atanmasını engelle (aynı AddOnId'li başka satır varsa).
+    private string? AddOnSaveGuard(ProductAddOnDto item)
+    {
+        if (item.AddOnId == Guid.Empty)
+        {
+            return L["Product:AddOnRequired"].Value;
+        }
+
+        var duplicate = Model.AddOns.Any(x => x.ClientKey != item.ClientKey && x.AddOnId == item.AddOnId);
+        return duplicate ? L["Product:AddOnDuplicate"].Value : null;
     }
 }

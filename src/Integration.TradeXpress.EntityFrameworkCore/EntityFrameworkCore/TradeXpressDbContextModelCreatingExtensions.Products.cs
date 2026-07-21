@@ -30,6 +30,7 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
                 i.Property(p => p.Url).HasMaxLength(ProductConsts.ImageUrlMaxLength);
                 i.Property(p => p.BlobName).HasMaxLength(ProductConsts.ImageBlobNameMaxLength);
                 i.Property(p => p.FileName).HasMaxLength(ProductConsts.ImageFileNameMaxLength);
+                i.Property(p => p.VariantCode).HasMaxLength(Variants.EntityVariantConsts.VariantCodeMaxLength);
             });
 
             // Marketplace indirimi (ürün-seviyesi) — tip (enum→int) + değer (18,2) + iş tarihleri.
@@ -38,6 +39,8 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
             // Pazaryeri-genel varsayılanlar (kanal-ürünü devralır) — Domestic/Condition/PreparingDay/MaxPurchaseQuantity/
             // CurrencyUnitId konvansiyonla (enum→int, Guid?, int?). Metin alanları + owned özel bilgi:
             b.Property(x => x.ShipmentTemplateName).HasMaxLength(ProductConsts.ShipmentTemplateNameMaxLength);
+            // Birleşik ERP kargo şablonu referansı (id-only; nav YOK). Silme-guard sorgusu için indekslenir.
+            b.HasIndex(x => x.ShipmentTemplateId);
             b.Property(x => x.SellerNote).HasMaxLength(ProductConsts.SellerNoteMaxLength);
             b.OwnsMany(x => x.SpecialInfo, s =>
             {
@@ -45,6 +48,16 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
                 s.Property(p => p.Key).HasMaxLength(ProductConsts.SpecialInfoKeyMaxLength);
                 s.Property(p => p.Value).HasMaxLength(ProductConsts.SpecialInfoValueMaxLength);
             });
+
+            b.OwnsMany(x => x.AddOns, a =>
+            {
+                a.ToJson();
+                a.Property(p => p.Note).HasMaxLength(ProductConsts.AddOnNoteMaxLength);
+            });
+
+            // Kişiselleştirme (personalization) — talimat max; IsPersonalizable/IsRequired (bool) + CharCountMax (int?)
+            // konvansiyonla map'lenir. Kanal-ürünü push'ta bunları devralır (SONRAKİ iş).
+            b.Property(x => x.PersonalizationInstructions).HasMaxLength(ProductConsts.PersonalizationInstructionsMaxLength);
 
             b.HasIndex(x => new { x.TenantId, x.CompanyId, x.Code }).IsUnique();
             b.HasIndex(x => new { x.TenantId, x.CompanyId });

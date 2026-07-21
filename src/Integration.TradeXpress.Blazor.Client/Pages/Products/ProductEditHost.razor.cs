@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Integration.Framework.Blazor.Client.Services.Base;
+using Integration.TradeXpress.AddOns;
 using Integration.TradeXpress.Blazor.Client.Components.Shared;
 using Integration.TradeXpress.Financials.CurrencyUnits;
 using Integration.TradeXpress.Futures;
@@ -11,6 +12,7 @@ using Integration.TradeXpress.Metals;
 using Integration.TradeXpress.Products;
 using Integration.TradeXpress.Scraps;
 using Integration.TradeXpress.Services;
+using Integration.TradeXpress.Shipments;
 using Integration.TradeXpress.Stones;
 using Microsoft.AspNetCore.Components;
 using Volo.Abp;
@@ -39,6 +41,8 @@ public partial class ProductEditHost
     [Inject] protected IServiceAppService ServiceAppService { get; set; } = default!;
     [Inject] protected IEffectivePriceAppService EffectivePriceAppService { get; set; } = default!;
     [Inject] protected ILookupCache<CurrencyUnitListDto> CurrencyLookup { get; set; } = default!;
+    [Inject] protected IAddOnAppService AddOnAppService { get; set; } = default!;
+    [Inject] protected IShipmentTemplateAppService ShipmentTemplateAppService { get; set; } = default!;
 
     private ICommitCoordinator<ProductGetDto, ProductListDto, Guid, ProductListRequestDto>? _coordinator;
     private bool _ready;
@@ -55,6 +59,12 @@ public partial class ProductEditHost
 
     // Varsayılan para birimi lookup verisi — inline ekle/düzelt sonrası ReloadCurrencyUnitsAsync ile tazelenir.
     protected IReadOnlyList<CurrencyUnitListDto> CurrencyUnits { get; private set; } = Array.Empty<CurrencyUnitListDto>();
+
+    // Eklenti katalogu lookup verisi ("Seçenekler" sekmesi) — inline ekle/düzelt sonrası ReloadAddOnsAsync ile tazelenir.
+    protected IReadOnlyList<AddOnListDto> AddOns { get; private set; } = Array.Empty<AddOnListDto>();
+
+    // Kargo şablonu lookup verisi (varsayılan kargo şablonu ataması) — inline ekle/düzelt sonrası ReloadShipmentTemplatesAsync ile tazelenir.
+    protected IReadOnlyList<ShipmentTemplateListDto> ShipmentTemplates { get; private set; } = Array.Empty<ShipmentTemplateListDto>();
 
     protected override async Task OnInitializedAsync()
     {
@@ -77,6 +87,8 @@ public partial class ProductEditHost
         Services = await ServiceAppService.GetPickerListAsync();
         Units = await EffectivePriceAppService.GetCurrentPricesAsync();
         CurrencyUnits = await CurrencyLookup.GetAsync();
+        AddOns = await AddOnAppService.GetPickerListAsync();
+        ShipmentTemplates = await ShipmentTemplateAppService.GetPickerListAsync();
     }
 
     // Inline döviz ekle/düzelt sonrası lookup listesini tazeler (yeni birim anında combo'ya düşsün).
@@ -84,6 +96,20 @@ public partial class ProductEditHost
     {
         CurrencyLookup.Invalidate();
         CurrencyUnits = await CurrencyLookup.GetAsync();
+        StateHasChanged();
+    }
+
+    // Inline eklenti ekle/düzelt sonrası katalog listesini tazeler (yeni eklenti anında combo'ya düşsün).
+    private async Task ReloadAddOnsAsync()
+    {
+        AddOns = await AddOnAppService.GetPickerListAsync();
+        StateHasChanged();
+    }
+
+    // Inline kargo şablonu ekle/düzelt sonrası lookup listesini tazeler (yeni şablon anında combo'ya düşsün).
+    private async Task ReloadShipmentTemplatesAsync()
+    {
+        ShipmentTemplates = await ShipmentTemplateAppService.GetPickerListAsync();
         StateHasChanged();
     }
 

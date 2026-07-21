@@ -50,6 +50,11 @@ public class N11ShipmentTemplate : FullAuditedAggregateRoot<Guid>, IMultiTenant,
     /// <summary>Sahip satış kanalı (id-only, set-once).</summary>
     public virtual Guid SalesChannelId { get; protected set; }
 
+    /// <summary>Çekirdek ERP kargo şablonu referansı (K1 köprüsü — ADDITIVE; id-only, nav YOK, opsiyonel).
+    /// Kopyalama İSTEMLİ ("Çekirdekten Uygula" ortak alanları N11 formuna kopyalar, kullanıcı override edebilir);
+    /// canlı miras / otomatik ezme YOK — N11 şablonu push için self-contained kalır.</summary>
+    public virtual Guid? ShipmentTemplateId { get; protected set; }
+
     /// <summary>Şablon adı = N11 kimliği. (SalesChannelId, TemplateName) benzersiz.</summary>
     public virtual string TemplateName { get; protected set; } = null!;
 
@@ -167,6 +172,13 @@ public class N11ShipmentTemplate : FullAuditedAggregateRoot<Guid>, IMultiTenant,
     public virtual void SetDeliverableCities(IEnumerable<string> cityCodes)
     {
         DeliverableCityCodes = NormalizeRefs(cityCodes);
+    }
+
+    /// <summary>Çekirdek şablon referansını ayarlar (Guid.Empty → null). K1 köprüsü: yalnız id-only bağ kurar;
+    /// alan kopyalama UI'da istemli yapılır (canlı miras yok).</summary>
+    public virtual void SetCoreTemplate(Guid? shipmentTemplateId)
+    {
+        ShipmentTemplateId = shipmentTemplateId == Guid.Empty ? null : shipmentTemplateId;
     }
 
     public override string ToString()

@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Integration.Framework.Blazor.Client.Components.Crud;
 using Integration.TradeXpress.Attachments;
+using Integration.TradeXpress.Blazor.Client;
 using Integration.TradeXpress.Variants;
 using Microsoft.AspNetCore.Components;
 
@@ -23,6 +24,39 @@ public partial class EntityVariantsPanel<TVariant> where TVariant : EntityVarian
 
     /// <summary>Uzantı slot'u — varyant edit formuna entity-özel alanlar ekler (typed; ör. Good fiyat/stok). Boş = yok.</summary>
     [Parameter] public RenderFragment<TVariant>? ExtraFields { get; set; }
+
+    /// <summary>Nitelik/değer değişince sahip layout'un OTOMATİK varyant senkronuna (regen + merge) bağlanır.
+    /// Verilirse varyant gridinin toolbar'ına "Özellikleri Düzenle" butonu + nitelik POPUP'ı eklenir (nitelikler
+    /// artık ayrı sekmede değil, varyant gridinin üstünden yönetilir). Boş = eski davranış (yalnız varyant gridi).</summary>
+    [Parameter] public EventCallback OnAttributesChanged { get; set; }
+
+    // "Özellikleri Düzenle" nitelik popup'ının görünürlüğü.
+    private bool _attributesPopupVisible;
+
+    // Varyant gridi toolbar'ına eklenen custom aksiyon — nitelik editörünü popup'ta açar (yalnız OnAttributesChanged bağlıysa).
+    private IReadOnlyList<CrudToolbarAction>? AttributeActions =>
+        OnAttributesChanged.HasDelegate
+            ? new[]
+            {
+                new CrudToolbarAction
+                {
+                    SortIndex = 150,   // Sil(100) ile Arama(400) arası
+                    Text = L["EditAttributes"].Value,
+                    Tooltip = L["EditAttributes"].Value,
+                    IconCssClass = TradeXpressIcons.Sliders,
+                    OnClick = () => { _attributesPopupVisible = true; StateHasChanged(); return Task.CompletedTask; },
+                },
+            }
+            : null;
+
+    // "Uygula" — sahip host'un varyant regen'ini tetikler (VariantGraphMerge: mevcut varyant düzenlemeleri KORUNUR),
+    // popup'ı kapatır (oluşan varyantlar gridde görünür). Nitelik/değer düzenlemesi bu ANA kadar regen ETMEZ.
+    private async Task OnApplyAttributes()
+    {
+        await OnAttributesChanged.InvokeAsync();
+        _attributesPopupVisible = false;
+        StateHasChanged();
+    }
 
     /// <summary>Çekirdek Stok Adedi kolonu + edit alanını göster. Stoğu ledger'dan (VoucherLine) türeten entity'ler
     /// (ör. Good) <c>false</c> geçer — statik stok anlamsız; pazaryeri push'lu entity'ler (Product) varsayılan <c>true</c>.</summary>

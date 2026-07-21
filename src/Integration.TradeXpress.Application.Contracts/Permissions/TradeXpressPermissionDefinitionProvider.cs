@@ -58,6 +58,24 @@ public class TradeXpressPermissionDefinitionProvider : PermissionDefinitionProvi
         assayOffices.AddChild(TradeXpressPermissions.AssayOffices.Update, L("Permission:Update"));
         assayOffices.AddChild(TradeXpressPermissions.AssayOffices.Delete, L("Permission:Delete"));
 
+        var addOns = myGroup.AddPermission(
+            TradeXpressPermissions.AddOns.Default, L("Permission:AddOns"));
+        addOns.AddChild(TradeXpressPermissions.AddOns.Create, L("Permission:Create"));
+        addOns.AddChild(TradeXpressPermissions.AddOns.Update, L("Permission:Update"));
+        addOns.AddChild(TradeXpressPermissions.AddOns.Delete, L("Permission:Delete"));
+
+        var variantTemplates = myGroup.AddPermission(
+            TradeXpressPermissions.VariantTemplates.Default, L("Permission:VariantTemplates"));
+        variantTemplates.AddChild(TradeXpressPermissions.VariantTemplates.Create, L("Permission:Create"));
+        variantTemplates.AddChild(TradeXpressPermissions.VariantTemplates.Update, L("Permission:Update"));
+        variantTemplates.AddChild(TradeXpressPermissions.VariantTemplates.Delete, L("Permission:Delete"));
+
+        var shipmentTemplates = myGroup.AddPermission(
+            TradeXpressPermissions.ShipmentTemplates.Default, L("Permission:ShipmentTemplates"));
+        shipmentTemplates.AddChild(TradeXpressPermissions.ShipmentTemplates.Create, L("Permission:Create"));
+        shipmentTemplates.AddChild(TradeXpressPermissions.ShipmentTemplates.Update, L("Permission:Update"));
+        shipmentTemplates.AddChild(TradeXpressPermissions.ShipmentTemplates.Delete, L("Permission:Delete"));
+
         var appointments = myGroup.AddPermission(
             TradeXpressPermissions.Appointments.Default, L("Permission:Appointments"));
         appointments.AddChild(TradeXpressPermissions.Appointments.Create, L("Permission:Create"));

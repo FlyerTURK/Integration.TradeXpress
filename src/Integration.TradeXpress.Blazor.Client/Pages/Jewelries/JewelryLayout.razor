@@ -73,13 +73,11 @@
 @* En son: alt drill'ler — agnostik graf (in-memory; Jewelry 'Kaydet'inde birlikte persist). Paneller DxTabPage ÜRETMEZ,
    içeriği üretir (DrillTabs CollectionFiller wrapper gotcha'sı). Kod/ad/varyant üretimi sunucuda (synchronizer). *@
 <DrillTabs CssClass="mt-3">
-    <DxTabPage Text="@L["Attributes"]" TabIconCssClass="@TradeXpressIcons.Sliders">
-        <EntityAttributesPanel Attributes="@Model.Attributes" OnAttributesChanged="@OnGenerateVariants" />
-    </DxTabPage>
-    @* Varyant-başı fiyat/stok YOK (fiyat mücevherde) → ExtraFields yok. Stok Adedi GİZLİ (stok VoucherLine ledger'ından). *@
+    @* Nitelikler ayrı sekmede DEĞİL → varyant panelinin "Özellikleri Düzenle" toolbar butonundan popup'ta (OnAttributesChanged bağlı).
+       Varyant-başı fiyat/stok YOK (fiyat mücevherde) → ExtraFields yok. Stok Adedi GİZLİ (stok VoucherLine ledger'ından). *@
     <DxTabPage Text="@L["Variants"]" TabIconCssClass="@TradeXpressIcons.ProductVariant">
         <EntityVariantsPanel TVariant="EntityVariantGraphDto" Variants="@Model.Variants" Attributes="@Model.Attributes"
-                             ShowStockQuantity="false" ShowImages="true" />
+                             ShowStockQuantity="false" ShowImages="true" OnAttributesChanged="@OnGenerateVariants" />
     </DxTabPage>
     <DxTabPage Text="@L["Documents"]" TabIconCssClass="@TradeXpressIcons.Report">
         <EntityDocumentsPanel Documents="@Model.Documents" />

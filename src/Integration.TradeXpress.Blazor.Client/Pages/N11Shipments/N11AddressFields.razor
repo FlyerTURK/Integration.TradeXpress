@@ -4,6 +4,11 @@
    yeniden kullanılır. DrillList EditContent'i DxFormLayout sağlamadığından bileşen kendi layout'unu taşır.
    İl seçilince o ilin ilçeleri on-demand yüklenir (IN11CityAppService.GetDistrictsAsync). *@
 
+@* Coğrafya cascade seçici (üstte) — Ülke → İl/Eyalet → İlçe → Mahalle. Seçim aşağıdaki N11 il/ilçe combo'larını
+   DOLDURUR (ortak modele yazar) + additive geo-ref'leri taşır. Mevcut CountryCode ile geri yüklenir (callback'siz). *@
+<GeographyCascadePicker SelectedCountryCode="@Model.CountryCode"
+                        SelectionChanged="@OnGeographySelected" />
+
 <DxFormLayout CssClass="w-100">
     <DxFormLayoutGroup Caption="@GroupCaption" ColSpanMd="12">
         <DxFormLayoutItem Caption="@L["N11Address:Title"]" ColSpanMd="6">

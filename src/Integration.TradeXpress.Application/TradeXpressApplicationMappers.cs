@@ -8,10 +8,12 @@ using Integration.TradeXpress.Services;
 using Integration.TradeXpress.SalesChannels;
 using Integration.TradeXpress.N11Categories;
 using Integration.TradeXpress.TrendyolCategories;
+using Integration.TradeXpress.EtsyTaxonomies;
 using Integration.TradeXpress.N11Cities;
 using Integration.TradeXpress.N11Shipments;
 using Integration.TradeXpress.N11Products;
 using Integration.TradeXpress.TrendyolProducts;
+using Integration.TradeXpress.EtsyProducts;
 using Integration.TradeXpress.Futures;
 using Integration.TradeXpress.Scraps;
 using Integration.TradeXpress.Metals;
@@ -20,8 +22,12 @@ using Integration.TradeXpress.Jewelries;
 using Integration.TradeXpress.Goods;
 using Integration.TradeXpress.SpecialCodes;
 using Integration.TradeXpress.Countries;
+using Integration.TradeXpress.Geography;
 using Integration.TradeXpress.Accounts;
 using Integration.TradeXpress.AssayOffices;
+using Integration.TradeXpress.AddOns;
+using Integration.TradeXpress.Shipments;
+using Integration.TradeXpress.VariantTemplates;
 using Integration.TradeXpress.Products;
 using Integration.TradeXpress.Scheduling;
 using Integration.TradeXpress.Substitutions;
@@ -168,6 +174,101 @@ public partial class AssayOfficeToListDtoMapper : MapperBase<AssayOffice, AssayO
     public override partial void Map(AssayOffice source, AssayOfficeListDto destination);
 }
 
+// ── AddOn (sipariş eklentisi katalogu) ──
+
+[Mapper] public partial class AddOnGetToCreateMapper : MapperBase<AddOnGetDto, AddOnCreateDto>
+{
+    public override partial AddOnCreateDto Map(AddOnGetDto source);
+    public override partial void Map(AddOnGetDto source, AddOnCreateDto destination);
+}
+[Mapper] public partial class AddOnGetToUpdateMapper : MapperBase<AddOnGetDto, AddOnUpdateDto>
+{
+    public override partial AddOnUpdateDto Map(AddOnGetDto source);
+    public override partial void Map(AddOnGetDto source, AddOnUpdateDto destination);
+}
+
+[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
+public partial class AddOnToGetDtoMapper : MapperBase<AddOn, AddOnGetDto>
+{
+    public override partial AddOnGetDto Map(AddOn source);
+    public override partial void Map(AddOn source, AddOnGetDto destination);
+}
+
+[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
+public partial class AddOnToListDtoMapper : MapperBase<AddOn, AddOnListDto>
+{
+    public override partial AddOnListDto Map(AddOn source);
+    public override partial void Map(AddOn source, AddOnListDto destination);
+}
+
+// ── ShipmentTemplate (birleşik ERP kargo şablonu katalogu) — gömülü Address VO → ShipmentAddressDto nested-otomatik ──
+
+[Mapper] public partial class ShipmentTemplateGetToCreateMapper : MapperBase<ShipmentTemplateGetDto, ShipmentTemplateCreateDto>
+{
+    public override partial ShipmentTemplateCreateDto Map(ShipmentTemplateGetDto source);
+    public override partial void Map(ShipmentTemplateGetDto source, ShipmentTemplateCreateDto destination);
+}
+[Mapper] public partial class ShipmentTemplateGetToUpdateMapper : MapperBase<ShipmentTemplateGetDto, ShipmentTemplateUpdateDto>
+{
+    public override partial ShipmentTemplateUpdateDto Map(ShipmentTemplateGetDto source);
+    public override partial void Map(ShipmentTemplateGetDto source, ShipmentTemplateUpdateDto destination);
+}
+
+[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
+public partial class ShipmentTemplateToGetDtoMapper : MapperBase<ShipmentTemplate, ShipmentTemplateGetDto>
+{
+    public override partial ShipmentTemplateGetDto Map(ShipmentTemplate source);
+    public override partial void Map(ShipmentTemplate source, ShipmentTemplateGetDto destination);
+}
+
+[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
+public partial class ShipmentTemplateToListDtoMapper : MapperBase<ShipmentTemplate, ShipmentTemplateListDto>
+{
+    public override partial ShipmentTemplateListDto Map(ShipmentTemplate source);
+    public override partial void Map(ShipmentTemplate source, ShipmentTemplateListDto destination);
+}
+
+// ── Carrier (çekirdek kargo firması host-global; salt-okuma) → picker/tekil DTO ──
+
+[Mapper] public partial class CarrierToListDtoMapper : MapperBase<Carrier, CarrierListDto>
+{
+    public override partial CarrierListDto Map(Carrier source);
+    public override partial void Map(Carrier source, CarrierListDto destination);
+}
+
+[Mapper] public partial class CarrierToDtoMapper : MapperBase<Carrier, CarrierDto>
+{
+    public override partial CarrierDto Map(Carrier source);
+    public override partial void Map(Carrier source, CarrierDto destination);
+}
+
+// ── VariantTemplate (varyant tanım katalogu / demet) — nested Attributes/Values auto-eşlenir ──
+
+[Mapper] public partial class VariantTemplateGetToCreateMapper : MapperBase<VariantTemplateGetDto, VariantTemplateCreateDto>
+{
+    public override partial VariantTemplateCreateDto Map(VariantTemplateGetDto source);
+    public override partial void Map(VariantTemplateGetDto source, VariantTemplateCreateDto destination);
+}
+[Mapper] public partial class VariantTemplateGetToUpdateMapper : MapperBase<VariantTemplateGetDto, VariantTemplateUpdateDto>
+{
+    public override partial VariantTemplateUpdateDto Map(VariantTemplateGetDto source);
+    public override partial void Map(VariantTemplateGetDto source, VariantTemplateUpdateDto destination);
+}
+
+[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
+public partial class VariantTemplateToGetDtoMapper : MapperBase<VariantTemplate, VariantTemplateGetDto>
+{
+    public override partial VariantTemplateGetDto Map(VariantTemplate source);
+    public override partial void Map(VariantTemplate source, VariantTemplateGetDto destination);
+}
+
+[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
+public partial class VariantTemplateToListDtoMapper : MapperBase<VariantTemplate, VariantTemplateListDto>
+{
+    public override partial VariantTemplateListDto Map(VariantTemplate source);
+    public override partial void Map(VariantTemplate source, VariantTemplateListDto destination);
+}
+
 // ── Service (statik mapper → Mapperly; IsGlobal = TenantId==null AppService'te elle set, CurrencyUnit deseni) ──
 
 [Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
@@ -260,6 +361,14 @@ public partial class TrendyolCategoryToTreeNodeDtoMapper : MapperBase<TrendyolCa
     public override partial void Map(TrendyolCategory source, TrendyolCategoryTreeNodeDto destination);
 }
 
+// ── Etsy seller taxonomy (host-global taksonomi) → ağaç düğüm DTO'su ──
+[Mapper]
+public partial class EtsyTaxonomyToTreeNodeDtoMapper : MapperBase<EtsyTaxonomy, EtsyTaxonomyTreeNodeDto>
+{
+    public override partial EtsyTaxonomyTreeNodeDto Map(EtsyTaxonomy source);
+    public override partial void Map(EtsyTaxonomy source, EtsyTaxonomyTreeNodeDto destination);
+}
+
 // ── N11 adres (host-global İl/İlçe) → DTO ──
 [Mapper]
 public partial class N11CityToDtoMapper : MapperBase<N11City, N11CityDto>
@@ -324,6 +433,44 @@ public partial class SalesChannelTrN11ProductToDtoMapper : MapperBase<SalesChann
 {
     public override partial SalesChannelTrN11ProductUpdateDto Map(SalesChannelTrN11ProductDto source);
     public override partial void Map(SalesChannelTrN11ProductDto source, SalesChannelTrN11ProductUpdateDto destination);
+}
+
+// ── Etsy ürün listeleme → DTO. Owned ListingAttributes/SpecialInfo/Skus nested-otomatik eşlenir; tek-alanlı owned
+//    Tag/Material → düz string listesi (user-defined element mapping MapTag/MapMaterial'ı Mapperly otomatik kullanır). ──
+[Mapper]
+public partial class SalesChannelEtsyProductToDtoMapper : MapperBase<SalesChannelEtsyProduct, SalesChannelEtsyProductDto>
+{
+    // Taksonomi görüntü alanları entity'de YOK → okuma anında AppService zenginleştirir (synced taxonomy tablosundan çözülür).
+    [MapperIgnoreTarget(nameof(SalesChannelEtsyProductDto.TaxonomyName))]
+    [MapperIgnoreTarget(nameof(SalesChannelEtsyProductDto.TaxonomyIsStale))]
+    public override partial SalesChannelEtsyProductDto Map(SalesChannelEtsyProduct source);
+
+    [MapperIgnoreTarget(nameof(SalesChannelEtsyProductDto.TaxonomyName))]
+    [MapperIgnoreTarget(nameof(SalesChannelEtsyProductDto.TaxonomyIsStale))]
+    public override partial void Map(SalesChannelEtsyProduct source, SalesChannelEtsyProductDto destination);
+
+    private static string MapTag(SalesChannelEtsyProductTag tag)
+    {
+        return tag.Value;
+    }
+
+    private static string MapMaterial(SalesChannelEtsyProductMaterial material)
+    {
+        return material.Value;
+    }
+}
+
+// Etsy ürün listeleme GetDto → Create/Update (ürün grafı persist yolu). Nested owned/graf aynı tip → kopya; Tags/Materials
+// List<string> düz kopya. Durum alanları (EtsyListingId/ListingState/...) hedef input'ta yok → source-only (RMG020 uyarısı beklenir).
+[Mapper] public partial class SalesChannelEtsyProductGetToCreateMapper : MapperBase<SalesChannelEtsyProductDto, SalesChannelEtsyProductCreateDto>
+{
+    public override partial SalesChannelEtsyProductCreateDto Map(SalesChannelEtsyProductDto source);
+    public override partial void Map(SalesChannelEtsyProductDto source, SalesChannelEtsyProductCreateDto destination);
+}
+[Mapper] public partial class SalesChannelEtsyProductGetToUpdateMapper : MapperBase<SalesChannelEtsyProductDto, SalesChannelEtsyProductUpdateDto>
+{
+    public override partial SalesChannelEtsyProductUpdateDto Map(SalesChannelEtsyProductDto source);
+    public override partial void Map(SalesChannelEtsyProductDto source, SalesChannelEtsyProductUpdateDto destination);
 }
 
 // ── Trendyol ürün listeleme → DTO + GetDto→Create/Update (drill persist yolu). Owned Attributes (id-bazlı) nested. ──
@@ -794,4 +941,20 @@ public partial class MediaFolderToDtoMapper : MapperBase<MediaFolder, MediaFolde
 {
     public override partial Integration.TradeXpress.Metals.MetalVariantGraphDto Map(Integration.TradeXpress.Variants.EntityVariantGraphDto source);
     public override partial void Map(Integration.TradeXpress.Variants.EntityVariantGraphDto source, Integration.TradeXpress.Metals.MetalVariantGraphDto destination);
+}
+
+// ── Geography (okuma DTO'ları — on-demand import sonrası DB'den; GeographyAppService) ──
+
+[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
+public partial class AdministrativeAreaToDtoMapper : MapperBase<AdministrativeArea, AdministrativeAreaDto>
+{
+    public override partial AdministrativeAreaDto Map(AdministrativeArea source);
+    public override partial void Map(AdministrativeArea source, AdministrativeAreaDto destination);
+}
+
+[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
+public partial class LocalityToDtoMapper : MapperBase<Locality, LocalityDto>
+{
+    public override partial LocalityDto Map(Locality source);
+    public override partial void Map(Locality source, LocalityDto destination);
 }

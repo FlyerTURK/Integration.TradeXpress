@@ -1,0 +1,19 @@
+@page "/variant-templates/new"
+@page "/variant-templates/{Id:guid}"
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@*
+   VariantTemplate edit host = İNCE SARMAL: coordinator + sunum. Commit/save/delete/close generic CrudEditHost'ta.
+   Agnostic CrudEditHost + dumb VariantTemplateLayout. Company-owned (sunucu CompanyId zorlar).
+*@
+
+@if (_coordinator != null && _ready)
+{
+    <CrudEditHost TGetDto="VariantTemplateGetDto" TListDto="VariantTemplateListDto" TKey="Guid" TListRequestDto="VariantTemplateListRequestDto"
+                  Coordinator="@_coordinator" Id="@(Id ?? Guid.Empty)" IsPopupMode="@IsPopupMode" OnSaved="@OnSaved" OnClosed="@OnClosed"
+                  FormCaption="@L["VariantTemplate"].Value" IconCssClass="@TradeXpressIcons.VariantTemplate"
+                  EntityValue="@(m => m.Code)"
+                  ApplyNewDefaults="@(m => { m.IsActive = true; m.DisplayOrder = 1; })">
+        <VariantTemplateLayout Model="@context" IsNew="@(context.Id == Guid.Empty)" />
+    </CrudEditHost>
+}

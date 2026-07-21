@@ -15,9 +15,11 @@
                   EntityValue="@(m => m.Code)"
                   ApplyNewDefaults="@(m => ApplyNew(m))">
         <ProductLayout Model="@context" IsNew="@(context.Id == Guid.Empty)"
-                       Metals="Metals" Scraps="Scraps" Futures="Futures"
+                       Metals="Metals" MetalVariants="MetalVariants" Scraps="Scraps" Futures="Futures"
                        Jewelries="Jewelries" Stones="Stones" Services="Services" Units="Units"
                        CurrencyUnits="CurrencyUnits" OnReloadCurrencyUnits="@ReloadCurrencyUnitsAsync"
+                       AddOnCatalog="AddOns" OnReloadAddOns="@ReloadAddOnsAsync"
+                       ShipmentTemplates="ShipmentTemplates" OnReloadShipmentTemplates="@ReloadShipmentTemplatesAsync"
                        OnGenerateVariants="@(async () => await GenerateVariantsAsync(context))"
                        OnRecipeChanged="@RecalcVariantCostAsync" />
     </CrudEditHost>

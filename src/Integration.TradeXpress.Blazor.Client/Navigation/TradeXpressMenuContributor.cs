@@ -113,6 +113,27 @@ public class TradeXpressMenuContributor : IMenuContributor
             url: "/assay-offices",
             icon: "custom-icon-bullion"
         ).RequirePermissions(TradeXpressPermissions.AssayOffices.Default));
+        // Eklentiler — sipariş anı fiyatlı seçenek katalogu (kurdele/kutu/ambalaj); ürünlere atanır.
+        commodities.AddItem(new ApplicationMenuItem(
+            TradeXpressMenus.AddOns,
+            l["AddOns"],
+            url: "/add-ons",
+            icon: "custom-icon-price"
+        ).RequirePermissions(TradeXpressPermissions.AddOns.Default));
+        // Varyant Tanımları — yeniden kullanılabilir özellik grubu (demet) katalogu; ürünlere "Katalogtan Uygula" ile aktarılır.
+        commodities.AddItem(new ApplicationMenuItem(
+            TradeXpressMenus.VariantTemplates,
+            l["VariantTemplates"],
+            url: "/variant-templates",
+            icon: "custom-icon-sliders"
+        ).RequirePermissions(TradeXpressPermissions.VariantTemplates.Default));
+        // Kargo Şablonları — birleşik ERP kargo şablonu katalogu (company-owned, kanal-nötr); ürün formunda seçilir.
+        commodities.AddItem(new ApplicationMenuItem(
+            TradeXpressMenus.ShipmentTemplates,
+            l["ShipmentTemplates"],
+            url: "/shipment-templates",
+            icon: TradeXpressIcons.ShipmentTemplate
+        ).RequirePermissions(TradeXpressPermissions.ShipmentTemplates.Default));
         // Ürünler — polimorfik emtia katalogu (company-owned) + varyant drill.
         commodities.AddItem(new ApplicationMenuItem(
             "TradeXpress.Products",

@@ -30,6 +30,7 @@
            NewItemFactory="@(() => new TVariant())"
            AllowAdd="false"
            AllowDelete="false"
+           CustomActions="@AttributeActions"
            FilterPredicate="@(v => !v.IsDeleted)"
            OnChanged="@(() => EditChanged?.Invoke())">
     <GridColumns>
@@ -124,3 +125,30 @@
         }
     </EditContent>
 </DrillList>
+
+@* Nitelik editörü — varyant gridinin "Özellikleri Düzenle" toolbar butonu bunu açar (ayrı sekme YOK). Nitelik/değer
+   değişimi DERHAL regen ETMEZ — kullanıcı tam düzenler, "Uygula" ile varyantlar yeniden üretilir. Üretim
+   VariantGraphMerge kullanır → mevcut varyant düzenlemeleri (fiyat/reçete/barkod) CombinationKey ile KORUNUR
+   (ör. "Kırmızı 45" tanımları, "Siyah" eklenince silinmez). *@
+@if (OnAttributesChanged.HasDelegate)
+{
+    <DxPopup @bind-Visible="@_attributesPopupVisible" HeaderText="@L["EditAttributes"]" Width="min(95vw, 720px)"
+             ShowFooter="true" CloseOnOutsideClick="false">
+        <BodyContentTemplate Context="__attrBody">
+            @* Uyarı — Uygula varyantları yeniden üretir; artık kullanılmayan varyant/reçeteler silinir (Dx karşılığı yok → MarginSetDialog uyarı-kutusu deseni). *@
+            <div style="background:#fff3cd; color:#664d03; border:1px solid #ffe69c; border-radius:0.375rem; padding:0.5rem 0.75rem; margin-bottom:0.75rem; font-size:0.8rem; display:flex; align-items:flex-start; gap:0.5rem;">
+                <i class="custom-icon-warning" aria-hidden="true" style="margin-top:0.15rem;"></i>
+                <span>@L["VariantRegenWarning"]</span>
+            </div>
+            <EntityAttributesPanel Attributes="Attributes" />
+        </BodyContentTemplate>
+        <FooterContentTemplate Context="__attrFtr">
+            <DxButton Text="@L["Apply"].Value"
+                      RenderStyle="ButtonRenderStyle.Primary" RenderStyleMode="ButtonRenderStyleMode.Contained"
+                      Click="@OnApplyAttributes" />
+            <DxButton Text="@L["Close"].Value"
+                      RenderStyle="ButtonRenderStyle.Secondary" RenderStyleMode="ButtonRenderStyleMode.Contained"
+                      Click="@(() => _attributesPopupVisible = false)" />
+        </FooterContentTemplate>
+    </DxPopup>
+}

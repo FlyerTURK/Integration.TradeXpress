@@ -1,0 +1,39 @@
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@* Etsy'den ÜRÜN içe aktarma paneli — kayıtlı kanalın Etsy mağazasındaki mevcut aktif listelemeleri salt GET ile
+   çeker (Etsy'ye SIFIR yazma) ve tam zinciri (şablon ürün + GERÇEK offering grafı + kanal ürünü) idempotent yazar.
+   Kanal bu oturumda YENİ oluşturulduysa (AutoImport) panel ilk görünümünde importu KENDİLİĞİNDEN başlatır. Yalnız
+   kaydedilmiş + Etsy'ye bağlı kanalda anlamlı (bağlı değilse AppService NotConnected fırlatır → dostane toast).
+   Sonuç raporu EKRANDA — sessiz geçilmez (Trendyol import paneli deseni). *@
+
+<div class="mt-3" style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+    <DxButton Text="@L["EtsyImport:ImportFromMarketplace"]"
+              IconCssClass="@TradeXpressIcons.Download"
+              RenderStyle="ButtonRenderStyle.Secondary"
+              Enabled="@(!_busy)"
+              Click="@ImportAsync" />
+    @if (_busy)
+    {
+        <span style="font-size:0.85rem; color:#6c757d;">@L["EtsyImport:Importing"]</span>
+    }
+</div>
+@if (_result is { } r)
+{
+    <div style="font-size:0.85rem; display:flex; flex-direction:column; gap:2px; margin-top:6px;">
+        <span>@L["EtsyImport:Summary", r.TotalFetchedOfferings, r.TotalRemoteListings, r.CreatedProducts, r.CreatedChannelProducts, r.UpdatedChannelProducts]</span>
+        @if (r.CreatedVariants > 0)
+        {
+            <span>@L["EtsyImport:CreatedVariants", r.CreatedVariants]</span>
+        }
+        @if (r.SkippedRows.Count > 0)
+        {
+            <span style="color:#b45309;">@L["EtsyImport:Skipped", r.SkippedRows.Count]</span>
+        }
+        @if (IssueLines.Count > 0)
+        {
+            @* Tek yönlü Text bağı → ValidationEnabled=false ŞART (TextExpression yok — tekrarlayan DevExpress tuzağı). *@
+            <DxMemo Text="@string.Join('\n', IssueLines)" ReadOnly="true" Rows="6"
+                    ValidationEnabled="false" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100" />
+        }
+    </div>
+}

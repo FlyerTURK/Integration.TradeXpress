@@ -1,0 +1,113 @@
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@*
+   ShipmentTemplate DUMB Layout — yalnız ShipmentTemplateGetDto'yu forma yansıtır/düzenler. I/O yok, karar yok,
+   persistence yok. Menşei/iade adresi self-contained ShipmentAddressFields bileşenleridir (kendi DxFormLayout'unu
+   taşır → ana forma alt-blok olarak gömülemez, sibling olarak dizilir; N11 deseni).
+   Sıra (ui-blazor): Kod → Ad → Menşei adres → Hazırlık süresi → Ücret modeli (+Şartlı eşik) → Teslim süresi →
+   Kargo firması → İade (kabul + adres + bilgi) → Max satın alım → Description → Status.
+*@
+
+<DxFormLayout CssClass="w-100">
+    <DxFormLayoutGroup Caption="@L["General"]" ColSpanMd="12">
+        <DxFormLayoutItem Caption="@($"{L["Code"]} *")" ColSpanMd="6">
+            <DxTextBox @bind-Text="@Model.Code" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="12">
+            <DxTextBox @bind-Text="@Model.Name" />
+        </DxFormLayoutItem>
+    </DxFormLayoutGroup>
+</DxFormLayout>
+
+@* Menşei adresi (zorunlu) — self-contained DxFormLayout. *@
+<ShipmentAddressFields Model="@Model.OriginAddress" Required="true"
+                       Caption="@L["ShipmentTemplate:OriginAddress"].Value" />
+
+<DxFormLayout CssClass="w-100">
+    <DxFormLayoutGroup Caption="@L["ShipmentTemplate:ShippingSection"]" ColSpanMd="12">
+        @* Hazırlık süresi (kargoya veriş) — iş günü aralığı. *@
+        <DxFormLayoutItem Caption="@L["ShipmentTemplate:ProcessingDaysMin"]" ColSpanMd="6" BeginRow="true">
+            <NumericSpinEdit TValue="int" @bind-Value="@Model.ProcessingDaysMin" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["ShipmentTemplate:ProcessingDaysMax"]" ColSpanMd="6">
+            <NumericSpinEdit TValue="int" @bind-Value="@Model.ProcessingDaysMax" />
+        </DxFormLayoutItem>
+
+        @* Ücret modeli — Conditional seçilince eşik + birim görünür (aksi halde gizli). *@
+        <DxFormLayoutItem Caption="@($"{L["ShipmentTemplate:FeeModel"]} *")" ColSpanMd="6" BeginRow="true">
+            <ComboBoxEnumEdit TEnum="ShipmentFeeModel" L="@L" @bind-Value="@Model.FeeModel" />
+        </DxFormLayoutItem>
+        @if (Model.FeeModel == ShipmentFeeModel.Conditional)
+        {
+            <DxFormLayoutItem Caption="@($"{L["ShipmentTemplate:ConditionalThreshold"]} *")" ColSpanMd="6">
+                <NumericSpinEdit TValue="decimal?" @bind-Value="@Model.ConditionalThreshold" DisplayFormat="N2"
+                                 ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
+            </DxFormLayoutItem>
+            <DxFormLayoutItem Caption="@($"{L["ShipmentTemplate:ConditionalUnit"]} *")" ColSpanMd="6" BeginRow="true">
+                <ComboBoxEnumEdit TEnum="ShipmentConditionalUnit?" L="@L" @bind-Value="@Model.ConditionalUnit"
+                                  NullText="@L["Select"]" />
+            </DxFormLayoutItem>
+        }
+
+        @* Teslim süresi (kargoda geçen) — opsiyonel iş günü aralığı. *@
+        <DxFormLayoutItem Caption="@L["ShipmentTemplate:DeliveryDaysMin"]" ColSpanMd="6" BeginRow="true">
+            <NumericSpinEdit TValue="int?" @bind-Value="@Model.DeliveryDaysMin"
+                             ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["ShipmentTemplate:DeliveryDaysMax"]" ColSpanMd="6">
+            <NumericSpinEdit TValue="int?" @bind-Value="@Model.DeliveryDaysMax"
+                             ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
+        </DxFormLayoutItem>
+
+        @* Kargo firması — çekirdek Carrier kataloğundan SALT SEÇİM (ekle/düzenle YOK: EditComponentType/OnAdd/OnEdit verilmez). *@
+        <DxFormLayoutItem Caption="@L["ShipmentTemplate:CarrierName"]" ColSpanMd="12">
+            <LookupComboBox TItem="CarrierListDto" TValue="Guid?"
+                            Data="@Carriers"
+                            ValueFieldName="@nameof(CarrierListDto.Id)" TextFieldName="@nameof(CarrierListDto.Name)"
+                            @bind-Value="@Model.CarrierId"
+                            SearchFilterCondition="ListSearchFilterCondition.Contains" NullText="@L["Select"].Value" />
+        </DxFormLayoutItem>
+
+        @* İade kabulü — açıkken iade adresi (aşağıda) + iade bilgisi görünür. Kapatınca iade adresi temizlenir. *@
+        <DxFormLayoutItem Caption="@L["ShipmentTemplate:ReturnAccepted"]" ColSpanMd="12" BeginRow="true">
+            <DxCheckBox Checked="@Model.ReturnAccepted"
+                        CheckedChanged="@((bool v) => OnReturnAcceptedChanged(v))"
+                        CheckType="CheckType.Switch"
+                        ValidationEnabled="false">
+                @(Model.ReturnAccepted ? L["Yes"] : L["No"])
+            </DxCheckBox>
+        </DxFormLayoutItem>
+        @if (Model.ReturnAccepted)
+        {
+            <DxFormLayoutItem Caption="@L["ShipmentTemplate:ReturnInfo"]" ColSpanMd="12">
+                <DxMemo @bind-Text="@Model.ReturnInfo" Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100"
+                        NullText="@L["Optional"]" />
+            </DxFormLayoutItem>
+        }
+    </DxFormLayoutGroup>
+</DxFormLayout>
+
+@* İade adresi (opsiyonel) — yalnız iade kabul edilirse. OnReturnAcceptedChanged new() ile init eder. *@
+@if (Model.ReturnAccepted && Model.ReturnAddress != null)
+{
+    <ShipmentAddressFields Model="@Model.ReturnAddress" Required="false"
+                           Caption="@L["ShipmentTemplate:ReturnAddress"].Value" />
+}
+
+<DxFormLayout CssClass="w-100">
+    <DxFormLayoutGroup Caption="@L["ShipmentTemplate:GeneralSection"]" ColSpanMd="12">
+        <DxFormLayoutItem Caption="@L["ShipmentTemplate:MaxPurchaseQuantity"]" ColSpanMd="6" BeginRow="true">
+            <NumericSpinEdit TValue="int?" @bind-Value="@Model.MaxPurchaseQuantity"
+                             ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["Description"]" ColSpanMd="12" BeginRow="true">
+            <DxMemo @bind-Text="@Model.Description" Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100"
+                    NullText="@L["Optional"]" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6" BeginRow="true">
+            <DxCheckBox @bind-Checked="@Model.IsActive" CheckType="CheckType.Switch">
+                @(Model.IsActive ? L["Active"] : L["Passive"])
+            </DxCheckBox>
+        </DxFormLayoutItem>
+    </DxFormLayoutGroup>
+</DxFormLayout>

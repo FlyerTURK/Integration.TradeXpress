@@ -1,0 +1,31 @@
+@page "/add-ons"
+@using Integration.Framework.Blazor.Client.Components.Crud
+@using Integration.TradeXpress.AddOns
+@using DevExpress.Blazor
+@inherits CrudPageBase<AddOnGetDto, AddOnListDto, Guid, AddOnListRequestDto, AddOnCreateDto, AddOnUpdateDto>
+
+<CrudLayout TGetDto="AddOnGetDto"
+            TListDto="AddOnListDto"
+            TKey="Guid"
+            StateService="StateService"
+            DataSource="@GridDataSource"
+            EntityName="@L["AddOn"]"
+            EntityIcon="@TradeXpressIcons.AddOn"
+            PrimaryTextSelector="@(m => m.Code)"
+            PageTitle="@L["AddOns"]"
+            OnNewClick="BeforeCreateAsync"
+            OnUpdateClick="BeforeUpdateAsync"
+            OnDeleteClick="DeleteAsync"
+            OnRefreshClick="GetListAsync"
+            OnSearchChanged="OnSearchAsync">
+
+    <GridColumns>
+        <GridLinkColumn FieldName="Code" Caption="@L["Code"]" Width="120px" FixedPosition="GridColumnFixedPosition.Left" VisibleIndex="1"
+                        OnClick="@(o => BeforeUpdateAsync((AddOnListDto)o))" />
+        <DxGridDataColumn FieldName="Name" Caption="@L["Name"]" VisibleIndex="2" MinWidth="200" />
+        <DxGridDataColumn FieldName="Price" Caption="@L["AddOn:Price"]" Width="130px" VisibleIndex="3" DisplayFormat="N2" />
+        <DxGridDataColumn FieldName="CurrencyUnitCode" Caption="@L["AddOn:CurrencyUnit"]" Width="110px" VisibleIndex="4" />
+        <DxGridDataColumn FieldName="DisplayOrder" Caption="@L["DisplayOrder"]" Width="110px" VisibleIndex="5" />
+    </GridColumns>
+
+</CrudLayout>

@@ -29,6 +29,12 @@ public static class TradeXpressIcons
     public const string Good = "custom-icon-good";
     // Özel Kod (gruplama sözlüğü) — kendi etiket ikonu (mor tag).
     public const string SpecialCode = "custom-icon-special-code";
+    // Sipariş eklentisi (kurdele/kutu/ambalaj) katalogu — mevcut fiyat ikonu reuse (fiyatlı seçenek); yeni CSS yok.
+    public const string AddOn = "custom-icon-price";
+    // Varyant tanım katalogu (demet) — nitelik ekseni ikonu (sliders) reuse (agnostik nitelik paneliyle hizalı); yeni CSS yok.
+    public const string VariantTemplate = "custom-icon-sliders";
+    // Kargo şablonu katalogu — mevcut adres-kartı ikonu reuse (şablonun çekirdeği menşei/iade adresi + teslimat); yeni CSS yok.
+    public const string ShipmentTemplate = "custom-icon-address-card";
 
     // ── Ürünler ──
     public const string Product = "custom-icon-commodities";

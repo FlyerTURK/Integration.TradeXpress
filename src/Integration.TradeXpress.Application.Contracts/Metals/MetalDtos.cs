@@ -37,6 +37,7 @@ public class MetalListRequestDto : ListRequestDto
 /// <summary>Grid + süreç paneli picker'ı. İşçilik/sikke alanları panelin hesabı için taşınır.</summary>
 public class MetalListDto : FollowingUnitCatalogListDtoBase
 {
+    public Guid? CompanyId { get; set; }
     public decimal Factor { get; set; }
     public bool FactorChange { get; set; }
 
@@ -60,6 +61,8 @@ public class MetalListDto : FollowingUnitCatalogListDtoBase
 
 public class MetalGetDto : FollowingUnitCatalogGetDtoBase, IHasCode
 {
+    public Guid? CompanyId { get; set; }
+
     [Required]
     [StringLength(MetalConsts.CodeMaxLength, MinimumLength = EntityFieldConsts.CodeMinLength)]
     public override string Code { get; set; } = string.Empty;
@@ -96,6 +99,8 @@ public class MetalGetDto : FollowingUnitCatalogGetDtoBase, IHasCode
 
 public class MetalCreateDto : FollowingUnitCatalogCreateDtoBase
 {
+    public Guid? CompanyId { get; set; }
+
     [Required]
     [StringLength(MetalConsts.CodeMaxLength, MinimumLength = EntityFieldConsts.CodeMinLength)]
     public override string Code { get; set; } = string.Empty;
@@ -130,6 +135,8 @@ public class MetalCreateDto : FollowingUnitCatalogCreateDtoBase
 
 public class MetalUpdateDto : FollowingUnitCatalogUpdateDtoBase
 {
+    public Guid? CompanyId { get; set; }
+
     // Kod DÜZENLENEBİLİR (ürün kuralı 2026-07-04: host CurrencyUnit kayıtları dışında tüm kodlar değiştirilebilir).
     [Required]
     [StringLength(MetalConsts.CodeMaxLength, MinimumLength = EntityFieldConsts.CodeMinLength)]

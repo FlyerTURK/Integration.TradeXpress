@@ -208,7 +208,7 @@ public abstract class SalesChannelTrN11ProductPushTests<TStartupModule> : TradeX
             // Push en az bir URL kaynaklı görsel ister (ImagesRequired guard'ı) — dış link, blob sağlayıcı gerekmez.
             product.SetImages(new[]
             {
-                new ProductImage(ProductImageSourceType.Url, "https://example.com/product.jpg", null, null, 0, true),
+                new ProductImage(ProductImageSourceType.Url, "https://example.com/product.jpg", null, null, 0, true, null, null),
             });
             await _productRepository.InsertAsync(product, autoSave: true);
             return (channel, product);

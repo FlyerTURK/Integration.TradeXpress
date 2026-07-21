@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using Microsoft.Extensions.Configuration;
+using Integration.TradeXpress.N11;
 using Volo.Abp;
 using Volo.Abp.Domain.Repositories;
 
@@ -18,18 +18,18 @@ public class N11CityAppService : TradeXpressAppService, IN11CityAppService
     private readonly IRepository<N11City, Guid> _cityRepository;
     private readonly IRepository<N11District, Guid> _districtRepository;
     private readonly IN11CityClient _client;
-    private readonly IConfiguration _configuration;
+    private readonly IN11HostCredentialResolver _credentialResolver;
 
     public N11CityAppService(
         IRepository<N11City, Guid> cityRepository,
         IRepository<N11District, Guid> districtRepository,
         IN11CityClient client,
-        IConfiguration configuration)
+        IN11HostCredentialResolver credentialResolver)
     {
         _cityRepository = cityRepository;
         _districtRepository = districtRepository;
         _client = client;
-        _configuration = configuration;
+        _credentialResolver = credentialResolver;
     }
 
     public virtual async Task<int> SyncCitiesAndDistrictsAsync()
@@ -39,7 +39,7 @@ public class N11CityAppService : TradeXpressAppService, IN11CityAppService
             throw new BusinessException("TradeXpress:N11:CitySyncHostOnly");
         }
 
-        var (appKey, appSecret) = ResolveHostCredentials();
+        var (appKey, appSecret) = await _credentialResolver.ResolveAsync();
         var count = 0;
 
         // İller
@@ -149,20 +149,8 @@ public class N11CityAppService : TradeXpressAppService, IN11CityAppService
     public virtual async Task<List<N11NeighborhoodDto>> GetNeighborhoodsAsync(string districtId)
     {
         // On-demand: adres verisi seller-özel değil → host kimliğiyle çekilir; saklanmaz.
-        var (appKey, appSecret) = ResolveHostCredentials();
+        var (appKey, appSecret) = await _credentialResolver.ResolveAsync();
         var list = await _client.GetNeighborhoodsAsync((districtId ?? string.Empty).Trim(), appKey, appSecret);
         return list.Select(n => new N11NeighborhoodDto { Id = n.Id, Name = n.Name }).ToList();
-    }
-
-    private (string AppKey, string AppSecret) ResolveHostCredentials()
-    {
-        var appKey = _configuration["N11:CategorySync:AppKey"];
-        var appSecret = _configuration["N11:CategorySync:AppSecret"];
-        if (string.IsNullOrWhiteSpace(appKey) || string.IsNullOrWhiteSpace(appSecret))
-        {
-            throw new BusinessException("TradeXpress:N11:CitySyncCredentialsMissing");
-        }
-
-        return (appKey, appSecret);
     }
 }

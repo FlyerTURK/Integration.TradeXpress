@@ -1,0 +1,13 @@
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@* Etsy taksonomi senkronizasyon paneli — kayıtlı kanalın kimliğiyle host-global taksonomi ağacını Etsy'den çekip
+   yerel DB'ye upsert eder (pazaryerine SIFIR yazma; salt GET). Yalnız kaydedilmiş kanalda gösterilir. Taksonomi
+   picker'ı bu ağaçtan okur; sync edilmezse boş kalır → bu buton onu doldurur. TrendyolCategorySyncPanel ikizi. *@
+
+<div class="mt-3">
+    <DxButton Text="@L["Etsy:Taxonomy:Sync"]"
+              IconCssClass="@TradeXpressIcons.Refresh"
+              RenderStyle="ButtonRenderStyle.Secondary"
+              Enabled="@(!_syncing)"
+              Click="@SyncAsync" />
+</div>

@@ -1,0 +1,21 @@
+@page "/add-ons/new"
+@page "/add-ons/{Id:guid}"
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@*
+   AddOn edit host = İNCE SARMAL: coordinator + sunum. Commit/save/delete/close generic CrudEditHost'ta.
+   Agnostic CrudEditHost + dumb AddOnLayout. Company-owned (sunucu CompanyId zorlar). Para birimi lookup verisi
+   host'ta yüklenir (DUMB layout servis çağırmaz); inline döviz ekle/düzelt sonrası tazelenir.
+*@
+
+@if (_coordinator != null && _ready)
+{
+    <CrudEditHost TGetDto="AddOnGetDto" TListDto="AddOnListDto" TKey="Guid" TListRequestDto="AddOnListRequestDto"
+                  Coordinator="@_coordinator" Id="@(Id ?? Guid.Empty)" IsPopupMode="@IsPopupMode" OnSaved="@OnSaved" OnClosed="@OnClosed"
+                  FormCaption="@L["AddOn"].Value" IconCssClass="@TradeXpressIcons.AddOn"
+                  EntityValue="@(m => m.Code)"
+                  ApplyNewDefaults="@(m => ApplyNew(m))">
+        <AddOnLayout Model="@context" IsNew="@(context.Id == Guid.Empty)"
+                     CurrencyUnits="CurrencyUnits" OnReloadCurrencyUnits="@ReloadCurrencyUnitsAsync" />
+    </CrudEditHost>
+}

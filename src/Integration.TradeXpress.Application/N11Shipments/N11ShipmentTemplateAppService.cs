@@ -180,6 +180,8 @@ public class N11ShipmentTemplateAppService : TradeXpressAppService, IN11Shipment
 
     private void ApplyInput(N11ShipmentTemplate entity, IN11ShipmentTemplateInput input)
     {
+        // K1 köprüsü — çekirdek şablon referansı (id-only); N11'e push EDİLMEZ, yalnız yerelde tutulur.
+        entity.SetCoreTemplate(input.ShipmentTemplateId);
         entity.SetTemplateName(input.TemplateName);
         entity.SetDeliveryFeeType(input.DeliveryFeeType);
         entity.SetShipmentMethod(input.ShipmentMethod);
@@ -195,6 +197,7 @@ public class N11ShipmentTemplateAppService : TradeXpressAppService, IN11Shipment
     }
 
     // İçe aktarım: N11'den gelen ÇÖZÜLMÜŞ veriyi (isim/kod) id-ref'lere ters-çözer, entity'ye uygular.
+    // NOT: Çekirdek şablon referansı (ShipmentTemplateId, K1 köprüsü) N11'de bilinmez → import'ta DOKUNULMAZ (korunur).
     private void ApplyData(N11ShipmentTemplate entity, N11ShipmentTemplateData data, IReadOnlyDictionary<string, string> externalIdByShortName)
     {
         entity.SetTemplateName(data.TemplateName);
@@ -290,7 +293,11 @@ public class N11ShipmentTemplateAppService : TradeXpressAppService, IN11Shipment
             countryCode: string.IsNullOrWhiteSpace(dto.CountryCode) ? "TR" : dto.CountryCode,
             title: dto.Title,
             cityCode: dto.CityCode,
-            districtCode: dto.DistrictCode);
+            districtCode: dto.DistrictCode,
+            // Coğrafya referansları (additive) — VO'ya taşınır, N11 push OKUMAZ (yalnız zenginleştirme/UBL için).
+            administrativeAreaId: dto.AdministrativeAreaId,
+            localityId: dto.LocalityId,
+            administrativeAreaIsoCode: dto.AdministrativeAreaIsoCode);
     }
 
     private static Address ToAddress(N11ShipmentAddressData data)

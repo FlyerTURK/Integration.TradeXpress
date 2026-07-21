@@ -1,3 +1,6 @@
+using System.Threading.Tasks;
+using Integration.Framework.Blazor.Client.Components.Crud;
+using Integration.Framework.Blazor.Client.Services.Base;
 using Microsoft.AspNetCore.Components;
 
 namespace Integration.Framework.Blazor.Client.Components.Shared;
@@ -18,6 +21,46 @@ public partial class EntryPanelShell
 
     /// <summary>Kaydet butonu aktifliği (çift-gönderim/geçersiz-durum koruması türevde).</summary>
     [Parameter] public bool SaveEnabled { get; set; } = true;
+
+    /// <summary>true → chrome INLINE değil, <c>DxPopup</c> içinde açılır (gradyan başlık HeaderContentTemplate'te, kimlik
+    /// korunur; Kaydet/Geri footer'da). X/Escape = Geri (draft iptal). Default false (mevcut inline tüketiciler değişmez).</summary>
+    [Parameter] public bool Popup { get; set; }
+
+    /// <summary>Popup görünürlüğü (Popup=true iken). Türev IsPanelOpen'a bağlar; false → popup kapanır.</summary>
+    [Parameter] public bool Visible { get; set; }
+
+    /// <summary>Popup görünürlüğü değişince (X/Escape) türeve bildirir — false gelince ayrıca <see cref="OnBack"/> (iptal) tetiklenir.</summary>
+    [Parameter] public EventCallback<bool> VisibleChanged { get; set; }
+
+    /// <summary>Popup genişliği — reçete satırı geniş (yatay alan dizisi) → varsayılan geniş, içerik yatay kayar.</summary>
+    [Parameter] public string Width { get; set; } = "min(96vw, 1100px)";
+
+    /// <summary>Popup ÜST TOOLBAR'ında Kaydet'ten ÖNCE render edilen opsiyonel içerik (ör. reçete:
+    /// "Tüm varyantlara uygula" checkbox'ı). Yalnız popup modda.</summary>
+    [Parameter] public RenderFragment? FooterLeading { get; set; }
+
+    /// <summary>Popup başlığı ikonu (standart header icon+caption — diğer edit formları gibi). Boşsa yalnız caption.</summary>
+    [Parameter] public string? Icon { get; set; }
+
+    /// <summary>Standart <c>EditToolbar</c> için edit controller. Verilirse popup ÜST toolbar'ı STANDART EditToolbar
+    /// olur (edit formlarıyla AYNI); boşsa basit Kaydet/Geri butonları.</summary>
+    [Parameter] public ISplitEditActions? EditController { get; set; }
+
+    /// <summary>Standart popup başlığı (EditHeaderView): ikon + caption (=Title, BÜYÜK harf — süreç paneli şerit paritesi).</summary>
+    private TabHeaderData BuildHeader()
+    {
+        return new TabHeaderData { FormCaption = (Title ?? string.Empty).ToUpper(), IconCssClass = Icon };
+    }
+
+    // Popup X/Escape/kapanış → türeve bildir; kapanışta (false) Geri (draft iptal) — inline "Geri" ile aynı sonuç.
+    private async Task OnPopupVisibleChanged(bool visible)
+    {
+        await VisibleChanged.InvokeAsync(visible);
+        if (!visible)
+        {
+            await OnBack.InvokeAsync();
+        }
+    }
 
     // Süreç paneli şerit stili (ProcessPanelBase.StripStyle + şerit div'inin inline stilleri) — birebir görünüm.
     private string HeaderStripStyle()

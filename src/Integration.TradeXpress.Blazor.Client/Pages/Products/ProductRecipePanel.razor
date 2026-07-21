@@ -6,6 +6,7 @@
 @using Integration.TradeXpress.Services
 @using Integration.TradeXpress.Blazor.Client.Pages.CurrentTransactions
 @inherits Integration.Framework.Blazor.Client.Components.Crud.EntryPanelBase<ProductRecipeLineGraphDto>
+@implements Integration.Framework.Blazor.Client.Services.Base.ISplitEditActions
 
 @* Reçete paneli — EntryPanelBase (Framework buffered giriş tabanı) türevi, süreç paneli görünümü:
    toolbar tip seçtirir → EntryPanelShell (kırmızı gradyan başlık + Kaydet/Geri) toolbar'ın yerine açılır;
@@ -13,9 +14,7 @@
 
 <DxLayoutBreakpoint MaxWidth="768" @bind-IsActive="@_isMobile" />
 
-@if (!IsPanelOpen)
-{
-    @* Reçete toolbar — ekleme aksiyonları "Yeni" dropdown'ı altında; Düzenle/Sil ayrı grup; net maliyet sağda. *@
+    @* Reçete toolbar — HEP görünür (draft popup'ı arkada açılır); ekleme "Yeni" dropdown'ında; Düzenle/Sil; net maliyet sağda. *@
     <DxToolbar ItemRenderStyleMode="ToolbarRenderStyleMode.Plain"
                AdaptivityAutoCollapseItemsToIcons="false" AdaptivityAutoHideRootItems="false">
         <DxToolbarItem Text="@L["New"]" IconCssClass="@TradeXpressIcons.Add" Tooltip="@L["New"].Value">
@@ -55,13 +54,29 @@
             </Template>
         </DxToolbarItem>
     </DxToolbar>
-}
-else if (Draft is { } d)
+
+@* Reçete draft — POPUP (EntryPanelShell Popup modu; kırmızı gradyan + seri-giriş korunur). X/Geri = draft iptal. *@
+@if (Draft is { } d)
 {
-    <EntryPanelShell Title="@EditorTitle(d)"
+    <EntryPanelShell Popup="true"
+                     Visible="true"
+                     Title="@EditorTitle(d)"
+                     Icon="@EditorIcon(d)"
+                     EditController="@this"
                      SaveEnabled="true"
-                     OnSave="@(async () => await SaveDraftAsync())"
+                     OnSave="@(async () => await SaveDraftDispatchAsync())"
                      OnBack="@(() => CloseDraft())">
+        @* Kaydet'ten ÖNCE "Tüm varyantlara uygula" checkbox'ı (footer, solda) — açıkken Kaydet satırı TÜM varyantlara upsert eder. *@
+        <FooterLeading>
+            @* Yalnız YENİ satır eklerken (düzenlemede gizli — tüm-varyant yalnız eklemeye özel). *@
+            @if (HasAllVariants && EditingItem is null)
+            {
+                <DxCheckBox Checked="@_applyToAllVariants" CheckedChanged="@((bool v) => _applyToAllVariants = v)" ValidationEnabled="false">
+                    @L["ApplyToAllVariants"]
+                </DxCheckBox>
+            }
+        </FooterLeading>
+        <ChildContent>
         <div style="padding:8px; @(_isMobile ? "" : "overflow-x:auto;")">
             <div style="display:flex; @(_isMobile ? "flex-direction:column;" : "width:max-content;") gap:4px; align-items:flex-start;">
 
@@ -262,6 +277,7 @@ else if (Draft is { } d)
                 <DxTextBox Text="@d.Description" TextChanged="@((string v) => OnDescriptionChanged(v))" TextExpression="@(() => d.Description)" CssClass="w-100" />
             </div>
         </div>
+        </ChildContent>
     </EntryPanelShell>
 }
 

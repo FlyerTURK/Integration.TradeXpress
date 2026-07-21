@@ -9,6 +9,18 @@ namespace Integration.Framework.Addressing;
 /// gömülür (EF <c>OwnsOne</c>/<c>OwnsMany</c>). İsim-bazlı (insan-okur) + opsiyonel yapısal kodlar
 /// (<see cref="CityCode"/>/<see cref="DistrictCode"/>; N11/plaka gibi kodlu sistemler için — push'ta lookup gerekmez).
 /// Immutable, değer eşitliği. Zorunlu: <see cref="City"/> + <see cref="Line"/>. Ülke varsayılan "TR".
+///
+/// <para><b>Coğrafya referansları (opsiyonel, additive):</b> <see cref="AdministrativeAreaId"/> /
+/// <see cref="LocalityId"/> çekirdek coğrafya kataloğuna (host-global) id-only köprüdür (nav/FK YOK; picker doldurur),
+/// <see cref="AdministrativeAreaIsoCode"/> ISO 3166-2 kodudur (ör. "TR-34"). Kodlu push sistemleri (N11) bunları
+/// KULLANMAZ — mevcut <see cref="City"/>/<see cref="District"/> + <see cref="CityCode"/>/<see cref="DistrictCode"/>
+/// okumaya devam eder; yeni alanlar yalnız zenginleştirme (fatura/UBL) içindir.</para>
+///
+/// <para><b>UBL <c>PostalAddress</c> rol eşlemesi</b> (bkz. <see cref="ToUblPostalAddress"/>):
+/// <see cref="Line"/> → <c>StreetName</c> · <see cref="Neighborhood"/> → <c>CitySubdivisionName</c> ·
+/// <see cref="District"/> → <c>CityName</c> · <see cref="PostalCode"/> → <c>PostalZone</c> ·
+/// <see cref="City"/> → <c>CountrySubentity</c> (Region) · <see cref="AdministrativeAreaIsoCode"/> →
+/// <c>CountrySubentityCode</c> · <see cref="CountryCode"/> → <c>Country/IdentificationCode</c> (ISO 3166-1).</para>
 /// </summary>
 public class Address : ValueObject
 {
@@ -27,7 +39,10 @@ public class Address : ValueObject
         string? countryCode = "TR",
         string? title = null,
         string? cityCode = null,
-        string? districtCode = null)
+        string? districtCode = null,
+        Guid? administrativeAreaId = null,
+        Guid? localityId = null,
+        string? administrativeAreaIsoCode = null)
     {
         City = StringFieldGuard.EnsureRequiredText(city, nameof(City), 1, AddressConsts.CityMaxLength);
         Line = StringFieldGuard.EnsureRequiredText(line, nameof(Line), 1, AddressConsts.LineMaxLength);
@@ -40,6 +55,10 @@ public class Address : ValueObject
         Title = StringFieldGuard.EnsureOptionalText(title, nameof(Title), 1, AddressConsts.TitleMaxLength);
         CityCode = StringFieldGuard.EnsureOptionalText(cityCode, nameof(CityCode), 1, AddressConsts.CodeMaxLength);
         DistrictCode = StringFieldGuard.EnsureOptionalText(districtCode, nameof(DistrictCode), 1, AddressConsts.CodeMaxLength);
+        AdministrativeAreaId = administrativeAreaId;
+        LocalityId = localityId;
+        AdministrativeAreaIsoCode = StringFieldGuard.EnsureOptionalText(
+            administrativeAreaIsoCode, nameof(AdministrativeAreaIsoCode), 1, AddressConsts.IsoSubentityCodeMaxLength);
     }
 
     #endregion
@@ -68,6 +87,16 @@ public class Address : ValueObject
     /// <summary>Opsiyonel yapısal ilçe kodu (ilçe id / N11).</summary>
     public string? DistrictCode { get; }
 
+    /// <summary>Opsiyonel çekirdek coğrafya idari-alan (il/eyalet) id'si — id-only köprü (nav/FK YOK). Picker doldurur;
+    /// kodlu push sistemleri kullanmaz.</summary>
+    public Guid? AdministrativeAreaId { get; }
+
+    /// <summary>Opsiyonel çekirdek coğrafya yerellik (ilçe) id'si — id-only köprü (nav/FK YOK).</summary>
+    public Guid? LocalityId { get; }
+
+    /// <summary>Opsiyonel ISO 3166-2 idari-alan kodu (ör. "TR-34") — UBL <c>CountrySubentityCode</c>.</summary>
+    public string? AdministrativeAreaIsoCode { get; }
+
     #endregion
 
     #region Methods
@@ -77,6 +106,20 @@ public class Address : ValueObject
         var parts = new[] { Line, Neighborhood, District, City, PostalCode }
             .Where(p => !string.IsNullOrWhiteSpace(p));
         return string.Join(", ", parts);
+    }
+
+    /// <summary>Adresi UBL <c>PostalAddress</c> projeksiyonuna çevirir (fatura/e-fatura dilimine hazır; rol eşlemesi
+    /// tip özetindedir). Salt okuma — yeni durum tutmaz; alanları UBL rollerine yeniden adlandırarak taşır.</summary>
+    public UblPostalAddress ToUblPostalAddress()
+    {
+        return new UblPostalAddress(
+            StreetName: Line,
+            CitySubdivisionName: Neighborhood,
+            CityName: District,
+            PostalZone: PostalCode,
+            Region: City,
+            CountrySubentityCode: AdministrativeAreaIsoCode,
+            CountryIdentificationCode: CountryCode);
     }
 
     // Değer eşitliği/hashcode/== Framework ValueObject tabanında (GetAtomicValues üzerinden) — burada yalnız alanlar.
@@ -91,6 +134,9 @@ public class Address : ValueObject
         yield return Title;
         yield return CityCode;
         yield return DistrictCode;
+        yield return AdministrativeAreaId;
+        yield return LocalityId;
+        yield return AdministrativeAreaIsoCode;
     }
 
     #endregion

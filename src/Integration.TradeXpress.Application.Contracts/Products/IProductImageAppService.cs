@@ -1,6 +1,7 @@
 using System;
 using System.ComponentModel.DataAnnotations;
 using System.Threading.Tasks;
+using Integration.TradeXpress.Variants;
 using Volo.Abp.Application.Services;
 
 namespace Integration.TradeXpress.Products;
@@ -14,6 +15,16 @@ public class ProductImageUploadDto
 
     [Required]
     public byte[] Content { get; set; } = Array.Empty<byte>();
+
+    /// <summary>Görselin ait olduğu ürün kodu — blob adının path ön-ekini (Products/{Kod}/…) üretir.</summary>
+    [Required]
+    [StringLength(ProductConsts.CodeMaxLength)]
+    public string ProductCode { get; set; } = string.Empty;
+
+    /// <summary>Görseli bir VARYANTA bağlar (blob path'ine …/{VaryantKodu}/ segmenti eklenir).
+    /// Boş = ürün-geneli görsel (Products/{Kod}/… altında).</summary>
+    [StringLength(EntityVariantConsts.VariantCodeMaxLength)]
+    public string? VariantCode { get; set; }
 }
 
 /// <summary>Yükleme sonucu — blob referansı + anında gösterim için önizleme.</summary>
