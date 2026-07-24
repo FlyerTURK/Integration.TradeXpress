@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Integration.TradeXpress.Metals;
+using Integration.TradeXpress.MultiCompany;
 using Integration.TradeXpress.Permissions;
 using Integration.TradeXpress.Variants;
 using Integration.TradeXpress.Products;
@@ -10,6 +11,7 @@ using Integration.TradeXpress.Financials.CurrencyUnits;
 using Integration.TradeXpress.Reports;
 using Integration.TradeXpress.Vouchers;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.Extensions.Logging;
 using Volo.Abp;
 using Volo.Abp.Data;
 using Volo.Abp.Domain.Repositories;
@@ -36,6 +38,10 @@ namespace Integration.TradeXpress.Substitutions;
 [Authorize(TradeXpressPermissions.Substitutions.Default)]
 public class SubstitutionCalculationAppService : TradeXpressAppService, ISubstitutionCalculationAppService
 {
+    /// <summary>EntityVariant sahip-tipi guard'ı — işçilik join'i yalnız Metal varyantlarına daralır
+    /// (başka entity'nin aynı Id'li varyantına çarpma savunması; RecipeCostPopulator ile aynı desen).</summary>
+    private const string MetalEntityName = "Metal";
+
     private readonly IRepository<SubstitutionGroup, Guid> _groupRepository;
     private readonly IRepository<SubstitutionGroupItem, Guid> _itemRepository;
     private readonly IRepository<Metal, Guid> _metalRepository;
@@ -223,22 +229,48 @@ public class SubstitutionCalculationAppService : TradeXpressAppService, ISubstit
         var countryCode = valuation[0].BaseCurrencyCode;
 
         var metalIds = metals.Select(m => m.Id).ToList();
-        var variantsQuery = await _entityVariantRepository.GetQueryableAsync();
-        var detailsQuery = await _metalVariantDetailRepository.GetQueryableAsync();
-        
-        var laborDetails = await AsyncExecuter.ToListAsync(
-            from v in variantsQuery
-            join d in detailsQuery on v.Id equals d.EntityVariantId
-            where v.IsMain && metalIds.Contains(v.EntityId)
-            select new { v.EntityId, d.EntryLabor, d.EntryLaborUnitId, d.LaborType }
-        );
-        var laborDict = laborDetails.ToDictionary(x => x.EntityId, x => x);
 
-        var inputs = metals.Select(m => BuildPieceCostInput(m, 
-            laborDict.TryGetValue(m.Id, out var labor) ? labor.EntryLabor : 0m,
-            laborDict.TryGetValue(m.Id, out var laborU) ? laborU.EntryLaborUnitId : (Guid?)null,
-            laborDict.TryGetValue(m.Id, out var laborT) ? laborT.LaborType : MetalLaborType.Amount
-        )).ToList();
+        // İşçilik HOST-seviyesi katalog varyantından okunur: EntityVariant + MetalVariantDetail
+        // IMultiTenant + ICompanyScoped filtreli olduğundan tenant working-context'inde host satırları
+        // elenirdi → işçilik sessizce 0'a düşer ve solver sıralaması yanlış kurulurdu. Metal yüklemesiyle
+        // aynı şekilde iki filtre de kapatılır (salt-okuma katalog çözümü; sorgu metalIds + EntityName ile
+        // daraltılmış → sızıntı yok; RecipeCostPopulator.LoadRecipeCatalogAsync deseni).
+        Dictionary<Guid, (decimal EntryLabor, Guid? EntryLaborUnitId, MetalLaborType LaborType)> laborByMetal;
+        using (_dataFilter.Disable<IMultiTenant>())
+        using (_dataFilter.Disable<ICompanyScoped>())
+        {
+            var variantsQuery = await _entityVariantRepository.GetQueryableAsync();
+            var detailsQuery = await _metalVariantDetailRepository.GetQueryableAsync();
+
+            var laborDetails = await AsyncExecuter.ToListAsync(
+                from v in variantsQuery
+                join d in detailsQuery on v.Id equals d.EntityVariantId
+                where v.IsMain && v.EntityName == MetalEntityName && metalIds.Contains(v.EntityId)
+                select new { v.EntityId, d.EntryLabor, d.EntryLaborUnitId, d.LaborType }
+            );
+            laborByMetal = laborDetails.ToDictionary(
+                x => x.EntityId,
+                x => (x.EntryLabor, x.EntryLaborUnitId, x.LaborType));
+        }
+
+        var inputs = new List<RecipeLineCostInput>(metals.Count);
+        foreach (var metal in metals)
+        {
+            if (laborByMetal.TryGetValue(metal.Id, out var labor))
+            {
+                inputs.Add(BuildPieceCostInput(metal, labor.EntryLabor, labor.EntryLaborUnitId, labor.LaborType));
+            }
+            else
+            {
+                // Sessiz-0 fallback KORUNUR (ürün kararı: fail-fast'e çevrilmedi) ama görünürlük için uyarılır —
+                // işçiliksiz katılım solver sıralamasını sistematik olarak bu madene doğru eğer.
+                Logger.LogWarning(
+                    "Muadil hesap: maden için işçilik detayı bulunamadı, işçilik 0 varsayıldı. MetalId={MetalId}, MetalCode={MetalCode}",
+                    metal.Id, metal.Code);
+                inputs.Add(BuildPieceCostInput(metal, entryLabor: 0m, entryLaborUnitId: null, laborType: MetalLaborType.Amount));
+            }
+        }
+
         var computed = _recipeCostCalculator.Compute(inputs, sellByUnit, countryCode);
 
         var unitCostByMetal = new Dictionary<Guid, decimal>(metals.Count);

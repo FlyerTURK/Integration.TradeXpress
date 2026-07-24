@@ -234,10 +234,8 @@
 
 <DxFormLayout CssClass="w-100">
     <DxFormLayoutGroup Caption="@L["ShipmentTemplate:GeneralSection"]" ColSpanMd="12">
-        <DxFormLayoutItem Caption="@L["ShipmentTemplate:MaxPurchaseQuantity"]" ColSpanMd="6" BeginRow="true">
-            <NumericSpinEdit TValue="int?" @bind-Value="@Model.MaxPurchaseQuantity"
-                             ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
-        </DxFormLayoutItem>
+        @* Max satın alım adedi buradan KALDIRILDI (K4, 2026-07-23): listeleme kuralı — Product.MaxPurchaseQuantity
+           varsayılanı + kanal-ürün override'ı (ör. N11 ürün formu); kargo şablonuna ait değil. *@
         <DxFormLayoutItem Caption="@L["Description"]" ColSpanMd="12" BeginRow="true">
             <DxMemo @bind-Text="@Model.Description" Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100"
                     NullText="@L["Optional"]" />

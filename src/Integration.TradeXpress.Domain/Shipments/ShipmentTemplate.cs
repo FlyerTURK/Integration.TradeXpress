@@ -7,7 +7,7 @@ namespace Integration.TradeXpress.Shipments;
 /// Kullanıcı tanımlar (sync DEĞİL); ürünler <c>Product.ShipmentTemplateId</c> ile referans eder (id-only, nav YOK).
 /// <b>Company-owned</b> güvenlik sınırı (<see cref="ICompanyOwned"/>, non-null <see cref="CompanyId"/>) + per-tenant.
 /// Standart kimlik (Code/Name/Description/IsActive) + gönderim/çıkış adresi (ŞUBE ya da ÖZEL adres — tam biri) +
-/// hazırlık/teslim süresi + ücret modeli (ücretsiz/alıcı-öder/şartlı) + iade + max satın alım. Kanallar
+/// hazırlık/teslim süresi + ücret modeli (ücretsiz/alıcı-öder/şartlı) + iade. Kanallar
 /// (N11/Etsy/Trendyol) bu çekirdeği kendi kodlamalarına eşler (SONRAKİ FAZLAR). Silme referans bütünlüğü AppService
 /// silme-guard'ıyla korunur (sert FK/cascade DEĞİL).
 /// </summary>
@@ -110,7 +110,10 @@ public class ShipmentTemplate : FullAuditedAggregateRoot<Guid>, IMultiTenant, IC
     /// <summary>İade koşulları/açıklaması — opsiyonel. İade kapalıysa temizlenir.</summary>
     public virtual string? ReturnInfo { get; protected set; }
 
-    /// <summary>Alıcı başına maksimum satın alım adedi (opsiyonel) — en az 1.</summary>
+    /// <summary>[OBSOLETE-NİYETLİ — K4, 2026-07-23] Alıcı başına maksimum satın alım adedi LİSTELEME kuralıdır,
+    /// kargo değil → <see cref="Products.Product.MaxPurchaseQuantity"/> varsayılanına taşındı (kanal-ürün override'ı
+    /// kanal entity'sinde). Bu property/kolon ARTIK YAZILMAZ/OKUNMAZ; yalnız EF eşlemesi için duruyor —
+    /// Faz-4'te K8 kolonuyla birlikte fiziksel düşecek (Migrations elle editlenmez; ayrı migration işi).</summary>
     public virtual int? MaxPurchaseQuantity { get; protected set; }
 
     #endregion
@@ -295,17 +298,6 @@ public class ShipmentTemplate : FullAuditedAggregateRoot<Guid>, IMultiTenant, IC
 
         ReturnBranchId = null;
         ReturnAddress = customAddress;
-    }
-
-    /// <summary>Alıcı başına maksimum satın alım adedi (opsiyonel) — en az 1 (fail-fast).</summary>
-    public virtual void SetMaxPurchaseQuantity(int? maxPurchaseQuantity)
-    {
-        if (maxPurchaseQuantity is { } value && value < 1)
-        {
-            throw new BusinessException("TradeXpress:Shipment:Template:MaxPurchaseQuantityInvalid");
-        }
-
-        MaxPurchaseQuantity = maxPurchaseQuantity;
     }
 
     public override string ToString()

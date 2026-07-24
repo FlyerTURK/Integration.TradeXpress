@@ -8,6 +8,7 @@ using Integration.TradeXpress.Services;
 using Integration.TradeXpress.SalesChannels;
 using Integration.TradeXpress.N11Categories;
 using Integration.TradeXpress.TrendyolCategories;
+using Integration.TradeXpress.TrendyolBrands;
 using Integration.TradeXpress.EtsyTaxonomies;
 using Integration.TradeXpress.N11Cities;
 using Integration.TradeXpress.N11Shipments;
@@ -364,6 +365,18 @@ public partial class TrendyolCategoryToTreeNodeDtoMapper : MapperBase<TrendyolCa
 {
     public override partial TrendyolCategoryTreeNodeDto Map(TrendyolCategory source);
     public override partial void Map(TrendyolCategory source, TrendyolCategoryTreeNodeDto destination);
+}
+
+// ── Trendyol marka cache'i (host-global, write-through) → arama DTO'su ──
+//    ExternalId (long) → BrandId (long, ad farkı için MapProperty); Name/IsLuxury ada göre otomatik.
+[Mapper]
+public partial class TrendyolBrandToDtoMapper : MapperBase<TrendyolBrand, TrendyolBrandDto>
+{
+    [MapProperty(nameof(TrendyolBrand.ExternalId), nameof(TrendyolBrandDto.BrandId))]
+    public override partial TrendyolBrandDto Map(TrendyolBrand source);
+
+    [MapProperty(nameof(TrendyolBrand.ExternalId), nameof(TrendyolBrandDto.BrandId))]
+    public override partial void Map(TrendyolBrand source, TrendyolBrandDto destination);
 }
 
 // ── Etsy seller taxonomy (host-global taksonomi) → ağaç düğüm DTO'su ──

@@ -75,6 +75,8 @@ public class ProductGetDto : EntityDto<Guid>, IGetDto<Guid>, IHasCode
     public ProductCondition Condition { get; set; } = ProductCondition.New;
     public int PreparingDay { get; set; } = 1;
 
+    /// <summary>Kargo şablonu adı — K8-Faz1: OKUMA tek kaynağı FK (<see cref="ShipmentTemplateId"/> doluysa ad
+    /// çekirdek şablondan çözülür); legacy string yalnız FK boş/şablon silinmişken fallback. Kolonun kaldırılması Faz-4 (K8).</summary>
     [StringLength(ProductConsts.ShipmentTemplateNameMaxLength)]
     public string? ShipmentTemplateName { get; set; }
 
@@ -160,6 +162,8 @@ public class ProductCreateDto : ICreateDto
     public ProductCondition Condition { get; set; } = ProductCondition.New;
     public int PreparingDay { get; set; } = 1;
 
+    /// <summary>Legacy kargo şablonu adı — FK (<see cref="ShipmentTemplateId"/>) doluysa sunucu adı çekirdekten çözüp
+    /// buna SENKRON yazar (Carrier id+ad snapshot deseni; K8-Faz1) — serbest metin yalnız FK boşken etkili.</summary>
     [StringLength(ProductConsts.ShipmentTemplateNameMaxLength)]
     public string? ShipmentTemplateName { get; set; }
 
@@ -238,6 +242,8 @@ public class ProductUpdateDto : IUpdateDto
     public ProductCondition Condition { get; set; } = ProductCondition.New;
     public int PreparingDay { get; set; } = 1;
 
+    /// <summary>Legacy kargo şablonu adı — FK (<see cref="ShipmentTemplateId"/>) doluysa sunucu adı çekirdekten çözüp
+    /// buna SENKRON yazar (Carrier id+ad snapshot deseni; K8-Faz1) — serbest metin yalnız FK boşken etkili.</summary>
     [StringLength(ProductConsts.ShipmentTemplateNameMaxLength)]
     public string? ShipmentTemplateName { get; set; }
 

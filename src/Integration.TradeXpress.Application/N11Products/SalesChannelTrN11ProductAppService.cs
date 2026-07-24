@@ -3,9 +3,11 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
+using Integration.TradeXpress.Channels;
 using Integration.TradeXpress.Financials.CurrencyUnits;
 using Integration.TradeXpress.MultiCompany;
 using Integration.TradeXpress.N11Categories;
+using Integration.TradeXpress.N11Shipments;
 using Integration.TradeXpress.Permissions;
 using Integration.TradeXpress.Products;
 using Integration.TradeXpress.SalesChannels;
@@ -48,6 +50,7 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
     private readonly IRepository<SalesChannelTrN11ProductAttribute, Guid> _channelAttributeRepository;
     private readonly IRepository<SalesChannelTrN11ProductAttributeValue, Guid> _channelAttributeValueRepository;
     private readonly IRepository<N11Category, Guid> _n11CategoryRepository;
+    private readonly IRepository<N11ShipmentTemplate, Guid> _n11ShipmentTemplateRepository;   // yalnız OKUMA — push ad çözümü (K8-Faz1)
     private readonly RecipeCostPopulator _recipeCostPopulator;
     private readonly SubstitutionChannelPlanProvider _substitutionPlanProvider;
     private readonly ICurrentCompany _currentCompany;
@@ -74,6 +77,7 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
         IRepository<SalesChannelTrN11ProductAttribute, Guid> channelAttributeRepository,
         IRepository<SalesChannelTrN11ProductAttributeValue, Guid> channelAttributeValueRepository,
         IRepository<N11Category, Guid> n11CategoryRepository,
+        IRepository<N11ShipmentTemplate, Guid> n11ShipmentTemplateRepository,
         RecipeCostPopulator recipeCostPopulator,
         SubstitutionChannelPlanProvider substitutionPlanProvider,
         ICurrentCompany currentCompany,
@@ -99,6 +103,7 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
         _channelAttributeRepository = channelAttributeRepository;
         _channelAttributeValueRepository = channelAttributeValueRepository;
         _n11CategoryRepository = n11CategoryRepository;
+        _n11ShipmentTemplateRepository = n11ShipmentTemplateRepository;
         _recipeCostPopulator = recipeCostPopulator;
         _substitutionPlanProvider = substitutionPlanProvider;
         _currentCompany = currentCompany;
@@ -864,6 +869,9 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
             .Select((url, index) => new N11ProductImage(url, index + 1))
             .ToList();
 
+        // K8-Faz1: kargo şablonu adı canlı-referans/FK-onarım zinciriyle çözülür (loose string tek başına kaynak değil).
+        var shipmentTemplateName = await ResolvePushShipmentTemplateNameAsync(channelProduct, product);
+
         var data = new N11ProductData(
             ProductSellerCode: channelProduct.SellerCode,   // KAYIT-bazlı upsert kimliği — her kayıt N11'de AYRI listeleme
             Title: product.Name,
@@ -874,8 +882,9 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
             CurrencyType: currencyType,
             ProductCondition: (byte)channelProduct.Condition,
             PreparingDay: channelProduct.PreparingDay,
-            ShipmentTemplate: channelProduct.ShipmentTemplateName,
-            MaxPurchaseQuantity: channelProduct.MaxPurchaseQuantity ?? product.MaxPurchaseQuantity,   // kanal → ürün varsayılanı
+            ShipmentTemplate: shipmentTemplateName,
+            // K4: listeleme kuralı — kanal override doluysa kanal, değilse ürün varsayılanı (merkezî K10 zinciri).
+            MaxPurchaseQuantity: ChannelInheritance.Resolve(channelProduct.MaxPurchaseQuantity, product.MaxPurchaseQuantity),
             Images: images,
             Attributes: validated.ProductAttributes,       // varyant eksenleri FİLTRELİ + kanonik değerler
             StockItems: stockItems,
@@ -899,6 +908,53 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
     /// <summary>Push planı — N11'e gidecek veri + BAŞARILI push sonrası SKU satırlarını kurmak için kanonik adaylar
     /// (kod donması yalnız başarılı push'ta gerçekleşsin diye ReconcileSkus çağrısı push sonrasına ertelenir).</summary>
     private sealed record N11ProductPushPlan(N11ProductData Data, List<N11SkuPushCandidate> Candidates);
+
+    /// <summary>K8-Faz1: N11'e gidecek kargo şablonu adının okuma zinciri —
+    /// (a) kanal-ürünün seçili adı YEREL N11 şablon aynasında hâlâ mevcutsa (canlı referans) AYNEN kullanılır
+    ///     (kullanıcının kanal-seviyesi seçimi ezilmez — K10 "kanal-dolu-ise-kanal" deseni);
+    /// (b) bayat/boşsa ürün FK zinciri ONARIR: <c>Product.ShipmentTemplateId</c> → K1 köprüsü
+    ///     (<c>N11ShipmentTemplate.ShipmentTemplateId == çekirdek</c> + aynı kanal) → <c>TemplateName</c>
+    ///     (LogWarning ile görünür onarım — sessiz kalmasın);
+    /// (c) o da çözülmezse ham string olduğu gibi gider (mevcut davranış — kırmama garantisi; N11 kendi doğrular).
+    /// Canlılık kontrolü YEREL aynaya karşı — push hazırlığına canlı N11 çağrısı EKLENMEZ. Kanal kolonunun id-only'ye
+    /// çevrimi (N1) Faz-4 işi; bu zincir o güne kadar okuma tarafını FK-öncelikli tutar.</summary>
+    private async Task<string> ResolvePushShipmentTemplateNameAsync(SalesChannelTrN11Product channelProduct, Product product)
+    {
+        // Ad kimliktir (N11'de ayrı şablon id'si yok) — trim'li karşılaştırma (NormalizeName deseni; ayna adları zaten trim'li).
+        var storedName = channelProduct.ShipmentTemplateName?.Trim() ?? string.Empty;
+
+        // (a) Seçili ad yerel aynada CANLI referans mı? (aynı kanal + birebir ad)
+        if (storedName.Length > 0)
+        {
+            var isLive = await AsyncExecuter.AnyAsync(
+                (await _n11ShipmentTemplateRepository.GetQueryableAsync())
+                    .Where(t => t.SalesChannelId == channelProduct.SalesChannelId && t.TemplateName == storedName));
+            if (isLive)
+            {
+                return storedName;
+            }
+        }
+
+        // (b) FK onarım zinciri: ürünün çekirdek şablonu → K1 köprüsüyle BU kanala açılmış N11 şablonu.
+        if (product.ShipmentTemplateId is { } coreTemplateId)
+        {
+            var repairedName = await AsyncExecuter.FirstOrDefaultAsync(
+                (await _n11ShipmentTemplateRepository.GetQueryableAsync())
+                    .Where(t => t.SalesChannelId == channelProduct.SalesChannelId && t.ShipmentTemplateId == coreTemplateId)
+                    .OrderBy(t => t.TemplateName)   // birden çok köprü varsa deterministik seçim
+                    .Select(t => t.TemplateName));
+            if (!string.IsNullOrEmpty(repairedName))
+            {
+                Logger.LogWarning(
+                    "N11 push: bayat kargo şablonu referansı FK'den onarıldı (kanal-ürün {ChannelProductId}: '{StaleName}' → '{RepairedName}').",
+                    channelProduct.Id, storedName, repairedName);
+                return repairedName;
+            }
+        }
+
+        // (c) Çözülemedi — ham string mevcut davranışla gider.
+        return channelProduct.ShipmentTemplateName;
+    }
 
     // ── Push aday satırları (J3: N11-only kombinasyonlar da push edilir) ─────────────────────────────
 

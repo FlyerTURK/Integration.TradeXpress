@@ -10,6 +10,7 @@ using Volo.Abp.Application.Services;
 using Volo.Abp.Data;
 using Volo.Abp.DependencyInjection;
 using Volo.Abp.Domain.Repositories;
+using Volo.Abp.MultiTenancy;
 using Volo.Abp.Validation;
 
 namespace Integration.TradeXpress.Variants;
@@ -207,7 +208,10 @@ public class EntityVariantGraphService : ApplicationService, IEntityVariantGraph
 
     public async Task<List<CommodityVariantOptionDto>> GetActiveVariantOptionsAsync(string entityName, Guid entityId)
     {
-        // Company filtresi kapatılır (entityId zaten tek sahibe daraltıyor — global/holding görünürlük sızıntısı yok).
+        // Company + tenant filtreleri kapatılır (entityId zaten tek sahibe daraltıyor — görünürlük sızıntısı yok).
+        // IMultiTenant ŞART: host-seviyesi emtia kataloğu (TenantId=null; ör. madenler, commit 6686354) tenant
+        // working-context'inde sorgulanınca varyantları filtreye takılıp combo BOŞ kalıyordu (denetim bulgusu).
+        using (_dataFilter.Disable<IMultiTenant>())
         using (_dataFilter.Disable<ICompanyScoped>())
         {
             return await AsyncExecuter.ToListAsync(

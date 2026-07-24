@@ -80,8 +80,13 @@ public partial class SalesChannelTrTrendyolProductEditFields : CrudComponentBase
 
     private List<TrendyolLeafAttributeDto> _attributeDefs = new();
 
-    // Marka type-ahead son-arama sonuçları (server'dan; ön-yükleme YOK) — string BrandId'e projeksiyon.
+    // Marka picker verisi — K3 hybrid: açılışta write-through CACHE listesi (DB'den; canlı API çağrısı YOK),
+    // kullanıcı yazınca CANLI arama sonuçları (server'dan), arama temizlenince yine cache. String BrandId'e projeksiyon.
     private List<BrandOption> _brandResults = new();
+
+    // Write-through cache'ten gelen açılış listesi (bir kez yüklenir) — arama temizlenince buna dönülür.
+    private List<BrandOption> _cachedBrands = new();
+    private bool _brandCacheLoaded;
 
     // Trendyol para birimi lookup verisi (döviz cache) — yalnız varyant override fiyat para birimi için.
     private List<CurrencyUnitListDto> _units = new();
@@ -121,8 +126,34 @@ public partial class SalesChannelTrTrendyolProductEditFields : CrudComponentBase
     {
         await EnsureCurrencyUnitsAsync();
         await EnsureRecipeCatalogsAsync();
+        await EnsureBrandCacheAsync();
         await EnsureAttributesAsync();
         await EnsurePreviewAsync();
+    }
+
+    // Marka picker açılış beslemesi — write-through CACHE'ten bir kez yüklenir (K3: form açılışında canlı API YOK).
+    private async Task EnsureBrandCacheAsync()
+    {
+        if (_brandCacheLoaded)
+        {
+            return;
+        }
+
+        _brandCacheLoaded = true;
+        try
+        {
+            _cachedBrands = (await BrandAppService.GetCachedListAsync())
+                .Select(b => new BrandOption { BrandId = b.BrandId.ToString(), Name = b.Name, IsLuxury = b.IsLuxury })
+                .ToList();
+            if (_brandResults.Count == 0)
+            {
+                _brandResults = _cachedBrands;
+            }
+        }
+        catch (Exception ex)
+        {
+            UiService.ShowErrorToast(CrudErrorPresenter.ToFriendlyMessage(ex, ServiceProvider) ?? L["UnexpectedError"].Value);
+        }
     }
 
     // Trendyol'a gidecek veri önizlemesi — yalnız KAYDEDİLMİŞ (Id'li) kayıtta; BuildProductData read-only çalışır (submit yok).
@@ -333,12 +364,13 @@ public partial class SalesChannelTrTrendyolProductEditFields : CrudComponentBase
         await EnsureAttributesAsync();
     }
 
-    // ── Marka type-ahead (ada göre server araması → BrandId) ─────────────────────────────────────────
+    // ── Marka type-ahead (ada göre CANLI server araması → BrandId; K3: boş terim = cache listesine dön) ──
     private async Task OnBrandSearchAsync(string term)
     {
         if (string.IsNullOrWhiteSpace(term))
         {
-            _brandResults = new List<BrandOption>();
+            // Arama temizlendi → açılıştaki cache listesi geri gelir (canlı akış bozulmaz; cache katmanı additive).
+            _brandResults = _cachedBrands;
             return;
         }
 
@@ -346,7 +378,7 @@ public partial class SalesChannelTrTrendyolProductEditFields : CrudComponentBase
         {
             var brands = await BrandAppService.SearchAsync(term);
             _brandResults = brands
-                .Select(b => new BrandOption { BrandId = b.BrandId.ToString(), Name = b.Name })
+                .Select(b => new BrandOption { BrandId = b.BrandId.ToString(), Name = b.Name, IsLuxury = b.IsLuxury })
                 .ToList();
         }
         catch (Exception ex)
@@ -358,8 +390,11 @@ public partial class SalesChannelTrTrendyolProductEditFields : CrudComponentBase
 
     private void OnBrandChangedAsync(string? brandId)
     {
+        var selected = _brandResults.FirstOrDefault(b => b.BrandId == brandId);
         Model.BrandId = brandId ?? string.Empty;
-        Model.BrandName = _brandResults.FirstOrDefault(b => b.BrandId == brandId)?.Name;
+        Model.BrandName = selected?.Name;
+        // Luxury seçimden taşınır (K3 cache hint'i); listede yoksa null = bilinmiyor → cache'te luxury ezilmez.
+        Model.BrandIsLuxury = selected?.IsLuxury;
         MarkDirty(nameof(Model.BrandId));
     }
 
@@ -524,11 +559,13 @@ public partial class SalesChannelTrTrendyolProductEditFields : CrudComponentBase
         EditContext?.NotifyFieldChanged(new FieldIdentifier(Model, fieldName));
     }
 
-    /// <summary>Marka type-ahead sonucunu string BrandId'e projekte eden görünüm satırı — kanal-üründe BrandId string
-    /// (Trendyol BrandId long); LookupEdit TValue string ile eşleşmesi için tek-yönlü projeksiyon.</summary>
+    /// <summary>Marka type-ahead/cache sonucunu string BrandId'e projekte eden görünüm satırı — kanal-üründe BrandId
+    /// string (Trendyol BrandId long); LookupEdit TValue string ile eşleşmesi için tek-yönlü projeksiyon.
+    /// IsLuxury seçimde modele taşınır (K3 write-through cache beslemesi).</summary>
     public class BrandOption
     {
         public string BrandId { get; set; } = string.Empty;
         public string Name { get; set; } = string.Empty;
+        public bool IsLuxury { get; set; }
     }
 }

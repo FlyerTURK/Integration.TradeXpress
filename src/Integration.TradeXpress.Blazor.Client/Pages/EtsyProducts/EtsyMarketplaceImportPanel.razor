@@ -25,6 +25,10 @@
         {
             <span>@L["EtsyImport:CreatedVariants", r.CreatedVariants]</span>
         }
+        @if (r.StockDifferenceCount > 0)
+        {
+            <span style="color:#b45309;">@L["EtsyImport:StockDifferences", r.StockDifferenceCount]</span>
+        }
         @if (r.SkippedRows.Count > 0)
         {
             <span style="color:#b45309;">@L["EtsyImport:Skipped", r.SkippedRows.Count]</span>

@@ -86,7 +86,8 @@ public sealed class TrendyolBrandClient : TrendyolRestClientBase, ITrendyolBrand
             .ToList();
     }
 
-    /// <summary><c>{ brands: [ { id, name } ] }</c> (ya da düz dizi) → DTO listesi. id/name eksik öğe atlanır.</summary>
+    /// <summary><c>{ brands: [ { id, name, luxury } ] }</c> (ya da düz dizi) → DTO listesi. id/name eksik öğe atlanır;
+    /// luxury opsiyonel (yoksa false).</summary>
     private static List<TrendyolBrandDto> ParseBrands(string payload)
     {
         var result = new List<TrendyolBrandDto>();
@@ -112,7 +113,13 @@ public sealed class TrendyolBrandClient : TrendyolRestClientBase, ITrendyolBrand
                 && idEl.TryGetInt64(out var id)
                 && el.TryGetProperty("name", out var nameEl) && nameEl.ValueKind == JsonValueKind.String)
             {
-                result.Add(new TrendyolBrandDto { BrandId = id, Name = nameEl.GetString() ?? string.Empty });
+                var isLuxury = el.TryGetProperty("luxury", out var luxEl) && luxEl.ValueKind == JsonValueKind.True;
+                result.Add(new TrendyolBrandDto
+                {
+                    BrandId = id,
+                    Name = nameEl.GetString() ?? string.Empty,
+                    IsLuxury = isLuxury,
+                });
             }
         }
 

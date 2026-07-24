@@ -9,6 +9,7 @@ using Integration.TradeXpress.EtsyProducts;
 using Integration.TradeXpress.MultiCompany;
 using Integration.TradeXpress.N11Products;
 using Integration.TradeXpress.SalesChannels.Variants;
+using Integration.TradeXpress.Shipments;
 using Integration.TradeXpress.TrendyolProducts;
 using Integration.TradeXpress.Permissions;
 using Integration.TradeXpress.Variants;
@@ -39,6 +40,7 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
     private const string ProductMediaEntityName = "Product";
 
     private readonly IRepository<Product, Guid> _repository;
+    private readonly IRepository<ShipmentTemplate, Guid> _shipmentTemplateRepository;   // yalnız OKUMA — FK→ad çözümü (K8-Faz1)
     private readonly IEntityVariantGraphService _entityVariant;
     private readonly IRepository<EntityVariant, Guid> _variantRepository;
     private readonly IRepository<ProductVariantDetail, Guid> _variantDetailRepository;
@@ -56,6 +58,7 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
 
     public ProductAppService(
         IRepository<Product, Guid> repository,
+        IRepository<ShipmentTemplate, Guid> shipmentTemplateRepository,
         IEntityVariantGraphService entityVariant,
         IRepository<EntityVariant, Guid> variantRepository,
         IRepository<ProductVariantDetail, Guid> variantDetailRepository,
@@ -69,6 +72,7 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         IEntityMediaAppService entityMedia)
     {
         _repository = repository;
+        _shipmentTemplateRepository = shipmentTemplateRepository;
         _entityVariant = entityVariant;
         _variantRepository = variantRepository;
         _variantDetailRepository = variantDetailRepository;
@@ -167,7 +171,8 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         entity.SetPersonalization(input.IsPersonalizable, input.PersonalizationInstructions,
             input.PersonalizationIsRequired, input.PersonalizationCharCountMax);
         ApplyMarketplaceDefaults(entity, input.Domestic, input.Condition, input.PreparingDay,
-            input.ShipmentTemplateName, input.ShipmentTemplateId, input.MaxPurchaseQuantity, input.SellerNote,
+            await ResolveShipmentTemplateNameAsync(input.ShipmentTemplateId, input.ShipmentTemplateName),
+            input.ShipmentTemplateId, input.MaxPurchaseQuantity, input.SellerNote,
             input.CurrencyUnitId, input.SpecialInfo, input.AddOns);
         await _repository.InsertAsync(entity, autoSave: true);
 
@@ -197,7 +202,8 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         entity.SetPersonalization(input.IsPersonalizable, input.PersonalizationInstructions,
             input.PersonalizationIsRequired, input.PersonalizationCharCountMax);
         ApplyMarketplaceDefaults(entity, input.Domestic, input.Condition, input.PreparingDay,
-            input.ShipmentTemplateName, input.ShipmentTemplateId, input.MaxPurchaseQuantity, input.SellerNote,
+            await ResolveShipmentTemplateNameAsync(input.ShipmentTemplateId, input.ShipmentTemplateName),
+            input.ShipmentTemplateId, input.MaxPurchaseQuantity, input.SellerNote,
             input.CurrencyUnitId, input.SpecialInfo, input.AddOns);
         await DeleteOrphanImageBlobsAsync(oldImages, entity.Images);
         await _repository.UpdateAsync(entity, autoSave: true);
@@ -635,6 +641,22 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         return grouped.ToDictionary(x => x.EntityId, x => x.Count);
     }
 
+    /// <summary>K8-Faz1: kargo şablonu adının OKUMA tek kaynağı FK — <paramref name="shipmentTemplateId"/> doluysa
+    /// çekirdek <see cref="ShipmentTemplate.Name"/> çözülür; FK boş ya da şablon bulunamıyorsa (silinmiş/bayat)
+    /// legacy string'e düşülür (kırmama garantisi). Yazma yolu da aynı çözümü kullanır → legacy kolon FK'den senkron
+    /// dolan denormalize snapshot olur (<see cref="ShipmentTemplate.SetCarrier"/> id+ad deseni); kolonun fiziksel
+    /// kaldırılması Faz-4 (K8).</summary>
+    private async Task<string?> ResolveShipmentTemplateNameAsync(Guid? shipmentTemplateId, string? legacyName)
+    {
+        if (shipmentTemplateId is not { } id)
+        {
+            return legacyName;
+        }
+
+        var template = await _shipmentTemplateRepository.FindAsync(id);
+        return template?.Name ?? legacyName;
+    }
+
     private async Task<ProductGetDto> ToGetDtoAsync(Product p)
     {
         // Varyant grafı — JENERİK agnostik servisten (çekirdek: nitelik/değer/varyant, AttributeSummary dolu) +
@@ -686,7 +708,8 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
             Domestic = p.Domestic,
             Condition = p.Condition,
             PreparingDay = p.PreparingDay,
-            ShipmentTemplateName = p.ShipmentTemplateName,
+            // K8-Faz1: kargo şablonu adının OKUMA tek kaynağı FK — legacy string yalnız fallback.
+            ShipmentTemplateName = await ResolveShipmentTemplateNameAsync(p.ShipmentTemplateId, p.ShipmentTemplateName),
             ShipmentTemplateId = p.ShipmentTemplateId,
             MaxPurchaseQuantity = p.MaxPurchaseQuantity,
             SellerNote = p.SellerNote,

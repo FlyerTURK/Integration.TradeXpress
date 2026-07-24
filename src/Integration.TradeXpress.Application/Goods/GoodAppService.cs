@@ -14,7 +14,7 @@ using Integration.TradeXpress.Permissions;
 using Integration.TradeXpress.Variants;
 using Microsoft.AspNetCore.Authorization;
 using Volo.Abp;
-using Volo.Abp.Application.Dtos;
+using Volo.Abp.Domain.Entities;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.MultiTenancy;
 
@@ -108,9 +108,9 @@ public class GoodAppService
 
         using (DataFilter.Disable<ICompanyScoped>())
         {
-            var items = await GetPickerListCoreAsync(scope);
-            await EnrichPricingAsync(items);   // voucher paneli GoodListDto.EntryPrice/ExitPrice okur
-            return items;
+            // Fiyat zenginleştirmesi EnrichPickerListAsync hook'unda — base'in IMultiTenant-disable scope'u İÇİNDE
+            // çalışır (host mamüllerin varyant fiyat satırları tenant filtresine takılmasın).
+            return await GetPickerListCoreAsync(scope);
         }
     }
 
@@ -154,13 +154,21 @@ public class GoodAppService
         }
     }
 
-    // Liste — base + ANA VARYANT fiyat enrich'i (fiyat artık Good'da DEĞİL → varyantta; voucher-liste bunu okur).
-    public override async Task<PagedResultDto<GoodListDto>> GetListAsync(GoodListRequestDto input)
+    // Liste zenginleştirmesi — kardeş emtia deseni (Metal/Jewelry/Stone): base GetListAsync'in IMultiTenant-disable
+    // scope'u İÇİNDE çağrılır; host (TenantId=null) mamüllerin varyant/medya/fiyat satırları tenant filtresine takılmaz.
+    // (Eski GetListAsync override'ı zenginleştirmeyi scope KAPANDIKTAN sonra yapıyordu → host mamüllerde thumbnail/fiyat boştu.)
+    protected override async Task EnrichListAsync(List<Good> entities, List<GoodListDto> dtos)
     {
-        var page = await base.GetListAsync(input);
-        await EnrichPricingAsync(page.Items);
-        await EnrichPreviewsAsync(page.Items);
-        return page;
+        await base.EnrichListAsync(entities, dtos);
+        await EnrichPricingAsync(dtos);      // fiyat artık Good'da DEĞİL → ana varyantta; voucher-liste bunu okur
+        await EnrichPreviewsAsync(dtos);
+    }
+
+    // Picker (combo) görsel çizmez → önizleme batch'i ATLANIR (Metal deseni; base EnrichListAsync'e düşmesin).
+    // Fiyat KALIR — voucher paneli GoodListDto.EntryPrice/ExitPrice okur.
+    protected override Task EnrichPickerListAsync(List<Good> entities, List<GoodListDto> dtos)
+    {
+        return EnrichPricingAsync(dtos);
     }
 
     // GoodListDto.ImagePreviewUrl'i ana varyantın varsayılan medyasının poster'ından doldurur (tek batch; N+1 yok).
@@ -440,7 +448,7 @@ public class GoodAppService
 
     // Id → Code sözlüğü (batch; N+1 yok). Kod taşıyan entity'ler (Account/SubAccount/CurrencyUnit) için.
     private async Task<Dictionary<Guid, string>> CodeMapAsync<TEntity>(IRepository<TEntity, Guid> repo, IEnumerable<Guid> ids)
-        where TEntity : class, Volo.Abp.Domain.Entities.IEntity<Guid>
+        where TEntity : class, IEntity<Guid>
     {
         var idList = ids.Distinct().ToList();
         if (idList.Count == 0)

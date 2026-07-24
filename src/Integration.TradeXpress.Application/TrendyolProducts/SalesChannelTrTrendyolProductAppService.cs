@@ -10,6 +10,7 @@ using Integration.TradeXpress.SalesChannels;
 using Integration.TradeXpress.SalesChannels.Variants;
 using Integration.TradeXpress.Substitutions;
 using Integration.TradeXpress.Trendyol;
+using Integration.TradeXpress.TrendyolBrands;
 using Integration.TradeXpress.TrendyolCategories;
 using Integration.TradeXpress.Variants;
 using Integration.TradeXpress.Vouchers;
@@ -56,6 +57,7 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
     private readonly ITrendyolCategoryAppService _categoryAppService;
     private readonly IPublicImageLinkProvider _publicImageLink;
     private readonly MarketplaceImageDownloader _imageDownloader;
+    private readonly TrendyolBrandCacheManager _brandCacheManager;
 
     public SalesChannelTrTrendyolProductAppService(
         IRepository<SalesChannelTrTrendyolProduct, Guid> repository,
@@ -80,7 +82,8 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
         ITrendyolProductClient client,
         ITrendyolCategoryAppService categoryAppService,
         IPublicImageLinkProvider publicImageLink,
-        MarketplaceImageDownloader imageDownloader)
+        MarketplaceImageDownloader imageDownloader,
+        TrendyolBrandCacheManager brandCacheManager)
     {
         _repository = repository;
         _productRepository = productRepository;
@@ -105,6 +108,7 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
         _categoryAppService = categoryAppService;
         _publicImageLink = publicImageLink;
         _imageDownloader = imageDownloader;
+        _brandCacheManager = brandCacheManager;
     }
 
     public virtual async Task<List<SalesChannelTrTrendyolProductDto>> GetListForProductAsync(Guid productId)
@@ -222,6 +226,9 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
             input.BrandId);
         ApplyInput(entity, input);
         await _repository.InsertAsync(entity, autoSave: true);
+        // K3 write-through: kullanıcının canlı aramadan SEÇTİĞİ marka {id, ad, luxury} host-global cache'e düşer
+        // (best-effort, idempotent) — picker bir dahaki açılışta cache'ten beslenir.
+        await _brandCacheManager.UpsertAsync(entity.BrandId, entity.BrandName, input.BrandIsLuxury);
         await SaveStockItemsAsync(entity, input.ProductAttributes, input.StockItems);
 
         var dto = ObjectMapper.Map<SalesChannelTrTrendyolProduct, SalesChannelTrTrendyolProductDto>(entity);
@@ -260,6 +267,9 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
         var entity = await GetOwnedAsync(id);
         ApplyInput(entity, input);
         await _repository.UpdateAsync(entity, autoSave: true);
+        // K3 write-through: seçilen marka {id, ad, luxury} cache'e (best-effort, idempotent — ad/luxury değiştiyse
+        // tazelenir; luxury null = picker'a dokunulmadı → cache'teki değer korunur).
+        await _brandCacheManager.UpsertAsync(entity.BrandId, entity.BrandName, input.BrandIsLuxury);
         await SaveStockItemsAsync(entity, input.ProductAttributes, input.StockItems);
 
         var dto = ObjectMapper.Map<SalesChannelTrTrendyolProduct, SalesChannelTrTrendyolProductDto>(entity);

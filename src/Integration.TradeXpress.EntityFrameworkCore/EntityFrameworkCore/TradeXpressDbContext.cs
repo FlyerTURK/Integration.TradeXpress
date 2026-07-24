@@ -114,6 +114,8 @@ public class TradeXpressDbContext :
     public DbSet<Integration.TradeXpress.N11Categories.N11Category> N11Categories { get; set; } = null!;
     // Trendyol kategori taksonomisi — HOST-GLOBAL (IMultiTenant değil; tüm tenant'lar paylaşır).
     public DbSet<Integration.TradeXpress.TrendyolCategories.TrendyolCategory> TrendyolCategories { get; set; } = null!;
+    // Trendyol marka write-through cache'i — HOST-GLOBAL (tam sync YOK; yalnız seçilen/ithal markalar).
+    public DbSet<Integration.TradeXpress.TrendyolBrands.TrendyolBrand> TrendyolBrands { get; set; } = null!;
     // Etsy seller taxonomy — HOST-GLOBAL (IMultiTenant değil; tüm tenant'lar paylaşır).
     public DbSet<Integration.TradeXpress.EtsyTaxonomies.EtsyTaxonomy> EtsyTaxonomies { get; set; } = null!;
     // N11 adres taksonomisi (İl/İlçe) — HOST-GLOBAL. Mahalleler saklanmaz (on-demand).
@@ -259,6 +261,7 @@ public class TradeXpressDbContext :
         builder.ConfigureUserGridLayouts();
         builder.ConfigureN11Categories();
         builder.ConfigureTrendyolCategories();
+        builder.ConfigureTrendyolBrands();
         builder.ConfigureEtsyTaxonomies();
         builder.ConfigureN11Cities();
         builder.ConfigureN11Shipments();

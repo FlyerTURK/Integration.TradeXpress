@@ -20,7 +20,8 @@
         <DxFormLayoutItem Caption="@L["SalesChannel"]" ColSpanMd="6">
             <span>@ChannelName</span>
         </DxFormLayoutItem>
-        @* Marka — Trendyol'a ÖZEL, ZORUNLU (N11'de yok). Type-ahead: sunucudan ada göre aranır → BrandId. *@
+        @* Marka — Trendyol'a ÖZEL, ZORUNLU (N11'de yok). K3 hybrid: açılışta write-through cache listesi (DB),
+           yazınca canlı ada-göre arama → BrandId; seçilen marka kayıtta cache'e düşer. *@
         <DxFormLayoutItem Caption="@L["TrendyolProduct:Brand"]" ColSpanMd="6">
             <LookupEdit TItem="BrandOption" TValue="string"
                         Data="@_brandResults"

@@ -10,6 +10,8 @@ using Integration.TradeXpress.Vouchers;
 using Shouldly;
 using Volo.Abp;
 using Volo.Abp.Domain.Repositories;
+using Volo.Abp.Guids;
+using Volo.Abp.MultiTenancy;
 using Xunit;
 
 namespace Integration.TradeXpress.Substitutions;
@@ -35,6 +37,7 @@ public class SubstitutionCalculationTests : TradeXpressEntityFrameworkCoreTestBa
     private readonly IRepository<SubstitutionGroupItem, Guid> _itemRepository;
     private readonly IRepository<EntityVariant, Guid> _entityVariantRepository;
     private readonly IRepository<MetalVariantDetail, Guid> _metalVariantDetailRepository;
+    private readonly ICurrentTenant _currentTenant;
 
     public SubstitutionCalculationTests()
     {
@@ -47,6 +50,7 @@ public class SubstitutionCalculationTests : TradeXpressEntityFrameworkCoreTestBa
         _itemRepository               = GetRequiredService<IRepository<SubstitutionGroupItem, Guid>>();
         _entityVariantRepository      = GetRequiredService<IRepository<EntityVariant, Guid>>();
         _metalVariantDetailRepository = GetRequiredService<IRepository<MetalVariantDetail, Guid>>();
+        _currentTenant                = GetRequiredService<ICurrentTenant>();
     }
 
     [Fact]
@@ -186,6 +190,66 @@ public class SubstitutionCalculationTests : TradeXpressEntityFrameworkCoreTestBa
         result.InsufficientStock.ShouldBeTrue();
         result.TotalAvailableWeight.ShouldBe(50m);
         result.Trials.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task Calculate_includes_host_level_labor_in_costs_under_tenant_working_context()
+    {
+        // ÜRETİM DÜZENİ (14 tenant tek DB): maden katalogu + varyant işçiliği HOST-seviyesi (TenantId=null),
+        // operasyon (şirket + stok + grup) TENANT altında. İşçilik join'i IMultiTenant/ICompanyScoped filtreleri
+        // kapatılmadan koşarsa host satırları elenir → EntryLabor sessizce 0 olur ve sıralama salt gram maliyetine
+        // çöker (maskeleme). Bu test tenant working-context'inde işçiliğin HESABA GİRDİĞİNİ pinler.
+        var tenantId = SimpleGuidGenerator.Instance.Create();
+
+        VoucherTestData data;
+        using (_currentTenant.Change(tenantId))
+        {
+            data = await WithUnitOfWorkAsync(() => _seeder.SeedCompanyGraphAsync("SBT"));
+            _companyContext.CompanyId = data.CompanyId;
+            await WithUnitOfWorkAsync(() => _seeder.AttachLocalCurrencyCountryAsync(data, "SBT"));
+        }
+
+        // Katalog HOST bağlamında (ambient tenant yok → TenantId=null): metal + ana varyant + işçilik detayı.
+        // 1gr madenin ADET-BAŞI 2 TRY işçiliği maliyet sıralamasını ayrıştırır (kurlar 1/1).
+        var ten = await SeedMetalAsync(data, "SBTTEN", 10m);
+        var one = await SeedMetalAsync(data, "SBTONE", 1m, entryLaborPerPiece: 2m, laborUnitId: data.TryUnitId);
+
+        using (_currentTenant.Change(tenantId))
+        {
+            _companyContext.CompanyId = data.CompanyId;
+
+            await SeedInboundStockAsync(data, ten, count: 3);
+            await SeedInboundStockAsync(data, one, count: 20);
+            var groupId = await SeedGroupAsync(data, "SBTGRP", ten.Id, one.Id);
+
+            var result = await _calculationAppService.CalculateAsync(new SubstitutionCalculationInput
+            {
+                SubstitutionGroupId = groupId,
+                TargetQuantity      = 12m,
+                BranchId            = data.BranchId,
+            });
+
+            // İşçilik hesaba GİRDİ: 1gr parça maliyeti 1 (gram) + 2 (adet-başı işçilik) = 3 TRY — host
+            // işçilik satırları tenant filtresine takılsaydı 1 TRY görünürdü. İlk deneme (açgözlü):
+            // 1×10 + 2×1 → 10 + 2×3 = 16 TRY.
+            result.CostCurrencyCode.ShouldBe(CurrencyUnitCode.TRY);
+            var first = result.Trials.First();
+            first.Success.ShouldBeTrue();
+            first.TotalWeight.ShouldBe(12m);
+            first.Lines.Select(l => (l.MetalCode, l.Count, l.UnitCost)).ShouldBe(new[]
+            {
+                ("SBTTEN", 1, 10m),
+                ("SBTONE", 2, 3m),
+            });
+            first.TotalCost.ShouldBe(16m);
+
+            // Sıralama işçilikli maliyeti yansıtır: 1×10+2×1=16 < 12×1=36 TRY. İşçilik 0'a maskelenseydi
+            // iki deneme de 12 TRY'ye eşitlenir, sıralama işçilikten bağımsızlaşırdı.
+            result.Trials.Where(t => t.Success)
+                .OrderBy(t => t.Rank)
+                .Select(t => t.TotalCost)
+                .ShouldBe(new[] { 16m, 36m });
+        }
     }
 
     [Fact]

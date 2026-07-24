@@ -16,19 +16,25 @@ public class MetalReportFilterDto
     /// <summary>Belirli bir maden tanımı (null = tümü).</summary>
     public Guid? MetalId { get; set; }
 
+    /// <summary>Belirli bir varyant (null = tümü). Yalnız <see cref="MetalId"/> seçiliyken anlamlı.</summary>
+    public Guid? VariantId { get; set; }
+
     /// <summary>Hareket raporu tarih aralığı (dahil). Stok raporunda yok sayılır (anlık).</summary>
     public DateTime Start { get; set; }
     public DateTime End { get; set; }
 }
 
 /// <summary>
-/// Maden stok satırı — birim bazında miktar (Amount = ağırlık, Quantity = adet) ve net.
+/// Maden stok satırı — maden+varyant+birim bazında miktar (Amount = ağırlık, Quantity = adet) ve net.
 /// </summary>
 public class MetalStockRowDto
 {
     public Guid? MetalId { get; set; }
     public string? MetalCode { get; set; }
     public string? MetalName { get; set; }
+
+    public Guid? VariantId { get; set; }
+    public string? VariantCode { get; set; }
 
     public Guid UnitId { get; set; }
     public string? UnitCode { get; set; }
@@ -82,6 +88,8 @@ public class MetalMovementRowDto
     public ProcessDirectionType Direction { get; set; }
     /// <summary>İşlemin maden kodu (CommodityCode).</summary>
     public string? CommodityCode { get; set; }
+    /// <summary>Varyant kodu snapshot (çok-varyantlı madende dolu).</summary>
+    public string? VariantCode { get; set; }
     public Guid UnitId { get; set; }
     public string? UnitCode { get; set; }
     /// <summary>Adet (Quantity) — maden adet takibi.</summary>

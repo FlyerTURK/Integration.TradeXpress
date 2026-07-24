@@ -7,6 +7,7 @@ using Integration.TradeXpress.Branches;
 using Integration.TradeXpress.Companies;
 using Integration.TradeXpress.Metals;
 using Integration.TradeXpress.Reports;
+using Integration.TradeXpress.Variants;
 using Integration.TradeXpress.Vaults;
 using Microsoft.AspNetCore.Components;
 
@@ -23,6 +24,7 @@ public partial class MetalReportPage
     private List<BranchListDto>  _branches  = new();
     private List<VaultListDto>   _vaults    = new();
     private List<MetalListDto>   _metals    = new();
+    private List<CommodityVariantOptionDto> _variants = new();
 
     private MetalReportFilterDto _filter = new()
     {
@@ -69,6 +71,19 @@ public partial class MetalReportPage
         {
             var vaults = await VaultAppService.GetListAsync(new VaultListRequestDto { MaxResultCount = 200 });
             _vaults = vaults.Items as List<VaultListDto> ?? new(vaults.Items);
+        }
+    }
+
+    /// <summary>Maden seçilince varyant combo'sunu doldur; seçim değişince eski varyant filtresini sıfırla.</summary>
+    private async Task OnMetalChanged(Guid? metalId)
+    {
+        _filter.MetalId   = metalId;
+        _filter.VariantId = null;
+        _variants.Clear();
+
+        if (metalId is { } mid)
+        {
+            _variants = await MetalAppService.GetVariantPickerListAsync(mid);
         }
     }
 

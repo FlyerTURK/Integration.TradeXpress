@@ -1,5 +1,7 @@
 # TradeXpress / Integration — Çalışma Kuralları (TEK KAYNAK)
 
+> **Kullanıcı = HAKAN** (hitap: Hakan). Makine/git hesabı ("Umut"/umutt) ve ts.net adı OĞLUNUN adınadır — kullanıcı adı sanıp "Umut" diye hitap ETME (2026-07-24 düzeltmesi).
+
 > Bu dosya projenin **tek always-loaded kural kaynağıdır**. Yeni kural çıkınca AYRI memory dosyası açma — buraya bölüm/madde ekle. Dosyaya-özel detay kurallar `.claude/rules/` altında (`paths:` ile koşullu yüklenir). Pazarlıksız kuralların bir kısmı ayrıca `settings.json` deny + PreToolUse hook ile **mekanik** bloklu.
 
 ## 0) Karar yetkisi
@@ -52,6 +54,7 @@ Tıkanınca kolay yola sapıp mevcut işi silme/kökten değiştirme YOK. Reflek
 - **Zaman: kayıt=UTC, görüntü=kullanıcı yerel saati** (2026-07-03 ürün kararı). Zaman damgaları UTC saklanır (`AbpClockOptions.Kind=Utc` hedefi); UI her kullanıcının tarayıcı/masaüstü saatine çevirip gösterir (merkezi dönüşüm — sayfa-başı elle çeviri YOK). İSTİSNA: kullanıcının seçtiği İŞ TARİHİ alanları (VoucherDate gibi) date-only semantiktir, timezone kaydırmasına GİRMEZ (gün kayması yasak). Geçiş planı: zaman/kültür denetim raporu.
 - **ViewModel emekli:** flat edit formları GetDto-direct (`CrudEditComponentBase<TGetDto>`, Save'de `ObjectMapper.Map` Mapperly); drill/tree → Contracts input-DTO + DrillList. Client-side ViewModel YOK.
 - **TEK fiziksel DB** (2026-07-10 keşfi): `AbpTenantConnectionStrings` boş — 14 tenant'ın tümü tek `TradeXpress` DB'sini paylaşıyor; migration'lar TEK DB'ye uygulanır ("3 DB'ye uygula" adımı YOK). `Integration.TradeXpress_company1/_ekuyumcu/_Service` DB'leri ESKİ projelerin kalıntısı, bu app'in değil (DOKUNMA). DbMigrator secrets için proje klasöründen çalıştırılır (repo kökünden content-root bulunamaz).
+- **Görsel sistemi DONDURMA (K2, 2026-07-23 aktivasyon):** yeni görsel/medya özelliği YALNIZ DAM'a (Media/EntityMediaLink) yazılır; `ProductImage`/`MetalImage` DONMUŞ legacy — yeni özellik ALMAZ (bugfix serbest). Migrate+emeklilik Faz-5'te ayrı planla (master plan K2).
 
 ## 7) Referans kaynakları (ERP iş kuralı araştırması)
 "Eski projeye kendiliğinden referans yapma" kuralı **eski KOD/desen/karar taşımak** içindir. **İSTİSNA — bunlar tasarlanmış canlı araştırma kaynağı, voucher/cari/maden/bilanço işinde serbestçe bakılır:**

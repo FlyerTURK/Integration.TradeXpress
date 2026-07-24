@@ -202,6 +202,10 @@ public class SalesChannelTrTrendyolProductDto
     public string? CategoryName { get; set; }
     public string BrandId { get; set; } = string.Empty;
     public string? BrandName { get; set; }
+
+    /// <summary>Seçilen markanın Trendyol "luxury" bayrağı — YALNIZ K3 write-through cache beslemesi için taşınır
+    /// (kanal-ürün entity'sinde SAKLANMAZ); null = bilinmiyor (picker'a dokunulmadı) → cache'te luxury EZİLMEZ.</summary>
+    public bool? BrandIsLuxury { get; set; }
     public int VatRate { get; set; } = 20;
     public int? CargoCompanyId { get; set; }
     public decimal? DimensionalWeight { get; set; }
@@ -240,6 +244,9 @@ public interface ISalesChannelTrTrendyolProductInput
     string? CategoryName { get; }
     string BrandId { get; }
     string? BrandName { get; }
+
+    /// <summary>Seçilen markanın "luxury" bayrağı — K3 cache besleme hint'i (entity'ye yazılmaz; null = bilinmiyor).</summary>
+    bool? BrandIsLuxury { get; }
     int VatRate { get; }
     int? CargoCompanyId { get; }
     decimal? DimensionalWeight { get; }
@@ -265,6 +272,7 @@ public class SalesChannelTrTrendyolProductCreateDto : ISalesChannelTrTrendyolPro
     public string? CategoryName { get; set; }
     public string BrandId { get; set; } = string.Empty;
     public string? BrandName { get; set; }
+    public bool? BrandIsLuxury { get; set; }
     public int VatRate { get; set; } = 20;
     public int? CargoCompanyId { get; set; }
     public decimal? DimensionalWeight { get; set; }
@@ -284,6 +292,7 @@ public class SalesChannelTrTrendyolProductUpdateDto : ISalesChannelTrTrendyolPro
     public string? CategoryName { get; set; }
     public string BrandId { get; set; } = string.Empty;
     public string? BrandName { get; set; }
+    public bool? BrandIsLuxury { get; set; }
     public int VatRate { get; set; } = 20;
     public int? CargoCompanyId { get; set; }
     public decimal? DimensionalWeight { get; set; }
@@ -322,6 +331,11 @@ public class TrendyolImportResultDto
 
     /// <summary>Eklenen varyantların barkodları (kullanıcı doğrulaması için; sessiz geçilmez).</summary>
     public List<string> AddedBarcodes { get; set; } = new();
+
+    /// <summary>Uzak stoğu çekirdek (ERP) stoktan FARKLI olan kalem sayısı (K12 stok politikası, 2026-07-23):
+    /// sonraki importlar çekirdek StockQuantity'yi EZMEZ — remote değer kanal OverrideStock'una yazılır (kanal
+    /// gerçeği) + satır-bazında LogWarning. 0 = tüm kalemler çekirdekle uyumlu (override gürültüsü üretilmedi).</summary>
+    public int StockDifferenceCount { get; set; }
 
     /// <summary>Atlanan satırlar + nedenleri (LOKALİZE) — barcode'suz/duplike/geçersiz kalemler.</summary>
     public List<TrendyolImportIssueDto> SkippedRows { get; set; } = new();

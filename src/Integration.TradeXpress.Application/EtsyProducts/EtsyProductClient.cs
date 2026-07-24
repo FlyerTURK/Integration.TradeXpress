@@ -7,6 +7,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Integration.TradeXpress.Orders;
+using Integration.TradeXpress.Products;
 using Integration.TradeXpress.SalesChannels.Etsy;
 using Volo.Abp;
 using Volo.Abp.DependencyInjection;
@@ -625,7 +626,7 @@ public sealed class EtsyProductClient : IEtsyProductClient, ITransientDependency
             ?? ReadString(image, "url_170x135");
     }
 
-    // ── Etsy enum eşlemesi (wire string → domain enum; bilinmeyen → null/varsayılan) ──────────────────
+    // ── Etsy enum eşlemesi (wire string → domain enum; when_made bilinmeyende FAIL-FAST, diğerleri null/varsayılan) ──
 
     private static EtsyWhoMade? MapWhoMade(string? value)
     {
@@ -638,19 +639,41 @@ public sealed class EtsyProductClient : IEtsyProductClient, ITransientDependency
         };
     }
 
-    private static EtsyWhenMade? MapWhenMade(string? value)
+    /// <summary>Etsy <c>when_made</c> wire string'i → <see cref="ProductMadePeriod"/> (public static — birim testli).
+    /// Etsy openapi enum'unun 19 değeriyle BİREBİR (TEK adapter tablosu — Etsy rolling kovayı ör. <c>2020_2027</c>
+    /// yaptığında yalnız buradaki satır değişir, enum + DB verisi değişmez). Alan HİÇ gelmediyse (null/boş) null →
+    /// import ürün varsayılanını korur. BİLİNMEYEN değer ise sessizce yutulMAZ — fail-fast <see cref="BusinessException"/>
+    /// (K9 "gizli kayıp" kapanışı: eski davranış bilinmeyeni null'a düşürüp sessizce MadeToOrder bırakıyordu).</summary>
+    public static ProductMadePeriod? MapWhenMade(string? value)
     {
-        return value?.Trim().ToLowerInvariant() switch
+        if (string.IsNullOrWhiteSpace(value))
         {
-            "made_to_order" => EtsyWhenMade.MadeToOrder,
-            "2020_2025" => EtsyWhenMade.Y2020_2025,
-            "2010_2019" => EtsyWhenMade.Y2010_2019,
-            "2006_2009" => EtsyWhenMade.Y2006_2009,
-            "2000_2005" => EtsyWhenMade.Y2000_2005,
-            "1990s" => EtsyWhenMade.Y1990s,
-            "1980s" => EtsyWhenMade.Y1980s,
-            "before_2000" => EtsyWhenMade.Before2000,
-            _ => null,
+            return null;
+        }
+
+        return value.Trim().ToLowerInvariant() switch
+        {
+            "made_to_order" => ProductMadePeriod.MadeToOrder,
+            "2020_2026" => ProductMadePeriod.Y2020Plus,
+            "2010_2019" => ProductMadePeriod.Y2010To2019,
+            "2007_2009" => ProductMadePeriod.Y2007To2009,
+            "before_2007" => ProductMadePeriod.Before2007,
+            "2000_2006" => ProductMadePeriod.Y2000To2006,
+            "1990s" => ProductMadePeriod.Y1990s,
+            "1980s" => ProductMadePeriod.Y1980s,
+            "1970s" => ProductMadePeriod.Y1970s,
+            "1960s" => ProductMadePeriod.Y1960s,
+            "1950s" => ProductMadePeriod.Y1950s,
+            "1940s" => ProductMadePeriod.Y1940s,
+            "1930s" => ProductMadePeriod.Y1930s,
+            "1920s" => ProductMadePeriod.Y1920s,
+            "1910s" => ProductMadePeriod.Y1910s,
+            "1900s" => ProductMadePeriod.Y1900s,
+            "1800s" => ProductMadePeriod.Y1800s,
+            "1700s" => ProductMadePeriod.Y1700s,
+            "before_1700" => ProductMadePeriod.Before1700,
+            _ => throw new BusinessException("TradeXpress:Etsy:Product:UnknownWhenMade")
+                .WithData("value", value),
         };
     }
 

@@ -25,6 +25,11 @@ public class EtsyImportResultDto
     /// <summary>Bu import'ta üretilen toplam varyant (EntityVariant) sayısı — yeni şablonların offering setleri.</summary>
     public int CreatedVariants { get; set; }
 
+    /// <summary>Uzak stoğu çekirdek (ERP) stoktan FARKLI olan offering sayısı (K12 stok politikası, 2026-07-23):
+    /// sonraki importlar çekirdek StockQuantity'yi EZMEZ — remote değer kanal OverrideStock'una yazılır (kanal
+    /// gerçeği) + satır-bazında LogWarning. 0 = tüm offering'ler çekirdekle uyumlu (override gürültüsü üretilmedi).</summary>
+    public int StockDifferenceCount { get; set; }
+
     /// <summary>Atlanan satırlar + nedenleri (LOKALİZE) — offering'siz/geçersiz listeleme kalemleri.</summary>
     public List<EtsyImportIssueDto> SkippedRows { get; set; } = new();
 

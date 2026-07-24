@@ -67,8 +67,9 @@ public class Product : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwn
     /// <summary>Ürünü kim yaptı (Etsy who_made). Varsayılan IDid.</summary>
     public virtual EtsyWhoMade WhoMade { get; protected set; }
 
-    /// <summary>Ürün ne zaman yapıldı / dönem kovası (Etsy when_made). Varsayılan MadeToOrder.</summary>
-    public virtual EtsyWhenMade WhenMade { get; protected set; }
+    /// <summary>Ürün ne zaman yapıldı / dönem kovası (Etsy when_made'in kaynağı; 19-kovalı, kronolojik).
+    /// Varsayılan MadeToOrder.</summary>
+    public virtual ProductMadePeriod MadePeriod { get; protected set; }
 
     /// <summary>Bu bir üretim malzemesi/sarf mı (Etsy is_supply). Varsayılan false.</summary>
     public virtual bool IsSupply { get; protected set; }
@@ -76,8 +77,10 @@ public class Product : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwn
     /// <summary>Kargoya verilme süresi (gün) — en az 1. Varsayılan 1.</summary>
     public virtual int PreparingDay { get; protected set; }
 
-    /// <summary>Varsayılan kargo şablonu adı (opsiyonel; pazaryeri kanal-ürünü override eder). LEGACY (loose string;
-    /// kanal devralma hâlâ kullanıyor). Yeni <see cref="ShipmentTemplateId"/> FK'si bunun yanında yaşar.</summary>
+    /// <summary>Varsayılan kargo şablonu adı (opsiyonel; pazaryeri kanal-ürünü override eder). LEGACY snapshot —
+    /// K8-Faz1: OKUMA tek kaynağı <see cref="ShipmentTemplateId"/> (ad çekirdek şablondan çözülür; bu string yalnız
+    /// FK boşken fallback); FK doluysa yazma yolunda ad FK'den senkron dolar (Carrier id+ad deseni). Kolon Faz-4'te
+    /// kaldırılacak (K8).</summary>
     public virtual string? ShipmentTemplateName { get; protected set; }
 
     /// <summary>Birleşik ERP kargo şablonu referansı (<c>ShipmentTemplate.Id</c>; id-only, nav YOK). Opsiyonel.
@@ -97,11 +100,15 @@ public class Product : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwn
     /// Kanal-ürünü boşsa devralır.</summary>
     public virtual List<ProductSpecialInfo> SpecialInfo { get; protected set; } = new();
 
-    /// <summary>Ürüne atanan eklentiler (owned → JSON; katalogdan seçim + satır override). Pazaryerine push'ta
-    /// varyant olarak yansıtılır (Faz 2).</summary>
+    /// <summary>Ürüne atanan eklentiler (owned → JSON; katalogdan seçim + satır override). Efektif değer zinciri
+    /// TANIMLI (K11): <c>ChannelInheritance.ResolveAddOns</c> (Application) — satır-override ?? katalog; kanal-ürün
+    /// entity'lerinde add-on override alanı YOK → zincir bugün tek-kaynaklı (ürün). Etsy push'unda varyant olarak
+    /// yansıtma (projeksiyon) Faz-2 push işi.</summary>
     public virtual List<ProductAddOn> AddOns { get; protected set; } = new();
 
-    // ── Kişiselleştirme (pazaryeri-genel; Etsy who_made/is_supply deseni. Kanal-ürünü push'ta devralır — SONRAKİ iş). ──
+    // ── Kişiselleştirme (pazaryeri-genel; Etsy who_made/is_supply deseni). Devralma zinciri TANIMLI (K10):
+    // ChannelInheritance.ResolvePersonalization (Application) — kanal bloğu doluysa (IsPersonalizable) kanal,
+    // değilse ürün; Etsy push (Faz-2) bu tek çağrıyı kullanır. ──
 
     /// <summary>Ürün kişiselleştirilebilir mi (Etsy is_personalizable). Varsayılan false.</summary>
     public virtual bool IsPersonalizable { get; protected set; }
@@ -132,7 +139,7 @@ public class Product : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwn
         Condition = ProductCondition.New;
         PreparingDay = 1;
         WhoMade = EtsyWhoMade.IDid;
-        WhenMade = EtsyWhenMade.MadeToOrder;
+        MadePeriod = ProductMadePeriod.MadeToOrder;
         IsSupply = false;
         IsPersonalizable = false;
         PersonalizationIsRequired = false;
@@ -220,10 +227,10 @@ public class Product : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwn
         WhoMade = whoMade;
     }
 
-    /// <summary>Etsy when_made (dönem kovası; varsayılan MadeToOrder).</summary>
-    public virtual void SetWhenMade(EtsyWhenMade whenMade)
+    /// <summary>Ürün dönem kovası (Etsy when_made'in kaynağı; varsayılan MadeToOrder).</summary>
+    public virtual void SetMadePeriod(ProductMadePeriod madePeriod)
     {
-        WhenMade = whenMade;
+        MadePeriod = madePeriod;
     }
 
     /// <summary>Etsy is_supply (üretim malzemesi/sarf mı; varsayılan false).</summary>
@@ -395,7 +402,8 @@ public class Product : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwn
         }
     }
 
-    /// <summary>Kişiselleştirme alanlarını ayarlar (pazaryeri-genel; kanal-ürünü push'ta devralır — SONRAKİ iş).
+    /// <summary>Kişiselleştirme alanlarını ayarlar (pazaryeri-genel; kanal devralma zinciri
+    /// <c>ChannelInheritance.ResolvePersonalization</c>'da — kanal-ürünü push'ta oradan devralır).
     /// Talimat boş değilse trim + max; karakter sınırı dolu ise 1..<see cref="ProductConsts.PersonalizationCharCountMaxLimit"/>
     /// (fail-fast). <paramref name="isRequired"/> yalnız kişiselleştirilebilir üründe anlamlı — zorlanmaz, olduğu gibi saklanır.</summary>
     public virtual void SetPersonalization(bool isPersonalizable, string? instructions, bool isRequired, int? charCountMax)

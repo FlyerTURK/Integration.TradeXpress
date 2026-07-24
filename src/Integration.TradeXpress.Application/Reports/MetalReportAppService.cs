@@ -24,6 +24,8 @@ namespace Integration.TradeXpress.Reports;
 /// her ödeme tipinde yalnız tek bacak üretilir: kaç birim maden girdi veya çıktı.
 /// <list type="bullet">
 ///   <item>Etki = <c>±Amount</c> (<see cref="VoucherLine.Amount"/>), birim = <see cref="VoucherLine.MainUnitId"/>.</item>
+///   <item>Stok gruplama = (CommodityId, CommodityCode, VariantId, VariantCode, UnitId) — GoodReport paritesi;
+///   yürüyen bakiye birim (UnitId) bazında kalır. İşçilik ağırlıklı-ortalaması commodity havuzunda (İŞ KARARI) — varyantlaşmaz.</item>
 ///   <item>Source kolonu ödeme tipini bilgi amaçlı gösterir (Normal / Peşin / Bedelli / İade / Emanet / Miktar / Rezervasyon).</item>
 ///   <item><b>Rezervasyon</b> (<see cref="ProcessPaymentType.Reservation"/>) İSTİSNA: fiziksel hareket
 ///   YARATMAZ — stok Net'ine/kümülatife girmez; ayrı Rezerve sayaçlarında toplanır
@@ -69,7 +71,8 @@ public class MetalReportAppService : TradeXpressAppService, IMetalReportAppServi
     private sealed record MetalLeg(
         Guid UnitId, decimal Effect, decimal EffectQty, string Source,
         decimal Amount, decimal Quantity, decimal Factor,
-        Guid? CommodityId, string? CommodityCode, ProcessPaymentType? PaymentType,
+        Guid? CommodityId, string? CommodityCode, Guid? VariantId, string? VariantCode,
+        ProcessPaymentType? PaymentType,
         DateTime VoucherDate, long VoucherNumber, ProcessType ProcessType, ProcessDirectionType Direction,
         Guid? VaultId, Guid CompanyId, Guid BranchId, Guid? SubAccountId,
         string? Description, DateTime CreationTime, Guid LineId);
@@ -84,8 +87,9 @@ public class MetalReportAppService : TradeXpressAppService, IMetalReportAppServi
 
         // Rezervasyon (Reservation) fiziksel Net'e GİRMEZ — ayrı taahhüt sayacı olarak toplanır:
         // ReservedOut = müşteriye ayrılan (kullanılabilirden düşer), ReservedIn = tedarikçiden beklenen (bilgi).
+        // Gruplama = (maden, varyant, birim) — GoodReport paritesi; varyantlar tek satıra ÇÖKMEZ.
         var grouped = legs
-            .GroupBy(x => new { x.CommodityId, x.CommodityCode, x.UnitId })
+            .GroupBy(x => new { x.CommodityId, x.CommodityCode, x.VariantId, x.VariantCode, x.UnitId })
             .Select(g =>
             {
                 var physical = g.Where(x => x.PaymentType != ProcessPaymentType.Reservation).ToList();
@@ -95,6 +99,8 @@ public class MetalReportAppService : TradeXpressAppService, IMetalReportAppServi
                 {
                     MetalId     = g.Key.CommodityId,
                     MetalCode   = g.Key.CommodityCode,
+                    VariantId   = g.Key.VariantId,
+                    VariantCode = g.Key.VariantCode,
                     UnitId      = g.Key.UnitId,
                     InAmount    = physical.Where(x => x.Effect    > 0).Sum(x => x.Effect),
                     OutAmount   = physical.Where(x => x.Effect    < 0).Sum(x => -x.Effect),
@@ -134,7 +140,7 @@ public class MetalReportAppService : TradeXpressAppService, IMetalReportAppServi
                 r.MetalName = metalNames.GetValueOrDefault(r.MetalId.Value);
             }
         }
-        return grouped.OrderBy(r => r.MetalCode).ToList();
+        return grouped.OrderBy(r => r.MetalCode).ThenBy(r => r.VariantCode).ToList();
     }
 
     /// <summary>
@@ -346,6 +352,7 @@ public class MetalReportAppService : TradeXpressAppService, IMetalReportAppServi
                 SubAccountCode = x.SubAccountId is { } s ? subCodes.GetValueOrDefault(s) : null,
                 Direction      = x.Direction,
                 CommodityCode  = x.CommodityCode,
+                VariantCode    = x.VariantCode,
                 UnitId         = x.UnitId,
                 UnitCode       = unitCodes.GetValueOrDefault(x.UnitId),
                 Quantity       = x.Quantity,
@@ -390,12 +397,13 @@ public class MetalReportAppService : TradeXpressAppService, IMetalReportAppServi
             where !l.IsDeleted
                && l.Type == ProcessType.Metal
                // Peşin dahil: maden fiziksel olarak hareket eder; peşin yalnızca ödeme yöntemidir.
-               && (filter.MetalId == null || l.CommodityId == filter.MetalId)
+               && (filter.MetalId   == null || l.CommodityId == filter.MetalId)
+               && (filter.VariantId == null || l.VariantId   == filter.VariantId)
             select new
             {
                 v.VoucherDate, v.VoucherNumber, v.VaultId, v.CompanyId, v.BranchId, v.SubAccountId,
                 l.Type, l.PaymentType, l.Direction,
-                l.MainUnitId, l.CommodityId, l.CommodityCode, l.Amount, l.Quantity, l.Factor,
+                l.MainUnitId, l.CommodityId, l.CommodityCode, l.VariantId, l.VariantCode, l.Amount, l.Quantity, l.Factor,
                 l.Description, l.CreationTime, l.Id,
             });
 
@@ -425,7 +433,7 @@ public class MetalReportAppService : TradeXpressAppService, IMetalReportAppServi
             legs.Add(new MetalLeg(
                 r.MainUnitId, sign * r.Amount, sign * r.Quantity, source,
                 r.Amount, r.Quantity, r.Factor,
-                r.CommodityId, r.CommodityCode, r.PaymentType,
+                r.CommodityId, r.CommodityCode, r.VariantId, r.VariantCode, r.PaymentType,
                 r.VoucherDate, r.VoucherNumber, r.Type, r.Direction,
                 r.VaultId, r.CompanyId, r.BranchId, r.SubAccountId, r.Description, r.CreationTime, r.Id));
         }

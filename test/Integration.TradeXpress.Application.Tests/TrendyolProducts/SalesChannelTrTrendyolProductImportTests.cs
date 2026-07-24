@@ -139,13 +139,16 @@ public abstract class SalesChannelTrTrendyolProductImportTests<TStartupModule> :
             record.Skus.Single(s => s.Barcode == "BR-RED-1").ProductVariantId.ShouldBe(red.Id);
             record.Attributes.ShouldContain(a => a.AttributeId == 47 && a.AttributeValueId == 686234);
 
-            // StockItem override: uzak fiyat/stok kanal katmanına yazıldı (kullanıcı onaylı yön).
+            // StockItem override: uzak fiyat kanal katmanına yazıldı (kullanıcı onaylı yön). STOK — K12 politikası:
+            // varyant BU importta doğdu → çekirdek remote'la tohumlandı → fark yok → OverrideStock NULL kalır
+            // (gürültü üretilmez; null = ERP StockQuantity devralınır) ve fark sayacı 0'dır.
+            report.StockDifferenceCount.ShouldBe(0);
             var headers = await WithUnitOfWorkAsync(async () =>
                 await _headerRepository.GetListAsync(h => h.SalesChannelTrTrendyolProductId == record.Id));
             headers.Count.ShouldBe(2);
             var redHeader = headers.Single(h => h.ProductVariantId == red.Id);
             redHeader.OverridePrice.ShouldBe(1299.90m);
-            redHeader.OverrideStock.ShouldBe(7);
+            redHeader.OverrideStock.ShouldBeNull();
         }
     }
 
@@ -179,6 +182,10 @@ public abstract class SalesChannelTrTrendyolProductImportTests<TStartupModule> :
             second.CreatedChannelProducts.ShouldBe(0);
             second.UpdatedChannelProducts.ShouldBe(1);
 
+            // K12 politikası: çekirdek varyant ZATEN VARDI (update yolu) → remote stok (9) çekirdeği (5) EZMEZ,
+            // fark kanal override'ına yazılır + fark sayacıyla görünür kılınır (sessiz geçilmez).
+            second.StockDifferenceCount.ShouldBe(1);
+
             (await WithUnitOfWorkAsync(async () =>
                 await _productRepository.GetListAsync(p => p.CompanyId == companyId))).Count.ShouldBe(1);
             var record = (await WithUnitOfWorkAsync(async () =>
@@ -190,6 +197,11 @@ public abstract class SalesChannelTrTrendyolProductImportTests<TStartupModule> :
                 await _headerRepository.GetListAsync(h => h.SalesChannelTrTrendyolProductId == record.Id))).ShouldHaveSingleItem();
             header.OverridePrice.ShouldBe(4650m);
             header.OverrideStock.ShouldBe(9);
+
+            // Çekirdek stok İLK import tohumunda kaldı — sonraki import EZMEDİ (son-import-kazanır kapandı).
+            var coreVariant = (await WithUnitOfWorkAsync(async () =>
+                await _variantRepository.GetListAsync(v => v.EntityName == ProductEntityName && v.CompanyId == companyId))).ShouldHaveSingleItem();
+            coreVariant.StockQuantity.ShouldBe(5);
         }
     }
 
@@ -230,7 +242,8 @@ public abstract class SalesChannelTrTrendyolProductImportTests<TStartupModule> :
             _fakeClient.RemoteItems.Add(BuildRemoteItem(
                 mainId: "MAIN-3", barcode: "BR-Y-1", stockCode: "STK-Y-1", title: "Uzakta Değişen Başlık",
                 quantity: 4, salePrice: 150m, listPrice: null, contentId: 5, approved: null));
-            await _appService.ImportFromMarketplaceAsync(channel.Id);
+            var second = await _appService.ImportFromMarketplaceAsync(channel.Id);
+            second.StockDifferenceCount.ShouldBe(1);   // K12: çekirdek 2 vs remote 4 → fark sayaçta görünür
 
             var after = await WithUnitOfWorkAsync(async () => await _productRepository.GetAsync(product.Id));
             after.Name.ShouldBe("Kullanıcı Ürün Adı");   // şablon korunur
@@ -524,6 +537,7 @@ public abstract class SalesChannelTrTrendyolProductImportTests<TStartupModule> :
             result.SkippedRows.ShouldBeEmpty();          // 'VariantMissingOnTemplate' skip nedeni KALKTI
             result.CreatedProducts.ShouldBe(0);          // şablon yeniden üretilmedi
             result.UpdatedChannelProducts.ShouldBe(1);
+            result.StockDifferenceCount.ShouldBe(1);     // yalnız MEVCUT varyantta fark (5→9); yeni eklenenler tohumlandı
 
             var variants = await WithUnitOfWorkAsync(async () =>
                 await _variantRepository.GetListAsync(v => v.EntityName == ProductEntityName && v.EntityId == product.Id));
@@ -546,16 +560,21 @@ public abstract class SalesChannelTrTrendyolProductImportTests<TStartupModule> :
 
             // StockItem zinciri: eklenenlerin başlığı kuruldu; mevcut başlığın override'ı IMPORT semantiğiyle
             // TAZELENDİ (uzak fiyat kanal katmanına yazılır — ERP varyantı değil; Second_import kilidiyle tutarlı).
+            // STOK — K12: mevcut varyantta fark (5→9) → OverrideStock=9; BU importta doğan varyantta fark yok → NULL.
             var headers = await WithUnitOfWorkAsync(async () =>
                 await _headerRepository.GetListAsync(h => h.SalesChannelTrTrendyolProductId == record.Id));
             headers.Count.ShouldBe(3);
             headers.Single(h => h.ProductVariantId == original.Id).OverridePrice.ShouldBe(150m);   // kanal katmanı tazelendi
+            headers.Single(h => h.ProductVariantId == original.Id).OverrideStock.ShouldBe(9);
             headers.Single(h => h.ProductVariantId == added.Id).OverridePrice.ShouldBe(120m);
+            headers.Single(h => h.ProductVariantId == added.Id).OverrideStock.ShouldBeNull();
 
-            // Üçüncü geçiş İDEMPOTENT: 0 ekleme, varyant sayısı sabit, ana varyant aynı.
+            // Üçüncü geçiş İDEMPOTENT: 0 ekleme, varyant sayısı sabit, ana varyant aynı. Stok farkı (5 vs 9)
+            // SÜRDÜKÇE her import'ta yeniden raporlanır (fark görünür kalır — sessiz geçilmez).
             var third = await _appService.ImportFromMarketplaceAsync(channel.Id);
             third.AddedVariants.ShouldBe(0);
             third.AddedBarcodes.ShouldBeEmpty();
+            third.StockDifferenceCount.ShouldBe(1);
             var variantsAfter = await WithUnitOfWorkAsync(async () =>
                 await _variantRepository.GetListAsync(v => v.EntityName == ProductEntityName && v.EntityId == product.Id));
             variantsAfter.Count.ShouldBe(3);

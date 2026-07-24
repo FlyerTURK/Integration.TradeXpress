@@ -10,6 +10,7 @@ using Integration.TradeXpress.Products;
 using Integration.TradeXpress.SalesChannels;
 using Integration.TradeXpress.Variants;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.Extensions.Logging;
 using Volo.Abp;
 using Volo.Abp.MultiTenancy;
 
@@ -31,8 +32,11 @@ namespace Integration.TradeXpress.TrendyolProducts;
 /// <para><b>Minimal-güncelleme kuralı (2026-07-11 netleşen hâli):</b> yerelde ZATEN var olan şablon/varyant ALANLARI
 /// GÜNCELLENMEZ (kullanıcı düzenlemiş olabilir) — ama remote'ta olup yerelde OLMAYAN barkodlu kalemler şablona
 /// OTOMATİK varyant olarak EKLENİR (eski "Eksik Varyantları Tamamla" ucu import'a gömüldü; ekleme-only, ana varyant
-/// değişmez). Uzak fiyat/stok kanal katmanına <see cref="SalesChannelTrTrendyolProductStockItem.OverridePrice"/> /
-/// <see cref="SalesChannelTrTrendyolProductStockItem.OverrideStock"/> olarak yazılır (kullanıcı onaylı yön).</para>
+/// değişmez). Uzak fiyat kanal katmanına <see cref="SalesChannelTrTrendyolProductStockItem.OverridePrice"/> olarak
+/// yazılır (kullanıcı onaylı yön); uzak STOK ise K12 politikasına tabidir (2026-07-23 kesin karar): çekirdek
+/// <c>StockQuantity</c> yalnız İLK kuruluşta (varyant bu importta doğarken) tohumlanır, sonraki importlarda remote
+/// stok çekirdeği EZMEZ — fark varsa <see cref="SalesChannelTrTrendyolProductStockItem.OverrideStock"/>'a yazılır
+/// (kanal gerçeği) + LogWarning + rapor sayacı; çekirdekle AYNIYSA override null kalır (gürültü üretilmez).</para>
 /// </summary>
 public partial class SalesChannelTrTrendyolProductAppService
 {
@@ -108,7 +112,7 @@ public partial class SalesChannelTrTrendyolProductAppService
                 existingRecords.Add(entity);   // aynı import içinde ikinci grup aynı kaydı bulabilsin
             }
 
-            await UpsertStockItemsAsync(entity, validVariants, variantsByBarcode, tryCurrencyUnitId, sideCostPlan);
+            await UpsertStockItemsAsync(entity, product, validVariants, variantsByBarcode, tryCurrencyUnitId, sideCostPlan, report);
         }
 
         return report;
@@ -644,6 +648,10 @@ public partial class SalesChannelTrTrendyolProductAppService
             report.UpdatedChannelProducts++;
         }
 
+        // K3 write-through: import'un getirdiği gerçek marka (id+ad) da cache'e düşer — picker açılış listesi
+        // tenant'ın fiilen kullandığı markalarla dolar. Sentinel ("0") / adsız kayıt manager'da zaten elenir.
+        await _brandCacheManager.UpsertAsync(entity.BrandId, entity.BrandName);
+
         return entity;
     }
 
@@ -700,13 +708,20 @@ public partial class SalesChannelTrTrendyolProductAppService
 
     /// <summary>Uzak fiyat/stok kanal override katmanına yazılır (kullanıcı onaylı yön): varyant-başına başlık
     /// upsert edilir; YENİ başlıkta kanal gider satırları da kurulur (<see cref="SideCostRecipeComposer.EnsureLines"/> —
-    /// mevcut klon yollarıyla tutarlı). Mevcut başlıkta reçeteye DOKUNULMAZ (kullanıcı emeği), yalnız override tazelenir.</summary>
+    /// mevcut klon yollarıyla tutarlı). Mevcut başlıkta reçeteye DOKUNULMAZ (kullanıcı emeği), yalnız override tazelenir.
+    /// <b>Stok — K12 politikası (2026-07-23 kesin karar):</b> çekirdek <c>StockQuantity</c> yalnız varyant BU importta
+    /// doğarken tohumlanır (create yolu — <see cref="CreateTemplateProductAsync"/>/<see cref="EnsureTemplateVariantsAsync"/>);
+    /// burada remote stok çekirdeği ASLA EZMEZ. Çekirdek == remote → override null (fark yok, gürültü üretme);
+    /// farklıysa remote değer <see cref="SalesChannelTrTrendyolProductStockItem.OverrideStock"/> olur (kanal gerçeği)
+    /// + fark görünür kılınır (<see cref="ResolveOverrideStock"/>: satır-bazında LogWarning + rapor sayacı).</summary>
     private async Task UpsertStockItemsAsync(
         SalesChannelTrTrendyolProduct entity,
+        Product product,
         List<TrendyolRemoteVariant> variants,
         Dictionary<string, EntityVariant> variantsByBarcode,
         Guid? tryCurrencyUnitId,
-        SideCostPlan sideCostPlan)
+        SideCostPlan sideCostPlan,
+        TrendyolImportResultDto report)
     {
         var headers = (await AsyncExecuter.ToListAsync(
                 (await _stockItemRepository.GetQueryableAsync())
@@ -722,19 +737,19 @@ public partial class SalesChannelTrTrendyolProductAppService
             }
 
             var salePrice = remoteVariant.SalePrice is >= 0 ? remoteVariant.SalePrice : null;
-            var stock = Math.Max(0, remoteVariant.Quantity);
+            var overrideStock = ResolveOverrideStock(product, localVariant, remoteVariant.Quantity, report);
 
             if (headers.TryGetValue(localVariant.Id, out var header))
             {
                 header.SetOverridePrice(salePrice, salePrice is null ? null : tryCurrencyUnitId);
-                header.SetOverrideStock(stock);
+                header.SetOverrideStock(overrideStock);
                 await _stockItemRepository.UpdateAsync(header, autoSave: true);
                 continue;
             }
 
             header = new SalesChannelTrTrendyolProductStockItem(entity.CompanyId, entity.Id, localVariant.Id);
             header.SetOverridePrice(salePrice, salePrice is null ? null : tryCurrencyUnitId);
-            header.SetOverrideStock(stock);
+            header.SetOverrideStock(overrideStock);
             await _stockItemRepository.InsertAsync(header, autoSave: true);
             headers[localVariant.Id] = header;
 
@@ -746,6 +761,29 @@ public partial class SalesChannelTrTrendyolProductAppService
                 await SaveChannelRecipeLinesAsync(entity, header.Id, recipeLines);
             }
         }
+    }
+
+    /// <summary>K12 stok politikasının karar noktası: remote stok (negatif → 0 clamp'li) çekirdek
+    /// <see cref="EntityVariant.StockQuantity"/> ile AYNIYSA null döner (override yazılmaz — "fark yok" gürültüsüz);
+    /// FARKLIYSA remote değer döner (kanal override'ı olur) + fark satır-bazında LogWarning + rapor sayacıyla
+    /// görünür kılınır (sessiz geçilmez). BU importta doğan varyantın çekirdeği remote'la tohumlandığından
+    /// (create yolu) doğal olarak "fark yok" dalına düşer — create/update ayrımı için zaman karşılaştırması GEREKMEZ.</summary>
+    private int? ResolveOverrideStock(Product product, EntityVariant localVariant, int remoteQuantity, TrendyolImportResultDto report)
+    {
+        var remoteStock = Math.Max(0, remoteQuantity);
+        if (remoteStock == localVariant.StockQuantity)
+        {
+            return null;
+        }
+
+        report.StockDifferenceCount++;
+        Logger.LogWarning(
+            "Trendyol import stok farkı: ürün {ProductCode} / varyant {VariantCode} — çekirdek {CoreStock}, remote {RemoteStock}. Çekirdek EZİLMEDİ; remote değer kanal OverrideStock'una yazıldı.",
+            product.Code,
+            localVariant.Code,
+            localVariant.StockQuantity,
+            remoteStock);
+        return remoteStock;
     }
 
     // ── Yardımcı yüklemeler ─────────────────────────────────────────────────────────────────────────

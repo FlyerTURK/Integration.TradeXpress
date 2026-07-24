@@ -214,7 +214,6 @@ public class ShipmentTemplateAppService : TradeXpressAppService, IShipmentTempla
         entity.SetDescription(input.Description);
         entity.SetFee(input.FeeModel, input.ConditionalThreshold, input.ConditionalUnit);
         entity.SetDeliveryDays(input.DeliveryDaysMin, input.DeliveryDaysMax);
-        entity.SetMaxPurchaseQuantity(input.MaxPurchaseQuantity);
     }
 
     /// <summary>Gönderim adresini çözer: şube modu (<c>DispatchBranchId</c> dolu) → şube doğrulanır + (branchId, null);

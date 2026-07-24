@@ -31,6 +31,10 @@ namespace Integration.TradeXpress.Products;
 /// </summary>
 public class RecipeCostPopulator : ITransientDependency
 {
+    /// <summary>EntityVariant sahip-tipi guard'ı — varyant join'leri yalnız Metal varyantlarına daralır
+    /// (başka entity'nin aynı Id'li varyantına çarpma savunması).</summary>
+    private const string MetalEntityName = "Metal";
+
     private readonly IEffectivePriceAppService _effectivePriceAppService;
     private readonly ProductRecipeCostCalculator _recipeCostCalculator;
     private readonly IRepository<Metal, Guid> _metalRepository;
@@ -150,7 +154,19 @@ public class RecipeCostPopulator : ITransientDependency
             {
                 isQuantity = m.IsQuantity;
                 stableQuantity = m.StableQuantity;
-                laborByQuantity = m.LaborByQuantity;
+
+                // İşçilik türü SATIRIN SEÇİLİ VARYANTINDAN çözülür (UI paritesi — ProductRecipePanel aynı
+                // varyanta bakar; ana-dışı varyant farklı LaborType taşıyabilir). Varyantsız satır
+                // (legacy + kanal reçeteleri: kolon yok) ana-varyant fallback'ine düşer.
+                if (l.CommodityVariantId is { } lineVariantId
+                    && catalog.LaborByQuantityByVariant.TryGetValue(lineVariantId, out var variantLaborByQuantity))
+                {
+                    laborByQuantity = variantLaborByQuantity;
+                }
+                else
+                {
+                    laborByQuantity = m.LaborByQuantity;
+                }
             }
             else if (l.CommodityProcessType == ProcessType.Jewelry && catalog.Jewelries.TryGetValue(commodityId, out var j))
             {
@@ -194,7 +210,8 @@ public class RecipeCostPopulator : ITransientDependency
     }
 
     /// <summary>Reçetede geçen katalog kayıtlarının hesaba giren canlı verisini (metal adet→gram; parasal giriş
-    /// fiyatı) TEK batch'te yükler. Filtreler kapalı (host/global katalog kaydı da çözülsün — salt-okuma).</summary>
+    /// fiyatı; işçilik türü — hem ana-varyant fallback'i hem satırın seçili varyantı için varyant-anahtarlı)
+    /// TEK batch'te yükler. Filtreler kapalı (host/global katalog kaydı da çözülsün — salt-okuma).</summary>
     private async Task<RecipeCatalogData> LoadRecipeCatalogAsync(List<ProductRecipeLineGraphDto> lines)
     {
         Guid[] IdsOfFamily(ProcessType family)
@@ -212,9 +229,19 @@ public class RecipeCostPopulator : ITransientDependency
         var jewelryIds = IdsOfFamily(ProcessType.Jewelry);
         var stoneIds = IdsOfFamily(ProcessType.Stone);
 
+        // Satırların SEÇTİĞİ metal varyantları (ana-varyanttan farklı olabilir) — işçilik türü varyant-özel çözülür.
+        var metalVariantIds = lines
+            .Where(l => l.ComponentType == RecipeComponentType.CatalogCommodity
+                && l.CommodityProcessType == ProcessType.Metal
+                && l.CommodityVariantId is not null)
+            .Select(l => l.CommodityVariantId!.Value)
+            .Distinct()
+            .ToArray();
+
         var metals = new Dictionary<Guid, MetalCatalogCost>();
         var jewelries = new Dictionary<Guid, PricedCatalogCost>();
         var stones = new Dictionary<Guid, PricedCatalogCost>();
+        var laborByQuantityByVariant = new Dictionary<Guid, bool>();
 
         using (_dataFilter.Disable<IMultiTenant>())
         using (_dataFilter.Disable<ICompanyScoped>())
@@ -230,14 +257,28 @@ public class RecipeCostPopulator : ITransientDependency
                 var laborTypes = await _asyncExecuter.ToListAsync(
                     from v in variantsQuery
                     join d in detailsQuery on v.Id equals d.EntityVariantId
-                    where v.IsMain && metalIds.Contains(v.EntityId)
+                    where v.IsMain && v.EntityName == MetalEntityName && metalIds.Contains(v.EntityId)
                     select new { v.EntityId, d.LaborType }
                 );
                 var laborTypeDict = laborTypes.ToDictionary(x => x.EntityId, x => x.LaborType);
 
                 metals = metalsList.ToDictionary(m => m.Id, m => new MetalCatalogCost(
-                        m.IsQuantity, m.StableQuantity, 
+                        m.IsQuantity, m.StableQuantity,
                         laborTypeDict.TryGetValue(m.Id, out var lt) ? lt == MetalLaborType.Quantity : false));
+
+                if (metalVariantIds.Length > 0)
+                {
+                    // Varyant-anahtarlı işçilik türü: satır ana-dışı varyant seçtiyse LaborType o varyantın
+                    // MetalVariantDetail'inden okunur (canlı okuma; ana-varyant sözlüğü yalnız fallback).
+                    var variantLaborTypes = await _asyncExecuter.ToListAsync(
+                        from v in variantsQuery
+                        join d in detailsQuery on v.Id equals d.EntityVariantId
+                        where v.EntityName == MetalEntityName && metalVariantIds.Contains(v.Id)
+                        select new { v.Id, d.LaborType }
+                    );
+                    laborByQuantityByVariant = variantLaborTypes.ToDictionary(
+                        x => x.Id, x => x.LaborType == MetalLaborType.Quantity);
+                }
             }
 
             if (jewelryIds.Length > 0)
@@ -255,7 +296,7 @@ public class RecipeCostPopulator : ITransientDependency
             }
         }
 
-        return new RecipeCatalogData(metals, jewelries, stones);
+        return new RecipeCatalogData(metals, jewelries, stones, laborByQuantityByVariant);
     }
 
     /// <summary>Kaydedilmiş türev SelectedLines satırlarının kalıcı kaynak-Id CSV'sini (bir satır setinde), o setin
@@ -316,12 +357,15 @@ public class RecipeCostPopulator : ITransientDependency
         }
     }
 
+    /// <summary><see cref="MetalCatalogCost.LaborByQuantity"/> ANA varyantın işçilik türüdür — yalnız
+    /// varyantsız satırların fallback'i; varyantlı satır <see cref="RecipeCatalogData.LaborByQuantityByVariant"/>'tan çözer.</summary>
     private sealed record MetalCatalogCost(bool IsQuantity, decimal StableQuantity, bool LaborByQuantity);
     private sealed record PricedCatalogCost(decimal EntryPrice, bool PriceByQuantity);
     private sealed record RecipeCatalogData(
         Dictionary<Guid, MetalCatalogCost> Metals,
         Dictionary<Guid, PricedCatalogCost> Jewelries,
-        Dictionary<Guid, PricedCatalogCost> Stones);
+        Dictionary<Guid, PricedCatalogCost> Stones,
+        Dictionary<Guid, bool> LaborByQuantityByVariant);
 }
 
 /// <summary>Bir reçete satır setinin net-maliyet özeti — net toplam (null ⇔ hesaplanamadı) + ülke birim kodu +

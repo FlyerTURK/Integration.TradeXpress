@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Integration.TradeXpress.Orders;
+using Integration.TradeXpress.Products;
 
 namespace Integration.TradeXpress.EtsyProducts;
 
@@ -111,7 +112,7 @@ public sealed record EtsyRemoteListing(
     IReadOnlyList<string> Materials,
     long? TaxonomyId,
     EtsyWhoMade? WhoMade,
-    EtsyWhenMade? WhenMade,
+    ProductMadePeriod? WhenMade,
     EtsyListingType ListingType,
     IReadOnlyList<string> ImageUrls,
     string? CurrencyCode,

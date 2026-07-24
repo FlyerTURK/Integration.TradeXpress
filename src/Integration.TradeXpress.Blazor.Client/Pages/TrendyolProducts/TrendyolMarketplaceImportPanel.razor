@@ -27,6 +27,10 @@
         {
             <span>@L["TrendyolProduct:Import:AddedVariants", r.AddedVariants]</span>
         }
+        @if (r.StockDifferenceCount > 0)
+        {
+            <span style="color:#b45309;">@L["TrendyolProduct:Import:StockDifferences", r.StockDifferenceCount]</span>
+        }
         @if (r.UnmatchedCategories.Count > 0)
         {
             <span style="color:#b45309;">@L["TrendyolProduct:Import:UnmatchedCategories", r.UnmatchedCategories.Count]</span>

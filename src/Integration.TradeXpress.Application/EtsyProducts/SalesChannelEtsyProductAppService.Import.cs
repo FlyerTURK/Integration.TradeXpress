@@ -9,6 +9,7 @@ using Integration.TradeXpress.Products;
 using Integration.TradeXpress.SalesChannels;
 using Integration.TradeXpress.Variants;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.Extensions.Logging;
 using Volo.Abp;
 using Volo.Abp.MultiTenancy;
 
@@ -24,7 +25,10 @@ namespace Integration.TradeXpress.EtsyProducts;
 /// <para><b>İdempotency:</b> kanal kaydı = <see cref="SalesChannelEtsyProduct.EtsyListingId"/> (fetch'ten set); offering =
 /// Etsy inventory <c>product_id</c> → <see cref="SalesChannelEtsyProductSku.EtsyProductId"/>. YENİ ALAN/MIGRATION YOK.
 /// İkinci import dublike üretmez; mevcut kaydı bulur, kanal alanlarını tazeler + Sku kimliklerini yeniden bağlar
-/// (ekleme-only — mevcut şablon/varyant grafına DOKUNMAZ; Trendyol minimal-güncelleme kuralıyla hizalı).</para>
+/// (ekleme-only — mevcut şablon/varyant grafına DOKUNMAZ; Trendyol minimal-güncelleme kuralıyla hizalı). Uzak STOK
+/// K12 politikasına tabidir (2026-07-23 kesin karar): çekirdek <c>StockQuantity</c> yalnız İLK import'ta tohumlanır;
+/// re-import'ta remote stok çekirdeği EZMEZ — fark <see cref="SalesChannelEtsyProductStockItem.OverrideStock"/>'a
+/// yazılır (kanal gerçeği) + LogWarning + rapor sayacı (<see cref="ApplyImportStockPolicyAsync"/>).</para>
 ///
 /// <para><b>Varyant grafı doğrudan repo insert ile kurulur</b> (Trendyol gibi; <c>IEntityVariantGraphService</c>/
 /// synchronizer KULLANILMAZ — kartezyen regen istemiyoruz, Etsy'nin GERÇEK offering setini koruyoruz).</para>
@@ -107,9 +111,106 @@ public partial class SalesChannelEtsyProductAppService
             {
                 existingRecords.Add(entity);   // aynı import içinde ikinci geçiş aynı kaydı bulabilsin
             }
+            else
+            {
+                // K12 stok politikası (2026-07-23 kesin karar): çekirdek kayıt ZATEN VARDI (update yolu) →
+                // remote stok çekirdek StockQuantity'yi EZMEZ; fark kanal OverrideStock'una yazılır (kanal
+                // gerçeği) + görünür kılınır (LogWarning + rapor sayacı). Create yolunda gereksiz: varyantlar
+                // az önce remote stokla tohumlandı (CreateTemplateProductAsync), fark tanım gereği yok.
+                await ApplyImportStockPolicyAsync(channel, entity, listing, product, variantByEtsyProductId, report);
+            }
         }
 
         return report;
+    }
+
+    /// <summary>Re-import stok politikası (K12): offering'in remote stoğu (negatif → 0 clamp'li) eşlenen çekirdek
+    /// varyantın <see cref="EntityVariant.StockQuantity"/>'siyle karşılaştırılır. AYNIYSA mevcut başlıktaki bayat
+    /// <see cref="SalesChannelEtsyProductStockItem.OverrideStock"/> temizlenir (null = ERP'den devral; başlık yoksa
+    /// KURULMAZ — gürültü üretme). FARKLIYSA remote değer kanal override'ı olur (başlık yoksa kurulur; YENİ başlığa
+    /// kanal gider satırları da eklenir — <see cref="SideCostRecipeComposer.EnsureLines"/>, klon/Trendyol import
+    /// yaşam anıyla aynı) + fark satır-bazında LogWarning + rapor sayacıyla görünür kılınır (sessiz geçilmez).
+    /// Eşlenemeyen offering (Sku bağı yok) atlanır — Sku bağı kurulunca sonraki import değerlendirir.</summary>
+    private async Task ApplyImportStockPolicyAsync(
+        SalesChannelEtsy channel,
+        SalesChannelEtsyProduct entity,
+        EtsyRemoteListing listing,
+        Product product,
+        Dictionary<long, Guid> variantByEtsyProductId,
+        EtsyImportResultDto report)
+    {
+        var variantIds = listing.Offerings
+            .Where(o => o.EtsyProductId > 0)
+            .Select(o => variantByEtsyProductId.TryGetValue(o.EtsyProductId, out var id) ? id : Guid.Empty)
+            .Where(id => id != Guid.Empty)
+            .Distinct()
+            .ToList();
+        if (variantIds.Count == 0)
+        {
+            return;
+        }
+
+        var variantsById = (await AsyncExecuter.ToListAsync(
+                (await _variantRepository.GetQueryableAsync()).Where(v => variantIds.Contains(v.Id))))
+            .ToDictionary(v => v.Id);
+        var headers = (await AsyncExecuter.ToListAsync(
+                (await _stockItemRepository.GetQueryableAsync())
+                    .Where(h => h.SalesChannelEtsyProductId == entity.Id && h.ProductVariantId != null
+                        && variantIds.Contains(h.ProductVariantId!.Value))))
+            .ToDictionary(h => h.ProductVariantId!.Value);
+
+        SideCostPlan? sideCostPlan = null;   // tembel — yalnız YENİ başlık kurulursa gerekir
+        foreach (var offering in listing.Offerings)
+        {
+            if (offering.EtsyProductId <= 0
+                || !variantByEtsyProductId.TryGetValue(offering.EtsyProductId, out var variantId)
+                || !variantsById.TryGetValue(variantId, out var variant))
+            {
+                continue;   // çekirdek varyant çözülemedi — Sku bağı sonraki import'ta kurulur
+            }
+
+            var remoteStock = Math.Max(0, offering.Quantity);
+            if (remoteStock == variant.StockQuantity)
+            {
+                // Fark yok → varsa bayat override temizlenir (null = ERP'den devral); başlık yoksa kurulmaz.
+                if (headers.TryGetValue(variantId, out var cleanHeader) && cleanHeader.OverrideStock is not null)
+                {
+                    cleanHeader.SetOverrideStock(null);
+                    await _stockItemRepository.UpdateAsync(cleanHeader, autoSave: true);
+                }
+
+                continue;
+            }
+
+            report.StockDifferenceCount++;
+            Logger.LogWarning(
+                "Etsy import stok farkı: ürün {ProductCode} / varyant {VariantCode} — çekirdek {CoreStock}, remote {RemoteStock}. Çekirdek EZİLMEDİ; remote değer kanal OverrideStock'una yazıldı.",
+                product.Code,
+                variant.Code,
+                variant.StockQuantity,
+                remoteStock);
+
+            if (headers.TryGetValue(variantId, out var header))
+            {
+                header.SetOverrideStock(remoteStock);
+                await _stockItemRepository.UpdateAsync(header, autoSave: true);
+                continue;
+            }
+
+            header = new SalesChannelEtsyProductStockItem(entity.CompanyId, entity.Id, variantId);
+            header.SetOverrideStock(remoteStock);
+            await _stockItemRepository.InsertAsync(header, autoSave: true);
+            headers[variantId] = header;
+
+            // Yan-maliyet satırları yalnız YENİ başlıkta kurulur (klon/Trendyol import yollarıyla aynı yaşam anı) —
+            // persist MEVCUT merkezi mekanikle (SaveChannelRecipeLinesAsync; paralel kayıt yolu YOK).
+            sideCostPlan ??= SideCostPlan.From(channel.SideCosts, resolvedCommissionRate: null, variantOptInEnabled: false);
+            var recipeLines = new List<ProductRecipeLineGraphDto>();
+            if (SideCostRecipeComposer.EnsureLines(recipeLines, sideCostPlan))
+            {
+                await SaveChannelRecipeLinesAsync(entity, header.Id, recipeLines);
+            }
+        }
     }
 
     // ── Eşleşme (idempotency: EtsyListingId) ────────────────────────────────────────────────────────
@@ -157,7 +258,7 @@ public partial class SalesChannelEtsyProductAppService
 
         if (listing.WhenMade is { } whenMade)
         {
-            product.SetWhenMade(whenMade);
+            product.SetMadePeriod(whenMade);
         }
 
         await _productRepository.InsertAsync(product, autoSave: true);

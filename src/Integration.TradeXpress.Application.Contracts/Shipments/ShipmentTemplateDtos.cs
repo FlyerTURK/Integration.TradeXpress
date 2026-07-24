@@ -107,7 +107,6 @@ public interface IShipmentTemplateInput
 
     ShipmentAddressDto? ReturnAddress { get; }
     string? ReturnInfo { get; }
-    int? MaxPurchaseQuantity { get; }
 }
 
 public class ShipmentTemplateGetDto : EntityDto<Guid>, IGetDto<Guid>, IHasCode
@@ -165,8 +164,6 @@ public class ShipmentTemplateGetDto : EntityDto<Guid>, IGetDto<Guid>, IHasCode
 
     [StringLength(ShipmentTemplateConsts.ReturnInfoMaxLength)]
     public string? ReturnInfo { get; set; }
-
-    public int? MaxPurchaseQuantity { get; set; }
 }
 
 public class ShipmentTemplateCreateDto : IShipmentTemplateInput, ICreateDto
@@ -216,8 +213,6 @@ public class ShipmentTemplateCreateDto : IShipmentTemplateInput, ICreateDto
 
     [StringLength(ShipmentTemplateConsts.ReturnInfoMaxLength)]
     public string? ReturnInfo { get; set; }
-
-    public int? MaxPurchaseQuantity { get; set; }
 }
 
 public class ShipmentTemplateUpdateDto : IShipmentTemplateInput, IUpdateDto
@@ -269,8 +264,6 @@ public class ShipmentTemplateUpdateDto : IShipmentTemplateInput, IUpdateDto
 
     [StringLength(ShipmentTemplateConsts.ReturnInfoMaxLength)]
     public string? ReturnInfo { get; set; }
-
-    public int? MaxPurchaseQuantity { get; set; }
 }
 
 /// <summary>Çekirdek kargo şablonunun bir satış kanalına dağıtımı (deployment) — <b>kanal-agnostik</b> özet satırı.
