@@ -34,6 +34,7 @@ public abstract class ProductVariantModeGateTests<TStartupModule> : TradeXpressA
     private readonly IProductAppService _productAppService;
     private readonly ISalesChannelTrN11ProductAppService _n11ProductAppService;
     private readonly IRepository<SalesChannelTrN11, Guid> _n11ChannelRepository;
+    private readonly IRepository<SubstitutionGroup, Guid> _substitutionGroupRepository;
     private readonly ICurrentCompany _currentCompany;
 
     protected ProductVariantModeGateTests()
@@ -41,7 +42,17 @@ public abstract class ProductVariantModeGateTests<TStartupModule> : TradeXpressA
         _productAppService = GetRequiredService<IProductAppService>();
         _n11ProductAppService = GetRequiredService<ISalesChannelTrN11ProductAppService>();
         _n11ChannelRepository = GetRequiredService<IRepository<SalesChannelTrN11, Guid>>();
+        _substitutionGroupRepository = GetRequiredService<IRepository<SubstitutionGroup, Guid>>();
         _currentCompany = GetRequiredService<ICurrentCompany>();
+    }
+
+    /// <summary>Muadil konfigürasyonu artık VAR OLAN bir gruba işaret etmek ZORUNDA (ProductAppService FK varlık
+    /// doğrulaması — kod-inceleme düzeltmesi). Bu yüzden testler rastgele Guid yerine gerçek grup seed'ler.</summary>
+    private async Task<Guid> SeedSubstitutionGroupAsync(string code)
+    {
+        var group = await WithUnitOfWorkAsync(() => _substitutionGroupRepository.InsertAsync(
+            new SubstitutionGroup(_currentCompany.Id!.Value, code, $"{code} Grubu"), autoSave: true));
+        return group.Id;
     }
 
     [Fact]
@@ -94,6 +105,28 @@ public abstract class ProductVariantModeGateTests<TStartupModule> : TradeXpressA
         }
     }
 
+    /// <summary>VAR OLMAYAN muadil grubu id'si kayıt anında reddedilir (kod-inceleme düzeltmesi). Aggregate'ler arası
+    /// referans id-only olduğundan DB'de FK kısıtı yok; doğrulama olmadan dangling id sessizce persist oluyor ve hata
+    /// çok sonra BAŞKA ekranda ("Kombinasyon Hesapla" → GroupNotFound) + boş override ağacı olarak çıkıyordu.</summary>
+    [Fact]
+    public async Task Substitution_with_unknown_group_is_rejected_at_save()
+    {
+        using (_currentCompany.Change(Guid.NewGuid()))
+        {
+            var exception = await Should.ThrowAsync<BusinessException>(() => _productAppService.CreateAsync(
+                new ProductCreateDto
+                {
+                    Code = "TSTMODEF",
+                    Name = "Hayalet Gruplu Muadil Ürünü",
+                    VariantMode = ProductVariantMode.Substitution,
+                    SubstitutionGroupId = Guid.NewGuid(),   // hiç var olmamış grup
+                    SubstitutionTargetQuantity = 10m,
+                }));
+
+            exception.Code.ShouldBe("TradeXpress:Product:SubstitutionGroupNotFound");
+        }
+    }
+
     [Fact]
     public async Task Substitution_mode_without_group_fails_fast_through_service()
     {
@@ -116,7 +149,7 @@ public abstract class ProductVariantModeGateTests<TStartupModule> : TradeXpressA
     {
         using (_currentCompany.Change(Guid.NewGuid()))
         {
-            var groupId = Guid.NewGuid();
+            var groupId = await SeedSubstitutionGroupAsync("TSTMODEDGRP");
             var overrideVariantId = Guid.NewGuid();
             var metalId = Guid.NewGuid();
             var metalVariantId = Guid.NewGuid();
@@ -203,6 +236,7 @@ public abstract class ProductVariantModeGateTests<TStartupModule> : TradeXpressA
         {
             var metalId = Guid.NewGuid();
             var metalVariantId = Guid.NewGuid();
+            var groupId = await SeedSubstitutionGroupAsync("TSTMODEEGRP");
 
             // Muadil ürünü: tek ana varyant + CommodityVariantId'li kombinasyon reçetesi ("Reçeteye Uygula" çıktısı).
             var product = await _productAppService.CreateAsync(new ProductCreateDto
@@ -210,7 +244,7 @@ public abstract class ProductVariantModeGateTests<TStartupModule> : TradeXpressA
                 Code = "TSTMODEE",
                 Name = "Kanal Yansıma Ürünü",
                 VariantMode = ProductVariantMode.Substitution,
-                SubstitutionGroupId = Guid.NewGuid(),
+                SubstitutionGroupId = groupId,
                 SubstitutionTargetQuantity = 10m,
                 Variants = new List<ProductVariantGraphDto>
                 {

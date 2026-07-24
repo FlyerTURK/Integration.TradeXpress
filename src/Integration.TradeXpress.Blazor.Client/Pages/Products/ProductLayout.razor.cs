@@ -184,6 +184,12 @@ public partial class ProductLayout
     {
         await base.OnParametersSetAsync();
 
+        // Deneme satırları RENDER'DAN ÖNCE burada kurulur (kod-inceleme bulgusu): eskiden bunu SubstitutionTrialRows
+        // getter'ı yapıyordu ve markup'ta toolbar grid'den ÖNCE çizildiği için, yeni hesaptan sonraki render'da
+        // "Reçeteye Uygula" bir ÖNCEKİ seçimden aktif boyanıp hemen ardından seçim sıfırlanıyordu → aktif ama işlevsiz
+        // buton. Yan etkiyi yaşam döngüsüne almak markup sırasına bağımlılığı da ortadan kaldırır.
+        RebuildTrialRowsIfResultChanged();
+
         if (Model.VariantMode == ProductVariantMode.Substitution
             && Model.SubstitutionGroupId != _requestedSubstitutionGroupId
             && OnSubstitutionGroupChanged.HasDelegate)
@@ -193,49 +199,52 @@ public partial class ProductLayout
         }
     }
 
+    /// <summary>Sonuç referansı değiştiyse deneme satırlarını yeniden kurar + seçimi sıfırlar (bayat seçim yeni
+    /// sonucun satırlarına işaret edemez). Sonuç aynıysa satır instance'ları korunur → grid seçim kimliği bozulmaz.</summary>
+    private void RebuildTrialRowsIfResultChanged()
+    {
+        if (ReferenceEquals(_trialRowsSource, SubstitutionResult))
+        {
+            return;
+        }
+
+        _trialRowsSource = SubstitutionResult;
+        _selectedTrialRow = null;
+        _selectedTrialItems = Array.Empty<object>();
+
+        if (SubstitutionResult is not { } result)
+        {
+            _trialRows = new List<SubstitutionTrialRow>();
+            return;
+        }
+
+        var rows = new List<SubstitutionTrialRow>(result.Trials.Count);
+        for (var i = 0; i < result.Trials.Count; i++)
+        {
+            var trial = result.Trials[i];
+            rows.Add(new SubstitutionTrialRow
+            {
+                Trial        = trial,
+                TrialNo      = i + 1,
+                Combination  = SubstitutionTrialFormat.CombinationText(trial),
+                Variants     = SubstitutionTrialFormat.VariantsText(trial),
+                StatusText   = BuildTrialStatusText(trial),
+            });
+        }
+
+        _trialRows = rows
+            .OrderByDescending(r => r.Trial.Success)
+            .ThenBy(r => r.Trial.Rank ?? int.MaxValue)
+            .ThenBy(r => r.TrialNo)
+            .ToList();
+    }
+
     /// <summary>Muadil sekmesinin grid satırları — hesaplama sayfası BuildRows dizilimiyle birebir
-    /// (başarılılar üstte Rank sırasıyla; TrialNo orijinal deneme numarasını korur). ÖNBELLEKLİ:
-    /// sonuç referansı değişmedikçe aynı satır instance'ları döner (grid seçim kimliği korunur).</summary>
+    /// (başarılılar üstte Rank sırasıyla; TrialNo orijinal deneme numarasını korur). SAF getter: satırlar
+    /// <see cref="RebuildTrialRowsIfResultChanged"/> tarafından render'dan ÖNCE kurulur (yan etki markup'ta değil).</summary>
     private List<SubstitutionTrialRow> SubstitutionTrialRows
     {
-        get
-        {
-            if (ReferenceEquals(_trialRowsSource, SubstitutionResult))
-            {
-                return _trialRows;
-            }
-
-            _trialRowsSource = SubstitutionResult;
-            _selectedTrialRow = null;
-            _selectedTrialItems = Array.Empty<object>();
-
-            if (SubstitutionResult is not { } result)
-            {
-                _trialRows = new List<SubstitutionTrialRow>();
-                return _trialRows;
-            }
-
-            var rows = new List<SubstitutionTrialRow>(result.Trials.Count);
-            for (var i = 0; i < result.Trials.Count; i++)
-            {
-                var trial = result.Trials[i];
-                rows.Add(new SubstitutionTrialRow
-                {
-                    Trial        = trial,
-                    TrialNo      = i + 1,
-                    Combination  = SubstitutionTrialFormat.CombinationText(trial),
-                    Variants     = SubstitutionTrialFormat.VariantsText(trial),
-                    StatusText   = BuildTrialStatusText(trial),
-                });
-            }
-
-            _trialRows = rows
-                .OrderByDescending(r => r.Trial.Success)
-                .ThenBy(r => r.Trial.Rank ?? int.MaxValue)
-                .ThenBy(r => r.TrialNo)
-                .ToList();
-            return _trialRows;
-        }
+        get { return _trialRows; }
     }
 
     // Maliyet kolonu başlığı — para birimi çözüldüyse yanına eklenir (hesaplama sayfası deseni).

@@ -81,18 +81,20 @@ public class EtsyWhenMadeMapTests
         EtsyProductClient.MapWhenMade(wire).ShouldBeNull();
     }
 
+    /// <summary>Bilinmeyen kova YANLIŞ bir döneme eşlenmez — null döner (alan opsiyonel/nullable) ve import DEVAM eder.
+    /// Regresyon koruması (kod-inceleme bulgusu): eskiden burada BusinessException fırlatılıyordu ve bu, ilan parse
+    /// döngüsünün içinde çalıştığından (tek catch tip-daraltılmış: JsonException) TEK bozuk ilan TÜM importu
+    /// düşürüyordu — satır-atlama makinesi devreye giremiyor, mağaza 0 ürünle dönüyordu. Etsy "2020_2026" kovasını
+    /// yıllık yuvarladığı için bu kesinti garantiliydi. K9'un koruduğu risk (sessiz YANLIŞ eşleme) burada yok.</summary>
     [Theory]
     [InlineData("2020_2025")]     // bayat eski wire (Etsy artık göndermiyor)
     [InlineData("2006_2009")]     // bayat eski wire
     [InlineData("2000_2005")]     // bayat eski wire
     [InlineData("before_2000")]   // bayat eski wire
-    [InlineData("2020_2027")]     // gelecekteki rolling kova — map satırı güncellenmeden sessiz geçmesin
+    [InlineData("2020_2027")]     // gelecekteki rolling kova — importu KIRMAMALI
     [InlineData("garbage")]
-    public void Unknown_value_fails_fast_instead_of_silent_null(string wire)
+    public void Unknown_value_returns_null_instead_of_aborting_the_import(string wire)
     {
-        var exception = Should.Throw<BusinessException>(() => EtsyProductClient.MapWhenMade(wire));
-
-        exception.Code.ShouldBe("TradeXpress:Etsy:Product:UnknownWhenMade");
-        exception.Data["value"].ShouldBe(wire);
+        EtsyProductClient.MapWhenMade(wire).ShouldBeNull();
     }
 }

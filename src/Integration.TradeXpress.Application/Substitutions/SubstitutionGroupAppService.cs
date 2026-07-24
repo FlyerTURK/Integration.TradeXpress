@@ -7,6 +7,7 @@ using Integration.Framework.Base.Querying;
 using Integration.TradeXpress.Metals;
 using Integration.TradeXpress.MultiCompany;
 using Integration.TradeXpress.Permissions;
+using Integration.TradeXpress.Products;
 using Integration.TradeXpress.Variants;
 using Microsoft.AspNetCore.Authorization;
 using Volo.Abp;
@@ -35,6 +36,7 @@ public class SubstitutionGroupAppService : TradeXpressAppService, ISubstitutionG
     private readonly IRepository<SubstitutionGroupItem, Guid> _itemRepository;
     private readonly IRepository<Metal, Guid> _metalRepository;
     private readonly IRepository<EntityVariant, Guid> _variantRepository;
+    private readonly IRepository<Product, Guid> _productRepository;   // yalnız OKUMA — silme "kullanımda" guard'ı
     private readonly IDataFilter _dataFilter;
     private readonly ICurrentCompany _currentCompany;   // güvenlik sınırı: working-context zorlaması
 
@@ -46,9 +48,11 @@ public class SubstitutionGroupAppService : TradeXpressAppService, ISubstitutionG
         IRepository<SubstitutionGroupItem, Guid> itemRepository,
         IRepository<Metal, Guid> metalRepository,
         IRepository<EntityVariant, Guid> variantRepository,
+        IRepository<Product, Guid> productRepository,
         IDataFilter dataFilter,
         ICurrentCompany currentCompany)
     {
+        _productRepository = productRepository;
         _repository        = repository;
         _itemRepository    = itemRepository;
         _metalRepository   = metalRepository;
@@ -125,8 +129,22 @@ public class SubstitutionGroupAppService : TradeXpressAppService, ISubstitutionG
         // kaydını gizler → EntityNotFound; satır silme ancak doğrulamadan SONRA yapılır.
         var entity = await _repository.GetAsync(id);
 
+        await EnsureNotInUseAsync(entity.Id);
         await _itemRepository.DeleteAsync(i => i.SubstitutionGroupId == entity.Id, autoSave: true);
         await _repository.DeleteAsync(entity, autoSave: true);
+    }
+
+    /// <summary>Silme "kullanımda" guard'ı (ShipmentTemplate/AddOn deseni — kod-inceleme bulgusu). Aggregate'ler arası
+    /// referans id-only olduğundan DB'de FK kısıtı yoktur: guard olmadan grup silinince <see cref="Product"/>'ın
+    /// <c>SubstitutionGroupId</c>'si dangling kalıyor, ürün formu hata toast'ı + boş override ağacı gösteriyor ve
+    /// "Kombinasyon Hesapla" GroupNotFound veriyordu. EF eşlemesindeki AppProducts.SubstitutionGroupId indeksi zaten
+    /// bu sorgu için konmuştu.</summary>
+    private async Task EnsureNotInUseAsync(Guid groupId)
+    {
+        if (await _productRepository.AnyAsync(p => p.SubstitutionGroupId == groupId))
+        {
+            throw new BusinessException("TradeXpress:Substitution:GroupInUse");
+        }
     }
 
     /// <summary>Kod değişikliği (ürün kuralı 2026-07-04): normalize → değiştiyse AYNI ŞİRKET scope'unda

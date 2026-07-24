@@ -741,6 +741,10 @@ public partial class SalesChannelTrTrendyolProductAppService
 
             if (headers.TryGetValue(localVariant.Id, out var header))
             {
+                // TASARIM (kullanıcı onaylı yön — SalesChannelTrTrendyolProductImportTests'te pinli): ÇEKİRDEK asla
+                // ezilmez (ürün adı, ProductVariantDetail fiyatı korunur), uzak gerçek KANAL katmanına yazılır.
+                // OverridePrice/OverrideStock kullanıcının rezerv alanı DEĞİL, pazaryerinin AYNASIDIR → her import'ta
+                // remote değerle tazelenir.
                 header.SetOverridePrice(salePrice, salePrice is null ? null : tryCurrencyUnitId);
                 header.SetOverrideStock(overrideStock);
                 await _stockItemRepository.UpdateAsync(header, autoSave: true);

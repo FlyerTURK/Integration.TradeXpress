@@ -133,17 +133,17 @@
         else
         {
             @* Zorunlu attribute'lar (Marka/Toplam Gram/Maden Ayarı) — HEP açık, üstte. *@
-            <N11CategoryAttributeGrid Rows="@MandatoryAttributeRows" RowSaving="OnAttributeRowSaving" />
+            <N11CategoryAttributeGrid Rows="@_mandatoryAttributeRows" RowSaving="OnAttributeRowSaving" />
 
             @* Opsiyonel (GPSR/Ürün Güvenliği vb.) — sayaçlı, varsayılan KAPALI katlanabilir grup: form kalabalıklaşmasın
                ama kabiliyet kaybolmasın (N11 yarın bir GPSR alanını zorunlu yaparsa doldurabilirsin). *@
-            @if (OptionalAttributeRows.Count > 0)
+            @if (_optionalAttributeRows.Count > 0)
             {
                 <DxFormLayout CssClass="mt-2">
-                    <DxFormLayoutGroup Caption="@($"{L["N11Product:OptionalAttributes"]} ({OptionalFilledCount}/{OptionalAttributeRows.Count})")"
+                    <DxFormLayoutGroup Caption="@($"{L["N11Product:OptionalAttributes"]} ({OptionalFilledCount}/{_optionalAttributeRows.Count})")"
                                        Expanded="false" ExpandButtonDisplayMode="GroupExpandButtonDisplayMode.Start" ColSpanMd="12">
                         <DxFormLayoutItem ColSpanMd="12">
-                            <N11CategoryAttributeGrid Rows="@OptionalAttributeRows" RowSaving="OnAttributeRowSaving" />
+                            <N11CategoryAttributeGrid Rows="@_optionalAttributeRows" RowSaving="OnAttributeRowSaving" />
                         </DxFormLayoutItem>
                     </DxFormLayoutGroup>
                 </DxFormLayout>

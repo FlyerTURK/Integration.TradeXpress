@@ -173,6 +173,9 @@ public partial class SalesChannelEtsyProductAppService
             if (remoteStock == variant.StockQuantity)
             {
                 // Fark yok → varsa bayat override temizlenir (null = ERP'den devral); başlık yoksa kurulmaz.
+                // TASARIM NOTU: OverrideStock kullanıcının rezerv alanı DEĞİL, pazaryerinin AYNASIDIR (K12 yönü:
+                // çekirdek ezilmez, uzak gerçek kanal katmanına yazılır) → remote çekirdeğe eşitlendiğinde ayna
+                // değerinin sürmesi için sebep kalmaz. Trendyol ikizi de her import'ta remote ile tazeler.
                 if (headers.TryGetValue(variantId, out var cleanHeader) && cleanHeader.OverrideStock is not null)
                 {
                     cleanHeader.SetOverrideStock(null);

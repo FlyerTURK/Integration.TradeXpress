@@ -672,8 +672,15 @@ public sealed class EtsyProductClient : IEtsyProductClient, ITransientDependency
             "1800s" => ProductMadePeriod.Y1800s,
             "1700s" => ProductMadePeriod.Y1700s,
             "before_1700" => ProductMadePeriod.Before1700,
-            _ => throw new BusinessException("TradeXpress:Etsy:Product:UnknownWhenMade")
-                .WithData("value", value),
+            // Bilinmeyen kova → null ("bilinmiyor"), THROW DEĞİL (kod-inceleme bulgusu). Eski fail-fast bu parse
+            // döngüsünün İÇİNDE çalışıyordu (ReadListing → ParseListingsPage) ve oradaki tek catch tip-daraltılmış
+            // (JsonException) olduğu için TEK bozuk ilan TÜM importu düşürüyordu: satır-atlama makinesi (SkippedRows)
+            // devreye bile giremiyor, 400 ilanlık mağaza 0 ürünle dönüyordu. Etsy "2020_2026" kovasını her yıl
+            // yuvarlıyor (bu kovayı neredeyse HER modern ilan taşır) → kesinti garantiliydi.
+            // K9'un asıl koruduğu risk (bilinmeyen değerin YANLIŞ bir kovaya sessizce eşlenmesi) burada YOK:
+            // yanlış enum'a map edilmiyor, alan boş bırakılıyor — zaten opsiyonel ve nullable. Kardeş MapWhoMade
+            // ile de politika birliği sağlanır.
+            _ => null,
         };
     }
 

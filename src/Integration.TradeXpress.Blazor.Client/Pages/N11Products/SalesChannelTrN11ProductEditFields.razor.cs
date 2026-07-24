@@ -109,19 +109,24 @@ public partial class SalesChannelTrN11ProductEditFields : CrudComponentBase
     // GPSR gürültüsü: N11 REST /cdn kategori-attribute yüzeyi, 3 gerçek zorunlu (Marka/Toplam Gram/Maden Ayarı)
     // yanına ~32 platform-geneli "Ürün Güvenliği/GPSR" opsiyonel alanı ekliyor. Zorunlular üstte HEP açık; opsiyoneller
     // sayaçlı KATLANMIŞ grupta (form kalabalıklaşmasın, kabiliyet kaybolmasın). İki grid aynı EditCell mantığını paylaşır.
-    private IReadOnlyList<N11AttributeCellRow> MandatoryAttributeRows
-    {
-        get { return _attributeRows.Where(r => r.IsMandatory).ToList(); }
-    }
+    //
+    // ALAN olarak tutulurlar, getter DEĞİL (kod-inceleme bulgusu): markup'tan çağrılan LINQ getter'ı her render'da YENİ
+    // List üretiyordu → DxGrid.Data referansı her seferinde değişip veri kaynağını yeniden yüklüyordu (opsiyonel liste
+    // ayrıca tek render'da ÜÇ kez hesaplanıyordu). Bölünme yalnız satır kümesi değişince (BuildAttributeRows) kurulur.
+    private IReadOnlyList<N11AttributeCellRow> _mandatoryAttributeRows = Array.Empty<N11AttributeCellRow>();
+    private IReadOnlyList<N11AttributeCellRow> _optionalAttributeRows = Array.Empty<N11AttributeCellRow>();
 
-    private IReadOnlyList<N11AttributeCellRow> OptionalAttributeRows
-    {
-        get { return _attributeRows.Where(r => !r.IsMandatory).ToList(); }
-    }
-
+    /// <summary>Opsiyonel alanlardan kaçı dolu (grup başlığı sayacı) — satır sayısı küçük, hücre kaydında tazelenir.</summary>
     private int OptionalFilledCount
     {
-        get { return _attributeRows.Count(r => !r.IsMandatory && !string.IsNullOrEmpty(r.CustomValue)); }
+        get { return _optionalAttributeRows.Count(r => !string.IsNullOrEmpty(r.CustomValue)); }
+    }
+
+    /// <summary>Zorunlu/opsiyonel bölünmesini kurar — <c>_attributeRows</c> her değiştiğinde çağrılır.</summary>
+    private void SplitAttributeRows()
+    {
+        _mandatoryAttributeRows = _attributeRows.Where(r => r.IsMandatory).ToList();
+        _optionalAttributeRows = _attributeRows.Where(r => !r.IsMandatory).ToList();
     }
 
     // Özellikler drill'i (kombinasyon ÜRETİMİ amaçlı — kategori-attribute-push'tan AYRI) — üst = özellik
@@ -302,6 +307,8 @@ public partial class SalesChannelTrN11ProductEditFields : CrudComponentBase
                 CustomValue = existingValue,
             };
         }).ToList();
+
+        SplitAttributeRows();
     }
 
     // Hücre düzenlemesi kapanınca (EditCell — ayrı kaydet/düzenle tuşu yok) edit-model klonunun tek değerini orijinal

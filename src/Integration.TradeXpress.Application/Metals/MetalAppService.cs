@@ -105,6 +105,9 @@ public class MetalAppService
             if (mainVariants.Count > 0)
             {
                 var vIds = mainVariants.Values.Distinct().ToList();
+                // IMultiTenant DE kapatılır — GetVariantLookupAsync ile aynı gerekçe (host işçilik satırı elenip
+                // EntryLabor sessizce 0'a düşmesin); salt-okuma zenginleştirme.
+                using (DataFilter.Disable<IMultiTenant>())
                 using (DataFilter.Disable<ICompanyScoped>())
                 {
                     var details = (await AsyncExecuter.ToListAsync(
@@ -500,6 +503,12 @@ public class MetalAppService
         }
 
         Dictionary<Guid, MetalVariantDetail> details;
+        // IMultiTenant DE kapatılır (kod-inceleme bulgusu): MetalVariantDetail IMultiTenant olduğundan, host'a ait
+        // işçilik satırları tenant working-context'inde ELENİR ve EntryLabor sessizce 0 dönerdi. PayFactor 0 olduğunda
+        // maliyet motoru işçilik birimini hiç aramaz → MissingRate bile üretilmez, yani çözücünün fiyatlayıp sıraladığı
+        // işçilik bacağı uygulanan reçetede iz bırakmadan kaybolurdu. Sunucu tarafında aynı tuzak zaten kapatılmıştı
+        // (SubstitutionCalculationAppService: "host satırları elenirdi → işçilik sessizce 0'a düşer"); okuma-only.
+        using (DataFilter.Disable<IMultiTenant>())
         using (DataFilter.Disable<ICompanyScoped>())
         {
             var variantIds = rows.Select(r => r.VariantId.GetValueOrDefault()).ToList();

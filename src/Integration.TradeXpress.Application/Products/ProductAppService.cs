@@ -10,6 +10,7 @@ using Integration.TradeXpress.MultiCompany;
 using Integration.TradeXpress.N11Products;
 using Integration.TradeXpress.SalesChannels.Variants;
 using Integration.TradeXpress.Shipments;
+using Integration.TradeXpress.Substitutions;
 using Integration.TradeXpress.TrendyolProducts;
 using Integration.TradeXpress.Permissions;
 using Integration.TradeXpress.Variants;
@@ -41,6 +42,7 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
 
     private readonly IRepository<Product, Guid> _repository;
     private readonly IRepository<ShipmentTemplate, Guid> _shipmentTemplateRepository;   // yalnız OKUMA — FK→ad çözümü (K8-Faz1)
+    private readonly IRepository<SubstitutionGroup, Guid> _substitutionGroupRepository; // yalnız OKUMA — FK varlık doğrulaması
     private readonly IEntityVariantGraphService _entityVariant;
     private readonly IRepository<EntityVariant, Guid> _variantRepository;
     private readonly IRepository<ProductVariantDetail, Guid> _variantDetailRepository;
@@ -59,6 +61,7 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
     public ProductAppService(
         IRepository<Product, Guid> repository,
         IRepository<ShipmentTemplate, Guid> shipmentTemplateRepository,
+        IRepository<SubstitutionGroup, Guid> substitutionGroupRepository,
         IEntityVariantGraphService entityVariant,
         IRepository<EntityVariant, Guid> variantRepository,
         IRepository<ProductVariantDetail, Guid> variantDetailRepository,
@@ -73,6 +76,7 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
     {
         _repository = repository;
         _shipmentTemplateRepository = shipmentTemplateRepository;
+        _substitutionGroupRepository = substitutionGroupRepository;
         _entityVariant = entityVariant;
         _variantRepository = variantRepository;
         _variantDetailRepository = variantDetailRepository;
@@ -175,6 +179,7 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
             input.ShipmentTemplateId, input.MaxPurchaseQuantity, input.SellerNote,
             input.CurrencyUnitId, input.SpecialInfo, input.AddOns);
         // Varyant modu ÖNCE, muadil konfigürasyonu SONRA (mutator mod tutarlılığını modun güncel değerine göre kurar).
+        await EnsureSubstitutionGroupExistsAsync(input.VariantMode, input.SubstitutionGroupId);
         entity.SetVariantMode(input.VariantMode);
         entity.SetSubstitutionConfig(input.SubstitutionGroupId, input.SubstitutionTargetQuantity,
             input.SubstitutionToleranceType, input.SubstitutionToleranceValue, input.SubstitutionOverrideVariantIds);
@@ -210,6 +215,7 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
             input.ShipmentTemplateId, input.MaxPurchaseQuantity, input.SellerNote,
             input.CurrencyUnitId, input.SpecialInfo, input.AddOns);
         // Varyant modu ÖNCE, muadil konfigürasyonu SONRA (Create ile simetrik; mod dışı alanlar temizlenir).
+        await EnsureSubstitutionGroupExistsAsync(input.VariantMode, input.SubstitutionGroupId);
         entity.SetVariantMode(input.VariantMode);
         entity.SetSubstitutionConfig(input.SubstitutionGroupId, input.SubstitutionTargetQuantity,
             input.SubstitutionToleranceType, input.SubstitutionToleranceValue, input.SubstitutionOverrideVariantIds);
@@ -686,6 +692,26 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
 
         var template = await _shipmentTemplateRepository.FindAsync(id);
         return template?.Name ?? legacyName;
+    }
+
+    /// <summary>Muadil grubu FK'sinin VARLIK doğrulaması (kod-inceleme bulgusu). Aggregate'ler arası referans id-only
+    /// olduğundan DB'de FK kısıtı YOKTUR (NavigationConventionTests) → doğrulama olmadan var olmayan/silinmiş bir grup
+    /// id'si sessizce persist ediliyor, hata çok sonra BAŞKA ekranda ("Kombinasyon Hesapla" → GroupNotFound) ve boş
+    /// override ağacı olarak ortaya çıkıyordu. Kardeş FK (<see cref="ResolveShipmentTemplateNameAsync"/>) zaten
+    /// çözerek doğruluyor; burada da kayıt anında fail-fast edilir. Şirket/tenant görünürlüğü global sorgu
+    /// filtrelerince zaten sağlanır (yabancı grup zaten bulunamaz).</summary>
+    private async Task EnsureSubstitutionGroupExistsAsync(ProductVariantMode variantMode, Guid? substitutionGroupId)
+    {
+        // Mod Muadil değilse konfigürasyon zaten temizlenir; grup id'si boşsa domain "grup zorunlu" der.
+        if (variantMode != ProductVariantMode.Substitution || substitutionGroupId is not { } groupId)
+        {
+            return;
+        }
+
+        if (await _substitutionGroupRepository.FindAsync(groupId) is null)
+        {
+            throw new BusinessException("TradeXpress:Product:SubstitutionGroupNotFound");
+        }
     }
 
     private async Task<ProductGetDto> ToGetDtoAsync(Product p)

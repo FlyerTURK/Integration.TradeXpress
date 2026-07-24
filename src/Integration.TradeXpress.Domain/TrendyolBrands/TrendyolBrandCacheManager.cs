@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Volo.Abp.Uow;
 
 namespace Integration.TradeXpress.TrendyolBrands;
 
@@ -14,6 +15,7 @@ namespace Integration.TradeXpress.TrendyolBrands;
 public class TrendyolBrandCacheManager(
     IRepository<TrendyolBrand, Guid> repository,
     ICurrentTenant currentTenant,
+    IUnitOfWorkManager unitOfWorkManager,
     ILogger<TrendyolBrandCacheManager> logger)
     : ITransientDependency
 {
@@ -21,6 +23,7 @@ public class TrendyolBrandCacheManager(
 
     private readonly IRepository<TrendyolBrand, Guid> _repository = repository;
     private readonly ICurrentTenant _currentTenant = currentTenant;
+    private readonly IUnitOfWorkManager _unitOfWorkManager = unitOfWorkManager;
     private readonly ILogger<TrendyolBrandCacheManager> _logger = logger;
 
     #endregion
@@ -40,13 +43,22 @@ public class TrendyolBrandCacheManager(
 
         try
         {
-            // Host-global yazma → host'a sabitle (entity TenantId taşımaz; Change(null) db-per-tenant emniyeti).
+            // AYRI UnitOfWork (requiresNew) — best-effort sözünün ÇALIŞMASI için ŞART (kod-inceleme bulgusu):
+            // aynı UoW'da yapılınca başarısız SaveChanges entity'yi çağıranın DbContext'inde `Added` bırakıyordu
+            // (EF yalnız BAŞARILI save sonrası AcceptAllChanges çağırır); catch hatayı yutuyor, ama çağıranın
+            // sonraki autoSave'i ya da UoW.CompleteAsync AYNI INSERT'i tekrar deneyip bu kez yakalanmadan patlıyordu
+            // → "asıl kaydı düşürmesin" niyeti tersine dönüyor, ürün kaydı/import ham hatayla ölüyordu.
+            // Ayrı UoW başarısız olursa CompleteAsync çağrılmadan dispose edilir → çağıranın context'i TEMİZ kalır.
+            // (CurrentTenant.Change(null) tek başına ayrı context AÇMAZ: tenant connection string tanımlı olmadığından
+            //  host ve tenant aynı DbContext'e çözülür.)
             using (_currentTenant.Change(null))
+            using (var uow = _unitOfWorkManager.Begin(requiresNew: true))
             {
                 var existing = await _repository.FindAsync(x => x.ExternalId == id);
                 if (existing is null)
                 {
                     await _repository.InsertAsync(new TrendyolBrand(id, trimmedName!, isLuxury ?? false), autoSave: true);
+                    await uow.CompleteAsync();
                     return;
                 }
 
@@ -67,6 +79,8 @@ public class TrendyolBrandCacheManager(
                 {
                     await _repository.UpdateAsync(existing, autoSave: true);
                 }
+
+                await uow.CompleteAsync();
             }
         }
         catch (Exception ex)
