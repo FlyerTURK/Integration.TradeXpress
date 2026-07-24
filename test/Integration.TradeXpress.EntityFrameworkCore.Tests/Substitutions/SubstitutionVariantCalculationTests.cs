@@ -286,12 +286,12 @@ public class SubstitutionVariantCalculationTests : TradeXpressEntityFrameworkCor
             SubstitutionGroupId    = groupId,
             TargetQuantity         = 12m,
             BranchId               = data.BranchId,
-            ToleranceTypeOverride  = ToleranceType.Gram,
+            ToleranceTypeOverride  = ToleranceType.Amount,
             ToleranceValueOverride = 3m,
         });
 
         // Sonuç tablosu ETKİN politikayı gösterir (kullanılan tolerans = override).
-        overridden.ToleranceType.ShouldBe(ToleranceType.Gram);
+        overridden.ToleranceType.ShouldBe(ToleranceType.Amount);
         overridden.ToleranceValue.ShouldBe(3m);
         overridden.EffectiveTolerance.ShouldBe(3m);
         overridden.SuccessCount.ShouldBeGreaterThan(0);   // 2×5=10gr (sapma -2) tolerans içi

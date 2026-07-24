@@ -29,7 +29,7 @@ public class SubstitutionGroup : FullAuditedAggregateRoot<Guid>, IMultiTenant, I
         SetCode(code);
         SetName(name);
         SetType(type);
-        SetTolerance(ToleranceType.Gram, 0m);
+        SetTolerance(ToleranceType.Amount, 0m);
         IsActive = true;
     }
 

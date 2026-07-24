@@ -285,7 +285,7 @@ public class SubstitutionChannelBridgeTests : TradeXpressEntityFrameworkCoreTest
 
     /// <summary>Konsept 12gr evreninin 10/5/1 gr kesiti: stok 3×10, 7×5, 20×1; grup tüketim önceliği 10→5→1.</summary>
     private async Task<BridgeScenario> SeedScenarioAsync(
-        string prefix, ToleranceType toleranceType = ToleranceType.Gram, decimal toleranceValue = 0m)
+        string prefix, ToleranceType toleranceType = ToleranceType.Amount, decimal toleranceValue = 0m)
     {
         var data = await WithUnitOfWorkAsync(() => _seeder.SeedCompanyGraphAsync(prefix));
         _companyContext.CompanyId = data.CompanyId;

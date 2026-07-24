@@ -306,8 +306,35 @@ public partial class ProductLayout
             await OnVariantModeChangeRequested(newMode);
         }
 
+        // Muadil moduna GERÇEKTEN geçildiyse (host onayladıysa) sağlıklı varsayılanlar: hedef 0 (null değil),
+        // tolerans Miktar (Amount; devral yok), ilk grup otomatik seçili + kalemleri yüklenir. Kullanıcı boş/null
+        // alanla ya da seçilmemiş grupla karşılaşmasın.
+        if (Model.VariantMode == ProductVariantMode.Substitution)
+        {
+            Model.SubstitutionTargetQuantity ??= 0m;
+            Model.SubstitutionToleranceType  ??= ToleranceType.Amount;
+            if (Model.SubstitutionGroupId is null && SubstitutionGroups.FirstOrDefault()?.Id is { } firstGroupId)
+            {
+                await HandleSubstitutionGroupChangedAsync(firstGroupId);
+            }
+        }
+
         EditChanged?.Invoke();
         StateHasChanged();
+    }
+
+    /// <summary>Tolerans türü değişti — Miktar (tam eşleşme) türünde tolerans değeri anlamsız olduğundan sıfırlanır
+    /// (aksi halde Binde'den geçişte bayat değer ±miktar sapması gibi yorumlanırdı). Binde seçilince değer alanı
+    /// UI'da tekrar görünür ve kullanıcı girer.</summary>
+    private void OnToleranceTypeChanged(ToleranceType? toleranceType)
+    {
+        Model.SubstitutionToleranceType = toleranceType;
+        if (toleranceType != ToleranceType.PerMille)
+        {
+            Model.SubstitutionToleranceValue = null;
+        }
+
+        EditChanged?.Invoke();
     }
 
     /// <summary>Muadil grubu seçimi değişti — model güncellenir, bayat override temizlenir (grup değişince eski

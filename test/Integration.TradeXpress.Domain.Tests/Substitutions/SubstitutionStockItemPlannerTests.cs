@@ -35,7 +35,7 @@ public class SubstitutionStockItemPlannerTests
         var nameById = commodities.ToDictionary(c => c.Id, c => c.Code);
         var weightById = commodities.ToDictionary(c => c.Id, c => c.PieceWeight);
 
-        var solved = SubstitutionSolver.Solve(new SubstitutionSolverInput(12m, ToleranceType.Gram, 0m, commodities));
+        var solved = SubstitutionSolver.Solve(new SubstitutionSolverInput(12m, ToleranceType.Amount, 0m, commodities));
         return solved.All
             .Where(c => c.Success)
             .Select(c => new SubstitutionPlanCombination(
@@ -49,7 +49,7 @@ public class SubstitutionStockItemPlannerTests
     private static SubstitutionStockItemPlan BuildUserExamplePlan(int topN)
     {
         return SubstitutionStockItemPlanner.Build(new SubstitutionStockItemPlanInput(
-            ToleranceType.Gram, 0m, topN, SolveUserExample()));
+            ToleranceType.Amount, 0m, topN, SolveUserExample()));
     }
 
     // ── 12gr örneği: 6 başarılıdan TopN=3 → 3 plan kaydı ────────────────────────────────────────────
@@ -127,7 +127,7 @@ public class SubstitutionStockItemPlannerTests
     {
         var exception = Should.Throw<BusinessException>(() =>
             SubstitutionStockItemPlanner.Build(new SubstitutionStockItemPlanInput(
-                ToleranceType.Gram, 0m, 3, new List<SubstitutionPlanCombination>())));
+                ToleranceType.Amount, 0m, 3, new List<SubstitutionPlanCombination>())));
         exception.Code.ShouldBe("TradeXpress:Substitution:NoSuccessfulCombination");
     }
 
@@ -138,7 +138,7 @@ public class SubstitutionStockItemPlannerTests
         var lineless = new SubstitutionPlanCombination(1, 1, new List<SubstitutionPlanCombinationLine>());
         Should.Throw<BusinessException>(() =>
                 SubstitutionStockItemPlanner.Build(new SubstitutionStockItemPlanInput(
-                    ToleranceType.Gram, 0m, 3, new List<SubstitutionPlanCombination> { lineless })))
+                    ToleranceType.Amount, 0m, 3, new List<SubstitutionPlanCombination> { lineless })))
             .Code.ShouldBe("TradeXpress:Substitution:NoSuccessfulCombination");
     }
 
@@ -158,7 +158,7 @@ public class SubstitutionStockItemPlannerTests
         };
 
         var plan = SubstitutionStockItemPlanner.Build(new SubstitutionStockItemPlanInput(
-            ToleranceType.Gram, 0m, 2, combinations));
+            ToleranceType.Amount, 0m, 2, combinations));
 
         plan.Items.Select(i => i.ValueText).ShouldBe(new[]
         {
@@ -176,9 +176,9 @@ public class SubstitutionStockItemPlannerTests
             .ShouldBe("+/− binde 1 tolerans hakkı saklıdır");
         SubstitutionStockItemPlanner.BuildToleranceNotice(ToleranceType.PerMille, 2.5m)
             .ShouldBe("+/− binde 2,5 tolerans hakkı saklıdır");
-        SubstitutionStockItemPlanner.BuildToleranceNotice(ToleranceType.Gram, 0.5m)
+        SubstitutionStockItemPlanner.BuildToleranceNotice(ToleranceType.Amount, 0.5m)
             .ShouldBe("+/− 0,5 gram tolerans hakkı saklıdır");
-        SubstitutionStockItemPlanner.BuildToleranceNotice(ToleranceType.Gram, 0m).ShouldBeNull();
+        SubstitutionStockItemPlanner.BuildToleranceNotice(ToleranceType.Amount, 0m).ShouldBeNull();
         SubstitutionStockItemPlanner.BuildToleranceNotice(ToleranceType.PerMille, 0m).ShouldBeNull();
     }
 

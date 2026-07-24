@@ -36,7 +36,7 @@ public class SubstitutionGroupGetDto : EntityDto<Guid>, IGetDto<Guid>, IHasCode
     /// <summary>Muadil türü — şimdilik yalnız Metal (UI'da sabit/disabled).</summary>
     public SubstitutionType Type { get; set; } = SubstitutionType.Metal;
 
-    public ToleranceType ToleranceType { get; set; } = ToleranceType.Gram;
+    public ToleranceType ToleranceType { get; set; } = ToleranceType.Amount;
 
     /// <summary>Tolerans değeri — 0 = mutlak eşitlik; negatif olamaz (entity fail-fast).</summary>
     public decimal ToleranceValue { get; set; }
@@ -63,7 +63,7 @@ public class SubstitutionGroupCreateDto : ICreateDto
 
     public SubstitutionType Type { get; set; } = SubstitutionType.Metal;
 
-    public ToleranceType ToleranceType { get; set; } = ToleranceType.Gram;
+    public ToleranceType ToleranceType { get; set; } = ToleranceType.Amount;
 
     public decimal ToleranceValue { get; set; }
 
@@ -86,7 +86,7 @@ public class SubstitutionGroupUpdateDto : IUpdateDto
 
     public SubstitutionType Type { get; set; } = SubstitutionType.Metal;
 
-    public ToleranceType ToleranceType { get; set; } = ToleranceType.Gram;
+    public ToleranceType ToleranceType { get; set; } = ToleranceType.Amount;
 
     public decimal ToleranceValue { get; set; }
 

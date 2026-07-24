@@ -33,7 +33,7 @@ public class SubstitutionSolverTests
 
     private static SubstitutionSolverInput UserExampleInput(
         decimal requestedAmount = 12m,
-        ToleranceType toleranceType = ToleranceType.Gram,
+        ToleranceType toleranceType = ToleranceType.Amount,
         decimal toleranceValue = 0m)
     {
         return new SubstitutionSolverInput(requestedAmount, toleranceType, toleranceValue, UserExampleCommodities());
@@ -157,7 +157,7 @@ public class SubstitutionSolverTests
     {
         // 12 ± 0.5 gram: 11.5 (ör. 1×5 + 4×1 + 1×2.5), 12.0 ve 12.5 (ör. 1×10 + 1×2.5) hepsi geçerli.
         var result = SubstitutionSolver.Solve(UserExampleInput(
-            toleranceType: ToleranceType.Gram, toleranceValue: 0.5m));
+            toleranceType: ToleranceType.Amount, toleranceValue: 0.5m));
 
         var successTotals = result.All.Where(c => c.Success).Select(c => c.Total).Distinct().ToList();
         successTotals.ShouldBe(new[] { 12.5m, 12m, 11.5m }, ignoreOrder: true);
@@ -167,7 +167,7 @@ public class SubstitutionSolverTests
     public void Permille_and_gram_tolerance_compute_different_effective_bands()
     {
         // Aynı sayısal değer (5): Gram → ±5 (geniş), PerMille → ±12×5/1000 = ±0.06 (yalnız tam 12).
-        var gram = SubstitutionSolver.Solve(UserExampleInput(toleranceType: ToleranceType.Gram, toleranceValue: 5m));
+        var gram = SubstitutionSolver.Solve(UserExampleInput(toleranceType: ToleranceType.Amount, toleranceValue: 5m));
         var perMille = SubstitutionSolver.Solve(UserExampleInput(toleranceType: ToleranceType.PerMille, toleranceValue: 5m));
 
         gram.All.Where(c => c.Success).Select(c => c.Total).ShouldContain(7m);          // 12−5 sınırı dahil
@@ -182,7 +182,7 @@ public class SubstitutionSolverTests
         var heavy = Guid.NewGuid();
         var empty = Guid.NewGuid();
         var usable = Guid.NewGuid();
-        var input = new SubstitutionSolverInput(10m, ToleranceType.Gram, 0m, new List<SubstitutionCommodity>
+        var input = new SubstitutionSolverInput(10m, ToleranceType.Amount, 0m, new List<SubstitutionCommodity>
         {
             new(heavy, "HEAVY", 15m, 4, 60m),
             new(empty, "EMPTY", 5m, 0, 20m),
@@ -209,7 +209,7 @@ public class SubstitutionSolverTests
     {
         // Talep 10, Gram tolerans 0.5 → 10.5'lik tek parça ELENMEZ ve tek başına başarılı olur.
         var slightlyHeavy = Guid.NewGuid();
-        var input = new SubstitutionSolverInput(10m, ToleranceType.Gram, 0.5m, new List<SubstitutionCommodity>
+        var input = new SubstitutionSolverInput(10m, ToleranceType.Amount, 0.5m, new List<SubstitutionCommodity>
         {
             new(slightlyHeavy, "GR10.5", 10.5m, 1, 42m),
         });
@@ -225,7 +225,7 @@ public class SubstitutionSolverTests
     [Fact]
     public void All_commodities_filtered_out_yields_empty_result()
     {
-        var input = new SubstitutionSolverInput(1m, ToleranceType.Gram, 0m, new List<SubstitutionCommodity>
+        var input = new SubstitutionSolverInput(1m, ToleranceType.Amount, 0m, new List<SubstitutionCommodity>
         {
             new(Guid.NewGuid(), "HEAVY", 5m, 3, 10m),
             new(Guid.NewGuid(), "EMPTY", 1m, 0, 2m),
@@ -245,7 +245,7 @@ public class SubstitutionSolverTests
         // ESKİ davranış: tüm stok 2×5 = 10 < 12 → StockExhausted denemesi üretilirdi. YENİ (2026-07-10
         // kullanıcı kararı): toplam kapasite talebin altındaysa numaralandırma HİÇ başlamaz.
         var id = Guid.NewGuid();
-        var input = new SubstitutionSolverInput(12m, ToleranceType.Gram, 0m, new List<SubstitutionCommodity>
+        var input = new SubstitutionSolverInput(12m, ToleranceType.Amount, 0m, new List<SubstitutionCommodity>
         {
             new(id, "GR5", 5m, 2, 20m),
         });
@@ -266,11 +266,11 @@ public class SubstitutionSolverTests
             .Code.ShouldBe("TradeXpress:Substitution:RequestedAmountInvalid");
 
         Should.Throw<BusinessException>(() => SubstitutionSolver.Solve(
-                new SubstitutionSolverInput(10m, ToleranceType.Gram, -1m, UserExampleCommodities())))
+                new SubstitutionSolverInput(10m, ToleranceType.Amount, -1m, UserExampleCommodities())))
             .Code.ShouldBe("TradeXpress:Substitution:ToleranceValueInvalid");
 
         Should.Throw<BusinessException>(() => SubstitutionSolver.Solve(
-                new SubstitutionSolverInput(10m, ToleranceType.Gram, 0m, new List<SubstitutionCommodity>
+                new SubstitutionSolverInput(10m, ToleranceType.Amount, 0m, new List<SubstitutionCommodity>
                 {
                     new(Guid.NewGuid(), "BAD", 0m, 5, 1m),
                 })))
@@ -282,7 +282,7 @@ public class SubstitutionSolverTests
     {
         // 2026-07-10 kullanıcı kararı: envanterin toplam ağırlığı talebin altındaysa numaralandırma
         // HİÇ başlamaz. Kapasite 2×1 + 1×2.5 = 4.5 gr < talep 12 gr → sıfır deneme + bayrak.
-        var input = new SubstitutionSolverInput(12m, ToleranceType.Gram, 0m, new List<SubstitutionCommodity>
+        var input = new SubstitutionSolverInput(12m, ToleranceType.Amount, 0m, new List<SubstitutionCommodity>
         {
             new(Gr1Id, "GR1", 1m, 2, 4.5m),
             new(Gr25Id, "GR2.5", 2.5m, 1, 11m),
@@ -296,7 +296,7 @@ public class SubstitutionSolverTests
 
         // SINIR: kapasite talebe TAM eşitse hesap KOŞAR (12×1gr = 12 → tek başarı, tüm stok).
         var boundary = SubstitutionSolver.Solve(new SubstitutionSolverInput(
-            12m, ToleranceType.Gram, 0m, new List<SubstitutionCommodity>
+            12m, ToleranceType.Amount, 0m, new List<SubstitutionCommodity>
             {
                 new(Gr1Id, "GR1", 1m, 12, 4.5m),
             }));
@@ -305,7 +305,7 @@ public class SubstitutionSolverTests
 
         // Tolerans alt bandı hesaba katılır: talep 12, tolerans 1 gr, kapasite 11 → 11 ≥ 12−1 → koşar.
         var withinBand = SubstitutionSolver.Solve(new SubstitutionSolverInput(
-            12m, ToleranceType.Gram, 1m, new List<SubstitutionCommodity>
+            12m, ToleranceType.Amount, 1m, new List<SubstitutionCommodity>
             {
                 new(Gr1Id, "GR1", 1m, 11, 4.5m),
             }));
@@ -320,7 +320,7 @@ public class SubstitutionSolverTests
         // kadar numaralandırılır (erken kesim en iyi kombinasyonu kaçırabilirdi: "bininci kombinasyon
         // belki en iyi kombinasyon olabilir"). Girdi, son-kolon kuralı SONRASI deneme sayısı yine eski
         // limiti aşacak şekilde ölçekli: (talep+1)² deneme ≈ 321² = 103.041 > 100.000.
-        var input = new SubstitutionSolverInput(320m, ToleranceType.Gram, 0m, new List<SubstitutionCommodity>
+        var input = new SubstitutionSolverInput(320m, ToleranceType.Amount, 0m, new List<SubstitutionCommodity>
         {
             new(Guid.NewGuid(), "GR1", 1m, 320, 4m),
             new(Guid.NewGuid(), "GR05", 0.5m, 640, 2m),

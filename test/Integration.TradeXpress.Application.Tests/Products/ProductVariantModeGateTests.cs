@@ -130,7 +130,7 @@ public abstract class ProductVariantModeGateTests<TStartupModule> : TradeXpressA
                 VariantMode = ProductVariantMode.Substitution,
                 SubstitutionGroupId = groupId,
                 SubstitutionTargetQuantity = 10m,
-                SubstitutionToleranceType = ToleranceType.Gram,
+                SubstitutionToleranceType = ToleranceType.Amount,
                 SubstitutionToleranceValue = 0.5m,
                 SubstitutionOverrideVariantIds = new List<Guid> { overrideVariantId },
                 Variants = new List<ProductVariantGraphDto>
@@ -170,7 +170,7 @@ public abstract class ProductVariantModeGateTests<TStartupModule> : TradeXpressA
             reloaded.VariantMode.ShouldBe(ProductVariantMode.Substitution);
             reloaded.SubstitutionGroupId.ShouldBe(groupId);
             reloaded.SubstitutionTargetQuantity.ShouldBe(10m);
-            reloaded.SubstitutionToleranceType.ShouldBe(ToleranceType.Gram);
+            reloaded.SubstitutionToleranceType.ShouldBe(ToleranceType.Amount);
             reloaded.SubstitutionToleranceValue.ShouldBe(0.5m);
             reloaded.SubstitutionOverrideVariantIds.ShouldBe(new List<Guid> { overrideVariantId });
 

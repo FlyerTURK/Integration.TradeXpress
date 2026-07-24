@@ -55,6 +55,6 @@ public partial class SubstitutionGroupEditHost
     {
         model.IsActive = true;
         model.Type = SubstitutionType.Metal;
-        model.ToleranceType = ToleranceType.Gram;
+        model.ToleranceType = ToleranceType.Amount;
     }
 }

@@ -28,7 +28,7 @@ public class SubstitutionPlannerVariantTests
         });
 
         var plan = SubstitutionStockItemPlanner.Build(new SubstitutionStockItemPlanInput(
-            ToleranceType.Gram, 0m, 1, new List<SubstitutionPlanCombination> { combination }));
+            ToleranceType.Amount, 0m, 1, new List<SubstitutionPlanCombination> { combination }));
 
         var line = plan.Items[0].RecipeLines.ShouldHaveSingleItem();
         line.ShouldBe(new SubstitutionPlanRecipeLine(MetalId, 2, 5m, 10m, AltVariantId, "GR5-ESKI"));
@@ -47,7 +47,7 @@ public class SubstitutionPlannerVariantTests
         });
 
         var plan = SubstitutionStockItemPlanner.Build(new SubstitutionStockItemPlanInput(
-            ToleranceType.Gram, 0m, 1, new List<SubstitutionPlanCombination> { combination }));
+            ToleranceType.Amount, 0m, 1, new List<SubstitutionPlanCombination> { combination }));
 
         var expectedSegments = new[]
             {
@@ -76,7 +76,7 @@ public class SubstitutionPlannerVariantTests
         };
 
         var plan = SubstitutionStockItemPlanner.Build(new SubstitutionStockItemPlanInput(
-            ToleranceType.Gram, 0m, 2, combinations));
+            ToleranceType.Amount, 0m, 2, combinations));
 
         plan.Items.Select(i => i.ValueText).ShouldBe(new[]
         {

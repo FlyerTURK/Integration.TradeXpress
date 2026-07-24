@@ -32,13 +32,6 @@
                               ValueChanged="@(async (ProductVariantMode v) => await HandleVariantModeChangedAsync(v))"
                               ValueExpression="@(() => Model.VariantMode)" />
         </DxFormLayoutItem>
-        @* Üretim / son kullanma tarihi (opsiyonel; N11 productionDate/expirationDate). İş tarihi (date-only). *@
-        <DxFormLayoutItem Caption="@L["Product:ProductionDate"]" ColSpanMd="6" BeginRow="true">
-            <DxDateEdit @bind-Date="@Model.ProductionDate" ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
-        </DxFormLayoutItem>
-        <DxFormLayoutItem Caption="@L["Product:ExpirationDate"]" ColSpanMd="6">
-            <DxDateEdit @bind-Date="@Model.ExpirationDate" ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
-        </DxFormLayoutItem>
     </DxFormLayoutGroup>
 
     @* Muadil (paket) konfigürasyonu — yalnız Substitution modunda: grup + hedef miktar + tolerans override'ı
@@ -47,6 +40,7 @@
     @if (Model.VariantMode == ProductVariantMode.Substitution)
     {
         <DxFormLayoutGroup Caption="@L["Product:SubstitutionConfig"]" ColSpanMd="12">
+            @* Grup ZORUNLU — clear yok (muadil modunda mutlaka bir grup seçili olmalı; boşaltma anlamsız). *@
             <DxFormLayoutItem Caption="@($"{L["SubstitutionGroup"]} *")" ColSpanMd="6" BeginRow="true">
                 <LookupComboBox TItem="SubstitutionGroupListDto" TValue="Guid?"
                                 Data="@SubstitutionGroups"
@@ -58,29 +52,37 @@
                                 OnLookupReloadRequested="@OnReloadSubstitutionGroups"
                                 CreatePolicy="@TradeXpressPermissions.Substitutions.Create"
                                 UpdatePolicy="@TradeXpressPermissions.Substitutions.Update"
-                                AllowClear="true" />
+                                AllowClear="false" />
             </DxFormLayoutItem>
-            <DxFormLayoutItem Caption="@($"{L["Substitution:TargetQuantity"]} *")" ColSpanMd="6">
-                <NumericSpinEdit TValue="decimal?" @bind-Value="@Model.SubstitutionTargetQuantity" DisplayFormat="N5" />
-            </DxFormLayoutItem>
-            @* Tolerans override'ı — İKİSİ birlikte dolar (sunucu fail-fast); boş = grubun tolerans politikası. *@
-            <DxFormLayoutItem Caption="@L["ToleranceType"]" ColSpanMd="6" BeginRow="true">
-                <ComboBoxEnumEdit TEnum="ToleranceType?" L="@L" @bind-Value="@Model.SubstitutionToleranceType"
-                                  NullText="@L["Product:SubstitutionToleranceInherit"].Value"
-                                  ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
-            </DxFormLayoutItem>
-            <DxFormLayoutItem Caption="@L["ToleranceValue"]" ColSpanMd="6">
-                <NumericSpinEdit TValue="decimal?" @bind-Value="@Model.SubstitutionToleranceValue" DisplayFormat="N5"
-                                 NullText="@L["Product:SubstitutionToleranceInherit"].Value"
-                                 ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
-            </DxFormLayoutItem>
-            @* Override ağacı — grup kalemleri devralınan referans; boş seçim = gruptan devral (resolver zinciri). *@
-            <DxFormLayoutGroup Caption="@L["VariantScope"]" ColSpanMd="12" CaptionPosition="CaptionPosition.Vertical">
-                <SubstitutionVariantTreePanel Items="@SubstitutionGroupItems"
-                                              Variants="@MetalVariants"
-                                              OverrideVariantIds="@Model.SubstitutionOverrideVariantIds"
-                                              OnChanged="@(() => EditChanged?.Invoke())" />
-            </DxFormLayoutGroup>
+            @* Grup seçili değilse alt kontroller GÖRÜNMEZ (hiç grup yoksa) — boş grupla hedef/tolerans/kapsam anlamsız. *@
+            @if (Model.SubstitutionGroupId is not null)
+            {
+                <DxFormLayoutItem Caption="@($"{L["Substitution:TargetQuantity"]} *")" ColSpanMd="6">
+                    <NumericSpinEdit TValue="decimal?" @bind-Value="@Model.SubstitutionTargetQuantity" DisplayFormat="N5" />
+                </DxFormLayoutItem>
+                @* Tolerans türü hep açık (default Miktar; clear yok — devral kaldırıldı). Değer YALNIZ Binde'de görünür;
+                   Miktar (tam eşleşme) türünde giriş beklenmez → tür değişince değer sıfırlanır (OnToleranceTypeChanged). *@
+                <DxFormLayoutItem Caption="@L["ToleranceType"]" ColSpanMd="6" BeginRow="true">
+                    <ComboBoxEnumEdit TEnum="ToleranceType?" L="@L"
+                                      Value="@Model.SubstitutionToleranceType"
+                                      ValueChanged="@((ToleranceType? t) => OnToleranceTypeChanged(t))"
+                                      ValueExpression="@(() => Model.SubstitutionToleranceType)"
+                                      ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Never" />
+                </DxFormLayoutItem>
+                @if (Model.SubstitutionToleranceType == ToleranceType.PerMille)
+                {
+                    <DxFormLayoutItem Caption="@L["ToleranceValue"]" ColSpanMd="6">
+                        <NumericSpinEdit TValue="decimal?" @bind-Value="@Model.SubstitutionToleranceValue" DisplayFormat="N5" />
+                    </DxFormLayoutItem>
+                }
+                @* Override ağacı — grup kalemleri devralınan referans; boş seçim = gruptan devral (resolver zinciri). *@
+                <DxFormLayoutGroup Caption="@L["VariantScope"]" ColSpanMd="12" CaptionPosition="CaptionPosition.Vertical">
+                    <SubstitutionVariantTreePanel Items="@SubstitutionGroupItems"
+                                                  Variants="@MetalVariants"
+                                                  OverrideVariantIds="@Model.SubstitutionOverrideVariantIds"
+                                                  OnChanged="@(() => EditChanged?.Invoke())" />
+                </DxFormLayoutGroup>
+            }
         </DxFormLayoutGroup>
     }
 
@@ -180,6 +182,19 @@
                           Visible="@Model.IsPersonalizable">
             <DxMemo @bind-Text="@Model.PersonalizationInstructions" Rows="2" ResizeMode="MemoResizeMode.Disabled"
                     CssClass="w-100" NullText="@L["Optional"]" />
+        </DxFormLayoutItem>
+    </DxFormLayoutGroup>
+
+    @* Opsiyonel tanımlar — az kullanılan/detay alanlar; drill'den hemen önce KATLANMIŞ grupta (form başını yormasın).
+       N11 formundaki "OptionalFields" deseniyle hizalı. *@
+    <DxFormLayoutGroup Caption="@L["Product:OptionalFields"]" ColSpanMd="12"
+                        Expanded="false" ExpandButtonDisplayMode="GroupExpandButtonDisplayMode.Start">
+        @* Üretim / son kullanma tarihi (opsiyonel; N11 productionDate/expirationDate). İş tarihi (date-only). *@
+        <DxFormLayoutItem Caption="@L["Product:ProductionDate"]" ColSpanMd="6" BeginRow="true">
+            <DxDateEdit @bind-Date="@Model.ProductionDate" ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["Product:ExpirationDate"]" ColSpanMd="6">
+            <DxDateEdit @bind-Date="@Model.ExpirationDate" ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
         </DxFormLayoutItem>
     </DxFormLayoutGroup>
 </DxFormLayout>

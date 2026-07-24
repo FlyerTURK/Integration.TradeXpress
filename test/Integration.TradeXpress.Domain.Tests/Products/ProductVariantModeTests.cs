@@ -34,11 +34,11 @@ public class ProductVariantModeTests
     {
         var product = CreateProduct();
         product.SetVariantMode(ProductVariantMode.Substitution);
-        product.SetSubstitutionConfig(Guid.NewGuid(), 10m, ToleranceType.Gram, 0.5m, new[] { Guid.NewGuid() });
+        product.SetSubstitutionConfig(Guid.NewGuid(), 10m, ToleranceType.Amount, 0.5m, new[] { Guid.NewGuid() });
 
         // Mod Muadil'den çıkınca konfigürasyon bayat kalmamalı (tutarlılık tek mutator'da).
         product.SetVariantMode(ProductVariantMode.SingleVariant);
-        product.SetSubstitutionConfig(Guid.NewGuid(), 10m, ToleranceType.Gram, 0.5m, new[] { Guid.NewGuid() });
+        product.SetSubstitutionConfig(Guid.NewGuid(), 10m, ToleranceType.Amount, 0.5m, new[] { Guid.NewGuid() });
 
         product.SubstitutionGroupId.ShouldBeNull();
         product.SubstitutionTargetQuantity.ShouldBeNull();
@@ -86,7 +86,7 @@ public class ProductVariantModeTests
 
         // Tek başına tür ya da tek başına değer → tutarsız çift (fail-fast).
         Should.Throw<BusinessException>(() =>
-                product.SetSubstitutionConfig(groupId, 10m, ToleranceType.Gram, null, null))
+                product.SetSubstitutionConfig(groupId, 10m, ToleranceType.Amount, null, null))
             .Code.ShouldBe("TradeXpress:Product:SubstitutionToleranceInvalid");
         Should.Throw<BusinessException>(() =>
                 product.SetSubstitutionConfig(groupId, 10m, null, 0.5m, null))
@@ -94,7 +94,7 @@ public class ProductVariantModeTests
 
         // Negatif değer → fail-fast (grup SetTolerance kuralıyla hizalı).
         Should.Throw<BusinessException>(() =>
-                product.SetSubstitutionConfig(groupId, 10m, ToleranceType.Gram, -0.1m, null))
+                product.SetSubstitutionConfig(groupId, 10m, ToleranceType.Amount, -0.1m, null))
             .Code.ShouldBe("TradeXpress:Product:SubstitutionToleranceInvalid");
     }
 
