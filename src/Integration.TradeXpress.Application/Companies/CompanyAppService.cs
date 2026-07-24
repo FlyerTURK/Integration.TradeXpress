@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Integration.Framework;
+using Integration.Framework.Addressing;
 using Integration.Framework.Base.Querying;
 using Integration.TradeXpress.Branches;
 using Integration.TradeXpress.Countries;
@@ -228,6 +229,7 @@ public class CompanyAppService : TradeXpressAppService, ICompanyAppService
                     IsHeadquarters = bi.IsHeadquarters,
                     DisplayOrder = bi.DisplayOrder,
                     Description = bi.Description,
+                    Address = bi.Address,   // faithful round-trip (graf adresi düzenlemez ama silmez de)
                     Vaults = bi.Vaults,
                 });
             }
@@ -242,6 +244,7 @@ public class CompanyAppService : TradeXpressAppService, ICompanyAppService
                     IsActive = bi.IsActive,
                     DisplayOrder = bi.DisplayOrder,
                     Description = bi.Description,
+                    Address = bi.Address,   // faithful round-trip: mevcut adresi geri gönder (graf adresi düzenlemez, SİLMEZ)
                     Vaults = bi.Vaults,
                 });
             }
@@ -408,6 +411,8 @@ public class CompanyAppService : TradeXpressAppService, ICompanyAppService
                 IsActive = b.IsActive,
                 DisplayOrder = b.DisplayOrder,
                 Description = b.Description,
+                CompanyCountryId = c.CountryId,   // adres ülke kilidi (graf drill'i adresi göstermese de round-trip için taşınır)
+                Address = ToAddressDto(b.Address),   // faithful round-trip: mevcut adresi taşı (graf save'de SİLİNMESİN)
                 Vaults = vaults.Where(v => v.BranchId == b.Id).Select(v => new VaultGraphDto
                 {
                     Id = v.Id,
@@ -419,6 +424,38 @@ public class CompanyAppService : TradeXpressAppService, ICompanyAppService
                     Description = v.Description,
                 }).ToList(),
             }).ToList(),
+        };
+    }
+
+    /// <summary>Address VO → flat şube adres DTO'su (hand-read; graf round-trip'i için — BranchAppService ile aynı desen).
+    /// null VO → null DTO (adres yok). Graf drill'i adresi düzenlemez ama Company save'i faithful geri göndersin diye taşınır.</summary>
+    private static BranchAddressDto? ToAddressDto(Address? a)
+    {
+        if (a is null)
+        {
+            return null;
+        }
+
+        return new BranchAddressDto
+        {
+            Title = a.Title,
+            City = a.City,
+            Line = a.Line,
+            District = a.District,
+            Neighborhood = a.Neighborhood,
+            PostalCode = a.PostalCode,
+            CountryCode = a.CountryCode,
+            CityCode = a.CityCode,
+            DistrictCode = a.DistrictCode,
+            AdministrativeAreaId = a.AdministrativeAreaId,
+            LocalityId = a.LocalityId,
+            AdministrativeAreaIsoCode = a.AdministrativeAreaIsoCode,
+            BuildingName = a.BuildingName,
+            BuildingNumber = a.BuildingNumber,
+            Room = a.Room,
+            Floor = a.Floor,
+            Postbox = a.Postbox,
+            AdditionalStreetName = a.AdditionalStreetName,
         };
     }
 

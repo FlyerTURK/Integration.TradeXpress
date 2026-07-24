@@ -3,7 +3,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Integration.Framework.Base.Querying;
+using Integration.TradeXpress.Countries;
 using Integration.TradeXpress.Financials.CurrencyUnits;
+using Integration.TradeXpress.Geography;
 using Integration.TradeXpress.MultiCompany;
 using Integration.TradeXpress.Permissions;
 using Integration.TradeXpress.Products;
@@ -13,7 +15,9 @@ using Integration.TradeXpress.Variants;
 using Microsoft.AspNetCore.Authorization;
 using Volo.Abp;
 using Volo.Abp.Application.Dtos;
+using Volo.Abp.Data;
 using Volo.Abp.Domain.Repositories;
+using Volo.Abp.MultiTenancy;
 
 namespace Integration.TradeXpress.Orders;
 
@@ -35,6 +39,11 @@ public class OrderAppService : TradeXpressAppService, IOrderAppService
     private readonly IRepository<EntityVariant, Guid> _productVariantRepository;
     private readonly IRepository<SalesChannelBase, Guid> _channelRepository;
     private readonly IRepository<SalesChannelTrN11, Guid> _n11ChannelRepository;
+    // Sipariş adres picker'ının TR ön-seçimi için host-global coğrafya (Country=TR id + il/ilçe isim-eşleşmesi; N11 YOK).
+    private readonly IRepository<Country, Guid> _countryRepository;
+    private readonly IRepository<AdministrativeArea, Guid> _administrativeAreaRepository;
+    private readonly IRepository<Locality, Guid> _localityRepository;
+    private readonly IDataFilter _dataFilter;
     private readonly OrderSyncManager _orderSyncManager;
     private readonly OrderLineProductSnapshotBuilder _snapshotBuilder;
     private readonly IN11OrderClient _n11OrderClient;
@@ -67,6 +76,10 @@ public class OrderAppService : TradeXpressAppService, IOrderAppService
         IRepository<EntityVariant, Guid> productVariantRepository,
         IRepository<SalesChannelBase, Guid> channelRepository,
         IRepository<SalesChannelTrN11, Guid> n11ChannelRepository,
+        IRepository<Country, Guid> countryRepository,
+        IRepository<AdministrativeArea, Guid> administrativeAreaRepository,
+        IRepository<Locality, Guid> localityRepository,
+        IDataFilter dataFilter,
         OrderSyncManager orderSyncManager,
         OrderLineProductSnapshotBuilder snapshotBuilder,
         IN11OrderClient n11OrderClient,
@@ -79,6 +92,10 @@ public class OrderAppService : TradeXpressAppService, IOrderAppService
         _productVariantRepository = productVariantRepository;
         _channelRepository = channelRepository;
         _n11ChannelRepository = n11ChannelRepository;
+        _countryRepository = countryRepository;
+        _administrativeAreaRepository = administrativeAreaRepository;
+        _localityRepository = localityRepository;
+        _dataFilter = dataFilter;
         _n11OrderClient = n11OrderClient;
         _orderSyncManager = orderSyncManager;
         _snapshotBuilder = snapshotBuilder;
@@ -175,8 +192,13 @@ public class OrderAppService : TradeXpressAppService, IOrderAppService
             TaxId = operational?.BuyerCorrection?.TaxId ?? buyer?.TaxId,
             TaxOffice = operational?.BuyerCorrection?.TaxOffice ?? buyer?.TaxOffice,
         };
-        dto.BillingAddress = MapEditAddress(operational?.BillingAddressCorrection, order.Detail?.BillingAddress);
-        dto.ShippingAddress = MapEditAddress(operational?.ShippingAddressCorrection, order.Detail?.ShippingAddress);
+        // Sipariş adresleri Türkiye kabul edilir → ülke TR-kilitli + il ADINDAN çekirdek idari-alanı ön-seç (picker
+        // İl'i ön-seçer). İlçe/mahalle KASITLI ön-seçilmez (canlı N11 mahalle fetch'inden kaçınmak için) — ithal
+        // İlçe/Mahalle ADLARI modelde korunur, Save'de yazılır. TR kataloğu yoksa CountryId null (picker serbest mod).
+        var geography = await BuildTurkeyAddressCatalogAsync();
+        dto.CountryId = geography.CountryId;
+        dto.BillingAddress = MapEditAddress(operational?.BillingAddressCorrection, order.Detail?.BillingAddress, geography);
+        dto.ShippingAddress = MapEditAddress(operational?.ShippingAddressCorrection, order.Detail?.ShippingAddress, geography);
         dto.CargoProvider = operational?.CargoProviderOverride ?? order.CargoProvider;
         dto.CargoTrackingNumber = operational?.CargoTrackingNumberOverride ?? order.CargoTrackingNumber;
 
@@ -566,28 +588,134 @@ public class OrderAppService : TradeXpressAppService, IOrderAppService
         return dto;
     }
 
-    private static OrderEditAddressDto MapEditAddress(OrderOperationalAddress? correction, OrderDetailAddress? original)
+    // Kalıcı taraf (correction ?? original) isim-tabanlı ADLARI editable DTO'ya taşır + TR il ADINDAN çekirdek
+    // idari-alanı en-iyi-çaba ön-seçer (picker İl'i ön-seçsin). İLÇE/MAHALLE KASITLI ön-seçilmez (LocalityId null →
+    // picker canlı N11 mahalle fetch'i TETİKLEMEZ; sipariş açılışı hızlı + N11-bağımsız). İthal İl/İlçe/Mahalle ADLARI
+    // her hâlde KORUNUR (eşleşme yoksa yalnız geo-id null, ad korunur — tolerant snapshot, ithal değer kaybolmaz).
+    private static OrderEditAddressDto MapEditAddress(
+        OrderOperationalAddress? correction, OrderDetailAddress? original, TurkeyAddressCatalog catalog)
     {
-        return new OrderEditAddressDto
+        var dto = new OrderEditAddressDto
         {
             FullName = correction?.FullName ?? original?.FullName,
-            Line = correction?.Line ?? original?.Line,
+            Line = correction?.Line ?? original?.Line ?? string.Empty,
             Neighborhood = correction?.Neighborhood ?? original?.Neighborhood,
             District = correction?.District ?? original?.District,
-            City = correction?.City ?? original?.City,
+            City = correction?.City ?? original?.City ?? string.Empty,
             PostalCode = correction?.PostalCode ?? original?.PostalCode,
             Gsm = correction?.Gsm ?? original?.Gsm,
             TcId = correction?.TcId ?? original?.TcId,
             TaxId = correction?.TaxId ?? original?.TaxId,
             TaxOffice = correction?.TaxOffice ?? original?.TaxOffice,
+            CountryCode = "TR",
         };
+
+        var area = catalog.MatchArea(dto.City);
+        if (area is not null)
+        {
+            // İl + İlçe ön-seçilir (geo-ref'ler picker ön-seçimi içindir — order'a PERSIST EDİLMEZ). Mahalle saklanmaz
+            // (canlı N11) → picker, kayıtlı mahalle ADIYLA eşler. Adres popup içeriği DxPopup'ta TEMBEL render edildiğinden
+            // canlı N11 mahalle çekimi yalnız kullanıcı adresi AÇINCA olur (sipariş açılışı başına DEĞİL — hız korunur).
+            dto.AdministrativeAreaId = area.Id;
+            dto.CityCode = area.Code;
+            dto.AdministrativeAreaIsoCode = area.IsoCode;
+
+            var locality = catalog.MatchLocality(area.Id, dto.District);
+            if (locality is not null)
+            {
+                dto.LocalityId = locality.Id;
+                dto.DistrictCode = locality.Code;
+            }
+        }
+
+        // N11 "address" metni mahalleyi başta TEKRARLAR ("Oruçreis Mh. Atişalani..." + ayrıca neighborhood alanı) →
+        // açık adresten mahalle ön-ekini sıyır (Mahalle combo/alanında zaten var — kullanıcı kararı, tekrar gösterme).
+        dto.Line = StripNeighborhoodPrefix(dto.Line, dto.Neighborhood);
+
+        return dto;
     }
 
+    /// <summary>Açık adresin başındaki mahalle tekrarını sıyırır: satır mahalle adıyla (ve varsa ardından gelen
+    /// "Mahallesi/Mah./Mh." son ekiyle) başlıyorsa o ön-ek atılır. Sıyırma satırı BOŞ bırakacaksa orijinal korunur
+    /// (tek adres metnini yok etme — tolerant).</summary>
+    private static string StripNeighborhoodPrefix(string line, string? neighborhood)
+    {
+        if (string.IsNullOrWhiteSpace(line) || string.IsNullOrWhiteSpace(neighborhood))
+        {
+            return line;
+        }
+
+        var trimmedLine = line.TrimStart();
+        var prefix = neighborhood.Trim();
+        if (!trimmedLine.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+        {
+            return line;
+        }
+
+        var remainder = trimmedLine[prefix.Length..].TrimStart();
+
+        // Mahalle alanı son eksizse ("Oruçreis") ama satırda son ek varsa ("Oruçreis Mh. ...") artık son eki de at.
+        foreach (var suffix in new[] { "Mahallesi", "Mah.", "Mh.", "Mah", "Mh" })
+        {
+            if (remainder.StartsWith(suffix, StringComparison.OrdinalIgnoreCase)
+                && (remainder.Length == suffix.Length || char.IsWhiteSpace(remainder[suffix.Length])))
+            {
+                remainder = remainder[suffix.Length..].TrimStart();
+                break;
+            }
+        }
+
+        return remainder.Length == 0 ? line : remainder;
+    }
+
+    // Kalıcı tarafa (OrderOperationalAddress) YALNIZ ADLAR yazılır — geo-ref id'leri (AdministrativeAreaId/LocalityId)
+    // yalnız picker ön-seçimi içindir, PERSIST EDİLMEZ (kalıcı taraf isim-tabanlı + tolerant kalır). City/Line artık
+    // zorunlu-string (IAddressEditModel) → boş değerler null'a çevrilir (tolerant snapshot'ta "" yerine null korunur).
     private static OrderOperationalAddress BuildOperationalAddress(OrderEditAddressDto dto)
     {
         return new OrderOperationalAddress(
-            dto.FullName, dto.Line, dto.Neighborhood, dto.District, dto.City,
+            dto.FullName, NullIfBlank(dto.Line), dto.Neighborhood, dto.District, NullIfBlank(dto.City),
             dto.PostalCode, dto.Gsm, dto.TcId, dto.TaxId, dto.TaxOffice);
+    }
+
+    private static string? NullIfBlank(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? null : value;
+    }
+
+    // Sipariş adres picker'ının TR ÖN-SEÇİM kataloğunu kurar: host coğrafyadan TR ülke id'si + il isim→id haritası.
+    // TR illeri eager-seed'li (GeographySeeder, N11'den) → host-global repo okuması (IMultiTenant DEĞİL; N11 TETİKLEMEZ).
+    private async Task<TurkeyAddressCatalog> BuildTurkeyAddressCatalogAsync()
+    {
+        // TR ülkesi host satırı (Code=="TR", TenantId=null — picker'ın CountryAppService host kataloğuyla aynı satır).
+        // Country IMultiTenant → tenant bağlamında host satırını görmek için filtre kapatılır (GeographyAppService deseni).
+        Guid? countryId;
+        using (_dataFilter.Disable<IMultiTenant>())
+        {
+            countryId = await AsyncExecuter.FirstOrDefaultAsync(
+                (await _countryRepository.GetQueryableAsync())
+                    .Where(c => c.Code == "TR" && c.TenantId == null)
+                    .Select(c => (Guid?)c.Id));
+        }
+
+        if (countryId is not { } trCountryId)
+        {
+            return TurkeyAddressCatalog.Empty; // TR kataloğu yok → picker serbest-ülke moduna düşer (güvenli geri-dönüş)
+        }
+
+        var areas = await AsyncExecuter.ToListAsync(
+            (await _administrativeAreaRepository.GetQueryableAsync())
+                .Where(a => a.CountryId == trCountryId)
+                .Select(a => new AdministrativeAreaMatch(a.Id, a.Name, a.Code, a.Iso3166_2Code)));
+
+        // İlçeler (TR ~970 satır, tek indeksli sorgu; eager-seed'li) — İlçe ön-seçimiyle popup'taki picker İlçe
+        // combosunu doğru gösterir + mahalle combosu (canlı N11) yalnız POPUP AÇILINCA yüklenir (DxPopup tembel render).
+        var localities = await AsyncExecuter.ToListAsync(
+            (await _localityRepository.GetQueryableAsync())
+                .Where(l => l.CountryId == trCountryId)
+                .Select(l => new LocalityMatch(l.Id, l.AdministrativeAreaId, l.Name, l.Code)));
+
+        return new TurkeyAddressCatalog(trCountryId, areas, localities);
     }
 
     private async Task<OrderOperationalData?> FindOperationalDataAsync(Guid orderId)
@@ -686,4 +814,76 @@ public class OrderAppService : TradeXpressAppService, IOrderAppService
 
         return companyId;
     }
+
+    /// <summary>Sipariş adres picker'ının TR ÖN-SEÇİM kataloğu (host-global; N11 TETİKLEMEZ). İthal il ADINDAN
+    /// çekirdek idari-alanı (il) en-iyi-çaba eşler → picker İl'i ön-seçer. İlçe/mahalle KASITLI ön-seçilmez (canlı
+    /// N11 mahalle fetch'inden kaçınmak için). Eşleşme yoksa <see cref="MatchArea"/> null döner (ithal ad korunur).</summary>
+    private sealed class TurkeyAddressCatalog
+    {
+        public static readonly TurkeyAddressCatalog Empty = new(null, new List<AdministrativeAreaMatch>(), new List<LocalityMatch>());
+
+        // İl adı → idari-alan (Trim + kültür-duyarsız). TR il adları benzersiz → ilk eşleşme kazanır.
+        private readonly Dictionary<string, AdministrativeAreaMatch> _areaByName;
+
+        // İl id → (ilçe adı → ilçe) (Trim + kültür-duyarsız). TR ilçe adları il içinde benzersiz.
+        private readonly Dictionary<Guid, Dictionary<string, LocalityMatch>> _localitiesByArea;
+
+        public TurkeyAddressCatalog(
+            Guid? countryId,
+            IReadOnlyCollection<AdministrativeAreaMatch> areas,
+            IReadOnlyCollection<LocalityMatch> localities)
+        {
+            CountryId = countryId;
+            _areaByName = new Dictionary<string, AdministrativeAreaMatch>(StringComparer.OrdinalIgnoreCase);
+            foreach (var area in areas)
+            {
+                _areaByName.TryAdd(area.Name.Trim(), area);
+            }
+
+            _localitiesByArea = new Dictionary<Guid, Dictionary<string, LocalityMatch>>();
+            foreach (var locality in localities)
+            {
+                if (!_localitiesByArea.TryGetValue(locality.AreaId, out var byName))
+                {
+                    byName = new Dictionary<string, LocalityMatch>(StringComparer.OrdinalIgnoreCase);
+                    _localitiesByArea[locality.AreaId] = byName;
+                }
+
+                byName.TryAdd(locality.Name.Trim(), locality);
+            }
+        }
+
+        /// <summary>TR ülke id'si (picker <c>FixedCountryId</c>'si) — TR kataloğu yoksa null.</summary>
+        public Guid? CountryId { get; }
+
+        /// <summary>İl adını çekirdek idari-alana eşler (Trim + kültür-duyarsız). Eşleşme yoksa null (ad korunur).</summary>
+        public AdministrativeAreaMatch? MatchArea(string? cityName)
+        {
+            if (string.IsNullOrWhiteSpace(cityName))
+            {
+                return null;
+            }
+
+            return _areaByName.GetValueOrDefault(cityName.Trim());
+        }
+
+        /// <summary>İlçe adını, verilen il içinde çekirdek yerelliğe eşler (Trim + kültür-duyarsız). Yoksa null (ad korunur).</summary>
+        public LocalityMatch? MatchLocality(Guid areaId, string? districtName)
+        {
+            if (string.IsNullOrWhiteSpace(districtName))
+            {
+                return null;
+            }
+
+            return _localitiesByArea.TryGetValue(areaId, out var byName)
+                ? byName.GetValueOrDefault(districtName.Trim())
+                : null;
+        }
+    }
+
+    /// <summary>Çekirdek idari-alan (il) ön-seçim satırı — id + ad + kaynak kod + ISO 3166-2 kodu.</summary>
+    private sealed record AdministrativeAreaMatch(Guid Id, string Name, string Code, string? IsoCode);
+
+    /// <summary>Çekirdek yerellik (ilçe) ön-seçim satırı — id + il id + ad + kaynak (N11) ilçe kodu.</summary>
+    private sealed record LocalityMatch(Guid Id, Guid AreaId, string Name, string Code);
 }

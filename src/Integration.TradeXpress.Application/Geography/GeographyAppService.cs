@@ -53,10 +53,11 @@ public class GeographyAppService : ApplicationService, IGeographyAppService
 
     public virtual async Task<ListResultDto<AdministrativeAreaDto>> GetAdministrativeAreasAsync(Guid countryId)
     {
-        if (await NeedsImportAsync(countryId))
+        if (await NeedsAreaImportAsync(countryId))
         {
-            // Lazy tetik: ilk ihtiyaçta dataset'ten çek (manager kendi UoW'larını yönetir; idempotent + TR guard).
-            await _importManager.ImportCountryAsync(countryId);
+            // Lazy tetik (üst katman): ilk ihtiyaçta yalnız il/EYALET verisini dataset'ten çek (şehir DEĞİL — şehirler
+            // eyalet seçilince per-state iner). Manager kendi UoW'larını yönetir; idempotent + TR guard.
+            await _importManager.ImportCountryAreasAsync(countryId);
         }
 
         // Coğrafya host-global (IMultiTenant değil) → tenant filtresi yok; doğrudan DB'den oku.
@@ -71,8 +72,14 @@ public class GeographyAppService : ApplicationService, IGeographyAppService
 
     public virtual async Task<ListResultDto<LocalityDto>> GetLocalitiesAsync(Guid administrativeAreaId)
     {
-        // Import ülke seviyesinde zaten yapıldı (alan listesi bu servisten alındıysa) → doğrudan DB.
-        // Coğrafya host-global (IMultiTenant değil) → tenant filtresi yok.
+        if (await AreaNeedsLocalityImportAsync(administrativeAreaId))
+        {
+            // Lazy tetik (alt katman): bu eyaletin şehirleri henüz inmemişse İLK seçimde dataset'ten per-state çek
+            // (US için 19k değil ~300 şehir; birkaç sn — picker busy hint gösterir). Manager idempotent + TR guard.
+            await _importManager.ImportAreaLocalitiesAsync(administrativeAreaId);
+        }
+
+        // Coğrafya host-global (IMultiTenant değil) → tenant filtresi yok; import sonrası doğrudan DB'den oku.
         var entities = await AsyncExecuter.ToListAsync(
             (await _localityRepository.GetQueryableAsync())
                 .Where(l => l.AdministrativeAreaId == administrativeAreaId)
@@ -124,7 +131,8 @@ public class GeographyAppService : ApplicationService, IGeographyAppService
     }
 
     // Ülkeyi host‖tenant görünürlüğünde projeksiyonla yoklar (entity izlenmez); yoksa dostane not-found.
-    private async Task<bool> NeedsImportAsync(Guid countryId)
+    // İdari alan (üst katman) importu gerekli mi: GeographyImportedAt null ise.
+    private async Task<bool> NeedsAreaImportAsync(Guid countryId)
     {
         using (DataFilter.Disable<IMultiTenant>())
         {
@@ -139,5 +147,21 @@ public class GeographyAppService : ApplicationService, IGeographyAppService
 
             return flags.GeographyImportedAt == null;
         }
+    }
+
+    // İdari alanın yerellik (alt katman) importu gerekli mi: LocalitiesImportedAt null ise. İdari alan host-global
+    // (IMultiTenant DEĞİL) → filtre kapatmaya gerek yok; projeksiyonla yoklanır (entity izlenmez).
+    private async Task<bool> AreaNeedsLocalityImportAsync(Guid administrativeAreaId)
+    {
+        var flags = await AsyncExecuter.FirstOrDefaultAsync(
+            (await _administrativeAreaRepository.GetQueryableAsync())
+                .Where(a => a.Id == administrativeAreaId)
+                .Select(a => new { a.Id, a.LocalitiesImportedAt }));
+        if (flags == null)
+        {
+            throw new EntityNotFoundException(typeof(AdministrativeArea), administrativeAreaId);
+        }
+
+        return flags.LocalitiesImportedAt == null;
     }
 }

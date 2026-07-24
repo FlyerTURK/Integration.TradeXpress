@@ -1,0 +1,44 @@
+@inherits CrudComponentBase
+
+@*
+   Kargo takip no'su — firma harici takip URL'si destekliyorsa no TIKLANABİLİR → tıklanınca büyük DxPopup açılır ve
+   takip SAYFASI popup İÇİNDE iframe ile GÖMÜLÜ gösterilir (kullanıcı odağı app'te kalır, yeni sekmeye çıkmaz). Yurtiçi
+   Kargo X-Frame-Options/CSP göndermiyor → gömülebilir (canlı doğrulandı). Emniyet: header'da küçük "yeni sekmede aç"
+   linki (iframe frame-busting yaparsa/boş kalırsa kaçış). Firma desteklemiyorsa düz metin; takip no boşsa boş.
+*@
+
+@if (!string.IsNullOrWhiteSpace(TrackingNumber))
+{
+    @if (_url is null)
+    {
+        @* Firma takip URL'si yok → düz metin (tıklanamaz). *@
+        <span>@TrackingNumber</span>
+    }
+    else
+    {
+        <DxButton Text="@TrackingNumber"
+                  IconCssClass="@TradeXpressIcons.AddressCard"
+                  RenderStyle="ButtonRenderStyle.Link"
+                  CssClass="p-0"
+                  Click="@OpenPopup" />
+
+        <DxPopup @bind-Visible="_popupVisible" Width="92vw" MaxWidth="1000px"
+                 CloseOnOutsideClick="true" ShowCloseButton="true" CloseOnEscape="true">
+            <HeaderContentTemplate Context="popup">
+                <div style="display:flex; align-items:center; gap:0.5rem; width:100%; min-width:0;">
+                    <i class="@TradeXpressIcons.AddressCard" aria-hidden="true"></i>
+                    <span style="flex:1 1 auto; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                        @L["Order:Track:Title"] — @CarrierName · @TrackingNumber
+                    </span>
+                    @* Emniyet: iframe boş kalır/frame-busting yaparsa yeni sekmede aç. *@
+                    <a href="@_url" target="_blank" rel="noopener" style="font-size:0.8rem; white-space:nowrap;">@L["Order:Track:OpenNewTab"]</a>
+                </div>
+            </HeaderContentTemplate>
+            <Content>
+                @* Takip sayfası popup İÇİNDE — harici iframe (Dx karşılığı yok, gerekçeli; X-Frame-Options/CSP yok → gömülür). *@
+                <iframe src="@_url" title="@(L["Order:Track:Title"].Value)"
+                        style="width:100%; height:70vh; border:0; display:block;"></iframe>
+            </Content>
+        </DxPopup>
+    }
+}

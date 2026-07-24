@@ -60,7 +60,16 @@
                         <DxFormLayoutItem Caption="@L["Order:Line:Status"]" ColSpanMd="6">@ItemStatusText(item.Status)</DxFormLayoutItem>
                         <DxFormLayoutItem Caption="@L["Order:Detail:Commission"]" ColSpanMd="3">@Money(item.Commission)</DxFormLayoutItem>
                         <DxFormLayoutItem Caption="@L["Order:Detail:Discount"]" ColSpanMd="3">@Money(item.DiscountTotal)</DxFormLayoutItem>
-                        <DxFormLayoutItem Caption="@L["Order:Detail:Shipment"]" ColSpanMd="6">@ShipmentText(item)</DxFormLayoutItem>
+                        <DxFormLayoutItem Caption="@L["Order:Detail:Shipment"]" ColSpanMd="6">
+                            @* Firma adı (düz metin) + takip no (firma URL destekliyorsa tıklanabilir → popup). *@
+                            <span style="display:inline-flex; align-items:center; gap:0.35rem; flex-wrap:wrap;">
+                                @if (!string.IsNullOrWhiteSpace(item.ShipmentCompany))
+                                {
+                                    <span>@item.ShipmentCompany</span>
+                                }
+                                <TrackingNumberDisplay CarrierName="@item.ShipmentCompany" TrackingNumber="@item.TrackingNumber" />
+                            </span>
+                        </DxFormLayoutItem>
                         @if (!string.IsNullOrWhiteSpace(item.Attributes))
                         {
                             <DxFormLayoutItem Caption="@L["Order:Detail:Attributes"]" ColSpanMd="12">@item.Attributes</DxFormLayoutItem>
@@ -106,37 +115,49 @@
                             }
                         </DxFormLayoutItem>
 
-                        @if (item.ActionStatus == OrderLineActionStatus.Pending)
+                        @* N11 uzak durumu satıcı-aksiyonu bekliyor mu? Beklemiyorsa (kargoda/teslim/tamamlandı/iptal/red…)
+                           aksiyon butonları GİZLENİR — N11 bunu zaten işledi, operatör tekrar denemesin. Beklerken mevcut
+                           yerel-ActionStatus alt-gate'i (Pending→Kabul/Red, Accepted→Kargo) iç içe KORUNUR. *@
+                        @if (AwaitsSellerAction(item))
                         {
-                            <DxFormLayoutItem Caption="@L["Order:Action:NumberOfPackages"]" ColSpanMd="4">
-                                <NumericSpinEdit @bind-Value="@item.ActionInputNumberOfPackages" />
-                            </DxFormLayoutItem>
-                            <DxFormLayoutItem ColSpanMd="8" CaptionPosition="CaptionPosition.Vertical">
-                                <DxButton Text="@L["Order:Action:Accept"]" RenderStyle="ButtonRenderStyle.Success"
-                                          Enabled="@(!_actionBusy)" Click="@(() => AcceptClickedAsync(item))" />
-                            </DxFormLayoutItem>
-                            <DxFormLayoutItem Caption="@L["Order:Action:RejectReason"]" ColSpanMd="8">
-                                <DxTextBox @bind-Text="@item.ActionInputRejectReason" />
-                            </DxFormLayoutItem>
-                            <DxFormLayoutItem ColSpanMd="4" CaptionPosition="CaptionPosition.Vertical">
-                                <DxButton Text="@L["Order:Action:Reject"]" RenderStyle="ButtonRenderStyle.Danger"
-                                          Enabled="@(!_actionBusy)" Click="@(() => RejectClickedAsync(item))" />
-                            </DxFormLayoutItem>
+                            @if (item.ActionStatus == OrderLineActionStatus.Pending)
+                            {
+                                <DxFormLayoutItem Caption="@L["Order:Action:NumberOfPackages"]" ColSpanMd="4">
+                                    <NumericSpinEdit @bind-Value="@item.ActionInputNumberOfPackages" />
+                                </DxFormLayoutItem>
+                                <DxFormLayoutItem ColSpanMd="8" CaptionPosition="CaptionPosition.Vertical">
+                                    <DxButton Text="@L["Order:Action:Accept"]" RenderStyle="ButtonRenderStyle.Success"
+                                              Enabled="@(!_actionBusy)" Click="@(() => AcceptClickedAsync(item))" />
+                                </DxFormLayoutItem>
+                                <DxFormLayoutItem Caption="@L["Order:Action:RejectReason"]" ColSpanMd="8">
+                                    <DxTextBox @bind-Text="@item.ActionInputRejectReason" />
+                                </DxFormLayoutItem>
+                                <DxFormLayoutItem ColSpanMd="4" CaptionPosition="CaptionPosition.Vertical">
+                                    <DxButton Text="@L["Order:Action:Reject"]" RenderStyle="ButtonRenderStyle.Danger"
+                                              Enabled="@(!_actionBusy)" Click="@(() => RejectClickedAsync(item))" />
+                                </DxFormLayoutItem>
+                            }
+                            else if (item.ActionStatus == OrderLineActionStatus.Accepted)
+                            {
+                                <DxFormLayoutItem Caption="@L["Order:Action:ShipmentCompanyId"]" ColSpanMd="4">
+                                    <DxTextBox @bind-Text="@item.ActionInputShipmentCompanyId" />
+                                </DxFormLayoutItem>
+                                <DxFormLayoutItem Caption="@L["Order:Ship:Tracking"]" ColSpanMd="4">
+                                    <DxTextBox @bind-Text="@item.ActionInputTrackingNumber" />
+                                </DxFormLayoutItem>
+                                <DxFormLayoutItem Caption="@L["Order:Ship:Campaign"]" ColSpanMd="4">
+                                    <DxTextBox @bind-Text="@item.ActionInputCampaignNumber" />
+                                </DxFormLayoutItem>
+                                <DxFormLayoutItem ColSpanMd="12" CaptionPosition="CaptionPosition.Vertical">
+                                    <DxButton Text="@L["Order:Action:Ship"]" RenderStyle="ButtonRenderStyle.Primary"
+                                              Enabled="@(!_actionBusy)" Click="@(() => ShipClickedAsync(item))" />
+                                </DxFormLayoutItem>
+                            }
                         }
-                        else if (item.ActionStatus == OrderLineActionStatus.Accepted)
+                        else
                         {
-                            <DxFormLayoutItem Caption="@L["Order:Action:ShipmentCompanyId"]" ColSpanMd="4">
-                                <DxTextBox @bind-Text="@item.ActionInputShipmentCompanyId" />
-                            </DxFormLayoutItem>
-                            <DxFormLayoutItem Caption="@L["Order:Ship:Tracking"]" ColSpanMd="4">
-                                <DxTextBox @bind-Text="@item.ActionInputTrackingNumber" />
-                            </DxFormLayoutItem>
-                            <DxFormLayoutItem Caption="@L["Order:Ship:Campaign"]" ColSpanMd="4">
-                                <DxTextBox @bind-Text="@item.ActionInputCampaignNumber" />
-                            </DxFormLayoutItem>
                             <DxFormLayoutItem ColSpanMd="12" CaptionPosition="CaptionPosition.Vertical">
-                                <DxButton Text="@L["Order:Action:Ship"]" RenderStyle="ButtonRenderStyle.Primary"
-                                          Enabled="@(!_actionBusy)" Click="@(() => ShipClickedAsync(item))" />
+                                <span style="color:#6c757d;">@string.Format(L["Order:Action:N11Processed"].Value, ItemStatusText(item.Status))</span>
                             </DxFormLayoutItem>
                         }
                     </DxFormLayoutGroup>

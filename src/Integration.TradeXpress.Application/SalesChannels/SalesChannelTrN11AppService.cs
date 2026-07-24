@@ -92,11 +92,12 @@ public class SalesChannelTrN11AppService : TradeXpressAppService, ISalesChannelT
 
         var entity = new SalesChannelTrN11(companyId, input.Code, input.Name, input.AppKey, input.AppSecret);
         entity.SetDescription(input.Description);
+        entity.SetDefaultInfos(input.DefaultShippingInfo, input.DefaultExchangeInfo, input.DefaultInstallmentInfo);
         entity.SetSideCosts(SideCostSettingsFactory.Build(input.SideCosts));
         await _repository.InsertAsync(entity, autoSave: true);
 
         // Kanal oluşturulur oluşturulmaz N11'deki mevcut kargo şablonlarını kanalın KENDİ kimliğiyle otomatik çek.
-        await TryImportShipmentTemplatesAsync(entity.Id);
+        await TrySyncShipmentTemplatesAsync(entity.Id);
 
         return Redact(ObjectMapper.Map<SalesChannelTrN11, SalesChannelTrN11GetDto>(entity));
     }
@@ -111,6 +112,7 @@ public class SalesChannelTrN11AppService : TradeXpressAppService, ISalesChannelT
         entity.SetName(input.Name);
         entity.SetDescription(input.Description);
         await ApplyCredentialChangeAsync(entity, input.AppKey, input.AppSecret);
+        entity.SetDefaultInfos(input.DefaultShippingInfo, input.DefaultExchangeInfo, input.DefaultInstallmentInfo);
         entity.SetSideCosts(SideCostSettingsFactory.Build(input.SideCosts));
         entity.SetActive(input.IsActive);
         await _repository.UpdateAsync(entity, autoSave: true);
@@ -193,14 +195,14 @@ public class SalesChannelTrN11AppService : TradeXpressAppService, ISalesChannelT
         }
     }
 
-    /// <summary>Kanal oluşturulunca N11 kargo şablonlarını otomatik içe aktar — BEST-EFFORT: N11 erişilemezse/başarısızsa
-    /// kanal oluşturma ETKİLENMEZ (yalnız uyarı loglanır; kullanıcı sonra drill'deki "İçe Aktar" ile elle tetikler).
+    /// <summary>Kanal oluşturulunca N11 kargo şablonlarını otomatik hizala — BEST-EFFORT: N11 erişilemezse/başarısızsa
+    /// kanal oluşturma ETKİLENMEZ (yalnız uyarı loglanır; kullanıcı sonra drill'deki "N11 ile Hizala" ile elle tetikler).
     /// Kimlik doğrulaması create'te zaten yapıldı → creds geçerli; şablon çekimi kanalın stored kimliğiyledir.</summary>
-    private async Task TryImportShipmentTemplatesAsync(Guid salesChannelId)
+    private async Task TrySyncShipmentTemplatesAsync(Guid salesChannelId)
     {
         try
         {
-            await _shipmentTemplateAppService.ImportAsync(salesChannelId);
+            await _shipmentTemplateAppService.SyncAsync(salesChannelId);
         }
         catch (Exception ex)
         {

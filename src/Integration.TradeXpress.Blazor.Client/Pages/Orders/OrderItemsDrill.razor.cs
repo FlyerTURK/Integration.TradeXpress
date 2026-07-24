@@ -94,8 +94,10 @@ public partial class OrderItemsDrill
 
     private static string Money(decimal? value) => value.HasValue ? value.Value.ToString("N2") : string.Empty;
 
-    private string ShipmentText(OrderLineEditDto item)
-        => string.Join(" · ", new[] { item.ShipmentCompany, item.TrackingNumber }.Where(p => !string.IsNullOrWhiteSpace(p)));
+    // N11 uzak durumu (item.Status) satıcı aksiyonu (Kabul/Red/Kargoya-Ver) bekliyor mu? N11 DIŞI kanalda gate yok
+    // (mevcut davranış korunur — ileride kanala özel gate). N11'de yalnız {1,2,5} kodları aksiyon bekler.
+    private bool AwaitsSellerAction(OrderLineEditDto item)
+        => ChannelType != SalesChannelType.TrN11 || N11OrderStatusCatalog.AwaitsSellerAction(item.Status);
 
     private string ActionStatusLabel(OrderLineActionStatus status) => L[$"Order:Action:Status:{status}"];
 

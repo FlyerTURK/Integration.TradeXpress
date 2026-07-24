@@ -1,12 +1,64 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
+using Integration.Framework.Addressing;
 using Integration.Framework.Base.Dtos;
 using Integration.Framework.Base.Dtos.Interfaces;
 using Integration.TradeXpress.Vaults;
 using Volo.Abp.Application.Dtos;
 
 namespace Integration.TradeXpress.Branches;
+
+/// <summary>Şube adresi — <see cref="Integration.Framework.Addressing.Address"/> VO'nun düz (flat) yansıması,
+/// ortak <c>AddressFields</c> bileşenine bind için <see cref="IAddressEditModel"/>. Picker İl/İlçe/Mahalle +
+/// kodları + id-only köprüleri doldurur; serbest-metin yalnız Line/PostalCode/Title.</summary>
+public class BranchAddressDto : IAddressEditModel
+{
+    public string? Title { get; set; }
+    public string City { get; set; } = string.Empty;
+    public string Line { get; set; } = string.Empty;
+    public string? District { get; set; }
+    public string? Neighborhood { get; set; }
+    public string? PostalCode { get; set; }
+    public string CountryCode { get; set; } = "TR";
+    public string? CityCode { get; set; }
+    public string? DistrictCode { get; set; }
+    public Guid? AdministrativeAreaId { get; set; }
+    public Guid? LocalityId { get; set; }
+    public string? AdministrativeAreaIsoCode { get; set; }
+    public string? BuildingName { get; set; }
+    public string? BuildingNumber { get; set; }
+    public string? Room { get; set; }
+    public string? Floor { get; set; }
+    public string? Postbox { get; set; }
+    public string? AdditionalStreetName { get; set; }
+
+    /// <summary>Tam deep-copy (graf clone'unda "unutulan alan" bug'ı olmasın — VaultGraphDto.Clone deseni).</summary>
+    public BranchAddressDto Clone()
+    {
+        return new BranchAddressDto
+        {
+            Title = Title,
+            City = City,
+            Line = Line,
+            District = District,
+            Neighborhood = Neighborhood,
+            PostalCode = PostalCode,
+            CountryCode = CountryCode,
+            CityCode = CityCode,
+            DistrictCode = DistrictCode,
+            AdministrativeAreaId = AdministrativeAreaId,
+            LocalityId = LocalityId,
+            AdministrativeAreaIsoCode = AdministrativeAreaIsoCode,
+            BuildingName = BuildingName,
+            BuildingNumber = BuildingNumber,
+            Room = Room,
+            Floor = Floor,
+            Postbox = Postbox,
+            AdditionalStreetName = AdditionalStreetName,
+        };
+    }
+}
 
 /// <summary>Branch liste sorgusu (per-tenant). Merkezi <see cref="ListRequestDto"/> standardı.</summary>
 public class BranchListRequestDto : ListRequestDto
@@ -20,6 +72,11 @@ public class BranchListDto : EntityDto<Guid>, IListDto<Guid>, IIsActive
     public Guid CompanyId { get; set; }
     public string CompanyCode { get; set; } = string.Empty;
     public string CompanyName { get; set; } = string.Empty;
+
+    /// <summary>Şubenin şirketinin ülkesi (Company.CountryId) — adres formu ülke VARSAYILANI için (özel gönderim/iade
+    /// adresinde ülke serbest ama company ülkesine ön-dolar). Legacy şirkette null olabilir.</summary>
+    public Guid? CompanyCountryId { get; set; }
+
     public Guid BaseCurrencyUnitId { get; set; }
     public string BaseCurrencyCode { get; set; } = string.Empty;
     public string Code { get; set; } = string.Empty;
@@ -29,6 +86,11 @@ public class BranchListDto : EntityDto<Guid>, IListDto<Guid>, IIsActive
     // bu listeden besleniyor ve durumu gösteriyor; bu yüzden DTO'da kalır.
     public bool IsActive { get; set; }
     public int DisplayOrder { get; set; }
+
+    /// <summary>Şubenin posta adresi (opsiyonel; null → adres yok) — YALNIZ picker path (<c>GetMyCompanyBranchesAsync</c>)
+    /// doldurur; genel grid listesinde null. Kargo şablonu ŞUBE modunda adres özetini besler + inline düzenlemenin
+    /// başlangıç değeri (ülke şubenin şirket ülkesine kilitli).</summary>
+    public BranchAddressDto? Address { get; set; }
 
     /// <summary>Combo kapalı gösterimi: "ŞirketKodu / ŞubeKodu".</summary>
     public string CompanyBranchCode => $"{CompanyCode} / {Code}";
@@ -65,6 +127,13 @@ public class BranchGetDto : EntityDto<Guid>, IGetDto<Guid>
     [StringLength(BranchConsts.DescriptionMaxLength)]
     public string? Description { get; set; }
 
+    /// <summary>Şube posta adresi (opsiyonel; null → adres yok). Server okur/yazar; standalone formda AddressFields bind eder.</summary>
+    public BranchAddressDto? Address { get; set; }
+
+    /// <summary>Şubenin şirketinin ülkesi (Company.CountryId) — adres formunun FixedCountryId'si (ülke kilidi).
+    /// Server doldurur (Branch.CompanyId → Company.CountryId çözülür). Legacy şirkette null olabilir (kilit yok).</summary>
+    public Guid? CompanyCountryId { get; set; }
+
     // Sahip olunan kasalar (graf düğümleri; durum = Id + IsDeleted). Edit formu in-memory yönetir.
     public List<VaultGraphDto> Vaults { get; set; } = new();
 }
@@ -91,6 +160,9 @@ public class BranchCreateDto : ICreateDto
     [StringLength(BranchConsts.DescriptionMaxLength)]
     public string? Description { get; set; }
 
+    /// <summary>Şube posta adresi (opsiyonel; null → adres yok). Ülke AppService'te şirketin ülkesine zorlanır.</summary>
+    public BranchAddressDto? Address { get; set; }
+
     // Sahip olunan kasalar (graf) — tek komutta yazılır (VaultAppService'e delege).
     public List<VaultGraphDto> Vaults { get; set; } = new();
 }
@@ -116,6 +188,10 @@ public class BranchUpdateDto : IUpdateDto
     [StringLength(BranchConsts.DescriptionMaxLength)]
     public string? Description { get; set; }
 
+    /// <summary>Şube posta adresi (opsiyonel; null → adres yok/temizle). Ülke AppService'te şirketin ülkesine zorlanır.
+    /// Company-grafı yolu mevcut adresi faithful round-trip eder (silme YOK); standalone form kendi adresini gönderir.</summary>
+    public BranchAddressDto? Address { get; set; }
+
     // Sahip olunan kasalar (graf; Id+IsDeleted ile diff) — tek komutta yazılır (VaultAppService'e delege).
     public List<VaultGraphDto> Vaults { get; set; } = new();
 }
@@ -136,10 +212,11 @@ public class BranchGraphDto : BranchGetDto
     public BranchGraphDto Clone() => new()
     {
         Id = Id, ClientKey = ClientKey, IsDeleted = IsDeleted,
-        CompanyId = CompanyId, CompanyCode = CompanyCode,
+        CompanyId = CompanyId, CompanyCode = CompanyCode, CompanyCountryId = CompanyCountryId,
         BaseCurrencyUnitId = BaseCurrencyUnitId,
         Code = Code, Name = Name, IsHeadquarters = IsHeadquarters,
         IsActive = IsActive, DisplayOrder = DisplayOrder, Description = Description,
+        Address = Address?.Clone(),
         Vaults = Vaults.ConvertAll(v => v.Clone()),
     };
 }

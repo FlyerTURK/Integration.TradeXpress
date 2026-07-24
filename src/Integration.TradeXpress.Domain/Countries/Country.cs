@@ -47,9 +47,11 @@ public class Country : FullAuditedAggregateRoot<Guid>, IMultiTenant
     /// <summary>Posta kodu adres etiketi tipi (US→ZIP, IN→PIN, IE→Eircode). Varsayılan <see cref="Countries.PostalCodeType.PostalCode"/> (generic).</summary>
     public virtual PostalCodeType PostalCodeType { get; protected set; }
 
-    /// <summary>On-demand coğrafya importu işareti (UTC) — null = bu ülkenin il/eyalet + şehir verisi henüz çekilmedi;
-    /// dolu = dataset importu (ya da TR/US seed'i) tamamlandı. Lazy tetik (GeographyAppService) ve import
-    /// idempotency guard'ı bu alana bakar — böylece gereksiz yere kullanılmayan ülkelerin şehirleri DB'ye inmez.</summary>
+    /// <summary>On-demand İDARİ ALAN (il/eyalet) importu işareti (UTC) — null = bu ülkenin il/eyalet verisi henüz
+    /// çekilmedi; dolu = idari alan importu (ya da TR/US seed'i) tamamlandı. İki-seviyeli lazy import'un ÜST katmanı:
+    /// bu alan yalnız EYALET seviyesini kapsar (şehir DEĞİL — şehirler eyalet seçilince
+    /// <see cref="Geography.AdministrativeArea.LocalitiesImportedAt"/> ile per-state çekilir). Lazy tetik
+    /// (GeographyAppService) ve import idempotency guard'ı bu alana bakar.</summary>
     public virtual DateTime? GeographyImportedAt { get; protected set; }
 
     /// <summary>Varsayılan para birimi KODU — ESKİ string referans. Id-only geçişiyle yerini
@@ -81,7 +83,8 @@ public class Country : FullAuditedAggregateRoot<Guid>, IMultiTenant
     public Country(string code, string name, int displayOrder = 0)
     {
         SetCode(code);
-        SetName(name);
+        // ISO 3166-1 referans adı (önceden-formatlı) — TitleCase'siz ham yol (yalnız seeder çağırır; kullanıcı DEĞİL).
+        SetReferenceName(name);
         DisplayOrder = displayOrder;
         IsActive = true;
     }
@@ -99,8 +102,21 @@ public class Country : FullAuditedAggregateRoot<Guid>, IMultiTenant
 
     public virtual void SetName(string name)
     {
-        // NormalizeName: Trim + çoklu boşluk→tek + TitleCase, ardından zorunlu/min/max doğrulaması.
+        // NormalizeName: Trim + çoklu boşluk→tek + TitleCase, ardından zorunlu/min/max doğrulaması. Kullanıcı girdisi yolu.
         Name = StringFieldGuard.NormalizeName(
+            name,
+            nameof(Name),
+            EntityFieldConsts.NameMinLength,
+            CountryConsts.NameMaxLength);
+    }
+
+    /// <summary>Güvenilir REFERANS adı (ISO 3166-1 katalog adı — önceden-formatlı otoriter veri). TitleCase
+    /// UYGULAMAZ → kaynak casing korunur (ör. "United States of America", "Congo, Democratic Republic of the";
+    /// bağlaçlar küçük kalır). Guard'lar KORUNUR: Trim + zorunlu-boş-değil + min/max (normalize≠validation).
+    /// Kullanıcı GİRDİSİ için değildir — o <see cref="SetName"/> (TitleCase) yolundan geçer; yalnız seeder çağırır.</summary>
+    public virtual void SetReferenceName(string name)
+    {
+        Name = StringFieldGuard.EnsureRequiredText(
             name,
             nameof(Name),
             EntityFieldConsts.NameMinLength,
@@ -171,8 +187,9 @@ public class Country : FullAuditedAggregateRoot<Guid>, IMultiTenant
         PostalCodeType = postalCodeType;
     }
 
-    /// <summary>Coğrafya verisinin (il/eyalet + şehir) çekildiğini işaretler — on-demand importun idempotency
-    /// anahtarı. Saat çağırandan gelir (ABP <c>IClock.Now</c>; doğrudan DateTime.Now KULLANILMAZ).</summary>
+    /// <summary>İdari alan (il/eyalet) verisinin çekildiğini işaretler — on-demand ÜST-katman importun idempotency
+    /// anahtarı (şehir DEĞİL; şehir per-state <see cref="Geography.AdministrativeArea.MarkLocalitiesImported"/>).
+    /// Saat çağırandan gelir (ABP <c>IClock.Now</c>; doğrudan DateTime.Now KULLANILMAZ).</summary>
     public virtual void MarkGeographyImported(DateTime importedAt)
     {
         GeographyImportedAt = importedAt;

@@ -15,6 +15,8 @@
     <DxFormLayout>
         <DxFormLayoutItem Caption="@L["Order:Channel"]" ColSpanMd="4">@ChannelText(Model.ChannelType, Model.SalesChannelCode)</DxFormLayoutItem>
         <DxFormLayoutItem Caption="@L["Order:OrderNumber"]" ColSpanMd="4">@Model.OrderNumber</DxFormLayoutItem>
+        @* Kanalın İÇ sipariş id'si (ör. N11 "id") — Sipariş No'dan FARKLI; API detay/aksiyon çağrıları bu id ile çalışır. *@
+        <DxFormLayoutItem Caption="@L["Order:RemoteOrderId"]" ColSpanMd="4">@Model.RemoteOrderId</DxFormLayoutItem>
         <DxFormLayoutItem Caption="@L["Order:Date"]" ColSpanMd="4">@Model.OrderDate.ToString("g")</DxFormLayoutItem>
         <DxFormLayoutItem Caption="@L["Order:Status"]" ColSpanMd="4">@StatusLabel(Model.NeutralStatus)</DxFormLayoutItem>
         <DxFormLayoutItem Caption="@L["Order:RemoteStatus"]" ColSpanMd="4">@RemoteOrderStatusText(Model)</DxFormLayoutItem>
@@ -31,42 +33,34 @@
             <DxTextBox @bind-Text="@Model.CargoProvider" />
         </DxFormLayoutItem>
         <DxFormLayoutItem Caption="@L["Order:Tracking"]" ColSpanMd="8">
-            <DxTextBox @bind-Text="@Model.CargoTrackingNumber" />
+            @* Editable takip no + firma harici takip URL'si destekliyorsa tıklanabilir takip linki (yan yana). *@
+            <div style="display:flex; align-items:center; gap:0.5rem;">
+                <div style="flex:1 1 auto;">
+                    <DxTextBox @bind-Text="@Model.CargoTrackingNumber" />
+                </div>
+                <TrackingNumberDisplay CarrierName="@Model.CargoProvider" TrackingNumber="@Model.CargoTrackingNumber" />
+            </div>
         </DxFormLayoutItem>
     </DxFormLayout>
 
-    @* ── Alıcı (editable) ── *@
+    @* ── Alıcı + Adresler — kompakt özet + ✎ → popup (VO deseni; adres/kargo şablonuyla tutarlı). TEK DxFormLayout →
+       Alıcı/Fatura/Teslimat aynı caption sütununu paylaşır (özetler AYNI HİZADA). Alıcı kuralları: ad boşsa Fatura
+       Adresi adına düşer; TCKN yalnız doluysa; Vergi Dairesi → Vergi No (bu sırada) yalnız doluysa. ── *@
     <DxFormLayout>
-        <DxFormLayoutItem Caption="@L["Order:Detail:Buyer"]" ColSpanMd="4">
-            <DxTextBox @bind-Text="@Model.Buyer.FullName" />
-        </DxFormLayoutItem>
-        <DxFormLayoutItem Caption="@L["Order:Detail:Email"]" ColSpanMd="4">
-            <DxTextBox @bind-Text="@Model.Buyer.Email" />
-        </DxFormLayoutItem>
-        <DxFormLayoutItem Caption="@L["Order:Detail:TcId"]" ColSpanMd="4">
-            <DxTextBox @bind-Text="@Model.Buyer.TcId" />
-        </DxFormLayoutItem>
-        <DxFormLayoutItem Caption="@L["Order:Detail:TaxId"]" ColSpanMd="6">
-            <DxTextBox @bind-Text="@Model.Buyer.TaxId" />
-        </DxFormLayoutItem>
-        <DxFormLayoutItem Caption="@L["Order:Detail:TaxOffice"]" ColSpanMd="6">
-            <DxTextBox @bind-Text="@Model.Buyer.TaxOffice" />
-        </DxFormLayoutItem>
+        <OrderBuyerEditFields Caption="@(L["Order:Detail:Buyer"].Value)"
+                              Buyer="@Model.Buyer"
+                              BillingName="@Model.BillingAddress?.FullName" />
+        <OrderAddressEditFields Caption="@(L["Order:Detail:BillingAddress"].Value)"
+                                Model="@Model.BillingAddress" FixedCountryId="@Model.CountryId" />
+        <OrderAddressEditFields Caption="@(L["Order:Detail:ShippingAddress"].Value)"
+                                Model="@Model.ShippingAddress" FixedCountryId="@Model.CountryId" />
     </DxFormLayout>
 
-    @* ── Adresler (editable) ── *@
-    <DxFormLayout>
-        <DxFormLayoutGroup Caption="@L["Order:Detail:BillingAddress"]" ColSpanMd="6">
-            <OrderAddressEditFields Model="@Model.BillingAddress" />
-        </DxFormLayoutGroup>
-        <DxFormLayoutGroup Caption="@L["Order:Detail:ShippingAddress"]" ColSpanMd="6">
-            <OrderAddressEditFields Model="@Model.ShippingAddress" />
-        </DxFormLayoutGroup>
-    </DxFormLayout>
-
-    @* ── Sipariş Fazı O2 — edit formu toolbar'ındaki "Kabul Et" için paket sayısı girdisi (yalnız N11). Reddet'in
-       gerekçesi burada DEĞİL — tıklanınca UiService.PromptAsync ile GERÇEKTEN SORULUR (OrderEditHost). ── *@
-    @if (Model.ChannelType == SalesChannelType.TrN11)
+    @* ── Sipariş Fazı O2 — edit formu toolbar'ındaki "Kabul Et" için paket sayısı girdisi (yalnız N11 + bekleyen kalem
+       + N11 sipariş durumu satıcı-aksiyonu bekliyorsa; Tamamlandı/İptal siparişte Kabul/Red butonlarıyla birlikte
+       GİZLENİR). Reddet'in gerekçesi burada DEĞİL — tıklanınca UiService.PromptAsync ile SORULUR (OrderEditHost). ── *@
+    @if (Model.ChannelType == SalesChannelType.TrN11 && Model.PendingLineCount > 0
+         && N11OrderStatusCatalog.AwaitsSellerActionForOrder(Model.RemoteStatus))
     {
         <DxFormLayout>
             <DxFormLayoutGroup Caption="@L["Order:Action:Title"]" ColSpanMd="12">

@@ -82,6 +82,33 @@ public static class N11OrderStatusCatalog
         return Lookup(PaymentTypes, rawPaymentType);
     }
 
+    /// <summary>Bu N11 SİPARİŞ durumu satıcı aksiyonu (toplu Kabul/Red) BEKLİYOR mu? Yalnız {1 İşlem Bekliyor,
+    /// 2 İşlemde} için <c>true</c>; 3 İptal / 4 Geçersiz / 5 Tamamlandı ve bilinmeyen/boş kod → <c>false</c>
+    /// (fail-safe: N11 siparişi kapatmışsa toplu Kabul/Red anlamsız — buton gösterilmez).</summary>
+    public static bool AwaitsSellerActionForOrder(string? rawOrderStatus)
+    {
+        if (!int.TryParse(rawOrderStatus, NumberStyles.Integer, CultureInfo.InvariantCulture, out var code))
+        {
+            return false;   // bilinmeyen/boş kod → aksiyon gösterme (güvenli)
+        }
+
+        return code is 1 or 2;
+    }
+
+    /// <summary>Bu N11 kalem durumu satıcı aksiyonu (Kabul/Red/Kargoya-Ver) BEKLİYOR mu? Yalnız {1 İşlem Bekliyor,
+    /// 2 Ödendi, 5 Kabul Edilmiş} kodları için <c>true</c>; diğer TÜM kodlar (6 Kargoda, 7 Teslim, 10 Tamamlandı,
+    /// 4 İptal, 8 Reddedilmiş, 9/11/12/13/16 iade/claim, vb.) için <c>false</c>. Bilinmeyen/parse edilemeyen kod →
+    /// <c>false</c> (fail-safe: N11 tarafında ne olduğu belirsizse aksiyon gösterme).</summary>
+    public static bool AwaitsSellerAction(string? rawItemStatus)
+    {
+        if (!int.TryParse(rawItemStatus, NumberStyles.Integer, CultureInfo.InvariantCulture, out var code))
+        {
+            return false;   // bilinmeyen/boş kod → aksiyon gösterme (güvenli)
+        }
+
+        return code is 1 or 2 or 5;
+    }
+
     private static string? Lookup(Dictionary<int, (string Tr, string En)> map, string? rawStatus)
     {
         if (!int.TryParse(rawStatus, NumberStyles.Integer, CultureInfo.InvariantCulture, out var code) || !map.TryGetValue(code, out var label))

@@ -74,18 +74,26 @@ public class GeographySeeder(
         {
             if (byCode.TryGetValue(spec.Alpha2, out var existing))
             {
-                // Mevcut ülke: yalnız ISO alan + adres bayraklarını zenginleştir (Name/DefaultCurrency/DisplayOrder KORUNUR).
+                // Mevcut ülke: ISO alan + adres bayraklarını zenginleştir (DefaultCurrency/DisplayOrder KORUNUR).
                 existing.SetAlpha3Code(spec.Alpha3);
                 existing.SetNumericCode(spec.Numeric);
                 existing.SetUsesAdministrativeArea(true);
                 existing.SetUsesSubLocality(false);
+                // Ad: yalnız HÂLÂ Türkçe-seed olan (kullanıcı özelleştirmemiş) satırı İngilizce'ye çevir. Stored Name =
+                // NormalizeAsName(NameTr) ürünüdür (ham NameTr değil) → karşılaştırma da normalize edilmişe göre yapılır.
+                // Kullanıcı elle değiştirdiyse (Name farklı) DOKUNMA. SetReferenceName ham casing'i korur (TitleCase'siz).
+                if (existing.Name == spec.NameTr.NormalizeAsName())
+                {
+                    existing.SetReferenceName(spec.NameEn);
+                }
                 await _countryRepository.UpdateAsync(existing, autoSave: false);
                 enriched++;
             }
             else
             {
-                // Yeni referans ülke: para birimSİZ (DefaultCurrencyUnitId=null). Ad = Türkçe ad.
-                var created = new Country(spec.Alpha2, spec.NameTr);
+                // Yeni referans ülke: para birimSİZ (DefaultCurrencyUnitId=null). Ad = İngilizce ISO adı (referans ctor
+                // ham casing'i korur — TitleCase uygulanmaz, "United States of America" bozulmaz).
+                var created = new Country(spec.Alpha2, spec.NameEn);
                 created.SetAlpha3Code(spec.Alpha3);
                 created.SetNumericCode(spec.Numeric);
                 // UsesAdministrativeArea=true (field default), UsesSubLocality=false (default) — TR/US aşağıda ayarlanır.
@@ -166,6 +174,15 @@ public class GeographySeeder(
             {
                 city.SetCoreAdministrativeArea(area.Id);
                 await _n11CityRepository.UpdateAsync(city, autoSave: false);
+            }
+
+            // TR ili → ilçeleri N11-seed'li (aşağıda) → per-state yerellik import işaretini backfill et: lazy tetik
+            // (GeographyAppService.GetLocalitiesAsync) TR eyaletinde dataset DENEMESİN. Manager'ın ayrıca TR guard'ı
+            // da var. İdempotent — yalnız null olanı işaretle (mevcut TR alanları için de backfill; ilk seed korunur).
+            if (area.LocalitiesImportedAt == null)
+            {
+                area.MarkLocalitiesImported(_clock.Now);
+                await _administrativeAreaRepository.UpdateAsync(area, autoSave: false);
             }
         }
 
@@ -275,8 +292,10 @@ public class GeographySeeder(
             }
         }
 
-        // US eyaletleri sabit katalogdan dolduruldu → on-demand import işareti (lazy tetik US'i dataset'ten
-        // tekrar ÇEKMESİN — 19k+ şehir gereksiz inmesin; şehir gerektiğinde işaret elle sıfırlanabilir).
+        // US eyaletleri sabit katalogdan dolduruldu → İDARİ ALAN (üst katman) import işareti: lazy tetik US
+        // eyaletlerini dataset'ten TEKRAR çekmesin. ŞEHİR işareti (AdministrativeArea.LocalitiesImportedAt) burada
+        // set EDİLMEZ → NULL kalır: her eyaletin şehirleri kullanıcı o eyaleti seçince per-state lazy iner (19k'nın
+        // tamamı değil ~300). İki-seviyeli lazy'nin özü budur.
         if (usa.GeographyImportedAt == null)
         {
             usa.MarkGeographyImported(_clock.Now);
@@ -330,8 +349,9 @@ public class GeographySeeder(
 
     #region Seed Data
 
-    // ISO 3166-1 tam liste (249) — stefangabos/world_countries (en+tr). name_en ŞİMDİLİK saklanmıyor
-    // (yalnız görüntü adı = name_tr; ISO alpha kodları fatura kimliği). private static katalog (en altta).
+    // ISO 3166-1 tam liste (249) — stefangabos/world_countries (en+tr). name_en → Country.Name (görüntü adı;
+    // her iki UI dilinde de İngilizce). name_tr yalnız mevcut Türkçe-seed satırları tespit edip İngilizce'ye çevirmek
+    // için karşılaştırma anahtarı (kullanıcı özelleştirmesini korur). ISO alpha kodları fatura kimliği. Katalog en altta.
     private static readonly (string Alpha2, string Alpha3, string Numeric, string NameTr, string NameEn)[] IsoCountryCatalog =
     [
         ("AD", "AND", "020", "Andorra", "Andorra"),

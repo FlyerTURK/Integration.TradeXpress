@@ -27,12 +27,15 @@ public partial class OrderEditHost
         _coordinator = new OrderEditCoordinator(OrderAppService);
     }
 
-    // Yalnız N11 kanalı VE bekleyen (Pending) kalem VARSA (AppService'te de guard var; burada görünürlük) — sipariş
-    // zaten tamamen Kabul/Red edilmişse butonlar hiç gösterilmez (tekrar tıklanacak bir şey kalmadı). SortIndex
-    // 150/160: Delete(100) ile Previous(700) arası — liste toolbar'ının custom=300 slotuyla AYNI aralık felsefesi.
+    // Yalnız N11 kanalı VE bekleyen (Pending) kalem VE N11 sipariş durumu satıcı-aksiyonu BEKLİYORSA (AppService'te de
+    // guard var; burada görünürlük) — sipariş yerelde tamamen işlenmişse YA DA N11 tarafında kapanmışsa (Tamamlandı/
+    // İptal/Geçersiz — yerel Pending kalsa bile) butonlar hiç gösterilmez (tıklanacak anlamlı aksiyon kalmadı).
+    // SortIndex 150/160: Delete(100) ile Previous(700) arası — liste toolbar'ının custom=300 slotuyla AYNI felsefe.
     private IReadOnlyList<CrudToolbarAction> BuildOrderActions(OrderDto model)
     {
-        if (model.ChannelType != SalesChannelType.TrN11 || model.PendingLineCount == 0)
+        if (model.ChannelType != SalesChannelType.TrN11
+            || model.PendingLineCount == 0
+            || !N11OrderStatusCatalog.AwaitsSellerActionForOrder(model.RemoteStatus))
         {
             return Array.Empty<CrudToolbarAction>();
         }

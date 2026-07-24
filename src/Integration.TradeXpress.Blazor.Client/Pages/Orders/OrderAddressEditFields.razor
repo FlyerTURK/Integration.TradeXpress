@@ -1,39 +1,54 @@
 @using Integration.TradeXpress.Orders
+@using Integration.Framework.Blazor.Client.Components.Crud
+@using Integration.TradeXpress.Blazor.Client.Components.Shared
 @using DevExpress.Blazor
 @inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
 
 @*
-   Sipariş adresi EDİT alanları (PAYLAŞILAN — Fatura + Teslimat AYNI şekli kullanır, DRY). Değerler önceden
-   düzeltme??orijinal ile dolu gelir (OrderAppService.GetOrderEditAsync); burada sadece editable form.
+   Sipariş adresi (Fatura/Teslimat) — kompakt ÖZET + ✎ → popup (branch/kargo şablonu ValueObjectEdit deseni; DRY).
+   Özet ithal adresin TAMAMINI gösterir (alıcı adı + adres) → hiçbir şey gizli kalmaz. Düzenleme popup'ta:
+   alıcı-KİMLİK alanları (Ad/GSM/TC/Vergi) + ortak AddressFields geo-picker (ülke TR-kilitli). Kaydet = order
+   form'un kendi save'iyle (Model order edit modelinin parçası; ayrı persist yok); Reset/İptal = açılış snapshot'ı.
 *@
 
-<DxFormLayoutItem Caption="@L["Order:Detail:Buyer"]" ColSpanMd="12">
-    <DxTextBox @bind-Text="@Model.FullName" />
+<DxFormLayoutItem Caption="@Caption" ColSpanMd="12">
+    <ValueObjectEdit TValue="OrderEditAddressDto"
+                     Value="@Model"
+                     DisplayProjection="@AddressSummary"
+                     EmptyPredicate="@IsEmpty"
+                     OnEditClick="@OpenPopup"
+                     PlaceholderText="@L["Address:EditHint"].Value" />
 </DxFormLayoutItem>
-<DxFormLayoutItem Caption="@L["Order:Address:Line"]" ColSpanMd="12">
-    <DxMemo @bind-Text="@Model.Line" Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100" />
-</DxFormLayoutItem>
-<DxFormLayoutItem Caption="@L["Order:Address:Neighborhood"]" ColSpanMd="6">
-    <DxTextBox @bind-Text="@Model.Neighborhood" />
-</DxFormLayoutItem>
-<DxFormLayoutItem Caption="@L["Order:Address:District"]" ColSpanMd="6">
-    <DxTextBox @bind-Text="@Model.District" />
-</DxFormLayoutItem>
-<DxFormLayoutItem Caption="@L["Order:Address:City"]" ColSpanMd="6">
-    <DxTextBox @bind-Text="@Model.City" />
-</DxFormLayoutItem>
-<DxFormLayoutItem Caption="@L["Order:Address:PostalCode"]" ColSpanMd="6">
-    <DxTextBox @bind-Text="@Model.PostalCode" />
-</DxFormLayoutItem>
-<DxFormLayoutItem Caption="@L["Order:Address:Gsm"]" ColSpanMd="6">
-    <DxTextBox @bind-Text="@Model.Gsm" />
-</DxFormLayoutItem>
-<DxFormLayoutItem Caption="@L["Order:Detail:TcId"]" ColSpanMd="6">
-    <DxTextBox @bind-Text="@Model.TcId" />
-</DxFormLayoutItem>
-<DxFormLayoutItem Caption="@L["Order:Detail:TaxId"]" ColSpanMd="6">
-    <DxTextBox @bind-Text="@Model.TaxId" />
-</DxFormLayoutItem>
-<DxFormLayoutItem Caption="@L["Order:Detail:TaxOffice"]" ColSpanMd="6">
-    <DxTextBox @bind-Text="@Model.TaxOffice" />
-</DxFormLayoutItem>
+
+@if (Model != null)
+{
+    <ValueObjectEditPopup TValue="OrderEditAddressDto"
+                          @bind-Visible="@_popupVisible"
+                          Model="@Model"
+                          HeaderText="@Caption"
+                          IconCssClass="@TradeXpressIcons.AddressCard">
+        @* TEK DxFormLayout: alıcı-kimlik (adres DEĞİL) + adres (Embedded picker) → hepsi aynı caption sütununda HİZALI.
+           AddressFields Embedded → kendi wrapper'ı yok, item'ları bu layout'a iner. *@
+        <DxFormLayout CssClass="w-100">
+            <DxFormLayoutItem Caption="@L["Order:Detail:Buyer"]" ColSpanMd="12">
+                <DxTextBox @bind-Text="@Model.FullName" ValidationEnabled="false" />
+            </DxFormLayoutItem>
+            <DxFormLayoutItem Caption="@L["Order:Address:Gsm"]" ColSpanMd="6">
+                <DxTextBox @bind-Text="@Model.Gsm" ValidationEnabled="false" />
+            </DxFormLayoutItem>
+            <DxFormLayoutItem Caption="@L["Order:Detail:TcId"]" ColSpanMd="6">
+                <DxTextBox @bind-Text="@Model.TcId" ValidationEnabled="false" />
+            </DxFormLayoutItem>
+            @* Vergi Dairesi ÖNCE, Vergi No SONRA (kullanıcı kararı — buyer ile tutarlı). *@
+            <DxFormLayoutItem Caption="@L["Order:Detail:TaxOffice"]" ColSpanMd="6">
+                <DxTextBox @bind-Text="@Model.TaxOffice" ValidationEnabled="false" />
+            </DxFormLayoutItem>
+            <DxFormLayoutItem Caption="@L["Order:Detail:TaxId"]" ColSpanMd="6">
+                <DxTextBox @bind-Text="@Model.TaxId" ValidationEnabled="false" />
+            </DxFormLayoutItem>
+
+            @* Adres (geo-picker + Cadde + UBL) — ortak bileşen, ülke TR-kilitli, Embedded (bu layout'a iner). *@
+            <AddressFields Model="@Model" FixedCountryId="@FixedCountryId" Embedded="true" />
+        </DxFormLayout>
+    </ValueObjectEditPopup>
+}

@@ -280,16 +280,21 @@ public class MetalAppService
     {
         await base.EnrichListAsync(entities, dtos);
 
-        // Grid önizlemesi: Url tipinde doğrudan URL, Upload'da THUMBNAIL blobundan data-URL (Product listesiyle
-        // aynı desen). Sayfa boyutu kadar satır işlenir (liste materialize edilip sayfalandıktan sonra çağrılır).
+        // Grid önizlemesi: ÖNCELİK maden-düzeyi tekil görsel (varsa; Create/Update/Get + orphan-blob temizliği destekler).
+        // YOKSA ana varyantın varsayılan poster'ına düş — görseller çoğunlukla VARYANT seviyesinde (EntityVariantsPanel;
+        // Stone/Jewelry/Good deseni). Eski kod YALNIZ maden-Image'a bakıyordu → varyant-görselli madenlerde önizleme HEP
+        // boştu (kök neden). Varyant poster'ları tek batch (N+1 yok).
+        var variantPreviews = await _graph.GetVariantPreviewMapAsync(
+            MetalEntityName, VariantImageEntityName, dtos.Select(d => d.Id).ToList());
         for (var i = 0; i < dtos.Count; i++)
         {
-            dtos[i].ImagePreviewUrl = await BuildPreviewUrlAsync(entities[i].TenantId, entities[i].Image);
+            dtos[i].ImagePreviewUrl = await BuildPreviewUrlAsync(entities[i].TenantId, entities[i].Image)
+                ?? variantPreviews.GetValueOrDefault(dtos[i].Id);
         }
     }
 
-
-    /// <summary>Liste önizleme URL'i — Url kaynağı doğrudan, Upload kaynağı thumbnail data-URL'i (yoksa null).</summary>
+    /// <summary>Maden-düzeyi tekil görselin önizleme URL'i — Url kaynağı doğrudan, Upload kaynağı thumbnail data-URL'i
+    /// (yoksa null). Liste önizlemesinde ana varyant poster'ından ÖNCE denenir.</summary>
     private async Task<string?> BuildPreviewUrlAsync(Guid? ownerTenantId, MetalImage? image)
     {
         if (image is null)

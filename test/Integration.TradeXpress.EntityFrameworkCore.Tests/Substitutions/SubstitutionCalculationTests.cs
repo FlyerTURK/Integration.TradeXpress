@@ -5,6 +5,7 @@ using Integration.TradeXpress.EntityFrameworkCore;
 using Integration.TradeXpress.Financials.CurrencyUnits;
 using Integration.TradeXpress.Metals;
 using Integration.TradeXpress.MultiCompany;
+using Integration.TradeXpress.Variants;
 using Integration.TradeXpress.Vouchers;
 using Shouldly;
 using Volo.Abp;
@@ -32,16 +33,20 @@ public class SubstitutionCalculationTests : TradeXpressEntityFrameworkCoreTestBa
     private readonly IRepository<Metal, Guid> _metalRepository;
     private readonly IRepository<SubstitutionGroup, Guid> _groupRepository;
     private readonly IRepository<SubstitutionGroupItem, Guid> _itemRepository;
+    private readonly IRepository<EntityVariant, Guid> _entityVariantRepository;
+    private readonly IRepository<MetalVariantDetail, Guid> _metalVariantDetailRepository;
 
     public SubstitutionCalculationTests()
     {
-        _calculationAppService = GetRequiredService<ISubstitutionCalculationAppService>();
-        _voucherAppService     = GetRequiredService<IVoucherAppService>();
-        _seeder                = GetRequiredService<VoucherTestDataSeeder>();
-        _companyContext        = GetRequiredService<TestCompanyContextProvider>();
-        _metalRepository       = GetRequiredService<IRepository<Metal, Guid>>();
-        _groupRepository       = GetRequiredService<IRepository<SubstitutionGroup, Guid>>();
-        _itemRepository        = GetRequiredService<IRepository<SubstitutionGroupItem, Guid>>();
+        _calculationAppService        = GetRequiredService<ISubstitutionCalculationAppService>();
+        _voucherAppService            = GetRequiredService<IVoucherAppService>();
+        _seeder                       = GetRequiredService<VoucherTestDataSeeder>();
+        _companyContext               = GetRequiredService<TestCompanyContextProvider>();
+        _metalRepository              = GetRequiredService<IRepository<Metal, Guid>>();
+        _groupRepository              = GetRequiredService<IRepository<SubstitutionGroup, Guid>>();
+        _itemRepository               = GetRequiredService<IRepository<SubstitutionGroupItem, Guid>>();
+        _entityVariantRepository      = GetRequiredService<IRepository<EntityVariant, Guid>>();
+        _metalVariantDetailRepository = GetRequiredService<IRepository<MetalVariantDetail, Guid>>();
     }
 
     [Fact]
@@ -259,8 +264,10 @@ public class SubstitutionCalculationTests : TradeXpressEntityFrameworkCoreTestBa
 
     // ── seed yardımcıları ──────────────────────────────────────────────────────────
 
-    /// <summary>Adet-hesaplı + standart gramajlı maden kataloğu kaydı (HAS takipli, milyem 1).
-    /// Opsiyonel ADET-BAŞI işçilik (LaborType=Quantity) maliyet sıralamasını ayrıştırmak için.</summary>
+    /// <summary>Adet-hesaplı + standart gramajlı maden kataloğu kaydı (HAS takipli, milyem 1) + ana varyantı.
+    /// İşçilik artık madende DEĞİL, ana varyantın <see cref="MetalVariantDetail"/> uzantısındadır (solver bunu
+    /// EntityVariant→MetalVariantDetail join'iyle okur). Opsiyonel ADET-BAŞI işçilik (LaborType=Quantity)
+    /// maliyet sıralamasını ayrıştırmak için ana varyanta yazılır (0 işçilik = labor bacağı yok).</summary>
     private Task<Metal> SeedMetalAsync(
         VoucherTestData data,
         string code,
@@ -268,12 +275,37 @@ public class SubstitutionCalculationTests : TradeXpressEntityFrameworkCoreTestBa
         decimal entryLaborPerPiece = 0m,
         Guid? laborUnitId = null)
     {
-        return WithUnitOfWorkAsync(() => _metalRepository.InsertAsync(
-            new Metal(code, $"{code} Metal", data.HasUnitId, factor: 1m,
-                isQuantity: true, stableQuantity: pieceWeight,
-                laborType: MetalLaborType.Quantity,
-                entryLabor: entryLaborPerPiece, entryLaborUnitId: laborUnitId),
-            autoSave: true));
+        return WithUnitOfWorkAsync(async () =>
+        {
+            var metal = await _metalRepository.InsertAsync(
+                new Metal(code, $"{code} Metal", data.HasUnitId, factor: 1m,
+                    isQuantity: true, stableQuantity: pieceWeight),
+                autoSave: true);
+
+            await SeedMainVariantWithLaborAsync(metal, entryLaborPerPiece, laborUnitId);
+
+            return metal;
+        });
+    }
+
+    /// <summary>Madenin ANA varyantını (EntityName="Metal", EntityId=Metal.Id, IsMain) + adet-başı işçilik
+    /// taşıyan <see cref="MetalVariantDetail"/>'ini kurar — production'daki maden-varyant deseniyle aynı
+    /// (varyant tenant-geneli: CompanyId=null). Solver labor'ı bu ana varyanttan çözer.</summary>
+    private async Task SeedMainVariantWithLaborAsync(Metal metal, decimal entryLaborPerPiece, Guid? laborUnitId)
+    {
+        var variant = await _entityVariantRepository.InsertAsync(
+            new EntityVariant(
+                companyId: null, entityName: "Metal", entityId: metal.Id,
+                code: $"{metal.Code}-MAIN", name: $"{metal.Name} Main", isMain: true),
+            autoSave: true);
+
+        var detail = new MetalVariantDetail(companyId: null, entityVariantId: variant.Id);
+        detail.SetLabor(
+            MetalLaborType.Quantity, laborTypeChange: false,
+            entryLabor: entryLaborPerPiece, entryLaborUnitId: laborUnitId, entryLaborChange: false,
+            exitLabor: 0m, exitLaborUnitId: null, exitLaborChange: false,
+            costUnitId: null);
+        await _metalVariantDetailRepository.InsertAsync(detail, autoSave: true);
     }
 
     /// <summary>Muadil grubu + DisplayOrder sıralı maden satırları (parametre sırası = tüketim önceliği).</summary>

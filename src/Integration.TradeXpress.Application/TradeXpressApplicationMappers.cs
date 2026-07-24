@@ -217,7 +217,12 @@ public partial class AddOnToListDtoMapper : MapperBase<AddOn, AddOnListDto>
 [Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
 public partial class ShipmentTemplateToGetDtoMapper : MapperBase<ShipmentTemplate, ShipmentTemplateGetDto>
 {
+    // Denormalize şube adları entity'de YOK → AppService id'lerden çözüp doldurur (salt görüntü).
+    [MapperIgnoreTarget(nameof(ShipmentTemplateGetDto.DispatchBranchName))]
+    [MapperIgnoreTarget(nameof(ShipmentTemplateGetDto.ReturnBranchName))]
     public override partial ShipmentTemplateGetDto Map(ShipmentTemplate source);
+    [MapperIgnoreTarget(nameof(ShipmentTemplateGetDto.DispatchBranchName))]
+    [MapperIgnoreTarget(nameof(ShipmentTemplateGetDto.ReturnBranchName))]
     public override partial void Map(ShipmentTemplate source, ShipmentTemplateGetDto destination);
 }
 
@@ -420,6 +425,15 @@ public partial class SalesChannelTrN11ProductToDtoMapper : MapperBase<SalesChann
 {
     public override partial N11ShipmentTemplateUpdateDto Map(N11ShipmentTemplateDto source);
     public override partial void Map(N11ShipmentTemplateDto source, N11ShipmentTemplateUpdateDto destination);
+}
+
+// Çekirdek dağıtım taslağı (BuildDeploymentDraftAsync döner) → düzenlenebilir GetDto. Çekirdek formundaki "Satış Kanalları"
+// drill'i ön-doldurulmuş CreateDto'yu N11 edit formunda açmak için bu map'i kullanır. Id/durum alanları hedefte kaynaksız
+// (RMG012 uyarısı beklenir). Nested N11ShipmentAddressDto aynı tip → kopya.
+[Mapper] public partial class N11ShipmentTemplateCreateToGetMapper : MapperBase<N11ShipmentTemplateCreateDto, N11ShipmentTemplateDto>
+{
+    public override partial N11ShipmentTemplateDto Map(N11ShipmentTemplateCreateDto source);
+    public override partial void Map(N11ShipmentTemplateCreateDto source, N11ShipmentTemplateDto destination);
 }
 
 // N11 ürün listeleme GetDto → Create/Update (drill persist yolu). Nested Attributes/SpecialInfo aynı tip → kopya.
@@ -857,6 +871,7 @@ public partial class OrderToDtoMapper : MapperBase<Order, OrderDto>
     [MapperIgnoreTarget(nameof(OrderDto.ShippingAddress))]      // AppService enrich eder (Order'da yok — Detail'den)
     [MapperIgnoreTarget(nameof(OrderDto.ActionInputNumberOfPackages))]   // UI-only (property default'u geçerli)
     [MapperIgnoreTarget(nameof(OrderDto.PendingLineCount))]              // AppService ayrı sorguyla hesaplar
+    [MapperIgnoreTarget(nameof(OrderDto.CountryId))]                     // AppService çözer (host coğrafyadan TR id'si)
     public override partial OrderDto Map(Order source);
     public override partial void Map(Order source, OrderDto destination);
 }

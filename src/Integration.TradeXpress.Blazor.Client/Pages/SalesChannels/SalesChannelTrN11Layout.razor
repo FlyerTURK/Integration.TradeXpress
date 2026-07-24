@@ -22,6 +22,20 @@
         <DxFormLayoutItem Caption="@(IsNew ? $"{L["SalesChannel:AppSecret"]} *" : L["SalesChannel:AppSecret"].Value)" ColSpanMd="6">
             <PasswordTextEdit @bind-Text="@Model.AppSecret" NullText="@SecretPlaceholder" Tooltip="@L["ShowPassword"]" CssClass="w-100" />
         </DxFormLayoutItem>
+
+        @* Kanal düzeyi varsayılan N11 bilgi metinleri — yeni kargo şablonu formunu ön-doldurur (kullanıcı ezebilir). Opsiyonel. *@
+        <DxFormLayoutGroup Caption="@L["SalesChannelTrN11:DefaultInfos"]" ColSpanMd="12">
+            <DxFormLayoutItem Caption="@L["SalesChannelTrN11:DefaultShippingInfo"]" ColSpanMd="12">
+                <DxMemo @bind-Text="@Model.DefaultShippingInfo" Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100" />
+            </DxFormLayoutItem>
+            <DxFormLayoutItem Caption="@L["SalesChannelTrN11:DefaultExchangeInfo"]" ColSpanMd="12">
+                <DxMemo @bind-Text="@Model.DefaultExchangeInfo" Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100" />
+            </DxFormLayoutItem>
+            <DxFormLayoutItem Caption="@L["SalesChannelTrN11:DefaultInstallmentInfo"]" ColSpanMd="12">
+                <DxMemo @bind-Text="@Model.DefaultInstallmentInfo" Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100" />
+            </DxFormLayoutItem>
+        </DxFormLayoutGroup>
+
         <DxFormLayoutItem Caption="@L["Description"]" ColSpanMd="12">
             <DxMemo @bind-Text="@Model.Description" Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100" />
         </DxFormLayoutItem>

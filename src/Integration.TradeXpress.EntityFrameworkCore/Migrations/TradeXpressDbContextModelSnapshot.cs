@@ -2474,6 +2474,9 @@ namespace Integration.TradeXpress.Migrations
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("LastModifierId");
 
+                    b.Property<DateTime?>("LocalitiesImportedAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(128)
@@ -5640,6 +5643,9 @@ namespace Integration.TradeXpress.Migrations
                         .HasMaxLength(512)
                         .HasColumnType("nvarchar(512)");
 
+                    b.Property<Guid?>("DispatchBranchId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<string>("ExtraProperties")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)")
@@ -5682,9 +5688,15 @@ namespace Integration.TradeXpress.Migrations
                     b.Property<bool>("ReturnAccepted")
                         .HasColumnType("bit");
 
+                    b.Property<Guid?>("ReturnBranchId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<string>("ReturnInfo")
                         .HasMaxLength(1024)
                         .HasColumnType("nvarchar(1024)");
+
+                    b.Property<bool>("ReturnSameAsDispatch")
+                        .HasColumnType("bit");
 
                     b.Property<Guid?>("TenantId")
                         .HasColumnType("uniqueidentifier")
@@ -9787,6 +9799,18 @@ namespace Integration.TradeXpress.Migrations
                         .HasMaxLength(256)
                         .HasColumnType("nvarchar(256)");
 
+                    b.Property<string>("DefaultExchangeInfo")
+                        .HasMaxLength(1024)
+                        .HasColumnType("nvarchar(1024)");
+
+                    b.Property<string>("DefaultInstallmentInfo")
+                        .HasMaxLength(1024)
+                        .HasColumnType("nvarchar(1024)");
+
+                    b.Property<string>("DefaultShippingInfo")
+                        .HasMaxLength(1024)
+                        .HasColumnType("nvarchar(1024)");
+
                     b.ToTable("AppSalesChannelTrN11", (string)null);
                 });
 
@@ -9839,6 +9863,97 @@ namespace Integration.TradeXpress.Migrations
                         .WithMany()
                         .HasForeignKey("BranchId")
                         .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("Integration.TradeXpress.Branches.Branch", b =>
+                {
+                    b.OwnsOne("Integration.Framework.Addressing.Address", "Address", b1 =>
+                        {
+                            b1.Property<Guid>("BranchId")
+                                .HasColumnType("uniqueidentifier");
+
+                            b1.Property<string>("AdditionalStreetName")
+                                .HasMaxLength(256)
+                                .HasColumnType("nvarchar(256)");
+
+                            b1.Property<Guid?>("AdministrativeAreaId")
+                                .HasColumnType("uniqueidentifier");
+
+                            b1.Property<string>("AdministrativeAreaIsoCode")
+                                .HasMaxLength(16)
+                                .HasColumnType("nvarchar(16)");
+
+                            b1.Property<string>("BuildingName")
+                                .HasMaxLength(128)
+                                .HasColumnType("nvarchar(128)");
+
+                            b1.Property<string>("BuildingNumber")
+                                .HasMaxLength(32)
+                                .HasColumnType("nvarchar(32)");
+
+                            b1.Property<string>("City")
+                                .IsRequired()
+                                .HasMaxLength(64)
+                                .HasColumnType("nvarchar(64)");
+
+                            b1.Property<string>("CityCode")
+                                .HasMaxLength(16)
+                                .HasColumnType("nvarchar(16)");
+
+                            b1.Property<string>("CountryCode")
+                                .IsRequired()
+                                .HasMaxLength(2)
+                                .HasColumnType("nvarchar(2)");
+
+                            b1.Property<string>("District")
+                                .HasMaxLength(64)
+                                .HasColumnType("nvarchar(64)");
+
+                            b1.Property<string>("DistrictCode")
+                                .HasMaxLength(16)
+                                .HasColumnType("nvarchar(16)");
+
+                            b1.Property<string>("Floor")
+                                .HasMaxLength(16)
+                                .HasColumnType("nvarchar(16)");
+
+                            b1.Property<string>("Line")
+                                .IsRequired()
+                                .HasMaxLength(512)
+                                .HasColumnType("nvarchar(512)");
+
+                            b1.Property<Guid?>("LocalityId")
+                                .HasColumnType("uniqueidentifier");
+
+                            b1.Property<string>("Neighborhood")
+                                .HasMaxLength(128)
+                                .HasColumnType("nvarchar(128)");
+
+                            b1.Property<string>("PostalCode")
+                                .HasMaxLength(16)
+                                .HasColumnType("nvarchar(16)");
+
+                            b1.Property<string>("Postbox")
+                                .HasMaxLength(32)
+                                .HasColumnType("nvarchar(32)");
+
+                            b1.Property<string>("Room")
+                                .HasMaxLength(32)
+                                .HasColumnType("nvarchar(32)");
+
+                            b1.Property<string>("Title")
+                                .HasMaxLength(64)
+                                .HasColumnType("nvarchar(64)");
+
+                            b1.HasKey("BranchId");
+
+                            b1.ToTable("AppBranches");
+
+                            b1.WithOwner()
+                                .HasForeignKey("BranchId");
+                        });
+
+                    b.Navigation("Address");
                 });
 
             modelBuilder.Entity("Integration.TradeXpress.Cashes.Cash", b =>
@@ -10402,12 +10517,24 @@ namespace Integration.TradeXpress.Migrations
                             b1.Property<Guid>("N11ShipmentTemplateId")
                                 .HasColumnType("uniqueidentifier");
 
+                            b1.Property<string>("AdditionalStreetName")
+                                .HasMaxLength(256)
+                                .HasColumnType("nvarchar(256)");
+
                             b1.Property<Guid?>("AdministrativeAreaId")
                                 .HasColumnType("uniqueidentifier");
 
                             b1.Property<string>("AdministrativeAreaIsoCode")
                                 .HasMaxLength(16)
                                 .HasColumnType("nvarchar(16)");
+
+                            b1.Property<string>("BuildingName")
+                                .HasMaxLength(128)
+                                .HasColumnType("nvarchar(128)");
+
+                            b1.Property<string>("BuildingNumber")
+                                .HasMaxLength(32)
+                                .HasColumnType("nvarchar(32)");
 
                             b1.Property<string>("City")
                                 .IsRequired()
@@ -10431,6 +10558,10 @@ namespace Integration.TradeXpress.Migrations
                                 .HasMaxLength(16)
                                 .HasColumnType("nvarchar(16)");
 
+                            b1.Property<string>("Floor")
+                                .HasMaxLength(16)
+                                .HasColumnType("nvarchar(16)");
+
                             b1.Property<string>("Line")
                                 .IsRequired()
                                 .HasMaxLength(512)
@@ -10446,6 +10577,14 @@ namespace Integration.TradeXpress.Migrations
                             b1.Property<string>("PostalCode")
                                 .HasMaxLength(16)
                                 .HasColumnType("nvarchar(16)");
+
+                            b1.Property<string>("Postbox")
+                                .HasMaxLength(32)
+                                .HasColumnType("nvarchar(32)");
+
+                            b1.Property<string>("Room")
+                                .HasMaxLength(32)
+                                .HasColumnType("nvarchar(32)");
 
                             b1.Property<string>("Title")
                                 .HasMaxLength(64)
@@ -10464,12 +10603,24 @@ namespace Integration.TradeXpress.Migrations
                             b1.Property<Guid>("N11ShipmentTemplateId")
                                 .HasColumnType("uniqueidentifier");
 
+                            b1.Property<string>("AdditionalStreetName")
+                                .HasMaxLength(256)
+                                .HasColumnType("nvarchar(256)");
+
                             b1.Property<Guid?>("AdministrativeAreaId")
                                 .HasColumnType("uniqueidentifier");
 
                             b1.Property<string>("AdministrativeAreaIsoCode")
                                 .HasMaxLength(16)
                                 .HasColumnType("nvarchar(16)");
+
+                            b1.Property<string>("BuildingName")
+                                .HasMaxLength(128)
+                                .HasColumnType("nvarchar(128)");
+
+                            b1.Property<string>("BuildingNumber")
+                                .HasMaxLength(32)
+                                .HasColumnType("nvarchar(32)");
 
                             b1.Property<string>("City")
                                 .IsRequired()
@@ -10493,6 +10644,10 @@ namespace Integration.TradeXpress.Migrations
                                 .HasMaxLength(16)
                                 .HasColumnType("nvarchar(16)");
 
+                            b1.Property<string>("Floor")
+                                .HasMaxLength(16)
+                                .HasColumnType("nvarchar(16)");
+
                             b1.Property<string>("Line")
                                 .IsRequired()
                                 .HasMaxLength(512)
@@ -10508,6 +10663,14 @@ namespace Integration.TradeXpress.Migrations
                             b1.Property<string>("PostalCode")
                                 .HasMaxLength(16)
                                 .HasColumnType("nvarchar(16)");
+
+                            b1.Property<string>("Postbox")
+                                .HasMaxLength(32)
+                                .HasColumnType("nvarchar(32)");
+
+                            b1.Property<string>("Room")
+                                .HasMaxLength(32)
+                                .HasColumnType("nvarchar(32)");
 
                             b1.Property<string>("Title")
                                 .HasMaxLength(64)
@@ -10645,10 +10808,14 @@ namespace Integration.TradeXpress.Migrations
 
             modelBuilder.Entity("Integration.TradeXpress.Shipments.ShipmentTemplate", b =>
                 {
-                    b.OwnsOne("Integration.Framework.Addressing.Address", "OriginAddress", b1 =>
+                    b.OwnsOne("Integration.Framework.Addressing.Address", "DispatchAddress", b1 =>
                         {
                             b1.Property<Guid>("ShipmentTemplateId")
                                 .HasColumnType("uniqueidentifier");
+
+                            b1.Property<string>("AdditionalStreetName")
+                                .HasMaxLength(256)
+                                .HasColumnType("nvarchar(256)");
 
                             b1.Property<Guid?>("AdministrativeAreaId")
                                 .HasColumnType("uniqueidentifier");
@@ -10656,6 +10823,14 @@ namespace Integration.TradeXpress.Migrations
                             b1.Property<string>("AdministrativeAreaIsoCode")
                                 .HasMaxLength(16)
                                 .HasColumnType("nvarchar(16)");
+
+                            b1.Property<string>("BuildingName")
+                                .HasMaxLength(128)
+                                .HasColumnType("nvarchar(128)");
+
+                            b1.Property<string>("BuildingNumber")
+                                .HasMaxLength(32)
+                                .HasColumnType("nvarchar(32)");
 
                             b1.Property<string>("City")
                                 .IsRequired()
@@ -10679,6 +10854,10 @@ namespace Integration.TradeXpress.Migrations
                                 .HasMaxLength(16)
                                 .HasColumnType("nvarchar(16)");
 
+                            b1.Property<string>("Floor")
+                                .HasMaxLength(16)
+                                .HasColumnType("nvarchar(16)");
+
                             b1.Property<string>("Line")
                                 .IsRequired()
                                 .HasMaxLength(512)
@@ -10694,6 +10873,14 @@ namespace Integration.TradeXpress.Migrations
                             b1.Property<string>("PostalCode")
                                 .HasMaxLength(16)
                                 .HasColumnType("nvarchar(16)");
+
+                            b1.Property<string>("Postbox")
+                                .HasMaxLength(32)
+                                .HasColumnType("nvarchar(32)");
+
+                            b1.Property<string>("Room")
+                                .HasMaxLength(32)
+                                .HasColumnType("nvarchar(32)");
 
                             b1.Property<string>("Title")
                                 .HasMaxLength(64)
@@ -10712,12 +10899,24 @@ namespace Integration.TradeXpress.Migrations
                             b1.Property<Guid>("ShipmentTemplateId")
                                 .HasColumnType("uniqueidentifier");
 
+                            b1.Property<string>("AdditionalStreetName")
+                                .HasMaxLength(256)
+                                .HasColumnType("nvarchar(256)");
+
                             b1.Property<Guid?>("AdministrativeAreaId")
                                 .HasColumnType("uniqueidentifier");
 
                             b1.Property<string>("AdministrativeAreaIsoCode")
                                 .HasMaxLength(16)
                                 .HasColumnType("nvarchar(16)");
+
+                            b1.Property<string>("BuildingName")
+                                .HasMaxLength(128)
+                                .HasColumnType("nvarchar(128)");
+
+                            b1.Property<string>("BuildingNumber")
+                                .HasMaxLength(32)
+                                .HasColumnType("nvarchar(32)");
 
                             b1.Property<string>("City")
                                 .IsRequired()
@@ -10741,6 +10940,10 @@ namespace Integration.TradeXpress.Migrations
                                 .HasMaxLength(16)
                                 .HasColumnType("nvarchar(16)");
 
+                            b1.Property<string>("Floor")
+                                .HasMaxLength(16)
+                                .HasColumnType("nvarchar(16)");
+
                             b1.Property<string>("Line")
                                 .IsRequired()
                                 .HasMaxLength(512)
@@ -10757,6 +10960,14 @@ namespace Integration.TradeXpress.Migrations
                                 .HasMaxLength(16)
                                 .HasColumnType("nvarchar(16)");
 
+                            b1.Property<string>("Postbox")
+                                .HasMaxLength(32)
+                                .HasColumnType("nvarchar(32)");
+
+                            b1.Property<string>("Room")
+                                .HasMaxLength(32)
+                                .HasColumnType("nvarchar(32)");
+
                             b1.Property<string>("Title")
                                 .HasMaxLength(64)
                                 .HasColumnType("nvarchar(64)");
@@ -10769,8 +10980,7 @@ namespace Integration.TradeXpress.Migrations
                                 .HasForeignKey("ShipmentTemplateId");
                         });
 
-                    b.Navigation("OriginAddress")
-                        .IsRequired();
+                    b.Navigation("DispatchAddress");
 
                     b.Navigation("ReturnAddress");
                 });

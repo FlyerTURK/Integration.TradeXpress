@@ -40,6 +40,7 @@ public partial class N11ShipmentTemplateDrill : CrudComponentBase
     }
 
     // Yeni şablon: kanal + n11 mandalı varsayılanlar (anlaşmalı kargo zorunlu). Adresler new() → null olmaz.
+    // Zorunlu N11 bilgi metinleri kanal düzeyi varsayılanlarıyla ön-doldurulur (varsa) → kullanıcı formda ezebilir.
     private N11ShipmentTemplateDto NewTemplate()
     {
         return new N11ShipmentTemplateDto
@@ -47,6 +48,9 @@ public partial class N11ShipmentTemplateDrill : CrudComponentBase
             SalesChannelId = Channel.Id,
             UseDmallCargo = true,
             ConditionalShippingUnit = N11ConditionalShippingUnit.Amount,
+            ShippingInfo = Channel.DefaultShippingInfo,
+            ExchangeInfo = Channel.DefaultExchangeInfo,
+            InstallmentInfo = Channel.DefaultInstallmentInfo,
             WarehouseAddress = new(),
             ExchangeAddress = new(),
         };
@@ -79,7 +83,7 @@ public partial class N11ShipmentTemplateDrill : CrudComponentBase
     }
 
     // Toolbar custom action'ları. Sil = built-in yerine override (N11 silme API'si yok → panele yönlendiren popup);
-    // İçe Aktar = N11'den tam mutabakat.
+    // N11 ile Hizala = tam mutabakat (N11'den upsert + N11'de olmayan yerel şablonları sil).
     private IReadOnlyList<CrudToolbarAction> TemplateActions => new[]
     {
         new CrudToolbarAction
@@ -94,11 +98,11 @@ public partial class N11ShipmentTemplateDrill : CrudComponentBase
         new CrudToolbarAction
         {
             SortIndex = 150,
-            Text = L["N11ShipmentTemplate:Import"],
-            Tooltip = L["N11ShipmentTemplate:Import"],
+            Text = L["N11ShipmentTemplate:Sync"],
+            Tooltip = L["N11ShipmentTemplate:Sync"],
             IconCssClass = TradeXpressIcons.SalesChannel,
             Enabled = true,
-            OnClick = ImportAsync,
+            OnClick = SyncAsync,
         },
     };
 
@@ -114,14 +118,14 @@ public partial class N11ShipmentTemplateDrill : CrudComponentBase
             showNo: false);
     }
 
-    // İçe Aktar: N11'deki şablonları yerelde upsert et, listeyi tazele, sonucu toast'la.
-    private async Task ImportAsync()
+    // N11 ile Hizala: N11'deki şablonları yerelde upsert et + N11'de olmayanı sil (backend), listeyi tazele, sonucu toast'la.
+    private async Task SyncAsync()
     {
         try
         {
-            var count = await AppService.ImportAsync(Channel.Id);
+            var count = await AppService.SyncAsync(Channel.Id);
             _templates = await AppService.GetListAsync(Channel.Id);
-            UiService.ShowSuccessToast(L["N11ShipmentTemplate:ImportSuccess", count]);
+            UiService.ShowSuccessToast(L["N11ShipmentTemplate:SyncSuccess", count]);
             StateHasChanged();
         }
         catch (Exception ex)

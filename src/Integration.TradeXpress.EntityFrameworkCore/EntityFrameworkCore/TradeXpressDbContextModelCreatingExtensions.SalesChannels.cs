@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Volo.Abp;
 using Volo.Abp.EntityFrameworkCore.Modeling;
 using Integration.TradeXpress.SalesChannels;
+using Integration.TradeXpress.N11Shipments;
 
 namespace Integration.TradeXpress.EntityFrameworkCore;
 
@@ -59,6 +60,11 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
             // Opak sir: normalize edilmez, yalnız uzunluk kısıtı. TODO(hardening): AppSecret at-rest şifrelenmeli.
             b.Property(x => x.AppKey).IsRequired().HasMaxLength(SalesChannelConsts.ConfigMaxLength);
             b.Property(x => x.AppSecret).IsRequired().HasMaxLength(SalesChannelConsts.ConfigMaxLength);
+
+            // Kanal düzeyi varsayılan bilgi metinleri (opsiyonel) — yeni N11 kargo şablonu formunu ön-doldurur.
+            b.Property(x => x.DefaultShippingInfo).HasMaxLength(N11ShipmentConsts.InfoMaxLength);
+            b.Property(x => x.DefaultExchangeInfo).HasMaxLength(N11ShipmentConsts.InfoMaxLength);
+            b.Property(x => x.DefaultInstallmentInfo).HasMaxLength(N11ShipmentConsts.InfoMaxLength);
         });
 
         // ── Somut alt-tip: Trendyol (Türkiye pazaryeri) → AppSalesChannelTrTrendyol (Satıcı ID + API kimlik bilgileri) ──

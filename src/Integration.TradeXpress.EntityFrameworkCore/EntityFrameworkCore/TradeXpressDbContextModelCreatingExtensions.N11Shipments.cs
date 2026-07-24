@@ -85,5 +85,13 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
         a.Property(p => p.AdministrativeAreaId);
         a.Property(p => p.LocalityId);
         a.Property(p => p.AdministrativeAreaIsoCode).HasMaxLength(AddressConsts.IsoSubentityCodeMaxLength);
+
+        // UBL PostalAddress zenginleştirme kolonları (opsiyonel; hepsi NULLABLE) — bina/oda/kat/posta-kutusu + ek cadde.
+        a.Property(p => p.BuildingName).HasMaxLength(AddressConsts.BuildingNameMaxLength);
+        a.Property(p => p.BuildingNumber).HasMaxLength(AddressConsts.BuildingNumberMaxLength);
+        a.Property(p => p.Room).HasMaxLength(AddressConsts.RoomMaxLength);
+        a.Property(p => p.Floor).HasMaxLength(AddressConsts.FloorMaxLength);
+        a.Property(p => p.Postbox).HasMaxLength(AddressConsts.PostboxMaxLength);
+        a.Property(p => p.AdditionalStreetName).HasMaxLength(AddressConsts.AdditionalStreetNameMaxLength);
     }
 }

@@ -2,10 +2,10 @@
 
 @*
    ShipmentTemplate DUMB Layout — yalnız ShipmentTemplateGetDto'yu forma yansıtır/düzenler. I/O yok, karar yok,
-   persistence yok. Menşei/iade adresi self-contained ShipmentAddressFields bileşenleridir (kendi DxFormLayout'unu
-   taşır → ana forma alt-blok olarak gömülemez, sibling olarak dizilir; N11 deseni).
-   Sıra (ui-blazor): Kod → Ad → Menşei adres → Hazırlık süresi → Ücret modeli (+Şartlı eşik) → Teslim süresi →
-   Kargo firması → İade (kabul + adres + bilgi) → Max satın alım → Description → Status.
+   persistence yok. Gönderim/iade adresi = ŞUBE seç (LookupComboBox) XOR özel adres (self-contained AddressFields,
+   kendi DxFormLayout'unu taşır → sibling blok olarak dizilir). İade ayrıca "gönderim ile aynı" kısayolu taşır.
+   Sıra (ui-blazor): Kod → Ad → Gönderim adres → Hazırlık süresi → Ücret modeli (+Şartlı eşik) → Teslim süresi →
+   Kargo firması → İade (kabul + aynı/şube/özel + bilgi) → Max satın alım → Description → Status.
 *@
 
 <DxFormLayout CssClass="w-100">
@@ -19,9 +19,55 @@
     </DxFormLayoutGroup>
 </DxFormLayout>
 
-@* Menşei adresi (zorunlu) — self-contained DxFormLayout. *@
-<ShipmentAddressFields Model="@Model.OriginAddress" Required="true"
-                       Caption="@L["ShipmentTemplate:OriginAddress"].Value" />
+@* Gönderim adresi (zorunlu) — TEK grup. Şube XOR özel adres switch'i + adres editörü aynı grupta.
+   Şube modu: salt-seçim combo + seçili ŞUBENİN adresi (ülke-kilitli ✎ → anında şubeye kaydeder).
+   Özel mod: özel adres özeti + ✎ → popup (ülke SERBEST; sınır-ötesi, şablonla kaydedilir). *@
+<DxFormLayout CssClass="w-100">
+    <DxFormLayoutGroup Caption="@($"{L["ShipmentTemplate:DispatchAddress"]} *")" ColSpanMd="12">
+        <DxFormLayoutItem Caption="@L["ShipmentTemplate:AddressSource"]" ColSpanMd="12">
+            <DxCheckBox Checked="@_dispatchUseBranch"
+                        CheckedChanged="@((bool v) => OnDispatchModeChanged(v))"
+                        CheckType="CheckType.Switch"
+                        ValidationEnabled="false">
+                @(_dispatchUseBranch ? L["ShipmentTemplate:AddressSourceBranch"] : L["ShipmentTemplate:AddressSourceCustom"])
+            </DxCheckBox>
+        </DxFormLayoutItem>
+        @if (_dispatchUseBranch)
+        {
+            <DxFormLayoutItem Caption="@($"{L["Branch"]} *")" ColSpanMd="12">
+                <LookupComboBox TItem="BranchListDto" TValue="Guid?"
+                                Data="@Branches"
+                                ValueFieldName="@nameof(BranchListDto.Id)" TextFieldName="@nameof(BranchListDto.Name)"
+                                @bind-Value="@Model.DispatchBranchId"
+                                AllowClear="false"
+                                SearchFilterCondition="ListSearchFilterCondition.Contains" NullText="@L["Select"].Value" />
+            </DxFormLayoutItem>
+            @* Seçili şubenin adresi (ülke şubenin şirket ülkesine KİLİTLİ; ✎ → şube-adres popup → anında şubeye persist). *@
+            @if (Model.DispatchBranchId != null)
+            {
+                <DxFormLayoutItem ColSpanMd="12">
+                    <ValueObjectEdit TValue="BranchAddressDto"
+                                     Value="@DispatchBranchAddress"
+                                     DisplayProjection="@BranchAddressSummary"
+                                     EmptyPredicate="@IsBranchAddressEmpty"
+                                     OnEditClick="@OpenDispatchBranchAddressPopup"
+                                     PlaceholderText="@L["Address:EditHint"].Value" />
+                </DxFormLayoutItem>
+            }
+        }
+        else if (Model.DispatchAddress != null)
+        {
+            <DxFormLayoutItem ColSpanMd="12">
+                <ValueObjectEdit TValue="ShipmentAddressDto"
+                                 Value="@Model.DispatchAddress"
+                                 DisplayProjection="@AddressSummary"
+                                 EmptyPredicate="@IsAddressEmpty"
+                                 OnEditClick="@OpenDispatchAddressPopup"
+                                 PlaceholderText="@L["Address:EditHint"].Value" />
+            </DxFormLayoutItem>
+        }
+    </DxFormLayoutGroup>
+</DxFormLayout>
 
 <DxFormLayout CssClass="w-100">
     <DxFormLayoutGroup Caption="@L["ShipmentTemplate:ShippingSection"]" ColSpanMd="12">
@@ -68,7 +114,8 @@
                             SearchFilterCondition="ListSearchFilterCondition.Contains" NullText="@L["Select"].Value" />
         </DxFormLayoutItem>
 
-        @* İade kabulü — açıkken iade adresi (aşağıda) + iade bilgisi görünür. Kapatınca iade adresi temizlenir. *@
+        @* İade kabulü — açıkken "gönderim ile aynı" kısayolu + (farklıysa) şube/özel adres + iade bilgisi görünür.
+           Kapatınca tüm iade alanları temizlenir. *@
         <DxFormLayoutItem Caption="@L["ShipmentTemplate:ReturnAccepted"]" ColSpanMd="12" BeginRow="true">
             <DxCheckBox Checked="@Model.ReturnAccepted"
                         CheckedChanged="@((bool v) => OnReturnAcceptedChanged(v))"
@@ -79,7 +126,65 @@
         </DxFormLayoutItem>
         @if (Model.ReturnAccepted)
         {
-            <DxFormLayoutItem Caption="@L["ShipmentTemplate:ReturnInfo"]" ColSpanMd="12">
+            @* İade adresi = gönderim ile aynı mı. Açıkken ayrı şube/adres tutulmaz (efektif = gönderim). *@
+            <DxFormLayoutItem Caption="@L["ShipmentTemplate:ReturnSameAsDispatch"]" ColSpanMd="12" BeginRow="true">
+                <DxCheckBox Checked="@Model.ReturnSameAsDispatch"
+                            CheckedChanged="@((bool v) => OnReturnSameChanged(v))"
+                            CheckType="CheckType.Switch"
+                            ValidationEnabled="false">
+                    @(Model.ReturnSameAsDispatch ? L["Yes"] : L["No"])
+                </DxCheckBox>
+            </DxFormLayoutItem>
+
+            @* İade gönderimden farklı → Şube XOR özel adres switch'i (gönderimdeki desenle aynı). *@
+            @if (!Model.ReturnSameAsDispatch)
+            {
+                <DxFormLayoutItem Caption="@L["ShipmentTemplate:AddressSource"]" ColSpanMd="12" BeginRow="true">
+                    <DxCheckBox Checked="@_returnUseBranch"
+                                CheckedChanged="@((bool v) => OnReturnModeChanged(v))"
+                                CheckType="CheckType.Switch"
+                                ValidationEnabled="false">
+                        @(_returnUseBranch ? L["ShipmentTemplate:AddressSourceBranch"] : L["ShipmentTemplate:AddressSourceCustom"])
+                    </DxCheckBox>
+                </DxFormLayoutItem>
+                @if (_returnUseBranch)
+                {
+                    <DxFormLayoutItem Caption="@($"{L["Branch"]} *")" ColSpanMd="12">
+                        <LookupComboBox TItem="BranchListDto" TValue="Guid?"
+                                        Data="@Branches"
+                                        ValueFieldName="@nameof(BranchListDto.Id)" TextFieldName="@nameof(BranchListDto.Name)"
+                                        @bind-Value="@Model.ReturnBranchId"
+                                        AllowClear="false"
+                                        SearchFilterCondition="ListSearchFilterCondition.Contains" NullText="@L["Select"].Value" />
+                    </DxFormLayoutItem>
+                    @* Seçili iade şubesinin adresi (ülke-kilitli ✎ → anında şubeye persist; gönderim şube deseniyle aynı). *@
+                    @if (Model.ReturnBranchId != null)
+                    {
+                        <DxFormLayoutItem ColSpanMd="12">
+                            <ValueObjectEdit TValue="BranchAddressDto"
+                                             Value="@ReturnBranchAddress"
+                                             DisplayProjection="@BranchAddressSummary"
+                                             EmptyPredicate="@IsBranchAddressEmpty"
+                                             OnEditClick="@OpenReturnBranchAddressPopup"
+                                             PlaceholderText="@L["Address:EditHint"].Value" />
+                        </DxFormLayoutItem>
+                    }
+                }
+                else if (Model.ReturnAddress != null)
+                {
+                    @* Özel iade adresi (ülke SERBEST; şablonla kaydedilir) — özet + ✎ → iade popup. *@
+                    <DxFormLayoutItem ColSpanMd="12">
+                        <ValueObjectEdit TValue="ShipmentAddressDto"
+                                         Value="@Model.ReturnAddress"
+                                         DisplayProjection="@AddressSummary"
+                                         EmptyPredicate="@IsAddressEmpty"
+                                         OnEditClick="@OpenReturnAddressPopup"
+                                         PlaceholderText="@L["Address:EditHint"].Value" />
+                    </DxFormLayoutItem>
+                }
+            }
+
+            <DxFormLayoutItem Caption="@L["ShipmentTemplate:ReturnInfo"]" ColSpanMd="12" BeginRow="true">
                 <DxMemo @bind-Text="@Model.ReturnInfo" Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100"
                         NullText="@L["Optional"]" />
             </DxFormLayoutItem>
@@ -87,11 +192,44 @@
     </DxFormLayoutGroup>
 </DxFormLayout>
 
-@* İade adresi (opsiyonel) — yalnız iade kabul edilirse. OnReturnAcceptedChanged new() ile init eder. *@
-@if (Model.ReturnAccepted && Model.ReturnAddress != null)
+@* Gönderim/iade özel adres düzenleme popup'ları — merkezî ValueObjectEditPopup (standart edit-form chrome: EditShell +
+   başlık + üst Kaydet/Reset toolbar). Özel adres Model'e canlı-bind → Kaydet = uygula + kapat; Reset/İptal(X) = açılış
+   snapshot'ına in-place geri döner (parent model temizlenir). AddressFields editörleri ValidationEnabled=false (crash yok). *@
+@if (Model.DispatchAddress != null)
 {
-    <ShipmentAddressFields Model="@Model.ReturnAddress" Required="false"
-                           Caption="@L["ShipmentTemplate:ReturnAddress"].Value" />
+    <ValueObjectEditPopup TValue="ShipmentAddressDto"
+                          @bind-Visible="@_dispatchAddressPopupVisible"
+                          Model="@Model.DispatchAddress"
+                          HeaderText="@L["ShipmentTemplate:DispatchAddress"].Value"
+                          IconCssClass="@TradeXpressIcons.AddressCard">
+        <AddressFields Model="@Model.DispatchAddress" FixedCountryId="null" DefaultCountryId="@CompanyCountryId" />
+    </ValueObjectEditPopup>
+}
+
+@if (Model.ReturnAddress != null)
+{
+    <ValueObjectEditPopup TValue="ShipmentAddressDto"
+                          @bind-Visible="@_returnAddressPopupVisible"
+                          Model="@Model.ReturnAddress"
+                          HeaderText="@L["ShipmentTemplate:ReturnAddress"].Value"
+                          IconCssClass="@TradeXpressIcons.AddressCard">
+        <AddressFields Model="@Model.ReturnAddress" FixedCountryId="null" DefaultCountryId="@CompanyCountryId" />
+    </ValueObjectEditPopup>
+}
+
+@* PAYLAŞILAN şube-adres düzenleme popup'ı (gönderim/iade ortak — aynı anda tek şube adresi düzenlenir). Ülke şubenin
+   şirket ülkesine KİLİTLİ (FixedCountryId). ÇALIŞMA KOPYASI (_branchAddressEdit) form EditContext'i DIŞINDA → dirty'ye
+   karışmaz; "Kaydet" DUMB layout event'ini yükseltir (host anında şubeye persist eder, kapatmayı KABUK yapar). *@
+@if (_branchAddressEdit != null)
+{
+    <ValueObjectEditPopup TValue="BranchAddressDto"
+                          @bind-Visible="@_branchAddressPopupVisible"
+                          Model="@_branchAddressEdit"
+                          HeaderText="@L["Branch:Address"].Value"
+                          IconCssClass="@TradeXpressIcons.AddressCard"
+                          OnSave="@RaiseBranchAddressSaved">
+        <AddressFields Model="@_branchAddressEdit" FixedCountryId="@BranchAddressEditCountryId" />
+    </ValueObjectEditPopup>
 }
 
 <DxFormLayout CssClass="w-100">
@@ -111,3 +249,18 @@
         </DxFormLayoutItem>
     </DxFormLayoutGroup>
 </DxFormLayout>
+
+@* Satış kanalı dağıtımları (self-contained persistent drill) — yalnız KAYITLI çekirdekte (kaydedilmemiş şablon
+   dağıtılamaz). Formdaki en son çizilen alan (ui-blazor: DrillList grupları en son). *@
+@if (Model.Id != Guid.Empty)
+{
+    <DrillTabs CssClass="mt-3">
+        <DxTabPage Text="@L["ShipmentTemplate:SalesChannels"]" TabIconCssClass="@TradeXpressIcons.SalesChannel">
+            <ShipmentTemplateChannelDrill CoreTemplateId="@Model.Id" />
+        </DxTabPage>
+    </DrillTabs>
+}
+else
+{
+    <div class="mt-3">@L["ShipmentTemplate:SaveTemplateFirst"]</div>
+}

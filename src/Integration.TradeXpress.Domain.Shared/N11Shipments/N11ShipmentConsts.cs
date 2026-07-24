@@ -13,4 +13,7 @@ public static class N11ShipmentConsts
     public const int TemplateNameMaxLength = 128;
     public const int InfoMaxLength = 1024;          // shippingInfo / exchangeInfo / installmentInfo
     public const int CargoAccountNoMaxLength = 64;
+
+    /// <summary>N11 kargo adresi (depo/iade) açık adres alanı en az uzunluğu — N11 CreateOrUpdate zorunluluğu (canlı doğrulandı).</summary>
+    public const int AddressLineMinLength = 10;
 }

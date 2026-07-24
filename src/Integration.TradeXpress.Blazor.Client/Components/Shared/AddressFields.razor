@@ -1,0 +1,74 @@
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@* Yeniden-kullanılabilir TEMİZ adres formu — herhangi bir IAddressEditModel'e bind eder (ör. BranchAddressDto).
+   TEK KAYNAK ilkesi: üstteki GeographyCascadePicker İl/İlçe/Mahalle + kodlar + id-only köprüler + CountryCode'u
+   DOLDURUR; bu alanlar için AYRI serbest-metin kutusu YOK (tekrar/drift önlenir). Serbest-metin: Line (zorunlu *) +
+   UBL zenginleştirme alanları (BuildingName/BuildingNumber/Room/Floor/PostalCode/Postbox/AdditionalStreetName/Title).
+   GRUPSUZ — her satırda EN FAZLA 2 editör (ColSpanMd=6), mantıklı sıra.
+   EMBEDDED modu (picker deseniyle aynı): Embedded=true iken kendi DxFormLayout WRAPPER'ını RENDER ETMEZ, yalnız
+   DxFormLayoutItem'ları render eder → parent'ın TEK DxFormLayout'una inerler (party+adres aynı caption sütunu, HİZALI).
+   Embedded=false (varsayılan) → kendi DxFormLayout'unu taşır (standalone popup; branch/kargo şablonu bu modu kullanır).
+   EditContext altındaki manuel-bağlı/@bind Dx editörleri ValidationEnabled="false" ([validation-expr] koruması). *@
+
+@{
+    RenderFragment addressItems =@<text>
+        @* 1-2. satır: (Ülke) | İl / İlçe | Mahalle (embedded picker, hepsi ColSpanMd=6 → 2/satır). *@
+        <GeographyCascadePicker Embedded="true"
+                                FixedCountryId="@FixedCountryId"
+                                DefaultCountryId="@DefaultCountryId"
+                                SelectedCountryCode="@Model.CountryCode"
+                                SelectedAdministrativeAreaId="@Model.AdministrativeAreaId"
+                                SelectedLocalityId="@Model.LocalityId"
+                                SelectedNeighborhoodName="@Model.Neighborhood"
+                                SelectionChanged="@OnGeographySelected" />
+
+        @* 3. satır: Cadde/Sokak (Line) — zorunlu, tam satır. *@
+        <DxFormLayoutItem Caption="@($"{L["Address:Line"]} *")" ColSpanMd="12" BeginRow="true">
+            <DxMemo @bind-Text="@Model.Line" Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100" ValidationEnabled="false" />
+        </DxFormLayoutItem>
+
+        @* 4. satır: Bina Adı | Kapı No. *@
+        <DxFormLayoutItem Caption="@L["Address:BuildingName"]" ColSpanMd="6" BeginRow="true">
+            <DxTextBox @bind-Text="@Model.BuildingName" CssClass="w-100" NullText="@L["Optional"]" ValidationEnabled="false" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["Address:BuildingNumber"]" ColSpanMd="6">
+            <DxTextBox @bind-Text="@Model.BuildingNumber" CssClass="w-100" NullText="@L["Optional"]" ValidationEnabled="false" />
+        </DxFormLayoutItem>
+
+        @* 5. satır: Daire | Kat. *@
+        <DxFormLayoutItem Caption="@L["Address:Room"]" ColSpanMd="6" BeginRow="true">
+            <DxTextBox @bind-Text="@Model.Room" CssClass="w-100" NullText="@L["Optional"]" ValidationEnabled="false" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["Address:Floor"]" ColSpanMd="6">
+            <DxTextBox @bind-Text="@Model.Floor" CssClass="w-100" NullText="@L["Optional"]" ValidationEnabled="false" />
+        </DxFormLayoutItem>
+
+        @* 6. satır: Posta Kodu | Posta Kutusu. *@
+        <DxFormLayoutItem Caption="@L["Address:PostalCode"]" ColSpanMd="6" BeginRow="true">
+            <DxTextBox @bind-Text="@Model.PostalCode" CssClass="w-100" NullText="@L["Optional"]" ValidationEnabled="false" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["Address:Postbox"]" ColSpanMd="6">
+            <DxTextBox @bind-Text="@Model.Postbox" CssClass="w-100" NullText="@L["Optional"]" ValidationEnabled="false" />
+        </DxFormLayoutItem>
+
+        @* 7. satır: Ek Sokak | Başlık. *@
+        <DxFormLayoutItem Caption="@L["Address:AdditionalStreetName"]" ColSpanMd="6" BeginRow="true">
+            <DxTextBox @bind-Text="@Model.AdditionalStreetName" CssClass="w-100" NullText="@L["Optional"]" ValidationEnabled="false" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["Address:Title"]" ColSpanMd="6">
+            <DxTextBox @bind-Text="@Model.Title" CssClass="w-100" NullText="@L["Optional"]" ValidationEnabled="false" />
+        </DxFormLayoutItem>
+    </text>;
+}
+
+@* Embedded → wrapper YOK (parent'ın TEK DxFormLayout'una in); aksi halde kendi DxFormLayout'unu taşır (standalone). *@
+@if (Embedded)
+{
+    @addressItems
+}
+else
+{
+    <DxFormLayout CssClass="w-100">
+        @addressItems
+    </DxFormLayout>
+}

@@ -1,3 +1,5 @@
+using Integration.Framework.Addressing;
+
 namespace Integration.TradeXpress.Branches;
 
 /// <summary>
@@ -41,6 +43,11 @@ public class Branch : FullAuditedAggregateRoot<Guid>, IMultiTenant
 
     public virtual int DisplayOrder { get; protected set; }
     public virtual string? Description { get; protected set; }
+
+    /// <summary>Şubenin posta adresi — yeniden-kullanılabilir <see cref="Address"/> VO (OwnsOne). NULLABLE:
+    /// mevcut şubelerde yok (opsiyonel). Ülke-kilidi/normalize AppService'te (şube adresi şirketin ülkesine
+    /// zorlanır) — entity yalnız VO'yu saklar.</summary>
+    public virtual Address? Address { get; protected set; }
 
     protected Branch() { }
 
@@ -115,6 +122,13 @@ public class Branch : FullAuditedAggregateRoot<Guid>, IMultiTenant
     public virtual void SetActive(bool value)
     {
         IsActive = value;
+    }
+
+    /// <summary>Şube adresini ayarlar (opsiyonel; OwnsOne). null → adres yok (temizle). VO ctor'u City+Line
+    /// zorunlu doğrular; boş/kısmi adres normalizasyonu ve ülke-kilidi AppService'te çözülür (entity yalnız saklar).</summary>
+    public virtual void SetAddress(Address? address)
+    {
+        Address = address;
     }
 
     /// <summary>P&L dönem-başlangıç sınırını ilerletir (dönem kapanışı — ERPPRO RevCostDate update muadili).</summary>

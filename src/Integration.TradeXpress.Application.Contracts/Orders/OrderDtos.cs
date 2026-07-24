@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using Integration.Framework.Addressing;
 using Integration.Framework.Base.Dtos;
 using Integration.Framework.Base.Dtos.Interfaces;
 using Integration.TradeXpress.SalesChannels;
@@ -149,6 +150,12 @@ public class OrderDto : EntityDto<Guid>, IGetDto<Guid>
     public DateTime FetchedAt { get; set; }
     public List<OrderLineDto> Lines { get; set; } = new();
 
+    /// <summary>Fatura/Teslimat adres picker'ının KİLİTLİ ülkesi (TR) — sipariş adresleri Türkiye kabul edilir.
+    /// AppService, host coğrafya kataloğundan TR ülke id'sini çözer (Code=="TR"); adres alanları bu id'yi
+    /// <c>AddressFields.FixedCountryId</c> olarak alır (ülke combo'su gizli, cascade İl'den başlar). TR kataloğu
+    /// yoksa null (picker serbest-ülke moduna düşer). Sipariş entity'sinde YOK → Mapperly'de ignore, AppService doldurur.</summary>
+    public Guid? CountryId { get; set; }
+
     /// <summary>Hâlâ N11'e Kabul/Red bildirilmemiş (Sipariş Fazı O2 — ActionStatus=Pending) kalem sayısı — yalnız
     /// N11 kanalında dolu (diğerlerinde 0). Edit formu toolbar'ındaki Kabul Et/Reddet butonlarının GÖRÜNÜRLÜĞÜ
     /// bunu okur: 0 ise (tüm kalemler zaten işlem görmüş) butonlar HİÇ gösterilmez.</summary>
@@ -290,20 +297,46 @@ public class OrderEditPartyDto
     public string? TaxOffice { get; set; }
 }
 
-/// <summary>Editable adres — <see cref="OrderDetailAddressDto"/> ile AYNI alan seti (düzeltme amaçlı; Fatura/Teslimat
-/// için TEK paylaşılan şekil).</summary>
-public class OrderEditAddressDto
+/// <summary>Editable adres — <see cref="OrderDetailAddressDto"/> alan setini <see cref="IAddressEditModel"/> ile
+/// düzenlenebilir kılar (Fatura/Teslimat için TEK paylaşılan şekil; ortak <c>AddressFields</c> picker'ına bind eder).
+/// <para>Adres kısmı (City/Line/District/Neighborhood/PostalCode + kodlar + UBL) <see cref="IAddressEditModel"/>'den;
+/// geo-ref id'leri (<see cref="AdministrativeAreaId"/>/<see cref="LocalityId"/>) YALNIZ picker'ı ÖN-SEÇMEK için
+/// geçicidir — order'a PERSIST EDİLMEZ (kalıcı taraf isim-tabanlı kalır; bkz. <c>OrderOperationalAddress</c>).
+/// Alıcı-KİMLİK alanları (<see cref="FullName"/>/<see cref="Gsm"/>/<see cref="TcId"/>/<see cref="TaxId"/>/
+/// <see cref="TaxOffice"/>) adres DEĞİL — ayrı taşınır (formda AddressFields'ten ayrı editörler).</para></summary>
+public class OrderEditAddressDto : IAddressEditModel
 {
+    // ── Alıcı-kimlik (adres değil; AddressFields'ten ayrı editörler) ──
     public string? FullName { get; set; }
-    public string? Line { get; set; }
-    public string? Neighborhood { get; set; }
-    public string? District { get; set; }
-    public string? City { get; set; }
-    public string? PostalCode { get; set; }
     public string? Gsm { get; set; }
     public string? TcId { get; set; }
     public string? TaxId { get; set; }
     public string? TaxOffice { get; set; }
+
+    // ── Adres (IAddressEditModel — ortak AddressFields picker'ı doldurur) ──
+    public string? Title { get; set; }
+    public string City { get; set; } = string.Empty;
+    public string Line { get; set; } = string.Empty;
+    public string? District { get; set; }
+    public string? Neighborhood { get; set; }
+    public string? PostalCode { get; set; }
+    public string CountryCode { get; set; } = "TR";
+    public string? CityCode { get; set; }
+    public string? DistrictCode { get; set; }
+
+    /// <summary>Picker ÖN-SEÇİMİ için geçici çekirdek il id'si (isim-eşleşmesinden) — order'a persist EDİLMEZ.</summary>
+    public Guid? AdministrativeAreaId { get; set; }
+
+    /// <summary>Picker ÖN-SEÇİMİ için geçici çekirdek ilçe id'si (isim-eşleşmesinden) — order'a persist EDİLMEZ.</summary>
+    public Guid? LocalityId { get; set; }
+
+    public string? AdministrativeAreaIsoCode { get; set; }
+    public string? BuildingName { get; set; }
+    public string? BuildingNumber { get; set; }
+    public string? Room { get; set; }
+    public string? Floor { get; set; }
+    public string? Postbox { get; set; }
+    public string? AdditionalStreetName { get; set; }
 }
 
 /// <summary>Sipariş kaleminin düzenleme satırı (<c>OrderItemsDrill</c> — DrillList tabanlı UI bileşeni — kaynağı).

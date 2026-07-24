@@ -149,6 +149,34 @@ public class GeographyDatasetProvider : ITransientDependency
         return result;
     }
 
+    /// <summary>Tek EYALETİN şehirlerini gzip'li dosyadan AKIŞLA okur — 152.970 kaydın tamamı asla belleğe alınmaz;
+    /// yalnız country_code + state_code eşleşenler toplanır (per-state lazy import: US için 19k değil ~300 şehir).
+    /// <paramref name="subdivisionCode"/> = idari alanın <c>Code</c>'u (dataset state_code'u ile hizalı, ör. "TN").</summary>
+    public virtual async Task<IReadOnlyList<GeographyCityRecord>> GetCitiesForStateAsync(
+        string alpha2Code, string subdivisionCode, CancellationToken cancellationToken = default)
+    {
+        await EnsureDatasetAsync(cancellationToken);
+
+        var result = new List<GeographyCityRecord>();
+        await using var file = OpenSequentialRead(Path.Combine(ResolveCacheDirectory(), CitiesFileName));
+        await using var gzip = new GZipStream(file, CompressionMode.Decompress);
+
+        await foreach (var row in JsonSerializer.DeserializeAsyncEnumerable<CityRow>(gzip, JsonOptions, cancellationToken))
+        {
+            if (row == null
+                || !MatchesCountry(row.CountryCode, alpha2Code)
+                || !MatchesSubdivision(row.StateCode, subdivisionCode)
+                || string.IsNullOrWhiteSpace(row.Name))
+            {
+                continue;
+            }
+
+            result.Add(new GeographyCityRecord(row.Id, row.Name.Trim(), FirstNonEmpty(row.StateCode, null)));
+        }
+
+        return result;
+    }
+
     #endregion
 
     #region Download / cache
@@ -240,6 +268,13 @@ public class GeographyDatasetProvider : ITransientDependency
     private static bool MatchesCountry(string? countryCode, string alpha2Code)
     {
         return string.Equals(countryCode?.Trim(), alpha2Code, StringComparison.OrdinalIgnoreCase);
+    }
+
+    // Şehir state_code'u ile idari alanın kodunu eşler (per-state süzme). Boş state_code → eşleşmez (bir eyalete
+    // bağlanamaz; ancak sembolik-ana alan ülke-geneli GetCitiesForCountryAsync ile toplandığından burada gerekmez).
+    private static bool MatchesSubdivision(string? cityStateCode, string subdivisionCode)
+    {
+        return string.Equals(cityStateCode?.Trim(), subdivisionCode?.Trim(), StringComparison.OrdinalIgnoreCase);
     }
 
     private static string? FirstNonEmpty(string? primary, string? fallback)

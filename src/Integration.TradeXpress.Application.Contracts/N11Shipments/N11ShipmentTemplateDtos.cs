@@ -1,13 +1,14 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using Integration.Framework.Addressing;
 using Volo.Abp.Application.Services;
 
 namespace Integration.TradeXpress.N11Shipments;
 
-/// <summary>Şablon adresi (depo/değişim) — <see cref="Integration.Framework.Addressing.Address"/> VO'nun düz yansıması.
-/// İl/İlçe hem ad hem kod taşır.</summary>
-public class N11ShipmentAddressDto
+/// <summary>Şablon adresi (depo/değişim) — <see cref="Address"/> VO'nun düz yansıması; ortak <c>AddressFields</c>
+/// bileşenine bind için <see cref="IAddressEditModel"/>. İl/İlçe hem ad hem kod taşır (picker doldurur).</summary>
+public class N11ShipmentAddressDto : IAddressEditModel
 {
     public string? Title { get; set; }
     public string City { get; set; } = string.Empty;
@@ -31,6 +32,24 @@ public class N11ShipmentAddressDto
 
     /// <summary>Opsiyonel ISO 3166-2 idari-alan kodu (ör. "TR-34") — UBL projeksiyonu için. N11 push OKUMAZ.</summary>
     public string? AdministrativeAreaIsoCode { get; set; }
+
+    /// <summary>Opsiyonel bina adı — UBL <c>BuildingName</c>. N11 push OKUMAZ.</summary>
+    public string? BuildingName { get; set; }
+
+    /// <summary>Opsiyonel bina numarası — UBL <c>BuildingNumber</c>. N11 push OKUMAZ.</summary>
+    public string? BuildingNumber { get; set; }
+
+    /// <summary>Opsiyonel oda/daire — UBL <c>Room</c>. N11 push OKUMAZ.</summary>
+    public string? Room { get; set; }
+
+    /// <summary>Opsiyonel kat — UBL <c>Floor</c>. N11 push OKUMAZ.</summary>
+    public string? Floor { get; set; }
+
+    /// <summary>Opsiyonel posta kutusu — UBL <c>Postbox</c>. N11 push OKUMAZ.</summary>
+    public string? Postbox { get; set; }
+
+    /// <summary>Opsiyonel ek cadde/sokak adı — UBL <c>AdditionalStreetName</c>. N11 push OKUMAZ.</summary>
+    public string? AdditionalStreetName { get; set; }
 }
 
 /// <summary>N11 kargo şablonu — tam okuma modeli (edit formu + tekil görüntü).</summary>
@@ -174,6 +193,17 @@ public interface IN11ShipmentTemplateAppService : IApplicationService
     /// <summary>Şablonu N11'e oluşturur/günceller (kanalın kimliğiyle; şartlı kargo dahil).</summary>
     Task PushAsync(Guid id);
 
-    /// <summary>N11'deki tüm şablonları çekip yerelde upsert eder (isim/kod → id ters-çözümü). Yeni+güncellenen sayısını döner.</summary>
-    Task<int> ImportAsync(Guid salesChannelId);
+    /// <summary>Yerel şablonları N11 ile HİZALAR: N11'deki şablonları çekip yerelde upsert eder (isim/kod → id ters-çözümü)
+    /// + N11'de artık olmayan (kullanılmayan) yerel şablonları SİLER. Değişen (yeni+güncellenen) sayısını döner.</summary>
+    Task<int> SyncAsync(Guid salesChannelId);
+
+    /// <summary>Çekirdek kargo şablonundan bir N11 kanal-dağıtımı TASLAĞI (ön-doldurulmuş <see cref="N11ShipmentTemplateCreateDto"/>)
+    /// üretir — <b>PERSIST ETMEZ</b>. Çekirdek formundaki "Satış Kanalları" drill'i bunu forma bind eder; kullanıcı zorunlu N11
+    /// alanlarını (iade adresi/firması vb.) tamamlayıp normal <see cref="CreateAsync"/> ile kaydeder (o zaman validation + N11 push
+    /// çalışır). Taslak: <c>TemplateName</c>=çekirdek adı, <c>WarehouseAddress</c>=çekirdeğin efektif gönderim adresi (şube ya da özel),
+    /// bilgi metinleri=kanal varsayılanları, <c>ShipmentTemplateId</c>=ileri köprü (reverse-reconcile origin-guard atlar). Çekirdek/kanal
+    /// çalışılan şirkete ait değilse dostane <see cref="Volo.Abp.BusinessException"/>.</summary>
+    /// <param name="shipmentTemplateId">Taslağın kaynağı çekirdek kargo şablonunun id'si.</param>
+    /// <param name="salesChannelId">Dağıtımın hedef N11 satış kanalının id'si.</param>
+    Task<N11ShipmentTemplateCreateDto> BuildDeploymentDraftAsync(Guid shipmentTemplateId, Guid salesChannelId);
 }

@@ -17,17 +17,22 @@ using Volo.Abp.Uow;
 namespace Integration.TradeXpress.Geography;
 
 /// <summary>
-/// On-demand ülke coğrafyası importu — bir ülkenin il/eyalet + şehir verisi İLK ihtiyaçta dr5hn dataset'inden
-/// çekilip host-global (<c>CurrentTenant.Change(null)</c>) coğrafya tablolarına yazılır; UI hep DB'den okur.
-/// AppService DEĞİL (<see cref="EtsyTaxonomies.EtsyTaxonomySyncManager"/> ikizi): lazy tetik dışında ileride
-/// worker/açılış da çağırabilsin. UoW deseni de aynı: kısa read-UoW (guard'lar) → dataset okuma (DbContext'i
-/// TUTMADAN; ilk seferde ~31MB indirme) → tek toplu write-UoW (upsert + import işareti).
+/// On-demand ülke coğrafyası importu — İKİ SEVİYELİ lazy: (1) ülke seçilince yalnız il/EYALET verisi
+/// (<see cref="ImportCountryAreasAsync"/>), (2) eyalet seçilince yalnız O EYALETİN şehirleri
+/// (<see cref="ImportAreaLocalitiesAsync"/>) dr5hn dataset'inden çekilip host-global (<c>CurrentTenant.Change(null)</c>)
+/// coğrafya tablolarına yazılır; UI hep DB'den okur. Böylece US gibi ülkelerde 19k şehrin tamamı değil, yalnız
+/// seçilen eyaletin ~300 şehri iner. AppService DEĞİL (<see cref="EtsyTaxonomies.EtsyTaxonomySyncManager"/> ikizi):
+/// lazy tetik dışında ileride worker/açılış da çağırabilsin. UoW deseni: kısa read-UoW (guard'lar) → dataset okuma
+/// (DbContext'i TUTMADAN) → tek toplu write-UoW (upsert + import işareti).
 ///
-/// <para>Guard'lar: <see cref="Country.GeographyImportedAt"/> dolu → no-op (idempotent). Kod "TR" → no-op:
+/// <para>Guard'lar (eyalet): <see cref="Country.GeographyImportedAt"/> dolu → no-op (idempotent). Kod "TR" → no-op:
 /// TR il/ilçe N11-kaynaklı + N11 köprülü (operasyonel gerçek, <see cref="GeographySeeder"/> doldurur) —
 /// dataset'in TR'nin üstüne yazması YASAK. Dataset'te alt-bölümü olmayan ülkede tek SEMBOLİK ana alan
 /// (Code=MAIN) oluşturulur ve <see cref="Country.UsesAdministrativeArea"/>=false yapılır (UI state katmanını
 /// gizler — kullanıcı kararı).</para>
+/// <para>Guard'lar (şehir): <see cref="AdministrativeArea.LocalitiesImportedAt"/> dolu → no-op. TR → dataset
+/// denenmez (ilçe N11-seed'li) ama işaret set edilir (tekrar tetiklenmesin). Sembolik ana alan → ülkenin TÜM
+/// şehirleri (filtresiz); normal eyalet → yalnız o eyaletin şehirleri (state_code == alan kodu süzmesi).</para>
 /// </summary>
 public class GeographyImportManager : DomainService
 {
@@ -57,9 +62,10 @@ public class GeographyImportManager : DomainService
         _clock = clock;
     }
 
-    /// <summary>Ülkenin coğrafyasını (il/eyalet + şehir) dataset'ten içe aktarır. İdempotent: import işareti
-    /// doluysa ve TR için no-op. Upsert anahtarları: idari alan = Iso3166_2Code, yerellik = alan + ad.</summary>
-    public virtual async Task ImportCountryAsync(Guid countryId, CancellationToken cancellationToken = default)
+    /// <summary>Ülkenin İDARİ ALANLARINI (il/eyalet) dataset'ten içe aktarır — ŞEHİR ÇEKMEZ (şehirler eyalet
+    /// seçilince <see cref="ImportAreaLocalitiesAsync"/> ile per-state iner). İdempotent: import işareti doluysa
+    /// ve TR için no-op. Upsert anahtarı: idari alan = Iso3166_2Code. Alt-bölümü olmayan ülkede sembolik ana alan.</summary>
+    public virtual async Task ImportCountryAreasAsync(Guid countryId, CancellationToken cancellationToken = default)
     {
         // 1) Guard'lar KISA read-UoW'da — dataset indirme/okuma DbContext'i tutmadan yapılsın (Etsy manager deseni).
         string countryCode;
@@ -68,7 +74,7 @@ public class GeographyImportManager : DomainService
             var country = await FindCountryAsync(countryId);
             if (country.GeographyImportedAt != null)
             {
-                // İdempotent no-op: veri zaten çekilmiş (ya da TR/US seed'i işaretlemiş).
+                // İdempotent no-op: idari alanlar zaten çekilmiş (ya da TR/US seed'i işaretlemiş).
                 await readUow.CompleteAsync(cancellationToken);
                 return;
             }
@@ -77,7 +83,7 @@ public class GeographyImportManager : DomainService
             {
                 // TR guard: il/ilçe N11-kaynaklı ve N11 köprü kolonlarıyla bağlı (GeographySeeder). Dataset importu
                 // TR'ye DOKUNMAZ — işaretleme de seeder'ın işi (N11 verisi dolunca kendisi set eder).
-                Logger.LogInformation("Coğrafya importu: TR atlandı (N11-kaynaklı; seeder yönetir).");
+                Logger.LogInformation("Coğrafya importu: TR idari alanları atlandı (N11-kaynaklı; seeder yönetir).");
                 await readUow.CompleteAsync(cancellationToken);
                 return;
             }
@@ -86,11 +92,10 @@ public class GeographyImportManager : DomainService
             await readUow.CompleteAsync(cancellationToken);
         }
 
-        // 2) Dataset okuma (ilk seferde indirir; sonrası yerel önbellek) — ülke-filtreli, şehirler akışla.
+        // 2) Dataset okuma (ilk seferde indirir; sonrası yerel önbellek) — ülke-filtreli il/eyalet satırları (küçük).
         var states = await _datasetProvider.GetStatesForCountryAsync(countryCode, cancellationToken);
-        var cities = await _datasetProvider.GetCitiesForCountryAsync(countryCode, cancellationToken);
 
-        // 3) Tek toplu write-UoW: alan upsert → yerellik upsert → import işareti. Coğrafya HOST-GLOBAL yazılır.
+        // 3) Tek toplu write-UoW: idari alan upsert → import işareti. Coğrafya HOST-GLOBAL yazılır. Şehir YOK.
         using (CurrentTenant.Change(null))
         using (var writeUow = _uowManager.Begin(requiresNew: true))
         {
@@ -102,7 +107,6 @@ public class GeographyImportManager : DomainService
             }
 
             var areaBySuffix = await UpsertAdministrativeAreasAsync(country, states);
-            var addedLocalities = await UpsertLocalitiesAsync(country, cities, areaBySuffix);
 
             country.MarkGeographyImported(_clock.Now);
             await _countryRepository.UpdateAsync(country, autoSave: false);
@@ -111,8 +115,79 @@ public class GeographyImportManager : DomainService
             await writeUow.CompleteAsync(cancellationToken);
 
             Logger.LogInformation(
-                "Coğrafya importu [{Country}]: {States} il/eyalet + {Cities} şehir içe aktarıldı (dataset: {DatasetStates} eyalet / {DatasetCities} şehir satırı).",
-                countryCode, areaBySuffix.Values.Distinct().Count(), addedLocalities, states.Count, cities.Count);
+                "Coğrafya importu [{Country}]: {States} il/eyalet içe aktarıldı (dataset: {DatasetStates} eyalet satırı). Şehirler eyalet seçilince per-state iner.",
+                countryCode, areaBySuffix.Values.Distinct().Count(), states.Count);
+        }
+    }
+
+    /// <summary>Bir idari alanın (eyaletin) ŞEHİRLERİNİ dataset'ten içe aktarır — iki-seviyeli lazy'nin alt katmanı.
+    /// İdempotent: alanın <see cref="AdministrativeArea.LocalitiesImportedAt"/> doluysa no-op. TR → dataset denenmez
+    /// (ilçe N11-seed'li) ama işaret set edilir (tekrar tetiklenmesin). Sembolik ana alan (Code=MAIN) → ülkenin TÜM
+    /// şehirleri; normal eyalet → yalnız o eyaletin şehirleri (state_code == alan kodu). Upsert anahtarı: alan + ad.</summary>
+    public virtual async Task ImportAreaLocalitiesAsync(Guid administrativeAreaId, CancellationToken cancellationToken = default)
+    {
+        // 1) Kimlik + guard'lar KISA read-UoW'da (dataset okuma DbContext tutmadan).
+        string countryCode;
+        string areaCode;
+        bool isTurkey;
+        bool isSymbolicMain;
+        using (var readUow = _uowManager.Begin(requiresNew: true))
+        {
+            var area = await FindAreaAsync(administrativeAreaId);
+            if (area.LocalitiesImportedAt != null)
+            {
+                // İdempotent no-op: bu eyaletin şehirleri zaten çekilmiş (ya da TR ilçe seed'i işaretlemiş).
+                await readUow.CompleteAsync(cancellationToken);
+                return;
+            }
+
+            var country = await FindCountryAsync(area.CountryId);
+            countryCode = country.Code;
+            areaCode = area.Code;
+            isTurkey = IsTurkey(countryCode);
+            // Sembolik ana alan: kodu MAIN (dataset'te alt-bölümü olmayan ülkede şehirler buraya bağlanır) → ülke-geneli.
+            isSymbolicMain = string.Equals(areaCode, GeographyConsts.SymbolicMainAreaCode, StringComparison.OrdinalIgnoreCase);
+            await readUow.CompleteAsync(cancellationToken);
+        }
+
+        // 2) Dataset okuma — TR'de HİÇ (ilçe N11-seed'li, yalnız işaret set edilir). Sembolik ana alan → ülkenin
+        //    TÜM şehirleri (filtresiz); normal eyalet → yalnız o eyaletin şehirleri (per-state süzme).
+        IReadOnlyList<GeographyCityRecord> cities = Array.Empty<GeographyCityRecord>();
+        if (isTurkey == false)
+        {
+            cities = isSymbolicMain
+                ? await _datasetProvider.GetCitiesForCountryAsync(countryCode, cancellationToken)
+                : await _datasetProvider.GetCitiesForStateAsync(countryCode, areaCode, cancellationToken);
+        }
+
+        // 3) Tek toplu write-UoW: yerellik upsert (TR'de yok) → alanın import işareti. HOST-GLOBAL yazılır.
+        using (CurrentTenant.Change(null))
+        using (var writeUow = _uowManager.Begin(requiresNew: true))
+        {
+            var area = await FindAreaAsync(administrativeAreaId); // taze entity
+            if (area.LocalitiesImportedAt != null)
+            {
+                await writeUow.CompleteAsync(cancellationToken); // yarış guard'ı
+                return;
+            }
+
+            var added = 0;
+            if (isTurkey == false)
+            {
+                var country = await FindCountryAsync(area.CountryId);
+                added = await UpsertAreaLocalitiesAsync(country, area, cities);
+            }
+
+            area.MarkLocalitiesImported(_clock.Now);
+            await _administrativeAreaRepository.UpdateAsync(area, autoSave: false);
+
+            await SaveAsync();
+            await writeUow.CompleteAsync(cancellationToken);
+
+            Logger.LogInformation(
+                "Coğrafya importu [{Country}/{Area}]: {Cities} şehir içe aktarıldı ({Mode}).",
+                countryCode, areaCode, added,
+                isTurkey ? "TR ilçe N11-seed'li — yalnız işaretlendi" : (isSymbolicMain ? "sembolik ana alan (ülke-geneli)" : "per-state"));
         }
     }
 
@@ -202,13 +277,13 @@ public class GeographyImportManager : DomainService
 
     #region Yerellik upsert
 
-    // cities → Locality upsert. Alan eşlemesi state_code (alt-bölüm kısaltması) ile; eşleşmeyen şehir sembolik
-    // ana alana bağlanır (yoksa oluşturulur). Var-mı anahtarı AdministrativeAreaId + Name (dataset'te şehir için
-    // kalıcı iş kodu yok; Code = dataset satır id'si yalnız kaynak izi).
-    private async Task<int> UpsertLocalitiesAsync(
+    // Tek EYALETİN şehirleri → Locality upsert (per-state; şehirler zaten bu alana süzülü geldi ya da sembolik ana
+    // alan için ülke-geneli). Hepsi bu alana bağlanır. Var-mı anahtarı AdministrativeAreaId + Name (dataset'te şehir
+    // için kalıcı iş kodu yok; Code = dataset satır id'si yalnız kaynak izi).
+    private async Task<int> UpsertAreaLocalitiesAsync(
         Country country,
-        IReadOnlyList<GeographyCityRecord> cities,
-        Dictionary<string, AdministrativeArea> areaBySuffix)
+        AdministrativeArea area,
+        IReadOnlyList<GeographyCityRecord> cities)
     {
         if (cities.Count == 0)
         {
@@ -216,37 +291,14 @@ public class GeographyImportManager : DomainService
         }
 
         var existingKeys = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var locality in await GetLocalitiesOfAsync(country.Id))
+        foreach (var locality in await GetLocalitiesOfAreaAsync(area.Id))
         {
-            existingKeys.Add(LocalityKey(locality.AdministrativeAreaId, locality.Name));
+            existingKeys.Add(LocalityKey(area.Id, locality.Name));
         }
 
-        AdministrativeArea? symbolicMain =
-            areaBySuffix.TryGetValue(GeographyConsts.SymbolicMainAreaCode, out var preset) ? preset : null;
-
         var added = 0;
-        var orphans = 0;
         foreach (var city in cities)
         {
-            AdministrativeArea? area = null;
-            if (city.StateCode != null)
-            {
-                areaBySuffix.TryGetValue(city.StateCode, out area);
-            }
-
-            if (area == null)
-            {
-                // Eyaleti eşleşmeyen şehir (dataset tutarsızlığı) → sembolik ana alana bağla (kaybetme).
-                orphans++;
-                if (symbolicMain == null)
-                {
-                    symbolicMain = await GetOrCreateSymbolicMainAreaAsync(country, await GetAreasOfAsync(country.Id));
-                    await SaveAsync(); // yeni alanın Id'si yerellik FK'sinden önce kesinleşsin
-                }
-
-                area = symbolicMain;
-            }
-
             var key = LocalityKey(area.Id, city.Name);
             if (existingKeys.Add(key) == false)
             {
@@ -261,13 +313,6 @@ public class GeographyImportManager : DomainService
                     name: city.Name),
                 autoSave: false);
             added++;
-        }
-
-        if (orphans > 0)
-        {
-            Logger.LogWarning(
-                "Coğrafya importu [{Country}]: {Orphans} şehrin eyalet kodu eşleşmedi — sembolik ana alana bağlandı.",
-                country.Code, orphans);
         }
 
         return added;
@@ -301,6 +346,22 @@ public class GeographyImportManager : DomainService
         }
     }
 
+    // İdari alan host-global (IMultiTenant DEĞİL) → filtre kapatma no-op ama diğer helper'larla hizalı; Id ile bulunur.
+    private async Task<AdministrativeArea> FindAreaAsync(Guid administrativeAreaId)
+    {
+        using (_dataFilter.Disable<IMultiTenant>())
+        {
+            var area = await AsyncExecuter.FirstOrDefaultAsync(
+                (await _administrativeAreaRepository.GetQueryableAsync()).Where(a => a.Id == administrativeAreaId));
+            if (area == null)
+            {
+                throw new EntityNotFoundException(typeof(AdministrativeArea), administrativeAreaId);
+            }
+
+            return area;
+        }
+    }
+
     private async Task<List<AdministrativeArea>> GetAreasOfAsync(Guid countryId)
     {
         using (_dataFilter.Disable<IMultiTenant>())
@@ -310,12 +371,12 @@ public class GeographyImportManager : DomainService
         }
     }
 
-    private async Task<List<Locality>> GetLocalitiesOfAsync(Guid countryId)
+    private async Task<List<Locality>> GetLocalitiesOfAreaAsync(Guid administrativeAreaId)
     {
         using (_dataFilter.Disable<IMultiTenant>())
         {
             return await AsyncExecuter.ToListAsync(
-                (await _localityRepository.GetQueryableAsync()).Where(l => l.CountryId == countryId));
+                (await _localityRepository.GetQueryableAsync()).Where(l => l.AdministrativeAreaId == administrativeAreaId));
         }
     }
 

@@ -3,6 +3,7 @@
 @using System
 @using System.Collections.Generic
 @using Integration.TradeXpress.Branches
+@using Integration.TradeXpress.Companies
 @using Integration.TradeXpress.Vaults
 @using Integration.TradeXpress.Financials.CurrencyUnits
 @using Integration.Framework.Blazor.Client.Components.Crud
@@ -11,6 +12,7 @@
 @using Microsoft.Extensions.Localization
 @inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
 @inject IBranchAppService BranchAppService
+@inject ICompanyAppService CompanyAppService
 @inject ILookupCache<CurrencyUnitListDto> CurrencyLookup
 @inject IObjectMapper Mapper
 
@@ -41,6 +43,9 @@
 
     private ICommitCoordinator<BranchGetDto, BranchListDto, Guid, BranchListRequestDto>? _coordinator;
     private List<CurrencyUnitListDto> _units = new();
+    // Yeni branch için parent şirketin ülkesi (adres formunun FixedCountryId'si = ülke kilidi). Mevcut branch'te
+    // bu değer server GetDto'dan gelir; yeni branch'te GetDto client'ta boş üretildiğinden burada çözülür.
+    private Guid? _companyCountryId;
     private bool _ready;
 
     protected override async Task OnInitializedAsync()
@@ -49,14 +54,24 @@
             BranchAppService, Mapper);
         try { _units = new List<CurrencyUnitListDto>(await CurrencyLookup.GetAsync()); }   // döviz cache (TTL + auto-invalidate)
         catch { /* feed yoksa boş; combo boş kalır */ }
+
+        // Yeni branch: adres ülke kilidini parent şirketin ülkesinden çöz (tek ekstra read). Çözülemezse kilit yok
+        // (picker ülke combo'su görünür) — server yine kayıtta ülke-kilidi uygular (SSOT).
+        if (Id is null && CompanyId is { } companyId)
+        {
+            try { _companyCountryId = (await CompanyAppService.GetAsync(companyId)).CountryId; }
+            catch { /* şirket okunamadı → kilit yok (fallback serbest mod) */ }
+        }
+
         _ready = true;
     }
 
-    // Yeni branch: parent şirket + görünür varsayılan kasa (snapshot ÖNCESİ → IsDirty tetiklemez).
+    // Yeni branch: parent şirket + şirket ülkesi (adres kilidi) + görünür varsayılan kasa (snapshot ÖNCESİ → IsDirty tetiklemez).
     private void ApplyNewBranchDefaults(BranchGetDto m)
     {
         m.IsActive = true;
         m.DisplayOrder = 1;
+        m.CompanyCountryId = _companyCountryId;
         if (CompanyId.HasValue)
             m.CompanyId = CompanyId.Value;
 

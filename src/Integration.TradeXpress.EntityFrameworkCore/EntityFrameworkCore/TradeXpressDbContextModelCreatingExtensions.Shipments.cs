@@ -30,9 +30,10 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
             b.Property(x => x.ConditionalThreshold)
                 .HasPrecision(ShipmentTemplateConsts.ThresholdPrecision, ShipmentTemplateConsts.ThresholdScale);
 
-            // Adresler = yeniden-kullanılabilir Address VO (OwnsOne; aynı tabloda prefix'li kolonlar). Menşei zorunlu,
-            // iade opsiyonel — City/Line required (owned) → EF null-tespiti (tüm kolonlar null → iade adresi null).
-            b.OwnsOne(x => x.OriginAddress, ConfigureAddress);
+            // Adresler = yeniden-kullanılabilir Address VO (OwnsOne; aynı tabloda prefix'li kolonlar). Gönderim ve iade
+            // adresleri artık ikisi de OPSİYONEL (şube modunda gömülü adres yok) — City/Line required (owned) → EF
+            // null-tespiti (tüm kolonlar null → adres null). Şube modu ayrı DispatchBranchId/ReturnBranchId kolonlarında.
+            b.OwnsOne(x => x.DispatchAddress, ConfigureAddress);
             b.OwnsOne(x => x.ReturnAddress, ConfigureAddress);
 
             // Kimlik = (TenantId, CompanyId, Code) — company-scoped benzersiz, soft-delete kayıtları hariç.

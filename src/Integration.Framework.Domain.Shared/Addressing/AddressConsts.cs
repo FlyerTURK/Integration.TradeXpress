@@ -11,6 +11,14 @@ public static class AddressConsts
     public const int LineMaxLength = 512;
     public const int PostalCodeMaxLength = 16;
 
+    // UBL PostalAddress zenginleştirme alanları (opsiyonel) — bina/oda/kat/posta-kutusu + ek cadde adı.
+    public const int BuildingNameMaxLength = 128;
+    public const int BuildingNumberMaxLength = 32;
+    public const int RoomMaxLength = 32;
+    public const int FloorMaxLength = 16;
+    public const int PostboxMaxLength = 32;
+    public const int AdditionalStreetNameMaxLength = 256;
+
     /// <summary>Opsiyonel yapısal kod (CityCode/DistrictCode — plaka / N11 gibi kodlu sistemler).</summary>
     public const int CodeMaxLength = 16;
 

@@ -47,6 +47,12 @@ public class AdministrativeArea : FullAuditedAggregateRoot<Guid>
     /// <summary>İdari-alan sınıfı (ör. province/state). Opsiyonel.</summary>
     public virtual string? Category { get; protected set; }
 
+    /// <summary>On-demand yerellik (ilçe/şehir) importu işareti (UTC) — null = bu idari alanın şehirleri henüz
+    /// çekilmedi; dolu = dataset importu (ya da TR ilçe N11-seed'i) tamamlandı. İki-seviyeli lazy import'un alt
+    /// katmanı: ülke seçilince yalnız il/eyaletler iner, EYALET seçilince o eyaletin şehirleri per-state çekilir
+    /// (böylece US gibi ülkelerde 19k şehrin tamamı değil, yalnız seçilen eyaletin ~300 şehri DB'ye iner).</summary>
+    public virtual DateTime? LocalitiesImportedAt { get; protected set; }
+
     #endregion
 
     #region Methods
@@ -89,6 +95,13 @@ public class AdministrativeArea : FullAuditedAggregateRoot<Guid>
             nameof(Category),
             2,
             GeographyConsts.CategoryMaxLength);
+    }
+
+    /// <summary>Bu idari alanın yerelliklerinin (ilçe/şehir) çekildiğini işaretler — per-state on-demand importun
+    /// idempotency anahtarı. Saat çağırandan gelir (ABP <c>IClock.Now</c>; doğrudan DateTime.Now KULLANILMAZ).</summary>
+    public virtual void MarkLocalitiesImported(DateTime importedAt)
+    {
+        LocalitiesImportedAt = importedAt;
     }
 
     public override string ToString()

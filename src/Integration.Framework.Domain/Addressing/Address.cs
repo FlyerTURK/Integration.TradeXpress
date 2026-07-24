@@ -16,11 +16,14 @@ namespace Integration.Framework.Addressing;
 /// KULLANMAZ — mevcut <see cref="City"/>/<see cref="District"/> + <see cref="CityCode"/>/<see cref="DistrictCode"/>
 /// okumaya devam eder; yeni alanlar yalnız zenginleştirme (fatura/UBL) içindir.</para>
 ///
-/// <para><b>UBL <c>PostalAddress</c> rol eşlemesi</b> (bkz. <see cref="ToUblPostalAddress"/>):
-/// <see cref="Line"/> → <c>StreetName</c> · <see cref="Neighborhood"/> → <c>CitySubdivisionName</c> ·
-/// <see cref="District"/> → <c>CityName</c> · <see cref="PostalCode"/> → <c>PostalZone</c> ·
-/// <see cref="City"/> → <c>CountrySubentity</c> (Region) · <see cref="AdministrativeAreaIsoCode"/> →
-/// <c>CountrySubentityCode</c> · <see cref="CountryCode"/> → <c>Country/IdentificationCode</c> (ISO 3166-1).</para>
+/// <para><b>UBL <c>PostalAddress</c> rol eşlemesi</b> (onaylı, 2026-07-21; bkz. <see cref="ToUblPostalAddress"/>):
+/// <see cref="City"/> (İl) → <c>CityName</c> · <see cref="District"/> (İlçe) → <c>CitySubdivisionName</c> ·
+/// <see cref="Neighborhood"/> (Mahalle) → <c>District</c> · <see cref="Line"/> (Cadde/Sokak) → <c>StreetName</c> ·
+/// <see cref="AdditionalStreetName"/> → <c>AdditionalStreetName</c> · <see cref="BuildingName"/> → <c>BuildingName</c> ·
+/// <see cref="BuildingNumber"/> → <c>BuildingNumber</c> · <see cref="Room"/> → <c>Room</c> · <see cref="Floor"/> → <c>Floor</c> ·
+/// <see cref="Postbox"/> → <c>Postbox</c> · <see cref="PostalCode"/> → <c>PostalZone</c> ·
+/// <see cref="AdministrativeAreaIsoCode"/> → <c>CountrySubentityCode</c> ·
+/// <see cref="CountryCode"/> → <c>Country/IdentificationCode</c> (ISO 3166-1).</para>
 /// </summary>
 public class Address : ValueObject
 {
@@ -42,7 +45,13 @@ public class Address : ValueObject
         string? districtCode = null,
         Guid? administrativeAreaId = null,
         Guid? localityId = null,
-        string? administrativeAreaIsoCode = null)
+        string? administrativeAreaIsoCode = null,
+        string? buildingName = null,
+        string? buildingNumber = null,
+        string? room = null,
+        string? floor = null,
+        string? postbox = null,
+        string? additionalStreetName = null)
     {
         City = StringFieldGuard.EnsureRequiredText(city, nameof(City), 1, AddressConsts.CityMaxLength);
         Line = StringFieldGuard.EnsureRequiredText(line, nameof(Line), 1, AddressConsts.LineMaxLength);
@@ -59,6 +68,12 @@ public class Address : ValueObject
         LocalityId = localityId;
         AdministrativeAreaIsoCode = StringFieldGuard.EnsureOptionalText(
             administrativeAreaIsoCode, nameof(AdministrativeAreaIsoCode), 1, AddressConsts.IsoSubentityCodeMaxLength);
+        BuildingName = StringFieldGuard.EnsureOptionalText(buildingName, nameof(BuildingName), 1, AddressConsts.BuildingNameMaxLength);
+        BuildingNumber = StringFieldGuard.EnsureOptionalText(buildingNumber, nameof(BuildingNumber), 1, AddressConsts.BuildingNumberMaxLength);
+        Room = StringFieldGuard.EnsureOptionalText(room, nameof(Room), 1, AddressConsts.RoomMaxLength);
+        Floor = StringFieldGuard.EnsureOptionalText(floor, nameof(Floor), 1, AddressConsts.FloorMaxLength);
+        Postbox = StringFieldGuard.EnsureOptionalText(postbox, nameof(Postbox), 1, AddressConsts.PostboxMaxLength);
+        AdditionalStreetName = StringFieldGuard.EnsureOptionalText(additionalStreetName, nameof(AdditionalStreetName), 1, AddressConsts.AdditionalStreetNameMaxLength);
     }
 
     #endregion
@@ -97,6 +112,24 @@ public class Address : ValueObject
     /// <summary>Opsiyonel ISO 3166-2 idari-alan kodu (ör. "TR-34") — UBL <c>CountrySubentityCode</c>.</summary>
     public string? AdministrativeAreaIsoCode { get; }
 
+    /// <summary>Opsiyonel bina adı — UBL <c>BuildingName</c>.</summary>
+    public string? BuildingName { get; }
+
+    /// <summary>Opsiyonel bina numarası — UBL <c>BuildingNumber</c>.</summary>
+    public string? BuildingNumber { get; }
+
+    /// <summary>Opsiyonel oda/daire — UBL <c>Room</c>.</summary>
+    public string? Room { get; }
+
+    /// <summary>Opsiyonel kat — UBL <c>Floor</c>.</summary>
+    public string? Floor { get; }
+
+    /// <summary>Opsiyonel posta kutusu — UBL <c>Postbox</c>.</summary>
+    public string? Postbox { get; }
+
+    /// <summary>Opsiyonel ek cadde/sokak adı — UBL <c>AdditionalStreetName</c>.</summary>
+    public string? AdditionalStreetName { get; }
+
     #endregion
 
     #region Methods
@@ -114,10 +147,16 @@ public class Address : ValueObject
     {
         return new UblPostalAddress(
             StreetName: Line,
-            CitySubdivisionName: Neighborhood,
-            CityName: District,
+            AdditionalStreetName: AdditionalStreetName,
+            BuildingName: BuildingName,
+            BuildingNumber: BuildingNumber,
+            Room: Room,
+            Floor: Floor,
+            Postbox: Postbox,
+            CitySubdivisionName: District,       // İlçe → CitySubdivisionName
+            CityName: City,                      // İl → CityName
             PostalZone: PostalCode,
-            Region: City,
+            District: Neighborhood,              // Mahalle → District
             CountrySubentityCode: AdministrativeAreaIsoCode,
             CountryIdentificationCode: CountryCode);
     }
@@ -137,6 +176,12 @@ public class Address : ValueObject
         yield return AdministrativeAreaId;
         yield return LocalityId;
         yield return AdministrativeAreaIsoCode;
+        yield return BuildingName;
+        yield return BuildingNumber;
+        yield return Room;
+        yield return Floor;
+        yield return Postbox;
+        yield return AdditionalStreetName;
     }
 
     #endregion

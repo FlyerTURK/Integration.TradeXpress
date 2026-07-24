@@ -26,6 +26,8 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
             b.Property(x => x.Name).IsRequired().HasMaxLength(GeographyConsts.NameMaxLength);
             b.Property(x => x.Iso3166_2Code).HasMaxLength(GeographyConsts.Iso3166_2CodeMaxLength);
             b.Property(x => x.Category).HasMaxLength(GeographyConsts.CategoryMaxLength);
+            // Per-state yerellik importu işareti (null = bu eyaletin şehirleri henüz çekilmedi) — iki-seviyeli lazy.
+            b.Property(x => x.LocalitiesImportedAt);
 
             // ISO 3166-2 alt-bölüm kodu ülke-içinde benzersiz — YALNIZ dolu iken (IS NOT NULL): nullable kolonda
             // SQL Server "tek-NULL" kısıtı ISO'suz alanları bloklamasın. Soft-delete edilmiş satır da hariç.

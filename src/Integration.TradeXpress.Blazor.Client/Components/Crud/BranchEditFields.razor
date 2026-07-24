@@ -48,6 +48,19 @@
         </DxFormLayoutItem>
     </DxFormLayoutGroup>
 
+    @* Şube adresi — GRUPSUZ etiketli item, Description'dan ÖNCE (ui-blazor edit-form sırası: General → Adres →
+       Description → Status/DisplayOrder). Kompakt özet + ✎ → popup. Model.Address OnParametersSet'te boş DTO ile
+       init edilir (asla null). Standalone (BranchLayout) + Company şube-drill'i (CompanyBranchDrill) AYNI editörü
+       paylaşır (DRY). *@
+    <DxFormLayoutItem Caption="@L["Branch:Address"]" ColSpanMd="12">
+        <ValueObjectEdit TValue="BranchAddressDto"
+                         Value="@Model.Address"
+                         DisplayProjection="@AddressSummary"
+                         EmptyPredicate="@IsAddressEmpty"
+                         OnEditClick="@OpenAddressPopup"
+                         PlaceholderText="@L["Address:EditHint"].Value" />
+    </DxFormLayoutItem>
+
     <DxFormLayoutItem Caption="@L["Description"]" ColSpanMd="12">
         <DxMemo @bind-Text="@Model.Description" Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100" />
     </DxFormLayoutItem>
@@ -61,13 +74,16 @@
     </DxFormLayoutItem>
 </DxFormLayout>
 
-@code {
-    [Parameter, EditorRequired] public BranchGetDto Model { get; set; } = default!;
-    [Parameter] public List<CurrencyUnitListDto> Units { get; set; } = new();
-    [Parameter] public bool HeadquartersEnabled { get; set; } = true;
-    [Parameter] public bool CodeEnabled { get; set; } = true;
-
-    /// <summary>Inline combo'dan birim eklenince/güncellenince host'un birim listesini (<see cref="Units"/>) tazelemesi
-    /// için yukarı sinyal. Bağlanmazsa combo yine çalışır; sadece yeni birim listeye anında düşmez.</summary>
-    [Parameter] public EventCallback OnReferenceDataReload { get; set; }
+@* Şube adresi düzenleme popup'ı — merkezî ValueObjectEditPopup (standart edit-form chrome: EditShell + başlık + üst
+   Kaydet/Reset toolbar). Ülke company ülkesine kilitli (FixedCountryId=CompanyCountryId). Adres Model.Address'e
+   canlı-bind → Kaydet = uygula (ayrı persist yok) + kapat; Reset/İptal(X) = açılış snapshot'ına in-place geri döner. *@
+@if (Model.Address != null)
+{
+    <ValueObjectEditPopup TValue="BranchAddressDto"
+                          @bind-Visible="@_addressPopupVisible"
+                          Model="@Model.Address"
+                          HeaderText="@L["Branch:Address"].Value"
+                          IconCssClass="@TradeXpressIcons.AddressCard">
+        <AddressFields Model="@Model.Address" FixedCountryId="@Model.CompanyCountryId" />
+    </ValueObjectEditPopup>
 }

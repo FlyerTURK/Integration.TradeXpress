@@ -107,21 +107,55 @@ public class AddressTests
     {
         var a = new Address(
             city: "İstanbul",
-            line: "Bağdat Cad. No:1",
+            line: "Bağdat Cad.",
             district: "Kadıköy",
             neighborhood: "Caddebostan",
             postalCode: "34710",
             countryCode: "TR",
-            administrativeAreaIsoCode: "TR-34");
+            administrativeAreaIsoCode: "TR-34",
+            buildingName: "Merkez İş Hanı",
+            buildingNumber: "12",
+            room: "A-3",
+            floor: "5",
+            postbox: "PK 34",
+            additionalStreetName: "Yan Sokak");
 
         var ubl = a.ToUblPostalAddress();
 
-        ubl.StreetName.ShouldBe("Bağdat Cad. No:1");        // Line → StreetName
-        ubl.CitySubdivisionName.ShouldBe("Caddebostan");    // Neighborhood → CitySubdivisionName
-        ubl.CityName.ShouldBe("Kadıköy");                   // District → CityName
+        ubl.StreetName.ShouldBe("Bağdat Cad.");             // Line (Cadde/Sokak) → StreetName
+        ubl.AdditionalStreetName.ShouldBe("Yan Sokak");     // AdditionalStreetName → AdditionalStreetName
+        ubl.BuildingName.ShouldBe("Merkez İş Hanı");        // BuildingName → BuildingName
+        ubl.BuildingNumber.ShouldBe("12");                  // BuildingNumber → BuildingNumber
+        ubl.Room.ShouldBe("A-3");                           // Room → Room
+        ubl.Floor.ShouldBe("5");                            // Floor → Floor
+        ubl.Postbox.ShouldBe("PK 34");                      // Postbox → Postbox
+        ubl.CitySubdivisionName.ShouldBe("Kadıköy");        // District (İlçe) → CitySubdivisionName
+        ubl.CityName.ShouldBe("İstanbul");                  // City (İl) → CityName
         ubl.PostalZone.ShouldBe("34710");                   // PostalCode → PostalZone
-        ubl.Region.ShouldBe("İstanbul");                    // City → CountrySubentity (Region)
+        ubl.District.ShouldBe("Caddebostan");               // Neighborhood (Mahalle) → District
         ubl.CountrySubentityCode.ShouldBe("TR-34");         // AdministrativeAreaIsoCode → CountrySubentityCode
         ubl.CountryIdentificationCode.ShouldBe("TR");       // CountryCode → Country/IdentificationCode
+    }
+
+    [Fact]
+    public void Ubl_enrichment_fields_participate_in_value_equality()
+    {
+        var a = new Address("İstanbul", "Cad. 1", buildingNumber: "12", floor: "5");
+        var b = new Address("İstanbul", "Cad. 1", buildingNumber: "12", floor: "5");
+        var c = new Address("İstanbul", "Cad. 1", buildingNumber: "99", floor: "5");
+
+        a.ShouldBe(b);
+        a.GetHashCode().ShouldBe(b.GetHashCode());
+        a.ShouldNotBe(c);
+    }
+
+    [Fact]
+    public void Blank_ubl_enrichment_fields_become_null()
+    {
+        var a = new Address("İstanbul", "Cad. 1", buildingName: "   ", room: null, floor: "3");
+
+        a.BuildingName.ShouldBeNull();
+        a.Room.ShouldBeNull();
+        a.Floor.ShouldBe("3");
     }
 }

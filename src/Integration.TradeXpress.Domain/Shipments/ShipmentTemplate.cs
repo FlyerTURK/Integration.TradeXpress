@@ -6,9 +6,10 @@ namespace Integration.TradeXpress.Shipments;
 /// Birleşik kargo/teslimat şablonu — <b>ERP-level, kanal-nötr çekirdek</b> (SSOT, yeniden kullanılabilir).
 /// Kullanıcı tanımlar (sync DEĞİL); ürünler <c>Product.ShipmentTemplateId</c> ile referans eder (id-only, nav YOK).
 /// <b>Company-owned</b> güvenlik sınırı (<see cref="ICompanyOwned"/>, non-null <see cref="CompanyId"/>) + per-tenant.
-/// Standart kimlik (Code/Name/Description/IsActive) + menşei adresi (zorunlu) + hazırlık/teslim süresi + ücret modeli
-/// (ücretsiz/alıcı-öder/şartlı) + iade + max satın alım. Kanallar (N11/Etsy/Trendyol) bu çekirdeği kendi kodlamalarına
-/// eşler (SONRAKİ FAZLAR). Silme referans bütünlüğü AppService silme-guard'ıyla korunur (sert FK/cascade DEĞİL).
+/// Standart kimlik (Code/Name/Description/IsActive) + gönderim/çıkış adresi (ŞUBE ya da ÖZEL adres — tam biri) +
+/// hazırlık/teslim süresi + ücret modeli (ücretsiz/alıcı-öder/şartlı) + iade + max satın alım. Kanallar
+/// (N11/Etsy/Trendyol) bu çekirdeği kendi kodlamalarına eşler (SONRAKİ FAZLAR). Silme referans bütünlüğü AppService
+/// silme-guard'ıyla korunur (sert FK/cascade DEĞİL).
 /// </summary>
 public class ShipmentTemplate : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwned
 {
@@ -22,14 +23,15 @@ public class ShipmentTemplate : FullAuditedAggregateRoot<Guid>, IMultiTenant, IC
         Guid companyId,
         string code,
         string name,
-        Address originAddress,
+        Guid? dispatchBranchId,
+        Address? dispatchAddress,
         int processingDaysMin,
         int processingDaysMax)
     {
         SetCompany(companyId);
         SetCode(code);
         SetName(name);
-        SetOrigin(originAddress);
+        SetDispatch(dispatchBranchId, dispatchAddress);
         SetProcessingDays(processingDaysMin, processingDaysMax);
         FeeModel = ShipmentFeeModel.Free;
         IsActive = true;
@@ -52,8 +54,14 @@ public class ShipmentTemplate : FullAuditedAggregateRoot<Guid>, IMultiTenant, IC
 
     public virtual bool IsActive { get; protected set; }
 
-    /// <summary>Menşei/gönderici (depo) adresi — ZORUNLU. Yeniden-kullanılabilir <see cref="Address"/> VO (OwnsOne).</summary>
-    public virtual Address OriginAddress { get; protected set; } = null!;
+    /// <summary>Gönderim/çıkış (gönderici) adresini sağlayan ŞUBE — çekirdek <see cref="Branches.Branch"/>'e id-only
+    /// referans (opsiyonel; nav YOK). Şube modunda dolu, özel-adres modunda null. <see cref="DispatchAddress"/> ile
+    /// tam biri dolu (invariant).</summary>
+    public virtual Guid? DispatchBranchId { get; protected set; }
+
+    /// <summary>Gönderim/çıkış (gönderici) ÖZEL adresi — yeniden-kullanılabilir <see cref="Address"/> VO (OwnsOne;
+    /// NULLABLE). Özel-adres modunda dolu, şube modunda null. <see cref="DispatchBranchId"/> ile tam biri dolu (invariant).</summary>
+    public virtual Address? DispatchAddress { get; protected set; }
 
     /// <summary>Hazırlık/işleme süresi alt sınırı (gün) — en az 1.</summary>
     public virtual int ProcessingDaysMin { get; protected set; }
@@ -87,7 +95,16 @@ public class ShipmentTemplate : FullAuditedAggregateRoot<Guid>, IMultiTenant, IC
     /// <summary>İade kabul ediliyor mu.</summary>
     public virtual bool ReturnAccepted { get; protected set; }
 
-    /// <summary>İade adresi — opsiyonel (OwnsOne). İade kapalıysa temizlenir.</summary>
+    /// <summary>İade adresi = gönderim adresiyle aynı mı. true ise <see cref="ReturnBranchId"/>/<see cref="ReturnAddress"/>
+    /// boştur (efektif iade adresi = gönderim). İade kapalıysa false.</summary>
+    public virtual bool ReturnSameAsDispatch { get; protected set; }
+
+    /// <summary>İade adresini sağlayan ŞUBE — çekirdek <see cref="Branches.Branch"/>'e id-only referans (opsiyonel; nav
+    /// YOK). İade açık + "gönderimle aynı değil" + şube modunda dolu; aksi halde null.</summary>
+    public virtual Guid? ReturnBranchId { get; protected set; }
+
+    /// <summary>İade ÖZEL adresi — opsiyonel (OwnsOne). İade açık + "gönderimle aynı değil" + özel-adres modunda dolu;
+    /// aksi halde temizlenir.</summary>
     public virtual Address? ReturnAddress { get; protected set; }
 
     /// <summary>İade koşulları/açıklaması — opsiyonel. İade kapalıysa temizlenir.</summary>
@@ -125,15 +142,28 @@ public class ShipmentTemplate : FullAuditedAggregateRoot<Guid>, IMultiTenant, IC
         IsActive = value;
     }
 
-    /// <summary>Menşei (gönderici) adresini ayarlar — zorunlu (null → fail-fast).</summary>
-    public virtual void SetOrigin(Address originAddress)
+    /// <summary>Gönderim/çıkış adresini ŞUBE ya da ÖZEL adres olarak ayarlar — <b>tam biri</b> zorunlu (invariant):
+    /// ikisi de boş → fail-fast; ikisi de dolu → fail-fast. Biri set edilince öteki temizlenir (tutarlılık).</summary>
+    public virtual void SetDispatch(Guid? branchId, Address? customAddress)
     {
-        if (originAddress is null)
+        var hasBranch = branchId is { } id && id != Guid.Empty;
+        var hasCustom = customAddress is not null;
+
+        if (hasBranch == hasCustom)
         {
-            throw new RequiredPropertyException(nameof(OriginAddress));
+            // İkisi de boş VEYA ikisi de dolu → geçersiz (gönderim adresi = şube XOR özel).
+            throw new BusinessException("TradeXpress:Shipment:Template:DispatchAddressInvalid");
         }
 
-        OriginAddress = originAddress;
+        if (hasBranch)
+        {
+            DispatchBranchId = branchId;
+            DispatchAddress = null;
+            return;
+        }
+
+        DispatchBranchId = null;
+        DispatchAddress = customAddress;
     }
 
     /// <summary>Hazırlık süresi aralığını ayarlar. Alt sınır en az 1; üst sınır alt sınırdan küçük olamaz (fail-fast).</summary>
@@ -211,21 +241,60 @@ public class ShipmentTemplate : FullAuditedAggregateRoot<Guid>, IMultiTenant, IC
             carrierName, nameof(CarrierName), 1, ShipmentTemplateConsts.CarrierNameMaxLength);
     }
 
-    /// <summary>İade bilgisini ayarlar. İade kapalıysa adres + açıklama TEMİZLENİR (tutarlılık); açıksa opsiyonel geçer.</summary>
-    public virtual void SetReturn(bool accepted, Address? returnAddress, string? returnInfo)
+    /// <summary>İade bilgisini ayarlar. İade kapalıysa şube/adres/bilgi + "aynı" bayrağı TEMİZLENİR (tutarlılık).
+    /// İade açık + <paramref name="sameAsDispatch"/> ise şube/adres boştur (efektif iade adresi = gönderim). İade açık
+    /// + farklıysa şube ya da özel adres <b>tam biri</b> zorunlu (SetDispatch ile aynı XOR invariant). ReturnInfo
+    /// guard'ı (opsiyonel min/max) korunur.</summary>
+    public virtual void SetReturn(
+        bool accepted,
+        bool sameAsDispatch,
+        Guid? branchId,
+        Address? customAddress,
+        string? returnInfo)
     {
         ReturnAccepted = accepted;
 
         if (!accepted)
         {
+            ReturnSameAsDispatch = false;
+            ReturnBranchId = null;
             ReturnAddress = null;
             ReturnInfo = null;
             return;
         }
 
-        ReturnAddress = returnAddress;
         ReturnInfo = StringFieldGuard.EnsureOptionalText(
             returnInfo, nameof(ReturnInfo), 1, ShipmentTemplateConsts.ReturnInfoMaxLength);
+
+        if (sameAsDispatch)
+        {
+            // İade adresi gönderimle aynı → ayrı şube/adres tutulmaz (efektif = gönderim).
+            ReturnSameAsDispatch = true;
+            ReturnBranchId = null;
+            ReturnAddress = null;
+            return;
+        }
+
+        ReturnSameAsDispatch = false;
+
+        var hasBranch = branchId is { } id && id != Guid.Empty;
+        var hasCustom = customAddress is not null;
+
+        if (hasBranch == hasCustom)
+        {
+            // İade "gönderimle aynı değil" iken şube XOR özel adres zorunlu (ikisi de boş/dolu → geçersiz).
+            throw new BusinessException("TradeXpress:Shipment:Template:ReturnAddressInvalid");
+        }
+
+        if (hasBranch)
+        {
+            ReturnBranchId = branchId;
+            ReturnAddress = null;
+            return;
+        }
+
+        ReturnBranchId = null;
+        ReturnAddress = customAddress;
     }
 
     /// <summary>Alıcı başına maksimum satın alım adedi (opsiyonel) — en az 1 (fail-fast).</summary>

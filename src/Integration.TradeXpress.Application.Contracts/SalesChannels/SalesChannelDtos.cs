@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using Integration.Framework.Base.Dtos;
 using Integration.Framework.Base.Dtos.Interfaces;
+using Integration.TradeXpress.N11Shipments;
 using Integration.TradeXpress.Products;
 using Volo.Abp.Application.Dtos;
 
@@ -107,6 +108,16 @@ public class SalesChannelTrN11GetDto : EntityDto<Guid>, IGetDto<Guid>, IHasCode
     [StringLength(SalesChannelConsts.ConfigMaxLength)]
     public string AppSecret { get; set; } = string.Empty;
 
+    // Kanal düzeyi varsayılan bilgi metinleri (opsiyonel) — yeni N11 kargo şablonu formunu ön-doldurur (kullanıcı ezebilir).
+    [StringLength(N11ShipmentConsts.InfoMaxLength)]
+    public string? DefaultShippingInfo { get; set; }
+
+    [StringLength(N11ShipmentConsts.InfoMaxLength)]
+    public string? DefaultExchangeInfo { get; set; }
+
+    [StringLength(N11ShipmentConsts.InfoMaxLength)]
+    public string? DefaultInstallmentInfo { get; set; }
+
     /// <summary>Yan-maliyet (gider) ayarları — null = hiç yapılandırılmamış (form açılışında boş DTO'yla doldurulur).</summary>
     public SideCostSettingsDto? SideCosts { get; set; }
 
@@ -135,6 +146,16 @@ public class SalesChannelTrN11CreateDto : ICreateDto
     [StringLength(SalesChannelConsts.ConfigMaxLength, MinimumLength = 1)]
     public string AppSecret { get; set; } = string.Empty;
 
+    // Kanal düzeyi varsayılan bilgi metinleri (opsiyonel) — yeni N11 kargo şablonu formunu ön-doldurur (kullanıcı ezebilir).
+    [StringLength(N11ShipmentConsts.InfoMaxLength)]
+    public string? DefaultShippingInfo { get; set; }
+
+    [StringLength(N11ShipmentConsts.InfoMaxLength)]
+    public string? DefaultExchangeInfo { get; set; }
+
+    [StringLength(N11ShipmentConsts.InfoMaxLength)]
+    public string? DefaultInstallmentInfo { get; set; }
+
     /// <summary>Yan-maliyet (gider) ayarları — null = yapılandırma yok.</summary>
     public SideCostSettingsDto? SideCosts { get; set; }
 }
@@ -159,6 +180,16 @@ public class SalesChannelTrN11UpdateDto : IUpdateDto
 
     [StringLength(SalesChannelConsts.ConfigMaxLength)]
     public string AppSecret { get; set; } = string.Empty;
+
+    // Kanal düzeyi varsayılan bilgi metinleri (opsiyonel) — yeni N11 kargo şablonu formunu ön-doldurur (kullanıcı ezebilir).
+    [StringLength(N11ShipmentConsts.InfoMaxLength)]
+    public string? DefaultShippingInfo { get; set; }
+
+    [StringLength(N11ShipmentConsts.InfoMaxLength)]
+    public string? DefaultExchangeInfo { get; set; }
+
+    [StringLength(N11ShipmentConsts.InfoMaxLength)]
+    public string? DefaultInstallmentInfo { get; set; }
 
     /// <summary>Yan-maliyet (gider) ayarları — null = yapılandırma yok (mevcut ayar update'te null gönderilirse TEMİZLENİR;
     /// form daima dolu DTO gönderir).</summary>

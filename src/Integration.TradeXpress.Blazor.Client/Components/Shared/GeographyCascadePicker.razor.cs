@@ -18,8 +18,14 @@ namespace Integration.TradeXpress.Blazor.Client.Components.Shared;
 /// DUMB-layout istisnası (reusable picker servis çağırabilir — LookupComboBox deseni).</summary>
 public partial class GeographyCascadePicker : CrudComponentBase
 {
+    /// <summary>Sabit-ülke modu — doluysa ülke combo'su GİZLENİR, cascade bu ülkeye kilitlenir (İl'den başlar).
+    /// Şube adresi gibi parent'ın ülkesine kilitli formlar için (ör. company ülkesi). <see cref="SelectedCountryCode"/>
+    /// ile çelişirse FIXED ESAS alınır. null → serbest mod (ülke combo'su görünür, mevcut davranış).</summary>
+    [Parameter] public Guid? FixedCountryId { get; set; }
+
     /// <summary>Geri yükleme — mevcut seçili ülkenin alpha-2 kodu (ör. adres CountryCode). Verilirse ülke combo'su
-    /// bu ülkeye set edilir ve idari alanları sessizce (callback'siz) yüklenir.</summary>
+    /// bu ülkeye set edilir ve idari alanları sessizce (callback'siz) yüklenir. <see cref="FixedCountryId"/> doluysa
+    /// yok sayılır (fixed öncelikli).</summary>
     [Parameter] public string? SelectedCountryCode { get; set; }
 
     /// <summary>Geri yükleme — seçili idari alan id'si (çağıranda varsa). Ülke yüklendikten sonra combo'da seçilir.</summary>
@@ -27,6 +33,22 @@ public partial class GeographyCascadePicker : CrudComponentBase
 
     /// <summary>Geri yükleme — seçili yerellik id'si (çağıranda varsa).</summary>
     [Parameter] public Guid? SelectedLocalityId { get; set; }
+
+    /// <summary>Geri yükleme — seçili mahalle ADI (mahalle SAKLANMADIĞINDAN id yok; canlı N11 listesi çekilip ada
+    /// göre eşleştirilir). Eşleşme bulunamazsa combo boş kalır ama isim adres modelinde korunur. Yalnız ülke mahalle
+    /// seviyesi kullanıyorsa (TR) anlamlıdır.</summary>
+    [Parameter] public string? SelectedNeighborhoodName { get; set; }
+
+    /// <summary>Varsayılan ülke — <see cref="FixedCountryId"/> ve <see cref="SelectedCountryCode"/> BOŞ iken (yeni/boş
+    /// adres) bu ülke ön-seçilir ve seçim ÇAĞIRANA BİLDİRİLİR (loud) + alt seviyeler ilk değerine iner → adres modeli
+    /// company ülkesiyle dolar. Kilit DEĞİL (kullanıcı Ülke combosundan değiştirebilir). Mevcut adres kodu varsa yok
+    /// sayılır (kod öncelikli). null → varsayılan yok.</summary>
+    [Parameter] public Guid? DefaultCountryId { get; set; }
+
+    /// <summary>Gömülü mod — true iken picker kendi DxFormLayout/DxFormLayoutGroup WRAPPER'ını RENDER ETMEZ; yalnız
+    /// combo DxFormLayoutItem'larını render eder → parent'ın grubuna inerler (ör. AddressFields tek grupta birleştirir).
+    /// false → standalone (kendi grubunu taşır; mevcut davranış, ör. N11AddressFields).</summary>
+    [Parameter] public bool Embedded { get; set; }
 
     /// <summary>Kullanıcı bir seviye seçtiğinde tetiklenir — güncel coğrafya seçimini (ülke/il/ilçe + kodlar) taşır.
     /// GERİ YÜKLEME tetiklemez (mevcut adres alanları silinmesin diye restore sessizdir).</summary>
@@ -57,12 +79,14 @@ public partial class GeographyCascadePicker : CrudComponentBase
     private bool _usesSubLocalityLevel;
 
     // Busy bayrakları — veri çekilirken combolar pasif + hint görünür.
-    // _importing = il/eyalet dataset importu (ilk sefer) · _loadingNeighborhoods = mahalle canlı N11 çekimi.
+    // _importing = il/eyalet dataset importu (ülke seçilince ilk sefer) · _loadingLocalities = seçilen eyaletin
+    // şehirleri per-state dataset'ten iniyor (o eyalet ilk seçildiğinde) · _loadingNeighborhoods = mahalle canlı N11.
     private bool _importing;
+    private bool _loadingLocalities;
     private bool _loadingNeighborhoods;
 
     // Herhangi bir yükleme sürüyor mu (combolar bu süre boyunca pasif).
-    private bool IsBusy => _importing || _loadingNeighborhoods;
+    private bool IsBusy => _importing || _loadingLocalities || _loadingNeighborhoods;
 
     // ── Dinamik combo başlıkları (adres-format metadatası) ────────────────────────────────────────────
     // Seçili ülke (caption metadatası için) — id ile yüklü listeden çözülür.
@@ -103,15 +127,10 @@ public partial class GeographyCascadePicker : CrudComponentBase
     }
 
     // Geri yükleme SESSİZ: combo seçimlerini kurar ama callback'i tetiklemez → mevcut adres alanları korunur.
+    // Sabit-ülke modunda (FixedCountryId) o ülke id ile, aksi halde SelectedCountryCode ile çözülür (fixed öncelikli).
     private async Task RestoreSelectionAsync()
     {
-        if (string.IsNullOrWhiteSpace(SelectedCountryCode))
-        {
-            return;
-        }
-
-        var country = _countries.FirstOrDefault(
-            c => string.Equals(c.Code, SelectedCountryCode, StringComparison.OrdinalIgnoreCase));
+        var (country, isDefault) = ResolveInitialCountry();
         if (country is null)
         {
             return;
@@ -120,6 +139,16 @@ public partial class GeographyCascadePicker : CrudComponentBase
         _selectedCountryId = country.Id;
         _usesSubLocalityLevel = country.UsesSubLocality;
         await LoadAreasAsync(country);
+
+        // VARSAYILAN ülke yolu (adres boştu, DefaultCountryId ile ön-seçim) → LOUD: alt seviyeleri ilk değerine indir
+        // + seçimi çağırana BİLDİR (adres modeli company ülkesi + ilk il/ilçe/mahalle ile dolar). Kullanıcı sonra
+        // istediği ülkeyi seçebilir (kilit yok). Sessiz restore'un (mevcut adres) aksine callback tetiklenir.
+        if (isDefault)
+        {
+            await AutoSelectFirstFromAreasAsync();
+            await EmitSelectionAsync();
+            return;
+        }
 
         // İdari alan geri yükleme (çağıran id verdiyse ve alan seviyesi kullanılıyorsa).
         if (_usesAreaLevel && SelectedAdministrativeAreaId is { } areaId
@@ -135,12 +164,45 @@ public partial class GeographyCascadePicker : CrudComponentBase
             _selectedLocalityId = localityId;
 
             // Mahalle combo'sunu CANLI doldur (yalnız ülke mahalle seviyesi kullanıyorsa) — mahalle SAKLANMADIĞINDAN
-            // geri-seçilecek id yok; combo yalnız kullanıcı yeniden seçebilsin diye doldurulur (adres serbest-metni korunur).
+            // geri-seçilecek id yok; canlı N11 listesi çekilip kayıtlı mahalle ADINA göre eşleştirilir (bulunamazsa
+            // combo boş kalır ama isim adres modelinde korunur). Restore SESSİZ (EmitSelectionAsync YOK → adres ezilmez).
             if (_usesSubLocalityLevel)
             {
                 await LoadNeighborhoodsAsync(localityId);
+                if (!string.IsNullOrWhiteSpace(SelectedNeighborhoodName))
+                {
+                    // Son-ek-duyarsız eşleşme: kayıtlı "Oruçreis Mh." ↔ N11 listesindeki "Oruçreis Mah." varyantı eşlensin.
+                    var target = NormalizeNeighborhoodName(SelectedNeighborhoodName);
+                    _selectedNeighborhoodId = _neighborhoods
+                        .FirstOrDefault(n => string.Equals(NormalizeNeighborhoodName(n.Name), target, StringComparison.OrdinalIgnoreCase))
+                        ?.Id;
+                }
             }
         }
+    }
+
+    // Başlangıç ülkesini çözer: FixedCountryId (sabit-ülke, öncelikli) → SelectedCountryCode (mevcut adres kodu) →
+    // DefaultCountryId (varsayılan, adres boşken). IsDefault=true YALNIZ son yolda → çağıran LOUD restore uygular
+    // (emit + cascade). İlk iki yol IsDefault=false (sessiz restore — mevcut adres alanları korunur). Hiçbiri yoksa null.
+    private (CountryListDto? Country, bool IsDefault) ResolveInitialCountry()
+    {
+        if (FixedCountryId is { } fixedId)
+        {
+            return (_countries.FirstOrDefault(c => c.Id == fixedId), false);
+        }
+
+        if (!string.IsNullOrWhiteSpace(SelectedCountryCode))
+        {
+            return (_countries.FirstOrDefault(
+                c => string.Equals(c.Code, SelectedCountryCode, StringComparison.OrdinalIgnoreCase)), false);
+        }
+
+        if (DefaultCountryId is { } defaultId)
+        {
+            return (_countries.FirstOrDefault(c => c.Id == defaultId), true);
+        }
+
+        return (null, false);
     }
 
     // ── Kullanıcı seçimleri (cascade + callback) ─────────────────────────────────────────────────────
@@ -167,10 +229,11 @@ public partial class GeographyCascadePicker : CrudComponentBase
 
         _usesSubLocalityLevel = country.UsesSubLocality;
         await LoadAreasAsync(country);
+        await AutoSelectFirstFromAreasAsync();   // il→ilçe→mahalle ilk değerleri zincirleme iner (kullanıcı-tetikli)
         await EmitSelectionAsync();
     }
 
-    // İl/eyalet değişti → ilçe + mahalleyi sıfırla, yeni alanın ilçelerini yükle, seçimi bildir.
+    // İl/eyalet değişti → ilçe + mahalleyi sıfırla, yeni alanın ilçelerini yükle, alt seviyeleri ilk değere indir, bildir.
     private async Task OnAreaSelectedAsync(Guid? areaId)
     {
         _selectedAreaId = areaId;
@@ -180,12 +243,14 @@ public partial class GeographyCascadePicker : CrudComponentBase
         if (areaId is { } id)
         {
             await LoadLocalitiesAsync(id);
+            await AutoSelectFirstLocalityChainAsync();   // ilk ilçe (+ mahalle seviyesi varsa ilk mahalle)
         }
 
         await EmitSelectionAsync();
     }
 
-    // İlçe değişti → mahalleyi sıfırla; ülke mahalle seviyesi kullanıyorsa mahalleleri CANLI N11'den çek (saklamaz).
+    // İlçe değişti → mahalleyi sıfırla; ülke mahalle seviyesi kullanıyorsa mahalleleri CANLI N11'den çek (saklamaz)
+    // ve ilk mahalleyi otomatik seç. Seçimi bildir.
     private async Task OnLocalitySelectedAsync(Guid? localityId)
     {
         _selectedLocalityId = localityId;
@@ -194,9 +259,58 @@ public partial class GeographyCascadePicker : CrudComponentBase
         if (localityId is { } id && _usesSubLocalityLevel)
         {
             await LoadNeighborhoodsAsync(id);
+            _selectedNeighborhoodId = _neighborhoods.Count > 0 ? _neighborhoods[0].Id : null;
         }
 
         await EmitSelectionAsync();
+    }
+
+    // ── Auto-select cascade (üst seviye seçilince alt seviyeler zincirleme İLK değerine iner) ──────────
+    // Her yükleme AWAIT edilir → auto-select ancak API (lazy import / per-state şehir / canlı N11) BİTİNCE yapılır;
+    // yükleme sürerken busy bayrakları combo'ları pasif tutar. Liste BOŞSA o seviyede durur (seçme). Kullanıcı bir üst
+    // combo'yu değiştirince de (On*Selected) alttakiler yeniden ilk değere sıfırlanıp cascade iner.
+
+    // LoadAreasAsync sonrası aşağı doğru cascade. Sembolik ülkede (il gizli) alan zaten seçili + ilçeler yüklü
+    // (LoadAreasAsync yaptı) → ilk ilçeden devam; aksi halde ilk il'den başlayıp aşağı in.
+    private async Task AutoSelectFirstFromAreasAsync()
+    {
+        if (_usesAreaLevel)
+        {
+            await AutoSelectFirstAreaChainAsync();
+        }
+        else
+        {
+            await AutoSelectFirstLocalityChainAsync();
+        }
+    }
+
+    // İlk il'i seç → ilçelerini yükle → ilk ilçe zinciri. _areas boşsa seçme (il combo boş kalır).
+    private async Task AutoSelectFirstAreaChainAsync()
+    {
+        if (_areas.Count == 0)
+        {
+            return;
+        }
+
+        _selectedAreaId = _areas[0].Id;
+        await LoadLocalitiesAsync(_areas[0].Id);
+        await AutoSelectFirstLocalityChainAsync();
+    }
+
+    // İlk ilçeyi seç → (ülke mahalle seviyesi kullanıyorsa) mahalleleri CANLI çek + ilk mahalleyi seç. Liste boşsa durur.
+    private async Task AutoSelectFirstLocalityChainAsync()
+    {
+        if (_localities.Count == 0)
+        {
+            return;
+        }
+
+        _selectedLocalityId = _localities[0].Id;
+        if (_usesSubLocalityLevel)
+        {
+            await LoadNeighborhoodsAsync(_localities[0].Id);
+            _selectedNeighborhoodId = _neighborhoods.Count > 0 ? _neighborhoods[0].Id : null;
+        }
     }
 
     // Mahalle değişti → seçimi bildir.
@@ -246,8 +360,12 @@ public partial class GeographyCascadePicker : CrudComponentBase
         }
     }
 
+    // Seçilen eyaletin ilçe/şehirlerini çeker. DB'de yoksa İLK seçimde per-state lazy import tetiklenir (birkaç sn —
+    // US eyaleti için ~300 şehir dataset'ten süzülür); ikinci seçimde DB'den anında. İmport süresince combo pasif + hint.
     private async Task LoadLocalitiesAsync(Guid areaId)
     {
+        _loadingLocalities = true;
+        await InvokeAsync(StateHasChanged); // spinner/pasif combo hemen görünsün (per-state import öncesi)
         try
         {
             var result = await GeographyAppService.GetLocalitiesAsync(areaId);
@@ -257,6 +375,10 @@ public partial class GeographyCascadePicker : CrudComponentBase
         {
             _localities = new List<LocalityDto>();
             UiService.ShowErrorToast(CrudErrorPresenter.ToFriendlyMessage(ex, ServiceProvider) ?? L["UnexpectedError"].Value);
+        }
+        finally
+        {
+            _loadingLocalities = false;
         }
     }
 
@@ -343,10 +465,27 @@ public partial class GeographyCascadePicker : CrudComponentBase
         _neighborhoods = new List<NeighborhoodDto>();
         _selectedNeighborhoodId = null;
     }
+
+    // Mahalle adını EŞLEŞME için sadeleştirir: Trim + sondaki "Mahallesi/Mah./Mh." son ekini atar. Kaynaklar farklı
+    // yazar (sipariş adresi "Oruçreis Mh.", N11 canlı listesi "Oruçreis Mah.") — son-ek-duyarsız restore eşleşmesi için.
+    private static string NormalizeNeighborhoodName(string value)
+    {
+        var trimmed = value.Trim();
+        foreach (var suffix in new[] { "Mahallesi", "Mah.", "Mh.", "Mah", "Mh" })
+        {
+            if (trimmed.EndsWith(suffix, StringComparison.OrdinalIgnoreCase)
+                && trimmed.Length > suffix.Length)
+            {
+                return trimmed[..^suffix.Length].TrimEnd();
+            }
+        }
+
+        return trimmed;
+    }
 }
 
 /// <summary>Coğrafya cascade seçiminin anlık görüntüsü — ülke/il-eyalet/ilçe id + ad + kod (+ il ISO 3166-2 kodu),
-/// mahalle ad + (canlı N11) id. Çağıran (ör. ShipmentAddressFields) adres modelini doldurur: il → City, il kodu →
+/// mahalle ad + (canlı N11) id. Çağıran (ör. AddressFields) adres modelini doldurur: il → City, il kodu →
 /// CityCode, il ISO kodu → AdministrativeAreaIsoCode, il id → AdministrativeAreaId, ilçe → District, ilçe kodu →
 /// DistrictCode, ilçe id → LocalityId, mahalle ADI → Neighborhood. Sembolik ana alanlı ülkede AdministrativeAreaName/Code null gelir
 /// (City doldurulmaz); mahalle seviyesi kullanmayan ülkede NeighborhoodName/Id null gelir (Neighborhood doldurulmaz).

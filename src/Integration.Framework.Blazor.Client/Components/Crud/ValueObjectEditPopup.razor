@@ -1,0 +1,36 @@
+@typeparam TValue where TValue : class
+@using Integration.Framework.Blazor.Client.Components.Shared
+@inherits CrudComponentBase
+@implements ISplitEditActions
+
+@*
+   Merkezî VALUE-OBJECT edit popup kabuğu — owned sub-object'leri (Address/ContactInfo gibi) STANDART edit-form
+   chrome'unda düzenler. Entity edit popup'larıyla LİTERAL AYNI chrome: EditShell (pencere kabuğu) + EditHeaderView
+   (ikon + başlık, EditShell.Header ile) + gövdenin üstünde EditToolbar (Kaydet + Reset). GlobalPopupHost'un TEK-SLOT
+   makinesine GİRMEZ (inline render → nested güvenli: parent entity edit popup'ının ÜSTÜNDE açılabilir).
+   Save = OnSave (custom adres = uygula/zaten canlı-bind, şube-modu = persist) + KABUK kapatır. Reset/İptal(X/Escape) =
+   açılış anındaki JSON snapshot'ından IN-PLACE geri al (canlı-bind custom adreste parent modeli de temizlenir).
+*@
+<EditShell Mode="EditShellMode.Popup"
+           Buttons="EditShellButtons.Minimize | EditShellButtons.Fullscreen | EditShellButtons.Modal"
+           Visible="@Visible"
+           VisibleChanged="@VisibleChanged"
+           Header="@_header"
+           IsDirty="@IsDirty"
+           MaxWidth="@MaxWidth"
+           OnClosingRequested="@OnClosingRequested">
+    @* Sabit toolbar (flex-shrink:0) + KAYAN gövde (flex:1 + overflow-y:auto) — EntityEditForm gövde çerçevesiyle aynı. *@
+    <div style="display:flex; flex-direction:column; max-height:calc(90vh - 84px); max-height:calc(90dvh - 84px); min-height:0; overflow-x:hidden; max-width:100%;">
+        <div style="border-bottom:1px solid #dee2e6; padding:0.5rem 0.75rem; margin-bottom:0.5rem; flex-shrink:0;">
+            @* TEK edit toolbar — entity edit formuyla AYNI bileşen. IsPopup=true → Save = uygula+kapat, "Kaydet ve Yeni ▾" gizli. *@
+            <EditToolbar EditController="@this" IsPopup="true" OnActionInvoked="StateHasChanged" />
+        </div>
+        <div style="flex:1 1 auto; overflow-y:auto; overflow-x:hidden; min-height:0; padding:0.25rem 0.75rem 0.75rem;">
+            @* @key: Reset/İptal in-place snapshot geri-alımından SONRA gövdeyi (AddressFields + GeographyCascadePicker iç
+               durumu) yeniden kurar → geri alınan Model değerleri görünür. @onchange: editör commit'inde (blur) toolbar/"*" tazele. *@
+            <div @key="_bodyKey" @onchange="OnBodyChanged">
+                @ChildContent
+            </div>
+        </div>
+    </div>
+</EditShell>

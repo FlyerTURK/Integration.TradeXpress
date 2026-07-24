@@ -42,3 +42,4 @@ global using Integration.TradeXpress.Organization;
 global using Integration.TradeXpress.Financials.CurrencyUnits;
 global using Integration.TradeXpress.Financials.Parities;
 global using Integration.TradeXpress.Financials.ExchangeRates;
+global using Integration.TradeXpress.N11Shipments;

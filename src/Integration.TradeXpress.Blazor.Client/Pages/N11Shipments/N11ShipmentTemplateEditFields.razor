@@ -76,13 +76,62 @@
 @* Gönderilecek iller — "Tüm illere gönder" switch + (kapalıysa) checkbox listesi (TagBox yerine). *@
 <N11DeliverableCitiesField Model="@Model" Cities="@Cities" />
 
-@* Depo adresi (zorunlu) — self-contained DxFormLayout. *@
-<N11AddressFields Model="@Model.WarehouseAddress" Cities="@Cities" Required="true"
-                  Caption="@L["N11ShipmentTemplate:WarehouseAddress"].Value" />
+@* Depo adresi (zorunlu) — kompakt özet + ✎ → popup (paylaşılan AddressFields; ülke SERBEST, N11 push City/İl-kodu okur). *@
+<DxFormLayout CssClass="w-100">
+    <DxFormLayoutGroup Caption="@($"{L["N11ShipmentTemplate:WarehouseAddress"]} *")" ColSpanMd="12">
+        <DxFormLayoutItem ColSpanMd="12">
+            <ValueObjectEdit TValue="N11ShipmentAddressDto"
+                             Value="@Model.WarehouseAddress"
+                             DisplayProjection="@AddressSummary"
+                             EmptyPredicate="@IsAddressEmpty"
+                             OnEditClick="@OpenWarehouseAddressPopup"
+                             PlaceholderText="@L["Address:EditHint"].Value" />
+        </DxFormLayoutItem>
+    </DxFormLayoutGroup>
+</DxFormLayout>
 
 @* İade/değişim adresi (zorunlu) — NewItemFactory'de new() init edilir → null olmaz. *@
 @if (Model.ExchangeAddress != null)
 {
-    <N11AddressFields Model="@Model.ExchangeAddress" Cities="@Cities" Required="true"
-                      Caption="@L["N11ShipmentTemplate:ExchangeAddress"].Value" />
+    <DxFormLayout CssClass="w-100">
+        <DxFormLayoutGroup Caption="@($"{L["N11ShipmentTemplate:ExchangeAddress"]} *")" ColSpanMd="12">
+            <DxFormLayoutItem ColSpanMd="12">
+                <ValueObjectEdit TValue="N11ShipmentAddressDto"
+                                 Value="@Model.ExchangeAddress"
+                                 DisplayProjection="@AddressSummary"
+                                 EmptyPredicate="@IsAddressEmpty"
+                                 OnEditClick="@OpenExchangeAddressPopup"
+                                 PlaceholderText="@L["Address:EditHint"].Value" />
+            </DxFormLayoutItem>
+        </DxFormLayoutGroup>
+    </DxFormLayout>
+}
+
+@* Depo/iade özel adres düzenleme popup'ları — body EditContext DIŞINDA render olabilir; AddressFields editörleri
+   zaten ValidationEnabled=false (crash yok) + dirty form JSON snapshot ile yakalanır. Ülke SERBEST (FixedCountryId=null). *@
+<DxPopup @bind-Visible="@_warehouseAddressPopupVisible" HeaderText="@L["N11ShipmentTemplate:WarehouseAddress"].Value"
+         Width="min(95vw, 720px)" CloseOnOutsideClick="true" ShowFooter="true">
+    <BodyContentTemplate Context="__warehouseAddr">
+        <AddressFields Model="@Model.WarehouseAddress" FixedCountryId="null" DefaultCountryId="null" />
+    </BodyContentTemplate>
+    <FooterContentTemplate Context="__warehouseFtr">
+        <DxButton Text="@L["Close"].Value"
+                  RenderStyle="ButtonRenderStyle.Secondary" RenderStyleMode="ButtonRenderStyleMode.Contained"
+                  Click="@(() => _warehouseAddressPopupVisible = false)" />
+    </FooterContentTemplate>
+</DxPopup>
+
+@if (Model.ExchangeAddress != null)
+{
+    <DxPopup @bind-Visible="@_exchangeAddressPopupVisible" HeaderText="@L["N11ShipmentTemplate:ExchangeAddress"].Value"
+             Width="min(95vw, 720px)" CloseOnOutsideClick="true" ShowFooter="true">
+        <BodyContentTemplate Context="__exchangeAddr">
+            <AddressFields Model="@Model.ExchangeAddress" FixedCountryId="null" DefaultCountryId="null" />
+        </BodyContentTemplate>
+        <FooterContentTemplate Context="__exchangeFtr">
+            <DxButton Text="@L["Close"].Value"
+                      RenderStyle="ButtonRenderStyle.Secondary" RenderStyleMode="ButtonRenderStyleMode.Contained"
+                      Click="@(() => _exchangeAddressPopupVisible = false)" />
+        </FooterContentTemplate>
+    </DxPopup>
 }

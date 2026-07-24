@@ -4,8 +4,8 @@
 
 @*
    ShipmentTemplate edit host = İNCE SARMAL: coordinator + sunum. Commit/save/delete/close generic CrudEditHost'ta.
-   Agnostic CrudEditHost + dumb ShipmentTemplateLayout. Company-owned (sunucu CompanyId zorlar). Dış lookup verisi
-   YOK — menşei/iade adresi form içinde düz metin (kanal-nötr çekirdek).
+   Agnostic CrudEditHost + dumb ShipmentTemplateLayout. Company-owned (sunucu CompanyId zorlar). Dış lookup verisi:
+   kargo firması (Carrier) + gönderim/iade şubeleri (geçerli şirket, salt seçim). Özel adres form içinde (AddressFields).
 *@
 
 @if (_coordinator != null && _ready)
@@ -15,6 +15,7 @@
                   FormCaption="@L["ShipmentTemplate"].Value" IconCssClass="@TradeXpressIcons.ShipmentTemplate"
                   EntityValue="@(m => m.Code)"
                   ApplyNewDefaults="@(m => ApplyNew(m))">
-        <ShipmentTemplateLayout Model="@context" IsNew="@(context.Id == Guid.Empty)" Carriers="@_carriers" />
+        <ShipmentTemplateLayout Model="@context" IsNew="@(context.Id == Guid.Empty)" Carriers="@_carriers" Branches="@_branches"
+                                OnBranchAddressSaved="@OnBranchAddressSaved" />
     </CrudEditHost>
 }

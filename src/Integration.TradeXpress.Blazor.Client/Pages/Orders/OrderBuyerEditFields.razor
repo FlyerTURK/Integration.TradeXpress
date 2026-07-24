@@ -1,0 +1,50 @@
+@using Integration.TradeXpress.Orders
+@using Integration.Framework.Blazor.Client.Components.Crud
+@using DevExpress.Blazor
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@*
+   Sipariş ALICI (buyer) bilgisi — kompakt ÖZET + ✎ → popup (adres/kargo şablonu ValueObjectEdit deseniyle tutarlı).
+   ÖZET kuralları (kullanıcı kararı; N11 tek-taraflı data, kendi tarafımızda düzeltilir):
+     • Alıcı adı boşsa → Fatura Adresi adını kullan.
+     • TCKN yalnız DOLUYSA gösterilir.
+     • Vergi Dairesi → Vergi No (BU SIRADA), her biri yalnız DOLUYSA gösterilir; üçü de doluysa hepsi.
+   Popup'ta düzenlenebilir party alanları (Ad/E-posta/TCKN/Vergi Dairesi/Vergi No). Kayıt order form save'iyle.
+*@
+
+<DxFormLayoutItem Caption="@Caption" ColSpanMd="12">
+    <ValueObjectEdit TValue="OrderEditPartyDto"
+                     Value="@Buyer"
+                     DisplayProjection="@BuyerSummary"
+                     EmptyPredicate="@IsEmpty"
+                     OnEditClick="@OpenPopup"
+                     PlaceholderText="@L["Address:EditHint"].Value" />
+</DxFormLayoutItem>
+
+@if (Buyer != null)
+{
+    <ValueObjectEditPopup TValue="OrderEditPartyDto"
+                          @bind-Visible="@_popupVisible"
+                          Model="@Buyer"
+                          HeaderText="@Caption"
+                          IconCssClass="@TradeXpressIcons.User">
+        <DxFormLayout CssClass="w-100">
+            <DxFormLayoutItem Caption="@L["Order:Detail:Buyer"]" ColSpanMd="12">
+                <DxTextBox @bind-Text="@Buyer.FullName" ValidationEnabled="false" NullText="@BillingName" />
+            </DxFormLayoutItem>
+            <DxFormLayoutItem Caption="@L["Order:Detail:Email"]" ColSpanMd="12">
+                <DxTextBox @bind-Text="@Buyer.Email" ValidationEnabled="false" />
+            </DxFormLayoutItem>
+            @* Sıra: TCKN → Vergi Dairesi → Vergi No (kullanıcı kararı). *@
+            <DxFormLayoutItem Caption="@L["Order:Detail:TcId"]" ColSpanMd="4">
+                <DxTextBox @bind-Text="@Buyer.TcId" ValidationEnabled="false" />
+            </DxFormLayoutItem>
+            <DxFormLayoutItem Caption="@L["Order:Detail:TaxOffice"]" ColSpanMd="4">
+                <DxTextBox @bind-Text="@Buyer.TaxOffice" ValidationEnabled="false" />
+            </DxFormLayoutItem>
+            <DxFormLayoutItem Caption="@L["Order:Detail:TaxId"]" ColSpanMd="4">
+                <DxTextBox @bind-Text="@Buyer.TaxId" ValidationEnabled="false" />
+            </DxFormLayoutItem>
+        </DxFormLayout>
+    </ValueObjectEditPopup>
+}

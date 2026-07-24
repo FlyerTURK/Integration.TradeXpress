@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Volo.Abp;
 using Volo.Abp.EntityFrameworkCore.Modeling;
+using Integration.Framework.Addressing;
 using Integration.TradeXpress.Financials.CurrencyUnits;
 using Integration.TradeXpress.Companies;
 using Integration.TradeXpress.Countries;
@@ -91,6 +92,11 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
             b.Property(x => x.Code).IsRequired().HasMaxLength(BranchConsts.CodeMaxLength);
             b.Property(x => x.Name).IsRequired().HasMaxLength(BranchConsts.NameMaxLength);
             b.Property(x => x.Description).HasMaxLength(BranchConsts.DescriptionMaxLength);
+
+            // Adres = yeniden-kullanılabilir Address VO (OwnsOne; aynı tabloda Address_* prefix'li NULLABLE kolonlar).
+            // NULLABLE: mevcut şubelerde adres yok — City/Line owned-required olsa da tüm kolonlar null ⇒ navigation null
+            // (EF null-tespiti; ConfigureAddress Shipments partial'ında paylaşılır).
+            b.OwnsOne(x => x.Address, ConfigureAddress);
 
             b.HasIndex(x => new { x.TenantId, x.CompanyId, x.Code }).IsUnique();
             b.HasIndex(x => new { x.TenantId, x.CompanyId });

@@ -3,10 +3,13 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Integration.Framework;
+using Integration.Framework.Addressing;
 using Integration.Framework.Base.Querying;
 using Integration.TradeXpress.Authorization;
 using Integration.TradeXpress.Companies;
+using Integration.TradeXpress.Countries;
 using Integration.TradeXpress.Financials.CurrencyUnits;
+using Integration.TradeXpress.MultiCompany;
 using Integration.TradeXpress.Organization;
 using Integration.TradeXpress.Permissions;
 using Integration.TradeXpress.Vaults;
@@ -32,12 +35,14 @@ public class BranchAppService : TradeXpressAppService, IBranchAppService
 {
     private readonly IRepository<Branch, Guid> _repository;
     private readonly IRepository<Company, Guid> _companyRepository;
+    private readonly IRepository<Country, Guid> _countryRepository;   // yalnız OKUMA (adres ülke-kilidi: Company.CountryId → Country.Code)
     private readonly IRepository<CurrencyUnit, Guid> _unitRepository;   // yalnız OKUMA (BaseCurrencyCode çözümü; global birim)
     private readonly IRepository<Vault, Guid> _vaultRepository;   // yalnız OKUMA (graf projeksiyonu)
     private readonly IVaultAppService _vaultAppService;            // YAZMA: kasa create/update/delete buraya delege
     private readonly IDataFilter _dataFilter;
     private readonly OrgTreeManager _orgTree;
     private readonly IScopedGrantResolver _scopedGrantResolver;   // working-context şube daraltması (yalnız OKUMA)
+    private readonly ICurrentCompany _currentCompany;             // geçerli şirket picker scope'u (yalnız OKUMA)
 
     private static readonly HashSet<string> AllowedListFields =
         new(StringComparer.OrdinalIgnoreCase) { "Code", "Name", "CompanyCode", "BaseCurrencyCode", "IsHeadquarters", "IsActive", "DisplayOrder", "CompanyId", "Id" };
@@ -45,21 +50,25 @@ public class BranchAppService : TradeXpressAppService, IBranchAppService
     public BranchAppService(
         IRepository<Branch, Guid> repository,
         IRepository<Company, Guid> companyRepository,
+        IRepository<Country, Guid> countryRepository,
         IRepository<CurrencyUnit, Guid> unitRepository,
         IRepository<Vault, Guid> vaultRepository,
         IVaultAppService vaultAppService,
         IDataFilter dataFilter,
         OrgTreeManager orgTree,
-        IScopedGrantResolver scopedGrantResolver)
+        IScopedGrantResolver scopedGrantResolver,
+        ICurrentCompany currentCompany)
     {
         _repository = repository;
         _companyRepository = companyRepository;
+        _countryRepository = countryRepository;
         _unitRepository = unitRepository;
         _vaultRepository = vaultRepository;
         _vaultAppService = vaultAppService;
         _dataFilter = dataFilter;
         _orgTree = orgTree;
         _scopedGrantResolver = scopedGrantResolver;
+        _currentCompany = currentCompany;
     }
 
     public virtual async Task<PagedResultDto<BranchListDto>> GetListAsync(BranchListRequestDto input)
@@ -95,6 +104,48 @@ public class BranchAppService : TradeXpressAppService, IBranchAppService
         return await MapRowsToDtosAsync(allowed);
     }
 
+    /// <summary>GEÇERLİ çalışılan şirketin AKTİF şubeleri (picker/lookup) — sunucu <see cref="ICurrentCompany"/> ile
+    /// scope'lar (client CompanyId göndermez). Şirket bağlamı yoksa boş. Yalnız kimliklendirilmiş kullanıcı yeter
+    /// (company-owned katalog seçimi; Branches.Default gerekmez). ShipmentTemplate.GetPickerListAsync deseni.</summary>
+    [Authorize]
+    public virtual async Task<List<BranchListDto>> GetMyCompanyBranchesAsync()
+    {
+        if (_currentCompany.Id is not { } companyId)
+        {
+            return new List<BranchListDto>();
+        }
+
+        var rows = await BuildListRowQueryAsync();
+        var items = await AsyncExecuter.ToListAsync(
+            rows.Where(r => r.CompanyId == companyId && r.IsActive)
+                .OrderBy(r => r.DisplayOrder)
+                .ThenBy(r => r.Name));
+
+        var dtos = await MapRowsToDtosAsync(items);
+        await FillAddressesAsync(dtos);   // picker path: şube adresini de doldur (kargo şablonu şube modu özeti/düzenlemesi)
+        return dtos;
+    }
+
+    /// <summary>Picker DTO'larına şube adresini doldurur (owned <see cref="Branch.Address"/> aggregate ile yüklenir;
+    /// grid listesi bunu ÇAĞIRMAZ → yalnız picker gereksiz kolon taşımaz). Elle Address→DTO okuma (<see cref="ToAddressDto"/>).</summary>
+    private async Task FillAddressesAsync(List<BranchListDto> dtos)
+    {
+        if (dtos.Count == 0)
+        {
+            return;
+        }
+
+        var ids = dtos.Select(d => d.Id).ToList();
+        var entities = await AsyncExecuter.ToListAsync(
+            (await _repository.GetQueryableAsync()).Where(b => ids.Contains(b.Id)));
+        var addressMap = entities.ToDictionary(b => b.Id, b => ToAddressDto(b.Address));
+
+        foreach (var d in dtos)
+        {
+            d.Address = addressMap.GetValueOrDefault(d.Id);
+        }
+    }
+
     // CompanyCode enrichment'tı → join ile GERÇEK kolon yap: kod ile sort/filter/arama server-side çalışsın.
     private async Task<IQueryable<BranchListRow>> BuildListRowQueryAsync()
     {
@@ -107,6 +158,7 @@ public class BranchAppService : TradeXpressAppService, IBranchAppService
                 CompanyId = b.CompanyId,
                 CompanyCode = c.Code,
                 CompanyName = c.Name,
+                CompanyCountryId = c.CountryId,   // adres ülke varsayılanı (şube picker → gönderim özel adres ülkesi)
                 BaseCurrencyUnitId = b.BaseCurrencyUnitId,
                 Code = b.Code,
                 Name = b.Name,
@@ -139,6 +191,7 @@ public class BranchAppService : TradeXpressAppService, IBranchAppService
             CompanyId = r.CompanyId,
             CompanyCode = r.CompanyCode,
             CompanyName = r.CompanyName,
+            CompanyCountryId = r.CompanyCountryId,
             BaseCurrencyUnitId = r.BaseCurrencyUnitId,
             BaseCurrencyCode = unitMap.GetValueOrDefault(r.BaseCurrencyUnitId, string.Empty),
             Code = r.Code,
@@ -177,6 +230,7 @@ public class BranchAppService : TradeXpressAppService, IBranchAppService
             displayOrder: input.DisplayOrder);
         b.SetDescription(input.Description);
         b.SetBaseCurrency(input.BaseCurrencyUnitId == Guid.Empty ? company.BaseCurrencyUnitId : input.BaseCurrencyUnitId);   // boş → parent şirketin base'i
+        b.SetAddress(await BuildAddressAsync(input.Address, company));   // ülke-kilitli (şube adresi şirketin ülkesinde)
         await _repository.InsertAsync(b, autoSave: true);
 
         // Tek-HQ değişmezi: bu şube HQ ise şirketin önceki HQ'sunu düşür.
@@ -211,6 +265,11 @@ public class BranchAppService : TradeXpressAppService, IBranchAppService
         b.SetDisplayOrder(input.DisplayOrder);
         b.SetBaseCurrency(input.BaseCurrencyUnitId == Guid.Empty ? b.BaseCurrencyUnitId : input.BaseCurrencyUnitId);   // boş gelirse mevcut değeri KORU (wipe önleme)
         b.SetActive(input.IsActive);
+
+        // Adres: standalone form kendi adresini gönderir, Company-grafı yolu mevcut adresi faithful round-trip eder
+        // (null/boş → temizle; dolu → şirketin ülkesine kilitle). Parent şirket ülke-kilidi için çözülür.
+        var company = await _companyRepository.GetAsync(b.CompanyId);
+        b.SetAddress(await BuildAddressAsync(input.Address, company));
         await _repository.UpdateAsync(b, autoSave: true);
 
         await SaveVaultsAsync(b, input.Vaults);
@@ -234,6 +293,28 @@ public class BranchAppService : TradeXpressAppService, IBranchAppService
 
         await _orgTree.DeleteVaultsOfBranchAsync(b.Id);
         await _repository.DeleteAsync(b, autoSave: true);
+    }
+
+    /// <summary>Şube adresini GÜNCELLER (kargo şablonu ŞUBE modunda inline düzenleme; cross-entity yazma). Yalnız
+    /// adres alanına dokunur (Code/Name/Vaults ELLENMEZ). Ülke şirketin ülkesine KİLİTLİ (<see cref="BuildAddressAsync"/>).
+    /// Company-scope guard: şube GEÇERLİ çalışılan şirkete ait olmalı — cross-company yazma reddedilir. Branches.Update
+    /// yetkisi gerektirir (adres yazımı = şube güncellemesi; güvenlik gevşetilmez).</summary>
+    [Authorize(TradeXpressPermissions.Branches.Update)]
+    public virtual async Task<BranchAddressDto?> UpdateAddressAsync(Guid branchId, BranchAddressDto address)
+    {
+        var b = await _repository.GetAsync(branchId);
+
+        // Company-scope guard: yalnız geçerli çalışılan şirketin şubesi düzenlenebilir (cross-company sızıntı önlenir).
+        if (_currentCompany.Id is not { } companyId || b.CompanyId != companyId)
+        {
+            throw new BusinessException("TradeXpress:Branch:NotInCurrentCompany");
+        }
+
+        var company = await _companyRepository.GetAsync(b.CompanyId);
+        b.SetAddress(await BuildAddressAsync(address, company));   // ülke şirketin ülkesine kilitli (mevcut 1b mantığı)
+        await _repository.UpdateAsync(b, autoSave: true);
+
+        return ToAddressDto(b.Address);
     }
 
     // ── kasa grafı diff (Id + IsDeleted) → VaultAppService'e DELEGE ─────────────
@@ -341,18 +422,100 @@ public class BranchAppService : TradeXpressAppService, IBranchAppService
         }
     }
 
-    private async Task<Dictionary<Guid, string>> LoadCompanyCodesAsync(IEnumerable<Guid> ids)
+    /// <summary>Flat adres DTO'sunu ülke-KİLİTLİ <see cref="Address"/> VO'ya çevirir (ShipmentTemplate.ToAddress
+    /// deseni). Kurallar: DTO null VEYA City+Line boş → <c>null</c> (adres yok — boş VO ctor'u throw eder, o yüzden
+    /// AppService boş→null indirger). Dolu → CountryCode şubenin <paramref name="company"/> ülkesine ZORLANIR
+    /// (branch adresi company ülkesinde olmalı — kullanıcı kuralı). Company.CountryId null (legacy) ise verilen/default korunur.</summary>
+    private async Task<Address?> BuildAddressAsync(BranchAddressDto? dto, Company company)
     {
-        var list = ids.Distinct().ToList();
-        if (list.Count == 0) return new Dictionary<Guid, string>();
-        var q = (await _companyRepository.GetQueryableAsync()).Where(c => list.Contains(c.Id));
-        var companies = await AsyncExecuter.ToListAsync(q);
-        return companies.ToDictionary(c => c.Id, c => c.Code);
+        if (dto is null)
+        {
+            return null;
+        }
+
+        // Boş adres (kullanıcı hiç doldurmadı) → adres yok. Kısmi (yalnız Line) → VO ctor City'yi zorunlu tutar (fail-fast).
+        if (string.IsNullOrWhiteSpace(dto.City) && string.IsNullOrWhiteSpace(dto.Line))
+        {
+            return null;
+        }
+
+        var countryCode = await ResolveCompanyCountryCodeAsync(company) ?? dto.CountryCode;
+        return new Address(
+            dto.City,
+            dto.Line,
+            dto.District,
+            dto.Neighborhood,
+            dto.PostalCode,
+            countryCode,
+            dto.Title,
+            dto.CityCode,
+            dto.DistrictCode,
+            dto.AdministrativeAreaId,
+            dto.LocalityId,
+            dto.AdministrativeAreaIsoCode,
+            buildingName: dto.BuildingName,
+            buildingNumber: dto.BuildingNumber,
+            room: dto.Room,
+            floor: dto.Floor,
+            postbox: dto.Postbox,
+            additionalStreetName: dto.AdditionalStreetName);
+    }
+
+    /// <summary>Şirketin ülke kodunu çözer (Company.CountryId → Country.Code). Country host‖tenant kataloğu →
+    /// global kaydı görebilmek için IMultiTenant filtresi kapatılır (CompanyAppService.LoadCountryCodeAsync deseni).
+    /// CountryId null (legacy) → null (kilit yok, çağıran verilen/default'a düşer).</summary>
+    private async Task<string?> ResolveCompanyCountryCodeAsync(Company company)
+    {
+        if (company.CountryId is not { } countryId)
+        {
+            return null;
+        }
+
+        using (_dataFilter.Disable<IMultiTenant>())
+        {
+            return await AsyncExecuter.FirstOrDefaultAsync(
+                (await _countryRepository.GetQueryableAsync())
+                    .Where(c => c.Id == countryId)
+                    .Select(c => c.Code));
+        }
+    }
+
+    /// <summary>Address VO → flat DTO (hand-read; Address→DTO elle okuma — CompanyAppService ile aynı desen).
+    /// null VO → null DTO (adres yok).</summary>
+    private static BranchAddressDto? ToAddressDto(Address? a)
+    {
+        if (a is null)
+        {
+            return null;
+        }
+
+        return new BranchAddressDto
+        {
+            Title = a.Title,
+            City = a.City,
+            Line = a.Line,
+            District = a.District,
+            Neighborhood = a.Neighborhood,
+            PostalCode = a.PostalCode,
+            CountryCode = a.CountryCode,
+            CityCode = a.CityCode,
+            DistrictCode = a.DistrictCode,
+            AdministrativeAreaId = a.AdministrativeAreaId,
+            LocalityId = a.LocalityId,
+            AdministrativeAreaIsoCode = a.AdministrativeAreaIsoCode,
+            BuildingName = a.BuildingName,
+            BuildingNumber = a.BuildingNumber,
+            Room = a.Room,
+            Floor = a.Floor,
+            Postbox = a.Postbox,
+            AdditionalStreetName = a.AdditionalStreetName,
+        };
     }
 
     private async Task<BranchGetDto> ToGetDtoAsync(Branch b)
     {
-        var names = await LoadCompanyCodesAsync(new[] { b.CompanyId });
+        // Parent şirket: CompanyCode (görüntü) + CountryId (adres formunun ülke kilidi = FixedCountryId).
+        var company = await _companyRepository.FindAsync(b.CompanyId);
         var vaults = await AsyncExecuter.ToListAsync(
             (await _vaultRepository.GetQueryableAsync()).Where(v => v.BranchId == b.Id).OrderBy(v => v.DisplayOrder));
 
@@ -360,7 +523,8 @@ public class BranchAppService : TradeXpressAppService, IBranchAppService
         {
             Id = b.Id,
             CompanyId = b.CompanyId,
-            CompanyCode = names.GetValueOrDefault(b.CompanyId, string.Empty),
+            CompanyCode = company?.Code ?? string.Empty,
+            CompanyCountryId = company?.CountryId,
             BaseCurrencyUnitId = b.BaseCurrencyUnitId,
             Code = b.Code,
             Name = b.Name,
@@ -368,6 +532,7 @@ public class BranchAppService : TradeXpressAppService, IBranchAppService
             IsActive = b.IsActive,
             DisplayOrder = b.DisplayOrder,
             Description = b.Description,
+            Address = ToAddressDto(b.Address),
             Vaults = vaults.Select(v => new VaultGraphDto
             {
                 Id = v.Id,
@@ -388,6 +553,7 @@ public class BranchAppService : TradeXpressAppService, IBranchAppService
         public Guid CompanyId { get; set; }
         public string CompanyCode { get; set; } = string.Empty;
         public string CompanyName { get; set; } = string.Empty;
+        public Guid? CompanyCountryId { get; set; }
         public Guid BaseCurrencyUnitId { get; set; }
         public string Code { get; set; } = string.Empty;
         public string Name { get; set; } = string.Empty;
