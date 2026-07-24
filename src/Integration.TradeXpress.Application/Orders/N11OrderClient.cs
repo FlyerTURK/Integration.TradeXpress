@@ -229,10 +229,14 @@ public sealed class N11OrderClient : IN11OrderClient, ITransientDependency
             return null;
         }
 
+        // N11 CANLI yanıtı (2026-07-24 doğrulandı, order 136043971): ADRES elementlerinde vergi dairesi alan adı
+        // "taxHouse" ('taxOffice' DEĞİL — o yalnız buyer elementinde). Yanlış adla kurumsal faturalı siparişlerde
+        // adres vergi dairesi sessizce hep null'du (approvedDate/shippingDate wire-ad hatasının ikizi).
+        // Emniyet: eski/dokümante ad da fallback olarak okunur (yanıt varyasyonuna tolerans).
         var address = new OrderDetailAddress(
             Local(el, "fullName"), Local(el, "address"), Local(el, "neighborhood"), Local(el, "district"),
             Local(el, "city"), Local(el, "postalCode"), Local(el, "gsm"), Local(el, "tcId"),
-            Local(el, "taxId"), Local(el, "taxOffice"));
+            Local(el, "taxId"), Local(el, "taxHouse") ?? Local(el, "taxOffice"));
         return address.HasAny() ? address : null;
     }
 

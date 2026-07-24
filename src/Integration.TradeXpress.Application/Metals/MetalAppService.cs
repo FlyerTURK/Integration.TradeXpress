@@ -468,7 +468,7 @@ public class MetalAppService
 
     public virtual async Task<List<MetalVariantLookupDto>> GetVariantLookupAsync()
     {
-        List<(Guid CommodityId, string MetalCode, string MetalName, Guid? VariantId, string VariantCode, string VariantName, bool IsQuantity, decimal StableQuantity)> rows;
+        List<(Guid CommodityId, string MetalCode, string MetalName, Guid? VariantId, string VariantCode, string VariantName, bool IsMain, bool IsQuantity, decimal StableQuantity)> rows;
         using (DataFilter.Disable<Volo.Abp.MultiTenancy.IMultiTenant>())
         using (DataFilter.Disable<ICompanyScoped>())
         {
@@ -489,12 +489,13 @@ public class MetalAppService
                                 VariantId      = variant.Id,
                                 VariantCode    = variant.Code,
                                 VariantName    = variant.Name,
+                                IsMain         = variant.IsMain,
                                 IsQuantity     = metal.IsQuantity,
                                 StableQuantity = metal.StableQuantity
                             };
 
             var raw = await AsyncExecuter.ToListAsync(baseQuery);
-            rows = raw.Select(r => (r.CommodityId, r.MetalCode, r.MetalName, (Guid?)r.VariantId, r.VariantCode, r.VariantName, r.IsQuantity, r.StableQuantity)).ToList();
+            rows = raw.Select(r => (r.CommodityId, r.MetalCode, r.MetalName, (Guid?)r.VariantId, r.VariantCode, r.VariantName, r.IsMain, r.IsQuantity, r.StableQuantity)).ToList();
             Microsoft.Extensions.Logging.LoggerExtensions.LogInformation(Logger, "GetVariantLookupAsync returned {Count} rows for Tenant: {Tenant}, Company: {Company}", rows.Count, CurrentTenant.Id, _currentCompany.Id);
         }
 
@@ -520,6 +521,7 @@ public class MetalAppService
                     VariantId        = r.VariantId,
                     VariantCode      = r.VariantCode,
                     VariantName      = r.VariantName,
+                    IsMain           = r.IsMain,
                     IsQuantity       = r.IsQuantity,
                     StableQuantity   = r.StableQuantity,
                     LaborType        = d?.LaborType ?? MetalLaborType.Amount,

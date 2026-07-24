@@ -1,5 +1,6 @@
 using Integration.TradeXpress.EtsyProducts;
 using Integration.TradeXpress.MultiCompany;
+using Integration.TradeXpress.Substitutions;
 
 namespace Integration.TradeXpress.Products;
 
@@ -124,6 +125,31 @@ public class Product : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwn
     /// dolu ise 1..<see cref="ProductConsts.PersonalizationCharCountMaxLimit"/> aralığında (fail-fast).</summary>
     public virtual int? PersonalizationCharCountMax { get; protected set; }
 
+    // ── Varyant modu + Muadil (paket) konfigürasyonu (Dilim-3). İş gerekçesi: "Yeni-Eski Karışık Ziynet Sepeti"
+    // ürünü grubun tüm varyantlarıyla; "Yeni Tarihli Ziynet Sepeti" ürünü override ağacında yalnız yeni
+    // tarihlilerle kombinasyon kurar. Muadil alanları yalnız VariantMode=Substitution iken dolu (tutarlılık
+    // SetSubstitutionConfig'te; mod dışında temizlenir). ──
+
+    /// <summary>Varyant üretim tercihi — varsayılan <see cref="ProductVariantMode.MultiVariant"/> (statüko).</summary>
+    public virtual ProductVariantMode VariantMode { get; protected set; }
+
+    /// <summary>Muadil grubu referansı (id-only, nav YOK) — yalnız Substitution modunda dolu (zorunlu).</summary>
+    public virtual Guid? SubstitutionGroupId { get; protected set; }
+
+    /// <summary>Kombinasyon hedef miktarı (gram) — Substitution modunda zorunlu, &gt; 0 (fail-fast).</summary>
+    public virtual decimal? SubstitutionTargetQuantity { get; protected set; }
+
+    /// <summary>Tolerans türü override'ı — null = grubun tolerans politikası kullanılır (değerle ÇİFT dolar).</summary>
+    public virtual ToleranceType? SubstitutionToleranceType { get; protected set; }
+
+    /// <summary>Tolerans değeri override'ı — null = grup ayarı; dolu ise negatif olamaz (türle ÇİFT dolar).</summary>
+    public virtual decimal? SubstitutionToleranceValue { get; protected set; }
+
+    /// <summary>Ürün-düzeyi varyant OVERRIDE kümesi (EF primitive-collection → JSON kolonu; Dilim-1
+    /// IncludedVariantIds deseni birebir). <b>BOŞ liste = gruptan devral</b> (resolver zinciri:
+    /// override ?? IncludedVariantIds ?? ana varyant); dolu ise grup kalemlerinin kapsamını TAMAMEN ezer.</summary>
+    public virtual List<Guid> SubstitutionOverrideVariantIds { get; protected set; } = new();
+
     protected Product() { }
 
     public Product(
@@ -136,6 +162,7 @@ public class Product : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwn
         SetName(name);
         IsActive = true;
         Domestic = true;
+        VariantMode = ProductVariantMode.MultiVariant;
         Condition = ProductCondition.New;
         PreparingDay = 1;
         WhoMade = EtsyWhoMade.IDid;
@@ -418,6 +445,68 @@ public class Product : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwn
             instructions, nameof(PersonalizationInstructions), 1, ProductConsts.PersonalizationInstructionsMaxLength);
         PersonalizationIsRequired = isRequired;
         PersonalizationCharCountMax = charCountMax;
+    }
+
+    /// <summary>Varyant üretim tercihi — SetCondition deseni (basit atama). Muadil konfigürasyonunun mod
+    /// tutarlılığı <see cref="SetSubstitutionConfig"/>'te (bu setter'dan SONRA çağrılır — Create/Update simetrik).</summary>
+    public virtual void SetVariantMode(ProductVariantMode variantMode)
+    {
+        VariantMode = variantMode;
+    }
+
+    /// <summary>Muadil (paket) konfigürasyonu — TEK mutator (tutarlılık tek yerde):
+    /// <list type="bullet">
+    ///   <item>Mod ≠ Substitution → TÜM muadil alanları temizlenir (bayat grup/hedef/override taşınmaz).</item>
+    ///   <item>Mod = Substitution → grup ZORUNLU + hedef &gt; 0 (fail-fast); tolerans türü/değeri ya İKİSİ de
+    ///   dolu ya da İKİSİ de boş (boş = grubun tolerans politikası), değer negatif olamaz.</item>
+    ///   <item>Override kümesi Dilim-1 <c>SetIncludedVariants</c> sözleşmesiyle normalize edilir
+    ///   (boş-Guid ayıklanır, duplike düşer, kullanıcı sırası korunur; BOŞ = gruptan devral).</item>
+    /// </list></summary>
+    public virtual void SetSubstitutionConfig(
+        Guid? substitutionGroupId,
+        decimal? targetQuantity,
+        ToleranceType? toleranceType,
+        decimal? toleranceValue,
+        IEnumerable<Guid>? overrideVariantIds)
+    {
+        if (VariantMode != ProductVariantMode.Substitution)
+        {
+            SubstitutionGroupId = null;
+            SubstitutionTargetQuantity = null;
+            SubstitutionToleranceType = null;
+            SubstitutionToleranceValue = null;
+            SubstitutionOverrideVariantIds = new List<Guid>();
+            return;
+        }
+
+        if (substitutionGroupId is not { } groupId || groupId == Guid.Empty)
+        {
+            throw new BusinessException("TradeXpress:Product:SubstitutionGroupRequired");
+        }
+
+        if (targetQuantity is not { } target || target <= 0m)
+        {
+            throw new BusinessException("TradeXpress:Product:SubstitutionTargetQuantityInvalid");
+        }
+
+        if ((toleranceType is null) != (toleranceValue is null))
+        {
+            throw new BusinessException("TradeXpress:Product:SubstitutionToleranceInvalid");
+        }
+
+        if (toleranceValue is { } tolerance && tolerance < 0m)
+        {
+            throw new BusinessException("TradeXpress:Product:SubstitutionToleranceInvalid");
+        }
+
+        SubstitutionGroupId = groupId;
+        SubstitutionTargetQuantity = target;
+        SubstitutionToleranceType = toleranceType;
+        SubstitutionToleranceValue = toleranceValue;
+        SubstitutionOverrideVariantIds = (overrideVariantIds ?? Enumerable.Empty<Guid>())
+            .Where(id => id != Guid.Empty)
+            .Distinct()
+            .ToList();
     }
 
     /// <summary>Tekil varsayılan görsel: birden fazla işaretliyse İLKİ kalır; hiç yoksa ilk görsel default olur.</summary>

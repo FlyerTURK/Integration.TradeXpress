@@ -2140,6 +2140,7 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
             entity.SetCatalogCommodity(
                 l.CommodityProcessType.GetValueOrDefault(),
                 l.CommodityId,
+                l.CommodityVariantId,
                 l.Quantity,
                 l.Amount,
                 l.Factor,
@@ -2174,6 +2175,7 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
             ComponentType = r.ComponentType,
             CommodityProcessType = r.CommodityProcessType,
             CommodityId = r.CommodityId,
+            CommodityVariantId = r.CommodityVariantId,
             Quantity = r.Quantity,
             Amount = r.Amount,
             Factor = r.Factor,
@@ -2210,6 +2212,7 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
             ComponentType = r.ComponentType,
             CommodityProcessType = r.CommodityProcessType,
             CommodityId = r.CommodityId,
+            CommodityVariantId = r.CommodityVariantId,
             Quantity = r.Quantity,
             Amount = r.Amount,
             Factor = r.Factor,

@@ -36,6 +36,13 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
             b.ToTable(TradeXpressConsts.DbTablePrefix + "SubstitutionGroupItems", TradeXpressConsts.DbSchema);
             b.ConfigureByConvention();
 
+            // Dahil varyantlar (opt-in) — EF primitive-collection → JSON kolonu (nvarchar(max)); sorgulanmaz,
+            // yalnız saklanır+UI'da düzenlenir. BOŞ liste = yalnız ANA varyant (statüko). DB default '[]':
+            // mevcut satırlar migration'da geçerli JSON ile backfill edilir (boş string parse edilemezdi).
+            // Literal PROVIDER-AGNOSTİK ('[]', N-öneksiz): SQLite (EFCore testleri) N'...' sözdizimini tanımaz;
+            // SQL Server ASCII köşeli parantezleri nvarchar'a sorunsuz örtük çevirir.
+            b.PrimitiveCollection(x => x.IncludedVariantIds).HasDefaultValueSql("'[]'");
+
             // Grup satırları sıralı okunur (DisplayOrder = tüketim önceliği).
             b.HasIndex(x => new { x.TenantId, x.SubstitutionGroupId, x.DisplayOrder });
             // Aynı maden aynı gruba İKİ KEZ giremez — DB emniyet kemeri (M5 incelemesi; uygulama ön-kontrolü zaten var).

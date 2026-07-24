@@ -104,6 +104,8 @@ public partial class SalesChannelEtsyProductEditFields : CrudComponentBase
     // Kanal-özel varyant override drill'i (satır düzenleme aç/kapa) + reçete katalog lookup verisi (bir kez yüklenir).
     private DrillList<SalesChannelEtsyProductStockItemGraphDto>? _stockItemDrill;
     private IReadOnlyList<MetalListDto> _metals = Array.Empty<MetalListDto>();
+    // Varyant-farkındalıklı MADEN lookup'ı (ProductRecipePanel.MetalVariants) — beslenmezse combo BOŞ kalır.
+    private IReadOnlyList<MetalVariantLookupDto> _metalVariants = Array.Empty<MetalVariantLookupDto>();
     private IReadOnlyList<ScrapListDto> _scraps = Array.Empty<ScrapListDto>();
     private IReadOnlyList<FutureListDto> _futures = Array.Empty<FutureListDto>();
     private IReadOnlyList<JewelryListDto> _jewelries = Array.Empty<JewelryListDto>();
@@ -276,6 +278,7 @@ public partial class SalesChannelEtsyProductEditFields : CrudComponentBase
         try
         {
             _metals = await MetalAppService.GetPickerListAsync();
+            _metalVariants = await MetalAppService.GetVariantLookupAsync();
             _scraps = await ScrapAppService.GetPickerListAsync();
             _futures = await FutureAppService.GetPickerListAsync();
             _jewelries = await JewelryAppService.GetPickerListAsync();

@@ -24,6 +24,14 @@
                 @(Model.IsActive ? L["Active"] : L["Passive"])
             </DxCheckBox>
         </DxFormLayoutItem>
+        @* Varyant modu (Dilim-3): Çoklu (statüko) / Tek / Muadil. Manuel bağlama — MultiVariant'tan çıkış
+           host onayından geçer (veri-kaybı uyarısı); ValueExpression açık verilir ([validation-expr]). *@
+        <DxFormLayoutItem Caption="@L["Product:VariantMode"]" ColSpanMd="6">
+            <ComboBoxEnumEdit TEnum="ProductVariantMode" L="@L"
+                              Value="@Model.VariantMode"
+                              ValueChanged="@(async (ProductVariantMode v) => await HandleVariantModeChangedAsync(v))"
+                              ValueExpression="@(() => Model.VariantMode)" />
+        </DxFormLayoutItem>
         @* Üretim / son kullanma tarihi (opsiyonel; N11 productionDate/expirationDate). İş tarihi (date-only). *@
         <DxFormLayoutItem Caption="@L["Product:ProductionDate"]" ColSpanMd="6" BeginRow="true">
             <DxDateEdit @bind-Date="@Model.ProductionDate" ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
@@ -32,6 +40,49 @@
             <DxDateEdit @bind-Date="@Model.ExpirationDate" ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
         </DxFormLayoutItem>
     </DxFormLayoutGroup>
+
+    @* Muadil (paket) konfigürasyonu — yalnız Substitution modunda: grup + hedef miktar + tolerans override'ı
+       (boş = grubun tolerans politikası) + varyant override ağacı (boş = gruptan devral). Kombinasyon hesabı
+       ayrı sekmede (Muadil Kombinasyonları). *@
+    @if (Model.VariantMode == ProductVariantMode.Substitution)
+    {
+        <DxFormLayoutGroup Caption="@L["Product:SubstitutionConfig"]" ColSpanMd="12">
+            <DxFormLayoutItem Caption="@($"{L["SubstitutionGroup"]} *")" ColSpanMd="6" BeginRow="true">
+                <LookupComboBox TItem="SubstitutionGroupListDto" TValue="Guid?"
+                                Data="@SubstitutionGroups"
+                                ValueFieldName="@nameof(SubstitutionGroupListDto.Id)"
+                                TextFieldName="@nameof(SubstitutionGroupListDto.Name)"
+                                Value="@Model.SubstitutionGroupId"
+                                ValueChanged="@(async (Guid? v) => await HandleSubstitutionGroupChangedAsync(v))"
+                                EditComponentType="typeof(SubstitutionGroupEditHost)"
+                                OnLookupReloadRequested="@OnReloadSubstitutionGroups"
+                                CreatePolicy="@TradeXpressPermissions.Substitutions.Create"
+                                UpdatePolicy="@TradeXpressPermissions.Substitutions.Update"
+                                AllowClear="true" />
+            </DxFormLayoutItem>
+            <DxFormLayoutItem Caption="@($"{L["Substitution:TargetQuantity"]} *")" ColSpanMd="6">
+                <NumericSpinEdit TValue="decimal?" @bind-Value="@Model.SubstitutionTargetQuantity" DisplayFormat="N5" />
+            </DxFormLayoutItem>
+            @* Tolerans override'ı — İKİSİ birlikte dolar (sunucu fail-fast); boş = grubun tolerans politikası. *@
+            <DxFormLayoutItem Caption="@L["ToleranceType"]" ColSpanMd="6" BeginRow="true">
+                <ComboBoxEnumEdit TEnum="ToleranceType?" L="@L" @bind-Value="@Model.SubstitutionToleranceType"
+                                  NullText="@L["Product:SubstitutionToleranceInherit"].Value"
+                                  ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
+            </DxFormLayoutItem>
+            <DxFormLayoutItem Caption="@L["ToleranceValue"]" ColSpanMd="6">
+                <NumericSpinEdit TValue="decimal?" @bind-Value="@Model.SubstitutionToleranceValue" DisplayFormat="N5"
+                                 NullText="@L["Product:SubstitutionToleranceInherit"].Value"
+                                 ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
+            </DxFormLayoutItem>
+            @* Override ağacı — grup kalemleri devralınan referans; boş seçim = gruptan devral (resolver zinciri). *@
+            <DxFormLayoutGroup Caption="@L["VariantScope"]" ColSpanMd="12" CaptionPosition="CaptionPosition.Vertical">
+                <SubstitutionVariantTreePanel Items="@SubstitutionGroupItems"
+                                              Variants="@MetalVariants"
+                                              OverrideVariantIds="@Model.SubstitutionOverrideVariantIds"
+                                              OnChanged="@(() => EditChanged?.Invoke())" />
+            </DxFormLayoutGroup>
+        </DxFormLayoutGroup>
+    }
 
     @* Marketplace indirimi (ürün-seviyesi; tüm varyant + kanallara aynı gider). None dışında değer + tarih görünür. *@
     <DxFormLayoutGroup Caption="@L["Product:Discount"]" ColSpanMd="12">
@@ -145,9 +196,11 @@
     <DxTabPage Text="@L["Variants"]" TabIconCssClass="@TradeXpressIcons.ProductVariant">
         @* JENERİK agnostik varyant paneli — kartezyenden üretilen varyantlar (ekleme/silme KAPALI; synchronizer üretir).
            Çekirdek alanlar (Kod/Barkod/GTIN/Stok/Durum) panelde; Product-ÖZEL satış fiyatı + reçete ExtraFields slot'unda
-           (GoodLayout deseni). Kod/Ad AGNOSTİK-üretilir (elle düzenlenmez). *@
+           (GoodLayout deseni). Kod/Ad AGNOSTİK-üretilir (elle düzenlenmez).
+           SingleVariant/Substitution modunda OnAttributesChanged BAĞLANMAZ (HasDelegate koşulu) →
+           "Özellikleri Düzenle" butonu kendiliğinden kaybolur — nitelik-tabanlı üretim BYPASS (sunucu kapısı da var). *@
         <EntityVariantsPanel TVariant="ProductVariantGraphDto" Variants="@Model.Variants" Attributes="@Model.Attributes"
-                             OnAttributesChanged="@OnGenerateVariants">
+                             OnAttributesChanged="@(Model.VariantMode == ProductVariantMode.MultiVariant ? OnGenerateVariants : default)">
             <ExtraFields Context="v">
                 @* Satılabilir veri (marketplace) — satış fiyatı + para birimi. N11/Trendyol listeleme push'u bunları kullanır;
                    fiyat null = fiyatlanmamış (temizle butonuyla boşaltılabilir). Stok/barkod/GTIN panel çekirdeğinde. *@
@@ -338,6 +391,83 @@
             </EditContent>
         </DrillList>
     </DxTabPage>
+    @* Muadil kombinasyonları (yalnız Substitution modu) — Hesapla: grup+hedef+tolerans+override ile CalculateAsync;
+       sonuç tablosu hesaplama sayfası formatında (başarılılar üstte, Rank 1 = ANA vurgulu); başarılı satır seç +
+       "Reçeteye Uygula" → kombinasyon ana varyant reçetesine çevrilir (ürün Kaydet'iyle persist — draft mekaniği). *@
+    @if (Model.VariantMode == ProductVariantMode.Substitution)
+    {
+        <DxTabPage Text="@L["Product:SubstitutionCombinations"]" TabIconCssClass="@TradeXpressIcons.Metal">
+            <DxToolbar ItemRenderStyleMode="ToolbarRenderStyleMode.Plain" CssClass="mb-2">
+                <DxToolbarItem Text="@L["Substitution:Calculate"]"
+                               Click="@(async () => await OnCalculateSubstitution.InvokeAsync())"
+                               Enabled="@(!SubstitutionBusy && Model.SubstitutionGroupId != null && Model.SubstitutionTargetQuantity > 0m)"
+                               RenderStyleMode="ToolbarItemRenderStyleMode.Contained"
+                               RenderStyle="ButtonRenderStyle.Primary"
+                               IconCssClass="@(SubstitutionBusy ? TradeXpressIcons.Spinner : TradeXpressIcons.Check)" />
+                <DxToolbarItem Text="@L["Product:ApplyTrialToRecipe"]"
+                               Click="@(async () => await ApplySelectedTrialAsync())"
+                               Enabled="@(_selectedTrialRow is { Success: true })"
+                               RenderStyleMode="ToolbarItemRenderStyleMode.Contained"
+                               RenderStyle="ButtonRenderStyle.Secondary"
+                               IconCssClass="@TradeXpressIcons.Swap" />
+            </DxToolbar>
+
+            @if (SubstitutionResult is { } sr)
+            {
+                @* Özet şeridi — hesaplama sayfası paritesi: deneme/başarılı · etkin tolerans · elenenler. *@
+                <div style="display:flex; flex-wrap:wrap; gap:16px; align-items:center; font-size:13px; padding-bottom:8px;">
+                    <span><b>@L["Substitution:TrialCount"]:</b> @sr.TrialCount</span>
+                    <span><b>@L["Substitution:SuccessCount"]:</b> @sr.SuccessCount</span>
+                    <span><b>@L["Substitution:EffectiveTolerance"]:</b> @sr.EffectiveTolerance.ToString("0.#####") gr</span>
+                    @if (sr.FilteredOut.Count > 0)
+                    {
+                        <span>
+                            <b>@L["Substitution:FilteredOut"]:</b>
+                            @string.Join(" · ", sr.FilteredOut.Select(f => SubstitutionTrialFormat.FilteredOutLabel(f)))
+                        </span>
+                    }
+                </div>
+
+                @if (sr.InsufficientStock)
+                {
+                    <div style="padding:8px 12px; border-left:3px solid #dc2626; background:rgba(220,38,38,0.08); font-size:13px; margin-bottom:8px;">
+                        @L["Substitution:InsufficientStock", sr.TotalAvailableWeight.ToString("0.#####"), sr.TargetQuantity.ToString("0.#####")]
+                    </div>
+                }
+
+                <TxGrid Data="@SubstitutionTrialRows" StateKey="product:substitution-trials" CustomizeElement="OnCustomizeTrialRow"
+                        PagerVisible="false" VirtualScrollingEnabled="true" AllowSort="false"
+                        SelectionMode="GridSelectionMode.Single" AllowSelectRowByClick="true"
+                        SelectedDataItems="@_selectedTrialItems"
+                        SelectedDataItemsChanged="@((IReadOnlyList<object> items) => OnSelectedTrialItemsChanged(items))"
+                        style="min-height:200px; max-height:420px;">
+                    <Columns>
+                        <DxGridDataColumn FieldName="TrialNo" Caption="#" Width="60px" TextAlignment="GridTextAlignment.Right" />
+                        <DxGridDataColumn FieldName="Combination" Caption="@L["Substitution:Combination"]" MinWidth="200" />
+                        <DxGridDataColumn FieldName="Variants" Caption="@L["Substitution:Variants"]" MinWidth="160" />
+                        <DxGridDataColumn FieldName="TotalWeight" Caption="@L["Substitution:TotalWeight"]" Width="110px"
+                                          TextAlignment="GridTextAlignment.Right" DisplayFormat="n4" />
+                        <DxGridDataColumn FieldName="Deviation" Caption="@L["Substitution:Deviation"]" Width="100px"
+                                          TextAlignment="GridTextAlignment.Right" DisplayFormat="n4" />
+                        <DxGridDataColumn FieldName="TotalCost" Caption="@SubstitutionCostCaption" Width="130px"
+                                          TextAlignment="GridTextAlignment.Right" DisplayFormat="n2" />
+                        <DxGridDataColumn FieldName="PieceCount" Caption="@L["Substitution:PieceCount"]" Width="90px"
+                                          TextAlignment="GridTextAlignment.Right" />
+                        <DxGridDataColumn FieldName="PackageCount" Caption="@L["Substitution:PackageCount"]" Width="90px"
+                                          TextAlignment="GridTextAlignment.Right" />
+                        <DxGridDataColumn FieldName="StatusText" Caption="@L["Status"]" MinWidth="140" />
+                        <DxGridDataColumn FieldName="Rank" Caption="@L["Substitution:Rank"]" Width="80px"
+                                          TextAlignment="GridTextAlignment.Right" />
+                    </Columns>
+                </TxGrid>
+            }
+            else
+            {
+                <div style="color:#6c757d; font-size:0.85rem;">@L["Product:SubstitutionCombinationsHint"]</div>
+            }
+        </DxTabPage>
+    }
+
     @* Satış kanalı ürünleri — N11 + Trendyol TEK grid'de (Kanal kolonu); edit formları tipe göre AYRI. IN-MEMORY GRAF:
        ürün 'Kaydet'inde birlikte kaydedilir (yeni üründe de eklenebilir). Push/Stok-Fiyat yalnız kaydedilmiş satırda. *@
     <DxTabPage Text="@L["SalesChannelProducts"]" TabIconCssClass="@TradeXpressIcons.SalesChannel">

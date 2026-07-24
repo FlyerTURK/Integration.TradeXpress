@@ -27,6 +27,7 @@ public partial class SubstitutionGroupEditHost
     [Inject] protected IObjectMapper Mapper { get; set; } = default!;
 
     private List<MetalListDto> _metals = new();
+    private List<MetalVariantLookupDto> _metalVariants = new();
     private ICommitCoordinator<SubstitutionGroupGetDto, SubstitutionGroupListDto, Guid, SubstitutionGroupListRequestDto>? _coordinator;
     private bool _ready;
 
@@ -42,6 +43,9 @@ public partial class SubstitutionGroupEditHost
         _metals = (await MetalAppService.GetPickerListAsync())
             .Where(m => m.IsQuantity && m.StableQuantity > 0m)
             .ToList();
+
+        // Varyant Kapsamı ağacının veri kaynağı — host-level katalog dahil (servis filtreleri kendi kapatır).
+        _metalVariants = await MetalAppService.GetVariantLookupAsync();
 
         _ready = true;
     }

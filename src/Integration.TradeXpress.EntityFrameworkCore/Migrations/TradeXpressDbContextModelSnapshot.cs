@@ -1854,6 +1854,9 @@ namespace Integration.TradeXpress.Migrations
                     b.Property<byte?>("CommodityProcessType")
                         .HasColumnType("tinyint");
 
+                    b.Property<Guid?>("CommodityVariantId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<Guid>("CompanyId")
                         .HasColumnType("uniqueidentifier");
 
@@ -3956,6 +3959,9 @@ namespace Integration.TradeXpress.Migrations
                     b.Property<byte?>("CommodityProcessType")
                         .HasColumnType("tinyint");
 
+                    b.Property<Guid?>("CommodityVariantId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<Guid>("CompanyId")
                         .HasColumnType("uniqueidentifier");
 
@@ -4763,9 +4769,32 @@ namespace Integration.TradeXpress.Migrations
                         .HasMaxLength(128)
                         .HasColumnType("nvarchar(128)");
 
+                    b.Property<Guid?>("SubstitutionGroupId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.PrimitiveCollection<string>("SubstitutionOverrideVariantIds")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("nvarchar(max)")
+                        .HasDefaultValueSql("'[]'");
+
+                    b.Property<decimal?>("SubstitutionTargetQuantity")
+                        .HasPrecision(18, 5)
+                        .HasColumnType("decimal(18,5)");
+
+                    b.Property<int?>("SubstitutionToleranceType")
+                        .HasColumnType("int");
+
+                    b.Property<decimal?>("SubstitutionToleranceValue")
+                        .HasPrecision(18, 5)
+                        .HasColumnType("decimal(18,5)");
+
                     b.Property<Guid?>("TenantId")
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("TenantId");
+
+                    b.Property<int>("VariantMode")
+                        .HasColumnType("int");
 
                     b.Property<int>("WhoMade")
                         .HasColumnType("int");
@@ -4773,6 +4802,8 @@ namespace Integration.TradeXpress.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("ShipmentTemplateId");
+
+                    b.HasIndex("SubstitutionGroupId");
 
                     b.HasIndex("TenantId", "CompanyId");
 
@@ -6082,6 +6113,12 @@ namespace Integration.TradeXpress.Migrations
                         .HasColumnType("nvarchar(max)")
                         .HasColumnName("ExtraProperties");
 
+                    b.PrimitiveCollection<string>("IncludedVariantIds")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("nvarchar(max)")
+                        .HasDefaultValueSql("'[]'");
+
                     b.Property<bool>("IsDeleted")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("bit")
@@ -6677,6 +6714,9 @@ namespace Integration.TradeXpress.Migrations
 
                     b.Property<byte?>("CommodityProcessType")
                         .HasColumnType("tinyint");
+
+                    b.Property<Guid?>("CommodityVariantId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<Guid>("CompanyId")
                         .HasColumnType("uniqueidentifier");

@@ -402,7 +402,7 @@
                         @* Kanal-özel reçete — ERP reçetesinden klonlanır, sonra bağımsız (ERP paneli AYNEN yeniden kullanılır). *@
                         <DxFormLayoutGroup Caption="@L["Recipe"]" ColSpanMd="12" CaptionPosition="CaptionPosition.Vertical">
                             <ProductRecipePanel Lines="v.RecipeLines"
-                                                Metals="_metals" Scraps="_scraps" Futures="_futures"
+                                                Metals="_metals" MetalVariants="_metalVariants" Scraps="_scraps" Futures="_futures"
                                                 Jewelries="_jewelries" Stones="_stones" Services="_services" Units="_priceUnits"
                                                 NetCost="@v.NetCost" NetCostCurrency="@v.NetCostCurrency" NetCostMissingRate="@v.NetCostMissingRate"
                                                 OnChanged="@(async () => await HandleStockItemRecipeChangedAsync(v))" />

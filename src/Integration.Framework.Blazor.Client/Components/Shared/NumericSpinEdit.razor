@@ -16,7 +16,8 @@
             DisplayFormat="@DisplayFormat"
             Mask="@Mask"
             InputCssClass="@InputCssClass"
-            CssClass="numeric-spin-edit w-100" />
+            CssClass="numeric-spin-edit w-100"
+            @attributes="_boundaryAttributes" />
 
 <style>
     .numeric-spin-edit input {
@@ -37,6 +38,37 @@
     [Parameter] public DataEditorClearButtonDisplayMode ClearButtonDisplayMode { get; set; } = DataEditorClearButtonDisplayMode.Never;
     [Parameter] public bool ShowSpinButtons { get; set; } = true;
     [Parameter] public bool Enabled { get; set; } = true;
+
+    /// <summary>Alt/üst sınır (iç DxSpinEdit'e passthrough). DİKKAT: DxSpinEdit&lt;T&gt;.MinValue tipi düz T'dir
+    /// (nullable object değil) → default(decimal)=0 gibi bir değeri GERÇEK sınır sayar. Bu yüzden yalnızca
+    /// kullanım yerinde AÇIKÇA verilirse iç editöre geçilir (SetParametersAsync + TryGetValue); verilmezse
+    /// hiç geçmez → DxSpinEdit'in sınırsız varsayılanı korunur (decimal/int alanlarda 0-tabanı regresyonu önlenir).</summary>
+    [Parameter] public TValue? MinValue { get; set; }
+    [Parameter] public TValue? MaxValue { get; set; }
+
+    /// <summary>Değer null iken gösterilen placeholder (nullable TValue'da anlamlı). null = varsayılan.</summary>
+    [Parameter] public string? NullText { get; set; }
+
+    // Yalnız açıkça verilen sınır/placeholder parametrelerini içeren splat sözlüğü (koşullu passthrough).
+    private readonly Dictionary<string, object> _boundaryAttributes = new();
+
+    public override Task SetParametersAsync(ParameterView parameters)
+    {
+        _boundaryAttributes.Clear();
+        if (parameters.TryGetValue<TValue>(nameof(MinValue), out var min) && min is not null)
+        {
+            _boundaryAttributes[nameof(MinValue)] = min;
+        }
+        if (parameters.TryGetValue<TValue>(nameof(MaxValue), out var max) && max is not null)
+        {
+            _boundaryAttributes[nameof(MaxValue)] = max;
+        }
+        if (parameters.TryGetValue<string>(nameof(NullText), out var nullText) && !string.IsNullOrEmpty(nullText))
+        {
+            _boundaryAttributes[nameof(NullText)] = nullText;
+        }
+        return base.SetParametersAsync(parameters);
+    }
 
     /// <summary>Focus dışındaki gösterim formatı (ör. "N5"). null = varsayılan. Girişi kısıtlamaz (mask değil).</summary>
     [Parameter] public string? DisplayFormat { get; set; }

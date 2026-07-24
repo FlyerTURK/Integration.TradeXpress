@@ -21,7 +21,9 @@ public sealed record SubstitutionSolverResult(
 /// <summary>
 /// Tek deneme (kombinasyon) — başarılıysa skor alanları (Rank/PackageCount) doldurulur.
 /// </summary>
-/// <param name="Lines">Kullanılan emtia satırları (yalnız adet &gt; 0 olanlar; girdi sırasıyla).</param>
+/// <param name="Lines">Kullanılan emtia satırları (yalnız adet &gt; 0 olanlar; girdi sırasıyla).
+/// <c>VariantId</c> adayın metal varyantı (null = katalog varyantı olmayan legacy aday) — kombinasyon
+/// satırı seçilen varyantı taşır (Dilim-2 varyant boyutu).</param>
 /// <param name="Total">Kombinasyon toplam miktarı.</param>
 /// <param name="Success">|Total − talep| ≤ efektif tolerans mı.</param>
 /// <param name="FailureReason">Lokalize DEĞİL — teknik kod ("Remainder:0.6" / "StockExhausted");
@@ -32,7 +34,7 @@ public sealed record SubstitutionSolverResult(
 /// stoktan kaç KEZ tekrarlanabileceği (skor 3. ölçüt — büyük iyi). Yalnız başarılıda; başarısızda 0.</param>
 /// <param name="Rank">Skor sırası (1 = ana varyant adayı). Yalnız başarılıda; başarısızda null.</param>
 public sealed record SubstitutionCombination(
-    IReadOnlyList<(Guid CommodityId, int Count)> Lines,
+    IReadOnlyList<(Guid CommodityId, Guid? VariantId, int Count)> Lines,
     decimal Total,
     bool Success,
     string? FailureReason,
@@ -41,8 +43,12 @@ public sealed record SubstitutionCombination(
     int PackageCount,
     int? Rank);
 
-/// <summary>Ön-filtrede elenen emtia — teknik neden ("PieceWeightExceedsTarget" | "NoStock"); UI lokalize eder.</summary>
+/// <summary>Ön-filtrede elenen emtia ADAYI — teknik neden ("PieceWeightExceedsTarget" | "NoStock"); UI lokalize
+/// eder. Varyant boyutuyla eleme aday (maden+varyant) başınadır — <c>VariantId</c>/<c>VariantCode</c> hangi
+/// varyantın elendiğini raporlar (null = katalog varyantı olmayan legacy aday).</summary>
 public sealed record SubstitutionFilteredCommodity(
     Guid CommodityId,
     string Code,
-    string Reason);
+    string Reason,
+    Guid? VariantId = null,
+    string? VariantCode = null);

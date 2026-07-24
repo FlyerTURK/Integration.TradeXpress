@@ -17,6 +17,6 @@
                   FormCaption="@L["SubstitutionGroup"].Value" IconCssClass="@TradeXpressIcons.Substitution"
                   EntityValue="@(m => m.Code)"
                   ApplyNewDefaults="@(m => ApplyNew(m))">
-        <SubstitutionGroupLayout Model="@context" IsNew="@(context.Id == Guid.Empty)" Metals="@_metals" />
+        <SubstitutionGroupLayout Model="@context" IsNew="@(context.Id == Guid.Empty)" Metals="@_metals" MetalVariants="@_metalVariants" />
     </CrudEditHost>
 }

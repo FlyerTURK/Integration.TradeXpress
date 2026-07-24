@@ -23,12 +23,16 @@ public sealed record SubstitutionPlanCombination(
     int PackageCount,
     IReadOnlyList<SubstitutionPlanCombinationLine> Lines);
 
-/// <summary>Kombinasyonun tek emtia satırı — görünen ad çakışan gramaj metinlerinin ayrıştırıcısıdır.</summary>
+/// <summary>Kombinasyonun tek emtia satırı — görünen ad çakışan gramaj metinlerinin ayrıştırıcısıdır.
+/// <c>VariantId</c>/<c>VariantCode</c> seçilen metal varyantını taşır (Dilim-2 varyant boyutu; null =
+/// katalog varyantı olmayan legacy aday).</summary>
 public sealed record SubstitutionPlanCombinationLine(
     Guid MetalId,
     string MetalName,
     decimal PieceWeight,
-    int Count);
+    int Count,
+    Guid? VariantId = null,
+    string? VariantCode = null);
 
 /// <summary>
 /// Köprü PLANI — kanal-agnostik nötr çıktı: N11/Trendyol adaptörleri bu planı kendi graf tiplerine uygular
@@ -47,8 +51,9 @@ public sealed record SubstitutionStockItemPlan(
 /// <param name="Rank">Skor sırası (1 = ana varyant).</param>
 /// <param name="IsPrimary">true = ana varyant (en iyi skor; kanal deseninde ilk sıra/DisplayOrder 0 temsili).</param>
 /// <param name="ValueText">Kanal özellik DEĞERİ görünen metni (ör. "1×10gr + 2×1gr") — plan içinde benzersiz.</param>
-/// <param name="PlanKey">Nötr imza bileşenleri — "{MetalId}x{Count}|..." (MetalId artan sıralı, sıra-bağımsız
-/// deterministik anahtar). Kanal imzası (CombinationSignature) DEĞİL — kanal kendi kuralıyla üretir.</param>
+/// <param name="PlanKey">Nötr imza bileşenleri — "{MetalId}x{Count}|..." (varyantlı satırda
+/// "{MetalId}:{VariantId}x{Count}"; MetalId→VariantId artan sıralı, sıra-bağımsız deterministik anahtar).
+/// Kanal imzası (CombinationSignature) DEĞİL — kanal kendi kuralıyla üretir.</param>
 /// <param name="PackageCount">Paket sayısı → kanal StockItem OverrideStock.</param>
 /// <param name="ImageUrl">Görsel-atama noktası — AI kombinasyon görseli projesi buraya bağlanacak
 /// (konsept notu); ŞİMDİLİK DAİMA null.</param>
@@ -62,9 +67,14 @@ public sealed record SubstitutionStockItemPlanItem(
     string? ImageUrl,
     IReadOnlyList<SubstitutionPlanRecipeLine> RecipeLines);
 
-/// <summary>Plan reçete satırı — maden + adet; Amount = Count × PieceWeight (adet→gram, katalog kuralı).</summary>
+/// <summary>Plan reçete satırı — maden + adet; Amount = Count × PieceWeight (adet→gram, katalog kuralı).
+/// <c>VariantId</c> seçilen metal varyantı → kanal reçete satırının <c>CommodityVariantId</c>'sine yazılır
+/// (A6); işçilik de SEÇİLEN varyantın MetalVariantDetail'inden çözülür. Null = legacy varyantsız aday
+/// (ana-varyant işçilik fallback'i).</summary>
 public sealed record SubstitutionPlanRecipeLine(
     Guid MetalId,
     int Count,
     decimal PieceWeight,
-    decimal Amount);
+    decimal Amount,
+    Guid? VariantId = null,
+    string? VariantCode = null);

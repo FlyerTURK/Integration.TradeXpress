@@ -6,6 +6,7 @@ using Integration.Framework.Base.Dtos.Interfaces;
 using Integration.TradeXpress.Attachments;
 using Integration.TradeXpress.EtsyProducts;
 using Integration.TradeXpress.N11Products;
+using Integration.TradeXpress.Substitutions;
 using Integration.TradeXpress.TrendyolProducts;
 using Integration.TradeXpress.Variants;
 using Integration.TradeXpress.Vouchers;
@@ -107,6 +108,26 @@ public class ProductGetDto : EntityDto<Guid>, IGetDto<Guid>, IHasCode
 
     public int? PersonalizationCharCountMax { get; set; }
 
+    /// <summary>Varyant üretim tercihi — varsayılan MultiVariant (statüko). SingleVariant/Substitution'da
+    /// nitelik-tabanlı üretim BYPASS (sunucu kapısı nitelik grafını boşaltır → tek ana varyant).</summary>
+    public ProductVariantMode VariantMode { get; set; } = ProductVariantMode.MultiVariant;
+
+    /// <summary>Muadil grubu referansı (id-only) — yalnız Substitution modunda anlamlı (zorunlu; sunucu fail-fast).</summary>
+    public Guid? SubstitutionGroupId { get; set; }
+
+    /// <summary>Kombinasyon hedef miktarı (gram) — Substitution modunda zorunlu, &gt; 0.</summary>
+    public decimal? SubstitutionTargetQuantity { get; set; }
+
+    /// <summary>Tolerans türü override'ı — boş = grubun tolerans politikası (değerle çift dolar).</summary>
+    public ToleranceType? SubstitutionToleranceType { get; set; }
+
+    /// <summary>Tolerans değeri override'ı — boş = grup ayarı; negatif olamaz (sunucu fail-fast).</summary>
+    public decimal? SubstitutionToleranceValue { get; set; }
+
+    /// <summary>Ürün-düzeyi varyant OVERRIDE kümesi — BOŞ = gruptan devral (resolver: override ?? included ?? ana);
+    /// dolu ise grup kalemlerinin varyant kapsamını tamamen ezer. Override ağacı in-memory düzenler.</summary>
+    public List<Guid> SubstitutionOverrideVariantIds { get; set; } = new();
+
     /// <summary>Ürün MEDYA linkleri (merkezi kütüphane; görsel + video birlikte — <see cref="IEntityMediaAppService"/>).
     /// Pazaryeri push görselleri (<see cref="Images"/>) AYRI kalır; bu ürün-seviyesi genel medya/video kütüphanesidir.</summary>
     public List<EntityMediaLinkEditDto> Media { get; set; } = new();
@@ -190,6 +211,14 @@ public class ProductCreateDto : ICreateDto
 
     public int? PersonalizationCharCountMax { get; set; }
 
+    /// <summary>Varyant modu + Muadil konfigürasyonu — bkz. <see cref="ProductGetDto.VariantMode"/>.</summary>
+    public ProductVariantMode VariantMode { get; set; } = ProductVariantMode.MultiVariant;
+    public Guid? SubstitutionGroupId { get; set; }
+    public decimal? SubstitutionTargetQuantity { get; set; }
+    public ToleranceType? SubstitutionToleranceType { get; set; }
+    public decimal? SubstitutionToleranceValue { get; set; }
+    public List<Guid> SubstitutionOverrideVariantIds { get; set; } = new();
+
     /// <summary>Ürün MEDYA linkleri (görsel + video kütüphanesi) — bkz. <see cref="ProductGetDto.Media"/>.</summary>
     public List<EntityMediaLinkEditDto> Media { get; set; } = new();
 
@@ -269,6 +298,14 @@ public class ProductUpdateDto : IUpdateDto
     public bool PersonalizationIsRequired { get; set; }
 
     public int? PersonalizationCharCountMax { get; set; }
+
+    /// <summary>Varyant modu + Muadil konfigürasyonu — bkz. <see cref="ProductGetDto.VariantMode"/>.</summary>
+    public ProductVariantMode VariantMode { get; set; } = ProductVariantMode.MultiVariant;
+    public Guid? SubstitutionGroupId { get; set; }
+    public decimal? SubstitutionTargetQuantity { get; set; }
+    public ToleranceType? SubstitutionToleranceType { get; set; }
+    public decimal? SubstitutionToleranceValue { get; set; }
+    public List<Guid> SubstitutionOverrideVariantIds { get; set; } = new();
 
     /// <summary>Ürün MEDYA linkleri (görsel + video kütüphanesi) — bkz. <see cref="ProductGetDto.Media"/>.</summary>
     public List<EntityMediaLinkEditDto> Media { get; set; } = new();

@@ -51,7 +51,7 @@
             {
                 <span>
                     <b>@L["Substitution:FilteredOut"]:</b>
-                    @string.Join(" · ", _result.FilteredOut.Select(f => $"{f.MetalCode} ({FilterReasonText(f.Reason)})"))
+                    @string.Join(" · ", _result.FilteredOut.Select(f => $"{FilteredOutLabel(f)} ({FilterReasonText(f.Reason)})"))
                 </span>
             }
         </div>
@@ -113,6 +113,7 @@
                 <DxGridDataColumn FieldName="@nameof(TrialRow.TrialNo)" Caption="#" Width="60px"
                                   TextAlignment="GridTextAlignment.Right" />
                 <DxGridDataColumn FieldName="@nameof(TrialRow.Combination)" Caption="@L["Substitution:Combination"]" MinWidth="220" />
+                <DxGridDataColumn FieldName="@nameof(TrialRow.Variants)" Caption="@L["Substitution:Variants"]" MinWidth="160" />
                 <DxGridDataColumn FieldName="@nameof(TrialRow.TotalWeight)" Caption="@L["Substitution:TotalWeight"]" Width="110px"
                                   TextAlignment="GridTextAlignment.Right" DisplayFormat="n4" />
                 <DxGridDataColumn FieldName="@nameof(TrialRow.Deviation)" Caption="@L["Substitution:Deviation"]" Width="100px"

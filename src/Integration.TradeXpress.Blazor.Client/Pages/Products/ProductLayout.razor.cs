@@ -1,10 +1,13 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
+using DevExpress.Blazor;
 using Integration.Framework.Blazor.Client.Components.Crud;
 using Integration.TradeXpress.AddOns;
+using Integration.TradeXpress.Blazor.Client.Components.Shared;
 using Integration.TradeXpress.Financials.CurrencyUnits;
 using Integration.TradeXpress.Futures;
 using Integration.TradeXpress.Jewelries;
@@ -14,6 +17,7 @@ using Integration.TradeXpress.Scraps;
 using Integration.TradeXpress.Services;
 using Integration.TradeXpress.Shipments;
 using Integration.TradeXpress.Stones;
+using Integration.TradeXpress.Substitutions;
 using Microsoft.AspNetCore.Components;
 
 namespace Integration.TradeXpress.Blazor.Client.Pages.Products;
@@ -128,6 +132,235 @@ public partial class ProductLayout
     /// <summary>Nitelik/değer değişince (EntityAttributesPanel.OnAttributesChanged) host varyantları OTOMATİK yeniden
     /// üretir (VariantGraphMerge — kullanıcı düzenlemeleri korunur). Layout DUMB kalır (servis çağırmaz); işi host yapar.</summary>
     [Parameter] public EventCallback OnGenerateVariants { get; set; }
+
+    // ── Varyant modu + Muadil (Dilim-3) — layout DUMB: onay/servis işleri host'ta, burada yalnız bağlama ──
+
+    /// <summary>Varyant modu değişim İSTEĞİ — host onaylar (MultiVariant'tan çıkışta veri-kaybı uyarısı) ve
+    /// modeli günceller; reddederse model değişmez (combo eski değere geri çizilir).</summary>
+    [Parameter] public Func<ProductVariantMode, Task>? OnVariantModeChangeRequested { get; set; }
+
+    /// <summary>Muadil grubu lookup verisi — host yükler (aktif gruplar).</summary>
+    [Parameter] public IReadOnlyList<SubstitutionGroupListDto> SubstitutionGroups { get; set; } = Array.Empty<SubstitutionGroupListDto>();
+
+    /// <summary>Inline muadil grubu ekle/düzelt sonrası lookup listesini host tazeler.</summary>
+    [Parameter] public EventCallback OnReloadSubstitutionGroups { get; set; }
+
+    /// <summary>Seçili grubun kalemleri (override ağacının devralınan-küme referansı) — host yükler.</summary>
+    [Parameter] public List<SubstitutionGroupItemGraphDto> SubstitutionGroupItems { get; set; } = new();
+
+    /// <summary>Grup seçimi değişince host kalemleri yeniden yükler (ilk açılışta da tetiklenir — guard'lı).</summary>
+    [Parameter] public EventCallback<Guid?> OnSubstitutionGroupChanged { get; set; }
+
+    /// <summary>Son kombinasyon hesabı sonucu (host durumu; salt görüntü).</summary>
+    [Parameter] public SubstitutionCalculationResultDto? SubstitutionResult { get; set; }
+
+    /// <summary>Hesap koşuyor mu (buton kilidi).</summary>
+    [Parameter] public bool SubstitutionBusy { get; set; }
+
+    /// <summary>"Kombinasyon Hesapla" — host CalculateAsync'i override'lı çağırır.</summary>
+    [Parameter] public EventCallback OnCalculateSubstitution { get; set; }
+
+    /// <summary>"Reçeteye Uygula" — seçilen BAŞARILI kombinasyon host'ta ana varyant reçetesine çevrilir.</summary>
+    [Parameter] public EventCallback<SubstitutionTrialDto> OnApplySubstitutionTrial { get; set; }
+
+    // Kombinasyon grid'inin seçili satırı — salt UI durumu (uygula butonu başarılı satırla açılır).
+    private SubstitutionTrialRow? _selectedTrialRow;
+
+    // TxGrid seçim API'si ÇOĞUL (SelectedDataItems) — tekil seçim tek elemanlı liste olarak taşınır.
+    private IReadOnlyList<object> _selectedTrialItems = Array.Empty<object>();
+
+    // Satır önbelleği — satırlar YALNIZ sonuç değişince yeniden kurulur (her render'da yeni instance üretmek
+    // grid seçim kimliğini kırardı; referans kıyası yeterli — host sonucu atomik değiştirir).
+    private SubstitutionCalculationResultDto? _trialRowsSource;
+    private List<SubstitutionTrialRow> _trialRows = new();
+
+    // Grup kalemlerinin son istenen grup id'si — OnParametersSetAsync tetiklemesi yalnız DEĞİŞİMDE bir kez koşar
+    // (mevcut kayıt Muadil modunda açıldığında devralınan-küme referansı host'tan yüklensin diye).
+    private Guid? _requestedSubstitutionGroupId;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await base.OnParametersSetAsync();
+
+        if (Model.VariantMode == ProductVariantMode.Substitution
+            && Model.SubstitutionGroupId != _requestedSubstitutionGroupId
+            && OnSubstitutionGroupChanged.HasDelegate)
+        {
+            _requestedSubstitutionGroupId = Model.SubstitutionGroupId;
+            await OnSubstitutionGroupChanged.InvokeAsync(Model.SubstitutionGroupId);
+        }
+    }
+
+    /// <summary>Muadil sekmesinin grid satırları — hesaplama sayfası BuildRows dizilimiyle birebir
+    /// (başarılılar üstte Rank sırasıyla; TrialNo orijinal deneme numarasını korur). ÖNBELLEKLİ:
+    /// sonuç referansı değişmedikçe aynı satır instance'ları döner (grid seçim kimliği korunur).</summary>
+    private List<SubstitutionTrialRow> SubstitutionTrialRows
+    {
+        get
+        {
+            if (ReferenceEquals(_trialRowsSource, SubstitutionResult))
+            {
+                return _trialRows;
+            }
+
+            _trialRowsSource = SubstitutionResult;
+            _selectedTrialRow = null;
+            _selectedTrialItems = Array.Empty<object>();
+
+            if (SubstitutionResult is not { } result)
+            {
+                _trialRows = new List<SubstitutionTrialRow>();
+                return _trialRows;
+            }
+
+            var rows = new List<SubstitutionTrialRow>(result.Trials.Count);
+            for (var i = 0; i < result.Trials.Count; i++)
+            {
+                var trial = result.Trials[i];
+                rows.Add(new SubstitutionTrialRow
+                {
+                    Trial        = trial,
+                    TrialNo      = i + 1,
+                    Combination  = SubstitutionTrialFormat.CombinationText(trial),
+                    Variants     = SubstitutionTrialFormat.VariantsText(trial),
+                    StatusText   = BuildTrialStatusText(trial),
+                });
+            }
+
+            _trialRows = rows
+                .OrderByDescending(r => r.Trial.Success)
+                .ThenBy(r => r.Trial.Rank ?? int.MaxValue)
+                .ThenBy(r => r.TrialNo)
+                .ToList();
+            return _trialRows;
+        }
+    }
+
+    // Maliyet kolonu başlığı — para birimi çözüldüyse yanına eklenir (hesaplama sayfası deseni).
+    private string SubstitutionCostCaption
+    {
+        get
+        {
+            return SubstitutionResult is { CostCurrencyCode.Length: > 0 } r
+                ? $"{L["Substitution:Cost"]} ({r.CostCurrencyCode})"
+                : L["Substitution:Cost"].Value;
+        }
+    }
+
+    // Teknik başarısızlık nedeni → okunur metin (hesaplama sayfası BuildStatusText paritesi).
+    private string BuildTrialStatusText(SubstitutionTrialDto trial)
+    {
+        if (trial.Success)
+        {
+            return L["Substitution:Success"];
+        }
+
+        var reason = trial.FailureReason ?? string.Empty;
+        if (reason.StartsWith(SubstitutionReasonCodes.RemainderPrefix, StringComparison.Ordinal))
+        {
+            var raw = reason[SubstitutionReasonCodes.RemainderPrefix.Length..];
+            var text = decimal.TryParse(raw, NumberStyles.Number, CultureInfo.InvariantCulture, out var remainder)
+                ? remainder.ToString("0.#####", CultureInfo.CurrentCulture)
+                : raw;
+            return L["Substitution:FailRemainder", text];
+        }
+
+        if (reason == SubstitutionReasonCodes.StockExhausted)
+        {
+            return L["Substitution:FailStockExhausted"];
+        }
+
+        return reason; // bilinmeyen yeni neden — ham teknik kod göster (sessiz yutma yok)
+    }
+
+    // Satır boyama: başarılı = hafif yeşil zemin; Rank 1 = ANA kombinasyon (hesaplama sayfası deseni; CSS dosyası yok).
+    private void OnCustomizeTrialRow(GridCustomizeElementEventArgs e)
+    {
+        if (e.ElementType != GridElementType.DataRow)
+        {
+            return;
+        }
+
+        if (e.Grid.GetDataItem(e.VisibleIndex) is not SubstitutionTrialRow row || !row.Trial.Success)
+        {
+            return;
+        }
+
+        e.Style = row.Trial.Rank == 1
+            ? "background-color: rgba(22,163,74,0.20); font-weight: 600;"
+            : "background-color: rgba(22,163,74,0.08);";
+    }
+
+    private void OnSelectedTrialItemsChanged(IReadOnlyList<object> items)
+    {
+        _selectedTrialItems = items;
+        _selectedTrialRow = items.FirstOrDefault() as SubstitutionTrialRow;
+    }
+
+    /// <summary>Varyant modu combo değişimi — isteği host'a iletir (onay + atama orada), sonra dirty + yeniden çizim
+    /// (host reddettiyse combo Model'deki eski değere döner).</summary>
+    private async Task HandleVariantModeChangedAsync(ProductVariantMode newMode)
+    {
+        if (OnVariantModeChangeRequested is not null)
+        {
+            await OnVariantModeChangeRequested(newMode);
+        }
+
+        EditChanged?.Invoke();
+        StateHasChanged();
+    }
+
+    /// <summary>Muadil grubu seçimi değişti — model güncellenir, bayat override temizlenir (grup değişince eski
+    /// grubun varyant seçimi anlamsız), host kalemleri yeniden yükler.</summary>
+    private async Task HandleSubstitutionGroupChangedAsync(Guid? groupId)
+    {
+        Model.SubstitutionGroupId = groupId;
+        Model.SubstitutionOverrideVariantIds.Clear();
+        _selectedTrialRow = null;
+        _requestedSubstitutionGroupId = groupId;   // OnParametersSetAsync tetiklemesi aynı grubu İKİNCİ kez istemesin
+        if (OnSubstitutionGroupChanged.HasDelegate)
+        {
+            await OnSubstitutionGroupChanged.InvokeAsync(groupId);
+        }
+
+        EditChanged?.Invoke();
+    }
+
+    /// <summary>Seçilen BAŞARILI kombinasyonu host'a iletir (ana varyant reçetesine uygulanır) + dirty.</summary>
+    private async Task ApplySelectedTrialAsync()
+    {
+        if (_selectedTrialRow is not { Trial.Success: true } row)
+        {
+            return;
+        }
+
+        if (OnApplySubstitutionTrial.HasDelegate)
+        {
+            await OnApplySubstitutionTrial.InvokeAsync(row.Trial);
+        }
+
+        EditChanged?.Invoke();
+    }
+
+    /// <summary>Muadil sekmesi grid satırı — deneme DTO'sunun görüntü düzleştirmesi (hesaplama sayfası TrialRow
+    /// deseni; DTO referansı uygula akışı için taşınır).</summary>
+    private sealed class SubstitutionTrialRow
+    {
+        public required SubstitutionTrialDto Trial { get; init; }
+        public int TrialNo { get; init; }
+        public string Combination { get; init; } = string.Empty;
+        public string Variants { get; init; } = string.Empty;
+        public string StatusText { get; init; } = string.Empty;
+
+        // Grid FieldName bağlamaları — DTO'ya delege (blok gövde konvansiyonu).
+        public decimal TotalWeight { get { return Trial.TotalWeight; } }
+        public decimal Deviation { get { return Trial.Deviation; } }
+        public decimal TotalCost { get { return Trial.TotalCost; } }
+        public int PieceCount { get { return Trial.PieceCount; } }
+        public int PackageCount { get { return Trial.PackageCount; } }
+        public int? Rank { get { return Trial.Rank; } }
+        public bool Success { get { return Trial.Success; } }
+    }
 
     // Yeni görsel eklenince Sıra No OTOMATİK artar (max + 1; boşsa 1). Nitelik/değer sırası JENERİK panelde.
     private static int NextOrder(IEnumerable<ProductImageGraphDto> items)

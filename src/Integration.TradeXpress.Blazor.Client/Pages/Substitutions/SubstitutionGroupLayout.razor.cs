@@ -22,6 +22,9 @@ public partial class SubstitutionGroupLayout
     /// <summary>Maden picker adayları (host'tan) — yalnız adet-hesaplı + standart gramajlı madenler.</summary>
     [Parameter] public IReadOnlyList<MetalListDto> Metals { get; set; } = Array.Empty<MetalListDto>();
 
+    /// <summary>Maden→varyant lookup satırları (host'tan; GetVariantLookupAsync) — Varyant Kapsamı ağacına iner.</summary>
+    [Parameter] public IReadOnlyList<MetalVariantLookupDto> MetalVariants { get; set; } = Array.Empty<MetalVariantLookupDto>();
+
     // Drill değişimini forma bildir (dirty/Save) — EntityEditForm EditChanged cascade'i (Account deseni).
     [CascadingParameter(Name = "EditChanged")] private Action? EditChanged { get; set; }
 

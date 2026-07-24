@@ -87,23 +87,53 @@ public class SubstitutionCalculationAppService : TradeXpressAppService, ISubstit
         var topN = input.TopN > 0 ? input.TopN : SubstitutionCalculationConsts.DefaultTopN;
 
         var group = await LoadActiveGroupAsync(input.SubstitutionGroupId);
-        var metals = await LoadOrderedMetalsAsync(group);
-        var availableByMetal = await LoadAvailableQuantitiesAsync(input);
-        var costs = await ComputeUnitCostsAsync(metals);
+        var (toleranceType, toleranceValue) = ResolveTolerance(group, input);
+        var groupMetals = await LoadOrderedMetalsAsync(group);
+        var variantsByMetal = await LoadVariantCatalogAsync(groupMetals.Select(m => m.Metal.Id).ToList());
 
-        var commodities = metals
-            .Select(m => new SubstitutionCommodity(
-                m.Id,
-                m.Code,
-                m.StableQuantity,
-                ToAvailableCount(availableByMetal.GetValueOrDefault(m.Id)),
-                costs.UnitCostByMetal.GetValueOrDefault(m.Id)))
+        // Varyant boyutu (Dilim-2): her maden, etkin varyant kümesine (override ?? IncludedVariantIds ?? {ana})
+        // AYRI aday satırları olarak açılır — aynı PieceWeight, farklı işçilik + farklı varyant stoğu.
+        // Dilim-3: ürün-düzeyi override kümesi girdiden gelir (boş = grup ayarı).
+        var candidates = BuildCandidates(groupMetals, variantsByMetal, input.OverrideVariantIds);
+        var availableByCandidate = await LoadAvailableQuantitiesAsync(input, BuildMainVariantIdByMetal(variantsByMetal));
+        var costs = await ComputeUnitCostsAsync(candidates);
+
+        var commodities = candidates
+            .Select(c => new SubstitutionCommodity(
+                c.Metal.Id,
+                c.Metal.Code,
+                c.Metal.StableQuantity,
+                ToAvailableCount(availableByCandidate.GetValueOrDefault((c.Metal.Id, c.VariantId))),
+                costs.UnitCostByCandidate.GetValueOrDefault((c.Metal.Id, c.VariantId)),
+                c.VariantId,
+                c.VariantCode))
             .ToList();
 
         var solved = SubstitutionSolver.Solve(new SubstitutionSolverInput(
-            input.TargetQuantity, group.ToleranceType, group.ToleranceValue, commodities));
+            input.TargetQuantity, toleranceType, toleranceValue, commodities));
 
-        return BuildResult(group, input.TargetQuantity, topN, commodities, solved, costs);
+        return BuildResult(group, input.TargetQuantity, topN, toleranceType, toleranceValue, commodities, solved, costs);
+    }
+
+    /// <summary>Etkin tolerans politikası — varsayılan GRUP ayarı (konsept statüko); Dilim-3 ürün Muadil modu
+    /// kalıcı konfigürasyonunu opsiyonel override alanlarıyla geçirir. Tür/değer ya İKİSİ de dolu ya da İKİSİ de
+    /// boş; değer negatif olamaz (grup SetTolerance kuralıyla hizalı fail-fast).</summary>
+    private static (ToleranceType Type, decimal Value) ResolveTolerance(
+        SubstitutionGroup group, SubstitutionCalculationInput input)
+    {
+        if ((input.ToleranceTypeOverride is null) != (input.ToleranceValueOverride is null))
+        {
+            throw new BusinessException("TradeXpress:Substitution:ToleranceValueInvalid");
+        }
+
+        if (input.ToleranceValueOverride is < 0m)
+        {
+            throw new BusinessException("TradeXpress:Substitution:ToleranceValueInvalid");
+        }
+
+        return input.ToleranceTypeOverride is { } type && input.ToleranceValueOverride is { } value
+            ? (type, value)
+            : (group.ToleranceType, group.ToleranceValue);
     }
 
     /// <summary>Grubu yükler — yok (ya da başka şirketin: company filtresi görünmez kılar) → NotFound;
@@ -125,10 +155,11 @@ public class SubstitutionCalculationAppService : TradeXpressAppService, ISubstit
         return group;
     }
 
-    /// <summary>Grup satırlarını tüketim önceliği (DisplayOrder) sırasıyla madene çözer. Satırsız grup,
-    /// maden-grubu referansı (ilk fazda desteklenmez), bulunamayan maden ve adet-hesapsız/standart-gramajsız
-    /// maden fail-fast'tir (konsept: yalnız IsQuantity + StableQuantity&gt;0 madenler muadil olabilir).</summary>
-    private async Task<List<Metal>> LoadOrderedMetalsAsync(SubstitutionGroup group)
+    /// <summary>Grup satırlarını tüketim önceliği (DisplayOrder) sırasıyla madene çözer (satırın opt-in
+    /// varyant kümesiyle birlikte). Satırsız grup, maden-grubu referansı (ilk fazda desteklenmez), bulunamayan
+    /// maden ve adet-hesapsız/standart-gramajsız maden fail-fast'tir (konsept: yalnız IsQuantity +
+    /// StableQuantity&gt;0 madenler muadil olabilir).</summary>
+    private async Task<List<OrderedGroupMetal>> LoadOrderedMetalsAsync(SubstitutionGroup group)
     {
         var items = await _itemRepository.GetListAsync(i => i.SubstitutionGroupId == group.Id);
         if (items.Count == 0)
@@ -156,10 +187,10 @@ public class SubstitutionCalculationAppService : TradeXpressAppService, ISubstit
             metalById = metals.ToDictionary(m => m.Id);
         }
 
-        var resolved = new List<Metal>(ordered.Count);
-        foreach (var metalId in metalIds)
+        var resolved = new List<OrderedGroupMetal>(ordered.Count);
+        foreach (var item in ordered)
         {
-            if (!metalById.TryGetValue(metalId, out var metal))
+            if (!metalById.TryGetValue(item.MetalId!.Value, out var metal))
             {
                 throw new BusinessException("TradeXpress:Substitution:MetalNotFound")
                     .WithData("GroupCode", group.Code);
@@ -171,15 +202,105 @@ public class SubstitutionCalculationAppService : TradeXpressAppService, ISubstit
                     .WithData("MetalCode", metal.Code);
             }
 
-            resolved.Add(metal);
+            resolved.Add(new OrderedGroupMetal(metal, item.IncludedVariantIds.ToList()));
         }
 
         return resolved;
     }
 
-    /// <summary>Maden-başına KULLANILABİLİR adet (= Net − RezerveÇıkış) — stok raporunun mevcut scoping'i
-    /// AYNEN kullanılır (working company + opsiyonel şube/kasa); rezervasyon düşümü raporda zaten yapılmıştır.</summary>
-    private async Task<Dictionary<Guid, decimal>> LoadAvailableQuantitiesAsync(SubstitutionCalculationInput input)
+    /// <summary>Grup madenlerinin varyant kataloğu — tek batch (host-seviyesi katalog tenant altında da
+    /// görünsün diye IMultiTenant + ICompanyScoped kapalı; sorgu EntityName + metalIds ile daraltılmış →
+    /// sızıntı yok; ComputeUnitCostsAsync işçilik sorgusuyla aynı desen).</summary>
+    private async Task<Dictionary<Guid, List<EntityVariant>>> LoadVariantCatalogAsync(List<Guid> metalIds)
+    {
+        List<EntityVariant> variants;
+        using (_dataFilter.Disable<IMultiTenant>())
+        using (_dataFilter.Disable<ICompanyScoped>())
+        {
+            variants = await AsyncExecuter.ToListAsync(
+                (await _entityVariantRepository.GetQueryableAsync())
+                    .Where(v => v.EntityName == MetalEntityName && metalIds.Contains(v.EntityId)));
+        }
+
+        return variants
+            .GroupBy(v => v.EntityId)
+            .ToDictionary(g => g.Key, g => g.ToList());
+    }
+
+    /// <summary>Aday listesi — her grup madeni, ETKİN varyant kümesine
+    /// (<see cref="SubstitutionEffectiveVariantResolver"/>: override ?? IncludedVariantIds ?? {ana varyant})
+    /// ayrı aday satırları olarak açılır; aday sırası = tüketim önceliği + küme içi kullanıcı sırası.
+    /// <b>Override (Dilim-3):</b> ürünün DÜZ override listesi maden başına katalog varyantlarıyla KESİŞTİRİLİR
+    /// (kullanıcı sırası korunur); kesişimi boş kalan maden gruptan devralır (boş=devral semantiği — panelin
+    /// "gruptan devralınıyor" durumu). Katalogda artık bulunmayan dahil-varyant id'si fail-fast'tir
+    /// (sessiz stok/işçilik kaybı maskelenmez; override zaten katalogla kesiştirilerek girer).</summary>
+    private static List<MetalVariantCandidate> BuildCandidates(
+        List<OrderedGroupMetal> groupMetals,
+        Dictionary<Guid, List<EntityVariant>> variantsByMetal,
+        IReadOnlyList<Guid>? overrideVariantIds)
+    {
+        var candidates = new List<MetalVariantCandidate>();
+        foreach (var groupMetal in groupMetals)
+        {
+            var metal = groupMetal.Metal;
+            var metalVariants = variantsByMetal.GetValueOrDefault(metal.Id) ?? new List<EntityVariant>();
+            var mainVariantId = metalVariants.FirstOrDefault(v => v.IsMain)?.Id;
+
+            var metalVariantIds = metalVariants.Select(v => v.Id).ToHashSet();
+            var overrideForMetal = (overrideVariantIds ?? Array.Empty<Guid>())
+                .Where(metalVariantIds.Contains)
+                .ToList();
+
+            var effective = SubstitutionEffectiveVariantResolver.Resolve(
+                overrideForMetal, groupMetal.IncludedVariantIds, mainVariantId);
+
+            foreach (var variantId in effective)
+            {
+                if (variantId is { } id)
+                {
+                    var variant = metalVariants.FirstOrDefault(v => v.Id == id);
+                    if (variant == null)
+                    {
+                        throw new BusinessException("TradeXpress:Substitution:IncludedVariantNotFound")
+                            .WithData("MetalCode", metal.Code);
+                    }
+
+                    candidates.Add(new MetalVariantCandidate(metal, id, variant.Code));
+                }
+                else
+                {
+                    // Katalog varyantı olmayan maden (legacy) — tek varyantsız aday (statüko).
+                    candidates.Add(new MetalVariantCandidate(metal, null, null));
+                }
+            }
+        }
+
+        return candidates;
+    }
+
+    /// <summary>Maden → ana varyant id eşlemesi (stok satırı normalizasyonu için).</summary>
+    private static Dictionary<Guid, Guid> BuildMainVariantIdByMetal(Dictionary<Guid, List<EntityVariant>> variantsByMetal)
+    {
+        var result = new Dictionary<Guid, Guid>(variantsByMetal.Count);
+        foreach (var (metalId, variants) in variantsByMetal)
+        {
+            if (variants.FirstOrDefault(v => v.IsMain) is { } main)
+            {
+                result[metalId] = main.Id;
+            }
+        }
+
+        return result;
+    }
+
+    /// <summary>(Maden, varyant)-başına KULLANILABİLİR adet (= Net − RezerveÇıkış) — stok raporunun mevcut
+    /// scoping'i AYNEN kullanılır (working company + opsiyonel şube/kasa); rezervasyon düşümü raporda zaten
+    /// yapılmıştır. <b>Normalizasyon (kesin karar, Dilim-2):</b> satırda VariantId null ise ANA varyanta
+    /// normalize edilir — tek-varyantlı/legacy hareketler ana havuza akar; ana varyantı olmayan maden
+    /// null anahtarda kalır (varyantsız legacy aday onu tüketir).</summary>
+    private async Task<Dictionary<(Guid MetalId, Guid? VariantId), decimal>> LoadAvailableQuantitiesAsync(
+        SubstitutionCalculationInput input,
+        Dictionary<Guid, Guid> mainVariantIdByMetal)
     {
         var rows = await _metalReportAppService.GetStockAsync(new MetalReportFilterDto
         {
@@ -187,11 +308,21 @@ public class SubstitutionCalculationAppService : TradeXpressAppService, ISubstit
             VaultId  = input.VaultId,
         });
 
-        // Maden tek MainUnit'le izlenir (FollowingUnit) → tipik tek satır; savunmalı toplama yine de yapılır.
+        // Rapor zaten (maden, varyant, birim) kırılımlıdır; birimler savunmacı toplanır.
         return rows
             .Where(r => r.MetalId != null)
-            .GroupBy(r => r.MetalId!.Value)
+            .GroupBy(r => (MetalId: r.MetalId!.Value, VariantId: NormalizeVariant(r.MetalId!.Value, r.VariantId)))
             .ToDictionary(g => g.Key, g => g.Sum(r => r.AvailableQuantity));
+
+        Guid? NormalizeVariant(Guid metalId, Guid? variantId)
+        {
+            if (variantId is { } id)
+            {
+                return id;
+            }
+
+            return mainVariantIdByMetal.TryGetValue(metalId, out var mainId) ? mainId : null;
+        }
     }
 
     /// <summary>Kullanılabilir adet → solver girdisi: tam parça sayısı (kesirli adet parça sayılmaz, aşağı yuvarlanır).</summary>
@@ -208,34 +339,42 @@ public class SubstitutionCalculationAppService : TradeXpressAppService, ISubstit
     /// <summary>Parça (1 adet) maliyeti — reçete motoruyla AYNI kaynak ve AYNI motor: ülke birimi +
     /// <c>GetValuationByBaseAsync</c> SATIŞ kuru dict'i + <see cref="ProductRecipeCostCalculator"/>'a
     /// 1 adet'lik Normal metal satırı (metal bacağı: StableQuantity × Factor @ FollowingUnit; işçilik bacağı:
-    /// EntryLabor @ EntryLaborUnit). FAIL-FAST (2026-07-10 kullanıcı kararı): yerel birim ya da HERHANGİ bir
-    /// madenin satış kuru çözülemezse hesap koşmaz — <c>RatesMissing</c> (eksik maden kodları WithData'da).</summary>
-    private async Task<SubstitutionCostData> ComputeUnitCostsAsync(IReadOnlyList<Metal> metals)
+    /// EntryLabor @ EntryLaborUnit). <b>Varyant boyutu (Dilim-2):</b> işçilik ADAYIN SEÇİLİ VARYANTININ
+    /// MetalVariantDetail'inden okunur (IsMain daraltması kalktı — sözlük varyant-anahtarlı); işçilik detayı
+    /// olmayan aday sessiz-0 + LogWarning yolunda kalır (statüko). FAIL-FAST (2026-07-10 kullanıcı kararı):
+    /// yerel birim ya da HERHANGİ bir madenin satış kuru çözülemezse hesap koşmaz — <c>RatesMissing</c>
+    /// (eksik maden kodları WithData'da; maden-başına tek kez raporlanır).</summary>
+    private async Task<SubstitutionCostData> ComputeUnitCostsAsync(IReadOnlyList<MetalVariantCandidate> candidates)
     {
         var countryUnitId = await _effectivePriceAppService.GetWorkingLocalCurrencyUnitIdAsync();
         if (countryUnitId is not { } targetUnitId)
         {
             // Ülke (rebase hedefi) birimi çözülemedi → hiçbir madenin kuru yok sayılır.
-            throw BuildRatesMissingException(metals.Select(m => m.Code));
+            throw BuildRatesMissingException(DistinctMetalCodes(candidates));
         }
 
         var valuation = await _effectivePriceAppService.GetValuationByBaseAsync(targetUnitId);
         if (valuation.Count == 0)
         {
-            throw BuildRatesMissingException(metals.Select(m => m.Code));
+            throw BuildRatesMissingException(DistinctMetalCodes(candidates));
         }
 
         var sellByUnit = valuation.ToDictionary(v => v.Id, v => v.Sell);
         var countryCode = valuation[0].BaseCurrencyCode;
 
-        var metalIds = metals.Select(m => m.Id).ToList();
+        var variantIds = candidates
+            .Where(c => c.VariantId != null)
+            .Select(c => c.VariantId!.Value)
+            .Distinct()
+            .ToList();
 
         // İşçilik HOST-seviyesi katalog varyantından okunur: EntityVariant + MetalVariantDetail
         // IMultiTenant + ICompanyScoped filtreli olduğundan tenant working-context'inde host satırları
         // elenirdi → işçilik sessizce 0'a düşer ve solver sıralaması yanlış kurulurdu. Metal yüklemesiyle
-        // aynı şekilde iki filtre de kapatılır (salt-okuma katalog çözümü; sorgu metalIds + EntityName ile
-        // daraltılmış → sızıntı yok; RecipeCostPopulator.LoadRecipeCatalogAsync deseni).
-        Dictionary<Guid, (decimal EntryLabor, Guid? EntryLaborUnitId, MetalLaborType LaborType)> laborByMetal;
+        // aynı şekilde iki filtre de kapatılır (salt-okuma katalog çözümü; sorgu variantIds + EntityName ile
+        // daraltılmış → sızıntı yok; RecipeCostPopulator.LoadRecipeCatalogAsync deseni). Sözlük artık
+        // VARYANT-anahtarlı: etkin kümedeki TÜM varyantların işçiliği yüklenir (IsMain filtresi yok).
+        Dictionary<Guid, (decimal EntryLabor, Guid? EntryLaborUnitId, MetalLaborType LaborType)> laborByVariant;
         using (_dataFilter.Disable<IMultiTenant>())
         using (_dataFilter.Disable<ICompanyScoped>())
         {
@@ -245,46 +384,51 @@ public class SubstitutionCalculationAppService : TradeXpressAppService, ISubstit
             var laborDetails = await AsyncExecuter.ToListAsync(
                 from v in variantsQuery
                 join d in detailsQuery on v.Id equals d.EntityVariantId
-                where v.IsMain && v.EntityName == MetalEntityName && metalIds.Contains(v.EntityId)
-                select new { v.EntityId, d.EntryLabor, d.EntryLaborUnitId, d.LaborType }
+                where v.EntityName == MetalEntityName && variantIds.Contains(v.Id)
+                select new { v.Id, d.EntryLabor, d.EntryLaborUnitId, d.LaborType }
             );
-            laborByMetal = laborDetails.ToDictionary(
-                x => x.EntityId,
+            laborByVariant = laborDetails.ToDictionary(
+                x => x.Id,
                 x => (x.EntryLabor, x.EntryLaborUnitId, x.LaborType));
         }
 
-        var inputs = new List<RecipeLineCostInput>(metals.Count);
-        foreach (var metal in metals)
+        var inputs = new List<RecipeLineCostInput>(candidates.Count);
+        foreach (var candidate in candidates)
         {
-            if (laborByMetal.TryGetValue(metal.Id, out var labor))
+            if (candidate.VariantId is { } variantId && laborByVariant.TryGetValue(variantId, out var labor))
             {
-                inputs.Add(BuildPieceCostInput(metal, labor.EntryLabor, labor.EntryLaborUnitId, labor.LaborType));
+                inputs.Add(BuildPieceCostInput(candidate.Metal, labor.EntryLabor, labor.EntryLaborUnitId, labor.LaborType));
             }
             else
             {
                 // Sessiz-0 fallback KORUNUR (ürün kararı: fail-fast'e çevrilmedi) ama görünürlük için uyarılır —
-                // işçiliksiz katılım solver sıralamasını sistematik olarak bu madene doğru eğer.
+                // işçiliksiz katılım solver sıralamasını sistematik olarak bu adaya doğru eğer (per-varyant uyarı).
                 Logger.LogWarning(
-                    "Muadil hesap: maden için işçilik detayı bulunamadı, işçilik 0 varsayıldı. MetalId={MetalId}, MetalCode={MetalCode}",
-                    metal.Id, metal.Code);
-                inputs.Add(BuildPieceCostInput(metal, entryLabor: 0m, entryLaborUnitId: null, laborType: MetalLaborType.Amount));
+                    "Muadil hesap: aday için işçilik detayı bulunamadı, işçilik 0 varsayıldı. MetalId={MetalId}, MetalCode={MetalCode}, VariantCode={VariantCode}",
+                    candidate.Metal.Id, candidate.Metal.Code, candidate.VariantCode);
+                inputs.Add(BuildPieceCostInput(candidate.Metal, entryLabor: 0m, entryLaborUnitId: null, laborType: MetalLaborType.Amount));
             }
         }
 
         var computed = _recipeCostCalculator.Compute(inputs, sellByUnit, countryCode);
 
-        var unitCostByMetal = new Dictionary<Guid, decimal>(metals.Count);
+        var unitCostByCandidate = new Dictionary<(Guid MetalId, Guid? VariantId), decimal>(candidates.Count);
         var missingCodes = new List<string>();
-        for (var i = 0; i < metals.Count; i++)
+        for (var i = 0; i < candidates.Count; i++)
         {
             var line = computed.Lines[i];
             if (line.MissingRate || line.Cost is not { } cost)
             {
-                missingCodes.Add(metals[i].Code);
+                // Kur maden-başınadır (FollowingUnit) — aynı madenin çok varyantı tek kez raporlanır.
+                if (!missingCodes.Contains(candidates[i].Metal.Code))
+                {
+                    missingCodes.Add(candidates[i].Metal.Code);
+                }
+
                 continue;
             }
 
-            unitCostByMetal[metals[i].Id] = cost;
+            unitCostByCandidate[(candidates[i].Metal.Id, candidates[i].VariantId)] = cost;
         }
 
         if (missingCodes.Count > 0)
@@ -292,7 +436,13 @@ public class SubstitutionCalculationAppService : TradeXpressAppService, ISubstit
             throw BuildRatesMissingException(missingCodes);
         }
 
-        return new SubstitutionCostData(unitCostByMetal, countryCode);
+        return new SubstitutionCostData(unitCostByCandidate, countryCode);
+    }
+
+    /// <summary>Aday listesinden maden kodları — sıra korunur, duplike düşer (RatesMissing raporu).</summary>
+    private static IEnumerable<string> DistinctMetalCodes(IReadOnlyList<MetalVariantCandidate> candidates)
+    {
+        return candidates.Select(c => c.Metal.Code).Distinct();
     }
 
     /// <summary>Kur-eksik fail-fast hatası — eksik maden KODLARI mesaja girer (kullanıcı hangi kur
@@ -326,20 +476,24 @@ public class SubstitutionCalculationAppService : TradeXpressAppService, ISubstit
     }
 
     /// <summary>Solver çıktısını kullanıcı tablosu DTO'suna çevirir (tüm denemeler numaralandırma sırasıyla;
-    /// Rank ≤ TopN başarılılar varyant adayı işaretli).</summary>
+    /// Rank ≤ TopN başarılılar varyant adayı işaretli). Tolerans parametreleri ETKİN değerlerdir
+    /// (grup ayarı ya da Dilim-3 ürün override'ı) — sonuç tablosu kullanılan politikayı gösterir.</summary>
     private static SubstitutionCalculationResultDto BuildResult(
         SubstitutionGroup group,
         decimal targetQuantity,
         int topN,
+        ToleranceType toleranceType,
+        decimal toleranceValue,
         IReadOnlyList<SubstitutionCommodity> commodities,
         SubstitutionSolverResult solved,
         SubstitutionCostData costs)
     {
-        var commodityById = commodities.ToDictionary(c => c.Id);
+        // Aday anahtarı (MetalId, VariantId) — aynı maden birden çok varyant adayıyla katılabilir (Dilim-2).
+        var commodityByKey = commodities.ToDictionary(c => (c.Id, c.VariantId));
 
-        var effectiveTolerance = group.ToleranceType == ToleranceType.PerMille
-            ? targetQuantity * group.ToleranceValue / 1000m
-            : group.ToleranceValue;
+        var effectiveTolerance = toleranceType == ToleranceType.PerMille
+            ? targetQuantity * toleranceValue / 1000m
+            : toleranceValue;
 
         var result = new SubstitutionCalculationResultDto
         {
@@ -347,8 +501,8 @@ public class SubstitutionCalculationAppService : TradeXpressAppService, ISubstit
             GroupCode             = group.Code,
             GroupName             = group.Name,
             TargetQuantity        = targetQuantity,
-            ToleranceType         = group.ToleranceType,
-            ToleranceValue        = group.ToleranceValue,
+            ToleranceType         = toleranceType,
+            ToleranceValue        = toleranceValue,
             EffectiveTolerance    = effectiveTolerance,
             TopN                  = topN,
             TrialCount            = solved.All.Count,
@@ -364,11 +518,13 @@ public class SubstitutionCalculationAppService : TradeXpressAppService, ISubstit
             {
                 Lines = trial.Lines.Select(l =>
                 {
-                    var commodity = commodityById[l.CommodityId];
+                    var commodity = commodityByKey[(l.CommodityId, l.VariantId)];
                     return new SubstitutionTrialLineDto
                     {
                         MetalId     = l.CommodityId,
                         MetalCode   = commodity.Code,
+                        VariantId   = commodity.VariantId,
+                        VariantCode = commodity.VariantCode,
                         Count       = l.Count,
                         PieceWeight = commodity.PieceWeight,
                         UnitCost    = commodity.UnitCost,
@@ -390,18 +546,31 @@ public class SubstitutionCalculationAppService : TradeXpressAppService, ISubstit
         {
             result.FilteredOut.Add(new SubstitutionFilteredOutDto
             {
-                MetalId   = filtered.CommodityId,
-                MetalCode = filtered.Code,
-                Reason    = filtered.Reason,
+                MetalId     = filtered.CommodityId,
+                MetalCode   = filtered.Code,
+                VariantId   = filtered.VariantId,
+                VariantCode = filtered.VariantCode,
+                Reason      = filtered.Reason,
             });
         }
 
         return result;
     }
 
-    /// <summary>Maliyet çözümleme sonucu — maden-başına parça maliyeti + para birimi (fail-fast sonrası
-    /// DAİMA tam: her grup madeninin kuru çözülmüştür).</summary>
+    /// <summary>Maliyet çözümleme sonucu — aday (maden+varyant) başına parça maliyeti + para birimi
+    /// (fail-fast sonrası DAİMA tam: her grup madeninin kuru çözülmüştür).</summary>
     private sealed record SubstitutionCostData(
-        Dictionary<Guid, decimal> UnitCostByMetal,
+        Dictionary<(Guid MetalId, Guid? VariantId), decimal> UnitCostByCandidate,
         string CurrencyCode);
+
+    /// <summary>Tüketim önceliği sırasındaki grup madeni + satırın opt-in varyant kümesi (boş = yalnız ana).</summary>
+    private sealed record OrderedGroupMetal(
+        Metal Metal,
+        IReadOnlyList<Guid> IncludedVariantIds);
+
+    /// <summary>Solver adayı — maden + etkin kümedeki tek varyant (null = katalog varyantı olmayan legacy maden).</summary>
+    private sealed record MetalVariantCandidate(
+        Metal Metal,
+        Guid? VariantId,
+        string? VariantCode);
 }

@@ -21,6 +21,12 @@
                        AddOnCatalog="AddOns" OnReloadAddOns="@ReloadAddOnsAsync"
                        ShipmentTemplates="ShipmentTemplates" OnReloadShipmentTemplates="@ReloadShipmentTemplatesAsync"
                        OnGenerateVariants="@(async () => await GenerateVariantsAsync(context))"
-                       OnRecipeChanged="@RecalcVariantCostAsync" />
+                       OnRecipeChanged="@RecalcVariantCostAsync"
+                       OnVariantModeChangeRequested="@(async (ProductVariantMode m) => await HandleVariantModeChangeAsync(context, m))"
+                       SubstitutionGroups="SubstitutionGroups" OnReloadSubstitutionGroups="@ReloadSubstitutionGroupsAsync"
+                       SubstitutionGroupItems="SubstitutionGroupItems" OnSubstitutionGroupChanged="@OnSubstitutionGroupChangedAsync"
+                       SubstitutionResult="SubstitutionResult" SubstitutionBusy="SubstitutionBusy"
+                       OnCalculateSubstitution="@(async () => await CalculateSubstitutionAsync(context))"
+                       OnApplySubstitutionTrial="@(async (SubstitutionTrialDto t) => await ApplySubstitutionTrialAsync(context, t))" />
     </CrudEditHost>
 }

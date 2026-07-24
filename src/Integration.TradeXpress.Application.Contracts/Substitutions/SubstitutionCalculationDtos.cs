@@ -4,9 +4,11 @@ using System.Collections.Generic;
 namespace Integration.TradeXpress.Substitutions;
 
 /// <summary>
-/// Muadil hesaplama girdisi. Tolerans BURADA YOK — grup ayarı esastır (konsept: tolerans politikası
-/// grup üzerinde tanımlıdır, çağrı-başı override edilmez). Şube/kasa filtresi stok raporundaki
-/// hiyerarşik kapsamla aynı davranır (null = alt kırılımları topla; şirket daima working company).
+/// Muadil hesaplama girdisi. Tolerans varsayılanı GRUP ayarıdır (konsept: tolerans politikası grup üzerinde
+/// tanımlıdır); Dilim-3 istisnası: ÜRÜN-düzeyi Muadil modu kendi kalıcı konfigürasyonunu (Product.Substitution*)
+/// opsiyonel override alanlarıyla geçirir — boş bırakan çağıran (hesaplama sayfası) statüko davranışında kalır.
+/// Şube/kasa filtresi stok raporundaki hiyerarşik kapsamla aynı davranır (null = alt kırılımları topla;
+/// şirket daima working company).
 /// </summary>
 public class SubstitutionCalculationInput
 {
@@ -24,6 +26,17 @@ public class SubstitutionCalculationInput
 
     /// <summary>Stok kapsamı: kasa (null = şubenin tümü) — GetStockAsync filtresiyle birebir.</summary>
     public Guid? VaultId { get; set; }
+
+    /// <summary>Ürün-düzeyi varyant OVERRIDE kümesi (Dilim-3; <c>Product.SubstitutionOverrideVariantIds</c>) —
+    /// düz liste tüm grup madenlerini kapsar; maden başına etkin küme = listenin o madenin katalog varyantlarıyla
+    /// KESİŞİMİ (resolver zinciri: override ?? IncludedVariantIds ?? ana). BOŞ = override yok (grup ayarı).</summary>
+    public List<Guid> OverrideVariantIds { get; set; } = new();
+
+    /// <summary>Tolerans türü override'ı (Dilim-3; ürün konfigürasyonu) — değerle ÇİFT dolar; boş = grup ayarı.</summary>
+    public ToleranceType? ToleranceTypeOverride { get; set; }
+
+    /// <summary>Tolerans değeri override'ı — türle ÇİFT dolar; boş = grup ayarı; negatif geçersiz (fail-fast).</summary>
+    public decimal? ToleranceValueOverride { get; set; }
 }
 
 public static class SubstitutionCalculationConsts
@@ -102,6 +115,10 @@ public class SubstitutionTrialLineDto
 {
     public Guid MetalId { get; set; }
     public string MetalCode { get; set; } = string.Empty;
+    /// <summary>Adayın metal varyantı (Dilim-2 varyant boyutu) — null = katalog varyantı olmayan maden (legacy).</summary>
+    public Guid? VariantId { get; set; }
+    /// <summary>Varyant kodu (tablo gösterimi); <see cref="VariantId"/> null ise null.</summary>
+    public string? VariantCode { get; set; }
     /// <summary>Kullanılan adet.</summary>
     public int Count { get; set; }
     /// <summary>Tek parça standart ağırlığı (Metal.StableQuantity, gram).</summary>
@@ -111,10 +128,15 @@ public class SubstitutionTrialLineDto
     public decimal UnitCost { get; set; }
 }
 
-/// <summary>Ön-filtrede elenen emtia — teknik neden ("PieceWeightExceedsTarget" | "NoStock"); UI lokalize eder.</summary>
+/// <summary>Ön-filtrede elenen emtia ADAYI — teknik neden ("PieceWeightExceedsTarget" | "NoStock"); UI lokalize
+/// eder. Eleme varyant boyutunda aday başınadır — varyant alanları hangi varyantın elendiğini gösterir.</summary>
 public class SubstitutionFilteredOutDto
 {
     public Guid MetalId { get; set; }
     public string MetalCode { get; set; } = string.Empty;
+    /// <summary>Elenen adayın metal varyantı — null = katalog varyantı olmayan maden (legacy).</summary>
+    public Guid? VariantId { get; set; }
+    /// <summary>Varyant kodu (gösterim); <see cref="VariantId"/> null ise null.</summary>
+    public string? VariantCode { get; set; }
     public string Reason { get; set; } = string.Empty;
 }

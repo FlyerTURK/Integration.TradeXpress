@@ -53,6 +53,18 @@ public class SubstitutionGroupItem : FullAuditedAggregateRoot<Guid>, IMultiTenan
     /// <summary>Tüketim önceliği sırası — küçük önce tüketilir (kullanıcı-kontrollü liste sırası).</summary>
     public virtual int DisplayOrder { get; protected set; }
 
+    /// <summary>
+    /// Muadil değerlendirmesine DAHİL varyantlar (OPT-IN; EF primitive-collection → JSON kolonu).
+    /// <para><b>Boş liste = yalnız ANA varyant dahil</b> (statüko): mevcut gruplar dokunulmadan aynen çalışır.
+    /// Kullanıcı ağaçta yalnız ana varyantı bırakırsa da BOŞ listeye normalize edilir (boş=ana değişmezinin
+    /// TEK temsili; normalizasyon yazma sınırında — AppService). Yeni doğan varyant OTOMATİK DAHİL DEĞİLDİR:
+    /// opt-in'in amacı, maliyeti henüz oturmamış yeni varyantın sessizce muadile karışmaması.</para>
+    /// <para><b>İş gerekçesi:</b> metal varyantlarının işçilik/maliyeti artık ayrışıyor (yeni tarihli çeyrek
+    /// toptancıdan İŞÇİLİKLİ; eski tarihli perakendeden işçiliksiz hurda) → muadillik varyant düzeyinde
+    /// seçilebilir olmalı. Bu dilimde yalnız SAKLANIR; çözücü entegrasyonu sonraki dilimin işi.</para>
+    /// </summary>
+    public virtual List<Guid> IncludedVariantIds { get; protected set; } = new();
+
     #endregion
 
     #region Methods
@@ -75,6 +87,19 @@ public class SubstitutionGroupItem : FullAuditedAggregateRoot<Guid>, IMultiTenan
     public virtual void SetDisplayOrder(int order)
     {
         DisplayOrder = order;
+    }
+
+    /// <summary>Dahil varyant kümesini yazar — distinct + boş-Guid ayıklanır (sıra korunur); null → BOŞ liste
+    /// (boş = yalnız ana varyant, statüko). "{yalnız ana}" → boş normalizasyonu ana-varyant bilgisini bilen
+    /// yazma sınırında (AppService) yapılır — entity varyant kataloğunu bilmez.</summary>
+    public virtual void SetIncludedVariants(IEnumerable<Guid>? variantIds)
+    {
+        var normalized = (variantIds ?? Enumerable.Empty<Guid>())
+            .Where(id => id != Guid.Empty)
+            .Distinct()
+            .ToList();
+
+        IncludedVariantIds = normalized;
     }
 
     private void SetCompany(Guid companyId)

@@ -118,4 +118,9 @@ public class SubstitutionGroupItemGraphDto
 
     /// <summary>Tüketim önceliği — küçük önce tüketilir (liste sırası kullanıcı-kontrollü).</summary>
     public int DisplayOrder { get; set; }
+
+    /// <summary>Muadile DAHİL varyantlar (OPT-IN). <b>Boş = yalnız ANA varyant</b> (statüko; yeni doğan varyant
+    /// otomatik dahil DEĞİL). "{yalnız ana}" seçimi yazma sınırında boş listeye normalize edilir (tek temsil).
+    /// Grup grafıyla birlikte kaydedilir — ayrı servis çağrısı yok (Varyant Kapsamı ağacı in-memory düzenler).</summary>
+    public List<Guid> IncludedVariantIds { get; set; } = new();
 }

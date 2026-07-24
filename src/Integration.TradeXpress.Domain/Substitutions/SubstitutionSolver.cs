@@ -93,14 +93,16 @@ public static class SubstitutionSolver
             if (commodity.AvailableCount <= 0)
             {
                 filteredOut.Add(new SubstitutionFilteredCommodity(
-                    commodity.Id, commodity.Code, SubstitutionReasonCodes.NoStock));
+                    commodity.Id, commodity.Code, SubstitutionReasonCodes.NoStock,
+                    commodity.VariantId, commodity.VariantCode));
                 continue;
             }
 
             if (commodity.PieceWeight > upperLimit)
             {
                 filteredOut.Add(new SubstitutionFilteredCommodity(
-                    commodity.Id, commodity.Code, SubstitutionReasonCodes.PieceWeightExceedsTarget));
+                    commodity.Id, commodity.Code, SubstitutionReasonCodes.PieceWeightExceedsTarget,
+                    commodity.VariantId, commodity.VariantCode));
                 continue;
             }
 
@@ -224,7 +226,7 @@ public static class SubstitutionSolver
         List<SubstitutionCommodity> commodities,
         int[] counts)
     {
-        var lines = new List<(Guid CommodityId, int Count)>();
+        var lines = new List<(Guid CommodityId, Guid? VariantId, int Count)>();
         var total = 0m;
         var totalCost = 0m;
         var pieceCount = 0;
@@ -243,7 +245,7 @@ public static class SubstitutionSolver
                 continue;
             }
 
-            lines.Add((commodities[i].Id, counts[i]));
+            lines.Add((commodities[i].Id, commodities[i].VariantId, counts[i]));
             total += counts[i] * commodities[i].PieceWeight;
             totalCost += counts[i] * commodities[i].UnitCost;
             pieceCount += counts[i];

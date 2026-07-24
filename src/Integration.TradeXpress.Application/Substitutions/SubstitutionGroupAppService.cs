@@ -7,6 +7,7 @@ using Integration.Framework.Base.Querying;
 using Integration.TradeXpress.Metals;
 using Integration.TradeXpress.MultiCompany;
 using Integration.TradeXpress.Permissions;
+using Integration.TradeXpress.Variants;
 using Microsoft.AspNetCore.Authorization;
 using Volo.Abp;
 using Volo.Abp.Application.Dtos;
@@ -28,9 +29,12 @@ namespace Integration.TradeXpress.Substitutions;
 [Authorize(TradeXpressPermissions.Substitutions.Default)]
 public class SubstitutionGroupAppService : TradeXpressAppService, ISubstitutionGroupAppService
 {
+    private const string MetalEntityName = "Metal";   // EntityVariant sahip-tip anahtarı (MetalAppService ile aynı)
+
     private readonly IRepository<SubstitutionGroup, Guid> _repository;
     private readonly IRepository<SubstitutionGroupItem, Guid> _itemRepository;
     private readonly IRepository<Metal, Guid> _metalRepository;
+    private readonly IRepository<EntityVariant, Guid> _variantRepository;
     private readonly IDataFilter _dataFilter;
     private readonly ICurrentCompany _currentCompany;   // güvenlik sınırı: working-context zorlaması
 
@@ -41,14 +45,16 @@ public class SubstitutionGroupAppService : TradeXpressAppService, ISubstitutionG
         IRepository<SubstitutionGroup, Guid> repository,
         IRepository<SubstitutionGroupItem, Guid> itemRepository,
         IRepository<Metal, Guid> metalRepository,
+        IRepository<EntityVariant, Guid> variantRepository,
         IDataFilter dataFilter,
         ICurrentCompany currentCompany)
     {
-        _repository      = repository;
-        _itemRepository  = itemRepository;
-        _metalRepository = metalRepository;
-        _dataFilter      = dataFilter;
-        _currentCompany  = currentCompany;
+        _repository        = repository;
+        _itemRepository    = itemRepository;
+        _metalRepository   = metalRepository;
+        _variantRepository = variantRepository;
+        _dataFilter        = dataFilter;
+        _currentCompany    = currentCompany;
     }
 
     public virtual async Task<PagedResultDto<SubstitutionGroupListDto>> GetListAsync(SubstitutionGroupListRequestDto input)
@@ -165,6 +171,9 @@ public class SubstitutionGroupAppService : TradeXpressAppService, ISubstitutionG
         // Yazma sınırı fail-fast: bayat satır + MetalId varlık/uygunluk + duplike — mutasyondan ÖNCE.
         await ValidateItemsAsync(group, items, existingById);
 
+        // Dahil varyant kümeleri: aidiyet doğrulaması + "{yalnız ana} → boş" normalizasyonu (tek temsil).
+        await NormalizeIncludedVariantsAsync(items);
+
         // Önce ekle + güncelle, sonra sil (Branch→Vault deseniyle aynı sıra).
         foreach (var node in items.Where(x => !x.IsDeleted))
         {
@@ -172,9 +181,9 @@ public class SubstitutionGroupAppService : TradeXpressAppService, ISubstitutionG
             {
                 // Boş hedef (MetalId=null) kontrolü entity'de (SetTarget fail-fast: ItemTargetRequired);
                 // varlık/uygunluk ValidateItemsAsync'te doğrulandı.
-                await _itemRepository.InsertAsync(
-                    new SubstitutionGroupItem(group.CompanyId, group.Id, node.MetalId, null, node.DisplayOrder),
-                    autoSave: true);
+                var created = new SubstitutionGroupItem(group.CompanyId, group.Id, node.MetalId, null, node.DisplayOrder);
+                created.SetIncludedVariants(node.IncludedVariantIds);
+                await _itemRepository.InsertAsync(created, autoSave: true);
             }
             else
             {
@@ -182,6 +191,7 @@ public class SubstitutionGroupAppService : TradeXpressAppService, ISubstitutionG
                 var existing = existingById[node.Id];
                 existing.SetTarget(node.MetalId, null);
                 existing.SetDisplayOrder(node.DisplayOrder);
+                existing.SetIncludedVariants(node.IncludedVariantIds);
                 await _itemRepository.UpdateAsync(existing, autoSave: true);
             }
         }
@@ -272,6 +282,60 @@ public class SubstitutionGroupAppService : TradeXpressAppService, ISubstitutionG
         }
     }
 
+    /// <summary>Dahil varyant kümelerinin yazma-sınırı işlemesi (client'taki ağaç güven sınırı DEĞİLDİR):
+    /// <list type="number">
+    ///   <item><b>Aidiyet:</b> her id o SATIRIN madeninin bir varyantı olmalı — yabancı/başka madenin varyantı
+    ///   persist edilemez (VariantNotOfMetal fail-fast).</item>
+    ///   <item><b>Normalizasyon (tek temsil):</b> küme "{yalnız ana varyant}" ise BOŞ listeye indirgenir —
+    ///   "boş = yalnız ana" değişmezinin depoda tek temsili garanti edilir (ham API çağrısı dahil).</item>
+    /// </list>
+    /// Varyant kataloğu HOST-seviyesi olabilir → IMultiTenant + ICompanyScoped filtreleri kapatılır ama scope
+    /// AÇIKÇA daraltılır (SubstitutionCalculationAppService işçilik sorgusu deseni; sızıntı yok).</summary>
+    private async Task NormalizeIncludedVariantsAsync(List<SubstitutionGroupItemGraphDto> items)
+    {
+        var nodes = items
+            .Where(x => !x.IsDeleted && x.MetalId != null && x.IncludedVariantIds is { Count: > 0 })
+            .ToList();
+        if (nodes.Count == 0)
+        {
+            return; // boş kümeler zaten statüko (yalnız ana varyant) — sorguya gerek yok
+        }
+
+        var metalIds = nodes.Select(x => x.MetalId!.Value).Distinct().ToList();
+
+        List<EntityVariant> variants;
+        using (_dataFilter.Disable<IMultiTenant>())
+        using (_dataFilter.Disable<ICompanyScoped>())
+        {
+            variants = await AsyncExecuter.ToListAsync(
+                (await _variantRepository.GetQueryableAsync())
+                    .Where(CompanyScopedQueryable.CompanyVisiblePredicate<EntityVariant>(CurrentTenant.Id, _currentCompany.Id))
+                    .Where(v => v.EntityName == MetalEntityName && metalIds.Contains(v.EntityId)));
+        }
+
+        var variantsByMetal = variants
+            .GroupBy(v => v.EntityId)
+            .ToDictionary(g => g.Key, g => g.ToList());
+
+        foreach (var node in nodes)
+        {
+            var known = variantsByMetal.GetValueOrDefault(node.MetalId!.Value) ?? new List<EntityVariant>();
+            var normalized = node.IncludedVariantIds
+                .Where(id => id != Guid.Empty)
+                .Distinct()
+                .ToList();
+
+            if (normalized.Any(id => known.All(v => v.Id != id)))
+            {
+                throw new BusinessException("TradeXpress:Substitution:VariantNotOfMetal");
+            }
+
+            var mainVariantId = known.FirstOrDefault(v => v.IsMain)?.Id;
+            var onlyMainSelected = normalized.Count == 1 && mainVariantId == normalized[0];
+            node.IncludedVariantIds = onlyMainSelected ? new List<Guid>() : normalized;
+        }
+    }
+
     // ── helpers ───────────────────────────────────────────────────────────────
 
     /// <summary>Sızıntı önleme (Account/Voucher deseni, fail-closed): aktif şirket working-context'ten
@@ -296,10 +360,11 @@ public class SubstitutionGroupAppService : TradeXpressAppService, ISubstitutionG
 
         dto.Items = ordered.Select(i => new SubstitutionGroupItemGraphDto
         {
-            Id           = i.Id,
-            MetalId      = i.MetalId,
-            MetalCode    = i.MetalId is { } metalId ? metalCodes.GetValueOrDefault(metalId, string.Empty) : string.Empty,
-            DisplayOrder = i.DisplayOrder,
+            Id                 = i.Id,
+            MetalId            = i.MetalId,
+            MetalCode          = i.MetalId is { } metalId ? metalCodes.GetValueOrDefault(metalId, string.Empty) : string.Empty,
+            DisplayOrder       = i.DisplayOrder,
+            IncludedVariantIds = i.IncludedVariantIds.ToList(),
         }).ToList();
 
         return dto;

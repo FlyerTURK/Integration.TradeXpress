@@ -86,4 +86,12 @@
             </EditContent>
         </DrillList>
     </DxTabPage>
+
+    @* Varyant Kapsamı — kalem başına opt-in varyant ağacı. In-memory Model.Items'ı düzenler; grup kaydıyla
+       persist olur (ayrı servis commit'i YOK). Boş seçim = yalnız ana varyant (statüko). *@
+    <DxTabPage Text="@L["VariantScope"]" TabIconCssClass="@TradeXpressIcons.ProductVariant">
+        <SubstitutionVariantTreePanel Items="@Model.Items"
+                                      Variants="@MetalVariants"
+                                      OnChanged="@(() => EditChanged?.Invoke())" />
+    </DxTabPage>
 </DrillTabs>

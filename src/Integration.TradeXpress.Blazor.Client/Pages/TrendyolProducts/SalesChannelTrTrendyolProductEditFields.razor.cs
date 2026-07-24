@@ -101,6 +101,8 @@ public partial class SalesChannelTrTrendyolProductEditFields : CrudComponentBase
     private DrillList<SalesChannelTrTrendyolProductAttributeDto>? _attributeDrill;
     private DrillList<SalesChannelTrTrendyolProductAttributeValueDto>? _attributeValueDrill;
     private IReadOnlyList<MetalListDto> _metals = Array.Empty<MetalListDto>();
+    // Varyant-farkındalıklı MADEN lookup'ı (ProductRecipePanel.MetalVariants) — beslenmezse combo BOŞ kalır.
+    private IReadOnlyList<MetalVariantLookupDto> _metalVariants = Array.Empty<MetalVariantLookupDto>();
     private IReadOnlyList<ScrapListDto> _scraps = Array.Empty<ScrapListDto>();
     private IReadOnlyList<FutureListDto> _futures = Array.Empty<FutureListDto>();
     private IReadOnlyList<JewelryListDto> _jewelries = Array.Empty<JewelryListDto>();
@@ -188,6 +190,7 @@ public partial class SalesChannelTrTrendyolProductEditFields : CrudComponentBase
         try
         {
             _metals = await MetalAppService.GetPickerListAsync();
+            _metalVariants = await MetalAppService.GetVariantLookupAsync();
             _scraps = await ScrapAppService.GetPickerListAsync();
             _futures = await FutureAppService.GetPickerListAsync();
             _jewelries = await JewelryAppService.GetPickerListAsync();

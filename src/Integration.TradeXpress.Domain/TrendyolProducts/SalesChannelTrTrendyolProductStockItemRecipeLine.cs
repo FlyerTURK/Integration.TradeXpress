@@ -66,6 +66,11 @@ public class SalesChannelTrTrendyolProductStockItemRecipeLine : FullAuditedAggre
     /// <summary>Katalog kaydı (FK'sız snapshot). Manuel/hizmet etiketinde null olabilir.</summary>
     public virtual Guid? CommodityId { get; protected set; }
 
+    /// <summary>Seçili katalog varyantı (id-only snapshot, nav yok) — A6: çekirdek reçeteden klon ve muadil
+    /// köprüsü seçilen metal varyantını KORUR; RecipeCostPopulator işçiliği bu varyanttan çözer
+    /// (null = ana-varyant fallback'i, legacy satır).</summary>
+    public virtual Guid? CommodityVariantId { get; protected set; }
+
     /// <summary>Adet. Adet→gram: <c>Amount = Quantity × StableQuantity</c> (katalogtan canlı).</summary>
     public virtual decimal Quantity { get; protected set; }
 
@@ -119,6 +124,7 @@ public class SalesChannelTrTrendyolProductStockItemRecipeLine : FullAuditedAggre
     public virtual void SetCatalogCommodity(
         ProcessType family,
         Guid? commodityId,
+        Guid? commodityVariantId,
         decimal quantity,
         decimal amount,
         decimal factor,
@@ -129,6 +135,7 @@ public class SalesChannelTrTrendyolProductStockItemRecipeLine : FullAuditedAggre
     {
         CommodityProcessType = family;
         CommodityId = commodityId;
+        CommodityVariantId = commodityVariantId;
         Quantity = quantity;
         Amount = amount;
         Factor = factor;

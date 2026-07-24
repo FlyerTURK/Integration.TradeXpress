@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using DevExpress.Blazor;
 using Integration.Framework.Blazor.Client.Services.Base;
+using Integration.TradeXpress.Blazor.Client.Components.Shared;
 using Integration.TradeXpress.Blazor.Client.Services.Working;
 using Integration.TradeXpress.N11Products;
 using Integration.TradeXpress.Products;
@@ -242,7 +243,8 @@ public partial class SubstitutionCalculationPage : IDisposable
             rows.Add(new TrialRow
             {
                 TrialNo      = i + 1,
-                Combination  = BuildCombinationText(trial),
+                Combination  = SubstitutionTrialFormat.CombinationText(trial),
+                Variants     = SubstitutionTrialFormat.VariantsText(trial),
                 TotalWeight  = trial.TotalWeight,
                 Deviation    = trial.Deviation,
                 TotalCost    = trial.TotalCost,
@@ -263,11 +265,11 @@ public partial class SubstitutionCalculationPage : IDisposable
             .ToList();
     }
 
-    // "1×10gr + 2×1gr" bileşim metni (kullanıcının onayladığı format; tüketim önceliği sırası korunur).
-    private static string BuildCombinationText(SubstitutionTrialDto trial)
+    // Bileşim/varyant/elenen etiketi metinleri PAYLAŞILAN biçimlendiricide (SubstitutionTrialFormat — ürün
+    // Muadil sekmesiyle SSOT); lokalize durum metinleri (L gerektirir) bu sayfada kalır.
+    private static string FilteredOutLabel(SubstitutionFilteredOutDto filtered)
     {
-        return string.Join(" + ", trial.Lines.Select(
-            l => $"{l.Count}×{l.PieceWeight.ToString("0.#####", CultureInfo.CurrentCulture)}gr"));
+        return SubstitutionTrialFormat.FilteredOutLabel(filtered);
     }
 
     // Teknik başarısızlık nedeni → okunur Türkçe/İngilizce metin (Remainder:x → "Kalan {x}gr").
@@ -345,6 +347,8 @@ public partial class SubstitutionCalculationPage : IDisposable
     {
         public int TrialNo { get; set; }
         public string Combination { get; set; } = string.Empty;
+        /// <summary>Bileşim satırlarının seçilen varyant kodları ("1×STD + 2×ESK") — Combination ile aynı sıra.</summary>
+        public string Variants { get; set; } = string.Empty;
         public decimal TotalWeight { get; set; }
         public decimal Deviation { get; set; }
         public decimal TotalCost { get; set; }

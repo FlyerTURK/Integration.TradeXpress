@@ -134,17 +134,24 @@ public static class SubstitutionStockItemPlanner
     }
 
     /// <summary>Nötr imza bileşenleri — "{MetalId}x{Count}|..." MetalId artan sıralı (sıra-bağımsız
-    /// deterministik; kanal CombinationSignature'ı DEĞİL — kanal kendi kuralıyla üretir).</summary>
+    /// deterministik; kanal CombinationSignature'ı DEĞİL — kanal kendi kuralıyla üretir). Varyantlı satır
+    /// "{MetalId}:{VariantId}x{Count}" biçimiyle ayrışır — aynı madenin iki varyantı aynı kombinasyonda
+    /// bile çakışmaz; varyantsız (legacy) satır ESKİ biçimi korur (anahtar statükosu).</summary>
     private static string BuildPlanKey(SubstitutionPlanCombination combination)
     {
         return string.Join('|', combination.Lines
             .OrderBy(l => l.MetalId)
-            .Select(l => $"{l.MetalId}x{l.Count}"));
+            .ThenBy(l => l.VariantId ?? Guid.Empty)
+            .Select(l => l.VariantId is { } variantId
+                ? $"{l.MetalId}:{variantId}x{l.Count}"
+                : $"{l.MetalId}x{l.Count}"));
     }
 
     private static SubstitutionPlanRecipeLine BuildRecipeLine(SubstitutionPlanCombinationLine line)
     {
-        return new SubstitutionPlanRecipeLine(line.MetalId, line.Count, line.PieceWeight, line.Count * line.PieceWeight);
+        return new SubstitutionPlanRecipeLine(
+            line.MetalId, line.Count, line.PieceWeight, line.Count * line.PieceWeight,
+            line.VariantId, line.VariantCode);
     }
 
     /// <summary>Ondalık formatı — sondaki sıfırlar atılır, TR ondalık virgül (müşteriye dönük metin).</summary>

@@ -14,6 +14,8 @@ using Integration.TradeXpress.Scraps;
 using Integration.TradeXpress.Services;
 using Integration.TradeXpress.Shipments;
 using Integration.TradeXpress.Stones;
+using Integration.TradeXpress.Substitutions;
+using Integration.TradeXpress.Vouchers;
 using Microsoft.AspNetCore.Components;
 using Volo.Abp;
 using Volo.Abp.ObjectMapping;
@@ -43,6 +45,9 @@ public partial class ProductEditHost
     [Inject] protected ILookupCache<CurrencyUnitListDto> CurrencyLookup { get; set; } = default!;
     [Inject] protected IAddOnAppService AddOnAppService { get; set; } = default!;
     [Inject] protected IShipmentTemplateAppService ShipmentTemplateAppService { get; set; } = default!;
+    [Inject] protected ISubstitutionGroupAppService SubstitutionGroupAppService { get; set; } = default!;
+    [Inject] protected ISubstitutionCalculationAppService SubstitutionCalculationAppService { get; set; } = default!;
+    [Inject] protected IServiceProvider ServiceProvider { get; set; } = default!;
 
     private ICommitCoordinator<ProductGetDto, ProductListDto, Guid, ProductListRequestDto>? _coordinator;
     private bool _ready;
@@ -65,6 +70,13 @@ public partial class ProductEditHost
 
     // Kargo şablonu lookup verisi (varsayılan kargo şablonu ataması) — inline ekle/düzelt sonrası ReloadShipmentTemplatesAsync ile tazelenir.
     protected IReadOnlyList<ShipmentTemplateListDto> ShipmentTemplates { get; private set; } = Array.Empty<ShipmentTemplateListDto>();
+
+    // ── Muadil (Substitution) modu durumu (Dilim-3) — grup lookup'u + seçili grubun kalemleri (override
+    //    ağacının devralınan-küme referansı) + son hesap sonucu. Layout DUMB; iş burada. ──
+    protected IReadOnlyList<SubstitutionGroupListDto> SubstitutionGroups { get; private set; } = Array.Empty<SubstitutionGroupListDto>();
+    protected List<SubstitutionGroupItemGraphDto> SubstitutionGroupItems { get; private set; } = new();
+    protected SubstitutionCalculationResultDto? SubstitutionResult { get; private set; }
+    protected bool SubstitutionBusy { get; private set; }
 
     protected override async Task OnInitializedAsync()
     {
@@ -89,6 +101,184 @@ public partial class ProductEditHost
         CurrencyUnits = await CurrencyLookup.GetAsync();
         AddOns = await AddOnAppService.GetPickerListAsync();
         ShipmentTemplates = await ShipmentTemplateAppService.GetPickerListAsync();
+        SubstitutionGroups = await LoadActiveSubstitutionGroupsAsync();
+    }
+
+    // Yalnız AKTİF gruplar seçilebilir (pasif grup sunucuda da fail-fast — hesaplama sayfası deseni).
+    private async Task<IReadOnlyList<SubstitutionGroupListDto>> LoadActiveSubstitutionGroupsAsync()
+    {
+        var result = await SubstitutionGroupAppService.GetListAsync(
+            new SubstitutionGroupListRequestDto { IsActive = true, MaxResultCount = 200 });
+        return result.Items.ToList();
+    }
+
+    // Inline muadil grubu ekle/düzelt sonrası lookup listesini tazeler (yeni grup anında combo'ya düşsün).
+    private async Task ReloadSubstitutionGroupsAsync()
+    {
+        SubstitutionGroups = await LoadActiveSubstitutionGroupsAsync();
+        StateHasChanged();
+    }
+
+    /// <summary>Grup seçimi değişti / ilk yükleme — seçili grubun kalemleri (override ağacının devralınan-küme
+    /// referansı) yüklenir; eski hesap sonucu bayatladı → temizlenir. Grup bulunamazsa (silinmiş) boş kalır.</summary>
+    private async Task OnSubstitutionGroupChangedAsync(Guid? groupId)
+    {
+        SubstitutionResult = null;
+        if (groupId is not { } id)
+        {
+            SubstitutionGroupItems = new List<SubstitutionGroupItemGraphDto>();
+            StateHasChanged();
+            return;
+        }
+
+        try
+        {
+            SubstitutionGroupItems = (await SubstitutionGroupAppService.GetAsync(id)).Items;
+        }
+        catch (Exception ex)
+        {
+            // Grup artık yok/görünmez (başka oturumda silinmiş olabilir) — ağaç boş kalır, kaydetme sunucuda
+            // doğrulanır; neden GİZLENMEZ (toast — sessiz yutma yok).
+            SubstitutionGroupItems = new List<SubstitutionGroupItemGraphDto>();
+            UiService.ShowErrorToast(
+                CrudErrorPresenter.ToFriendlyMessage(ex, ServiceProvider) ?? ex.Message);
+        }
+
+        StateHasChanged();
+    }
+
+    /// <summary>Varyant modu değişim isteği — MultiVariant'tan çıkışta kaybolacak veri (nitelikler + çoklu
+    /// varyantlar) varsa ONAY istenir: kaydetmede sunucu nitelik grafını boşaltır, synchronizer tek ana varyanta
+    /// indirir (VERİ SİLİNİR). Onaylanmazsa model değişmez (combo eski değere geri çizilir).</summary>
+    private async Task HandleVariantModeChangeAsync(ProductGetDto model, ProductVariantMode newMode)
+    {
+        if (model.VariantMode == newMode)
+        {
+            return;
+        }
+
+        var losesVariants = model.VariantMode == ProductVariantMode.MultiVariant
+            && (model.Attributes.Any(a => !a.IsDeleted) || model.Variants.Count(v => !v.IsDeleted) > 1);
+        if (losesVariants)
+        {
+            var confirm = await UiService.ConfirmAsync(
+                L["Product:VariantModeCollapseWarning"].Value,
+                L["Product:VariantModeChangeTitle"].Value,
+                L["Product:VariantModeCollapseYes"].Value,
+                L["Cancel"].Value,
+                showCancel: false,
+                defaultYes: false);
+            if (confirm != ConfirmDialogResult.Yes)
+            {
+                StateHasChanged();
+                return;
+            }
+        }
+
+        model.VariantMode = newMode;
+        if (newMode != ProductVariantMode.Substitution)
+        {
+            SubstitutionResult = null;
+        }
+    }
+
+    /// <summary>"Kombinasyon Hesapla" — ürünün kalıcı muadil konfigürasyonuyla (grup + hedef + tolerans override +
+    /// varyant override kümesi) CalculateAsync koşulur. Hata yolu hesaplama sayfasıyla aynı (CrudErrorPresenter).</summary>
+    private async Task CalculateSubstitutionAsync(ProductGetDto model)
+    {
+        if (model.SubstitutionGroupId is not { } groupId
+            || model.SubstitutionTargetQuantity is not { } target
+            || target <= 0m)
+        {
+            return;
+        }
+
+        SubstitutionBusy = true;
+        try
+        {
+            SubstitutionResult = await SubstitutionCalculationAppService.CalculateAsync(new SubstitutionCalculationInput
+            {
+                SubstitutionGroupId    = groupId,
+                TargetQuantity         = target,
+                ToleranceTypeOverride  = model.SubstitutionToleranceType,
+                ToleranceValueOverride = model.SubstitutionToleranceValue,
+                OverrideVariantIds     = model.SubstitutionOverrideVariantIds.ToList(),
+            });
+        }
+        catch (Exception ex)
+        {
+            // BusinessException'ı error boundary'e düşürme — in-process mesaj lokalize gelmez,
+            // CrudErrorPresenter kodu çevirir (hesaplama sayfası deseni).
+            UiService.ShowErrorToast(
+                CrudErrorPresenter.ToFriendlyMessage(ex, ServiceProvider) ?? L["Substitution:CalculationFailed"].Value);
+        }
+        finally
+        {
+            SubstitutionBusy = false;
+            StateHasChanged();
+        }
+    }
+
+    /// <summary>Seçilen BAŞARILI kombinasyonu ana varyantın reçetesine uygular — kombinasyon reçetenin SAHİBİDİR
+    /// (kanal köprüsü ReplaceChannelRecipeLinesAsync semantiği): mevcut satırlar temizlenir (DB'liler IsDeleted —
+    /// graf-save siler), kombinasyon satırları TAZE eklenir. Persist ürün Kaydet'iyle (SaveRecipeLinesAsync yolu);
+    /// satır kurulumu sunucu BuildRecipeLineDtos'un lookup'lı istemci karşılığıdır (aynı alan kümesi).</summary>
+    private async Task ApplySubstitutionTrialAsync(ProductGetDto model, SubstitutionTrialDto trial)
+    {
+        var variant = model.Variants.FirstOrDefault(v => !v.IsDeleted && v.IsMain)
+            ?? model.Variants.FirstOrDefault(v => !v.IsDeleted);
+        if (variant is null || !trial.Success)
+        {
+            return;
+        }
+
+        foreach (var line in variant.RecipeLines.Where(l => !l.IsDeleted).ToList())
+        {
+            if (line.Id == Guid.Empty)
+            {
+                variant.RecipeLines.Remove(line);   // henüz DB'de yok → listeden çıkar
+            }
+            else
+            {
+                line.IsDeleted = true;              // DB'de var → graf-save siler (Id + IsDeleted diff)
+            }
+        }
+
+        var order = 0;
+        foreach (var trialLine in trial.Lines)
+        {
+            variant.RecipeLines.Add(BuildTrialRecipeLine(trialLine, order++));
+        }
+
+        await RecalcVariantCostAsync(variant);
+        UiService.ShowSuccessToast(L["Product:TrialAppliedToRecipe"].Value);
+    }
+
+    /// <summary>Kombinasyon satırı → reçete graf satırı (metal bacağı Quantity/Amount/Factor/doğal birim + işçilik
+    /// bacağı EntryLabor@birim) — SubstitutionChannelPlanProvider.BuildRecipeLineDtos ile AYNI alan kurulumu;
+    /// katalog verisi host'un yüklü lookup'larından (Metals + MetalVariants) çözülür.</summary>
+    private ProductRecipeLineGraphDto BuildTrialRecipeLine(SubstitutionTrialLineDto trialLine, int order)
+    {
+        var metal = Metals.FirstOrDefault(m => m.Id == trialLine.MetalId);
+        var metalVariant = trialLine.VariantId is { } variantId
+            ? MetalVariants.FirstOrDefault(v => v.VariantId == variantId)
+            : null;
+
+        return new ProductRecipeLineGraphDto
+        {
+            LineOrder            = order,
+            ComponentType        = RecipeComponentType.CatalogCommodity,
+            CommodityProcessType = ProcessType.Metal,
+            CommodityId          = trialLine.MetalId,
+            CommodityVariantId   = trialLine.VariantId,
+            Quantity             = trialLine.Count,
+            Amount               = trialLine.Count * trialLine.PieceWeight,
+            Factor               = metal?.Factor ?? 1m,
+            ValuationUnitId      = metal?.FollowingUnitId,
+            PaymentType          = ProcessPaymentType.Normal,
+            PayFactor            = metalVariant?.EntryLabor ?? 0m,
+            PayUnitId            = metalVariant?.EntryLaborUnitId ?? metal?.FollowingUnitId,
+        };
     }
 
     // Inline döviz ekle/düzelt sonrası lookup listesini tazeler (yeni birim anında combo'ya düşsün).
@@ -133,6 +323,13 @@ public partial class ProductEditHost
     // sunucu nitelik grafından kartezyeni hesaplar, dönen graf Model.Variants'a yazılır (kalıcılaşma Save'de).
     private async Task GenerateVariantsAsync(ProductGetDto model)
     {
+        // Mod kapısı (Dilim-3): SingleVariant/Muadil'de nitelik-tabanlı üretim BYPASS — host guard (buton zaten
+        // görünmez; savunma). Sunucu kapısı AYRICA ŞART (client güven sınırı değildir — SaveVariantGraphAsync).
+        if (model.VariantMode != ProductVariantMode.MultiVariant)
+        {
+            return;
+        }
+
         // Değeri olmayan (silinmemiş) nitelik varsa kartezyen tanımsız (kullanıcı hâlâ değer ekliyor) → otomatik regen ATLA.
         if (VariantGraphMerge.HasIncompleteAttribute(model.Attributes))
         {

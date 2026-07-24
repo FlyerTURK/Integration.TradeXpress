@@ -16,6 +16,9 @@ public class MetalVariantLookupDto
     public string VariantCode { get; set; } = string.Empty;
     public string VariantName { get; set; } = string.Empty;
 
+    /// <summary>Ana (main) varyant mı — muadil varyant ağacı "boş liste = yalnız ana" durumunu bununla çizer.</summary>
+    public bool IsMain { get; set; }
+
     public Integration.TradeXpress.Vouchers.MetalLaborType LaborType { get; set; }
     public decimal EntryLabor { get; set; }
     public Guid? EntryLaborUnitId { get; set; }

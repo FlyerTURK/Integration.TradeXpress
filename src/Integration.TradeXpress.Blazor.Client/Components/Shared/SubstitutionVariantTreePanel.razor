@@ -1,0 +1,70 @@
+@using System
+@using Integration.TradeXpress.Metals
+@using Integration.TradeXpress.Substitutions
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@*
+   Muadil "Varyant Kapsamı" ağacı (PermissionEditorPanel satır deseni: girinti 20px + her düğümde DxCheckBox).
+   2 sabit seviye: maden (tri-state) → varyantlar (opt-in checkbox; ana varyant etiketli). İKİ MOD:
+   — GRUP modu (statüko): kalem IncludedVariantIds düzenlenir; BOŞ liste = yalnız ANA varyant.
+   — OVERRIDE modu (Dilim-3, ürün yüzeyi; OverrideVariantIds verilince): ürünün düz override listesi düzenlenir;
+     maden başına boş seçim = GRUPTAN DEVRAL — devralınan küme gri "(devralınan)" etiketiyle referans görünür.
+   EditContext altındaki manuel-bağlı Dx editörler salt UI durumu → HEPSİNDE ValidationEnabled="false" ([validation-expr]).
+*@
+
+<div class="w-100">
+    <div style="color:var(--dx-text-muted,#888); font-size:0.85rem; padding:0.25rem 0 0.5rem 0;">
+        @(IsOverrideMode ? L["VariantScopeOverrideHint"] : L["VariantScopeHint"])
+    </div>
+
+    @if (_nodes.Count == 0)
+    {
+        <div style="color:var(--dx-text-muted,#888);">
+            @(IsOverrideMode ? L["VariantScopeOverrideEmpty"] : L["VariantScopeEmpty"])
+        </div>
+    }
+    else
+    {
+        @foreach (var node in _nodes)
+        {
+            var metal = node;
+            <div style="padding-top:0.15rem;">
+                <DxCheckBox T="bool?"
+                            Checked="@MetalState(metal)"
+                            CheckedChanged="@(async (bool? v) => await OnMetalToggledAsync(metal, v))"
+                            AllowIndeterminateStateByClick="false"
+                            ValidationEnabled="false">
+                    <strong>@metal.MetalCode</strong>
+                    @if (IsInheriting(metal))
+                    {
+                        <small style="color:var(--dx-text-muted,#888); font-style:italic;"> @L["VariantScopeInherited"]</small>
+                    }
+                    else
+                    {
+                        <small style="color:var(--dx-text-muted,#888)">(@IncludedCount(metal) / @metal.Variants.Count)</small>
+                    }
+                </DxCheckBox>
+            </div>
+            <div style="padding-left:20px; display:flex; gap:0.15rem 1.25rem; flex-wrap:wrap; align-items:flex-start;">
+                @foreach (var variant in metal.Variants)
+                {
+                    var captured = variant;
+                    <DxCheckBox Checked="@IsIncluded(metal, captured)"
+                                CheckedChanged="@(async (bool v) => await OnVariantToggledAsync(metal, captured, v))"
+                                ValidationEnabled="false">
+                        @captured.VariantCode
+                        @if (captured.IsMain)
+                        {
+                            <small style="color:var(--dx-text-muted,#888)"> (@L["Main"])</small>
+                        }
+                        @if (IsInheriting(metal) && IsInheritedMember(metal, captured))
+                        {
+                            @* Devralınan üye — pasif/gri referans: grup ayarı bu varyantı kapsıyor; işaretlemek override başlatır. *@
+                            <small style="color:var(--dx-text-muted,#888); font-style:italic;"> @L["VariantScopeInheritedTag"]</small>
+                        }
+                    </DxCheckBox>
+                }
+            </div>
+        }
+    }
+</div>

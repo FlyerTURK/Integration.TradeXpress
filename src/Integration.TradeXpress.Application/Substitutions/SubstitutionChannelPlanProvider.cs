@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Integration.Framework;
 using Integration.TradeXpress.Metals;
+using Integration.TradeXpress.MultiCompany;
 using Integration.TradeXpress.Products;
 using Integration.TradeXpress.Variants;
 using Integration.TradeXpress.Vouchers;
@@ -86,8 +87,7 @@ public class SubstitutionChannelPlanProvider : ITransientDependency
         var plan = SubstitutionStockItemPlanner.Build(new SubstitutionStockItemPlanInput(
             calculation.ToleranceType, calculation.ToleranceValue, input.TopN, successful));
 
-        var metalById = await LoadPlanMetalsAsync(plan);
-        return new SubstitutionChannelPlanContext(plan, metalById);
+        return await LoadPlanContextAsync(plan);
     }
 
     /// <summary>
@@ -150,7 +150,7 @@ public class SubstitutionChannelPlanProvider : ITransientDependency
             foreach (var header in matched)
             {
                 // Her başlığa TAZE reçete DTO listesi (Id boş = insert) — aynı plan kaydı birden çok StockItem'a uygulanabilir.
-                await applyCombinationToHeaderAsync(header, item.PackageCount, BuildRecipeLineDtos(item, context.MetalById));
+                await applyCombinationToHeaderAsync(header, item.PackageCount, BuildRecipeLineDtos(item, context));
             }
 
             result.Items.Add(new SubstitutionAppliedCombinationDto
@@ -237,20 +237,27 @@ public class SubstitutionChannelPlanProvider : ITransientDependency
 
     /// <summary>Plan reçete satırlarını kanal reçete graf DTO'larına çevirir (metal satırı: metal bacağı
     /// Factor/FollowingUnit + işçilik bacağı EntryLabor — hesap beslemesindeki parça-maliyet girdisiyle birebir,
-    /// böylece StockItem NetCost'u hesap maliyetiyle aynı motordan aynı sonucu üretir). Her çağrı TAZE DTO listesi
-    /// döner (Id boş = insert) — aynı plan kaydı birden çok StockItem'a uygulanabilir.</summary>
+    /// böylece StockItem NetCost'u hesap maliyetiyle aynı motordan aynı sonucu üretir). <b>Varyant boyutu (Dilim-2 +
+    /// A6):</b> satır SEÇİLEN varyantın <c>CommodityVariantId</c>'sini taşır; işçilik de seçilen varyantın
+    /// MetalVariantDetail'inden gelir (varyantsız legacy satır ana-varyant fallback'inde kalır — statüko).
+    /// Her çağrı TAZE DTO listesi döner (Id boş = insert) — aynı plan kaydı birden çok StockItem'a uygulanabilir.</summary>
     public static List<ProductRecipeLineGraphDto> BuildRecipeLineDtos(
-        SubstitutionStockItemPlanItem item, IReadOnlyDictionary<Guid, (Metal Metal, decimal EntryLabor, Guid? EntryLaborUnitId)> metalById)
+        SubstitutionStockItemPlanItem item, SubstitutionChannelPlanContext context)
     {
         var lines = new List<ProductRecipeLineGraphDto>(item.RecipeLines.Count);
         for (var i = 0; i < item.RecipeLines.Count; i++)
         {
             var planLine = item.RecipeLines[i];
-            if (!metalById.TryGetValue(planLine.MetalId, out var info))
+            if (!context.MetalById.TryGetValue(planLine.MetalId, out var metal))
             {
                 throw new BusinessException("TradeXpress:Substitution:MetalNotFound");
             }
-            var metal = info.Metal;
+
+            // İşçilik: seçilen varyantın detayı; varyantsız satırda ana-varyant fallback'i.
+            // Detay yoksa 0 (sessiz-0 statükosu — hesap tarafı zaten per-aday uyarı loglar).
+            var labor = planLine.VariantId is { } variantId
+                ? context.LaborByVariantId.GetValueOrDefault(variantId)
+                : context.MainLaborByMetalId.GetValueOrDefault(planLine.MetalId);
 
             lines.Add(new ProductRecipeLineGraphDto
             {
@@ -258,13 +265,14 @@ public class SubstitutionChannelPlanProvider : ITransientDependency
                 ComponentType        = RecipeComponentType.CatalogCommodity,
                 CommodityProcessType = ProcessType.Metal,
                 CommodityId          = metal.Id,
+                CommodityVariantId   = planLine.VariantId,
                 Quantity             = planLine.Count,
                 Amount               = planLine.Count * metal.StableQuantity,
                 Factor               = metal.Factor,
                 ValuationUnitId      = metal.FollowingUnitId,
                 PaymentType          = ProcessPaymentType.Normal,
-                PayFactor            = info.EntryLabor,
-                PayUnitId            = info.EntryLaborUnitId,
+                PayFactor            = labor?.EntryLabor ?? 0m,
+                PayUnitId            = labor?.EntryLaborUnitId,
             });
         }
 
@@ -277,56 +285,85 @@ public class SubstitutionChannelPlanProvider : ITransientDependency
             trial.Rank!.Value,
             trial.PackageCount,
             trial.Lines
-                .Select(l => new SubstitutionPlanCombinationLine(l.MetalId, l.MetalCode, l.PieceWeight, l.Count))
+                .Select(l => new SubstitutionPlanCombinationLine(
+                    l.MetalId, l.MetalCode, l.PieceWeight, l.Count, l.VariantId, l.VariantCode))
                 .ToList());
     }
 
-    /// <summary>Plandaki madenleri tek batch'te yükler — host (TenantId=null) katalog kaydı tenant altında da
-    /// görünmeli (SubstitutionCalculationAppService/RecipeCostPopulator ile aynı desen). Eksik maden fail-fast.</summary>
-    private async Task<IReadOnlyDictionary<Guid, (Metal Metal, decimal EntryLabor, Guid? EntryLaborUnitId)>> LoadPlanMetalsAsync(
-        SubstitutionStockItemPlan plan)
+    /// <summary>Plandaki madenleri + işçilik kataloğunu tek batch'te yükler — host (TenantId=null) katalog kaydı
+    /// tenant altında da görünmeli; işçilik sorgusu SubstitutionCalculationAppService.ComputeUnitCostsAsync ile
+    /// AYNI guard'ları taşır (IMultiTenant + ICompanyScoped kapalı, EntityName daraltması). İşçilik sözlüğü
+    /// varyant-anahtarlı (plan satırının seçtiği varyant) + ana-varyant fallback sözlüğü (varyantsız legacy satır).
+    /// Eksik maden fail-fast.</summary>
+    private async Task<SubstitutionChannelPlanContext> LoadPlanContextAsync(SubstitutionStockItemPlan plan)
     {
-        var metalIds = plan.Items
-            .SelectMany(i => i.RecipeLines)
-            .Select(l => l.MetalId)
+        var planLines = plan.Items.SelectMany(i => i.RecipeLines).ToList();
+        var metalIds = planLines.Select(l => l.MetalId).Distinct().ToList();
+        var variantIds = planLines
+            .Where(l => l.VariantId != null)
+            .Select(l => l.VariantId!.Value)
             .Distinct()
             .ToList();
 
-        Dictionary<Guid, (Metal Metal, decimal EntryLabor, Guid? EntryLaborUnitId)> metalById;
+        Dictionary<Guid, Metal> metalById;
+        Dictionary<Guid, SubstitutionPlanLabor> laborByVariantId;
+        Dictionary<Guid, SubstitutionPlanLabor> mainLaborByMetalId;
         using (_dataFilter.Disable<IMultiTenant>())
+        using (_dataFilter.Disable<ICompanyScoped>())
         {
             var metals = await _asyncExecuter.ToListAsync(
                 (await _metalRepository.GetQueryableAsync()).Where(m => metalIds.Contains(m.Id)));
-            
+            metalById = metals.ToDictionary(m => m.Id);
+
             var variantsQuery = await _entityVariantRepository.GetQueryableAsync();
             var detailsQuery = await _metalVariantDetailRepository.GetQueryableAsync();
-            
-            var laborDetails = await _asyncExecuter.ToListAsync(
+
+            // Seçilen varyantların işçiliği (varyant-anahtarlı — plan satırı hangi varyantı seçtiyse o).
+            var variantLabors = await _asyncExecuter.ToListAsync(
                 from v in variantsQuery
                 join d in detailsQuery on v.Id equals d.EntityVariantId
-                where v.IsMain && metalIds.Contains(v.EntityId)
+                where v.EntityName == MetalEntityName && variantIds.Contains(v.Id)
+                select new { v.Id, d.EntryLabor, d.EntryLaborUnitId }
+            );
+            laborByVariantId = variantLabors.ToDictionary(
+                x => x.Id,
+                x => new SubstitutionPlanLabor(x.EntryLabor, x.EntryLaborUnitId));
+
+            // Ana-varyant fallback'i — varyantsız (legacy) plan satırları statüko yolunda kalır.
+            var mainLabors = await _asyncExecuter.ToListAsync(
+                from v in variantsQuery
+                join d in detailsQuery on v.Id equals d.EntityVariantId
+                where v.IsMain && v.EntityName == MetalEntityName && metalIds.Contains(v.EntityId)
                 select new { v.EntityId, d.EntryLabor, d.EntryLaborUnitId }
             );
-        var laborDict = laborDetails.ToDictionary(x => x.EntityId, x => x);
-
-        metalById = metals.ToDictionary(m => m.Id, m => (m, 
-            laborDict.TryGetValue(m.Id, out var labor) ? labor.EntryLabor : 0m,
-            laborDict.TryGetValue(m.Id, out var laborU) ? laborU.EntryLaborUnitId : (Guid?)null));
-    }
+            mainLaborByMetalId = mainLabors.ToDictionary(
+                x => x.EntityId,
+                x => new SubstitutionPlanLabor(x.EntryLabor, x.EntryLaborUnitId));
+        }
 
         if (metalById.Count != metalIds.Count)
         {
             throw new BusinessException("TradeXpress:Substitution:MetalNotFound");
         }
 
-        return metalById;
+        return new SubstitutionChannelPlanContext(plan, metalById, laborByVariantId, mainLaborByMetalId);
     }
+
+    /// <summary>EntityVariant sahip-tipi guard'ı — işçilik join'i yalnız Metal varyantlarına daralır
+    /// (SubstitutionCalculationAppService/RecipeCostPopulator ile aynı desen).</summary>
+    private const string MetalEntityName = "Metal";
 }
 
-/// <summary>Köprü bağlamı — nötr plan + plandaki madenlerin çözülmüş katalog kayıtları.</summary>
+/// <summary>Köprü bağlamı — nötr plan + plandaki madenlerin çözülmüş katalog kayıtları + işçilik sözlükleri
+/// (varyant-anahtarlı seçili-varyant işçiliği ve varyantsız legacy satırlar için ana-varyant fallback'i).</summary>
 public sealed record SubstitutionChannelPlanContext(
     SubstitutionStockItemPlan Plan,
-    IReadOnlyDictionary<Guid, (Metal Metal, decimal EntryLabor, Guid? EntryLaborUnitId)> MetalById);
+    IReadOnlyDictionary<Guid, Metal> MetalById,
+    IReadOnlyDictionary<Guid, SubstitutionPlanLabor> LaborByVariantId,
+    IReadOnlyDictionary<Guid, SubstitutionPlanLabor> MainLaborByMetalId);
+
+/// <summary>Plan reçete satırının işçilik bacağı (EntryLabor @ EntryLaborUnit) — MetalVariantDetail'den.</summary>
+public sealed record SubstitutionPlanLabor(decimal EntryLabor, Guid? EntryLaborUnitId);
 
 /// <summary>Değer diff sonucu — plan↔mevcut değer eşlemeleri + artık plan dışı kalan (silinecek) değer id'leri.</summary>
 public sealed record SubstitutionCombinationValueDiff(

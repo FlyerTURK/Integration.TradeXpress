@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Volo.Abp;
 using Volo.Abp.EntityFrameworkCore.Modeling;
 using Integration.TradeXpress.Products;
+using Integration.TradeXpress.Substitutions;
 
 namespace Integration.TradeXpress.EntityFrameworkCore;
 
@@ -58,6 +59,19 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
             // Kişiselleştirme (personalization) — talimat max; IsPersonalizable/IsRequired (bool) + CharCountMax (int?)
             // konvansiyonla map'lenir. Kanal-ürünü push'ta bunları devralır (SONRAKİ iş).
             b.Property(x => x.PersonalizationInstructions).HasMaxLength(ProductConsts.PersonalizationInstructionsMaxLength);
+
+            // Varyant modu + Muadil konfigürasyonu (Dilim-3) — VariantMode/ToleranceType enum→int konvansiyonla;
+            // miktar/tolerans muadil hassasiyetiyle (N5, SubstitutionGroup tolerans deseni). Grup silme-guard /
+            // "hangi ürünler bu grubu kullanıyor" sorguları için id-only referans indekslenir (ShipmentTemplateId deseni).
+            b.Property(x => x.SubstitutionTargetQuantity).HasPrecision(
+                SubstitutionGroupConsts.ToleranceValuePrecision, SubstitutionGroupConsts.ToleranceValueScale);
+            b.Property(x => x.SubstitutionToleranceValue).HasPrecision(
+                SubstitutionGroupConsts.ToleranceValuePrecision, SubstitutionGroupConsts.ToleranceValueScale);
+            b.HasIndex(x => x.SubstitutionGroupId);
+            // Ürün-düzeyi varyant override kümesi — EF primitive-collection → JSON kolonu; Dilim-1
+            // SubstitutionGroupItem.IncludedVariantIds deseni birebir (provider-agnostik '[]' default:
+            // SQLite (EFCore testleri) N'...' tanımaz; SQL Server ASCII'yi nvarchar'a örtük çevirir).
+            b.PrimitiveCollection(x => x.SubstitutionOverrideVariantIds).HasDefaultValueSql("'[]'");
 
             b.HasIndex(x => new { x.TenantId, x.CompanyId, x.Code }).IsUnique();
             b.HasIndex(x => new { x.TenantId, x.CompanyId });

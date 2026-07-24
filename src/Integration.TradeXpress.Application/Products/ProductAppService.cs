@@ -174,6 +174,10 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
             await ResolveShipmentTemplateNameAsync(input.ShipmentTemplateId, input.ShipmentTemplateName),
             input.ShipmentTemplateId, input.MaxPurchaseQuantity, input.SellerNote,
             input.CurrencyUnitId, input.SpecialInfo, input.AddOns);
+        // Varyant modu ÖNCE, muadil konfigürasyonu SONRA (mutator mod tutarlılığını modun güncel değerine göre kurar).
+        entity.SetVariantMode(input.VariantMode);
+        entity.SetSubstitutionConfig(input.SubstitutionGroupId, input.SubstitutionTargetQuantity,
+            input.SubstitutionToleranceType, input.SubstitutionToleranceValue, input.SubstitutionOverrideVariantIds);
         await _repository.InsertAsync(entity, autoSave: true);
 
         // Varyant sistemi — JENERİK agnostik servise delege ("Product" bağlamı). Çekirdek (nitelik/değer/varyant)
@@ -205,6 +209,10 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
             await ResolveShipmentTemplateNameAsync(input.ShipmentTemplateId, input.ShipmentTemplateName),
             input.ShipmentTemplateId, input.MaxPurchaseQuantity, input.SellerNote,
             input.CurrencyUnitId, input.SpecialInfo, input.AddOns);
+        // Varyant modu ÖNCE, muadil konfigürasyonu SONRA (Create ile simetrik; mod dışı alanlar temizlenir).
+        entity.SetVariantMode(input.VariantMode);
+        entity.SetSubstitutionConfig(input.SubstitutionGroupId, input.SubstitutionTargetQuantity,
+            input.SubstitutionToleranceType, input.SubstitutionToleranceValue, input.SubstitutionOverrideVariantIds);
         await DeleteOrphanImageBlobsAsync(oldImages, entity.Images);
         await _repository.UpdateAsync(entity, autoSave: true);
 
@@ -419,13 +427,36 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
 
     /// <summary>Ürünün varyant grafını saklar: nitelik/değer diff → synchronizer kartezyen → çekirdek varyant
     /// özelleştirmeleri (Kod/Ad OTOMATİK). Product-ÖZEL satış fiyatı + reçete uzantısı saveExtension callback'iyle
-    /// çözülen DB varyantına (ProductVariantDetail + reçete satırları) bağlanır. Ürün zaten kaydedilmiş olmalı.</summary>
+    /// çözülen DB varyantına (ProductVariantDetail + reçete satırları) bağlanır. Ürün zaten kaydedilmiş olmalı.
+    /// <para><b>Mod kapısı (Dilim-3):</b> SingleVariant/Substitution modunda nitelik grafı SUNUCUDA boşaltılır
+    /// (client güven sınırı DEĞİL) — mevcut DB nitelikleri silinmek üzere işaretlenir, synchronizer'ın 0-nitelik
+    /// dalı bağlı varyantları silip tek ana varyanta indirir (hazır yol; ana varyantın reçete/fiyat uzantısı
+    /// ResolveTargetVariant IsMain eşlemesiyle yaşamaya devam eder).</para></summary>
     private async Task SaveVariantGraphAsync(
         Product product, List<EntityAttributeGraphDto> attributes, List<ProductVariantGraphDto> variants)
     {
+        var effectiveAttributes = await BuildEffectiveAttributeGraphAsync(product, attributes);
         await _entityVariant.SaveGraphAsync(
-            ProductEntityName, product.Id, product.CompanyId, product.Name, attributes, variants,
+            ProductEntityName, product.Id, product.CompanyId, product.Name, effectiveAttributes, variants,
             saveExtensionAsync: (dto, variantId) => SaveProductVariantDetailAsync(product.CompanyId, dto, variantId));
+    }
+
+    /// <summary>Mod kapısının nitelik grafı: MultiVariant → client grafı olduğu gibi; SingleVariant/Substitution →
+    /// mevcut DB nitelikleri IsDeleted işaretli graf (boş graf YETMEZ — SaveAttributesAsync yalnız işaretlileri
+    /// siler; işaretlemeden geçilirse synchronizer DB niteliklerinden kartezyeni yeniden kurardı).</summary>
+    private async Task<List<EntityAttributeGraphDto>> BuildEffectiveAttributeGraphAsync(
+        Product product, List<EntityAttributeGraphDto> attributes)
+    {
+        if (product.VariantMode == ProductVariantMode.MultiVariant)
+        {
+            return attributes;
+        }
+
+        var existing = await _entityVariant.LoadGraphAsync(ProductEntityName, product.Id);
+        return existing.Attributes
+            .Where(a => a.Id != Guid.Empty)
+            .Select(a => new EntityAttributeGraphDto { Id = a.Id, Name = a.Name, IsDeleted = true })
+            .ToList();
     }
 
     /// <summary>Varyant satış-fiyatı + reçete uzantısı (Product-özel) — çözülen DB varyanta (EntityVariantId) bağlar.
@@ -732,6 +763,12 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
             PersonalizationInstructions = p.PersonalizationInstructions,
             PersonalizationIsRequired = p.PersonalizationIsRequired,
             PersonalizationCharCountMax = p.PersonalizationCharCountMax,
+            VariantMode = p.VariantMode,
+            SubstitutionGroupId = p.SubstitutionGroupId,
+            SubstitutionTargetQuantity = p.SubstitutionTargetQuantity,
+            SubstitutionToleranceType = p.SubstitutionToleranceType,
+            SubstitutionToleranceValue = p.SubstitutionToleranceValue,
+            SubstitutionOverrideVariantIds = p.SubstitutionOverrideVariantIds.ToList(),
             Media = media,
             SalesChannelProducts = channelProducts,
             SalesChannelTrendyolProducts = trendyolChannelProducts,
