@@ -7,6 +7,7 @@ using Integration.Framework.Blazor.Client.Components.Crud;
 using Integration.Framework.Blazor.Client.Services.Base;
 using Integration.TradeXpress.Financials.CurrencyUnits;
 using Integration.TradeXpress.Futures;
+using Integration.TradeXpress.Goods;
 using Integration.TradeXpress.Jewelries;
 using Integration.TradeXpress.Metals;
 using Integration.TradeXpress.Products;
@@ -71,6 +72,7 @@ public partial class SalesChannelTrTrendyolProductEditFields : CrudComponentBase
     [Inject] private IScrapAppService ScrapAppService { get; set; } = default!;
     [Inject] private IFutureAppService FutureAppService { get; set; } = default!;
     [Inject] private IJewelryAppService JewelryAppService { get; set; } = default!;
+    [Inject] private IGoodAppService GoodAppService { get; set; } = default!;
     [Inject] private IStoneAppService StoneAppService { get; set; } = default!;
     [Inject] private IServiceAppService ServiceAppService { get; set; } = default!;
     [Inject] private IEffectivePriceAppService EffectivePriceAppService { get; set; } = default!;
@@ -106,6 +108,7 @@ public partial class SalesChannelTrTrendyolProductEditFields : CrudComponentBase
     private IReadOnlyList<ScrapListDto> _scraps = Array.Empty<ScrapListDto>();
     private IReadOnlyList<FutureListDto> _futures = Array.Empty<FutureListDto>();
     private IReadOnlyList<JewelryListDto> _jewelries = Array.Empty<JewelryListDto>();
+    private IReadOnlyList<GoodListDto> _goods = Array.Empty<GoodListDto>();
     private IReadOnlyList<StoneListDto> _stones = Array.Empty<StoneListDto>();
     private IReadOnlyList<ServiceListDto> _services = Array.Empty<ServiceListDto>();
     private IReadOnlyList<CurrentPriceDto> _priceUnits = Array.Empty<CurrentPriceDto>();
@@ -194,6 +197,7 @@ public partial class SalesChannelTrTrendyolProductEditFields : CrudComponentBase
             _scraps = await ScrapAppService.GetPickerListAsync();
             _futures = await FutureAppService.GetPickerListAsync();
             _jewelries = await JewelryAppService.GetPickerListAsync();
+            _goods = await GoodAppService.GetPickerListAsync();
             _stones = await StoneAppService.GetPickerListAsync();
             _services = await ServiceAppService.GetPickerListAsync();
             _priceUnits = await EffectivePriceAppService.GetCurrentPricesAsync();

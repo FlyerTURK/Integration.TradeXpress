@@ -3,6 +3,7 @@
 @using Integration.TradeXpress.Futures
 @using Integration.TradeXpress.Jewelries
 @using Integration.TradeXpress.Stones
+@using Integration.TradeXpress.Goods
 @using Integration.TradeXpress.Services
 @using Integration.TradeXpress.Blazor.Client.Pages.CurrentTransactions
 @inherits Integration.Framework.Blazor.Client.Components.Crud.EntryPanelBase<ProductRecipeLineGraphDto>
@@ -29,6 +30,8 @@
                                Click="@((ToolbarItemClickEventArgs e) => OpenCatalogDraft(ProcessType.Jewelry))" />
                 <DxToolbarItem Text="@L["Stone"]" IconCssClass="@TradeXpressIcons.Stone"
                                Click="@((ToolbarItemClickEventArgs e) => OpenCatalogDraft(ProcessType.Stone))" />
+                <DxToolbarItem Text="@L["Good"]" IconCssClass="@TradeXpressIcons.Good"
+                               Click="@((ToolbarItemClickEventArgs e) => OpenCatalogDraft(ProcessType.Good))" />
                 <DxToolbarItem Text="@L["Service"]" IconCssClass="@TradeXpressIcons.Service"
                                Click="@((ToolbarItemClickEventArgs e) => OpenServiceDraft())" />
             </Items>
@@ -135,6 +138,12 @@
                             <LookupComboBox TItem="StoneListDto" TValue="Guid?" Data="@Stones"
                                             ValueFieldName="@nameof(StoneListDto.Id)" TextFieldName="@nameof(StoneListDto.Code)"
                                             Value="@d.CommodityId" ValueChanged="@((Guid? v) => OnStoneSelected(v))" AllowClear="false" />
+                        }
+                        else if (d.CommodityProcessType == ProcessType.Good)
+                        {
+                            <LookupComboBox TItem="GoodListDto" TValue="Guid?" Data="@Goods"
+                                            ValueFieldName="@nameof(GoodListDto.Id)" TextFieldName="@nameof(GoodListDto.Code)"
+                                            Value="@d.CommodityId" ValueChanged="@((Guid? v) => OnGoodSelected(v))" AllowClear="false" />
                         }
                     </div>
 

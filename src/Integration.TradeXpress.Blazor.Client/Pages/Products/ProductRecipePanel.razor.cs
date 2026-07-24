@@ -9,6 +9,7 @@ using Integration.TradeXpress.Blazor.Client;
 using Integration.TradeXpress.Blazor.Client.Pages.CurrentTransactions;
 using Integration.TradeXpress.Financials.CurrencyUnits;
 using Integration.TradeXpress.Futures;
+using Integration.TradeXpress.Goods;
 using Integration.TradeXpress.Jewelries;
 using Integration.TradeXpress.Metals;
 using Integration.TradeXpress.Products;
@@ -38,6 +39,7 @@ public partial class ProductRecipePanel
     [Parameter] public IReadOnlyList<FutureListDto> Futures { get; set; } = Array.Empty<FutureListDto>();
     [Parameter] public IReadOnlyList<JewelryListDto> Jewelries { get; set; } = Array.Empty<JewelryListDto>();
     [Parameter] public IReadOnlyList<StoneListDto> Stones { get; set; } = Array.Empty<StoneListDto>();
+    [Parameter] public IReadOnlyList<GoodListDto> Goods { get; set; } = Array.Empty<GoodListDto>();
     /// <summary>Hizmet katalogu (etiket/kimlik için — Service entity'sine dokunulmaz).</summary>
     [Parameter] public IReadOnlyList<ServiceListDto> Services { get; set; } = Array.Empty<ServiceListDto>();
     /// <summary>Birim lookup (işçilik/bedel birimi) — CurrentPriceDto (Id + kod).</summary>
@@ -254,6 +256,9 @@ public partial class ProductRecipePanel
                 break;
             case ProcessType.Stone:
                 OnStoneSelected(Stones.FirstOrDefault()?.Id);
+                break;
+            case ProcessType.Good:
+                OnGoodSelected(Goods.FirstOrDefault()?.Id);
                 break;
         }
     }
@@ -678,6 +683,23 @@ public partial class ProductRecipePanel
         }
     }
 
+    private void OnGoodSelected(Guid? id)
+    {
+        if (Draft is not { } d)
+        {
+            return;
+        }
+
+        // Good parasal (Jewelry/Stone deseni): değerleme birimi mamülün giriş-fiyat birimi (ana varyanttan resolver'la
+        // GoodListDto'ya doldurulmuş EntryPriceUnitId). Sunucu maliyet motoru fiyatı yine ana varyanttan çözer.
+        d.CommodityId = id;
+        var g = id is { } gid ? Goods.FirstOrDefault(x => x.Id == gid) : null;
+        if (g != null)
+        {
+            d.ValuationUnitId = g.EntryPriceUnitId;
+        }
+    }
+
     // ── Görünüm/durum yardımcıları ──────────────────────────────────────────────────────────────────
     private MetalVariantLookupDto? SelectedMetal(ProductRecipeLineGraphDto l)
     {
@@ -716,6 +738,7 @@ public partial class ProductRecipePanel
         {
             ProcessType.Jewelry => Jewelries.FirstOrDefault(x => x.Id == id)?.PriceByQuantity ?? false,
             ProcessType.Stone => Stones.FirstOrDefault(x => x.Id == id)?.PriceByQuantity ?? false,
+            ProcessType.Good => Goods.FirstOrDefault(x => x.Id == id)?.PriceByQuantity ?? false,
             _ => false,
         };
     }
@@ -760,6 +783,7 @@ public partial class ProductRecipePanel
                 ProcessType.Future => L["Future"].Value,
                 ProcessType.Jewelry => L["Jewelry"].Value,
                 ProcessType.Stone => L["Stone"].Value,
+                ProcessType.Good => L["Good"].Value,
                 _ => L["ComponentType"].Value,
             },
         };
@@ -882,6 +906,7 @@ public partial class ProductRecipePanel
             ProcessType.Future => Futures.FirstOrDefault(x => x.Id == id)?.Code ?? string.Empty,
             ProcessType.Jewelry => Jewelries.FirstOrDefault(x => x.Id == id)?.Code ?? string.Empty,
             ProcessType.Stone => Stones.FirstOrDefault(x => x.Id == id)?.Code ?? string.Empty,
+            ProcessType.Good => Goods.FirstOrDefault(x => x.Id == id)?.Code ?? string.Empty,
             _ => string.Empty,
         };
     }
@@ -995,6 +1020,7 @@ public partial class ProductRecipePanel
             {
                 ProcessType.Jewelry => Jewelries.FirstOrDefault(x => x.Id == id)?.EntryPrice ?? 0m,
                 ProcessType.Stone => Stones.FirstOrDefault(x => x.Id == id)?.EntryPrice ?? 0m,
+                ProcessType.Good => Goods.FirstOrDefault(x => x.Id == id)?.EntryPrice ?? 0m,
                 _ => 0m,
             }
             : 0m;
@@ -1095,6 +1121,7 @@ public partial class ProductRecipePanel
                 ProcessType.Future => TradeXpressIcons.Future,
                 ProcessType.Jewelry => TradeXpressIcons.Jewelry,
                 ProcessType.Stone => TradeXpressIcons.Stone,
+                ProcessType.Good => TradeXpressIcons.Good,
                 _ => TradeXpressIcons.ProductVariant,
             },
         };

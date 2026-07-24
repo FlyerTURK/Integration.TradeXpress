@@ -10,6 +10,7 @@ using Integration.TradeXpress.AddOns;
 using Integration.TradeXpress.Blazor.Client.Components.Shared;
 using Integration.TradeXpress.Financials.CurrencyUnits;
 using Integration.TradeXpress.Futures;
+using Integration.TradeXpress.Goods;
 using Integration.TradeXpress.Jewelries;
 using Integration.TradeXpress.Metals;
 using Integration.TradeXpress.Products;
@@ -34,6 +35,7 @@ public partial class ProductLayout
     [Parameter] public IReadOnlyList<ScrapListDto> Scraps { get; set; } = Array.Empty<ScrapListDto>();
     [Parameter] public IReadOnlyList<FutureListDto> Futures { get; set; } = Array.Empty<FutureListDto>();
     [Parameter] public IReadOnlyList<JewelryListDto> Jewelries { get; set; } = Array.Empty<JewelryListDto>();
+    [Parameter] public IReadOnlyList<GoodListDto> Goods { get; set; } = Array.Empty<GoodListDto>();
     [Parameter] public IReadOnlyList<StoneListDto> Stones { get; set; } = Array.Empty<StoneListDto>();
     [Parameter] public IReadOnlyList<ServiceListDto> Services { get; set; } = Array.Empty<ServiceListDto>();
     [Parameter] public IReadOnlyList<CurrentPriceDto> Units { get; set; } = Array.Empty<CurrentPriceDto>();

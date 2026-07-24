@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Integration.TradeXpress.Financials.CurrencyUnits;
+using Integration.TradeXpress.Goods;
 using Integration.TradeXpress.Jewelries;
 using Integration.TradeXpress.Metals;
 using Integration.TradeXpress.MultiCompany;
@@ -40,6 +41,8 @@ public class RecipeCostPopulator : ITransientDependency
     private readonly IRepository<Metal, Guid> _metalRepository;
     private readonly IRepository<Jewelry, Guid> _jewelryRepository;
     private readonly IRepository<Stone, Guid> _stoneRepository;
+    private readonly IRepository<Good, Guid> _goodRepository;
+    private readonly IGoodPricingResolver _goodPricingResolver;
     private readonly IRepository<EntityVariant, Guid> _entityVariantRepository;
     private readonly IRepository<MetalVariantDetail, Guid> _metalVariantDetailRepository;
     private readonly IDataFilter _dataFilter;
@@ -51,6 +54,8 @@ public class RecipeCostPopulator : ITransientDependency
         IRepository<Metal, Guid> metalRepository,
         IRepository<Jewelry, Guid> jewelryRepository,
         IRepository<Stone, Guid> stoneRepository,
+        IRepository<Good, Guid> goodRepository,
+        IGoodPricingResolver goodPricingResolver,
         IRepository<EntityVariant, Guid> entityVariantRepository,
         IRepository<MetalVariantDetail, Guid> metalVariantDetailRepository,
         IDataFilter dataFilter,
@@ -61,6 +66,8 @@ public class RecipeCostPopulator : ITransientDependency
         _metalRepository = metalRepository;
         _jewelryRepository = jewelryRepository;
         _stoneRepository = stoneRepository;
+        _goodRepository = goodRepository;
+        _goodPricingResolver = goodPricingResolver;
         _entityVariantRepository = entityVariantRepository;
         _metalVariantDetailRepository = metalVariantDetailRepository;
         _dataFilter = dataFilter;
@@ -178,6 +185,14 @@ public class RecipeCostPopulator : ITransientDependency
                 entryPrice = s.EntryPrice;
                 priceByQuantity = s.PriceByQuantity;
             }
+            else if (l.CommodityProcessType == ProcessType.Good && catalog.Goods.TryGetValue(commodityId, out var g))
+            {
+                // Good parasal (Jewelry/Stone deseni) — FARK: giriş fiyatı ANA VARYANTINDAN çözülür (GoodVariantDetail;
+                // resolver katalog yüklemesinde). PriceByQuantity ana mamülde. Değerleme birimi satırın ValuationUnitId'i
+                // (UI'da good.EntryPriceUnitId'e set edilir — Jewelry ile aynı).
+                entryPrice = g.EntryPrice;
+                priceByQuantity = g.PriceByQuantity;
+            }
         }
 
         // Türev SelectedLines: seçili kaynak ClientKey'leri → pozisyon ordinal'leri (calculator upstream doğrular).
@@ -228,6 +243,7 @@ public class RecipeCostPopulator : ITransientDependency
         var metalIds = IdsOfFamily(ProcessType.Metal);
         var jewelryIds = IdsOfFamily(ProcessType.Jewelry);
         var stoneIds = IdsOfFamily(ProcessType.Stone);
+        var goodIds = IdsOfFamily(ProcessType.Good);
 
         // Satırların SEÇTİĞİ metal varyantları (ana-varyanttan farklı olabilir) — işçilik türü varyant-özel çözülür.
         var metalVariantIds = lines
@@ -241,6 +257,7 @@ public class RecipeCostPopulator : ITransientDependency
         var metals = new Dictionary<Guid, MetalCatalogCost>();
         var jewelries = new Dictionary<Guid, PricedCatalogCost>();
         var stones = new Dictionary<Guid, PricedCatalogCost>();
+        var goods = new Dictionary<Guid, PricedCatalogCost>();
         var laborByQuantityByVariant = new Dictionary<Guid, bool>();
 
         using (_dataFilter.Disable<IMultiTenant>())
@@ -294,9 +311,23 @@ public class RecipeCostPopulator : ITransientDependency
                         (await _stoneRepository.GetQueryableAsync()).Where(s => stoneIds.Contains(s.Id))))
                     .ToDictionary(s => s.Id, s => new PricedCatalogCost(s.EntryPrice, s.PriceByQuantity));
             }
+
+            if (goodIds.Length > 0)
+            {
+                // Good giriş fiyatı ANA VARYANTINDAN (GoodVariantDetail) resolver ile çözülür; PriceByQuantity ise ana
+                // mamülde (Good). İki kaynak birleşir → PricedCatalogCost (Jewelry/Stone ile aynı hesap girdisi).
+                var goodPricing = await _goodPricingResolver.ResolveAsync(goodIds);
+                var goodEntities = await _asyncExecuter.ToListAsync(
+                    (await _goodRepository.GetQueryableAsync()).Where(g => goodIds.Contains(g.Id)));
+                goods = goodEntities.ToDictionary(
+                    g => g.Id,
+                    g => new PricedCatalogCost(
+                        goodPricing.TryGetValue(g.Id, out var gp) ? gp.EntryPrice : 0m,
+                        g.PriceByQuantity));
+            }
         }
 
-        return new RecipeCatalogData(metals, jewelries, stones, laborByQuantityByVariant);
+        return new RecipeCatalogData(metals, jewelries, stones, goods, laborByQuantityByVariant);
     }
 
     /// <summary>Kaydedilmiş türev SelectedLines satırlarının kalıcı kaynak-Id CSV'sini (bir satır setinde), o setin
@@ -365,6 +396,7 @@ public class RecipeCostPopulator : ITransientDependency
         Dictionary<Guid, MetalCatalogCost> Metals,
         Dictionary<Guid, PricedCatalogCost> Jewelries,
         Dictionary<Guid, PricedCatalogCost> Stones,
+        Dictionary<Guid, PricedCatalogCost> Goods,
         Dictionary<Guid, bool> LaborByQuantityByVariant);
 }
 

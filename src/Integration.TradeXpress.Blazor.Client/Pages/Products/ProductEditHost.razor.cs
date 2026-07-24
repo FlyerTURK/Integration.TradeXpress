@@ -7,6 +7,7 @@ using Integration.TradeXpress.AddOns;
 using Integration.TradeXpress.Blazor.Client.Components.Shared;
 using Integration.TradeXpress.Financials.CurrencyUnits;
 using Integration.TradeXpress.Futures;
+using Integration.TradeXpress.Goods;
 using Integration.TradeXpress.Jewelries;
 using Integration.TradeXpress.Metals;
 using Integration.TradeXpress.Products;
@@ -39,6 +40,7 @@ public partial class ProductEditHost
     [Inject] protected IScrapAppService ScrapAppService { get; set; } = default!;
     [Inject] protected IFutureAppService FutureAppService { get; set; } = default!;
     [Inject] protected IJewelryAppService JewelryAppService { get; set; } = default!;
+    [Inject] protected IGoodAppService GoodAppService { get; set; } = default!;
     [Inject] protected IStoneAppService StoneAppService { get; set; } = default!;
     [Inject] protected IServiceAppService ServiceAppService { get; set; } = default!;
     [Inject] protected IEffectivePriceAppService EffectivePriceAppService { get; set; } = default!;
@@ -58,6 +60,7 @@ public partial class ProductEditHost
     protected IReadOnlyList<ScrapListDto> Scraps { get; private set; } = Array.Empty<ScrapListDto>();
     protected IReadOnlyList<FutureListDto> Futures { get; private set; } = Array.Empty<FutureListDto>();
     protected IReadOnlyList<JewelryListDto> Jewelries { get; private set; } = Array.Empty<JewelryListDto>();
+    protected IReadOnlyList<GoodListDto> Goods { get; private set; } = Array.Empty<GoodListDto>();
     protected IReadOnlyList<StoneListDto> Stones { get; private set; } = Array.Empty<StoneListDto>();
     protected IReadOnlyList<ServiceListDto> Services { get; private set; } = Array.Empty<ServiceListDto>();
     protected IReadOnlyList<CurrentPriceDto> Units { get; private set; } = Array.Empty<CurrentPriceDto>();
@@ -95,6 +98,7 @@ public partial class ProductEditHost
         Scraps = await ScrapAppService.GetPickerListAsync();
         Futures = await FutureAppService.GetPickerListAsync();
         Jewelries = await JewelryAppService.GetPickerListAsync();
+        Goods = await GoodAppService.GetPickerListAsync();
         Stones = await StoneAppService.GetPickerListAsync();
         Services = await ServiceAppService.GetPickerListAsync();
         Units = await EffectivePriceAppService.GetCurrentPricesAsync();
