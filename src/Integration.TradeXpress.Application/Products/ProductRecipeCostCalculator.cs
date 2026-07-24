@@ -127,6 +127,13 @@ public class ProductRecipeCostCalculator : ITransientDependency
             var quantity = line.PriceByQuantity ? line.Quantity : line.Amount;
             var total = line.EntryPrice * quantity;
 
+            // Fiyat ÇÖZÜLEMEDİYSE satır maliyeti hesaplanamaz — 0 döndürmek eksik bileşeni "bedava" gösterip
+            // NetCost'u sessizce eksik bırakırdı (kur çözülemediğindeki davranışla simetrik).
+            if (line.PriceUnknown)
+            {
+                return new RecipeLineCost(null, MissingRate: true, total, 0m);
+            }
+
             if (line.NaturalUnitId is not { } unit || !sellByUnit.TryGetValue(unit, out var sell))
             {
                 return new RecipeLineCost(null, MissingRate: true, total, 0m);
@@ -277,7 +284,10 @@ public sealed record RecipeLineCostInput(
     RecipeDerivedBaseMode? DerivedBaseMode = null,
     RecipeDerivedOperation? DerivedOperation = null,
     decimal DerivedOperand = 0m,
-    IReadOnlyList<int>? DerivedSourceOrdinals = null);
+    IReadOnlyList<int>? DerivedSourceOrdinals = null,
+    // Parasal katalog fiyatı ÇÖZÜLEMEDİ (0 ile karıştırılmaz): satır MissingRate döner — eksik maliyet "bedava"
+    // görünmesin. Good'un fiyatı ana varyantından çözülür ve detay satırı yoksa bilinmiyordur.
+    bool PriceUnknown = false);
 
 /// <summary>Tek satırın hesap sonucu — <see cref="Cost"/> (Satır Maliyeti = satırın katkısı; null ⇔ <see cref="MissingRate"/>).
 /// <see cref="Total"/>/<see cref="PayTotal"/> fiziki satırın doğal/karşı birim görüntü değerleri. <see cref="AppliedBase"/> =

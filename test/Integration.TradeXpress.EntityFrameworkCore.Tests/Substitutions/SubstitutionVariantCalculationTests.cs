@@ -307,6 +307,62 @@ public class SubstitutionVariantCalculationTests : TradeXpressEntityFrameworkCor
         invalid.Code.ShouldBe("TradeXpress:Substitution:ToleranceValueInvalid");
     }
 
+    // ── (f) bayat dahil-varyant id budaması (kod-inceleme regresyonu) ───────────────────────────────
+
+    /// <summary>Katalogda artık bulunmayan (bayat) dahil-varyant id'si hesabı KIRMAZ — override yoluyla simetrik
+    /// budanır ve kalan geçerli varyantla hesap yürür. Regresyon koruması: kapsam artık her grup kalemi için somut
+    /// id'lerle materyalize ediliyor ve varyantlar rutin olarak silinebiliyor (bir nitelik değeri kalkınca
+    /// EntityVariantSynchronizer ilgili varyantı soft-delete eder) → eski fail-fast, sıradan bir katalog
+    /// düzenlemesini o madeni içeren HER grubun hesabını (ürün formu, hesaplama sayfası, kanala-uygula)
+    /// kilitleyen bir kesintiye çeviriyordu.</summary>
+    [Fact]
+    public async Task Stale_included_variant_id_is_pruned_instead_of_failing_the_calculation()
+    {
+        var data = await WithUnitOfWorkAsync(() => _seeder.SeedCompanyGraphAsync("SVP"));
+        _companyContext.CompanyId = data.CompanyId;
+        await WithUnitOfWorkAsync(() => _seeder.AttachLocalCurrencyCountryAsync(data, "SVP"));
+
+        var metal = await SeedMetalAsync(data, "SVPFIVE", 5m);
+        var mainVariantId = await SeedVariantAsync(metal, "MAIN", isMain: true, laborPerPiece: 1m, data.TryUnitId);
+        await SeedInboundStockAsync(data, metal, count: 10, mainVariantId, "SVPFIVE-MAIN");
+
+        // Kapsamda geçerli varyantın YANINDA katalogda olmayan bir id (silinmiş varyant senaryosu).
+        var groupId = await SeedGroupAsync(data, "SVPGRP", (metal.Id, new[] { mainVariantId, Guid.NewGuid() }));
+
+        var result = await _calculationAppService.CalculateAsync(new SubstitutionCalculationInput
+        {
+            SubstitutionGroupId = groupId,
+            TargetQuantity      = 10m,
+            BranchId            = data.BranchId,
+        });
+
+        result.SuccessCount.ShouldBeGreaterThan(0);   // bayat id budandı, 2×5=10gr çözüm üretildi
+    }
+
+    /// <summary>Kapsamın TAMAMI bayatsa resolver ANA varyanta düşer (statüko) — hesap yine kırılmaz.</summary>
+    [Fact]
+    public async Task Fully_stale_included_variants_fall_back_to_main_variant()
+    {
+        var data = await WithUnitOfWorkAsync(() => _seeder.SeedCompanyGraphAsync("SVQ"));
+        _companyContext.CompanyId = data.CompanyId;
+        await WithUnitOfWorkAsync(() => _seeder.AttachLocalCurrencyCountryAsync(data, "SVQ"));
+
+        var metal = await SeedMetalAsync(data, "SVQFIVE", 5m);
+        var mainVariantId = await SeedVariantAsync(metal, "MAIN", isMain: true, laborPerPiece: 1m, data.TryUnitId);
+        await SeedInboundStockAsync(data, metal, count: 10, mainVariantId, "SVQFIVE-MAIN");
+
+        var groupId = await SeedGroupAsync(data, "SVQGRP", (metal.Id, new[] { Guid.NewGuid(), Guid.NewGuid() }));
+
+        var result = await _calculationAppService.CalculateAsync(new SubstitutionCalculationInput
+        {
+            SubstitutionGroupId = groupId,
+            TargetQuantity      = 10m,
+            BranchId            = data.BranchId,
+        });
+
+        result.SuccessCount.ShouldBeGreaterThan(0);
+    }
+
     // ── seed yardımcıları ───────────────────────────────────────────────────────────────────────────
 
     /// <summary>Adet-hesaplı + standart gramajlı maden (HAS takipli, milyem 1) — varyantlar AYRI seed'lenir.</summary>

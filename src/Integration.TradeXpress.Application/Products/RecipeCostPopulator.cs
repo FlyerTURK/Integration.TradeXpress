@@ -153,6 +153,7 @@ public class RecipeCostPopulator : ITransientDependency
         var stableQuantity = 0m;
         var priceByQuantity = false;
         var entryPrice = 0m;
+        var priceUnknown = false;
         var laborByQuantity = false;
 
         if (l.ComponentType == RecipeComponentType.CatalogCommodity && l.CommodityId is { } commodityId)
@@ -177,12 +178,14 @@ public class RecipeCostPopulator : ITransientDependency
             }
             else if (l.CommodityProcessType == ProcessType.Jewelry && catalog.Jewelries.TryGetValue(commodityId, out var j))
             {
-                entryPrice = j.EntryPrice;
+                entryPrice = j.EntryPrice ?? 0m;
+                priceUnknown = j.EntryPrice is null;
                 priceByQuantity = j.PriceByQuantity;
             }
             else if (l.CommodityProcessType == ProcessType.Stone && catalog.Stones.TryGetValue(commodityId, out var s))
             {
-                entryPrice = s.EntryPrice;
+                entryPrice = s.EntryPrice ?? 0m;
+                priceUnknown = s.EntryPrice is null;
                 priceByQuantity = s.PriceByQuantity;
             }
             else if (l.CommodityProcessType == ProcessType.Good && catalog.Goods.TryGetValue(commodityId, out var g))
@@ -190,7 +193,9 @@ public class RecipeCostPopulator : ITransientDependency
                 // Good parasal (Jewelry/Stone deseni) — FARK: giriş fiyatı ANA VARYANTINDAN çözülür (GoodVariantDetail;
                 // resolver katalog yüklemesinde). PriceByQuantity ana mamülde. Değerleme birimi satırın ValuationUnitId'i
                 // (UI'da good.EntryPriceUnitId'e set edilir — Jewelry ile aynı).
-                entryPrice = g.EntryPrice;
+                // Fiyat çözülemediyse 0 DEĞİL "bilinmiyor": satır MissingRate ile işaretlenir (bkz. PricedCatalogCost).
+                entryPrice = g.EntryPrice ?? 0m;
+                priceUnknown = g.EntryPrice is null;
                 priceByQuantity = g.PriceByQuantity;
             }
         }
@@ -221,7 +226,8 @@ public class RecipeCostPopulator : ITransientDependency
             l.DerivedBaseMode,
             l.DerivedOperation,
             l.DerivedOperand,
-            derivedOrdinals);
+            derivedOrdinals,
+            priceUnknown);
     }
 
     /// <summary>Reçetede geçen katalog kayıtlarının hesaba giren canlı verisini (metal adet→gram; parasal giriş
@@ -322,7 +328,7 @@ public class RecipeCostPopulator : ITransientDependency
                 goods = goodEntities.ToDictionary(
                     g => g.Id,
                     g => new PricedCatalogCost(
-                        goodPricing.TryGetValue(g.Id, out var gp) ? gp.EntryPrice : 0m,
+                        goodPricing.TryGetValue(g.Id, out var gp) ? gp.EntryPrice : null,
                         g.PriceByQuantity));
             }
         }
@@ -391,7 +397,11 @@ public class RecipeCostPopulator : ITransientDependency
     /// <summary><see cref="MetalCatalogCost.LaborByQuantity"/> ANA varyantın işçilik türüdür — yalnız
     /// varyantsız satırların fallback'i; varyantlı satır <see cref="RecipeCatalogData.LaborByQuantityByVariant"/>'tan çözer.</summary>
     private sealed record MetalCatalogCost(bool IsQuantity, decimal StableQuantity, bool LaborByQuantity);
-    private sealed record PricedCatalogCost(decimal EntryPrice, bool PriceByQuantity);
+    /// <summary>Parasal katalog maliyet girdisi. <see cref="EntryPrice"/> NULL = fiyat BİLİNMİYOR (0 DEĞİL) —
+    /// Good'un fiyatı ana varyantından (GoodVariantDetail) çözülür ve detay satırı yoksa resolver kayıt döndürmez;
+    /// 0 yazmak eksik maliyeti "bedava" gibi gösterip NetCost'u sessizce eksik bırakıyordu (kod-inceleme bulgusu).
+    /// Jewelry/Stone fiyatı entity'nin kendisinde olduğundan her zaman doludur (saklanan 0 = kullanıcının girdiği 0).</summary>
+    private sealed record PricedCatalogCost(decimal? EntryPrice, bool PriceByQuantity);
     private sealed record RecipeCatalogData(
         Dictionary<Guid, MetalCatalogCost> Metals,
         Dictionary<Guid, PricedCatalogCost> Jewelries,

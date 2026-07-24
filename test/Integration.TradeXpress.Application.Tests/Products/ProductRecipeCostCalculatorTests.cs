@@ -193,6 +193,38 @@ public class ProductRecipeCostCalculatorTests
         result.Net.ShouldBe(60000.00m);             // eksik satır net'e katılmaz
     }
 
+    /// <summary>Fiyatı ÇÖZÜLEMEYEN parasal satır (PriceUnknown) 0 maliyetle DEĞİL, MissingRate ile döner —
+    /// aksi halde fiyatsız bir Mamül "bedava" sayılıp net maliyeti sessizce eksik bırakırdı (kod-inceleme bulgusu:
+    /// Good'un fiyatı ana varyantından çözülür, detay satırı yoksa resolver kayıt döndürmez). Birim ÇÖZÜLEBİLİR
+    /// olmasına rağmen eksik işaretlenmesi şart — yoksa hata birim-eksikliğiyle maskelenirdi.</summary>
+    [Fact]
+    public void Priced_leg_with_unknown_price_is_marked_missing_not_zero_cost()
+    {
+        var priced = MetalLine(amount: 10m, factor: 1m);   // 60000
+        var unknownPrice = PricedLine(entryPrice: 0m, unitId: Try) with { PriceUnknown = true };
+
+        var result = _calculator.Compute(new[] { priced, unknownPrice }, Sell(), "TRY");
+
+        result.Lines[1].MissingRate.ShouldBeTrue();
+        result.Lines[1].Cost.ShouldBeNull();
+        result.AnyMissingRate.ShouldBeTrue();
+        result.Net.ShouldBe(60000.00m);                    // eksik satır net'e katılmaz (0 olarak eklenmez)
+    }
+
+    /// <summary>Fiyatı BİLİNEN ve gerçekten 0 olan parasal satır normal hesaplanır (0 = kullanıcının girdiği fiyat,
+    /// "bilinmiyor" ile karıştırılmaz) — PriceUnknown varsayılanı false kalmalı.</summary>
+    [Fact]
+    public void Priced_leg_with_known_zero_price_stays_valid_not_missing()
+    {
+        var line = PricedLine(entryPrice: 0m, unitId: Try);
+
+        var result = _calculator.Compute(new[] { line }, Sell(), "TRY");
+
+        result.Lines[0].MissingRate.ShouldBeFalse();
+        result.Lines[0].Cost.ShouldBe(0m);
+        result.AnyMissingRate.ShouldBeFalse();
+    }
+
     // ── Hizmet (türevsel bedel) satırları — PİLOT ────────────────────────────────────────────────────
 
     [Fact]

@@ -311,10 +311,15 @@ public partial class ProductLayout
         // Muadil moduna GERÇEKTEN geçildiyse (host onayladıysa) sağlıklı varsayılanlar: hedef 0 (null değil),
         // tolerans Miktar (Amount; devral yok), ilk grup otomatik seçili + kalemleri yüklenir. Kullanıcı boş/null
         // alanla ya da seçilmemiş grupla karşılaşmasın.
+        // DİKKAT (kod-inceleme düzeltmesi): tolerans TÜRÜ ve DEĞERİ birlikte dolar — Product.SetSubstitutionConfig
+        // "ikisi de dolu ya da ikisi de boş" değişmezini fail-fast zorlar. Yalnız türü set etmek kaydı KIRIYORDU
+        // (değer editörü sadece Binde'de göründüğü ve tür combosu temizlenemediği için UI'dan düzeltilemiyordu).
+        // Amount + 0 = TAM EŞLEŞME (ToleranceType.Amount dokümanının tanımı) → geçerli ve anlamlı varsayılan.
         if (Model.VariantMode == ProductVariantMode.Substitution)
         {
             Model.SubstitutionTargetQuantity ??= 0m;
             Model.SubstitutionToleranceType  ??= ToleranceType.Amount;
+            Model.SubstitutionToleranceValue ??= 0m;
             if (Model.SubstitutionGroupId is null && SubstitutionGroups.FirstOrDefault()?.Id is { } firstGroupId)
             {
                 await HandleSubstitutionGroupChangedAsync(firstGroupId);
@@ -325,15 +330,17 @@ public partial class ProductLayout
         StateHasChanged();
     }
 
-    /// <summary>Tolerans türü değişti — Miktar (tam eşleşme) türünde tolerans değeri anlamsız olduğundan sıfırlanır
-    /// (aksi halde Binde'den geçişte bayat değer ±miktar sapması gibi yorumlanırdı). Binde seçilince değer alanı
-    /// UI'da tekrar görünür ve kullanıcı girer.</summary>
+    /// <summary>Tolerans türü değişti — Miktar (tam eşleşme) türünde tolerans değeri UI'da gizlendiğinden SIFIRA
+    /// çekilir (Binde'den geçişte bayat değer ±miktar sapması gibi yorumlanmasın). Binde seçilince değer alanı
+    /// UI'da tekrar görünür ve kullanıcı girer.
+    /// <para>null DEĞİL 0: tür ve değer birlikte dolmalı (Product.SetSubstitutionConfig fail-fast'i); null'a çekmek
+    /// kaydı kırıyordu. Amount+0 = tam eşleşme.</para></summary>
     private void OnToleranceTypeChanged(ToleranceType? toleranceType)
     {
         Model.SubstitutionToleranceType = toleranceType;
         if (toleranceType != ToleranceType.PerMille)
         {
-            Model.SubstitutionToleranceValue = null;
+            Model.SubstitutionToleranceValue = toleranceType is null ? null : 0m;
         }
 
         EditChanged?.Invoke();

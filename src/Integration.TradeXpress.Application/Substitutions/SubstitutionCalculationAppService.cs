@@ -232,8 +232,13 @@ public class SubstitutionCalculationAppService : TradeXpressAppService, ISubstit
     /// ayrı aday satırları olarak açılır; aday sırası = tüketim önceliği + küme içi kullanıcı sırası.
     /// <b>Override (Dilim-3):</b> ürünün DÜZ override listesi maden başına katalog varyantlarıyla KESİŞTİRİLİR
     /// (kullanıcı sırası korunur); kesişimi boş kalan maden gruptan devralır (boş=devral semantiği — panelin
-    /// "gruptan devralınıyor" durumu). Katalogda artık bulunmayan dahil-varyant id'si fail-fast'tir
-    /// (sessiz stok/işçilik kaybı maskelenmez; override zaten katalogla kesiştirilerek girer).</summary>
+    /// "gruptan devralınıyor" durumu).
+    /// <para><b>Bayat id budaması (kod-inceleme düzeltmesi):</b> grubun IncludedVariantIds'i de katalogla
+    /// KESİŞTİRİLİR — override yoluyla simetrik öz-onarım. Gerekçe: kapsam artık her grup kalemi için somut
+    /// id'lerle materyalize ediliyor ve varyantlar rutin olarak soft-delete edilebiliyor (EntityVariantSynchronizer,
+    /// bir nitelik değeri kalkınca ilgili varyantı siler) → eski fail-fast, sıradan bir katalog düzenlemesini o
+    /// madeni içeren HER grubun hesabını (ürün formu, hesaplama sayfası, kanala-uygula) kilitleyen bir kesintiye
+    /// çeviriyordu. Kesişim boşalırsa resolver ana varyanta düşer (statüko).</para></summary>
     private static List<MetalVariantCandidate> BuildCandidates(
         List<OrderedGroupMetal> groupMetals,
         Dictionary<Guid, List<EntityVariant>> variantsByMetal,
@@ -251,8 +256,13 @@ public class SubstitutionCalculationAppService : TradeXpressAppService, ISubstit
                 .Where(metalVariantIds.Contains)
                 .ToList();
 
+            // Dahil-varyant listesi de katalogla kesiştirilir (bayat id budaması — override ile simetrik öz-onarım).
+            var includedForMetal = groupMetal.IncludedVariantIds
+                .Where(metalVariantIds.Contains)
+                .ToList();
+
             var effective = SubstitutionEffectiveVariantResolver.Resolve(
-                overrideForMetal, groupMetal.IncludedVariantIds, mainVariantId);
+                overrideForMetal, includedForMetal, mainVariantId);
 
             foreach (var variantId in effective)
             {

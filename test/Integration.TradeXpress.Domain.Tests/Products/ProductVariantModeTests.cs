@@ -47,6 +47,24 @@ public class ProductVariantModeTests
         product.SubstitutionOverrideVariantIds.ShouldBeEmpty();
     }
 
+    /// <summary>UI'nin Muadil moduna geçerken ürettiği VARSAYILAN konfigürasyon domain tarafından KABUL edilmeli.
+    /// Regresyon koruması (kod-inceleme bulgusu): form yalnız tolerans TÜRÜNÜ set edip değeri null bırakıyordu →
+    /// "ikisi de dolu ya da ikisi de boş" değişmezi her kaydı kırıyordu ve tolerans değeri editörü sadece Binde'de
+    /// göründüğü için kullanıcı bunu UI'dan düzeltemiyordu. Amount + 0 = TAM EŞLEŞME (enum'un tanımı) → geçerli.</summary>
+    [Fact]
+    public void Substitution_ui_default_config_amount_with_zero_tolerance_is_valid()
+    {
+        var product = CreateProduct();
+        product.SetVariantMode(ProductVariantMode.Substitution);
+        var groupId = Guid.NewGuid();
+
+        product.SetSubstitutionConfig(groupId, 10m, ToleranceType.Amount, 0m, null);
+
+        product.SubstitutionGroupId.ShouldBe(groupId);
+        product.SubstitutionToleranceType.ShouldBe(ToleranceType.Amount);
+        product.SubstitutionToleranceValue.ShouldBe(0m);
+    }
+
     [Fact]
     public void Substitution_mode_requires_group()
     {

@@ -48,16 +48,33 @@ public partial class SubstitutionGroupLayout
     {
         item.MetalCode = Metals.FirstOrDefault(m => m.Id == item.MetalId)?.Code ?? string.Empty;
 
-        // Varyant kapsamı varsayılanı (kullanıcı kararı 2026-07-24 "create anında sabitlenir"): maden eklenince o anki
-        // TÜM varyantları dahil et (materyalize). Kullanıcı "Varyant Kapsamı" sekmesinden istemediğini ÇIKARIR; sonradan
-        // doğan varyant bu SABİT listeye otomatik girmez. Zaten seçim varsa (kullanıcı daha önce daralttı) DOKUNMA;
-        // varyantı olmayan madende liste boş kalır → resolver ana varyanta düşer (emniyet).
-        if (item.MetalId is { } metalId && item.IncludedVariantIds.Count == 0)
+        if (item.MetalId is not { } metalId)
         {
-            item.IncludedVariantIds = MetalVariants
-                .Where(v => v.CommodityId == metalId && v.VariantId != null)
-                .Select(v => v.VariantId!.Value)
-                .ToList();
+            return Task.CompletedTask;
+        }
+
+        var metalVariantIds = MetalVariants
+            .Where(v => v.CommodityId == metalId && v.VariantId != null)
+            .Select(v => v.VariantId!.Value)
+            .ToList();
+
+        // Varyant kapsamı varsayılanı (kullanıcı kararı 2026-07-24 "create anında sabitlenir"): maden eklenince o anki
+        // TÜM varyantlar dahil edilir; kullanıcı "Varyant Kapsamı" sekmesinden istemediğini ÇIKARIR ve sonradan doğan
+        // varyant bu SABİT listeye otomatik girmez.
+        //
+        // MATERYALİZASYON YALNIZ İKİ DURUMDA (kod-inceleme düzeltmesi):
+        //  (a) satır YENİ (Id boş — henüz kaydedilmemiş) → ilk kez dolduruluyor;
+        //  (b) satırın MADENİ DEĞİŞTİRİLMİŞ → eldeki id'ler eski madene ait, bu maden için geçersiz (hesapta
+        //      "IncludedVariantNotFound" fail-fast'ine yol açardı) → bu madenin kapsamıyla yenilenir.
+        // MEVCUT satırın BOŞ listesine ASLA dokunulmaz: boş = "yalnız ana varyant" — sunucunun (NormalizeIncludedVariants)
+        // kasıtlı daraltmayı normalize ettiği temsil. Burayı koşulsuz doldurmak, DrillList güncelleme yolunda da
+        // çalıştığı için, kullanıcının bilinçli daraltmasını alakasız bir alan düzenlemesinde sessizce geri alıyordu.
+        var isNewRow = item.Id == Guid.Empty;
+        var matchesCurrentMetal = item.IncludedVariantIds.Any(metalVariantIds.Contains);
+        if ((isNewRow && item.IncludedVariantIds.Count == 0)
+            || (item.IncludedVariantIds.Count > 0 && !matchesCurrentMetal))
+        {
+            item.IncludedVariantIds = metalVariantIds;
         }
 
         return Task.CompletedTask;
