@@ -64,11 +64,12 @@ public class SubstitutionPlannerVariantTests
         plan.Items[0].PlanKey.ShouldBe(string.Join('|', expectedSegments));
     }
 
+    /// <summary>Yalnız VARYANTLA ayrışan kombinasyonlar metinde de VARYANT KODUYLA ayrışır (Rank son-ekiyle DEĞİL).
+    /// Kanal eşleştirmesi normalize METİN bazlı olduğundan, ayrımın rank'a bırakılması kimliği canlı veriye
+    /// (maliyet/stok) bağlıyordu — bkz. bir sonraki test.</summary>
     [Fact]
-    public void Value_texts_of_variant_only_differing_combinations_stay_unique_via_rank_suffix()
+    public void Value_texts_of_variant_only_differing_combinations_are_disambiguated_by_variant_code()
     {
-        // Aynı gramaj bileşimi (2×5gr) yalnız VARYANTLA ayrışıyor → gramaj VE maden-adı metinleri çakışır;
-        // benzersizlik Rank son-ekiyle korunur (kanal özellik değerleri metin bazında benzersiz kalmalı).
         var combinations = new List<SubstitutionPlanCombination>
         {
             new(1, 3, new List<SubstitutionPlanCombinationLine> { new(MetalId, "GR5", 5m, 2, MainVariantId, "GR5-MAIN") }),
@@ -80,9 +81,46 @@ public class SubstitutionPlannerVariantTests
 
         plan.Items.Select(i => i.ValueText).ShouldBe(new[]
         {
-            "2×GR5 5gr",
-            "2×GR5 5gr #2",
+            "2×GR5 5gr (GR5-MAIN)",
+            "2×GR5 5gr (GR5-ESKI)",
         });
         plan.Items.Select(i => i.PlanKey).Distinct().Count().ShouldBe(2);   // anahtarlar varyantla ayrışır
+    }
+
+    /// <summary>KİMLİK KARARLILIĞI — bir kombinasyonun değer metni RANK'tan bağımsızdır. Regresyon koruması
+    /// (kod-inceleme bulgusu): ayrım "#{Rank}" son-ekine bırakıldığında, ranklar takas olunca (bir işçilik
+    /// düzenlemesi ya da stok değişimi yeter) metin çoklu-kümesi AYNI kalıyor ama artık KARŞI kombinasyonlara
+    /// işaret ediyordu; kanal diff'i (normalize metin bazlı) sıfır fark raporlarken canlı bir pazaryeri
+    /// seçeneğinin reçetesi/stoğu diğer kombinasyonla eziliyordu — aynı SKU, aynı sipariş geçmişi, FARKLI mal.</summary>
+    [Fact]
+    public void Value_text_identity_survives_a_rank_swap()
+    {
+        SubstitutionPlanCombinationLine Main(int count) => new(MetalId, "GR5", 5m, count, MainVariantId, "GR5-MAIN");
+        SubstitutionPlanCombinationLine Alt(int count) => new(MetalId, "GR5", 5m, count, AltVariantId, "GR5-ESKI");
+
+        var before = SubstitutionStockItemPlanner.Build(new SubstitutionStockItemPlanInput(
+            ToleranceType.Amount, 0m, 2, new List<SubstitutionPlanCombination>
+            {
+                new(1, 3, new List<SubstitutionPlanCombinationLine> { Main(2) }),
+                new(2, 2, new List<SubstitutionPlanCombinationLine> { Alt(2) }),
+            }));
+
+        // Ranklar TAKAS oldu (ESKİ varyant artık daha ucuz/bol) — bileşimler aynı.
+        var after = SubstitutionStockItemPlanner.Build(new SubstitutionStockItemPlanInput(
+            ToleranceType.Amount, 0m, 2, new List<SubstitutionPlanCombination>
+            {
+                new(1, 2, new List<SubstitutionPlanCombinationLine> { Alt(2) }),
+                new(2, 3, new List<SubstitutionPlanCombinationLine> { Main(2) }),
+            }));
+
+        string TextOfKey(SubstitutionStockItemPlan plan, string planKey) =>
+            plan.Items.Single(i => i.PlanKey == planKey).ValueText;
+
+        var mainKey = before.Items.Single(i => i.ValueText.Contains("GR5-MAIN")).PlanKey;
+        var altKey = before.Items.Single(i => i.ValueText.Contains("GR5-ESKI")).PlanKey;
+
+        // Aynı PlanKey → takas SONRASI da AYNI metin (kanal değer kimliği kaymaz).
+        TextOfKey(after, mainKey).ShouldBe(TextOfKey(before, mainKey));
+        TextOfKey(after, altKey).ShouldBe(TextOfKey(before, altKey));
     }
 }

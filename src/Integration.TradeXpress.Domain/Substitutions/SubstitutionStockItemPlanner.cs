@@ -87,32 +87,31 @@ public static class SubstitutionStockItemPlanner
             .ToList();
     }
 
-    /// <summary>Değer metinleri — varsayılan gramaj formatı ("1×10gr + 2×1gr"); AYNI metni üreten iki plan
-    /// (farklı madenler aynı gramajda) maden adıyla ayrıştırılır; son çare Rank son-eki. Kanal özellik
-    /// değerleri metin bazında benzersiz kalmalı (aynı değer = aynı kombinasyon yorumu).</summary>
+    /// <summary>Değer metinleri — kademeli ayrıştırma: (1) gramaj ("1×10gr + 2×1gr"); (2) aynı metni üreten iki plan
+    /// maden ADIYLA; (3) hâlâ aynıysa VARYANT KODUYLA; (4) son çare Rank son-eki. Kanal özellik değerleri metin
+    /// bazında benzersiz kalmalı (aynı değer = aynı kombinasyon yorumu).
+    /// <para><b>Varyant basamağı neden ŞART (kod-inceleme bulgusu):</b> Dilim-2'den beri iki kombinasyon YALNIZ metal
+    /// varyantında farklı olabiliyor (aynı maden adı, aynı PieceWeight) → ilk iki basamak da çöküyordu ve ayrım tek
+    /// başına Rank son-ekine kalıyordu. Rank ise CANLI veriden türer (maliyet + paket sayısı): bir işçilik düzenlemesi
+    /// ya da sıradan bir satış sıralamayı takas ediyor, metin çoklu-kümesi aynı kaldığı için kanal eşleştirmesi
+    /// (DiffCombinationValues, normalize metin bazlı) hiçbir fark görmüyor ve CANLI bir pazaryeri seçeneğinin
+    /// reçetesi/stoğu KARŞI kombinasyonla eziliyordu — SKU ve sipariş geçmişi aynı, gönderilen mal farklı.
+    /// Varyant kodu kimliği STABİL kılar (rank'tan bağımsız) ve alıcıya görünen metni de anlamlandırır
+    /// ("2×ÇEYREK 1,75gr (ESKİ-KULPLU)" — "… #2" yerine).</para></summary>
     private static List<string> BuildUniqueValueTexts(List<SubstitutionPlanCombination> selected)
     {
-        var texts = selected.Select(c => BuildValueText(c, includeMetalName: false)).ToList();
+        var texts = selected.Select(c => BuildValueText(c, includeMetalName: false, includeVariant: false)).ToList();
 
-        var duplicated = texts
-            .GroupBy(t => t, StringComparer.Ordinal)
-            .Where(g => g.Count() > 1)
-            .Select(g => g.Key)
-            .ToHashSet(StringComparer.Ordinal);
-        for (var i = 0; i < texts.Count; i++)
-        {
-            if (duplicated.Contains(texts[i]))
-            {
-                texts[i] = BuildValueText(selected[i], includeMetalName: true);
-            }
-        }
+        ResolveDuplicates(texts, i => BuildValueText(selected[i], includeMetalName: true, includeVariant: false));
+        ResolveDuplicates(texts, i => BuildValueText(selected[i], includeMetalName: true, includeVariant: true));
 
+        // Son çare: varyant boyutu da ayırmadıysa (varyantsız legacy adaylar) Rank benzersizdir.
         var seen = new HashSet<string>(StringComparer.Ordinal);
         for (var i = 0; i < texts.Count; i++)
         {
             if (!seen.Add(texts[i]))
             {
-                texts[i] = $"{texts[i]} #{selected[i].Rank}";   // Rank benzersiz → metin garantili benzersiz
+                texts[i] = $"{texts[i]} #{selected[i].Rank}";
                 seen.Add(texts[i]);
             }
         }
@@ -120,14 +119,43 @@ public static class SubstitutionStockItemPlanner
         return texts;
     }
 
-    private static string BuildValueText(SubstitutionPlanCombination combination, bool includeMetalName)
+    /// <summary>Hâlâ çakışan metinleri bir sonraki ayrıştırma basamağıyla yeniden üretir (yerinde).</summary>
+    private static void ResolveDuplicates(List<string> texts, Func<int, string> rebuild)
+    {
+        var duplicated = texts
+            .GroupBy(t => t, StringComparer.Ordinal)
+            .Where(g => g.Count() > 1)
+            .Select(g => g.Key)
+            .ToHashSet(StringComparer.Ordinal);
+
+        if (duplicated.Count == 0)
+        {
+            return;
+        }
+
+        for (var i = 0; i < texts.Count; i++)
+        {
+            if (duplicated.Contains(texts[i]))
+            {
+                texts[i] = rebuild(i);
+            }
+        }
+    }
+
+    private static string BuildValueText(
+        SubstitutionPlanCombination combination, bool includeMetalName, bool includeVariant)
     {
         var segments = combination.Lines.Select(l =>
         {
             var weight = FormatDecimal(l.PieceWeight);
-            return includeMetalName
+            var body = includeMetalName
                 ? $"{l.Count}×{l.MetalName} {weight}gr"
                 : $"{l.Count}×{weight}gr";
+
+            // Varyant kodu yalnız gerektiğinde ve VARSA eklenir (varyantsız legacy satır metnini değiştirmez).
+            return includeVariant && !string.IsNullOrWhiteSpace(l.VariantCode)
+                ? $"{body} ({l.VariantCode})"
+                : body;
         });
 
         return string.Join(" + ", segments);
