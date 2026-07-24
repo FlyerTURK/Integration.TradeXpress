@@ -103,6 +103,24 @@ public partial class SalesChannelTrN11ProductEditFields : CrudComponentBase
     // Kategori attribute grid satırları (def + o anki değerler) — hücre-içi düzenleme, paging yok.
     private List<N11AttributeCellRow> _attributeRows = new();
 
+    // GPSR gürültüsü: N11 REST /cdn kategori-attribute yüzeyi, 3 gerçek zorunlu (Marka/Toplam Gram/Maden Ayarı)
+    // yanına ~32 platform-geneli "Ürün Güvenliği/GPSR" opsiyonel alanı ekliyor. Zorunlular üstte HEP açık; opsiyoneller
+    // sayaçlı KATLANMIŞ grupta (form kalabalıklaşmasın, kabiliyet kaybolmasın). İki grid aynı EditCell mantığını paylaşır.
+    private IReadOnlyList<N11AttributeCellRow> MandatoryAttributeRows
+    {
+        get { return _attributeRows.Where(r => r.IsMandatory).ToList(); }
+    }
+
+    private IReadOnlyList<N11AttributeCellRow> OptionalAttributeRows
+    {
+        get { return _attributeRows.Where(r => !r.IsMandatory).ToList(); }
+    }
+
+    private int OptionalFilledCount
+    {
+        get { return _attributeRows.Count(r => !r.IsMandatory && !string.IsNullOrEmpty(r.CustomValue)); }
+    }
+
     // Özellikler drill'i (kombinasyon ÜRETİMİ amaçlı — kategori-attribute-push'tan AYRI) — üst = özellik
     // (Model.ProductAttributes, ilk açılışta ERP'den klonlanmış taslak gelir), alt = özellik değerleri. İkisi de serbest
     // ekle/sil (klon-sonra-ayrış felsefesi).

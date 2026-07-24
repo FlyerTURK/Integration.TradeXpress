@@ -42,10 +42,24 @@ public partial class SubstitutionGroupLayout
         return new SubstitutionGroupItemGraphDto { DisplayOrder = nextOrder };
     }
 
-    // Drill popup'ı kaydedince grid'de görünen maden kodunu seçimden tazele (MetalCode display-only).
+    // Drill popup'ı kaydedince grid'de görünen maden kodunu seçimden tazele (MetalCode display-only) +
+    // muadil varyant kapsamını MATERYALİZE et.
     private Task OnItemSaved(SubstitutionGroupItemGraphDto item)
     {
         item.MetalCode = Metals.FirstOrDefault(m => m.Id == item.MetalId)?.Code ?? string.Empty;
+
+        // Varyant kapsamı varsayılanı (kullanıcı kararı 2026-07-24 "create anında sabitlenir"): maden eklenince o anki
+        // TÜM varyantları dahil et (materyalize). Kullanıcı "Varyant Kapsamı" sekmesinden istemediğini ÇIKARIR; sonradan
+        // doğan varyant bu SABİT listeye otomatik girmez. Zaten seçim varsa (kullanıcı daha önce daralttı) DOKUNMA;
+        // varyantı olmayan madende liste boş kalır → resolver ana varyanta düşer (emniyet).
+        if (item.MetalId is { } metalId && item.IncludedVariantIds.Count == 0)
+        {
+            item.IncludedVariantIds = MetalVariants
+                .Where(v => v.CommodityId == metalId && v.VariantId != null)
+                .Select(v => v.VariantId!.Value)
+                .ToList();
+        }
+
         return Task.CompletedTask;
     }
 }

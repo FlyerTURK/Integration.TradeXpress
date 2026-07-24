@@ -220,19 +220,16 @@ public partial class SubstitutionVariantTreePanel : CrudComponentBase
         }
     }
 
-    /// <summary>GRUP modu: seçimi kalem DTO'suna yazar — normalizasyon (boş=ana değişmezinin TEK temsili):
-    /// boş küme → boş liste ("hiçbiri" temsil edilmez, ana varyant her zaman dahildir) ve "{yalnız ana}" → boş
-    /// liste. Liste sırası lookup sırasından üretilir (deterministik JSON → form dirty kıyası kararlı).
-    /// Sunucu aynı normalizasyonu yazma sınırında da zorlar (client güven sınırı değildir).</summary>
+    /// <summary>GRUP modu: seçimi kalem DTO'suna AYNEN yazar (yeni semantik 2026-07-24: varsayılan TÜM varyantlar,
+    /// maden eklenince OnItemSaved materyalize eder → "boş=ana" normalizasyonu KALKTI). Kullanıcı ne bıraktıysa o
+    /// whitelist'tir; hepsini çıkarırsa boş liste → resolver ana varyanta düşer (emniyet). Liste sırası lookup
+    /// sırasından üretilir (deterministik JSON → form dirty kıyası kararlı).</summary>
     private void StoreGroupItem(MetalNode node, HashSet<Guid> selected)
     {
-        var onlyMain = node.MainVariantId is { } mainId && selected.Count == 1 && selected.Contains(mainId);
-        node.Item.IncludedVariantIds = selected.Count == 0 || onlyMain
-            ? new List<Guid>()
-            : node.Variants
-                .Where(v => v.VariantId is { } id && selected.Contains(id))
-                .Select(v => v.VariantId!.Value)
-                .ToList();
+        node.Item.IncludedVariantIds = node.Variants
+            .Where(v => v.VariantId is { } id && selected.Contains(id))
+            .Select(v => v.VariantId!.Value)
+            .ToList();
     }
 
     /// <summary>OVERRIDE modu: düz listeyi TÜM düğümlerin güncel seçiminden yeniden kurar (düğüm sırası +

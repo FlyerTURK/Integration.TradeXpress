@@ -1,0 +1,57 @@
+@using DevExpress.Blazor
+@using Integration.TradeXpress.N11Categories
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@* N11 kategori attribute'larının HÜCRE-İÇİ düzenlenen grid'i — zorunlu ve opsiyonel (GPSR) satır kümeleri için ORTAK
+   markup (DRY). Üst form (SalesChannelTrN11ProductEditFields) bunu iki kez tüketir: üstte zorunlular, katlanmış grupta
+   opsiyoneller. Kaydetme mantığı üstte kalır (RowSaving delege → düzenlenen satırı AttributeId ile bulup uygular).
+   Değer hücresi: değer-listeli → tek-seçim DxComboBox (isCustomValue ise liste-dışı da yazılır); serbest → DxTextBox. *@
+<DxGrid Data="@Rows" KeyFieldName="AttributeId"
+        EditMode="GridEditMode.EditCell"
+        EditModelSaving="@RowSaving"
+        PageSize="200" PagerVisible="false"
+        CssClass="w-100">
+    <Columns>
+        <DxGridDataColumn FieldName="Name" Caption="@L["ProductAttribute"]" Width="35%" ReadOnly="true">
+            <CellDisplayTemplate Context="cell">
+                @{ var r = (N11AttributeCellRow)cell.DataItem; }
+                <span>@(r.IsMandatory ? $"{r.Name} *" : r.Name)</span>
+            </CellDisplayTemplate>
+        </DxGridDataColumn>
+        @* FieldName ŞART: EditCell modunda FieldName'siz kolon "düzenlenebilir hücre" sayılmaz (satır seçilir ama
+           hücre edit açılmaz). Değer TagBox/TextBox'ta düzenlenir; CustomValue anchor alan olarak yeter. *@
+        <DxGridDataColumn FieldName="CustomValue" Caption="@L["AttributeValues"]">
+            <CellDisplayTemplate Context="cell">
+                @{ var r = (N11AttributeCellRow)cell.DataItem; }
+                <span>@(string.IsNullOrEmpty(r.CustomValue) ? "-" : r.CustomValue)</span>
+            </CellDisplayTemplate>
+            <CellEditTemplate Context="cell">
+                @{ var row = (N11AttributeCellRow)cell.EditModel; }
+                @if (row.HasValueList)
+                {
+                    @* Tek-seçim combo. AllowUserInput=true (isCustomValue) → liste-dışı değer de yazılır (ör. Marka).
+                       Tek-yönlü Text bağı → TextExpression ŞART. *@
+                    <DxComboBox Data="@row.DefinitionValues"
+                                TData="N11CategoryAttributeValueDto"
+                                TValue="string"
+                                ValueFieldName="@nameof(N11CategoryAttributeValueDto.Value)"
+                                TextFieldName="@nameof(N11CategoryAttributeValueDto.Value)"
+                                AllowUserInput="@row.AllowCustomValues"
+                                SearchMode="ListSearchMode.AutoSearch"
+                                Text="@row.CustomValue"
+                                TextChanged="@((string v) => row.CustomValue = v)"
+                                TextExpression="@(() => row.CustomValue)"
+                                ValidationEnabled="false"
+                                ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto"
+                                CssClass="w-100" />
+                }
+                else
+                {
+                    <DxTextBox Text="@row.CustomValue"
+                               TextChanged="@((string v) => row.CustomValue = v)"
+                               TextExpression="@(() => row.CustomValue)" />
+                }
+            </CellEditTemplate>
+        </DxGridDataColumn>
+    </Columns>
+</DxGrid>

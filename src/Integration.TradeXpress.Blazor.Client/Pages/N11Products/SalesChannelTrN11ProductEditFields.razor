@@ -132,58 +132,22 @@
         }
         else
         {
-            <DxGrid Data="@_attributeRows" KeyFieldName="AttributeId"
-                    EditMode="GridEditMode.EditCell"
-                    EditModelSaving="OnAttributeRowSaving"
-                    PageSize="200" PagerVisible="false"
-                    CssClass="w-100">
-                <Columns>
-                    <DxGridDataColumn FieldName="Name" Caption="@L["ProductAttribute"]" Width="35%" ReadOnly="true">
-                        <CellDisplayTemplate Context="cell">
-                            @{ var r = (N11AttributeCellRow)cell.DataItem; }
-                            <span>@(r.IsMandatory ? $"{r.Name} *" : r.Name)</span>
-                        </CellDisplayTemplate>
-                    </DxGridDataColumn>
-                    @* FieldName ŞART: EditCell modunda FieldName'siz kolon "düzenlenebilir hücre" sayılmaz
-                       (satır seçilir ama hücre edit açılmaz — Trendyol'daki çalışan grid'de FieldName="CustomValue" var).
-                       Değer TagBox/TextBox'ta düzenlenir; CustomValue anchor alan olarak yeter (OnAttributeRowSaving
-                       hem SelectedValues hem CustomValue'yu geri uygular). *@
-                    <DxGridDataColumn FieldName="CustomValue" Caption="@L["AttributeValues"]">
-                        <CellDisplayTemplate Context="cell">
-                            @{ var r = (N11AttributeCellRow)cell.DataItem; }
-                            <span>@(string.IsNullOrEmpty(r.CustomValue) ? "-" : r.CustomValue)</span>
-                        </CellDisplayTemplate>
-                        <CellEditTemplate Context="cell">
-                            @{ var row = (N11AttributeCellRow)cell.EditModel; }
-                            @if (row.HasValueList)
-                            {
-                                @* Tek-seçim combo. AllowUserInput=true (isCustomValue) → liste-dışı değer de yazılır
-                                   (ör. Marka). Text=Value=marka adı; seçim/yazım tek değer olarak CustomValue'ya düşer.
-                                   Tek-yönlü Text bağı → TextExpression ŞART (EditForm/@bind yok). *@
-                                <DxComboBox Data="@row.DefinitionValues"
-                                            TData="N11CategoryAttributeValueDto"
-                                            TValue="string"
-                                            ValueFieldName="@nameof(N11CategoryAttributeValueDto.Value)"
-                                            TextFieldName="@nameof(N11CategoryAttributeValueDto.Value)"
-                                            AllowUserInput="@row.AllowCustomValues"
-                                            SearchMode="ListSearchMode.AutoSearch"
-                                            Text="@row.CustomValue"
-                                            TextChanged="@((string v) => row.CustomValue = v)"
-                                            TextExpression="@(() => row.CustomValue)"
-                                            ValidationEnabled="false"
-                                            ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto"
-                                            CssClass="w-100" />
-                            }
-                            else
-                            {
-                                <DxTextBox Text="@row.CustomValue"
-                                           TextChanged="@((string v) => row.CustomValue = v)"
-                                           TextExpression="@(() => row.CustomValue)" />
-                            }
-                        </CellEditTemplate>
-                    </DxGridDataColumn>
-                </Columns>
-            </DxGrid>
+            @* Zorunlu attribute'lar (Marka/Toplam Gram/Maden Ayarı) — HEP açık, üstte. *@
+            <N11CategoryAttributeGrid Rows="@MandatoryAttributeRows" RowSaving="OnAttributeRowSaving" />
+
+            @* Opsiyonel (GPSR/Ürün Güvenliği vb.) — sayaçlı, varsayılan KAPALI katlanabilir grup: form kalabalıklaşmasın
+               ama kabiliyet kaybolmasın (N11 yarın bir GPSR alanını zorunlu yaparsa doldurabilirsin). *@
+            @if (OptionalAttributeRows.Count > 0)
+            {
+                <DxFormLayout CssClass="mt-2">
+                    <DxFormLayoutGroup Caption="@($"{L["N11Product:OptionalAttributes"]} ({OptionalFilledCount}/{OptionalAttributeRows.Count})")"
+                                       Expanded="false" ExpandButtonDisplayMode="GroupExpandButtonDisplayMode.Start" ColSpanMd="12">
+                        <DxFormLayoutItem ColSpanMd="12">
+                            <N11CategoryAttributeGrid Rows="@OptionalAttributeRows" RowSaving="OnAttributeRowSaving" />
+                        </DxFormLayoutItem>
+                    </DxFormLayoutGroup>
+                </DxFormLayout>
+            }
         }
     </DxTabPage>
 
