@@ -235,7 +235,8 @@ public class GoodAppService
 
     protected override Task<Good> MapToEntityAsync(GoodCreateDto createInput)
     {
-        var entity = new Good(createInput.Code, createInput.Name, createInput.CompanyId);
+        // SAHİPLİK client'tan DEĞİL aktif working company'den (fail-closed — bkz. CompanyOwnershipGuard).
+        var entity = new Good(createInput.Code, createInput.Name, CompanyOwnershipGuard.ResolveOwnerCompanyId(_currentCompany));
         ApplyScalars(entity, createInput.Brand, createInput.Model, createInput.Kind, createInput.Type,
             createInput.Color, createInput.Size, createInput.Category, createInput.GroupCode, createInput.StockUnitCode,
             createInput.VatPurchaseRate, createInput.VatSaleRate, createInput.OtvRate, createInput.WithholdingRate,

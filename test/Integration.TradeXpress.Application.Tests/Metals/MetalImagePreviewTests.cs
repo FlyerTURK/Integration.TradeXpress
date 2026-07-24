@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using System.Threading.Tasks;
 using Integration.TradeXpress.Financials.CurrencyUnits;
+using Integration.TradeXpress.MultiCompany;
 using Integration.TradeXpress.Products;
 using Shouldly;
 using Volo.Abp.BlobStoring;
@@ -28,6 +29,12 @@ public abstract class MetalImagePreviewTests<TStartupModule> : TradeXpressApplic
     private readonly IMetalImageAppService _imageAppService;
     private readonly IRepository<CurrencyUnit, Guid> _unitRepository;
     private readonly IBlobContainer<MetalImagesContainer> _imageContainer;
+    private readonly ICurrentCompany _currentCompany;
+
+    /// <summary>Emtia SAHİPLİĞİ artık aktif working company'den gelir (CompanyOwnershipGuard, fail-closed) —
+    /// fixture'lar bu yüzden bir çalışma şirketi altında kurulur. Testin KONUSU bu değil (görsel önizleme
+    /// round-trip'i); TenantId ambient host bağlamından gelmeye devam eder.</summary>
+    private static readonly Guid FixtureCompanyId = Guid.NewGuid();
 
     protected MetalImagePreviewTests()
     {
@@ -35,6 +42,17 @@ public abstract class MetalImagePreviewTests<TStartupModule> : TradeXpressApplic
         _imageAppService = GetRequiredService<IMetalImageAppService>();
         _unitRepository = GetRequiredService<IRepository<CurrencyUnit, Guid>>();
         _imageContainer = GetRequiredService<IBlobContainer<MetalImagesContainer>>();
+        _currentCompany = GetRequiredService<ICurrentCompany>();
+    }
+
+    /// <summary>Maden fixture'ı — sahiplik guard'ı (CompanyOwnershipGuard) gereği working company altında
+    /// oluşturulur. Testin konusu görsel önizleme round-trip'i; sahiplik yalnız bir ön koşul.</summary>
+    private async Task<MetalGetDto> CreateMetalFixtureAsync(MetalCreateDto input)
+    {
+        using (_currentCompany.Change(FixtureCompanyId))
+        {
+            return await _metalAppService.CreateAsync(input);
+        }
     }
 
     [Fact]
@@ -48,7 +66,7 @@ public abstract class MetalImagePreviewTests<TStartupModule> : TradeXpressApplic
             Content = TinyPng,
         });
 
-        var uploadMetal = await _metalAppService.CreateAsync(new MetalCreateDto
+        var uploadMetal = await CreateMetalFixtureAsync(new MetalCreateDto
         {
             Code = "IMGUP",
             Name = "Upload Görselli Maden",
@@ -61,7 +79,7 @@ public abstract class MetalImagePreviewTests<TStartupModule> : TradeXpressApplic
             },
         });
 
-        var urlMetal = await _metalAppService.CreateAsync(new MetalCreateDto
+        var urlMetal = await CreateMetalFixtureAsync(new MetalCreateDto
         {
             Code = "IMGURL",
             Name = "Url Görselli Maden",
@@ -73,7 +91,7 @@ public abstract class MetalImagePreviewTests<TStartupModule> : TradeXpressApplic
             },
         });
 
-        var bareMetal = await _metalAppService.CreateAsync(new MetalCreateDto
+        var bareMetal = await CreateMetalFixtureAsync(new MetalCreateDto
         {
             Code = "IMGNONE",
             Name = "Görselsiz Maden",
@@ -115,7 +133,7 @@ public abstract class MetalImagePreviewTests<TStartupModule> : TradeXpressApplic
             Content = TinyPng,
         });
 
-        var created = await _metalAppService.CreateAsync(new MetalCreateDto
+        var created = await CreateMetalFixtureAsync(new MetalCreateDto
         {
             Code = "IMGORP",
             Name = "Yetim Blob Madeni",

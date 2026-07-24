@@ -102,8 +102,9 @@ public class StoneAppService
     protected override Task<Stone> MapToEntityAsync(StoneCreateDto createInput)
     {
         // TenantId otomatik (host→null, tenant→kendi); zengin ctor + SetX.
+        // SAHİPLİK client'tan DEĞİL aktif working company'den (fail-closed — bkz. CompanyOwnershipGuard).
         var entity = new Stone(
-            createInput.Code, createInput.Name, createInput.CompanyId,
+            createInput.Code, createInput.Name, CompanyOwnershipGuard.ResolveOwnerCompanyId(_currentCompany),
             createInput.IsQuantity, createInput.PriceByQuantity, createInput.PriceTypeChange,
             createInput.EntryPrice, createInput.EntryPriceUnitId, createInput.ExitPrice, createInput.ExitPriceUnitId);
         entity.SetAttributes(createInput.StoneKind, createInput.StoneType, createInput.Color, createInput.Cut,

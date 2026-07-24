@@ -56,10 +56,17 @@ public class ScrapSeeder(
 
         // NOT: legacy '_' rename-backfill KALDIRILDI (2026-07-05): tüm DB'lerdeki '_'li seed kodları
         // boşukluya taşındı/temizlendi; yeni normalize '_' üretmez → backfill kalıcı no-op olmuştu.
-        var existing = (await scrapRepository.GetQueryableAsync())
-            .Select(s => s.Code)
-            .ToList()
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        // Soft-delete filtresi KAPALI okunur: silinmiş kayıt da "mevcut" sayılır — kullanıcının sildiği kaydı
+        // sonraki DbMigrator koşusu diriltmesin (MetalSeeder ile aynı düzeltme).
+        List<string> existingCodes;
+        using (dataFilter.Disable<ISoftDelete>())
+        {
+            existingCodes = (await scrapRepository.GetQueryableAsync())
+                .Select(s => s.Code)
+                .ToList();
+        }
+
+        var existing = existingCodes.ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         foreach (var (code, name, unitCode, factor) in Seeds)
         {

@@ -102,11 +102,20 @@ public class MetalSeeder(
 
         foreach (var company in companies)
         {
-            var existing = (await metalRepository.GetQueryableAsync())
-                .Where(m => m.CompanyId == company.Id)
-                .Select(m => m.Code)
-                .ToList()
-                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            // SOFT-DELETE edilmiş kayıtlar da "mevcut" sayılır (kod-inceleme bulgusu): soft-delete filtresi
+            // KAPALI okunur. Aksi halde kullanıcının bilinçli olarak sildiği bir maden, sonraki HER DbMigrator
+            // koşusunda yeniden INSERT ediliyordu — "çifter kayıt" temizlikleri bu yüzden kalıcı olmuyordu
+            // (81 satır silinmiş, sonra geri gelmişti). Seeder eksik olanı tamamlar, sileneni DİRİLTMEZ.
+            List<string> existingCodes;
+            using (dataFilter.Disable<ISoftDelete>())
+            {
+                existingCodes = (await metalRepository.GetQueryableAsync())
+                    .Where(m => m.CompanyId == company.Id)
+                    .Select(m => m.Code)
+                    .ToList();
+            }
+
+            var existing = existingCodes.ToHashSet(StringComparer.OrdinalIgnoreCase);
 
             foreach (var (code, name, factor, factorChange, laborType, stable, entry, exit, costUnit) in Seeds)
             {

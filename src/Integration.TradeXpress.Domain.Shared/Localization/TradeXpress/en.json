@@ -867,6 +867,7 @@
     "TradeXpress:SpecialCode:ParentNotFound": "The selected parent special code was not found.",
     "TradeXpress:SpecialCode:ParentContextMismatch": "The parent special code must be in the same context (company/entity/property).",
     "TradeXpress:SpecialCode:ParentCycle": "This parent selection would create a cycle (a code cannot be attached to its own descendants).",
+    "TradeXpress:MultiCompany:WorkingCompanyRequired": "Select a working company before creating this record (the active company owns it).",
     "TradeXpress:Metal:CodeAlreadyExists": "A metal with the same code already exists.",
     "TradeXpress:Scrap:CodeAlreadyExists": "A scrap with the same code already exists.",
     "TradeXpress:Service:CodeAlreadyExists": "A service with the same code already exists.",

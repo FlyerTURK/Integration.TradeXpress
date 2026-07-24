@@ -102,8 +102,9 @@ public class JewelryAppService
     protected override Task<Jewelry> MapToEntityAsync(JewelryCreateDto createInput)
     {
         // TenantId otomatik (host→null, tenant→kendi); zengin ctor + SetX.
+        // SAHİPLİK client'tan DEĞİL aktif working company'den (fail-closed — bkz. CompanyOwnershipGuard).
         var entity = new Jewelry(
-            createInput.Code, createInput.Name, createInput.CompanyId,
+            createInput.Code, createInput.Name, CompanyOwnershipGuard.ResolveOwnerCompanyId(_currentCompany),
             createInput.IsQuantity, createInput.PriceByQuantity, createInput.PriceTypeChange,
             createInput.EntryPrice, createInput.EntryPriceUnitId, createInput.ExitPrice, createInput.ExitPriceUnitId);
         entity.SetAttributes(createInput.Model, createInput.Kind, createInput.Type, createInput.Color, createInput.Category, createInput.GroupCode);

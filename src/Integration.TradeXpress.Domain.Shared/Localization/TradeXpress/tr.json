@@ -897,6 +897,7 @@
     "TradeXpress:SpecialCode:ParentNotFound": "Seçilen üst özel kod bulunamadı.",
     "TradeXpress:SpecialCode:ParentContextMismatch": "Üst özel kod aynı bağlamda (şirket/entity/property) olmalı.",
     "TradeXpress:SpecialCode:ParentCycle": "Bu üst seçim bir döngü oluşturur (kod kendi alt ağacına bağlanamaz).",
+    "TradeXpress:MultiCompany:WorkingCompanyRequired": "Bu kaydı oluşturmak için önce bir çalışma şirketi seçmelisiniz (kayıt sahibi aktif şirkettir).",
     "TradeXpress:Metal:CodeAlreadyExists": "Aynı kodlu bir maden zaten var.",
     "TradeXpress:Scrap:CodeAlreadyExists": "Aynı kodlu bir hurda zaten var.",
     "TradeXpress:Service:CodeAlreadyExists": "Aynı kodlu bir hizmet zaten var.",

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Integration.TradeXpress.Attachments;
+using Integration.TradeXpress.MultiCompany;
 using Integration.TradeXpress.Variants;
 using Shouldly;
 using Volo.Abp.Domain.Repositories;
@@ -27,12 +28,19 @@ public abstract class GoodHostCatalogPreviewTests<TStartupModule> : TradeXpressA
     private readonly IGoodAppService _goodAppService;
     private readonly IRepository<Media, Guid> _mediaRepository;
     private readonly ICurrentTenant _currentTenant;
+    private readonly ICurrentCompany _currentCompany;
+
+    /// <summary>Emtia SAHİPLİĞİ artık aktif working company'den gelir (CompanyOwnershipGuard, fail-closed) —
+    /// fixture kurulumu bu yüzden bir çalışma şirketi altında yapılır. Testin KONUSU bu değil: konu, HOST
+    /// (TenantId=null) satırların zenginleştirmesinin tenant filtresine takılmaması.</summary>
+    private static readonly Guid FixtureCompanyId = Guid.NewGuid();
 
     protected GoodHostCatalogPreviewTests()
     {
         _goodAppService = GetRequiredService<IGoodAppService>();
         _mediaRepository = GetRequiredService<IRepository<Media, Guid>>();
         _currentTenant = GetRequiredService<ICurrentTenant>();
+        _currentCompany = GetRequiredService<ICurrentCompany>();
     }
 
     [Fact]
@@ -43,12 +51,18 @@ public abstract class GoodHostCatalogPreviewTests<TStartupModule> : TradeXpressA
         var media = await CreateHostMediaWithPosterAsync();
 
         // 2) HOST mamül + tek nitelik → sunucu (synchronizer) ana varyantı otomatik üretir.
-        var created = await _goodAppService.CreateAsync(new GoodCreateDto
+        //    Sahiplik working company'den gelir (fail-closed guard) → fixture bir şirket altında kurulur;
+        //    TenantId host bağlamından geldiği için kayıt HOST olmaya devam eder (testin konusu bu).
+        GoodGetDto created;
+        using (_currentCompany.Change(FixtureCompanyId))
         {
-            Code = "HOSTGOOD",
-            Name = "Host Katalog Mamülü",
-            Attributes = new List<EntityAttributeGraphDto> { BuildAttribute("Renk", "Kırmızı") },
-        });
+            created = await _goodAppService.CreateAsync(new GoodCreateDto
+            {
+                Code = "HOSTGOOD",
+                Name = "Host Katalog Mamülü",
+                Attributes = new List<EntityAttributeGraphDto> { BuildAttribute("Renk", "Kırmızı") },
+            });
+        }
 
         var got = await _goodAppService.GetAsync(created.Id);
         var main = got.Variants.ShouldHaveSingleItem();

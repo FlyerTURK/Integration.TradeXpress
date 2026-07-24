@@ -169,9 +169,12 @@ public class MetalAppService
     protected override Task<Metal> MapToEntityAsync(MetalCreateDto createInput)
     {
         // TenantId otomatik (host→null, tenant→kendi); zengin ctor + SetX.
+        // SAHİPLİK client'tan DEĞİL aktif working company'den (fail-closed — bkz. CompanyOwnershipGuard):
+        // createInput.CompanyId'ye güvenmek sahipsiz (holding) ya da YABANCI şirkete ait kayıt üretilmesine
+        // izin veriyordu; holding kaydı tenant'ın tüm şirketlerine görünür olduğundan cross-company etkiydi.
         var entity = new Metal(
             createInput.Code, createInput.Name, createInput.FollowingUnitId!.Value,
-            createInput.CompanyId,
+            CompanyOwnershipGuard.ResolveOwnerCompanyId(_currentCompany),
             createInput.Factor, createInput.FactorChange,
             createInput.IsQuantity, createInput.StableQuantity);
         entity.SetBarcode(createInput.Barcode);

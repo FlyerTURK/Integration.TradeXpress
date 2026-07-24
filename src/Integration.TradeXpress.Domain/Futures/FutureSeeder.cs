@@ -53,11 +53,17 @@ public class FutureSeeder(
                 .ToDictionary(g => g.Key, g => g.First().Id, StringComparer.OrdinalIgnoreCase);
         }
 
-        // Bu tenant'ta mevcut Future kodları (filter açık → yalnız aktif tenant).
-        var existing = (await futureRepository.GetQueryableAsync())
-            .Select(f => f.Code)
-            .ToList()
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        // Bu tenant'ta mevcut Future kodları (tenant filtresi açık → yalnız aktif tenant).
+        // Soft-delete filtresi KAPALI: silinmiş kayıt da "mevcut" sayılır — silineni diriltme (MetalSeeder deseni).
+        List<string> existingCodes;
+        using (dataFilter.Disable<ISoftDelete>())
+        {
+            existingCodes = (await futureRepository.GetQueryableAsync())
+                .Select(f => f.Code)
+                .ToList();
+        }
+
+        var existing = existingCodes.ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         foreach (var (code, name, unitCode, factor) in Seeds)
         {

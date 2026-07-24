@@ -29,11 +29,17 @@ public class ServiceSeeder(
         using (currentTenant.Change(null))
         using (dataFilter.Disable<IMultiTenant>())
         {
-            var existing = (await serviceRepository.GetQueryableAsync())
-                .Where(s => s.TenantId == null)
-                .Select(s => s.Code)
-                .ToList()
-                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            // Soft-delete filtresi KAPALI: silinmiş kayıt da "mevcut" sayılır — silineni diriltme (MetalSeeder deseni).
+            List<string> existingCodes;
+            using (dataFilter.Disable<ISoftDelete>())
+            {
+                existingCodes = (await serviceRepository.GetQueryableAsync())
+                    .Where(s => s.TenantId == null)
+                    .Select(s => s.Code)
+                    .ToList();
+            }
+
+            var existing = existingCodes.ToHashSet(StringComparer.OrdinalIgnoreCase);
 
             foreach (var (code, name) in Seeds)
             {
