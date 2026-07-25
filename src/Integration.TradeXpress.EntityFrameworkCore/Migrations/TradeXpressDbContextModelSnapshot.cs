@@ -2336,6 +2336,9 @@ namespace Integration.TradeXpress.Migrations
                         .HasColumnType("nvarchar(16)")
                         .UseCollation("Latin1_General_100_BIN2");
 
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<string>("ConcurrencyStamp")
                         .IsConcurrencyToken()
                         .IsRequired()
@@ -2405,11 +2408,11 @@ namespace Integration.TradeXpress.Migrations
 
                     b.HasIndex("FollowingUnitId");
 
-                    b.HasIndex("TenantId", "Code")
-                        .IsUnique()
-                        .HasFilter("[TenantId] IS NOT NULL");
-
                     b.HasIndex("TenantId", "FollowingUnitId");
+
+                    b.HasIndex("TenantId", "CompanyId", "Code")
+                        .IsUnique()
+                        .HasFilter("[TenantId] IS NOT NULL AND [IsDeleted] = 0");
 
                     b.ToTable("AppFutures", (string)null);
                 });
@@ -5317,6 +5320,9 @@ namespace Integration.TradeXpress.Migrations
                         .HasColumnType("nvarchar(16)")
                         .UseCollation("Latin1_General_100_BIN2");
 
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<string>("ConcurrencyStamp")
                         .IsConcurrencyToken()
                         .IsRequired()
@@ -5389,11 +5395,11 @@ namespace Integration.TradeXpress.Migrations
 
                     b.HasIndex("FollowingUnitId");
 
-                    b.HasIndex("TenantId", "Code")
-                        .IsUnique()
-                        .HasFilter("[TenantId] IS NOT NULL");
-
                     b.HasIndex("TenantId", "FollowingUnitId");
+
+                    b.HasIndex("TenantId", "CompanyId", "Code")
+                        .IsUnique()
+                        .HasFilter("[TenantId] IS NOT NULL AND [IsDeleted] = 0");
 
                     b.ToTable("AppScraps", (string)null);
                 });
@@ -5408,6 +5414,9 @@ namespace Integration.TradeXpress.Migrations
                         .HasMaxLength(16)
                         .HasColumnType("nvarchar(16)")
                         .UseCollation("Latin1_General_100_BIN2");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("ConcurrencyStamp")
                         .IsConcurrencyToken()
@@ -5469,9 +5478,9 @@ namespace Integration.TradeXpress.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("TenantId", "Code")
+                    b.HasIndex("TenantId", "CompanyId", "Code")
                         .IsUnique()
-                        .HasFilter("[TenantId] IS NOT NULL");
+                        .HasFilter("[TenantId] IS NOT NULL AND [IsDeleted] = 0");
 
                     b.ToTable("AppServices", (string)null);
                 });

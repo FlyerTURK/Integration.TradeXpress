@@ -13,8 +13,8 @@ using Volo.Abp.EntityFrameworkCore;
 namespace Integration.TradeXpress.Migrations
 {
     [DbContext(typeof(TradeXpressDbContext))]
-    [Migration("20260721035830_AddCarrier")]
-    partial class AddCarrier
+    [Migration("20260725053201_Initial")]
+    partial class Initial
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -1327,6 +1327,11 @@ namespace Integration.TradeXpress.Migrations
                     b.Property<Guid>("Id")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<int>("AdministrativeAreaType")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0);
+
                     b.Property<string>("Alpha3Code")
                         .HasMaxLength(3)
                         .HasColumnType("nvarchar(3)");
@@ -1395,6 +1400,11 @@ namespace Integration.TradeXpress.Migrations
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("LastModifierId");
 
+                    b.Property<int>("LocalityType")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0);
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(128)
@@ -1403,6 +1413,16 @@ namespace Integration.TradeXpress.Migrations
                     b.Property<string>("NumericCode")
                         .HasMaxLength(3)
                         .HasColumnType("nvarchar(3)");
+
+                    b.Property<int>("PostalCodeType")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0);
+
+                    b.Property<int>("SubLocalityType")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0);
 
                     b.Property<Guid?>("TenantId")
                         .HasColumnType("uniqueidentifier")
@@ -1836,6 +1856,9 @@ namespace Integration.TradeXpress.Migrations
 
                     b.Property<byte?>("CommodityProcessType")
                         .HasColumnType("tinyint");
+
+                    b.Property<Guid?>("CommodityVariantId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<Guid>("CompanyId")
                         .HasColumnType("uniqueidentifier");
@@ -2316,6 +2339,9 @@ namespace Integration.TradeXpress.Migrations
                         .HasColumnType("nvarchar(16)")
                         .UseCollation("Latin1_General_100_BIN2");
 
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<string>("ConcurrencyStamp")
                         .IsConcurrencyToken()
                         .IsRequired()
@@ -2385,11 +2411,11 @@ namespace Integration.TradeXpress.Migrations
 
                     b.HasIndex("FollowingUnitId");
 
-                    b.HasIndex("TenantId", "Code")
-                        .IsUnique()
-                        .HasFilter("[TenantId] IS NOT NULL");
-
                     b.HasIndex("TenantId", "FollowingUnitId");
+
+                    b.HasIndex("TenantId", "CompanyId", "Code")
+                        .IsUnique()
+                        .HasFilter("[TenantId] IS NOT NULL AND [IsDeleted] = 0");
 
                     b.ToTable("AppFutures", (string)null);
                 });
@@ -2456,6 +2482,9 @@ namespace Integration.TradeXpress.Migrations
                     b.Property<Guid?>("LastModifierId")
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("LastModifierId");
+
+                    b.Property<DateTime?>("LocalitiesImportedAt")
+                        .HasColumnType("datetime2");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -2635,7 +2664,7 @@ namespace Integration.TradeXpress.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("nvarchar(64)");
 
-                    b.Property<Guid?>("CompanyId")
+                    b.Property<Guid>("CompanyId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("ConcurrencyStamp")
@@ -2749,7 +2778,7 @@ namespace Integration.TradeXpress.Migrations
 
                     b.HasIndex("TenantId", "CompanyId", "Code")
                         .IsUnique()
-                        .HasFilter("[TenantId] IS NOT NULL AND [CompanyId] IS NOT NULL");
+                        .HasFilter("[TenantId] IS NOT NULL AND [IsDeleted] = 0");
 
                     b.ToTable("AppGoods", (string)null);
                 });
@@ -2961,7 +2990,7 @@ namespace Integration.TradeXpress.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("nvarchar(64)");
 
-                    b.Property<Guid?>("CompanyId")
+                    b.Property<Guid>("CompanyId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("ConcurrencyStamp")
@@ -3069,7 +3098,7 @@ namespace Integration.TradeXpress.Migrations
 
                     b.HasIndex("TenantId", "CompanyId", "Code")
                         .IsUnique()
-                        .HasFilter("[TenantId] IS NOT NULL AND [CompanyId] IS NOT NULL");
+                        .HasFilter("[TenantId] IS NOT NULL AND [IsDeleted] = 0");
 
                     b.ToTable("AppJewelries", (string)null);
                 });
@@ -3089,7 +3118,7 @@ namespace Integration.TradeXpress.Migrations
                         .HasColumnType("nvarchar(16)")
                         .UseCollation("Latin1_General_100_BIN2");
 
-                    b.Property<Guid?>("CompanyId")
+                    b.Property<Guid>("CompanyId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("ConcurrencyStamp")
@@ -3173,7 +3202,7 @@ namespace Integration.TradeXpress.Migrations
 
                     b.HasIndex("TenantId", "CompanyId", "Code")
                         .IsUnique()
-                        .HasFilter("[TenantId] IS NOT NULL AND [CompanyId] IS NOT NULL");
+                        .HasFilter("[TenantId] IS NOT NULL AND [IsDeleted] = 0");
 
                     b.HasIndex("TenantId", "CompanyId", "FollowingUnitId");
 
@@ -3935,6 +3964,9 @@ namespace Integration.TradeXpress.Migrations
 
                     b.Property<byte?>("CommodityProcessType")
                         .HasColumnType("tinyint");
+
+                    b.Property<Guid?>("CommodityVariantId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<Guid>("CompanyId")
                         .HasColumnType("uniqueidentifier");
@@ -4705,6 +4737,9 @@ namespace Integration.TradeXpress.Migrations
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("LastModifierId");
 
+                    b.Property<int>("MadePeriod")
+                        .HasColumnType("int");
+
                     b.Property<int?>("MaxPurchaseQuantity")
                         .HasColumnType("int");
 
@@ -4740,11 +4775,31 @@ namespace Integration.TradeXpress.Migrations
                         .HasMaxLength(128)
                         .HasColumnType("nvarchar(128)");
 
+                    b.Property<Guid?>("SubstitutionGroupId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.PrimitiveCollection<string>("SubstitutionOverrideVariantIds")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("nvarchar(max)")
+                        .HasDefaultValueSql("'[]'");
+
+                    b.Property<decimal?>("SubstitutionTargetQuantity")
+                        .HasPrecision(18, 5)
+                        .HasColumnType("decimal(18,5)");
+
+                    b.Property<int?>("SubstitutionToleranceType")
+                        .HasColumnType("int");
+
+                    b.Property<decimal?>("SubstitutionToleranceValue")
+                        .HasPrecision(18, 5)
+                        .HasColumnType("decimal(18,5)");
+
                     b.Property<Guid?>("TenantId")
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("TenantId");
 
-                    b.Property<int>("WhenMade")
+                    b.Property<int>("VariantMode")
                         .HasColumnType("int");
 
                     b.Property<int>("WhoMade")
@@ -4753,6 +4808,8 @@ namespace Integration.TradeXpress.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("ShipmentTemplateId");
+
+                    b.HasIndex("SubstitutionGroupId");
 
                     b.HasIndex("TenantId", "CompanyId");
 
@@ -5266,6 +5323,9 @@ namespace Integration.TradeXpress.Migrations
                         .HasColumnType("nvarchar(16)")
                         .UseCollation("Latin1_General_100_BIN2");
 
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<string>("ConcurrencyStamp")
                         .IsConcurrencyToken()
                         .IsRequired()
@@ -5338,11 +5398,11 @@ namespace Integration.TradeXpress.Migrations
 
                     b.HasIndex("FollowingUnitId");
 
-                    b.HasIndex("TenantId", "Code")
-                        .IsUnique()
-                        .HasFilter("[TenantId] IS NOT NULL");
-
                     b.HasIndex("TenantId", "FollowingUnitId");
+
+                    b.HasIndex("TenantId", "CompanyId", "Code")
+                        .IsUnique()
+                        .HasFilter("[TenantId] IS NOT NULL AND [IsDeleted] = 0");
 
                     b.ToTable("AppScraps", (string)null);
                 });
@@ -5357,6 +5417,9 @@ namespace Integration.TradeXpress.Migrations
                         .HasMaxLength(16)
                         .HasColumnType("nvarchar(16)")
                         .UseCollation("Latin1_General_100_BIN2");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("ConcurrencyStamp")
                         .IsConcurrencyToken()
@@ -5418,9 +5481,9 @@ namespace Integration.TradeXpress.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("TenantId", "Code")
+                    b.HasIndex("TenantId", "CompanyId", "Code")
                         .IsUnique()
-                        .HasFilter("[TenantId] IS NOT NULL");
+                        .HasFilter("[TenantId] IS NOT NULL AND [IsDeleted] = 0");
 
                     b.ToTable("AppServices", (string)null);
                 });
@@ -5568,6 +5631,9 @@ namespace Integration.TradeXpress.Migrations
                     b.Property<Guid>("Id")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<Guid?>("CarrierId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<string>("CarrierName")
                         .HasMaxLength(128)
                         .HasColumnType("nvarchar(128)");
@@ -5620,6 +5686,9 @@ namespace Integration.TradeXpress.Migrations
                         .HasMaxLength(512)
                         .HasColumnType("nvarchar(512)");
 
+                    b.Property<Guid?>("DispatchBranchId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<string>("ExtraProperties")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)")
@@ -5662,9 +5731,15 @@ namespace Integration.TradeXpress.Migrations
                     b.Property<bool>("ReturnAccepted")
                         .HasColumnType("bit");
 
+                    b.Property<Guid?>("ReturnBranchId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<string>("ReturnInfo")
                         .HasMaxLength(1024)
                         .HasColumnType("nvarchar(1024)");
+
+                    b.Property<bool>("ReturnSameAsDispatch")
+                        .HasColumnType("bit");
 
                     b.Property<Guid?>("TenantId")
                         .HasColumnType("uniqueidentifier")
@@ -5802,7 +5877,7 @@ namespace Integration.TradeXpress.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("nvarchar(64)");
 
-                    b.Property<Guid?>("CompanyId")
+                    b.Property<Guid>("CompanyId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("ConcurrencyStamp")
@@ -5914,7 +5989,7 @@ namespace Integration.TradeXpress.Migrations
 
                     b.HasIndex("TenantId", "CompanyId", "Code")
                         .IsUnique()
-                        .HasFilter("[TenantId] IS NOT NULL AND [CompanyId] IS NOT NULL");
+                        .HasFilter("[TenantId] IS NOT NULL AND [IsDeleted] = 0");
 
                     b.ToTable("AppStones", (string)null);
                 });
@@ -6050,6 +6125,12 @@ namespace Integration.TradeXpress.Migrations
                         .HasColumnType("nvarchar(max)")
                         .HasColumnName("ExtraProperties");
 
+                    b.PrimitiveCollection<string>("IncludedVariantIds")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("nvarchar(max)")
+                        .HasDefaultValueSql("'[]'");
+
                     b.Property<bool>("IsDeleted")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("bit")
@@ -6090,6 +6171,73 @@ namespace Integration.TradeXpress.Migrations
                         .HasFilter("[TenantId] IS NOT NULL AND [MetalId] IS NOT NULL");
 
                     b.ToTable("AppSubstitutionGroupItems", (string)null);
+                });
+
+            modelBuilder.Entity("Integration.TradeXpress.TrendyolBrands.TrendyolBrand", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ConcurrencyStamp")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)")
+                        .HasColumnName("ConcurrencyStamp");
+
+                    b.Property<DateTime>("CreationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("CreationTime");
+
+                    b.Property<Guid?>("CreatorId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CreatorId");
+
+                    b.Property<Guid?>("DeleterId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("DeleterId");
+
+                    b.Property<DateTime?>("DeletionTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("DeletionTime");
+
+                    b.Property<long>("ExternalId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("ExtraProperties")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("ExtraProperties");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false)
+                        .HasColumnName("IsDeleted");
+
+                    b.Property<bool>("IsLuxury")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime?>("LastModificationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("LastModificationTime");
+
+                    b.Property<Guid?>("LastModifierId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("LastModifierId");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ExternalId")
+                        .IsUnique()
+                        .HasFilter("[IsDeleted] = 0");
+
+                    b.ToTable("AppTrendyolBrands", (string)null);
                 });
 
             modelBuilder.Entity("Integration.TradeXpress.TrendyolCategories.TrendyolCategory", b =>
@@ -6578,6 +6726,9 @@ namespace Integration.TradeXpress.Migrations
 
                     b.Property<byte?>("CommodityProcessType")
                         .HasColumnType("tinyint");
+
+                    b.Property<Guid?>("CommodityVariantId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<Guid>("CompanyId")
                         .HasColumnType("uniqueidentifier");
@@ -9767,6 +9918,18 @@ namespace Integration.TradeXpress.Migrations
                         .HasMaxLength(256)
                         .HasColumnType("nvarchar(256)");
 
+                    b.Property<string>("DefaultExchangeInfo")
+                        .HasMaxLength(1024)
+                        .HasColumnType("nvarchar(1024)");
+
+                    b.Property<string>("DefaultInstallmentInfo")
+                        .HasMaxLength(1024)
+                        .HasColumnType("nvarchar(1024)");
+
+                    b.Property<string>("DefaultShippingInfo")
+                        .HasMaxLength(1024)
+                        .HasColumnType("nvarchar(1024)");
+
                     b.ToTable("AppSalesChannelTrN11", (string)null);
                 });
 
@@ -9819,6 +9982,97 @@ namespace Integration.TradeXpress.Migrations
                         .WithMany()
                         .HasForeignKey("BranchId")
                         .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("Integration.TradeXpress.Branches.Branch", b =>
+                {
+                    b.OwnsOne("Integration.Framework.Addressing.Address", "Address", b1 =>
+                        {
+                            b1.Property<Guid>("BranchId")
+                                .HasColumnType("uniqueidentifier");
+
+                            b1.Property<string>("AdditionalStreetName")
+                                .HasMaxLength(256)
+                                .HasColumnType("nvarchar(256)");
+
+                            b1.Property<Guid?>("AdministrativeAreaId")
+                                .HasColumnType("uniqueidentifier");
+
+                            b1.Property<string>("AdministrativeAreaIsoCode")
+                                .HasMaxLength(16)
+                                .HasColumnType("nvarchar(16)");
+
+                            b1.Property<string>("BuildingName")
+                                .HasMaxLength(128)
+                                .HasColumnType("nvarchar(128)");
+
+                            b1.Property<string>("BuildingNumber")
+                                .HasMaxLength(32)
+                                .HasColumnType("nvarchar(32)");
+
+                            b1.Property<string>("City")
+                                .IsRequired()
+                                .HasMaxLength(64)
+                                .HasColumnType("nvarchar(64)");
+
+                            b1.Property<string>("CityCode")
+                                .HasMaxLength(16)
+                                .HasColumnType("nvarchar(16)");
+
+                            b1.Property<string>("CountryCode")
+                                .IsRequired()
+                                .HasMaxLength(2)
+                                .HasColumnType("nvarchar(2)");
+
+                            b1.Property<string>("District")
+                                .HasMaxLength(64)
+                                .HasColumnType("nvarchar(64)");
+
+                            b1.Property<string>("DistrictCode")
+                                .HasMaxLength(16)
+                                .HasColumnType("nvarchar(16)");
+
+                            b1.Property<string>("Floor")
+                                .HasMaxLength(16)
+                                .HasColumnType("nvarchar(16)");
+
+                            b1.Property<string>("Line")
+                                .IsRequired()
+                                .HasMaxLength(512)
+                                .HasColumnType("nvarchar(512)");
+
+                            b1.Property<Guid?>("LocalityId")
+                                .HasColumnType("uniqueidentifier");
+
+                            b1.Property<string>("Neighborhood")
+                                .HasMaxLength(128)
+                                .HasColumnType("nvarchar(128)");
+
+                            b1.Property<string>("PostalCode")
+                                .HasMaxLength(16)
+                                .HasColumnType("nvarchar(16)");
+
+                            b1.Property<string>("Postbox")
+                                .HasMaxLength(32)
+                                .HasColumnType("nvarchar(32)");
+
+                            b1.Property<string>("Room")
+                                .HasMaxLength(32)
+                                .HasColumnType("nvarchar(32)");
+
+                            b1.Property<string>("Title")
+                                .HasMaxLength(64)
+                                .HasColumnType("nvarchar(64)");
+
+                            b1.HasKey("BranchId");
+
+                            b1.ToTable("AppBranches");
+
+                            b1.WithOwner()
+                                .HasForeignKey("BranchId");
+                        });
+
+                    b.Navigation("Address");
                 });
 
             modelBuilder.Entity("Integration.TradeXpress.Cashes.Cash", b =>
@@ -10382,12 +10636,24 @@ namespace Integration.TradeXpress.Migrations
                             b1.Property<Guid>("N11ShipmentTemplateId")
                                 .HasColumnType("uniqueidentifier");
 
+                            b1.Property<string>("AdditionalStreetName")
+                                .HasMaxLength(256)
+                                .HasColumnType("nvarchar(256)");
+
                             b1.Property<Guid?>("AdministrativeAreaId")
                                 .HasColumnType("uniqueidentifier");
 
                             b1.Property<string>("AdministrativeAreaIsoCode")
                                 .HasMaxLength(16)
                                 .HasColumnType("nvarchar(16)");
+
+                            b1.Property<string>("BuildingName")
+                                .HasMaxLength(128)
+                                .HasColumnType("nvarchar(128)");
+
+                            b1.Property<string>("BuildingNumber")
+                                .HasMaxLength(32)
+                                .HasColumnType("nvarchar(32)");
 
                             b1.Property<string>("City")
                                 .IsRequired()
@@ -10411,6 +10677,10 @@ namespace Integration.TradeXpress.Migrations
                                 .HasMaxLength(16)
                                 .HasColumnType("nvarchar(16)");
 
+                            b1.Property<string>("Floor")
+                                .HasMaxLength(16)
+                                .HasColumnType("nvarchar(16)");
+
                             b1.Property<string>("Line")
                                 .IsRequired()
                                 .HasMaxLength(512)
@@ -10426,6 +10696,14 @@ namespace Integration.TradeXpress.Migrations
                             b1.Property<string>("PostalCode")
                                 .HasMaxLength(16)
                                 .HasColumnType("nvarchar(16)");
+
+                            b1.Property<string>("Postbox")
+                                .HasMaxLength(32)
+                                .HasColumnType("nvarchar(32)");
+
+                            b1.Property<string>("Room")
+                                .HasMaxLength(32)
+                                .HasColumnType("nvarchar(32)");
 
                             b1.Property<string>("Title")
                                 .HasMaxLength(64)
@@ -10444,12 +10722,24 @@ namespace Integration.TradeXpress.Migrations
                             b1.Property<Guid>("N11ShipmentTemplateId")
                                 .HasColumnType("uniqueidentifier");
 
+                            b1.Property<string>("AdditionalStreetName")
+                                .HasMaxLength(256)
+                                .HasColumnType("nvarchar(256)");
+
                             b1.Property<Guid?>("AdministrativeAreaId")
                                 .HasColumnType("uniqueidentifier");
 
                             b1.Property<string>("AdministrativeAreaIsoCode")
                                 .HasMaxLength(16)
                                 .HasColumnType("nvarchar(16)");
+
+                            b1.Property<string>("BuildingName")
+                                .HasMaxLength(128)
+                                .HasColumnType("nvarchar(128)");
+
+                            b1.Property<string>("BuildingNumber")
+                                .HasMaxLength(32)
+                                .HasColumnType("nvarchar(32)");
 
                             b1.Property<string>("City")
                                 .IsRequired()
@@ -10473,6 +10763,10 @@ namespace Integration.TradeXpress.Migrations
                                 .HasMaxLength(16)
                                 .HasColumnType("nvarchar(16)");
 
+                            b1.Property<string>("Floor")
+                                .HasMaxLength(16)
+                                .HasColumnType("nvarchar(16)");
+
                             b1.Property<string>("Line")
                                 .IsRequired()
                                 .HasMaxLength(512)
@@ -10488,6 +10782,14 @@ namespace Integration.TradeXpress.Migrations
                             b1.Property<string>("PostalCode")
                                 .HasMaxLength(16)
                                 .HasColumnType("nvarchar(16)");
+
+                            b1.Property<string>("Postbox")
+                                .HasMaxLength(32)
+                                .HasColumnType("nvarchar(32)");
+
+                            b1.Property<string>("Room")
+                                .HasMaxLength(32)
+                                .HasColumnType("nvarchar(32)");
 
                             b1.Property<string>("Title")
                                 .HasMaxLength(64)
@@ -10625,10 +10927,14 @@ namespace Integration.TradeXpress.Migrations
 
             modelBuilder.Entity("Integration.TradeXpress.Shipments.ShipmentTemplate", b =>
                 {
-                    b.OwnsOne("Integration.Framework.Addressing.Address", "OriginAddress", b1 =>
+                    b.OwnsOne("Integration.Framework.Addressing.Address", "DispatchAddress", b1 =>
                         {
                             b1.Property<Guid>("ShipmentTemplateId")
                                 .HasColumnType("uniqueidentifier");
+
+                            b1.Property<string>("AdditionalStreetName")
+                                .HasMaxLength(256)
+                                .HasColumnType("nvarchar(256)");
 
                             b1.Property<Guid?>("AdministrativeAreaId")
                                 .HasColumnType("uniqueidentifier");
@@ -10636,6 +10942,14 @@ namespace Integration.TradeXpress.Migrations
                             b1.Property<string>("AdministrativeAreaIsoCode")
                                 .HasMaxLength(16)
                                 .HasColumnType("nvarchar(16)");
+
+                            b1.Property<string>("BuildingName")
+                                .HasMaxLength(128)
+                                .HasColumnType("nvarchar(128)");
+
+                            b1.Property<string>("BuildingNumber")
+                                .HasMaxLength(32)
+                                .HasColumnType("nvarchar(32)");
 
                             b1.Property<string>("City")
                                 .IsRequired()
@@ -10659,6 +10973,10 @@ namespace Integration.TradeXpress.Migrations
                                 .HasMaxLength(16)
                                 .HasColumnType("nvarchar(16)");
 
+                            b1.Property<string>("Floor")
+                                .HasMaxLength(16)
+                                .HasColumnType("nvarchar(16)");
+
                             b1.Property<string>("Line")
                                 .IsRequired()
                                 .HasMaxLength(512)
@@ -10674,6 +10992,14 @@ namespace Integration.TradeXpress.Migrations
                             b1.Property<string>("PostalCode")
                                 .HasMaxLength(16)
                                 .HasColumnType("nvarchar(16)");
+
+                            b1.Property<string>("Postbox")
+                                .HasMaxLength(32)
+                                .HasColumnType("nvarchar(32)");
+
+                            b1.Property<string>("Room")
+                                .HasMaxLength(32)
+                                .HasColumnType("nvarchar(32)");
 
                             b1.Property<string>("Title")
                                 .HasMaxLength(64)
@@ -10692,12 +11018,24 @@ namespace Integration.TradeXpress.Migrations
                             b1.Property<Guid>("ShipmentTemplateId")
                                 .HasColumnType("uniqueidentifier");
 
+                            b1.Property<string>("AdditionalStreetName")
+                                .HasMaxLength(256)
+                                .HasColumnType("nvarchar(256)");
+
                             b1.Property<Guid?>("AdministrativeAreaId")
                                 .HasColumnType("uniqueidentifier");
 
                             b1.Property<string>("AdministrativeAreaIsoCode")
                                 .HasMaxLength(16)
                                 .HasColumnType("nvarchar(16)");
+
+                            b1.Property<string>("BuildingName")
+                                .HasMaxLength(128)
+                                .HasColumnType("nvarchar(128)");
+
+                            b1.Property<string>("BuildingNumber")
+                                .HasMaxLength(32)
+                                .HasColumnType("nvarchar(32)");
 
                             b1.Property<string>("City")
                                 .IsRequired()
@@ -10721,6 +11059,10 @@ namespace Integration.TradeXpress.Migrations
                                 .HasMaxLength(16)
                                 .HasColumnType("nvarchar(16)");
 
+                            b1.Property<string>("Floor")
+                                .HasMaxLength(16)
+                                .HasColumnType("nvarchar(16)");
+
                             b1.Property<string>("Line")
                                 .IsRequired()
                                 .HasMaxLength(512)
@@ -10737,6 +11079,14 @@ namespace Integration.TradeXpress.Migrations
                                 .HasMaxLength(16)
                                 .HasColumnType("nvarchar(16)");
 
+                            b1.Property<string>("Postbox")
+                                .HasMaxLength(32)
+                                .HasColumnType("nvarchar(32)");
+
+                            b1.Property<string>("Room")
+                                .HasMaxLength(32)
+                                .HasColumnType("nvarchar(32)");
+
                             b1.Property<string>("Title")
                                 .HasMaxLength(64)
                                 .HasColumnType("nvarchar(64)");
@@ -10749,8 +11099,7 @@ namespace Integration.TradeXpress.Migrations
                                 .HasForeignKey("ShipmentTemplateId");
                         });
 
-                    b.Navigation("OriginAddress")
-                        .IsRequired();
+                    b.Navigation("DispatchAddress");
 
                     b.Navigation("ReturnAddress");
                 });
