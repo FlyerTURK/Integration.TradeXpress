@@ -309,7 +309,7 @@ public class SubstitutionCalculationTests : TradeXpressEntityFrameworkCoreTestBa
         var looseMetalGroupId = await WithUnitOfWorkAsync(async () =>
         {
             var looseMetal = await _metalRepository.InsertAsync(
-                new Metal("SBGLOOSE", "Loose Metal", data.HasUnitId, factor: 1m),
+                new Metal("SBGLOOSE", "Loose Metal", data.HasUnitId, companyId: data.CompanyId, factor: 1m),
                 autoSave: true);
             var group = await _groupRepository.InsertAsync(
                 new SubstitutionGroup(data.CompanyId, "SBGLOOSEGRP", "Loose Group"), autoSave: true);
@@ -342,7 +342,7 @@ public class SubstitutionCalculationTests : TradeXpressEntityFrameworkCoreTestBa
         return WithUnitOfWorkAsync(async () =>
         {
             var metal = await _metalRepository.InsertAsync(
-                new Metal(code, $"{code} Metal", data.HasUnitId, factor: 1m,
+                new Metal(code, $"{code} Metal", data.HasUnitId, companyId: data.CompanyId, factor: 1m,
                     isQuantity: true, stableQuantity: pieceWeight),
                 autoSave: true);
 

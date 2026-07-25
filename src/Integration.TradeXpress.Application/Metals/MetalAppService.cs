@@ -469,7 +469,7 @@ public class MetalAppService
 
     protected override Expression<Func<Metal, bool>> BuildVisibilityPredicate()
     {
-        return CompanyScopedQueryable.CompanyVisiblePredicate<Metal>(CurrentTenant.Id, _currentCompany.Id);
+        return CompanyScopedQueryable.CompanyOwnedVisiblePredicate<Metal>(CurrentTenant.Id, _currentCompany.Id);
     }
 
     public virtual async Task<List<MetalVariantLookupDto>> GetVariantLookupAsync()
@@ -481,7 +481,7 @@ public class MetalAppService
             var metalsQuery = await Repository.GetQueryableAsync();
             var variantsQuery = await _entityVariantRepository.GetQueryableAsync();
 
-            var metalPredicate = CompanyScopedQueryable.CompanyVisiblePredicate<Metal>(CurrentTenant.Id, _currentCompany.Id);
+            var metalPredicate = CompanyScopedQueryable.CompanyOwnedVisiblePredicate<Metal>(CurrentTenant.Id, _currentCompany.Id);
             var variantPredicate = CompanyScopedQueryable.CompanyVisiblePredicate<Integration.TradeXpress.Variants.EntityVariant>(CurrentTenant.Id, _currentCompany.Id);
 
             var baseQuery = from metal in metalsQuery.Where(metalPredicate)

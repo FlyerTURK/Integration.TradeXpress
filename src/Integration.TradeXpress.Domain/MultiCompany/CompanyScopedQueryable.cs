@@ -27,4 +27,24 @@ public static class CompanyScopedQueryable
     {
         return query.Where(CompanyVisiblePredicate<T>(tenantId, companyId));
     }
+
+    /// <summary>Aynı görünürlük kuralının <see cref="ICompanyOwned"/> (GÜVENLİK SINIRI) karşılığı — emtia aileleri
+    /// buraya taşındı. <b>Fark:</b> "CompanyId == null → herkese görünür" kolu YOKTUR; sahipsiz kayıt zaten
+    /// üretilemez (CompanyId zorunlu) ve holding kaçağı yapısal olarak imkânsızdır. Host kaydı (TenantId=null)
+    /// muafiyeti ve "şirket seçili değilken konsolide" davranışı KORUNUR (kardeş kuralla hizalı).
+    /// <para>Global sorgu filtresi bunu zaten uygular; bu yardımcı, filtrenin BİLİNÇLİ kapatıldığı okuma
+    /// kapsamlarında (ör. host katalog zenginleştirmesi) görünürlüğü yeniden kurmak içindir.</para></summary>
+    public static Expression<Func<T, bool>> CompanyOwnedVisiblePredicate<T>(Guid? tenantId, Guid? companyId)
+        where T : class, IMultiTenant, ICompanyOwned
+    {
+        return x =>
+            x.TenantId == null
+            || (x.TenantId == tenantId && (companyId == null || x.CompanyId == companyId));
+    }
+
+    public static IQueryable<T> WhereCompanyOwnedVisible<T>(this IQueryable<T> query, Guid? tenantId, Guid? companyId)
+        where T : class, IMultiTenant, ICompanyOwned
+    {
+        return query.Where(CompanyOwnedVisiblePredicate<T>(tenantId, companyId));
+    }
 }

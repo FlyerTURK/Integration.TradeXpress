@@ -130,7 +130,11 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
                 i.Property(p => p.FileName).HasMaxLength(MetalConsts.ImageFileNameMaxLength);
             });
 
-            b.HasIndex(x => new { x.TenantId, x.CompanyId, x.Code }).IsUnique();
+            // SOFT-DELETE farkindali: silinmis kayit kod slotunu ISGAL ETMEZ (kullanici sildigi kodu yeniden
+            // kullanabilir; SalesChannels'taki mevcut desen). CompanyId artik NOT NULL (ICompanyOwned) —
+            // filtrede ayrica "CompanyId IS NOT NULL" kosuluna gerek yok.
+            b.HasIndex(x => new { x.TenantId, x.CompanyId, x.Code }).IsUnique()
+                .HasFilter("[TenantId] IS NOT NULL AND [IsDeleted] = 0");
 
             b.HasOne<CurrencyUnit>().WithMany()
                 .HasForeignKey(x => x.FollowingUnitId).IsRequired().OnDelete(DeleteBehavior.Restrict);
@@ -158,7 +162,11 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
             b.Property(x => x.EntryPrice).HasPrecision(Integration.TradeXpress.Stones.StoneConsts.PricePrecision, Integration.TradeXpress.Stones.StoneConsts.PriceScale);
             b.Property(x => x.ExitPrice).HasPrecision(Integration.TradeXpress.Stones.StoneConsts.PricePrecision, Integration.TradeXpress.Stones.StoneConsts.PriceScale);
 
-            b.HasIndex(x => new { x.TenantId, x.CompanyId, x.Code }).IsUnique();
+            // SOFT-DELETE farkindali: silinmis kayit kod slotunu ISGAL ETMEZ (kullanici sildigi kodu yeniden
+            // kullanabilir; SalesChannels'taki mevcut desen). CompanyId artik NOT NULL (ICompanyOwned) —
+            // filtrede ayrica "CompanyId IS NOT NULL" kosuluna gerek yok.
+            b.HasIndex(x => new { x.TenantId, x.CompanyId, x.Code }).IsUnique()
+                .HasFilter("[TenantId] IS NOT NULL AND [IsDeleted] = 0");
 
             b.HasOne<Integration.TradeXpress.Financials.CurrencyUnits.CurrencyUnit>().WithMany().HasForeignKey(x => x.EntryPriceUnitId).OnDelete(DeleteBehavior.Restrict);
             b.HasOne<Integration.TradeXpress.Financials.CurrencyUnits.CurrencyUnit>().WithMany().HasForeignKey(x => x.ExitPriceUnitId).OnDelete(DeleteBehavior.Restrict);
@@ -184,7 +192,11 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
             b.Property(x => x.EntryPrice).HasPrecision(Integration.TradeXpress.Jewelries.JewelryConsts.PricePrecision, Integration.TradeXpress.Jewelries.JewelryConsts.PriceScale);
             b.Property(x => x.ExitPrice).HasPrecision(Integration.TradeXpress.Jewelries.JewelryConsts.PricePrecision, Integration.TradeXpress.Jewelries.JewelryConsts.PriceScale);
 
-            b.HasIndex(x => new { x.TenantId, x.CompanyId, x.Code }).IsUnique();
+            // SOFT-DELETE farkindali: silinmis kayit kod slotunu ISGAL ETMEZ (kullanici sildigi kodu yeniden
+            // kullanabilir; SalesChannels'taki mevcut desen). CompanyId artik NOT NULL (ICompanyOwned) —
+            // filtrede ayrica "CompanyId IS NOT NULL" kosuluna gerek yok.
+            b.HasIndex(x => new { x.TenantId, x.CompanyId, x.Code }).IsUnique()
+                .HasFilter("[TenantId] IS NOT NULL AND [IsDeleted] = 0");
 
             b.HasOne<Integration.TradeXpress.Financials.CurrencyUnits.CurrencyUnit>().WithMany().HasForeignKey(x => x.EntryPriceUnitId).OnDelete(DeleteBehavior.Restrict);
             b.HasOne<Integration.TradeXpress.Financials.CurrencyUnits.CurrencyUnit>().WithMany().HasForeignKey(x => x.ExitPriceUnitId).OnDelete(DeleteBehavior.Restrict);
@@ -214,7 +226,11 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
                 nameof(Integration.TradeXpress.Goods.Good.OtvRate), nameof(Integration.TradeXpress.Goods.Good.WithholdingRate) })
                 b.Property(r).HasPrecision(Integration.TradeXpress.Goods.GoodConsts.RatePrecision, Integration.TradeXpress.Goods.GoodConsts.RateScale);
 
-            b.HasIndex(x => new { x.TenantId, x.CompanyId, x.Code }).IsUnique();
+            // SOFT-DELETE farkindali: silinmis kayit kod slotunu ISGAL ETMEZ (kullanici sildigi kodu yeniden
+            // kullanabilir; SalesChannels'taki mevcut desen). CompanyId artik NOT NULL (ICompanyOwned) —
+            // filtrede ayrica "CompanyId IS NOT NULL" kosuluna gerek yok.
+            b.HasIndex(x => new { x.TenantId, x.CompanyId, x.Code }).IsUnique()
+                .HasFilter("[TenantId] IS NOT NULL AND [IsDeleted] = 0");
         });
     }
 

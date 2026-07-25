@@ -75,7 +75,7 @@ public class StoneAppService
         // Panel çalışılan şirketten farklı bir şirket verebilir → görünürlük o şirkete göre kurulur.
         // Global company filtresi working şirkete kilitli olduğundan bilinçli kapatılır;
         // görünürlüğü aşağıdaki predicate (istenen şirkete göre) zorlamaya devam eder.
-        var scope = CompanyScopedQueryable.CompanyVisiblePredicate<Stone>(
+        var scope = CompanyScopedQueryable.CompanyOwnedVisiblePredicate<Stone>(
             CurrentTenant.Id, companyId ?? _currentCompany.Id);
 
         using (DataFilter.Disable<ICompanyScoped>())
@@ -86,7 +86,7 @@ public class StoneAppService
 
     protected override Expression<Func<Stone, bool>> BuildVisibilityPredicate()
     {
-        return CompanyScopedQueryable.CompanyVisiblePredicate<Stone>(CurrentTenant.Id, _currentCompany.Id);
+        return CompanyScopedQueryable.CompanyOwnedVisiblePredicate<Stone>(CurrentTenant.Id, _currentCompany.Id);
     }
 
     protected override IQueryable<Stone> ApplyFallbackSort(IQueryable<Stone> query, StoneListRequestDto input)

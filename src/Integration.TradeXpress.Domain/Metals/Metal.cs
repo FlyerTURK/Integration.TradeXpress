@@ -14,7 +14,7 @@ namespace Integration.TradeXpress.Metals;
 /// <para>Host + tenant scoped (Scrap gibi): host kataloğu (TenantId=null) herkese görünür, tenant
 /// düzenleyemez/silemez; tenant kendi kayıtlarını ekleyebilir.</para>
 /// </summary>
-public class Metal : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyScoped
+public class Metal : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwned
 {
     #region Constructors
 
@@ -26,7 +26,7 @@ public class Metal : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyScope
         string code,
         string name,
         Guid followingUnitId,
-        Guid? companyId = null,
+        Guid companyId,
         decimal factor = MetalConsts.DefaultFactor,
         bool factorChange = false,
         bool isQuantity = false,
@@ -49,7 +49,11 @@ public class Metal : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyScope
     #region Properties
 
     public virtual Guid? TenantId { get; protected set; }
-    public virtual Guid? CompanyId { get; protected set; }
+
+    /// <summary>Sahip şirket — GÜVENLİK SINIRI (ICompanyOwned, ZORUNLU). Eskiden ICompanyScoped/nullable idi:
+    /// CompanyId=null "holding" kaydı tenant'ın TÜM şirketlerine görünüyor ve düzenlenebiliyordu → bir şirketin
+    /// kullanıcısı kardeş şirketleri etkileyebiliyordu (cross-company manipülasyon). Artık sahipsiz emtia YOK.</summary>
+    public virtual Guid CompanyId { get; protected set; }
     public virtual string Code { get; protected set; } = null!;
     public virtual string Name { get; protected set; } = null!;
     public virtual string? Description { get; protected set; }

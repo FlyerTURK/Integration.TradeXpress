@@ -13,7 +13,11 @@ public class MetalImageTests
 {
     private static Metal New()
     {
-        return new Metal("HAS", "Has Altın", SimpleGuidGenerator.Instance.Create());
+        // companyId artık ZORUNLU (ICompanyOwned — sahipsiz emtia kaydı yok).
+        return new Metal(
+            "HAS", "Has Altın",
+            followingUnitId: SimpleGuidGenerator.Instance.Create(),
+            companyId: SimpleGuidGenerator.Instance.Create());
     }
 
     [Fact]

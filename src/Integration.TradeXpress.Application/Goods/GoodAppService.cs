@@ -103,7 +103,7 @@ public class GoodAppService
 
     public virtual async Task<List<GoodListDto>> GetPickerListAsync(Guid? companyId = null)
     {
-        var scope = CompanyScopedQueryable.CompanyVisiblePredicate<Good>(
+        var scope = CompanyScopedQueryable.CompanyOwnedVisiblePredicate<Good>(
             CurrentTenant.Id, companyId ?? _currentCompany.Id);
 
         using (DataFilter.Disable<ICompanyScoped>())
@@ -218,7 +218,7 @@ public class GoodAppService
 
     protected override Expression<Func<Good, bool>> BuildVisibilityPredicate()
     {
-        return CompanyScopedQueryable.CompanyVisiblePredicate<Good>(CurrentTenant.Id, _currentCompany.Id);
+        return CompanyScopedQueryable.CompanyOwnedVisiblePredicate<Good>(CurrentTenant.Id, _currentCompany.Id);
     }
 
     protected override IQueryable<Good> ApplyFallbackSort(IQueryable<Good> query, GoodListRequestDto input)

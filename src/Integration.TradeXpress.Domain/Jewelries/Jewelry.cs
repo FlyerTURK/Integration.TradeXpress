@@ -11,7 +11,7 @@ namespace Integration.TradeXpress.Jewelries;
 /// <para><b>Company-scoped:</b> opsiyonel <see cref="CompanyId"/> — null = holding-host (tüm şirketlere),
 /// dolu = o şirkete-özel. Host (TenantId=null) global. Görünürlük working-company'ye göre süzülür.</para>
 /// </summary>
-public class Jewelry : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyScoped
+public class Jewelry : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwned
 {
     #region Constructors
 
@@ -22,7 +22,7 @@ public class Jewelry : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanySco
     public Jewelry(
         string code,
         string name,
-        Guid? companyId = null,
+        Guid companyId,
         bool isQuantity = false,
         bool priceByQuantity = false,
         bool priceTypeChange = true,
@@ -50,8 +50,9 @@ public class Jewelry : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanySco
     #region Properties
 
     public virtual Guid? TenantId { get; protected set; }
-    /// <summary>Şirkete-özel kayıt için sahip Company. null = holding-host / host global.</summary>
-    public virtual Guid? CompanyId { get; protected set; }
+    /// <summary>Sahip şirket — GÜVENLİK SINIRI (ICompanyOwned, ZORUNLU). Sahipsiz ("holding") emtia kaydı YOK:
+    /// eskiden null olabiliyor ve tenant'ın tüm şirketlerine görünüp düzenlenebiliyordu (cross-company etki).</summary>
+    public virtual Guid CompanyId { get; protected set; }
     public virtual string Code { get; protected set; } = null!;
     public virtual string Name { get; protected set; } = null!;
     public virtual string? Description { get; protected set; }

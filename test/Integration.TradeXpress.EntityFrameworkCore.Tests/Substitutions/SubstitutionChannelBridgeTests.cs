@@ -382,7 +382,7 @@ public class SubstitutionChannelBridgeTests : TradeXpressEntityFrameworkCoreTest
     private Task<Metal> SeedMetalAsync(VoucherTestData data, string code, decimal pieceWeight)
     {
         return WithUnitOfWorkAsync(() => _metalRepository.InsertAsync(
-            new Metal(code, $"{code} Metal", data.HasUnitId, factor: 1m,
+            new Metal(code, $"{code} Metal", data.HasUnitId, companyId: data.CompanyId, factor: 1m,
                 isQuantity: true, stableQuantity: pieceWeight),
             autoSave: true));
     }

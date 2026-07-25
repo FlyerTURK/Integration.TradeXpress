@@ -14,12 +14,17 @@ using Xunit;
 namespace Integration.TradeXpress.MultiCompany;
 
 /// <summary>
-/// Company global query filter regresyon ağı: <see cref="ICompanyScoped"/> entity'ler (örnek: Stone)
-/// için DbContext seviyesindeki ABP data filter'ının, elle çağrılan
-/// <c>CompanyScopedQueryable.WhereCompanyVisible</c> ile BİREBİR aynı görünürlüğü — bu kez unutulması
-/// imkânsız şekilde — verdiğini doğrular. Filtre unutulan AppService sorgularında şirketler-arası
-/// sızıntıyı yapısal kapatır; konsolide/rapor sorguları <c>DataFilter.Disable&lt;ICompanyScoped&gt;()</c>
-/// ile bilinçli açar.
+/// Company global query filter regresyon ağı — emtia aileleri artık <see cref="ICompanyOwned"/> (GÜVENLİK SINIRI;
+/// örnek: Stone). DbContext seviyesindeki ABP data filter'ının, elle çağrılan
+/// <c>CompanyScopedQueryable.WhereCompanyOwnedVisible</c> ile BİREBİR aynı görünürlüğü — unutulması imkânsız
+/// şekilde — verdiğini doğrular. Konsolide/rapor sorguları <c>DataFilter.Disable&lt;ICompanyScoped&gt;()</c> ile
+/// bilinçli açar (filtre anahtarı her iki marker için de ICompanyScoped'tır).
+///
+/// <para><b>Model değişimi (görev #4):</b> eski üç katman (host / holding-CompanyId=null / şirkete-özel) YERİNE
+/// tek katman: her emtia bir şirkete AİTTİR. "Holding" (sahipsiz) kayıt artık üretilemez — CompanyId zorunlu —
+/// ve bu testin eski "shared/holding görünür" iddiaları bilinçli olarak KALDIRILDI: o katman, bir şirketin
+/// kullanıcısının kardeş şirketleri etkileyebilmesinin (cross-company manipülasyon) taşıyıcısıydı.
+/// KIRMIZIYSA sızıntı geri gelmiş demektir — testi gevşetme, kök nedeni düzelt.</para>
 /// </summary>
 [Collection(TradeXpressTestConsts.CollectionDefinitionName)]
 public class CompanyScopedFilterTests : TradeXpressEntityFrameworkCoreTestBase
@@ -48,15 +53,32 @@ public class CompanyScopedFilterTests : TradeXpressEntityFrameworkCoreTestBase
 
             var visible = await QueryIdsAsync(data);
 
-            // Kendi şirketi + holding-host (CompanyId=null) görünür; DİĞER şirketin kaydı GÖRÜNMEZ.
+            // Yalnız KENDİ şirketinin kaydı görünür; diğer şirketinki GÖRÜNMEZ.
             visible.ShouldContain(data.StoneA);
-            visible.ShouldContain(data.StoneShared);
             visible.ShouldNotContain(data.StoneB);
         }
     }
 
+    /// <summary>Sahipsiz ("holding") emtia kaydı ÜRETİLEMEZ — CompanyId zorunludur. Bu, cross-company
+    /// manipülasyonun taşıyıcı katmanının yapısal olarak kapandığının kanıtıdır.</summary>
     [Fact]
-    public async Task Host_record_stays_visible_under_working_company()
+    public void Ownerless_commodity_cannot_be_constructed()
+    {
+        // Derleme-zamanı garantisi: Stone ctor'ı Guid? DEĞİL Guid ister (opsiyonel/atlanabilir değil).
+        var companyIdParameter = typeof(Stone)
+            .GetConstructors()
+            .Single(c => c.GetParameters().Length > 0)
+            .GetParameters()
+            .Single(p => p.Name == "companyId");
+
+        companyIdParameter.ParameterType.ShouldBe(typeof(Guid));   // Guid? olsaydı sahipsiz kayıt mümkün olurdu
+        companyIdParameter.IsOptional.ShouldBeFalse();
+        typeof(ICompanyOwned).IsAssignableFrom(typeof(Stone)).ShouldBeTrue();
+        typeof(ICompanyScoped).IsAssignableFrom(typeof(Stone)).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task Disable_filter_shows_all_companies_for_consolidated_queries()
     {
         var data = await SeedAsync();
 
@@ -64,22 +86,19 @@ public class CompanyScopedFilterTests : TradeXpressEntityFrameworkCoreTestBase
         {
             _companyContext.CompanyId = data.CompanyA;
 
-            // HostCatalog deseni: tenant filtresi bilinçli kapalı → host kaydı (TenantId=null)
-            // company filtresinden de muaf kalmalı (host‖company görünürlük semantiği).
-            using (_dataFilter.Disable<IMultiTenant>())
+            using (_dataFilter.Disable<ICompanyScoped>())
             {
                 var visible = await QueryIdsAsync(data);
 
-                visible.ShouldContain(data.StoneHost);
+                // Konsolide sorgu: tenant'ın TÜM şirketleri görünür (tenant filtresi hâlâ açık).
                 visible.ShouldContain(data.StoneA);
-                visible.ShouldContain(data.StoneShared);
-                visible.ShouldNotContain(data.StoneB);
+                visible.ShouldContain(data.StoneB);
             }
         }
     }
 
     [Fact]
-    public async Task Filter_matches_WhereCompanyVisible_semantics_exactly()
+    public async Task Filter_matches_WhereCompanyOwnedVisible_semantics_exactly()
     {
         var data = await SeedAsync();
 
@@ -105,7 +124,7 @@ public class CompanyScopedFilterTests : TradeXpressEntityFrameworkCoreTestBase
                         var stones = await _stones.GetListAsync(s => data.AllIds.Contains(s.Id));
                         return stones
                             .AsQueryable()
-                            .WhereCompanyVisible(data.TenantId, workingCompanyId)
+                            .WhereCompanyOwnedVisible(data.TenantId, workingCompanyId)
                             .Select(s => s.Id)
                             .ToList();
                     });
@@ -116,52 +135,8 @@ public class CompanyScopedFilterTests : TradeXpressEntityFrameworkCoreTestBase
         }
     }
 
-    [Fact]
-    public async Task Disable_filter_shows_all_companies_for_consolidated_queries()
-    {
-        var data = await SeedAsync();
-
-        using (_currentTenant.Change(data.TenantId))
-        {
-            _companyContext.CompanyId = data.CompanyA;
-
-            using (_dataFilter.Disable<ICompanyScoped>())
-            {
-                var visible = await QueryIdsAsync(data);
-
-                // Konsolide sorgu: tenant'ın TÜM şirketleri görünür (tenant filtresi hâlâ açık →
-                // host kaydı görünmez; o boyut IMultiTenant filtresinin işi).
-                visible.ShouldContain(data.StoneA);
-                visible.ShouldContain(data.StoneB);
-                visible.ShouldContain(data.StoneShared);
-                visible.ShouldNotContain(data.StoneHost);
-            }
-        }
-    }
-
-    [Fact]
-    public async Task No_working_company_means_consolidated_visibility()
-    {
-        var data = await SeedAsync();
-
-        using (_currentTenant.Change(data.TenantId))
-        {
-            _companyContext.CompanyId = null; // şirket seçili değil → konsolide (kısıt yok)
-
-            var visible = await QueryIdsAsync(data);
-
-            visible.ShouldContain(data.StoneA);
-            visible.ShouldContain(data.StoneB);
-            visible.ShouldContain(data.StoneShared);
-        }
-    }
-
-    // ── kurulum / yardımcılar ────────────────────────────────────────────────
-
-    /// <summary>
-    /// Tek tenant altında iki şirket + tenant-geneli + host global taş grafı kurar.
-    /// Kodlar test-başına benzersiz (paylaşılan Sqlite collection DB'si).
-    /// </summary>
+    /// <summary>Tek tenant altında İKİ ŞİRKETE ait taş kurar. Artık "tenant-geneli/holding" katmanı YOK —
+    /// her kayıt bir şirkete aittir. Kodlar test-başına benzersiz (paylaşılan Sqlite collection DB'si).</summary>
     private async Task<FilterTestData> SeedAsync()
     {
         _companyContext.CompanyId = null; // auto-stamp devre dışı — CompanyId ctor'dan verilir
@@ -171,26 +146,18 @@ public class CompanyScopedFilterTests : TradeXpressEntityFrameworkCoreTestBase
         var companyB = SimpleGuidGenerator.Instance.Create();
         var suffix   = SimpleGuidGenerator.Instance.Create().ToString("N")[..8].ToUpperInvariant();
 
-        // Host global kayıt (TenantId=null) — testin varsayılan bağlamı host.
-        var stoneHost = await WithUnitOfWorkAsync(async () =>
-        {
-            var host = await _stones.InsertAsync(new Stone($"H{suffix}", $"Host Stone {suffix}"));
-            return host.Id;
-        });
-
-        Guid stoneA, stoneB, stoneShared;
+        Guid stoneA, stoneB;
         using (_currentTenant.Change(tenantId))
         {
-            (stoneA, stoneB, stoneShared) = await WithUnitOfWorkAsync(async () =>
+            (stoneA, stoneB) = await WithUnitOfWorkAsync(async () =>
             {
-                var a      = await _stones.InsertAsync(new Stone($"A{suffix}", $"Company A Stone {suffix}", companyA));
-                var b      = await _stones.InsertAsync(new Stone($"B{suffix}", $"Company B Stone {suffix}", companyB));
-                var shared = await _stones.InsertAsync(new Stone($"S{suffix}", $"Shared Stone {suffix}"));
-                return (a.Id, b.Id, shared.Id);
+                var a = await _stones.InsertAsync(new Stone($"A{suffix}", $"Company A Stone {suffix}", companyA));
+                var b = await _stones.InsertAsync(new Stone($"B{suffix}", $"Company B Stone {suffix}", companyB));
+                return (a.Id, b.Id);
             });
         }
 
-        return new FilterTestData(tenantId, companyA, companyB, stoneHost, stoneA, stoneB, stoneShared);
+        return new FilterTestData(tenantId, companyA, companyB, stoneA, stoneB);
     }
 
     /// <summary>Bu testin tohumladığı taşlardan aktif filtrelerle görünenlerin id listesi.</summary>
@@ -203,15 +170,8 @@ public class CompanyScopedFilterTests : TradeXpressEntityFrameworkCoreTestBase
         });
     }
 
-    private sealed record FilterTestData(
-        Guid TenantId,
-        Guid CompanyA,
-        Guid CompanyB,
-        Guid StoneHost,
-        Guid StoneA,
-        Guid StoneB,
-        Guid StoneShared)
+    private sealed record FilterTestData(Guid TenantId, Guid CompanyA, Guid CompanyB, Guid StoneA, Guid StoneB)
     {
-        public List<Guid> AllIds { get; } = new() { StoneHost, StoneA, StoneB, StoneShared };
+        public IReadOnlyList<Guid> AllIds { get; } = new[] { StoneA, StoneB };
     }
 }
