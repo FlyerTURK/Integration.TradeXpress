@@ -13,6 +13,7 @@ using Integration.Framework.Base.Querying;
 using Integration.TradeXpress.Companies;
 using Volo.Abp.Identity;
 using Volo.Abp.Security.Claims;
+using Microsoft.Extensions.Logging;
 
 namespace Integration.TradeXpress.Tenants;
 
@@ -40,6 +41,9 @@ public class TenantAppService : TradeXpressAppService, ITenantAppService
     private readonly IDataSeeder _dataSeeder;
     private readonly ICurrentPrincipalAccessor _currentPrincipalAccessor;
 
+    /// <summary>Tenant kurulumunda seed edilen admin rolünün adı (ABP kuralı) — impersonation bu rolü arar.</summary>
+    private const string TenantAdminRoleName = "admin";
+
     private static readonly HashSet<string> AllowedListFields =
         new(StringComparer.OrdinalIgnoreCase) { "Name", "Id" };
 
@@ -64,7 +68,35 @@ public class TenantAppService : TradeXpressAppService, ITenantAppService
     public virtual async Task<TenantGetDto> GetAsync(Guid id)
     {
         var tenant = await _tenantRepository.GetAsync(id);
-        return ObjectMapper.Map<Tenant, TenantGetDto>(tenant);
+        var dto = ObjectMapper.Map<Tenant, TenantGetDto>(tenant);
+
+        // Şirket grafı TENANT KAPSAMINDA + TENANT ADMİNİ OLARAK okunur — iki ayrı sebep, ikisi de zorunlu:
+        //  (1) KAPSAM: AppCompanies/AppBranches/AppVaults IMultiTenant'tır; host bağlamında (CurrentTenant=null)
+        //      ABP filtresi tenant satırlarını GİZLER → drill grid boş geliyordu.
+        //  (2) YETKİ: CurrentTenant.Change içinde ABP izinleri O TENANT'ta çözülür; host kullanıcısının orada
+        //      HİÇ grant'ı yoktur → app-service'in [Authorize]'ı AbpAuthorizationException fırlatır.
+        // CreateAsync (satır ~119) tam bu yüzden impersonate ediyor; okuma yolunda o adım eksikti.
+        using (CurrentTenant.Change(tenant.Id))
+        {
+            var impersonation = await ImpersonateTenantAdminAsync();
+            using (impersonation)
+            {
+                if (impersonation != null)
+                {
+                    dto.Companies = await _companyAppService.GetGraphListAsync();
+                }
+                else
+                {
+                    // Admin bulunamadı (bozuk/yarım kurulmuş tenant) → form AÇILIR ama graf boş gelir.
+                    // Sessiz kalmıyoruz: sebebi log'a yazıyoruz, aksi halde "şirket kayboldu" gibi görünür.
+                    Logger.LogWarning(
+                        "Tenant {TenantId} için admin kullanıcı bulunamadı; şirket grafı okunamadı (edit formu boş grid gösterecek).",
+                        tenant.Id);
+                }
+            }
+        }
+
+        return dto;
     }
 
     public virtual async Task<PagedResultDto<TenantListDto>> GetListAsync(TenantListRequestDto input)
@@ -73,7 +105,7 @@ public class TenantAppService : TradeXpressAppService, ITenantAppService
             .ApplyListRequest(input, AllowedListFields);
 
         var totalCount = await AsyncExecuter.CountAsync(query);
-        var items = await AsyncExecuter.ToListAsync(query.Skip(input.SkipCount).Take(input.MaxResultCount));
+        var items = await AsyncExecuter.ToListAsync(query.ApplyPaging(input));
 
         return new PagedResultDto<TenantListDto>(
             totalCount,
@@ -120,6 +152,21 @@ public class TenantAppService : TradeXpressAppService, ITenantAppService
                     await CreateCompanyAsync(company);
                 }
             }
+
+            // 5) İKİNCİ seed pass'i — ŞİRKETLER KURULDUKTAN SONRA (görev #4 hizalaması).
+            //    Emtia katalogları artık PER-COMPANY: seeder'lar tenant'ın şirketlerini dolaşır. İlk pass (adım 1)
+            //    şirketler HENÜZ YOKKEN koştuğu için boş liste görüp SESSİZCE hiçbir şey yapıyordu → bu yoldan
+            //    açılan tenant emtia kataloğu ALMIYORDU (yalnız elle DbMigrator koşusu kurtarıyordu).
+            //    İlk pass TAŞINAMAZ: adım 2'deki impersonation, orada seed edilen admin'e bağlıdır.
+            //    Aynı özelliklerle çağrılır (davranış farkı yok) ve tüm seeder'lar idempotenttir → mevcut
+            //    kayıtlar atlanır, yalnız eksikler tamamlanır.
+            if (admin != null && input.Companies.Any())
+            {
+                await _dataSeeder.SeedAsync(new DataSeedContext(tenant.Id)
+                    .WithProperty(IdentityDataSeedContributor.AdminEmailPropertyName, admin.Email)
+                    .WithProperty(IdentityDataSeedContributor.AdminPasswordPropertyName, admin.Password)
+                    .WithProperty(TradeXpressDataSeedContributor.SkipOrgSeedProperty, true));
+            }
         }
 
         return ObjectMapper.Map<Tenant, TenantGetDto>(tenant);
@@ -141,6 +188,21 @@ public class TenantAppService : TradeXpressAppService, ITenantAppService
     }
 
     /// <summary>Seed edilen admin için impersonation principal'i kurar (userId + tenantId + rol claim'leri).</summary>
+    /// <summary>Geçerli tenant kapsamında o tenant'ın admin kullanıcısı olarak impersonate eder (app-service
+    /// çağrıları ancak böyle yetkili olur — bkz. <see cref="GetAsync"/> açıklaması). Admin yoksa null döner;
+    /// çağıran BUNU ELE ALMALI (sessiz yetki hatası yerine anlamlı davranış).</summary>
+    private async Task<IDisposable?> ImpersonateTenantAdminAsync()
+    {
+        var admins = await _userManager.GetUsersInRoleAsync(TenantAdminRoleName);
+        var admin = admins.FirstOrDefault();
+        if (admin == null)
+        {
+            return null;
+        }
+
+        return _currentPrincipalAccessor.Change(await BuildPrincipalAsync(admin));
+    }
+
     private async Task<ClaimsPrincipal> BuildPrincipalAsync(IdentityUser adminUser)
     {
         var claims = new List<Claim>

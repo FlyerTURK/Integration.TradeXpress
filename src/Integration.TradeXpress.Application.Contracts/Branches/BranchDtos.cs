@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using Integration.Framework.Addressing;
@@ -15,12 +15,17 @@ namespace Integration.TradeXpress.Branches;
 public class BranchAddressDto : IAddressEditModel
 {
     public string? Title { get; set; }
+    [Required]
     public string City { get; set; } = string.Empty;
+    [Required]
     public string Line { get; set; } = string.Empty;
     public string? District { get; set; }
     public string? Neighborhood { get; set; }
     public string? PostalCode { get; set; }
     public string CountryCode { get; set; } = "TR";
+
+    /// <summary>Ülke ADI — salt görüntü (adres özetinde kod yerine "Türkiye"). Otoriter alan CountryCode'dur.</summary>
+    public string? CountryName { get; set; }
     public string? CityCode { get; set; }
     public string? DistrictCode { get; set; }
     public Guid? AdministrativeAreaId { get; set; }

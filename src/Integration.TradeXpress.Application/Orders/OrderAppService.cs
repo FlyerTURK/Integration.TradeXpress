@@ -128,7 +128,7 @@ public class OrderAppService : TradeXpressAppService, IOrderAppService
         }
 
         var totalCount = await AsyncExecuter.CountAsync(orderQuery);
-        var orders = await AsyncExecuter.ToListAsync(orderQuery.Skip(input.SkipCount).Take(input.MaxResultCount));
+        var orders = await AsyncExecuter.ToListAsync(orderQuery.ApplyPaging(input));
 
         // Sayfadaki siparişlerin TÜM kalemlerini TEK sorguda çek (N+1 yok), OrderId'ye grupla.
         var orderIds = orders.Select(o => o.Id).ToList();

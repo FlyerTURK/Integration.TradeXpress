@@ -8,6 +8,7 @@ using Integration.Framework.Base.Querying;
 using Integration.TradeXpress.Branches;
 using Integration.TradeXpress.Countries;
 using Integration.TradeXpress.Financials.CurrencyUnits;
+using Integration.TradeXpress.MultiCompany;
 using Integration.TradeXpress.Organization;
 using Integration.TradeXpress.Permissions;
 using Integration.TradeXpress.Vaults;
@@ -38,6 +39,7 @@ public class CompanyAppService : TradeXpressAppService, ICompanyAppService
     private readonly IBranchAppService _branchAppService;            // YAZMA: şube create/update/delete buraya delege
     private readonly IDataFilter _dataFilter;
     private readonly OrgTreeManager _orgTree;
+    private readonly ICurrentCompany _currentCompany;   // graf okurken kasa (ICompanyOwned) kapsamını kurmak için
 
     private static readonly HashSet<string> AllowedListFields =
         new(StringComparer.OrdinalIgnoreCase) { "Code", "Name", "CountryCode", "BaseCurrencyCode", "IsActive", "IsHeadquarters", "DisplayOrder", "Id" };
@@ -50,9 +52,11 @@ public class CompanyAppService : TradeXpressAppService, ICompanyAppService
         IRepository<Vault, Guid> vaultRepository,
         IBranchAppService branchAppService,
         IDataFilter dataFilter,
-        OrgTreeManager orgTree)
+        OrgTreeManager orgTree,
+        ICurrentCompany currentCompany)
     {
         _repository = repository;
+        _currentCompany = currentCompany;
         _unitRepository = unitRepository;
         _countryRepository = countryRepository;
         _branchRepository = branchRepository;
@@ -94,7 +98,7 @@ public class CompanyAppService : TradeXpressAppService, ICompanyAppService
                 .ApplyListRequest(input, AllowedListFields);
 
             var totalCount = await AsyncExecuter.CountAsync(rows);
-            var items = await AsyncExecuter.ToListAsync(rows.Skip(input.SkipCount).Take(input.MaxResultCount));
+            var items = await AsyncExecuter.ToListAsync(rows.ApplyPaging(input));
 
             return new PagedResultDto<CompanyListDto>(
                 totalCount,
@@ -378,8 +382,38 @@ public class CompanyAppService : TradeXpressAppService, ICompanyAppService
         }
     }
 
+    /// <summary>Geçerli tenant'ın tüm şirketleri + şube/kasa grafı (tenant edit formunun drill grid'i).
+    /// Tek-şirket okumasıyla AYNI <see cref="ToGetDtoAsync"/> kullanılır → graf kodu tek yerde.
+    /// Tenant kapsamını ÇAĞIRAN kurar (host bağlamında IMultiTenant filtresi tenant satırlarını gizler).
+    /// <para>ŞİRKET YÖNETİMİ yetkisi ister (Default DEĞİL): bu uç şirketler-arası kasa görünürlüğü açar, sıradan
+    /// okuma yetkisine bırakılmaz. Host tenant-yönetimi izni KULLANILAMAZ — çağrı <c>CurrentTenant.Change</c>
+    /// içinde koştuğu için ABP izinleri O TENANT'ta çözer ve host grant'ları orada geçerli değildir.</para></summary>
+    [Authorize(TradeXpressPermissions.Companies.Update)]
+    public virtual async Task<List<CompanyGraphDto>> GetGraphListAsync()
+    {
+        var companies = await AsyncExecuter.ToListAsync((await _repository.GetQueryableAsync())
+            .OrderBy(c => c.DisplayOrder).ThenBy(c => c.Code));
+
+        var graphs = new List<CompanyGraphDto>(companies.Count);
+        foreach (var company in companies)
+        {
+            // KASA (Vault) ICompanyOwned'dır: şirket filtresi CurrentCompanyId ile eşleşmeyen satırları gizler ve
+            // host formunda çalışan şirket YOKTUR (Guid.Empty sentinel) → kasalar boş geliyordu (Hakan bulgusu).
+            // Çözüm filtreyi KAPATMAK değil (§2: IDataFilter disable yasak) — okunan şirketin kapsamına GİRİP
+            // filtreyi KARŞILAMAK. Şirket ve şube ICompanyOwned olmadığından yalnız kasa bu kapsamı gerektirir.
+            using (_currentCompany.Change(company.Id))
+            {
+                graphs.Add(await ToGetDtoAsync(company));
+            }
+        }
+
+        return graphs;
+    }
+
     // Şirket + şube + kasa grafını GetDto'ya doldurur (edit formu in-memory bind eder; ClientKey taze).
-    private async Task<CompanyGetDto> ToGetDtoAsync(Company c)
+    // CompanyGraphDto DÖNER (CompanyGetDto'dan türer): tek-şirket okuması taban tipi görür, tenant grafı ise
+    // ClientKey/IsDeleted alanlarını hazır bulur — iki ayrı doldurucu yazılmasına gerek kalmaz ("unutulan alan" yok).
+    private async Task<CompanyGraphDto> ToGetDtoAsync(Company c)
     {
         var codes = await LoadCurrencyCodesAsync(new[] { c.BaseCurrencyUnitId });
         var branches = await AsyncExecuter.ToListAsync((await _branchRepository.GetQueryableAsync())
@@ -388,7 +422,7 @@ public class CompanyAppService : TradeXpressAppService, ICompanyAppService
         var vaults = await AsyncExecuter.ToListAsync((await _vaultRepository.GetQueryableAsync())
             .Where(v => branchIds.Contains(v.BranchId)).OrderBy(v => v.DisplayOrder));
 
-        return new CompanyGetDto
+        return new CompanyGraphDto
         {
             Id = c.Id,
             Code = c.Code,

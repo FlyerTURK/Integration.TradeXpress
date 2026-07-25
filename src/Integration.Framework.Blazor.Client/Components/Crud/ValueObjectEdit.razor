@@ -9,19 +9,23 @@
    Boş (EmptyPredicate) → placeholder. Dirty: parent edit popup'ı value-object'i mutasyonlar → form JSON snapshot yakalar.
    DevExpress-native (ERPPROV3 pure-HTML yerine DxTextBox + DxEditorButton).
 *@
-<DxTextBox Text="@_displayText"
-           ReadOnly="true"
-           Enabled="@Enabled"
-           NullText="@_nullText"
-           ValidationEnabled="false"
-           CssClass="w-100">
-    <Buttons>
-        <DxEditorButton IconCssClass="custom-icon-edit"
-                        Visible="@_canEdit"
-                        Click="@OnEditButtonClick"
-                        Tooltip="@_buttonTooltip" />
-    </Buttons>
-</DxTextBox>
+@* ÇİFT TIK da popup'ı açar (✎ butonuna ek kolaylık; kutu salt-okunur olduğundan çift tık boşta kalıyordu —
+   kullanıcı isteği). İnce olay sarmalayıcı: DxTextBox @ondblclick'i doğrudan almaz, Dx karşılığı da yok. *@
+<div class="w-100" @ondblclick="@OnDoubleClick">
+    <DxTextBox Text="@_displayText"
+               ReadOnly="true"
+               Enabled="@Enabled"
+               NullText="@_nullText"
+               ValidationEnabled="false"
+               CssClass="w-100">
+        <Buttons>
+            <DxEditorButton IconCssClass="custom-icon-edit"
+                            Visible="@_canEdit"
+                            Click="@OnEditButtonClick"
+                            Tooltip="@_buttonTooltip" />
+        </Buttons>
+    </DxTextBox>
+</div>
 
 @code {
     [Parameter] public TValue? Value { get; set; }
@@ -47,5 +51,8 @@
     private string _buttonTooltip => string.IsNullOrEmpty(EditTooltip) ? L["Edit"].Value : EditTooltip;
 
     private Task OnEditButtonClick(MouseEventArgs _) => _canEdit ? OnEditClick.InvokeAsync() : Task.CompletedTask;
+
+    // Çift tık = ✎ ile aynı kapı (aynı guard: devre dışıysa ya da OnEditClick bağlı değilse hiçbir şey yapmaz).
+    private Task OnDoubleClick(MouseEventArgs _) => _canEdit ? OnEditClick.InvokeAsync() : Task.CompletedTask;
 }
 

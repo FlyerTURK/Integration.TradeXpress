@@ -1,4 +1,4 @@
-using Integration.TradeXpress.Financials.CurrencyUnits;
+﻿using Integration.TradeXpress.Financials.CurrencyUnits;
 
 namespace Integration.TradeXpress.Futures;
 
@@ -7,10 +7,12 @@ namespace Integration.TradeXpress.Futures;
 /// ZORUNLU) takip eder + bir <see cref="FollowingFactor"/> çarpanı taşır (milyem/lot/saflık; varsayılan 1, &gt;0).
 /// Voucher/VoucherLine'da commodity olarak seçilir; ana bacak Total = Miktar × FollowingFactor.
 ///
-/// <para>Host + tenant scoped (Cash gibi): host kataloğu (TenantId=null) herkese görünür, tenant
-/// düzenleyemez/silemez; tenant kendi kayıtlarını ekleyebilir.</para>
+/// <para><b>Şirkete AİTTİR</b> (<see cref="ICompanyOwned"/> — güvenlik sınırı, görev #4): katalog tenant-geneli
+/// DEĞİL şirket kapsamlıdır; bir şirketin kullanıcısının düzenlemesi kardeş şirketleri etkilemez.
+/// <see cref="CompanyId"/> ZORUNLU — sahipsiz ("holding") kayıt üretilemez; sahiplik client'tan değil aktif
+/// working company'den damgalanır (<c>CompanyOwnershipGuard</c>).</para>
 /// </summary>
-public class Future : FullAuditedAggregateRoot<Guid>, IMultiTenant
+public class Future : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwned
 {
     #region Constructors
 
@@ -22,12 +24,14 @@ public class Future : FullAuditedAggregateRoot<Guid>, IMultiTenant
         string code,
         string name,
         Guid followingUnitId,
+        Guid companyId,
         decimal followingFactor = 1m,
         bool isActive = true)
     {
         SetCode(code);
         SetName(name);
         SetFollowingUnit(followingUnitId);
+        CompanyId = companyId;
         SetFollowingFactor(followingFactor);
         SetActive(isActive);
     }
@@ -37,6 +41,10 @@ public class Future : FullAuditedAggregateRoot<Guid>, IMultiTenant
     #region Properties
 
     public virtual Guid? TenantId { get; protected set; }
+
+    /// <summary>Sahip şirket — GÜVENLİK SINIRI (ICompanyOwned, ZORUNLU). Görev #4 ile eklendi: vadeli kataloğu
+    /// eskiden TENANT-GENELİydi (bir şirketin düzenlemesi kardeş şirketleri etkiliyordu).</summary>
+    public virtual Guid CompanyId { get; protected set; }
     public virtual string Code { get; protected set; } = null!;
     public virtual string Name { get; protected set; } = null!;
 
@@ -88,6 +96,26 @@ public class Future : FullAuditedAggregateRoot<Guid>, IMultiTenant
     public virtual void SetActive(bool value)
     {
         IsActive = value;
+    }
+
+    /// <summary>Tek seferlik geçiş backfill'i (migration sonrası): <see cref="CompanyId"/> yalnız BOŞSA
+    /// doldurulur. Emtianın SubAccount/Vault gibi bir PARENT'ı YOKTUR (sahibi kanıtlayan yapısal bağ yok) →
+    /// sahip POLİTİKA ile seçilir: tenant'ın merkez (HQ) şirketi (bkz. <c>CompanyOwnedBackfiller</c>).
+    /// Zaten doluysa DOKUNMAZ (idempotent no-op; set-once invariant korunur — Empty→değer geçişi mümkün,
+    /// yeniden atama DEĞİL).</summary>
+    public virtual void BackfillCompanyIfMissing(Guid companyId)
+    {
+        if (CompanyId != Guid.Empty)
+        {
+            return;
+        }
+
+        if (companyId == Guid.Empty)
+        {
+            throw new RequiredPropertyException(nameof(CompanyId));
+        }
+
+        CompanyId = companyId;
     }
 
     public override string ToString()

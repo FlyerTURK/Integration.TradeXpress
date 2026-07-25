@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
 using Volo.Abp.Application.Services;
 
 namespace Integration.TradeXpress.Companies;
@@ -13,4 +15,9 @@ public interface ICompanyAppService : ICrudAppService<
     CompanyCreateDto,
     CompanyUpdateDto>
 {
+    /// <summary>Geçerli tenant'ın TÜM şirketlerini şube+kasa grafıyla döner — tenant edit formunun Şirketler drill
+    /// grid'i bunu tüketir. Tek şirketlik <c>GetAsync</c> ile AYNI okuyucuyu kullanır (kopya graf kodu YOK).
+    /// <para>Çağıran tenant kapsamını kendisi kurar: <c>AppCompanies</c> IMultiTenant'tır, host bağlamında
+    /// (CurrentTenant=null) sorgu tenant satırlarını GÖRMEZ.</para></summary>
+    Task<List<CompanyGraphDto>> GetGraphListAsync();
 }

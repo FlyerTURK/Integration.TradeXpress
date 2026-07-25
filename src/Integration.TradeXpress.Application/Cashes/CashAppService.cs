@@ -83,7 +83,7 @@ public class CashAppService
                 .ApplyListRequest(input, AllowedListFields);
 
             var totalCount = await AsyncExecuter.CountAsync(rows);
-            var items = await AsyncExecuter.ToListAsync(rows.Skip(input.SkipCount).Take(input.MaxResultCount));
+            var items = await AsyncExecuter.ToListAsync(rows.ApplyPaging(input));
 
             return new PagedResultDto<CashListDto>(totalCount, items.Select(ToListDto).ToList());
         }

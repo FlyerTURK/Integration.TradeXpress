@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.ComponentModel.DataAnnotations;
 using Integration.Framework.Addressing;
 using Integration.Framework.Base.Dtos;
@@ -23,6 +23,9 @@ public class ShipmentAddressDto : IAddressEditModel
     public string? Neighborhood { get; set; }
     public string? PostalCode { get; set; }
     public string CountryCode { get; set; } = "TR";
+
+    /// <summary>Ülke ADI — salt görüntü (adres özetinde kod yerine "Türkiye"). Otoriter alan CountryCode'dur.</summary>
+    public string? CountryName { get; set; }
 
     /// <summary>Opsiyonel yapısal il kodu (plaka / kanal il kodu).</summary>
     public string? CityCode { get; set; }

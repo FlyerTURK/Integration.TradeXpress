@@ -1,4 +1,4 @@
-﻿{
+{
   "Culture": "en",
   "Texts": {
     "Transactions": "Transactions",
@@ -1478,15 +1478,15 @@
     "Pricing": "Pricing",
     "EntryPrice": "Buy Price",
     "ExitPrice": "Sell Price",
-    "FactorChange": "Purity Editable",
+    "FactorChange": "Purity Status",
     "Has": "Fine",
     "Labor": "Labor",
     "LaborType": "Labor Type",
-    "LaborTypeChange": "Labor Type Editable",
+    "LaborTypeChange": "Labor Type Status",
     "EntryLabor": "Entry Labor",
     "ExitLabor": "Exit Labor",
-    "EntryLaborChange": "Entry Labor Editable",
-    "ExitLaborChange": "Exit Labor Editable",
+    "EntryLaborChange": "Entry Labor Status",
+    "ExitLaborChange": "Exit Labor Status",
     "QuantityTracking": "Quantity Tracking",
     "IsQuantity": "Quantity Based",
     "StableQuantity": "Stable Quantity",
@@ -1985,6 +1985,9 @@
     "PayFactor:MetalPanel": "EXCHANGE PRICE",
     "PayTotal:MetalPanel:Cash": "AMOUNT",
     "PayTotal:MetalPanel:Labor": "TOTAL LABOR",
-    "PayCommodity:MetalPanel": "UNIT"
+    "PayCommodity:MetalPanel": "UNIT",
+    "Tenant:AdminUser": "Administrator",
+    "Tenant:HeadquartersBranch": "Headquarters Branch",
+    "TradeXpress:Branch:AddressRequired": "Branch address is required (City and Street Address must be provided)."
   }
 }

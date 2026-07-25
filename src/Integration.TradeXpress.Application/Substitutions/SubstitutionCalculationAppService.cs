@@ -178,12 +178,17 @@ public class SubstitutionCalculationAppService : TradeXpressAppService, ISubstit
         var metalIds = ordered.Select(i => i.MetalId!.Value).ToList();
         Dictionary<Guid, Metal> metalById;
 
-        // Katalog çözümü salt-okuma: host (TenantId=null) maden kayıtları tenant altında da görünmeli
-        // (RecipeCostPopulator.LoadRecipeCatalogAsync ile aynı desen).
+        // Katalog çözümü salt-okuma. Eski gerekçe "host (TenantId=null) maden kayıtları görünsün" idi —
+        // görev #4 ile GEÇERSİZ (emtia ICompanyOwned; host'ta üretilemiyor). Filtre kapatma korunur çünkü
+        // sorgu metalIds ile daraltılmıştır, AMA tenant bacağı ELLE geri konur: kapatma, başka tenant'ın
+        // madeninin id ile çözülmesine açık kapı bırakıyordu (kod-inceleme bulgusu #15).
+        var tenantId = CurrentTenant.Id;
         using (_dataFilter.Disable<IMultiTenant>())
         {
             var metals = await AsyncExecuter.ToListAsync(
-                (await _metalRepository.GetQueryableAsync()).Where(m => metalIds.Contains(m.Id)));
+                (await _metalRepository.GetQueryableAsync())
+                    .Where(m => metalIds.Contains(m.Id))
+                    .Where(m => m.TenantId == null || m.TenantId == tenantId));
             metalById = metals.ToDictionary(m => m.Id);
         }
 
@@ -208,18 +213,23 @@ public class SubstitutionCalculationAppService : TradeXpressAppService, ISubstit
         return resolved;
     }
 
-    /// <summary>Grup madenlerinin varyant kataloğu — tek batch (host-seviyesi katalog tenant altında da
-    /// görünsün diye IMultiTenant + ICompanyScoped kapalı; sorgu EntityName + metalIds ile daraltılmış →
-    /// sızıntı yok; ComputeUnitCostsAsync işçilik sorgusuyla aynı desen).</summary>
+    /// <summary>Grup madenlerinin varyant kataloğu — tek batch. <b>ICompanyScoped kapalı ŞART:</b> varyant satırı
+    /// madeninkinden FARKLI bir şirket damgası taşıyabildiğinden working-context'te katalog boşalıyordu.
+    /// <b>IMultiTenant kapalı</b> ise yalnız sorgu kolaylığı içindir; tenant bacağı ELLE geri konur — aksi halde
+    /// başka tenant'ın varyantı id ile çözülebiliyordu (kod-inceleme bulgusu #15). Eski gerekçedeki "host-seviyesi
+    /// katalog" görev #4 ile geçersizdir.</summary>
     private async Task<Dictionary<Guid, List<EntityVariant>>> LoadVariantCatalogAsync(List<Guid> metalIds)
     {
+        var tenantId = CurrentTenant.Id;
+
         List<EntityVariant> variants;
         using (_dataFilter.Disable<IMultiTenant>())
         using (_dataFilter.Disable<ICompanyScoped>())
         {
             variants = await AsyncExecuter.ToListAsync(
                 (await _entityVariantRepository.GetQueryableAsync())
-                    .Where(v => v.EntityName == MetalEntityName && metalIds.Contains(v.EntityId)));
+                    .Where(v => v.EntityName == MetalEntityName && metalIds.Contains(v.EntityId))
+                    .Where(v => v.TenantId == null || v.TenantId == tenantId));
         }
 
         return variants
@@ -378,12 +388,13 @@ public class SubstitutionCalculationAppService : TradeXpressAppService, ISubstit
             .Distinct()
             .ToList();
 
-        // İşçilik HOST-seviyesi katalog varyantından okunur: EntityVariant + MetalVariantDetail
-        // IMultiTenant + ICompanyScoped filtreli olduğundan tenant working-context'inde host satırları
-        // elenirdi → işçilik sessizce 0'a düşer ve solver sıralaması yanlış kurulurdu. Metal yüklemesiyle
-        // aynı şekilde iki filtre de kapatılır (salt-okuma katalog çözümü; sorgu variantIds + EntityName ile
-        // daraltılmış → sızıntı yok; RecipeCostPopulator.LoadRecipeCatalogAsync deseni). Sözlük artık
-        // VARYANT-anahtarlı: etkin kümedeki TÜM varyantların işçiliği yüklenir (IsMain filtresi yok).
+        // İşçilik katalog varyantından okunur: EntityVariant + MetalVariantDetail. ICompanyScoped kapatılır
+        // çünkü varyant satırı madeninkinden farklı şirket damgası taşıyabiliyor → working-context'te işçilik
+        // sessizce 0'a düşüyor ve solver sıralaması yanlış kuruluyordu. IMultiTenant de kapatılır ama tenant
+        // bacağı ELLE geri konur (bulgu #15): kapatma başka tenant'ın varyantına id ile erişime açıktı.
+        // Eski yorumdaki "HOST-seviyesi katalog" gerekçesi görev #4 ile geçersizdir.
+        // Sözlük VARYANT-anahtarlı: etkin kümedeki TÜM varyantların işçiliği yüklenir (IsMain filtresi yok).
+        var laborTenantId = CurrentTenant.Id;
         Dictionary<Guid, (decimal EntryLabor, Guid? EntryLaborUnitId, MetalLaborType LaborType)> laborByVariant;
         using (_dataFilter.Disable<IMultiTenant>())
         using (_dataFilter.Disable<ICompanyScoped>())
@@ -395,6 +406,7 @@ public class SubstitutionCalculationAppService : TradeXpressAppService, ISubstit
                 from v in variantsQuery
                 join d in detailsQuery on v.Id equals d.EntityVariantId
                 where v.EntityName == MetalEntityName && variantIds.Contains(v.Id)
+                   && (v.TenantId == null || v.TenantId == laborTenantId)
                 select new { v.Id, d.EntryLabor, d.EntryLaborUnitId, d.LaborType }
             );
             laborByVariant = laborDetails.ToDictionary(

@@ -130,15 +130,6 @@ public class GeographySeeder(
             PostalCodeType.PostalCode);
         await _countryRepository.UpdateAsync(turkey, autoSave: false);
 
-        var cities = (await _n11CityRepository.GetQueryableAsync()).ToList();
-        if (cities.Count == 0)
-        {
-            await SaveAsync();
-            _logger.LogInformation(
-                "Coğrafya seed [TR]: N11 il verisi boş — il/ilçe türetme atlandı (N11 sync sonrası tekrar çalışınca dolar).");
-            return;
-        }
-
         var areaByIso = new Dictionary<string, AdministrativeArea>(StringComparer.OrdinalIgnoreCase);
         var areaByCityCode = new Dictionary<string, AdministrativeArea>(StringComparer.OrdinalIgnoreCase);
         foreach (var area in await GetAreasOf(turkey.Id))
@@ -151,15 +142,52 @@ public class GeographySeeder(
             areaByCityCode[area.Code] = area;
         }
 
+        // İL: STATİK ISO 3166-2:TR kataloğundan — N11'den BAĞIMSIZ. Eskiden iller N11 il verisinden türetiliyordu,
+        // yani N11 kanalı kurulmadan TR adres girilemiyordu (ABD eyaletleri ise sabit katalogdan geliyordu — asimetri).
+        // İl seti 1999'dan beri (81 il, Düzce sonuncusu) değişmedi; pazaryerine bağlamak için sebep yok.
+        // İlçe/mahalle N11'de KALIR: ilçe adları ve N11'in kendi ID'leri zaten API'den gelmek zorunda.
         var addedAreas = 0;
+        foreach (var province in TurkishProvinceCatalog)
+        {
+            var provinceIso = TurkishProvinceIso(province.Code);
+            if (areaByIso.ContainsKey(provinceIso))
+            {
+                continue;   // idempotent — kullanıcının düzenlediği ada DOKUNMA
+            }
+
+            var seeded = new AdministrativeArea(
+                countryId: turkey.Id,
+                code: province.Code,
+                name: province.Name,
+                iso3166_2Code: provinceIso,
+                category: GeographyConsts.CategoryProvince);
+            await _administrativeAreaRepository.InsertAsync(seeded, autoSave: false);
+            areaByIso[provinceIso] = seeded;
+            areaByCityCode[seeded.Code] = seeded;
+            addedAreas++;
+        }
+
+        await SaveAsync();   // il Id'leri kesinleşsin (N11 köprüsü + ilçe FK'si için)
+
+        var cities = (await _n11CityRepository.GetQueryableAsync()).ToList();
+        if (cities.Count == 0)
+        {
+            _logger.LogInformation(
+                "Coğrafya seed [TR]: {Areas} il eklendi (statik ISO 3166-2 kataloğu). N11 il verisi boş — "
+                + "N11 köprüsü ve ilçe türetme atlandı (N11 sync sonrası tekrar çalışınca dolar).", addedAreas);
+            return;
+        }
+
         foreach (var city in cities)
         {
             var iso = TurkishProvinceIso(city.CityCode);
             if (areaByIso.TryGetValue(iso, out var area) == false)
             {
+                // Statik katalogda OLMAYAN bir N11 ili (katalog bayatlarsa ya da N11 farklı kodlarsa) — yine de al.
+                // Kod KANONİK yazılır (sol-sıfırlı) → aşağıdaki ilçe eşleşmesi statik katalogla aynı anahtarı kullanır.
                 area = new AdministrativeArea(
                     countryId: turkey.Id,
-                    code: city.CityCode,
+                    code: NormalizeProvinceCode(city.CityCode),
                     name: city.Name,
                     iso3166_2Code: iso,
                     category: GeographyConsts.CategoryProvince);
@@ -167,6 +195,8 @@ public class GeographySeeder(
                 areaByIso[iso] = area;
                 areaByCityCode[area.Code] = area;
                 addedAreas++;
+                _logger.LogWarning(
+                    "Coğrafya seed [TR]: N11'de olup statik katalogda OLMAYAN il — {Iso} {Name}.", iso, city.Name);
             }
 
             // N11 köprüsü (idempotent — zaten doğruysa dokunma).
@@ -214,7 +244,9 @@ public class GeographySeeder(
         var orphanDistricts = 0;
         foreach (var district in districts)
         {
-            if (areaByCityCode.TryGetValue(district.CityCode, out var area) == false)
+            // N11 ilçe kaydının il kodu sol-sıfırsız gelir ("1") — sözlük ise kanonik ("01") anahtarlı.
+            // Aramayı da kanonikleştirmezsek 1–9 arası illerin ilçeleri toptan ıskalanır (bkz. NormalizeProvinceCode).
+            if (areaByCityCode.TryGetValue(NormalizeProvinceCode(district.CityCode), out var area) == false)
             {
                 orphanDistricts++; // il eşleşmedi (N11 tutarsızlığı) — atla, sonda logla
                 continue;
@@ -311,10 +343,23 @@ public class GeographySeeder(
 
     #region Helpers
 
-    // N11 il kodu (1–81) → ISO 3166-2 alt-bölüm kodu (TR-01 .. TR-81): 2-hane sol-sıfır pad (kültür-bağımsız).
+    /// <summary>
+    /// TR il kodunu KANONİK hâle getirir: 2-hane sol-sıfır pad, kültür-bağımsız ("1" → "01", "34" → "34").
+    ///
+    /// <para><b>Neden ŞART:</b> N11 il kodlarını sol-sıfırsız döner ("1", "9", "81") ama statik ISO 3166-2:TR
+    /// kataloğu plaka kodunu 2-hane tutar ("01"). İki taraf farklı yazımda olursa il↔ilçe eşleşmesi
+    /// (<c>areaByCityCode</c>) 1–9 arası DOKUZ ilde sessizce ıskalar ve o illerin ilçeleri hiç kurulmaz
+    /// (Ankara/Adana/Antalya dahil). Bu yüzden hem KAYIT hem ARAMA tek bir kanonik biçimden geçer.</para>
+    /// </summary>
+    private static string NormalizeProvinceCode(string cityCode)
+    {
+        return cityCode.Trim().PadLeft(2, '0');
+    }
+
+    // Kanonik il kodu → ISO 3166-2 alt-bölüm kodu (TR-01 .. TR-81).
     private static string TurkishProvinceIso(string cityCode)
     {
-        return "TR-" + cityCode.Trim().PadLeft(2, '0');
+        return "TR-" + NormalizeProvinceCode(cityCode);
     }
 
     // Host (TenantId=null) ülkeleri — Change(null) altında filtre zaten host'a daraltır; açık koşul savunmacı.
@@ -603,6 +648,37 @@ public class GeographySeeder(
         ("ZA", "ZAF", "710", "Güney Afrika", "South Africa"),
         ("ZM", "ZMB", "894", "Zambiya", "Zambia"),
         ("ZW", "ZWE", "716", "Zimbabve", "Zimbabwe"),
+    ];
+
+    /// <summary>
+    /// ISO 3166-2:TR — 81 il (plaka kodu + ad). Kod = 2-hane plaka ("01".."81"), ISO alt-bölüm kodu "TR-01"..
+    /// Sabit katalog: il seti 1999'da Düzce (81) eklendiğinden beri DEĞİŞMEDİ.
+    /// <para>Ad yazımı resmî Türkçe: İstanbul/İzmir baştaki noktalı İ ile; Afyonkarahisar, Kahramanmaraş,
+    /// Şanlıurfa, Hakkâri (şapkalı a) tam adlarıyla; 33 Mersin (İçel değil), 46 Kahramanmaraş.</para>
+    /// </summary>
+    private static readonly (string Code, string Name)[] TurkishProvinceCatalog =
+    [
+        ("01", "Adana"),          ("02", "Adıyaman"),       ("03", "Afyonkarahisar"), ("04", "Ağrı"),
+        ("05", "Amasya"),         ("06", "Ankara"),         ("07", "Antalya"),        ("08", "Artvin"),
+        ("09", "Aydın"),          ("10", "Balıkesir"),      ("11", "Bilecik"),        ("12", "Bingöl"),
+        ("13", "Bitlis"),         ("14", "Bolu"),           ("15", "Burdur"),         ("16", "Bursa"),
+        ("17", "Çanakkale"),      ("18", "Çankırı"),        ("19", "Çorum"),          ("20", "Denizli"),
+        ("21", "Diyarbakır"),     ("22", "Edirne"),         ("23", "Elazığ"),         ("24", "Erzincan"),
+        ("25", "Erzurum"),        ("26", "Eskişehir"),      ("27", "Gaziantep"),      ("28", "Giresun"),
+        ("29", "Gümüşhane"),      ("30", "Hakkâri"),        ("31", "Hatay"),          ("32", "Isparta"),
+        ("33", "Mersin"),         ("34", "İstanbul"),       ("35", "İzmir"),          ("36", "Kars"),
+        ("37", "Kastamonu"),      ("38", "Kayseri"),        ("39", "Kırklareli"),     ("40", "Kırşehir"),
+        ("41", "Kocaeli"),        ("42", "Konya"),          ("43", "Kütahya"),        ("44", "Malatya"),
+        ("45", "Manisa"),         ("46", "Kahramanmaraş"),  ("47", "Mardin"),         ("48", "Muğla"),
+        ("49", "Muş"),            ("50", "Nevşehir"),       ("51", "Niğde"),          ("52", "Ordu"),
+        ("53", "Rize"),           ("54", "Sakarya"),        ("55", "Samsun"),         ("56", "Siirt"),
+        ("57", "Sinop"),          ("58", "Sivas"),          ("59", "Tekirdağ"),       ("60", "Tokat"),
+        ("61", "Trabzon"),        ("62", "Tunceli"),        ("63", "Şanlıurfa"),      ("64", "Uşak"),
+        ("65", "Van"),            ("66", "Yozgat"),         ("67", "Zonguldak"),      ("68", "Aksaray"),
+        ("69", "Bayburt"),        ("70", "Karaman"),        ("71", "Kırıkkale"),      ("72", "Batman"),
+        ("73", "Şırnak"),         ("74", "Bartın"),         ("75", "Ardahan"),        ("76", "Iğdır"),
+        ("77", "Yalova"),         ("78", "Karabük"),        ("79", "Kilis"),          ("80", "Osmaniye"),
+        ("81", "Düzce"),
     ];
 
     // ISO 3166-2:US — 50 eyalet (2-harf kod + ad). Sabit, iyi-bilinen katalog (DC/territory hariç).

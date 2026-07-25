@@ -375,6 +375,8 @@ public class TradeXpressDbContext :
         where TEntity : class
     {
         // IMultiTenant + ICompanyScoped (mevcut tüm implementasyonlar): host kaydı company filtresinden muaf.
+        // SENTINEL KORUMASI (CurrentCompanyId == Guid.Empty = "hiç şirket yetkisi yok"): eşitlik kolu
+        // KAPATILIR — aksi halde CompanyId'si Guid.Empty olan satır tam da YETKİSİZ kullanıcıya görünür.
         if (typeof(IMultiTenant).IsAssignableFrom(typeof(TEntity)))
         {
             return e =>
@@ -382,7 +384,8 @@ public class TradeXpressDbContext :
                 || CurrentCompanyId == null
                 || EF.Property<Guid?>(e, nameof(IMultiTenant.TenantId)) == null
                 || EF.Property<Guid?>(e, nameof(ICompanyScoped.CompanyId)) == null
-                || EF.Property<Guid?>(e, nameof(ICompanyScoped.CompanyId)) == CurrentCompanyId;
+                || (CurrentCompanyId != Guid.Empty
+                    && EF.Property<Guid?>(e, nameof(ICompanyScoped.CompanyId)) == CurrentCompanyId);
         }
 
         // Salt ICompanyScoped (tenant'sız — bugün yok, ileriye dönük): host-muafiyet kolu düşer.
@@ -390,7 +393,8 @@ public class TradeXpressDbContext :
             !IsCompanyScopedFilterEnabled
             || CurrentCompanyId == null
             || EF.Property<Guid?>(e, nameof(ICompanyScoped.CompanyId)) == null
-            || EF.Property<Guid?>(e, nameof(ICompanyScoped.CompanyId)) == CurrentCompanyId;
+            || (CurrentCompanyId != Guid.Empty
+                && EF.Property<Guid?>(e, nameof(ICompanyScoped.CompanyId)) == CurrentCompanyId);
     }
 
     /// <summary>
@@ -404,20 +408,27 @@ public class TradeXpressDbContext :
         where TEntity : class
     {
         // Mevcut tüm ICompanyOwned implementasyonları IMultiTenant (Account/Voucher ailesi): host muaf.
+        // SENTINEL KORUMASI — kritik: <c>WorkingCompanyScope</c> hiç şirket yetkisi olmayan kullanıcıya
+        // Guid.Empty sentinel'i verir ve bunun güvenli olması "hiçbir gerçek CompanyId Guid.Empty değil"
+        // varsayımına dayanıyordu. Görev #4 migration'ları CompanyId'yi <c>defaultValue: Guid.Empty</c> ile
+        // eklediğinden bu varsayım ÇÜRÜDÜ: sahiplendirilmemiş (yetim) satır artık Guid.Empty taşıyabilir ve
+        // eşitlik kolu onu tam da YETKİSİZ kullanıcıya görünür kılardı — filtrenin TERSİNE dönmesi.
         if (typeof(IMultiTenant).IsAssignableFrom(typeof(TEntity)))
         {
             return e =>
                 !IsCompanyScopedFilterEnabled
                 || CurrentCompanyId == null
                 || EF.Property<Guid?>(e, nameof(IMultiTenant.TenantId)) == null
-                || (Guid?)EF.Property<Guid>(e, nameof(ICompanyOwned.CompanyId)) == CurrentCompanyId;
+                || (CurrentCompanyId != Guid.Empty
+                    && (Guid?)EF.Property<Guid>(e, nameof(ICompanyOwned.CompanyId)) == CurrentCompanyId);
         }
 
         // Salt ICompanyOwned (tenant'sız — ileriye dönük): host-muafiyet kolu düşer.
         return e =>
             !IsCompanyScopedFilterEnabled
             || CurrentCompanyId == null
-            || (Guid?)EF.Property<Guid>(e, nameof(ICompanyOwned.CompanyId)) == CurrentCompanyId;
+            || (CurrentCompanyId != Guid.Empty
+                && (Guid?)EF.Property<Guid>(e, nameof(ICompanyOwned.CompanyId)) == CurrentCompanyId);
     }
 
     #endregion
@@ -426,9 +437,12 @@ public class TradeXpressDbContext :
     {
         var current = LazyServiceProvider?.LazyGetService<ICurrentCompany>();
         var companyId = current?.Id;
-        if (companyId == null)
+        if (companyId == null || companyId == Guid.Empty)
         {
-            return; // çalışılan şirket yok → holding-host (null) bırak
+            // Şirket yok → holding-host (null) bırak. Guid.Empty ise bu bir SENTINEL'dir ("hiç şirket
+            // yetkisi yok"), gerçek bir şirket DEĞİL — damgalamak sahte sahipli, yalnız yetkisiz
+            // kullanıcıya görünen bir kayıt üretirdi (sentinel filtre korumasının simetriği).
+            return;
         }
 
         foreach (var entry in ChangeTracker.Entries())

@@ -208,9 +208,12 @@ public class EntityVariantGraphService : ApplicationService, IEntityVariantGraph
 
     public async Task<List<CommodityVariantOptionDto>> GetActiveVariantOptionsAsync(string entityName, Guid entityId)
     {
-        // Company + tenant filtreleri kapatılır (entityId zaten tek sahibe daraltıyor — görünürlük sızıntısı yok).
-        // IMultiTenant ŞART: host-seviyesi emtia kataloğu (TenantId=null; ör. madenler, commit 6686354) tenant
-        // working-context'inde sorgulanınca varyantları filtreye takılıp combo BOŞ kalıyordu (denetim bulgusu).
+        // Company + tenant filtreleri kapatılır (entityId zaten TEK sahibe daraltıyor — görünürlük sızıntısı yok:
+        // çağıran entityId'yi kendi görünür kümesinden almış olur).
+        // NOT (görev #4 düzeltmesi): eski gerekçe "host-seviyesi emtia kataloğu (TenantId=null; ör. madenler)"
+        // diyordu — bu ARTIK GEÇERSİZ; emtialar ICompanyOwned ve host'ta üretilemiyor (canlıda 0 host satırı vardı,
+        // yani gerekçe hiç doğru olmamıştı). Filtre kapatma yine de DOĞRU: varyant satırları emtiadan FARKLI bir
+        // company damgası taşıyabildiğinden (EntityVariant ICompanyScoped) working-context'te combo boş kalıyordu.
         using (_dataFilter.Disable<IMultiTenant>())
         using (_dataFilter.Disable<ICompanyScoped>())
         {

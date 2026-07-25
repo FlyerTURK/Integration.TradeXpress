@@ -70,7 +70,7 @@ public class ShipmentTemplateAppService : TradeXpressAppService, IShipmentTempla
             .ApplyListRequest(input, AllowedListFields);
 
         var totalCount = await AsyncExecuter.CountAsync(query);
-        var items = await AsyncExecuter.ToListAsync(query.Skip(input.SkipCount).Take(input.MaxResultCount));
+        var items = await AsyncExecuter.ToListAsync(query.ApplyPaging(input));
 
         var dtos = items.Select(e => ObjectMapper.Map<ShipmentTemplate, ShipmentTemplateListDto>(e)).ToList();
         return new PagedResultDto<ShipmentTemplateListDto>(totalCount, dtos);

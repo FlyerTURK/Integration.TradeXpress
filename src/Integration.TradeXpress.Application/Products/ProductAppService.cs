@@ -100,7 +100,7 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
             .ApplyListRequest(input, AllowedListFields);
 
         var totalCount = await AsyncExecuter.CountAsync(query);
-        var items = await AsyncExecuter.ToListAsync(query.Skip(input.SkipCount).Take(input.MaxResultCount));
+        var items = await AsyncExecuter.ToListAsync(query.ApplyPaging(input));
 
         var counts = await LoadVariantCountsAsync(items.Select(p => p.Id));
         var previewUrls = await LoadImagePreviewUrlsAsync(items);

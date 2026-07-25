@@ -78,7 +78,7 @@ public class AccountAppService : TradeXpressAppService, IAccountAppService
             .ApplyListRequest(input, AllowedListFields);
 
         var totalCount = await AsyncExecuter.CountAsync(rows);
-        var items = await AsyncExecuter.ToListAsync(rows.Skip(input.SkipCount).Take(input.MaxResultCount));
+        var items = await AsyncExecuter.ToListAsync(rows.ApplyPaging(input));
 
         var codes = await LoadCurrencyCodesAsync(
             items.SelectMany(r => new[] { r.BalanceCurrencyUnitId, r.LimitUnitId }));

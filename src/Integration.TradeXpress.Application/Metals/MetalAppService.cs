@@ -392,15 +392,22 @@ public class MetalAppService
         return await GetAsync(id);
     }
 
-    // Maden company-scoped DEĞİL → companyId null (varyant/nitelik tenant-geneli). Ana görsel OWNED tek (agnostik ana görsel yok).
-    private Task SaveGraphAsync(
+    // Uydu kayıtların (varyant/nitelik/medya/detay) şirketi SAHİP MADENDEN türer — Stone/Jewelry/Good/Product ile
+    // aynı desen. ÖNCE `companyId: null` geçiliyordu ("maden company-scoped değil" inancıyla); görev #4 madeni
+    // ICompanyOwned yaptıktan sonra bu inanç GEÇERSİZ kaldı ve null geçmek DbContext'in auto-stamp'ını devreye
+    // sokup varyanta WORKING company'yi basıyordu. Sonuç: fan-out ile başka şirkete kopyalanan madenin varyantları
+    // (ana varyant dahil) o şirkette görünmez oluyordu — canlıda 4 satırda gerçekleşti.
+    private async Task SaveGraphAsync(
         Guid metalId, string ownerName, List<EntityDocumentEditDto> documents,
         List<EntityNoteEditDto> notes, List<EntityAttributeGraphDto> attributes, List<MetalVariantGraphDto> variants)
     {
-        return _graph.SaveAsync(
-            MetalEntityName, VariantImageEntityName, metalId, companyId: null, ownerName,
+        var metal = await Repository.GetAsync(metalId);
+
+        await _graph.SaveAsync(
+            MetalEntityName, VariantImageEntityName, metalId, metal.CompanyId, ownerName,
             documents, notes, attributes, variants,
-            additionalSaveAction: (dto, variantId) => SaveVariantDetailAsync(null, (MetalVariantGraphDto)dto, variantId));
+            additionalSaveAction: (dto, variantId) =>
+                SaveVariantDetailAsync(metal.CompanyId, (MetalVariantGraphDto)dto, variantId));
     }
 
     private async Task SaveVariantDetailAsync(Guid? companyId, MetalVariantGraphDto dto, Guid variantId)

@@ -17,6 +17,29 @@ public partial class BranchEditFields : CrudComponentBase
     [Parameter] public bool HeadquartersEnabled { get; set; } = true;
     [Parameter] public bool CodeEnabled { get; set; } = true;
 
+    /// <summary>Grup başlığı. Boş → varsayılan "Genel". Onboarding'de "Merkez Şube" verilir: o formda tek şube
+    /// vardır ve merkezdir; "Genel" demek hangi şube olduğunu belirsiz bırakıyordu.</summary>
+    [Parameter] public string? GroupCaption { get; set; }
+
+    /// <summary>Açıklama / Durum / Sıra görünsün mü (varsayılanlar yine DTO'da taşınır; yalnız KONTROL gizlenir).</summary>
+    [Parameter] public bool ShowAdvancedFields { get; set; } = true;
+
+    /// <summary>Merkez switch'i görünsün mü. Onboarding'de GİZLİ: o formdaki tek şube tanımı gereği merkezdir,
+    /// devre dışı bir anahtar göstermek yalnız gürültü olurdu (grup başlığı zaten "Merkez Şube" diyor).</summary>
+    [Parameter] public bool ShowHeadquarters { get; set; } = true;
+
+    /// <summary>Bilanço birimi combo'su görünsün mü. Onboarding'de GİZLİ — merkez şube ŞİRKETİN birimini devralır
+    /// (kullanıcı kararı). Değer yine DTO'da taşınır; yalnız seçim kontrolü gösterilmez.</summary>
+    [Parameter] public bool ShowBaseCurrency { get; set; } = true;
+
+    /// <summary>Adres editörü grubun İÇİNDE mi render edilsin. Onboarding'de true → "Merkez Şube" grubu şubenin
+    /// TÜM bilgisini (kod/ad/para birimi/adres) tek çerçevede toplar. Varsayılan false → mevcut yüzeylerde adres
+    /// bilinçli olarak grupsuz kalır (ui-blazor sırası: General → Adres → Description → Status).</summary>
+    [Parameter] public bool AddressInsideGroup { get; set; }
+
+    /// <summary>Gömülü mod — kendi <c>DxFormLayout</c>'unu render etmez (parent'ın tek layout'una iner).</summary>
+    [Parameter] public bool Embedded { get; set; }
+
     /// <summary>Inline combo'dan birim eklenince/güncellenince host'un birim listesini (<see cref="Units"/>) tazelemesi
     /// için yukarı sinyal. Bağlanmazsa combo yine çalışır; sadece yeni birim listeye anında düşmez.</summary>
     [Parameter] public EventCallback OnReferenceDataReload { get; set; }
@@ -31,6 +54,16 @@ public partial class BranchEditFields : CrudComponentBase
         if (Model is not null && Model.Address is null)
         {
             Model.Address = new BranchAddressDto();
+        }
+    }
+
+    // Kod daima BÜYÜK HARF (invariant — sunucudaki NormalizeCode ile aynı çevrim; kültüre duyarlı çevrim
+    // Türkçe'de "i"yi "İ" yapıp sunucunun ürettiği "I"dan sapardı).
+    private void UpperCaseCode()
+    {
+        if (!string.IsNullOrEmpty(Model.Code))
+        {
+            Model.Code = Model.Code.ToUpperInvariant();
         }
     }
 

@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Integration.TradeXpress.Blazor.Client.Pages.Admin.Models;
 using Volo.Abp.Application.Services;
+using Integration.Framework.Base.Querying;
 
 namespace Integration.TradeXpress.Blazor.Client.Services.Identity;
 
@@ -35,7 +36,7 @@ public class UserCrudAdapter
 
         var list = q.Select(MapList).ToList();
         var total = list.Count;
-        var page = list.Skip(input.SkipCount).Take(input.MaxResultCount <= 0 ? 20 : input.MaxResultCount).ToList();
+        var page = list.ApplyPaging(input).ToList();
         return new Volo.Abp.Application.Dtos.PagedResultDto<UserListDto>(total, page);
     }
 
@@ -115,7 +116,7 @@ public class RoleCrudAdapter
 
         var list = q.Select(MapList).ToList();
         var total = list.Count;
-        var page = list.Skip(input.SkipCount).Take(input.MaxResultCount <= 0 ? 20 : input.MaxResultCount).ToList();
+        var page = list.ApplyPaging(input).ToList();
         return new Volo.Abp.Application.Dtos.PagedResultDto<RoleListDto>(total, page);
     }
 

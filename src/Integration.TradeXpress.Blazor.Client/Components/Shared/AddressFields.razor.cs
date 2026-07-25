@@ -41,6 +41,7 @@ public partial class AddressFields : CrudComponentBase
     private void OnGeographySelected(GeographySelection selection)
     {
         Model.CountryCode = selection.CountryCode;
+        Model.CountryName = selection.CountryName;   // salt görüntü — özet kod yerine adı gösterir
         Model.City = selection.AdministrativeAreaName ?? string.Empty;
         Model.CityCode = selection.AdministrativeAreaCode;
         Model.District = selection.LocalityName;
@@ -50,7 +51,11 @@ public partial class AddressFields : CrudComponentBase
         Model.LocalityId = selection.LocalityId;
         Model.AdministrativeAreaIsoCode = selection.AdministrativeAreaIsoCode;
 
-        if (!string.IsNullOrEmpty(selection.NeighborhoodName))
+        // Mahalle: ülke bu seviyeyi KULLANIYORSA gelen değer aynen yazılır — null da dahil, çünkü kullanıcı
+        // mahalleyi TEMİZLEMİŞ olabilir (serbest metin girişiyle mümkün). Ülke bu seviyeyi kullanmıyorsa combo
+        // gizlidir ve seçim taşımaz → mevcut değer KORUNUR (eskiden bu ayrım yoktu: boş gelen her değer korunuyordu,
+        // dolayısıyla temizleme işlemi sessizce yok sayılıyordu).
+        if (selection.UsesSubLocality)
         {
             Model.Neighborhood = selection.NeighborhoodName;
         }

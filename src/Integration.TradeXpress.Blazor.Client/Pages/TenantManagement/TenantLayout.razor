@@ -1,4 +1,4 @@
-@using System
+﻿@using System
 @using System.Linq
 @using System.Collections.Generic
 @using Integration.TradeXpress.Tenants
@@ -23,18 +23,86 @@
    oluşturur (onboarding/impersonation server-side). Drill değişimi EditChanged ile dirty/Save. Tekil-bayrak
    (admin/HQ) self-hariç canlı. Şirket-drill combo'larında Add/Edit YOK (Tenant popup'ta → nested popup olmaz).
 *@
+@* TEK DxFormLayout — tenant adı + admin + şirket + merkez şube hepsi burada. Bileşenler Embedded modda
+   render edilir (kendi wrapper'larını taşımazlar) → caption sütunları baştan sona HİZALI kalır.
+   Üst üste/iç içe DxFormLayout yığmak hizayı bozuyordu (kullanıcı uyarısı). *@
 <DxFormLayout CssClass="w-100">
+    @* @bind-Text:after → binding + validasyon korunur, yazdıkça yönetici e-posta VARSAYILANI tazelenir.
+       (Text/TextChanged'e çevirseydik EditContext altında TextExpression gerekirdi — [validation-expr].) *@
     <DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="12">
-        <DxTextBox @bind-Text="@Model.Name" />
+        <DxTextBox @bind-Text="@Model.Name" @bind-Text:after="OnTenantNameChanged" />
     </DxFormLayoutItem>
+
+    @if (IsNew)
+    {
+        @* Yönetici — onboarding'de TEK admin, drill DEĞİL inline (kullanıcı kararı). Ek kullanıcılar
+           tenant açıldıktan sonra Identity ekranlarından eklenir. *@
+        @if (AdminUser is { } admin)
+        {
+            <DxFormLayoutGroup Caption="@L["Tenant:AdminUser"]" ColSpanMd="12">
+                <DxFormLayoutItem Caption="@($"{L["UserName"]} *")" ColSpanMd="6">
+                    <DxTextBox @bind-Text="admin.UserName" />
+                </DxFormLayoutItem>
+                <DxFormLayoutItem Caption="@($"{L["Email"]} *")" ColSpanMd="6">
+                    <DxTextBox @bind-Text="admin.Email" />
+                </DxFormLayoutItem>
+                @* İSTİSNA — bu formda şifre AÇIK metin (maskeli PasswordTextEdit değil): tenant'ı host yöneticisi
+                   kuruyor ve başlangıç şifresini tenant sahibine İLETMESİ gerekiyor; maskeli kutu neyin
+                   ayarlandığını görünmez kılıyordu. Diğer TÜM şifre yüzeyleri maskeli kalır. *@
+                <DxFormLayoutItem Caption="@($"{L["Password"]} *")" ColSpanMd="6">
+                    <DxTextBox @bind-Text="admin.Password" />
+                </DxFormLayoutItem>
+                <DxFormLayoutItem Caption="@($"{L["ConfirmPassword"]} *")" ColSpanMd="6">
+                    <DxTextBox @bind-Text="admin.PasswordConfirm" />
+                </DxFormLayoutItem>
+                <DxFormLayoutItem Caption="@L["Name"]" ColSpanMd="6">
+                    <DxTextBox @bind-Text="admin.Name" />
+                </DxFormLayoutItem>
+                <DxFormLayoutItem Caption="@L["Surname"]" ColSpanMd="6">
+                    <DxTextBox @bind-Text="admin.Surname" />
+                </DxFormLayoutItem>
+            </DxFormLayoutGroup>
+        }
+
+        @* Şirket — merkez/açıklama/durum/sıra GİZLİ (varsayılanlarıyla taşınır).
+           Merkez şube grubu şirketin çerçevesinin İÇİNE, en sona iner (GroupFooter). *@
+        @if (FirstCompany is { } newCompany)
+        {
+            <CompanyEditFields Model="newCompany" Units="Units" Countries="Countries"
+                               HeadquartersEnabled="false" CodeEnabled="true"
+                               ShowHeadquarters="false" ShowAdvancedFields="false"
+                               Embedded="true">
+                <GroupFooter>
+                    @if (FirstBranch is { } newBranch)
+                    {
+                        @* Merkez şube ŞİRKETİN bilanço birimini devralır — combo gizli olduğundan değeri
+                           burada, render anında hizalıyoruz (kullanıcı şirketin ülkesini/birimini değiştirirse
+                           şube de onunla gelsin; aksi halde şube açılıştaki birimde takılı kalırdı). *@
+                        newBranch.BaseCurrencyUnitId = newCompany.BaseCurrencyUnitId;
+
+                        <BranchEditFields Model="newBranch" Units="Units"
+                                          GroupCaption="@L["Tenant:HeadquartersBranch"].Value"
+                                          HeadquartersEnabled="false" CodeEnabled="true"
+                                          ShowHeadquarters="false" ShowBaseCurrency="false"
+                                          ShowAdvancedFields="false" AddressInsideGroup="true"
+                                          Embedded="true"
+                                          OnReferenceDataReload="@OnReferenceDataReload" />
+                    }
+                </GroupFooter>
+            </CompanyEditFields>
+        }
+    }
 </DxFormLayout>
 
-@if (IsNew)
+@* ── GÜNCELLE modu: YAPISAL şirket ağacı (şirket → şube → kasa) ────────────────────────────────────
+   Host tenant yöneticisi org yapısını serbestçe düzenler. Graf YALNIZ yapısal alan taşır (kod/ad/ülke/
+   para birimi/merkez/durum/sıra/açıklama + adres) — sipariş, satış kanalı, bakiye ve kimlik bilgisi bu
+   DTO'da hiç YOKTUR, dolayısıyla bu form onları yapısal olarak gösteremez.                               *@
+@if (!IsNew)
 {
-    @* Kullanıcılar + Şirketler ayrı sekmelerde (DxTabs) — uzun graf'ı dikey yığmak yerine. *@
     <DrillTabs CssClass="mt-3">
     <DxTabPage Text="@Profiles.PluralTitle("Company", L)" TabIconCssClass="@Profiles.Icon("Company")">
-        @* Şirketler: tam graf (CompanyEditFields + CompanyBranchDrill). Tek merkez şirket. *@
+        @* Şirketler: tam graf (CompanyEditFields + CompanyBranchDrill). *@
         <DrillList TItem="CompanyGraphDto"
                    @ref="_companyDrill"
                    Title="@L["Companies"]"
@@ -81,47 +149,9 @@
             </AfterEditForm>
         </DrillList>
     </DxTabPage>
-    <DxTabPage Text="@Profiles.PluralTitle("User", L)" TabIconCssClass="@Profiles.Icon("User")">
-        <DrillList TItem="TenantUserInput"
-                   @ref="_userDrill"
-                   Title="@L["Users"]"
-                   EntityName="@L["Entity:User"]"
-                   EntityIcon="@Profiles.Icon("User")"
-                   Items="Model.Users"
-                   KeyFieldName="ClientKey"
-                   PrimaryTextSelector="@(u => u.UserName)"
-                   NewItemFactory="@(() => new TenantUserInput())"
-                   MinItems="1"
-                   SoftDelete="true"
-                   IsNewItem="@(_ => true)"
-                   MarkDeleted="@(_ => { })"
-                   DeleteGuard="@UserDeleteGuard"
-                   OnSelectionChanged="OnUserSelected"
-                   OnItemSaved="OnUserSaved"
-                   OnChanged="@(() => EditChanged?.Invoke())"
-                   CustomActions="@UserActions">
-            <GridColumns>
-                <GridLinkColumn FieldName="UserName" Caption="@L["UserName"]" FixedPosition="GridColumnFixedPosition.Left" VisibleIndex="1" OnClick="@(item => _userDrill?.EditItem((TenantUserInput)item))" />
-                <DxGridDataColumn FieldName="Email" Caption="@L["Email"]" />
-                <DxGridDataColumn FieldName="IsAdmin" Caption="@L["IsAdmin"]" Width="90px" TextAlignment="GridTextAlignment.Left">
-                    <CellDisplayTemplate Context="cell">@(((TenantUserInput)cell.DataItem).IsAdmin ? L["Yes"].Value : "")</CellDisplayTemplate>
-                </DxGridDataColumn>
-            </GridColumns>
-            <EditContent Context="u">
-                <DxFormLayout CssClass="w-100">
-                    <DxFormLayoutItem Caption="@($"{L["UserName"]} *")" ColSpanMd="6"><DxTextBox @bind-Text="u.UserName" /></DxFormLayoutItem>
-                    <DxFormLayoutItem Caption="@($"{L["Email"]} *")" ColSpanMd="6"><DxTextBox @bind-Text="u.Email" /></DxFormLayoutItem>
-                    <DxFormLayoutItem Caption="@($"{L["Password"]} *")" ColSpanMd="6"><PasswordTextEdit @bind-Text="u.Password" Tooltip="@L["ShowPassword"]" /></DxFormLayoutItem>
-                    <DxFormLayoutItem Caption="@($"{L["ConfirmPassword"]} *")" ColSpanMd="6"><PasswordTextEdit @bind-Text="u.PasswordConfirm" Tooltip="@L["ShowPassword"]" /></DxFormLayoutItem>
-                    <DxFormLayoutItem Caption="@L["Name"]" ColSpanMd="6"><DxTextBox @bind-Text="u.Name" /></DxFormLayoutItem>
-                    <DxFormLayoutItem Caption="@L["Surname"]" ColSpanMd="6"><DxTextBox @bind-Text="u.Surname" /></DxFormLayoutItem>
-                    <DxFormLayoutItem Caption="@L["IsAdmin"]" ColSpanMd="6"><DxCheckBox @bind-Checked="u.IsAdmin" CheckType="CheckType.Switch" Enabled="@(!IsUserSoleAdmin(u))" /></DxFormLayoutItem>
-                </DxFormLayout>
-            </EditContent>
-        </DrillList>
-    </DxTabPage>
     </DrillTabs>
 }
+
 
 @code {
     [Parameter, EditorRequired] public TenantGetDto Model { get; set; } = default!;
@@ -129,6 +159,98 @@
     
     private DrillList<CompanyGraphDto>? _companyDrill;
     private DrillList<TenantUserInput>? _userDrill;
+
+    // ── YENİ mod düz-form bağları ───────────────────────────────────────────────────────────────────
+    // Onboarding TEK şirket + TEK merkez şube kurar (ApplyNewTenantDefaults). Düz form bu tek düğüme
+    // bind eder; drill'in seçim/silme/çoğullama makinesi burada gereksizdir. Silinmiş düğüm atlanır.
+    private CompanyGraphDto? FirstCompany =>
+        Model.Companies.FirstOrDefault(c => !c.IsDeleted);
+
+    private BranchGraphDto? FirstBranch =>
+        FirstCompany?.Branches.FirstOrDefault(b => !b.IsDeleted);
+
+    // Onboarding'in TEK yöneticisi — drill yerine inline düzenlenir. ApplyNewTenantDefaults bir admin satırı kurar;
+    // yine de savunmacı: admin işaretli yoksa ilk satır, o da yoksa null (grup hiç render edilmez).
+    private TenantUserInput? AdminUser =>
+        Model.Users.FirstOrDefault(u => u.IsAdmin) ?? Model.Users.FirstOrDefault();
+
+    // En son ÜRETİLEN e-posta. Kullanıcı kutuyu elle değiştirdiyse bu değerden sapar → bir daha ezmeyiz.
+    private string? _autoAdminEmail;
+
+    /// <summary>Tenant adı her zaman BÜYÜK HARF (kullanıcı kararı) + yönetici e-posta varsayılanını tazeler.
+    /// Çevrim KÜLTÜRE DUYARLI: Türkçe'de "işık" → "İŞIK" (invariant çevrim "IŞIK" üretir, noktasız I ile yanlış).</summary>
+    private void OnTenantNameChanged()
+    {
+        if (!string.IsNullOrEmpty(Model.Name))
+        {
+            Model.Name = Model.Name.ToUpper(System.Globalization.CultureInfo.CurrentCulture);
+        }
+
+        SyncAdminEmailDefault();
+    }
+
+    /// <summary>Yönetici e-posta VARSAYILANINI tenant adından tazeler: "Ekol Kuyumculuk" → admin@ekolkuyumculuk.com.
+    /// Yalnız kullanıcı e-postaya DOKUNMADIYSA yazar (elle girilen değer korunur — varsayılan, dayatma değil).</summary>
+    private void SyncAdminEmailDefault()
+    {
+        if (!IsNew || AdminUser is not { } admin)
+        {
+            return;
+        }
+
+        if (!string.IsNullOrEmpty(admin.Email) && admin.Email != _autoAdminEmail)
+        {
+            return;   // kullanıcı kendi e-postasını yazmış → dokunma
+        }
+
+        var slug = ToDomainSlug(Model.Name);
+        _autoAdminEmail = string.IsNullOrEmpty(slug) ? null : $"admin@{slug}.com";
+        admin.Email = _autoAdminEmail ?? string.Empty;
+    }
+
+    /// <summary>Tenant adını alan-adı parçasına indirger: Türkçe harfler ASCII'ye katlanır (ş→s, ı→i, ğ→g…),
+    /// harf/rakam dışı her şey atılır, küçük harfe iner. "Öz Şahin Kuyumculuk" → "ozsahinkuyumculuk".</summary>
+    private static string ToDomainSlug(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return string.Empty;
+        }
+
+        var builder = new System.Text.StringBuilder(name.Length);
+        foreach (var ch in name.Trim())
+        {
+            var folded = ch switch
+            {
+                'ı' or 'İ' or 'I' or 'i' => 'i',
+                'ş' or 'Ş' => 's',
+                'ğ' or 'Ğ' => 'g',
+                'ü' or 'Ü' => 'u',
+                'ö' or 'Ö' => 'o',
+                'ç' or 'Ç' => 'c',
+                _ => char.ToLowerInvariant(ch),
+            };
+
+            if (char.IsLetterOrDigit(folded) && folded < 128)
+            {
+                builder.Append(folded);
+            }
+        }
+
+        return builder.ToString();
+    }
+
+    // Şube düğümüne ŞİRKETİN ülkesini taşı: BranchEditFields adres popup'ında ülkeyi buna KİLİTLER
+    // (FixedCountryId=Model.CompanyCountryId). Onboarding'de şube henüz kaydedilmediğinden bu alan boş gelir;
+    // ayrıca kullanıcı şirketin ülkesini değiştirirse adres kilidi de onunla birlikte güncellenmelidir.
+    // (Adres modelinin boş-DTO init'i BranchEditFields'in kendi OnParametersSet'inde — burada tekrarlanmaz.)
+    protected override void OnParametersSet()
+    {
+        if (IsNew && FirstCompany is { } company && FirstBranch is { } branch)
+        {
+            branch.CompanyCountryId = company.CountryId;
+        }
+    }
     [Parameter] public List<CurrencyUnitListDto> Units { get; set; } = new();
     [Parameter] public List<CountryListDto> Countries { get; set; } = new();
 
@@ -187,8 +309,10 @@
             {
                 new BranchGraphDto
                 {
-                    Code = BranchConsts.DefaultHeadquartersCode,
-                    Name = BranchConsts.DefaultHeadquartersName,
+                    // Kod/ad BOŞ: onboarding'de kullanıcı elle girer (bkz. TenantEditHost.ApplyNewTenantDefaults).
+                    // Şirket drill'inden (güncelle modu) yeni şube eklenirken de aynı davranış — kullanıcı adlandırır.
+                    Code = string.Empty,
+                    Name = string.Empty,
                     IsHeadquarters = true,
                     IsActive = true,
                     DisplayOrder = 1,

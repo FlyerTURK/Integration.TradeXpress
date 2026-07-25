@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Integration.Framework;
 using Integration.TradeXpress.Commodities;
 using Integration.TradeXpress.Financials.CurrencyUnits;
+using Integration.TradeXpress.MultiCompany;
 using Integration.TradeXpress.Permissions;
 using Microsoft.AspNetCore.Authorization;
 using Volo.Abp.Domain.Repositories;
@@ -21,11 +22,15 @@ public class ScrapAppService
     : FollowingUnitCatalogAppService<Scrap, ScrapGetDto, ScrapListDto, ScrapListRequestDto, ScrapCreateDto, ScrapUpdateDto>,
       IScrapAppService
 {
+    private readonly ICurrentCompany _currentCompany;
+
     public ScrapAppService(
         IRepository<Scrap, Guid> repository,
-        IRepository<CurrencyUnit, Guid> unitRepository)
+        IRepository<CurrencyUnit, Guid> unitRepository,
+        ICurrentCompany currentCompany)
         : base(repository, unitRepository)
     {
+        _currentCompany = currentCompany;
         // Katalog yönetimi izinli (okuma/liste serbest — [Authorize] yeter): Metal deseniyle hizalı.
         CreatePolicyName = TradeXpressPermissions.Scraps.Create;
         UpdatePolicyName = TradeXpressPermissions.Scraps.Update;
@@ -65,10 +70,19 @@ public class ScrapAppService
         return entity.Code;
     }
 
+    protected override Expression<Func<Scrap, bool>> BuildVisibilityPredicate()
+    {
+        return CompanyScopedQueryable.CompanyOwnedVisiblePredicate<Scrap>(CurrentTenant.Id, _currentCompany.Id);
+    }
+
     protected override Task<Scrap> MapToEntityAsync(ScrapCreateDto createInput)
     {
         // TenantId otomatik (host→null, tenant→kendi); zengin ctor + SetX.
-        var entity = new Scrap(createInput.Code, createInput.Name, createInput.FollowingUnitId!.Value, createInput.Factor, createInput.FactorChange);
+        // SAHİPLİK client'tan DEĞİL aktif working company'den (fail-closed — bkz. CompanyOwnershipGuard).
+        var entity = new Scrap(
+            createInput.Code, createInput.Name, createInput.FollowingUnitId!.Value,
+            CompanyOwnershipGuard.ResolveOwnerCompanyId(_currentCompany),
+            createInput.Factor, createInput.FactorChange);
         entity.SetDescription(createInput.Description);
         return Task.FromResult(entity);
     }
@@ -77,7 +91,8 @@ public class ScrapAppService
     {
         // Update ile aynı scope/error-code (TenantId bacağı standart filter'dan): aynı kod → dostane hata.
         return EnsureCodeUniqueAsync(
-            entity, x => x.Code == entity.Code, "TradeXpress:Scrap:CodeAlreadyExists", excludeSelf: false);
+            entity, x => x.Code == entity.Code && x.CompanyId == entity.CompanyId,
+            "TradeXpress:Scrap:CodeAlreadyExists", excludeSelf: false);
     }
 
     protected override async Task MapToEntityAsync(ScrapUpdateDto updateInput, Scrap entity)
@@ -90,7 +105,7 @@ public class ScrapAppService
                 raw, nameof(Scrap.Code), EntityFieldConsts.CodeMinLength, ScrapConsts.CodeMaxLength),
             e => e.Code,
             (e, code) => e.SetCode(code),
-            code => x => x.Code == code,
+            code => x => x.Code == code && x.CompanyId == entity.CompanyId,
             "TradeXpress:Scrap:CodeAlreadyExists");
 
         entity.SetName(updateInput.Name);

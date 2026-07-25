@@ -64,28 +64,34 @@ public class TradeXpressDataSeedContributor(
             await _geographySeeder.SeedAsync();           // ISO 3166-1 tam ülke listesi (249) + TR il/ilçe (N11'den) + US eyalet
             await _carrierSeeder.SeedAsync();             // çekirdek kargo firması kataloğu (N11 firmalarından türer; N11 boşsa atlar)
             await _cashSeeder.SeedAsync();                // host-global nakit kataloğu (Type=Cash birimlerden türetilir)
-            await _serviceSeeder.SeedAsync();             // host-global hizmet kataloğu (şu an boş — gerçek liste bekleniyor)
         }
 
         // (2) Marjlar her tenant'ta (host dahil) — host'un merkezi düzeltme marjı da burada.
         await _currencyUnitSeeder.SeedMarginsAsync(context.TenantId);
 
-        // (3) Vadeli + Hurda yalnız tenant'a (ERPPROV3 paritesi; host'ta yok). Birimlerden sonra.
-        if (context.TenantId != null)
-        {
-            await _futureSeeder.SeedAsync();
-            await _scrapSeeder.SeedAsync();
-        }
-
-        // (4) Org ağacı yalnız tenant'a aittir (host'ta company yok). Onboarding org'u kendi kuruyorsa atla.
+        // (3) Org ağacı yalnız tenant'a aittir (host'ta company yok). Onboarding org'u kendi kuruyorsa atla.
         if (context.TenantId != null && context[SkipOrgSeedProperty] is not true)
         {
             await _orgSeeder.SeedHqCompanyAsync(context.TenantId);
         }
 
-        // MetalSeeder needs Companies to exist if it is CompanyScoped
+        // (4) EMTİA KATALOĞU — hepsi PER-COMPANY (ICompanyOwned, görev #4) → ŞİRKETLER KURULDUKTAN SONRA.
+        //     Her seeder tenant'ın tüm şirketlerini dolaşır; host'ta şirket olmadığı için host'ta çalışmaz.
+        //     Service eskiden host-global seed ediliyordu (yanlış katman): artık şirkete ait bir emtia.
         if (context.TenantId != null)
         {
+            // (4a) SEEDER'LARDAN ÖNCE yetim sahiplendirme — SIRA HAYATİ.
+            //      Host dalındaki çağrı (adım 6) TEK BAŞINA YETMEZ: merkez şirket adım (3)'te, yani TENANT
+            //      dalında kurulur. Şirketi olmayan bir tenant'ta host geçişi hiç HQ göremez, atlar; hemen
+            //      ardından aşağıdaki seeder'lar "bu şirkette kayıt yok" deyip TAZE set açar ve yetimler
+            //      KALICI olarak gölgelenir (sonraki koşuda kod artık dolu → hep "kod meşgul" diye atlanır).
+            //      Bu, sınıfın önlemek için var olduğu 2026-07-25 olayının ta kendisiydi — kod incelemesi
+            //      host-dalı-tek-başına varsayımımı çürüttü. İdempotent: yetim yoksa ucuz no-op.
+            await _companyOwnedBackfiller.BackfillAllTenantsAsync();
+
+            await _futureSeeder.SeedAsync();
+            await _scrapSeeder.SeedAsync();
+            await _serviceSeeder.SeedAsync();
             await _metalSeeder.SeedAsync();
         }
 
@@ -96,12 +102,17 @@ public class TradeXpressDataSeedContributor(
             await _balanceLedgerBackfiller.BackfillCurrentTenantAsync();
         }
 
-        // (6) Çok-şirket güvenlik sınırı geçiş backfill'i: ICompanyOwned'a taşınan SubAccount/Vault'ta
-        //     migration'ın Guid.Empty bıraktığı CompanyId'yi parent'tan doldur (idempotent; boş satır
-        //     yoksa no-op). Backfill TENANT-AGNOSTİK (Disable<IMultiTenant> ile TÜM tenant'ları kapsar) →
-        //     host koşusunda BİR KEZ çağrılır; her tenant için ayrı çağrıya gerek yok (aksi halde yalnız
-        //     seed edilen tenant'ların kayıtları dolar — önceki bug buydu). Mevcut org host seed anında
-        //     DB'de olduğundan görülür; yeni kayıtlar zaten CompanyId ile oluşur (ctor).
+        // (6) Çok-şirket güvenlik sınırı geçiş backfill'i: ICompanyOwned'a taşınan kayıtlarda migration'ın
+        //     Guid.Empty bıraktığı CompanyId'yi doldur (idempotent; boş satır yoksa no-op). Kapsam:
+        //     SubAccount/Vault parent'tan + 7 EMTİA ailesi tenant'ın merkez şirketinden (görev #4).
+        //     Backfill TENANT-AGNOSTİK (Disable<IMultiTenant> ile TÜM tenant'ları kapsar) → host koşusunda
+        //     BİR KEZ çağrılır; her tenant için ayrı çağrıya gerek yok (aksi halde yalnız seed edilen
+        //     tenant'ların kayıtları dolar — önceki bug buydu). Yeni kayıtlar zaten CompanyId ile oluşur (ctor).
+        //
+        //     SIRA KRİTİK — bu adım HOST dalındadır ve host geçişi TÜM tenant geçişlerinden ÖNCE biter
+        //     (TradeXpressDbMigrationService: host SeedDataAsync await edilir, tenant döngüsü sonra başlar).
+        //     Böylece adım (4)'teki emtia seeder'ları çalıştığında yetim satır KALMAMIŞ olur. Tenant dalına
+        //     İKİNCİ bir çağrı EKLEME: orada adım (6) adım (4)'ten SONRA gelir — tam istenmeyen sıra.
         if (context.TenantId == null)
         {
             await _companyOwnedBackfiller.BackfillAllTenantsAsync();

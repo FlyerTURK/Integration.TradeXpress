@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Integration.Framework;
 using Integration.TradeXpress.Commodities;
 using Integration.TradeXpress.Financials.CurrencyUnits;
+using Integration.TradeXpress.MultiCompany;
 using Integration.TradeXpress.Permissions;
 using Microsoft.AspNetCore.Authorization;
 using Volo.Abp.Domain.Repositories;
@@ -21,11 +22,15 @@ public class FutureAppService
     : FollowingUnitCatalogAppService<Future, FutureGetDto, FutureListDto, FutureListRequestDto, FutureCreateDto, FutureUpdateDto>,
       IFutureAppService
 {
+    private readonly ICurrentCompany _currentCompany;
+
     public FutureAppService(
         IRepository<Future, Guid> repository,
-        IRepository<CurrencyUnit, Guid> unitRepository)
+        IRepository<CurrencyUnit, Guid> unitRepository,
+        ICurrentCompany currentCompany)
         : base(repository, unitRepository)
     {
+        _currentCompany = currentCompany;
         // Katalog yönetimi izinli (okuma/liste serbest — [Authorize] yeter): Metal deseniyle hizalı.
         CreatePolicyName = TradeXpressPermissions.Futures.Create;
         UpdatePolicyName = TradeXpressPermissions.Futures.Update;
@@ -65,10 +70,19 @@ public class FutureAppService
         return entity.Code;
     }
 
+    protected override Expression<Func<Future, bool>> BuildVisibilityPredicate()
+    {
+        return CompanyScopedQueryable.CompanyOwnedVisiblePredicate<Future>(CurrentTenant.Id, _currentCompany.Id);
+    }
+
     protected override Task<Future> MapToEntityAsync(FutureCreateDto createInput)
     {
         // TenantId otomatik (host→null, tenant→kendi); zengin ctor + SetX.
-        var entity = new Future(createInput.Code, createInput.Name, createInput.FollowingUnitId!.Value, createInput.FollowingFactor);
+        // SAHİPLİK client'tan DEĞİL aktif working company'den (fail-closed — bkz. CompanyOwnershipGuard).
+        var entity = new Future(
+            createInput.Code, createInput.Name, createInput.FollowingUnitId!.Value,
+            CompanyOwnershipGuard.ResolveOwnerCompanyId(_currentCompany),
+            createInput.FollowingFactor);
         entity.SetDescription(createInput.Description);
         return Task.FromResult(entity);
     }
@@ -77,7 +91,8 @@ public class FutureAppService
     {
         // Update ile aynı scope/error-code (TenantId bacağı standart filter'dan): aynı kod → dostane hata.
         return EnsureCodeUniqueAsync(
-            entity, x => x.Code == entity.Code, "TradeXpress:Future:CodeAlreadyExists", excludeSelf: false);
+            entity, x => x.Code == entity.Code && x.CompanyId == entity.CompanyId,
+            "TradeXpress:Future:CodeAlreadyExists", excludeSelf: false);
     }
 
     protected override async Task MapToEntityAsync(FutureUpdateDto updateInput, Future entity)
@@ -90,7 +105,7 @@ public class FutureAppService
                 raw, nameof(Future.Code), EntityFieldConsts.CodeMinLength, FutureConsts.CodeMaxLength),
             e => e.Code,
             (e, code) => e.SetCode(code),
-            code => x => x.Code == code,
+            code => x => x.Code == code && x.CompanyId == entity.CompanyId,
             "TradeXpress:Future:CodeAlreadyExists");
 
         entity.SetName(updateInput.Name);

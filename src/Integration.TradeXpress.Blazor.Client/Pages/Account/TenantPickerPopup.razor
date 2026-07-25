@@ -1,4 +1,6 @@
+@using System.Globalization
 @using Integration.TradeXpress.Localization
+@using Microsoft.AspNetCore.Components.Web
 @using Microsoft.Extensions.Localization
 @inject IStringLocalizer<TradeXpressResource> L
 @inject IJSRuntime Js
@@ -21,12 +23,17 @@
     <Content>
         <DxFormLayout CaptionPosition="CaptionPosition.Vertical">
             <DxFormLayoutItem Caption="@L["Firma Adı"].Value" ColSpanMd="12">
-                <DxTextBox @ref="_inputBox"
-                           @bind-Text="_input"
-                           @bind-Text:after="OnInputChanged"
-                           BindValueMode="BindValueMode.OnInput"
-                           ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto"
-                           NullText="@L["Firma adı seçiniz..."].Value" />
+                @* focusout → editörden AYRILINCA büyük harfe çevir (her tuşta DEĞİL: OnInput modunda her
+                   karakterde çevirmek imleci zıplatır). keydown/Enter → Uygula butonuna odaklan; buton gerçek
+                   bir <button> olduğundan İKİNCİ Enter'ı tarayıcı kendisi tıklamaya çevirir (ek kod yok). *@
+                <div @onfocusout="UpperCaseInput" @onkeydown="OnInputKeyDownAsync">
+                    <DxTextBox @ref="_inputBox"
+                               @bind-Text="_input"
+                               @bind-Text:after="OnInputChanged"
+                               BindValueMode="BindValueMode.OnInput"
+                               ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Never"
+                               NullText="@L["Firma adı seçiniz..."].Value" />
+                </div>
             </DxFormLayoutItem>
         </DxFormLayout>
         @if (!string.IsNullOrEmpty(_error))
@@ -36,7 +43,9 @@
     </Content>
     <FooterContentTemplate Context="popup">
         <div class="erp-login-popup-footer">
-            <DxButton Text="@L["Login_TenantPickerApply"].Value"
+            @* Id sabit: editörde Enter'a basılınca erpUx.focusById bu butonu odaklar. *@
+            <DxButton Id="@ApplyButtonId"
+                      Text="@L["Login_TenantPickerApply"].Value"
                       RenderStyle="ButtonRenderStyle.Primary"
                       Enabled="@(!_busy)"
                       Click="@ApplyAsync" />
@@ -53,6 +62,9 @@
     [Parameter]                 public EventCallback<bool>   VisibleChanged { get; set; }
     [Parameter]                 public string?               Current        { get; set; }
     [Parameter]                 public EventCallback<string> OnApplied      { get; set; }
+
+    /// <summary>Uygula butonunun sabit DOM id'si — Enter ile odaklanmak için (erpUx.focusById).</summary>
+    private const string ApplyButtonId = "tenant-picker-apply";
 
     private bool       _visible;
     private string     _input          = string.Empty;
@@ -129,6 +141,33 @@
     private void OnClosed() => _ = VisibleChanged.InvokeAsync(false);
 
     private void OnInputChanged() => _error = null;
+
+    /// <summary>Editörden ayrılınca firma adını BÜYÜK HARFE çevirir. Tenant adları her zaman UPPERCASE
+    /// (2026-07-25 kuralı) ve sunucudaki kayıt da öyle → eşleşme şansı artar.
+    /// Çevrim KÜLTÜRE DUYARLI: Türkçe'de "ışık" → "IŞIK", invariant çevrim noktasız/noktalı I'yı bozardı.</summary>
+    private void UpperCaseInput()
+    {
+        var upper = (_input ?? string.Empty).Trim().ToUpper(CultureInfo.CurrentCulture);
+        if (!string.Equals(upper, _input, StringComparison.Ordinal))
+        {
+            _input = upper;
+        }
+    }
+
+    /// <summary>Editörde Enter → önce büyük harfe çevir (Enter da "ayrılma" sayılır), sonra Uygula butonuna
+    /// odaklan. İKİNCİ Enter'ı tarayıcı odaklı &lt;button&gt; üzerinde tıklamaya çevirir — ayrı kod gerekmez.</summary>
+    private async Task OnInputKeyDownAsync(KeyboardEventArgs e)
+    {
+        if (e.Key is not ("Enter" or "NumpadEnter"))
+        {
+            return;
+        }
+
+        UpperCaseInput();
+        await InvokeAsync(StateHasChanged);
+        try { await Js.InvokeVoidAsync("erpUx.focusById", ApplyButtonId); }
+        catch { /* JS hazır değilse sessiz geç — odak kullanıcıda kalır */ }
+    }
 
     private sealed record FindTenantResult(bool Found, string? Name);
 }

@@ -117,7 +117,9 @@ public sealed class GridListDataSource<TListDto> : GridCustomDataSource
         => new()
         {
             SkipCount      = skip < 0 ? 0 : skip,
-            MaxResultCount = count <= 0 ? DefaultPrefetchSize : count,
+            // DevExpress "Tümü" (ShowAllRows) seçilince veri kaynağına count <= 0 düşer → AllPages'e çeviriyoruz.
+            // Eskiden burada 20'ye düşürülüyordu, yani "Tümü" fiilen "ilk 20" demekti (2026-07-25 Hakan kararı).
+            MaxResultCount = count <= 0 ? ListRequestDto.AllPages : count,
             Filter         = string.IsNullOrWhiteSpace(SearchText) ? null : SearchText.Trim(),
             Sorts          = sortInfo?
                 .Select(s => new SortField { Field = s.FieldName, Descending = s.DescendingSortOrder })

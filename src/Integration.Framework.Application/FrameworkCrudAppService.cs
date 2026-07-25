@@ -44,6 +44,17 @@ public abstract class FrameworkCrudAppService<TEntity, TKey, TGetDto, TListDto, 
         return query.ApplyListRequest(input, AllowedListFields);
     }
 
+    /// <summary>AllPages (-1) istendiğinde ABP'nin sayfalamasını TAMAMEN atlar — ne Skip ne Take;
+    /// aksi halde ABP'nin standart sayfalaması aynen çalışır.</summary>
+    protected override IQueryable<TEntity> ApplyPaging(IQueryable<TEntity> query, TListRequest input)
+    {
+        // <= 0 (== -1 değil): 0 ve negatiflerin hepsi "hepsi" demektir — tek bir değere bakmak,
+        // 0 gönderen çağrıyı sessizce tek satıra düşürürdü.
+        return input.MaxResultCount <= 0
+            ? query
+            : base.ApplyPaging(query, input);
+    }
+
     protected override IQueryable<TEntity> ApplySorting(IQueryable<TEntity> query, TListRequest input)
     {
         // Sıralama ApplyListRequest içinde whitelist'le uygulandı; ABP'nin (dynamic-LINQ

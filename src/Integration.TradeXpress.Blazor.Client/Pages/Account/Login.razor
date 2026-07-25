@@ -26,15 +26,19 @@
 
             <div class="erp-login-card-header">
                 <div role="heading" aria-level="1" class="erp-login-title">@L["Login_Title"]</div>
-                <DxComboBox TData="LangItem"
-                            TValue="string"
-                            Data="@_languages"
-                            TextFieldName="@nameof(LangItem.Label)"
-                            ValueFieldName="@nameof(LangItem.Code)"
-                            Value="@_selectedCulture"
-                            ValueChanged="@OnLanguageChangedAsync"
-                            CssClass="erp-login-lang-combo"
-                            SizeMode="SizeMode.Small" />
+                <div @onkeydown="OnLanguageKeyDown">
+                    <DxComboBox @ref="_langCombo"
+                                TData="LangItem"
+                                TValue="string"
+                                Data="@_languages"
+                                TextFieldName="@nameof(LangItem.Label)"
+                                ValueFieldName="@nameof(LangItem.Code)"
+                                Value="@_selectedCulture"
+                                ValueChanged="@OnLanguageChangedAsync"
+                                DropDownVisibleChanged="@(v => _langDropDownOpen = v)"
+                                CssClass="erp-login-lang-combo"
+                                SizeMode="SizeMode.Small" />
+                </div>
             </div>
 
             <div class="erp-login-card-body">
@@ -47,7 +51,12 @@
 
                 <DxFormLayout CssClass="erp-login-form" CaptionPosition="CaptionPosition.Vertical">
                     <DxFormLayoutItem Caption="@L["Login_TenantLabel"].Value" ColSpanMd="12">
-                        <div @onkeydown="OnTenantKeyDown">
+                        @* Alan SALT-OKUNUR: değer yalnız popup'tan seçilir. Bu yüzden kutunun HERHANGİ bir
+                           yerine tek tık popup'ı açar (2026-07-25 Hakan) — eskiden yalnız sağdaki buton ve F4
+                           açıyordu, kutuya tıklamak hiçbir şey yapmıyordu. Butonun kendi Click'i de aynı metodu
+                           çağırır; ikisi de aynı bayrağı set ettiğinden çift tetikleme zararsızdır.
+                           cursor:pointer → alanın tıklanabilir olduğu görünsün (salt-okunur kutu metin imleci verir). *@
+                        <div @onkeydown="OnTenantKeyDown" @onclick="OpenTenantPickerAsync" style="cursor:pointer;">
                             <DxTextBox @ref="_tenantBox" Text="@TenantDisplay" ReadOnly="true" NullText="@L["Firma Seçiniz..."].Value">
                                 <Buttons>
                                     <DxEditorButton Text="@L["Login_TenantChange"].Value"
@@ -122,6 +131,8 @@
     private string?    _error;
     private bool       _busy;
     private string     _selectedCulture   = "tr";
+    private DxComboBox<LangItem, string>? _langCombo;   // ESC ile firmadan geri dönülen ilk odak
+    private bool _langDropDownOpen;                     // liste açıkken Enter dil SEÇER, odak taşımaz
     private DxTextBox? _tenantBox;
     private DxTextBox? _userBox;
     private DxTextBox? _passwordBox;
@@ -177,10 +188,20 @@
     }
 
     // ── Klavye navigasyonu ──────────────────────────────────────────────
+    // ESC zinciri GERİYE gider: şifre → kullanıcı → firma → DİL. Firma ilk alan olduğundan ESC odağı
+    // kartın başındaki dil seçicisine taşır (2026-07-25 Hakan) — zincirin başı boşta kalmasın.
     private async Task OnTenantKeyDown(KeyboardEventArgs e)
     {
-        if (e.Key == "F4")          await OpenTenantPickerAsync();
-        else if (e.Key == "Enter")  await FocusBoxAsync(_userBox);
+        if (e.Key == "F4")           await OpenTenantPickerAsync();
+        else if (e.Key == "Enter")   await FocusBoxAsync(_userBox);
+        else if (e.Key == "Escape")  await FocusLanguageAsync();
+    }
+
+    private async Task FocusLanguageAsync()
+    {
+        if (_langCombo is null) return;
+        try { await _langCombo.FocusAsync(); }
+        catch { /* JS not ready */ }
     }
 
     private async Task OnUserNameKeyDown(KeyboardEventArgs e)
@@ -197,6 +218,18 @@
             await Js.InvokeVoidAsync("erpUx.focusById", LoginButtonId);
         else if (e.Key == "Escape")
             await FocusBoxAsync(_userBox);
+        // F4 = alanın ÖZEL eylemi (firmada popup açar, şifrede göster/gizle) — formda tutarlı kısayol.
+        // Göz butonuyla AYNI metodu çağırır; şifre boşken buton görünmez ama F4 yine zararsızca çalışır.
+        else if (e.Key == "F4")
+            TogglePasswordVisibility();
+    }
+
+    // Dil combosu zincirin BAŞI: Enter ileri (firmaya) götürür — firma→kullanıcı→şifre→giriş akışıyla simetrik.
+    // Açılır liste AÇIKKEN Enter'a karışmayız: orada Enter dil SEÇER (ve dil değişimi sayfayı yeniler).
+    private async Task OnLanguageKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !_langDropDownOpen)
+            await FocusBoxAsync(_tenantBox);
     }
 
     private async Task OnLoginButtonKeyDown(KeyboardEventArgs e)
@@ -239,9 +272,11 @@
         _selectedCulture = code;
         var ret = "/account/login"
                 + (string.IsNullOrEmpty(ReturnUrl) ? string.Empty : "?returnUrl=" + Uri.EscapeDataString(ReturnUrl));
+        // location.replace (href DEĞİL): dil değişimi de geçmişe kayıt bırakmaz — aksi halde "geri" tuşu
+        // kullanıcıyı bir önceki DİLDEKİ login sayfasına döndürürdü.
         await Js.InvokeVoidAsync(
             "eval",
-            $"window.location.href = '/_ux/culture?culture={Uri.EscapeDataString(code)}&returnUrl={Uri.EscapeDataString(ret)}'");
+            $"window.location.replace('/_ux/culture?culture={Uri.EscapeDataString(code)}&returnUrl={Uri.EscapeDataString(ret)}')");
     }
 
     // ── Giriş ───────────────────────────────────────────────────────────
@@ -274,7 +309,10 @@
                 }
                 catch { /* best-effort */ }
 
-                Nav.NavigateTo(SanitizeReturnUrl(ReturnUrl), forceLoad: true);
+                // replace:true → login geçmişe KAYIT BIRAKMAZ: giriş sonrası tarayıcı "geri"si login'e dönmez
+                // (2026-07-25 Hakan kararı: login ayrı gezinilebilir sayfa gibi davranmasın).
+                // forceLoad KALIR ve zorunludur — auth cookie'sini uygulamaya ancak tam yükleme taşır.
+                Nav.NavigateTo(SanitizeReturnUrl(ReturnUrl), forceLoad: true, replace: true);
                 return;
             }
             _error = L["Login_InvalidCredentials"].Value;

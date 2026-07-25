@@ -83,7 +83,15 @@ public class OrgCodeUniquenessTests : TradeXpressEntityFrameworkCoreTestBase
 
         using (_currentTenant.Change(tenantId))
         {
-            var create = new BranchCreateDto { CompanyId = data.CompanyId, Code = "DUPBR", Name = "Dup Branch" };
+            // Adres ZORUNLU (2026-07-25 ürün kararı): adressiz şube oluşturulamaz. Bu test kod-benzersizliğini
+            // ölçüyor → adres GEÇERLİ verilir, aksi halde AddressRequired daha önce patlayıp asıl iddia ölçülemez.
+            var create = new BranchCreateDto
+            {
+                CompanyId = data.CompanyId,
+                Code = "DUPBR",
+                Name = "Dup Branch",
+                Address = new BranchAddressDto { City = "Diyarbakır", Line = "Test Cd. No: 1" },
+            };
 
             await WithUnitOfWorkAsync(() => _branchAppService.CreateAsync(create));
 

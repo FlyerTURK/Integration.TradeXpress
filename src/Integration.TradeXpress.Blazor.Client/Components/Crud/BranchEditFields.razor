@@ -1,4 +1,4 @@
-@using System
+﻿@using System
 @using Integration.TradeXpress.Branches
 @using Integration.TradeXpress.Financials.CurrencyUnits
 @using Integration.TradeXpress.Permissions
@@ -14,65 +14,106 @@
    olduğundan company-node da (b) sorunsuz geçer + AYNI validasyon (kalıtım).
    HeadquartersEnabled / CodeEnabled bağlama göre: standalone (orijinal-HQ kilidi / IsNew) vs node (sole-HQ / true).
 *@
-<DxFormLayout CssClass="w-100">
-    <DxFormLayoutGroup Caption="@L["General"]" ColSpanMd="12">
+@{
+    @* Adres editörü TEK yerde — grubun içinde ya da dışında AYNI markup kullanılır (kopya yok). *@
+    RenderFragment addressEditor =@<text>
+        <DxFormLayoutItem Caption="@($"{L["Branch:Address"]} *")" ColSpanMd="12">
+            <ValueObjectEdit TValue="BranchAddressDto"
+                             Value="@Model.Address"
+                             DisplayProjection="@AddressSummary"
+                             EmptyPredicate="@IsAddressEmpty"
+                             OnEditClick="@OpenAddressPopup"
+                             PlaceholderText="@L["Address:EditHint"].Value" />
+        </DxFormLayoutItem>
+    </text>;
+
+    @* Alanlar TEK yerde; Embedded moduna göre sarmalanır. EMBEDDED=true iken KENDİ DxFormLayout'unu
+       RENDER ETMEZ → parent'ın TEK layout'una iner (caption sütunları hizalı kalır; iç içe/tekrarlayan
+       DxFormLayout yığmak kaymaya yol açıyordu). AddressFields/GeographyCascadePicker ile aynı desen. *@
+    RenderFragment branchItems =@<text>
+    <DxFormLayoutGroup Caption="@(string.IsNullOrWhiteSpace(GroupCaption) ? L["General"].Value : GroupCaption)" ColSpanMd="12">
+        @* Kod yazarken ANINDA büyük harfe döner (invariant — sunucudaki NormalizeCode ile aynı çevrim). *@
         <DxFormLayoutItem Caption="@($"{L["Code"]} *")" ColSpanMd="6">
-            <DxTextBox @bind-Text="@Model.Code" Enabled="@CodeEnabled" />
+            <DxTextBox @bind-Text="@Model.Code" @bind-Text:after="UpperCaseCode" Enabled="@CodeEnabled" />
         </DxFormLayoutItem>
         <DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="12">
             <DxTextBox @bind-Text="@Model.Name" />
         </DxFormLayoutItem>
-        <DxFormLayoutItem Caption="@($"{L["BalanceCurrency"]} *")" ColSpanMd="6">
-            <LookupComboBox TItem="CurrencyUnitListDto" TValue="Guid"
-                            Data="@Units"
-                            ValueFieldName="@nameof(CurrencyUnitListDto.Id)"
-                            TextFieldName="@nameof(CurrencyUnitListDto.Code)"
-                            @bind-Value="@Model.BaseCurrencyUnitId"
-                            EditComponentType="typeof(CurrencyUnitEditHost)"
-                            OnLookupReloadRequested="@OnReferenceDataReload"
-                            CreatePolicy="@TradeXpressPermissions.CurrencyUnits.Create"
-                            UpdatePolicy="@TradeXpressPermissions.CurrencyUnits.Update" />
-        </DxFormLayoutItem>
-        <DxFormLayoutItem ColSpanMd="6">
-            <CaptionTemplate>
-                <InfoCaption Text="@L["IsHeadquarters"].Value"
-                             HintText="@L["Branch:IsHeadquartersHint"].Value"
-                             Required="false" />
-            </CaptionTemplate>
-            <Template>
-                <DxCheckBox @bind-Checked="@Model.IsHeadquarters" CheckType="CheckType.Switch"
-                            Enabled="@HeadquartersEnabled">
-                    @(Model.IsHeadquarters ? L["Yes"] : L["No"])
-                </DxCheckBox>
-            </Template>
-        </DxFormLayoutItem>
+        @if (ShowBaseCurrency)
+        {
+            <DxFormLayoutItem Caption="@($"{L["BalanceCurrency"]} *")" ColSpanMd="6">
+                <LookupComboBox TItem="CurrencyUnitListDto" TValue="Guid"
+                                Data="@Units"
+                                ValueFieldName="@nameof(CurrencyUnitListDto.Id)"
+                                TextFieldName="@nameof(CurrencyUnitListDto.Code)"
+                                @bind-Value="@Model.BaseCurrencyUnitId"
+                                EditComponentType="typeof(CurrencyUnitEditHost)"
+                                OnLookupReloadRequested="@OnReferenceDataReload"
+                                CreatePolicy="@TradeXpressPermissions.CurrencyUnits.Create"
+                                UpdatePolicy="@TradeXpressPermissions.CurrencyUnits.Update" />
+            </DxFormLayoutItem>
+        }
+        @if (ShowHeadquarters)
+        {
+            <DxFormLayoutItem ColSpanMd="6">
+                <CaptionTemplate>
+                    <InfoCaption Text="@L["IsHeadquarters"].Value"
+                                 HintText="@L["Branch:IsHeadquartersHint"].Value"
+                                 Required="false" />
+                </CaptionTemplate>
+                <Template>
+                    <DxCheckBox @bind-Checked="@Model.IsHeadquarters" CheckType="CheckType.Switch"
+                                Enabled="@HeadquartersEnabled">
+                        @(Model.IsHeadquarters ? L["Yes"] : L["No"])
+                    </DxCheckBox>
+                </Template>
+            </DxFormLayoutItem>
+        }
+
+        @* Adres GRUBUN İÇİNDE (AddressInsideGroup=true — onboarding): "Merkez Şube" çerçevesi şubenin tüm
+           bilgisini bir arada toplar. *@
+        @if (AddressInsideGroup)
+        {
+            @addressEditor
+        }
     </DxFormLayoutGroup>
 
     @* Şube adresi — GRUPSUZ etiketli item, Description'dan ÖNCE (ui-blazor edit-form sırası: General → Adres →
        Description → Status/DisplayOrder). Kompakt özet + ✎ → popup. Model.Address OnParametersSet'te boş DTO ile
        init edilir (asla null). Standalone (BranchLayout) + Company şube-drill'i (CompanyBranchDrill) AYNI editörü
        paylaşır (DRY). *@
-    <DxFormLayoutItem Caption="@L["Branch:Address"]" ColSpanMd="12">
-        <ValueObjectEdit TValue="BranchAddressDto"
-                         Value="@Model.Address"
-                         DisplayProjection="@AddressSummary"
-                         EmptyPredicate="@IsAddressEmpty"
-                         OnEditClick="@OpenAddressPopup"
-                         PlaceholderText="@L["Address:EditHint"].Value" />
-    </DxFormLayoutItem>
+    @if (!AddressInsideGroup)
+    {
+        @addressEditor
+    }
 
-    <DxFormLayoutItem Caption="@L["Description"]" ColSpanMd="12">
-        <DxMemo @bind-Text="@Model.Description" Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100" />
-    </DxFormLayoutItem>
-    <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6">
-        <DxCheckBox @bind-Checked="@Model.IsActive" CheckType="CheckType.Switch">
-            @(Model.IsActive ? L["Active"] : L["Passive"])
-        </DxCheckBox>
-    </DxFormLayoutItem>
-    <DxFormLayoutItem Caption="@L["DisplayOrder"]" ColSpanMd="6">
-        <NumericSpinEdit @bind-Value="@Model.DisplayOrder" />
-    </DxFormLayoutItem>
-</DxFormLayout>
+    @if (ShowAdvancedFields)
+    {
+        <DxFormLayoutItem Caption="@L["Description"]" ColSpanMd="12">
+            <DxMemo @bind-Text="@Model.Description" Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6">
+            <DxCheckBox @bind-Checked="@Model.IsActive" CheckType="CheckType.Switch">
+                @(Model.IsActive ? L["Active"] : L["Passive"])
+            </DxCheckBox>
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["DisplayOrder"]" ColSpanMd="6">
+            <NumericSpinEdit @bind-Value="@Model.DisplayOrder" />
+        </DxFormLayoutItem>
+    }
+</text>;
+}
+
+@if (Embedded)
+{
+    @branchItems
+}
+else
+{
+    <DxFormLayout CssClass="w-100">
+        @branchItems
+    </DxFormLayout>
+}
 
 @* Şube adresi düzenleme popup'ı — merkezî ValueObjectEditPopup (standart edit-form chrome: EditShell + başlık + üst
    Kaydet/Reset toolbar). Ülke company ülkesine kilitli (FixedCountryId=CompanyCountryId). Adres Model.Address'e

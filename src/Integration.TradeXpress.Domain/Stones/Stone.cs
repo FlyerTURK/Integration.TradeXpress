@@ -1,4 +1,4 @@
-using Integration.TradeXpress.Financials.CurrencyUnits;
+﻿using Integration.TradeXpress.Financials.CurrencyUnits;
 using Integration.TradeXpress.MultiCompany;
 
 namespace Integration.TradeXpress.Stones;
@@ -8,8 +8,10 @@ namespace Integration.TradeXpress.Stones;
 /// tamamen <b>parasal/adet</b>. Tanım alanları (cins/tür/renk/kesim/saflık/elek/kategori/grup) + adet takibi +
 /// fiyat tipi (adet/miktar başına) + giriş/çıkış fiyatı &amp; para birimi taşır.
 ///
-/// <para>Host + tenant scoped (Cash/Metal gibi): host kataloğu (TenantId=null) herkese görünür, tenant
-/// düzenleyemez/silemez; tenant kendi kayıtlarını ekleyebilir.</para>
+/// <para><b>Şirkete AİTTİR</b> (<see cref="ICompanyOwned"/> — güvenlik sınırı, görev #4): katalog tenant-geneli
+/// DEĞİL şirket kapsamlıdır; bir şirketin kullanıcısının düzenlemesi kardeş şirketleri etkilemez.
+/// <see cref="CompanyId"/> ZORUNLU — sahipsiz ("holding") kayıt üretilemez; sahiplik client'tan değil aktif
+/// working company'den damgalanır (<c>CompanyOwnershipGuard</c>).</para>
 /// </summary>
 public class Stone : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwned
 {
@@ -133,6 +135,26 @@ public class Stone : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwned
     public virtual void SetActive(bool value)
     {
         IsActive = value;
+    }
+
+    /// <summary>Tek seferlik geçiş backfill'i (migration sonrası): <see cref="CompanyId"/> yalnız BOŞSA
+    /// doldurulur. Emtianın SubAccount/Vault gibi bir PARENT'ı YOKTUR (sahibi kanıtlayan yapısal bağ yok) →
+    /// sahip POLİTİKA ile seçilir: tenant'ın merkez (HQ) şirketi (bkz. <c>CompanyOwnedBackfiller</c>).
+    /// Zaten doluysa DOKUNMAZ (idempotent no-op; set-once invariant korunur — Empty→değer geçişi mümkün,
+    /// yeniden atama DEĞİL).</summary>
+    public virtual void BackfillCompanyIfMissing(Guid companyId)
+    {
+        if (CompanyId != Guid.Empty)
+        {
+            return;
+        }
+
+        if (companyId == Guid.Empty)
+        {
+            throw new RequiredPropertyException(nameof(CompanyId));
+        }
+
+        CompanyId = companyId;
     }
 
     public override string ToString()

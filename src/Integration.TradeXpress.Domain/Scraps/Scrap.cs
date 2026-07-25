@@ -1,4 +1,4 @@
-using Integration.TradeXpress.Financials.CurrencyUnits;
+﻿using Integration.TradeXpress.Financials.CurrencyUnits;
 
 namespace Integration.TradeXpress.Scraps;
 
@@ -8,10 +8,12 @@ namespace Integration.TradeXpress.Scraps;
 /// VoucherLine'da commodity olarak seçilir; Has = Miktar × Factor (ana bacak).
 /// <see cref="FactorChange"/> fişte milyemin editlenebilirliğini belirler.
 ///
-/// <para>Host + tenant scoped (Future gibi): host kataloğu (TenantId=null) herkese görünür, tenant
-/// düzenleyemez/silemez; tenant kendi kayıtlarını ekleyebilir.</para>
+/// <para><b>Şirkete AİTTİR</b> (<see cref="ICompanyOwned"/> — güvenlik sınırı, görev #4): katalog tenant-geneli
+/// DEĞİL şirket kapsamlıdır; bir şirketin kullanıcısının düzenlemesi kardeş şirketleri etkilemez.
+/// <see cref="CompanyId"/> ZORUNLU — sahipsiz ("holding") kayıt üretilemez; sahiplik client'tan değil aktif
+/// working company'den damgalanır (<c>CompanyOwnershipGuard</c>).</para>
 /// </summary>
-public class Scrap : FullAuditedAggregateRoot<Guid>, IMultiTenant
+public class Scrap : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwned
 {
     #region Constructors
 
@@ -23,6 +25,7 @@ public class Scrap : FullAuditedAggregateRoot<Guid>, IMultiTenant
         string code,
         string name,
         Guid followingUnitId,
+        Guid companyId,
         decimal factor = ScrapConsts.DefaultFactor,
         bool factorChange = true,
         bool isActive = true)
@@ -30,6 +33,7 @@ public class Scrap : FullAuditedAggregateRoot<Guid>, IMultiTenant
         SetCode(code);
         SetName(name);
         SetFollowingUnit(followingUnitId);
+        CompanyId = companyId;
         SetFactor(factor);
         FactorChange = factorChange;
         SetActive(isActive);
@@ -40,6 +44,11 @@ public class Scrap : FullAuditedAggregateRoot<Guid>, IMultiTenant
     #region Properties
 
     public virtual Guid? TenantId { get; protected set; }
+
+    /// <summary>Sahip şirket — GÜVENLİK SINIRI (ICompanyOwned, ZORUNLU). Görev #4 ile eklendi: hurda kataloğu
+    /// eskiden TENANT-GENELİydi, yani bir şirketin kullanıcısının düzenlemesi kardeş şirketleri de etkiliyordu
+    /// (cross-company manipülasyon). Artık her şirket kendi kataloğuna sahiptir.</summary>
+    public virtual Guid CompanyId { get; protected set; }
     public virtual string Code { get; protected set; } = null!;
     public virtual string Name { get; protected set; } = null!;
 
@@ -99,6 +108,26 @@ public class Scrap : FullAuditedAggregateRoot<Guid>, IMultiTenant
     public virtual void SetActive(bool value)
     {
         IsActive = value;
+    }
+
+    /// <summary>Tek seferlik geçiş backfill'i (migration sonrası): <see cref="CompanyId"/> yalnız BOŞSA
+    /// doldurulur. Emtianın SubAccount/Vault gibi bir PARENT'ı YOKTUR (sahibi kanıtlayan yapısal bağ yok) →
+    /// sahip POLİTİKA ile seçilir: tenant'ın merkez (HQ) şirketi (bkz. <c>CompanyOwnedBackfiller</c>).
+    /// Zaten doluysa DOKUNMAZ (idempotent no-op; set-once invariant korunur — Empty→değer geçişi mümkün,
+    /// yeniden atama DEĞİL).</summary>
+    public virtual void BackfillCompanyIfMissing(Guid companyId)
+    {
+        if (CompanyId != Guid.Empty)
+        {
+            return;
+        }
+
+        if (companyId == Guid.Empty)
+        {
+            throw new RequiredPropertyException(nameof(CompanyId));
+        }
+
+        CompanyId = companyId;
     }
 
     public override string ToString()

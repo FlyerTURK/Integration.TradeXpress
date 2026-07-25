@@ -79,7 +79,7 @@ public class BranchAppService : TradeXpressAppService, IBranchAppService
         rows = rows.ApplyListRequest(input, AllowedListFields);
 
         var totalCount = await AsyncExecuter.CountAsync(rows);
-        var items = await AsyncExecuter.ToListAsync(rows.Skip(input.SkipCount).Take(input.MaxResultCount));
+        var items = await AsyncExecuter.ToListAsync(rows.ApplyPaging(input));
 
         return new PagedResultDto<BranchListDto>(totalCount, await MapRowsToDtosAsync(items));
     }
@@ -428,15 +428,13 @@ public class BranchAppService : TradeXpressAppService, IBranchAppService
     /// (branch adresi company ülkesinde olmalı — kullanıcı kuralı). Company.CountryId null (legacy) ise verilen/default korunur.</summary>
     private async Task<Address?> BuildAddressAsync(BranchAddressDto? dto, Company company)
     {
-        if (dto is null)
+        // ADRES ZORUNLU (kullanıcı kararı 2026-07-25): HER şubenin adresi olmalı — adressiz şube kargo/fatura
+        // akışlarında sessizce eksik veri üretiyordu. Eskiden boş adres "adres yok" sayılıp null'a indirgeniyordu.
+        // Bu kapı TÜM yolları kapsar: Create, Update ve inline UpdateAddressAsync (adres TEMİZLENEMEZ de);
+        // şirket grafı da şubeleri BranchAppService'e delege ettiğinden oradan da geçer.
+        if (dto is null || (string.IsNullOrWhiteSpace(dto.City) && string.IsNullOrWhiteSpace(dto.Line)))
         {
-            return null;
-        }
-
-        // Boş adres (kullanıcı hiç doldurmadı) → adres yok. Kısmi (yalnız Line) → VO ctor City'yi zorunlu tutar (fail-fast).
-        if (string.IsNullOrWhiteSpace(dto.City) && string.IsNullOrWhiteSpace(dto.Line))
-        {
-            return null;
+            throw new BusinessException("TradeXpress:Branch:AddressRequired");
         }
 
         var countryCode = await ResolveCompanyCountryCodeAsync(company) ?? dto.CountryCode;

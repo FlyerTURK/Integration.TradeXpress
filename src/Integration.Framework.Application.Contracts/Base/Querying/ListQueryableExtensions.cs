@@ -75,9 +75,54 @@ public static class ListQueryableExtensions
 
     // ── Savunma: paging/şekil sınırlandırma ───────────────────────────────────
 
+    /// <summary>Sayfalamayı uygular. <see cref="ListRequestDto.AllPages"/> ise TAKE YAPMAZ — tüm kayıtlar döner.
+    /// Elle <c>Skip/Take</c> yazan her servis bunu kullanmalı: <c>Take(-1)</c> istisna atmaz, SESSİZCE 0 satır
+    /// döndürür — yani sentinel elle yazılan yerlerde fark edilmeden veri kaybına dönüşür.</summary>
+    public static IQueryable<T> ApplyPaging<T>(this IQueryable<T> query, ListRequestDto request)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        ArgumentNullException.ThrowIfNull(request);
+
+        // AllPages = HİÇ sayfalama: ne Skip ne Take. "Hepsi" istenirken offset'in anlamı yoktur.
+        // <= 0 KONTROLÜ (== -1 DEĞİL): 0 ve diğer negatifler de "hepsi" demektir. Yalnız -1'e bakarsak
+        // 0 gelen istek kırpma dalına düşüp Math.Clamp(0,1,200) = 1 olur → SESSİZCE tek satır döner.
+        if (request.MaxResultCount <= 0)
+        {
+            return query;
+        }
+
+        return query.Skip(request.SkipCount).Take(request.MaxResultCount);
+    }
+
+    /// <summary>Bellek-içi (IEnumerable) karşılığı — ABP/Identity gibi zaten materyalize gelen listeler için.
+    /// Aynı <see cref="ListRequestDto.AllPages"/> semantiği: -1 ise Take yok.</summary>
+    public static IEnumerable<T> ApplyPaging<T>(this IEnumerable<T> source, ListRequestDto request)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (request.MaxResultCount <= 0)
+        {
+            return source;
+        }
+
+        return source.Skip(request.SkipCount).Take(request.MaxResultCount);
+    }
+
     private static void NormalizeAndGuard(ListRequestDto request)
     {
-        request.MaxResultCount = Math.Clamp(request.MaxResultCount, 1, MaxAllowedResultCount);
+        // <= 0 gelen her değer AllPages'e NORMALİZE edilir (kırpılmaz): "tümü" açık bir niyettir ve
+        // 200'e indirmek onu sessizce yalanlardı. Normalizasyon burada yapılır ki aşağı akıştaki her
+        // karşılaştırma tek bir kanonik değerle (-1) çalışsın.
+        if (request.MaxResultCount <= 0)
+        {
+            request.MaxResultCount = ListRequestDto.AllPages;
+        }
+        else
+        {
+            request.MaxResultCount = Math.Clamp(request.MaxResultCount, 1, MaxAllowedResultCount);
+        }
+
         if (request.SkipCount < 0)
             request.SkipCount = 0;
 

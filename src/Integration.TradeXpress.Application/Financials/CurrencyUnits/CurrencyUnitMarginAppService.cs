@@ -11,6 +11,7 @@ using Volo.Abp.Data;
 using Volo.Abp.Domain.Entities;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.MultiTenancy;
+using Integration.Framework.Base.Querying;
 
 namespace Integration.TradeXpress.Financials.CurrencyUnits;
 
@@ -93,7 +94,7 @@ public class CurrencyUnitMarginAppService : TradeXpressAppService, ICurrencyUnit
         }
 
         var ordered = projected.OrderBy(d => d.DisplayOrder).ThenBy(d => d.CurrencyUnitCode).ToList();
-        var page = ordered.Skip(input.SkipCount).Take(input.MaxResultCount).ToList();
+        var page = ordered.ApplyPaging(input).ToList();
 
         return new PagedResultDto<CurrencyUnitMarginListDto>(ordered.Count, page);
     }

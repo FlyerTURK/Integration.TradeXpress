@@ -9,6 +9,18 @@
 - `AskUserQuestion` yalnız **iş/ürün** kararı için (kapsam, öncelik, ürün hedefi). Teknik seçim için değil.
 - Kullanıcının geçmiş teknoloji tercihleri bağlayıcı değil; en uygun çözümü öner, sapıyorsan nedenini söyle.
 
+### 0.1) Ön-uçuş kontrol listesi (2026-07-25)
+> **"Meclis" (5 lens + kör subagent oturumu) AYNI GÜN KALDIRILDI.** Hakan'ın gerekçesi: *"aşırı zaman alıyordu. seninle zaten ultracode ile çalışıyoruz ve senin alt agent çalıştırma düzenini bozma ihtimalinden çekindim."* Yani asıl sorun isabetsizlik değil **ÇİFT ORKESTRASYON**: ultracode zaten göreve göre subagent dallandırıyor; meclis onun üstüne SABİT 5 lensli rakip bir katman koyuyordu (3 oturum · 22 dk · ~1,1M token). Lens töreni · kademe beyanı · kör meclis · K0/K1/K2 kademeleri: **hepsi kalktı.** Fan-out artık göreve göre şekillenir, sabit şablona göre değil. Tarihçe: `.claude/research/governance/MECLIS-LOG.md`.
+
+**Kalan TEK şey — ÖN-UÇUŞ. Her kod işinde, maliyet ~0, ATLANAMAZ.** Kod yazmadan önce 4 kutu:
+`[varsaydım mı / doğruladım mı?]` · `[bu bileşen-servis zaten var mı — grep'ledim mi?]` · `[hangi test kırılabilir?]` · `[geri alınabilir mi?]`
+
+**SESSİZ uygulanır** — beyan yok, tören yok, ek çıktı yok. Yalnız bir kutu KIRMIZI çıkarsa tek satırla söylenir.
+
+*Neden bu kaldı: 2026-07-25'in belgeli hatalarını yakalayan şey meclis DEĞİL buydu — N11 "1"≠"01" · elde yeniden yazılan `BranchEditFields` · kırılan `OrgCodeUniquenessTests` · zaten var olan `ShowValidationToasts`. Kutu #2'yi UI'da sorup DOMAIN servislerinde sormamak da `GeographyResolver`'ı üçüncü kez yazmama yol açtı → kutu #2 **her katman için** sorulur.*
+
+Geri-dönüşsüz · mimari · kural değiştiren işlerde ayrı mekanizma YOK: **§1 aynen geçerli** (DUR + plan + BEKLE + onay).
+
 ## 1) Onay gereken işler (önce öner, BEKLE)
 - **Denge:** Yapıcı/eklemeli/**geri-alınabilir** normal iş = SORMA, yap (build, kolon/property/alan/dosya ekleme, normal edit, sıralama/stil ekleme). **SORMA gereken = CİDDİ/YIKICI:** çalışan bir şeyi silmek/kökten yeniden yazmak/değiştirmek, geri-dönüşsüz işlem, büyük yapısal dönüşüm. Ölçüt: *geri alması zor mu / mevcut emeği yok ediyor mu?* Evet → DUR + plan (ne·neden·hangi dosya·geri-alınabilir mi) sun + BEKLE.
 - **Commit:** onaysız commit YOK. AMA "commit'leyelim mi?" diye SORMA/hatırlatma yapma — kullanıcı farkında, sürekli sormak rahatsız ediyor. Yalnız "commit" deyince yap.
@@ -50,6 +62,7 @@ Tıkanınca kolay yola sapıp mevcut işi silme/kökten değiştirme YOK. Reflek
 - **Blazor SERVER** (WASM değil): `ILogger` server-log'a gider; `IWebAssemblyHostEnvironment` YOK; client modülü server'ın `DependsOn`'unda değil → **servis/mapper'ı server modülde de elle kaydet**; `BusinessException` in-process lokalize olmaz.
 - **Portlar:** Blazor host `:44318` · HttpApi.Host `:44388`. Kanonik URL `https://umut.taile7a850.ts.net:44318` (WASM authority tek-değerli → localhost değil ts.net). Cert: `E:\Kodlarim\Yeni\certs\`.
 - **Org hiyerarşisi:** Şirket→Şube→Kasa (OrgTreeManager: otomatik kurulum + en-az-1-child + HQ-devir-önce-sil). Yetki: rol/izin tenant/company/branch/vault **scoped** (cascade + dar override; working context = company+branch).
+- **TÜM emtia katalogları PER-COMPANY** (2026-07-25, görev #4): Metal·Stone·Jewelry·Good·Scrap·Future·Service **`ICompanyOwned`** — `CompanyId` ZORUNLU (`Guid`, `Guid?` değil), benzersizlik `(TenantId, CompanyId, Code)` + soft-delete farkındalı filtre. Sahiplik client'tan DEĞİL working company'den damgalanır (`CompanyOwnershipGuard.ResolveOwnerCompanyId` → şirket yoksa fail-closed). Seeder'lar tenant'ın HER şirketine ayrı set kurar (org seed'inden SONRA). **Eski "emtialar host-seviyesi (TenantId=null)" inancı YANLIŞTI** (canlıda 0 host satırı) ve sahipsiz "holding" katmanı cross-company manipülasyonun taşıyıcısıydı — kaldırıldı. Mekanik ağ: `CompanyScopedFilterTests.Ownerless_commodity_cannot_be_constructed` (7 aile). *(Cash + CurrencyUnit + Country hâlâ host‖tenant kataloğu — emtia değil.)*
 - **Yerel ≠ Bilanço birimi** — kur görüntüsü YERELE, pozisyon/değerleme BİLANÇOYA re-base; karıştırma. Detay + yön kuralları: `.claude/rules/financials.md`.
 - **Zaman: kayıt=UTC, görüntü=kullanıcı yerel saati** (2026-07-03 ürün kararı). Zaman damgaları UTC saklanır (`AbpClockOptions.Kind=Utc` hedefi); UI her kullanıcının tarayıcı/masaüstü saatine çevirip gösterir (merkezi dönüşüm — sayfa-başı elle çeviri YOK). İSTİSNA: kullanıcının seçtiği İŞ TARİHİ alanları (VoucherDate gibi) date-only semantiktir, timezone kaydırmasına GİRMEZ (gün kayması yasak). Geçiş planı: zaman/kültür denetim raporu.
 - **ViewModel emekli:** flat edit formları GetDto-direct (`CrudEditComponentBase<TGetDto>`, Save'de `ObjectMapper.Map` Mapperly); drill/tree → Contracts input-DTO + DrillList. Client-side ViewModel YOK.

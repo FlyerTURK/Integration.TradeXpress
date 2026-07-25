@@ -1508,15 +1508,15 @@
     "Pricing": "Fiyatlandırma",
     "EntryPrice": "Alış Fiyatı",
     "ExitPrice": "Satış Fiyatı",
-    "FactorChange": "Milyem Oynar",
+    "FactorChange": "Milyem Durumu",
     "Has": "Has",
     "Labor": "İşçilik",
     "LaborType": "İşçilik Tipi",
-    "LaborTypeChange": "İşçilik Tipi Oynar",
+    "LaborTypeChange": "İşçilik Tipi Durumu",
     "EntryLabor": "Giriş İşçiliği",
     "ExitLabor": "Çıkış İşçiliği",
-    "EntryLaborChange": "Giriş İşçilik Oynar",
-    "ExitLaborChange": "Çıkış İşçilik Oynar",
+    "EntryLaborChange": "Giriş İşçilik Durumu",
+    "ExitLaborChange": "Çıkış İşçilik Durumu",
     "QuantityTracking": "Adet Takibi",
     "IsQuantity": "Adet Bazlı",
     "StableQuantity": "Sabit Miktar",
@@ -2016,6 +2016,9 @@
     "PayFactor:MetalPanel": "KUR FİYATI",
     "PayTotal:MetalPanel:Cash": "TUTAR",
     "PayTotal:MetalPanel:Labor": "TOPLAM İŞÇİLİK",
-    "PayCommodity:MetalPanel": "BİRİM"
+    "PayCommodity:MetalPanel": "BİRİM",
+    "Tenant:AdminUser": "Yönetici",
+    "Tenant:HeadquartersBranch": "Merkez Şube",
+    "TradeXpress:Branch:AddressRequired": "Şube adresi zorunludur (İl ve Açık Adres girilmelidir)."
   }
 }

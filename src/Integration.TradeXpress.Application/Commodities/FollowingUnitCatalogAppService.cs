@@ -70,7 +70,7 @@ public abstract class FollowingUnitCatalogAppService<TEntity, TGetDto, TListDto,
                 ? all
                 : all.OrderBy(CodeOf, StringComparer.OrdinalIgnoreCase).ToList();
 
-            var pageEntities = ordered.Skip(input.SkipCount).Take(input.MaxResultCount).ToList();
+            var pageEntities = ordered.ApplyPaging(input).ToList();
             var dtos = pageEntities.Select(MapListWithIsGlobal).ToList();
             ApplyUnitCodes(pageEntities, dtos, orders);
             await EnrichListAsync(pageEntities, dtos);

@@ -61,7 +61,7 @@ public class SalesChannelTrN11AppService : TradeXpressAppService, ISalesChannelT
             .ApplyListRequest(input, AllowedListFields);
 
         var totalCount = await AsyncExecuter.CountAsync(query);
-        var items = await AsyncExecuter.ToListAsync(query.Skip(input.SkipCount).Take(input.MaxResultCount));
+        var items = await AsyncExecuter.ToListAsync(query.ApplyPaging(input));
 
         return new PagedResultDto<SalesChannelListDto>(
             totalCount,

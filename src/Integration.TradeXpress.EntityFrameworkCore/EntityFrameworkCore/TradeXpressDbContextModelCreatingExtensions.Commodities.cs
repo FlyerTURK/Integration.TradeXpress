@@ -51,7 +51,9 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
             b.Property(x => x.Name).IsRequired().HasMaxLength(Integration.TradeXpress.Services.ServiceConsts.NameMaxLength);
             b.Property(x => x.Description).HasMaxLength(Integration.TradeXpress.Services.ServiceConsts.DescriptionMaxLength);
 
-            b.HasIndex(x => new { x.TenantId, x.Code }).IsUnique();
+            // Per-company (ICompanyOwned) + soft-delete farkindali — A grubu emtia deseniyle ayni.
+            b.HasIndex(x => new { x.TenantId, x.CompanyId, x.Code }).IsUnique()
+                .HasFilter("[TenantId] IS NOT NULL AND [IsDeleted] = 0");
         });
     }
 
@@ -71,7 +73,9 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
                 Integration.TradeXpress.Futures.FutureConsts.FactorPrecision,
                 Integration.TradeXpress.Futures.FutureConsts.FactorScale);
 
-            b.HasIndex(x => new { x.TenantId, x.Code }).IsUnique();
+            // Per-company (ICompanyOwned) + soft-delete farkindali — A grubu emtia deseniyle ayni.
+            b.HasIndex(x => new { x.TenantId, x.CompanyId, x.Code }).IsUnique()
+                .HasFilter("[TenantId] IS NOT NULL AND [IsDeleted] = 0");
 
             b.HasOne<Integration.TradeXpress.Financials.CurrencyUnits.CurrencyUnit>().WithMany()
                 .HasForeignKey(x => x.FollowingUnitId).IsRequired().OnDelete(DeleteBehavior.Restrict);
@@ -95,7 +99,9 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
                 Integration.TradeXpress.Scraps.ScrapConsts.FactorPrecision,
                 Integration.TradeXpress.Scraps.ScrapConsts.FactorScale);
 
-            b.HasIndex(x => new { x.TenantId, x.Code }).IsUnique();
+            // Per-company (ICompanyOwned) + soft-delete farkindali — A grubu emtia deseniyle ayni.
+            b.HasIndex(x => new { x.TenantId, x.CompanyId, x.Code }).IsUnique()
+                .HasFilter("[TenantId] IS NOT NULL AND [IsDeleted] = 0");
 
             b.HasOne<Integration.TradeXpress.Financials.CurrencyUnits.CurrencyUnit>().WithMany()
                 .HasForeignKey(x => x.FollowingUnitId).IsRequired().OnDelete(DeleteBehavior.Restrict);

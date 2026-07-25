@@ -2,6 +2,7 @@
 @using Integration.Framework.Blazor.Client.Components.Shared
 @inherits CrudComponentBase
 @implements ISplitEditActions
+@implements IDisposable
 
 @*
    Merkezî VALUE-OBJECT edit popup kabuğu — owned sub-object'leri (Address/ContactInfo gibi) STANDART edit-form
@@ -27,10 +28,23 @@
         </div>
         <div style="flex:1 1 auto; overflow-y:auto; overflow-x:hidden; min-height:0; padding:0.25rem 0.75rem 0.75rem;">
             @* @key: Reset/İptal in-place snapshot geri-alımından SONRA gövdeyi (AddressFields + GeographyCascadePicker iç
-               durumu) yeniden kurar → geri alınan Model değerleri görünür. @onchange: editör commit'inde (blur) toolbar/"*" tazele. *@
-            <div @key="_bodyKey" @onchange="OnBodyChanged">
-                @ChildContent
-            </div>
+               durumu) yeniden kurar → geri alınan Model değerleri görünür. *@
+            @* DOĞRULAMA: kendi EditContext'ini CASCADE eder (nested <EditForm> DEĞİL — DrillList deseni; iç içe
+               EditForm NRE veriyor). Lokalize validator (ham DataAnnotationsValidator DEĞİL — Framework'ün kendi
+               muadili) cascade'den EditContext alır → DTO'daki [Required] kuralları tr/en lokalize mesajla işler. *@
+            @* DEĞİŞİKLİK SİNYALİ — İKİSİ BİRDEN (ISplitHost "Form değişiklik sinyalleri" deseni; EntityEditForm de
+               ikisini yapar): (1) @oninput/@onchange = @bind'lı DevExpress editörleri (DxTextBox/DxMemo) EditContext'i
+               HİÇ bildirmez, yalnız DOM'a yayar; (2) EditContext.OnFieldChanged = ValidationEnabled="false" combolar
+               (GeographyCascadePicker) DOM'a change YAYMAZ, bunun yerine AddressFields.razor.cs'te elle
+               NotifyFieldChanged çağırır. Yalnız @onchange dinlemek Kaydet'i BAYAT bırakıyordu (kullanıcı bulgusu:
+               tüm zorunlu alanlar dolu ama buton disabled). *@
+            <CascadingValue Value="_editContext" IsFixed="false">
+                <LocalizedDataAnnotationsValidator />
+                <div @key="_bodyKey" @oninput="OnBodyChanged" @onchange="OnBodyChanged">
+                    @ChildContent
+                    <ValidationSummary />
+                </div>
+            </CascadingValue>
         </div>
     </div>
 </EditShell>

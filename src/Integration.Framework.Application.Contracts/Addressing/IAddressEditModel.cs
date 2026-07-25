@@ -33,6 +33,13 @@ public interface IAddressEditModel
     /// <summary>Ülke kodu (ISO-3166 alpha-2, varsayılan "TR"; picker doldurur).</summary>
     string CountryCode { get; set; }
 
+    /// <summary>Ülke ADI — SALT GÖRÜNTÜ (ör. "Türkiye"). Otoriter alan <see cref="CountryCode"/>'dur; bu yalnız
+    /// adres özetinde kod yerine okunabilir ad göstermek içindir. Picker seçim yaparken doldurur; sunucu DTO
+    /// kurarken katalogdan çözer. Boşsa özet koda düşer (<c>AddressDisplay</c>) → hiçbir yüzey kırılmaz.
+    /// <para>Denormalize görüntü alanı deseni — <c>FollowingUnitName</c>/<c>CompanyCode</c>/<c>BaseCurrencyCode</c>
+    /// ile aynı: istemci formatter'ı aptal ve senkron kalsın diye ad SUNUCUDA çözülür, UI'da arama yapılmaz.</para></summary>
+    string? CountryName { get; set; }
+
     /// <summary>Opsiyonel yapısal il kodu (plaka / kanal il kodu; picker doldurur).</summary>
     string? CityCode { get; set; }
 

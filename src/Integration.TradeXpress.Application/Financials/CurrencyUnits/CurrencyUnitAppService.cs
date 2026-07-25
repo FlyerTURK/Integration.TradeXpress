@@ -95,7 +95,7 @@ public class CurrencyUnitAppService : TradeXpressAppService, ICurrencyUnitAppSer
 
             var totalCount = await AsyncExecuter.CountAsync(rows);
             var items = await AsyncExecuter.ToListAsync(
-                rows.Skip(input.SkipCount).Take(input.MaxResultCount));
+                rows.ApplyPaging(input));
 
             return new PagedResultDto<CurrencyUnitListDto>(totalCount, items.Select(ToListDto).ToList());
         }

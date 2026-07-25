@@ -14,6 +14,7 @@ using Volo.Abp.Application.Dtos;
 using Volo.Abp.Domain.Entities;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Uow;
+using Integration.Framework.Base.Querying;
 
 namespace Integration.TradeXpress.Vouchers;
 
@@ -277,6 +278,8 @@ public partial class VoucherAppService : TradeXpressAppService, IVoucherAppServi
                      };
 
         var total = await AsyncExecuter.CountAsync(joined);
+        // VoucherListRequestDto ListRequestDto'dan TÜREMEZ (kendi bağımsız sözleşmesi) → ApplyPaging/AllPages
+        // semantiği burada geçerli DEĞİL; sayfalama elle kalır.
         var items = await AsyncExecuter.ToListAsync(
             joined.Skip(input.SkipCount).Take(input.MaxResultCount));
 

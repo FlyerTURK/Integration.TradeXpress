@@ -20,6 +20,7 @@ namespace Integration.TradeXpress.Futures;
 public class FutureSeeder(
     IRepository<Future, Guid> futureRepository,
     IRepository<CurrencyUnit, Guid> currencyUnitRepository,
+    IRepository<Company, Guid> companyRepository,
     IDataFilter dataFilter,
     IUnitOfWorkManager unitOfWorkManager)
     : ITransientDependency
@@ -53,23 +54,32 @@ public class FutureSeeder(
                 .ToDictionary(g => g.Key, g => g.First().Id, StringComparer.OrdinalIgnoreCase);
         }
 
-        // Bu tenant'ta mevcut Future kodları (tenant filtresi açık → yalnız aktif tenant).
-        // Soft-delete filtresi KAPALI: silinmiş kayıt da "mevcut" sayılır — silineni diriltme (MetalSeeder deseni).
-        List<string> existingCodes;
-        using (dataFilter.Disable<ISoftDelete>())
-        {
-            existingCodes = (await futureRepository.GetQueryableAsync())
-                .Select(f => f.Code)
-                .ToList();
-        }
+        // PER-COMPANY (görev #4): vadeli kataloğu artık ŞİRKETE aittir (ICompanyOwned) → her şirkete kendi seti
+        // kurulur (MetalSeeder deseni). Eskiden tenant-geneliydi: bir şirketin düzenlemesi kardeşlerini etkiliyordu.
+        var companies = await companyRepository.GetListAsync();
 
-        var existing = existingCodes.ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-        foreach (var (code, name, unitCode, factor) in Seeds)
+        foreach (var company in companies)
         {
-            if (existing.Contains(code)) continue;
-            if (!unitIdByCode.TryGetValue(unitCode, out var uid)) continue;
-            await futureRepository.InsertAsync(new Future(code, name, uid, factor), autoSave: false);
+            // Soft-delete filtresi KAPALI: silinmiş kayıt da "mevcut" sayılır — silineni diriltme (MetalSeeder deseni).
+            List<string> existingCodes;
+            using (dataFilter.Disable<ISoftDelete>())
+            {
+                existingCodes = (await futureRepository.GetQueryableAsync())
+                    .Where(f => f.CompanyId == company.Id)
+                    .Select(f => f.Code)
+                    .ToList();
+            }
+
+            var existing = existingCodes.ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var (code, name, unitCode, factor) in Seeds)
+            {
+                if (existing.Contains(code)) continue;
+                if (!unitIdByCode.TryGetValue(unitCode, out var uid)) continue;
+                await futureRepository.InsertAsync(
+                    new Future(code, name, uid, companyId: company.Id, followingFactor: factor),
+                    autoSave: false);
+            }
         }
 
         await unitOfWorkManager.Current!.SaveChangesAsync();

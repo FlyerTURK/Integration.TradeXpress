@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Integration.Framework.Addressing;
@@ -17,6 +17,9 @@ public class N11ShipmentAddressDto : IAddressEditModel
     public string? Neighborhood { get; set; }
     public string? PostalCode { get; set; }
     public string CountryCode { get; set; } = "TR";
+
+    /// <summary>Ülke ADI — salt görüntü (adres özetinde kod yerine "Türkiye"). Otoriter alan CountryCode'dur.</summary>
+    public string? CountryName { get; set; }
 
     /// <summary>N11 il kodu (1–81) — <see cref="Integration.TradeXpress.N11Cities.N11CityDto.CityCode"/>.</summary>
     public string? CityCode { get; set; }

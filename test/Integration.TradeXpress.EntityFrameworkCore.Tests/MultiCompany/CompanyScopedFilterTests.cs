@@ -1,7 +1,9 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Threading.Tasks;
+using Integration.Framework;
 using Integration.TradeXpress.EntityFrameworkCore;
 using Integration.TradeXpress.Stones;
 using Shouldly;
@@ -59,22 +61,103 @@ public class CompanyScopedFilterTests : TradeXpressEntityFrameworkCoreTestBase
         }
     }
 
-    /// <summary>Sahipsiz ("holding") emtia kaydı ÜRETİLEMEZ — CompanyId zorunludur. Bu, cross-company
-    /// manipülasyonun taşıyıcı katmanının yapısal olarak kapandığının kanıtıdır.</summary>
-    [Fact]
-    public void Ownerless_commodity_cannot_be_constructed()
+    /// <summary>
+    /// Geçiş backfill'inin kapsadığı 7 EMTİA ailesi — <c>CompanyOwnedBackfiller.BackfillCommoditiesAsync</c>
+    /// listesiyle birebir aynı olmalıdır.
+    ///
+    /// <para><b>Neden reflection DEĞİL:</b> <see cref="ICompanyOwned"/>'ı Voucher/Product/SalesChannel dahil 30+
+    /// tip uygular; bunlar CompanyId ile DOĞAR, geçiş backfill'ine ihtiyaçları yoktur. Assembly taraması denendi
+    /// ve geri alındı — "emtia" tip sisteminden türetilemiyor. Dolayısıyla bu liste ELLEdir ve şu boşluk AÇIK
+    /// kalır: yeni bir emtia ailesi eklenip HEM buraya HEM backfiller'a yazılmazsa sessizce kapsam dışı kalır.
+    /// Kapatmanın tek dürüst yolu bir emtia marker'ı (ör. <c>ICommodity</c>) tanımlamaktır — ayrı karar.</para>
+    /// </summary>
+    public static TheoryData<Type> CommodityTypes
     {
-        // Derleme-zamanı garantisi: Stone ctor'ı Guid? DEĞİL Guid ister (opsiyonel/atlanabilir değil).
-        var companyIdParameter = typeof(Stone)
-            .GetConstructors()
-            .Single(c => c.GetParameters().Length > 0)
-            .GetParameters()
-            .Single(p => p.Name == "companyId");
+        get
+        {
+            return new TheoryData<Type>
+            {
+                typeof(Metals.Metal), typeof(Stone), typeof(Jewelries.Jewelry), typeof(Goods.Good),
+                typeof(Scraps.Scrap), typeof(Futures.Future), typeof(Services.Service),
+            };
+        }
+    }
 
-        companyIdParameter.ParameterType.ShouldBe(typeof(Guid));   // Guid? olsaydı sahipsiz kayıt mümkün olurdu
-        companyIdParameter.IsOptional.ShouldBeFalse();
-        typeof(ICompanyOwned).IsAssignableFrom(typeof(Stone)).ShouldBeTrue();
-        typeof(ICompanyScoped).IsAssignableFrom(typeof(Stone)).ShouldBeFalse();
+    /// <summary>Sahipsiz ("holding") kayıt ÜRETİLEMEZ — CompanyId zorunludur. Bu, cross-company
+    /// manipülasyonun taşıyıcı katmanının yapısal olarak kapandığının kanıtıdır. Bir ctor CompanyId'yi
+    /// opsiyonelleştirirse bu test KIRMIZI olur — sızıntı sessiz geri gelemez.</summary>
+    [Theory]
+    [MemberData(nameof(CommodityTypes))]
+    public void Ownerless_commodity_cannot_be_constructed(Type commodityType)
+    {
+        typeof(ICompanyOwned).IsAssignableFrom(commodityType).ShouldBeTrue();
+        typeof(ICompanyScoped).IsAssignableFrom(commodityType).ShouldBeFalse();   // iki marker birbirini dışlar
+
+        // Derleme-zamanı garantisi: HER public ctor'da companyId Guid? DEĞİL Guid ve opsiyonel değil.
+        var publicCtors = commodityType
+            .GetConstructors()
+            .Where(c => c.GetParameters().Length > 0)
+            .ToList();
+
+        publicCtors.ShouldNotBeEmpty();
+
+        foreach (var ctor in publicCtors)
+        {
+            var companyIdParameter = ctor.GetParameters().SingleOrDefault(p => p.Name == "companyId");
+
+            companyIdParameter.ShouldNotBeNull($"{commodityType.Name} ctor'ı companyId ALMIYOR → sahipsiz kayıt mümkün");
+            companyIdParameter.ParameterType.ShouldBe(typeof(Guid));   // Guid? olsaydı sahipsiz kayıt mümkün olurdu
+            companyIdParameter.IsOptional.ShouldBeFalse();
+        }
+    }
+
+    /// <summary>Her sahipli entity geçiş backfill'ini DESTEKLEMELİ: migration <c>CompanyId</c>'yi Guid.Empty
+    /// bıraktığında <c>CompanyOwnedBackfiller</c> bu metotla sahiplendirir. Yeni bir aile eklenip metot
+    /// unutulursa backfill onu SESSİZCE atlar (derleme hatası vermez — delege çağrı yerinden geçiliyor)
+    /// → bu test o boşluğu KIRMIZIYA çevirir.</summary>
+    [Theory]
+    [MemberData(nameof(CommodityTypes))]
+    public void Every_commodity_family_supports_company_backfill(Type commodityType)
+    {
+        var method = commodityType.GetMethod(
+            nameof(Stone.BackfillCompanyIfMissing), new[] { typeof(Guid) });
+
+        method.ShouldNotBeNull($"{commodityType.Name}.BackfillCompanyIfMissing(Guid) YOK → backfill bunu atlar");
+        method.IsPublic.ShouldBeTrue();
+        method.IsVirtual.ShouldBeTrue();   // EF/ABP proxy gereği (entity-conventions)
+    }
+
+    /// <summary>Şekil denetimi YETMEZ (kod incelemesi bulgusu): metot var ama gövdesi yanlışsa test yeşil kalırdı.
+    /// Burada DAVRANIŞ çalıştırılır — 3 kural: (1) boşsa doldurur, (2) doluysa DOKUNMAZ (set-once),
+    /// (3) Guid.Empty parametreyi REDDEDER. 7 kopya gövdenin sessizce sapması artık mümkün değil.</summary>
+    [Theory]
+    [MemberData(nameof(CommodityTypes))]
+    public void Company_backfill_behaviour_is_identical_across_families(Type commodityType)
+    {
+        var method = commodityType.GetMethod(
+            nameof(Stone.BackfillCompanyIfMissing), new[] { typeof(Guid) })!;
+
+        var companyIdProperty = commodityType.GetProperty(nameof(ICompanyOwned.CompanyId))!;
+        var first  = SimpleGuidGenerator.Instance.Create();
+        var second = SimpleGuidGenerator.Instance.Create();
+
+        // EF'in kullandığı parametresiz (protected) ctor ile örnek üret — iş kuralı ctor'ını atlar.
+        var instance = Activator.CreateInstance(commodityType, nonPublic: true)!;
+
+        // (1) boşken doldurur
+        method.Invoke(instance, new object[] { first });
+        companyIdProperty.GetValue(instance).ShouldBe(first, $"{commodityType.Name}: boş CompanyId doldurulmadı");
+
+        // (2) doluyken DOKUNMAZ (idempotent no-op; sahiplik yeniden atanamaz)
+        method.Invoke(instance, new object[] { second });
+        companyIdProperty.GetValue(instance).ShouldBe(first, $"{commodityType.Name}: sahiplik YENİDEN atandı");
+
+        // (3) Guid.Empty reddedilir (fail-fast) — sahte sahiplik damgası oluşmaz
+        var fresh = Activator.CreateInstance(commodityType, nonPublic: true)!;
+        var ex = Should.Throw<TargetInvocationException>(
+            () => method.Invoke(fresh, new object[] { Guid.Empty }));
+        ex.InnerException.ShouldBeOfType<RequiredPropertyException>(
+            $"{commodityType.Name}: Guid.Empty sahiplik reddedilmedi");
     }
 
     [Fact]

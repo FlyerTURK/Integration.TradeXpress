@@ -3,7 +3,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Integration.TradeXpress.N11;
+using Microsoft.Extensions.Caching.Distributed;
 using Volo.Abp;
+using Volo.Abp.Caching;
 using Volo.Abp.Domain.Repositories;
 
 namespace Integration.TradeXpress.N11Cities;
@@ -19,17 +21,20 @@ public class N11CityAppService : TradeXpressAppService, IN11CityAppService
     private readonly IRepository<N11District, Guid> _districtRepository;
     private readonly IN11CityClient _client;
     private readonly IN11HostCredentialResolver _credentialResolver;
+    private readonly IDistributedCache<N11NeighborhoodCacheItem> _neighborhoodCache;
 
     public N11CityAppService(
         IRepository<N11City, Guid> cityRepository,
         IRepository<N11District, Guid> districtRepository,
         IN11CityClient client,
-        IN11HostCredentialResolver credentialResolver)
+        IN11HostCredentialResolver credentialResolver,
+        IDistributedCache<N11NeighborhoodCacheItem> neighborhoodCache)
     {
         _cityRepository = cityRepository;
         _districtRepository = districtRepository;
         _client = client;
         _credentialResolver = credentialResolver;
+        _neighborhoodCache = neighborhoodCache;
     }
 
     public virtual async Task<int> SyncCitiesAndDistrictsAsync()
@@ -148,9 +153,33 @@ public class N11CityAppService : TradeXpressAppService, IN11CityAppService
 
     public virtual async Task<List<N11NeighborhoodDto>> GetNeighborhoodsAsync(string districtId)
     {
-        // On-demand: adres verisi seller-özel değil → host kimliğiyle çekilir; saklanmaz.
-        var (appKey, appSecret) = await _credentialResolver.ResolveAsync();
-        var list = await _client.GetNeighborhoodsAsync((districtId ?? string.Empty).Trim(), appKey, appSecret);
-        return list.Select(n => new N11NeighborhoodDto { Id = n.Id, Name = n.Name }).ToList();
+        // On-demand: adres verisi seller-özel değil → host kimliğiyle çekilir; DB'ye SAKLANMAZ (bilinçli istisna
+        // korunuyor — GeographyAppService.GetNeighborhoodsAsync). Ama artık 6 saat DAĞITIK CACHE'lenir.
+        // GEREKÇE (2026-07-25 meclis kararı): boş adres formu artık ilk ilçeyi OTOMATİK seçtiğinden (Hakan kararı)
+        // bu SOAP çağrısı HER form açılışında tetikleniyor; N11CityClient timeout'u 30 sn (N11CityClient.cs:23),
+        // yani her açılış Blazor Server circuit'ini 30 sn'ye kadar bloklayabilirdi. Mahalle REFERANS verisidir
+        // (idari kararla değişir, fiyat/stok gibi saniyelik değil) → 6 saatlik bayatlık kabul edilebilir ve TTL
+        // kendini tazeler (kalıcı tabloda olmayan özellik: orada bayat satırı temizleyecek sahip yok).
+        // Desen: TrendyolCategoryAppService.GetLeafAttributesCachedAsync (aynı problem sınıfı, kanıtlı).
+        var normalized = (districtId ?? string.Empty).Trim();
+
+        var cached = await _neighborhoodCache.GetOrAddAsync(
+            $"N11Neighborhoods:{normalized}",
+            async () =>
+            {
+                // Hata cache'lenmez: istisna GetOrAddAsync'ten YÜKSELİR → sonraki çağrı yeniden dener.
+                var (appKey, appSecret) = await _credentialResolver.ResolveAsync();
+                var list = await _client.GetNeighborhoodsAsync(normalized, appKey, appSecret);
+                return new N11NeighborhoodCacheItem
+                {
+                    Items = list.Select(n => new N11NeighborhoodDto { Id = n.Id, Name = n.Name }).ToList(),
+                };
+            },
+            () => new DistributedCacheEntryOptions
+            {
+                AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(6),
+            });
+
+        return cached?.Items ?? new List<N11NeighborhoodDto>();
     }
 }

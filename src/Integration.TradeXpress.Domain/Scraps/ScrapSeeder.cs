@@ -21,6 +21,7 @@ namespace Integration.TradeXpress.Scraps;
 public class ScrapSeeder(
     IRepository<Scrap, Guid> scrapRepository,
     IRepository<CurrencyUnit, Guid> currencyUnitRepository,
+    IRepository<Company, Guid> companyRepository,
     IDataFilter dataFilter,
     IUnitOfWorkManager unitOfWorkManager)
     : ITransientDependency
@@ -56,24 +57,34 @@ public class ScrapSeeder(
 
         // NOT: legacy '_' rename-backfill KALDIRILDI (2026-07-05): tüm DB'lerdeki '_'li seed kodları
         // boşukluya taşındı/temizlendi; yeni normalize '_' üretmez → backfill kalıcı no-op olmuştu.
-        // Soft-delete filtresi KAPALI okunur: silinmiş kayıt da "mevcut" sayılır — kullanıcının sildiği kaydı
-        // sonraki DbMigrator koşusu diriltmesin (MetalSeeder ile aynı düzeltme).
-        List<string> existingCodes;
-        using (dataFilter.Disable<ISoftDelete>())
-        {
-            existingCodes = (await scrapRepository.GetQueryableAsync())
-                .Select(s => s.Code)
-                .ToList();
-        }
+        // PER-COMPANY (görev #4): katalog artık ŞİRKETE aittir (ICompanyOwned) → her şirkete kendi seti kurulur
+        // (MetalSeeder deseni). Eskiden tenant-geneliydi: bir şirketin düzenlemesi kardeşlerini de etkiliyordu.
+        var companies = await companyRepository.GetListAsync();
 
-        var existing = existingCodes.ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-        foreach (var (code, name, unitCode, factor) in Seeds)
+        foreach (var company in companies)
         {
-            // Entity ctor kodu normalize ettiği için var-kontrolü normalize edilmiş kodla yapılır.
-            if (existing.Contains(code.NormalizeAsCode())) continue;
-            if (!unitIdByCode.TryGetValue(unitCode, out var uid)) continue;
-            await scrapRepository.InsertAsync(new Scrap(code, name, uid, factor, factorChange: true), autoSave: false);
+            // Soft-delete filtresi KAPALI okunur: silinmiş kayıt da "mevcut" sayılır — kullanıcının sildiği kaydı
+            // sonraki DbMigrator koşusu diriltmesin (MetalSeeder ile aynı düzeltme).
+            List<string> existingCodes;
+            using (dataFilter.Disable<ISoftDelete>())
+            {
+                existingCodes = (await scrapRepository.GetQueryableAsync())
+                    .Where(s => s.CompanyId == company.Id)
+                    .Select(s => s.Code)
+                    .ToList();
+            }
+
+            var existing = existingCodes.ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var (code, name, unitCode, factor) in Seeds)
+            {
+                // Entity ctor kodu normalize ettiği için var-kontrolü normalize edilmiş kodla yapılır.
+                if (existing.Contains(code.NormalizeAsCode())) continue;
+                if (!unitIdByCode.TryGetValue(unitCode, out var uid)) continue;
+                await scrapRepository.InsertAsync(
+                    new Scrap(code, name, uid, companyId: company.Id, factor: factor, factorChange: true),
+                    autoSave: false);
+            }
         }
 
         await unitOfWorkManager.Current!.SaveChangesAsync();

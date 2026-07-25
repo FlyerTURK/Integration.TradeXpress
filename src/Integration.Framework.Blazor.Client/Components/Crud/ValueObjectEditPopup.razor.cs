@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Text.Json;
 using DevExpress.Blazor;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Forms;
 
 namespace Integration.Framework.Blazor.Client.Components.Crud;
 
@@ -48,6 +49,12 @@ public partial class ValueObjectEditPopup<TValue> : CrudComponentBase, ISplitEdi
     private int _bodyKey;
     private bool _busy;
 
+    // Gövdeye cascade edilen doğrulama bağlamı (nested EditForm YOK — DrillList deseni). Model örneği
+    // değişince yeniden kurulur; aksi halde eski nesne doğrulanır.
+    private EditContext? _editContext;
+    private TValue? _contextModel;
+    private bool _lastDirty;
+
     protected override void OnParametersSet()
     {
         _header = new TabHeaderData
@@ -55,6 +62,18 @@ public partial class ValueObjectEditPopup<TValue> : CrudComponentBase, ISplitEdi
             FormCaption = HeaderText,
             IconCssClass = IconCssClass,
         };
+
+        if (Model is not null && !ReferenceEquals(_contextModel, Model))
+        {
+            _contextModel = Model;
+            if (_editContext != null)
+            {
+                _editContext.OnFieldChanged -= OnEditFieldChanged;
+            }
+
+            _editContext = new EditContext(Model);
+            _editContext.OnFieldChanged += OnEditFieldChanged;
+        }
 
         // Popup görünür oldu (false→true) → açılış anındaki VO durumunun snapshot'ını al (dirty/reset bazı).
         if (Visible && !_wasVisible)
@@ -76,11 +95,34 @@ public partial class ValueObjectEditPopup<TValue> : CrudComponentBase, ISplitEdi
         {
             _snapshot = null;
         }
+
+        _lastDirty = IsDirty;
     }
 
-    // Gövdedeki editör commit'inde (blur/change bubble) → toolbar CanSave + başlık "*" tazele.
+    // Gövdedeki DOM sinyali (@oninput her tuş / @onchange commit) — @bind'lı DevExpress editörleri bu yolla duyulur.
     private void OnBodyChanged()
     {
+        NotifyToolbarIfDirtyChanged();
+    }
+
+    // EditContext sinyali — ValidationEnabled="false" combolar (GeographyCascadePicker) DOM'a change yaymaz,
+    // AddressFields elle NotifyFieldChanged çağırır; toolbar'ın tazelendiği yer burası.
+    private void OnEditFieldChanged(object? sender, FieldChangedEventArgs e)
+    {
+        NotifyToolbarIfDirtyChanged();
+    }
+
+    // Her tuşta re-render ETMEZ — yalnız dirty durumu GERÇEKTEN değiştiyse (CrudEditComponentBase'in
+    // NotifyToolbarIfChanged deseni). Gereksiz render + odak kaybı yok, buton yine anında doğru duruma geçer.
+    private void NotifyToolbarIfDirtyChanged()
+    {
+        var dirty = IsDirty;
+        if (dirty == _lastDirty)
+        {
+            return;
+        }
+
+        _lastDirty = dirty;
         StateHasChanged();
     }
 
@@ -110,6 +152,15 @@ public partial class ValueObjectEditPopup<TValue> : CrudComponentBase, ISplitEdi
     {
         if (_busy)
         {
+            return;
+        }
+
+        // Zorunlu alan boşsa KAYDETME (ve kapatma). SESSİZ kalmaz: editörün kendi kırmızı işareti +
+        // ValidationSummary + TOAST birlikte duyurur (eskiden hiçbir geri bildirim yoktu — kullanıcı bulgusu).
+        if (_editContext is { } context && !context.Validate())
+        {
+            context.ShowValidationToasts(UiService);
+            StateHasChanged(); // inline işaretler/summary Validate() sonrası ekrana insin
             return;
         }
 
@@ -187,6 +238,7 @@ public partial class ValueObjectEditPopup<TValue> : CrudComponentBase, ISplitEdi
 
             CopyInto(restored, Model);
             _bodyKey++;
+            _lastDirty = false; // snapshot'a döndük → toolbar temiz duruma geçsin (aksi halde Kaydet enabled kalırdı)
             StateHasChanged();
         }
         catch
@@ -333,5 +385,15 @@ public partial class ValueObjectEditPopup<TValue> : CrudComponentBase, ISplitEdi
     void ISplitEditActions.CommitUndoStep()
     {
         // Undo geçmişi yok (SupportsUndoRedo=false).
+    }
+
+    // EditContext aboneliğini bırak (EntityEditForm ile aynı desen) — popup her açılışta yeniden kurulduğundan
+    // bırakılmayan handler birikirdi.
+    public void Dispose()
+    {
+        if (_editContext != null)
+        {
+            _editContext.OnFieldChanged -= OnEditFieldChanged;
+        }
     }
 }

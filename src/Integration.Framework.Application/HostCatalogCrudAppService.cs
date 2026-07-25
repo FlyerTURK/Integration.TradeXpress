@@ -60,8 +60,8 @@ public abstract class HostCatalogCrudAppService<TEntity, TGetDto, TListDto, TLis
             query = ApplyFallbackSort(query, input);
 
             var totalCount = await AsyncExecuter.CountAsync(query);
-            var entities = await AsyncExecuter.ToListAsync(
-                query.Skip(input.SkipCount).Take(input.MaxResultCount));
+            // ApplyPaging: AllPages (-1) ise Take YAPMAZ. Elle Skip/Take yazılırsa Take(-1) sessizce 0 satır döner.
+            var entities = await AsyncExecuter.ToListAsync(query.ApplyPaging(input));
 
             var dtos = entities.Select(MapListWithIsGlobal).ToList();
             await EnrichListAsync(entities, dtos);

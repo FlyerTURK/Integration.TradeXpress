@@ -1,4 +1,4 @@
-@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+﻿@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
 
 @* Yeniden kullanılabilir coğrafya cascade seçici — Ülke → İl/Eyalet → İlçe. Ülke seçilince o ülkenin idari
    alanları IGeographyAppService'ten çekilir (DB'de yoksa ilk seferde LAZY IMPORT tetiklenir → birkaç sn; combolar
@@ -45,6 +45,10 @@
                             TextFieldName="@nameof(AdministrativeAreaDto.Name)"
                             Value="@_selectedAreaId"
                             ValueChanged="@(async (Guid? id) => await OnAreaSelectedAsync(id))"
+                            AllowUserInput="true"
+                            DropDownTriggerMode="DropDownTriggerMode.Click"
+                            Text="@_areaText"
+                            TextChanged="@(async (string? t) => await OnAreaTextChangedAsync(t))"
                             NullText="@L["Select"].Value"
                             Enabled="@(!IsBusy && _selectedCountryId != null)"
                             SearchMode="ListSearchMode.AutoSearch"
@@ -62,8 +66,12 @@
                         TextFieldName="@nameof(LocalityDto.Name)"
                         Value="@_selectedLocalityId"
                         ValueChanged="@(async (Guid? id) => await OnLocalitySelectedAsync(id))"
+                        AllowUserInput="true"
+                        DropDownTriggerMode="DropDownTriggerMode.Click"
+                        Text="@_localityText"
+                        TextChanged="@(async (string? t) => await OnLocalityTextChangedAsync(t))"
                         NullText="@L["Select"].Value"
-                        Enabled="@(!IsBusy && _selectedAreaId != null)"
+                        Enabled="@(!IsBusy && HasAreaContext)"
                         SearchMode="ListSearchMode.AutoSearch"
                         SearchFilterCondition="ListSearchFilterCondition.Contains"
                         ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Never"
@@ -82,8 +90,12 @@
                             TextFieldName="@nameof(NeighborhoodDto.Name)"
                             Value="@_selectedNeighborhoodId"
                             ValueChanged="@(async (string? id) => await OnNeighborhoodSelectedAsync(id))"
+                            AllowUserInput="true"
+                            DropDownTriggerMode="DropDownTriggerMode.Click"
+                            Text="@_neighborhoodText"
+                            TextChanged="@(async (string? t) => await OnNeighborhoodTextChangedAsync(t))"
                             NullText="@L["Select"].Value"
-                            Enabled="@(!IsBusy && _selectedLocalityId != null)"
+                            Enabled="@(!IsBusy && HasLocalityContext)"
                             SearchMode="ListSearchMode.AutoSearch"
                             SearchFilterCondition="ListSearchFilterCondition.Contains"
                             ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Never"

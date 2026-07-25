@@ -34,22 +34,35 @@
           CloseOnOutsideClick="true"
           CssClass="user-avatar-flyout">
     <BodyContentTemplate Context="flyout">
-        <div class="user-avatar-flyout-body text-center">
-            <span class="erp-avatar-initials d-flex align-items-center justify-content-center mx-auto erp-avatar-lg mb-2" aria-hidden="true">@_initials</span>
-            <div class="fw-bold text-truncate" title="@_userName">@_userName</div>
+        @* HİZALAMA — kritik olan `align-self:stretch` (2026-07-25, DOM + tema CSS ile doğrulandı):
+           DevExpress `.dxbl-flyout-body` bir flex sütundur ve `align-items:flex-start` taşır → içindeki
+           gövdemiz İÇERİĞİ KADAR DARALIR. O yüzden `text-align:center` metin genişliğinde bir kutuda
+           ortalama yapıyor (görünür etki yok), `margin:0 auto` ortalayacak boşluk bulamıyor ve buton dar
+           kalıyordu. `align-self:stretch` parent'ın flex-start'ını ezip kabuğu tam genişliğe açar; ancak
+           ondan SONRA ortalama anlam kazanır.
+           Stiller sınıf yerine INLINE: gövde flyout portalına taşındığından torun seçiciler
+           (`.user-avatar-flyout-body .erp-avatar-lg`) ve utility sınıfları oraya ulaşmıyor.
+           Çıkış butonu grid içinde: grid öğesi varsayılan olarak tam genişliğe uzar (w-100 gerekmez). *@
+        <div class="user-avatar-flyout-body" style="align-self:stretch; text-align:center;">
+            <span class="erp-avatar-initials erp-avatar-lg" aria-hidden="true"
+                  style="display:flex; margin:0 auto 0.5rem;">@_initials</span>
+            <div title="@_userName"
+                 style="font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">@_userName</div>
             @if (!string.IsNullOrEmpty(_tenantName))
             {
-                <div class="text-muted small text-truncate mb-3" title="@_tenantName">@_tenantName</div>
+                <div title="@_tenantName"
+                     style="font-size:0.85rem; opacity:0.65; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin-bottom:0.75rem;">@_tenantName</div>
             }
             else
             {
-                <div class="mb-3"></div>
+                <div style="margin-bottom:0.75rem;"></div>
             }
-            <DxButton Text="@L["Logout"]"
-                      IconCssClass="custom-icon-sign-out"
-                      RenderStyle="ButtonRenderStyle.Secondary"
-                      CssClass="w-100"
-                      Click="OnLogout" />
+            <div style="display:grid;">
+                <DxButton Text="@L["Logout"]"
+                          IconCssClass="custom-icon-sign-out"
+                          RenderStyle="ButtonRenderStyle.Secondary"
+                          Click="OnLogout" />
+            </div>
         </div>
     </BodyContentTemplate>
 </DxFlyout>
@@ -97,7 +110,9 @@
         }
         catch { /* ağ hatası olsa bile login'e yönlendir */ }
 
-        Navigation.NavigateTo("/account/login", forceLoad: true);
+        // replace:true → çıkış sonrası tarayıcı "geri"si uygulamaya (yetkisiz sayfaya) dönmez; login tek
+        // kayıt olarak geçmişi devralır. forceLoad zorunlu: WASM baştan yüklenip auth state sıfırlansın.
+        Navigation.NavigateTo("/account/login", forceLoad: true, replace: true);
     }
 
     private static string BuildInitials(string? fullName, string userName)

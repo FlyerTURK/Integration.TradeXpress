@@ -46,7 +46,7 @@ public class SalesChannelAppService : TradeXpressAppService, ISalesChannelAppSer
             .ApplyListRequest(input, AllowedListFields);
 
         var totalCount = await AsyncExecuter.CountAsync(query);
-        var items = await AsyncExecuter.ToListAsync(query.Skip(input.SkipCount).Take(input.MaxResultCount));
+        var items = await AsyncExecuter.ToListAsync(query.ApplyPaging(input));
 
         // ObjectMapper (base property'leri) + türetilmiş ChannelType (concrete alt-tipten) — inline projeksiyon.
         return new PagedResultDto<SalesChannelListDto>(

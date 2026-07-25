@@ -74,15 +74,22 @@
         m.Users.Add(new TenantUserInput
         {
             UserName = "admin",
-            Email = "admin@admin.com",
+            // E-posta BOŞ başlar: tenant adı yazıldıkça "admin@{tenantadi}.com" olarak türetilir
+            // (TenantLayout.SyncAdminEmailDefault). Sabit "admin@admin.com" her tenant'ta aynı kalıyordu.
+            Email = string.Empty,
             IsAdmin = true,
             // Her modda (Debug/Development/Release) standart başlangıç şifresi — Release'de boş gelip
             // validation'a takılmasın. Admin ilk girişte değiştirir.
             Password = "1q2w3E*",
             PasswordConfirm = "1q2w3E*",
         });
+        // Şirket + merkez şube düğümü BOŞ kod/ad ile kurulur: onboarding'de bunları KULLANICI elle girer
+        // (kullanıcı kararı). Ön-doldurma ("MRK"/"Merkez") kaldırıldı — herkesin şirketi "Merkez" olmasın.
+        // Kasa ise OTOMATİK: NewCompany varsayılan kasayı kurar, formda hiç sorulmaz.
         m.Companies.Add(TenantLayout.NewCompany(
-            "MRK", "Merkez", TenantLayout.CountryIdOf("TR", _countries), isHeadquarters: true, _units, _countries));
+            code: string.Empty, name: string.Empty,
+            countryId: TenantLayout.CountryIdOf("TR", _countries),
+            isHeadquarters: true, _units, _countries));
     }
 }
 

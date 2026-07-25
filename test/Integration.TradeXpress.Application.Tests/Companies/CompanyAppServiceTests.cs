@@ -1,5 +1,6 @@
 using System.Linq;
 using System.Threading.Tasks;
+using Integration.Framework.Base.Dtos;
 using Integration.TradeXpress.Countries;
 using Integration.TradeXpress.Financials.CurrencyUnits;
 using Shouldly;
@@ -40,7 +41,9 @@ public abstract class CompanyAppServiceTests<TStartupModule> : TradeXpressApplic
         var usd = (await _currencyUnitAppService.GetListAsync(new CurrencyUnitListRequestDto { Filter = "USD" }))
             .Items.Single(u => u.Code == CurrencyUnitCode.USD);
         // Country id-only geçişi: DTO artık kod değil Country.Id taşır (katalogdan çözülür).
-        var us = (await _countryAppService.GetListAsync(new CountryListRequestDto { MaxResultCount = 100 }))
+        // AllPages: 249 ülkeden "US"u aramak için katalogun TAMAMI gerekir. MaxResultCount=100 yazılıydı ve
+        // sunucu 200'e kırptığı için alfabetik sona düşen US listeye hiç girmiyordu → Single() "eleman yok".
+        var us = (await _countryAppService.GetListAsync(new CountryListRequestDto { MaxResultCount = ListRequestDto.AllPages }))
             .Items.Single(c => c.Code == "US");
 
         await Should.ThrowAsync<BusinessException>(() => _appService.CreateAsync(new CompanyCreateDto

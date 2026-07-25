@@ -1,4 +1,4 @@
-@using System
+﻿@using System
 @using System.Linq
 @using Integration.TradeXpress.Companies
 @using Integration.TradeXpress.Countries
@@ -12,10 +12,17 @@
 @* Şirket alanları (paylaşılan). EditForm/EditContent içinde kullanılır (validasyon cascade'i için). Şube/kasa
    drill'i AYRI bileşendedir (CompanyBranchDrill) — iç içe DrillList'i EditContent'e gömmek NRE verir. *@
 
-<DxFormLayout CssClass="w-100">
+@{
+    @* Alanlar TEK yerde; Embedded moduna göre sarmalanır. EMBEDDED=true iken KENDİ DxFormLayout'unu
+       RENDER ETMEZ → parent'ın TEK layout'una iner (caption sütunları hizalı kalır; iç içe/tekrarlayan
+       DxFormLayout yığmak kaymaya yol açıyordu). AddressFields/GeographyCascadePicker ile aynı desen. *@
+    RenderFragment companyItems =@<text>
     <DxFormLayoutGroup Caption="@L["General"]" ColSpanMd="12">
+        @* Kod yazarken ANINDA büyük harfe döner — sunucu zaten öyle saklıyor (StringFieldGuard.NormalizeCode),
+           kullanıcı gördüğü ile kaydedilenin aynı olduğunu bilsin. Çevrim INVARIANT: sunucuyla BİREBİR aynı olmalı,
+           kültüre duyarlı çevrim Türkçe'de "i"yi "İ" yapıp sunucunun ürettiği "I"dan sapardı. *@
         <DxFormLayoutItem Caption="@($"{L["Code"]} *")" ColSpanMd="6">
-            <DxTextBox @bind-Text="@Model.Code" Enabled="@CodeEnabled" />
+            <DxTextBox @bind-Text="@Model.Code" @bind-Text:after="UpperCaseCode" Enabled="@CodeEnabled" />
         </DxFormLayoutItem>
         <DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="12">
             <DxTextBox @bind-Text="@Model.Name" />
@@ -56,25 +63,47 @@
             </Template>
         </DxFormLayoutItem>
         @* Şirketin kendi merkez switch'i — Enabled host'tan (standalone: snapshot; tenant düğümü: canlı self-hariç). *@
-        <DxFormLayoutItem Caption="@L["IsHeadquarters"]" ColSpanMd="6">
-            <DxCheckBox @bind-Checked="@Model.IsHeadquarters" CheckType="CheckType.Switch" Enabled="@HeadquartersEnabled">
-                @(Model.IsHeadquarters ? L["Yes"] : L["No"])
-            </DxCheckBox>
-        </DxFormLayoutItem>
+        @if (ShowHeadquarters)
+        {
+            <DxFormLayoutItem Caption="@L["IsHeadquarters"]" ColSpanMd="6">
+                <DxCheckBox @bind-Checked="@Model.IsHeadquarters" CheckType="CheckType.Switch" Enabled="@HeadquartersEnabled">
+                    @(Model.IsHeadquarters ? L["Yes"] : L["No"])
+                </DxCheckBox>
+            </DxFormLayoutItem>
+        }
+
+        @* Grubun SONUNA çağıranın içeriği (opsiyonel). Onboarding'de merkez şube grubu buraya iner → şube,
+           şirketin çerçevesi İÇİNDE görünür (aidiyet görsel olarak da belli olur). Boşsa hiçbir şey render edilmez. *@
+        @GroupFooter
     </DxFormLayoutGroup>
 
-    <DxFormLayoutItem Caption="@L["Description"]" ColSpanMd="12">
-        <DxMemo @bind-Text="@Model.Description" Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100" />
-    </DxFormLayoutItem>
-    <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6">
-        <DxCheckBox @bind-Checked="@Model.IsActive" CheckType="CheckType.Switch">
-            @(Model.IsActive ? L["Active"] : L["Passive"])
-        </DxCheckBox>
-    </DxFormLayoutItem>
-    <DxFormLayoutItem Caption="@L["DisplayOrder"]" ColSpanMd="6">
-        <NumericSpinEdit @bind-Value="@Model.DisplayOrder" />
-    </DxFormLayoutItem>
-</DxFormLayout>
+    @if (ShowAdvancedFields)
+    {
+        <DxFormLayoutItem Caption="@L["Description"]" ColSpanMd="12">
+            <DxMemo @bind-Text="@Model.Description" Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6">
+            <DxCheckBox @bind-Checked="@Model.IsActive" CheckType="CheckType.Switch">
+                @(Model.IsActive ? L["Active"] : L["Passive"])
+            </DxCheckBox>
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["DisplayOrder"]" ColSpanMd="6">
+            <NumericSpinEdit @bind-Value="@Model.DisplayOrder" />
+        </DxFormLayoutItem>
+    }
+</text>;
+}
+
+@if (Embedded)
+{
+    @companyItems
+}
+else
+{
+    <DxFormLayout CssClass="w-100">
+        @companyItems
+    </DxFormLayout>
+}
 
 @code {
     [Parameter, EditorRequired] public ICompanyGraph Model { get; set; } = default!;
@@ -83,11 +112,36 @@
     [Parameter] public bool HeadquartersEnabled { get; set; } = true;
     [Parameter] public bool CodeEnabled { get; set; } = true;
 
+    /// <summary>Merkez switch'i görünsün mü. Onboarding'de GİZLİ: tenant'ın ilk şirketi tanımı gereği merkezdir,
+    /// seçenek sunmak yanıltıcı olur. Varsayılan true → mevcut yüzeyler (standalone/şirket drill'i) değişmez.</summary>
+    [Parameter] public bool ShowHeadquarters { get; set; } = true;
+
+    /// <summary>Açıklama / Durum / Sıra görünsün mü. Onboarding'de GİZLİ — kullanıcı varsayılanlarla başlar,
+    /// bu alanları sonradan şirket ekranından düzenler. Değerler yine DTO'da (varsayılanlarıyla) taşınır.</summary>
+    [Parameter] public bool ShowAdvancedFields { get; set; } = true;
+
+    /// <summary>Gömülü mod — true iken KENDİ <c>DxFormLayout</c> wrapper'ını render ETMEZ, yalnız item'ları verir →
+    /// parent'ın TEK layout'una iner. Üst üste layout yığmak caption sütunlarını kaydırıyordu.</summary>
+    [Parameter] public bool Embedded { get; set; }
+
+    /// <summary>Şirket grubunun SONUNA eklenecek içerik (opsiyonel) — ör. onboarding'de merkez şube grubu.
+    /// Null → hiçbir şey render edilmez; mevcut yüzeyler etkilenmez.</summary>
+    [Parameter] public RenderFragment? GroupFooter { get; set; }
+
     // Quick-add/edit (opsiyonel; host bağlar → +/✎ butonları görünür). Boşsa butonlar gizli.
     [Parameter] public Func<Task<Guid>>? OnAddCurrency { get; set; }
     [Parameter] public Func<Guid, Task>? OnEditCurrency { get; set; }
     [Parameter] public Func<Task<Guid?>>? OnAddCountry { get; set; }
     [Parameter] public Func<Guid?, Task>? OnEditCountry { get; set; }
+
+    // Kod daima BÜYÜK HARF (invariant — sunucudaki NormalizeCode ile aynı çevrim).
+    private void UpperCaseCode()
+    {
+        if (!string.IsNullOrEmpty(Model.Code))
+        {
+            Model.Code = Model.Code.ToUpperInvariant();
+        }
+    }
 
     private void OnCountryChanged(Guid? countryId)
     {

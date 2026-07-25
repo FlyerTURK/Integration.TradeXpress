@@ -43,7 +43,7 @@ public class AssayOfficeAppService : TradeXpressAppService, IAssayOfficeAppServi
             .ApplyListRequest(input, AllowedListFields);
 
         var totalCount = await AsyncExecuter.CountAsync(query);
-        var items = await AsyncExecuter.ToListAsync(query.Skip(input.SkipCount).Take(input.MaxResultCount));
+        var items = await AsyncExecuter.ToListAsync(query.ApplyPaging(input));
 
         return new PagedResultDto<AssayOfficeListDto>(
             totalCount, items.Select(e => ObjectMapper.Map<AssayOffice, AssayOfficeListDto>(e)).ToList());

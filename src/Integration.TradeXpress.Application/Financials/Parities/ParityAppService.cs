@@ -109,7 +109,7 @@ public class ParityAppService
 
             var totalCount = await AsyncExecuter.CountAsync(rows);
             var items = await AsyncExecuter.ToListAsync(
-                rows.Skip(input.SkipCount).Take(input.MaxResultCount));
+                rows.ApplyPaging(input));
 
             return new PagedResultDto<ParityListDto>(totalCount, items.Select(ToListDto).ToList());
         }

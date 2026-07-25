@@ -11,7 +11,10 @@
         else
         {
             var returnUrl = Uri.EscapeDataString(Navigation.Uri);
-            Navigation.NavigateTo($"/account/login?returnUrl={returnUrl}", forceLoad: true);
+            // replace:true → korumalı sayfanın geçmiş kaydını login DEVRALIR (yenisini eklemez). Aksi halde
+            // kullanıcı login'de "geri"ye basıp yetkisiz sayfaya dönüyor, oradan tekrar login'e atılıyor ve
+            // geçmişte bir ileri-geri döngüsü oluşuyordu. returnUrl korunur → giriş sonrası aynı sayfaya iner.
+            Navigation.NavigateTo($"/account/login?returnUrl={returnUrl}", forceLoad: true, replace: true);
         }
     }
 }

@@ -1,4 +1,4 @@
-using Integration.TradeXpress.Financials.CurrencyUnits;
+﻿using Integration.TradeXpress.Financials.CurrencyUnits;
 using Integration.TradeXpress.Products;
 using Integration.TradeXpress.Vouchers;
 using Integration.TradeXpress.MultiCompany;
@@ -11,8 +11,10 @@ namespace Integration.TradeXpress.Metals;
 /// üstüne <b>işçilik (labor)</b> ve <b>sikke/adet</b> takibi ekler. Bir ana birim (<see cref="FollowingUnitId"/>,
 /// ZORUNLU; ör. HAS) + <see cref="Factor"/> (milyem; gram-altı ≤1, sikke birim-başı HAS-gram &gt;1) taşır.
 ///
-/// <para>Host + tenant scoped (Scrap gibi): host kataloğu (TenantId=null) herkese görünür, tenant
-/// düzenleyemez/silemez; tenant kendi kayıtlarını ekleyebilir.</para>
+/// <para><b>Şirkete AİTTİR</b> (<see cref="ICompanyOwned"/> — güvenlik sınırı, görev #4): katalog tenant-geneli
+/// DEĞİL şirket kapsamlıdır; bir şirketin kullanıcısının düzenlemesi kardeş şirketleri etkilemez.
+/// <see cref="CompanyId"/> ZORUNLU — sahipsiz ("holding") kayıt üretilemez; sahiplik client'tan değil aktif
+/// working company'den damgalanır (<c>CompanyOwnershipGuard</c>).</para>
 /// </summary>
 public class Metal : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwned
 {
@@ -137,6 +139,26 @@ public class Metal : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwned
     public virtual void SetActive(bool value)
     {
         IsActive = value;
+    }
+
+    /// <summary>Tek seferlik geçiş backfill'i (migration sonrası): <see cref="CompanyId"/> yalnız BOŞSA
+    /// doldurulur. Emtianın SubAccount/Vault gibi bir PARENT'ı YOKTUR (sahibi kanıtlayan yapısal bağ yok) →
+    /// sahip POLİTİKA ile seçilir: tenant'ın merkez (HQ) şirketi (bkz. <c>CompanyOwnedBackfiller</c>).
+    /// Zaten doluysa DOKUNMAZ (idempotent no-op; set-once invariant korunur — Empty→değer geçişi mümkün,
+    /// yeniden atama DEĞİL).</summary>
+    public virtual void BackfillCompanyIfMissing(Guid companyId)
+    {
+        if (CompanyId != Guid.Empty)
+        {
+            return;
+        }
+
+        if (companyId == Guid.Empty)
+        {
+            throw new RequiredPropertyException(nameof(CompanyId));
+        }
+
+        CompanyId = companyId;
     }
 
     /// <summary>Görseli ayarlar — kaynağı boş görsel (URL'siz Url tipi / blob'suz Upload tipi / bilinmeyen tip)

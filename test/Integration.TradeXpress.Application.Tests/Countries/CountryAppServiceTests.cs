@@ -1,5 +1,6 @@
 using System.Linq;
 using System.Threading.Tasks;
+using Integration.Framework.Base.Dtos;
 using Integration.TradeXpress.Financials.CurrencyUnits;
 using Shouldly;
 using Volo.Abp.Modularity;
@@ -20,7 +21,10 @@ public abstract class CountryAppServiceTests<TStartupModule> : TradeXpressApplic
     [Fact]
     public async Task Host_should_have_seeded_country_catalog()
     {
-        var list = await _appService.GetListAsync(new CountryListRequestDto { MaxResultCount = 100 });
+        // AllPages: katalogun TAMAMI. Eskiden MaxResultCount=100 yazıyordu ve ApplyListRequest 200'e kırptığı
+        // için 249 ülkenin yalnız bir kısmı dönüyordu → alfabetik olarak sona düşen ülkeler (US dahil) testte
+        // "bulunamadı" veriyordu. Sayı yazmak yerine niyeti yazıyoruz.
+        var list = await _appService.GetListAsync(new CountryListRequestDto { MaxResultCount = ListRequestDto.AllPages });
 
         list.TotalCount.ShouldBeGreaterThanOrEqualTo(10);
 

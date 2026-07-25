@@ -448,11 +448,10 @@ public partial class DrillList<TItem> where TItem : class
     // Validation hatalarını normal edit formlarıyla AYNI şekilde göster: her mesaj AYRI DxToast (XAF tarzı,
     // CrudEditComponentBase.ShowError ile aynı desen). Popup'taki inline ValidationSummary'ye EK — bu app'te
     // Bootstrap alert stili etkisiz olduğundan toast asıl görünür bildirimdir.
+    // Mantık merkezî EditContextValidationExtensions'ta (ValueObjectEditPopup ile AYNI yol — kopya YOK).
     private void ShowValidationToasts()
     {
-        if (_editContext == null) return;
-        foreach (var msg in _editContext.GetValidationMessages().Distinct())
-            UiService.ShowErrorToast(msg);
+        _editContext.ShowValidationToasts(UiService);
     }
 
     private async Task SaveAsync()

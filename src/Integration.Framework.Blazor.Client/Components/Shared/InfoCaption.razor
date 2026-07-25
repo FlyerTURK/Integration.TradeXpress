@@ -4,11 +4,24 @@
    Bilgi başlığı: caption'ın KENDİSİ link (grid-btn-link: mavi/altçizgili, el imleci). Tıklanınca hint
    flyout'u açılır — ayrı (i) ikonu yok. HintText flyout panelinde gösterilir.
 *@
-<span style="display:inline-flex; align-items:center; padding-top:5px; padding-right:5px;">
-    <span id="@_id" class="grid-btn-link" style="cursor:pointer;"
-          @onclick="@(() => _hintOpen = !_hintOpen)"
-          @onclick:stopPropagation="true">@Text@(Required ? " *" : "")</span>
-</span>
+@* HİZALAMA (2026-07-25, DOM karşılaştırmasıyla doğrulandı):
+     normal caption  → <label class="dxbl-fl-cpt dxbl-text">
+     CaptionTemplate → <div   class="dxbl-fl-cpt dxbl-fl-caption-tmpl">   ← "dxbl-text" YOK
+   Hizayı veren `.dxbl-text`: inline-flex + align-items:center + padding .25rem/.375rem + 1px şeffaf kenarlık.
+   Template sarmalayıcısında bu sınıf bulunmadığından metin hücrenin tepesine yapışıp standart caption'lardan
+   kayıyordu (`.dxbl-fl-caption-tmpl`'in CSS'te HİÇ kuralı yok — salt işaretleyici).
+   Çözüm: hardcoded piksel DEĞİL — DevExpress'in KENDİ caption sınıfını span'e ekliyoruz; tema/boyut (dxbl-sm/lg)
+   değişince padding de onunla değişir.
+   ANCAK `grid-btn-link` (main.css) `border:0; padding:0` ile o geometriyi SİLİYOR — o sınıf grid hücresindeki
+   <button> için yazılmış, orada doğru. Sonuç: caption kontrole yapışık + ~5px yukarıda (kullanıcı bulgusu).
+   grid-btn-link'i DEĞİŞTİRMİYORUZ (gerçek grid butonlarını bozar) → geometriyi burada geri veriyoruz, ama SABİT
+   PİKSELLE DEĞİL, dxbl-text'in KENDİ CSS değişkenleriyle: tema/boyut (dxbl-sm/lg) o değişkenleri yeniden tanımlar,
+   hizalama onunla birlikte kayar. Sol boşluk 0 — DevExpress'in `.dxbl-fl .dxbl-fl-cpt{padding-left:0}` kuralı
+   normal caption'da label'a uygulanır, bizde dış div'e uygulandığından span'e ulaşmaz; elle eşliyoruz. *@
+<span id="@_id" class="dxbl-text grid-btn-link"
+      style="cursor:pointer; border:1px solid transparent; padding:var(--dxbl-text-padding-y) var(--dxbl-text-padding-x) var(--dxbl-text-padding-y) 0;"
+      @onclick="@(() => _hintOpen = !_hintOpen)"
+      @onclick:stopPropagation="true">@Text@(Required ? " *" : "")</span>
 <DxFlyout @bind-IsOpen="_hintOpen"
           PositionTarget="@($"#{_id}")">
     <BodyTemplate>
