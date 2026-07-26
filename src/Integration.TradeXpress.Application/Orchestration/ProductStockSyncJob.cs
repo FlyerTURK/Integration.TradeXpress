@@ -12,6 +12,7 @@ using Volo.Abp.DependencyInjection;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Linq;
 using Volo.Abp.MultiTenancy;
+using Volo.Abp.Security.Claims;
 using Volo.Abp.Uow;
 
 namespace Integration.TradeXpress.Orchestration;
@@ -64,6 +65,7 @@ public class ProductStockSyncJob : AsyncBackgroundJob<ProductStockSyncJobArgs>, 
     private readonly IUnitOfWorkManager _unitOfWorkManager;
     private readonly IAsyncQueryableExecuter _asyncExecuter;
     private readonly OrchestrationIdentityScope _identityScope;
+    private readonly ICurrentPrincipalAccessor _currentPrincipalAccessor;
     private readonly ILogger<ProductStockSyncJob> _logger;
 
     private const string ProductEntityName = "Product";
@@ -80,6 +82,7 @@ public class ProductStockSyncJob : AsyncBackgroundJob<ProductStockSyncJobArgs>, 
         IUnitOfWorkManager unitOfWorkManager,
         IAsyncQueryableExecuter asyncExecuter,
         OrchestrationIdentityScope identityScope,
+        ICurrentPrincipalAccessor currentPrincipalAccessor,
         ILogger<ProductStockSyncJob> logger)
     {
         _productRepository = productRepository;
@@ -93,6 +96,7 @@ public class ProductStockSyncJob : AsyncBackgroundJob<ProductStockSyncJobArgs>, 
         _unitOfWorkManager = unitOfWorkManager;
         _asyncExecuter = asyncExecuter;
         _identityScope = identityScope;
+        _currentPrincipalAccessor = currentPrincipalAccessor;
         _logger = logger;
     }
 
@@ -104,9 +108,10 @@ public class ProductStockSyncJob : AsyncBackgroundJob<ProductStockSyncJobArgs>, 
             // KİMLİK (2026-07-25 inceleme bulgusu #1 — zinciri kökten kıran hata): job kimliksiz koşar ama
             // zincirin app-service'leri ([Authorize]'lı muadil hesabı + N11 senkronu) yetki ister — kimliksiz
             // her tetik AbpAuthorizationException'dı (push tarafında SESSİZCE yutuluyordu). Tenant admin'i
-            // impersonate edilir (TenantAppService deseni); [Authorize] gevşetilmez (§2).
-            var identity = await _identityScope.EnterTenantAdminAsync();
-            if (identity is null)
+            // impersonate edilir; [Authorize] gevşetilmez (§2). Change BU frame'de kurulur — AsyncLocal
+            // kuralı (OrchestrationIdentityScope sınıf yorumu): await edilen metodun içinden geri akmaz.
+            var adminPrincipal = await _identityScope.BuildTenantAdminPrincipalAsync();
+            if (adminPrincipal is null)
             {
                 _logger.LogWarning(
                     "Orkestrasyon job'ı atlandı: tenant admin bulunamadı (Tenant={TenantId}, Product={ProductId}).",
@@ -114,7 +119,7 @@ public class ProductStockSyncJob : AsyncBackgroundJob<ProductStockSyncJobArgs>, 
                 return;
             }
 
-            using (identity)
+            using (_currentPrincipalAccessor.Change(adminPrincipal))
             {
                 // 1) STOK YENİDEN-HESAP kendi UoW'unda commit edilir — push (dış HTTP) bu transaction'ın DIŞINDA
                 //    kalır (ADR senkronluk sözleşmesi: push hatası hesap sonucunu geri almasın).

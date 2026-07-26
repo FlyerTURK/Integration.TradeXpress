@@ -16,16 +16,20 @@ namespace Integration.TradeXpress.Orchestration;
 /// <c>SalesChannelTrN11ProductAppService.SyncStockAndPriceAsync</c> [Authorize(SalesChannels.Update)])
 /// yetki ister → kimliksiz bağlamda AbpAuthorizationException: muadil job'ı her tetikte patlıyor,
 /// push ise pusher'ın catch'inde SESSİZCE yutuluyordu — kanala hiçbir şey gitmiyordu.
-/// <para><b>Çözüm:</b> tenant'ın admin kullanıcısını impersonate et — TenantAppService'in kanıtlanmış
-/// deseni (BuildPrincipalAsync + ICurrentPrincipalAccessor.Change). [Authorize] KAPATILMAZ (§2:
-/// güvenlik gevşetme yasak) — job, gerçek admin yetkileriyle meşru şekilde geçer.</para>
+/// <para><b>Çözüm:</b> tenant'ın admin kullanıcısı için principal ÜRETİLİR; <c>Change</c>'i ÇAĞIRAN kendi
+/// frame'inde yapar. [Authorize] KAPATILMAZ (§2: güvenlik gevşetme yasak) — job, gerçek admin
+/// yetkileriyle meşru şekilde geçer.</para>
+/// <para><b>Neden Change burada DEĞİL (2026-07-26 canlı teşhis):</b> <c>AsyncLocal</c> mutasyonu await edilen
+/// metodun İÇİNDEN çağırana GERİ AKMAZ — "scope'u açıp IDisposable döndüren async metot" deseni sessizce
+/// no-op oluyordu (principal çağıranda hiç görünmedi; konsol tanısı IsAuthenticated=False). Bu yüzden bu
+/// sınıf yalnız PRINCIPAL DÖNER; <c>using (_currentPrincipalAccessor.Change(principal))</c> çağıranın
+/// frame'inde kurulur ki await edilen tüm alt çağrılara aksın.</para>
 /// <para>Çağıran tenant bağlamını ÖNCE kurmalı (admin o tenant'ta aranır). Admin yoksa null döner —
 /// çağıran işi atlar ve loglar (sessiz sahte-başarı yok).</para>
 /// </summary>
 public class OrchestrationIdentityScope : ITransientDependency
 {
     private readonly IdentityUserManager _userManager;
-    private readonly ICurrentPrincipalAccessor _currentPrincipalAccessor;
     private readonly IUnitOfWorkManager _unitOfWorkManager;
 
     /// <summary>Tenant kurulumunda seed edilen admin rolü (ABP kuralı; TenantAppService ile aynı sabit).</summary>
@@ -33,21 +37,21 @@ public class OrchestrationIdentityScope : ITransientDependency
 
     public OrchestrationIdentityScope(
         IdentityUserManager userManager,
-        ICurrentPrincipalAccessor currentPrincipalAccessor,
         IUnitOfWorkManager unitOfWorkManager)
     {
         _userManager = userManager;
-        _currentPrincipalAccessor = currentPrincipalAccessor;
         _unitOfWorkManager = unitOfWorkManager;
     }
 
-    /// <summary>Geçerli tenant'ın admin'i olarak kimlik kapsamı açar; admin yoksa null (çağıran ele almalı).</summary>
-    public virtual async Task<IDisposable?> EnterTenantAdminAsync()
+    /// <summary>Geçerli tenant'ın admin'i için principal üretir; admin yoksa null (çağıran ele almalı).
+    /// ÇAĞIRAN kendi frame'inde <c>using (accessor.Change(principal))</c> kurar — sınıf yorumundaki
+    /// AsyncLocal kuralı gereği Change burada YAPILMAZ.</summary>
+    public virtual async Task<ClaimsPrincipal?> BuildTenantAdminPrincipalAsync()
     {
         var claims = new List<Claim>();
 
         // Kimlik okuma KENDİ UoW'unda: job bağlamında ambient UoW YOK — repository erişimi UoW'suz patlar.
-        // Claim'ler belleğe kopyalanır; principal kapsamı UoW kapandıktan sonra da yaşar.
+        // Claim'ler belleğe kopyalanır; principal UoW kapandıktan sonra da yaşar.
         using (var uow = _unitOfWorkManager.Begin(requiresNew: false))
         {
             var admins = await _userManager.GetUsersInRoleAsync(TenantAdminRoleName);
@@ -72,6 +76,6 @@ public class OrchestrationIdentityScope : ITransientDependency
             await uow.CompleteAsync();
         }
 
-        return _currentPrincipalAccessor.Change(new ClaimsPrincipal(new ClaimsIdentity(claims, "Orchestration")));
+        return new ClaimsPrincipal(new ClaimsIdentity(claims, "Orchestration"));
     }
 }
