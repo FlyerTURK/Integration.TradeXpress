@@ -38,8 +38,9 @@ public sealed record N11ShipmentTemplateData(
     IReadOnlyList<N11ShipmentCompanyRef> ShipmentCompanies,
     IReadOnlyList<N11ShipmentCityRef> DeliverableCities);
 
-/// <summary>Kargo firması referansı (N11'de id yok → name + shortName).</summary>
-public sealed record N11ShipmentCompanyRef(string Name, string ShortName);
+/// <summary>Kargo firması referansı (N11'de id yok → name + shortName). ShortName OPSİYONEL —
+/// N11 kısa-kodsuz firma döndürebiliyor (DHL/Asil/Fillo); wire gerçeği olduğu gibi taşınır.</summary>
+public sealed record N11ShipmentCompanyRef(string Name, string? ShortName);
 
 /// <summary>İl referansı (code + name).</summary>
 public sealed record N11ShipmentCityRef(string Code, string Name);

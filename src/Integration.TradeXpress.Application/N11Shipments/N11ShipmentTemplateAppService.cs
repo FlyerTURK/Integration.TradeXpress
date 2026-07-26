@@ -300,6 +300,12 @@ public class N11ShipmentTemplateAppService : TradeXpressAppService, IN11Shipment
 
     private static string? ResolveExternalId(N11ShipmentCompanyRef company, IReadOnlyDictionary<string, string> externalIdByShortName)
     {
+        // Kısa-kodsuz firma (ShortName null) ters-çözülemez — null anahtarla TryGetValue ArgumentNullException atardı.
+        if (string.IsNullOrEmpty(company.ShortName))
+        {
+            return null;
+        }
+
         return externalIdByShortName.TryGetValue(company.ShortName, out var externalId) ? externalId : null;
     }
 
@@ -513,6 +519,14 @@ public class N11ShipmentTemplateAppService : TradeXpressAppService, IN11Shipment
             var dict = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             foreach (var company in list)
             {
+                // ShortName OPSİYONEL (2026-07-26): N11 kısa-kodsuz firma döndürebiliyor (canlıda 3 satır NULL).
+                // Sözlük ANAHTARI olduğundan null atlanmalı — aksi halde ArgumentNullException tüm şablon
+                // import'unu düşürürdü. Kodsuz firma zaten ShortName ile geri-çözülemez (eşleşme kaynağı yok).
+                if (string.IsNullOrEmpty(company.ShortName))
+                {
+                    continue;
+                }
+
                 dict.TryAdd(company.ShortName, company.ExternalId);
             }
 
