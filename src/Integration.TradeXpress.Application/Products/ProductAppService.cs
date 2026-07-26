@@ -9,7 +9,6 @@ using Integration.TradeXpress.EtsyProducts;
 using Integration.TradeXpress.MultiCompany;
 using Integration.TradeXpress.N11Products;
 using Integration.TradeXpress.SalesChannels.Variants;
-using Integration.TradeXpress.Shipments;
 using Integration.TradeXpress.Orchestration;
 using Integration.TradeXpress.Substitutions;
 using Integration.TradeXpress.TrendyolProducts;
@@ -42,7 +41,6 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
     private const string ProductMediaEntityName = "Product";
 
     private readonly IRepository<Product, Guid> _repository;
-    private readonly IRepository<ShipmentTemplate, Guid> _shipmentTemplateRepository;   // yalnız OKUMA — FK→ad çözümü (K8-Faz1)
     private readonly IRepository<SubstitutionGroup, Guid> _substitutionGroupRepository; // yalnız OKUMA — FK varlık doğrulaması
     private readonly SubstitutionVariantMaterializer _substitutionMaterializer;   // muadil varyantlarını stoktan otomatik üretir
     private readonly IEntityVariantGraphService _entityVariant;
@@ -62,7 +60,6 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
 
     public ProductAppService(
         IRepository<Product, Guid> repository,
-        IRepository<ShipmentTemplate, Guid> shipmentTemplateRepository,
         IRepository<SubstitutionGroup, Guid> substitutionGroupRepository,
         SubstitutionVariantMaterializer substitutionMaterializer,
         IEntityVariantGraphService entityVariant,
@@ -78,7 +75,6 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         IEntityMediaAppService entityMedia)
     {
         _repository = repository;
-        _shipmentTemplateRepository = shipmentTemplateRepository;
         _substitutionGroupRepository = substitutionGroupRepository;
         _substitutionMaterializer = substitutionMaterializer;
         _entityVariant = entityVariant;
@@ -179,8 +175,7 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         entity.SetPersonalization(input.IsPersonalizable, input.PersonalizationInstructions,
             input.PersonalizationIsRequired, input.PersonalizationCharCountMax);
         ApplyMarketplaceDefaults(entity, input.Domestic, input.Condition, input.PreparingDay,
-            await ResolveShipmentTemplateNameAsync(input.ShipmentTemplateId, input.ShipmentTemplateName),
-            input.ShipmentTemplateId, input.MaxPurchaseQuantity, input.SellerNote,
+            input.MaxPurchaseQuantity, input.SellerNote,
             input.CurrencyUnitId, input.SpecialInfo, input.AddOns);
         // Varyant modu ÖNCE, muadil konfigürasyonu SONRA (mutator mod tutarlılığını modun güncel değerine göre kurar).
         await EnsureSubstitutionGroupExistsAsync(input.VariantMode, input.SubstitutionGroupId);
@@ -221,10 +216,7 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         entity.SetPersonalization(input.IsPersonalizable, input.PersonalizationInstructions,
             input.PersonalizationIsRequired, input.PersonalizationCharCountMax);
         ApplyMarketplaceDefaults(entity, input.Domestic, input.Condition, input.PreparingDay,
-            // previousTemplateId: kullanıcı katalog şablonunu TEMİZLEDİYSE legacy ad da düşsün (aşağıdaki not).
-            await ResolveShipmentTemplateNameAsync(
-                input.ShipmentTemplateId, input.ShipmentTemplateName, entity.ShipmentTemplateId),
-            input.ShipmentTemplateId, input.MaxPurchaseQuantity, input.SellerNote,
+            input.MaxPurchaseQuantity, input.SellerNote,
             input.CurrencyUnitId, input.SpecialInfo, input.AddOns);
         // Varyant modu ÖNCE, muadil konfigürasyonu SONRA (Create ile simetrik; mod dışı alanlar temizlenir).
         await EnsureSubstitutionGroupExistsAsync(input.VariantMode, input.SubstitutionGroupId);
@@ -610,8 +602,6 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         bool domestic,
         ProductCondition condition,
         int preparingDay,
-        string? shipmentTemplateName,
-        Guid? shipmentTemplateId,
         int? maxPurchaseQuantity,
         string? sellerNote,
         Guid? currencyUnitId,
@@ -621,8 +611,6 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         entity.SetDomestic(domestic);
         entity.SetCondition(condition);
         entity.SetPreparingDay(preparingDay);
-        entity.SetShipmentTemplate(shipmentTemplateName);
-        entity.SetShipmentTemplateId(shipmentTemplateId);
         entity.SetMaxPurchaseQuantity(maxPurchaseQuantity);
         entity.SetSellerNote(sellerNote);
         entity.SetCurrencyUnit(currencyUnitId);
@@ -696,27 +684,6 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         return grouped.ToDictionary(x => x.EntityId, x => x.Count);
     }
 
-    /// <summary>K8-Faz1: kargo şablonu adının OKUMA tek kaynağı FK — <paramref name="shipmentTemplateId"/> doluysa
-    /// çekirdek <see cref="ShipmentTemplate.Name"/> çözülür; FK boş ya da şablon bulunamıyorsa (silinmiş/bayat)
-    /// legacy string'e düşülür (kırmama garantisi). Yazma yolu da aynı çözümü kullanır → legacy kolon FK'den senkron
-    /// dolan denormalize snapshot olur (<see cref="ShipmentTemplate.SetCarrier"/> id+ad deseni); kolonun fiziksel
-    /// kaldırılması Faz-4 (K8).
-    /// <para><paramref name="previousTemplateId"/> (yalnız Update yolu): ürünün DEĞİŞİM ÖNCESİ FK'si. FK önce doluyken
-    /// şimdi boşsa kullanıcı şablonu TEMİZLEMİŞ demektir → legacy ad da düşer. Bu ayrım 2026-07-26'da zorunlu oldu:
-    /// serbest-metin textbox'ı formdan kaldırılınca (hayalet alan) kullanıcının adı ayrıca silme imkânı kalmadı;
-    /// aksi halde kaldırılan şablonun adı üründe takılı kalır, kanala yanlış kargo bilgisi giderdi. FK'si HİÇ olmamış
-    /// eski kayıtlarda (previousTemplateId null) legacy ad korunur.</para></summary>
-    private async Task<string?> ResolveShipmentTemplateNameAsync(
-        Guid? shipmentTemplateId, string? legacyName, Guid? previousTemplateId = null)
-    {
-        if (shipmentTemplateId is not { } id)
-        {
-            return previousTemplateId is null ? legacyName : null;
-        }
-
-        var template = await _shipmentTemplateRepository.FindAsync(id);
-        return template?.Name ?? legacyName;
-    }
 
     /// <summary>Muadil grubu FK'sinin VARLIK doğrulaması (kod-inceleme bulgusu). Aggregate'ler arası referans id-only
     /// olduğundan DB'de FK kısıtı YOKTUR (NavigationConventionTests) → doğrulama olmadan var olmayan/silinmiş bir grup
@@ -789,9 +756,6 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
             Domestic = p.Domestic,
             Condition = p.Condition,
             PreparingDay = p.PreparingDay,
-            // K8-Faz1: kargo şablonu adının OKUMA tek kaynağı FK — legacy string yalnız fallback.
-            ShipmentTemplateName = await ResolveShipmentTemplateNameAsync(p.ShipmentTemplateId, p.ShipmentTemplateName),
-            ShipmentTemplateId = p.ShipmentTemplateId,
             MaxPurchaseQuantity = p.MaxPurchaseQuantity,
             SellerNote = p.SellerNote,
             CurrencyUnitId = p.CurrencyUnitId,

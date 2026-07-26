@@ -33,7 +33,6 @@ public class TradeXpressMenus
     // Satış (Tanımlar altı alt grup) — kanal + kanalla ilişkili kataloglar
     public const string Sales               = Prefix + ".Sales";
     public const string SalesChannels       = Prefix + ".SalesChannels";
-    public const string ShipmentTemplates   = Sales + ".ShipmentTemplates";
     public const string Orders              = Prefix + ".Orders";
 
     public const string Currencies          = Prefix + ".Currencies";

@@ -148,13 +148,6 @@ public class TradeXpressMenuContributor : IMenuContributor
                 url: "/sales-channels",
                 icon: TradeXpressIcons.SalesChannel
             ).RequirePermissions(TradeXpressPermissions.SalesChannels.Default));
-            // Kargo Şablonları — birleşik ERP kargo şablonu katalogu (company-owned, kanal-nötr); ürün formunda seçilir.
-            sales.AddItem(new ApplicationMenuItem(
-                TradeXpressMenus.ShipmentTemplates,
-                l["ShipmentTemplates"],
-                url: "/shipment-templates",
-                icon: TradeXpressIcons.ShipmentTemplate
-            ).RequirePermissions(TradeXpressPermissions.ShipmentTemplates.Default));
             definitions.AddItem(sales);
         }
 

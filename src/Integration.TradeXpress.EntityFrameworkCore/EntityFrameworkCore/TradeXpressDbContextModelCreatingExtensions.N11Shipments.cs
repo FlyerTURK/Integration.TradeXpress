@@ -24,8 +24,8 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
             // ShortName OPSİYONEL — N11 kısa-kodsuz firma döndürebiliyor (bkz. entity notu); zorunluluk sync'i düşürüyordu.
             b.Property(x => x.ShortName).HasMaxLength(N11ShipmentConsts.ShortNameMaxLength);
             b.HasIndex(x => x.ExternalId).IsUnique().HasFilter("[IsDeleted] = 0");
-            // Çekirdek kargo firmasına gevşek köprü (nullable) — eşleme sorgusunu hızlandırır (N11City deseni).
-            b.HasIndex(x => x.CoreCarrierId);
+            // CoreCarrierId + indeksi KALDIRILDI (2026-07-26): köprü sahipli tarafa taşındı
+            // (TrCarrier.N11ShipmentCompanyId) — host-global ayna company-owned satırı adresleyemez.
         });
 
         builder.Entity<N11ShipmentTemplate>(b =>
@@ -62,7 +62,6 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
 
             // K1 köprüsü — çekirdek ERP kargo şablonu referansı (id-only, nav/FK YOK); çekirdek şablonun
             // silme-guard sorgusu (ShipmentTemplateId == id) bu index'i kullanır.
-            b.HasIndex(x => x.ShipmentTemplateId);
         });
     }
 

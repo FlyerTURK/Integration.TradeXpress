@@ -1,12 +1,14 @@
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using Integration.TradeXpress.Geography;
 using Integration.TradeXpress.N11Cities;
 using Integration.TradeXpress.N11Shipments;
-using Integration.TradeXpress.Shipments;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Volo.Abp.BackgroundWorkers;
+using Volo.Abp.MultiTenancy;
+using Volo.Abp.TenantManagement;
 using Volo.Abp.Threading;
 using Volo.Abp.Uow;
 
@@ -41,13 +43,10 @@ public class N11ReferenceSyncWorker : AsyncPeriodicBackgroundWorkerBase
         // çalıştırana kadar katalog bayat kalırdı. Bağımsız try/catch → düşse N11 sync'ini etkilemez.
         await RunSafe(workerContext, "coğrafya çekirdek eşleme", ReconcileCoreGeographyAsync);
         await RunSafe(workerContext, "kargo firması", sp => sp.GetRequiredService<IN11ShipmentCompanyAppService>().SyncAsync());
-        // Kargo firması re-sync'inden SONRA çekirdek Carrier kataloğunu tazeler (upsert + köprü) — çekirdek referans
-        // DB'de güncel kalsın. Bağımsız try/catch (RunSafe) → düşse N11 sync'ini etkilemez.
-        await RunSafe(workerContext, "kargo çekirdek eşleme", ReconcileCoreCarriersAsync);
     }
 
     /// <summary>Çekirdek coğrafya eşlemesini (GeographySeeder) çalıştırır — N11 il/ilçe aynasından
-    /// AdministrativeArea/Locality köprüsünü kurar. Carrier eşlemesiyle aynı UoW gerekçesi (aşağıya bkz.).
+    /// AdministrativeArea/Locality köprüsünü kurar. TrCarrier eşlemesiyle aynı UoW gerekçesi (aşağıya bkz.).
     /// Seeder idempotent: mevcut satırı yeniden eklemez, yalnız eksik köprüyü tamamlar.</summary>
     private static async Task<int> ReconcileCoreGeographyAsync(IServiceProvider serviceProvider)
     {
@@ -58,16 +57,6 @@ public class N11ReferenceSyncWorker : AsyncPeriodicBackgroundWorkerBase
         return 0;   // seeder sayı döndürmez; ayrıntı kendi log'unda (il/ilçe adedi)
     }
 
-    // Çekirdek Carrier eşlemesini (CarrierSeeder) çalıştırır. Worker DoWork'te ambient UoW yoktur (app service
-    // çağrıları kendi UoW'unu açar; seeder doğrudan çağrıldığından) → seeder'ın SaveChanges'i için açık UoW aç.
-    private static async Task<int> ReconcileCoreCarriersAsync(IServiceProvider serviceProvider)
-    {
-        var unitOfWorkManager = serviceProvider.GetRequiredService<IUnitOfWorkManager>();
-        using var uow = unitOfWorkManager.Begin();
-        var linked = await serviceProvider.GetRequiredService<CarrierSeeder>().SeedAsync();
-        await uow.CompleteAsync();
-        return linked;
-    }
 
     private async Task RunSafe(PeriodicBackgroundWorkerContext context, string label, Func<IServiceProvider, Task<int>> sync)
     {
@@ -78,7 +67,9 @@ public class N11ReferenceSyncWorker : AsyncPeriodicBackgroundWorkerBase
         }
         catch (Exception ex)
         {
-            Logger.LogWarning(ex, "N11 {Label} re-sync atlandı (kimlik/ağ?).", label);
+            // Etiket "kimlik/ağ?" DEMİYOR artık: 2026-07-26'da kargo sync'i aylarca bu yanıltıcı mesajla
+            // yutuldu; gerçek sebep domain doğrulamasıydı. Sebep tahmini yerine exception'ın kendisi konuşsun.
+            Logger.LogWarning(ex, "N11 {Label} re-sync BAŞARISIZ.", label);
         }
     }
 }

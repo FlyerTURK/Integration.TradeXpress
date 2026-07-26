@@ -65,9 +65,7 @@ public class TradeXpressDbContext :
     public DbSet<Vault> Vaults { get; set; } = null!;
     public DbSet<AssayOffice> AssayOffices { get; set; } = null!;
     public DbSet<AddOn> AddOns { get; set; } = null!;
-    public DbSet<Integration.TradeXpress.Shipments.ShipmentTemplate> ShipmentTemplates { get; set; } = null!;
     // Çekirdek kargo firması — HOST-GLOBAL (IMultiTenant değil; tüm tenant'lar paylaşır; Geography deseni).
-    public DbSet<Integration.TradeXpress.Shipments.Carrier> Carriers { get; set; } = null!;
     public DbSet<VariantTemplate> VariantTemplates { get; set; } = null!;
     public DbSet<SchedulerAppointment> SchedulerAppointments { get; set; } = null!;
     public DbSet<Cash> Cashes { get; set; } = null!;
@@ -228,8 +226,6 @@ public class TradeXpressDbContext :
         builder.ConfigureVaults();
         builder.ConfigureAssayOffices();
         builder.ConfigureAddOns();
-        builder.ConfigureShipmentTemplates();
-        builder.ConfigureCarriers();
         builder.ConfigureVariantTemplates();
         builder.ConfigureProducts();
         builder.ConfigureSchedulerAppointments();

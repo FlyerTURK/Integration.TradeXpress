@@ -870,7 +870,7 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
             .ToList();
 
         // K8-Faz1: kargo şablonu adı canlı-referans/FK-onarım zinciriyle çözülür (loose string tek başına kaynak değil).
-        var shipmentTemplateName = await ResolvePushShipmentTemplateNameAsync(channelProduct, product);
+        var shipmentTemplateName = ResolvePushShipmentTemplateName(channelProduct);
 
         var data = new N11ProductData(
             ProductSellerCode: channelProduct.SellerCode,   // KAYIT-bazlı upsert kimliği — her kayıt N11'de AYRI listeleme
@@ -909,50 +909,12 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
     /// (kod donması yalnız başarılı push'ta gerçekleşsin diye ReconcileSkus çağrısı push sonrasına ertelenir).</summary>
     private sealed record N11ProductPushPlan(N11ProductData Data, List<N11SkuPushCandidate> Candidates);
 
-    /// <summary>K8-Faz1: N11'e gidecek kargo şablonu adının okuma zinciri —
-    /// (a) kanal-ürünün seçili adı YEREL N11 şablon aynasında hâlâ mevcutsa (canlı referans) AYNEN kullanılır
-    ///     (kullanıcının kanal-seviyesi seçimi ezilmez — K10 "kanal-dolu-ise-kanal" deseni);
-    /// (b) bayat/boşsa ürün FK zinciri ONARIR: <c>Product.ShipmentTemplateId</c> → K1 köprüsü
-    ///     (<c>N11ShipmentTemplate.ShipmentTemplateId == çekirdek</c> + aynı kanal) → <c>TemplateName</c>
-    ///     (LogWarning ile görünür onarım — sessiz kalmasın);
-    /// (c) o da çözülmezse ham string olduğu gibi gider (mevcut davranış — kırmama garantisi; N11 kendi doğrular).
-    /// Canlılık kontrolü YEREL aynaya karşı — push hazırlığına canlı N11 çağrısı EKLENMEZ. Kanal kolonunun id-only'ye
-    /// çevrimi (N1) Faz-4 işi; bu zincir o güne kadar okuma tarafını FK-öncelikli tutar.</summary>
-    private async Task<string> ResolvePushShipmentTemplateNameAsync(SalesChannelTrN11Product channelProduct, Product product)
+    /// <summary>N11'e gidecek kargo şablonu adı — kanal-ürünün kendi seçimi.
+    /// <para>2026-07-26: eski FK onarım kolu KALKTI. Kargo artık YALNIZ kanal seviyesinde yaşıyor (çekirdek
+    /// <c>ShipmentTemplate</c> ve ürün üzerindeki bağı silindi) → onarılacak bir çekirdek referans yok.
+    /// Ad kimliktir (N11'de ayrı şablon id'si yok); doğrulamayı N11 kendi yapar.</para></summary>
+    private static string ResolvePushShipmentTemplateName(SalesChannelTrN11Product channelProduct)
     {
-        // Ad kimliktir (N11'de ayrı şablon id'si yok) — trim'li karşılaştırma (NormalizeName deseni; ayna adları zaten trim'li).
-        var storedName = channelProduct.ShipmentTemplateName?.Trim() ?? string.Empty;
-
-        // (a) Seçili ad yerel aynada CANLI referans mı? (aynı kanal + birebir ad)
-        if (storedName.Length > 0)
-        {
-            var isLive = await AsyncExecuter.AnyAsync(
-                (await _n11ShipmentTemplateRepository.GetQueryableAsync())
-                    .Where(t => t.SalesChannelId == channelProduct.SalesChannelId && t.TemplateName == storedName));
-            if (isLive)
-            {
-                return storedName;
-            }
-        }
-
-        // (b) FK onarım zinciri: ürünün çekirdek şablonu → K1 köprüsüyle BU kanala açılmış N11 şablonu.
-        if (product.ShipmentTemplateId is { } coreTemplateId)
-        {
-            var repairedName = await AsyncExecuter.FirstOrDefaultAsync(
-                (await _n11ShipmentTemplateRepository.GetQueryableAsync())
-                    .Where(t => t.SalesChannelId == channelProduct.SalesChannelId && t.ShipmentTemplateId == coreTemplateId)
-                    .OrderBy(t => t.TemplateName)   // birden çok köprü varsa deterministik seçim
-                    .Select(t => t.TemplateName));
-            if (!string.IsNullOrEmpty(repairedName))
-            {
-                Logger.LogWarning(
-                    "N11 push: bayat kargo şablonu referansı FK'den onarıldı (kanal-ürün {ChannelProductId}: '{StaleName}' → '{RepairedName}').",
-                    channelProduct.Id, storedName, repairedName);
-                return repairedName;
-            }
-        }
-
-        // (c) Çözülemedi — ham string mevcut davranışla gider.
         return channelProduct.ShipmentTemplateName;
     }
 

@@ -7,6 +7,10 @@ namespace Integration.TradeXpress.N11Shipments;
 /// N11 kargo firması — <b>HOST-GLOBAL</b> referans (IMultiTenant DEĞİL; TenantId yok → tüm tenant'lar paylaşır).
 /// N11 ShipmentCompanyService.GetShipmentCompanies'ten sync'lenir (~68 firma; SOAP — REST'te yok). Düz liste:
 /// ExternalId + Name + ShortName. Aktif olabildiğinden periyodik re-sync (ekle/güncelle/sil).
+/// <para><b>Çekirdeği BİLMEZ</b> (2026-07-26): eskiden <c>CoreCarrierId</c> ile tekil köprü taşırdı; çekirdek
+/// <c>TrCarrier</c> company-owned olunca host-global tek satır N şirketin carrier'ından hangisini göstereceğini
+/// adresleyemez hâle geldi. Köprü sahipli tarafa taşındı (<c>TrCarrier.N11ShipmentCompanyId</c>) — ayna artık
+/// tenant/company dünyasından tamamen habersiz, katman yönü temiz.</para>
 /// </summary>
 public class N11ShipmentCompany : FullAuditedAggregateRoot<Guid>
 {
@@ -37,10 +41,6 @@ public class N11ShipmentCompany : FullAuditedAggregateRoot<Guid>
     /// (boşsa Name'den) çekirdek tarafın (<c>TrCarrierSeeder</c>) işidir.</summary>
     public string? ShortName { get; protected set; }
 
-    /// <summary>Çekirdek kargo firmasına gevşek köprü — eşlenen <see cref="Shipments.Carrier"/> id'si (nav YOK;
-    /// N11 çekirdeği BİLMEZ). CarrierSeeder doldurur; null = henüz eşlenmedi.</summary>
-    public Guid? CoreCarrierId { get; protected set; }
-
     #endregion
 
     #region Methods
@@ -57,12 +57,6 @@ public class N11ShipmentCompany : FullAuditedAggregateRoot<Guid>
     public virtual void SetShortName(string? shortName)
     {
         ShortName = StringFieldGuard.EnsureOptionalText(shortName, nameof(ShortName), 1, N11ShipmentConsts.ShortNameMaxLength);
-    }
-
-    /// <summary>Çekirdek kargo firması köprüsünü set eder (boş Guid → null). CarrierSeeder çağırır.</summary>
-    public virtual void SetCoreCarrier(Guid? carrierId)
-    {
-        CoreCarrierId = carrierId == Guid.Empty ? null : carrierId;
     }
 
     public override string ToString()

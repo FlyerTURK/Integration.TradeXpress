@@ -3,12 +3,10 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Integration.Framework.Addressing;
-using Integration.TradeXpress.Branches;
 using Integration.TradeXpress.MultiCompany;
 using Integration.TradeXpress.N11Cities;
 using Integration.TradeXpress.Permissions;
 using Integration.TradeXpress.SalesChannels;
-using Integration.TradeXpress.Shipments;
 using Microsoft.AspNetCore.Authorization;
 using Volo.Abp;
 using Volo.Abp.Domain.Repositories;
@@ -29,32 +27,23 @@ public class N11ShipmentTemplateAppService : TradeXpressAppService, IN11Shipment
     private readonly IRepository<SalesChannelTrN11, Guid> _channelRepository;
     private readonly IRepository<N11ShipmentCompany, Guid> _shipmentCompanyRepository;
     private readonly IRepository<N11City, Guid> _cityRepository;
-    private readonly IRepository<ShipmentTemplate, Guid> _coreTemplateRepository;   // yalnız OKUMA — FORWARD taslak: çekirdekten ön-doldurma
-    private readonly IRepository<Branch, Guid> _branchRepository;                   // yalnız OKUMA — çekirdek şube modunda gönderim adresi çözümü
     private readonly ICurrentCompany _currentCompany;
     private readonly IN11ShipmentTemplateClient _client;
-    private readonly IShipmentTemplateReconciler _coreReconciler;   // REVERSE K1 köprüsü — çekirdek bul-veya-oluştur (SRP; çekirdek repo N11 servisinde tutulmaz)
 
     public N11ShipmentTemplateAppService(
         IRepository<N11ShipmentTemplate, Guid> repository,
         IRepository<SalesChannelTrN11, Guid> channelRepository,
         IRepository<N11ShipmentCompany, Guid> shipmentCompanyRepository,
         IRepository<N11City, Guid> cityRepository,
-        IRepository<ShipmentTemplate, Guid> coreTemplateRepository,
-        IRepository<Branch, Guid> branchRepository,
         ICurrentCompany currentCompany,
-        IN11ShipmentTemplateClient client,
-        IShipmentTemplateReconciler coreReconciler)
+        IN11ShipmentTemplateClient client)
     {
         _repository = repository;
         _channelRepository = channelRepository;
         _shipmentCompanyRepository = shipmentCompanyRepository;
         _cityRepository = cityRepository;
-        _coreTemplateRepository = coreTemplateRepository;
-        _branchRepository = branchRepository;
         _currentCompany = currentCompany;
         _client = client;
-        _coreReconciler = coreReconciler;
     }
 
     public virtual async Task<List<N11ShipmentTemplateDto>> GetListAsync(Guid salesChannelId)
@@ -93,8 +82,6 @@ public class N11ShipmentTemplateAppService : TradeXpressAppService, IN11Shipment
 
         // Kaydet = N11 ile SENKRON: önce N11'e yaz (reddederse fırlatır → yerele DE yazılmaz, drift olmaz), sonra yerele.
         await PushToN11Async(entity, channel);
-        // REVERSE K1: push başarılı → çekirdeği bul-veya-oluştur + bağla (aynı UoW), sonra tek Insert ile persist.
-        await ReconcileCoreTemplateAsync(entity);
         await _repository.InsertAsync(entity, autoSave: true);
 
         return ObjectMapper.Map<N11ShipmentTemplate, N11ShipmentTemplateDto>(entity);
@@ -111,8 +98,6 @@ public class N11ShipmentTemplateAppService : TradeXpressAppService, IN11Shipment
 
         // Kaydet = N11 ile SENKRON: önce N11'e yaz, sonra yerele (push başarısız → yerel değişiklik de kalıcı olmaz).
         await PushToN11Async(entity, channel);
-        // REVERSE K1: push başarılı → henüz bağlı değilse çekirdeği bul-veya-oluştur + bağla (aynı UoW).
-        await ReconcileCoreTemplateAsync(entity);
         await _repository.UpdateAsync(entity, autoSave: true);
 
         return ObjectMapper.Map<N11ShipmentTemplate, N11ShipmentTemplateDto>(entity);
@@ -162,8 +147,6 @@ public class N11ShipmentTemplateAppService : TradeXpressAppService, IN11Shipment
             if (existing.TryGetValue(NormalizeName(data.TemplateName), out var entity))
             {
                 ApplyData(entity, data, externalIdByShortName);
-                // REVERSE K1: import ShipmentTemplateId'ye DOKUNMAZ → bağlı değilse çekirdeği geriye-doldur (idempotent).
-                await ReconcileCoreTemplateAsync(entity);
                 await _repository.UpdateAsync(entity, autoSave: true);
             }
             else
@@ -176,8 +159,6 @@ public class N11ShipmentTemplateAppService : TradeXpressAppService, IN11Shipment
                     (N11ShipmentMethod)data.ShipmentMethod,
                     ToAddress(data.WarehouseAddress));
                 ApplyData(created, data, externalIdByShortName);
-                // REVERSE K1: yeni içe aktarılan şablon çekirdeğe bağlı değil → bul-veya-oluştur + bağla, sonra tek Insert.
-                await ReconcileCoreTemplateAsync(created);
                 await _repository.InsertAsync(created, autoSave: true);
             }
 
@@ -197,68 +178,15 @@ public class N11ShipmentTemplateAppService : TradeXpressAppService, IN11Shipment
 
     // ── FORWARD taslak (çekirdek → N11 ön-doldurma) ─────────────────────────────────────────────────
 
-    [Authorize(TradeXpressPermissions.SalesChannels.Create)]
-    public virtual async Task<N11ShipmentTemplateCreateDto> BuildDeploymentDraftAsync(Guid shipmentTemplateId, Guid salesChannelId)
-    {
-        // Guard: kanal + çekirdek şablon ikisi de çalışılan şirkete ait (aksi → dostane bulunamadı).
-        var channel = await GetOwnedChannelAsync(salesChannelId);
-        var core = await GetOwnedCoreTemplateAsync(shipmentTemplateId);
-        var dispatchAddress = await ResolveDispatchAddressAsync(core);
-        // İade/değişim adresi: çekirdekte AYRI iade adresi yoksa depo (gönderim) adresinin aynısı (kullanıcı kararı).
-        var exchangeAddress = await ResolveExchangeAddressAsync(core, dispatchAddress);
-        // N11 adres başlığı (title) zorunlu → adreste başlık boşsa şube adından türet (gönderim şube modundaysa).
-        var fallbackTitle = await ResolveDispatchBranchNameAsync(core);
-
-        // PERSIST ETMEZ — yalnız ön-doldurulmuş taslak. Kullanıcı zorunlu N11 alanlarını tamamlayıp CreateAsync ile kaydeder
-        // (EnsureN11Requirements + push o zaman çalışır). DeliveryFeeType/ShipmentMethod: çekirdek FeeModel→N11 DeliveryFeeType
-        // eşlemesi TEMİZ DEĞİL (çekirdek "Free" için N11'de birebir karşılık yok) → eşleme YAPILMAZ; enum'ın ilk tanımlı değeri
-        // varsayılan (CLR default 0 her iki enumda da geçersiz) — kullanıcı formda seçer.
-        return new N11ShipmentTemplateCreateDto
-        {
-            SalesChannelId = salesChannelId,
-            ShipmentTemplateId = shipmentTemplateId,   // ileri köprü — reverse-reconcile bunu görüp ATLAR (origin-guard)
-            TemplateName = core.Name,
-            WarehouseAddress = ToAddressDto(dispatchAddress, fallbackTitle),
-            // N11 anlaşmalı kargoda deliveryFeeType YALNIZ 2 (mağaza öder) / 3 (şartlı) — 1 (alıcı öder) reddedilir (canlı doğrulandı).
-            DeliveryFeeType = N11DeliveryFeeType.SellerPays,     // varsayılan: mağaza öder (2); FeeModel'den TÜRETİLMEZ
-            ShipmentMethod = N11ShipmentMethod.Cargo,            // varsayılan (ilk tanımlı değer = kargo)
-            UseDmallCargo = true,                               // n11.com anlaşmalı kargo mandası (NewTemplate deseni)
-            ConditionalShippingUnit = N11ConditionalShippingUnit.Amount,   // NewTemplate deseni
-            ShippingInfo = channel.DefaultShippingInfo,         // kanal düzeyi varsayılan bilgi metinleri (null olabilir)
-            ExchangeInfo = channel.DefaultExchangeInfo,
-            InstallmentInfo = channel.DefaultInstallmentInfo,
-            // İade/değişim adresi = çekirdekte ayrı iade adresi varsa o, yoksa depo adresinin aynısı (ToAddressDto → ayrı DTO örneği).
-            ExchangeAddress = ToAddressDto(exchangeAddress, fallbackTitle),
-        };
-    }
 
     // ── REVERSE K1 köprüsü (kanal → çekirdek ters mutabakat) ────────────────────────────────────────
 
-    /// <summary>Kanal şablonu kaydedilince aynı ad/kodda çekirdek <c>ShipmentTemplate</c>'i OTOMATİK bul-veya-oluştur
-    /// ve bağla. <b>Origin-guard</b>: şablon zaten bir çekirdeğe bağlıysa (<c>ShipmentTemplateId != null</c>) ATLA →
-    /// ikinci çekirdek üretilmez (idempotent). Aksi halde reconciler çalışılan şirket kapsamında
-    /// <c>Code == NormalizeCode(TemplateName)</c> çekirdeği bulur/oluşturur; dönen id <c>SetCoreTemplate</c> ile yazılır.
-    /// Depo adresi → çekirdek gönderim (özel) adresi. N11'e push başarılı olduktan SONRA, aynı UoW içinde çağrılır
-    /// (çağıran ardından entity'yi Insert/Update ile persist eder → SetCoreTemplate kalıcı olur).</summary>
-    private async Task ReconcileCoreTemplateAsync(N11ShipmentTemplate entity)
-    {
-        if (entity.ShipmentTemplateId is not null)
-        {
-            // Zaten bir çekirdeğe bağlı → ters-üretim ATLA (kullanıcı istemli bağladıysa da korunur).
-            return;
-        }
-
-        var coreTemplateId = await _coreReconciler.FindOrCreateFromChannelAsync(
-            entity.CompanyId, entity.TemplateName, entity.WarehouseAddress);
-        entity.SetCoreTemplate(coreTemplateId);
-    }
 
     // ── Uygulama (DTO/data → entity) ────────────────────────────────────────────────────────────────
 
     private void ApplyInput(N11ShipmentTemplate entity, IN11ShipmentTemplateInput input)
     {
         // K1 köprüsü — çekirdek şablon referansı (id-only); N11'e push EDİLMEZ, yalnız yerelde tutulur.
-        entity.SetCoreTemplate(input.ShipmentTemplateId);
         entity.SetTemplateName(input.TemplateName);
         entity.SetDeliveryFeeType(input.DeliveryFeeType);
         entity.SetShipmentMethod(input.ShipmentMethod);
@@ -390,70 +318,8 @@ public class N11ShipmentTemplateAppService : TradeXpressAppService, IN11Shipment
             additionalStreetName: dto.AdditionalStreetName);
     }
 
-    /// <summary>Çekirdek şablonun EFEKTİF gönderim adresini N11 depo adresi DTO'suna çözer (FORWARD taslak). Şube modu
-    /// (<c>DispatchBranchId</c> dolu) → şubenin <see cref="Address"/> VO'su; adressiz şube → dostane hata (adressiz şubeden
-    /// gönderim anlamsız; çekirdek <c>EnsureBranchUsableAsync</c> ile hizalı). Özel-adres modu → <c>DispatchAddress</c> VO.
-    /// Çekirdek "tam biri" invariant'ı gereği biri daima dolu (savunmacı fallback).</summary>
-    private async Task<Address> ResolveDispatchAddressAsync(ShipmentTemplate core)
-    {
-        if (core.DispatchBranchId is { } branchId)
-        {
-            var branch = await _branchRepository.FindAsync(branchId);
-            if (branch?.Address is null)
-            {
-                throw new BusinessException("TradeXpress:N11:Shipment:DispatchBranchAddressMissing");
-            }
 
-            return branch.Address;
-        }
 
-        if (core.DispatchAddress is { } customAddress)
-        {
-            return customAddress;
-        }
-
-        // Çekirdek invariant gereği buraya düşülmez (şube XOR özel — tam biri dolu); yine de fail-fast.
-        throw new BusinessException("TradeXpress:N11:Shipment:DispatchAddressMissing");
-    }
-
-    /// <summary>İade/değişim adresini çözer: çekirdekte AYRI iade adresi seçilmişse (iade kabul + "gönderimle aynı
-    /// değil" + şube/özel adres) onu; aksi halde gönderim (depo) adresinin AYNISINI döner — kullanıcı kararı: çekirdekte
-    /// farklı iade adresi seçilmemişse iade/değişim adresi = depo adresi. İade şubesinin adresi eksikse depoya düşülür
-    /// (savunmacı).</summary>
-    private async Task<Address> ResolveExchangeAddressAsync(ShipmentTemplate core, Address dispatchAddress)
-    {
-        if (core.ReturnAccepted && !core.ReturnSameAsDispatch)
-        {
-            if (core.ReturnBranchId is { } returnBranchId)
-            {
-                var branch = await _branchRepository.FindAsync(returnBranchId);
-                if (branch?.Address is not null)
-                {
-                    return branch.Address;
-                }
-            }
-            else if (core.ReturnAddress is { } returnAddress)
-            {
-                return returnAddress;
-            }
-        }
-
-        // Çekirdekte farklı iade adresi yok → depo (gönderim) adresinin aynısı.
-        return dispatchAddress;
-    }
-
-    /// <summary>Gönderim şube modundaysa şubenin adını döner (N11 adres başlığı zorunlu → boş başlık için fallback).
-    /// Özel-adres modunda şube yok → null (kullanıcı başlığı elle girer; ön-doğrulama uyarır).</summary>
-    private async Task<string?> ResolveDispatchBranchNameAsync(ShipmentTemplate core)
-    {
-        if (core.DispatchBranchId is { } branchId)
-        {
-            var branch = await _branchRepository.FindAsync(branchId);
-            return branch?.Name;
-        }
-
-        return null;
-    }
 
     // Address VO → N11 depo adresi DTO'su (ToAddress(N11ShipmentAddressDto) TERS yönü; alanlar birebir). Address bir VO
     // (IEntity değil) → statik-mapper konvansiyon ağına takılmaz; mevcut ToAddress deseniyle hizalı.
@@ -573,20 +439,6 @@ public class N11ShipmentTemplateAppService : TradeXpressAppService, IN11Shipment
         return entity;
     }
 
-    /// <summary>Çekirdek kargo şablonunu çalışılan şirket kapsamında yükler (FORWARD taslak kaynağı; yabancı şirketinki →
-    /// dostane bulunamadı). Çekirdek company query-filter yok → elle scope (GetOwnedChannel/Template deseni).</summary>
-    private async Task<ShipmentTemplate> GetOwnedCoreTemplateAsync(Guid shipmentTemplateId)
-    {
-        var companyId = EnsureCurrentCompanyId();
-        var core = await AsyncExecuter.FirstOrDefaultAsync(
-            (await _coreTemplateRepository.GetQueryableAsync()).Where(x => x.Id == shipmentTemplateId && x.CompanyId == companyId));
-        if (core is null)
-        {
-            throw new BusinessException("TradeXpress:N11:Shipment:CoreTemplateNotFound");
-        }
-
-        return core;
-    }
 
     /// <summary>N11 CreateOrUpdate zorunlulukları (canlı testte tek tek doğrulandı) — kullanıcıya NET Türkçe hata,
     /// N11'in kriptik "systemError"i yerine. n11.com anlaşmalı kargo (2019 mandası) zorunlu → beraberinde iade

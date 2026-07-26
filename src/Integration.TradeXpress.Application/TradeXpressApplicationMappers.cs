@@ -27,7 +27,6 @@ using Integration.TradeXpress.Geography;
 using Integration.TradeXpress.Accounts;
 using Integration.TradeXpress.AssayOffices;
 using Integration.TradeXpress.AddOns;
-using Integration.TradeXpress.Shipments;
 using Integration.TradeXpress.VariantTemplates;
 using Integration.TradeXpress.Products;
 using Integration.TradeXpress.Scheduling;
@@ -200,65 +199,6 @@ public partial class AddOnToListDtoMapper : MapperBase<AddOn, AddOnListDto>
 {
     public override partial AddOnListDto Map(AddOn source);
     public override partial void Map(AddOn source, AddOnListDto destination);
-}
-
-// ── ShipmentTemplate (birleşik ERP kargo şablonu katalogu) — gömülü Address VO → ShipmentAddressDto nested-otomatik ──
-
-[Mapper] public partial class ShipmentTemplateGetToCreateMapper : MapperBase<ShipmentTemplateGetDto, ShipmentTemplateCreateDto>
-{
-    public override partial ShipmentTemplateCreateDto Map(ShipmentTemplateGetDto source);
-    public override partial void Map(ShipmentTemplateGetDto source, ShipmentTemplateCreateDto destination);
-}
-[Mapper] public partial class ShipmentTemplateGetToUpdateMapper : MapperBase<ShipmentTemplateGetDto, ShipmentTemplateUpdateDto>
-{
-    public override partial ShipmentTemplateUpdateDto Map(ShipmentTemplateGetDto source);
-    public override partial void Map(ShipmentTemplateGetDto source, ShipmentTemplateUpdateDto destination);
-}
-
-[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
-public partial class ShipmentTemplateToGetDtoMapper : MapperBase<ShipmentTemplate, ShipmentTemplateGetDto>
-{
-    // Denormalize şube adları entity'de YOK → AppService id'lerden çözüp doldurur (salt görüntü).
-    [MapperIgnoreTarget(nameof(ShipmentTemplateGetDto.DispatchBranchName))]
-    [MapperIgnoreTarget(nameof(ShipmentTemplateGetDto.ReturnBranchName))]
-    public override partial ShipmentTemplateGetDto Map(ShipmentTemplate source);
-    [MapperIgnoreTarget(nameof(ShipmentTemplateGetDto.DispatchBranchName))]
-    [MapperIgnoreTarget(nameof(ShipmentTemplateGetDto.ReturnBranchName))]
-    public override partial void Map(ShipmentTemplate source, ShipmentTemplateGetDto destination);
-}
-
-[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
-public partial class ShipmentTemplateToListDtoMapper : MapperBase<ShipmentTemplate, ShipmentTemplateListDto>
-{
-    public override partial ShipmentTemplateListDto Map(ShipmentTemplate source);
-    public override partial void Map(ShipmentTemplate source, ShipmentTemplateListDto destination);
-}
-
-// ── Carrier (çekirdek kargo firması host-global; salt-okuma) → picker/tekil DTO ──
-
-[Mapper] public partial class CarrierToListDtoMapper : MapperBase<Carrier, CarrierListDto>
-{
-    public override partial CarrierListDto Map(Carrier source);
-    public override partial void Map(Carrier source, CarrierListDto destination);
-}
-
-[Mapper] public partial class CarrierToDtoMapper : MapperBase<Carrier, CarrierDto>
-{
-    public override partial CarrierDto Map(Carrier source);
-    public override partial void Map(Carrier source, CarrierDto destination);
-}
-
-// ── VariantTemplate (varyant tanım katalogu / demet) — nested Attributes/Values auto-eşlenir ──
-
-[Mapper] public partial class VariantTemplateGetToCreateMapper : MapperBase<VariantTemplateGetDto, VariantTemplateCreateDto>
-{
-    public override partial VariantTemplateCreateDto Map(VariantTemplateGetDto source);
-    public override partial void Map(VariantTemplateGetDto source, VariantTemplateCreateDto destination);
-}
-[Mapper] public partial class VariantTemplateGetToUpdateMapper : MapperBase<VariantTemplateGetDto, VariantTemplateUpdateDto>
-{
-    public override partial VariantTemplateUpdateDto Map(VariantTemplateGetDto source);
-    public override partial void Map(VariantTemplateGetDto source, VariantTemplateUpdateDto destination);
 }
 
 [Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
@@ -438,15 +378,6 @@ public partial class SalesChannelTrN11ProductToDtoMapper : MapperBase<SalesChann
 {
     public override partial N11ShipmentTemplateUpdateDto Map(N11ShipmentTemplateDto source);
     public override partial void Map(N11ShipmentTemplateDto source, N11ShipmentTemplateUpdateDto destination);
-}
-
-// Çekirdek dağıtım taslağı (BuildDeploymentDraftAsync döner) → düzenlenebilir GetDto. Çekirdek formundaki "Satış Kanalları"
-// drill'i ön-doldurulmuş CreateDto'yu N11 edit formunda açmak için bu map'i kullanır. Id/durum alanları hedefte kaynaksız
-// (RMG012 uyarısı beklenir). Nested N11ShipmentAddressDto aynı tip → kopya.
-[Mapper] public partial class N11ShipmentTemplateCreateToGetMapper : MapperBase<N11ShipmentTemplateCreateDto, N11ShipmentTemplateDto>
-{
-    public override partial N11ShipmentTemplateDto Map(N11ShipmentTemplateCreateDto source);
-    public override partial void Map(N11ShipmentTemplateCreateDto source, N11ShipmentTemplateDto destination);
 }
 
 // N11 ürün listeleme GetDto → Create/Update (drill persist yolu). Nested Attributes/SpecialInfo aynı tip → kopya.

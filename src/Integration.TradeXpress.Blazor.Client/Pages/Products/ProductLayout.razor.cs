@@ -16,7 +16,6 @@ using Integration.TradeXpress.Metals;
 using Integration.TradeXpress.Products;
 using Integration.TradeXpress.Scraps;
 using Integration.TradeXpress.Services;
-using Integration.TradeXpress.Shipments;
 using Integration.TradeXpress.Stones;
 using Integration.TradeXpress.Substitutions;
 using Microsoft.AspNetCore.Components;
@@ -55,10 +54,8 @@ public partial class ProductLayout
 
     /// <summary>Kargo şablonu lookup verisi — host yükler (DUMB layout servis çağırmaz). Ürün formunda
     /// varsayılan kargo şablonu ataması için (GetPickerListAsync).</summary>
-    [Parameter] public IReadOnlyList<ShipmentTemplateListDto> ShipmentTemplates { get; set; } = Array.Empty<ShipmentTemplateListDto>();
 
     /// <summary>Inline kargo şablonu ekle/düzelt sonrası lookup listesini host tazeler (EntityChange tetikler).</summary>
-    [Parameter] public EventCallback OnReloadShipmentTemplates { get; set; }
 
     // Nitelik + varyant drill'leri artık JENERİK paylaşılan panellerde (EntityAttributesPanel / EntityVariantsPanel);
     // yalnız görsel drill'i bu layout'ta kalır.

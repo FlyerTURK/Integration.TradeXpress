@@ -70,11 +70,6 @@ public class TradeXpressPermissionDefinitionProvider : PermissionDefinitionProvi
         variantTemplates.AddChild(TradeXpressPermissions.VariantTemplates.Update, L("Permission:Update"));
         variantTemplates.AddChild(TradeXpressPermissions.VariantTemplates.Delete, L("Permission:Delete"));
 
-        var shipmentTemplates = myGroup.AddPermission(
-            TradeXpressPermissions.ShipmentTemplates.Default, L("Permission:ShipmentTemplates"));
-        shipmentTemplates.AddChild(TradeXpressPermissions.ShipmentTemplates.Create, L("Permission:Create"));
-        shipmentTemplates.AddChild(TradeXpressPermissions.ShipmentTemplates.Update, L("Permission:Update"));
-        shipmentTemplates.AddChild(TradeXpressPermissions.ShipmentTemplates.Delete, L("Permission:Delete"));
 
         var appointments = myGroup.AddPermission(
             TradeXpressPermissions.Appointments.Default, L("Permission:Appointments"));

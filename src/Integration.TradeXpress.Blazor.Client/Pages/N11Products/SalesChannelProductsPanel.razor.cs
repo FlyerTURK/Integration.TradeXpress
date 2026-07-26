@@ -110,7 +110,6 @@ public partial class SalesChannelProductsPanel : CrudComponentBase
             draft.Domestic = p.Domestic;
             draft.PreparingDay = p.PreparingDay;
             draft.MaxPurchaseQuantity = p.MaxPurchaseQuantity;
-            draft.ShipmentTemplateName = p.ShipmentTemplateName ?? string.Empty;
             draft.SellerNote = p.SellerNote;
             draft.CurrencyUnitId = p.CurrencyUnitId;
             draft.ProductionDate = p.ProductionDate;

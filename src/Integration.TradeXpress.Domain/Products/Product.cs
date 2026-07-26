@@ -78,15 +78,10 @@ public class Product : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwn
     /// <summary>Kargoya verilme süresi (gün) — en az 1. Varsayılan 1.</summary>
     public virtual int PreparingDay { get; protected set; }
 
-    /// <summary>Varsayılan kargo şablonu adı (opsiyonel; pazaryeri kanal-ürünü override eder). LEGACY snapshot —
-    /// K8-Faz1: OKUMA tek kaynağı <see cref="ShipmentTemplateId"/> (ad çekirdek şablondan çözülür; bu string yalnız
-    /// FK boşken fallback); FK doluysa yazma yolunda ad FK'den senkron dolar (Carrier id+ad deseni). Kolon Faz-4'te
-    /// kaldırılacak (K8).</summary>
-    public virtual string? ShipmentTemplateName { get; protected set; }
-
-    /// <summary>Birleşik ERP kargo şablonu referansı (<c>ShipmentTemplate.Id</c>; id-only, nav YOK). Opsiyonel.
-    /// Referans bütünlüğü ShipmentTemplate silme-guard'ıyla korunur (sert FK/cascade DEĞİL).</summary>
-    public virtual Guid? ShipmentTemplateId { get; protected set; }
+    // KARGO ŞABLONU BURADAN SÖKÜLDÜ (2026-07-26 Hakan kararı): şablon ürünün değil KANALIN özelliğidir —
+    // aynı ürün her pazaryerinde farklı şablonla gider. Bağ artık yalnız kanal katmanında yaşıyor
+    // (SalesChannelTrN11Product.ShipmentTemplateId → N11ShipmentTemplate → çekirdek ShipmentTemplate).
+    // Eski alanlar: ShipmentTemplateId (FK) + ShipmentTemplateName (K8 legacy snapshot'ı) — ikisi de kalktı.
 
     /// <summary>Alıcı başına maksimum satın alım adedi (opsiyonel).</summary>
     public virtual int? MaxPurchaseQuantity { get; protected set; }
@@ -285,19 +280,6 @@ public class Product : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwn
         }
 
         PreparingDay = preparingDay;
-    }
-
-    /// <summary>Varsayılan kargo şablonu adı (opsiyonel; boş değilse trim + max).</summary>
-    public virtual void SetShipmentTemplate(string? shipmentTemplateName)
-    {
-        ShipmentTemplateName = StringFieldGuard.EnsureOptionalText(
-            shipmentTemplateName, nameof(ShipmentTemplateName), 1, ProductConsts.ShipmentTemplateNameMaxLength);
-    }
-
-    /// <summary>Birleşik ERP kargo şablonu referansı (opsiyonel; id-only atama, boş=null).</summary>
-    public virtual void SetShipmentTemplateId(Guid? shipmentTemplateId)
-    {
-        ShipmentTemplateId = shipmentTemplateId == Guid.Empty ? null : shipmentTemplateId;
     }
 
     /// <summary>Alıcı başına maksimum satın alım adedi (opsiyonel) — en az 1 (fail-fast).</summary>

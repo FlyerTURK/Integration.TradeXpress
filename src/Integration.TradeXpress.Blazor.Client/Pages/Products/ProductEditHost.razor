@@ -19,7 +19,6 @@
                        Jewelries="Jewelries" Stones="Stones" Goods="Goods" Services="Services" Units="Units"
                        CurrencyUnits="CurrencyUnits" OnReloadCurrencyUnits="@ReloadCurrencyUnitsAsync"
                        AddOnCatalog="AddOns" OnReloadAddOns="@ReloadAddOnsAsync"
-                       ShipmentTemplates="ShipmentTemplates" OnReloadShipmentTemplates="@ReloadShipmentTemplatesAsync"
                        OnGenerateVariants="@(async () => await GenerateVariantsAsync(context))"
                        OnRecipeChanged="@RecalcVariantCostAsync"
                        OnVariantModeChangeRequested="@(async (ProductVariantMode m) => await HandleVariantModeChangeAsync(context, m))"

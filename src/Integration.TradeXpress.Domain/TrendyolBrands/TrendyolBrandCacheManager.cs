@@ -10,7 +10,7 @@ namespace Integration.TradeXpress.TrendyolBrands;
 /// çağıranın asıl işlemini (ürün kaydı/import) DÜŞÜRMEZ; uyarı olarak loglanır (N11 RunSafe felsefesi).
 /// Anlamsız veri (boş/numerik-olmayan id, import sentinel "0", boş ad, üst sınırı aşan uzak değer) sessizce
 /// atlanır — cache zenginleştirme fail-fast yeri değildir. Host bağlamı <see cref="ICurrentTenant.Change(Guid?)"/>
-/// (null) ile garanti edilir (CarrierSeeder deseni; db-per-tenant'a karşı merkezilik).</para>
+/// (null) ile garanti edilir (TrCarrierSeeder deseni; db-per-tenant'a karşı merkezilik).</para>
 /// </summary>
 public class TrendyolBrandCacheManager(
     IRepository<TrendyolBrand, Guid> repository,

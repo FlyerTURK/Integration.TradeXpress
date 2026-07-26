@@ -29,8 +29,6 @@ public static class ProductConsts
     public const int TradeIdentifierMaxLength = 64;
 
     // ── Pazaryeri-genel varsayılan alanlar (ürün-seviyesi; kanal-ürünü devralır + override eder) ──
-    /// <summary>Varsayılan kargo şablonu adı (N11ProductConsts.ShipmentTemplateNameMaxLength paritesi).</summary>
-    public const int ShipmentTemplateNameMaxLength = 128;
 
     /// <summary>Satıcı notu (kısa düz metin; N11ProductConsts.SellerNoteMaxLength paritesi).</summary>
     public const int SellerNoteMaxLength = 500;

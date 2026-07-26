@@ -12,7 +12,6 @@ public class TradeXpressDataSeedContributor(
     ParitySeeder paritySeeder,
     CountrySeeder countrySeeder,
     Integration.TradeXpress.Geography.GeographySeeder geographySeeder,
-    Integration.TradeXpress.Shipments.CarrierSeeder carrierSeeder,
     CashSeeder cashSeeder,
     Integration.TradeXpress.Services.ServiceSeeder serviceSeeder,
     Integration.TradeXpress.Futures.FutureSeeder futureSeeder,
@@ -31,7 +30,6 @@ public class TradeXpressDataSeedContributor(
     private readonly ParitySeeder _paritySeeder = paritySeeder;
     private readonly CountrySeeder _countrySeeder = countrySeeder;
     private readonly Integration.TradeXpress.Geography.GeographySeeder _geographySeeder = geographySeeder;
-    private readonly Integration.TradeXpress.Shipments.CarrierSeeder _carrierSeeder = carrierSeeder;
     private readonly CashSeeder _cashSeeder = cashSeeder;
     private readonly Integration.TradeXpress.Services.ServiceSeeder _serviceSeeder = serviceSeeder;
     private readonly Integration.TradeXpress.Futures.FutureSeeder _futureSeeder = futureSeeder;
@@ -62,7 +60,6 @@ public class TradeXpressDataSeedContributor(
             await _paritySeeder.SeedAsync();              // host-global pariteler
             await _countrySeeder.SeedAsync();             // host-global ülke kataloğu (desteklenen birimli ülkeler)
             await _geographySeeder.SeedAsync();           // ISO 3166-1 tam ülke listesi (249) + TR il/ilçe (N11'den) + US eyalet
-            await _carrierSeeder.SeedAsync();             // çekirdek kargo firması kataloğu (N11 firmalarından türer; N11 boşsa atlar)
             await _cashSeeder.SeedAsync();                // host-global nakit kataloğu (Type=Cash birimlerden türetilir)
         }
 

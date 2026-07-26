@@ -61,9 +61,6 @@ public class N11ShipmentTemplateDto
     public Guid Id { get; set; }
     public Guid SalesChannelId { get; set; }
 
-    /// <summary>Çekirdek ERP kargo şablonu referansı (K1 köprüsü; id-only, opsiyonel). Kopyalama istemli
-    /// ("Çekirdekten Uygula"); canlı miras yok.</summary>
-    public Guid? ShipmentTemplateId { get; set; }
 
     public string TemplateName { get; set; } = string.Empty;
     public N11DeliveryFeeType DeliveryFeeType { get; set; }
@@ -100,7 +97,6 @@ public class N11ShipmentTemplateDto
 public interface IN11ShipmentTemplateInput
 {
     /// <summary>Çekirdek ERP kargo şablonu referansı (K1 köprüsü; id-only, opsiyonel).</summary>
-    Guid? ShipmentTemplateId { get; }
 
     string TemplateName { get; }
     N11DeliveryFeeType DeliveryFeeType { get; }
@@ -126,8 +122,6 @@ public class N11ShipmentTemplateCreateDto : IN11ShipmentTemplateInput
 {
     public Guid SalesChannelId { get; set; }
 
-    /// <summary>Çekirdek ERP kargo şablonu referansı (K1 köprüsü; id-only, opsiyonel).</summary>
-    public Guid? ShipmentTemplateId { get; set; }
 
     public string TemplateName { get; set; } = string.Empty;
     public N11DeliveryFeeType DeliveryFeeType { get; set; }
@@ -151,8 +145,6 @@ public class N11ShipmentTemplateCreateDto : IN11ShipmentTemplateInput
 /// <summary>Şablon güncelleme girdisi — kanal set-once (route'taki id kimliktir; kanal değişmez).</summary>
 public class N11ShipmentTemplateUpdateDto : IN11ShipmentTemplateInput
 {
-    /// <summary>Çekirdek ERP kargo şablonu referansı (K1 köprüsü; id-only, opsiyonel).</summary>
-    public Guid? ShipmentTemplateId { get; set; }
 
     public string TemplateName { get; set; } = string.Empty;
     public N11DeliveryFeeType DeliveryFeeType { get; set; }
@@ -200,13 +192,4 @@ public interface IN11ShipmentTemplateAppService : IApplicationService
     /// + N11'de artık olmayan (kullanılmayan) yerel şablonları SİLER. Değişen (yeni+güncellenen) sayısını döner.</summary>
     Task<int> SyncAsync(Guid salesChannelId);
 
-    /// <summary>Çekirdek kargo şablonundan bir N11 kanal-dağıtımı TASLAĞI (ön-doldurulmuş <see cref="N11ShipmentTemplateCreateDto"/>)
-    /// üretir — <b>PERSIST ETMEZ</b>. Çekirdek formundaki "Satış Kanalları" drill'i bunu forma bind eder; kullanıcı zorunlu N11
-    /// alanlarını (iade adresi/firması vb.) tamamlayıp normal <see cref="CreateAsync"/> ile kaydeder (o zaman validation + N11 push
-    /// çalışır). Taslak: <c>TemplateName</c>=çekirdek adı, <c>WarehouseAddress</c>=çekirdeğin efektif gönderim adresi (şube ya da özel),
-    /// bilgi metinleri=kanal varsayılanları, <c>ShipmentTemplateId</c>=ileri köprü (reverse-reconcile origin-guard atlar). Çekirdek/kanal
-    /// çalışılan şirkete ait değilse dostane <see cref="Volo.Abp.BusinessException"/>.</summary>
-    /// <param name="shipmentTemplateId">Taslağın kaynağı çekirdek kargo şablonunun id'si.</param>
-    /// <param name="salesChannelId">Dağıtımın hedef N11 satış kanalının id'si.</param>
-    Task<N11ShipmentTemplateCreateDto> BuildDeploymentDraftAsync(Guid shipmentTemplateId, Guid salesChannelId);
 }

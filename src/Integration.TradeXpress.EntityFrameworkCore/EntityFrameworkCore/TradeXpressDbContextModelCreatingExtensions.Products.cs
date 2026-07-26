@@ -39,9 +39,7 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
 
             // Pazaryeri-genel varsayılanlar (kanal-ürünü devralır) — Domestic/Condition/PreparingDay/MaxPurchaseQuantity/
             // CurrencyUnitId konvansiyonla (enum→int, Guid?, int?). Metin alanları + owned özel bilgi:
-            b.Property(x => x.ShipmentTemplateName).HasMaxLength(ProductConsts.ShipmentTemplateNameMaxLength);
             // Birleşik ERP kargo şablonu referansı (id-only; nav YOK). Silme-guard sorgusu için indekslenir.
-            b.HasIndex(x => x.ShipmentTemplateId);
             b.Property(x => x.SellerNote).HasMaxLength(ProductConsts.SellerNoteMaxLength);
             b.OwnsMany(x => x.SpecialInfo, s =>
             {

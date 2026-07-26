@@ -13,7 +13,6 @@ using Integration.TradeXpress.Metals;
 using Integration.TradeXpress.Products;
 using Integration.TradeXpress.Scraps;
 using Integration.TradeXpress.Services;
-using Integration.TradeXpress.Shipments;
 using Integration.TradeXpress.Stones;
 using Integration.TradeXpress.Substitutions;
 using Integration.TradeXpress.Vouchers;
@@ -46,7 +45,6 @@ public partial class ProductEditHost
     [Inject] protected IEffectivePriceAppService EffectivePriceAppService { get; set; } = default!;
     [Inject] protected ILookupCache<CurrencyUnitListDto> CurrencyLookup { get; set; } = default!;
     [Inject] protected IAddOnAppService AddOnAppService { get; set; } = default!;
-    [Inject] protected IShipmentTemplateAppService ShipmentTemplateAppService { get; set; } = default!;
     [Inject] protected ISubstitutionGroupAppService SubstitutionGroupAppService { get; set; } = default!;
     [Inject] protected ISubstitutionCalculationAppService SubstitutionCalculationAppService { get; set; } = default!;
     [Inject] protected IServiceProvider ServiceProvider { get; set; } = default!;
@@ -71,8 +69,6 @@ public partial class ProductEditHost
     // Eklenti katalogu lookup verisi ("Seçenekler" sekmesi) — inline ekle/düzelt sonrası ReloadAddOnsAsync ile tazelenir.
     protected IReadOnlyList<AddOnListDto> AddOns { get; private set; } = Array.Empty<AddOnListDto>();
 
-    // Kargo şablonu lookup verisi (varsayılan kargo şablonu ataması) — inline ekle/düzelt sonrası ReloadShipmentTemplatesAsync ile tazelenir.
-    protected IReadOnlyList<ShipmentTemplateListDto> ShipmentTemplates { get; private set; } = Array.Empty<ShipmentTemplateListDto>();
 
     // ── Muadil (Substitution) modu durumu (Dilim-3) — grup lookup'u + seçili grubun kalemleri (override
     //    ağacının devralınan-küme referansı) + son hesap sonucu. Layout DUMB; iş burada. ──
@@ -104,7 +100,6 @@ public partial class ProductEditHost
         Units = await EffectivePriceAppService.GetCurrentPricesAsync();
         CurrencyUnits = await CurrencyLookup.GetAsync();
         AddOns = await AddOnAppService.GetPickerListAsync();
-        ShipmentTemplates = await ShipmentTemplateAppService.GetPickerListAsync();
         SubstitutionGroups = await LoadActiveSubstitutionGroupsAsync();
     }
 
@@ -297,13 +292,6 @@ public partial class ProductEditHost
     private async Task ReloadAddOnsAsync()
     {
         AddOns = await AddOnAppService.GetPickerListAsync();
-        StateHasChanged();
-    }
-
-    // Inline kargo şablonu ekle/düzelt sonrası lookup listesini tazeler (yeni şablon anında combo'ya düşsün).
-    private async Task ReloadShipmentTemplatesAsync()
-    {
-        ShipmentTemplates = await ShipmentTemplateAppService.GetPickerListAsync();
         StateHasChanged();
     }
 
