@@ -37,6 +37,7 @@ public partial class CurrentTransactionForm
     private IReadOnlyList<object> _selectedLines = Array.Empty<object>();   // çoklu seçim (Sil + selection kolonu)
     private Guid? _currentVoucherId;
     private AccountSelectionPanel? _accountPanel;
+    private VoucherLineAttachmentsDialog? _attachmentsDialog;
     private bool _processActive;   // süreç paneli açıkken Düzelt/Sil toolbar gizli
     private bool _accountLocked;   // cari panel TAMAM ile kilitliyken Düzelt/Sil görünür
 
@@ -263,6 +264,17 @@ public partial class CurrentTransactionForm
             var dto = await VoucherService.GetLineForEditAsync(line.Id);
             // _processActive true olunca p1 paneli liste modunda da görünür hale gelir.
             await _accountPanel.BeginEditLineAsync(dto);
+        }
+    }
+
+    // Satır ekleri (belge + not): seri numarası, kamera kaydı, kargo/sigorta evrakı. Ek satırın KİMLİĞİNE
+    // bağlandığı için yalnız kaydedilmiş satırda açılır (toolbar Enabled koşulu bunu zaten garanti eder).
+    private async Task OnLineAttachments()
+    {
+        if (_selectedLine is VoucherLineDto line && line.Id != Guid.Empty && _attachmentsDialog is not null)
+        {
+            var title = $"{line.CommodityCode} — {line.Amount:N2} {line.MainUnitCode}".Trim();
+            await _attachmentsDialog.OpenAsync(line.Id, title);
         }
     }
 

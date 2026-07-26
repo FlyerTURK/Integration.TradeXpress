@@ -449,6 +449,7 @@
     "TradeXpress:Image:ImageTooLarge": "Görsel dosyası çok büyük (en fazla {MaxMb} MB).",
     "TradeXpress:Image:ImageTypeNotSupported": "Desteklenmeyen görsel türü (jpg, png, webp, gif yükleyin).",
     "TradeXpress:Image:ImageDuplicate": "Aynı görsel URL'si ya da dosya adı bu kayda bir kez eklenebilir.",
+    "VoucherLine:Attachments": "Ekler (Belge / Not)",
     "Documents": "Dokümanlar",
     "Document": "Doküman",
     "DocumentFile": "Doküman Dosyası",

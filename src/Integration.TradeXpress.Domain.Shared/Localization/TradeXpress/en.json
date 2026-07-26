@@ -419,6 +419,7 @@
     "TradeXpress:Image:ImageTooLarge": "The image file is too large (max {MaxMb} MB).",
     "TradeXpress:Image:ImageTypeNotSupported": "Unsupported image type (upload jpg, png, webp or gif).",
     "TradeXpress:Image:ImageDuplicate": "The same image URL or file name can be added to a record only once.",
+    "VoucherLine:Attachments": "Attachments (Documents / Notes)",
     "Documents": "Documents",
     "Document": "Document",
     "DocumentFile": "Document File",

@@ -1,0 +1,36 @@
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@* FİŞ SATIRI EKLERİ — kaydedilmiş bir satıra belge ve not bağlar (EntityName="VoucherLine").
+   Kullanım: seri numarası, kamera kaydı, kargo/sigorta evrakı, teslim tutanağı. Satırın KİMLİĞİ gerektiği için
+   yalnız kaydedilmiş satırda açılır. Belge/not agnostik altyapıya yazılır — fiş şeması değişmez. *@
+
+<DxPopup @bind-Visible="@Visible"
+         HeaderText="@HeaderText"
+         Width="min(920px, 96vw)"
+         CloseOnEscape="true"
+         ShowFooter="true">
+    <BodyContentTemplate>
+        <DxTabs>
+            <DxTabPage Text="@L["Documents"]" TabIconCssClass="@TradeXpressIcons.Report">
+                <EntityDocumentsPanel Documents="@_documents" />
+            </DxTabPage>
+            <DxTabPage Text="@L["Notes"]" TabIconCssClass="@TradeXpressIcons.Comments">
+                <EntityNotesPanel Notes="@_notes" />
+            </DxTabPage>
+        </DxTabs>
+    </BodyContentTemplate>
+    <FooterContentTemplate>
+        <DxToolbar ItemRenderStyleMode="ToolbarRenderStyleMode.Plain">
+            <DxToolbarItem Text="@L["Save"]"
+                           IconCssClass="@TradeXpressIcons.Save"
+                           RenderStyle="ButtonRenderStyle.Primary"
+                           RenderStyleMode="ToolbarItemRenderStyleMode.Contained"
+                           Click="@SaveAsync"
+                           Enabled="@(!_saving)"
+                           Alignment="ToolbarItemAlignment.Right" />
+            <DxToolbarItem Text="@L["Cancel"]"
+                           Click="@Close"
+                           Alignment="ToolbarItemAlignment.Right" />
+        </DxToolbar>
+    </FooterContentTemplate>
+</DxPopup>

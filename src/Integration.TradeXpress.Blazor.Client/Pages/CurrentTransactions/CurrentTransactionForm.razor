@@ -46,6 +46,8 @@
                                     @* Düzelt/Sil satır-içi ikonlar yerine toolbar BAŞINDA; seçili satır(lar) üzerinde çalışır (sade görünüm). *@
                                     <DxToolbarItem Text="@L["Edit"].Value" IconCssClass="custom-icon-edit" Click="@OnEditLine" Enabled="@(_selectedLine != null)" />
                                     <DxToolbarItem Text="@L["Delete"].Value" IconCssClass="custom-icon-delete" Click="@OnDeleteLine" Enabled="@(_selectedLines.Count >= 1)" />
+                                    @* Ekler: seri numarası, kamera/kargo/sigorta evrakı — yalnız KAYDEDİLMİŞ satırda (ek satırın kimliğine bağlanır). *@
+                                    <DxToolbarItem Text="@L["VoucherLine:Attachments"].Value" IconCssClass="@TradeXpressIcons.Report" Click="@OnLineAttachments" Enabled="@(_selectedLine is VoucherLineDto sel && sel.Id != Guid.Empty)" />
                                     @if (_listMode)
                                     {
                                         @* Ekstre: işlem-tipi çoklu-seçim filtresi (server-side; devreden/kapanış da aynı filtreyle yürür). *@
@@ -425,3 +427,6 @@
         </div>
     </BodyContentTemplate>
 </DxPopup>
+
+@* Fiş satırı ekleri (belge + not) — seri numarası ve delil evrakı buraya girer. *@
+<VoucherLineAttachmentsDialog @ref="_attachmentsDialog" />
