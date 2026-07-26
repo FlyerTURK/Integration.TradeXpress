@@ -1705,7 +1705,6 @@
     "Product:Condition": "Condition",
     "Product:PreparingDay": "Preparing Time (days)",
     "Product:ShipmentTemplate": "Default Shipping Template",
-    "Product:ShipmentTemplateRef": "Shipping Template (catalog)",
     "Product:MaxPurchaseQuantity": "Maximum Purchase Quantity",
     "Product:SellerNote": "Seller Note",
     "Product:CurrencyUnit": "Default Currency",

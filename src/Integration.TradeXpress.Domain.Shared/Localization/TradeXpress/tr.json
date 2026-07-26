@@ -1736,7 +1736,6 @@
     "Product:Condition": "Ürün Durumu",
     "Product:PreparingDay": "Hazırlık Süresi (gün)",
     "Product:ShipmentTemplate": "Varsayılan Kargo Şablonu",
-    "Product:ShipmentTemplateRef": "Kargo Şablonu (katalog)",
     "Product:MaxPurchaseQuantity": "Maksimum Satın Alım Adedi",
     "Product:SellerNote": "Satıcı Notu",
     "Product:CurrencyUnit": "Varsayılan Para Birimi",

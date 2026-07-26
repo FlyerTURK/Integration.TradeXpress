@@ -221,7 +221,9 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         entity.SetPersonalization(input.IsPersonalizable, input.PersonalizationInstructions,
             input.PersonalizationIsRequired, input.PersonalizationCharCountMax);
         ApplyMarketplaceDefaults(entity, input.Domestic, input.Condition, input.PreparingDay,
-            await ResolveShipmentTemplateNameAsync(input.ShipmentTemplateId, input.ShipmentTemplateName),
+            // previousTemplateId: kullanıcı katalog şablonunu TEMİZLEDİYSE legacy ad da düşsün (aşağıdaki not).
+            await ResolveShipmentTemplateNameAsync(
+                input.ShipmentTemplateId, input.ShipmentTemplateName, entity.ShipmentTemplateId),
             input.ShipmentTemplateId, input.MaxPurchaseQuantity, input.SellerNote,
             input.CurrencyUnitId, input.SpecialInfo, input.AddOns);
         // Varyant modu ÖNCE, muadil konfigürasyonu SONRA (Create ile simetrik; mod dışı alanlar temizlenir).
@@ -698,12 +700,18 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
     /// çekirdek <see cref="ShipmentTemplate.Name"/> çözülür; FK boş ya da şablon bulunamıyorsa (silinmiş/bayat)
     /// legacy string'e düşülür (kırmama garantisi). Yazma yolu da aynı çözümü kullanır → legacy kolon FK'den senkron
     /// dolan denormalize snapshot olur (<see cref="ShipmentTemplate.SetCarrier"/> id+ad deseni); kolonun fiziksel
-    /// kaldırılması Faz-4 (K8).</summary>
-    private async Task<string?> ResolveShipmentTemplateNameAsync(Guid? shipmentTemplateId, string? legacyName)
+    /// kaldırılması Faz-4 (K8).
+    /// <para><paramref name="previousTemplateId"/> (yalnız Update yolu): ürünün DEĞİŞİM ÖNCESİ FK'si. FK önce doluyken
+    /// şimdi boşsa kullanıcı şablonu TEMİZLEMİŞ demektir → legacy ad da düşer. Bu ayrım 2026-07-26'da zorunlu oldu:
+    /// serbest-metin textbox'ı formdan kaldırılınca (hayalet alan) kullanıcının adı ayrıca silme imkânı kalmadı;
+    /// aksi halde kaldırılan şablonun adı üründe takılı kalır, kanala yanlış kargo bilgisi giderdi. FK'si HİÇ olmamış
+    /// eski kayıtlarda (previousTemplateId null) legacy ad korunur.</para></summary>
+    private async Task<string?> ResolveShipmentTemplateNameAsync(
+        Guid? shipmentTemplateId, string? legacyName, Guid? previousTemplateId = null)
     {
         if (shipmentTemplateId is not { } id)
         {
-            return legacyName;
+            return previousTemplateId is null ? legacyName : null;
         }
 
         var template = await _shipmentTemplateRepository.FindAsync(id);

@@ -128,11 +128,12 @@
             <NumericSpinEdit TValue="int?" @bind-Value="@Model.MaxPurchaseQuantity"
                              ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
         </DxFormLayoutItem>
+        @* Kargo şablonu — birleşik ERP katalogu; inline ekle/düzelt (popup + refresh standardı). Opsiyonel.
+           Legacy serbest-metin textbox'ı (Model.ShipmentTemplateName) 2026-07-26'da KALDIRILDI (K8-Faz1 devamı):
+           yazma yolu FK doluysa adı şablondan çözdüğünden kullanıcının yazdığı sessizce eziliyordu (hayalet alan).
+           DTO alanı DURUYOR — GetDto'dan gelen legacy ad Update'e round-trip eder → FK'siz eski kayıtların adı
+           korunur (kolonun fiziksel kaldırılması Faz-4/K8). *@
         <DxFormLayoutItem Caption="@L["Product:ShipmentTemplate"]" ColSpanMd="6" BeginRow="true">
-            <DxTextBox @bind-Text="@Model.ShipmentTemplateName" NullText="@L["Optional"]" />
-        </DxFormLayoutItem>
-        @* Kargo şablonu referansı — birleşik ERP katalogu; inline ekle/düzelt (popup + refresh standardı). Opsiyonel. *@
-        <DxFormLayoutItem Caption="@L["Product:ShipmentTemplateRef"]" ColSpanMd="6">
             <LookupComboBox TItem="ShipmentTemplateListDto" TValue="Guid?"
                             Data="@ShipmentTemplates"
                             ValueFieldName="@nameof(ShipmentTemplateListDto.Id)"
