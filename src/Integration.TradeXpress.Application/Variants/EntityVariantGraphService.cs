@@ -6,12 +6,11 @@ using Integration.Framework;
 using Integration.TradeXpress.MultiCompany;
 using Integration.TradeXpress.SalesChannels.Variants;
 using Volo.Abp;
-using Volo.Abp.Application.Services;
 using Volo.Abp.Data;
 using Volo.Abp.DependencyInjection;
 using Volo.Abp.Domain.Repositories;
+using Volo.Abp.Linq;
 using Volo.Abp.MultiTenancy;
-using Volo.Abp.Validation;
 
 namespace Integration.TradeXpress.Variants;
 
@@ -19,7 +18,12 @@ namespace Integration.TradeXpress.Variants;
 /// Agnostik varyant grafı servisi — SAHİP AppService'lerin (Good, Product, Metal…) DELEGE ettiği tek nokta. Nitelik/değer
 /// graf-diff → kartezyen senkron → çekirdek varyant özelleştirme (Barkod/Stok/Açıklama/Aktif) + persistsiz üretim önizlemesi
 /// + graf okuma/silme — hepsi (EntityName, EntityId) üzerinden. Sahip AppService yalnız 3-4 satır delege eder (DRY).
-/// SUNUCU-İÇİ (RemoteService=false): entityName/entityId keyfi client'tan gelmemeli (sahip AppService güvenlik sınırını tutar).
+/// SUNUCU-İÇİ İÇ YARDIMCI (ApplicationService DEĞİL — 2026-07-26): entityName/entityId keyfi client'tan gelmemeli
+/// (sahip AppService güvenlik sınırını tutar). ApplicationService mirası bu iç yardımcıya AppService interceptor'larını
+/// takıyordu — audit, Func parametresini (saveExtensionAsync) JSON'a serileştirmeye çalışıp her ürün kaydında
+/// NotSupportedException logluyordu; validation da aynı delegate'te patlayıp [DisableValidation] yarası gerektirmişti.
+/// Düz ITransientDependency ile interceptor katmanı hiç kurulmaz (CommodityAgnosticGraph ile aynı desen);
+/// UoW/audit sorumluluğu delege eden SAHİP AppService'te kalır — doğru irtifa da orası.
 /// </summary>
 public interface IEntityVariantGraphService
 {
@@ -28,9 +32,6 @@ public interface IEntityVariantGraphService
     /// her varyant çözülüp çekirdeği kaydedildikten SONRA (dto, DB-varyant-Id) ile çağrılır — sahip entity-ÖZEL
     /// uzantısını (ör. GoodVariantDetail fiyat/stok) o DB varyanta bağlar. <paramref name="variants"/> kovaryant
     /// (IReadOnlyList) → sahip türetilmiş DTO listesini (List&lt;GoodVariantGraphDto&gt;) doğrudan geçebilir.</summary>
-    // Func parametresi (saveExtensionAsync) → ABP DataAnnotation recursion'ı delegate→MethodInfo→Type'a inip Type.DeclaringMethod'da
-    // patlıyor. attributes/variants zaten AppService sınırında (UpdateDto) doğrulanır → burada doğrulama gereksiz + zararlı.
-    [DisableValidation]
     Task SaveGraphAsync(
         string entityName, Guid entityId, Guid? companyId, string ownerName,
         List<EntityAttributeGraphDto> attributes, IReadOnlyList<EntityVariantGraphDto> variants,
@@ -49,15 +50,13 @@ public interface IEntityVariantGraphService
     /// <summary>Sahip entity'nin TÜM varyant grafını (bağ + varyant + değer + nitelik) siler — sahip silinmeden önce.
     /// <paramref name="deleteExtensionAsync"/>: varyantlar silinmeden ÖNCE varyant Id'leriyle çağrılır — sahip
     /// entity-özel uzantısını (ör. GoodVariantDetail) temizler (orphan önleme).</summary>
-    [DisableValidation]   // deleteExtensionAsync Func — SaveGraphAsync ile aynı gerekçe (delegate doğrulaması patlıyor).
     Task DeleteForAsync(string entityName, Guid entityId, Func<IReadOnlyList<Guid>, Task>? deleteExtensionAsync = null);
 
     /// <summary>Sahip kayıtların ANA varyant Id'leri (EntityName + entityIds → entityId→mainVariantId) — liste önizlemesi için tek batch.</summary>
     Task<Dictionary<Guid, Guid>> GetMainVariantMapAsync(string entityName, IReadOnlyCollection<Guid> entityIds);
 }
 
-[RemoteService(false)]
-public class EntityVariantGraphService : ApplicationService, IEntityVariantGraphService, ITransientDependency
+public class EntityVariantGraphService : IEntityVariantGraphService, ITransientDependency
 {
     private readonly IRepository<EntityAttribute, Guid> _attributeRepository;
     private readonly IRepository<EntityAttributeValue, Guid> _valueRepository;
@@ -66,6 +65,7 @@ public class EntityVariantGraphService : ApplicationService, IEntityVariantGraph
     private readonly EntityVariantManager _variantManager;
     private readonly EntityVariantSynchronizer _variantSynchronizer;
     private readonly IDataFilter _dataFilter;
+    private readonly IAsyncQueryableExecuter _asyncExecuter;
 
     public EntityVariantGraphService(
         IRepository<EntityAttribute, Guid> attributeRepository,
@@ -74,7 +74,8 @@ public class EntityVariantGraphService : ApplicationService, IEntityVariantGraph
         IRepository<EntityVariantAttributeValue, Guid> linkRepository,
         EntityVariantManager variantManager,
         EntityVariantSynchronizer variantSynchronizer,
-        IDataFilter dataFilter)
+        IDataFilter dataFilter,
+        IAsyncQueryableExecuter asyncExecuter)
     {
         _attributeRepository = attributeRepository;
         _valueRepository = valueRepository;
@@ -83,9 +84,9 @@ public class EntityVariantGraphService : ApplicationService, IEntityVariantGraph
         _variantManager = variantManager;
         _variantSynchronizer = variantSynchronizer;
         _dataFilter = dataFilter;
+        _asyncExecuter = asyncExecuter;
     }
 
-    [DisableValidation]
     public async Task SaveGraphAsync(
         string entityName, Guid entityId, Guid? companyId, string ownerName,
         List<EntityAttributeGraphDto> attributes, IReadOnlyList<EntityVariantGraphDto> variants,
@@ -98,7 +99,7 @@ public class EntityVariantGraphService : ApplicationService, IEntityVariantGraph
 
     public async Task<EntityVariantGraphResult> LoadGraphAsync(string entityName, Guid entityId)
     {
-        var attributes = (await AsyncExecuter.ToListAsync(
+        var attributes = (await _asyncExecuter.ToListAsync(
                 (await _attributeRepository.GetQueryableAsync())
                     .Where(a => a.EntityName == entityName && a.EntityId == entityId)))
             .OrderBy(a => a.DisplayOrder).ThenBy(a => a.Name)
@@ -107,18 +108,18 @@ public class EntityVariantGraphService : ApplicationService, IEntityVariantGraph
         var attributeIds = attributes.Select(a => a.Id).ToList();
         var values = attributeIds.Count == 0
             ? new List<EntityAttributeValue>()
-            : (await AsyncExecuter.ToListAsync(
+            : (await _asyncExecuter.ToListAsync(
                     (await _valueRepository.GetQueryableAsync()).Where(v => attributeIds.Contains(v.EntityAttributeId))))
                 .OrderBy(v => v.DisplayOrder).ThenBy(v => v.Value)
                 .ToList();
 
-        var variants = await AsyncExecuter.ToListAsync(
+        var variants = await _asyncExecuter.ToListAsync(
             (await _variantRepository.GetQueryableAsync())
                 .Where(v => v.EntityName == entityName && v.EntityId == entityId).OrderBy(v => v.Code));
         var variantIds = variants.Select(v => v.Id).ToList();
         var links = variantIds.Count == 0
             ? new List<EntityVariantAttributeValue>()
-            : await AsyncExecuter.ToListAsync(
+            : await _asyncExecuter.ToListAsync(
                 (await _linkRepository.GetQueryableAsync()).Where(l => variantIds.Contains(l.EntityVariantId)));
 
         // Değer DTO'ları ÖNCE kur (ClientKey'leriyle) → hem nitelik projeksiyonu hem varyant CombinationKey AYNI ClientKey'leri
@@ -217,7 +218,7 @@ public class EntityVariantGraphService : ApplicationService, IEntityVariantGraph
         using (_dataFilter.Disable<IMultiTenant>())
         using (_dataFilter.Disable<ICompanyScoped>())
         {
-            return await AsyncExecuter.ToListAsync(
+            return await _asyncExecuter.ToListAsync(
                 (await _variantRepository.GetQueryableAsync())
                     .Where(v => v.EntityName == entityName && v.EntityId == entityId && v.IsActive)
                     .OrderByDescending(v => v.IsMain).ThenBy(v => v.Code)
@@ -235,7 +236,7 @@ public class EntityVariantGraphService : ApplicationService, IEntityVariantGraph
 
         var en = (entityName ?? string.Empty).Trim();
         var ids = entityIds.Distinct().ToList();
-        var rows = await AsyncExecuter.ToListAsync(
+        var rows = await _asyncExecuter.ToListAsync(
             (await _variantRepository.GetQueryableAsync())
                 .Where(v => v.EntityName == en && ids.Contains(v.EntityId) && v.IsMain)
                 .Select(v => new { v.EntityId, v.Id }));
@@ -247,10 +248,9 @@ public class EntityVariantGraphService : ApplicationService, IEntityVariantGraph
         return result;
     }
 
-    [DisableValidation]
     public async Task DeleteForAsync(string entityName, Guid entityId, Func<IReadOnlyList<Guid>, Task>? deleteExtensionAsync = null)
     {
-        var variantIds = await AsyncExecuter.ToListAsync(
+        var variantIds = await _asyncExecuter.ToListAsync(
             (await _variantRepository.GetQueryableAsync())
                 .Where(v => v.EntityName == entityName && v.EntityId == entityId).Select(v => v.Id));
         if (variantIds.Count > 0)
@@ -265,7 +265,7 @@ public class EntityVariantGraphService : ApplicationService, IEntityVariantGraph
 
         await _variantManager.DeleteVariantsOfEntityAsync(entityName, entityId);
 
-        var attributeIds = await AsyncExecuter.ToListAsync(
+        var attributeIds = await _asyncExecuter.ToListAsync(
             (await _attributeRepository.GetQueryableAsync())
                 .Where(a => a.EntityName == entityName && a.EntityId == entityId).Select(a => a.Id));
         if (attributeIds.Count > 0)
@@ -403,12 +403,12 @@ public class EntityVariantGraphService : ApplicationService, IEntityVariantGraph
             return;
         }
 
-        var dbVariants = await AsyncExecuter.ToListAsync(
+        var dbVariants = await _asyncExecuter.ToListAsync(
             (await _variantRepository.GetQueryableAsync()).Where(v => v.EntityName == entityName && v.EntityId == entityId));
         var variantIds = dbVariants.Select(v => v.Id).ToList();
         var links = variantIds.Count == 0
             ? new List<EntityVariantAttributeValue>()
-            : await AsyncExecuter.ToListAsync(
+            : await _asyncExecuter.ToListAsync(
                 (await _linkRepository.GetQueryableAsync()).Where(l => variantIds.Contains(l.EntityVariantId)));
 
         var byCombination = dbVariants.ToDictionary(
