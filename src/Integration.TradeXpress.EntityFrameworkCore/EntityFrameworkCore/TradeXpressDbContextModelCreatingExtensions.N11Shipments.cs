@@ -24,8 +24,8 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
             // ShortName OPSİYONEL — N11 kısa-kodsuz firma döndürebiliyor (bkz. entity notu); zorunluluk sync'i düşürüyordu.
             b.Property(x => x.ShortName).HasMaxLength(N11ShipmentConsts.ShortNameMaxLength);
             b.HasIndex(x => x.ExternalId).IsUnique().HasFilter("[IsDeleted] = 0");
-            // CoreCarrierId + indeksi KALDIRILDI (2026-07-26): köprü sahipli tarafa taşındı
-            // (TrCarrier.N11ShipmentCompanyId) — host-global ayna company-owned satırı adresleyemez.
+            // CoreCarrierId + indeksi KALDIRILDI (2026-07-26): host-global ayna company-owned satırı
+            // adresleyemez. Şirkete ait bağ (firma → varsayılan cari) şablonun içinde yaşıyor.
         });
 
         builder.Entity<N11ShipmentTemplate>(b =>
@@ -34,6 +34,9 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
             b.ConfigureByConvention();
 
             b.Property(x => x.TemplateName).IsRequired().HasMaxLength(N11ShipmentConsts.TemplateNameMaxLength);
+            // Mevcut şablonlar AKTİF doğmalı — CLR default'u false olduğundan DB default'u açıkça true verilir,
+            // yoksa kolon eklenirken tüm şablonlar pasifleşir (senkron onları N11'de bulup geri açana kadar görünmez).
+            b.Property(x => x.IsActive).HasDefaultValue(true);
             b.Property(x => x.ShippingInfo).HasMaxLength(N11ShipmentConsts.InfoMaxLength);
             b.Property(x => x.ExchangeInfo).HasMaxLength(N11ShipmentConsts.InfoMaxLength);
             b.Property(x => x.InstallmentInfo).HasMaxLength(N11ShipmentConsts.InfoMaxLength);
@@ -53,15 +56,19 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
             b.OwnsOne(x => x.WarehouseAddress, ConfigureAddress);
             b.OwnsOne(x => x.ExchangeAddress, ConfigureAddress);
 
-            // Id-only referans listeleri → primitive collection (JSON kolonu; JOIN gerekmez, N11'e push edilir).
-            b.PrimitiveCollection(x => x.ShipmentCompanyExternalIds);
+            // Kargo firmaları artık düz kimlik listesi DEĞİL: her satır firma + varsayılan cari alt hesap taşıyor.
+            // JSON kolonu (owned collection; sorgulanmaz, N11'e yalnız kimlik push edilir) — Etsy attribute deseni.
+            b.OwnsMany(x => x.Companies, c =>
+            {
+                c.ToJson("ShipmentCompanies");   // kolon adı SABİT — property rename şema değiştirmez
+                c.Property(p => p.ExternalId).HasMaxLength(N11ShipmentConsts.ExternalIdMaxLength);
+            });
+
+            // İl kodları düz kimlik listesi olarak kalır (JSON kolonu; JOIN gerekmez, N11'e push edilir).
             b.PrimitiveCollection(x => x.DeliverableCityCodes);
 
             // Kimlik = (SalesChannelId, TemplateName) — N11'de ayrı id yok; soft-delete filtreli.
             b.HasIndex(x => new { x.SalesChannelId, x.TemplateName }).IsUnique().HasFilter("[IsDeleted] = 0");
-
-            // K1 köprüsü — çekirdek ERP kargo şablonu referansı (id-only, nav/FK YOK); çekirdek şablonun
-            // silme-guard sorgusu (ShipmentTemplateId == id) bu index'i kullanır.
         });
     }
 

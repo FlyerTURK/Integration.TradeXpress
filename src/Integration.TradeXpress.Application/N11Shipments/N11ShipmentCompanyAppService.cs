@@ -88,12 +88,20 @@ public class N11ShipmentCompanyAppService : TradeXpressAppService, IN11ShipmentC
         return inserts.Count + updates.Count + stale.Count;
     }
 
+    /// <summary>Şablonlarda SEÇİLEBİLİR kargo firmaları — kısa kodu OLMAYANLAR elenir.
+    /// <para>Gerekçe (2026-07-26 canlı API testi): N11 firmayı <c>shortName</c>'den çözer; kısa kodu boş olan
+    /// firmalar (Asil/DHL/Fillo Kargo) şablona EKLENEMEZ — boş kod da uydurma kod da
+    /// <i>"shipmentCompanyShortName alanı boş olamaz"</i> ile reddedilir. Listede bırakmak kullanıcıyı
+    /// anlaşılmaz bir push hatasına sürükler; ayna verisi ise N11 gerçeği olarak DOKUNULMADAN durur.</para></summary>
     public virtual async Task<List<N11ShipmentCompanyDto>> GetListAsync()
     {
         // Host-global okuma → host'a sabitle (tenant ayrı DB'ye geçse bile merkezî host verisi okunur).
         using (CurrentTenant.Change(null))
         {
-            var items = await AsyncExecuter.ToListAsync((await _repository.GetQueryableAsync()).OrderBy(x => x.Name));
+            var items = await AsyncExecuter.ToListAsync(
+                (await _repository.GetQueryableAsync())
+                    .Where(x => x.ShortName != null && x.ShortName != "")
+                    .OrderBy(x => x.Name));
             return items.Select(x => ObjectMapper.Map<N11ShipmentCompany, N11ShipmentCompanyDto>(x)).ToList();
         }
     }

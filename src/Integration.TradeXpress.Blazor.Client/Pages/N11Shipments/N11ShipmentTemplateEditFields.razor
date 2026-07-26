@@ -23,9 +23,6 @@
         <DxFormLayoutItem Caption="@L["N11ShipmentTemplate:CombinedShipmentAllowed"]" ColSpanMd="6">
             <DxCheckBox @bind-Checked="@Model.CombinedShipmentAllowed" CheckType="CheckType.Switch" />
         </DxFormLayoutItem>
-        <DxFormLayoutItem Caption="@L["N11ShipmentTemplate:UseDmallCargo"]" ColSpanMd="6">
-            <DxCheckBox @bind-Checked="@Model.UseDmallCargo" CheckType="CheckType.Switch" />
-        </DxFormLayoutItem>
 
         <DxFormLayoutItem Caption="@($"{L["N11ShipmentTemplate:ShippingInfo"]} *")" ColSpanMd="12">
             <DxMemo @bind-Text="@Model.ShippingInfo" Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100" />

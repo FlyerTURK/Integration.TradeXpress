@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Integration.Framework.Addressing;
+using Integration.TradeXpress.Accounts;
 using Integration.TradeXpress.MultiCompany;
 using Integration.TradeXpress.N11Cities;
 using Integration.TradeXpress.Permissions;
@@ -26,6 +27,7 @@ public class N11ShipmentTemplateAppService : TradeXpressAppService, IN11Shipment
     private readonly IRepository<N11ShipmentTemplate, Guid> _repository;
     private readonly IRepository<SalesChannelTrN11, Guid> _channelRepository;
     private readonly IRepository<N11ShipmentCompany, Guid> _shipmentCompanyRepository;
+    private readonly IRepository<SubAccount, Guid> _subAccountRepository;
     private readonly IRepository<N11City, Guid> _cityRepository;
     private readonly ICurrentCompany _currentCompany;
     private readonly IN11ShipmentTemplateClient _client;
@@ -34,6 +36,7 @@ public class N11ShipmentTemplateAppService : TradeXpressAppService, IN11Shipment
         IRepository<N11ShipmentTemplate, Guid> repository,
         IRepository<SalesChannelTrN11, Guid> channelRepository,
         IRepository<N11ShipmentCompany, Guid> shipmentCompanyRepository,
+        IRepository<SubAccount, Guid> subAccountRepository,
         IRepository<N11City, Guid> cityRepository,
         ICurrentCompany currentCompany,
         IN11ShipmentTemplateClient client)
@@ -41,6 +44,7 @@ public class N11ShipmentTemplateAppService : TradeXpressAppService, IN11Shipment
         _repository = repository;
         _channelRepository = channelRepository;
         _shipmentCompanyRepository = shipmentCompanyRepository;
+        _subAccountRepository = subAccountRepository;
         _cityRepository = cityRepository;
         _currentCompany = currentCompany;
         _client = client;
@@ -54,13 +58,66 @@ public class N11ShipmentTemplateAppService : TradeXpressAppService, IN11Shipment
                 .Where(x => x.CompanyId == companyId && x.SalesChannelId == salesChannelId)
                 .OrderBy(x => x.TemplateName));
 
-        return items.Select(x => ObjectMapper.Map<N11ShipmentTemplate, N11ShipmentTemplateDto>(x)).ToList();
+        var dtos = items.Select(x => ObjectMapper.Map<N11ShipmentTemplate, N11ShipmentTemplateDto>(x)).ToList();
+        await EnrichCompaniesAsync(items, dtos);
+        return dtos;
     }
 
     public virtual async Task<N11ShipmentTemplateDto> GetAsync(Guid id)
     {
         var entity = await GetOwnedTemplateAsync(id);
-        return ObjectMapper.Map<N11ShipmentTemplate, N11ShipmentTemplateDto>(entity);
+        var dto = ObjectMapper.Map<N11ShipmentTemplate, N11ShipmentTemplateDto>(entity);
+        await EnrichCompaniesAsync(new List<N11ShipmentTemplate> { entity }, new List<N11ShipmentTemplateDto> { dto });
+        return dto;
+    }
+
+    /// <summary>Kargo firması satırlarını gösterime hazırlar: düz kimlik listesi (mevcut çoklu-seçim bileşeni için)
+    /// + firma adı (host-global aynadan) + bağlı cari alt hesabın kodu. Adlar/kodlar PERSIST EDİLMEZ — tek kaynak
+    /// ayna ve cari planıdır; burada yalnız okunur.</summary>
+    private async Task EnrichCompaniesAsync(List<N11ShipmentTemplate> entities, List<N11ShipmentTemplateDto> dtos)
+    {
+        var externalIds = entities.SelectMany(e => e.Companies).Select(c => c.ExternalId).ToHashSet(StringComparer.Ordinal);
+        var subAccountIds = entities
+            .SelectMany(e => e.Companies)
+            .Where(c => c.SubAccountId is not null)
+            .Select(c => c.SubAccountId!.Value)
+            .ToHashSet();
+
+        var names = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (externalIds.Count > 0)
+        {
+            // Ayna HOST-GLOBAL → tenant filtresi kapatılarak okunur (şablon senkronundaki desenle aynı).
+            using (CurrentTenant.Change(null))
+            {
+                names = (await AsyncExecuter.ToListAsync(
+                        (await _shipmentCompanyRepository.GetQueryableAsync())
+                            .Where(c => externalIds.Contains(c.ExternalId))
+                            .Select(c => new { c.ExternalId, c.Name })))
+                    .ToDictionary(x => x.ExternalId, x => x.Name, StringComparer.Ordinal);
+            }
+        }
+
+        var subAccountCodes = subAccountIds.Count == 0
+            ? new Dictionary<Guid, string>()
+            : (await AsyncExecuter.ToListAsync(
+                    (await _subAccountRepository.GetQueryableAsync())
+                        .Where(s => subAccountIds.Contains(s.Id))
+                        .Select(s => new { s.Id, s.Code })))
+                .ToDictionary(x => x.Id, x => x.Code);
+
+        foreach (var (entity, dto) in entities.Zip(dtos))
+        {
+            dto.ShipmentCompanyExternalIds = entity.Companies.Select(c => c.ExternalId).ToList();
+            dto.Companies = entity.Companies
+                .Select(c => new N11ShipmentTemplateCompanyDto
+                {
+                    ExternalId = c.ExternalId,
+                    Name = names.GetValueOrDefault(c.ExternalId, string.Empty),
+                    SubAccountId = c.SubAccountId,
+                    SubAccountCode = c.SubAccountId is { } id ? subAccountCodes.GetValueOrDefault(id) : null,
+                })
+                .ToList();
+        }
     }
 
     [Authorize(TradeXpressPermissions.SalesChannels.Create)]
@@ -165,15 +222,127 @@ public class N11ShipmentTemplateAppService : TradeXpressAppService, IN11Shipment
             changed++;
         }
 
-        // Tam mutabakat: N11'de artık olmayan yerel şablonları sil → yerel = N11 (drift olmaz).
+        // N11'de artık olmayan şablon SİLİNMEZ → PASİFLEŞTİRİLİR (2026-07-26 Hakan kararı): şablon kalkmışsa
+        // onunla iş yapılmıyor demektir, ama kullanıcının kurduğu cari bağları ve geçmiş referanslar yaşamalı.
+        // Şablon N11'e geri gelirse yukarıdaki güncelleme kolu onu yeniden aktifleştirir.
         var fetchedNames = new HashSet<string>(templates.Select(t => NormalizeName(t.TemplateName)), StringComparer.Ordinal);
-        var stale = existing.Values.Where(e => !fetchedNames.Contains(e.TemplateName)).ToList();
-        if (stale.Count > 0)
+        foreach (var gone in existing.Values.Where(e => !fetchedNames.Contains(e.TemplateName) && e.IsActive))
         {
-            await _repository.DeleteManyAsync(stale, autoSave: true);
+            gone.SetActive(false);
+            await _repository.UpdateAsync(gone, autoSave: true);
         }
 
+        // Öksüz firmalar cariyi kardeş şablonlardan devralır → aynı firma ikinci kez sorulmaz.
+        await InheritSubAccountsFromSiblingsAsync(channel.Id);
+
         return changed;
+    }
+
+    /// <summary>Bir kargo firmasının varsayılan cari alt hesabını bağlar — öksüz-sorma akışının cevabı.
+    /// <para>Bağ AYNI KANALDAKİ TÜM şablonlara yayılır (firma başına tek cari = tek bakiye). <c>null</c> geçilirse
+    /// bağ çözülür ve firma yeniden öksüz olur.</para>
+    /// <para>Alt hesabın ŞİRKETE ait olduğu doğrulanır — company query-filter'ı zaten daraltır, ama bulunamayan
+    /// id sessizce geçilmez (fail-fast): yabancı/silinmiş cariye bağ kurulamaz.</para></summary>
+    [Authorize(TradeXpressPermissions.SalesChannels.Update)]
+    public virtual async Task LinkCompanySubAccountAsync(
+        Guid salesChannelId, string shipmentCompanyExternalId, Guid? subAccountId)
+    {
+        var channel = await GetOwnedChannelAsync(salesChannelId);
+
+        if (subAccountId is { } id && await _subAccountRepository.FindAsync(id) is null)
+        {
+            throw new BusinessException("TradeXpress:N11:Shipment:SubAccountNotFound");
+        }
+
+        var templates = await AsyncExecuter.ToListAsync(
+            (await _repository.GetQueryableAsync()).Where(x => x.SalesChannelId == channel.Id));
+
+        foreach (var template in templates.Where(t =>
+                     t.Companies.Any(c => string.Equals(c.ExternalId, shipmentCompanyExternalId, StringComparison.Ordinal))))
+        {
+            template.SetCompanySubAccount(shipmentCompanyExternalId, subAccountId);
+            await _repository.UpdateAsync(template, autoSave: true);
+        }
+    }
+
+    /// <summary>Cari alt hesabı bağlanmamış (ÖKSÜZ) kargo firmaları — firma başına TEK satır.</summary>
+    public virtual async Task<List<N11ShipmentTemplateCompanyDto>> GetUnlinkedCompaniesAsync(Guid salesChannelId)
+    {
+        var companyId = EnsureCurrentCompanyId();
+        var templates = await AsyncExecuter.ToListAsync(
+            (await _repository.GetQueryableAsync())
+                .Where(x => x.CompanyId == companyId && x.SalesChannelId == salesChannelId && x.IsActive));
+
+        var orphanIds = templates
+            .SelectMany(t => t.Companies)
+            .Where(c => c.SubAccountId is null)
+            .Select(c => c.ExternalId)
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+        if (orphanIds.Count == 0)
+        {
+            return new List<N11ShipmentTemplateCompanyDto>();
+        }
+
+        // Ayna HOST-GLOBAL → adlar tenant filtresi kapatılarak okunur.
+        Dictionary<string, string> names;
+        using (CurrentTenant.Change(null))
+        {
+            names = (await AsyncExecuter.ToListAsync(
+                    (await _shipmentCompanyRepository.GetQueryableAsync())
+                        .Where(c => orphanIds.Contains(c.ExternalId))
+                        .Select(c => new { c.ExternalId, c.Name })))
+                .ToDictionary(x => x.ExternalId, x => x.Name, StringComparer.Ordinal);
+        }
+
+        return orphanIds
+            .Select(externalId => new N11ShipmentTemplateCompanyDto
+            {
+                ExternalId = externalId,
+                Name = names.GetValueOrDefault(externalId, string.Empty),
+            })
+            .OrderBy(x => x.Name, StringComparer.CurrentCulture)
+            .ToList();
+    }
+
+    /// <summary>ÖKSÜZ firma satırlarına (carisi boş) cariyi KARDEŞ şablonlardan devrettirir.
+    /// <para>Hakan kuralı: "ilk şablonda Yurtiçi'yi sordu; ikinci şablonda yine Yurtiçi ise tekrar sormasın."
+    /// Bağ şablonun içinde yaşadığı için bu devir AÇIKÇA yapılmalı — aynı firma aynı kanalda AYNI cariyi
+    /// göstermeli, yoksa kargo firmasının tek bakiyesi bizde şablon şablon bölünür.</para>
+    /// <para>Mevcut bağlar EZİLMEZ; yalnız boş olanlar dolar. Kullanıcı bir firmayı bilinçli olarak farklı
+    /// carilere bağladıysa ilk bulunan esas alınır (çakışma bugün beklenmiyor — tek bakiye ilkesi).</para></summary>
+    private async Task InheritSubAccountsFromSiblingsAsync(Guid salesChannelId)
+    {
+        var channelTemplates = await AsyncExecuter.ToListAsync(
+            (await _repository.GetQueryableAsync()).Where(x => x.SalesChannelId == salesChannelId));
+
+        var knownSubAccounts = channelTemplates
+            .SelectMany(t => t.Companies)
+            .Where(c => c.SubAccountId is not null)
+            .GroupBy(c => c.ExternalId, StringComparer.Ordinal)
+            .ToDictionary(g => g.Key, g => g.First().SubAccountId!.Value, StringComparer.Ordinal);
+        if (knownSubAccounts.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var template in channelTemplates)
+        {
+            var filled = false;
+            foreach (var company in template.Companies.Where(c => c.SubAccountId is null))
+            {
+                if (knownSubAccounts.TryGetValue(company.ExternalId, out var subAccountId))
+                {
+                    company.SetSubAccount(subAccountId);
+                    filled = true;
+                }
+            }
+
+            if (filled)
+            {
+                await _repository.UpdateAsync(template, autoSave: true);
+            }
+        }
     }
 
     // ── FORWARD taslak (çekirdek → N11 ön-doldurma) ─────────────────────────────────────────────────
@@ -190,7 +359,8 @@ public class N11ShipmentTemplateAppService : TradeXpressAppService, IN11Shipment
         entity.SetTemplateName(input.TemplateName);
         entity.SetDeliveryFeeType(input.DeliveryFeeType);
         entity.SetShipmentMethod(input.ShipmentMethod);
-        entity.SetFlags(input.SpecialDelivery, input.CombinedShipmentAllowed, input.UseDmallCargo);
+        // UseDmallCargo kullanıcıdan ALINMAZ — anlaşmalı kargo N11'de zorunlu (entity notu), daima true.
+        entity.SetFlags(input.SpecialDelivery, input.CombinedShipmentAllowed);
         entity.SetInfos(input.ShippingInfo, input.ExchangeInfo, input.InstallmentInfo);
         entity.SetCargoAccountNo(input.CargoAccountNo);
         entity.SetClaimShipmentCompany(input.ClaimShipmentCompanyExternalId);
@@ -208,7 +378,7 @@ public class N11ShipmentTemplateAppService : TradeXpressAppService, IN11Shipment
         entity.SetTemplateName(data.TemplateName);
         entity.SetDeliveryFeeType((N11DeliveryFeeType)data.DeliveryFeeType);
         entity.SetShipmentMethod((N11ShipmentMethod)data.ShipmentMethod);
-        entity.SetFlags(data.SpecialDelivery, data.CombinedShipmentAllowed, data.UseDmallCargo);
+        entity.SetFlags(data.SpecialDelivery, data.CombinedShipmentAllowed);
         entity.SetInfos(data.ShippingInfo, data.ExchangeInfo, data.InstallmentInfo);
         entity.SetCargoAccountNo(data.CargoAccountNo);
         entity.SetClaimShipmentCompany(data.ClaimShipmentCompany is { } claim ? ResolveExternalId(claim, externalIdByShortName) : null);
@@ -244,7 +414,9 @@ public class N11ShipmentTemplateAppService : TradeXpressAppService, IN11Shipment
         IReadOnlyDictionary<string, N11ShipmentCompanyRef> companyRefs,
         IReadOnlyDictionary<string, string> cityNames)
     {
-        var companies = entity.ShipmentCompanyExternalIds
+        // N11'e yalnız firma KİMLİĞİ gider; cari alt hesap bizim iç bilgimizdir (push edilmez).
+        var companies = entity.Companies
+            .Select(c => c.ExternalId)
             .Where(companyRefs.ContainsKey)
             .Select(id => companyRefs[id])
             .ToList();
@@ -445,15 +617,14 @@ public class N11ShipmentTemplateAppService : TradeXpressAppService, IN11Shipment
     /// kargo firması, iade adresi ve üç bilgi metni (teslimat/değişim/taksit-vade farkı) da zorunlu.</summary>
     private static void EnsureN11Requirements(IN11ShipmentTemplateInput input)
     {
-        if (!input.UseDmallCargo)
-        {
-            throw new BusinessException("TradeXpress:N11:Shipment:UseDmallCargoRequired");
-        }
+        // Anlaşmalı kargo (UseDmallCargo) artık AYAR DEĞİL — daima true (entity notu), kontrol edilecek bir şey yok.
+        // Ödeme tipi de enum düzeyinde 2/3'e indirildiğinden ayrıca doğrulanmaz (geçersiz değer üretilemez).
 
-        // Anlaşmalı kargoda kargo ödeme tipi YALNIZ mağaza öder (2) / şartlı (3) — alıcı öder (1) N11'de reddedilir (canlı doğrulandı).
-        if (input.DeliveryFeeType != N11DeliveryFeeType.SellerPays && input.DeliveryFeeType != N11DeliveryFeeType.Conditional)
+        // Teslimat ili BOŞ olamaz: N11 boş listeyi "hiçbir şehre teslimat yok" diye kaydeder — sessizce
+        // işlevsiz şablon üretmemek için burada da fail-fast (entity'de de aynı guard var).
+        if (input.DeliverableCityCodes is not { Count: > 0 })
         {
-            throw new BusinessException("TradeXpress:N11:Shipment:DeliveryFeeTypeInvalid");
+            throw new BusinessException("TradeXpress:N11:Shipment:DeliverableCitiesRequired");
         }
 
         if (string.IsNullOrWhiteSpace(input.ClaimShipmentCompanyExternalId))

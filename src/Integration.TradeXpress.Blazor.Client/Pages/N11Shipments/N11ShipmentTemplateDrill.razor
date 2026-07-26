@@ -37,4 +37,7 @@
             <N11ShipmentTemplateEditFields Model="@t" Cities="@_cities" ShipmentCompanies="@_shipmentCompanies" />
         </EditContent>
     </DrillList>
+
+    @* Carisi bağlanmamış kargo firmaları — içe aktarımdan sonra dolar, hepsi bağlanınca kendiliğinden kaybolur. *@
+    <N11UnlinkedCarrierPanel @ref="_unlinkedPanel" SalesChannelId="@Channel.Id" OnLinked="@ReloadTemplatesAsync" />
 </div>

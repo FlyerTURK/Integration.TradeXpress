@@ -27,6 +27,7 @@ public partial class N11ShipmentTemplateDrill : CrudComponentBase
     [Inject] private IServiceProvider ServiceProvider { get; set; } = default!;
 
     private DrillList<N11ShipmentTemplateDto>? _drill;
+    private N11UnlinkedCarrierPanel? _unlinkedPanel;
 
     private List<N11ShipmentTemplateDto> _templates = new();
     private List<N11CityDto> _cities = new();
@@ -39,14 +40,14 @@ public partial class N11ShipmentTemplateDrill : CrudComponentBase
         _templates = await AppService.GetListAsync(Channel.Id);
     }
 
-    // Yeni şablon: kanal + n11 mandalı varsayılanlar (anlaşmalı kargo zorunlu). Adresler new() → null olmaz.
+    // Yeni şablon: kanal varsayılanları. Adresler new() → null olmaz. Anlaşmalı kargo artık AYAR DEĞİL
+    // (daima true, sunucuda sabit) → burada set edilmez.
     // Zorunlu N11 bilgi metinleri kanal düzeyi varsayılanlarıyla ön-doldurulur (varsa) → kullanıcı formda ezebilir.
     private N11ShipmentTemplateDto NewTemplate()
     {
         return new N11ShipmentTemplateDto
         {
             SalesChannelId = Channel.Id,
-            UseDmallCargo = true,
             ConditionalShippingUnit = N11ConditionalShippingUnit.Amount,
             ShippingInfo = Channel.DefaultShippingInfo,
             ExchangeInfo = Channel.DefaultExchangeInfo,
@@ -118,7 +119,8 @@ public partial class N11ShipmentTemplateDrill : CrudComponentBase
             showNo: false);
     }
 
-    // N11 ile Hizala: N11'deki şablonları yerelde upsert et + N11'de olmayanı sil (backend), listeyi tazele, sonucu toast'la.
+    // N11 ile Hizala: N11'deki şablonları yerelde upsert et + N11'de olmayanı PASİFLEŞTİR (backend),
+    // listeyi tazele, öksüz kargo firması panelini yenile (yeni firma gelmiş olabilir), sonucu toast'la.
     private async Task SyncAsync()
     {
         try
@@ -126,6 +128,12 @@ public partial class N11ShipmentTemplateDrill : CrudComponentBase
             var count = await AppService.SyncAsync(Channel.Id);
             _templates = await AppService.GetListAsync(Channel.Id);
             UiService.ShowSuccessToast(L["N11ShipmentTemplate:SyncSuccess", count]);
+
+            if (_unlinkedPanel is not null)
+            {
+                await _unlinkedPanel.ReloadAsync();
+            }
+
             StateHasChanged();
         }
         catch (Exception ex)
@@ -134,4 +142,10 @@ public partial class N11ShipmentTemplateDrill : CrudComponentBase
         }
     }
 
+    // Cari bağı kurulunca şablon listesini tazele — bağ şablonun firma satırına da yansır.
+    private async Task ReloadTemplatesAsync()
+    {
+        _templates = await AppService.GetListAsync(Channel.Id);
+        StateHasChanged();
+    }
 }

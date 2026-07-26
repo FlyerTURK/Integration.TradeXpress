@@ -67,7 +67,6 @@ public class N11ShipmentTemplateDto
     public N11ShipmentMethod ShipmentMethod { get; set; }
     public bool SpecialDelivery { get; set; }
     public bool CombinedShipmentAllowed { get; set; }
-    public bool UseDmallCargo { get; set; }
     public string? ShippingInfo { get; set; }
     public string? ExchangeInfo { get; set; }
     public string? InstallmentInfo { get; set; }
@@ -85,11 +84,41 @@ public class N11ShipmentTemplateDto
     public N11ShipmentAddressDto WarehouseAddress { get; set; } = new();
     public N11ShipmentAddressDto? ExchangeAddress { get; set; }
 
-    /// <summary>Şablonun kargo firmaları (N11 kargo firması ExternalId'leri).</summary>
+    /// <summary>Şablonun kargo firmaları (N11 kargo firması ExternalId'leri) — seçim/gösterim için düz liste.
+    /// Cari bağı için <see cref="Companies"/>'e bakılır (aynı firmalar, cari alanıyla birlikte).</summary>
     public List<string> ShipmentCompanyExternalIds { get; set; } = new();
 
-    /// <summary>Teslimat yapılan iller (N11 il kodları); boş = tüm iller.</summary>
+    /// <summary>Şablonun kargo firmaları + her birinin varsayılan cari alt hesabı. <c>SubAccountId</c> boş olan
+    /// satır ÖKSÜZ demektir; kullanıcıya "bu firmanın gideri hangi cariye yazılsın" diye sorulur.</summary>
+    public List<N11ShipmentTemplateCompanyDto> Companies { get; set; } = new();
+
+    /// <summary>Şablon N11'de hâlâ var mı. Senkron, N11'den kalkan şablonu silmez → pasifleştirir.</summary>
+    public bool IsActive { get; set; } = true;
+
+    /// <summary>Teslimat yapılan iller (N11 il kodları) — <b>BOŞ OLAMAZ</b>: N11 boş listeyi "hiçbir şehre
+    /// teslimat yok" diye kaydeder (tüm iller DEĞİL).</summary>
     public List<string> DeliverableCityCodes { get; set; } = new();
+}
+
+/// <summary>Şablonun tek kargo firması satırı — firma kimliği + varsayılan cari alt hesap (+ gösterim adları).</summary>
+public class N11ShipmentTemplateCompanyDto
+{
+    /// <summary>N11 kargo firması kimliği (<c>N11ShipmentCompany.ExternalId</c>).</summary>
+    public string ExternalId { get; set; } = string.Empty;
+
+    /// <summary>Firma adı — host-global aynadan çözülür (gösterim; persist EDİLMEZ).</summary>
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>Varsayılan cari alt hesap; <c>null</c> = öksüz (kullanıcıya sorulacak).</summary>
+    public Guid? SubAccountId { get; set; }
+
+    /// <summary>Bağlı alt hesabın kodu — gösterim (persist EDİLMEZ).</summary>
+    public string? SubAccountCode { get; set; }
+
+    public override string ToString()
+    {
+        return $"{ExternalId} ({Name})";
+    }
 }
 
 /// <summary>Create/Update ortak düzenlenebilir alanları — AppService tek <c>ApplyInput</c> ile uygular (DRY).
@@ -103,7 +132,6 @@ public interface IN11ShipmentTemplateInput
     N11ShipmentMethod ShipmentMethod { get; }
     bool SpecialDelivery { get; }
     bool CombinedShipmentAllowed { get; }
-    bool UseDmallCargo { get; }
     string? ShippingInfo { get; }
     string? ExchangeInfo { get; }
     string? InstallmentInfo { get; }
@@ -128,7 +156,6 @@ public class N11ShipmentTemplateCreateDto : IN11ShipmentTemplateInput
     public N11ShipmentMethod ShipmentMethod { get; set; }
     public bool SpecialDelivery { get; set; }
     public bool CombinedShipmentAllowed { get; set; }
-    public bool UseDmallCargo { get; set; }
     public string? ShippingInfo { get; set; }
     public string? ExchangeInfo { get; set; }
     public string? InstallmentInfo { get; set; }
@@ -151,7 +178,6 @@ public class N11ShipmentTemplateUpdateDto : IN11ShipmentTemplateInput
     public N11ShipmentMethod ShipmentMethod { get; set; }
     public bool SpecialDelivery { get; set; }
     public bool CombinedShipmentAllowed { get; set; }
-    public bool UseDmallCargo { get; set; }
     public string? ShippingInfo { get; set; }
     public string? ExchangeInfo { get; set; }
     public string? InstallmentInfo { get; set; }
@@ -188,8 +214,18 @@ public interface IN11ShipmentTemplateAppService : IApplicationService
     /// <summary>Şablonu N11'e oluşturur/günceller (kanalın kimliğiyle; şartlı kargo dahil).</summary>
     Task PushAsync(Guid id);
 
-    /// <summary>Yerel şablonları N11 ile HİZALAR: N11'deki şablonları çekip yerelde upsert eder (isim/kod → id ters-çözümü)
-    /// + N11'de artık olmayan (kullanılmayan) yerel şablonları SİLER. Değişen (yeni+güncellenen) sayısını döner.</summary>
+    /// <summary>Yerel şablonları N11 ile HİZALAR: N11'deki şablonları çekip yerelde upsert eder (isim/kod → id
+    /// ters-çözümü) + N11'de artık olmayan şablonları PASİFLEŞTİRİR (silmez — kullanıcının kurduğu cari bağları
+    /// yaşasın). Yeni gelen kargo firmaları cariyi kardeş şablonlardan devralır; devralamayan ÖKSÜZ kalır.
+    /// Değişen (yeni+güncellenen) sayısını döner.</summary>
     Task<int> SyncAsync(Guid salesChannelId);
 
+    /// <summary>Bir kargo firmasının varsayılan cari alt hesabını bağlar (öksüz-sorma akışının cevabı).
+    /// <para>Bağ AYNI KANALDAKİ TÜM şablonlara yayılır: kargo firması hesap ekstresini şablon şablon ayırmaz,
+    /// tek bakiye ister — bu yüzden aynı firma her yerde aynı cariyi gösterir ve bir daha sorulmaz.</para></summary>
+    Task LinkCompanySubAccountAsync(Guid salesChannelId, string shipmentCompanyExternalId, Guid? subAccountId);
+
+    /// <summary>Cari alt hesabı henüz bağlanmamış (ÖKSÜZ) kargo firmaları — içe aktarma sonrası kullanıcıya
+    /// sorulacak liste. Firma başına TEK satır (aynı firma birden çok şablonda geçse de bir kez sorulur).</summary>
+    Task<List<N11ShipmentTemplateCompanyDto>> GetUnlinkedCompaniesAsync(Guid salesChannelId);
 }

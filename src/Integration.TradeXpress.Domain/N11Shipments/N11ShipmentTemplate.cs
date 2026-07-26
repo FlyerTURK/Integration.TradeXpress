@@ -61,7 +61,13 @@ public class N11ShipmentTemplate : FullAuditedAggregateRoot<Guid>, IMultiTenant,
 
     public virtual bool SpecialDelivery { get; protected set; }
     public virtual bool CombinedShipmentAllowed { get; protected set; }
-    public virtual bool UseDmallCargo { get; protected set; }
+
+    /// <summary>n11 anlaşmalı kargo kullanımı — <b>DAİMA true</b>, kullanıcıya sorulmaz (2026-07-26 Hakan kararı,
+    /// canlı API doğrulaması): N11 <c>false</c> push'unu reddediyor —
+    /// <i>"İade/Değişim Kargolarında n11.com anlaşması kullanımı zorunluluğu 12.09.2019 tarihinde aktif edilmiştir."</i>
+    /// Elimizdeki v4.6 referans dokümanı bu tarihten eski olduğu için <c>false</c> örneği içeriyor; canlı otoritedir.
+    /// Alan wire uyumu için duruyor (şema zorunlu), ama seçilebilir bir ayar DEĞİLDİR.</summary>
+    public virtual bool UseDmallCargo { get; protected set; } = true;
 
     public virtual string? ShippingInfo { get; protected set; }
     public virtual string? ExchangeInfo { get; protected set; }
@@ -84,8 +90,14 @@ public class N11ShipmentTemplate : FullAuditedAggregateRoot<Guid>, IMultiTenant,
     /// <summary>Değişim/iade adresi — opsiyonel (OwnsOne).</summary>
     public virtual Address? ExchangeAddress { get; protected set; }
 
-    /// <summary>Şablonun kargo firmaları (N11 kargo firması ExternalId'leri; id-only liste).</summary>
-    public virtual List<string> ShipmentCompanyExternalIds { get; protected set; } = new();
+    /// <summary>Şablonun kargo firmaları — her satır firma kimliği + o firmanın varsayılan cari alt hesabı
+    /// (<see cref="N11ShipmentTemplateCompany"/>). Sıra N11'den geldiği gibi korunur.</summary>
+    public virtual List<N11ShipmentTemplateCompany> Companies { get; protected set; } = new();
+
+    /// <summary>Şablon N11'de hâlâ var mı. Senkron, N11'de bulunmayan şablonu SİLMEZ → pasifleştirir
+    /// (2026-07-26 Hakan kararı): şablon kalkmışsa o şablonla iş yapılmıyor demektir, ama kullanıcının kurduğu
+    /// cari bağları ve geçmiş referanslar korunmalı. Pasif şablon push edilmez, yeni işte seçilemez.</summary>
+    public virtual bool IsActive { get; protected set; } = true;
 
     /// <summary>Teslimat yapılan iller (N11 il kodları; id-only liste).</summary>
     public virtual List<string> DeliverableCityCodes { get; protected set; } = new();
@@ -109,11 +121,12 @@ public class N11ShipmentTemplate : FullAuditedAggregateRoot<Guid>, IMultiTenant,
         ShipmentMethod = shipmentMethod;
     }
 
-    public virtual void SetFlags(bool specialDelivery, bool combinedShipmentAllowed, bool useDmallCargo)
+    /// <summary>Kullanıcı seçimli bayraklar. <c>UseDmallCargo</c> BURADA YOK — anlaşmalı kargo zorunlu olduğundan
+    /// (bkz. alan notu) daima true'dur, ayar olarak sunulmaz.</summary>
+    public virtual void SetFlags(bool specialDelivery, bool combinedShipmentAllowed)
     {
         SpecialDelivery = specialDelivery;
         CombinedShipmentAllowed = combinedShipmentAllowed;
-        UseDmallCargo = useDmallCargo;
     }
 
     public virtual void SetInfos(string? shippingInfo, string? exchangeInfo, string? installmentInfo)
@@ -162,14 +175,46 @@ public class N11ShipmentTemplate : FullAuditedAggregateRoot<Guid>, IMultiTenant,
         ExchangeAddress = exchangeAddress;
     }
 
+    /// <summary>Firma listesini gelen kimliklere göre senkronize eder. <b>Cari bağları KORUNUR:</b> listede kalan
+    /// firmanın <c>SubAccountId</c>'sine dokunulmaz (senkron kullanıcı emeğini ezmez); listeden çıkan firma satırı
+    /// düşer, yeni firma ÖKSÜZ (carisi boş) eklenir ve kullanıcıya sorulacak listeye girer.</summary>
     public virtual void SetShipmentCompanies(IEnumerable<string> shipmentCompanyExternalIds)
     {
-        ShipmentCompanyExternalIds = NormalizeRefs(shipmentCompanyExternalIds);
+        var incoming = NormalizeRefs(shipmentCompanyExternalIds);
+        var existing = Companies.ToDictionary(c => c.ExternalId, StringComparer.Ordinal);
+
+        Companies = incoming
+            .Select(id => existing.TryGetValue(id, out var kept) ? kept : new N11ShipmentTemplateCompany(id))
+            .ToList();
     }
 
+    /// <summary>Bir kargo firmasının varsayılan cari alt hesabını bağlar. Firma bu şablonda yoksa sessizce
+    /// yok sayılır (senkron sırası kullanıcı işlemiyle yarışabilir).</summary>
+    public virtual void SetCompanySubAccount(string externalId, Guid? subAccountId)
+    {
+        var target = Companies.FirstOrDefault(c => string.Equals(c.ExternalId, externalId, StringComparison.Ordinal));
+        target?.SetSubAccount(subAccountId);
+    }
+
+    /// <summary>Şablonu aktif/pasif yapar — senkron, N11'de bulunmayanı pasifleştirir; geri gelirse aktifleşir.</summary>
+    public virtual void SetActive(bool value)
+    {
+        IsActive = value;
+    }
+
+    /// <summary>Teslimat illerini ayarlar — <b>BOŞ BIRAKILAMAZ</b> (2026-07-26 Hakan kararı, dokümanla doğrulandı):
+    /// <i>"deliverableCities alanı boş olursa ya da hiç olmazsa; ilgili kargo şablonu ile hiçbir şehre teslimat
+    /// gerçekleştirilemez olarak kaydedilecektir."</i> Yani boş liste "tüm iller" DEĞİL "hiçbir il" demektir —
+    /// sessizce işlevsiz bir şablon üretmemek için burada fail-fast edilir.</summary>
     public virtual void SetDeliverableCities(IEnumerable<string> cityCodes)
     {
-        DeliverableCityCodes = NormalizeRefs(cityCodes);
+        var normalized = NormalizeRefs(cityCodes);
+        if (normalized.Count == 0)
+        {
+            throw new BusinessException("TradeXpress:N11:Shipment:DeliverableCitiesRequired");
+        }
+
+        DeliverableCityCodes = normalized;
     }
 
 
