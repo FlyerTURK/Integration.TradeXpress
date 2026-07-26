@@ -21,7 +21,8 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
             b.ConfigureByConvention();
             b.Property(x => x.ExternalId).IsRequired().HasMaxLength(N11ShipmentConsts.ExternalIdMaxLength);
             b.Property(x => x.Name).IsRequired().HasMaxLength(N11ShipmentConsts.NameMaxLength);
-            b.Property(x => x.ShortName).IsRequired().HasMaxLength(N11ShipmentConsts.ShortNameMaxLength);
+            // ShortName OPSİYONEL — N11 kısa-kodsuz firma döndürebiliyor (bkz. entity notu); zorunluluk sync'i düşürüyordu.
+            b.Property(x => x.ShortName).HasMaxLength(N11ShipmentConsts.ShortNameMaxLength);
             b.HasIndex(x => x.ExternalId).IsUnique().HasFilter("[IsDeleted] = 0");
             // Çekirdek kargo firmasına gevşek köprü (nullable) — eşleme sorgusunu hızlandırır (N11City deseni).
             b.HasIndex(x => x.CoreCarrierId);

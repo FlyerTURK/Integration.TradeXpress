@@ -16,7 +16,7 @@ public class N11ShipmentCompany : FullAuditedAggregateRoot<Guid>
     {
     }
 
-    public N11ShipmentCompany(string externalId, string name, string shortName)
+    public N11ShipmentCompany(string externalId, string name, string? shortName)
     {
         ExternalId = StringFieldGuard.EnsureRequiredText(externalId, nameof(ExternalId), 1, N11ShipmentConsts.ExternalIdMaxLength);
         SetName(name);
@@ -32,8 +32,10 @@ public class N11ShipmentCompany : FullAuditedAggregateRoot<Guid>
 
     public string Name { get; protected set; } = string.Empty;
 
-    /// <summary>Kısa kod (ör. ARAS, YK).</summary>
-    public string ShortName { get; protected set; } = string.Empty;
+    /// <summary>Kısa kod (ör. ARAS, YK) — <b>OPSİYONEL</b>: N11 bazı firmaları kısa-kodSUZ döndürür
+    /// (DHL/Asil/Fillo Kargo). Ayna entity N11'in wire gerçeğini olduğu gibi taşır; kod TÜRETME
+    /// (boşsa Name'den) çekirdek tarafın (<c>TrCarrierSeeder</c>) işidir.</summary>
+    public string? ShortName { get; protected set; }
 
     /// <summary>Çekirdek kargo firmasına gevşek köprü — eşlenen <see cref="Shipments.Carrier"/> id'si (nav YOK;
     /// N11 çekirdeği BİLMEZ). CarrierSeeder doldurur; null = henüz eşlenmedi.</summary>
@@ -48,9 +50,13 @@ public class N11ShipmentCompany : FullAuditedAggregateRoot<Guid>
         Name = StringFieldGuard.EnsureRequiredText(name, nameof(Name), 1, N11ShipmentConsts.NameMaxLength);
     }
 
-    public virtual void SetShortName(string shortName)
+    /// <summary>Kısa kodu set eder — BOŞ KABUL EDİLİR (2026-07-26 canlı bulgu). Eskiden zorunluydu ve N11'in
+    /// kısa-kodsuz döndürdüğü İLK firmada (DHL/Asil/Fillo) RequiredPropertyException fırlatıp SYNC'İN TAMAMINI
+    /// düşürüyordu → tabloda 0 firma, dolayısıyla çekirdek kargo kataloğu da hiç kurulamıyordu. Worker hatayı
+    /// "kimlik/ağ?" diye loglayıp yuttuğundan sorun aylarca görünmezdi.</summary>
+    public virtual void SetShortName(string? shortName)
     {
-        ShortName = StringFieldGuard.EnsureRequiredText(shortName, nameof(ShortName), 1, N11ShipmentConsts.ShortNameMaxLength);
+        ShortName = StringFieldGuard.EnsureOptionalText(shortName, nameof(ShortName), 1, N11ShipmentConsts.ShortNameMaxLength);
     }
 
     /// <summary>Çekirdek kargo firması köprüsünü set eder (boş Guid → null). CarrierSeeder çağırır.</summary>
