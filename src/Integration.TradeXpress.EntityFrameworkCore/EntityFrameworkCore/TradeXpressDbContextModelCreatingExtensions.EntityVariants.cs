@@ -35,6 +35,13 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
             b.HasIndex(x => new { x.TenantId, x.CompanyId });
             // Ana varyant araması (tek-main invariant).
             b.HasIndex(x => new { x.TenantId, x.EntityName, x.EntityId, x.IsMain });
+            // TEK-ANA değişmezinin DB-backstop'u (2026-07-25 inceleme bulgusu #18): EntityVariantManager
+            // UnsetOtherMainsAsync ile korur ama eşzamanlı iki materyalizasyon/elle edit yarışı iki IsMain
+            // bırakabilirdi — filtreli unique yarış kazasını DB'de keser (canlı satırlar arasında tek ana).
+            b.HasIndex(x => new { x.TenantId, x.EntityName, x.EntityId })
+                .IsUnique()
+                .HasFilter("[IsMain] = 1 AND [IsDeleted] = 0")
+                .HasDatabaseName("IX_AppEntityVariants_SingleMain");
 
             // Barkod PRODUCT varyantlarında tenant-genelinde TEKİL — pazaryeri (N11/Trendyol) idempotent import'un
             // DB-backstop'u (eski ProductVariant'ta vardı; Product→agnostik geçişte istemeden düşmüştü → çift-import/race

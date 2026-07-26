@@ -118,7 +118,7 @@ public class SubstitutionChannelPlanProvider : ITransientDependency
         Func<THeader, int, List<ProductRecipeLineGraphDto>, Task> applyCombinationToHeaderAsync)
     {
         var context = await BuildAsync(input);
-        var plan = context.Plan;
+        var plan = context.Plan!;   // kanal yolu DAİMA plan-tabanlı yükleyiciden gelir (Plan null olamaz)
 
         // 1) "Kombinasyon" özelliği + değer diff'i — eşleşen değer id'leri korunur (StockItem imzaları yaşar).
         var channelAttributes = await loadChannelAttributesAsync();
@@ -298,12 +298,21 @@ public class SubstitutionChannelPlanProvider : ITransientDependency
     private async Task<SubstitutionChannelPlanContext> LoadPlanContextAsync(SubstitutionStockItemPlan plan)
     {
         var planLines = plan.Items.SelectMany(i => i.RecipeLines).ToList();
-        var metalIds = planLines.Select(l => l.MetalId).Distinct().ToList();
-        var variantIds = planLines
-            .Where(l => l.VariantId != null)
-            .Select(l => l.VariantId!.Value)
-            .Distinct()
-            .ToList();
+        var context = await LoadPlanContextAsync(
+            planLines.Select(l => l.MetalId).Distinct().ToList(),
+            planLines.Where(l => l.VariantId != null).Select(l => l.VariantId!.Value).Distinct().ToList());
+        return context with { Plan = plan };
+    }
+
+    /// <summary>Maden + işçilik bağlamını doğrudan id kümelerinden yükler — kanal planı DIŞINDAKİ tüketiciler
+    /// için de (ör. <c>SubstitutionVariantMaterializer</c>: ERP varyant materyalizasyonu) TEK bağlam kurucu.
+    /// Guard'lar ComputeUnitCostsAsync ile aynı (IMultiTenant + ICompanyScoped kapalı — host katalog kayıtları
+    /// tenant altında da görünür).</summary>
+    public virtual async Task<SubstitutionChannelPlanContext> LoadPlanContextAsync(
+        IReadOnlyCollection<Guid> metalIdSet, IReadOnlyCollection<Guid> variantIdSet)
+    {
+        var metalIds = metalIdSet.ToList();
+        var variantIds = variantIdSet.ToList();
 
         Dictionary<Guid, Metal> metalById;
         Dictionary<Guid, SubstitutionPlanLabor> laborByVariantId;
@@ -346,7 +355,7 @@ public class SubstitutionChannelPlanProvider : ITransientDependency
             throw new BusinessException("TradeXpress:Substitution:MetalNotFound");
         }
 
-        return new SubstitutionChannelPlanContext(plan, metalById, laborByVariantId, mainLaborByMetalId);
+        return new SubstitutionChannelPlanContext(Plan: null, metalById, laborByVariantId, mainLaborByMetalId);
     }
 
     /// <summary>EntityVariant sahip-tipi guard'ı — işçilik join'i yalnız Metal varyantlarına daralır
@@ -357,7 +366,7 @@ public class SubstitutionChannelPlanProvider : ITransientDependency
 /// <summary>Köprü bağlamı — nötr plan + plandaki madenlerin çözülmüş katalog kayıtları + işçilik sözlükleri
 /// (varyant-anahtarlı seçili-varyant işçiliği ve varyantsız legacy satırlar için ana-varyant fallback'i).</summary>
 public sealed record SubstitutionChannelPlanContext(
-    SubstitutionStockItemPlan Plan,
+    SubstitutionStockItemPlan? Plan,
     IReadOnlyDictionary<Guid, Metal> MetalById,
     IReadOnlyDictionary<Guid, SubstitutionPlanLabor> LaborByVariantId,
     IReadOnlyDictionary<Guid, SubstitutionPlanLabor> MainLaborByMetalId);

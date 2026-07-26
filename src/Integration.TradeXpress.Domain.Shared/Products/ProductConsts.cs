@@ -46,4 +46,9 @@ public static class ProductConsts
     // OrgTree HQ Branch / Default Vault deseniyle hizalı (const-tabanlı ad; BranchConsts.DefaultHeadquarters* paritesi).
     public const string MainVariantCode = "ANAVARYANT";
     public const string MainVariantName = "Ana Varyant";
+
+    /// <summary>Muadil-Çoklu modda materyalize edilecek en fazla varyant sayısı (Rank sırasıyla). Motorun
+    /// TopN'i (50) müşteri-yüzü için fazla — kanala 50 aynı-gramaj SKU anlamsız; tolerans/override ile
+    /// daraltılır, bu tavan son emniyettir. (ADR-PRODUCT-ORCHESTRATION; 2026-07-25.)</summary>
+    public const int SubstitutionMaterializedVariantMax = 10;
 }

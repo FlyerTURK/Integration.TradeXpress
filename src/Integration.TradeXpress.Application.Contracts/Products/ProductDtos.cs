@@ -128,6 +128,12 @@ public class ProductGetDto : EntityDto<Guid>, IGetDto<Guid>, IHasCode
     /// dolu ise grup kalemlerinin varyant kapsamını tamamen ezer. Override ağacı in-memory düzenler.</summary>
     public List<Guid> SubstitutionOverrideVariantIds { get; set; } = new();
 
+    /// <summary>Muadil kombinasyon→varyant biçimi (Tek/Çoklu) — yalnız Substitution modunda anlamlı.</summary>
+    public SubstitutionVariantMode SubstitutionVariantMode { get; set; }
+
+    /// <summary>Kanal stok kaynağı — Fixed (statüko) / Calculated / Unlimited. Muadilde sunucu Calculated'ı zorlar.</summary>
+    public ProductStockPolicy StockPolicy { get; set; }
+
     /// <summary>Ürün MEDYA linkleri (merkezi kütüphane; görsel + video birlikte — <see cref="IEntityMediaAppService"/>).
     /// Pazaryeri push görselleri (<see cref="Images"/>) AYRI kalır; bu ürün-seviyesi genel medya/video kütüphanesidir.</summary>
     public List<EntityMediaLinkEditDto> Media { get; set; } = new();
@@ -219,6 +225,12 @@ public class ProductCreateDto : ICreateDto
     public decimal? SubstitutionToleranceValue { get; set; }
     public List<Guid> SubstitutionOverrideVariantIds { get; set; } = new();
 
+    /// <summary>Muadil kombinasyon→varyant biçimi (Tek/Çoklu) — yalnız Substitution modunda anlamlı.</summary>
+    public SubstitutionVariantMode SubstitutionVariantMode { get; set; }
+
+    /// <summary>Kanal stok kaynağı — Fixed (statüko) / Calculated / Unlimited. Muadilde sunucu Calculated'ı zorlar.</summary>
+    public ProductStockPolicy StockPolicy { get; set; }
+
     /// <summary>Ürün MEDYA linkleri (görsel + video kütüphanesi) — bkz. <see cref="ProductGetDto.Media"/>.</summary>
     public List<EntityMediaLinkEditDto> Media { get; set; } = new();
 
@@ -306,6 +318,12 @@ public class ProductUpdateDto : IUpdateDto
     public ToleranceType? SubstitutionToleranceType { get; set; }
     public decimal? SubstitutionToleranceValue { get; set; }
     public List<Guid> SubstitutionOverrideVariantIds { get; set; } = new();
+
+    /// <summary>Muadil kombinasyon→varyant biçimi (Tek/Çoklu) — yalnız Substitution modunda anlamlı.</summary>
+    public SubstitutionVariantMode SubstitutionVariantMode { get; set; }
+
+    /// <summary>Kanal stok kaynağı — Fixed (statüko) / Calculated / Unlimited. Muadilde sunucu Calculated'ı zorlar.</summary>
+    public ProductStockPolicy StockPolicy { get; set; }
 
     /// <summary>Ürün MEDYA linkleri (görsel + video kütüphanesi) — bkz. <see cref="ProductGetDto.Media"/>.</summary>
     public List<EntityMediaLinkEditDto> Media { get; set; } = new();

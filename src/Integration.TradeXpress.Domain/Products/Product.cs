@@ -150,6 +150,16 @@ public class Product : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwn
     /// override ?? IncludedVariantIds ?? ana varyant); dolu ise grup kalemlerinin kapsamını TAMAMEN ezer.</summary>
     public virtual List<Guid> SubstitutionOverrideVariantIds { get; protected set; } = new();
 
+    /// <summary>Muadil kombinasyonlarının varyanta dönüşme biçimi (Tek/Çoklu) — yalnız Substitution modunda
+    /// anlamlı; mod dışında <see cref="SetSubstitutionConfig"/> Single'a sıfırlar. Üretim otomatiktir
+    /// (ürün kaydı + maden stok değişimi; ADR-PRODUCT-ORCHESTRATION).</summary>
+    public virtual SubstitutionVariantMode SubstitutionVariantMode { get; protected set; }
+
+    /// <summary>Kanal stok sayısının kaynağı — varsayılan <see cref="ProductStockPolicy.Fixed"/> (statüko:
+    /// elle girilen stok; orkestratör dokunmaz). Muadil ürünler doğal olarak Calculated'dır
+    /// (<see cref="SetSubstitutionConfig"/> zorlar — muadilde stok her zaman hesaptan gelir).</summary>
+    public virtual ProductStockPolicy StockPolicy { get; protected set; }
+
     protected Product() { }
 
     public Product(
@@ -467,7 +477,8 @@ public class Product : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwn
         decimal? targetQuantity,
         ToleranceType? toleranceType,
         decimal? toleranceValue,
-        IEnumerable<Guid>? overrideVariantIds)
+        IEnumerable<Guid>? overrideVariantIds,
+        SubstitutionVariantMode substitutionVariantMode = SubstitutionVariantMode.Single)
     {
         if (VariantMode != ProductVariantMode.Substitution)
         {
@@ -476,6 +487,7 @@ public class Product : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwn
             SubstitutionToleranceType = null;
             SubstitutionToleranceValue = null;
             SubstitutionOverrideVariantIds = new List<Guid>();
+            SubstitutionVariantMode = SubstitutionVariantMode.Single;
             return;
         }
 
@@ -507,6 +519,25 @@ public class Product : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwn
             .Where(id => id != Guid.Empty)
             .Distinct()
             .ToList();
+        SubstitutionVariantMode = substitutionVariantMode;
+
+        // Muadilde stok DAİMA hesaptan gelir (kombinasyonlar o anki stoktan türer) → politika zorlanır.
+        // Elle stok (Fixed) muadille çelişir: kullanıcının yazdığı sayı ile üretilebilir paket sayısı
+        // ayrışınca oversell kapısı açılırdı.
+        StockPolicy = ProductStockPolicy.Calculated;
+    }
+
+    /// <summary>Stok politikası — SetCondition deseni (basit atama). Muadil modda çağrı ETKİSİZDİR:
+    /// <see cref="SetSubstitutionConfig"/> Calculated'ı zorlar (muadil stoğu hesaptan gelir, elle olamaz).</summary>
+    public virtual void SetStockPolicy(ProductStockPolicy stockPolicy)
+    {
+        if (VariantMode == ProductVariantMode.Substitution)
+        {
+            StockPolicy = ProductStockPolicy.Calculated;
+            return;
+        }
+
+        StockPolicy = stockPolicy;
     }
 
     /// <summary>Tekil varsayılan görsel: birden fazla işaretliyse İLKİ kalır; hiç yoksa ilk görsel default olur.</summary>

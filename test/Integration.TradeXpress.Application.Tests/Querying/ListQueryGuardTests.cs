@@ -39,11 +39,14 @@ public class ListQueryGuardTests
     }
 
     [Fact]
-    public void Nonpositive_page_size_is_clamped_to_one()
+    public void Nonpositive_page_size_means_all_pages()
     {
+        // 2026-07-25 ürün kararı (AllPages): <=0 artık "tümü" niyetidir — 1'e KIRPILMAZ (sessiz tek satır
+        // yalanı), kanonik -1'e normalize edilir ve sayfalama uygulanmaz (tüm kayıtlar döner).
         var req = new ListRequestDto { MaxResultCount = 0 };
-        Data().ApplyListRequest(req, Allowed);
-        req.MaxResultCount.ShouldBe(1);
+        var result = Data().ApplyListRequest(req, Allowed).ToList();
+        req.MaxResultCount.ShouldBe(ListRequestDto.AllPages);
+        result.Count.ShouldBe(5);
     }
 
     [Fact]

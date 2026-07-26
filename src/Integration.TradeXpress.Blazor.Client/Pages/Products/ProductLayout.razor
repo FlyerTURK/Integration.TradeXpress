@@ -60,6 +60,11 @@
                 <DxFormLayoutItem Caption="@($"{L["Substitution:TargetQuantity"]} *")" ColSpanMd="6">
                     <NumericSpinEdit TValue="decimal?" @bind-Value="@Model.SubstitutionTargetQuantity" DisplayFormat="N5" />
                 </DxFormLayoutItem>
+                @* Varyant Oluşturma Modu (2026-07-25 Hakan): Tek = yalnız en iyi kombinasyon ana varyant;
+                   Çoklu = adaylar ayrı varyant (Rank 1 ana, diğerleri müşteriye seçenek). Üretim OTOMATİK. *@
+                <DxFormLayoutItem Caption="@L["Product:SubstitutionVariantMode"]" ColSpanMd="6">
+                    <ComboBoxEnumEdit TEnum="SubstitutionVariantMode" L="@L" @bind-Value="@Model.SubstitutionVariantMode" />
+                </DxFormLayoutItem>
                 @* Tolerans türü hep açık (default Miktar; clear yok — devral kaldırıldı). Değer YALNIZ Binde'de görünür;
                    Miktar (tam eşleşme) türünde giriş beklenmez → tür değişince değer sıfırlanır (OnToleranceTypeChanged). *@
                 <DxFormLayoutItem Caption="@L["ToleranceType"]" ColSpanMd="6" BeginRow="true">
@@ -419,12 +424,9 @@
                                RenderStyleMode="ToolbarItemRenderStyleMode.Contained"
                                RenderStyle="ButtonRenderStyle.Primary"
                                IconCssClass="@(SubstitutionBusy ? TradeXpressIcons.Spinner : TradeXpressIcons.Check)" />
-                <DxToolbarItem Text="@L["Product:ApplyTrialToRecipe"]"
-                               Click="@(async () => await ApplySelectedTrialAsync())"
-                               Enabled="@(_selectedTrialRow is { Success: true })"
-                               RenderStyleMode="ToolbarItemRenderStyleMode.Contained"
-                               RenderStyle="ButtonRenderStyle.Secondary"
-                               IconCssClass="@TradeXpressIcons.Swap" />
+                @* "Uygula" KALDIRILDI (2026-07-25 Hakan): kombinasyon→varyant dönüşümü OTOMATİK —
+                   ürün kaydında + maden stoğu değişince sunucu (SubstitutionVariantMaterializer) üretir.
+                   Bu tablo artık salt-okunur ÖNİZLEMEDİR (o anki stokla ne üretilebilir). *@
             </DxToolbar>
 
             @if (SubstitutionResult is { } sr)

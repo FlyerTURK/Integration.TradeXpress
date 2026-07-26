@@ -96,6 +96,12 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
             // Varyant reçetesi sıralı okuma (drill LineOrder sırası) + company güvenlik query-filter'ı.
             b.HasIndex(x => new { x.TenantId, x.ProductVariantId, x.LineOrder });
             b.HasIndex(x => new { x.TenantId, x.CompanyId });
+
+            // TERS-ENDEKS (ADR-PRODUCT-ORCHESTRATION): "bu madeni reçetesinde taşıyan varyantlar" araması —
+            // maden stoğu değişince (VoucherLine tetiği) etkilenen ürünler buradan bulunur. İndeks olmadan
+            // sorgu company içi TAM TARAMA olurdu. CommodityVariantId dahil: varyant-granüler eşleşme
+            // (hem değişen varyanta bağlı hem varyantsız/null satırlar yakalanır).
+            b.HasIndex(x => new { x.TenantId, x.CompanyId, x.CommodityProcessType, x.CommodityId, x.CommodityVariantId });
         });
     }
 }

@@ -61,6 +61,19 @@ public class EntityVariantManager : DomainService
         }
     }
 
+    /// <summary>Verilen varyantı ANA yapar ve sahip başına tekil-ana değişmezini korur (diğerlerinin bayrağı
+    /// düşürülür). Muadil materyalizasyonu Rank 1 kombinasyonu ana yaparken kullanır (ADR-PRODUCT-ORCHESTRATION).</summary>
+    public async Task SetMainVariantAsync(EntityVariant variant)
+    {
+        if (!variant.IsMain)
+        {
+            variant.SetAsMain(true);
+            await _variantRepository.UpdateAsync(variant, autoSave: true);
+        }
+
+        await UnsetOtherMainsAsync(variant.EntityName, variant.EntityId, variant.Id);
+    }
+
     /// <summary>Sahip entity'nin tüm varyantlarını siler (sahip entity silinmeden önce çağrılır).</summary>
     public async Task DeleteVariantsOfEntityAsync(string entityName, Guid entityId, bool autoSave = true)
     {

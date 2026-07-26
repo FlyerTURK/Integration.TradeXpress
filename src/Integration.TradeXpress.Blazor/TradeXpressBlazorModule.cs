@@ -376,6 +376,11 @@ public class TradeXpressBlazorModule : AbpModule
         Volo.Abp.Threading.AsyncHelper.RunSync(() =>
             context.AddBackgroundWorkerAsync<Integration.TradeXpress.Orders.OrderSyncBackgroundWorker>());
 
+        // 15-dk repricing döngüsü (ADR-PRODUCT-ORCHESTRATION Dilim 2) — kanal fiyat/stok tazeleme sinyali.
+        // YALNIZ Blazor host'ta (çift-çalışma yok — diğer worker'larla aynı tekilleştirme).
+        Volo.Abp.Threading.AsyncHelper.RunSync(() =>
+            context.AddBackgroundWorkerAsync<Integration.TradeXpress.Orchestration.RepricingCycleWorker>());
+
         // Etsy taxonomy TAM-RECONCILE worker (günlük; RunOnStart=true → açılışta İLK bayatlık kontrolü). Bayat/boşsa
         // reconcile (ekle/güncelle/HARD-sil); değilse atlar. YALNIZ Blazor host'ta → çift-çalışma yok.
         Volo.Abp.Threading.AsyncHelper.RunSync(() =>

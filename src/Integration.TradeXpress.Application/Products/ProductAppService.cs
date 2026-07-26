@@ -10,6 +10,7 @@ using Integration.TradeXpress.MultiCompany;
 using Integration.TradeXpress.N11Products;
 using Integration.TradeXpress.SalesChannels.Variants;
 using Integration.TradeXpress.Shipments;
+using Integration.TradeXpress.Orchestration;
 using Integration.TradeXpress.Substitutions;
 using Integration.TradeXpress.TrendyolProducts;
 using Integration.TradeXpress.Permissions;
@@ -43,6 +44,7 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
     private readonly IRepository<Product, Guid> _repository;
     private readonly IRepository<ShipmentTemplate, Guid> _shipmentTemplateRepository;   // yalnız OKUMA — FK→ad çözümü (K8-Faz1)
     private readonly IRepository<SubstitutionGroup, Guid> _substitutionGroupRepository; // yalnız OKUMA — FK varlık doğrulaması
+    private readonly SubstitutionVariantMaterializer _substitutionMaterializer;   // muadil varyantlarını stoktan otomatik üretir
     private readonly IEntityVariantGraphService _entityVariant;
     private readonly IRepository<EntityVariant, Guid> _variantRepository;
     private readonly IRepository<ProductVariantDetail, Guid> _variantDetailRepository;
@@ -62,6 +64,7 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         IRepository<Product, Guid> repository,
         IRepository<ShipmentTemplate, Guid> shipmentTemplateRepository,
         IRepository<SubstitutionGroup, Guid> substitutionGroupRepository,
+        SubstitutionVariantMaterializer substitutionMaterializer,
         IEntityVariantGraphService entityVariant,
         IRepository<EntityVariant, Guid> variantRepository,
         IRepository<ProductVariantDetail, Guid> variantDetailRepository,
@@ -77,6 +80,7 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         _repository = repository;
         _shipmentTemplateRepository = shipmentTemplateRepository;
         _substitutionGroupRepository = substitutionGroupRepository;
+        _substitutionMaterializer = substitutionMaterializer;
         _entityVariant = entityVariant;
         _variantRepository = variantRepository;
         _variantDetailRepository = variantDetailRepository;
@@ -182,12 +186,18 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         await EnsureSubstitutionGroupExistsAsync(input.VariantMode, input.SubstitutionGroupId);
         entity.SetVariantMode(input.VariantMode);
         entity.SetSubstitutionConfig(input.SubstitutionGroupId, input.SubstitutionTargetQuantity,
-            input.SubstitutionToleranceType, input.SubstitutionToleranceValue, input.SubstitutionOverrideVariantIds);
+            input.SubstitutionToleranceType, input.SubstitutionToleranceValue, input.SubstitutionOverrideVariantIds,
+            input.SubstitutionVariantMode);
+        entity.SetStockPolicy(input.StockPolicy);   // muadilde no-op: SetSubstitutionConfig Calculated'ı zorladı
         await _repository.InsertAsync(entity, autoSave: true);
 
         // Varyant sistemi — JENERİK agnostik servise delege ("Product" bağlamı). Çekirdek (nitelik/değer/varyant)
         // serviste; Product-ÖZEL satış fiyatı + reçete uzantısı saveExtension callback'iyle ProductVariantDetail'e bağlanır.
         await SaveVariantGraphAsync(entity, input.Attributes, input.Variants);
+        // MUADİL: varyantlar O ANKİ stoğa göre OTOMATİK üretilir ("Uygula" yok — 2026-07-25 Hakan kararı;
+        // Single: Rank1 → ana reçete, Multi: adaylar ayrı varyant). Graf-save SONRASI koşar ki synchronizer'ın
+        // 0-nitelik dalı (tek-ana indirgeme) materyalize varyantları ezmesin (onlar link-less, dal dokunmaz).
+        await _substitutionMaterializer.MaterializeAsync(entity);
         await SaveChannelProductsGraphAsync(entity.Id, input.SalesChannelProducts);
         await SaveTrendyolChannelProductsGraphAsync(entity.Id, input.SalesChannelTrendyolProducts);
         await SaveEtsyChannelProductsGraphAsync(entity.Id, input.SalesChannelEtsyProducts);
@@ -218,13 +228,19 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         await EnsureSubstitutionGroupExistsAsync(input.VariantMode, input.SubstitutionGroupId);
         entity.SetVariantMode(input.VariantMode);
         entity.SetSubstitutionConfig(input.SubstitutionGroupId, input.SubstitutionTargetQuantity,
-            input.SubstitutionToleranceType, input.SubstitutionToleranceValue, input.SubstitutionOverrideVariantIds);
+            input.SubstitutionToleranceType, input.SubstitutionToleranceValue, input.SubstitutionOverrideVariantIds,
+            input.SubstitutionVariantMode);
+        entity.SetStockPolicy(input.StockPolicy);   // muadilde no-op: SetSubstitutionConfig Calculated'ı zorladı
         await DeleteOrphanImageBlobsAsync(oldImages, entity.Images);
         await _repository.UpdateAsync(entity, autoSave: true);
 
         // Varyant sistemi — JENERİK agnostik servise delege ("Product" bağlamı). Çekirdek (nitelik/değer/varyant)
         // serviste; Product-ÖZEL satış fiyatı + reçete uzantısı saveExtension callback'iyle ProductVariantDetail'e bağlanır.
         await SaveVariantGraphAsync(entity, input.Attributes, input.Variants);
+        // MUADİL: varyantlar O ANKİ stoğa göre OTOMATİK üretilir ("Uygula" yok — 2026-07-25 Hakan kararı;
+        // Single: Rank1 → ana reçete, Multi: adaylar ayrı varyant). Graf-save SONRASI koşar ki synchronizer'ın
+        // 0-nitelik dalı (tek-ana indirgeme) materyalize varyantları ezmesin (onlar link-less, dal dokunmaz).
+        await _substitutionMaterializer.MaterializeAsync(entity);
         await SaveChannelProductsGraphAsync(entity.Id, input.SalesChannelProducts);
         await SaveTrendyolChannelProductsGraphAsync(entity.Id, input.SalesChannelTrendyolProducts);
         await SaveEtsyChannelProductsGraphAsync(entity.Id, input.SalesChannelEtsyProducts);
@@ -795,6 +811,8 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
             SubstitutionToleranceType = p.SubstitutionToleranceType,
             SubstitutionToleranceValue = p.SubstitutionToleranceValue,
             SubstitutionOverrideVariantIds = p.SubstitutionOverrideVariantIds.ToList(),
+            SubstitutionVariantMode = p.SubstitutionVariantMode,
+            StockPolicy = p.StockPolicy,
             Media = media,
             SalesChannelProducts = channelProducts,
             SalesChannelTrendyolProducts = trendyolChannelProducts,
