@@ -47,7 +47,9 @@ public class VoucherLineHistoryAppService : TradeXpressAppService, IVoucherLineH
                          && h.SubAccountId == subAccountId
                          && h.CreationTime >= start
                          && h.CreationTime < endExclusive)
-                .OrderByDescending(h => h.CreationTime));
+                // ARTAN sıra (2026-07-26 Hakan kararı): işlem geçmişi kronolojik okunur — önce ne oldu,
+                // sonra ne oldu. Azalan sıra defter/günlük okuma alışkanlığına terstir.
+                .OrderBy(h => h.CreationTime));
 
         return await ToDtosAsync(entities);
     }

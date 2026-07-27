@@ -657,6 +657,18 @@ public partial class AccountSelectionPanel
     private Task OnListClicked()    => OnListRequested.InvokeAsync();
 
     /// <summary>Form'dan çağrılır (Düzelt): satırın türüne göre ilgili paneli açıp yükler.</summary>
+    /// <summary>İşlem geçmişindeki bir kaydın o günkü hâlini SALT-OKUNUR panelde açar.
+    /// Snapshot zaten <see cref="VoucherLineDto"/> olduğundan dönüşüm gerekmez; panel düzenleme
+    /// yolunun aynısını kullanır, yalnız salt-okunur bayrağıyla.</summary>
+    public async Task BeginViewLineAsync(VoucherLineDto snapshot)
+    {
+        _pendingEditIsReadOnly = true;
+        await BeginEditLineAsync(snapshot);
+    }
+
+    /// <summary>Bekleyen yükleme salt-okunur mu (geçmiş görüntüleme) — tüketilince sıfırlanır.</summary>
+    private bool _pendingEditIsReadOnly;
+
     public async Task BeginEditLineAsync(VoucherLineDto dto)
     {
         _selectedVoucherId = dto.VoucherId;
@@ -714,8 +726,26 @@ public partial class AccountSelectionPanel
         // Panel henüz render olmadıysa _pendingEdit tüketilmez → sonraki render'da tekrar denenir.
         if (ResolveEditPanel(dto) is { } panel)
         {
+            var readOnly = _pendingEditIsReadOnly;
             _pendingEdit = null;
-            await panel.LoadForEditAsync(dto);
+            _pendingEditIsReadOnly = false;
+
+            // Geçmiş görüntüleme → salt-okunur yol (ek/karşı hesap sorgusu yapılmaz, Kaydet gizli).
+            if (readOnly)
+            {
+                if (!panel.SupportsReadOnlyView)
+                {
+                    // Sessiz başarısızlık YOK: panel salt-okunuru uygulamıyorsa kullanıcı bilsin.
+                    Ui.ShowWarningToast(L["VoucherLineHistory:ViewNotSupported"].Value);
+                    return;
+                }
+
+                await panel.LoadForViewAsync(dto);
+            }
+            else
+            {
+                await panel.LoadForEditAsync(dto);
+            }
         }
 
         // Panel yüklendiyse (_pendingEdit tüketildi) görünüme kaydır + ilk input'a odaklan —

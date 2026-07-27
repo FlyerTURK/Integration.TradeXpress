@@ -31,6 +31,16 @@ public class TradeXpressUiSettingDefinitionProvider : SettingDefinitionProvider
                 TradeXpressUiSettingNames.WorkingVault,
                 defaultValue: "",
                 isVisibleToClients: true
+            ),
+            new SettingDefinition(
+                TradeXpressUiSettingNames.SizeMode,
+                defaultValue: "",
+                isVisibleToClients: true
+            ),
+            new SettingDefinition(
+                TradeXpressUiSettingNames.Culture,
+                defaultValue: "",
+                isVisibleToClients: true
             )
         );
     }

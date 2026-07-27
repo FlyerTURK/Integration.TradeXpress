@@ -9,14 +9,17 @@ using Integration.TradeXpress.Settings;
 namespace Integration.TradeXpress.Blazor.Client.Theming;
 
 /// <summary>
-/// WASM uyarlaması: DevExpress <see cref="IThemeChangeService"/> üzerine,
-/// seçimi tarayıcı localStorage'ında saklayan ince bir katman. Sunucu tarafı
-/// referanstaki cookie + IHttpContextAccessor yerine, tekil (single-user) WASM
-/// için localStorage kullanılır. Açılışta <see cref="InitializeAsync"/> kaydı
-/// okuyup uygulayarak kullanıcının önceki temasını geri yükler.
+/// DevExpress <see cref="IThemeChangeService"/> üzerine ince katman. Seçimin TEK doğruluk kaynağı
+/// SUNUCU per-user ayarıdır (GetThemeAsync/SetThemeAsync — ABP SettingManager); tarayıcıdaki
+/// <c>tx.last_theme</c> cookie'si yalnız "son oturum açan kullanıcı" AYNASIDIR: kimlikli akışta
+/// YAZILIR (her uygulama/değişimde), anonim login SSR'ı (App.razor) onu yalnız OKUR — böylece giriş
+/// ekranı son kullanıcının temasıyla flaşsız açılır. Açılışta <see cref="InitializeAsync"/> sunucu
+/// kaydını okuyup uygular.
 /// </summary>
 public sealed class ThemeService : IThemeService
 {
+    /// <summary>Anonim login SSR'ının okuduğu tema aynası cookie'si (encode'lu ThemeSelection JSON).</summary>
+    public const string LastThemeCookieName = "tx.last_theme";
     private readonly IJSRuntime _js;
     private readonly IUserUiSettingAppService _uiSettings;
     private readonly IThemeChangeService _devExpressThemeService;
@@ -36,21 +39,9 @@ public sealed class ThemeService : IThemeService
 
     public ITheme CurrentTheme => _currentTheme;
 
-    public string BootstrapColorMode => ResolveBootstrapColorMode(_selection);
+    public string BootstrapColorMode => ThemeSelectionResolver.GetBootstrapColorMode(_selection);
 
-    public string PrimaryColorHex
-    {
-        get
-        {
-            if (_selection.Kind == ThemeKind.Bootstrap)
-                return ThemeCatalog.BootstrapThemes.FirstOrDefault(x => x.Name == _selection.BootstrapName)?.SwatchColor ?? "#0d6efd";
-            
-            if (!string.IsNullOrEmpty(_selection.FluentCustomColor)) 
-                return _selection.FluentCustomColor;
-                
-            return ThemeCatalog.FluentAccents.FirstOrDefault(x => x.Accent == _selection.FluentAccent)?.SwatchColor ?? "#0f6cbd";
-        }
-    }
+    public string PrimaryColorHex => ThemeSelectionResolver.GetPrimaryColorHex(_selection);
 
     public event EventHandler? CurrentThemeChanged;
 
@@ -61,16 +52,18 @@ public sealed class ThemeService : IThemeService
             var module = await GetModuleAsync();
             string? json = null;
             try { json = await _uiSettings.GetThemeAsync(); } catch { /* Ignore API error if backend not updated */ }
-            var saved = TryReadSelection(json);
+            var saved = ThemeSelectionResolver.TryParse(json);
             if (saved is not null)
             {
                 await ApplyAsync(saved, persist: false);
             }
             else
             {
-                // Kayıt yoksa varsayılanın data-bs-theme'i de doğru yazılsın.
+                // Kayıt yoksa varsayılanın data-bs-theme'i de doğru yazılsın; ayna cookie'si de VARSAYILANA
+                // çekilir — bu kullanıcının tema tercihi yokken login'de önceki kullanıcının teması kalmasın.
                 await module.InvokeVoidAsync("setBootstrapColorMode", BootstrapColorMode);
                 await module.InvokeVoidAsync("setPrimaryColorHex", PrimaryColorHex);
+                await WriteLastThemeCookieAsync(module, _selection);
             }
         }
         catch (JSDisconnectedException)    { }
@@ -126,6 +119,9 @@ public sealed class ThemeService : IThemeService
             // Bootstrap 5.3 CSS değişkenleri mod ile senkron olsun diye <html data-bs-theme>.
             await module.InvokeVoidAsync("setBootstrapColorMode", BootstrapColorMode);
             await module.InvokeVoidAsync("setPrimaryColorHex", PrimaryColorHex);
+            // Ayna cookie'si HER uygulamada tazelenir (persist'ten bağımsız): giriş sonrası Initialize da
+            // (persist:false) buradan geçer → cookie oturum açan KULLANICININ temasına döner.
+            await WriteLastThemeCookieAsync(module, next);
         }
         // Swallowed by design: kullanıcı sayfadan ayrıldı / circuit kapandı.
         catch (JSDisconnectedException)    { }
@@ -135,32 +131,18 @@ public sealed class ThemeService : IThemeService
         CurrentThemeChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    private static string ResolveBootstrapColorMode(ThemeSelection selection)
+    /// <summary>Anonim login SSR'ının okuyacağı ayna cookie'sini yazar. JSON cookie-illegal karakterler
+    /// (çift tırnak, virgül) içerdiğinden ENCODE'lu yazıcı kullanılır (App.razor UrlDecode ile okur).</summary>
+    private static async Task WriteLastThemeCookieAsync(IJSObjectReference module, ThemeSelection selection)
     {
-        if (selection.Kind == ThemeKind.Fluent)
+        try
         {
-            return selection.FluentMode == ThemeMode.Dark ? "dark" : "light";
+            var json = JsonSerializer.Serialize(selection);
+            await module.InvokeVoidAsync("writeEncodedCookie", LastThemeCookieName, json, 365);
         }
-        // Koyu yüzey ile gelen Bootstrap teması.
-        return selection.BootstrapName == "Blazing Dark" ? "dark" : "light";
+        catch { /* ayna cookie'si yazılamazsa yalnız login görünümü etkilenir — akışı bozma */ }
     }
 
     private async Task<IJSObjectReference> GetModuleAsync()
         => _module ??= await _js.InvokeAsync<IJSObjectReference>("import", "./js/settings.js");
-
-    private static ThemeSelection? TryReadSelection(string? json)
-    {
-        if (string.IsNullOrWhiteSpace(json))
-        {
-            return null;
-        }
-        try
-        {
-            return JsonSerializer.Deserialize<ThemeSelection>(json);
-        }
-        catch (JsonException)
-        {
-            return null;
-        }
-    }
 }

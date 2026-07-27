@@ -9,8 +9,12 @@
    yeniden dizer, kayma/daralma olmaz). 5 bölüm: Kimlik · Milyem(AU/AG) · Platin/Paladyum · İşçilik · Açıklama
    + sağ Takoz Bakiyesi özeti. Yön sabit GİRİŞ. Kayıt: BullionBalancePoster (server). *@
 
+@* IsNarrow kabuğun mobil kipini (yükseklik sınırı + sticky başlık/Kaydet çubuğu) açar; diğer dokuz panelle
+   aynı desen. Bu panel içeriğini DxFormLayout ile dizdiği için bayrağı başka yerde kullanmaz. *@
+<DxLayoutBreakpoint MaxWidth="768" @bind-IsActive="@_isMobile" />
+
 <ProcessPanelBase Direction="ProcessDirectionType.Inbound" OnSave="@HandleSave" SaveEnabled="@(!_saving)" OnBack="@OnBack"
-                  ProcessTypeName="@L["Bullion"].Value"
+                  ProcessTypeName="@L["Bullion"].Value" IsNarrow="@_isMobile"
                   AccountCode="@AccountCode" SubAccountCode="@SubAccountCode">
 
     <DxFormLayout CssClass="w-100">

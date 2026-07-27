@@ -1,4 +1,5 @@
 using DevExpress.Blazor;
+using Integration.Framework.Blazor.Client.Services.Mdi;
 using Microsoft.AspNetCore.Components;
 
 namespace Integration.Framework.Blazor.Client.Components.Crud
@@ -15,6 +16,22 @@ namespace Integration.Framework.Blazor.Client.Components.Crud
         [CascadingParameter] public ISplitHost? SplitHost { get; set; }
 
         [Inject] protected IUiStateService? UiStateService { get; set; }
+
+        [Inject] private IServiceProvider ServiceProvider { get; set; } = default!;
+
+        /// <summary>Liste görünüm durumu (arama metni + aktif/pasif filtresi) MDI sekmesiyle kalıcılaşsın mı.
+        /// Varsayılan true ("tüm sayfalarda iç durum" hedefi); sayfa bazında kapatılabilir. Grid KOLON düzeni
+        /// bundan bağımsız — o zaten IUiStateService kanalında per-grid kalıcı.</summary>
+        [Parameter] public bool PersistTabViewState { get; set; } = true;
+
+        /// <summary>İçinde yaşadığımız MDI sekmesi (uygulama MDI sağlamıyorsa null → kalıcılık no-op).</summary>
+        [CascadingParameter(Name = "CurrentMdiTab")] private IMdiTab? CurrentMdiTab { get; set; }
+
+        // App TabManager'ı IMdiTabOpener olarak kaydeder; MDI'sız host'ta null (CrudPageBase ile aynı desen).
+        private IMdiTabOpener? TabOpener => (IMdiTabOpener?)ServiceProvider.GetService(typeof(IMdiTabOpener));
+
+        /// <summary>Sekmeyle kalıcılaşan liste görünüm durumu (TabPageState sözleşmesi).</summary>
+        private sealed record CrudListTabState(string? SearchText, bool? ActiveFilter);
 
         /// <summary>Server-side grid veri kaynağı (CrudPageBase.GridDataSource). Verilirse DxGrid server-mode'a geçer.</summary>
         [Parameter] public object? DataSource { get; set; }
@@ -152,6 +169,25 @@ namespace Integration.Framework.Blazor.Client.Components.Crud
                     _activeFilter = true;
                     ds.ActiveFilter = true;
                 }
+
+                // Sekme restore'u: kaydedilmiş liste görünümü (arama/filtre) İLK fetch'ten önce uygulanır —
+                // varsayılanla bir kez çekip sonra tekrar çekmek yerine doğrudan saklı görünümle açılır.
+                if (PersistTabViewState && TabPageState.TryRead<CrudListTabState>(CurrentMdiTab) is { } restored)
+                {
+                    if (IsActiveFilterable && restored.ActiveFilter is { } activeFilter)
+                    {
+                        _activeFilter = activeFilter;
+                        ds.ActiveFilter = activeFilter;
+                    }
+                    if (!string.IsNullOrEmpty(restored.SearchText))
+                    {
+                        // Arama modu ne olursa olsun mevcut toolbar yolu izlenir (InGrid → istemci filtresi,
+                        // ServerSide → sayfanın OnSearchChanged'i). Render sonrası kuyruklanır.
+                        var text = restored.SearchText;
+                        _ = InvokeAsync(() => OnToolbarSearch(text));
+                    }
+                }
+
                 SyncStateFromGrid();   // abone geç kaldıysa olmuş ilk fetch'i de yakala
             }
         }
@@ -259,12 +295,14 @@ namespace Integration.Framework.Blazor.Client.Components.Crud
                 source.ActiveFilter = value;
                 StateService.RequestReload();   // grid'i sunucudan yeniden çeker (search ile aynı mekanizma)
             }
+            PushTabViewState();
             return Task.CompletedTask;
         }
 
         private async Task OnToolbarSearch(string text)
         {
             SearchText = text;   // toolbar kutusu metnini sakla (gösterim senkronu)
+            PushTabViewState();
             if (SearchMode == GridSearchMode.InGrid)
             {
                 _inGridSearchText = text;   // grid'in yüklü verisinde istemci filtresi (server reload yok)
@@ -272,6 +310,13 @@ namespace Integration.Framework.Blazor.Client.Components.Crud
                 return;
             }
             await OnSearchChanged.InvokeAsync(text);   // ServerSide: tüm kayıtlarda ara
+        }
+
+        /// <summary>Güncel liste görünümünü (arama + aktif filtre) sekmeye iter — MDI'sız host'ta no-op.</summary>
+        private void PushTabViewState()
+        {
+            if (!PersistTabViewState || CurrentMdiTab is null || TabOpener is not { } opener) return;
+            TabPageState.Write(opener, CurrentMdiTab, new CrudListTabState(SearchText, _activeFilter));
         }
 
         public void Dispose()

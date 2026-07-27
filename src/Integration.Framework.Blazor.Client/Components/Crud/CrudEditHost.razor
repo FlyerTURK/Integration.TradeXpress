@@ -24,8 +24,10 @@
     <EntityEditForm TGetDto="TGetDto" TListDto="TListDto" TKey="TKey"
                     Model="@_model" IsNew="@_isNew"
                     FormCaption="@FormCaption"
+                    FormCaptionKey="@FormCaptionKey"
                     EntityValue="@(EntityValue?.Invoke(_model))"
                     ParentLabel="@ParentLabel"
+                    ParentLabelKey="@ParentLabelKey"
                     ParentValue="@(ParentValue?.Invoke(_model))"
                     IconCssClass="@IconCssClass"
                     CanDeleteRecord="@((CanDelete?.Invoke(_model) ?? true) && !_isNew)"
@@ -73,6 +75,11 @@
     [Parameter] public string? FormCaption { get; set; }
     [Parameter] public string? IconCssClass { get; set; }
     [Parameter] public string? ParentLabel { get; set; }
+
+    // Opsiyonel lokalizasyon anahtarları — EntityEditForm'a aktarılır (sekme restore'unda başlık
+    // güncel kültürle çözülsün; bkz. TabHeaderData.FormCaptionKey).
+    [Parameter] public string? FormCaptionKey { get; set; }
+    [Parameter] public string? ParentLabelKey { get; set; }
     [Parameter] public Func<TGetDto, string?>? EntityValue { get; set; }
     [Parameter] public Func<TGetDto, string?>? ParentValue { get; set; }
 

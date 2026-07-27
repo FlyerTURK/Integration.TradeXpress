@@ -4,6 +4,8 @@ using System.Linq;
 using System.Threading.Tasks;
 using DevExpress.Blazor;
 using Integration.Framework.Blazor.Client.Components.Crud;
+using Integration.Framework.Blazor.Client.Services.Base;
+using Integration.Framework.Blazor.Client.Services.Mdi;
 using Integration.TradeXpress.Accounts;
 using Integration.TradeXpress.Financials.CurrencyUnits;
 using Integration.TradeXpress.Vouchers;
@@ -41,6 +43,14 @@ public partial class CurrentTransactionForm
     private bool _processActive;   // süreç paneli açıkken Düzelt/Sil toolbar gizli
     private bool _accountLocked;   // cari panel TAMAM ile kilitliyken Düzelt/Sil görünür
 
+    /// <summary>Sekme kapanış guard'ı (cache'li delegate — EntityEditForm deseni): süreç paneli açıkken
+    /// sekme X'i devam eden satır girişini onaysız kapatamasın.</summary>
+    private Func<Task<bool>>? _tabCloseGuard;
+
+    /// <summary>Restore edilen sekmenin görünüm durumu — liste kipi/bakiye kapsamı cari seçimi
+    /// tamamlanınca uygulanır (OnSubAccountSelected varsayılana çektiği için bekletilir).</summary>
+    private CurrentTransactionTabState? _pendingTabStateRestore;
+
     // Liste modu (ekstre): cari'nin tarih aralığındaki tüm satırları (fiş-bağımsız). Sağ bakiye görünür kalır.
     private bool _listMode;
     private DateTime _listStart = BusinessClock.Today().AddDays(-7);
@@ -48,6 +58,9 @@ public partial class CurrentTransactionForm
 
     // Ekstre eklentileri: devreden (grid üstü) + kapanış (grid altı) + işlem-tipi filtresi + Excel export.
     private List<VoucherBalanceLineDto> _listOpening = new();
+    /// <summary>Ekstre kapanış bakiyeleri — grid altındaki "son durum" şeridi 2026-07-26'da KALDIRILDI
+    /// (yerini seçili satırın açıklaması aldı; aynı bilgi Bakiye sekmesinde duruyor). Alan doldurulmaya
+    /// devam ediyor: sunucu zaten aynı sorguda döndürüyor ve şerit geri istenirse hazır.</summary>
     private List<VoucherBalanceLineDto> _listClosing = new();
     private IEnumerable<ProcessType> _listTypes = Enumerable.Empty<ProcessType>();
     private List<ProcessTypeItem> _processTypeItems = new();
@@ -82,7 +95,10 @@ public partial class CurrentTransactionForm
     }
 
     [CascadingParameter(Name = "CurrentMdiTab")]
-    private Integration.Framework.Blazor.Client.Services.Mdi.IMdiTab? CurrentMdiTab { get; set; }
+    private IMdiTab? CurrentMdiTab { get; set; }
+
+    /// <summary>Görünüm durumunu sekmeye itmek için (TabPageState.Write) — TabManager'ın framework yüzü.</summary>
+    [Inject] private IMdiTabOpener TabStateWriter { get; set; } = default!;
 
     /// <summary>Karşı taraf kipi — ROTADAN gelir, form içinde seçilmez (kullanıcı kararı: karşı-taraf
     /// combo'su kaldırıldı). <c>/cari-islemler</c> doğrudan bu formu çizer → varsayılan dış cari kipi;
@@ -99,6 +115,9 @@ public partial class CurrentTransactionForm
     /// <summary>Sekme başlığı/ikonu kipe göre (menüyle hizalı: Transferler vs Cari İşlemler).</summary>
     private string ModeCaption => IsInternalMode ? L["Menu:Transfers"] : L["Menu:CurrentTransactions"];
 
+    /// <summary>Başlığın lokalizasyon anahtarı — sekme restore'unda güncel kültürle çözülür (dil donması yok).</summary>
+    private string ModeCaptionKey => IsInternalMode ? "Menu:Transfers" : "Menu:CurrentTransactions";
+
     private string ModeIcon => IsInternalMode ? TradeXpressIcons.Transfer : TradeXpressIcons.CurrentTransactions;
 
     [Parameter]
@@ -108,6 +127,42 @@ public partial class CurrentTransactionForm
     [Parameter]
     [SupplyParameterFromQuery(Name = "voucherId")]
     public Guid? VoucherId { get; set; }
+
+    private void OnProcessActiveChanged(bool active)
+    {
+        _processActive = active;
+        // Süreç paneli açık = devam eden satır girişi → sekme kirli: kapanış onaya tabi, kalıcı kayıtta
+        // WasDirty işaretlenir (restore'da "form verisi geri yüklenemedi" bildirimi).
+        if (CurrentMdiTab != null)
+            Tabs.SetTabDirty(CurrentMdiTab.Id, active);
+    }
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        base.OnAfterRender(firstRender);
+        // Her render'da bağlanır (cache'li delegate): sekme yeniden aktive olup guard temizlense de geri gelir.
+        _tabCloseGuard ??= ConfirmTabCloseAsync;
+        if (CurrentMdiTab != null)
+            CurrentMdiTab.CanCloseAsync = _tabCloseGuard;
+    }
+
+    private async Task<bool> ConfirmTabCloseAsync()
+    {
+        if (!_processActive) return true;
+        var result = await Ui.ConfirmAsync(
+            L["ProcessPanelDiscardConfirmation"].Value,
+            L["Warning"].Value,
+            L["CloseAnyway"].Value,
+            L["Cancel"].Value, false, false);
+        return result == ConfirmDialogResult.Yes;
+    }
+
+    /// <summary>Bileşen yok edilirken guard bırakılır (yalnız hâlâ bizimkiyse) — bayat delege kalmasın.</summary>
+    private void ReleaseTabCloseGuard()
+    {
+        if (CurrentMdiTab != null && ReferenceEquals(CurrentMdiTab.CanCloseAsync, _tabCloseGuard))
+            CurrentMdiTab.CanCloseAsync = null;
+    }
 
     private void PushStateToUrl()
     {
@@ -150,22 +205,36 @@ public partial class CurrentTransactionForm
         _balanceViewMode      = BalanceViewMode.SubAccountScoped;   // yeni cari seçimi → varsayılana dön
         _voucherLines = new();   // farklı cari → satır gridini temizle
 
+        // Restore edilen görünüm durumu: yalnız GERÇEK cari seçiminde (sa dolu) tüketilir. AccountSelectionPanel
+        // restore akışında InitialSubAccountId'i uygulamadan ÖNCE bilinçli bir "temizle" çağrısı yapar
+        // (OnSubAccountChanged → OnSubAccountSelected.InvokeAsync(null)); pending o ara null geçişte
+        // YOK EDİLİRSE gerçek seçim (OnSubAccountLostFocus ile) geldiğinde artık boş bulunur ve ListMode/
+        // BalanceViewMode restore'u hiç uygulanmaz. Bu yüzden alan yalnız sa dolu geldiğinde temizlenir.
+        var pendingRestore = sa is not null ? _pendingTabStateRestore : null;
+        if (sa is not null)
+            _pendingTabStateRestore = null;
+        if (pendingRestore is not null)
+            _balanceViewMode = pendingRestore.BalanceViewMode;
+
         // Sekme başlığı: cari seçilince 2 satır (L1=Hesap, L2=Alt hesap); seçim yoksa tek satır.
         if (CurrentMdiTab != null)
         {
             var header = sa is null
-                ? new Integration.Framework.Blazor.Client.Services.Mdi.TabHeaderData
+                ? new TabHeaderData
                 {
                     FormCaption = ModeCaption,
+                    FormCaptionKey = ModeCaptionKey,
                     IconCssClass = ModeIcon,
                 }
-                : new Integration.Framework.Blazor.Client.Services.Mdi.TabHeaderData
+                : new TabHeaderData
                 {
                     FormCaption = ModeCaption,
+                    FormCaptionKey = ModeCaptionKey,
                     // Sekme dar alan — yalnız KODLAR (Code/Name değil; kullanıcı isteği). Diğer kullanım
                     // yerleri etkilenmez: TabHeaderData altyapısı aynı, yalnız bu formun değerleri kısaldı.
                     EntityValue = sa.Code,
                     ParentLabel = L["Entity:Account"],
+                    ParentLabelKey = "Entity:Account",
                     ParentValue = sa.AccountCode,
                     // Tab başlığı ikonu menü/entity ile hizalı (hardcoded custom-icon-swap değil; merkezî sabit).
                     IconCssClass = ModeIcon,
@@ -175,7 +244,17 @@ public partial class CurrentTransactionForm
 
         await RefreshBalanceAsync();
         await ReloadLineHistoryAsync();
+
+        // Restore edilen sekme liste kipindeydi: cari kimliği yerine oturduğuna göre ekstre görünümüne dön.
+        if (pendingRestore is { ListMode: true } && !_listMode)
+        {
+            _listMode = true;
+            _selectedLine = null;
+            await ReloadListAsync();
+        }
+
         PushStateToUrl();
+        PushTabState();
         await InvokeAsync(StateHasChanged);
     }
 
@@ -202,6 +281,7 @@ public partial class CurrentTransactionForm
         _listMode = true;
         _selectedLine = null;
         await ReloadListAsync();
+        PushTabState();
         await InvokeAsync(StateHasChanged);
     }
 
@@ -210,6 +290,7 @@ public partial class CurrentTransactionForm
         _listStart = start;
         _listEnd   = end;
         await ReloadListAsync();
+        PushTabState();
         await InvokeAsync(StateHasChanged);
     }
 
@@ -235,6 +316,7 @@ public partial class CurrentTransactionForm
     {
         _listTypes = values ?? Enumerable.Empty<ProcessType>();
         await ReloadListAsync();
+        PushTabState();
         await InvokeAsync(StateHasChanged);
     }
 
@@ -254,6 +336,7 @@ public partial class CurrentTransactionForm
             ? await VoucherService.GetLinesAsync(vid)
             : new List<VoucherLineDto>();
         await RefreshBalanceAsync();
+        PushTabState();
         await InvokeAsync(StateHasChanged);
     }
 
@@ -267,14 +350,82 @@ public partial class CurrentTransactionForm
         }
     }
 
-    // Satır ekleri (belge + not): seri numarası, kamera kaydı, kargo/sigorta evrakı. Ek satırın KİMLİĞİNE
-    // bağlandığı için yalnız kaydedilmiş satırda açılır (toolbar Enabled koşulu bunu zaten garanti eder).
-    private async Task OnLineAttachments()
+    /// <summary>İşlem geçmişi satırına çift tıklama → o kaydın anlık görüntüsünü SALT-OKUNUR panelde açar.
+    /// Snapshot satırın o günkü tam hâlidir (<see cref="VoucherLineDto"/>), dönüşüm gerekmez.</summary>
+    private async Task OnHistoryRowDoubleClick(GridRowClickEventArgs e)
+    {
+        if (e.Grid.GetDataItem(e.VisibleIndex) is not VoucherLineHistoryDto row || _accountPanel is null)
+        {
+            return;
+        }
+
+        // Geçmiş kaydı SİLİNMİŞ satıra da ait olabilir — panel yalnız gösterir, kaydetmez; sorun değil.
+        await _accountPanel.BeginViewLineAsync(row.Snapshot);
+    }
+
+    // Seçili satırın ek SAYILARI — toolbar düğmelerinde "(2)" rozetiyle gösterilir ki kullanıcı
+    // pencereyi açmadan içerik olup olmadığını görsün. Satır değişince tazelenir; kaydedilmemiş
+    // satırda (Id boş) sorgu yapılmaz.
+    private int _selectedLineDocumentCount;
+    private int _selectedLineNoteCount;
+
+    private async Task RefreshSelectedLineAttachmentCountsAsync(VoucherLineDto? line)
+    {
+        if (line is null || line.Id == Guid.Empty)
+        {
+            _selectedLineDocumentCount = 0;
+            _selectedLineNoteCount = 0;
+            return;
+        }
+
+        try
+        {
+            var entityName = VoucherLineAttachmentsDialog.VoucherLineEntityName;
+            _selectedLineDocumentCount = (await DocumentAppService.GetForAsync(entityName, line.Id)).Count;
+            _selectedLineNoteCount = (await NoteAppService.GetForAsync(entityName, line.Id)).Count;
+        }
+        catch
+        {
+            // Rozet ikincil bilgidir: sayım alınamazsa satır seçimi bozulmasın, rozet gizlenir.
+            _selectedLineDocumentCount = 0;
+            _selectedLineNoteCount = 0;
+        }
+    }
+
+    /// <summary>Ek penceresi kaydedip kapandıktan sonra rozetleri tazeler.</summary>
+    private async Task RefreshAttachmentBadgesAsync()
+    {
+        await RefreshSelectedLineAttachmentCountsAsync(_selectedLine as VoucherLineDto);
+        await InvokeAsync(StateHasChanged);
+    }
+
+    /// <summary>Seçili satırın açıklaması — doluysa "AÇIKLAMA: ..." önekiyle gösterilir, boşsa <c>null</c>
+    /// döner ki kontrolün ipucu metni ("AÇIKLAMA") görünsün. Önek yalnız GÖSTERİMDEDİR; kayıtlı veri değişmez
+    /// (alan salt-okunur, düzenleme satır panelinden yapılır).</summary>
+    private string? FormatLineDescription(string? description)
+        => string.IsNullOrWhiteSpace(description)
+            ? null
+            : $"{L["Description"].Value.ToUpper()}: {description}";
+
+    /// <summary>Düğme metni: kayıt varsa "Dokümanlar (2)", yoksa sade "Dokümanlar".</summary>
+    private string AttachmentButtonText(string caption, int count)
+        => count > 0 ? $"{caption} ({count})" : caption;
+
+    // Satır ekleri: seri numarası, kamera kaydı, kargo/sigorta evrakı. Dokümanlar ve Notlar AYRI düğme,
+    // her biri kendi penceresini açar. Ek satırın KİMLİĞİNE bağlandığı için yalnız kaydedilmiş satırda
+    // açılır (toolbar Enabled koşulu bunu zaten garanti eder).
+    private Task OnLineDocuments()
+        => OpenLineAttachmentsAsync(VoucherLineAttachmentsDialog.AttachmentMode.Documents);
+
+    private Task OnLineNotes()
+        => OpenLineAttachmentsAsync(VoucherLineAttachmentsDialog.AttachmentMode.Notes);
+
+    private async Task OpenLineAttachmentsAsync(VoucherLineAttachmentsDialog.AttachmentMode mode)
     {
         if (_selectedLine is VoucherLineDto line && line.Id != Guid.Empty && _attachmentsDialog is not null)
         {
             var title = $"{line.CommodityCode} — {line.Amount:N2} {line.MainUnitCode}".Trim();
-            await _attachmentsDialog.OpenAsync(line.Id, title);
+            await _attachmentsDialog.OpenAsync(line.Id, title, mode);
         }
     }
 
@@ -336,6 +487,7 @@ public partial class CurrentTransactionForm
     private async Task OnLineSelected(object? item)
     {
         _selectedLine = item;
+        await RefreshSelectedLineAttachmentCountsAsync(item as VoucherLineDto);
         if (item is VoucherLineDto line)
         {
             _balanceRows = line.RunningBalances;   // seçili satıra kadarki yürüyen bakiye
@@ -360,6 +512,7 @@ public partial class CurrentTransactionForm
     {
         _balanceViewMode = accountScoped ? BalanceViewMode.AccountScoped : BalanceViewMode.SubAccountScoped;
         await RefreshBalanceAsync();
+        PushTabState();
         await InvokeAsync(StateHasChanged);
     }
 
@@ -514,8 +667,27 @@ public partial class CurrentTransactionForm
         _processTypeItems = Enum.GetValues<ProcessType>()
             .Select(t => new ProcessTypeItem(t, L[$"Enum:ProcessType:{t}"].Value))
             .ToList();
+
+        // Restore edilen sekmenin görünüm durumu: tarih/tip filtresi hemen uygulanır; liste kipi ve
+        // bakiye kapsamı cari seçimi tamamlanınca (OnSubAccountSelected → pending) devreye girer.
+        _pendingTabStateRestore = TabPageState.TryRead<CurrentTransactionTabState>(CurrentMdiTab);
+        if (_pendingTabStateRestore is { } restored)
+        {
+            _listStart = restored.ListStart;
+            _listEnd   = restored.ListEnd;
+            _listTypes = restored.ListTypes ?? Enumerable.Empty<ProcessType>();
+        }
+
         await RefreshRatesAsync();
         _ = LiveRateLoopAsync();
+    }
+
+    /// <summary>Güncel görünüm durumunu sekmeye iter (kalıcılaşır) — her görünüm değişiminde çağrılır.</summary>
+    private void PushTabState()
+    {
+        if (CurrentMdiTab is null) return;
+        TabPageState.Write(TabStateWriter, CurrentMdiTab, new CurrentTransactionTabState(
+            _listMode, _listStart, _listEnd, _listTypes.ToArray(), _balanceViewMode));
     }
 
     private string GridStyle()
@@ -523,25 +695,28 @@ public partial class CurrentTransactionForm
         if (!_currentSubAccountId.HasValue)
         {
             return _isMobile
-                ? "display:grid; gap:0px; grid-template-columns:1fr; grid-template-areas:'p1'; overflow-y:auto; max-height:calc(100vh - 110px);"
+                ? "display:grid; gap:0px; grid-template-columns:1fr; grid-template-areas:'p1'; overflow-y:auto; max-height:calc(100vh - 110px); max-height:calc(100dvh - 110px);"
                 : "display:grid; gap:0px; height:100%; grid-template-columns:1fr; grid-template-areas:'p1';";
         }
 
         if (!_accountLocked)
         {
             return _isMobile
-                ? "display:grid; gap:0px; grid-template-columns:1fr; grid-template-areas:'p1' 'p3'; overflow-y:auto; max-height:calc(100vh - 110px);"
+                ? "display:grid; gap:0px; grid-template-columns:1fr; grid-template-areas:'p1' 'p3'; overflow-y:auto; max-height:calc(100vh - 110px); max-height:calc(100dvh - 110px);"
                 : "display:grid; gap:0px; height:100%; grid-template-columns:minmax(0,1fr) 300px; grid-template-areas:'p1 p3';";
         }
 
         if (_isMobile)
             return _listMode && !_processActive
-                ? "display:grid; gap:0px; grid-template-columns:1fr; grid-template-areas:'p3' 'p2'; overflow-y:auto; max-height:calc(100vh - 110px);"
-                : "display:grid; gap:0px; grid-template-columns:1fr; grid-template-areas:'p1' 'p3' 'p2'; overflow-y:auto; max-height:calc(100vh - 110px);";
+                ? "display:grid; gap:0px; grid-template-columns:1fr; grid-template-areas:'p3' 'p2'; overflow-y:auto; max-height:calc(100vh - 110px); max-height:calc(100dvh - 110px);"
+                : "display:grid; gap:0px; grid-template-columns:1fr; grid-template-areas:'p1' 'p3' 'p2'; overflow-y:auto; max-height:calc(100vh - 110px); max-height:calc(100dvh - 110px);";
 
+        // p1 satırı minmax(0,auto): içerik sığdığı sürece "auto" gibi davranır (yerleşim DEĞİŞMEZ), ama
+        // süreç paneli uzun olduğunda satır sıkışabilir — böylece panel grid'i taşırıp p2'yi ezmek yerine
+        // KENDİ içinde kayar ve başlık/Kaydet çubuğu sticky kalır (bkz. ProcessPanelBase max-height:100%).
         return _listMode && !_processActive
             ? "display:grid; gap:0px; height:100%; grid-template-columns:minmax(0,1fr) 300px; grid-template-areas:'p2 p3';"
-            : "display:grid; gap:0px; height:100%; grid-template-columns:minmax(0,1fr) 300px; grid-template-rows:auto 1fr; grid-template-areas:'p1 p3' 'p2 p3';";
+            : "display:grid; gap:0px; height:100%; grid-template-columns:minmax(0,1fr) 300px; grid-template-rows:minmax(0,auto) 1fr; grid-template-areas:'p1 p3' 'p2 p3';";
     }
 
     private static string PanelBox() =>

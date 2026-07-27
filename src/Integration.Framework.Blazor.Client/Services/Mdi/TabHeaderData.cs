@@ -23,6 +23,14 @@ public sealed record TabHeaderData
     /// <summary>L3b — parent değeri (ör. "MERKEZ").</summary>
     public string? ParentValue { get; init; }
 
+    /// <summary>L1'in lokalizasyon ANAHTARI (ör. "Menu:CurrentTransactions") — verilirse sekme restore'unda
+    /// başlık güncel kültürle yeniden çözülür (dil değişiminde donmaz). Çevrilmiş metin (FormCaption) yine
+    /// saklanır: anahtarsız eski kayıtlar ve çözülemeyen anahtarlar için fallback.</summary>
+    public string? FormCaptionKey { get; init; }
+
+    /// <summary>L3a'nın lokalizasyon anahtarı (ör. "Entity:Account") — FormCaptionKey ile aynı sözleşme.</summary>
+    public string? ParentLabelKey { get; init; }
+
     /// <summary>İkon CSS sınıfı (ör. "fas fa-coins").</summary>
     public string? IconCssClass { get; init; }
 

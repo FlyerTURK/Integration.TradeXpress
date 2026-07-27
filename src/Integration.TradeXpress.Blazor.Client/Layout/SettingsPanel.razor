@@ -2,12 +2,15 @@
 @using DevExpress.Blazor
 @using Integration.TradeXpress.Blazor.Client.Theming
 @using Integration.TradeXpress.Blazor.Client.Globalization
+@using Integration.TradeXpress.Blazor.Client.Services.Mdi
 @inject IThemeService ThemeService
 @inject ISizeModeService SizeModeService
+@inject ITabManager TabManager
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
 @inject Integration.TradeXpress.Settings.IUserUiSettingAppService UiSettings
 @inject Microsoft.Extensions.Localization.IStringLocalizer<Integration.TradeXpress.Localization.TradeXpressResource> L
+@inject IUiInteractionService UiService
 @implements IDisposable
 
 <div class="settings-panel">
@@ -148,6 +151,16 @@
                           Enabled="@(!_resetting)"
                           Click="OnResetStylesAsync" />
             </li>
+            <li class="nav-item theme-group">
+                @* Kaydedilmiş MDI sekme listesini sıfırlar (bozuk restore/temiz başlangıç) — /reset-tabs
+                   kurtarma kapısının keşfedilebilir eşdeğeri. *@
+                <DxButton Text="@L["MdiTabsResetButton"].Value"
+                          RenderStyle="ButtonRenderStyle.Secondary"
+                          IconCssClass="custom-icon-close"
+                          CssClass="w-100"
+                          Enabled="@(!_resetting)"
+                          Click="OnResetTabsAsync" />
+            </li>
         </ul>
     </nav>
 
@@ -164,6 +177,29 @@
         try { await UiSettings.ResetGridStatesAsync(); }
         catch { /* sessiz geç — yine de reload dene */ }
         Navigation.NavigateTo(Navigation.Uri, forceLoad: true);
+    }
+
+    // Kaydedilmiş MDI sekme listesini sıfırla — HardResetAsync guard'sızdır (pinned sekmeler de gider,
+    // kirli veri sorulmaz); bu yüzden panel BURADA tek onayı ister — diğer TÜM kapatma yollarının
+    // (X, toplu kapatma, /reset-tabs kurtarma kapısı hariç) uyguladığı desenle tutarlı.
+    private async Task OnResetTabsAsync()
+    {
+        if (_resetting) return;
+
+        var result = await UiService.ConfirmAsync(
+            L["MdiTabsResetConfirmation"].Value,
+            L["Warning"].Value,
+            L["MdiTabsResetButton"].Value,
+            L["Cancel"].Value,
+            showCancel: false,
+            defaultYes: false);
+        if (result != Integration.Framework.Blazor.Client.Services.Base.ConfirmDialogResult.Yes)
+            return;
+
+        _resetting = true;
+        try { await TabManager.HardResetAsync(); }
+        catch { /* sessiz geç */ }
+        finally { _resetting = false; }
     }
 
     private sealed record SizeModeOption(SizeMode Mode, string Caption);
@@ -257,12 +293,18 @@
 
     private async Task SwitchCultureAsync(string cultureName)
     {
+        // Per-user SUNUCU tercihi (cihazlar arası kalıcılık + login prefs akışının kaynağı). Cookie yolu
+        // hata durumunda da çalışmaya devam eder — bu yüzden sessiz geçilir.
+        try { await UiSettings.SetCultureAsync(cultureName); }
+        catch { /* sunucuya yazılamadıysa cookie ile bu cihazda yine geçerli */ }
+
         try
         {
             var module = await JS.InvokeAsync<IJSObjectReference>("import", "./js/settings.js");
-            // İstemci UI kültürünün kaynağı: localStorage (Program.Main açılışta okur).
+            // İstemci UI kültürünün kaynağı: localStorage (Program.Main açılışta okur — WASM modu).
             await module.InvokeVoidAsync("setLocal", CultureCatalog.StorageKey, cultureName);
-            // Sunucu/API request-localization da aynı dili kullansın diye ASP.NET cookie'si.
+            // Sunucu/API request-localization da aynı dili kullansın diye ASP.NET cookie'si (RAW yazım —
+            // CookieRequestCultureProvider decode yapmaz; settings.js writeCookie encode etmez, doğru).
             await module.InvokeVoidAsync("writeCookie", CultureCatalog.CookieName, $"c={cultureName}|uic={cultureName}", 365);
         }
         catch (JSDisconnectedException) { }

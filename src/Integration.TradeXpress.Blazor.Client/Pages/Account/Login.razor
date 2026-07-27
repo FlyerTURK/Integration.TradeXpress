@@ -125,6 +125,12 @@
     [SupplyParameterFromQuery(Name = "returnUrl")]
     public string? ReturnUrl { get; set; }
 
+    /// <summary>Dil combosuna AÇIKÇA dokunuldu bilgisi — dil değişimi tam yeniden yükleme yaptığından
+    /// reload sonrasına query ile taşınır. Girişte K1 kuralını besler: açık seçim saklı tercihi ezer
+    /// ve kullanıcının yeni sunucu tercihi olarak yazılır.</summary>
+    [SupplyParameterFromQuery(Name = "langChosen")]
+    public string? LangChosen { get; set; }
+
     private string     _userName          = string.Empty;
     private string     _password          = string.Empty;
     private string     _tenant            = string.Empty;
@@ -270,13 +276,16 @@
     private async Task OnLanguageChangedAsync(string code)
     {
         _selectedCulture = code;
-        var ret = "/account/login"
-                + (string.IsNullOrEmpty(ReturnUrl) ? string.Empty : "?returnUrl=" + Uri.EscapeDataString(ReturnUrl));
-        // location.replace (href DEĞİL): dil değişimi de geçmişe kayıt bırakmaz — aksi halde "geri" tuşu
-        // kullanıcıyı bir önceki DİLDEKİ login sayfasına döndürürdü.
+        // langChosen: açık dil seçimi bilgisi reload sonrası sayfaya taşınır (K1 — girişte bu dil kazanır).
+        var ret = "/account/login?langChosen=" + Uri.EscapeDataString(code)
+                + (string.IsNullOrEmpty(ReturnUrl) ? string.Empty : "&returnUrl=" + Uri.EscapeDataString(ReturnUrl));
+        // ABP'nin hazır kültür endpoint'i: .AspNetCore.Culture cookie'sini sunucuda yazar ve returnUrl'e
+        // döner (eski /_ux/culture hedefi hiç var olmadığından 404'e gidiyordu — dil değişimi kırıktı).
+        // uiCulture parametresi ZORUNLU (yoksa yalnız "c" kısmı set olur). location.replace (href DEĞİL):
+        // dil değişimi geçmişe kayıt bırakmaz — "geri" tuşu önceki dildeki login'e döndürmesin.
         await Js.InvokeVoidAsync(
             "eval",
-            $"window.location.replace('/_ux/culture?culture={Uri.EscapeDataString(code)}&returnUrl={Uri.EscapeDataString(ret)}')");
+            $"window.location.replace('/Abp/Languages/Switch?culture={Uri.EscapeDataString(code)}&uiCulture={Uri.EscapeDataString(code)}&returnUrl={Uri.EscapeDataString(ret)}')");
     }
 
     // ── Giriş ───────────────────────────────────────────────────────────
@@ -298,7 +307,7 @@
             // Browser-side fetch: Set-Cookie must reach the browser's cookie jar,
             // not a server-side HttpClient container.
             var result = await Js.InvokeAsync<SignInResponse>(
-                "erpFetchSignIn", _userName, _password, _tenant);
+                "erpFetchSignIn", _userName, _password, _tenant, LangChosen);
 
             if (result is { Success: true })
             {
@@ -308,6 +317,12 @@
                         "erpUx.writeCookie", LastTenantCookieName, _tenant, LastTenantCookieDays);
                 }
                 catch { /* best-effort */ }
+
+                // Oturum açan KULLANICININ tercihleri ayna cookie'lerine yansıtılır — forceLoad sonrası
+                // App.razor SSR'ı doğrudan bu kullanıcının temasında/dilinde boyar (ara flaş yok).
+                // Boş tema/boyut → cookie SİLİNİR (önceki kullanıcının görünümü tercihi olmayan yeni
+                // kullanıcıya sızmasın); boş kültür → dokunulmaz (mevcut ekran dili sürer).
+                await ApplyPreferenceCookiesAsync(result.Prefs);
 
                 // replace:true → login geçmişe KAYIT BIRAKMAZ: giriş sonrası tarayıcı "geri"si login'e dönmez
                 // (2026-07-25 Hakan kararı: login ayrı gezinilebilir sayfa gibi davranmasın).
@@ -341,10 +356,39 @@
         }
     }
 
+    // Önceden var olan açık-yönlendirme (open redirect) açığı: "//evil.example" ve "/\evil.example" de
+    // StartsWith('/') koşulunu sağlıyordu ve tarayıcı bunları protokol-göreli mutlak URL olarak çözüp
+    // forceLoad navigasyonunu (satır 330) başka bir origin'e taşıyordu (2026-07-26 adversarial review
+    // ile bulunan, bu sekme değişikliğiyle İLGİSİZ ama gerçek önceden var olan bir güvenlik açığı).
     private static string SanitizeReturnUrl(string? url)
-        => string.IsNullOrEmpty(url) || !url.StartsWith('/') ? "/" : url;
+        => string.IsNullOrEmpty(url) || !url.StartsWith('/') || url.StartsWith("//") || url.StartsWith("/\\")
+            ? "/"
+            : url;
+
+    /// <summary>Girişte dönen kullanıcı tercihlerini ayna cookie'lerine yazar (best-effort — hata girişi bozmaz).
+    /// Tema JSON'u ENCODE'lu (erpUx.writeCookie), kültür RAW (erpUx.writeRawCookie — ASP.NET decode yapmaz!).</summary>
+    private async Task ApplyPreferenceCookiesAsync(SignInPrefs? prefs)
+    {
+        try
+        {
+            if (!string.IsNullOrEmpty(prefs?.Theme))
+                await Js.InvokeVoidAsync("erpUx.writeCookie", "tx.last_theme", prefs.Theme, 365);
+            else
+                await Js.InvokeVoidAsync("erpUx.deleteCookie", "tx.last_theme");
+
+            if (!string.IsNullOrEmpty(prefs?.Size))
+                await Js.InvokeVoidAsync("erpUx.writeRawCookie", "tx.last_size", prefs.Size, 365);
+            else
+                await Js.InvokeVoidAsync("erpUx.deleteCookie", "tx.last_size");
+
+            if (!string.IsNullOrEmpty(prefs?.Culture))
+                await Js.InvokeVoidAsync("erpUx.writeRawCookie", ".AspNetCore.Culture", $"c={prefs.Culture}|uic={prefs.Culture}", 365);
+        }
+        catch { /* best-effort: cookie yazılamazsa yalnız ilk boyama görünümü etkilenir */ }
+    }
 
     public sealed record LangItem(string Code, string Label);
-    public sealed record SignInResponse(bool Success, string? Error);
+    public sealed record SignInPrefs(string? Theme, string? Size, string? Culture);
+    public sealed record SignInResponse(bool Success, string? Error, SignInPrefs? Prefs = null);
 }
 

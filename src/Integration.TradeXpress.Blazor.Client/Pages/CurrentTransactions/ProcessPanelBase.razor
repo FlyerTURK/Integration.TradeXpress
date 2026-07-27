@@ -1,22 +1,140 @@
 @inject IStringLocalizer<TradeXpressResource> L
 
-<div style="display:flex; flex-direction:column; box-sizing:border-box;">
+@* Dış kapsayıcı taşmayı KESER: yatay kaydırma yalnız alan bloklarının kendi sarmalayıcısında olur,
+   panelin tamamında ikinci bir çubuk belirmez.
 
-    <div style="@StripStyle(); display:flex; align-items:center; padding:0 10px; color:#fff; font-size:0.85rem; font-weight:700; letter-spacing:0.06em; text-transform:uppercase; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+   YÜKSEKLİK SINIRI + KENDİ DİKEY KAYDIRMASI: panel ekrana sığmadığında başlık şeridi üstte, Kaydet/Geri
+   çubuğu altta SABİT kalsın diye (kullanıcı isteği) — arada kalan alan kayar. Kap zaten scroll-container'dı
+   (overflow-x:hidden, diğer ekseni otomatik auto yapar) ama yükseklik sınırı olmadığından kaydırma hiç
+   tetiklenmiyor, dolayısıyla sticky de devreye girmiyordu. Sınır KISA panellerde etkisizdir → mevcut
+   yerleşim aynen korunur, yalnız taşma durumunda davranış değişir.
+   Dar ekranda viewport'a göre (dış grid'in kendi sınırının biraz altı, p2/p3'e pay kalsın); masaüstünde
+   grid hücresine göre (%100) — GridStyle'daki satır minmax(0,auto) ile sıkışabilir.
+   MOBİLDE dvh ŞART (vh DEĞİL): mobil tarayıcıda 100vh, URL çubuğu GİZLİYKENki yüksekliktir; kabuk
+   (#ApplicationContainer) ise 100dvh + overflow:hidden ile görünür alana sabitli → vh ile hesaplanan panel
+   kaptan taşar ve alttaki sticky Kaydet/Geri çubuğu KIRPILIR (MainLayout'ta aynı ders yazılı: "100vh
+   görünür alandan uzun olup pager'ı fold altına itiyor"). İlk satır dvh bilmeyen tarayıcı için fallback.
+
+   NOT (2026-07-26, denenip GERİ ALINDI): "panel kendi kabını kurmasın, sticky dış gride bağlansın" denendi
+   (overflow-x:clip) — başlığın panel boyunca görünür kalması için. ÇALIŞMADI: hemen üstteki sarmalayıcı
+   .tx-process-panel-wrap'te "overflow-x:auto" var (AccountSelectionPanel), o da bir kaydırma kabıdır ve
+   sticky ona bağlanıp tamamen ölür. Bu yol ancak o sarmalayıcı da kap olmaktan çıkarılırsa işler — ama
+   oradaki yatay kaydırma masaüstünde gerekli, o yüzden dokunulmadı. *@
+<div style="display:flex; flex-direction:column; box-sizing:border-box; min-width:0; max-width:100%; overflow-x:hidden;
+            max-height:@(_isNarrow ? "calc(100vh - 170px)" : "100%");
+            max-height:@(_isNarrow ? "calc(100dvh - 170px)" : "100%"); overflow-y:auto;">
+
+    @* position:sticky — kaydırma kabı yukarıdaki kök div; şeridin kendi dolu arka planı (gradient) var,
+       altından içerik sızmaz. *@
+    <div style="@StripStyle(); position:sticky; top:0; z-index:3; flex:0 0 auto; display:flex; align-items:center; padding:0 10px; color:#fff; font-size:0.85rem; font-weight:700; letter-spacing:0.06em; text-transform:uppercase; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
         @StripText()
     </div>
 
-    <div>
+    @* Alan bloklarının YATAY KAYDIRMASI burada — dokuz panel aynı sarmalayıcıyı tekrar ediyordu.
+       Dar ekranda kaydırma yok (alanlar zaten alt alta dizilir). *@
+    <div style="padding:8px; @(_isNarrow ? "" : "overflow-x:auto;") @(ReadOnly ? "pointer-events:none; opacity:0.85;" : "")">
         @ChildContent
     </div>
 
-    <div style="display:flex; justify-content:flex-end; gap:8px; padding:8px 8px 4px; border-top:1px solid #ddd;">
-        <DxButton Text="@L["Save"].Value"
-                  IconCssClass="custom-icon-save"
-                  RenderStyle="ButtonRenderStyle.Primary"
-                  RenderStyleMode="ButtonRenderStyleMode.Contained"
-                  Enabled="@SaveEnabled"
-                  Click="@OnSave" />
+    @* Karşı hesap — TÜM süreç panellerinde ortak. Önce EVET/HAYIR, evet seçilince alt hesap seçici görünür.
+       Seçiliyse karşı hesaba YENİ FİŞ açılır ve bu satırın AYNASI (ters yön) yazılır; karşı fişin
+       açıklamasında kaynak cari kodu geçer. Kargo gideri buradan işler: kanal fişinde hizmet çıkışı ↔
+       kargo firmasının kendi defterinde giriş (tek firma = tek bakiye). Virmanda alan ZORUNLU olduğundan
+       orada gösterilmez — kendi paneli yönetir. *@
+    @if (Line is not null && ShowCounterAccount && !ReadOnly)
+    {
+        <div style="padding:0 8px 8px; display:flex; @(_isNarrow ? "flex-direction:column;" : "flex-wrap:wrap;") gap:4px; align-items:flex-start; min-width:0; max-width:100%; box-sizing:border-box;">
+            @* Alt panellerle AYNI yerleşim dili: ProcessPanelStyles.Group/Control (SSOT) — ayrı stil yazılmaz. *@
+            <div style="@ProcessPanelStyles.Group(_isNarrow)">
+                <small style="@ProcessPanelStyles.Label">@L["Transfer_CounterAccount"]</small>
+                <DxComboBox Data="@_yesNoItems"
+                            TData="YesNoItem"
+                            TValue="bool"
+                            Value="@_useCounterAccount"
+                            ValueChanged="@((bool v) => OnUseCounterAccountChanged(v))"
+                            DropDownTriggerMode="DropDownTriggerMode.Click" ShowDropDownButton="true"
+                            ValueFieldName="@nameof(YesNoItem.Value)"
+                            TextFieldName="@nameof(YesNoItem.Text)"
+                            ValidationEnabled="false"
+                            style="@ProcessPanelStyles.Control(_isNarrow)" />
+            </div>
+            @if (_useCounterAccount)
+            {
+                @* Alt hesap seçici ÜÇ KAT geniş (360px): "ANA/ALT" biçimindeki kod çifti standart
+                   120px'e sığmıyor, iki katta da kısalıyordu. *@
+                <div style="@ProcessPanelStyles.Group(_isNarrow, 360)">
+                    <small style="@ProcessPanelStyles.Label">@L["SubAccount"]</small>
+                    <LookupComboBox TItem="SubAccountListDto" TValue="Guid?"
+                                    Data="@_counterAccounts"
+                                    ValueFieldName="@nameof(SubAccountListDto.Id)"
+                                    TextFieldName="@nameof(SubAccountListDto.AccountSubCodeDisplay)"
+                                    Value="@Line.CounterAccountId"
+                                    ValueChanged="@((Guid? id) => Line.CounterAccountId = id)"
+                                    NullText="@L["Select"].Value"
+                                    AllowClear="true">
+                        <Columns>
+                            <DxListEditorColumn FieldName="@nameof(SubAccountListDto.AccountDisplay)"
+                                                Caption="@L["Account"]" Width="50%" />
+                            <DxListEditorColumn FieldName="@nameof(SubAccountListDto.SubAccountDisplay)"
+                                                Caption="@L["SubAccount"]" />
+                        </Columns>
+                    </LookupComboBox>
+                </div>
+            }
+        </div>
+    }
+
+    @* Satır ekleri — TÜM süreç panellerinde ortak (bu kabuk 12 panelin hepsi tarafından kullanılır).
+       Seri numarası, kamera kaydı, kargo/sigorta evrakı, teslim tutanağı buraya girer; ihtilafta delil
+       zinciri bu kayıtlardan kurulur. KATLI başlar — ekran doldurmasın; başlıkta varsa sayı rozeti çıkar.
+       Ekler satır kaydedildikten SONRA yazılır (kimliğe bağlanır); kullanıcı için aynı Kaydet düğmesi. *@
+    @if (Attachments is not null && !ReadOnly)
+    {
+        @* min-width:0 + box-sizing: bu blok panelin genişliğini AŞMAZ — aksi hâlde dış kapsayıcıda
+           ikinci bir yatay kaydırma çubuğu beliriyordu (alan grupları zaten kendi içinde kayıyor). *@
+        <div style="padding:0 8px 8px; min-width:0; max-width:100%; box-sizing:border-box;">
+            <DxFormLayout CssClass="w-100">
+                @* ExpandButtonDisplayMode ŞART: yalnız Expanded="false" vermek grubu KATLANIR yapmıyor
+                   (açma/kapama düğmesi çizilmiyor) — N11 opsiyonel alanlar grubundaki çalışan desen. *@
+                <DxFormLayoutGroup Caption="@AttachmentsCaption()" ColSpanMd="12"
+                                   @bind-Expanded="@_attachmentsExpanded"
+                                   ExpandButtonDisplayMode="GroupExpandButtonDisplayMode.Start">
+                    <DxFormLayoutItem ColSpanMd="12">
+                        <DxTabs>
+                            <DxTabPage Text="@L["Documents"]" TabIconCssClass="@TradeXpressIcons.Report">
+                                <EntityDocumentsPanel Documents="@Attachments.Documents" />
+                            </DxTabPage>
+                            <DxTabPage Text="@L["Notes"]" TabIconCssClass="@TradeXpressIcons.Comments">
+                                <EntityNotesPanel Notes="@Attachments.Notes" />
+                            </DxTabPage>
+                        </DxTabs>
+                    </DxFormLayoutItem>
+                </DxFormLayoutGroup>
+            </DxFormLayout>
+        </div>
+    }
+
+    @* Kaydet/Geri çubuğu ALTTA sabit: panel taşarken kullanıcı kaydetmek için sona kaydırmak zorunda
+       kalmasın. Arka plan ŞART — sticky şerit saydam olsaydı altından kayan içerik görünürdü; tema
+       değişkeni (koyu/açık temada doğru zemin), değişken yoksa beyaza düşer. *@
+    @* Arka plan ŞART (sticky şerit saydam olsaydı altından kayan içerik görünürdü) ama TEMAYA UYMALI:
+       iki tema ailesi FARKLI değişken yayınlıyor — Bootstrap tabanlı Klasik temalar (Blazing Berry/Dark,
+       Office White, Purple) --bs-body-bg verir ve --dxbl-body-bg TANIMSIZDIR; Fluent temalar ise tam tersi.
+       Tek değişkene güvenmek diğer ailede fallback'e düşürüyordu: Fluent DARK'ta şerit BEYAZ çıkıyordu
+       (ölçüldü: var(--bs-body-bg,#fff) → rgb(255,255,255); zincir → rgb(37,37,37) = temanın gerçek zemini).
+       env(safe-area-inset-bottom): telefonun alt gezinme çubuğu/çentik payı — butonlar sistem çubuğunun
+       arkasında kalmasın (Android jest navigasyonu/iOS'ta dolu, masaüstünde 0). *@
+    <div style="position:sticky; bottom:0; z-index:3; flex:0 0 auto; background:var(--bs-body-bg, var(--dxbl-body-bg, #fff)); display:flex; justify-content:flex-end; gap:8px; padding:8px 8px calc(4px + env(safe-area-inset-bottom, 0px)); border-top:1px solid var(--bs-border-color, rgba(128,128,128,0.35));">
+        @* Salt-okunur görüntülemede Kaydet YOK — geçmiş kaydı değiştirilemez (delil değeri korunur). *@
+        @if (!ReadOnly)
+        {
+            <DxButton Text="@L["Save"].Value"
+                      IconCssClass="custom-icon-save"
+                      RenderStyle="ButtonRenderStyle.Primary"
+                      RenderStyleMode="ButtonRenderStyleMode.Contained"
+                      Enabled="@SaveEnabled"
+                      Click="@OnSave" />
+        }
         <DxButton Text="@L["Back"].Value"
                   IconCssClass="custom-icon-back"
                   RenderStyle="ButtonRenderStyle.Secondary"

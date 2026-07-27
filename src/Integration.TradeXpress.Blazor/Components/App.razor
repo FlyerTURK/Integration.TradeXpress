@@ -2,16 +2,23 @@
 @using Microsoft.AspNetCore.Components.Web
 @inject Microsoft.Extensions.Configuration.IConfiguration Configuration
 <!DOCTYPE html>
-<html>
+@* Tema/boyut/dil İLK BOYAMADA doğru: ayna cookie'lerinden çözülür (bkz. App.razor.cs) — login
+   son kullanıcının temasında flaşsız açılır. Cookie yok/bozuk → Blazing Berry Light varsayılanı. *@
+<html lang="@_lang" data-bs-theme="@_colorMode" data-erp-size="@_sizeAttr" style="--tx-theme-primary:@_primaryHex">
 
 <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    @* interactive-widget=resizes-content: mobil klavye açılınca LAYOUT viewport'u (ve dolayısıyla dvh'yi)
+       küçültür. Tarayıcı varsayılanı (resizes-visual) yalnız görsel viewport'u küçültür, dvh sabit kalır →
+       yükseklikleri dvh'ye dayanan yerleşim klavyenin ARKASINDA kalıyordu: veri girerken süreç panelinin
+       Kaydet/Geri çubuğu görünmez oluyordu (2026-07-26 Hakan bildirimi). Bu, veri girişi ağırlıklı bir ERP
+       için doğru kip — klavye açıkken uygulama kendini klavyenin üstüne sığdırır. *@
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content" />
     <title>Integration.TradeXpress</title>
     <base href="/" />
 
     <!--ABP:Styles-->
-    @DxResourceManager.RegisterTheme(DevExpress.Blazor.Themes.BlazingBerry)
+    @DxResourceManager.RegisterTheme(_initialTheme)
     @DxResourceManager.RegisterScripts()
     <!--/ABP:Styles-->
 
@@ -34,7 +41,7 @@
     <script src="_framework/blazor.web.js"></script>
     @* ?v= cache-bust: dosya değişince ARTIR — tarayıcı eski sürümü önbellekten kullanıp yeni
        fonksiyonları (ör. erpUx.scrollFocusPanel) görmüyordu. *@
-    <script src="js/login.js?v=3"></script>
+    <script src="js/login.js?v=4"></script>
 
     <div id="ApplicationContainer">
         <div class="int-loader-container">

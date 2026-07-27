@@ -21,6 +21,7 @@ using Volo.Abp.Localization;
 using Volo.Abp.Modularity;
 using Volo.Abp.OpenIddict;
 using Volo.Abp.Security.Claims;
+using Volo.Abp.SettingManagement;
 using Volo.Abp.Swashbuckle;
 using Volo.Abp.UI.Navigation;
 using Volo.Abp.UI.Navigation.Urls;
@@ -431,6 +432,7 @@ public class TradeXpressBlazorModule : AbpModule
                 [Microsoft.AspNetCore.Mvc.FromBody] SignInCookieRequest                req,
                 [Microsoft.AspNetCore.Mvc.FromServices] Volo.Abp.MultiTenancy.ITenantStore       tenantStore,
                 [Microsoft.AspNetCore.Mvc.FromServices] Volo.Abp.MultiTenancy.ICurrentTenant     currentTenant,
+                [Microsoft.AspNetCore.Mvc.FromServices] Volo.Abp.SettingManagement.ISettingManager settingManager,
                 [Microsoft.AspNetCore.Mvc.FromServices] Microsoft.AspNetCore.Identity.SignInManager<Volo.Abp.Identity.IdentityUser> signInManager) =>
             {
                 if (string.IsNullOrWhiteSpace(req.UserName) || string.IsNullOrWhiteSpace(req.Password))
@@ -454,7 +456,41 @@ public class TradeXpressBlazorModule : AbpModule
                     if (!result.Succeeded)
                         return Microsoft.AspNetCore.Http.Results.Json(new { success = false, error = "Invalid credentials." });
 
-                    return Microsoft.AspNetCore.Http.Results.Json(new { success = true });
+                    // Kullanıcının UI tercihleri (tema/boyut/dil) yanıta eklenir → Login bunları ayna
+                    // cookie'lerine yansıtır; forceLoad sonrası App.razor SSR'ı DOĞRUDAN bu kullanıcının
+                    // görünümüyle boyar (ara flaş/ikinci reload yok). Hata girişi ENGELLEMEZ (best-effort).
+                    string? theme = null, size = null, culture = null;
+                    try
+                    {
+                        var user = await signInManager.UserManager.FindByNameAsync(req.UserName);
+                        if (user != null)
+                        {
+                            theme   = await settingManager.GetOrNullForUserAsync(Integration.TradeXpress.Settings.TradeXpressUiSettingNames.Theme,    user.Id, fallback: false);
+                            size    = await settingManager.GetOrNullForUserAsync(Integration.TradeXpress.Settings.TradeXpressUiSettingNames.SizeMode, user.Id, fallback: false);
+                            culture = await settingManager.GetOrNullForUserAsync(Integration.TradeXpress.Settings.TradeXpressUiSettingNames.Culture,  user.Id, fallback: false);
+
+                            // K1 iş kuralı: login ekranında dile AÇIKÇA dokunulduysa o dil kazanır ve
+                            // kullanıcının yeni sunucu tercihi olarak yazılır; dokunulmadıysa saklı tercih döner.
+                            if (!string.IsNullOrWhiteSpace(req.ChosenCulture)
+                                && (req.ChosenCulture is "tr" or "en"))
+                            {
+                                culture = req.ChosenCulture;
+                                await settingManager.SetForUserAsync(user.Id, Integration.TradeXpress.Settings.TradeXpressUiSettingNames.Culture, req.ChosenCulture);
+                            }
+                        }
+                    }
+                    catch { /* tercih okunamazsa null döner — giriş etkilenmez */ }
+
+                    return Microsoft.AspNetCore.Http.Results.Json(new
+                    {
+                        success = true,
+                        prefs = new
+                        {
+                            theme   = string.IsNullOrWhiteSpace(theme)   ? null : theme,
+                            size    = string.IsNullOrWhiteSpace(size)    ? null : size,
+                            culture = string.IsNullOrWhiteSpace(culture) ? null : culture,
+                        },
+                    });
                 }
             }).AllowAnonymous().DisableAntiforgery();
 
@@ -535,7 +571,7 @@ public class TradeXpressBlazorModule : AbpModule
     }
 }
 
-file sealed record SignInCookieRequest(string UserName, string Password, string? TenantName);
+file sealed record SignInCookieRequest(string UserName, string Password, string? TenantName, string? ChosenCulture = null);
 
 file sealed class DisableAbpLoginPageConvention
     : Microsoft.AspNetCore.Mvc.ApplicationModels.IPageRouteModelConvention

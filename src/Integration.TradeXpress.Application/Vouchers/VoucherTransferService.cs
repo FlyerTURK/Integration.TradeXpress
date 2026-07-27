@@ -12,10 +12,17 @@ using Volo.Abp.Linq;
 namespace Integration.TradeXpress.Vouchers;
 
 /// <summary>
-/// Virman (Transfer) çift-bacak motoru: birincil satırın doğrulanması/hazırlanması + karşı bacağın
-/// (ikiz satır) bul/oluştur/güncelle/sil senkronu. İki bacak AYNI ambient UoW/transaction'da yazılır;
-/// etkilenen her fişin ledger'ı ayrıca senkronlanır. Company scope ve fiş-aitlik guard'ları çağıran
-/// AppService'te kalır — kaynak alt hesap parametreyle gelir.
+/// ÇİFT-BACAK motoru: birincil satırın doğrulanması/hazırlanması + karşı bacağın (ikiz satır)
+/// bul/oluştur/güncelle/sil senkronu. Karşı hesabın KENDİ voucher'ı açılır ve satırın AYNASI (yön ters)
+/// yazılır. İki bacak AYNI ambient UoW/transaction'da yazılır; etkilenen her fişin ledger'ı ayrıca
+/// senkronlanır. Company scope ve fiş-aitlik guard'ları çağıran AppService'te kalır — kaynak alt hesap
+/// parametreyle gelir.
+///
+/// <para><b>TİP-AGNOSTİK</b> (2026-07-26): ikiz satır birincilin kopyasıdır (yalnız yön + karşı referans +
+/// açıklama değişir), <c>ProcessType</c>'a BAKMAZ. Virman tip gereği çift bacaklıdır (karşı hesap zorunlu);
+/// diğer tiplerde karşı hesap opsiyoneldir ve yalnız doluysa bu motor çalışır. Kargo gideri bu yolla işler:
+/// kanal fişinde hizmet çıkışı ↔ kargo firmasının fişinde hizmet girişi (tek firma = tek bakiye).
+/// Sınıf adı legacy'dir (kaynağı virman); kapsam artık daha geniştir.</para>
 /// </summary>
 public class VoucherTransferService : ITransientDependency
 {
@@ -61,10 +68,12 @@ public class VoucherTransferService : ITransientDependency
         string CounterCode,
         string RawDescription);
 
-    /// <summary>Virman satırını kaydetmeden ÖNCE doğrular ve sunucu-otoriter alanları doldurur:
+    /// <summary>Çift-bacaklı satırı kaydetmeden ÖNCE doğrular ve sunucu-otoriter alanları doldurur:
     /// karşı alt hesap zorunlu + kaynaktan farklı + AYNI şirkette (SubAccount→Account→CompanyId) + aktif;
     /// LinkId güncellemede mevcut satırdan okunur (istemciye güvenilmez), yeni satırda üretilir;
-    /// açıklama legacy "{kaynak}/{karşı}:{desc}" formatına çevrilir.</summary>
+    /// açıklama legacy "{kaynak}/{karşı}:{desc}" formatına çevrilir.
+    /// <para>Yalnız karşı hesap İSTENDİĞİNDE çağrılır (virmanda daima, diğer tiplerde alan doluysa) —
+    /// bu yüzden karşı hesabın boş olması burada hata sayılır, çağıran zaten filtrelemiştir.</para></summary>
     public async Task<TransferContext> PrepareTransferLineAsync(VoucherLineDto input, Guid companyId, Guid? sourceSubAccountId)
     {
         if (sourceSubAccountId is not { } sourceId || sourceId == Guid.Empty)
@@ -91,7 +100,8 @@ public class VoucherTransferService : ITransientDependency
             throw new BusinessException("TradeXpress:Voucher:TransferCounterNotFound");
         }
 
-        var sourceSub = await _subAccountRepository.GetAsync(sourceId);
+        var sourceSub     = await _subAccountRepository.GetAsync(sourceId);
+        var sourceAccount = await _accountRepository.FindAsync(sourceSub.AccountId);
 
         // LinkId (legacy RefNo): güncellemede mevcut satırın kimliği korunur, yeni satırda üretilir.
         Guid linkId;
@@ -109,11 +119,16 @@ public class VoucherTransferService : ITransientDependency
         }
         input.LinkId = linkId;
 
-        // Açıklama — legacy formatı "{kaynak}/{karşı}:{desc}". Düzenlemede eski önek soyulur (çift önek olmaz).
-        var raw = StripTransferPrefix(input.Description);
-        input.Description = ComposeTransferDescription(sourceSub.Code, counterSub.Code, raw);
+        // Açıklama — "{kaynakAna}/{kaynakAlt} -> {karşıAna}/{karşıAlt}: {desc}". Yalnız ALT hesap kodu
+        // kullanmak yetmiyordu: iki taraf da "ANAHESAP" adını taşıdığında "ANAHESAP/ANAHESAP" gibi anlamsız
+        // bir metin çıkıyordu (2026-07-26 Hakan bildirimi). ANA hesap kodu eklenince taraflar ayırt edilir.
+        // Düzenlemede eski önek soyulur (çift önek birikmez).
+        var raw         = StripTransferPrefix(input.Description);
+        var sourceLabel = ComposeAccountLabel(sourceAccount?.Code, sourceSub.Code);
+        var counterLabel = ComposeAccountLabel(counterAccount.Code, counterSub.Code);
+        input.Description = ComposeTransferDescription(sourceLabel, counterLabel, raw);
 
-        return new TransferContext(sourceId, counterId, counterSub.AccountId, sourceSub.Code, counterSub.Code, raw);
+        return new TransferContext(sourceId, counterId, counterSub.AccountId, sourceLabel, counterLabel, raw);
     }
 
     /// <summary>Birincil satır kaydedildikten sonra karşı bacağı senkronlar: ikiz yoksa karşı hesabın YENİ
@@ -230,17 +245,26 @@ public class VoucherTransferService : ITransientDependency
         };
     }
 
-    /// <summary>Legacy açıklama formatı: "{kendi}/{karşı}:{desc}" — taşarsa kolon sınırına kırpılır.</summary>
-    private static string ComposeTransferDescription(string ownCode, string otherCode, string raw)
+    /// <summary>Açıklama formatı: "{kendi} -> {karşı}: {desc}" — taraflar "ANA/ALT" etiketiyle yazılır
+    /// (ör. "OZGUR/ANAHESAP -> UMUT/ANAHESAP: devir"). Taşarsa kolon sınırına kırpılır.</summary>
+    private static string ComposeTransferDescription(string ownLabel, string otherLabel, string raw)
     {
-        var composed = $"{ownCode}/{otherCode}:{raw}";
+        var head     = $"{ownLabel} -> {otherLabel}";
+        var composed = string.IsNullOrEmpty(raw) ? head : $"{head}: {raw}";
         return composed.Length <= VoucherConsts.DescriptionMaxLength
             ? composed
             : composed[..VoucherConsts.DescriptionMaxLength];
     }
 
-    /// <summary>Var olan "{X}/{Y}:" önekini soyar (düzenlemede çift önek birikmesin). Sezgisel kural:
-    /// ilk ':' öncesi tek '/' içeren, boşluksuz bir baş ise önek sayılır — hesap kodları normalize
+    /// <summary>Taraf etiketi: "{anaHesapKodu}/{altHesapKodu}". Ana hesap çözülemezse yalnız alt kod yazılır.</summary>
+    private static string ComposeAccountLabel(string? accountCode, string subAccountCode)
+    {
+        return string.IsNullOrWhiteSpace(accountCode) ? subAccountCode : $"{accountCode}/{subAccountCode}";
+    }
+
+    /// <summary>Var olan taraf önekini soyar (düzenlemede çift önek birikmesin). İki biçim tanınır:
+    /// YENİ "{A/B} -> {C/D}: desc" ve ESKİ "{X}/{Y}:desc" (geçmiş kayıtlar). Sezgisel kural: ':' öncesi baş
+    /// kısım ok içeriyorsa ya da tek '/' içeren boşluksuz bir kod ise önek sayılır — hesap kodları normalize
     /// (boşluksuz/üst-harf) olduğundan güvenli; kullanıcı metni nadiren bu kalıba düşer.</summary>
     private static string StripTransferPrefix(string? description)
     {
@@ -252,7 +276,15 @@ public class VoucherTransferService : ITransientDependency
         var colon = description.IndexOf(':');
         if (colon > 0)
         {
-            var head  = description[..colon];
+            var head = description[..colon];
+
+            // YENİ biçim: baş kısımda " -> " ayırıcısı var.
+            if (head.Contains(" -> ", StringComparison.Ordinal))
+            {
+                return description[(colon + 1)..].TrimStart();
+            }
+
+            // ESKİ biçim: tek '/' içeren, boşluksuz baş.
             var slash = head.IndexOf('/');
             if (slash > 0 && head.IndexOf('/', slash + 1) < 0 && !head.Contains(' '))
             {

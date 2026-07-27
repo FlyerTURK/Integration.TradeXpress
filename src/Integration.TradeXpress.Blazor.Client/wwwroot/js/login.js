@@ -3,16 +3,17 @@
 // so Set-Cookie headers land in the user's cookie jar, not a server HttpClient container.
 window.erpUx = window.erpUx || {};
 
-window.erpFetchSignIn = async function (userName, password, tenant) {
+window.erpFetchSignIn = async function (userName, password, tenant, chosenCulture) {
     try {
         const resp = await fetch('/account/sign-in-cookie', {
             method:      'POST',
             credentials: 'include',
             headers:     { 'Content-Type': 'application/json' },
             body:        JSON.stringify({
-                userName:   userName,
-                password:   password,
-                tenantName: tenant || null,
+                userName:      userName,
+                password:      password,
+                tenantName:    tenant || null,
+                chosenCulture: chosenCulture || null,
             }),
         });
         if (!resp.ok) return { success: false, error: 'HTTP ' + resp.status };
@@ -47,6 +48,17 @@ window.erpFetchFindTenant = async function (name) {
 
     ux.writeCookie = function (name, value, maxAgeDays) {
         setCookie(name, value, maxAgeDays || 365);
+    };
+
+    // RAW cookie yazımı — .AspNetCore.Culture için ŞART: CookieRequestCultureProvider decode
+    // YAPMAZ, encode'lu değer ("c%3Dtr%7Cuic%3Dtr") dili sessizce varsayılana düşürür.
+    ux.writeRawCookie = function (name, value, maxAgeDays) {
+        const seconds = (maxAgeDays || 365) * 24 * 60 * 60;
+        document.cookie = `${name}=${value}; Max-Age=${seconds}; Path=/; SameSite=Lax`;
+    };
+
+    ux.deleteCookie = function (name) {
+        document.cookie = `${name}=; Max-Age=0; Path=/; SameSite=Lax`;
     };
 
     ux.readCookie = function (name) {

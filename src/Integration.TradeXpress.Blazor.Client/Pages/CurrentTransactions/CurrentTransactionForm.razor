@@ -8,6 +8,8 @@
 @inject IUiInteractionService Ui
 @inject ITabManager Tabs
 @inject IGridExportAssemblyLoader ExportLoader
+@inject IEntityDocumentAppService DocumentAppService
+@inject IEntityNoteAppService NoteAppService
 
 @* .tx-tabs-stretched kuralları main.css'te tek kaynak (E9: razor içi mükerrer <style> kaldırıldı). *@
 
@@ -24,7 +26,7 @@
                                OnLineSaved="@OnLineSaved"
                                OnSubAccountSelected="@OnSubAccountSelected"
                                OnVoucherOpened="@OnVoucherOpened"
-                               OnProcessActiveChanged="@(v => _processActive = v)"
+                               OnProcessActiveChanged="@OnProcessActiveChanged"
                                OnLockChanged="@(v => _accountLocked = v)"
                                OnListRequested="@EnterListModeAsync" />
     </div>
@@ -44,10 +46,13 @@
                             <div style="flex-shrink:0; padding:8px 12px; border-left:1px solid color-mix(in srgb, var(--tx-theme-primary, var(--bs-primary, #0d6efd)) 8%, transparent); border-right:1px solid color-mix(in srgb, var(--tx-theme-primary, var(--bs-primary, #0d6efd)) 8%, transparent); background-color:transparent;">
                                 <DxToolbar Adaptive="false">
                                     @* Düzelt/Sil satır-içi ikonlar yerine toolbar BAŞINDA; seçili satır(lar) üzerinde çalışır (sade görünüm). *@
-                                    <DxToolbarItem Text="@L["Edit"].Value" IconCssClass="custom-icon-edit" Click="@OnEditLine" Enabled="@(_selectedLine != null)" />
-                                    <DxToolbarItem Text="@L["Delete"].Value" IconCssClass="custom-icon-delete" Click="@OnDeleteLine" Enabled="@(_selectedLines.Count >= 1)" />
-                                    @* Ekler: seri numarası, kamera/kargo/sigorta evrakı — yalnız KAYDEDİLMİŞ satırda (ek satırın kimliğine bağlanır). *@
-                                    <DxToolbarItem Text="@L["VoucherLine:Attachments"].Value" IconCssClass="@TradeXpressIcons.Report" Click="@OnLineAttachments" Enabled="@(_selectedLine is VoucherLineDto sel && sel.Id != Guid.Empty)" />
+                                    <DxToolbarItem BeginGroup="true" Text="@L["Edit"].Value" IconCssClass="custom-icon-edit" Click="@OnEditLine" Enabled="@(_selectedLine != null)" />
+                                    <DxToolbarItem BeginGroup="true" Text="@L["Delete"].Value" IconCssClass="custom-icon-delete" Click="@OnDeleteLine" Enabled="@(_selectedLines.Count >= 1)" />
+                                    @* Dokümanlar / Notlar AYRI düğme, her biri KENDİ penceresini açar: seri numarası,
+                                       kamera kaydı, kargo ve sigorta evrakı. Yalnız KAYDEDİLMİŞ satırda etkin
+                                       (ek satırın kimliğine bağlanır). *@
+                                    <DxToolbarItem BeginGroup="true" Text="@AttachmentButtonText(L["Documents"].Value, _selectedLineDocumentCount)" IconCssClass="@TradeXpressIcons.Report" Click="@OnLineDocuments" Enabled="@(_selectedLine is VoucherLineDto docSel && docSel.Id != Guid.Empty)" />
+                                    <DxToolbarItem BeginGroup="true" Text="@AttachmentButtonText(L["Notes"].Value, _selectedLineNoteCount)" IconCssClass="@TradeXpressIcons.Comments" Click="@OnLineNotes" Enabled="@(_selectedLine is VoucherLineDto noteSel && noteSel.Id != Guid.Empty)" />
                                     @if (_listMode)
                                     {
                                         @* Ekstre: işlem-tipi çoklu-seçim filtresi (server-side; devreden/kapanış da aynı filtreyle yürür). *@
@@ -70,7 +75,7 @@
                                                 <DxDateRangePicker StartDate="@_listStart" EndDate="@_listEnd"
                                                                    StartDateChanged="@((DateTime? d) => OnListRangeChanged(d ?? _listStart, _listEnd))"
                                                                    EndDateChanged="@((DateTime? d) => OnListRangeChanged(_listStart, d ?? _listEnd))"
-                                                                   DisplayFormat="@L["ShortDateFormat"].Value" style="width:280px;" />
+                                                                   DisplayFormat="@L["DateRangeDisplayFormat"].Value" style="width:280px;" />
                                             </Template>
                                         </DxToolbarItem>
                                         @* Excel export — merkezi xaf export ikonu (CrudToolbarActions.Export ile aynı görsel). *@
@@ -142,40 +147,40 @@
                                 </Columns>
                             </DxGrid>
                         </div>
-                        @if (_listMode && !_processActive)
-                        {
-                            @* Ekstre KAPANIŞ (son durum) şeridi (grid altı): son yürüyen bakiye — Bakiye sekmesini bozmayan, Liste moduna özgü dip-toplam. *@
-                            <div style="flex-shrink:0; display:flex; align-items:center; gap:14px; flex-wrap:wrap; padding:5px 12px; font-size:12px; border:1px solid color-mix(in srgb, var(--tx-theme-primary, var(--bs-primary, #0d6efd)) 8%, transparent); border-top:none; border-radius:0 0 4px 4px; background-color:color-mix(in srgb, var(--tx-theme-primary, var(--bs-primary, #0d6efd)) 8%, transparent);">
-                                <span style="font-weight:700; letter-spacing:0.5px;">@L["ClosingBalance"].Value.ToUpper()</span>
-                                @foreach (var b in _listClosing.Where(x => x.Net != 0m))
-                                {
-                                    <span style="font-weight:600; color:@(b.Net > 0m ? "#2e7d32" : "#c62828");">@Math.Abs(b.Net).ToString("N2") @b.UnitCode @(b.Net > 0m ? "(A)" : "(B)")</span>
-                                }
-                                @if (_listClosing.All(x => x.Net == 0m))
-                                {
-                                    <span style="opacity:0.6;">—</span>
-                                }
-                            </div>
-                        }
+                        @* Grid altındaki KAPANIŞ (son durum) şeridi KALDIRILDI (2026-07-26 Hakan kararı):
+                           aynı bilgi Bakiye sekmesinde zaten var; buradaki yeri artık seçili satırın
+                           salt-okunur açıklaması alıyor. Çoklu seçimde açıklama gösterilmez — hangi satırın
+                           açıklaması olduğu belirsiz olurdu (tek seçimde _selectedLine dolu, çokluda null). *@
                         @if (_selectedLine is VoucherLineDto selectedLine)
                         {
                             <div class="mt-2" style="flex-shrink:0;">
-                                <DxMemo Text="@selectedLine.Description" ReadOnly="true" Rows="1" ResizeMode="MemoResizeMode.Vertical" CssClass="w-100" />
+                                @* Boşken "AÇIKLAMA" ipucu, doluyken "AÇIKLAMA: ..." öneki — alanın ne olduğu
+                                   her iki durumda da belli olsun (salt-okunur; önek yalnız gösterimdedir). *@
+                                <DxMemo Text="@FormatLineDescription(selectedLine.Description)"
+                                        NullText="@L["Description"].Value.ToUpper()"
+                                        ReadOnly="true" Rows="1" ResizeMode="MemoResizeMode.Vertical" CssClass="w-100" />
                             </div>
                         }
                     </div>
                 </DxTabPage>
-                <DxTabPage Text="@L["Log"].Value" TabIconCssClass="custom-icon-history">
+                <DxTabPage Text="@L["VoucherLineHistory:Title"].Value" TabIconCssClass="custom-icon-history">
                     <div style="display:flex; flex-direction:column; height:100%;">
                         <div style="flex-shrink:0; padding:8px 12px; display:flex; justify-content:flex-end; border-left:1px solid color-mix(in srgb, var(--tx-theme-primary, var(--bs-primary, #0d6efd)) 8%, transparent); border-right:1px solid color-mix(in srgb, var(--tx-theme-primary, var(--bs-primary, #0d6efd)) 8%, transparent);">
                             <DxDateRangePicker StartDate="@_historyStart" EndDate="@_historyEnd"
                                                StartDateChanged="@((DateTime? d) => OnHistoryRangeChanged(d ?? _historyStart, _historyEnd))"
                                                EndDateChanged="@((DateTime? d) => OnHistoryRangeChanged(_historyStart, d ?? _historyEnd))"
-                                               DisplayFormat="@L["ShortDateFormat"].Value" style="width:280px;" />
+                                               DisplayFormat="@L["DateRangeDisplayFormat"].Value" style="width:280px;" />
                         </div>
                         <div style="flex:1; min-height:0; min-width:0; overflow:hidden; display:flex; flex-direction:column;">
+                            @* Satıra çift tıklayınca o kaydın O GÜNKÜ hâli SALT-OKUNUR panelde açılır —
+                               tablo kolonları yerine gerçek panel görünümü (ihtilafta okunaklı delil). *@
+                            @* SelectionMode açık: kullanıcı satırı seçip görebilsin (hangi kayda baktığı belli olsun);
+                               çift tıklayınca o kaydın O GÜNKÜ hâli SALT-OKUNUR panelde açılır — tablo kolonları
+                               yerine gerçek panel görünümü (ihtilafta okunaklı delil). *@
                             <DxGrid Data="@_lineHistory" ShowSearchBox="false" PageSize="50" CssClass="w-100 tx-grid-fill"
-                                    KeyFieldName="@nameof(VoucherLineHistoryDto.Id)">
+                                    KeyFieldName="@nameof(VoucherLineHistoryDto.Id)"
+                                    SelectionMode="GridSelectionMode.Single"
+                                    RowDoubleClick="@OnHistoryRowDoubleClick">
                                 <Columns>
                                     <DxGridDataColumn AllowSort="false" FieldName="@nameof(VoucherLineHistoryDto.CreationTime)" FixedPosition="GridColumnFixedPosition.Left" Caption="@L["Date"].ToString().ToUpper()" DisplayFormat="dd.MM.yyyy HH:mm" Width="130px" />
                                     <DxGridDataColumn AllowSort="false" FieldName="@nameof(VoucherLineHistoryDto.ChangeType)" Caption="@L["VoucherLineHistory:ChangeType"].ToString().ToUpper()" Width="110px">
@@ -313,7 +318,7 @@
                 <DxDateRangePicker StartDate="@_unitStatementStart" EndDate="@_unitStatementEnd"
                                    StartDateChanged="@((DateTime? d) => OnUnitStatementRangeChanged(d ?? _unitStatementStart, _unitStatementEnd))"
                                    EndDateChanged="@((DateTime? d) => OnUnitStatementRangeChanged(_unitStatementStart, d ?? _unitStatementEnd))"
-                                   DisplayFormat="@L["ShortDateFormat"].Value" style="width:280px;" />
+                                   DisplayFormat="@L["DateRangeDisplayFormat"].Value" style="width:280px;" />
             </div>
 
             @* Devreden şeridi — Liste modu _listOpening ile AYNI stil. *@
@@ -429,4 +434,4 @@
 </DxPopup>
 
 @* Fiş satırı ekleri (belge + not) — seri numarası ve delil evrakı buraya girer. *@
-<VoucherLineAttachmentsDialog @ref="_attachmentsDialog" />
+<VoucherLineAttachmentsDialog @ref="_attachmentsDialog" OnSaved="@RefreshAttachmentBadgesAsync" />

@@ -1,6 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using Integration.Framework.Blazor.Client.Services.Base;
+using Integration.TradeXpress.Attachments;
 using Integration.TradeXpress.Localization;
 using Integration.TradeXpress.Vouchers;
 using Microsoft.AspNetCore.Components;
@@ -23,6 +25,19 @@ public abstract class ProcessPanelHostBase : ComponentBase, IVoucherLineEditPane
 
     /// <summary>Kaydın normal fiş yoluna mı Teyit yoluna mı gideceğinin TEK karar noktası (SSOT).</summary>
     [Inject] protected VoucherLinePersister Persister { get; set; } = default!;
+
+    [Inject] protected IEntityDocumentAppService DocumentService { get; set; } = default!;
+    [Inject] protected IEntityNoteAppService NoteService { get; set; } = default!;
+
+    private VoucherLineAttachmentSet? _attachments;
+
+    /// <summary>Satırın belge+not ekleri (seri numarası, kamera kaydı, kargo/sigorta evrakı). Composition —
+    /// süreç panelleri tek ortak tabandan türemediği için taşıyıcı sınıf paylaşılır.</summary>
+    protected VoucherLineAttachmentSet Attachments =>
+        _attachments ??= new VoucherLineAttachmentSet(DocumentService, NoteService);
+
+    protected List<EntityDocumentEditDto> LineDocuments => Attachments.Documents;
+    protected List<EntityNoteEditDto> LineNotes => Attachments.Notes;
 
     /// <summary>Fiş bağlamı — AccountSelectionPanel'den tek nesne olarak gelir.</summary>
     [Parameter] public VoucherLineContext Context { get; set; } = new();
@@ -172,6 +187,11 @@ public abstract class ProcessPanelHostBase : ComponentBase, IVoucherLineEditPane
 
         VoucherId       = result.VoucherId;
         Model.VoucherId = result.VoucherId;
+
+        // Ekler satırın KİMLİĞİNE bağlanır → ancak kayıttan sonra yazılabilir. Hata ekleri kaybettirmesin
+        // diye satır kaydı GERİ ALINMAZ; kullanıcı uyarılır (satır zaten kalıcı).
+        await PersistLineAttachmentsAsync(result.Id);
+
         Model.Id        = Guid.Empty;
         OnAfterSavePersisted();
         await OnSaved.InvokeAsync(result);
@@ -184,17 +204,52 @@ public abstract class ProcessPanelHostBase : ComponentBase, IVoucherLineEditPane
             return;
         }
 
-        // Yeni ekleme: bir sonraki satır için uçucu alanları sıfırla.
+        // Yeni ekleme: bir sonraki satır için uçucu alanları + ekleri sıfırla.
         ResetVolatileFields();
+        Attachments.Reset();
         await OnAfterResetAsync();
     }
 
     /// <summary>Düzeltme: GetDto'yu doğrudan model olarak alır (recompute YOK — saklı değerler gösterilir).</summary>
+    /// <summary>SALT-OKUNUR görüntüleme kipi — işlem geçmişindeki kaydın o günkü hâli gösterilir.
+    /// Kabuk (<c>ProcessPanelBase</c>) bunu alıp içeriği etkileşime kapatır ve Kaydet'i gizler.</summary>
+    public bool IsReadOnly { get; private set; }
+
+    /// <summary>Geçmiş anlık görüntüsünü SALT-OKUNUR yükler: ek/karşı hesap sorgusu YAPILMAZ
+    /// (o günkü hâl gösteriliyor, bugünkü ekler değil).</summary>
+    /// <summary>Bu taban salt-okunur görüntülemeyi uygular (kabuk içeriği kapatır, Kaydet gizlenir).</summary>
+    public bool SupportsReadOnlyView => true;
+
+    public Task LoadForViewAsync(VoucherLineDto snapshot)
+    {
+        IsReadOnly = true;
+        Model      = snapshot;
+        VoucherId  = snapshot.VoucherId;
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
     public async Task LoadForEditAsync(VoucherLineDto dto)
     {
+        IsReadOnly = false;
         Model     = dto;
         VoucherId = dto.VoucherId;
+        await Attachments.LoadAsync(dto.Id);
         await OnLoadedForEditAsync(dto);
         StateHasChanged();
+    }
+
+    /// <summary>Ekleri kaydedilmiş satıra yazar. Satır KALICI olduğundan hata geri alma YAPMAZ —
+    /// kullanıcı uyarılır ve tekrar deneyebilir (sessiz yutma yok).</summary>
+    private async Task PersistLineAttachmentsAsync(Guid lineId)
+    {
+        try
+        {
+            await Attachments.PersistAsync(lineId);
+        }
+        catch (Exception ex)
+        {
+            Ui.ShowErrorToast(L["Voucher_LineAttachmentsSaveFailed", ex.Message].Value);
+        }
     }
 }

@@ -10,4 +10,6 @@
 
    İzin = yaptığı iş: iç kipte kayıt postlanmaz, karşı kasaya Teyit TEKLİFİ düşer → Confirmations.Propose.
    (Eski bağımsız Transfer aggregate'i + Transfers.* izinleri SÖKÜLDÜ.) *@
-<CurrentTransactionForm Mode="CounterpartyMode.InternalVault" />
+<CurrentTransactionForm Mode="CounterpartyMode.InternalVault"
+                        SubAccountId="@SubAccountId"
+                        VoucherId="@VoucherId" />

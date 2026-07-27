@@ -13,7 +13,8 @@ namespace Integration.TradeXpress.Blazor.Client.Components.Shared;
 
 /// <summary>Entity-agnostik doküman paneli (reusable DrillList) — herhangi bir entity kaydının blob dosya ekleri.
 /// Sahip form bir DxTabPage içine koyar. Graf save sahip AppService'te (IEntityDocumentAppService.ReplaceForAsync).
-/// İndirme sunucudan içerik çekip <c>download.js</c> ES modülüyle (DotNetStreamReference) tarayıcıya dosya verir.</summary>
+/// Açma, sunucudan içerik çekip <c>download.js</c> ES modülüyle (DotNetStreamReference) belgeyi YENİ SEKMEDE gösterir
+/// (indirme/kaydetme yok — uygulama geneli karar).</summary>
 public partial class EntityDocumentsPanel
 {
     [Parameter, EditorRequired] public List<EntityDocumentEditDto> Documents { get; set; } = default!;
@@ -42,8 +43,9 @@ public partial class EntityDocumentsPanel
         return string.IsNullOrWhiteSpace(candidate.BlobName) ? L["TradeXpress:Document:FileRequired"].Value : null;
     }
 
-    // İndirme: yalnız kaydedilmiş dokümanlar (Id dolu). Sunucudan içerik → DotNetStreamReference ile tarayıcıya dosya.
-    private async Task DownloadAsync(EntityDocumentEditDto doc)
+    // AÇMA (indirme/kaydetme DEĞİL — 2026-07-26 kararı, uygulama geneli): yalnız kaydedilmiş dokümanlar
+    // (Id dolu). Sunucudan içerik → DotNetStreamReference ile tarayıcıya, yeni sekmede görüntülenir.
+    private async Task OpenAsync(EntityDocumentEditDto doc)
     {
         if (doc.Id == Guid.Empty || _downloading)
         {
@@ -57,7 +59,12 @@ public partial class EntityDocumentsPanel
             var module = await GetDownloadModuleAsync();
             using var stream = new MemoryStream(file.Content);
             using var streamRef = new DotNetStreamReference(stream);
-            await module.InvokeVoidAsync("downloadFileFromStream", file.FileName, file.ContentType, streamRef);
+            var opened = await module.InvokeAsync<bool>("openFileFromStream", file.ContentType, streamRef);
+            if (!opened)
+            {
+                // Sessiz başarısızlık yok: kullanıcı neden bir şey görmediğini bilsin.
+                UiService.ShowWarningToast(L["DocumentPopupBlocked"]);
+            }
         }
         catch (Exception ex)
         {

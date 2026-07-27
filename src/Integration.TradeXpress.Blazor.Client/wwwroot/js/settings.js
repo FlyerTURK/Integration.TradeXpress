@@ -24,10 +24,29 @@ export function setSizeModeAttribute(size) {
 }
 
 // Standart cookie yazımı. Çağıran tam değeri verir (ör. "c=tr|uic=tr");
-// burada ek bir URL-encode yapılmaz, böylece ASP.NET kültür cookie'si bozulmaz.
+// burada ek bir URL-encode yapılmaz, böylece ASP.NET kültür cookie'si bozulmaz
+// (CookieRequestCultureProvider decode YAPMAZ — encode'lu yazım dili sessizce bozar).
 export function writeCookie(name, value, days) {
     const maxAge = Math.max(1, Math.floor((days || 365) * 24 * 60 * 60));
     document.cookie = `${name}=${value};path=/;max-age=${maxAge}`;
+}
+
+// ENCODE'lu cookie yazımı — JSON gibi cookie-illegal karakter (çift tırnak, virgül) taşıyan
+// değerler için (ör. tx.last_theme tema aynası). Sunucu WebUtility.UrlDecode ile okur.
+export function writeEncodedCookie(name, value, days) {
+    writeCookie(name, encodeURIComponent(value), days);
+}
+
+export function getCookie(name) {
+    try {
+        const m = document.cookie.match(new RegExp('(?:^|;\\s*)' + name + '=([^;]*)'));
+        return m ? m[1] : null;
+    }
+    catch { return null; }
+}
+
+export function deleteCookie(name) {
+    document.cookie = `${name}=;path=/;max-age=0`;
 }
 
 export function reload() {

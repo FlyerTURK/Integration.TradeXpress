@@ -25,20 +25,35 @@ public partial class VoucherLineAttachmentsDialog : CrudComponentBase
     [Inject] private IUiInteractionService UiService { get; set; } = default!;
     [Inject] private IServiceProvider ServiceProvider { get; set; } = default!;
 
+    /// <summary>Kaydedildikten sonra çağrılır — çağıran toolbar rozetlerini (adet) tazeleyebilsin.</summary>
+    [Parameter] public EventCallback OnSaved { get; set; }
+
+    /// <summary>Pencerenin hangi ek türünü gösterdiği — her toolbar düğmesi kendi kipini açar.</summary>
+    public enum AttachmentMode
+    {
+        Documents,
+        Notes,
+    }
+
     private bool Visible { get; set; }
     private string HeaderText { get; set; } = string.Empty;
     private Guid _lineId;
     private bool _saving;
+    private AttachmentMode _mode = AttachmentMode.Documents;
 
     private List<EntityDocumentEditDto> _documents = new();
     private List<EntityNoteEditDto> _notes = new();
 
-    /// <summary>Pencereyi açar ve satırın mevcut eklerini yükler. <paramref name="title"/> başlıkta gösterilir
-    /// (ör. emtia kodu + tutar) ki kullanıcı hangi satırda çalıştığını görsün.</summary>
-    public async Task OpenAsync(Guid lineId, string title)
+    /// <summary>Pencereyi İSTENEN KİPTE açar ve satırın mevcut eklerini yükler. <paramref name="title"/>
+    /// başlıkta gösterilir (ör. emtia kodu + tutar) ki kullanıcı hangi satırda çalıştığını görsün.
+    /// <para>Her iki set de yüklenir: kaydetme ikisini birden yazar (agnostik sözleşme delete-all+insert-new
+    /// olduğundan, yalnız görüneni yazmak diğerini SİLERDİ).</para></summary>
+    public async Task OpenAsync(Guid lineId, string title, AttachmentMode mode)
     {
         _lineId = lineId;
-        HeaderText = title;
+        _mode = mode;
+        var kind = mode == AttachmentMode.Documents ? L["Documents"].Value : L["Notes"].Value;
+        HeaderText = string.IsNullOrWhiteSpace(title) ? kind : $"{kind} — {title}";
         _documents = ToEditList(await DocumentAppService.GetForAsync(VoucherLineEntityName, lineId));
         _notes = ToEditList(await NoteAppService.GetForAsync(VoucherLineEntityName, lineId));
         Visible = true;
@@ -60,6 +75,10 @@ public partial class VoucherLineAttachmentsDialog : CrudComponentBase
             await NoteAppService.ReplaceForAsync(VoucherLineEntityName, _lineId, _notes);
             UiService.ShowSuccessToast(L["SavedSuccessfully"]);
             Close();
+            if (OnSaved.HasDelegate)
+            {
+                await OnSaved.InvokeAsync();
+            }
         }
         catch (Exception ex)
         {

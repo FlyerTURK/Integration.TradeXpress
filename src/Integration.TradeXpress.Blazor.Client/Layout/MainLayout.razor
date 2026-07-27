@@ -1,4 +1,6 @@
 @inherits LayoutComponentBase
+@using System.Linq
+@using Microsoft.AspNetCore.Components.Routing
 @using Microsoft.AspNetCore.Components.WebAssembly.Authentication
 @using Microsoft.JSInterop
 @implements IAsyncDisposable
@@ -8,6 +10,8 @@
 @inject Integration.TradeXpress.Blazor.Client.Theming.ISizeModeService SizeModeService
 @inject Microsoft.Extensions.Localization.IStringLocalizer<Integration.TradeXpress.Localization.TradeXpressResource> L
 @inject Integration.TradeXpress.Blazor.Client.Services.Mdi.ITabManager TabManager
+@inject IUiInteractionService UiService
+@inject Integration.TradeXpress.Settings.IUserUiSettingAppService UiSettings
 
 @* Geliştirici Hata Paneli — position:fixed; ErrorBoundary DIŞINDA ki boundary trip etse de kalsın.
    YALNIZ DEBUG (geliştirme) derlemesinde render edilir; Release'te (son kullanıcı) tamamen yok.
@@ -32,6 +36,11 @@
            doğrudan login'e yönlendirilir. Kimlik akışı sayfaları EmptyLayout kullandığı için döngü olmaz. *@
         <AuthorizeView>
         <Authorized Context="authCtx">
+        @* Kirli sekme varken tarayıcı-seviyesi çıkış koruması: F5 / pencere kapatma / adres çubuğu → tarayıcının
+           jenerik onayı (ConfirmExternalNavigation beforeunload kaydeder); iç navigasyon (nadir: menü fallback'i,
+           dil değişimi reload'u) → lokalize onay. HasDirtyTabs değişince StateChanged aboneliği parametreyi tazeler. *@
+        <NavigationLock ConfirmExternalNavigation="@TabManager.HasDirtyTabs"
+                        OnBeforeInternalNavigation="@OnBeforeInternalNavigationAsync" />
         <div class="page h-100 d-flex flex-column">
             @* Top panel: ERPPROV3 paritesi — DxToolbar yerine düz flex header.
                Sol: hamburger + sayfa başlığı. Sağ (ms-auto): avatar + ayarlar. *@
@@ -79,7 +88,7 @@
                     </BodyTemplate>
                     <FooterTemplate>
                         @* Çalışma bağlamı (working context) şube seçici — sol menü footer'ı. *@
-                        <div style="padding:0.5rem; border-top:1px solid var(--dxbl-drawer-border-color);">
+                        <div style="padding:0.5rem; border-top:1px solid var(--dxbl-drawer-border-color); width:100%; box-sizing:border-box;">
                             <Integration.TradeXpress.Blazor.Client.Layout.WorkingBranchSelector />
                         </div>
                     </FooterTemplate>
@@ -187,6 +196,34 @@
             await ThemeService.InitializeAsync();
         }
         catch (JSDisconnectedException) { }
+
+        await ReconcileCultureAsync();
+    }
+
+    // Kültür mutabakatı: sunucudaki per-user dil tercihi bu circuit'in kültüründen FARKLIYSA cookie
+    // yazılıp tam yeniden yüklenir. Normal login akışı dili girişte zaten hizalar (prefs cookie'leri);
+    // bu dal kalıcı auth cookie'siyle login'e uğramadan girenler + başka cihazda dil değiştirenler için.
+    // Döngü korunumu: yalnız FARK varsa reload — reload sonrası cookie=kültür=sunucu, koşul kapanır.
+    private async Task ReconcileCultureAsync()
+    {
+        try
+        {
+            var preferred = await UiSettings.GetCultureAsync();
+            if (string.IsNullOrWhiteSpace(preferred)) return;
+
+            var current = System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName;
+            if (string.Equals(preferred, current, StringComparison.OrdinalIgnoreCase)) return;
+            if (!Integration.TradeXpress.Blazor.Client.Globalization.CultureCatalog.Supported.Any(c =>
+                    string.Equals(c.Name, preferred, StringComparison.OrdinalIgnoreCase))) return;
+
+            var module = await JS.InvokeAsync<IJSObjectReference>("import", "./js/settings.js");
+            await module.InvokeVoidAsync("writeCookie",
+                Integration.TradeXpress.Blazor.Client.Globalization.CultureCatalog.CookieName,
+                $"c={preferred}|uic={preferred}", 365);
+            Navigation.NavigateTo(Navigation.Uri, forceLoad: true);
+        }
+        catch (JSDisconnectedException) { }
+        catch { /* mutabakat başarısızsa mevcut dille devam — kritik değil */ }
     }
 
     [JSInvokable]
@@ -207,6 +244,21 @@
             IsNavigationOpen = false;
             StateHasChanged();
         }
+    }
+
+    // İç navigasyon guard'ı: MDI'da sayfa değişimi sekmelerle olur, iç navigasyon nadirdir (bilinmeyen
+    // URL'de NavMenu fallback'i, dil değişimi reload'u öncesi). Kirli sekme varken onay istenir.
+    private async Task OnBeforeInternalNavigationAsync(LocationChangingContext context)
+    {
+        if (!TabManager.HasDirtyTabs) return;
+
+        var result = await UiService.ConfirmAsync(
+            L["LeaveDirtyTabsWarning"].Value,
+            L["Warning"].Value,
+            L["ContinueAnyway"].Value,
+            L["Cancel"].Value, false, false);
+        if (result != Integration.Framework.Blazor.Client.Services.Base.ConfirmDialogResult.Yes)
+            context.PreventNavigation();
     }
 
     void ToggleNavigation()

@@ -3,5 +3,7 @@
 @*
    Chrome'suz layout. Yalnız kimlik akışı sayfaları (RemoteAuthenticatorView) için kullanılır;
    MainLayout'un auth guard'ına girmemeleri ve yönlendirme döngüsü oluşmaması içindir.
+   Boyut init'i code-behind'da: anonim sayfada SizeModeService tx.last_size aynasını okur → login'deki
+   DevExpress bileşenleri de son kullanıcının boyutuyla çizilir (tema CSS'ini App.razor SSR'da çözdü).
 *@
 @Body

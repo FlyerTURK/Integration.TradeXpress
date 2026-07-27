@@ -33,15 +33,17 @@
         </DxGridDataColumn>
         <DxGridDataColumn FieldName="Description" Caption="@L["Description"]" />
         <DxGridDataColumn FieldName="DisplayOrder" Caption="@L["DisplayOrder"]" Width="90px" />
-        <DxGridDataColumn Caption="@L["Download"]" Width="110px" TextAlignment="GridTextAlignment.Center">
+        @* AÇ (indirme/kaydetme değil): belge yeni sekmede görüntülenir. Yalnız KAYDEDİLMİŞ satırda
+           etkin — içerik sunucudan kimliğiyle çekildiği için henüz kaydedilmemiş dosyada karşılığı yok. *@
+        <DxGridDataColumn Caption="@L["Open"]" Width="110px" TextAlignment="GridTextAlignment.Center">
             <CellDisplayTemplate Context="cell">
                 @{ var doc = (EntityDocumentEditDto)cell.DataItem; }
                 @if (doc.Id != Guid.Empty)
                 {
                     <DxButton RenderStyle="ButtonRenderStyle.Link"
-                              IconCssClass="@TradeXpressIcons.Download"
-                              Text="@L["Download"]"
-                              Click="@(() => DownloadAsync(doc))"
+                              IconCssClass="@TradeXpressIcons.Report"
+                              Text="@L["Open"]"
+                              Click="@(() => OpenAsync(doc))"
                               Enabled="@(!_downloading)" />
                 }
             </CellDisplayTemplate>

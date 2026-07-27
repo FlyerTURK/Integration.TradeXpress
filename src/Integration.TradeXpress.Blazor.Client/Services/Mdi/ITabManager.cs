@@ -4,7 +4,8 @@ using System.Threading.Tasks;
 
 namespace Integration.TradeXpress.Blazor.Client.Services.Mdi;
 
-/// <summary>Açık MDI sekmelerinin tek sahibi (WASM tek kullanıcı → Singleton). NavMenu, MdiTabHost
+/// <summary>Açık MDI sekmelerinin tek sahibi. Blazor Server'da SCOPED (circuit ömrü — her pencere ayrı
+/// instance, kalıcı durum DB'de paylaşılır; son yazan kazanır), WASM'da Singleton. NavMenu, MdiTabHost
 /// ve sayfa-içi drill kodu aynı koleksiyonu paylaşır.</summary>
 public interface ITabManager
 {
@@ -12,6 +13,16 @@ public interface ITabManager
     Guid? ActiveTabId { get; }
     bool HasDirtyTabs { get; }
     event Action? StateChanged;
+
+    /// <summary>Restore edilen sekmelerden N tanesi kaydedilirken kirliydi — sekmeler temiz açıldı,
+    /// form verileri geri getirilemedi. UI (MdiTabHost) kullanıcıya toast gösterir.</summary>
+    event Action<int>? RestoredWithLostDirtyData;
+
+    /// <summary>Sekme geri yükleme başarısız oldu (bozuk kayıt / ağ) — boş listeyle devam ediliyor.</summary>
+    event Action? RestoreFailed;
+
+    /// <summary>Sekme durumu kaydedilemedi (ağ/sunucu hatası) — UI ilk hatada tek uyarı gösterir.</summary>
+    event Action? PersistFailed;
 
     /// <summary>Veritabanından (AppUserGridLayouts) sekmeleri geri yükler; boşsa varsayılan (Home) sekmesini açar. Bir kez çalışır.</summary>
     Task InitializeAsync(string? defaultUrl, string? defaultTitle, string? defaultIcon);
@@ -46,9 +57,18 @@ public interface ITabManager
     void CloseMany(IEnumerable<Guid> ids);
 
     void Refresh(Guid id);
+
+    /// <summary>Sekmeyi sabitler / sabitlemeyi kaldırır. Sabit sekme: X butonu gizli (AllowClose=false)
+    /// ve tüm toplu kapatmalardan muaf.</summary>
+    void TogglePin(Guid id);
+
     Task ReloadTabsAsync();
     Task HardResetAsync();
     void UpdateTabUrl(Guid tabId, string url);
+
+    /// <summary>Sekmenin sayfa-içi görünüm durumunu (JSON) günceller ve kalıcılaştırır — restore'da
+    /// <see cref="MdiTab.PageState"/> üzerinden geri okunur. null = temizle. Bilinmeyen id → no-op.</summary>
+    void UpdateTabState(Guid tabId, string? stateJson);
 }
 
 /// <summary>Toplu sekme kapatma kapsamı (sağ-tık context menüsü).</summary>

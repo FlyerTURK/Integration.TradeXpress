@@ -10,9 +10,10 @@
                  ProcessTypeName="@L["Metal"].Value"
                  PaymentTypeName="@_paymentItems.FirstOrDefault(p => p.Value == Model.PaymentType)?.Label"
                  AccountCode="@Context.AccountCode"
-                 SubAccountCode="@Context.SubAccountCode">
+                 SubAccountCode="@Context.SubAccountCode" IsNarrow="@_isMobile"
+                 Attachments="@Attachments" Line="@Model" OwnSubAccountId="@Context.SubAccountId"
+                 ShowCounterAccount="@(Context.CounterpartyVaultId is null)" ReadOnly="@IsReadOnly">
 
-    <div style="padding:8px; @(_isMobile ? "" : "overflow-x:auto;")">
     <div style="display:flex; @(_isMobile ? "flex-direction:column;" : "width:max-content;") gap:4px; align-items:flex-start;">
 
         @* Grup 1 — Yön + Ödeme tipi *@
@@ -176,6 +177,5 @@
 
             </div>
         </div>
-    </div>
     </div>
 </ProcessPanelBase>

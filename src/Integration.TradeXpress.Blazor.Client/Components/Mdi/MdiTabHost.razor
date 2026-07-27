@@ -1,12 +1,6 @@
 @using DevExpress.Blazor
 @using Microsoft.AspNetCore.Components.Web
 @using Integration.TradeXpress.Blazor.Client.Services.Mdi
-@using Integration.Framework.Blazor.Client.Services.Base
-@implements IDisposable
-@inject ITabManager TabManager
-@inject IPopupService PopupService
-@inject IUiInteractionService UiService
-@inject Microsoft.Extensions.Localization.IStringLocalizer<Integration.TradeXpress.Localization.TradeXpressResource> L
 
 @*
    MDI sekme host'u — MainLayout'taki @Body bölgesinin yerine geçer. Tüm uygulama sayfaları
@@ -76,6 +70,7 @@
         <DxContextMenu @ref="_tabMenu">
             <Items>
                 <DxContextMenuItem Text="@L["Tab_Refresh"]" IconCssClass="custom-icon-refresh" Click="@(() => TabManager.Refresh(_ctxTabId))" />
+                <DxContextMenuItem Text="@PinMenuText" Click="@(() => TabManager.TogglePin(_ctxTabId))" />
                 <DxContextMenuItem Text="@L["Tab_PopOut"]" IconCssClass="custom-icon-maximize" Click="@PopOutContextTabAsync" />
                 <DxContextMenuItem Text="@L["Tab_Close"]" IconCssClass="custom-icon-close" BeginGroup="true" Click="@OnCtxCloseAsync" />
                 <DxContextMenuItem Text="@L["Tab_CloseOthers"]" Click="@(async () => await BulkCloseAsync(TabCloseScope.Others))" />
@@ -85,114 +80,3 @@
         </DxContextMenu>
     }
 </div>
-
-@code {
-    protected override void OnInitialized() => TabManager.StateChanged += OnStateChanged;
-
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (firstRender)
-        {
-            // Ana sayfa otomatik sekme olarak açılmaz, null gönderiyoruz
-            await TabManager.InitializeAsync(null, null, null);
-            
-            // Server mode: ensure re-render after initialization completes.
-            await InvokeAsync(StateHasChanged);
-        }
-    }
-
-    // TabManager model-kimliğiyle aktif sekmeyi tutar; DxTabs pozisyonel int ister → eşle.
-    private int ActiveIndex
-    {
-        get
-        {
-            if (TabManager.ActiveTabId is not { } id) return 0;
-            for (int i = 0; i < TabManager.Tabs.Count; i++)
-                if (TabManager.Tabs[i].Id == id) return i;
-            return 0;
-        }
-    }
-
-    private void OnActiveTabChanged(int index)
-    {
-        if (index >= 0 && index < TabManager.Tabs.Count)
-            TabManager.Activate(TabManager.Tabs[index].Id);
-    }
-
-    // X butonu / Delete tuşu → senkron kapatmayı iptal et, asenkron TryCloseAsync'e devret.
-    private async void OnTabClosing(TabCloseEventArgs e)
-    {
-        e.Cancel = true; // DxTabs'ın senkron olarak sekmeyi uçurmasını engelle
-        if (e.TabIndex >= 0 && e.TabIndex < TabManager.Tabs.Count)
-        {
-            var tabId = TabManager.Tabs[e.TabIndex].Id;
-            await TabManager.TryCloseAsync(tabId);
-        }
-    }
-
-    private void OnStateChanged() => _ = InvokeAsync(StateHasChanged);
-
-    // ── Sekme context menüsü (Chrome benzeri) ───────────────────────────────
-    private DxContextMenu? _tabMenu;
-    private Guid _ctxTabId;
-
-    private async Task OnTabContextMenuAsync(MouseEventArgs e, MdiTab tab)
-    {
-        _ctxTabId = tab.Id;                         // sağ-tıklanan sekme (aktif olmak zorunda değil)
-        if (_tabMenu is not null)
-            await _tabMenu.ShowAsync(e);            // imleç konumunda aç
-    }
-
-    private async Task OnCtxCloseAsync() => await TabManager.TryCloseAsync(_ctxTabId);
-
-    // Toplu kapatma: dirty YOK → sessizce hepsi; dirty VAR → TEK uyarı (mevcut ConfirmAsync popup'ı):
-    //   Yes = Kaydedilmişleri kapat (yalnız temizler) · No = Yine de kapat (hepsi, dirty atılır) · çarpı = İptal.
-    private async Task BulkCloseAsync(TabCloseScope scope)
-    {
-        var targets = TabManager.GetCloseTargets(scope, _ctxTabId);
-        if (targets.Count == 0) return;
-
-        var dirtyCount = targets.Count(t => t.IsDirty);
-        if (dirtyCount == 0)
-        {
-            TabManager.CloseMany(targets.Select(t => t.Id));            // hiç dirty yok → sessizce kapat
-            return;
-        }
-
-        var result = await UiService.ConfirmAsync(
-            string.Format(L["BulkCloseDirtyWarning"].Value, dirtyCount),
-            title: null,
-            yesText: L["CloseSavedTabs"].Value,     // Kaydedilmişleri kapat (primary)
-            noText: L["CloseAnyway"].Value,         // Yine de kapat
-            showCancel: false,                      // İptal görevi = popup çarpısı
-            defaultYes: true);
-
-        if (result == ConfirmDialogResult.Yes)
-        {
-            TabManager.CloseMany(targets.Where(t => !t.IsDirty).Select(t => t.Id));   // sadece temiz (kaydedilmiş) olanlar
-            // İlk kaydedilmemiş (dirty) sekmeye odaklan — yoksa CloseMany aktifi kapsam-dışı/ilk kalan sekmeye düşürür.
-            var firstDirty = targets.FirstOrDefault(t => t.IsDirty);
-            if (firstDirty != null) TabManager.Activate(firstDirty.Id);
-        }
-        else if (result == ConfirmDialogResult.No)
-            TabManager.CloseMany(targets.Select(t => t.Id));                          // hepsi — dirty değişiklikler atılır
-        // ConfirmDialogResult.Cancel → hiçbir şey yapma
-    }
-
-    // Pop-out: sekmeyi kapat (dirty guard) → aynı içeriği popup olarak aç (Dock-to-Tab geri-dönüşü için _TabUrl taşınır).
-    private async Task PopOutContextTabAsync()
-    {
-        var tab = TabManager.Tabs.FirstOrDefault(t => t.Id == _ctxTabId);
-        if (tab is null || tab.PageType is null) return;
-        if (!await TabManager.TryCloseAsync(tab.Id)) return;
-
-        var parameters = tab.Parameters != null
-            ? new Dictionary<string, object>(tab.Parameters)
-            : new Dictionary<string, object>();
-        parameters["_TabUrl"] = tab.Url;
-
-        await PopupService.ShowAsync(tab.PageType, parameters, new PopupOptions { Title = tab.Title });
-    }
-
-    public void Dispose() => TabManager.StateChanged -= OnStateChanged;
-}

@@ -152,7 +152,14 @@ public partial class VoucherAppService : TradeXpressAppService, IVoucherAppServi
         // Virman: karşı hesap doğrulaması + LinkId (sunucu otoritedir) + legacy açıklama formatı.
         // Diğer tiplerde virman alanları temizlenir (istemciden sızan değere güvenilmez).
         VoucherTransferService.TransferContext? transferCtx = null;
-        if (input.Type == ProcessType.Transfer)
+        // ÇİFT BACAK: karşı hesaba YENİ FİŞ açılır ve satırın AYNASI (ters yön) yazılır — 2026-07-26 Hakan kararı.
+        // Virman TİP GEREĞİ çift bacaklıdır (karşı hesap zorunlu); diğer tiplerde karşı hesap OPSİYONELDİR ve
+        // yalnız doluysa ayna üretilir. Kargo gideri bu yolla işler: fiş başlığı kanal carisi, satır hizmet
+        // çıkışı, karşı hesap kargo firmasının alt hesabı → kargo firmasının kendi defterinde giriş belirir.
+        // Motor zaten tip-agnostik (ikiz = birincilin kopyası, yön ters); eskiden yalnız Transfer'e açıktı —
+        // bu bir daraltmaydı: ERPPRO'da karşı hesap TÜM işlem tiplerinde taşınıyor (Islem.ProvizyonHesapId).
+        var hasCounterAccount = input.CounterAccountId is { } counterAccountId && counterAccountId != Guid.Empty;
+        if (input.Type == ProcessType.Transfer || hasCounterAccount)
         {
             // Kaynak alt hesap: güncellemede fiş başlığından (otorite), yeni satırda input'tan.
             var sourceSubId = input.VoucherId is { } transferVoucherId
@@ -269,7 +276,10 @@ public partial class VoucherAppService : TradeXpressAppService, IVoucherAppServi
         // de bu sorgudan, imza/filtre değişmeden gelir.
         var voucherQ = (await _repository.GetQueryableAsync())
             .Where(v => v.CompanyId == companyId && v.SubAccountId == input.SubAccountId)
-            .OrderByDescending(v => v.VoucherDate);
+            // Kronolojik ARTAN (eskiden yeniye) — ekstre/rapor sıralamasıyla aynı yön; aynı tarihte
+            // birden çok fiş olabildiği için eşitlik bozucular şart (aksi hâlde sayfalama sırası
+            // sorgudan sorguya oynar ve "daha fazla yükle" satır tekrarlatır/atlatır).
+            .OrderBy(v => v.VoucherDate).ThenBy(v => v.CreationTime).ThenBy(v => v.Id);
 
         var branchQ = await _branchRepository.GetQueryableAsync();
         var vaultQ  = await _vaultRepository.GetQueryableAsync();

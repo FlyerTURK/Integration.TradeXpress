@@ -11,6 +11,11 @@ namespace Integration.TradeXpress.Blazor.Client.Pages.CurrentTransactions;
 
 public partial class BullionProcessPanel : IVoucherLineEditPanel
 {
+    /// <summary>Dar ekran bayrağı — yalnız ortak kabuğa (ProcessPanelBase) geçmek için. Bu panelin KENDİ
+    /// içeriği DxFormLayout ile responsive olduğundan alanlarda kullanılmaz; kabuk ise mobil kipi (yükseklik
+    /// sınırı + sticky başlık/Kaydet çubuğu) bu bayrakla açar — geçilmediğinde mobilde hiç devreye girmiyordu.</summary>
+    private bool _isMobile;
+
     [Parameter] public EventCallback OnBack { get; set; }
     [Parameter] public string? AccountCode { get; set; }
     [Parameter] public string? SubAccountCode { get; set; }

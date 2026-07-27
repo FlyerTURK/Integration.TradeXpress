@@ -27,8 +27,10 @@
     <EntityEditForm TGetDto="VaultGetDto" TListDto="VaultListDto" TKey="Guid"
                     Model="@_model" IsNew="@_isNew"
                     FormCaption="@L[Profile.CaptionKey].Value"
+                    FormCaptionKey="@Profile.CaptionKey"
                     EntityValue="@_model.Code"
                     ParentLabel="@L[ParentProfile.CaptionKey].Value"
+                    ParentLabelKey="@ParentProfile.CaptionKey"
                     ParentValue="@_model.BranchCode"
                     IconCssClass="@Profile.IconCssClass"
                     CanDeleteRecord="@(!_isNew && !_model.IsDefault)"
@@ -46,7 +48,9 @@
 @code {
     [Parameter] public Guid? Id { get; set; }
     [Parameter] [SupplyParameterFromQuery] public Guid? BranchId { get; set; }
-    [Parameter] public string? BranchCode { get; set; }   // header L3 bağlamı (drill-down'dan; combo yok)
+    // SupplyParameterFromQuery ŞART: açan taraf query'ye yazar (CrudPageBase.AdditionalEditParameters) —
+    // attribute olmadan RouteResolver sekme restore'unda düşürüyordu → başlığın L3 şube bağlamı kayboluyordu.
+    [Parameter] [SupplyParameterFromQuery] public string? BranchCode { get; set; }   // header L3 bağlamı (drill-down'dan; combo yok)
     [Parameter] public bool IsPopupMode { get; set; }
     [Parameter] public bool ShowBranchCombo { get; set; } = false;
     [Parameter] public EventCallback OnSaved { get; set; }

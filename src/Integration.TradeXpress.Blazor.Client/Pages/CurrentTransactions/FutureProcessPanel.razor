@@ -6,9 +6,10 @@
 <ProcessPanelBase Direction="@Model.Direction" OnSave="@HandleSave" SaveEnabled="@(!IsSaving)" OnBack="@OnBack"
                  ProcessTypeName="@L["Future"].Value"
                  AccountCode="@Context.AccountCode"
-                 SubAccountCode="@Context.SubAccountCode">
+                 SubAccountCode="@Context.SubAccountCode"
+                 Attachments="@Attachments" Line="@Model" OwnSubAccountId="@Context.SubAccountId"
+                 ShowCounterAccount="@(Context.CounterpartyVaultId is null)" IsNarrow="@_isMobile" ReadOnly="@IsReadOnly">
 
-    <div style="padding:8px; @(_isMobile ? "" : "overflow-x:auto;")">
     <div style="display:flex; @(_isMobile ? "flex-direction:column;" : "width:max-content;") gap:4px; align-items:flex-start;">
 
         @* Grup 1 — Yön (Alış/Satış) + Vade *@
@@ -108,7 +109,6 @@
             </div>
         </div>
 
-    </div>
     </div>
 
 </ProcessPanelBase>

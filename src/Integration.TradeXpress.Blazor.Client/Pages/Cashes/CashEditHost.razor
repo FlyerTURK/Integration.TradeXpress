@@ -26,7 +26,7 @@
 {
     <CrudEditHost TGetDto="CashGetDto" TListDto="CashListDto" TKey="Guid" TListRequestDto="CashListRequestDto"
                   Coordinator="@_coordinator" Id="@(Id ?? Guid.Empty)" IsPopupMode="@IsPopupMode" OnSaved="@OnSaved" OnClosed="@OnClosed"
-                  FormCaption="@L["Cash"].Value" IconCssClass="@TradeXpressIcons.Cash"
+                  FormCaption="@L["Cash"].Value" FormCaptionKey="Cash" IconCssClass="@TradeXpressIcons.Cash"
                   EntityValue="@(m => m.Code)"
                   IsReadOnly="@(m => m.IsGlobal && CurrentTenant?.Id != null)"
                   ApplyNewDefaults="@(m => { m.IsActive = true; })">

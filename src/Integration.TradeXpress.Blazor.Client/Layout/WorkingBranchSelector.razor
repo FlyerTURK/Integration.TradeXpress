@@ -18,7 +18,9 @@
 
 @if (Working.Vaults.Count > 0)
 {
-    <div style="display:flex; flex-direction:column; gap:0.2rem;">
+    @* width:100% ŞART: sarmalayıcı genişlik vermediğinde flex kabı içerik kadar daralıyor ve combo
+       sağa yaslanmış/kısa görünüyordu (combo'daki w-100 bu dar kabın %100'ünü alıyor). *@
+    <div style="display:flex; flex-direction:column; gap:0.2rem; width:100%; min-width:0;">
         <span style="font-size:0.75rem; opacity:0.7;">@L["WorkingVaultCaption"]</span>
         <DxComboBox TData="MyVaultDto" TValue="Guid?"
                     Data="@Working.Vaults"
@@ -53,7 +55,11 @@
 
         if (TabManager.HasDirtyTabs)
         {
-            var result = await Ui.ConfirmAsync("Değişiklik yapılmış ancak kaydedilmemiş sekmeler var. Kasa değiştirirseniz bu değişiklikler kaybolacak. Devam etmek istediğinize emin misiniz?", "Uyarı", "Yine de Değiştir", "İptal", false, false);
+            var result = await Ui.ConfirmAsync(
+                L["WorkingVaultChangeDirtyWarning"].Value,
+                L["Warning"].Value,
+                L["ChangeAnyway"].Value,
+                L["Cancel"].Value, false, false);
             if (result != Integration.Framework.Blazor.Client.Services.Base.ConfirmDialogResult.Yes)
             {
                 // Combo seçimini geri almak için UI'ı zorla güncelliyoruz.

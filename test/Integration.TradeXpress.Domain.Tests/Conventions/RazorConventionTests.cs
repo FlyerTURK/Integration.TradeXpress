@@ -67,7 +67,6 @@ public class RazorConventionTests
         "src/Integration.TradeXpress.Blazor.Client/Components/Crud/CompanyEditFields.razor",
         "src/Integration.TradeXpress.Blazor.Client/Components/Crud/VaultDrill.razor",
         "src/Integration.TradeXpress.Blazor.Client/Components/CrudEditShell.razor",
-        "src/Integration.TradeXpress.Blazor.Client/Components/Mdi/MdiTabHost.razor",
         "src/Integration.TradeXpress.Blazor.Client/Components/Shared/StatusCell.razor",
         "src/Integration.TradeXpress.Blazor.Client/Components/Shared/StatusColumn.razor",
         "src/Integration.TradeXpress.Blazor.Client/Dev/DeveloperErrorPanel.razor",
@@ -119,7 +118,6 @@ public class RazorConventionTests
         "src/Integration.TradeXpress.Blazor.Client/Pages/Jewelries/JewelryLayout.razor",
         "src/Integration.TradeXpress.Blazor.Client/Pages/Metals/MetalEditHost.razor",
         // MetalLayout.razor 2026-07-10'da code-behind'a taşındı (maden görseli işi) — listeden çıktı.
-        "src/Integration.TradeXpress.Blazor.Client/Pages/ResetTabs.razor",
         "src/Integration.TradeXpress.Blazor.Client/Pages/Scheduling/SchedulerPage.razor",
         "src/Integration.TradeXpress.Blazor.Client/Pages/Scraps/ScrapEditHost.razor",
         "src/Integration.TradeXpress.Blazor.Client/Pages/Scraps/ScrapLayout.razor",
@@ -152,7 +150,6 @@ public class RazorConventionTests
     {
         "src/Integration.Framework.Blazor.Client/Components/Crud/TxGrid.razor",
         "src/Integration.TradeXpress.Blazor/Components/App.razor",
-        "src/Integration.TradeXpress.Blazor.Client/Components/Mdi/MdiTabHost.razor",
         "src/Integration.TradeXpress.Blazor.Client/Components/Shared/StatusCell.razor",
         "src/Integration.TradeXpress.Blazor.Client/Components/Shared/StatusColumn.razor",
         "src/Integration.TradeXpress.Blazor.Client/Dev/DeveloperErrorPanel.razor",
@@ -174,7 +171,6 @@ public class RazorConventionTests
         "src/Integration.TradeXpress.Blazor.Client/Pages/Jewelries/JewelryEditHost.razor",
         "src/Integration.TradeXpress.Blazor.Client/Pages/Metals/MetalEditHost.razor",
         "src/Integration.TradeXpress.Blazor.Client/Pages/Reports/BalanceSheetReportPage.razor",
-        "src/Integration.TradeXpress.Blazor.Client/Pages/ResetTabs.razor",
         "src/Integration.TradeXpress.Blazor.Client/Pages/Scraps/ScrapEditHost.razor",
         "src/Integration.TradeXpress.Blazor.Client/Pages/Services/ServiceEditHost.razor",
         "src/Integration.TradeXpress.Blazor.Client/Pages/Stones/StoneEditHost.razor",

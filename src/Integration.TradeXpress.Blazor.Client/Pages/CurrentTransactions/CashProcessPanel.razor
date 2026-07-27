@@ -6,10 +6,11 @@
                  ProcessTypeName="@L["CashProcess"].Value"
                  PaymentTypeName="@_paymentItems.FirstOrDefault(p => p.Value == Model.PaymentType)?.Label"
                  AccountCode="@Context.AccountCode"
-                 SubAccountCode="@Context.SubAccountCode">
+                 SubAccountCode="@Context.SubAccountCode"
+                 Attachments="@Attachments" Line="@Model" OwnSubAccountId="@Context.SubAccountId"
+                 ShowCounterAccount="@(Context.CounterpartyVaultId is null)" IsNarrow="@_isMobile" ReadOnly="@IsReadOnly">
 
     @* Masaüstü: dış kapsayıcı yatay scroll. Mobil: scroll yok, dikey akış (parent form kaydırır). *@
-    <div style="padding:8px; @(_isMobile ? "" : "overflow-x:auto;")">
     @* İçerik: masaüstünde flex-row + width:max-content (sabit doğal genişlik → daralınca scroll). Mobilde flex-column. *@
     <div style="display:flex; @(_isMobile ? "flex-direction:column;" : "width:max-content;") gap:4px; align-items:flex-start;">
 
@@ -142,6 +143,6 @@
         </div>@* /sağ kolon *@
 
     </div>@* /içerik *@
-    </div>@* /scroll wrapper *@
+    @* /scroll wrapper *@
 
 </ProcessPanelBase>

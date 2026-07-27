@@ -96,5 +96,6 @@ public partial class CurrentTransactionForm
         _rateCts?.Cancel();
         _rateCts?.Dispose();
         _rateTimer?.Dispose();
+        ReleaseTabCloseGuard();   // sekme kapanış guard'ı bayat delege olarak kalmasın
     }
 }

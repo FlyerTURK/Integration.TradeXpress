@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Integration.Framework.Blazor.Client.Components.Crud;
+using Integration.Framework.Blazor.Client.Services.Mdi;
 using Integration.TradeXpress.Blazor.Client.Services.Working;
 using Integration.TradeXpress.Branches;
 using Integration.TradeXpress.Reports;
@@ -26,6 +27,10 @@ public partial class TransactionReportPage
     [Inject] IVaultAppService VaultAppService { get; set; } = default!;
     [Inject] ITransactionReportAppService TransactionReportAppService { get; set; } = default!;
     [Inject] IGridExportAssemblyLoader ExportLoader { get; set; } = default!;
+    [Inject] IMdiTabOpener TabStateWriter { get; set; } = default!;
+
+    [CascadingParameter(Name = "CurrentMdiTab")]
+    private IMdiTab? CurrentMdiTab { get; set; }
 
     private List<BranchListDto> _branches = new();
     private List<VaultListDto> _vaults = new();
@@ -69,6 +74,18 @@ public partial class TransactionReportPage
     {
         await Working.EnsureLoadedAsync();
         await LoadWorkingScopeAsync();
+
+        // Restore: working-default şube atamasından SONRA — saklı filtre working default'unu ezer.
+        // Sorgu OTOMATİK ÇALIŞTIRILMAZ: filtreler dolu gelir, Getir kullanıcıda (maliyet kararı).
+        if (TabPageState.TryRead<TransactionReportTabState>(CurrentMdiTab) is { } restored)
+        {
+            _start        = restored.Start;
+            _end          = restored.End;
+            _selectedType = restored.SelectedType;
+            if (restored.BranchId != _request.BranchId)
+                await OnBranchChanged(restored.BranchId);   // kasa listesi de saklı şubeye göre dolsun
+            _request.VaultId = restored.VaultId;
+        }
     }
 
     /// <summary>Kapsam = çalışılan (working) şirket — manuel şirket seçimi YOK (sızıntı önlemi; şirket
@@ -114,6 +131,10 @@ public partial class TransactionReportPage
                 skipCount: pageIndex * PageSize, maxResultCount: PageSize));
             _totalCount = result.TotalCount;
             _rows = result.Items.ToList();
+
+            // Son ÇALIŞTIRILAN sorgunun filtreleri sekmeyle kalıcılaşır (restore'da dolu gelir).
+            TabPageState.Write(TabStateWriter, CurrentMdiTab, new TransactionReportTabState(
+                _start, _end, _request.BranchId, _request.VaultId, _selectedType));
         }
         finally
         {

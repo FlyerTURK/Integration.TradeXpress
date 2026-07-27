@@ -121,6 +121,11 @@
     [Parameter] public string? ParentValue { get; set; }
     [Parameter] public string? IconCssClass { get; set; }
 
+    // Opsiyonel lokalizasyon ANAHTARLARI — verilirse sekme kalıcılığı başlığı restore'da güncel kültürle
+    // çözer (dil değişiminde donmaz). Vermeyen hostlar mevcut davranışı sürdürür (çevrilmiş metin saklanır).
+    [Parameter] public string? FormCaptionKey { get; set; }
+    [Parameter] public string? ParentLabelKey { get; set; }
+
     [Parameter] public ToolbarPlacement Placement { get; set; } = ToolbarPlacement.Top;
 
     // Popup chrome (GlobalPopupHost) → varsa başlığı chrome header'a iteriz, gövdede çizmeyiz. Tab'da null.
@@ -401,6 +406,8 @@
         ParentLabel  = ParentLabel,
         ParentValue  = ParentValue,
         IconCssClass = IconCssClass,
+        FormCaptionKey = FormCaptionKey,
+        ParentLabelKey = ParentLabelKey,
     };
 
     public void Dispose()

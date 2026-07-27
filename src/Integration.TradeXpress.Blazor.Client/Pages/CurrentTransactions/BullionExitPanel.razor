@@ -9,8 +9,12 @@
    giriş satırından kopyalanır (PrepareBullionExitLineAsync) — panel yalnız işçilik + durumlar + külçe
    referansı gönderir. Yön sabit ÇIKIŞ. Düzeltmede külçe değişmez (combo yerine kırmızı kod etiketi). *@
 
+@* IsNarrow kabuğun mobil kipini (yükseklik sınırı + sticky başlık/Kaydet çubuğu) açar; diğer dokuz panelle
+   aynı desen. Bu panel içeriğini DxFormLayout ile dizdiği için bayrağı başka yerde kullanmaz. *@
+<DxLayoutBreakpoint MaxWidth="768" @bind-IsActive="@_isMobile" />
+
 <ProcessPanelBase Direction="ProcessDirectionType.Outbound" OnSave="@HandleSave" SaveEnabled="@(!_saving)" OnBack="@OnBack"
-                  ProcessTypeName="@L["Bullion"].Value"
+                  ProcessTypeName="@L["Bullion"].Value" IsNarrow="@_isMobile"
                   AccountCode="@AccountCode" SubAccountCode="@SubAccountCode">
 
     <DxFormLayout CssClass="w-100">

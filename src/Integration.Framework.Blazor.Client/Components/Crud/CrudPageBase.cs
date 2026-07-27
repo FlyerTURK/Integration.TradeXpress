@@ -1,5 +1,6 @@
 using Integration.Framework.Base.Dtos;
 using Integration.Framework.Base.Dtos.Interfaces;
+using Integration.Framework.Blazor.Client.Services.Mdi;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Components;
 using Volo.Abp.Application.Dtos;
@@ -242,8 +243,20 @@ public abstract class CrudPageBase<TGetDto, TListDto, TKey, TListRequestDto, TCr
     protected virtual Task ShowPopupAsync(TKey? id)
     {
         // Sayfa MDI sekmesi istiyorsa ve uygulama MDI sağlıyorsa: edit page'in route'unu sekmede aç (popup yerine).
+        // Başlık BAŞTAN doğru kurulur: yeni kayıtta "Yeni {Entity}". Eskiden yalnız düz EditTitle ("Ürün")
+        // veriliyordu; edit bileşeni mount olup PushHeader'ı çalıştırınca NewPrefix eklenip başlık "Yeni Ürün"e
+        // DÖNÜŞÜYORDU — kullanıcı her yeni kayıt açılışında caption'ın gözle görülür şekilde değiştiğini
+        // görüyordu. Yeni-kayıt bilgisi (id boş) zaten burada mevcut, tahmin gerekmiyor.
         if (EditOpenTarget == EditOpenTarget.MdiTab && TabOpener is { } tabs && BuildEditUrl(id) is { } url)
-            return tabs.OpenOrActivateAsync(url, EditTitle, EditIconCssClass);
+        {
+            var isNewRecord = id is null || id.Equals(default(TKey));
+            return tabs.OpenOrActivateAsync(url, new TabHeaderData
+            {
+                FormCaption  = EditTitle,
+                NewPrefix    = isNewRecord ? L["New"].Value : null,
+                IconCssClass = EditIconCssClass,
+            });
+        }
 
         // Nav bağlamı artık PAYLAŞILAN StateService'ten okunuyor (AddScoped) — parametre geçmeye gerek yok.
         var extra = new System.Collections.Generic.Dictionary<string, object>

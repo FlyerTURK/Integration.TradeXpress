@@ -7,9 +7,10 @@
                  ProcessTypeName="@L["Scrap"].Value"
                  PaymentTypeName="@_paymentItems.FirstOrDefault(p => p.Value == Model.PaymentType)?.Label"
                  AccountCode="@Context.AccountCode"
-                 SubAccountCode="@Context.SubAccountCode">
+                 SubAccountCode="@Context.SubAccountCode" IsNarrow="@_isMobile"
+                 Attachments="@Attachments" Line="@Model" OwnSubAccountId="@Context.SubAccountId"
+                 ShowCounterAccount="@(Context.CounterpartyVaultId is null)" ReadOnly="@IsReadOnly">
 
-    <div style="padding:8px; @(_isMobile ? "" : "overflow-x:auto;")">
     <div style="display:flex; @(_isMobile ? "flex-direction:column;" : "width:max-content;") gap:4px; align-items:flex-start;">
 
         @* Grup 1 — Yön + Ödeme tipi *@
@@ -20,7 +21,11 @@
                         DropDownTriggerMode="DropDownTriggerMode.Click" ShowDropDownButton="true"
                         ValueFieldName="@nameof(DirectionItem.Value)" TextFieldName="@nameof(DirectionItem.Label)"
                         style="@ControlStyle()" />
-            <small style="@ProcessPanelStyles.Label">@nameof(VoucherLineDto.PaymentType)</small>
+            @* Grubun İKİNCİ kontrolünün etiketi yalnız dar ekranda (diğer panellerdeki kural). *@
+            @if (_isMobile)
+            {
+                <small style="@ProcessPanelStyles.Label">@nameof(VoucherLineDto.PaymentType)</small>
+            }
             <DxComboBox TData="PaymentItem" TValue="ProcessPaymentType?"
                         Data="@_paymentItems" Value="@Model.PaymentType" ValueChanged="@OnPaymentTypeChanged"
                         DropDownTriggerMode="DropDownTriggerMode.Click" ShowDropDownButton="true"
@@ -122,7 +127,6 @@
             </div>
         </div>
 
-    </div>
     </div>
 
 </ProcessPanelBase>

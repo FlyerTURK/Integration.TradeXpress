@@ -109,8 +109,15 @@ public class VoucherLine : CreationAuditedEntity<Guid>, ISoftDelete
 
     // ── VİRMAN (Transfer) — ProcessType.Transfer satırına özel (diğer tiplerde null) ──
 
-    /// <summary>Karşı taraf alt hesabı (SubAccount) — id-only referans (legacy StokId karşılığı).
-    /// Karşı bacak bu alt hesabın KENDİ voucher'ında açılır (fiş = tek cari kuralı).</summary>
+    /// <summary>Karşı taraf alt hesabı (SubAccount) — id-only referans. Karşı bacak bu alt hesabın KENDİ
+    /// voucher'ında açılır (fiş = tek cari kuralı).
+    /// <para><b>Legacy karşılığı <c>Islem.ProvizyonHesapId</c></b>'dir (ERPPRO; <c>Cari.Hesaplar.KarsiHesapId</c>'den
+    /// kopyalanır). <c>StokId</c> DEĞİLDİR — orijinalde o alan EMTİA kimliğidir (bizdeki <see cref="CommodityId"/>),
+    /// kanıt: <c>Left Join Stok.Hizmet H on I.StokId = H.Id</c> ve maden/nakit/hizmet silme kontrolleri.
+    /// (2026-07-26'da düzeltilen yanlış eşleme.)</para>
+    /// <para>Orijinalde karşı hesap TÜM işlem tiplerinde taşınır (iFEmtia/iFHizmet/iFHurda/iFBorc…), ama değeri
+    /// hesabın kendi tanımından gelir (provizyon ayarı). Bizde satır başına seçilir — aynı ürün farklı siparişte
+    /// farklı karşı tarafa (ör. kargo firması) gidebildiği için daha esnek.</para></summary>
     public virtual Guid? CounterAccountId { get; protected set; }
 
     /// <summary>Çift bacağı bağlayan ortak bağlantı kimliği (legacy RefNo karşılığı) —
