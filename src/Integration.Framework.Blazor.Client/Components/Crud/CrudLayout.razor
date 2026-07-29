@@ -42,7 +42,7 @@
                      ActiveFilter="_activeFilter"
                      ActiveFilterChanged="OnActiveFilterChanged"
                      OnToggleGridSearch="ToggleGridSearch"
-                     CustomActions="CustomActions" />
+                     CustomActions="EffectiveCustomActions" />
     </div>
     }
 
@@ -76,6 +76,23 @@
 
         <Columns>
             <DxGridSelectionColumn Width="48px" AllowSelectAll="true" FixedPosition="GridColumnFixedPosition.Left" AllowReorder="false" VisibleIndex="0" />
+            @* SEÇİCİ modunda düzenleme komutu: satır tıklaması SEÇME olduğundan kaydı düzenlemenin başka yolu
+               kalmıyor. Seçim kolonunun HEMEN SAĞINDA ve solda sabit — göz zaten orada.
+               @@if DEĞİL Visible: kolon ağaçtan çıkıp girdiğinde DevExpress kolon kimliklerini yeniden
+               numaralandırıyor ve kolon çizilmiyordu (sekmelerde de aynı kural — 2026-07-28 Hakan). *@
+            @* VisibleIndex VERİLMEZ: sayfaların birincil kolonu neredeyse HER YERDE VisibleIndex="1" kullanıyor
+               (70 kullanım) — aynı indeksi istemek çakışma yaratıyor ve kolon hiç çizilmiyordu. Sıra artık
+               FixedPosition=Left ile kuruluyor: sabit sol blokta, seçim kolonunun hemen ardında. *@
+            <DxGridDataColumn Caption="" Width="48px" FixedPosition="GridColumnFixedPosition.Left"
+                              Visible="@IsPickerMode"
+                              AllowReorder="false" AllowSort="false" AllowResize="false"
+                              ExportEnabled="false">
+                <CellDisplayTemplate Context="pickCell">
+                    <DxButton IconCssClass="@FrameworkIcons.LookupEdit" RenderStyle="ButtonRenderStyle.None"
+                              Click="@(() => OnPickerEditClick((TListDto)pickCell.DataItem))"
+                              Tooltip="@L["Edit"].Value" />
+                </CellDisplayTemplate>
+            </DxGridDataColumn>
             @if (GridColumns != null)
             {
                 @GridColumns

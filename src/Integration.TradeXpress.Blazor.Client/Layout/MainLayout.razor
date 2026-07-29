@@ -45,7 +45,9 @@
             @* Top panel: ERPPROV3 paritesi — DxToolbar yerine düz flex header.
                Sol: hamburger + sayfa başlığı. Sağ (ms-auto): avatar + ayarlar. *@
             @* Inline flex — Bootstrap utility'lerine (d-flex/ms-auto) bağlı kalmadan garanti layout. *@
-            <div role="banner" class="header shadow-sm border-bottom" style="background:var(--bs-body-bg); border-bottom: 1px solid var(--dxbl-drawer-border-color) !important;">
+            @* Zemin ŞART (sticky başlık; altından içerik kaymasın) — Fluent ailesinde --bs-body-bg TANIMSIZ
+               olduğundan başta yalnız o vardı ve şerit saydam kalıyordu. Fluent'in zemin değişkeni önce. *@
+            <div role="banner" class="header shadow-sm border-bottom" style="background:var(--DS-color-surface-neutral-default-rest, var(--bs-body-bg)); border-bottom: 1px solid var(--dxbl-drawer-border-color) !important;">
                 <div style="display:flex; align-items:center; width:100%; padding:0.25rem;">
                     <button type="button" @onclick="ToggleNavigation" style="display:flex; align-items:center; justify-content:center; cursor:pointer; min-width:34px; min-height:34px; background:transparent; border:none; box-shadow:none; outline:none; padding:0; color:var(--DS-color-content-neutral-default-rest, var(--bs-body-color, #212529));" aria-label="Menü">
                         <span class="erp-icon erp-icon-hamburger" aria-hidden="true"></span>
@@ -111,7 +113,12 @@
                                 <Integration.TradeXpress.Blazor.Client.Layout.SettingsPanel />
                             </BodyTemplate>
                             <TargetContent>
-                                <div class="app-content h-100 overflow-hidden bg-white">
+                                @* Zemin VERİLMEZ (şeffaf) — bilinçli. Önce 'bg-white' vardı: sabit beyaz, koyu temada
+                                   içerik alanını yakıyordu. Sonra var(--bs-body-bg) denendi: Bootstrap tabanlı
+                                   temalarda (Blazing Dark) çalıştı ama FLUENT'te o değişken YOK, zincir #fff'e düşüp
+                                   yine beyaz kaldı (2026-07-27 ölçümü). Şeffaf bırakınca tema ailesinden bağımsız
+                                   olarak body'nin rengi görünür ve tema geçişinde gecikme de olmaz — tek kaynak. *@
+                                <div class="app-content h-100 overflow-hidden">
                                     @* Mobil bilgisini alt bileşenlere (ör. CrudToolbar) cascade et.
                                        @Body yerine MDI sekme host'u — tüm sayfalar sekmelerde render edilir. *@
                                     <CascadingValue Value="_isMobile" Name="IsMobile">

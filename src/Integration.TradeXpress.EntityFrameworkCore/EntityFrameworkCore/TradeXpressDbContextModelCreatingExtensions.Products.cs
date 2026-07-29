@@ -24,6 +24,11 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
             b.Property(x => x.Code).IsRequired().HasMaxLength(ProductConsts.CodeMaxLength);
             b.Property(x => x.Name).IsRequired().HasMaxLength(ProductConsts.NameMaxLength);
             b.Property(x => x.Description).HasMaxLength(ProductConsts.DescriptionMaxLength);
+
+            // Çekirdek kategori bağı — id-only (sert FK YOK: kategori silme guard'ı AppService'te, ve sert FK
+            // soft-delete edilmiş bir kategoriyi fiziksel silmede kilitlerdi). Index, "bu kategoriye bağlı ürün
+            // var mı" silme-guard'ı ve kategori bazlı listeleme içindir.
+            b.HasIndex(x => new { x.TenantId, x.CompanyId, x.ProductCategoryId });
             // Görseller — owned collection → JSON kolonu (URL ya da blob; push edilir, sorgulanmaz).
             b.OwnsMany(x => x.Images, i =>
             {
@@ -53,10 +58,6 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
                 a.ToJson();
                 a.Property(p => p.Note).HasMaxLength(ProductConsts.AddOnNoteMaxLength);
             });
-
-            // Kişiselleştirme (personalization) — talimat max; IsPersonalizable/IsRequired (bool) + CharCountMax (int?)
-            // konvansiyonla map'lenir. Kanal-ürünü push'ta bunları devralır (SONRAKİ iş).
-            b.Property(x => x.PersonalizationInstructions).HasMaxLength(ProductConsts.PersonalizationInstructionsMaxLength);
 
             // Varyant modu + Muadil konfigürasyonu (Dilim-3) — VariantMode/ToleranceType enum→int konvansiyonla;
             // miktar/tolerans muadil hassasiyetiyle (N5, SubstitutionGroup tolerans deseni). Grup silme-guard /
@@ -94,6 +95,12 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
             // Varyant reçetesi sıralı okuma (drill LineOrder sırası) + company güvenlik query-filter'ı.
             b.HasIndex(x => new { x.TenantId, x.ProductVariantId, x.LineOrder });
             b.HasIndex(x => new { x.TenantId, x.CompanyId });
+
+            // Otomatik yenileme "yalnız kendi ürettiği satırları" siler (Origin filtresi) — bu index o silmenin
+            // ve imza okumasının yoludur. Varsayılan 0 (Manual): mevcut satırlar kullanıcı satırı sayılır, yani
+            // muadil yenilemesi eski satırlara artık DOKUNMAZ (geriye dönük güvenli taraf).
+            b.Property(x => x.Origin).HasDefaultValue(RecipeLineOrigin.Manual);
+            b.HasIndex(x => new { x.TenantId, x.ProductVariantId, x.Origin });
 
             // TERS-ENDEKS (ADR-PRODUCT-ORCHESTRATION): "bu madeni reçetesinde taşıyan varyantlar" araması —
             // maden stoğu değişince (VoucherLine tetiği) etkilenen ürünler buradan bulunur. İndeks olmadan

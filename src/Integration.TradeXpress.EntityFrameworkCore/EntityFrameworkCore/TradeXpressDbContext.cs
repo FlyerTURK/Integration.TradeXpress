@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Linq.Expressions;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
@@ -87,6 +87,17 @@ public class TradeXpressDbContext :
     public DbSet<Variants.EntityAttributeValue> EntityAttributeValues { get; set; } = null!;
     public DbSet<Variants.EntityVariant> EntityVariants { get; set; } = null!;
     public DbSet<Variants.EntityVariantAttributeValue> EntityVariantAttributeValues { get; set; } = null!;
+    // Çekirdek ürün kategorisi (company-owned ağaç) + nitelik/değer — pazaryeri kategorilerine eşleştirme hedefi.
+    public DbSet<Integration.TradeXpress.ProductCategories.ProductCategory> ProductCategories { get; set; } = null!;
+    public DbSet<Integration.TradeXpress.ProductCategories.ProductCategoryAttribute> ProductCategoryAttributes { get; set; } = null!;
+    public DbSet<Integration.TradeXpress.ProductCategories.ProductCategoryAttributeValue> ProductCategoryAttributeValues { get; set; } = null!;
+    // Kategori ↔ satış kanalı kategorisi eşleştirmesi — kanal kategorisi ve komisyonu bu köprüden çözülür.
+    public DbSet<Integration.TradeXpress.ProductCategories.ProductCategoryChannelMapping> ProductCategoryChannelMappings { get; set; } = null!;
+    public DbSet<Integration.TradeXpress.ProductCategories.ProductCategoryChannelAttributeMapping> ProductCategoryChannelAttributeMappings { get; set; } = null!;
+    public DbSet<Integration.TradeXpress.ProductCategories.ProductCategoryChannelAttributeValueMapping> ProductCategoryChannelAttributeValueMappings { get; set; } = null!;
+    // Reçete şablonu ("orta reçete": hizmet/paketleme/kargo/sigorta/yarı mamul demeti) + satırları.
+    public DbSet<Integration.TradeXpress.RecipeTemplates.RecipeTemplate> RecipeTemplates { get; set; } = null!;
+    public DbSet<Integration.TradeXpress.RecipeTemplates.RecipeTemplateLine> RecipeTemplateLines { get; set; } = null!;
     public DbSet<SpecialCode> SpecialCodes { get; set; } = null!;
     public DbSet<EntityDocument> EntityDocuments { get; set; } = null!;
     public DbSet<EntityNote> EntityNotes { get; set; } = null!;
@@ -98,6 +109,7 @@ public class TradeXpressDbContext :
     public DbSet<Integration.TradeXpress.Products.Product> Products { get; set; } = null!;
     public DbSet<Integration.TradeXpress.Products.ProductVariantRecipeLine> ProductVariantRecipeLines { get; set; } = null!;
     public DbSet<Integration.TradeXpress.Products.ProductVariantDetail> ProductVariantDetails { get; set; } = null!;
+    public DbSet<Integration.TradeXpress.Products.ProductSpecification> ProductSpecifications { get; set; } = null!;
     public DbSet<Integration.TradeXpress.Metals.MetalVariantDetail> MetalVariantDetails { get; set; } = null!;
     public DbSet<Voucher> Vouchers { get; set; } = null!;
     public DbSet<VoucherLine> VoucherLines { get; set; } = null!;
@@ -127,6 +139,8 @@ public class TradeXpressDbContext :
     public DbSet<Integration.TradeXpress.N11Shipments.N11ShipmentCompany> N11ShipmentCompanies { get; set; } = null!;
     // N11 kargo şablonları — per-kanal (company-owned).
     public DbSet<Integration.TradeXpress.N11Shipments.N11ShipmentTemplate> N11ShipmentTemplates { get; set; } = null!;
+    // Pazaryerinin YAYIMLADIĞI anlaşmalı kargo tarifesi (desi fiyat tablosu) — HOST-GLOBAL, yürürlük tarihli.
+    public DbSet<Integration.TradeXpress.MarketplaceShipmentTariffs.MarketplaceShipmentTariff> MarketplaceShipmentTariffs { get; set; } = null!;
     // N11 ürün listelemeleri — ürün×kanal (company-owned). DbSet ŞART: ABP default repository'leri DbSet'ten keşfeder.
     public DbSet<Integration.TradeXpress.N11Products.SalesChannelTrN11Product> SalesChannelTrN11Products { get; set; } = null!;
     // N11 kanal-özel varyant EKSENİ/DEĞERİ (ERP ProductAttribute/Value klonu; klon-sonra-ayrış).
@@ -241,8 +255,14 @@ public class TradeXpressDbContext :
         builder.ConfigureGoodSuppliers();
         builder.ConfigureGoodVariantDetails();
         builder.ConfigureProductVariantDetails();
+        builder.ConfigureProductSpecifications();
         builder.ConfigureMetalVariantDetails();
         builder.ConfigureEntityVariants();
+        builder.ConfigureProductCategories();
+        builder.ConfigureProductCategoryChannelMappings();
+        builder.ConfigureProductCategoryChannelAttributeMappings();
+        builder.ConfigureProductCategoryChannelAttributeValueMappings();
+        builder.ConfigureRecipeTemplates();
         builder.ConfigureSpecialCodes();
         builder.ConfigureEntityDocuments();
         builder.ConfigureEntityNotes();
@@ -261,6 +281,7 @@ public class TradeXpressDbContext :
         builder.ConfigureEtsyTaxonomies();
         builder.ConfigureN11Cities();
         builder.ConfigureN11Shipments();
+        builder.ConfigureMarketplaceShipmentTariffs();
         builder.ConfigureN11Products();
         builder.ConfigureTrendyolProducts();
         builder.ConfigureEtsyProducts();

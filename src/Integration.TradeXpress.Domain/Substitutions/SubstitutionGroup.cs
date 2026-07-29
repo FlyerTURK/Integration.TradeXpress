@@ -29,6 +29,7 @@ public class SubstitutionGroup : FullAuditedAggregateRoot<Guid>, IMultiTenant, I
         SetCode(code);
         SetName(name);
         SetType(type);
+        SetQuantityUnit(null);   // varsayılan "gr" — birimsiz kayıt doğmasın
         SetTolerance(ToleranceType.Amount, 0m);
         IsActive = true;
     }
@@ -56,6 +57,19 @@ public class SubstitutionGroup : FullAuditedAggregateRoot<Guid>, IMultiTenant, I
     /// <summary>Tolerans türü — Gram (mutlak) | PerMille (binde, göreceli).</summary>
     public virtual ToleranceType ToleranceType { get; protected set; }
 
+    /// <summary>
+    /// Grubun MİKTAR BİRİMİ kısaltması ("gr" varsayılan; "kg", "lt", "adet"...). Kombinasyon gösterimlerinde
+    /// bu kısaltma kullanılır — "1×5 lt + 3×1 lt = Toplam 4 parça, 8 lt".
+    ///
+    /// <para><b>Neden grupta:</b> muadillik bir grubun içinde kurulur ve o grubun tüm kalemleri aynı birimden
+    /// ölçülür (litreyle gramı toplamak anlamsızdır). Ürüne konsaydı aynı grubu kullanan iki ürün farklı birim
+    /// gösterebilirdi.</para>
+    ///
+    /// <para>Serbest KISALTMA, katalog değil: birim yalnız GÖSTERİMDE kullanılıyor, hesaba girmiyor —
+    /// dönüşüm tablosu gerektirecek bir katalog kurmak bugün için karşılıksız olurdu.</para>
+    /// </summary>
+    public virtual string QuantityUnit { get; protected set; } = null!;
+
     /// <summary>Tolerans değeri — varsayılan 0 = mutlak eşitlik; negatif olamaz (fail-fast).</summary>
     public virtual decimal ToleranceValue { get; protected set; }
 
@@ -79,6 +93,17 @@ public class SubstitutionGroup : FullAuditedAggregateRoot<Guid>, IMultiTenant, I
     {
         Code = StringFieldGuard.NormalizeCode(
             code, nameof(Code), EntityFieldConsts.CodeMinLength, SubstitutionGroupConsts.CodeMaxLength);
+    }
+
+    /// <summary>Miktar birimi kısaltmasını atar. Boş bırakılırsa "gr"a düşer — birimsiz gösterim, sayıyı
+    /// neyle ölçtüğü belirsiz bırakırdı.</summary>
+    public virtual void SetQuantityUnit(string? quantityUnit)
+    {
+        var normalized = quantityUnit?.Trim();
+        QuantityUnit = string.IsNullOrWhiteSpace(normalized)
+            ? SubstitutionGroupConsts.DefaultQuantityUnit
+            : StringFieldGuard.NormalizeName(
+                normalized, nameof(QuantityUnit), 1, SubstitutionGroupConsts.QuantityUnitMaxLength);
     }
 
     public virtual void SetName(string name)

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -10,11 +10,18 @@ using Integration.TradeXpress.Futures;
 using Integration.TradeXpress.Goods;
 using Integration.TradeXpress.Jewelries;
 using Integration.TradeXpress.Metals;
+using Integration.TradeXpress.Companies;
+using Integration.TradeXpress.Blazor.Client.Pages.ProductCategories;
+using Integration.TradeXpress.Countries;
+using Integration.TradeXpress.Blazor.Client.Services.Working;
 using Integration.TradeXpress.Products;
 using Integration.TradeXpress.Scraps;
 using Integration.TradeXpress.Services;
 using Integration.TradeXpress.Stones;
 using Integration.TradeXpress.Substitutions;
+using Integration.TradeXpress.ProductCategories;
+using Integration.TradeXpress.RecipeTemplates;
+using Integration.TradeXpress.VariantTemplates;
 using Integration.TradeXpress.Vouchers;
 using Microsoft.AspNetCore.Components;
 using Volo.Abp;
@@ -46,7 +53,14 @@ public partial class ProductEditHost
     [Inject] protected ILookupCache<CurrencyUnitListDto> CurrencyLookup { get; set; } = default!;
     [Inject] protected IAddOnAppService AddOnAppService { get; set; } = default!;
     [Inject] protected ISubstitutionGroupAppService SubstitutionGroupAppService { get; set; } = default!;
+    [Inject] protected IVariantTemplateAppService VariantTemplateAppService { get; set; } = default!;
+    [Inject] protected IProductCategoryAppService ProductCategoryAppService { get; set; } = default!;
+    [Inject] protected IRecipeTemplateAppService RecipeTemplateAppService { get; set; } = default!;
     [Inject] protected ISubstitutionCalculationAppService SubstitutionCalculationAppService { get; set; } = default!;
+    [Inject] protected ICompanyAppService CompanyAppService { get; set; } = default!;
+    [Inject] protected ICountryAppService CountryAppService { get; set; } = default!;
+    [Inject] protected IViewOpener ViewOpener { get; set; } = default!;
+    [Inject] protected IWorkingContextService Working { get; set; } = default!;
     [Inject] protected IServiceProvider ServiceProvider { get; set; } = default!;
 
     private ICommitCoordinator<ProductGetDto, ProductListDto, Guid, ProductListRequestDto>? _coordinator;
@@ -72,7 +86,24 @@ public partial class ProductEditHost
 
     // ── Muadil (Substitution) modu durumu (Dilim-3) — grup lookup'u + seçili grubun kalemleri (override
     //    ağacının devralınan-küme referansı) + son hesap sonucu. Layout DUMB; iş burada. ──
+    /// <summary>Ülke katalogu — menşei seçimi (yeni üründe şirketin ülkesi varsayılan).</summary>
+    protected IReadOnlyList<CountryListDto> Countries { get; private set; } = Array.Empty<CountryListDto>();
+
     protected IReadOnlyList<SubstitutionGroupListDto> SubstitutionGroups { get; private set; } = Array.Empty<SubstitutionGroupListDto>();
+
+    /// <summary>Varyant şablonu katalogu — "Katalogdan Uygula" modunun combo verisi.</summary>
+    protected IReadOnlyList<VariantTemplateListDto> VariantTemplates { get; private set; } = Array.Empty<VariantTemplateListDto>();
+
+    /// <summary>Çekirdek kategori katalogu (yol sıralı) — ürünün kanal kategorisi ve komisyonu bu bağdan çözülür.</summary>
+    protected IReadOnlyList<ProductCategoryListDto> ProductCategories { get; private set; } = Array.Empty<ProductCategoryListDto>();
+
+    /// <summary>Seçili kategorinin SPESİFİKASYON nitelikleri (kalıtım çözülmüş) — ürün formundaki "Özellikler"
+    /// sekmesinin sürücüsü. Kategori DEĞİŞTİĞİNDE tazelenir; kategori yoksa boştur.</summary>
+    protected IReadOnlyList<ProductCategoryEffectiveAttributeDto> CategorySpecificationAttributes { get; private set; }
+        = Array.Empty<ProductCategoryEffectiveAttributeDto>();
+
+    /// <summary>Reçete şablonu ("orta reçete") katalogu — ürüne uygulanacak hizmet/yarı mamul demetleri.</summary>
+    protected IReadOnlyList<RecipeTemplateListDto> RecipeTemplates { get; private set; } = Array.Empty<RecipeTemplateListDto>();
     protected List<SubstitutionGroupItemGraphDto> SubstitutionGroupItems { get; private set; } = new();
     protected SubstitutionCalculationResultDto? SubstitutionResult { get; private set; }
     protected bool SubstitutionBusy { get; private set; }
@@ -101,6 +132,11 @@ public partial class ProductEditHost
         CurrencyUnits = await CurrencyLookup.GetAsync();
         AddOns = await AddOnAppService.GetPickerListAsync();
         SubstitutionGroups = await LoadActiveSubstitutionGroupsAsync();
+        Countries = (await CountryAppService.GetListAsync(
+            new CountryListRequestDto { MaxResultCount = 500 })).Items;
+        VariantTemplates = await VariantTemplateAppService.GetPickerListAsync();
+        ProductCategories = await ProductCategoryAppService.GetPickerListAsync();
+        RecipeTemplates = await RecipeTemplateAppService.GetPickerListAsync();
     }
 
     // Yalnız AKTİF gruplar seçilebilir (pasif grup sunucuda da fail-fast — hesaplama sayfası deseni).
@@ -109,6 +145,80 @@ public partial class ProductEditHost
         var result = await SubstitutionGroupAppService.GetListAsync(
             new SubstitutionGroupListRequestDto { IsActive = true, MaxResultCount = 200 });
         return result.Items.ToList();
+    }
+
+    // Inline şablon ekle/düzelt sonrası katalog listesini tazeler (yeni şablon anında combo'ya düşsün).
+    private async Task ReloadVariantTemplatesAsync()
+    {
+        VariantTemplates = await VariantTemplateAppService.GetPickerListAsync();
+        StateHasChanged();
+    }
+
+    // Inline kategori ekle/düzelt sonrası katalog listesini tazeler (yeni kategori anında combo'ya düşsün).
+    /// <summary>
+    /// Kategori seçicisinden YENİ kategori — katalog formu popup'ta açılır, kapanınca liste tazelenir ve
+    /// ÖNCE/SONRA farkından yeni kaydın id'si bulunup seçiciye döndürülür (lookup ekle/düzelt standardı).
+    /// </summary>
+    private async Task<Guid?> AddProductCategoryAsync()
+    {
+        var before = ProductCategories.Select(c => c.Id).ToHashSet();
+
+        await ViewOpener.OpenAsync(typeof(ProductCategoryEditHost), null, L["ProductCategory"].Value,
+            TradeXpressIcons.ProductCategory);
+
+        await ReloadProductCategoriesAsync();
+        return ProductCategories.FirstOrDefault(c => !before.Contains(c.Id))?.Id;
+    }
+
+    /// <summary>Seçili kategoriyi düzenle — popup kapanınca liste tazelenir (ad/yol değişmiş olabilir).</summary>
+    private async Task EditProductCategoryAsync(Guid categoryId)
+    {
+        await ViewOpener.OpenAsync(typeof(ProductCategoryEditHost), categoryId, L["ProductCategory"].Value,
+            TradeXpressIcons.ProductCategory);
+
+        await ReloadProductCategoriesAsync();
+    }
+
+    private async Task ReloadProductCategoriesAsync()
+    {
+        ProductCategories = await ProductCategoryAppService.GetPickerListAsync();
+        StateHasChanged();
+    }
+
+    /// <summary>
+    /// Kategorinin SPESİFİKASYON niteliklerini yükler — "Özellikler" sekmesi hangi alanları soracağını buradan
+    /// bilir. Kategori değiştiğinde yeniden çağrılır.
+    ///
+    /// <para>VARYANT ekseni nitelikleri DIŞLANIR: onlar kartezyene girip ayrı varyantlar doğurur, değerleri
+    /// varyantın kendisinde yaşar. Aynı listede gösterilseydi kullanıcı "Renk" alanına ürün düzeyinde tek bir
+    /// değer yazmaya çalışır, o değer de hiçbir yere gitmezdi.</para>
+    /// </summary>
+    private async Task LoadCategorySpecificationAttributesAsync(Guid? categoryId)
+    {
+        if (categoryId is not { } id || id == Guid.Empty)
+        {
+            CategorySpecificationAttributes = Array.Empty<ProductCategoryEffectiveAttributeDto>();
+            return;
+        }
+
+        var effective = await ProductCategoryAppService.GetEffectiveAttributesAsync(id);
+        CategorySpecificationAttributes = effective
+            .Where(a => a.Kind == ProductCategoryAttributeKind.Specification)
+            .ToList();
+    }
+
+    /// <summary>Ürün formunda kategori değişti — özellik alanları ANINDA tazelenir (kaydetmeyi beklemeden).</summary>
+    private async Task OnProductCategoryChangedAsync(Guid? categoryId)
+    {
+        await LoadCategorySpecificationAttributesAsync(categoryId);
+        StateHasChanged();
+    }
+
+    // Inline reçete şablonu ekle/düzelt sonrası katalog listesini tazeler.
+    private async Task ReloadRecipeTemplatesAsync()
+    {
+        RecipeTemplates = await RecipeTemplateAppService.GetPickerListAsync();
+        StateHasChanged();
     }
 
     // Inline muadil grubu ekle/düzelt sonrası lookup listesini tazeler (yeni grup anında combo'ya düşsün).
@@ -156,7 +266,7 @@ public partial class ProductEditHost
             return;
         }
 
-        var losesVariants = model.VariantMode == ProductVariantMode.MultiVariant
+        var losesVariants = model.VariantMode is ProductVariantMode.MultiVariant or ProductVariantMode.FromCatalog
             && (model.Attributes.Any(a => !a.IsDeleted) || model.Variants.Count(v => !v.IsDeleted) > 1);
         if (losesVariants)
         {
@@ -231,7 +341,14 @@ public partial class ProductEditHost
             return;
         }
 
-        foreach (var line in variant.RecipeLines.Where(l => !l.IsDeleted).ToList())
+        // ŞABLONDAN gelen satırlar (paketleme/kargo/sigorta) KORUNUR — yalnız kombinasyonun kendi ürettiği
+        // satırlar tazelenir. Hepsini silmek, muadil hedefi her değiştiğinde ara masrafları sessizce düşürüyordu:
+        // kombinasyon yeniden kuruluyor, şablon satırları geri gelmiyor ve fiyat eksik çıkıyordu — kullanıcının
+        // "şablon etki etmiyor" dediği durum tam olarak buydu (2026-07-28 Hakan).
+        var replaceable = variant.RecipeLines
+            .Where(l => !l.IsDeleted && l.Origin != RecipeLineOrigin.Template)
+            .ToList();
+        foreach (var line in replaceable)
         {
             if (line.Id == Guid.Empty)
             {
@@ -247,6 +364,31 @@ public partial class ProductEditHost
         foreach (var trialLine in trial.Lines)
         {
             variant.RecipeLines.Add(BuildTrialRecipeLine(trialLine, order++));
+        }
+
+        // Korunan şablon satırları kombinasyon satırlarının ARDINDA sıralanır: ara masraflar (yüzde/brütleştirme
+        // dahil) kendinden ÖNCEKİ satırların toplamına uygulanır — önde kalsalardı taban eksik hesaplanırdı.
+        foreach (var templateLine in variant.RecipeLines
+                     .Where(l => !l.IsDeleted && l.Origin == RecipeLineOrigin.Template)
+                     .OrderBy(l => l.LineOrder)
+                     .ToList())
+        {
+            templateLine.LineOrder = order++;
+        }
+
+        // Kombinasyon serildikten SONRA ürünün kayıtlı reçete şablonu da uygulanır — "Uygula" butonunun
+        // çağırdığı metodun ta kendisi (2026-07-28 Hakan: "önce varyantlar oluşturulsun, sonra uygula
+        // butonunun çağırdığı metot da çalışsın").
+        //
+        // <para>Neden ELLE uygulamak yetmiyordu: muadil hedefi her değiştiğinde kombinasyon reçeteyi baştan
+        // kuruyor; ara masraf satırlarını (paketleme/kargo/sigorta) kullanıcının her seferinde yeniden
+        // uygulaması gerekiyordu ve unutulduğunda fiyat sessizce eksik çıkıyordu.</para>
+        //
+        // <para>Şablon bağlı değilse ya da ürün henüz kaydedilmemişse metot kendi içinde erken çıkar
+        // (sunucuya yazan bir işlem; kaydedilmemiş üründe uygulanacak varyant yok).</para>
+        if (model.RecipeTemplateId is { } recipeTemplateId && recipeTemplateId != Guid.Empty)
+        {
+            await ApplyRecipeTemplateAsync(model, recipeTemplateId);
         }
 
         await RecalcVariantCostAsync(variant);
@@ -265,6 +407,8 @@ public partial class ProductEditHost
 
         return new ProductRecipeLineGraphDto
         {
+            // Kaynak işareti: muadil kayıtta Id'siz otomatik-kaynaklı satırları sunucu eler (sahibi materializer).
+            Origin               = RecipeLineOrigin.Substitution,
             LineOrder            = order,
             ComponentType        = RecipeComponentType.CatalogCommodity,
             CommodityProcessType = ProcessType.Metal,
@@ -309,6 +453,48 @@ public partial class ProductEditHost
             Code = ProductConsts.MainVariantCode,
             Name = ProductConsts.MainVariantName,
         });
+
+        // Şirket-türevli varsayılanlar ASENKRON (para birimi şirket kaydından okunur) — ApplyNewDefaults
+        // senkron bir kanca olduğundan iş arka planda başlatılır ve bittiğinde form tazelenir. Kullanıcı
+        // o ana kadar alanı zaten değiştirmişse DOKUNULMAZ (aşağıdaki ??= kontrolleri).
+        _ = InvokeAsync(() => ApplyCompanyDefaultsAsync(m));
+    }
+
+    /// <summary>
+    /// Yeni ürünün ŞİRKETE bağlı varsayılanları: menşei ülke + para birimi.
+    ///
+    /// <para><b>Para birimi YEREL birimdir, bilanço birimi DEĞİL</b> (2026-07-28 Hakan düzeltmesi): ürün
+    /// fiyatı satışın yapıldığı ülkenin parasıyla girilir; bilanço birimi değerleme/raporlama tarafına aittir
+    /// ve ikisi farklı olabilir (bkz. financials kuralı: "kur görüntüsü YERELE, pozisyon BİLANÇOYA"). Yerel
+    /// birim şirketin ÜLKESİNDEN çözülür (<c>Country.DefaultCurrencyUnitId</c>).</para>
+    ///
+    /// <para>Ülke ya da ülkenin birimi tanımsızsa alan BOŞ bırakılır — bilanço birimine düşmek, yanlış birimi
+    /// doğruymuş gibi göstermek olurdu; boş alan kullanıcıyı seçim yapmaya çağırır.</para>
+    ///
+    /// <para>Okuma başarısız olursa SESSİZ geçilir: varsayılan bir kolaylıktır, yeni ürün açmayı engellememeli.</para>
+    /// </summary>
+    private async Task ApplyCompanyDefaultsAsync(ProductGetDto m)
+    {
+        if (Working.CurrentCompanyId is not { } companyId || companyId == Guid.Empty)
+        {
+            return;
+        }
+
+        try
+        {
+            var company = await CompanyAppService.GetAsync(companyId);
+            m.OriginCountryId ??= company.CountryId;
+
+            if (m.CurrencyUnitId is null && company.CountryId is { } countryId)
+            {
+                m.CurrencyUnitId = Countries.FirstOrDefault(c => c.Id == countryId)?.DefaultCurrencyUnitId;
+            }
+            StateHasChanged();
+        }
+        catch
+        {
+            // varsayılan gelmedi — kullanıcı elle seçer
+        }
     }
 
     // "Varyantları Oluştur" — layout DUMB kalır (servis inject etmez), çağrıyı host yapar. PERSISTSİZ önizleme:
@@ -317,7 +503,7 @@ public partial class ProductEditHost
     {
         // Mod kapısı (Dilim-3): SingleVariant/Muadil'de nitelik-tabanlı üretim BYPASS — host guard (buton zaten
         // görünmez; savunma). Sunucu kapısı AYRICA ŞART (client güven sınırı değildir — SaveVariantGraphAsync).
-        if (model.VariantMode != ProductVariantMode.MultiVariant)
+        if (model.VariantMode is not (ProductVariantMode.MultiVariant or ProductVariantMode.FromCatalog))
         {
             return;
         }
@@ -384,5 +570,84 @@ public partial class ProductEditHost
             l.MainUnitCode = r.MainUnitCode;
             l.PayUnitCode = r.PayUnitCode;
         }
+    }
+
+    /// <summary>
+    /// Katalogdan şablon uygular: şablonun grupları/değerleri ürünün nitelik grafına KATILIR (mevcutlar korunur,
+    /// tekrarlar ayıklanır — katma kuralı nitelik popup'ıyla ORTAK: <c>VariantTemplateMerger</c>), ardından
+    /// varyantlar yeniden üretilir. Şablonla ürün arasında kalıcı bağ KURULMAZ; sonradan şablon değişirse ürüne
+    /// yansımaz (2026-07-27 kararı — şablon bir başlangıç kaynağıdır).
+    /// </summary>
+    /// <summary>
+    /// Reçete şablonunu ürüne uygular: sunucu, şablonun satırlarını ürünün TÜM varyantlarına — muadillikten
+    /// gelen emtiaların ve kullanıcının kendi satırlarının ARDINA — serer. Uygulama SUNUCUDA kalıcıdır (satırlar
+    /// doğrudan yazılır), bu yüzden formdaki reçete grafı yeniden yüklenir; aksi hâlde ekran bayat kalırdı.
+    /// </summary>
+    /// <summary>
+    /// Kaydetme SONRASI sunucunun TÜRETTİĞİ grafı forma geri okur — muadil modunda varyant kümesi ve reçete
+    /// satırları sunucuda yeniden üretilir (hedef miktar değişince kombinasyonlar baştan doğar, yenilerine
+    /// reçete şablonu satırları serilir).
+    ///
+    /// <para><b>Neden gerekli:</b> bu üretim KAYDETME sırasında sunucuda oluyor; form kendi gönderdiği grafı
+    /// tutmaya devam ettiğinden ekran bayat kalıyordu. Kullanıcı muadil miktarını değiştirip kaydediyor, yeni
+    /// kombinasyonlar ve şablon satırları veritabanına yazılıyor ama formda hiçbir şey değişmiyordu — "şablon
+    /// etki etmedi" izlenimi tam olarak buydu (2026-07-28 Hakan).</para>
+    ///
+    /// <para>Tazeleme yalnız MUADİL modunda: diğer modlarda sunucu varyant kümesini kendi başına değiştirmez,
+    /// gereksiz bir okuma olurdu.</para>
+    ///
+    /// <para>Kör atama YERİNE <c>VariantGraphMerge</c>: kaydetmeden hemen sonra bile formda kalmış olabilecek
+    /// düzenlemeleri korur — şablon uygulama akışıyla aynı desen.</para>
+    /// </summary>
+    private async Task RefreshDerivedGraphAsync(ProductGetDto model)
+    {
+        if (model.VariantMode != ProductVariantMode.Substitution || model.Id == Guid.Empty)
+        {
+            return;
+        }
+
+        var refreshed = await ProductAppService.GetAsync(model.Id);
+        VariantGraphMerge.Apply(model.Variants, refreshed.Variants);
+        StateHasChanged();
+    }
+
+    private async Task ApplyRecipeTemplateAsync(ProductGetDto model, Guid templateId)
+    {
+        if (model.Id == Guid.Empty)
+        {
+            return;   // kaydedilmemiş üründe varyant yok → uygulanacak yer de yok (UI da göstermiyor)
+        }
+
+        try
+        {
+            var result = await RecipeTemplateAppService.ApplyToProductAsync(templateId, model.Id);
+
+            // Sunucu satırları KALICI yazdı → formdaki graf bayat kaldı, tazelenmeli. TAM EZME yerine
+            // VariantGraphMerge: kullanıcının kaydetmediği düzenlemeleri (fiyat/barkod/uzantı) korur, yalnız
+            // sunucudan geleni birleştirir — varyant şablonu akışıyla AYNI desen. Kör atama, formda yapılmış
+            // ama kaydedilmemiş her şeyi uyarısız silerdi.
+            var refreshed = await ProductAppService.GetAsync(model.Id);
+            VariantGraphMerge.Apply(model.Variants, refreshed.Variants);
+
+            UiService.ShowSuccessToast(L["RecipeTemplate:Applied",
+                result.AffectedVariantCount, result.AppliedLineCount].Value);
+        }
+        catch (BusinessException bex)
+        {
+            // In-process BusinessException lokalize OLMAZ (Blazor Server) → kodu resource'tan çevir.
+            // Yakalanmazsa circuit düşer ve kullanıcı formdaki tüm düzenlemelerini kaybederdi.
+            UiService.ShowErrorToast(L[bex.Code ?? bex.Message].Value);
+        }
+
+        StateHasChanged();
+    }
+
+    private async Task ApplyVariantTemplateAsync(ProductGetDto model, Guid templateId)
+    {
+        var template = await VariantTemplateAppService.GetAsync(templateId);
+        VariantTemplateMerger.Merge(model.Attributes, template);
+
+        await GenerateVariantsAsync(model);
+        StateHasChanged();
     }
 }

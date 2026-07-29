@@ -257,6 +257,107 @@ public class RazorConventionTests
             + string.Join(Environment.NewLine, violations));
     }
 
+    [Fact]
+    public void Razor_comments_must_not_sit_between_component_attributes()
+    {
+        // Kural (ui-blazor §DevExpress gotcha'ları): @* *@ bir bileşen etiketinin ATTRIBUTE'ları arasına konamaz.
+        // Blazor yorumu parametre ADI sanır ve çalışma anında patlar: "does not have a property matching the
+        // name '@* ... *@'" → sayfa "Beklenmeyen hata", circuit kopar. Derleme bunu YAKALAMAZ; bu yüzden
+        // mekanik ağ şart (2026-07-27: kural yazılıydı ama yine ihlal edildi). Yorum etiketin DIŞINA alınır.
+        var violations = new List<string>();
+
+        foreach (var file in ConventionSource.EnumerateSource("*.razor"))
+        {
+            var rel = ConventionSource.RelativePath(file);
+            var insideTag = false;
+
+            foreach (var (line, index) in File.ReadLines(file).Select((l, i) => (l.Trim(), i + 1)))
+            {
+                if (insideTag && line.StartsWith("@*", StringComparison.Ordinal))
+                {
+                    violations.Add($"{rel}:{index}: bileşen attribute'ları arasında @* *@ yorumu → etiketin DIŞINA al (ui-blazor).");
+                }
+
+                // Çok satırlı bileşen etiketi açıldı mı / kapandı mı (kaba ama bu kural için yeterli).
+                if (OpeningComponentTagRegex.IsMatch(line) && !line.EndsWith(">", StringComparison.Ordinal))
+                {
+                    insideTag = true;
+                }
+                else if (insideTag && line.EndsWith(">", StringComparison.Ordinal))
+                {
+                    insideTag = false;
+                }
+            }
+        }
+
+        violations.ShouldBeEmpty(
+            "Aşağıdaki .razor dosyalarında attribute'lar arasına yorum konmuş (runtime'da çöker):"
+            + Environment.NewLine
+            + string.Join(Environment.NewLine, violations));
+    }
+
+    /// <summary>Büyük harfle başlayan bileşen etiketi açılışı (&lt;DxGrid, &lt;DrillList …).</summary>
+    private static readonly Regex OpeningComponentTagRegex = new(@"^<[A-Z][A-Za-z0-9]*", RegexOptions.Compiled);
+
+    /// <summary>DevExpress "nested settings" şablonları — içlerinde ASENKRON render yasak.</summary>
+    private static readonly string[] NestedSettingsTemplates =
+    {
+        "CellDisplayTemplate", "CellEditTemplate", "HeaderTemplate", "FooterTemplate", "GroupRowTemplate",
+    };
+
+    /// <summary>Satır içi <c>async</c> lambda olay işleyicisi: <c>@(async …)</c> ya da <c>="@(async …)"</c>.</summary>
+    private static readonly Regex AsyncLambdaHandlerRegex = new(@"@\(\s*async|=\s*""@\(async", RegexOptions.Compiled);
+
+    [Fact]
+    public void Razor_devexpress_templates_must_not_use_async_event_handlers()
+    {
+        // Kural (ui-blazor §DevExpress gotcha'ları [async-nested-settings]): DevExpress kolon/ayar şablonlarının
+        // İÇİNDEKİ olay işleyicisi async olamaz. Blazor işleyici bitince StateHasChanged çağırır, DevExpress'in
+        // SettingsRenderer'ı bunu ASENKRON render sayar ve "Async rendering is not allowed here" ile ÇÖKER
+        // (2026-07-27: hücre içi Durum switch'i ve N11 cari combo'su bu yüzden düştü). Derleme yakalamaz.
+        // Doğrusu: işleyici SENKRON; sunucuya gitmesi gereken iş InvokeAsync ile arka planda + hata gösterimi.
+        var violations = new List<string>();
+
+        foreach (var file in ConventionSource.EnumerateSource("*.razor"))
+        {
+            var rel = ConventionSource.RelativePath(file);
+            var depth = 0;
+
+            foreach (var (line, index) in File.ReadLines(file).Select((l, i) => (l, i + 1)))
+            {
+                foreach (var template in NestedSettingsTemplates)
+                {
+                    depth += CountOccurrences(line, $"<{template}");
+                    depth -= CountOccurrences(line, $"</{template}>");
+                }
+
+                if (depth > 0 && AsyncLambdaHandlerRegex.IsMatch(line))
+                {
+                    violations.Add($"{rel}:{index}: DevExpress şablonu içinde async olay işleyicisi → senkron yaz, "
+                                   + "asenkron işi InvokeAsync ile arka planda çalıştır (ui-blazor [async-nested-settings]).");
+                }
+            }
+        }
+
+        violations.ShouldBeEmpty(
+            "Aşağıdaki .razor dosyalarında DevExpress şablonu içinde async işleyici var (runtime'da çöker):"
+            + Environment.NewLine
+            + string.Join(Environment.NewLine, violations));
+    }
+
+    private static int CountOccurrences(string line, string token)
+    {
+        var count = 0;
+        var position = line.IndexOf(token, StringComparison.Ordinal);
+        while (position >= 0)
+        {
+            count++;
+            position = line.IndexOf(token, position + token.Length, StringComparison.Ordinal);
+        }
+
+        return count;
+    }
+
     // Ham sembol listesi VEYA emoji aralığı (U+1F300–1F9FF). Bu aralık BMP dışı → C# string'de surrogate çifti
     // ile temsil edilir; yüksek surrogate D83C–D83E o aralığı kapsar (tek-char taramasıyla yakalanır).
     private static bool IsBannedIcon(char c) =>

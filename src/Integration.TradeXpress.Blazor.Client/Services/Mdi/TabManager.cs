@@ -50,7 +50,6 @@ public sealed class TabManager : ITabManager, IMdiTabOpener
     public Guid? ActiveTabId => _activeId;
     public bool HasDirtyTabs => _tabs.Any(t => t.IsDirty);
     public event Action? StateChanged;
-    public event Action<int>? RestoredWithLostDirtyData;
     public event Action? RestoreFailed;
     public event Action? PersistFailed;
 
@@ -543,7 +542,15 @@ public sealed class TabManager : ITabManager, IMdiTabOpener
             // kültürle lokalize gelir — kayıt formatı değişmeden ana dil-dayanıklılık kazancı budur.
             await RefreshTitlesFromMenuAsync();
 
-            if (lostDirtyCount > 0) RestoredWithLostDirtyData?.Invoke(lostDirtyCount);
+            // 2026-07-28 Hakan: bu durum artık kullanıcıya TOAST'la bildirilmiyor. Gerekçesi: uyarı her
+            // oturum açılışında yeniden çıkıyor ve elde edilecek bir şey yok — form verisi zaten gitmiş,
+            // kullanıcının yapabileceği bir işlem kalmamış. Bilgi yine de KAYBOLMASIN diye log'a düşer.
+            if (lostDirtyCount > 0)
+            {
+                _logger.LogInformation(
+                    "MDI sekme geri yüklemesi: {LostDirtyCount} sekme kirliyken kaydedilmişti, temiz açıldı.",
+                    lostDirtyCount);
+            }
         }
         catch (Exception ex)
         {

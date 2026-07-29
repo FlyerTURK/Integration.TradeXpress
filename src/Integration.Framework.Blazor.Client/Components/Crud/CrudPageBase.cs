@@ -20,6 +20,21 @@ public abstract class CrudPageBase<TGetDto, TListDto, TKey, TListRequestDto, TCr
     where TCreateInput : class, new()
     where TUpdateInput : class, new()
 {
+    /// <summary>
+    /// Bu liste bir LOOKUP POPUP'ında "kayıt seç" için mi açıldı. Popup açan taraf parametre olarak verir;
+    /// sayfanın kendisi değişmez — <c>CrudLayout</c> satır tıklamasını seçime çevirir ve satıra düzenleme
+    /// komutu ekler ("bir listeleme formu ister sekmede ister popup'ta açılabilir", 2026-07-28 Hakan).
+    /// </summary>
+    [Parameter] public bool IsPickerMode { get; set; }
+
+    /// <summary>Seçici modda satır seçildi — popup'ı SEÇİLEN KAYITLA kapatır. Çağıran (LookupEdit) dönen
+    /// nesneden değeri çıkarır.</summary>
+    protected Task OnPickSelectedAsync(TListDto item)
+    {
+        PopupService.Close(item);
+        return Task.CompletedTask;
+    }
+
     // Alt sınıflar kendi spesifik servislerini (örn. ITenantAppService) buraya bağlamalıdır
     public abstract ICrudAppService<TGetDto, TListDto, TKey, TListRequestDto, TCreateInput, TUpdateInput> CrudAppService { get; }
 

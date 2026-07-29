@@ -7,27 +7,11 @@ using Volo.Abp;
 
 namespace Integration.TradeXpress.Channels;
 
-/// <summary>Kişiselleştirme bloğunun anlık görüntüsü — devralma zincirinin İKİ ucu da (ürün varsayılanı ve
-/// kanal override'ı) bu biçimde ifade edilir; çözümleyici kanal tipini TANIMAZ (kanal-agnostiklik).
-/// Kanal push kodu kendi entity'sinden bu record'u kurar (ör. Etsy: <c>is_personalizable</c> +
-/// <c>personalization_instructions</c> + <c>personalization_is_required</c> + <c>personalization_char_count_max</c>).</summary>
-public sealed record PersonalizationValues(
-    bool IsPersonalizable,
-    string? Instructions,
-    bool IsRequired,
-    int? CharCountMax)
-{
-    /// <summary>Ürün-seviyesi kişiselleştirme bloğunun anlık görüntüsü — zincirin ÜRÜN ucunun TEK kurucusu (SSOT);
-    /// push kodları ürün alanlarını elle kopyalamaz.</summary>
-    public static PersonalizationValues Of(Product product)
-    {
-        return new PersonalizationValues(
-            product.IsPersonalizable,
-            product.PersonalizationInstructions,
-            product.PersonalizationIsRequired,
-            product.PersonalizationCharCountMax);
-    }
-}
+// K10 kişiselleştirme devralma zinciri (PersonalizationValues + ResolvePersonalization) 2026-07-28'de
+// KALDIRILDI. Gerekçe: zincirin modellediği şey Etsy'nin tek-kutulu kişiselleştirme bloğuydu ve o blok
+// Etsy'de 2026-04-09'da kapandı (gönderen istek hata döner). Yerine gelen çoklu ADLANDIRILMIŞ soru modeli
+// bizde SpecialInfo ile ifade ediliyor ve onun devralması zaten liste zinciriyle (ResolveList) çalışıyor —
+// ayrı bir blok-anahtarı/alt-alan çözümüne gerek kalmadı.
 
 /// <summary>Bir ürün eklentisinin push/görüntü anındaki EFEKTİF değerleri — satır override'ı katalogla çözülmüş hâli
 /// (<see cref="ChannelInheritance.ResolveAddOns"/> çıktısı). <see cref="AddOnId"/> = katalog referansı
@@ -85,32 +69,6 @@ public static class ChannelInheritance
         }
 
         return productValues ?? Array.Empty<T>();
-    }
-
-    /// <summary>K10 — kişiselleştirme devralma zinciri. Blok-anahtarı <c>IsPersonalizable</c>:
-    /// <list type="bullet">
-    /// <item>Kanal bloğu DOLU (<c>channel.IsPersonalizable == true</c>) → kanal bloğu esas; nullable alt alanlar
-    /// (<c>Instructions</c>/<c>CharCountMax</c>) boşsa alan-bazında ürüne düşer (diğer alanlarla aynı desen);
-    /// <c>IsRequired</c> kanal beyanıyla gider.</item>
-    /// <item>Kanal bloğu BOŞ (<c>false</c> — kanal entity setter'ı alt alanları zaten temizler) ya da kanal
-    /// kişiselleştirme taşımıyor (<c>null</c>) → ürün bloğu TAMAMEN devralınır.</item>
-    /// </list>
-    /// BİLİNEN SINIR (migration'sız bilinçli): kanal bool'u üç-durumlu değil → ürün kişiselleştirilebilirken kanal
-    /// "açıkça KAPAT" diyemez (false = girilmedi sayılır). İhtiyaç doğarsa <c>bool?</c>'a geçiş AYRI migration
-    /// kararıdır (master plan §1.1.5 <c>null=devral</c> ideali).</summary>
-    public static PersonalizationValues ResolvePersonalization(
-        PersonalizationValues? channel, PersonalizationValues product)
-    {
-        if (channel is not { IsPersonalizable: true })
-        {
-            return product;
-        }
-
-        return new PersonalizationValues(
-            IsPersonalizable: true,
-            Instructions: Resolve(channel.Instructions, product.Instructions),
-            IsRequired: channel.IsRequired,
-            CharCountMax: Resolve(channel.CharCountMax, product.CharCountMax));
     }
 
     /// <summary>K11 — add-on devralma zinciri. BUGÜN tek kaynak ÜRÜN atamasıdır (hiçbir kanal-ürün entity'sinde

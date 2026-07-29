@@ -42,6 +42,7 @@ public abstract class ProductVariantExtensionSurvivalTests<TStartupModule> : Tra
             {
                 Code = "TSTVAR1",
                 Name = "Test Varyantlı Ürün",
+                ProductCategoryId = await CreateTestProductCategoryAsync(),
                 Attributes = new List<EntityAttributeGraphDto>
                 {
                     BuildAttribute("Renk", "Kırmızı"),
@@ -76,6 +77,7 @@ public abstract class ProductVariantExtensionSurvivalTests<TStartupModule> : Tra
                 Code = created.Code,
                 Name = created.Name,
                 IsActive = created.IsActive,
+                ProductCategoryId = created.ProductCategoryId,
                 Attributes = attributesWithTwoValues,
                 Variants = new List<ProductVariantGraphDto> { kirmiziWithPrice },
             });
@@ -123,6 +125,7 @@ public abstract class ProductVariantExtensionSurvivalTests<TStartupModule> : Tra
             Code = p.Code,
             Name = p.Name,
             IsActive = p.IsActive,
+            ProductCategoryId = p.ProductCategoryId,
             Attributes = p.Attributes,
             Variants = new List<ProductVariantGraphDto> { variant },
         };

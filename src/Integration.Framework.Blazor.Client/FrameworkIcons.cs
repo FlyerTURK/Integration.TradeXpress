@@ -17,6 +17,10 @@ public static class FrameworkIcons
     /// <summary>Menüde "işaretli/aktif" durum göstergesi (DevExpress checked-item deseni: IconCssClass toggle).</summary>
     public const string Check   = "custom-icon-check";
 
+    /// <summary>Onaylama/seçme eylemi — YEŞİL tik (fiş "Tamam" düğmesiyle AYNI ikon; kullanıcı kararı
+    /// 2026-07-28: seçim onayı her yerde aynı görünsün).</summary>
+    public const string Confirm = "custom-icon-tick-green";
+
     // Lookup combo butonları — RENKLİ (xaf SVG kendi renkleriyle çizilir; aksiyon ikonlarından farklı olarak
     // tek-renk/currentColor DEĞİL). Kullanıcı kararı: lookup'ın renkli görünümü STANDART. main.css'te tanımlı.
     public const string LookupEdit = "xaf-edit-icon";

@@ -51,6 +51,7 @@ public class SubstitutionCalculationAppService : TradeXpressAppService, ISubstit
     private readonly IEffectivePriceAppService _effectivePriceAppService;
     private readonly ProductRecipeCostCalculator _recipeCostCalculator;
     private readonly IDataFilter _dataFilter;
+    private readonly SubstitutionPlanContextLoader _planContextLoader;
 
     public SubstitutionCalculationAppService(
         IRepository<SubstitutionGroup, Guid> groupRepository,
@@ -61,7 +62,8 @@ public class SubstitutionCalculationAppService : TradeXpressAppService, ISubstit
         IMetalReportAppService metalReportAppService,
         IEffectivePriceAppService effectivePriceAppService,
         ProductRecipeCostCalculator recipeCostCalculator,
-        IDataFilter dataFilter)
+        IDataFilter dataFilter,
+        SubstitutionPlanContextLoader planContextLoader)
     {
         _groupRepository          = groupRepository;
         _itemRepository           = itemRepository;
@@ -72,6 +74,7 @@ public class SubstitutionCalculationAppService : TradeXpressAppService, ISubstit
         _effectivePriceAppService = effectivePriceAppService;
         _recipeCostCalculator     = recipeCostCalculator;
         _dataFilter               = dataFilter;
+        _planContextLoader        = planContextLoader;
     }
 
     public virtual async Task<SubstitutionCalculationResultDto> CalculateAsync(SubstitutionCalculationInput input)
@@ -112,7 +115,12 @@ public class SubstitutionCalculationAppService : TradeXpressAppService, ISubstit
         var solved = SubstitutionSolver.Solve(new SubstitutionSolverInput(
             input.TargetQuantity, toleranceType, toleranceValue, commodities));
 
-        return BuildResult(group, input.TargetQuantity, topN, toleranceType, toleranceValue, commodities, solved, costs);
+        var result = BuildResult(group, input.TargetQuantity, topN, toleranceType, toleranceValue, commodities, solved, costs);
+
+        // Reçete önizlemesi BURADA (BuildResult saf/statik kalsın): DB'ye gidip bağlam yükler.
+        await FillRecipeLinesForVariantCandidatesAsync(result);
+
+        return result;
     }
 
     /// <summary>Etkin tolerans politikası — varsayılan GRUP ayarı (konsept statüko); Dilim-3 ürün Muadil modu
@@ -262,9 +270,12 @@ public class SubstitutionCalculationAppService : TradeXpressAppService, ISubstit
             var mainVariantId = metalVariants.FirstOrDefault(v => v.IsMain)?.Id;
 
             var metalVariantIds = metalVariants.Select(v => v.Id).ToHashSet();
-            var overrideForMetal = (overrideVariantIds ?? Array.Empty<Guid>())
-                .Where(metalVariantIds.Contains)
-                .ToList();
+            // NULL KORUNUR — resolver'da "liste yok" (grup modu) ile "liste boş" (ürün bu madeni istemiyor)
+            // FARKLI anlamlara geldi. Burada null'ı boş listeye çevirmek ikisini tekrar eşitler ve ürünün
+            // kaldırma kararını sessizce yutar.
+            var overrideForMetal = overrideVariantIds is null
+                ? null
+                : overrideVariantIds.Where(metalVariantIds.Contains).ToList();
 
             // Dahil-varyant listesi de katalogla kesiştirilir (bayat id budaması — override ile simetrik öz-onarım).
             var includedForMetal = groupMetal.IncludedVariantIds
@@ -564,6 +575,16 @@ public class SubstitutionCalculationAppService : TradeXpressAppService, ISubstit
             });
         }
 
+        // Deterministik varyant kodu — kayıt anındakiyle AYNI üreticiden (tek kaynak). Tüm denemeler
+        // hazır olduktan SONRA üretilir: "varyant adı ayırt ediyor mu" ölçütü denemelerin tamamına bakar.
+        var multiVariantMetalIds = SubstitutionCombinationCodeBuilder.MultiVariantMetalIds(result.Trials);
+        foreach (var trialDto in result.Trials)
+        {
+            trialDto.CombinationCode = SubstitutionCombinationCodeBuilder.Build(trialDto, multiVariantMetalIds);
+            trialDto.CombinationSummary = SubstitutionCombinationCodeBuilder.BuildSummary(trialDto, multiVariantMetalIds);
+        }
+
+
         foreach (var filtered in solved.FilteredOut)
         {
             result.FilteredOut.Add(new SubstitutionFilteredOutDto
@@ -595,4 +616,43 @@ public class SubstitutionCalculationAppService : TradeXpressAppService, ISubstit
         Metal Metal,
         Guid? VariantId,
         string? VariantCode);
+
+    /// <summary>
+    /// Varyanta dönüşecek kombinasyonların REÇETE satırlarını doldurur — ürün formu kaydetmeden varyantın
+    /// içindeki emtiaları gösterebilsin diye (2026-07-27 Hakan isteği: "kaydetmeden otomatik hesaplansın").
+    ///
+    /// <para><b>Neden hepsi için değil:</b> yüzlerce deneme × satırlar yanıtı gereksiz büyütürdü. Yalnız
+    /// varyanta dönüşecek adaylar (<see cref="SubstitutionVariantSelection"/> — kayıt anıyla AYNI kural)
+    /// doldurulur; Multi tavanı en geniş durumdur, Single onun alt kümesidir.</para>
+    ///
+    /// <para>Bağlam yüklenemezse (maden katalogda yok) reçete satırları BOŞ kalır ama hesap DÜŞMEZ: kombinasyon
+    /// listesi ve maliyetler zaten hazır — önizlemenin eksikliği yüzünden asıl sonucu kaybetmek yanlış olurdu.</para>
+    /// </summary>
+    private async Task FillRecipeLinesForVariantCandidatesAsync(SubstitutionCalculationResultDto result)
+    {
+        var candidates = SubstitutionVariantSelection.Select(result.Trials, SubstitutionVariantMode.Multi);
+        if (candidates.Count == 0)
+        {
+            return;
+        }
+
+        var lines = candidates.SelectMany(t => t.Lines).ToList();
+
+        try
+        {
+            var context = await _planContextLoader.LoadAsync(
+                lines.Select(l => l.MetalId).Distinct().ToList(),
+                lines.Where(l => l.VariantId != null).Select(l => l.VariantId!.Value).Distinct().ToList());
+
+            foreach (var trial in candidates)
+            {
+                trial.RecipeLines = SubstitutionPlanContextLoader.BuildRecipeLineDtos(trial, context);
+            }
+        }
+        catch (BusinessException ex) when (ex.Code == "TradeXpress:Substitution:MetalNotFound")
+        {
+            // Önizleme en-iyi-çaba: satırlar boş kalır, kombinasyon sonucu olduğu gibi döner.
+            Logger.LogWarning("Muadil reçete önizlemesi kurulamadı ({Code}) — kombinasyonlar yine döndü.", ex.Code);
+        }
+    }
 }

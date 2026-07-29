@@ -1,0 +1,30 @@
+@using Integration.TradeXpress.Accounts
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@*
+   Kanalın muhasebe cari ALT HESABI — "bu kanalın muhasebesi hangi cariye yazılır" tanımı (2026-07-28 Hakan).
+
+   TEK lookup: cari hesap ayrıca seçtirilmez, çünkü alt hesap zaten bir cariye bağlıdır ve listede
+   "CARİ / ALT" biçiminde görünür (AccountSubCodeDisplay). İki ayrı seçim, birbiriyle çelişebilen iki alan
+   demek olurdu.
+
+   Üç kanal formunun (N11/Trendyol/Etsy) ortak parçası — alan tanımı tek yerde yaşasın diye bileşen.
+*@
+
+<DxFormLayoutItem Caption="@L["SalesChannel:SubAccount"]" ColSpanMd="6">
+    <LookupComboBox TItem="SubAccountListDto" TValue="Guid?"
+                    Data="@_subAccounts"
+                    ValueFieldName="@nameof(SubAccountListDto.Id)"
+                    TextFieldName="@nameof(SubAccountListDto.AccountSubCodeDisplay)"
+                    Value="@Value"
+                    ValueChanged="@OnChangedAsync"
+                    NullText="@L["Optional"].Value"
+                    CanAdd="false"
+                    CanEdit="false">
+        <Columns>
+            <DxListEditorColumn FieldName="@nameof(SubAccountListDto.AccountSubCodeDisplay)" Caption="@L["SubAccount"].Value" />
+            <DxListEditorColumn FieldName="@nameof(SubAccountListDto.Name)" Caption="@L["Name"].Value" />
+            <DxListEditorColumn FieldName="@nameof(SubAccountListDto.AccountName)" Caption="@L["Account"].Value" />
+        </Columns>
+    </LookupComboBox>
+</DxFormLayoutItem>

@@ -20,6 +20,7 @@
                FilterPredicate="@(r => !r.IsDeleted)"
                PrimaryTextSelector="@(r => r.DisplayCode)"
                NewItemFactory="@NewRowFactory"
+               SaveGuard="@ChannelRowSaveGuard"
                CloneFactory="@CloneRow"
                AllowAdd="false"
                CustomActions="@PanelActions"
@@ -85,7 +86,7 @@
             @* Edit formu ChannelType'a göre AYRI (mevcut formlar AYNEN yeniden kullanılır). *@
             @if (row.IsN11)
             {
-                <SalesChannelTrN11ProductEditFields Model="row.N11!" Channels="_n11Channels" />
+                <SalesChannelTrN11ProductEditFields @ref="_n11EditFields" Model="row.N11!" Channels="_n11Channels" CoreVariants="@(ProductDefaults?.Variants ?? new())" />
             }
             else if (row.IsEtsy)
             {

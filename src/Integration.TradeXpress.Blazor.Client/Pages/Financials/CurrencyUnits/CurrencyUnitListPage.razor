@@ -1,4 +1,4 @@
-@page "/currencies/currency-units"
+﻿@page "/currencies/currency-units"
 @using Integration.Framework.Blazor.Client.Components.Crud
 @using Integration.TradeXpress.Blazor.Client.Pages.Financials.CurrencyUnits.Components
 @using Integration.TradeXpress.Financials.CurrencyUnits
@@ -22,8 +22,7 @@
             OnDeleteClick="DeleteAsync"
             OnRefreshClick="GetListAsync"
             OnSearchChanged="OnSearchAsync"
-            CustomActions="@MarginActions"
-            AllowColumnReordering="true">
+            CustomActions="@MarginActions">
 
     <GridColumns>
         @* Sıra: Kod · Ad · Alış · Satış (Ad band dışında, Kod'un hemen sağında). *@

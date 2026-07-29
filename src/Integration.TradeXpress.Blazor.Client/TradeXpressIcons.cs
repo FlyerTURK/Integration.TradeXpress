@@ -1,4 +1,4 @@
-namespace Integration.TradeXpress.Blazor.Client;
+﻿namespace Integration.TradeXpress.Blazor.Client;
 
 /// <summary>
 /// Entity/navigasyon ikonlarının TEK kaynağı. Her entity'nin ikonu burada bir kez tanımlanır;
@@ -33,6 +33,10 @@ public static class TradeXpressIcons
     public const string AddOn = "custom-icon-price";
     // Varyant tanım katalogu (demet) — nitelik ekseni ikonu (sliders) reuse (agnostik nitelik paneliyle hizalı); yeni CSS yok.
     public const string VariantTemplate = "custom-icon-sliders";
+    // Çekirdek ürün kategorisi ağacı — mevcut liste ikonu reuse (hiyerarşik sınıflandırma); yeni CSS yok.
+    public const string ProductCategory = "custom-icon-product-category";
+    // Reçete şablonu ("orta reçete") — mevcut tanımlar ikonu reuse (kalıp/tanım demeti); yeni CSS yok.
+    public const string RecipeTemplate = "custom-icon-definitions";
     // Kargo şablonu katalogu — mevcut adres-kartı ikonu reuse (şablonun çekirdeği menşei/iade adresi + teslimat); yeni CSS yok.
 
     // ── Ürünler ──

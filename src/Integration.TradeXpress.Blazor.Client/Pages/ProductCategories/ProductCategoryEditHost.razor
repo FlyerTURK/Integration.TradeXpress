@@ -1,0 +1,26 @@
+﻿@page "/product-categories/new"
+@page "/product-categories/{Id:guid}"
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@*
+   ProductCategory edit host = İNCE SARMAL: coordinator + sunum. Commit/save/delete/close generic CrudEditHost'ta.
+   Company-owned (sunucu CompanyId zorlar). İçerik dumb ProductCategoryLayout'ta.
+*@
+
+@if (_coordinator != null && _ready)
+{
+    <CrudEditHost TGetDto="ProductCategoryGetDto" TListDto="ProductCategoryListDto" TKey="Guid" TListRequestDto="ProductCategoryListRequestDto"
+                  Coordinator="@_coordinator" Id="@(Id ?? Guid.Empty)" IsPopupMode="@IsPopupMode" OnSaved="@OnSaved" OnClosed="@OnClosed"
+                  FormCaption="@L["ProductCategory"].Value" IconCssClass="@TradeXpressIcons.ProductCategory"
+                  EntityValue="@(m => m.Name)"
+                  ApplyNewDefaults="@(m => { m.IsActive = true; m.DisplayOrder = 1; m.ParentId = ParentId; })">
+        <ProductCategoryLayout Model="@context" Categories="@_categories"
+                               OnRefreshInheritedAttributes="@(async (Guid? pid) => await RefreshInheritedAttributesAsync(context, pid))"
+                               CanEditChannelMappings="@(Id is not null)"
+                               ChannelMappings="@_channelMappings"
+                               ChannelAttributeOptions="@_channelAttributeOptions"
+                               OnChannelCategoryChanged="@LoadChannelAttributeOptionsAsync"
+                               OnSaveMapping="@SaveChannelMappingAsync"
+                               OnRemoveMapping="@RemoveChannelMappingAsync" />
+    </CrudEditHost>
+}

@@ -386,6 +386,13 @@ public class TradeXpressBlazorModule : AbpModule
         // reconcile (ekle/güncelle/HARD-sil); değilse atlar. YALNIZ Blazor host'ta → çift-çalışma yok.
         Volo.Abp.Threading.AsyncHelper.RunSync(() =>
             context.AddBackgroundWorkerAsync<Integration.TradeXpress.EtsyTaxonomies.EtsyTaxonomySyncWorker>());
+
+        // N11 kategori ağacı + komisyon mutabakatı (günlük; RunOnStart=true → açılışta İLK bayatlık kontrolü).
+        // Damga 1 günden yeniyse N11'e istek bile gitmez. Komisyon bu turun parçası — kullanıcı düğmeye basmaz.
+        // YALNIZ Blazor host'ta → çift-çalışma yok (dağıtık kilit sağlayıcısı kayıtlı değil, iki hostta kayıt
+        // aynı anda iki tam ağaç çekimi + ExternalId unique index çakışması demek olurdu).
+        Volo.Abp.Threading.AsyncHelper.RunSync(() =>
+            context.AddBackgroundWorkerAsync<Integration.TradeXpress.N11Categories.N11CategorySyncWorker>());
     }
 
     /// <summary>HTTP request pipeline'ı (middleware zinciri) — sıralama duyarlı, dokunma.</summary>

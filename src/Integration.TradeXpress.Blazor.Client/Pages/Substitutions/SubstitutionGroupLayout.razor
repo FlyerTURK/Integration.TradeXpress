@@ -25,6 +25,12 @@
         <DxFormLayoutItem Caption="@L["SubstitutionType"]" ColSpanMd="4">
             <ComboBoxEnumEdit TEnum="SubstitutionType" L="@L" @bind-Value="@Model.Type" Enabled="false" />
         </DxFormLayoutItem>
+        @* Miktar birimi — grubun TÜM kalemleri bu birimden ölçülür; kombinasyon adında bu kısaltma geçer
+           ("1×5 lt + 3×1 lt = Toplam 4 parça, 8 lt"). Boş bırakılırsa sunucu "gr"a düşer. *@
+        <DxFormLayoutItem Caption="@L["SubstitutionGroup:QuantityUnit"]" ColSpanMd="4" BeginRow="true">
+            <DxTextBox @bind-Text="@Model.QuantityUnit"
+                       NullText="@SubstitutionGroupConsts.DefaultQuantityUnit" />
+        </DxFormLayoutItem>
         <DxFormLayoutItem Caption="@L["ToleranceType"]" ColSpanMd="4">
             <ComboBoxEnumEdit TEnum="ToleranceType" L="@L" @bind-Value="@Model.ToleranceType" />
         </DxFormLayoutItem>
@@ -35,7 +41,7 @@
         <DxFormLayoutItem Caption="@L["Description"]" ColSpanMd="12">
             <DxMemo @bind-Text="@Model.Description" Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100" />
         </DxFormLayoutItem>
-        <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6">
+        <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6" BeginRow="true">
             <DxCheckBox @bind-Checked="@Model.IsActive" CheckType="CheckType.Switch">
                 @(Model.IsActive ? L["Active"] : L["Passive"])
             </DxCheckBox>

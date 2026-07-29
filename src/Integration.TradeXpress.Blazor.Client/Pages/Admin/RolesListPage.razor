@@ -1,4 +1,4 @@
-@page "/admin/roles"
+﻿@page "/admin/roles"
 @using Integration.Framework.Blazor.Client.Components.Crud
 @using Integration.TradeXpress.Blazor.Client.Pages.Admin.Models
 @using Integration.TradeXpress.Blazor.Client.Services
@@ -7,7 +7,6 @@
 
 <CrudLayout TGetDto="RoleGetDto"
             TListDto="RoleListDto"
-            TViewModel="RoleEditViewModel"
             TKey="Guid"
             StateService="StateService"
             DataSource="@GridDataSource"

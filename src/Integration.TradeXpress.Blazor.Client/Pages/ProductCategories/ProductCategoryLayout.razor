@@ -1,0 +1,377 @@
+﻿@using Integration.TradeXpress.ProductCategories
+@using Integration.TradeXpress.Blazor.Client.Pages.N11Products
+@using Integration.Framework.Blazor.Client.Components.Crud
+@using DevExpress.Blazor
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@*
+   ProductCategory DUMB Layout — çekirdek kategori ağacı formu. Üst kategori boş bırakılırsa kayıt ANA
+   kategoridir (derinlik tavanı yok).
+
+   Nitelik grid'i TEK LİSTEDİR (2026-07-28 Hakan): üst kategorilerden devralınanlar da içindedir ama KİLİTLİDİR
+   (silinemez, adı/cinsi değiştirilemez; kaynak kolonu sahibini gösterir). Devralınan bir niteliğin altına KENDİ
+   değerini eklemek serbesttir — kaydetmede bu kategoride aynı adlı nitelik açılır ve yalnız kendi değerleri
+   ona yazılır. Ayrı "Etkin Özellikler" paneli KALDIRILDI: grid zaten etkin sonucu gösteriyor, ikisi bir arada
+   aynı bilgiyi iki kez göstermek olurdu.
+*@
+
+<DxFormLayout CssClass="w-100">
+    <DxFormLayoutGroup Caption="@L["General"]" ColSpanMd="12">
+        @* Kod alanı YOK (2026-07-27 kararı): kategorinin kimliği ADI ve ağaçtaki yeridir. Ad TAM GENİŞLİK —
+           ui-blazor.md edit form standardı (kod yarım · ad tam · ... · Description · en son IsActive + Sıra). *@
+        <DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="12">
+            <DxTextBox @bind-Text="@Model.Name" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["ProductCategory:Parent"]" ColSpanMd="6">
+            <LookupComboBox TItem="ProductCategoryListDto" TValue="Guid?"
+                            Data="@Categories"
+                            ValueFieldName="@nameof(ProductCategoryListDto.Id)"
+                            TextFieldName="@nameof(ProductCategoryListDto.Path)"
+                            Value="@Model.ParentId"
+                            ValueChanged="@OnParentChanged"
+                            NullText="@L["ProductCategory:ParentPlaceholder"].Value"
+                            CanAdd="false"
+                            CanEdit="false">
+                <Columns>
+                    @* TEK kolon: YOL ("Takı › Yüzük › Alyans"). Ayrı bir "Ad" kolonu tekrar olurdu — yol zaten adı son
+                       segment olarak taşır ve aynı adlı alt kategorileri ancak yol ayırt eder. *@
+                    <DxListEditorColumn FieldName="@nameof(ProductCategoryListDto.Path)" Caption="@L["ProductCategory:Path"].Value" />
+                </Columns>
+            </LookupComboBox>
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["Description"]" ColSpanMd="12">
+            <DxMemo @bind-Text="@Model.Description" Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6" BeginRow="true">
+            <DxCheckBox @bind-Checked="@Model.IsActive" CheckType="CheckType.Switch">
+                @(Model.IsActive ? L["Active"] : L["Passive"])
+            </DxCheckBox>
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["DisplayOrder"]" ColSpanMd="6">
+            <NumericSpinEdit @bind-Value="@Model.DisplayOrder" />
+        </DxFormLayoutItem>
+    </DxFormLayoutGroup>
+</DxFormLayout>
+
+@* Nitelikler ve kanal eşleştirmesi AYRI SEKMELERDE (2026-07-28 Hakan): ikisi de kendi içinde grid + iç içe
+   düzenleme barındırıyor; alt alta dizildiklerinde form uzayıp kaydırma gerektiriyor ve hangi grid'in hangi
+   işe ait olduğu karışıyordu. *@
+<DrillTabs CssClass="mt-3">
+    <DxTabPage Text="@L["Attributes"]" TabIconCssClass="@TradeXpressIcons.Sliders">
+        <span style="color:#6c757d; font-size:0.85rem;">@L["ProductCategory:AttributesHint"]</span>
+        <DrillList TItem="ProductCategoryAttributeDto"
+                   @ref="_attributeDrill"
+                   Title="@L["Attributes"]"
+                   EntityName="@L["Attribute"]"
+                   EntityIcon="@TradeXpressIcons.Sliders"
+                   Items="@Model.Attributes"
+                   KeyFieldName="ClientKey"
+                   PrimaryTextSelector="@(a => a.Name)"
+                   NewItemFactory="@(() => new ProductCategoryAttributeDto { DisplayOrder = NextAttributeOrder() })"
+                   DeleteGuard="@AttributeDeleteGuard"
+                   ShowActiveFilter="false"
+                   ShowExport="false"
+                   OnChanged="@(() => EditChanged?.Invoke())">
+            <GridColumns>
+                <GridLinkColumn FieldName="Name" Caption="@L["Name"]" FixedPosition="GridColumnFixedPosition.Left" VisibleIndex="1"
+                                OnClick="@(item => _attributeDrill?.EditItem((ProductCategoryAttributeDto)item))" />
+                <DxGridDataColumn FieldName="Kind" Caption="@L["ProductCategory:AttributeKind"]" Width="150px">
+                    <CellDisplayTemplate>
+                        @KindText((ProductCategoryAttributeKind)context.Value)
+                    </CellDisplayTemplate>
+                </DxGridDataColumn>
+                @* Kaynak: devralınan satırlarda üst kategorinin adı — kullanıcı düzenlemek için nereye gitmesi
+                   gerektiğini görsün. Hesaplanmış metin → sıralama/gruplama kapalı. *@
+                <DxGridDataColumn FieldName="SourceCategoryName" Caption="@L["ProductCategory:Source"]" Width="200px"
+                                  AllowSort="false" AllowGroup="false">
+                    <CellDisplayTemplate>
+                        @AttributeSourceText((ProductCategoryAttributeDto)context.DataItem)
+                    </CellDisplayTemplate>
+                </DxGridDataColumn>
+                <DxGridDataColumn FieldName="DisplayOrder" Caption="@L["DisplayOrder"]" Width="90px" />
+            </GridColumns>
+            <EditContent Context="a">
+                <DxFormLayout CssClass="w-100">
+                    @* Devralınan nitelik: ad/cins/sıra SAHİBİ kategoriye aittir → burada kilitli. Kullanıcı yine de
+                       altına KENDİ değerlerini ekleyebilir; kaydetmede bu kategoride aynı adlı bir nitelik açılır. *@
+                    @if (a.IsInherited)
+                    {
+                        <DxFormLayoutItem ColSpanMd="12">
+                            <span style="color:#6c757d; font-size:0.85rem;">
+                                @L["ProductCategory:InheritedAttributeHint", a.SourceCategoryName ?? string.Empty]
+                            </span>
+                        </DxFormLayoutItem>
+                    }
+                    <DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="6">
+                        <DxTextBox @bind-Text="@a.Name" ReadOnly="@a.IsInherited" />
+                    </DxFormLayoutItem>
+                    <DxFormLayoutItem Caption="@L["ProductCategory:AttributeKind"]" ColSpanMd="6">
+                        <DxComboBox Data="@_kindItems"
+                                    TData="AttributeKindItem" TValue="ProductCategoryAttributeKind"
+                                    @bind-Value="@a.Kind"
+                                    ValueFieldName="@nameof(AttributeKindItem.Value)"
+                                    TextFieldName="@nameof(AttributeKindItem.Text)"
+                                    ReadOnly="@a.IsInherited" />
+                    </DxFormLayoutItem>
+                    <DxFormLayoutItem Caption="@L["DisplayOrder"]" ColSpanMd="6">
+                        <NumericSpinEdit @bind-Value="@a.DisplayOrder" ReadOnly="@a.IsInherited" />
+                    </DxFormLayoutItem>
+                    <DxFormLayoutGroup Caption="@L["AttributeValues"]" ColSpanMd="12" CaptionPosition="CaptionPosition.Vertical">
+                        @* İç içe DrillList DOĞRUDAN parent EditContent'te (ui-blazor: nested EditForm yok, CascadingValue izolasyonu). *@
+                        <DrillList TItem="ProductCategoryAttributeValueDto"
+                                   @ref="_valueDrill"
+                                   Title="@L["AttributeValues"]"
+                                   EntityName="@L["AttributeValue"]"
+                                   ParentEntityName="@L["Attribute"]"
+                                   ParentText="@a.Name"
+                                   EntityIcon="@TradeXpressIcons.Sliders"
+                                   Items="@a.Values"
+                                   KeyFieldName="ClientKey"
+                                   PrimaryTextSelector="@(v => v.Value)"
+                                   NewItemFactory="@(() => new ProductCategoryAttributeValueDto { DisplayOrder = NextValueOrder(a) })"
+                                   DeleteGuard="@ValueDeleteGuard"
+                                   ShowActiveFilter="false"
+                                   ShowExport="false"
+                                   OnChanged="@(() => EditChanged?.Invoke())">
+                            <GridColumns>
+                                <GridLinkColumn FieldName="Value" Caption="@L["Value"]" FixedPosition="GridColumnFixedPosition.Left" VisibleIndex="1"
+                                                OnClick="@(item => _valueDrill?.EditItem((ProductCategoryAttributeValueDto)item))" />
+                                <DxGridDataColumn FieldName="SourceCategoryName" Caption="@L["ProductCategory:Source"]" Width="180px"
+                                                  AllowSort="false" AllowGroup="false">
+                                    <CellDisplayTemplate>
+                                        @ValueSourceText((ProductCategoryAttributeValueDto)context.DataItem)
+                                    </CellDisplayTemplate>
+                                </DxGridDataColumn>
+                                <DxGridDataColumn FieldName="DisplayOrder" Caption="@L["DisplayOrder"]" Width="90px" />
+                            </GridColumns>
+                            <EditContent Context="v">
+                                <DxFormLayout CssClass="w-100">
+                                    @if (v.IsInherited)
+                                    {
+                                        <DxFormLayoutItem ColSpanMd="12">
+                                            <span style="color:#6c757d; font-size:0.85rem;">
+                                                @L["ProductCategory:InheritedValueHint", v.SourceCategoryName ?? string.Empty]
+                                            </span>
+                                        </DxFormLayoutItem>
+                                    }
+                                    <DxFormLayoutItem Caption="@($"{L["Value"]} *")" ColSpanMd="12">
+                                        <DxTextBox @bind-Text="@v.Value" ReadOnly="@v.IsInherited" />
+                                    </DxFormLayoutItem>
+                                    <DxFormLayoutItem Caption="@L["DisplayOrder"]" ColSpanMd="6">
+                                        <NumericSpinEdit @bind-Value="@v.DisplayOrder" ReadOnly="@v.IsInherited" />
+                                    </DxFormLayoutItem>
+                                </DxFormLayout>
+                            </EditContent>
+                        </DrillList>
+                    </DxFormLayoutGroup>
+                </DxFormLayout>
+            </EditContent>
+        </DrillList>
+    </DxTabPage>
+
+    @* Satış kanalı eşleştirmeleri — "bu kategorimiz N11'de şu, Trendyol'da bu kategoridir". Ürün buraya
+       bağlanınca kanal kategorisi ve KOMİSYON otomatik çözülür. Eşleştirme KALITIMLIDIR: alt kategori kendi
+       eşleştirmesini tanımlamazsa en yakın atasınınki kullanılır — kullanıcı "Takı" düzeyinde bir kez eşleştirir.
+
+       2026-07-28 Hakan: tek N11 alanı yerine DRILL GRID — kanal başına bir satır. Yalnız KAYITLI kategoride
+       anlamlı (eşleştirme kategori kimliğine asılır) ve satırlar ANINDA kaydedilir (form kaydını beklemez). *@
+    @* Sekme YALNIZ kaydedilmiş kategoride: eşleştirme kategori kimliğine asılır, yeni kayıtta yazılacak
+       hedef henüz yoktur (satırlar anında kaydedilir, form kaydını beklemez). *@
+    @if (CanEditChannelMappings)
+    {
+        <DxTabPage Text="@L["ProductCategory:ChannelMappings"]" TabIconCssClass="@TradeXpressIcons.SalesChannel">
+            <span style="color:#6c757d; font-size:0.85rem;">@L["ProductCategory:ChannelMappingsHint"]</span>
+            <DrillList TItem="ProductCategoryChannelMappingDto"
+                       @ref="_mappingDrill"
+                       Title="@L["ProductCategory:ChannelMappings"]"
+                       EntityName="@L["ProductCategory:ChannelMapping"]"
+                       EntityIcon="@TradeXpressIcons.SalesChannel"
+                       Items="@ChannelMappings"
+                       PrimaryTextSelector="@(m => ChannelText(m.Channel))"
+                       NewItemFactory="@(() => new ProductCategoryChannelMappingDto())"
+                       SaveGuard="@MappingSaveGuard"
+                       OnItemSaved="@OnMappingSavedAsync"
+                       OnChanged="@(() => EditChanged?.Invoke())"
+                       ShowActiveFilter="false"
+                       ShowExport="false"
+                       ShowSearch="false">
+                <GridColumns>
+                    <GridLinkColumn FieldName="Channel" Caption="@L["ProductCategory:Channel"]" Width="150px"
+                                    VisibleIndex="1"
+                                    TextSelector="@(item => ChannelText(((ProductCategoryChannelMappingDto)item).Channel))"
+                                    OnClick="@(item => _mappingDrill?.EditItem((ProductCategoryChannelMappingDto)item))" />
+                    <DxGridDataColumn FieldName="ChannelCategoryName" Caption="@L["ProductCategory:ChannelCategory"]" MinWidth="220" />
+                    <DxGridDataColumn FieldName="EffectiveCommissionRate" Caption="@L["ProductCategory:EffectiveCommission"]" Width="140px">
+                        <CellDisplayTemplate>
+                            @CommissionText(((ProductCategoryChannelMappingDto)context.DataItem).EffectiveCommissionRate)
+                        </CellDisplayTemplate>
+                    </DxGridDataColumn>
+                </GridColumns>
+                <EditContent Context="m">
+                    @* KAYITLI satır düzenlemeye açıldığında da nitelik listesi gelsin: seçenekleri yalnız
+                       "kategori seçildi" olayı doldursaydı, mevcut bir eşleştirmeyi açan kullanıcı boş combo
+                       görür ve eşleştirmeyi ancak kategoriyi yeniden seçerek düzenleyebilirdi. *@
+                    @{ EnsureChannelAttributeOptions(m); }
+                    <DxFormLayout CssClass="w-100">
+                        @* Kanal set-once: kaydedilmiş satırda değiştirilemez — kanal eşleştirmenin kimliğidir
+                           (kanal başına tek satır), değiştirmek "sil + yeniden ekle" demektir. *@
+                        <DxFormLayoutItem Caption="@($"{L["ProductCategory:Channel"]} *")" ColSpanMd="6">
+                            <ComboBoxEnumEdit TEnum="SalesChannelType" L="@L"
+                                              Value="@m.Channel"
+                                              ValueChanged="@((SalesChannelType v) => OnMappingChannelChanged(m, v))"
+                                              ValueExpression="@(() => m.Channel)"
+                                              Enabled="@(m.Id == Guid.Empty)" />
+                        </DxFormLayoutItem>
+
+                        @* Kanal kategorisi, seçilen kanalın KENDİ seçicisiyle bulunur (her pazaryerinin
+                           taksonomisi ayrıdır). *@
+                        <DxFormLayoutItem Caption="@L["ProductCategory:ChannelCategory"]" ColSpanMd="12">
+                            @switch (m.Channel)
+                            {
+                                case SalesChannelType.TrN11:
+                                    <N11CategoryPicker SelectedExternalId="@m.ChannelCategoryExternalId"
+                                                       SelectedName="@m.ChannelCategoryName"
+                                                       OnLeafSelected="@(s => OnChannelCategorySelected(m, s.ExternalId, s.Name))" />
+                                    break;
+                                case SalesChannelType.TrTrendyol:
+                                    <TrendyolCategoryPicker SelectedExternalId="@m.ChannelCategoryExternalId"
+                                                            SelectedName="@m.ChannelCategoryName"
+                                                            OnLeafSelected="@(s => OnChannelCategorySelected(m, s.ExternalId, s.Name))" />
+                                    break;
+                                case SalesChannelType.Etsy:
+                                    <EtsyTaxonomyPicker SelectedExternalId="@m.ChannelCategoryExternalId"
+                                                        SelectedName="@m.ChannelCategoryName"
+                                                        OnLeafSelected="@(s => OnChannelCategorySelected(m, s.ExternalId, s.Name))" />
+                                    break;
+                            }
+                        </DxFormLayoutItem>
+
+                        @if (m.EffectiveCommissionRate is not null)
+                        {
+                            <DxFormLayoutItem Caption="@L["ProductCategory:EffectiveCommission"]" ColSpanMd="6">
+                                <span>@CommissionText(m.EffectiveCommissionRate)</span>
+                            </DxFormLayoutItem>
+                        }
+
+                        @* ÖZELLİK EŞLEŞTİRMESİ — kategorinin spesifikasyon nitelikleri kanalın karşılıklarına
+                           bağlanır ("Ayar" → N11 "Maden Ayarı"). Satırlar SABİT (kategoriden gelir); kullanıcı
+                           yalnız sağ hücreyi seçer. Ada göre otomatik eşleşmeye güvenilemez: pazaryerleri aynı
+                           kavramı farklı adlandırır ve eşleşmeyen zorunlu nitelik ürünü push'ta reddettirir. *@
+                        <DxFormLayoutGroup Caption="@L["ProductCategory:AttributeMappings"]" ColSpanMd="12"
+                                           CaptionPosition="CaptionPosition.Vertical">
+                            <DxFormLayoutItem ColSpanMd="12">
+                                    @if (string.IsNullOrWhiteSpace(m.ChannelCategoryExternalId))
+                                    {
+                                        <InlineWarning>@L["ProductCategory:AttributeMappingNeedsCategory"]</InlineWarning>
+                                    }
+                                    else if (m.AttributeMappings.Count == 0)
+                                    {
+                                        <InlineWarning>@L["ProductCategory:AttributeMappingNoSpecifications"]</InlineWarning>
+                                    }
+                                    else
+                                    {
+                                        <DxGrid Data="@m.AttributeMappings" KeyFieldName="ProductCategoryAttributeId"
+                                                EditMode="GridEditMode.EditCell"
+                                                EditModelSaving="@(e => OnAttributeMappingSaving(m, e))"
+                                                PageSize="200" PagerVisible="false"
+                                                CssClass="w-100">
+                                            <Columns>
+                                                <DxGridDataColumn FieldName="AttributeName"
+                                                                  Caption="@L["ProductCategory:OwnAttribute"]"
+                                                                  Width="40%" ReadOnly="true" />
+                                                @* FieldName ŞART: EditCell modunda FieldName'siz kolon
+                                                   düzenlenebilir hücre sayılmaz. *@
+                                                <DxGridDataColumn FieldName="ChannelAttributeName"
+                                                                  Caption="@L["ProductCategory:ChannelAttribute"]">
+                                                    <CellDisplayTemplate Context="cell">
+                                                        @{ var r = (ProductCategoryChannelAttributeMappingDto)cell.DataItem; }
+                                                        <span>@(string.IsNullOrEmpty(r.ChannelAttributeName) ? "-" : r.ChannelAttributeName)</span>
+                                                    </CellDisplayTemplate>
+                                                    <CellEditTemplate Context="cell">
+                                                        @{ var row = (ProductCategoryChannelAttributeMappingDto)cell.EditModel; }
+                                                        @* Kanal niteliği KİMLİĞİYLE seçilir (ad bayatlayabilir);
+                                                           combo değer olarak kimliği taşır, metin olarak adı gösterir. *@
+                                                        <DxComboBox Data="@ChannelAttributeOptions"
+                                                                    TData="ChannelAttributeOption"
+                                                                    TValue="string"
+                                                                    ValueFieldName="@nameof(ChannelAttributeOption.ExternalId)"
+                                                                    TextFieldName="@nameof(ChannelAttributeOption.DisplayName)"
+                                                                    Value="@row.ChannelAttributeExternalId"
+                                                                    ValueChanged="@((string? v) => OnChannelAttributePicked(row, v))"
+                                                                    ValueExpression="@(() => row.ChannelAttributeExternalId)"
+                                                                    SearchMode="ListSearchMode.AutoSearch"
+                                                                    ValidationEnabled="false"
+                                                                    ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto"
+                                                                    NullText="@L["ProductCategory:ChannelAttributePlaceholder"].Value"
+                                                                    CssClass="w-100" />
+                                                    </CellEditTemplate>
+                                                </DxGridDataColumn>
+                                            </Columns>
+                                            @* DEĞER EŞLEŞTİRMESİ — nitelik satırı açılınca altında görünür.
+                                               Pazaryerleri çoğu nitelikte serbest metin değil KENDİ değer
+                                               listelerinden kimlik bekler; "22K" ile "22 Ayar" ada göre
+                                               eşleşmediğinden değer katmanı olmadan ürün reddedilir. *@
+                                            <DetailRowTemplate Context="detail">
+                                                @{ var attr = (ProductCategoryChannelAttributeMappingDto)detail.DataItem; }
+                                                @if (string.IsNullOrWhiteSpace(attr.ChannelAttributeExternalId))
+                                                {
+                                                    <InlineWarning>@L["ProductCategory:ValueMappingNeedsAttribute"]</InlineWarning>
+                                                }
+                                                else if (attr.ValueMappings.Count == 0)
+                                                {
+                                                    <InlineWarning>@L["ProductCategory:ValueMappingNoValues"]</InlineWarning>
+                                                }
+                                                else if (ValueOptionsFor(attr).Count == 0)
+                                                {
+                                                    @* Kanal bu nitelikte SERBEST METİN kabul ediyor → eşleştirilecek
+                                                       liste yok; ürün değeri olduğu gibi gider. *@
+                                                    <InlineWarning>@L["ProductCategory:ValueMappingFreeText"]</InlineWarning>
+                                                }
+                                                else
+                                                {
+                                                    <DxGrid Data="@attr.ValueMappings" KeyFieldName="ProductCategoryAttributeValueId"
+                                                            EditMode="GridEditMode.EditCell"
+                                                            EditModelSaving="@(e => OnValueMappingSaving(attr, e))"
+                                                            PageSize="200" PagerVisible="false"
+                                                            CssClass="w-100">
+                                                        <Columns>
+                                                            <DxGridDataColumn FieldName="ValueText"
+                                                                              Caption="@L["ProductCategory:OwnValue"]"
+                                                                              Width="40%" ReadOnly="true" />
+                                                            <DxGridDataColumn FieldName="ChannelValueName"
+                                                                              Caption="@L["ProductCategory:ChannelValue"]">
+                                                                <CellDisplayTemplate Context="vcell">
+                                                                    @{ var vr = (ProductCategoryChannelAttributeValueMappingDto)vcell.DataItem; }
+                                                                    <span>@(string.IsNullOrEmpty(vr.ChannelValueName) ? "-" : vr.ChannelValueName)</span>
+                                                                </CellDisplayTemplate>
+                                                                <CellEditTemplate Context="vcell">
+                                                                    @{ var vrow = (ProductCategoryChannelAttributeValueMappingDto)vcell.EditModel; }
+                                                                    <DxComboBox Data="@ValueOptionsFor(attr)"
+                                                                                TData="ChannelValueOption"
+                                                                                TValue="string"
+                                                                                ValueFieldName="@nameof(ChannelValueOption.ExternalId)"
+                                                                                TextFieldName="@nameof(ChannelValueOption.Name)"
+                                                                                Value="@vrow.ChannelValueExternalId"
+                                                                                ValueChanged="@((string? v) => OnChannelValuePicked(attr, vrow, v))"
+                                                                                ValueExpression="@(() => vrow.ChannelValueExternalId)"
+                                                                                SearchMode="ListSearchMode.AutoSearch"
+                                                                                ValidationEnabled="false"
+                                                                                ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto"
+                                                                                NullText="@L["ProductCategory:ChannelValuePlaceholder"].Value"
+                                                                                CssClass="w-100" />
+                                                                </CellEditTemplate>
+                                                            </DxGridDataColumn>
+                                                        </Columns>
+                                                    </DxGrid>
+                                                }
+                                            </DetailRowTemplate>
+                                        </DxGrid>
+                                    }
+                            </DxFormLayoutItem>
+                        </DxFormLayoutGroup>
+                    </DxFormLayout>
+                </EditContent>
+            </DrillList>
+        </DxTabPage>
+    }
+</DrillTabs>

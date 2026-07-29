@@ -22,4 +22,10 @@ public interface IProductAppService : ICrudAppService<
     /// <c>GetAsync</c> projeksiyonuyla AYNI motor (ülke birimine rebase + calculator). Satır-başı Uygulanacak Bedel /
     /// Satır Maliyeti / Ara Toplam + varyant net'i döner. DB'ye YAZMAZ (design-time; ledger'a değmez).</summary>
     Task<ProductRecipeCostResultDto> CalculateRecipeCostAsync(ProductRecipeCostRequestDto input);
+
+    /// <summary>
+    /// Ürünün genel özelliklerini bir KANALIN nitelik alanlarına çevirir (kategori eşleştirmeleri üzerinden).
+    /// Kanal ürünü kurulurken nitelikler bununla ön-doldurulur — kullanıcı aynı bilgiyi ikinci kez girmesin.
+    /// </summary>
+    Task<List<ProductChannelAttributeDto>> ResolveChannelAttributesAsync(ProductChannelAttributeResolveDto input);
 }

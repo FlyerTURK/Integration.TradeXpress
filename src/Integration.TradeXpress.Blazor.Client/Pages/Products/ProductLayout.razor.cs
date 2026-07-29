@@ -1,23 +1,28 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 using DevExpress.Blazor;
 using Integration.Framework.Blazor.Client.Components.Crud;
 using Integration.TradeXpress.AddOns;
 using Integration.TradeXpress.Blazor.Client.Components.Shared;
+using Integration.TradeXpress.Countries;
 using Integration.TradeXpress.Financials.CurrencyUnits;
 using Integration.TradeXpress.Futures;
 using Integration.TradeXpress.Goods;
 using Integration.TradeXpress.Jewelries;
 using Integration.TradeXpress.Metals;
+using Integration.TradeXpress.ProductCategories;
+using Integration.TradeXpress.RecipeTemplates;
 using Integration.TradeXpress.Products;
 using Integration.TradeXpress.Scraps;
 using Integration.TradeXpress.Services;
 using Integration.TradeXpress.Stones;
 using Integration.TradeXpress.Substitutions;
+using Integration.TradeXpress.VariantTemplates;
 using Microsoft.AspNetCore.Components;
 
 namespace Integration.TradeXpress.Blazor.Client.Pages.Products;
@@ -38,6 +43,16 @@ public partial class ProductLayout
     [Parameter] public IReadOnlyList<StoneListDto> Stones { get; set; } = Array.Empty<StoneListDto>();
     [Parameter] public IReadOnlyList<ServiceListDto> Services { get; set; } = Array.Empty<ServiceListDto>();
     [Parameter] public IReadOnlyList<CurrentPriceDto> Units { get; set; } = Array.Empty<CurrentPriceDto>();
+
+    /// <summary>Kategori popup'ından YENİ kategori isteniyor — host katalog formunu açar, dönen id seçilir.
+    /// Layout DUMB kalır (ViewOpener'ı host kullanır).</summary>
+    [Parameter] public Func<Task<Guid?>>? OnAddProductCategory { get; set; }
+
+    /// <summary>Seçili kategoriyi düzenleme isteği — host katalog formunu açar, kapanınca liste tazelenir.</summary>
+    [Parameter] public Func<Guid, Task>? OnEditProductCategory { get; set; }
+
+    /// <summary>Ülke katalogu (menşei seçimi) — host yükler (DUMB layout servis çağırmaz).</summary>
+    [Parameter] public IReadOnlyList<CountryListDto> Countries { get; set; } = Array.Empty<CountryListDto>();
 
     /// <summary>Varsayılan para birimi lookup verisi — host yükler (DUMB layout servis çağırmaz).</summary>
     [Parameter] public IReadOnlyList<CurrencyUnitListDto> CurrencyUnits { get; set; } = Array.Empty<CurrencyUnitListDto>();
@@ -132,6 +147,270 @@ public partial class ProductLayout
     /// üretir (VariantGraphMerge — kullanıcı düzenlemeleri korunur). Layout DUMB kalır (servis çağırmaz); işi host yapar.</summary>
     [Parameter] public EventCallback OnGenerateVariants { get; set; }
 
+    /// <summary>Çekirdek ürün kategorisi katalogu (yol sıralı) — host yükler (DUMB layout servis çağırmaz).</summary>
+    [Parameter] public IReadOnlyList<ProductCategoryListDto> ProductCategories { get; set; } = Array.Empty<ProductCategoryListDto>();
+
+    /// <summary>Inline kategori ekle/düzelt sonrası katalog listesini host tazeler (yeni kategori anında combo'ya düşsün).</summary>
+    [Parameter] public EventCallback OnReloadProductCategories { get; set; }
+
+    /// <summary>Seçili kategorinin SPESİFİKASYON nitelikleri (kalıtım çözülmüş) — host yükler, kategori
+    /// değişince tazeler. Layout DUMB kalır (servis çağırmaz).</summary>
+    [Parameter] public IReadOnlyList<ProductCategoryEffectiveAttributeDto> CategorySpecificationAttributes { get; set; }
+        = Array.Empty<ProductCategoryEffectiveAttributeDto>();
+
+    /// <summary>
+    /// Formda gösterilen özellik satırları — KATEGORİ tanımı sürücüdür, ürünün kayıtlı değerleri değil.
+    ///
+    /// <para><b>Neden kategoriden türetiliyor:</b> ürün daha önce hiç değer girmemişse yine de sorulmalı;
+    /// kayıtlı satırlardan üretilseydi yeni ürün boş bir ekran görür ve hangi özellikleri girmesi gerektiğini
+    /// bilemezdi. Kayıtlı değer varsa satıra yerleşir, yoksa boş açılır.</para>
+    ///
+    /// <para><b>Neden ALANDA tutuluyor (getter değil):</b> grid satır NESNESİNİ kimlik olarak kullanır — her
+    /// render'da yeni liste üretilseydi hücre düzenlemesi açıldığı anda kapanırdı.</para>
+    ///
+    /// <para>Kategoride ARTIK OLMAYAN bir niteliğin eski değeri gösterilmez — sunucu da kaydetmede onu siler;
+    /// göstermek, kullanıcının düzenleyebildiğini sandığı ama hiçbir yere gitmeyen bir alan üretirdi.</para>
+    /// </summary>
+    // Varyant kapsamı ağacı — "Tümünü Seç" başlıktaki butondan çağrılır (panel eylemi dışarı açar).
+    private SubstitutionVariantTreePanel? _variantScopePanel;
+
+    private List<SpecificationRow> _specificationRows = new();
+
+    // Satırların kurulduğu kaynak — referans değişince (host yeni kategorinin niteliklerini yükledi) yeniden kurulur.
+    private IReadOnlyList<ProductCategoryEffectiveAttributeDto>? _specificationRowsSource;
+
+    private List<SpecificationRow> SpecificationRows => _specificationRows;
+
+    private void RebuildSpecificationRowsIfChanged()
+    {
+        if (ReferenceEquals(_specificationRowsSource, CategorySpecificationAttributes))
+        {
+            return;
+        }
+
+        _specificationRowsSource = CategorySpecificationAttributes;
+        _specificationRows = CategorySpecificationAttributes
+            .OrderBy(a => a.DisplayOrder).ThenBy(a => a.Name, StringComparer.CurrentCultureIgnoreCase)
+            .Select(a => new SpecificationRow
+            {
+                AttributeId = a.AttributeId,
+                Name = a.Name,
+                Options = a.Values.OrderBy(v => v.DisplayOrder).Select(v => v.Value).ToList(),
+                Value = Model.Specifications
+                    .FirstOrDefault(sp => sp.ProductCategoryAttributeId == a.AttributeId)?.Value ?? string.Empty,
+            })
+            .ToList();
+    }
+
+    /// <summary>Hücre düzenlemesi kaydedildi — düzenlenen satırı KİMLİĞİYLE bulup değeri hem satıra hem
+    /// <c>Model.Specifications</c>'a uygular (grid düzenleme için satırın KOPYASINI verir; kopyayı listeye
+    /// koymak canlı satırı bayat bırakırdı). Boş değer satırı KALDIRIR — sunucu da boş satır saklamaz.</summary>
+    private void OnSpecificationRowSaving(GridEditModelSavingEventArgs e)
+    {
+        if (e.EditModel is not SpecificationRow edited)
+        {
+            return;
+        }
+
+        var row = _specificationRows.FirstOrDefault(r => r.AttributeId == edited.AttributeId);
+        if (row is null)
+        {
+            return;
+        }
+
+        row.Value = edited.Value?.Trim() ?? string.Empty;
+
+        Model.Specifications.RemoveAll(sp => sp.ProductCategoryAttributeId == row.AttributeId);
+        if (!string.IsNullOrWhiteSpace(row.Value))
+        {
+            Model.Specifications.Add(new ProductSpecificationDto
+            {
+                ProductCategoryAttributeId = row.AttributeId,
+                Name = row.Name,
+                Value = row.Value,
+            });
+        }
+
+        EditChanged?.Invoke();
+    }
+
+    /// <summary>Bir özellik satırı: nitelik kimliği + adı + kategoriden gelen ÖNERİLEN değerler + girilen değer.
+    /// Grid hücre-içi düzenlemede satırın KOPYASINI ürettiğinden MUTABLE sınıf (record değil).</summary>
+    private sealed class SpecificationRow
+    {
+        public Guid AttributeId { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public List<string> Options { get; set; } = new();
+        public string Value { get; set; } = string.Empty;
+
+        /// <summary>Kategoride tanımlı değer listesi var mı — varsa combo, yoksa serbest metin.</summary>
+        public bool HasOptions => Options.Count > 0;
+    }
+
+    /// <summary>Reçete şablonu ("orta reçete") katalogu — host yükler.</summary>
+    [Parameter] public IReadOnlyList<RecipeTemplateListDto> RecipeTemplates { get; set; } = Array.Empty<RecipeTemplateListDto>();
+
+    /// <summary>Inline reçete şablonu ekle/düzelt sonrası katalog listesini host tazeler.</summary>
+    [Parameter] public EventCallback OnReloadRecipeTemplates { get; set; }
+
+    /// <summary>Seçilen reçete şablonunu ürüne uygulama İSTEĞİ — host şablonu ürünün varyantlarına serer.</summary>
+    [Parameter] public Func<Guid, Task>? OnApplyRecipeTemplate { get; set; }
+
+    /// <summary>Varyant şablonu katalogu — host yükler (DUMB layout servis çağırmaz).</summary>
+    [Parameter] public IReadOnlyList<VariantTemplateListDto> VariantTemplates { get; set; } = Array.Empty<VariantTemplateListDto>();
+
+    /// <summary>Inline şablon ekle/düzelt sonrası katalog listesini host tazeler (yeni şablon anında combo'ya düşsün).</summary>
+    [Parameter] public EventCallback OnReloadVariantTemplates { get; set; }
+
+    /// <summary>Seçilen şablonu ürüne uygulama İSTEĞİ — host şablonu yükleyip nitelik grafına katar.</summary>
+    [Parameter] public Func<Guid, Task>? OnApplyVariantTemplate { get; set; }
+
+    /// <summary>Combo DAİMA boş durur: şablon bir KAYNAK, ürünle kalıcı bağ kurmaz — üzerinde seçili kalması
+    /// "bu ürün o şablona bağlı" izlenimi verirdi. Boş kalması aynı şablonun tekrar uygulanmasına da izin verir.</summary>
+    private Guid? _selectedVariantTemplateId;
+
+    /// <summary>Seçili kategori kanal eşleştirmesiz mi — uyarı bunun için gösterilir. Kategori seçili DEĞİLSE
+    /// uyarı çıkmaz: o durumda zaten "kategori zorunlu" hatası konuşur, iki mesaj birden gürültü olurdu.
+    ///
+    /// <para>Katalog listesi henüz yüklenmediyse (satır bulunamıyorsa) da SUSAR — yükleme gecikmesini
+    /// "eşleştirme yok" diye raporlamak yanlış alarm üretirdi.</para></summary>
+    private bool ShowMissingChannelMappingWarning
+    {
+        get
+        {
+            if (Model.ProductCategoryId is not { } categoryId)
+            {
+                return false;
+            }
+
+            var category = ProductCategories.FirstOrDefault(c => c.Id == categoryId);
+            return category is not null && !category.HasChannelMapping;
+        }
+    }
+
+    /// <summary>Talep miktarı caption'ının birim eki — SEÇİLİ MUADİL GRUBUNUN birimi (" (lt)"). Etiket
+    /// eskiden "(gr)" olarak SABİTTİ; litre/kilo ile çalışan bir grupta yanlış birim gösteriyordu
+    /// (2026-07-28 Hakan). Grup seçilmemişse ya da birimi boşsa ek çıkmaz.</summary>
+    private string SubstitutionUnitSuffix
+    {
+        get
+        {
+            if (Model.SubstitutionGroupId is not { } groupId)
+            {
+                return string.Empty;
+            }
+
+            var unit = SubstitutionGroups.FirstOrDefault(g => g.Id == groupId)?.QuantityUnit;
+            return string.IsNullOrWhiteSpace(unit) ? string.Empty : $" ({unit})";
+        }
+    }
+
+    /// <summary>İndirim tipi değişti — tip seçilince değer 0'a KURULUR (boş kalmasın: alan zorunlu ve boş
+    /// bir sayı kutusu "girdim mi girmedim mi" belirsizliği yaratıyordu). "İndirim yok"a dönülünce değer ve
+    /// tarihler temizlenir — sunucu da aynısını yapıyor (SetDiscount), iki taraf hizalı kalsın.</summary>
+    private void OnDiscountTypeChanged(ProductDiscountType type)
+    {
+        Model.DiscountType = type;
+        if (type == ProductDiscountType.None)
+        {
+            Model.DiscountValue = null;
+            Model.DiscountStartDate = null;
+            Model.DiscountEndDate = null;
+        }
+        else
+        {
+            Model.DiscountValue ??= 0m;
+        }
+
+        EditChanged?.Invoke();
+    }
+
+    /// <summary>İndirim değeri caption'ının birim eki — TUTAR tipinde ürünün para birimi kodu (" (TRY)"),
+    /// yüzde tipinde ya da birim seçilmemişken boş. Para birimi katalogda bulunamazsa da boş döner (bayat
+    /// id yüzünden caption'a ham Guid yazılmasın).</summary>
+    private string DiscountValueUnitSuffix
+    {
+        get
+        {
+            if (Model.DiscountType != ProductDiscountType.Amount || Model.CurrencyUnitId is not { } unitId)
+            {
+                return string.Empty;
+            }
+
+            var code = CurrencyUnits.FirstOrDefault(u => u.Id == unitId)?.Code;
+            return string.IsNullOrWhiteSpace(code) ? string.Empty : $" ({code})";
+        }
+    }
+
+    private async Task<Guid?> OnAddProductCategoryRequested()
+    {
+        return OnAddProductCategory is null ? null : await OnAddProductCategory();
+    }
+
+    private async Task OnEditProductCategoryRequested(Guid? categoryId)
+    {
+        if (OnEditProductCategory is not null && categoryId is { } id && id != Guid.Empty)
+        {
+            await OnEditProductCategory(id);
+        }
+    }
+
+    /// <summary>Kategori seçimi — şablondan FARKLI olarak KALICI bir bağdır (combo seçili kalır); ürünün
+    /// kanal kategorisi, kanal nitelikleri ve komisyonu bu bağdan çözülecek.</summary>
+    private async Task OnProductCategoryChanged(Guid? categoryId)
+    {
+        Model.ProductCategoryId = categoryId;
+
+        // Özellik alanları kategoriye bağlı — host yeni kategorinin niteliklerini çeker (layout DUMB kalır).
+        // İşaret burada da güncellenir ki OnParametersSetAsync aynı kategoriyi İKİNCİ kez istemesin.
+        if (OnProductCategorySelected is not null)
+        {
+            _requestedSpecificationCategoryId = categoryId;
+            await OnProductCategorySelected(categoryId);
+        }
+
+        EditChanged?.Invoke();
+    }
+
+    /// <summary>Kategori seçimi değişti — host "Özellikler" sekmesinin nitelik listesini tazeler.</summary>
+    [Parameter] public Func<Guid?, Task>? OnProductCategorySelected { get; set; }
+
+    /// <summary>Reçete şablonu seçimi artık ÜRÜNE KAYITLIDIR (2026-07-28 Hakan): muadil motoru stok değişince
+    /// kombinasyonları yeniden üretiyor ve ara masraf satırlarını (paketleme/kargo/sigorta) bu şablondan
+    /// tazeleyecek — form ömürlü bir seçim, yeniden üretimde o satırların kaynağını bilinemez kılardı.</summary>
+    private Guid? _selectedRecipeTemplateId
+    {
+        get { return Model.RecipeTemplateId; }
+        set { Model.RecipeTemplateId = value; }
+    }
+
+    private void OnRecipeTemplateSelected(Guid? templateId)
+    {
+        _selectedRecipeTemplateId = templateId;
+        EditChanged?.Invoke();
+    }
+
+    private async Task ApplySelectedRecipeTemplateAsync()
+    {
+        if (_selectedRecipeTemplateId is not { } id || OnApplyRecipeTemplate is null)
+        {
+            return;
+        }
+
+        await OnApplyRecipeTemplate(id);
+    }
+
+    private async Task ApplyVariantTemplateAsync(Guid? templateId)
+    {
+        if (templateId is not { } id || OnApplyVariantTemplate is null)
+        {
+            return;
+        }
+
+        await OnApplyVariantTemplate(id);
+        _selectedVariantTemplateId = null;
+    }
+
     // ── Varyant modu + Muadil (Dilim-3) — layout DUMB: onay/servis işleri host'ta, burada yalnız bağlama ──
 
     /// <summary>Varyant modu değişim İSTEĞİ — host onaylar (MultiVariant'tan çıkışta veri-kaybı uyarısı) ve
@@ -159,6 +438,212 @@ public partial class ProductLayout
     /// <summary>"Kombinasyon Hesapla" — host CalculateAsync'i override'lı çağırır.</summary>
     [Parameter] public EventCallback OnCalculateSubstitution { get; set; }
 
+    /// <summary>Otomatik yeniden hesabın bekleme süresi — kullanıcı arka arkaya kutu işaretlerken her tık
+    /// için sunucuya gidilmesin.</summary>
+    private const int SubstitutionRecalcDelayMs = 400;
+
+    /// <summary>Bekleyen otomatik hesap — yeni değişiklik öncekini iptal eder (son yazan kazanır).</summary>
+    private CancellationTokenSource? _substitutionRecalcCts;
+
+    /// <summary>
+    /// Hesap sonucundaki kombinasyonları VARYANT listesine yansıtır — kaydetmeden. Sunucu bunu kayıt anında
+    /// zaten yapıyor (SubstitutionVariantMaterializer); burada aynı sonucun ÖNİZLEMESİ kurulur ki kullanıcı
+    /// kapsamı/miktarı değiştirir değiştirmez varyantları görsün (2026-07-27 Hakan kararı).
+    ///
+    /// <para><b>Kod eşleşmesi kimliği korur:</b> mevcut varyantın kodu hesapta da varsa satır YERİNDE kalır —
+    /// stok/barkod/GTIN ve kanal SKU bağları kopmaz. Kod üreticisi sunucuyla TEK kaynak
+    /// (<c>SubstitutionCombinationCodeBuilder</c>), yani önizlemedeki kod kayıttakiyle birebir aynıdır.</para>
+    ///
+    /// <para><b>Ana varyant:</b> en iyi sıradaki kombinasyon ana olur (sunucudaki Rank 1 kuralı).
+    /// Muadil dışı modlarda hiç çalışmaz.</para>
+    /// </summary>
+    /// <summary>Şablon satırının BAŞKA bir varyanta serilecek kopyası — kimlik alanları sıfırlanır
+    /// (<c>Id</c> boş = yeni satır, <c>ClientKey</c> taze): aynı Id iki varyantta görünseydi kaydetmede
+    /// satırlar birbirini ezerdi.</summary>
+    private static ProductRecipeLineGraphDto KlonlaSablonSatiri(ProductRecipeLineGraphDto kaynak)
+    {
+        var json = JsonSerializer.Serialize(kaynak);
+        var kopya = JsonSerializer.Deserialize<ProductRecipeLineGraphDto>(json)!;
+        kopya.Id = Guid.Empty;
+        kopya.ClientKey = Guid.NewGuid();
+        kopya.IsDeleted = false;
+        // Bayat maliyet gösterme: LineCost/AppliedBase ESKİ varyantın hesabından — sıfırlanır, doğrusu
+        // hemen ardından koşan sunucu hesabıyla dolar.
+        kopya.LineCost = null;
+        kopya.AppliedBase = null;
+        return kopya;
+    }
+
+    private void SyncSubstitutionVariantPreview()
+    {
+        if (Model.VariantMode != ProductVariantMode.Substitution || SubstitutionResult is null)
+        {
+            return;
+        }
+
+        // Seçim kuralı SUNUCUYLA ORTAK (SubstitutionVariantSelection) — önizlemede başka, kayıtta başka
+        // varyant çıkmasın diye kural tek yerde yaşar.
+        var secilenler = SubstitutionVariantSelection.Select(
+            SubstitutionResult.Trials, Model.SubstitutionVariantMode);
+
+        // Hesap hiç başarılı kombinasyon vermediyse (stok yok/tolerans dar) mevcut varyantlara DOKUNULMAZ:
+        // ekranı boşaltmak, kullanıcının kayıtlı varyantlarını yok olmuş gibi gösterirdi.
+        if (secilenler.Count == 0)
+        {
+            return;
+        }
+
+        var mevcutlar = Model.Variants.Where(v => !v.IsDeleted).ToList();
+        var yeniListe = new List<ProductVariantGraphDto>();
+
+        // ŞABLON PROTOTİPİ — mevcut varyantlardan birindeki şablon (ara masraf) satırları. Yeni doğan
+        // kombinasyonlara bunun KOPYASI serilir: hedef miktar değişince varyant kümesi baştan kuruluyor ve
+        // kombinasyon satırları şablon satırlarını eziyordu; kullanıcı paketleme/kargo/sigortayı her seferinde
+        // elle yeniden uygulamak zorunda kalıyor, unuttuğunda fiyat sessizce eksik çıkıyordu (2026-07-28 Hakan).
+        var sablonPrototipi = mevcutlar
+            .Select(v => v.RecipeLines.Where(l => !l.IsDeleted && l.Origin == RecipeLineOrigin.Template).ToList())
+            .FirstOrDefault(l => l.Count > 0) ?? new List<ProductRecipeLineGraphDto>();
+
+        for (var i = 0; i < secilenler.Count; i++)
+        {
+            var trial = secilenler[i];
+            var eslesen = mevcutlar.FirstOrDefault(
+                v => string.Equals(v.Code, trial.CombinationCode, StringComparison.OrdinalIgnoreCase));
+
+            var variant = eslesen ?? new ProductVariantGraphDto { Code = trial.CombinationCode };
+            variant.Code = trial.CombinationCode;
+            variant.Name = trial.CombinationCode;
+            // "Kombinasyon" kolonu nitelik özetinden beslenir; materyalize varyantın niteliği olmadığı için
+            // orası boş kalıyordu → bileşim + toplam özeti yazılır:
+            //   "1×5gr + 4×1gr = Toplam 5 parça, 10,02 gr"
+            // Cümle BURADA kurulur (sunucuda değil): metin lokalize, sayılar hesaptan hazır gelir.
+            variant.AttributeSummary = $"{trial.CombinationSummary} = " +
+                L["Substitution:TotalSummary", trial.PieceCount, trial.TotalWeight.ToString("0.#####")].Value;
+            variant.StockQuantity = trial.PackageCount;
+            // Maliyet hesaptan HAZIR gelir (kombinasyonun toplam maliyeti) — reçeteden yeniden hesaplamaya
+            // gerek yok, üstelik önizlemede reçete henüz kurulmuş değil.
+            variant.NetCost = trial.TotalCost;
+            variant.NetCostCurrency = SubstitutionResult.CostCurrencyCode;
+
+            // Reçete satırları da hesapla birlikte geldi (sunucu üretti, kayıt anıyla aynı matematik) →
+            // varyantın içi kaydetmeden dolu görünür. Boş gelirse (bağlam yüklenemedi) mevcut reçeteye
+            // DOKUNULMAZ: kullanıcının kayıtlı satırlarını önizleme yüzünden silmek veri kaybı olurdu.
+            if (trial.RecipeLines.Count > 0)
+            {
+                // Varyantın KENDİ şablon satırları varsa onlar korunur (kullanıcı düzenlemiş olabilir);
+                // yoksa prototipin kopyası serilir. Şablon satırları kombinasyon satırlarının ARDINA gelir:
+                // yüzde/brütleştirme kalemleri kendinden ÖNCEKİ satırların toplamına uygulanır, önde
+                // kalsalardı taban eksik hesaplanırdı.
+                var kendiSablonu = variant.RecipeLines
+                    .Where(l => !l.IsDeleted && l.Origin == RecipeLineOrigin.Template)
+                    .ToList();
+                var sablonSatirlari = kendiSablonu.Count > 0
+                    ? kendiSablonu
+                    : sablonPrototipi.Select(KlonlaSablonSatiri).ToList();
+
+                var sira = 0;
+                foreach (var satir in trial.RecipeLines)
+                {
+                    satir.LineOrder = sira++;
+                    // Kaynak işareti ŞART: sunucu, muadil kayıtta Id'siz otomatik-kaynaklı satırları eler
+                    // (sahibi materializer) — işaretsiz kalsa Manual sayılır ve reçetede İKİNCİ kez yazılırdı.
+                    satir.Origin = RecipeLineOrigin.Substitution;
+                }
+
+                foreach (var satir in sablonSatirlari)
+                {
+                    satir.LineOrder = sira++;
+                }
+
+                variant.RecipeLines = trial.RecipeLines.Concat(sablonSatirlari).ToList();
+            }
+            variant.IsMain = i == 0;
+            variant.IsActive = true;
+            yeniListe.Add(variant);
+        }
+
+        Model.Variants = yeniListe;
+    }
+
+    /// <summary>Varyant kapsamı değişti — formu kirlet + kombinasyonları tazele.</summary>
+    private async Task OnSubstitutionScopeChangedAsync()
+    {
+        EditChanged?.Invoke();
+        await ScheduleSubstitutionRecalculationAsync();
+    }
+
+    /// <summary>Hedef miktar değişti — modele yaz, formu kirlet, kombinasyonları tazele.</summary>
+    private async Task OnSubstitutionTargetQuantityChangedAsync(ProductGetDto model, decimal? value)
+    {
+        var previous = model.SubstitutionTargetQuantity;
+        model.SubstitutionTargetQuantity = value;
+        EditChanged?.Invoke();
+
+        // Hedef miktar DEĞİŞTİ → görünür emtia kümesi de değişir (miktarı aşan madenler elenir/geri gelir).
+        // Kapsam bu yüzden TAMAMEN SEÇİLİ kurulur: yeni giren bir maden seçilmemiş kalırsa kullanıcı onu
+        // fark etmeden kombinasyon dışında bırakır. Daraltmayı kullanıcı sonra yapar (2026-07-28 Hakan).
+        if (previous != value && value > 0m)
+        {
+            await SelectAllVariantScopeAsync();
+        }
+
+        await ScheduleSubstitutionRecalculationAsync();
+    }
+
+    /// <summary>Kapsam ağacındaki TÜM emtiaları seçer — ağaç henüz kurulmadıysa (grup ilk kez görünür oluyor)
+    /// bir sonraki render'a ertelenir; referans o zaman dolar.</summary>
+    private async Task SelectAllVariantScopeAsync()
+    {
+        if (_variantScopePanel is not null)
+        {
+            await _variantScopePanel.SelectAllAsync();
+            return;
+        }
+
+        _selectAllScopePending = true;
+    }
+
+    // Ağaç henüz render edilmemişken gelen "hepsini seç" isteği — panel kurulunca uygulanır.
+    private bool _selectAllScopePending;
+
+    /// <summary>Bekleyen "hepsini seç" isteğini panel kurulur kurulmaz uygular. Hedef miktar 0'dan büyüğe
+    /// çıktığında kapsam grubu O RENDER'DA görünür oluyor; panel referansı ancak ondan sonra dolduğu için
+    /// istek erteleniyor.</summary>
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        await base.OnAfterRenderAsync(firstRender);
+
+        if (_selectAllScopePending && _variantScopePanel is not null)
+        {
+            _selectAllScopePending = false;
+            await _variantScopePanel.SelectAllAsync();
+            StateHasChanged();
+        }
+    }
+
+    /// <summary>
+    /// Muadil girdisi değişince (kapsam ya da hedef miktar) kombinasyonlar KENDİLİĞİNDEN yeniden hesaplanır —
+    /// kullanıcının "Hesapla"ya basması gerekmez; kombinasyonları etkileyen başka girdi yok
+    /// (2026-07-27 Hakan kararı).
+    /// <para><b>Debounce şart:</b> her tık bir sunucu turu demek; hızlı daraltmada ardışık isteklerin
+    /// sonuncusu dışındakiler boşa gider ve sırasız dönerlerse ekranda bayat kombinasyon kalırdı.</para>
+    /// </summary>
+    private async Task ScheduleSubstitutionRecalculationAsync()
+    {
+        _substitutionRecalcCts?.Cancel();
+        var cts = new CancellationTokenSource();
+        _substitutionRecalcCts = cts;
+
+        try
+        {
+            await Task.Delay(SubstitutionRecalcDelayMs, cts.Token);
+            await OnCalculateSubstitution.InvokeAsync();
+        }
+        // Yeni değişiklik geldi — bu tur bilinçli düşürüldü.
+        catch (TaskCanceledException) { }
+        catch (OperationCanceledException) { }
+    }
+
     /// <summary>"Reçeteye Uygula" — seçilen BAŞARILI kombinasyon host'ta ana varyant reçetesine çevrilir.</summary>
     [Parameter] public EventCallback<SubstitutionTrialDto> OnApplySubstitutionTrial { get; set; }
 
@@ -173,6 +658,9 @@ public partial class ProductLayout
     private SubstitutionCalculationResultDto? _trialRowsSource;
     private List<SubstitutionTrialRow> _trialRows = new();
 
+    // Önizleme yeni kuruldu → satır maliyetleri (ara toplam/taban) sunucudan tazelenmeli.
+    private bool _previewCostsStale;
+
     // Grup kalemlerinin son istenen grup id'si — OnParametersSetAsync tetiklemesi yalnız DEĞİŞİMDE bir kez koşar
     // (mevcut kayıt Muadil modunda açıldığında devralınan-küme referansı host'tan yüklensin diye).
     private Guid? _requestedSubstitutionGroupId;
@@ -186,6 +674,21 @@ public partial class ProductLayout
         // "Reçeteye Uygula" bir ÖNCEKİ seçimden aktif boyanıp hemen ardından seçim sıfırlanıyordu → aktif ama işlevsiz
         // buton. Yan etkiyi yaşam döngüsüne almak markup sırasına bağımlılığı da ortadan kaldırır.
         RebuildTrialRowsIfResultChanged();
+        RebuildSpecificationRowsIfChanged();
+
+        // Önizleme varyantları yeni kurulduysa maliyetler SUNUCUDA yeniden hesaplanır (ara toplam + türetilmiş
+        // satır tabanları). Kombinasyon satırları maliyetle hazır gelir ama ŞABLON satırları prototipten
+        // klonlanıyor — klonun LineCost/AppliedBase'i ESKİ varyantın hesabından kalmadır; yeniden hesap
+        // olmadan devralınan taban yanlış görünür ve yüzde/brütleştirme kalemleri o yanlış tabandan hesaplanmış
+        // gibi okunurdu (2026-07-28 Hakan bulgusu).
+        if (_previewCostsStale && OnRecipeChanged is not null)
+        {
+            _previewCostsStale = false;
+            foreach (var variant in Model.Variants.Where(v => !v.IsDeleted && v.RecipeLines.Count > 0))
+            {
+                await OnRecipeChanged(variant);
+            }
+        }
 
         if (Model.VariantMode == ProductVariantMode.Substitution
             && Model.SubstitutionGroupId != _requestedSubstitutionGroupId
@@ -194,7 +697,18 @@ public partial class ProductLayout
             _requestedSubstitutionGroupId = Model.SubstitutionGroupId;
             await OnSubstitutionGroupChanged.InvokeAsync(Model.SubstitutionGroupId);
         }
+
+        // KAYITLI ürün açıldığında da özellik alanları gelsin: combo'dan geçmediği için OnProductCategoryChanged
+        // tetiklenmez ve "Özellikler" sekmesi boş açılırdı (muadil grup kalemleriyle AYNI desen).
+        if (Model.ProductCategoryId != _requestedSpecificationCategoryId && OnProductCategorySelected is not null)
+        {
+            _requestedSpecificationCategoryId = Model.ProductCategoryId;
+            await OnProductCategorySelected(Model.ProductCategoryId);
+        }
     }
+
+    // Özellik niteliklerinin son istendiği kategori — aynı kategori için host'a tekrar tekrar sorulmasın.
+    private Guid? _requestedSpecificationCategoryId;
 
     /// <summary>Sonuç referansı değiştiyse deneme satırlarını yeniden kurar + seçimi sıfırlar (bayat seçim yeni
     /// sonucun satırlarına işaret edemez). Sonuç aynıysa satır instance'ları korunur → grid seçim kimliği bozulmaz.</summary>
@@ -216,6 +730,9 @@ public partial class ProductLayout
         }
 
         var rows = new List<SubstitutionTrialRow>(result.Trials.Count);
+        // Varyant adı yalnız ÇOK varyantlı madende ayırt edicidir (kombinasyon koduyla aynı ölçüt).
+        var cokVaryantliMadenler = SubstitutionTrialFormat.MultiVariantMetalIds(result.Trials);
+
         for (var i = 0; i < result.Trials.Count; i++)
         {
             var trial = result.Trials[i];
@@ -223,8 +740,8 @@ public partial class ProductLayout
             {
                 Trial        = trial,
                 TrialNo      = i + 1,
-                Combination  = SubstitutionTrialFormat.CombinationText(trial),
-                Variants     = SubstitutionTrialFormat.VariantsText(trial),
+                Combination  = trial.CombinationSummary,
+                Variants     = SubstitutionTrialFormat.VariantsText(trial, cokVaryantliMadenler),
                 StatusText   = BuildTrialStatusText(trial),
             });
         }
@@ -234,6 +751,11 @@ public partial class ProductLayout
             .ThenBy(r => r.Trial.Rank ?? int.MaxValue)
             .ThenBy(r => r.TrialNo)
             .ToList();
+
+        // Yeni hesap geldi → varyant listesi de kaydetmeden tazelensin (kullanıcı Varyantlar sekmesinde
+        // güncel kombinasyonları görsün; kayıtta sunucu aynı sonucu kalıcılaştırır).
+        SyncSubstitutionVariantPreview();
+        _previewCostsStale = true;
     }
 
     /// <summary>Muadil sekmesinin grid satırları — hesaplama sayfası BuildRows dizilimiyle birebir

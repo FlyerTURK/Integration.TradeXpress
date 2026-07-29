@@ -5,8 +5,9 @@
 @inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
 
 @*
-   ORTAK SİPARİŞ PANELİ — MASTER-DETAIL CrudLayout server-side grid. MASTER satır = SİPARİŞ (kanal/no/tarih/müşteri/
-   durum/tutar); satırı genişletince DETAIL = o siparişin KALEMLERİ (ürün/adet/fiyat + komisyon/indirim/kargo/nitelik).
+   ORTAK SİPARİŞ PANELİ — TEK SEVİYELİ CrudLayout server-side grid. Satır = SİPARİŞ (kanal/no/tarih/müşteri/
+   ürün detayı/durum/tutar); kalemler "Ürün Detayı" sütununda satır içinde görünür (OrderItemsCell) — genişletilecek
+   detay satırı YOK. Kalemin zengin alanları sipariş popup'ında.
    Sıralama: order status → tarih (yeni→eski). Create/Delete YOK (Order yalnız senkronizasyondan gelir) — yalnız
    DÜZENLEME (STANDART CrudEditHost/EntityEditForm akışı: OnUpdateClick → ViewOpener → OrderEditHost). "Siparişleri Çek"
    pazaryerinden (Trendyol + N11) çeker; arka planda OrderSyncBackgroundWorker boş kanalları kendiliğinden doldurur.
@@ -20,6 +21,7 @@
             EntityName="@L["Order"]"
             EntityIcon="@TradeXpressIcons.SalesChannel"
             PageTitle="@L["Orders"]"
+            LayoutVersion="v4"
             ShowNew="false"
             ShowColumnFilter="true"
             CustomActions="@_customActions"
@@ -34,18 +36,25 @@
         <DxGridDataColumn FieldName="OrderNumber" Caption="@L["Order:OrderNumber"]" Width="160px" VisibleIndex="2" />
         <DxGridDataColumn FieldName="OrderDate" Caption="@L["Order:Date"]" Width="150px" DisplayFormat="g" VisibleIndex="3" />
         <DxGridDataColumn FieldName="CustomerName" Caption="@L["Order:Customer"]" MinWidth="180" VisibleIndex="4" />
-        <DxGridDataColumn FieldName="NeutralStatus" Caption="@L["Order:Status"]" Width="130px" VisibleIndex="5">
+        @* Ürün detayı — kalemler SATIR İÇİNDE (N11 satıcı panelindeki "Ürün Detayı" sütunu deseni). Sıralama/
+           filtre/gruplama KAPALI: kalem alanları sunucunun izinli alan listesinde yok, açık bırakılsa kullanıcı
+           filtreler ama sonuç değişmezdi (yanıltıcı affordance). Export da kapalı — hücre çok satırlı. *@
+        <DxGridDataColumn FieldName="Items" Name="OrderItemsCell" Caption="@L["Order:Items"]" MinWidth="260" VisibleIndex="5"
+                          AllowSort="false" AllowGroup="false" FilterRowEditorVisible="false" ExportEnabled="false">
+            <CellDisplayTemplate>
+                <OrderItemsCell Items="@(((OrderListDto)context.DataItem).Items)" />
+            </CellDisplayTemplate>
+        </DxGridDataColumn>
+        <DxGridDataColumn FieldName="NeutralStatus" Caption="@L["Order:Status"]" Width="130px" VisibleIndex="6">
             <CellDisplayTemplate>@StatusLabel(((OrderListDto)context.DataItem).NeutralStatus)</CellDisplayTemplate>
         </DxGridDataColumn>
         <DxGridDataColumn FieldName="TotalAmount" Caption="@L["Order:Amount"]" Width="120px"
-                          DisplayFormat="N2" TextAlignment="GridTextAlignment.Right" VisibleIndex="6" />
+                          DisplayFormat="N2" TextAlignment="GridTextAlignment.Right" VisibleIndex="7" />
     </GridColumns>
 
-    @* Master-detail: satırı genişletince o siparişin KALEMLERİ (nested grid) — ürün/adet/fiyat + komisyon/indirim/
-       kargo/durum/nitelik. Veri master satırda hazır (list sorgusunda enrich; ekstra sorgu yok). *@
-    <DetailRowTemplate Context="detailCtx">
-        <OrderItemsGrid Order="@((OrderListDto)detailCtx.DataItem)" />
-    </DetailRowTemplate>
+    @* Master-detail satırı 2026-07-28'de KALDIRILDI (Hakan): kalemler artık "Ürün Detayı" sütununda satır içinde
+       görünüyor, genişletmeye gerek kalmadı. Kalemin zengin alanları (komisyon/indirim/kargo/nitelik/tarihler)
+       kaybolmadı — sipariş popup'ında OrderDetailItemDto üzerinden, detay satırından DAHA GENİŞ haliyle duruyor. *@
 
 </CrudLayout>
 

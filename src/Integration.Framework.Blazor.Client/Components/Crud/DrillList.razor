@@ -108,6 +108,8 @@
                     CustomizeEditModel="OnCustomizeEditModel"
                     StateKey="@GridStateKey"
                     PageSize="@PageSize"
+                    PagerVisible="@PagerVisible"
+                    VirtualScrollingEnabled="@VirtualScrollingEnabled"
                     CssClass="tx-grid-fill">
                 <Columns>
                     @if (!ReadOnly)
@@ -133,6 +135,8 @@
                     CustomizeElement="OnCustomizeRow"
                     StateKey="@GridStateKey"
                     PageSize="@PageSize"
+                    PagerVisible="@PagerVisible"
+                    VirtualScrollingEnabled="@VirtualScrollingEnabled"
                     CssClass="tx-grid-fill">
                 <Columns>
                     @GridColumns
@@ -153,7 +157,7 @@
                Visible="@_popupVisible"
                Header="@BuildDrillHeader()"
                IsDirty="@IsEditDirty"
-               MaxWidth="720px"
+               MaxWidth="@EditPopupMaxWidth"
                OnClosingRequested="OnPopupClosing"
                OnClosedConfirmed="OnPopupClosed">
         @if (_popupVisible)

@@ -1,4 +1,4 @@
-namespace Integration.TradeXpress.Blazor.Client.Navigation;
+﻿namespace Integration.TradeXpress.Blazor.Client.Navigation;
 
 public class TradeXpressMenus
 {
@@ -34,6 +34,8 @@ public class TradeXpressMenus
     public const string Sales               = Prefix + ".Sales";
     public const string SalesChannels       = Prefix + ".SalesChannels";
     public const string Orders              = Prefix + ".Orders";
+    /// <summary>Pazaryerinin yayımladığı anlaşmalı kargo desi tarifesi (host-global katalog, salt okunur).</summary>
+    public const string MarketplaceShipmentTariffs = Prefix + ".MarketplaceShipmentTariffs";
 
     public const string Currencies          = Prefix + ".Currencies";
     public const string Financial           = Prefix + ".Financial";
@@ -51,9 +53,10 @@ public class TradeXpressMenus
     public const string Goods               = Commodities + ".Goods";
     public const string AddOns              = Commodities + ".AddOns";
     public const string VariantTemplates    = Commodities + ".VariantTemplates";
+    public const string ProductCategories   = Commodities + ".ProductCategories";
+    public const string RecipeTemplates     = Commodities + ".RecipeTemplates";
 
     public const string Substitutions           = Commodities + ".Substitutions";
-    public const string SubstitutionCalculation = Substitutions + ".Calculation";
 
     public const string Organizations       = Prefix + ".Organizations";
     public const string Accounts            = Prefix + ".Accounts";

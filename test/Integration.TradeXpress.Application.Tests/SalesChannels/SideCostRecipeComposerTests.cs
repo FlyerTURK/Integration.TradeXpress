@@ -241,10 +241,35 @@ public class SideCostRecipeComposerTests
     {
         // Hiç yapılandırılmamış kanal (settings null): N11 kategori komisyonu pazaryeri gerçeğidir — örtük
         // AutoRate kalemiyle yine reçeteye girer (eski davranış korunur).
+        //
+        // 2026-07-28'den itibaren bu, kanal "Giderler" formu kaldırıldığı için ANA fiyatlama garantisidir:
+        // kanallar artık ayarsız (null) doğuyor ve komisyon YALNIZ bu yoldan fiyata giriyor. Test kırmızıya
+        // dönerse ürünler komisyon kadar (~%23) UCUZ fiyatlanıyor demektir — sessiz para kaybı.
         var plan = SideCostPlan.From(settings: null, resolvedCommissionRate: 21m, variantOptInEnabled: false);
         var lines = new List<ProductRecipeLineGraphDto> { UserBaseLine() };
         SideCostRecipeComposer.EnsureLines(lines, plan).ShouldBeTrue();
         lines.Single(l => l.SideCostKind == SideCostKind.Commission).DerivedOperand.ShouldBe(21m);
+    }
+
+    [Fact]
+    public void Empty_settings_produce_no_commission_and_must_never_be_persisted()
+    {
+        // YASAK DURUM — belgeleme amaçlı test. Ayar nesnesi VAR ama listesi BOŞ ise ("{\"Items\":[]}")
+        // kullanıcı "komisyon satırını sildim" demiş sayılır ve komisyon üretilmez. Kanal kaydına bu değerin
+        // YAZILMASI, komisyonu sessizce öldürür: ne hata fırlar ne log düşer, yalnız fiyatlar ~%23 düşer.
+        //
+        // Bu yüzden kanal kaydetme yolunda SideCosts'a boş nesne YAZILMAMALI; ayar yoksa null KALMALI
+        // (yukarıdaki testin koruduğu davranış). Buradaki assert, davranışın kendisini değil, "neden boş
+        // yazmıyoruz" gerekçesini sabitler.
+        var plan = SideCostPlan.From(
+            new SideCostSettings(new List<SideCostItem>()),
+            resolvedCommissionRate: 21m,
+            variantOptInEnabled: false);
+
+        var lines = new List<ProductRecipeLineGraphDto> { UserBaseLine() };
+
+        SideCostRecipeComposer.EnsureLines(lines, plan).ShouldBeFalse();
+        lines.ShouldNotContain(l => l.SideCostKind == SideCostKind.Commission);
     }
 
     [Fact]

@@ -175,9 +175,8 @@ public class N11ShipmentTemplate : FullAuditedAggregateRoot<Guid>, IMultiTenant,
         ExchangeAddress = exchangeAddress;
     }
 
-    /// <summary>Firma listesini gelen kimliklere göre senkronize eder. <b>Cari bağları KORUNUR:</b> listede kalan
-    /// firmanın <c>SubAccountId</c>'sine dokunulmaz (senkron kullanıcı emeğini ezmez); listeden çıkan firma satırı
-    /// düşer, yeni firma ÖKSÜZ (carisi boş) eklenir ve kullanıcıya sorulacak listeye girer.</summary>
+    /// <summary>Firma listesini gelen kimliklere göre senkronize eder: listede kalan satır korunur, çıkan düşer,
+    /// yeni firma eklenir.</summary>
     public virtual void SetShipmentCompanies(IEnumerable<string> shipmentCompanyExternalIds)
     {
         var incoming = NormalizeRefs(shipmentCompanyExternalIds);
@@ -186,14 +185,6 @@ public class N11ShipmentTemplate : FullAuditedAggregateRoot<Guid>, IMultiTenant,
         Companies = incoming
             .Select(id => existing.TryGetValue(id, out var kept) ? kept : new N11ShipmentTemplateCompany(id))
             .ToList();
-    }
-
-    /// <summary>Bir kargo firmasının varsayılan cari alt hesabını bağlar. Firma bu şablonda yoksa sessizce
-    /// yok sayılır (senkron sırası kullanıcı işlemiyle yarışabilir).</summary>
-    public virtual void SetCompanySubAccount(string externalId, Guid? subAccountId)
-    {
-        var target = Companies.FirstOrDefault(c => string.Equals(c.ExternalId, externalId, StringComparison.Ordinal));
-        target?.SetSubAccount(subAccountId);
     }
 
     /// <summary>Şablonu aktif/pasif yapar — senkron, N11'de bulunmayanı pasifleştirir; geri gelirse aktifleşir.</summary>

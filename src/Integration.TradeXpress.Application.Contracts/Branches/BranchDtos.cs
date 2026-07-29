@@ -206,7 +206,7 @@ public class BranchUpdateDto : IUpdateDto
 /// app servisi YOK; standalone Branch CRUD ayrı: <see cref="BranchGetDto"/> vb.). Durum = <see cref="Id"/>
 /// + <see cref="IsDeleted"/>: Id boş → ekle, IsDeleted → sil, aksi → güncelle. Kasalar <see cref="Vaults"/>.
 /// </summary>
-public class BranchGraphDto : BranchGetDto
+public class BranchGraphDto : BranchGetDto, IHasIsActive
 {
     // Graf düğümü EKSTRALARI (durum). Code/Name/Vaults + TÜM VALİDASYON BranchGetDto'dan MİRAS → standalone
     // ve company-node şube düzenlemeleri tek kaynaktan, GARANTİLİ aynı (kopya yok). (K3: GraphDto : GetDto)

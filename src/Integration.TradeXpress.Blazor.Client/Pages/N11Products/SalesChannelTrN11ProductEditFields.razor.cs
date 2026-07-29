@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -59,6 +60,30 @@ public partial class SalesChannelTrN11ProductEditFields : CrudComponentBase
     /// <summary>Kanal AD çözümü beslemesi (yalnız N11 kanalları) — kanal HER ZAMAN salt-okunur gösterilir
     /// (create'te otomatik atanır, set-once); seçici yok.</summary>
     [Parameter] public IReadOnlyList<SalesChannelListDto> Channels { get; set; } = Array.Empty<SalesChannelListDto>();
+
+    /// <summary>Çekirdek ürünün CANLI varyant grafı (ProductLayout.Model.Variants — kaydedilmemiş değişiklikler
+    /// dahil). Varyantlar sekmesi, kayıtlı stok kalemlerinde HENÜZ karşılığı olmayan varyantları buradan
+    /// salt-okunur önizler: kullanıcı çekirdekte ne değiştirdiyse kanal formunda ANINDA görür, ürünün
+    /// kaydedilmesini beklemez (2026-07-28 Hakan).</summary>
+    [Parameter] public List<ProductVariantGraphDto> CoreVariants { get; set; } = new();
+
+    /// <summary>Kayıtlı stok kalemi karşılığı OLMAYAN canlı çekirdek varyantları — salt-okunur önizleme satırları.
+    ///
+    /// <para><b>Neden gerçek satır değil:</b> stok kalemi kimlikleri (Id/ProductVariantId çıpası) SUNUCU üretimi;
+    /// kaydedilmemiş varyanta istemcide satır uydurmak, kayıtta yanlış çıpaya ya da çakışan anahtara dönerdi.
+    /// Önizleme görüntüler, düzenleme (fiyat/stok ezme) kayıttan sonra açılır.</para></summary>
+    private List<ProductVariantGraphDto> PreviewCoreVariants
+    {
+        get
+        {
+            return CoreVariants
+                .Where(v => !v.IsDeleted && v.IsActive)
+                .Where(v => !Model.StockItems.Any(si =>
+                    (si.ProductVariantId is { } pid && pid != Guid.Empty && pid == v.Id)
+                    || string.Equals(si.VariantCode, v.Code, StringComparison.OrdinalIgnoreCase)))
+                .ToList();
+        }
+    }
 
     [Inject] private IN11ShipmentTemplateAppService ShipmentTemplateAppService { get; set; } = default!;
     [Inject] private IN11CategoryAppService CategoryAppService { get; set; } = default!;
@@ -237,6 +262,44 @@ public partial class SalesChannelTrN11ProductEditFields : CrudComponentBase
     }
 
     // Kanalın kargo şablonlarını (dropdown) yükler — kanal değişince tazelenir.
+    /// <summary>
+    /// Satır kaydında koşan ZORUNLU alan doğrulaması — panel (drill SaveGuard) çağırır. Mesaj döner = kayıt engellenir.
+    ///
+    /// <para><b>Neden burada:</b> zorunlu nitelik tanımları (IsMandatory) bu bileşende yüklü; panel onları
+    /// göremez. Push validator aynı kuralı zaten zorluyor ama PUSH anında — kullanıcı eksik satırı KAYDEDERKEN
+    /// uyarılmazsa hatayı ancak push'ta, bağlamdan kopmuş halde görüyordu (2026-07-28 Hakan bulgusu).</para>
+    ///
+    /// <para>Nitelik tanımları henüz YÜKLENMEMİŞSE (kategori seçilmemiş/liste gelmedi) nitelik kontrolü SUSAR —
+    /// yükleme gecikmesini "eksik" diye raporlamak yanlış alarm olurdu; kategori kontrolü zaten önce çalışır ve
+    /// push validator son kapı olarak durur.</para>
+    /// </summary>
+    public string? ValidateMandatoryInputs()
+    {
+        if (string.IsNullOrWhiteSpace(Model.CategoryExternalId))
+        {
+            return L["N11Product:CategoryRequiredOnSave"].Value;
+        }
+
+        if (string.IsNullOrWhiteSpace(Model.ShipmentTemplateName))
+        {
+            return L["N11Product:ShipmentTemplateRequiredOnSave"].Value;
+        }
+
+        // Ad kıyası push validator ile AYNI (Türkçe kültür, harf duyarsız) — burada geçen push'ta da geçsin.
+        var missing = _attributeDefs
+            .Where(d => d.IsMandatory && !d.IsVariant)
+            .Where(d => string.IsNullOrWhiteSpace(
+                Model.CategoryAttributes.FirstOrDefault(a =>
+                    string.Compare(a.Name?.Trim(), d.Name?.Trim(),
+                        CultureInfo.GetCultureInfo("tr-TR"), CompareOptions.IgnoreCase) == 0)?.Value))
+            .Select(d => d.Name)
+            .ToList();
+
+        return missing.Count > 0
+            ? L["N11Product:MandatoryAttributesMissingOnSave", string.Join(", ", missing)].Value
+            : null;
+    }
+
     private async Task EnsureTemplatesAsync()
     {
         if (Model.SalesChannelId == Guid.Empty || Model.SalesChannelId == _loadedTemplatesChannelId)
@@ -248,6 +311,15 @@ public partial class SalesChannelTrN11ProductEditFields : CrudComponentBase
         try
         {
             _templates = await ShipmentTemplateAppService.GetListAsync(Model.SalesChannelId);
+
+            // Şablon ZORUNLU (N11 boş kabul etmez) ve combo AllowClear=false — boş açılması kullanıcıya
+            // her yeni kanal ürününde tek seçenekli bir tıklama zorunluluğu bindiriyordu. Yalnız BOŞSA
+            // doldurulur: kayıtlı bir ürünün seçimi asla ezilmez.
+            if (string.IsNullOrWhiteSpace(Model.ShipmentTemplateName) && _templates.Count > 0)
+            {
+                Model.ShipmentTemplateName = _templates[0].TemplateName;
+                MarkDirty(nameof(Model.ShipmentTemplateName));
+            }
         }
         catch (Exception ex)
         {

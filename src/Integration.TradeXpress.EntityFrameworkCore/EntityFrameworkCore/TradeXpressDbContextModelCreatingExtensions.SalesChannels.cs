@@ -37,6 +37,15 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
             // Company güvenlik query-filter'ını hızlandırır (ICompanyOwned).
             b.HasIndex(x => new { x.TenantId, x.CompanyId });
 
+            // Varsayılan paket desisi — MEVCUT kanallar 1 ile doğmalı. CLR default'u 0 olduğundan DB default'u
+            // AÇIKÇA verilir; yoksa kolon eklenirken tüm kanallar "0 desi" olur ve kargo tarifesi sessizce
+            // en alt basamaktan (Dosya) fiyatlar (N11ShipmentTemplate.IsActive'de aynı tuzağa düşülmüştü).
+            b.Property(x => x.DefaultPackageDesi).HasDefaultValue(1);
+
+            // Muhasebe cari alt hesabı — id-only (nav YOK, FK YOK: aggregate'ler arası bağ id ile kurulur).
+            // İndeks GEREKMEZ: kanal sayısı şirket başına bir avuç, bu alan üzerinden sorgu yapılmıyor.
+            b.Property(x => x.SubAccountId);
+
             // Yan-maliyet (gider) ayarları — kanal-agnostik VO, TEK JSON kolonu (base tabloda; alt tiplere alan
             // yayılmaz). EF native ToJson() TPT'de DESTEKLENMİYOR ("Only TPH inheritance is supported") → değer
             // dönüştürücü (SideCostSettingsJson; gerekçe orada). Değişim tespiti: SetSideCosts bütün-nesne değişimi

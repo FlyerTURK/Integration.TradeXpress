@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using Integration.Framework.Base.Dtos;
@@ -6,6 +6,7 @@ using Integration.Framework.Base.Dtos.Interfaces;
 using Integration.TradeXpress.Attachments;
 using Integration.TradeXpress.EtsyProducts;
 using Integration.TradeXpress.N11Products;
+using Integration.TradeXpress.SalesChannels;
 using Integration.TradeXpress.Substitutions;
 using Integration.TradeXpress.TrendyolProducts;
 using Integration.TradeXpress.Variants;
@@ -47,6 +48,10 @@ public class ProductGetDto : EntityDto<Guid>, IGetDto<Guid>, IHasCode
     [StringLength(ProductConsts.DescriptionMaxLength)]
     public string? Description { get; set; }
 
+    /// <summary>Çekirdek ürün kategorisi (id-only; <c>null</c> = sınıflandırılmamış). Kanal kategorisi,
+    /// kanal nitelikleri ve kategori komisyonu bu bağdan çözülür.</summary>
+    public Guid? ProductCategoryId { get; set; }
+
     public bool IsActive { get; set; }
 
     /// <summary>Ürün görselleri (URL ya da yüklenmiş dosya; DisplayOrder sıralı, ilk = ana). En fazla
@@ -72,11 +77,24 @@ public class ProductGetDto : EntityDto<Guid>, IGetDto<Guid>, IHasCode
     public DateTime? ExpirationDate { get; set; }
 
     /// <summary>Pazaryeri-genel varsayılanlar (kanal-ürünü devralır + override eder).</summary>
-    public bool Domestic { get; set; } = true;
+    /// <summary>Ürünün MENŞEİ ÜLKESİ (id-only) — yeni üründe şirketin ülkesiyle dolar. N11'in "yerli ürün"
+    /// bayrağı bundan türetilir (bkz. <see cref="IsDomestic"/>).</summary>
+    public Guid? OriginCountryId { get; set; }
+
+    /// <summary>SALT-OKUNUR: menşei ülke şirketin ülkesiyle aynı mı (N11 <c>domestic</c> bayrağının kaynağı).
+    /// Sunucu hesaplar; kaydetmede yok sayılır. Menşei belirtilmemişse <c>null</c>.</summary>
+    public bool? IsDomestic { get; set; }
     public ProductCondition Condition { get; set; } = ProductCondition.New;
-    public int PreparingDay { get; set; } = 1;
+    public int PreparingDay { get; set; } = ProductConsts.DefaultPreparingDay;
 
 
+
+    /// <summary>Reçete şablonu ("orta reçete") — ürüne KALICI bağ; ara masraf satırlarının (paketleme/kargo/
+    /// sigorta) kaynağı. Muadil yeniden üretimde reçete buradan tazelenir.</summary>
+    public Guid? RecipeTemplateId { get; set; }
+
+    /// <summary>Paket desisi — kargo tarifesinin girdisi. Boş = varyantın ya da kanalın varsayılanı.</summary>
+    public int? PackageDesi { get; set; } = 0;
 
     public int? MaxPurchaseQuantity { get; set; }
 
@@ -86,21 +104,19 @@ public class ProductGetDto : EntityDto<Guid>, IGetDto<Guid>, IHasCode
     /// <summary>Varsayılan para birimi (id-only; kanal-ürünü boşsa devralır).</summary>
     public Guid? CurrencyUnitId { get; set; }
 
+    /// <summary>Ürünün GENEL ÖZELLİKLERİ — kategorinin spesifikasyon niteliklerinin bu üründeki değerleri
+    /// ("Ayar: 22K", "Gramaj: 8.4"). Hangi özelliklerin sorulacağını KATEGORİ belirler (kalıtım dahil), değeri
+    /// kullanıcı ürün formunda girer. Pazaryeri push'unda kanal nitelik değerlerini besler.
+    /// <para>Varyant niteliklerinden AYRIDIR: bunlar kartezyene girmez, ürünün tamamını niteler.</para></summary>
+    public List<ProductSpecificationDto> Specifications { get; set; } = new();
+
     /// <summary>Ürün özelleştirme alanları (key zorunlu / value opsiyonel; in-memory drill).</summary>
     public List<ProductSpecialInfoDto> SpecialInfo { get; set; } = new();
 
     /// <summary>Ürüne atanan eklentiler (katalogdan seçim + satır override; in-memory drill).</summary>
     public List<ProductAddOnDto> AddOns { get; set; } = new();
 
-    /// <summary>Kişiselleştirme (pazaryeri-genel; Etsy who_made deseni). Kanal-ürünü push'ta devralır (SONRAKİ iş).</summary>
-    public bool IsPersonalizable { get; set; }
-
-    [StringLength(ProductConsts.PersonalizationInstructionsMaxLength)]
-    public string? PersonalizationInstructions { get; set; }
-
-    public bool PersonalizationIsRequired { get; set; }
-
-    public int? PersonalizationCharCountMax { get; set; }
+    // Kişiselleştirme alanları 2026-07-28'de kaldırıldı — kişiselleştirmenin taşıyıcısı artık SpecialInfo.
 
     /// <summary>Varyant üretim tercihi — varsayılan MultiVariant (statüko). SingleVariant/Substitution'da
     /// nitelik-tabanlı üretim BYPASS (sunucu kapısı nitelik grafını boşaltır → tek ana varyant).</summary>
@@ -165,6 +181,12 @@ public class ProductCreateDto : ICreateDto
     [StringLength(ProductConsts.DescriptionMaxLength)]
     public string? Description { get; set; }
 
+    /// <summary>Çekirdek ürün kategorisi — ZORUNLU. Kanal kategorisi, kanal nitelikleri ve kategori komisyonu
+    /// bu bağdan çözülür; kategorisiz ürün pazaryerine listelenemez ve fiyatı komisyonsuz hesaplanır.
+    /// Tip <c>Guid?</c> kalır ki "seçilmedi" hâli sunucuya ULAŞSIN ve lokalize iş hatası dönebilsin —
+    /// <c>Guid</c> olsaydı boş seçim sessizce <c>Guid.Empty</c>'ye düşerdi.</summary>
+    public Guid? ProductCategoryId { get; set; }
+
     /// <summary>Ürün görselleri — bkz. <see cref="ProductGetDto.Images"/>.</summary>
     public List<ProductImageGraphDto> Images { get; set; } = new();
 
@@ -178,32 +200,35 @@ public class ProductCreateDto : ICreateDto
     public DateTime? ProductionDate { get; set; }
     public DateTime? ExpirationDate { get; set; }
 
-    /// <summary>Pazaryeri-genel varsayılanlar — bkz. <see cref="ProductGetDto.Domestic"/>.</summary>
-    public bool Domestic { get; set; } = true;
+    /// <summary>Pazaryeri-genel varsayılanlar — bkz. <see cref="ProductGetDto.OriginCountryId"/>.</summary>
+    public Guid? OriginCountryId { get; set; }
     public ProductCondition Condition { get; set; } = ProductCondition.New;
-    public int PreparingDay { get; set; } = 1;
+    public int PreparingDay { get; set; } = ProductConsts.DefaultPreparingDay;
 
 
+
+    /// <summary>Reçete şablonu ("orta reçete") — ürüne KALICI bağ; ara masraf satırlarının (paketleme/kargo/
+    /// sigorta) kaynağı. Muadil yeniden üretimde reçete buradan tazelenir.</summary>
+    public Guid? RecipeTemplateId { get; set; }
+
+    /// <summary>Paket desisi — kargo tarifesinin girdisi. Boş = varyantın ya da kanalın varsayılanı.</summary>
+    public int? PackageDesi { get; set; } = 0;
 
     public int? MaxPurchaseQuantity { get; set; }
 
     [StringLength(ProductConsts.SellerNoteMaxLength)]
     public string? SellerNote { get; set; }
     public Guid? CurrencyUnitId { get; set; }
+    /// <summary>Ürünün GENEL ÖZELLİKLERİ — kategorinin spesifikasyon niteliklerinin bu üründeki değerleri
+    /// ("Ayar: 22K", "Gramaj: 8.4"). Hangi özelliklerin sorulacağını KATEGORİ belirler (kalıtım dahil), değeri
+    /// kullanıcı ürün formunda girer. Pazaryeri push'unda kanal nitelik değerlerini besler.
+    /// <para>Varyant niteliklerinden AYRIDIR: bunlar kartezyene girmez, ürünün tamamını niteler.</para></summary>
+    public List<ProductSpecificationDto> Specifications { get; set; } = new();
+
     public List<ProductSpecialInfoDto> SpecialInfo { get; set; } = new();
 
     /// <summary>Ürüne atanan eklentiler (katalogdan seçim + satır override; in-memory drill).</summary>
     public List<ProductAddOnDto> AddOns { get; set; } = new();
-
-    /// <summary>Kişiselleştirme — bkz. <see cref="ProductGetDto.IsPersonalizable"/>.</summary>
-    public bool IsPersonalizable { get; set; }
-
-    [StringLength(ProductConsts.PersonalizationInstructionsMaxLength)]
-    public string? PersonalizationInstructions { get; set; }
-
-    public bool PersonalizationIsRequired { get; set; }
-
-    public int? PersonalizationCharCountMax { get; set; }
 
     /// <summary>Varyant modu + Muadil konfigürasyonu — bkz. <see cref="ProductGetDto.VariantMode"/>.</summary>
     public ProductVariantMode VariantMode { get; set; } = ProductVariantMode.MultiVariant;
@@ -251,6 +276,10 @@ public class ProductUpdateDto : IUpdateDto
     [StringLength(ProductConsts.DescriptionMaxLength)]
     public string? Description { get; set; }
 
+    /// <summary>Çekirdek ürün kategorisi (id-only; <c>null</c> = sınıflandırılmamış). Kanal kategorisi,
+    /// kanal nitelikleri ve kategori komisyonu bu bağdan çözülür.</summary>
+    public Guid? ProductCategoryId { get; set; }
+
     public bool IsActive { get; set; }
 
     /// <summary>Ürün görselleri — bkz. <see cref="ProductGetDto.Images"/>.</summary>
@@ -266,32 +295,35 @@ public class ProductUpdateDto : IUpdateDto
     public DateTime? ProductionDate { get; set; }
     public DateTime? ExpirationDate { get; set; }
 
-    /// <summary>Pazaryeri-genel varsayılanlar — bkz. <see cref="ProductGetDto.Domestic"/>.</summary>
-    public bool Domestic { get; set; } = true;
+    /// <summary>Pazaryeri-genel varsayılanlar — bkz. <see cref="ProductGetDto.OriginCountryId"/>.</summary>
+    public Guid? OriginCountryId { get; set; }
     public ProductCondition Condition { get; set; } = ProductCondition.New;
-    public int PreparingDay { get; set; } = 1;
+    public int PreparingDay { get; set; } = ProductConsts.DefaultPreparingDay;
 
 
+
+    /// <summary>Reçete şablonu ("orta reçete") — ürüne KALICI bağ; ara masraf satırlarının (paketleme/kargo/
+    /// sigorta) kaynağı. Muadil yeniden üretimde reçete buradan tazelenir.</summary>
+    public Guid? RecipeTemplateId { get; set; }
+
+    /// <summary>Paket desisi — kargo tarifesinin girdisi. Boş = varyantın ya da kanalın varsayılanı.</summary>
+    public int? PackageDesi { get; set; } = 0;
 
     public int? MaxPurchaseQuantity { get; set; }
 
     [StringLength(ProductConsts.SellerNoteMaxLength)]
     public string? SellerNote { get; set; }
     public Guid? CurrencyUnitId { get; set; }
+    /// <summary>Ürünün GENEL ÖZELLİKLERİ — kategorinin spesifikasyon niteliklerinin bu üründeki değerleri
+    /// ("Ayar: 22K", "Gramaj: 8.4"). Hangi özelliklerin sorulacağını KATEGORİ belirler (kalıtım dahil), değeri
+    /// kullanıcı ürün formunda girer. Pazaryeri push'unda kanal nitelik değerlerini besler.
+    /// <para>Varyant niteliklerinden AYRIDIR: bunlar kartezyene girmez, ürünün tamamını niteler.</para></summary>
+    public List<ProductSpecificationDto> Specifications { get; set; } = new();
+
     public List<ProductSpecialInfoDto> SpecialInfo { get; set; } = new();
 
     /// <summary>Ürüne atanan eklentiler (katalogdan seçim + satır override; in-memory drill).</summary>
     public List<ProductAddOnDto> AddOns { get; set; } = new();
-
-    /// <summary>Kişiselleştirme — bkz. <see cref="ProductGetDto.IsPersonalizable"/>.</summary>
-    public bool IsPersonalizable { get; set; }
-
-    [StringLength(ProductConsts.PersonalizationInstructionsMaxLength)]
-    public string? PersonalizationInstructions { get; set; }
-
-    public bool PersonalizationIsRequired { get; set; }
-
-    public int? PersonalizationCharCountMax { get; set; }
 
     /// <summary>Varyant modu + Muadil konfigürasyonu — bkz. <see cref="ProductGetDto.VariantMode"/>.</summary>
     public ProductVariantMode VariantMode { get; set; } = ProductVariantMode.MultiVariant;
@@ -436,6 +468,11 @@ public class ProductRecipeLineGraphDto
     public Guid ClientKey { get; set; } = Guid.NewGuid();
     public bool IsDeleted { get; set; }
 
+    /// <summary>Satırın KAYNAĞI — SALT GÖSTERİM/ayırt etme için (sunucu doldurur; kaydetmede istemciden
+    /// GELEN değer kullanılmaz, kaynak sunucuda belirlenir). Muadil kombinasyonu uygulanırken şablondan
+    /// gelen satırların korunması bu bilgiye dayanır.</summary>
+    public RecipeLineOrigin Origin { get; set; }
+
     public int LineOrder { get; set; }
 
     /// <summary>Bileşen türü — toolbar butonu belirler (Maden/Hurda/Vadeli/Mücevher/Taş → CatalogCommodity;
@@ -548,4 +585,58 @@ public class ProductRecipeCostResultDto
     public string NetCostCurrency { get; set; } = string.Empty;
     public bool NetCostMissingRate { get; set; }
     public List<ProductRecipeLineGraphDto> Lines { get; set; } = new();
+}
+
+/// <summary>
+/// Ürünün bir genel özelliğinin değeri. <see cref="ProductCategoryAttributeId"/> kategorideki niteliğin KALICI
+/// kimliğidir (ada değil kimliğe bağlanır → nitelik yeniden adlandırılınca değer kopmaz).
+///
+/// <para><see cref="Name"/> salt GÖSTERİM (sunucu kategoriden doldurur); kaydetmede yok sayılır — tek doğru
+/// kaynak kategori tanımıdır, istemcinin gönderdiği ad değil.</para>
+/// </summary>
+public class ProductSpecificationDto
+{
+    public Guid Id { get; set; }
+
+    public Guid ProductCategoryAttributeId { get; set; }
+
+    /// <summary>Nitelik adı — salt gösterim ("Ayar").</summary>
+    public string Name { get; set; } = string.Empty;
+
+    [StringLength(ProductConsts.SpecificationValueMaxLength)]
+    public string? Value { get; set; }
+
+    public override string ToString()
+    {
+        return Name + ": " + Value;
+    }
+}
+
+/// <summary>
+/// Ürünün genel özelliklerinin bir KANALA çevrilmiş hâli — kanal ürünü kurulurken nitelik alanlarını doldurur.
+/// <para>N11 (ve benzerleri) nitelikleri AD + DEĞER METNİ ile alır; kimlikler eşleştirme katmanında kalır.</para>
+/// </summary>
+public class ProductChannelAttributeDto
+{
+    /// <summary>Kanaldaki nitelik adı ("Maden Ayarı").</summary>
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>Kanala gidecek değer ("22 Ayar" — eşleştirme varsa kanal karşılığı, yoksa ürünün kendi metni).</summary>
+    public string Value { get; set; } = string.Empty;
+
+    public override string ToString()
+    {
+        return Name + ": " + Value;
+    }
+}
+
+/// <summary>Kanal nitelik çözümü girdisi — ürün HENÜZ KAYDEDİLMEMİŞ olabileceğinden özellik değerleri
+/// istemciden gelir (kaydedilmiş ürün için de aynı yol kullanılır; tek kod yolu).</summary>
+public class ProductChannelAttributeResolveDto
+{
+    public Guid ProductCategoryId { get; set; }
+
+    public SalesChannelType Channel { get; set; }
+
+    public List<ProductSpecificationDto> Specifications { get; set; } = new();
 }

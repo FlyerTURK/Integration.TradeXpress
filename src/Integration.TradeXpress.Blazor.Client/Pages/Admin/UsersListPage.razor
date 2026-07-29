@@ -1,4 +1,4 @@
-@page "/admin/users"
+﻿@page "/admin/users"
 @using Integration.Framework.Blazor.Client.Components.Crud
 @using Integration.TradeXpress.Blazor.Client.Pages.Admin.Models
 @using Integration.TradeXpress.Blazor.Client.Services
@@ -7,7 +7,6 @@
 
 <CrudLayout TGetDto="UserGetDto"
             TListDto="UserListDto"
-            TViewModel="UserEditViewModel"
             TKey="Guid"
             StateService="StateService"
             DataSource="@GridDataSource"

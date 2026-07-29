@@ -52,7 +52,23 @@ public partial class DrillList<TItem> where TItem : class
 
     [Parameter, EditorRequired] public List<TItem> Items { get; set; } = default!;
     [Parameter] public string KeyFieldName { get; set; } = "ClientKey";
+
+    /// <summary>Düzenleme popup'ının azami genişliği. Varsayılan 960px (2026-07-28 Hakan: 720px sekmeli/çok
+    /// alanlı formlarda dardı — alanlar üst üste biniyor, satır başına iki kontrol bile sığmıyordu). Dar bir
+    /// forma sahip drill'ler bunu düşürerek eski görünümü koruyabilir.</summary>
+    [Parameter] public string EditPopupMaxWidth { get; set; } = "960px";
     [Parameter] public int PageSize { get; set; } = 10;
+
+    /// <summary>Sayfalayıcı görünsün mü — <b>VARSAYILAN KAPALI</b> (2026-07-27 Hakan kararı).
+    /// Drill listeleri form İÇİ listelerdir (kalemler, varyantlar, şubeler): sayfalara bölünince ikinci
+    /// sayfadaki satırlar gözden kaçıyor ve eksik veri giriliyor. Uzun liste beklenen yerlerde
+    /// <see cref="VirtualScrollingEnabled"/> ile birlikte kullanılır; gerçekten sayfalama istenen bir
+    /// liste çıkarsa <c>true</c> geçilir.</summary>
+    [Parameter] public bool PagerVisible { get; set; }
+
+    /// <summary>Sanal kaydırma — sayfalayıcı kapatıldığında uzun listeyi DOM'u şişirmeden gösterir
+    /// (yalnız görünür satırlar çizilir).</summary>
+    [Parameter] public bool VirtualScrollingEnabled { get; set; }
     [Parameter] public bool ReadOnly { get; set; }
 
     /// <summary>Toolbar'da arama kutusu göster (genel listeleme formuyla parite). Varsayılan AÇIK; istenen drill

@@ -44,7 +44,7 @@
     }
 
     @* Son satır: Durum (switch) — yarım. *@
-    <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6">
+    <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6" BeginRow="true">
         <DxCheckBox @bind-Checked="Model.IsActive" CheckType="CheckType.Switch" />
     </DxFormLayoutItem>
 </DxFormLayout>

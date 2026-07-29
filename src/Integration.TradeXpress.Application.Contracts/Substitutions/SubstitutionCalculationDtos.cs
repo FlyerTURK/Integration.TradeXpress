@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Integration.TradeXpress.Products;
 
 namespace Integration.TradeXpress.Substitutions;
 
@@ -27,10 +28,13 @@ public class SubstitutionCalculationInput
     /// <summary>Stok kapsamı: kasa (null = şubenin tümü) — GetStockAsync filtresiyle birebir.</summary>
     public Guid? VaultId { get; set; }
 
-    /// <summary>Ürün-düzeyi varyant OVERRIDE kümesi (Dilim-3; <c>Product.SubstitutionOverrideVariantIds</c>) —
-    /// düz liste tüm grup madenlerini kapsar; maden başına etkin küme = listenin o madenin katalog varyantlarıyla
-    /// KESİŞİMİ (resolver zinciri: override ?? IncludedVariantIds ?? ana). BOŞ = override yok (grup ayarı).</summary>
-    public List<Guid> OverrideVariantIds { get; set; } = new();
+    /// <summary>Ürün-düzeyi varyant kapsamı (<c>Product.SubstitutionOverrideVariantIds</c>) — düz liste tüm grup
+    /// madenlerini kapsar; maden başına etkin küme = listenin o madenin katalog varyantlarıyla KESİŞİMİ.
+    /// <para><b>null = ÜRÜN BAĞLAMI YOK</b> (grup hesaplama sayfası): kapsam grup kalemlerinden çözülür.
+    /// <b>Liste verildiyse ürünün kendi kapsamıdır ve BOŞ olması da bir cevaptır</b> ("bu madeni istemiyorum") —
+    /// ürün gruba bağlanırken kapsam ürüne kopyalandığından grup artık belirleyici değildir (2026-07-27 kararı).
+    /// Bu ayrım null-üzerinden yürür: boş listeyle null'ı eşitlemek kullanıcının kaldırma kararını yutar.</para></summary>
+    public List<Guid>? OverrideVariantIds { get; set; }
 
     /// <summary>Tolerans türü override'ı (Dilim-3; ürün konfigürasyonu) — değerle ÇİFT dolar; boş = grup ayarı.</summary>
     public ToleranceType? ToleranceTypeOverride { get; set; }
@@ -100,6 +104,24 @@ public class SubstitutionTrialDto
     public int PieceCount { get; set; }
     /// <summary>Paket sayısı — kombinasyonun stoktan kaç KEZ tekrarlanabileceği (skor 3. ölçüt — büyük iyi).</summary>
     public int PackageCount { get; set; }
+
+    /// <summary>Bu kombinasyonun DETERMİNİSTİK varyant kodu ("G5.0GR995X1+G1.0GR995X3") — kayıt anında
+    /// üretilenle AYNI (tek kaynak: <c>SubstitutionCombinationCodeBuilder</c>). Ürün formu kaydetmeden
+    /// varyant önizlemesini bu kodla eşler; kaydedince aynı kod bulunduğu için varyant kaydı (ve kanal SKU
+    /// bağı) yerinde kalır.</summary>
+    public string CombinationCode { get; set; } = string.Empty;
+
+    /// <summary>Bileşimin okunabilir özeti ("1×5gr + 4×1gr") — varyant tablosundaki "Kombinasyon" kolonunu
+    /// besler. Kodla aynı sırada (büyük parçadan küçüğe) ve aynı üreticiden gelir.</summary>
+    public string CombinationSummary { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Bu kombinasyonun REÇETE satırları — ürün formu kaydetmeden varyantın içini gösterebilsin diye.
+    /// Kayıt anında sunucunun kuracağı satırlarla aynı matematik (tek üretici).
+    /// <para><b>Yalnız VARYANTA DÖNÜŞECEK kombinasyonlarda dolu</b> (en iyi sıradakiler): yüzlerce denemenin
+    /// hepsi için satır üretmek yanıtı gereksiz şişirirdi — diğerlerinde boş kalır.</para>
+    /// </summary>
+    public List<ProductRecipeLineGraphDto> RecipeLines { get; set; } = new();
 
     public bool Success { get; set; }
     /// <summary>Teknik başarısızlık nedeni ("StockExhausted" / "Remainder:0.6") — UI lokalize eder; başarılıda null.</summary>

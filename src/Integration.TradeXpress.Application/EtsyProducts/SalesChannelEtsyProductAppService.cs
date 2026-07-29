@@ -1191,8 +1191,6 @@ public partial class SalesChannelEtsyProductAppService : TradeXpressAppService, 
         entity.SetProcessing(input.ProcessingMin, input.ProcessingMax);
         entity.SetTitleOverride(input.TitleOverride);
         entity.SetDescriptionOverride(input.DescriptionOverride);
-        entity.SetPersonalization(input.IsPersonalizable, input.PersonalizationInstructions,
-            input.PersonalizationIsRequired, input.PersonalizationCharCountMax);
         entity.SetAutoRenew(input.ShouldAutoRenew);
         entity.SetPreparingDay(input.PreparingDay);
         entity.SetCurrencyUnit(input.CurrencyUnitId);

@@ -107,7 +107,9 @@ public partial class SalesChannelProductsPanel : CrudComponentBase
         {
             // ProductCondition (New/Used) → N11ProductCondition (New/Used) eşlemesi (değerler farklı: 0/1 vs 1/2).
             draft.Condition = p.Condition == ProductCondition.Used ? N11ProductCondition.Used : N11ProductCondition.New;
-            draft.Domestic = p.Domestic;
+            // Ürünün MENŞEİ ülkesinden türetilen yerli-ürün bayrağı (sunucu hesaplar); menşei yoksa taslak
+            // varsayılanı korunur — bilinmiyorken ithal beyan etmeyelim.
+            draft.Domestic = p.IsDomestic ?? draft.Domestic;
             draft.PreparingDay = p.PreparingDay;
             draft.MaxPurchaseQuantity = p.MaxPurchaseQuantity;
             draft.SellerNote = p.SellerNote;

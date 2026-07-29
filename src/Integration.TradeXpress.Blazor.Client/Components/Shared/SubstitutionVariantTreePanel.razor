@@ -25,46 +25,56 @@
     }
     else
     {
-        @foreach (var node in _nodes)
-        {
-            var metal = node;
-            <div style="padding-top:0.15rem;">
-                <DxCheckBox T="bool?"
-                            Checked="@MetalState(metal)"
-                            CheckedChanged="@(async (bool? v) => await OnMetalToggledAsync(metal, v))"
-                            AllowIndeterminateStateByClick="false"
-                            ValidationEnabled="false">
-                    <strong>@metal.MetalCode</strong>
-                    @if (IsInheriting(metal))
-                    {
-                        <small style="color:var(--dx-text-muted,#888); font-style:italic;"> @L["VariantScopeInherited"]</small>
-                    }
-                    else
-                    {
-                        <small style="color:var(--dx-text-muted,#888)">(@IncludedCount(metal) / @metal.Variants.Count)</small>
-                    }
-                </DxCheckBox>
-            </div>
-            <div style="padding-left:20px; display:flex; gap:0.15rem 1.25rem; flex-wrap:wrap; align-items:flex-start;">
-                @foreach (var variant in metal.Variants)
-                {
-                    var captured = variant;
-                    <DxCheckBox Checked="@IsIncluded(metal, captured)"
-                                CheckedChanged="@(async (bool v) => await OnVariantToggledAsync(metal, captured, v))"
-                                ValidationEnabled="false">
-                        @captured.VariantCode
-                        @if (captured.IsMain)
+        @* "Tümünü Seç" GRUP BAŞLIĞINDA (sahibi form; HeaderContentTemplate) — panel eylemi SelectAllAsync
+           ile dışarı açar. Panelin içinde ağacın üstünde duruyordu; başlıkta grup katlansa da erişilebilir. *@
+
+        @* Madenler YAN YANA ve ekranı MÜMKÜN OLDUĞUNCA dolduracak şekilde: sabit kolon sayısı (ColSpanMd)
+           kısa kodlarda sağda geniş boşluk bırakıyordu. Otomatik doldurma öğe genişliğine göre sütun sayısını
+           kendisi seçer; telefonda minmax alt sınırı tek kolona indirir. *@
+        @* GRID DEĞİL FLEX: sabit kolon genişliği (grid minmax) kısa kodlarda satır başına 4 öğeyle
+           yetiniyordu — kolonlar 1fr ile eşitlenip gereğinden geniş kalıyor. Flex'te her öğe KENDİ
+           genişliği kadar yer kaplar, satıra sığdığı kadarı yan yana dizilir; sığmayan alta iner. *@
+        <div style="display:flex; flex-wrap:wrap; gap:0.3rem 1.25rem; align-items:flex-start;">
+            @foreach (var node in _nodes)
+            {
+                var metal = node;
+                <div>
+                        <DxCheckBox T="bool?"
+                                    Checked="@MetalState(metal)"
+                                    CheckedChanged="@(async (bool? v) => await OnMetalToggledAsync(metal, v))"
+                                    AllowIndeterminateStateByClick="false"
+                                    ValidationEnabled="false">
+                            <strong>@metal.MetalCode</strong>
+                            @if (metal.Variants.Count > 1)
+                            {
+                                @* Sayaç yalnız ÇOK varyantlıda anlamlı — tek varyantlıda "(1 / 1)" gürültüden ibaret. *@
+                                <small style="color:var(--dx-text-muted,#888)">(@IncludedCount(metal) / @metal.Variants.Count)</small>
+                            }
+                        </DxCheckBox>
+
+                        @* Tek varyantlı madende alt satır GİZLİ: madenin kendi kutusu zaten o tek varyantı
+                           temsil ediyor, "ANAVARYANT" satırı aynı şeyi ikinci kez sormaktan başka iş görmüyordu
+                           (2026-07-27 Hakan kararı). Alt liste yalnız GERÇEK seçim varsa, yani 2+ varyantta çıkar. *@
+                        @if (metal.Variants.Count > 1)
                         {
-                            <small style="color:var(--dx-text-muted,#888)"> (@L["Main"])</small>
+                            <div style="padding-left:20px; display:flex; gap:0.15rem 1rem; flex-wrap:wrap; align-items:flex-start;">
+                                @foreach (var variant in metal.Variants)
+                                {
+                                    var captured = variant;
+                                    <DxCheckBox Checked="@IsIncluded(metal, captured)"
+                                                CheckedChanged="@(async (bool v) => await OnVariantToggledAsync(metal, captured, v))"
+                                                ValidationEnabled="false">
+                                        @captured.VariantCode
+                                        @if (captured.IsMain)
+                                        {
+                                            <small style="color:var(--dx-text-muted,#888)"> (@L["Main"])</small>
+                                        }
+                                    </DxCheckBox>
+                                }
+                            </div>
                         }
-                        @if (IsInheriting(metal) && IsInheritedMember(metal, captured))
-                        {
-                            @* Devralınan üye — pasif/gri referans: grup ayarı bu varyantı kapsıyor; işaretlemek override başlatır. *@
-                            <small style="color:var(--dx-text-muted,#888); font-style:italic;"> @L["VariantScopeInheritedTag"]</small>
-                        }
-                    </DxCheckBox>
-                }
-            </div>
-        }
+                </div>
+            }
+        </div>
     }
 </div>

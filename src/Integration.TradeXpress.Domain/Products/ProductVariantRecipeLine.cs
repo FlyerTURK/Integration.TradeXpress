@@ -116,6 +116,10 @@ public class ProductVariantRecipeLine : FullAuditedAggregateRoot<Guid>, IMultiTe
     /// ayırır (idempotent reconcile anahtarı; SideCostRecipeComposer). Null = kullanıcı satırı.</summary>
     public virtual SideCostKind? SideCostKind { get; protected set; }
 
+    /// <summary>Satırı hangi mekanizmanın yazdığı — otomatik yenilemenin kullanıcı satırlarını ezmemesi için
+    /// (gerekçe: <see cref="RecipeLineOrigin"/>). Varsayılan <see cref="RecipeLineOrigin.Manual"/>.</summary>
+    public virtual RecipeLineOrigin Origin { get; protected set; }
+
     #endregion
 
     #region Methods
@@ -220,6 +224,13 @@ public class ProductVariantRecipeLine : FullAuditedAggregateRoot<Guid>, IMultiTe
     public virtual void SetSideCostKind(SideCostKind? sideCostKind)
     {
         SideCostKind = sideCostKind;
+    }
+
+    /// <summary>Satırın kaynağını atar — otomatik üreten mekanizma kendi işaretini koyar; kullanıcı satırları
+    /// <see cref="RecipeLineOrigin.Manual"/> kalır (varsayılan).</summary>
+    public virtual void SetOrigin(RecipeLineOrigin origin)
+    {
+        Origin = origin;
     }
 
     public override string ToString()

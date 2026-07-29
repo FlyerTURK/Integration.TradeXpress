@@ -1,12 +1,17 @@
 @using DevExpress.Blazor
-@using Microsoft.Extensions.Localization
-@inject IStringLocalizer<Integration.TradeXpress.Localization.TradeXpressResource> L
+@using Integration.Framework.Base.Dtos
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
 @*
-   Yeniden kullanılabilir "Status" (IsActive) grid kolonu — ikonlu StatusCell hücresi, DTO-AGNOSTİK
-   (cell.Value = IsActive değeri → per-DTO cast YOK). GridLinkColumn deseni: WRAPPER bileşen; iç
-   DxGridDataColumn cascade ile grid'e normal kaydolur (DxGrid kolonları CollectionFiller'la DEĞİL
-   cascade ile toplanır → DxTabs'in aksine wrapper güvenli). Caption her yerde "Status"
-   (memory: isactive-kolon-filtre-kurali). IsActive toolbar filtresi olan grid'e KONMAZ (aynı kural).
+   Yeniden kullanılabilir "Status" (IsActive) grid kolonu — DTO-AGNOSTİK (cell.Value = IsActive değeri →
+   per-DTO cast YOK). GridLinkColumn deseni: WRAPPER bileşen; iç DxGridDataColumn cascade ile grid'e normal
+   kaydolur (DxGrid kolonları CollectionFiller'la DEĞİL cascade ile toplanır → DxTabs'in aksine wrapper
+   güvenli). Caption her yerde "Status" (memory: isactive-kolon-filtre-kurali). IsActive toolbar filtresi
+   olan grid'e KONMAZ (aynı kural).
+
+   DÜZENLENEBİLİR (2026-07-27 Hakan): satırı açmadan doğrudan hücreden aktif/pasif yapılabilir — tek bir
+   kaydı pasifleştirmek için edit formunu açıp kapatmak gereksiz yüktü. Yazma yolu TİP-GÜVENLİ: satır DTO'su
+   IHasIsActive uyguluyorsa switch çizilir, uygulamıyorsa (salt-okunur projeksiyon) eski ikonlu görünüm
+   korunur. Hangi listelerin düzenlenebilir olduğu böylece DERLEME ZAMANINDA görünür.
 *@
 <DxGridDataColumn FieldName="@FieldName"
                   Caption="@(Caption ?? L["Status"].Value)"
@@ -15,17 +20,22 @@
                   VisibleIndex="@VisibleIndex"
                   Visible="@Visible">
     <CellDisplayTemplate Context="cell">
-        <StatusCell Active="@(cell.Value is bool b && b)" />
+        @if (Editable && cell.DataItem is IHasIsActive target)
+        {
+            @* ValidationEnabled=false: bu bir MODEL alanı değil, hücre içi hızlı toggle — EditContext
+               altında ValueExpression aranmasın ([validation-expr]).
+               Olay işleyici SENKRON: DevExpress'in kolon/ayar (nested settings) render'ı ASENKRON render'a
+               izin vermez — async yapılırsa "Async rendering is not allowed here" ile çöker. *@
+            <DxCheckBox Checked="@target.IsActive"
+                        CheckedChanged="@((bool v) => Toggle(target, v))"
+                        CheckType="CheckType.Switch"
+                        ValidationEnabled="false">
+                @(target.IsActive ? L["Active"] : L["Passive"])
+            </DxCheckBox>
+        }
+        else
+        {
+            <StatusCell Active="@(cell.Value is bool b && b)" />
+        }
     </CellDisplayTemplate>
 </DxGridDataColumn>
-
-@code {
-    /// <summary>Aktiflik alanı (varsayılan IsActive).</summary>
-    [Parameter] public string FieldName { get; set; } = "IsActive";
-    /// <summary>Başlık (varsayılan localize "Status").</summary>
-    [Parameter] public string? Caption { get; set; }
-    [Parameter] public string Width { get; set; } = "110px";
-    /// <summary>Açık kolon sırası (negatif = markup sırası; GridLinkColumn ile aynı kural).</summary>
-    [Parameter] public int VisibleIndex { get; set; } = -1;
-    [Parameter] public bool Visible { get; set; } = true;
-}

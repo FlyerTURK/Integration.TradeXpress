@@ -1,14 +1,16 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
+using Integration.TradeXpress.Attachments;
 using Integration.TradeXpress.Channels;
 using Integration.TradeXpress.Financials.CurrencyUnits;
 using Integration.TradeXpress.MultiCompany;
 using Integration.TradeXpress.N11Categories;
 using Integration.TradeXpress.N11Shipments;
 using Integration.TradeXpress.Permissions;
+using Integration.TradeXpress.ProductCategories;
 using Integration.TradeXpress.Products;
 using Integration.TradeXpress.SalesChannels;
 using Integration.TradeXpress.SalesChannels.Variants;
@@ -37,6 +39,7 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
 
     private readonly IRepository<SalesChannelTrN11Product, Guid> _repository;
     private readonly IRepository<Product, Guid> _productRepository;
+    private readonly ProductCategoryChannelResolver _categoryChannelResolver;   // çekirdek kategori → kanal kategorisi
     private readonly IRepository<EntityVariant, Guid> _variantRepository;
     private readonly IRepository<ProductVariantDetail, Guid> _variantDetailRepository;
     private readonly IRepository<EntityAttribute, Guid> _attributeRepository;
@@ -55,7 +58,8 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
     private readonly SubstitutionChannelPlanProvider _substitutionPlanProvider;
     private readonly ICurrentCompany _currentCompany;
     private readonly IN11ProductClient _client;
-    private readonly IPublicImageLinkProvider _publicImageLink;
+    private readonly MarketplacePushImageResolver _pushImageResolver;
+    private readonly IEntityMediaAppService _entityMedia;   // yalnız OKUMA — push önizlemesi (DAM galerisi)
     private readonly IN11CategoryClient _categoryClient;
     private readonly N11ProductPushValidator _pushValidator;
     private readonly IDistributedCache<N11LeafAttributes> _leafAttributeCache;
@@ -64,6 +68,7 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
     public SalesChannelTrN11ProductAppService(
         IRepository<SalesChannelTrN11Product, Guid> repository,
         IRepository<Product, Guid> productRepository,
+        ProductCategoryChannelResolver categoryChannelResolver,
         IRepository<EntityVariant, Guid> variantRepository,
         IRepository<ProductVariantDetail, Guid> variantDetailRepository,
         IRepository<EntityAttribute, Guid> attributeRepository,
@@ -82,7 +87,8 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
         SubstitutionChannelPlanProvider substitutionPlanProvider,
         ICurrentCompany currentCompany,
         IN11ProductClient client,
-        IPublicImageLinkProvider publicImageLink,
+        MarketplacePushImageResolver pushImageResolver,
+        IEntityMediaAppService entityMedia,
         IN11CategoryClient categoryClient,
         N11ProductPushValidator pushValidator,
         IDistributedCache<N11LeafAttributes> leafAttributeCache,
@@ -90,6 +96,7 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
     {
         _repository = repository;
         _productRepository = productRepository;
+        _categoryChannelResolver = categoryChannelResolver;
         _variantRepository = variantRepository;
         _variantDetailRepository = variantDetailRepository;
         _attributeRepository = attributeRepository;
@@ -108,7 +115,8 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
         _substitutionPlanProvider = substitutionPlanProvider;
         _currentCompany = currentCompany;
         _client = client;
-        _publicImageLink = publicImageLink;
+        _pushImageResolver = pushImageResolver;
+        _entityMedia = entityMedia;
         _categoryClient = categoryClient;
         _pushValidator = pushValidator;
         _leafAttributeCache = leafAttributeCache;
@@ -222,13 +230,19 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
         var product = await GetOwnedProductAsync(input.ProductId);
         var sequenceNo = await NextSequenceNoAsync(channel.Id, product.Id);
 
+        // Kanal kategorisi GÖNDERİLMEMİŞSE ürünün ÇEKİRDEK kategorisinden çözülür (2026-07-27 Hakan vizyonu:
+        // "her satış kanalında kategori ayrı ayrı seçme zahmetinden kurtulalım"). Eşleştirme KALITIMLIDIR:
+        // ürünün kategorisi eşleştirilmemişse en yakın atasınınki kullanılır. Elle gönderilen kategori DAİMA
+        // önceliklidir — kullanıcı bilinçli olarak farklı bir kategori seçmişse ezilmez.
+        var categoryExternalId = await ResolveChannelCategoryAsync(product, input.CategoryExternalId);
+
         var entity = new SalesChannelTrN11Product(
             channel.CompanyId,
             channel.Id,
             input.ProductId,
             BuildSellerCode(product.Code, sequenceNo),
             sequenceNo,
-            input.CategoryExternalId,
+            categoryExternalId,
             input.ShipmentTemplateName,
             input.Condition);
         ApplyInput(entity, input);
@@ -674,10 +688,34 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
         };
     }
 
-    // Push'ta gidecek görseller (VARSAYILAN önce, sonra DisplayOrder — SaveProduct ile aynı sıra). Yüklenmiş
-    // (blob) görsel için thumbnail data-URL'i; URL kaynaklı görselde dış link olduğundan önizleme resmi yok.
+    // Push'ta gidecek görseller (VARSAYILAN önce, sonra DisplayOrder — SaveProduct ile aynı sıra).
+    // Kaynak push ile AYNI olmak zorunda: önizleme legacy'yi, push DAM'ı gösterirse kullanıcı gönderdiğini
+    // sandığı görselden başkasını yayınlar. Bu yüzden geri düşüş koşulu da push'takiyle birebir aynıdır.
     private async Task<List<N11PreviewImageDto>> BuildPreviewImagesAsync(Product product)
     {
+        var media = await _entityMedia.GetForAsync(MediaEntityNames.Product, product.Id);
+        var pushMedia = media
+            .Where(l => l.IsActive && l.Media is { MediaType: MediaType.Image })
+            .OrderByDescending(l => l.IsDefault)
+            .ThenBy(l => l.DisplayOrder)
+            .ToList();
+
+        if (pushMedia.Count > 0)
+        {
+            return pushMedia
+                .Take(ProductConsts.MaxImageCount)
+                .Select(l => new N11PreviewImageDto
+                {
+                    Source = l.Media!.FileName,
+                    IsDefault = l.IsDefault,
+                    // DAM poster'ı oturumlu uçtan gelir — önizlemeyi GÖREN kullanıcı zaten oturumlu (push'un
+                    // kullandığı imzalı adres burada gereksiz; UI <img src> ile doğrudan çeker).
+                    PreviewDataUrl = l.Media!.PosterUrl,
+                })
+                .ToList();
+        }
+
+        // ── Göç öncesi geri düşüş: legacy ürün görselleri (yüklenmişte thumbnail data-URL'i, URL kaynaklıda yok).
         var images = new List<N11PreviewImageDto>();
         foreach (var image in product.Images.OrderByDescending(i => i.IsDefault).ThenBy(i => i.DisplayOrder))
         {
@@ -771,25 +809,8 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
     {
         var product = await GetOwnedProductAsync(channelProduct.ProductId);
 
-        // Görsel sırası: VARSAYILAN önce, sonra DisplayOrder. URL-kaynaklılar doğrudan; yüklenmiş (blob)
-        // görseller sağlayıcı yapılandırılmışsa GEÇİCİ dış linke çevrilir (N11 kendi sistemine import eder),
-        // yapılandırılmamışsa atlanır (2026-07-07 kullanıcı kararı; anonim endpoint YOK).
-        var imageUrls = new List<string>();
-        foreach (var image in product.Images.OrderByDescending(i => i.IsDefault).ThenBy(i => i.DisplayOrder))
-        {
-            if (image.SourceType == ProductImageSourceType.Url && !string.IsNullOrWhiteSpace(image.Url))
-            {
-                imageUrls.Add(image.Url!);
-            }
-            else if (image.SourceType == ProductImageSourceType.Upload && !string.IsNullOrEmpty(image.BlobName))
-            {
-                var link = await _publicImageLink.TryCreateTemporaryLinkAsync(image.BlobName!);
-                if (link is not null)
-                {
-                    imageUrls.Add(link);
-                }
-            }
-        }
+        // Görsel kaynağı MERKEZİ DAM (K2); sıra/limit/atlama kuralları kanallar arası ortak çözücüde.
+        var imageUrls = await _pushImageResolver.ResolveAsync(product, ProductConsts.MaxImageCount);
 
         if (imageUrls.Count == 0)
         {
@@ -1819,6 +1840,29 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
     /// bedelleri KDV brütüyle eklenir (SSOT: <see cref="N11CategoryCommissionImporter.ResolveEffectiveCommissionRate"/>).
     /// Sigortalı-gönderim anahtarı varyant-başı olduğundan burada KAPALI döner — çağıran
     /// <c>plan with { VariantOptInEnabled = ... }</c> ile varyanta göre açar.</summary>
+    /// <summary>
+    /// Kanal kategorisini çözer: gönderilen değer doluysa AYNEN kullanılır (kullanıcının bilinçli seçimi
+    /// ezilmez); boşsa ürünün ÇEKİRDEK kategorisinden eşleştirmeyle (kalıtımlı) türetilir. Hiçbiri yoksa boş
+    /// döner ve entity ctor'u zaten fail-fast eder — kategori N11'de zorunludur.
+    /// </summary>
+    private async Task<string> ResolveChannelCategoryAsync(Product product, string? requestedCategoryExternalId)
+    {
+        if (!string.IsNullOrWhiteSpace(requestedCategoryExternalId))
+        {
+            return requestedCategoryExternalId;
+        }
+
+        if (product.ProductCategoryId is not { } coreCategoryId)
+        {
+            return string.Empty;   // ürün sınıflandırılmamış → ctor "kategori zorunlu" der (anlaşılır hata)
+        }
+
+        var mapping = await _categoryChannelResolver.ResolveMappingAsync(
+            product.CompanyId, coreCategoryId, SalesChannelType.TrN11);
+
+        return mapping?.ChannelCategoryExternalId ?? string.Empty;
+    }
+
     private async Task<SideCostPlan> BuildSideCostPlanAsync(SalesChannelTrN11Product channelProduct)
     {
         var channel = await _channelRepository.FindAsync(channelProduct.SalesChannelId);
@@ -1827,14 +1871,20 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
         decimal? categoryRate = null;
         decimal? marketingFeeRate = null;
         decimal? marketplaceFeeRate = null;
-        if (!string.IsNullOrEmpty(channelProduct.CategoryExternalId))
+
+        // NOT: kanal kategorisi ZORUNLUDUR (entity ctor'u boş kabul etmez) — çekirdek kategoriden çözüm bu
+        // yüzden BURADA değil kanal ürünü KURULURKEN yapılır (CreateAsync → ResolveChannelCategoryAsync).
+        // Burada okunan değer daima doludur.
+        var categoryExternalId = channelProduct.CategoryExternalId;
+
+        if (!string.IsNullOrEmpty(categoryExternalId))
         {
             // Host-global taksonomi okuması (N11CategoryAppService ile aynı sınır — db-per-tenant merkeziliği).
             using (CurrentTenant.Change(null))
             {
                 var category = await AsyncExecuter.FirstOrDefaultAsync(
                     (await _n11CategoryRepository.GetQueryableAsync())
-                        .Where(c => c.ExternalId == channelProduct.CategoryExternalId));
+                        .Where(c => c.ExternalId == categoryExternalId));
                 categoryRate = category?.CommissionRate;
                 marketingFeeRate = category?.MarketingFeeRate;
                 marketplaceFeeRate = category?.MarketplaceFeeRate;

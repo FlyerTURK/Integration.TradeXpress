@@ -30,6 +30,9 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
             b.Property(x => x.MarketingFeeRate).HasPrecision(9, 4);
             b.Property(x => x.MarketplaceFeeRate).HasPrecision(9, 4);
 
+            // Senkron damgası — konvansiyonla (nullable datetime2). İNDEKS YOK: bayatlık kapısı tabloda tek bir
+            // MAX(LastSyncedAt) okur, birkaç bin satırda maliyeti ihmal edilebilir.
+
             b.HasIndex(x => x.ExternalId).IsUnique().HasFilter("[IsDeleted] = 0");
             b.HasIndex(x => x.ParentExternalId);
         });

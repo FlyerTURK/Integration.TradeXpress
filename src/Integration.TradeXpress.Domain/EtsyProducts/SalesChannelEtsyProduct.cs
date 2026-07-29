@@ -55,12 +55,23 @@ public class SalesChannelEtsyProductMaterial
     }
 }
 
-/// <summary>Etsy kişiselleştirme özel bilgi (key=müşteri giriş etiketi, value=varsayılan/örnek) — owned, JSON.
-/// N11 <c>SalesChannelTrN11ProductSpecialInfo</c> ikizi.</summary>
+/// <summary>Etsy kişiselleştirme SORUSU (key=soru başlığı, value=varsayılan/örnek) — owned, JSON.
+/// N11 <c>SalesChannelTrN11ProductSpecialInfo</c> ikizi; Etsy tarafında bir satır = bir
+/// <c>personalization question</c> (<c>question_type=text_input</c>).
+///
+/// <para><see cref="IsRequired"/> ve <see cref="MaxAllowedCharacters"/> Etsy'de SORU BAŞINA belirlenir — eski
+/// tek-kutulu modelde listeleme geneli olan bu iki ayar 2026-07-28'de buraya indi. N11 bu iki alanı yok sayar
+/// (SOAP sözleşmesinde karşılığı yok), dolayısıyla varsayılanları zararsızdır.</para></summary>
 public class SalesChannelEtsyProductSpecialInfo
 {
     public string Key { get; set; } = string.Empty;
     public string Value { get; set; } = string.Empty;
+
+    /// <summary>Alıcı bu soruyu boş bırakabilir mi (<c>required</c>). Varsayılan false.</summary>
+    public bool IsRequired { get; set; }
+
+    /// <summary>Cevabın karakter tavanı (<c>max_allowed_characters</c>); boşsa Etsy varsayılanı geçerli.</summary>
+    public int? MaxAllowedCharacters { get; set; }
 
     public SalesChannelEtsyProductSpecialInfo()
     {
@@ -70,6 +81,14 @@ public class SalesChannelEtsyProductSpecialInfo
     {
         Key = key;
         Value = value;
+    }
+
+    public SalesChannelEtsyProductSpecialInfo(string key, string value, bool isRequired, int? maxAllowedCharacters)
+    {
+        Key = key;
+        Value = value;
+        IsRequired = isRequired;
+        MaxAllowedCharacters = maxAllowedCharacters;
     }
 }
 
@@ -207,18 +226,11 @@ public class SalesChannelEtsyProduct : FullAuditedAggregateRoot<Guid>, IMultiTen
     /// <summary>Etsy açıklama override (<c>description</c>; boşsa push'ta ürün açıklaması devralınır).</summary>
     public virtual string? DescriptionOverride { get; protected set; }
 
-    /// <summary>Etsy kişiselleştirme açık mı (<c>is_personalizable</c>). Varsayılan false.</summary>
-    public virtual bool IsPersonalizable { get; protected set; }
-
-    /// <summary>Etsy kişiselleştirme talimatı (<c>personalization_instructions</c>; personalizable ise anlamlı).</summary>
-    public virtual string? PersonalizationInstructions { get; protected set; }
-
-    /// <summary>Etsy kişiselleştirme zorunlu mu (<c>personalization_is_required</c>). Personalizable ise anlamlı. Varsayılan false.</summary>
-    public virtual bool PersonalizationIsRequired { get; protected set; }
-
-    /// <summary>Müşteri girişinin maksimum karakter sayısı (<c>personalization_char_count_max</c>). Opsiyonel; dolu ise
-    /// 1..<see cref="SalesChannelEtsyProductConsts.PersonalizationCharCountMaxLimit"/> (fail-fast).</summary>
-    public virtual int? PersonalizationCharCountMax { get; protected set; }
+    // ── Kişiselleştirme ──
+    // Eski tek-kutulu model (is_personalizable / personalization_instructions / _is_required / _char_count_max)
+    // 2026-07-28'de SÖKÜLDÜ: Etsy o alanları 9 Nisan 2026'da kapattı, gönderen istek hata döner. Yerine
+    // ÇOKLU ADLANDIRILMIŞ SORU modeli geldi ve bizde onun taşıyıcısı SpecialInfo'dur (aşağıda).
+    // "Kişiselleştirilebilir mi" artık SAKLANAN değil TÜREYEN bir bilgidir: <see cref="IsPersonalizable"/>.
 
     /// <summary>Listeleme süresi dolunca Etsy'de otomatik yenilensin mi (<c>should_auto_renew</c>). Etsy-ÖZEL
     /// (N11/Trendyol yenilemez). Varsayılan true.</summary>
@@ -245,8 +257,19 @@ public class SalesChannelEtsyProduct : FullAuditedAggregateRoot<Guid>, IMultiTen
     /// <summary>Etsy malzemeleri (owned → JSON; ≤13).</summary>
     public virtual List<SalesChannelEtsyProductMaterial> Materials { get; protected set; } = new();
 
-    /// <summary>Kişiselleştirme özel bilgi (owned → JSON; müşteri giriş etiketleri).</summary>
+    /// <summary>Kişiselleştirme soruları (owned → JSON; her satır bir Etsy <c>personalization question</c>).</summary>
     public virtual List<SalesChannelEtsyProductSpecialInfo> SpecialInfo { get; protected set; } = new();
+
+    /// <summary>Bu listeleme kişiselleştirilebilir mi (<c>is_personalizable</c>). SAKLANMAZ — en az bir
+    /// kişiselleştirme sorusu varsa true. Etsy'de de aynı ilişki var: son soru silinince bayrak kendiliğinden
+    /// false'a düşer, ayrıca yazılamaz.</summary>
+    public virtual bool IsPersonalizable
+    {
+        get
+        {
+            return SpecialInfo.Count > 0;
+        }
+    }
 
     /// <summary>Varyant-başına Etsy SKU kimlik satırları (owned → JSON) — FrozenSku dondurma + Etsy product
     /// id/version + push snapshot'ı. Satır SİLİNMEZ (varyant yok olsa da Etsy'de yaşıyor olabilir).</summary>
@@ -356,25 +379,6 @@ public class SalesChannelEtsyProduct : FullAuditedAggregateRoot<Guid>, IMultiTen
             descriptionOverride, nameof(DescriptionOverride), 1, SalesChannelEtsyProductConsts.DescriptionOverrideMaxLength);
     }
 
-    /// <summary>Etsy kişiselleştirme (açık/kapalı + talimat + zorunluluk + karakter sınırı). Kapalı ise talimat/zorunluluk/
-    /// sınır temizlenir. Karakter sınırı dolu ise 1..<see cref="SalesChannelEtsyProductConsts.PersonalizationCharCountMaxLimit"/>
-    /// (fail-fast).</summary>
-    public virtual void SetPersonalization(bool isPersonalizable, string? instructions, bool isRequired, int? charCountMax)
-    {
-        if (charCountMax is { } max && (max < 1 || max > SalesChannelEtsyProductConsts.PersonalizationCharCountMaxLimit))
-        {
-            throw new BusinessException("TradeXpress:Etsy:Product:PersonalizationCharCountMaxInvalid");
-        }
-
-        IsPersonalizable = isPersonalizable;
-        PersonalizationInstructions = isPersonalizable
-            ? StringFieldGuard.EnsureOptionalText(
-                instructions, nameof(PersonalizationInstructions), 1, SalesChannelEtsyProductConsts.PersonalizationInstructionsMaxLength)
-            : null;
-        PersonalizationIsRequired = isPersonalizable && isRequired;
-        PersonalizationCharCountMax = isPersonalizable ? charCountMax : null;
-    }
-
     /// <summary>Listeleme süresi dolunca Etsy'de otomatik yenilensin mi (should_auto_renew). Varsayılan true.</summary>
     public virtual void SetAutoRenew(bool shouldAutoRenew)
     {
@@ -439,13 +443,50 @@ public class SalesChannelEtsyProduct : FullAuditedAggregateRoot<Guid>, IMultiTen
             .ToList();
     }
 
-    /// <summary>Kişiselleştirme özel bilgi — yalnız KEY zorunlu (boş key'li satır elenir), value opsiyonel (trim).
-    /// N11 SetSpecialInfo ikizi.</summary>
+    /// <summary>Kişiselleştirme soruları — her satır bir Etsy <c>personalization question</c>. Boş başlıklı satır
+    /// elenir, başlık/değer trim'lenir.
+    ///
+    /// <para>Etsy kısıtları FAIL-FAST doğrulanır (push'ta sessiz reddedilmek yerine burada patlasın):
+    /// en fazla <see cref="SalesChannelEtsyProductConsts.MaxSpecialInfoCount"/> soru · cevap karakter tavanı
+    /// verilmişse 1..<see cref="SalesChannelEtsyProductConsts.SpecialInfoMaxAllowedCharactersLimit"/>.
+    /// Başlık uzunluğu <see cref="StringFieldGuard"/> ile ayrıca sınırlanır.</para>
+    ///
+    /// <para>Sayı sınırı SESSİZCE KIRPILMAZ (Tags/Materials'taki Take deseninin aksine): kullanıcı 7 soru
+    /// tanımladıysa hangi 2'sinin düştüğünü bilmeli — kişiselleştirme sorusu kaybı sipariş içeriğini değiştirir.</para></summary>
     public virtual void SetSpecialInfo(IEnumerable<SalesChannelEtsyProductSpecialInfo>? specialInfo)
     {
-        SpecialInfo = (specialInfo ?? Enumerable.Empty<SalesChannelEtsyProductSpecialInfo>())
+        var rows = (specialInfo ?? Enumerable.Empty<SalesChannelEtsyProductSpecialInfo>())
             .Where(s => !string.IsNullOrWhiteSpace(s.Key))
-            .Select(s => new SalesChannelEtsyProductSpecialInfo(s.Key.Trim(), (s.Value ?? string.Empty).Trim()))
+            .ToList();
+
+        if (rows.Count > SalesChannelEtsyProductConsts.MaxSpecialInfoCount)
+        {
+            throw new BusinessException("TradeXpress:Etsy:Product:SpecialInfoCountExceeded")
+                .WithData("Max", SalesChannelEtsyProductConsts.MaxSpecialInfoCount)
+                .WithData("Actual", rows.Count);
+        }
+
+        foreach (var row in rows)
+        {
+            if (row.MaxAllowedCharacters is { } max
+                && (max < 1 || max > SalesChannelEtsyProductConsts.SpecialInfoMaxAllowedCharactersLimit))
+            {
+                throw new BusinessException("TradeXpress:Etsy:Product:SpecialInfoMaxAllowedCharactersInvalid")
+                    .WithData("Key", row.Key)
+                    .WithData("Limit", SalesChannelEtsyProductConsts.SpecialInfoMaxAllowedCharactersLimit);
+            }
+        }
+
+        SpecialInfo = rows
+            .Select(s => new SalesChannelEtsyProductSpecialInfo(
+                StringFieldGuard.EnsureRequiredText(
+                    s.Key,
+                    nameof(SalesChannelEtsyProductSpecialInfo.Key),
+                    1,
+                    SalesChannelEtsyProductConsts.SpecialInfoKeyMaxLength),
+                (s.Value ?? string.Empty).Trim(),
+                s.IsRequired,
+                s.MaxAllowedCharacters))
             .ToList();
     }
 

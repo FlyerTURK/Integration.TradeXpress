@@ -1,4 +1,4 @@
-namespace Integration.TradeXpress;
+﻿namespace Integration.TradeXpress;
 
 /// <summary>
 /// Seed orchestrator'ı — tek <see cref="IDataSeedContributor"/>; yalnız <b>sırayı</b> yönetir, asıl iş
@@ -12,6 +12,7 @@ public class TradeXpressDataSeedContributor(
     ParitySeeder paritySeeder,
     CountrySeeder countrySeeder,
     Integration.TradeXpress.Geography.GeographySeeder geographySeeder,
+    Integration.TradeXpress.MarketplaceShipmentTariffs.MarketplaceShipmentTariffSeeder shipmentTariffSeeder,
     CashSeeder cashSeeder,
     Integration.TradeXpress.Services.ServiceSeeder serviceSeeder,
     Integration.TradeXpress.Futures.FutureSeeder futureSeeder,
@@ -21,6 +22,7 @@ public class TradeXpressDataSeedContributor(
     Integration.TradeXpress.Vouchers.Balance.BalanceLedgerBackfiller balanceLedgerBackfiller,
     Integration.TradeXpress.MultiCompany.CompanyOwnedBackfiller companyOwnedBackfiller,
     CountryReferenceBackfiller countryReferenceBackfiller,
+    Integration.TradeXpress.Products.RecipeLineOriginBackfiller recipeLineOriginBackfiller,
     Integration.TradeXpress.Authorization.ScopedGrantSeeder scopedGrantSeeder)
     : IDataSeedContributor, ITransientDependency
 {
@@ -30,6 +32,7 @@ public class TradeXpressDataSeedContributor(
     private readonly ParitySeeder _paritySeeder = paritySeeder;
     private readonly CountrySeeder _countrySeeder = countrySeeder;
     private readonly Integration.TradeXpress.Geography.GeographySeeder _geographySeeder = geographySeeder;
+    private readonly Integration.TradeXpress.MarketplaceShipmentTariffs.MarketplaceShipmentTariffSeeder _shipmentTariffSeeder = shipmentTariffSeeder;
     private readonly CashSeeder _cashSeeder = cashSeeder;
     private readonly Integration.TradeXpress.Services.ServiceSeeder _serviceSeeder = serviceSeeder;
     private readonly Integration.TradeXpress.Futures.FutureSeeder _futureSeeder = futureSeeder;
@@ -39,6 +42,7 @@ public class TradeXpressDataSeedContributor(
     private readonly Integration.TradeXpress.Vouchers.Balance.BalanceLedgerBackfiller _balanceLedgerBackfiller = balanceLedgerBackfiller;
     private readonly Integration.TradeXpress.MultiCompany.CompanyOwnedBackfiller _companyOwnedBackfiller = companyOwnedBackfiller;
     private readonly CountryReferenceBackfiller _countryReferenceBackfiller = countryReferenceBackfiller;
+    private readonly Integration.TradeXpress.Products.RecipeLineOriginBackfiller _recipeLineOriginBackfiller = recipeLineOriginBackfiller;
     private readonly Integration.TradeXpress.Authorization.ScopedGrantSeeder _scopedGrantSeeder = scopedGrantSeeder;
 
     #endregion
@@ -61,6 +65,7 @@ public class TradeXpressDataSeedContributor(
             await _countrySeeder.SeedAsync();             // host-global ülke kataloğu (desteklenen birimli ülkeler)
             await _geographySeeder.SeedAsync();           // ISO 3166-1 tam ülke listesi (249) + TR il/ilçe (N11'den) + US eyalet
             await _cashSeeder.SeedAsync();                // host-global nakit kataloğu (Type=Cash birimlerden türetilir)
+            await _shipmentTariffSeeder.SeedAsync();      // pazaryerlerinin yayımladığı anlaşmalı kargo desi tarifeleri
         }
 
         // (2) Marjlar her tenant'ta (host dahil) — host'un merkezi düzeltme marjı da burada.
@@ -119,6 +124,10 @@ public class TradeXpressDataSeedContributor(
             // seed'lerinden SONRA (adım 1) koşmalı ki kod→id eşleşecek kayıtlar mevcut olsun;
             // tenant-agnostik (Disable<IMultiTenant>) → host koşusunda BİR KEZ yeter.
             await _countryReferenceBackfiller.BackfillAllTenantsAsync();
+
+            // Reçete satırı KAYNAK backfill'i: muadillikten üretilmiş eski satırları işaretle. Yapılmazsa
+            // muadil yenilemesi onları kullanıcı satırı sanıp SİLMEZ ama yenilerini ekler → reçete kopyalanır.
+            await _recipeLineOriginBackfiller.BackfillAllTenantsAsync();
         }
 
         // (7) Kapsam grant geri-uyumu (Faz 4 working-context): mevcut kullanıcılara tenant-geneli Grant

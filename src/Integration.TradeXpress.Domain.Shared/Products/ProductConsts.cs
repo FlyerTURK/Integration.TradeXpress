@@ -17,13 +17,8 @@ public static class ProductConsts
     public const int ImageFileNameMaxLength = 256;   // yüklenen dosyanın orijinal adı (görüntü)
     public const int MaxImageSizeBytes = 10 * 1024 * 1024;  // yükleme sınırı 10 MB (Etsy tavanı 20MB; Blazor circuit 16MB mesaj sınırı → güvenli 10MB). Metal bu sabiti alias'lar.
 
-    // ── Ürün özelleştirme (personalization; pazaryeri-genel, Etsy who_made deseni). Talimat + karakter sınırı. ──
-    /// <summary>Kişiselleştirme talimatı — EtsyProduct PersonalizationInstructionsMaxLength (256) ile HİZALI.</summary>
-    public const int PersonalizationInstructionsMaxLength = 256;
-
-    /// <summary>Kişiselleştirme karakter sınırının (müşteri girişi) üst tavanı — Etsy personalization_char_count_max = 256.
-    /// Değer verilirse 1..bu aralıkta olmalı (entity fail-fast).</summary>
-    public const int PersonalizationCharCountMaxLimit = 256;
+    // Kişiselleştirme talimatı/karakter sınırı sabitleri 2026-07-28'de KALDIRILDI: Etsy'nin tek-kutulu modeli
+    // 2026-04-09'da kapandı, kişiselleştirme artık SpecialInfo satırlarıyla (soru başına ayar) ifade ediliyor.
 
     /// <summary>Varyant ticari kimlik kodları (barcode/GTIN/MPN/OEM) — marketplace SKU eşleşmesi + katalog.</summary>
     public const int TradeIdentifierMaxLength = 64;
@@ -34,6 +29,14 @@ public static class ProductConsts
     public const int SellerNoteMaxLength = 500;
 
     // Ürün özelleştirme alanı (owned → JSON; N11 SpecialInfo sınırlarıyla hizalı — key=müşteri giriş etiketi zorunlu).
+    /// <summary>Yeni üründe varsayılan hazırlık süresi (gün) — 2026-07-28 Hakan: 1 gün pratikte yetişmiyor,
+    /// gerçekçi varsayılan 3. En az 1'dir (0 gün "aynı saniye kargoda" demek; pazaryerleri kabul etmez).</summary>
+    public const int DefaultPreparingDay = 3;
+
+    /// <summary>Ürün genel özelliği ("Ayar: 22K") değeri — pazaryeri nitelik değerleri kısa metinlerdir
+    /// (N11 productAttribute value sınırıyla hizalı).</summary>
+    public const int SpecificationValueMaxLength = 512;
+
     public const int SpecialInfoKeyMaxLength = 64;
     public const int SpecialInfoValueMaxLength = 20000;   // HTML/uzun örnek olabilir
 

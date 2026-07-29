@@ -1,0 +1,32 @@
+@page "/recipe-templates"
+@using Integration.Framework.Blazor.Client.Components.Crud
+@using Integration.TradeXpress.RecipeTemplates
+@using DevExpress.Blazor
+@inherits CrudPageBase<RecipeTemplateGetDto, RecipeTemplateListDto, Guid, RecipeTemplateListRequestDto, RecipeTemplateCreateDto, RecipeTemplateUpdateDto>
+
+<CrudLayout TGetDto="RecipeTemplateGetDto"
+            TListDto="RecipeTemplateListDto"
+            TKey="Guid"
+            StateService="StateService"
+            DataSource="@GridDataSource"
+            EntityName="@L["RecipeTemplate"]"
+            EntityIcon="@TradeXpressIcons.RecipeTemplate"
+            PrimaryTextSelector="@(m => m.Name)"
+            PageTitle="@L["RecipeTemplates"]"
+            OnNewClick="BeforeCreateAsync"
+            OnUpdateClick="BeforeUpdateAsync"
+            OnDeleteClick="DeleteAsync"
+            OnRefreshClick="GetListAsync"
+            OnSearchChanged="OnSearchAsync">
+
+    <GridColumns>
+        @* Kod alanı YOK — şablonun kimliği adıdır (ProductCategory ile aynı karar). *@
+        <GridLinkColumn FieldName="Name" Caption="@L["Name"]" Width="280px" FixedPosition="GridColumnFixedPosition.Left" VisibleIndex="1"
+                        OnClick="@(o => BeforeUpdateAsync((RecipeTemplateListDto)o))" />
+        @* Satır sayısı hesaplanmış alandır (sunucu doldurur) → sıralama kapalı: EF var olmayan kolonu çeviremez. *@
+        <DxGridDataColumn FieldName="LineCount" Caption="@L["RecipeTemplate:LineCount"]" Width="110px" VisibleIndex="2"
+                          AllowSort="false" AllowGroup="false" />
+        <DxGridDataColumn FieldName="DisplayOrder" Caption="@L["DisplayOrder"]" Width="110px" VisibleIndex="3" />
+    </GridColumns>
+
+</CrudLayout>

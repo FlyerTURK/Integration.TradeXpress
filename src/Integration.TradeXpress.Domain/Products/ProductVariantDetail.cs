@@ -40,6 +40,16 @@ public class ProductVariantDetail : FullAuditedAggregateRoot<Guid>, IMultiTenant
     /// <summary>Satış fiyatı para birimi (CurrencyUnit id-only; N11'e currencyType'a eşlenir). Fiyat null ise null.</summary>
     public virtual Guid? SalePriceCurrencyUnitId { get; protected set; }
 
+    /// <summary>
+    /// Bu varyantın PAKET DESİSİ — kargo tarifesinin girdisi. <c>null</c> = kanalın varsayılan desisi kullanılır
+    /// (<c>SalesChannelBase.DefaultPackageDesi</c>); yani alan yalnız İSTİSNA için doldurulur.
+    /// <para><b>Neden en/boy/yükseklik değil:</b> desi = hacim/bölen formülü üç alan + kullanıcı disiplini ister,
+    /// üstelik bölen (3000/4000) pazaryerine göre değişir. Kullanıcı zaten kutusunu bilir; doğrudan desi girmek
+    /// hem az veri hem tartışmasız sonuç (2026-07-27 Hakan kararı: "ürüne göre çok değişiyor").</para>
+    /// <para>0 = "Dosya" satırı (pazaryerinin ağırlıksız/küçük gönderi basamağı) — geçerli bir değerdir.</para>
+    /// </summary>
+    public virtual int? PackageDesi { get; protected set; }
+
     #endregion
 
     #region Methods
@@ -54,6 +64,18 @@ public class ProductVariantDetail : FullAuditedAggregateRoot<Guid>, IMultiTenant
 
         SalePrice = price;
         SalePriceCurrencyUnitId = price is null ? null : currencyUnitId;
+    }
+
+    /// <summary>Paket desisini set eder. <c>null</c> = kanal varsayılanına dön. Negatif desi yoktur (fail-fast);
+    /// 0 geçerlidir ("Dosya" basamağı).</summary>
+    public virtual void SetPackageDesi(int? packageDesi)
+    {
+        if (packageDesi is { } value && value < 0)
+        {
+            throw new BusinessException("TradeXpress:Product:PackageDesiNegative");
+        }
+
+        PackageDesi = packageDesi;
     }
 
     public override string ToString()

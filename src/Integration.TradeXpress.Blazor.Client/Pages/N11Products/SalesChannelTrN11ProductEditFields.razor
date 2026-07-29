@@ -1,4 +1,4 @@
-@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+﻿@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
 @using Integration.TradeXpress.Blazor.Client.Pages.Products
 
 @* N11 ürün listeleme edit formu. Form GENELİ tanımlar (kategori + genel alanlar) üstte; ekranda yer kaplayan
@@ -59,7 +59,7 @@
                             @bind-Value="@Model.CurrencyUnitId"
                             AllowClear="true" />
         </DxFormLayoutItem>
-        <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6">
+        <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6" BeginRow="true">
             <DxCheckBox @bind-Checked="@Model.IsActive" CheckType="CheckType.Switch">
                 @(Model.IsActive ? L["Active"] : L["Passive"])
             </DxCheckBox>
@@ -85,7 +85,7 @@
         @* Grup ürün (opsiyonel; N11-only) — aynı grup üyeleri groupItemCode'da eşleşir. Açıklama artık ayrı hint
            span'ı değil, Grup Kodu caption'ına tıklayınca açılan InfoCaption flyout'unda. Grup Kodu boşsa Grup
            Özelliği + Öğe Adı GİZLİ (bu ikisi yalnız bir grup kurulduysa anlamlı). *@
-        <DxFormLayoutItem ColSpanMd="4">
+        <DxFormLayoutItem ColSpanMd="6" BeginRow="true">
             <CaptionTemplate>
                 <InfoCaption Text="@L["N11Product:GroupItemCode"].Value" HintText="@L["N11Product:GroupProductHint"].Value" />
             </CaptionTemplate>
@@ -94,12 +94,12 @@
                            ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
             </Template>
         </DxFormLayoutItem>
-        <DxFormLayoutItem Caption="@L["N11Product:GroupAttribute"]" ColSpanMd="4"
+        <DxFormLayoutItem Caption="@L["N11Product:GroupAttribute"]" ColSpanMd="6"
                            Visible="@(!string.IsNullOrEmpty(Model.GroupItemCode))">
             <DxTextBox @bind-Text="@Model.GroupAttribute" NullText="@L["Optional"]"
                        ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
         </DxFormLayoutItem>
-        <DxFormLayoutItem Caption="@L["N11Product:ItemName"]" ColSpanMd="4"
+        <DxFormLayoutItem Caption="@L["N11Product:ItemName"]" ColSpanMd="6" BeginRow="true"
                            Visible="@(!string.IsNullOrEmpty(Model.GroupItemCode))">
             <DxTextBox @bind-Text="@Model.ItemName" NullText="@L["Optional"]"
                        ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
@@ -259,9 +259,36 @@
                   CssClass="mb-2 ms-1"
                   IconCssClass="@TradeXpressIcons.SalesChannel"
                   Click="@ReapplySideCostsAsync" />
+        @* Kayıtlı stok kaleminde karşılığı olmayan CANLI çekirdek varyantları — salt-okunur önizleme.
+           Çekirdekte yapılan (henüz kaydedilmemiş) her değişiklik burada anında görünür; fiyat/stok ezme
+           kayıttan sonra açılır (kimlik çıpaları sunucu üretimi). *@
+        @if (PreviewCoreVariants.Count > 0)
+        {
+            @* AYRI BAŞLIKLI KUTU: bu grid DRILL DEĞİL — satıra tıklanınca edit açılmaz. Aynı sekmede iki grid
+               yan yana durunca kullanıcı ikisini de düzenlenebilir sanıyor ve tıklayıp tepki alamıyordu
+               (2026-07-28 Hakan). Başlık + kenarlık ikisini görsel olarak ayırır. *@
+            <div style="font-weight:600; margin-top:0.75rem;">@L["N11Product:PreviewVariantsCaption"]</div>
+            <div style="color:#6c757d; font-size:0.85rem; margin-bottom:0.25rem;">@L["N11Product:PreviewVariantsHint"]</div>
+            <DxGrid Data="@PreviewCoreVariants" KeyFieldName="ClientKey" PageSize="200" PagerVisible="false" CssClass="w-100 mt-1 mb-2">
+                <Columns>
+                    <DxGridDataColumn FieldName="@nameof(ProductVariantGraphDto.Code)" Caption="@L["Code"]" Width="180px" />
+                    <DxGridDataColumn FieldName="@nameof(ProductVariantGraphDto.AttributeSummary)" Caption="@L["AttributeSummary"]" />
+                    <DxGridDataColumn FieldName="@nameof(ProductVariantGraphDto.StockQuantity)" Caption="@L["StockQuantity"]" Width="90px" TextAlignment="GridTextAlignment.Right" />
+                    <DxGridDataColumn Caption="@L["NetCost"]" Width="130px" TextAlignment="GridTextAlignment.Right">
+                        <CellDisplayTemplate>
+                            @{ var pv = (ProductVariantGraphDto)context.DataItem; }
+                            <span>@(pv.NetCost is { } nc ? $"{nc:N2} {pv.NetCostCurrency}" : "-")</span>
+                        </CellDisplayTemplate>
+                    </DxGridDataColumn>
+                </Columns>
+            </DxGrid>
+        }
         @if (Model.StockItems.Count == 0)
         {
-            <span style="color:#6c757d; font-size:0.85rem;">@L["N11Product:NoStockItemsYetHint"]</span>
+            @if (PreviewCoreVariants.Count == 0)
+            {
+                <span style="color:#6c757d; font-size:0.85rem;">@L["N11Product:NoStockItemsYetHint"]</span>
+            }
         }
         else
         {
@@ -368,8 +395,7 @@
                             <ProductRecipePanel Lines="v.RecipeLines"
                                                 Metals="_metals" MetalVariants="_metalVariants" Scraps="_scraps" Futures="_futures"
                                                 Jewelries="_jewelries" Stones="_stones" Goods="_goods" Services="_services" Units="_priceUnits"
-                                                NetCost="@v.NetCost" NetCostCurrency="@v.NetCostCurrency" NetCostMissingRate="@v.NetCostMissingRate"
-                                                OnChanged="@(async () => await HandleStockItemRecipeChangedAsync(v))" />
+                                                NetCost="@v.NetCost" NetCostCurrency="@v.NetCostCurrency" NetCostMissingRate="@v.NetCostMissingRate" />
                         </DxFormLayoutGroup>
                     </DxFormLayout>
                 </EditContent>

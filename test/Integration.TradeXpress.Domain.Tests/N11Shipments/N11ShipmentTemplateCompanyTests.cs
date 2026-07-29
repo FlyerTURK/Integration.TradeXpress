@@ -8,8 +8,11 @@ using Xunit;
 namespace Integration.TradeXpress.N11Shipments;
 
 /// <summary>
-/// Şablonun kargo firması satırları + varsayılan cari bağı (2026-07-26 Hakan kararı). Korunan değişmezler:
-/// senkron kullanıcı emeğini EZMEZ, aynı firma tek cari gösterir, pasifleşen şablon bağlarını kaybetmez.
+/// Şablonun kargo firması satırları. Korunan değişmez: N11 senkronu firma listesini gelen kimliklere göre
+/// hizalar — kalan korunur, çıkan düşer, yeni eklenir.
+///
+/// <para>Firma başına "varsayılan cari alt hesap" bağı 2026-07-28'de kaldırıldı (hiçbir muhasebe akışında
+/// okunmuyordu ve canlıda tamamı boştu); o davranışın testleri de bu dosyadan çıktı.</para>
 /// </summary>
 public class N11ShipmentTemplateCompanyTests
 {
@@ -18,32 +21,27 @@ public class N11ShipmentTemplateCompanyTests
 
     private static readonly Guid CompanyId = SimpleGuidGenerator.Instance.Create();
     private static readonly Guid ChannelId = SimpleGuidGenerator.Instance.Create();
-    private static readonly Guid YurticiSubAccount = SimpleGuidGenerator.Instance.Create();
 
     [Fact]
-    public void Sync_preserves_sub_account_of_kept_company()
+    public void Sync_keeps_companies_that_are_still_listed()
     {
-        // Kullanıcı Yurtiçi'yi cariye bağladı; sonra N11'den şablon yeniden indi (Yurtiçi hâlâ listede).
         var template = BuildTemplate();
         template.SetShipmentCompanies(new[] { Yurtici, Aras });
-        template.SetCompanySubAccount(Yurtici, YurticiSubAccount);
 
         template.SetShipmentCompanies(new[] { Yurtici, Aras });   // senkron tekrar koştu
 
-        template.Companies.Single(c => c.ExternalId == Yurtici).SubAccountId.ShouldBe(YurticiSubAccount);
+        template.Companies.Select(c => c.ExternalId).ShouldBe(new[] { Yurtici, Aras });
     }
 
     [Fact]
-    public void Sync_adds_new_company_as_orphan()
+    public void Sync_adds_a_newly_listed_company()
     {
         var template = BuildTemplate();
         template.SetShipmentCompanies(new[] { Yurtici });
-        template.SetCompanySubAccount(Yurtici, YurticiSubAccount);
 
         template.SetShipmentCompanies(new[] { Yurtici, Aras });   // N11'e yeni firma eklendi
 
-        template.Companies.Single(c => c.ExternalId == Aras).SubAccountId.ShouldBeNull();
-        template.Companies.Single(c => c.ExternalId == Yurtici).SubAccountId.ShouldBe(YurticiSubAccount);
+        template.Companies.Select(c => c.ExternalId).ShouldBe(new[] { Yurtici, Aras });
     }
 
     [Fact]
@@ -58,41 +56,16 @@ public class N11ShipmentTemplateCompanyTests
     }
 
     [Fact]
-    public void Sub_account_can_be_cleared_back_to_orphan()
+    public void Deactivated_template_keeps_its_companies()
     {
+        // N11'den kalkan şablon SİLİNMEZ → pasifleşir; firma listesi kaydın içinde yaşamaya devam eder.
         var template = BuildTemplate();
         template.SetShipmentCompanies(new[] { Yurtici });
-        template.SetCompanySubAccount(Yurtici, YurticiSubAccount);
-
-        template.SetCompanySubAccount(Yurtici, null);
-
-        template.Companies.Single().SubAccountId.ShouldBeNull();
-    }
-
-    [Fact]
-    public void Setting_sub_account_of_unknown_company_is_ignored()
-    {
-        // Senkron sırası kullanıcı işlemiyle yarışabilir — şablonda olmayan firmaya bağ kurulmaz, patlamaz da.
-        var template = BuildTemplate();
-        template.SetShipmentCompanies(new[] { Yurtici });
-
-        template.SetCompanySubAccount(Aras, YurticiSubAccount);
-
-        template.Companies.Single().SubAccountId.ShouldBeNull();
-    }
-
-    [Fact]
-    public void Deactivated_template_keeps_its_company_links()
-    {
-        // N11'den kalkan şablon SİLİNMEZ → pasifleşir; kullanıcının kurduğu cari bağı yaşamalı.
-        var template = BuildTemplate();
-        template.SetShipmentCompanies(new[] { Yurtici });
-        template.SetCompanySubAccount(Yurtici, YurticiSubAccount);
 
         template.SetActive(false);
 
         template.IsActive.ShouldBeFalse();
-        template.Companies.Single().SubAccountId.ShouldBe(YurticiSubAccount);
+        template.Companies.Single().ExternalId.ShouldBe(Yurtici);
     }
 
     [Fact]

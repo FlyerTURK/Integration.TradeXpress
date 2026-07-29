@@ -56,67 +56,12 @@ public partial class EntityAttributesPanel
         }
 
         var template = await VariantTemplateAppService.GetAsync(id);
-        MergeTemplate(template);
+        VariantTemplateMerger.Merge(Attributes, template);
         _templatePopupVisible = false;
         await NotifyChangedAsync();
         StateHasChanged();
     }
 
-    // Şablon gruplarını mevcut grafa ekler: aynı ADLI grup varsa değerleri ona kat (dedup), yoksa yeni grup ekle
-    // (MaxAttributesPerEntity sınırına saygı). Mevcut nitelik/değerler SİLİNMEZ — yalnız eksikler eklenir.
-    private void MergeTemplate(VariantTemplateGetDto template)
-    {
-        foreach (var group in template.Attributes.OrderBy(x => x.DisplayOrder))
-        {
-            var name = (group.Name ?? string.Empty).Trim();
-            if (name.Length == 0)
-            {
-                continue;
-            }
-
-            var existing = Attributes.FirstOrDefault(a =>
-                !a.IsDeleted && string.Equals(a.Name.Trim(), name, StringComparison.OrdinalIgnoreCase));
-
-            if (existing is null)
-            {
-                if (Attributes.Count(a => !a.IsDeleted) >= EntityVariantConsts.MaxAttributesPerEntity)
-                {
-                    continue;
-                }
-
-                var attribute = new EntityAttributeGraphDto { Name = name, DisplayOrder = group.DisplayOrder };
-                foreach (var value in group.Values.OrderBy(x => x.DisplayOrder))
-                {
-                    AddValueIfMissing(attribute, value.Value, value.DisplayOrder);
-                }
-
-                Attributes.Add(attribute);
-            }
-            else
-            {
-                foreach (var value in group.Values.OrderBy(x => x.DisplayOrder))
-                {
-                    AddValueIfMissing(existing, value.Value, value.DisplayOrder);
-                }
-            }
-        }
-    }
-
-    private static void AddValueIfMissing(EntityAttributeGraphDto attribute, string? value, int displayOrder)
-    {
-        var normalized = (value ?? string.Empty).Trim();
-        if (normalized.Length == 0)
-        {
-            return;
-        }
-
-        var duplicate = attribute.Values.Any(x =>
-            !x.IsDeleted && string.Equals(x.Value.Trim(), normalized, StringComparison.OrdinalIgnoreCase));
-        if (!duplicate)
-        {
-            attribute.Values.Add(new EntityAttributeValueGraphDto { Value = normalized, DisplayOrder = displayOrder });
-        }
-    }
 
     /// <summary>Nitelik VEYA değeri eklenir/düzenlenir/silinirse tetiklenir — sahip layout bunu host'un otomatik varyant
     /// senkronuna (regen + merge) bağlar. Böylece varyantlar "Oluştur" butonuna bağlı kalmadan anında güncellenir.</summary>

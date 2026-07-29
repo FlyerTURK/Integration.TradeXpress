@@ -1,4 +1,4 @@
-@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+﻿@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
 @using Integration.Framework.Blazor.Client
 @using Integration.TradeXpress.Blazor.Client.Pages.Products
 
@@ -134,7 +134,7 @@
                             @bind-Value="@Model.CurrencyUnitId"
                             AllowClear="true" />
         </DxFormLayoutItem>
-        <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6">
+        <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6" BeginRow="true">
             <DxCheckBox @bind-Checked="@Model.IsActive" CheckType="CheckType.Switch">
                 @(Model.IsActive ? L["Active"] : L["Passive"])
             </DxCheckBox>
@@ -149,29 +149,10 @@
                 @(Model.ShouldAutoRenew ? L["Yes"] : L["No"])
             </DxCheckBox>
         </DxFormLayoutItem>
-        @* Kişiselleştirme — açıkken talimat + zorunluluk + karakter sınırı görünür (Etsy personalization). *@
-        <DxFormLayoutItem Caption="@L["EtsyProduct:IsPersonalizable"]" ColSpanMd="6">
-            <DxCheckBox @bind-Checked="@Model.IsPersonalizable" CheckType="CheckType.Switch">
-                @(Model.IsPersonalizable ? L["Yes"] : L["No"])
-            </DxCheckBox>
-        </DxFormLayoutItem>
-        <DxFormLayoutItem Caption="@L["EtsyProduct:PersonalizationIsRequired"]" ColSpanMd="6"
-                          Visible="@Model.IsPersonalizable">
-            <DxCheckBox @bind-Checked="@Model.PersonalizationIsRequired" CheckType="CheckType.Switch">
-                @(Model.PersonalizationIsRequired ? L["Yes"] : L["No"])
-            </DxCheckBox>
-        </DxFormLayoutItem>
-        <DxFormLayoutItem Caption="@L["EtsyProduct:PersonalizationCharCountMax"]" ColSpanMd="6"
-                          Visible="@Model.IsPersonalizable">
-            <NumericSpinEdit TValue="int?" @bind-Value="@Model.PersonalizationCharCountMax"
-                             MinValue="1" MaxValue="SalesChannelEtsyProductConsts.PersonalizationCharCountMaxLimit"
-                             ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
-        </DxFormLayoutItem>
-        <DxFormLayoutItem Caption="@L["EtsyProduct:PersonalizationInstructions"]" ColSpanMd="12"
-                          Visible="@Model.IsPersonalizable">
-            <DxMemo @bind-Text="@Model.PersonalizationInstructions" Rows="2" ResizeMode="MemoResizeMode.Disabled"
-                    CssClass="w-100" NullText="@L["Optional"]" />
-        </DxFormLayoutItem>
+        @* Kişiselleştirme aç/kapa alanı YOK (2026-07-28): Etsy'de is_personalizable artık yazılan değil TÜREYEN
+           bir bayrak — "Ürün Kişiselleştirme" sekmesine soru eklendiği anda açılır, son soru silinince kapanır.
+           Eski talimat/zorunluluk/karakter-sınırı alanları Etsy'de 9 Nisan 2026'da kapandı; zorunluluk ve
+           karakter sınırı artık SORU BAŞINA, o sekmede. *@
         <DxFormLayoutItem Caption="@L["EtsyProduct:SellerNote"]" ColSpanMd="12">
             <DxMemo @bind-Text="@Model.SellerNote" Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100"
                     NullText="@L["Optional"]" />
@@ -517,8 +498,7 @@
                             <ProductRecipePanel Lines="v.RecipeLines"
                                                 Metals="_metals" MetalVariants="_metalVariants" Scraps="_scraps" Futures="_futures"
                                                 Jewelries="_jewelries" Stones="_stones" Goods="_goods" Services="_services" Units="_priceUnits"
-                                                NetCost="@v.NetCost" NetCostCurrency="@v.NetCostCurrency" NetCostMissingRate="@v.NetCostMissingRate"
-                                                OnChanged="@(async () => await HandleStockItemRecipeChangedAsync(v))" />
+                                                NetCost="@v.NetCost" NetCostCurrency="@v.NetCostCurrency" NetCostMissingRate="@v.NetCostMissingRate" />
                         </DxFormLayoutGroup>
                     </DxFormLayout>
                 </EditContent>
@@ -544,6 +524,8 @@
             <GridColumns>
                 <DxGridDataColumn FieldName="Key" Caption="@L["EtsyProduct:SpecialInfoKey"]" Width="30%" />
                 <DxGridDataColumn FieldName="Value" Caption="@L["EtsyProduct:SpecialInfoValue"]" />
+                <DxGridDataColumn FieldName="IsRequired" Caption="@L["EtsyProduct:SpecialInfoIsRequired"]" Width="110px" />
+                <DxGridDataColumn FieldName="MaxAllowedCharacters" Caption="@L["EtsyProduct:SpecialInfoMaxChars"]" Width="130px" />
             </GridColumns>
             <EditContent Context="s">
                 <DxFormLayout CssClass="w-100">
@@ -552,6 +534,17 @@
                     </DxFormLayoutItem>
                     <DxFormLayoutItem Caption="@L["EtsyProduct:SpecialInfoValue"]" ColSpanMd="12">
                         <DxMemo @bind-Text="@s.Value" Rows="4" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100" />
+                    </DxFormLayoutItem>
+                    @* Zorunluluk ve karakter tavanı Etsy'de SORU BAŞINA belirlenir (eskiden listeleme geneliydi). *@
+                    <DxFormLayoutItem Caption="@L["EtsyProduct:SpecialInfoIsRequired"]" ColSpanMd="6">
+                        <DxCheckBox @bind-Checked="@s.IsRequired" CheckType="CheckType.Switch">
+                            @(s.IsRequired ? L["Yes"] : L["No"])
+                        </DxCheckBox>
+                    </DxFormLayoutItem>
+                    <DxFormLayoutItem Caption="@L["EtsyProduct:SpecialInfoMaxChars"]" ColSpanMd="6">
+                        <NumericSpinEdit TValue="int?" @bind-Value="@s.MaxAllowedCharacters"
+                                         MinValue="1" MaxValue="SalesChannelEtsyProductConsts.SpecialInfoMaxAllowedCharactersLimit"
+                                         ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
                     </DxFormLayoutItem>
                 </DxFormLayout>
             </EditContent>

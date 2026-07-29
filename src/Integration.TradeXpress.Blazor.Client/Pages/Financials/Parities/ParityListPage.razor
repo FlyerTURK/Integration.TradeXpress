@@ -1,4 +1,4 @@
-@page "/currencies/parities"
+﻿@page "/currencies/parities"
 @using Integration.TradeXpress.Financials.Parities
 @using Integration.TradeXpress.Financials.CurrencyUnits
 @using Integration.Framework.Blazor.Client.Components.Crud
@@ -19,8 +19,7 @@
             OnUpdateClick="BeforeUpdateAsync"
             OnDeleteClick="DeleteAsync"
             OnRefreshClick="GetListAsync"
-            OnSearchChanged="OnSearchAsync"
-            AllowColumnReordering="true">
+            OnSearchChanged="OnSearchAsync">
 
     <GridColumns>
         @* Kod: paritenin kendisini düzenle (linkli). *@

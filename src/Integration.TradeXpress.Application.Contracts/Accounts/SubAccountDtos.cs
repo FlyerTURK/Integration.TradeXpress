@@ -109,7 +109,7 @@ public class SubAccountUpdateDto : IUpdateDto
 /// Durum = <see cref="Id"/> + <see cref="IsDeleted"/>: Id boş → ekle, IsDeleted → sil, aksi → güncelle.
 /// (BranchId drill'de atanmaz; nullable şube ileride.)
 /// </summary>
-public class SubAccountGraphDto : ISubAccountEditableFields
+public class SubAccountGraphDto : ISubAccountEditableFields, IHasIsActive
 {
     public Guid Id { get; set; }
     public Guid ClientKey { get; set; } = Guid.NewGuid();

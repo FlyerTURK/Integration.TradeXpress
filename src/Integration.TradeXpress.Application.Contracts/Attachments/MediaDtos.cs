@@ -87,6 +87,19 @@ public class EntityMediaLinkDto
     public MediaDto Media { get; set; } = new();
 }
 
+/// <summary>Pazaryeri PUSH'u için HAFİF medya düğümü — yalnız kimlik + tür + sıra.
+///
+/// <para>Neden ayrı DTO: push'un poster/içerik adresine ihtiyacı YOKTUR (dış link imzalı sağlayıcıdan üretilir),
+/// dolayısıyla <see cref="MediaDto"/>'nun adres kurulumu boşuna maliyettir. Sıra ÇÖZÜLMÜŞ gelir: kapak önce,
+/// sonra <see cref="DisplayOrder"/> — pazaryerinde kapak görselin değişmemesi buna bağlı.</para></summary>
+public class PushMediaDto
+{
+    public Guid MediaId { get; set; }
+    public MediaType MediaType { get; set; }
+    public bool IsDefault { get; set; }
+    public int DisplayOrder { get; set; }
+}
+
 /// <summary>Entity→medya link DÜZENLEME düğümü (panel + ReplaceFor girdisi). Yalnız link meta'sı + MediaId taşır.</summary>
 public class EntityMediaLinkEditDto
 {

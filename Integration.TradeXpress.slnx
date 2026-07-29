@@ -1,4 +1,4 @@
-<Solution>
+﻿<Solution>
     <Folder Name="/src/">
         <Project Path="src/Integration.TradeXpress.Domain/Integration.TradeXpress.Domain.csproj" />
         <Project Path="src/Integration.TradeXpress.Application/Integration.TradeXpress.Application.csproj" />
@@ -24,6 +24,7 @@
         <Project Path="test/Integration.TradeXpress.EntityFrameworkCore.Tests/Integration.TradeXpress.EntityFrameworkCore.Tests.csproj" />
         <Project Path="test/Integration.TradeXpress.TestBase/Integration.TradeXpress.TestBase.csproj" />
         <Project Path="test/Integration.TradeXpress.Domain.Tests/Integration.TradeXpress.Domain.Tests.csproj" />
+        <Project Path="test/Integration.TradeXpress.Blazor.Tests/Integration.TradeXpress.Blazor.Tests.csproj" />
         <Project Path="test/Integration.TradeXpress.HttpApi.Client.ConsoleTestApp/Integration.TradeXpress.HttpApi.Client.ConsoleTestApp.csproj" />
     </Folder>
 </Solution>

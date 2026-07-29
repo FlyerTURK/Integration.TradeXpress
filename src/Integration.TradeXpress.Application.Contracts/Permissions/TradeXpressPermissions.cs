@@ -1,4 +1,4 @@
-namespace Integration.TradeXpress.Permissions;
+﻿namespace Integration.TradeXpress.Permissions;
 
 public static class TradeXpressPermissions
 {
@@ -79,6 +79,26 @@ public static class TradeXpressPermissions
     public static class VariantTemplates
     {
         public const string Default = GroupName + ".VariantTemplates";
+        public const string Create  = Default + ".Create";
+        public const string Update  = Default + ".Update";
+        public const string Delete  = Default + ".Delete";
+    }
+
+    /// <summary>Çekirdek ürün kategorisi ağacı (company-owned) + nitelik/değerleri. Pazaryeri kategori
+    /// eşleştirmesinin ve kategori komisyonunun dayanağı olduğundan yönetimi izinlidir.</summary>
+    public static class ProductCategories
+    {
+        public const string Default = GroupName + ".ProductCategories";
+        public const string Create  = Default + ".Create";
+        public const string Update  = Default + ".Update";
+        public const string Delete  = Default + ".Delete";
+    }
+
+    /// <summary>Reçete şablonu ("orta reçete": hizmet/paketleme/kargo/sigorta/yarı mamul demeti). Ürüne
+    /// uygulanması ürün güncelleme iznine tabidir (maliyeti değiştirir).</summary>
+    public static class RecipeTemplates
+    {
+        public const string Default = GroupName + ".RecipeTemplates";
         public const string Create  = Default + ".Create";
         public const string Update  = Default + ".Update";
         public const string Delete  = Default + ".Delete";

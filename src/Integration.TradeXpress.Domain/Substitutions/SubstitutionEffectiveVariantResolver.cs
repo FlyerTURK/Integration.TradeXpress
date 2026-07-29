@@ -2,11 +2,14 @@ namespace Integration.TradeXpress.Substitutions;
 
 /// <summary>
 /// Muadil grubu kaleminin ETKİN VARYANT KÜMESİ çözümleyicisi — SAF STATİK (DB'siz/DI'sız;
-/// <see cref="SubstitutionSolver"/> kardeşi). Öncelik zinciri (bağlayıcı tasarım, Dilim-2):
-/// <c>override ?? IncludedVariantIds(doluysa) ?? {ana varyant}</c>.
+/// <see cref="SubstitutionSolver"/> kardeşi). Öncelik: <c>override(VERİLDİYSE) → IncludedVariantIds(doluysa)
+/// → {ana varyant}</c>.
 /// <list type="number">
-///   <item><b>Override</b> (Dilim-3 ürün-düzeyi override'ı için parametreli; bu dilimde çağıranlar null geçer):
-///   dolu geldiyse kalem ayarını tamamen ezer.</item>
+///   <item><b>Override</b> (ürün-düzeyi kapsam): <c>null</c> = ürün bağlamı yok (grup modu). <c>null değil</c>
+///   ise ürünün KENDİ kapsamıdır ve tek doğrudur — <b>boş liste dahil</b> ("bu madeni istemiyorum").
+///   Ürün gruba bağlanırken grup kapsamı ürüne kopyalandığından, sonrasında grup bu üründe belirleyici
+///   değildir (2026-07-27 kararı; öncesinde boş override sessizce gruba dönüyor, kullanıcının kaldırma
+///   eylemini etkisiz kılıyordu).</item>
 ///   <item><b>IncludedVariantIds</b> (kalem opt-in kümesi): dolu ise etkin küme odur — sıra kullanıcı-kontrollü
 ///   (aday sırası = tüketim önceliği içi alt-sıra), duplike/boş-Guid savunmacı ayıklanır.</item>
 ///   <item><b>Boş küme = yalnız ANA varyant</b> (statüko değişmezi): ana varyant id'si döner; madenin hiç
@@ -25,12 +28,16 @@ public static class SubstitutionEffectiveVariantResolver
         IReadOnlyList<Guid>? includedVariantIds,
         Guid? mainVariantId)
     {
-        var overrides = Normalize(overrideVariantIds);
-        if (overrides.Count > 0)
+        // ÜRÜN MODU — liste VERİLDİYSE (null değil) tek doğru odur; BOŞ olması da bir cevaptır:
+        // "bu madeni istemiyorum". Ürün gruba bağlanırken grubun kapsamı ürüne KOPYALANDIĞI için
+        // (materyalizasyon) sonrasında grubun bu üründe işi kalmaz — kullanıcı işareti kaldırdığında
+        // sessizce gruba geri dönmek, kaldırma eylemini etkisiz kılıyordu (2026-07-27 Hakan kararı).
+        if (overrideVariantIds is not null)
         {
-            return overrides;
+            return Normalize(overrideVariantIds);
         }
 
+        // GRUP MODU — kalemin kendi opt-in kümesi; boşsa statüko değişmezi: yalnız ana varyant.
         var included = Normalize(includedVariantIds);
         if (included.Count > 0)
         {

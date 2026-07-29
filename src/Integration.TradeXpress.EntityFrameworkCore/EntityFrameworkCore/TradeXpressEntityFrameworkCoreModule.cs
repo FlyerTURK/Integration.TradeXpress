@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Volo.Abp.Uow;
 using Volo.Abp.AuditLogging.EntityFrameworkCore;
@@ -44,6 +45,22 @@ public class TradeXpressEntityFrameworkCoreModule : AbpModule
                 /* Remove "includeAllEntities: true" to create
                  * default repositories only for aggregate roots */
             options.AddDefaultRepositories(includeAllEntities: true);
+
+            // Kategori grafı ATOMİK yüklenir (nitelik + değerleri). Tek seviyeli WithDetailsAsync yetmez
+            // (iç içe ThenInclude gerekir) ve eksik yükleme SESSİZ VERİ BOZULMASI üretirdi: güncellemede
+            // merge var olan satırı bulamayıp her kaydetmede kopya nitelik eklerdi.
+            // Şablon SATIRLARIYLA birlikte anlamlıdır: satırsız yüklenirse "uygula" sessizce hiçbir şey eklemez
+            // ve güncellemede merge var olan satırı bulamayıp kopya üretirdi (kategori grafıyla aynı gerekçe).
+            options.Entity<RecipeTemplates.RecipeTemplate>(template =>
+            {
+                template.DefaultWithDetailsFunc = query => query.Include(x => x.Lines);
+            });
+
+            options.Entity<ProductCategories.ProductCategory>(category =>
+            {
+                category.DefaultWithDetailsFunc = query =>
+                    query.Include(x => x.Attributes).ThenInclude(a => a.Values);
+            });
         });
 
         if (AbpStudioAnalyzeHelper.IsInAnalyzeMode)

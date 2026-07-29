@@ -28,10 +28,14 @@ public partial class MdiTabHost : IDisposable
     protected override void OnInitialized()
     {
         TabManager.StateChanged += OnStateChanged;
-        TabManager.RestoredWithLostDirtyData += OnRestoredWithLostDirtyData;
         TabManager.RestoreFailed += OnRestoreFailed;
         TabManager.PersistFailed += OnPersistFailed;
     }
+
+    // Sekme geri yükleme tamamlandı mı — false iken açılış ekranı (splash) gösterilir. İlk render'da
+    // TabManager.Tabs HENÜZ BOŞTUR (yükleme OnAfterRenderAsync'te asenkron başlar); bu bayrak olmadan
+    // kullanıcı önce "sekmesiz" bir kabuk görüp sonra sekmelerin belirmesini izliyordu.
+    private bool _tabsRestored;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -53,6 +57,11 @@ public partial class MdiTabHost : IDisposable
                 // Ana sayfa otomatik sekme olarak açılmaz, null gönderiyoruz
                 await TabManager.InitializeAsync(null, null, null);
             }
+
+            // Geri yükleme BİTTİ (başarılı ya da değil) — açılış ekranı kalkar. finally değil burada:
+            // yukarıdaki dallar hata fırlatırsa AutoRecoverErrorBoundary devreye girer ve zaten bu bileşen
+            // çizilmez; bayrağı orada da açmak, hata ekranının arkasında boş kabuk göstermek olurdu.
+            _tabsRestored = true;
 
             // Server mode: ensure re-render after initialization completes.
             await InvokeAsync(StateHasChanged);
@@ -105,9 +114,6 @@ public partial class MdiTabHost : IDisposable
     private void OnStateChanged() => _ = InvokeAsync(StateHasChanged);
 
     // ── Kalıcılık geri bildirimleri (toast'lar dispatcher'a alınır — event'ler arka plan Task'ından gelebilir) ──
-
-    private void OnRestoredWithLostDirtyData(int count)
-        => _ = InvokeAsync(() => UiService.ShowWarningToast(string.Format(L["MdiTabsDirtyLostOnRestore"].Value, count)));
 
     private void OnRestoreFailed()
         => _ = InvokeAsync(() => UiService.ShowErrorToast(L["MdiTabsRestoreFailed"].Value));
@@ -190,7 +196,6 @@ public partial class MdiTabHost : IDisposable
     public void Dispose()
     {
         TabManager.StateChanged -= OnStateChanged;
-        TabManager.RestoredWithLostDirtyData -= OnRestoredWithLostDirtyData;
         TabManager.RestoreFailed -= OnRestoreFailed;
         TabManager.PersistFailed -= OnPersistFailed;
     }

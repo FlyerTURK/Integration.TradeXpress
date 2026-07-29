@@ -1,9 +1,11 @@
-using System;
+﻿using System;
+using System.Globalization;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Integration.Framework;
 using Integration.TradeXpress.Products;
+using Integration.TradeXpress.RecipeTemplates;
 using Integration.TradeXpress.Substitutions;
 using Integration.TradeXpress.Variants;
 using Integration.TradeXpress.Vouchers;
@@ -40,6 +42,9 @@ public class SubstitutionVariantMaterializer : ITransientDependency
     private readonly SubstitutionChannelPlanProvider _planContextProvider;
     private readonly IRepository<EntityVariant, Guid> _variantRepository;
     private readonly IRepository<ProductVariantRecipeLine, Guid> _recipeLineRepository;
+    private readonly IRepository<SubstitutionGroup, Guid> _groupRepository;   // yalnız OKUMA — gösterim birimi
+    private readonly IRepository<RecipeTemplate, Guid> _recipeTemplateRepository;   // yalnız OKUMA
+    private readonly RecipeTemplateApplier _recipeTemplateApplier;
     private readonly EntityVariantManager _variantManager;
     private readonly IAsyncQueryableExecuter _asyncExecuter;
     private readonly IDataFilter _dataFilter;
@@ -53,6 +58,9 @@ public class SubstitutionVariantMaterializer : ITransientDependency
         SubstitutionChannelPlanProvider planContextProvider,
         IRepository<EntityVariant, Guid> variantRepository,
         IRepository<ProductVariantRecipeLine, Guid> recipeLineRepository,
+        IRepository<SubstitutionGroup, Guid> groupRepository,
+        IRepository<RecipeTemplate, Guid> recipeTemplateRepository,
+        RecipeTemplateApplier recipeTemplateApplier,
         EntityVariantManager variantManager,
         IAsyncQueryableExecuter asyncExecuter,
         IDataFilter dataFilter,
@@ -62,6 +70,9 @@ public class SubstitutionVariantMaterializer : ITransientDependency
         _planContextProvider = planContextProvider;
         _variantRepository = variantRepository;
         _recipeLineRepository = recipeLineRepository;
+        _groupRepository = groupRepository;
+        _recipeTemplateRepository = recipeTemplateRepository;
+        _recipeTemplateApplier = recipeTemplateApplier;
         _variantManager = variantManager;
         _asyncExecuter = asyncExecuter;
         _dataFilter = dataFilter;
@@ -105,7 +116,7 @@ public class SubstitutionVariantMaterializer : ITransientDependency
 
         try
         {
-            var selected = SelectTrials(product, result);
+            var selected = SubstitutionVariantSelection.Select(result.Trials, product.SubstitutionVariantMode);
             var context = await LoadContextAsync(selected);
 
             if (product.SubstitutionVariantMode == SubstitutionVariantMode.Multi)
@@ -126,18 +137,6 @@ public class SubstitutionVariantMaterializer : ITransientDependency
         }
     }
 
-    // ── Seçim: yalnız BAŞARILI adaylar, Rank sırasıyla; Multi'de tavanlı, Single'da yalnız Rank 1. ──
-    private static List<SubstitutionTrialDto> SelectTrials(Product product, SubstitutionCalculationResultDto result)
-    {
-        var successful = result.Trials
-            .Where(t => t.Success && t.Rank is not null)
-            .OrderBy(t => t.Rank!.Value)
-            .ToList();
-
-        return product.SubstitutionVariantMode == SubstitutionVariantMode.Multi
-            ? successful.Take(ProductConsts.SubstitutionMaterializedVariantMax).ToList()
-            : successful.Take(1).ToList();
-    }
 
     private async Task<SubstitutionChannelPlanContext> LoadContextAsync(List<SubstitutionTrialDto> trials)
     {
@@ -173,7 +172,11 @@ public class SubstitutionVariantMaterializer : ITransientDependency
                 .Where(v => v.EntityName == ProductEntityName && v.EntityId == product.Id && v.Id != main.Id));
         foreach (var other in others)
         {
-            await _recipeLineRepository.DeleteAsync(l => l.ProductVariantId == other.Id, autoSave: true);
+            // YALNIZ muadil satirlari silinir: varyant ayni kodla DIRILEBILIR (asagidaki Multi dali dirilti
+            // yapiyor) ve o an kullanicinin elle ekledigi / sablondan gelen satirlar geri gelmeliydi. Origin
+            // filtresi olmadan bunlar kalici olarak olur ve maliyet sessizce eksik hesaplanirdi.
+            await _recipeLineRepository.DeleteAsync(
+                l => l.ProductVariantId == other.Id && l.Origin == RecipeLineOrigin.Substitution, autoSave: true);
             await _variantRepository.DeleteAsync(other, autoSave: true);
         }
     }
@@ -213,9 +216,20 @@ public class SubstitutionVariantMaterializer : ITransientDependency
         var targetCodes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         EntityVariant? mainVariant = null;
 
+        // Varyant adı koda YALNIZ ayırt ediyorsa girer: bir madenin kapsamında tek varyant varsa
+        // ".ANAVARYANT" her kombinasyonda tekrarlanan, hiçbir şeyi ayırmayan gürültüdür
+        // ("G1.0GR995.ANAVARYANTX3+G2.5GR995.ANAVARYANTX2" → "G1.0GR995X3+G2.5GR995X2").
+        // Çoklu varyantta ise ŞART: aynı madenin iki varyantı farklı işçilik/maliyet taşır ve kodun
+        // deterministik kimlik olması için ayrışmaları gerekir (2026-07-27 Hakan kararı).
+        var multiVariantMetalIds = SubstitutionCombinationCodeBuilder.MultiVariantMetalIds(selected);
+
+        // Gösterim birimi GRUPTAN gelir ("gr"/"kg"/"lt"): grubun tüm kalemleri aynı birimden ölçülür.
+        // Grup okunamazsa varsayılana düşülür — birimsiz ad, sayının neyi ölçtüğünü belirsiz bırakırdı.
+        var quantityUnit = await ResolveQuantityUnitAsync(product.SubstitutionGroupId);
+
         foreach (var trial in selected)
         {
-            var code = BuildCombinationCode(trial);
+            var code = SubstitutionCombinationCodeBuilder.Build(trial, multiVariantMetalIds);
             targetCodes.Add(code);
 
             if (!existingByCode.TryGetValue(code, out var variant))
@@ -225,7 +239,7 @@ public class SubstitutionVariantMaterializer : ITransientDependency
                     entityName: ProductEntityName,
                     entityId: product.Id,
                     code: code,
-                    name: BuildCombinationName(product.Name, trial),
+                    name: BuildCombinationName(product.Name, trial, quantityUnit),
                     isMain: false,
                     isActive: true);
                 await _variantRepository.InsertAsync(variant, autoSave: true);
@@ -237,13 +251,14 @@ public class SubstitutionVariantMaterializer : ITransientDependency
                     variant.IsDeleted = false;   // dirilt: ayni bilesim ayni Id'de yasamaya doner (unique ihlali yok)
                 }
 
-                variant.SetName(BuildCombinationName(product.Name, trial));
+                variant.SetName(BuildCombinationName(product.Name, trial, quantityUnit));
                 variant.SetActive(true);
             }
 
             variant.SetStock(trial.PackageCount);
             await _variantRepository.UpdateAsync(variant, autoSave: true);
             await ReplaceRecipeLinesIfChangedAsync(product.CompanyId, variant.Id, trial, context);
+            await CopyTemplateLinesFromSiblingAsync(product, variant.Id);
 
             mainVariant ??= variant;   // selected Rank sirali geldi -> ilk = Rank 1 = ana aday
         }
@@ -252,7 +267,10 @@ public class SubstitutionVariantMaterializer : ITransientDependency
         // gecisinde mesru olarak duser — yerine Rank 1 ana olur).
         foreach (var stale in existing.Where(v => !v.IsDeleted && !targetCodes.Contains(v.Code)))
         {
-            await _recipeLineRepository.DeleteAsync(l => l.ProductVariantId == stale.Id, autoSave: true);
+            // Origin filtresi ZORUNLU (yukaridaki tek-mod dalindaki gerekce): bilesimi dusen varyant ayni kodla
+            // dirilebilir; kullanici/sablon satirlari o gun geri gelmeliydi.
+            await _recipeLineRepository.DeleteAsync(
+                l => l.ProductVariantId == stale.Id && l.Origin == RecipeLineOrigin.Substitution, autoSave: true);
             await _variantRepository.DeleteAsync(stale, autoSave: true);
         }
 
@@ -272,9 +290,12 @@ public class SubstitutionVariantMaterializer : ITransientDependency
     {
         // DEGISMEMIS receteyi silip yeniden yazma (inceleme bulgusu #8): 15-dk repricing turu her muadil urune
         // job bastigindan kosulsuz sil+yaz her turda satir Id'lerini degistirirdi (audit gurultusu + bayat referans).
+        // Imza da silme de YALNIZ muadillikten uretilen satirlari kapsar (Origin=Substitution). Onceden ikisi
+        // ayrisiyordu: imza metal satirlarini karsilastiriyor ama silme TUM satirlari kapsiyordu — kullanicinin
+        // elle ekledigi hizmet satiri (iscilik/paketleme/kargo) her yeniden hesaplamada SESSIZCE kayboluyordu.
         var existingLines = await _asyncExecuter.ToListAsync(
             (await _recipeLineRepository.GetQueryableAsync())
-                .Where(l => l.ProductVariantId == variantId)
+                .Where(l => l.ProductVariantId == variantId && l.Origin == RecipeLineOrigin.Substitution)
                 .OrderBy(l => l.LineOrder)
                 .Select(l => new { l.CommodityId, l.CommodityVariantId, l.Quantity }));
         var existingSignature = string.Join("|",
@@ -286,7 +307,26 @@ public class SubstitutionVariantMaterializer : ITransientDependency
             return;
         }
 
-        await _recipeLineRepository.DeleteAsync(l => l.ProductVariantId == variantId, autoSave: true);
+        await _recipeLineRepository.DeleteAsync(
+            l => l.ProductVariantId == variantId && l.Origin == RecipeLineOrigin.Substitution, autoSave: true);
+
+        // Korunan satirlar (kullanici + sablon) muadil satirlarinin ARDINA kaydirilir: muadil emtialari recetenin
+        // TABANIDIR ve turev satirlar ("ustumdekilerin toplami") onlari gorebilmelidir. Numaralandirma once
+        // muadil 0..n-1, sonra korunanlar n.. seklinde yeniden kurulur.
+        var preserved = await _asyncExecuter.ToListAsync(
+            (await _recipeLineRepository.GetQueryableAsync())
+                .Where(l => l.ProductVariantId == variantId)
+                .OrderBy(l => l.LineOrder));
+
+        for (var i = 0; i < preserved.Count; i++)
+        {
+            var shifted = trial.Lines.Count + i;
+            if (preserved[i].LineOrder != shifted)
+            {
+                preserved[i].SetOrder(shifted);
+                await _recipeLineRepository.UpdateAsync(preserved[i], autoSave: true);
+            }
+        }
 
         for (var i = 0; i < trial.Lines.Count; i++)
         {
@@ -316,59 +356,171 @@ public class SubstitutionVariantMaterializer : ITransientDependency
                 paymentType: ProcessPaymentType.Normal,
                 payFactor: labor?.EntryLabor ?? 0m,
                 payUnitId: labor?.EntryLaborUnitId);
+            // Kaynak işareti: sonraki yenilemede yalnız BU satırlar silinsin (kullanıcı/şablon satırları kalsın).
+            line.SetOrigin(RecipeLineOrigin.Substitution);
             await _recipeLineRepository.InsertAsync(line, autoSave: true);
         }
     }
 
-    // ── Deterministik kimlik: bileşim → kod. "G5.0X1+G1.0X3" (metal kodunun ilk parçası + adet, metal koduna
-    //    göre sıralı → aynı bileşim her hesapta AYNI kod). 64'ü aşarsa kararlı kısaltma (hash son eki). ──
-    private static string BuildCombinationCode(SubstitutionTrialDto trial)
+    /// <summary>
+    /// Varyant görünen adı — "Ürün — 1×5 + 3×1 = Toplam 4 parça, 8,0gr" (kod deterministik kimlik, ad okunabilirlik).
+    ///
+    /// <para><b>Biçim (2026-07-28 Hakan):</b> ADET×GRAMAJ okunuşu kullanıcının kombinasyonu sesli söyleyişiyle
+    /// aynı ("bir tane beşlik, üç tane birlik"). Önceki biçim maden KODU×adet idi ("G5.0×1") — hem ters okunuyor
+    /// hem gramajı kodun içinden çıkarmayı gerektiriyordu.</para>
+    ///
+    /// <para>Sondaki toplam ÖZET: kaç parçadan oluştuğu ve toplam gramaj, kombinasyonun hedefi tutturup
+    /// tutturmadığını tek bakışta gösterir — satırları toplamak zorunda kalmadan.</para>
+    ///
+    /// <para>Varyantlı emtiada parça ayrıca varyant koduyla nitelenir ("1×5 (SARI)"): aynı gramajın iki farklı
+    /// varyantı farklı işçilik/maliyet taşır, ayrışmazsa iki kombinasyon aynı ada düşer.</para>
+    /// </summary>
+    private static string BuildCombinationName(string productName, SubstitutionTrialDto trial, string quantityUnit)
     {
-        var parts = trial.Lines
-            .OrderBy(l => l.MetalCode, StringComparer.OrdinalIgnoreCase)
-            .Select(l =>
-            {
-                // TAM metal kodu (bosluksuz) — Split(' ')[0] "G5.0 GR 995" ile "G5.0 GR 9999"u AYNI kimlige
-                // indiriyordu (inceleme bulgusu #7: ayni grupta iki ayar -> kombinasyon cakismasi).
-                var metalFull = l.MetalCode.Replace(" ", string.Empty);
-                var variantPart = string.IsNullOrEmpty(l.VariantCode) ? string.Empty : "." + l.VariantCode;
-                return $"{metalFull}{variantPart}X{l.Count}";
-            });
-        var code = string.Join("+", parts).NormalizeAsCode();
+        var lines = trial.Lines
+            .OrderByDescending(l => l.PieceWeight)
+            .ThenBy(l => l.MetalCode, StringComparer.OrdinalIgnoreCase)
+            .ToList();
 
-        if (code.Length <= EntityVariantConsts.VariantCodeMaxLength)
+        var composition = string.Join(" + ", lines.Select(l =>
         {
-            return code;
-        }
+            var body = $"{l.Count}×{FormatWeight(l.PieceWeight)} {quantityUnit}";
+            return string.IsNullOrWhiteSpace(l.VariantCode) ? body : $"{body} ({l.VariantCode})";
+        }));
 
-        // Kararlı kısaltma: içerikten deterministik son ek (GetHashCode DEĞİL — process'e göre değişir).
-        var suffix = "~" + StableHash(code);
-        return code[..(EntityVariantConsts.VariantCodeMaxLength - suffix.Length)] + suffix;
-    }
+        var pieceCount = lines.Sum(l => l.Count);
+        var totalWeight = lines.Sum(l => l.Count * l.PieceWeight);
+        var summary = string.Format(
+            CultureInfo.CurrentCulture,
+            "{0} = Toplam {1} parça, {2} {3}",
+            composition, pieceCount, FormatWeight(totalWeight), quantityUnit);
 
-    private static string BuildCombinationName(string productName, SubstitutionTrialDto trial)
-    {
-        var composition = string.Join(" + ", trial.Lines
-            .OrderBy(l => l.MetalCode, StringComparer.OrdinalIgnoreCase)
-            .Select(l => $"{l.MetalCode.Split(' ')[0]}×{l.Count}"));
-        var name = $"{productName} — {composition}";
+        var name = $"{productName} — {summary}";
         return name.Length <= EntityVariantConsts.VariantNameMaxLength
             ? name
             : name[..EntityVariantConsts.VariantNameMaxLength];
     }
 
-    /// <summary>Deterministik FNV-1a 32-bit (hex) — string.GetHashCode process-bağımlı olduğundan KULLANILMAZ.</summary>
-    private static string StableHash(string value)
+    /// <summary>
+    /// Ürüne KAYITLI reçete şablonunu tek bir varyanta serer — kopyalanacak kardeş kalmadığında kullanılır.
+    ///
+    /// <para>Şablon yoksa ya da silinmişse SESSİZCE geçilir: şablon zorunlu değil ve eksikliği muadil
+    /// materyalizasyonunu durdurmamalı (varyantlar doğsun, kullanıcı şablonu sonra bağlasın).</para>
+    /// </summary>
+    private async Task ApplyProductTemplateAsync(Product product, Guid targetVariantId)
     {
-        unchecked
+        if (product.RecipeTemplateId is not { } templateId || templateId == Guid.Empty)
         {
-            var hash = 2166136261u;
-            foreach (var c in value)
+            return;
+        }
+
+        var template = await _recipeTemplateRepository.FindAsync(templateId);
+        if (template is null)
+        {
+            return;
+        }
+
+        await _recipeTemplateApplier.ApplyToVariantAsync(product.CompanyId, targetVariantId, template);
+    }
+
+    /// <summary>Grubun gösterim birimi — grup yoksa/okunamazsa varsayılan ("gr"). Salt gösterim olduğundan
+    /// okuma başarısızlığı materyalizasyonu DURDURMAZ.</summary>
+    private async Task<string> ResolveQuantityUnitAsync(Guid? substitutionGroupId)
+    {
+        if (substitutionGroupId is not { } groupId || groupId == Guid.Empty)
+        {
+            return SubstitutionGroupConsts.DefaultQuantityUnit;
+        }
+
+        var group = await _groupRepository.FindAsync(groupId);
+        return string.IsNullOrWhiteSpace(group?.QuantityUnit)
+            ? SubstitutionGroupConsts.DefaultQuantityUnit
+            : group.QuantityUnit;
+    }
+
+    /// <summary>Gramaj gösterimi — gereksiz sıfır kuyruğu atılır (5,00 → 5; 2,50 → 2,5): kombinasyon adı
+    /// okunabilirlik içindir, ondalık gürültüsü uzun adı daha da uzatır.</summary>
+    private static string FormatWeight(decimal weight)
+    {
+        return weight.ToString("0.###", CultureInfo.CurrentCulture);
+    }
+    /// <summary>
+    /// YENİ doğan kombinasyon varyantına, ürünün BAŞKA bir varyantındaki reçete şablonu satırlarını çoğaltır.
+    ///
+    /// <para><b>Neden gerekli:</b> muadil ürünlerde varyant kümesi stoğa göre sürekli değişir. Kullanıcı şablonu
+    /// uyguladıktan sonra doğan her yeni kombinasyon, şablon satırları olmadan (yani paketleme/kargo/sigorta
+    /// maliyeti EKSİK) fiyatlanırdı ve bunu fark etmesi imkânsızdı.</para>
+    ///
+    /// <para><b>Neden şablona BAĞ kurmuyoruz:</b> "şablon bir kaynaktır, ürünle kalıcı bağ kurmaz" kararı
+    /// (şablondaki sonraki değişiklik yüzlerce ürünü habersiz değiştirmesin). Bu yüzden şablon yeniden
+    /// okunmaz — ürünün KENDİ mevcut satırları çoğaltılır: kullanıcı uygulamadan sonra satırı düzenlediyse
+    /// düzenlenmiş hâli taşınır.</para>
+    ///
+    /// <para>Varyantta zaten şablon satırı varsa (dirilmiş varyant) DOKUNULMAZ — çoğaltma yalnız boşluğu doldurur.</para>
+    /// </summary>
+    private async Task CopyTemplateLinesFromSiblingAsync(Product product, Guid targetVariantId)
+    {
+        var alreadyHasTemplateLines = await _asyncExecuter.AnyAsync(
+            (await _recipeLineRepository.GetQueryableAsync())
+                .Where(l => l.ProductVariantId == targetVariantId && l.Origin == RecipeLineOrigin.Template));
+        if (alreadyHasTemplateLines)
+        {
+            return;
+        }
+
+        var siblingVariantIds = await _asyncExecuter.ToListAsync(
+            (await _variantRepository.GetQueryableAsync())
+                .Where(v => v.EntityName == ProductEntityName && v.EntityId == product.Id && v.Id != targetVariantId)
+                .Select(v => v.Id));
+        if (siblingVariantIds.Count == 0)
+        {
+            await ApplyProductTemplateAsync(product, targetVariantId);
+            return;
+        }
+
+        var sourceLines = await _asyncExecuter.ToListAsync(
+            (await _recipeLineRepository.GetQueryableAsync())
+                .Where(l => siblingVariantIds.Contains(l.ProductVariantId) && l.Origin == RecipeLineOrigin.Template)
+                .OrderBy(l => l.ProductVariantId).ThenBy(l => l.LineOrder));
+        if (sourceLines.Count == 0)
+        {
+            // Hiçbir kardeşte şablon satırı YOK → ürüne kayıtlı ŞABLONDAN kur. Bu dal olmadan, muadil hedefi
+            // değiştiğinde (8gr → 10gr) tüm kombinasyonlar yeniden doğuyor, kopyalanacak kardeş kalmıyor ve
+            // paketleme/kargo/sigorta satırları sessizce düşüyordu — fiyat eksik çıkıyor, kullanıcı göremiyordu
+            // (2026-07-28 Hakan: "muadil miktarını değiştirdim, reçete şablonunun etkisini göremedim").
+            await ApplyProductTemplateAsync(product, targetVariantId);
+            return;
+        }
+
+        // TEK bir kardeşin satır kümesi kopyalanır (hepsini birleştirmek satırları katlardı).
+        var templateVariantId = sourceLines[0].ProductVariantId;
+
+        var nextOrder = await _asyncExecuter.CountAsync(
+            (await _recipeLineRepository.GetQueryableAsync()).Where(l => l.ProductVariantId == targetVariantId));
+
+        foreach (var source in sourceLines.Where(l => l.ProductVariantId == templateVariantId))
+        {
+            var copy = new ProductVariantRecipeLine(
+                product.CompanyId, targetVariantId, source.ComponentType, nextOrder++);
+
+            if (source.ComponentType == RecipeComponentType.CatalogCommodity && source.CommodityProcessType is { } family)
             {
-                hash = (hash ^ c) * 16777619u;
+                copy.SetCatalogCommodity(
+                    family, source.CommodityId, source.CommodityVariantId, source.Quantity, source.Amount,
+                    source.Factor, source.ValuationUnitId, source.PaymentType, source.PayFactor, source.PayUnitId);
+            }
+            else
+            {
+                // Taban DAİMA AllAbove: SelectedLines kaynak Id'leri kardeş varyanta ait olduğundan burada geçersizdir.
+                copy.SetService(
+                    source.CommodityId, RecipeDerivedBaseMode.AllAbove,
+                    source.DerivedOperation ?? RecipeDerivedOperation.Percent, source.DerivedOperand, source.PayUnitId);
+                copy.SetSideCostKind(source.SideCostKind);
             }
 
-            return hash.ToString("X8");
+            copy.SetDescription(source.Description);
+            copy.SetOrigin(RecipeLineOrigin.Template);
+            await _recipeLineRepository.InsertAsync(copy, autoSave: true);
         }
     }
 }

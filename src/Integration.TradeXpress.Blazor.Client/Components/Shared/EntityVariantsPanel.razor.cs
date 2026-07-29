@@ -62,6 +62,31 @@ public partial class EntityVariantsPanel<TVariant> where TVariant : EntityVarian
     /// (ör. Good) <c>false</c> geçer — statik stok anlamsız; pazaryeri push'lu entity'ler (Product) varsayılan <c>true</c>.</summary>
     [Parameter] public bool ShowStockQuantity { get; set; } = true;
 
+    /// <summary>Net maliyet kolonu görünsün mü — VARSAYILAN KAPALI. Alan yalnız ürün varyantında (NetCost)
+    /// mevcut; jenerik varyantı paylaşan diğer emtia ailelerinde boş kolon çizilmesin.</summary>
+    [Parameter] public bool ShowNetCost { get; set; }
+
+    /// <summary>
+    /// Varyant KİMLİK alanları (Kod + Kombinasyon özeti) düzenleme formunda görünsün mü.
+    ///
+    /// <para><c>false</c> = TEK VARYANTLI ürün: tek bir varyant varken "hangi kombinasyon" sorusunun cevabı
+    /// yok (özet zaten boş) ve kod otomatik üretiliyor — iki salt-okunur alan formu yormaktan başka iş
+    /// görmüyordu (2026-07-28 Hakan).</para>
+    /// </summary>
+    [Parameter] public bool ShowIdentity { get; set; } = true;
+
+    /// <summary>Grid'de ana varyantın kodu yerine gösterilecek metin — tek varyantlı üründe ürünün KENDİ
+    /// kodu. "ANAVARYANT" iç bir sabittir ve kullanıcı için anlam taşımıyor.</summary>
+    [Parameter] public string? MainVariantCodeDisplay { get; set; }
+
+    /// <summary>Satırın gösterilecek kodu — ana varyantta <see cref="MainVariantCodeDisplay"/> (verilmişse).</summary>
+    private string CodeTextOf(TVariant variant)
+    {
+        return variant.IsMain && !string.IsNullOrWhiteSpace(MainVariantCodeDisplay)
+            ? MainVariantCodeDisplay!
+            : variant.Code;
+    }
+
     /// <summary>Varyant edit popup'ında VARYANT-ÖZEL MEDYA panelini (+ grid poster önizlemesini) göster (yeni DAM; v.Media).
     /// Sahip AppService save/load'ı EntityMediaAppService ReplaceFor/GetFor ile bağlar. Varsayılan kapalı.</summary>
     [Parameter] public bool ShowImages { get; set; }

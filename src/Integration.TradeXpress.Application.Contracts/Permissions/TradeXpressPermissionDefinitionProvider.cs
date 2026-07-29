@@ -1,4 +1,4 @@
-using Integration.TradeXpress.Localization;
+﻿using Integration.TradeXpress.Localization;
 using Volo.Abp.Authorization.Permissions;
 using Volo.Abp.Localization;
 
@@ -69,6 +69,18 @@ public class TradeXpressPermissionDefinitionProvider : PermissionDefinitionProvi
         variantTemplates.AddChild(TradeXpressPermissions.VariantTemplates.Create, L("Permission:Create"));
         variantTemplates.AddChild(TradeXpressPermissions.VariantTemplates.Update, L("Permission:Update"));
         variantTemplates.AddChild(TradeXpressPermissions.VariantTemplates.Delete, L("Permission:Delete"));
+
+        var productCategories = myGroup.AddPermission(
+            TradeXpressPermissions.ProductCategories.Default, L("Permission:ProductCategories"));
+        productCategories.AddChild(TradeXpressPermissions.ProductCategories.Create, L("Permission:Create"));
+        productCategories.AddChild(TradeXpressPermissions.ProductCategories.Update, L("Permission:Update"));
+        productCategories.AddChild(TradeXpressPermissions.ProductCategories.Delete, L("Permission:Delete"));
+
+        var recipeTemplates = myGroup.AddPermission(
+            TradeXpressPermissions.RecipeTemplates.Default, L("Permission:RecipeTemplates"));
+        recipeTemplates.AddChild(TradeXpressPermissions.RecipeTemplates.Create, L("Permission:Create"));
+        recipeTemplates.AddChild(TradeXpressPermissions.RecipeTemplates.Update, L("Permission:Update"));
+        recipeTemplates.AddChild(TradeXpressPermissions.RecipeTemplates.Delete, L("Permission:Delete"));
 
 
         var appointments = myGroup.AddPermission(

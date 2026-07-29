@@ -24,6 +24,14 @@
     <ProjectReference Include="..\Integration.Framework.Domain\Integration.Framework.Domain.csproj" />
   </ItemGroup>
 
+  <!-- Pazaryerinin yayımladığı anlaşmalı kargo desi tarifesi — EMBEDDED: runtime'da .claude yoluna bağımlılık
+       YOK (o klasör deploy'da bulunmaz). Kaynak kopya:
+       .claude/research/channel-cargo/n11-anlasmali-kargo-RAW-2026-07-26.txt
+       Tarife değişince YENİ tarihli dosya eklenir, mevcut dosya DEĞİŞTİRİLMEZ (yürürlük geçmişi korunur). -->
+  <ItemGroup>
+    <EmbeddedResource Include="MarketplaceShipmentTariffs\n11-shipment-tariff-2026-07-26.tsv" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="Volo.Abp.Emailing" />
     <PackageReference Include="Volo.Abp.Caching" />

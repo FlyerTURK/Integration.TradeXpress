@@ -145,10 +145,22 @@
         };
     }
 
+    /// <summary>
+    /// Alan adının kullanıcıya görünen hâli. Öncelik <c>[Display(Name)]</c>; yoksa PROPERTY ADI sözlük anahtarı
+    /// olarak denenir ("Code" → "Kod").
+    ///
+    /// <para><b>Neden ada göre deneme:</b> DTO'ların büyük kısmında <c>[Display]</c> yok ve mesaj "Code 3-64
+    /// karakter olmalıdır" gibi yarı-İngilizce çıkıyordu (2026-07-28 Hakan). Alan başlıkları formlarda zaten
+    /// <c>L["Code"]</c>/<c>L["Name"]</c> ile çiziliyor — aynı anahtarlar burada da geçerli, yüzlerce DTO'ya
+    /// attribute eklemeye gerek yok.</para>
+    ///
+    /// <para>Anahtar sözlükte YOKSA ABP anahtarın kendisini döndürür — yani property adı görünür, bugünküyle
+    /// aynı sonuç. Bu yüzden değişiklik gerileme üretmez, yalnız karşılığı olanları iyileştirir.</para>
+    /// </summary>
     private string LocalizeDisplay(PropertyInfo prop)
     {
         var key = prop.GetCustomAttribute<DisplayAttribute>()?.Name;
-        return string.IsNullOrEmpty(key) ? prop.Name : L[key];
+        return L[string.IsNullOrEmpty(key) ? prop.Name : key];
     }
 
     public void Dispose()

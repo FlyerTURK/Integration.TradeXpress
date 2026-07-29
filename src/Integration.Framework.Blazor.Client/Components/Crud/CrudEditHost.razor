@@ -4,6 +4,7 @@
 @typeparam TListRequestDto where TListRequestDto : class, new()
 @using System
 @using System.Collections.Generic
+@using DevExpress.Blazor
 @using Integration.Framework.Blazor.Client.Services.Base
 @using Integration.Framework.Blazor.Client.Services.Mdi
 @inherits CrudComponentBase
@@ -19,7 +20,18 @@
    sarmal (AppService inject + coordinator + Layout + config) + Layout kalır. commit/save/delete/close TEK yerde.
 *@
 
-@if (_model != null)
+@if (_loadFailedMessage is { } failMessage)
+{
+    @* Kayıt yüklenemedi (tipik: silinmiş kayıt + sekme kalıcılığı). Toast/sekme-kapatma bazı yaşam-döngüsü
+       anlarında (prerender) kendisi patlayabildiğinden bu satır içi panel SON GÜVENCEDİR — hiçbir koşulda
+       hata sayfasına düşülmez, kullanıcı sekmeyi butonla kapatır. *@
+    <div style="padding:1rem; display:flex; flex-direction:column; gap:0.75rem; align-items:flex-start;">
+        <span>@failMessage</span>
+        <DxButton Text="@L["Close"].Value" RenderStyle="ButtonRenderStyle.Secondary"
+                  Click="@(async () => await CloseAsync())" />
+    </div>
+}
+else if (_model != null)
 {
     <EntityEditForm TGetDto="TGetDto" TListDto="TListDto" TKey="TKey"
                     Model="@_model" IsNew="@_isNew"
@@ -121,19 +133,67 @@
     // ve Kaydet&Yeni'de geri dönüş için saklanır (aynı kayda ikinci sekme açılmasın).
     private string? _newTabUrl;
 
+    /// <summary>Sekmenin "yükleniyor" bileti — kayıt çekilene kadar açık (bkz. TabContentLoad).</summary>
+    private TabLoadTicket? _loadTicket;
+
+    // Yükleme hatası mesajı — dolu ise form yerine satır içi hata paneli çizilir (hata sayfası ASLA).
+    private string? _loadFailedMessage;
+
     protected override async Task OnInitializedAsync()
     {
         if (CurrentMdiTab is { } tab && tab.Url.EndsWith("/new", StringComparison.OrdinalIgnoreCase))
             _newTabUrl = tab.Url;
 
-        await LoadAsync();
+        // Edit sekmesi ilk açıldığında kayıt gelene kadar yükleniyor paneli. Bilet finally'de kapanır:
+        // fetch patlarsa da panel asılı kalmasın.
+        _loadTicket = CurrentMdiTab?.Load.Begin();
+        try
+        {
+            await LoadAsync();
+        }
+        finally
+        {
+            _loadTicket?.Dispose();
+            _loadTicket = null;
+        }
     }
 
     private async Task LoadAsync()
     {
         if (!IsEmptyKey(Id))
         {
-            _model = await Coordinator.GetForEditAsync(Id);
+            try
+            {
+                _model = await Coordinator.GetForEditAsync(Id);
+            }
+            catch (Exception ex)
+            {
+                // Kayıt YÜKLENEMEDİ — en sık sebep: silinmiş kayıt, sekme kalıcılığı eski URL'i geri getirdi
+                // (2026-07-28 Hakan: ürünü silip geri dönünce hata sayfası). Circuit'i düşürmek yerine dostane
+                // bildir + sekmeyi kapat: hata sayfası "uygulama bozuldu" dedirtiyordu, oysa formun içinde
+                // kurtarılacak hiçbir kullanıcı verisi yok (henüz hiçbir şey yüklenmedi) — kapanması kayıpsız.
+                // Yakalama BİLEREK GENİŞ: özel tip filtresi (EntityNotFoundException adı) sahada ıskaladı;
+                // hangi sebeple yüklenemezse yüklenemesin doğru davranış aynı. Silinmiş-kayıt dışındaki
+                // sebepler mesajda ayrışır (aşağıda) ki gerçek hatalar sessizce "silinmiş" sanılmasın.
+                var notFound = ex.ToString().Contains("EntityNotFoundException", StringComparison.Ordinal)
+                    || ex.ToString().Contains("no such an entity", StringComparison.OrdinalIgnoreCase);
+                _loadFailedMessage = notFound ? L["EntityNoLongerExists"].Value : ex.Message;
+
+                // Toast YOK (2026-07-28 Hakan): mesaj zaten satır içi panelde duruyor, toast onu tekrarlıyordu.
+                // Otomatik kapatma DENENİR ama zorunlu değildir: bazı yaşam-döngüsü anlarında (prerender) JS
+                // interop atar — o durumda panel + Kapat butonu devreye girer, circuit asla düşmez.
+                try
+                {
+                    await CloseAsync();
+                }
+                catch
+                {
+                    // panel gösterilecek — sekme açık kalır, kullanıcı butonla kapatır
+                }
+
+                return;
+            }
+
             _isNew = false;
         }
         else

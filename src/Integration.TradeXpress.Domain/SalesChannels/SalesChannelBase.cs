@@ -50,6 +50,27 @@ public abstract class SalesChannelBase : FullAuditedAggregateRoot<Guid>, IMultiT
     /// <c>SideCostRecipeComposer</c> buradan kanal varyant reçetesine otomatik satırlar üretir.</summary>
     public virtual SideCostSettings? SideCosts { get; protected set; }
 
+    /// <summary>
+    /// Bu kanalda gönderilen paketin VARSAYILAN desisi — kargo tarifesinin girdisi. Varyantta
+    /// <c>ProductVariantDetail.PackageDesi</c> doluysa O kazanır; buradaki değer "çoğu paket bu boyutta"
+    /// demektir ve ürün başına veri girişini gereksiz kılar.
+    /// <para>Varsayılan 1: kuyumda gönderiler küçük ve tarifenin en alt basamağında (desi 0-2) toplanıyor.</para>
+    /// </summary>
+    public virtual int DefaultPackageDesi { get; protected set; } = 1;
+
+    // ── Muhasebe hedefi (2026-07-28 Hakan): "bu kanalın muhasebesi HANGİ cariye yazılır" ──
+    // Kanal bir pazaryeriyle olan hesabımızdır (komisyon borcu, hakediş alacağı). Hedef bugüne kadar sistemde
+    // HİÇBİR yerde tanımlı değildi; gider satırlarındaki cari alanları vardı ama hiçbir akış onları okumuyordu.
+    // Bugün bu bir TANIM'dır: sipariş→fiş köprüsü olmadığı için kendiliğinden kayıt üretmez.
+
+    /// <summary>Kanalın muhasebe cari ALT hesabı (<c>SubAccount.Id</c>; id-only, nav YOK). Kullanıcının KENDİ
+    /// cari planından seçilir — sistem cari üretmez. <c>null</c> = henüz tanımlanmamış.
+    ///
+    /// <para><b>Cari hesap AYRICA tutulmaz:</b> alt hesap zaten bir cariye bağlıdır (<c>SubAccount.AccountId</c>),
+    /// ikisini birden saklamak aynı bilgiyi iki yerde tutup çelişme riski açardı (kanalda A carisi, alt hesapta
+    /// B carisi yazan bir kayıt). Cari gerektiğinde alt hesaptan okunur.</para></summary>
+    public virtual Guid? SubAccountId { get; protected set; }
+
     #endregion
 
     #region Methods
@@ -82,6 +103,25 @@ public abstract class SalesChannelBase : FullAuditedAggregateRoot<Guid>, IMultiT
     public virtual void SetSideCosts(SideCostSettings? sideCosts)
     {
         SideCosts = sideCosts;
+    }
+
+    /// <summary>Kanalın muhasebe cari alt hesabını bağlar/çözer (boş Guid → null = tanımsız). Alt hesabın
+    /// ŞİRKETE ait ve var olduğu doğrulaması AppService'te yapılır (burada repository yok).</summary>
+    public virtual void SetSubAccount(Guid? subAccountId)
+    {
+        SubAccountId = subAccountId == Guid.Empty ? null : subAccountId;
+    }
+
+    /// <summary>Kanalın varsayılan paket desisini set eder. Negatif desi yoktur (fail-fast); 0 geçerlidir
+    /// (pazaryerinin "Dosya" basamağı).</summary>
+    public virtual void SetDefaultPackageDesi(int defaultPackageDesi)
+    {
+        if (defaultPackageDesi < 0)
+        {
+            throw new BusinessException("TradeXpress:SalesChannel:DefaultPackageDesiNegative");
+        }
+
+        DefaultPackageDesi = defaultPackageDesi;
     }
 
     public override string ToString()

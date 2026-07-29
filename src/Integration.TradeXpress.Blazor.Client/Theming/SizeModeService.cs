@@ -82,11 +82,11 @@ public sealed class SizeModeService : ISizeModeService
         if (_current == sizeMode) return;
         _current = sizeMode;
 
+        // SIRA ÖNEMLİ — ÖNCE GÖRSEL, SONRA KALICILIK (ThemeService.ApplyAsync ile aynı gerekçe):
+        // sunucu yazımı bir HTTP turu; önce beklenirse boyut değişimi saniyelerce ekrana yansımaz.
         try
         {
             var module = await GetModuleAsync();
-            try { await _uiSettings.SetSizeModeAsync(sizeMode.ToString()); }
-            catch { /* sunucu yazılamazsa cookie + görünüm yine güncellenir */ }
             await module.InvokeVoidAsync("writeCookie", LastSizeCookieName, sizeMode.ToString(), 365);
             await module.InvokeVoidAsync("setSizeModeAttribute", sizeMode.ToString());
         }
@@ -96,6 +96,10 @@ public sealed class SizeModeService : ISizeModeService
         catch (OperationCanceledException) { }
 
         SizeModeChanged?.Invoke(this, EventArgs.Empty);
+
+        // Kalıcılık EN SON: gecikirse yalnız kayıt gecikir, görüntü değil.
+        try { await _uiSettings.SetSizeModeAsync(sizeMode.ToString()); }
+        catch { /* sunucu yazılamazsa cookie + görünüm yine güncellenir */ }
     }
 
     /// <summary>Sunucu ayarını okur; boşsa legacy localStorage değerini TEK SEFERLİK devralıp sunucuya yazar.</summary>

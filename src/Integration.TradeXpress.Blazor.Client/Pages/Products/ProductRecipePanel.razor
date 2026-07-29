@@ -306,7 +306,10 @@
         <DxGridDataColumn AllowSort="false" Caption="@L["PaymentType"]" Width="90px">
             <CellDisplayTemplate>@PaymentLabelOf((ProductRecipeLineGraphDto)context.DataItem)</CellDisplayTemplate>
         </DxGridDataColumn>
-        <DxGridDataColumn AllowSort="false" FieldName="@nameof(ProductRecipeLineGraphDto.Quantity)" Caption="@L["Count"]" DisplayFormat="N0" TextAlignment="GridTextAlignment.Right" Width="70px" />
+        @* Adet — hizmet satırında BOŞ (hizmetin adedi yoktur); alana doğrudan bağlanınca "0" basıyordu. *@
+        <DxGridDataColumn AllowSort="false" Caption="@L["Count"]" TextAlignment="GridTextAlignment.Right" Width="70px">
+            <CellDisplayTemplate>@GridQuantityText((ProductRecipeLineGraphDto)context.DataItem)</CellDisplayTemplate>
+        </DxGridDataColumn>
         <DxGridDataColumn AllowSort="false" Caption="@L["LineAmount"]" TextAlignment="GridTextAlignment.Right" Width="90px">
             <CellDisplayTemplate>@GridAmountText((ProductRecipeLineGraphDto)context.DataItem)</CellDisplayTemplate>
         </DxGridDataColumn>

@@ -1,0 +1,9 @@
+# Arama (ripgrep) dışı bırakılan üretilmiş dosyalar.
+# NOT: bu dosya YALNIZCA aramayı etkiler — derlemeyi, git'i, çalışma zamanını ETKİLEMEZ.
+# Dosyalar yerinde durur ve tam yol verilerek her zaman okunabilir.
+
+# EF Core migration Designer'ları: her biri ~460 KB'lık TAM model snapshot'ı, üretilmiş,
+# içinde insan eli değmiş tek satır yok. 164 migration × 460 KB = arama sonuçlarını boğuyordu.
+# Gerçek migration dosyaları (Up/Down işlemleri) KAPSAM DIŞI — onlar aranabilir kalır.
+**/Migrations/*.Designer.cs
+**/Migrations/*ModelSnapshot.cs

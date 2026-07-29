@@ -1,0 +1,19 @@
+@page "/recipe-templates/new"
+@page "/recipe-templates/{Id:guid}"
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@*
+   Reçete şablonu edit host = İNCE SARMAL: coordinator + sunum. Company-owned (sunucu CompanyId zorlar).
+   Satır düzenleme dumb RecipeTemplateLayout'ta.
+*@
+
+@if (_coordinator != null && _ready)
+{
+    <CrudEditHost TGetDto="RecipeTemplateGetDto" TListDto="RecipeTemplateListDto" TKey="Guid" TListRequestDto="RecipeTemplateListRequestDto"
+                  Coordinator="@_coordinator" Id="@(Id ?? Guid.Empty)" IsPopupMode="@IsPopupMode" OnSaved="@OnSaved" OnClosed="@OnClosed"
+                  FormCaption="@L["RecipeTemplate"].Value" IconCssClass="@TradeXpressIcons.RecipeTemplate"
+                  EntityValue="@(m => m.Name)"
+                  ApplyNewDefaults="@(m => { m.IsActive = true; m.DisplayOrder = 1; })">
+        <RecipeTemplateLayout Model="@context" Services="@_services" CurrencyUnits="@_currencyUnits" />
+    </CrudEditHost>
+}

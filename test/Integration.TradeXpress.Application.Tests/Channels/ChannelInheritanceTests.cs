@@ -46,57 +46,12 @@ public class ChannelInheritanceTests
 
     // ── K10: kişiselleştirme bloğu ──────────────────────────────────────────────────────────────────
 
-    [Fact]
-    public void Personalization_falls_back_to_product_when_channel_block_is_empty()
-    {
-        var product = new PersonalizationValues(true, "Ürün talimatı", true, 40);
+    // K10 testleri 2026-07-28'de kaldırıldı: test ettikleri zincir (PersonalizationValues +
+    // ResolvePersonalization) Etsy'nin kapanan tek-kutulu modeline aitti. Kişiselleştirmenin yeni
+    // taşıyıcısı SpecialInfo'dur; onun kanal-boşsa-ürün devralması ResolveList ile çalışır ve
+    // "Lists_fall_back_to_product_when_channel_list_is_empty" testiyle zaten kapsanıyor.
 
-        // Kanal kişiselleştirme taşımıyor (null) ya da bloğu boş (IsPersonalizable=false) → ürün bloğu TAMAMEN.
-        ChannelInheritance.ResolvePersonalization(null, product).ShouldBe(product);
-        ChannelInheritance.ResolvePersonalization(
-            new PersonalizationValues(false, null, false, null), product).ShouldBe(product);
-    }
-
-    [Fact]
-    public void Personalization_uses_channel_block_when_filled()
-    {
-        var channel = new PersonalizationValues(true, "Kanal talimatı", false, 20);
-        var product = new PersonalizationValues(true, "Ürün talimatı", true, 40);
-
-        var effective = ChannelInheritance.ResolvePersonalization(channel, product);
-
-        effective.IsPersonalizable.ShouldBeTrue();
-        effective.Instructions.ShouldBe("Kanal talimatı");
-        effective.IsRequired.ShouldBeFalse();   // kanal bloğu doluyken kanal beyanı esas
-        effective.CharCountMax.ShouldBe(20);
-    }
-
-    [Fact]
-    public void Personalization_nullable_subfields_fall_through_per_field()
-    {
-        // Kanal bloğu AÇIK ama talimat/karakter sınırı girilmemiş → o alanlar ürüne düşer (alan-bazı desen).
-        var channel = new PersonalizationValues(true, null, true, null);
-        var product = new PersonalizationValues(false, "Ürün talimatı", false, 64);
-
-        var effective = ChannelInheritance.ResolvePersonalization(channel, product);
-
-        effective.IsPersonalizable.ShouldBeTrue();
-        effective.Instructions.ShouldBe("Ürün talimatı");
-        effective.IsRequired.ShouldBeTrue();
-        effective.CharCountMax.ShouldBe(64);
-    }
-
-    [Fact]
-    public void Personalization_product_snapshot_reads_product_fields()
-    {
-        var product = new Product(SimpleGuidGenerator.Instance.Create(), "PRD 01", "Test Ürünü");
-        product.SetPersonalization(true, "Kazıma metnini yazın", true, 32);
-
-        PersonalizationValues.Of(product).ShouldBe(
-            new PersonalizationValues(true, "Kazıma metnini yazın", true, 32));
-    }
-
-    // ── K11: add-on zinciri (bugün tek kaynak ürün ataması; satır-override ?? katalog) ─────────────
+// ── K11: add-on zinciri (bugün tek kaynak ürün ataması; satır-override ?? katalog) ─────────────
 
     [Fact]
     public void AddOns_resolve_row_overrides_against_catalog()

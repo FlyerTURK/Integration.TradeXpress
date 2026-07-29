@@ -60,10 +60,12 @@ public abstract class ProductVariantModeGateTests<TStartupModule> : TradeXpressA
     {
         using (_currentCompany.Change(Guid.NewGuid()))
         {
+            var categoryId = await CreateTestProductCategoryAsync();
             var created = await _productAppService.CreateAsync(new ProductCreateDto
             {
                 Code = "TSTMODEA",
                 Name = "Statüko Ürünü",
+                ProductCategoryId = categoryId,
             });
 
             created.VariantMode.ShouldBe(ProductVariantMode.MultiVariant);
@@ -77,11 +79,14 @@ public abstract class ProductVariantModeGateTests<TStartupModule> : TradeXpressA
     {
         using (_currentCompany.Change(Guid.NewGuid()))
         {
+            var categoryId = await CreateTestProductCategoryAsync();
+
             // 1) MultiVariant ürün + nitelik (Renk: Kırmızı/Mavi) → synchronizer 2 varyant üretir.
             var created = await _productAppService.CreateAsync(new ProductCreateDto
             {
                 Code = "TSTMODEB",
                 Name = "Tek Varyant Kapı Ürünü",
+                ProductCategoryId = categoryId,
                 Attributes = new List<EntityAttributeGraphDto> { BuildAttribute("Renk", "Kırmızı", "Mavi") },
             });
             created.Variants.Count.ShouldBe(2);
@@ -93,6 +98,7 @@ public abstract class ProductVariantModeGateTests<TStartupModule> : TradeXpressA
                 Code = created.Code,
                 Name = created.Name,
                 IsActive = created.IsActive,
+                ProductCategoryId = created.ProductCategoryId,
                 VariantMode = ProductVariantMode.SingleVariant,
                 Attributes = created.Attributes,
                 Variants = created.Variants,
@@ -113,11 +119,13 @@ public abstract class ProductVariantModeGateTests<TStartupModule> : TradeXpressA
     {
         using (_currentCompany.Change(Guid.NewGuid()))
         {
+            var categoryId = await CreateTestProductCategoryAsync();
             var exception = await Should.ThrowAsync<BusinessException>(() => _productAppService.CreateAsync(
                 new ProductCreateDto
                 {
                     Code = "TSTMODEF",
                     Name = "Hayalet Gruplu Muadil Ürünü",
+                    ProductCategoryId = categoryId,
                     VariantMode = ProductVariantMode.Substitution,
                     SubstitutionGroupId = Guid.NewGuid(),   // hiç var olmamış grup
                     SubstitutionTargetQuantity = 10m,
@@ -132,11 +140,13 @@ public abstract class ProductVariantModeGateTests<TStartupModule> : TradeXpressA
     {
         using (_currentCompany.Change(Guid.NewGuid()))
         {
+            var categoryId = await CreateTestProductCategoryAsync();
             var exception = await Should.ThrowAsync<BusinessException>(() => _productAppService.CreateAsync(
                 new ProductCreateDto
                 {
                     Code = "TSTMODEC",
                     Name = "Grupsuz Muadil Ürünü",
+                    ProductCategoryId = categoryId,
                     VariantMode = ProductVariantMode.Substitution,
                     SubstitutionTargetQuantity = 10m,
                 }));
@@ -156,10 +166,12 @@ public abstract class ProductVariantModeGateTests<TStartupModule> : TradeXpressA
 
             // Muadil ürün: tek ana varyant + "Reçeteye Uygula" çıktısını temsil eden CommodityVariantId'li metal satırı
             // (satır kurulumu host BuildTrialRecipeLine / köprü BuildRecipeLineDtos alan kümesi).
+            var categoryId = await CreateTestProductCategoryAsync();
             var created = await _productAppService.CreateAsync(new ProductCreateDto
             {
                 Code = "TSTMODED",
                 Name = "Muadil Paket Ürünü",
+                ProductCategoryId = categoryId,
                 VariantMode = ProductVariantMode.Substitution,
                 SubstitutionGroupId = groupId,
                 SubstitutionTargetQuantity = 10m,
@@ -219,6 +231,7 @@ public abstract class ProductVariantModeGateTests<TStartupModule> : TradeXpressA
                 Code = reloaded.Code,
                 Name = reloaded.Name,
                 IsActive = reloaded.IsActive,
+                ProductCategoryId = reloaded.ProductCategoryId,
                 VariantMode = ProductVariantMode.MultiVariant,
                 Variants = reloaded.Variants,
             });
@@ -243,6 +256,7 @@ public abstract class ProductVariantModeGateTests<TStartupModule> : TradeXpressA
             {
                 Code = "TSTMODEE",
                 Name = "Kanal Yansıma Ürünü",
+                ProductCategoryId = await CreateTestProductCategoryAsync(),
                 VariantMode = ProductVariantMode.Substitution,
                 SubstitutionGroupId = groupId,
                 SubstitutionTargetQuantity = 10m,

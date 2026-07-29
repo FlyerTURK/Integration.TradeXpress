@@ -1,4 +1,4 @@
-@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+﻿@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
 @using Integration.TradeXpress.Blazor.Client.Pages.Products
 @using Integration.TradeXpress.TrendyolCategories
 
@@ -53,7 +53,7 @@
                               NullText="@L["Optional"].Value"
                               ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
         </DxFormLayoutItem>
-        <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6">
+        <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6" BeginRow="true">
             <DxCheckBox @bind-Checked="@Model.IsActive" CheckType="CheckType.Switch">
                 @(Model.IsActive ? L["Active"] : L["Passive"])
             </DxCheckBox>
@@ -333,8 +333,7 @@
                             <ProductRecipePanel Lines="v.RecipeLines"
                                                 Metals="_metals" MetalVariants="_metalVariants" Scraps="_scraps" Futures="_futures"
                                                 Jewelries="_jewelries" Stones="_stones" Goods="_goods" Services="_services" Units="_priceUnits"
-                                                NetCost="@v.NetCost" NetCostCurrency="@v.NetCostCurrency" NetCostMissingRate="@v.NetCostMissingRate"
-                                                OnChanged="@(async () => await HandleStockItemRecipeChangedAsync(v))" />
+                                                NetCost="@v.NetCost" NetCostCurrency="@v.NetCostCurrency" NetCostMissingRate="@v.NetCostMissingRate" />
                         </DxFormLayoutGroup>
                     </DxFormLayout>
                 </EditContent>

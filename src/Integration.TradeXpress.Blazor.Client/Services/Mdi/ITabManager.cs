@@ -14,9 +14,9 @@ public interface ITabManager
     bool HasDirtyTabs { get; }
     event Action? StateChanged;
 
-    /// <summary>Restore edilen sekmelerden N tanesi kaydedilirken kirliydi — sekmeler temiz açıldı,
-    /// form verileri geri getirilemedi. UI (MdiTabHost) kullanıcıya toast gösterir.</summary>
-    event Action<int>? RestoredWithLostDirtyData;
+    // Not: "restore edilen sekmelerden N tanesi kirliydi" olayı 2026-07-28'de KALDIRILDI — kullanıcıya
+    // toast göstermenin karşılığı yoktu (veri zaten gitmiş, yapılacak işlem yok). Durum TabManager'da
+    // loglanır; UI'a taşınmaz.
 
     /// <summary>Sekme geri yükleme başarısız oldu (bozuk kayıt / ağ) — boş listeyle devam ediliyor.</summary>
     event Action? RestoreFailed;

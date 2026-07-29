@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <!-- ProductCategory (urun kategori AGACI) - duz dolgu, entity ikon ailesiyle uyumlu.
+       Tasarim: solda kok dugum, sagda iki alt kategori, aralarinda dirsek baglanti.
+       Jenerik "liste" ikonu yerine kategori kavramini (hiyerarsi) anlatir.
+
+       Hizalama (viewBox 24): kok merkezi y=12; ust cocuk merkezi y=10; alt cocuk merkezi y=18.
+       Dikey cizgi TAM bu iki merkez arasinda durur, dugum kenarlarindan tasmaz. -->
+  <path fill="#7F8C8D" d="M8.9 9.25h1.5v9.5H8.9z"/>
+  <path fill="#7F8C8D" d="M7.6 11.25h2.8v1.5H7.6zm2.8-2h3.6v1.5h-3.6zm0 8h3.6v1.5h-3.6z"/>
+  <rect x="1.8" y="8.4" width="6.4" height="7.2" rx="2.2" fill="#2980B9"/>
+  <rect x="13.8" y="7.3" width="8.4" height="5.4" rx="1.8" fill="#5DADE2"/>
+  <rect x="13.8" y="15.3" width="8.4" height="5.4" rx="1.8" fill="#5DADE2"/>
+</svg>

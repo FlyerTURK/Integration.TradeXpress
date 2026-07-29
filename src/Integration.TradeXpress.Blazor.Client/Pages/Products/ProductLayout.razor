@@ -1,8 +1,12 @@
-@using System
+﻿@using System
 @using System.Linq
+@using Integration.TradeXpress.Countries
 @using Integration.TradeXpress.Financials.CurrencyUnits
 @using Integration.TradeXpress.Blazor.Client.Pages.Financials.CurrencyUnits
 @using Integration.TradeXpress.Blazor.Client.Pages.AddOns
+@using Integration.TradeXpress.Blazor.Client.Pages.ProductCategories
+@using Integration.TradeXpress.Blazor.Client.Pages.RecipeTemplates
+@using Integration.TradeXpress.Blazor.Client.Pages.VariantTemplates
 @using Integration.TradeXpress.Permissions
 @inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
 
@@ -13,24 +17,157 @@
 
 <DxFormLayout CssClass="w-100">
     <DxFormLayoutGroup Caption="@L["General"]" ColSpanMd="12">
+        @* KATEGORİ İLK ALAN (2026-07-28 Hakan): ürünün nasıl fiyatlanacağı, hangi özelliklerin sorulacağı ve
+           kanal karşılığı bu seçime bağlı — kod/ad girmeden önce belirlenmeli.
+           LookupEdit (LookupComboBox DEĞİL): salt-okunur alan + popup'ta aranabilir liste — N11 kategori
+           seçimiyle aynı desen. Uzun kategori YOLLARI ("Takı › Yüzük › Alyans") dar bir combo'ya sığmıyordu. *@
+        <DxFormLayoutItem Caption="@($"{L["Product:ProductCategory"]} *")" ColSpanMd="12">
+            <LookupEdit TItem="ProductCategoryListDto" TValue="Guid?"
+                        Data="@ProductCategories"
+                        ValueFieldName="@nameof(ProductCategoryListDto.Id)"
+                        TextFieldName="@nameof(ProductCategoryListDto.Path)"
+                        Value="@Model.ProductCategoryId"
+                        ValueChanged="@OnProductCategoryChanged"
+                        ValueExpression="@(() => Model.ProductCategoryId)"
+                        Title="@L["Product:ProductCategory"].Value"
+                        NullText="@L["Product:ProductCategoryPlaceholder"].Value"
+                        SearchPlaceholder="@L["Product:ProductCategoryPlaceholder"].Value"
+                        ListComponentType="typeof(ProductCategoryListPage)"
+                        ListItemValueSelector="@(item => ((ProductCategoryListDto)item).Id)"
+                        OnAddRequested="@OnAddProductCategoryRequested"
+                        OnEditRequested="@OnEditProductCategoryRequested"
+                        OnRefreshRequested="@(() => OnReloadProductCategories.InvokeAsync())"
+                        AllowClear="false" />
+        </DxFormLayoutItem>
         <DxFormLayoutItem Caption="@($"{L["Code"]} *")" ColSpanMd="6">
             <DxTextBox @bind-Text="@Model.Code" />
         </DxFormLayoutItem>
         <DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="12">
             <DxTextBox @bind-Text="@Model.Name" />
         </DxFormLayoutItem>
-        <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6">
-            <DxCheckBox @bind-Checked="@Model.IsActive" CheckType="CheckType.Switch">
-                @(Model.IsActive ? L["Active"] : L["Passive"])
-            </DxCheckBox>
-        </DxFormLayoutItem>
-        @* Varyant modu (Dilim-3): Çoklu (statüko) / Tek / Muadil. Manuel bağlama — MultiVariant'tan çıkış
-           host onayından geçer (veri-kaybı uyarısı); ValueExpression açık verilir ([validation-expr]). *@
+        @if (ShowMissingChannelMappingWarning)
+        {
+            <DxFormLayoutItem ColSpanMd="12" CaptionPosition="CaptionPosition.Vertical">
+                <InlineWarning>@L["Product:CategoryHasNoChannelMapping"]</InlineWarning>
+            </DxFormLayoutItem>
+        }
+        @* Varyant modu Durum'dan ÖNCE: Status form standardında EN SONDA gelir (ui-blazor edit form sırası);
+           varyant modu ise ürünün nasıl kurulacağını belirleyen bir seçim, durumdan önce okunmalı.
+           Manuel bağlama — MultiVariant'tan çıkış host onayından geçer (veri-kaybı uyarısı);
+           ValueExpression açık verilir ([validation-expr]). *@
         <DxFormLayoutItem Caption="@L["Product:VariantMode"]" ColSpanMd="6">
             <ComboBoxEnumEdit TEnum="ProductVariantMode" L="@L"
                               Value="@Model.VariantMode"
                               ValueChanged="@(async (ProductVariantMode v) => await HandleVariantModeChangedAsync(v))"
                               ValueExpression="@(() => Model.VariantMode)" />
+        </DxFormLayoutItem>
+        @* Şablon seçimi modun HEMEN YANINDA (ayrı grup açılmaz): "Katalogdan Uygula" seçildiği anda kaynağın
+           da orada seçilmesi bekleniyor. LookupComboBox → ekle/düzelt butonları: eksik şablon için forma ara
+           vermeden katalog açılabilsin (2026-07-27 Hakan). Seçim uygulanınca combo boşalır — şablon bir
+           KAYNAK, ürünle kalıcı bağ kurmaz. *@
+        @if (Model.VariantMode == ProductVariantMode.FromCatalog)
+        {
+            <DxFormLayoutItem Caption="@L["Product:TemplateSelection"]" ColSpanMd="6">
+                <LookupComboBox TItem="VariantTemplateListDto" TValue="Guid?"
+                                Data="@VariantTemplates"
+                                ValueFieldName="@nameof(VariantTemplateListDto.Id)"
+                                TextFieldName="@nameof(VariantTemplateListDto.Name)"
+                                Value="@_selectedVariantTemplateId"
+                                ValueChanged="@(async (Guid? id) => await ApplyVariantTemplateAsync(id))"
+                                EditComponentType="typeof(VariantTemplateEditHost)"
+                                OnLookupReloadRequested="@OnReloadVariantTemplates"
+                                CreatePolicy="@TradeXpressPermissions.VariantTemplates.Create"
+                                UpdatePolicy="@TradeXpressPermissions.VariantTemplates.Update"
+                                AllowClear="false" />
+            </DxFormLayoutItem>
+        }
+        @* Reçete şablonu ("orta reçete") — satırlar ürünün TÜM varyantlarına, muadillikten gelen emtiaların
+           ARDINA eklenir. Şablon bir KAYNAKTIR: seçim uygulandıktan sonra combo boşalır, ürünle kalıcı bağ kurulmaz
+           (VariantTemplate ile aynı karar). Yalnız KAYITLI üründe anlamlı — varyantlar henüz yoksa uygulanacak yer yok. *@
+        @if (!IsNew)
+        {
+            @* Seçim KALICI durur (uygulandıktan sonra sıfırlanmaz): lookup'ın DÜZELT butonu ancak seçili bir
+               değer varken görünür — boşaltmak onu erişilemez kılıyordu. Uygulama artık ayrı butonda, böylece
+               aynı şablon istendiği kadar tekrar uygulanabilir (combo değişmeden). *@
+            <DxFormLayoutItem Caption="@L["RecipeTemplate"]" ColSpanMd="9">
+                <LookupComboBox TItem="RecipeTemplateListDto" TValue="Guid?"
+                                Data="@RecipeTemplates"
+                                ValueFieldName="@nameof(RecipeTemplateListDto.Id)"
+                                TextFieldName="@nameof(RecipeTemplateListDto.Name)"
+                                Value="@_selectedRecipeTemplateId"
+                                ValueChanged="@OnRecipeTemplateSelected"
+                                ValueExpression="@(() => _selectedRecipeTemplateId)"
+                                NullText="@L["RecipeTemplate:ApplySelect"].Value"
+                                EditComponentType="typeof(RecipeTemplateEditHost)"
+                                OnLookupReloadRequested="@OnReloadRecipeTemplates"
+                                CreatePolicy="@TradeXpressPermissions.RecipeTemplates.Create"
+                                UpdatePolicy="@TradeXpressPermissions.RecipeTemplates.Update" />
+            </DxFormLayoutItem>
+            <DxFormLayoutItem ColSpanMd="3">
+                <DxButton Text="@L["RecipeTemplate:ApplyButton"]"
+                          IconCssClass="@TradeXpressIcons.RecipeTemplate"
+                          RenderStyle="ButtonRenderStyle.Secondary"
+                          Enabled="@(_selectedRecipeTemplateId is not null)"
+                          Click="@(async () => await ApplySelectedRecipeTemplateAsync())" />
+            </DxFormLayoutItem>
+            <DxFormLayoutItem ColSpanMd="12">
+                <span style="color:#6c757d; font-size:0.85rem;">@L["RecipeTemplate:ApplyHint"]</span>
+            </DxFormLayoutItem>
+        }
+        @* İndirim TİPİ şablon seçimlerinden SONRA (2026-07-28 Hakan): varyant modu → şablonlar → indirim
+           sırası ürünün nasıl kurulacağından nasıl fiyatlanacağına doğru ilerler. "İndirim yok" halinde ayrı
+           bir grup açmak boş başlık bırakıyordu — detay alanları yalnız tip seçilince belirir. *@
+        <DxFormLayoutItem Caption="@L["Product:DiscountType"]" ColSpanMd="6" BeginRow="true">
+            <ComboBoxEnumEdit TEnum="ProductDiscountType" L="@L"
+                              Value="@Model.DiscountType"
+                              ValueChanged="@OnDiscountTypeChanged"
+                              ValueExpression="@(() => Model.DiscountType)" />
+        </DxFormLayoutItem>
+    </DxFormLayoutGroup>
+
+    @* Pazaryeri-genel varsayılanlar — kanal-ürünü boş bıraktığı alanlarda bunu devralır. KATLANMIŞ açılır
+       (2026-07-28 Hakan): çoğu üründe varsayılanlar olduğu gibi kullanılıyor, açık durması formun başını
+       yoruyordu. Genel grubun HEMEN ARDINDA: ürünün temel tanımından sonra gelen ikinci halka. *@
+    <DxFormLayoutGroup Caption="@L["Product:MarketplaceDefaults"]" ColSpanMd="12"
+                       Expanded="false" ExpandButtonDisplayMode="GroupExpandButtonDisplayMode.Start">
+        @* Menşei ülke — "Yurtiçi" true/false bayrağının YERİNE (2026-07-28 Hakan). N11'in beklediği yerli-ürün
+           bayrağı bundan türetilir (menşei == şirketin ülkesi); kullanıcı bayrağı elle işaretlemez. *@
+        <DxFormLayoutItem Caption="@L["Product:OriginCountry"]" ColSpanMd="6" BeginRow="true">
+            <LookupComboBox TItem="CountryListDto" TValue="Guid?"
+                            Data="@Countries"
+                            ValueFieldName="@nameof(CountryListDto.Id)"
+                            TextFieldName="@nameof(CountryListDto.Name)"
+                            @bind-Value="@Model.OriginCountryId"
+                            NullText="@L["Optional"]"
+                            AllowClear="false" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["Product:Condition"]" ColSpanMd="6">
+            <ComboBoxEnumEdit TEnum="ProductCondition" L="@L" @bind-Value="@Model.Condition" />
+        </DxFormLayoutItem>
+        @* Hazırlık süresi EN AZ 1 gün: 0 gün "aynı saniye kargoda" demek olur, pazaryerleri kabul etmez. *@
+        <DxFormLayoutItem Caption="@L["Product:PreparingDay"]" ColSpanMd="6" BeginRow="true">
+            <NumericSpinEdit TValue="int" @bind-Value="@Model.PreparingDay" MinValue="1" />
+        </DxFormLayoutItem>
+        @* Paket desisi — kargo tarifesinin girdisi. 0 GEÇERLİDİR (desisiz/ağırlıksız kalem); negatif taşıma
+           hacmi diye bir şey yok. Boş bırakılırsa varyantın, o da yoksa kanalın desisi kullanılır. *@
+        <DxFormLayoutItem Caption="@L["Product:PackageDesi"]" ColSpanMd="6">
+            @* Temizle butonu YOK: desi 0 varsayılanıyla geliyor ve boşaltmak "kanalın desisini kullan"
+               anlamına geliyor — kullanıcının kazara boşaltıp farkında olmadan başka bir desiye düşmesi
+               yerine değeri elle 0 yapması daha açık (2026-07-28 Hakan). *@
+            <NumericSpinEdit TValue="int?" @bind-Value="@Model.PackageDesi" MinValue="0" />
+        </DxFormLayoutItem>
+        @* Varsayılan para birimi — yeni üründe şirketin yerel (bilanço) birimi seçili gelir; inline ekle/düzelt. *@
+        <DxFormLayoutItem Caption="@L["Product:CurrencyUnit"]" ColSpanMd="6" BeginRow="true">
+            <LookupComboBox TItem="CurrencyUnitListDto" TValue="Guid?"
+                            Data="@CurrencyUnits"
+                            ValueFieldName="@nameof(CurrencyUnitListDto.Id)"
+                            TextFieldName="@nameof(CurrencyUnitListDto.Code)"
+                            @bind-Value="@Model.CurrencyUnitId"
+                            EditComponentType="typeof(CurrencyUnitEditHost)"
+                            OnLookupReloadRequested="@OnReloadCurrencyUnits"
+                            CreatePolicy="@TradeXpressPermissions.CurrencyUnits.Create"
+                            UpdatePolicy="@TradeXpressPermissions.CurrencyUnits.Update"
+                            AllowClear="false" />
         </DxFormLayoutItem>
     </DxFormLayoutGroup>
 
@@ -57,8 +194,15 @@
             @* Grup seçili değilse alt kontroller GÖRÜNMEZ (hiç grup yoksa) — boş grupla hedef/tolerans/kapsam anlamsız. *@
             @if (Model.SubstitutionGroupId is not null)
             {
-                <DxFormLayoutItem Caption="@($"{L["Substitution:TargetQuantity"]} *")" ColSpanMd="6">
-                    <NumericSpinEdit TValue="decimal?" @bind-Value="@Model.SubstitutionTargetQuantity" DisplayFormat="N5" />
+                <DxFormLayoutItem Caption="@($"{L["Substitution:TargetQuantity"]}{SubstitutionUnitSuffix} *")" ColSpanMd="6">
+                    @* Miktar değişimi kombinasyonları doğrudan etkiler → otomatik yeniden hesap (debounce'lu). *@
+                    @* ValueExpression AÇIKÇA verilir: @bind yerine manuel bağlama kullanıldığında DevExpress
+                       editörü ifadeyi kendisi türetemez ve EditContext altında çöker ([validation-expr]).
+                       NumericSpinEdit bir SARMALAYICI — DxSpinEdit'in ValidationEnabled parametresini taşımaz. *@
+                    <NumericSpinEdit TValue="decimal?" Value="@Model.SubstitutionTargetQuantity"
+                                     ValueChanged="@(async (decimal? v) => await OnSubstitutionTargetQuantityChangedAsync(Model, v))"
+                                     ValueExpression="@(() => Model.SubstitutionTargetQuantity)"
+                                     DisplayFormat="N5" />
                 </DxFormLayoutItem>
                 @* Varyant Oluşturma Modu (2026-07-25 Hakan): Tek = yalnız en iyi kombinasyon ana varyant;
                    Çoklu = adaylar ayrı varyant (Rank 1 ana, diğerleri müşteriye seçenek). Üretim OTOMATİK. *@
@@ -81,98 +225,71 @@
                     </DxFormLayoutItem>
                 }
                 @* Override ağacı — grup kalemleri devralınan referans; boş seçim = gruptan devral (resolver zinciri). *@
-                <DxFormLayoutGroup Caption="@L["VariantScope"]" ColSpanMd="12" CaptionPosition="CaptionPosition.Vertical">
-                    <SubstitutionVariantTreePanel Items="@SubstitutionGroupItems"
-                                                  Variants="@MetalVariants"
-                                                  OverrideVariantIds="@Model.SubstitutionOverrideVariantIds"
-                                                  OnChanged="@(() => EditChanged?.Invoke())" />
+                @* Başlık + eylem TEK SATIRDA (HeaderContentTemplate). Gövde <Items> slotuna girer — <ChildContent>
+                   İLE ÇALIŞMAZ: grup şablonlu kullanımda alanları yalnız Items'tan çiziyor, ChildContent'e
+                   konan ağaç sessizce kayboluyordu (2026-07-28: bir kez canlıda "emtiaları göremiyorum" olarak
+                   döndü). Regresyonu SubstitutionVariantScopeRenderTests sabitler. *@
+                @* Kapsam grubu YALNIZ hedef miktar > 0 iken görünür (2026-07-28 Hakan): miktar 0'ken hiçbir
+                   emtia kombinasyona giremez ama ağaç yine de hepsini listeliyordu — kullanıcı seçim yapılabilir
+                   sanıyordu. Görünürlük Visible ile (sekme/kolon kuralıyla aynı): grup ağaçtan çıkıp girince
+                   HeaderContentTemplate/Items yeniden kurulup panel referansı kopardı. *@
+                <DxFormLayoutGroup ColSpanMd="12" CaptionPosition="CaptionPosition.Vertical"
+                                   Visible="@(Model.SubstitutionTargetQuantity > 0m)">
+                    <HeaderContentTemplate>
+                        @* Başlık solda, eylem SAĞA DAYALI: flex + auto margin (aradaki boşluğu buton iter). *@
+                        <div style="display:flex; align-items:center; gap:0.5rem; width:100%;">
+                            <span>@L["VariantScope"]</span>
+                            @if (_variantScopePanel?.HasUnselected == true)
+                            {
+                                <DxButton RenderStyle="ButtonRenderStyle.Secondary" SizeMode="SizeMode.Small"
+                                          CssClass="ms-auto" Text="@L["SelectAll"]"
+                                          Click="@(async () => await _variantScopePanel.SelectAllAsync())" />
+                            }
+                        </div>
+                    </HeaderContentTemplate>
+                    <Items>
+                        <DxFormLayoutItem ColSpanMd="12">
+                            @* Kapsam değişince kombinasyonlar bayatlar → otomatik yeniden hesap (debounce'lu). *@
+                            <SubstitutionVariantTreePanel @ref="_variantScopePanel"
+                                                          Items="@SubstitutionGroupItems"
+                                                          Variants="@MetalVariants"
+                                                          Metals="@Metals"
+                                                          TargetQuantity="@Model.SubstitutionTargetQuantity"
+                                                          OverrideVariantIds="@Model.SubstitutionOverrideVariantIds"
+                                                          OnChanged="@(async () => await OnSubstitutionScopeChangedAsync())" />
+                        </DxFormLayoutItem>
+                    </Items>
                 </DxFormLayoutGroup>
             }
         </DxFormLayoutGroup>
     }
 
-    @* Marketplace indirimi (ürün-seviyesi; tüm varyant + kanallara aynı gider). None dışında değer + tarih görünür. *@
-    <DxFormLayoutGroup Caption="@L["Product:Discount"]" ColSpanMd="12">
-        <DxFormLayoutItem Caption="@L["Product:DiscountType"]" ColSpanMd="4" BeginRow="true">
-            <ComboBoxEnumEdit TEnum="ProductDiscountType" L="@L" @bind-Value="@Model.DiscountType" />
-        </DxFormLayoutItem>
-        @if (Model.DiscountType != ProductDiscountType.None)
-        {
-            <DxFormLayoutItem Caption="@L["Product:DiscountValue"]" ColSpanMd="4">
+    @* Marketplace indirimi (ürün-seviyesi; tüm varyant + kanallara aynı gider). Grup YALNIZ bir indirim tipi
+       seçiliyken görünür — "İndirim yok" halinde boş bir başlık ve dört boş alan duruyordu. Tip seçimi yukarıda,
+       varyant modunun yanında. *@
+    @if (Model.DiscountType != ProductDiscountType.None)
+    {
+        <DxFormLayoutGroup Caption="@L["Product:Discount"]" ColSpanMd="12">
+            @* Tutar tipinde ürünün para birimi caption'da parantez içinde: "500" değerinin hangi birimde
+               olduğunu göstermek için ayrı bir alan açmak gereksiz; yüzde tipinde birim anlamsız. *@
+            <DxFormLayoutItem Caption="@($"{L["Product:DiscountValue"]}{DiscountValueUnitSuffix} *")" ColSpanMd="6" BeginRow="true">
                 <NumericSpinEdit TValue="decimal?" @bind-Value="@Model.DiscountValue" DisplayFormat="N2"
                                  ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
             </DxFormLayoutItem>
-            <DxFormLayoutItem Caption="@L["Product:DiscountStartDate"]" ColSpanMd="4">
+            <DxFormLayoutItem Caption="@L["Product:DiscountStartDate"]" ColSpanMd="6" BeginRow="true">
                 <DxDateEdit @bind-Date="@Model.DiscountStartDate" ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
             </DxFormLayoutItem>
-            <DxFormLayoutItem Caption="@L["Product:DiscountEndDate"]" ColSpanMd="4">
+            <DxFormLayoutItem Caption="@L["Product:DiscountEndDate"]" ColSpanMd="6">
                 <DxDateEdit @bind-Date="@Model.DiscountEndDate" ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
             </DxFormLayoutItem>
-        }
-    </DxFormLayoutGroup>
+        </DxFormLayoutGroup>
+    }
 
     @* Pazaryeri-genel varsayılanlar — tüm pazaryerleri için ortak; kanal-ürünü boş bıraktığı alanlarda bunu devralır. *@
-    <DxFormLayoutGroup Caption="@L["Product:MarketplaceDefaults"]" ColSpanMd="12">
-        <DxFormLayoutItem Caption="@L["Product:Domestic"]" ColSpanMd="6" BeginRow="true">
-            <DxCheckBox @bind-Checked="@Model.Domestic" CheckType="CheckType.Switch">
-                @(Model.Domestic ? L["Yes"] : L["No"])
-            </DxCheckBox>
-        </DxFormLayoutItem>
-        <DxFormLayoutItem Caption="@L["Product:Condition"]" ColSpanMd="6">
-            <ComboBoxEnumEdit TEnum="ProductCondition" L="@L" @bind-Value="@Model.Condition" />
-        </DxFormLayoutItem>
-        <DxFormLayoutItem Caption="@L["Product:PreparingDay"]" ColSpanMd="6" BeginRow="true">
-            <NumericSpinEdit TValue="int" @bind-Value="@Model.PreparingDay" />
-        </DxFormLayoutItem>
-        <DxFormLayoutItem Caption="@L["Product:MaxPurchaseQuantity"]" ColSpanMd="6">
-            <NumericSpinEdit TValue="int?" @bind-Value="@Model.MaxPurchaseQuantity"
-                             ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
-        </DxFormLayoutItem>
-        @* Varsayılan para birimi — opsiyonel; inline ekle/düzelt (popup + refresh standardı). *@
-        <DxFormLayoutItem Caption="@L["Product:CurrencyUnit"]" ColSpanMd="6" BeginRow="true">
-            <LookupComboBox TItem="CurrencyUnitListDto" TValue="Guid?"
-                            Data="@CurrencyUnits"
-                            ValueFieldName="@nameof(CurrencyUnitListDto.Id)"
-                            TextFieldName="@nameof(CurrencyUnitListDto.Code)"
-                            @bind-Value="@Model.CurrencyUnitId"
-                            EditComponentType="typeof(CurrencyUnitEditHost)"
-                            OnLookupReloadRequested="@OnReloadCurrencyUnits"
-                            CreatePolicy="@TradeXpressPermissions.CurrencyUnits.Create"
-                            UpdatePolicy="@TradeXpressPermissions.CurrencyUnits.Update"
-                            AllowClear="true" />
-        </DxFormLayoutItem>
-        <DxFormLayoutItem Caption="@L["Product:SellerNote"]" ColSpanMd="12">
-            <DxMemo @bind-Text="@Model.SellerNote" Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100"
-                    NullText="@L["Optional"]" />
-        </DxFormLayoutItem>
-    </DxFormLayoutGroup>
 
-    @* Kişiselleştirme (pazaryeri-genel; Etsy who_made deseni). Açıkken talimat + zorunluluk + karakter sınırı görünür.
-       Kanal-ürünü push'ta bunları devralır (SONRAKİ iş). *@
-    <DxFormLayoutGroup Caption="@L["Product:Personalization"]" ColSpanMd="12">
-        <DxFormLayoutItem Caption="@L["Product:IsPersonalizable"]" ColSpanMd="6" BeginRow="true">
-            <DxCheckBox @bind-Checked="@Model.IsPersonalizable" CheckType="CheckType.Switch">
-                @(Model.IsPersonalizable ? L["Yes"] : L["No"])
-            </DxCheckBox>
-        </DxFormLayoutItem>
-        <DxFormLayoutItem Caption="@L["Product:PersonalizationIsRequired"]" ColSpanMd="6"
-                          Visible="@Model.IsPersonalizable">
-            <DxCheckBox @bind-Checked="@Model.PersonalizationIsRequired" CheckType="CheckType.Switch">
-                @(Model.PersonalizationIsRequired ? L["Yes"] : L["No"])
-            </DxCheckBox>
-        </DxFormLayoutItem>
-        <DxFormLayoutItem Caption="@L["Product:PersonalizationCharCountMax"]" ColSpanMd="6" BeginRow="true"
-                          Visible="@Model.IsPersonalizable">
-            <NumericSpinEdit TValue="int?" @bind-Value="@Model.PersonalizationCharCountMax"
-                             MinValue="1" MaxValue="ProductConsts.PersonalizationCharCountMaxLimit"
-                             ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
-        </DxFormLayoutItem>
-        <DxFormLayoutItem Caption="@L["Product:PersonalizationInstructions"]" ColSpanMd="12"
-                          Visible="@Model.IsPersonalizable">
-            <DxMemo @bind-Text="@Model.PersonalizationInstructions" Rows="2" ResizeMode="MemoResizeMode.Disabled"
-                    CssClass="w-100" NullText="@L["Optional"]" />
-        </DxFormLayoutItem>
-    </DxFormLayoutGroup>
+    @* "Kişiselleştirme" grubu 2026-07-28'de KALDIRILDI: Etsy'nin tek-kutulu kişiselleştirme modeli 2026-04-09'da
+       kapandı, N11'de zaten karşılığı yoktu. Aynı işi "Ürün Özelleştirme" sekmesi yapıyor — orada her satır bir
+       adlandırılmış alan ve Etsy'ye 1:1 bir kişiselleştirme sorusu olarak gidiyor. *@
 
     @* Opsiyonel tanımlar — az kullanılan/detay alanlar; drill'den hemen önce KATLANMIŞ grupta (form başını yormasın).
        N11 formundaki "OptionalFields" deseniyle hizalı. *@
@@ -185,7 +302,24 @@
         <DxFormLayoutItem Caption="@L["Product:ExpirationDate"]" ColSpanMd="6">
             <DxDateEdit @bind-Date="@Model.ExpirationDate" ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
         </DxFormLayoutItem>
+        @* Alıcı başına azami adet + satıcı notu: nadiren doldurulan alanlar — pazaryeri varsayılanları
+           grubunu şişirmek yerine burada (2026-07-28 Hakan). *@
+        <DxFormLayoutItem Caption="@L["Product:MaxPurchaseQuantity"]" ColSpanMd="6" BeginRow="true">
+            <NumericSpinEdit TValue="int?" @bind-Value="@Model.MaxPurchaseQuantity" MinValue="1"
+                             ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["Product:SellerNote"]" ColSpanMd="12">
+            <DxMemo @bind-Text="@Model.SellerNote" Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100"
+                    NullText="@L["Optional"]" />
+        </DxFormLayoutItem>
     </DxFormLayoutGroup>
+
+    @* Durum EN SONDA (ui-blazor form standardı) — grupların hepsinden sonra. *@
+    <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6" BeginRow="true">
+        <DxCheckBox @bind-Checked="@Model.IsActive" CheckType="CheckType.Switch">
+            @(Model.IsActive ? L["Active"] : L["Passive"])
+        </DxCheckBox>
+    </DxFormLayoutItem>
 </DxFormLayout>
 
 @* Nitelikler + Varyantlar. Nitelik×değer kartezyeni varyantları SUNUCUDA üretir (ProductVariantSynchronizer);
@@ -203,8 +337,16 @@
            (GoodLayout deseni). Kod/Ad AGNOSTİK-üretilir (elle düzenlenmez).
            SingleVariant/Substitution modunda OnAttributesChanged BAĞLANMAZ (HasDelegate koşulu) →
            "Özellikleri Düzenle" butonu kendiliğinden kaybolur — nitelik-tabanlı üretim BYPASS (sunucu kapısı da var). *@
+        @* Maliyet kolonu ürün varyantında anlamlı (NetCost) — muadilde kombinasyonun maliyeti doğrudan
+           görünsün; fiyatlama kararı ondan çıkıyor. *@
+        @* Kimlik alanları (Kod + Kombinasyon) yalnız ÇOK varyantlı üretimde anlamlı; tek varyantlı üründe
+           kombinasyon yok ve kod otomatik. Ana varyantın kodu ("ANAVARYANT" iç sabiti) yerine ÜRÜNÜN kodu
+           gösterilir — kullanıcı için anlamlı olan o (2026-07-28 Hakan). *@
         <EntityVariantsPanel TVariant="ProductVariantGraphDto" Variants="@Model.Variants" Attributes="@Model.Attributes"
-                             OnAttributesChanged="@(Model.VariantMode == ProductVariantMode.MultiVariant ? OnGenerateVariants : default)">
+                             ShowNetCost="true"
+                             ShowIdentity="@(Model.VariantMode is ProductVariantMode.MultiVariant or ProductVariantMode.FromCatalog or ProductVariantMode.Substitution)"
+                             MainVariantCodeDisplay="@Model.Code"
+                             OnAttributesChanged="@(Model.VariantMode is ProductVariantMode.MultiVariant or ProductVariantMode.FromCatalog ? OnGenerateVariants : default)">
             <ExtraFields Context="v">
                 @* Satılabilir veri (marketplace) — satış fiyatı + para birimi. N11/Trendyol listeleme push'u bunları kullanır;
                    fiyat null = fiyatlanmamış (temizle butonuyla boşaltılabilir). Stok/barkod/GTIN panel çekirdeğinde. *@
@@ -224,8 +366,7 @@
                                         Jewelries="Jewelries" Stones="Stones" Goods="Goods" Services="Services" Units="Units"
                                         AllVariants="@Model.Variants"
                                         OnVariantRecipeChanged="@(async (ProductVariantGraphDto variant) => await HandleRecipeChangedAsync(variant))"
-                                        NetCost="@v.NetCost" NetCostCurrency="@v.NetCostCurrency" NetCostMissingRate="@v.NetCostMissingRate"
-                                        OnChanged="@(async () => await HandleRecipeChangedAsync(v))" />
+                                        NetCost="@v.NetCost" NetCostCurrency="@v.NetCostCurrency" NetCostMissingRate="@v.NetCostMissingRate" />
                 </DxFormLayoutGroup>
             </ExtraFields>
         </EntityVariantsPanel>
@@ -299,6 +440,67 @@
     <DxTabPage Text="@L["Product:Media"]" TabIconCssClass="@TradeXpressIcons.Product">
         <span style="color:#6c757d; font-size:0.85rem;">@L["Product:MediaHint"]</span>
         <EntityMediaPanel Media="@Model.Media" />
+    </DxTabPage>
+    @* Ürünün GENEL ÖZELLİKLERİ — nitelik ADLARI kategoriden gelir (kalıtım dahil), DEĞERLERİ burada girilir.
+       Satır EKLENMEZ/SİLİNMEZ: liste kategorinin tanımıdır. Yeni özellik gerekiyorsa kategoriye eklenir —
+       ürüne serbest satır açtırmak, aynı özelliğin her üründe farklı adla yazılmasına ve pazaryeri
+       eşleştirmesinin tutmamasına yol açardı. *@
+    @* Kategori seçilmeden sekme GİZLİ — ama @if ile DEĞİL, Visible ile: sekmeyi ağaçtan çıkarmak
+       diğerlerinin sırasını (ve seçili sekme indeksini) kaydırıyordu (2026-07-28 Hakan). *@
+    <DxTabPage Text="@L["Product:Specifications"]" TabIconCssClass="@TradeXpressIcons.Sliders"
+               Visible="@(Model.ProductCategoryId is not null)">
+        @if (SpecificationRows.Count == 0)
+        {
+            <InlineWarning>@L["Product:SpecificationsEmpty"]</InlineWarning>
+        }
+        else
+        {
+            <span style="color:#6c757d; font-size:0.85rem;">@L["Product:SpecificationsHint"]</span>
+            @* HÜCRE-İÇİ düzenleme (N11 "Kategori Nitelikleri" grid'iyle AYNI desen): satır = kategoriden gelen
+               özellik tanımı (SABİT — eklenmez/silinmez), değer hücresine tıklanınca anında düzenlenir.
+               Değer-listeli özellik → combo (liste dışı değer de yazılabilir); serbest özellik → metin kutusu.
+               Paging YOK: kategori nitelikleri onlarca satırı geçmez, sayfalama aramayı zorlaştırırdı. *@
+            <DxGrid Data="@SpecificationRows" KeyFieldName="AttributeId"
+                    EditMode="GridEditMode.EditCell"
+                    EditModelSaving="@OnSpecificationRowSaving"
+                    PageSize="200" PagerVisible="false"
+                    CssClass="w-100 mt-2">
+                <Columns>
+                    <DxGridDataColumn FieldName="Name" Caption="@L["ProductAttribute"]" Width="35%" ReadOnly="true" />
+                    @* FieldName ŞART: EditCell modunda FieldName'siz kolon düzenlenebilir hücre sayılmaz. *@
+                    <DxGridDataColumn FieldName="Value" Caption="@L["AttributeValues"]">
+                        <CellDisplayTemplate Context="cell">
+                            @{ var r = (SpecificationRow)cell.DataItem; }
+                            <span>@(string.IsNullOrEmpty(r.Value) ? "-" : r.Value)</span>
+                        </CellDisplayTemplate>
+                        <CellEditTemplate Context="cell">
+                            @{ var row = (SpecificationRow)cell.EditModel; }
+                            @if (row.HasOptions)
+                            {
+                                @* Tek-yönlü Text bağı → TextExpression ŞART ([validation-expr]). *@
+                                <DxComboBox Data="@row.Options"
+                                            TData="string"
+                                            TValue="string"
+                                            AllowUserInput="true"
+                                            SearchMode="ListSearchMode.AutoSearch"
+                                            Text="@row.Value"
+                                            TextChanged="@((string v) => row.Value = v)"
+                                            TextExpression="@(() => row.Value)"
+                                            ValidationEnabled="false"
+                                            ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto"
+                                            CssClass="w-100" />
+                            }
+                            else
+                            {
+                                <DxTextBox Text="@row.Value"
+                                           TextChanged="@((string v) => row.Value = v)"
+                                           TextExpression="@(() => row.Value)" />
+                            }
+                        </CellEditTemplate>
+                    </DxGridDataColumn>
+                </Columns>
+            </DxGrid>
+        }
     </DxTabPage>
     @* Ürün özelleştirme alanları — pazaryeri-genel varsayılan (key zorunlu / value opsiyonel). Kanal-ürünü boşsa devralır. *@
     <DxTabPage Text="@L["Product:SpecialInfo"]" TabIconCssClass="@TradeXpressIcons.Sliders">
@@ -395,79 +597,9 @@
             </EditContent>
         </DrillList>
     </DxTabPage>
-    @* Muadil kombinasyonları (yalnız Substitution modu) — Hesapla: grup+hedef+tolerans+override ile CalculateAsync;
-       sonuç tablosu hesaplama sayfası formatında (başarılılar üstte, Rank 1 = ANA vurgulu); başarılı satır seç +
-       "Reçeteye Uygula" → kombinasyon ana varyant reçetesine çevrilir (ürün Kaydet'iyle persist — draft mekaniği). *@
-    @if (Model.VariantMode == ProductVariantMode.Substitution)
-    {
-        <DxTabPage Text="@L["Product:SubstitutionCombinations"]" TabIconCssClass="@TradeXpressIcons.Metal">
-            <DxToolbar ItemRenderStyleMode="ToolbarRenderStyleMode.Plain" CssClass="mb-2">
-                <DxToolbarItem Text="@L["Substitution:Calculate"]"
-                               Click="@(async () => await OnCalculateSubstitution.InvokeAsync())"
-                               Enabled="@(!SubstitutionBusy && Model.SubstitutionGroupId != null && Model.SubstitutionTargetQuantity > 0m)"
-                               RenderStyleMode="ToolbarItemRenderStyleMode.Contained"
-                               RenderStyle="ButtonRenderStyle.Primary"
-                               IconCssClass="@(SubstitutionBusy ? TradeXpressIcons.Spinner : TradeXpressIcons.Check)" />
-                @* "Uygula" KALDIRILDI (2026-07-25 Hakan): kombinasyon→varyant dönüşümü OTOMATİK —
-                   ürün kaydında + maden stoğu değişince sunucu (SubstitutionVariantMaterializer) üretir.
-                   Bu tablo artık salt-okunur ÖNİZLEMEDİR (o anki stokla ne üretilebilir). *@
-            </DxToolbar>
-
-            @if (SubstitutionResult is { } sr)
-            {
-                @* Özet şeridi — hesaplama sayfası paritesi: deneme/başarılı · etkin tolerans · elenenler. *@
-                <div style="display:flex; flex-wrap:wrap; gap:16px; align-items:center; font-size:13px; padding-bottom:8px;">
-                    <span><b>@L["Substitution:TrialCount"]:</b> @sr.TrialCount</span>
-                    <span><b>@L["Substitution:SuccessCount"]:</b> @sr.SuccessCount</span>
-                    <span><b>@L["Substitution:EffectiveTolerance"]:</b> @sr.EffectiveTolerance.ToString("0.#####") gr</span>
-                    @if (sr.FilteredOut.Count > 0)
-                    {
-                        <span>
-                            <b>@L["Substitution:FilteredOut"]:</b>
-                            @string.Join(" · ", sr.FilteredOut.Select(f => SubstitutionTrialFormat.FilteredOutLabel(f)))
-                        </span>
-                    }
-                </div>
-
-                @if (sr.InsufficientStock)
-                {
-                    <div style="padding:8px 12px; border-left:3px solid #dc2626; background:rgba(220,38,38,0.08); font-size:13px; margin-bottom:8px;">
-                        @L["Substitution:InsufficientStock", sr.TotalAvailableWeight.ToString("0.#####"), sr.TargetQuantity.ToString("0.#####")]
-                    </div>
-                }
-
-                <TxGrid Data="@SubstitutionTrialRows" StateKey="product:substitution-trials" CustomizeElement="OnCustomizeTrialRow"
-                        PagerVisible="false" VirtualScrollingEnabled="true" AllowSort="false"
-                        SelectionMode="GridSelectionMode.Single" AllowSelectRowByClick="true"
-                        SelectedDataItems="@_selectedTrialItems"
-                        SelectedDataItemsChanged="@((IReadOnlyList<object> items) => OnSelectedTrialItemsChanged(items))"
-                        style="min-height:200px; max-height:420px;">
-                    <Columns>
-                        <DxGridDataColumn FieldName="TrialNo" Caption="#" Width="60px" TextAlignment="GridTextAlignment.Right" />
-                        <DxGridDataColumn FieldName="Combination" Caption="@L["Substitution:Combination"]" MinWidth="200" />
-                        <DxGridDataColumn FieldName="Variants" Caption="@L["Substitution:Variants"]" MinWidth="160" />
-                        <DxGridDataColumn FieldName="TotalWeight" Caption="@L["Substitution:TotalWeight"]" Width="110px"
-                                          TextAlignment="GridTextAlignment.Right" DisplayFormat="n4" />
-                        <DxGridDataColumn FieldName="Deviation" Caption="@L["Substitution:Deviation"]" Width="100px"
-                                          TextAlignment="GridTextAlignment.Right" DisplayFormat="n4" />
-                        <DxGridDataColumn FieldName="TotalCost" Caption="@SubstitutionCostCaption" Width="130px"
-                                          TextAlignment="GridTextAlignment.Right" DisplayFormat="n2" />
-                        <DxGridDataColumn FieldName="PieceCount" Caption="@L["Substitution:PieceCount"]" Width="90px"
-                                          TextAlignment="GridTextAlignment.Right" />
-                        <DxGridDataColumn FieldName="PackageCount" Caption="@L["Substitution:PackageCount"]" Width="90px"
-                                          TextAlignment="GridTextAlignment.Right" />
-                        <DxGridDataColumn FieldName="StatusText" Caption="@L["Status"]" MinWidth="140" />
-                        <DxGridDataColumn FieldName="Rank" Caption="@L["Substitution:Rank"]" Width="80px"
-                                          TextAlignment="GridTextAlignment.Right" />
-                    </Columns>
-                </TxGrid>
-            }
-            else
-            {
-                <div style="color:#6c757d; font-size:0.85rem;">@L["Product:SubstitutionCombinationsHint"]</div>
-            }
-        </DxTabPage>
-    }
+    @* Muadil kombinasyon tablosu KALDIRILDI (2026-07-27 Hakan kararı): kombinasyonlar artık kapsam/miktar
+       değişir değişmez Varyantlar sekmesinde doğrudan görünüyor (kaydetmeden), ayrı bir inceleme tablosuna
+       gerek kalmadı. Hesap İŞİ duruyor — varyant önizlemesini o besliyor; kalkan yalnız görüntü. *@
 
     @* Satış kanalı ürünleri — N11 + Trendyol TEK grid'de (Kanal kolonu); edit formları tipe göre AYRI. IN-MEMORY GRAF:
        ürün 'Kaydet'inde birlikte kaydedilir (yeni üründe de eklenebilir). Push/Stok-Fiyat yalnız kaydedilmiş satırda. *@

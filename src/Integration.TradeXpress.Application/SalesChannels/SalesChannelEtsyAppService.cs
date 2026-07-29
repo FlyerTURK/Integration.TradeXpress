@@ -28,6 +28,7 @@ public class SalesChannelEtsyAppService : TradeXpressAppService, ISalesChannelEt
     private readonly IRepository<SalesChannelEtsy, Guid> _repository;
     private readonly IRepository<SalesChannelBase, Guid> _baseRepository;
     private readonly ICurrentCompany _currentCompany;
+    private readonly SalesChannelSubAccountBinder _subAccountBinder;
     private readonly IEtsyCredentialVerifier _credentialVerifier;
     private readonly IEtsyOAuthService _oauthService;
     private readonly IClock _clock;
@@ -39,6 +40,7 @@ public class SalesChannelEtsyAppService : TradeXpressAppService, ISalesChannelEt
         IRepository<SalesChannelEtsy, Guid> repository,
         IRepository<SalesChannelBase, Guid> baseRepository,
         ICurrentCompany currentCompany,
+        SalesChannelSubAccountBinder subAccountBinder,
         IEtsyCredentialVerifier credentialVerifier,
         IEtsyOAuthService oauthService,
         IClock clock)
@@ -46,6 +48,7 @@ public class SalesChannelEtsyAppService : TradeXpressAppService, ISalesChannelEt
         _repository = repository;
         _baseRepository = baseRepository;
         _currentCompany = currentCompany;
+        _subAccountBinder = subAccountBinder;
         _credentialVerifier = credentialVerifier;
         _oauthService = oauthService;
         _clock = clock;
@@ -94,7 +97,7 @@ public class SalesChannelEtsyAppService : TradeXpressAppService, ISalesChannelEt
 
         var entity = new SalesChannelEtsy(companyId, input.Code, input.Name, input.Keystring, input.SharedSecret);
         entity.SetDescription(input.Description);
-        entity.SetSideCosts(SideCostSettingsFactory.Build(input.SideCosts));
+        await _subAccountBinder.BindAsync(entity, input.SubAccountId);
         await _repository.InsertAsync(entity, autoSave: true);
 
         return ToRedactedGetDto(entity);
@@ -109,8 +112,8 @@ public class SalesChannelEtsyAppService : TradeXpressAppService, ISalesChannelEt
         entity.SetName(input.Name);
         entity.SetDescription(input.Description);
         await ApplyCredentialChangeAsync(entity, input.Keystring, input.SharedSecret);
-        entity.SetSideCosts(SideCostSettingsFactory.Build(input.SideCosts));
         entity.SetActive(input.IsActive);
+        await _subAccountBinder.BindAsync(entity, input.SubAccountId);
         await _repository.UpdateAsync(entity, autoSave: true);
 
         return ToRedactedGetDto(entity);

@@ -93,7 +93,7 @@
 
     @* Durum — Açıklama artık drill sekmesinde (HTML editor). *@
     <DxFormLayoutGroup Caption="@L["Other"]" ColSpanMd="12">
-        <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6">
+        <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6" BeginRow="true">
             <DxCheckBox @bind-Checked="@Model.IsActive" CheckType="CheckType.Switch">
                 @(Model.IsActive ? L["Active"] : L["Passive"])
             </DxCheckBox>

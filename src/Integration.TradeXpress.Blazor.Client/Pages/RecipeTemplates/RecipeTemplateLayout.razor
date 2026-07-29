@@ -1,0 +1,122 @@
+@using Integration.TradeXpress.RecipeTemplates
+@using Integration.TradeXpress.Products
+@using Integration.TradeXpress.Services
+@using Integration.TradeXpress.Financials.CurrencyUnits
+@using Integration.Framework.Blazor.Client.Components.Crud
+@using DevExpress.Blazor
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@*
+   Reçete şablonu DUMB Layout — "orta reçete" satırları (paketleme, kargo, sigorta, işçilik…).
+   Satırlar ürüne uygulandığında muadillikten gelen emtia satırlarının ÜZERİNE eklenir; sıra korunur.
+*@
+
+<DxFormLayout CssClass="w-100">
+    <DxFormLayoutGroup Caption="@L["General"]" ColSpanMd="12">
+        <DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="12">
+            <DxTextBox @bind-Text="@Model.Name" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["Description"]" ColSpanMd="12">
+            <DxMemo @bind-Text="@Model.Description" Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6" BeginRow="true">
+            <DxCheckBox @bind-Checked="@Model.IsActive" CheckType="CheckType.Switch">
+                @(Model.IsActive ? L["Active"] : L["Passive"])
+            </DxCheckBox>
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["DisplayOrder"]" ColSpanMd="6">
+            <NumericSpinEdit @bind-Value="@Model.DisplayOrder" />
+        </DxFormLayoutItem>
+    </DxFormLayoutGroup>
+
+    <DxFormLayoutGroup Caption="@L["RecipeTemplate:Lines"]" ColSpanMd="12" CaptionPosition="CaptionPosition.Vertical">
+        <span style="color:#6c757d; font-size:0.85rem;">@L["RecipeTemplate:LinesHint"]</span>
+        <DrillList TItem="RecipeTemplateLineDto"
+                   @ref="_lineDrill"
+                   Title="@L["RecipeTemplate:Lines"]"
+                   EntityName="@L["RecipeTemplate:Line"]"
+                   EntityIcon="@TradeXpressIcons.RecipeTemplate"
+                   Items="@Model.Lines"
+                   KeyFieldName="ClientKey"
+                   PrimaryTextSelector="@(l => LineTitle(l))"
+                   NewItemFactory="@(() => new RecipeTemplateLineDto { LineOrder = NextLineOrder() })"
+                   ShowActiveFilter="false"
+                   ShowExport="false"
+                   OnChanged="@(() => EditChanged?.Invoke())">
+            <GridColumns>
+                <GridLinkColumn Caption="@L["Name"]" FixedPosition="GridColumnFixedPosition.Left" VisibleIndex="1"
+                                TextSelector="@(o => LineTitle((RecipeTemplateLineDto)o))"
+                                OnClick="@(item => _lineDrill?.EditItem((RecipeTemplateLineDto)item))" />
+                <DxGridDataColumn FieldName="DerivedOperation" Caption="@L["RecipeTemplate:Operation"]" Width="150px">
+                    <CellDisplayTemplate>
+                        @OperationText((RecipeTemplateLineDto)context.DataItem)
+                    </CellDisplayTemplate>
+                </DxGridDataColumn>
+                <DxGridDataColumn FieldName="DerivedOperand" Caption="@L["RecipeTemplate:Operand"]" Width="120px" />
+                <DxGridDataColumn FieldName="SideCostKind" Caption="@L["RecipeTemplate:SideCostKind"]" Width="150px">
+                    <CellDisplayTemplate>
+                        @SideCostText((RecipeTemplateLineDto)context.DataItem)
+                    </CellDisplayTemplate>
+                </DxGridDataColumn>
+                <DxGridDataColumn FieldName="LineOrder" Caption="@L["DisplayOrder"]" Width="90px" />
+            </GridColumns>
+            <EditContent Context="line">
+                <DxFormLayout CssClass="w-100">
+                    @* Hizmet kartı — satırın etiketi ve ileride fiş entegrasyonunun bağlanacağı katalog kaydı. *@
+                    <DxFormLayoutItem Caption="@L["Service"]" ColSpanMd="6">
+                        <LookupComboBox TItem="ServiceListDto" TValue="Guid?"
+                                        Data="@Services"
+                                        ValueFieldName="@nameof(ServiceListDto.Id)"
+                                        TextFieldName="@nameof(ServiceListDto.Name)"
+                                        Value="@line.CommodityId"
+                                        ValueChanged="@((Guid? id) => OnLineServiceChanged(line, id))"
+                                        ValueExpression="@(() => line.CommodityId)"
+                                        NullText="@L["Select"].Value"
+                                        CanAdd="false"
+                                        CanEdit="false" />
+                    </DxFormLayoutItem>
+                    <DxFormLayoutItem Caption="@L["RecipeTemplate:SideCostKind"]" ColSpanMd="6">
+                        <DxComboBox Data="@_sideCostItems"
+                                    TData="SideCostKindItem" TValue="SideCostKind?"
+                                    @bind-Value="@line.SideCostKind"
+                                    ValueFieldName="@nameof(SideCostKindItem.Value)"
+                                    TextFieldName="@nameof(SideCostKindItem.Text)"
+                                    ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
+                    </DxFormLayoutItem>
+                    <DxFormLayoutItem Caption="@L["RecipeTemplate:Operation"]" ColSpanMd="6">
+                        <DxComboBox Data="@_operationItems"
+                                    TData="OperationItem" TValue="RecipeDerivedOperation?"
+                                    @bind-Value="@line.DerivedOperation"
+                                    ValueFieldName="@nameof(OperationItem.Value)"
+                                    TextFieldName="@nameof(OperationItem.Text)" />
+                    </DxFormLayoutItem>
+                    <DxFormLayoutItem Caption="@L["RecipeTemplate:Operand"]" ColSpanMd="6">
+                        <NumericSpinEdit @bind-Value="@line.DerivedOperand" />
+                    </DxFormLayoutItem>
+                    @* Para birimi YALNIZ sabit tutarda anlamlı: yüzde/brütleştir zaten tabanın birimindedir. *@
+                    @if (line.DerivedOperation == RecipeDerivedOperation.Add)
+                    {
+                        <DxFormLayoutItem Caption="@L["CurrencyUnit"]" ColSpanMd="6">
+                            <LookupComboBox TItem="CurrencyUnitListDto" TValue="Guid?"
+                                            Data="@CurrencyUnits"
+                                            ValueFieldName="@nameof(CurrencyUnitListDto.Id)"
+                                            TextFieldName="@nameof(CurrencyUnitListDto.Code)"
+                                            Value="@line.PayUnitId"
+                                            ValueChanged="@((Guid? id) => OnLineCurrencyChanged(line, id))"
+                                            ValueExpression="@(() => line.PayUnitId)"
+                                            NullText="@L["Select"].Value"
+                                            CanAdd="false"
+                                            CanEdit="false" />
+                        </DxFormLayoutItem>
+                    }
+                    <DxFormLayoutItem Caption="@L["DisplayOrder"]" ColSpanMd="6">
+                        <NumericSpinEdit @bind-Value="@line.LineOrder" />
+                    </DxFormLayoutItem>
+                    <DxFormLayoutItem Caption="@L["Description"]" ColSpanMd="12">
+                        <DxTextBox @bind-Text="@line.Description" />
+                    </DxFormLayoutItem>
+                </DxFormLayout>
+            </EditContent>
+        </DrillList>
+    </DxFormLayoutGroup>
+</DxFormLayout>

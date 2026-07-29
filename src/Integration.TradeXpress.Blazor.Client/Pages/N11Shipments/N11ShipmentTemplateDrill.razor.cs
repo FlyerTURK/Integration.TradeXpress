@@ -27,8 +27,6 @@ public partial class N11ShipmentTemplateDrill : CrudComponentBase
     [Inject] private IServiceProvider ServiceProvider { get; set; } = default!;
 
     private DrillList<N11ShipmentTemplateDto>? _drill;
-    private N11UnlinkedCarrierPanel? _unlinkedPanel;
-
     private List<N11ShipmentTemplateDto> _templates = new();
     private List<N11CityDto> _cities = new();
     private List<N11ShipmentCompanyDto> _shipmentCompanies = new();
@@ -120,7 +118,7 @@ public partial class N11ShipmentTemplateDrill : CrudComponentBase
     }
 
     // N11 ile Hizala: N11'deki şablonları yerelde upsert et + N11'de olmayanı PASİFLEŞTİR (backend),
-    // listeyi tazele, öksüz kargo firması panelini yenile (yeni firma gelmiş olabilir), sonucu toast'la.
+    // listeyi tazele, sonucu toast'la.
     private async Task SyncAsync()
     {
         try
@@ -128,11 +126,6 @@ public partial class N11ShipmentTemplateDrill : CrudComponentBase
             var count = await AppService.SyncAsync(Channel.Id);
             _templates = await AppService.GetListAsync(Channel.Id);
             UiService.ShowSuccessToast(L["N11ShipmentTemplate:SyncSuccess", count]);
-
-            if (_unlinkedPanel is not null)
-            {
-                await _unlinkedPanel.ReloadAsync();
-            }
 
             StateHasChanged();
         }

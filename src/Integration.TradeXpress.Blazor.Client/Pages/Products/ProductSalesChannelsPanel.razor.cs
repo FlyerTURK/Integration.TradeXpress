@@ -7,7 +7,9 @@ using Integration.Framework.Blazor.Client;
 using Integration.Framework.Blazor.Client.Components.Crud;
 using Integration.Framework.Blazor.Client.Services.Base;
 using Integration.TradeXpress.EtsyProducts;
+using Integration.TradeXpress.Blazor.Client.Pages.N11Products;
 using Integration.TradeXpress.N11Products;
+using Integration.TradeXpress.ProductCategories;
 using Integration.TradeXpress.Products;
 using Integration.TradeXpress.SalesChannels;
 using Integration.TradeXpress.TrendyolProducts;
@@ -45,10 +47,24 @@ public partial class ProductSalesChannelsPanel : CrudComponentBase
     [Inject] private ISalesChannelTrN11ProductAppService N11AppService { get; set; } = default!;
     [Inject] private ISalesChannelTrTrendyolProductAppService TrendyolAppService { get; set; } = default!;
     [Inject] private ISalesChannelAppService SalesChannelAppService { get; set; } = default!;
+    [Inject] private IProductCategoryAppService ProductCategoryAppService { get; set; } = default!;
+    [Inject] private IProductAppService ProductAppService { get; set; } = default!;
     [Inject] private IUiInteractionService UiService { get; set; } = default!;
     [Inject] private IServiceProvider ServiceProvider { get; set; } = default!;
 
     private DrillList<SalesChannelProductRow>? _drill;
+
+    // Açık N11 edit formunun referansı — SaveGuard zorunlu alan doğrulamasını ona delege eder (zorunlu
+    // nitelik tanımları o bileşende yüklü). Popup kapanınca Blazor referansı doğal olarak tazeler.
+    private SalesChannelTrN11ProductEditFields? _n11EditFields;
+
+    /// <summary>Kanal ürünü satırı kaydedilirken zorunlu alan kontrolü — mesaj döner = kayıt engellenir,
+    /// popup açık kalır. Bugün yalnız N11 (zorunlu nitelik kavramı orada); Trendyol/Etsy push aşamalarında
+    /// kendi kuralları geldikçe buraya eklenir.</summary>
+    private string? ChannelRowSaveGuard(SalesChannelProductRow row)
+    {
+        return row.IsN11 ? _n11EditFields?.ValidateMandatoryInputs() : null;
+    }
 
     // Grid'in görüntülediği birleşik satır listesi — iki kaynak graf listesinden türetilir (kaydron REFERANS tutar).
     private List<SalesChannelProductRow> _rows = new();
@@ -144,43 +160,120 @@ public partial class ProductSalesChannelsPanel : CrudComponentBase
 
     // ── Yeni taslak akışları — şirketin TEK kanalını otomatik bul (yoksa dostane uyarı), kanal atanmış taslakla aç. ──
 
-    private Task StartNewN11Async()
+    private async Task StartNewN11Async()
     {
         var channel = _n11Channels.FirstOrDefault();
         if (channel is null)
         {
             UiService.ShowWarningToast(L["N11Product:ChannelMissing"].Value);
-            return Task.CompletedTask;
+            return;
         }
 
-        _drill?.StartNewItem(SalesChannelProductRow.ForN11(BuildNewN11Draft(channel.Id)));
-        return Task.CompletedTask;
+        var draft = BuildNewN11Draft(channel.Id);
+        if (await ResolveChannelCategoryAsync(SalesChannelType.TrN11) is { } resolution
+            && !string.IsNullOrWhiteSpace(resolution.ChannelCategoryExternalId))
+        {
+            draft.CategoryExternalId = resolution.ChannelCategoryExternalId;
+            draft.CategoryName = resolution.ChannelCategoryName;
+        }
+
+        draft.CategoryAttributes = (await ResolveChannelAttributesAsync(SalesChannelType.TrN11))
+            .Select(a => new SalesChannelTrN11ProductCategoryAttributeDto { Name = a.Name, Value = a.Value })
+            .ToList();
+
+        _drill?.StartNewItem(SalesChannelProductRow.ForN11(draft));
     }
 
-    private Task StartNewTrendyolAsync()
+    private async Task StartNewTrendyolAsync()
     {
         var channel = _trendyolChannels.FirstOrDefault();
         if (channel is null)
         {
             UiService.ShowWarningToast(L["TrendyolProduct:ChannelMissing"].Value);
-            return Task.CompletedTask;
+            return;
         }
 
-        _drill?.StartNewItem(SalesChannelProductRow.ForTrendyol(BuildNewTrendyolDraft(channel.Id)));
-        return Task.CompletedTask;
+        var draft = BuildNewTrendyolDraft(channel.Id);
+        if (await ResolveChannelCategoryAsync(SalesChannelType.TrTrendyol) is { } resolution
+            && !string.IsNullOrWhiteSpace(resolution.ChannelCategoryExternalId))
+        {
+            draft.CategoryId = resolution.ChannelCategoryExternalId;
+            draft.CategoryName = resolution.ChannelCategoryName;
+        }
+
+        _drill?.StartNewItem(SalesChannelProductRow.ForTrendyol(draft));
     }
 
-    private Task StartNewEtsyAsync()
+    private async Task StartNewEtsyAsync()
     {
         var channel = _etsyChannels.FirstOrDefault();
         if (channel is null)
         {
             UiService.ShowWarningToast(L["EtsyProduct:ChannelMissing"].Value);
-            return Task.CompletedTask;
+            return;
         }
 
-        _drill?.StartNewItem(SalesChannelProductRow.ForEtsy(BuildNewEtsyDraft(channel.Id)));
-        return Task.CompletedTask;
+        var draft = BuildNewEtsyDraft(channel.Id);
+        // Etsy taksonomi kimliği SAYISAL; eşleştirme metin tuttuğundan ayrıştırılamayan değer sessizce ATLANIR
+        // (bozuk bir id yazmak, kullanıcının fark edemeyeceği bir push hatasına dönüşürdü).
+        if (await ResolveChannelCategoryAsync(SalesChannelType.Etsy) is { } resolution
+            && long.TryParse(resolution.ChannelCategoryExternalId, out var taxonomyId))
+        {
+            draft.TaxonomyId = taxonomyId;
+            draft.TaxonomyName = resolution.ChannelCategoryName;
+        }
+
+        _drill?.StartNewItem(SalesChannelProductRow.ForEtsy(draft));
+    }
+
+    /// <summary>
+    /// Ürünün çekirdek kategorisinin bu KANALDAKİ karşılığı — yeni kanal ürünü taslağına varsayılan kategori
+    /// olarak yerleşir. Eşleştirme ATA zincirinden devralınabilir (sunucu çözer).
+    ///
+    /// <para><b>Neden taslakta:</b> kullanıcı kategori eşleştirmesini kategori formunda bir kez yapıyor; kanal
+    /// ürününde aynı seçimi tekrar aramak zorunda kalması eşleştirmenin varlık sebebini boşa çıkarırdı. Seçim
+    /// KİLİTLİ değil — kanal ürününde serbestçe değiştirilebilir (kanala özel istisnalar olabilir).</para>
+    ///
+    /// <para>MEVCUT kanal ürünlerine DOKUNULMAZ: yalnız yeni taslak doldurulur. Sonradan kategori değiştiğinde
+    /// kayıtlı kanal ürünlerinin kategorisini sessizce değiştirmek, kullanıcının bilerek yaptığı istisnaları
+    /// silerdi.</para>
+    ///
+    /// <para>Ürün henüz kaydedilmemişse de çalışır: kategori kimliği formdaki canlı graftan okunur.</para>
+    /// </summary>
+    /// <summary>
+    /// Ürünün genel özelliklerini bu kanalın nitelik alanlarına çevirir — yeni kanal ürünü bunlarla ön-dolar.
+    ///
+    /// <para>Çeviriyi SUNUCU yapar: nitelik ve değer eşleştirmeleri kategori zincirinde (kalıtımlı) yaşıyor ve
+    /// istemcinin o zinciri yeniden çözmesi aynı kuralın ikinci bir kopyası olurdu.</para>
+    ///
+    /// <para>Ürün henüz kaydedilmemişse de çalışır: özellik değerleri formdaki canlı graftan gönderilir.</para>
+    /// </summary>
+    private async Task<List<ProductChannelAttributeDto>> ResolveChannelAttributesAsync(SalesChannelType channel)
+    {
+        if (ProductDefaults is not { } product
+            || product.ProductCategoryId is not { } categoryId
+            || categoryId == Guid.Empty
+            || product.Specifications.Count == 0)
+        {
+            return new List<ProductChannelAttributeDto>();
+        }
+
+        return await ProductAppService.ResolveChannelAttributesAsync(new ProductChannelAttributeResolveDto
+        {
+            ProductCategoryId = categoryId,
+            Channel = channel,
+            Specifications = product.Specifications,
+        });
+    }
+
+    private async Task<ProductChannelResolutionDto?> ResolveChannelCategoryAsync(SalesChannelType channel)
+    {
+        if (ProductDefaults?.ProductCategoryId is not { } categoryId || categoryId == Guid.Empty)
+        {
+            return null;
+        }
+
+        return await ProductCategoryAppService.ResolveChannelAsync(categoryId, channel);
     }
 
     /// <summary>N11 kanal ürünü taslağı — ürün-genel varsayılanlardan create-copy (SalesChannelProductsPanel'den AYNEN).
@@ -201,7 +294,9 @@ public partial class ProductSalesChannelsPanel : CrudComponentBase
         {
             // ProductCondition (New/Used) → N11ProductCondition (değerler farklı: 0/1 vs 1/2).
             draft.Condition = p.Condition == ProductCondition.Used ? N11ProductCondition.Used : N11ProductCondition.New;
-            draft.Domestic = p.Domestic;
+            // "Yerli ürün" bayrağı ürünün MENŞEİ ülkesinden türetilir (sunucu hesaplar); menşei
+            // belirtilmemişse taslak varsayılanı korunur — bilinmiyorken ithal beyan etmeyelim.
+            draft.Domestic = p.IsDomestic ?? draft.Domestic;
             draft.PreparingDay = p.PreparingDay;
             draft.MaxPurchaseQuantity = p.MaxPurchaseQuantity;
             draft.SellerNote = p.SellerNote;

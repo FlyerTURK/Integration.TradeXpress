@@ -44,4 +44,26 @@ public sealed class MdiTab : IMdiTab
 
     /// <summary>Sekmenin kapatılabilip kapatılamayacağını (ör. kirli form kontrolü) belirleyen asenkron delege.</summary>
     public Func<Task<bool>>? CanCloseAsync { get; set; }
+
+    /// <summary>Sekme içeriğinin yükleme durumu (yükleniyor paneli). KALICILAŞMAZ — PersistedTab'a yazılmaz.</summary>
+    public TabContentLoad Load { get; } = new();
+
+    /// <summary>Yükleniyor panelinin bağlanacağı sekme gövdesinin DOM id'si. Kalıcı bir kimlik DEĞİL,
+    /// mevcut <see cref="Id"/>'den türetilir (yeni Guid üretilmez).</summary>
+    public string PaneElementId
+    {
+        get
+        {
+            return "mdi-pane-" + Id.ToString("N");
+        }
+    }
+
+    /// <summary>DxLoadingPanel.PositionTarget için CSS seçici — "#mdi-pane-...".</summary>
+    public string PaneTargetSelector
+    {
+        get
+        {
+            return "#" + PaneElementId;
+        }
+    }
 }

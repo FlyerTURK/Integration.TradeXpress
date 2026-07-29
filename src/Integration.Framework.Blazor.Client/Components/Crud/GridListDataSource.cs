@@ -46,6 +46,11 @@ public sealed class GridListDataSource<TListDto> : GridCustomDataSource
     /// (grid fetch'i CrudLayout'u re-render etmediği için OnAfterRender senkronu güvenilmezdi).</summary>
     public event Action? Fetched;
 
+    /// <summary>Bir fetch turu BİTTİ — başarıyla ya da hatayla. <see cref="Fetched"/>'den farkı: o yalnız
+    /// BAŞARILI yolda tetiklenir, dolayısıyla "yükleniyor" göstergesini ona bağlamak, sunucu hata verdiğinde
+    /// paneli sonsuza asılı bırakırdı. Yükleme göstergeleri bu olayı dinlemeli.</summary>
+    public event Action? Settled;
+
     public GridListDataSource(Func<ListRequestDto, Task<PagedResultDto<TListDto>>> fetch)
         => _fetch = fetch ?? throw new ArgumentNullException(nameof(fetch));
 
@@ -79,6 +84,12 @@ public sealed class GridListDataSource<TListDto> : GridCustomDataSource
             if (OnError != null) await OnError(ex);
             return 0;
         }
+        finally
+        {
+            // Bu çağrı veriyi de cache'liyor (ilk sayfa peşinen çekiliyor), yani buraya gelindiğinde
+            // gösterilecek kayıtlar elde demektir — hata yolunda da tur bitmiştir.
+            Settled?.Invoke();
+        }
     }
 
     public override async Task<IList> GetItemsAsync(
@@ -109,6 +120,10 @@ public sealed class GridListDataSource<TListDto> : GridCustomDataSource
         {
             if (OnError != null) await OnError(ex);
             return new List<TListDto>();
+        }
+        finally
+        {
+            Settled?.Invoke();
         }
     }
 

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Integration.Framework;
+using Microsoft.Extensions.Logging;
 using Integration.TradeXpress.MultiCompany;
 using Integration.TradeXpress.SalesChannels.Variants;
 using Volo.Abp;
@@ -66,6 +67,7 @@ public class EntityVariantGraphService : IEntityVariantGraphService, ITransientD
     private readonly EntityVariantSynchronizer _variantSynchronizer;
     private readonly IDataFilter _dataFilter;
     private readonly IAsyncQueryableExecuter _asyncExecuter;
+    private readonly ILogger<EntityVariantGraphService> _logger;
 
     public EntityVariantGraphService(
         IRepository<EntityAttribute, Guid> attributeRepository,
@@ -75,7 +77,8 @@ public class EntityVariantGraphService : IEntityVariantGraphService, ITransientD
         EntityVariantManager variantManager,
         EntityVariantSynchronizer variantSynchronizer,
         IDataFilter dataFilter,
-        IAsyncQueryableExecuter asyncExecuter)
+        IAsyncQueryableExecuter asyncExecuter,
+        ILogger<EntityVariantGraphService> logger)
     {
         _attributeRepository = attributeRepository;
         _valueRepository = valueRepository;
@@ -85,6 +88,7 @@ public class EntityVariantGraphService : IEntityVariantGraphService, ITransientD
         _variantSynchronizer = variantSynchronizer;
         _dataFilter = dataFilter;
         _asyncExecuter = asyncExecuter;
+        _logger = logger;
     }
 
     public async Task SaveGraphAsync(
@@ -411,10 +415,31 @@ public class EntityVariantGraphService : IEntityVariantGraphService, ITransientD
             : await _asyncExecuter.ToListAsync(
                 (await _linkRepository.GetQueryableAsync()).Where(l => variantIds.Contains(l.EntityVariantId)));
 
-        var byCombination = dbVariants.ToDictionary(
-            v => EntityVariantSynchronizer.BuildKey(
-                links.Where(l => l.EntityVariantId == v.Id).Select(l => l.EntityAttributeValueId)),
-            v => v);
+        // Kombinasyon → varyant araması. NİTELİK BAĞI OLMAYAN varyantlar bu sözlüğe GİRMEZ: imzaları boş
+        // string olur ve birden fazlası varsa (muadil materializer'ın ürettiği link-less varyantlar tam olarak
+        // böyledir) ToDictionary "aynı anahtar" diye ÇÖKERDİ — kullanıcı ürünü hiç kaydedemez hâle geliyordu.
+        // Dışlamak davranışı değiştirmez: boş imza aşağıda zaten hiç aranmıyor (boş CombinationKey erkenden
+        // ana varyanta/null'a düşüyor).
+        //
+        // DOLU imzada çakışma ise veri tutarsızlığıdır (aynı kombinasyonda iki varyant): ilki alınır ve UYARI
+        // düşülür — kaydetmeyi kilitlemek kullanıcıya bir çıkış yolu bırakmazdı.
+        var byCombination = new Dictionary<string, EntityVariant>(StringComparer.Ordinal);
+        foreach (var dbVariant in dbVariants)
+        {
+            var key = EntityVariantSynchronizer.BuildKey(
+                links.Where(l => l.EntityVariantId == dbVariant.Id).Select(l => l.EntityAttributeValueId));
+            if (string.IsNullOrEmpty(key))
+            {
+                continue;
+            }
+
+            if (!byCombination.TryAdd(key, dbVariant))
+            {
+                _logger.LogWarning(
+                    "Aynı kombinasyon imzası birden çok varyantta: {EntityName}/{EntityId} imza={Key} yinelenen={VariantId}",
+                    entityName, entityId, key, dbVariant.Id);
+            }
+        }
 
         foreach (var v in variants)
         {

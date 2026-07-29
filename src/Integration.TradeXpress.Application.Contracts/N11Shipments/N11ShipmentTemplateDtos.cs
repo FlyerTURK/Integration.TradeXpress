@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Integration.Framework.Addressing;
@@ -88,8 +88,7 @@ public class N11ShipmentTemplateDto
     /// Cari bağı için <see cref="Companies"/>'e bakılır (aynı firmalar, cari alanıyla birlikte).</summary>
     public List<string> ShipmentCompanyExternalIds { get; set; } = new();
 
-    /// <summary>Şablonun kargo firmaları + her birinin varsayılan cari alt hesabı. <c>SubAccountId</c> boş olan
-    /// satır ÖKSÜZ demektir; kullanıcıya "bu firmanın gideri hangi cariye yazılsın" diye sorulur.</summary>
+    /// <summary>Şablonun kargo firmaları (kimlik + aynaıdan okunan ad).</summary>
     public List<N11ShipmentTemplateCompanyDto> Companies { get; set; } = new();
 
     /// <summary>Şablon N11'de hâlâ var mı. Senkron, N11'den kalkan şablonu silmez → pasifleştirir.</summary>
@@ -108,12 +107,6 @@ public class N11ShipmentTemplateCompanyDto
 
     /// <summary>Firma adı — host-global aynadan çözülür (gösterim; persist EDİLMEZ).</summary>
     public string Name { get; set; } = string.Empty;
-
-    /// <summary>Varsayılan cari alt hesap; <c>null</c> = öksüz (kullanıcıya sorulacak).</summary>
-    public Guid? SubAccountId { get; set; }
-
-    /// <summary>Bağlı alt hesabın kodu — gösterim (persist EDİLMEZ).</summary>
-    public string? SubAccountCode { get; set; }
 
     public override string ToString()
     {
@@ -220,12 +213,4 @@ public interface IN11ShipmentTemplateAppService : IApplicationService
     /// Değişen (yeni+güncellenen) sayısını döner.</summary>
     Task<int> SyncAsync(Guid salesChannelId);
 
-    /// <summary>Bir kargo firmasının varsayılan cari alt hesabını bağlar (öksüz-sorma akışının cevabı).
-    /// <para>Bağ AYNI KANALDAKİ TÜM şablonlara yayılır: kargo firması hesap ekstresini şablon şablon ayırmaz,
-    /// tek bakiye ister — bu yüzden aynı firma her yerde aynı cariyi gösterir ve bir daha sorulmaz.</para></summary>
-    Task LinkCompanySubAccountAsync(Guid salesChannelId, string shipmentCompanyExternalId, Guid? subAccountId);
-
-    /// <summary>Cari alt hesabı henüz bağlanmamış (ÖKSÜZ) kargo firmaları — içe aktarma sonrası kullanıcıya
-    /// sorulacak liste. Firma başına TEK satır (aynı firma birden çok şablonda geçse de bir kez sorulur).</summary>
-    Task<List<N11ShipmentTemplateCompanyDto>> GetUnlinkedCompaniesAsync(Guid salesChannelId);
 }

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Integration.TradeXpress.Attachments;
 using Integration.TradeXpress.Financials.CurrencyUnits;
 using Integration.TradeXpress.MultiCompany;
 using Integration.TradeXpress.Permissions;
@@ -55,7 +56,7 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
     private readonly ICurrentCompany _currentCompany;
     private readonly ITrendyolProductClient _client;
     private readonly ITrendyolCategoryAppService _categoryAppService;
-    private readonly IPublicImageLinkProvider _publicImageLink;
+    private readonly MarketplacePushImageResolver _pushImageResolver;
     private readonly MarketplaceImageDownloader _imageDownloader;
     private readonly TrendyolBrandCacheManager _brandCacheManager;
 
@@ -81,7 +82,7 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
         ICurrentCompany currentCompany,
         ITrendyolProductClient client,
         ITrendyolCategoryAppService categoryAppService,
-        IPublicImageLinkProvider publicImageLink,
+        MarketplacePushImageResolver pushImageResolver,
         MarketplaceImageDownloader imageDownloader,
         TrendyolBrandCacheManager brandCacheManager)
     {
@@ -106,7 +107,7 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
         _currentCompany = currentCompany;
         _client = client;
         _categoryAppService = categoryAppService;
-        _publicImageLink = publicImageLink;
+        _pushImageResolver = pushImageResolver;
         _imageDownloader = imageDownloader;
         _brandCacheManager = brandCacheManager;
     }
@@ -680,24 +681,8 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
             throw new BusinessException("TradeXpress:Trendyol:Product:CategoryRequired");
         }
 
-        // Görsel sırası: VARSAYILAN önce, sonra DisplayOrder. URL-kaynaklılar doğrudan; blob görseller
-        // sağlayıcı yapılandırılmışsa geçici dış linke çevrilir (N11 ile aynı 2026-07-07 kararı).
-        var imageUrls = new List<string>();
-        foreach (var image in product.Images.OrderByDescending(i => i.IsDefault).ThenBy(i => i.DisplayOrder))
-        {
-            if (image.SourceType == ProductImageSourceType.Url && !string.IsNullOrWhiteSpace(image.Url))
-            {
-                imageUrls.Add(image.Url!);
-            }
-            else if (image.SourceType == ProductImageSourceType.Upload && !string.IsNullOrEmpty(image.BlobName))
-            {
-                var link = await _publicImageLink.TryCreateTemporaryLinkAsync(image.BlobName!);
-                if (link is not null)
-                {
-                    imageUrls.Add(link);
-                }
-            }
-        }
+        // Görsel kaynağı MERKEZİ DAM (K2); sıra/limit/atlama kuralları N11 ile ORTAK çözücüde (kanallar ayrışmasın).
+        var imageUrls = await _pushImageResolver.ResolveAsync(product, ProductConsts.MaxImageCount);
 
         if (imageUrls.Count == 0)
         {

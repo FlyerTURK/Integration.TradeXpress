@@ -927,11 +927,22 @@ public partial class ProductRecipePanel
     }
 
     /// <summary>Miktar (Amount) kolonu — fiziki: l.Amount; Hizmet: devralınan taban (Uygulanacak Bedel).</summary>
+    /// <summary>Adet kolonu — hizmet satırında BOŞ: hizmetin adedi yoktur, alana doğrudan bağlıyken "0"
+    /// basıyor ve satır "0 adet kargo" gibi okunuyordu. Fiziki satırda adet olduğu gibi.</summary>
+    private static string GridQuantityText(ProductRecipeLineGraphDto l)
+    {
+        return l.ComponentType == RecipeComponentType.Service ? string.Empty : l.Quantity.ToString("N0");
+    }
+
     private string GridAmountText(ProductRecipeLineGraphDto l)
     {
         if (l.ComponentType == RecipeComponentType.Service)
         {
-            return l.AppliedBase is { } b ? b.ToString("N2") : string.Empty;
+            // Hizmet satırında Tutar/Toplam BOŞ (2026-07-28 Hakan): bu kolonlar fiziki satırın miktar×milyem
+            // dünyasına ait. Buraya işlemin TABANI basılınca 70 TL'lik kargo "49 bin TL" gibi, %oranlı sigorta
+            // da tabanı tutarıymış gibi okunuyordu. Hizmetin bedeli PayFactor/PayTotal tarafında durur —
+            // fişteki hizmet satırı deseniyle hizalı. Taban zaten "Uygulanacak Bedel" kolonunda görünür.
+            return string.Empty;
         }
 
         return l.Amount.ToString("N2");
@@ -942,8 +953,9 @@ public partial class ProductRecipePanel
     {
         if (l.ComponentType == RecipeComponentType.Service)
         {
-            // Yüzde/Brütleştir → oran Fiyat kolonunda %olarak; Ekle/Çarp → operand (mutlak tutar/çarpan) burada.
-            return IsPercentOperation(l.DerivedOperation) ? string.Empty : l.DerivedOperand.ToString("N5");
+            // Operand ARTIK Fiyat kolonunda (mutlakta tutar, oransalda %): fiziki satırın "milyem" çarpanıyla
+            // aynı kolonda durması, 70,00000 gibi bir bedeli çarpan sanmaya yol açıyordu.
+            return string.Empty;
         }
 
         return l.Factor.ToString("N5");
@@ -971,8 +983,15 @@ public partial class ProductRecipePanel
     {
         if (l.ComponentType == RecipeComponentType.Service)
         {
-            // Yüzde/Brütleştir → oran %olarak (ör. "%5,1"); Ekle/Çarp → boş (değeri Değer kolonunda).
-            return IsPercentOperation(l.DerivedOperation) ? $"%{l.DerivedOperand:0.##}" : string.Empty;
+            // Yüzde/Brütleştir → oran ("%5,1"); Ekle → mutlak bedel + birimi ("70,00 TL"); Çarp → çarpan.
+            if (IsPercentOperation(l.DerivedOperation))
+            {
+                return $"%{l.DerivedOperand:0.##}";
+            }
+
+            return l.DerivedOperation == RecipeDerivedOperation.Add
+                ? $"{l.DerivedOperand:N2} {PayUnitCodeOf(l)}".TrimEnd()
+                : l.DerivedOperand.ToString("N5");
         }
 
         if (l.ComponentType != RecipeComponentType.CatalogCommodity || !IsMetalLegged(l.CommodityProcessType))
@@ -1006,8 +1025,8 @@ public partial class ProductRecipePanel
     {
         if (l.ComponentType == RecipeComponentType.Service)
         {
-            // Hizmet: Total = devralınan taban @ ülke birimi (ör. "1000,00 USD").
-            return l.AppliedBase is { } b ? $"{b:N2} {NetCostCurrency}".TrimEnd() : string.Empty;
+            // Hizmette Toplam BOŞ — gerekçe GridAmountText'te (bedel PayTotal'de, taban Uygulanacak Bedel'de).
+            return string.Empty;
         }
 
         if (IsMetalLegged(l.CommodityProcessType))

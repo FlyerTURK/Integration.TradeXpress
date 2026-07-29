@@ -27,63 +27,10 @@ public class SalesChannelListDto : EntityDto<Guid>, IListDto<Guid>, IIsActive
     public SalesChannelType ChannelType { get; set; }
 }
 
-// ── Yan-maliyet (gider) ayarları — kanal-agnostik GİDER SATIRLARI listesi (SideCostSettings.Items aynası;
-//    2026-07-10 yeniden şekillendirme: sabit-alanlı form yerine ürün reçetesi grid'i tarzı satırlar) ──
-
-/// <summary>Kanalın tek gider satırı — <c>SideCostItem</c> owned VO'sunun form aynası (tür + hesaplama + değer +
-/// hizmet kartı + fiş hedefi TEK satırda). BU DİLİMDE FİŞ YAZILMAZ; ileride sipariş→fiş akışında satır doğru
-/// Service emtiası + doğru KARŞI CARİ ile VoucherLine'a dönüşecek. Hizmet/cari boş bırakılabilir (kalem
-/// fiyatlamada yine çalışır) — UI nazik ipucu gösterir.</summary>
-public class SideCostItemDto
-{
-    /// <summary>Kalem türü — reçete satırındaki idempotent reconcile anahtarı.</summary>
-    public SideCostKind Kind { get; set; } = SideCostKind.Packaging;
-
-    /// <summary>Serbest görünen ad — boşsa UI türün lokalizesini gösterir (ör. "Offsite Ads").</summary>
-    [StringLength(SalesChannelConsts.SideCostDisplayNameMaxLength)]
-    public string? DisplayName { get; set; }
-
-    /// <summary>Hesaplama modu — FixedAmount (Add) / PercentOfCost (Percent) / GrossUpPercent (GrossUp; hep en sonda).</summary>
-    public SideCostCalcMode CalcMode { get; set; } = SideCostCalcMode.FixedAmount;
-
-    /// <summary>Tutar ya da oran — moda göre yorumlanır; komisyonda AutoRate açıkken fallback oran.</summary>
-    public decimal Value { get; set; }
-
-    /// <summary>Sabit tutarın para birimi — id-only; null = kanal yerel birimi (yalnız FixedAmount'ta anlamlı).</summary>
-    public Guid? CurrencyUnitId { get; set; }
-
-    /// <summary>Hizmet kartı (Service kataloğu) — id-only, opsiyonel; reçete satırının Service etiketi de bu olur.</summary>
-    public Guid? ServiceId { get; set; }
-
-    /// <summary>Fişleme hedefi (karşı cari / genel gider).</summary>
-    public SideCostPostingMode PostingMode { get; set; } = SideCostPostingMode.CounterpartyAccount;
-
-    /// <summary>Karşı taraf cari hesabı — id-only, opsiyonel; yalnız CounterpartyAccount modunda anlamlı.</summary>
-    public Guid? AccountId { get; set; }
-
-    /// <summary>Karşı taraf alt hesabı — id-only, opsiyonel (Voucher.SubAccountId paritesi; ana hesapsız olamaz).</summary>
-    public Guid? SubAccountId { get; set; }
-
-    /// <summary>Oran otomatik çözülsün mü — YALNIZ Commission (N11: kategoriden efektif oran; Value = fallback).</summary>
-    public bool AutoRate { get; set; }
-
-    /// <summary>Kalem aktif mi — kapalı kalem reçeteye satır üretmez (satır grid'de durur, veri kaybolmaz).</summary>
-    public bool IsEnabled { get; set; } = true;
-
-    /// <summary>Grid/reçete sırası — GrossUp kalemleri sıradan bağımsız hep en sona projeksiyonlanır.</summary>
-    public int DisplayOrder { get; set; }
-
-    /// <summary>Yalnız varyantta anahtar açıksa uygulanır (sigortalı-gönderim/Loomis deseninin genellemesi).</summary>
-    public bool RequiresVariantOptIn { get; set; }
-}
-
-/// <summary>Kanalın yan-maliyet (gider) ayarları — <c>SideCostSettings</c> owned VO'sunun form aynası:
-/// gider satırları listesi. Komisyon oranları için araştırma SSOT: .claude/research/channel-commissions.</summary>
-public class SideCostSettingsDto
-{
-    /// <summary>Gider satırları (boş liste = kalem yok; form açılışında boşsa kanal tipine göre varsayılan tohum önerilir).</summary>
-    public List<SideCostItemDto> Items { get; set; } = new();
-}
+// Yan-maliyet (gider) DTO'ları 2026-07-28'de KALDIRILDI: kanal başına elle gider girme ihtiyacı kalmadı —
+// komisyon kategori senkronundan, kargo şablon/tarifeden geliyor. Alanın sözleşmeden çıkması aynı zamanda bir
+// EMNİYET: istemci artık kanala boş bir gider listesi ({"Items":[]}) gönderemez, ki o değer komisyonu sessizce
+// sıfırlıyordu. Kanal kaydındaki JSON kolonu DURUYOR (mevcut satırlar dondurulmuş hâlde).
 
 // ── N11 (SalesChannelTrN11): AppKey/AppSecret ──────────────────────────────────────────────────────
 
@@ -118,10 +65,12 @@ public class SalesChannelTrN11GetDto : EntityDto<Guid>, IGetDto<Guid>, IHasCode
     [StringLength(N11ShipmentConsts.InfoMaxLength)]
     public string? DefaultInstallmentInfo { get; set; }
 
-    /// <summary>Yan-maliyet (gider) ayarları — null = hiç yapılandırılmamış (form açılışında boş DTO'yla doldurulur).</summary>
-    public SideCostSettingsDto? SideCosts { get; set; }
-
     public bool IsActive { get; set; }
+
+    /// <summary>Kanalın muhasebe cari ALT hesabı (<c>SubAccount.Id</c>). Cari hesap ayrıca tutulmaz —
+    /// alt hesap zaten bir cariye bağlıdır. <c>null</c> = tanımlanmamış.</summary>
+    public Guid? SubAccountId { get; set; }
+
 }
 
 public class SalesChannelTrN11CreateDto : ICreateDto
@@ -156,8 +105,10 @@ public class SalesChannelTrN11CreateDto : ICreateDto
     [StringLength(N11ShipmentConsts.InfoMaxLength)]
     public string? DefaultInstallmentInfo { get; set; }
 
-    /// <summary>Yan-maliyet (gider) ayarları — null = yapılandırma yok.</summary>
-    public SideCostSettingsDto? SideCosts { get; set; }
+    /// <summary>Kanalın muhasebe cari ALT hesabı (<c>SubAccount.Id</c>). Cari hesap ayrıca tutulmaz —
+    /// alt hesap zaten bir cariye bağlıdır. <c>null</c> = tanımlanmamış.</summary>
+    public Guid? SubAccountId { get; set; }
+
 }
 
 public class SalesChannelTrN11UpdateDto : IUpdateDto
@@ -191,11 +142,12 @@ public class SalesChannelTrN11UpdateDto : IUpdateDto
     [StringLength(N11ShipmentConsts.InfoMaxLength)]
     public string? DefaultInstallmentInfo { get; set; }
 
-    /// <summary>Yan-maliyet (gider) ayarları — null = yapılandırma yok (mevcut ayar update'te null gönderilirse TEMİZLENİR;
-    /// form daima dolu DTO gönderir).</summary>
-    public SideCostSettingsDto? SideCosts { get; set; }
-
     public bool IsActive { get; set; }
+
+    /// <summary>Kanalın muhasebe cari ALT hesabı (<c>SubAccount.Id</c>). Cari hesap ayrıca tutulmaz —
+    /// alt hesap zaten bir cariye bağlıdır. <c>null</c> = tanımlanmamış.</summary>
+    public Guid? SubAccountId { get; set; }
+
 }
 
 // ── Trendyol (SalesChannelTrTrendyol): SellerId/ApiKey/ApiSecret ────────────────────────────────────
@@ -232,10 +184,12 @@ public class SalesChannelTrTrendyolGetDto : EntityDto<Guid>, IGetDto<Guid>, IHas
     [StringLength(SalesChannelConsts.TokenMaxLength)]
     public string Token { get; set; } = string.Empty;
 
-    /// <summary>Yan-maliyet (gider) ayarları — null = hiç yapılandırılmamış (form açılışında boş DTO'yla doldurulur).</summary>
-    public SideCostSettingsDto? SideCosts { get; set; }
-
     public bool IsActive { get; set; }
+
+    /// <summary>Kanalın muhasebe cari ALT hesabı (<c>SubAccount.Id</c>). Cari hesap ayrıca tutulmaz —
+    /// alt hesap zaten bir cariye bağlıdır. <c>null</c> = tanımlanmamış.</summary>
+    public Guid? SubAccountId { get; set; }
+
 }
 
 public class SalesChannelTrTrendyolCreateDto : ICreateDto
@@ -269,8 +223,10 @@ public class SalesChannelTrTrendyolCreateDto : ICreateDto
     [StringLength(SalesChannelConsts.TokenMaxLength)]
     public string Token { get; set; } = string.Empty;
 
-    /// <summary>Yan-maliyet (gider) ayarları — null = yapılandırma yok.</summary>
-    public SideCostSettingsDto? SideCosts { get; set; }
+    /// <summary>Kanalın muhasebe cari ALT hesabı (<c>SubAccount.Id</c>). Cari hesap ayrıca tutulmaz —
+    /// alt hesap zaten bir cariye bağlıdır. <c>null</c> = tanımlanmamış.</summary>
+    public Guid? SubAccountId { get; set; }
+
 }
 
 public class SalesChannelTrTrendyolUpdateDto : IUpdateDto
@@ -304,10 +260,12 @@ public class SalesChannelTrTrendyolUpdateDto : IUpdateDto
     [StringLength(SalesChannelConsts.TokenMaxLength)]
     public string Token { get; set; } = string.Empty;
 
-    /// <summary>Yan-maliyet (gider) ayarları — null = yapılandırma yok (temizler; form daima dolu DTO gönderir).</summary>
-    public SideCostSettingsDto? SideCosts { get; set; }
-
     public bool IsActive { get; set; }
+
+    /// <summary>Kanalın muhasebe cari ALT hesabı (<c>SubAccount.Id</c>). Cari hesap ayrıca tutulmaz —
+    /// alt hesap zaten bir cariye bağlıdır. <c>null</c> = tanımlanmamış.</summary>
+    public Guid? SubAccountId { get; set; }
+
 }
 
 // ── Etsy (SalesChannelEtsy): Keystring/SharedSecret + OAuth 2.0 PKCE bağlantısı ─────────────────────
@@ -343,10 +301,12 @@ public class SalesChannelEtsyGetDto : EntityDto<Guid>, IGetDto<Guid>, IHasCode
     /// <summary>Türetilmiş bağlantı durumu (refresh token dolu + süresi geçmemiş) — sunucu hesaplar, token sızmaz.</summary>
     public bool IsConnected { get; set; }
 
-    /// <summary>Yan-maliyet (gider) ayarları — Etsy'de tipik: GrossUp %9,5 + $0,45/satış (USD) + opsiyonel Offsite Ads.</summary>
-    public SideCostSettingsDto? SideCosts { get; set; }
-
     public bool IsActive { get; set; }
+
+    /// <summary>Kanalın muhasebe cari ALT hesabı (<c>SubAccount.Id</c>). Cari hesap ayrıca tutulmaz —
+    /// alt hesap zaten bir cariye bağlıdır. <c>null</c> = tanımlanmamış.</summary>
+    public Guid? SubAccountId { get; set; }
+
 }
 
 public class SalesChannelEtsyCreateDto : ICreateDto
@@ -372,8 +332,10 @@ public class SalesChannelEtsyCreateDto : ICreateDto
     [StringLength(SalesChannelConsts.ConfigMaxLength, MinimumLength = 1)]
     public string SharedSecret { get; set; } = string.Empty;
 
-    /// <summary>Yan-maliyet (gider) ayarları — null = yapılandırma yok.</summary>
-    public SideCostSettingsDto? SideCosts { get; set; }
+    /// <summary>Kanalın muhasebe cari ALT hesabı (<c>SubAccount.Id</c>). Cari hesap ayrıca tutulmaz —
+    /// alt hesap zaten bir cariye bağlıdır. <c>null</c> = tanımlanmamış.</summary>
+    public Guid? SubAccountId { get; set; }
+
 }
 
 public class SalesChannelEtsyUpdateDto : IUpdateDto
@@ -399,8 +361,10 @@ public class SalesChannelEtsyUpdateDto : IUpdateDto
     [StringLength(SalesChannelConsts.ConfigMaxLength)]
     public string SharedSecret { get; set; } = string.Empty;
 
-    /// <summary>Yan-maliyet (gider) ayarları — null = yapılandırma yok (temizler; form daima dolu DTO gönderir).</summary>
-    public SideCostSettingsDto? SideCosts { get; set; }
-
     public bool IsActive { get; set; }
+
+    /// <summary>Kanalın muhasebe cari ALT hesabı (<c>SubAccount.Id</c>). Cari hesap ayrıca tutulmaz —
+    /// alt hesap zaten bir cariye bağlıdır. <c>null</c> = tanımlanmamış.</summary>
+    public Guid? SubAccountId { get; set; }
+
 }

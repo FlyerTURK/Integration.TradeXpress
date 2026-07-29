@@ -28,6 +28,7 @@ public class SalesChannelTrN11AppService : TradeXpressAppService, ISalesChannelT
     private readonly IRepository<SalesChannelTrN11, Guid> _repository;
     private readonly IRepository<SalesChannelBase, Guid> _baseRepository;
     private readonly ICurrentCompany _currentCompany;
+    private readonly SalesChannelSubAccountBinder _subAccountBinder;
     private readonly IN11CredentialVerifier _credentialVerifier;
     private readonly IN11ShipmentTemplateAppService _shipmentTemplateAppService;
 
@@ -38,12 +39,14 @@ public class SalesChannelTrN11AppService : TradeXpressAppService, ISalesChannelT
         IRepository<SalesChannelTrN11, Guid> repository,
         IRepository<SalesChannelBase, Guid> baseRepository,
         ICurrentCompany currentCompany,
+        SalesChannelSubAccountBinder subAccountBinder,
         IN11CredentialVerifier credentialVerifier,
         IN11ShipmentTemplateAppService shipmentTemplateAppService)
     {
         _repository = repository;
         _baseRepository = baseRepository;
         _currentCompany = currentCompany;
+        _subAccountBinder = subAccountBinder;
         _credentialVerifier = credentialVerifier;
         _shipmentTemplateAppService = shipmentTemplateAppService;
     }
@@ -93,7 +96,7 @@ public class SalesChannelTrN11AppService : TradeXpressAppService, ISalesChannelT
         var entity = new SalesChannelTrN11(companyId, input.Code, input.Name, input.AppKey, input.AppSecret);
         entity.SetDescription(input.Description);
         entity.SetDefaultInfos(input.DefaultShippingInfo, input.DefaultExchangeInfo, input.DefaultInstallmentInfo);
-        entity.SetSideCosts(SideCostSettingsFactory.Build(input.SideCosts));
+        await _subAccountBinder.BindAsync(entity, input.SubAccountId);
         await _repository.InsertAsync(entity, autoSave: true);
 
         // Kanal oluşturulur oluşturulmaz N11'deki mevcut kargo şablonlarını kanalın KENDİ kimliğiyle otomatik çek.
@@ -113,8 +116,8 @@ public class SalesChannelTrN11AppService : TradeXpressAppService, ISalesChannelT
         entity.SetDescription(input.Description);
         await ApplyCredentialChangeAsync(entity, input.AppKey, input.AppSecret);
         entity.SetDefaultInfos(input.DefaultShippingInfo, input.DefaultExchangeInfo, input.DefaultInstallmentInfo);
-        entity.SetSideCosts(SideCostSettingsFactory.Build(input.SideCosts));
         entity.SetActive(input.IsActive);
+        await _subAccountBinder.BindAsync(entity, input.SubAccountId);
         await _repository.UpdateAsync(entity, autoSave: true);
 
         return Redact(ObjectMapper.Map<SalesChannelTrN11, SalesChannelTrN11GetDto>(entity));

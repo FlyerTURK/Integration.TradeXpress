@@ -24,7 +24,6 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
             b.Property(x => x.SellerNote).HasMaxLength(SalesChannelEtsyProductConsts.SellerNoteMaxLength);
             b.Property(x => x.TitleOverride).HasMaxLength(SalesChannelEtsyProductConsts.TitleOverrideMaxLength);
             b.Property(x => x.DescriptionOverride).HasMaxLength(SalesChannelEtsyProductConsts.DescriptionOverrideMaxLength);
-            b.Property(x => x.PersonalizationInstructions).HasMaxLength(SalesChannelEtsyProductConsts.PersonalizationInstructionsMaxLength);
             b.Property(x => x.ListingState).HasMaxLength(SalesChannelEtsyProductConsts.ListingStateMaxLength);
             b.Property(x => x.LastError).HasMaxLength(SalesChannelEtsyProductConsts.LastErrorMaxLength);
 
@@ -46,6 +45,8 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
                 m.ToJson();
                 m.Property(p => p.Value).HasMaxLength(SalesChannelEtsyProductConsts.MaterialMaxLength);
             });
+            // Kişiselleştirme SORULARI. IsRequired/MaxAllowedCharacters 2026-07-28'de eklendi (Etsy'de bu iki ayar
+            // soru başınadır) — JSON kolonu olduğu için şema değişmez, eski satırlar varsayılanla okunur.
             b.OwnsMany(x => x.SpecialInfo, s =>
             {
                 s.ToJson();

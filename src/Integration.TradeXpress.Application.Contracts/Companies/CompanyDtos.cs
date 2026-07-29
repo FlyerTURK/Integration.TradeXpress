@@ -66,7 +66,7 @@ public class CompanyGetDto : EntityDto<Guid>, IGetDto<Guid>, ICompanyGraph
 /// (kendi app servisi YOK; standalone Company CRUD ayrı: <see cref="CompanyGetDto"/> vb.). Durum =
 /// <see cref="Id"/> + <see cref="IsDeleted"/>; şubeler <see cref="Branches"/> (şube→kasa grafı).
 /// </summary>
-public class CompanyGraphDto : CompanyGetDto
+public class CompanyGraphDto : CompanyGetDto, IHasIsActive
 {
     // Graf düğümü EKSTRALARI (durum). Code/Name/CountryCode/Branches + TÜM VALİDASYON CompanyGetDto'dan
     // MİRAS → standalone ve tenant-node şirket düzenlemeleri tek kaynaktan, GARANTİLİ aynı (kopya yok). (K3: GraphDto : GetDto)

@@ -38,6 +38,8 @@ public abstract class ProductImagePreviewTests<TStartupModule> : TradeXpressAppl
     {
         using (_currentCompany.Change(Guid.NewGuid()))
         {
+            var categoryId = await CreateTestProductCategoryAsync();
+
             var uploadResult = await _imageAppService.UploadAsync(new ProductImageUploadDto
             {
                 FileName = "test.png",
@@ -49,6 +51,7 @@ public abstract class ProductImagePreviewTests<TStartupModule> : TradeXpressAppl
             {
                 Code = "IMGUP",
                 Name = "Upload Görselli Ürün",
+                ProductCategoryId = categoryId,
                 Images = new List<ProductImageGraphDto>
                 {
                     new()
@@ -66,6 +69,7 @@ public abstract class ProductImagePreviewTests<TStartupModule> : TradeXpressAppl
             {
                 Code = "IMGURL",
                 Name = "URL Görselli Ürün",
+                ProductCategoryId = categoryId,
                 Images = new List<ProductImageGraphDto>
                 {
                     new()
@@ -82,6 +86,7 @@ public abstract class ProductImagePreviewTests<TStartupModule> : TradeXpressAppl
             {
                 Code = "IMGNONE",
                 Name = "Görselsiz Ürün",
+                ProductCategoryId = categoryId,
             });
 
             var list = await _productAppService.GetListAsync(new ProductListRequestDto { MaxResultCount = 100 });

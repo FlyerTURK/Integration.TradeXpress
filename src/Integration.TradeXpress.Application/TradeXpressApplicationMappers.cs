@@ -1,4 +1,4 @@
-using Riok.Mapperly.Abstractions;
+﻿using Riok.Mapperly.Abstractions;
 using Volo.Abp.Mapperly;
 using Integration.TradeXpress.Tenants;
 using Integration.TradeXpress.Financials.CurrencyUnits;
@@ -12,6 +12,7 @@ using Integration.TradeXpress.TrendyolBrands;
 using Integration.TradeXpress.EtsyTaxonomies;
 using Integration.TradeXpress.N11Cities;
 using Integration.TradeXpress.N11Shipments;
+using Integration.TradeXpress.MarketplaceShipmentTariffs;
 using Integration.TradeXpress.N11Products;
 using Integration.TradeXpress.TrendyolProducts;
 using Integration.TradeXpress.EtsyProducts;
@@ -27,6 +28,8 @@ using Integration.TradeXpress.Geography;
 using Integration.TradeXpress.Accounts;
 using Integration.TradeXpress.AssayOffices;
 using Integration.TradeXpress.AddOns;
+using Integration.TradeXpress.ProductCategories;
+using Integration.TradeXpress.RecipeTemplates;
 using Integration.TradeXpress.VariantTemplates;
 using Integration.TradeXpress.Products;
 using Integration.TradeXpress.Scheduling;
@@ -215,6 +218,95 @@ public partial class VariantTemplateToListDtoMapper : MapperBase<VariantTemplate
     public override partial void Map(VariantTemplate source, VariantTemplateListDto destination);
 }
 
+// Get → Create/Update: düzenleme formu GetDto üzerinde çalışır, kayıtta koordinatör bunu Create/Update'e
+// çevirir. Bu iki eşleme HİÇ yazılmamıştı → şablon kaydetmek "Beklenmeyen hata" ile düşüyordu (2026-07-27).
+[Mapper] public partial class VariantTemplateGetToCreateMapper : MapperBase<VariantTemplateGetDto, VariantTemplateCreateDto>
+{
+    public override partial VariantTemplateCreateDto Map(VariantTemplateGetDto source);
+    public override partial void Map(VariantTemplateGetDto source, VariantTemplateCreateDto destination);
+}
+
+[Mapper] public partial class VariantTemplateGetToUpdateMapper : MapperBase<VariantTemplateGetDto, VariantTemplateUpdateDto>
+{
+    public override partial VariantTemplateUpdateDto Map(VariantTemplateGetDto source);
+    public override partial void Map(VariantTemplateGetDto source, VariantTemplateUpdateDto destination);
+}
+
+// ── ProductCategory (çekirdek kategori ağacı) — DÖRT eşleme birden: Entity→Get, Entity→List, Get→Create, Get→Update.
+// Son ikisi VariantTemplate'te unutulmuştu ve kaydetmeyi canlıda düşürmüştü; aynı hataya düşmemek için baştan tam set.
+// Get→Create/Update'te Attributes[].Id KOPYALANIR — sunucu merge'ü kimliğe bakar, kimlik düşerse eşleştirmeler kopar.
+
+[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
+public partial class ProductCategoryToGetDtoMapper : MapperBase<ProductCategory, ProductCategoryGetDto>
+{
+    // Path ve Attributes hesaplanmış alanlardır: Path ağaç zincirini, Attributes ise kalıtım birleştirmesini
+    // (devralınan + kendi, tek liste) gerektirir → ikisini de AppService doldurur.
+    [MapperIgnoreTarget(nameof(ProductCategoryGetDto.Path))]
+    [MapperIgnoreTarget(nameof(ProductCategoryGetDto.Attributes))]
+    public override partial ProductCategoryGetDto Map(ProductCategory source);
+
+    [MapperIgnoreTarget(nameof(ProductCategoryGetDto.Path))]
+    [MapperIgnoreTarget(nameof(ProductCategoryGetDto.Attributes))]
+    public override partial void Map(ProductCategory source, ProductCategoryGetDto destination);
+}
+
+[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
+public partial class ProductCategoryToListDtoMapper : MapperBase<ProductCategory, ProductCategoryListDto>
+{
+    // Path/Level ağaç zincirinden türetilir (entity'de kolon yok) → AppService doldurur.
+    [MapperIgnoreTarget(nameof(ProductCategoryListDto.Path))]
+    [MapperIgnoreTarget(nameof(ProductCategoryListDto.Level))]
+    public override partial ProductCategoryListDto Map(ProductCategory source);
+
+    [MapperIgnoreTarget(nameof(ProductCategoryListDto.Path))]
+    [MapperIgnoreTarget(nameof(ProductCategoryListDto.Level))]
+    public override partial void Map(ProductCategory source, ProductCategoryListDto destination);
+}
+
+[Mapper] public partial class ProductCategoryGetToCreateMapper : MapperBase<ProductCategoryGetDto, ProductCategoryCreateDto>
+{
+    public override partial ProductCategoryCreateDto Map(ProductCategoryGetDto source);
+    public override partial void Map(ProductCategoryGetDto source, ProductCategoryCreateDto destination);
+}
+
+[Mapper] public partial class ProductCategoryGetToUpdateMapper : MapperBase<ProductCategoryGetDto, ProductCategoryUpdateDto>
+{
+    public override partial ProductCategoryUpdateDto Map(ProductCategoryGetDto source);
+    public override partial void Map(ProductCategoryGetDto source, ProductCategoryUpdateDto destination);
+}
+
+// ── RecipeTemplate ("orta reçete" şablonu) — dört eşleme (VariantTemplate'in eksiğini tekrarlamamak için tam set).
+
+[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
+public partial class RecipeTemplateToGetDtoMapper : MapperBase<RecipeTemplate, RecipeTemplateGetDto>
+{
+    public override partial RecipeTemplateGetDto Map(RecipeTemplate source);
+    public override partial void Map(RecipeTemplate source, RecipeTemplateGetDto destination);
+}
+
+[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
+public partial class RecipeTemplateToListDtoMapper : MapperBase<RecipeTemplate, RecipeTemplateListDto>
+{
+    // LineCount satır koleksiyonundan TÜRETİLİR (entity'de kolon yok) → AppService doldurur.
+    [MapperIgnoreTarget(nameof(RecipeTemplateListDto.LineCount))]
+    public override partial RecipeTemplateListDto Map(RecipeTemplate source);
+
+    [MapperIgnoreTarget(nameof(RecipeTemplateListDto.LineCount))]
+    public override partial void Map(RecipeTemplate source, RecipeTemplateListDto destination);
+}
+
+[Mapper] public partial class RecipeTemplateGetToCreateMapper : MapperBase<RecipeTemplateGetDto, RecipeTemplateCreateDto>
+{
+    public override partial RecipeTemplateCreateDto Map(RecipeTemplateGetDto source);
+    public override partial void Map(RecipeTemplateGetDto source, RecipeTemplateCreateDto destination);
+}
+
+[Mapper] public partial class RecipeTemplateGetToUpdateMapper : MapperBase<RecipeTemplateGetDto, RecipeTemplateUpdateDto>
+{
+    public override partial RecipeTemplateUpdateDto Map(RecipeTemplateGetDto source);
+    public override partial void Map(RecipeTemplateGetDto source, RecipeTemplateUpdateDto destination);
+}
+
 // ── Service (statik mapper → Mapperly; IsGlobal = TenantId==null AppService'te elle set, CurrencyUnit deseni) ──
 
 [Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
@@ -348,6 +440,30 @@ public partial class N11ShipmentCompanyToDtoMapper : MapperBase<N11ShipmentCompa
 {
     public override partial N11ShipmentCompanyDto Map(N11ShipmentCompany source);
     public override partial void Map(N11ShipmentCompany source, N11ShipmentCompanyDto destination);
+}
+
+// ── Pazaryeri anlaşmalı kargo tarifesi (host-global) → DTO. LİSTE DTO'su desi tablosunu ve baremi TAŞIMAZ
+//    (101 satır × N taşıyıcı boşuna serileşmesin); DETAY DTO'sunda ikisi de nested-otomatik eşlenir. ──
+[Mapper]
+public partial class MarketplaceShipmentTariffToDtoMapper
+    : MapperBase<MarketplaceShipmentTariff, MarketplaceShipmentTariffDto>
+{
+    [MapperIgnoreSource(nameof(MarketplaceShipmentTariff.Rates))]
+    [MapperIgnoreSource(nameof(MarketplaceShipmentTariff.ConditionalRates))]
+    public override partial MarketplaceShipmentTariffDto Map(MarketplaceShipmentTariff source);
+
+    [MapperIgnoreSource(nameof(MarketplaceShipmentTariff.Rates))]
+    [MapperIgnoreSource(nameof(MarketplaceShipmentTariff.ConditionalRates))]
+    public override partial void Map(MarketplaceShipmentTariff source, MarketplaceShipmentTariffDto destination);
+}
+
+[Mapper]
+public partial class MarketplaceShipmentTariffToDetailDtoMapper
+    : MapperBase<MarketplaceShipmentTariff, MarketplaceShipmentTariffDetailDto>
+{
+    public override partial MarketplaceShipmentTariffDetailDto Map(MarketplaceShipmentTariff source);
+
+    public override partial void Map(MarketplaceShipmentTariff source, MarketplaceShipmentTariffDetailDto destination);
 }
 
 // ── N11 kargo şablonu (per-kanal) → DTO. Gömülü Address VO → N11ShipmentAddressDto nested-otomatik;

@@ -141,6 +141,7 @@ public class OrderAppService : TradeXpressAppService, IOrderAppService
         var dtos = orders.Select(order =>
         {
             var dto = ObjectMapper.Map<Order, OrderListDto>(order);
+            dto.CustomerName = ResolveCustomerName(order);
             if (linesByOrder.TryGetValue(order.Id, out var orderLines))
             {
                 dto.Items = orderLines
@@ -154,6 +155,27 @@ public class OrderAppService : TradeXpressAppService, IOrderAppService
         await EnrichOrderChannelCodesAsync(companyId, dtos);
 
         return new PagedResultDto<OrderListDto>(totalCount, dtos);
+    }
+
+    /// <summary>Listede gösterilecek müşteri adı. Kanal "müşteri" alanını boş bırakabildiği için (N11'de sık)
+    /// sırayla ALICI, sonra TESLİMAT alıcısı adına düşer — kolon boş kalmasın.
+    ///
+    /// <para>Ek sorgu doğurmaz: detay snapshot'ı sipariş satırında TEK JSON kolonu olarak tutuluyor, yani
+    /// <c>order.Detail</c> zaten elde.</para></summary>
+    private static string? ResolveCustomerName(Order order)
+    {
+        if (!string.IsNullOrWhiteSpace(order.CustomerName))
+        {
+            return order.CustomerName;
+        }
+
+        var buyerName = order.Detail?.Buyer?.FullName;
+        if (!string.IsNullOrWhiteSpace(buyerName))
+        {
+            return buyerName;
+        }
+
+        return order.Detail?.ShippingAddress?.FullName;
     }
 
     /// <summary>Bir kalemi DETAIL grid satırına çevirir — line alanları (Mapperly) + kanal (durum etiketi kanal-farkında)

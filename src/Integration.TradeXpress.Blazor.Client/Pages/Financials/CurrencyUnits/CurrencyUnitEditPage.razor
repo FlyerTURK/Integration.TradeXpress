@@ -66,7 +66,7 @@
         <DxMemo @bind-Text="@EditModel.Description" Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100" />
     </DxFormLayoutItem>
     @* Son satır: Durum (Status) yarım + Sıra (DisplayOrder) yarım *@
-    <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6">
+    <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6" BeginRow="true">
         <DxCheckBox @bind-Checked="@EditModel.IsActive" CheckType="CheckType.Switch">
             @(EditModel.IsActive ? L["Active"] : L["Passive"])
         </DxCheckBox>

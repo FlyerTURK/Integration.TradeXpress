@@ -1,10 +1,11 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Integration.Framework;
 using Integration.Framework.Base.Querying;
 using Integration.TradeXpress.Attachments;
+using Integration.TradeXpress.Companies;
 using Integration.TradeXpress.EtsyProducts;
 using Integration.TradeXpress.MultiCompany;
 using Integration.TradeXpress.N11Products;
@@ -13,6 +14,7 @@ using Integration.TradeXpress.Orchestration;
 using Integration.TradeXpress.Substitutions;
 using Integration.TradeXpress.TrendyolProducts;
 using Integration.TradeXpress.Permissions;
+using Integration.TradeXpress.ProductCategories;
 using Integration.TradeXpress.Variants;
 using Integration.TradeXpress.Vouchers;
 using Microsoft.AspNetCore.Authorization;
@@ -38,14 +40,21 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
     private const string ProductEntityName = "Product";
 
     // Ürün-seviyesi medya (görsel + video kütüphanesi) agnostik EntityMedia anahtarı — Good'un VariantImageEntityName deseni ürün-seviyesinde.
-    private const string ProductMediaEntityName = "Product";
+    // Dize MediaEntityNames'te: aynı anahtarı pazaryeri push'u da OKUYOR (kaynak ikiye bölünürse medya sessizce kaybolur).
+    private const string ProductMediaEntityName = MediaEntityNames.Product;
 
     private readonly IRepository<Product, Guid> _repository;
     private readonly IRepository<SubstitutionGroup, Guid> _substitutionGroupRepository; // yalnız OKUMA — FK varlık doğrulaması
+    private readonly IRepository<ProductCategory, Guid> _productCategoryRepository;     // yalnız OKUMA — kategori bağı doğrulaması
     private readonly SubstitutionVariantMaterializer _substitutionMaterializer;   // muadil varyantlarını stoktan otomatik üretir
     private readonly IEntityVariantGraphService _entityVariant;
     private readonly IRepository<EntityVariant, Guid> _variantRepository;
     private readonly IRepository<ProductVariantDetail, Guid> _variantDetailRepository;
+    private readonly IRepository<ProductSpecification, Guid> _specificationRepository;
+    private readonly ProductCategoryTreeManager _productCategoryTreeManager;
+    private readonly IRepository<Company, Guid> _companyRepository;   // yalnız OKUMA — menşei/domestic türetmesi
+    private readonly IRepository<ProductCategoryChannelAttributeMapping, Guid> _channelAttributeMappingRepository;   // yalnız OKUMA
+    private readonly IRepository<ProductCategoryChannelAttributeValueMapping, Guid> _channelValueMappingRepository;  // yalnız OKUMA
     private readonly IRepository<ProductVariantRecipeLine, Guid> _recipeLineRepository;
     private readonly RecipeCostPopulator _recipeCostPopulator;
     private readonly ICurrentCompany _currentCompany;
@@ -61,10 +70,16 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
     public ProductAppService(
         IRepository<Product, Guid> repository,
         IRepository<SubstitutionGroup, Guid> substitutionGroupRepository,
+        IRepository<ProductCategory, Guid> productCategoryRepository,
         SubstitutionVariantMaterializer substitutionMaterializer,
         IEntityVariantGraphService entityVariant,
         IRepository<EntityVariant, Guid> variantRepository,
         IRepository<ProductVariantDetail, Guid> variantDetailRepository,
+        IRepository<ProductSpecification, Guid> specificationRepository,
+        ProductCategoryTreeManager productCategoryTreeManager,
+        IRepository<Company, Guid> companyRepository,
+        IRepository<ProductCategoryChannelAttributeMapping, Guid> channelAttributeMappingRepository,
+        IRepository<ProductCategoryChannelAttributeValueMapping, Guid> channelValueMappingRepository,
         IRepository<ProductVariantRecipeLine, Guid> recipeLineRepository,
         RecipeCostPopulator recipeCostPopulator,
         ICurrentCompany currentCompany,
@@ -76,10 +91,16 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
     {
         _repository = repository;
         _substitutionGroupRepository = substitutionGroupRepository;
+        _productCategoryRepository = productCategoryRepository;
         _substitutionMaterializer = substitutionMaterializer;
         _entityVariant = entityVariant;
         _variantRepository = variantRepository;
         _variantDetailRepository = variantDetailRepository;
+        _specificationRepository = specificationRepository;
+        _productCategoryTreeManager = productCategoryTreeManager;
+        _companyRepository = companyRepository;
+        _channelAttributeMappingRepository = channelAttributeMappingRepository;
+        _channelValueMappingRepository = channelValueMappingRepository;
         _recipeLineRepository = recipeLineRepository;
         _recipeCostPopulator = recipeCostPopulator;
         _currentCompany = currentCompany;
@@ -169,14 +190,13 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
 
         var entity = new Product(companyId, input.Code, input.Name);
         entity.SetDescription(input.Description);
+        await ApplyProductCategoryAsync(entity, input.ProductCategoryId);
         entity.SetImages(MapImages(input.Images));
         entity.SetDiscount(input.DiscountType, input.DiscountValue, input.DiscountStartDate, input.DiscountEndDate);
         entity.SetShelfLife(input.ProductionDate, input.ExpirationDate);
-        entity.SetPersonalization(input.IsPersonalizable, input.PersonalizationInstructions,
-            input.PersonalizationIsRequired, input.PersonalizationCharCountMax);
-        ApplyMarketplaceDefaults(entity, input.Domestic, input.Condition, input.PreparingDay,
+        ApplyMarketplaceDefaults(entity, input.OriginCountryId, input.Condition, input.PreparingDay,
             input.MaxPurchaseQuantity, input.SellerNote,
-            input.CurrencyUnitId, input.SpecialInfo, input.AddOns);
+            input.CurrencyUnitId, input.RecipeTemplateId, input.PackageDesi, input.SpecialInfo, input.AddOns);
         // Varyant modu ÖNCE, muadil konfigürasyonu SONRA (mutator mod tutarlılığını modun güncel değerine göre kurar).
         await EnsureSubstitutionGroupExistsAsync(input.VariantMode, input.SubstitutionGroupId);
         entity.SetVariantMode(input.VariantMode);
@@ -188,6 +208,7 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
 
         // Varyant sistemi — JENERİK agnostik servise delege ("Product" bağlamı). Çekirdek (nitelik/değer/varyant)
         // serviste; Product-ÖZEL satış fiyatı + reçete uzantısı saveExtension callback'iyle ProductVariantDetail'e bağlanır.
+        await SaveSpecificationsAsync(entity, input.Specifications);
         await SaveVariantGraphAsync(entity, input.Attributes, input.Variants);
         // MUADİL: varyantlar O ANKİ stoğa göre OTOMATİK üretilir ("Uygula" yok — 2026-07-25 Hakan kararı;
         // Single: Rank1 → ana reçete, Multi: adaylar ayrı varyant). Graf-save SONRASI koşar ki synchronizer'ın
@@ -209,15 +230,14 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         entity.SetName(input.Name);
         entity.SetDescription(input.Description);
         entity.SetActive(input.IsActive);
+        await ApplyProductCategoryAsync(entity, input.ProductCategoryId);
         var oldImages = entity.Images.ToList();   // yetim blob temizliği için değişim ÖNCESİ resim
         entity.SetImages(MapImages(input.Images));
         entity.SetDiscount(input.DiscountType, input.DiscountValue, input.DiscountStartDate, input.DiscountEndDate);
         entity.SetShelfLife(input.ProductionDate, input.ExpirationDate);
-        entity.SetPersonalization(input.IsPersonalizable, input.PersonalizationInstructions,
-            input.PersonalizationIsRequired, input.PersonalizationCharCountMax);
-        ApplyMarketplaceDefaults(entity, input.Domestic, input.Condition, input.PreparingDay,
+        ApplyMarketplaceDefaults(entity, input.OriginCountryId, input.Condition, input.PreparingDay,
             input.MaxPurchaseQuantity, input.SellerNote,
-            input.CurrencyUnitId, input.SpecialInfo, input.AddOns);
+            input.CurrencyUnitId, input.RecipeTemplateId, input.PackageDesi, input.SpecialInfo, input.AddOns);
         // Varyant modu ÖNCE, muadil konfigürasyonu SONRA (Create ile simetrik; mod dışı alanlar temizlenir).
         await EnsureSubstitutionGroupExistsAsync(input.VariantMode, input.SubstitutionGroupId);
         entity.SetVariantMode(input.VariantMode);
@@ -230,6 +250,7 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
 
         // Varyant sistemi — JENERİK agnostik servise delege ("Product" bağlamı). Çekirdek (nitelik/değer/varyant)
         // serviste; Product-ÖZEL satış fiyatı + reçete uzantısı saveExtension callback'iyle ProductVariantDetail'e bağlanır.
+        await SaveSpecificationsAsync(entity, input.Specifications);
         await SaveVariantGraphAsync(entity, input.Attributes, input.Variants);
         // MUADİL: varyantlar O ANKİ stoğa göre OTOMATİK üretilir ("Uygula" yok — 2026-07-25 Hakan kararı;
         // Single: Rank1 → ana reçete, Multi: adaylar ayrı varyant). Graf-save SONRASI koşar ki synchronizer'ın
@@ -448,13 +469,222 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
     /// (client güven sınırı DEĞİL) — mevcut DB nitelikleri silinmek üzere işaretlenir, synchronizer'ın 0-nitelik
     /// dalı bağlı varyantları silip tek ana varyanta indirir (hazır yol; ana varyantın reçete/fiyat uzantısı
     /// ResolveTargetVariant IsMain eşlemesiyle yaşamaya devam eder).</para></summary>
+    /// <summary>
+    /// Ürünün GENEL ÖZELLİK değerlerini saklar — kategorinin spesifikasyon nitelikleri için girilen değerler.
+    ///
+    /// <para><b>Kategori TEK DOĞRU KAYNAK:</b> yalnız ürünün KENDİ kategorisinin (kalıtım dahil) spesifikasyon
+    /// niteliklerine ait satırlar kabul edilir. Doğrulanmasaydı istemci keyfi bir nitelik kimliğiyle satır
+    /// yazabilir, o satır hiçbir formda görünmeden birikir ve push'ta beklenmedik nitelik olarak giderdi.</para>
+    ///
+    /// <para>VARYANT ekseni nitelikleri burada DEĞER ALMAZ: onlar kartezyene girer ve değerleri varyantın
+    /// kendisinde yaşar. Karıştırılsaydı aynı nitelik hem ürün hem varyant düzeyinde iki farklı değer taşırdı.</para>
+    ///
+    /// <para>Boş değer = "girilmedi" → satır SİLİNİR (boş satır saklamak, push'a boş nitelik göndermek demekti).
+    /// Kategori değişip nitelik artık geçerli değilse o satırlar da temizlenir — bayat değer taşınmaz.</para>
+    /// </summary>
+    /// <summary>
+    /// Ürünün genel özelliklerini bir KANALIN nitelik alanlarına çevirir.
+    ///
+    /// <para>Zincir: ürünün özellik değeri → kategorinin NİTELİK eşleştirmesi (kanal nitelik adı) → değer için
+    /// DEĞER eşleştirmesi (kanal değer adı). Değer eşleştirmesi yoksa ürünün kendi metni gider: pazaryerlerinin
+    /// bir kısmı serbest metin kabul eder ve satırı hiç göndermemek, zorunlu niteliği eksik bırakmaktan daha
+    /// kötüdür (kullanıcı neyin eksik olduğunu göremezdi).</para>
+    ///
+    /// <para><b>Nitelik eşleştirmesi OLMAYAN özellik atlanır:</b> kanaldaki hedef alan bilinmeden gönderilen
+    /// bir ad, pazaryerinde tanınmaz ve tüm push'u reddettirebilir.</para>
+    ///
+    /// <para>Ürün HENÜZ KAYDEDİLMEMİŞ olabilir — bu yüzden özellik değerleri istemciden gelir, DB'den değil.</para>
+    /// </summary>
+    public virtual async Task<List<ProductChannelAttributeDto>> ResolveChannelAttributesAsync(
+        ProductChannelAttributeResolveDto input)
+    {
+        if (input.ProductCategoryId == Guid.Empty || _currentCompany.Id is not { } companyId)
+        {
+            return new List<ProductChannelAttributeDto>();
+        }
+
+        var specifications = (input.Specifications ?? new List<ProductSpecificationDto>())
+            .Where(x => !string.IsNullOrWhiteSpace(x.Value))
+            .ToList();
+        if (specifications.Count == 0)
+        {
+            return new List<ProductChannelAttributeDto>();
+        }
+
+        // Nitelik eşleştirmeleri KALITIMLIDIR: eşleştirme ürünün kendi kategorisinde olmayabilir, bir atasında
+        // tanımlanmış olabilir (nitelikler de aynı zincirden devralınıyor). Bu yüzden zincirin TAMAMI taranır.
+        var chain = await _productCategoryTreeManager.GetPathAsync(companyId, input.ProductCategoryId);
+        var chainIds = chain.Select(c => c.Id).ToList();
+
+        var attributeMappings = await AsyncExecuter.ToListAsync(
+            (await _channelAttributeMappingRepository.GetQueryableAsync())
+                .Where(m => m.CompanyId == companyId
+                    && chainIds.Contains(m.ProductCategoryId)
+                    && m.Channel == input.Channel));
+        if (attributeMappings.Count == 0)
+        {
+            return new List<ProductChannelAttributeDto>();
+        }
+
+        var valueMappings = await AsyncExecuter.ToListAsync(
+            (await _channelValueMappingRepository.GetQueryableAsync())
+                .Where(m => m.CompanyId == companyId
+                    && chainIds.Contains(m.ProductCategoryId)
+                    && m.Channel == input.Channel));
+
+        // En DAR tanım kazanır: alt kategori kendi eşleştirmesini yaptıysa atasınınki devreye girmez
+        // (kategori eşleştirmesindeki kuralın aynısı). Zincir kökten yaprağa sıralı → sondaki ezer.
+        var attributeByCore = new Dictionary<Guid, ProductCategoryChannelAttributeMapping>();
+        foreach (var mapping in attributeMappings.OrderBy(m => chainIds.IndexOf(m.ProductCategoryId)))
+        {
+            attributeByCore[mapping.ProductCategoryAttributeId] = mapping;
+        }
+
+        var valueByCore = new Dictionary<Guid, ProductCategoryChannelAttributeValueMapping>();
+        foreach (var mapping in valueMappings.OrderBy(m => chainIds.IndexOf(m.ProductCategoryId)))
+        {
+            valueByCore[mapping.ProductCategoryAttributeValueId] = mapping;
+        }
+
+        // Ürün özelliği METİN tutar (serbest girişe izin verilir); kanal DEĞER eşleştirmesi ise değer
+        // KİMLİĞİNE asılıdır → metni kategorinin değer tanımlarıyla eşleyip kimliğe çeviririz.
+        var effective = await _productCategoryTreeManager.GetEffectiveAttributesAsync(companyId, input.ProductCategoryId);
+        var valueIdByAttributeAndText = new Dictionary<(Guid AttributeId, string Text), Guid>();
+        foreach (var attribute in effective.Where(a => a.Kind == ProductCategoryAttributeKind.Specification))
+        {
+            foreach (var value in attribute.Values)
+            {
+                valueIdByAttributeAndText[(attribute.AttributeId, value.Value.Trim())] = value.ValueId;
+            }
+        }
+
+        var result = new List<ProductChannelAttributeDto>();
+        foreach (var specification in specifications)
+        {
+            if (!attributeByCore.TryGetValue(specification.ProductCategoryAttributeId, out var attributeMapping))
+            {
+                continue;
+            }
+
+            var text = specification.Value!.Trim();
+            var channelValue = text;
+
+            if (valueIdByAttributeAndText.TryGetValue((specification.ProductCategoryAttributeId, text), out var valueId)
+                && valueByCore.TryGetValue(valueId, out var valueMapping))
+            {
+                channelValue = valueMapping.ChannelAttributeValueName ?? valueMapping.ChannelAttributeValueExternalId;
+            }
+
+            result.Add(new ProductChannelAttributeDto
+            {
+                Name = attributeMapping.ChannelAttributeName ?? attributeMapping.ChannelAttributeExternalId,
+                Value = channelValue,
+            });
+        }
+
+        return result;
+    }
+
+    private async Task SaveSpecificationsAsync(Product product, List<ProductSpecificationDto> specifications)
+    {
+        var allowedAttributeIds = await ResolveSpecificationAttributeIdsAsync(product.ProductCategoryId);
+        var existing = await AsyncExecuter.ToListAsync(
+            (await _specificationRepository.GetQueryableAsync()).Where(x => x.ProductId == product.Id));
+
+        var incoming = (specifications ?? new List<ProductSpecificationDto>())
+            .Where(x => allowedAttributeIds.Contains(x.ProductCategoryAttributeId))
+            .Where(x => !string.IsNullOrWhiteSpace(x.Value))
+            .GroupBy(x => x.ProductCategoryAttributeId)
+            .ToDictionary(g => g.Key, g => g.First().Value!.Trim());
+
+        foreach (var row in existing)
+        {
+            if (incoming.TryGetValue(row.ProductCategoryAttributeId, out var value))
+            {
+                row.SetValue(value);
+                await _specificationRepository.UpdateAsync(row, autoSave: true);
+                incoming.Remove(row.ProductCategoryAttributeId);
+            }
+            else
+            {
+                await _specificationRepository.DeleteAsync(row, autoSave: true);
+            }
+        }
+
+        foreach (var (attributeId, value) in incoming)
+        {
+            await _specificationRepository.InsertAsync(
+                new ProductSpecification(product.CompanyId, product.Id, attributeId, value), autoSave: true);
+        }
+    }
+
+    /// <summary>Ürünün kategorisinden (kalıtım çözülmüş) SPESİFİKASYON nitelik kimlikleri. Kategori yoksa boş —
+    /// o durumda hiçbir özellik satırı kabul edilmez.</summary>
+    private async Task<HashSet<Guid>> ResolveSpecificationAttributeIdsAsync(Guid? productCategoryId)
+    {
+        return (await LoadSpecificationAttributesAsync(productCategoryId))
+            .Select(a => a.AttributeId)
+            .ToHashSet();
+    }
+
+    /// <summary>Kategorinin SPESİFİKASYON nitelikleri (kalıtım çözülmüş). Kategori AppService'i DEĞİL domain
+    /// servisi kullanılır: o servis <c>ProductCategories.Default</c> izni ister ve yalnız ürün yetkisi olan bir
+    /// kullanıcı kendi ürününü kaydedemez hâle gelirdi.</summary>
+    private async Task<List<ProductCategoryEffectiveAttribute>> LoadSpecificationAttributesAsync(Guid? productCategoryId)
+    {
+        if (productCategoryId is not { } categoryId || categoryId == Guid.Empty
+            || _currentCompany.Id is not { } companyId)
+        {
+            return new List<ProductCategoryEffectiveAttribute>();
+        }
+
+        var effective = await _productCategoryTreeManager.GetEffectiveAttributesAsync(companyId, categoryId);
+        return effective.Where(a => a.Kind == ProductCategoryAttributeKind.Specification).ToList();
+    }
+
+    /// <summary>Ürünün özellik satırlarını FORM için okur — nitelik ADI kategoriden CANLI çözülür (satırda
+    /// saklanmaz): kategoride yapılan yeniden adlandırma tüm ürünlere anında yansır. Kategoride artık bulunmayan
+    /// (ya da varyant eksenine dönüştürülmüş) nitelik satırları GÖSTERİLMEZ — kaydetmede zaten temizlenirler.</summary>
+    private async Task<List<ProductSpecificationDto>> LoadSpecificationDtosAsync(Product product)
+    {
+        var rows = await AsyncExecuter.ToListAsync(
+            (await _specificationRepository.GetQueryableAsync()).Where(x => x.ProductId == product.Id));
+        if (rows.Count == 0)
+        {
+            return new List<ProductSpecificationDto>();
+        }
+
+        var nameById = (await LoadSpecificationAttributesAsync(product.ProductCategoryId))
+            .ToDictionary(a => a.AttributeId, a => a.Name);
+
+        return rows
+            .Where(r => nameById.ContainsKey(r.ProductCategoryAttributeId))
+            .Select(r => new ProductSpecificationDto
+            {
+                Id = r.Id,
+                ProductCategoryAttributeId = r.ProductCategoryAttributeId,
+                Name = nameById[r.ProductCategoryAttributeId],
+                Value = r.Value,
+            })
+            .OrderBy(r => r.Name, StringComparer.CurrentCultureIgnoreCase)
+            .ToList();
+    }
+
     private async Task SaveVariantGraphAsync(
         Product product, List<EntityAttributeGraphDto> attributes, List<ProductVariantGraphDto> variants)
     {
         var effectiveAttributes = await BuildEffectiveAttributeGraphAsync(product, attributes);
+        // MUADİLDE otomatik-kaynaklı reçete satırlarının sahibi SUNUCUDUR (materializer): client formda önizleme
+        // için kurduğu kombinasyon (Origin=Substitution) + şablon klonu (Origin=Template) satırlarını da grafla
+        // gönderir; Id'siz oldukları için yazılsalar YENİ satır olarak girer, materializer kendininkileri ayrıca
+        // yazar ve emtialar reçetede İKİŞER-ÜÇER görünürdü — maliyet katlanıyordu (2026-07-28 Hakan bulgusu).
+        // Filtre İNCEDİR: yalnız Id'siz otomatik-kaynaklı satırlar elenir — kullanıcının Manual satırları ve
+        // kayıtlı satırların güncelleme/silme işaretleri AYNEN akar ("Reçeteye Uygula" round-trip'i bozulmasın;
+        // EfCoreProductVariantModeGateTests bunu korur).
+        var substitutionMode = product.VariantMode == ProductVariantMode.Substitution;
         await _entityVariant.SaveGraphAsync(
             ProductEntityName, product.Id, product.CompanyId, product.Name, effectiveAttributes, variants,
-            saveExtensionAsync: (dto, variantId) => SaveProductVariantDetailAsync(product.CompanyId, dto, variantId));
+            saveExtensionAsync: (dto, variantId) => SaveProductVariantDetailAsync(product.CompanyId, dto, variantId, substitutionMode));
     }
 
     /// <summary>Mod kapısının nitelik grafı: MultiVariant → client grafı olduğu gibi; SingleVariant/Substitution →
@@ -463,7 +693,10 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
     private async Task<List<EntityAttributeGraphDto>> BuildEffectiveAttributeGraphAsync(
         Product product, List<EntityAttributeGraphDto> attributes)
     {
-        if (product.VariantMode == ProductVariantMode.MultiVariant)
+        // FromCatalog, MultiVariant'la AYNI üretim mekaniğidir (nitelik×değer kartezyeni) — yalnız
+        // niteliklerin KAYNAĞI farklı (şablon katalogu). Bu kapıdan geçmezse nitelikler IsDeleted
+        // işaretlenir ve şablondan gelen gruplar kayıtta sessizce silinirdi.
+        if (product.VariantMode is ProductVariantMode.MultiVariant or ProductVariantMode.FromCatalog)
         {
             return attributes;
         }
@@ -478,7 +711,8 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
     /// <summary>Varyant satış-fiyatı + reçete uzantısı (Product-özel) — çözülen DB varyanta (EntityVariantId) bağlar.
     /// Satış fiyatı <see cref="ProductVariantDetail"/>'e (1:1; yoksa ekle/varsa güncelle); reçete satırları
     /// EntityVariant.Id'ye (<c>ProductVariantRecipeLine.ProductVariantId</c> = jenerik varyant Id). GoodAppService deseni.</summary>
-    private async Task SaveProductVariantDetailAsync(Guid companyId, EntityVariantGraphDto dto, Guid variantId)
+    private async Task SaveProductVariantDetailAsync(
+        Guid companyId, EntityVariantGraphDto dto, Guid variantId, bool substitutionMode = false)
     {
         if (dto is not ProductVariantGraphDto g)
         {
@@ -497,7 +731,14 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
             await _variantDetailRepository.UpdateAsync(detail, autoSave: true);
         }
 
-        await SaveRecipeLinesAsync(companyId, variantId, g.RecipeLines);
+        var lines = g.RecipeLines;
+        if (substitutionMode)
+        {
+            // Önizleme kopyaları (Id'siz otomatik-kaynaklı) elenir — sahibi materializer; gerekçe SaveVariantGraphAsync'te.
+            lines = lines.Where(l => l.Id != Guid.Empty || l.Origin == RecipeLineOrigin.Manual).ToList();
+        }
+
+        await SaveRecipeLinesAsync(companyId, variantId, lines);
     }
 
     // ── reçete grafı (varyant-scope; Id + IsDeleted diff, Account/SubAccount deseni). Bileşen türü set-once
@@ -599,19 +840,23 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
     /// normalize eder). SpecialInfo boş key'li satırları eler (SetSpecialInfo).</summary>
     private static void ApplyMarketplaceDefaults(
         Product entity,
-        bool domestic,
+        Guid? originCountryId,
         ProductCondition condition,
         int preparingDay,
         int? maxPurchaseQuantity,
         string? sellerNote,
         Guid? currencyUnitId,
+        Guid? recipeTemplateId,
+        int? packageDesi,
         List<ProductSpecialInfoDto> specialInfo,
         List<ProductAddOnDto> addOns)
     {
-        entity.SetDomestic(domestic);
+        entity.SetOriginCountry(originCountryId);
         entity.SetCondition(condition);
         entity.SetPreparingDay(preparingDay);
         entity.SetMaxPurchaseQuantity(maxPurchaseQuantity);
+        entity.SetRecipeTemplate(recipeTemplateId);
+        entity.SetPackageDesi(packageDesi);
         entity.SetSellerNote(sellerNote);
         entity.SetCurrencyUnit(currencyUnitId);
         entity.SetSpecialInfo((specialInfo ?? new List<ProductSpecialInfoDto>())
@@ -705,6 +950,38 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         }
     }
 
+    /// <summary>
+    /// Çekirdek kategori bağını atar — kategori ZORUNLUDUR, VAR MI ve AYNI ŞİRKETE Mİ ait doğrulanır. Entity
+    /// katalog kaydını göremediğinden bu kontrol burada: doğrulanmasaydı ürün var olmayan (ya da başka şirketin)
+    /// bir kategoriye asılı kalır, kanal kategorisi/komisyon çözümü de sessizce boş dönerdi.
+    ///
+    /// <para><b>Kategori neden zorunlu</b> (2026-07-28 Hakan): kanal kategorisi ve komisyon oranı ürüne
+    /// kategorisi üzerinden çözülüyor. Kategorisiz ürün pazaryerine listelenemez ve fiyatı komisyonsuz —
+    /// yani eksik — hesaplanır; hata vermediği için bu sessizce yanlış fiyata yol açar.</para>
+    ///
+    /// <para>Kategorinin KANAL EŞLEŞTİRMESİ ise burada ZORUNLU TUTULMAZ: eşleştirme kategoride yaşar ve
+    /// zamanla değişir; kaydetme yoluna kilit koymak, bir eşleştirme silindiğinde o kategorideki tüm ürünleri
+    /// düzenlenemez hâle getirirdi (kullanıcı yazım hatasını bile düzeltemezdi). Eşleştirme eksikse ürün formu
+    /// UYARIR; gerçek zorunluluk kanala gönderim anında zaten var — kanal ürünü boş kategoriyle kurulamıyor.</para>
+    /// </summary>
+    private async Task ApplyProductCategoryAsync(Product entity, Guid? productCategoryId)
+    {
+        if (productCategoryId is not { } categoryId || categoryId == Guid.Empty)
+        {
+            throw new BusinessException("TradeXpress:Product:ProductCategoryRequired");
+        }
+
+        var category = await _productCategoryRepository.FindAsync(
+            x => x.Id == categoryId && x.CompanyId == entity.CompanyId);
+        if (category is null)
+        {
+            throw new BusinessException("TradeXpress:Product:ProductCategoryNotFound");
+        }
+
+        entity.SetProductCategory(categoryId);
+    }
+
+
     private async Task<ProductGetDto> ToGetDtoAsync(Product p)
     {
         // Varyant grafı — JENERİK agnostik servisten (çekirdek: nitelik/değer/varyant, AttributeSummary dolu) +
@@ -712,6 +989,7 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         // + türev kaynak ClientKey çevirisi + CANLI net maliyet hesabını yapar (GoodAppService.ProjectVariantsAsync deseni).
         var graph = await _entityVariant.LoadGraphAsync(ProductEntityName, p.Id);
         var variantDtos = await ProjectVariantsAsync(graph.Variants);
+        var specificationDtos = await LoadSpecificationDtosAsync(p);
 
         var imageDtos = p.Images.Select(i => new ProductImageGraphDto
         {
@@ -745,6 +1023,7 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
             Code = p.Code,
             Name = p.Name,
             Description = p.Description,
+            ProductCategoryId = p.ProductCategoryId,
             IsActive = p.IsActive,
             Images = imageDtos,
             DiscountType = p.DiscountType,
@@ -753,12 +1032,16 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
             DiscountEndDate = p.DiscountEndDate,
             ProductionDate = p.ProductionDate,
             ExpirationDate = p.ExpirationDate,
-            Domestic = p.Domestic,
+            OriginCountryId = p.OriginCountryId,
+            IsDomestic = await ResolveIsDomesticAsync(p),
             Condition = p.Condition,
             PreparingDay = p.PreparingDay,
             MaxPurchaseQuantity = p.MaxPurchaseQuantity,
+            RecipeTemplateId = p.RecipeTemplateId,
+            PackageDesi = p.PackageDesi,
             SellerNote = p.SellerNote,
             CurrencyUnitId = p.CurrencyUnitId,
+            Specifications = specificationDtos,
             SpecialInfo = p.SpecialInfo
                 .Select(s => new ProductSpecialInfoDto { Key = s.Key, Value = s.Value })
                 .ToList(),
@@ -773,10 +1056,6 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
                     Note = a.Note,
                 })
                 .ToList(),
-            IsPersonalizable = p.IsPersonalizable,
-            PersonalizationInstructions = p.PersonalizationInstructions,
-            PersonalizationIsRequired = p.PersonalizationIsRequired,
-            PersonalizationCharCountMax = p.PersonalizationCharCountMax,
             VariantMode = p.VariantMode,
             SubstitutionGroupId = p.SubstitutionGroupId,
             SubstitutionTargetQuantity = p.SubstitutionTargetQuantity,
@@ -829,6 +1108,23 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
     /// <summary>Jenerik çekirdek varyantları (base) Product türevine + satış fiyatı/reçete uzantısıyla zenginleştirir:
     /// <see cref="ProductVariantDetail"/> (SalePrice) + reçete satırları (EntityVariant.Id) batch yüklenir; türev
     /// SelectedLines kaynak Id'leri taze ClientKey'lere çevrilir; CANLI net maliyet ÜRÜN başına tek hesaplanır.</summary>
+    /// <summary>
+    /// "Yerli ürün mü" — menşei ülke ŞİRKETİN ülkesiyle aynı mı. N11'in <c>domestic</c> bayrağı bundan doğar.
+    ///
+    /// <para>Menşei ya da şirket ülkesi belirtilmemişse <c>null</c>: "bilmiyoruz" ile "yerli değil" farklı
+    /// şeylerdir — bilinmiyorken false göndermek ithal ürün beyanı olurdu.</para>
+    /// </summary>
+    private async Task<bool?> ResolveIsDomesticAsync(Product product)
+    {
+        if (product.OriginCountryId is not { } originCountryId)
+        {
+            return null;
+        }
+
+        var company = await _companyRepository.FindAsync(product.CompanyId);
+        return company?.CountryId is { } companyCountryId ? originCountryId == companyCountryId : null;
+    }
+
     private async Task<List<ProductVariantGraphDto>> ProjectVariantsAsync(List<EntityVariantGraphDto> baseVariants)
     {
         if (baseVariants.Count == 0)
@@ -899,6 +1195,7 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         return lines.Select(r => new ProductRecipeLineGraphDto
         {
             Id = r.Id,
+            Origin = r.Origin,
             LineOrder = r.LineOrder,
             ComponentType = r.ComponentType,
             CommodityProcessType = r.CommodityProcessType,

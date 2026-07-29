@@ -30,6 +30,20 @@ public class Product : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwn
 
     public virtual string? Description { get; protected set; }
 
+    /// <summary>
+    /// ÇEKİRDEK ürün kategorisi (<c>ProductCategory</c>) — id-only referans, navigation YOK; <c>null</c> = henüz
+    /// sınıflandırılmamış (mevcut ürünler bozulmasın diye ZORUNLU DEĞİL).
+    ///
+    /// <para><b>Neden var:</b> ürün bir kez çekirdek kategoriye bağlanınca (a) her satış kanalında kategori ayrı
+    /// ayrı seçilmez — kanal kategorisi eşleştirmeden çözülür, (b) kanal nitelikleri elle doldurulmaz, kategori
+    /// nitelikleri ön-doldurur, (c) kanalın kategori komisyonu ürün seviyesinde bilinir ve reçeteye GrossUp
+    /// maliyet olarak girer (kanal ürünü hiç oluşturulmamış olsa bile fiyat hesaplanabilir).</para>
+    ///
+    /// <para><b>Karıştırma:</b> <c>Good.Category</c>/<c>Jewelry.Category</c>/<c>Stone.Category</c> alanları
+    /// SpecialCode tutan STRING gruplama alanlarıdır; bu taksonomiyle ilgileri yoktur.</para>
+    /// </summary>
+    public virtual Guid? ProductCategoryId { get; protected set; }
+
     public virtual bool IsActive { get; protected set; }
 
     /// <summary>Ürün görselleri (owned → JSON) — dış URL ya da yüklenmiş dosya (blob). Sıra DisplayOrder ile
@@ -56,8 +70,17 @@ public class Product : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwn
 
     // ── Pazaryeri-genel varsayılanlar (kanal-ürünü devralır + override eder; N11 ürün-seviyesi alanların karşılığı) ──
 
-    /// <summary>Yerli üretim mi (N11 domestic). Varsayılan true.</summary>
-    public virtual bool Domestic { get; protected set; }
+    /// <summary>
+    /// Ürünün MENŞEİ ÜLKESİ (id-only, opsiyonel) — yeni üründe şirketin ülkesiyle dolar.
+    ///
+    /// <para><b>Neden bayrak değil ülke (2026-07-28 Hakan):</b> önceden <c>Domestic</c> adında bir true/false
+    /// vardı ve "yerli mi" sorusunun cevabını kullanıcının elle işaretlemesi gerekiyordu. Menşei ülke gerçek
+    /// veridir; N11'in beklediği <c>domestic</c> bayrağı ondan TÜRETİLİR (menşei == şirketin ülkesi). Böylece
+    /// bilgi bir kez ve doğru yerde girilir, bayrak da kendiliğinden tutarlı kalır.</para>
+    ///
+    /// <para><c>null</c> = belirtilmemiş; bu durumda türetme yapılamaz ve kanal varsayılanı devreye girer.</para>
+    /// </summary>
+    public virtual Guid? OriginCountryId { get; protected set; }
 
     /// <summary>Ürün durumu (pazaryeri-genel; her kanala kendi karşılığına eşlenir). Varsayılan New.</summary>
     public virtual ProductCondition Condition { get; protected set; }
@@ -83,6 +106,33 @@ public class Product : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwn
     // (SalesChannelTrN11Product.ShipmentTemplateId → N11ShipmentTemplate → çekirdek ShipmentTemplate).
     // Eski alanlar: ShipmentTemplateId (FK) + ShipmentTemplateName (K8 legacy snapshot'ı) — ikisi de kalktı.
 
+    /// <summary>
+    /// Ürünün REÇETE ŞABLONU ("orta reçete") — id-only, opsiyonel. Şablonun ARA MASRAF satırları (paketleme,
+    /// kargo, sigorta) ürünün reçetesine buradan iner.
+    ///
+    /// <para><b>Neden ürüne kaydediliyor (2026-07-28 Hakan):</b> muadil motoru stok değişince kombinasyonları
+    /// YENİDEN üretiyor ve her kombinasyonun reçetesini sıfırdan kuruyor. Şablon yalnız formun ömrü boyunca
+    /// yaşasaydı, yeniden üretilen varyantlara ara masraf satırlarının hangi tanımdan geleceği bilinemezdi —
+    /// paketleme/kargo/sigorta sessizce düşer ve fiyat eksik hesaplanırdı.</para>
+    ///
+    /// <para>Bağ id-only'dir: şablon AYRI aggregate'tir ve sonradan değişebilir. Uygulanmış reçete satırları
+    /// ürünün KENDİ malıdır — şablondaki sonraki değişiklik geçmiş satırları geriye dönük EZMEZ.</para>
+    /// </summary>
+    public virtual Guid? RecipeTemplateId { get; protected set; }
+
+    /// <summary>
+    /// Ürünün PAKET DESİSİ — kargo tarifesinin girdisi (<c>PackageDesiResolver</c>). <c>null</c> = varyantın ya da
+    /// kanalın varsayılanı kullanılır.
+    ///
+    /// <para>Çözüm sırası DARDAN GENİŞE: varyantın kendi desisi → ürünün desisi → kanal varsayılanı. Yani burası
+    /// ürünün NORMAL paketi; varyant alanı yalnız istisna içindir.</para>
+    ///
+    /// <para>Doğruluğu KULLANICININ sorumluluğundadır (2026-07-28 Hakan): pazaryerleri desiyi kendi tahminleriyle
+    /// kargo firmasına anlaştığından, buradaki değer fiyatlama içindir — gerçek kargo bedeli sipariş sürecinde
+    /// netleşir.</para>
+    /// </summary>
+    public virtual int? PackageDesi { get; protected set; }
+
     /// <summary>Alıcı başına maksimum satın alım adedi (opsiyonel).</summary>
     public virtual int? MaxPurchaseQuantity { get; protected set; }
 
@@ -92,8 +142,13 @@ public class Product : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwn
     /// <summary>Varsayılan para birimi (opsiyonel; id-only, nav YOK). Kanal-ürünü boşsa devralır.</summary>
     public virtual Guid? CurrencyUnitId { get; protected set; }
 
-    /// <summary>Ürün özelleştirme alanları (owned → JSON; key=müşteri giriş etiketi zorunlu, value opsiyonel).
-    /// Kanal-ürünü boşsa devralır.</summary>
+    /// <summary>Ürün özelleştirme alanları — müşterinin sipariş anında dolduracağı ADLANDIRILMIŞ alanlar
+    /// (owned → JSON; key=alan etiketi zorunlu, value opsiyonel varsayılan/örnek). Kanal-ürünü boşsa devralır.
+    ///
+    /// <para>Pazaryeri karşılıkları: N11 <c>SpecialInfo</c> (SOAP, çalışıyor) · Etsy <c>personalization
+    /// questions</c> (2026-05'te çoklu adlandırılmış soru modeline geçti; her satır bir soru). Etsy'nin ESKİ
+    /// tek-kutulu kişiselleştirme bloğu 2026-04-09'da kapandığı için ürün seviyesindeki o alanlar da
+    /// 2026-07-28'de kaldırıldı — kişiselleştirmenin tek taşıyıcısı artık BU listedir.</para></summary>
     public virtual List<ProductSpecialInfo> SpecialInfo { get; protected set; } = new();
 
     /// <summary>Ürüne atanan eklentiler (owned → JSON; katalogdan seçim + satır override). Efektif değer zinciri
@@ -102,23 +157,12 @@ public class Product : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwn
     /// yansıtma (projeksiyon) Faz-2 push işi.</summary>
     public virtual List<ProductAddOn> AddOns { get; protected set; } = new();
 
-    // ── Kişiselleştirme (pazaryeri-genel; Etsy who_made/is_supply deseni). Devralma zinciri TANIMLI (K10):
-    // ChannelInheritance.ResolvePersonalization (Application) — kanal bloğu doluysa (IsPersonalizable) kanal,
-    // değilse ürün; Etsy push (Faz-2) bu tek çağrıyı kullanır. ──
-
-    /// <summary>Ürün kişiselleştirilebilir mi (Etsy is_personalizable). Varsayılan false.</summary>
-    public virtual bool IsPersonalizable { get; protected set; }
-
-    /// <summary>Kişiselleştirme talimatı (Etsy personalization_instructions; personalizable ise anlamlı). Opsiyonel.</summary>
-    public virtual string? PersonalizationInstructions { get; protected set; }
-
-    /// <summary>Kişiselleştirme zorunlu mu (Etsy personalization_is_required). Yalnız kişiselleştirilebilir üründe
-    /// anlamlı; zorlanmaz, olduğu gibi saklanır. Varsayılan false.</summary>
-    public virtual bool PersonalizationIsRequired { get; protected set; }
-
-    /// <summary>Müşteri girişinin maksimum karakter sayısı (Etsy personalization_char_count_max). Opsiyonel;
-    /// dolu ise 1..<see cref="ProductConsts.PersonalizationCharCountMaxLimit"/> aralığında (fail-fast).</summary>
-    public virtual int? PersonalizationCharCountMax { get; protected set; }
+    // ── Kişiselleştirme alanları 2026-07-28'de KALDIRILDI ──
+    // IsPersonalizable / PersonalizationInstructions / PersonalizationIsRequired / PersonalizationCharCountMax
+    // Etsy'nin tek-kutulu modelinin ürün-genel karşılığıydı; o model Etsy'de 2026-04-09'da kapandı (gönderen
+    // istek hata döner) ve yerine ÇOKLU ADLANDIRILMIŞ SORU geldi. N11'de zaten karşılığı yoktu. Kişiselleştirmenin
+    // tek taşıyıcısı artık SpecialInfo'dur (yukarıda) — her satırı bir Etsy sorusuna 1:1 gider.
+    // K10 devralma zinciri (ChannelInheritance.ResolvePersonalization) de bu nedenle söküldü.
 
     // ── Varyant modu + Muadil (paket) konfigürasyonu (Dilim-3). İş gerekçesi: "Yeni-Eski Karışık Ziynet Sepeti"
     // ürünü grubun tüm varyantlarıyla; "Yeni Tarihli Ziynet Sepeti" ürünü override ağacında yalnız yeni
@@ -166,15 +210,12 @@ public class Product : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwn
         SetCode(code);
         SetName(name);
         IsActive = true;
-        Domestic = true;
         VariantMode = ProductVariantMode.MultiVariant;
         Condition = ProductCondition.New;
         PreparingDay = 1;
         WhoMade = EtsyWhoMade.IDid;
         MadePeriod = ProductMadePeriod.MadeToOrder;
         IsSupply = false;
-        IsPersonalizable = false;
-        PersonalizationIsRequired = false;
     }
 
     public virtual void SetCompany(Guid companyId)
@@ -224,6 +265,27 @@ public class Product : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwn
             description, nameof(Description), EntityFieldConsts.DescriptionMinLength, ProductConsts.DescriptionMaxLength);
     }
 
+    /// <summary>Çekirdek kategoriyi atar. Boş Guid "seçilmedi" demektir → <c>null</c> (combo'nun boş değeri
+    /// var olmayan bir kategoriye asılı öksüz bağ üretmesin). Kategorinin AYNI ŞİRKETE ait ve var olduğu
+    /// AppService'te doğrulanır — entity katalog kaydını göremez.</summary>
+    /// <summary>Reçete şablonu bağını atar. Boş Guid null'a indirgenir (istemci "seçim yok"u böyle gönderebilir).</summary>
+    public virtual void SetRecipeTemplate(Guid? recipeTemplateId)
+    {
+        RecipeTemplateId = recipeTemplateId is { } value && value != Guid.Empty ? value : null;
+    }
+
+    /// <summary>Paket desisini atar. Negatif değer ANLAMSIZ olduğundan null'a indirgenir — 0 geçerlidir
+    /// (desisiz/ağırlıksız kalem), yalnız eksi taşıma hacmi diye bir şey yoktur.</summary>
+    public virtual void SetPackageDesi(int? packageDesi)
+    {
+        PackageDesi = packageDesi is { } value && value >= 0 ? value : null;
+    }
+
+    public virtual void SetProductCategory(Guid? productCategoryId)
+    {
+        ProductCategoryId = productCategoryId is { } value && value != Guid.Empty ? value : null;
+    }
+
     public virtual void SetActive(bool value)
     {
         IsActive = value;
@@ -243,11 +305,10 @@ public class Product : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwn
 
     // ── Pazaryeri-genel varsayılan setterları (fail-fast; N11 kanal-ürünü setterlarıyla hizalı) ──
 
-    public virtual void SetDomestic(bool domestic)
+    public virtual void SetOriginCountry(Guid? originCountryId)
     {
-        Domestic = domestic;
+        OriginCountryId = originCountryId is { } value && value != Guid.Empty ? value : null;
     }
-
     public virtual void SetCondition(ProductCondition condition)
     {
         Condition = condition;
@@ -419,24 +480,6 @@ public class Product : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwn
         {
             throw new BusinessException("TradeXpress:Product:ImageDuplicate");
         }
-    }
-
-    /// <summary>Kişiselleştirme alanlarını ayarlar (pazaryeri-genel; kanal devralma zinciri
-    /// <c>ChannelInheritance.ResolvePersonalization</c>'da — kanal-ürünü push'ta oradan devralır).
-    /// Talimat boş değilse trim + max; karakter sınırı dolu ise 1..<see cref="ProductConsts.PersonalizationCharCountMaxLimit"/>
-    /// (fail-fast). <paramref name="isRequired"/> yalnız kişiselleştirilebilir üründe anlamlı — zorlanmaz, olduğu gibi saklanır.</summary>
-    public virtual void SetPersonalization(bool isPersonalizable, string? instructions, bool isRequired, int? charCountMax)
-    {
-        if (charCountMax is { } max && (max < 1 || max > ProductConsts.PersonalizationCharCountMaxLimit))
-        {
-            throw new BusinessException("TradeXpress:Product:PersonalizationCharCountMaxInvalid");
-        }
-
-        IsPersonalizable = isPersonalizable;
-        PersonalizationInstructions = StringFieldGuard.EnsureOptionalText(
-            instructions, nameof(PersonalizationInstructions), 1, ProductConsts.PersonalizationInstructionsMaxLength);
-        PersonalizationIsRequired = isRequired;
-        PersonalizationCharCountMax = charCountMax;
     }
 
     /// <summary>Varyant üretim tercihi — SetCondition deseni (basit atama). Muadil konfigürasyonunun mod

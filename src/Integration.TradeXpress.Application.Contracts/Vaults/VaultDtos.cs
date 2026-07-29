@@ -138,7 +138,7 @@ public class VaultUpdateDto : IUpdateDto
 /// Id boş → ekle, IsDeleted → sil, aksi → güncelle. (BranchId/BranchCode miras gelir; graf save
 /// parent branch.Id'yi kullanır, bunlara dokunmaz.)
 /// </summary>
-public class VaultGraphDto : VaultGetDto
+public class VaultGraphDto : VaultGetDto, IHasIsActive
 {
     // Graf düğümü varsayılan AKTİF (eski field default'u koru → tüm `new VaultGraphDto` siteleri aktif gelir;
     // explicit initializer / DB reconstruction ezer). VaultGetDto.IsActive default false olduğundan ctor'da set.

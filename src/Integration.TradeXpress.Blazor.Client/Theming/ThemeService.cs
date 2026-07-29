@@ -104,18 +104,13 @@ public sealed class ThemeService : IThemeService
         // DevExpress stil dosyalarını runtime'da takas eder; link tag'larını kendi yönetir.
         _ = _devExpressThemeService.SetTheme(_currentTheme);
 
+        // SIRA ÖNEMLİ — ÖNCE GÖRSEL, SONRA KALICILIK. Sunucu yazımı (SetThemeAsync) bir HTTP turu; önce
+        // beklenirse DevExpress stili çoktan takas edilmişken Bootstrap değişkenleri geride kalır ve kullanıcı
+        // saniyelerce YARIM temada oturur (koyu zemin + açık tema seçili). Görsel adımlar kalıcılığı beklemez.
         try
         {
             var module = await GetModuleAsync();
-            if (persist)
-            {
-                try
-                {
-                    var json = JsonSerializer.Serialize(next);
-                    await _uiSettings.SetThemeAsync(json);
-                }
-                catch { /* Ignore API error if backend not updated */ }
-            }
+
             // Bootstrap 5.3 CSS değişkenleri mod ile senkron olsun diye <html data-bs-theme>.
             await module.InvokeVoidAsync("setBootstrapColorMode", BootstrapColorMode);
             await module.InvokeVoidAsync("setPrimaryColorHex", PrimaryColorHex);
@@ -128,7 +123,18 @@ public sealed class ThemeService : IThemeService
         catch (TaskCanceledException)      { }
         catch (OperationCanceledException) { }
 
+        // Ekran artık doğru temada; dinleyiciler (ayarlar paneli vb.) hemen tazelensin.
         CurrentThemeChanged?.Invoke(this, EventArgs.Empty);
+
+        // Kalıcılık EN SON: gecikirse yalnız kayıt gecikir, görüntü değil.
+        if (persist)
+        {
+            try
+            {
+                await _uiSettings.SetThemeAsync(JsonSerializer.Serialize(next));
+            }
+            catch { /* Ignore API error if backend not updated */ }
+        }
     }
 
     /// <summary>Anonim login SSR'ının okuyacağı ayna cookie'sini yazar. JSON cookie-illegal karakterler

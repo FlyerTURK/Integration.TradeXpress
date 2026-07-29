@@ -16,9 +16,10 @@ public class SalesChannelEtsyProductListingAttributeDto
     public string Value { get; set; } = string.Empty;
 }
 
-/// <summary>Etsy kişiselleştirme özel bilgi (serbest key/value). <see cref="ClientKey"/> yalnız in-memory DrillList
-/// satır kimliği (persist edilmez; entity Key/Value tutar). Key zorunlu, Value opsiyonel. N11
-/// <c>SalesChannelTrN11ProductSpecialInfoDto</c> ikizi.</summary>
+/// <summary>Etsy kişiselleştirme SORUSU — bir satır = bir <c>personalization question</c> (text_input).
+/// <see cref="ClientKey"/> yalnız in-memory DrillList satır kimliği (persist edilmez). Key (soru başlığı)
+/// zorunlu, Value (varsayılan/örnek) opsiyonel. N11 <c>SalesChannelTrN11ProductSpecialInfoDto</c> ikizi —
+/// N11 tarafı <see cref="IsRequired"/>/<see cref="MaxAllowedCharacters"/> alanlarını yok sayar.</summary>
 public class SalesChannelEtsyProductSpecialInfoDto
 {
     /// <summary>İstemci-taraflı satır kimliği (DrillList grid identity) — persist edilmez.</summary>
@@ -29,6 +30,13 @@ public class SalesChannelEtsyProductSpecialInfoDto
 
     [StringLength(SalesChannelEtsyProductConsts.SpecialInfoValueMaxLength)]
     public string Value { get; set; } = string.Empty;
+
+    /// <summary>Alıcı bu soruyu boş bırakabilir mi (Etsy <c>required</c>). Soru başına.</summary>
+    public bool IsRequired { get; set; }
+
+    /// <summary>Cevabın karakter tavanı (Etsy <c>max_allowed_characters</c>, 1..1024); boşsa Etsy varsayılanı.</summary>
+    [Range(1, SalesChannelEtsyProductConsts.SpecialInfoMaxAllowedCharactersLimit)]
+    public int? MaxAllowedCharacters { get; set; }
 }
 
 /// <summary>Varyant SKU kimlik/durum satırı (read-only; push + stok/fiyat senkronunda dolar). UI görünürlük +
@@ -273,18 +281,9 @@ public class SalesChannelEtsyProductDto
     [StringLength(SalesChannelEtsyProductConsts.DescriptionOverrideMaxLength)]
     public string? DescriptionOverride { get; set; }
 
-    /// <summary>Etsy kişiselleştirme açık mı. Varsayılan false.</summary>
+    /// <summary>Kişiselleştirilebilir mi — TÜREV (en az bir kişiselleştirme sorusu var mı). Yazılamaz;
+    /// açmak için <c>SpecialInfo</c>'ya soru eklenir.</summary>
     public bool IsPersonalizable { get; set; }
-
-    /// <summary>Etsy kişiselleştirme talimatı (personalizable ise anlamlı).</summary>
-    [StringLength(SalesChannelEtsyProductConsts.PersonalizationInstructionsMaxLength)]
-    public string? PersonalizationInstructions { get; set; }
-
-    /// <summary>Etsy kişiselleştirme zorunlu mu (personalizable ise anlamlı). Varsayılan false.</summary>
-    public bool PersonalizationIsRequired { get; set; }
-
-    /// <summary>Müşteri girişinin maksimum karakter sayısı (opsiyonel; personalizable ise anlamlı).</summary>
-    public int? PersonalizationCharCountMax { get; set; }
 
     /// <summary>Listeleme süresi dolunca Etsy'de otomatik yenilensin mi (should_auto_renew). Varsayılan true.</summary>
     public bool ShouldAutoRenew { get; set; } = true;
@@ -351,10 +350,7 @@ public interface ISalesChannelEtsyProductInput
     int? ProcessingMax { get; }
     string? TitleOverride { get; }
     string? DescriptionOverride { get; }
-    bool IsPersonalizable { get; }
-    string? PersonalizationInstructions { get; }
-    bool PersonalizationIsRequired { get; }
-    int? PersonalizationCharCountMax { get; }
+    // Kişiselleştirme girdi alanı YOK: is_personalizable türev (SpecialInfo'dan), diğer üçü Etsy'de kapandı.
     bool ShouldAutoRenew { get; }
     int PreparingDay { get; }
     Guid? CurrencyUnitId { get; }
@@ -391,13 +387,6 @@ public class SalesChannelEtsyProductCreateDto : ISalesChannelEtsyProductInput
     [StringLength(SalesChannelEtsyProductConsts.DescriptionOverrideMaxLength)]
     public string? DescriptionOverride { get; set; }
 
-    public bool IsPersonalizable { get; set; }
-
-    [StringLength(SalesChannelEtsyProductConsts.PersonalizationInstructionsMaxLength)]
-    public string? PersonalizationInstructions { get; set; }
-
-    public bool PersonalizationIsRequired { get; set; }
-    public int? PersonalizationCharCountMax { get; set; }
     public bool ShouldAutoRenew { get; set; } = true;
 
     public int PreparingDay { get; set; } = 1;
@@ -432,13 +421,6 @@ public class SalesChannelEtsyProductUpdateDto : ISalesChannelEtsyProductInput
     [StringLength(SalesChannelEtsyProductConsts.DescriptionOverrideMaxLength)]
     public string? DescriptionOverride { get; set; }
 
-    public bool IsPersonalizable { get; set; }
-
-    [StringLength(SalesChannelEtsyProductConsts.PersonalizationInstructionsMaxLength)]
-    public string? PersonalizationInstructions { get; set; }
-
-    public bool PersonalizationIsRequired { get; set; }
-    public int? PersonalizationCharCountMax { get; set; }
     public bool ShouldAutoRenew { get; set; } = true;
 
     public int PreparingDay { get; set; } = 1;

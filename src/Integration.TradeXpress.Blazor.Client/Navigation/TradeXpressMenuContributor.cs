@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -131,27 +131,105 @@ public class TradeXpressMenuContributor : IMenuContributor
         ).RequirePermissions(TradeXpressPermissions.Parities.Default));
         definitions.AddItem(financial);
 
-        // Satış — Satış Kanalları + Kargo Şablonları (alt grup). YALNIZ tenant (2026-07-10 kullanıcı
-        // kararı: kanal company-owned operasyonel kayıttır, host'ta tanımlanamaz → menüsü de host'ta
-        // görünmez; host-global kataloglar [N11/Trendyol kategorileri] tenant'tan Change(null) ile beslenir).
+        // Satış — satışa ODAKLI tüm tanım kalemleri burada toplanır (2026-07-28 Hakan kararı): satış kanalı,
+        // ürün ve ürünü kuran yapı taşları (kategori/varyant/eklenti/reçete şablonu) + pazaryeri kargo tarifesi.
+        // Daha önce bunlar üç ayrı yere dağılmıştı (Tanımlar kökü · Satış · Emtialar) — aynı işi yaparken
+        // menüde gezinmek gerekiyordu. Sıra iş akışını izler: kanal → ürün → ürünün yapı taşları → kargo.
+        //
+        // AYRIM: Emtialar artık SAF emtia kataloğudur (maden/taş/mücevher/hurda/mamül/vadeli/hizmet/nakit) —
+        // reçetenin girdileri. Ürün ise satılan şeydir; kanala, kategoriye, kargoya o bakar.
+        //
+        // Grubun KENDİSİ tenant koşulsuzdur, koşul KALEM bazındadır: ürün ve kanal company-owned kayıttır
+        // (host'ta tanımlanamaz), kargo tarifesi ise host-global katalogdur ve host da görmelidir. Grubu
+        // topluca tenant'a kapatmak tarifeyi host'tan gizlerdi.
+        var sales = new ApplicationMenuItem(
+            TradeXpressMenus.Sales,
+            l["Menu:Sales"],
+            icon: TradeXpressIcons.SalesChannel,
+            order: 2
+        );
+
         if (currentTenant.Id != null)
         {
-            var sales = new ApplicationMenuItem(
-                TradeXpressMenus.Sales,
-                l["Menu:Sales"],
-                icon: TradeXpressIcons.SalesChannel,
-                order: 2
-            );
             sales.AddItem(new ApplicationMenuItem(
                 TradeXpressMenus.SalesChannels,
                 l["SalesChannels"],
                 url: "/sales-channels",
                 icon: TradeXpressIcons.SalesChannel
             ).RequirePermissions(TradeXpressPermissions.SalesChannels.Default));
-            definitions.AddItem(sales);
+
+            // Ürünler — polimorfik emtia katalogu (company-owned) + varyant drill. Satışın merkezi kaydı.
+            sales.AddItem(new ApplicationMenuItem(
+                "TradeXpress.Products",
+                l["Menu:Products"],
+                url: "/products",
+                icon: TradeXpressIcons.Product
+            ).RequirePermissions(TradeXpressPermissions.Products.Default));
+
+            // Ürün Kategorileri — çekirdek taksonomi (serbest derinlikli ağaç); pazaryeri kategorilerine eşleştirilir.
+            sales.AddItem(new ApplicationMenuItem(
+                TradeXpressMenus.ProductCategories,
+                l["ProductCategories"],
+                url: "/product-categories",
+                icon: TradeXpressIcons.ProductCategory
+            ).RequirePermissions(TradeXpressPermissions.ProductCategories.Default));
+
+            // Varyant Tanımları — yeniden kullanılabilir özellik grubu (demet) katalogu; ürünlere "Katalogtan Uygula" ile aktarılır.
+            sales.AddItem(new ApplicationMenuItem(
+                TradeXpressMenus.VariantTemplates,
+                l["VariantTemplates"],
+                url: "/variant-templates",
+                icon: "custom-icon-sliders"
+            ).RequirePermissions(TradeXpressPermissions.VariantTemplates.Default));
+
+            // Eklentiler — sipariş anı fiyatlı seçenek katalogu (kurdele/kutu/ambalaj); ürünlere atanır.
+            sales.AddItem(new ApplicationMenuItem(
+                TradeXpressMenus.AddOns,
+                l["AddOns"],
+                url: "/add-ons",
+                icon: "custom-icon-price"
+            ).RequirePermissions(TradeXpressPermissions.AddOns.Default));
+
+            // Reçete Şablonları — "orta reçete" demeti (paketleme/kargo/sigorta/hizmet); ürüne uygulanır.
+            sales.AddItem(new ApplicationMenuItem(
+                TradeXpressMenus.RecipeTemplates,
+                l["RecipeTemplates"],
+                url: "/recipe-templates",
+                icon: TradeXpressIcons.RecipeTemplate
+            ).RequirePermissions(TradeXpressPermissions.RecipeTemplates.Default));
+
+            // Muadil Grupları — madenlerin ikame tanımı (adet-hesaplı + standart gramaj). Emtialar altındaydı;
+            // 2026-07-28 Hakan: bu satışa özel bir tanımdır, Voucher ile doğrudan ilgisi yok — muadil, ÜRÜN
+            // varyantı ve reçete satırı üretir (SubstitutionVariantMaterializer), kasa hareketi değil.
+            // Reçete Şablonları'nın hemen altında: ikisi de reçeteyi besleyen tanımlar.
+            //
+            // Alt kalem "Muadil Hesaplama" 2026-07-28'de KALDIRILDI (Hakan): kombinasyon denemesi artık
+            // ürün formunda yapılıyor, ayrı bir hesap makinesi sayfasına gerek yok. Hesaplama MOTORU duruyor —
+            // ürün varyant üretimi onu kullanıyor. Alt kalem kalkınca "tıklanabilir üst menü" işareti olan
+            // underline-menu-item sınıfı da anlamsızlaştı (bu menü artık düz bir yaprak).
+            sales.AddItem(new ApplicationMenuItem(
+                TradeXpressMenus.Substitutions,
+                l["SubstitutionGroups"],
+                url: "/substitutions",
+                icon: TradeXpressIcons.Substitution
+            ).RequirePermissions(TradeXpressPermissions.Substitutions.Default));
         }
 
+        // Anlaşmalı kargo tarifesi — HOST-GLOBAL katalog, SALT OKUNUR. Veriyi host yönetir (seed), tenant
+        // kullanıcısı kanal fiyatlaması yaparken okur; ikisi de görmeli. İzin aranmaz — pazaryerinin herkese
+        // açık ilanı, hassas veri değil (Ülkeler kataloğuyla aynı sınıf).
+        sales.AddItem(new ApplicationMenuItem(
+            TradeXpressMenus.MarketplaceShipmentTariffs,
+            l["MarketplaceShipmentTariffs"],
+            url: "/marketplace-shipment-tariffs",
+            icon: TradeXpressIcons.SalesChannel
+        ));
+
+        definitions.AddItem(sales);
+
         // Emtialar — Voucher/VoucherLine'da seçilecek işaretçi emtia tipleri (alt menü). Nakitler buraya bağlı.
+        // SAF emtia kataloğu: reçetenin GİRDİLERİ. Ürün ve yapı taşları (kategori/varyant/eklenti/reçete
+        // şablonu) 2026-07-28'de Satış grubuna taşındı — satılan şey ürün, emtia onun malzemesi.
         if (currentTenant.Id != null)
         {
             var commodities = new ApplicationMenuItem(
@@ -166,33 +244,6 @@ public class TradeXpressMenuContributor : IMenuContributor
                 url: "/cashes",
                 icon: TradeXpressIcons.Cash
             ).RequirePermissions(TradeXpressPermissions.Cashes.Default));
-            commodities.AddItem(new ApplicationMenuItem(
-                "TradeXpress.AssayOffices",
-                l["AssayOffices"],
-                url: "/assay-offices",
-                icon: "custom-icon-bullion"
-            ).RequirePermissions(TradeXpressPermissions.AssayOffices.Default));
-            // Eklentiler — sipariş anı fiyatlı seçenek katalogu (kurdele/kutu/ambalaj); ürünlere atanır.
-            commodities.AddItem(new ApplicationMenuItem(
-                TradeXpressMenus.AddOns,
-                l["AddOns"],
-                url: "/add-ons",
-                icon: "custom-icon-price"
-            ).RequirePermissions(TradeXpressPermissions.AddOns.Default));
-            // Varyant Tanımları — yeniden kullanılabilir özellik grubu (demet) katalogu; ürünlere "Katalogtan Uygula" ile aktarılır.
-            commodities.AddItem(new ApplicationMenuItem(
-                TradeXpressMenus.VariantTemplates,
-                l["VariantTemplates"],
-                url: "/variant-templates",
-                icon: "custom-icon-sliders"
-            ).RequirePermissions(TradeXpressPermissions.VariantTemplates.Default));
-            // Ürünler — polimorfik emtia katalogu (company-owned) + varyant drill.
-            commodities.AddItem(new ApplicationMenuItem(
-                "TradeXpress.Products",
-                l["Menu:Products"],
-                url: "/products",
-                icon: TradeXpressIcons.Product
-            ).RequirePermissions(TradeXpressPermissions.Products.Default));
             commodities.AddItem(new ApplicationMenuItem(
                 TradeXpressMenus.Services,
                 l["Services"],
@@ -218,24 +269,6 @@ public class TradeXpressMenuContributor : IMenuContributor
                 icon: TradeXpressIcons.Metal
             ));
 
-            // Muadil Grupları — madenlerin ikame tanımı (adet-hesaplı + standart gramaj); Metals'in hemen altında.
-            // Alt kalem: Muadil Hesaplama (grup + talep miktarı → Top-N kombinasyon tablosu).
-            var substitutionsMenu = new ApplicationMenuItem(
-                TradeXpressMenus.Substitutions,
-                l["SubstitutionGroups"],
-                url: "/substitutions",
-                icon: TradeXpressIcons.Substitution
-            ).RequirePermissions(TradeXpressPermissions.Substitutions.Default);
-            substitutionsMenu.CssClass = "underline-menu-item";
-
-            substitutionsMenu.AddItem(new ApplicationMenuItem(
-                TradeXpressMenus.SubstitutionCalculation,
-                l["SubstitutionCalculation"],
-                url: "/substitutions/calculation",
-                icon: TradeXpressIcons.Report
-            ));
-
-            commodities.AddItem(substitutionsMenu);
             commodities.AddItem(new ApplicationMenuItem(
                 TradeXpressMenus.Stones,
                 l["Stones"],
@@ -285,6 +318,15 @@ public class TradeXpressMenuContributor : IMenuContributor
                 url: "/accounts",
                 icon: TradeXpressIcons.Account
             ).RequirePermissions(TradeXpressPermissions.Accounts.Default));
+            // Ayar Evleri — DIŞ KURUM (maden ayar/rafineri laboratuvarı), emtia DEĞİL (2026-07-28 Hakan).
+            // Emtialar altında duruyordu; oradaki kalemler reçete girdisi olan mal tipleridir, ayar evi ise
+            // bir tüzel taraftır → kendi org kaydı (Şirket) ve karşı taraf carileriyle aynı kuşakta.
+            organizations.AddItem(new ApplicationMenuItem(
+                "TradeXpress.AssayOffices",
+                l["AssayOffices"],
+                url: "/assay-offices",
+                icon: "custom-icon-bullion"
+            ).RequirePermissions(TradeXpressPermissions.AssayOffices.Default));
             definitions.AddItem(organizations);
         }
 

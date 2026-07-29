@@ -1,4 +1,4 @@
-@page "/vaults/{BranchId:guid}"
+﻿@page "/vaults/{BranchId:guid}"
 @using Integration.Framework.Blazor.Client.Components.Crud
 @using Integration.TradeXpress.Blazor.Client.Pages.Vaults.Models
 @using Integration.TradeXpress.Vaults
@@ -7,7 +7,6 @@
 
 <CrudLayout TGetDto="VaultGetDto"
             TListDto="VaultListDto"
-            TViewModel="VaultViewModel"
             TKey="Guid"
             StateService="StateService"
             DataSource="@GridDataSource"

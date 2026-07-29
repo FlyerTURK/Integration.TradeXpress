@@ -118,13 +118,14 @@
        kalmasın. Arka plan ŞART — sticky şerit saydam olsaydı altından kayan içerik görünürdü; tema
        değişkeni (koyu/açık temada doğru zemin), değişken yoksa beyaza düşer. *@
     @* Arka plan ŞART (sticky şerit saydam olsaydı altından kayan içerik görünürdü) ama TEMAYA UYMALI:
-       iki tema ailesi FARKLI değişken yayınlıyor — Bootstrap tabanlı Klasik temalar (Blazing Berry/Dark,
-       Office White, Purple) --bs-body-bg verir ve --dxbl-body-bg TANIMSIZDIR; Fluent temalar ise tam tersi.
-       Tek değişkene güvenmek diğer ailede fallback'e düşürüyordu: Fluent DARK'ta şerit BEYAZ çıkıyordu
-       (ölçüldü: var(--bs-body-bg,#fff) → rgb(255,255,255); zincir → rgb(37,37,37) = temanın gerçek zemini).
+       tema aileleri FARKLI değişken yayınlıyor. Bootstrap tabanlı Klasik temalar (Blazing Berry/Dark,
+       Office White, Purple) --bs-body-bg verir; FLUENT ailesinde ne --bs-body-bg ne de --dxbl-body-bg vardır,
+       zemin --DS-color-surface-neutral-default-rest'te yaşar (2026-07-27'de ölçüldü: Fluent Dark'ta o değişken
+       #252525 = body'nin gerçek rengi, diğer iki değişken TANIMSIZ → zincir #fff'e düşüp şerit BEYAZ çıkıyordu).
+       Sıra önemli: önce Fluent'in DS değişkeni, sonra Bootstrap, en sonda beyaz.
        env(safe-area-inset-bottom): telefonun alt gezinme çubuğu/çentik payı — butonlar sistem çubuğunun
        arkasında kalmasın (Android jest navigasyonu/iOS'ta dolu, masaüstünde 0). *@
-    <div style="position:sticky; bottom:0; z-index:3; flex:0 0 auto; background:var(--bs-body-bg, var(--dxbl-body-bg, #fff)); display:flex; justify-content:flex-end; gap:8px; padding:8px 8px calc(4px + env(safe-area-inset-bottom, 0px)); border-top:1px solid var(--bs-border-color, rgba(128,128,128,0.35));">
+    <div style="position:sticky; bottom:0; z-index:3; flex:0 0 auto; background:var(--DS-color-surface-neutral-default-rest, var(--bs-body-bg, var(--dxbl-body-bg, #fff))); display:flex; justify-content:flex-end; gap:8px; padding:8px 8px calc(4px + env(safe-area-inset-bottom, 0px)); border-top:1px solid var(--bs-border-color, rgba(128,128,128,0.35));">
         @* Salt-okunur görüntülemede Kaydet YOK — geçmiş kaydı değiştirilemez (delil değeri korunur). *@
         @if (!ReadOnly)
         {

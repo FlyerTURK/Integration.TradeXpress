@@ -9,6 +9,24 @@
    tutulur (state korunur), ziyaret edilmemiş sekme lazy.
 *@
 
+@* Sekmeler SUNUCUDAN geri yükleniyor (OnAfterRenderAsync) — bitene kadar açılış ekranı DURUR.
+   Yoksa kullanıcı önce boş bir kabuk görüyor, saniyeler sonra sekmeleri: uygulama "sekmelerimi kaybetti"
+   gibi duruyordu. App.razor'daki açılış ekranıyla AYNI görünüm (aynı sınıflar) → görsel süreklilik. *@
+@if (!_tabsRestored)
+{
+    <div class="int-loader-container">
+        <div class="int-loader-wrapper">
+            <div class="int-loader-spinner"></div>
+            <div class="int-loader-circle">
+                <span class="int-loader-initials">TX</span>
+            </div>
+        </div>
+        <div class="int-loader-text">
+            <span style="font-weight:300;">Integration</span> <strong>TradeXpress</strong>
+        </div>
+    </div>
+}
+
 <div class="mdi-host">
     @if (TabManager.Tabs.Count == 0)
     {
@@ -55,11 +73,7 @@
                         }
                         else if (captured.PageType != null)
                         {
-                            <CascadingValue Value="@((Integration.Framework.Blazor.Client.Services.Mdi.IMdiTab)captured)" Name="CurrentMdiTab" IsFixed="true">
-                                <DynamicComponent @key="@((captured.Id, captured.RefreshNonce))"
-                                                  Type="@captured.PageType"
-                                                  Parameters="@captured.Parameters" />
-                            </CascadingValue>
+                            <MdiTabPane Tab="@captured" />
                         }
                     </ChildContent>
                 </DxTabPage>

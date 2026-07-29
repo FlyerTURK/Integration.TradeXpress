@@ -1,0 +1,40 @@
+@page "/product-categories"
+@using Integration.Framework.Blazor.Client.Components.Crud
+@using Integration.TradeXpress.ProductCategories
+@using DevExpress.Blazor
+@inherits CrudPageBase<ProductCategoryGetDto, ProductCategoryListDto, Guid, ProductCategoryListRequestDto, ProductCategoryCreateDto, ProductCategoryUpdateDto>
+
+<CrudLayout TGetDto="ProductCategoryGetDto"
+            TListDto="ProductCategoryListDto"
+            TKey="Guid"
+            StateService="StateService"
+            DataSource="@GridDataSource"
+            EntityName="@L["ProductCategory"]"
+            EntityIcon="@TradeXpressIcons.ProductCategory"
+            PrimaryTextSelector="@(m => m.Name)"
+            PageTitle="@L["ProductCategories"]"
+            OnNewClick="BeforeCreateAsync"
+            OnUpdateClick="BeforeUpdateAsync"
+            OnDeleteClick="DeleteAsync"
+            OnRefreshClick="GetListAsync"
+            OnSearchChanged="OnSearchAsync"
+            IsPickerMode="@IsPickerMode"
+            OnPickSelected="@OnPickSelectedAsync">
+
+    <GridColumns>
+        @* Kod alanı YOK — kategorinin kimliği adı ve ağaçtaki yeridir; birincil kolon bu yüzden Ad.
+           GridLinkColumn MinWidth PARAMETRESİ KABUL ETMEZ (yalnız Width) — Blazor bilinmeyen parametreyi
+           derlemede değil ÇALIŞMA ANINDA reddeder, yani sayfa açılır açılmaz patlardı. *@
+        <GridLinkColumn FieldName="Name" Caption="@L["Name"]" Width="240px" FixedPosition="GridColumnFixedPosition.Left" VisibleIndex="1"
+                        OnClick="@(o => BeforeUpdateAsync((ProductCategoryListDto)o))" />
+        @* Yol/Seviye hiyerarşiyi düz listede görünür kılar ("Takı › Yüzük › Alyans"). İkisi de ENTITY ALANI
+           DEĞİL — sunucu sorgudan SONRA hesaplar. Bu yüzden SIRALAMA KAPALI: sıralama sunucuya gider ve
+           EF var olmayan kolonu çeviremez (AllowedListFields'a da eklenmezler, aynı sebeple). *@
+        <DxGridDataColumn FieldName="Path" Caption="@L["ProductCategory:Path"]" VisibleIndex="2" MinWidth="240"
+                          AllowSort="false" AllowGroup="false" />
+        <DxGridDataColumn FieldName="Level" Caption="@L["ProductCategory:Level"]" Width="90px" VisibleIndex="3"
+                          AllowSort="false" AllowGroup="false" />
+        <DxGridDataColumn FieldName="DisplayOrder" Caption="@L["DisplayOrder"]" Width="110px" VisibleIndex="4" />
+    </GridColumns>
+
+</CrudLayout>

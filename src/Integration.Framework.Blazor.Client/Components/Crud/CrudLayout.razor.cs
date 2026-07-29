@@ -59,6 +59,81 @@ namespace Integration.Framework.Blazor.Client.Components.Crud
         /// CustomActions ile koyar. Varsayılan açık → mevcut sayfalar etkilenmez.</summary>
         [Parameter] public bool ShowNew { get; set; } = true;
 
+        /// <summary>
+        /// SEÇİCİ MODU — liste bir lookup popup'ında "kayıt seç" için açıldığında dolu olur; satıra tıklamak
+        /// düzenleme yerine SEÇİMİ döndürür ve popup kapanır.
+        ///
+        /// <para><b>Neden ayrı bir bileşen değil (2026-07-28 Hakan):</b> "bir listeleme formu ister sekmede
+        /// ister popup'ta açılabilir" kararı — aynı form, aynı toolbar, aynı kolonlar. Seçici için ikinci bir
+        /// grid yazmak bakımı ikiye katlar ve iki yüzey zamanla ayrışır.</para>
+        ///
+        /// <para>Boşsa liste bugünkü gibi davranır (tıklama → düzenle); mevcut sayfalar etkilenmez.</para>
+        /// </summary>
+        [Parameter] public EventCallback<TListDto> OnPickSelected { get; set; }
+
+        /// <summary>
+        /// Liste SEÇİCİ olarak mı açıldı (lookup popup'ı). AÇIK bir bayrak — callback'in bağlı olup olmadığına
+        /// bakmak kırılgandı: sayfa markup'ında koşullu (ternary) bağlanan bir <c>EventCallback</c> derlense de
+        /// <c>HasDelegate</c>'i güvenilir dolmuyor ve düzenle komutu görünmüyordu (2026-07-28 Hakan).
+        /// </summary>
+        [Parameter] public bool IsPickerMode { get; set; }
+
+        /// <summary>
+        /// Toolbar'a verilen aksiyonlar. Seçici modda başa PRIMARY "Seç" düğmesi eklenir: satıra tıklamak
+        /// zaten seçiyor ama kullanıcı önce işaretleyip sonra onaylamak isteyebiliyor (2026-07-28 Hakan) —
+        /// liste formlarının tanıdık akışı budur.
+        /// </summary>
+        private IReadOnlyList<CrudToolbarAction>? EffectiveCustomActions
+        {
+            get
+            {
+                if (!IsPickerMode)
+                {
+                    return CustomActions;
+                }
+
+                var pick = new CrudToolbarAction
+                {
+                    SortIndex = -100,          // stock aksiyonlardan da ÖNCE (asıl eylem)
+                    Text = L["SelectAction"],
+                    Tooltip = L["SelectAction"],
+                    IconCssClass = FrameworkIcons.Confirm + " xaf-toolbar-item-icon",
+                    Primary = true,
+                    Enabled = PickerHasSelection,
+                    OnClick = ConfirmPickAsync,
+                };
+
+                return CustomActions is null
+                    ? new[] { pick }
+                    : new[] { pick }.Concat(CustomActions).ToList();
+            }
+        }
+
+        /// <summary>Seçici modda onaylanacak bir satır var mı (grid'de işaretli ya da tıklanmış).</summary>
+        private bool PickerHasSelection => StateService.SelectedDataItems is { Count: > 0 };
+
+        /// <summary>Toolbar "Seç" — işaretli ilk satırı döndürür.</summary>
+        private async Task ConfirmPickAsync()
+        {
+            if (StateService.SelectedDataItems is { Count: > 0 } items && items[0] is TListDto item)
+            {
+                await OnPickSelected.InvokeAsync(item);
+            }
+        }
+
+        /// <summary>Seçici modunda satırdaki ✎ — kaydı NORMAL düzenleme yoluna sokar (popup/edit host).
+        /// Seçim yolundan bağımsızdır: kullanıcı seçmeden önce kategoriyi düzeltebilsin.</summary>
+        private async Task OnPickerEditClick(TListDto item)
+        {
+            if (item is null || !StateService.IsGrantedUpdate)
+            {
+                return;
+            }
+
+            StateService.SetDataRowSelected(item);
+            await HandleRowEdit(item);
+        }
+
         [Parameter] public EventCallback<TListDto> OnUpdateClick { get; set; }
         [Parameter] public EventCallback OnDeleteClick { get; set; }
         [Parameter] public EventCallback OnRefreshClick { get; set; }
@@ -143,9 +218,20 @@ namespace Integration.Framework.Blazor.Client.Components.Crud
         // Fetched aboneliği için referans (Dispose'da çözmek için tutulur).
         private GridListDataSource<TListDto>? _gridSource;
 
+        /// <summary>Sekmenin "yükleniyor" bileti — ilk veri turu bitene kadar açık tutulur.</summary>
+        private TabLoadTicket? _loadTicket;
+
         protected override void OnInitialized()
         {
             _showFilterRow = ShowColumnFilter;   // filtre satırı başlangıç durumu (context-menu ile toggle edilir)
+
+            // Sekme yükleniyor paneli: bilet MOUNT anında alınır. DxTabs RenderMode=OnDemand olduğu için
+            // sayfa bileşeni yalnız sekme İLK aktif olduğunda mount olur — yani "yalnız ilk açılışta göster"
+            // davranışı ek bir bayrak gerektirmeden buradan doğar. Sekmeye geri dönmek OnInitialized'ı
+            // tekrar çalıştırmaz; sağ-tık "Yenile" ise @key'i bozup yeniden mount ettiği için paneli
+            // bilinçli olarak tekrar gösterir.
+            _loadTicket = CurrentMdiTab?.Load.Begin();
+
             StateService.OnReloadRequested += ReloadGrid;
             // Köprü: grid'i StateService'e doğrudan bağla (SplitHost'tan bağımsız, her zaman). Popup/liste
             // sayfa-aşırı gezinme bu kayıttan grid'i sürer (GoNext/PreviousGlobalAsync → EnsurePage/FocusDataItem).
@@ -162,6 +248,7 @@ namespace Integration.Framework.Blazor.Client.Components.Crud
             {
                 _gridSource = ds;
                 ds.Fetched += SyncStateFromGrid;            // her fetch'te global state + yüklü sayfa StateService'e
+                ds.Settled += CompleteInitialLoad;          // ilk tur bitince (hata dâhil) yükleniyor panelini kapat
 
                 // IIsActive grid'lerde ilk yükleme "Aktif" kayıtlar (switch varsayılan ON). İlk fetch'ten önce.
                 if (IsActiveFilterable)
@@ -319,11 +406,29 @@ namespace Integration.Framework.Blazor.Client.Components.Crud
             TabPageState.Write(opener, CurrentMdiTab, new CrudListTabState(SearchText, _activeFilter));
         }
 
+        /// <summary>İlk veri turu bitti — yükleniyor panelini kapat ve aboneliği çöz (sonraki arama/filtre
+        /// turları paneli TEKRAR açmasın; istenen davranış yalnız ilk açılış).</summary>
+        private void CompleteInitialLoad()
+        {
+            if (_gridSource != null)
+            {
+                _gridSource.Settled -= CompleteInitialLoad;
+            }
+
+            _loadTicket?.Dispose();
+            _loadTicket = null;
+        }
+
         public void Dispose()
         {
             SplitHost?.UnregisterGrid(this);
             if (_gridSource != null)
+            {
                 _gridSource.Fetched -= SyncStateFromGrid;
+                _gridSource.Settled -= CompleteInitialLoad;
+            }
+            // Emniyet: veri hiç gelmeden bileşen imha edilirse (sekme kapandı/yenilendi) panel asılı kalmasın.
+            _loadTicket?.Dispose();
             if (StateService != null)
             {
                 StateService.OnReloadRequested -= ReloadGrid;
@@ -337,6 +442,15 @@ namespace Integration.Framework.Blazor.Client.Components.Crud
             var item = (TListDto)Grid.GetDataItem(e.VisibleIndex);
             if (item == null)
             {
+                return;
+            }
+
+            // SEÇİCİ modu: satır tıklaması seçimi döndürür (düzenleme yolu hiç çalışmaz). Düzenlemek için
+            // satırdaki ✎ komut butonu var — seçmek ile düzenlemek aynı tıklamaya binmesin.
+            if (IsPickerMode)
+            {
+                StateService.SetDataRowSelected(item);
+                await OnPickSelected.InvokeAsync(item);
                 return;
             }
 
@@ -360,12 +474,27 @@ namespace Integration.Framework.Blazor.Client.Components.Crud
         // -- Layout Persistence --
         // Versiyon eki: kolon yapısı değişince (linkli kolonlar/yeniden sıralama → kolon kimliği değişir)
         // eski kaydedilmiş düzen "bilinmeyen" kolonu en sağa atıyordu. Versiyon artınca eski düzen yok sayılır
-        // → markup sırası geçerli olur (yeni düzen v3 altında kaydedilir).
-        private string GetGridStateKey() => (PageTitle ?? typeof(TListDto).Name) + ":v3";
+        // → markup sırası geçerli olur (yeni düzen o versiyon altında kaydedilir).
+
+        /// <summary>Bu sayfanın kayıtlı grid düzeni sürümü. Sayfaya YENİ KOLON eklendiğinde artırılır: aksi halde
+        /// kullanıcının kayıtlı düzeni yeni kolonu tanımaz ve gizli/en sağda bırakır — geliştirici "kolon
+        /// görünmüyor" diye kendi kodundan şüphelenir.
+        ///
+        /// <para>Sayfa BAŞINA verilir; ortak varsayılanı değiştirmek TÜM sayfaların kayıtlı düzenini sıfırlardı.</para></summary>
+        [Parameter] public string LayoutVersion { get; set; } = "v3";
+
+        private string GetGridStateKey()
+        {
+            return (PageTitle ?? typeof(TListDto).Name) + ":" + LayoutVersion;
+        }
 
         private async Task OnGridLayoutAutoLoading(GridPersistentLayoutEventArgs e)
         {
-            if (UiStateService == null) return;
+            // SEÇİCİ modunda kayıtlı düzen YOK SAYILIR: seçici, listenin geçici bir görünümü ve KOLON SETİ
+            // farklı (düzenle komut kolonu eklenir). Kullanıcının sekmede kaydettiği düzen bu kolonu tanımadığı
+            // için onu gizliyordu — "komut kolonu görünmüyor" tam olarak buydu (2026-07-28 Hakan). Aynı sebeple
+            // seçicide yapılan kolon oynamaları da KAYDEDİLMEZ (aşağıda), kalıcı düzeni kirletmesin.
+            if (IsPickerMode || UiStateService == null) return;
             var json = await UiStateService.GetGridStateAsync(GetGridStateKey());
             if (!string.IsNullOrWhiteSpace(json))
             {
@@ -376,7 +505,7 @@ namespace Integration.Framework.Blazor.Client.Components.Crud
 
         private async Task OnGridLayoutAutoSaving(GridPersistentLayoutEventArgs e)
         {
-            if (UiStateService == null || e.Layout == null) return;
+            if (IsPickerMode || UiStateService == null || e.Layout == null) return;
             try
             {
                 var json = System.Text.Json.JsonSerializer.Serialize(e.Layout);

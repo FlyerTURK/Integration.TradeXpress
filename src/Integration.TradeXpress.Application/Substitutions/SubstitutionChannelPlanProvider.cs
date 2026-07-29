@@ -35,6 +35,7 @@ namespace Integration.TradeXpress.Substitutions;
 public class SubstitutionChannelPlanProvider : ITransientDependency
 {
     private readonly ISubstitutionCalculationAppService _calculationAppService;
+    private readonly SubstitutionPlanContextLoader _planContextLoader;
     private readonly IRepository<Metal, Guid> _metalRepository;
     private readonly IRepository<EntityVariant, Guid> _entityVariantRepository;
     private readonly IRepository<MetalVariantDetail, Guid> _metalVariantDetailRepository;
@@ -43,6 +44,7 @@ public class SubstitutionChannelPlanProvider : ITransientDependency
 
     public SubstitutionChannelPlanProvider(
         ISubstitutionCalculationAppService calculationAppService,
+        SubstitutionPlanContextLoader planContextLoader,
         IRepository<Metal, Guid> metalRepository,
         IRepository<EntityVariant, Guid> entityVariantRepository,
         IRepository<MetalVariantDetail, Guid> metalVariantDetailRepository,
@@ -50,6 +52,7 @@ public class SubstitutionChannelPlanProvider : ITransientDependency
         IAsyncQueryableExecuter asyncExecuter)
     {
         _calculationAppService = calculationAppService;
+        _planContextLoader = planContextLoader;
         _metalRepository = metalRepository;
         _entityVariantRepository = entityVariantRepository;
         _metalVariantDetailRepository = metalVariantDetailRepository;
@@ -304,58 +307,14 @@ public class SubstitutionChannelPlanProvider : ITransientDependency
         return context with { Plan = plan };
     }
 
-    /// <summary>Maden + işçilik bağlamını doğrudan id kümelerinden yükler — kanal planı DIŞINDAKİ tüketiciler
-    /// için de (ör. <c>SubstitutionVariantMaterializer</c>: ERP varyant materyalizasyonu) TEK bağlam kurucu.
-    /// Guard'lar ComputeUnitCostsAsync ile aynı (IMultiTenant + ICompanyScoped kapalı — host katalog kayıtları
-    /// tenant altında da görünür).</summary>
+    /// <summary>Maden + işçilik bağlamını id kümelerinden yükler — gövde ayrı servise taşındı
+    /// (<see cref="SubstitutionPlanContextLoader"/>): hesap servisi de aynı bağlama ihtiyaç duyuyor ama bu
+    /// provider zaten hesap servisini enjekte ettiğinden, buradan çağırmak döngüsel bağımlılık olurdu.
+    /// Bu ince sarmalayıcı mevcut çağıranları kırmamak için duruyor.</summary>
     public virtual async Task<SubstitutionChannelPlanContext> LoadPlanContextAsync(
         IReadOnlyCollection<Guid> metalIdSet, IReadOnlyCollection<Guid> variantIdSet)
     {
-        var metalIds = metalIdSet.ToList();
-        var variantIds = variantIdSet.ToList();
-
-        Dictionary<Guid, Metal> metalById;
-        Dictionary<Guid, SubstitutionPlanLabor> laborByVariantId;
-        Dictionary<Guid, SubstitutionPlanLabor> mainLaborByMetalId;
-        using (_dataFilter.Disable<IMultiTenant>())
-        using (_dataFilter.Disable<ICompanyScoped>())
-        {
-            var metals = await _asyncExecuter.ToListAsync(
-                (await _metalRepository.GetQueryableAsync()).Where(m => metalIds.Contains(m.Id)));
-            metalById = metals.ToDictionary(m => m.Id);
-
-            var variantsQuery = await _entityVariantRepository.GetQueryableAsync();
-            var detailsQuery = await _metalVariantDetailRepository.GetQueryableAsync();
-
-            // Seçilen varyantların işçiliği (varyant-anahtarlı — plan satırı hangi varyantı seçtiyse o).
-            var variantLabors = await _asyncExecuter.ToListAsync(
-                from v in variantsQuery
-                join d in detailsQuery on v.Id equals d.EntityVariantId
-                where v.EntityName == MetalEntityName && variantIds.Contains(v.Id)
-                select new { v.Id, d.EntryLabor, d.EntryLaborUnitId }
-            );
-            laborByVariantId = variantLabors.ToDictionary(
-                x => x.Id,
-                x => new SubstitutionPlanLabor(x.EntryLabor, x.EntryLaborUnitId));
-
-            // Ana-varyant fallback'i — varyantsız (legacy) plan satırları statüko yolunda kalır.
-            var mainLabors = await _asyncExecuter.ToListAsync(
-                from v in variantsQuery
-                join d in detailsQuery on v.Id equals d.EntityVariantId
-                where v.IsMain && v.EntityName == MetalEntityName && metalIds.Contains(v.EntityId)
-                select new { v.EntityId, d.EntryLabor, d.EntryLaborUnitId }
-            );
-            mainLaborByMetalId = mainLabors.ToDictionary(
-                x => x.EntityId,
-                x => new SubstitutionPlanLabor(x.EntryLabor, x.EntryLaborUnitId));
-        }
-
-        if (metalById.Count != metalIds.Count)
-        {
-            throw new BusinessException("TradeXpress:Substitution:MetalNotFound");
-        }
-
-        return new SubstitutionChannelPlanContext(Plan: null, metalById, laborByVariantId, mainLaborByMetalId);
+        return await _planContextLoader.LoadAsync(metalIdSet, variantIdSet);
     }
 
     /// <summary>EntityVariant sahip-tipi guard'ı — işçilik join'i yalnız Metal varyantlarına daralır

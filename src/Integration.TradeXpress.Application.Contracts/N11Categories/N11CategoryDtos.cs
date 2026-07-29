@@ -43,28 +43,6 @@ public class N11CategoryAttributeValueDto
     public string Value { get; set; } = string.Empty;
 }
 
-/// <summary>Komisyon TSV import raporu — eşleşme sayıları + eşleşmeyen/muğlak/geçersiz satırlar (görev kuralı:
-/// sessiz geçilmez, kullanıcıya gösterilir).</summary>
-public class N11CommissionImportResultDto
-{
-    /// <summary>TSV'deki geçerli satır sayısı.</summary>
-    public int TotalRowCount { get; set; }
-
-    /// <summary>Bir yaprağa eşlenen satır sayısı (tekrar eden yaprak eşleşmeleri tek sayılır).</summary>
-    public int MatchedCount { get; set; }
-
-    /// <summary>SetCommission uygulanan kategori sayısı.</summary>
-    public int UpdatedCategoryCount { get; set; }
-
-    /// <summary>DB'deki toplam yaprak sayısı (kapsam görünürlüğü).</summary>
-    public int LeafCount { get; set; }
-
-    /// <summary>Eşleşmeyen/muğlak TSV satırları (yol + neden).</summary>
-    public List<string> UnmatchedRows { get; set; } = new();
-
-    /// <summary>Aynı yaprağa çakışan oranla düşen satırlar.</summary>
-    public List<string> ConflictRows { get; set; } = new();
-
-    /// <summary>Parse edilemeyen satırlar (satır no + neden).</summary>
-    public List<string> InvalidRows { get; set; } = new();
-}
+// N11CommissionImportResultDto 2026-07-28'de kaldırıldı: komisyon uygulaması artık kullanıcıya rapor dönen bir
+// UI işlemi değil, kategori mutabakatının parçası. Eşleşmeyen/çakışan/geçersiz satırlar N11CategorySyncManager
+// tarafından LOG'a yazılır — sessizce yutulmaz.

@@ -25,79 +25,29 @@ public class N11CategoryAppService : TradeXpressAppService, IN11CategoryAppServi
     private readonly IRepository<N11Category, Guid> _repository;
     private readonly IRepository<SalesChannelTrN11, Guid> _channelRepository;
     private readonly IN11CategoryClient _client;
-    private readonly IConfiguration _configuration;
     private readonly ICurrentCompany _currentCompany;
-    private readonly N11CategoryMegaGrouper _megaGrouper;
+    private readonly N11CategorySyncManager _syncManager;
 
     public N11CategoryAppService(
         IRepository<N11Category, Guid> repository,
         IRepository<SalesChannelTrN11, Guid> channelRepository,
         IN11CategoryClient client,
-        IConfiguration configuration,
         ICurrentCompany currentCompany,
-        N11CategoryMegaGrouper megaGrouper)
+        N11CategorySyncManager syncManager)
     {
         _repository = repository;
         _channelRepository = channelRepository;
         _client = client;
-        _configuration = configuration;
         _currentCompany = currentCompany;
-        _megaGrouper = megaGrouper;
+        _syncManager = syncManager;
     }
 
-    // Sync sınıf-seviyesi Default'ta kalır (Update DEĞİL): kategori picker ilk kullanımda otomatik sync tetikler
-    // (DB boşsa) — salt-görüntüleyen kullanıcıyı kırmamak için. Taksonomi upsert'i idempotent + dış kaynaktan
-    // birebir; fiyatlamayı DEĞİŞTİREN komisyon import'u ise Update ister.
+    // Sync sınıf-seviyesi Default'ta kalır (Update DEĞİL): taksonomi upsert'i idempotent + dış kaynaktan birebir,
+    // salt-görüntüleyen kullanıcıyı kırmamak için dar tutuluyor. Uç, kanal kurulum akışının (N11ChannelProvisioner)
+    // ihtiyacı için DURUYOR; rutin tazeleme artık N11CategorySyncWorker'ın işi — kullanıcı hiçbir şeye basmaz.
     public virtual async Task<int> SyncCategoriesAsync()
     {
-        // Katalog HOST-GLOBAL yazılır ama uç TENANT'tan da çağrılabilir (2026-07-10 kullanıcı kararı:
-        // kanal/ürün operasyonu tenant'ta yaşar, host'ta kanal menüsü yok → picker ilk-kullanım
-        // auto-sync'i tenant'tan tetiklenir). Yazım Change(null) ile host bağlamına sabitlenir.
-        var appKey = _configuration["N11:CategorySync:AppKey"];
-        var appSecret = _configuration["N11:CategorySync:AppSecret"];
-        if (string.IsNullOrWhiteSpace(appKey) || string.IsNullOrWhiteSpace(appSecret))
-        {
-            throw new BusinessException("TradeXpress:N11:CategorySyncCredentialsMissing");
-        }
-
-        var nodes = await _client.GetCategoryTreeAsync(appKey, appSecret);
-
-        using (CurrentTenant.Change(null))
-        {
-            var existing = (await _repository.GetListAsync()).ToDictionary(x => x.ExternalId, StringComparer.Ordinal);
-            var toInsert = new List<N11Category>();
-            var toUpdate = new List<N11Category>();
-
-            foreach (var node in nodes)
-            {
-                if (existing.TryGetValue(node.ExternalId, out var entity))
-                {
-                    if (ApplyChanges(entity, node))
-                    {
-                        toUpdate.Add(entity);
-                    }
-                }
-                else
-                {
-                    toInsert.Add(new N11Category(node.ExternalId, node.ParentExternalId, node.Name, node.IsLeaf, node.LastModifiedExternal));
-                }
-            }
-
-            if (toInsert.Count > 0)
-            {
-                await _repository.InsertManyAsync(toInsert, autoSave: true);
-            }
-
-            if (toUpdate.Count > 0)
-            {
-                await _repository.UpdateManyAsync(toUpdate, autoSave: true);
-            }
-
-            // Sync 79 top'u N11'in parentId=null'ıyla köke çeker → sentetik 9 mega katmanını YENİDEN uygula (breadcrumb üst seviyesi).
-            await _megaGrouper.EnsureAsync();
-
-            return toInsert.Count + toUpdate.Count;
-        }
+        return await _syncManager.ReconcileAsync();
     }
 
     public virtual async Task<List<N11CategoryTreeNodeDto>> GetChildrenAsync(string? parentExternalId)
@@ -147,45 +97,9 @@ public class N11CategoryAppService : TradeXpressAppService, IN11CategoryAppServi
         return N11NameNormalizer.Normalize(text);
     }
 
-    /// <summary>Gömülü komisyon TSV'sini (panelden derlenen tablo) yaprak kategorilere AD YOLUYLA eşleyip
-    /// <c>SetCommission</c> uygular. HOST-ONLY (ağaç host-global — SyncCategoriesAsync ile aynı sınır).
-    /// Eşleşmeyen/muğlak/geçersiz satırlar raporda döner (görev kuralı: sessiz geçilmez).</summary>
-    [Authorize(TradeXpressPermissions.SalesChannels.Update)]
-    public virtual async Task<N11CommissionImportResultDto> ImportCommissionsAsync()
-    {
-        // Tenant'tan çağrılabilir (2026-07-10 kararı — sync ile simetrik); yazım aşağıda Change(null)
-        // ile host-global kataloğa sabitlenir. Yetki: SalesChannels.Update (fiyatlamayı değiştirir).
-        var parse = N11CategoryCommissionImporter.ParseTsv(N11CategoryCommissionImporter.ReadEmbeddedTsv());
-
-        using (CurrentTenant.Change(null))
-        {
-            var categories = await _repository.GetListAsync();
-            var match = N11CategoryCommissionImporter.Match(parse.Rows, categories);
-
-            var toUpdate = new List<N11Category>();
-            foreach (var (category, row) in match.Matches)
-            {
-                category.SetCommission(row.CommissionRate, row.MarketingFeeRate, row.MarketplaceFeeRate, row.PayoutDays);
-                toUpdate.Add(category);
-            }
-
-            if (toUpdate.Count > 0)
-            {
-                await _repository.UpdateManyAsync(toUpdate, autoSave: true);
-            }
-
-            return new N11CommissionImportResultDto
-            {
-                TotalRowCount = parse.Rows.Count,
-                MatchedCount = match.Matches.Count,
-                UpdatedCategoryCount = toUpdate.Count,
-                LeafCount = match.LeafCount,
-                UnmatchedRows = match.Unmatched.ToList(),
-                ConflictRows = match.Conflicts.ToList(),
-                InvalidRows = parse.InvalidRows.ToList(),
-            };
-        }
-    }
+    // Komisyon içe aktarma UCU 2026-07-28'de KALDIRILDI: komisyon oranları N11'de kanala özel değil, kategoriye
+    // aittir — kullanıcıya kanal ayarlarında bir düğme sunmak yanlış yerdeydi. Uygulama artık kategori
+    // mutabakatının parçası (N11CategorySyncManager), günde bir kez kendiliğinden çalışır.
 
     /// <summary>Yaprağın kökten tam yolu ("A &gt; B &gt; C") — parent zinciri id map'ten yürünür (döngü guard'lı).</summary>
     private static string BuildPath(N11Category leaf, Dictionary<string, N11Category> byExternalId)
@@ -221,37 +135,6 @@ public class N11CategoryAppService : TradeXpressAppService, IN11CategoryAppServi
             Priority = a.Priority,
             Values = a.Values.Select(v => new N11CategoryAttributeValueDto { ValueId = v.ValueId, Value = v.Value }).ToList(),
         }).ToList();
-    }
-
-    /// <summary>Sync upsert: değişen alanları uygular; değişiklik olduysa true.</summary>
-    private static bool ApplyChanges(N11Category entity, N11CategoryNode node)
-    {
-        var changed = false;
-        if (!string.Equals(entity.Name, node.Name, StringComparison.Ordinal))
-        {
-            entity.SetName(node.Name);
-            changed = true;
-        }
-
-        if (!string.Equals(entity.ParentExternalId, node.ParentExternalId, StringComparison.Ordinal))
-        {
-            entity.SetParent(node.ParentExternalId);
-            changed = true;
-        }
-
-        if (entity.IsLeaf != node.IsLeaf)
-        {
-            entity.SetIsLeaf(node.IsLeaf);
-            changed = true;
-        }
-
-        if (node.LastModifiedExternal is not null && entity.LastModifiedExternal != node.LastModifiedExternal)
-        {
-            entity.SetLastModifiedExternal(node.LastModifiedExternal);
-            changed = true;
-        }
-
-        return changed;
     }
 
     /// <summary>Çalışılan şirketin N11 kanalının KENDİ AppKey/AppSecret'ı (server entity'den okur; client sırrı görmez).</summary>

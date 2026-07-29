@@ -61,13 +61,28 @@ public class SubstitutionEffectiveVariantResolverTests
         candidate.ShouldBeNull();
     }
 
+    /// <summary>2026-07-27 kural değişimi: ürün kapsamı VERİLDİYSE (liste null değil) tek doğru odur —
+    /// BOŞ olması "bu madeni istemiyorum" demektir, gruba düşülmez. Öncesinde boş liste "override yok"
+    /// sayılıyordu ve kullanıcının kaldırma eylemi sessizce etkisiz kalıyordu.</summary>
     [Fact]
-    public void Empty_override_is_treated_as_absent_and_falls_through_to_included_set()
+    public void Empty_override_means_nothing_selected_and_does_not_fall_back_to_group()
     {
         var included = Guid.NewGuid();
 
         var effective = SubstitutionEffectiveVariantResolver.Resolve(
             overrideVariantIds: Array.Empty<Guid>(), new[] { included }, Guid.NewGuid());
+
+        effective.ShouldBeEmpty();
+    }
+
+    /// <summary>Ürün bağlamı YOKSA (null) grup zinciri aynen korunur — muadil hesaplama sayfası bu yoldan geçer.</summary>
+    [Fact]
+    public void Null_override_still_falls_through_to_group_scope()
+    {
+        var included = Guid.NewGuid();
+
+        var effective = SubstitutionEffectiveVariantResolver.Resolve(
+            overrideVariantIds: null, new[] { included }, Guid.NewGuid());
 
         effective.ShouldBe(new List<Guid?> { included });
     }
@@ -84,15 +99,16 @@ public class SubstitutionEffectiveVariantResolverTests
         effective.ShouldBe(new List<Guid?> { first, second });
     }
 
+    /// <summary>Savunmacı ayıklama kapsamı boşaltsa da ürün bağlamı VERİLMİŞTİR → sonuç boş kümedir,
+    /// gruba/ana varyanta düşülmez (2026-07-27 kuralı). Ürün "hiçbirini istemiyorum" demiş sayılır.</summary>
     [Fact]
-    public void Override_of_only_empty_guids_is_absent_not_an_empty_set()
+    public void Override_of_only_empty_guids_stays_an_empty_product_scope()
     {
-        // Savunmacı ayıklama override'ı boşaltırsa "override yok" sayılır — zincir dahil-küme/ana'ya düşer.
         var mainId = Guid.NewGuid();
 
         var effective = SubstitutionEffectiveVariantResolver.Resolve(
             new[] { Guid.Empty }, includedVariantIds: null, mainId);
 
-        effective.ShouldBe(new List<Guid?> { mainId });
+        effective.ShouldBeEmpty();
     }
 }

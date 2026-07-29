@@ -97,6 +97,7 @@ public class SubstitutionGroupAppService : TradeXpressAppService, ISubstitutionG
         await EnsureCodeUniqueAsync(companyId, normalizedCode, Guid.Empty);
 
         var entity = new SubstitutionGroup(companyId, input.Code, input.Name, input.Type);
+        entity.SetQuantityUnit(input.QuantityUnit);
         entity.SetTolerance(input.ToleranceType, input.ToleranceValue);
         entity.SetDescription(input.Description);
 
@@ -113,6 +114,7 @@ public class SubstitutionGroupAppService : TradeXpressAppService, ISubstitutionG
         await ApplyCodeChangeAsync(entity, input.Code);
         entity.SetName(input.Name);
         entity.SetType(input.Type);
+        entity.SetQuantityUnit(input.QuantityUnit);
         entity.SetTolerance(input.ToleranceType, input.ToleranceValue);
         entity.SetDescription(input.Description);
         entity.SetActive(input.IsActive);

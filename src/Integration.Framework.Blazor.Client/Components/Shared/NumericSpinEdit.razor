@@ -1,4 +1,4 @@
-@typeparam TValue
+﻿@typeparam TValue
 @using System.Linq.Expressions
 @using DevExpress.Blazor
 
@@ -13,6 +13,7 @@
             ClearButtonDisplayMode="@ClearButtonDisplayMode"
             ShowSpinButtons="@ShowSpinButtons"
             Enabled="@Enabled"
+            ReadOnly="@ReadOnly"
             DisplayFormat="@DisplayFormat"
             Mask="@Mask"
             InputCssClass="@InputCssClass"
@@ -38,6 +39,11 @@
     [Parameter] public DataEditorClearButtonDisplayMode ClearButtonDisplayMode { get; set; } = DataEditorClearButtonDisplayMode.Never;
     [Parameter] public bool ShowSpinButtons { get; set; } = true;
     [Parameter] public bool Enabled { get; set; } = true;
+
+    /// <summary>Salt-okunur kip: değer GÖRÜNÜR ama değiştirilemez. <c>Enabled=false</c>'tan farkı görsel —
+    /// devre dışı alan "kullanılamaz" der, salt-okunur alan "bilgi burada, ama sahibi başka yerde" der
+    /// (ör. üst kategoriden devralınan alanlar). DxSpinEdit bunu DxDataEditor'dan miras alır.</summary>
+    [Parameter] public bool ReadOnly { get; set; }
 
     /// <summary>Alt/üst sınır (iç DxSpinEdit'e passthrough). DİKKAT: DxSpinEdit&lt;T&gt;.MinValue tipi düz T'dir
     /// (nullable object değil) → default(decimal)=0 gibi bir değeri GERÇEK sınır sayar. Bu yüzden yalnızca

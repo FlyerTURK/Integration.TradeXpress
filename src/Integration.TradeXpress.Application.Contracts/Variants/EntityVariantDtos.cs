@@ -44,7 +44,7 @@ public class EntityAttributeValueGraphDto
 /// çekirdek alanlar (Barkod/Stok/Açıklama/Aktif) düzenlenir (varyant elle eklenmez/silinmez). Entity-özel ZENGİN
 /// alanlar (ör. Product SalePrice) UZANTI DTO'sunda taşınır (bu çekirdek onları bilmez). <see cref="IsMain"/> DISPLAY-ONLY.
 /// </summary>
-public class EntityVariantGraphDto
+public class EntityVariantGraphDto : IHasIsActive
 {
     public Guid Id { get; set; }
     public Guid ClientKey { get; set; } = Guid.NewGuid();

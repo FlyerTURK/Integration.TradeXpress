@@ -28,6 +28,7 @@ public class SalesChannelTrTrendyolAppService : TradeXpressAppService, ISalesCha
     private readonly IRepository<SalesChannelTrTrendyol, Guid> _repository;
     private readonly IRepository<SalesChannelBase, Guid> _baseRepository;
     private readonly ICurrentCompany _currentCompany;
+    private readonly SalesChannelSubAccountBinder _subAccountBinder;
     private readonly ITrendyolCredentialVerifier _credentialVerifier;
     private readonly ITrendyolCategoryAppService _categoryAppService;
 
@@ -38,12 +39,14 @@ public class SalesChannelTrTrendyolAppService : TradeXpressAppService, ISalesCha
         IRepository<SalesChannelTrTrendyol, Guid> repository,
         IRepository<SalesChannelBase, Guid> baseRepository,
         ICurrentCompany currentCompany,
+        SalesChannelSubAccountBinder subAccountBinder,
         ITrendyolCredentialVerifier credentialVerifier,
         ITrendyolCategoryAppService categoryAppService)
     {
         _repository = repository;
         _baseRepository = baseRepository;
         _currentCompany = currentCompany;
+        _subAccountBinder = subAccountBinder;
         _credentialVerifier = credentialVerifier;
         _categoryAppService = categoryAppService;
     }
@@ -100,7 +103,7 @@ public class SalesChannelTrTrendyolAppService : TradeXpressAppService, ISalesCha
 
         var entity = new SalesChannelTrTrendyol(companyId, input.Code, input.Name, input.SellerId, effectiveApiKey, effectiveApiSecret);
         entity.SetDescription(input.Description);
-        entity.SetSideCosts(SideCostSettingsFactory.Build(input.SideCosts));
+        await _subAccountBinder.BindAsync(entity, input.SubAccountId);
         await _repository.InsertAsync(entity, autoSave: true);
 
         // Kanal oluşturulur oluşturulmaz Trendyol kategori ağacını (host-global) otomatik senkronize et — kimlik create'te
@@ -134,8 +137,8 @@ public class SalesChannelTrTrendyolAppService : TradeXpressAppService, ISalesCha
         entity.SetName(input.Name);
         entity.SetDescription(input.Description);
         await ApplyCredentialChangeAsync(entity, input.SellerId, input.ApiKey, input.ApiSecret, input.Token);
-        entity.SetSideCosts(SideCostSettingsFactory.Build(input.SideCosts));
         entity.SetActive(input.IsActive);
+        await _subAccountBinder.BindAsync(entity, input.SubAccountId);
         await _repository.UpdateAsync(entity, autoSave: true);
 
         return Redact(ObjectMapper.Map<SalesChannelTrTrendyol, SalesChannelTrTrendyolGetDto>(entity));

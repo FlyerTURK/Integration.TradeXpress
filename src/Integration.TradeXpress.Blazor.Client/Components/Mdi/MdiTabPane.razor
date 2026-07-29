@@ -1,0 +1,33 @@
+@using DevExpress.Blazor
+@using Integration.TradeXpress.Blazor.Client.Services.Mdi
+
+@*
+   Tek bir MDI sekmesinin gövdesi: sayfa bileşeni + "yükleniyor" paneli.
+
+   NEDEN AYRI BİLEŞEN: panelin görünürlüğü sekmenin yükleme durumuna bağlı ve o durum sayfa
+   bileşeninin İÇİNDEN değişiyor (CrudLayout bileti kapatıyor). Host'un tamamını re-render etmek
+   yerine bu ince sarmalayıcı kendi sekmesinin olayına abone olur — abonelik bileşen ömrüyle
+   birebir eşleştiği için sekme kapandığında Dispose ile kendiliğinden çözülür (TabManager'ın
+   yedi ayrı kapanış yoluna abonelik defteri dağıtmaya gerek kalmaz).
+*@
+
+@* Sarmalayıcı div YALNIZ panele hedef DOM id'si vermek için. DxTabPage.ContentAttributes bunu
+   tek başına çözerdi ama o üye DevExpress 25.2'de YOK (26.1'de geldi; sürüm sabit).
+   Inline stil sayfaların h-100 yükseklik zincirini korur — yeni CSS sınıfı yaratılmıyor. *@
+<div id="@Tab.PaneElementId" style="height:100%; display:flex; flex-direction:column;">
+    <CascadingValue Value="@((Integration.Framework.Blazor.Client.Services.Mdi.IMdiTab)Tab)" Name="CurrentMdiTab" IsFixed="true">
+        <DynamicComponent @key="@((Tab.Id, Tab.RefreshNonce))"
+                          Type="@Tab.PageType"
+                          Parameters="@Tab.Parameters" />
+    </CascadingValue>
+</div>
+
+@* Panel DynamicComponent'i SARMAZ, PositionTarget ile bağlanır: DevExpress'in kendi belgesi, panel
+   parent olduğunda complex-typed parametreli child'ın panele HER TIKLAMADA yeniden render edildiğini
+   söylüyor — DynamicComponent.Parameters tam olarak öyle bir Dictionary, yani sarmak her tıklamada
+   sayfanın OnParametersSet'ini koştururdu. *@
+<DxLoadingPanel Visible="@Tab.Load.IsLoading"
+                PositionTarget="@Tab.PaneTargetSelector"
+                ApplyBackgroundShading="true"
+                IsContentBlocked="true"
+                Text="@L["Loading"]" />

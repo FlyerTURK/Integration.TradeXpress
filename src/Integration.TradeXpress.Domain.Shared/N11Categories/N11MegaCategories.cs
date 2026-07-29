@@ -1,4 +1,6 @@
+using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace Integration.TradeXpress.N11Categories;
 
@@ -127,4 +129,26 @@ public static class N11MegaCategories
         ["1003061"] = "MEGA-OTOMOTIV",   // Yedek Parça
         ["1126100"] = "MEGA-OTOMOTIV",   // Traktör
     };
+
+    /// <summary>Sentetik mega id'lerin ortak öneki — YALNIZ okunabilirlik/belgeleme için. Ayırt etme
+    /// <see cref="IsMega"/> ile yapılır (önek eşleşmesi değil, ÜYELİK).</summary>
+    public const string SyntheticIdPrefix = "MEGA-";
+
+    /// <summary>Verilen dış kimlik SENTETİK mega katmana mı ait? "N11'den gelen gerçek kategori" ile "bizim
+    /// eklediğimiz üst katman" ayrımının TEK doğru kaynağı — kategori sayımı (mega hariç) ve senkron damgası
+    /// bu yüklemi kullanır.
+    ///
+    /// <para>Diğer iki sezgi ÇÜRÜK, kullanılmamalı: <c>ParentExternalId == null</c> yanlıştır (79 GERÇEK
+    /// top-level de N11'den kök olarak gelir ve grouper onları bağlayana kadar köksüzdür; <see cref="TopToMega"/>'da
+    /// karşılığı olmayan yeni bir N11 kökü ise kalıcı olarak köksüz kalır), <c>LastModifiedExternal == null</c>
+    /// ise tamamen geçersizdir (REST yolunda her düğüme null yazılıyor).</para></summary>
+    public static bool IsMega(string? externalId)
+    {
+        if (string.IsNullOrWhiteSpace(externalId))
+        {
+            return false;
+        }
+
+        return Megas.Any(m => string.Equals(m.ExternalId, externalId, StringComparison.Ordinal));
+    }
 }

@@ -16,31 +16,9 @@ public partial class SalesChannelTrTrendyolLayout
     /// <summary>Düzenlemede sir alanları (ApiKey/ApiSecret) boş gelir → in-field ipucu; yeni kayıtta placeholder yok.</summary>
     private string? SecretPlaceholder => IsNew ? null : L["SalesChannel:SecretKept"].Value;
 
-    private bool _sideCostsWereNull;
-
-    /// <summary>Giderler formu daima dolu DTO'ya bağlanır — null ilk erişimde boş DTO olur; null'dan geldiği
-    /// BİLGİSİ saklanır: tohum önerisi yalnız bu durumda (N11 layout paritesi).</summary>
-    private SideCostSettingsDto SideCosts
-    {
-        get
-        {
-            if (Model.SideCosts is null)
-            {
-                _sideCostsWereNull = true;
-                Model.SideCosts = new SideCostSettingsDto();
-            }
-
-            return Model.SideCosts;
-        }
-    }
-
-    /// <summary>Tohum önerisi bayrağı — attribute sırasından bağımsız: önce getter null→boş dönüşümünü işler.</summary>
-    private bool SuggestSideCostDefaults
-    {
-        get
-        {
-            _ = SideCosts;
-            return _sideCostsWereNull;
-        }
-    }
+    // Giderler formu ve onu besleyen SideCosts getter'ı 2026-07-28'de KALDIRILDI. Bu getter'ın kalması
+    // TEHLİKELİYDİ: ayarı hiç yapılandırılmamış (null) kanalda boş bir DTO üretip kayda {"Items":[]} yazdırıyordu
+    // ve o değer "kullanıcı komisyon satırını sildi" anlamına geldiği için komisyon fiyata HİÇ girmiyordu —
+    // hatasız, logsuz, yalnız ~%23 ucuz fiyat. Ayar artık null kalıyor; komisyonu kategori oranından örtük olarak
+    // SideCostPlan.From üretiyor (SideCostRecipeComposerTests'teki iki test bunu çiviliyor).
 }

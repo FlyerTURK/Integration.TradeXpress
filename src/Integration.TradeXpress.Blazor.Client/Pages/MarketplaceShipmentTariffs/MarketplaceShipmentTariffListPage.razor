@@ -1,0 +1,116 @@
+@page "/marketplace-shipment-tariffs"
+@using Integration.TradeXpress.MarketplaceShipmentTariffs
+
+@* Pazaryerinin YAYIMLADIĞI anlaşmalı kargo tarifesi — SALT OKUNUR (kaynak gömülü yayın dosyası, seed ile
+   kurulur; kullanıcı düzenlemez). Bu yüzden CrudLayout değil düz grid: yeni/düzenle/sil YOK.
+   Desi tablosu listeye gömülmez; seçilen taşıyıcının 101 satırı altta ayrıca yüklenir. *@
+
+<div class="p-3">
+
+    <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+        <h4 class="mb-0">@L["MarketplaceShipmentTariffs"]</h4>
+
+        <div class="d-flex align-items-center gap-3">
+            <DxCheckBox Checked="@_onlyEffective" CheckedChanged="@((bool v) => OnFilterChangedAsync(v))"
+                        CheckType="CheckType.Switch">
+                @L["ShipmentTariff:OnlyEffective"]
+            </DxCheckBox>
+            <DxButton RenderStyle="ButtonRenderStyle.Secondary" IconCssClass="custom-icon-refresh"
+                      Text="@L["Refresh"]" Click="@LoadAsync" />
+        </div>
+    </div>
+
+    @* Tarife pazaryerinin ilanıdır: tutarlar çıplaktır ve kendi anlaşması olan şirket bunu ezmez —
+       kullanıcı sayıları yanlış yorumlamasın diye ekranda açıkça yazılı.
+       Renkler TEMA DEĞİŞKENİNDEN gelir (Bootstrap alert-* sabit rengi koyu temada yamalı duruyor). *@
+    <div style="font-size:12px; color:var(--bs-secondary-color); border-inline-start:3px solid var(--dxbl-drawer-border-color); padding:6px 10px; margin-bottom:1rem;">
+        @L["ShipmentTariff:ReadOnlyNotice"]
+    </div>
+
+    <TxGrid Data="@_tariffs" StateKey="marketplace-shipment-tariffs:list"
+            SelectionMode="GridSelectionMode.Single" AllowSelectRowByClick="true"
+            SelectedDataItems="@_selectedItems"
+            SelectedDataItemsChanged="@((IReadOnlyList<object> items) => OnSelectionChangedAsync(items))"
+            PagerVisible="false">
+        <Columns>
+            <DxGridDataColumn FieldName="CarrierName" Caption="@L["ShipmentTariff:Carrier"]" MinWidth="160" />
+            <DxGridDataColumn FieldName="Channel" Caption="@L["ShipmentTariff:Channel"]" Width="110px" />
+            <DxGridDataColumn FieldName="ChargeBasis" Caption="@L["ShipmentTariff:ChargeBasis"]" Width="150px">
+                <CellDisplayTemplate Context="cell">
+                    @L[$"ShipmentChargeBasis:{((MarketplaceShipmentTariffDto)cell.DataItem).ChargeBasis}"]
+                </CellDisplayTemplate>
+            </DxGridDataColumn>
+            <DxGridDataColumn FieldName="OverflowIncrementAmount" Caption="@L["ShipmentTariff:OverflowIncrement"]"
+                              Width="130px" TextAlignment="GridTextAlignment.Right" DisplayFormat="n2" />
+            <DxGridDataColumn FieldName="ExtraFeeAmount" Caption="@L["ShipmentTariff:ExtraFee"]"
+                              Width="110px" TextAlignment="GridTextAlignment.Right" DisplayFormat="n2" />
+            <DxGridDataColumn FieldName="FailedDeliveryRate" Caption="@L["ShipmentTariff:FailedDeliveryRate"]"
+                              Width="130px" TextAlignment="GridTextAlignment.Right" DisplayFormat="p0" />
+            <DxGridDataColumn FieldName="EffectiveFrom" Caption="@L["ShipmentTariff:EffectiveFrom"]"
+                              Width="130px" DisplayFormat="d" />
+            <DxGridDataColumn FieldName="EffectiveTo" Caption="@L["ShipmentTariff:EffectiveTo"]" Width="130px">
+                <CellDisplayTemplate Context="cell">
+                    @{
+                        var tariff = (MarketplaceShipmentTariffDto)cell.DataItem;
+                    }
+                    @(tariff.EffectiveTo is { } to ? to.ToString("d") : L["ShipmentTariff:StillEffective"].Value)
+                </CellDisplayTemplate>
+            </DxGridDataColumn>
+            <DxGridDataColumn FieldName="SourceVersion" Caption="@L["ShipmentTariff:SourceVersion"]" Width="120px" />
+        </Columns>
+    </TxGrid>
+
+    @if (_detail is not null)
+    {
+        <div class="mt-4">
+            <h5 class="mb-1">@_detail.CarrierName — @L["ShipmentTariff:Desi"]</h5>
+            <div style="font-size:12px; color:var(--bs-secondary-color); margin-bottom:0.5rem;">
+                @L["ShipmentTariff:TaxNote", _detail.VatRate, _detail.PostalServiceFeeRate]
+            </div>
+
+            <TxGrid Data="@_detail.Rates" StateKey="marketplace-shipment-tariffs:rates"
+                    PagerVisible="false" VirtualScrollingEnabled="true" AllowSort="false"
+                    style="max-height:420px;">
+                <Columns>
+                    <DxGridDataColumn FieldName="Desi" Caption="@L["ShipmentTariff:Desi"]" Width="120px"
+                                      TextAlignment="GridTextAlignment.Right">
+                        <CellDisplayTemplate Context="cell">
+                            @{
+                                var rate = (MarketplaceShipmentTariffRateDto)cell.DataItem;
+                            }
+                            @(rate.Desi == 0 ? L["ShipmentTariff:DocumentRow"].Value : rate.Desi.ToString())
+                        </CellDisplayTemplate>
+                    </DxGridDataColumn>
+                    <DxGridDataColumn FieldName="Amount" Caption="@L["ShipmentTariff:Amount"]" Width="160px"
+                                      TextAlignment="GridTextAlignment.Right" DisplayFormat="n2" />
+                </Columns>
+            </TxGrid>
+
+            @if (_detail.ConditionalRates.Count > 0)
+            {
+                <div class="mt-3 mb-1">
+                    <strong>@L["ShipmentTariff:ConditionalRates"]</strong>
+                    @if (_detail.ConditionalMaxDesi is { } maxDesi)
+                    {
+                        <span style="font-size:12px; color:var(--bs-secondary-color); margin-inline-start:0.5rem;">
+                            @L["ShipmentTariff:ConditionalUpToDesi", maxDesi]
+                        </span>
+                    }
+                </div>
+
+                <TxGrid Data="@_detail.ConditionalRates" StateKey="marketplace-shipment-tariffs:conditional"
+                        PagerVisible="false" AllowSort="false">
+                    <Columns>
+                        <DxGridDataColumn FieldName="BasketFrom" Caption="@L["ShipmentTariff:BasketFrom"]"
+                                          Width="150px" TextAlignment="GridTextAlignment.Right" DisplayFormat="n2" />
+                        <DxGridDataColumn FieldName="BasketTo" Caption="@L["ShipmentTariff:BasketTo"]"
+                                          Width="150px" TextAlignment="GridTextAlignment.Right" DisplayFormat="n2" />
+                        <DxGridDataColumn FieldName="Amount" Caption="@L["ShipmentTariff:Amount"]"
+                                          Width="150px" TextAlignment="GridTextAlignment.Right" DisplayFormat="n2" />
+                    </Columns>
+                </TxGrid>
+            }
+        </div>
+    }
+
+</div>

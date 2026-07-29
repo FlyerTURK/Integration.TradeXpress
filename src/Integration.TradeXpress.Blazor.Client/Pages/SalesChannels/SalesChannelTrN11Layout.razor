@@ -39,7 +39,10 @@
         <DxFormLayoutItem Caption="@L["Description"]" ColSpanMd="12">
             <DxMemo @bind-Text="@Model.Description" Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100" />
         </DxFormLayoutItem>
-        <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6">
+        @* Muhasebe hedefi: bu kanalın hareketleri hangi cari alt hesaba yazılır.
+           Cari ayrıca seçilmez — alt hesap listede "CARİ / ALT" olarak görünür. *@
+        <SalesChannelSubAccountField @bind-Value="@Model.SubAccountId" />
+        <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6" BeginRow="true">
             <DxCheckBox @bind-Checked="@Model.IsActive" CheckType="CheckType.Switch">
                 @(Model.IsActive ? L["Active"] : L["Passive"])
             </DxCheckBox>
@@ -49,7 +52,6 @@
 
 @* Giderler — kanal yan-maliyet ayarları (paketleme/kargo/sigortalı gönderim/komisyon) + N11 komisyon importu.
    Ortak editör (3 kanal formu aynı bileşeni tüketir); ilgisiz alanlar kanala göre gizli. *@
-<SideCostSettingsEditor Settings="@SideCosts" ChannelType="SalesChannelType.TrN11" SuggestDefaults="@SuggestSideCostDefaults" />
 
 @* Kargo şablonları + kanala ait N11 ürün listelemeleri — yalnız kaydedilmiş kanalda (persistent drill'ler
    kanal Id'sine bağlıdır). Sekmeler: Kargo Şablonları · N11 Ürünleri (o kanala ait listelemeler). *@

@@ -18,6 +18,10 @@ public class SubstitutionGroupListDto : EntityDto<Guid>, IListDto<Guid>, IIsActi
     public string Code { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public SubstitutionType Type { get; set; }
+    /// <summary>Miktar birimi kısaltması ("gr", "kg", "lt") — kombinasyon gösterimlerinde kullanılır.</summary>
+    [StringLength(SubstitutionGroupConsts.QuantityUnitMaxLength)]
+    public string? QuantityUnit { get; set; }
+
     public ToleranceType ToleranceType { get; set; }
     public decimal ToleranceValue { get; set; }
     public bool IsActive { get; set; }
@@ -35,6 +39,11 @@ public class SubstitutionGroupGetDto : EntityDto<Guid>, IGetDto<Guid>, IHasCode
 
     /// <summary>Muadil türü — şimdilik yalnız Metal (UI'da sabit/disabled).</summary>
     public SubstitutionType Type { get; set; } = SubstitutionType.Metal;
+
+    /// <summary>Miktar birimi kısaltması ("gr", "kg", "lt") — kombinasyon gösterimlerinde kullanılır.
+    /// Boş bırakılırsa sunucu varsayılana ("gr") düşer.</summary>
+    [StringLength(SubstitutionGroupConsts.QuantityUnitMaxLength)]
+    public string? QuantityUnit { get; set; }
 
     public ToleranceType ToleranceType { get; set; } = ToleranceType.Amount;
 
@@ -63,6 +72,11 @@ public class SubstitutionGroupCreateDto : ICreateDto
 
     public SubstitutionType Type { get; set; } = SubstitutionType.Metal;
 
+    /// <summary>Miktar birimi kısaltması ("gr", "kg", "lt") — kombinasyon gösterimlerinde kullanılır.
+    /// Boş bırakılırsa sunucu varsayılana ("gr") düşer.</summary>
+    [StringLength(SubstitutionGroupConsts.QuantityUnitMaxLength)]
+    public string? QuantityUnit { get; set; }
+
     public ToleranceType ToleranceType { get; set; } = ToleranceType.Amount;
 
     public decimal ToleranceValue { get; set; }
@@ -85,6 +99,11 @@ public class SubstitutionGroupUpdateDto : IUpdateDto
     public string Name { get; set; } = string.Empty;
 
     public SubstitutionType Type { get; set; } = SubstitutionType.Metal;
+
+    /// <summary>Miktar birimi kısaltması ("gr", "kg", "lt") — kombinasyon gösterimlerinde kullanılır.
+    /// Boş bırakılırsa sunucu varsayılana ("gr") düşer.</summary>
+    [StringLength(SubstitutionGroupConsts.QuantityUnitMaxLength)]
+    public string? QuantityUnit { get; set; }
 
     public ToleranceType ToleranceType { get; set; } = ToleranceType.Amount;
 

@@ -8,6 +8,7 @@
 @using DevExpress.Blazor
 @using Microsoft.AspNetCore.Components.Forms
 @inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+@inject Integration.Framework.Blazor.Client.Services.Base.IPopupService PopupService
 
 @*
    LookupComboBox'un "büyük kardeşi" (XAF SearchLookupComboBox paritesi): salt-okunur display alanı +
@@ -16,6 +17,10 @@
    Veri = host'tan (genelde LookupCache); Edit/Add = host delege. Dirty: ValueExpression + EditContext.NotifyFieldChanged.
    DevExpress-native (ERPPROV3 pure-HTML/GridCore yerine DxTextBox + DxGrid + DxPopup).
 *@
+@* ÇİFT TIK ile de picker açılır (VARSAYILAN davranış, 2026-07-28 Hakan): alan salt-okunur olduğundan
+   kullanıcının ilk refleksi üzerine tıklamak oluyor; küçük ▼ düğmesini aramak zorunda kalmasın.
+   Sarmalayıcı div ŞART — DxTextBox @@ondblclick'i kendi input'una taşımıyor. *@
+<div @ondblclick="@OnDisplayDoubleClick" style="width:100%;">
 <DxTextBox Text="@DisplayText"
            ReadOnly="true"
            Enabled="@_effectiveEnabled"
@@ -25,9 +30,10 @@
     <Buttons>
         <DxEditorButton IconCssClass="custom-icon-edit" Visible="@ShowEditButton" Click="@OnEditButtonClick" Tooltip="@L["Edit"].Value" />
         <DxEditorButton IconCssClass="custom-icon-close" Visible="@ShowClearButton" Click="@OnClearButtonClick" Tooltip="@L["Clear"].Value" />
-        <DxEditorButton IconCssClass="custom-icon-more" Visible="@(!_effectiveReadOnly && _effectiveEnabled)" Click="@OnPickerButtonClick" Tooltip="@L["Select"].Value" />
+        <DxEditorButton IconCssClass="custom-icon-more" Visible="@(!_effectiveReadOnly && _effectiveEnabled)" Click="@OnPickerButtonClick" Tooltip="@L["SelectAction"].Value" />
     </Buttons>
 </DxTextBox>
+</div>
 
 <DxPopup @bind-Visible="_pickerVisible"
          HeaderText="@(Title ?? L["Select"].Value)"
@@ -38,23 +44,46 @@
     <BodyTemplate>
         @* Mobil: popup MaxHeight'e sığ → grid SCROLL alanı, arama+footer SABİT (Seç/İptal her zaman görünür). *@
         <div style="display:flex; flex-direction:column; gap:0.6rem; min-height:0; max-height:78vh;">
-            @* Server-search modu (OnSearch verilmiş): DIŞ arama kutusu → host sunucudan çeker (Data tazelenir).
-               Grid'in kendi ShowSearchBox'ı kapatılır (o yalnız yüklü Data'da client filtre yapardı). *@
-            @if (ServerSearchMode)
-            {
-                <DxTextBox Text="@_searchText"
-                           TextChanged="@OnSearchTextChangedAsync"
-                           BindValueMode="BindValueMode.OnInput"
-                           NullText="@(SearchPlaceholder ?? L["Search"].Value)"
-                           ValidationEnabled="false"
-                           CssClass="w-100" />
-            }
+            @* TOOLBAR ÜSTTE (normal grid standardı): arama + eylemler tek satırda, grid'in üzerinde.
+               Arama kutusu HER İKİ MODDA da bizim: grid'in yerleşik araması harfi harfine eşleştiriyor ve
+               "cicek" yazan kullanıcı "Çiçek"i bulamıyordu — client modda da AKSANSIZ süzeriz. *@
+            @* Toolbar LİSTE FORMLARIYLA AYNI DİL (2026-07-28 Hakan): aynı xaf ikonları, aynı sıra
+               (Seç → Yeni → Sil → Ara → Aktar → Yenile). CrudToolbar bileşeni DOĞRUDAN kullanılamıyor:
+               generic kısıtları TGetDto/TListDto istiyor, LookupEdit'in TItem'ı bunları garanti etmiyor —
+               o yüzden descriptor'lar değil, aynı görünüm DxToolbar'a birebir kuruluyor. *@
+            <DxToolbar ItemRenderStyleMode="ToolbarRenderStyleMode.Contained"
+                       AdaptivityAutoHideRootItems="false" CssClass="flex-shrink-0">
+                <DxToolbarItem Text="@L["SelectAction"].Value" RenderStyle="ButtonRenderStyle.Primary"
+                               IconCssClass="@(FrameworkIcons.Confirm + " xaf-toolbar-item-icon")"
+                               Enabled="@(_pending is not null)" Click="@ConfirmAsync" />
+                <DxToolbarItem Text="@L["New"].Value" Visible="@(OnAddRequested is not null)"
+                               IconUrl="/images/xaf/action_new.svg" IconCssClass="xaf-toolbar-item-icon"
+                               Click="@OnPickerAddClick" />
+                <DxToolbarItem Text="@L["Delete"].Value" Visible="@(OnDeleteRequested is not null)"
+                               IconUrl="/images/xaf/action_delete.svg" IconCssClass="xaf-toolbar-item-icon"
+                               Enabled="@(_pending is not null)" Click="@OnPickerDeleteClick" />
+                <DxToolbarItem Text="@L["Refresh"].Value" Visible="@(OnRefreshRequested is not null)"
+                               IconUrl="/images/xaf/action_refresh.svg" IconCssClass="xaf-toolbar-item-icon"
+                               Click="@OnPickerRefreshClick" />
+                <DxToolbarItem Text="@L["ExportToExcel"].Value" Alignment="ToolbarItemAlignment.Right"
+                               IconUrl="/images/xaf/action_export_toxlsx.svg" IconCssClass="xaf-toolbar-item-icon"
+                               Click="@ExportPickerAsync" />
+                <DxToolbarItem Alignment="ToolbarItemAlignment.Right">
+                    <Template Context="searchItem">
+                        <DxTextBox Text="@_searchText"
+                                   TextChanged="@OnSearchTextChangedAsync"
+                                   BindValueMode="BindValueMode.OnInput"
+                                   NullText="@(SearchPlaceholder ?? L["Search"].Value)"
+                                   ValidationEnabled="false" />
+                    </Template>
+                </DxToolbarItem>
+            </DxToolbar>
             @* Grid kendi scroll alanında (flex:1 + min-height:0) — uzasa da footer'ı ekran dışına itmez. *@
             <div style="flex:1 1 auto; min-height:0; overflow-y:auto;">
                 <DxGrid @ref="_grid"
-                        Data="@Data"
+                        Data="@FilteredData"
                         KeyFieldName="@ValueFieldName"
-                        ShowSearchBox="@(!ServerSearchMode)"
+                        ShowSearchBox="false"
                         SelectionMode="GridSelectionMode.Single"
                         AllowSelectRowByClick="true"
                         SelectedDataItem="@_pending"
@@ -75,17 +104,6 @@
                 </DxGrid>
             </div>
 
-            <div style="display:flex; justify-content:flex-end; gap:0.5rem; flex-shrink:0;">
-                @if (OnAddRequested is not null)
-                {
-                    <DxButton Text="@L["New"].Value" IconCssClass="custom-icon-add"
-                              RenderStyle="ButtonRenderStyle.Secondary" Click="@OnPickerAddClick" />
-                }
-                <DxButton Text="@L["Select"].Value" RenderStyle="ButtonRenderStyle.Primary"
-                          Enabled="@(_pending is not null)" Click="@ConfirmAsync" />
-                <DxButton Text="@L["Cancel"].Value" RenderStyle="ButtonRenderStyle.Secondary"
-                          Click="@(() => _pickerVisible = false)" />
-            </div>
         </div>
     </BodyTemplate>
 </DxPopup>
@@ -129,6 +147,28 @@
 
     /// <summary>Edit(✎) — seçili referansı düzenle (host popup/navigate). Boşsa gizli.</summary>
     [Parameter] public Func<TValue, Task>? OnEditRequested { get; set; }
+
+    /// <summary>Popup'ta seçili kaydı SİLME isteği — verilmezse Sil butonu görünmez (liste formlarındaki
+    /// davranışın aynısı: yetkisi/karşılığı olmayan eylem gösterilmez).</summary>
+    [Parameter] public Func<TValue, Task>? OnDeleteRequested { get; set; }
+
+    /// <summary>Listeyi TAZELEME isteği — host katalogu yeniden çeker; verilmezse Yenile butonu görünmez.</summary>
+    [Parameter] public Func<Task>? OnRefreshRequested { get; set; }
+
+    /// <summary>
+    /// Seçim için açılacak GERÇEK LİSTELEME FORMU (ör. <c>ProductCategoryListPage</c>).
+    ///
+    /// <para>Verilirse ▼/çift tık bu formu popup'ta açar — kendi toolbar'ı, kolonları, arama/filtre/export'u
+    /// ve izinleriyle. "Bir listeleme formu ister sekmede ister popup'ta açılabilir" (2026-07-28 Hakan);
+    /// seçici için ikinci bir grid yazmak bakımı ikiye katlar ve iki yüzey zamanla ayrışır.</para>
+    ///
+    /// <para>Verilmezse bileşenin KENDİ basit grid'i açılır (mevcut davranış) — diğer lookup'lar etkilenmez.</para>
+    /// </summary>
+    [Parameter] public Type? ListComponentType { get; set; }
+
+    /// <summary>Liste formundan dönen satırdan DEĞERİ çıkarır. <see cref="ListComponentType"/> ile birlikte
+    /// zorunludur: dönen nesnenin tipini yalnız çağıran bilir.</summary>
+    [Parameter] public Func<object, TValue?>? ListItemValueSelector { get; set; }
     /// <summary>Add(+) — quick-add; host yeni referansı açar ve OLUŞAN değeri döndürür → seçilir + picker kapanır. Boşsa gizli.</summary>
     [Parameter] public Func<Task<TValue?>>? OnAddRequested { get; set; }
 
@@ -143,14 +183,82 @@
 
     private bool ServerSearchMode => OnSearch.HasDelegate;
 
-    // Kullanıcı yazdı: min-harf koşulu sağlanınca (ya da tamamen silinince → temizle) host'a bildir.
+    /// <summary>
+    /// Grid'e verilen satırlar. SERVER modda süzme SUNUCUDA yapıldı → Data olduğu gibi. CLIENT modda arama
+    /// terimi AKSANSIZ uygulanır: "cicek" yazan kullanıcı "Çiçek"i bulur (grid'in yerleşik araması harfi
+    /// harfine eşleştirdiği için bulamıyordu — 2026-07-28 Hakan).
+    ///
+    /// <para>Eşleşme metin alanına bakar; ayrı kolonlar tanımlıysa bile arama YOL/ad alanı üzerinden yürür —
+    /// kullanıcı gördüğü metni yazar.</para>
+    /// </summary>
+    private IEnumerable<TItem> FilteredData
+    {
+        get
+        {
+            if (ServerSearchMode || string.IsNullOrWhiteSpace(_searchText))
+            {
+                return Data;
+            }
+
+            return Data.Where(item => SearchTextNormalizer.Matches(GetItemText(item), _searchText));
+        }
+    }
+
+    // Kullanıcı yazdı: SERVER modda min-harf koşulu sağlanınca host'a bildir; CLIENT modda yalnız
+    // FilteredData'nın yeniden hesaplanması yeter (bildirim yok).
     private async Task OnSearchTextChangedAsync(string text)
     {
         _searchText = text;
+        if (!ServerSearchMode)
+        {
+            return;
+        }
+
         var trimmed = (text ?? string.Empty).Trim();
         if (trimmed.Length >= SearchMinLength || trimmed.Length == 0)
         {
             await OnSearch.InvokeAsync(trimmed);
+        }
+    }
+
+    /// <summary>Seçili satırı sil — host siler, ardından liste tazelenir ve bekleyen seçim düşer
+    /// (silinen kayda "Seç" demek anlamsız).</summary>
+    private async Task OnPickerDeleteClick()
+    {
+        if (OnDeleteRequested is null || _pending is not TItem item)
+        {
+            return;
+        }
+
+        var value = GetItemValue(item);
+        if (value is null)
+        {
+            return;
+        }
+
+        await OnDeleteRequested(value);
+        _pending = null;
+
+        if (OnRefreshRequested is not null)
+        {
+            await OnRefreshRequested();
+        }
+    }
+
+    private async Task OnPickerRefreshClick()
+    {
+        if (OnRefreshRequested is not null)
+        {
+            await OnRefreshRequested();
+        }
+    }
+
+    /// <summary>Popup grid'ini Excel'e aktarır — liste formlarındaki "Excel'e Aktar" ile aynı yol.</summary>
+    private async Task ExportPickerAsync()
+    {
+        if (_grid is not null)
+        {
+            await _grid.ExportToXlsxAsync("Export");
         }
     }
 
@@ -204,12 +312,55 @@
 
     private Task OnClearButtonClick(MouseEventArgs _) => CommitValueAsync(default);
 
+    /// <summary>Alanın üzerine çift tık — picker'ı açar (salt-okunur alanda tıklamak doğal refleks).
+    /// Salt-okunur/pasif formda AÇILMAZ.</summary>
+    private void OnDisplayDoubleClick()
+    {
+        if (!_effectiveReadOnly && _effectiveEnabled)
+        {
+            OpenPicker();
+        }
+    }
+
     // ▼ → picker'ı aç; mevcut değeri pre-highlight et.
     private Task OnPickerButtonClick(MouseEventArgs _)
     {
+        OpenPicker();
+        return Task.CompletedTask;
+    }
+
+    /// <summary>Picker'ı açar ve mevcut değeri ön-seçili yapar (▼ ve çift tık AYNI yolu kullanır).</summary>
+    private void OpenPicker()
+    {
+        // Gerçek liste formu verilmişse ONU aç (kendi toolbar'ı/kolonları/izinleriyle); yoksa yerleşik grid.
+        if (ListComponentType is not null)
+        {
+            _ = OpenListPickerAsync();
+            return;
+        }
+
         _pending = SelectedItem;
         _pickerVisible = true;
-        return Task.CompletedTask;
+    }
+
+    /// <summary>Listeleme formunu popup'ta açar; kullanıcı bir satır seçince değeri işler. Popup kapatılırsa
+    /// (seçim yapılmadan) null döner ve mevcut değer KORUNUR.</summary>
+    private async Task OpenListPickerAsync()
+    {
+        var selected = await PopupService.ShowAsync(
+            ListComponentType!,
+            new Dictionary<string, object> { ["IsPickerMode"] = true },
+            new PopupOptions { Title = Title ?? L["Select"].Value, Width = "min(1100px, 96vw)" });
+
+        if (selected is null || ListItemValueSelector is null)
+        {
+            return;
+        }
+
+        if (ListItemValueSelector(selected) is { } value)
+        {
+            await CommitValueAsync(value);
+        }
     }
 
     private void OnSelectedItemChanged(object? item) => _pending = item;

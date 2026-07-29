@@ -12,6 +12,8 @@
    yalnız çekirdek alanlar (Barkod/Stok/Açıklama/Aktif) düzenlenir. Entity-özel alanlar ExtraFields slot'unda. *@
 
 @* Varyantlar nitelik/değer değişiminde OTOMATİK senkronlanır (buton yok) — sahip layout EntityAttributesPanel.OnAttributesChanged'i host regen'ine bağlar. *@
+@* Aşağıdaki DrillList'te sayfalama YOK (DrillList varsayılanı) ve SANAL KAYDIRMA açık: kartezyen varyant
+   listesi (nitelik×değer) uzayabildiğinden DOM şişmeden tek akışta gösterilir. *@
 @if (Attributes.Any(a => !a.IsDeleted))
 {
     <div style="padding:0.5rem 0.5rem 0; color:#6c757d; font-size:0.85rem;">
@@ -30,6 +32,7 @@
            NewItemFactory="@(() => new TVariant())"
            AllowAdd="false"
            AllowDelete="false"
+           VirtualScrollingEnabled="true"
            CustomActions="@AttributeActions"
            FilterPredicate="@(v => !v.IsDeleted)"
            OnChanged="@(() => EditChanged?.Invoke())">
@@ -47,7 +50,10 @@
                 </CellDisplayTemplate>
             </DxGridDataColumn>
         }
-        <GridLinkColumn FieldName="Code" Caption="@L["Code"]" Width="140px" FixedPosition="GridColumnFixedPosition.Left" VisibleIndex="1"
+        @* Kod kolonu SOLA SABİTLENMİŞ DEĞİL (2026-07-28 Hakan): varyant grid'i kendi kolonlarıyla ekrana
+           sığıyor, sabitleme yatay kaydırma olmayan bir grid'de yalnız görsel bir ayraç bırakıyordu.
+           Kolon yine ilk sırada (VisibleIndex=1) ve tıklanabilir kalıyor. *@
+        <GridLinkColumn Caption="@L["Code"]" TextSelector="@(item => CodeTextOf((TVariant)item))" Width="140px" VisibleIndex="1"
                         OnClick="@(item => _variantDrill?.EditItem((TVariant)item))" />
         <DxGridDataColumn FieldName="AttributeSummary" Caption="@L["AttributeSummary"]" />
         <DxGridDataColumn FieldName="Barcode" Caption="@L["Barcode"]" Width="140px" />
@@ -55,6 +61,13 @@
         @if (ShowStockQuantity)
         {
             <DxGridDataColumn FieldName="StockQuantity" Caption="@L["StockQuantity"]" Width="110px" />
+        }
+        @* Maliyet OPT-IN: alan yalnız ürün varyantında var (NetCost), jenerik varyantta yok — bayrak
+           kapalıyken kolon hiç çizilmez ki diğer emtia aileleri boş kolon görmesin. *@
+        @if (ShowNetCost)
+        {
+            <DxGridDataColumn FieldName="NetCost" Caption="@L["NetCost"]" Width="130px"
+                              TextAlignment="GridTextAlignment.Right" DisplayFormat="n2" />
         }
         <DxGridDataColumn FieldName="IsMain" Caption="@L["Main"]" Width="90px">
             <CellDisplayTemplate Context="cell">
@@ -70,14 +83,17 @@
     </GridColumns>
     <EditContent Context="v">
         <DxFormLayout CssClass="w-100">
-            @* Kod (salt-okuma, otomatik) — yarım satır. Tek-yönlü Text → ValidationEnabled=false şart. *@
-            <DxFormLayoutItem Caption="@L["Code"]" ColSpanMd="6">
-                <DxTextBox Text="@v.Code" ReadOnly="true" ValidationEnabled="false" />
-            </DxFormLayoutItem>
-            @* Kombinasyon özeti — TAM SATIR (salt-okuma). *@
-            <DxFormLayoutItem Caption="@L["AttributeSummary"]" ColSpanMd="12" BeginRow="true">
-                <DxTextBox Text="@v.AttributeSummary" ReadOnly="true" ValidationEnabled="false" />
-            </DxFormLayoutItem>
+            @* Kod + kombinasyon özeti — ikisi de SALT-OKUNUR. Tek varyantlı üründe gizlenir (ShowIdentity):
+               kombinasyon yok, kod otomatik → boş yere yer kaplıyorlardı. *@
+            @if (ShowIdentity)
+            {
+                <DxFormLayoutItem Caption="@L["Code"]" ColSpanMd="6">
+                    <DxTextBox Text="@CodeTextOf(v)" ReadOnly="true" ValidationEnabled="false" />
+                </DxFormLayoutItem>
+                <DxFormLayoutItem Caption="@L["AttributeSummary"]" ColSpanMd="12" BeginRow="true">
+                    <DxTextBox Text="@v.AttributeSummary" ReadOnly="true" ValidationEnabled="false" />
+                </DxFormLayoutItem>
+            }
             @* Tanımlama değerleri (per-SKU ticari kimlikler) — TAM SATIR grup, içinde yarımşar (2×2). *@
             <DxFormLayoutGroup Caption="@L["IdentificationValues"]" ColSpanMd="12">
                 <DxFormLayoutItem Caption="@L["Barcode"]" ColSpanMd="6">

@@ -18,4 +18,14 @@ public enum ProductVariantMode
     /// <summary>Muadil (paket) — ürün tek ana varyanttır; reçetesi muadil grubu kombinasyon hesabından
     /// üretilir (grup + hedef miktar + tolerans + opsiyonel varyant override ağacı).</summary>
     Substitution = 2,
+
+    /// <summary>
+    /// Katalogdan (varyant şablonu) — nitelikler elle girilmez, şirketin şablon katalogundan seçilir; seçilen
+    /// şablonun grupları/değerleri ürünün nitelik grafına katılır ve varyantlar oradan üretilir.
+    /// <para>Üretim mekaniği <see cref="MultiVariant"/> ile AYNIDIR (nitelik×değer kartezyeni) — ayrı bir mod
+    /// olmasının sebebi NİTELİKLERİN KAYNAĞINI seçtirmek: kullanıcı "elle mi gireceğim, katalogdan mı
+    /// alacağım" kararını en baştan, varyant modu combo'sunda verir. Öncesinde şablon seçimi nitelik
+    /// popup'ının içinde iki tık derinde kalıyordu ve pratikte bulunamıyordu (2026-07-27 Hakan kararı).</para>
+    /// </summary>
+    FromCatalog = 3,
 }

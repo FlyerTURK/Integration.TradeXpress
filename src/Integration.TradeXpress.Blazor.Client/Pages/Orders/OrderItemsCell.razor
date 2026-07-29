@@ -1,0 +1,40 @@
+@using Integration.TradeXpress.Orders
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@*
+   Sipariş satırındaki "Ürün Detayı" hücresi — kalemleri detay satırı AÇMADAN gösterir (2026-07-28 Hakan;
+   referans: N11 satıcı panelinin "Ürün Detayı" sütunu). Kalemler zaten liste yanıtında geliyor
+   (OrderListDto.Items), bu hücre ek sorgu doğurmaz.
+
+   TAŞMA KURALI (deterministik satır yüksekliği): en fazla MaxVisibleItems kalem çizilir, fazlası
+   "+N kalem daha" satırıyla özetlenir; her kalem TEK satırdır (ürün adı üç noktayla kırpılır, sarmaz).
+   Tam liste hücrenin title'ında (hover) ve detay satırında bulunur → bilgi kaybı yok.
+
+   Ham div kullanımı bilinçli: bir grid hücresinin içine ikinci bir DxGrid koymak (sayfa başına 20 nested
+   grid) absürt olurdu; ui-blazor.md'nin "Dx karşılığı yoksa ince flex sarmalayıcı" istisnası.
+*@
+
+@if (HasItems)
+{
+    <div style="display:flex; flex-direction:column; gap:2px; line-height:1.25;" title="@TooltipText">
+        @foreach (var item in VisibleItems)
+        {
+            <div style="display:flex; gap:6px; align-items:baseline; white-space:nowrap; overflow:hidden;">
+                <span style="font-weight:600; flex:0 0 auto;">@QuantityText(item)</span>
+                <span style="overflow:hidden; text-overflow:ellipsis;">@item.ProductNameSnapshot</span>
+                @if (!string.IsNullOrWhiteSpace(item.StockCode))
+                {
+                    <span style="font-size:0.78rem; color:#6c757d; flex:0 0 auto;">@item.StockCode</span>
+                }
+            </div>
+        }
+        @if (OverflowCount > 0)
+        {
+            <div style="font-size:0.78rem; color:#6c757d;">@MoreText</div>
+        }
+    </div>
+}
+else
+{
+    <span style="color:#6c757d;">-</span>
+}

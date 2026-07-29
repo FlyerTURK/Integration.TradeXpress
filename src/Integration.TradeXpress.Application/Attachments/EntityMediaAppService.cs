@@ -49,6 +49,35 @@ public class EntityMediaAppService : TradeXpressAppService, IEntityMediaAppServi
             .ToList();
     }
 
+    public virtual async Task<List<PushMediaDto>> GetPushMediaAsync(string entityName, Guid entityId, MediaType? mediaType = null)
+    {
+        var en = (entityName ?? string.Empty).Trim();
+        var links = (await LoadOrderedAsync(en, entityId)).Where(l => l.IsActive).ToList();
+        if (links.Count == 0)
+        {
+            return new List<PushMediaDto>();
+        }
+
+        // Tür, link'te DEĞİL medyada durur → süzmek için medyaları çözmek zorunlu (tek batch).
+        var mediaById = (await _media.GetByIdsAsync(links.Select(l => l.MediaId).Distinct().ToList()))
+            .ToDictionary(m => m.Id);
+
+        return links
+            .Where(l => mediaById.ContainsKey(l.MediaId))   // yetim link (medya kütüphaneden silinmiş) → atla
+            .Where(l => mediaType is null || mediaById[l.MediaId].MediaType == mediaType)
+            .OrderByDescending(l => l.IsDefault)            // kapak HER ZAMAN ilk — DisplayOrder'ı büyük olsa bile
+            .ThenBy(l => l.DisplayOrder)
+            .ThenBy(l => l.Id)                             // eşit sırada kararlı düzen (push çıktısı tekrarlanabilir olsun)
+            .Select(l => new PushMediaDto
+            {
+                MediaId = l.MediaId,
+                MediaType = mediaById[l.MediaId].MediaType,
+                IsDefault = l.IsDefault,
+                DisplayOrder = l.DisplayOrder,
+            })
+            .ToList();
+    }
+
     public virtual async Task ReplaceForAsync(string entityName, Guid entityId, Guid? companyId, List<EntityMediaLinkEditDto> links)
     {
         var en = (entityName ?? string.Empty).Trim();

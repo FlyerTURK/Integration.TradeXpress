@@ -38,7 +38,10 @@
         <DxFormLayoutItem Caption="@L["Description"]" ColSpanMd="12">
             <DxMemo @bind-Text="@Model.Description" Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100" />
         </DxFormLayoutItem>
-        <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6">
+        @* Muhasebe hedefi: bu kanalın hareketleri hangi cari alt hesaba yazılır.
+           Cari ayrıca seçilmez — alt hesap listede "CARİ / ALT" olarak görünür. *@
+        <SalesChannelSubAccountField @bind-Value="@Model.SubAccountId" />
+        <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6" BeginRow="true">
             <DxCheckBox @bind-Checked="@Model.IsActive" CheckType="CheckType.Switch">
                 @(Model.IsActive ? L["Active"] : L["Passive"])
             </DxCheckBox>
@@ -47,7 +50,6 @@
 </DxFormLayout>
 
 @* Giderler — kanal yan-maliyet ayarları (ortak editör; Etsy alanları/N11 import düğmesi bu kanalda gizli). *@
-<SideCostSettingsEditor Settings="@SideCosts" ChannelType="SalesChannelType.TrTrendyol" SuggestDefaults="@SuggestSideCostDefaults" />
 
 @* Kategori senkronizasyonu — yalnız kaydedilmiş kanalda (host-global ağaç kanal kimliğiyle çekilir). Kategori
    picker'ının dolu gelmesi için tetikleyici; kanal ilk oluşturulduğunda otomatik de senkronlanır (AppService hook). *@
