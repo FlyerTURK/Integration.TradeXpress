@@ -169,7 +169,9 @@ public class TenantAppService : TradeXpressAppService, ITenantAppService
             }
         }
 
-        return ObjectMapper.Map<Tenant, TenantGetDto>(tenant);
+        // Dönüş GetAsync ile AYNI zenginlikte olmalı: form commit dönüşünü rebind eder; graf boş dönerse
+        // kullanıcı kaydettiği şirketi güncelleme modundaki drill'de GÖREMEZ (boş grid — 2026-08-01 bulgusu).
+        return await GetAsync(tenant.Id);
     }
 
     [Authorize(TenantManagementPermissions.Tenants.Update)]
@@ -178,7 +180,9 @@ public class TenantAppService : TradeXpressAppService, ITenantAppService
         var tenant = await _tenantRepository.GetAsync(id);
         await _tenantManager.ChangeNameAsync(tenant, input.Name);
         await _tenantRepository.UpdateAsync(tenant, autoSave: true);
-        return ObjectMapper.Map<Tenant, TenantGetDto>(tenant);
+
+        // CreateAsync ile aynı gerekçe: commit dönüşü form'a rebind edilir — graf GetAsync yolundan dolu gelmeli.
+        return await GetAsync(tenant.Id);
     }
 
     [Authorize(TenantManagementPermissions.Tenants.Delete)]

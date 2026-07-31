@@ -17,7 +17,7 @@
        RENDER ETMEZ → parent'ın TEK layout'una iner (caption sütunları hizalı kalır; iç içe/tekrarlayan
        DxFormLayout yığmak kaymaya yol açıyordu). AddressFields/GeographyCascadePicker ile aynı desen. *@
     RenderFragment companyItems =@<text>
-    <DxFormLayoutGroup Caption="@L["General"]" ColSpanMd="12">
+    <DxFormLayoutGroup Caption="@(string.IsNullOrWhiteSpace(GroupCaption) ? L["General"].Value : GroupCaption)" ColSpanMd="12">
         @* Kod yazarken ANINDA büyük harfe döner — sunucu zaten öyle saklıyor (StringFieldGuard.NormalizeCode),
            kullanıcı gördüğü ile kaydedilenin aynı olduğunu bilsin. Çevrim INVARIANT: sunucuyla BİREBİR aynı olmalı,
            kültüre duyarlı çevrim Türkçe'de "i"yi "İ" yapıp sunucunun ürettiği "I"dan sapardı. *@
@@ -111,6 +111,10 @@ else
     [Parameter] public List<CountryListDto> Countries { get; set; } = new();
     [Parameter] public bool HeadquartersEnabled { get; set; } = true;
     [Parameter] public bool CodeEnabled { get; set; } = true;
+
+    /// <summary>Grup başlığı. Boş → varsayılan "Genel". Onboarding'de "Merkez Şirket" verilir: o formda tek şirket
+    /// vardır ve merkezdir; "Genel" demek hangi şirket olduğunu belirsiz bırakıyordu (BranchEditFields deseni).</summary>
+    [Parameter] public string? GroupCaption { get; set; }
 
     /// <summary>Merkez switch'i görünsün mü. Onboarding'de GİZLİ: tenant'ın ilk şirketi tanımı gereği merkezdir,
     /// seçenek sunmak yanıltıcı olur. Varsayılan true → mevcut yüzeyler (standalone/şirket drill'i) değişmez.</summary>

@@ -69,6 +69,7 @@
         @if (FirstCompany is { } newCompany)
         {
             <CompanyEditFields Model="newCompany" Units="Units" Countries="Countries"
+                               GroupCaption="@L["Tenant:HeadquartersCompany"].Value"
                                HeadquartersEnabled="false" CodeEnabled="true"
                                ShowHeadquarters="false" ShowAdvancedFields="false"
                                Embedded="true">
