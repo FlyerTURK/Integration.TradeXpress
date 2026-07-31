@@ -315,6 +315,21 @@
         }
         if (!ok) return false;
 
+        // İÇ GRAF doğrulaması (2026-08-01): üst-düzey validator drill koleksiyonlarına/değer nesnelerine İNMEZ;
+        // ihlaller sunucuya gitmeden burada, TAM bağlam yoluyla toast'lanır ("Şirket FMS → Şube HQ → Adres:
+        // Şehir alanı zorunludur."). ABP'nin server-side recursive doğrulaması SON SAVUNMA olarak aynen kalır —
+        // oraya düşen mesaj ham/İngilizce olur ama normal akışta kullanıcı onu artık görmez.
+        var graphErrors = GraphValidator.Validate(Model!, L);
+        if (graphErrors.Count > 0)
+        {
+            foreach (var error in graphErrors.Distinct())
+            {
+                UiService.ShowErrorToast(error);
+            }
+
+            return false;
+        }
+
         _busy = true;
         try
         {

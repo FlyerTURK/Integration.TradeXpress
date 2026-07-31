@@ -27,6 +27,10 @@ public partial class ValueObjectEditPopup<TValue> : CrudComponentBase, ISplitEdi
     /// <summary>Popup başlığı (ör. "Gönderim Adresi") — EditHeaderView L1 satırı.</summary>
     [Parameter, EditorRequired] public string HeaderText { get; set; } = default!;
 
+    /// <summary>Üstten cascade gelen doğrulama bağlam yolu (DrillList kurar) — toast önekinde
+    /// HeaderText'in önüne zincirlenir ("Şube HQ → Şube Adresi: ...").</summary>
+    [CascadingParameter(Name = "ValidationPathPrefix")] private string? InheritedValidationPath { get; set; }
+
     /// <summary>Başlık ikonu — merkezî ikon setinden çağrı yeri verir (ör. <c>TradeXpressIcons.AddressCard</c>).
     /// Framework <c>TradeXpressIcons</c>'a erişemez → parametre ile alınır (ad-hoc ikon YOK).</summary>
     [Parameter] public string? IconCssClass { get; set; }
@@ -157,9 +161,11 @@ public partial class ValueObjectEditPopup<TValue> : CrudComponentBase, ISplitEdi
 
         // Zorunlu alan boşsa KAYDETME (ve kapatma). SESSİZ kalmaz: editörün kendi kırmızı işareti +
         // ValidationSummary + TOAST birlikte duyurur (eskiden hiçbir geri bildirim yoktu — kullanıcı bulgusu).
+        // Bağlam öneki: üst drill zinciri + bu popup'ın başlığı ("Şube HQ → Şube Adresi: Şehir alanı zorunludur.").
         if (_editContext is { } context && !context.Validate())
         {
-            context.ShowValidationToasts(UiService);
+            context.ShowValidationToasts(
+                UiService, EditContextValidationExtensions.CombinePath(InheritedValidationPath, HeaderText));
             StateHasChanged(); // inline işaretler/summary Validate() sonrası ekrana insin
             return;
         }

@@ -128,39 +128,12 @@
         }
     }
 
+    // Alan adı + mesaj üretimi MERKEZÎ (2026-08-01 birleştirmesi): FieldNameLocalizer
+    // ("[Display] → DisplayName:X → X → ham" zinciri — server hata yolu CrudErrorPresenter ile AYNI sözlük)
+    // + ValidationMessageBuilder ("Validation:*" şablonları — GraphValidator ile paylaşılır). Kopya YOK.
     private string LocalizeMessage(ValidationAttribute attr, PropertyInfo prop)
     {
-        var disp = LocalizeDisplay(prop);
-
-        return attr switch
-        {
-            RequiredAttribute => L["Validation:Required", disp],
-            StringLengthAttribute s when s.MinimumLength > 0 => L["Validation:LengthRange", disp, s.MinimumLength, s.MaximumLength],
-            StringLengthAttribute s => L["Validation:MaxLength", disp, s.MaximumLength],
-            MaxLengthAttribute m => L["Validation:MaxLength", disp, m.Length],
-            MinLengthAttribute m => L["Validation:MinLength", disp, m.Length],
-            EmailAddressAttribute => L["Validation:Email", disp],
-            RangeAttribute r => L["Validation:Range", disp, r.Minimum, r.Maximum],
-            _ => attr.FormatErrorMessage(disp),
-        };
-    }
-
-    /// <summary>
-    /// Alan adının kullanıcıya görünen hâli. Öncelik <c>[Display(Name)]</c>; yoksa PROPERTY ADI sözlük anahtarı
-    /// olarak denenir ("Code" → "Kod").
-    ///
-    /// <para><b>Neden ada göre deneme:</b> DTO'ların büyük kısmında <c>[Display]</c> yok ve mesaj "Code 3-64
-    /// karakter olmalıdır" gibi yarı-İngilizce çıkıyordu (2026-07-28 Hakan). Alan başlıkları formlarda zaten
-    /// <c>L["Code"]</c>/<c>L["Name"]</c> ile çiziliyor — aynı anahtarlar burada da geçerli, yüzlerce DTO'ya
-    /// attribute eklemeye gerek yok.</para>
-    ///
-    /// <para>Anahtar sözlükte YOKSA ABP anahtarın kendisini döndürür — yani property adı görünür, bugünküyle
-    /// aynı sonuç. Bu yüzden değişiklik gerileme üretmez, yalnız karşılığı olanları iyileştirir.</para>
-    /// </summary>
-    private string LocalizeDisplay(PropertyInfo prop)
-    {
-        var key = prop.GetCustomAttribute<DisplayAttribute>()?.Name;
-        return L[string.IsNullOrEmpty(key) ? prop.Name : key];
+        return ValidationMessageBuilder.Build(L, attr, FieldNameLocalizer.Resolve(L, prop));
     }
 
     public void Dispose()

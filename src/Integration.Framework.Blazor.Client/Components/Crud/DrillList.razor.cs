@@ -465,9 +465,24 @@ public partial class DrillList<TItem> where TItem : class
     // CrudEditComponentBase.ShowError ile aynı desen). Popup'taki inline ValidationSummary'ye EK — bu app'te
     // Bootstrap alert stili etkisiz olduğundan toast asıl görünür bildirimdir.
     // Mantık merkezî EditContextValidationExtensions'ta (ValueObjectEditPopup ile AYNI yol — kopya YOK).
+    // Bağlam öneki: hangi kaydın alanı olduğu mesajda görünür ("Şirket FMS → Şube HQ: Kod alanı zorunludur.").
     private void ShowValidationToasts()
     {
-        _editContext.ShowValidationToasts(UiService);
+        _editContext.ShowValidationToasts(UiService, BuildValidationPath());
+    }
+
+    /// <summary>Üstten cascade gelen bağlam yolu — iç içe drill'de dış popup'ın kimliği ("Şirket FMS").</summary>
+    [CascadingParameter(Name = "ValidationPathPrefix")] private string? InheritedValidationPath { get; set; }
+
+    /// <summary>Bu popup'ın bağlam yolu: üst zincir + kendi kimliği (EntityName + kaydın Code/başlığı).
+    /// Toast öneki VE alt bileşenlere cascade değeri olarak aynı metin kullanılır (tek kaynak).</summary>
+    private string? BuildValidationPath()
+    {
+        var identity = _editItem != null ? PrimaryTextSelector?.Invoke(_editItem) : null;
+        var own = string.IsNullOrEmpty(identity)
+            ? EntityName
+            : string.IsNullOrEmpty(EntityName) ? identity : $"{EntityName} {identity}";
+        return EditContextValidationExtensions.CombinePath(InheritedValidationPath, own);
     }
 
     private async Task SaveAsync()

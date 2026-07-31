@@ -83,22 +83,10 @@ public static class CrudErrorPresenter
         return message;
     }
 
-    /// <summary>Placeholder DEĞERİNİ (property adı) insan-okunur çevirir: "DisplayName:X" anahtarı → çıplak "X"
-    /// anahtarı → çeviri yoksa ham ad (fail-open; en kötü ihtimal İngilizce identifier görünür, boş placeholder değil).</summary>
+    /// <summary>Placeholder DEĞERİNİ (property adı) insan-okunur çevirir — merkezî
+    /// <see cref="Components.Crud.FieldNameLocalizer"/> zinciri (client validator ile AYNI sözlük; kopya 2026-08-01'de birleşti).</summary>
     private static string LocalizeValue(string raw, IStringLocalizer? localizer)
     {
-        if (localizer is null || raw.Length == 0)
-        {
-            return raw;
-        }
-
-        var display = localizer["DisplayName:" + raw];
-        if (!display.ResourceNotFound)
-        {
-            return display.Value;
-        }
-
-        var plain = localizer[raw];
-        return plain.ResourceNotFound ? raw : plain.Value;
+        return Components.Crud.FieldNameLocalizer.Resolve(localizer, raw);
     }
 }

@@ -55,6 +55,9 @@
     EditFormBody = @<text>
         @if (_editItem != null && _editContext != null)
         {
+            @* Bağlam-zinciri (2026-08-01): bu popup'ın kimliği ("Şube HQ") alta cascade edilir — iç içe
+               drill/VO popup'larının toast'ları "Şirket FMS → Şube HQ → ..." önekini böyle kurar. *@
+            <CascadingValue Name="ValidationPathPrefix" Value="@BuildValidationPath()">
             <CascadingValue Value="_editContext">
                 <LocalizedDataAnnotationsValidator />
 
@@ -67,12 +70,15 @@
 
                 @EditContent(_editItem)
             </CascadingValue>
+            </CascadingValue>
 
             @* Edit EditForm'unun (CascadingValue<EditContext>) DIŞINDA — iç içe DrillList kendi
                context'ini cascade eder, parent'ınki sızmaz (nested EditContext render NRE'si önlenir). *@
             @if (AfterEditForm != null)
             {
-                @AfterEditForm(_editItem)
+                <CascadingValue Name="ValidationPathPrefix" Value="@BuildValidationPath()">
+                    @AfterEditForm(_editItem)
+                </CascadingValue>
             }
         }
     </text>;

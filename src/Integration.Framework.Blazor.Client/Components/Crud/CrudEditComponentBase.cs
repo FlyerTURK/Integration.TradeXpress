@@ -558,11 +558,11 @@ public abstract class CrudEditComponentBase<TGetDto, TListDto, TKey, TListReques
         foreach (var line in lines) UiService.ShowErrorToast(line);
     }
 
-    /// <summary>Alan adı için yerelleştirilmiş başlık (L[propName]); anahtar yoksa ham ad.</summary>
+    /// <summary>Alan adı için yerelleştirilmiş başlık — merkezî <see cref="FieldNameLocalizer"/> zinciri
+    /// (2026-08-01 birleştirmesi: "DisplayName:X → X → ham"; yeni yığın ve server hata yoluyla aynı sözlük).</summary>
     private string FieldDisplayName(string propName)
     {
-        var loc = L[propName];
-        return loc.ResourceNotFound ? propName : loc.Value;
+        return FieldNameLocalizer.Resolve(L, propName);
     }
 
     public virtual async Task<bool> SaveAsync()
