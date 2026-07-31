@@ -1,11 +1,12 @@
 using System;
+using System.Threading.Tasks;
 using Integration.Framework.Base.Dtos;
 using Microsoft.AspNetCore.Components;
 
 namespace Integration.TradeXpress.Blazor.Client.Components.Shared;
 
 /// <summary>"Status" (IsActive) grid kolonu — parametreler + hücre içi toggle.</summary>
-public partial class StatusColumn
+public partial class StatusColumn : IHandleEvent
 {
     /// <summary>Aktiflik alanı (varsayılan IsActive).</summary>
     [Parameter] public string FieldName { get; set; } = "IsActive";
@@ -40,5 +41,18 @@ public partial class StatusColumn
     {
         target.IsActive = value;
         EditChanged?.Invoke();
+    }
+
+    /// <summary>
+    /// Olay sonrası OTOMATİK re-render'ı bastırır (Blazor'un resmî IHandleEvent deseni).
+    /// <para><b>Neden:</b> bu bileşen bir DevExpress kolon (nested settings) wrapper'ı; 25.2.8'de
+    /// SettingsRenderer, SENKRON handler'ın ardından gelen otomatik StateHasChanged'i bile "Async rendering
+    /// is not allowed here" ile fırlatıyor (25.2.5 tolere ediyordu — hücre toggle'ı 2026-08-01'de bu yüzden
+    /// çöktü). Bileşenin kendi re-render'ına zaten İHTİYAÇ YOK: DxCheckBox iç modelini kendisi günceller,
+    /// form tazelemesi EditChanged cascade'i ile üst zincirden gelir.</para>
+    /// </summary>
+    Task IHandleEvent.HandleEventAsync(EventCallbackWorkItem callback, object? arg)
+    {
+        return callback.InvokeAsync(arg);
     }
 }
