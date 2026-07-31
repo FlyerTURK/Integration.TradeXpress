@@ -21,7 +21,6 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Logging;
 using Volo.Abp;
-using Volo.Abp.BlobStoring;
 using Volo.Abp.Caching;
 using Volo.Abp.Domain.Repositories;
 
@@ -63,7 +62,6 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
     private readonly IN11CategoryClient _categoryClient;
     private readonly N11ProductPushValidator _pushValidator;
     private readonly IDistributedCache<N11LeafAttributes> _leafAttributeCache;
-    private readonly IBlobContainer<ProductImagesContainer> _imageContainer;
 
     public SalesChannelTrN11ProductAppService(
         IRepository<SalesChannelTrN11Product, Guid> repository,
@@ -91,8 +89,7 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
         IEntityMediaAppService entityMedia,
         IN11CategoryClient categoryClient,
         N11ProductPushValidator pushValidator,
-        IDistributedCache<N11LeafAttributes> leafAttributeCache,
-        IBlobContainer<ProductImagesContainer> imageContainer)
+        IDistributedCache<N11LeafAttributes> leafAttributeCache)
     {
         _repository = repository;
         _productRepository = productRepository;
@@ -120,7 +117,6 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
         _categoryClient = categoryClient;
         _pushValidator = pushValidator;
         _leafAttributeCache = leafAttributeCache;
-        _imageContainer = imageContainer;
     }
 
     public virtual async Task<List<SalesChannelTrN11ProductDto>> GetListForProductAsync(Guid productId)
@@ -689,55 +685,25 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
     }
 
     // Push'ta gidecek görseller (VARSAYILAN önce, sonra DisplayOrder — SaveProduct ile aynı sıra).
-    // Kaynak push ile AYNI olmak zorunda: önizleme legacy'yi, push DAM'ı gösterirse kullanıcı gönderdiğini
-    // sandığı görselden başkasını yayınlar. Bu yüzden geri düşüş koşulu da push'takiyle birebir aynıdır.
+    // Kaynak push ile AYNIDIR: her ikisi de yalnız DAM'dan okur (legacy geri düşüş 2026-07-31'de kalktı) —
+    // önizleme başka kaynağı gösterseydi kullanıcı gönderdiğini sandığı görselden başkasını yayınlardı.
     private async Task<List<N11PreviewImageDto>> BuildPreviewImagesAsync(Product product)
     {
         var media = await _entityMedia.GetForAsync(MediaEntityNames.Product, product.Id);
-        var pushMedia = media
+        return media
             .Where(l => l.IsActive && l.Media is { MediaType: MediaType.Image })
             .OrderByDescending(l => l.IsDefault)
             .ThenBy(l => l.DisplayOrder)
+            .Take(ProductConsts.MaxImageCount)
+            .Select(l => new N11PreviewImageDto
+            {
+                Source = l.Media!.FileName,
+                IsDefault = l.IsDefault,
+                // DAM poster'ı oturumlu uçtan gelir — önizlemeyi GÖREN kullanıcı zaten oturumlu (push'un
+                // kullandığı imzalı adres burada gereksiz; UI <img src> ile doğrudan çeker).
+                PreviewDataUrl = l.Media!.PosterUrl,
+            })
             .ToList();
-
-        if (pushMedia.Count > 0)
-        {
-            return pushMedia
-                .Take(ProductConsts.MaxImageCount)
-                .Select(l => new N11PreviewImageDto
-                {
-                    Source = l.Media!.FileName,
-                    IsDefault = l.IsDefault,
-                    // DAM poster'ı oturumlu uçtan gelir — önizlemeyi GÖREN kullanıcı zaten oturumlu (push'un
-                    // kullandığı imzalı adres burada gereksiz; UI <img src> ile doğrudan çeker).
-                    PreviewDataUrl = l.Media!.PosterUrl,
-                })
-                .ToList();
-        }
-
-        // ── Göç öncesi geri düşüş: legacy ürün görselleri (yüklenmişte thumbnail data-URL'i, URL kaynaklıda yok).
-        var images = new List<N11PreviewImageDto>();
-        foreach (var image in product.Images.OrderByDescending(i => i.IsDefault).ThenBy(i => i.DisplayOrder))
-        {
-            string? previewDataUrl = null;
-            if (image.SourceType == ProductImageSourceType.Upload && !string.IsNullOrEmpty(image.BlobName))
-            {
-                var thumbnail = await _imageContainer.GetAllBytesOrNullAsync(ProductImageAppService.ThumbnailNameOf(image.BlobName!));
-                if (thumbnail is not null)
-                {
-                    previewDataUrl = ProductImageAppService.BuildPreviewDataUrl(thumbnail);
-                }
-            }
-
-            images.Add(new N11PreviewImageDto
-            {
-                Source = image.SourceType == ProductImageSourceType.Url ? (image.Url ?? string.Empty) : (image.FileName ?? image.BlobName ?? string.Empty),
-                IsDefault = image.IsDefault,
-                PreviewDataUrl = previewDataUrl,
-            });
-        }
-
-        return images;
     }
 
     /// <summary>N11'in döndürdüğü ürün gerçeğini yerel kayda uygular — <b>SpecialInfo HARİÇ</b> (2026-07-07 kararı:

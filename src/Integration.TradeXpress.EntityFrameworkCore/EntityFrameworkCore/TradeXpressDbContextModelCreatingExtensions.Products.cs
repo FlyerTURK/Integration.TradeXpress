@@ -29,16 +29,6 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
             // soft-delete edilmiş bir kategoriyi fiziksel silmede kilitlerdi). Index, "bu kategoriye bağlı ürün
             // var mı" silme-guard'ı ve kategori bazlı listeleme içindir.
             b.HasIndex(x => new { x.TenantId, x.CompanyId, x.ProductCategoryId });
-            // Görseller — owned collection → JSON kolonu (URL ya da blob; push edilir, sorgulanmaz).
-            b.OwnsMany(x => x.Images, i =>
-            {
-                i.ToJson();
-                i.Property(p => p.Url).HasMaxLength(ProductConsts.ImageUrlMaxLength);
-                i.Property(p => p.BlobName).HasMaxLength(ProductConsts.ImageBlobNameMaxLength);
-                i.Property(p => p.FileName).HasMaxLength(ProductConsts.ImageFileNameMaxLength);
-                i.Property(p => p.VariantCode).HasMaxLength(Variants.EntityVariantConsts.VariantCodeMaxLength);
-            });
-
             // Marketplace indirimi (ürün-seviyesi) — tip (enum→int) + değer (18,2) + iş tarihleri.
             b.Property(x => x.DiscountValue).HasPrecision(ProductConsts.SalePricePrecision, ProductConsts.SalePriceScale);
 

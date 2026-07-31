@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Integration.TradeXpress.Attachments;
 using Integration.TradeXpress.MultiCompany;
 using Integration.TradeXpress.Products;
 using Integration.TradeXpress.SalesChannels;
@@ -35,6 +36,8 @@ public abstract class SalesChannelTrN11ProductPushTests<TStartupModule> : TradeX
     private readonly IRepository<EntityVariant, Guid> _erpVariantRepository;
     private readonly IRepository<ProductVariantDetail, Guid> _variantDetailRepository;
     private readonly IRepository<SalesChannelTrN11ProductStockItem, Guid> _headerRepository;
+    private readonly IRepository<Media, Guid> _mediaRepository;
+    private readonly IRepository<EntityMediaLink, Guid> _linkRepository;
     private readonly ICurrentCompany _currentCompany;
     private readonly FakeN11ProductClient _fakeClient;
 
@@ -49,6 +52,8 @@ public abstract class SalesChannelTrN11ProductPushTests<TStartupModule> : TradeX
         _erpVariantRepository = GetRequiredService<IRepository<EntityVariant, Guid>>();
         _variantDetailRepository = GetRequiredService<IRepository<ProductVariantDetail, Guid>>();
         _headerRepository = GetRequiredService<IRepository<SalesChannelTrN11ProductStockItem, Guid>>();
+        _mediaRepository = GetRequiredService<IRepository<Media, Guid>>();
+        _linkRepository = GetRequiredService<IRepository<EntityMediaLink, Guid>>();
         _currentCompany = GetRequiredService<ICurrentCompany>();
         _fakeClient = GetRequiredService<FakeN11ProductClient>();
     }
@@ -205,12 +210,26 @@ public abstract class SalesChannelTrN11ProductPushTests<TStartupModule> : TradeX
                 new SalesChannelTrN11(companyId, $"N11-{productCode}", $"N11 Kanal {productCode}", "app-key", "app-secret"),
                 autoSave: true);
             var product = new Product(companyId, productCode, $"Urun {productCode}");
-            // Push en az bir URL kaynaklı görsel ister (ImagesRequired guard'ı) — dış link, blob sağlayıcı gerekmez.
-            product.SetImages(new[]
-            {
-                new ProductImage(ProductImageSourceType.Url, "https://example.com/product.jpg", null, null, 0, true, null, null),
-            });
             await _productRepository.InsertAsync(product, autoSave: true);
+
+            // Push en az bir görsel ister (ImagesRequired guard'ı). Kaynak merkezi DAM: kütüphane kaydı + ürün
+            // bağlamına link. Bu testlerin konusu görsel DEĞİL varyant/SKU eşlemesi — tek kapak görseli yeter.
+            var media = await _mediaRepository.InsertAsync(
+                new Media(
+                    companyId,
+                    MediaType.Image,
+                    blobName: Guid.NewGuid().ToString("N"),
+                    fileName: $"{productCode}.jpg",
+                    contentType: "image/jpeg",
+                    size: 1024,
+                    contentHash: Guid.NewGuid().ToString("N")),
+                autoSave: true);
+
+            await _linkRepository.InsertAsync(
+                new EntityMediaLink(
+                    companyId, MediaEntityNames.Product, product.Id, media.Id, displayOrder: 0, isDefault: true, isActive: true),
+                autoSave: true);
+
             return (channel, product);
         });
     }

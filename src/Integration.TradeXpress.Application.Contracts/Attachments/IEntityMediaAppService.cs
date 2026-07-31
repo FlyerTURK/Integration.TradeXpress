@@ -8,7 +8,7 @@ namespace Integration.TradeXpress.Attachments;
 /// <summary>
 /// Entity→medya LİNK seti servisi — bir kaydın (EntityName+EntityId) kütüphane medyalarına referanslarını okur/replace eder.
 /// Medya İÇERİĞİ silinmez (kütüphanede kalır); yalnız link'ler (sıra/varsayılan/aktif) yönetilir. Parent AppService/panel
-/// kayıt sonrası <see cref="ReplaceForAsync"/> ile link setini değiştirir (graph-save deseni; EntityImage ile aynı).
+/// kayıt sonrası <see cref="ReplaceForAsync"/> ile link setini değiştirir (EntityDocument/EntityNote ile aynı graph-save deseni).
 /// </summary>
 public interface IEntityMediaAppService : IApplicationService
 {
@@ -24,6 +24,9 @@ public interface IEntityMediaAppService : IApplicationService
     /// <item>PASİF link'ler elenir (düzenleme yüzeyi onları gösterir; pazaryeri görmemeli).</item>
     /// <item><paramref name="mediaType"/> ile tür süzülür — video isteyen kanal ayrı çağırır; görsel listesine mp4 sızmaz.</item>
     /// <item>Sıra KAPAK-ÖNCE çözülür (<c>IsDefault</c> → <c>DisplayOrder</c>) — DAM'da kapak, sırası kaçıncı olursa olsun kapaktır.</item>
-    /// </list></summary>
+    /// </list>
+    ///
+    /// <para>Varyant-özel medya AYRI bağlamda durur ("ProductVariant" + varyant Id'si); çağıran hangi bağlamı
+    /// istediğine karar verir, geri düşüş sırası push tarafında kurulur.</para></summary>
     Task<List<PushMediaDto>> GetPushMediaAsync(string entityName, Guid entityId, MediaType? mediaType = null);
 }

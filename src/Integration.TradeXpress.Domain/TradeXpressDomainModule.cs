@@ -50,17 +50,10 @@ public class TradeXpressDomainModule : AbpModule
             options.Kind = DateTimeKind.Utc;
         });
 
-        // Ürün + maden görselleri blob konteynerleri → Database provider (AppBlobs tablosu; DbContext ConfigureBlobStoring hazır).
+        // Blob konteynerleri → Database provider (AppBlobs tablosu; DbContext ConfigureBlobStoring hazır).
+        // Legacy ProductImages/MetalImages konteynerleri 2026-07-31'de kalktı — görsel içerik artık DAM'da (MediaContents).
         Configure<AbpBlobStoringOptions>(options =>
         {
-            options.Containers.Configure<ProductImagesContainer>(container =>
-            {
-                container.UseDatabase();
-            });
-            options.Containers.Configure<MetalImagesContainer>(container =>
-            {
-                container.UseDatabase();
-            });
             // Entity-agnostik doküman container'ı (ham blob; thumbnail yok).
             options.Containers.Configure<Integration.TradeXpress.Attachments.EntityDocumentsContainer>(container =>
             {

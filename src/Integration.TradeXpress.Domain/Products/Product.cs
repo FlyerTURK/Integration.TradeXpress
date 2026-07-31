@@ -46,9 +46,10 @@ public class Product : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwn
 
     public virtual bool IsActive { get; protected set; }
 
-    /// <summary>Ürün görselleri (owned → JSON) — dış URL ya da yüklenmiş dosya (blob). Sıra DisplayOrder ile
-    /// (küçük önce; ilk = ana görsel). Marketplace push'unda URL-kaynaklılar doğrudan gider.</summary>
-    public virtual List<ProductImage> Images { get; protected set; } = new();
+    // ── Ürün görselleri 2026-07-31'de MERKEZİ DAM'a taşındı (K2 emekliliği) ──
+    // Eski owned "Images" JSON koleksiyonu kaldırıldı; görsel + video artık Media + EntityMediaLink'te
+    // ("Product" bağlamı — kayıt geneli; "ProductVariant" bağlamı — varyanta özel). Push, önizleme ve
+    // sipariş snapshot'ı tek kaynaktan (IEntityMediaAppService) okur.
 
     /// <summary>Marketplace listeleme indirimi tipi (ürün-seviyesi; tüm varyant + kanallar). None = indirim yok.</summary>
     public virtual ProductDiscountType DiscountType { get; protected set; }
@@ -433,55 +434,6 @@ public class Product : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwn
         DiscountEndDate = endDate?.Date;
     }
 
-    /// <summary>Görselleri ayarlar — kaynağı boş olanlar (URL'siz Url tipi / blob'suz Upload tipi) elenir,
-    /// DisplayOrder'a göre sıralanır, en fazla <see cref="ProductConsts.MaxImageCount"/>. Aynı ürüne aynı URL
-    /// ya da aynı BLOB adı İKİ KEZ giremez (dostane hata). Tekil-default: birden fazla işaretliyse ilki kalır,
-    /// hiç yoksa ilk görsel default olur.</summary>
-    public virtual void SetImages(IEnumerable<ProductImage>? images)
-    {
-        var normalized = (images ?? Enumerable.Empty<ProductImage>())
-            .Where(i => i.SourceType is ProductImageSourceType.Url or ProductImageSourceType.Upload)   // bilinmeyen tip ele
-            .Where(i => i.SourceType == ProductImageSourceType.Url
-                ? !string.IsNullOrWhiteSpace(i.Url)
-                : !string.IsNullOrWhiteSpace(i.BlobName))
-            .Select(i => new ProductImage(
-                i.SourceType,
-                string.IsNullOrWhiteSpace(i.Url) ? null : i.Url!.Trim(),
-                string.IsNullOrWhiteSpace(i.BlobName) ? null : i.BlobName!.Trim(),
-                string.IsNullOrWhiteSpace(i.FileName) ? null : i.FileName!.Trim(),
-                i.DisplayOrder,
-                i.IsDefault,
-                i.VariantId,
-                string.IsNullOrWhiteSpace(i.VariantCode) ? null : i.VariantCode!.Trim()))
-            .OrderBy(i => i.DisplayOrder)
-            .Take(ProductConsts.MaxImageCount)
-            .ToList();
-
-        EnsureImagesUnique(normalized);
-        EnsureSingleDefault(normalized);
-        Images = normalized;
-    }
-
-    /// <summary>Aynı ürüne aynı URL (case-duyarsız) ya da aynı BLOB adı iki kez girilemez — dostane hata.
-    /// Dosya adı ARTIK dedupe anahtarı DEĞİL (2026-07-18 kullanıcı kararı: aynı dosya adı farklı varyant
-    /// klasöründe meşru; blob adı path-önekli ve sunucu ilk-boş-sıra probe'uyla zaten TEKİL). UI drill'i de
-    /// kaydetmeden önce aynı kuralı uygular; burası savunma.</summary>
-    private static void EnsureImagesUnique(List<ProductImage> images)
-    {
-        var duplicateUrl = images
-            .Where(i => i.Url is not null)
-            .GroupBy(i => i.Url!, StringComparer.OrdinalIgnoreCase)
-            .Any(g => g.Count() > 1);
-        var duplicateBlob = images
-            .Where(i => i.BlobName is not null)
-            .GroupBy(i => i.BlobName!, StringComparer.Ordinal)
-            .Any(g => g.Count() > 1);
-        if (duplicateUrl || duplicateBlob)
-        {
-            throw new BusinessException("TradeXpress:Product:ImageDuplicate");
-        }
-    }
-
     /// <summary>Varyant üretim tercihi — SetCondition deseni (basit atama). Muadil konfigürasyonunun mod
     /// tutarlılığı <see cref="SetSubstitutionConfig"/>'te (bu setter'dan SONRA çağrılır — Create/Update simetrik).</summary>
     public virtual void SetVariantMode(ProductVariantMode variantMode)
@@ -563,34 +515,6 @@ public class Product : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwn
         }
 
         StockPolicy = stockPolicy;
-    }
-
-    /// <summary>Tekil varsayılan görsel: birden fazla işaretliyse İLKİ kalır; hiç yoksa ilk görsel default olur.</summary>
-    private static void EnsureSingleDefault(List<ProductImage> images)
-    {
-        if (images.Count == 0)
-        {
-            return;
-        }
-
-        var firstDefaultSeen = false;
-        foreach (var image in images)
-        {
-            if (image.IsDefault)
-            {
-                if (firstDefaultSeen)
-                {
-                    image.IsDefault = false;
-                }
-
-                firstDefaultSeen = true;
-            }
-        }
-
-        if (!firstDefaultSeen)
-        {
-            images[0].IsDefault = true;
-        }
     }
 
     public override string ToString()

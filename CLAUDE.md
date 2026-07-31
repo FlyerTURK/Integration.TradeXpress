@@ -36,7 +36,7 @@ Tıkanınca kolay yola sapıp mevcut işi silme/kökten değiştirme YOK. Reflek
 - **Mimari:** katman kaydırma (UI↔API), merkezi yolu (CrudLayout/StateService/Framework modülü) bypass edip paralel tek-kullanımlık yapı.
 - **Güvenlik:** auth/`[Authorize]` kapatma, multi-tenant `IDataFilter` disable, validation/concurrency/guard kaldırma "çalışsın diye".
 - **Sahte baypas:** mock/fake dönme, `catch {}` ile kök neden gizleme, `#pragma warning disable`/`<NoWarn>`, test/assertion zayıflatma.
-- **Diğer:** sabit paket sürümü (DevExpress 25.2.5/ABP) hatadan kaçmak için oynama; sessiz kapsam düşürme; hedefli düzeltme yeterken toplu find-replace/reformat; Program.cs/DI/DbContext/modül global config'i yerel semptom için değiştirme; kullanıcının çalışan host'unu habersiz öldürme.
+- **Diğer:** sabit paket sürümü (DevExpress 25.2.8/ABP) hatadan kaçmak için oynama; sessiz kapsam düşürme; hedefli düzeltme yeterken toplu find-replace/reformat; Program.cs/DI/DbContext/modül global config'i yerel semptom için değiştirme; kullanıcının çalışan host'unu habersiz öldürme.
 
 ## 3) Build / host akışı
 - Host'u **terminal sahiplenir** (VS değil, F5 yok). Host'u ben `dotnet run -c Debug` ile başlatırım.
@@ -58,7 +58,7 @@ Tıkanınca kolay yola sapıp mevcut işi silme/kökten değiştirme YOK. Reflek
 - **Git güvenlik ağı:** her oturum öncesi temiz commit; bozulursa geri al.
 
 ## 6) Mimari sabitler (stack)
-- **ABP.IO** (ücretsiz) + **DevExpress.Blazor 25.2.5** (lokal NuGet, TAM sabitleme — sürüm oynama) + **EF Core 10**. `Integration.Framework` = ayrı Core değil, her projeye `DependsOn` ile eklenen **ABP modülü**.
+- **ABP.IO** (ücretsiz) + **DevExpress.Blazor 25.2.8** (lokal NuGet, TAM sabitleme — sürüm oynama) + **EF Core 10**. `Integration.Framework` = ayrı Core değil, her projeye `DependsOn` ile eklenen **ABP modülü**.
 - **Blazor SERVER** (WASM değil): `ILogger` server-log'a gider; `IWebAssemblyHostEnvironment` YOK; client modülü server'ın `DependsOn`'unda değil → **servis/mapper'ı server modülde de elle kaydet**; `BusinessException` in-process lokalize olmaz.
 - **Portlar:** Blazor host `:44318` · HttpApi.Host `:44388`. Kanonik URL `https://umut.taile7a850.ts.net:44318` (WASM authority tek-değerli → localhost değil ts.net). Cert: `E:\Kodlarim\Yeni\certs\`.
 - **Org hiyerarşisi:** Şirket→Şube→Kasa (OrgTreeManager: otomatik kurulum + en-az-1-child + HQ-devir-önce-sil). Yetki: rol/izin tenant/company/branch/vault **scoped** (cascade + dar override; working context = company+branch).
@@ -68,7 +68,7 @@ Tıkanınca kolay yola sapıp mevcut işi silme/kökten değiştirme YOK. Reflek
 - **Zaman: kayıt=UTC, görüntü=kullanıcı yerel saati** (2026-07-03 ürün kararı). Zaman damgaları UTC saklanır (`AbpClockOptions.Kind=Utc` hedefi); UI her kullanıcının tarayıcı/masaüstü saatine çevirip gösterir (merkezi dönüşüm — sayfa-başı elle çeviri YOK). İSTİSNA: kullanıcının seçtiği İŞ TARİHİ alanları (VoucherDate gibi) date-only semantiktir, timezone kaydırmasına GİRMEZ (gün kayması yasak). Geçiş planı: zaman/kültür denetim raporu.
 - **ViewModel emekli:** flat edit formları GetDto-direct (`CrudEditComponentBase<TGetDto>`, Save'de `ObjectMapper.Map` Mapperly); drill/tree → Contracts input-DTO + DrillList. Client-side ViewModel YOK.
 - **TEK fiziksel DB** (2026-07-10 keşfi): `AbpTenantConnectionStrings` boş — 14 tenant'ın tümü tek `TradeXpress` DB'sini paylaşıyor; migration'lar TEK DB'ye uygulanır ("3 DB'ye uygula" adımı YOK). `Integration.TradeXpress_company1/_ekuyumcu/_Service` DB'leri ESKİ projelerin kalıntısı, bu app'in değil (DOKUNMA). DbMigrator secrets için proje klasöründen çalıştırılır (repo kökünden content-root bulunamaz).
-- **Görsel sistemi DONDURMA (K2, 2026-07-23 aktivasyon):** yeni görsel/medya özelliği YALNIZ DAM'a (Media/EntityMediaLink) yazılır; `ProductImage`/`MetalImage` DONMUŞ legacy — yeni özellik ALMAZ (bugfix serbest). Migrate+emeklilik Faz-5'te ayrı planla (master plan K2).
+- **TEK görsel sistemi = DAM (K2 TAMAMLANDI, 2026-07-31):** `ProductImage`/`MetalImage`/`ISingleImageEditModel`/`ProductImageSourceType` + blob konteynerleri + upload servisleri TAMAMEN kaldırıldı (`RetireLegacyImageColumns` migration'ı kolonları düşürdü; format sonrası DB boş olduğundan veri göçü GEREKMEDİ). Tüm görsel/medya `Media`+`EntityMediaLink`'te: kayıt geneli `"Product"` bağlamı, varyanta özel `"{Entity}Variant"` bağlamı (`MediaEntityNames` — Good/Jewelry/Metal'in yerleşik deseni; link üzerinde varyant kolonu YOK). Push + önizleme + sipariş snapshot'ı + pazaryeri import'u tek kaynaktan okur/yazar (`MarketplacePushImageResolver` varyant→kayıt-geneli fallback'li; `MarketplaceImageDownloader` DAM'a import eder, indirilemeyen görsel ATLANIR — URL-kaynağı taşınmaz).
 
 ## 7) Referans kaynakları (ERP iş kuralı araştırması)
 "Eski projeye kendiliğinden referans yapma" kuralı **eski KOD/desen/karar taşımak** içindir. **İSTİSNA — bunlar tasarlanmış canlı araştırma kaynağı, voucher/cari/maden/bilanço işinde serbestçe bakılır:**

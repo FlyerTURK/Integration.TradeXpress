@@ -5,30 +5,10 @@ using Integration.Framework.Base.Dtos;
 using Integration.Framework.Base.Dtos.Interfaces;
 using Integration.TradeXpress.Attachments;
 using Integration.TradeXpress.Commodities;
-using Integration.TradeXpress.Products;
 using Integration.TradeXpress.Variants;
 using Integration.TradeXpress.Vouchers;
 
 namespace Integration.TradeXpress.Metals;
-
-/// <summary>Maden TEK temsili görseli — düzenleme modeli (paylaşılan <c>SingleImageEditFields</c> bileşenine
-/// bağlanır). Kaynağı boş bırakılan görsel save'de temizlenir (<c>Metal.SetImage</c>).</summary>
-public class MetalImageDto : ISingleImageEditModel
-{
-    public ProductImageSourceType SourceType { get; set; } = ProductImageSourceType.Url;
-
-    [StringLength(MetalConsts.ImageUrlMaxLength)]
-    public string? Url { get; set; }
-
-    [StringLength(MetalConsts.ImageBlobNameMaxLength)]
-    public string? BlobName { get; set; }
-
-    [StringLength(MetalConsts.ImageFileNameMaxLength)]
-    public string? FileName { get; set; }
-
-    /// <summary>Blob görselin önizlemesi (data URL) — SALT görüntü; sunucu/upload doldurur, save yoksayar.</summary>
-    public string? PreviewDataUrl { get; set; }
-}
 
 public class MetalListRequestDto : ListRequestDto
 {
@@ -46,11 +26,11 @@ public class MetalListDto : FollowingUnitCatalogListDtoBase
 
     public Guid? CostUnitId { get; set; }
 
-    /// <summary>Grid önizlemesi — Url tipinde doğrudan URL, Upload'da thumbnail data-URL'i (sunucu doldurur).</summary>
+    /// <summary>Grid önizlemesi — ana varyantın DAM poster URL'i (sunucu doldurur).</summary>
     public string? ImagePreviewUrl { get; set; }
 
-    // -- Variant-derived Labor properties --
-    public Integration.TradeXpress.Vouchers.MetalLaborType LaborType { get; set; }
+    // -- Varyanttan türetilen işçilik alanları --
+    public MetalLaborType LaborType { get; set; }
     public decimal EntryLabor { get; set; }
     public Guid? EntryLaborUnitId { get; set; }
     public bool EntryLaborChange { get; set; }
@@ -85,12 +65,8 @@ public class MetalGetDto : FollowingUnitCatalogGetDtoBase, IHasCode
     [StringLength(MetalConsts.DescriptionMaxLength)]
     public string? Description { get; set; }
 
-    /// <summary>Temsili görsel (TEK) — kaynağı boşsa save'de temizlenir. Client binding için daima non-null başlar;
-    /// sunucu Get'te de non-null garanti eder (EnrichGet).</summary>
-    public MetalImageDto? Image { get; set; } = new();
-
-    // ── Agnostik graf (in-memory; kayıtta AppService persist eder). Maden ANA görseli OWNED tek kaldığından agnostik
-    //    çoklu Görsel YOK; Doküman/Not + Nitelik/Varyant (varyant-özel görselleriyle) eklenir. ──
+    // ── Agnostik graf (in-memory; kayıtta AppService persist eder). Görseller VARYANT seviyesinde yönetilir
+    //    (EntityVariantsPanel ShowImages); burada Doküman/Not + Nitelik/Varyant grafı taşınır. ──
     public List<EntityDocumentEditDto> Documents { get; set; } = new();
     public List<EntityNoteEditDto> Notes { get; set; } = new();
     public List<EntityAttributeGraphDto> Attributes { get; set; } = new();
@@ -122,10 +98,6 @@ public class MetalCreateDto : FollowingUnitCatalogCreateDtoBase
     public string? Barcode { get; set; }
     [StringLength(MetalConsts.DescriptionMaxLength)]
     public string? Description { get; set; }
-
-    /// <summary>Temsili görsel (TEK) — kaynağı boşsa save'de temizlenir. Client binding için daima non-null başlar;
-    /// sunucu Get'te de non-null garanti eder (EnrichGet).</summary>
-    public MetalImageDto? Image { get; set; } = new();
 
     public List<EntityDocumentEditDto> Documents { get; set; } = new();
     public List<EntityNoteEditDto> Notes { get; set; } = new();
@@ -159,10 +131,6 @@ public class MetalUpdateDto : FollowingUnitCatalogUpdateDtoBase
     public string? Barcode { get; set; }
     [StringLength(MetalConsts.DescriptionMaxLength)]
     public string? Description { get; set; }
-
-    /// <summary>Temsili görsel (TEK) — kaynağı boşsa save'de temizlenir. Client binding için daima non-null başlar;
-    /// sunucu Get'te de non-null garanti eder (EnrichGet).</summary>
-    public MetalImageDto? Image { get; set; } = new();
 
     public List<EntityDocumentEditDto> Documents { get; set; } = new();
     public List<EntityNoteEditDto> Notes { get; set; } = new();

@@ -22,6 +22,7 @@ public abstract class EntityMediaPushSelectionTests<TStartupModule> : TradeXpres
     where TStartupModule : IAbpModule
 {
     private const string OwnerEntityName = MediaEntityNames.Product;
+    private const string VariantEntityName = MediaEntityNames.ProductVariant;
 
     private readonly IEntityMediaAppService _entityMedia;
     private readonly IRepository<Media, Guid> _mediaRepository;
@@ -131,32 +132,59 @@ public abstract class EntityMediaPushSelectionTests<TStartupModule> : TradeXpres
         }
     }
 
-    /// <summary>Medya + link çifti kurar. Demet: (ad, tür, sıra, kapak mı, aktif mi).</summary>
+    [Fact]
+    public async Task Variant_media_lives_in_its_own_context_and_does_not_leak()
+    {
+        // Varyant-özel medya AYRI bir bağlamda durur ("ProductVariant" + varyantın Id'si) — Good/Jewelry/Metal
+        // ailelerinin kullandığı desen. Bağlam ayrımı sızarsa ürün push'una yanlış renkteki fotoğraf karışır.
+        var companyId = Guid.NewGuid();
+        var ownerId = Guid.NewGuid();
+        var variantId = Guid.NewGuid();
+
+        using (_currentCompany.Change(companyId))
+        {
+            await SeedAsync(companyId, ownerId, new[] { ("generic", MediaType.Image, 0, true, true) });
+            await SeedAsync(companyId, variantId, new[] { ("red", MediaType.Image, 0, true, true) }, VariantEntityName);
+
+            var productSet = await _entityMedia.GetPushMediaAsync(OwnerEntityName, ownerId, MediaType.Image);
+            (await NamesOfAsync(productSet)).ShouldBe(new[] { "generic" });
+
+            var variantSet = await _entityMedia.GetPushMediaAsync(VariantEntityName, variantId, MediaType.Image);
+            (await NamesOfAsync(variantSet)).ShouldBe(new[] { "red" });
+        }
+    }
+
+    /// <summary>Medya + link çifti kurar. Demet: (ad, tür, sıra, kapak mı, aktif mi).
+    /// <paramref name="entityName"/> ile bağlam seçilir (kayıt geneli ya da varyant bağlamı).</summary>
     private async Task SeedAsync(
         Guid companyId,
         Guid ownerId,
-        IReadOnlyList<(string Name, MediaType Type, int Order, bool IsDefault, bool IsActive)> items)
+        IReadOnlyList<(string Name, MediaType Type, int Order, bool IsDefault, bool IsActive)> items,
+        string? entityName = null)
     {
         await WithUnitOfWorkAsync(async () =>
         {
             foreach (var item in items)
             {
-                var media = await _mediaRepository.InsertAsync(
-                    new Media(
-                        companyId,
-                        item.Type,
-                        blobName: Guid.NewGuid().ToString("N"),
-                        fileName: item.Name,
-                        contentType: item.Type == MediaType.Video ? "video/mp4" : "image/jpeg",
-                        size: 1024,
-                        contentHash: Guid.NewGuid().ToString("N")),
-                    autoSave: true);
+                var media = await _mediaRepository.InsertAsync(NewMedia(companyId, item.Name, item.Type), autoSave: true);
 
                 await _linkRepository.InsertAsync(
-                    new EntityMediaLink(companyId, OwnerEntityName, ownerId, media.Id, item.Order, item.IsDefault, item.IsActive),
+                    new EntityMediaLink(companyId, entityName ?? OwnerEntityName, ownerId, media.Id, item.Order, item.IsDefault, item.IsActive),
                     autoSave: true);
             }
         });
+    }
+
+    private static Media NewMedia(Guid companyId, string fileName, MediaType type)
+    {
+        return new Media(
+            companyId,
+            type,
+            blobName: Guid.NewGuid().ToString("N"),
+            fileName: fileName,
+            contentType: type == MediaType.Video ? "video/mp4" : "image/jpeg",
+            size: 1024,
+            contentHash: Guid.NewGuid().ToString("N"));
     }
 
     /// <summary>Sonucu dosya adlarına çevirir — sıra assert'i okunur olsun diye (PushMediaDto ad taşımaz).</summary>

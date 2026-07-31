@@ -2,22 +2,20 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
-using Microsoft.AspNetCore.Authorization;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats.Jpeg;
 using SixLabors.ImageSharp.Processing;
 using Volo.Abp;
-using Volo.Abp.Authorization;
 using Volo.Abp.BlobStoring;
 using Volo.Abp.Guids;
 
 namespace Integration.TradeXpress.Products;
 
 /// <summary>
-/// Görsel yükleme boru hattının ORTAK çekirdeği (Product + Metal ve gelecekteki görselli kataloglar):
-/// boyut/uzantı guard'ları, gerçek-görsel doğrulaması, thumbnail üretimi ve önizleme data-URL'i tek yerde.
-/// Hata kodları çağıranın entity ön-ekiyle üretilir (ör. "TradeXpress:Product" → ":ImageTooLarge") —
-/// lokalize mesajlar entity-başına kalır, mantık kalmaz (DRY).
+/// Görsel yükleme boru hattının çekirdeği — tek tüketici merkezi DAM (<c>MediaAppService</c>; entity-başına
+/// Product/Metal upload servisleri DAM geçişinde silindi): boyut/uzantı guard'ları, gerçek-görsel doğrulaması
+/// ve thumbnail (poster) üretimi tek yerde. Hata kodları çağıranın ön-ekiyle üretilir
+/// (ör. "TradeXpress:Media" → ":ImageTooLarge") — lokalize mesajlar çağıranda kalır, mantık kalmaz (DRY).
 /// </summary>
 public static class ImageUploadPipeline
 {
@@ -38,12 +36,6 @@ public static class ImageUploadPipeline
         var dir = slash >= 0 ? blobName.Substring(0, slash + 1) : string.Empty;
         var file = slash >= 0 ? blobName.Substring(slash + 1) : blobName;
         return dir + "thumb-" + file + ".jpg";
-    }
-
-    /// <summary>Thumbnail JPEG içeriğinden önizleme data-URL'i.</summary>
-    public static string BuildPreviewDataUrl(byte[] thumbnailContent)
-    {
-        return "data:image/jpeg;base64," + Convert.ToBase64String(thumbnailContent);
     }
 
     /// <summary>Yükleme guard'ları: boş içerik / boyut sınırı / uzantı whitelist'i — dostane hata
@@ -100,9 +92,9 @@ public static class ImageUploadPipeline
     }
 
     /// <summary>
-    /// Upload orkestrasyonunun TEK kaynağı (Product + Metal + gelecekteki görselli kataloglar — DRY):
-    /// guard'lar → thumbnail → blob adı (Guid + uzantı) → ana blob + thumbnail kaydı → önizleme data-URL.
-    /// Çağıran yalnız kendi result DTO'sunu kurar.
+    /// Upload orkestrasyonunun TEK kaynağı (DAM görsel yükleme — MediaAppService):
+    /// guard'lar → thumbnail → blob adı (Guid + uzantı) → ana blob + thumbnail (poster) kaydı.
+    /// Çağıran poster adını <see cref="ThumbnailNameOf"/> ile türetir.
     /// </summary>
     public static async Task<ImageUploadResult> UploadAsync(
         IBlobContainer container,
@@ -120,63 +112,7 @@ public static class ImageUploadPipeline
         await container.SaveAsync(blobName, content);
         await container.SaveAsync(ThumbnailNameOf(blobName), thumbnail);
 
-        return new ImageUploadResult(blobName, BuildPreviewDataUrl(thumbnail));
-    }
-
-    /// <summary>
-    /// PATH ön-ekli upload (Product görselleri — anlamlı blob anahtarı): guard'lar → thumbnail → İLK BOŞ SIRAYI
-    /// probe et ("GORSEL0001", "GORSEL0002", …; <paramref name="blobFolder"/> + "/" altında ExistsAsync ile) →
-    /// ana blob + thumbnail kaydı → önizleme data-URL. <paramref name="blobFolder"/> trailing slash İSTEMEZ
-    /// (ör. "Products/KOD/VARYANTKOD"). Flat Guid-adlı <see cref="UploadAsync"/> ile çekirdeği (guard/thumbnail) paylaşır.
-    /// </summary>
-    public static async Task<ImageUploadResult> UploadToFolderAsync(
-        IBlobContainer container,
-        string blobFolder,
-        string fileName,
-        byte[] content,
-        int maxSizeBytes,
-        string errorCodePrefix)
-    {
-        EnsureValidUpload(content, fileName, maxSizeBytes, errorCodePrefix);
-        var thumbnail = BuildThumbnail(content, errorCodePrefix);
-
-        var extension = Path.GetExtension(fileName).ToLowerInvariant();
-        var blobName = await ProbeNextFreeNameAsync(container, blobFolder, extension);
-        await container.SaveAsync(blobName, content);
-        await container.SaveAsync(ThumbnailNameOf(blobName), thumbnail);
-
-        return new ImageUploadResult(blobName, BuildPreviewDataUrl(thumbnail));
-    }
-
-    /// <summary>İlk boş "GORSEL{n:D4}{ext}" adını bulur — n=1'den başlar, klasördeki ad DOLUYSA artırır
-    /// (aynı klasöre tekrar yükleme çakışmasın; blob adı tekilliğin TEK kaynağı olur).</summary>
-    private static async Task<string> ProbeNextFreeNameAsync(IBlobContainer container, string blobFolder, string extension)
-    {
-        var index = 1;
-        while (true)
-        {
-            var candidate = blobFolder + "/GORSEL" + index.ToString("D4") + extension;
-            if (!await container.ExistsAsync(candidate))
-            {
-                return candidate;
-            }
-
-            index++;
-        }
-    }
-
-    /// <summary>Upload yetkisi: Create YA DA Update yeterli (yeni kayıt oluştururken de yüklenir;
-    /// yalnız-Create'li kullanıcı takılmasın — Product review bulgusuyla gelen ORTAK kural).</summary>
-    public static async Task EnsureCanUploadAsync(
-        IAuthorizationService authorizationService, string createPolicy, string updatePolicy)
-    {
-        if (await authorizationService.IsGrantedAsync(createPolicy)
-            || await authorizationService.IsGrantedAsync(updatePolicy))
-        {
-            return;
-        }
-
-        throw new AbpAuthorizationException(code: updatePolicy);
+        return new ImageUploadResult(blobName);
     }
 
     // İzinli görsel türleri (uzantı → mime). Whitelist — başka tür yüklemesi dostane hatayla reddedilir.
@@ -190,5 +126,5 @@ public static class ImageUploadPipeline
     };
 }
 
-/// <summary>Ortak upload sonucu — servis-özel result DTO'ları (Product/Metal) bundan kurulur.</summary>
-public sealed record ImageUploadResult(string BlobName, string PreviewDataUrl);
+/// <summary>Upload sonucu — kaydedilen ana blob'un adı (poster adı <see cref="ImageUploadPipeline.ThumbnailNameOf"/> ile türetilir).</summary>
+public sealed record ImageUploadResult(string BlobName);

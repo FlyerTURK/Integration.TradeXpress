@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Integration.TradeXpress.Attachments;
 using Integration.TradeXpress.Financials.CurrencyUnits;
 using Integration.TradeXpress.MultiCompany;
 using Integration.TradeXpress.Products;
@@ -38,6 +39,7 @@ public abstract class SalesChannelTrTrendyolProductImportTests<TStartupModule> :
     private readonly IRepository<ProductVariantDetail, Guid> _variantDetailRepository;
     private readonly IRepository<SalesChannelTrTrendyolProductStockItem, Guid> _headerRepository;
     private readonly IRepository<CurrencyUnit, Guid> _currencyUnitRepository;
+    private readonly IEntityMediaAppService _entityMedia;
     private readonly ICurrentCompany _currentCompany;
 
     protected SalesChannelTrTrendyolProductImportTests()
@@ -51,6 +53,7 @@ public abstract class SalesChannelTrTrendyolProductImportTests<TStartupModule> :
         _variantDetailRepository = GetRequiredService<IRepository<ProductVariantDetail, Guid>>();
         _headerRepository = GetRequiredService<IRepository<SalesChannelTrTrendyolProductStockItem, Guid>>();
         _currencyUnitRepository = GetRequiredService<IRepository<CurrencyUnit, Guid>>();
+        _entityMedia = GetRequiredService<IEntityMediaAppService>();
         _currentCompany = GetRequiredService<ICurrentCompany>();
     }
 
@@ -106,8 +109,11 @@ public abstract class SalesChannelTrTrendyolProductImportTests<TStartupModule> :
                 await _productRepository.GetListAsync(p => p.CompanyId == companyId))).ShouldHaveSingleItem();
             product.Code.ShouldBe("STK RED 1");
             product.Name.ShouldBe("iPhone 15 Deri Kılıf");   // TitleCase EZMEDİ (SetName normalizeTitle:false yolu)
-            product.Images.Count.ShouldBe(1);
-            product.Images[0].Url.ShouldBe("https://cdn.example.com/img-BR-RED-1.jpg");
+
+            // Görseller DAM'a import edilir (legacy URL-kaynağı 2026-07-31'de emekli). Test ortamında uzak URL
+            // erişilemez → indirme ATLANIR ama import KIRILMAZ (dayanıklılık kuralı) — ürün medyasız kalır.
+            var mediaLinks = await _entityMedia.GetForAsync(MediaEntityNames.Product, product.Id);
+            mediaLinks.ShouldBeEmpty();
 
             // Varyantlar: kalem başına bir tane; barcode ticari kimliğe yazıldı; İLK kalem MAIN.
             var variants = await WithUnitOfWorkAsync(async () =>

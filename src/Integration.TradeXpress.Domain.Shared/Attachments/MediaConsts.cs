@@ -10,8 +10,11 @@ public static class MediaConsts
     public const int EntityNameMaxLength  = 128;   // link: sahip entity tipi adı (ör. "Good", "GoodVariant")
     public const int FolderNameMaxLength  = 128;   // kütüphane klasörü adı
 
-    /// <summary>Görsel tek-yükleme boyut sınırı (4 MB) — ImageSharp guard'ıyla hizalı.</summary>
-    public const long MaxImageSizeBytes = 4L * 1024 * 1024;
+    /// <summary>Görsel tek-yükleme/-import boyut sınırı (10 MB) — legacy ProductImage yoluyla PARİTE
+    /// (2026-08-01 denetim bulgusu: DAM'ın eski 4 MB tavanı, pazaryeri importunun 4-10 MB fotoğrafları
+    /// sessizce atlamasına yol açıyordu; Etsy il_fullxfull görselleri rutin olarak 4 MB'ı aşar).
+    /// Blazor circuit 16 MB mesaj sınırının güvenli altında; ImageSharp decompression-bomb guard'ı ayrıca devrede.</summary>
+    public const long MaxImageSizeBytes = 10L * 1024 * 1024;
 
     /// <summary>Video tek-yükleme/-import boyut sınırı (100 MB) — blob'a self-contained saklanır.</summary>
     public const long MaxVideoSizeBytes = 100L * 1024 * 1024;

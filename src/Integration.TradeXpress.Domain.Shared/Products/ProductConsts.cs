@@ -11,11 +11,7 @@ public static class ProductConsts
     // ── Satılabilir veri (Adım 2: fiyat/stok/görsel — marketplace zorunlu alanları) ──
     public const int SalePricePrecision = 18;    // satış/liste fiyatı (marketplace price/optionPrice)
     public const int SalePriceScale = 2;
-    public const int ImageUrlMaxLength = 1000;   // görsel URL (https, SSL)
-    public const int MaxImageCount = 8;          // N11 ürün başına en fazla 8 görsel
-    public const int ImageBlobNameMaxLength = 256;   // blob adı = path anahtarı ("Products/KOD[/VARYANTKOD]/GORSEL0001.ext"); Guid'den uzun olabilir
-    public const int ImageFileNameMaxLength = 256;   // yüklenen dosyanın orijinal adı (görüntü)
-    public const int MaxImageSizeBytes = 10 * 1024 * 1024;  // yükleme sınırı 10 MB (Etsy tavanı 20MB; Blazor circuit 16MB mesaj sınırı → güvenli 10MB). Metal bu sabiti alias'lar.
+    public const int MaxImageCount = 8;          // N11 ürün başına en fazla 8 görsel (push + import kırpma sınırı; içerik DAM'da)
 
     // Kişiselleştirme talimatı/karakter sınırı sabitleri 2026-07-28'de KALDIRILDI: Etsy'nin tek-kutulu modeli
     // 2026-04-09'da kapandı, kişiselleştirme artık SpecialInfo satırlarıyla (soru başına ayar) ifade ediliyor.

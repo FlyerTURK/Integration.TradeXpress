@@ -342,7 +342,7 @@
         @* Kimlik alanları (Kod + Kombinasyon) yalnız ÇOK varyantlı üretimde anlamlı; tek varyantlı üründe
            kombinasyon yok ve kod otomatik. Ana varyantın kodu ("ANAVARYANT" iç sabiti) yerine ÜRÜNÜN kodu
            gösterilir — kullanıcı için anlamlı olan o (2026-07-28 Hakan). *@
-        <EntityVariantsPanel TVariant="ProductVariantGraphDto" Variants="@Model.Variants" Attributes="@Model.Attributes"
+        <EntityVariantsPanel TVariant="ProductVariantGraphDto" Variants="@Model.Variants" Attributes="@Model.Attributes" ShowImages="true"
                              ShowNetCost="true"
                              ShowIdentity="@(Model.VariantMode is ProductVariantMode.MultiVariant or ProductVariantMode.FromCatalog or ProductVariantMode.Substitution)"
                              MainVariantCodeDisplay="@Model.Code"
@@ -371,72 +371,9 @@
             </ExtraFields>
         </EntityVariantsPanel>
     </DxTabPage>
-    @* Görseller — URL ya da yüklenen dosya (blob); DisplayOrder sıralı (ilk = ana). In-memory drill; Product save'i persist eder. *@
-    <DxTabPage Text="@L["Images"]" TabIconCssClass="@TradeXpressIcons.Product">
-        <DrillList TItem="ProductImageGraphDto"
-                   @ref="_imageDrill"
-                   Title="@L["Images"]"
-                   EntityName="@L["ProductImage"]"
-                   EntityIcon="@TradeXpressIcons.Product"
-                   Items="Model.Images"
-                   KeyFieldName="ClientKey"
-                   PrimaryTextSelector="@(i => i.FileName ?? i.Url)"
-                   NewItemFactory="@(() => new ProductImageGraphDto { DisplayOrder = NextOrder(Model.Images) })"
-                   CloneFactory="@CloneImage"
-                   SaveGuard="@ImageSaveGuard"
-                   OnItemSaved="@((ProductImageGraphDto saved) => TransferDefaultImage(saved))"
-                   MaxItems="ProductConsts.MaxImageCount"
-                   OnChanged="@(() => EditChanged?.Invoke())">
-            <GridColumns>
-                <DxGridDataColumn Caption="@L["Preview"]" Width="110px" TextAlignment="GridTextAlignment.Center">
-                    <CellDisplayTemplate Context="cell">
-                        @{ var img = (ProductImageGraphDto)cell.DataItem; }
-                        @if (!string.IsNullOrEmpty(PreviewSrcOf(img)))
-                        {
-                            @* ham img: Dx görsel bileşeni yok — küçük, sınırlı önizleme *@
-                            <img src="@PreviewSrcOf(img)" alt="" style="max-height:48px; max-width:90px; object-fit:contain;" />
-                        }
-                    </CellDisplayTemplate>
-                </DxGridDataColumn>
-                <DxGridDataColumn FieldName="SourceType" Caption="@L["ImageSource"]" Width="110px">
-                    <CellDisplayTemplate Context="cell">
-                        @L[$"Enum:{nameof(ProductImageSourceType)}:{((ProductImageGraphDto)cell.DataItem).SourceType}"]
-                    </CellDisplayTemplate>
-                </DxGridDataColumn>
-                @* TextSelector: URL satırında FileName null → link boş kalmasın (FileName ?? Url). *@
-                <GridLinkColumn FieldName="FileName" Caption="@L["Name"]"
-                                TextSelector="@(item => ((ProductImageGraphDto)item).FileName ?? ((ProductImageGraphDto)item).Url)"
-                                OnClick="@(item => _imageDrill?.EditItem((ProductImageGraphDto)item))" />
-                @* Bağlı varyant — boşsa ürün-geneli. *@
-                <DxGridDataColumn FieldName="VariantCode" Caption="@L["Variant"]" Width="120px">
-                    <CellDisplayTemplate Context="cell">
-                        @{ var vc = ((ProductImageGraphDto)cell.DataItem).VariantCode; }
-                        @(string.IsNullOrEmpty(vc) ? L["ProductImage:ProductWide"].Value : vc)
-                    </CellDisplayTemplate>
-                </DxGridDataColumn>
-                <DxGridDataColumn FieldName="IsDefault" Caption="@L["Default"]" Width="100px">
-                    <CellDisplayTemplate Context="cell">
-                        @if (cell.Value is bool isDefault && isDefault)
-                        {
-                            <span style="display:flex; align-items:center; gap:0.35rem;">
-                                <i class="custom-icon-check-circle" aria-hidden="true" style="color:#16a34a;"></i>@L["Default"]
-                            </span>
-                        }
-                    </CellDisplayTemplate>
-                </DxGridDataColumn>
-                <DxGridDataColumn FieldName="DisplayOrder" Caption="@L["DisplayOrder"]" Width="90px" />
-            </GridColumns>
-            <EditContent Context="img">
-                <DxFormLayout CssClass="w-100">
-                    <ProductImageEditFields Model="img"
-                                            ProductCode="@Model.Code"
-                                            Variants="@Model.Variants" />
-                </DxFormLayout>
-            </EditContent>
-        </DrillList>
-    </DxTabPage>
-    @* Medya / Video — merkezi kütüphane (görsel + video birlikte; yükle / URL-import / kütüphaneden reuse; video 100MB, poster
-       yakala). ProductImage görsel drill'inden AYRI (o pazaryeri push görselleridir). Panel kendi servisini çağırır (DUMB layout). *@
+    @* Medya / Video — merkezi kütüphane (görsel + video birlikte; yükle / URL-import / kütüphaneden reuse; video 100MB,
+       poster yakala). Pazaryeri push görselleri de BURADAN gider (legacy Images drill'i 2026-07-31'de emekli — K2).
+       Varyanta özel görseller Varyantlar sekmesinde (EntityVariantsPanel ShowImages). Panel kendi servisini çağırır (DUMB layout). *@
     <DxTabPage Text="@L["Product:Media"]" TabIconCssClass="@TradeXpressIcons.Product">
         <span style="color:#6c757d; font-size:0.85rem;">@L["Product:MediaHint"]</span>
         <EntityMediaPanel Media="@Model.Media" />

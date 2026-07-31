@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Integration.TradeXpress.Financials.CurrencyUnits;
 using Integration.TradeXpress.Localization;
 using Integration.TradeXpress.MultiCompany;
+using Integration.TradeXpress.Orchestration;
 using Integration.TradeXpress.SalesChannels;
 using Integration.TradeXpress.Trendyol;
 using Microsoft.Extensions.Localization;
@@ -14,6 +15,7 @@ using Volo.Abp.Data;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Domain.Services;
 using Volo.Abp.MultiTenancy;
+using Volo.Abp.Security.Claims;
 using Volo.Abp.TenantManagement;
 using Volo.Abp.Uow;
 
@@ -43,6 +45,8 @@ public class OrderSyncManager : DomainService
     private readonly OrderLineProductMatcher _productMatcher;
     private readonly IDataFilter _dataFilter;
     private readonly IUnitOfWorkManager _uowManager;
+    private readonly OrchestrationIdentityScope _identityScope;
+    private readonly ICurrentPrincipalAccessor _currentPrincipalAccessor;
     private readonly IStringLocalizer<TradeXpressResource> _l;
 
     /// <summary>Trendyol geriye-bakış: yalnız son ~1 ayı servis eder (retention) → daha geriye gitmek boşuna.</summary>
@@ -62,6 +66,8 @@ public class OrderSyncManager : DomainService
         OrderLineProductMatcher productMatcher,
         IDataFilter dataFilter,
         IUnitOfWorkManager uowManager,
+        OrchestrationIdentityScope identityScope,
+        ICurrentPrincipalAccessor currentPrincipalAccessor,
         IStringLocalizer<TradeXpressResource> l)
     {
         _orderRepository = orderRepository;
@@ -77,6 +83,8 @@ public class OrderSyncManager : DomainService
         _productMatcher = productMatcher;
         _dataFilter = dataFilter;
         _uowManager = uowManager;
+        _identityScope = identityScope;
+        _currentPrincipalAccessor = currentPrincipalAccessor;
         _l = l;
     }
 
@@ -109,37 +117,54 @@ public class OrderSyncManager : DomainService
             // TÜM şirket kanalları görünür (tenant izolasyonu Change ile korunur). Seed edilen order kanalın CompanyId'siyle yazılır.
             using (CurrentTenant.Change(tenantId))
             using (_dataFilter.Disable<ICompanyScoped>())
-            using (var uow = _uowManager.Begin(requiresNew: true))
             {
-                var n11Channels = await AsyncExecuter.ToListAsync(await _n11ChannelRepository.GetQueryableAsync());
-                var trendyolChannels = await AsyncExecuter.ToListAsync(await _trendyolChannelRepository.GetQueryableAsync());
-                var etsyChannels = await AsyncExecuter.ToListAsync(await _etsyChannelRepository.GetQueryableAsync());
-
-                if (n11Channels.Count > 0 || trendyolChannels.Count > 0 || etsyChannels.Count > 0)
+                // KİMLİK: worker principal'sız koşar; satır-eşleştirme zinciri [Authorize] DAM servislerine iner
+                // (OrderLineProductSnapshotBuilder → IEntityMediaAppService) → kimliksiz her tetik
+                // AbpAuthorizationException olur ve kanal seed'i yarıda kesilirdi (2026-08-01 denetim bulgusu).
+                // ProductStockSyncJob deseni: tenant admin'i impersonate edilir; Change ÇAĞIRANIN frame'inde
+                // (AsyncLocal kuralı — OrchestrationIdentityScope doc'u). Admin yoksa tenant atlanır, sessiz geçilmez.
+                var principal = await _identityScope.BuildTenantAdminPrincipalAsync();
+                if (principal is null)
                 {
-                    Logger.LogInformation("Sipariş seed: tenant {Tenant} → {N11} N11 + {Trendyol} Trendyol + {Etsy} Etsy kanal.",
-                        tenantId, n11Channels.Count, trendyolChannels.Count, etsyChannels.Count);
+                    Logger.LogWarning(
+                        "Sipariş seed: tenant {Tenant} için admin bulunamadı — kanal seed'i atlandı (medya okuma yetkisi kurulamaz).",
+                        tenantId);
+                    continue;
                 }
 
-                foreach (var channel in n11Channels)
+                using (_currentPrincipalAccessor.Change(principal))
+                using (var uow = _uowManager.Begin(requiresNew: true))
                 {
-                    await SeedChannelIfEmptyAsync(channel.Id, channel.CompanyId,
-                        () => StreamN11ChannelAsync(channel, report, cancellationToken), "N11");
-                }
+                    var n11Channels = await AsyncExecuter.ToListAsync(await _n11ChannelRepository.GetQueryableAsync());
+                    var trendyolChannels = await AsyncExecuter.ToListAsync(await _trendyolChannelRepository.GetQueryableAsync());
+                    var etsyChannels = await AsyncExecuter.ToListAsync(await _etsyChannelRepository.GetQueryableAsync());
 
-                foreach (var channel in trendyolChannels)
-                {
-                    await SeedChannelIfEmptyAsync(channel.Id, channel.CompanyId,
-                        () => StreamTrendyolChannelAsync(channel, report, cancellationToken), "Trendyol");
-                }
+                    if (n11Channels.Count > 0 || trendyolChannels.Count > 0 || etsyChannels.Count > 0)
+                    {
+                        Logger.LogInformation("Sipariş seed: tenant {Tenant} → {N11} N11 + {Trendyol} Trendyol + {Etsy} Etsy kanal.",
+                            tenantId, n11Channels.Count, trendyolChannels.Count, etsyChannels.Count);
+                    }
 
-                foreach (var channel in etsyChannels)
-                {
-                    await SeedChannelIfEmptyAsync(channel.Id, channel.CompanyId,
-                        () => StreamEtsyChannelAsync(channel, report, cancellationToken), "Etsy");
-                }
+                    foreach (var channel in n11Channels)
+                    {
+                        await SeedChannelIfEmptyAsync(channel.Id, channel.CompanyId,
+                            () => StreamN11ChannelAsync(channel, report, cancellationToken), "N11");
+                    }
 
-                await uow.CompleteAsync();
+                    foreach (var channel in trendyolChannels)
+                    {
+                        await SeedChannelIfEmptyAsync(channel.Id, channel.CompanyId,
+                            () => StreamTrendyolChannelAsync(channel, report, cancellationToken), "Trendyol");
+                    }
+
+                    foreach (var channel in etsyChannels)
+                    {
+                        await SeedChannelIfEmptyAsync(channel.Id, channel.CompanyId,
+                            () => StreamEtsyChannelAsync(channel, report, cancellationToken), "Etsy");
+                    }
+
+                    await uow.CompleteAsync();
+                }
             }
         }
 

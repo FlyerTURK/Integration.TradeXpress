@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using DevExpress.Blazor;
 using Integration.Framework.Blazor.Client.Components.Crud;
 using Integration.TradeXpress.AddOns;
+using Integration.TradeXpress.Attachments;
 using Integration.TradeXpress.Blazor.Client.Components.Shared;
 using Integration.TradeXpress.Countries;
 using Integration.TradeXpress.Financials.CurrencyUnits;
@@ -72,53 +73,8 @@ public partial class ProductLayout
 
     /// <summary>Inline kargo şablonu ekle/düzelt sonrası lookup listesini host tazeler (EntityChange tetikler).</summary>
 
-    // Nitelik + varyant drill'leri artık JENERİK paylaşılan panellerde (EntityAttributesPanel / EntityVariantsPanel);
-    // yalnız görsel drill'i bu layout'ta kalır.
-    private DrillList<ProductImageGraphDto>? _imageDrill;
-
-    /// <summary>Görsel önizleme kaynağı — URL tipli doğrudan URL, yüklenmişte sunucunun doldurduğu data-URL.</summary>
-    private static string? PreviewSrcOf(ProductImageGraphDto image)
-    {
-        return image.SourceType == ProductImageSourceType.Url ? image.Url : image.PreviewDataUrl;
-    }
-
-    // Cancel geri alabilsin diye kopya üzerinde düzenleme (upload'ın blob yazımı geri alınmaz — süpürücü işi;
-    // ama Model.Images'taki CANLI satır iptalde mutate edilmemiş kalır).
-    private static ProductImageGraphDto CloneImage(ProductImageGraphDto source)
-    {
-        var json = JsonSerializer.Serialize(source);
-        return JsonSerializer.Deserialize<ProductImageGraphDto>(json)!;
-    }
-
-    /// <summary>Tekil-bayrak transferi (HQ-devri deseni): kaydedilen görsel VARSAYILAN işaretliyse diğerlerinin
-    /// bayrağı düşer — aksi halde sunucu EnsureSingleDefault "ilki kalır" kuralıyla kullanıcının YENİ seçimini
-    /// sessizce geri alırdı (review bulgusu).</summary>
-    private void TransferDefaultImage(ProductImageGraphDto saved)
-    {
-        if (!saved.IsDefault)
-        {
-            return;
-        }
-
-        foreach (var other in Model.Images.Where(x => x.ClientKey != saved.ClientKey && x.IsDefault))
-        {
-            other.IsDefault = false;
-        }
-    }
-
-    /// <summary>Görsel kaydetme engeli: aynı ürüne aynı URL (case-duyarsız) ya da aynı BLOB adı İKİ KEZ girilemez.
-    /// Dosya adı ARTIK dedupe anahtarı DEĞİL (blob adı path-önekli + sunucu ilk-boş-sıra probe'uyla tekil; aynı
-    /// dosya adı farklı varyant klasöründe meşru). Sunucu SetImages'ta da aynı kural (savunma).</summary>
-    private string? ImageSaveGuard(ProductImageGraphDto candidate)
-    {
-        var others = Model.Images.Where(x => x.ClientKey != candidate.ClientKey);
-        var url = candidate.Url?.Trim();
-        var duplicateUrl = url is { Length: > 0 }
-            && others.Any(x => string.Equals(x.Url?.Trim(), url, StringComparison.OrdinalIgnoreCase));
-        var duplicateBlob = candidate.BlobName is { Length: > 0 }
-            && others.Any(x => string.Equals(x.BlobName, candidate.BlobName, StringComparison.Ordinal));
-        return duplicateUrl || duplicateBlob ? L["TradeXpress:Product:ImageDuplicate"].Value : null;
-    }
+    // Nitelik + varyant drill'leri JENERİK paylaşılan panellerde (EntityAttributesPanel / EntityVariantsPanel).
+    // Legacy görsel drill'i 2026-07-31'de emekli — görseller merkezi DAM panelinde (EntityMediaPanel + varyant sekmesi).
 
     /// <summary>Özel bilgi satırı kaydetme engeli — key boşsa satır kabul edilmez (SetSpecialInfo sunucuda da boş key eler).</summary>
     private string? SpecialInfoSaveGuard(ProductSpecialInfoDto item)
@@ -926,11 +882,6 @@ public partial class ProductLayout
         public bool Success { get { return Trial.Success; } }
     }
 
-    // Yeni görsel eklenince Sıra No OTOMATİK artar (max + 1; boşsa 1). Nitelik/değer sırası JENERİK panelde.
-    private static int NextOrder(IEnumerable<ProductImageGraphDto> items)
-    {
-        return items.Select(x => x.DisplayOrder).DefaultIfEmpty(0).Max() + 1;
-    }
 
     // Yeni eklenti satırı eklenince Sıra No OTOMATİK artar (max + 1; boşsa 1).
     private int NextAddOnOrder()

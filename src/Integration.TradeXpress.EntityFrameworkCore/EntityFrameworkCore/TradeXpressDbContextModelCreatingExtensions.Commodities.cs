@@ -127,15 +127,6 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
             b.Property(x => x.StableQuantity).HasPrecision(
                 MetalConsts.DecimalPrecision, MetalConsts.DecimalScale);
 
-            // Temsili görsel — owned → JSON kolonu (TEK görsel; URL ya da blob referansı, Product.Images deseni).
-            b.OwnsOne(x => x.Image, i =>
-            {
-                i.ToJson();
-                i.Property(p => p.Url).HasMaxLength(MetalConsts.ImageUrlMaxLength);
-                i.Property(p => p.BlobName).HasMaxLength(MetalConsts.ImageBlobNameMaxLength);
-                i.Property(p => p.FileName).HasMaxLength(MetalConsts.ImageFileNameMaxLength);
-            });
-
             // SOFT-DELETE farkindali: silinmis kayit kod slotunu ISGAL ETMEZ (kullanici sildigi kodu yeniden
             // kullanabilir; SalesChannels'taki mevcut desen). CompanyId artik NOT NULL (ICompanyOwned) —
             // filtrede ayrica "CompanyId IS NOT NULL" kosuluna gerek yok.

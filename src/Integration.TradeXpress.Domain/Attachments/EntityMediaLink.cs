@@ -45,7 +45,8 @@ public class EntityMediaLink : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICo
     /// <summary>Sahip entity tipi adı (ör. "Good", "GoodVariant") — set-once.</summary>
     public virtual string EntityName { get; protected set; } = null!;
 
-    /// <summary>Sahip kayıt Id'si — set-once.</summary>
+    /// <summary>Sahip kayıt Id'si — set-once. Varyant-özel medya AYRI bir <see cref="EntityName"/> ile taşınır
+    /// ("GoodVariant"/"MetalVariant"/"ProductVariant" + varyantın Id'si); link üzerinde varyant kolonu YOKTUR.</summary>
     public virtual Guid EntityId { get; protected set; }
 
     /// <summary>Kütüphanedeki medya (id-only referans; aggregate nav yok).</summary>

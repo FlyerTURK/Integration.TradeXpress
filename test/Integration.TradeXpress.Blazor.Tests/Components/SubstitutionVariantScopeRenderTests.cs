@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Bunit;
+using Integration.TradeXpress.Attachments;
 using Integration.TradeXpress.Blazor.Client.Components.Shared;
 using Integration.TradeXpress.Blazor.Client.Pages.Products;
 using Integration.TradeXpress.N11Categories;
@@ -56,6 +57,9 @@ public class SubstitutionVariantScopeRenderTests : BlazorComponentTestBase
         // Grubun BAŞLIK ŞABLONU (HeaderContentTemplate) kullanıldığında gövdenin de çizilmeye devam ettiğini
         // sabitler — ilk denemede tam burada kırılmıştı: derleme geçti, ağaç ekranda yoktu.
         AddSubstitute<IN11CategoryAppService>();
+
+        // Varyant paneli artık varyant-özel medyayı da çiziyor (ShowImages) → kütüphane servisi render'a girer.
+        AddSubstitute<IMediaAppService>();
         AddUiInteraction();
 
         var component = Render<ProductLayout>(parameters => parameters
@@ -66,6 +70,11 @@ public class SubstitutionVariantScopeRenderTests : BlazorComponentTestBase
                 Name = "Test",
                 VariantMode = ProductVariantMode.Substitution,
                 SubstitutionGroupId = Guid.NewGuid(),
+                // İKİ kapı birden geçilmeli (2026-07-31 teşhisi — test c65958f'te bu alan eksik doğduğu için
+                // hiç yeşil yanmamıştı): (1) kapsam grubu YALNIZ hedef > 0 iken görünür (ProductLayout Visible
+                // kapısı; null > 0m = false → grup markup'a hiç yazılmaz), (2) ağaç paneli parça ağırlığı hedefi
+                // aşan madeni eler → hedef, fixture madeninin StableQuantity'sinden (5) küçük OLAMAZ.
+                SubstitutionTargetQuantity = 5m,
             })
             .Add(p => p.SubstitutionGroupItems, new List<SubstitutionGroupItemGraphDto>
             {

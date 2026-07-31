@@ -54,10 +54,6 @@ public class ProductGetDto : EntityDto<Guid>, IGetDto<Guid>, IHasCode
 
     public bool IsActive { get; set; }
 
-    /// <summary>Ürün görselleri (URL ya da yüklenmiş dosya; DisplayOrder sıralı, ilk = ana). En fazla
-    /// <see cref="ProductConsts.MaxImageCount"/> (sunucu kırpar).</summary>
-    public List<ProductImageGraphDto> Images { get; set; } = new();
-
     /// <summary>Marketplace indirimi (ürün-seviyesi; tüm varyant + kanallar). None = indirim yok.</summary>
     public ProductDiscountType DiscountType { get; set; } = ProductDiscountType.None;
 
@@ -145,7 +141,7 @@ public class ProductGetDto : EntityDto<Guid>, IGetDto<Guid>, IHasCode
     public ProductStockPolicy StockPolicy { get; set; }
 
     /// <summary>Ürün MEDYA linkleri (merkezi kütüphane; görsel + video birlikte — <see cref="IEntityMediaAppService"/>).
-    /// Pazaryeri push görselleri (<see cref="Images"/>) AYRI kalır; bu ürün-seviyesi genel medya/video kütüphanesidir.</summary>
+    /// Pazaryeri push görselleri de BURADAN gider (legacy Images 2026-07-31'de emekli): pasif elenir, kapak önce.</summary>
     public List<EntityMediaLinkEditDto> Media { get; set; } = new();
 
     /// <summary>N11 satış kanalı ürünleri (graf düğümleri; ClientKey/Id + IsDeleted diff) — ürün 'Kaydet'inde
@@ -186,9 +182,6 @@ public class ProductCreateDto : ICreateDto
     /// Tip <c>Guid?</c> kalır ki "seçilmedi" hâli sunucuya ULAŞSIN ve lokalize iş hatası dönebilsin —
     /// <c>Guid</c> olsaydı boş seçim sessizce <c>Guid.Empty</c>'ye düşerdi.</summary>
     public Guid? ProductCategoryId { get; set; }
-
-    /// <summary>Ürün görselleri — bkz. <see cref="ProductGetDto.Images"/>.</summary>
-    public List<ProductImageGraphDto> Images { get; set; } = new();
 
     /// <summary>Marketplace indirimi — bkz. <see cref="ProductGetDto.DiscountType"/>.</summary>
     public ProductDiscountType DiscountType { get; set; } = ProductDiscountType.None;
@@ -281,9 +274,6 @@ public class ProductUpdateDto : IUpdateDto
     public Guid? ProductCategoryId { get; set; }
 
     public bool IsActive { get; set; }
-
-    /// <summary>Ürün görselleri — bkz. <see cref="ProductGetDto.Images"/>.</summary>
-    public List<ProductImageGraphDto> Images { get; set; } = new();
 
     /// <summary>Marketplace indirimi — bkz. <see cref="ProductGetDto.DiscountType"/>.</summary>
     public ProductDiscountType DiscountType { get; set; } = ProductDiscountType.None;
@@ -391,40 +381,6 @@ public class ProductAddOnDto
 
     [StringLength(ProductConsts.AddOnNoteMaxLength)]
     public string? Note { get; set; }
-}
-
-/// <summary>Ürün GÖRSELİ graf düğümü — görsel drill'i + Product save'i içindir. Kaynak URL ya da yüklenmiş dosya
-/// (blob; dosya seçilince ANINDA <see cref="IProductImageAppService.UploadAsync"/> ile yüklenir, ürün save'i yalnız
-/// referansı kalıcılaştırır). <see cref="PreviewDataUrl"/> SALT-OKUNUR (GetAsync/upload doldurur; save yoksayar).</summary>
-public class ProductImageGraphDto : ISingleImageEditModel
-{
-    public Guid ClientKey { get; set; } = Guid.NewGuid();
-
-    public ProductImageSourceType SourceType { get; set; } = ProductImageSourceType.Url;
-
-    [StringLength(ProductConsts.ImageUrlMaxLength)]
-    public string? Url { get; set; }
-
-    [StringLength(ProductConsts.ImageBlobNameMaxLength)]
-    public string? BlobName { get; set; }
-
-    [StringLength(ProductConsts.ImageFileNameMaxLength)]
-    public string? FileName { get; set; }
-
-    public int DisplayOrder { get; set; }
-
-    /// <summary>Görselin bağlı olduğu VARYANT (null = ürün-geneli; tüm varyantlara ortak).</summary>
-    public Guid? VariantId { get; set; }
-
-    /// <summary>Varyant kodu (denormalize — blob path'i + gösterim). null/boş = ürün-geneli.</summary>
-    [StringLength(EntityVariantConsts.VariantCodeMaxLength)]
-    public string? VariantCode { get; set; }
-
-    /// <summary>Varsayılan (ana) görsel — push'ta ilk sıraya alınır. Tekil garanti sunucuda (SetImages).</summary>
-    public bool IsDefault { get; set; }
-
-    /// <summary>Blob görselin önizlemesi (data URL) — SALT görüntü; sunucu doldurur, save'de yoksayılır.</summary>
-    public string? PreviewDataUrl { get; set; }
 }
 
 /// <summary>

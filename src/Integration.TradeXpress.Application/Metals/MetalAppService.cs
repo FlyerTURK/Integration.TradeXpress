@@ -13,7 +13,6 @@ using Integration.TradeXpress.Variants;
 using Integration.TradeXpress.Vouchers;
 using Microsoft.AspNetCore.Authorization;
 using Volo.Abp.Application.Dtos;
-using Volo.Abp.BlobStoring;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.MultiTenancy;
 using Integration.TradeXpress.MultiCompany;
@@ -33,7 +32,6 @@ public class MetalAppService
     private const string MetalEntityName = "Metal";
     private const string VariantImageEntityName = "MetalVariant";   // varyant-özel medya/doküman/notun agnostik bağlam anahtarı
 
-    private readonly IBlobContainer<MetalImagesContainer> _imageContainer;
     private readonly CommodityAgnosticGraph _graph;
     private readonly IRepository<MetalVariantDetail, Guid> _variantDetailRepository;
     private readonly IRepository<Integration.TradeXpress.Variants.EntityVariant, Guid> _entityVariantRepository;
@@ -42,14 +40,12 @@ public class MetalAppService
     public MetalAppService(
         IRepository<Metal, Guid> repository,
         IRepository<CurrencyUnit, Guid> unitRepository,
-        IBlobContainer<MetalImagesContainer> imageContainer,
         CommodityAgnosticGraph graph,
         IRepository<MetalVariantDetail, Guid> variantDetailRepository,
         IRepository<Integration.TradeXpress.Variants.EntityVariant, Guid> entityVariantRepository,
         ICurrentCompany currentCompany)
         : base(repository, unitRepository)
     {
-        _imageContainer = imageContainer;
         _graph = graph;
         _variantDetailRepository = variantDetailRepository;
         _entityVariantRepository = entityVariantRepository;
@@ -179,7 +175,6 @@ public class MetalAppService
             createInput.IsQuantity, createInput.StableQuantity);
         entity.SetBarcode(createInput.Barcode);
         entity.SetDescription(createInput.Description);
-        entity.SetImage(MapImage(createInput.Image));
         return Task.FromResult(entity);
     }
 
@@ -211,40 +206,17 @@ public class MetalAppService
         entity.SetBarcode(updateInput.Barcode);
         entity.SetDescription(updateInput.Description);
         entity.SetActive(updateInput.IsActive);
-
-        // Yetim blob temizliği — değişim ÖNCESİ görsel saklanır, yeni görsel uygulandıktan sonra
-        // artık referanssız kalan upload blob'u silinir (Product UpdateAsync deseni).
-        var oldImage = entity.Image;
-        entity.SetImage(MapImage(updateInput.Image));
-        await DeleteOrphanImageBlobAsync(entity.TenantId, oldImage, entity.Image);
     }
 
     protected override async Task BeforeDeleteAsync(Metal entity)
     {
-        // Guard'lar (policy + EnsureEditable) tabanda geçti — blob, yalnız gerçekten silinecek kayıt için temizlenir
-        // (tenant'ın global kaydı silme denemesi hook'a hiç ulaşmaz).
-        await DeleteOrphanImageBlobAsync(entity.TenantId, entity.Image, newImage: null);
-
-        // Agnostik graf (varyant + varyant görselleri + doküman/not) temizliği — yetim önleme.
+        // Agnostik graf (varyant + varyant medyası + doküman/not) temizliği — yetim önleme.
         await _graph.DeleteAsync(MetalEntityName, VariantImageEntityName, entity.Id);
     }
 
     protected override async Task EnrichGetAsync(Metal entity, MetalGetDto dto)
     {
         await base.EnrichGetAsync(entity, dto);
-
-        // Client binding non-null model ister (paylaşılan SingleImageEditFields); görselsiz madende boş model döner.
-        dto.Image ??= new MetalImageDto();
-
-        if (entity.Image is { SourceType: ProductImageSourceType.Upload, BlobName: not null and not "" } image)
-        {
-            var thumbnail = await GetImageBlobOrNullAsync(
-                entity.TenantId, ImageUploadPipeline.ThumbnailNameOf(image.BlobName));
-            if (thumbnail is not null)
-            {
-                dto.Image.PreviewDataUrl = ImageUploadPipeline.BuildPreviewDataUrl(thumbnail);
-            }
-        }
 
         var graph = await _graph.LoadAsync(MetalEntityName, VariantImageEntityName, entity.Id);
         dto.Documents = graph.Documents;
@@ -286,93 +258,13 @@ public class MetalAppService
     {
         await base.EnrichListAsync(entities, dtos);
 
-        // Grid önizlemesi: ÖNCELİK maden-düzeyi tekil görsel (varsa; Create/Update/Get + orphan-blob temizliği destekler).
-        // YOKSA ana varyantın varsayılan poster'ına düş — görseller çoğunlukla VARYANT seviyesinde (EntityVariantsPanel;
-        // Stone/Jewelry/Good deseni). Eski kod YALNIZ maden-Image'a bakıyordu → varyant-görselli madenlerde önizleme HEP
-        // boştu (kök neden). Varyant poster'ları tek batch (N+1 yok).
+        // Grid önizlemesi ana varyantın varsayılan poster'ından gelir — görseller VARYANT seviyesindedir
+        // (Stone/Jewelry/Good deseni; maden-düzeyi tekil görsel 2026-07-31'de emekli edildi). Tek batch (N+1 yok).
         var variantPreviews = await _graph.GetVariantPreviewMapAsync(
             MetalEntityName, VariantImageEntityName, dtos.Select(d => d.Id).ToList());
         for (var i = 0; i < dtos.Count; i++)
         {
-            dtos[i].ImagePreviewUrl = await BuildPreviewUrlAsync(entities[i].TenantId, entities[i].Image)
-                ?? variantPreviews.GetValueOrDefault(dtos[i].Id);
-        }
-    }
-
-    /// <summary>Maden-düzeyi tekil görselin önizleme URL'i — Url kaynağı doğrudan, Upload kaynağı thumbnail data-URL'i
-    /// (yoksa null). Liste önizlemesinde ana varyant poster'ından ÖNCE denenir.</summary>
-    private async Task<string?> BuildPreviewUrlAsync(Guid? ownerTenantId, MetalImage? image)
-    {
-        if (image is null)
-        {
-            return null;
-        }
-
-        if (image.SourceType == ProductImageSourceType.Url && !string.IsNullOrEmpty(image.Url))
-        {
-            return image.Url;
-        }
-
-        if (image.SourceType == ProductImageSourceType.Upload && !string.IsNullOrEmpty(image.BlobName))
-        {
-            var thumbnail = await GetImageBlobOrNullAsync(
-                ownerTenantId, ImageUploadPipeline.ThumbnailNameOf(image.BlobName));
-            if (thumbnail is not null)
-            {
-                return ImageUploadPipeline.BuildPreviewDataUrl(thumbnail);
-            }
-        }
-
-        return null;
-    }
-
-    /// <summary>
-    /// Blob okuma, kaydın SAHİBİ tenant'ına sabitlenir (host kataloğu → host blob'u; tenant kaydı → tenant blob'u):
-    /// (1) katalog host+tenant paylaşımlı ama blob container multi-tenant — tenant context'inde host blob'u
-    /// bulunamazdı; (2) liste/picker çağrıları filter-disable scope'unda — container ada göre TÜM tenant'lar
-    /// arasından rastgele çözülürdü. Filter yeniden AÇILIR + tenant kayda göre değiştirilir (review bulguları).
-    /// </summary>
-    private async Task<byte[]?> GetImageBlobOrNullAsync(Guid? ownerTenantId, string blobName)
-    {
-        using (DataFilter.Enable<IMultiTenant>())
-        using (CurrentTenant.Change(ownerTenantId))
-        {
-            return await _imageContainer.GetAllBytesOrNullAsync(blobName);
-        }
-    }
-
-    /// <summary>Görsel DTO'sunu owned tipe çevirir (normalize/eleme entity SetImage'da).</summary>
-    private static MetalImage? MapImage(MetalImageDto? image)
-    {
-        if (image is null)
-        {
-            return null;
-        }
-
-        return new MetalImage(image.SourceType, image.Url, image.BlobName, image.FileName);
-    }
-
-    /// <summary>Eski upload blob'u yeni görselde artık kullanılmıyorsa ana blob + thumbnail'ini siler
-    /// (Product DeleteOrphanImageBlobsAsync deseninin tek-görsel hali). Silme, okuma gibi kaydın sahibi
-    /// tenant'ına sabitlenir — <see cref="GetImageBlobOrNullAsync"/> ile aynı gerekçe.</summary>
-    private async Task DeleteOrphanImageBlobAsync(Guid? ownerTenantId, MetalImage? oldImage, MetalImage? newImage)
-    {
-        if (oldImage is not { SourceType: ProductImageSourceType.Upload, BlobName: not null and not "" })
-        {
-            return;
-        }
-
-        if (newImage is { SourceType: ProductImageSourceType.Upload }
-            && string.Equals(newImage.BlobName, oldImage.BlobName, StringComparison.OrdinalIgnoreCase))
-        {
-            return;   // aynı blob korunuyor
-        }
-
-        using (DataFilter.Enable<IMultiTenant>())
-        using (CurrentTenant.Change(ownerTenantId))
-        {
-            await _imageContainer.DeleteAsync(oldImage.BlobName);
-            await _imageContainer.DeleteAsync(ImageUploadPipeline.ThumbnailNameOf(oldImage.BlobName));
+            dtos[i].ImagePreviewUrl = variantPreviews.GetValueOrDefault(dtos[i].Id);
         }
     }
 

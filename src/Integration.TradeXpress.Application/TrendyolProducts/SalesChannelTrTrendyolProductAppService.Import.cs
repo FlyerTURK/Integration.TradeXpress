@@ -342,8 +342,10 @@ public partial class SalesChannelTrTrendyolProductAppService
         product.SetName(BuildSafeName(remote.Title, code), normalizeTitle: false);
         product.SetDescription(BuildTemplateDescription(remote.Description));
         product.SetCurrencyUnit(tryCurrencyUnitId);
-        product.SetImages(await _imageDownloader.BuildFromUrlsAsync(code, remote.ImageUrls));
         await _productRepository.InsertAsync(product, autoSave: true);
+
+        // Görseller DAM'a — link ürün Id'sine bağlandığından INSERT'ten SONRA (dedup + ilk görsel kapak).
+        await _imageDownloader.ImportToProductAsync(product, remote.ImageUrls);
 
         var usedCodes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         for (var i = 0; i < variants.Count; i++)

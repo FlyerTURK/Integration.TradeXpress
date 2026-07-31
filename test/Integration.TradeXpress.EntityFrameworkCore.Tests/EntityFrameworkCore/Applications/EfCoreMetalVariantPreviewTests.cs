@@ -4,6 +4,6 @@ using Xunit;
 namespace Integration.TradeXpress.EntityFrameworkCore.Applications;
 
 [Collection(TradeXpressTestConsts.CollectionDefinitionName)]
-public class EfCoreMetalImagePreviewTests : MetalImagePreviewTests<TradeXpressEntityFrameworkCoreTestModule>
+public class EfCoreMetalVariantPreviewTests : MetalVariantPreviewTests<TradeXpressEntityFrameworkCoreTestModule>
 {
 }

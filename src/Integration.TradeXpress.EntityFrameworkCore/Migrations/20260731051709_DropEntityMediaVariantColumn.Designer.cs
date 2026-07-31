@@ -4,6 +4,7 @@ using Integration.TradeXpress.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Volo.Abp.EntityFrameworkCore;
 
@@ -12,9 +13,11 @@ using Volo.Abp.EntityFrameworkCore;
 namespace Integration.TradeXpress.Migrations
 {
     [DbContext(typeof(TradeXpressDbContext))]
-    partial class TradeXpressDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260731051709_DropEntityMediaVariantColumn")]
+    partial class DropEntityMediaVariantColumn
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -11152,6 +11155,35 @@ namespace Integration.TradeXpress.Migrations
                         .HasForeignKey("FollowingUnitId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.OwnsOne("Integration.TradeXpress.Metals.MetalImage", "Image", b1 =>
+                        {
+                            b1.Property<Guid>("MetalId");
+
+                            b1.Property<string>("BlobName")
+                                .HasMaxLength(256);
+
+                            b1.Property<string>("FileName")
+                                .HasMaxLength(256);
+
+                            b1.Property<byte>("SourceType");
+
+                            b1.Property<string>("Url")
+                                .HasMaxLength(1000);
+
+                            b1.HasKey("MetalId");
+
+                            b1.ToTable("AppMetals");
+
+                            b1
+                                .ToJson("Image")
+                                .HasColumnType("nvarchar(max)");
+
+                            b1.WithOwner()
+                                .HasForeignKey("MetalId");
+                        });
+
+                    b.Navigation("Image");
                 });
 
             modelBuilder.Entity("Integration.TradeXpress.Metals.MetalVariantDetail", b =>
@@ -11543,6 +11575,45 @@ namespace Integration.TradeXpress.Migrations
                                 .HasForeignKey("ProductId");
                         });
 
+                    b.OwnsMany("Integration.TradeXpress.Products.ProductImage", "Images", b1 =>
+                        {
+                            b1.Property<Guid>("ProductId");
+
+                            b1.Property<int>("__synthesizedOrdinal")
+                                .ValueGeneratedOnAddOrUpdate();
+
+                            b1.Property<string>("BlobName")
+                                .HasMaxLength(256);
+
+                            b1.Property<int>("DisplayOrder");
+
+                            b1.Property<string>("FileName")
+                                .HasMaxLength(256);
+
+                            b1.Property<bool>("IsDefault");
+
+                            b1.Property<byte>("SourceType");
+
+                            b1.Property<string>("Url")
+                                .HasMaxLength(1000);
+
+                            b1.Property<string>("VariantCode")
+                                .HasMaxLength(64);
+
+                            b1.Property<Guid?>("VariantId");
+
+                            b1.HasKey("ProductId", "__synthesizedOrdinal");
+
+                            b1.ToTable("AppProducts");
+
+                            b1
+                                .ToJson("Images")
+                                .HasColumnType("nvarchar(max)");
+
+                            b1.WithOwner()
+                                .HasForeignKey("ProductId");
+                        });
+
                     b.OwnsMany("Integration.TradeXpress.Products.ProductSpecialInfo", "SpecialInfo", b1 =>
                         {
                             b1.Property<Guid>("ProductId");
@@ -11571,6 +11642,8 @@ namespace Integration.TradeXpress.Migrations
                         });
 
                     b.Navigation("AddOns");
+
+                    b.Navigation("Images");
 
                     b.Navigation("SpecialInfo");
                 });

@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Integration.Framework;
 using Integration.Framework.Base.Querying;
 using Integration.TradeXpress.Attachments;
+using Integration.TradeXpress.Commodities;
 using Integration.TradeXpress.Companies;
 using Integration.TradeXpress.EtsyProducts;
 using Integration.TradeXpress.MultiCompany;
@@ -20,7 +21,6 @@ using Integration.TradeXpress.Vouchers;
 using Microsoft.AspNetCore.Authorization;
 using Volo.Abp;
 using Volo.Abp.Application.Dtos;
-using Volo.Abp.BlobStoring;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.MultiTenancy;
 
@@ -43,6 +43,10 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
     // Dize MediaEntityNames'te: aynı anahtarı pazaryeri push'u da OKUYOR (kaynak ikiye bölünürse medya sessizce kaybolur).
     private const string ProductMediaEntityName = MediaEntityNames.Product;
 
+    // Varyant-özel medyanın agnostik bağlamı — Good/Jewelry/Metal ailelerinin "{Emtia}Variant" deseninin ürün karşılığı.
+    // Kayıt geneli medyadan AYRI bağlamda durur: aynı ürünün kırmızı ve mavi varyantı kendi görsel setini taşır.
+    private const string ProductVariantMediaEntityName = MediaEntityNames.ProductVariant;
+
     private readonly IRepository<Product, Guid> _repository;
     private readonly IRepository<SubstitutionGroup, Guid> _substitutionGroupRepository; // yalnız OKUMA — FK varlık doğrulaması
     private readonly IRepository<ProductCategory, Guid> _productCategoryRepository;     // yalnız OKUMA — kategori bağı doğrulaması
@@ -58,11 +62,11 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
     private readonly IRepository<ProductVariantRecipeLine, Guid> _recipeLineRepository;
     private readonly RecipeCostPopulator _recipeCostPopulator;
     private readonly ICurrentCompany _currentCompany;
-    private readonly IBlobContainer<ProductImagesContainer> _imageContainer;
     private readonly ISalesChannelTrN11ProductAppService _channelProductAppService;
     private readonly ISalesChannelTrTrendyolProductAppService _trendyolChannelProductAppService;
     private readonly ISalesChannelEtsyProductAppService _etsyChannelProductAppService;
     private readonly IEntityMediaAppService _entityMedia;
+    private readonly CommodityAgnosticGraph _commodityGraph;   // yalnız OKUMA — liste önizlemesinin ana-varyant poster fallback'i
 
     private static readonly HashSet<string> AllowedListFields =
         new(StringComparer.OrdinalIgnoreCase) { "Code", "Name", "IsActive", "Id" };
@@ -83,11 +87,11 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         IRepository<ProductVariantRecipeLine, Guid> recipeLineRepository,
         RecipeCostPopulator recipeCostPopulator,
         ICurrentCompany currentCompany,
-        IBlobContainer<ProductImagesContainer> imageContainer,
         ISalesChannelTrN11ProductAppService channelProductAppService,
         ISalesChannelTrTrendyolProductAppService trendyolChannelProductAppService,
         ISalesChannelEtsyProductAppService etsyChannelProductAppService,
-        IEntityMediaAppService entityMedia)
+        IEntityMediaAppService entityMedia,
+        CommodityAgnosticGraph commodityGraph)
     {
         _repository = repository;
         _substitutionGroupRepository = substitutionGroupRepository;
@@ -104,11 +108,11 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         _recipeLineRepository = recipeLineRepository;
         _recipeCostPopulator = recipeCostPopulator;
         _currentCompany = currentCompany;
-        _imageContainer = imageContainer;
         _channelProductAppService = channelProductAppService;
         _trendyolChannelProductAppService = trendyolChannelProductAppService;
         _etsyChannelProductAppService = etsyChannelProductAppService;
         _entityMedia = entityMedia;
+        _commodityGraph = commodityGraph;
     }
 
     public virtual async Task<PagedResultDto<ProductListDto>> GetListAsync(ProductListRequestDto input)
@@ -139,35 +143,27 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
             }).ToList());
     }
 
-    /// <summary>Grid önizlemesi için ürün başına VARSAYILAN görselin küçük gösterimi. <c>Product.Images</c> owned
-    /// koleksiyonu JSON kolonuna map'li (<c>ToJson()</c>) — sahibiyle AYNI satırda gelir, <paramref name="products"/>
-    /// zaten materyalize (yukarıdaki <c>ToListAsync</c>'ten); ek DB sorgusu YOK. Url kaynağında direkt bağlantı;
-    /// Upload kaynağında THUMBNAIL blobundan data-URL (<see cref="PopulateImagePreviewsAsync"/> ile AYNI desen —
-    /// tam çözünürlük gömülmez). Sayfa-başı satır sayısı kadar blob okuması (DxGrid zaten sayfalı, N+1 riski sınırlı).</summary>
+    /// <summary>Grid önizlemesi için ürün başına VARSAYILAN medyanın poster URL'i — merkezi DAM'dan tek batch.
+    /// Ürün-geneli medyası olmayan üründe ANA VARYANTIN poster'ına düşer (Good/Metal listeleriyle aynı desen;
+    /// 2026-08-01 denetim bulgusu: fallback'siz hâli "yalnız varyanta foto ekleyen" kullanıcının listesini boş bırakıyordu).</summary>
     private async Task<Dictionary<Guid, string>> LoadImagePreviewUrlsAsync(List<Product> products)
     {
-        var result = new Dictionary<Guid, string>();
-        foreach (var p in products)
-        {
-            var defaultImage = p.Images.FirstOrDefault(i => i.IsDefault)
-                ?? p.Images.OrderBy(i => i.DisplayOrder).FirstOrDefault();
-            if (defaultImage is null)
-            {
-                continue;
-            }
+        var ids = products.Select(p => p.Id).ToList();
+        var posterMap = await _entityMedia.GetDefaultPosterMapAsync(ProductMediaEntityName, ids);
 
-            if (defaultImage.SourceType == ProductImageSourceType.Url && !string.IsNullOrEmpty(defaultImage.Url))
+        // Ürün-geneli poster'ı olmayanlar için ana-varyant poster batch'i (yalnız gerekiyorsa — çoğu listede boş küme).
+        var missing = ids.Where(id => string.IsNullOrEmpty(posterMap.GetValueOrDefault(id))).ToList();
+        var variantPosters = missing.Count > 0
+            ? await _commodityGraph.GetVariantPreviewMapAsync(ProductEntityName, ProductVariantMediaEntityName, missing)
+            : new Dictionary<Guid, string?>();
+
+        var result = new Dictionary<Guid, string>();
+        foreach (var id in ids)
+        {
+            var url = posterMap.GetValueOrDefault(id) ?? variantPosters.GetValueOrDefault(id);
+            if (!string.IsNullOrEmpty(url))
             {
-                result[p.Id] = defaultImage.Url;
-            }
-            else if (defaultImage.SourceType == ProductImageSourceType.Upload && !string.IsNullOrEmpty(defaultImage.BlobName))
-            {
-                var thumbnail = await _imageContainer.GetAllBytesOrNullAsync(
-                    ProductImageAppService.ThumbnailNameOf(defaultImage.BlobName));
-                if (thumbnail is not null)
-                {
-                    result[p.Id] = ProductImageAppService.BuildPreviewDataUrl(thumbnail);
-                }
+                result[id] = url!;
             }
         }
 
@@ -191,7 +187,6 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         var entity = new Product(companyId, input.Code, input.Name);
         entity.SetDescription(input.Description);
         await ApplyProductCategoryAsync(entity, input.ProductCategoryId);
-        entity.SetImages(MapImages(input.Images));
         entity.SetDiscount(input.DiscountType, input.DiscountValue, input.DiscountStartDate, input.DiscountEndDate);
         entity.SetShelfLife(input.ProductionDate, input.ExpirationDate);
         ApplyMarketplaceDefaults(entity, input.OriginCountryId, input.Condition, input.PreparingDay,
@@ -231,8 +226,6 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         entity.SetDescription(input.Description);
         entity.SetActive(input.IsActive);
         await ApplyProductCategoryAsync(entity, input.ProductCategoryId);
-        var oldImages = entity.Images.ToList();   // yetim blob temizliği için değişim ÖNCESİ resim
-        entity.SetImages(MapImages(input.Images));
         entity.SetDiscount(input.DiscountType, input.DiscountValue, input.DiscountStartDate, input.DiscountEndDate);
         entity.SetShelfLife(input.ProductionDate, input.ExpirationDate);
         ApplyMarketplaceDefaults(entity, input.OriginCountryId, input.Condition, input.PreparingDay,
@@ -245,7 +238,6 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
             input.SubstitutionToleranceType, input.SubstitutionToleranceValue, input.SubstitutionOverrideVariantIds,
             input.SubstitutionVariantMode);
         entity.SetStockPolicy(input.StockPolicy);   // muadilde no-op: SetSubstitutionConfig Calculated'ı zorladı
-        await DeleteOrphanImageBlobsAsync(oldImages, entity.Images);
         await _repository.UpdateAsync(entity, autoSave: true);
 
         // Varyant sistemi — JENERİK agnostik servise delege ("Product" bağlamı). Çekirdek (nitelik/değer/varyant)
@@ -415,7 +407,6 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         // Güvenlik sınırı (Account deseni): ürünü ÖNCE yükle — company query filter yabancı şirketin ürününü
         // gizler → EntityNotFoundException. Doğrulama varyant silmeden ÖNCE olmalı.
         var entity = await _repository.GetAsync(id);
-        await DeleteOrphanImageBlobsAsync(entity.Images, newImages: null);   // ürünle birlikte upload blobları da temizlenir
         // Ürün-seviyesi medya linklerini temizle (içerik kütüphanede kalır; yalnız link'ler kaldırılır — GoodAppService deseni).
         await _entityMedia.ReplaceForAsync(ProductMediaEntityName, id, companyId: null, new List<EntityMediaLinkEditDto>());
 
@@ -427,6 +418,13 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
             {
                 await _variantDetailRepository.DeleteAsync(d => ids.Contains(d.EntityVariantId), autoSave: true);
                 await _recipeLineRepository.DeleteAsync(r => ids.Contains(r.ProductVariantId), autoSave: true);
+
+                // Varyant-özel medya link'leri de gitmeli — aksi halde varyant silindikten sonra yetim link kalır.
+                foreach (var variantId in ids)
+                {
+                    await _entityMedia.ReplaceForAsync(
+                        ProductVariantMediaEntityName, variantId, companyId: null, new List<EntityMediaLinkEditDto>());
+                }
             });
 
         await _repository.DeleteAsync(entity, autoSave: true);
@@ -731,6 +729,9 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
             await _variantDetailRepository.UpdateAsync(detail, autoSave: true);
         }
 
+        // Varyant-özel medya link'leri — agnostik "ProductVariant" bağlamı (GoodAppService deseni).
+        await _entityMedia.ReplaceForAsync(ProductVariantMediaEntityName, variantId, companyId, g.Media);
+
         var lines = g.RecipeLines;
         if (substitutionMode)
         {
@@ -866,53 +867,6 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
                 a.AddOnId, a.PriceOverride, a.CurrencyUnitOverrideId, a.IsRequired, a.DisplayOrder, a.Note)));
     }
 
-    /// <summary>Görsel graf düğümlerini owned tiplere çevirir (normalize/kırpma entity SetImages'ta).</summary>
-    private static List<ProductImage> MapImages(List<ProductImageGraphDto> images)
-    {
-        return (images ?? new List<ProductImageGraphDto>())
-            .Select(i => new ProductImage(
-                i.SourceType, i.Url, i.BlobName, i.FileName, i.DisplayOrder, i.IsDefault, i.VariantId, i.VariantCode))
-            .ToList();
-    }
-
-    /// <summary>Blob (Upload) görsellerin önizleme data-URL'lerini doldurur — HEP küçük THUMBNAIL blobundan
-    /// (tam içerik DTO'ya gömülmez; review'da kanıtlanan 4MB×8 şişmesi + dirty-check maliyeti). Thumbnail
-    /// bulunamazsa önizleme boş kalır (fail-open; kayıt görünmeye devam eder).</summary>
-    private async Task PopulateImagePreviewsAsync(List<ProductImageGraphDto> images)
-    {
-        foreach (var image in images.Where(i =>
-            i.SourceType == ProductImageSourceType.Upload && !string.IsNullOrEmpty(i.BlobName)))
-        {
-            var thumbnail = await _imageContainer.GetAllBytesOrNullAsync(
-                ProductImageAppService.ThumbnailNameOf(image.BlobName!));
-            if (thumbnail is not null)
-            {
-                image.PreviewDataUrl = ProductImageAppService.BuildPreviewDataUrl(thumbnail);
-            }
-        }
-    }
-
-    /// <summary>Artık referans edilmeyen upload bloblarını (ana + thumbnail) siler — görsel silme/değiştirme
-    /// update'inde eski blob AppBlobs'ta yetim kalmasın (review bulgusu). Form iptaliyle yetim kalan
-    /// (hiç kaydedilmemiş) upload'lar burada YAKALANMAZ — ileride süpürücü işi (bilinçli kabul).</summary>
-    private async Task DeleteOrphanImageBlobsAsync(IEnumerable<ProductImage> oldImages, IEnumerable<ProductImage>? newImages)
-    {
-        var keep = new HashSet<string>(
-            (newImages ?? Enumerable.Empty<ProductImage>())
-                .Where(i => !string.IsNullOrEmpty(i.BlobName))
-                .Select(i => i.BlobName!),
-            StringComparer.Ordinal);
-
-        foreach (var image in oldImages.Where(i =>
-            i.SourceType == ProductImageSourceType.Upload
-            && !string.IsNullOrEmpty(i.BlobName)
-            && !keep.Contains(i.BlobName!)))
-        {
-            await _imageContainer.DeleteAsync(image.BlobName!);
-            await _imageContainer.DeleteAsync(ProductImageAppService.ThumbnailNameOf(image.BlobName!));
-        }
-    }
-
     // ── helpers ───────────────────────────────────────────────────────────────
 
     private async Task<Dictionary<Guid, int>> LoadVariantCountsAsync(IEnumerable<Guid> productIds)
@@ -991,19 +945,6 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         var variantDtos = await ProjectVariantsAsync(graph.Variants);
         var specificationDtos = await LoadSpecificationDtosAsync(p);
 
-        var imageDtos = p.Images.Select(i => new ProductImageGraphDto
-        {
-            SourceType = i.SourceType,
-            Url = i.Url,
-            BlobName = i.BlobName,
-            FileName = i.FileName,
-            DisplayOrder = i.DisplayOrder,
-            IsDefault = i.IsDefault,
-            VariantId = i.VariantId,
-            VariantCode = i.VariantCode,
-        }).ToList();
-        await PopulateImagePreviewsAsync(imageDtos);
-
         // N11 kanal ürünleri grafı — kanal AppService'inden (canlı kanal filtreli). Yeni üründe boş (Id yok → GetList
         // boş dönmez ama kayıt yoktur). ClientKey kaydedilmiş satırlarda round-trip için yeniden üretilir.
         var channelProducts = await _channelProductAppService.GetListForProductAsync(p.Id);
@@ -1025,7 +966,6 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
             Description = p.Description,
             ProductCategoryId = p.ProductCategoryId,
             IsActive = p.IsActive,
-            Images = imageDtos,
             DiscountType = p.DiscountType,
             DiscountValue = p.DiscountValue,
             DiscountStartDate = p.DiscountStartDate,
@@ -1154,6 +1094,9 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
             }
 
             g.RecipeLines = MapRecipeLines(recipeLines.Where(r => r.ProductVariantId == v.Id));
+
+            // Varyant-özel medya — kaydeden taraf (SaveProductVariantDetailAsync) ile AYNI bağlam anahtarı.
+            g.Media = await _entityMedia.GetForAsync(ProductVariantMediaEntityName, v.Id);
             result.Add(g);
         }
 

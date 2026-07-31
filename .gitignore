@@ -270,6 +270,8 @@ paket-files/
 # TradeXpress
 **/Logs/
 certs/
+# Kazara üretilmiş IDE artefaktı — depoya girmesin (dosya diskte kalabilir)
+src/Integration.TradeXpress.Blazor.Client/Properties/launchSettings.json
 src/Integration.TradeXpress.Web/Logs/*
 src/Integration.TradeXpress.Web.Host/Logs/*
 src/Integration.TradeXpress.Web.Public/Logs/*

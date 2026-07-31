@@ -19,8 +19,9 @@ namespace Integration.TradeXpress.Attachments;
 /// tek bir medyaya açılır, süresi vardır, tahmin edilemez ve listelenemez. İmza anahtarı yapılandırmadadır;
 /// anahtar tanımlı değilse sağlayıcı bağlantı ÜRETMEZ (<c>null</c>) — yanlışlıkla zayıf imzayla açılmasın.</para>
 ///
-/// <para>Bu, <c>PublicImageLinkProvider</c> içindeki 2026-07-07 "dışarıya uç açma" kararının bilinçli ve dar
-/// istisnasıdır (2026-07-28 onayı): kapsam yalnız medya İÇERİĞİ okuma, yazma yok, listeleme yok.</para>
+/// <para>Bu, 2026-07-07 "dışarıya uç açma" kararının bilinçli ve dar istisnasıdır (2026-07-28 onayı): kapsam
+/// yalnız medya İÇERİĞİ okuma, yazma yok, listeleme yok. Aynı ihtiyacı karşılayan legacy
+/// <c>PublicImageLinkProvider</c> 2026-07-31'de kaldırıldı — dış görsel adresi artık TEK yerden üretilir.</para>
 /// </summary>
 public interface IMediaPublicLinkProvider
 {

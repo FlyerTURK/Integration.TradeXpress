@@ -4,8 +4,11 @@ using System.Linq;
 using System.Threading.Tasks;
 using Integration.TradeXpress.Products;
 using Integration.TradeXpress.SalesChannels;
+using Integration.TradeXpress.Variants;
 using Microsoft.Extensions.Logging;
 using Volo.Abp.DependencyInjection;
+using Volo.Abp.Domain.Repositories;
+using Volo.Abp.Linq;
 using Volo.Abp.MultiTenancy;
 
 namespace Integration.TradeXpress.Attachments;
@@ -17,46 +20,104 @@ namespace Integration.TradeXpress.Attachments;
 /// (kapak kayarsa pazaryerinde vitrin görseli değişir, video sızarsa XML reddedilir). Kanal başına kopyalanan
 /// döngüler zamanla birbirinden ayrılırdı.</para>
 ///
-/// <para><b>Kaynak:</b> merkezi DAM (K2 kararı). Göç (Faz 2) tamamlanana kadar DAM'da medyası OLMAYAN ürün için
-/// legacy <see cref="ProductImage"/> setine düşülür — aksi halde göçten önceki her push görselsiz kalırdı.
-/// Faz 5'te bu geri düşüş ve <see cref="IPublicImageLinkProvider"/> birlikte kalkar.</para>
+/// <para><b>Kaynak:</b> YALNIZ merkezi DAM (K2 kararı). Legacy <c>ProductImage</c> geri düşüşü 2026-07-31'de
+/// kaldırıldı: varyant-özel medya artık "ProductVariant" bağlamında yaşıyor, kayıt geneli ise "Product"
+/// bağlamında — ikisi de DAM'da. Görsel çözümü tek kaynaktan gelir.</para>
 /// </summary>
 public class MarketplacePushImageResolver : ITransientDependency
 {
+    // Agnostik varyant tablosunda ürün varyantlarının sahip-adı (ProductAppService.ProductEntityName ile aynı dize).
+    private const string ProductVariantOwnerEntityName = "Product";
+
     private readonly IEntityMediaAppService _entityMedia;
     private readonly IMediaPublicLinkProvider _mediaPublicLink;
-    private readonly IPublicImageLinkProvider _legacyImageLink;
+    private readonly IRepository<EntityVariant, Guid> _variantRepository;
+    private readonly IAsyncQueryableExecuter _asyncExecuter;
     private readonly ICurrentTenant _currentTenant;
     private readonly ILogger<MarketplacePushImageResolver> _logger;
 
     public MarketplacePushImageResolver(
         IEntityMediaAppService entityMedia,
         IMediaPublicLinkProvider mediaPublicLink,
-        IPublicImageLinkProvider legacyImageLink,
+        IRepository<EntityVariant, Guid> variantRepository,
+        IAsyncQueryableExecuter asyncExecuter,
         ICurrentTenant currentTenant,
         ILogger<MarketplacePushImageResolver> logger)
     {
         _entityMedia = entityMedia;
         _mediaPublicLink = mediaPublicLink;
-        _legacyImageLink = legacyImageLink;
+        _variantRepository = variantRepository;
+        _asyncExecuter = asyncExecuter;
         _currentTenant = currentTenant;
         _logger = logger;
     }
 
-    /// <summary>Ürünün push görsel adresleri — kapak önce, en fazla <paramref name="maxCount"/> adet.
-    /// Adresi üretilemeyen görsel SESSİZCE atlanır (2026-07-28 Hakan kararı: push durmasın), ama loglanır:
-    /// sessiz eksilme aksi halde "ürünün zaten 3 görseli var" gibi görünürdü.</summary>
+    /// <summary>ÜRÜN-DÜZEYİ push görselleri — varyant görselini AYRICA taşıyamayan kanal modeli için
+    /// (bugünkü N11/Trendyol ürün görsel API'leri): ürünün seti + TÜM varyant setleri BİRLEŞTİRİLİR
+    /// (2026-08-01 Hakan kararı: "varyant desteklemeyen sitelerde varyant fotoğrafları ana ürün
+    /// fotoğraflarına eklensin"). Sıra: ürün seti (kapak önde) → ana varyant → diğer varyantlar (kod sırası);
+    /// aynı medya iki bağlamda da linkliyse BİR kez gider. En fazla <paramref name="maxCount"/> adet.
+    /// Adresi üretilemeyen görsel SESSİZCE atlanır (2026-07-28 kararı: push durmasın), ama loglanır.</summary>
     public virtual async Task<List<string>> ResolveAsync(Product product, int maxCount)
     {
         var media = await _entityMedia.GetPushMediaAsync(MediaEntityNames.Product, product.Id, MediaType.Image);
+        media = await AppendVariantMediaAsync(product, media);
 
-        var urls = media.Count > 0
-            ? BuildFromMedia(product, media)
-            : await BuildFromLegacyAsync(product);
+        var urls = BuildFromMedia(product, media);
 
         // Pazaryeri ürün başına sınırlı görsel kabul eder. Sınır DAM'da YOK (kütüphane sınırsız), bu yüzden
         // burada uygulanır — kapak-önce sıralamadan SONRA, yani kırpılan hep en arkadaki görsellerdir.
         return urls.Count > maxCount ? urls.Take(maxCount).ToList() : urls;
+    }
+
+    /// <summary>SKU-DÜZEYİ push görselleri — varyant görselini destekleyen kanal modeli için (Faz-2 push
+    /// hedefi; 2026-08-01 Hakan kararı: "varyantı destekleyen sistemse ana ürün + varyant fotoğrafları").
+    /// Varyantın KENDİ seti; hiç fotoğrafı yoksa ürünün kayıt geneli seti (SKU görselsiz kalmasın).
+    /// Kardeş varyanta DÜŞÜLMEZ — SKU modelinde başka varyantın fotoğrafı yanlış ürünü gösterir.</summary>
+    public virtual async Task<List<string>> ResolveAsync(Product product, Guid? variantId, int maxCount)
+    {
+        var media = new List<PushMediaDto>();
+        if (variantId is not null && variantId != Guid.Empty)
+        {
+            media = await _entityMedia.GetPushMediaAsync(MediaEntityNames.ProductVariant, variantId.Value, MediaType.Image);
+        }
+
+        if (media.Count == 0)
+        {
+            media = await _entityMedia.GetPushMediaAsync(MediaEntityNames.Product, product.Id, MediaType.Image);
+        }
+
+        var urls = BuildFromMedia(product, media);
+        return urls.Count > maxCount ? urls.Take(maxCount).ToList() : urls;
+    }
+
+    // Aktif varyantların setleri (ana önce, sonra kod sırası) ürün setinin ARKASINA eklenir; MediaId dedup —
+    // aynı görsel hem üründe hem varyantta linkliyse pazaryerine bir kez gider. Kapak semantiği bozulmaz:
+    // ürün setinin kapağı listenin başında kalır; ürün seti boşsa ilk varyantın kapağı öne geçer.
+    private async Task<List<PushMediaDto>> AppendVariantMediaAsync(Product product, List<PushMediaDto> productMedia)
+    {
+        var merged = new List<PushMediaDto>(productMedia);
+        var seen = new HashSet<Guid>(productMedia.Select(m => m.MediaId));
+
+        var variants = await _asyncExecuter.ToListAsync(
+            (await _variantRepository.GetQueryableAsync())
+                .Where(v => v.EntityName == ProductVariantOwnerEntityName && v.EntityId == product.Id && v.IsActive)
+                .OrderByDescending(v => v.IsMain)
+                .ThenBy(v => v.Code));
+
+        foreach (var variant in variants)
+        {
+            var variantMedia = await _entityMedia.GetPushMediaAsync(MediaEntityNames.ProductVariant, variant.Id, MediaType.Image);
+            foreach (var item in variantMedia)
+            {
+                if (seen.Add(item.MediaId))
+                {
+                    merged.Add(item);
+                }
+            }
+        }
+
+        return merged;
     }
 
     private List<string> BuildFromMedia(Product product, List<PushMediaDto> media)
@@ -90,28 +151,4 @@ public class MarketplacePushImageResolver : ITransientDependency
         return urls;
     }
 
-    /// <summary>Göç öncesi geri düşüş — legacy ürün görselleri. URL kaynaklılar doğrudan, yüklenmişler ImgBb
-    /// sağlayıcısı üzerinden (yapılandırılmamışsa atlanır; bugünkü davranışın aynısı).</summary>
-    private async Task<List<string>> BuildFromLegacyAsync(Product product)
-    {
-        var urls = new List<string>();
-
-        foreach (var image in product.Images.OrderByDescending(i => i.IsDefault).ThenBy(i => i.DisplayOrder))
-        {
-            if (image.SourceType == ProductImageSourceType.Url && !string.IsNullOrWhiteSpace(image.Url))
-            {
-                urls.Add(image.Url!);
-            }
-            else if (image.SourceType == ProductImageSourceType.Upload && !string.IsNullOrEmpty(image.BlobName))
-            {
-                var link = await _legacyImageLink.TryCreateTemporaryLinkAsync(image.BlobName!);
-                if (link is not null)
-                {
-                    urls.Add(link);
-                }
-            }
-        }
-
-        return urls;
-    }
 }

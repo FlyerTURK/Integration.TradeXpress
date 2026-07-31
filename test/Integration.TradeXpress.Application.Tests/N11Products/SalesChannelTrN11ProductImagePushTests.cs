@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Integration.TradeXpress.Attachments;
 using Integration.TradeXpress.MultiCompany;
 using Integration.TradeXpress.Products;
 using Integration.TradeXpress.SalesChannels;
@@ -33,8 +34,17 @@ public abstract class SalesChannelTrN11ProductImagePushTests<TStartupModule> : T
     private readonly IRepository<Product, Guid> _productRepository;
     private readonly IRepository<EntityVariant, Guid> _variantRepository;
     private readonly IRepository<ProductVariantDetail, Guid> _variantDetailRepository;
+    private readonly IRepository<Media, Guid> _mediaRepository;
+    private readonly IRepository<EntityMediaLink, Guid> _linkRepository;
     private readonly ICurrentCompany _currentCompany;
     private readonly FakeN11ProductClient _fakeClient;
+
+    /// <summary>Seed'lenen medyanın dosya adı → Id eşlemesi. Push adresleri artık İMZALI olduğundan (içerik
+    /// tahmin edilemez) sıra assert'leri medya kimliği üzerinden yapılır; adresin içinde Id düz metin geçer.</summary>
+    private readonly Dictionary<string, Guid> _seededMediaIds = new();
+
+    /// <summary>SeedAsync'in kurduğu ANA varyantın Id'si — varyant-bağlamı ("ProductVariant") medya fixture'larının çapası.</summary>
+    private Guid _seededMainVariantId;
 
     protected SalesChannelTrN11ProductImagePushTests()
     {
@@ -43,6 +53,8 @@ public abstract class SalesChannelTrN11ProductImagePushTests<TStartupModule> : T
         _productRepository = GetRequiredService<IRepository<Product, Guid>>();
         _variantRepository = GetRequiredService<IRepository<EntityVariant, Guid>>();
         _variantDetailRepository = GetRequiredService<IRepository<ProductVariantDetail, Guid>>();
+        _mediaRepository = GetRequiredService<IRepository<Media, Guid>>();
+        _linkRepository = GetRequiredService<IRepository<EntityMediaLink, Guid>>();
         _currentCompany = GetRequiredService<ICurrentCompany>();
         _fakeClient = GetRequiredService<FakeN11ProductClient>();
     }
@@ -58,21 +70,18 @@ public abstract class SalesChannelTrN11ProductImagePushTests<TStartupModule> : T
         {
             var created = await SeedAsync(companyId, "IMGORDER", new[]
             {
-                ("https://example.com/a.jpg", 0, false),
-                ("https://example.com/b.jpg", 1, false),
-                ("https://example.com/cover.jpg", 2, true),   // kapak EN SONDA tanımlı
+                ("a.jpg", 0, false),
+                ("b.jpg", 1, false),
+                ("cover.jpg", 2, true),   // kapak EN SONDA tanımlı
             });
 
             await _appService.PushToN11Async(created.Id);
 
             var images = _fakeClient.LastSavedProduct.ShouldNotBeNull().Images;
-            images[0].Url.ShouldBe("https://example.com/cover.jpg");
-            images.Select(i => i.Url).ShouldBe(new[]
-            {
-                "https://example.com/cover.jpg",
-                "https://example.com/a.jpg",
-                "https://example.com/b.jpg",
-            });
+            images.Count.ShouldBe(3);
+            images[0].Url.ShouldContain(MediaTokenOf("cover.jpg"));
+            images[1].Url.ShouldContain(MediaTokenOf("a.jpg"));
+            images[2].Url.ShouldContain(MediaTokenOf("b.jpg"));
         }
     }
 
@@ -86,9 +95,9 @@ public abstract class SalesChannelTrN11ProductImagePushTests<TStartupModule> : T
         {
             var created = await SeedAsync(companyId, "IMGSEQ", new[]
             {
-                ("https://example.com/1.jpg", 0, true),
-                ("https://example.com/2.jpg", 1, false),
-                ("https://example.com/3.jpg", 2, false),
+                ("1.jpg", 0, true),
+                ("2.jpg", 1, false),
+                ("3.jpg", 2, false),
             });
 
             await _appService.PushToN11Async(created.Id);
@@ -124,7 +133,7 @@ public abstract class SalesChannelTrN11ProductImagePushTests<TStartupModule> : T
         using (_currentCompany.Change(companyId))
         {
             var many = Enumerable.Range(0, ProductConsts.MaxImageCount + 4)
-                .Select(i => ($"https://example.com/{i}.jpg", i, i == 0))
+                .Select(i => ($"{i}.jpg", i, i == 0))
                 .ToArray();
 
             var created = await SeedAsync(companyId, "IMGMAX", many);
@@ -137,10 +146,40 @@ public abstract class SalesChannelTrN11ProductImagePushTests<TStartupModule> : T
         }
     }
 
-    /// <summary>Kanal + ürün + kanal ürünü kurar. Görseller (url, displayOrder, isDefault) üçlüsüyle verilir;
-    /// hepsi URL kaynaklıdır (blob dış-link sağlayıcısı testte yapılandırılmamıştır).</summary>
+    [Fact]
+    public async Task Variant_only_images_still_push_via_fallback()
+    {
+        // KURAL 5: ürün-düzeyi push VARYANT setlerini de kapsar (MarketplacePushImageResolver.AppendVariantMediaAsync —
+        // 2026-08-01 Hakan kararı: varyant görselini ayrıca taşıyamayan kanalda varyant fotoğrafları ana ürün
+        // fotoğraflarına EKLENİR; aktif varyantlar ana-önce, MediaId dedup). Fotoğrafları YALNIZ varyant panelinden
+        // ekleyen ürün pazaryerine çıkabilmeli; birleştirme olmasaydı görseller DAM'da dururken push ImagesRequired ile düşerdi.
+        var companyId = Guid.NewGuid();
+        using (_currentCompany.Change(companyId))
+        {
+            // Ürün bağlamına HİÇ medya kurulmaz (boş görsel listesi) — tek görsel ana varyantın KENDİ bağlamında.
+            var created = await SeedAsync(companyId, "IMGVARFB", Array.Empty<(string, int, bool)>());
+            await SeedVariantMediaAsync(companyId, _seededMainVariantId, "variant.jpg");
+
+            await _appService.PushToN11Async(created.Id);
+
+            var images = _fakeClient.LastSavedProduct.ShouldNotBeNull().Images;
+            images.Count.ShouldBe(1);
+            images[0].Url.ShouldContain(MediaTokenOf("variant.jpg"));
+            images[0].Order.ShouldBe(1);
+        }
+    }
+
+    /// <summary>Seed'lenen medyanın imzalı adreste düz metin geçen kimliği — sıra assert'lerinin çapası.</summary>
+    private string MediaTokenOf(string fileName)
+    {
+        return _seededMediaIds[fileName].ToString("N");
+    }
+
+    /// <summary>Kanal + ürün + kanal ürünü kurar. Görseller (ad, displayOrder, isDefault) üçlüsüyle verilir ve
+    /// merkezi DAM'a kurulur: kütüphane kaydı (<see cref="Media"/>) + ürün bağlamına link. Push'un TEK görsel
+    /// kaynağı budur; dış adres imzalı sağlayıcıdan üretilir (anahtar TestBase appsettings'inde).</summary>
     private async Task<SalesChannelTrN11ProductDto> SeedAsync(
-        Guid companyId, string productCode, IReadOnlyList<(string Url, int Order, bool IsDefault)> images)
+        Guid companyId, string productCode, IReadOnlyList<(string Name, int Order, bool IsDefault)> images)
     {
         var (channel, product) = await WithUnitOfWorkAsync(async () =>
         {
@@ -149,19 +188,35 @@ public abstract class SalesChannelTrN11ProductImagePushTests<TStartupModule> : T
                 autoSave: true);
 
             var p = new Product(companyId, productCode, $"Urun {productCode}");
-            if (images.Count > 0)
-            {
-                p.SetImages(images.Select(i =>
-                    new ProductImage(ProductImageSourceType.Url, i.Url, null, null, i.Order, i.IsDefault, null, null)));
-            }
-
             await _productRepository.InsertAsync(p, autoSave: true);
+
+            foreach (var image in images)
+            {
+                var media = await _mediaRepository.InsertAsync(
+                    new Media(
+                        companyId,
+                        MediaType.Image,
+                        blobName: Guid.NewGuid().ToString("N"),
+                        fileName: image.Name,
+                        contentType: "image/jpeg",
+                        size: 1024,
+                        contentHash: Guid.NewGuid().ToString("N")),
+                    autoSave: true);
+
+                await _linkRepository.InsertAsync(
+                    new EntityMediaLink(
+                        companyId, MediaEntityNames.Product, p.Id, media.Id, image.Order, image.IsDefault, isActive: true),
+                    autoSave: true);
+
+                _seededMediaIds[image.Name] = media.Id;
+            }
 
             // Push en az bir FİYATLI varyant ister (NoPricedVariant guard'ı) — tek ana varyant yeter.
             var mainVariant = await _variantRepository.InsertAsync(
                 new EntityVariant(companyId, "Product", p.Id, ProductConsts.MainVariantCode,
                     ProductConsts.MainVariantName, isMain: true, isActive: true),
                 autoSave: true);
+            _seededMainVariantId = mainVariant.Id;
             var detail = new ProductVariantDetail(companyId, mainVariant.Id);
             detail.SetSalePrice(100m, null);
             await _variantDetailRepository.InsertAsync(detail, autoSave: true);
@@ -175,6 +230,34 @@ public abstract class SalesChannelTrN11ProductImagePushTests<TStartupModule> : T
             SalesChannelId = channel.Id,
             CategoryExternalId = FakeN11CategoryClient.DefaultCategoryExternalId,
             ShipmentTemplateName = "Standart Teslimat",
+        });
+    }
+
+    /// <summary>Bir varyantın KENDİ bağlamına ("ProductVariant" + varyant Id) tek görsel bağlar — ürün-geneli set
+    /// boşken devreye giren varyant geri-düşüşü senaryolarının fixture'ı. Medya kimliği <see cref="MediaTokenOf"/>
+    /// çapasına kaydedilir.</summary>
+    private async Task SeedVariantMediaAsync(Guid companyId, Guid variantId, string fileName)
+    {
+        await WithUnitOfWorkAsync(async () =>
+        {
+            var media = await _mediaRepository.InsertAsync(
+                new Media(
+                    companyId,
+                    MediaType.Image,
+                    blobName: Guid.NewGuid().ToString("N"),
+                    fileName: fileName,
+                    contentType: "image/jpeg",
+                    size: 1024,
+                    contentHash: Guid.NewGuid().ToString("N")),
+                autoSave: true);
+
+            await _linkRepository.InsertAsync(
+                new EntityMediaLink(
+                    companyId, MediaEntityNames.ProductVariant, variantId, media.Id,
+                    displayOrder: 0, isDefault: true, isActive: true),
+                autoSave: true);
+
+            _seededMediaIds[fileName] = media.Id;
         });
     }
 }

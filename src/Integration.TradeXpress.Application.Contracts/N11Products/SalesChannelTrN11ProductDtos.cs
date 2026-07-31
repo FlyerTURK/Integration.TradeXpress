@@ -157,7 +157,7 @@ public class N11PreviewImageDto
     public string Source { get; set; } = string.Empty;
     public bool IsDefault { get; set; }
 
-    /// <summary>Yüklenmiş (blob) görsel için thumbnail data-URL'i; URL kaynaklı görselde boş (dış link).</summary>
+    /// <summary>DAM poster URL'i (oturumlu uç); çözülemeyen görselde boş.</summary>
     public string? PreviewDataUrl { get; set; }
 }
 

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Integration.Framework;
+using Integration.TradeXpress.Attachments;
 using Integration.TradeXpress.Orders;
 using Integration.TradeXpress.Permissions;
 using Integration.TradeXpress.Products;
@@ -88,12 +89,12 @@ public partial class SalesChannelEtsyProductAppService
                 // alanları tazelenir + Sku kimlikleri mevcut varyantlara yeniden bağlanır (ekleme-only, basit sürüm).
                 product = await GetOwnedProductAsync(existing.ProductId);
 
-                // Görsel GERİ-DOLDURMA: ürünün görseli YOKSA listelemeden doldur (DOLDURMA-ONLY — mevcut görselleri
-                // EZMEZ, kullanıcı düzenlemesi korunur). Eski görsel-bug'lı import'ların görselini re-import ile kurtarır.
-                if (product.Images.Count == 0 && listing.ImageUrls.Count > 0)
+                // Görsel GERİ-DOLDURMA: ürünün DAM'da medyası YOKSA listelemeden doldur (DOLDURMA-ONLY — mevcut
+                // görselleri EZMEZ, kullanıcı düzenlemesi korunur). Eski görsel-bug'lı import'ları re-import kurtarır.
+                if (listing.ImageUrls.Count > 0
+                    && (await _entityMedia.GetForAsync(MediaEntityNames.Product, product.Id)).Count == 0)
                 {
-                    product.SetImages(await _imageDownloader.BuildFromUrlsAsync(product.Code, listing.ImageUrls));
-                    await _productRepository.UpdateAsync(product, autoSave: true);
+                    await _imageDownloader.ImportToProductAsync(product, listing.ImageUrls);
                 }
 
                 variantByEtsyProductId = existing.Skus
@@ -253,7 +254,6 @@ public partial class SalesChannelEtsyProductAppService
         product.SetName(BuildSafeName(listing.Title, code), normalizeTitle: false);
         product.SetDescription(BuildTemplateDescription(listing.Description, ProductConsts.DescriptionMaxLength));
         product.SetCurrencyUnit(currencyUnitId);
-        product.SetImages(await _imageDownloader.BuildFromUrlsAsync(code, listing.ImageUrls));
         if (listing.WhoMade is { } whoMade)
         {
             product.SetWhoMade(whoMade);
@@ -266,6 +266,9 @@ public partial class SalesChannelEtsyProductAppService
 
         await _productRepository.InsertAsync(product, autoSave: true);
         report.CreatedProducts++;
+
+        // Görseller DAM'a — link ürün Id'sine bağlandığından INSERT'ten SONRA (dedup + ilk görsel kapak).
+        await _imageDownloader.ImportToProductAsync(product, listing.ImageUrls);
 
         var (attributeByName, valueByKey) = await BuildAttributeGraphAsync(companyId, product.Id, offerings);
 

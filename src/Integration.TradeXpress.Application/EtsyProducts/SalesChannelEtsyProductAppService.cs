@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Integration.TradeXpress.Attachments;
 using Integration.TradeXpress.EtsyTaxonomies;
 using Integration.TradeXpress.Financials.CurrencyUnits;
 using Integration.TradeXpress.MultiCompany;
@@ -49,6 +50,7 @@ public partial class SalesChannelEtsyProductAppService : TradeXpressAppService, 
     private readonly RecipeCostPopulator _recipeCostPopulator;
     private readonly ICurrentCompany _currentCompany;
     private readonly MarketplaceImageDownloader _imageDownloader;
+    private readonly IEntityMediaAppService _entityMedia;
     private readonly IEtsyTaxonomyAppService _taxonomyAppService;
 
     public SalesChannelEtsyProductAppService(
@@ -71,6 +73,7 @@ public partial class SalesChannelEtsyProductAppService : TradeXpressAppService, 
         RecipeCostPopulator recipeCostPopulator,
         ICurrentCompany currentCompany,
         MarketplaceImageDownloader imageDownloader,
+        IEntityMediaAppService entityMedia,
         IEtsyTaxonomyAppService taxonomyAppService)
     {
         _repository = repository;
@@ -92,6 +95,7 @@ public partial class SalesChannelEtsyProductAppService : TradeXpressAppService, 
         _recipeCostPopulator = recipeCostPopulator;
         _currentCompany = currentCompany;
         _imageDownloader = imageDownloader;
+        _entityMedia = entityMedia;
         _taxonomyAppService = taxonomyAppService;
     }
 
