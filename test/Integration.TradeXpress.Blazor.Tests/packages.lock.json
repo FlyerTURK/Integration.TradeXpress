@@ -131,67 +131,68 @@
       },
       "DevExpress.Blazor.Resources": {
         "type": "Transitive",
-        "resolved": "25.2.5",
-        "contentHash": "nNv6b4+9FU/0ZM874DUJuNM83q73atNFBcCZAUr3XloeawpnlxY1Ja7iIiJvCq61BkBe0XBrUl0FpkNi8MT/Aw==",
+        "resolved": "25.2.8",
+        "contentHash": "QU0xynY1jx/FXGnJxkEvl9eVm23DTEM+tQdj1ernVDDrFQWQnJYdRl6BVd59afttEpQpZES2/MWU0Gm9w9hoiA==",
         "dependencies": {
-          "DevExpress.Data": "[25.2.5]",
+          "DevExpress.Data": "[25.2.8]",
           "Microsoft.AspNetCore.Components.Web": "8.0.15"
         }
       },
       "DevExpress.Blazor.Themes.Fluent": {
         "type": "Transitive",
-        "resolved": "25.2.5",
-        "contentHash": "R5HKnsa5xF+Yj6fADiFw9g//VtkDZUXuJkAQBM7ycr/MwRVBSb+z30PCI2I1HuMoZU2lVjJJ6dYhTU0bSKY4nw=="
+        "resolved": "25.2.8",
+        "contentHash": "pJQ5q5B3PZbvSXMzCynz0Qgohen0gZDux/1d5k0YS+Cr/npAqPsFd7ln/RFizHiuHktgfObDQhL3JPt2ENA9zQ=="
       },
       "DevExpress.Data": {
         "type": "Transitive",
-        "resolved": "25.2.5",
-        "contentHash": "Y4Myodaz3x6pm5KLMQMFBCp3lxd8QtZYf2i01RLIPuom1+8hhTZkFcwFmZGq1EbdzZhCNBti9w75fljdrBV7Vw==",
+        "resolved": "25.2.8",
+        "contentHash": "FnVn/madR+90xJendRn/UifbmLOW8xynTyCNnrmR+zEzmLQtiiJSt07GB3/Yfe+vV1080qQ2B3C3Hs1hOl3ylg==",
         "dependencies": {
           "System.Drawing.Common": "8.0.15"
         }
       },
       "DevExpress.Drawing": {
         "type": "Transitive",
-        "resolved": "25.2.5",
-        "contentHash": "7uV1pTtp49EP28LZ2BIc2Cd3lXF4LT8MB1rTASGjuVw9+o5QgG1wTrKrex6B6/5bu/3Eb2tym3j90XzC0jEHgQ==",
+        "resolved": "25.2.8",
+        "contentHash": "vMRSpbQlssVmdEvWgXqxXL2GpWyDIsFnI/13bQ1AVJ3L8liFiOTtn/BH7J9F6ZbDXhgld1DwLkKXAniCZz1O9g==",
         "dependencies": {
-          "DevExpress.Data": "[25.2.5]",
+          "DevExpress.Data": "[25.2.8]",
           "System.Drawing.Common": "8.0.15"
         }
       },
       "DevExpress.Pdf.Core": {
         "type": "Transitive",
-        "resolved": "25.2.5",
-        "contentHash": "TBbJmTAbxHvQ1JmlxO8ksWt1XVb9Cv31id+aovkSMsFYkyi/s7zOxwUQCBYxbIq1vQEMcxIxAAESQCe3KZp9LA==",
+        "resolved": "25.2.8",
+        "contentHash": "cl1eYjXIYHFO7or3bTNyPQW8/FtI2LGUM5P2Sidm0hG+1nHekZnGd/cyoDSTUpCt/PiNylqW3NYTI0V0U1yJYw==",
         "dependencies": {
-          "DevExpress.Data": "[25.2.5]",
-          "DevExpress.Drawing": "[25.2.5]",
+          "DevExpress.Data": "[25.2.8]",
+          "DevExpress.Drawing": "[25.2.8]",
           "System.Drawing.Common": "8.0.15",
           "System.Security.Cryptography.Pkcs": "8.0.1"
         }
       },
       "DevExpress.Pdf.Drawing": {
         "type": "Transitive",
-        "resolved": "25.2.5",
-        "contentHash": "1N3DI9HvnCtBo9xHDHhOnSkadO5ngZKYu/wVSSs0emgt86KHHOt/1Bb21QcXKJ6VwajGWobuFuI5AQGasS7edA==",
+        "resolved": "25.2.8",
+        "contentHash": "sKiJ1LAC9J+3rhBAR2SXEap/wDhdmHs9pIJULgfGG6XYjvPnSdGsyqxlwvlq+Fw3D1fNrKcz8nSd871xjjU/nA==",
         "dependencies": {
-          "DevExpress.Data": "[25.2.5]",
-          "DevExpress.Drawing": "[25.2.5]",
-          "DevExpress.Pdf.Core": "[25.2.5]",
+          "DevExpress.Data": "[25.2.8]",
+          "DevExpress.Drawing": "[25.2.8]",
+          "DevExpress.Pdf.Core": "[25.2.8]",
           "System.Drawing.Common": "8.0.15"
         }
       },
       "DevExpress.Printing.Core": {
         "type": "Transitive",
-        "resolved": "25.2.5",
-        "contentHash": "FyYlwd8TdN54V+pYdP/H0LRbduEJ1J58cauFPu7KRTlCrHQT4nvvLHqpMeGrI6701IQNrJmip7NH6dfuB+/lPg==",
+        "resolved": "25.2.8",
+        "contentHash": "s58u/qglUIYA+hmy+1sipgs0b40QXVCbxOztu9Pjj1WHWVXjimkTar7PTKj5GkFxEHGEdw5kwpEKlsx1jmS/jA==",
         "dependencies": {
-          "DevExpress.Data": "[25.2.5]",
-          "DevExpress.Drawing": "[25.2.5]",
-          "DevExpress.Pdf.Core": "[25.2.5]",
-          "DevExpress.Pdf.Drawing": "[25.2.5]",
+          "DevExpress.Data": "[25.2.8]",
+          "DevExpress.Drawing": "[25.2.8]",
+          "DevExpress.Pdf.Core": "[25.2.8]",
+          "DevExpress.Pdf.Drawing": "[25.2.8]",
           "System.Drawing.Common": "8.0.15",
+          "System.Security.Cryptography.Xml": "8.0.3",
           "System.ServiceModel.Http": "8.1.2"
         }
       },
@@ -721,8 +722,8 @@
       },
       "System.Security.Cryptography.Xml": {
         "type": "Transitive",
-        "resolved": "8.0.2",
-        "contentHash": "aDM/wm0ZGEZ6ZYJLzgqjp2FZdHbDHh6/OmpGfb7AdZ105zYmPn/83JRU2xLIbwgoNz9U1SLUTJN0v5th3qmvjA==",
+        "resolved": "8.0.3",
+        "contentHash": "1cHAWDYwOyyoRy+nxS7/Ro/Zcio6i5yHoIJ6xUA+fU8lNu4yGQgja5dEovAxBVud3RnfwRVWOl0B2vr+9LP/mg==",
         "dependencies": {
           "System.Security.Cryptography.Pkcs": "8.0.1"
         }
@@ -1209,7 +1210,7 @@
       "integration.framework.blazor.client": {
         "type": "Project",
         "dependencies": {
-          "DevExpress.Blazor": "[25.2.5, )",
+          "DevExpress.Blazor": "[25.2.8, )",
           "Integration.Framework.Application.Contracts": "[1.0.0, )",
           "Microsoft.AspNetCore.Components.Web": "[10.0.9, )",
           "Microsoft.AspNetCore.Components.WebAssembly": "[10.0.9, )",
@@ -1239,8 +1240,8 @@
       "integration.tradexpress.blazor.client": {
         "type": "Project",
         "dependencies": {
-          "DevExpress.Blazor": "[25.2.5, )",
-          "DevExpress.Blazor.Themes": "[25.2.5, )",
+          "DevExpress.Blazor": "[25.2.8, )",
+          "DevExpress.Blazor.Themes": "[25.2.8, )",
           "Integration.Framework.Application.Contracts": "[1.0.0, )",
           "Integration.Framework.Blazor.Client": "[1.0.0, )",
           "Integration.TradeXpress.HttpApi.Client": "[1.0.0, )",
@@ -1284,16 +1285,16 @@
       },
       "DevExpress.Blazor": {
         "type": "CentralTransitive",
-        "requested": "[25.2.5, )",
-        "resolved": "25.2.5",
-        "contentHash": "bwLYbXbF7003GPx0R4r8FIYjBsD0WpWWizv9bYSDjl1DbDJbEztVQpzvLOANHWQ+S4u9VDY4JW9ph7e70w2Iow==",
+        "requested": "[25.2.8, )",
+        "resolved": "25.2.8",
+        "contentHash": "oMLBf+RgRyJOdhdQQJrS1jLEQv4fO3dywFy+Ph8/xnoP+jmSICWf3fSHGboUg4uFnEScQghbrS9DbuRKhPHEYw==",
         "dependencies": {
-          "DevExpress.Blazor.Resources": "[25.2.5]",
-          "DevExpress.Blazor.Themes": "[25.2.5]",
-          "DevExpress.Blazor.Themes.Fluent": "[25.2.5]",
-          "DevExpress.Data": "[25.2.5]",
-          "DevExpress.Drawing": "[25.2.5]",
-          "DevExpress.Printing.Core": "[25.2.5]",
+          "DevExpress.Blazor.Resources": "[25.2.8]",
+          "DevExpress.Blazor.Themes": "[25.2.8]",
+          "DevExpress.Blazor.Themes.Fluent": "[25.2.8]",
+          "DevExpress.Data": "[25.2.8]",
+          "DevExpress.Drawing": "[25.2.8]",
+          "DevExpress.Printing.Core": "[25.2.8]",
           "DevExtreme.AspNet.Data": "5.1.0",
           "Microsoft.AspNetCore.Components.Web": "8.0.15",
           "System.Drawing.Common": "8.0.15"
@@ -1301,9 +1302,9 @@
       },
       "DevExpress.Blazor.Themes": {
         "type": "CentralTransitive",
-        "requested": "[25.2.5, )",
-        "resolved": "25.2.5",
-        "contentHash": "tmwtleyuigLraslJtF5pTmFupOliQWJuGgdhAa0OQjFU+okrfe8wjqsFWFUCtPQgjcGxHAK2yJL2URC0SEBS/w=="
+        "requested": "[25.2.8, )",
+        "resolved": "25.2.8",
+        "contentHash": "xd4xGbdFu9hpXDJVratGYn4GGpx1Ib2Nxk/yCnxqC0Tt/TtwaVst4pyIGgUrsxVLPGXfbdT9tKYhAefH5vDzfw=="
       },
       "Microsoft.AspNetCore.Components.Web": {
         "type": "CentralTransitive",

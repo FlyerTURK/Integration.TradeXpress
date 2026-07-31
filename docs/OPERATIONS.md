@@ -37,7 +37,7 @@ Amaç: 5-10 yıl sonra bile bu koddan pişman olmamak.
 ## 6. Bağımlılık bakımı
 - Sürümler `Directory.Packages.props`'ta merkezi + sabit; `packages.lock.json` deterministik.
 - **Transitive HIGH açıklar** (Crypto.Xml/OpenApi/MessagePack/SQLite): Microsoft.* 10.0.9'a çekildi. Kalanlar için ABP 10.4.1→10.5.0 (test ile) bump'ı önerilir.
-- DevExpress 25.2.5 **bilinçli sabit** (26.x'e bakma). net10 = LTS (~2028 destek sonu) — 2028 öncesi bir sonraki LTS'e plan.
+- DevExpress 25.2.8 **bilinçli sabit** (26.x'e bakma). net10 = LTS (~2028 destek sonu) — 2028 öncesi bir sonraki LTS'e plan.
 
 ## 7. Mekanik governance ağı (armlı)
 - Derleme: BannedApi (Guid.NewGuid/ham exception/Check.NotNullOrWhiteSpace) + expression-bodied (Domain) = HATA.

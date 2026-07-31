@@ -9,8 +9,8 @@
     <!-- bUnit: Blazor bileşenlerini GERÇEKTEN render eden test katmanı. Tanımsız parametre / eksik DI
          gibi hatalar derlemede değil ÇALIŞMA ANINDA patlar; bunit onları CI'da yakalar. -->
     <PackageVersion Include="bunit" Version="2.8.6" />
-    <PackageVersion Include="DevExpress.Blazor" Version="25.2.5" />
-    <PackageVersion Include="DevExpress.Blazor.Themes" Version="25.2.5" />
+    <PackageVersion Include="DevExpress.Blazor" Version="25.2.8" />
+    <PackageVersion Include="DevExpress.Blazor.Themes" Version="25.2.8" />
     <PackageVersion Include="IdentityModel" Version="7.0.0" />
     <PackageVersion Include="Microsoft.AspNetCore.Components.Web" Version="10.0.9" />
     <PackageVersion Include="Microsoft.Playwright" Version="1.49.0" />

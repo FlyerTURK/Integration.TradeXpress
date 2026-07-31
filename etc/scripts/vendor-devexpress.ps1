@@ -7,7 +7,7 @@
 param(
     [string]$RepoRoot   = "$PSScriptRoot\..\..",
     [string]$DevExSource = "C:\Program Files\DevExpress 25.2\Components\System\Components\packages",
-    [string]$Version    = "25.2.5"
+    [string]$Version    = "25.2.8"
 )
 
 $ErrorActionPreference = "Stop"
@@ -16,9 +16,13 @@ $dst = Join-Path $RepoRoot "nuget-packages"
 New-Item -ItemType Directory -Force -Path $dst | Out-Null
 
 # Tüm packages.lock.json'lardan benzersiz DevExpress paket id'lerini topla.
+# Yalnız src/ + test/ taranır: .claude/worktrees altındaki kopyalar hem gereksiz hem de derin obj/
+# yolları Windows MAX_PATH sınırını aşıp taramayı düşürüyordu (filtre taramadan sonra çalışıyor).
 $ids = [System.Collections.Generic.HashSet[string]]::new()
-Get-ChildItem $RepoRoot -Recurse -Filter packages.lock.json |
-    Where-Object { $_.FullName -notlike '*\.claude\*' } |
+@("src", "test") |
+    ForEach-Object { Join-Path $RepoRoot $_ } |
+    Where-Object { Test-Path $_ } |
+    ForEach-Object { Get-ChildItem $_ -Recurse -Filter packages.lock.json -ErrorAction SilentlyContinue } |
     ForEach-Object {
         foreach ($m in [regex]::Matches((Get-Content $_.FullName -Raw), '"(DevExpress[A-Za-z.]+)"')) {
             [void]$ids.Add($m.Groups[1].Value)
