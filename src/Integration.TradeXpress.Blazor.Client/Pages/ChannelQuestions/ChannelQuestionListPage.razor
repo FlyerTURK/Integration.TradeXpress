@@ -1,0 +1,228 @@
+@page "/channel-questions"
+@using Integration.TradeXpress.ChannelQuestions
+@using Integration.TradeXpress.Permissions
+@attribute [Authorize(TradeXpressPermissions.ChannelQuestions.Default)]
+@inherits CrudComponentBase
+
+@* ÜRÜN SORULARI GELEN KUTUSU — kanal-nötr, salt-okuma liste + YEREL cevap yazımı.
+   CrudLayout DEĞİL düz TxGrid: Yeni/Sil YOK (kayıtlar yalnız kanaldan çekilir) ve satır tıklaması
+   düzenleme formu değil CEVAP popup'ı açar. Server-side sayfalama GridListDataSource üzerinden.
+
+   İŞ KURALI (ChannelAnswerState özeti): cevap pazaryerine GÖNDERİLMEZ — bu ekran "gönder" demez,
+   yalnız "Gönderilmeye Hazır" (kuyruğa al) der. "Gönderildi" ibaresi SADECE AnswerState=Sent
+   satırının rozetinde çıkar; bugün hiçbir satır o duruma geçmez. *@
+
+<div style="display:flex; flex-direction:column; height:100%; padding:6px; box-sizing:border-box; min-height:0;">
+
+    <DxToolbar AdaptivityAutoHideRootItems="false" AdaptivityAutoCollapseItemsToIcons="false">
+        @* Filtre switch'i: server-side (OnlyPending sunucuya gider), grid'i yeniden çeker. *@
+        <DxToolbarItem>
+            <Template>
+                <DxCheckBox CheckType="CheckType.Switch"
+                            Checked="@_onlyPending"
+                            CheckedChanged="@((bool value) => OnOnlyPendingChanged(value))"
+                            ValidationEnabled="false">
+                    @L["ChannelQuestion:OnlyPending"]
+                </DxCheckBox>
+            </Template>
+        </DxToolbarItem>
+        <DxToolbarItem BeginGroup="true">
+            <Template>
+                <span style="white-space:nowrap; padding:0 0.35rem; font-weight:600;">
+                    @L["ChannelQuestion:PendingCount", _pendingCount]
+                </span>
+            </Template>
+        </DxToolbarItem>
+        <DxToolbarItem Alignment="ToolbarItemAlignment.Right"
+                       Text="@L["Refresh"]"
+                       IconCssClass="@TradeXpressIcons.Refresh"
+                       Click="@RefreshAsync" />
+    </DxToolbar>
+
+    <div style="flex:1; min-height:0; min-width:0; display:flex; flex-direction:column; margin-top:6px;">
+        <TxGrid @ref="_grid"
+                Data="@DataSource"
+                KeyFieldName="Id"
+                PageSize="20"
+                StateKey="channel-questions:list"
+                CssClass="w-100 tx-grid-fill"
+                CustomizeElement="@OnCustomizeGridElement"
+                RowClick="@OnRowClick">
+            <Columns>
+                <DxGridDataColumn FieldName="ChannelType" Caption="@L["ChannelQuestion:Column:Channel"]" Width="110px">
+                    <CellDisplayTemplate>
+                        @{
+                            var channelRow = (ChannelQuestionListDto)context.DataItem;
+                        }
+                        @ChannelLabel(channelRow)
+                    </CellDisplayTemplate>
+                </DxGridDataColumn>
+                <DxGridDataColumn FieldName="ProductTitle" Caption="@L["ProductTitle"]" MinWidth="180" />
+                <DxGridDataColumn FieldName="CustomerName" Caption="@L["ChannelQuestion:Column:Customer"]" Width="160px" />
+                @* Soru gövdesi 4000 karaktere kadar olabilir → satırda KIRPILMIŞ tek satır; tamamı cevap popup'ında. *@
+                <DxGridDataColumn FieldName="QuestionText" Caption="@L["QuestionText"]" MinWidth="240">
+                    <CellDisplayTemplate>
+                        @{
+                            var questionRow = (ChannelQuestionListDto)context.DataItem;
+                        }
+                        @Truncate(questionRow.QuestionText, QuestionPreviewLength)
+                    </CellDisplayTemplate>
+                </DxGridDataColumn>
+                @* Geliş = FirstSeenAt (UTC saklanır) → merkezî UtcLocalText kullanıcının yerel saatine çevirir. *@
+                <DxGridDataColumn FieldName="FirstSeenAt" Caption="@L["ChannelQuestion:Column:FirstSeen"]" Width="150px">
+                    <CellDisplayTemplate>
+                        @{
+                            var seenRow = (ChannelQuestionListDto)context.DataItem;
+                        }
+                        <UtcLocalText Value="@seenRow.FirstSeenAt" />
+                    </CellDisplayTemplate>
+                </DxGridDataColumn>
+                <DxGridDataColumn FieldName="NeutralStatus" Caption="@L["Status"]" Width="130px">
+                    <CellDisplayTemplate>
+                        @{
+                            var statusRow = (ChannelQuestionListDto)context.DataItem;
+                        }
+                        <span style="@StatusBadgeStyle(statusRow.NeutralStatus)">@StatusLabel(statusRow.NeutralStatus)</span>
+                    </CellDisplayTemplate>
+                </DxGridDataColumn>
+                <DxGridDataColumn FieldName="AnswerState" Caption="@L["ChannelQuestion:Column:AnswerState"]" Width="150px">
+                    <CellDisplayTemplate>
+                        @{
+                            var answerRow = (ChannelQuestionListDto)context.DataItem;
+                        }
+                        <span style="@AnswerBadgeStyle(answerRow.AnswerState)">@AnswerStateLabel(answerRow.AnswerState)</span>
+                    </CellDisplayTemplate>
+                </DxGridDataColumn>
+                <DxGridDataColumn FieldName="IsRead" Caption="@L["ChannelQuestion:Column:Read"]" Width="100px">
+                    <CellDisplayTemplate>
+                        @{
+                            var readRow = (ChannelQuestionListDto)context.DataItem;
+                        }
+                        @(readRow.IsRead ? L["ChannelQuestion:Read"] : L["ChannelQuestion:Unread"])
+                    </CellDisplayTemplate>
+                </DxGridDataColumn>
+            </Columns>
+        </TxGrid>
+
+        @* Boş liste: sebebi AÇIKÇA yazılır — kullanıcı "ekran bozuk mu" diye aramasın. *@
+        @if (_isEmpty)
+        {
+            <div style="padding:10px 12px; border-inline-start:3px solid var(--dxbl-drawer-border-color); color:var(--bs-secondary-color);">
+                @(_onlyPending ? L["ChannelQuestion:NoPendingHint"] : L["ChannelQuestion:EmptyHint"])
+            </div>
+        }
+    </div>
+</div>
+
+@* CEVAP POPUP'I — soru salt-okuma, cevap yerelde saklanır. İki uyarı (gönderim kapalı + yönlendirme yasağı)
+   kullanıcının GÖRECEĞİ yerde, cevap kutusunun hemen üstünde durur. *@
+<DxPopup @bind-Visible="@_popupVisible"
+         HeaderText="@L["ChannelQuestion:AnswerTitle"]"
+         Width="min(760px, 96vw)"
+         MaxHeight="90vh"
+         CloseOnEscape="true"
+         ShowFooter="false">
+    @* Context adı AÇIK verilir: DxPopup'ın gövde şablonu ile içindeki DxFormLayoutItem'lar varsayılan
+       'context' adını paylaşınca Razor derleyicisi RZ9999 ile durur (aynı ad iki kez bağlanamaz). *@
+    <BodyContentTemplate Context="__answerBody">
+        @if (_row is { } row)
+        {
+            <div style="display:flex; flex-direction:column; gap:10px;">
+
+                <DxFormLayout CssClass="w-100">
+                    <DxFormLayoutItem Caption="@L["ChannelQuestion:Column:Channel"]" ColSpanMd="6">
+                        @ChannelLabel(row)
+                    </DxFormLayoutItem>
+                    <DxFormLayoutItem Caption="@L["ChannelQuestion:Column:FirstSeen"]" ColSpanMd="6">
+                        <UtcLocalText Value="@row.FirstSeenAt" />
+                    </DxFormLayoutItem>
+                    <DxFormLayoutItem Caption="@L["ProductTitle"]" ColSpanMd="12">
+                        @row.ProductTitle
+                    </DxFormLayoutItem>
+                    <DxFormLayoutItem Caption="@L["ChannelQuestion:Column:Customer"]" ColSpanMd="6">
+                        @row.CustomerName
+                    </DxFormLayoutItem>
+                    <DxFormLayoutItem Caption="@L["Email"]" ColSpanMd="6">
+                        @row.CustomerEmail
+                    </DxFormLayoutItem>
+                    <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6">
+                        <span style="@StatusBadgeStyle(row.NeutralStatus)">@StatusLabel(row.NeutralStatus)</span>
+                    </DxFormLayoutItem>
+                    <DxFormLayoutItem Caption="@L["ChannelQuestion:Column:AnswerState"]" ColSpanMd="6">
+                        <span style="@AnswerBadgeStyle(row.AnswerState)">@AnswerStateLabel(row.AnswerState)</span>
+                    </DxFormLayoutItem>
+                    <DxFormLayoutItem Caption="@L["Subject"]" ColSpanMd="12">
+                        @row.Subject
+                    </DxFormLayoutItem>
+                    <DxFormLayoutItem Caption="@L["QuestionText"]" ColSpanMd="12">
+                        <DxMemo Text="@row.QuestionText"
+                                ReadOnly="true"
+                                ValidationEnabled="false"
+                                Rows="5"
+                                ResizeMode="MemoResizeMode.Disabled"
+                                CssClass="w-100" />
+                    </DxFormLayoutItem>
+                </DxFormLayout>
+
+                <div style="padding:8px 10px; border-inline-start:3px solid #f59e0b; color:var(--bs-body-color);">
+                    @L["ChannelQuestion:PushDisabledWarning"]
+                </div>
+                <div style="padding:8px 10px; border-inline-start:3px solid #dc2626; color:var(--bs-body-color);">
+                    @L["ChannelQuestion:NoRedirectWarning"]
+                </div>
+
+                @if (IsAnswerLocked)
+                {
+                    @* Kilit gerekçesi domain kuralıyla AYNI metin — mesaj tek kaynakta (entity'nin fırlattığı kod). *@
+                    <div style="padding:8px 10px; border-inline-start:3px solid var(--dxbl-drawer-border-color); color:var(--bs-secondary-color);">
+                        @L["TradeXpress:ChannelQuestion:AnswerAlreadySent"]
+                    </div>
+                }
+                else if (!_canAnswer)
+                {
+                    <div style="padding:8px 10px; border-inline-start:3px solid var(--dxbl-drawer-border-color); color:var(--bs-secondary-color);">
+                        @L["ChannelQuestion:NoAnswerPermission"]
+                    </div>
+                }
+
+                <DxMemo @bind-Text="@_answerText"
+                        ReadOnly="@(!CanWriteAnswer)"
+                        ValidationEnabled="false"
+                        Rows="6"
+                        ResizeMode="MemoResizeMode.Disabled"
+                        NullText="@L["AnswerText"]"
+                        CssClass="w-100" />
+
+                @if (!string.IsNullOrEmpty(_error))
+                {
+                    <div style="padding:8px; border-radius:6px; border:1px solid #dc2626; color:#dc2626; white-space:pre-line;">@_error</div>
+                }
+
+                <div style="display:flex; justify-content:flex-end; gap:8px; flex-wrap:wrap; margin-top:4px;">
+                    <DxButton Text="@(row.IsRead ? L["ChannelQuestion:MarkUnread"].Value : L["ChannelQuestion:MarkRead"].Value)"
+                              IconCssClass="@TradeXpressIcons.Eye"
+                              RenderStyle="ButtonRenderStyle.Secondary"
+                              RenderStyleMode="ButtonRenderStyleMode.Outline"
+                              Enabled="@(!_busy)"
+                              Click="@ToggleReadAsync" />
+                    <DxButton Text="@L["ChannelQuestion:SaveDraft"]"
+                              IconCssClass="@TradeXpressIcons.Save"
+                              RenderStyle="ButtonRenderStyle.Secondary"
+                              RenderStyleMode="ButtonRenderStyleMode.Contained"
+                              Enabled="@(CanWriteAnswer && !_busy)"
+                              Click="@SaveDraftAsync" />
+                    <DxButton Text="@L["ChannelQuestion:MarkReadyToSend"]"
+                              IconCssClass="@TradeXpressIcons.Check"
+                              RenderStyle="ButtonRenderStyle.Primary"
+                              RenderStyleMode="ButtonRenderStyleMode.Contained"
+                              Enabled="@(CanWriteAnswer && !_busy)"
+                              Click="@SaveReadyToSendAsync" />
+                    <DxButton Text="@L["Close"]"
+                              RenderStyle="ButtonRenderStyle.Secondary"
+                              RenderStyleMode="ButtonRenderStyleMode.Outline"
+                              Click="@ClosePopup" />
+                </div>
+            </div>
+        }
+    </BodyContentTemplate>
+</DxPopup>
