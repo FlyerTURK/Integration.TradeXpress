@@ -393,6 +393,13 @@ public class TradeXpressBlazorModule : AbpModule
         // aynı anda iki tam ağaç çekimi + ExternalId unique index çakışması demek olurdu).
         Volo.Abp.Threading.AsyncHelper.RunSync(() =>
             context.AddBackgroundWorkerAsync<Integration.TradeXpress.N11Categories.N11CategorySyncWorker>());
+
+        // Müşteri sorusu senkronu — pazaryerine giden TEK MERKEZ (UI asla doğrudan çağırmaz). Periyot 1 DAKİKA
+        // = N11 kota penceresi; her tur TEK iş adımı harcar. "5 dakikada bir tazeleme" kararı worker periyoduyla
+        // değil kanal-başı eşikle sağlanır (bkz. ChannelQuestionSyncWorker özeti). YALNIZ Blazor host'ta →
+        // iki süreçte kayıt, aynı dakikada iki çağrı = garanti accessLimit demek olurdu.
+        Volo.Abp.Threading.AsyncHelper.RunSync(() =>
+            context.AddBackgroundWorkerAsync<Integration.TradeXpress.ChannelQuestions.ChannelQuestionSyncWorker>());
     }
 
     /// <summary>HTTP request pipeline'ı (middleware zinciri) — sıralama duyarlı, dokunma.</summary>

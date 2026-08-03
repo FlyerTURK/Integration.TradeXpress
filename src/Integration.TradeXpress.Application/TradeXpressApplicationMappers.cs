@@ -35,6 +35,7 @@ using Integration.TradeXpress.Products;
 using Integration.TradeXpress.Scheduling;
 using Integration.TradeXpress.Substitutions;
 using Integration.TradeXpress.Orders;
+using Integration.TradeXpress.ChannelQuestions;
 using Integration.TradeXpress.Authorization;
 using Integration.TradeXpress.Confirmations;
 using Integration.TradeXpress.Attachments;
@@ -963,6 +964,18 @@ public partial class OrderLineToItemListDtoMapper : MapperBase<OrderLine, OrderI
     [MapperIgnoreTarget(nameof(OrderItemListDto.ItemDetail))]   // AppService enrich (snapshot'tan RemoteLineId ile)
     public override partial OrderItemListDto Map(OrderLine source);
     public override partial void Map(OrderLine source, OrderItemListDto destination);
+}
+
+// ── ChannelQuestion (NÖTR müşteri sorusu — company-owned; Order mapping'inin soru karşılığı). Kanal ADI id-only
+//    referanstan AppService'te TEK BATCH çözülür → mapper'da ignore. CompanyId/TenantId/audit = source-only;
+//    AnswerPushError da DTO'da YOK (denetim alanı, gelen kutusuna sızmaz — push açılınca ayrı yüzeyle gelir). ──
+
+[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
+public partial class ChannelQuestionToListDtoMapper : MapperBase<ChannelQuestion, ChannelQuestionListDto>
+{
+    [MapperIgnoreTarget(nameof(ChannelQuestionListDto.SalesChannelName))]
+    public override partial ChannelQuestionListDto Map(ChannelQuestion source);
+    public override partial void Map(ChannelQuestion source, ChannelQuestionListDto destination);
 }
 
 [Mapper] public partial class SubAccountGetToCreateMapper : MapperBase<SubAccountGetDto, SubAccountCreateDto>

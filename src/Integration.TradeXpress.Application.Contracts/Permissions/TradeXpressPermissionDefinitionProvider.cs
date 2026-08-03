@@ -125,6 +125,15 @@ public class TradeXpressPermissionDefinitionProvider : PermissionDefinitionProvi
         salesChannels.AddChild(TradeXpressPermissions.SalesChannels.Update, L("Permission:Update"));
         salesChannels.AddChild(TradeXpressPermissions.SalesChannels.Delete, L("Permission:Delete"));
 
+        // Ürün soruları — Create/Update/Delete YOK (kayıt kanaldan gelir), push izni de YOK (cevap
+        // gönderilmiyor). Gerekçe: TradeXpressPermissions.ChannelQuestions özeti.
+        var channelQuestions = myGroup.AddPermission(
+            TradeXpressPermissions.ChannelQuestions.Default, L("Permission:ChannelQuestions"));
+        channelQuestions.AddChild(
+            TradeXpressPermissions.ChannelQuestions.Answer, L("Permission:ChannelQuestions:Answer"));
+        channelQuestions.AddChild(
+            TradeXpressPermissions.ChannelQuestions.Sync, L("Permission:ChannelQuestions:Sync"));
+
         var stones = myGroup.AddPermission(
             TradeXpressPermissions.Stones.Default, L("Permission:Stones"));
         stones.AddChild(TradeXpressPermissions.Stones.Create, L("Permission:Create"));

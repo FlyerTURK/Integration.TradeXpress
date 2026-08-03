@@ -170,6 +170,24 @@ public static class TradeXpressPermissions
         public const string Delete  = Default + ".Delete";
     }
 
+    /// <summary>Pazaryeri müşteri sorularının gelen kutusu (kanal-nötr; <c>Orders</c> emsalinin soru karşılığı).
+    /// KATALOG DEĞİL: kayıtlar yalnız kanaldan çekilir, kullanıcı elle soru oluşturup silemez → Create/Update/
+    /// Delete çocukları YOK. Yapılabilen iki iş kendi izniyle ayrışır: cevabı YAZMAK ve çekimi TETİKLEMEK.
+    ///
+    /// <para><b>Push izni bilinçli olarak YOK (2026-08-01 kararı):</b> cevap bugün pazaryerine GÖNDERİLMİYOR.
+    /// İzin ağacında "Cevabı Gönder" satırı göstermek, var olmayan bir yeteneği vaat eder ve rol kurgusunu
+    /// yanlış bilgiyle kilitler. Push açıldığında izni de o iş getirir.</para></summary>
+    public static class ChannelQuestions
+    {
+        public const string Default = GroupName + ".ChannelQuestions";
+
+        /// <summary>Cevabı YEREL olarak yazma/güncelleme. Gönderim DEĞİLDİR (bkz. tip özeti).</summary>
+        public const string Answer = Default + ".Answer";
+
+        /// <summary>Elle çekim tetikleme (zamanlanmış çekimden bağımsız — kullanıcı "şimdi çek" der).</summary>
+        public const string Sync = Default + ".Sync";
+    }
+
     /// <summary>Taş KATALOĞU yönetimi (işlem yetkisi DEĞİL — o <see cref="Transactions.Stone"/>).</summary>
     public static class Stones
     {

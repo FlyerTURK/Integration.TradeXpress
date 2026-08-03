@@ -177,6 +177,12 @@ public class TradeXpressDbContext :
     // Sipariş YEREL/OPERASYONEL katmanı (O1) — resync'ten bağımsız düzeltme/versiyon bağı (bkz. entity XML doc).
     public DbSet<Integration.TradeXpress.Orders.OrderOperationalData> OrderOperationalData { get; set; } = null!;
     public DbSet<Integration.TradeXpress.Orders.OrderLineOperationalData> OrderLineOperationalData { get; set; } = null!;
+    // Müşteri sorusu (NÖTR) — tüm satış kanallarının ürün soruları tek tabloda (company-owned); salt-okuma çekim,
+    // cevap yerelde yazılır ama pazaryerine GÖNDERİLMEZ (push ayrı onayla açılacak).
+    public DbSet<Integration.TradeXpress.ChannelQuestions.ChannelQuestion> ChannelQuestions { get; set; } = null!;
+    // Soru senkron DEFTERİ — kanal başına tek satır; dakikada-tek-adım çekiminin kalıcı ilerlemesi (seed ayı,
+    // sayfa imleci, son tazeleme). Uygulama yeniden başlayınca seed baştan başlamasın diye DB'de tutulur.
+    public DbSet<Integration.TradeXpress.ChannelQuestions.ChannelQuestionSyncState> ChannelQuestionSyncStates { get; set; } = null!;
 
 
     #region Entities from the modules
@@ -287,6 +293,8 @@ public class TradeXpressDbContext :
         builder.ConfigureEtsyProducts();
         builder.ConfigureSubstitutions();
         builder.ConfigureOrders();
+        builder.ConfigureChannelQuestions();
+        builder.ConfigureChannelQuestionSyncStates();
 
         // Kod kolonlarına ordinal (BIN2) collation — YALNIZ SQL Server. C# ToUpperInvariant ile hizalanır,
         // Türkçe İ/i collation kaçağını DB tarafında da kapatır. Sqlite (test) BIN2'yi tanımaz → guard'la atlanır
