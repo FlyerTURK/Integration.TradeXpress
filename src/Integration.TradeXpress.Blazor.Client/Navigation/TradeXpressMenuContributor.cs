@@ -38,12 +38,18 @@ public class TradeXpressMenuContributor : IMenuContributor
         var l = context.GetLocalizer<TradeXpressResource>();
         var currentTenant = context.ServiceProvider.GetRequiredService<ICurrentTenant>();
 
-        // Kök sıra (günlük kullanım üstte): Cari İşlemler(1) · Transferler(2) · Teyitler(3)
-        // · Siparişler(4) · Takvim(5) · Tanımlar(6) · Raporlar(7) · Yönetim(8).
+        // Kök sıra (günlük kullanım üstte): Cari İşlemler(1) · Transferler(2) · Teyitler(3) · Gelen Kutusu(4)
+        // · Siparişler(5) · Ürün Soruları(6) · Takvim(7) · Tanımlar(8) · Raporlar(9) · Yönetim(10).
+        // Gelen Kutusu, Siparişler'in ÜSTÜNDE (2026-08-01 Hakan kararı): günlük iş akışı "bana ne düştü?" ile
+        // başlar — teyit ve soru kuyruğunun özeti sipariş listesinden önce görülür.
+        // Ürün Soruları, Siparişler'in HEMEN altında: ikisi de aynı pazaryeri gelen-kutusu ailesidir
+        // (sipariş = para gelen kutusu, soru = müşteri gelen kutusu) ve aynı oturumda dönüşümlü kullanılır.
+        // NOT: Teyitler ve Ürün Soruları kalemleri KALDIRILMADI — Gelen Kutusu bir kısayol/özet katmanıdır,
+        // türlerin kendi tam ekranlarına doğrudan erişim aynen sürer.
 
         //Administration
         var administration = context.Menu.GetAdministration();
-        administration.Order = 8;
+        administration.Order = 10;
 
         // ── Kök: günlük operasyon kalemleri (tenant-only) ──
         if (currentTenant.Id != null)
@@ -79,6 +85,19 @@ public class TradeXpressMenuContributor : IMenuContributor
                 order: 3
             ).RequirePermissions(TradeXpressPermissions.Confirmations.View));
 
+            // Gelen Kutusu — ORTAK pano: her tür (Teyitler · Ürün Soruları · yarın kullanıcı mesajlaşması) için
+            // bir kart (bekleyen sayısı + son birkaç öğe); karta tıklayınca o türün KENDİ tam ekranı açılır.
+            // İZİN ŞARTI YOK (yalnız kimlik doğrulaması): kartları sağlayıcılar üretir ve HER SAĞLAYICI kendi
+            // iznini kendi kontrol eder (izinsiz tür kart döndürmez). Menüye izin koymak, bir türe yetkili ama
+            // ötekine yetkisiz kullanıcıyı yanlışlıkla panodan komple dışlardı.
+            context.Menu.AddItem(new ApplicationMenuItem(
+                TradeXpressMenus.Inbox,
+                l["Inbox:Title"],
+                url: "/inbox",
+                icon: TradeXpressIcons.Inbox,
+                order: 4
+            ).RequireAuthenticated());
+
             // Siparişler — ORTAK sipariş paneli (tüm satış kanallarının siparişleri tek grid). Salt-okuma çekim (O0);
             // kanal menüsü gibi tenant-only (company-owned operasyonel kayıt). İzin: SalesChannels (ayrı Order izni O0'da yok).
             context.Menu.AddItem(new ApplicationMenuItem(
@@ -86,8 +105,20 @@ public class TradeXpressMenuContributor : IMenuContributor
                 l["Orders"],
                 url: "/orders",
                 icon: TradeXpressIcons.SalesChannel,
-                order: 4
+                order: 5
             ).RequirePermissions(TradeXpressPermissions.SalesChannels.Default));
+
+            // Ürün Soruları — ORTAK soru paneli (tüm satış kanallarının müşteri soruları tek grid). Salt-okuma
+            // çekim + YEREL cevap yazımı; cevap pazaryerine GÖNDERİLMEZ (push ayrı onayla açılacak) → menüde
+            // "gönder" çağrışımı yapan bir kalem/rozet YOK. Siparişler gibi tenant-only (company-owned kayıt).
+            // İkon: mevcut Comments (soru-cevap balonu) sabiti reuse — yeni CSS/emoji yok.
+            context.Menu.AddItem(new ApplicationMenuItem(
+                TradeXpressMenus.ChannelQuestions,
+                l["ChannelQuestion:Title"],
+                url: "/channel-questions",
+                icon: TradeXpressIcons.Comments,
+                order: 6
+            ).RequirePermissions(TradeXpressPermissions.ChannelQuestions.Default));
 
             // Takvim — DevExpress DxScheduler (company-scoped randevular); günlük kullanım aracı → kökte kalır.
             // İkon: placeholder (history); özel takvim ikonu onay sonrası.
@@ -96,7 +127,7 @@ public class TradeXpressMenuContributor : IMenuContributor
                 l["Menu:Scheduler"],
                 url: "/scheduler",
                 icon: TradeXpressIcons.History,
-                order: 5
+                order: 7
             ).RequirePermissions(TradeXpressPermissions.Appointments.Default));
         }
 
@@ -105,7 +136,7 @@ public class TradeXpressMenuContributor : IMenuContributor
             TradeXpressMenus.Definitions,
             l["Definitions"],
             icon: TradeXpressIcons.Definitions,
-            order: 6
+            order: 8
         );
 
         // Finansal — Para Birimleri + Pariteler (alt menü).
@@ -360,7 +391,7 @@ public class TradeXpressMenuContributor : IMenuContributor
                 TradeXpressMenus.Reports,
                 l["Menu:Reports"],
                 icon: TradeXpressIcons.Report,
-                order: 7
+                order: 9
             );
 
             // Pozisyon Raporu — bilanço birimine göre canlı açık pozisyon (ledger toplamı, 5sn yenilenir).

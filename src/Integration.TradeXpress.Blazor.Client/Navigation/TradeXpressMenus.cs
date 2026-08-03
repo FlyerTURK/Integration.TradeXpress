@@ -13,6 +13,8 @@ public class TradeXpressMenus
     public const string CurrentTransactions = Prefix + ".CurrentTransactions";
     public const string Transfers           = Prefix + ".Transfers";
     public const string Confirmations       = Prefix + ".Confirmations";
+    /// <summary>ORTAK gelen kutusu panosu — teyit/soru/mesaj türlerinin tek ekranda özeti (tür başına bir kart).</summary>
+    public const string Inbox               = Prefix + ".Inbox";
     public const string MediaLibrary        = Prefix + ".MediaLibrary";
     public const string Scheduler           = Prefix + ".Scheduler";
 
@@ -34,6 +36,8 @@ public class TradeXpressMenus
     public const string Sales               = Prefix + ".Sales";
     public const string SalesChannels       = Prefix + ".SalesChannels";
     public const string Orders              = Prefix + ".Orders";
+    /// <summary>Pazaryeri müşteri sorularının ORTAK gelen kutusu (kanal-nötr) — Siparişler'in soru karşılığı.</summary>
+    public const string ChannelQuestions    = Prefix + ".ChannelQuestions";
     /// <summary>Pazaryerinin yayımladığı anlaşmalı kargo desi tarifesi (host-global katalog, salt okunur).</summary>
     public const string MarketplaceShipmentTariffs = Prefix + ".MarketplaceShipmentTariffs";
 

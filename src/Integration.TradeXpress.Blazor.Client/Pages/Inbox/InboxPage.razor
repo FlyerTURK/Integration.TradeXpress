@@ -1,0 +1,124 @@
+@page "/inbox"
+@using Integration.TradeXpress.Inbox
+@attribute [Authorize]
+@inherits CrudComponentBase
+
+@* ORTAK GELEN KUTUSU — PANO (özet + derinlemesine).
+   Her tür (Teyitler · Ürün Soruları · yarın kullanıcı mesajlaşması) kendi kartını IInboxSummaryProvider ile
+   üretir; bu sayfa yalnız gelen kartları ÇİZER. Yeni bir tür eklenince BU DOSYA DEĞİŞMEZ — sağlayıcı kaydolur,
+   kart kendiliğinden belirir. Kart hiçbir türün verisini kendi bilmez (SourceKey'e göre özel dal YOK).
+
+   Kart/öğe tıklaması burada derinlemesine kırılım açmaz: türün KENDİ tam ekranına götürür (TargetUrl).
+   Mevcut Teyit/Ürün Soruları ekranları TAŞINMAZ; kutu onlardan yalnız ÖZET okur. *@
+
+<div style="display:flex; flex-direction:column; height:100%; padding:6px; box-sizing:border-box; min-height:0;">
+
+    <DxToolbar AdaptivityAutoHideRootItems="false" AdaptivityAutoCollapseItemsToIcons="false">
+        <DxToolbarItem>
+            <Template>
+                <span style="white-space:nowrap; padding:0 0.35rem; font-weight:600;">@L["Inbox:Title"]</span>
+            </Template>
+        </DxToolbarItem>
+        <DxToolbarItem Alignment="ToolbarItemAlignment.Right"
+                       Text="@L["Refresh"]"
+                       IconCssClass="@TradeXpressIcons.Refresh"
+                       Enabled="@(!_loading)"
+                       Click="@LoadAsync" />
+    </DxToolbar>
+
+    <div style="flex:1; min-height:0; min-width:0; overflow:auto; margin-top:6px;">
+
+        @if (!string.IsNullOrEmpty(_error))
+        {
+            <div style="padding:8px 10px; margin-bottom:8px; border-inline-start:3px solid #dc2626; color:#dc2626; white-space:pre-line;">
+                @_error
+            </div>
+        }
+
+        @if (_loading)
+        {
+            <div style="padding:10px 12px; color:var(--bs-secondary-color);">@L["Loading"]</div>
+        }
+        else if (_cards.Count == 0)
+        {
+            @* Sağlayıcı yok / hepsi null döndü (izin yok, kapsam yok) — kullanıcı "ekran bozuk mu" diye aramasın. *@
+            <div style="padding:10px 12px; border-inline-start:3px solid var(--dxbl-drawer-border-color); color:var(--bs-secondary-color);">
+                @L["Inbox:Empty"]
+            </div>
+        }
+        else
+        {
+            @* Kartlar akışkan ızgara: dar ekranda alt alta, geniş ekranda yan yana (saf flex sarmalayıcı). *@
+            <div style="display:flex; flex-wrap:wrap; align-content:flex-start; gap:12px;">
+                @foreach (var card in _cards)
+                {
+                    <div style="flex:1 1 380px; min-width:300px; max-width:560px; display:flex; flex-direction:column; gap:6px; border:1px solid var(--dxbl-drawer-border-color); border-radius:8px; padding:8px;">
+
+                        <DxToolbar ItemRenderStyleMode="ToolbarRenderStyleMode.Plain"
+                                   AdaptivityAutoHideRootItems="false"
+                                   AdaptivityAutoCollapseItemsToIcons="false">
+                            <DxToolbarItem Text="@card.Title"
+                                           IconCssClass="@card.IconCssClass"
+                                           Tooltip="@card.Title"
+                                           Click="@(async (ToolbarItemClickEventArgs e) => await OpenCardAsync(card))" />
+                            <DxToolbarItem Alignment="ToolbarItemAlignment.Right"
+                                           Text="@L["Inbox:ViewAll"]"
+                                           IconCssClass="@TradeXpressIcons.Eye"
+                                           Tooltip="@L["Inbox:ViewAll"].Value"
+                                           Click="@(async (ToolbarItemClickEventArgs e) => await OpenCardAsync(card))" />
+                        </DxToolbar>
+
+                        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:0 2px;">
+                            <span style="@PendingBadgeStyle(card.PendingCount)">@L["Inbox:Pending"] @card.PendingCount</span>
+                            <span style="color:var(--bs-secondary-color); font-size:12px;">@L["Inbox:Total"] @card.TotalCount</span>
+                        </div>
+
+                        <span style="color:var(--bs-secondary-color); font-size:12px; padding:0 2px;">@L["Inbox:Recent"]</span>
+
+                        @if (card.RecentItems.Count == 0)
+                        {
+                            <span style="color:var(--bs-secondary-color); padding:2px;">@L["Inbox:NoRecentItems"]</span>
+                        }
+                        else
+                        {
+                            <DxGrid Data="@card.RecentItems"
+                                    KeyFieldName="Id"
+                                    PagerVisible="false"
+                                    PageSize="100"
+                                    CssClass="w-100"
+                                    CustomizeElement="@OnCustomizeGridElement"
+                                    RowClick="@(async (GridRowClickEventArgs e) => await OpenCardAsync(card))">
+                                <Columns>
+                                    <DxGridDataColumn AllowSort="false" Caption="@L["Inbox:Column:Item"]" MinWidth="160">
+                                        <CellDisplayTemplate>
+                                            @{
+                                                var primaryItem = (InboxCardItemDto)context.DataItem;
+                                            }
+                                            <span style="@ItemTextStyle(primaryItem.IsPending)">@Truncate(primaryItem.PrimaryText, ItemPreviewLength)</span>
+                                        </CellDisplayTemplate>
+                                    </DxGridDataColumn>
+                                    <DxGridDataColumn AllowSort="false" Caption="@L["Inbox:Column:Detail"]" MinWidth="120">
+                                        <CellDisplayTemplate>
+                                            @{
+                                                var detailItem = (InboxCardItemDto)context.DataItem;
+                                            }
+                                            <span style="color:var(--bs-secondary-color);">@Truncate(detailItem.SecondaryText, ItemPreviewLength)</span>
+                                        </CellDisplayTemplate>
+                                    </DxGridDataColumn>
+                                    <DxGridDataColumn AllowSort="false" Caption="@L["Inbox:Column:When"]" Width="140px">
+                                        <CellDisplayTemplate>
+                                            @{
+                                                var whenItem = (InboxCardItemDto)context.DataItem;
+                                            }
+                                            <UtcLocalText Value="@whenItem.OccurredAt" />
+                                        </CellDisplayTemplate>
+                                    </DxGridDataColumn>
+                                </Columns>
+                            </DxGrid>
+                        }
+                    </div>
+                }
+            </div>
+        }
+    </div>
+</div>

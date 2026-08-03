@@ -60,6 +60,11 @@ public static class TradeXpressIcons
     public const string Transfer = "custom-icon-swap";
     // Teyit (karşılıklı ayna onayı) — mevcut check-circle (onay) ikonu reuse; yeni CSS yok.
     public const string Confirmation = "custom-icon-check-circle";
+    // Ortak Gelen Kutusu (pano) — mevcut comments (mesaj kutusu) ikonu reuse; yeni CSS yok.
+    // Neden bu: kutunun içeriği "dikkat bekleyen mesaj/kayıt" ailesidir (teyit · ürün sorusu · yarın kullanıcı
+    // mesajlaşması) ve setteki tek "gelen kutusu" biçimli ikon budur. Ürün Soruları da aynı ikonu kullanır —
+    // aynı aileden oldukları için bu bilinçli bir tekrar (Raporlar grubu ile rapor sayfalarındaki gibi).
+    public const string Inbox = "custom-icon-comments";
 
     // ── Yönetim ──
     public const string Tenant = "custom-icon-tenant";
