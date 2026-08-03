@@ -11,47 +11,55 @@
 @inject IEntityProfileRegistry Profiles
 
 @*
-   Company DUMB Layout — paylaşılan CompanyEditFields (form) + CompanyBranchDrill (Şube→Kasa nested drill).
-   İkisi de Tenant ile paylaşılır (ICompanyGraph). Drill değişimi EditChanged cascade'i ile forma bildirilir
-   (dirty/toolbar/*). Şirketin kendi HQ switch'i: form içi devir yok → yüklü (orijinal) HQ ise kilitli.
+   Company DUMB Layout — paylaşılan CompanyEditFields (form) + merkez şube. İkisi de Tenant ile paylaşılır
+   (ICompanyGraph). Şirketin kendi HQ switch'i: form içi devir yok → yüklü (orijinal) HQ ise kilitli.
+
+   YENİ vs GÜNCELLE ayrımı (2026-08-02 Hakan isteği: "yeni şirket formu tenant formu gibi olsun"):
+   · YENİ  → merkez şube alanları şirketin çerçevesi İÇİNDE gömülü (TenantLayout deseninin birebir aynısı).
+             Gerekçe: org kuralı gereği şirket en az bir şubeyle doğar (host varsayılan HQ şubeyi zaten kurar);
+             kullanıcıyı ayrı bir drill'e gönderip "şube ekle" dedirtmek, zorunlu adımı isteğe bağlı gösteriyordu.
+   · GÜNCELLE → Şube→Kasa drill'i (çok şubeli yapıyı yönetmenin tek makul yüzeyi; gömülü form ölçeklenmez).
 *@
-<CompanyEditFields Model="@Model" Units="@Units" Countries="@Countries"
-                   HeadquartersEnabled="@(!_originalWasHq)" CodeEnabled="true"
-                   OnAddCurrency="@OnAddCurrency" OnEditCurrency="@OnEditCurrency"
-                   OnAddCountry="@OnAddCountry" OnEditCountry="@OnEditCountry" />
+@if (IsNew)
+{
+    <DxFormLayout CssClass="w-100">
+        @* Embedded: alanlar parent'ın TEK layout'una iner (iç içe DxFormLayout caption hizasını kaydırır). *@
+        <CompanyEditFields Model="@Model" Units="@Units" Countries="@Countries"
+                           HeadquartersEnabled="@(!_originalWasHq)" CodeEnabled="true"
+                           Embedded="true"
+                           OnAddCurrency="@OnAddCurrency" OnEditCurrency="@OnEditCurrency"
+                           OnAddCountry="@OnAddCountry" OnEditCountry="@OnEditCountry">
+            <GroupFooter>
+                @if (FirstBranch is { } newBranch)
+                {
+                    @* Merkez şube ŞİRKETİN bilanço birimini devralır — combo gizli olduğundan değeri burada,
+                       render anında hizalıyoruz (kullanıcı şirketin ülkesini/birimini değiştirirse şube de
+                       onunla gelsin; aksi halde şube açılıştaki birimde takılı kalırdı). TenantLayout ile aynı. *@
+                    newBranch.BaseCurrencyUnitId = Model.BaseCurrencyUnitId;
 
-@* Tek drill de tablı yapıda + entity ikonu (genel desen). *@
-<DrillTabs CssClass="mt-3">
-    <DxTabPage Text="@Profiles.PluralTitle("Branch", L)" TabIconCssClass="@Profiles.Icon("Branch")">
-        <CompanyBranchDrill Model="@Model" Units="@Units" OnChanged="@(() => EditChanged?.Invoke())" />
-    </DxTabPage>
-</DrillTabs>
+                    <BranchEditFields Model="newBranch" Units="@Units"
+                                      GroupCaption="@L["Company:HeadquartersBranch"].Value"
+                                      HeadquartersEnabled="false" CodeEnabled="true"
+                                      ShowHeadquarters="false" ShowBaseCurrency="false"
+                                      ShowAdvancedFields="false" AddressInsideGroup="true"
+                                      Embedded="true"
+                                      OnReferenceDataReload="@OnReferenceDataReload" />
+                }
+            </GroupFooter>
+        </CompanyEditFields>
+    </DxFormLayout>
+}
+else
+{
+    <CompanyEditFields Model="@Model" Units="@Units" Countries="@Countries"
+                       HeadquartersEnabled="@(!_originalWasHq)" CodeEnabled="true"
+                       OnAddCurrency="@OnAddCurrency" OnEditCurrency="@OnEditCurrency"
+                       OnAddCountry="@OnAddCountry" OnEditCountry="@OnEditCountry" />
 
-@code {
-    [Parameter, EditorRequired] public CompanyGetDto Model { get; set; } = default!;
-    [Parameter] public bool IsNew { get; set; }
-    [Parameter] public List<CurrencyUnitListDto> Units { get; set; } = new();
-    [Parameter] public List<CountryListDto> Countries { get; set; } = new();
-
-    // Quick-add/edit (host bağlar → +/✎ butonları) — CompanyEditFields combo'larına forward.
-    [Parameter] public Func<Task<Guid>>? OnAddCurrency { get; set; }
-    [Parameter] public Func<Guid, Task>? OnEditCurrency { get; set; }
-    [Parameter] public Func<Task<Guid?>>? OnAddCountry { get; set; }
-    [Parameter] public Func<Guid?, Task>? OnEditCountry { get; set; }
-
-    // Şube/Kasa drill değişimini forma bildir (dirty/toolbar/*) — EntityEditForm EditChanged cascade'i.
-    [CascadingParameter(Name = "EditChanged")] private Action? EditChanged { get; set; }
-
-    // Şirketin kendi HQ switch'i: form içi devir yok → yüklü (orijinal) HQ ise kilitli. İlk parametre set'inde yakala.
-    private bool _originalWasHq;
-    private bool _hqCaptured;
-
-    protected override void OnParametersSet()
-    {
-        if (!_hqCaptured && Model is not null)
-        {
-            _originalWasHq = Model.IsHeadquarters;
-            _hqCaptured = true;
-        }
-    }
+    @* Tek drill de tablı yapıda + entity ikonu (genel desen). *@
+    <DrillTabs CssClass="mt-3">
+        <DxTabPage Text="@Profiles.PluralTitle("Branch", L)" TabIconCssClass="@Profiles.Icon("Branch")">
+            <CompanyBranchDrill Model="@Model" Units="@Units" OnChanged="@(() => EditChanged?.Invoke())" />
+        </DxTabPage>
+    </DrillTabs>
 }

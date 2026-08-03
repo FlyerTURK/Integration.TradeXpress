@@ -37,7 +37,8 @@
                   ApplyNewDefaults="@ApplyNewCompanyDefaults">
         <CompanyLayout Model="@context" IsNew="@(context.Id == Guid.Empty)" Units="@_units" Countries="@_countries"
                        OnAddCurrency="@OnAddCurrencyAsync" OnEditCurrency="@OnEditCurrencyAsync"
-                       OnAddCountry="@OnAddCountryAsync" OnEditCountry="@OnEditCountryAsync" />
+                       OnAddCountry="@OnAddCountryAsync" OnEditCountry="@OnEditCountryAsync"
+                       OnReferenceDataReload="@ReloadUnitsAsync" />
     </CrudEditHost>
 }
 
@@ -124,6 +125,14 @@
         await OpenRefAsync(typeof(CountryEditHost), countryId);
         _countries = (await CountryAppService.GetListAsync(new CountryListRequestDto { MaxResultCount = 1000 })).Items.ToList();
         StateHasChanged();
+    }
+
+    // Gömülü merkez şube adresinden yeni il/ilçe eklenince coğrafya combo'ları tazelensin (TenantEditHost deseni).
+    // Şube adresi YALNIZ yeni-şirket formunda gömülü çizilir; güncelleme modunda drill kendi tazelemesini yapar.
+    private async Task ReloadUnitsAsync()
+    {
+        _units = new List<CurrencyUnitListDto>(await CurrencyLookup.GetAsync());
+        await InvokeAsync(StateHasChanged);
     }
 
     private async Task OpenRefAsync(Type host, object? id)
