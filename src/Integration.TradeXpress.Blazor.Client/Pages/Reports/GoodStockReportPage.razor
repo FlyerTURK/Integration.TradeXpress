@@ -94,12 +94,12 @@
                 <DxGridDataColumn FieldName="@nameof(GoodStockRowDto.NetAmount)"   Caption="Net (Miktar)"   DisplayFormat="n2" Width="130" />
             </Columns>
             <TotalSummary>
-                <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum" FieldName="@nameof(GoodStockRowDto.InQuantity)"  DisplayFormat="n2" />
-                <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum" FieldName="@nameof(GoodStockRowDto.OutQuantity)" DisplayFormat="n2" />
-                <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum" FieldName="@nameof(GoodStockRowDto.NetQuantity)" DisplayFormat="n2" />
-                <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum" FieldName="@nameof(GoodStockRowDto.InAmount)"    DisplayFormat="n2" />
-                <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum" FieldName="@nameof(GoodStockRowDto.OutAmount)"   DisplayFormat="n2" />
-                <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum" FieldName="@nameof(GoodStockRowDto.NetAmount)"   DisplayFormat="n2" />
+                <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum" FieldName="@nameof(GoodStockRowDto.InQuantity)"  ValueDisplayFormat="n2" />
+                <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum" FieldName="@nameof(GoodStockRowDto.OutQuantity)" ValueDisplayFormat="n2" />
+                <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum" FieldName="@nameof(GoodStockRowDto.NetQuantity)" ValueDisplayFormat="n2" />
+                <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum" FieldName="@nameof(GoodStockRowDto.InAmount)"    ValueDisplayFormat="n2" />
+                <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum" FieldName="@nameof(GoodStockRowDto.OutAmount)"   ValueDisplayFormat="n2" />
+                <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum" FieldName="@nameof(GoodStockRowDto.NetAmount)"   ValueDisplayFormat="n2" />
             </TotalSummary>
         </TxGrid>
     }

@@ -16,6 +16,14 @@ namespace Integration.TradeXpress.Blazor.Tests.Pages;
 /// (koşullu EventCallback, kayıtlı grid düzeni, koşullu kolon üretimi). Ortak nokta: modun sayfaya
 /// GERÇEKTEN ulaşıp ulaşmadığı hiç doğrulanmamıştı. Bu test o zinciri sabitler.</para>
 /// </summary>
+/// <remarks>
+/// <b>bUnit SINIRI (2026-08-04, acı deneyimle öğrenildi):</b> DevExpress grid'i bUnit render'ında
+/// <b>VERİ SATIRI ÇİZMEZ</b> — satırlar JS interop ile materyalize ediliyor ve test JSInterop'u loose kipte.
+/// Dolayısıyla "şu kolon/düğme grid'de görünüyor mu" TÜRÜNDEN bir iddia burada SINANAMAZ; yazılırsa
+/// düzeltmeden bağımsız olarak SONSUZA DEK KIRMIZI kalır (tam olarak bu yaşandı: seçici düzenle düğmesi
+/// için yazılan render testi iki gün boyunca bir hata sandığımız şeyi değil, bu sınırı ölçtü).
+/// Bu dosyadaki testler bilinçle PARAMETRE AKIŞINI doğrular, görsel çıktıyı değil.
+/// </remarks>
 public class ProductCategoryPickerModeTests : BlazorComponentTestBase
 {
     public ProductCategoryPickerModeTests()

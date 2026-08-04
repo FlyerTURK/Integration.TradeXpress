@@ -15,7 +15,7 @@
                   Width="@Width"
                   TextAlignment="@TextAlignment"
                   AllowSort="@AllowSort"
-                  FixedPosition="@FixedPosition"
+                  FixedPosition="@EffectiveFixedPosition"
                   VisibleIndex="@VisibleIndex"
                   Visible="@Visible">
     <CellDisplayTemplate Context="cell">
@@ -56,6 +56,17 @@
     [Parameter] public GridTextAlignment TextAlignment { get; set; }
     [Parameter] public bool AllowSort { get; set; } = true;
     [Parameter] public GridColumnFixedPosition FixedPosition { get; set; } = GridColumnFixedPosition.None;
+
+    /// <summary>Grid SEÇİCİ modda mı (CrudLayout cascade eder). Seçicide sabit-sol blokta zaten seçim + düzenle
+    /// kolonu var; buna 240px'lik birincil kolonu da eklemek bloğu popup genişliğine sığmaz hâle getiriyor ve
+    /// düzenle düğmesi görünmez oluyordu (2026-08-04 Hakan teşhisi).</summary>
+    [CascadingParameter(Name = "CrudPickerMode")] private bool InPickerMode { get; set; }
+
+    /// <summary>Fiilen uygulanan sabitleme — seçici modda sabitleme DÜŞER, sekmede aynen korunur.</summary>
+    private GridColumnFixedPosition EffectiveFixedPosition
+    {
+        get { return InPickerMode ? GridColumnFixedPosition.None : FixedPosition; }
+    }
     /// <summary>Açık kolon sırası (DevExpress VisibleIndex). Negatif/unset = markup sırası.</summary>
     [Parameter] public int VisibleIndex { get; set; } = -1;
     [Parameter] public bool Visible { get; set; } = true;

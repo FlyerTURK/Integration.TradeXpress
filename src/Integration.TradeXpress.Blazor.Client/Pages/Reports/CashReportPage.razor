@@ -77,9 +77,9 @@
                         <DxGridDataColumn FieldName="@nameof(CashStockRowDto.Net)"       Caption="Net"    DisplayFormat="n2" Width="130" />
                     </Columns>
                     <TotalSummary>
-                        <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum" FieldName="@nameof(CashStockRowDto.InTotal)"  DisplayFormat="n2" />
-                        <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum" FieldName="@nameof(CashStockRowDto.OutTotal)" DisplayFormat="n2" />
-                        <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum" FieldName="@nameof(CashStockRowDto.Net)"      DisplayFormat="n2" />
+                        <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum" FieldName="@nameof(CashStockRowDto.InTotal)"  ValueDisplayFormat="n2" />
+                        <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum" FieldName="@nameof(CashStockRowDto.OutTotal)" ValueDisplayFormat="n2" />
+                        <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum" FieldName="@nameof(CashStockRowDto.Net)"      ValueDisplayFormat="n2" />
                     </TotalSummary>
                 </TxGrid>
             }
@@ -106,9 +106,9 @@
                         <DxGridDataColumn FieldName="@nameof(CashMovementRowDto.Description)"    Caption="Açıklama" />
                     </Columns>
                     <TotalSummary>
-                        <DxGridSummaryItem SummaryType="GridSummaryItemType.Count" FieldName="@nameof(CashMovementRowDto.VoucherDate)" Caption="Kayıt:" />
-                        <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum"   FieldName="@nameof(CashMovementRowDto.Giren)"       DisplayFormat="n2" />
-                        <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum"   FieldName="@nameof(CashMovementRowDto.Cikan)"       DisplayFormat="n2" />
+                        <DxGridSummaryItem SummaryType="GridSummaryItemType.Count" FieldName="@nameof(CashMovementRowDto.VoucherDate)" ValueDisplayFormat='"Kayıt: "0' />
+                        <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum"   FieldName="@nameof(CashMovementRowDto.Giren)"       ValueDisplayFormat="n2" />
+                        <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum"   FieldName="@nameof(CashMovementRowDto.Cikan)"       ValueDisplayFormat="n2" />
                     </TotalSummary>
                 </TxGrid>
             }

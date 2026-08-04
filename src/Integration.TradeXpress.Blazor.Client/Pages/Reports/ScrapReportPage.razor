@@ -79,9 +79,9 @@
                         <DxGridDataColumn FieldName="@nameof(ScrapStockRowDto.Net)"       Caption="Net"    DisplayFormat="n4" Width="140" />
                     </Columns>
                     <TotalSummary>
-                        <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum" FieldName="@nameof(ScrapStockRowDto.InTotal)"  DisplayFormat="n4" />
-                        <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum" FieldName="@nameof(ScrapStockRowDto.OutTotal)" DisplayFormat="n4" />
-                        <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum" FieldName="@nameof(ScrapStockRowDto.Net)"      DisplayFormat="n4" />
+                        <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum" FieldName="@nameof(ScrapStockRowDto.InTotal)"  ValueDisplayFormat="n4" />
+                        <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum" FieldName="@nameof(ScrapStockRowDto.OutTotal)" ValueDisplayFormat="n4" />
+                        <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum" FieldName="@nameof(ScrapStockRowDto.Net)"      ValueDisplayFormat="n4" />
                     </TotalSummary>
                 </TxGrid>
             }
@@ -110,9 +110,9 @@
                         <DxGridDataColumn FieldName="@nameof(ScrapMovementRowDto.Description)"    Caption="Açıklama" />
                     </Columns>
                     <TotalSummary>
-                        <DxGridSummaryItem SummaryType="GridSummaryItemType.Count" FieldName="@nameof(ScrapMovementRowDto.VoucherDate)" Caption="Kayıt:" />
-                        <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum"   FieldName="@nameof(ScrapMovementRowDto.Giren)"       DisplayFormat="n4" />
-                        <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum"   FieldName="@nameof(ScrapMovementRowDto.Cikan)"       DisplayFormat="n4" />
+                        <DxGridSummaryItem SummaryType="GridSummaryItemType.Count" FieldName="@nameof(ScrapMovementRowDto.VoucherDate)" ValueDisplayFormat='"Kayıt: "0' />
+                        <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum"   FieldName="@nameof(ScrapMovementRowDto.Giren)"       ValueDisplayFormat="n4" />
+                        <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum"   FieldName="@nameof(ScrapMovementRowDto.Cikan)"       ValueDisplayFormat="n4" />
                     </TotalSummary>
                 </TxGrid>
             }

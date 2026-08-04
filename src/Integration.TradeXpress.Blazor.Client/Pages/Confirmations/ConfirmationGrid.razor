@@ -41,7 +41,7 @@
            grid 12 kolonla çiziliyordu, "İşlemler" yoktu → kabul/red butonları hiç görünmüyordu). Gösterim
            tamamen CellDisplayTemplate'ten geldiği için bağlanan alanın değeri ekrana çıkmaz; Id nötr taşıyıcı. *@
         <DxGridDataColumn FieldName="@nameof(ConfirmationDto.Id)" Caption="@L["Confirmation:Actions"]"
-                          AllowSort="false" AllowFilter="false" Width="240px">
+                          AllowSort="false" Width="240px">
             <CellDisplayTemplate>
                 @{ var row = (ConfirmationDto)context.DataItem; }
                 <div style="display:flex; gap:6px; flex-wrap:wrap;">

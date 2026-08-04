@@ -106,12 +106,12 @@
                         <DxGridDataColumn FieldName="@nameof(MetalStockRowDto.AvailableAmount)"     Caption="Kullanılabilir (Miktar)" DisplayFormat="n4" Width="170" />
                     </Columns>
                     <TotalSummary>
-                        <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum" FieldName="@nameof(MetalStockRowDto.InQuantity)"  DisplayFormat="n2" />
-                        <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum" FieldName="@nameof(MetalStockRowDto.InAmount)"    DisplayFormat="n4" />
-                        <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum" FieldName="@nameof(MetalStockRowDto.OutQuantity)" DisplayFormat="n2" />
-                        <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum" FieldName="@nameof(MetalStockRowDto.OutAmount)"   DisplayFormat="n4" />
-                        <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum" FieldName="@nameof(MetalStockRowDto.NetQuantity)" DisplayFormat="n2" />
-                        <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum" FieldName="@nameof(MetalStockRowDto.NetAmount)"   DisplayFormat="n4" />
+                        <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum" FieldName="@nameof(MetalStockRowDto.InQuantity)"  ValueDisplayFormat="n2" />
+                        <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum" FieldName="@nameof(MetalStockRowDto.InAmount)"    ValueDisplayFormat="n4" />
+                        <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum" FieldName="@nameof(MetalStockRowDto.OutQuantity)" ValueDisplayFormat="n2" />
+                        <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum" FieldName="@nameof(MetalStockRowDto.OutAmount)"   ValueDisplayFormat="n4" />
+                        <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum" FieldName="@nameof(MetalStockRowDto.NetQuantity)" ValueDisplayFormat="n2" />
+                        <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum" FieldName="@nameof(MetalStockRowDto.NetAmount)"   ValueDisplayFormat="n4" />
                     </TotalSummary>
                 </TxGrid>
             }
@@ -146,11 +146,11 @@
                         <DxGridDataColumn FieldName="@nameof(MetalMovementRowDto.Description)"    Caption="Açıklama" />
                     </Columns>
                     <TotalSummary>
-                        <DxGridSummaryItem SummaryType="GridSummaryItemType.Count" FieldName="@nameof(MetalMovementRowDto.VoucherDate)" Caption="Kayıt:" />
-                        <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum"   FieldName="@nameof(MetalMovementRowDto.GirenQty)"   DisplayFormat="n2" />
-                        <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum"   FieldName="@nameof(MetalMovementRowDto.CikanQty)"   DisplayFormat="n2" />
-                        <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum"   FieldName="@nameof(MetalMovementRowDto.Giren)"      DisplayFormat="n4" />
-                        <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum"   FieldName="@nameof(MetalMovementRowDto.Cikan)"      DisplayFormat="n4" />
+                        <DxGridSummaryItem SummaryType="GridSummaryItemType.Count" FieldName="@nameof(MetalMovementRowDto.VoucherDate)" ValueDisplayFormat='"Kayıt: "0' />
+                        <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum"   FieldName="@nameof(MetalMovementRowDto.GirenQty)"   ValueDisplayFormat="n2" />
+                        <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum"   FieldName="@nameof(MetalMovementRowDto.CikanQty)"   ValueDisplayFormat="n2" />
+                        <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum"   FieldName="@nameof(MetalMovementRowDto.Giren)"      ValueDisplayFormat="n4" />
+                        <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum"   FieldName="@nameof(MetalMovementRowDto.Cikan)"      ValueDisplayFormat="n4" />
                     </TotalSummary>
                 </TxGrid>
             }

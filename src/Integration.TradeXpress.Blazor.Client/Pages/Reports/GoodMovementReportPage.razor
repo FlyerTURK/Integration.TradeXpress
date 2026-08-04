@@ -105,11 +105,11 @@
                 <DxGridDataColumn FieldName="@nameof(GoodMovementRowDto.Description)"    Caption="Açıklama" />
             </Columns>
             <TotalSummary>
-                <DxGridSummaryItem SummaryType="GridSummaryItemType.Count" FieldName="@nameof(GoodMovementRowDto.VoucherDate)" Caption="Kayıt:" />
-                <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum"   FieldName="@nameof(GoodMovementRowDto.Giren)"       DisplayFormat="n2" />
-                <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum"   FieldName="@nameof(GoodMovementRowDto.Cikan)"       DisplayFormat="n2" />
-                <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum"   FieldName="@nameof(GoodMovementRowDto.GirenAmount)" DisplayFormat="n2" />
-                <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum"   FieldName="@nameof(GoodMovementRowDto.CikanAmount)" DisplayFormat="n2" />
+                <DxGridSummaryItem SummaryType="GridSummaryItemType.Count" FieldName="@nameof(GoodMovementRowDto.VoucherDate)" ValueDisplayFormat='"Kayıt: "0' />
+                <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum"   FieldName="@nameof(GoodMovementRowDto.Giren)"       ValueDisplayFormat="n2" />
+                <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum"   FieldName="@nameof(GoodMovementRowDto.Cikan)"       ValueDisplayFormat="n2" />
+                <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum"   FieldName="@nameof(GoodMovementRowDto.GirenAmount)" ValueDisplayFormat="n2" />
+                <DxGridSummaryItem SummaryType="GridSummaryItemType.Sum"   FieldName="@nameof(GoodMovementRowDto.CikanAmount)" ValueDisplayFormat="n2" />
             </TotalSummary>
         </TxGrid>
     }

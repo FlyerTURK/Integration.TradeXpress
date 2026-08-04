@@ -392,6 +392,43 @@
         await ValueChanged.InvokeAsync(value);
         if (CascadedEditContext is not null && ValueExpression is not null)
             CascadedEditContext.NotifyFieldChanged(FieldIdentifier.Create(ValueExpression));
+
+        await EnsureSelectedValueResolvableAsync(value);
+    }
+
+    /// <summary>
+    /// Seçilen değer <see cref="Data"/>'da YOKSA listeyi bir kez tazeler.
+    ///
+    /// <para><b>Neden gerekli:</b> <see cref="ListComponentType"/> ile açılan liste popup'ı kendi verisini
+    /// SUNUCUDAN taze çeker; bizim <see cref="Data"/>'mız ise formun açılışında alınmış bir anlık görüntüdür.
+    /// Kullanıcı popup'ta yeni oluşturduğu (ya da başka bir sekmede eklenmiş) bir kaydı seçtiğinde değer doğru
+    /// yazılır ama metni çözülemez ve alan <b>ham GUID</b> gösterir — 2026-08-03'te "Ürün Kategorisi" alanında
+    /// tam olarak bu yaşandı. Tazeleme yalnız ÇÖZÜLEMEYEN değerde yapılır: her seçimde sunucuya gitmek
+    /// gereksiz yüktür ve zaten çözülebilen seçimde görünen bir fayda yok.</para>
+    ///
+    /// <para>Server-modda (<see cref="SelectedDisplayText"/> host tarafından besleniyorsa) dokunulmaz —
+    /// orada öğenin <see cref="Data"/>'da olmaması NORMALDİR, metin dışarıdan gelir.</para>
+    /// </summary>
+    private async Task EnsureSelectedValueResolvableAsync(TValue? value)
+    {
+        if (OnRefreshRequested is null || !string.IsNullOrEmpty(SelectedDisplayText))
+        {
+            return;
+        }
+
+        if (value is null || EqualityComparer<TValue>.Default.Equals(value, default!))
+        {
+            return;
+        }
+
+        var resolvable = Data.Any(i => i is not null && EqualityComparer<TValue>.Default.Equals(GetItemValue(i), value));
+        if (resolvable)
+        {
+            return;
+        }
+
+        await OnRefreshRequested();
+        StateHasChanged();
     }
 }
 
