@@ -11,8 +11,12 @@
    EntityEditForm bunu ChildContent(Model) olarak çizer (her bağlamda aynı: tab/popup/split/drill).
 *@
 
-<DxFormLayout CssClass="w-100">
-    <DxFormLayoutGroup Caption="@L["General"]" ColSpanMd="12">
+@{
+    @* Alanlar TEK yerde; Embedded moduna göre sarmalanır. EMBEDDED=true iken KENDİ DxFormLayout'unu
+       RENDER ETMEZ → parent'ın TEK layout'una iner (iç içe DxFormLayout caption sütunlarını kaydırıyor).
+       BranchEditFields ile BİREBİR aynı desen. *@
+    RenderFragment vaultItems =@<text>
+    <DxFormLayoutGroup Caption="@(string.IsNullOrWhiteSpace(GroupCaption) ? L["General"].Value : GroupCaption)" ColSpanMd="12">
         @if (ShowBranchCombo)
         {
             <DxFormLayoutItem Caption="@($"{L["Branch"]} *")" ColSpanMd="12">
@@ -32,33 +36,51 @@
         <DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="12">
             <DxTextBox @bind-Text="@Model.Name" />
         </DxFormLayoutItem>
-        <DxFormLayoutItem ColSpanMd="6">
-            <CaptionTemplate>
-                <InfoCaption Text="@L["IsDefault"].Value"
-                             HintText="@L["Vault:IsDefaultHint"].Value"
-                             Required="false" />
-            </CaptionTemplate>
-            <Template>
-                @* IsDefaultEnabled: drill bağlamında "tek varsayılan kapatılamaz" kuralı (host geçirir);
-                   standalone'da default true. *@
-                <DxCheckBox @bind-Checked="@Model.IsDefault" CheckType="CheckType.Switch" Enabled="@IsDefaultEnabled">
-                    @(Model.IsDefault ? L["Yes"] : L["No"])
+        @* Gelişmiş alanlar ONBOARDING'de gizlenir (ShowAdvancedFields=false): yeni şirket/tenant/şube
+           formunda gömülü çizilen merkez kasada varsayılan/açıklama/durum/sıra sorulmaz — o kasa zaten
+           TEK ve zorunlu olan kasadır, değerleri sabittir. Kullanıcı sonradan drill'den yönetir. *@
+        @if (ShowAdvancedFields)
+        {
+            <DxFormLayoutItem ColSpanMd="6">
+                <CaptionTemplate>
+                    <InfoCaption Text="@L["IsDefault"].Value"
+                                 HintText="@L["Vault:IsDefaultHint"].Value"
+                                 Required="false" />
+                </CaptionTemplate>
+                <Template>
+                    @* IsDefaultEnabled: drill bağlamında "tek varsayılan kapatılamaz" kuralı (host geçirir);
+                       standalone'da default true. *@
+                    <DxCheckBox @bind-Checked="@Model.IsDefault" CheckType="CheckType.Switch" Enabled="@IsDefaultEnabled">
+                        @(Model.IsDefault ? L["Yes"] : L["No"])
+                    </DxCheckBox>
+                </Template>
+            </DxFormLayoutItem>
+            <DxFormLayoutItem Caption="@L["Description"]" ColSpanMd="12">
+                <DxMemo @bind-Text="@Model.Description" Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100" />
+            </DxFormLayoutItem>
+            <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6" BeginRow="true">
+                <DxCheckBox @bind-Checked="@Model.IsActive" CheckType="CheckType.Switch">
+                    @(Model.IsActive ? L["Active"] : L["Passive"])
                 </DxCheckBox>
-            </Template>
-        </DxFormLayoutItem>
-        <DxFormLayoutItem Caption="@L["Description"]" ColSpanMd="12">
-            <DxMemo @bind-Text="@Model.Description" Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100" />
-        </DxFormLayoutItem>
-        <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6" BeginRow="true">
-            <DxCheckBox @bind-Checked="@Model.IsActive" CheckType="CheckType.Switch">
-                @(Model.IsActive ? L["Active"] : L["Passive"])
-            </DxCheckBox>
-        </DxFormLayoutItem>
-        <DxFormLayoutItem Caption="@L["DisplayOrder"]" ColSpanMd="6">
-            <NumericSpinEdit @bind-Value="@Model.DisplayOrder" />
-        </DxFormLayoutItem>
+            </DxFormLayoutItem>
+            <DxFormLayoutItem Caption="@L["DisplayOrder"]" ColSpanMd="6">
+                <NumericSpinEdit @bind-Value="@Model.DisplayOrder" />
+            </DxFormLayoutItem>
+        }
     </DxFormLayoutGroup>
-</DxFormLayout>
+    </text>;
+}
+
+@if (Embedded)
+{
+    @vaultItems
+}
+else
+{
+    <DxFormLayout CssClass="w-100">
+        @vaultItems
+    </DxFormLayout>
+}
 
 @code {
     [Parameter, EditorRequired] public VaultGetDto Model { get; set; } = default!;
@@ -67,4 +89,13 @@
     [Parameter] public bool IsDefaultEnabled { get; set; } = true;
     [Parameter] public bool ShowBranchCombo { get; set; } = false;
     [Parameter] public IEnumerable<BranchListDto>? Branches { get; set; }
+
+    /// <summary>Gömülü mod — kendi DxFormLayout'unu çizmez, parent'ın layout'una iner (BranchEditFields deseni).</summary>
+    [Parameter] public bool Embedded { get; set; }
+
+    /// <summary>Grup başlığı (boşsa "Genel"). Onboarding'de "Ana Kasa" gibi bağlam veren bir başlık geçilir.</summary>
+    [Parameter] public string? GroupCaption { get; set; }
+
+    /// <summary>Varsayılan/Açıklama/Durum/Sıra alanlarını göster. Onboarding'de false.</summary>
+    [Parameter] public bool ShowAdvancedFields { get; set; } = true;
 }

@@ -45,7 +45,9 @@ public sealed record TrendyolProductData(
     string Description,
     string CategoryId,        // numerik
     string BrandId,           // numerik
-    int VatRate,
+    // KDV — kanal→ürün devralma zincirinden çözülmüş EFEKTİF oran. Önizlemede null olabilir; PUSH yolunda
+    // yukarıda fail-fast atılır (sessiz %20 varsayımı 2026-08-03'te kaldırıldı: kıymetli maden %0'dır).
+    int? VatRate,
     decimal? DimensionalWeight,
     int? DeliveryDuration,
     TrendyolFastDeliveryType? FastDeliveryType,

@@ -1,9 +1,23 @@
+using System.Collections.Generic;
+
 namespace Integration.TradeXpress.Products;
 
 /// <summary>Product / ProductVariant alan sınırları. Katalog kodlarından (32) daha uzun; SKU marketplace
 /// satıcı-kodları + uzun başlık/açıklama içindir (N11 title/description). Adım 2+'de gerekirse ayarlanır.</summary>
 public static class ProductConsts
 {
+    /// <summary>Türkiye'de yürürlükteki KDV oranları (2023 düzenlemesi sonrası: 18→20, 8→10).
+    ///
+    /// <para><b>Ürün KDV'si tahmin EDİLMEZ, kullanıcı seçer</b> (2026-08-03 Hakan kararı). Kuyumda bu kritiktir:
+    /// kıymetli maden tesliminde KDV <b>%0</b>'dır ve KDV istisna faturası kesilir; <b>işçilik %20</b> KDV'ye
+    /// tabidir. Yani "kuyum = %20" varsayımı YANLIŞTIR ve sessiz bir varsayılan, yanlış fatura + satıcıya rücu
+    /// demektir. Boş bırakılan oran push'ta fail-fast reddedilir — sessizce doldurulmaz.</para>
+    ///
+    /// <para>Küme, N11'in kabul ettiği <c>N11ProductConsts.AllowedVatRates</c> ile bugün AYNIDIR ama bilinçli
+    /// olarak AYRI tutulur: bu mevzuat kaynaklı, o pazaryeri kaynaklıdır — biri değişirse diğeri değişmeyebilir.</para></summary>
+    public static readonly IReadOnlyCollection<int> AllowedVatRates =
+        new HashSet<int> { 0, 1, 10, 20 };
+
     public const int CodeMaxLength = 64;         // satıcı SKU (sellerStockCode marketplace'te uzun olabilir)
     public const int NameMaxLength = 256;        // marketplace başlığı
     public const int DescriptionMaxLength = 4000;// marketplace açıklaması (uzun/HTML)

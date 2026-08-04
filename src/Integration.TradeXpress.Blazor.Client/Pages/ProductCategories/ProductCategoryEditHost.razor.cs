@@ -52,18 +52,32 @@ public partial class ProductCategoryEditHost
         // Üst kategori seçenekleri — kategorinin KENDİSİ ve TÜM ALT AĞACI sunucuda düşülür (kendi torununu
         // üst seçmek döngü kurardı). Dışlamayı sunucu yapar: alt ağacı görmek pasif düğümler dahil TAM ağacı
         // gerektirir, picker ise yalnız aktifleri döndürür (gerekçe: GetParentOptionsAsync).
-        _categories = await ProductCategoryAppService.GetParentOptionsAsync(Id);
+        _categories = await ProductCategoryAppService.GetParentOptionsAsync(PersistedId);
 
         await LoadChannelMappingsAsync();
 
         _ready = true;
     }
 
+    /// <summary>KAYITLI kategori kimliği — YENİ kayıtta null.
+    ///
+    /// <para><b>Neden ayrı property:</b> framework konvansiyonu "yeni kayıt" için <c>Guid.Empty</c> kullanır
+    /// (bkz. <c>CrudEditHost Id="@(Id ?? Guid.Empty)"</c> — tüm edit host'larda aynı bağ). Bu host yalnız
+    /// <c>null</c> kontrol ediyordu; popup <c>Guid.Empty</c> ile açıldığında sunucuya boş id gidip
+    /// <i>"There is no such an entity ... id: 00000000-0000-0000-0000-000000000000"</i> ile çöküyordu
+    /// (2026-08-03 Hakan: "çekirdek ürün için kategori seçince"). İki hâli TEK yerde normalize ediyoruz ki
+    /// Id'yi okuyan her yer aynı kararı versin.</para></summary>
+    private Guid? PersistedId
+    {
+        get { return Id is { } id && id != Guid.Empty ? id : null; }
+    }
+
     /// <summary>Kategorinin KENDİ kanal eşleştirmeleri — devralınanlar burada gösterilmez (onlar sahibinde
-    /// düzenlenir; kalıtımın sonucu ürün tarafında zaten çözülür).</summary>
+    /// düzenlenir; kalıtımın sonucu ürün tarafında zaten çözülür). YENİ kayıtta sunucuya HİÇ gidilmez:
+    /// kaydedilmemiş kategorinin eşleştirmesi yoktur.</summary>
     private async Task LoadChannelMappingsAsync()
     {
-        if (Id is not { } id)
+        if (PersistedId is not { } id)
         {
             _channelMappings = new List<ProductCategoryChannelMappingDto>();
             return;

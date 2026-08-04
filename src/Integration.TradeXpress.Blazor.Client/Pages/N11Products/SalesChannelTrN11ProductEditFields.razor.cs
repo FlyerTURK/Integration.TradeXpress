@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using DevExpress.Blazor;
 using Integration.Framework.Blazor.Client.Components.Crud;
+using Integration.TradeXpress.Blazor.Client.Components.Shared;
 using Integration.Framework.Blazor.Client.Services.Base;
 using Integration.TradeXpress.Financials.CurrencyUnits;
 using Integration.TradeXpress.Futures;
@@ -112,6 +113,10 @@ public partial class SalesChannelTrN11ProductEditFields : CrudComponentBase
     // N11 para birimi lookup verisi (döviz cache → TRY/USD/EUR'e filtreli; inline ekle/düzelt YOK).
     private List<CurrencyUnitListDto> _units = new();
     private bool _unitsLoaded;
+
+    // KDV combo verisi — küme Domain.Shared'daki SSOT'tan gelir (entity guard'ı ve REST istemci doğrulaması da
+    // aynı listeyi okur), böylece formda seçilebilen bir oran push'ta reddedilemez.
+    private static readonly List<VatRateOption> VatRateOptions = VatRateOption.From(N11ProductConsts.AllowedVatRates);
 
     // Kanal-özel varyant override drill'i (satır düzenleme aç/kapa) + reçete katalog lookup verisi (bir kez yüklenir).
     private DrillList<SalesChannelTrN11ProductStockItemGraphDto>? _stockItemDrill;

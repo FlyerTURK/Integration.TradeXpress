@@ -26,6 +26,8 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
             b.Property(x => x.SaleStatus).HasMaxLength(N11ProductConsts.StatusMaxLength);
             b.Property(x => x.ApprovalStatus).HasMaxLength(N11ProductConsts.StatusMaxLength);
             b.Property(x => x.LastError).HasMaxLength(N11ProductConsts.LastErrorMaxLength);
+            // Bekleyen REST push task kimliği — sabit kısa alan (nvarchar(max) gereksiz).
+            b.Property(x => x.PendingPushTaskId).HasMaxLength(N11ProductConsts.TaskIdMaxLength);
             b.Property(x => x.SellerNote).HasMaxLength(N11ProductConsts.SellerNoteMaxLength);
             b.Property(x => x.Description).HasMaxLength(N11ProductConsts.DescriptionMaxLength);
             b.Property(x => x.GroupItemCode).HasMaxLength(N11ProductConsts.GroupItemCodeMaxLength);

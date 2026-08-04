@@ -174,6 +174,12 @@ public class SalesChannelTrN11Product : FullAuditedAggregateRoot<Guid>, IMultiTe
     /// <summary>Alıcı başına maksimum satın alım adedi (opsiyonel).</summary>
     public virtual int? MaxPurchaseQuantity { get; protected set; }
 
+    /// <summary>KDV oranı (N11 REST <c>vatRate</c>; yalnız <see cref="N11ProductConsts.AllowedVatRates"/>).
+    /// <b>Varsayılanı YOK, bilerek nullable</b>: kuyumcuda oran ürüne göre değişir (külçe ≠ işçilikli mücevher) ve
+    /// yanlış oranla push, N11'in müşteriye yanlış fatura kesip farkı satıcıya rücu etmesi demektir. Boşken REST
+    /// push'u fail-fast reddeder — sessizce "standart %20" varsaymaktan iyidir. SOAP push bu alanı hiç kullanmaz.</summary>
+    public virtual int? VatRate { get; protected set; }
+
     /// <summary>N11 para birimi (opsiyonel; id-only, nav yok). Push'ta currencyType bundan çözülür — boşsa varyant
     /// para birimi devralınır.</summary>
     public virtual Guid? CurrencyUnitId { get; protected set; }
@@ -225,6 +231,19 @@ public class SalesChannelTrN11Product : FullAuditedAggregateRoot<Guid>, IMultiTe
     /// <summary>Son push hatası (başarısızsa dolu, başarıda temizlenir).</summary>
     public virtual string? LastError { get; protected set; }
 
+    /// <summary>Bekleyen REST push task'ının kimliği — <b>REST'in gönder-sorgula modelinin izi</b>.
+    ///
+    /// <para>SOAP'ta <c>SaveProduct</c> sonucu anında dönerdi. REST'te yazma uçları yalnız <c>taskId</c> +
+    /// <c>IN_QUEUE</c> döndürür; gerçek sonuç <c>task-details</c>'ten ayrıca sorgulanır ve HTTP 200 başarı
+    /// ANLAMINA GELMEZ. Task henüz kuyruktaysa kimliği burada saklanır ki sonuç sonradan çözülebilsin —
+    /// aksi hâlde push'un akıbeti kaybolur ve kayıt belirsiz durumda kalırdı.</para>
+    ///
+    /// <para>Sonuç çözülünce (başarı ya da red) TEMİZLENİR: dolu olması "hâlâ bekliyor" demektir.</para></summary>
+    public virtual string? PendingPushTaskId { get; protected set; }
+
+    /// <summary>Bekleyen task'ın gönderildiği an (UTC) — çok uzun süre çözülmeyen task'ı ayırt etmek için.</summary>
+    public virtual DateTime? PendingPushTaskAt { get; protected set; }
+
     public virtual bool IsActive { get; protected set; }
 
     #endregion
@@ -254,12 +273,15 @@ public class SalesChannelTrN11Product : FullAuditedAggregateRoot<Guid>, IMultiTe
         Domestic = domestic;
     }
 
-    /// <summary>Kargoya verilme süresi (gün) — en az 1 (fail-fast).</summary>
+    /// <summary>Kargoya verilme süresi (gün) — N11 aralığı <b>1–30</b> (fail-fast). Üst sınır resmî hata
+    /// sözlüğünden geldi (destek merkezi makale 10433): "X stockCode preparingDay 30 değerinden küçük yada
+    /// eşit olmalı". Sınır burada zorlanmazsa hata ancak push'tan sonra, task REJECT'i olarak görülür.</summary>
     public virtual void SetPreparingDay(int preparingDay)
     {
-        if (preparingDay < 1)
+        if (preparingDay < N11ProductConsts.MinPreparingDay || preparingDay > N11ProductConsts.MaxPreparingDay)
         {
-            throw new BusinessException("TradeXpress:N11:Product:PreparingDayInvalid");
+            throw new BusinessException("TradeXpress:N11:Product:PreparingDayInvalid")
+                .WithData("PreparingDay", preparingDay);
         }
 
         PreparingDay = preparingDay;
@@ -273,6 +295,18 @@ public class SalesChannelTrN11Product : FullAuditedAggregateRoot<Guid>, IMultiTe
         }
 
         MaxPurchaseQuantity = maxPurchaseQuantity;
+    }
+
+    /// <summary>KDV oranı (opsiyonel; boş=kullanıcı henüz seçmedi). Dolu ise N11'in kapalı kümesinde olmalı —
+    /// serbest yüzde kabul edilmez (fail-fast: bayat/uydurma oran DB'ye girmesin).</summary>
+    public virtual void SetVatRate(int? vatRate)
+    {
+        if (vatRate is { } rate && !N11ProductConsts.AllowedVatRates.Contains(rate))
+        {
+            throw new BusinessException("TradeXpress:N11:Product:VatRateInvalid").WithData("VatRate", rate);
+        }
+
+        VatRate = vatRate;
     }
 
     /// <summary>N11 para birimi (opsiyonel; sadece atama, boş=null). Push'ta currencyType bunu önceler.</summary>
@@ -489,6 +523,24 @@ public class SalesChannelTrN11Product : FullAuditedAggregateRoot<Guid>, IMultiTe
     {
         LastError = StringFieldGuard.EnsureOptionalText(error, nameof(LastError), 1, N11ProductConsts.LastErrorMaxLength);
         LastSyncedAt = attemptedAtUtc;
+    }
+
+    /// <summary>REST push kuyruğa alındı — sonuç HENÜZ BELLİ DEĞİL. Task kimliği saklanır ki akıbeti
+    /// sonradan sorgulanabilsin. Bu bir BAŞARI DEĞİLDİR: <see cref="MarkSynced"/> çağrılmaz, hata da yazılmaz.</summary>
+    public virtual void MarkPushQueued(string taskId, DateTime queuedAtUtc)
+    {
+        PendingPushTaskId = StringFieldGuard.EnsureRequiredText(
+            taskId, nameof(PendingPushTaskId), 1, N11ProductConsts.TaskIdMaxLength);
+        PendingPushTaskAt = queuedAtUtc;
+        LastSyncedAt = queuedAtUtc;
+    }
+
+    /// <summary>Bekleyen task çözüldü (başarı ya da red) — kimlik temizlenir. Dolu bir
+    /// <see cref="PendingPushTaskId"/> "hâlâ bekliyor" anlamına geldiğinden, çözüm sonrası mutlaka çağrılır.</summary>
+    public virtual void ClearPendingPushTask()
+    {
+        PendingPushTaskId = null;
+        PendingPushTaskAt = null;
     }
 
     public override string ToString()

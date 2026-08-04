@@ -151,9 +151,47 @@ public partial class SalesChannelProductsPanel : CrudComponentBase
         {
             var pushed = await AppService.PushToN11Async(channelProduct.Id);
             CopyStatusInto(channelProduct, pushed);
-            UiService.ShowSuccessToast(L["N11Product:PushSuccess"].Value);
+
+            // REST SENKRON DEĞİL: istek kuyruğa alınmış olabilir. O durumda "başarılı" demek YANLIŞ olurdu —
+            // ürün N11'e ulaştı ama sonucu henüz belli değil; kullanıcı uyarıyı aşağıda görüyor.
+            if (string.IsNullOrEmpty(pushed.PendingPushTaskId))
+            {
+                UiService.ShowSuccessToast(L["N11Product:PushSuccess"].Value);
+            }
 
             foreach (var warning in pushed.SyncWarnings)
+            {
+                UiService.ShowWarningToast(warning);
+            }
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            UiService.ShowErrorToast(CrudErrorPresenter.ToFriendlyMessage(ex, ServiceProvider) ?? L["UnexpectedError"].Value);
+        }
+    }
+
+    // Kuyrukta bekleyen push un akibetini sorgular. Yalniz PendingPushTaskId dolu satirda anlamli;
+    // task hala islenmiyorsa durum DEGISMEZ (kullanici bosuna telaslanmasin diye hata degil bilgi).
+    private async Task ResolvePendingPushAsync(SalesChannelTrN11ProductDto channelProduct)
+    {
+        if (channelProduct.Id == Guid.Empty || string.IsNullOrEmpty(channelProduct.PendingPushTaskId))
+        {
+            return;
+        }
+
+        try
+        {
+            var resolved = await AppService.ResolvePendingPushAsync(channelProduct.Id);
+            CopyStatusInto(channelProduct, resolved);
+
+            if (string.IsNullOrEmpty(resolved.PendingPushTaskId))
+            {
+                UiService.ShowSuccessToast(L["N11Product:PushSuccess"].Value);
+            }
+
+            foreach (var warning in resolved.SyncWarnings)
             {
                 UiService.ShowWarningToast(warning);
             }
@@ -202,6 +240,10 @@ public partial class SalesChannelProductsPanel : CrudComponentBase
         target.ApprovalStatus = source.ApprovalStatus;
         target.LastSyncedAt = source.LastSyncedAt;
         target.LastError = source.LastError;
+        // REST push kuyruğa alınabilir → bekleyen task kimliği de taşınmalı, aksi hâlde satır "durumu sorgula"
+        // eylemini göstermez ve push'un akıbeti belirsiz kalır.
+        target.PendingPushTaskId = source.PendingPushTaskId;
+        target.PendingPushTaskAt = source.PendingPushTaskAt;
         target.Skus = source.Skus;
     }
 

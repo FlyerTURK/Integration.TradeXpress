@@ -102,6 +102,15 @@ public class Product : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwn
     /// <summary>Kargoya verilme süresi (gün) — en az 1. Varsayılan 1.</summary>
     public virtual int PreparingDay { get; protected set; }
 
+    /// <summary>KDV oranı (%) — <b>ürünün özelliğidir, kanalın değil</b>: vergi mevzuatı malın kendisine bakar,
+    /// hangi pazaryerinde satıldığına değil. Kanal kayıtları bunu devralır (kanalda değer varsa o önceler).
+    ///
+    /// <para><b>Varsayılanı YOK ve bilerek nullable.</b> Kuyumda kıymetli maden teslimi KDV <b>%0</b>'dır
+    /// (istisna faturası kesilir), işçilik ise <b>%20</b>'dir; kitap/gazete %1, gıda/tekstil %10. Sessiz bir
+    /// varsayılan (ör. "hep %20") yanlış fatura ve satıcıya rücu demektir — oranı kullanıcı seçer.
+    /// Boşken pazaryeri push'u fail-fast reddeder.</para></summary>
+    public virtual int? VatRate { get; protected set; }
+
     // KARGO ŞABLONU BURADAN SÖKÜLDÜ (2026-07-26 Hakan kararı): şablon ürünün değil KANALIN özelliğidir —
     // aynı ürün her pazaryerinde farklı şablonla gider. Bağ artık yalnız kanal katmanında yaşıyor
     // (SalesChannelTrN11Product.ShipmentTemplateId → N11ShipmentTemplate → çekirdek ShipmentTemplate).
@@ -236,28 +245,30 @@ public class Product : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwn
             code, nameof(Code), EntityFieldConsts.CodeMinLength, ProductConsts.CodeMaxLength);
     }
 
-    // NOT (Adım 1 varsayımı): NormalizeName TitleCase yapar; marketplace başlıkları casing korumalı olabilir
-    // (ör. "iPhone 15") → Adım 5 (kanal-listeleme) öncesi gözden geçirilecek. Şimdilik konvansiyon deseni.
+    /// <summary>Ürün adı — <b>casing KORUNUR</b> (diğer katalog entity'lerinden bilinçli sapma).
+    ///
+    /// <para><b>Neden:</b> bu ad pazaryerine BAŞLIK olarak aynen gider ve kanal seviyesinde başlık override'ı
+    /// yoktur. TitleCase normalizasyonu tr-TR kültüründe marka adlarını bozuyordu: "iPhone 15 Pro" →
+    /// "İphone 15 Pro", "MacBook Air" → "Macbook Air", "adidas" → "Adidas". Kuyum adlarında ("14 Ayar Bilezik")
+    /// zararsız olduğu için uzun süre görünmedi; kuyum dışı kategorilerde marka casing'i satıcı kalitesidir.
+    /// Trendyol IMPORT yolu bunu zaten biliyordu ve koruyordu — artık kullanıcı yolu da aynı davranışta
+    /// (2026-08-03 Hakan onayı; mevcut kayıtlara DOKUNULMAZ, yalnız bundan sonrası).</para>
+    ///
+    /// <para>TitleCase'e gerçekten ihtiyaç duyan bir çağrı yeri çıkarsa <see cref="SetName(string, bool)"/>
+    /// overload'unu <c>normalizeTitle: true</c> ile çağırır.</para></summary>
     public virtual void SetName(string name)
     {
-        Name = StringFieldGuard.NormalizeName(
-            name, nameof(Name), EntityFieldConsts.NameMinLength, ProductConsts.NameMaxLength);
+        SetName(name, normalizeTitle: false);
     }
 
-    /// <summary>Ad ataması, TitleCase normalizasyonu SEÇMELİ — <c>normalizeTitle=false</c> pazaryeri IMPORT yolu
-    /// içindir: Trendyol başlığı satıcının yazdığı casing'le korunur ("iPhone 15" → "İphone 15" olmaz), yalnız
-    /// trim + zorunlu/min/max doğrulanır. EN AZ İSTİLACI çözüm bilinçli tercih: mevcut SetName davranışı (tüm UI/
-    /// seed yolları) DEĞİŞMEDEN kalır; import tek çağrı yerinde bu overload'u kullanır.</summary>
+    /// <summary>Ad ataması, TitleCase normalizasyonu SEÇMELİ. <c>normalizeTitle=false</c> (varsayılan davranış,
+    /// bkz. <see cref="SetName(string)"/>) satıcının yazdığı casing'i korur — yalnız trim + zorunlu/min/max
+    /// doğrulanır. <c>true</c> yalnız TitleCase'in gerçekten istendiği yerde açıkça geçilir.</summary>
     public virtual void SetName(string name, bool normalizeTitle)
     {
-        if (normalizeTitle)
-        {
-            SetName(name);
-            return;
-        }
-
-        Name = StringFieldGuard.EnsureRequiredText(
-            name, nameof(Name), EntityFieldConsts.NameMinLength, ProductConsts.NameMaxLength);
+        Name = normalizeTitle
+            ? StringFieldGuard.NormalizeName(name, nameof(Name), EntityFieldConsts.NameMinLength, ProductConsts.NameMaxLength)
+            : StringFieldGuard.EnsureRequiredText(name, nameof(Name), EntityFieldConsts.NameMinLength, ProductConsts.NameMaxLength);
     }
 
     public virtual void SetDescription(string? description)
@@ -342,6 +353,18 @@ public class Product : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwn
         }
 
         PreparingDay = preparingDay;
+    }
+
+    /// <summary>KDV oranı (opsiyonel; boş = kullanıcı henüz seçmedi). Dolu ise yürürlükteki oranlardan biri
+    /// olmalı — serbest yüzde kabul edilmez (fail-fast: uydurma oran DB'ye girmesin).</summary>
+    public virtual void SetVatRate(int? vatRate)
+    {
+        if (vatRate is { } rate && !ProductConsts.AllowedVatRates.Contains(rate))
+        {
+            throw new BusinessException("TradeXpress:Product:VatRateInvalid").WithData("VatRate", rate);
+        }
+
+        VatRate = vatRate;
     }
 
     /// <summary>Alıcı başına maksimum satın alım adedi (opsiyonel) — en az 1 (fail-fast).</summary>

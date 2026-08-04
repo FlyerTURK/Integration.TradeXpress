@@ -87,6 +87,7 @@
                                           ShowHeadquarters="false" ShowBaseCurrency="false"
                                           ShowAdvancedFields="false" AddressInsideGroup="true"
                                           Embedded="true"
+                                          EmbeddedVault="@newBranch.Vaults.FirstOrDefault(v => !v.IsDeleted)"
                                           OnReferenceDataReload="@OnReferenceDataReload" />
                     }
                 </GroupFooter>

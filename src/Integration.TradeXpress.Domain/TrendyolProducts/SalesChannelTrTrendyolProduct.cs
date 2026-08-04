@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Integration.TradeXpress.MultiCompany;
+using Integration.TradeXpress.Products;
 
 namespace Integration.TradeXpress.TrendyolProducts;
 
@@ -132,7 +133,6 @@ public class SalesChannelTrTrendyolProduct : FullAuditedAggregateRoot<Guid>, IMu
         SetProductMainId(productMainId, sequenceNo);
         SetCategory(categoryId, null);
         SetBrand(brandId, null);
-        VatRate = 20;
         IsActive = true;
     }
 
@@ -174,8 +174,11 @@ public class SalesChannelTrTrendyolProduct : FullAuditedAggregateRoot<Guid>, IMu
     /// <summary>Marka görüntü adı (marka arama sonucundan; opsiyonel).</summary>
     public virtual string? BrandName { get; protected set; }
 
-    /// <summary>KDV oranı (Trendyol vatRate; %). Varsayılan 20.</summary>
-    public virtual int VatRate { get; protected set; }
+    /// <summary>KDV oranı (Trendyol vatRate; %) — <b>varsayılanı YOK</b>. Eskiden ctor'da sessizce 20
+    /// atanıyordu; bu kıymetli madende YANLIŞTI (maden teslimi %0 + istisna faturası, işçilik %20) ve kullanıcı
+    /// hiçbir şeye dokunmazsa yanlış oran push ediliyordu (2026-08-03 Hakan düzeltmesi). Boşsa push anında
+    /// ÜRÜNÜN oranı devralınır; o da boşsa push fail-fast reddedilir.</summary>
+    public virtual int? VatRate { get; protected set; }
 
     /// <summary>Trendyol kargo firması id'si (cargoCompanyId) — REZERVE: Trendyol V2 create şemasında yer almadığı
     /// için push'a KONMAZ (kargo panel/satıcı seviyesi); ileride shipment-provider referansı netleşirse kullanılır.</summary>
@@ -266,12 +269,13 @@ public class SalesChannelTrTrendyolProduct : FullAuditedAggregateRoot<Guid>, IMu
             brandName, nameof(BrandName), 1, TrendyolProductConsts.BrandNameMaxLength);
     }
 
-    /// <summary>KDV oranı (0–100).</summary>
-    public virtual void SetVatRate(int vatRate)
+    /// <summary>KDV oranı (opsiyonel; boş = ürünün oranı devralınacak). Dolu ise yürürlükteki oranlardan
+    /// biri olmalı — serbest 0–100 aralığı KABUL EDİLMEZ (eski davranış uydurma oranın geçmesine izin veriyordu).</summary>
+    public virtual void SetVatRate(int? vatRate)
     {
-        if (vatRate < 0 || vatRate > 100)
+        if (vatRate is { } rate && !ProductConsts.AllowedVatRates.Contains(rate))
         {
-            throw new BusinessException("TradeXpress:Trendyol:Product:VatRateInvalid");
+            throw new BusinessException("TradeXpress:Trendyol:Product:VatRateInvalid").WithData("VatRate", rate);
         }
 
         VatRate = vatRate;

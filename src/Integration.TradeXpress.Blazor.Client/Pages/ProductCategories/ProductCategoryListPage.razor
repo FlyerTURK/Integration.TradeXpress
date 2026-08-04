@@ -22,16 +22,16 @@
             OnPickSelected="@OnPickSelectedAsync">
 
     <GridColumns>
-        @* Kod alanı YOK — kategorinin kimliği adı ve ağaçtaki yeridir; birincil kolon bu yüzden Ad.
+        @* AD KOLONU YOK (2026-08-04 Hakan): yol zaten adı SON segment olarak içeriyor ("Takı › Yüzük › Alyans"),
+           ayrı bir Ad kolonu aynı bilgiyi ikinci kez gösteriyordu. Birincil (tıklanabilir) kolon artık YOL —
+           kaldırılsaydı satırı düzenlemenin yolu kalmazdı.
+           Yol ENTITY ALANI DEĞİL, sunucu sorgudan SONRA hesaplar → SIRALAMA/GRUPLAMA KAPALI: sıralama sunucuya
+           gider ve EF var olmayan kolonu çeviremez (AllowedListFields'a da bu yüzden eklenmez).
            GridLinkColumn MinWidth PARAMETRESİ KABUL ETMEZ (yalnız Width) — Blazor bilinmeyen parametreyi
            derlemede değil ÇALIŞMA ANINDA reddeder, yani sayfa açılır açılmaz patlardı. *@
-        <GridLinkColumn FieldName="Name" Caption="@L["Name"]" Width="240px" FixedPosition="GridColumnFixedPosition.Left" VisibleIndex="1"
+        <GridLinkColumn FieldName="Path" Caption="@L["ProductCategory:Path"]" Width="420px"
+                        FixedPosition="GridColumnFixedPosition.Left" VisibleIndex="1" AllowSort="false"
                         OnClick="@(o => BeforeUpdateAsync((ProductCategoryListDto)o))" />
-        @* Yol/Seviye hiyerarşiyi düz listede görünür kılar ("Takı › Yüzük › Alyans"). İkisi de ENTITY ALANI
-           DEĞİL — sunucu sorgudan SONRA hesaplar. Bu yüzden SIRALAMA KAPALI: sıralama sunucuya gider ve
-           EF var olmayan kolonu çeviremez (AllowedListFields'a da eklenmezler, aynı sebeple). *@
-        <DxGridDataColumn FieldName="Path" Caption="@L["ProductCategory:Path"]" VisibleIndex="2" MinWidth="240"
-                          AllowSort="false" AllowGroup="false" />
         <DxGridDataColumn FieldName="Level" Caption="@L["ProductCategory:Level"]" Width="90px" VisibleIndex="3"
                           AllowSort="false" AllowGroup="false" />
         <DxGridDataColumn FieldName="DisplayOrder" Caption="@L["DisplayOrder"]" Width="110px" VisibleIndex="4" />

@@ -74,10 +74,24 @@ public class ProductCategory : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICo
 
     #region Methods
 
+    /// <summary>Kategori adı — <b>yol ayracı karakterleri YASAK</b>.
+    ///
+    /// <para><b>Neden:</b> kategori yolu düz metin olarak kuruluyor (<c>"Takı › Yüzük › Alyans"</c>). Ada ayraç
+    /// karakteri girerse yol okunamaz hâle gelir ve tek bir kategori iki seviye gibi görünür — üstelik yol
+    /// hesaplanmış bir alan olduğu için geri ayrıştırma da mümkün değil. Hem gerçek ayraç <c>›</c> hem de
+    /// gözle ondan ayırt edilemeyen ASCII <c>&gt;</c> engellenir (2026-08-04 Hakan).</para></summary>
     public virtual void SetName(string name)
     {
-        Name = StringFieldGuard.NormalizeName(
+        var normalized = StringFieldGuard.NormalizeName(
             name, nameof(Name), EntityFieldConsts.NameMinLength, ProductCategoryConsts.NameMaxLength);
+
+        if (normalized.IndexOfAny(ProductCategoryConsts.ForbiddenNameCharacters) >= 0)
+        {
+            throw new BusinessException("TradeXpress:ProductCategory:NameHasPathSeparator")
+                .WithData("Name", normalized);
+        }
+
+        Name = normalized;
     }
 
     public virtual void SetDescription(string? description)

@@ -16,13 +16,21 @@
    Alanlar/adres/validasyon BranchEditFields'te (Company şube-drill'i ile AYNI); kasalar VaultDrill'de (DRY).
    HQ switch: form içi devir yok → yüklü (orijinal) HQ ise kilitli. Drill değişimi EditChanged ile dirty.
 *@
-<BranchEditFields Model="@Model" Units="@Units" HeadquartersEnabled="@(!_originalWasHq)" CodeEnabled="@IsNew" />
+@* YENİ → merkez kasa GÖMÜLÜ (CompanyLayout/TenantLayout ile aynı onboarding deseni): kullanıcıyı drill'e
+   gönderip "kasa ekle" dedirtmek zorunlu adımı isteğe bağlı gösterirdi; üstelik kasa arka planda sessizce
+   kuruluyordu (2026-08-03 Hakan). GÜNCELLE → Kasalar drill'i (çok kasayı yönetmenin tek makul yüzeyi).
+   İkisi BİRDEN çizilmez: aynı kasayı iki yerde düzenlemek çakışma olurdu. *@
+<BranchEditFields Model="@Model" Units="@Units" HeadquartersEnabled="@(!_originalWasHq)" CodeEnabled="@IsNew"
+                  EmbeddedVault="@(IsNew ? Model.Vaults.FirstOrDefault(v => !v.IsDeleted) : null)" />
 
-<div class="mt-3">
-    @* Tek drill de tablı yapıda + entity ikonu (genel desen). *@
-    <DrillTabs>
-        <DxTabPage Text="@Profiles.PluralTitle("Vault", L)" TabIconCssClass="@Profiles.Icon("Vault")">
-            <VaultDrill Vaults="Model.Vaults" OnChanged="@(() => EditChanged?.Invoke())" />
-        </DxTabPage>
-    </DrillTabs>
-</div>
+@if (!IsNew)
+{
+    <div class="mt-3">
+        @* Tek drill de tablı yapıda + entity ikonu (genel desen). *@
+        <DrillTabs>
+            <DxTabPage Text="@Profiles.PluralTitle("Vault", L)" TabIconCssClass="@Profiles.Icon("Vault")">
+                <VaultDrill Vaults="Model.Vaults" OnChanged="@(() => EditChanged?.Invoke())" />
+            </DxTabPage>
+        </DrillTabs>
+    </div>
+}

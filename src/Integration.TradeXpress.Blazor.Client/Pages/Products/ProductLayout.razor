@@ -148,6 +148,18 @@
         <DxFormLayoutItem Caption="@L["Product:PreparingDay"]" ColSpanMd="6" BeginRow="true">
             <NumericSpinEdit TValue="int" @bind-Value="@Model.PreparingDay" MinValue="1" />
         </DxFormLayoutItem>
+        @* KDV oranı ÜRÜNÜN özelliğidir (vergi mevzuatı mala bakar, kanala değil) → kanal kayıtları bunu devralır.
+           Varsayılan ATANMAZ: kıymetli maden teslimi %0 (istisna faturası), işçilik %20, kitap %1, gıda/tekstil %10 —
+           sessiz bir varsayılan yanlış fatura demektir. Boşken pazaryeri push'u fail-fast reddeder. *@
+        <DxFormLayoutItem Caption="@L["Product:VatRate"]" ColSpanMd="6">
+            <DxComboBox TData="VatRateOption" TValue="int?"
+                        Data="@VatRateOptions"
+                        ValueFieldName="@nameof(VatRateOption.Rate)"
+                        TextFieldName="@nameof(VatRateOption.DisplayText)"
+                        @bind-Value="@Model.VatRate"
+                        NullText="@L["Product:VatRateNotSet"]"
+                        ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
+        </DxFormLayoutItem>
         @* Paket desisi — kargo tarifesinin girdisi. 0 GEÇERLİDİR (desisiz/ağırlıksız kalem); negatif taşıma
            hacmi diye bir şey yok. Boş bırakılırsa varyantın, o da yoksa kanalın desisi kullanılır. *@
         <DxFormLayoutItem Caption="@L["Product:PackageDesi"]" ColSpanMd="6">

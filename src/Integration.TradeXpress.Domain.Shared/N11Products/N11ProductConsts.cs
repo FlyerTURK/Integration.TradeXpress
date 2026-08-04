@@ -11,6 +11,22 @@ public static class N11ProductConsts
     public static readonly IReadOnlyCollection<string> SupportedCurrencyCodes =
         new HashSet<string>(StringComparer.Ordinal) { "TRY", "USD", "EUR" };
 
+    /// <summary>N11'in kabul ettiği KDV oranları (resmî v9.0 REST dokümanı) — serbest yüzde DEĞİL, kapalı küme.
+    /// Kuyumcuda kritik: külçe/hurda ile işçilikli mücevher farklı orana tabidir; yanlış oran N11'in müşteriye
+    /// YANLIŞ fatura kesmesine ve farkın satıcıya rücu edilmesine yol açar → oran tahmin edilmez, kullanıcı seçer.
+    /// Hem entity guard'ı hem REST istemci doğrulaması bu tek kaynağı okur (SSOT).</summary>
+    public static readonly IReadOnlyCollection<int> AllowedVatRates =
+        new HashSet<int> { 0, 1, 10, 20 };
+
+    /// <summary>Kargoya verilme süresi (preparingDay) alt/üst sınırı — N11 resmî hata sözlüğü (destek merkezi
+    /// makale 10433): "preparingDay 1 değerinden büyük yada eşit olmalı" + "30 değerinden küçük yada eşit olmalı".</summary>
+    public const int MinPreparingDay = 1;
+    public const int MaxPreparingDay = 30;
+
+    /// <summary>REST yazma uçlarının döndürdüğü task kimliği. Doküman örnekleri sayısal (ör. 2904402104) ama
+    /// tip garantisi vermediği için string saklanır — genişlerse kırılmasın.</summary>
+    public const int TaskIdMaxLength = 64;
+
 
     /// <summary>N11 kategori/ürün id'si (numerik ama matematik yapılmaz → string).</summary>
     public const int ExternalIdMaxLength = 32;

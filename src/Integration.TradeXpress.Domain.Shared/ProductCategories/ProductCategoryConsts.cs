@@ -12,6 +12,12 @@ namespace Integration.TradeXpress.ProductCategories;
 /// </summary>
 public static class ProductCategoryConsts
 {
+    /// <summary>Kategori ADINDA yasak karakterler — yol ayraçları.
+    ///
+    /// <para>Kategori yolu düz metin olarak kuruluyor (› ile birleştirilir); ada ayraç girerse tek kategori
+    /// iki seviye gibi görünür ve yol geri ayrıştırılamaz. Gerçek ayracın yanında gözle ondan ayırt edilemeyen
+    /// ASCII &gt; de engellenir — kullanıcı hangisini yazdığını bilmek zorunda kalmasın (2026-08-04 Hakan).</para></summary>
+    public static readonly char[] ForbiddenNameCharacters = { '›', '>' };
     public const int NameMaxLength = 128;
     public const int DescriptionMaxLength = 512;
 

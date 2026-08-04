@@ -1230,6 +1230,82 @@ namespace Integration.TradeXpress.Migrations
                     b.ToTable("AppChannelQuestions", (string)null);
                 });
 
+            modelBuilder.Entity("Integration.TradeXpress.ChannelQuestions.ChannelQuestionSyncState", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<byte>("ChannelType")
+                        .HasColumnType("tinyint");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ConcurrencyStamp")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)")
+                        .HasColumnName("ConcurrencyStamp");
+
+                    b.Property<int>("ConsecutiveEmptyMonths")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("CreationTime");
+
+                    b.Property<Guid?>("CreatorId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CreatorId");
+
+                    b.Property<string>("ExtraProperties")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("ExtraProperties");
+
+                    b.Property<DateTime?>("LastModificationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("LastModificationTime");
+
+                    b.Property<Guid?>("LastModifierId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("LastModifierId");
+
+                    b.Property<DateTime?>("LastRefreshedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("RefreshPageIndex")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("SalesChannelId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("SeedCompleted")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime?>("SeedMonthStart")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("SeedMonthsProcessed")
+                        .HasColumnType("int");
+
+                    b.Property<int>("SeedPageIndex")
+                        .HasColumnType("int");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("TenantId");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "SalesChannelId")
+                        .IsUnique()
+                        .HasFilter("[TenantId] IS NOT NULL");
+
+                    b.ToTable("AppChannelQuestionSyncStates", (string)null);
+                });
+
             modelBuilder.Entity("Integration.TradeXpress.Companies.Company", b =>
                 {
                     b.Property<Guid>("Id")
@@ -3912,6 +3988,13 @@ namespace Integration.TradeXpress.Migrations
                     b.Property<long?>("N11ProductId")
                         .HasColumnType("bigint");
 
+                    b.Property<DateTime?>("PendingPushTaskAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("PendingPushTaskId")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
                     b.Property<int>("PreparingDay")
                         .HasColumnType("int");
 
@@ -3948,6 +4031,9 @@ namespace Integration.TradeXpress.Migrations
                     b.Property<Guid?>("TenantId")
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("TenantId");
+
+                    b.Property<int?>("VatRate")
+                        .HasColumnType("int");
 
                     b.HasKey("Id");
 
@@ -5481,6 +5567,9 @@ namespace Integration.TradeXpress.Migrations
                         .HasColumnName("TenantId");
 
                     b.Property<int>("VariantMode")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("VatRate")
                         .HasColumnType("int");
 
                     b.Property<int>("WhoMade")
@@ -7222,7 +7311,7 @@ namespace Integration.TradeXpress.Migrations
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("TenantId");
 
-                    b.Property<int>("VatRate")
+                    b.Property<int?>("VatRate")
                         .HasColumnType("int");
 
                     b.HasKey("Id");

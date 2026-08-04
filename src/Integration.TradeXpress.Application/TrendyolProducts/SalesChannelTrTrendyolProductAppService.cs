@@ -18,6 +18,7 @@ using Integration.TradeXpress.Vouchers;
 using Microsoft.AspNetCore.Authorization;
 using Volo.Abp;
 using Volo.Abp.Domain.Repositories;
+using Integration.TradeXpress.Channels;
 
 namespace Integration.TradeXpress.TrendyolProducts;
 
@@ -669,6 +670,14 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
     /// <summary>Ürün grafından push payload'unu kurar. <paramref name="warnings"/> verilirse (T6 ÖNİZLEME) fail-fast
     /// koşulları exception yerine uyarıya çevrilir + kurulum devam eder (kısmi önizleme); null ise (gerçek push T8)
     /// eskisi gibi BusinessException fırlatır. Her iki modda da Trendyol'a HİÇBİR ŞEY gönderilmez (submit çağıran üstte).</summary>
+    // KDV devralma zinciri (merkezî ChannelInheritance deseni): kanal override doluysa o, değilse ÜRÜNÜN oranı.
+    // İkisi de boşsa null döner → çağıran fail-fast eder. Sessiz varsayılan BİLEREK YOK: kıymetli maden teslimi
+    // KDV %0'dır (istisna faturası), işçilik %20; "hep 20" varsayımı yanlış fatura + satıcıya rücu demektir.
+    private static int? ResolveVatRate(SalesChannelTrTrendyolProduct channelProduct, Product product)
+    {
+        return ChannelInheritance.Resolve(channelProduct.VatRate, product.VatRate);
+    }
+
     private async Task<TrendyolProductData> BuildProductDataAsync(SalesChannelTrTrendyolProduct channelProduct, List<string>? warnings = null)
     {
         var product = await GetOwnedProductAsync(channelProduct.ProductId);
@@ -679,6 +688,13 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
         if (warnings is null && string.IsNullOrWhiteSpace(channelProduct.CategoryId))
         {
             throw new BusinessException("TradeXpress:Trendyol:Product:CategoryRequired");
+        }
+
+        // KDV oranı zorunlu: kanalda da üründe de yoksa push YAPILMAZ. Eskiden entity ctor'ı sessizce 20
+        // atıyordu ve kullanıcı hiçbir şeye dokunmazsa kıymetli maden %20 ile listeleniyordu — yanlış fatura.
+        if (warnings is null && ResolveVatRate(channelProduct, product) is null)
+        {
+            throw new BusinessException("TradeXpress:Trendyol:Product:VatRateRequired");
         }
 
         // Görsel kaynağı MERKEZİ DAM (K2); sıra/limit/atlama kuralları N11 ile ORTAK çözücüde (kanallar ayrışmasın).
@@ -757,7 +773,9 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
             Description: channelProduct.Description ?? product.Description ?? product.Name,
             CategoryId: channelProduct.CategoryId ?? string.Empty,   // yalnız ÖNİZLEME modunda boş olabilir (push'ta üstte fail-fast)
             BrandId: channelProduct.BrandId,
-            VatRate: channelProduct.VatRate,
+            // KDV: kanal override doluysa kanal, değilse ÜRÜNÜN oranı (merkezî devralma zinciri). İkisi de boşsa
+            // yukarıda fail-fast atılır — sessiz varsayılan YOK (kıymetli maden %0 ≠ %20 karışmasın).
+            VatRate: ResolveVatRate(channelProduct, product),
             DimensionalWeight: channelProduct.DimensionalWeight,
             DeliveryDuration: channelProduct.DeliveryDuration,
             FastDeliveryType: channelProduct.FastDeliveryType,

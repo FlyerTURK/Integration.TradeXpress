@@ -190,7 +190,7 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         entity.SetDiscount(input.DiscountType, input.DiscountValue, input.DiscountStartDate, input.DiscountEndDate);
         entity.SetShelfLife(input.ProductionDate, input.ExpirationDate);
         ApplyMarketplaceDefaults(entity, input.OriginCountryId, input.Condition, input.PreparingDay,
-            input.MaxPurchaseQuantity, input.SellerNote,
+            input.MaxPurchaseQuantity, input.VatRate, input.SellerNote,
             input.CurrencyUnitId, input.RecipeTemplateId, input.PackageDesi, input.SpecialInfo, input.AddOns);
         // Varyant modu ÖNCE, muadil konfigürasyonu SONRA (mutator mod tutarlılığını modun güncel değerine göre kurar).
         await EnsureSubstitutionGroupExistsAsync(input.VariantMode, input.SubstitutionGroupId);
@@ -229,7 +229,7 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         entity.SetDiscount(input.DiscountType, input.DiscountValue, input.DiscountStartDate, input.DiscountEndDate);
         entity.SetShelfLife(input.ProductionDate, input.ExpirationDate);
         ApplyMarketplaceDefaults(entity, input.OriginCountryId, input.Condition, input.PreparingDay,
-            input.MaxPurchaseQuantity, input.SellerNote,
+            input.MaxPurchaseQuantity, input.VatRate, input.SellerNote,
             input.CurrencyUnitId, input.RecipeTemplateId, input.PackageDesi, input.SpecialInfo, input.AddOns);
         // Varyant modu ÖNCE, muadil konfigürasyonu SONRA (Create ile simetrik; mod dışı alanlar temizlenir).
         await EnsureSubstitutionGroupExistsAsync(input.VariantMode, input.SubstitutionGroupId);
@@ -845,6 +845,7 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         ProductCondition condition,
         int preparingDay,
         int? maxPurchaseQuantity,
+        int? vatRate,
         string? sellerNote,
         Guid? currencyUnitId,
         Guid? recipeTemplateId,
@@ -856,6 +857,7 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         entity.SetCondition(condition);
         entity.SetPreparingDay(preparingDay);
         entity.SetMaxPurchaseQuantity(maxPurchaseQuantity);
+        entity.SetVatRate(vatRate);
         entity.SetRecipeTemplate(recipeTemplateId);
         entity.SetPackageDesi(packageDesi);
         entity.SetSellerNote(sellerNote);

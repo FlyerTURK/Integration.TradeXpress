@@ -83,6 +83,10 @@ public class ProductGetDto : EntityDto<Guid>, IGetDto<Guid>, IHasCode
     public ProductCondition Condition { get; set; } = ProductCondition.New;
     public int PreparingDay { get; set; } = ProductConsts.DefaultPreparingDay;
 
+    /// <summary>KDV oranı (%) — ürünün özelliği; kanal kayıtları devralır. Varsayılan YOK (kullanıcı seçer):
+    /// kıymetli maden %0 + istisna faturası, işçilik %20, kitap %1, gıda/tekstil %10.</summary>
+    public int? VatRate { get; set; }
+
 
 
     /// <summary>Reçete şablonu ("orta reçete") — ürüne KALICI bağ; ara masraf satırlarının (paketleme/kargo/
@@ -198,6 +202,10 @@ public class ProductCreateDto : ICreateDto
     public ProductCondition Condition { get; set; } = ProductCondition.New;
     public int PreparingDay { get; set; } = ProductConsts.DefaultPreparingDay;
 
+    /// <summary>KDV oranı (%) — ürünün özelliği; kanal kayıtları devralır. Varsayılan YOK (kullanıcı seçer):
+    /// kıymetli maden %0 + istisna faturası, işçilik %20, kitap %1, gıda/tekstil %10.</summary>
+    public int? VatRate { get; set; }
+
 
 
     /// <summary>Reçete şablonu ("orta reçete") — ürüne KALICI bağ; ara masraf satırlarının (paketleme/kargo/
@@ -289,6 +297,10 @@ public class ProductUpdateDto : IUpdateDto
     public Guid? OriginCountryId { get; set; }
     public ProductCondition Condition { get; set; } = ProductCondition.New;
     public int PreparingDay { get; set; } = ProductConsts.DefaultPreparingDay;
+
+    /// <summary>KDV oranı (%) — ürünün özelliği; kanal kayıtları devralır. Varsayılan YOK (kullanıcı seçer):
+    /// kıymetli maden %0 + istisna faturası, işçilik %20, kitap %1, gıda/tekstil %10.</summary>
+    public int? VatRate { get; set; }
 
 
 

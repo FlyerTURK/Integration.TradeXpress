@@ -31,6 +31,10 @@ namespace Integration.TradeXpress.Blazor.Client.Pages.Products;
 /// <summary>Product dumb layout code-behind — Model bağlama + varyant drill referansı + dirty cascade.</summary>
 public partial class ProductLayout
 {
+    // KDV combo verisi — mevzuat SSOT'u (ProductConsts.AllowedVatRates). Ürün seviyesinde seçilen oran
+    // kanal kayıtlarına devralınır; kanalda özel bir oran gerekiyorsa orada ezilir.
+    private static readonly List<VatRateOption> VatRateOptions = VatRateOption.From(ProductConsts.AllowedVatRates);
+
     [Parameter, EditorRequired] public ProductGetDto Model { get; set; } = default!;
     [Parameter] public bool IsNew { get; set; }
 

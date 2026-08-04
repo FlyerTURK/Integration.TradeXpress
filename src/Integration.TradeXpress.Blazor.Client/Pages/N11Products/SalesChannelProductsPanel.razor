@@ -51,6 +51,14 @@
                         <DxButton Text="@L["N11Product:Push"]" RenderStyle="ButtonRenderStyle.Primary"
                                   IconCssClass="@TradeXpressIcons.SalesChannel"
                                   Click="@(() => PushAsync(row))" />
+                        @* REST push kuyruğa alındıysa akıbeti henüz belli değil — sonucu kapatan eylem
+                           YALNIZ bu durumda görünür (aksi hâlde tıklanacak bir şey yok). *@
+                        @if (!string.IsNullOrEmpty(row.PendingPushTaskId))
+                        {
+                            <DxButton Text="@L["N11Product:ResolvePendingPush"]" RenderStyle="ButtonRenderStyle.Warning"
+                                      CssClass="ms-1"
+                                      Click="@(() => ResolvePendingPushAsync(row))" />
+                        }
                         @if (row.N11ProductId.HasValue)
                         {
                             <DxButton Text="@L["N11Product:SyncStockPrice"]" RenderStyle="ButtonRenderStyle.Secondary"

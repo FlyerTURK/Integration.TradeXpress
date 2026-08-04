@@ -27,7 +27,7 @@ public abstract class SalesChannelTrN11ProductPushTests<TStartupModule> : TradeX
     // Agnostik varyant tablosunda Product varyantları bu sahip-adıyla tutulur (production: ProductEntityName).
     private const string ProductEntityName = "Product";
 
-    private readonly ISalesChannelTrN11ProductAppService _appService;
+    protected readonly ISalesChannelTrN11ProductAppService _appService;
     private readonly EntityVariantSynchronizer _erpSynchronizer;
     private readonly IRepository<SalesChannelTrN11, Guid> _channelRepository;
     private readonly IRepository<Product, Guid> _productRepository;
@@ -38,8 +38,10 @@ public abstract class SalesChannelTrN11ProductPushTests<TStartupModule> : TradeX
     private readonly IRepository<SalesChannelTrN11ProductStockItem, Guid> _headerRepository;
     private readonly IRepository<Media, Guid> _mediaRepository;
     private readonly IRepository<EntityMediaLink, Guid> _linkRepository;
-    private readonly ICurrentCompany _currentCompany;
-    private readonly FakeN11ProductClient _fakeClient;
+    protected readonly ICurrentCompany _currentCompany;
+    // Push artik REST ten gidiyor (SOAP urun uclari N11 tarafinda kapatildi) → iddialar product-create
+    // satirlari uzerinde. Yapisal fark: SOAP tek urun + icinde stockItems, REST her SKU icin AYRI satir.
+    protected readonly FakeN11ProductRestClient _restClient;
 
     protected SalesChannelTrN11ProductPushTests()
     {
@@ -55,7 +57,7 @@ public abstract class SalesChannelTrN11ProductPushTests<TStartupModule> : TradeX
         _mediaRepository = GetRequiredService<IRepository<Media, Guid>>();
         _linkRepository = GetRequiredService<IRepository<EntityMediaLink, Guid>>();
         _currentCompany = GetRequiredService<ICurrentCompany>();
-        _fakeClient = GetRequiredService<FakeN11ProductClient>();
+        _restClient = GetRequiredService<FakeN11ProductRestClient>();
     }
 
     // ── Axis-modu: 2 ERP-backed + 1 N11-only kombinasyon push'a girer ────────────────────────────────
@@ -70,27 +72,33 @@ public abstract class SalesChannelTrN11ProductPushTests<TStartupModule> : TradeX
 
             await _appService.PushToN11Async(created.Id);
 
-            var data = _fakeClient.LastSavedProduct.ShouldNotBeNull();
-            data.StockItems.Count.ShouldBe(3);
+            var rows = _restClient.LastCreatedRows;
+            rows.Count.ShouldBe(3);
+
+            // Tüm satırlar AYNI productMainId altında — REST'te varyantlığı kuran TEK mekanizma budur.
+            rows.Select(r => r.ProductMainId).Distinct().Count().ShouldBe(1);
 
             // ERP-backed satırlar legacy davranışla: dondurulacak kod "{VaryantKodu}-{SequenceNo}", fiyat/stok ERP'den.
-            var red = data.StockItems.Single(s => s.SellerStockCode == "RED-1");
-            red.OptionPrice.ShouldBe(100m);
+            // REST'te varyantın optionPrice'ı SATIRIN KENDİ salePrice'ı olur (ürün-seviyesi tek fiyat yok).
+            var red = rows.Single(r => r.StockCode == "RED-1");
+            red.SalePrice.ShouldBe(100m);
             red.Quantity.ShouldBe(10);
-            red.Attributes.ShouldContain(a => a.Name == "Renk" && a.Value == "Red");
-            data.StockItems.ShouldContain(s => s.SellerStockCode == "BLUE-1");
+            // Nitelik artık ad/değer değil KATEGORİ KİMLİĞİ taşır. Sahte yaprakta "Renk" attributeId=1 ve
+            // isCustomValue=true (değer listesi yok) → serbest metin customValue'ya yazılır.
+            red.Attributes.ShouldContain(a => a.Id == 1 && a.CustomValue == "Red");
+            rows.ShouldContain(r => r.StockCode == "BLUE-1");
 
             // N11-only satır: kod kombinasyon değer adlarından ("GREEN-1"), fiyat/stok Override'dan,
             // nitelikler KANAL Attribute.Name/AttributeValue.Value'larından çözülür.
-            var green = data.StockItems.Single(s => s.SellerStockCode == "GREEN-1");
-            green.OptionPrice.ShouldBe(150m);
+            var green = rows.Single(r => r.StockCode == "GREEN-1");
+            green.SalePrice.ShouldBe(150m);
             green.Quantity.ShouldBe(5);
             var greenAttribute = green.Attributes.ShouldHaveSingleItem();
-            greenAttribute.Name.ShouldBe("Renk");
-            greenAttribute.Value.ShouldBe("Green");
+            greenAttribute.Id.ShouldBe(1);
+            greenAttribute.CustomValue.ShouldBe("Green");
 
-            // Base fiyat ilk (ana) ERP-backed adayın efektif fiyatı — N11-only listeyi bozmaz.
-            data.Price.ShouldBe(100m);
+            // NOT: SOAP'ta ürün-seviyesi tek bir Price vardı ve ilk adayın fiyatıydı. REST'te böyle bir alan YOK —
+            // her satır kendi fiyatını taşır (yukarıda satır satır doğrulandı).
         }
     }
 
@@ -130,7 +138,7 @@ public abstract class SalesChannelTrN11ProductPushTests<TStartupModule> : TradeX
             var exception = await Should.ThrowAsync<BusinessException>(() => _appService.PushToN11Async(created.Id));
 
             exception.Code.ShouldBe("TradeXpress:N11:StockItem:PriceMissingForPush");
-            _fakeClient.SavedProducts.ShouldBeEmpty();   // N11'e HİÇ ulaşmadı
+            _restClient.CreatedBatches.ShouldBeEmpty();   // N11'e HİÇ ulaşmadı
         }
     }
 
@@ -149,10 +157,10 @@ public abstract class SalesChannelTrN11ProductPushTests<TStartupModule> : TradeX
 
             await _appService.PushToN11Async(created.Id);
 
-            var data = _fakeClient.LastSavedProduct.ShouldNotBeNull();
-            data.StockItems.Count.ShouldBe(2);
-            data.StockItems.Select(s => s.SellerStockCode).ShouldBe(new[] { "RED-1", "BLUE-1" }, ignoreOrder: true);
-            data.StockItems.Single(s => s.SellerStockCode == "BLUE-1").Quantity.ShouldBe(20);
+            var rows = _restClient.LastCreatedRows;
+            rows.Count.ShouldBe(2);
+            rows.Select(r => r.StockCode).ShouldBe(new[] { "RED-1", "BLUE-1" }, ignoreOrder: true);
+            rows.Single(r => r.StockCode == "BLUE-1").Quantity.ShouldBe(20);
         }
     }
 
@@ -182,7 +190,7 @@ public abstract class SalesChannelTrN11ProductPushTests<TStartupModule> : TradeX
 
     /// <summary>Axis-modlu senaryo çekirdeği: ERP Renk[Red,Blue] (fiyatlı/stoklu varyantlar) + kanal Renk[Red,Blue,Green]
     /// → reconcile 2 ERP-backed + 1 N11-only (Green) kombinasyon üretir; Green'e istenirse override yazılır.</summary>
-    private async Task<SalesChannelTrN11ProductDto> SeedAxisProductWithN11OnlyRowAsync(
+    protected async Task<SalesChannelTrN11ProductDto> SeedAxisProductWithN11OnlyRowAsync(
         Guid companyId, string productCode, decimal? greenPrice, int? greenStock)
     {
         var (channel, product) = await SeedChannelAndProductAsync(companyId, productCode);
@@ -278,6 +286,8 @@ public abstract class SalesChannelTrN11ProductPushTests<TStartupModule> : TradeX
             ProductId = product.Id,
             SalesChannelId = channel.Id,
             CategoryExternalId = FakeN11CategoryClient.DefaultCategoryExternalId,
+            // REST push KDV oranını ZORUNLU kılıyor (create'te "Evet"); boşsa mapper fail-fast eder.
+            VatRate = 20,
             ShipmentTemplateName = "Standart Teslimat",
             ProductAttributes = channelAttributes.ToList(),
         });
@@ -295,7 +305,7 @@ public abstract class SalesChannelTrN11ProductPushTests<TStartupModule> : TradeX
         };
     }
 
-    private static SalesChannelTrN11ProductUpdateDto BuildUpdateDto(SalesChannelTrN11ProductDto dto)
+    protected static SalesChannelTrN11ProductUpdateDto BuildUpdateDto(SalesChannelTrN11ProductDto dto)
     {
         return new SalesChannelTrN11ProductUpdateDto
         {
@@ -306,6 +316,9 @@ public abstract class SalesChannelTrN11ProductPushTests<TStartupModule> : TradeX
             Domestic = dto.Domestic,
             PreparingDay = dto.PreparingDay,
             MaxPurchaseQuantity = dto.MaxPurchaseQuantity,
+            // KDV oranı güncellemede de TAŞINMALI: aktarılmazsa alan null'a düşer ve REST push fail-fast eder
+            // (create'te zorunlu). Bunu unutmak "kaydettim, sonra push patladı" tablosunu üretirdi.
+            VatRate = dto.VatRate,
             CurrencyUnitId = dto.CurrencyUnitId,
             ProductionDate = dto.ProductionDate,
             ExpirationDate = dto.ExpirationDate,

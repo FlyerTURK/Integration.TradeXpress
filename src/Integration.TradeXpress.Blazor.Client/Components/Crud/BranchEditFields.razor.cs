@@ -3,6 +3,7 @@ using Integration.Framework.Blazor.Client.Components.Crud;
 using Integration.TradeXpress.Blazor.Client.Components.Shared;
 using Integration.TradeXpress.Branches;
 using Integration.TradeXpress.Financials.CurrencyUnits;
+using Integration.TradeXpress.Vaults;
 using Microsoft.AspNetCore.Components;
 
 namespace Integration.TradeXpress.Blazor.Client.Components.Crud;
@@ -16,6 +17,12 @@ public partial class BranchEditFields : CrudComponentBase
     [Parameter] public List<CurrencyUnitListDto> Units { get; set; } = new();
     [Parameter] public bool HeadquartersEnabled { get; set; } = true;
     [Parameter] public bool CodeEnabled { get; set; } = true;
+
+    /// <summary>Şubenin altında GÖMÜLÜ çizilecek merkez kasa (yalnız YENİ kayıt formlarında verilir; null =
+    /// kasa bölümü çizilmez). Kasa da şube kadar zorunludur (OrgTreeManager en-az-1-çocuk) — arka planda
+    /// sessizce kurulduğu için kullanıcı adını göremiyordu (2026-08-03 Hakan bulgusu). Üç yüzey de
+    /// (şirket/tenant/şube onboarding) bu TEK parametreyi besler; kasa markup'ı tek yerde yaşar.</summary>
+    [Parameter] public VaultGraphDto? EmbeddedVault { get; set; }
 
     /// <summary>Grup başlığı. Boş → varsayılan "Genel". Onboarding'de "Merkez Şube" verilir: o formda tek şube
     /// vardır ve merkezdir; "Genel" demek hangi şube olduğunu belirsiz bırakıyordu.</summary>

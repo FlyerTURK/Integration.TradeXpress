@@ -37,7 +37,9 @@ public abstract class SalesChannelTrN11ProductImagePushTests<TStartupModule> : T
     private readonly IRepository<Media, Guid> _mediaRepository;
     private readonly IRepository<EntityMediaLink, Guid> _linkRepository;
     private readonly ICurrentCompany _currentCompany;
-    private readonly FakeN11ProductClient _fakeClient;
+    // Push artik REST ten gidiyor (SOAP urun uclari N11 tarafinda kapatildi) → iddialar product-create
+    // satirlari uzerinde. Yapisal fark: SOAP tek urun + icinde stockItems, REST her SKU icin AYRI satir.
+    private readonly FakeN11ProductRestClient _restClient;
 
     /// <summary>Seed'lenen medyanın dosya adı → Id eşlemesi. Push adresleri artık İMZALI olduğundan (içerik
     /// tahmin edilemez) sıra assert'leri medya kimliği üzerinden yapılır; adresin içinde Id düz metin geçer.</summary>
@@ -56,7 +58,7 @@ public abstract class SalesChannelTrN11ProductImagePushTests<TStartupModule> : T
         _mediaRepository = GetRequiredService<IRepository<Media, Guid>>();
         _linkRepository = GetRequiredService<IRepository<EntityMediaLink, Guid>>();
         _currentCompany = GetRequiredService<ICurrentCompany>();
-        _fakeClient = GetRequiredService<FakeN11ProductClient>();
+        _restClient = GetRequiredService<FakeN11ProductRestClient>();
     }
 
     [Fact]
@@ -77,7 +79,9 @@ public abstract class SalesChannelTrN11ProductImagePushTests<TStartupModule> : T
 
             await _appService.PushToN11Async(created.Id);
 
-            var images = _fakeClient.LastSavedProduct.ShouldNotBeNull().Images;
+            var rows = _restClient.LastCreatedRows;
+            rows.ShouldNotBeEmpty();
+            var images = rows[0].Images;
             images.Count.ShouldBe(3);
             images[0].Url.ShouldContain(MediaTokenOf("cover.jpg"));
             images[1].Url.ShouldContain(MediaTokenOf("a.jpg"));
@@ -102,7 +106,9 @@ public abstract class SalesChannelTrN11ProductImagePushTests<TStartupModule> : T
 
             await _appService.PushToN11Async(created.Id);
 
-            var images = _fakeClient.LastSavedProduct.ShouldNotBeNull().Images;
+            var rows = _restClient.LastCreatedRows;
+            rows.ShouldNotBeEmpty();
+            var images = rows[0].Images;
             images.Select(i => i.Order).ShouldBe(new[] { 1, 2, 3 });
         }
     }
@@ -140,7 +146,9 @@ public abstract class SalesChannelTrN11ProductImagePushTests<TStartupModule> : T
 
             await _appService.PushToN11Async(created.Id);
 
-            var images = _fakeClient.LastSavedProduct.ShouldNotBeNull().Images;
+            var rows = _restClient.LastCreatedRows;
+            rows.ShouldNotBeEmpty();
+            var images = rows[0].Images;
             images.Count.ShouldBeLessThanOrEqualTo(ProductConsts.MaxImageCount);
             images.Select(i => i.Order).ShouldBe(Enumerable.Range(1, images.Count));
         }
@@ -162,7 +170,9 @@ public abstract class SalesChannelTrN11ProductImagePushTests<TStartupModule> : T
 
             await _appService.PushToN11Async(created.Id);
 
-            var images = _fakeClient.LastSavedProduct.ShouldNotBeNull().Images;
+            var rows = _restClient.LastCreatedRows;
+            rows.ShouldNotBeEmpty();
+            var images = rows[0].Images;
             images.Count.ShouldBe(1);
             images[0].Url.ShouldContain(MediaTokenOf("variant.jpg"));
             images[0].Order.ShouldBe(1);
@@ -229,6 +239,8 @@ public abstract class SalesChannelTrN11ProductImagePushTests<TStartupModule> : T
             ProductId = product.Id,
             SalesChannelId = channel.Id,
             CategoryExternalId = FakeN11CategoryClient.DefaultCategoryExternalId,
+            // REST push KDV oranını ZORUNLU kılıyor (create'te "Evet"); boşsa mapper fail-fast eder.
+            VatRate = 20,
             ShipmentTemplateName = "Standart Teslimat",
         });
     }

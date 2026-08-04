@@ -5,6 +5,7 @@ using Integration.TradeXpress.TrendyolProducts;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Volo.Abp.Modularity;
+using Integration.TradeXpress.N11Products.Rest;
 
 namespace Integration.TradeXpress;
 
@@ -21,6 +22,14 @@ public class TradeXpressApplicationTestModule : AbpModule
         // hem interface hem somut tip üzerinden çözülür (test somut tipten yakalanan veriyi okur).
         context.Services.AddSingleton<FakeN11ProductClient>();
         context.Services.Replace(ServiceDescriptor.Singleton<IN11ProductClient>(sp => sp.GetRequiredService<FakeN11ProductClient>()));
+        // Push artik REST'ten gidiyor (SOAP urun uclari N11 tarafinda kapatildi) → REST istemcisi ve
+        // task sorgulayici da sahtelenir; aksi halde testler aga cikmaya calisirdi.
+        context.Services.AddSingleton<FakeN11ProductRestClient>();
+        context.Services.Replace(ServiceDescriptor.Singleton<IN11ProductRestClient>(sp => sp.GetRequiredService<FakeN11ProductRestClient>()));
+        context.Services.AddSingleton<FakeN11TaskPoller>();
+        context.Services.Replace(ServiceDescriptor.Singleton<IN11TaskPoller>(sp => sp.GetRequiredService<FakeN11TaskPoller>()));
+        context.Services.AddSingleton<FakeN11ProductQueryClient>();
+        context.Services.Replace(ServiceDescriptor.Singleton<IN11ProductQueryClient>(sp => sp.GetRequiredService<FakeN11ProductQueryClient>()));
         context.Services.AddSingleton<FakeN11CategoryClient>();
         context.Services.Replace(ServiceDescriptor.Singleton<IN11CategoryClient>(sp => sp.GetRequiredService<FakeN11CategoryClient>()));
 

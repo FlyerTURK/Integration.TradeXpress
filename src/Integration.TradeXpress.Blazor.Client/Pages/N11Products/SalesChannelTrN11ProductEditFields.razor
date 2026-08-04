@@ -49,6 +49,17 @@
             <NumericSpinEdit TValue="int?" @bind-Value="@Model.MaxPurchaseQuantity"
                              ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
         </DxFormLayoutItem>
+        @* KDV oranı — N11'in kapalı kümesi (serbest yüzde kabul edilmez), varsayılan ATANMAZ: kuyumcuda oran
+           ürüne göre değişir ve yanlış oran N11'in müşteriye yanlış fatura kesmesi demektir → kullanıcı seçer. *@
+        <DxFormLayoutItem Caption="@L["N11Product:VatRate"]" ColSpanMd="6">
+            <DxComboBox TData="VatRateOption" TValue="int?"
+                        Data="@VatRateOptions"
+                        ValueFieldName="@nameof(VatRateOption.Rate)"
+                        TextFieldName="@nameof(VatRateOption.DisplayText)"
+                        @bind-Value="@Model.VatRate"
+                        NullText="@L["N11Product:VatRateNotSet"]"
+                        ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
+        </DxFormLayoutItem>
         @* N11 para birimi — opsiyonel; boşsa push'ta varyant para birimi devralınır. Liste TRY/USD/EUR ile sabit
            (N11 yalnız bunları kabul eder) → inline ekle/düzelt YOK (EditComponentType/Create/UpdatePolicy verilmez). *@
         <DxFormLayoutItem Caption="@L["N11Product:CurrencyUnit"]" ColSpanMd="6">

@@ -38,7 +38,13 @@
                         AllowClear="false" />
         </DxFormLayoutItem>
         <DxFormLayoutItem Caption="@L["TrendyolProduct:VatRate"]" ColSpanMd="6">
-            <NumericSpinEdit TValue="int" @bind-Value="@Model.VatRate" />
+            <DxComboBox TData="VatRateOption" TValue="int?"
+                        Data="@VatRateOptions"
+                        ValueFieldName="@nameof(VatRateOption.Rate)"
+                        TextFieldName="@nameof(VatRateOption.DisplayText)"
+                        @bind-Value="@Model.VatRate"
+                        NullText="@L["Product:VatRateNotSet"]"
+                        ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
         </DxFormLayoutItem>
         <DxFormLayoutItem Caption="@L["TrendyolProduct:DimensionalWeight"]" ColSpanMd="6">
             <NumericSpinEdit TValue="decimal?" @bind-Value="@Model.DimensionalWeight" DisplayFormat="N2"

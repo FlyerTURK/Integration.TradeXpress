@@ -3,6 +3,8 @@
 @using Integration.TradeXpress.Financials.CurrencyUnits
 @using Integration.TradeXpress.Permissions
 @using Integration.TradeXpress.Blazor.Client.Pages.Financials.CurrencyUnits
+@using Integration.TradeXpress.Blazor.Client.Pages.Vaults
+@using Integration.TradeXpress.Vaults
 @using Integration.Framework.Blazor.Client.Components.Crud
 @using DevExpress.Blazor
 @using Microsoft.Extensions.Localization
@@ -77,6 +79,18 @@
             @addressEditor
         }
     </DxFormLayoutGroup>
+
+    @* Merkez kasa — YENİ kayıt formlarında (şirket/tenant/şube) şubenin hemen altında GÖMÜLÜ çizilir.
+       Gerekçe şubeninkiyle aynı: kasa da en az şube kadar ZORUNLUDUR (OrgTreeManager en-az-1-çocuk),
+       ama eskiden arka planda sessizce kuruluyordu — kullanıcı ne adını görüyor ne değiştirebiliyordu
+       ("kasa eklenmemiş" bulgusu, 2026-08-03 Hakan). Kod+Ad sorulur; varsayılan/durum/sıra sorulmaz
+       (tek ve zorunlu kasa olduğundan sabit). Sonradan yönetim Şube→Kasalar drill'inde. *@
+    @if (EmbeddedVault is { } vault)
+    {
+        <VaultLayout Model="@vault" IsNew="true" Embedded="true"
+                     GroupCaption="@L["Branch:DefaultVault"].Value"
+                     ShowAdvancedFields="false" />
+    }
 
     @* Şube adresi — GRUPSUZ etiketli item, Description'dan ÖNCE (ui-blazor edit-form sırası: General → Adres →
        Description → Status/DisplayOrder). Kompakt özet + ✎ → popup. Model.Address OnParametersSet'te boş DTO ile

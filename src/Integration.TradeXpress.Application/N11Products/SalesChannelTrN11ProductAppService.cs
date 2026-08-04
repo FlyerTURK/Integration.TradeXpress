@@ -23,6 +23,7 @@ using Microsoft.Extensions.Logging;
 using Volo.Abp;
 using Volo.Abp.Caching;
 using Volo.Abp.Domain.Repositories;
+using Integration.TradeXpress.N11Products.Rest;
 
 namespace Integration.TradeXpress.N11Products;
 
@@ -57,6 +58,9 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
     private readonly SubstitutionChannelPlanProvider _substitutionPlanProvider;
     private readonly ICurrentCompany _currentCompany;
     private readonly IN11ProductClient _client;
+    private readonly IN11ProductRestClient _restClient;
+    private readonly IN11ProductQueryClient _queryClient;
+    private readonly IN11TaskPoller _taskPoller;
     private readonly MarketplacePushImageResolver _pushImageResolver;
     private readonly IEntityMediaAppService _entityMedia;   // yalnız OKUMA — push önizlemesi (DAM galerisi)
     private readonly IN11CategoryClient _categoryClient;
@@ -85,6 +89,9 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
         SubstitutionChannelPlanProvider substitutionPlanProvider,
         ICurrentCompany currentCompany,
         IN11ProductClient client,
+        IN11ProductRestClient restClient,
+        IN11ProductQueryClient queryClient,
+        IN11TaskPoller taskPoller,
         MarketplacePushImageResolver pushImageResolver,
         IEntityMediaAppService entityMedia,
         IN11CategoryClient categoryClient,
@@ -112,6 +119,9 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
         _substitutionPlanProvider = substitutionPlanProvider;
         _currentCompany = currentCompany;
         _client = client;
+        _restClient = restClient;
+        _queryClient = queryClient;
+        _taskPoller = taskPoller;
         _pushImageResolver = pushImageResolver;
         _entityMedia = entityMedia;
         _categoryClient = categoryClient;
@@ -433,7 +443,26 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
             // MarkSyncFailed'e düşsün — kayıt bayat "Synced" göstermesin (review bulgusu).
             var plan = await BuildProductDataAsync(entity, channel);
             var data = plan.Data;
-            var result = await _client.SaveProductAsync(data, channel.AppKey, channel.AppSecret);
+
+            // ── SOAP → REST (2026-08-04) ────────────────────────────────────────────────────────────
+            // N11 resmî dokümanı (v9.0, satır 513): "Ürün Yükleme ve Güncelleme Servisleri SOAP'tan
+            // KAPATILMIŞTIR. RestAPI ile işlemlerinize devam edebilirsiniz." Artık push REST'ten gider.
+            //
+            // Model farkı: SOAP'ta tek ürün + içinde stockItems; REST'te her SKU BAĞIMSIZ satır, varyantlığı
+            // yalnız ortak productMainId kurar (çeviri: N11RestPushMapper). Ayrıca REST SENKRON DEĞİL —
+            // yazma ucu yalnız taskId + IN_QUEUE döner, gerçek sonuç task-details'ten okunur.
+            var restRows = N11RestPushMapper.ToCreateRows(data, plan.Leaf);
+            var submissions = await _restClient.CreateProductsAsync(restRows, channel.AppKey, channel.AppSecret);
+            var result = await ResolveRestPushAsync(entity, submissions, channel, syncWarnings);
+            if (result is null)
+            {
+                // Task hâlâ kuyrukta: kimliği saklandı, sonuç sonradan çözülecek. Başarı SAYILMAZ —
+                // MarkSynced çağrılmaz, SKU satırları kalıcılaşmaz (kod donması yalnız KANITLI başarıda).
+                await _repository.UpdateAsync(entity, autoSave: true);
+                var queuedDto = ObjectMapper.Map<SalesChannelTrN11Product, SalesChannelTrN11ProductDto>(entity);
+                queuedDto.SyncWarnings = syncWarnings;
+                return queuedDto;
+            }
 
             // Push N11'e ULAŞTI → SKU satırları ŞİMDİ kalıcılaşır (kod donması yalnız başarılı push'ta) ve
             // SKU-başına gönderilen adet/fiyat + seçenek snapshot'ı (Faz 2 dirty-tracking + sipariş→varyant
@@ -457,14 +486,33 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
             // okunur, SpecialInfo HARİÇ alanlar N11 GERÇEĞİYLE eşlenir; kritik fark (kategori) kullanıcıya bildirilir.
             var saleStatus = result.SaleStatus;
             var approvalStatus = result.ApprovalStatus;
-            if (result.N11ProductId is { } n11Id)
+            var n11ProductIdFromN11 = entity.N11ProductId;
             {
                 try
                 {
-                    var detail = await _client.GetProductAsync(n11Id, channel.AppKey, channel.AppSecret);
-                    ApplyN11Truth(entity, detail, syncWarnings);
-                    saleStatus = detail.SaleStatus ?? saleStatus;
-                    approvalStatus = detail.ApprovalStatus ?? approvalStatus;
+                    // REST push ürün kimliğini DÖNDÜRMEZ → kimliği (ve gerçek durumu) buradan öğreniyoruz.
+                    // Adresleme dondurulmuş stok koduyla: aynı productMainId altındaki satırlardan biri yeter.
+                    var probeStockCode = entity.Skus.Count > 0
+                        ? entity.Skus[0].SellerStockCode
+                        : data.StockItems[0].SellerStockCode;
+
+                    var page = await _queryClient.QueryAsync(
+                        new N11ProductQueryFilter(Page: 0, Size: 1, StockCode: probeStockCode,
+                            SaleStatus: null, ProductStatus: null, BrandName: null, CategoryIds: null),
+                        channel.AppKey,
+                        channel.AppSecret);
+
+                    if (page.Items.Count > 0)
+                    {
+                        var summary = page.Items[0];
+                        ApplyN11RestTruth(entity, summary, syncWarnings);
+                        saleStatus = summary.SaleStatus ?? saleStatus;
+                        approvalStatus = summary.ProductStatus ?? approvalStatus;
+                        if (summary.N11ProductId > 0)
+                        {
+                            n11ProductIdFromN11 = summary.N11ProductId;
+                        }
+                    }
                 }
                 catch (Exception pullException)
                 {
@@ -472,14 +520,14 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
                     // Kök neden server logunda kalsın — sessiz yutma yasak (CLAUDE.md §2, review bulgusu 2026-07-07).
                     Logger.LogWarning(
                         pullException,
-                        "N11 push sonrası doğrulama okuması başarısız (N11ProductId {N11ProductId}, kayıt {Id}).",
-                        n11Id,
+                        "N11 push sonrası doğrulama okuması başarısız (kayıt {Id}).",
                         entity.Id);
                     syncWarnings.Add(L["N11Product:PullFailed"]);
                 }
             }
 
-            entity.MarkSynced(result.N11ProductId, saleStatus, approvalStatus, Clock.Now.ToUniversalTime());
+            // Kimlik REST okumasından gelir (yazma ucu döndürmez); okuma düştüyse mevcut değer korunur.
+            entity.MarkSynced(n11ProductIdFromN11, saleStatus, approvalStatus, Clock.Now.ToUniversalTime());
             await _repository.UpdateAsync(entity, autoSave: true);
         }
         catch (Exception ex)
@@ -502,11 +550,17 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
         var channel = await GetOwnedChannelAsync(entity.SalesChannelId);
         var syncWarnings = new List<string>();
 
-        if (entity.N11ProductId is not { } n11ProductId)
+        // Ön koşul: en az bir SKU satırı DONMUŞ olmalı — yani daha önce başarılı bir push olmuş olmalı.
+        //
+        // Eskiden bu kontrol N11ProductId üzerindendi çünkü SOAP UpdateProductBasic ürünü N11'in KENDİ id'siyle
+        // adresliyordu. REST price-stock-update ise BİZİM stockCode'umuzla adresliyor; N11ProductId'yi şart koşmak
+        // artık yanlış olurdu — REST push'u ürün kimliğini geri döndürmediğinden senkron sonsuza dek bloklanırdı.
+        if (entity.Skus.Count == 0)
         {
-            // Hiç tam gönderim yapılmamış → UpdateProductBasic'in adresleyeceği N11 ürünü/SKU'su yok.
             throw new BusinessException("TradeXpress:N11:Product:NotPushedYet");
         }
+
+        var n11ProductId = entity.N11ProductId;
 
         try
         {
@@ -518,31 +572,26 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
             var rows = (await BuildPushRowsAsync(entity)).Rows;
             EnsurePushRowsPriced(rows);
 
-            // Önce N11'den oku: eksik SKU id'lerini doldur + version drift'ini gör (UpdateProductBasic version almaz →
-            // lost-update'i "oku-karşılaştır-yaz" disipliniyle yönet). Okuma düşerse senkron güvenli şekilde durur.
-            var detail = await _client.GetProductBySellerCodeAsync(entity.SellerCode, channel.AppKey, channel.AppSecret);
-            foreach (var sku in detail.Skus)
-            {
-                var localVersion = entity.Skus.FirstOrDefault(s => string.Equals(s.SellerStockCode, sku.SellerStockCode, StringComparison.OrdinalIgnoreCase))?.N11Version;
-                if (localVersion is { } lv && sku.Version is { } rv && lv != rv)
-                {
-                    // Version değişti = N11'de satış/değişiklik oldu; yine yazarız (ERP otorite) ama kullanıcı bilsin.
-                    syncWarnings.Add(L["N11Product:VersionDrift", sku.SellerStockCode]);
-                }
+            // ── SOAP ÖN-OKUMASI KALDIRILDI (2026-08-04, REST geçişi) ───────────────────────────────────
+            // SOAP'ta bu adım ZORUNLUYDU: UpdateProductBasic SKU'yu N11'in KENDİ id'siyle adresliyordu, o yüzden
+            // önce okuyup eksik id'leri doldurmak gerekiyordu (ayrıca version drift'i görülüyordu).
+            // REST price-stock-update SKU'yu BİZİM stockCode'umuzla adresliyor → N11 SKU id'sine hiç ihtiyaç yok
+            // ve her senkronda fazladan bir okuma yapmıyoruz. Karşılığında REST sözleşmesinde version KAVRAMI
+            // OLMADIĞI için drift uyarısı da düşüyor: N11'de satış olup olmadığını bu uçtan öğrenemiyoruz.
+            // (Drift görünürlüğü gerekirse ayrı bir product-query okumasıyla geri gelir — bu akışa zorla eklenmez.)
 
-                entity.ApplySkuIdentity(sku.SellerStockCode, sku.N11SkuId, sku.Version);
-            }
-
-            // Değişen adayları (dirty) belirle: SKU satırı olan + N11 SKU id'si bilinen + adet/fiyatı sapmış.
-            var stockItems = new List<N11ProductBasicStockItem>();
+            // Değişen adayları (dirty) belirle: SKU satırı OLAN + adet/fiyatı sapmış.
+            var stockItems = new List<N11RestPriceStock>();
             var anyDirty = false;
             foreach (var row in rows)
             {
                 // Kombinasyon kimliği: ERP-backed satırda ProductVariant.Id, N11-only satırda StockItem.Id (J3).
                 var sku = entity.Skus.FirstOrDefault(s => s.ProductVariantId == row.CandidateId);
-                if (sku is null || sku.N11SkuId is not { } n11SkuId)
+                if (sku is null)
                 {
-                    // Bu aday hiç push edilmemiş / SKU id'si yok → hafif senkron adresleyemez; tam push gerekir.
+                    // Bu aday hiç push edilmemiş → dondurulmuş bir stok kodu yok; tam push gerekir.
+                    // NOT: SOAP'ta ayrıca "N11 SKU id'si yok" hâli de burada elenirdi; REST stok koduyla
+                    // adreslediği için kuyruğa alınmış (id'si henüz gelmemiş) push bile senkronlanabilir.
                     syncWarnings.Add(L["N11Product:SkuNotPushed", row.Code]);
                     continue;
                 }
@@ -552,11 +601,15 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
 
                 // Merge/replace belirsizliğinden (rapor A3) kaçınmak için TÜM bilinen SKU'ları güncel değerleriyle
                 // gönderiyoruz — gönderilmeyen SKU'nun N11'de sıfırlanma riski olmasın.
-                stockItems.Add(new N11ProductBasicStockItem(
-                    sku.SellerStockCode,
-                    n11SkuId,
-                    row.Stock,
-                    row.Price));
+                //
+                // listPrice = salePrice: N11 "listPrice, salePrice'dan yüksek olmalıdır" der ve eşit değere
+                // açıkça izin verir. Ayrı bir liste fiyatı kavramımız olmadığından eşit gönderilir (mapper ile aynı kural).
+                stockItems.Add(new N11RestPriceStock(
+                    StockCode: sku.SellerStockCode,
+                    ListPrice: row.Price,
+                    SalePrice: row.Price,
+                    Quantity: row.Stock,
+                    CurrencyType: null));   // para birimi ürün kaydında sabit; burada değiştirilmez
             }
 
             if (stockItems.Count == 0)
@@ -571,21 +624,26 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
             }
             else
             {
-                var update = new N11ProductBasicUpdate(
-                    n11ProductId,
-                    entity.SellerCode,
-                    rows[0].Price,   // ilk (ana) adayın efektif base fiyatı (override zinciri) — full push ile hizalı
-                    product.Description ?? product.Name,
-                    stockItems,
-                    BuildSellerDiscount(product));
-                var result = await _client.UpdateProductBasicAsync(update, channel.AppKey, channel.AppSecret);
+                // REST fiyat/stok güncelleme — ürün push'uyla AYNI gönder-sorgula modeli (senkron DEĞİL).
+                var submissions = await _restClient.UpdatePriceStockAsync(stockItems, channel.AppKey, channel.AppSecret);
+                var syncResult = await ResolveRestPushAsync(entity, submissions, channel, syncWarnings);
 
-                // Başarılı yazım → LastSent* + yanıttaki version güncellenir (dirty-tracking bir sonraki tur için).
-                var versionByCode = result.Skus.ToDictionary(s => s.SellerStockCode, s => s.Version, StringComparer.OrdinalIgnoreCase);
+                if (syncResult is null)
+                {
+                    // Kuyrukta: LastSent* GÜNCELLENMEZ. Aksi hâlde bir sonraki turda "değişiklik yok" görünüp
+                    // gerçekte hiç yazılmamış fiyat/stok sessizce atlanırdı (dirty-tracking'in en sinsi tuzağı).
+                    await _repository.UpdateAsync(entity, autoSave: true);
+                    var queuedSyncDto = ObjectMapper.Map<SalesChannelTrN11Product, SalesChannelTrN11ProductDto>(entity);
+                    queuedSyncDto.SyncWarnings = syncWarnings;
+                    return queuedSyncDto;
+                }
+
+                // Başarılı yazım → LastSent* güncellenir (dirty-tracking bir sonraki tur için).
+                // Version artık YAZILMIYOR: REST price-stock sözleşmesinde version alanı yok (null geçilir,
+                // entity mevcut değeri korur).
                 foreach (var item in stockItems)
                 {
-                    versionByCode.TryGetValue(item.SellerStockCode, out var version);
-                    entity.RecordStockPriceSync(item.SellerStockCode, item.Quantity ?? 0, item.OptionPrice, version);
+                    entity.RecordStockPriceSync(item.StockCode, item.Quantity ?? 0, item.SalePrice, version: null);
                 }
 
                 entity.MarkSynced(n11ProductId, entity.SaleStatus, entity.ApprovalStatus, Clock.Now.ToUniversalTime());
@@ -709,6 +767,33 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
     /// <summary>N11'in döndürdüğü ürün gerçeğini yerel kayda uygular — <b>SpecialInfo HARİÇ</b> (2026-07-07 kararı:
     /// N11 kuralları kendi tarafında oynatır; yerel kayıt yayın kopyasıdır). Yanıtta OLMAYAN alana dokunulmaz
     /// (N11'in desteklemediği alan yerel değeri silmesin). Kategori değişimi KRİTİK → kullanıcı uyarısı.</summary>
+    /// <summary>
+    /// Push sonrası N11 GERÇEĞİNİ REST <c>product-query</c>'den okur ve uygular.
+    ///
+    /// <para><b>Neden REST:</b> push artık REST'ten gidiyor ve yazma ucu ürün kimliğini DÖNDÜRMÜYOR — bu okuma
+    /// olmadan <c>N11ProductId</c> hiç dolmazdı. Ayrıca N11 kuralları kendi tarafında oynatabilir (2026-07-07
+    /// kararı), en kritiği kategoriyi değiştirmesidir; kullanıcı bunu öğrenmeli.</para>
+    ///
+    /// <para><b>SOAP okumasına göre DAR:</b> <c>product-query</c> yanıtı kargo şablonu, ürün durumu (yeni/2.el),
+    /// hazırlık süresi, maksimum alım ve kategori NİTELİKLERİNİ içermez — dolayısıyla onlar artık N11'den geri
+    /// eşlenmiyor. Bu bilinçli bir daralma: olmayan alanı uydurmaktansa dokunmamak doğru. Kategori değişimi
+    /// uyarısı (asıl kritik olan) korunuyor.</para>
+    /// </summary>
+    private void ApplyN11RestTruth(SalesChannelTrN11Product entity, N11RestProductSummary summary, List<string> syncWarnings)
+    {
+        // DIŞ girdi entity guard'larına takılmamalı → uzunluk Set'ten ÖNCE kırpılır (SOAP yolundaki disiplinin aynısı).
+        if (summary.CategoryId is { Length: > 0 and <= N11ProductConsts.ExternalIdMaxLength } categoryId
+            && !string.Equals(categoryId, entity.CategoryExternalId, StringComparison.Ordinal))
+        {
+            var previousName = entity.CategoryName ?? entity.CategoryExternalId;
+
+            // Yanıt kategori ADI taşımıyor; kategori DEĞİŞTİĞİ için eski ad artık yanlış → null'lanır ve
+            // uyarıda yeni kimlik id olarak gösterilir.
+            entity.SetCategory(categoryId, null);
+            syncWarnings.Add(L["N11Product:CategoryChangedByN11", previousName, categoryId]);
+        }
+    }
+
     private void ApplyN11Truth(SalesChannelTrN11Product entity, N11ProductDetail detail, List<string> syncWarnings)
     {
         // DIŞ girdi (N11 yanıtı) entity guard'larına TAKILMAMALI: setter ortasında fırlayan istisna entity'yi
@@ -872,6 +957,9 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
             ShipmentTemplate: shipmentTemplateName,
             // K4: listeleme kuralı — kanal override doluysa kanal, değilse ürün varsayılanı (merkezî K10 zinciri).
             MaxPurchaseQuantity: ChannelInheritance.Resolve(channelProduct.MaxPurchaseQuantity, product.MaxPurchaseQuantity),
+            // KDV aynı zincirle: kanalda değer varsa o, yoksa ürünün oranı. REST push zorunlu kılıyor;
+            // boş kalırsa istemci fail-fast reddeder (uydurma oran = yanlış fatura).
+            VatRate: ChannelInheritance.Resolve(channelProduct.VatRate, product.VatRate),
             Images: images,
             Attributes: validated.ProductAttributes,       // varyant eksenleri FİLTRELİ + kanonik değerler
             StockItems: stockItems,
@@ -889,12 +977,200 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
             GroupAttribute: channelProduct.GroupAttribute,
             ItemName: channelProduct.ItemName);
 
-        return new N11ProductPushPlan(data, canonicalCandidates);
+        return new N11ProductPushPlan(data, canonicalCandidates, leaf);
+    }
+
+    /// <summary>
+    /// Kuyrukta bekleyen REST push'unun akıbetini çözer.
+    ///
+    /// <para><b>Neden ayrı bir eylem gerekiyor:</b> REST'te yazma senkron değil — push "kuyruğa alındı" diye
+    /// dönebilir ve kaydın gerçek durumu ancak task sorgulanınca belli olur. Bu metot olmadan kuyruğa düşen
+    /// bir push sonsuza dek belirsiz kalırdı: ne başarılı ne başarısız.</para>
+    ///
+    /// <para><b>SKU kodlarının donması:</b> task başarılıysa kodlar ancak <b>ürün o günden beri
+    /// DEĞİŞMEDİYSE</b> kalıcılaşır. Gönderimden sonra varyant eklendi/çıkarıldıysa yeniden kurulan plan
+    /// başka kodlar üretir ve onları donduran, N11'de olmayan bir kimliği kaydetmek olurdu — o durumda
+    /// kullanıcı uyarılır ve kodlar bir sonraki tam push'ta oturur.</para>
+    /// </summary>
+    [Authorize(TradeXpressPermissions.SalesChannels.Update)]
+    public virtual async Task<SalesChannelTrN11ProductDto> ResolvePendingPushAsync(Guid id)
+    {
+        var entity = await GetOwnedAsync(id);
+        var syncWarnings = new List<string>();
+
+        if (entity.PendingPushTaskId is not { } taskId)
+        {
+            throw new BusinessException("TradeXpress:N11:Rest:NoPendingTask");
+        }
+
+        var channel = await GetOwnedChannelAsync(entity.SalesChannelId);
+
+        try
+        {
+            var taskResult = await _taskPoller.QueryAsync(taskId, channel.AppKey, channel.AppSecret);
+
+            if (taskResult.State == N11TaskState.InQueue)
+            {
+                // Hâlâ işleniyor — durumu DEĞİŞTİRME. Bunu hata saymak kullanıcıyı boş yere telaşlandırırdı.
+                syncWarnings.Add(L["N11Product:PushStillQueued"]);
+                var pendingDto = ObjectMapper.Map<SalesChannelTrN11Product, SalesChannelTrN11ProductDto>(entity);
+                pendingDto.SyncWarnings = syncWarnings;
+                return pendingDto;
+            }
+
+            entity.ClearPendingPushTask();
+
+            if (taskResult.State != N11TaskState.Processed)
+            {
+                throw BuildRestPushFailure(new[] { taskResult.RejectReason ?? taskResult.State.ToString() });
+            }
+
+            var failures = taskResult.Items
+                .Where(item => !item.Success)
+                .Select(item => $"{item.ItemCode}: {item.Reason}")
+                .ToList();
+
+            if (failures.Count > 0)
+            {
+                throw BuildRestPushFailure(failures);
+            }
+
+            // Task BAŞARILI. SKU kodlarını ancak plan hâlâ AYNI kodları üretiyorsa donduruyoruz.
+            var plan = await BuildProductDataAsync(entity, channel);
+            var plannedCodes = plan.Data.StockItems.Select(s => s.SellerStockCode).OrderBy(c => c, StringComparer.Ordinal);
+            var acknowledgedCodes = taskResult.Items.Select(i => i.ItemCode).OrderBy(c => c, StringComparer.Ordinal);
+
+            if (taskResult.Items.Count > 0 && !plannedCodes.SequenceEqual(acknowledgedCodes, StringComparer.OrdinalIgnoreCase))
+            {
+                // Ürün gönderimden bu yana değişmiş: N11'de olmayan kodları dondurmak yerine uyarıyoruz.
+                syncWarnings.Add(L["N11Product:ProductChangedSinceQueue"]);
+            }
+            else
+            {
+                entity.ReconcileSkus(plan.Candidates);
+                foreach (var item in plan.Data.StockItems)
+                {
+                    entity.RecordSkuPush(
+                        item.SellerStockCode,
+                        item.Quantity,
+                        item.OptionPrice,
+                        item.Attributes.Select(a => new SalesChannelTrN11ProductCategoryAttribute(a.Name, a.Value)));
+                }
+            }
+
+            entity.MarkSynced(entity.N11ProductId, entity.SaleStatus, entity.ApprovalStatus, Clock.Now.ToUniversalTime());
+            await _repository.UpdateAsync(entity, autoSave: true);
+        }
+        catch (Exception ex)
+        {
+            entity.MarkSyncFailed(FriendlyError(ex), Clock.Now.ToUniversalTime());
+            await _repository.UpdateAsync(entity, autoSave: true);
+            throw;
+        }
+
+        var dto = ObjectMapper.Map<SalesChannelTrN11Product, SalesChannelTrN11ProductDto>(entity);
+        dto.SyncWarnings = syncWarnings;
+        return dto;
+    }
+
+    /// <summary>
+    /// REST push'unun akıbetini çözer: gönderim makbuzlarını okur, task'ı sorgular ve SKU bazlı sonucu
+    /// değerlendirir. SOAP'ın senkron <c>N11SaveProductResult</c>'ına denk bir sonuç üretir.
+    ///
+    /// <para><b>Dönüş <c>null</c> ise task HÂLÂ KUYRUKTA</b> — başarı da değil hata da değil. Kimlik entity'ye
+    /// yazılır (<see cref="SalesChannelTrN11Product.MarkPushQueued"/>) ve çağıran erken döner. Bunu "başarı"
+    /// saymak kaydı yalancı Synced gösterirdi; "hata" saymak da yanlış olurdu — task işlenmeye devam ediyor.</para>
+    ///
+    /// <para>SKU bazlı kısmi başarı NORMALDİR: task PROCESSED olsa bile satırlar tek tek okunur. Bir satır bile
+    /// başarısızsa push başarısız sayılır — yarım listelenmiş bir ürünü "senkron" göstermek, kullanıcının
+    /// eksikliği fark etmesini imkânsız kılardı.</para>
+    /// </summary>
+    private async Task<N11SaveProductResult?> ResolveRestPushAsync(
+        SalesChannelTrN11Product entity,
+        IReadOnlyList<N11TaskSubmission> submissions,
+        SalesChannelTrN11 channel,
+        List<string> syncWarnings)
+    {
+        if (submissions.Count == 0)
+        {
+            throw new BusinessException("TradeXpress:N11:Rest:NoSubmission");
+        }
+
+        var failures = new List<string>();
+        var queued = false;
+
+        foreach (var submission in submissions)
+        {
+            // Gönderim makbuzunun kendisi REJECT diyebilir (veri seti hiç işlenmedi) — task sorgusuna gerek yok.
+            if (N11TaskStates.Parse(submission.RawStatus) == N11TaskState.Rejected)
+            {
+                failures.Add(submission.RawStatus);
+                continue;
+            }
+
+            var taskResult = await _taskPoller.QueryAsync(submission.TaskId, channel.AppKey, channel.AppSecret);
+
+            if (taskResult.State == N11TaskState.InQueue)
+            {
+                // Beklemek YOK: kullanıcıyı belirsiz süre bloklamak yerine kimliği saklayıp erken dönüyoruz.
+                entity.MarkPushQueued(submission.TaskId, Clock.Now.ToUniversalTime());
+                syncWarnings.Add(L["N11Product:PushQueued"]);
+                queued = true;
+                continue;
+            }
+
+            if (taskResult.State != N11TaskState.Processed)
+            {
+                failures.Add(taskResult.RejectReason ?? taskResult.State.ToString());
+                continue;
+            }
+
+            failures.AddRange(taskResult.Items
+                .Where(item => !item.Success)
+                .Select(item => $"{item.ItemCode}: {item.Reason}"));
+        }
+
+        if (queued)
+        {
+            return null;
+        }
+
+        entity.ClearPendingPushTask();
+
+        if (failures.Count > 0)
+        {
+            throw BuildRestPushFailure(failures);
+        }
+
+        // REST yazma ucu ürün kimliği/durumu DÖNDÜRMEZ (yalnız task sonucu). Bunlar push sonrası okumadan
+        // gelir; burada boş bırakılır ki uydurma değer yazılmasın.
+        return new N11SaveProductResult(null, entity.SellerCode, null, null, Array.Empty<N11SkuIdentity>());
+    }
+
+    /// <summary>
+    /// SKU bazlı red gerekçelerini tek bir dostane hataya çevirir.
+    ///
+    /// <para><b>FAHİŞ FİYAT BANDI ayrı ele alınır:</b> N11 ürün başına bir alt/üst fiyat bandı uygular ve
+    /// aşan isteği reddeder (resmî hata sözlüğü, makale 10433). Kuyumda bu doğrudan zarar demektir — altın
+    /// sıçradığında otomatik fiyat güncellemesi bandı aşıp reddedilir ve ürün ESKİ (düşük) fiyatta satışta
+    /// KALIR. Genel "push başarısız" mesajına gömülürse operasyon farkı göremez, o yüzden kendi kodu var.</para>
+    /// </summary>
+    private static BusinessException BuildRestPushFailure(IReadOnlyList<string> failures)
+    {
+        var joined = string.Join(" | ", failures);
+
+        if (failures.Any(f => f.Contains("fahiş fiyat", StringComparison.OrdinalIgnoreCase)))
+        {
+            return new BusinessException("TradeXpress:N11:Rest:PriceOutOfBand").WithData("Reasons", joined);
+        }
+
+        return new BusinessException("TradeXpress:N11:Rest:PushRejected").WithData("Reasons", joined);
     }
 
     /// <summary>Push planı — N11'e gidecek veri + BAŞARILI push sonrası SKU satırlarını kurmak için kanonik adaylar
-    /// (kod donması yalnız başarılı push'ta gerçekleşsin diye ReconcileSkus çağrısı push sonrasına ertelenir).</summary>
-    private sealed record N11ProductPushPlan(N11ProductData Data, List<N11SkuPushCandidate> Candidates);
+    /// (kod donması yalnız başarılı push'ta gerçekleşsin diye ReconcileSkus çağrısı push sonrasına ertelenir)
+    /// + kategori yaprağı (REST çevirisinde sayısal nitelik kimliklerinin kaynağı).</summary>
+    private sealed record N11ProductPushPlan(N11ProductData Data, List<N11SkuPushCandidate> Candidates, N11LeafAttributes Leaf);
 
     /// <summary>N11'e gidecek kargo şablonu adı — kanal-ürünün kendi seçimi.
     /// <para>2026-07-26: eski FK onarım kolu KALKTI. Kargo artık YALNIZ kanal seviyesinde yaşıyor (çekirdek
@@ -2247,6 +2523,7 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
         entity.SetDomestic(input.Domestic);
         entity.SetPreparingDay(input.PreparingDay);
         entity.SetMaxPurchaseQuantity(input.MaxPurchaseQuantity);
+        entity.SetVatRate(input.VatRate);
         entity.SetCurrencyUnit(input.CurrencyUnitId);
         entity.SetProductionDate(input.ProductionDate);
         entity.SetExpirationDate(input.ExpirationDate);

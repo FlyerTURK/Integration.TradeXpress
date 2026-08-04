@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using DevExpress.Blazor;
 using Integration.Framework.Blazor.Client.Components.Crud;
+using Integration.TradeXpress.Blazor.Client.Components.Shared;
 using Integration.Framework.Blazor.Client.Services.Base;
 using Integration.TradeXpress.Financials.CurrencyUnits;
 using Integration.TradeXpress.Futures;
@@ -77,6 +78,10 @@ public partial class SalesChannelTrTrendyolProductEditFields : CrudComponentBase
     [Inject] private IServiceAppService ServiceAppService { get; set; } = default!;
     [Inject] private IEffectivePriceAppService EffectivePriceAppService { get; set; } = default!;
     [Inject] private IProductAppService RecipeCostAppService { get; set; } = default!;
+
+    // KDV combo verisi — küme MEVZUAT SSOT'undan (ProductConsts.AllowedVatRates). Trendyol API 0–100 kabul etse de
+    // biz yürürlükteki oranlarla sınırlıyoruz: serbest kutu uydurma oranın faturaya geçmesine izin veriyordu.
+    private static readonly List<VatRateOption> VatRateOptions = VatRateOption.From(ProductConsts.AllowedVatRates);
 
     [CascadingParameter] private EditContext? EditContext { get; set; }
 

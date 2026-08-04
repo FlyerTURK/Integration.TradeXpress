@@ -190,6 +190,9 @@ public class SalesChannelTrN11ProductDto
     public int PreparingDay { get; set; }
     public int? MaxPurchaseQuantity { get; set; }
 
+    /// <summary>KDV oranı (N11 REST vatRate; 0/1/10/20). Boşsa REST push reddeder — varsayılan atanmaz.</summary>
+    public int? VatRate { get; set; }
+
     /// <summary>N11 para birimi (opsiyonel; push'ta currencyType bundan çözülür).</summary>
     public Guid? CurrencyUnitId { get; set; }
 
@@ -234,6 +237,13 @@ public class SalesChannelTrN11ProductDto
     public string? ApprovalStatus { get; set; }
     public DateTime? LastSyncedAt { get; set; }
     public string? LastError { get; set; }
+
+    /// <summary>Kuyrukta bekleyen REST push task kimliği (read-only). Doluysa push'un akıbeti HENÜZ BELLİ
+    /// DEĞİLDİR — UI "durumu sorgula" eylemini bu alana göre gösterir.</summary>
+    public string? PendingPushTaskId { get; set; }
+
+    /// <summary>Bekleyen task'ın gönderildiği an (read-only).</summary>
+    public DateTime? PendingPushTaskAt { get; set; }
     public bool IsActive { get; set; }
 
     /// <summary>Push sonrası eşitleme uyarıları (LOKALİZE; ör. N11 kategoriyi değiştirdi) — SALT anlık görüntü,
@@ -251,6 +261,7 @@ public interface ISalesChannelTrN11ProductInput
     bool Domestic { get; }
     int PreparingDay { get; }
     int? MaxPurchaseQuantity { get; }
+    int? VatRate { get; }
     Guid? CurrencyUnitId { get; }
     DateTime? ProductionDate { get; }
     DateTime? ExpirationDate { get; }
@@ -282,6 +293,7 @@ public class SalesChannelTrN11ProductCreateDto : ISalesChannelTrN11ProductInput
     public bool Domestic { get; set; } = true;
     public int PreparingDay { get; set; } = 1;
     public int? MaxPurchaseQuantity { get; set; }
+    public int? VatRate { get; set; }
     public Guid? CurrencyUnitId { get; set; }
     public DateTime? ProductionDate { get; set; }
     public DateTime? ExpirationDate { get; set; }
@@ -307,6 +319,7 @@ public class SalesChannelTrN11ProductUpdateDto : ISalesChannelTrN11ProductInput
     public bool Domestic { get; set; } = true;
     public int PreparingDay { get; set; } = 1;
     public int? MaxPurchaseQuantity { get; set; }
+    public int? VatRate { get; set; }
     public Guid? CurrencyUnitId { get; set; }
     public DateTime? ProductionDate { get; set; }
     public DateTime? ExpirationDate { get; set; }
@@ -345,8 +358,17 @@ public interface ISalesChannelTrN11ProductAppService : IApplicationService
     /// <summary>Yalnız yerel siler (N11'de pasifleştirme ayrı; ürün N11'de kalır).</summary>
     Task DeleteAsync(Guid id);
 
-    /// <summary>Listelemeyi N11'e gönderir (SaveProduct): ürün + varyant + fiyat/stok/görsel. Durumu günceller + döner.</summary>
+    /// <summary>Listelemeyi N11'e gönderir (REST <c>product-create</c>): ürün + varyant + fiyat/stok/görsel.
+    /// Durumu günceller + döner.
+    ///
+    /// <para><b>REST senkron DEĞİLDİR:</b> N11 isteği kuyruğa alıp yalnız bir task kimliği döndürebilir. O
+    /// durumda bu çağrı BAŞARI DÖNMEZ — kayıt "kuyrukta" işaretlenir ve akıbeti
+    /// <see cref="ResolvePendingPushAsync"/> ile kapatılır.</para></summary>
     Task<SalesChannelTrN11ProductDto> PushToN11Async(Guid id);
+
+    /// <summary>Kuyrukta bekleyen push'un akıbetini sorgular ve kapatır (task-details). Task hâlâ işleniyorsa
+    /// durum DEĞİŞMEZ, yalnız bilgilendirir; işlendiyse başarı/red sonuçlanır.</summary>
+    Task<SalesChannelTrN11ProductDto> ResolvePendingPushAsync(Guid id);
 
     /// <summary>Yalnız stok+fiyatı N11'e gönderir (UpdateProductBasic — Faz 2, hafif): tam SaveProduct'a gerek
     /// olmadan değişen varyantların adet/fiyatını günceller. Önce N11'den okur (eksik SKU id doldurma + version

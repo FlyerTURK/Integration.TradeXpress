@@ -62,6 +62,10 @@ public sealed record N11ProductData(
     int PreparingDay,
     string ShipmentTemplate,
     int? MaxPurchaseQuantity,
+    // KDV oranı — kanal→ürün devralma zincirinden çözülmüş EFEKTİF değer. SOAP zarfına YAZILMAZ (SOAP'ta böyle
+    // bir alan yok, resmî v9.0'da hiç geçmiyor); REST product-create için ZORUNLU. Boş kalabilir çünkü SOAP
+    // push'u bunsuz da çalışır — REST istemcisi kendi guard'ıyla reddeder.
+    int? VatRate,
     IReadOnlyList<N11ProductImage> Images,
     IReadOnlyList<N11ProductAttributePair> Attributes,     // kategori attribute (name/value)
     IReadOnlyList<N11ProductStockItem> StockItems,

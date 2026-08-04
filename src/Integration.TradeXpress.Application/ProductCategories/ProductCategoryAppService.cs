@@ -76,15 +76,74 @@ public class ProductCategoryAppService : TradeXpressAppService, IProductCategory
             query = query.Where(x => x.ParentId == parentId);
         }
 
+        // YOL filtresi grid'den gelebilir ama SQL'e ÇEVRİLEMEZ: Path bir entity kolonu değil, sorgudan SONRA
+        // ağaç yürünerek hesaplanıyor. Whitelist'e eklemek de mümkün değil (EF var olmayan kolonu çeviremez).
+        // Bu yüzden yol filtreleri istekten AYRILIR ve hesaplamadan SONRA bellekte uygulanır.
+        var pathFilters = (input.Filters ?? new List<FilterField>())
+            .Where(f => string.Equals(f.Field, nameof(ProductCategoryListDto.Path), StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        if (pathFilters.Count > 0)
+        {
+            input.Filters = input.Filters!.Except(pathFilters).ToList();
+        }
+
         query = query.ApplyListRequest(input, AllowedListFields);
 
-        var totalCount = await AsyncExecuter.CountAsync(query);
-        var items = await AsyncExecuter.ToListAsync(query.ApplyPaging(input));
+        // Yol filtresi varsa DB'de SAYFALAMA YAPILAMAZ: filtre henüz uygulanmadığından hangi satırın elemede
+        // kalacağı bilinmiyor; sayfalasaydık "1. sayfada 3 sonuç, 2. sayfada 0" gibi tutarsız bir liste çıkardı.
+        // Kategori ağacı küçük bir taksonomidir (onlarca–yüzlerce satır) → tamamını çekip bellekte elemek makul;
+        // ürün/sipariş gibi büyük tablolarda bu YAPILMAZ.
+        if (pathFilters.Count == 0)
+        {
+            var totalCount = await AsyncExecuter.CountAsync(query);
+            var items = await AsyncExecuter.ToListAsync(query.ApplyPaging(input));
 
-        var rows = items.Select(e => ObjectMapper.Map<ProductCategory, ProductCategoryListDto>(e)).ToList();
-        await FillPathsAsync(companyId, rows);
+            var rows = items.Select(e => ObjectMapper.Map<ProductCategory, ProductCategoryListDto>(e)).ToList();
+            await FillPathsAsync(companyId, rows);
 
-        return new PagedResultDto<ProductCategoryListDto>(totalCount, rows);
+            return new PagedResultDto<ProductCategoryListDto>(totalCount, rows);
+        }
+
+        var allItems = await AsyncExecuter.ToListAsync(query);
+        var allRows = allItems.Select(e => ObjectMapper.Map<ProductCategory, ProductCategoryListDto>(e)).ToList();
+        await FillPathsAsync(companyId, allRows);
+
+        var filtered = allRows.Where(r => pathFilters.All(f => MatchesPath(r.Path, f))).ToList();
+
+        // Sayfalama filtreden SONRA — toplam sayı da elenmiş küme üzerinden verilir ki pager doğru olsun.
+        // Elle Skip/Take YAZILMAZ: ApplyPaging'in IEnumerable aşırı yüklemesi "Tümü" (AllPages) semantiğini
+        // doğru ele alıyor; elle yazılan Take(-1) LINQ'te sessizce BOŞ liste döndürürdü (PagingConventionTests).
+        var page = filtered.ApplyPaging(input).ToList();
+
+        return new PagedResultDto<ProductCategoryListDto>(filtered.Count, page);
+    }
+
+    /// <summary>
+    /// Hesaplanmış YOL üzerinde tek bir kolon filtresini uygular.
+    ///
+    /// <para>Karşılaştırma <see cref="SearchNormalizer"/> ile katlanır — kullanıcı "taki" yazınca "Takı" da
+    /// bulunur (Türkçe I/ı ve aksan sorunları grid aramasının en sık şikâyeti). Sunucudaki metin aramasıyla
+    /// AYNI kural; ikisi ayrışsa aynı terim bir kolonda bulur diğerinde bulmazdı.</para></summary>
+    private static bool MatchesPath(string? path, FilterField filter)
+    {
+        var haystack = SearchNormalizer.Fold(path ?? string.Empty);
+        var needle = SearchNormalizer.Fold(filter.Value ?? string.Empty);
+
+        if (needle.Length == 0)
+        {
+            return true;   // boş filtre eleme yapmaz
+        }
+
+        return filter.Operator switch
+        {
+            ListFilterOperator.Equals => string.Equals(haystack, needle, StringComparison.Ordinal),
+            ListFilterOperator.NotEquals => !string.Equals(haystack, needle, StringComparison.Ordinal),
+            ListFilterOperator.StartsWith => haystack.StartsWith(needle, StringComparison.Ordinal),
+            ListFilterOperator.EndsWith => haystack.EndsWith(needle, StringComparison.Ordinal),
+            // Contains + sayısal operatörler: yol METİNDİR, büyük/küçük karşılaştırması anlamsız → Contains'e düşer.
+            _ => haystack.Contains(needle, StringComparison.Ordinal),
+        };
     }
 
     /// <summary>

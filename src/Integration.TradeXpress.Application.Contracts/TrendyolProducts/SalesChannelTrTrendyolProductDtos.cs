@@ -147,7 +147,7 @@ public class TrendyolPreviewProductDto
     public string? CategoryName { get; set; }
     public string BrandId { get; set; } = string.Empty;
     public string? BrandName { get; set; }
-    public int VatRate { get; set; }
+    public int? VatRate { get; set; }
     public decimal? DimensionalWeight { get; set; }
     public int? DeliveryDuration { get; set; }
     public TrendyolFastDeliveryType? FastDeliveryType { get; set; }
@@ -206,7 +206,7 @@ public class SalesChannelTrTrendyolProductDto
     /// <summary>Seçilen markanın Trendyol "luxury" bayrağı — YALNIZ K3 write-through cache beslemesi için taşınır
     /// (kanal-ürün entity'sinde SAKLANMAZ); null = bilinmiyor (picker'a dokunulmadı) → cache'te luxury EZİLMEZ.</summary>
     public bool? BrandIsLuxury { get; set; }
-    public int VatRate { get; set; } = 20;
+    public int? VatRate { get; set; }
     public int? CargoCompanyId { get; set; }
     public decimal? DimensionalWeight { get; set; }
     public string? Description { get; set; }
@@ -247,7 +247,7 @@ public interface ISalesChannelTrTrendyolProductInput
 
     /// <summary>Seçilen markanın "luxury" bayrağı — K3 cache besleme hint'i (entity'ye yazılmaz; null = bilinmiyor).</summary>
     bool? BrandIsLuxury { get; }
-    int VatRate { get; }
+    int? VatRate { get; }
     int? CargoCompanyId { get; }
     decimal? DimensionalWeight { get; }
     string? Description { get; }
@@ -273,7 +273,7 @@ public class SalesChannelTrTrendyolProductCreateDto : ISalesChannelTrTrendyolPro
     public string BrandId { get; set; } = string.Empty;
     public string? BrandName { get; set; }
     public bool? BrandIsLuxury { get; set; }
-    public int VatRate { get; set; } = 20;
+    public int? VatRate { get; set; }
     public int? CargoCompanyId { get; set; }
     public decimal? DimensionalWeight { get; set; }
     public string? Description { get; set; }
@@ -293,7 +293,7 @@ public class SalesChannelTrTrendyolProductUpdateDto : ISalesChannelTrTrendyolPro
     public string BrandId { get; set; } = string.Empty;
     public string? BrandName { get; set; }
     public bool? BrandIsLuxury { get; set; }
-    public int VatRate { get; set; } = 20;
+    public int? VatRate { get; set; }
     public int? CargoCompanyId { get; set; }
     public decimal? DimensionalWeight { get; set; }
     public string? Description { get; set; }

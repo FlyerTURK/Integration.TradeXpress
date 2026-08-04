@@ -16,7 +16,7 @@
                   ApplyNewDefaults="@(m => { m.IsActive = true; m.DisplayOrder = 1; m.ParentId = ParentId; })">
         <ProductCategoryLayout Model="@context" Categories="@_categories"
                                OnRefreshInheritedAttributes="@(async (Guid? pid) => await RefreshInheritedAttributesAsync(context, pid))"
-                               CanEditChannelMappings="@(Id is not null)"
+                               CanEditChannelMappings="@(PersistedId is not null)"
                                ChannelMappings="@_channelMappings"
                                ChannelAttributeOptions="@_channelAttributeOptions"
                                OnChannelCategoryChanged="@LoadChannelAttributeOptionsAsync"
