@@ -32,29 +32,34 @@ public static class N11MockEndpoints
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(options);
 
-        var group = endpoints.MapGroup(string.Empty).WithTags("n11-mock");
+        // ⚠ HANDLER'LAR AÇIKÇA TİPLİ (Func<..., Task<IResult>>) — bu bir üslup tercihi DEĞİL, zorunluluk.
+        //
+        // `MapPost("/x", (HttpContext ctx) => HandlerAsync(ctx))` yazılırsa lambda, MapPost'un RequestDelegate
+        // aşırı yüklemesine bağlanır (Task<IResult> → Task dönüşümü geçerlidir). ASP.NET o durumda "yanıtı
+        // handler kendisi yazdı" varsayar ve dönen IResult'ı SESSİZCE ATAR: derleme hatası yok, uç eşleşir,
+        // log "Executed endpoint" der, istemciye HTTP 200 + BOŞ GÖVDE gider. Canlıda yaşandı (2026-08-05);
+        // teşhisi ancak istek log'unda "200 0 null" görülünce mümkün oldu.
+        Func<HttpContext, Task<IResult>> create = ctx => SubmitAsync(ctx, store, options, "PRODUCT_CREATE");
+        Func<HttpContext, Task<IResult>> update = ctx => SubmitAsync(ctx, store, options, "PRODUCT_UPDATE");
+        Func<HttpContext, Task<IResult>> priceStock = ctx => SubmitAsync(ctx, store, options, "PRICE_STOCK_UPDATE");
+        Func<HttpContext, Task<IResult>> taskDetails = ctx => TaskDetailsAsync(ctx, store, options);
+        Func<HttpContext, Task<IResult>> productQuery = ctx => ProductQueryAsync(ctx, store, options);
+        Func<HttpContext, string, Task<IResult>> categoryAttributes =
+            (ctx, categoryId) => CategoryAttributesAsync(ctx, categoryId, options);
 
         // ── Yazma uçları: kuyruğa al, taskId döndür ────────────────────────────────────────────────
-        group.MapPost("/ms/product/tasks/product-create", (HttpContext ctx) =>
-            SubmitAsync(ctx, store, options, "PRODUCT_CREATE"));
-
-        group.MapPost("/ms/product/tasks/product-update", (HttpContext ctx) =>
-            SubmitAsync(ctx, store, options, "PRODUCT_UPDATE"));
-
-        group.MapPost("/ms/product/tasks/price-stock-update", (HttpContext ctx) =>
-            SubmitAsync(ctx, store, options, "PRICE_STOCK_UPDATE"));
+        endpoints.MapPost("/ms/product/tasks/product-create", create);
+        endpoints.MapPost("/ms/product/tasks/product-update", update);
+        endpoints.MapPost("/ms/product/tasks/price-stock-update", priceStock);
 
         // ── Task durumu ────────────────────────────────────────────────────────────────────────────
-        group.MapPost("/ms/product/task-details/page-query", (HttpContext ctx) =>
-            TaskDetailsAsync(ctx, store, options));
+        endpoints.MapPost("/ms/product/task-details/page-query", taskDetails);
 
         // ── Mağaza katalogu ────────────────────────────────────────────────────────────────────────
-        group.MapGet("/ms/product-query", (HttpContext ctx) =>
-            ProductQueryAsync(ctx, store, options));
+        endpoints.MapGet("/ms/product-query", productQuery);
 
         // ── Yaprak kategori nitelikleri (durumsuz sabit set) ───────────────────────────────────────
-        group.MapGet("/cdn/category/{categoryId}/attribute", (HttpContext ctx, string categoryId) =>
-            CategoryAttributesAsync(ctx, categoryId, options));
+        endpoints.MapGet("/cdn/category/{categoryId}/attribute", categoryAttributes);
 
         return endpoints;
     }
