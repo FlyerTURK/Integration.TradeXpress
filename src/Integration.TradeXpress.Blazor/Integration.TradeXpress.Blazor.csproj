@@ -29,6 +29,11 @@
     <ProjectReference Include="..\Integration.TradeXpress.Application\Integration.TradeXpress.Application.csproj" />
     <ProjectReference Include="..\Integration.TradeXpress.HttpApi\Integration.TradeXpress.HttpApi.csproj" />
     <ProjectReference Include="..\Integration.TradeXpress.EntityFrameworkCore\Integration.TradeXpress.EntityFrameworkCore.csproj" />
+
+    <!-- N11 sahte sunucusu — YALNIZ Debug. Release derlemesinde bu kodun tek satırı bile çıkmaz;
+         sahte veri ve senaryo mantığı üretim ikilisine hiç girmez. Kod tarafındaki #if DEBUG ile eşleşir. -->
+    <ProjectReference Include="..\Integration.TradeXpress.Mocks\Integration.TradeXpress.Mocks.csproj"
+                      Condition="'$(Configuration)' == 'Debug'" />
   </ItemGroup>
 
 </Project>

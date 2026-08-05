@@ -107,6 +107,11 @@ public class TradeXpressBlazorModule : AbpModule
         ConfigureLoginPage(context);
         ConfigureClientServices(context);
         RegisterClientMapperlyMappers(context);
+
+        // N11 sahte sunucusu ayarları. Bölüm yoksa Enabled=false → hiçbir şey değişmez.
+        // (Uç adresleri N11:Endpoints bölümünden Application modülünde bağlanıyor.)
+        context.Services.Configure<Integration.TradeXpress.Mocks.N11.N11MockOptions>(
+            configuration.GetSection(Integration.TradeXpress.Mocks.N11.N11MockOptions.SectionName));
     }
 
     /// <summary>Razor Components (Server+WASM hibrit) + DevExpress + framework CRUD taban ayarları.</summary>
@@ -363,6 +368,7 @@ public class TradeXpressBlazorModule : AbpModule
             MapSignInCookieEndpoint(builder);
             MapFindTenantEndpoint(builder);
             MapEtsyOAuthCallbackEndpoint(builder);
+            MapN11MockEndpointsIfEnabled(builder, context);
             MapBlazorComponents(builder);
         });
 
@@ -370,8 +376,18 @@ public class TradeXpressBlazorModule : AbpModule
 
         // N11 host-global referans (il/ilçe + kargo firması) nightly re-sync. YALNIZ Blazor host'ta kayıtlı →
         // çift-çalışma önleme. İlk tur 24s sonra; host kimliği (N11:CategorySync) yoksa sessizce atlar.
-        Volo.Abp.Threading.AsyncHelper.RunSync(() =>
-            context.AddBackgroundWorkerAsync<Integration.TradeXpress.N11.N11ReferenceSyncWorker>());
+        //
+        // ⚠ SAHTE SUNUCU KİPİNDE KAYDEDİLMEZ. Bu senkron TAM re-sync'tir: N11'den gelmeyen il/ilçe ve kargo
+        // firması BAYAT sayılıp SİLİNİR (N11CityAppService:123 · N11ShipmentCompanyAppService:85). Sahte sunucu
+        // bu uçları servis etmediği için bugün fetch 404 alıp senkronu silmeye VARMADAN düşürüyor — ama güvenlik
+        // "mock'ta tesadüfen o rota yok" olamaz: mock'a bir catch-all ya da boş yanıt eklendiği gün 81 il, tüm
+        // ilçeler ve 68 kargo firması silinir. Hesap kapalı olduğu için o veri GERİ GETİRİLEMEZ.
+        // (Kategori ağacı bu riskin DIŞINDA: N11Categories tarafında hiçbir silme yok, upsert-only.)
+        if (!IsN11MockActive(context))
+        {
+            Volo.Abp.Threading.AsyncHelper.RunSync(() =>
+                context.AddBackgroundWorkerAsync<Integration.TradeXpress.N11.N11ReferenceSyncWorker>());
+        }
 
         // Sipariş SEED worker — boş kanalları streaming (order başına commit) doldurur. YALNIZ Blazor host'ta.
         Volo.Abp.Threading.AsyncHelper.RunSync(() =>
@@ -573,6 +589,64 @@ public class TradeXpressBlazorModule : AbpModule
     // ExchangeRateCacheService process-başına singleton'dır). In-process Microsoft.Playwright ile
     // (bundled Chromium, headless) Harem socket.io WS'i dinlenir — harici HaremBridge (Node/Python/8765)
     // GEREKMEZ. HaremEnabled=false ise hiç başlatılmaz.
+    /// <summary>
+    /// N11 sahte sunucusu ETKİN mi — ÜÇ kapı birden: geliştirme ortamı + <c>N11:Mock:Enabled</c> +
+    /// taban adresin gerçek N11'den BAŞKA bir yeri göstermesi.
+    ///
+    /// <para>Üçüncü kapı belirleyici: bayrak açık olsa bile taban adres hâlâ <c>api.n11.com</c> ise hiçbir
+    /// istek mock'a gitmez, dolayısıyla "mock kipi" de değiliz. Worker kararı bu yüzden bayrağa değil
+    /// <b>trafiğin nereye gittiğine</b> bakar.</para>
+    /// </summary>
+    private static bool IsN11MockActive(ApplicationInitializationContext context)
+    {
+        var env = context.ServiceProvider.GetRequiredService<IWebHostEnvironment>();
+        if (!env.IsDevelopment())
+        {
+            return false;
+        }
+
+        var mock = context.ServiceProvider
+            .GetRequiredService<Microsoft.Extensions.Options.IOptions<Integration.TradeXpress.Mocks.N11.N11MockOptions>>().Value;
+        if (!mock.Enabled)
+        {
+            return false;
+        }
+
+        var endpoints = context.ServiceProvider
+            .GetRequiredService<Microsoft.Extensions.Options.IOptions<Integration.TradeXpress.N11Products.N11EndpointOptions>>().Value;
+        return endpoints.IsRedirected;
+    }
+
+    /// <summary>Sahte N11 uçlarını haritalar — yalnız üç kapı da açıkken. Kapalıysa hiçbir rota kaydedilmez
+    /// (üretimde bu kod zaten derlenmiyor: proje referansı Debug-only).</summary>
+    private static void MapN11MockEndpointsIfEnabled(IEndpointRouteBuilder builder, ApplicationInitializationContext context)
+    {
+        if (!IsN11MockActive(context))
+        {
+            return;
+        }
+
+        var options = context.ServiceProvider
+            .GetRequiredService<Microsoft.Extensions.Options.IOptions<Integration.TradeXpress.Mocks.N11.N11MockOptions>>().Value;
+        var env = context.ServiceProvider.GetRequiredService<IWebHostEnvironment>();
+        var storePath = string.IsNullOrWhiteSpace(options.StorePath)
+            ? System.IO.Path.Combine(env.ContentRootPath, "App_Data", "n11-mock-store.json")
+            : options.StorePath;
+
+        var store = new Integration.TradeXpress.Mocks.N11.N11MockStore(storePath, options.QueuedPollsBeforeProcessed);
+        Integration.TradeXpress.Mocks.N11.N11MockEndpoints.MapN11MockEndpoints(builder, store, options);
+
+        var logger = context.ServiceProvider
+            .GetRequiredService<Microsoft.Extensions.Logging.ILoggerFactory>()
+            .CreateLogger("N11Mock");
+        logger.LogWarning(
+            "N11 SAHTE SUNUCUSU ETKİN — tüm N11 istekleri {BaseUrl} adresine gidiyor, GERÇEK N11'e DEĞİL. Depo: {StorePath}",
+            context.ServiceProvider
+                .GetRequiredService<Microsoft.Extensions.Options.IOptions<Integration.TradeXpress.N11Products.N11EndpointOptions>>()
+                .Value.BaseUrl,
+            storePath);
+    }
+
     private static void StartHaremFeedWorkerIfEnabled(ApplicationInitializationContext context)
     {
         var feedOptions = context.ServiceProvider

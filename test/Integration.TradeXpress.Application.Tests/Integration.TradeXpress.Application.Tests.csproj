@@ -10,6 +10,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Integration.TradeXpress.Application\Integration.TradeXpress.Application.csproj" />
+    <!-- N11 sahte sunucusu — deposunun davranış sözleşmesi burada sınanır (host'ta Debug-only referans). -->
+    <ProjectReference Include="..\..\src\Integration.TradeXpress.Mocks\Integration.TradeXpress.Mocks.csproj" />
     <ProjectReference Include="..\Integration.TradeXpress.Domain.Tests\Integration.TradeXpress.Domain.Tests.csproj" />
   </ItemGroup>
 

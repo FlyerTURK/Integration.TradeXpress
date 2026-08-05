@@ -11,6 +11,7 @@
         <Project Path="src/Integration.TradeXpress.DbMigrator/Integration.TradeXpress.DbMigrator.csproj" />
         <Project Path="src/Integration.TradeXpress.Blazor/Integration.TradeXpress.Blazor.csproj" />
         <Project Path="src/Integration.TradeXpress.Blazor.Client/Integration.TradeXpress.Blazor.Client.csproj" />
+        <Project Path="src/Integration.TradeXpress.Mocks/Integration.TradeXpress.Mocks.csproj" />
     </Folder>
     <Folder Name="/Framework/">
         <Project Path="src/Integration.Framework.Domain.Shared/Integration.Framework.Domain.Shared.csproj" />

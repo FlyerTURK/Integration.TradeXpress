@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <Import Project="..\..\common.props" />
+
+  <!--
+    N11 SAHTE SUNUCUSU — yalnız GELİŞTİRME.
+
+    Neden AYRI proje: host'un içinde bir klasör olsaydı sahte veri ve senaryo mantığı üretim ikilisine
+    her koşulda derlenirdi. Ayrı projede referans KOŞULLU verilebilir (host csproj'unda Debug-only) →
+    Release derlemesinde bu kodun tek satırı bile çıkmaz.
+
+    ABP MODÜLÜ DEĞİL: düz sınıf kütüphanesi. Modül olsaydı DependsOn zincirine girip üretim modül grafını
+    kirletirdi; oysa tek ihtiyacımız host'un endpoint haritasına birkaç uç eklemek.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Integration.TradeXpress.Mocks</RootNamespace>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers; buildtransitive" />
+    <AdditionalFiles Include="..\..\BannedSymbols.txt" Link="BannedSymbols.txt" />
+  </ItemGroup>
+
+  <!-- ASP.NET Core yüzeyi (endpoint haritalama + IResult) — host zaten web.
+       PrivateAssets="all" ŞART: aksi hâlde bu referans TÜKETİCİLERE de akıyor ve onların derleme yüzeyini
+       değiştiriyor. Somut kanıt: bu proje test projesinden referanslanınca Microsoft.AspNetCore.Identity
+       görünür oldu ve ScopedGrantSeederTests'te IdentityUser/IdentityRole, ABP muadilleriyle BELİRSİZ hâle
+       gelip derlemeyi kırdı. Dev-only bir araç, ilgisiz projelerin derlemesini yeniden şekillendirmemeli. -->
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" PrivateAssets="all" />
+  </ItemGroup>
+
+</Project>

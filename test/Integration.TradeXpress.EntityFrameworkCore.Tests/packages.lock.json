@@ -1411,6 +1411,7 @@
         "dependencies": {
           "Integration.TradeXpress.Application": "[1.0.0, )",
           "Integration.TradeXpress.Domain.Tests": "[1.0.0, )",
+          "Integration.TradeXpress.Mocks": "[1.0.0, )",
           "Microsoft.NET.Test.Sdk": "[17.14.1, )"
         }
       },
@@ -1476,6 +1477,9 @@
           "Volo.Abp.SettingManagement.EntityFrameworkCore": "[10.4.1, )",
           "Volo.Abp.TenantManagement.EntityFrameworkCore": "[10.4.1, )"
         }
+      },
+      "integration.tradexpress.mocks": {
+        "type": "Project"
       },
       "integration.tradexpress.testbase": {
         "type": "Project",

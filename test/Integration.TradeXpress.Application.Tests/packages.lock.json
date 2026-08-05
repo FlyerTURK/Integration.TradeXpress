@@ -1044,6 +1044,9 @@
           "Microsoft.NET.Test.Sdk": "[17.14.1, )"
         }
       },
+      "integration.tradexpress.mocks": {
+        "type": "Project"
+      },
       "integration.tradexpress.testbase": {
         "type": "Project",
         "dependencies": {
