@@ -220,7 +220,11 @@ public static class N11MockEndpoints
         {
             content = items.Select(p => new
             {
-                id = p.N11ProductId,
+                // ⚠ Alan adı 'n11ProductId' — 'id' DEĞİL. Gerçek ayrıştırıcı (N11ProductQueryClient:212)
+                // bu adı okuyor ve savunmacı olduğu için yanlış adda PATLAMAZ, sessizce 0 bırakır. Round-trip
+                // testi olmasaydı bu uyuşmazlık ancak push sonrası "N11ProductId neden dolmuyor" diye
+                // araştırılırken bulunurdu.
+                n11ProductId = p.N11ProductId,
                 productMainId = p.ProductMainId,
                 stockCode = p.StockCode,
                 title = p.Title,
@@ -298,8 +302,12 @@ public static class N11MockEndpoints
     /// gerçekten gönderdiğini kanıtlayan tek denetim budur (sınıf takasında bu adım hiç koşmazdı).</summary>
     private static IResult? Unauthorized(HttpContext ctx)
     {
-        var hasKey = ctx.Request.Headers.ContainsKey("appkey");
-        var hasSecret = ctx.Request.Headers.ContainsKey("appsecret");
+        // BOŞ değer de kimliksiz sayılır. Sadece ContainsKey bakmak yetmiyor: istemci boş bir kimliği de
+        // başlık olarak GÖNDERİYOR (TryAddWithoutValidation boş string'i ekliyor), dolayısıyla anahtar var ama
+        // değer yok. Gerçek N11 böyle bir isteği reddeder; mock kabul etseydi "kimlik gerçekten gidiyor mu"
+        // sorusunu hiç sınayamazdık.
+        var hasKey = !string.IsNullOrWhiteSpace(ctx.Request.Headers["appkey"]);
+        var hasSecret = !string.IsNullOrWhiteSpace(ctx.Request.Headers["appsecret"]);
         if (hasKey && hasSecret)
         {
             return null;

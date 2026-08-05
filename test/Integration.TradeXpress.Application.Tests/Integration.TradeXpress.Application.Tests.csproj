@@ -19,4 +19,13 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
   </ItemGroup>
 
+  <!-- N11 round-trip testi GERÇEK Kestrel açar: taban sınıf statik HttpClient kullandığından TestServer araya
+       giremez, istemcinin gerçekten ağa çıkması gerekir.
+       PrivateAssets="all" ŞART: bu projeyi EntityFrameworkCore.Tests referanslıyor; referans oraya akarsa
+       Microsoft.AspNetCore.Identity görünür olup ScopedGrantSeederTests'te IdentityUser/IdentityRole'ü ABP
+       muadilleriyle belirsiz hâle getirip derlemeyi kırıyor (2026-08-05'te bir kez yaşandı). -->
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" PrivateAssets="all" />
+  </ItemGroup>
+
 </Project>
