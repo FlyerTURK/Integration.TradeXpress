@@ -636,6 +636,7 @@ public class TradeXpressBlazorModule : AbpModule
         var store = new Integration.TradeXpress.Mocks.N11.N11MockStore(storePath, options.QueuedPollsBeforeProcessed);
         Integration.TradeXpress.Mocks.N11.N11MockEndpoints.MapN11MockEndpoints(builder, store, options);
         Integration.TradeXpress.Mocks.N11.N11MockOrderEndpoint.MapN11MockOrderEndpoint(builder, store, options);
+        Integration.TradeXpress.Mocks.N11.N11MockProductServiceEndpoint.MapN11MockProductServiceEndpoint(builder, store, options);
 
         var logger = context.ServiceProvider
             .GetRequiredService<Microsoft.Extensions.Logging.ILoggerFactory>()

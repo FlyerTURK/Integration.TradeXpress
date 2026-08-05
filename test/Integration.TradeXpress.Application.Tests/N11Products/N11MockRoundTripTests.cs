@@ -61,6 +61,7 @@ public sealed class N11MockRoundTripTests : IAsyncLifetime
         var store = new N11MockStore(_storePath, options.QueuedPollsBeforeProcessed);
         _app.MapN11MockEndpoints(store, options);
         _app.MapN11MockOrderEndpoint(store, options);
+        _app.MapN11MockProductServiceEndpoint(store, options);
         await _app.StartAsync();
 
         _baseUrl = _app.Services.GetRequiredService<IServer>()
@@ -243,6 +244,20 @@ public sealed class N11MockRoundTripTests : IAsyncLifetime
         await Should.NotThrowAsync(async () =>
             await _orderClient.MakeShipmentAsync(
                 AppKey, AppSecret, 6000000000L, "7", "TRK-TEST", campaignNumber: null, shipmentMethod: 1));
+    }
+
+    // ── Kimlik probu (kanal oluşturmanın ön koşulu) ─────────────────────────────────────────────────
+
+    /// <summary>Doğrulayıcı mock'ta GEÇMELİ — geçmezse mock kipinde yeni N11 kanalı (ve kurulum sihirbazı)
+    /// hiç denenemez.</summary>
+    [Fact]
+    public async Task Credential_verifier_passes_against_the_mock()
+    {
+        var verifier = new SalesChannels.N11.N11CategoryServiceCredentialVerifier(
+            NullLogger<SalesChannels.N11.N11CategoryServiceCredentialVerifier>.Instance,
+            Options.Create(new N11EndpointOptions { BaseUrl = _baseUrl }));
+
+        await Should.NotThrowAsync(async () => await verifier.VerifyOrThrowAsync(AppKey, AppSecret));
     }
 
     /// <summary>Kimlik başlıkları GERÇEKTEN gönderiliyor mu — mock başlık yoksa 401 döner, istemci de onu
