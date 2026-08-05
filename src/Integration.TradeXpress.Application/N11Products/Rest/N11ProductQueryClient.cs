@@ -7,6 +7,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Volo.Abp;
 using Volo.Abp.DependencyInjection;
 
@@ -57,7 +58,8 @@ public sealed class N11ProductQueryClient : N11RestClientBase, IN11ProductQueryC
 
     private readonly ILogger<N11ProductQueryClient> _logger;
 
-    public N11ProductQueryClient(ILogger<N11ProductQueryClient> logger)
+    public N11ProductQueryClient(ILogger<N11ProductQueryClient> logger, IOptions<N11EndpointOptions> endpointOptions)
+        : base(endpointOptions)
     {
         _logger = logger;
     }
@@ -69,7 +71,7 @@ public sealed class N11ProductQueryClient : N11RestClientBase, IN11ProductQueryC
     {
         Check.NotNull(filter, nameof(filter));
 
-        var url = BuildUrl(filter);
+        var url = BuildUrl(filter, RestQueryBase);
         var body = await RestSendAsync(HttpMethod.Get, url, null, appKey, appSecret, cancellationToken);
         return ParsePage(body, url, filter);
     }
@@ -117,11 +119,15 @@ public sealed class N11ProductQueryClient : N11RestClientBase, IN11ProductQueryC
     // ── URL kurulumu ────────────────────────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Sorgu URL'ini kurar. <b><c>internal</c> (private değil):</b> "size 50'ye kırpılır / geçersiz sayfa 0'a düşer"
+    /// Sorgu URL'ini kurar. <b><c>internal</c> (private değil):</b> "size 250'ye kırpılır / geçersiz sayfa 0'a düşer"
     /// kuralı dokümanın belgelenmiş sınırıdır ve tek gözlenebilir yeri bu URL'dir — sözleşme testi (
     /// <c>N11RestContractTests</c>, InternalsVisibleTo) ağa çıkmadan yalnız buradan doğrulayabilir.
+    ///
+    /// <para><b>STATİK kalması bilinçli:</b> taban adres artık yapılandırılabilir olduğu için parametreye taşındı.
+    /// Metodu örnek hâline getirmek, sözleşme testinin URL kuralını sınamak için <c>IOptions</c> kurup istemci
+    /// örneği yaratmasını gerektirirdi — saf kuralı sınayan test bağımlılık kurmamalı.</para>
     /// </summary>
-    internal static string BuildUrl(N11ProductQueryFilter filter)
+    internal static string BuildUrl(N11ProductQueryFilter filter, string queryBase)
     {
         var page = filter.Page < 0 ? 0 : filter.Page;
 
@@ -129,7 +135,7 @@ public sealed class N11ProductQueryClient : N11RestClientBase, IN11ProductQueryC
         // kayar (aynı kayıtları tekrar okur) — sınırı burada zorluyoruz.
         var size = filter.Size <= 0 ? DefaultPageSize : Math.Min(filter.Size, MaxPageSize);
 
-        var sb = new StringBuilder(RestQueryBase);
+        var sb = new StringBuilder(queryBase);
         sb.Append("?page=").Append(page.ToString(CultureInfo.InvariantCulture));
         sb.Append("&size=").Append(size.ToString(CultureInfo.InvariantCulture));
 

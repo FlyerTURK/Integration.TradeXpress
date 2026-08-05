@@ -8,6 +8,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Xml.Linq;
 using Volo.Abp;
+using Microsoft.Extensions.Options;
 using Volo.Abp.DependencyInjection;
 
 namespace Integration.TradeXpress.N11Products;
@@ -19,7 +20,20 @@ namespace Integration.TradeXpress.N11Products;
 /// </summary>
 public sealed class N11ProductClient : IN11ProductClient, ITransientDependency
 {
-    private const string Endpoint = "https://api.n11.com/ws/ProductService.wsdl";
+    // Uc adresi N11EndpointOptions'tan gelir (varsayilan https://api.n11.com). Sabit adres, istekleri
+    // yerel bir sahte sunucuya yonlendirmeyi imkansiz kiliyordu — hesap kapaliyken denemenin tek yolu bu.
+    private readonly N11EndpointOptions _endpoints;
+
+    private string Endpoint
+    {
+        get { return _endpoints.ProductServiceEndpoint; }
+    }
+
+    public N11ProductClient(IOptions<N11EndpointOptions> endpointOptions)
+    {
+        _endpoints = endpointOptions.Value;
+    }
+
     private static readonly XNamespace Soapenv = "http://schemas.xmlsoap.org/soap/envelope/";
     private static readonly XNamespace Sch = "http://www.n11.com/ws/schemas";
     private static readonly HttpClient HttpClient = new() { Timeout = TimeSpan.FromSeconds(60) };
@@ -256,7 +270,7 @@ public sealed class N11ProductClient : IN11ProductClient, ITransientDependency
 
     // ── HTTP + yardımcılar ──────────────────────────────────────────────────────────────────────────
 
-    private static async Task<XDocument> PostAsync(XElement request, string appKey, string appSecret, CancellationToken cancellationToken)
+    private async Task<XDocument> PostAsync(XElement request, string appKey, string appSecret, CancellationToken cancellationToken)
     {
         var envelope = new XDocument(new XElement(Soapenv + "Envelope",
             new XAttribute(XNamespace.Xmlns + "soapenv", Soapenv),

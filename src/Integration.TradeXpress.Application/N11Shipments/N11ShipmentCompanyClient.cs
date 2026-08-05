@@ -7,6 +7,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Xml.Linq;
 using Volo.Abp;
+using Integration.TradeXpress.N11Products;
+using Microsoft.Extensions.Options;
 using Volo.Abp.DependencyInjection;
 
 namespace Integration.TradeXpress.N11Shipments;
@@ -17,7 +19,20 @@ namespace Integration.TradeXpress.N11Shipments;
 /// </summary>
 public sealed class N11ShipmentCompanyClient : IN11ShipmentCompanyClient, ITransientDependency
 {
-    private const string Endpoint = "https://api.n11.com/ws/ShipmentCompanyService.wsdl";
+    // Uc adresi N11EndpointOptions'tan gelir (varsayilan https://api.n11.com). Sabit adres, istekleri
+    // yerel bir sahte sunucuya yonlendirmeyi imkansiz kiliyordu — hesap kapaliyken denemenin tek yolu bu.
+    private readonly N11EndpointOptions _endpoints;
+
+    private string Endpoint
+    {
+        get { return _endpoints.ShipmentCompanyServiceEndpoint; }
+    }
+
+    public N11ShipmentCompanyClient(IOptions<N11EndpointOptions> endpointOptions)
+    {
+        _endpoints = endpointOptions.Value;
+    }
+
     private const string SchemaNs = "http://www.n11.com/ws/schemas";
     private static readonly HttpClient HttpClient = new() { Timeout = TimeSpan.FromSeconds(30) };
 

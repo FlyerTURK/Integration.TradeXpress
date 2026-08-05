@@ -11,6 +11,8 @@ using System.Threading.Tasks;
 using System.Xml;
 using System.Xml.Linq;
 using Microsoft.Extensions.Logging;
+using Integration.TradeXpress.N11Products;
+using Microsoft.Extensions.Options;
 using Volo.Abp;
 using Volo.Abp.DependencyInjection;
 
@@ -24,8 +26,6 @@ namespace Integration.TradeXpress.N11Categories;
 /// </summary>
 public sealed class N11CategoryClient : IN11CategoryClient, ITransientDependency
 {
-    private const string RestBase = "https://api.n11.com/cdn";
-    private const string SoapEndpoint = "https://api.n11.com/ws/CategoryService.wsdl";
     private const string SoapSchemaNs = "http://www.n11.com/ws/schemas";
 
     private static readonly HttpClient HttpClient = new() { Timeout = TimeSpan.FromSeconds(60) };
@@ -33,9 +33,24 @@ public sealed class N11CategoryClient : IN11CategoryClient, ITransientDependency
 
     private readonly ILogger<N11CategoryClient> _logger;
 
-    public N11CategoryClient(ILogger<N11CategoryClient> logger)
+    // Uç adresleri N11EndpointOptions'tan gelir (varsayılan https://api.n11.com). Sabit adres, istekleri
+    // yerel bir sahte sunucuya yönlendirmeyi imkânsız kılıyordu — hesap kapalıyken denemenin tek yolu bu.
+    private readonly N11EndpointOptions _endpoints;
+
+    private string RestBase
+    {
+        get { return _endpoints.RestCdnBase; }
+    }
+
+    private string SoapEndpoint
+    {
+        get { return _endpoints.CategoryServiceEndpoint; }
+    }
+
+    public N11CategoryClient(ILogger<N11CategoryClient> logger, IOptions<N11EndpointOptions> endpointOptions)
     {
         _logger = logger;
+        _endpoints = endpointOptions.Value;
     }
 
     // ── Kategori ağacı ──────────────────────────────────────────────────────────────────────────────

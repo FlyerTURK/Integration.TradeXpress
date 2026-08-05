@@ -9,6 +9,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Integration.Framework;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Volo.Abp.DependencyInjection;
 
 namespace Integration.TradeXpress.N11Products;
@@ -51,7 +52,8 @@ public sealed class N11TaskPoller : N11RestClientBase, IN11TaskPoller
 
     private readonly ILogger<N11TaskPoller> _logger;
 
-    public N11TaskPoller(ILogger<N11TaskPoller> logger)
+    public N11TaskPoller(ILogger<N11TaskPoller> logger, IOptions<N11EndpointOptions> endpointOptions)
+        : base(endpointOptions)
     {
         _logger = logger;
     }

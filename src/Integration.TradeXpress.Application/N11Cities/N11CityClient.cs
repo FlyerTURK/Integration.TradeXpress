@@ -7,6 +7,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Xml.Linq;
 using Volo.Abp;
+using Integration.TradeXpress.N11Products;
+using Microsoft.Extensions.Options;
 using Volo.Abp.DependencyInjection;
 
 namespace Integration.TradeXpress.N11Cities;
@@ -18,7 +20,20 @@ namespace Integration.TradeXpress.N11Cities;
 /// </summary>
 public sealed class N11CityClient : IN11CityClient, ITransientDependency
 {
-    private const string Endpoint = "https://api.n11.com/ws/CityService.wsdl";
+    // Uc adresi N11EndpointOptions'tan gelir (varsayilan https://api.n11.com). Sabit adres, istekleri
+    // yerel bir sahte sunucuya yonlendirmeyi imkansiz kiliyordu — hesap kapaliyken denemenin tek yolu bu.
+    private readonly N11EndpointOptions _endpoints;
+
+    private string Endpoint
+    {
+        get { return _endpoints.CityServiceEndpoint; }
+    }
+
+    public N11CityClient(IOptions<N11EndpointOptions> endpointOptions)
+    {
+        _endpoints = endpointOptions.Value;
+    }
+
     private const string SchemaNs = "http://www.n11.com/ws/schemas";
     private static readonly HttpClient HttpClient = new() { Timeout = TimeSpan.FromSeconds(30) };
 
@@ -49,7 +64,7 @@ public sealed class N11CityClient : IN11CityClient, ITransientDependency
             .ToList();
     }
 
-    private static async Task<XDocument> SoapAsync(string op, string inner, string appKey, string appSecret, CancellationToken cancellationToken)
+    private async Task<XDocument> SoapAsync(string op, string inner, string appKey, string appSecret, CancellationToken cancellationToken)
     {
         var envelope =
             $"<soapenv:Envelope xmlns:soapenv=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:sch=\"{SchemaNs}\">" +

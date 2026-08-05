@@ -6,6 +6,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Options;
 using Volo.Abp;
 
 namespace Integration.TradeXpress.N11Products;
@@ -26,12 +27,29 @@ namespace Integration.TradeXpress.N11Products;
 /// </summary>
 public abstract class N11RestClientBase
 {
+    /// <summary>Uç adresleri — TEK kaynak (<see cref="N11EndpointOptions"/>). Eskiden burada iki <c>const</c>
+    /// vardı; adres yapılandırılabilir olmadan istekleri yerel bir sahte sunucuya yönlendirmek mümkün değildi
+    /// (hesap erişimi kapalıyken N11 kodunu denemenin tek yolu bu). Varsayılan bugünkü adres.</summary>
+    protected N11EndpointOptions Endpoints { get; }
+
     /// <summary>Ürün YAZMA + task sorgulama uçlarının tabanı: <c>/tasks/product-create</c>,
     /// <c>/tasks/product-update</c>, <c>/tasks/price-stock-update</c>, <c>/task-details/page-query</c>.</summary>
-    protected const string RestProductBase = "https://api.n11.com/ms/product";
+    protected string RestProductBase
+    {
+        get { return Endpoints.RestProductBase; }
+    }
 
     /// <summary>Satıcı ürünlerini listeleme ucu — tek SENKRON REST ucu (yazma uçları asenkrondur).</summary>
-    protected const string RestQueryBase = "https://api.n11.com/ms/product-query";
+    protected string RestQueryBase
+    {
+        get { return Endpoints.RestQueryBase; }
+    }
+
+    protected N11RestClientBase(IOptions<N11EndpointOptions> endpointOptions)
+    {
+        Check.NotNull(endpointOptions, nameof(endpointOptions));
+        Endpoints = endpointOptions.Value;
+    }
 
     /// <summary>
     /// Tüm N11 REST istemcileri için TEK <see cref="System.Net.Http.HttpClient"/> (socket tükenmesini önler).

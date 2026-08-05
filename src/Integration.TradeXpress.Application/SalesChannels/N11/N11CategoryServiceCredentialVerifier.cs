@@ -7,6 +7,8 @@ using System.Threading.Tasks;
 using System.Xml;
 using System.Xml.Linq;
 using Microsoft.Extensions.Logging;
+using Integration.TradeXpress.N11Products;
+using Microsoft.Extensions.Options;
 using Volo.Abp;
 using Volo.Abp.DependencyInjection;
 
@@ -25,7 +27,6 @@ namespace Integration.TradeXpress.SalesChannels.N11;
 public sealed class N11CategoryServiceCredentialVerifier : IN11CredentialVerifier, ITransientDependency
 {
     // N11 SOAP CategoryService uç noktası (WSDL == servis adresi). Sürüm/uç değişirse tek nokta burasıdır.
-    private const string CategoryServiceEndpoint = "https://api.n11.com/ws/CategoryService.wsdl";
     private const string N11SchemaNamespace = "http://www.n11.com/ws/schemas";
 
     // Kimlik kontrolü seyrek çağrılır (yalnız yeni anahtar girilince) → paylaşılan tek HttpClient yeterli
@@ -34,9 +35,20 @@ public sealed class N11CategoryServiceCredentialVerifier : IN11CredentialVerifie
 
     private readonly ILogger<N11CategoryServiceCredentialVerifier> _logger;
 
-    public N11CategoryServiceCredentialVerifier(ILogger<N11CategoryServiceCredentialVerifier> logger)
+    // Uç adresi N11EndpointOptions'tan gelir (varsayılan https://api.n11.com). Sahte sunucu kipinde kimlik
+    // doğrulaması da oraya gitmelidir — aksi halde mock kanal HİÇ kaydedilemez (create doğrulamadan geçmez).
+    private readonly N11EndpointOptions _endpoints;
+
+    private string CategoryServiceEndpoint
+    {
+        get { return _endpoints.CategoryServiceEndpoint; }
+    }
+
+    public N11CategoryServiceCredentialVerifier(
+        ILogger<N11CategoryServiceCredentialVerifier> logger, IOptions<N11EndpointOptions> endpointOptions)
     {
         _logger = logger;
+        _endpoints = endpointOptions.Value;
     }
 
     public async Task VerifyOrThrowAsync(string appKey, string appSecret, CancellationToken cancellationToken = default)

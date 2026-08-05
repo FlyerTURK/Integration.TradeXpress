@@ -9,6 +9,7 @@ using Microsoft.Extensions.Options;
 using Volo.Abp.TenantManagement;
 using Integration.Framework;
 using Integration.TradeXpress.Financials.ExchangeRates;
+using Integration.TradeXpress.N11Products;
 
 namespace Integration.TradeXpress;
 
@@ -30,6 +31,11 @@ public class TradeXpressApplicationModule : AbpModule
         var configuration = context.Services.GetConfiguration();
         context.Services.Configure<ExchangeRateOptions>(
             configuration.GetSection(ExchangeRateOptions.SectionName));
+
+        // N11 uç adresleri — bölüm yoksa varsayılan https://api.n11.com (davranış bugünküyle birebir aynı).
+        // Sahte sunucu bu tabanı kendine çevirerek çalışır; gerçek/mock geçişi TEK config değeridir.
+        context.Services.Configure<N11EndpointOptions>(
+            configuration.GetSection(N11EndpointOptions.SectionName));
         // NOT: eski HaremBridge HttpClient kaydı kaldırıldı — feed artık in-process Playwright
         // (HaremPlaywrightFeedWorker); HTTP köprü yolu ölü koddu (keşif turu 2, O5).
     }

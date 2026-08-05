@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using Shouldly;
 using Volo.Abp;
 using Xunit;
@@ -44,8 +45,15 @@ namespace Integration.TradeXpress.N11Products;
 /// </summary>
 public class N11RestContractTests
 {
+    /// <summary>Uç adresleri artık yapılandırılabilir (<see cref="N11EndpointOptions"/>); testler VARSAYILAN
+    /// tabanla koşar — sözleşme kuralları (kırpma, kaçışlama, zorunlu alanlar) adresten bağımsızdır.</summary>
+    private static readonly IOptions<N11EndpointOptions> Endpoints = Options.Create(new N11EndpointOptions());
+
+    /// <summary>product-query taban adresi — <c>BuildUrl</c> saf statik kaldığı için parametre olarak verilir.</summary>
+    private static readonly string QueryBase = new N11EndpointOptions().RestQueryBase;
+
     private readonly IN11ProductRestClient _client = new N11ProductRestClient(
-        NullLogger<N11ProductRestClient>.Instance);
+        NullLogger<N11ProductRestClient>.Instance, Endpoints);
 
     // Guard'lar HTTP'den önce koştuğu için kimlik değerleri hiç kullanılmaz — sahte veriyoruz.
     private const string FakeAppKey = "test";
@@ -57,6 +65,13 @@ public class N11RestContractTests
     /// </summary>
     private sealed class RestJsonProbe : N11RestClientBase
     {
+        // Taban artık uç adresi ister. Probe yalnız STATİK JsonOptions'a erişmek için var, hiç örneklenmiyor —
+        // ctor sadece derlemenin geçmesi için; varsayılan adres yeterli (JSON sözleşmesi adresten bağımsız).
+        public RestJsonProbe()
+            : base(Options.Create(new N11EndpointOptions()))
+        {
+        }
+
         public static JsonSerializerOptions BaseOptions => JsonOptions;
     }
 
@@ -489,7 +504,7 @@ public class N11RestContractTests
         // BAYATTI (2026-08-03 düzeltmesi). Sayı değişti çünkü KAYNAK değişti, kural gevşemedi.
         var query = Query(N11ProductQueryClient.BuildUrl(
             new N11ProductQueryFilter(Page: 0, Size: 1000, StockCode: null, SaleStatus: null,
-                ProductStatus: null, BrandName: null, CategoryIds: null)));
+                ProductStatus: null, BrandName: null, CategoryIds: null), QueryBase));
 
         query["size"].ShouldBe("250");
     }
@@ -500,7 +515,7 @@ public class N11RestContractTests
         // Karşı taraf: kırpma "hep 250'ye çek" DEĞİL — istenen değer tavanın altındaysa aynen geçer.
         var query = Query(N11ProductQueryClient.BuildUrl(
             new N11ProductQueryFilter(Page: 0, Size: 100, StockCode: null, SaleStatus: null,
-                ProductStatus: null, BrandName: null, CategoryIds: null)));
+                ProductStatus: null, BrandName: null, CategoryIds: null), QueryBase));
 
         query["size"].ShouldBe("100");
     }
@@ -512,7 +527,7 @@ public class N11RestContractTests
         // Dokümanın kendi varsayılanları (page 0, size 20) tek doğru geri düşüştür.
         var query = Query(N11ProductQueryClient.BuildUrl(
             new N11ProductQueryFilter(Page: -3, Size: 0, StockCode: null, SaleStatus: null,
-                ProductStatus: null, BrandName: null, CategoryIds: null)));
+                ProductStatus: null, BrandName: null, CategoryIds: null), QueryBase));
 
         query["page"].ShouldBe("0");
         query["size"].ShouldBe("20");
@@ -526,7 +541,7 @@ public class N11RestContractTests
         // "gönderilmeyen alan güncellenmez" ilkesiyle aynı hijyen: bilinmeyen alan HİÇ yazılmaz.
         var url = N11ProductQueryClient.BuildUrl(
             new N11ProductQueryFilter(Page: 0, Size: 20, StockCode: null, SaleStatus: null,
-                ProductStatus: null, BrandName: null, CategoryIds: null));
+                ProductStatus: null, BrandName: null, CategoryIds: null), QueryBase);
 
         url.ShouldStartWith("https://api.n11.com/ms/product-query?");
 
@@ -541,7 +556,7 @@ public class N11RestContractTests
         // sonraki parametreyi başlatır ve filtre SESSİZCE başka bir şeye dönüşür (yanlış ürün kümesi içe aktarılır).
         var url = N11ProductQueryClient.BuildUrl(
             new N11ProductQueryFilter(Page: 2, Size: 50, StockCode: "ALT KLY&14", SaleStatus: "On_Sale",
-                ProductStatus: "Active", BrandName: "Altın & Gümüş", CategoryIds: "1001,1002"));
+                ProductStatus: "Active", BrandName: "Altın & Gümüş", CategoryIds: "1001,1002"), QueryBase);
 
         url.ShouldNotContain("&14");                     // ham & parametreyi bölerdi
 

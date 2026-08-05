@@ -8,6 +8,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Xml.Linq;
 using Microsoft.Extensions.Logging;
+using Integration.TradeXpress.N11Products;
+using Microsoft.Extensions.Options;
 using Volo.Abp;
 using Volo.Abp.DependencyInjection;
 
@@ -22,7 +24,6 @@ namespace Integration.TradeXpress.Orders;
 /// </summary>
 public sealed class N11OrderClient : IN11OrderClient, ITransientDependency
 {
-    private const string Endpoint = "https://api.n11.com/ws/OrderService.wsdl";
     private static readonly XNamespace Soapenv = "http://schemas.xmlsoap.org/soap/envelope/";
     private static readonly XNamespace Sch = "http://www.n11.com/ws/schemas";
     private static readonly HttpClient HttpClient = new() { Timeout = TimeSpan.FromSeconds(40) };
@@ -33,9 +34,19 @@ public sealed class N11OrderClient : IN11OrderClient, ITransientDependency
 
     private readonly ILogger<N11OrderClient> _logger;
 
-    public N11OrderClient(ILogger<N11OrderClient> logger)
+    // Uç adresi N11EndpointOptions'tan gelir (varsayılan https://api.n11.com). Sabit adres, istekleri yerel
+    // bir sahte sunucuya yönlendirmeyi imkânsız kılıyordu — hesap kapalıyken denemenin tek yolu bu.
+    private readonly N11EndpointOptions _endpoints;
+
+    private string Endpoint
+    {
+        get { return _endpoints.OrderServiceEndpoint; }
+    }
+
+    public N11OrderClient(ILogger<N11OrderClient> logger, IOptions<N11EndpointOptions> endpointOptions)
     {
         _logger = logger;
+        _endpoints = endpointOptions.Value;
     }
 
     public async Task<N11OrdersPage> GetOrdersPageAsync(
@@ -400,7 +411,7 @@ public sealed class N11OrderClient : IN11OrderClient, ITransientDependency
             new XElement("orderRequest", new XElement("id", n11OrderId)));
     }
 
-    private static async Task<XDocument> PostEnvelopeAsync(
+    private async Task<XDocument> PostEnvelopeAsync(
         XElement requestBody, string transportErrorCode, CancellationToken cancellationToken)
     {
         var envelope = new XDocument(new XElement(Soapenv + "Envelope",

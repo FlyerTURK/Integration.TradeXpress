@@ -7,6 +7,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Volo.Abp;
 using Volo.Abp.DependencyInjection;
 
@@ -48,11 +49,23 @@ public interface IN11ProductRestClient : ITransientDependency
 /// </summary>
 public sealed class N11ProductRestClient : N11RestClientBase, IN11ProductRestClient
 {
-    // Taban adres N11RestClientBase'in (Paket A) SSOT'udur; burada yalnız yol ekleniyor.
-    // Bilinçli 'static readonly' (const değil): taban sembolün const mü static readonly mi olduğuna bağımlı kalmayalım.
-    private static readonly string CreateUrl = RestProductBase + "/tasks/product-create";
-    private static readonly string UpdateUrl = RestProductBase + "/tasks/product-update";
-    private static readonly string PriceStockUrl = RestProductBase + "/tasks/price-stock-update";
+    // Taban adres N11RestClientBase'in SSOT'udur (N11EndpointOptions'tan gelir); burada yalnız yol ekleniyor.
+    // ÖRNEK-bazlı (eskiden static readonly): taban artık yapılandırılabilir, statik alan onu uygulama ömrü
+    // boyunca ilk değerde dondururdu.
+    private string CreateUrl
+    {
+        get { return RestProductBase + "/tasks/product-create"; }
+    }
+
+    private string UpdateUrl
+    {
+        get { return RestProductBase + "/tasks/product-update"; }
+    }
+
+    private string PriceStockUrl
+    {
+        get { return RestProductBase + "/tasks/price-stock-update"; }
+    }
 
     private static readonly HashSet<string> AllowedCurrencies = new(StringComparer.Ordinal) { "TL", "USD", "EUR" };
     // KDV kümesi Domain.Shared'daki SSOT'tan okunur — entity guard'ı (SetVatRate) ile aynı listeye bakalım ki
@@ -75,7 +88,8 @@ public sealed class N11ProductRestClient : N11RestClientBase, IN11ProductRestCli
 
     private readonly ILogger<N11ProductRestClient> _logger;
 
-    public N11ProductRestClient(ILogger<N11ProductRestClient> logger)
+    public N11ProductRestClient(ILogger<N11ProductRestClient> logger, IOptions<N11EndpointOptions> endpointOptions)
+        : base(endpointOptions)
     {
         _logger = logger;
     }

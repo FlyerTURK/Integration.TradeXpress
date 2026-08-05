@@ -10,6 +10,7 @@ using System.Xml.Linq;
 using Integration.TradeXpress.ChannelQuestions;
 using Integration.TradeXpress.SalesChannels;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Volo.Abp;
 using Volo.Abp.DependencyInjection;
 using Volo.Abp.Domain.Repositories;
@@ -39,8 +40,6 @@ public sealed class N11QuestionClient : IChannelQuestionClient, ITransientDepend
 {
     // Sorular ÜRÜN servisinin altındadır — yeni endpoint/anlaşma YOK (canlı doğrulandı). Aynı sabit
     // N11ProductClient.Endpoint'te de yaşıyor (o sınıfın private'ı); tek-kaynağa çekmek ayrı bir temizlik işi.
-    private const string Endpoint = "https://api.n11.com/ws/ProductService.wsdl";
-
     private static readonly XNamespace Soapenv = "http://schemas.xmlsoap.org/soap/envelope/";
     private static readonly XNamespace Sch = "http://www.n11.com/ws/schemas";
     private static readonly HttpClient HttpClient = new() { Timeout = TimeSpan.FromSeconds(60) };
@@ -60,12 +59,22 @@ public sealed class N11QuestionClient : IChannelQuestionClient, ITransientDepend
     private readonly IRepository<SalesChannelTrN11, Guid> _channelRepository;
     private readonly ILogger<N11QuestionClient> _logger;
 
+    // Uç adresi N11EndpointOptions'tan gelir (varsayılan https://api.n11.com).
+    private readonly N11EndpointOptions _endpoints;
+
+    private string Endpoint
+    {
+        get { return _endpoints.ProductServiceEndpoint; }
+    }
+
     public N11QuestionClient(
         IRepository<SalesChannelTrN11, Guid> channelRepository,
-        ILogger<N11QuestionClient> logger)
+        ILogger<N11QuestionClient> logger,
+        IOptions<N11EndpointOptions> endpointOptions)
     {
         _channelRepository = channelRepository;
         _logger = logger;
+        _endpoints = endpointOptions.Value;
     }
 
     public SalesChannelType ChannelType
@@ -412,7 +421,7 @@ public sealed class N11QuestionClient : IChannelQuestionClient, ITransientDepend
         return (channel.AppKey, channel.AppSecret);
     }
 
-    private static async Task<XDocument> PostAsync(
+    private async Task<XDocument> PostAsync(
         XElement request, string appKey, string appSecret, string transportErrorCode, CancellationToken cancellationToken)
     {
         var envelope = new XDocument(new XElement(Soapenv + "Envelope",
