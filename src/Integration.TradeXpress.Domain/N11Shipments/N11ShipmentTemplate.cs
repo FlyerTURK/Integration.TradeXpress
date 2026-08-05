@@ -81,6 +81,27 @@ public class N11ShipmentTemplate : FullAuditedAggregateRoot<Guid>, IMultiTenant,
     /// <summary>Şartlı kargo eşiğinin birimi (TL/adet). Eşik null ise anlamsız (varsayılan <see cref="N11ConditionalShippingUnit.Amount"/>).</summary>
     public virtual N11ConditionalShippingUnit ConditionalShippingUnit { get; protected set; } = N11ConditionalShippingUnit.Amount;
 
+    /// <summary>Bu şablonla yapılan bir gönderinin BİZE tahmini maliyeti — <b>yalnız FİYATLAMA içindir,
+    /// N11'e ASLA gönderilmez</b> (N11 şablonunda böyle bir alan yoktur; şablon kimin ödediğini ve hangi
+    /// firmaların kullanılacağını söyler, tutarı söylemez).
+    ///
+    /// <para><b>Neden şablonda:</b> kargo bedeli şablona göre değişir (farklı firma, farklı hizmet, farklı
+    /// il kapsamı) ama reçetedeki kargo satırı kanal geneli TEK düz sayıydı — üç şablonu olan satıcının bütün
+    /// ürünleri aynı kargo rakamıyla fiyatlanıyordu. Dolu ise ürünün kargo satırı bu değerden beslenir; boşsa
+    /// kanalın düz gider değerine düşülür.</para>
+    ///
+    /// <para><b>Ortalamadır, kesin tutar değil</b> (tek paket varsayımı — CLAUDE.md §6). Gerçekleşen maliyet
+    /// hakediş kaleminden (<c>cargoPrice</c>) okunabilir; bu alan onunla mutabakat için taban oluşturur.</para>
+    ///
+    /// <para><b>Şartlı kargoda</b> (<see cref="N11DeliveryFeeType.Conditional"/>) eşiğin ÜSTÜNDE satıcı öder →
+    /// maliyet reçeteye girer; altında alıcı öder. Kuyumda ürünler eşiğin üstünde kaldığından "hep ekle"
+    /// davranışı doğrudur, eşik altı ucuz üründe temkinli (fazla) fiyatlar.</para></summary>
+    public virtual decimal? EstimatedCost { get; protected set; }
+
+    /// <summary>Tahmini kargo maliyetinin para birimi (id-only, opsiyonel). Boşsa ülke/yerel birim varsayılır —
+    /// reçete <c>Add</c> satırının birim semantiğiyle aynı.</summary>
+    public virtual Guid? EstimatedCostCurrencyUnitId { get; protected set; }
+
     /// <summary>İade/talep kargosu firması (N11 kargo firması ExternalId; id-only, opsiyonel).</summary>
     public virtual string? ClaimShipmentCompanyExternalId { get; protected set; }
 
@@ -152,6 +173,20 @@ public class N11ShipmentTemplate : FullAuditedAggregateRoot<Guid>, IMultiTenant,
 
         ConditionalShippingThreshold = threshold;
         ConditionalShippingUnit = threshold is null ? N11ConditionalShippingUnit.Amount : unit;
+    }
+
+    /// <summary>Tahmini kargo maliyetini yazar (opsiyonel). Negatif kabul edilmez; 0 da anlamsızdır (maliyet yoksa
+    /// alan BOŞ bırakılır — 0 "kargo bedava" iddiasıdır ve reçeteden satırı sessizce düşürür), o yüzden
+    /// 0 ve altı null'a çevrilir. Birim yalnız tutar dolu iken saklanır.</summary>
+    public virtual void SetEstimatedCost(decimal? cost, Guid? currencyUnitId)
+    {
+        if (cost is { } value && value < 0m)
+        {
+            throw new BusinessException("TradeXpress:N11:Shipment:EstimatedCostNegative");
+        }
+
+        EstimatedCost = cost is > 0m ? cost : null;
+        EstimatedCostCurrencyUnitId = EstimatedCost is null || currencyUnitId == Guid.Empty ? null : currencyUnitId;
     }
 
     public virtual void SetClaimShipmentCompany(string? shipmentCompanyExternalId)

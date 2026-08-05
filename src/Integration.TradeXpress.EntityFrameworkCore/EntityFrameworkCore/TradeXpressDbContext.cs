@@ -137,6 +137,10 @@ public class TradeXpressDbContext :
     public DbSet<Integration.TradeXpress.Geography.SubLocality> SubLocalities { get; set; } = null!;
     // N11 kargo firmaları — HOST-GLOBAL.
     public DbSet<Integration.TradeXpress.N11Shipments.N11ShipmentCompany> N11ShipmentCompanies { get; set; } = null!;
+
+    /// <summary>Trendyol kargo firmaları — HOST-GLOBAL referans. Canlı uçtan DEĞİL resmî statik listeden
+    /// SEED edilir (Trendyol'da getProviders diye bir HTTP ucu yoktur; bkz. TrendyolCargoProviderSeeder).</summary>
+    public DbSet<Integration.TradeXpress.TrendyolShipments.TrendyolCargoProvider> TrendyolCargoProviders { get; set; } = null!;
     // N11 kargo şablonları — per-kanal (company-owned).
     public DbSet<Integration.TradeXpress.N11Shipments.N11ShipmentTemplate> N11ShipmentTemplates { get; set; } = null!;
     // Pazaryerinin YAYIMLADIĞI anlaşmalı kargo tarifesi (desi fiyat tablosu) — HOST-GLOBAL, yürürlük tarihli.
@@ -287,6 +291,7 @@ public class TradeXpressDbContext :
         builder.ConfigureEtsyTaxonomies();
         builder.ConfigureN11Cities();
         builder.ConfigureN11Shipments();
+        builder.ConfigureTrendyolShipments();
         builder.ConfigureMarketplaceShipmentTariffs();
         builder.ConfigureN11Products();
         builder.ConfigureTrendyolProducts();

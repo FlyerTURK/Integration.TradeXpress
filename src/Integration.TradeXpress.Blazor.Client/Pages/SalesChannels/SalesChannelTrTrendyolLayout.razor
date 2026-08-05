@@ -55,6 +55,15 @@
    picker'ının dolu gelmesi için tetikleyici; kanal ilk oluşturulduğunda otomatik de senkronlanır (AppService hook). *@
 @if (!IsNew)
 {
+    @* Kurulum sihirbazı — MEVCUT kanal için. Sihirbaz yalnız "Yeni kanal" yolundan açılsaydı ulaşılamaz olurdu:
+       her türden en fazla bir kanal var, dolayısıyla kanalını kuran kullanıcı "Yeni"yi ebediyen kapalı görür. *@
+    <div class="mt-3">
+        <DxButton Text="@L["SalesChannel:OpenSetupWizard"]"
+                  IconCssClass="@TradeXpressIcons.SalesChannel"
+                  RenderStyle="ButtonRenderStyle.Secondary"
+                  Click="@(() => Navigation.NavigateTo($"/sales-channels/trendyol/wizard/{Model.Id}"))" />
+    </div>
+
     <TrendyolCategorySyncPanel />
 
     @* Pazaryerinden ürün içe aktarma — mevcut Trendyol listelemeleri şablon ürün + varyant + kanal grafı olarak

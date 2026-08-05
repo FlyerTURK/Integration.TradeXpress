@@ -13,6 +13,9 @@ public partial class SalesChannelTrTrendyolLayout
     /// importu otomatik başlatır (2026-07-11 kullanıcı kararı). Update yolunda host bunu asla kurmaz.</summary>
     [Parameter] public bool AutoImportProducts { get; set; }
 
+    /// <summary>Kurulum sihirbazına geçiş için (mevcut kanal kipinde açılır).</summary>
+    [Inject] private NavigationManager Navigation { get; set; } = default!;
+
     /// <summary>Düzenlemede sir alanları (ApiKey/ApiSecret) boş gelir → in-field ipucu; yeni kayıtta placeholder yok.</summary>
     private string? SecretPlaceholder => IsNew ? null : L["SalesChannel:SecretKept"].Value;
 

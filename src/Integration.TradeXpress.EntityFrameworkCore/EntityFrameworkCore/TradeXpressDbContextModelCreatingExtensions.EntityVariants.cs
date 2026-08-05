@@ -43,12 +43,22 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
                 .HasFilter("[IsMain] = 1 AND [IsDeleted] = 0")
                 .HasDatabaseName("IX_AppEntityVariants_SingleMain");
 
-            // Barkod PRODUCT varyantlarında tenant-genelinde TEKİL — pazaryeri (N11/Trendyol) idempotent import'un
+            // Barkod PRODUCT varyantlarında ŞİRKET İÇİNDE tekil — pazaryeri (N11/Trendyol) idempotent import'un
             // DB-backstop'u (eski ProductVariant'ta vardı; Product→agnostik geçişte istemeden düşmüştü → çift-import/race
             // açığı). YALNIZ "Product" ile filtrelenir (Good/Metal/Stone barkodları etkilenmez); null barkod hariç.
             // SQLite kısmi-index'i de bu filtreyi destekler.
-            b.HasIndex(x => new { x.TenantId, x.Barcode }).IsUnique()
-                .HasFilter("[EntityName] = 'Product' AND [Barcode] IS NOT NULL");
+            //
+            // KAPSAM: eskiden (TenantId, Barcode) idi — tenant genelinde. 2026-08-04'te CompanyId eklendi çünkü o
+            // hâli sahiplik modeliyle ÇELİŞİYORDU (CLAUDE.md §6: emtia katalogları ve Product per-company) ve
+            // gerçek bir iş senaryosunu blokluyordu: aynı tenant altında birden çok şirket, her biri kendi
+            // pazaryeri kanalıyla AYNI barkodlu malı satabilmeli. Barkod (EAN/UPC) malın küresel kimliğidir —
+            // "kimin stoğunda" sorusunu cevaplamaz, o yüzden tekillik şirket sınırında olmalıdır.
+            //
+            // IsDeleted FİLTRESİ: soft-delete edilmiş satır eskiden barkodu SÜRESİZ işgal ediyordu. İçe aktarımın
+            // barkod araması soft-delete filtresine tabi olduğundan silinmiş satırı GÖREMİYOR, barkodu boş sanıp
+            // INSERT deniyor ve indeks ihlaliyle TÜM içe aktarım düşüyordu. Filtre artık indeksle aramayı hizalıyor.
+            b.HasIndex(x => new { x.TenantId, x.CompanyId, x.Barcode }).IsUnique()
+                .HasFilter("[EntityName] = 'Product' AND [Barcode] IS NOT NULL AND [IsDeleted] = 0");
         });
 
         builder.Entity<EntityAttribute>(b =>

@@ -34,7 +34,12 @@ public partial class SalesChannelTrTrendyolEditHost
     }
 
     /// <summary>Kanal BAŞARIYLA oluşturuldu (create-success) — import işaretini kur; re-render'da panel görünür olur
-    /// ve importu otomatik başlatır. İşin kendisi panelde (iptal edilebilirlik + UoW süresi için UI seviyesi doğru).</summary>
+    /// ve importu otomatik başlatır. İşin kendisi panelde (iptal edilebilirlik + UoW süresi için UI seviyesi doğru).
+    ///
+    /// <para><b>Pratikte artık tetiklenmiyor</b> (2026-08-04): yeni Trendyol kanalı kurulum SİHİRBAZINDAN açılıyor
+    /// ve çekim orada AYRI bir adım. Bu host yalnız DÜZENLEME yolunda kullanılıyor, orada da <c>OnAfterCreate</c>
+    /// çalışmaz. Kod SİLİNMEDİ: host doğrudan (sihirbaz baypas edilerek) kullanılırsa create-anı çekimi hâlâ
+    /// doğru davranıştır — sihirbaz kaldırılırsa da eski akış kendiliğinden geri gelir.</para></summary>
     private Task OnChannelCreatedAsync(SalesChannelTrTrendyolGetDto _)
     {
         _autoImportProducts = true;

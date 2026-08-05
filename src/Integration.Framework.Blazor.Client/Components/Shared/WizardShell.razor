@@ -1,0 +1,79 @@
+@namespace Integration.Framework.Blazor.Client.Components.Shared
+@using DevExpress.Blazor
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@* Çok adımlı kurulum kabuğu — KANAL-AGNOSTİK (N11/Trendyol/Etsy aynı kabuğu tüketir; adımların içeriği farklı).
+   İÇİNE <WizardStep> yazılır; adımlar kendilerini cascading Shell üzerinden kaydeder.
+
+   NEDEN DxTabs DEĞİL: DrillTabs uyarısı — DxTabPage ÜRETEN sarmalayıcı bileşen kullanılamaz, DevExpress
+   CollectionFiller sarmalayıcının içine inmez ve sekme SESSİZCE görünmez olur. Adım şeridi bu yüzden düz
+   işaretlemedir. Stil INLINE (yeni CSS sınıfı açılmadı — proje kuralı). *@
+
+<div style="display:flex; flex-direction:column; gap:12px;">
+
+    @* Adım şeridi — tamamlanan / aktif / bekleyen. Tıklanabilirlik yalnız GERİYE (ileri gitmek doğrulamadan geçer). *@
+    <div style="display:flex; flex-wrap:wrap; gap:4px; align-items:center;">
+        @for (var i = 0; i < _steps.Count; i++)
+        {
+            var index = i;
+            var step = _steps[index];
+            var state = StateOf(index);
+            <div style="@BadgeStyle(state)"
+                 role="button"
+                 tabindex="0"
+                 title="@step.Title"
+                 @onclick="@(() => GoBackToAsync(index))">
+                <span style="@NumberStyle(state)">@(index + 1)</span>
+                <span>@step.Title</span>
+            </div>
+            @if (index < _steps.Count - 1)
+            {
+                <span style="color:#adb5bd;">›</span>
+            }
+        }
+    </div>
+
+    @* Aktif adımın gövdesi — WizardStep kendi içeriğini yalnız aktifken çizer. *@
+    <CascadingValue Value="@this" IsFixed="true">
+        @ChildContent
+    </CascadingValue>
+
+    @if (_error is { Length: > 0 })
+    {
+        <div style="color:#b02a37; font-size:0.9rem;">@_error</div>
+    }
+
+    @* Ayak — Geri / İleri / Bitir. Adım geçişi doğrulamadan geçer; geçemezse aynı adımda kalınır. *@
+    <div style="display:flex; gap:8px; align-items:center; border-top:1px solid #dee2e6; padding-top:10px;">
+        <DxButton Text="@L["Wizard:Back"]"
+                  RenderStyle="ButtonRenderStyle.Secondary"
+                  Enabled="@(_activeIndex > 0 && !_busy)"
+                  Click="@BackAsync" />
+
+        @if (IsLastStep)
+        {
+            <DxButton Text="@(FinishText ?? L["Wizard:Finish"].Value)"
+                      RenderStyle="ButtonRenderStyle.Primary"
+                      Enabled="@(!_busy)"
+                      Click="@FinishAsync" />
+        }
+        else
+        {
+            <DxButton Text="@L["Wizard:Next"]"
+                      RenderStyle="ButtonRenderStyle.Primary"
+                      Enabled="@(!_busy)"
+                      Click="@NextAsync" />
+        }
+
+        @if (ActiveStep?.CanSkip == true && !IsLastStep)
+        {
+            <DxButton Text="@L["Wizard:Skip"]"
+                      RenderStyle="ButtonRenderStyle.Secondary"
+                      Enabled="@(!_busy)"
+                      Click="@SkipAsync" />
+        }
+
+        <span style="flex:1;"></span>
+        <span style="font-size:0.85rem; color:#6c757d;">@L["Wizard:Progress", _activeIndex + 1, _steps.Count]</span>
+    </div>
+</div>

@@ -585,4 +585,83 @@ public class SideCostRecipeComposerTests
         Should.Throw<BusinessException>(() => Commission(100m))
             .Code.ShouldBe("TradeXpress:SalesChannel:SideCostRateOutOfRange");
     }
+
+    // ── Çözülmüş KARGO maliyeti (ürünün kargo şablonundan) ──────────────────────────────────────────
+
+    /// <summary>Şablon maliyeti, kanalın düz kargo değerini ÖNCELER. Gerekçe "özgül olan geneli yener":
+    /// şablon o gönderinin gerçek firmasını/hizmetini bilir, kanal değeri tüm şablonlar için tek ortalamadır.
+    /// Bu geçmezse üç farklı şablonu olan satıcının bütün ürünleri aynı kargo rakamıyla fiyatlanır.</summary>
+    [Fact]
+    public void Resolved_cargo_cost_overrides_the_flat_channel_value()
+    {
+        var plan = SideCostPlan.From(
+            new SideCostSettings(new List<SideCostItem> { Fixed(SideCostKind.Cargo, 30m) }),
+            resolvedCommissionRate: null,
+            variantOptInEnabled: false,
+            resolvedCargoCost: 85m,
+            resolvedCargoCurrencyUnitId: Try);
+
+        var lines = new List<ProductRecipeLineGraphDto> { UserBaseLine() };
+        SideCostRecipeComposer.EnsureLines(lines, plan).ShouldBeTrue();
+
+        var cargo = lines.Single(l => l.SideCostKind == SideCostKind.Cargo);
+        cargo.DerivedOperand.ShouldBe(85m);
+        cargo.PayUnitId.ShouldBe(Try);   // birim de ŞABLONDAN — tutarla aynı kaynaktan gelmeli
+    }
+
+    /// <summary>Şablonda tutar YOKSA davranış aynen eskisi gibi: kalemin kendi değeri kullanılır. Bu, özelliğin
+    /// mevcut kurulumları bozmadığının güvencesi.</summary>
+    [Fact]
+    public void Without_a_resolved_cargo_cost_the_item_value_is_used_unchanged()
+    {
+        var plan = SideCostPlan.From(
+            new SideCostSettings(new List<SideCostItem> { Fixed(SideCostKind.Cargo, 30m) }),
+            resolvedCommissionRate: null,
+            variantOptInEnabled: false);
+
+        var lines = new List<ProductRecipeLineGraphDto> { UserBaseLine() };
+        SideCostRecipeComposer.EnsureLines(lines, plan).ShouldBeTrue();
+
+        lines.Single(l => l.SideCostKind == SideCostKind.Cargo).DerivedOperand.ShouldBe(30m);
+    }
+
+    /// <summary>AYARSIZ kanalda (settings null) şablon maliyeti örtük bir Kargo kalemi üretmeli.
+    ///
+    /// <para><b>Bu testin taşıdığı yük:</b> kanal "Giderler" formu 2026-07-28'de kaldırıldığından N11 kanalları
+    /// pratikte HEP ayarsız (null) doğuyor. Örtük kalem üretilmezse şablona girilen kargo maliyeti hiçbir
+    /// reçeteye ulaşamaz — özellik sessizce ölü kalır (hata da vermez).</para></summary>
+    [Fact]
+    public void Null_settings_still_produce_cargo_from_the_resolved_template_cost()
+    {
+        var plan = SideCostPlan.From(
+            settings: null,
+            resolvedCommissionRate: 21m,
+            variantOptInEnabled: false,
+            resolvedCargoCost: 85m,
+            resolvedCargoCurrencyUnitId: Try);
+
+        var lines = new List<ProductRecipeLineGraphDto> { UserBaseLine() };
+        SideCostRecipeComposer.EnsureLines(lines, plan).ShouldBeTrue();
+
+        lines.Single(l => l.SideCostKind == SideCostKind.Cargo).DerivedOperand.ShouldBe(85m);
+
+        // SIRA: kargo (Add) komisyondan (GrossUp) ÖNCE — sabit giderler de komisyona tabidir.
+        var cargoOrder = lines.FindIndex(l => l.SideCostKind == SideCostKind.Cargo);
+        var commissionOrder = lines.FindIndex(l => l.SideCostKind == SideCostKind.Commission);
+        cargoOrder.ShouldBeLessThan(commissionOrder);
+    }
+
+    /// <summary>Şablon maliyeti yokken örtük plan ESKİSİ GİBİ yalnız komisyon üretmeli — boş/sıfır maliyetten
+    /// "bedava kargo" satırı doğmamalı.</summary>
+    [Fact]
+    public void Null_settings_without_a_template_cost_produce_commission_only()
+    {
+        var plan = SideCostPlan.From(settings: null, resolvedCommissionRate: 21m, variantOptInEnabled: false);
+
+        var lines = new List<ProductRecipeLineGraphDto> { UserBaseLine() };
+        SideCostRecipeComposer.EnsureLines(lines, plan).ShouldBeTrue();
+
+        lines.ShouldNotContain(l => l.SideCostKind == SideCostKind.Cargo);
+        lines.ShouldContain(l => l.SideCostKind == SideCostKind.Commission);
+    }
 }

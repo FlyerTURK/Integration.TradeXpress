@@ -1,0 +1,17 @@
+@namespace Integration.Framework.Blazor.Client.Components.Shared
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@* Sihirbazın TEK adımı — <WizardShell> içine doğrudan yazılır. İçeriğini YALNIZ aktifken çizer:
+   pasif adımın formu hiç render edilmez, böylece görünmeyen bir alan doğrulamayı tetikleyemez ve
+   ağ çağrısı yapan bir alt bileşen sırası gelmeden koşmaz. *@
+
+@if (IsActive)
+{
+    <div>
+        @if (Description is { Length: > 0 })
+        {
+            <div style="font-size:0.9rem; color:#6c757d; margin-bottom:10px;">@Description</div>
+        }
+        @ChildContent
+    </div>
+}

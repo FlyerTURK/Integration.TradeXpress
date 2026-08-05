@@ -335,6 +335,64 @@ public class SalesChannelTrN11ProductUpdateDto : ISalesChannelTrN11ProductInput
     public List<SalesChannelTrN11ProductAttributeDto> ProductAttributes { get; set; } = new();
 }
 
+/// <summary>İçe aktarımda ATLANAN uzak satır + gerekçesi (LOKALİZE). Sessiz atlama YOK: kullanıcı hangi ürünün
+/// neden gelmediğini görmeden mağazasının tam aktarıldığını sanır.</summary>
+public class N11ImportIssueDto
+{
+    /// <summary>Uzak SKU stok kodu (satıcı kodu) — satırın tanınabilir kimliği.</summary>
+    public string? StockCode { get; set; }
+
+    /// <summary>Uzak ürün başlığı (stok kodu boşsa tek tanıma yolu).</summary>
+    public string? Title { get; set; }
+
+    /// <summary>Atlama gerekçesi (lokalize metin).</summary>
+    public string Reason { get; set; } = string.Empty;
+
+    public override string ToString()
+    {
+        return $"{StockCode ?? Title} — {Reason}";
+    }
+}
+
+/// <summary>N11 mağaza içe aktarım raporu — <see cref="ISalesChannelTrN11ProductAppService.ImportFromMarketplaceAsync"/>
+/// sonucu. Sayaçlar + atlananlar + uyarılar; kullanıcı ne olduğunu rakamla görür.</summary>
+public class N11ImportResultDto
+{
+    /// <summary>N11'den çekilen toplam SATIR (SKU) sayısı. REST'te her SKU bağımsız bir satırdır.</summary>
+    public int TotalFetchedItems { get; set; }
+
+    /// <summary>productMainId gruplaması sonrası uzak ÜRÜN sayısı.</summary>
+    public int TotalRemoteProducts { get; set; }
+
+    /// <summary>Bu içe aktarımda üretilen YENİ şablon Product sayısı.</summary>
+    public int CreatedProducts { get; set; }
+
+    /// <summary>Bu içe aktarımda üretilen YENİ N11 kanal kaydı sayısı.</summary>
+    public int CreatedChannelProducts { get; set; }
+
+    /// <summary>Mevcut olup GÜNCELLENEN kanal kaydı sayısı (idempotent ikinci geçiş).</summary>
+    public int UpdatedChannelProducts { get; set; }
+
+    /// <summary>Mevcut şablonlara EKLENEN eksik varyant sayısı (uzakta olup yerelde olmayan SKU'lar).</summary>
+    public int AddedVariants { get; set; }
+
+    /// <summary>Eklenen varyantların uzak stok kodları (kullanıcı doğrulaması için).</summary>
+    public List<string> AddedStockCodes { get; set; } = new();
+
+    /// <summary>Uzak stoğu çekirdek (ERP) stoktan FARKLI olan kalem sayısı. Çekirdek EZİLMEZ — fark kanal
+    /// OverrideStock'una yazılır (Trendyol importuyla aynı K12 politikası).</summary>
+    public int StockDifferenceCount { get; set; }
+
+    /// <summary>Atlanan satırlar + gerekçeleri (LOKALİZE).</summary>
+    public List<N11ImportIssueDto> SkippedRows { get; set; } = new();
+
+    /// <summary>Yerel N11 kategori ağacında karşılığı OLMAYAN uzak kategoriler ("id — başlık").</summary>
+    public List<string> UnmatchedCategories { get; set; } = new();
+
+    /// <summary>İçe aktarım geneli uyarılar (LOKALİZE) — kalem-bazlı olmayan riskli durumlar.</summary>
+    public List<string> Warnings { get; set; } = new();
+}
+
 /// <summary>
 /// N11 ürün listeleme — bir ERP ürününü bir N11 kanalında listeler + N11'e push eder (SaveProduct). Company-owned.
 /// Listeleme yapılandırması (kategori/attribute/kargo şablonu/condition/özel bilgi) bizde tutulur; push ürünün
@@ -392,4 +450,20 @@ public interface ISalesChannelTrN11ProductAppService : IApplicationService
     /// <summary>Muadil M4 köprüsü: Top-N başarılı kombinasyonu bu ürünün "Kombinasyon" özelliği + StockItem'ları
     /// (reçete + paket stoğu) olarak uygular — tek motor zinciri; yeniden uygulama imza-bazlı reconcile'dır.</summary>
     Task<SubstitutionApplyResultDto> ApplySubstitutionAsync(Guid id, SubstitutionApplyInput input);
+
+    /// <summary>N11 mağazasındaki MEVCUT ürünleri ERP'ye içe aktarır (<c>GET /ms/product-query</c> — <b>SALT
+    /// OKUMA</b>, N11'e sıfır yazma). Şablon <c>Product</c> + varyantlar + bağlı N11 kanal kaydı zinciri kurulur.
+    ///
+    /// <para>Mevcut N11 mağazası olan satıcının onboard yolu: bu uç olmadan her ürün tek tek elle girilmek
+    /// zorundaydı (Trendyol ve Etsy'de karşılığı VAR).</para>
+    ///
+    /// <para><b>İdempotent:</b> ikinci çalıştırma kayıt çoğaltmaz. Anahtar zinciri: kanal kaydı = uzak
+    /// <c>productMainId</c> (bizim <c>SellerCode</c>'umuzla aynı kavram) → SKU stok kodu kesişimi. Uzak stok kodu
+    /// DONDURULUR ki sonraki push var olan SKU'yu güncellesin, ikinci bir listeleme açmasın.</para>
+    ///
+    /// <para><paramref name="defaultVatRate"/> — N11 ürün listesi KDV oranı DÖNDÜRMEZ, o yüzden içe aktarılan
+    /// kayıtların oranı normalde BOŞ kalır ve push fail-fast reddeder. Kurulum sihirbazı kullanıcıya bir kez
+    /// sorup buradan geçirir. <b>Yalnız YENİ oluşturulan kayıtlara uygulanır</b>: mevcut kaydın oranını ezmek,
+    /// kullanıcının ürün bazında yaptığı seçimi sessizce silmek olurdu.</para></summary>
+    Task<N11ImportResultDto> ImportFromMarketplaceAsync(Guid salesChannelId, int? defaultVatRate = null);
 }

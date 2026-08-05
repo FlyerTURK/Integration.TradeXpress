@@ -33,7 +33,7 @@ namespace Integration.TradeXpress.N11Products;
 /// + fiyat/stok/görselleriyle N11'e SaveProduct ile gönderir (kanalın KENDİ kimliğiyle) ve durumu işaretler.
 /// </summary>
 [Authorize(TradeXpressPermissions.SalesChannels.Default)]
-public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesChannelTrN11ProductAppService
+public partial class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesChannelTrN11ProductAppService
 {
     private const string ProductEntityName = "Product";
 
@@ -66,6 +66,9 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
     private readonly IN11CategoryClient _categoryClient;
     private readonly N11ProductPushValidator _pushValidator;
     private readonly IDistributedCache<N11LeafAttributes> _leafAttributeCache;
+    private readonly MarketplaceImageDownloader _imageDownloader;   // yalnız içe aktarım — uzak görsel → DAM
+    private readonly EntityVariantManager _variantManager;          // yalnız içe aktarım — tekil-main değişmezi
+    private readonly MarketplaceCurrencyResolver _marketplaceCurrency;   // yalnız içe aktarım — TRY birim kimliği
 
     public SalesChannelTrN11ProductAppService(
         IRepository<SalesChannelTrN11Product, Guid> repository,
@@ -96,7 +99,10 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
         IEntityMediaAppService entityMedia,
         IN11CategoryClient categoryClient,
         N11ProductPushValidator pushValidator,
-        IDistributedCache<N11LeafAttributes> leafAttributeCache)
+        IDistributedCache<N11LeafAttributes> leafAttributeCache,
+        MarketplaceImageDownloader imageDownloader,
+        EntityVariantManager variantManager,
+        MarketplaceCurrencyResolver marketplaceCurrency)
     {
         _repository = repository;
         _productRepository = productRepository;
@@ -127,6 +133,9 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
         _categoryClient = categoryClient;
         _pushValidator = pushValidator;
         _leafAttributeCache = leafAttributeCache;
+        _imageDownloader = imageDownloader;
+        _variantManager = variantManager;
+        _marketplaceCurrency = marketplaceCurrency;
     }
 
     public virtual async Task<List<SalesChannelTrN11ProductDto>> GetListForProductAsync(Guid productId)
@@ -2136,7 +2145,29 @@ public class SalesChannelTrN11ProductAppService : TradeXpressAppService, ISalesC
         // Kanal-fallback oranı = AutoRate işaretli Commission gider satırının Value'su (gider-satırı modeli).
         var commissionRate = N11CategoryCommissionImporter.ResolveEffectiveCommissionRate(
             categoryRate, marketingFeeRate, marketplaceFeeRate, settings?.GetAutoCommissionFallbackRate());
-        return SideCostPlan.From(settings, commissionRate, variantOptInEnabled: false);
+
+        var (cargoCost, cargoCurrencyUnitId) = await ResolveTemplateCargoCostAsync(channelProduct);
+        return SideCostPlan.From(settings, commissionRate, variantOptInEnabled: false, cargoCost, cargoCurrencyUnitId);
+    }
+
+    /// <summary>Ürünün KARGO ŞABLONUNDAN tahmini gönderi maliyeti — reçetedeki kargo satırının kaynağı.
+    ///
+    /// <para>Şablon, kanal kaydında ADIYLA taşınır (N11'de şablon kimliği isimdir) → (kanal, ad) ile çözülür.
+    /// Şablon bulunamazsa ya da tutarı girilmemişse <c>null</c> döner ve composer kanalın düz gider değerine
+    /// düşer — yani şablona tutar girilmemiş kurulumlarda davranış AYNEN eskisi gibi kalır.</para>
+    ///
+    /// <para>PASİF şablon da okunur: senkron N11'de kalmayan şablonu silmeyip pasifleştiriyor, ama o şablonla
+    /// listelenmiş mevcut ürünlerin maliyeti hâlâ geçerli — pasifi elemek fiyatı sessizce düşürürdü.</para></summary>
+    private async Task<(decimal? Cost, Guid? CurrencyUnitId)> ResolveTemplateCargoCostAsync(SalesChannelTrN11Product channelProduct)
+    {
+        var template = await AsyncExecuter.FirstOrDefaultAsync(
+            (await _n11ShipmentTemplateRepository.GetQueryableAsync())
+                .Where(t => t.SalesChannelId == channelProduct.SalesChannelId
+                            && t.TemplateName == channelProduct.ShipmentTemplateName));
+
+        return template?.EstimatedCost is { } cost
+            ? (cost, template.EstimatedCostCurrencyUnitId)
+            : (null, null);
     }
 
     /// <summary>Yan-maliyet satırlarını KAYDEDİLMİŞ reçetelerde ayarlardan TAZELER ("yeniden uygula"): işaretli

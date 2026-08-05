@@ -344,7 +344,7 @@ public abstract class SalesChannelTrTrendyolProductImportTests<TStartupModule> :
                 caught = ex;
             }
 
-            caught.ShouldNotBeNull();   // filtered unique index (TenantId, Barcode) duplikeyi DB'de reddetti
+            caught.ShouldNotBeNull();   // filtered unique index (TenantId, CompanyId, Barcode) duplikeyi DB'de reddetti
 
             // Barcode'suz (NULL) satırlar filtreye takılmaz — ikinci null-barcode varyant serbest.
             await WithUnitOfWorkAsync(async () =>
@@ -358,10 +358,76 @@ public abstract class SalesChannelTrTrendyolProductImportTests<TStartupModule> :
         }
     }
 
-    // ── Tenant-içi çapraz-şirket barcode çakışması: import ÇÖKMEZ, kalem atla+raporla ────────────────
-
+    /// <summary>
+    /// SİLİNMİŞ varyantın barkodu SERBEST kalmalı — yeniden kullanılabilmeli.
+    ///
+    /// <para><b>Yakaladığı hata:</b> indeks filtresinde <c>IsDeleted = 0</c> yoktu, yani soft-delete edilmiş satır
+    /// barkodu SÜRESİZ işgal ediyordu. İçe aktarımın barkod araması ise soft-delete filtresine tabi olduğundan o
+    /// satırı GÖREMİYOR, barkodu boş sanıp INSERT deniyor ve ham unique ihlaliyle TÜM içe aktarımı düşürüyordu.
+    /// İndeks ile arama kapsamının ayrışması tam olarak buydu.</para>
+    ///
+    /// <para>Pratik sonucu: ürünlerini silip Trendyol'dan yeniden çekmek imkânsızdı.</para>
+    /// </summary>
     [Fact]
-    public async Task Barcode_owned_by_another_company_in_same_tenant_is_skipped_and_reported()
+    public async Task Barcode_of_a_deleted_variant_becomes_reusable()
+    {
+        var companyId = Guid.NewGuid();
+        var currentTenant = GetRequiredService<ICurrentTenant>();
+        using (currentTenant.Change(Guid.NewGuid()))
+        using (_currentCompany.Change(companyId))
+        {
+            var product = await WithUnitOfWorkAsync(async () =>
+                await _productRepository.InsertAsync(new Product(companyId, "REUSE", "Urun"), autoSave: true));
+
+            var variantId = await WithUnitOfWorkAsync(async () =>
+            {
+                var v = new EntityVariant(companyId, ProductEntityName, product.Id, "VAR1", "Varyant 1");
+                v.SetBarcode("BR-REUSE-1");
+                await _variantRepository.InsertAsync(v, autoSave: true);
+                return v.Id;
+            });
+
+            // Soft-delete (uygulamanın silme yolu da bunu yapar).
+            await WithUnitOfWorkAsync(async () =>
+            {
+                await _variantRepository.DeleteAsync(variantId, autoSave: true);
+                return true;
+            });
+
+            // AYNI barkodla yeni varyant — indeks filtresi IsDeleted'ı dışladığı için ARTIK SERBEST.
+            await WithUnitOfWorkAsync(async () =>
+            {
+                var v2 = new EntityVariant(companyId, ProductEntityName, product.Id, "VAR2", "Varyant 2");
+                v2.SetBarcode("BR-REUSE-1");
+                await _variantRepository.InsertAsync(v2, autoSave: true);
+                return true;
+            });
+
+            var live = await WithUnitOfWorkAsync(async () =>
+                await _variantRepository.GetListAsync(v => v.CompanyId == companyId && v.Barcode == "BR-REUSE-1"));
+            live.ShouldHaveSingleItem().Code.ShouldBe("VAR2");
+        }
+    }
+
+    // ── Tenant-içi çapraz-şirket AYNI BARKOD: artık ÇAKIŞMA DEĞİL, ikisi de içe aktarabilir ──────────
+
+    /// <summary>
+    /// Aynı tenant altındaki İKİ FARKLI ŞİRKET, her biri kendi Trendyol kanalıyla AYNI barkodlu malı içe
+    /// aktarabilmelidir.
+    ///
+    /// <para><b>Bu test 2026-08-04'te TERS ÇEVRİLDİ.</b> Öncesinde adı
+    /// <c>Barcode_owned_by_another_company_in_same_tenant_is_skipped_and_reported</c> idi ve kalemin ATLANDIĞINI
+    /// doğruluyordu — çünkü unique index <c>(TenantId, Barcode)</c> ile tenant genelindeydi ve ikinci şirketin
+    /// insert'i ham DB ihlaline yol açıyordu. Bu bir tasarım kararı değil, sahiplik modeliyle çelişen bir
+    /// KISITTI: CLAUDE.md §6 emtia kataloglarını ve Product'ı per-company tanımlıyor.</para>
+    ///
+    /// <para><b>Gereksinim değişti (Hakan):</b> "Bir tenantta birden çok şirket kurup, o şirketler üzerinden aynı
+    /// tenant içerisinde farklı Trendyol satış kanalı oluşturup aynı barkodlu ürünü satmayı planlıyorum."
+    /// İndeks <c>(TenantId, CompanyId, Barcode)</c>'a daraltıldı; testin iddiası da yeni kuralı çiviliyor.
+    /// Bu bir assertion GEVŞETMESİ değildir — eski test bir gereksinimi kodluyordu, gereksinim değişti.</para>
+    /// </summary>
+    [Fact]
+    public async Task Same_barcode_in_two_companies_of_one_tenant_imports_for_both()
     {
         var companyA = Guid.NewGuid();
         var companyB = Guid.NewGuid();
@@ -381,14 +447,13 @@ public abstract class SalesChannelTrTrendyolProductImportTests<TStartupModule> :
                 });
             }
 
-            // Şirket B: aynı tenant'ta aynı barkodu Trendyol'dan import eder — unique index (TenantId, Barcode)
-            // ihlaliyle çökmek YERİNE kalem atlanıp raporlanmalı; grubun diğer kalemi normal işlenmeli.
+            // Şirket B: aynı tenant'ta AYNI barkodu kendi Trendyol kanalından içe aktarır — ATLANMAMALI.
             using (_currentCompany.Change(companyB))
             {
                 var channel = await SeedChannelAsync(companyB, "IMP6");
                 _fakeClient.RemoteItems.Clear();
                 _fakeClient.RemoteItems.Add(BuildRemoteItem(
-                    mainId: "MAIN-6", barcode: "BR-SHARED-1", stockCode: "STK-S-1", title: "Çakışan Kalem",
+                    mainId: "MAIN-6", barcode: "BR-SHARED-1", stockCode: "STK-S-1", title: "Paylasilan Kalem",
                     quantity: 1, salePrice: 10m, listPrice: null, contentId: 1, approved: null));
                 _fakeClient.RemoteItems.Add(BuildRemoteItem(
                     mainId: "MAIN-7", barcode: "BR-FREE-1", stockCode: "STK-F-1", title: "Serbest Kalem",
@@ -396,14 +461,19 @@ public abstract class SalesChannelTrTrendyolProductImportTests<TStartupModule> :
 
                 var report = await _appService.ImportFromMarketplaceAsync(channel.Id);
 
-                report.SkippedRows.ShouldContain(s => s.Barcode == "BR-SHARED-1");
-                report.CreatedProducts.ShouldBe(1);          // yalnız serbest kalem şablon üretti
-                report.CreatedChannelProducts.ShouldBe(1);
+                report.SkippedRows.ShouldBeEmpty();          // hiçbir kalem elenmedi
+                report.CreatedProducts.ShouldBe(2);          // İKİ kalem de şablon üretti
+                report.CreatedChannelProducts.ShouldBe(2);
 
                 var products = await WithUnitOfWorkAsync(async () =>
                     await _productRepository.GetListAsync(p => p.CompanyId == companyB));
-                products.ShouldHaveSingleItem().Code.ShouldBe("STK-F-1");
+                products.Select(p => p.Code).OrderBy(c => c).ShouldBe(new[] { "STK-F-1", "STK-S-1" });
             }
+
+            // Şirket A'nın kaydı DOKUNULMADAN duruyor — iki şirket aynı barkodu bağımsız taşıyor.
+            var companyAVariants = await WithUnitOfWorkAsync(async () =>
+                await _variantRepository.GetListAsync(v => v.CompanyId == companyA && v.Barcode == "BR-SHARED-1"));
+            companyAVariants.ShouldHaveSingleItem();
         }
     }
 

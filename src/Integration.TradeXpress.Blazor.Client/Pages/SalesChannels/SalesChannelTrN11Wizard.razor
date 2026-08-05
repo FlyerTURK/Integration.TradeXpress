@@ -1,0 +1,175 @@
+@page "/sales-channels/n11/wizard"
+@page "/sales-channels/n11/wizard/{Id:guid}"
+@using Integration.TradeXpress.SalesChannels
+@using Integration.TradeXpress.N11Shipments
+@using Integration.Framework.Blazor.Client.Components.Inputs
+@using Integration.Framework.Blazor.Client.Components.Shared
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@*
+   N11 satış kanalı KURULUM SİHİRBAZI — kanalı açmak yetmiyor: içe aktarımın ihtiyaç duyduğu kararlar
+   (kargo şablonu, KDV) hiçbir yerde sorulmadığı için kayıtlar eksik doğuyordu. Sihirbaz bu kararları
+   ÇEKİMDEN ÖNCE topluyor.
+
+   Kanal 1. adımın SONUNDA kaydedilir (sonda değil): sonraki adımların hepsi salesChannelId ZORUNLU
+   istiyor (şablon senkronu, içe aktarım) — kanal olmadan koşamazlar. Yarıda bırakılırsa geriye kimliği
+   doğrulanmış çalışan bir kanal kalır, kullanıcı normal formdan devam eder.
+*@
+
+@* Başlık düz işaretleme: EditHeaderView bir TabHeaderData bekler (Title/IconCssClass parametreleri YOK) —
+   sırf başlık yazmak için o veriyi kurmak gereksiz bağ olurdu. *@
+<div style="display:flex; align-items:center; gap:8px; padding:12px 16px 0;">
+    <i class="@TradeXpressIcons.SalesChannel"></i>
+    <h5 style="margin:0;">@L["SalesChannelTrN11:Wizard:Title"]</h5>
+</div>
+
+<div class="p-3">
+    <WizardShell FinishText="@L["SalesChannelTrN11:Wizard:Finish"]" OnFinished="@GoToChannelAsync">
+
+        @* 1 — Kimlik. YENİ kurulumda ileri = kanalı OLUŞTUR (sunucu kimliği doğrular). MEVCUT kanalda kimlik
+             alanları hiç gösterilmez: kanal zaten var ve sırları sunucu redakte ediyor. *@
+        <WizardStep Title="@L["SalesChannelTrN11:Wizard:Step:Credentials"]"
+                    Description="@(IsExistingChannel ? L["SalesChannelTrN11:Wizard:Step:CredentialsExisting"].Value : L["SalesChannelTrN11:Wizard:Step:CredentialsHelp"].Value)"
+                    OnBeforeAdvanceAsync="@CreateChannelAsync">
+            @if (IsExistingChannel)
+            {
+                <div style="color:#198754; font-size:0.9rem;">@L["SalesChannelTrN11:Wizard:UsingExistingChannel", _code ?? "-"]</div>
+            }
+            else
+            {
+                <DxFormLayout CssClass="w-100">
+                    <DxFormLayoutItem Caption="@($"{L["Code"]} *")" ColSpanMd="6">
+                        <DxTextBox @bind-Text="@_code" />
+                    </DxFormLayoutItem>
+                    <DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="6">
+                        <DxTextBox @bind-Text="@_name" />
+                    </DxFormLayoutItem>
+                    <DxFormLayoutItem Caption="@($"{L["SalesChannel:AppKey"]} *")" ColSpanMd="6">
+                        <DxTextBox @bind-Text="@_appKey" />
+                    </DxFormLayoutItem>
+                    <DxFormLayoutItem Caption="@($"{L["SalesChannel:AppSecret"]} *")" ColSpanMd="6">
+                        <PasswordTextEdit @bind-Text="@_appSecret" Tooltip="@L["ShowPassword"]" CssClass="w-100" />
+                    </DxFormLayoutItem>
+                </DxFormLayout>
+                @if (_channelId != Guid.Empty)
+                {
+                    <div style="color:#198754; font-size:0.9rem; margin-top:8px;">@L["SalesChannelTrN11:Wizard:ChannelReady"]</div>
+                }
+            }
+        </WizardStep>
+
+        @* 2 — Referans verisi. Kategori ağacı + kargo firmaları host-global; bir kez çekilir. *@
+        <WizardStep Title="@L["SalesChannelTrN11:Wizard:Step:Reference"]"
+                    Description="@L["SalesChannelTrN11:Wizard:Step:ReferenceHelp"]"
+                    OnBeforeAdvanceAsync="@SyncReferenceDataAsync">
+            <div style="display:flex; flex-direction:column; gap:4px; font-size:0.9rem;">
+                <span>@L["SalesChannelTrN11:Wizard:ReferenceCategories"]: @StatusText(_categoryCount)</span>
+                <span>@L["SalesChannelTrN11:Wizard:ReferenceCarriers"]: @StatusText(_carrierCount)</span>
+            </div>
+        </WizardStep>
+
+        @* 3 — Kargo şablonu. N11'den çekilir; kullanıcı varsayılanı seçip TAHMİNİ MALİYETİNİ girer
+             (reçetedeki kargo satırının kaynağı). *@
+        <WizardStep Title="@L["SalesChannelTrN11:Wizard:Step:Shipment"]"
+                    Description="@L["SalesChannelTrN11:Wizard:Step:ShipmentHelp"]"
+                    OnBeforeAdvanceAsync="@SaveShipmentCostAsync">
+            <div style="display:flex; gap:8px; align-items:center; margin-bottom:10px;">
+                <DxButton Text="@L["SalesChannelTrN11:Wizard:PullTemplates"]"
+                          RenderStyle="ButtonRenderStyle.Secondary"
+                          Enabled="@(!_busy)"
+                          Click="@PullTemplatesAsync" />
+                @if (_templates.Count > 0)
+                {
+                    <span style="font-size:0.85rem; color:#6c757d;">@L["SalesChannelTrN11:Wizard:TemplateCount", _templates.Count]</span>
+                }
+            </div>
+
+            @if (_templates.Count == 0)
+            {
+                <div style="color:#b45309; font-size:0.9rem;">@L["SalesChannelTrN11:Wizard:NoTemplates"]</div>
+            }
+            else
+            {
+                <DxFormLayout CssClass="w-100">
+                    <DxFormLayoutItem Caption="@L["SalesChannelTrN11:Wizard:DefaultTemplate"]" ColSpanMd="6">
+                        <DxComboBox Data="@_templates" @bind-Value="@_selectedTemplateId"
+                                    ValueFieldName="@nameof(N11ShipmentTemplateDto.Id)"
+                                    TextFieldName="@nameof(N11ShipmentTemplateDto.TemplateName)"
+                                    CssClass="w-100" />
+                    </DxFormLayoutItem>
+                    <DxFormLayoutItem Caption="@L["N11ShipmentTemplate:EstimatedCost"]" ColSpanMd="6">
+                        <DxSpinEdit @bind-Value="@_estimatedCost" MinValue="0"
+                                    NullText="@L["N11ShipmentTemplate:EstimatedCostNone"]" CssClass="w-100" />
+                    </DxFormLayoutItem>
+                </DxFormLayout>
+            }
+        </WizardStep>
+
+        @* 4 — KDV. Kullanıcı BİR KEZ seçer; içe aktarım yeni kayıtlara damgalar. Oran uydurulmaz. *@
+        <WizardStep Title="@L["SalesChannelTrN11:Wizard:Step:Vat"]"
+                    Description="@L["SalesChannelTrN11:Wizard:Step:VatHelp"]">
+            <DxFormLayout CssClass="w-100">
+                <DxFormLayoutItem Caption="@L["SalesChannelTrN11:Wizard:DefaultVatRate"]" ColSpanMd="6">
+                    <DxComboBox Data="@VatOptions" @bind-Value="@_defaultVatRate"
+                                ValueFieldName="@nameof(VatRateOption.Rate)"
+                                TextFieldName="@nameof(VatRateOption.DisplayText)"
+                                NullText="@L["SalesChannelTrN11:Wizard:VatNotChosen"]"
+                                ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto"
+                                CssClass="w-100" />
+                </DxFormLayoutItem>
+            </DxFormLayout>
+            <div style="font-size:0.85rem; color:#6c757d; margin-top:8px;">@L["SalesChannelTrN11:Wizard:VatNote"]</div>
+        </WizardStep>
+
+        @* 5 — Ürünleri çek. Salt GET; rapor ekranda kalır. *@
+        <WizardStep Title="@L["SalesChannelTrN11:Wizard:Step:Import"]"
+                    Description="@L["SalesChannelTrN11:Wizard:Step:ImportHelp"]">
+            <div style="display:flex; gap:8px; align-items:center;">
+                <DxButton Text="@L["N11Product:Import:Run"]"
+                          IconCssClass="@TradeXpressIcons.Download"
+                          RenderStyle="ButtonRenderStyle.Primary"
+                          Enabled="@(!_busy)"
+                          Click="@RunImportAsync" />
+                @if (_busy)
+                {
+                    <span style="font-size:0.85rem; color:#6c757d;">@L["N11Product:Import:Running"]</span>
+                }
+            </div>
+            @if (_import is { } r)
+            {
+                <div style="font-size:0.85rem; display:flex; flex-direction:column; gap:2px; margin-top:8px;">
+                    <span>@L["N11Product:Import:Summary", r.TotalFetchedItems, r.TotalRemoteProducts, r.CreatedProducts, r.CreatedChannelProducts, r.UpdatedChannelProducts]</span>
+                    @foreach (var line in ImportIssueLines)
+                    {
+                        <span style="color:#b45309;">@line</span>
+                    }
+                </div>
+            }
+        </WizardStep>
+
+        @* 6 — Özet. Ne kuruldu + kalan iş. *@
+        <WizardStep Title="@L["SalesChannelTrN11:Wizard:Step:Summary"]"
+                    Description="@L["SalesChannelTrN11:Wizard:Step:SummaryHelp"]">
+            <ul style="font-size:0.9rem; margin:0; padding-left:18px;">
+                <li>@L["SalesChannelTrN11:Wizard:SummaryChannel", _code]</li>
+                <li>@L["SalesChannelTrN11:Wizard:SummaryReference", _categoryCount ?? 0, _carrierCount ?? 0]</li>
+                <li>@L["SalesChannelTrN11:Wizard:SummaryTemplate", SelectedTemplateName]</li>
+                <li>@L["SalesChannelTrN11:Wizard:SummaryVat", VatLabel]</li>
+                <li>@L["SalesChannelTrN11:Wizard:SummaryProducts", _import?.CreatedChannelProducts ?? 0]</li>
+            </ul>
+            @if (RemainingWork.Count > 0)
+            {
+                <div style="margin-top:10px;">
+                    <div style="font-weight:600; font-size:0.9rem;">@L["SalesChannelTrN11:Wizard:Remaining"]</div>
+                    <ul style="font-size:0.9rem; margin:4px 0 0; padding-left:18px; color:#b45309;">
+                        @foreach (var item in RemainingWork)
+                        {
+                            <li>@item</li>
+                        }
+                    </ul>
+                </div>
+            }
+        </WizardStep>
+
+    </WizardShell>
+</div>

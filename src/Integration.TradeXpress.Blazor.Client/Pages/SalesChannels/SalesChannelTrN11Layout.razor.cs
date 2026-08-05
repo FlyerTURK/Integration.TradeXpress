@@ -9,6 +9,12 @@ public partial class SalesChannelTrN11Layout
     [Parameter, EditorRequired] public SalesChannelTrN11GetDto Model { get; set; } = default!;
     [Parameter] public bool IsNew { get; set; }
 
+    /// <summary>Kanal bu oturumda YENİ oluşturuldu → içe aktarım paneli çekimi kendiliğinden başlatsın.</summary>
+    [Parameter] public bool AutoImportProducts { get; set; }
+
+    /// <summary>Kurulum sihirbazına geçiş için (mevcut kanal kipinde açılır).</summary>
+    [Inject] private NavigationManager Navigation { get; set; } = default!;
+
     /// <summary>Düzenlemede sir alanları boş gelir → in-field ipucu "saklı, boş = korunur"; yeni kayıtta placeholder yok.</summary>
     private string? SecretPlaceholder => IsNew ? null : L["SalesChannel:SecretKept"].Value;
 

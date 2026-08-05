@@ -240,6 +240,11 @@ public class N11ShipmentTemplateAppService : TradeXpressAppService, IN11Shipment
         entity.SetShipmentCompanies(input.ShipmentCompanyExternalIds);
         entity.SetDeliverableCities(input.DeliverableCityCodes);
         entity.SetConditionalShipping(input.ConditionalShippingThreshold, input.ConditionalShippingUnit);
+
+        // Tahmini kargo maliyeti YEREL bir fiyatlama alanıdır (N11'de karşılığı yok) → yalnız kullanıcı girdisiyle
+        // yazılır; içe aktarım (ApplyData) buna ASLA dokunmaz, aksi hâlde her senkron kullanıcının girdiği tutarı
+        // sıfırlardı.
+        entity.SetEstimatedCost(input.EstimatedCost, input.EstimatedCostCurrencyUnitId);
     }
 
     // İçe aktarım: N11'den gelen ÇÖZÜLMÜŞ veriyi (isim/kod) id-ref'lere ters-çözer, entity'ye uygular.
@@ -469,6 +474,16 @@ public class N11ShipmentTemplateAppService : TradeXpressAppService, IN11Shipment
     }
 
     /// <summary>Şablonu çalışılan şirket kapsamında yükler (yabancı şirketinki → dostane bulunamadı).</summary>
+    /// <summary>Tahmini kargo maliyetini yazar — YEREL alan, N11'e push YOK (bkz. arayüz doc'u).
+    /// Bu şablonu kullanan ürünlerin reçetesindeki kargo satırı bundan sonra buradan beslenir.</summary>
+    [Authorize(TradeXpressPermissions.SalesChannels.Update)]
+    public virtual async Task SetEstimatedCostAsync(Guid id, decimal? cost, Guid? currencyUnitId)
+    {
+        var entity = await GetOwnedTemplateAsync(id);
+        entity.SetEstimatedCost(cost, currencyUnitId);
+        await _repository.UpdateAsync(entity, autoSave: true);
+    }
+
     private async Task<N11ShipmentTemplate> GetOwnedTemplateAsync(Guid id)
     {
         var companyId = EnsureCurrentCompanyId();

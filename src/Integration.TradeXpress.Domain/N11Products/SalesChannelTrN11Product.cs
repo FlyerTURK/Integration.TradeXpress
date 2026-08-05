@@ -508,6 +508,49 @@ public class SalesChannelTrN11Product : FullAuditedAggregateRoot<Guid>, IMultiTe
         return $"{variantCode}-{SequenceNo}";
     }
 
+    /// <summary>İÇE AKTARIM SKU satırı — stok kodu <b>N11'den geldiği gibi</b> yazılır, <see cref="BuildStockCode"/>
+    /// ile ÜRETİLMEZ.
+    ///
+    /// <para><b>Neden ayrı yol:</b> "{VaryantKodu}-{SequenceNo}" bizim ÜRETTİĞİMİZ koddur; içe aktarılan listeleme
+    /// N11'de zaten YAŞIYOR ve kendi stok koduna sahip. Kodu yeniden üretmek, sonraki push'un var olan SKU'yu
+    /// güncellemek yerine <b>ikinci bir SKU açması</b> demekti — mağazada aynı ürün iki kez listelenirdi.</para>
+    ///
+    /// <para>Eşleme: önce uzak stok kodu (asıl kimlik), sonra varyant kimliği; ikisi de yoksa yeni satır. Var olan
+    /// satırın <see cref="SalesChannelTrN11ProductSku.SellerStockCode"/>'u ASLA değişmez (dondurma değişmezi);
+    /// yalnız varyant bağı ve N11 SKU kimliği tazelenir. İDEMPOTENT: ikinci import satır çoğaltmaz.</para></summary>
+    public virtual void UpsertImportedSku(Guid productVariantId, string sellerStockCode, long? n11SkuId)
+    {
+        var stockCode = StringFieldGuard.EnsureRequiredText(
+            sellerStockCode, nameof(SalesChannelTrN11ProductSku.SellerStockCode), 1, N11ProductConsts.StockCodeMaxLength);
+
+        var sku = FindSku(stockCode) ?? Skus.FirstOrDefault(s => s.ProductVariantId == productVariantId);
+        if (sku is null)
+        {
+            sku = new SalesChannelTrN11ProductSku(productVariantId, stockCode);
+            Skus.Add(sku);
+        }
+
+        sku.ProductVariantId = productVariantId;
+        sku.N11SkuId = n11SkuId ?? sku.N11SkuId;
+    }
+
+    /// <summary>İÇE AKTARIMDA uzak gerçeği yerele yansıtır — <b>push DEĞİLDİR</b>.
+    ///
+    /// <para><see cref="MarkSynced"/>'den bilinçli olarak ayrı: o "gönderdik ve kabul edildi" der, bu "N11'de ne
+    /// olduğunu OKUDUK" der. Aynı metoda bindirmek, hiç push etmediğimiz bir kaydı push edilmiş göstermek olurdu.
+    /// Kaydın uzakla hizalı olduğu ortak, o yüzden <see cref="LastSyncedAt"/> yine damgalanır.</para>
+    ///
+    /// <para><see cref="LastError"/> TEMİZLENİR: ürünün N11'de canlı olduğunu az önce gördük; yanında duran eski
+    /// "push başarısız" mesajı artık gerçeği anlatmıyor.</para></summary>
+    public virtual void ApplyImportedSnapshot(long? n11ProductId, string? saleStatus, string? productStatus, DateTime fetchedAtUtc)
+    {
+        N11ProductId = n11ProductId is > 0 ? n11ProductId : N11ProductId;
+        SaleStatus = StringFieldGuard.EnsureOptionalText(saleStatus, nameof(SaleStatus), 1, N11ProductConsts.StatusMaxLength);
+        ApprovalStatus = StringFieldGuard.EnsureOptionalText(productStatus, nameof(ApprovalStatus), 1, N11ProductConsts.StatusMaxLength);
+        LastSyncedAt = fetchedAtUtc;
+        LastError = null;
+    }
+
     /// <summary>Başarılı push sonrası N11 durumunu işaretler (hata temizlenir).</summary>
     public virtual void MarkSynced(long? n11ProductId, string? saleStatus, string? approvalStatus, DateTime syncedAtUtc)
     {

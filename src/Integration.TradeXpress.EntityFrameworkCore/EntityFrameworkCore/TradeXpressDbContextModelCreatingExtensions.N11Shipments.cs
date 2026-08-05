@@ -45,6 +45,9 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
 
             // Şartlı kargo eşiği (N11 "Şartlı Kargo") — şablon-düzeyinde skaler. API-read-only (import ile dolar).
             b.Property(x => x.ConditionalShippingThreshold).HasColumnType("decimal(18,2)");
+
+            // Tahmini kargo maliyeti — TUTAR alanı, N2 (kur/milyem değil). Yalnız yerel fiyatlama; N11'e gitmez.
+            b.Property(x => x.EstimatedCost).HasColumnType("decimal(18,2)");
             // Enum 1'den başlar (CLR default 0 geçersiz) → sentinel'i Amount'a sabitle: DB default'u yalnız gerçekten
             // "ayarlanmamış" halde kullansın (aksi halde EF "sentinel yok" uyarısı verir; değer zaten hep 1/2 yazılır).
             b.Property(x => x.ConditionalShippingUnit)

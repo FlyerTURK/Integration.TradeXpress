@@ -6,6 +6,8 @@
 @*
    N11 satış kanalı edit host = ince sarmal: coordinator (TrN11 DTO'ları + ISalesChannelTrN11AppService) + sunum config.
    Company-owned (sunucu CompanyId zorlar). Sir alanları update'te BOŞ gelir (redaksiyon) — form "boş = korunur" der.
+   CREATE-SUCCESS sonrası (OnAfterCreate — yalnız yeni kayıt) ürün içe aktarımı OTOMATİK tetiklenir: işaret layout
+   üzerinden N11MarketplaceImportPanel'e akar, panel ilk görünümünde çekimi kendisi başlatır (rapor/spinner panelde).
 *@
 
 @if (_coordinator != null)
@@ -14,7 +16,8 @@
                   Coordinator="@_coordinator" Id="@(Id ?? Guid.Empty)" IsPopupMode="@IsPopupMode" OnSaved="@OnSaved" OnClosed="@OnClosed"
                   FormCaption="@L["SalesChannelType:TrN11"].Value" IconCssClass="@TradeXpressIcons.SalesChannel"
                   EntityValue="@(m => m.Code)"
-                  ApplyNewDefaults="@(m => { m.IsActive = true; })">
-        <SalesChannelTrN11Layout Model="@context" IsNew="@(context.Id == Guid.Empty)" />
+                  ApplyNewDefaults="@(m => { m.IsActive = true; })"
+                  OnAfterCreate="@OnChannelCreatedAsync">
+        <SalesChannelTrN11Layout Model="@context" IsNew="@(context.Id == Guid.Empty)" AutoImportProducts="@_autoImportProducts" />
     </CrudEditHost>
 }

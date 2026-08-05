@@ -16,6 +16,18 @@ public interface IGoodPricingResolver
 {
     /// <summary>Verilen Good'ların ana-varyant fiyat özetini döner (ana varyantı/detayı olmayan Good sözlükte YOK).</summary>
     Task<Dictionary<Guid, GoodPricingSnapshot>> ResolveAsync(IReadOnlyCollection<Guid> goodIds);
+
+    /// <summary>BELİRLİ VARYANTLARIN fiyat özetini döner (anahtar = <c>EntityVariant.Id</c>) — reçete satırı
+    /// ana-dışı bir varyant seçtiğinde kullanılır.
+    ///
+    /// <para><b>Neden gerekli:</b> <see cref="ResolveAsync"/> bir Good için TEK (ana varyant) fiyat verir; bu,
+    /// voucher/bilanço gibi Good.Id'ye referanslı tüketiciler için doğrudur ama REÇETE satırı varyant seçebilir.
+    /// Ana-varyant fiyatına düşmek, 14/18/22 ayar üç varyantı aynı maliyetle hesaplamak demekti —
+    /// farklı maliyetli varyantlar tek fiyata çökerdi. Metal'de aynı sorun varyant-anahtarlı çözümle kapatılmıştı;
+    /// bu, o desenin Good karşılığıdır.</para>
+    ///
+    /// <para>Detayı olmayan varyant sözlükte YOKTUR (çağıran ana-varyant fallback'ine düşebilir).</para></summary>
+    Task<Dictionary<Guid, GoodPricingSnapshot>> ResolveByVariantAsync(IReadOnlyCollection<Guid> variantIds);
 }
 
 /// <summary>Bir mamülün temsili (ana varyant) fiyat özeti — alış/satış + birimler.</summary>
@@ -71,6 +83,27 @@ public class GoodPricingResolver : IGoodPricingResolver, ITransientDependency
             {
                 result[goodId] = new GoodPricingSnapshot(d.EntryPrice, d.EntryPriceUnitId, d.ExitPrice, d.ExitPriceUnitId);
             }
+        }
+
+        return result;
+    }
+
+    public async Task<Dictionary<Guid, GoodPricingSnapshot>> ResolveByVariantAsync(IReadOnlyCollection<Guid> variantIds)
+    {
+        var result = new Dictionary<Guid, GoodPricingSnapshot>();
+        if (variantIds.Count == 0)
+        {
+            return result;
+        }
+
+        // Ana-varyant filtresi YOK: anahtar doğrudan varyant kimliğidir. EntityName kontrolü de gerekmez —
+        // varyant kimliği zaten tekildir ve GoodVariantDetail yalnız Good varyantlarına bağlanır.
+        var details = await _executer.ToListAsync(
+            (await _details.GetQueryableAsync()).Where(d => variantIds.Contains(d.EntityVariantId)));
+
+        foreach (var d in details)
+        {
+            result[d.EntityVariantId] = new GoodPricingSnapshot(d.EntryPrice, d.EntryPriceUnitId, d.ExitPrice, d.ExitPriceUnitId);
         }
 
         return result;

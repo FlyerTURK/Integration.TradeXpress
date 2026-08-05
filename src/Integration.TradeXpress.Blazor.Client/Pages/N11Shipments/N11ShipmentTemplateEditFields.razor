@@ -67,6 +67,15 @@
         <DxFormLayoutItem Caption="@L["N11ShipmentTemplate:ConditionalShippingUnit"]" ColSpanMd="6">
             <ComboBoxEnumEdit TEnum="N11ConditionalShippingUnit" L="@L" @bind-Value="@Model.ConditionalShippingUnit" />
         </DxFormLayoutItem>
+
+        @* Tahmini kargo maliyeti — YEREL fiyatlama alanı, N11'e GİTMEZ. Bu şablonu kullanan ürünlerin
+           reçetesindeki kargo satırı buradan beslenir; boşsa kanalın düz gider değeri kullanılır. *@
+        <DxFormLayoutItem Caption="@L["N11ShipmentTemplate:EstimatedCost"]" ColSpanMd="6" BeginRow="true">
+            <DxSpinEdit @bind-Value="@Model.EstimatedCost" NullText="@L["N11ShipmentTemplate:EstimatedCostNone"]" MinValue="0" CssClass="w-100" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["N11ShipmentTemplate:EstimatedCostHint"]" ColSpanMd="6">
+            <div style="font-size:0.85rem; color:#6c757d; padding-top:6px;">@L["N11ShipmentTemplate:EstimatedCostDescription"]</div>
+        </DxFormLayoutItem>
     </DxFormLayoutGroup>
 </DxFormLayout>
 

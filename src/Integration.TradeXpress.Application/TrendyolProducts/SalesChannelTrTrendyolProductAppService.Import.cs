@@ -78,10 +78,10 @@ public partial class SalesChannelTrTrendyolProductAppService
             (await _repository.GetQueryableAsync())
                 .Where(x => x.CompanyId == channel.CompanyId && x.SalesChannelId == channel.Id));
 
-        // Tüm uzak barcode'lar TEK seferde yerel varyantlara çözülür (yeni filtered unique index güvencesiyle tekil).
-        // Arama TENANT kapsamlı — unique index (TenantId, Barcode) ile AYNI kapsam: başka şirketin sahiplendiği
-        // barcode ForeignBarcodes'a düşer ve kalem atlanıp raporlanır (yoksa insert ham unique ihlaliyle patlar).
-        var (variantsByBarcode, foreignBarcodes) = await LoadVariantsByBarcodeAsync(
+        // Tüm uzak barcode'lar TEK seferde yerel varyantlara çözülür (filtered unique index güvencesiyle tekil).
+        // Arama ŞİRKET kapsamlı — unique index (TenantId, CompanyId, Barcode) ile AYNI kapsam. Aynı tenant altındaki
+        // BAŞKA şirketin aynı barkodu artık çakışma değildir (her şirket kendi pazaryeri hesabıyla aynı malı satabilir).
+        var variantsByBarcode = await LoadVariantsByBarcodeAsync(
             channel.CompanyId,
             remoteProducts.SelectMany(p => p.Variants.Select(v => v.Barcode)).ToList());
 
@@ -90,7 +90,7 @@ public partial class SalesChannelTrTrendyolProductAppService
 
         foreach (var remote in remoteProducts)
         {
-            var validVariants = FilterImportableVariants(remote, seenBarcodes, foreignBarcodes, report.SkippedRows);
+            var validVariants = FilterImportableVariants(remote, seenBarcodes, report.SkippedRows);
             if (validVariants.Count == 0)
             {
                 continue;   // grubun tüm kalemleri raporlanarak elendi
@@ -182,13 +182,15 @@ public partial class SalesChannelTrTrendyolProductAppService
 
     // ── Uzak kalem eleme + rapor ────────────────────────────────────────────────────────────────────
 
-    /// <summary>İçe alınabilir kalemleri süzer: barcode'suz kalem, barcode uzunluk taşması, aynı tenant'taki BAŞKA
-    /// şirketin sahiplendiği barcode ve import-içi duplike barcode ATLANIR + raporlanır (sessiz geçilmez).
-    /// Atlanan satırlar <paramref name="skippedRows"/>'a yazılır.</summary>
+    /// <summary>İçe alınabilir kalemleri süzer: barcode'suz kalem, barcode uzunluk taşması ve import-içi duplike
+    /// barcode ATLANIR + raporlanır (sessiz geçilmez). Atlanan satırlar <paramref name="skippedRows"/>'a yazılır.
+    ///
+    /// <para><b>"Başka şirketin barkodu" elemesi KALDIRILDI</b> (2026-08-04): unique index şirkete daraltıldığı
+    /// için aynı tenant altındaki farklı şirketlerin aynı barkodu artık ÇAKIŞMA DEĞİLDİR. Eleme kalsaydı meşru
+    /// kalemleri atlamaya devam ederdi.</para></summary>
     private List<TrendyolRemoteVariant> FilterImportableVariants(
         TrendyolRemoteProduct remote,
         HashSet<string> seenBarcodes,
-        HashSet<string> foreignBarcodes,
         List<TrendyolImportIssueDto> skippedRows)
     {
         var result = new List<TrendyolRemoteVariant>();
@@ -198,14 +200,6 @@ public partial class SalesChannelTrTrendyolProductAppService
                 || variant.Barcode.Length > TrendyolProductConsts.BarcodeMaxLength)
             {
                 AddSkipped(skippedRows, variant, L["TrendyolProduct:Import:InvalidBarcode"].Value);
-                continue;
-            }
-
-            // Unique index (TenantId, Barcode) tenant kapsamlıdır — barcode başka şirketin varyantındaysa insert
-            // ham DbUpdateException'la TÜM importu düşürür ve o veri düzelmeden import hiç tamamlanamaz → atla+raporla.
-            if (foreignBarcodes.Contains(variant.Barcode))
-            {
-                AddSkipped(skippedRows, variant, L["TrendyolProduct:Import:BarcodeOwnedByOtherCompany"].Value);
                 continue;
             }
 
@@ -823,48 +817,43 @@ public partial class SalesChannelTrTrendyolProductAppService
         }
     }
 
-    /// <summary>Uzak barcode'ları yerel varyantlara TEK geçişte çözer (parça parça IN sorgusu). Arama kapsamı
-    /// unique index (TenantId, Barcode) ile AYNI: TENANT-scoped (tenant data-filter zaten uygular) — şirket filtresi
-    /// KONMAZ, yoksa başka şirketin sahiplendiği barcode görünmez kalır ve insert ham unique ihlaliyle TÜM importu
-    /// düşürür. Kanalın şirketine ait varyantlar sözlüğe, diğer şirketlerinkiler ForeignBarcodes kümesine ayrışır
-    /// (kalem atla+raporla için). Barcode başına en çok BİR varyant döner (index güvencesi).</summary>
-    private async Task<(Dictionary<string, EntityVariant> OwnedByBarcode, HashSet<string> ForeignBarcodes)> LoadVariantsByBarcodeAsync(
-        Guid companyId, List<string> barcodes)
+    /// <summary>Uzak barcode'ları yerel varyantlara TEK geçişte çözer (parça parça IN sorgusu).
+    ///
+    /// <para><b>Arama kapsamı unique index'le AYNI olmalıdır</b> — indeks <c>(TenantId, CompanyId, Barcode)</c>
+    /// olduğundan burada da ŞİRKETE daraltılır. Kapsamlar ayrışırsa iki yönlü hata doğar: arama indeksten GENİŞSE
+    /// meşru kalem "başkasının" sanılıp atlanır, DARSA barkod boş sanılıp insert ham unique ihlaliyle tüm içe
+    /// aktarımı düşürür.</para>
+    ///
+    /// <para><b>Eskiden tenant genelinde arardı</b> (şirket filtresi bilerek kapalıydı) çünkü indeks de tenant
+    /// genelindeydi ve başka şirketin barkodu ham DB ihlaline yol açıyordu; o yüzden "yabancı barkod" kümesi
+    /// çıkarılıp kalem atlanıyordu. İndeks 2026-08-04'te şirkete daraltılınca (aynı tenant altındaki farklı
+    /// şirketler aynı malı satabilmeli) o ağ ZARARLIYA dönüştü — artık meşru olan kalemleri atlardı — ve kaldırıldı.</para>
+    ///
+    /// <para><c>EntityName == "Product"</c> ZORUNLU: agnostik tablo TÜM entity'lerin (Good/Metal/…) varyantlarını
+    /// tutar; barkod tekilliği yalnız ürün varyantlarını kapsar.</para></summary>
+    private async Task<Dictionary<string, EntityVariant>> LoadVariantsByBarcodeAsync(Guid companyId, List<string> barcodes)
     {
         var owned = new Dictionary<string, EntityVariant>(StringComparer.OrdinalIgnoreCase);
-        var foreign = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var distinct = barcodes
             .Where(b => !string.IsNullOrWhiteSpace(b))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        // Company görünürlük filtresi (IDataFilter<ICompanyScoped>) KAPALI: agnostik varyant tablosu tenant kapsamlı
-        // olduğundan diğer şirketlerin varyantları da görünmeli ki çakışan barcode atla+raporla ile yakalanabilsin.
-        // EntityName=="Product" ZORUNLU: agnostik tablo TÜM entity'lerin (Good/Metal/…) varyantlarını tutar; eski
-        // ProductVariant filtered-unique-index'i (TenantId, Barcode) yalnız ürün varyantlarını kapsıyordu → aynı
-        // barkod-tekilliği/import-idempotency kapsamını EntityName filtresiyle koru (ürün varyantına daralt).
-        using (DataFilter.Disable<ICompanyScoped>())
+        const int chunkSize = 500;
+        foreach (var chunk in distinct.Chunk(chunkSize))
         {
-            const int chunkSize = 500;
-            foreach (var chunk in distinct.Chunk(chunkSize))
+            var variants = await AsyncExecuter.ToListAsync(
+                (await _variantRepository.GetQueryableAsync())
+                    .Where(v => v.EntityName == ProductEntityName
+                                && v.CompanyId == companyId
+                                && v.Barcode != null
+                                && chunk.Contains(v.Barcode)));
+            foreach (var variant in variants)
             {
-                var variants = await AsyncExecuter.ToListAsync(
-                    (await _variantRepository.GetQueryableAsync())
-                        .Where(v => v.EntityName == ProductEntityName && v.Barcode != null && chunk.Contains(v.Barcode)));
-                foreach (var variant in variants)
-                {
-                    if (variant.CompanyId == companyId)
-                    {
-                        owned[variant.Barcode!] = variant;
-                    }
-                    else
-                    {
-                        foreign.Add(variant.Barcode!);
-                    }
-                }
+                owned[variant.Barcode!] = variant;
             }
         }
 
-        return (owned, foreign);
+        return owned;
     }
 }

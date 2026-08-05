@@ -190,12 +190,20 @@ public class RecipeCostPopulator : ITransientDependency
             }
             else if (l.CommodityProcessType == ProcessType.Good && catalog.Goods.TryGetValue(commodityId, out var g))
             {
-                // Good parasal (Jewelry/Stone deseni) — FARK: giriş fiyatı ANA VARYANTINDAN çözülür (GoodVariantDetail;
-                // resolver katalog yüklemesinde). PriceByQuantity ana mamülde. Değerleme birimi satırın ValuationUnitId'i
-                // (UI'da good.EntryPriceUnitId'e set edilir — Jewelry ile aynı).
+                // Good parasal (Jewelry/Stone deseni). PriceByQuantity ana mamülde; değerleme birimi satırın
+                // ValuationUnitId'i (UI'da good.EntryPriceUnitId'e set edilir — Jewelry ile aynı).
+                //
+                // Giriş fiyatı SATIRIN SEÇİLİ VARYANTINDAN çözülür (Metal'deki işçilik-türü deseniyle aynı):
+                // ana-varyant fiyatına düşmek 14/18/22 ayar üç varyantı AYNI maliyetle hesaplamak demekti.
+                // Varyantsız satır (legacy) ana-varyant fallback'inde kalır.
+                var goodPrice = l.CommodityVariantId is { } goodVariantId
+                                && catalog.GoodsByVariant.TryGetValue(goodVariantId, out var byVariant)
+                    ? byVariant
+                    : g.EntryPrice;
+
                 // Fiyat çözülemediyse 0 DEĞİL "bilinmiyor": satır MissingRate ile işaretlenir (bkz. PricedCatalogCost).
-                entryPrice = g.EntryPrice ?? 0m;
-                priceUnknown = g.EntryPrice is null;
+                entryPrice = goodPrice ?? 0m;
+                priceUnknown = goodPrice is null;
                 priceByQuantity = g.PriceByQuantity;
             }
         }
@@ -260,11 +268,22 @@ public class RecipeCostPopulator : ITransientDependency
             .Distinct()
             .ToArray();
 
+        // Satırların SEÇTİĞİ Good varyantları — fiyat ana-varyanttan DEĞİL bu varyantlardan çözülür
+        // (Metal'in metalVariantIds deseniyle aynı gerekçe).
+        var goodVariantIds = lines
+            .Where(l => l.ComponentType == RecipeComponentType.CatalogCommodity
+                && l.CommodityProcessType == ProcessType.Good
+                && l.CommodityVariantId is not null)
+            .Select(l => l.CommodityVariantId!.Value)
+            .Distinct()
+            .ToArray();
+
         var metals = new Dictionary<Guid, MetalCatalogCost>();
         var jewelries = new Dictionary<Guid, PricedCatalogCost>();
         var stones = new Dictionary<Guid, PricedCatalogCost>();
         var goods = new Dictionary<Guid, PricedCatalogCost>();
         var laborByQuantityByVariant = new Dictionary<Guid, bool>();
+        var goodsByVariant = new Dictionary<Guid, decimal?>();
 
         using (_dataFilter.Disable<IMultiTenant>())
         using (_dataFilter.Disable<ICompanyScoped>())
@@ -330,10 +349,18 @@ public class RecipeCostPopulator : ITransientDependency
                     g => new PricedCatalogCost(
                         goodPricing.TryGetValue(g.Id, out var gp) ? gp.EntryPrice : null,
                         g.PriceByQuantity));
+
+                // Satır ana-dışı varyant seçtiyse fiyat O VARYANTIN detayından okunur (canlı okuma;
+                // ana-varyant sözlüğü yalnız fallback). Detayı olmayan varyant sözlüğe GİRMEZ → fallback çalışır.
+                if (goodVariantIds.Length > 0)
+                {
+                    var variantPricing = await _goodPricingResolver.ResolveByVariantAsync(goodVariantIds);
+                    goodsByVariant = variantPricing.ToDictionary(kv => kv.Key, kv => (decimal?)kv.Value.EntryPrice);
+                }
             }
         }
 
-        return new RecipeCatalogData(metals, jewelries, stones, goods, laborByQuantityByVariant);
+        return new RecipeCatalogData(metals, jewelries, stones, goods, laborByQuantityByVariant, goodsByVariant);
     }
 
     /// <summary>Kaydedilmiş türev SelectedLines satırlarının kalıcı kaynak-Id CSV'sini (bir satır setinde), o setin
@@ -407,7 +434,10 @@ public class RecipeCostPopulator : ITransientDependency
         Dictionary<Guid, PricedCatalogCost> Jewelries,
         Dictionary<Guid, PricedCatalogCost> Stones,
         Dictionary<Guid, PricedCatalogCost> Goods,
-        Dictionary<Guid, bool> LaborByQuantityByVariant);
+        Dictionary<Guid, bool> LaborByQuantityByVariant,
+        /// <summary>Satırların SEÇTİĞİ Good varyantlarının giriş fiyatı (anahtar = EntityVariant.Id).
+        /// <see cref="Goods"/> ana-varyant fallback'idir; bu sözlük varsa o ÖNCELENİR.</summary>
+        Dictionary<Guid, decimal?> GoodsByVariant);
 }
 
 /// <summary>Bir reçete satır setinin net-maliyet özeti — net toplam (null ⇔ hesaplanamadı) + ülke birim kodu +

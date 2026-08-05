@@ -196,9 +196,13 @@ public static class SideCostRecipeComposer
 
         foreach (var item in applicable.Where(i => i.CalcMode != SideCostCalcMode.GrossUpPercent).OrderBy(i => i.DisplayOrder))
         {
-            if (item.Value > 0m)
+            // Kargo kaleminde ÇÖZÜLMÜŞ maliyet (ürünün kargo şablonundan) kalemin düz değerini ÖNCELER —
+            // "özgül olan geneli yener": şablon o gönderinin gerçek firmasını/hizmetini bilir, kanal düz değeri
+            // tüm şablonlar için tek ortalamadır. Şablonda tutar yoksa kalemin kendi değerine düşülür.
+            var operand = ResolveFixedOperand(item, plan);
+            if (operand > 0m)
             {
-                desired.Add(BuildLine(item, item.Value));
+                desired.Add(BuildLine(item, operand, ResolveFixedCurrencyUnitId(item, plan)));
             }
         }
 
@@ -239,9 +243,33 @@ public static class SideCostRecipeComposer
         return desired;
     }
 
+    /// <summary>Sabit-tutar kaleminin EFEKTİF operandı: Kargo kaleminde çözülmüş şablon maliyeti öncelikli,
+    /// yoksa kalemin kendi değeri. Diğer türlerde daima kalemin değeri.</summary>
+    private static decimal ResolveFixedOperand(SideCostItem item, SideCostPlan plan)
+    {
+        if (item.Kind == SideCostKind.Cargo && plan.ResolvedCargoCost is { } cost)
+        {
+            return cost;
+        }
+
+        return item.Value;
+    }
+
+    /// <summary>Sabit-tutar kaleminin EFEKTİF para birimi — operandla AYNI kaynaktan gelmeli, yoksa şablonun
+    /// tutarı kanalın birimiyle etiketlenir (yanlış rebase).</summary>
+    private static Guid? ResolveFixedCurrencyUnitId(SideCostItem item, SideCostPlan plan)
+    {
+        if (item.Kind == SideCostKind.Cargo && plan.ResolvedCargoCost is not null)
+        {
+            return plan.ResolvedCargoCurrencyUnitId;
+        }
+
+        return item.CurrencyUnitId;
+    }
+
     // Kalem → reçete Hizmet satırı (düz projeksiyon). PayUnitId yalnız Add'de anlamlı (mutlak tutarın birimi;
     // null = ülke birimi, dolu = değerlemeyle rebase).
-    private static ProductRecipeLineGraphDto BuildLine(SideCostItem item, decimal operand)
+    private static ProductRecipeLineGraphDto BuildLine(SideCostItem item, decimal operand, Guid? currencyUnitId = null)
     {
         var operation = item.CalcMode switch
         {
@@ -257,7 +285,7 @@ public static class SideCostRecipeComposer
             DerivedBaseMode = RecipeDerivedBaseMode.AllAbove,
             DerivedOperation = operation,
             DerivedOperand = operand,
-            PayUnitId = operation == RecipeDerivedOperation.Add ? item.CurrencyUnitId : null,
+            PayUnitId = operation == RecipeDerivedOperation.Add ? currencyUnitId ?? item.CurrencyUnitId : null,
             SideCostKind = item.Kind,
         };
     }
@@ -275,34 +303,65 @@ public static class SideCostRecipeComposer
 
 /// <summary>Composer'ın kanal-çözümlü girdisi — kanal gider satırları + çağıranın çözdüğü efektif komisyon oranı
 /// (N11: kategori komisyonu + zorunlu bedeller ×1,20 — <c>ResolveEffectiveCommissionRate</c> SSOT; Trendyol/Etsy:
-/// null → AutoRate kalemi Value fallback'ine düşer) + varyantın opt-in anahtarı (sigortalı gönderim deseni).</summary>
+/// null → AutoRate kalemi Value fallback'ine düşer) + varyantın opt-in anahtarı (sigortalı gönderim deseni)
+/// + çağıranın çözdüğü KARGO maliyeti.
+///
+/// <para><b><see cref="ResolvedCargoCost"/>:</b> ürünün kargo ŞABLONUNDAN gelen tahmini maliyet (N11
+/// <c>N11ShipmentTemplate.EstimatedCost</c>). Dolu ise Kargo kaleminin düz değerini ÖNCELER — şablon o
+/// gönderinin gerçek firmasını/hizmetini bilir, kanalın düz değeri tüm şablonlar için tek ortalamadır.
+/// Şablonu/tutarı olmayan kanallarda null → eski davranış (kalemin kendi değeri) aynen sürer.</para></summary>
 public sealed record SideCostPlan(
     IReadOnlyList<SideCostItem> Items,
     decimal? ResolvedCommissionRate,
-    bool VariantOptInEnabled)
+    bool VariantOptInEnabled,
+    decimal? ResolvedCargoCost = null,
+    Guid? ResolvedCargoCurrencyUnitId = null)
 {
     /// <summary>Kanal ayarlarından plan kurar. Ayar HİÇ yapılandırılmamışsa (null) eski davranış korunur:
     /// çözülmüş komisyon oranı yine reçeteye girer (örtük AutoRate komisyon kalemi — N11 kategori komisyonu
     /// pazaryeri gerçeğidir, ayar beklemez). Ayar VARSA satır listesi TEK kaynaktır (kullanıcı komisyon satırını
-    /// sildiyse üretilmez).</summary>
-    public static SideCostPlan From(SideCostSettings? settings, decimal? resolvedCommissionRate, bool variantOptInEnabled)
+    /// sildiyse üretilmez).
+    ///
+    /// <para><b>Örtük KARGO kalemi</b> (<paramref name="resolvedCargoCost"/> dolu + ayar yok): komisyonla aynı
+    /// gerekçe. Bugün N11 kanallarında gider ayarı UI'dan düzenlenemiyor (form 2026-07-28'de kaldırıldı) →
+    /// <c>settings</c> pratikte HEP null. Örtük kalem olmasaydı şablona girilen kargo maliyeti hiçbir reçeteye
+    /// ulaşamaz, özellik ölü doğardı.</para></summary>
+    public static SideCostPlan From(
+        SideCostSettings? settings,
+        decimal? resolvedCommissionRate,
+        bool variantOptInEnabled,
+        decimal? resolvedCargoCost = null,
+        Guid? resolvedCargoCurrencyUnitId = null)
     {
         if (settings is not null)
         {
-            return new SideCostPlan(settings.Items, resolvedCommissionRate, variantOptInEnabled);
+            return new SideCostPlan(
+                settings.Items, resolvedCommissionRate, variantOptInEnabled, resolvedCargoCost, resolvedCargoCurrencyUnitId);
         }
 
-        var implicitItems = resolvedCommissionRate is > 0m
-            ? new List<SideCostItem>
-            {
-                new(
-                    SideCostKind.Commission, displayName: null, SideCostCalcMode.GrossUpPercent, value: 0m,
-                    currencyUnitId: null, serviceId: null, SideCostPostingMode.CounterpartyAccount,
-                    accountId: null, subAccountId: null, autoRate: true, isEnabled: true,
-                    displayOrder: 0, requiresVariantOptIn: false),
-            }
-            : new List<SideCostItem>();
+        var implicitItems = new List<SideCostItem>();
 
-        return new SideCostPlan(implicitItems, resolvedCommissionRate, variantOptInEnabled);
+        // Kargo ÖNCE (DisplayOrder 0): sabit gider satırları komisyondan önce gelir — komisyon GrossUp'ı
+        // onların da üstünden hesaplanır (sabit giderler de komisyona tabidir; sınıf yorumu).
+        if (resolvedCargoCost is > 0m)
+        {
+            implicitItems.Add(new SideCostItem(
+                SideCostKind.Cargo, displayName: null, SideCostCalcMode.FixedAmount, value: 0m,
+                currencyUnitId: resolvedCargoCurrencyUnitId, serviceId: null, SideCostPostingMode.CounterpartyAccount,
+                accountId: null, subAccountId: null, autoRate: false, isEnabled: true,
+                displayOrder: 0, requiresVariantOptIn: false));
+        }
+
+        if (resolvedCommissionRate is > 0m)
+        {
+            implicitItems.Add(new SideCostItem(
+                SideCostKind.Commission, displayName: null, SideCostCalcMode.GrossUpPercent, value: 0m,
+                currencyUnitId: null, serviceId: null, SideCostPostingMode.CounterpartyAccount,
+                accountId: null, subAccountId: null, autoRate: true, isEnabled: true,
+                displayOrder: 1, requiresVariantOptIn: false));
+        }
+
+        return new SideCostPlan(
+            implicitItems, resolvedCommissionRate, variantOptInEnabled, resolvedCargoCost, resolvedCargoCurrencyUnitId);
     }
 }

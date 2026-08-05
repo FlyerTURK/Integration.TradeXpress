@@ -81,6 +81,13 @@ public class N11ShipmentTemplateDto
     /// <summary>Şartlı kargo eşiğinin birimi (TL/adet).</summary>
     public N11ConditionalShippingUnit ConditionalShippingUnit { get; set; } = N11ConditionalShippingUnit.Amount;
 
+    /// <summary>Bu şablonla gönderinin BİZE tahmini maliyeti — yalnız FİYATLAMA içindir, N11'e GÖNDERİLMEZ.
+    /// Dolu ise ürünün reçetesindeki kargo satırı bu değerden beslenir; boşsa kanalın düz gider değeri kullanılır.</summary>
+    public decimal? EstimatedCost { get; set; }
+
+    /// <summary>Tahmini kargo maliyetinin para birimi (opsiyonel; boş = yerel birim).</summary>
+    public Guid? EstimatedCostCurrencyUnitId { get; set; }
+
     public N11ShipmentAddressDto WarehouseAddress { get; set; } = new();
     public N11ShipmentAddressDto? ExchangeAddress { get; set; }
 
@@ -132,6 +139,8 @@ public interface IN11ShipmentTemplateInput
     string? ClaimShipmentCompanyExternalId { get; }
     decimal? ConditionalShippingThreshold { get; }
     N11ConditionalShippingUnit ConditionalShippingUnit { get; }
+    decimal? EstimatedCost { get; }
+    Guid? EstimatedCostCurrencyUnitId { get; }
     N11ShipmentAddressDto WarehouseAddress { get; }
     N11ShipmentAddressDto? ExchangeAddress { get; }
     List<string> ShipmentCompanyExternalIds { get; }
@@ -156,6 +165,13 @@ public class N11ShipmentTemplateCreateDto : IN11ShipmentTemplateInput
     public string? ClaimShipmentCompanyExternalId { get; set; }
     public decimal? ConditionalShippingThreshold { get; set; }
     public N11ConditionalShippingUnit ConditionalShippingUnit { get; set; } = N11ConditionalShippingUnit.Amount;
+
+    /// <summary>Bu şablonla gönderinin BİZE tahmini maliyeti — yalnız FİYATLAMA içindir, N11'e GÖNDERİLMEZ.
+    /// Dolu ise ürünün reçetesindeki kargo satırı bu değerden beslenir; boşsa kanalın düz gider değeri kullanılır.</summary>
+    public decimal? EstimatedCost { get; set; }
+
+    /// <summary>Tahmini kargo maliyetinin para birimi (opsiyonel; boş = yerel birim).</summary>
+    public Guid? EstimatedCostCurrencyUnitId { get; set; }
     public N11ShipmentAddressDto WarehouseAddress { get; set; } = new();
     public N11ShipmentAddressDto? ExchangeAddress { get; set; }
     public List<string> ShipmentCompanyExternalIds { get; set; } = new();
@@ -178,6 +194,13 @@ public class N11ShipmentTemplateUpdateDto : IN11ShipmentTemplateInput
     public string? ClaimShipmentCompanyExternalId { get; set; }
     public decimal? ConditionalShippingThreshold { get; set; }
     public N11ConditionalShippingUnit ConditionalShippingUnit { get; set; } = N11ConditionalShippingUnit.Amount;
+
+    /// <summary>Bu şablonla gönderinin BİZE tahmini maliyeti — yalnız FİYATLAMA içindir, N11'e GÖNDERİLMEZ.
+    /// Dolu ise ürünün reçetesindeki kargo satırı bu değerden beslenir; boşsa kanalın düz gider değeri kullanılır.</summary>
+    public decimal? EstimatedCost { get; set; }
+
+    /// <summary>Tahmini kargo maliyetinin para birimi (opsiyonel; boş = yerel birim).</summary>
+    public Guid? EstimatedCostCurrencyUnitId { get; set; }
     public N11ShipmentAddressDto WarehouseAddress { get; set; } = new();
     public N11ShipmentAddressDto? ExchangeAddress { get; set; }
     public List<string> ShipmentCompanyExternalIds { get; set; } = new();
@@ -212,5 +235,12 @@ public interface IN11ShipmentTemplateAppService : IApplicationService
     /// yaşasın). Yeni gelen kargo firmaları cariyi kardeş şablonlardan devralır; devralamayan ÖKSÜZ kalır.
     /// Değişen (yeni+güncellenen) sayısını döner.</summary>
     Task<int> SyncAsync(Guid salesChannelId);
+
+    /// <summary>Şablonun TAHMİNİ KARGO MALİYETİNİ yazar — <b>yalnız yerel</b>, N11'e push YOKTUR.
+    ///
+    /// <para><b>Neden ayrı uç:</b> <c>UpdateAsync</c> kaydetmeden önce şablonu N11'e PUSH eder (senkron
+    /// kaydetme sözleşmesi). Bu alanın N11'de karşılığı olmadığından tam güncellemeden geçirmek hem gereksiz
+    /// bir pazaryeri yazması tetikler hem de ilgisiz bir doğrulama hatasında maliyet kaydını düşürürdü.</para></summary>
+    Task SetEstimatedCostAsync(Guid id, decimal? cost, Guid? currencyUnitId);
 
 }

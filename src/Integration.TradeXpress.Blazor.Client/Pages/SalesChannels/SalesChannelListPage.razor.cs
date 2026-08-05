@@ -25,6 +25,7 @@ public partial class SalesChannelListPage : IDisposable
     [Inject] protected IUiInteractionService UiService { get; set; } = default!;
     [Inject] protected IPopupService PopupService { get; set; } = default!;
     [Inject] private IServiceProvider ServiceProvider { get; set; } = default!;
+    [Inject] private NavigationManager Navigation { get; set; } = default!;
     [Inject] protected IEntityChangeNotifier? EntityChanges { get; set; }
 
     [CascadingParameter(Name = "CurrentMdiTab")]
@@ -157,6 +158,26 @@ public partial class SalesChannelListPage : IDisposable
 
         var title = ChannelTypeLabel(type);
 
+        // YENİ kanal → kurulum SİHİRBAZI (düzenleme yolu değişmez; mevcut formlar aynen yerinde durur).
+        // Gerekçe: kanalı açmak yetmiyor — kurulum kararları (N11: kargo şablonu + KDV, Trendyol: kargo firması)
+        // düz formda hiç sorulmuyor ve arkada sessizce koşan adımlar (kategori senkronu, ürün çekimi) kullanıcıya
+        // görünmüyor. Sihirbaz SAYFA olduğundan popup yolundan DEĞİL sekmeden/adres çubuğundan açılır.
+        if (id is null)
+        {
+            var wizardRoute = type switch
+            {
+                SalesChannelType.TrN11 => ("/sales-channels/n11/wizard", L["SalesChannelTrN11:Wizard:Title"].Value),
+                SalesChannelType.TrTrendyol => ("/sales-channels/trendyol/wizard", L["SalesChannelTrTrendyol:Wizard:Title"].Value),
+                _ => (null, null),   // Etsy: OAuth akışı ayrı — sihirbaza taşınmadı, düz form korunuyor
+            };
+
+            if (wizardRoute.Item1 is { } route)
+            {
+                await OpenRouteAsync(route, wizardRoute.Item2!);
+                return;
+            }
+        }
+
         if (CurrentMdiTab != null && ServiceProvider.GetService(typeof(IMdiTabOpener)) is IMdiTabOpener tabs)
         {
             var url = id is { } gid ? $"{basePath}/{gid}" : $"{basePath}/new";
@@ -170,6 +191,19 @@ public partial class SalesChannelListPage : IDisposable
             { "OnClosed", EventCallback.Factory.Create(this, () => PopupService.Close()) },
         };
         await ViewOpener.OpenAsync(hostType, id, title, TradeXpressIcons.SalesChannel, extra);
+    }
+
+    /// <summary>Tam SAYFA olan bir hedefi açar (popup host'u yok): MDI varsa sekmede, yoksa adres çubuğundan.
+    /// Sihirbaz gibi çok adımlı akışlar popup'a sığmaz — kullanıcı ortada kalırsa kanal zaten kurulmuş olur.</summary>
+    private async Task OpenRouteAsync(string url, string title)
+    {
+        if (CurrentMdiTab != null && ServiceProvider.GetService(typeof(IMdiTabOpener)) is IMdiTabOpener tabs)
+        {
+            await tabs.OpenOrActivateAsync(url, title, TradeXpressIcons.SalesChannel);
+            return;
+        }
+
+        Navigation.NavigateTo(url);
     }
 
     private async Task DeleteSelectedAsync()

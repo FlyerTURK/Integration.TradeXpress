@@ -1,0 +1,131 @@
+@page "/sales-channels/trendyol/wizard"
+@page "/sales-channels/trendyol/wizard/{Id:guid}"
+@using Integration.TradeXpress.SalesChannels
+@using Integration.TradeXpress.TrendyolShipments
+@using Integration.Framework.Blazor.Client.Components.Inputs
+@using Integration.Framework.Blazor.Client.Components.Shared
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@*
+   Trendyol satış kanalı KURULUM SİHİRBAZI — N11 sihirbazıyla AYNI kabuk (WizardShell), farklı adımlar.
+   Adımlar Trendyol'un gerçeğine göre: KDV adımı YOK (ürün listesi vatRate döndürüyor, uydurmaya gerek yok),
+   kargo adımı ŞABLON değil FİRMA seçimi (Trendyol'da adlandırılmış şablon nesnesi yoktur).
+*@
+
+<div style="display:flex; align-items:center; gap:8px; padding:12px 16px 0;">
+    <i class="@TradeXpressIcons.SalesChannel"></i>
+    <h5 style="margin:0;">@L["SalesChannelTrTrendyol:Wizard:Title"]</h5>
+</div>
+
+<div class="p-3">
+    <WizardShell FinishText="@L["SalesChannelTrTrendyol:Wizard:Finish"]" OnFinished="@GoToChannelAsync">
+
+        @* 1 — Kimlik. YENİ kurulumda ileri = kanalı OLUŞTUR (sunucu kimliği doğrular: ürün listesi page0/size1
+             probe'u). MEVCUT kanalda kimlik alanları gösterilmez — kanal zaten var, sırları sunucu redakte eder. *@
+        <WizardStep Title="@L["SalesChannelTrTrendyol:Wizard:Step:Credentials"]"
+                    Description="@(IsExistingChannel ? L["SalesChannelTrTrendyol:Wizard:Step:CredentialsExisting"].Value : L["SalesChannelTrTrendyol:Wizard:Step:CredentialsHelp"].Value)"
+                    OnBeforeAdvanceAsync="@CreateChannelAsync">
+            @if (IsExistingChannel)
+            {
+                <div style="color:#198754; font-size:0.9rem;">@L["SalesChannelTrTrendyol:Wizard:UsingExistingChannel", _code ?? "-"]</div>
+            }
+            else
+            {
+                <DxFormLayout CssClass="w-100">
+                    <DxFormLayoutItem Caption="@($"{L["Code"]} *")" ColSpanMd="6">
+                        <DxTextBox @bind-Text="@_code" />
+                    </DxFormLayoutItem>
+                    <DxFormLayoutItem Caption="@($"{L["Name"]} *")" ColSpanMd="6">
+                        <DxTextBox @bind-Text="@_name" />
+                    </DxFormLayoutItem>
+                    <DxFormLayoutItem Caption="@($"{L["SalesChannel:SellerId"]} *")" ColSpanMd="6">
+                        <DxTextBox @bind-Text="@_sellerId" />
+                    </DxFormLayoutItem>
+                    <DxFormLayoutItem Caption="@($"{L["SalesChannel:ApiKey"]} *")" ColSpanMd="6">
+                        <DxTextBox @bind-Text="@_apiKey" />
+                    </DxFormLayoutItem>
+                    <DxFormLayoutItem Caption="@($"{L["SalesChannel:ApiSecret"]} *")" ColSpanMd="6">
+                        <PasswordTextEdit @bind-Text="@_apiSecret" Tooltip="@L["ShowPassword"]" CssClass="w-100" />
+                    </DxFormLayoutItem>
+                </DxFormLayout>
+                @if (_channelId != Guid.Empty)
+                {
+                    <div style="color:#198754; font-size:0.9rem; margin-top:8px;">@L["SalesChannelTrTrendyol:Wizard:ChannelReady"]</div>
+                }
+            }
+        </WizardStep>
+
+        @* 2 — Kargo firması. N11'den FARKI: Trendyol'da adlandırılmış şablon yok, ürün başına firma seçilir.
+             Liste canlı uçtan gelmiyor — resmî statik listeden seed'li (gerekçe seeder doc'unda). *@
+        <WizardStep Title="@L["SalesChannelTrTrendyol:Wizard:Step:Cargo"]"
+                    Description="@L["SalesChannelTrTrendyol:Wizard:Step:CargoHelp"]">
+            @if (_cargoProviders.Count == 0)
+            {
+                <div style="color:#b45309; font-size:0.9rem;">@L["SalesChannelTrTrendyol:Wizard:NoCargoProviders"]</div>
+            }
+            else
+            {
+                <DxFormLayout CssClass="w-100">
+                    <DxFormLayoutItem Caption="@L["SalesChannelTrTrendyol:Wizard:DefaultCargoProvider"]" ColSpanMd="6">
+                        <DxComboBox Data="@_cargoProviders" @bind-Value="@_selectedCargoProviderId"
+                                    ValueFieldName="@nameof(TrendyolCargoProviderDto.Id)"
+                                    TextFieldName="@nameof(TrendyolCargoProviderDto.Name)"
+                                    NullText="@L["SalesChannelTrTrendyol:Wizard:CargoNotChosen"]"
+                                    ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto"
+                                    CssClass="w-100" />
+                    </DxFormLayoutItem>
+                </DxFormLayout>
+                <div style="font-size:0.85rem; color:#6c757d; margin-top:8px;">@L["SalesChannelTrTrendyol:Wizard:CargoNote"]</div>
+            }
+        </WizardStep>
+
+        @* 3 — Ürünleri çek. Kategori ağacı kanal oluşturulurken zaten senkronlanıyor (AppService hook). *@
+        <WizardStep Title="@L["SalesChannelTrTrendyol:Wizard:Step:Import"]"
+                    Description="@L["SalesChannelTrTrendyol:Wizard:Step:ImportHelp"]">
+            <div style="display:flex; gap:8px; align-items:center;">
+                <DxButton Text="@L["TrendyolProduct:ImportFromMarketplace"]"
+                          IconCssClass="@TradeXpressIcons.Download"
+                          RenderStyle="ButtonRenderStyle.Primary"
+                          Enabled="@(!_busy)"
+                          Click="@RunImportAsync" />
+                @if (_busy)
+                {
+                    <span style="font-size:0.85rem; color:#6c757d;">@L["TrendyolProduct:Importing"]</span>
+                }
+            </div>
+            @if (_import is { } r)
+            {
+                <div style="font-size:0.85rem; display:flex; flex-direction:column; gap:2px; margin-top:8px;">
+                    <span>@L["TrendyolProduct:Import:Summary", r.TotalFetchedItems, r.TotalRemoteProducts, r.CreatedProducts, r.CreatedChannelProducts, r.UpdatedChannelProducts]</span>
+                    @foreach (var line in ImportIssueLines)
+                    {
+                        <span style="color:#b45309;">@line</span>
+                    }
+                </div>
+            }
+        </WizardStep>
+
+        @* 4 — Özet. *@
+        <WizardStep Title="@L["SalesChannelTrTrendyol:Wizard:Step:Summary"]"
+                    Description="@L["SalesChannelTrTrendyol:Wizard:Step:SummaryHelp"]">
+            <ul style="font-size:0.9rem; margin:0; padding-left:18px;">
+                <li>@L["SalesChannelTrTrendyol:Wizard:SummaryChannel", _code]</li>
+                <li>@L["SalesChannelTrTrendyol:Wizard:SummaryCargo", SelectedCargoProviderName]</li>
+                <li>@L["SalesChannelTrTrendyol:Wizard:SummaryProducts", _import?.CreatedChannelProducts ?? 0]</li>
+            </ul>
+            @if (RemainingWork.Count > 0)
+            {
+                <div style="margin-top:10px;">
+                    <div style="font-weight:600; font-size:0.9rem;">@L["SalesChannelTrTrendyol:Wizard:Remaining"]</div>
+                    <ul style="font-size:0.9rem; margin:4px 0 0; padding-left:18px; color:#b45309;">
+                        @foreach (var item in RemainingWork)
+                        {
+                            <li>@item</li>
+                        }
+                    </ul>
+                </div>
+            }
+        </WizardStep>
+
+    </WizardShell>
+</div>

@@ -4,6 +4,7 @@ using Integration.TradeXpress.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Volo.Abp.EntityFrameworkCore;
 
@@ -12,9 +13,11 @@ using Volo.Abp.EntityFrameworkCore;
 namespace Integration.TradeXpress.Migrations
 {
     [DbContext(typeof(TradeXpressDbContext))]
-    partial class TradeXpressDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260804230929_AddTrendyolCargoProviders")]
+    partial class AddTrendyolCargoProviders
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -8134,11 +8137,11 @@ namespace Integration.TradeXpress.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("TenantId", "CompanyId");
-
-                    b.HasIndex("TenantId", "CompanyId", "Barcode")
+                    b.HasIndex("TenantId", "Barcode")
                         .IsUnique()
-                        .HasFilter("[EntityName] = 'Product' AND [Barcode] IS NOT NULL AND [IsDeleted] = 0");
+                        .HasFilter("[EntityName] = 'Product' AND [Barcode] IS NOT NULL");
+
+                    b.HasIndex("TenantId", "CompanyId");
 
                     b.HasIndex("TenantId", "EntityName", "EntityId")
                         .IsUnique()
