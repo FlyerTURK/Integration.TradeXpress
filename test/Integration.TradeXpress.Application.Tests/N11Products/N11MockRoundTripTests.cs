@@ -46,6 +46,7 @@ public sealed class N11MockRoundTripTests : IAsyncLifetime
     private IN11ProductRestClient _restClient = default!;
     private IN11TaskPoller _poller = default!;
     private IN11ProductQueryClient _queryClient = default!;
+    private Orders.IN11OrderClient _orderClient = default!;
 
     public async Task InitializeAsync()
     {
@@ -57,7 +58,9 @@ public sealed class N11MockRoundTripTests : IAsyncLifetime
 
         _app = builder.Build();
         var options = new N11MockOptions { Enabled = true, QueuedPollsBeforeProcessed = 1 };
-        _app.MapN11MockEndpoints(new N11MockStore(_storePath, options.QueuedPollsBeforeProcessed), options);
+        var store = new N11MockStore(_storePath, options.QueuedPollsBeforeProcessed);
+        _app.MapN11MockEndpoints(store, options);
+        _app.MapN11MockOrderEndpoint(store, options);
         await _app.StartAsync();
 
         _baseUrl = _app.Services.GetRequiredService<IServer>()
@@ -68,6 +71,16 @@ public sealed class N11MockRoundTripTests : IAsyncLifetime
         _restClient = new N11ProductRestClient(NullLogger<N11ProductRestClient>.Instance, endpoints);
         _poller = new N11TaskPoller(NullLogger<N11TaskPoller>.Instance, endpoints);
         _queryClient = new N11ProductQueryClient(NullLogger<N11ProductQueryClient>.Instance, endpoints);
+        _orderClient = new Orders.N11OrderClient(NullLogger<Orders.N11OrderClient>.Instance, endpoints);
+    }
+
+    /// <summary>Bir ürünü mağazaya işler (push + olgunlaşma) — sipariş testleri buna dayanıyor: sahte siparişler
+    /// mağazadaki ürünlerden türetiliyor, yani "önce sat, sonra sipariş gelsin" akışı doğal.</summary>
+    private async Task SeedMaturedProductAsync(string stockCode = "RT-1", decimal price = 1500m)
+    {
+        var submission = (await _restClient.CreateProductsAsync(new[] { Row(stockCode, price) }, AppKey, AppSecret)).Single();
+        await _poller.QueryAsync(submission.TaskId, AppKey, AppSecret);
+        await _poller.QueryAsync(submission.TaskId, AppKey, AppSecret);
     }
 
     public async Task DisposeAsync()
@@ -178,6 +191,58 @@ public sealed class N11MockRoundTripTests : IAsyncLifetime
 
         product.SalePrice.ShouldBe(2400m);
         product.Quantity.ShouldBe(9);
+    }
+
+    // ── Sipariş (SOAP) ──────────────────────────────────────────────────────────────────────────────
+
+    /// <summary>Sipariş listesi GERÇEK <c>N11OrderClient</c> ile okunabilmeli. Bu, SOAP zarfının ve element
+    /// adlarının doğru olduğunun kanıtı: ayrıştırıcı namespace-agnostik ama ELEMENT ADLARINA bağımlı.</summary>
+    [Fact]
+    public async Task Order_list_round_trips_through_the_real_soap_client()
+    {
+        await SeedMaturedProductAsync("ORD-1", 2750m);
+
+        var page = await _orderClient.GetOrdersPageAsync(AppKey, AppSecret, page: 0);
+
+        var order = page.Orders.ShouldHaveSingleItem();
+        order.OrderNumber.ShouldStartWith("MOCK-");
+        order.TotalAmount.ShouldBe(2750m);
+        order.CargoTrackingNumber.ShouldNotBeNullOrWhiteSpace();
+
+        var line = order.Lines.ShouldHaveSingleItem();
+        line.StockCode.ShouldBe("ORD-1");
+        line.Quantity.ShouldBe(1);
+    }
+
+    /// <summary>Sipariş detayı da aynı istemciyle çözülebilmeli (fatura/adres blokları dahil).</summary>
+    [Fact]
+    public async Task Order_detail_round_trips_and_carries_addresses()
+    {
+        await SeedMaturedProductAsync("ORD-2", 900m);
+        var order = (await _orderClient.GetOrdersPageAsync(AppKey, AppSecret, 0)).Orders.Single();
+
+        var detail = await _orderClient.GetOrderDetailAsync(
+            AppKey, AppSecret, order.RemoteOrderId, DateTime.UtcNow);
+
+        detail.ShouldNotBeNull();
+    }
+
+    /// <summary>YAZMA uçları: kabul / red / kargo. İstemci yalnız <c>status=success</c> arıyor; mock onu
+    /// döndürmezse istemci BusinessException atardı — yani bu testler sözleşmenin iki ucunu da doğruluyor.</summary>
+    [Fact]
+    public async Task Order_write_operations_are_accepted_by_the_wire()
+    {
+        await SeedMaturedProductAsync("ORD-3", 500m);
+
+        await Should.NotThrowAsync(async () =>
+            await _orderClient.AcceptOrderItemAsync(AppKey, AppSecret, new[] { 6000000000L }, numberOfPackages: 1));
+
+        await Should.NotThrowAsync(async () =>
+            await _orderClient.RejectOrderItemAsync(AppKey, AppSecret, new[] { 6000000000L }, "stok yok"));
+
+        await Should.NotThrowAsync(async () =>
+            await _orderClient.MakeShipmentAsync(
+                AppKey, AppSecret, 6000000000L, "7", "TRK-TEST", campaignNumber: null, shipmentMethod: 1));
     }
 
     /// <summary>Kimlik başlıkları GERÇEKTEN gönderiliyor mu — mock başlık yoksa 401 döner, istemci de onu
