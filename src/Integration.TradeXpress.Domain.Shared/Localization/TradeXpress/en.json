@@ -1229,6 +1229,7 @@
     "SalesChannel:Trendyol:TokenHint": "Paste the ready-made Token from your Trendyol Seller Panel here; the API Key and API Secret are split automatically (no I/l/1/O/0 typos). Alternatively, enter the API Key and API Secret separately below.",
     "SalesChannel:Trendyol:TokenPlaceholder": "Paste the Token from your Trendyol panel",
     "SalesChannelType:TrN11": "N11",
+    "SalesChannelTrN11:MockEndpointWarning": "This channel's N11 requests go to the local mock server, not to the real N11. Push, import and order results here are NOT real.",
     "SalesChannelTrN11:DefaultInfos": "N11 Shipping Defaults",
     "SalesChannelTrN11:DefaultShippingInfo": "Default Shipping Info",
     "SalesChannelTrN11:DefaultExchangeInfo": "Default Exchange Info",

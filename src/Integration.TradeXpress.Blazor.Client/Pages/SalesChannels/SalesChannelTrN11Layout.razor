@@ -8,6 +8,17 @@
    Sızıntı önleme: düzenlemede (IsNew=false) AppKey/AppSecret BOŞ gelir (sunucu redakte eder) → "boş = korunur".
 *@
 
+@* SAHTE SUNUCU UYARISI — bu kanalın N11 istekleri gerçek N11'e DEĞİL yerel taklide gidiyor. Gizlenirse
+   kullanıcı "push başarılı" görüp ürünün N11'de olduğunu sanır; sessiz yanlış kararların en kolay yolu budur. *@
+@if (Model.IsMockEndpoint)
+{
+    <div style="display:flex; align-items:center; gap:8px; padding:8px 12px; margin-bottom:10px;
+                border:1px solid #f0ad4e; border-radius:6px; background:#fff8e6; font-size:0.9rem;">
+        <span style="font-weight:700; color:#8a6100;">MOCK</span>
+        <span>@L["SalesChannelTrN11:MockEndpointWarning"]</span>
+    </div>
+}
+
 <DxFormLayout CssClass="w-100">
     <DxFormLayoutGroup Caption="@L["General"]" ColSpanMd="12">
         <DxFormLayoutItem Caption="@($"{L["Code"]} *")" ColSpanMd="6">

@@ -47,6 +47,11 @@ public class SalesChannelTrN11GetDto : EntityDto<Guid>, IGetDto<Guid>, IHasCode
     [StringLength(SalesChannelConsts.DescriptionMaxLength)]
     public string? Description { get; set; }
 
+    /// <summary>Bu kanalın N11 istekleri GERÇEK N11'e mi gidiyor, yoksa yerel sahte sunucuya mı — salt görüntü.
+    /// <b>Neden DTO'da:</b> kullanıcının sahte sonucu gerçek sanması, yanlış kararların en sessiz yoludur
+    /// ("push başarılı" görüp ürünün N11'de olduğunu sanmak). Form bunu rozet olarak gösterir.</summary>
+    public bool IsMockEndpoint { get; set; }
+
     // SIZINTI ÖNLEME: GetDto'da AppKey/AppSecret DAİMA boş döner (AppService redakte eder) → update formunda boş
     // görünür. Kullanıcı doldurursa değişir (application katmanı N11'e doğrular), boş bırakırsa mevcut korunur.
     [StringLength(SalesChannelConsts.ConfigMaxLength)]

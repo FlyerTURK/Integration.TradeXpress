@@ -1259,6 +1259,7 @@
     "SalesChannel:Trendyol:TokenHint": "Trendyol Satıcı Panelindeki hazır Token'ı buraya yapıştırın; API Key ve API Secret otomatik ayrılır (elle yazımdaki I/l/1/O/0 karışıklığı olmaz). Alternatif olarak API Key ve API Secret'ı aşağıdan ayrı ayrı girebilirsiniz.",
     "SalesChannel:Trendyol:TokenPlaceholder": "Trendyol panelindeki Token'ı yapıştırın",
     "SalesChannelType:TrN11": "N11",
+    "SalesChannelTrN11:MockEndpointWarning": "Bu kanalın N11 istekleri gerçek N11'e değil, yerel sahte sunucuya gidiyor. Buradaki push, çekim ve sipariş sonuçları GERÇEK DEĞİLDİR.",
     "SalesChannelTrN11:DefaultInfos": "N11 Kargo Varsayılanları",
     "SalesChannelTrN11:DefaultShippingInfo": "Varsayılan Teslimat Bilgileri",
     "SalesChannelTrN11:DefaultExchangeInfo": "Varsayılan Değişim Bilgileri",

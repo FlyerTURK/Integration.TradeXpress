@@ -10,6 +10,8 @@ using Integration.TradeXpress.Permissions;
 using Integration.TradeXpress.SalesChannels.N11;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Logging;
+using Integration.TradeXpress.N11Products;
+using Microsoft.Extensions.Options;
 using Volo.Abp;
 using Volo.Abp.Application.Dtos;
 using Volo.Abp.Domain.Repositories;
@@ -32,6 +34,9 @@ public class SalesChannelTrN11AppService : TradeXpressAppService, ISalesChannelT
     private readonly IN11CredentialVerifier _credentialVerifier;
     private readonly IN11ShipmentTemplateAppService _shipmentTemplateAppService;
 
+    /// <summary>Uç adresleri — yalnız "gerçek N11'e mi gidiyoruz" rozetini üretmek için okunur.</summary>
+    private readonly IOptions<N11EndpointOptions> _endpointOptions;
+
     private static readonly HashSet<string> AllowedListFields =
         new(StringComparer.OrdinalIgnoreCase) { "Code", "Name", "IsActive", "Id" };
 
@@ -41,8 +46,10 @@ public class SalesChannelTrN11AppService : TradeXpressAppService, ISalesChannelT
         ICurrentCompany currentCompany,
         SalesChannelSubAccountBinder subAccountBinder,
         IN11CredentialVerifier credentialVerifier,
-        IN11ShipmentTemplateAppService shipmentTemplateAppService)
+        IN11ShipmentTemplateAppService shipmentTemplateAppService,
+        IOptions<N11EndpointOptions> endpointOptions)
     {
+        _endpointOptions = endpointOptions;
         _repository = repository;
         _baseRepository = baseRepository;
         _currentCompany = currentCompany;
@@ -145,10 +152,13 @@ public class SalesChannelTrN11AppService : TradeXpressAppService, ISalesChannelT
     }
 
     /// <summary>Sızıntı önleme: sir alanları client'a ASLA gitmez — GetDto her zaman boş kimlikle döner.</summary>
-    private static SalesChannelTrN11GetDto Redact(SalesChannelTrN11GetDto dto)
+    /// <summary>Sırları siler + uç adresinin YÖNÜNÜ işaretler. İkisi de "kullanıcıya ne gösteriliyor"
+    /// sorusunun parçası: sır SIZMAMALI, sahte sunucu ise GİZLENMEMELİ.</summary>
+    private SalesChannelTrN11GetDto Redact(SalesChannelTrN11GetDto dto)
     {
         dto.AppKey = string.Empty;
         dto.AppSecret = string.Empty;
+        dto.IsMockEndpoint = _endpointOptions.Value.IsRedirected;
         return dto;
     }
 
