@@ -229,6 +229,12 @@ public abstract class SalesChannelTrN11ProductImagePushTests<TStartupModule> : T
             _seededMainVariantId = mainVariant.Id;
             var detail = new ProductVariantDetail(companyId, mainVariant.Id);
             detail.SetSalePrice(100m, null);
+
+            // PUSH KAPISI (2026-08-05): aday olmak fiyat + İNSAN onayı ister. Bu testlerin konusu GÖRSEL
+            // seçimi; premis "varyant onaylı" olarak burada AÇIKÇA ilan edilir, yoksa push aday bulamaz ve
+            // testler görselle ilgisiz bir sebeple düşerdi. Tohumda reçete yok → boş-reçete damgası.
+            detail.MarkVerified(RecipeVerificationStamp.EmptyRecipe, DateTime.UtcNow, verifiedBy: null);
+
             await _variantDetailRepository.InsertAsync(detail, autoSave: true);
 
             return (ch, p);

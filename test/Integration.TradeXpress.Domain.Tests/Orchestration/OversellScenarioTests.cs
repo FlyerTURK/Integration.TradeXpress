@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Integration.TradeXpress.Orchestration;
+using Integration.TradeXpress.Vouchers;
 using Shouldly;
 using Volo.Abp.Guids;
 using Xunit;
@@ -22,17 +23,17 @@ public class OversellScenarioTests
     private static readonly Guid G5 = SimpleGuidGenerator.Instance.Create();   // G5.0 GR 995 (5 gr/parça)
 
     // 8 gr ürünün "5.0×1 + 1.0×3" kombinasyon reçetesi: 1 birim = 5 gr G5 + 3 gr G1.
-    private static readonly RecipeMetalRequirement[] Recipe_5x1_1x3 =
+    private static readonly RecipeCommodityRequirement[] Recipe_5x1_1x3 =
     {
-        new(G5, null, 5.0m),
-        new(G1, null, 3.0m),
+        Maden(G5, null, 5.0m),
+        Maden(G1, null, 3.0m),
     };
 
     // "2.5×2 + 1.0×3" reçetesi: 1 birim = 5 gr G2.5 + 3 gr G1.
-    private static readonly RecipeMetalRequirement[] Recipe_25x2_1x3 =
+    private static readonly RecipeCommodityRequirement[] Recipe_25x2_1x3 =
     {
-        new(G25, null, 5.0m),
-        new(G1, null, 3.0m),
+        Maden(G25, null, 5.0m),
+        Maden(G1, null, 3.0m),
     };
 
     [Fact]
@@ -109,18 +110,25 @@ public class OversellScenarioTests
     {
         // G5'in belirli bir varyantına bağlı reçete satırı: varyant stoğu 5gr (1 paket), toplam 15gr olsa bile.
         var v5 = SimpleGuidGenerator.Instance.Create();
-        var recete = new[] { new RecipeMetalRequirement(G5, v5, 5.0m), new RecipeMetalRequirement(G1, null, 3.0m) };
+        var recete = new[] { Maden(G5, v5, 5.0m), Maden(G1, null, 3.0m) };
         var stok = Stok((G5, v5, 5m), (G5, null, 15m), (G1, null, 18m));
 
         SellableStockCalculator.Calculate(recete, stok).ShouldBe(1);
     }
 
-    private static Dictionary<(Guid, Guid?), decimal> Stok(params (Guid MetalId, Guid? VariantId, decimal Gram)[] rows)
+    /// <summary>Maden reçete satırı — maden GRAMLA kısıtlar (adet boyutu bilinçli 0).</summary>
+    private static RecipeCommodityRequirement Maden(Guid metalId, Guid? variantId, decimal gram)
     {
-        var dict = new Dictionary<(Guid, Guid?), decimal>();
+        return new RecipeCommodityRequirement(ProcessType.Metal, metalId, variantId, gram, 0m);
+    }
+
+    private static Dictionary<CommodityStockKey, CommodityAvailability> Stok(
+        params (Guid MetalId, Guid? VariantId, decimal Gram)[] rows)
+    {
+        var dict = new Dictionary<CommodityStockKey, CommodityAvailability>();
         foreach (var (metalId, variantId, gram) in rows)
         {
-            dict[(metalId, variantId)] = gram;
+            dict[new CommodityStockKey(ProcessType.Metal, metalId, variantId)] = new CommodityAvailability(gram, 0m);
         }
 
         return dict;

@@ -7,6 +7,7 @@ using Integration.TradeXpress.Branches;
 using Integration.TradeXpress.Companies;
 using Integration.TradeXpress.Countries;
 using Integration.TradeXpress.Financials.CurrencyUnits;
+using Integration.TradeXpress.Financials.ExchangeRates;
 using Integration.TradeXpress.Vaults;
 using Volo.Abp.Data;
 using Volo.Abp.DependencyInjection;
@@ -46,7 +47,9 @@ public class VoucherTestDataSeeder : ITransientDependency
     private readonly IRepository<CurrencyUnit, Guid> _unitRepository;
     private readonly IRepository<Country, Guid> _countryRepository;
     private readonly IRepository<UserScopedGrant, Guid> _grantRepository;
+    private readonly IRepository<ExchangeRate, Guid> _rateRepository;
     private readonly ICurrentUser _currentUser;
+    private readonly ICurrentTenant _currentTenant;
     private readonly IDataFilter _dataFilter;
 
     public VoucherTestDataSeeder(
@@ -58,9 +61,13 @@ public class VoucherTestDataSeeder : ITransientDependency
         IRepository<CurrencyUnit, Guid> unitRepository,
         IRepository<Country, Guid> countryRepository,
         IRepository<UserScopedGrant, Guid> grantRepository,
+        IRepository<ExchangeRate, Guid> rateRepository,
         ICurrentUser currentUser,
+        ICurrentTenant currentTenant,
         IDataFilter dataFilter)
     {
+        _rateRepository       = rateRepository;
+        _currentTenant        = currentTenant;
         _companyRepository    = companyRepository;
         _branchRepository     = branchRepository;
         _vaultRepository      = vaultRepository;
@@ -151,11 +158,19 @@ public class VoucherTestDataSeeder : ITransientDependency
         return sub.Id;
     }
 
-    /// <summary>Şirkete YEREL PARASI ÇÖZÜLEBİLEN gerçek bir ülke bağlar: Country(DefaultCurrencyUnitId=TRY)
-    /// insert + Company.CountryId güncellenir → <c>LocalCurrencyResolver</c> TRY'yi çözer; host seed'i TRY'ye
-    /// ham 1/1 kur yazdığından değerleme (GetValuationByBaseAsync) dolu döner (tüm birimler 1/1 varsayılan).
-    /// Kur-bağımlı senaryolar (muadil maliyet fail-fast'i) çağırır — varsayılan graf sentetik CountryId ile
-    /// kalır (yerel para bilinçli ÇÖZÜLMEZ). UoW içinden çağrılmalıdır.</summary>
+    /// <summary>Şirkete YEREL PARASI ÇÖZÜLEBİLEN gerçek bir ülke bağlar (Country(DefaultCurrencyUnitId=TRY)
+    /// insert + Company.CountryId) ve maden birimlerine (HAS/GUM) AÇIK host kuru eker.
+    ///
+    /// <para><b>Kur ekimi neden burada ve neden 1/1 (2026-08-05):</b> bu fixture "1 gram = 1 TRY" dünyasında
+    /// kurulmuştur — muadil testlerinin beklediği maliyetler (ör. 2×5g + 2×1 işçilik = 12) bu varsayımdan
+    /// gelir. Önceden bu varsayım YAZILI DEĞİLDİ: motor, kuru olmayan birime sessizce 1/1 uyduruyordu ve
+    /// testler o uydurma sayede yeşildi. Uydurma kaldırılınca (kuru olmayan birim artık değerleme sözlüğüne
+    /// GİRMİYOR, bkz. EffectivePriceCalculator.RateMissing) bu testler <c>RatesMissing</c> ile düştü — yani
+    /// fail-fast doğru çalıştı, testlerin premisi eksikti. Kur artık fixture tarafından AÇIKÇA ilan edilir;
+    /// beklenen değerler DEĞİŞMEDİ, yalnız dayandıkları varsayım görünür oldu.</para>
+    ///
+    /// <para>Kur-bağımlı senaryolar (muadil maliyet fail-fast'i) çağırır — varsayılan graf sentetik CountryId
+    /// ile kalır (yerel para bilinçli ÇÖZÜLMEZ). UoW içinden çağrılmalıdır.</para></summary>
     public async Task AttachLocalCurrencyCountryAsync(VoucherTestData data, string prefix)
     {
         var country = await _countryRepository.InsertAsync(
@@ -165,6 +180,29 @@ public class VoucherTestDataSeeder : ITransientDependency
         var company = await _companyRepository.GetAsync(data.CompanyId);
         company.SetCountry(country.Id);
         await _companyRepository.UpdateAsync(company, autoSave: true);
+
+        await SeedHostRateAsync(data.HasUnitId);
+        await SeedHostRateAsync(data.GumUnitId);
+    }
+
+    /// <summary>Birime HOST seviyesinde (TenantId=null) 1/1 ham kur yazar — üretimdeki CurrencyUnitSeeder'ın
+    /// TRY için yaptığının aynısı. HOST şart: <c>EffectivePriceAppService</c> ham kurları
+    /// <c>r.TenantId == null</c> ile okur, tenant satırı görünmez.</summary>
+    private async Task SeedHostRateAsync(Guid unitId)
+    {
+        using (_currentTenant.Change(null))
+        {
+            await _rateRepository.InsertAsync(
+                new ExchangeRate(
+                    currencyUnitId: unitId,
+                    marketPriceOnBuy: 1m,
+                    marketPriceOnSell: 1m,
+                    appliedMarginOnBuy: MarginSetting.Fixed(1m),
+                    appliedMarginOnSell: MarginSetting.Fixed(1m),
+                    source: "Test",
+                    rateDate: DateTime.UtcNow),
+                autoSave: true);
+        }
     }
 
     /// <summary>Ülke kodu ISO alpha-2 ile sınırlı (CountryConsts.CodeMaxLength=2) — prefix'ten deterministik

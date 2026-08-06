@@ -273,6 +273,15 @@ public abstract class SalesChannelTrN11ProductPushTests<TStartupModule> : TradeX
                 // üretmez, testin fiyat kurulumu buradan yazılır (production LoadVariantSalePricesAsync ile aynı yol).
                 var detail = new ProductVariantDetail(companyId, variant.Id);
                 detail.SetSalePrice(price, null);
+
+                // PUSH KAPISI (2026-08-05): varyant push aday listesine ancak İNSAN onayıyla girer
+                // (ProductSaleStatus.Ready + damgası güncel). Bu fixture'ın premisi "varyantlar onaylıdır" —
+                // testlerin konusu doğrulama akışı DEĞİL, push planı. Premis burada AÇIKÇA ilan edilir;
+                // aksi halde tüm push testleri "aday yok" diye düşerdi ve sebebi görünmezdi.
+                // Tohum anında reçete satırı yok → boş-reçete damgası.
+                detail.MarkVerified(
+                    RecipeVerificationStamp.EmptyRecipe, DateTime.UtcNow, verifiedBy: null);
+
                 await _variantDetailRepository.InsertAsync(detail, autoSave: true);
             }
         });

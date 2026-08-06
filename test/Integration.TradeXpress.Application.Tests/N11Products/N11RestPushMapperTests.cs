@@ -83,6 +83,36 @@ public class N11RestPushMapperTests
 
     // ── Düzleştirme ──────────────────────────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// <b>bundle DAİMA false ve GÖNDERİLMEK ZORUNDA</b> (2026-08-05 Hakan kararı).
+    ///
+    /// <para><b>Bu testin koruduğu şey:</b> N11 alanı gönderilmezse <c>true</c> varsayıyor — yani sessiz kalmak
+    /// riskli tarafı seçmek. <c>true</c> iken müşteri aynı ürünün iki farklı varyantını tek sepete koyabiliyor;
+    /// varyantlarımız aynı maden havuzundan beslendiği (her varyantın adedi havuza karşı BAĞIMSIZ hesaplanır)
+    /// için ikisi birden satılınca stok yetmiyor. Alan düşerse arıza SESSİZ olur: push başarılı görünür,
+    /// sorun ancak karşılanamayan siparişte fark edilir.</para>
+    ///
+    /// <para>JSON'a gerçekten <c>"bundle": false</c> olarak çıktığı ayrıca doğrulanır — kayıtta alanın olması
+    /// yetmez, serileştirme dışarıda bırakırsa N11 yine true varsayardı.</para>
+    /// </summary>
+    [Fact]
+    public void Every_row_sends_bundle_false_on_the_wire()
+    {
+        var rows = N11RestPushMapper.ToCreateRows(Data(), Leaf());
+
+        rows.ShouldAllBe(r => r.Bundle == false);
+
+        // Üretim istemcisiyle AYNI seçenekler (camelCase) — alan adı ve varlığı tel üzerinde doğrulanır.
+        var json = System.Text.Json.JsonSerializer.Serialize(
+            rows[0],
+            new System.Text.Json.JsonSerializerOptions
+            {
+                PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase,
+            });
+
+        json.ShouldContain("\"bundle\":false");
+    }
+
     [Fact]
     public void Each_stock_item_becomes_its_own_rest_row()
     {
