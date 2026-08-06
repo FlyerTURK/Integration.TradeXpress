@@ -1,0 +1,134 @@
+@namespace Integration.TradeXpress.Blazor.Client.Pages.Products
+@using DevExpress.Blazor
+@using Integration.TradeXpress.Products
+@using Integration.TradeXpress.Vouchers
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@* İÇE AKTARILAN ÜRÜNLERİ EMTİAYA BAĞLAMA — kanal-agnostik (N11/Trendyol/Etsy aynı bileşeni tüketir).
+   Liste kanaldan değil ŞİRKETTEN çıkar: eski içe aktarımların bıraktığı reçetesiz ürünler de burada görünür.
+
+   Toplu VE tek tek çalışır: 100+ satırı tek tek zorlamak kullanılamaz, yalnız toplu atama da karışık
+   mağazayı çözemez. Araç çubuğu kararı kurar, "Seçilenlere uygula" seçili satırlara basar; satır bazında
+   miktar/adet grid içinde düzeltilir. *@
+
+<div style="display:flex; flex-direction:column; gap:10px;">
+
+    @if (_candidates.Count == 0)
+    {
+        <div style="color:#198754; font-size:0.9rem;">@L["Product:Classify:AllClassified"]</div>
+    }
+    else
+    {
+        <DxToolbar AdaptivityAutoHideRootItems="false"
+                   AdaptivityAutoCollapseItemsToIcons="false">
+
+            <DxToolbarItem Text="@L["Product:Classify:Family"]" BeginGroup="true">
+                <Template>
+                    <DxComboBox Data="@FamilyOptions" TData="CommodityFamilyOption" TValue="ProcessType"
+                                Value="@_family" ValueChanged="@((ProcessType v) => OnFamilyChanged(v))"
+                                ValueFieldName="@nameof(CommodityFamilyOption.Family)"
+                                TextFieldName="@nameof(CommodityFamilyOption.Label)"
+                                ValidationEnabled="false" Style="min-width:150px;" />
+                </Template>
+            </DxToolbarItem>
+
+            <DxToolbarItem Text="@L["Product:Classify:Mode"]">
+                <Template>
+                    <DxComboBox Data="@ModeOptions" TData="ProvisionModeOption" TValue="ProductCommodityProvisionMode"
+                                Value="@_mode" ValueChanged="@((ProductCommodityProvisionMode v) => OnModeChanged(v))"
+                                ValueFieldName="@nameof(ProvisionModeOption.Mode)"
+                                TextFieldName="@nameof(ProvisionModeOption.Label)"
+                                ValidationEnabled="false" Style="min-width:150px;" />
+                </Template>
+            </DxToolbarItem>
+
+            @if (_mode == ProductCommodityProvisionMode.UseExisting)
+            {
+                <DxToolbarItem Text="@L["Product:Classify:ExistingCommodity"]">
+                    <Template>
+                        <DxComboBox Data="@_existingCommodities" TData="CommodityOption" TValue="Guid?"
+                                    @bind-Value="@_existingCommodityId"
+                                    ValueFieldName="@nameof(CommodityOption.Id)"
+                                    TextFieldName="@nameof(CommodityOption.Label)"
+                                    NullText="@L["Select"]"
+                                    ValidationEnabled="false" Style="min-width:200px;" />
+                    </Template>
+                </DxToolbarItem>
+            }
+
+            @if (RequiresFollowingUnit)
+            {
+                <DxToolbarItem Text="@L["Product:Classify:FollowingUnit"]">
+                    <Template>
+                        <DxComboBox Data="@_currencyUnits" TData="CommodityOption" TValue="Guid?"
+                                    @bind-Value="@_followingUnitId"
+                                    ValueFieldName="@nameof(CommodityOption.Id)"
+                                    TextFieldName="@nameof(CommodityOption.Label)"
+                                    NullText="@L["Select"]"
+                                    ValidationEnabled="false" Style="min-width:150px;" />
+                    </Template>
+                </DxToolbarItem>
+            }
+
+            <DxToolbarItem Text="@L["Product:Classify:PerUnitAmount"]" BeginGroup="true">
+                <Template>
+                    <DxSpinEdit @bind-Value="@_amount" MinValue="0" DisplayFormat="N3"
+                                ShowSpinButtons="false" ValidationEnabled="false" Style="width:110px;" />
+                </Template>
+            </DxToolbarItem>
+
+            <DxToolbarItem Text="@L["Product:Classify:PerUnitQuantity"]">
+                <Template>
+                    <DxSpinEdit @bind-Value="@_quantity" MinValue="0" DisplayFormat="N0"
+                                ShowSpinButtons="false" ValidationEnabled="false" Style="width:90px;" />
+                </Template>
+            </DxToolbarItem>
+
+            <DxToolbarItem Text="@L["Product:Classify:ApplyToSelected"]"
+                           RenderStyle="ButtonRenderStyle.Primary"
+                           RenderStyleMode="ToolbarItemRenderStyleMode.Contained"
+                           BeginGroup="true"
+                           Enabled="@(_selected.Count > 0)"
+                           Click="@ApplyToSelected" />
+
+            <DxToolbarItem Text="@L["Product:Classify:ClearSelected"]"
+                           RenderStyle="ButtonRenderStyle.Secondary"
+                           Enabled="@(_selected.Count > 0)"
+                           Click="@ClearSelected" />
+        </DxToolbar>
+
+        <DxGrid Data="@_candidates"
+                @bind-SelectedDataItems="@_selected"
+                SelectionMode="GridSelectionMode.Multiple"
+                ShowAllRows="false"
+                PageSize="20"
+                CssClass="w-100">
+            <Columns>
+                <DxGridSelectionColumn Width="40px" />
+                <DxGridDataColumn FieldName="@nameof(ProductCommodityCandidateDto.Code)" Caption="@L["Code"]" Width="140px" />
+                <DxGridDataColumn FieldName="@nameof(ProductCommodityCandidateDto.Name)" Caption="@L["Name"]" />
+                <DxGridDataColumn FieldName="@nameof(ProductCommodityCandidateDto.VariantCount)"
+                                  Caption="@L["Product:Classify:VariantCount"]" Width="90px" />
+                <DxGridDataColumn Caption="@L["Product:Classify:Decision"]" Width="320px" AllowSort="false">
+                    <CellDisplayTemplate>
+                        @DecisionText((ProductCommodityCandidateDto)context.DataItem)
+                    </CellDisplayTemplate>
+                </DxGridDataColumn>
+            </Columns>
+        </DxGrid>
+
+        <div style="font-size:0.85rem; color:#6c757d;">
+            @L["Product:Classify:PendingHint", PendingCount, _candidates.Count]
+        </div>
+
+        @if (_issues.Count > 0)
+        {
+            <ul style="font-size:0.85rem; margin:0; padding-left:18px; color:#b45309;">
+                @foreach (var issue in _issues)
+                {
+                    <li>@issue</li>
+                }
+            </ul>
+        }
+    }
+</div>

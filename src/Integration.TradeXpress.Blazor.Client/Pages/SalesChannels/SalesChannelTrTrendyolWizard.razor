@@ -4,6 +4,7 @@
 @using Integration.TradeXpress.TrendyolShipments
 @using Integration.Framework.Blazor.Client.Components.Inputs
 @using Integration.Framework.Blazor.Client.Components.Shared
+@using Integration.TradeXpress.Blazor.Client.Pages.Products
 @inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
 
 @*
@@ -105,13 +106,24 @@
             }
         </WizardStep>
 
-        @* 4 — Özet. *@
+        @* 4 — Emtia sınıflandırması. Kanal-agnostik ORTAK bileşen (N11 sihirbazıyla aynı); başlık kanal dilinde.
+             ATLANABİLİR: atlanan ürünler Draft kalır ve satışa çıkmaz, ama özet ekranında sayılır. *@
+        <WizardStep Title="@L["SalesChannelTrTrendyol:Wizard:Step:Classify"]"
+                    Description="@L["SalesChannelTrTrendyol:Wizard:Step:ClassifyHelp"]"
+                    CanSkip="true"
+                    OnBeforeAdvanceAsync="@ApplyClassificationAsync">
+            <ProductCommodityClassificationPanel @ref="_classifyPanel"
+                                                 PendingChanged="@(count => _classifyPending = count)" />
+        </WizardStep>
+
+        @* 5 — Özet. *@
         <WizardStep Title="@L["SalesChannelTrTrendyol:Wizard:Step:Summary"]"
                     Description="@L["SalesChannelTrTrendyol:Wizard:Step:SummaryHelp"]">
             <ul style="font-size:0.9rem; margin:0; padding-left:18px;">
                 <li>@L["SalesChannelTrTrendyol:Wizard:SummaryChannel", _code]</li>
                 <li>@L["SalesChannelTrTrendyol:Wizard:SummaryCargo", SelectedCargoProviderName]</li>
                 <li>@L["SalesChannelTrTrendyol:Wizard:SummaryProducts", _import?.CreatedChannelProducts ?? 0]</li>
+                <li>@L["SalesChannelTrTrendyol:Wizard:SummaryCommodities", _classifyResult?.ProvisionedProducts ?? 0, _classifyResult?.CreatedCommodities ?? 0]</li>
             </ul>
             @if (RemainingWork.Count > 0)
             {

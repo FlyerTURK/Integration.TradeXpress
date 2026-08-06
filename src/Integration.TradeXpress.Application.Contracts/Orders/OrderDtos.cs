@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
 using System.Threading.Tasks;
 using Integration.Framework.Addressing;
 using Integration.Framework.Base.Dtos;
@@ -545,4 +546,81 @@ public interface IOrderAppService : IApplicationService
     /// <summary>Siparişin TÜM bekleyen kalemlerini TEK N11 isteğiyle RED eder (edit formu toolbar'ı — "Reddet").
     /// Bekleyen kalem yoksa no-op (AffectedCount=0). Guard: kanal N11 olmalı.</summary>
     Task<OrderBulkActionResultDto> RejectOrderAsync(OrderRejectDto input);
+
+    // ── Sipariş Fazı O3 — REZERVASYON (Faz 7). Stoğa dokunur; N11'e YAZMAZ. ─────────────────────────
+
+    /// <summary>Siparişin rezervasyon durumu — edit formundaki salt-okuma grubu + gelen kutusu kaynağı.
+    /// null = bu sipariş için rezervasyon kaydı hiç açılmamış.</summary>
+    Task<OrderReservationDto?> GetReservationAsync(Guid orderId);
+
+    /// <summary>İptal talebine KARAR verir (2026-08-05 Hakan kararı: hiçbir iptal otomatik değildir).
+    /// <para><b>Onay</b> rezervasyonu serbest bırakır → stok yeniden satılabilir olur.
+    /// <b>Red</b> rezervasyonu tutmaya devam eder. Çıkış YAPILMIŞSA onay bloklanır (artık iade sürecidir).</para></summary>
+    Task<OrderReservationDto> DecideCancellationAsync(OrderCancellationDecisionDto input);
+
+    /// <summary>Rezervasyonu ELLE serbest bırakır (iptal talebi olmadan — operatör kararı). Fiş satırları
+    /// soft-delete edilir: sayaçtan düşer, denetim izi kalır.</summary>
+    Task<OrderReservationDto> ReleaseReservationAsync(OrderReservationReleaseDto input);
+}
+
+/// <summary>Siparişin rezervasyon görünümü — İKİ EKSEN ayrı taşınır (stok · iptal kararı).</summary>
+public class OrderReservationDto
+{
+    public Guid OrderId { get; set; }
+    public OrderReservationStatus Status { get; set; }
+    public OrderCancellationDecision CancellationDecision { get; set; }
+
+    /// <summary>Rezervasyon fişi — kullanıcı fişe gidebilsin diye taşınır. null = fiş yazılamadı (Blocked).</summary>
+    public Guid? VoucherId { get; set; }
+
+    public DateTime? ReservedAt { get; set; }
+    public DateTime? ReleasedAt { get; set; }
+    public DateTime? CancellationRequestedAt { get; set; }
+    public DateTime? CancellationDecidedAt { get; set; }
+
+    /// <summary>Kurulamama gerekçesi ya da karar notu — SESSİZ atlama olmadığının kullanıcıya görünen yüzü.</summary>
+    public string? Note { get; set; }
+
+    /// <summary>Rezerve edilen kalemler (bağ kayıtları) — hangi fiş satırı hangi sipariş kalemini karşılıyor.</summary>
+    public List<OrderFulfillmentLinkDto> Links { get; set; } = new();
+}
+
+/// <summary>Sipariş kalemi ↔ fiş satırı bağı (çoka-çok).</summary>
+public class OrderFulfillmentLinkDto
+{
+    public Guid Id { get; set; }
+    public string RemoteLineId { get; set; } = string.Empty;
+    public Guid VoucherId { get; set; }
+    public Guid VoucherLineId { get; set; }
+    public OrderFulfillmentLinkKind Kind { get; set; }
+    public decimal FulfilledQuantity { get; set; }
+    public decimal FulfilledAmount { get; set; }
+
+    /// <summary><b>null = beyan edilmedi</b> · <b>0 = "fark yok" beyanı</b>. Sistem ASLA türetmez.</summary>
+    public decimal? PriceDifference { get; set; }
+
+    public string? Note { get; set; }
+}
+
+/// <summary>İptal kararı girdisi.</summary>
+public class OrderCancellationDecisionDto
+{
+    [Required]
+    public Guid OrderId { get; set; }
+
+    /// <summary>true = onayla (rezervasyon serbest) · false = reddet (rezervasyon tutulur).</summary>
+    public bool Approve { get; set; }
+
+    [StringLength(OrderConsts.DetailLongTextMaxLength)]
+    public string? Note { get; set; }
+}
+
+/// <summary>Elle serbest bırakma girdisi.</summary>
+public class OrderReservationReleaseDto
+{
+    [Required]
+    public Guid OrderId { get; set; }
+
+    [StringLength(OrderConsts.DetailLongTextMaxLength)]
+    public string? Reason { get; set; }
 }

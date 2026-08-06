@@ -70,6 +70,27 @@ public class MarketplacePushImageResolver : ITransientDependency
         return urls.Count > maxCount ? urls.Take(maxCount).ToList() : urls;
     }
 
+    /// <summary>
+    /// Push'a GİDECEK görsellerin DAM kimlikleri — <see cref="ResolveAsync(Product,int)"/> ile AYNI küme ve
+    /// AYNI sıra (kapak önde). Push GEÇMİŞİ için: delil kaydı "hangi görsel gitti" sorusuna URL ile değil
+    /// kimlikle cevap vermeli — imzalı adresin ömrü kısadır, kimlik kalıcıdır.
+    ///
+    /// <para><b>Adresi üretilemeyen görsel BURADA DA ATLANIR</b> — push'a gitmeyen bir görseli geçmişe
+    /// yazmak, gönderilmemiş bir şeyi gönderilmiş göstermek olurdu.</para>
+    /// </summary>
+    public virtual async Task<List<Guid>> ResolveMediaIdsAsync(Product product, int maxCount)
+    {
+        var media = await _entityMedia.GetPushMediaAsync(MediaEntityNames.Product, product.Id, MediaType.Image);
+        media = await AppendVariantMediaAsync(product, media);
+
+        var ids = media
+            .Where(item => _mediaPublicLink.TryCreateLink(item.MediaId, _currentTenant.Id) is not null)
+            .Select(item => item.MediaId)
+            .ToList();
+
+        return ids.Count > maxCount ? ids.Take(maxCount).ToList() : ids;
+    }
+
     /// <summary>SKU-DÜZEYİ push görselleri — varyant görselini destekleyen kanal modeli için (Faz-2 push
     /// hedefi; 2026-08-01 Hakan kararı: "varyantı destekleyen sistemse ana ürün + varyant fotoğrafları").
     /// Varyantın KENDİ seti; hiç fotoğrafı yoksa ürünün kayıt geneli seti (SKU görselsiz kalmasın).

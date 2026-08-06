@@ -58,7 +58,7 @@ public class ProductStockSyncJob : AsyncBackgroundJob<ProductStockSyncJobArgs>, 
     private readonly IRepository<EntityVariant, Guid> _variantRepository;
     private readonly IRepository<ProductVariantRecipeLine, Guid> _recipeLineRepository;
     private readonly SubstitutionVariantMaterializer _materializer;
-    private readonly IMetalStockReader _stockReader;
+    private readonly ICommodityStockReader _stockReader;
     private readonly IChannelStockPusher _channelPusher;
     private readonly ICurrentTenant _currentTenant;
     private readonly ICurrentCompany _currentCompany;
@@ -75,7 +75,7 @@ public class ProductStockSyncJob : AsyncBackgroundJob<ProductStockSyncJobArgs>, 
         IRepository<EntityVariant, Guid> variantRepository,
         IRepository<ProductVariantRecipeLine, Guid> recipeLineRepository,
         SubstitutionVariantMaterializer materializer,
-        IMetalStockReader stockReader,
+        ICommodityStockReader stockReader,
         IChannelStockPusher channelPusher,
         ICurrentTenant currentTenant,
         ICurrentCompany currentCompany,
@@ -159,7 +159,7 @@ public class ProductStockSyncJob : AsyncBackgroundJob<ProductStockSyncJobArgs>, 
     }
 
     /// <summary>Muadil olmayan Calculated ürün: her varyantın satılabilir adedi = reçete darboğazı
-    /// (<see cref="SellableStockCalculator"/>). Metal satırı olmayan varyant (null) DOKUNULMAZ.</summary>
+    /// (<see cref="SellableStockCalculator"/>). Stok-taşıyan satırı olmayan varyant (null) DOKUNULMAZ.</summary>
     private async Task RecalculateSellableStockAsync(Product product)
     {
         var variants = await _asyncExecuter.ToListAsync(
@@ -175,16 +175,27 @@ public class ProductStockSyncJob : AsyncBackgroundJob<ProductStockSyncJobArgs>, 
             (await _recipeLineRepository.GetQueryableAsync())
                 .Where(l => variantIds.Contains(l.ProductVariantId)
                             && l.ComponentType == RecipeComponentType.CatalogCommodity
-                            && l.CommodityProcessType == ProcessType.Metal
+                            && l.CommodityProcessType != null
+                            && CommodityStockFamilies.Tracked.Contains(l.CommodityProcessType!.Value)
                             && l.CommodityId != null));
 
-        var metalIds = lines.Select(l => l.CommodityId!.Value).Distinct().ToList();
-        if (metalIds.Count == 0)
+        if (lines.Count == 0)
         {
             return;   // reçete stoğa bağlı değil — kanal stoğuna dokunma
         }
 
-        var available = await _stockReader.GetAvailableAsync(metalIds);
+        // Aile BAŞINA okuma: her ailenin kendi stok raporu var. Anahtar aileyi taşıdığından sonuçlar tek
+        // sözlükte güvenle birleşir (aynı Guid iki ailede çakışsa bile ayrı havuz kalır).
+        var available = new Dictionary<CommodityStockKey, CommodityAvailability>();
+        foreach (var familyGroup in lines.GroupBy(l => l.CommodityProcessType!.Value))
+        {
+            var ids = familyGroup.Select(l => l.CommodityId!.Value).Distinct().ToList();
+            foreach (var (key, value) in await _stockReader.GetAvailableAsync(familyGroup.Key, ids))
+            {
+                available[key] = value;
+            }
+        }
+
         var linesByVariant = lines.GroupBy(l => l.ProductVariantId).ToDictionary(g => g.Key, g => g.ToList());
 
         foreach (var variant in variants)
@@ -194,9 +205,7 @@ public class ProductStockSyncJob : AsyncBackgroundJob<ProductStockSyncJobArgs>, 
                 continue;
             }
 
-            var requirements = variantLines
-                .Select(l => new RecipeMetalRequirement(l.CommodityId!.Value, l.CommodityVariantId, l.Amount))
-                .ToList();
+            var requirements = variantLines.ConvertAll(ToRequirement);
 
             var sellable = SellableStockCalculator.Calculate(requirements, available);
             if (sellable is { } count && count != variant.StockQuantity)
@@ -205,5 +214,24 @@ public class ProductStockSyncJob : AsyncBackgroundJob<ProductStockSyncJobArgs>, 
                 await _variantRepository.UpdateAsync(variant, autoSave: true);
             }
         }
+    }
+
+    /// <summary>Reçete satırı → stok ihtiyacı. <b>Aile başına boyut seçimi burada yapılır</b> (birim tuzağı):
+    /// <list type="bullet">
+    ///   <item><b>Metal</b> — YALNIZ gram (<c>Amount</c>). Adetli madende <c>Amount = Quantity × StableQuantity</c>
+    ///   olduğundan gram zaten tam kısıttır; adedi de kısıt saymak aynı stoğu iki kez daraltırdı. (Mevcut
+    ///   davranış — 2026-08-06 rename'inde bilinçli olarak DEĞİŞTİRİLMEDİ.)</item>
+    ///   <item><b>Good</b> — satırın BEYAN ETTİĞİ her boyut. Mamül hem adetle hem stok-birimi miktarıyla
+    ///   izlenebilir; hangisinin "asıl" olduğunu varsaymak yerine dolu olan her boyut kısıt sayılır (0 olan
+    ///   zaten kısıt getirmez). Varsayım yapıp yanlış boyutu seçmek, bu oturumun avladığı sessiz-yanlış-rakam
+    ///   deseninin ta kendisidir.</item>
+    /// </list></summary>
+    private static RecipeCommodityRequirement ToRequirement(ProductVariantRecipeLine line)
+    {
+        var family = line.CommodityProcessType!.Value;
+        var requiredQuantity = family == ProcessType.Metal ? 0m : line.Quantity;
+
+        return new RecipeCommodityRequirement(
+            family, line.CommodityId!.Value, line.CommodityVariantId, line.Amount, requiredQuantity);
     }
 }

@@ -33,4 +33,10 @@ public class CurrentPriceDto : EntityDto<Guid>
 
     /// <summary>Ham fiyatın ait olduğu pencere (host feed).</summary>
     public DateTime RateDate { get; set; }
+
+    /// <summary>Birimin HİÇBİR kur bağlantısı yok (ne canlı tick, ne DB kuru, ne takip zinciri).
+    /// <b>true ise <see cref="Buy"/>/<see cref="Sell"/> 1/1 YER TUTUCUdur, kur DEĞİLDİR</b> — ekranda sayı
+    /// yerine "kur yok" yazılır. Eksik kuru gerçek 1:1 kurundan ayırt edebilmek için (2026-08-05: bayrak
+    /// yokken HAS kursuz olduğu halde "1" görünüyordu ve 7 gram has altın 7 TRY'ye fiyatlanıyordu).</summary>
+    public bool RateMissing { get; set; }
 }

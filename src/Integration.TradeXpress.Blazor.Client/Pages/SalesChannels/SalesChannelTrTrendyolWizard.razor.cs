@@ -5,6 +5,8 @@ using System.Threading.Tasks;
 using Integration.Framework.Blazor.Client.Components.Crud;
 using Integration.Framework.Blazor.Client.Components.Shared;
 using Integration.Framework.Blazor.Client.Services.Base;
+using Integration.TradeXpress.Blazor.Client.Pages.Products;
+using Integration.TradeXpress.Products;
 using Integration.TradeXpress.SalesChannels;
 using Integration.TradeXpress.TrendyolProducts;
 using Integration.TradeXpress.TrendyolShipments;
@@ -60,6 +62,11 @@ public partial class SalesChannelTrTrendyolWizard : CrudComponentBase
     // ── 3. adım: içe aktarım ────────────────────────────────────────────────────────────────────────
     private TrendyolImportResultDto? _import;
 
+    // ── 4. adım: emtia sınıflandırması (kanal-agnostik ortak panel) ─────────────────────────────────
+    private ProductCommodityClassificationPanel? _classifyPanel;
+    private int _classifyPending;
+    private ProductCommodityProvisionResultDto? _classifyResult;
+
     private bool _busy;
 
     private string SelectedCargoProviderName
@@ -106,6 +113,13 @@ public partial class SalesChannelTrTrendyolWizard : CrudComponentBase
             if (_import?.SkippedRows.Count > 0)
             {
                 items.Add(L["SalesChannelTrTrendyol:Wizard:RemainingSkipped", _import.SkippedRows.Count].Value);
+            }
+
+            // Sınıflandırma adımı ATLANABİLİR ama SESSİZ değildir: bağlanmayan ürünlerin stoğu Sabit kalır ve
+            // pazaryerinin eski adedi geçerli olmayı sürdürür.
+            if (_classifyPending > 0)
+            {
+                items.Add(L["SalesChannelTrTrendyol:Wizard:RemainingCommodities", _classifyPending].Value);
             }
 
             return items;
@@ -193,6 +207,19 @@ public partial class SalesChannelTrTrendyolWizard : CrudComponentBase
         {
             _busy = false;
         }
+    }
+
+    /// <summary>4. adım: emtia sınıflandırmasını uygular (N11 sihirbazıyla AYNI sözleşme). Karar verilmemiş
+    /// ürünler dokunulmadan Draft kalır; "Atla" ile geçilirse bu metot hiç koşmaz.</summary>
+    private async Task ApplyClassificationAsync(WizardStepAdvanceContext context)
+    {
+        if (_classifyPanel is null)
+        {
+            return;
+        }
+
+        _classifyResult = await _classifyPanel.ApplyAsync();
+        _classifyPending = _classifyPanel.PendingCount;
     }
 
     private Task GoToChannelAsync()

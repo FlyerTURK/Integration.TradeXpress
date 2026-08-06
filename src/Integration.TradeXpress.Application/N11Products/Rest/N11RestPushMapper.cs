@@ -93,7 +93,11 @@ public static class N11RestPushMapper
             // doküman bunu açıkça mümkün kılıyor ("aynı değer gönderebilirsiniz").
             ListPrice: salePrice,
             VatRate: vatRate,
-            MaxPurchaseQuantity: data.MaxPurchaseQuantity);
+            MaxPurchaseQuantity: data.MaxPurchaseQuantity,
+            // AÇIKÇA yazılıyor (kaydın varsayılanına güvenilmiyor): gönderilmezse N11 true varsayar ve aynı
+            // ürünün iki varyantı tek sepete girebilir — varyantlarımız aynı maden havuzunu paylaştığı için
+            // bu doğrudan aşırı satış kapısıdır. Gerekçe + kapsam kararı: N11RestProductCreate.Bundle.
+            Bundle: false);
     }
 
     /// <summary>Ürün-seviyesi + varyant nitelikleri <c>id</c> bazında birleştirir; çakışmada VARYANT kazanır

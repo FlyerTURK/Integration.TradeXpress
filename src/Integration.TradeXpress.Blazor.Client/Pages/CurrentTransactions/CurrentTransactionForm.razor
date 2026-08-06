@@ -17,7 +17,13 @@
 
 <div style="@GridStyle()">
 
-    @* Liste modunda gizli (display:none) — state korunur (Geri'de cari/fiş seçimi kaybolmaz). *@
+    @* Liste modunda gizli (display:none) — state korunur (Geri'de cari/fiş seçimi kaybolmaz).
+
+       min-height:unset + overflow:hidden BİLİNÇLİ, MOBİLDE DE KALIR — buraya "mobilde panel eziliyor" diye
+       min-height/overflow EKLEME. O arızanın çaresi burada değil GridStyle()'da: mobil grid satırları açıkça
+       max-content yapılır (gerekçe orada, .razor.cs). Ölçüldü (Blink): p1'e min-height:max-content vermek
+       satırı DEĞİL yalnız p1'in KUTUSUNU büyütür → kutu kısa satırdan taşar ve içerik p3/p2'nin üstüne
+       boyanır; yani paneli göstermez, üst üste binme üretir (2026-08-05'te tam bu yaşandı). *@
     <div style="@($"{PanelBox()} grid-area:p1; min-height:unset; overflow:hidden;{(_listMode && !_processActive ? " display:none;" : "")}")">
         <AccountSelectionPanel @ref="_accountPanel"
                                Mode="@Mode"
@@ -269,14 +275,14 @@
                                               Caption="@nameof(CurrentPriceDto.Buy)" TextAlignment="GridTextAlignment.Right" Width="115px">
                                 <CellDisplayTemplate>
                                     @{ var row = (CurrentPriceDto)context.DataItem; }
-                                    <span style="@PriceCellStyle(row.Id, true)"><b>@row.Buy.ToString("N5")</b></span>
+                                    <span style="@PriceCellStyle(row.Id, true)"><b>@LiveRateText(row, buy: true)</b></span>
                                 </CellDisplayTemplate>
                             </DxGridDataColumn>
                             <DxGridDataColumn FieldName="@nameof(CurrentPriceDto.Sell)"
                                               Caption="@nameof(CurrentPriceDto.Sell)" TextAlignment="GridTextAlignment.Right" Width="115px">
                                 <CellDisplayTemplate>
                                     @{ var row = (CurrentPriceDto)context.DataItem; }
-                                    <span style="@PriceCellStyle(row.Id, false)"><b>@row.Sell.ToString("N5")</b></span>
+                                    <span style="@PriceCellStyle(row.Id, false)"><b>@LiveRateText(row, buy: false)</b></span>
                                 </CellDisplayTemplate>
                             </DxGridDataColumn>
                         </Columns>

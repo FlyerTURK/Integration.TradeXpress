@@ -79,20 +79,37 @@ public class GoodReportAppService : TradeXpressAppService, IGoodReportAppService
         var legs = await QueryLegsAsync(filter, dateFiltered: false);
 
         // Grupla: mamül + varyant. Birim (StockUnitCode) mamül seviyesinde → anahtarda değil, sonradan doldurulur.
+        //
+        // REZERVASYON AYRIŞTIRMASI (2026-08-05): rezervasyon bacakları fiziksel Net'e GİRMEZ, ayrı sayaçta
+        // toplanır. Aritmetik Metal raporuyla ORTAK (ReservationSplit) — kopyalanan bir ayrım zamanla
+        // birbirinden ayrışır ve ayrışma sessiz olur.
         var grouped = legs
             .GroupBy(x => new { x.CommodityId, x.CommodityCode, x.VariantId, x.VariantCode })
-            .Select(g => new GoodStockRowDto
+            .Select(g =>
             {
-                GoodId      = g.Key.CommodityId,
-                GoodCode    = g.Key.CommodityCode,
-                VariantId   = g.Key.VariantId,
-                VariantCode = g.Key.VariantCode,
-                InQuantity  = g.Where(x => x.EffectQty    > 0).Sum(x => x.EffectQty),
-                OutQuantity = g.Where(x => x.EffectQty    < 0).Sum(x => -x.EffectQty),
-                NetQuantity = g.Sum(x => x.EffectQty),
-                InAmount    = g.Where(x => x.EffectAmount > 0).Sum(x => x.EffectAmount),
-                OutAmount   = g.Where(x => x.EffectAmount < 0).Sum(x => -x.EffectAmount),
-                NetAmount   = g.Sum(x => x.EffectAmount),
+                var totals = ReservationSplit.Compute(g.Select(x => new ReservationLeg(
+                    x.PaymentType == ProcessPaymentType.Reservation, x.EffectAmount, x.EffectQty)));
+
+                return new GoodStockRowDto
+                {
+                    GoodId      = g.Key.CommodityId,
+                    GoodCode    = g.Key.CommodityCode,
+                    VariantId   = g.Key.VariantId,
+                    VariantCode = g.Key.VariantCode,
+                    InQuantity  = totals.InQuantity,
+                    OutQuantity = totals.OutQuantity,
+                    NetQuantity = totals.NetQuantity,
+                    InAmount    = totals.InAmount,
+                    OutAmount   = totals.OutAmount,
+                    NetAmount   = totals.NetAmount,
+
+                    ReservedOutQuantity = totals.ReservedOutQuantity,
+                    ReservedOutAmount   = totals.ReservedOutAmount,
+                    ReservedInQuantity  = totals.ReservedInQuantity,
+                    ReservedInAmount    = totals.ReservedInAmount,
+                    AvailableQuantity   = totals.AvailableQuantity,
+                    AvailableAmount     = totals.AvailableAmount,
+                };
             })
             .ToList();
 
@@ -138,11 +155,15 @@ public class GoodReportAppService : TradeXpressAppService, IGoodReportAppService
         var running    = new Dictionary<(Guid? CommodityId, Guid? VariantId), decimal>();   // Quantity running
         var runningAmt = new Dictionary<(Guid? CommodityId, Guid? VariantId), decimal>();   // Amount running
 
-        // Devreden satırları — (mamül, varyant) bazında. Rezervasyon YOK → tüm bacaklar kümülatife katılır.
+        // Devreden satırları — (mamül, varyant) bazında.
+        // REZERVASYON KÜMÜLATİFE KATILMAZ (2026-08-05): eskiden "Rezervasyon YOK" varsayımıyla tüm bacaklar
+        // toplanıyordu; sipariş rezervasyonu Good'u da kapsayınca bu varsayım devreden bakiyeyi ŞİŞİRİRDİ.
+        // Metal raporundaki davranışla hizalandı.
         foreach (var g in carryLegs.GroupBy(x => (x.CommodityId, x.VariantId)))
         {
-            var carryQty = g.Sum(x => x.EffectQty);
-            var carryAmt = g.Sum(x => x.EffectAmount);
+            var physical = g.Where(x => x.PaymentType != ProcessPaymentType.Reservation).ToList();
+            var carryQty = physical.Sum(x => x.EffectQty);
+            var carryAmt = physical.Sum(x => x.EffectAmount);
             running[g.Key]    = carryQty;
             runningAmt[g.Key] = carryAmt;
             if (carryQty != 0m || carryAmt != 0m)
@@ -170,8 +191,11 @@ public class GoodReportAppService : TradeXpressAppService, IGoodReportAppService
             var key = (x.CommodityId, x.VariantId);
             running.TryGetValue(key, out var prevQty);
             runningAmt.TryGetValue(key, out var prevAmt);
-            var rbQty = prevQty + x.EffectQty;
-            var rbAmt = prevAmt + x.EffectAmount;
+
+            // Rezervasyon satırı GÖRÜNÜR ama bakiyeyi HAREKET ETTİRMEZ (Metal raporuyla aynı kural).
+            var isReservation = x.PaymentType == ProcessPaymentType.Reservation;
+            var rbQty = prevQty + (isReservation ? 0m : x.EffectQty);
+            var rbAmt = prevAmt + (isReservation ? 0m : x.EffectAmount);
             running[key]    = rbQty;
             runningAmt[key] = rbAmt;
 
@@ -181,6 +205,7 @@ public class GoodReportAppService : TradeXpressAppService, IGoodReportAppService
                 VoucherNumber  = x.VoucherNumber,
                 ProcessType    = x.ProcessType,
                 ProcessCode    = VoucherProcessCode.Of(x.ProcessType, x.Direction, x.PaymentType),
+                IsReservation  = isReservation,
                 Source         = x.Source,
                 CompanyCode    = companyCodes.GetValueOrDefault(x.CompanyId),
                 BranchCode     = branchCodes.GetValueOrDefault(x.BranchId),

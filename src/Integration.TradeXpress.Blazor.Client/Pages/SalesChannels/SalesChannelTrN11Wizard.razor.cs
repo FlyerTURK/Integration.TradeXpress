@@ -9,6 +9,8 @@ using Integration.TradeXpress.Blazor.Client.Components.Shared;
 using Integration.TradeXpress.N11Categories;
 using Integration.TradeXpress.N11Products;
 using Integration.TradeXpress.N11Shipments;
+using Integration.TradeXpress.Blazor.Client.Pages.Products;
+using Integration.TradeXpress.Products;
 using Integration.TradeXpress.SalesChannels;
 using Microsoft.AspNetCore.Components;
 
@@ -76,6 +78,11 @@ public partial class SalesChannelTrN11Wizard : CrudComponentBase
 
     // ── 5. adım: içe aktarım ────────────────────────────────────────────────────────────────────────
     private N11ImportResultDto? _import;
+
+    // ── 6. adım: emtia sınıflandırması ──────────────────────────────────────────────────────────────
+    private ProductCommodityClassificationPanel? _classifyPanel;
+    private int _classifyPending;
+    private ProductCommodityProvisionResultDto? _classifyResult;
 
     private bool _busy;
 
@@ -174,6 +181,13 @@ public partial class SalesChannelTrN11Wizard : CrudComponentBase
             if (_import?.SkippedRows.Count > 0)
             {
                 items.Add(L["SalesChannelTrN11:Wizard:RemainingSkipped", _import.SkippedRows.Count].Value);
+            }
+
+            // Sınıflandırma adımı ATLANABİLİR ama SESSİZ değildir: bağlanmayan ürünlerin stoğu Sabit kalır ve
+            // pazaryerinin eski adedi geçerli olmayı sürdürür — kullanıcı bunu bilerek bırakmalı.
+            if (_classifyPending > 0)
+            {
+                items.Add(L["SalesChannelTrN11:Wizard:RemainingCommodities", _classifyPending].Value);
             }
 
             return items;
@@ -294,6 +308,20 @@ public partial class SalesChannelTrN11Wizard : CrudComponentBase
         {
             _busy = false;
         }
+    }
+
+    /// <summary>6. adım: emtia sınıflandırmasını uygular. Karar verilmemiş ürünler DOKUNULMADAN kalır (Draft)
+    /// ve özet ekranında sayılır — adım "Atla" ile geçilirse bu metot HİÇ koşmaz (WizardStep sözleşmesi),
+    /// dolayısıyla atlamak da kararsız ürün bırakmakla aynı sonuca varır: satışa çıkmazlar.</summary>
+    private async Task ApplyClassificationAsync(WizardStepAdvanceContext context)
+    {
+        if (_classifyPanel is null)
+        {
+            return;
+        }
+
+        _classifyResult = await _classifyPanel.ApplyAsync();
+        _classifyPending = _classifyPanel.PendingCount;
     }
 
     /// <summary>Bitir → kurulan kanalın normal edit formuna geç (kullanıcı kaldığı yerden yönetmeye devam etsin).</summary>

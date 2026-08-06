@@ -21,7 +21,7 @@ namespace Integration.TradeXpress.Commodities;
 /// faktör desc → Code asc) ve FollowingUnitCode zenginleştirmesi.
 /// </summary>
 public abstract class FollowingUnitCatalogAppService<TEntity, TGetDto, TListDto, TListRequest, TCreateInput, TUpdateInput>
-    : HostCatalogCrudAppService<TEntity, TGetDto, TListDto, TListRequest, TCreateInput, TUpdateInput>
+    : CommodityCatalogAppService<TEntity, TGetDto, TListDto, TListRequest, TCreateInput, TUpdateInput>
     where TEntity : class, IEntity<Guid>, IMultiTenant
     where TGetDto : class, IFollowingUnitDto
     where TListDto : class, IFollowingUnitDto

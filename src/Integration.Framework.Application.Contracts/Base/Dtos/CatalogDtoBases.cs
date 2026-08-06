@@ -41,9 +41,13 @@ public abstract class CatalogCreateDtoBase : ICreateDto
 
 /// <summary>Katalog Update DTO ortak gövdesi — Code/Name attribute'ları türevde (bkz. <see cref="CatalogGetDtoBase"/>).
 /// Code DÜZENLENEBİLİR (ürün kuralı 2026-07-04: host CurrencyUnit kayıtları dışında tüm kodlar değiştirilebilir).</summary>
-public abstract class CatalogUpdateDtoBase : IUpdateDto
+public abstract class CatalogUpdateDtoBase : IUpdateDto, IHasIsActive
 {
     public virtual string Code { get; set; } = string.Empty;
     public virtual string Name { get; set; } = string.Empty;
+
+    /// <summary><see cref="IHasIsActive"/> ile açıkça ilan edilir (2026-08-05): alan zaten vardı, ama arayüz
+    /// olmadan bir taban sınıf "aktif→pasif geçişi oluyor mu" sorusunu TİPLİ olarak soramıyordu — yalnız
+    /// yansıma ya da tekrarlanan cast'lerle. Şekil aynı, sözleşme artık görünür.</summary>
     public bool IsActive { get; set; }
 }

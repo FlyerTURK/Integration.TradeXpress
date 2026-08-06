@@ -148,16 +148,21 @@ public partial class CurrencyUnitListPage : IDisposable
         catch (OperationCanceledException) { /* sayfa kapandı */ }
     }
 
-    /// <summary>Satır için canlı efektif Alış/Satış metni; fiyat yoksa "—".</summary>
+    /// <summary>Satır için canlı efektif Alış/Satış metni; fiyat yoksa "—", kur bağlantısı yoksa "Kur yok".
+    ///
+    /// <para><b>Neden RateMissing ayrı ele alınır (2026-08-05):</b> kur bağlantısı olmayan birim motorda 1/1
+    /// YER TUTUCU alır. O yer tutucuyu sayı olarak basmak, eksik kuru gerçek 1:1 kurundan ayırt edilemez
+    /// kılıyordu — HAS'ın kuru olmadığı halde panoda "1" görünüyordu ve aynı yer tutucu reçetede 7 gram has
+    /// altını "7,00 TRY"ye fiyatlıyordu. Sessizce yanlış rakam, kuyumcu uygulamasında en kötü hata sınıfıdır.</para></summary>
     protected string LivePrice(Guid unitId, bool buy)
         => _live.TryGetValue(unitId, out var p)
-            ? (buy ? p.Buy : p.Sell).ToString("N5")
+            ? (p.RateMissing ? L["MissingRate"].Value : (buy ? p.Buy : p.Sell).ToString("N5"))
             : "—";
 
-    /// <summary>Baz (ham pivot) Alış/Satış fiyatı.</summary>
+    /// <summary>Baz (ham pivot) Alış/Satış fiyatı; kur bağlantısı yoksa "Kur yok" (bkz. <see cref="LivePrice"/>).</summary>
     protected string LiveRaw(Guid unitId, bool buy)
         => _live.TryGetValue(unitId, out var p)
-            ? (buy ? p.RawBuy : p.RawSell).ToString("N5")
+            ? (p.RateMissing ? L["MissingRate"].Value : (buy ? p.RawBuy : p.RawSell).ToString("N5"))
             : "—";
 
     /// <summary>Baz fiyata uygulanan marj tipi (alış/satış) — lokalize (Enum:MarginType:*).</summary>
@@ -179,7 +184,7 @@ public partial class CurrencyUnitListPage : IDisposable
     /// <summary>Takip edilen birimin (varsa) tenant'ın gördüğü efektif Alış/Satış fiyatı (ayrı kolon); takip/fiyat yoksa boş.</summary>
     protected string FollowedPrice(Guid? followingUnitId, bool buy)
         => followingUnitId is { } pid && _live.TryGetValue(pid, out var p)
-            ? (buy ? p.Buy : p.Sell).ToString("N5")
+            ? (p.RateMissing ? L["MissingRate"].Value : (buy ? p.Buy : p.Sell).ToString("N5"))
             : "";
 
     void IDisposable.Dispose()

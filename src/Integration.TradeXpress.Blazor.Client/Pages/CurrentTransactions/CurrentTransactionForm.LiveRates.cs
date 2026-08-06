@@ -80,7 +80,12 @@ public partial class CurrentTransactionForm
             _liveRates = prices;
             // Konsolide bakiye matematiği aynı fiyat listesinden — İKİNCİ servis çağrısı GEREKMEZ
             // (eski kod aynı metodu tik başına iki kez çağırıyordu; canlı yol pahalı — teke indirildi).
-            _pivotBuy = prices.ToDictionary(p => p.Id, p => p.Buy);
+            //
+            // Kuru OLMAYAN birim sözlüğe GİRMEZ (2026-08-05): bu bir DEĞERLEME girdisidir, gösterim değil.
+            // Motor kur bağlantısı olmayan birime 1/1 yer tutucu verir; o yer tutucu buraya girerse konsolide
+            // toplam sessizce yanlış çıkar (ör. kursuz HAS bakiyesi 1:1 TRY sayılırdı). Dışarıda bırakınca
+            // ConsolidatedBalanceCalculator zaten IsComplete=false döner → toplam "≈" ile işaretlenir.
+            _pivotBuy = prices.Where(p => !p.RateMissing).ToDictionary(p => p.Id, p => p.Buy);
             if (changed)
             {
                 _lastRateChangeUtc = now;
@@ -89,6 +94,14 @@ public partial class CurrentTransactionForm
         catch { }
         ComputeConsolidated();   // konsolide toplam canlı kurla tazelensin
         return changed;
+    }
+
+    /// <summary>Canlı Kurlar sekmesinin hücre metni: kur bağlantısı yoksa sayı yerine "Kur yok".
+    /// Kur panosuyla (CurrencyUnitListPage.LivePrice) AYNI kural — motorun 1/1 yer tutucusu asla kur gibi
+    /// gösterilmez; yoksa eksik kur, gerçek 1:1 kurundan ayırt edilemez (2026-08-05).</summary>
+    private string LiveRateText(CurrentPriceDto row, bool buy)
+    {
+        return row.RateMissing ? L["MissingRate"].Value : (buy ? row.Buy : row.Sell).ToString("N5");
     }
 
     public void Dispose()

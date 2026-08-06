@@ -55,6 +55,25 @@ public class GoodStockRowDto
     public decimal OutAmount { get; set; }
     /// <summary>Net miktar (InAmount − OutAmount).</summary>
     public decimal NetAmount { get; set; }
+
+    // ── Rezervasyon (ProcessPaymentType.Reservation) — fiziksel Net'e GİRMEZ, ayrı sayaç (2026-08-05) ──
+    // Metal raporunda bu sayaçlar başından beri vardı; Good'da YOKTU ve doc'u "Rezervasyon YOK" diyordu.
+    // Sipariş rezervasyonu Good ürünleri de kapsayacağı için ayrım burada da zorunlu hale geldi.
+
+    /// <summary>Çıkış rezervasyonu adedi — müşteriye ayrılan (kullanılabilirden düşer).</summary>
+    public decimal ReservedOutQuantity { get; set; }
+    /// <summary>Çıkış rezervasyonu miktarı.</summary>
+    public decimal ReservedOutAmount { get; set; }
+    /// <summary>Giriş rezervasyonu adedi — tedarikçiden beklenen (BİLGİ; kullanılabilire EKLENMEZ).</summary>
+    public decimal ReservedInQuantity { get; set; }
+    /// <summary>Giriş rezervasyonu miktarı (bilgi).</summary>
+    public decimal ReservedInAmount { get; set; }
+
+    /// <summary>Kullanılabilir adet = NetQuantity − ReservedOutQuantity. Fazla rezerve edildiyse EKSİ olabilir —
+    /// kırpma kanal sınırında yapılır, defterde değil.</summary>
+    public decimal AvailableQuantity { get; set; }
+    /// <summary>Kullanılabilir miktar = NetAmount − ReservedOutAmount.</summary>
+    public decimal AvailableAmount { get; set; }
 }
 
 /// <summary>
@@ -99,6 +118,11 @@ public class GoodMovementRowDto
     public string? Description { get; set; }
     /// <summary>true = başlangıç tarihinden önceki birikimi gösteren devreden satırı.</summary>
     public bool IsCarryForward { get; set; }
+
+    /// <summary>Bu satır bir REZERVASYON mu (<c>ProcessPaymentType.Reservation</c>). Metal raporuyla hizalı.
+    /// <para>Rezervasyon satırı listede GÖRÜNÜR ama yürüyen bakiyeye KATILMAZ — fiziksel hareket yaratmaz.
+    /// Katsaydı bakiye şişer ve elimizde olmayan mal varmış gibi okunurdu (2026-08-05).</para></summary>
+    public bool IsReservation { get; set; }
 
     // ── Computed — Adet (Quantity) kolonları (birincil) ──
     /// <summary>Bu satırdan önceki Quantity bakiyesi (Devir = RunningBalance − Effect).</summary>

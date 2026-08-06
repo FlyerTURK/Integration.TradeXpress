@@ -7,8 +7,11 @@ using Volo.Abp.DependencyInjection;
 namespace Integration.TradeXpress.Financials.CurrencyUnits;
 
 /// <summary>Birim başına efektif (pivot) fiyat: efektif + gösterim bazı (Raw) + uygulanan marjlar + kur tarihi.</summary>
+/// <param name="RateMissing">Birimin HİÇBİR kur bağlantısı yok (ne canlı tick, ne DB kuru, ne takip zinciri).
+/// Bu durumda <paramref name="Eff"/>/<paramref name="Raw"/> 1/1 YER TUTUCUdur — kur DEĞİLDİR. Değerleme yolları
+/// bu kayıtları eler; gösterim yolu sayı yerine "kur yok" yazar. Gerekçe: <see cref="EffectivePriceCalculator"/>.</param>
 public sealed record EffPrice(CurrencyUnit Unit, CurrencyPrice Eff, CurrencyPrice Raw, DateTime RateDate,
-    MarginSetting AppliedBuy, MarginSetting AppliedSell);
+    MarginSetting AppliedBuy, MarginSetting AppliedSell, bool RateMissing = false);
 
 /// <summary>
 /// Efektif fiyat motorunun SAF hesap çekirdeği (veri erişimi yok — sorgular/cache okuma
@@ -50,6 +53,7 @@ public class EffectivePriceCalculator : ITransientDependency
                 // Ham fiyat: önce CANLI cache (sub-dakika), yoksa DB 15-dk snapshot, yoksa TAKİP türevi.
                 CurrencyPrice raw;
                 DateTime rateDate;
+                var rateMissing = false;
                 if (useLiveQuotes && liveQuotes.TryGetValue(unit.Code, out var q) && q.Buy > 0m && q.Sell > 0m)
                 {
                     raw = CurrencyPriceCalculator.Guard(q.Buy, q.Sell);
@@ -73,13 +77,31 @@ public class EffectivePriceCalculator : ITransientDependency
                         followingMargin.Apply(parent.Eff.Buy),
                         followingMargin.Apply(parent.Eff.Sell));
                     rateDate = parent.RateDate;
+
+                    // ⚠ Eksiklik ZİNCİR BOYUNCA taşınır (2026-08-05): takip edilenin kuru yoksa onun Eff'i 1/1
+                    // YER TUTUCUdur; ondan türeyen değer de kur değildir. Bayrak taşınmazsa takip eden birim
+                    // "kuru varmış" gibi görünür ve değerlemeye SIZAR — madenler HAS'ı takip ettiği için tam da
+                    // bu yol kritik: kursuz HAS üzerinden her maden sessizce fiyatlanırdı.
+                    rateMissing = parent.RateMissing;
                 }
                 else
                 {
-                    // Ne canlı tick, ne DB rate, ne takip → kur bağlantısı YOK. null yerine VARSAYILAN 1/1
-                    // (üstüne varsa kendi host/viewer marjı biner). Böylece fiyatsız birim listede boş geçmez.
+                    // Ne canlı tick, ne DB rate, ne takip → kur bağlantısı YOK.
+                    //
+                    // ⚠ 1/1 bir KUR DEĞİL, yalnız birimin listede boş geçmemesi için YER TUTUCUDUR; doğruyu
+                    // söyleyen şey RateMissing bayrağıdır. Bu ayrım 2026-08-05'te KANLI canlı öğrenildi: o güne
+                    // kadar 1/1 sessizce gerçek kur sayılıyordu ve HAS'ın kuru olmadığı için 7 gram has altın
+                    // reçetede "7,00 TRY" olarak fiyatlanıyordu (Hakan bildirdi). Daha kötüsü, aşağı akıştaki
+                    // fail-fast ağı da BAYPAS oluyordu: ProductRecipeCostCalculator "birim sözlükte yoksa
+                    // MissingRate" diye tasarlanmış, ama uydurma 1/1 sayesinde TryGetValue hep BAŞARILI
+                    // dönüyordu. Bu yüzden değerleme yolları (GetValuation*) artık bu kayıtları ELER —
+                    // sözlükte yokluk, "kur yok"un tek ve tutarlı temsilidir.
+                    //
+                    // Bayrağı okumadan Eff/Raw kullanan yeni bir çağıran EKLEME; gösterim yolunda da sayı
+                    // yerine "kur yok" yazılır (CurrentPriceDto.RateMissing).
                     raw = CurrencyPriceCalculator.Guard(1m, 1m);
                     rateDate = DateTime.UtcNow;
+                    rateMissing = true;
                 }
 
                 // Kademe katmanları: host marjı, sonra (tenant ise) viewer marjı.
@@ -111,7 +133,7 @@ public class EffectivePriceCalculator : ITransientDependency
                     (appliedBuy, appliedSell) = viewerLayer ?? (MarginSetting.Passthrough, MarginSetting.Passthrough);
                 }
 
-                byId[unit.Id] = new EffPrice(unit, eff, displayBase, rateDate, appliedBuy, appliedSell);
+                byId[unit.Id] = new EffPrice(unit, eff, displayBase, rateDate, appliedBuy, appliedSell, rateMissing);
                 progressed = true;
             }
             pending = stillPending;

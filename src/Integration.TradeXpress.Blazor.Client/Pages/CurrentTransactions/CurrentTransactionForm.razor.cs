@@ -692,24 +692,41 @@ public partial class CurrentTransactionForm
 
     private string GridStyle()
     {
+        // ── MOBİL SATIRLAR NEDEN AÇIKÇA max-content (2026-08-05: Hakan "p2 ve p3 hesap panelini eziyor" dedi) ──
+        // Bu grid'in kabı, MdiTabPane'in "height:100%; display:flex; flex-direction:column" sarmalayıcısının
+        // FLEX ÖĞESİDİR (Components/Mdi/MdiTabPane.razor). Kap overflow-y:auto taşıdığı için asgari boyutu 0'dır
+        // ve flex-shrink ile sekme yüksekliğine KISILIR → grid KESİN bir alanla boyutlanır, boş alan NEGATİF olur.
+        // Negatif boş alanda 'auto' satırlar TABAN boyutlarında donar (grid asla tabanın altına inmez, ama üstüne
+        // de çıkmaz). p1'in overflow:hidden'ı otomatik asgari boyutunu 0'a indirdiğinden p1'in TABANI 0'dır →
+        // satır yalnız 4+4px padding kadar çizilir ve panel görünmez olur. Blink'te ölçüldü: HEAD'de satırlar
+        // "8px 308px 548px", max-content ile "508px 308px 548px".
+        // max-content TABANI kısılamaz → her panel kendi içeriği kadar yer alır; toplam taşarsa kabın kendi
+        // overflow-y:auto'su kaydırır (mobilde amaçlanan davranış zaten budur).
+        // "Gerilme kaybolur mu?" HAYIR: kabın flex-grow'u 0 olduğu için boş alan hiçbir zaman POZİTİF olmaz —
+        // kap içeriğine sarılır. Yani max-content'e geçmek hiçbir dalda görünümü değiştirmez, YALNIZ çökmeyi
+        // engeller (ölçüldü). DÖRT mobil dalın hepsine konur: tek panelli dalda da içerik uzun telefonda
+        // sığmayınca satır kaba kırpılıyor ve scrollHeight kabın boyuna eşit kaldığı için taşan kısım
+        // ERİŞİLEMEZ oluyordu (ölçüm: 908px içerik, 700px satır, kaydırma YOK).
+        // Masaüstünde gerekmez: orada kap height:100% ile kesin ve p1 satırı bilinçli minmax(0,auto) (aşağıda).
         if (!_currentSubAccountId.HasValue)
         {
             return _isMobile
-                ? "display:grid; gap:0px; grid-template-columns:1fr; grid-template-areas:'p1'; overflow-y:auto; max-height:calc(100vh - 110px); max-height:calc(100dvh - 110px);"
+                ? "display:grid; gap:0px; grid-template-columns:1fr; grid-template-rows:max-content; grid-template-areas:'p1'; overflow-y:auto; max-height:calc(100vh - 110px); max-height:calc(100dvh - 110px);"
                 : "display:grid; gap:0px; height:100%; grid-template-columns:1fr; grid-template-areas:'p1';";
         }
 
         if (!_accountLocked)
         {
             return _isMobile
-                ? "display:grid; gap:0px; grid-template-columns:1fr; grid-template-areas:'p1' 'p3'; overflow-y:auto; max-height:calc(100vh - 110px); max-height:calc(100dvh - 110px);"
+                ? "display:grid; gap:0px; grid-template-columns:1fr; grid-template-rows:max-content max-content; grid-template-areas:'p1' 'p3'; overflow-y:auto; max-height:calc(100vh - 110px); max-height:calc(100dvh - 110px);"
                 : "display:grid; gap:0px; height:100%; grid-template-columns:minmax(0,1fr) 300px; grid-template-areas:'p1 p3';";
         }
 
+        // Mobil satırlar max-content — gerekçe metodun başında (kap, MdiTabPane'in flex sarmalayıcısında kısılıyor).
         if (_isMobile)
             return _listMode && !_processActive
-                ? "display:grid; gap:0px; grid-template-columns:1fr; grid-template-areas:'p3' 'p2'; overflow-y:auto; max-height:calc(100vh - 110px); max-height:calc(100dvh - 110px);"
-                : "display:grid; gap:0px; grid-template-columns:1fr; grid-template-areas:'p1' 'p3' 'p2'; overflow-y:auto; max-height:calc(100vh - 110px); max-height:calc(100dvh - 110px);";
+                ? "display:grid; gap:0px; grid-template-columns:1fr; grid-template-rows:max-content max-content; grid-template-areas:'p3' 'p2'; overflow-y:auto; max-height:calc(100vh - 110px); max-height:calc(100dvh - 110px);"
+                : "display:grid; gap:0px; grid-template-columns:1fr; grid-template-rows:max-content max-content max-content; grid-template-areas:'p1' 'p3' 'p2'; overflow-y:auto; max-height:calc(100vh - 110px); max-height:calc(100dvh - 110px);";
 
         // p1 satırı minmax(0,auto): içerik sığdığı sürece "auto" gibi davranır (yerleşim DEĞİŞMEZ), ama
         // süreç paneli uzun olduğunda satır sıkışabilir — böylece panel grid'i taşırıp p2'yi ezmek yerine

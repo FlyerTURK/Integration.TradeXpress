@@ -54,11 +54,16 @@ public class ProductVariantRecipeLine : FullAuditedAggregateRoot<Guid>, IMultiTe
     /// <summary>Bileşen türü — set-once (katalog emtiası / hizmet / manuel).</summary>
     public virtual RecipeComponentType ComponentType { get; protected set; }
 
-    /// <summary>Katalog emtia ailesi (Metal/Scrap/Future/Jewelry/Stone). Yalnız <see cref="RecipeComponentType.CatalogCommodity"/>
-    /// için dolu; hizmet/manuelde null.</summary>
+    /// <summary>Katalog emtia ailesi (Metal/Scrap/Future/Jewelry/Stone/<b>Good</b>). Yalnız
+    /// <see cref="RecipeComponentType.CatalogCommodity"/> için dolu; <b>hizmet/manuelde NULL</b>.
+    /// <para>⚠ Bu null'lık kullanım sorgusunu doğrudan etkiler: hizmet satırı bu kolondan bulunamaz, yalnız
+    /// <see cref="ComponentType"/> + <see cref="CommodityId"/> ile bulunur (bkz. <c>RecipeCommodityIndex.FindUsageAsync</c>
+    /// Service dalı). Doc 2026-08-05'te düzeltildi — Good sayılmıyordu, oysa maliyet motoru onu biliyor.</para></summary>
     public virtual ProcessType? CommodityProcessType { get; protected set; }
 
-    /// <summary>Katalog kaydı (Metal/Scrap/Future/Jewelry/Stone ya da hizmet) — FK'sız <b>snapshot</b>. Manuel maliyette null.</summary>
+    /// <summary>Katalog kaydı (Metal/Scrap/Future/Jewelry/Stone/Good ya da hizmet) — FK'sız <b>snapshot</b>.
+    /// Manuel maliyette null. <b>FK olmadığı için aynı Guid farklı ailede çakışabilir</b> → sorgularda aile
+    /// filtresi atlanamaz.</summary>
     public virtual Guid? CommodityId { get; protected set; }
 
     /// <summary>Seçili katalog varyantı (snapshot) — Çoklu varyantı olan emtialarda (Metal vb.) seçili varyant id'si.</summary>

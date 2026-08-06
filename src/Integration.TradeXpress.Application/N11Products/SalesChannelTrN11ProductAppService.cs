@@ -62,6 +62,12 @@ public partial class SalesChannelTrN11ProductAppService : TradeXpressAppService,
     private readonly IN11ProductQueryClient _queryClient;
     private readonly IN11TaskPoller _taskPoller;
     private readonly MarketplacePushImageResolver _pushImageResolver;
+
+    /// <summary>Push kapısı — yalnız onaylı VE damgası güncel varyant aday olur (üç kanalda ortak).</summary>
+    private readonly VariantSaleReadinessResolver _saleReadiness;
+
+    /// <summary>Append-only delil kaydı — N11 versiyonlarını fotoğrafıyla saklıyor, bizde tarihli kayıt yoktu.</summary>
+    private readonly N11PushHistoryRecorder _pushHistory;
     private readonly IEntityMediaAppService _entityMedia;   // yalnız OKUMA — push önizlemesi (DAM galerisi)
     private readonly IN11CategoryClient _categoryClient;
     private readonly N11ProductPushValidator _pushValidator;
@@ -96,6 +102,8 @@ public partial class SalesChannelTrN11ProductAppService : TradeXpressAppService,
         IN11ProductQueryClient queryClient,
         IN11TaskPoller taskPoller,
         MarketplacePushImageResolver pushImageResolver,
+        VariantSaleReadinessResolver saleReadiness,
+        N11PushHistoryRecorder pushHistory,
         IEntityMediaAppService entityMedia,
         IN11CategoryClient categoryClient,
         N11ProductPushValidator pushValidator,
@@ -129,6 +137,8 @@ public partial class SalesChannelTrN11ProductAppService : TradeXpressAppService,
         _queryClient = queryClient;
         _taskPoller = taskPoller;
         _pushImageResolver = pushImageResolver;
+        _saleReadiness = saleReadiness;
+        _pushHistory = pushHistory;
         _entityMedia = entityMedia;
         _categoryClient = categoryClient;
         _pushValidator = pushValidator;
@@ -486,6 +496,15 @@ public partial class SalesChannelTrN11ProductAppService : TradeXpressAppService,
                     item.Attributes.Select(a => new SalesChannelTrN11ProductCategoryAttribute(a.Name, a.Value)));
             }
 
+            // APPEND-ONLY DELİL KAYDI: LastSent* üzerine yazıldığı için "ne zaman ne gönderdik" sorusunun
+            // cevabı yoktu; N11 ise her versiyonu fotoğrafıyla saklıyor. Kayıt push'u DÜŞÜRMEZ (recorder yutar+loglar).
+            await _pushHistory.RecordAsync(
+                entity.CompanyId,
+                entity.Id,
+                N11ProductPushKind.FullPush,
+                BuildHistoryEntries(data, await ResolvePushMediaIdsAsync(entity.ProductId)),
+                result.N11ProductId?.ToString(CultureInfo.InvariantCulture));
+
             foreach (var sku in result.Skus)
             {
                 entity.ApplySkuIdentity(sku.SellerStockCode, sku.N11SkuId, sku.Version);
@@ -621,6 +640,32 @@ public partial class SalesChannelTrN11ProductAppService : TradeXpressAppService,
                     CurrencyType: null));   // para birimi ürün kaydında sabit; burada değiştirilmez
             }
 
+            // 0 KURULABİLİR VARYANT → SATIŞI DURDUR (2026-08-05 Hakan kararı). Muadil ürünün stoğu tükenince
+            // SubstitutionVariantMaterializer 0 varyant üretir ve rows BOŞ kalır. Eskiden burası doğrudan
+            // NoSyncableSku fırlatıyordu: push HİÇ yapılmadığı için N11'de SON GÖNDERİLEN adet CANLI kalıyor,
+            // ürün karşılanamayacak sipariş almaya devam ediyordu (oversell → pazaryeri cezası).
+            //
+            // Bunun yerine bilinen TÜM SKU'lara adet 0 gönderilir. Fiyat son gönderilen değerde bırakılır:
+            // amaç satışı durdurmak, listelemeyi kapatmak DEĞİL — N11'de "Out_Of_Stock" görünür, geri dönüş kolay.
+            //
+            // SİMETRİ BEDAVA (Hakan: "Açılsın tabi ki"): stok gelince rows yeniden dolar ve aşağıdaki normal
+            // dirty-check gerçek adedi geri yazar. Ayrı bir "yeniden aç" yolu gerekmez.
+            if (rows.Count == 0 && entity.Skus.Count > 0)
+            {
+                foreach (var sku in entity.Skus)
+                {
+                    anyDirty |= sku.LastSentQuantity != 0;
+                    stockItems.Add(new N11RestPriceStock(
+                        StockCode: sku.SellerStockCode,
+                        ListPrice: sku.LastSentOptionPrice,
+                        SalePrice: sku.LastSentOptionPrice,
+                        Quantity: 0,
+                        CurrencyType: null));
+                }
+
+                syncWarnings.Add(L["N11Product:StockZeroedNoBuildableVariant"]);
+            }
+
             if (stockItems.Count == 0)
             {
                 throw new BusinessException("TradeXpress:N11:Product:NoSyncableSku");
@@ -654,6 +699,24 @@ public partial class SalesChannelTrN11ProductAppService : TradeXpressAppService,
                 {
                     entity.RecordStockPriceSync(item.StockCode, item.Quantity ?? 0, item.SalePrice, version: null);
                 }
+
+                // Delil kaydı senkronda da yazılır — fiyat/stok değişimi de "o gün şu fiyattaydı"nın parçası.
+                // İçerik (başlık/görsel) bu yolda GÖNDERİLMEDİĞİ için null geçilir: gönderilmeyeni yazmak yalan olurdu.
+                await _pushHistory.RecordAsync(
+                    entity.CompanyId,
+                    entity.Id,
+                    N11ProductPushKind.PriceStockSync,
+                    stockItems
+                        .Select(item => new N11PushHistoryEntry(
+                            item.StockCode,
+                            item.SalePrice,
+                            item.CurrencyType,
+                            item.Quantity,
+                            Title: null,
+                            Options: null,
+                            MediaIds: null))
+                        .ToList(),
+                    n11ProductId?.ToString(CultureInfo.InvariantCulture));
 
                 entity.MarkSynced(n11ProductId, entity.SaleStatus, entity.ApprovalStatus, Clock.Now.ToUniversalTime());
             }
@@ -1225,7 +1288,14 @@ public partial class SalesChannelTrN11ProductAppService : TradeXpressAppService,
             (await _variantRepository.GetQueryableAsync())
                 .Where(v => v.EntityName == ProductEntityName && v.EntityId == channelProduct.ProductId && v.IsActive));
         var salePrices = await LoadVariantSalePricesAsync(activeVariants.Select(v => v.Id).ToList());
+
+        // PUSH KAPISI (2026-08-05 Hakan kararı: "kararsız reçeteli ürün kesinlikle satışa girmemeli").
+        // Yalnız İNSAN tarafından onaylanmış VE onaydan sonra reçetesi değişmemiş varyant aday olur.
+        // Kapı fiyatlamadan ÖNCEDİR — bu yüzden elle girilen OverridePrice de kararsızlığı ÖRTEMEZ.
+        var sellable = await _saleReadiness.ResolveSellableAsync(activeVariants.Select(v => v.Id).ToList());
+
         var variants = activeVariants
+            .Where(v => sellable.Contains(v.Id))
             .Where(v => salePrices.GetValueOrDefault(v.Id).SalePrice is not null)
             .OrderByDescending(v => v.IsMain)
             .ToList();
@@ -1353,6 +1423,45 @@ public partial class SalesChannelTrN11ProductAppService : TradeXpressAppService,
 
     /// <summary>Push'a girecek her satırın efektif fiyat+stok'unun ÇÖZÜLMÜŞ olduğunu doğrular — N11-only satırda
     /// ERP fallback yoktur (zincir: OverridePrice ?? türetilmiş / OverrideStock); çözülemiyorsa N11'e gitmeden fail-fast.</summary>
+    /// <summary>Push geçmişi girdileri — GÖNDERİLEN veriden kurulur (yeniden hesaplanmaz).
+    /// <i>Delil kaydı "ne göndermiş olmalıydık"ı değil "ne gönderdik"i saklamalı.</i></summary>
+    private static List<N11PushHistoryEntry> BuildHistoryEntries(N11ProductData data, List<Guid> mediaIds)
+    {
+        return data.StockItems
+            .Select(item => new N11PushHistoryEntry(
+                item.SellerStockCode,
+                item.OptionPrice ?? data.Price,
+                MapCurrencyName(data.CurrencyType),
+                item.Quantity,
+                data.Title,
+                item.Attributes.Select(a => (a.Name, a.Value)).ToList(),
+                mediaIds))
+            .ToList();
+    }
+
+    /// <summary>Push'a giden görsellerin DAM kimlikleri; okunamazsa geçmiş görselsiz yazılır (kayıt kaybolmasın).</summary>
+    private async Task<List<Guid>> ResolvePushMediaIdsAsync(Guid productId)
+    {
+        var product = await _productRepository.FindAsync(productId);
+        if (product is null)
+        {
+            return new List<Guid>();
+        }
+
+        return await _pushImageResolver.ResolveMediaIdsAsync(product, ProductConsts.MaxImageCount);
+    }
+
+    /// <summary>N11 sayısal para birimi kodu → yazı (delil kaydı okunabilir olmalı; "1" tek başına bir şey demez).</summary>
+    private static string MapCurrencyName(int currencyType)
+    {
+        return currencyType switch
+        {
+            2 => "USD",
+            3 => "EUR",
+            _ => "TRY",
+        };
+    }
+
     private static void EnsurePushRowsPriced(List<N11PushRow> rows)
     {
         var unpriced = rows.FirstOrDefault(r => r.Price is null || r.Stock is null);

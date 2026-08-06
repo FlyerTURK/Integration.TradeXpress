@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
@@ -17,6 +17,8 @@ using Volo.Abp;
 using Volo.Abp.Domain.Entities;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.MultiTenancy;
+using Integration.TradeXpress.Vouchers;
+using Integration.TradeXpress.Commodities;
 
 namespace Integration.TradeXpress.Goods;
 
@@ -27,7 +29,7 @@ namespace Integration.TradeXpress.Goods;
 /// </summary>
 [Authorize]
 public class GoodAppService
-    : HostCatalogCrudAppService<Good, GoodGetDto, GoodListDto, GoodListRequestDto, GoodCreateDto, GoodUpdateDto>,
+    : CommodityCatalogAppService<Good, GoodGetDto, GoodListDto, GoodListRequestDto, GoodCreateDto, GoodUpdateDto>,
       IGoodAppService
 {
     private const string GoodEntityName = "Good";
@@ -85,6 +87,19 @@ public class GoodAppService
 
     protected override ISet<string> AllowedListFields { get; } =
         new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "Code", "Name", "IsActive", "Id" };
+
+    /// <summary>Reçete kullanım guard'ının aile anahtarı — CommodityId FK'sız snapshot olduğu için
+    /// aile olmadan sorgu başka ailedeki aynı Guid'i yakalardı.</summary>
+    /// <summary>Pasifleştirme geçişini tespit için — taban ortak IsActive arayüzü olmadığından tipli okuyamaz.</summary>
+    protected override bool IsActiveOf(Good entity)
+    {
+        return entity.IsActive;
+    }
+
+    protected override ProcessType Family
+    {
+        get { return ProcessType.Good; }
+    }
 
     protected override string EditGlobalErrorCode
     {

@@ -120,10 +120,28 @@ public abstract class HostCatalogCrudAppService<TEntity, TGetDto, TListDto, TLis
         var entity = await GetEntityByIdAsync(id);
         EnsureEditable(entity, isDelete: false);
 
+        await BeforeUpdateAsync(entity, input);
+
         await MapToEntityAsync(input, entity);
         await Repository.UpdateAsync(entity, autoSave: true);
 
         return await MapToGetOutputDtoAsync(entity);
+    }
+
+    /// <summary>
+    /// Güncelleme guard'ları (policy + <see cref="EnsureEditable"/>) GEÇTİKTEN sonra, mapping'den ÖNCE
+    /// çağrılır. Varsayılan no-op.
+    ///
+    /// <para><b>Sıra bilinçlidir:</b> bu noktada <paramref name="entity"/> hâlâ ESKİ değerleri,
+    /// <paramref name="input"/> ise YENİ değerleri taşır — yani türev bir GEÇİŞİ (ör. aktif→pasif)
+    /// tespit edebilir. Mapping'den sonra çağrılsaydı eski değer kaybolur ve geçiş görünmez olurdu.</para>
+    ///
+    /// <para><see cref="EnsureEditable"/> senkron <c>void</c> olduğu için DB sorgusu gerektiren guard'lar
+    /// oraya giremez; bu hook o boşluk için vardır.</para>
+    /// </summary>
+    protected virtual Task BeforeUpdateAsync(TEntity entity, TUpdateInput input)
+    {
+        return Task.CompletedTask;
     }
 
     public override async Task DeleteAsync(Guid id)

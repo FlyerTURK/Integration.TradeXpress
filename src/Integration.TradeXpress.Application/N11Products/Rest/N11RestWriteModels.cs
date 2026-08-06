@@ -48,6 +48,17 @@ public sealed record N11RestPriceStock(
 /// <see cref="Images"/> ve <see cref="Attributes"/> BOŞ olabilir — ama yine de (boş dizi olarak) gönderilir.
 /// İkisi de doluysa <see cref="CatalogId"/> önceliklidir. <see cref="Barcode"/> N11 kataloğundaki bir barkodla
 /// eşleşirse ürün, attribute'lara <b>bakılmaksızın</b> "satıcı onayı bekliyor" statüsünde açılır.</para>
+///
+/// <para><b><see cref="Bundle"/> DAİMA false gönderilir</b> (2026-08-05 Hakan kararı). N11 bu alanı
+/// GÖNDERİLMEZSE <c>true</c> varsayar — yani sessiz kalmak riskli tarafı seçmek demekti. <c>true</c> iken
+/// müşteri aynı ürünün İKİ FARKLI varyantını tek sepete koyabiliyor; bizim varyantlarımız çoğunlukla AYNI
+/// maden havuzundan besleniyor (her varyantın satılabilir adedi havuza karşı BAĞIMSIZ hesaplanır), dolayısıyla
+/// ikisi birden satılınca stok yetmiyor.
+/// <b>Kapsam:</b> istisnasız tüm ürünler — Hakan "default'umuz her zaman false olsun" dedi. (Ben yalnız
+/// <c>StockPolicy=Calculated</c> ürünlerle sınırlamayı önermiştim; bağımsız stoklu Fixed/Unlimited üründe
+/// birleşme zararsız olurdu. Karar kullanıcının.)
+/// <b>⚠ Bu tam çözüm DEĞİL:</b> yalnız AYNI SEPETİ engeller; iki AYRI siparişte aynı çakışma sürer. Kök çare
+/// paylaşılan havuzun varyantlara bölüştürülmesi ya da tek-varyant listelemedir.</para>
 /// </summary>
 public sealed record N11RestProductCreate(
     string Title,
@@ -66,7 +77,8 @@ public sealed record N11RestProductCreate(
     int VatRate,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] int? MaxPurchaseQuantity = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] long? CatalogId = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Barcode = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Barcode = null,
+    bool Bundle = false);
 
 /// <summary>Ürün görseli — URL <b>https</b> olmak zorundadır (N11 kuralı), <c>order</c> görsel sırasıdır.
 /// Görsel dosyası maksimum 10 MB (bunu N11 indirirken denetler, istemci denetleyemez).</summary>

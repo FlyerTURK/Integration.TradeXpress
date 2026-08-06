@@ -407,8 +407,17 @@ public class TradeXpressBlazorModule : AbpModule
         // Damga 1 günden yeniyse N11'e istek bile gitmez. Komisyon bu turun parçası — kullanıcı düğmeye basmaz.
         // YALNIZ Blazor host'ta → çift-çalışma yok (dağıtık kilit sağlayıcısı kayıtlı değil, iki hostta kayıt
         // aynı anda iki tam ağaç çekimi + ExternalId unique index çakışması demek olurdu).
-        Volo.Abp.Threading.AsyncHelper.RunSync(() =>
-            context.AddBackgroundWorkerAsync<Integration.TradeXpress.N11Categories.N11CategorySyncWorker>());
+        //
+        // ⚠ SAHTE SUNUCU KİPİNDE KAYDEDİLMEZ. Gerekçe referans worker'ınkinden FARKLI: kategori senkronu SİLMEZ
+        // (upsert-only), ama mock'a CategoryService ucu eklendikten sonra (kimlik probu için) senkron mock'tan
+        // BAŞARILI yanıt alabilir hâle geldi: REST /cdn/categories bulunamayıp SOAP'a düşer, mock oradan tek bir
+        // sahte kategori döndürür ve bu HOST-GLOBAL tabloya yazılır. 4400 gerçek kategorinin arasına sahte satır
+        // karışması, silinmesi kadar olmasa da kirlenmedir ve tüm tenant'ları etkiler.
+        if (!IsN11MockActive(context))
+        {
+            Volo.Abp.Threading.AsyncHelper.RunSync(() =>
+                context.AddBackgroundWorkerAsync<Integration.TradeXpress.N11Categories.N11CategorySyncWorker>());
+        }
 
         // Müşteri sorusu senkronu — pazaryerine giden TEK MERKEZ (UI asla doğrudan çağırmaz). Periyot 1 DAKİKA
         // = N11 kota penceresi; her tur TEK iş adımı harcar. "5 dakikada bir tazeleme" kararı worker periyoduyla

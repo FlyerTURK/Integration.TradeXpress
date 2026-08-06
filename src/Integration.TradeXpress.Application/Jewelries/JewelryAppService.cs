@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
@@ -14,6 +14,7 @@ using Integration.TradeXpress.Variants;
 using Microsoft.AspNetCore.Authorization;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.MultiTenancy;
+using Integration.TradeXpress.Vouchers;
 
 namespace Integration.TradeXpress.Jewelries;
 
@@ -25,7 +26,7 @@ namespace Integration.TradeXpress.Jewelries;
 /// </summary>
 [Authorize]
 public class JewelryAppService
-    : HostCatalogCrudAppService<Jewelry, JewelryGetDto, JewelryListDto, JewelryListRequestDto, JewelryCreateDto, JewelryUpdateDto>,
+    : CommodityCatalogAppService<Jewelry, JewelryGetDto, JewelryListDto, JewelryListRequestDto, JewelryCreateDto, JewelryUpdateDto>,
       IJewelryAppService
 {
     private const string JewelryEntityName = "Jewelry";
@@ -54,6 +55,19 @@ public class JewelryAppService
 
     protected override ISet<string> AllowedListFields { get; } =
         new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "Code", "Name", "IsActive", "Id" };
+
+    /// <summary>Reçete kullanım guard'ının aile anahtarı — CommodityId FK'sız snapshot olduğu için
+    /// aile olmadan sorgu başka ailedeki aynı Guid'i yakalardı.</summary>
+    /// <summary>Pasifleştirme geçişini tespit için — taban ortak IsActive arayüzü olmadığından tipli okuyamaz.</summary>
+    protected override bool IsActiveOf(Jewelry entity)
+    {
+        return entity.IsActive;
+    }
+
+    protected override ProcessType Family
+    {
+        get { return ProcessType.Jewelry; }
+    }
 
     protected override string EditGlobalErrorCode
     {

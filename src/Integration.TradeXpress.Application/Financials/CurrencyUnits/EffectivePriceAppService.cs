@@ -80,7 +80,12 @@ public class EffectivePriceAppService : TradeXpressAppService, IEffectivePriceAp
             : null;
 
         // Yerel çözülemezse (host scope / feed yok) → pivot (TRY) görüntü.
-        if (local is null || local.Eff is not { Buy: > 0m, Sell: > 0m })
+        //
+        // ⚠ local.RateMissing DE buraya düşer (2026-08-05): yer tutucu 1/1, "Buy > 0 && Sell > 0" kontrolünden
+        // GEÇER. Bayrak okunmazsa her satır 1'e bölünür ve pano PİVOT (TRY) rakamlarını YEREL paraymış gibi
+        // gösterir — kuru olmayan USD'li bir şirkette "HAS = 6458" USD sanılırdı (gerçekte TRY; ~136 kat hata).
+        // Yerelin kuru yoksa re-base MÜMKÜN DEĞİLDİR; uydurmak yerine pivot görüntüye düşülür.
+        if (local is null || local.RateMissing || local.Eff is not { Buy: > 0m, Sell: > 0m })
             return OrderPrices(prices).Select(e => ToCurrentPriceDto(e, e.Eff)).ToList();
 
         var localId = local.Unit.Id;
@@ -124,6 +129,7 @@ public class EffectivePriceAppService : TradeXpressAppService, IEffectivePriceAp
             MarginOnSellValue = e.AppliedSell.Value,
             GuardFired = display.GuardFired,
             RateDate = e.RateDate,
+            RateMissing = e.RateMissing,
         };
 
     public virtual async Task<List<ValuationPriceDto>> GetValuationAsync(Guid? companyId = null)
@@ -136,6 +142,8 @@ public class EffectivePriceAppService : TradeXpressAppService, IEffectivePriceAp
         if (company == null)
         {
             return prices
+                // Kuru olmayan birim DEĞERLEMEYE girmez — re-base'li yolla aynı kural (ReBaseToAsync).
+                .Where(e => !e.RateMissing)
                 .Select(e => new ValuationPriceDto
                 {
                     Id = e.Unit.Id,
@@ -175,13 +183,23 @@ public class EffectivePriceAppService : TradeXpressAppService, IEffectivePriceAp
     {
         var baseCode = await GetCurrencyCodeAsync(baseUnitId);
 
-        // Base biriminin efektifi olmadan re-base yapılamaz (örn. feed gelmemiş USD).
-        if (!prices.ToDictionary(e => e.Unit.Id).TryGetValue(baseUnitId, out var baseEff))
+        // Base biriminin efektifi olmadan re-base yapılamaz (örn. feed gelmemiş USD). Kuru OLMAYAN base de
+        // aynı kapıya çıkar: 1/1 yer tutucusuyla bölmek TÜM değerlemeyi sessizce bozardı.
+        if (!prices.ToDictionary(e => e.Unit.Id).TryGetValue(baseUnitId, out var baseEff) || baseEff.RateMissing)
             return new List<ValuationPriceDto>();
 
         var result = new List<ValuationPriceDto>();
         foreach (var e in prices)
         {
+            // DEĞERLEME yolu: kuru olmayan birim listeye HİÇ girmez (2026-08-05). Aşağı akış zaten
+            // "sözlükte yok = kur yok" sözleşmesini uyguluyor — ör. PositionReportAppService
+            // 'MissingRate = val == null' deyip DURUM'a katmıyor, ProductRecipeCostCalculator satırı
+            // MissingRate işaretleyip net toplama almıyor. Uydurma 1/1 tam da bu ağı baypas ediyordu.
+            if (e.RateMissing)
+            {
+                continue;
+            }
+
             // Re-base (per-leg bölme) + guard (bid/ask ters dönerse takas → doğru çapraz).
             var rb = CurrencyPriceCalculator.ReBase(e.Eff, baseEff.Eff);
             var valued = CurrencyPriceCalculator.Guard(rb.Buy, rb.Sell);

@@ -46,7 +46,7 @@ public partial class VoucherAppService : TradeXpressAppService, IVoucherAppServi
     private readonly VoucherBullionStockService _bullionStockService;
     private readonly VoucherTransferService _transferService;
     private readonly VoucherLineHistoryRecorder _historyRecorder;
-    private readonly IDistributedEventBus _distributedEventBus;   // maden stok tetiği (commit sonrası publish)
+    private readonly IDistributedEventBus _distributedEventBus;   // emtia stok tetiği (commit sonrası publish)
 
     public VoucherAppService(
         IRepository<Voucher, Guid> repository,
@@ -178,7 +178,7 @@ public partial class VoucherAppService : TradeXpressAppService, IVoucherAppServi
 
         Voucher voucher;
         Guid lineId;
-        var beforeMetalKeys = new List<MetalStockKeyEto>();
+        var beforeStockKeys = new List<CommodityStockKeyEto>();
 
         if (input.VoucherId is { } voucherId)
         {
@@ -191,7 +191,7 @@ public partial class VoucherAppService : TradeXpressAppService, IVoucherAppServi
 
             // Maden tetiği için MUTASYON ÖNCESİ snapshot: satırın madeni değişir ya da silinirse ESKİ maden
             // de yeniden hesaplanmalı (yalnız yeni hâle bakmak onu kaçırırdı — ADR).
-            beforeMetalKeys = CollectMetalKeys(voucher);
+            beforeStockKeys = CollectCommodityStockKeys(voucher);
 
             VoucherLine savedLine;
             VoucherLineChangeType changeType;
@@ -259,7 +259,7 @@ public partial class VoucherAppService : TradeXpressAppService, IVoucherAppServi
         }
 
         // Maden stok tetiği: önce ∪ sonra anahtar kümesi, COMMIT SONRASI yayımlanır (ADR — push transaction dışı).
-        QueueMetalStockChangedEvent(voucher, beforeMetalKeys);
+        QueueCommodityStockChangedEvent(voucher, beforeStockKeys);
 
         input.Id            = lineId;
         input.VoucherId     = voucher.Id;
@@ -418,7 +418,7 @@ public partial class VoucherAppService : TradeXpressAppService, IVoucherAppServi
                    ?? throw new EntityNotFoundException(typeof(VoucherLine), lineId);
         await EnsureTransactionPermissionAsync(line.Type);
 
-        var beforeMetalKeys = CollectMetalKeys(voucher);   // silinen satırın madeni "önce" kümesinde yakalanır
+        var beforeStockKeys = CollectCommodityStockKeys(voucher);   // silinen satırın emtiası "önce" kümesinde yakalanır
 
         // Silmeden ÖNCE snapshot: soft-delete olduğundan satır hâlâ okunabilir ama anlamlı anlık görüntü
         // (silinmemiş SON hâl) IsDeleted işaretinden ÖNCE alınmalı.
@@ -434,7 +434,7 @@ public partial class VoucherAppService : TradeXpressAppService, IVoucherAppServi
             await _transferService.RemoveTransferTwinAsync(linkId, lineId);
         }
 
-        QueueMetalStockChangedEvent(voucher, beforeMetalKeys);
+        QueueCommodityStockChangedEvent(voucher, beforeStockKeys);
 
         // VoucherLineLog gelene kadar nedeni log'a yaz (kalıcı geçmiş ertelendi).
         Logger.LogInformation("VoucherLine {LineId} silindi. Neden: {Reason}", lineId, reason);
@@ -495,25 +495,31 @@ public partial class VoucherAppService : TradeXpressAppService, IVoucherAppServi
             await _transferService.RemoveTransferTwinAsync(line.LinkId!.Value, line.Id);
         }
 
-        var beforeMetalKeys = CollectMetalKeys(voucher);   // fiş komple düşüyor → tüm metal satırları "önce"de
+        var beforeStockKeys = CollectCommodityStockKeys(voucher);   // fiş komple düşüyor → tüm stok satırları "önce"de
 
         await _ledgerSynchronizer.DeleteVoucherAsync(id);
         await _repository.DeleteAsync(id, autoSave: true);
 
-        QueueMetalStockChangedEvent(voucher, beforeMetalKeys);
+        QueueCommodityStockChangedEvent(voucher, beforeStockKeys);
     }
 
-    // ── Maden stok tetiği (ADR-PRODUCT-ORCHESTRATION) ────────────────────────────────────────────────
+    // ── Emtia stok tetiği (ADR-PRODUCT-ORCHESTRATION) ────────────────────────────────────────────────
 
-    /// <summary>Fişin CANLI (silinmemiş) metal satırlarının anahtarları. Type==Metal — ÖDEME TİPİNDEN BAĞIMSIZ
+    /// <summary>Fişin CANLI (silinmemiş) stok-taşıyan satırlarının anahtarları. Kapsam
+    /// <see cref="CommodityStockFamilies.Tracked"/> (Metal + Good) — ÖDEME TİPİNDEN BAĞIMSIZ
     /// (Peşin/Rezervasyon ledger'a yazmaz ama stoğu değiştirir; stok raporu da yalnız Type'a bakar).
-    /// Virman ikizleri Transfer tipidir, metal bacağı taşımaz → ikiz fiş kapsam DIŞI (bilinçli).</summary>
-    private static List<MetalStockKeyEto> CollectMetalKeys(Voucher voucher)
+    /// Virman ikizleri Transfer tipidir, emtia bacağı taşımaz → ikiz fiş kapsam DIŞI (bilinçli).</summary>
+    private static List<CommodityStockKeyEto> CollectCommodityStockKeys(Voucher voucher)
     {
         return voucher.Lines
-            .Where(l => !l.IsDeleted && l.Type == ProcessType.Metal && l.CommodityId != null)
-            .Select(l => new MetalStockKeyEto { MetalId = l.CommodityId!.Value, MetalVariantId = l.VariantId })
-            .GroupBy(k => (k.MetalId, k.MetalVariantId))
+            .Where(l => !l.IsDeleted && CommodityStockFamilies.IsTracked(l.Type) && l.CommodityId != null)
+            .Select(l => new CommodityStockKeyEto
+            {
+                Family             = l.Type,
+                CommodityId        = l.CommodityId!.Value,
+                CommodityVariantId = l.VariantId,
+            })
+            .GroupBy(k => (k.Family, k.CommodityId, k.CommodityVariantId))
             .Select(g => g.First())
             .ToList();
     }
@@ -521,11 +527,11 @@ public partial class VoucherAppService : TradeXpressAppService, IVoucherAppServi
     /// <summary>Önce ∪ sonra anahtar kümesini UoW COMMIT SONRASINA kuyruklar. Transaction içinde publish
     /// YAPILMAZ: handler kanala HTTP push tetikler (N11 60 sn timeout) — voucher dış servise kilitlenemez,
     /// rollback'te de olay YAYIMLANMAZ (stok değişmedi ki tetik doğsun).</summary>
-    private void QueueMetalStockChangedEvent(Voucher voucher, List<MetalStockKeyEto> beforeKeys)
+    private void QueueCommodityStockChangedEvent(Voucher voucher, List<CommodityStockKeyEto> beforeKeys)
     {
         var keys = beforeKeys
-            .Concat(CollectMetalKeys(voucher))
-            .GroupBy(k => (k.MetalId, k.MetalVariantId))
+            .Concat(CollectCommodityStockKeys(voucher))
+            .GroupBy(k => (k.Family, k.CommodityId, k.CommodityVariantId))
             .Select(g => g.First())
             .ToList();
         if (keys.Count == 0)
@@ -533,7 +539,7 @@ public partial class VoucherAppService : TradeXpressAppService, IVoucherAppServi
             return;
         }
 
-        var eto = new MetalStockChangedEto
+        var eto = new CommodityStockChangedEto
         {
             TenantId  = CurrentTenant.Id,
             CompanyId = voucher.CompanyId,

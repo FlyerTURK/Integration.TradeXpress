@@ -33,26 +33,23 @@ public interface IChannelStockPusher
 public class N11ChannelStockPusher : IChannelStockPusher, ITransientDependency
 {
     private readonly IRepository<SalesChannelTrN11Product, Guid> _n11ProductRepository;
-    private readonly IRepository<SalesChannelTrN11ProductStockItem, Guid> _n11StockItemRepository;
-    private readonly IRepository<Product, Guid> _productRepository;
     private readonly ISalesChannelTrN11ProductAppService _n11ProductAppService;
+    private readonly ChannelOverrideAuthority _overrideAuthority;
     private readonly IUnitOfWorkManager _unitOfWorkManager;
     private readonly IAsyncQueryableExecuter _asyncExecuter;
     private readonly ILogger<N11ChannelStockPusher> _logger;
 
     public N11ChannelStockPusher(
         IRepository<SalesChannelTrN11Product, Guid> n11ProductRepository,
-        IRepository<SalesChannelTrN11ProductStockItem, Guid> n11StockItemRepository,
-        IRepository<Product, Guid> productRepository,
         ISalesChannelTrN11ProductAppService n11ProductAppService,
+        ChannelOverrideAuthority overrideAuthority,
         IUnitOfWorkManager unitOfWorkManager,
         IAsyncQueryableExecuter asyncExecuter,
         ILogger<N11ChannelStockPusher> logger)
     {
         _n11ProductRepository = n11ProductRepository;
-        _n11StockItemRepository = n11StockItemRepository;
-        _productRepository = productRepository;
         _n11ProductAppService = n11ProductAppService;
+        _overrideAuthority = overrideAuthority;
         _unitOfWorkManager = unitOfWorkManager;
         _asyncExecuter = asyncExecuter;
         _logger = logger;
@@ -73,7 +70,9 @@ public class N11ChannelStockPusher : IChannelStockPusher, ITransientDependency
 
             if (channelProductIds.Count > 0)
             {
-                await ClearCalculatedOverrideStockAsync(productId, channelProductIds);
+                // Gölge temizliği KANAL-AGNOSTİK servistedir (ChannelOverrideAuthority) — aynı delik
+                // Trendyol/Etsy'de de vardı; N11'e gömülü kalsaydı orada açık kalırdı.
+                await _overrideAuthority.ClearShadowedStockAsync(productId);
             }
 
             await uow.CompleteAsync();
@@ -97,37 +96,4 @@ public class N11ChannelStockPusher : IChannelStockPusher, ITransientDependency
         }
     }
 
-    /// <summary>OverrideStock GÖLGELEMESİ (2026-07-25 inceleme bulgusu #23): push zinciri
-    /// <c>OverrideStock ?? StockQuantity</c> okur — eski "Uygula" akışı muadil paket sayısını OverrideStock'a
-    /// yazmıştı; Calculated üründe bu kalıntı, hesaplanan güncel stoğu SÜREKLİ gölgeler (oversell kapısı).
-    /// Calculated üründe ERP-bağlı satırların (ProductVariantId dolu) OverrideStock'u temizlenir → kanal
-    /// hesaplanan <c>StockQuantity</c>'yi görür. N11-only satıra (ProductVariantId null) DOKUNULMAZ —
-    /// orada OverrideStock zorunlu tek kaynaktır (ERP fallback yok).</summary>
-    private async Task ClearCalculatedOverrideStockAsync(Guid productId, List<Guid> channelProductIds)
-    {
-        var product = await _productRepository.FindAsync(productId);
-        if (product is null || product.StockPolicy != ProductStockPolicy.Calculated)
-        {
-            return;
-        }
-
-        var shadowedItems = await _asyncExecuter.ToListAsync(
-            (await _n11StockItemRepository.GetQueryableAsync())
-                .Where(i => channelProductIds.Contains(i.SalesChannelTrN11ProductId)
-                            && i.ProductVariantId != null
-                            && i.OverrideStock != null));
-
-        foreach (var item in shadowedItems)
-        {
-            item.SetOverrideStock(null);
-            await _n11StockItemRepository.UpdateAsync(item, autoSave: true);
-        }
-
-        if (shadowedItems.Count > 0)
-        {
-            _logger.LogInformation(
-                "Calculated ürün push öncesi {Count} kanal satırının OverrideStock gölgesi temizlendi (Product={ProductId}).",
-                shadowedItems.Count, productId);
-        }
-    }
 }

@@ -160,6 +160,11 @@ public partial class SalesChannelEtsyProductAppService
                         && variantIds.Contains(h.ProductVariantId!.Value))))
             .ToDictionary(h => h.ProductVariantId!.Value);
 
+        // OTORİTE DEVRİ (2026-08-05 Hakan kararı): ürün sınıflandırıldıysa (Calculated) pazaryerinde duran
+        // stok GEÇERSİZDİR — sistem belirler. Aynası yazılırsa her import devri geri alır (push zinciri
+        // OverrideStock'u ÖNCELER). Varsa bayat ayna temizlenir; yenisi YAZILMAZ.
+        var authorityTransferred = product.StockPolicy == ProductStockPolicy.Calculated;
+
         SideCostPlan? sideCostPlan = null;   // tembel — yalnız YENİ başlık kurulursa gerekir
         foreach (var offering in listing.Offerings)
         {
@@ -171,7 +176,7 @@ public partial class SalesChannelEtsyProductAppService
             }
 
             var remoteStock = Math.Max(0, offering.Quantity);
-            if (remoteStock == variant.StockQuantity)
+            if (remoteStock == variant.StockQuantity || authorityTransferred)
             {
                 // Fark yok → varsa bayat override temizlenir (null = ERP'den devral); başlık yoksa kurulmaz.
                 // TASARIM NOTU: OverrideStock kullanıcının rezerv alanı DEĞİL, pazaryerinin AYNASIDIR (K12 yönü:

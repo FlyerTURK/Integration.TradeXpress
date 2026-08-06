@@ -28,4 +28,15 @@ public interface IProductAppService : ICrudAppService<
     /// Kanal ürünü kurulurken nitelikler bununla ön-doldurulur — kullanıcı aynı bilgiyi ikinci kez girmesin.
     /// </summary>
     Task<List<ProductChannelAttributeDto>> ResolveChannelAttributesAsync(ProductChannelAttributeResolveDto input);
+
+    /// <summary>Çalışılan şirketteki SINIFLANDIRILMAMIŞ ürünler — reçetesi hiç olmayanlar. Sihirbazın
+    /// sınıflandırma adımı bu listeyi doldurur.
+    /// <para><b>Kanal parametresi YOK</b> (bilinçli): liste kanaldan değil ŞİRKETTEN çıkar, böylece adım
+    /// eski içe aktarımların bıraktığı ürünleri de yakalar — yalnız "bu turda gelenler"e bakmak, geçmişte
+    /// atlanmış ürünleri sonsuza dek görünmez kılardı.</para></summary>
+    Task<List<ProductCommodityCandidateDto>> GetUnclassifiedProductsAsync();
+
+    /// <summary>Sihirbaz sınıflandırmasını uygular: emtia kaydı (gerekiyorsa) → reçete satırı → stok
+    /// politikası → otorite devri → stok yeniden-hesap job'ı. TEK çağrı (ürün başına round-trip YOK).</summary>
+    Task<ProductCommodityProvisionResultDto> ProvisionCommoditiesAsync(ProductCommodityProvisionInputDto input);
 }

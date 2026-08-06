@@ -4,6 +4,7 @@
 @using Integration.TradeXpress.N11Shipments
 @using Integration.Framework.Blazor.Client.Components.Inputs
 @using Integration.Framework.Blazor.Client.Components.Shared
+@using Integration.TradeXpress.Blazor.Client.Pages.Products
 @inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
 
 @*
@@ -147,7 +148,18 @@
             }
         </WizardStep>
 
-        @* 6 — Özet. Ne kuruldu + kalan iş. *@
+        @* 6 — Emtia sınıflandırması. İçe aktarılan ürün reçetesiz gelir → orkestrasyonun hesaplayacağı bir şey
+             olmaz ve pazaryerinin eski adedi geçerli kalır. ATLANABİLİR: atlanan ürünler Draft kalır ve satışa
+             çıkmaz (güvenlik zorunluluktan değil statüden gelir), ama özet ekranında sayılır. *@
+        <WizardStep Title="@L["SalesChannelTrN11:Wizard:Step:Classify"]"
+                    Description="@L["SalesChannelTrN11:Wizard:Step:ClassifyHelp"]"
+                    CanSkip="true"
+                    OnBeforeAdvanceAsync="@ApplyClassificationAsync">
+            <ProductCommodityClassificationPanel @ref="_classifyPanel"
+                                                 PendingChanged="@(count => _classifyPending = count)" />
+        </WizardStep>
+
+        @* 7 — Özet. Ne kuruldu + kalan iş. *@
         <WizardStep Title="@L["SalesChannelTrN11:Wizard:Step:Summary"]"
                     Description="@L["SalesChannelTrN11:Wizard:Step:SummaryHelp"]">
             <ul style="font-size:0.9rem; margin:0; padding-left:18px;">
@@ -156,6 +168,7 @@
                 <li>@L["SalesChannelTrN11:Wizard:SummaryTemplate", SelectedTemplateName]</li>
                 <li>@L["SalesChannelTrN11:Wizard:SummaryVat", VatLabel]</li>
                 <li>@L["SalesChannelTrN11:Wizard:SummaryProducts", _import?.CreatedChannelProducts ?? 0]</li>
+                <li>@L["SalesChannelTrN11:Wizard:SummaryCommodities", _classifyResult?.ProvisionedProducts ?? 0, _classifyResult?.CreatedCommodities ?? 0]</li>
             </ul>
             @if (RemainingWork.Count > 0)
             {

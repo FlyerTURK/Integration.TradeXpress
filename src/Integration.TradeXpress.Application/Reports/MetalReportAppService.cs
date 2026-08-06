@@ -92,31 +92,32 @@ public class MetalReportAppService : TradeXpressAppService, IMetalReportAppServi
             .GroupBy(x => new { x.CommodityId, x.CommodityCode, x.VariantId, x.VariantCode, x.UnitId })
             .Select(g =>
             {
-                var physical = g.Where(x => x.PaymentType != ProcessPaymentType.Reservation).ToList();
-                var reserved = g.Where(x => x.PaymentType == ProcessPaymentType.Reservation).ToList();
+                // Aritmetik GoodReport ile ORTAK (ReservationSplit, 2026-08-05) — davranış birebir aynı,
+                // ama ayrım artık iki raporda kopyalanmıyor ve doğrudan test ediliyor.
+                var totals = ReservationSplit.Compute(g.Select(x => new ReservationLeg(
+                    x.PaymentType == ProcessPaymentType.Reservation, x.Effect, x.EffectQty)));
 
-                var row = new MetalStockRowDto
+                return new MetalStockRowDto
                 {
                     MetalId     = g.Key.CommodityId,
                     MetalCode   = g.Key.CommodityCode,
                     VariantId   = g.Key.VariantId,
                     VariantCode = g.Key.VariantCode,
                     UnitId      = g.Key.UnitId,
-                    InAmount    = physical.Where(x => x.Effect    > 0).Sum(x => x.Effect),
-                    OutAmount   = physical.Where(x => x.Effect    < 0).Sum(x => -x.Effect),
-                    NetAmount   = physical.Sum(x => x.Effect),
-                    InQuantity  = physical.Where(x => x.EffectQty > 0).Sum(x => x.EffectQty),
-                    OutQuantity = physical.Where(x => x.EffectQty < 0).Sum(x => -x.EffectQty),
-                    NetQuantity = physical.Sum(x => x.EffectQty),
+                    InAmount    = totals.InAmount,
+                    OutAmount   = totals.OutAmount,
+                    NetAmount   = totals.NetAmount,
+                    InQuantity  = totals.InQuantity,
+                    OutQuantity = totals.OutQuantity,
+                    NetQuantity = totals.NetQuantity,
 
-                    ReservedOutAmount   = reserved.Where(x => x.Effect    < 0).Sum(x => -x.Effect),
-                    ReservedInAmount    = reserved.Where(x => x.Effect    > 0).Sum(x => x.Effect),
-                    ReservedOutQuantity = reserved.Where(x => x.EffectQty < 0).Sum(x => -x.EffectQty),
-                    ReservedInQuantity  = reserved.Where(x => x.EffectQty > 0).Sum(x => x.EffectQty),
+                    ReservedOutAmount   = totals.ReservedOutAmount,
+                    ReservedInAmount    = totals.ReservedInAmount,
+                    ReservedOutQuantity = totals.ReservedOutQuantity,
+                    ReservedInQuantity  = totals.ReservedInQuantity,
+                    AvailableAmount     = totals.AvailableAmount,
+                    AvailableQuantity   = totals.AvailableQuantity,
                 };
-                row.AvailableAmount   = row.NetAmount   - row.ReservedOutAmount;
-                row.AvailableQuantity = row.NetQuantity - row.ReservedOutQuantity;
-                return row;
             })
             .ToList();
 

@@ -107,22 +107,29 @@ public class ConfirmationVoucherMaterializer : ITransientDependency
         await _historyRecorder.RecordAsync(voucher, materializedLine, VoucherLineChangeType.Created);
 
         // Maden stok tetiği (2026-07-25 inceleme bulgusu #15): teyit bacağı VoucherAppService yolunu
-        // KULLANMADIĞINDAN oradaki MetalStockChangedEto tetiği burada da kurulmalı — aksi halde teyitle giren/çıkan
+        // KULLANMADIĞINDAN oradaki CommodityStockChangedEto tetiği burada da kurulmalı — aksi halde teyitle giren/çıkan
         // maden, kanal stoklarını GÜNCELLETMEZDİ (oversell kapısı). Aynı sözleşme: commit-SONRASI publish.
-        QueueMetalStockChangedEvent(voucher);
+        QueueCommodityStockChangedEvent(voucher);
 
         return voucher;
     }
 
-    /// <summary>Materyalize fişin metal satırlarını UoW commit SONRASINA kuyruklar (VoucherAppService ile aynı
-    /// sözleşme: transaction içinde publish YOK, rollback'te olay yayımlanmaz). Fiş YENİ olduğundan "önce"
-    /// kümesi yoktur — yalnız eklenen satırların anahtarları yeter.</summary>
-    private void QueueMetalStockChangedEvent(Voucher voucher)
+    /// <summary>Materyalize fişin stok-taşıyan satırlarını UoW commit SONRASINA kuyruklar (VoucherAppService
+    /// ile aynı sözleşme: transaction içinde publish YOK, rollback'te olay yayımlanmaz). Fiş YENİ olduğundan
+    /// "önce" kümesi yoktur — yalnız eklenen satırların anahtarları yeter.
+    /// <para>Kapsam <see cref="CommodityStockFamilies.Tracked"/> ile ORTAK: bu liste VoucherAppService'ten
+    /// ayrışırsa teyit yolundan giren bir aile sessizce zincirin dışında kalırdı.</para></summary>
+    private void QueueCommodityStockChangedEvent(Voucher voucher)
     {
         var keys = voucher.Lines
-            .Where(l => !l.IsDeleted && l.Type == ProcessType.Metal && l.CommodityId != null)
-            .Select(l => new MetalStockKeyEto { MetalId = l.CommodityId!.Value, MetalVariantId = l.VariantId })
-            .GroupBy(k => (k.MetalId, k.MetalVariantId))
+            .Where(l => !l.IsDeleted && CommodityStockFamilies.IsTracked(l.Type) && l.CommodityId != null)
+            .Select(l => new CommodityStockKeyEto
+            {
+                Family             = l.Type,
+                CommodityId        = l.CommodityId!.Value,
+                CommodityVariantId = l.VariantId,
+            })
+            .GroupBy(k => (k.Family, k.CommodityId, k.CommodityVariantId))
             .Select(g => g.First())
             .ToList();
         if (keys.Count == 0)
@@ -130,7 +137,7 @@ public class ConfirmationVoucherMaterializer : ITransientDependency
             return;
         }
 
-        var eto = new MetalStockChangedEto
+        var eto = new CommodityStockChangedEto
         {
             TenantId  = _currentTenant.Id,
             CompanyId = voucher.CompanyId,

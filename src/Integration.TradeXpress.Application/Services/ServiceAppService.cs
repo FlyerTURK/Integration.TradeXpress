@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq.Expressions;
 using System.Threading.Tasks;
@@ -9,6 +9,8 @@ using Integration.TradeXpress.MultiCompany;
 using Integration.TradeXpress.Permissions;
 using Microsoft.AspNetCore.Authorization;
 using Volo.Abp.Domain.Repositories;
+using Integration.TradeXpress.Vouchers;
+using Integration.TradeXpress.Commodities;
 
 namespace Integration.TradeXpress.Services;
 
@@ -19,7 +21,7 @@ namespace Integration.TradeXpress.Services;
 /// </summary>
 [Authorize]
 public class ServiceAppService
-    : HostCatalogCrudAppService<Service, ServiceGetDto, ServiceListDto, ServiceListRequestDto, ServiceCreateDto, ServiceUpdateDto>,
+    : CommodityCatalogAppService<Service, ServiceGetDto, ServiceListDto, ServiceListRequestDto, ServiceCreateDto, ServiceUpdateDto>,
       IServiceAppService
 {
     private readonly ICurrentCompany _currentCompany;
@@ -40,6 +42,19 @@ public class ServiceAppService
 
     protected override ISet<string> AllowedListFields { get; } =
         new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "Code", "Name", "IsActive", "Id" };
+
+    /// <summary>Reçete kullanım guard'ının aile anahtarı — CommodityId FK'sız snapshot olduğu için
+    /// aile olmadan sorgu başka ailedeki aynı Guid'i yakalardı.</summary>
+    /// <summary>Pasifleştirme geçişini tespit için — taban ortak IsActive arayüzü olmadığından tipli okuyamaz.</summary>
+    protected override bool IsActiveOf(Service entity)
+    {
+        return entity.IsActive;
+    }
+
+    protected override ProcessType Family
+    {
+        get { return ProcessType.Service; }
+    }
 
     protected override string EditGlobalErrorCode
     {

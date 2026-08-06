@@ -154,6 +154,8 @@ public class TradeXpressDbContext :
     public DbSet<Integration.TradeXpress.N11Products.SalesChannelTrN11ProductStockItem> SalesChannelTrN11ProductStockItems { get; set; } = null!;
     // N11 kanal-özel varyant reçete satırları (ayrı tablo; ERP reçetesi klonu).
     public DbSet<Integration.TradeXpress.N11Products.SalesChannelTrN11ProductStockItemRecipeLine> SalesChannelTrN11ProductStockItemRecipeLines { get; set; } = null!;
+    // N11'e gönderilen SKU'ların TARİHLİ delil kaydı — append-only (güncellenmez/silinmez).
+    public DbSet<Integration.TradeXpress.N11Products.SalesChannelTrN11ProductPushHistory> SalesChannelTrN11ProductPushHistories { get; set; } = null!;
     // Etsy ürün listelemeleri — ürün×kanal (company-owned). N11 ikizi.
     public DbSet<Integration.TradeXpress.EtsyProducts.SalesChannelEtsyProduct> SalesChannelEtsyProducts { get; set; } = null!;
     // Etsy kanal-özel varyant EKSENİ/DEĞERİ (ERP ProductAttribute/Value klonu; klon-sonra-ayrış).
@@ -181,6 +183,8 @@ public class TradeXpressDbContext :
     // Sipariş YEREL/OPERASYONEL katmanı (O1) — resync'ten bağımsız düzeltme/versiyon bağı (bkz. entity XML doc).
     public DbSet<Integration.TradeXpress.Orders.OrderOperationalData> OrderOperationalData { get; set; } = null!;
     public DbSet<Integration.TradeXpress.Orders.OrderLineOperationalData> OrderLineOperationalData { get; set; } = null!;
+    public DbSet<Integration.TradeXpress.Orders.OrderReservation> OrderReservations { get; set; } = null!;
+    public DbSet<Integration.TradeXpress.Orders.OrderFulfillmentLink> OrderFulfillmentLinks { get; set; } = null!;
     // Müşteri sorusu (NÖTR) — tüm satış kanallarının ürün soruları tek tabloda (company-owned); salt-okuma çekim,
     // cevap yerelde yazılır ama pazaryerine GÖNDERİLMEZ (push ayrı onayla açılacak).
     public DbSet<Integration.TradeXpress.ChannelQuestions.ChannelQuestion> ChannelQuestions { get; set; } = null!;

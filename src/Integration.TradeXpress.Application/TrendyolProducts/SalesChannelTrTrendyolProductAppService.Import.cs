@@ -732,8 +732,18 @@ public partial class SalesChannelTrTrendyolProductAppService
                 continue;   // yerel varyant yok — Sku aşamasında zaten raporlandı
             }
 
-            var salePrice = remoteVariant.SalePrice is >= 0 ? remoteVariant.SalePrice : null;
-            var overrideStock = ResolveOverrideStock(product, localVariant, remoteVariant.Quantity, report);
+            // OTORİTE DEVRİ (2026-08-05 Hakan kararı): ürün sınıflandırıldıysa (Calculated) pazaryerinde duran
+            // stok ve fiyat GEÇERSİZDİR — ikisini de sistem belirler. Buraya remote değeri yazmak, her içe
+            // aktarımda devri geri alırdı: push zinciri override'ı ÖNCELEDİĞİ için hesaplanan değer sessizce
+            // gölgelenir ve kimse fark etmezdi.
+            var authorityTransferred = product.StockPolicy == ProductStockPolicy.Calculated;
+
+            var salePrice = authorityTransferred
+                ? null
+                : remoteVariant.SalePrice is >= 0 ? remoteVariant.SalePrice : null;
+            var overrideStock = authorityTransferred
+                ? null
+                : ResolveOverrideStock(product, localVariant, remoteVariant.Quantity, report);
 
             if (headers.TryGetValue(localVariant.Id, out var header))
             {

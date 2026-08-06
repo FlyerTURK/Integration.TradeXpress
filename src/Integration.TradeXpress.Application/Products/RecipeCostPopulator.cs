@@ -206,6 +206,20 @@ public class RecipeCostPopulator : ITransientDependency
                 priceUnknown = goodPrice is null;
                 priceByQuantity = g.PriceByQuantity;
             }
+            else
+            {
+                // EMTİA KATALOGDA ÇÖZÜLEMEDİ (2026-08-05) — silinmiş, başka şirkete ait ya da katalogu hiç
+                // yüklenmeyen bir aile. Bu dal OLMADAN entryPrice 0 ve priceUnknown FALSE kalıyordu, yani satır
+                // "fiyatı biliyorum, sıfır" diye geçiyor ve eksik maliyet sessizce BEDAVAYA gidiyordu — aynı ders
+                // Good için bir kez öğrenilmişti (yukarıdaki PricedCatalogCost yorumu), ama çözülemeyen emtiada
+                // delik açık kalmıştı.
+                //
+                // Metal-bacaklı ailelerde (Metal/Scrap/Future) bu bayrak OKUNMAZ — onlar maliyeti değerleme
+                // kurundan hesaplar ve kur yoksa zaten MissingRate döner — dolayısıyla bu ek onların davranışını
+                // DEĞİŞTİRMEZ. Etkisi yalnız parasal ailededir (Jewelry/Stone/Good): sessiz sıfır yerine
+                // görünür "hesaplanamadı".
+                priceUnknown = true;
+            }
         }
 
         // Türev SelectedLines: seçili kaynak ClientKey'leri → pozisyon ordinal'leri (calculator upstream doğrular).

@@ -14,6 +14,13 @@ namespace Integration.TradeXpress.Mocks.N11;
 /// </list>
 ///
 /// <para>Üçünün ayrı olması bilinçli: yanlışlıkla açık kalan tek bir bayrak yeterli olmamalı.</para>
+///
+/// <para><b>⚠ TLS TUZAĞI (2026-08-05'te yaşandı):</b> <c>BaseUrl</c> host'un SERTİFİKASINDAKİ adla birebir aynı
+/// olmalıdır. Uygulama kendi kendine bağlanırken de sertifika doğrulaması yapılır — sertifika
+/// <c>umut.taile7a850.ts.net</c> adına olduğu için <c>https://localhost:44318</c> yazmak
+/// <i>"The SSL connection could not be established"</i> verir ve HER N11 çağrısı düşer. Curl testleri bunu
+/// yakalamamıştı (<c>-k</c> ile doğrulama atlanıyordu), round-trip testi de düz HTTP kullandığı için
+/// bu yolu hiç sınamıyor.</para>
 /// </summary>
 public sealed class N11MockOptions
 {

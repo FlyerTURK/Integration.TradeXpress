@@ -147,7 +147,7 @@ public partial class SalesChannelTrN11ProductAppService
                 existingRecords.Add(entity);   // aynı içe aktarımda ikinci grup aynı kaydı bulabilsin
             }
 
-            await UpsertStockItemsAsync(entity, group, variantsByStockCode, tryCurrencyUnitId, report);
+            await UpsertStockItemsAsync(entity, group, product, variantsByStockCode, tryCurrencyUnitId, report);
         }
 
         return report;
@@ -608,6 +608,7 @@ public partial class SalesChannelTrN11ProductAppService
     private async Task UpsertStockItemsAsync(
         SalesChannelTrN11Product entity,
         N11RemoteProductGroup group,
+        Product product,
         Dictionary<string, EntityVariant> variantsByStockCode,
         Guid? tryCurrencyUnitId,
         N11ImportResultDto report)
@@ -624,8 +625,18 @@ public partial class SalesChannelTrN11ProductAppService
                 continue;
             }
 
-            var salePrice = row.SalePrice is >= 0 ? row.SalePrice : null;
-            var overrideStock = ResolveOverrideStock(entity, variant, row, report);
+            // OTORİTE DEVRİ (2026-08-05 Hakan kararı): ürün sınıflandırıldıysa (Calculated) pazaryerinde duran
+            // stok ve fiyat GEÇERSİZDİR — ikisini de sistem belirler. Buraya remote değeri yazmak, her içe
+            // aktarımda devri geri alırdı: push zinciri override'ı ÖNCELEDİĞİ için hesaplanan değer sessizce
+            // gölgelenir ve kimse fark etmezdi.
+            var authorityTransferred = product.StockPolicy == ProductStockPolicy.Calculated;
+
+            var salePrice = authorityTransferred
+                ? null
+                : row.SalePrice is >= 0 ? row.SalePrice : null;
+            var overrideStock = authorityTransferred
+                ? null
+                : ResolveOverrideStock(entity, variant, row, report);
 
             if (headers.TryGetValue(variant.Id, out var header))
             {

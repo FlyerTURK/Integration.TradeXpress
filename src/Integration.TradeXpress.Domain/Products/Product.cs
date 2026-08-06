@@ -209,6 +209,12 @@ public class Product : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwn
     /// (<see cref="SetSubstitutionConfig"/> zorlar — muadilde stok her zaman hesaptan gelir).</summary>
     public virtual ProductStockPolicy StockPolicy { get; protected set; }
 
+    /// <summary>Ürünün PAZARYERİ satılabilirlik durumu (2026-08-05 Hakan kararı). Varsayılan
+    /// <see cref="ProductSaleStatus.Draft"/> — fail-closed. <c>IsActive</c>'in YERİNE geçmez, yanında durur:
+    /// <c>IsActive</c> "sistemde kullanılabilir mi", bu "pazaryerinde satılabilir mi" sorusudur.
+    /// Etkin satılabilirlik ikisinin VE'sidir (bkz. <see cref="ProductSaleStatus"/>).</summary>
+    public virtual ProductSaleStatus SaleStatus { get; protected set; }
+
     protected Product() { }
 
     public Product(
@@ -301,6 +307,34 @@ public class Product : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwn
     public virtual void SetActive(bool value)
     {
         IsActive = value;
+    }
+
+    /// <summary>İNSAN yolu: ürünü satılabilir işaretler.</summary>
+    public virtual void MarkSaleReady()
+    {
+        SaleStatus = ProductSaleStatus.Ready;
+    }
+
+    /// <summary>SİSTEM yolu: yalnız <see cref="ProductSaleStatus.Ready"/> olanı askıya alır.
+    /// <para><b>KADEMELİ askıya alma</b> (2026-08-05 Hakan kararı): emtia pasifleşince önce etkilenen VARYANT
+    /// askıya alınır; ürün ancak <b>TÜM</b> varyantları düştüğünde askıya alınır. 3 varyantlı üründe biri
+    /// etkilenirse diğer ikisi satışta kalır — sağlam varyantların satışını durdurmak gereksiz zarardır.</para>
+    /// <para>Ters yön (<c>Suspended → Ready</c>) YOK: geri dönüş yalnız <see cref="MarkSaleReady"/> ile,
+    /// yani insandan geçer.</para></summary>
+    public virtual void SuspendSale()
+    {
+        if (SaleStatus != ProductSaleStatus.Ready)
+        {
+            return;
+        }
+
+        SaleStatus = ProductSaleStatus.Suspended;
+    }
+
+    /// <summary>İNSAN yolu: ürünü tümüyle satıştan çeker.</summary>
+    public virtual void CloseSale()
+    {
+        SaleStatus = ProductSaleStatus.Closed;
     }
 
     /// <summary>Üretim + son kullanma tarihleri (iş tarihi, date-only). İkisi de doluysa üretim ≤ son kullanma.</summary>

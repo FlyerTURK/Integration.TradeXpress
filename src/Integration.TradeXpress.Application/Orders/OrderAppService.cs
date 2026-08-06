@@ -17,6 +17,7 @@ using Volo.Abp;
 using Volo.Abp.Application.Dtos;
 using Volo.Abp.Data;
 using Volo.Abp.Domain.Repositories;
+using Volo.Abp.Uow;
 using Volo.Abp.MultiTenancy;
 
 namespace Integration.TradeXpress.Orders;
@@ -25,7 +26,10 @@ namespace Integration.TradeXpress.Orders;
 /// NÖTR sipariş uygulaması — ORTAK SİPARİŞ PANELİ (tüm kanallar tek grid, kanal yalnız discriminator) + pazaryerinden
 /// SALT-OKUMA çekim (O0) + YEREL düzeltme katmanı (O1) + N11'e YAZAN state machine aksiyonları (O2 — kabul/red/kargo,
 /// GERÇEK ve geri alınamaz). <b>Company-owned + per-tenant</b> (sunucu <see cref="ICurrentCompany"/> zorlar).
-/// FİŞ YOK, REZERVASYON YOK, STOK HAREKETİ YOK. İdempotency anahtarı (SalesChannelId, RemoteOrderId): ikinci çekim
+/// + REZERVASYON (O3 — 2026-08-06: eski doc "FİŞ YOK, REZERVASYON YOK, STOK HAREKETİ YOK" diyordu; artık sipariş
+/// çekildiği anda reçetedeki emtia <c>PaymentType=Reservation</c> fişiyle müşteriye ayrılır — fiziksel Net'e girmez,
+/// kullanılabilirden düşer. İptal HİÇBİR ZAMAN otomatik değildir; serbest bırakmayı kullanıcı kararı tetikler).
+/// İdempotency anahtarı (SalesChannelId, RemoteOrderId): ikinci çekim
 /// durumu/satırları günceller, dublike üretmez. Satırlar KENDİ tablosunda (id-only OrderId) — çekimde sil+yaz.
 /// </summary>
 [Authorize(TradeXpressPermissions.SalesChannels.Default)]
@@ -48,6 +52,9 @@ public class OrderAppService : TradeXpressAppService, IOrderAppService
     private readonly OrderLineProductSnapshotBuilder _snapshotBuilder;
     private readonly IN11OrderClient _n11OrderClient;
     private readonly ICurrentCompany _currentCompany;
+    private readonly IRepository<OrderReservation, Guid> _reservationRepository;
+    private readonly IRepository<OrderFulfillmentLink, Guid> _fulfillmentLinkRepository;
+    private readonly OrderReservationManager _reservationManager;
 
     // Ortak panel liste sorgusunda filtre/sıralama/aramaya İZİN VERİLEN alanlar (whitelist — Order entity property
     // adları). CompanyId sunucu-zorlamalı olduğundan whitelist'te YOK (client daraltamaz). Id tie-breaker için dahil.
@@ -83,7 +90,10 @@ public class OrderAppService : TradeXpressAppService, IOrderAppService
         OrderSyncManager orderSyncManager,
         OrderLineProductSnapshotBuilder snapshotBuilder,
         IN11OrderClient n11OrderClient,
-        ICurrentCompany currentCompany)
+        ICurrentCompany currentCompany,
+        IRepository<OrderReservation, Guid> reservationRepository,
+        IRepository<OrderFulfillmentLink, Guid> fulfillmentLinkRepository,
+        OrderReservationManager reservationManager)
     {
         _orderRepository = orderRepository;
         _orderLineRepository = orderLineRepository;
@@ -100,6 +110,94 @@ public class OrderAppService : TradeXpressAppService, IOrderAppService
         _orderSyncManager = orderSyncManager;
         _snapshotBuilder = snapshotBuilder;
         _currentCompany = currentCompany;
+        _reservationRepository = reservationRepository;
+        _fulfillmentLinkRepository = fulfillmentLinkRepository;
+        _reservationManager = reservationManager;
+    }
+
+    // ── Sipariş Fazı O3 — REZERVASYON (Faz 7). Stoğa dokunur; pazaryerine YAZMAZ. ───────────────────
+
+    /// <summary>Siparişin rezervasyon görünümü. null = rezervasyon kaydı hiç açılmamış (sipariş bu özellikten
+    /// önce çekilmiş olabilir — geriye dönük kurulmaz).</summary>
+    public virtual async Task<OrderReservationDto?> GetReservationAsync(Guid orderId)
+    {
+        var reservation = await AsyncExecuter.FirstOrDefaultAsync(
+            (await _reservationRepository.GetQueryableAsync()).Where(r => r.OrderId == orderId));
+        if (reservation is null)
+        {
+            return null;
+        }
+
+        var links = await AsyncExecuter.ToListAsync(
+            (await _fulfillmentLinkRepository.GetQueryableAsync()).Where(l => l.OrderId == orderId));
+
+        return ToReservationDto(reservation, links);
+    }
+
+    /// <summary>İptal talebine KARAR verir. <b>Onay</b> rezervasyonu serbest bırakır (stok geri gelir),
+    /// <b>red</b> tutmaya devam eder. Karar ile fiziksel etki AYNI transaction'da yürür — karar kaydedilip
+    /// serbest bırakma yarıda kalırsa defter kararla tutarsız kalırdı.</summary>
+    [UnitOfWork(isTransactional: true)]
+    public virtual async Task<OrderReservationDto> DecideCancellationAsync(OrderCancellationDecisionDto input)
+    {
+        var reservation = await AsyncExecuter.FirstOrDefaultAsync(
+            (await _reservationRepository.GetQueryableAsync()).Where(r => r.OrderId == input.OrderId))
+            ?? throw new BusinessException("TradeXpress:OrderReservation:NotFound");
+
+        var now = Clock.Now.ToUniversalTime();
+        if (input.Approve)
+        {
+            // Çıkış yapılmışsa entity guard'ı bloklar — artık iade sürecidir (2026-08-05 Hakan kararı).
+            reservation.ApproveCancellation(CurrentUser.Id, now, input.Note);
+            await _reservationRepository.UpdateAsync(reservation, autoSave: true);
+            await _reservationManager.ReleaseAsync(input.OrderId, input.Note);
+        }
+        else
+        {
+            reservation.RejectCancellation(CurrentUser.Id, now, input.Note);
+            await _reservationRepository.UpdateAsync(reservation, autoSave: true);
+        }
+
+        return await GetReservationAsync(input.OrderId)
+               ?? throw new BusinessException("TradeXpress:OrderReservation:NotFound");
+    }
+
+    /// <summary>Rezervasyonu ELLE serbest bırakır (iptal talebi olmadan). Fiş satırları soft-delete edilir.</summary>
+    [UnitOfWork(isTransactional: true)]
+    public virtual async Task<OrderReservationDto> ReleaseReservationAsync(OrderReservationReleaseDto input)
+    {
+        await _reservationManager.ReleaseAsync(input.OrderId, input.Reason);
+        return await GetReservationAsync(input.OrderId)
+               ?? throw new BusinessException("TradeXpress:OrderReservation:NotFound");
+    }
+
+    private static OrderReservationDto ToReservationDto(
+        OrderReservation reservation, List<OrderFulfillmentLink> links)
+    {
+        return new OrderReservationDto
+        {
+            OrderId                 = reservation.OrderId,
+            Status                  = reservation.Status,
+            CancellationDecision    = reservation.CancellationDecision,
+            VoucherId               = reservation.VoucherId,
+            ReservedAt              = reservation.ReservedAt,
+            ReleasedAt              = reservation.ReleasedAt,
+            CancellationRequestedAt = reservation.CancellationRequestedAt,
+            CancellationDecidedAt   = reservation.CancellationDecidedAt,
+            Note                    = reservation.Note,
+            Links = links.ConvertAll(l => new OrderFulfillmentLinkDto
+            {
+                Id                = l.Id,
+                RemoteLineId      = l.RemoteLineId,
+                VoucherId         = l.VoucherId,
+                VoucherLineId     = l.VoucherLineId,
+                Kind              = l.Kind,
+                FulfilledQuantity = l.FulfilledQuantity,
+                FulfilledAmount   = l.FulfilledAmount,
+                PriceDifference   = l.PriceDifference,
+                Note              = l.Note,
+            }),
+        };
     }
 
     // ── Ortak panel: birleşik liste (tüm kanallar) ────────────────────────────────────────────────────

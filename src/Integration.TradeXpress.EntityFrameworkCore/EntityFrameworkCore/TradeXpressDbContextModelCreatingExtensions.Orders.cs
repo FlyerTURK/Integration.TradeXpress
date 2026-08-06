@@ -163,5 +163,39 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
             b.HasIndex(x => new { x.TenantId, x.OrderId }).IsUnique();
             b.HasIndex(x => new { x.TenantId, x.CompanyId });
         });
+
+        // REZERVASYON (Faz 7) — sipariş başına TEK kayıt; iki eksen (stok + iptal kararı) burada yaşar.
+        // Operasyonel katmanla AYNI resync-bağımsızlığı: Order/OrderLine her çekimde yeniden yazılır, bu KALIR.
+        builder.Entity<OrderReservation>(b =>
+        {
+            b.ToTable(TradeXpressConsts.DbTablePrefix + "OrderReservations", TradeXpressConsts.DbSchema);
+            b.ConfigureByConvention();
+
+            b.Property(x => x.Note).HasMaxLength(OrderConsts.DetailLongTextMaxLength);
+
+            b.HasIndex(x => new { x.TenantId, x.OrderId }).IsUnique();
+
+            // Gelen kutusu + serbest bırakma taraması bu iki eksenden okur.
+            b.HasIndex(x => new { x.TenantId, x.CompanyId, x.Status });
+            b.HasIndex(x => new { x.TenantId, x.CompanyId, x.CancellationDecision });
+        });
+
+        // KALEM ↔ FİŞ SATIRI bağı — ÇOKA-ÇOK (23gr + 27gr → tek 50gr senaryosu). Benzersizlik anahtarı
+        // (sipariş, kalem, fiş satırı, tür) DÖRTLÜSÜ: aynı satır BAŞKA siparişe de bağlanabilmeli, ama aynı
+        // bağ iki kez yazılmamalı.
+        builder.Entity<OrderFulfillmentLink>(b =>
+        {
+            b.ToTable(TradeXpressConsts.DbTablePrefix + "OrderFulfillmentLinks", TradeXpressConsts.DbSchema);
+            b.ConfigureByConvention();
+
+            b.Property(x => x.RemoteLineId).IsRequired().HasMaxLength(OrderConsts.RemoteLineIdMaxLength);
+            b.Property(x => x.Note).HasMaxLength(OrderConsts.DetailLongTextMaxLength);
+            b.Property(x => x.FulfilledQuantity).HasPrecision(18, 5);
+            b.Property(x => x.FulfilledAmount).HasPrecision(18, 5);
+            b.Property(x => x.PriceDifference).HasPrecision(18, 5);
+
+            b.HasIndex(x => new { x.TenantId, x.OrderId, x.RemoteLineId, x.VoucherLineId, x.Kind }).IsUnique();
+            b.HasIndex(x => new { x.TenantId, x.VoucherLineId });
+        });
     }
 }

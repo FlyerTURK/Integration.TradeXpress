@@ -17,7 +17,7 @@ namespace Integration.TradeXpress.Orchestration;
 /// <summary>
 /// ÜRÜN ORKESTRASYON MÜDÜRÜ (ADR-PRODUCT-ORCHESTRATION; ad 2026-07-25 Hakan kararı). Önündeki durum
 /// tahtası EVENT'lerle güncellenir; işi ürün-başına, asenkron, paralel, birbirini KİLİTLEMEYEN job'lara dağıtır.
-/// <para><b>Sinyaller:</b> bugün <see cref="MetalStockChangedEto"/> (VoucherLine — Dilim 1); ileride
+/// <para><b>Sinyaller:</b> bugün <see cref="CommodityStockChangedEto"/> (VoucherLine — Dilim 1); ileride
 /// RepricingCycleElapsedEto (15-dk fiyat döngüsü — Dilim 2) ve CompetitorSnapshotEto (rakip — Dilim 3)
 /// aynı tahtaya düşer: her sinyal için yeni bir <c>IDistributedEventHandler</c> kolu açılır.</para>
 /// <para><b>Kilitlenmezlik kuyruktan değil İŞ TASARIMINDAN gelir:</b> job ürün-başına dar, idempotent
@@ -25,11 +25,11 @@ namespace Integration.TradeXpress.Orchestration;
 /// production'da RabbitMQ paketiyle sıfır kod değişikliği (ADR kuyruk kararı).</para>
 /// </summary>
 public class ProductOrchestrationManager
-    : IDistributedEventHandler<MetalStockChangedEto>,
+    : IDistributedEventHandler<CommodityStockChangedEto>,
       IDistributedEventHandler<RepricingCycleElapsedEto>,
       ITransientDependency
 {
-    private readonly RecipeMetalReverseIndex _reverseIndex;
+    private readonly RecipeCommodityIndex _reverseIndex;
     private readonly IRepository<SalesChannelTrN11Product, Guid> _n11ProductRepository;
     private readonly IAsyncQueryableExecuter _asyncExecuter;
     private readonly IBackgroundJobManager _backgroundJobManager;
@@ -39,7 +39,7 @@ public class ProductOrchestrationManager
     private readonly ILogger<ProductOrchestrationManager> _logger;
 
     public ProductOrchestrationManager(
-        RecipeMetalReverseIndex reverseIndex,
+        RecipeCommodityIndex reverseIndex,
         IRepository<SalesChannelTrN11Product, Guid> n11ProductRepository,
         IAsyncQueryableExecuter asyncExecuter,
         IBackgroundJobManager backgroundJobManager,
@@ -58,7 +58,7 @@ public class ProductOrchestrationManager
         _logger = logger;
     }
 
-    public virtual async Task HandleEventAsync(MetalStockChangedEto eventData)
+    public virtual async Task HandleEventAsync(CommodityStockChangedEto eventData)
     {
         // Ters-endeks şirket/tenant filtreli tablolara sorar → bağlam ELLE kurulur (event commit-sonrası,
         // ambient bağlam taşımaz; GetStockAsync/ICompanyOwned sözleşmesi).
@@ -69,7 +69,8 @@ public class ProductOrchestrationManager
         using (var uow = _unitOfWorkManager.Begin(requiresNew: true))
         {
             var affected = await _reverseIndex.FindAffectedProductsAsync(
-                eventData.Keys.ConvertAll(k => new MetalStockKey(k.MetalId, k.MetalVariantId)));
+                eventData.Keys.ConvertAll(k =>
+                    new CommodityStockKey(k.Family, k.CommodityId, k.CommodityVariantId)));
 
             if (affected.Count == 0)
             {
@@ -77,7 +78,7 @@ public class ProductOrchestrationManager
             }
 
             _logger.LogInformation(
-                "Maden stok değişimi {MetalCount} anahtar → {ProductCount} ürün etkilendi; ürün-başına job kuyruklanıyor.",
+                "Emtia stok değişimi {KeyCount} anahtar → {ProductCount} ürün etkilendi; ürün-başına job kuyruklanıyor.",
                 eventData.Keys.Count, affected.Count);
 
             // Ürün-başına AYRI job: paralel işlenir, biri diğerini kilitlemez; job içi hata yalnız o ürünü etkiler.

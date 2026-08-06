@@ -43,6 +43,7 @@ public class OrderSyncManager : DomainService
     private readonly ITrendyolOrderClient _trendyolOrderClient;
     private readonly IEtsyOrderClient _etsyOrderClient;
     private readonly OrderLineProductMatcher _productMatcher;
+    private readonly OrderReservationManager _reservationManager;
     private readonly IDataFilter _dataFilter;
     private readonly IUnitOfWorkManager _uowManager;
     private readonly OrchestrationIdentityScope _identityScope;
@@ -64,6 +65,7 @@ public class OrderSyncManager : DomainService
         ITrendyolOrderClient trendyolOrderClient,
         IEtsyOrderClient etsyOrderClient,
         OrderLineProductMatcher productMatcher,
+        OrderReservationManager reservationManager,
         IDataFilter dataFilter,
         IUnitOfWorkManager uowManager,
         OrchestrationIdentityScope identityScope,
@@ -81,6 +83,7 @@ public class OrderSyncManager : DomainService
         _trendyolOrderClient = trendyolOrderClient;
         _etsyOrderClient = etsyOrderClient;
         _productMatcher = productMatcher;
+        _reservationManager = reservationManager;
         _dataFilter = dataFilter;
         _uowManager = uowManager;
         _identityScope = identityScope;
@@ -380,6 +383,12 @@ public class OrderSyncManager : DomainService
 
         // Ürün versiyonu bağı (O1, task #57) — insert-only-if-missing, resync'te ZATEN eşleşmiş satırlara dokunmaz.
         await _productMatcher.MatchLinesAsync(companyId, channelId, channelType, order.Id, remote.Lines);
+
+        // REZERVASYON (Faz 7): sipariş çekildiği ANDA maden/mamül müşteriye ayrılır. KOŞULSUZ — stok yetmese
+        // bile yazılır ve Available EKSİYE düşer (defter dürüst kalır; kırpma kanal sınırında). İDEMPOTENT:
+        // worker 2 dakikada bir aynı siparişle döner, zaten rezerve olan siparişte hiçbir şey yapılmaz.
+        // Eşleşmeyen/reçetesiz sipariş SESSİZ ATLANMAZ: rezervasyon Blocked gerekçesiyle kaydedilir.
+        await _reservationManager.EnsureReservationAsync(companyId, order.Id);
 
         await uow.CompleteAsync();
     }

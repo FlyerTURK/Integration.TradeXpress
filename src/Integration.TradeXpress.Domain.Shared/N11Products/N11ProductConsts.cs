@@ -68,3 +68,26 @@ public static class N11ProductConsts
     /// <summary>Kartezyen kombinasyon imzası ("{AttributeId}={ValueId}|...") üst sınırı — makul özellik sayısı × Guid uzunluğu.</summary>
     public const int CombinationSignatureMaxLength = 600;
 }
+
+/// <summary>Push GEÇMİŞİ (append-only delil kaydı) alan sınırları — ayrı sınıf: bunlar N11'in sözleşme
+/// sınırları DEĞİL, bizim delil kaydımızın saklama sınırlarıdır; ikisini karıştırmak yanlış guard doğurur.</summary>
+public static class N11PushHistoryConsts
+{
+    public const int CurrencyTypeMaxLength = 8;
+
+    /// <summary>Başlık — N11'in kendi sınırından bağımsız, gönderileni AYNEN saklamaya yeter.</summary>
+    public const int TitleMaxLength = 512;
+
+    /// <summary>"ad=değer; ad=değer" birleşimi — makul varyant ekseni sayısı × değer uzunluğu.</summary>
+    public const int VariantOptionsMaxLength = 2000;
+
+    /// <summary>"{mediaId:N}:{sha256-hex}" × görsel sayısı. 32 + 1 + 64 + ayraç ≈ 98 → 10 görsel için bol.</summary>
+    public const int ImagesMaxLength = 1200;
+
+    /// <summary>N11'in döndürdüğü task/ürün kimliği.</summary>
+    public const int RemoteReferenceMaxLength = 128;
+
+    // Fiyat: tutar N2 (financials.md yuvarlama kuralı).
+    public const int PricePrecision = 18;
+    public const int PriceScale = 2;
+}

@@ -137,5 +137,25 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
             b.HasIndex(x => new { x.TenantId, x.SalesChannelTrN11ProductId, x.StockItemId, x.LineOrder });
             b.HasIndex(x => new { x.TenantId, x.CompanyId });
         });
+
+        // PUSH GEÇMİŞİ — append-only delil kaydı (2026-08-05). N11 ürünün her versiyonunu fotoğrafıyla
+        // saklıyor; bizde LastSent* üzerine yazıldığı için tarihli kayıt yoktu.
+        builder.Entity<SalesChannelTrN11ProductPushHistory>(b =>
+        {
+            b.ToTable(TradeXpressConsts.DbTablePrefix + "SalesChannelTrN11ProductPushHistories", TradeXpressConsts.DbSchema);
+            b.ConfigureByConvention();
+
+            b.Property(x => x.SellerStockCode).IsRequired().HasMaxLength(N11ProductConsts.StockCodeMaxLength);
+            b.Property(x => x.CurrencyType).HasMaxLength(N11PushHistoryConsts.CurrencyTypeMaxLength);
+            b.Property(x => x.Title).HasMaxLength(N11PushHistoryConsts.TitleMaxLength);
+            b.Property(x => x.VariantOptions).HasMaxLength(N11PushHistoryConsts.VariantOptionsMaxLength);
+            b.Property(x => x.Images).HasMaxLength(N11PushHistoryConsts.ImagesMaxLength);
+            b.Property(x => x.RemoteReference).HasMaxLength(N11PushHistoryConsts.RemoteReferenceMaxLength);
+            b.Property(x => x.SalePrice).HasPrecision(N11PushHistoryConsts.PricePrecision, N11PushHistoryConsts.PriceScale);
+
+            // "Bu SKU'nun geçmişi" — en yeni önce okunur (delil sorgusunun tek şekli).
+            b.HasIndex(x => new { x.TenantId, x.SalesChannelTrN11ProductId, x.SellerStockCode, x.PushedAtUtc });
+            b.HasIndex(x => new { x.TenantId, x.CompanyId });
+        });
     }
 }

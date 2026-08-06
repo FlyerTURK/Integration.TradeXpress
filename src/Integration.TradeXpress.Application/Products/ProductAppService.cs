@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -67,6 +67,8 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
     private readonly ISalesChannelEtsyProductAppService _etsyChannelProductAppService;
     private readonly IEntityMediaAppService _entityMedia;
     private readonly CommodityAgnosticGraph _commodityGraph;   // yalnız OKUMA — liste önizlemesinin ana-varyant poster fallback'i
+    private readonly ProductRecipeLineWriter _recipeLineWriter;
+    private readonly ProductCommodityProvisioner _commodityProvisioner;
 
     private static readonly HashSet<string> AllowedListFields =
         new(StringComparer.OrdinalIgnoreCase) { "Code", "Name", "IsActive", "Id" };
@@ -91,7 +93,9 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         ISalesChannelTrTrendyolProductAppService trendyolChannelProductAppService,
         ISalesChannelEtsyProductAppService etsyChannelProductAppService,
         IEntityMediaAppService entityMedia,
-        CommodityAgnosticGraph commodityGraph)
+        CommodityAgnosticGraph commodityGraph,
+        ProductRecipeLineWriter recipeLineWriter,
+        ProductCommodityProvisioner commodityProvisioner)
     {
         _repository = repository;
         _substitutionGroupRepository = substitutionGroupRepository;
@@ -113,6 +117,8 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         _etsyChannelProductAppService = etsyChannelProductAppService;
         _entityMedia = entityMedia;
         _commodityGraph = commodityGraph;
+        _recipeLineWriter = recipeLineWriter;
+        _commodityProvisioner = commodityProvisioner;
     }
 
     public virtual async Task<PagedResultDto<ProductListDto>> GetListAsync(ProductListRequestDto input)
@@ -493,6 +499,22 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
     ///
     /// <para>Ürün HENÜZ KAYDEDİLMEMİŞ olabilir — bu yüzden özellik değerleri istemciden gelir, DB'den değil.</para>
     /// </summary>
+    /// <summary>Sınıflandırılmamış (reçetesiz) ürünler — sihirbazın sınıflandırma adımının kaynağı.
+    /// İş <see cref="ProductCommodityProvisioner"/>'da; burada yalnız yetki kapısı ve dış sözleşme.</summary>
+    public virtual async Task<List<ProductCommodityCandidateDto>> GetUnclassifiedProductsAsync()
+    {
+        return await _commodityProvisioner.GetCandidatesAsync();
+    }
+
+    /// <summary>Sihirbaz sınıflandırmasını uygular (emtia + reçete + politika + otorite devri + stok job'ı).
+    /// Değiştirme yetkisi ister: yeni katalog kaydı açar ve ürünün stok politikasını değiştirir.</summary>
+    [Authorize(TradeXpressPermissions.Products.Update)]
+    public virtual async Task<ProductCommodityProvisionResultDto> ProvisionCommoditiesAsync(
+        ProductCommodityProvisionInputDto input)
+    {
+        return await _commodityProvisioner.ProvisionAsync(input);
+    }
+
     public virtual async Task<List<ProductChannelAttributeDto>> ResolveChannelAttributesAsync(
         ProductChannelAttributeResolveDto input)
     {
@@ -739,102 +761,7 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
             lines = lines.Where(l => l.Id != Guid.Empty || l.Origin == RecipeLineOrigin.Manual).ToList();
         }
 
-        await SaveRecipeLinesAsync(companyId, variantId, lines);
-    }
-
-    // ── reçete grafı (varyant-scope; Id + IsDeleted diff, Account/SubAccount deseni). Bileşen türü set-once
-    //    (toolbar tip belirler); LineOrder korunur. Company + varyant Id (jenerik EntityVariant.Id) çağırandan gelir. ──
-    private async Task SaveRecipeLinesAsync(Guid companyId, Guid variantId, List<ProductRecipeLineGraphDto> lines)
-    {
-        if (lines == null || lines.Count == 0)
-        {
-            return;
-        }
-
-        foreach (var l in lines.Where(x => x.IsDeleted && x.Id != Guid.Empty))
-        {
-            await _recipeLineRepository.DeleteAsync(l.Id, autoSave: true);
-        }
-
-        // Kalanları client sırasında (LineOrder) sırala + 0..n-1 YENİDEN NUMARALA → benzersiz/deterministik pozisyon.
-        // Türev satırın "yalnız üsttekiler" referans filtresi + calculator ordinal'i bu sıraya dayanır.
-        var survivors = lines.Where(x => !x.IsDeleted).OrderBy(x => x.LineOrder).ToList();
-        for (var i = 0; i < survivors.Count; i++)
-        {
-            survivors[i].LineOrder = i;
-        }
-
-        RecipeCostPopulator.ValidateDerivedReferences(survivors);
-
-        // 1. geçiş: TÜM satırları insert/update (skaler alanlar; türev SelectedLines kaynakları HARİÇ) →
-        // ClientKey→Id (+ ClientKey→entity) sözlükleri (iki-geçişli ClientKey→Id save deseni).
-        var idByClientKey = new Dictionary<Guid, Guid>();
-        var entityByClientKey = new Dictionary<Guid, ProductVariantRecipeLine>();
-        foreach (var l in survivors)
-        {
-            ProductVariantRecipeLine entity;
-            if (l.Id == Guid.Empty)
-            {
-                entity = new ProductVariantRecipeLine(companyId, variantId, l.ComponentType, l.LineOrder);
-                ApplyRecipeLineFields(entity, l);
-                await _recipeLineRepository.InsertAsync(entity, autoSave: true);
-                l.Id = entity.Id;
-            }
-            else
-            {
-                entity = await _recipeLineRepository.GetAsync(l.Id);
-                entity.SetOrder(l.LineOrder);
-                ApplyRecipeLineFields(entity, l);
-                await _recipeLineRepository.UpdateAsync(entity, autoSave: true);
-            }
-
-            idByClientKey[l.ClientKey] = l.Id;
-            entityByClientKey[l.ClientKey] = entity;
-        }
-
-        // 2. geçiş: türev SelectedLines satırlarının kaynak ClientKey'lerini çözülmüş Id CSV'sine çevir + persist
-        // (kaynak Id'ler artık 1. geçişten hazır). AllAbove satırlarının kaynağı yok (SetDerived null'a düşürdü).
-        foreach (var l in survivors.Where(x => x.ComponentType == RecipeComponentType.Service
-            && x.DerivedBaseMode == RecipeDerivedBaseMode.SelectedLines))
-        {
-            var csv = string.Join('|', l.DerivedSourceKeys.Select(k => idByClientKey[k].ToString()));
-            var entity = entityByClientKey[l.ClientKey];
-            entity.SetDerivedSources(csv);
-            await _recipeLineRepository.UpdateAsync(entity, autoSave: true);
-        }
-    }
-
-    /// <summary>Graf düğümünün alanlarını reçete satırına uygular — bileşen türüne göre katalog-emtia ya da
-    /// hizmet/manuel setter grubu. ComponentType set-once olduğundan burada DEĞİŞTİRİLMEZ (ctor'da atanır).</summary>
-    private static void ApplyRecipeLineFields(ProductVariantRecipeLine entity, ProductRecipeLineGraphDto l)
-    {
-        if (l.ComponentType == RecipeComponentType.CatalogCommodity)
-        {
-            entity.SetCatalogCommodity(
-                l.CommodityProcessType.GetValueOrDefault(),
-                l.CommodityId,
-                l.CommodityVariantId,
-                l.Quantity,
-                l.Amount,
-                l.Factor,
-                l.ValuationUnitId,
-                l.PaymentType,
-                l.PayFactor,
-                l.PayUnitId);
-        }
-        else
-        {
-            // Hizmet satırı: hizmet referansı (etiket) + türevsel bedel kuralı (taban modu + işlem + operand);
-            // SelectedLines kaynakları AYRICA 2. geçişte SetDerivedSources ile (Id'ler o aşamada çözülür).
-            entity.SetService(
-                l.CommodityId,
-                l.DerivedBaseMode.GetValueOrDefault(RecipeDerivedBaseMode.AllAbove),
-                l.DerivedOperation.GetValueOrDefault(RecipeDerivedOperation.Percent),
-                l.DerivedOperand,
-                l.PayUnitId);
-        }
-
-        entity.SetDescription(l.Description);
+        await _recipeLineWriter.SaveAsync(companyId, variantId, lines);
     }
 
     /// <summary>Pazaryeri-genel varsayılanları üründe ayarlar (Create+Update ortak; entity setterları fail-fast +

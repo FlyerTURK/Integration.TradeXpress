@@ -50,6 +50,32 @@ public class ProductVariantDetail : FullAuditedAggregateRoot<Guid>, IMultiTenant
     /// </summary>
     public virtual int? PackageDesi { get; protected set; }
 
+    /// <summary>Varyantın PAZARYERİ satılabilirlik durumu (2026-08-05 Hakan kararı). Varsayılan
+    /// <see cref="ProductSaleStatus.Draft"/> — fail-closed: doğrulanmamış varyant push aday listesine GİRMEZ.
+    /// <c>IsActive</c>'in yerine geçmez, yanında durur (bkz. <see cref="ProductSaleStatus"/>).</summary>
+    public virtual ProductSaleStatus SaleStatus { get; protected set; }
+
+    /// <summary>Doğrulamanın yapıldığı an (UTC). null = hiç doğrulanmadı.</summary>
+    public virtual DateTime? VerifiedAt { get; protected set; }
+
+    /// <summary>Doğrulayan kullanıcı — "kim onayladı" sorusunun cevabı denetim izidir.</summary>
+    public virtual Guid? VerifiedBy { get; protected set; }
+
+    /// <summary>
+    /// Onay anındaki REÇETE DAMGASI — onayın hâlâ geçerli olup olmadığını anlamanın anahtarı.
+    ///
+    /// <para><b>Neden damga:</b> onay bir kereye mahsus tik olursa emniyet değil SÜS olur; reçete sonradan
+    /// değişir ve kimse fark etmez. Damga push anında yeniden hesaplanıp karşılaştırılır; tutmuyorsa varyant
+    /// doğrulanmamış sayılır. Böylece reçeteye dokunan herkes onayı düşürmüş olur ve <b>ayrı olay altyapısı
+    /// gerekmez</b>.</para>
+    ///
+    /// <para><b>İKİ KADEMELİ</b> (2026-08-05 kararı): <c>"{en son değişim ticks}|{içerik hash'i}"</c>.
+    /// Önce zaman kısmı kıyaslanır (ucuz); değişmişse içerik hash'i bakılır. Salt zaman damgası
+    /// dokunulup aynı bırakılan satırda YANLIŞ POZİTİF üretir; salt içerik hash'i ise sıralama/yuvarlama/null
+    /// detaylarında sessizce yanlış olabilir. İkisi birlikte ikisinin de zayıflığını kapatır.</para>
+    /// </summary>
+    public virtual string? VerifiedRecipeStamp { get; protected set; }
+
     #endregion
 
     #region Methods
@@ -76,6 +102,50 @@ public class ProductVariantDetail : FullAuditedAggregateRoot<Guid>, IMultiTenant
         }
 
         PackageDesi = packageDesi;
+    }
+
+    /// <summary>İNSAN yolu: varyantı doğrular → <see cref="ProductSaleStatus.Ready"/>. Onay anındaki reçete
+    /// damgası saklanır. <see cref="ProductSaleStatus.Closed"/>'dan da çıkarır — kullanıcı kapattığını
+    /// yeniden açabilir.</summary>
+    public virtual void MarkVerified(string recipeStamp, DateTime verifiedAtUtc, Guid? verifiedBy)
+    {
+        SaleStatus = ProductSaleStatus.Ready;
+        VerifiedRecipeStamp = recipeStamp;
+        VerifiedAt = verifiedAtUtc;
+        VerifiedBy = verifiedBy;
+    }
+
+    /// <summary>SİSTEM yolu: yalnız <see cref="ProductSaleStatus.Ready"/> olanı askıya alır.
+    ///
+    /// <para><b>Neden yalnız Ready:</b> <c>Draft</c> zaten satışta değil, <c>Closed</c> ise KULLANICININ
+    /// kararıdır — sistemin onu "askıya alınmış" diye yeniden sınıflandırması kullanıcının niyetini ezerdi.
+    /// Diğer durumlarda sessizce no-op (idempotent: aynı emtia iki kez pasifleşse de sonuç aynı).</para>
+    ///
+    /// <para>Ters yön (<c>Suspended → Ready</c>) burada YOKTUR ve olmayacaktır — geri dönüş yalnız
+    /// <see cref="MarkVerified"/> ile, yani insandan geçer.</para></summary>
+    public virtual void Suspend()
+    {
+        if (SaleStatus != ProductSaleStatus.Ready)
+        {
+            return;
+        }
+
+        SaleStatus = ProductSaleStatus.Suspended;
+    }
+
+    /// <summary>İNSAN yolu: varyantı satıştan çeker.</summary>
+    public virtual void Close()
+    {
+        SaleStatus = ProductSaleStatus.Closed;
+    }
+
+    /// <summary>Verilen damga onay anındakiyle aynı mı — yani onay HÂLÂ geçerli mi.
+    /// Doğrulanmamış varyantta daima <c>false</c> (damga yok, karşılaştıracak bir şey de yok).</summary>
+    public virtual bool IsVerificationCurrent(string currentRecipeStamp)
+    {
+        return SaleStatus == ProductSaleStatus.Ready
+               && VerifiedRecipeStamp != null
+               && string.Equals(VerifiedRecipeStamp, currentRecipeStamp, StringComparison.Ordinal);
     }
 
     public override string ToString()
