@@ -133,9 +133,11 @@ public partial class SalesChannelTrN11ProductAppService
 
             TrackUnmatchedCategory(group, categoryNames, unmatchedCategories, report);
 
-            var existing = FindExistingChannelRecord(group, existingRecords);
+            var existing = await DiscardOrphanedRecordAsync(
+                FindExistingChannelRecord(group, existingRecords), existingRecords, report);
+
             var (product, variantsByStockCode) = await ResolveTemplateAsync(
-                channel, group, existing, tryCurrencyUnitId, report);
+                channel, group, existing, tryCurrencyUnitId, categoryNames, report);
 
             await EnsureTemplateVariantsAsync(group, product, variantsByStockCode, tryCurrencyUnitId, report);
 
@@ -297,11 +299,37 @@ public partial class SalesChannelTrN11ProductAppService
     /// TAŞIMAZ, elimizdeki tek kimlik satıcı stok kodudur ve o da yalnız kanal kaydı üzerinden anlamlı. Uydurma bir
     /// eşleştirme (kod ayrıştırma) yanlış ürüne varyant eklerdi — yeni şablon üretmek geri alınabilir, yanlış
     /// birleştirme değil.</para></summary>
+    /// <summary>ÖKSÜZ kanal kaydını eler — Trendyol ikizi
+    /// (<c>SalesChannelTrTrendyolProductAppService.Import.DiscardOrphanedRecordAsync</c>; gerekçe ve bedeli orada).
+    /// Kısaca: şablon ürünü silinmiş kanal kaydı kullanılamaz durumdadır ve önceden TEK böyle kayıt tüm içe
+    /// aktarımı <c>ProductNotFound</c> ile iptal ediyordu.</summary>
+    private async Task<SalesChannelTrN11Product?> DiscardOrphanedRecordAsync(
+        SalesChannelTrN11Product? existing,
+        List<SalesChannelTrN11Product> existingRecords,
+        N11ImportResultDto report)
+    {
+        if (existing is null || await FindOwnedProductAsync(existing.ProductId) is not null)
+        {
+            return existing;
+        }
+
+        // Kullanıcıya RAPORLANMAZ — gerekçe Trendyol ikizinde.
+        Logger.LogInformation(
+            "N11 içe aktarım: {SellerCode} kanal kaydının şablon ürünü ({ProductId}) silinmiş — kayıt kaldırıldı, ürün mağazadan yeniden kurulacak.",
+            existing.SellerCode,
+            existing.ProductId);
+
+        await _remover.RemoveGraphAsync(existing);
+        existingRecords.Remove(existing);
+        return null;
+    }
+
     private async Task<(Product Product, Dictionary<string, EntityVariant> VariantsByStockCode)> ResolveTemplateAsync(
         SalesChannelTrN11 channel,
         N11RemoteProductGroup group,
         SalesChannelTrN11Product? existing,
         Guid? tryCurrencyUnitId,
+        Dictionary<string, string> categoryNames,
         N11ImportResultDto report)
     {
         if (existing is not null)
@@ -310,7 +338,7 @@ public partial class SalesChannelTrN11ProductAppService
             return (product, await LoadVariantsBySkuAsync(existing, product.Id));
         }
 
-        var created = await CreateTemplateProductAsync(channel, group, tryCurrencyUnitId);
+        var created = await CreateTemplateProductAsync(channel, group, tryCurrencyUnitId, categoryNames, report);
         report.CreatedProducts++;
         return created;
     }
@@ -347,16 +375,24 @@ public partial class SalesChannelTrN11ProductAppService
     /// başlığı TitleCase'e sokulursa "iPhone 15 Pro" → "İphone 15 Pro" olur ve doğru başlık geri üretilemez);
     /// kod uzak stok kodundan normalize edilir, şirket içinde benzersizlik son-ekle sağlanır.</summary>
     private async Task<(Product Product, Dictionary<string, EntityVariant> VariantsByStockCode)> CreateTemplateProductAsync(
-        SalesChannelTrN11 channel, N11RemoteProductGroup group, Guid? tryCurrencyUnitId)
+        SalesChannelTrN11 channel, N11RemoteProductGroup group, Guid? tryCurrencyUnitId,
+        Dictionary<string, string> categoryNames, N11ImportResultDto report)
     {
         var first = group.Rows[0];
-        var code = await BuildUniqueProductCodeAsync(channel.CompanyId, first.StockCode);
+        var code = await BuildUniqueProductCodeAsync(channel.CompanyId, first.StockCode, report);
 
         // Ad TEK atamayla casing-korumalı yazılır: ctor'a geçici ad olarak KOD verilir (ctor SetName'i normalize
         // ederdi ama hemen ezilir), gerçek başlık bir kez normalizeTitle:false ile set edilir.
         var product = new Product(channel.CompanyId, code, code);
         product.SetName(BuildSafeName(group.Title, code), normalizeTitle: false);
         product.SetCurrencyUnit(tryCurrencyUnitId);
+
+        // ÇEKİRDEK kategori kanal kategorisinden çözülür/kurulur (2026-08-06 Hakan kararı) — yalnız YENİ üründe
+        // (Trendyol ikizi; mevcut ürünün kategorisi kullanıcı beyanıdır, EZİLMEZ).
+        product.SetProductCategory(await _categoryResolver.ResolveOrCreateAsync(
+            channel.CompanyId, SalesChannelType.TrN11, group.CategoryExternalId,
+            group.CategoryExternalId is { } catId ? categoryNames.GetValueOrDefault(catId) : null));
+
         await _productRepository.InsertAsync(product, autoSave: true);
 
         // Görseller DAM'a — link ürün Id'sine bağlandığından INSERT'ten SONRA. YALNIZ kuruluşta: import her
@@ -373,7 +409,7 @@ public partial class SalesChannelTrN11ProductAppService
         }
 
         // Ana-varyant değişmezi MERKEZÎ kapıdan (tekil main garanti; idempotent).
-        await _variantManager.EnsureMainVariantAsync(ProductEntityName, product.Id, product.CompanyId);
+        await _variantManager.EnsureMainVariantAsync(ProductEntityName, product.Id, product.CompanyId, product.Code, product.Name);
         return (product, map);
     }
 
@@ -409,7 +445,7 @@ public partial class SalesChannelTrN11ProductAppService
         if (addedAny)
         {
             // Mevcut main KORUNUR — yeni eklenenler main OLMAZ (merkezî kapı idempotenttir).
-            await _variantManager.EnsureMainVariantAsync(ProductEntityName, product.Id, product.CompanyId);
+            await _variantManager.EnsureMainVariantAsync(ProductEntityName, product.Id, product.CompanyId, product.Code, product.Name);
         }
     }
 
@@ -445,41 +481,42 @@ public partial class SalesChannelTrN11ProductAppService
         return variant;
     }
 
-    /// <summary>Ürünün MEVCUT varyant kodları — soft-delete filtresi KAPALI: unique index
-    /// <c>(TenantId, ProductId, Code)</c> IsDeleted filtresizdir, silinmiş satır kodu hâlâ işgal eder.</summary>
+    /// <summary>Ürünün CANLI varyant kodları. Soft-delete filtresi AÇIK: varyant kodu indeksi 2026-08-07'de
+    /// <c>IsDeleted = 0</c> filtresine kavuştu → silinmiş satır artık kodu İŞGAL ETMEZ (Trendyol ikizi).</summary>
     private async Task<HashSet<string>> LoadVariantCodesAsync(Guid productId)
     {
-        using (DataFilter.Disable<ISoftDelete>())
-        {
-            var codes = await AsyncExecuter.ToListAsync(
-                (await _variantRepository.GetQueryableAsync())
-                    .Where(v => v.EntityName == ProductEntityName && v.EntityId == productId)
-                    .Select(v => v.Code));
-            return codes.ToHashSet(StringComparer.OrdinalIgnoreCase);
-        }
+        var codes = await AsyncExecuter.ToListAsync(
+            (await _variantRepository.GetQueryableAsync())
+                .Where(v => v.EntityName == ProductEntityName && v.EntityId == productId)
+                .Select(v => v.Code));
+        return codes.ToHashSet(StringComparer.OrdinalIgnoreCase);
     }
 
     /// <summary>Şablon kodu: uzak stok kodu normalize edilir (UPPER + tek boşluk), kısa ise "N11-" ön eki, uzun ise
     /// kırpılır; şirket içinde benzersizlik "-2/-3..." son ekiyle döngülü sağlanır (ham DB unique hatasına düşmesin).
-    /// Soft-delete filtresi KAPALI sorgulanır — silinmiş satır kodu hâlâ işgal eder.</summary>
-    private async Task<string> BuildUniqueProductCodeAsync(Guid companyId, string rawCode)
+    /// Soft-delete filtresi AÇIK: Product indeksi 2026-08-07'de <c>IsDeleted = 0</c> kazandı → silinmiş ürünün kodu
+    /// SERBESTTİR ve yeniden içe aktarımda orijinal stok kodu geri gelir (Trendyol ikizi; gerekçe orada).
+    /// Son ek gerekirse kullanıcıya RAPORLANIR (Trendyol ikizi).</summary>
+    private async Task<string> BuildUniqueProductCodeAsync(Guid companyId, string rawCode, N11ImportResultDto report)
     {
-        using (DataFilter.Disable<ISoftDelete>())
+        var baseCode = NormalizeImportCode(rawCode);
+        var candidate = baseCode;
+        var suffix = 2;
+        while (await AsyncExecuter.AnyAsync(
+                   (await _productRepository.GetQueryableAsync())
+                       .Where(p => p.CompanyId == companyId && p.Code == candidate)))
         {
-            var baseCode = NormalizeImportCode(rawCode);
-            var candidate = baseCode;
-            var suffix = 2;
-            while (await AsyncExecuter.AnyAsync(
-                       (await _productRepository.GetQueryableAsync())
-                           .Where(p => p.CompanyId == companyId && p.Code == candidate)))
-            {
-                var suffixText = $"-{suffix}";
-                candidate = Truncate(baseCode, ProductConsts.CodeMaxLength - suffixText.Length) + suffixText;
-                suffix++;
-            }
-
-            return candidate;
+            var suffixText = $"-{suffix}";
+            candidate = Truncate(baseCode, ProductConsts.CodeMaxLength - suffixText.Length) + suffixText;
+            suffix++;
         }
+
+        if (!string.Equals(candidate, baseCode, StringComparison.Ordinal))
+        {
+            report.Warnings.Add(L["N11Product:Import:CodeUniquified", baseCode, candidate].Value);
+        }
+
+        return candidate;
     }
 
     /// <summary>Varyant kodu — aynı normalize; benzersizlik verilen küme içinde (bellek-içi).</summary>

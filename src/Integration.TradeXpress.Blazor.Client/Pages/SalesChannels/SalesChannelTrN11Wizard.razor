@@ -24,11 +24,15 @@
     <h5 style="margin:0;">@L["SalesChannelTrN11:Wizard:Title"]</h5>
 </div>
 
-<div class="p-3">
+@* Sarmalayıcı MDI gövdesinin verdiği yüksekliği DOLDURUR (flex:1 + min-height:0) — kabuk içeride
+   kaydırsın, ayak düğmeleri her viewport'ta görünür kalsın. *@
+<div class="p-3" style="flex:1; min-height:0; display:flex; flex-direction:column;">
     <WizardShell FinishText="@L["SalesChannelTrN11:Wizard:Finish"]" OnFinished="@GoToChannelAsync">
 
         @* 1 — Kimlik. YENİ kurulumda ileri = kanalı OLUŞTUR (sunucu kimliği doğrular). MEVCUT kanalda kimlik
              alanları hiç gösterilmez: kanal zaten var ve sırları sunucu redakte ediyor. *@
+        @if (!IsExistingChannel)
+        {
         <WizardStep Title="@L["SalesChannelTrN11:Wizard:Step:Credentials"]"
                     Description="@(IsExistingChannel ? L["SalesChannelTrN11:Wizard:Step:CredentialsExisting"].Value : L["SalesChannelTrN11:Wizard:Step:CredentialsHelp"].Value)"
                     OnBeforeAdvanceAsync="@CreateChannelAsync">
@@ -51,6 +55,9 @@
                     <DxFormLayoutItem Caption="@($"{L["SalesChannel:AppSecret"]} *")" ColSpanMd="6">
                         <PasswordTextEdit @bind-Text="@_appSecret" Tooltip="@L["ShowPassword"]" CssClass="w-100" />
                     </DxFormLayoutItem>
+                    @* Cari ZORUNLU: kanalın carisi yoksa sipariş rezervasyon fişinin başlığı kurulamaz ve her
+                       sipariş sessizce Blocked'a düşer (2026-08-06). Eksikliği kurulum anında sor. *@
+                    <SalesChannelSubAccountField @bind-Value="@_subAccountId" />
                 </DxFormLayout>
                 @if (_channelId != Guid.Empty)
                 {
@@ -58,6 +65,7 @@
                 }
             }
         </WizardStep>
+        }
 
         @* 2 — Referans verisi. Kategori ağacı + kargo firmaları host-global; bir kez çekilir. *@
         <WizardStep Title="@L["SalesChannelTrN11:Wizard:Step:Reference"]"

@@ -53,6 +53,7 @@ public partial class SalesChannelTrTrendyolWizard : CrudComponentBase
     private string? _sellerId;
     private string? _apiKey;
     private string? _apiSecret;
+    private Guid? _subAccountId;
     private Guid _channelId;
 
     // ── 2. adım: kargo firması ──────────────────────────────────────────────────────────────────────
@@ -172,6 +173,15 @@ public partial class SalesChannelTrTrendyolWizard : CrudComponentBase
             return;
         }
 
+        // Cari ZORUNLU (2026-08-06): sunucu da reddediyor, ama eksik alanı kullanıcının gözü önünde söylemek
+        // sunucu hatasıyla karşılamaktan dürüsttür.
+        if (_subAccountId is null)
+        {
+            UiService.ShowErrorToast(L["TradeXpress:SalesChannel:SubAccountRequired"]);
+            context.Cancel();
+            return;
+        }
+
         try
         {
             var created = await ChannelAppService.CreateAsync(new SalesChannelTrTrendyolCreateDto
@@ -181,6 +191,7 @@ public partial class SalesChannelTrTrendyolWizard : CrudComponentBase
                 SellerId = _sellerId!,
                 ApiKey = _apiKey!,
                 ApiSecret = _apiSecret!,
+                SubAccountId = _subAccountId,
             });
             _channelId = created.Id;
         }

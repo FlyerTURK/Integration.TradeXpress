@@ -60,6 +60,9 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
     private readonly MarketplacePushImageResolver _pushImageResolver;
     private readonly MarketplaceImageDownloader _imageDownloader;
     private readonly TrendyolBrandCacheManager _brandCacheManager;
+    private readonly TrendyolCommissionResolver _commissionResolver;
+    private readonly SalesChannelTrTrendyolProductRemover _remover;
+    private readonly ImportedProductCategoryResolver _categoryResolver;
 
     public SalesChannelTrTrendyolProductAppService(
         IRepository<SalesChannelTrTrendyolProduct, Guid> repository,
@@ -85,7 +88,10 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
         ITrendyolCategoryAppService categoryAppService,
         MarketplacePushImageResolver pushImageResolver,
         MarketplaceImageDownloader imageDownloader,
-        TrendyolBrandCacheManager brandCacheManager)
+        TrendyolBrandCacheManager brandCacheManager,
+        TrendyolCommissionResolver commissionResolver,
+        SalesChannelTrTrendyolProductRemover remover,
+        ImportedProductCategoryResolver categoryResolver)
     {
         _repository = repository;
         _productRepository = productRepository;
@@ -111,6 +117,9 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
         _pushImageResolver = pushImageResolver;
         _imageDownloader = imageDownloader;
         _brandCacheManager = brandCacheManager;
+        _commissionResolver = commissionResolver;
+        _remover = remover;
+        _categoryResolver = categoryResolver;
     }
 
     public virtual async Task<List<SalesChannelTrTrendyolProductDto>> GetListForProductAsync(Guid productId)
@@ -252,15 +261,20 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
         }
     }
 
-    /// <summary>Trendyol varyant grup anahtarı: "{ÜrünKodu}-{Sıra}" — kayıt-bazlı benzersiz + insan-okunur (frozen).
-    /// Ürün kodu üst sınıra yakınsa kod kısmı KIRPILIR (Code 64 + "-{Sıra}" &gt; ProductMainId 64 taşardı — entity
-    /// guard'ı ham fail yerine burada dostane onarım; sıra son eki korunur, benzersizlik bozulmaz).</summary>
+    /// <summary>Trendyol varyant grup anahtarı — kayıt-bazlı benzersiz + insan-okunur (frozen). İLK listeleme ÇIPLAK
+    /// ürün kodudur; son ek 2'den başlar (<see cref="ChannelSequenceCode"/> SSOT — "-1" üretilmez). Ürün kodu üst
+    /// sınıra yakınsa kod kısmı KIRPILIR (Code 64 + "-{Sıra}" &gt; ProductMainId 64 taşardı — entity guard'ı ham fail
+    /// yerine burada dostane onarım; sıra son eki korunur, benzersizlik bozulmaz).</summary>
     private static string BuildProductMainId(string productCode, int sequenceNo)
     {
+        if (sequenceNo <= 1)
+        {
+            return Truncate(productCode, TrendyolProductConsts.ProductMainIdMaxLength);
+        }
+
         var suffix = $"-{sequenceNo}";
         var maxCodeLength = TrendyolProductConsts.ProductMainIdMaxLength - suffix.Length;
-        var codePart = productCode.Length <= maxCodeLength ? productCode : productCode.Substring(0, maxCodeLength);
-        return $"{codePart}{suffix}";
+        return Truncate(productCode, maxCodeLength) + suffix;   // Truncate: partial'ın Import dilimindeki ortak yardımcı
     }
 
     [Authorize(TradeXpressPermissions.SalesChannels.Update)]
@@ -301,21 +315,15 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
     public virtual async Task DeleteAsync(Guid id)
     {
         var entity = await GetOwnedAsync(id);
-        // Kanal-özel varyant override başlıkları + reçete satırları + özellik/değer grafı (ayrı tablolar) —
-        // kanal-ürünle birlikte temizlenir.
-        await _channelRecipeLineRepository.DeleteAsync(r => r.SalesChannelTrTrendyolProductId == entity.Id, autoSave: true);
-        await _stockItemRepository.DeleteAsync(v => v.SalesChannelTrTrendyolProductId == entity.Id, autoSave: true);
-        var channelAttributeIds = await AsyncExecuter.ToListAsync(
-            (await _channelAttributeRepository.GetQueryableAsync())
-                .Where(a => a.SalesChannelTrTrendyolProductId == entity.Id)
-                .Select(a => a.Id));
-        if (channelAttributeIds.Count > 0)
-        {
-            await _channelAttributeValueRepository.DeleteAsync(v => channelAttributeIds.Contains(v.AttributeId), autoSave: true);
-            await _channelAttributeRepository.DeleteAsync(a => a.SalesChannelTrTrendyolProductId == entity.Id, autoSave: true);
-        }
+        await DeleteChannelProductGraphAsync(entity);
+    }
 
-        await _repository.DeleteAsync(entity, autoSave: true);
+    /// <summary>Kanal ürününü TÜM bağımlılarıyla siler. Graf <see cref="SalesChannelTrTrendyolProductRemover"/>'da
+    /// TEK yerde yaşar — kullanıcının silme komutu, şablon ürün silinirken kanal temizliği ve içe aktarımın öksüz
+    /// kayıt temizliği aynı grafı tüketir.</summary>
+    private Task DeleteChannelProductGraphAsync(SalesChannelTrTrendyolProduct entity)
+    {
+        return _remover.RemoveGraphAsync(entity);
     }
 
     /// <summary>Özellik/değer grafını PERSIST EDER + kartezyen reconcile'ı hemen tetikler — TÜM ürünü kaydetmeden
@@ -1347,14 +1355,18 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
         }
     }
 
-    /// <summary>Yan-maliyet planını kurar: kanal gider satırları; çözülmüş komisyon oranı YOK (Trendyol ilk fazda
-    /// kategori komisyon tablosu yok — backlog; komisyon gider satırı oranını doğrudan Value'sundan alır, AutoRate
-    /// açıksa da Value fallback'ine düşer). Varyant opt-in anahtarı varyant-başı olduğundan burada KAPALI döner —
-    /// çağıran <c>plan with { VariantOptInEnabled = ... }</c> ile varyanta göre açar.</summary>
+    /// <summary>Yan-maliyet planını kurar: kanal gider satırları + ürünün KATEGORİSİNDEN kalıtımla çözülen komisyon
+    /// oranı (<see cref="TrendyolCommissionResolver"/> — yaprak → üst → kök; hiçbir seviyede tanımlı değilse
+    /// yer tutucu). Varyant opt-in anahtarı varyant-başı olduğundan burada KAPALI döner — çağıran
+    /// <c>plan with { VariantOptInEnabled = ... }</c> ile varyanta göre açar.
+    ///
+    /// <para><b>Kategorisiz kayıtta</b> (CategoryId null — import'ta eşleşmemiş olabilir) çözücü yine yer tutucuya
+    /// düşer: komisyon HİÇ hesaplanmaması, yaklaşık hesaplanmasından kötüdür (fiyat ~%20 ucuz çıkardı).</para></summary>
     private async Task<SideCostPlan> BuildSideCostPlanAsync(SalesChannelTrTrendyolProduct channelProduct)
     {
         var channel = await _channelRepository.FindAsync(channelProduct.SalesChannelId);
-        return SideCostPlan.From(channel?.SideCosts, resolvedCommissionRate: null, variantOptInEnabled: false);
+        var commissionRate = await _commissionResolver.ResolveAsync(channelProduct.CategoryId);
+        return SideCostPlan.From(channel?.SideCosts, commissionRate, variantOptInEnabled: false);
     }
 
     /// <summary>Yan-maliyet satırlarını KAYDEDİLMİŞ reçetelerde ayarlardan TAZELER ("yeniden uygula"): işaretli
@@ -1779,15 +1791,24 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
 
     private async Task<Product> GetOwnedProductAsync(Guid productId)
     {
-        var companyId = EnsureCurrentCompanyId();
-        var product = await AsyncExecuter.FirstOrDefaultAsync(
-            (await _productRepository.GetQueryableAsync()).Where(x => x.Id == productId && x.CompanyId == companyId));
+        var product = await FindOwnedProductAsync(productId);
         if (product is null)
         {
             throw new BusinessException("TradeXpress:Trendyol:Product:ProductNotFound");
         }
 
         return product;
+    }
+
+    /// <summary>Şablon ürünü bulur, YOKSA null döner (fırlatmaz). Ürün SİLİNMİŞ olabilir: kanal kaydı ürüne
+    /// yalnız Guid ile bağlıdır (aggregate'ler arası id-only konvansiyonu) → referans bütünlüğünü DB zorlamaz ve
+    /// ürün silinince kanal kaydı ölü bir id taşımaya devam eder. Bu ihtimali GÖRMEK isteyen çağıranlar (içe
+    /// aktarım) bunu kullanır; ihtimalin hata olduğu çağıranlar <see cref="GetOwnedProductAsync"/> kullanır.</summary>
+    private async Task<Product?> FindOwnedProductAsync(Guid productId)
+    {
+        var companyId = EnsureCurrentCompanyId();
+        return await AsyncExecuter.FirstOrDefaultAsync(
+            (await _productRepository.GetQueryableAsync()).Where(x => x.Id == productId && x.CompanyId == companyId));
     }
 
     private Guid EnsureCurrentCompanyId()

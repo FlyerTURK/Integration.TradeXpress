@@ -22,7 +22,7 @@ public abstract class CurrencyUnitMarginAppServiceTests<TStartupModule> : TradeX
     {
         var result = await _appService.GetListAsync(new CurrencyUnitMarginListRequestDto { MaxResultCount = 100 });
 
-        result.TotalCount.ShouldBe(12);
+        result.TotalCount.ShouldBe(13);   // 12 doviz/maden + AD (Adet sayim birimi, 2026-08-06)
         var tryRow = result.Items.Single(m => m.CurrencyUnitCode == CurrencyUnitCode.TRY);
         tryRow.MarginOnBuyType.ShouldBe(MarginType.FinalPrice);
         tryRow.MarginOnBuyValue.ShouldBe(1m);
@@ -48,9 +48,9 @@ public abstract class CurrencyUnitMarginAppServiceTests<TStartupModule> : TradeX
         set.MarginOnBuyType.ShouldBe(MarginType.Percent);
         set.CurrencyUnitCode.ShouldBe(CurrencyUnitCode.USD); // join korunur
 
-        // Güncel liste artık yeni marjı gösterir (latest/unit) ve hâlâ 12 birim (tek satır/birim).
+        // Guncel liste artik yeni marji gosterir (latest/unit) ve hala 13 birim (tek satir/birim; 12 doviz/maden + AD).
         var list = await _appService.GetListAsync(new CurrencyUnitMarginListRequestDto { MaxResultCount = 100 });
-        list.TotalCount.ShouldBe(12);
+        list.TotalCount.ShouldBe(13);
         var current = list.Items.Single(m => m.CurrencyUnitCode == CurrencyUnitCode.USD);
         current.MarginOnBuyType.ShouldBe(MarginType.Percent);
         current.MarginOnBuyValue.ShouldBe(2m);

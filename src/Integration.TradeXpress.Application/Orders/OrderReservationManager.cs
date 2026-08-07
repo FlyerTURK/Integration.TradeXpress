@@ -109,8 +109,8 @@ public class OrderReservationManager : ITransientDependency
             var lines = await BuildLinesAsync(companyId, orderId);
             if (lines.Count == 0)
             {
-                reservation.MarkBlocked("Sipariş kalemleri yerel ürün varyantına eşleşmedi ya da reçetesi yok.");
-                await UpsertAsync(reservation);
+                await BlockAsync(reservation,
+                    "Sipariş kalemleri yerel ürün varyantına eşleşmedi ya da reçetesi yok.");
                 return reservation;
             }
 
@@ -144,10 +144,32 @@ public class OrderReservationManager : ITransientDependency
             // Rezervasyon kurulamadı → sipariş senkronu DÜŞMEZ (bir siparişin sorunu diğerlerini engellemez),
             // ama SESSİZ de geçilmez: gerekçe kayda ve loga yazılır.
             _logger.LogWarning(ex, "Sipariş rezervasyonu kurulamadı: Order={OrderId}.", orderId);
-            reservation.MarkBlocked(ex.Message);
-            await UpsertAsync(reservation);
+            await BlockAsync(reservation, ex.Message);
             return reservation;
         }
+    }
+
+    /// <summary>Rezervasyonu <c>Blocked</c> olarak kaydeder — <b>DURUM DEĞİŞMEDİYSE YAZMAZ</b>.
+    ///
+    /// <para>Sipariş senkron worker'ı 2 dakikada bir tüm siparişleri geçer. Eşleşmesi olmayan sipariş her
+    /// turda aynı gerekçeyle yeniden bloklanıyordu ve bu, hiçbir şey değişmediği hâlde her turda bir UPDATE
+    /// üretiyordu: canlıda eşleşmemiş 106 sipariş var, yani günde ~76 bin gereksiz yazım + denetim gürültüsü
+    /// (2026-08-06 ölçümü).</para>
+    ///
+    /// <para><b>Yeniden DENEME sürüyor</b> (yalnız YAZIM susturuldu): operatör kalemi elle eşleştirdiğinde
+    /// bir sonraki tur rezervasyonu kurabilmeli. Denemenin maliyeti iki SELECT'tir; asıl israf yazımdaydı.</para></summary>
+    private async Task BlockAsync(OrderReservation reservation, string reason)
+    {
+        var unchanged = reservation.Id != Guid.Empty
+                        && reservation.Status == OrderReservationStatus.Blocked
+                        && string.Equals(reservation.Note, reason, StringComparison.Ordinal);
+        if (unchanged)
+        {
+            return;
+        }
+
+        reservation.MarkBlocked(reason);
+        await UpsertAsync(reservation);
     }
 
     /// <summary>Rezervasyonu SERBEST BIRAKIR: fiş satırları soft-delete edilir (sayaçtan düşer, denetim izi

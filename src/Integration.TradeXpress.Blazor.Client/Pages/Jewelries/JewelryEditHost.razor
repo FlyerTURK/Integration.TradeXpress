@@ -22,6 +22,7 @@
 {
     <CrudEditHost TGetDto="JewelryGetDto" TListDto="JewelryListDto" TKey="Guid" TListRequestDto="JewelryListRequestDto"
                   Coordinator="@_coordinator" Id="@(Id ?? Guid.Empty)" IsPopupMode="@IsPopupMode" OnSaved="@OnSaved" OnClosed="@OnClosed"
+                  SupportsSaveAndNew="@SupportsSaveAndNew" SupportsDelete="@SupportsDelete"
                   FormCaption="@L["Jewelry"].Value" IconCssClass="@TradeXpressIcons.Jewelry"
                   EntityValue="@(m => m.Code)"
                   IsReadOnly="@(m => m.IsGlobal && CurrentTenant?.Id != null)"

@@ -52,6 +52,7 @@ public partial class SalesChannelEtsyProductAppService : TradeXpressAppService, 
     private readonly MarketplaceImageDownloader _imageDownloader;
     private readonly IEntityMediaAppService _entityMedia;
     private readonly IEtsyTaxonomyAppService _taxonomyAppService;
+    private readonly SalesChannelEtsyProductRemover _remover;
 
     public SalesChannelEtsyProductAppService(
         IRepository<SalesChannelEtsyProduct, Guid> repository,
@@ -74,8 +75,10 @@ public partial class SalesChannelEtsyProductAppService : TradeXpressAppService, 
         ICurrentCompany currentCompany,
         MarketplaceImageDownloader imageDownloader,
         IEntityMediaAppService entityMedia,
-        IEtsyTaxonomyAppService taxonomyAppService)
+        IEtsyTaxonomyAppService taxonomyAppService,
+        SalesChannelEtsyProductRemover remover)
     {
+        _remover = remover;
         _repository = repository;
         _productRepository = productRepository;
         _variantRepository = variantRepository;
@@ -262,10 +265,11 @@ public partial class SalesChannelEtsyProductAppService : TradeXpressAppService, 
         }
     }
 
-    /// <summary>Etsy satıcı SKU tabanı: "{ÜrünKodu}-{Sıra}" — kayıt-bazlı benzersiz + insan-okunur (frozen).</summary>
+    /// <summary>Etsy satıcı SKU tabanı — kayıt-bazlı benzersiz + insan-okunur (frozen). İLK listeleme ÇIPLAK ürün
+    /// kodudur; son ek 2'den başlar (<see cref="ChannelSequenceCode"/> SSOT — "-1" üretilmez).</summary>
     private static string BuildSellerSkuBase(string productCode, int sequenceNo)
     {
-        return $"{productCode}-{sequenceNo}";
+        return ChannelSequenceCode.Compose(productCode, sequenceNo);
     }
 
     [Authorize(TradeXpressPermissions.SalesChannels.Update)]
@@ -304,21 +308,9 @@ public partial class SalesChannelEtsyProductAppService : TradeXpressAppService, 
     public virtual async Task DeleteAsync(Guid id)
     {
         var entity = await GetOwnedAsync(id);
-        // Kanal-özel varyant override başlıkları + reçete satırları + özellik/değer grafı (ayrı tablolar) —
-        // kanal-ürünle birlikte temizlenir.
-        await _channelRecipeLineRepository.DeleteAsync(r => r.SalesChannelEtsyProductId == entity.Id, autoSave: true);
-        await _stockItemRepository.DeleteAsync(v => v.SalesChannelEtsyProductId == entity.Id, autoSave: true);
-        var channelAttributeIds = await AsyncExecuter.ToListAsync(
-            (await _channelAttributeRepository.GetQueryableAsync())
-                .Where(a => a.SalesChannelEtsyProductId == entity.Id)
-                .Select(a => a.Id));
-        if (channelAttributeIds.Count > 0)
-        {
-            await _channelAttributeValueRepository.DeleteAsync(v => channelAttributeIds.Contains(v.AttributeId), autoSave: true);
-            await _channelAttributeRepository.DeleteAsync(a => a.SalesChannelEtsyProductId == entity.Id, autoSave: true);
-        }
-
-        await _repository.DeleteAsync(entity, autoSave: true);
+        // Kanal-özel varyant override başlıkları + reçete satırları + özellik/değer grafı TEK yerde
+        // (SalesChannelEtsyProductRemover) — şablon ürün silme yolu ve içe aktarım temizliği de onu tüketir.
+        await _remover.RemoveGraphAsync(entity);
     }
 
     // ── Etsy varyant ÖZELLİKLERİ (klon-sonra-ayrış) + kartezyen kombinasyon RECONCILE ─────────────────────
@@ -1248,15 +1240,23 @@ public partial class SalesChannelEtsyProductAppService : TradeXpressAppService, 
 
     private async Task<Product> GetOwnedProductAsync(Guid productId)
     {
-        var companyId = EnsureCurrentCompanyId();
-        var product = await AsyncExecuter.FirstOrDefaultAsync(
-            (await _productRepository.GetQueryableAsync()).Where(x => x.Id == productId && x.CompanyId == companyId));
+        var product = await FindOwnedProductAsync(productId);
         if (product is null)
         {
             throw new BusinessException("TradeXpress:Etsy:Product:ProductNotFound");
         }
 
         return product;
+    }
+
+    /// <summary>Şablon ürünü bulur, YOKSA null döner (Trendyol ikizi). Ürün SİLİNMİŞ olabilir: kanal kaydı ürüne
+    /// yalnız Guid ile bağlıdır → ölü referans mümkündür. İhtimali GÖRMEK isteyen çağıran (içe aktarım) bunu,
+    /// ihtimalin hata olduğu çağıranlar <see cref="GetOwnedProductAsync"/>'i kullanır.</summary>
+    private async Task<Product?> FindOwnedProductAsync(Guid productId)
+    {
+        var companyId = EnsureCurrentCompanyId();
+        return await AsyncExecuter.FirstOrDefaultAsync(
+            (await _productRepository.GetQueryableAsync()).Where(x => x.Id == productId && x.CompanyId == companyId));
     }
 
     private Guid EnsureCurrentCompanyId()

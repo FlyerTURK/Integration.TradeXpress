@@ -25,14 +25,27 @@ public class SalesChannelSubAccountBinder : ITransientDependency
         _subAccountRepository = subAccountRepository;
     }
 
-    /// <summary>Alt hesabı doğrulayıp kanala bağlar. <c>null</c> = bağı çöz (tanımsız bırak).</summary>
+    /// <summary>Alt hesabı doğrulayıp kanala bağlar. <b>ZORUNLU</b> — boş geçilemez (2026-08-06 Hakan kararı).
+    ///
+    /// <para><b>Neden kaydın kendisinde durduruluyor:</b> carisi olmayan kanalda sipariş rezervasyon fişinin
+    /// BAŞLIĞI kurulamıyor (fiş şeması cari ister) ve her sipariş sessizce <c>Blocked</c>'a düşüyordu. Arıza
+    /// siparişte görünüyor, sebebi kanalda duruyordu. Eksik veriyi doğduğu yerde reddetmek, sonradan
+    /// izi sürülemeyen bir davranışa dönüşmesinden iyidir.</para>
+    ///
+    /// <para>Bu metot üç kanalın Create ve Update yollarının TAMAMINDA çağrıldığı için tek kapı — burada
+    /// zorlamak altı ayrı yerde tekrar etmekten güvenli.</para></summary>
     public virtual async Task BindAsync(SalesChannelBase channel, Guid? subAccountId)
     {
-        if (subAccountId is { } id && id != Guid.Empty && await _subAccountRepository.FindAsync(id) is null)
+        if (subAccountId is not { } id || id == Guid.Empty)
+        {
+            throw new BusinessException("TradeXpress:SalesChannel:SubAccountRequired");
+        }
+
+        if (await _subAccountRepository.FindAsync(id) is null)
         {
             throw new BusinessException("TradeXpress:SalesChannel:SubAccountNotFound");
         }
 
-        channel.SetSubAccount(subAccountId);
+        channel.SetSubAccount(id);
     }
 }

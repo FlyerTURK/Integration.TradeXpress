@@ -56,7 +56,11 @@ public sealed class MarketplaceImageDownloader : ITransientDependency
         var links = new List<EntityMediaLinkEditDto>(urls.Count);
         foreach (var url in urls)
         {
-            var media = await TryImportAsync(url);
+            // Kütüphane adı ÜRÜNDEN türetilir ("{Kod}-{sıra}"). Ad verilmezse URL'nin son parçası kalıyordu ve
+            // N11/Trendyol CDN adları ("1_org_zoom.jpg") kütüphaneyi anlamsız dolduruyordu (2026-08-07 Hakan
+            // tespiti). Uzantı URL'den korunur. NOT: içerik dedup'ı ContentHash'ledir — aynı görsel zaten
+            // kütüphanedeyse MEVCUT kayıt (eski adıyla) kullanılır, ad yeniden yazılmaz.
+            var media = await TryImportAsync(url, BuildLibraryFileName(product.Code, links.Count + 1, url));
             if (media is null)
             {
                 continue;
@@ -81,11 +85,11 @@ public sealed class MarketplaceImageDownloader : ITransientDependency
 
     /// <summary>Tek URL'yi kütüphaneye import eder. Herhangi bir hatada (ağ/timeout/SSRF guard/bozuk içerik)
     /// null döner + warning loglar — çağıran görseli atlar, import devam eder.</summary>
-    private async Task<MediaDto?> TryImportAsync(string url)
+    private async Task<MediaDto?> TryImportAsync(string url, string fileName)
     {
         try
         {
-            return await _media.ImportFromUrlAsync(new MediaImportUrlDto { Url = url });
+            return await _media.ImportFromUrlAsync(new MediaImportUrlDto { Url = url, FileName = fileName });
         }
         catch (Exception ex)
         {
@@ -93,5 +97,22 @@ public sealed class MarketplaceImageDownloader : ITransientDependency
             _logger.LogWarning(ex, "Pazaryeri görseli DAM'a import edilemedi, atlanıyor: {ImageUrl}", url);
             return null;
         }
+    }
+
+    /// <summary>Kütüphane görünen adı: "{ÜrünKodu}-{sıra}{uzantı}". Uzantı URL'den korunur (tip algısı uzantıdan
+    /// çalışır); URL uzantısızsa ".jpg" varsayılır (pazaryeri CDN'leri fiilen JPEG servis eder).</summary>
+    private static string BuildLibraryFileName(string productCode, int order, string url)
+    {
+        var extension = ".jpg";
+        if (Uri.TryCreate(url, UriKind.Absolute, out var uri))
+        {
+            var fromUrl = System.IO.Path.GetExtension(uri.LocalPath);
+            if (!string.IsNullOrWhiteSpace(fromUrl))
+            {
+                extension = fromUrl;
+            }
+        }
+
+        return $"{productCode}-{order}{extension}";
     }
 }

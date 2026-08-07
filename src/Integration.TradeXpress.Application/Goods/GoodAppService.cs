@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
@@ -305,14 +305,14 @@ public class GoodAppService
     public override async Task<GoodGetDto> CreateAsync(GoodCreateDto input)
     {
         var dto = await base.CreateAsync(input);
-        await SaveGraphAsync(dto.Id, input.Suppliers, input.Documents, input.Notes, input.Attributes, input.Variants);
+        await SaveGraphAsync(dto.Id, input.Suppliers, input.Documents, input.Notes, input.Attributes, input.Variants, input.Media);
         return await GetAsync(dto.Id);
     }
 
     public override async Task<GoodGetDto> UpdateAsync(Guid id, GoodUpdateDto input)
     {
         var dto = await base.UpdateAsync(id, input);
-        await SaveGraphAsync(id, input.Suppliers, input.Documents, input.Notes, input.Attributes, input.Variants);
+        await SaveGraphAsync(id, input.Suppliers, input.Documents, input.Notes, input.Attributes, input.Variants, input.Media);
         return await GetAsync(id);
     }
 
@@ -325,7 +325,8 @@ public class GoodAppService
         List<EntityDocumentEditDto> documents,
         List<EntityNoteEditDto> notes,
         List<EntityAttributeGraphDto> attributes,
-        List<GoodVariantGraphDto> variants)
+        List<GoodVariantGraphDto> variants,
+        List<EntityMediaLinkEditDto> media)
     {
         var good = await _goodRepository.GetAsync(goodId);
 
@@ -346,15 +347,23 @@ public class GoodAppService
             await _supplierRepository.InsertAsync(row, autoSave: false);
         }
 
-        // Dokümanlar + notlar — entity-agnostik ("Good" bağlamı). Görsel ana kayıtta DEĞİL → varyant medyasında.
+        // Dokümanlar + notlar + KAYIT-GENELİ MEDYA — entity-agnostik ("Good" bağlamı).
+        //
+        // Medya 2026-08-06'da eklendi (Hakan kuralı: her medya tipi İKİ bağlamı da taşır). Önceden yalnız
+        // VARYANT medyası vardı ve doc "görsel ana kayıtta DEĞİL" diyordu — oysa Product'ta kayıt-geneli
+        // medya varken Good'da hiç olmaması, "ürünün aynası" olması gereken mamül formunu görselsiz
+        // bırakıyordu. İki depo AYRIDIR ve biri diğerinden TÜRETİLMEZ; push zinciri varyant→kayıt
+        // fallback'iyle okur (MarketplacePushImageResolver).
         await _documentService.ReplaceForAsync(GoodEntityName, goodId, documents);
         await _noteService.ReplaceForAsync(GoodEntityName, goodId, notes);
+        await _entityMedia.ReplaceForAsync(GoodEntityName, goodId, good.CompanyId, media);
 
         // Varyant sistemi — JENERİK agnostik servise delege ("Good" bağlamı). Çekirdek (nitelik/değer/varyant) serviste;
         // Good-ÖZEL fiyat/stok uzantısı saveExtensionAsync callback'iyle GoodVariantDetail'e (çözülen DB varyanta) bağlanır.
         await _entityVariant.SaveGraphAsync(
             GoodEntityName, goodId, good.CompanyId, good.Name, attributes, variants,
-            saveExtensionAsync: (dto, variantId) => SaveVariantDetailAsync(good.CompanyId, dto, variantId));
+            saveExtensionAsync: (dto, variantId) => SaveVariantDetailAsync(good.CompanyId, dto, variantId),
+            ownerCode: good.Code);   // niteliksiz tek varyant sahibin kodunu izler ("ANAVARYANT" değil)
     }
 
     // Varyant fiyat/stok uzantısı (GoodVariantDetail) — çözülen DB varyanta bağlar (yoksa ekle/varsa güncelle).

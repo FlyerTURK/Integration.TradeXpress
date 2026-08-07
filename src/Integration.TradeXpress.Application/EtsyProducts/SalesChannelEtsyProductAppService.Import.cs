@@ -79,7 +79,8 @@ public partial class SalesChannelEtsyProductAppService
 
             var currencyUnitId = await ResolveCurrencyUnitIdByCodeAsync(listing.CurrencyCode, currencyCache, report);
 
-            var existing = FindExistingChannelRecord(listing, existingRecords);
+            var existing = await DiscardOrphanedRecordAsync(
+                FindExistingChannelRecord(listing, existingRecords), existingRecords, report);
 
             Product product;
             Dictionary<long, Guid> variantByEtsyProductId;
@@ -222,6 +223,31 @@ public partial class SalesChannelEtsyProductAppService
         }
     }
 
+    /// <summary>ÖKSÜZ kanal kaydını eler — Trendyol ikizi
+    /// (<c>SalesChannelTrTrendyolProductAppService.Import.DiscardOrphanedRecordAsync</c>; gerekçe ve bedeli orada).
+    /// Kısaca: şablon ürünü silinmiş kanal kaydı kullanılamaz durumdadır ve önceden TEK böyle kayıt tüm içe
+    /// aktarımı <c>ProductNotFound</c> ile iptal ediyordu.</summary>
+    private async Task<SalesChannelEtsyProduct?> DiscardOrphanedRecordAsync(
+        SalesChannelEtsyProduct? existing,
+        List<SalesChannelEtsyProduct> existingRecords,
+        EtsyImportResultDto report)
+    {
+        if (existing is null || await FindOwnedProductAsync(existing.ProductId) is not null)
+        {
+            return existing;
+        }
+
+        // Kullanıcıya RAPORLANMAZ — gerekçe Trendyol ikizinde.
+        Logger.LogInformation(
+            "Etsy içe aktarım: {SellerSkuBase} kanal kaydının şablon ürünü ({ProductId}) silinmiş — kayıt kaldırıldı, ürün mağazadan yeniden kurulacak.",
+            existing.SellerSkuBase,
+            existing.ProductId);
+
+        await _remover.RemoveGraphAsync(existing);
+        existingRecords.Remove(existing);
+        return null;
+    }
+
     // ── Eşleşme (idempotency: EtsyListingId) ────────────────────────────────────────────────────────
 
     /// <summary>Mevcut kanal kaydı eşleşmesi — anahtar <see cref="SalesChannelEtsyProduct.EtsyListingId"/> birebir
@@ -252,7 +278,7 @@ public partial class SalesChannelEtsyProductAppService
     {
         var companyId = channel.CompanyId;
         var offerings = listing.Offerings;
-        var code = await BuildUniqueProductCodeAsync(companyId, offerings[0].Sku, listing.ListingId);
+        var code = await BuildUniqueProductCodeAsync(companyId, offerings[0].Sku, listing.ListingId, report);
 
         // Ad TEK atamayla casing-korumalı yazılır (ctor'a geçici ad = KOD; hemen normalizeTitle:false ile gerçek başlık).
         var product = new Product(companyId, code, code);
@@ -282,7 +308,7 @@ public partial class SalesChannelEtsyProductAppService
         for (var i = 0; i < offerings.Count; i++)
         {
             var offering = offerings[i];
-            var variantCode = BuildUniqueVariantCode(offering.Sku, code, i + 1, usedCodes);
+            var variantCode = BuildUniqueVariantCode(offering.Sku, code, usedCodes);
 
             // Agnostik EntityVariant — Ad CASE-KORUR (EnsureRequiredText; TitleCase YOK) → başlık doğrudan.
             var variant = new EntityVariant(
@@ -322,7 +348,7 @@ public partial class SalesChannelEtsyProductAppService
         }
 
         // Ana-varyant değişmezi merkezî kapıdan (tekil main garanti; idempotent) — agnostik EntityVariantManager.
-        await _variantManager.EnsureMainVariantAsync(ProductEntityName, product.Id, companyId);
+        await _variantManager.EnsureMainVariantAsync(ProductEntityName, product.Id, companyId, product.Code, product.Name);
         return (product, variantByEtsyProductId);
     }
 
@@ -474,33 +500,40 @@ public partial class SalesChannelEtsyProductAppService
     // ── Kod / metin normalizasyon (Trendyol import onarım felsefesiyle hizalı) ───────────────────────
 
     /// <summary>Şablon kodu: sku ?? "ETSY-{listing_id}" normalize edilir; şirket içinde benzersizlik "-2/-3..." son
-    /// ekiyle döngülü sağlanır (Code unique index'i ham DB hatasına düşmesin). Soft-delete filtresi KAPALI: silinmiş
-    /// satır kodu hâlâ işgal eder (Trendyol BuildUniqueProductCodeAsync ile aynı bilinçli simetri).</summary>
-    private async Task<string> BuildUniqueProductCodeAsync(Guid companyId, string? sku, long listingId)
+    /// ekiyle döngülü sağlanır (Code unique index'i ham DB hatasına düşmesin). Soft-delete filtresi AÇIK: Product
+    /// indeksi 2026-08-07'de <c>IsDeleted = 0</c> kazandı → silinmiş ürünün kodu SERBESTTİR (Trendyol ikizi;
+    /// gerekçe orada).</summary>
+    private async Task<string> BuildUniqueProductCodeAsync(
+        Guid companyId, string? sku, long listingId, EtsyImportResultDto report)
     {
         var rawCode = sku is { Length: > 0 } value ? value : $"ETSY-{listingId}";
-        using (DataFilter.Disable<ISoftDelete>())
+        var baseCode = NormalizeImportCode(rawCode, ProductConsts.CodeMaxLength);
+        var candidate = baseCode;
+        var suffix = 2;
+        while (await AsyncExecuter.AnyAsync(
+                   (await _productRepository.GetQueryableAsync())
+                       .Where(p => p.CompanyId == companyId && p.Code == candidate)))
         {
-            var baseCode = NormalizeImportCode(rawCode, ProductConsts.CodeMaxLength);
-            var candidate = baseCode;
-            var suffix = 2;
-            while (await AsyncExecuter.AnyAsync(
-                       (await _productRepository.GetQueryableAsync())
-                           .Where(p => p.CompanyId == companyId && p.Code == candidate)))
-            {
-                var suffixText = $"-{suffix}";
-                candidate = Truncate(baseCode, ProductConsts.CodeMaxLength - suffixText.Length) + suffixText;
-                suffix++;
-            }
-
-            return candidate;
+            var suffixText = $"-{suffix}";
+            candidate = Truncate(baseCode, ProductConsts.CodeMaxLength - suffixText.Length) + suffixText;
+            suffix++;
         }
+
+        // Son ek gerekti = aynı kodlu CANLI ürün var → kullanıcıya raporlanır (Trendyol ikizi).
+        if (!string.Equals(candidate, baseCode, StringComparison.Ordinal))
+        {
+            report.Warnings.Add(L["EtsyImport:CodeUniquified", baseCode, candidate].Value);
+        }
+
+        return candidate;
     }
 
-    /// <summary>Varyant kodu — sku ?? "{ÜrünKodu}-{index}"; benzersizlik YENİ ürünün kendi içinde (bellek-içi küme).</summary>
-    private static string BuildUniqueVariantCode(string? sku, string productCode, int index, HashSet<string> usedCodes)
+    /// <summary>Varyant kodu — sku ?? ÜRÜN KODU (çıplak); benzersizlik YENİ ürünün kendi içinde (bellek-içi küme:
+    /// ikinci sku'suz kalem "-2" alır). Eski fallback "{ÜrünKodu}-{index}" idi ve TEK varyantlı üründe bile
+    /// "1234-1" üretiyordu (2026-08-07 Hakan bulgusu — "-1" hiçbir üreticide yok artık).</summary>
+    private static string BuildUniqueVariantCode(string? sku, string productCode, HashSet<string> usedCodes)
     {
-        var rawCode = sku is { Length: > 0 } value ? value : $"{productCode}-{index}";
+        var rawCode = sku is { Length: > 0 } value ? value : productCode;
         var baseCode = NormalizeImportCode(rawCode, EntityVariantConsts.VariantCodeMaxLength);
         var candidate = baseCode;
         var suffix = 2;

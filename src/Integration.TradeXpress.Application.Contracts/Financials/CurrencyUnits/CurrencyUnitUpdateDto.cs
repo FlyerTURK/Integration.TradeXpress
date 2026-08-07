@@ -11,7 +11,7 @@ namespace Integration.TradeXpress.Financials.CurrencyUnits;
 public class CurrencyUnitUpdateDto : IUpdateDto
 {
     [Required]
-    [StringLength(CurrencyConsts.CodeMaxLength, MinimumLength = EntityFieldConsts.CodeMinLength)]
+    [StringLength(CurrencyConsts.CodeMaxLength, MinimumLength = CurrencyConsts.CodeMinLength)]
     public string Code { get; set; } = string.Empty;
 
     [Required]

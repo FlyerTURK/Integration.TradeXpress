@@ -21,8 +21,15 @@ public class EntityVariantManager : DomainService
     }
 
     /// <summary>Sahip entity'nin ana (main) varyantını garanti eder (idempotent): main varsa döner (fazlalıkları
-    /// düşürür); varyant var main yoksa ilkini (en düşük Code) main yapar; hiç yoksa sabit kimlikli varsayılan main kurar.</summary>
-    public async Task<EntityVariant> EnsureMainVariantAsync(string entityName, Guid entityId, Guid? companyId)
+    /// düşürür); varyant var main yoksa ilkini (en düşük Code) main yapar; hiç yoksa varsayılan main kurar.
+    ///
+    /// <para><b>Varsayılan main'in kimliği SAHİPTEN gelir</b> (2026-08-06 Hakan kararı: <i>"tek bir varyant demek,
+    /// ayrıma gitmemek demek — ANAVARYANT boşa çıkmalı"</i>): <paramref name="ownerCode"/>/<paramref name="ownerName"/>
+    /// verilirse yeni kurulan varyant sahibin kodunu/adını taşır; "ANAVARYANT" sentinel'i yalnız sahibin kimliği
+    /// bilinmediğinde savunma olarak kalır. Push zinciri varyant kodunu SKU olarak gönderdiğinden bu doğrudan
+    /// pazaryerine yansır — "1234" gider, "ANAVARYANT" değil.</para></summary>
+    public async Task<EntityVariant> EnsureMainVariantAsync(
+        string entityName, Guid entityId, Guid? companyId, string? ownerCode = null, string? ownerName = null)
     {
         using (_dataFilter.Disable<ICompanyScoped>())
         {
@@ -52,8 +59,8 @@ public class EntityVariantManager : DomainService
                 companyId,
                 entityName,
                 entityId,
-                EntityVariantConsts.MainVariantCode,
-                EntityVariantConsts.MainVariantName,
+                string.IsNullOrWhiteSpace(ownerCode) ? EntityVariantConsts.MainVariantCode : ownerCode,
+                string.IsNullOrWhiteSpace(ownerName) ? EntityVariantConsts.MainVariantName : ownerName,
                 isMain: true);
 
             await _variantRepository.InsertAsync(variant, autoSave: true);

@@ -245,7 +245,7 @@ public abstract class EntityVariantSynchronizerTests<TStartupModule> : TradeXpre
     // ── 0 attribute ↔ base varyant geçişleri ─────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task Zero_attributes_produce_single_main_base_variant()
+    public async Task Zero_attributes_produce_single_main_base_variant_carrying_the_owner_identity()
     {
         var companyId = Guid.NewGuid();
         using (_currentCompany.Change(companyId))
@@ -254,12 +254,41 @@ public abstract class EntityVariantSynchronizerTests<TStartupModule> : TradeXpre
 
             await SynchronizeAsync(product);
 
+            // Tek varyant SAHİBİN kimliğini taşır (2026-08-06 Hakan kararı: "ANAVARYANT boşa çıkmalı") —
+            // varyant kodu pazaryerine SKU olarak gittiği için sentinel doğrudan müşteriye sızıyordu.
             var variants = await GetVariantsAsync(product.Id);
             variants.Count.ShouldBe(1);
-            variants[0].Code.ShouldBe(EntityVariantConsts.MainVariantCode);
-            variants[0].Name.ShouldBe(EntityVariantConsts.MainVariantName);
+            variants[0].Code.ShouldBe(product.Code);
+            variants[0].Name.ShouldBe(product.Name);
             variants[0].IsMain.ShouldBeTrue();
             variants[0].IsActive.ShouldBeTrue();
+        }
+    }
+
+    /// <summary>Sahibin kodu DEĞİŞİNCE niteliksiz tek varyant izler — izlemeseydi bayat kod SKU olarak
+    /// pazaryerine gitmeye devam ederdi. Eski "ANAVARYANT"lı kayıtlar da aynı yoldan İLK kayıtta kendini onarır
+    /// (sentinel ≠ sahip kodu → eşitlenir).</summary>
+    [Fact]
+    public async Task Base_variant_follows_the_owner_code_when_it_changes()
+    {
+        var companyId = Guid.NewGuid();
+        using (_currentCompany.Change(companyId))
+        {
+            var product = await CreateProductAsync(companyId, "OLDCODE", "Plain Product");
+            await SynchronizeAsync(product);
+
+            await WithUnitOfWorkAsync(async () =>
+            {
+                var entity = await _productRepository.GetAsync(product.Id);
+                entity.SetCode("NEWCODE");
+                await _productRepository.UpdateAsync(entity, autoSave: true);
+                product = entity;
+            });
+
+            await SynchronizeAsync(product);
+
+            var variant = (await GetVariantsAsync(product.Id)).ShouldHaveSingleItem();
+            variant.Code.ShouldBe("NEWCODE");
         }
     }
 
@@ -308,7 +337,7 @@ public abstract class EntityVariantSynchronizerTests<TStartupModule> : TradeXpre
 
             var after = await GetVariantsAsync(product.Id);
             after.Count.ShouldBe(1);
-            after[0].Code.ShouldBe(EntityVariantConsts.MainVariantCode);
+            after[0].Code.ShouldBe(product.Code);   // yeniden kurulan base varyant sahibin kimliğini taşır
             after[0].IsMain.ShouldBeTrue();
             (await GetLinksAsync(linkedIds)).ShouldBeEmpty();
         }
@@ -371,8 +400,11 @@ public abstract class EntityVariantSynchronizerTests<TStartupModule> : TradeXpre
 
     private async Task SynchronizeAsync(Product product)
     {
+        // ownerCode ÜRETİM çağrılarıyla aynı geçilir (SaveGraphAsync → SynchronizeAsync zinciri) —
+        // karakterizasyon ağı üretim davranışını yansıtmalı, sentinel'li eski yolu değil.
         await WithUnitOfWorkAsync(async () =>
-            await _synchronizer.SynchronizeAsync(ProductEntityName, product.Id, product.CompanyId, product.Name));
+            await _synchronizer.SynchronizeAsync(
+                ProductEntityName, product.Id, product.CompanyId, product.Name, product.Code));
     }
 
     private async Task<List<EntityVariant>> GetVariantsAsync(Guid productId)

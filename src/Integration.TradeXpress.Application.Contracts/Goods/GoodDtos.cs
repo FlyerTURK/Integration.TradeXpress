@@ -103,6 +103,12 @@ public class GoodGetDto : CatalogGetDtoBase, IHasCode
     public List<EntityNoteEditDto> Notes { get; set; } = new();
     public List<EntityAttributeGraphDto> Attributes { get; set; } = new();
     public List<GoodVariantGraphDto> Variants { get; set; } = new();
+
+    /// <summary>KAYIT-GENELİ medya (2026-08-06 Hakan kuralı: her medya tipi İKİ bağlamı da taşır).
+    /// Varyanta özel görseller <c>GoodVariantGraphDto.Media</c>'da ayrı durur; bu liste markanın/ürünün
+    /// genel görselleridir. İkisi ayrı depodur, biri diğerinden TÜRETİLMEZ — push zinciri varyant→kayıt
+    /// fallback'iyle okur.</summary>
+    public List<EntityMediaLinkEditDto> Media { get; set; } = new();
 }
 
 public class GoodCreateDto : CatalogCreateDtoBase
@@ -145,6 +151,12 @@ public class GoodCreateDto : CatalogCreateDtoBase
     public List<EntityNoteEditDto> Notes { get; set; } = new();
     public List<EntityAttributeGraphDto> Attributes { get; set; } = new();
     public List<GoodVariantGraphDto> Variants { get; set; } = new();
+
+    /// <summary>KAYIT-GENELİ medya (2026-08-06 Hakan kuralı: her medya tipi İKİ bağlamı da taşır).
+    /// Varyanta özel görseller <c>GoodVariantGraphDto.Media</c>'da ayrı durur; bu liste markanın/ürünün
+    /// genel görselleridir. İkisi ayrı depodur, biri diğerinden TÜRETİLMEZ — push zinciri varyant→kayıt
+    /// fallback'iyle okur.</summary>
+    public List<EntityMediaLinkEditDto> Media { get; set; } = new();
 }
 
 public class GoodUpdateDto : CatalogUpdateDtoBase
@@ -185,4 +197,10 @@ public class GoodUpdateDto : CatalogUpdateDtoBase
     public List<EntityNoteEditDto> Notes { get; set; } = new();
     public List<EntityAttributeGraphDto> Attributes { get; set; } = new();
     public List<GoodVariantGraphDto> Variants { get; set; } = new();
+
+    /// <summary>KAYIT-GENELİ medya (2026-08-06 Hakan kuralı: her medya tipi İKİ bağlamı da taşır).
+    /// Varyanta özel görseller <c>GoodVariantGraphDto.Media</c>'da ayrı durur; bu liste markanın/ürünün
+    /// genel görselleridir. İkisi ayrı depodur, biri diğerinden TÜRETİLMEZ — push zinciri varyant→kayıt
+    /// fallback'iyle okur.</summary>
+    public List<EntityMediaLinkEditDto> Media { get; set; } = new();
 }

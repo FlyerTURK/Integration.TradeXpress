@@ -19,6 +19,11 @@ public partial class MetalEditHost
 {
     [Parameter] public Guid? Id { get; set; }
     [Parameter] public bool IsPopupMode { get; set; }
+
+    /// <summary>ÇAĞRI-BAŞI footer daraltma (2026-08-06 Hakan kararı) — gerekçe GoodEditHost'ta.</summary>
+    [Parameter] public bool SupportsSaveAndNew { get; set; } = true;
+
+    [Parameter] public bool SupportsDelete { get; set; } = true;
     [Parameter] public EventCallback OnSaved { get; set; }
     [Parameter] public EventCallback OnClosed { get; set; }
 

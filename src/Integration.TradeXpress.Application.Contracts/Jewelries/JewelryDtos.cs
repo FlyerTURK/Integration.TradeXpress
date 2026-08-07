@@ -69,6 +69,11 @@ public class JewelryGetDto : CatalogGetDtoBase, IHasCode
     public List<EntityNoteEditDto> Notes { get; set; } = new();
     public List<EntityAttributeGraphDto> Attributes { get; set; } = new();
     public List<EntityVariantGraphDto> Variants { get; set; } = new();
+
+    /// <summary>KAYIT-GENELİ medya (CLAUDE.md §6 "her medya tipi İKİ bağlamı da taşır"). Varyanta özel görseller
+    /// <c>EntityVariantGraphDto.Media</c>'da AYRI durur; bu liste kaydın genel görselleridir. İkisi ayrı depodur,
+    /// biri diğerinden TÜRETİLMEZ.</summary>
+    public List<EntityMediaLinkEditDto> Media { get; set; } = new();
 }
 
 public class JewelryCreateDto : CatalogCreateDtoBase
@@ -106,6 +111,11 @@ public class JewelryCreateDto : CatalogCreateDtoBase
     public List<EntityNoteEditDto> Notes { get; set; } = new();
     public List<EntityAttributeGraphDto> Attributes { get; set; } = new();
     public List<EntityVariantGraphDto> Variants { get; set; } = new();
+
+    /// <summary>KAYIT-GENELİ medya (CLAUDE.md §6 "her medya tipi İKİ bağlamı da taşır"). Varyanta özel görseller
+    /// <c>EntityVariantGraphDto.Media</c>'da AYRI durur; bu liste kaydın genel görselleridir. İkisi ayrı depodur,
+    /// biri diğerinden TÜRETİLMEZ.</summary>
+    public List<EntityMediaLinkEditDto> Media { get; set; } = new();
 }
 
 public class JewelryUpdateDto : CatalogUpdateDtoBase
@@ -141,4 +151,9 @@ public class JewelryUpdateDto : CatalogUpdateDtoBase
     public List<EntityNoteEditDto> Notes { get; set; } = new();
     public List<EntityAttributeGraphDto> Attributes { get; set; } = new();
     public List<EntityVariantGraphDto> Variants { get; set; } = new();
+
+    /// <summary>KAYIT-GENELİ medya (CLAUDE.md §6 "her medya tipi İKİ bağlamı da taşır"). Varyanta özel görseller
+    /// <c>EntityVariantGraphDto.Media</c>'da AYRI durur; bu liste kaydın genel görselleridir. İkisi ayrı depodur,
+    /// biri diğerinden TÜRETİLMEZ.</summary>
+    public List<EntityMediaLinkEditDto> Media { get; set; } = new();
 }

@@ -341,11 +341,12 @@ public class SalesChannelTrTrendyolProduct : FullAuditedAggregateRoot<Guid>, IMu
             .ToList();
     }
 
-    /// <summary>Varyant barcode'u — kayıt-scoped ("{VaryantKodu}-{SequenceNo}"): aynı ürünün ikinci Trendyol
-    /// listelemesinde satıcı-geneli barcode çakışmaz. TEK üretim yeri (SSOT).</summary>
+    /// <summary>Varyant barcode'u — kayıt-scoped: İLK listeleme ÇIPLAK varyant kodunu taşır, aynı ürünün ikinci
+    /// listelemesinden itibaren "-{SequenceNo}" son eki ayırır (satıcı-geneli barcode çakışmaz). Kural
+    /// <see cref="ChannelSequenceCode"/>'da (SSOT) — "-1" üretilmez.</summary>
     public virtual string BuildBarcode(string variantCode)
     {
-        return $"{variantCode}-{SequenceNo}";
+        return ChannelSequenceCode.Compose(variantCode, SequenceNo);
     }
 
     /// <summary>Her varyanta gidecek barcode'u belirler — <b>entity'yi MUTASYONA UĞRATMAZ</b> (push ÖNCESİ güvenli

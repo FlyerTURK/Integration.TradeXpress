@@ -18,11 +18,15 @@
     <h5 style="margin:0;">@L["SalesChannelTrTrendyol:Wizard:Title"]</h5>
 </div>
 
-<div class="p-3">
+@* Sarmalayıcı MDI gövdesinin verdiği yüksekliği DOLDURUR (flex:1 + min-height:0) — kabuk içeride
+   kaydırsın, ayak düğmeleri her viewport'ta görünür kalsın. *@
+<div class="p-3" style="flex:1; min-height:0; display:flex; flex-direction:column;">
     <WizardShell FinishText="@L["SalesChannelTrTrendyol:Wizard:Finish"]" OnFinished="@GoToChannelAsync">
 
         @* 1 — Kimlik. YENİ kurulumda ileri = kanalı OLUŞTUR (sunucu kimliği doğrular: ürün listesi page0/size1
              probe'u). MEVCUT kanalda kimlik alanları gösterilmez — kanal zaten var, sırları sunucu redakte eder. *@
+        @if (!IsExistingChannel)
+        {
         <WizardStep Title="@L["SalesChannelTrTrendyol:Wizard:Step:Credentials"]"
                     Description="@(IsExistingChannel ? L["SalesChannelTrTrendyol:Wizard:Step:CredentialsExisting"].Value : L["SalesChannelTrTrendyol:Wizard:Step:CredentialsHelp"].Value)"
                     OnBeforeAdvanceAsync="@CreateChannelAsync">
@@ -48,6 +52,9 @@
                     <DxFormLayoutItem Caption="@($"{L["SalesChannel:ApiSecret"]} *")" ColSpanMd="6">
                         <PasswordTextEdit @bind-Text="@_apiSecret" Tooltip="@L["ShowPassword"]" CssClass="w-100" />
                     </DxFormLayoutItem>
+                    @* Cari ZORUNLU: kanalın carisi yoksa sipariş rezervasyon fişinin başlığı kurulamaz ve her
+                       sipariş sessizce Blocked'a düşer (2026-08-06). Eksikliği kurulum anında sor. *@
+                    <SalesChannelSubAccountField @bind-Value="@_subAccountId" />
                 </DxFormLayout>
                 @if (_channelId != Guid.Empty)
                 {
@@ -55,11 +62,15 @@
                 }
             }
         </WizardStep>
+        }
 
         @* 2 — Kargo firması. N11'den FARKI: Trendyol'da adlandırılmış şablon yok, ürün başına firma seçilir.
              Liste canlı uçtan gelmiyor — resmî statik listeden seed'li (gerekçe seeder doc'unda). *@
+        @* Kargo firması ZORUNLU (2026-08-06 Hakan kararı): seçilmeden İleri PASİF. Eskiden düğme etkin
+           kalıyor, kullanıcı geçiyor, kurulum sonda tamamlanmıyordu — engel vardı ama görünmüyordu. *@
         <WizardStep Title="@L["SalesChannelTrTrendyol:Wizard:Step:Cargo"]"
-                    Description="@L["SalesChannelTrTrendyol:Wizard:Step:CargoHelp"]">
+                    Description="@L["SalesChannelTrTrendyol:Wizard:Step:CargoHelp"]"
+                    CanAdvance="@(_selectedCargoProviderId is not null)">
             @if (_cargoProviders.Count == 0)
             {
                 <div style="color:#b45309; font-size:0.9rem;">@L["SalesChannelTrTrendyol:Wizard:NoCargoProviders"]</div>
@@ -68,11 +79,14 @@
             {
                 <DxFormLayout CssClass="w-100">
                     <DxFormLayoutItem Caption="@L["SalesChannelTrTrendyol:Wizard:DefaultCargoProvider"]" ColSpanMd="6">
+                        @* Temizle düğmesi YOK (2026-08-06 Hakan kararı): seçim zorunlu (CanAdvance ona bağlı) —
+                           temizleme yalnız "İleri pasifken neden pasif" karmaşası üretiyordu. Fikir değiştirmek
+                           = başka firma seçmek; boşa döndürmenin akışta anlamı yok. *@
                         <DxComboBox Data="@_cargoProviders" @bind-Value="@_selectedCargoProviderId"
                                     ValueFieldName="@nameof(TrendyolCargoProviderDto.Id)"
                                     TextFieldName="@nameof(TrendyolCargoProviderDto.Name)"
                                     NullText="@L["SalesChannelTrTrendyol:Wizard:CargoNotChosen"]"
-                                    ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto"
+                                    ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Never"
                                     CssClass="w-100" />
                     </DxFormLayoutItem>
                 </DxFormLayout>

@@ -39,8 +39,25 @@ public class SalesChannelTrN11ProductSkuTests
 
         var map = product.ReconcileSkus(new[] { Candidate(variantId, "KIRMIZI", ("Renk", "Kırmızı")) });
 
-        map[variantId].SellerStockCode.ShouldBe("KIRMIZI-1");   // {VaryantKodu}-{SequenceNo}
+        map[variantId].SellerStockCode.ShouldBe("KIRMIZI");   // İLK listeleme ÇIPLAK varyant kodu (ChannelSequenceCode)
         product.Skus.ShouldHaveSingleItem();
+    }
+
+    /// <summary>Aynı ürünün İKİNCİ listelemesi son ek ALIR — çıplak kod kuralı benzersizliği bozmaz: son ek
+    /// yalnız gerçekten ayırt etmesi gereken yerde (SequenceNo ≥ 2) devreye girer.</summary>
+    [Fact]
+    public void Second_listing_still_gets_a_disambiguating_suffix()
+    {
+        var second = new SalesChannelTrN11Product(
+            companyId: Guid.NewGuid(),
+            salesChannelId: Guid.NewGuid(),
+            productId: Guid.NewGuid(),
+            sellerCode: "URUN01-2",
+            sequenceNo: 2,
+            categoryExternalId: "1001",
+            shipmentTemplateName: "Sablon");
+
+        second.BuildStockCode("KIRMIZI").ShouldBe("KIRMIZI-2");
     }
 
     [Fact]
@@ -51,14 +68,14 @@ public class SalesChannelTrN11ProductSkuTests
 
         // İlk push: satır kurulur + snapshot (RecordSkuPush) → imza temeli oluşur.
         product.ReconcileSkus(new[] { Candidate(oldVariantId, "KIRMIZI", ("Renk", "Kırmızı")) });
-        product.RecordSkuPush("KIRMIZI-1", 5, 100m, new[] { new SalesChannelTrN11ProductCategoryAttribute("Renk", "Kırmızı") });
+        product.RecordSkuPush("KIRMIZI", 5, 100m, new[] { new SalesChannelTrN11ProductCategoryAttribute("Renk", "Kırmızı") });
 
         // Synchronizer varyantı sildi + YENİ id + YENİ kod ile yeniden üretti (aynı seçenek kombinasyonu).
         var newVariantId = Guid.NewGuid();
         var map = product.ReconcileSkus(new[] { Candidate(newVariantId, "KRMZ", ("Renk", "Kırmızı")) });
 
         product.Skus.ShouldHaveSingleItem();                       // YENİ satır AÇILMADI
-        map[newVariantId].SellerStockCode.ShouldBe("KIRMIZI-1");   // dondurulmuş kod KORUNDU
+        map[newVariantId].SellerStockCode.ShouldBe("KIRMIZI");   // dondurulmuş kod KORUNDU
         map[newVariantId].ProductVariantId.ShouldBe(newVariantId); // yeniden bağlandı
     }
 
@@ -74,7 +91,7 @@ public class SalesChannelTrN11ProductSkuTests
         var map = product.ReconcileSkus(new[] { Candidate(newVariantId, "V1", ("Beden", "M")) });
 
         product.Skus.ShouldHaveSingleItem();
-        map[newVariantId].SellerStockCode.ShouldBe("V1-1");
+        map[newVariantId].SellerStockCode.ShouldBe("V1");
     }
 
     [Fact]
@@ -85,7 +102,7 @@ public class SalesChannelTrN11ProductSkuTests
 
         var plan = product.PlanStockCodes(new[] { Candidate(variantId, "V1", ("Beden", "M")) });
 
-        plan[variantId].ShouldBe("V1-1");
+        plan[variantId].ShouldBe("V1");
         product.Skus.ShouldBeEmpty();   // push ÖNCESİ plan satır EKLEMEZ (başarısız push bayat kod dondurmasın)
     }
 
@@ -99,7 +116,7 @@ public class SalesChannelTrN11ProductSkuTests
         // Varyant kodu sonradan değişti ama satır zaten donmuş → plan dondurulmuş kodu döndürür.
         var plan = product.PlanStockCodes(new[] { Candidate(variantId, "YENIKOD", ("Beden", "M")) });
 
-        plan[variantId].ShouldBe("V1-1");
+        plan[variantId].ShouldBe("V1");
     }
 
     [Fact]
@@ -109,8 +126,8 @@ public class SalesChannelTrN11ProductSkuTests
         var variantId = Guid.NewGuid();
         product.ReconcileSkus(new[] { Candidate(variantId, "V1", ("Beden", "M")) });
 
-        product.RecordSkuPush("V1-1", 7, 250m, new[] { new SalesChannelTrN11ProductCategoryAttribute("Beden", "M") });
-        product.ApplySkuIdentity("V1-1", n11SkuId: 999, version: 3);
+        product.RecordSkuPush("V1", 7, 250m, new[] { new SalesChannelTrN11ProductCategoryAttribute("Beden", "M") });
+        product.ApplySkuIdentity("V1", n11SkuId: 999, version: 3);
 
         var sku = product.Skus.Single();
         sku.LastSentQuantity.ShouldBe(7);
@@ -126,10 +143,10 @@ public class SalesChannelTrN11ProductSkuTests
         var product = NewProduct();
         var variantId = Guid.NewGuid();
         product.ReconcileSkus(new[] { Candidate(variantId, "V1") });
-        product.ApplySkuIdentity("V1-1", n11SkuId: 999, version: 3);
+        product.ApplySkuIdentity("V1", n11SkuId: 999, version: 3);
 
         // Sonraki yanıtta version yok → mevcut korunur.
-        product.ApplySkuIdentity("V1-1", n11SkuId: null, version: null);
+        product.ApplySkuIdentity("V1", n11SkuId: null, version: null);
 
         var sku = product.Skus.Single();
         sku.N11SkuId.ShouldBe(999);

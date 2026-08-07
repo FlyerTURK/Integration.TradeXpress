@@ -62,7 +62,12 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
             // SQLite (EFCore testleri) N'...' tanımaz; SQL Server ASCII'yi nvarchar'a örtük çevirir).
             b.PrimitiveCollection(x => x.SubstitutionOverrideVariantIds).HasDefaultValueSql("'[]'");
 
-            b.HasIndex(x => new { x.TenantId, x.CompanyId, x.Code }).IsUnique();
+            // SOFT-DELETE FARKINDALI (2026-08-07 — Hakan bulgusu). Öncesinde filtre yalnız "[TenantId] IS NOT NULL"
+            // idi ve SİLİNMİŞ ürün kodunu KALICI olarak işgal ediyordu: mağazadan yeniden içe aktarılan ürün
+            // orijinal stok koduyla değil "-2" son ekiyle kaydediliyordu. Bu, ev kuralından bir SAPMAYDI — kardeş
+            // katalogların (Good/Metal/Jewelry/Stone/Scrap/Future/Service) hepsi zaten "IsDeleted = 0" taşıyor.
+            b.HasIndex(x => new { x.TenantId, x.CompanyId, x.Code }).IsUnique()
+                .HasFilter("[TenantId] IS NOT NULL AND [IsDeleted] = 0");
             b.HasIndex(x => new { x.TenantId, x.CompanyId });
         });
 

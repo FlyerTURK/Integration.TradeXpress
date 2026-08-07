@@ -136,14 +136,15 @@ public class MetalSeeder(
                     isQuantity: true, stableQuantity: stable);
                 await metalRepository.InsertAsync(metal, autoSave: false);
 
-                // Ana varyant kod/adı agnostik SSOT'tan (EntityVariantConsts) — MetalEditHost + diğer tüm
-                // entity yollarıyla AYNI ("ANAVARYANT" / "Ana Varyant"). Seeder'a özel {kod}-01 üretme YOK.
+                // Ana varyant kimliği SAHİPTEN (2026-08-06 Hakan kararı: "ANAVARYANT boşa çıkmalı") —
+                // EntityVariantManager.EnsureMainVariantAsync'in owner-kimlikli yoluyla AYNI kural. Sentinel
+                // yalnız sahip kimliği bilinmeyen savunma yolunda kaldı; seeder sahibi biliyor.
                 var variant = new EntityVariant(
                     companyId: company.Id,
                     entityName: "Metal",
                     entityId: metal.Id,
-                    code: EntityVariantConsts.MainVariantCode,
-                    name: EntityVariantConsts.MainVariantName,
+                    code: metal.Code,
+                    name: metal.Name,
                     isMain: true,
                     isActive: true);
                 await entityVariantRepository.InsertAsync(variant, autoSave: false);

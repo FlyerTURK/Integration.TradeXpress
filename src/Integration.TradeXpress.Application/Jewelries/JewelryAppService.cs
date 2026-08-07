@@ -183,31 +183,33 @@ public class JewelryAppService
     public override async Task<JewelryGetDto> CreateAsync(JewelryCreateDto input)
     {
         var dto = await base.CreateAsync(input);
-        await SaveGraphAsync(dto.Id, input.Documents, input.Notes, input.Attributes, input.Variants);
+        await SaveGraphAsync(dto.Id, input.Documents, input.Notes, input.Attributes, input.Variants, input.Media);
         return await GetAsync(dto.Id);
     }
 
     public override async Task<JewelryGetDto> UpdateAsync(Guid id, JewelryUpdateDto input)
     {
         var dto = await base.UpdateAsync(id, input);
-        await SaveGraphAsync(id, input.Documents, input.Notes, input.Attributes, input.Variants);
+        await SaveGraphAsync(id, input.Documents, input.Notes, input.Attributes, input.Variants, input.Media);
         return await GetAsync(id);
     }
 
     private async Task SaveGraphAsync(
         Guid jewelryId, List<EntityDocumentEditDto> documents,
-        List<EntityNoteEditDto> notes, List<EntityAttributeGraphDto> attributes, List<EntityVariantGraphDto> variants)
+        List<EntityNoteEditDto> notes, List<EntityAttributeGraphDto> attributes, List<EntityVariantGraphDto> variants,
+        List<EntityMediaLinkEditDto> media)
     {
         var jewelry = await _jewelryRepository.GetAsync(jewelryId);
         await _graph.SaveAsync(
             JewelryEntityName, VariantImageEntityName, jewelryId, jewelry.CompanyId, jewelry.Name,
-            documents, notes, attributes, variants);
+            documents, notes, attributes, variants, media: media, ownerCode: jewelry.Code);
     }
 
     public override async Task<JewelryGetDto> GetAsync(Guid id)
     {
         var dto = await base.GetAsync(id);
         var graph = await _graph.LoadAsync(JewelryEntityName, VariantImageEntityName, id);
+        dto.Media = graph.Media;
         dto.Documents = graph.Documents;
         dto.Notes = graph.Notes;
         dto.Attributes = graph.Attributes;

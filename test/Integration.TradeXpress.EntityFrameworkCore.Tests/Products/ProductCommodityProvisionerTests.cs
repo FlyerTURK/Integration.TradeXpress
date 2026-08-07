@@ -152,6 +152,38 @@ public class ProductCommodityProvisionerTests : TradeXpressEntityFrameworkCoreTe
         product.StockPolicy.ShouldBe(ProductStockPolicy.Fixed);
     }
 
+    /// <summary>MİLYEM UYDURULMAZ (2026-08-06): metal-bacaklı ailede yeni emtia açarken katsayı beyan
+    /// edilmemişse kayıt AÇILMAZ.
+    /// <para>Beyan yoksa entity varsayılanı devreye girerdi — Maden 0.995, Hurda 0.570. Bunlar MAKUL GÖRÜNEN
+    /// tahminlerdir: 22 ayar bilezik 0.916'dır ve yanlış milyem sessizce her değerlemeye, her reçete
+    /// maliyetine girer. Hiçbir yerde hata doğmaz, yalnız rakamlar yanlış olur.</para></summary>
+    [Fact]
+    public async Task Metal_legged_family_refuses_new_commodity_without_declared_factor()
+    {
+        var companyId = await NewCompanyAsync("PRF");
+        var productId = await SeedProductAsync(companyId, "URN-PRF-1", variantCount: 1);
+
+        var result = await WithUnitOfWorkAsync(() => _provisioner.ProvisionAsync(new ProductCommodityProvisionInputDto
+        {
+            Items = new List<ProductCommodityProvisionItemDto>
+            {
+                new()
+                {
+                    ProductId       = productId,
+                    Family          = ProcessType.Metal,
+                    Mode            = ProductCommodityProvisionMode.CreateNew,
+                    FollowingUnitId = Guid.NewGuid(),
+                    Amount          = 5m,
+                    // Factor BİLEREK verilmedi.
+                },
+            },
+        }));
+
+        result.ProvisionedProducts.ShouldBe(0);
+        result.CreatedCommodities.ShouldBe(0);
+        result.Issues.ShouldNotBeEmpty();
+    }
+
     /// <summary>Reçetesi OLAN ürüne dokunulmaz — kullanıcının emeği toplu işlemle ezilemez.</summary>
     [Fact]
     public async Task Product_that_already_has_a_recipe_is_skipped()
@@ -218,6 +250,71 @@ public class ProductCommodityProvisionerTests : TradeXpressEntityFrameworkCoreTe
 
     /// <summary>Her test kendi şirketinde koşar — emtia katalogları per-company (CLAUDE.md §6) ve kod
     /// benzersizliği şirket kapsamlıdır; şirket paylaşmak testleri birbirine bağlardı.</summary>
+    /// <summary>
+    /// <b>ÜRETİLEN REÇETE SATIRI TAM OLMALI</b> (2026-08-06 — iki hata birden canlıda yakalandı).
+    ///
+    /// <para><b>1. <c>ValuationUnitId</c> hiç yazılmıyordu.</b> Maliyet motoru fiyatı hangi birimden
+    /// değerleyeceğini bilemeyince satırı <c>MissingRate</c> işaretler ve maliyeti NULL döndürür: ekranda
+    /// "Kur yok" ve <b>0,00 TRY</b>. Fiyat biliniyordu, birim eksikti. 1.300 TL'lik mamülle kurulan ürün
+    /// sıfır maliyetli görünüyordu.</para>
+    ///
+    /// <para><b>2. <c>Factor</c> sabit <c>1</c> yazılıyordu.</b> Bu alan MİLYEM snapshot'ıdır ve metal-bacaklı
+    /// satırda maliyet <c>gram × Factor</c>'dur. 22 ayar (0.916) yerine 1 kullanmak maden bacağını ~%9
+    /// şişirir — hatasız, uyarısız. Kullanıcının beyan ettiği katsayı DTO'ya alınmış ama satıra hiç
+    /// geçirilmemişti.</para>
+    ///
+    /// <para><b>Hata sınıfı:</b> nesneyi, tüketicisinin ihtiyaç duyduğu alanların ALT KÜMESİYLE kurmak.
+    /// Derleme geçer, test geçer, ekranda hata çıkmaz — yalnız rakam yanlış olur. Bu test o sınıfın
+    /// reçete-satırı ayağını kilitler.</para>
+    /// </summary>
+    [Fact]
+    public async Task Provisioned_line_carries_valuation_unit_and_declared_factor()
+    {
+        var data = await WithUnitOfWorkAsync(() => _seeder.SeedCompanyGraphAsync("PRC"));
+        _companyContext.CompanyId = data.CompanyId;
+        var productId = await SeedProductAsync(data.CompanyId, "URN-PRC-1", variantCount: 1);
+
+        var result = await WithUnitOfWorkAsync(() => _provisioner.ProvisionAsync(new ProductCommodityProvisionInputDto
+        {
+            Items = new List<ProductCommodityProvisionItemDto>
+            {
+                new()
+                {
+                    ProductId       = productId,
+                    Family          = ProcessType.Metal,
+                    Mode            = ProductCommodityProvisionMode.CreateNew,
+                    FollowingUnitId = data.HasUnitId,
+                    Factor          = 0.916m,   // 22 ayar — entity varsayılanı (0.995) DEĞİL
+                    Amount          = 5m,
+                },
+            },
+        }));
+
+        result.ProvisionedProducts.ShouldBe(1);
+
+        var line = (await WithUnitOfWorkAsync(() => LoadLinesAsync(productId))).ShouldHaveSingleItem();
+
+        // Değerleme birimi katalogtan çözülmüş olmalı — null ise satır "Kur yok" olur ve maliyet 0'a düşer.
+        line.ValuationUnitId.ShouldBe(data.HasUnitId);
+
+        // Milyem KULLANICININ BEYANI olmalı; 1 dönerse sabit-değer hatası geri gelmiş demektir.
+        line.Factor.ShouldBe(0.916m);
+
+        // ── BÜTÜNLÜK AĞI (2026-08-07): maliyet motorunun (RecipeCostPopulator) OKUDUĞU HER alan burada
+        // pinlidir — Amount · Quantity · Factor · ValuationUnitId · CommodityId · CommodityProcessType ·
+        // ComponentType · LineOrder. Üreticiye alan eklenmeden motor yeni bir alan okumaya başlarsa bu liste
+        // eksik kalır; listeyi motorla birlikte güncelle. "Nesneyi tüketicisinin alt kümesiyle kurmak"
+        // hatası derlenir ve sessizce yanlış rakam üretir — bu ağ o sınıfın reçete ayağını kapatır. ──
+        line.ComponentType.ShouldBe(RecipeComponentType.CatalogCommodity);
+        line.CommodityProcessType.ShouldBe(ProcessType.Metal);
+        line.CommodityId.ShouldNotBeNull();
+        line.CommodityId.Value.ShouldNotBe(Guid.Empty);
+        line.Amount.ShouldBe(5m);      // maden GRAM kısıtlar (Amount = Quantity × StableQuantity zinciri)
+        line.Quantity.ShouldBe(0m);    // 0 = "adet kısıtı yok" MOD BEYANI — uydurulmuş bir adet değil
+        line.LineOrder.ShouldBeGreaterThanOrEqualTo(0);
+        line.IsDeleted.ShouldBeFalse();
+    }
+
     private async Task<Guid> NewCompanyAsync(string prefix)
     {
         var data = await WithUnitOfWorkAsync(() => _seeder.SeedCompanyGraphAsync(prefix));

@@ -71,6 +71,11 @@ public class MetalGetDto : FollowingUnitCatalogGetDtoBase, IHasCode
     public List<EntityNoteEditDto> Notes { get; set; } = new();
     public List<EntityAttributeGraphDto> Attributes { get; set; } = new();
     public List<MetalVariantGraphDto> Variants { get; set; } = new();
+
+    /// <summary>KAYIT-GENELİ medya (CLAUDE.md §6 "her medya tipi İKİ bağlamı da taşır"). Varyanta özel görseller
+    /// <c>MetalVariantGraphDto.Media</c>'da AYRI durur; bu liste kaydın genel görselleridir. İkisi ayrı depodur,
+    /// biri diğerinden TÜRETİLMEZ.</summary>
+    public List<EntityMediaLinkEditDto> Media { get; set; } = new();
 }
 
 public class MetalCreateDto : FollowingUnitCatalogCreateDtoBase
@@ -103,6 +108,11 @@ public class MetalCreateDto : FollowingUnitCatalogCreateDtoBase
     public List<EntityNoteEditDto> Notes { get; set; } = new();
     public List<EntityAttributeGraphDto> Attributes { get; set; } = new();
     public List<MetalVariantGraphDto> Variants { get; set; } = new();
+
+    /// <summary>KAYIT-GENELİ medya (CLAUDE.md §6 "her medya tipi İKİ bağlamı da taşır"). Varyanta özel görseller
+    /// <c>MetalVariantGraphDto.Media</c>'da AYRI durur; bu liste kaydın genel görselleridir. İkisi ayrı depodur,
+    /// biri diğerinden TÜRETİLMEZ.</summary>
+    public List<EntityMediaLinkEditDto> Media { get; set; } = new();
 }
 
 public class MetalUpdateDto : FollowingUnitCatalogUpdateDtoBase
@@ -136,6 +146,11 @@ public class MetalUpdateDto : FollowingUnitCatalogUpdateDtoBase
     public List<EntityNoteEditDto> Notes { get; set; } = new();
     public List<EntityAttributeGraphDto> Attributes { get; set; } = new();
     public List<MetalVariantGraphDto> Variants { get; set; } = new();
+
+    /// <summary>KAYIT-GENELİ medya (CLAUDE.md §6 "her medya tipi İKİ bağlamı da taşır"). Varyanta özel görseller
+    /// <c>MetalVariantGraphDto.Media</c>'da AYRI durur; bu liste kaydın genel görselleridir. İkisi ayrı depodur,
+    /// biri diğerinden TÜRETİLMEZ.</summary>
+    public List<EntityMediaLinkEditDto> Media { get; set; } = new();
 }
 
 public class MetalVariantGraphDto : EntityVariantGraphDto

@@ -83,8 +83,48 @@ public class TrendyolCategoryAppService : TradeXpressAppService, ITrendyolCatego
                 await _repository.UpdateManyAsync(toUpdate, autoSave: true);
             }
 
+            var seededRates = await SeedRootCommissionRatesAsync();
+            if (seededRates > 0)
+            {
+                Logger.LogInformation("Trendyol kök kategorilerinden {Count} tanesine başlangıç komisyon oranı yazıldı.", seededRates);
+            }
+
             return toInsert.Count + toUpdate.Count;
         }
+    }
+
+    /// <summary>Kök kategorilere BAŞLANGIÇ komisyon oranını yazar (<see cref="TrendyolCommissionSeedRates"/>) —
+    /// çocuklar bu oranı kalıtımla kullanır (<see cref="TrendyolCommissionResolver"/>).
+    ///
+    /// <para><b>Yalnız BOŞ oranı doldurur.</b> Dolu oran kullanıcının (ya da daha önceki seed'in) beyanıdır ve
+    /// EZİLMEZ; aksi halde her sync gerçek sözleşme oranını yayınlanmış tahminlere geri çevirirdi. Sonuç sync
+    /// sayacına eklenmez — kategori taksonomisi değişmedi, yalnız bizim ek verimiz doldu.</para>
+    ///
+    /// <para>Çağıran <c>CurrentTenant.Change(null)</c> içindedir (kategori host-global).</para></summary>
+    private async Task<int> SeedRootCommissionRatesAsync()
+    {
+        var seedIds = TrendyolCommissionSeedRates.ByRootExternalId.Keys.ToList();
+        var roots = await AsyncExecuter.ToListAsync(
+            (await _repository.GetQueryableAsync()).Where(x => seedIds.Contains(x.ExternalId)));
+
+        var seeded = new List<TrendyolCategory>();
+        foreach (var root in roots)
+        {
+            if (root.CommissionRate is not null)
+            {
+                continue;
+            }
+
+            root.SetCommissionRate(TrendyolCommissionSeedRates.ByRootExternalId[root.ExternalId]);
+            seeded.Add(root);
+        }
+
+        if (seeded.Count > 0)
+        {
+            await _repository.UpdateManyAsync(seeded, autoSave: true);
+        }
+
+        return seeded.Count;
     }
 
     public virtual async Task<List<TrendyolCategoryTreeNodeDto>> GetChildrenAsync(string? parentExternalId)

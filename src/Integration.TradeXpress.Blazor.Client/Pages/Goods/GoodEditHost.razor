@@ -25,6 +25,7 @@
 {
     <CrudEditHost TGetDto="GoodGetDto" TListDto="GoodListDto" TKey="Guid" TListRequestDto="GoodListRequestDto"
                   Coordinator="@_coordinator" Id="@(Id ?? Guid.Empty)" IsPopupMode="@IsPopupMode" OnSaved="@OnSaved" OnClosed="@OnClosed"
+                  SupportsSaveAndNew="@SupportsSaveAndNew" SupportsDelete="@SupportsDelete"
                   FormCaption="@L["Good"].Value" IconCssClass="@TradeXpressIcons.Good"
                   EntityValue="@(m => m.Code)"
                   IsReadOnly="@(m => m.IsGlobal && CurrentTenant?.Id != null)"

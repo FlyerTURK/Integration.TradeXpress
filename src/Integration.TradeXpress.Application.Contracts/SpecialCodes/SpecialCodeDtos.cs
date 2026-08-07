@@ -28,7 +28,7 @@ public class SpecialCodeListDto : CatalogListDtoBase
 public class SpecialCodeGetDto : CatalogGetDtoBase, IHasCode
 {
     [Required]
-    [StringLength(SpecialCodeConsts.CodeMaxLength, MinimumLength = EntityFieldConsts.CodeMinLength)]
+    [StringLength(SpecialCodeConsts.CodeMaxLength, MinimumLength = SpecialCodeConsts.CodeMinLength)]
     public override string Code { get; set; } = string.Empty;
 
     [Required]
@@ -53,7 +53,7 @@ public class SpecialCodeCreateDto : CatalogCreateDtoBase
     public Guid? CompanyId { get; set; }
 
     [Required]
-    [StringLength(SpecialCodeConsts.CodeMaxLength, MinimumLength = EntityFieldConsts.CodeMinLength)]
+    [StringLength(SpecialCodeConsts.CodeMaxLength, MinimumLength = SpecialCodeConsts.CodeMinLength)]
     public override string Code { get; set; } = string.Empty;
 
     [Required]
@@ -74,7 +74,7 @@ public class SpecialCodeUpdateDto : CatalogUpdateDtoBase
 {
     // Kod DÜZENLENEBİLİR; bağlam (EntityName/PropertyName) set-once → update'te YOK (değiştirilemez).
     [Required]
-    [StringLength(SpecialCodeConsts.CodeMaxLength, MinimumLength = EntityFieldConsts.CodeMinLength)]
+    [StringLength(SpecialCodeConsts.CodeMaxLength, MinimumLength = SpecialCodeConsts.CodeMinLength)]
     public override string Code { get; set; } = string.Empty;
 
     [Required]

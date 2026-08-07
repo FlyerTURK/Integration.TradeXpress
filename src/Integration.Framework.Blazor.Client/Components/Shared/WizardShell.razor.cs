@@ -65,6 +65,13 @@ public partial class WizardShell : CrudComponentBase
     }
 
     /// <summary>Adım tamamen kaldırıldıysa (koşullu render) listeden düşer; aktif indeks sınırda tutulur.</summary>
+    /// <summary>Adımın parametresi (ör. <c>CanAdvance</c>) değişti → kabuk yeniden çizilsin.
+    /// Düğmeleri kabuk çizdiği için, adımın kendi render'ı tek başına yetmez.</summary>
+    internal void NotifyStepStateChanged()
+    {
+        StateHasChanged();
+    }
+
     internal void RemoveStep(WizardStep step)
     {
         if (!_steps.Remove(step))

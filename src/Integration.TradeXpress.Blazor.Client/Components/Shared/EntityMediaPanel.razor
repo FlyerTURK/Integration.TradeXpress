@@ -13,16 +13,24 @@
    URL-import → self-contained blob (dedup) → link. Poster thumbnail + video ▶; varsayılan/aktif (varsayılan pasif olamaz);
    sırala; sil; video → istediğin karede kapak. URL alanı GÖSTERİLMEZ. Sahip AppService save'de link setini persist eder. *@
 
-<div style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap; padding:0.25rem 0.25rem 0.5rem;">
-    <DxFileInput FilesUploading="OnFilesUploadingAsync" AllowedFileExtensions="@_allowedExtensions" CssClass="media-upload" />
-    <DxButton Text="@L["MediaImportUrl"]" IconCssClass="@TradeXpressIcons.Download" RenderStyle="ButtonRenderStyle.Secondary"
-              Click="@(() => _importPopupVisible = true)" />
-    <DxButton Text="@L["MediaPickFromLibrary"]" IconCssClass="@TradeXpressIcons.Copy" RenderStyle="ButtonRenderStyle.Secondary"
-              Click="@OpenPickerAsync" />
-</div>
+@* Ekleme yolları TEK "+ Yeni" dropdown'ında (reçete/işlem toolbar deseniyle aynı), Sil seçime bağlı toolbar'da. *@
+<DxToolbar AdaptivityAutoHideRootItems="false" AdaptivityAutoCollapseItemsToIcons="false">
+    <DxToolbarItem Text="@L["New"]" IconCssClass="@TradeXpressIcons.Add">
+        <Items>
+            @* Ayrı bir "yükle" ikonu setimizde yok; ad-hoc sembol yasak (ui-blazor kuralı) → ekleme ikonu kullanılır. *@
+            <DxToolbarItem Text="@L["MediaUploadFile"]" IconCssClass="@TradeXpressIcons.Add" Click="@(() => _uploadPopupVisible = true)" />
+            <DxToolbarItem Text="@L["MediaImportUrl"]" IconCssClass="@TradeXpressIcons.Download" Click="@(() => _importPopupVisible = true)" />
+            <DxToolbarItem Text="@L["MediaPickFromLibrary"]" IconCssClass="@TradeXpressIcons.Copy" Click="@OpenPickerAsync" />
+        </Items>
+    </DxToolbarItem>
+    <DxToolbarItem BeginGroup="true" Text="@L["Delete"]" IconCssClass="@TradeXpressIcons.Delete"
+                   Click="@RemoveSelected" Enabled="@(_selected.Count > 0)" />
+</DxToolbar>
 
-<DxGrid Data="@Media" CssClass="w-100" ShowFilterRow="false" PagerVisible="false">
+<DxGrid Data="@Media" CssClass="w-100" ShowFilterRow="false" PagerVisible="false"
+        SelectionMode="GridSelectionMode.Multiple" @bind-SelectedDataItems="@_selected">
     <Columns>
+        <DxGridSelectionColumn Width="44px" />
         <DxGridDataColumn Caption="@L["Preview"]" Width="110px" TextAlignment="GridTextAlignment.Center" AllowSort="false">
             <CellDisplayTemplate Context="cell">
                 @{ var link = (EntityMediaLinkEditDto)cell.DataItem; var m = link.Media; }
@@ -62,22 +70,41 @@
                             CheckedChanged="@((bool v) => OnActiveChanged(link, v))" CheckType="CheckType.Switch" />
             </CellDisplayTemplate>
         </DxGridDataColumn>
-        <DxGridDataColumn Caption="" Width="200px" AllowSort="false" TextAlignment="GridTextAlignment.Center">
+        @* Sıralama. YUKARI oku ayrı bir ikon değil, chevron-down'ın 180° döndürülmüş hâlidir: ikon setinde
+           chevron-up YOK ve yeni CSS sınıfı açmak onay ister (CLAUDE.md §1). Önceden burada "geri" (sola) oku
+           duruyordu — yön anlatmıyordu. Sil buraya DEĞİL toolbar'a taşındı (seçime bağlı). *@
+        <DxGridDataColumn Caption="" Width="150px" AllowSort="false" TextAlignment="GridTextAlignment.Center">
             <CellDisplayTemplate Context="cell">
                 @{ var link = (EntityMediaLinkEditDto)cell.DataItem; }
-                <DxButton IconCssClass="@TradeXpressIcons.ChevronDown" RenderStyle="ButtonRenderStyle.Link"
-                          Click="@(() => Move(link, 1))" Enabled="@(!IsLast(link))" />
-                <DxButton IconCssClass="@TradeXpressIcons.Back" RenderStyle="ButtonRenderStyle.Link"
-                          Click="@(() => Move(link, -1))" Enabled="@(!IsFirst(link))" />
+                <span title="@L["MoveUp"]" style="display:inline-block; transform:rotate(180deg);">
+                    <DxButton IconCssClass="@TradeXpressIcons.ChevronDown" RenderStyle="ButtonRenderStyle.Link"
+                              Click="@(() => Move(link, -1))" Enabled="@(!IsFirst(link))" />
+                </span>
+                <span title="@L["MoveDown"]">
+                    <DxButton IconCssClass="@TradeXpressIcons.ChevronDown" RenderStyle="ButtonRenderStyle.Link"
+                              Click="@(() => Move(link, 1))" Enabled="@(!IsLast(link))" />
+                </span>
                 @if (link.Media?.MediaType == MediaType.Video)
                 {
                     <DxButton Text="@L["MediaSetPoster"]" RenderStyle="ButtonRenderStyle.Link" Click="@(() => OpenCapture(link))" />
                 }
-                <DxButton IconCssClass="@TradeXpressIcons.Delete" RenderStyle="ButtonRenderStyle.Link" Click="@(() => Remove(link))" />
             </CellDisplayTemplate>
         </DxGridDataColumn>
     </Columns>
 </DxGrid>
+
+@* Dosya yükle — DxFileInput popup'a taşındı ki üç ekleme yolu tek "+ Yeni" menüsünde toplansın. *@
+<DxPopup @bind-Visible="@_uploadPopupVisible" HeaderText="@L["MediaUploadFile"]" Width="min(95vw, 560px)" ShowFooter="true">
+    <BodyContentTemplate Context="__uploadBody">
+        @* SelectButtonText/DropZoneText VERİLMEZSE DevExpress kendi İngilizce metnini ("Select File") basar —
+           uygulamanın geri kalanı Türkçeyken orada kalıyordu. *@
+        <DxFileInput FilesUploading="OnFilesUploadingAsync" AllowedFileExtensions="@_allowedExtensions" CssClass="media-upload"
+                     SelectButtonText="@L["MediaSelectFile"]" DropZoneText="@L["MediaDropZone"]" />
+    </BodyContentTemplate>
+    <FooterContentTemplate>
+        <DxButton Text="@L["Close"]" RenderStyle="ButtonRenderStyle.Secondary" Click="@(() => _uploadPopupVisible = false)" />
+    </FooterContentTemplate>
+</DxPopup>
 
 @* URL'den içe aktar *@
 <DxPopup @bind-Visible="@_importPopupVisible" HeaderText="@L["MediaImportUrl"]" Width="min(95vw, 560px)" ShowFooter="true">

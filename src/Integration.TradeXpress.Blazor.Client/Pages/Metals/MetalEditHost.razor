@@ -19,6 +19,7 @@
 {
     <CrudEditHost TGetDto="MetalGetDto" TListDto="MetalListDto" TKey="Guid" TListRequestDto="MetalListRequestDto"
                   Coordinator="@_coordinator" Id="@(Id ?? Guid.Empty)" IsPopupMode="@IsPopupMode" OnSaved="@OnSaved" OnClosed="@OnClosed"
+                  SupportsSaveAndNew="@SupportsSaveAndNew" SupportsDelete="@SupportsDelete"
                   FormCaption="@L["Metal"].Value" IconCssClass="@TradeXpressIcons.Metal"
                   EntityValue="@(m => m.Code)"
                   IsReadOnly="@(m => m.IsGlobal && CurrentTenant?.Id != null)"

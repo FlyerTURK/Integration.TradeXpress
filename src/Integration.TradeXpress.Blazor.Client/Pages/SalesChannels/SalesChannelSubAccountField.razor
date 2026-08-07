@@ -11,14 +11,14 @@
    Üç kanal formunun (N11/Trendyol/Etsy) ortak parçası — alan tanımı tek yerde yaşasın diye bileşen.
 *@
 
-<DxFormLayoutItem Caption="@L["SalesChannel:SubAccount"]" ColSpanMd="6">
+<DxFormLayoutItem Caption="@($"{L["SalesChannel:SubAccount"]} *")" ColSpanMd="6">
     <LookupComboBox TItem="SubAccountListDto" TValue="Guid?"
                     Data="@_subAccounts"
                     ValueFieldName="@nameof(SubAccountListDto.Id)"
                     TextFieldName="@nameof(SubAccountListDto.AccountSubCodeDisplay)"
                     Value="@Value"
                     ValueChanged="@OnChangedAsync"
-                    NullText="@L["Optional"].Value"
+                    NullText="@L["Select"].Value"
                     CanAdd="false"
                     CanEdit="false">
         <Columns>

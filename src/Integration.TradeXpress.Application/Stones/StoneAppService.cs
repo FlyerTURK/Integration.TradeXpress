@@ -185,31 +185,33 @@ public class StoneAppService
     public override async Task<StoneGetDto> CreateAsync(StoneCreateDto input)
     {
         var dto = await base.CreateAsync(input);
-        await SaveGraphAsync(dto.Id, input.Documents, input.Notes, input.Attributes, input.Variants);
+        await SaveGraphAsync(dto.Id, input.Documents, input.Notes, input.Attributes, input.Variants, input.Media);
         return await GetAsync(dto.Id);
     }
 
     public override async Task<StoneGetDto> UpdateAsync(Guid id, StoneUpdateDto input)
     {
         var dto = await base.UpdateAsync(id, input);
-        await SaveGraphAsync(id, input.Documents, input.Notes, input.Attributes, input.Variants);
+        await SaveGraphAsync(id, input.Documents, input.Notes, input.Attributes, input.Variants, input.Media);
         return await GetAsync(id);
     }
 
     private async Task SaveGraphAsync(
         Guid stoneId, List<EntityDocumentEditDto> documents,
-        List<EntityNoteEditDto> notes, List<EntityAttributeGraphDto> attributes, List<EntityVariantGraphDto> variants)
+        List<EntityNoteEditDto> notes, List<EntityAttributeGraphDto> attributes, List<EntityVariantGraphDto> variants,
+        List<EntityMediaLinkEditDto> media)
     {
         var stone = await _stoneRepository.GetAsync(stoneId);
         await _graph.SaveAsync(
             StoneEntityName, VariantImageEntityName, stoneId, stone.CompanyId, stone.Name,
-            documents, notes, attributes, variants);
+            documents, notes, attributes, variants, media: media, ownerCode: stone.Code);
     }
 
     public override async Task<StoneGetDto> GetAsync(Guid id)
     {
         var dto = await base.GetAsync(id);
         var graph = await _graph.LoadAsync(StoneEntityName, VariantImageEntityName, id);
+        dto.Media = graph.Media;
         dto.Documents = graph.Documents;
         dto.Notes = graph.Notes;
         dto.Attributes = graph.Attributes;

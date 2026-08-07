@@ -48,6 +48,7 @@ public partial class ProductCommodityClassificationPanel : CrudComponentBase
     [Inject] private IGoodAppService GoodAppService { get; set; } = default!;
     [Inject] private IServiceAppService ServiceAppService { get; set; } = default!;
     [Inject] private ICurrencyUnitAppService CurrencyUnitAppService { get; set; } = default!;
+    [Inject] private IViewOpener ViewOpener { get; set; } = default!;
     [Inject] private IUiInteractionService UiService { get; set; } = default!;
     [Inject] private IServiceProvider ServiceProvider { get; set; } = default!;
 
@@ -92,6 +93,16 @@ public partial class ProductCommodityClassificationPanel : CrudComponentBase
         {
             return _mode == ProductCommodityProvisionMode.CreateNew
                    && _family is ProcessType.Metal or ProcessType.Scrap or ProcessType.Future;
+        }
+    }
+
+    /// <summary>Mevcut emtia seçimi hem "kullan" hem "klonla" modunda gerekir — klonda KAYNAK kayıttır.</summary>
+    private bool NeedsSourceCommodity
+    {
+        get
+        {
+            return _mode is ProductCommodityProvisionMode.UseExisting
+                or ProductCommodityProvisionMode.CloneExisting;
         }
     }
 
@@ -168,6 +179,92 @@ public partial class ProductCommodityClassificationPanel : CrudComponentBase
 
     // ── Araç çubuğu ─────────────────────────────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// Ailenin KENDİ edit formunu popup'ta açar; kapanınca yeni kaydı bulup kaynak olarak seçer
+    /// (2026-08-06 Hakan itirazı: <i>"Gül gibi emtia çeşidine göre o emtianın edit formunu kullanarak
+    /// açamadım?"</i> ve <i>"milyemi edit formunda kendim belirleyeceğim"</i>).
+    ///
+    /// <para><b>Panel emtia formunu YENİDEN YAZMAZ.</b> Maden/Mamül/Mücevher formları geçerli bir kaydın
+    /// neye ihtiyacı olduğunun tek kaynağıdır; araç çubuğuna birkaç alan koyup onları taklit etmek üçüncü
+    /// bir doğruluk kaynağı üretirdi. Milyem, işçilik, adet-gram katsayısı orada girilir.</para>
+    ///
+    /// <para><b>Yeni kayıt id'si before/after farkıyla bulunur</b> — kod tabanının belgelenmiş
+    /// "lookup → popup → tazele → odaklan" deseni; popup bir dönüş değeri taşımaz.</para>
+    /// </summary>
+    private async Task OpenCommodityFormAsync()
+    {
+        if (EditComponentOf(_family) is not { } editComponent)
+        {
+            UiService.ShowErrorToast(L["Product:Classify:NoFormForFamily"]);
+            return;
+        }
+
+        var before = _existingCommodities.Select(c => c.Id).ToHashSet();
+
+        // Mevcut kayıt seçimi modu ZORLANIR: form kapanınca kayıt artık VARDIR, tekrar oluşturmak
+        // aynı emtiayı ikizlerdi.
+        _mode = ProductCommodityProvisionMode.UseExisting;
+
+        // ÖN-DOLDURMA: seçili ürünün kodu/adı forma taşınır — emtia zaten o üründen türetiliyor, sıfır
+        // form açmak kullanıcıyı aynı bilgiyi ikinci kez yazmaya zorlardı (2026-08-06 Hakan isteği).
+        // Tek satır seçiliyse onun, birden çoksa İLKİNİN bilgisi tohum olur (çoklu seçimde ortak bir ad
+        // yoktur; ilkini vermek boş formdan iyidir ve kullanıcı formda düzeltebilir).
+        var seed = SelectedCandidates().FirstOrDefault();
+
+        // SİHİRBAZ POPUP'INDA footer DAR (2026-08-06 Hakan kararı): "Kaydet ve Yeni" + "Sil" bu akışın parçası
+        // değil — Kaydet zaten doğrula+kaydet+kapat çalışıyor (EntityEditForm popup davranışı). ÇAĞRI-BAŞI
+        // bayrak: aynı formlar liste sayfasından/MDI'dan açıldığında footer'ları tam kalır.
+        var extra = new Dictionary<string, object>
+        {
+            ["SupportsSaveAndNew"] = false,
+            ["SupportsDelete"] = false,
+        };
+
+        if (seed is not null)
+        {
+            // MAMÜL ürüne PARALELDİR (2026-08-06 Hakan gözlemi): kod/ad/KDV + nitelik + varyant grafı
+            // tümüyle taşınabilir, çünkü altyapı zaten ortak (aynı EntityVariant sistemi, aynı nitelik
+            // grafı). Diğer ailelerde böyle bir paralellik YOK — orada yalnız kod/ad tohumlanır.
+            if (_family == ProcessType.Good)
+            {
+                extra["SeedModel"] = await ProductAppService.ProjectToGoodAsync(seed.ProductId);
+            }
+            else
+            {
+                extra["SeedCode"] = seed.Code;
+                extra["SeedName"] = seed.Name;
+            }
+        }
+
+        await ViewOpener.OpenAsync(
+            editComponent, null, L[$"Enum:ProcessType:{_family}"].Value, iconCssClass: null, extraParams: extra);
+        await LoadExistingCommoditiesAsync();
+
+        var created = _existingCommodities.FirstOrDefault(c => !before.Contains(c.Id));
+        if (created is not null)
+        {
+            _existingCommodityId = created.Id;
+        }
+
+        StateHasChanged();
+    }
+
+    /// <summary>Ailenin edit bileşeni — liste sayfalarının <c>EditComponentType</c>'ıyla AYNI tipler.</summary>
+    private static Type? EditComponentOf(ProcessType family)
+    {
+        return family switch
+        {
+            ProcessType.Metal   => typeof(Metals.MetalEditHost),
+            ProcessType.Scrap   => typeof(Scraps.ScrapEditHost),
+            ProcessType.Future  => typeof(Futures.FutureEditHost),
+            ProcessType.Jewelry => typeof(Jewelries.JewelryEditHost),
+            ProcessType.Stone   => typeof(Stones.StoneEditHost),
+            ProcessType.Good    => typeof(Goods.GoodEditHost),
+            ProcessType.Service => typeof(Services.ServiceEditHost),
+            _                   => null,
+        };
+    }
+
     private async Task OnFamilyChanged(ProcessType value)
     {
         _family = value;
@@ -186,7 +283,7 @@ public partial class ProductCommodityClassificationPanel : CrudComponentBase
     /// yol açardı.</summary>
     private async Task ApplyToSelected()
     {
-        if (_mode == ProductCommodityProvisionMode.UseExisting && _existingCommodityId is null)
+        if (NeedsSourceCommodity && _existingCommodityId is null)
         {
             UiService.ShowErrorToast(L["Product:Classify:ExistingRequired"]);
             return;
@@ -213,7 +310,7 @@ public partial class ProductCommodityClassificationPanel : CrudComponentBase
                 ProductId           = candidate.ProductId,
                 Family              = _family,
                 Mode                = _mode,
-                ExistingCommodityId = _mode == ProductCommodityProvisionMode.UseExisting ? _existingCommodityId : null,
+                ExistingCommodityId = NeedsSourceCommodity ? _existingCommodityId : null,
                 FollowingUnitId     = RequiresFollowingUnit ? _followingUnitId : null,
                 Code                = candidate.Code,
                 Name                = candidate.Name,
@@ -238,6 +335,27 @@ public partial class ProductCommodityClassificationPanel : CrudComponentBase
     private IEnumerable<ProductCommodityCandidateDto> SelectedCandidates()
     {
         return _selected.OfType<ProductCommodityCandidateDto>().ToList();
+    }
+
+    // ── Satır-başı miktar/adet düzeltmesi (2026-08-06 Hakan isteği) ────────────────────────────────
+    // Toplu karar şablon basar; her ürünün gramajı/adedi farklı olabilir → düzeltme kararın KENDİ DTO'sunda
+    // yapılır (ApplyAsync zaten _decisions'ı gönderiyor — ayrı taşıma yolu gerekmez). SENKRON: hücre içi
+    // işleyici async olamaz (async-nested-settings kuralı).
+
+    private void SetRowAmount(ProductCommodityCandidateDto row, decimal value)
+    {
+        if (_decisions.TryGetValue(row.ProductId, out var decision))
+        {
+            decision.Amount = value;
+        }
+    }
+
+    private void SetRowQuantity(ProductCommodityCandidateDto row, decimal value)
+    {
+        if (_decisions.TryGetValue(row.ProductId, out var decision))
+        {
+            decision.Quantity = value;
+        }
     }
 
     // ── Görünüm ─────────────────────────────────────────────────────────────────────────────────────
@@ -267,7 +385,7 @@ public partial class ProductCommodityClassificationPanel : CrudComponentBase
 
     private async Task LoadExistingCommoditiesAsync()
     {
-        if (_mode != ProductCommodityProvisionMode.UseExisting)
+        if (!NeedsSourceCommodity)
         {
             _existingCommodities = new List<CommodityOption>();
             return;
@@ -328,6 +446,7 @@ public partial class ProductCommodityClassificationPanel : CrudComponentBase
             {
                 new(ProductCommodityProvisionMode.CreateNew,   L["Product:Classify:Mode:CreateNew"].Value),
                 new(ProductCommodityProvisionMode.UseExisting, L["Product:Classify:Mode:UseExisting"].Value),
+                new(ProductCommodityProvisionMode.CloneExisting, L["Product:Classify:Mode:CloneExisting"].Value),
             };
         }
     }

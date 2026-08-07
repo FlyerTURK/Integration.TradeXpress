@@ -22,6 +22,7 @@
 {
     <CrudEditHost TGetDto="StoneGetDto" TListDto="StoneListDto" TKey="Guid" TListRequestDto="StoneListRequestDto"
                   Coordinator="@_coordinator" Id="@(Id ?? Guid.Empty)" IsPopupMode="@IsPopupMode" OnSaved="@OnSaved" OnClosed="@OnClosed"
+                  SupportsSaveAndNew="@SupportsSaveAndNew" SupportsDelete="@SupportsDelete"
                   FormCaption="@L["Stone"].Value" IconCssClass="@TradeXpressIcons.Stone"
                   EntityValue="@(m => m.Code)"
                   IsReadOnly="@(m => m.IsGlobal && CurrentTenant?.Id != null)"

@@ -17,6 +17,7 @@
 {
     <CrudEditHost TGetDto="ScrapGetDto" TListDto="ScrapListDto" TKey="Guid" TListRequestDto="ScrapListRequestDto"
                   Coordinator="@_coordinator" Id="@(Id ?? Guid.Empty)" IsPopupMode="@IsPopupMode" OnSaved="@OnSaved" OnClosed="@OnClosed"
+                  SupportsSaveAndNew="@SupportsSaveAndNew" SupportsDelete="@SupportsDelete"
                   FormCaption="@L["Scrap"].Value" IconCssClass="@TradeXpressIcons.Scrap"
                   EntityValue="@(m => m.Code)"
                   IsReadOnly="@(m => m.IsGlobal && CurrentTenant?.Id != null)"
@@ -26,34 +27,4 @@
     </CrudEditHost>
 }
 
-@code {
-    [Parameter] public Guid? Id { get; set; }
-    [Parameter] public bool IsPopupMode { get; set; }
-    [Parameter] public EventCallback OnSaved { get; set; }
-    [Parameter] public EventCallback OnClosed { get; set; }
-
-    private List<CurrencyUnitListDto> _units = new();
-    private ICommitCoordinator<ScrapGetDto, ScrapListDto, Guid, ScrapListRequestDto>? _coordinator;
-    private bool _ready;
-
-    protected override async Task OnInitializedAsync()
-    {
-        _coordinator = new PersistentCoordinator<ScrapGetDto, ScrapListDto, Guid, ScrapListRequestDto, ScrapCreateDto, ScrapUpdateDto>(
-            ScrapAppService, Mapper);
-
-        var result = await CurrencyUnitAppService.GetListAsync(new CurrencyUnitListRequestDto { MaxResultCount = 1000 });
-        _units = result.Items.ToList();
-
-        _ready = true;
-    }
-
-    private async Task OnEditFollowingUnitAsync(Guid? followingId)
-    {
-        if (followingId is not { } id || id == Guid.Empty) return;
-        var code = _units.FirstOrDefault(u => u.Id == id)?.Code;
-        await TabManager.OpenOrActivateAsync(
-            $"/currencies/currency-units/{id}",
-            $"{L["CurrencyUnit"]}: {code}",
-            TradeXpressIcons.CurrencyUnit);
-    }
-}
+@* C# tarafı ScrapEditHost.razor.cs'te (code-behind kuralı — 2026-08-07 taşıması). *@

@@ -80,17 +80,17 @@ public abstract class SalesChannelTrN11ProductPushTests<TStartupModule> : TradeX
 
             // ERP-backed satırlar legacy davranışla: dondurulacak kod "{VaryantKodu}-{SequenceNo}", fiyat/stok ERP'den.
             // REST'te varyantın optionPrice'ı SATIRIN KENDİ salePrice'ı olur (ürün-seviyesi tek fiyat yok).
-            var red = rows.Single(r => r.StockCode == "RED-1");
+            var red = rows.Single(r => r.StockCode == "RED");
             red.SalePrice.ShouldBe(100m);
             red.Quantity.ShouldBe(10);
             // Nitelik artık ad/değer değil KATEGORİ KİMLİĞİ taşır. Sahte yaprakta "Renk" attributeId=1 ve
             // isCustomValue=true (değer listesi yok) → serbest metin customValue'ya yazılır.
             red.Attributes.ShouldContain(a => a.Id == 1 && a.CustomValue == "Red");
-            rows.ShouldContain(r => r.StockCode == "BLUE-1");
+            rows.ShouldContain(r => r.StockCode == "BLUE");
 
-            // N11-only satır: kod kombinasyon değer adlarından ("GREEN-1"), fiyat/stok Override'dan,
+            // N11-only satır: kod kombinasyon değer adlarından ("GREEN"), fiyat/stok Override'dan,
             // nitelikler KANAL Attribute.Name/AttributeValue.Value'larından çözülür.
-            var green = rows.Single(r => r.StockCode == "GREEN-1");
+            var green = rows.Single(r => r.StockCode == "GREEN");
             green.SalePrice.ShouldBe(150m);
             green.Quantity.ShouldBe(5);
             var greenAttribute = green.Attributes.ShouldHaveSingleItem();
@@ -117,7 +117,7 @@ public abstract class SalesChannelTrN11ProductPushTests<TStartupModule> : TradeX
                     await _headerRepository.GetListAsync(h => h.SalesChannelTrN11ProductId == created.Id)))
                 .Single(h => h.ProductVariantId is null);
             pushed.Skus.Count.ShouldBe(3);
-            var greenSku = pushed.Skus.Single(s => s.SellerStockCode == "GREEN-1");
+            var greenSku = pushed.Skus.Single(s => s.SellerStockCode == "GREEN");
             greenSku.ProductVariantId.ShouldBe(greenHeader.Id);
             greenSku.LastSentQuantity.ShouldBe(5);
             greenSku.LastSentOptionPrice.ShouldBe(150m);
@@ -159,8 +159,8 @@ public abstract class SalesChannelTrN11ProductPushTests<TStartupModule> : TradeX
 
             var rows = _restClient.LastCreatedRows;
             rows.Count.ShouldBe(2);
-            rows.Select(r => r.StockCode).ShouldBe(new[] { "RED-1", "BLUE-1" }, ignoreOrder: true);
-            rows.Single(r => r.StockCode == "BLUE-1").Quantity.ShouldBe(20);
+            rows.Select(r => r.StockCode).ShouldBe(new[] { "RED", "BLUE" }, ignoreOrder: true);
+            rows.Single(r => r.StockCode == "BLUE").Quantity.ShouldBe(20);
         }
     }
 

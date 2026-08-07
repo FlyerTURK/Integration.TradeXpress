@@ -39,8 +39,21 @@ public class ProductCommodityProvisionItemDto
 
     public ProductCommodityProvisionMode Mode { get; set; }
 
-    /// <summary><see cref="ProductCommodityProvisionMode.UseExisting"/>'de ZORUNLU — mevcut katalog kaydı.</summary>
+    /// <summary><see cref="ProductCommodityProvisionMode.UseExisting"/> ve
+    /// <see cref="ProductCommodityProvisionMode.CloneExisting"/>'de ZORUNLU — kullanılacak ya da ŞABLON
+    /// alınacak mevcut katalog kaydı.</summary>
     public Guid? ExistingCommodityId { get; set; }
+
+    /// <summary>MİLYEM / katsayı (Maden <c>Factor</c>, Hurda <c>Factor</c>, Vadeli <c>FollowingFactor</c>).
+    /// <para><b>Metal-bacaklı ailelerde YENİ kayıt açarken ZORUNLU</b> (2026-08-06): boş bırakılırsa entity
+    /// varsayılanına düşerdi (Maden 0.995 / Hurda 0.570) ve bu MAKUL GÖRÜNEN BİR TAHMİNDİR — 22 ayar bilezik
+    /// 0.916'dır. Sessizce her değerlemeye girer. Sistem tahmin etmez, kullanıcı beyan eder.</para>
+    /// <para>Klonda GEREKMEZ: kopya değeri kaynak kayıttan devralır.</para></summary>
+    public decimal? Factor { get; set; }
+
+    /// <summary>Adet→gram katsayısı (<c>StableQuantity</c>) — adetli emtiada bir adedin kaç gram olduğu.
+    /// null/0 = gram bazlı takip (bu bir MOD beyanıdır, uydurulmuş sayı değil).</summary>
+    public decimal? StableQuantity { get; set; }
 
     /// <summary>Yeni emtianın kodu (boşsa üründen türetilir + benzersizleştirilir).</summary>
     public string? Code { get; set; }

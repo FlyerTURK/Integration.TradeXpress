@@ -80,6 +80,12 @@
         <EntityVariantsPanel TVariant="EntityVariantGraphDto" Variants="@Model.Variants" Attributes="@Model.Attributes"
                              ShowStockQuantity="false" ShowImages="true" OnAttributesChanged="@OnGenerateVariants" />
     </DxTabPage>
+    @* KAYIT-GENELİ medya (CLAUDE.md §6): varyanta ÖZEL görseller Varyantlar sekmesinde ayrı durur, burası kaydın
+       genel görselleridir. İki bağlamdan biri eksikse tip YARIMDIR — Good/Product deseniyle simetrik. *@
+    <DxTabPage Text="@L["Media"]" TabIconCssClass="@TradeXpressIcons.Stone">
+        <EntityMediaPanel Media="@Model.Media" />
+    </DxTabPage>
+
     <DxTabPage Text="@L["Documents"]" TabIconCssClass="@TradeXpressIcons.Report">
         <EntityDocumentsPanel Documents="@Model.Documents" />
     </DxTabPage>

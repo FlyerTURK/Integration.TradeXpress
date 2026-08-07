@@ -75,6 +75,8 @@ public partial class SalesChannelTrN11ProductAppService : TradeXpressAppService,
     private readonly MarketplaceImageDownloader _imageDownloader;   // yalnız içe aktarım — uzak görsel → DAM
     private readonly EntityVariantManager _variantManager;          // yalnız içe aktarım — tekil-main değişmezi
     private readonly MarketplaceCurrencyResolver _marketplaceCurrency;   // yalnız içe aktarım — TRY birim kimliği
+    private readonly SalesChannelTrN11ProductRemover _remover;
+    private readonly ImportedProductCategoryResolver _categoryResolver;
 
     public SalesChannelTrN11ProductAppService(
         IRepository<SalesChannelTrN11Product, Guid> repository,
@@ -110,8 +112,12 @@ public partial class SalesChannelTrN11ProductAppService : TradeXpressAppService,
         IDistributedCache<N11LeafAttributes> leafAttributeCache,
         MarketplaceImageDownloader imageDownloader,
         EntityVariantManager variantManager,
-        MarketplaceCurrencyResolver marketplaceCurrency)
+        MarketplaceCurrencyResolver marketplaceCurrency,
+        SalesChannelTrN11ProductRemover remover,
+        ImportedProductCategoryResolver categoryResolver)
     {
+        _remover = remover;
+        _categoryResolver = categoryResolver;
         _repository = repository;
         _productRepository = productRepository;
         _categoryChannelResolver = categoryChannelResolver;
@@ -293,10 +299,11 @@ public partial class SalesChannelTrN11ProductAppService : TradeXpressAppService,
         }
     }
 
-    /// <summary>N11 upsert kimliği: "{ÜrünKodu}-{Sıra}" — kayıt-bazlı benzersiz + insan-okunur.</summary>
+    /// <summary>N11 upsert kimliği — kayıt-bazlı benzersiz + insan-okunur. İLK listeleme ÇIPLAK ürün kodudur;
+    /// son ek 2'den başlar (<see cref="ChannelSequenceCode"/> SSOT — "-1" üretilmez).</summary>
     private static string BuildSellerCode(string productCode, int sequenceNo)
     {
-        return $"{productCode}-{sequenceNo}";
+        return ChannelSequenceCode.Compose(productCode, sequenceNo);
     }
 
     [Authorize(TradeXpressPermissions.SalesChannels.Update)]
@@ -334,21 +341,9 @@ public partial class SalesChannelTrN11ProductAppService : TradeXpressAppService,
     public virtual async Task DeleteAsync(Guid id)
     {
         var entity = await GetOwnedAsync(id);
-        // Kanal-özel varyant override başlıkları + reçete satırları + özellik/değer grafı (ayrı tablolar) —
-        // kanal-ürünle birlikte temizlenir.
-        await _channelRecipeLineRepository.DeleteAsync(r => r.SalesChannelTrN11ProductId == entity.Id, autoSave: true);
-        await _stockItemRepository.DeleteAsync(v => v.SalesChannelTrN11ProductId == entity.Id, autoSave: true);
-        var channelAttributeIds = await AsyncExecuter.ToListAsync(
-            (await _channelAttributeRepository.GetQueryableAsync())
-                .Where(a => a.SalesChannelTrN11ProductId == entity.Id)
-                .Select(a => a.Id));
-        if (channelAttributeIds.Count > 0)
-        {
-            await _channelAttributeValueRepository.DeleteAsync(v => channelAttributeIds.Contains(v.AttributeId), autoSave: true);
-            await _channelAttributeRepository.DeleteAsync(a => a.SalesChannelTrN11ProductId == entity.Id, autoSave: true);
-        }
-
-        await _repository.DeleteAsync(entity, autoSave: true);
+        // Kanal-özel varyant override başlıkları + reçete satırları + özellik/değer grafı TEK yerde
+        // (SalesChannelTrN11ProductRemover) — şablon ürün silme yolu ve içe aktarım temizliği de onu tüketir.
+        await _remover.RemoveGraphAsync(entity);
     }
 
     /// <summary>Özellik/değer grafını PERSIST EDER + kartezyen reconcile'ı hemen tetikler — TÜM ürünü kaydetmeden
@@ -2705,15 +2700,23 @@ public partial class SalesChannelTrN11ProductAppService : TradeXpressAppService,
 
     private async Task<Product> GetOwnedProductAsync(Guid productId)
     {
-        var companyId = EnsureCurrentCompanyId();
-        var product = await AsyncExecuter.FirstOrDefaultAsync(
-            (await _productRepository.GetQueryableAsync()).Where(x => x.Id == productId && x.CompanyId == companyId));
+        var product = await FindOwnedProductAsync(productId);
         if (product is null)
         {
             throw new BusinessException("TradeXpress:N11:Product:ProductNotFound");
         }
 
         return product;
+    }
+
+    /// <summary>Şablon ürünü bulur, YOKSA null döner (Trendyol ikizi). Ürün SİLİNMİŞ olabilir: kanal kaydı ürüne
+    /// yalnız Guid ile bağlıdır → ölü referans mümkündür. İhtimali GÖRMEK isteyen çağıran (içe aktarım) bunu,
+    /// ihtimalin hata olduğu çağıranlar <see cref="GetOwnedProductAsync"/>'i kullanır.</summary>
+    private async Task<Product?> FindOwnedProductAsync(Guid productId)
+    {
+        var companyId = EnsureCurrentCompanyId();
+        return await AsyncExecuter.FirstOrDefaultAsync(
+            (await _productRepository.GetQueryableAsync()).Where(x => x.Id == productId && x.CompanyId == companyId));
     }
 
     private async Task EnsureProductOwnedAsync(Guid productId)

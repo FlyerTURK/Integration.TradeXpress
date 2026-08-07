@@ -113,7 +113,7 @@ public class CurrencyUnitAppService : TradeXpressAppService, ICurrencyUnitAppSer
         // Benzersizlik ÖN-kontrolü (Update ile simetrik + aynı scope): (TenantId, Code) unique index'iyle hizalı,
         // ham DB çakışması yerine dostane hata. Ambient multi-tenant filter kapsamı belirler (host→global, tenant→kendi).
         var normalizedCode = StringFieldGuard.NormalizeCode(
-            input.Code, nameof(CurrencyUnit.Code), EntityFieldConsts.CodeMinLength, CurrencyConsts.CodeMaxLength);
+            input.Code, nameof(CurrencyUnit.Code), CurrencyConsts.CodeMinLength, CurrencyConsts.CodeMaxLength);
         await EnsureCodeUniqueAsync(normalizedCode, Guid.Empty);
 
         // TenantId otomatik atanır (ABP IMultiTenant): host→null (global), tenant→kendi.
@@ -185,7 +185,7 @@ public class CurrencyUnitAppService : TradeXpressAppService, ICurrencyUnitAppSer
     private async Task ApplyCodeChangeAsync(CurrencyUnit entity, string rawCode)
     {
         var normalizedCode = StringFieldGuard.NormalizeCode(
-            rawCode, nameof(entity.Code), EntityFieldConsts.CodeMinLength, CurrencyConsts.CodeMaxLength);
+            rawCode, nameof(entity.Code), CurrencyConsts.CodeMinLength, CurrencyConsts.CodeMaxLength);
         if (string.Equals(normalizedCode, entity.Code, StringComparison.Ordinal))
         {
             return; // değişmedi

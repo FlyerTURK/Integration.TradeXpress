@@ -10,9 +10,19 @@ namespace Integration.TradeXpress.Products;
 /// </summary>
 public enum ProductCommodityProvisionMode : byte
 {
-    /// <summary>Yeni katalog kaydı açılır; kod/ad ürünün kendisinden ön-doldurulur.</summary>
+    /// <summary>Yeni katalog kaydı açılır; yalnız kod/ad taşınır, kalan alanlar entity varsayılanına düşer.
+    /// <para><b>Metal-bacaklı ailelerde (Metal/Scrap/Future) YASAKTIR</b> — varsayılan milyem (0.995 / 0.570)
+    /// makul görünen bir TAHMİNDİR ve sessizce her değerlemeye girer. Oralarda
+    /// <see cref="CloneExisting"/> ya da <see cref="UseExisting"/> kullanılır.</para></summary>
     CreateNew = 0,
 
-    /// <summary>Mevcut bir katalog kaydı seçilir; yeni kayıt AÇILMAZ.</summary>
+    /// <summary>Mevcut bir katalog kaydı seçilir; yeni kayıt AÇILMAZ.
+    /// <para>Maden'de baskın durum budur: on bilezik aynı "22 Ayar" madenini tüketir.</para></summary>
     UseExisting = 1,
+
+    /// <summary>Mevcut bir kayıt ŞABLON alınıp yeni kod/adla KOPYALANIR (2026-08-06 Hakan isteği).
+    /// <para>Milyem, adet-gram katsayısı, işçilik ve fiyat ayarları GERÇEK bir kayıttan devralınır — bu yüzden
+    /// metal-bacaklı ailelerde de güvenlidir: uydurulmuş bir sayı yoktur, kullanıcının daha önce doğruladığı
+    /// bir kaydın değerleri vardır.</para></summary>
+    CloneExisting = 2,
 }

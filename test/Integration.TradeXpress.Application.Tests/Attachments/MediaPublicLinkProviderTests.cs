@@ -64,7 +64,11 @@ public class MediaPublicLinkProviderTests
         var token = TokenOf(provider.TryCreateLink(Guid.NewGuid(), Guid.NewGuid()).ShouldNotBeNull());
 
         var parts = token.Split('.');
-        parts[3] = parts[3].Length > 0 ? "x" + parts[3][1..] : "x";
+
+        // İlk karakter GERÇEKTEN değişmeli: sabit "x" yazmak, imza zaten "x" ile başlıyorsa (base64url'de ~1/64)
+        // jetonu DEĞİŞTİRMEZDİ ve test kendi kendine kırılırdı — tam süitte nadiren kırmızı, tek başına yeşil.
+        var flipped = parts[3].Length > 0 && parts[3][0] == 'x' ? 'y' : 'x';
+        parts[3] = parts[3].Length > 0 ? flipped + parts[3][1..] : "x";
 
         provider.TryResolveToken(string.Join('.', parts)).ShouldBeNull();
     }

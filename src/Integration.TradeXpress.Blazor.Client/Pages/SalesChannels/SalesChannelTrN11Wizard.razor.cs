@@ -62,11 +62,15 @@ public partial class SalesChannelTrN11Wizard : CrudComponentBase
     private string? _name;
     private string? _appKey;
     private string? _appSecret;
+    private Guid? _subAccountId;
     private Guid _channelId;
 
     // ── 2. adım: referans verisi ────────────────────────────────────────────────────────────────────
     private int? _categoryCount;
     private int? _carrierCount;
+
+    /// <summary>Referans senkronunda oluşan sorunlar — adım ilerlemeyi engellemez, özet ekranında görünür.</summary>
+    private readonly List<string> _referenceIssues = new();
 
     // ── 3. adım: kargo şablonu ──────────────────────────────────────────────────────────────────────
     private List<N11ShipmentTemplateDto> _templates = new();
@@ -178,6 +182,11 @@ public partial class SalesChannelTrN11Wizard : CrudComponentBase
                 items.Add(L["SalesChannelTrN11:Wizard:RemainingCategories", _import.UnmatchedCategories.Count].Value);
             }
 
+            if (_referenceIssues.Count > 0)
+            {
+                items.Add(L["SalesChannelTrN11:Wizard:RemainingReference", string.Join(" · ", _referenceIssues)].Value);
+            }
+
             if (_import?.SkippedRows.Count > 0)
             {
                 items.Add(L["SalesChannelTrN11:Wizard:RemainingSkipped", _import.SkippedRows.Count].Value);
@@ -214,6 +223,15 @@ public partial class SalesChannelTrN11Wizard : CrudComponentBase
             return;
         }
 
+        // Cari ZORUNLU (2026-08-06): sunucu da reddediyor, ama kullanıcıyı sunucu hatasıyla karşılamak yerine
+        // burada söylemek daha dürüst — eksik olan alan gözünün önünde duruyor.
+        if (_subAccountId is null)
+        {
+            UiService.ShowErrorToast(L["TradeXpress:SalesChannel:SubAccountRequired"]);
+            context.Cancel();
+            return;
+        }
+
         try
         {
             // IsActive create DTO'sunda YOK — entity aktif doğar (kanal kurulur kurulmaz kullanılabilir olmalı).
@@ -223,6 +241,7 @@ public partial class SalesChannelTrN11Wizard : CrudComponentBase
                 Name = _name!,
                 AppKey = _appKey!,
                 AppSecret = _appSecret!,
+                SubAccountId = _subAccountId,
             });
             _channelId = created.Id;
         }
@@ -235,19 +254,40 @@ public partial class SalesChannelTrN11Wizard : CrudComponentBase
 
     /// <summary>2. adım: host-global referans verisi. Kategori ağacı ve kargo firmaları TÜM tenant'ların
     /// paylaştığı taksonomilerdir; bir kez çekilir. Başarısızlık kurulumu DURDURMAZ (ürünler ham kategori
-    /// id'siyle yine içe alınır) ama sessiz de geçilmez.</summary>
+    /// id'siyle yine içe alınır) ama sessiz de geçilmez — eksik kalan özet ekranında listelenir.
+    ///
+    /// <para><b>2026-08-06 düzeltmesi — doc ile kod çelişiyordu:</b> üstteki "DURDURMAZ" cümlesi baştan beri
+    /// yazılıydı, ama kod hatayı yakalayıp <c>context.Cancel()</c> çağırıyordu. Sonuç: kargo firması senkronu
+    /// yalnız HOST yöneticisine açık olduğundan (<c>ShipmentCompanyAppService</c> tenant'ta
+    /// <c>ShipmentSyncHostOnly</c> fırlatır) TENANT kullanıcısı bu adımı ASLA geçemiyordu — sihirbazın geri
+    /// kalanı, kendi eklediğimiz emtia adımı dahil, ulaşılamaz durumdaydı.</para>
+    ///
+    /// <para><b>İki senkron AYRI denenir:</b> tek <c>try</c> içinde zincirlenince kategori başarılı olsa bile
+    /// kargo hatası onu da "yapılmadı" gösteriyordu; oysa ikisi bağımsız taksonomi.</para></summary>
     private async Task SyncReferenceDataAsync(WizardStepAdvanceContext context)
     {
+        _referenceIssues.Clear();
+
         try
         {
             _categoryCount ??= await CategoryAppService.SyncCategoriesAsync();
+        }
+        catch (Exception ex)
+        {
+            _referenceIssues.Add(CrudErrorPresenter.ToFriendlyMessage(ex, ServiceProvider) ?? ex.Message);
+        }
+
+        try
+        {
             _carrierCount ??= await ShipmentCompanyAppService.SyncAsync();
         }
         catch (Exception ex)
         {
-            UiService.ShowErrorToast(CrudErrorPresenter.ToFriendlyMessage(ex, ServiceProvider) ?? ex.Message);
-            context.Cancel();
+            _referenceIssues.Add(CrudErrorPresenter.ToFriendlyMessage(ex, ServiceProvider) ?? ex.Message);
         }
+
+        // İLERLEMEYİ ENGELLEME (bilinçli): referans verisi host'un işidir, kullanıcının bu adımda
+        // yapabileceği bir şey yoktur. Eksiklik özet ekranındaki "kalan işler"de görünür.
     }
 
     /// <summary>N11'deki kargo şablonlarını çeker (senkron) ve listeler. Tek şablon varsa kendiliğinden seçilir —

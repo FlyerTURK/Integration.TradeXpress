@@ -241,6 +241,9 @@ public class CurrencyUnitSeeder(
         new(CurrencyUnitCode.GUM, "Has Gümüş",              10, CurrencyUnitType.Metal),
         new(CurrencyUnitCode.PLT, "Has Platin",             11, CurrencyUnitType.Metal),
         new(CurrencyUnitCode.PLD, "Has Paladyum",           12, CurrencyUnitType.Metal),
+        // SAYIM birimi (2026-08-06 Hakan isteği): adet-bazlı stok/reçete satırları için hazır gelsin —
+        // kullanıcı elle "AD" açamıyordu (eski 3-harf alt sınırı; CurrencyConsts.CodeMinLength=2 ile açıldı).
+        new(CurrencyUnitCode.AD,  "Adet",                   13, CurrencyUnitType.Quantity, AlwaysShow: true),
     ];
 
     #endregion

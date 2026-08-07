@@ -39,4 +39,9 @@ public interface IProductAppService : ICrudAppService<
     /// <summary>Sihirbaz sınıflandırmasını uygular: emtia kaydı (gerekiyorsa) → reçete satırı → stok
     /// politikası → otorite devri → stok yeniden-hesap job'ı. TEK çağrı (ürün başına round-trip YOK).</summary>
     Task<ProductCommodityProvisionResultDto> ProvisionCommoditiesAsync(ProductCommodityProvisionInputDto input);
+
+    /// <summary>Ürünün MAMÜL aynasını üretir (PERSİSTSİZ) — sınıflandırma adımında "Emtia Formunu Aç"
+    /// formunu ön-doldurmak için. Kod/ad/KDV + nitelik + varyant grafı taşınır; kullanıcı Good'a özel
+    /// alanları doldurup kendisi kaydeder. Yalnız Good — diğer aileler ürüne paralel değildir.</summary>
+    Task<Goods.GoodGetDto> ProjectToGoodAsync(Guid productId);
 }

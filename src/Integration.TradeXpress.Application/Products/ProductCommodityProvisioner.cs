@@ -232,9 +232,11 @@ public class ProductCommodityProvisioner : ITransientDependency
 
         var isService = item.Family == ProcessType.Service;
 
-        var commodityId = item.Mode == ProductCommodityProvisionMode.UseExisting
-            ? item.ExistingCommodityId
-            : await CreateCommodityAsync(item, product, result);
+        var commodityId = item.Mode switch
+        {
+            ProductCommodityProvisionMode.UseExisting => item.ExistingCommodityId,
+            _ => await CreateCommodityAsync(item, product, result),
+        };
 
         if (commodityId is null || commodityId == Guid.Empty)
         {
@@ -245,9 +247,14 @@ public class ProductCommodityProvisioner : ITransientDependency
         // Reçete satırı ürünün TÜM varyantlarına yazılır: sınıflandırma ürün seviyesinde verilir ve
         // varyantların hepsi aynı emtiadan yapılır (14/18/22 ayar aynı madeni tüketir, miktarı farklıdır —
         // miktar ayarı varyant ekranında incelenir).
+        // DEĞERLEME BİRİMİ (2026-08-06 Hakan tespiti): satır bu alan olmadan maliyet üretemez —
+        // ProductRecipeCostCalculator birimi çözemeyince satırı MissingRate işaretler ("Kur yok") ve
+        // maliyeti NULL döndürür; ürün 1300 TL'lik mamülle 0 TRY görünür. Fiyat biliniyordu, birim yoktu.
+        var snapshot = await ResolveCatalogSnapshotAsync(item, commodityId.Value, isService);
+
         foreach (var variantId in variants)
         {
-            var line = BuildLine(item, commodityId.Value, isService);
+            var line = BuildLine(item, commodityId.Value, isService, snapshot.UnitId, snapshot.Factor);
             await _recipeLineWriter.SaveAsync(companyId, variantId, new List<ProductRecipeLineGraphDto> { line });
             result.CreatedRecipeLines++;
         }
@@ -275,8 +282,64 @@ public class ProductCommodityProvisioner : ITransientDependency
     /// <summary>Reçete satırı grafı — katalog emtiası ya da hizmet.
     /// <para><b>Hizmet bedeli 0 bırakılır ve UYDURULMAZ:</b> sihirbaz ücreti bilemez. Ürün <c>Draft</c>
     /// kaldığı için satışa çıkmaz; bedel varyant ekranında girilir.</para></summary>
-    private static ProductRecipeLineGraphDto BuildLine(
+    /// <summary>Satırın DEĞERLEME BİRİMİ — maliyet motorunun fiyatı hangi birimden rebase edeceği.
+    /// <list type="bullet">
+    ///   <item><b>Metal-bacaklı</b> (Metal/Scrap/Future): doğal birim = <c>FollowingUnitId</c>.</item>
+    ///   <item><b>Parasal</b> (Good/Jewelry/Stone): giriş fiyatının birimi. Mamülde fiyat VARYANTTA
+    ///   yaşadığı için ana varyanttan okunur (yoksa ilk varyant).</item>
+    ///   <item><b>Hizmet</b>: null — bedel <c>ManualUnitId</c> yolundan gelir.</item>
+    /// </list>
+    /// <para>Çözülemezse null döner ve satır "Kur yok" olarak İŞARETLENİR — sessiz sıfır DEĞİL.</para></summary>
+    /// <summary>Satırın KATALOG SNAPSHOT'I: değerleme birimi + milyem/çarpan.
+    ///
+    /// <para><b>İkisi de KATALOG KAYDINDAN okunur, uydurulmaz</b> (2026-08-06). Milyem sabit <c>1</c>
+    /// yazılıyordu ve maliyet motoru metal-bacaklı satırda <c>gram × Factor</c> hesapladığı için 22 ayar
+    /// (0.916) yerine 1 kullanmak maden bacağını ~%9 ŞİŞİRİYORDU — hatasız, uyarısız. Kullanıcının beyan
+    /// ettiği değer varsa o esastır; yoksa kaydın kendi değeri alınır.</para>
+    ///
+    /// <para>Parasal ailelerde (Good/Jewelry/Stone) <c>Factor</c> maliyet yolunda KULLANILMAZ (fiyat
+    /// EntryPrice'tan gelir) — orada 1 nötr bir değerdir, tahmin değil.</para></summary>
+    private async Task<(Guid? UnitId, decimal Factor)> ResolveCatalogSnapshotAsync(
         ProductCommodityProvisionItemDto item, Guid commodityId, bool isService)
+    {
+        if (isService)
+        {
+            return (null, 1m);
+        }
+
+        switch (item.Family)
+        {
+            case ProcessType.Metal:
+                var metal = await _metals.GetAsync(commodityId);
+                return (metal.FollowingUnitId, item.Factor ?? metal.Factor);
+
+            case ProcessType.Scrap:
+                var scrap = await _scraps.GetAsync(commodityId);
+                return (scrap.FollowingUnitId, item.Factor ?? scrap.Factor);
+
+            case ProcessType.Future:
+                var future = await _futures.GetAsync(commodityId);
+                return (future.FollowingUnitId, item.Factor ?? future.FollowingFactor);
+
+            case ProcessType.Good:
+                var good = await _goods.GetAsync(commodityId);
+                var goodVariant = good.Variants.FirstOrDefault(v => v.IsMain) ?? good.Variants.FirstOrDefault();
+                return (goodVariant?.EntryPriceUnitId, 1m);
+
+            case ProcessType.Jewelry:
+                return ((await _jewelries.GetAsync(commodityId)).EntryPriceUnitId, 1m);
+
+            case ProcessType.Stone:
+                return ((await _stones.GetAsync(commodityId)).EntryPriceUnitId, 1m);
+
+            default:
+                return (null, 1m);
+        }
+    }
+
+    private static ProductRecipeLineGraphDto BuildLine(
+        ProductCommodityProvisionItemDto item, Guid commodityId, bool isService, Guid? valuationUnitId,
+        decimal factor)
     {
         if (isService)
         {
@@ -298,7 +361,8 @@ public class ProductCommodityProvisioner : ITransientDependency
             CommodityId          = commodityId,
             Quantity             = item.Quantity,
             Amount               = item.Amount,
-            Factor               = 1m,
+            Factor               = factor,
+            ValuationUnitId      = valuationUnitId,
             PaymentType          = ProcessPaymentType.Normal,
             LineOrder            = 0,
         };
@@ -314,16 +378,31 @@ public class ProductCommodityProvisioner : ITransientDependency
         var name = string.IsNullOrWhiteSpace(item.Name) ? product.Name : item.Name!;
         var baseCode = string.IsNullOrWhiteSpace(item.Code) ? product.Code : item.Code!;
 
-        // Doğal birim Metal/Scrap/Future'da ZORUNLU ve ön-doldurulamaz: hangi birimin takip edildiği bir iş
-        // kararıdır, üründen türetilemez. Eksikse SESSİZ varsayılan konmaz — satır atlanır.
-        var needsFollowingUnit = item.Family is ProcessType.Metal or ProcessType.Scrap or ProcessType.Future;
-        if (needsFollowingUnit && item.FollowingUnitId is null)
+        // ── MİLYEM SORULUR, UYDURULMAZ (2026-08-06) ──────────────────────────────────────────────────
+        //
+        // Panel eskiden milyemi hiç sormuyor, entity varsayılanına düşüyordu: Maden 0.995, Hurda 0.570.
+        // O sayı MAKUL GÖRÜNDÜĞÜ için kimse fark etmez — oysa 22 ayar bilezik 0.916'dır ve o andan sonra
+        // her değerleme, her reçete maliyeti yanlış milyemle hesaplanır. Bu, oturum boyunca avlanan
+        // "eksik veriye makul bir sayı koy" hatasının ta kendisiydi.
+        //
+        // Önce metal-bacaklıda hızlı-açmayı YASAKLAMAYI önerdim; kullanıcı kısıtı kaldırdı
+        // ("createnew de serbest olmalı metalde"). Delik yasakla değil BEYANLA kapandı: metal-bacaklı
+        // ailede yeni kayıt açmak için Factor ZORUNLU. Sistem tahmin etmez, kullanıcı söyler.
+        //
+        // KLON bu şartın dışındadır — kopya değeri GERÇEK bir kayıttan devralır, uydurma yoktur.
+        if (IsMetalLegged(item.Family)
+            && item.Mode == ProductCommodityProvisionMode.CreateNew
+            && item.Factor is null)
         {
-            result.Issues.Add($"{product.Code}: {item.Family} için doğal birim (takip birimi) seçilmedi.");
+            result.Issues.Add(
+                $"{product.Code}: {item.Family} ailesinde yeni emtia için MİLYEM zorunludur "
+                + "(varsayılana düşerse değerleme sessizce yanlış olur).");
             return null;
         }
 
-        var created = await CreateWithUniqueCodeAsync(item.Family, baseCode, name, item.FollowingUnitId);
+        var created = item.Mode == ProductCommodityProvisionMode.CloneExisting
+            ? await CloneWithUniqueCodeAsync(item, baseCode, name, result, product)
+            : await CreateWithUniqueCodeAsync(item, baseCode, name);
         if (created is not null)
         {
             result.CreatedCommodities++;
@@ -336,14 +415,39 @@ public class ProductCommodityProvisioner : ITransientDependency
     /// service'inde zorlanır (şirket-scope) — burada tekrar SORGULANMAZ, denenip sonucuna bakılır:
     /// paralel bir kayıt araya girse bile doğru davranış aynı kalır.</summary>
     private async Task<Guid?> CreateWithUniqueCodeAsync(
-        ProcessType family, string baseCode, string name, Guid? followingUnitId)
+        ProductCommodityProvisionItemDto item, string baseCode, string name)
+    {
+        return await WithUniqueCodeAsync(baseCode, code => CreateOfFamilyAsync(item, code, name));
+    }
+
+    /// <summary>KLON: mevcut kaydı ŞABLON alıp yeni kod/adla kopyalar (2026-08-06 Hakan isteği).
+    /// <para>Değerler GERÇEK bir kayıttan gelir — milyem, adet-gram katsayısı, işçilik/fiyat ayarları
+    /// kullanıcının daha önce doğruladığı hâliyle taşınır. Bu yüzden klon, metal-bacaklı ailelerde de
+    /// güvenlidir: ortada uydurulmuş sayı yoktur.</para></summary>
+    private async Task<Guid?> CloneWithUniqueCodeAsync(
+        ProductCommodityProvisionItemDto item, string baseCode, string name,
+        ProductCommodityProvisionResultDto result, Product product)
+    {
+        if (item.ExistingCommodityId is not { } sourceId || sourceId == Guid.Empty)
+        {
+            result.Issues.Add($"{product.Code}: klonlanacak kaynak emtia seçilmedi.");
+            return null;
+        }
+
+        return await WithUniqueCodeAsync(baseCode, code => CloneOfFamilyAsync(item.Family, sourceId, code, name));
+    }
+
+    /// <summary>Kod çakışmasını benzersizleştirme son-ekiyle çözer. Kodun benzersizliği ailenin app
+    /// service'inde zorlanır (şirket-scope) — burada tekrar SORGULANMAZ, denenip sonucuna bakılır:
+    /// paralel bir kayıt araya girse bile doğru davranış aynı kalır.</summary>
+    private static async Task<Guid?> WithUniqueCodeAsync(string baseCode, Func<string, Task<Guid?>> factory)
     {
         for (var attempt = 1; attempt <= MaxCodeAttempts; attempt++)
         {
             var code = attempt == 1 ? baseCode : $"{baseCode}-{attempt}";
             try
             {
-                return await CreateOfFamilyAsync(family, code, name, followingUnitId);
+                return await factory(code);
             }
             catch (BusinessException ex) when (IsCodeConflict(ex))
             {
@@ -355,32 +459,48 @@ public class ProductCommodityProvisioner : ITransientDependency
             .WithData("Code", baseCode);
     }
 
+    /// <summary>Milyem/katsayı taşıyan aileler — <c>ProductRecipeCostCalculator.IsMetalLegged</c> ile AYNI küme.
+    /// Bu ailelerde eksik katsayı SESSİZ yanlış değerleme demektir (bkz. yeni kayıt guard'ı).</summary>
+    private static bool IsMetalLegged(ProcessType family)
+    {
+        return family is ProcessType.Metal or ProcessType.Scrap or ProcessType.Future;
+    }
+
     private static bool IsCodeConflict(BusinessException ex)
     {
         return ex.Code is { Length: > 0 } code && code.EndsWith("CodeAlreadyExists", StringComparison.Ordinal);
     }
 
-    private async Task<Guid?> CreateOfFamilyAsync(
-        ProcessType family, string code, string name, Guid? followingUnitId)
+    /// <summary>Yeni katalog kaydı — ailenin KENDİ app service'iyle (şirket damgası + kod benzersizliği orada).
+    /// <para>Metal-bacaklı ailelerde <c>Factor</c> çağıran tarafından ZORUNLU kılınmıştır; buraya null
+    /// geldiğinde entity varsayılanı devreye girerdi, o yüzden guard yukarıda.</para></summary>
+    private async Task<Guid?> CreateOfFamilyAsync(ProductCommodityProvisionItemDto item, string code, string name)
     {
-        switch (family)
+        var unit = item.FollowingUnitId;
+        var stable = item.StableQuantity ?? 0m;
+
+        switch (item.Family)
         {
             case ProcessType.Metal:
                 return (await _metals.CreateAsync(new MetalCreateDto
                 {
-                    Code = code, Name = name, FollowingUnitId = followingUnitId,
+                    Code = code, Name = name, FollowingUnitId = unit,
+                    Factor = item.Factor ?? MetalConsts.DefaultFactor,
+                    IsQuantity = stable > 0m, StableQuantity = stable,
                 })).Id;
 
             case ProcessType.Scrap:
                 return (await _scraps.CreateAsync(new ScrapCreateDto
                 {
-                    Code = code, Name = name, FollowingUnitId = followingUnitId,
+                    Code = code, Name = name, FollowingUnitId = unit,
+                    Factor = item.Factor ?? ScrapConsts.DefaultFactor,
                 })).Id;
 
             case ProcessType.Future:
                 return (await _futures.CreateAsync(new FutureCreateDto
                 {
-                    Code = code, Name = name, FollowingUnitId = followingUnitId,
+                    Code = code, Name = name, FollowingUnitId = unit,
+                    FollowingFactor = item.Factor ?? 1m,
                 })).Id;
 
             case ProcessType.Jewelry:
@@ -394,6 +514,103 @@ public class ProductCommodityProvisioner : ITransientDependency
 
             case ProcessType.Service:
                 return (await _services.CreateAsync(new ServiceCreateDto { Code = code, Name = name })).Id;
+
+            default:
+                throw new BusinessException("TradeXpress:Product:CommodityFamilyNotProvisionable")
+                    .WithData("Family", item.Family.ToString());
+        }
+    }
+
+    /// <summary>KLON gövdesi: kaynağı ailenin app service'iyle OKUR, alanlarını yeni kod/adla kopyalar.
+    /// <para><b>Graf (varyant/belge/not/nitelik) KOPYALANMAZ</b> — bilinçli. Klonun amacı ölçü/ayar
+    /// devralmaktır; kaynağın varyantlarını da taşımak, kullanıcının istemediği kayıtları sessizce
+    /// çoğaltırdı. Varyantlar yeni emtianın kendi ekranında kurulur.</para></summary>
+    private async Task<Guid?> CloneOfFamilyAsync(ProcessType family, Guid sourceId, string code, string name)
+    {
+        switch (family)
+        {
+            case ProcessType.Metal:
+            {
+                var s = await _metals.GetAsync(sourceId);
+                return (await _metals.CreateAsync(new MetalCreateDto
+                {
+                    Code = code, Name = name, FollowingUnitId = s.FollowingUnitId,
+                    Factor = s.Factor, FactorChange = s.FactorChange,
+                    IsQuantity = s.IsQuantity, StableQuantity = s.StableQuantity,
+                    CostUnitId = s.CostUnitId, Description = s.Description,
+                })).Id;
+            }
+
+            case ProcessType.Scrap:
+            {
+                var s = await _scraps.GetAsync(sourceId);
+                return (await _scraps.CreateAsync(new ScrapCreateDto
+                {
+                    Code = code, Name = name, FollowingUnitId = s.FollowingUnitId,
+                    Factor = s.Factor, FactorChange = s.FactorChange, Description = s.Description,
+                })).Id;
+            }
+
+            case ProcessType.Future:
+            {
+                var s = await _futures.GetAsync(sourceId);
+                return (await _futures.CreateAsync(new FutureCreateDto
+                {
+                    Code = code, Name = name, FollowingUnitId = s.FollowingUnitId,
+                    FollowingFactor = s.FollowingFactor, Description = s.Description,
+                })).Id;
+            }
+
+            case ProcessType.Jewelry:
+            {
+                var s = await _jewelries.GetAsync(sourceId);
+                return (await _jewelries.CreateAsync(new JewelryCreateDto
+                {
+                    Code = code, Name = name,
+                    IsQuantity = s.IsQuantity, PriceByQuantity = s.PriceByQuantity,
+                    PriceTypeChange = s.PriceTypeChange,
+                    EntryPrice = s.EntryPrice, EntryPriceUnitId = s.EntryPriceUnitId,
+                    ExitPrice = s.ExitPrice, ExitPriceUnitId = s.ExitPriceUnitId,
+                    Description = s.Description,
+                })).Id;
+            }
+
+            case ProcessType.Stone:
+            {
+                var s = await _stones.GetAsync(sourceId);
+                return (await _stones.CreateAsync(new StoneCreateDto
+                {
+                    Code = code, Name = name,
+                    IsQuantity = s.IsQuantity, PriceByQuantity = s.PriceByQuantity,
+                    PriceTypeChange = s.PriceTypeChange,
+                    EntryPrice = s.EntryPrice, EntryPriceUnitId = s.EntryPriceUnitId,
+                    ExitPrice = s.ExitPrice, ExitPriceUnitId = s.ExitPriceUnitId,
+                    Description = s.Description,
+                })).Id;
+            }
+
+            case ProcessType.Good:
+            {
+                var s = await _goods.GetAsync(sourceId);
+                return (await _goods.CreateAsync(new GoodCreateDto
+                {
+                    Code = code, Name = name,
+                    IsQuantity = s.IsQuantity, PriceByQuantity = s.PriceByQuantity,
+                    PriceTypeChange = s.PriceTypeChange, StockUnitCode = s.StockUnitCode,
+                    VatPurchaseRate = s.VatPurchaseRate, VatSaleRate = s.VatSaleRate,
+                    OtvRate = s.OtvRate, WithholdingRate = s.WithholdingRate,
+                    Brand = s.Brand, Category = s.Category, Description = s.Description,
+                })).Id;
+            }
+
+            case ProcessType.Service:
+            {
+                var s = await _services.GetAsync(sourceId);
+                return (await _services.CreateAsync(new ServiceCreateDto
+                {
+                    Code = code, Name = name, Description = s.Description,
+                })).Id;
+            }
 
             default:
                 throw new BusinessException("TradeXpress:Product:CommodityFamilyNotProvisionable")

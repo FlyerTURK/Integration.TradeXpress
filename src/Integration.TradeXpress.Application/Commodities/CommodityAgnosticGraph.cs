@@ -34,14 +34,24 @@ public class CommodityAgnosticGraph : ITransientDependency
         _variants = variants;
     }
 
-    /// <summary>Grafı saklar (sahip entity zaten kaydedilmiş olmalı): doküman/not replace-all + varyant çekirdeği
-    /// (nitelik/değer → synchronizer kartezyen) + her varyantın KENDİ medyası (<paramref name="variantImageEntityName"/> bağlamı).</summary>
+    /// <summary>Grafı saklar (sahip entity zaten kaydedilmiş olmalı): KAYIT-GENELİ medya + doküman/not replace-all
+    /// + varyant çekirdeği (nitelik/değer → synchronizer kartezyen) + her varyantın KENDİ medyası
+    /// (<paramref name="variantImageEntityName"/> bağlamı).
+    ///
+    /// <para><b><paramref name="media"/> kayıt geneli, varyant medyası ondan AYRIDIR</b> (CLAUDE.md §6 "her medya
+    /// tipi iki bağlamı da taşır"): genel görsel kayıt seviyesinde, farklılık görselleri varyantta. Bu parametre
+    /// 2026-08-07'de eklendi — o güne dek graf yalnız VARYANT medyasını yazıyordu, dolayısıyla bu grafı kullanan
+    /// Jewelry/Metal/Stone'da kayıt-geneli medya hiçbir zaman kaydedilmiyordu. Hata sessizdi: form alanı olsa bile
+    /// kaydet sonrası içerik yok oluyordu.</para></summary>
     public async Task SaveAsync(
         string entityName, string variantImageEntityName, Guid entityId, Guid? companyId, string ownerName,
         List<EntityDocumentEditDto> documents, List<EntityNoteEditDto> notes,
         List<EntityAttributeGraphDto> attributes, IReadOnlyList<EntityVariantGraphDto> variants,
-        Func<EntityVariantGraphDto, Guid, Task>? additionalSaveAction = null)
+        Func<EntityVariantGraphDto, Guid, Task>? additionalSaveAction = null,
+        List<EntityMediaLinkEditDto>? media = null,
+        string? ownerCode = null)
     {
+        await _entityMedia.ReplaceForAsync(entityName, entityId, companyId, media ?? new List<EntityMediaLinkEditDto>());
         await _documents.ReplaceForAsync(entityName, entityId, documents);
         await _notes.ReplaceForAsync(entityName, entityId, notes);
         await _variants.SaveGraphAsync(
@@ -57,7 +67,8 @@ public class CommodityAgnosticGraph : ITransientDependency
                 {
                     await additionalSaveAction(dto, variantId);
                 }
-            });
+            },
+            ownerCode: ownerCode);   // niteliksiz tek varyant sahibin kodunu izler ("ANAVARYANT" değil)
     }
 
     /// <summary>Grafı okur (GetAsync projeksiyonu): doküman/not (Edit DTO'ları) + varyant grafı (her varyant KENDİ medyasıyla).</summary>
@@ -65,6 +76,7 @@ public class CommodityAgnosticGraph : ITransientDependency
     {
         var data = new CommodityGraphData
         {
+            Media = await _entityMedia.GetForAsync(entityName, entityId),
             Documents = (await _documents.GetForAsync(entityName, entityId)).Select(ToDocumentEdit).ToList(),
             Notes = (await _notes.GetForAsync(entityName, entityId)).Select(ToNoteEdit).ToList(),
         };
@@ -97,6 +109,7 @@ public class CommodityAgnosticGraph : ITransientDependency
                 }
             });
 
+        await _entityMedia.ReplaceForAsync(entityName, entityId, null, new List<EntityMediaLinkEditDto>());
         await _documents.ReplaceForAsync(entityName, entityId, new List<EntityDocumentEditDto>());
         await _notes.ReplaceForAsync(entityName, entityId, new List<EntityNoteEditDto>());
     }
@@ -166,9 +179,12 @@ public class CommodityAgnosticGraph : ITransientDependency
     }
 }
 
-/// <summary>Bir emtianın okunan agnostik grafı — sahip GetDto'ya kopyalanır (Documents/Notes/Attributes/Variants).</summary>
+/// <summary>Bir emtianın okunan agnostik grafı — sahip GetDto'ya kopyalanır (Media/Documents/Notes/Attributes/Variants).</summary>
 public class CommodityGraphData
 {
+    /// <summary>KAYIT-GENELİ medya (varyant farkı görselleri <see cref="EntityVariantGraphDto.Media"/>'da ayrı durur).</summary>
+    public List<EntityMediaLinkEditDto> Media { get; set; } = new();
+
     public List<EntityDocumentEditDto> Documents { get; set; } = new();
     public List<EntityNoteEditDto> Notes { get; set; } = new();
     public List<EntityAttributeGraphDto> Attributes { get; set; } = new();

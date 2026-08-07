@@ -607,11 +607,12 @@ public class SalesChannelEtsyProduct : FullAuditedAggregateRoot<Guid>, IMultiTen
         sku.EtsyOfferingVersion = version ?? sku.EtsyOfferingVersion;
     }
 
-    /// <summary>Varyant SKU stok kodu — kayıt-scoped ("{VaryantKodu}-{SequenceNo}"): aynı ürünün ikinci Etsy
-    /// listelemesinde satıcı-geneli stok kodu çakışmaz. TEK üretim yeri (SSOT).</summary>
+    /// <summary>Varyant SKU stok kodu — kayıt-scoped: İLK listeleme ÇIPLAK varyant kodunu taşır, aynı ürünün ikinci
+    /// listelemesinden itibaren "-{SequenceNo}" son eki ayırır (satıcı-geneli stok kodu çakışmaz). Kural
+    /// <see cref="ChannelSequenceCode"/>'da (SSOT) — "-1" üretilmez.</summary>
     public virtual string BuildStockCode(string variantCode)
     {
-        return $"{variantCode}-{SequenceNo}";
+        return ChannelSequenceCode.Compose(variantCode, SequenceNo);
     }
 
     /// <summary>IMPORT ile bir SKU kimlik satırını upsert eder (Trendyol <c>UpsertImportedSku</c> ikizi). FrozenSku

@@ -214,6 +214,14 @@
     </DxTabPage>
 
     @* Dokümanlar — agnostik EntityDocument ("Good" bağlamı); yüklenen blob dosya ekleri (PDF/Word/Excel…). *@
+    @* KAYIT-GENELİ medya (2026-08-06 Hakan kuralı: her medya tipi İKİ bağlamı da taşır). Varyanta ÖZEL
+       görseller Varyantlar sekmesinde ayrı durur; burası mamülün genel görselleridir. ProductLayout'taki
+       panelin aynısı — iki taraf simetrik olmalı ki "ürünün aynası" gerçekten ayna olsun. *@
+    <DxTabPage Text="@L["Good:Media"]" TabIconCssClass="@TradeXpressIcons.Good">
+        <span style="color:#6c757d; font-size:0.85rem;">@L["Good:MediaHint"]</span>
+        <EntityMediaPanel Media="@Model.Media" />
+    </DxTabPage>
+
     <DxTabPage Text="@L["Documents"]" TabIconCssClass="@TradeXpressIcons.Report">
         <EntityDocumentsPanel Documents="@Model.Documents" />
     </DxTabPage>

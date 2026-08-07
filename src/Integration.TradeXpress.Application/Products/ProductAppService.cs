@@ -10,6 +10,7 @@ using Integration.TradeXpress.Companies;
 using Integration.TradeXpress.EtsyProducts;
 using Integration.TradeXpress.MultiCompany;
 using Integration.TradeXpress.N11Products;
+using Integration.TradeXpress.SalesChannels;
 using Integration.TradeXpress.SalesChannels.Variants;
 using Integration.TradeXpress.Orchestration;
 using Integration.TradeXpress.Substitutions;
@@ -69,6 +70,12 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
     private readonly CommodityAgnosticGraph _commodityGraph;   // yalnız OKUMA — liste önizlemesinin ana-varyant poster fallback'i
     private readonly ProductRecipeLineWriter _recipeLineWriter;
     private readonly ProductCommodityProvisioner _commodityProvisioner;
+    private readonly ProductToGoodProjector _productToGoodProjector;
+
+    /// <summary>Kanal-başı listeleme temizleyicileri — ürün silinirken kanal kayıtları da gitsin diye
+    /// (<see cref="IProductChannelListingRemover"/>). <c>IEnumerable</c> ile enjekte edilir: dördüncü pazaryeri
+    /// kendi temizleyicisini kaydeder, burası DEĞİŞMEZ.</summary>
+    private readonly List<IProductChannelListingRemover> _channelListingRemovers;
 
     private static readonly HashSet<string> AllowedListFields =
         new(StringComparer.OrdinalIgnoreCase) { "Code", "Name", "IsActive", "Id" };
@@ -95,8 +102,11 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         IEntityMediaAppService entityMedia,
         CommodityAgnosticGraph commodityGraph,
         ProductRecipeLineWriter recipeLineWriter,
-        ProductCommodityProvisioner commodityProvisioner)
+        ProductCommodityProvisioner commodityProvisioner,
+        ProductToGoodProjector productToGoodProjector,
+        IEnumerable<IProductChannelListingRemover> channelListingRemovers)
     {
+        _channelListingRemovers = channelListingRemovers.ToList();
         _repository = repository;
         _substitutionGroupRepository = substitutionGroupRepository;
         _productCategoryRepository = productCategoryRepository;
@@ -119,6 +129,7 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         _commodityGraph = commodityGraph;
         _recipeLineWriter = recipeLineWriter;
         _commodityProvisioner = commodityProvisioner;
+        _productToGoodProjector = productToGoodProjector;
     }
 
     public virtual async Task<PagedResultDto<ProductListDto>> GetListAsync(ProductListRequestDto input)
@@ -433,6 +444,16 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
                 }
             });
 
+        // SATIŞ KANALI kayıtları (N11 · Trendyol · Etsy) — 2026-08-06'da eklendi. Kanal kaydı ürüne yalnız Guid ile
+        // bağlıdır (aggregate'ler arası id-only) → DB referansı TUTMAZ ve buraya konmadığı sürece ürün silinince
+        // ölü ProductId taşıyan kayıtlar geride kalırdı. Böyle bir kayıt açılamaz, düzenlenemez, push edilemez ve
+        // sonraki içe aktarımı topyekûn kilitler (canlı vaka: 18 öksüz kayıt → "Ürün bulunamadı", 103 ürünlük parti
+        // iptal). Temizleyiciler kanal-başı kayıtlıdır → dördüncü pazaryeri eklendiğinde BU METOT DEĞİŞMEZ.
+        foreach (var remover in _channelListingRemovers)
+        {
+            await remover.RemoveForProductAsync(entity.Id);
+        }
+
         await _repository.DeleteAsync(entity, autoSave: true);
     }
 
@@ -513,6 +534,12 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         ProductCommodityProvisionInputDto input)
     {
         return await _commodityProvisioner.ProvisionAsync(input);
+    }
+
+    /// <summary>Ürünün mamül aynası — iş <see cref="ProductToGoodProjector"/>'da; burada yalnız yetki kapısı.</summary>
+    public virtual async Task<Goods.GoodGetDto> ProjectToGoodAsync(Guid productId)
+    {
+        return await _productToGoodProjector.ProjectAsync(productId);
     }
 
     public virtual async Task<List<ProductChannelAttributeDto>> ResolveChannelAttributesAsync(
@@ -704,7 +731,8 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         var substitutionMode = product.VariantMode == ProductVariantMode.Substitution;
         await _entityVariant.SaveGraphAsync(
             ProductEntityName, product.Id, product.CompanyId, product.Name, effectiveAttributes, variants,
-            saveExtensionAsync: (dto, variantId) => SaveProductVariantDetailAsync(product.CompanyId, dto, variantId, substitutionMode));
+            saveExtensionAsync: (dto, variantId) => SaveProductVariantDetailAsync(product.CompanyId, dto, variantId, substitutionMode),
+            ownerCode: product.Code);   // niteliksiz tek varyant sahibin kodunu izler ("ANAVARYANT" değil)
     }
 
     /// <summary>Mod kapısının nitelik grafı: MultiVariant → client grafı olduğu gibi; SingleVariant/Substitution →

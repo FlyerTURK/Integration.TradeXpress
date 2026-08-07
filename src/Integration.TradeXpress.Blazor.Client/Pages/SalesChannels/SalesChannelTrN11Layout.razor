@@ -71,10 +71,13 @@
     @* Kurulum sihirbazı — MEVCUT kanal için. Sihirbaz yalnız "Yeni kanal" yolundan açılsaydı ulaşılamaz olurdu:
        her türden en fazla bir kanal var, dolayısıyla kanalını kuran kullanıcı "Yeni"yi ebediyen kapalı görür. *@
     <div class="mt-3">
+        @* MDI kabuğunda NavigationManager.NavigateTo NO-OP'tur: rota sekme olarak açılır, adres çubuğu
+           kabuk tarafından kökte tutulur. Bu yüzden düğme 2026-08-06'ya kadar HİÇBİR ŞEY YAPMIYORDU ve
+           sihirbaz fiilen ulaşılamazdı ("Yeni ▾ → N11" de tek-kanal kuralıyla kapalı olduğundan). *@
         <DxButton Text="@L["SalesChannel:OpenSetupWizard"]"
                   IconCssClass="@TradeXpressIcons.SalesChannel"
                   RenderStyle="ButtonRenderStyle.Secondary"
-                  Click="@(() => Navigation.NavigateTo($"/sales-channels/n11/wizard/{Model.Id}"))" />
+                  Click="@OpenWizardAsync" />
     </div>
 
     @* Mağazadan ürün içe aktarma — mevcut N11 listelemeleri şablon ürün + varyant + kanal kaydı olarak içeri

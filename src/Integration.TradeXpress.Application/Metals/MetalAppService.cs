@@ -232,6 +232,7 @@ public class MetalAppService
         await base.EnrichGetAsync(entity, dto);
 
         var graph = await _graph.LoadAsync(MetalEntityName, VariantImageEntityName, entity.Id);
+        dto.Media = graph.Media;
         dto.Documents = graph.Documents;
         dto.Notes = graph.Notes;
         dto.Attributes = graph.Attributes;
@@ -286,14 +287,14 @@ public class MetalAppService
     public override async Task<MetalGetDto> CreateAsync(MetalCreateDto input)
     {
         var dto = await base.CreateAsync(input);
-        await SaveGraphAsync(dto.Id, input.Name, input.Documents, input.Notes, input.Attributes, input.Variants);
+        await SaveGraphAsync(dto.Id, input.Name, input.Documents, input.Notes, input.Attributes, input.Variants, input.Media);
         return await GetAsync(dto.Id);
     }
 
     public override async Task<MetalGetDto> UpdateAsync(Guid id, MetalUpdateDto input)
     {
         var dto = await base.UpdateAsync(id, input);
-        await SaveGraphAsync(id, input.Name, input.Documents, input.Notes, input.Attributes, input.Variants);
+        await SaveGraphAsync(id, input.Name, input.Documents, input.Notes, input.Attributes, input.Variants, input.Media);
         return await GetAsync(id);
     }
 
@@ -304,7 +305,8 @@ public class MetalAppService
     // (ana varyant dahil) o şirkette görünmez oluyordu — canlıda 4 satırda gerçekleşti.
     private async Task SaveGraphAsync(
         Guid metalId, string ownerName, List<EntityDocumentEditDto> documents,
-        List<EntityNoteEditDto> notes, List<EntityAttributeGraphDto> attributes, List<MetalVariantGraphDto> variants)
+        List<EntityNoteEditDto> notes, List<EntityAttributeGraphDto> attributes, List<MetalVariantGraphDto> variants,
+        List<EntityMediaLinkEditDto> media)
     {
         var metal = await Repository.GetAsync(metalId);
 
@@ -312,7 +314,9 @@ public class MetalAppService
             MetalEntityName, VariantImageEntityName, metalId, metal.CompanyId, ownerName,
             documents, notes, attributes, variants,
             additionalSaveAction: (dto, variantId) =>
-                SaveVariantDetailAsync(metal.CompanyId, (MetalVariantGraphDto)dto, variantId));
+                SaveVariantDetailAsync(metal.CompanyId, (MetalVariantGraphDto)dto, variantId),
+            media: media,
+            ownerCode: metal.Code);   // niteliksiz tek varyant sahibin kodunu izler ("ANAVARYANT" değil)
     }
 
     private async Task SaveVariantDetailAsync(Guid? companyId, MetalVariantGraphDto dto, Guid variantId)

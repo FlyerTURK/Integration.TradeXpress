@@ -5873,7 +5873,7 @@ namespace Integration.TradeXpress.Migrations
 
                     b.HasIndex("TenantId", "CompanyId", "Code")
                         .IsUnique()
-                        .HasFilter("[TenantId] IS NOT NULL");
+                        .HasFilter("[TenantId] IS NOT NULL AND [IsDeleted] = 0");
 
                     b.HasIndex("TenantId", "CompanyId", "ProductCategoryId");
 
@@ -7402,6 +7402,9 @@ namespace Integration.TradeXpress.Migrations
                     b.Property<Guid>("Id")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<decimal?>("CommissionRate")
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<string>("ConcurrencyStamp")
                         .IsConcurrencyToken()
                         .IsRequired()
@@ -8443,7 +8446,7 @@ namespace Integration.TradeXpress.Migrations
 
                     b.HasIndex("TenantId", "EntityName", "EntityId", "Code")
                         .IsUnique()
-                        .HasFilter("[TenantId] IS NOT NULL");
+                        .HasFilter("[TenantId] IS NOT NULL AND [IsDeleted] = 0");
 
                     b.HasIndex("TenantId", "EntityName", "EntityId", "IsMain");
 

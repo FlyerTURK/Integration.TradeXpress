@@ -4,6 +4,12 @@ namespace Integration.TradeXpress.SpecialCodes;
 /// sınırları.</summary>
 public static class SpecialCodeConsts
 {
+    /// <summary>Özel kodda ALT SINIR 2'dir (genel kural 3) — 2026-08-06 Hakan tespiti.
+    /// <para>Ölçü birimi kodları doğal olarak iki harflidir: <c>AD</c> (Adet), <c>KG</c>, <c>GR</c>, <c>MT</c>.
+    /// Genel 3-harf kuralı burada meşru kodu reddediyordu. Konvansiyonun kendi gerekçesi zaten
+    /// <i>"en kısa meşru ada uymalı"</i> diyor; bu sözlükte en kısa meşru ad iki harflidir.</para></summary>
+    public const int CodeMinLength         = 2;
+
     public const int CodeMaxLength         = 32;
     public const int NameMaxLength         = 128;
     public const int EntityNameMaxLength   = 128;   // teknik: hedef entity tipi adı (ör. "Good")

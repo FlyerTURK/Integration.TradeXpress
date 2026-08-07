@@ -23,6 +23,14 @@ public partial class GoodEditHost
     [Parameter] public EventCallback OnSaved { get; set; }
     [Parameter] public EventCallback OnClosed { get; set; }
 
+    /// <summary>ÇAĞRI-BAŞI footer daraltma (2026-08-06 Hakan kararı): sihirbazın emtia adımı bu formu popup'ta
+    /// açarken "Kaydet ve Yeni" + "Sil"i gizler (extraParams ile false geçer) — orada Kaydet zaten
+    /// doğrula+kaydet+kapat çalışır ve ikinci kayıt/silme akışın parçası değildir. GLOBAL mod DEĞİL:
+    /// başka yüzeyler (liste sayfası, MDI sekmesi) bu bayraklara dokunmaz, default true.</summary>
+    [Parameter] public bool SupportsSaveAndNew { get; set; } = true;
+
+    [Parameter] public bool SupportsDelete { get; set; } = true;
+
     private List<CurrencyUnitListDto> _units = new();
     private List<AccountListDto> _accounts = new();
     private List<SubAccountListDto> _subAccounts = new();
@@ -50,15 +58,68 @@ public partial class GoodEditHost
         _ready = true;
     }
 
-    // Yeni mamül default'ları — perakende varsayılanları (adet-bazlı, KDV %10 dahil, alış birimi yerel para).
+    // Yeni mamül default'ları — perakende varsayılanları (adet-bazlı, KDV %20, alış birimi yerel para).
+    /// <summary>Sınıflandırma panelinden gelen ÖN-DOLDURMA (2026-08-06 Hakan isteği): emtia ürünün
+    /// kendisinden türetildiği için kod/ad boş form yerine HAZIR gelir. Boş geçilirse davranış eskisi gibi.
+    /// <para>Panel <c>IViewOpener.OpenAsync</c>'in <c>extraParams</c>'ıyla geçirir.</para></summary>
+    [Parameter] public string? SeedCode { get; set; }
+
+    [Parameter] public string? SeedName { get; set; }
+
+    /// <summary>ÜRÜNÜN MAMÜL AYNASI — <c>ProductToGoodProjector</c> çıktısı. Kod/ad/KDV'nin yanında
+    /// NİTELİK ve VARYANT grafını da taşır; kullanıcı aynı bilgiyi ikinci kez girmez.
+    /// <para>Verilirse <see cref="SeedCode"/>/<see cref="SeedName"/>'i EZER (daha zengin kaynak).</para></summary>
+    [Parameter] public GoodGetDto? SeedModel { get; set; }
+
     private void ApplyNewDefaults(GoodGetDto m)
     {
         m.IsActive = true;
+
+        // ZENGİN TOHUM önce: ürünün mamül aynası varsa kod/ad/KDV + nitelik + varyant grafı olduğu gibi
+        // gelir ve aşağıdaki perakende varsayılanlarını EZER (kullanıcının üründe verdiği KDV, uydurulmuş
+        // varsayılandan daha doğrudur). Yoksa eski davranış: yalnız kod/ad tohumu, sonra varsayılanlar.
+        if (SeedModel is { } s)
+        {
+            m.Code            = s.Code;
+            m.Name            = s.Name;
+            m.Description     = s.Description;
+            m.IsQuantity      = s.IsQuantity;
+            m.PriceByQuantity = s.PriceByQuantity;
+            m.PriceTypeChange = s.PriceTypeChange;
+            m.VatPurchaseRate = s.VatPurchaseRate;
+            m.VatSaleRate     = s.VatSaleRate;
+            m.CompanyId       = Working.CurrentCompanyId;
+            m.Attributes      = s.Attributes;
+
+            // KAYIT-GENELİ MEDYA: projeksiyon dolduruyor, form da almalı. Bu satır ilk yazımda eksikti —
+            // DTO alanı bu kod yazıldıktan SONRA eklendiği için sessizce düşüyordu (2026-08-06).
+            m.Media           = s.Media;
+
+            foreach (var v in s.Variants)
+            {
+                v.EntryPriceUnitId ??= _localCurrencyUnitId;
+                m.Variants.Add(v);
+            }
+
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(SeedCode))
+        {
+            m.Code = SeedCode!;
+        }
+
+        if (!string.IsNullOrWhiteSpace(SeedName))
+        {
+            m.Name = SeedName!;
+        }
         m.PriceTypeChange = true;
         m.CompanyId = Working.CurrentCompanyId;
         m.IsQuantity = true;                           // adet-bazlı default
-        m.VatPurchaseRate = 10m;                       // KDV alış default %10
-        m.VatSaleRate = 10m;                           // KDV satış default %10
+        // KDV %20 — Türkiye'nin GENEL oranı (2026-08-06 Hakan kararı; önceki %10 indirimli orandı ve
+        // ürünlerin çoğunda yanlış başlangıç veriyordu). Oran ürün bazında değiştirilebilir.
+        m.VatPurchaseRate = 20m;
+        m.VatSaleRate = 20m;
 
         // Standart ANA VARYANT — yeni kayıtta hazır (kullanıcı nitelik eklemeden fiyat/barkod girebilsin). Nitelik×değer
         // üretilince (GenerateVariants) bu liste değişir; üretilmezse save'de synchronizer bu main'i kalıcılaştırır
@@ -66,7 +127,9 @@ public partial class GoodEditHost
         m.Variants.Add(new GoodVariantGraphDto
         {
             IsMain = true,
-            Code = EntityVariantConsts.MainVariantCode,
+            // TEK VARYANT AYRIM DEĞİLDİR (2026-08-06 Hakan): kod verilmişse ana varyant ONU taşır,
+            // "ANAVARYANT" sentinel gürültüsü yazılmaz.
+            Code = string.IsNullOrWhiteSpace(SeedCode) ? EntityVariantConsts.MainVariantCode : SeedCode!,
             Name = EntityVariantConsts.MainVariantName,
             IsActive = true,
             EntryPriceUnitId = _localCurrencyUnitId,

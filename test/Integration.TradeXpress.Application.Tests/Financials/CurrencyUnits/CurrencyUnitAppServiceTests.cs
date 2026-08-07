@@ -23,11 +23,11 @@ public abstract class CurrencyUnitAppServiceTests<TStartupModule> : TradeXpressA
     }
 
     [Fact]
-    public async Task Seed_should_expose_twelve_global_units()
+    public async Task Seed_should_expose_thirteen_global_units()
     {
         var result = await _appService.GetListAsync(new CurrencyUnitListRequestDto { MaxResultCount = 100 });
 
-        result.TotalCount.ShouldBe(12);
+        result.TotalCount.ShouldBe(13);   // 12 doviz/maden + AD (Adet sayim birimi, 2026-08-06)
         result.Items.ShouldAllBe(u => u.IsGlobal);
         result.Items.Select(u => u.Code).ShouldContain(CurrencyUnitCode.TRY);
     }
@@ -121,8 +121,8 @@ public abstract class CurrencyUnitAppServiceTests<TStartupModule> : TradeXpressA
             own.IsGlobal.ShouldBeFalse(); // tenant-owned
 
             var list = await _appService.GetListAsync(new CurrencyUnitListRequestDto { MaxResultCount = 100 });
-            list.TotalCount.ShouldBe(13); // 12 global + 1 own
-            list.Items.Count(u => u.IsGlobal).ShouldBe(12);
+            list.TotalCount.ShouldBe(14); // 13 global (12 doviz/maden + AD) + 1 own
+            list.Items.Count(u => u.IsGlobal).ShouldBe(13);
             list.Items.ShouldContain(u => u.Code == "TNT" && !u.IsGlobal);
         }
 

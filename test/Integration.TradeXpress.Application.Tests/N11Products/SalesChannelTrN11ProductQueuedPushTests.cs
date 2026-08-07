@@ -122,8 +122,8 @@ public abstract class SalesChannelTrN11ProductQueuedPushTests<TStartupModule> : 
                 N11TaskState.Processed,
                 new List<N11TaskItemResult>
                 {
-                    new("RED-1", true, null),
-                    new("GREEN-1", false, "Zorunlu özellik eksik"),
+                    new("RED", true, null),
+                    new("GREEN", false, "Zorunlu özellik eksik"),
                 },
                 null);
 
@@ -163,7 +163,7 @@ public abstract class SalesChannelTrN11ProductQueuedPushTests<TStartupModule> : 
                 N11TaskState.Processed,
                 new List<N11TaskItemResult>
                 {
-                    new("RED-1", false, "Bu ürün için girdiğiniz fiyatta fahiş fiyat düşüklüğü olduğundan..."),
+                    new("RED", false, "Bu ürün için girdiğiniz fiyatta fahiş fiyat düşüklüğü olduğundan..."),
                 },
                 null);
 
@@ -201,7 +201,7 @@ public abstract class SalesChannelTrN11ProductQueuedPushTests<TStartupModule> : 
 
             _restClient.PriceStockBatches.ShouldNotBeEmpty();
             var rows = _restClient.PriceStockBatches[^1];
-            rows.ShouldContain(r => r.StockCode == "GREEN-1" && r.SalePrice == 175m);
+            rows.ShouldContain(r => r.StockCode == "GREEN" && r.SalePrice == 175m);
             // listPrice >= salePrice ZORUNLU; ayri liste fiyati kavramimiz yok → esit gonderilir.
             rows.ShouldAllBe(r => r.ListPrice >= r.SalePrice);
         }
@@ -551,7 +551,7 @@ public abstract class SalesChannelTrN11ProductQueuedPushTests<TStartupModule> : 
     private static N11RestProductSummary NewSummary(long n11ProductId, string categoryId)
     {
         return new N11RestProductSummary(
-            n11ProductId, null, "RED-1", "Test", 100m, 100m, 10, "On_Sale", "Active", categoryId,
+            n11ProductId, null, "RED", "Test", 100m, 100m, 10, "On_Sale", "Active", categoryId,
             Array.Empty<string>());
     }
 }

@@ -30,8 +30,12 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
             b.Property(x => x.Mpn).HasMaxLength(EntityVariantConsts.TradeIdentifierMaxLength);
             b.Property(x => x.Oem).HasMaxLength(EntityVariantConsts.TradeIdentifierMaxLength);
 
-            // Varyant kodu SAHİP (EntityName+EntityId) başına tekil.
-            b.HasIndex(x => new { x.TenantId, x.EntityName, x.EntityId, x.Code }).IsUnique();
+            // Varyant kodu SAHİP (EntityName+EntityId) başına tekil — SOFT-DELETE FARKINDALI (2026-08-07).
+            // Öncesinde silinmiş varyantın kodu kalıcı işgal ediliyordu; aynı sahibin yeniden kurulan varyantı
+            // "-2" son eki almak zorunda kalıyordu. Aynı tablodaki TEK-ANA indeksi zaten "IsDeleted = 0" taşıyor
+            // → bu satır o desene hizalanır.
+            b.HasIndex(x => new { x.TenantId, x.EntityName, x.EntityId, x.Code }).IsUnique()
+                .HasFilter("[TenantId] IS NOT NULL AND [IsDeleted] = 0");
             b.HasIndex(x => new { x.TenantId, x.CompanyId });
             // Ana varyant araması (tek-main invariant).
             b.HasIndex(x => new { x.TenantId, x.EntityName, x.EntityId, x.IsMain });

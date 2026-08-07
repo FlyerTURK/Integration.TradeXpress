@@ -154,7 +154,7 @@ public class CurrencyUnit : FullAuditedAggregateRoot<Guid>, IMultiTenant
         Code = StringFieldGuard.NormalizeCode(
             code,
             nameof(Code),
-            EntityFieldConsts.CodeMinLength,
+            CurrencyConsts.CodeMinLength,   // 2 — "AD"/Adet sayım birimi (2026-08-06 Hakan isteği); genel katalog 3'te kalır
             CurrencyConsts.CodeMaxLength);
     }
 

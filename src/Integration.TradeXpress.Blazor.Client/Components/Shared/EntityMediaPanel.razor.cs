@@ -21,8 +21,13 @@ public partial class EntityMediaPanel
     [CascadingParameter(Name = "EditChanged")] private Action? EditChanged { get; set; }
 
     private bool _busy;
+    private bool _uploadPopupVisible;
     private bool _importPopupVisible;
     private string? _importUrl;
+
+    /// <summary>Grid seçimi — Sil toolbar'a taşındığı için gerekli. <c>IReadOnlyList</c> DevExpress'in
+    /// <c>@bind-SelectedDataItems</c> sözleşmesidir.</summary>
+    private IReadOnlyList<object> _selected = new List<object>();
 
     private bool _capturePopupVisible;
     private EntityMediaLinkEditDto? _captureLink;
@@ -154,17 +159,42 @@ public partial class EntityMediaPanel
         NotifyChanged();
     }
 
+    /// <summary>Seçili satırları toplu siler (toolbar). Varsayılan medya silinmişse yenisi ilk sıradan atanır —
+    /// tek-tek silmedeki değişmezin aynısı, tek geçişte.</summary>
+    private void RemoveSelected()
+    {
+        if (_selected.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var link in _selected.OfType<EntityMediaLinkEditDto>().ToList())
+        {
+            Media.Remove(link);
+        }
+
+        _selected = new List<object>();
+        ReindexOrder();
+        EnsureDefaultExists();
+        NotifyChanged();
+    }
+
     private void Remove(EntityMediaLinkEditDto link)
     {
         Media.Remove(link);
         ReindexOrder();
+        EnsureDefaultExists();
+        NotifyChanged();
+    }
+
+    /// <summary>Silme sonrası varsayılansız kalmayı engeller: liste boş değilse ilk satır varsayılan+aktif olur.</summary>
+    private void EnsureDefaultExists()
+    {
         if (Media.Count > 0 && !Media.Any(l => l.IsDefault))
         {
             Media[0].IsDefault = true;
             Media[0].IsActive = true;
         }
-
-        NotifyChanged();
     }
 
     private void OpenCapture(EntityMediaLinkEditDto link)

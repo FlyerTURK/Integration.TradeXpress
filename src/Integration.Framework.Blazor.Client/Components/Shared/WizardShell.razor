@@ -9,7 +9,13 @@
    CollectionFiller sarmalayıcının içine inmez ve sekme SESSİZCE görünmez olur. Adım şeridi bu yüzden düz
    işaretlemedir. Stil INLINE (yeni CSS sınıfı açılmadı — proje kuralı). *@
 
-<div style="display:flex; flex-direction:column; gap:12px;">
+@* YÜKSEKLİK AKIŞI (2026-08-06 Hakan tespiti — mobilde ayak düğmeleri görünmüyordu):
+   Kabuk ebeveyninin verdiği yüksekliği DOLDURUR ve İÇERİDE kaydırır; ayak (Geri/İleri/Atla) her zaman
+   altta sabit kalır. Sabit piksel yüksekliği (önceki yamam) hiçbir viewport'ta doğru olamazdı —
+   masaüstünde tutup mobilde tutmamasının sebebi buydu.
+   `min-height:0` ZORUNLU: flex öğesinin otomatik asgari boyu İÇERİĞİNDEN gelir; verilmezse çocuk
+   küçülmez, taşar ve ayak ekranın dışına itilir (aynı tuzağa Cari İşlem panelinde de düşmüştük). *@
+<div style="display:flex; flex-direction:column; gap:12px; height:100%; min-height:0;">
 
     @* Adım şeridi — tamamlanan / aktif / bekleyen. Tıklanabilirlik yalnız GERİYE (ileri gitmek doğrulamadan geçer). *@
     <div style="display:flex; flex-wrap:wrap; gap:4px; align-items:center;">
@@ -33,10 +39,14 @@
         }
     </div>
 
-    @* Aktif adımın gövdesi — WizardStep kendi içeriğini yalnız aktifken çizer. *@
-    <CascadingValue Value="@this" IsFixed="true">
-        @ChildContent
-    </CascadingValue>
+    @* Aktif adımın gövdesi — WizardStep kendi içeriğini yalnız aktifken çizer.
+       KAYDIRMA BURADA: uzun adım (ör. yüzlerce satırlık emtia listesi) kendi alanında kaydırılır,
+       ayak düğmelerini aşağı itmez. *@
+    <div style="flex:1; min-height:0; overflow-y:auto;">
+        <CascadingValue Value="@this" IsFixed="true">
+            @ChildContent
+        </CascadingValue>
+    </div>
 
     @if (_error is { Length: > 0 })
     {
@@ -50,18 +60,20 @@
                   Enabled="@(_activeIndex > 0 && !_busy)"
                   Click="@BackAsync" />
 
+        @* İleri/Bitir adımın CanAdvance'ına da bakar: zorunlu bir seçim eksikken etkin durmak kullanıcıya
+           yalan söyler (basılır, sonra reddedilir). Adım belirtmezse varsayılan true — davranış değişmez. *@
         @if (IsLastStep)
         {
             <DxButton Text="@(FinishText ?? L["Wizard:Finish"].Value)"
                       RenderStyle="ButtonRenderStyle.Primary"
-                      Enabled="@(!_busy)"
+                      Enabled="@(!_busy && ActiveStep?.CanAdvance != false)"
                       Click="@FinishAsync" />
         }
         else
         {
             <DxButton Text="@L["Wizard:Next"]"
                       RenderStyle="ButtonRenderStyle.Primary"
-                      Enabled="@(!_busy)"
+                      Enabled="@(!_busy && ActiveStep?.CanAdvance != false)"
                       Click="@NextAsync" />
         }
 

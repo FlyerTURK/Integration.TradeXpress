@@ -99,8 +99,9 @@ public abstract class SalesChannelTrN11ProductImportTests<TStartupModule> : Trad
             var sku = channelProduct.Skus.ShouldHaveSingleItem();
             sku.SellerStockCode.ShouldBe("N11-SKU-XYZ");
 
-            // Üretim kuralı uygulansaydı kod "{VaryantKodu}-{SequenceNo}" olurdu — o hâle DÜŞMEMELİ.
-            sku.SellerStockCode.ShouldNotBe(channelProduct.BuildStockCode("N11-SKU-XYZ"));
+            // NOT: eski negatif iddia ("BuildStockCode çıktısına eşit OLMAMALI") 2026-08-07'de anlamsızlaştı —
+            // SequenceNo=1'de üretim kuralı da ÇIPLAK kodu döndürür (ChannelSequenceCode), iki yol bilinçli çakışır.
+            // Asıl niyet üstteki pozitif iddiayla korunuyor: kod uzaktan geldiği gibi, DÖNÜŞTÜRÜLMEDEN yazılır.
             sku.N11SkuId.ShouldBe(900);
         }
     }

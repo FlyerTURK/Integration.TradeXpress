@@ -33,10 +33,13 @@ public interface IEntityVariantGraphService
     /// her varyant çözülüp çekirdeği kaydedildikten SONRA (dto, DB-varyant-Id) ile çağrılır — sahip entity-ÖZEL
     /// uzantısını (ör. GoodVariantDetail fiyat/stok) o DB varyanta bağlar. <paramref name="variants"/> kovaryant
     /// (IReadOnlyList) → sahip türetilmiş DTO listesini (List&lt;GoodVariantGraphDto&gt;) doğrudan geçebilir.</summary>
+    /// <para><paramref name="ownerCode"/>: NİTELİKSİZ tek varyantın kod kimliği — verilirse ana varyant "ANAVARYANT"
+    /// sentinel'i yerine sahibin kodunu taşır ve sahip kod değiştirince izler (2026-08-06 Hakan kararı).</para>
     Task SaveGraphAsync(
         string entityName, Guid entityId, Guid? companyId, string ownerName,
         List<EntityAttributeGraphDto> attributes, IReadOnlyList<EntityVariantGraphDto> variants,
-        Func<EntityVariantGraphDto, Guid, Task>? saveExtensionAsync = null);
+        Func<EntityVariantGraphDto, Guid, Task>? saveExtensionAsync = null,
+        string? ownerCode = null);
 
     /// <summary>Sahip entity'nin varyant grafını okur (GetAsync projeksiyonu) — nitelikler + varyantlar (AttributeSummary dolu).</summary>
     Task<EntityVariantGraphResult> LoadGraphAsync(string entityName, Guid entityId);
@@ -94,10 +97,11 @@ public class EntityVariantGraphService : IEntityVariantGraphService, ITransientD
     public async Task SaveGraphAsync(
         string entityName, Guid entityId, Guid? companyId, string ownerName,
         List<EntityAttributeGraphDto> attributes, IReadOnlyList<EntityVariantGraphDto> variants,
-        Func<EntityVariantGraphDto, Guid, Task>? saveExtensionAsync = null)
+        Func<EntityVariantGraphDto, Guid, Task>? saveExtensionAsync = null,
+        string? ownerCode = null)
     {
         var valueMap = await SaveAttributesAsync(entityName, entityId, companyId, attributes);
-        await _variantSynchronizer.SynchronizeAsync(entityName, entityId, companyId, ownerName);
+        await _variantSynchronizer.SynchronizeAsync(entityName, entityId, companyId, ownerName, ownerCode);
         await ApplyVariantCustomizationsAsync(entityName, entityId, variants, valueMap, saveExtensionAsync);
     }
 

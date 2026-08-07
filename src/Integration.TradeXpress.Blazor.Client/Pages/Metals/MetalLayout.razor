@@ -90,6 +90,12 @@
             </ExtraFields>
         </EntityVariantsPanel>
     </DxTabPage>
+    @* KAYIT-GENELİ medya (CLAUDE.md §6): varyanta ÖZEL görseller Varyantlar sekmesinde ayrı durur, burası kaydın
+       genel görselleridir. İki bağlamdan biri eksikse tip YARIMDIR — Good/Product deseniyle simetrik. *@
+    <DxTabPage Text="@L["Media"]" TabIconCssClass="@TradeXpressIcons.Metal">
+        <EntityMediaPanel Media="@Model.Media" />
+    </DxTabPage>
+
     <DxTabPage Text="@L["Documents"]" TabIconCssClass="@TradeXpressIcons.Report">
         <EntityDocumentsPanel Documents="@Model.Documents" />
     </DxTabPage>

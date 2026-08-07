@@ -1,4 +1,5 @@
 using System;
+using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
@@ -128,8 +129,15 @@ public abstract class N11RestClientBase
 
         if (!response.IsSuccessStatusCode)
         {
+            // KİMLİK reddi AYRI mesaj alır (2026-08-06): düz "istek başarısız (401)" görünce ilk refleks kodda
+            // hata aramak oluyor — oysa 401'in tek anlamı N11'in kimliği kabul etmemesidir (anahtar yanlış ya
+            // da satıcı hesabı pasif). Yanlış yerde arama maliyeti bir kez ödendi, mesaj o yüzden ayrıldı.
+            var errorCode = response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden
+                ? "TradeXpress:N11:Rest:Unauthorized"
+                : "TradeXpress:N11:Rest:RequestFailed";
+
             // Sır (appkey/appsecret) veri olarak EKLENMEZ — yalnız uç + statü + kırpılmış yanıt.
-            throw new BusinessException("TradeXpress:N11:Rest:RequestFailed")
+            throw new BusinessException(errorCode)
                 .WithData("Url", url)
                 .WithData("Status", (int)response.StatusCode)
                 .WithData("Response", Truncate(body, 2000));

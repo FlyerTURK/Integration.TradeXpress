@@ -72,8 +72,12 @@ public class SalesChannelTrN11GetDto : EntityDto<Guid>, IGetDto<Guid>, IHasCode
 
     public bool IsActive { get; set; }
 
-    /// <summary>Kanalın muhasebe cari ALT hesabı (<c>SubAccount.Id</c>). Cari hesap ayrıca tutulmaz —
-    /// alt hesap zaten bir cariye bağlıdır. <c>null</c> = tanımlanmamış.</summary>
+    /// <summary>Kanalın muhasebe cari ALT hesabı (<c>SubAccount.Id</c>) — <b>ZORUNLU</b> (2026-08-06 Hakan kararı).
+    /// Cari hesap ayrıca tutulmaz; alt hesap zaten bir cariye bağlıdır.
+    /// <para>Zorunluluğun sebebi: kanalın carisi yoksa sipariş rezervasyon fişinin BAŞLIĞI kurulamıyor ve her
+    /// sipariş sessizce <c>Blocked</c>'a düşüyordu — engel kanalda değil siparişte görünüyordu. Eksikliği
+    /// kaydın kendisinde durdurmak, sonradan anlaşılmaz bir arızaya dönüşmesinden iyidir.</para></summary>
+    [Required]
     public Guid? SubAccountId { get; set; }
 
 }
@@ -110,8 +114,12 @@ public class SalesChannelTrN11CreateDto : ICreateDto
     [StringLength(N11ShipmentConsts.InfoMaxLength)]
     public string? DefaultInstallmentInfo { get; set; }
 
-    /// <summary>Kanalın muhasebe cari ALT hesabı (<c>SubAccount.Id</c>). Cari hesap ayrıca tutulmaz —
-    /// alt hesap zaten bir cariye bağlıdır. <c>null</c> = tanımlanmamış.</summary>
+    /// <summary>Kanalın muhasebe cari ALT hesabı (<c>SubAccount.Id</c>) — <b>ZORUNLU</b> (2026-08-06 Hakan kararı).
+    /// Cari hesap ayrıca tutulmaz; alt hesap zaten bir cariye bağlıdır.
+    /// <para>Zorunluluğun sebebi: kanalın carisi yoksa sipariş rezervasyon fişinin BAŞLIĞI kurulamıyor ve her
+    /// sipariş sessizce <c>Blocked</c>'a düşüyordu — engel kanalda değil siparişte görünüyordu. Eksikliği
+    /// kaydın kendisinde durdurmak, sonradan anlaşılmaz bir arızaya dönüşmesinden iyidir.</para></summary>
+    [Required]
     public Guid? SubAccountId { get; set; }
 
 }
@@ -149,8 +157,12 @@ public class SalesChannelTrN11UpdateDto : IUpdateDto
 
     public bool IsActive { get; set; }
 
-    /// <summary>Kanalın muhasebe cari ALT hesabı (<c>SubAccount.Id</c>). Cari hesap ayrıca tutulmaz —
-    /// alt hesap zaten bir cariye bağlıdır. <c>null</c> = tanımlanmamış.</summary>
+    /// <summary>Kanalın muhasebe cari ALT hesabı (<c>SubAccount.Id</c>) — <b>ZORUNLU</b> (2026-08-06 Hakan kararı).
+    /// Cari hesap ayrıca tutulmaz; alt hesap zaten bir cariye bağlıdır.
+    /// <para>Zorunluluğun sebebi: kanalın carisi yoksa sipariş rezervasyon fişinin BAŞLIĞI kurulamıyor ve her
+    /// sipariş sessizce <c>Blocked</c>'a düşüyordu — engel kanalda değil siparişte görünüyordu. Eksikliği
+    /// kaydın kendisinde durdurmak, sonradan anlaşılmaz bir arızaya dönüşmesinden iyidir.</para></summary>
+    [Required]
     public Guid? SubAccountId { get; set; }
 
 }
@@ -191,8 +203,12 @@ public class SalesChannelTrTrendyolGetDto : EntityDto<Guid>, IGetDto<Guid>, IHas
 
     public bool IsActive { get; set; }
 
-    /// <summary>Kanalın muhasebe cari ALT hesabı (<c>SubAccount.Id</c>). Cari hesap ayrıca tutulmaz —
-    /// alt hesap zaten bir cariye bağlıdır. <c>null</c> = tanımlanmamış.</summary>
+    /// <summary>Kanalın muhasebe cari ALT hesabı (<c>SubAccount.Id</c>) — <b>ZORUNLU</b> (2026-08-06 Hakan kararı).
+    /// Cari hesap ayrıca tutulmaz; alt hesap zaten bir cariye bağlıdır.
+    /// <para>Zorunluluğun sebebi: kanalın carisi yoksa sipariş rezervasyon fişinin BAŞLIĞI kurulamıyor ve her
+    /// sipariş sessizce <c>Blocked</c>'a düşüyordu — engel kanalda değil siparişte görünüyordu. Eksikliği
+    /// kaydın kendisinde durdurmak, sonradan anlaşılmaz bir arızaya dönüşmesinden iyidir.</para></summary>
+    [Required]
     public Guid? SubAccountId { get; set; }
 
 }
@@ -228,8 +244,12 @@ public class SalesChannelTrTrendyolCreateDto : ICreateDto
     [StringLength(SalesChannelConsts.TokenMaxLength)]
     public string Token { get; set; } = string.Empty;
 
-    /// <summary>Kanalın muhasebe cari ALT hesabı (<c>SubAccount.Id</c>). Cari hesap ayrıca tutulmaz —
-    /// alt hesap zaten bir cariye bağlıdır. <c>null</c> = tanımlanmamış.</summary>
+    /// <summary>Kanalın muhasebe cari ALT hesabı (<c>SubAccount.Id</c>) — <b>ZORUNLU</b> (2026-08-06 Hakan kararı).
+    /// Cari hesap ayrıca tutulmaz; alt hesap zaten bir cariye bağlıdır.
+    /// <para>Zorunluluğun sebebi: kanalın carisi yoksa sipariş rezervasyon fişinin BAŞLIĞI kurulamıyor ve her
+    /// sipariş sessizce <c>Blocked</c>'a düşüyordu — engel kanalda değil siparişte görünüyordu. Eksikliği
+    /// kaydın kendisinde durdurmak, sonradan anlaşılmaz bir arızaya dönüşmesinden iyidir.</para></summary>
+    [Required]
     public Guid? SubAccountId { get; set; }
 
 }
@@ -267,8 +287,12 @@ public class SalesChannelTrTrendyolUpdateDto : IUpdateDto
 
     public bool IsActive { get; set; }
 
-    /// <summary>Kanalın muhasebe cari ALT hesabı (<c>SubAccount.Id</c>). Cari hesap ayrıca tutulmaz —
-    /// alt hesap zaten bir cariye bağlıdır. <c>null</c> = tanımlanmamış.</summary>
+    /// <summary>Kanalın muhasebe cari ALT hesabı (<c>SubAccount.Id</c>) — <b>ZORUNLU</b> (2026-08-06 Hakan kararı).
+    /// Cari hesap ayrıca tutulmaz; alt hesap zaten bir cariye bağlıdır.
+    /// <para>Zorunluluğun sebebi: kanalın carisi yoksa sipariş rezervasyon fişinin BAŞLIĞI kurulamıyor ve her
+    /// sipariş sessizce <c>Blocked</c>'a düşüyordu — engel kanalda değil siparişte görünüyordu. Eksikliği
+    /// kaydın kendisinde durdurmak, sonradan anlaşılmaz bir arızaya dönüşmesinden iyidir.</para></summary>
+    [Required]
     public Guid? SubAccountId { get; set; }
 
 }
@@ -308,8 +332,12 @@ public class SalesChannelEtsyGetDto : EntityDto<Guid>, IGetDto<Guid>, IHasCode
 
     public bool IsActive { get; set; }
 
-    /// <summary>Kanalın muhasebe cari ALT hesabı (<c>SubAccount.Id</c>). Cari hesap ayrıca tutulmaz —
-    /// alt hesap zaten bir cariye bağlıdır. <c>null</c> = tanımlanmamış.</summary>
+    /// <summary>Kanalın muhasebe cari ALT hesabı (<c>SubAccount.Id</c>) — <b>ZORUNLU</b> (2026-08-06 Hakan kararı).
+    /// Cari hesap ayrıca tutulmaz; alt hesap zaten bir cariye bağlıdır.
+    /// <para>Zorunluluğun sebebi: kanalın carisi yoksa sipariş rezervasyon fişinin BAŞLIĞI kurulamıyor ve her
+    /// sipariş sessizce <c>Blocked</c>'a düşüyordu — engel kanalda değil siparişte görünüyordu. Eksikliği
+    /// kaydın kendisinde durdurmak, sonradan anlaşılmaz bir arızaya dönüşmesinden iyidir.</para></summary>
+    [Required]
     public Guid? SubAccountId { get; set; }
 
 }
@@ -337,8 +365,12 @@ public class SalesChannelEtsyCreateDto : ICreateDto
     [StringLength(SalesChannelConsts.ConfigMaxLength, MinimumLength = 1)]
     public string SharedSecret { get; set; } = string.Empty;
 
-    /// <summary>Kanalın muhasebe cari ALT hesabı (<c>SubAccount.Id</c>). Cari hesap ayrıca tutulmaz —
-    /// alt hesap zaten bir cariye bağlıdır. <c>null</c> = tanımlanmamış.</summary>
+    /// <summary>Kanalın muhasebe cari ALT hesabı (<c>SubAccount.Id</c>) — <b>ZORUNLU</b> (2026-08-06 Hakan kararı).
+    /// Cari hesap ayrıca tutulmaz; alt hesap zaten bir cariye bağlıdır.
+    /// <para>Zorunluluğun sebebi: kanalın carisi yoksa sipariş rezervasyon fişinin BAŞLIĞI kurulamıyor ve her
+    /// sipariş sessizce <c>Blocked</c>'a düşüyordu — engel kanalda değil siparişte görünüyordu. Eksikliği
+    /// kaydın kendisinde durdurmak, sonradan anlaşılmaz bir arızaya dönüşmesinden iyidir.</para></summary>
+    [Required]
     public Guid? SubAccountId { get; set; }
 
 }
@@ -368,8 +400,12 @@ public class SalesChannelEtsyUpdateDto : IUpdateDto
 
     public bool IsActive { get; set; }
 
-    /// <summary>Kanalın muhasebe cari ALT hesabı (<c>SubAccount.Id</c>). Cari hesap ayrıca tutulmaz —
-    /// alt hesap zaten bir cariye bağlıdır. <c>null</c> = tanımlanmamış.</summary>
+    /// <summary>Kanalın muhasebe cari ALT hesabı (<c>SubAccount.Id</c>) — <b>ZORUNLU</b> (2026-08-06 Hakan kararı).
+    /// Cari hesap ayrıca tutulmaz; alt hesap zaten bir cariye bağlıdır.
+    /// <para>Zorunluluğun sebebi: kanalın carisi yoksa sipariş rezervasyon fişinin BAŞLIĞI kurulamıyor ve her
+    /// sipariş sessizce <c>Blocked</c>'a düşüyordu — engel kanalda değil siparişte görünüyordu. Eksikliği
+    /// kaydın kendisinde durdurmak, sonradan anlaşılmaz bir arızaya dönüşmesinden iyidir.</para></summary>
+    [Required]
     public Guid? SubAccountId { get; set; }
 
 }

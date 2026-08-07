@@ -41,9 +41,11 @@ public abstract class SalesChannelTrTrendyolProductImportTests<TStartupModule> :
     private readonly IRepository<CurrencyUnit, Guid> _currencyUnitRepository;
     private readonly IEntityMediaAppService _entityMedia;
     private readonly ICurrentCompany _currentCompany;
+    private readonly IProductAppService _productAppService;
 
     protected SalesChannelTrTrendyolProductImportTests()
     {
+        _productAppService = GetRequiredService<IProductAppService>();
         _appService = GetRequiredService<ISalesChannelTrTrendyolProductAppService>();
         _fakeClient = GetRequiredService<FakeTrendyolProductClient>();
         _channelRepository = GetRequiredService<IRepository<SalesChannelTrTrendyol, Guid>>();
@@ -134,7 +136,7 @@ public abstract class SalesChannelTrTrendyolProductImportTests<TStartupModule> :
             var record = (await WithUnitOfWorkAsync(async () =>
                 await _channelProductRepository.GetListAsync(r => r.SalesChannelId == channel.Id))).ShouldHaveSingleItem();
             record.RemoteProductMainId.ShouldBe("MAIN-1");
-            record.ProductMainId.ShouldBe($"{product.Code}-1");
+            record.ProductMainId.ShouldBe(product.Code);   // İLK listeleme ÇIPLAK kod — "-1" üretilmez (ChannelSequenceCode)
             record.CategoryId.ShouldBe("411");
             record.BrandId.ShouldBe("82");
             record.VatRate.ShouldBe(20);
@@ -155,6 +157,148 @@ public abstract class SalesChannelTrTrendyolProductImportTests<TStartupModule> :
             var redHeader = headers.Single(h => h.ProductVariantId == red.Id);
             redHeader.OverridePrice.ShouldBe(1299.90m);
             redHeader.OverrideStock.ShouldBeNull();
+        }
+    }
+
+    // ── Öksüz kanal kaydı: şablon ürün silinmişse import DURMAZ, yeniden kurar ───────────────────────
+
+    /// <summary>Canlı vaka (2026-08-06): kullanıcı "mağazadan sıfırdan çekeyim" diye YEREL ürünleri sildi; kanal
+    /// kayıtları ölü <c>ProductId</c>'lerle ayakta kaldı (<c>ProductAppService.DeleteAsync</c> varyant/reçete/medyayı
+    /// temizler ama kanal kaydını BIRAKIR — aggregate'ler arası bağ id-only, DB tutmaz). Sonraki içe aktarım İLK
+    /// öksüz kayda çarpınca <c>ProductNotFound</c> fırlatıp 103 ürünlük partinin TAMAMINI iptal ediyordu; kullanıcıya
+    /// çıkan tek şey hangi kaydı kastettiği belirsiz "Ürün bulunamadı" bildirimiydi ve düğme kalıcı olarak ölüydü.
+    ///
+    /// <para>Bu test o kilidi çiviler: öksüz kayıt sessizce ATLANMAZ da partiyi DURDURMAZ — kaldırılır, ürün
+    /// mağazadan yeniden kurulur ve durum raporda görünür.</para></summary>
+    [Fact]
+    public async Task Import_rebuilds_a_channel_record_whose_template_product_was_deleted()
+    {
+        var companyId = Guid.NewGuid();
+        using (_currentCompany.Change(companyId))
+        {
+            var channel = await SeedChannelAsync(companyId, "IMPORPH");
+            _fakeClient.RemoteItems.Clear();
+            _fakeClient.RemoteItems.Add(BuildRemoteItem(
+                mainId: "MAIN-ORPH", barcode: "BR-ORPH-1", stockCode: "STK-ORPH-1", title: "Öksüz Kalan Ürün",
+                quantity: 4, salePrice: 250m, listPrice: 300m, contentId: 5501, approved: true));
+
+            var first = await _appService.ImportFromMarketplaceAsync(channel.Id);
+            first.CreatedProducts.ShouldBe(1);
+            first.CreatedChannelProducts.ShouldBe(1);
+
+            var firstProduct = (await WithUnitOfWorkAsync(async () =>
+                await _productRepository.GetListAsync(p => p.CompanyId == companyId))).ShouldHaveSingleItem();
+            var firstRecordId = (await WithUnitOfWorkAsync(async () =>
+                await _channelProductRepository.GetListAsync(r => r.SalesChannelId == channel.Id))).ShouldHaveSingleItem().Id;
+
+            // ÖKSÜZ durumu ELLE kurulur: ürün + varyantları silinir, kanal kaydına DOKUNULMAZ. Bu, cascade'den
+            // ÖNCEKİ üretim davranışının birebir taklididir — canlıda 18 kayıt bu şekilde öksüz kaldı. Cascade'i
+            // (ProductAppService.DeleteAsync) kullanmak testi geçersiz kılardı: kanal kaydı zaten silinir, öksüz
+            // hiç oluşmaz ve bu test sessizce BAŞKA bir şeyi ölçmeye başlardı.
+            await WithUnitOfWorkAsync(async () =>
+            {
+                await _variantRepository.DeleteAsync(
+                    v => v.EntityName == ProductEntityName && v.EntityId == firstProduct.Id, autoSave: true);
+                await _productRepository.DeleteAsync(p => p.Id == firstProduct.Id, autoSave: true);
+                return true;
+            });
+
+            var second = await _appService.ImportFromMarketplaceAsync(channel.Id);
+
+            // 1) Parti İPTAL OLMADI ve ürün geri geldi.
+            second.CreatedProducts.ShouldBe(1);
+            second.CreatedChannelProducts.ShouldBe(1);
+
+            // 2) Kullanıcıya GÜRÜLTÜ çıkmadı (2026-08-06 Hakan kararı): ürünleri kendisi silip "sıfırdan çek"
+            //    dediği akışta yeniden kurulum İSTENEN sonuçtur; kayıt başına uyarı satırı bilgi taşımaz.
+            //    Adli iz sunucu logunda kalır.
+            second.Warnings.ShouldBeEmpty();
+
+            // 3) Öksüz kayıt kaldı­rıldı; kanalda TEK canlı kayıt var ve YENİ ürüne bağlı.
+            var records = await WithUnitOfWorkAsync(async () =>
+                await _channelProductRepository.GetListAsync(r => r.SalesChannelId == channel.Id));
+            var rebuilt = records.ShouldHaveSingleItem();
+            rebuilt.Id.ShouldNotBe(firstRecordId);
+            rebuilt.ProductId.ShouldNotBe(firstProduct.Id);
+            rebuilt.RemoteProductMainId.ShouldBe("MAIN-ORPH");   // uzak kimlik mağaza yükünden geri geldi
+
+            var rebuiltProduct = (await WithUnitOfWorkAsync(async () =>
+                await _productRepository.GetListAsync(p => p.CompanyId == companyId))).ShouldHaveSingleItem();
+            rebuiltProduct.Id.ShouldBe(rebuilt.ProductId);
+        }
+    }
+
+    /// <summary>Kök neden ağı: ŞABLON ÜRÜN silinince kanal kaydı da gitmeli. Bağ id-only olduğu için DB bunu
+    /// ZORLAMAZ — kural yalnız <c>ProductAppService.DeleteAsync</c>'teki temizleyici döngüsünde yaşar ve o satır
+    /// silinirse hiçbir şey kırmızı yanmadan öksüz üretimi geri gelirdi. Bu test o satırın çivisidir.</summary>
+    [Fact]
+    public async Task Deleting_the_template_product_also_removes_its_channel_records()
+    {
+        var companyId = Guid.NewGuid();
+        using (_currentCompany.Change(companyId))
+        {
+            var channel = await SeedChannelAsync(companyId, "IMPCASC");
+            _fakeClient.RemoteItems.Clear();
+            _fakeClient.RemoteItems.Add(BuildRemoteItem(
+                mainId: "MAIN-CASC", barcode: "BR-CASC-1", stockCode: "STK-CASC-1", title: "Cascade Ürünü",
+                quantity: 2, salePrice: 99m, listPrice: 120m, contentId: 6601, approved: true));
+
+            await _appService.ImportFromMarketplaceAsync(channel.Id);
+
+            var product = (await WithUnitOfWorkAsync(async () =>
+                await _productRepository.GetListAsync(p => p.CompanyId == companyId))).ShouldHaveSingleItem();
+            var record = (await WithUnitOfWorkAsync(async () =>
+                await _channelProductRepository.GetListAsync(r => r.SalesChannelId == channel.Id))).ShouldHaveSingleItem();
+
+            await _productAppService.DeleteAsync(product.Id);
+
+            // Kanal kaydı ve override başlıkları geride KALMAZ — öksüz hiç doğmaz.
+            (await WithUnitOfWorkAsync(async () =>
+                await _channelProductRepository.GetListAsync(r => r.SalesChannelId == channel.Id))).ShouldBeEmpty();
+            (await WithUnitOfWorkAsync(async () =>
+                await _headerRepository.GetListAsync(h => h.SalesChannelTrTrendyolProductId == record.Id))).ShouldBeEmpty();
+        }
+    }
+
+    /// <summary>Silinen ürünün KODU serbest kalmalı — yeniden içe aktarımda orijinal stok kodu geri gelmeli,
+    /// "-2" son eki ALMAMALI.
+    ///
+    /// <para><b>Neden ağ:</b> <c>AppProducts</c> benzersizlik indeksi 2026-08-07'ye dek soft-delete'i saymıyordu
+    /// (ev kuralından sapma — kardeş katalogların hepsi <c>IsDeleted = 0</c> taşıyor). Silinen ürün kodunu KALICI
+    /// olarak yakıyor, içe aktarım da ham DB hatasına düşmemek için "-2" ekliyordu. Canlıda 18 ürün böyle
+    /// yeniden adlandı. Hata sessizdi: kimse istisna görmedi, yalnız kodlar bozuldu. Bu test hem indeksin
+    /// filtresini hem üreticinin soft-delete'i ATLAMAMASINI birlikte çiviler — biri geri alınırsa kırmızı yanar.</para></summary>
+    [Fact]
+    public async Task Reimport_reuses_the_original_code_after_the_product_was_deleted()
+    {
+        var companyId = Guid.NewGuid();
+        using (_currentCompany.Change(companyId))
+        {
+            var channel = await SeedChannelAsync(companyId, "IMPCODE");
+            _fakeClient.RemoteItems.Clear();
+            _fakeClient.RemoteItems.Add(BuildRemoteItem(
+                mainId: "MAIN-CODE", barcode: "BR-CODE-1", stockCode: "STK-CODE-1", title: "Kod Testi",
+                quantity: 1, salePrice: 10m, listPrice: 12m, contentId: 7701, approved: true));
+
+            await _appService.ImportFromMarketplaceAsync(channel.Id);
+
+            var first = (await WithUnitOfWorkAsync(async () =>
+                await _productRepository.GetListAsync(p => p.CompanyId == companyId))).ShouldHaveSingleItem();
+            first.Code.ShouldBe("STK-CODE-1");
+
+            await _productAppService.DeleteAsync(first.Id);
+
+            await _appService.ImportFromMarketplaceAsync(channel.Id);
+
+            var rebuilt = (await WithUnitOfWorkAsync(async () =>
+                await _productRepository.GetListAsync(p => p.CompanyId == companyId))).ShouldHaveSingleItem();
+            rebuilt.Id.ShouldNotBe(first.Id);
+            rebuilt.Code.ShouldBe("STK-CODE-1", "Silinen ürünün kodu serbest kalmalı — '-2' son eki BEKLENMİYOR.");
+
+            // Varyant kodu da aynı kuralı izler (kendi indeksi de soft-delete farkındalı).
+            var variants = await WithUnitOfWorkAsync(async () =>
+                await _variantRepository.GetListAsync(v => v.EntityName == ProductEntityName && v.EntityId == rebuilt.Id));
+            variants.ShouldHaveSingleItem().Code.ShouldBe("STK-CODE-1");
         }
     }
 

@@ -34,6 +34,16 @@ public partial class WizardStep : CrudComponentBase, IDisposable
     /// <summary>"İleri" basıldığında koşan iş/doğrulama. <c>false</c> → adım değişmez.</summary>
     [Parameter] public EventCallback<WizardStepAdvanceContext> OnBeforeAdvanceAsync { get; set; }
 
+    /// <summary>Bu adımdan İLERLENEBİLİR mi — <c>false</c> iken kabuk "İleri"/"Bitir"i PASİFLEŞTİRİR.
+    ///
+    /// <para><b>Neden <see cref="OnBeforeAdvanceAsync"/> yetmiyor</b> (2026-08-06 Hakan tespiti): o kanca
+    /// yalnız BASILDIKTAN SONRA koşar, yani düğme etkin görünür, kullanıcı basar, sonra reddedilir. Zorunlu
+    /// bir seçim eksikken düğmenin etkin durması KULLANICIYA YALAN SÖYLER — Trendyol kargo adımında tam
+    /// bunu yaşadık: İleri basılabiliyordu ama kurulum sonda tamamlanmıyordu.</para>
+    ///
+    /// <para>Varsayılan <c>true</c> — mevcut adımların davranışı DEĞİŞMEZ.</para></summary>
+    [Parameter] public bool CanAdvance { get; set; } = true;
+
     [Parameter] public RenderFragment? ChildContent { get; set; }
 
     private bool IsActive
@@ -45,6 +55,30 @@ public partial class WizardStep : CrudComponentBase, IDisposable
     {
         Shell?.RegisterStep(this);
     }
+
+    /// <summary>Parametre değişince KABUĞA haber verir.
+    ///
+    /// <para><b>Neden gerekli</b> (2026-08-06 Hakan tespiti): "İleri" düğmesini adım değil KABUK çizer ve
+    /// <see cref="CanAdvance"/>'i okur. Sihirbaz kendi alanını güncelleyince yalnız KENDİSİ yeniden render
+    /// olur; kabuk haberdar olmadığı için düğme bir render GERİDEN gelir — kullanıcı seçim yapar, düğme
+    /// pasif kalır; ikinci değişimde (kabuk başka bir sebeple render olduğunda) etkinleşir. Aynı gecikme
+    /// temizlemede de düğmeyi yanlışlıkla ETKİN bırakır.</para></summary>
+    protected override void OnParametersSet()
+    {
+        // ⚠ YALNIZ DEĞİŞİMDE haber ver. Koşulsuz çağırmak SONSUZ RENDER DÖNGÜSÜ yaratır ve uygulama
+        // açılış ekranında takılır (2026-08-06'da bunu bir kez yaşattım): kabuk StateHasChanged olur →
+        // çocuk adımlar parametrelerini yeniden alır → OnParametersSet yine koşar → yine kabuğa haber
+        // verir. Circuit kurulur ama hiçbir şey çizilemez; hata da görünmez, sadece donar.
+        if (_lastCanAdvance == CanAdvance)
+        {
+            return;
+        }
+
+        _lastCanAdvance = CanAdvance;
+        Shell?.NotifyStepStateChanged();
+    }
+
+    private bool? _lastCanAdvance;
 
     /// <summary>Kabuk çağırır: adımın işini koşar ve "ilerlenebilir mi"yi döner. Bağlam nesnesi, adımın
     /// <c>Cancel()</c> diyebilmesi içindir — <c>EventCallback</c> değer döndüremediğinden bayrak buradan taşınır.</summary>

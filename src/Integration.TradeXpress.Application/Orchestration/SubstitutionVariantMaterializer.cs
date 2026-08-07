@@ -151,7 +151,7 @@ public class SubstitutionVariantMaterializer : ITransientDependency
     private async Task MaterializeSingleAsync(
         Product product, List<SubstitutionTrialDto> selected, SubstitutionChannelPlanContext context)
     {
-        var main = await _variantManager.EnsureMainVariantAsync(ProductEntityName, product.Id, product.CompanyId);
+        var main = await _variantManager.EnsureMainVariantAsync(ProductEntityName, product.Id, product.CompanyId, product.Code, product.Name);
 
         if (selected.Count == 0)
         {
@@ -185,9 +185,13 @@ public class SubstitutionVariantMaterializer : ITransientDependency
     private async Task MaterializeMultiAsync(
         Product product, List<SubstitutionTrialDto> selected, SubstitutionChannelPlanContext context)
     {
-        // SOFT-DELETE FARKINDALI okuma (inceleme bulgusu #16): (TenantId, EntityName, EntityId, Code) benzersiz
-        // indeksi IsDeleted filtresi TASIMAZ — soft-silinmis kod yeniden INSERT edilirse unique ihlali patlar.
-        // Ayni kod soft-silinmisse DIRILTILIR (Id korunur, kanal baglari geri gelir); yeni satir acilmaz.
+        // SOFT-DELETE FARKINDALI okuma — amac KIMLIK KORUMA (inceleme bulgusu #16): ayni kod soft-silinmisse
+        // DIRILTILIR (Id korunur, kanal SKU baglari geri gelir); yeni satir acilmaz.
+        //
+        // ⚠ Bu baypas KALICIDIR ve indeksten BAGIMSIZDIR. Eski gerekcesi "(TenantId, EntityName, EntityId, Code)
+        // indeksi IsDeleted filtresi tasimaz, yeniden INSERT unique ihlali verir" idi; o gerekce 2026-08-07'de
+        // GECERSIZ kaldi (indekse "IsDeleted = 0" eklendi) ama davranis DEGISMEZ: filtreyi acip yeni satir acmak
+        // teknik olarak calisirdi ama varyant Id'sini degistirir ve kanal SKU baglarini KOPARIRDI.
         List<EntityVariant> existing;
         using (_dataFilter.Disable<ISoftDelete>())
         {
@@ -209,7 +213,7 @@ public class SubstitutionVariantMaterializer : ITransientDependency
                 await _variantRepository.UpdateAsync(variant, autoSave: true);
             }
 
-            await _variantManager.EnsureMainVariantAsync(ProductEntityName, product.Id, product.CompanyId);
+            await _variantManager.EnsureMainVariantAsync(ProductEntityName, product.Id, product.CompanyId, product.Code, product.Name);
             return;
         }
 

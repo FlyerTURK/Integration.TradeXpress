@@ -36,8 +36,9 @@ public class EntityVariantSynchronizer : DomainService
     }
 
     /// <summary>Sahip entity'nin varyant setini nitelik/değer tanımıyla mutabık kılar (idempotent). <paramref name="ownerName"/>
-    /// varyant AD türetmesi içindir (ör. Good.Name).</summary>
-    public async Task SynchronizeAsync(string entityName, Guid entityId, Guid? companyId, string ownerName)
+    /// varyant AD türetmesi içindir (ör. Good.Name); <paramref name="ownerCode"/> NİTELİKSİZ tek varyantın kod kimliğidir.</summary>
+    public async Task SynchronizeAsync(
+        string entityName, Guid entityId, Guid? companyId, string ownerName, string? ownerCode = null)
     {
         using (_dataFilter.Disable<ICompanyScoped>())
         {
@@ -51,7 +52,19 @@ public class EntityVariantSynchronizer : DomainService
             if (attributes.Count == 0)
             {
                 await RemoveLinkedVariantsAsync(entityName, entityId);
-                await _variantManager.EnsureMainVariantAsync(entityName, entityId, companyId);
+                var main = await _variantManager.EnsureMainVariantAsync(
+                    entityName, entityId, companyId, ownerCode, ownerName);
+
+                // TEK VARYANT SAHİBİ İZLER (2026-08-06 Hakan kararı: "ANAVARYANT boşa çıkmalı"): niteliksiz kayıtta
+                // varyant kimliği görünmez ve otomatiktir (form ShowIdentity=false gizliyor) → kod/ad her kayıtta
+                // sahibe eşitlenir. Böylece hem eski "ANAVARYANT"lı kayıtlar İLK kayıtta kendini onarır hem sahibin
+                // kod/ad değişikliği varyanta yansır (bayat kod pazaryerine SKU olarak gitmesin). Nitelikli
+                // (kombinasyon) varyantlara DOKUNULMAZ — kodları değer adlarından türer.
+                if (!string.IsNullOrWhiteSpace(ownerCode) && ApplyOwnerIdentity(main, ownerCode, ownerName))
+                {
+                    await _variantRepository.UpdateAsync(main, autoSave: true);
+                }
+
                 return;
             }
 
@@ -123,6 +136,25 @@ public class EntityVariantSynchronizer : DomainService
 
             await _variantManager.EnsureMainVariantAsync(entityName, entityId, companyId);
         }
+    }
+
+    /// <summary>Niteliksiz tek varyantın kod/adını sahibe eşitler; değişiklik olduysa true (gereksiz UPDATE yok).</summary>
+    private static bool ApplyOwnerIdentity(EntityVariant main, string ownerCode, string? ownerName)
+    {
+        var changed = false;
+        if (!string.Equals(main.Code, ownerCode, StringComparison.Ordinal))
+        {
+            main.SetCode(ownerCode);
+            changed = true;
+        }
+
+        if (!string.IsNullOrWhiteSpace(ownerName) && !string.Equals(main.Name, ownerName, StringComparison.Ordinal))
+        {
+            main.SetName(ownerName);
+            changed = true;
+        }
+
+        return changed;
     }
 
     /// <summary>Kombinasyon imzası — sıralı valueId dizisi. PUBLIC: AppService/servis kayıt-öncesi üretilen (Id'siz)

@@ -79,7 +79,7 @@ public class SpecialCode : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompan
     public virtual void SetCode(string code)
     {
         Code = StringFieldGuard.NormalizeCode(
-            code, nameof(Code), EntityFieldConsts.CodeMinLength, SpecialCodeConsts.CodeMaxLength);
+            code, nameof(Code), SpecialCodeConsts.CodeMinLength, SpecialCodeConsts.CodeMaxLength);
     }
 
     public virtual void SetName(string name)

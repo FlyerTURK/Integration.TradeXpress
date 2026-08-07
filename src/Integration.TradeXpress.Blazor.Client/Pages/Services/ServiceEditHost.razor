@@ -16,6 +16,7 @@
 {
     <CrudEditHost TGetDto="ServiceGetDto" TListDto="ServiceListDto" TKey="Guid" TListRequestDto="ServiceListRequestDto"
                   Coordinator="@_coordinator" Id="@(Id ?? Guid.Empty)" IsPopupMode="@IsPopupMode" OnSaved="@OnSaved" OnClosed="@OnClosed"
+                  SupportsSaveAndNew="@SupportsSaveAndNew" SupportsDelete="@SupportsDelete"
                   FormCaption="@L["Service"].Value" IconCssClass="@TradeXpressIcons.Service"
                   EntityValue="@(m => m.Code)"
                   IsReadOnly="@(m => m.IsGlobal && CurrentTenant?.Id != null)"
@@ -24,17 +25,4 @@
     </CrudEditHost>
 }
 
-@code {
-    [Parameter] public Guid? Id { get; set; }
-    [Parameter] public bool IsPopupMode { get; set; }
-    [Parameter] public EventCallback OnSaved { get; set; }
-    [Parameter] public EventCallback OnClosed { get; set; }
-
-    private ICommitCoordinator<ServiceGetDto, ServiceListDto, Guid, ServiceListRequestDto>? _coordinator;
-
-    protected override void OnInitialized()
-    {
-        _coordinator = new PersistentCoordinator<ServiceGetDto, ServiceListDto, Guid, ServiceListRequestDto, ServiceCreateDto, ServiceUpdateDto>(
-            ServiceAppService, Mapper);
-    }
-}
+@* C# tarafı ServiceEditHost.razor.cs'te (code-behind kuralı — 2026-08-07 taşıması). *@

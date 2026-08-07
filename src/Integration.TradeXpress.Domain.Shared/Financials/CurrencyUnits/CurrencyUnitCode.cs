@@ -21,4 +21,5 @@ public static class CurrencyUnitCode
     public const string PLT = "PLT";   // Platin (Harem türetilmiş)
     public const string PLD = "PLD";   // Paladyum (Harem türetilmiş)
     public const string Bullion = "TAKOZ";   // Raporsuz takoz PSEUDO-birimi (gerçek birim değil; [[bullion-consts]] Carpan ile HAS'a çevrilir)
+    public const string AD = "AD";           // Adet — SAYIM birimi (2026-08-06 Hakan isteği); kuru yok, CurrencyUnitType.Quantity
 }

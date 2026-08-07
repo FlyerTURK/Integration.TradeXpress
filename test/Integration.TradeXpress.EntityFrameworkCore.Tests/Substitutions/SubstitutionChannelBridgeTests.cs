@@ -269,7 +269,15 @@ public class SubstitutionChannelBridgeTests : TradeXpressEntityFrameworkCoreTest
             var recipe = await WithUnitOfWorkAsync(() =>
                 _trendyolRecipeLineRepository.GetListAsync(r =>
                     r.SalesChannelTrTrendyolProductId == trendyolCreated.Id && r.StockItemId == header.Id));
-            recipe.Count.ShouldBe(2);   // her kombinasyon 2 metal satırı (10+1 ya da 5+1)
+            // Her kombinasyon 2 EMTİA satırı taşır (10+1 ya da 5+1). Sayım katalog-emtia satırlarıyla
+            // sınırlı: 2026-08-06'da Trendyol komisyonu devreye girdi ve reçeteye ayrıca bir YAN-MALİYET
+            // (hizmet) satırı ekleniyor. Toplam satır sayısına bakmak, testi muadil planıyla ilgisiz bir
+            // sebeple kırardı — üstelik eski hâli yalnız komisyon HİÇ hesaplanmadığı için yeşildi.
+            recipe.Count(r => r.ComponentType == RecipeComponentType.CatalogCommodity).ShouldBe(2);
+
+            // Komisyon satırı ARTIK VAR — eskiden resolvedCommissionRate sabit null geçtiği için
+            // fiyata hiç girmiyordu (sessiz eksik marj).
+            recipe.ShouldContain(r => r.SideCostKind == SideCostKind.Commission);
         }
     }
 

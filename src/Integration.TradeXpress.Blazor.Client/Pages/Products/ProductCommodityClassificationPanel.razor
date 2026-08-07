@@ -42,33 +42,31 @@
                 </Template>
             </DxToolbarItem>
 
-            @if (_mode == ProductCommodityProvisionMode.UseExisting)
-            {
-                <DxToolbarItem Text="@L["Product:Classify:ExistingCommodity"]">
-                    <Template>
-                        <DxComboBox Data="@_existingCommodities" TData="CommodityOption" TValue="Guid?"
-                                    @bind-Value="@_existingCommodityId"
-                                    ValueFieldName="@nameof(CommodityOption.Id)"
-                                    TextFieldName="@nameof(CommodityOption.Label)"
-                                    NullText="@L["Select"]"
-                                    ValidationEnabled="false" Style="min-width:200px;" />
-                    </Template>
-                </DxToolbarItem>
-            }
+            @* KOŞULLU ÖĞE @if İLE SARILMAZ, Visible İLE GİZLENİR (2026-08-06 Hakan tespiti): DevExpress'in
+               nested-settings toplayıcısı öğeleri KAYIT SIRASINA göre alır; @if sonradan true olunca öğe o an
+               eklenir ve araç çubuğunun SONUNA düşer. Visible ile öğe baştan kayıtlı kalır, yalnız görünürlüğü
+               değişir — sıra markup'taki gibi korunur. *@
+            <DxToolbarItem Text="@L["Product:Classify:ExistingCommodity"]" Visible="@NeedsSourceCommodity">
+                <Template>
+                    <DxComboBox Data="@_existingCommodities" TData="CommodityOption" TValue="Guid?"
+                                @bind-Value="@_existingCommodityId"
+                                ValueFieldName="@nameof(CommodityOption.Id)"
+                                TextFieldName="@nameof(CommodityOption.Label)"
+                                NullText="@L["Select"]"
+                                ValidationEnabled="false" Style="min-width:200px;" />
+                </Template>
+            </DxToolbarItem>
 
-            @if (RequiresFollowingUnit)
-            {
-                <DxToolbarItem Text="@L["Product:Classify:FollowingUnit"]">
-                    <Template>
-                        <DxComboBox Data="@_currencyUnits" TData="CommodityOption" TValue="Guid?"
-                                    @bind-Value="@_followingUnitId"
-                                    ValueFieldName="@nameof(CommodityOption.Id)"
-                                    TextFieldName="@nameof(CommodityOption.Label)"
-                                    NullText="@L["Select"]"
-                                    ValidationEnabled="false" Style="min-width:150px;" />
-                    </Template>
-                </DxToolbarItem>
-            }
+            <DxToolbarItem Text="@L["Product:Classify:FollowingUnit"]" Visible="@RequiresFollowingUnit">
+                <Template>
+                    <DxComboBox Data="@_currencyUnits" TData="CommodityOption" TValue="Guid?"
+                                @bind-Value="@_followingUnitId"
+                                ValueFieldName="@nameof(CommodityOption.Id)"
+                                TextFieldName="@nameof(CommodityOption.Label)"
+                                NullText="@L["Select"]"
+                                ValidationEnabled="false" Style="min-width:150px;" />
+                </Template>
+            </DxToolbarItem>
 
             <DxToolbarItem Text="@L["Product:Classify:PerUnitAmount"]" BeginGroup="true">
                 <Template>
@@ -84,6 +82,12 @@
                 </Template>
             </DxToolbarItem>
 
+            @* Emtia formunu AÇ — panel milyem/işçilik alanlarını taklit etmez, ailenin gerçek formunu açar. *@
+            <DxToolbarItem Text="@L["Product:Classify:OpenCommodityForm"]"
+                           RenderStyle="ButtonRenderStyle.Secondary"
+                           BeginGroup="true"
+                           Click="@OpenCommodityFormAsync" />
+
             <DxToolbarItem Text="@L["Product:Classify:ApplyToSelected"]"
                            RenderStyle="ButtonRenderStyle.Primary"
                            RenderStyleMode="ToolbarItemRenderStyleMode.Contained"
@@ -97,25 +101,68 @@
                            Click="@ClearSelected" />
         </DxToolbar>
 
+    @* GRID KENDİ KABINDA KAYDIRILIR (2026-08-06 Hakan tespiti): 20 satır tam boyda çizilince sihirbazın
+       ayağı (Geri/İleri/ATLA) ekranın altına itiliyor ve adım FİİLEN KİLİTLENİYORDU — kullanıcı ne
+       ilerleyebiliyor ne atlayabiliyordu.
+       DevExpress'in VerticalScrollableHeight'ı bu kurulumda etki etmedi (sayfalama açıkken grid sayfa
+       boyuna göre uzuyor), bu yüzden kaydırma DIŞ KAPTA: düz CSS, DevExpress API'sine bağımlı değil.
+       Sayfa boyu da 20→10'a indirildi; kalanı sayfalama düğmeleriyle gezilir. *@
+    @* Sabit yükseklik YOK: kaydırmayı sihirbaz kabuğu yapıyor (WizardShell içerik alanı flex:1 + min-height:0).
+       Buraya piksel vermek masaüstünde tutup mobilde tutmayan bir yamaydı — kaldırıldı. *@
+    <div>
         <DxGrid Data="@_candidates"
                 @bind-SelectedDataItems="@_selected"
                 SelectionMode="GridSelectionMode.Multiple"
                 ShowAllRows="false"
-                PageSize="20"
+                PageSize="10"
                 CssClass="w-100">
             <Columns>
+                @* Sabit genişlikler DAR tutulur: toplamları grid'i aşarsa DevExpress hepsini sıkıştırır ve
+                   "Adı" 4 satıra sarar — 100+ satırlık listede okunamaz hale gelir (2026-08-06'da ekranda
+                   görüldü). Ad kolonu genişliği PAYLAŞIR, kalanlar dar ve sabittir. *@
                 <DxGridSelectionColumn Width="40px" />
-                <DxGridDataColumn FieldName="@nameof(ProductCommodityCandidateDto.Code)" Caption="@L["Code"]" Width="140px" />
-                <DxGridDataColumn FieldName="@nameof(ProductCommodityCandidateDto.Name)" Caption="@L["Name"]" />
+                <DxGridDataColumn FieldName="@nameof(ProductCommodityCandidateDto.Code)" Caption="@L["Code"]" Width="120px" />
+                <DxGridDataColumn FieldName="@nameof(ProductCommodityCandidateDto.Name)" Caption="@L["Name"]" MinWidth="220" />
                 <DxGridDataColumn FieldName="@nameof(ProductCommodityCandidateDto.VariantCount)"
-                                  Caption="@L["Product:Classify:VariantCount"]" Width="90px" />
-                <DxGridDataColumn Caption="@L["Product:Classify:Decision"]" Width="320px" AllowSort="false">
+                                  Caption="@L["Product:Classify:VariantCount"]" Width="70px" />
+                <DxGridDataColumn Caption="@L["Product:Classify:Decision"]" Width="200px" AllowSort="false">
                     <CellDisplayTemplate>
                         @DecisionText((ProductCommodityCandidateDto)context.DataItem)
                     </CellDisplayTemplate>
                 </DxGridDataColumn>
+
+                @* SATIR-BAŞI miktar/adet (2026-08-06 Hakan isteği): toplu karar araç çubuğundan basılır ama
+                   her ürünün gramajı farklı olabilir — düzeltme burada, karar bozulmadan yapılır. Karar
+                   verilmemiş satırda editör yok (neyin miktarı?). Hücre işleyicileri SENKRON (async-nested-settings
+                   kuralı) + manuel bağlı Dx editörde ValidationEnabled=false (validation-expr kuralı). *@
+                <DxGridDataColumn Caption="@L["Product:Classify:PerUnitAmount"]" Width="110px" AllowSort="false">
+                    <CellDisplayTemplate>
+                        @{ var amountRow = (ProductCommodityCandidateDto)context.DataItem; }
+                        @if (_decisions.TryGetValue(amountRow.ProductId, out var amountDecision))
+                        {
+                            <DxSpinEdit Value="@amountDecision.Amount"
+                                        ValueChanged="@((decimal v) => SetRowAmount(amountRow, v))"
+                                        MinValue="0" DisplayFormat="N3" ShowSpinButtons="false"
+                                        ValidationEnabled="false" CssClass="w-100" />
+                        }
+                    </CellDisplayTemplate>
+                </DxGridDataColumn>
+
+                <DxGridDataColumn Caption="@L["Product:Classify:PerUnitQuantity"]" Width="90px" AllowSort="false">
+                    <CellDisplayTemplate>
+                        @{ var quantityRow = (ProductCommodityCandidateDto)context.DataItem; }
+                        @if (_decisions.TryGetValue(quantityRow.ProductId, out var quantityDecision))
+                        {
+                            <DxSpinEdit Value="@quantityDecision.Quantity"
+                                        ValueChanged="@((decimal v) => SetRowQuantity(quantityRow, v))"
+                                        MinValue="0" DisplayFormat="N0" ShowSpinButtons="false"
+                                        ValidationEnabled="false" CssClass="w-100" />
+                        }
+                    </CellDisplayTemplate>
+                </DxGridDataColumn>
             </Columns>
         </DxGrid>
+    </div>
 
         <div style="font-size:0.85rem; color:#6c757d;">
             @L["Product:Classify:PendingHint", PendingCount, _candidates.Count]
