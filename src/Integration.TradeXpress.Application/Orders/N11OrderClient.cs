@@ -50,9 +50,9 @@ public sealed class N11OrderClient : IN11OrderClient, ITransientDependency
     }
 
     public async Task<N11OrdersPage> GetOrdersPageAsync(
-        string appKey, string appSecret, int page, CancellationToken cancellationToken = default)
+        string appKey, string appSecret, int page, DateTime? sinceUtc = null, CancellationToken cancellationToken = default)
     {
-        var request = BuildListRequest(appKey, appSecret, page);
+        var request = BuildListRequest(appKey, appSecret, page, sinceUtc);
         var doc = await PostWithThrottleRetryAsync(
             request, "TradeXpress:N11:Order:ListFailed", "TradeXpress:N11:Order:ListRejected", cancellationToken);
         var pageCount = ReadInt(doc, "pageCount") ?? 0;
@@ -123,8 +123,8 @@ public sealed class N11OrderClient : IN11OrderClient, ITransientDependency
     // ── Parse (testlenebilir saf statik) ─────────────────────────────────────────────────────────────
 
     /// <summary>DetailedOrderListResponse'u kanal-agnostik <see cref="RemoteOrder"/>'lara çevirir (namespace/sıra
-    /// agnostik). Kalem-merkezli model order düzeyine düzleşir: order-kargo = İLK kalemin shipmentInfo'su; satır
-    /// tutarı <c>price</c> (kalem toplamı), birim fiyat = price/quantity (miktar 0 ise price). Alan adları WSDL'den.</summary>
+    /// agnostik). Kalem-merkezli model order düzeyine düzleşir: order-kargo = İLK kalemin shipmentInfo'su; kalemdeki
+    /// <c>price</c> BİRİM fiyattır, satır toplamı = price × quantity (miktar 0 ise price). Alan adları WSDL'den.</summary>
     public static List<RemoteOrder> ParseOrders(XDocument doc)
     {
         var result = new List<RemoteOrder>();
@@ -160,7 +160,12 @@ public sealed class N11OrderClient : IN11OrderClient, ITransientDependency
         foreach (var item in itemList.Elements().Where(e => e.Name.LocalName == "orderItem" || e.Name.LocalName == "item"))
         {
             var quantity = ParseDecimal(Local(item, "quantity")) ?? 0m;
-            var price = ParseDecimal(Local(item, "price")) ?? 0m;
+
+            // ⚠ N11'de <price> BİRİM fiyattır — satır toplamı DEĞİL. Eskiden tersi varsayılıyordu (birim fiyat
+            // price/quantity, satır toplamı price) → adet>1 olan her kalemde ikisi de adet katı kadar yanlıştı ve
+            // rezervasyon/PriceDifference bu sayıdan beslenecekti. Canlı ölçümle kanıtlandı (2026-08-07, 126 kalem):
+            // N11'in gönderdiği başlık totalAmount'ı Σ(price × quantity)'e kuruşu kuruşuna eşit.
+            var unitPrice = ParseDecimal(Local(item, "price")) ?? 0m;
 
             lines.Add(new RemoteOrderLine(
                 RemoteLineId: NullIfEmpty(Local(item, "id")),
@@ -168,8 +173,9 @@ public sealed class N11OrderClient : IN11OrderClient, ITransientDependency
                 StockCode: NullIfEmpty(Local(item, "productSellerCode")),
                 ProductName: Local(item, "productName") ?? string.Empty,
                 Quantity: quantity,
-                UnitPrice: quantity > 0m ? price / quantity : price,
-                LineTotal: price,
+                UnitPrice: unitPrice,
+                // Adet 0 savunma kolu: kalem KAYBEDİLMEZ, toplam birim fiyata düşer (mevcut fail-open korunur).
+                LineTotal: quantity > 0m ? unitPrice * quantity : unitPrice,
                 RemoteLineStatus: NullIfEmpty(Local(item, "status"))));
         }
 
@@ -391,14 +397,33 @@ public sealed class N11OrderClient : IN11OrderClient, ITransientDependency
         throw new BusinessException(rejectErrorCode).WithData("message", message ?? status ?? "unknown");
     }
 
-    // TARİH FİLTRESİ YOK (searchData boş) → N11 tüm sipariş geçmişini döndürür. period gönderilseydi eski siparişler
-    // (test hesabında 2017) gizlenirdi — canlı doğrulandı (2026-07-11): period'suz totalCount=106, period'lu (son 40 gün)=0.
-    private static XElement BuildListRequest(string appKey, string appSecret, int page)
+    // İKİ AYRI STRATEJİ — biri diğerinin yerine geçmez:
+    //
+    //  ① SEED (sinceUtc = null): searchData BOŞ → N11 tüm sipariş geçmişini döndürür. Canlı doğrulandı
+    //     (2026-07-11): period'suz totalCount=106, period'lu (son 40 gün)=0. Yani period göndermek boş kanalın
+    //     geçmişini GİZLERDİ; ilk kurulum bu yüzden filtresizdir.
+    //  ② DELTA (sinceUtc dolu): dar pencere. Dolu kanalı 2 dakikada bir tüm geçmişiyle taramak throttle
+    //     bütçesini yakar ve her turda aynı 106 siparişi yeniden yazardı.
+    //
+    // ⚠ DELTA'NIN KÖR NOKTASI: period filtresi sipariş TARİHİNE bakar, statü DEĞİŞİMİNE değil. Pencere dışında
+    // kalan eski bir siparişin iptali bu listeye HİÇ düşmez — o yüzden delta kolu ayrıca açık siparişlerin
+    // detayını tazeler (OrderSyncManager). Buradaki filtre tek başına yeterli DEĞİLDİR.
+    private static XElement BuildListRequest(string appKey, string appSecret, int page, DateTime? sinceUtc)
     {
+        var searchData = new XElement("searchData");
+        if (sinceUtc is { } since)
+        {
+            // N11 tarih biçimi dd/MM/yyyy. Bitiş açık uçlu bırakılmaz (N11 ikisini birlikte ister);
+            // "bugün + 1 gün" saat dilimi farkında bugünün siparişlerini dışarıda bırakmayı önler.
+            searchData.Add(new XElement("period",
+                new XElement("startDate", since.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture)),
+                new XElement("endDate", DateTime.UtcNow.AddDays(1).ToString("dd/MM/yyyy", CultureInfo.InvariantCulture))));
+        }
+
         return new XElement(Sch + "DetailedOrderListRequest",
             new XAttribute(XNamespace.Xmlns + "sch", Sch),
             new XElement("auth", new XElement("appKey", appKey), new XElement("appSecret", appSecret)),
-            new XElement("searchData"),
+            searchData,
             new XElement("pagingData", new XElement("currentPage", page), new XElement("pageSize", PageSize)));
     }
 

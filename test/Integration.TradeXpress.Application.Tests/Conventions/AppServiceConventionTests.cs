@@ -12,12 +12,55 @@ using Xunit;
 namespace Integration.TradeXpress.Conventions;
 
 /// <summary>
-/// AppService konvansiyonlarının MEKANİK güvenlik ağı (governance, faz 2). KIRMIZIYSA bir AppService
-/// dokümante kuralı çiğnemiştir. Reflection'la görünmeyen gövde-içi kurallar (ham exception vb.) faz 3 = Roslyn analyzer.
+/// AppService konvansiyonlarının MEKANİK güvenlik ağı (governance). KIRMIZIYSA bir AppService dokümante kuralı
+/// çiğnemiştir. Gövde-içi kurallar (ham exception vb.) Application analyzer'a bağlandı (ACIK-ISLER:38 — eski
+/// "faz 3 = Roslyn analyzer" notu bayattı, 2026-08-07'de düzeltildi).
 /// </summary>
 public class AppServiceConventionTests
 {
     private static readonly Assembly ApplicationAssembly = typeof(CurrencyUnitAppService).Assembly;
+
+    // [Authorize]'sız kalabilecek MEŞRU istisnalar — BOŞ başlar (2026-08-07 taraması: ihlalci 5 servisin hepsi
+    // düzeltildi). Yeni giriş ancak dosya-içi dokümante gerekçeyle olabilir; testi gevşetmek YASAK.
+    private static readonly HashSet<string> AnonymousServiceExceptions = new(StringComparer.Ordinal);
+
+    /// <summary>2026-08-07 güvenlik bulgusu (Ar-Ge taraması A-2): beş app service HTTP yüzeyinde ANONİM
+    /// erişilebilirdi — ikisi yıkıcı yazma ucu (stale-silmeli tam re-sync) taşıyordu ve içlerindeki
+    /// "host-only" ters guard'ı (<c>CurrentTenant.Id is not null → throw</c>) anonim istekte tenant null
+    /// olduğundan GEÇİYORDU. Kural: her concrete app service ya sınıf-düzeyi <c>[Authorize]</c> taşır
+    /// ya <c>[RemoteService(IsEnabled=false)]</c> ile HTTP yüzeyinden çekilir.</summary>
+    [Fact]
+    public void Every_concrete_app_service_must_be_authorize_gated_or_local()
+    {
+        var violations = new List<string>();
+
+        var appServiceTypes = ApplicationAssembly.GetTypes()
+            .Where(t => t is { IsClass: true, IsAbstract: false }
+                        && typeof(Volo.Abp.Application.Services.IApplicationService).IsAssignableFrom(t));
+
+        foreach (var type in appServiceTypes)
+        {
+            if (AnonymousServiceExceptions.Contains(type.Name))
+            {
+                continue;
+            }
+
+            var hasAuthorize = type.GetCustomAttributes<AuthorizeAttribute>(inherit: true).Any();
+            var remoteDisabled = type.GetCustomAttributes<Volo.Abp.RemoteServiceAttribute>(inherit: true)
+                .Any(a => !a.IsEnabled);
+
+            if (!hasAuthorize && !remoteDisabled)
+            {
+                violations.Add(type.Name);
+            }
+        }
+
+        violations.ShouldBeEmpty(
+            "Aşağıdaki AppService'ler HTTP yüzeyinde ANONİM erişilebilir — sınıfa [Authorize] ekleyin "
+            + "(worker'ın tükettiği iş varsa çekirdeği izinsiz manager'a çıkarın; CLAUDE.md §6 materyalizer deseni) "
+            + "ya da [RemoteService(IsEnabled = false)] ile yüzeyden çekin:"
+            + Environment.NewLine + string.Join(Environment.NewLine, violations.Distinct().OrderBy(v => v)));
+    }
 
     // Statik-mapping BORCU TAMAMEN ÖDENDİ — istisna listesi BOŞ. Eski tek istisna VoucherAppService.MapLine
     // idi; o eşleme artık VoucherLineDtoFactory'de yaşıyor (AppService değil → tarama dışı) ve Mapperly'ye

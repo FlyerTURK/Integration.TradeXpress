@@ -21,7 +21,7 @@
                   FormCaption="@L["Future"].Value" IconCssClass="@TradeXpressIcons.Future"
                   EntityValue="@(m => m.Code)"
                   IsReadOnly="@(m => m.IsGlobal && CurrentTenant?.Id != null)"
-                  ApplyNewDefaults="@(m => { m.IsActive = true; m.FollowingFactor = 1m; })">
+                  ApplyNewDefaults="@ApplyNewDefaults">
         <FutureLayout Model="@context" IsNew="@(context.Id == Guid.Empty)" CurrencyUnits="@_units"
                       OnEditFollowingUnit="@OnEditFollowingUnitAsync" />
     </CrudEditHost>

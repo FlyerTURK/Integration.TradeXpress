@@ -48,9 +48,7 @@ public class OrderReservationVoucherMaterializer : ITransientDependency
     private readonly BalanceLedgerSynchronizer _ledgerSynchronizer;
     private readonly VoucherCounterpartyResolver _counterpartyResolver;
     private readonly IGuidGenerator _guidGenerator;
-    private readonly IDistributedEventBus _distributedEventBus;
-    private readonly IUnitOfWorkManager _unitOfWorkManager;
-    private readonly ICurrentTenant _currentTenant;
+    private readonly CommodityStockChangeQueuer _stockChangeQueuer;
     private readonly IAsyncQueryableExecuter _asyncExecuter;
 
     public OrderReservationVoucherMaterializer(
@@ -61,9 +59,7 @@ public class OrderReservationVoucherMaterializer : ITransientDependency
         BalanceLedgerSynchronizer ledgerSynchronizer,
         VoucherCounterpartyResolver counterpartyResolver,
         IGuidGenerator guidGenerator,
-        IDistributedEventBus distributedEventBus,
-        IUnitOfWorkManager unitOfWorkManager,
-        ICurrentTenant currentTenant,
+        CommodityStockChangeQueuer stockChangeQueuer,
         IAsyncQueryableExecuter asyncExecuter)
     {
         _branchRepository     = branchRepository;
@@ -73,9 +69,7 @@ public class OrderReservationVoucherMaterializer : ITransientDependency
         _ledgerSynchronizer   = ledgerSynchronizer;
         _counterpartyResolver = counterpartyResolver;
         _guidGenerator        = guidGenerator;
-        _distributedEventBus  = distributedEventBus;
-        _unitOfWorkManager    = unitOfWorkManager;
-        _currentTenant        = currentTenant;
+        _stockChangeQueuer    = stockChangeQueuer;
         _asyncExecuter        = asyncExecuter;
     }
 
@@ -156,7 +150,7 @@ public class OrderReservationVoucherMaterializer : ITransientDependency
         // ATLAMAK yanlış olurdu — tip-agnostik motor kararı posterlara bırakır, burada varsayım yapılmaz.
         await _ledgerSynchronizer.SyncVoucherAsync(voucher);
 
-        QueueCommodityStockChangedEvent(voucher);
+        _stockChangeQueuer.QueueForVoucher(voucher);
 
         return new OrderReservationVoucher(voucher.Id, lineIds);
     }
@@ -186,43 +180,6 @@ public class OrderReservationVoucherMaterializer : ITransientDependency
         return (branch.Id, vault.Id);
     }
 
-    /// <summary>Stok tetiği — rezervasyon da bir stok hareketidir (fiziksel Net'e girmez ama
-    /// <c>ReservedOut</c>'u değiştirir, dolayısıyla satılabilir adedi düşürür). Commit SONRASI publish:
-    /// handler kanala HTTP push tetikler, fiş dış servise kilitlenemez.</summary>
-    private void QueueCommodityStockChangedEvent(Voucher voucher)
-    {
-        var keys = voucher.Lines
-            .Where(l => !l.IsDeleted && CommodityStockFamilies.IsTracked(l.Type) && l.CommodityId != null)
-            .Select(l => new CommodityStockKeyEto
-            {
-                Family             = l.Type,
-                CommodityId        = l.CommodityId!.Value,
-                CommodityVariantId = l.VariantId,
-            })
-            .GroupBy(k => (k.Family, k.CommodityId, k.CommodityVariantId))
-            .Select(g => g.First())
-            .ToList();
-        if (keys.Count == 0)
-        {
-            return;
-        }
-
-        var eto = new CommodityStockChangedEto
-        {
-            TenantId  = _currentTenant.Id,
-            CompanyId = voucher.CompanyId,
-            Keys      = keys,
-        };
-
-        var uow = _unitOfWorkManager.Current;
-        if (uow is null)
-        {
-            _ = _distributedEventBus.PublishAsync(eto);
-            return;
-        }
-
-        uow.OnCompleted(async () => await _distributedEventBus.PublishAsync(eto));
-    }
 }
 
 /// <summary>Rezerve edilecek TEK emtia kalemi — reçete satırından × sipariş adedi türetilir.</summary>

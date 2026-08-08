@@ -65,6 +65,12 @@
             </DxCheckBox>
         </DxFormLayoutItem>
     </DxFormLayoutGroup>
+
+    @* Push emniyeti (emniyet payı + fiyat bandı) — N11 formuyla AYNI bileşen; alanlar D5'te row-builder portuyla
+       tüketilir, giriş yüzeyi bugünden açıktır (kullanıcı bandını önden kurabilsin). *@
+    <ChannelPushGuardFields @bind-SafetyStock="@Model.SafetyStock"
+                            @bind-MinPrice="@Model.MinPrice"
+                            @bind-MaxPrice="@Model.MaxPrice" />
 </DxFormLayout>
 
 @* ── Büyük listeler sekmelerde (form geneli dışındaki her şey) ── *@

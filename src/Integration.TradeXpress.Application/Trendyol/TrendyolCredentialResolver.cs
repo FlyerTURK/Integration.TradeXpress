@@ -14,7 +14,13 @@ namespace Integration.TradeXpress.Trendyol;
 /// <see cref="ITrendyolCredentialResolver"/> — Trendyol kanal kaydından kimliği çözer. N11'in
 /// <c>ResolveCurrentCompanyN11CredentialsAsync</c> deseniyle simetrik; farkı: Trendyol kimliği SellerId+ApiKey+ApiSecret
 /// üçlüsü. <see cref="ApplicationService"/> türetir (CurrentCompany/AsyncExecuter gibi altyapıyı hazır alır).
+///
+/// <para>⚠ <b>HTTP yüzeyinden ÇEKİLİDİR</b> (2026-08-07 G1 — konvansiyon ağının yakaladığı açık):
+/// <c>ApplicationService</c> türetmek ABP'nin otomatik API controller'ına kaydolmak demek; bu sınıfın dönüşü
+/// KANAL SIRLARIDIR (ApiKey/ApiSecret) ve uç anonim erişilebilirdi. Sınıf yalnız SUNUCU-İÇİ bir yardımcıdır —
+/// istemciye hiçbir koşulda sır dökülmez.</para>
 /// </summary>
+[RemoteService(IsEnabled = false)]
 public class TrendyolCredentialResolver : ApplicationService, ITrendyolCredentialResolver
 {
     private readonly IRepository<SalesChannelTrTrendyol, Guid> _channelRepository;

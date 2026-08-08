@@ -18,11 +18,15 @@ namespace Integration.TradeXpress.TrendyolProducts;
 /// (<see cref="TrendyolRestClientBase"/> — kategori/marka istemcileriyle aynı; eski yerel auth kopyası teknik borçtu,
 /// kaldırıldı). Ürün oluşturma ASENKRON (submit → batchRequestId; durum ayrı sorgu); satıcı ürün listesi salt GET.
 ///
-/// <para><b>⚠ Create/durum uçları CANLI DOĞRULANMADI</b> (bu oturumda gerçek satıcı kimliği yok); listeleme ucu
-/// (<c>GET /integration/product/sellers/{sellerId}/products</c>) kimlik doğrulayıcıda status-probe olarak KANITLI.
-/// Gerekirse bu tek dosyadaki sabitleri güncellemek yeterlidir (model/AppService değişmeden):</para>
+/// <para><b>⚠ Create/fiyat-stok/durum uçları CANLI DOĞRULANMADI</b> (bu oturumda gerçek satıcı kimliği yok);
+/// listeleme ucu (<c>GET /integration/product/sellers/{sellerId}/products</c>) kimlik doğrulayıcıda status-probe
+/// olarak KANITLI. Gerekirse bu tek dosyadaki sabitleri güncellemek yeterlidir (model/AppService değişmeden):</para>
 /// <list type="bullet">
 /// <item>Create: <c>POST /integration/product/sellers/{sellerId}/products</c> · gövde <c>{ "items": [ ... ] }</c> → <c>{ "batchRequestId": "..." }</c>.</item>
+/// <item>Fiyat/stok: <c>POST /integration/inventory/sellers/{sellerId}/products/price-and-inventory</c> ·
+/// gövde <c>{ "items": [ { barcode, quantity?, listPrice?, salePrice? } ] }</c> → <c>{ "batchRequestId": "..." }</c>.
+/// <b>URL AİLESİ FARKLI</b> (<c>/inventory/</c>, create'teki <c>/product/</c> değil) → create URL'inden türetilmez.
+/// <b>Bu batch'te kök <c>status</c> alanı DÖNMEYEBİLİR</b> — sonuç item-bazlı statülerden okunur.</item>
 /// <item>Durum: <c>GET /integration/product/sellers/{sellerId}/products/batch-requests/{batchRequestId}</c>.</item>
 /// <item>Listeleme: <c>GET /integration/product/sellers/{sellerId}/products?page=&amp;size=</c> →
 /// <c>{ totalElements, totalPages, page, size, content: [ ... ] }</c>.</item>
@@ -32,6 +36,12 @@ public sealed class TrendyolProductClient : TrendyolRestClientBase, ITrendyolPro
 {
     /// <summary>Sayfalama döngüsü güvenlik tavanı — totalPages bozuk/aşırı dönerse sonsuz döngüye girilmez.</summary>
     private const int MaxPageLoops = 500;
+
+    /// <summary>Trendyol tek fiyat/stok isteğinde en fazla 1000 kalem kabul eder (doküman). Aşılırsa SESSİZ
+    /// kırpma ya da otomatik dilimleme YOK — dostane hata. Dilimlemiyoruz çünkü <c>SalesChannelTrTrendyolProduct</c>
+    /// kayıt başına TEK <c>BatchRequestId</c> taşıyor; N makbuz bu modele sığmaz ve hangi dilimin battığı
+    /// izlenemez hâle gelirdi.</summary>
+    private const int MaxItemsPerRequest = 1000;
 
     public async Task<TrendyolSubmitResult> SubmitProductAsync(
         TrendyolProductData product, TrendyolCredentials credentials, CancellationToken cancellationToken = default)
@@ -51,6 +61,42 @@ public sealed class TrendyolProductClient : TrendyolRestClientBase, ITrendyolPro
         }
 
         var batchRequestId = ReadString(payload, "batchRequestId");
+        return new TrendyolSubmitResult(batchRequestId);
+    }
+
+    public async Task<TrendyolSubmitResult> UpdatePriceAndInventoryAsync(
+        IReadOnlyList<TrendyolPriceInventoryItem> items, TrendyolCredentials credentials, CancellationToken cancellationToken = default)
+    {
+        // Guard'lar gövde kurucusunda, yani AĞA ÇIKMADAN önce koşar: bozuk satır Trendyol'a hiç gitmez.
+        var body = BuildPriceInventoryBody(items);
+
+        // ⚠ URL ailesi create'ten FARKLI: /integration/inventory/... (create /integration/product/...).
+        var url = $"{BaseUrl}/integration/inventory/sellers/{credentials.SellerId}/products/price-and-inventory";
+
+        // 'using' ile SARMA — SendAsync isteğin sahipliğini alır (taban deseni; create yolu da böyle).
+        var request = CreateRequest(HttpMethod.Post, url, credentials);
+        request.Content = new StringContent(body, Encoding.UTF8, "application/json");
+
+        // Yazma ucu → GET-retry KULLANILMAZ (idempotent değil; ayrıca aynı gövde 15 dk içinde tekrarlanamıyor).
+        var (ok, status, payload) = await SendAsync(request, cancellationToken);
+        if (!ok)
+        {
+            throw new BusinessException("TradeXpress:Trendyol:Product:PriceInventoryFailed")
+                .WithData("status", status)
+                .WithData("body", Truncate(payload));
+        }
+
+        var batchRequestId = ReadString(payload, "batchRequestId");
+        if (string.IsNullOrWhiteSpace(batchRequestId))
+        {
+            // BİLİNÇLİ SAPMA: create yolu makbuzsuz yanıta TOLERANSLI, burası değil. Create'te makbuz kaybı
+            // yalnız durum sorgusunu köreltir; hafif senkronda LastSent* zincirini KİLİTLER — kayıt her turda
+            // "değişti" görünüp aynı isteği yeniden gönderir ve 15 dk mükerrer reddine çarpar. Sessiz sonsuz
+            // döngü yerine burada duruyoruz. (Create yolunun davranışı DEĞİŞTİRİLMEDİ.)
+            throw new BusinessException("TradeXpress:Trendyol:Product:BatchIdMissing")
+                .WithData("body", Truncate(payload));
+        }
+
         return new TrendyolSubmitResult(batchRequestId);
     }
 
@@ -307,6 +353,109 @@ public sealed class TrendyolProductClient : TrendyolRestClientBase, ITrendyolPro
 
         var root = new Dictionary<string, object?> { ["items"] = items };
         return JsonSerializer.Serialize(root);
+    }
+
+    // ── Fiyat/stok gövdesi (items[]) ─────────────────────────────────────────────────────────────────
+
+    /// <summary>Hafif fiyat/stok gövdesini kurar: <c>{ "items": [ { barcode, quantity?, listPrice?, salePrice? } ] }</c>.
+    ///
+    /// <para><b>public static</b> — ağ olmadan birim test edilebilsin diye (dosyadaki <see cref="FetchAllPagesAsync"/> /
+    /// <see cref="ParseSellerProductsPage"/> emsali). Gövdenin şekli bu dilimin tek gerçek riski: yanlış alan adı ya da
+    /// yanlış atlama, HTTP 200 dönerken bile yanlış stoğu yazar.</para>
+    ///
+    /// <para><b>NULL ALAN JSON'A YAZILMAZ.</b> Tabanda ortak <c>JsonSerializerOptions</c> (dolayısıyla
+    /// <c>WhenWritingNull</c> garantisi) YOK → atlama ELLE yapılır. <c>null</c> "dokunma", <c>0</c> ise
+    /// "sıfırla" demektir ve <c>0</c> YAZILIR — satışı durdurma yolunun taşıyıcısı budur.</para></summary>
+    public static string BuildPriceInventoryBody(IReadOnlyList<TrendyolPriceInventoryItem> items)
+    {
+        if (items is null || items.Count == 0)
+        {
+            // Boş gövdeyi sessizce POST etmek, "gönderdim" diye görünüp hiçbir şey yapmamaktır.
+            throw new BusinessException("TradeXpress:Trendyol:Product:EmptyItems");
+        }
+
+        if (items.Count > MaxItemsPerRequest)
+        {
+            throw new BusinessException("TradeXpress:Trendyol:Product:TooManyItems")
+                .WithData("count", items.Count)
+                .WithData("max", MaxItemsPerRequest);
+        }
+
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var rows = new List<Dictionary<string, object?>>(items.Count);
+
+        for (var i = 0; i < items.Count; i++)
+        {
+            var item = items[i];
+
+            if (string.IsNullOrWhiteSpace(item.Barcode))
+            {
+                throw new BusinessException("TradeXpress:Trendyol:Product:BarcodeRequired").WithData("index", i);
+            }
+
+            if (!seen.Add(item.Barcode))
+            {
+                // Aynı istekte iki kez geçen barkodda hangi satırın kazandığı TANIMSIZ — tahmin etmiyoruz.
+                throw Fail("TradeXpress:Trendyol:Product:DuplicateBarcode", item.Barcode);
+            }
+
+            if (item.Quantity is null && item.ListPrice is null && item.SalePrice is null)
+            {
+                // Dört alanın da boş olması "hiçbir şey yapma" demektir; istek kotayı ve 15 dk penceresini
+                // boşa harcar. Çağıranın hatasıdır, sessizce geçilmez.
+                throw Fail("TradeXpress:Trendyol:Product:NothingToUpdate", item.Barcode);
+            }
+
+            if (item.Quantity is < 0)
+            {
+                throw Fail("TradeXpress:Trendyol:Product:QuantityOutOfRange", item.Barcode);
+            }
+
+            if (item.ListPrice is < 0m || item.SalePrice is < 0m)
+            {
+                throw Fail("TradeXpress:Trendyol:Product:PriceNegative", item.Barcode);
+            }
+
+            // Fiyat ÇİFT gönderilir: tek fiyatla gidildiğinde Trendyol'un "listPrice >= salePrice" kuralı
+            // UZAKTAKİ eski değere karşı işletilir ve sonuç bizim göremediğimiz bir redde dönüşür.
+            if (item.ListPrice is null != item.SalePrice is null)
+            {
+                throw Fail("TradeXpress:Trendyol:Product:PriceFieldsMustBePaired", item.Barcode);
+            }
+
+            if (item.ListPrice is { } listPrice && item.SalePrice is { } salePrice && listPrice < salePrice)
+            {
+                throw Fail("TradeXpress:Trendyol:Product:ListPriceBelowSalePrice", item.Barcode);
+            }
+
+            var dict = new Dictionary<string, object?> { ["barcode"] = item.Barcode };
+            if (item.Quantity is { } quantity)
+            {
+                dict["quantity"] = quantity;
+            }
+
+            if (item.ListPrice is { } list)
+            {
+                dict["listPrice"] = list;
+            }
+
+            if (item.SalePrice is { } sale)
+            {
+                dict["salePrice"] = sale;
+            }
+
+            rows.Add(dict);
+        }
+
+        var root = new Dictionary<string, object?> { ["items"] = rows };
+        return JsonSerializer.Serialize(root);
+    }
+
+    /// <summary>Satır hatalarının ortak kurucusu — hangi barkodda patladığı hata verisinde TAŞINIR
+    /// (yalnız "geçersiz satır" demek, 1000 satırlık gövdede teşhis ettirmez).</summary>
+    private static BusinessException Fail(string code, string barcode)
+    {
+        return new BusinessException(code).WithData("barcode", barcode);
     }
 
     // attribute = { attributeId, attributeValueId } YA DA { attributeId, customAttributeValue }.

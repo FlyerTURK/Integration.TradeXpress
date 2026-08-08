@@ -12,6 +12,7 @@ using Integration.TradeXpress.Products;
 using Integration.TradeXpress.SalesChannels;
 using Integration.TradeXpress.Trendyol;
 using Integration.TradeXpress.Variants;
+using Integration.TradeXpress.Vouchers;
 using Microsoft.AspNetCore.Authorization;
 using Volo.Abp;
 using Volo.Abp.Application.Dtos;
@@ -35,12 +36,15 @@ namespace Integration.TradeXpress.Orders;
 [Authorize(TradeXpressPermissions.SalesChannels.Default)]
 public class OrderAppService : TradeXpressAppService, IOrderAppService
 {
+    private const string ProductEntityName = "Product";
+
     private readonly IRepository<Order, Guid> _orderRepository;
     private readonly IRepository<OrderLine, Guid> _orderLineRepository;
     private readonly IRepository<OrderOperationalData, Guid> _operationalDataRepository;
     private readonly IRepository<OrderLineOperationalData, Guid> _operationalLineRepository;
     // Sku.ProductVariantId artık JENERİK EntityVariant.Id taşır (agnostik varyant geçişi) — eşleşme agnostik tabloya çözülür.
     private readonly IRepository<EntityVariant, Guid> _productVariantRepository;
+    private readonly IRepository<Products.Product, Guid> _productRepository;   // yalnız OKUMA — eşleştirme adayları
     private readonly IRepository<SalesChannelBase, Guid> _channelRepository;
     private readonly IRepository<SalesChannelTrN11, Guid> _n11ChannelRepository;
     // Sipariş adres picker'ının TR ön-seçimi için host-global coğrafya (Country=TR id + il/ilçe isim-eşleşmesi; N11 YOK).
@@ -55,6 +59,8 @@ public class OrderAppService : TradeXpressAppService, IOrderAppService
     private readonly IRepository<OrderReservation, Guid> _reservationRepository;
     private readonly IRepository<OrderFulfillmentLink, Guid> _fulfillmentLinkRepository;
     private readonly OrderReservationManager _reservationManager;
+    private readonly IRepository<Vouchers.Voucher, Guid> _voucherRepository;
+    private readonly Vouchers.IVoucherAppService _voucherAppService;
 
     // Ortak panel liste sorgusunda filtre/sıralama/aramaya İZİN VERİLEN alanlar (whitelist — Order entity property
     // adları). CompanyId sunucu-zorlamalı olduğundan whitelist'te YOK (client daraltamaz). Id tie-breaker için dahil.
@@ -81,6 +87,7 @@ public class OrderAppService : TradeXpressAppService, IOrderAppService
         IRepository<OrderOperationalData, Guid> operationalDataRepository,
         IRepository<OrderLineOperationalData, Guid> operationalLineRepository,
         IRepository<EntityVariant, Guid> productVariantRepository,
+        IRepository<Products.Product, Guid> productRepository,
         IRepository<SalesChannelBase, Guid> channelRepository,
         IRepository<SalesChannelTrN11, Guid> n11ChannelRepository,
         IRepository<Country, Guid> countryRepository,
@@ -93,13 +100,16 @@ public class OrderAppService : TradeXpressAppService, IOrderAppService
         ICurrentCompany currentCompany,
         IRepository<OrderReservation, Guid> reservationRepository,
         IRepository<OrderFulfillmentLink, Guid> fulfillmentLinkRepository,
-        OrderReservationManager reservationManager)
+        OrderReservationManager reservationManager,
+        IRepository<Vouchers.Voucher, Guid> voucherRepository,
+        Vouchers.IVoucherAppService voucherAppService)
     {
         _orderRepository = orderRepository;
         _orderLineRepository = orderLineRepository;
         _operationalDataRepository = operationalDataRepository;
         _operationalLineRepository = operationalLineRepository;
         _productVariantRepository = productVariantRepository;
+        _productRepository = productRepository;
         _channelRepository = channelRepository;
         _n11ChannelRepository = n11ChannelRepository;
         _countryRepository = countryRepository;
@@ -113,6 +123,8 @@ public class OrderAppService : TradeXpressAppService, IOrderAppService
         _reservationRepository = reservationRepository;
         _fulfillmentLinkRepository = fulfillmentLinkRepository;
         _reservationManager = reservationManager;
+        _voucherRepository = voucherRepository;
+        _voucherAppService = voucherAppService;
     }
 
     // ── Sipariş Fazı O3 — REZERVASYON (Faz 7). Stoğa dokunur; pazaryerine YAZMAZ. ───────────────────
@@ -137,6 +149,10 @@ public class OrderAppService : TradeXpressAppService, IOrderAppService
     /// <summary>İptal talebine KARAR verir. <b>Onay</b> rezervasyonu serbest bırakır (stok geri gelir),
     /// <b>red</b> tutmaya devam eder. Karar ile fiziksel etki AYNI transaction'da yürür — karar kaydedilip
     /// serbest bırakma yarıda kalırsa defter kararla tutarsız kalırdı.</summary>
+    // ⚠ Stoğu GERİ VEREN karar. Sınıf düzeyindeki SalesChannels.Default (salt görüntüleme) bunu açık
+    // bırakıyordu: rezervasyonu yalnız GÖRME yetkisi olan bir kullanıcı iptali onaylayıp madeni serbest
+    // bırakabilirdi. Değiştirme yetkisi ister (emsal: AcceptOrderLineAsync).
+    [Authorize(TradeXpressPermissions.SalesChannels.Update)]
     [UnitOfWork(isTransactional: true)]
     public virtual async Task<OrderReservationDto> DecideCancellationAsync(OrderCancellationDecisionDto input)
     {
@@ -162,10 +178,31 @@ public class OrderAppService : TradeXpressAppService, IOrderAppService
                ?? throw new BusinessException("TradeXpress:OrderReservation:NotFound");
     }
 
-    /// <summary>Rezervasyonu ELLE serbest bırakır (iptal talebi olmadan). Fiş satırları soft-delete edilir.</summary>
+    /// <summary>Rezervasyonu ELLE serbest bırakır (iptal talebi olmadan). Fiş satırları soft-delete edilir.
+    /// <para>Aynı gerekçe: stoğu geri veren bir işlem salt-görüntüleme yetkisine açık kalamaz.</para></summary>
+    [Authorize(TradeXpressPermissions.SalesChannels.Update)]
     [UnitOfWork(isTransactional: true)]
     public virtual async Task<OrderReservationDto> ReleaseReservationAsync(OrderReservationReleaseDto input)
     {
+        // ⚠ SESSİZ NO-OP KAPISI: OrderReservationManager.ReleaseAsync, Reserved OLMAYAN kaydı sessizce
+        // atlar — bu İDEMPOTENT iç yol için doğrudur (iptal onayı iki kez işlense de stok bir kez döner).
+        // Ama KULLANICI aksiyonunda yanlıştır: karşılanmış bir rezervasyonda "Serbest Bırak" hiçbir şey
+        // yapmadan başarı döndürüyordu — kullanıcı stoğu geri aldığını sanırdı. Açık aksiyon açık cevap ister.
+        var existing = await AsyncExecuter.FirstOrDefaultAsync(
+            (await _reservationRepository.GetQueryableAsync()).Where(r => r.OrderId == input.OrderId))
+            ?? throw new BusinessException("TradeXpress:OrderReservation:NotFound");
+
+        if (existing.Status == OrderReservationStatus.Fulfilled)
+        {
+            throw new BusinessException("TradeXpress:OrderReservation:CannotReleaseFulfilled");
+        }
+
+        if (existing.Status != OrderReservationStatus.Reserved)
+        {
+            throw new BusinessException("TradeXpress:OrderReservation:NotReleasable")
+                .WithData("Status", existing.Status);
+        }
+
         await _reservationManager.ReleaseAsync(input.OrderId, input.Reason);
         return await GetReservationAsync(input.OrderId)
                ?? throw new BusinessException("TradeXpress:OrderReservation:NotFound");
@@ -647,6 +684,260 @@ public class OrderAppService : TradeXpressAppService, IOrderAppService
         }
 
         return BuildLineEditDto(order, line, operational);
+    }
+
+    /// <summary>Rezervasyonu FİZİKİ ÇIKIŞA çevirir (hazırlayan kasa).
+    ///
+    /// <para><b>Neden <c>IVoucherAppService.SaveLineAsync</c> kullanılıyor</b> (rezervasyon fişi yazan
+    /// materializer'ın aksine): burada GERÇEK bir kullanıcı var. O yol kasa yetkisini doğrular, poster'ları
+    /// çalıştırır ve stok tetiğini yayımlar — üçünü de bedavaya almak, worker bağlamı için yazılmış özel yolu
+    /// kullanıcı bağlamına taşımaktan iyidir. Materializer'ın "SaveLineAsync KULLANILMAZ" notu YALNIZ kullanıcısız
+    /// worker içindir.</para>
+    ///
+    /// <para><b>ÇİFT SAYIM KAPISI:</b> fiziki çıkış satırları yazılır VE rezervasyon satırları aynı transaction'da
+    /// soft-delete edilir. İkincisi unutulursa aynı mal iki kez düşer (<c>Available</c> 30 yerine 10 olur) ve
+    /// ürün stokta olduğu hâlde satıştan kalkar — hiçbir istisna doğmaz.</para></summary>
+    [Authorize(TradeXpressPermissions.SalesChannels.Update)]
+    [UnitOfWork(isTransactional: true)]
+    public virtual async Task<OrderReservationDto> FulfillReservationAsync(OrderFulfillmentInputDto input)
+    {
+        var reservation = await AsyncExecuter.FirstOrDefaultAsync(
+            (await _reservationRepository.GetQueryableAsync()).Where(r => r.OrderId == input.OrderId))
+            ?? throw new BusinessException("TradeXpress:OrderReservation:NotFound");
+
+        // Guard entity'de de var (MustBeReservedToFulfill) ama burada ERKEN durmak, fiş yazmaya başlayıp
+        // yarıda kalmaktan iyidir.
+        if (reservation.Status != OrderReservationStatus.Reserved)
+        {
+            throw new BusinessException("TradeXpress:OrderReservation:MustBeReservedToFulfill")
+                .WithData("Status", reservation.Status);
+        }
+
+        if (reservation.VoucherId is not { } reservationVoucherId)
+        {
+            throw new BusinessException("TradeXpress:OrderReservation:NoLines");
+        }
+
+        var voucher = await _voucherRepository.GetAsync(reservationVoucherId);
+        await _voucherRepository.EnsureCollectionLoadedAsync(voucher, v => v.Lines);
+
+        var links = await AsyncExecuter.ToListAsync(
+            (await _fulfillmentLinkRepository.GetQueryableAsync())
+                .Where(l => l.OrderId == input.OrderId && l.Kind == OrderFulfillmentLinkKind.Reservation));
+
+        var now = Clock.Now.ToUniversalTime();
+        var declarationByLink = input.Lines.ToDictionary(l => l.FulfillmentLinkId);
+
+        foreach (var reservedLine in voucher.Lines.Where(l => !l.IsDeleted).ToList())
+        {
+            // ① FİZİKİ ÇIKIŞ satırı — hazırlayan kasada, NORMAL ödeme tipiyle (fiziksel Net'e girer).
+            var exitLine = await _voucherAppService.SaveLineAsync(new VoucherLineDto
+            {
+                BranchId      = input.BranchId,
+                VaultId       = input.VaultId,
+                AccountId     = voucher.AccountId,
+                SubAccountId  = voucher.SubAccountId,
+                Type          = reservedLine.Type,
+                Direction     = ProcessDirectionType.Outbound,
+                PaymentType   = ProcessPaymentType.Normal,
+                CommodityId   = reservedLine.CommodityId,
+                CommodityCode = reservedLine.CommodityCode,
+                VariantId     = reservedLine.VariantId,
+                Quantity      = reservedLine.Quantity,
+                Amount        = reservedLine.Amount,
+                Factor        = reservedLine.Factor,
+                Total         = reservedLine.Total,
+                MainUnitId    = reservedLine.MainUnitId,
+                Description   = input.Note,
+            });
+
+            // ② Bağ kaydı: hangi çıkış satırı hangi sipariş kalemini karşıladı.
+            var sourceLink = links.FirstOrDefault(l => l.VoucherLineId == reservedLine.Id);
+            var exitLink = new OrderFulfillmentLink(
+                voucher.CompanyId, input.OrderId,
+                sourceLink?.RemoteLineId ?? string.Empty,
+                exitLine.VoucherId!.Value, exitLine.Id,
+                OrderFulfillmentLinkKind.PhysicalExit);
+            exitLink.SetFulfilled(reservedLine.Quantity, reservedLine.Amount);
+
+            // Fiyat farkı YALNIZ beyan edilmişse yazılır — null ile 0 arasındaki fark korunur.
+            if (sourceLink is { } source && declarationByLink.TryGetValue(source.Id, out var declaration))
+            {
+                exitLink.DeclarePriceDifference(
+                    declaration.PriceDifference, declaration.PriceDifferenceUnitId, declaration.Note);
+            }
+
+            await _fulfillmentLinkRepository.InsertAsync(exitLink, autoSave: true);
+        }
+
+        // ③ Rezervasyon satırlarını DÜŞÜR — çift sayımın tek panzehiri. DeleteLineAsync yolu stok tetiğini
+        //    de yayımlar (Release'in eksik ETO sorunu bu yola bulaşmaz).
+        foreach (var reservedLine in voucher.Lines.Where(l => !l.IsDeleted).ToList())
+        {
+            await _voucherAppService.DeleteLineAsync(voucher.Id, reservedLine.Id, input.Note ?? string.Empty);
+        }
+
+        // ④ Dönüşü olmayan nokta.
+        reservation.MarkFulfilled(now);
+        await _reservationRepository.UpdateAsync(reservation, autoSave: true);
+
+        return await GetReservationAsync(input.OrderId)
+               ?? throw new BusinessException("TradeXpress:OrderReservation:NotFound");
+    }
+
+    /// <summary>İADE GİRİŞİ — mal fiziksel olarak kasaya girdiğinde.
+    ///
+    /// <para><b>Stok yalnız burada döner.</b> Kanaldaki "iade talep edildi" / "kargoda iade" statüleri stoğa
+    /// DOKUNMAZ: mal elimize geçmeden satılabilir göstermek, müşterinin onu ikinci kez satın alabilmesi
+    /// demektir. Sistem sinyali görünür kılar; girişi insan kaydeder.</para>
+    ///
+    /// <para><b>Rezervasyona dokunulmaz</b> (<c>Fulfilled</c> kalır): iade rezervasyonu diriltseydi stok İKİ
+    /// KEZ artardı — bir kez giriş fişiyle, bir kez rezervasyonun serbest kalmasıyla.</para>
+    ///
+    /// <para><b>Yeni entity YOK:</b> iade kaydı = giriş fişi + <c>Return</c> bağı. Rezervasyonun "ayrı yaşayan
+    /// katman" felsefesinin aynısı.</para></summary>
+    [Authorize(TradeXpressPermissions.SalesChannels.Update)]
+    [UnitOfWork(isTransactional: true)]
+    public virtual async Task<OrderReturnEntryResultDto> RegisterReturnEntryAsync(OrderReturnEntryDto input)
+    {
+        var result = new OrderReturnEntryResultDto();
+
+        if (input.Lines.Count == 0)
+        {
+            throw new BusinessException("TradeXpress:OrderReturn:NoLines");
+        }
+
+        var exitLinks = await AsyncExecuter.ToListAsync(
+            (await _fulfillmentLinkRepository.GetQueryableAsync())
+                .Where(l => l.OrderId == input.OrderId && l.Kind == OrderFulfillmentLinkKind.PhysicalExit));
+
+        if (exitLinks.Count == 0)
+        {
+            // İade tanımı gereği ÇIKIŞ SONRASIDIR. Çıkış yoksa geri gelecek bir şey de yoktur — sessizce
+            // fiş yazmak, hiç çıkmamış malı stoğa eklemek olurdu.
+            throw new BusinessException("TradeXpress:OrderReturn:NoPhysicalExit");
+        }
+
+        Guid? voucherId = null;
+
+        foreach (var line in input.Lines)
+        {
+            var exitLink = exitLinks.FirstOrDefault(l => l.Id == line.PhysicalExitLinkId);
+            if (exitLink is null)
+            {
+                result.Issues.Add($"Çıkış bağı bulunamadı: {line.PhysicalExitLinkId}");
+                continue;
+            }
+
+            if (line.Quantity <= 0m && line.Amount <= 0m)
+            {
+                result.Issues.Add($"Miktarı sıfır olan satır atlandı: {exitLink.RemoteLineId}");
+                continue;
+            }
+
+            // Emtia bilgisi ÇIKIŞ fişinin satırından okunur — operatör neyin geri geldiğini yeniden
+            // seçmez; iade, çıkmış olan malın dönüşüdür.
+            var exitVoucher = await _voucherRepository.GetAsync(exitLink.VoucherId);
+            await _voucherRepository.EnsureCollectionLoadedAsync(exitVoucher, v => v.Lines);
+            var exitLine = exitVoucher.Lines.FirstOrDefault(l => l.Id == exitLink.VoucherLineId);
+            if (exitLine is null)
+            {
+                result.Issues.Add($"Çıkış fiş satırı bulunamadı: {exitLink.RemoteLineId}");
+                continue;
+            }
+
+            var entryLine = await _voucherAppService.SaveLineAsync(new VoucherLineDto
+            {
+                Id            = Guid.Empty,
+                VoucherId     = voucherId,   // ilk satır fişi açar, sonrakiler AYNI fişe biner
+                BranchId      = input.BranchId,
+                VaultId       = input.VaultId,
+                AccountId     = exitVoucher.AccountId,
+                SubAccountId  = exitVoucher.SubAccountId,
+                Type          = exitLine.Type,
+                Direction     = ProcessDirectionType.Inbound,
+                PaymentType   = ProcessPaymentType.Return,
+                CommodityId   = exitLine.CommodityId,
+                CommodityCode = exitLine.CommodityCode,
+                VariantId     = exitLine.VariantId,
+                Quantity      = line.Quantity,
+                Amount        = line.Amount,
+                Factor        = exitLine.Factor,
+                Total         = line.Amount * exitLine.Factor,
+                MainUnitId    = exitLine.MainUnitId,
+                Description   = input.Note,
+            });
+
+            voucherId ??= entryLine.VoucherId;
+
+            var returnLink = new OrderFulfillmentLink(
+                exitVoucher.CompanyId, input.OrderId, exitLink.RemoteLineId,
+                entryLine.VoucherId!.Value, entryLine.Id, OrderFulfillmentLinkKind.Return);
+            returnLink.SetFulfilled(line.Quantity, line.Amount);
+            await _fulfillmentLinkRepository.InsertAsync(returnLink, autoSave: true);
+
+            result.RegisteredLines++;
+        }
+
+        if (voucherId is not { } written)
+        {
+            throw new BusinessException("TradeXpress:OrderReturn:NothingRegistered")
+                .WithData("Issues", string.Join(" · ", result.Issues));
+        }
+
+        result.VoucherId = written;
+        return result;
+    }
+
+    /// <summary>Elle eşleştirme adayları — ÇALIŞILAN ŞİRKETİN ürün varyantları.
+    ///
+    /// <para><b>Şirket sınırı açıkça uygulanır:</b> <c>EntityVariant</c> kendi <c>CompanyId</c>'sini taşır ama
+    /// aday listesi kullanıcının GÖRDÜĞÜ bir yüzeydir — global filtreye ek olarak koşulu yazmak, bağlam
+    /// kurulmamış bir çağrıda yabancı şirketin ürünlerinin listelenmesini yapısal olarak engeller.</para>
+    ///
+    /// <para>Arama hem ürün kodunda/adında hem varyant kodunda yapılır: kullanıcı elindeki pazaryeri stok
+    /// koduna en çok neyin benzediğini arar, hangi alanda tutacağını önceden bilemez.</para></summary>
+    [Authorize(TradeXpressPermissions.SalesChannels.Update)]
+    public virtual async Task<List<OrderLineMatchCandidateDto>> GetLineMatchCandidatesAsync(
+        OrderLineMatchCandidateRequestDto input)
+    {
+        var companyId = CompanyOwnershipGuard.ResolveOwnerCompanyId(_currentCompany);
+
+        var variants = (await _productVariantRepository.GetQueryableAsync())
+            .Where(v => v.EntityName == ProductEntityName && v.CompanyId == companyId && v.IsActive);
+
+        var products = (await _productRepository.GetQueryableAsync())
+            .Where(p => p.CompanyId == companyId);
+
+        var query = from variant in variants
+                    join product in products on variant.EntityId equals product.Id
+                    select new OrderLineMatchCandidateDto
+                    {
+                        EntityVariantId = variant.Id,
+                        ProductCode = product.Code,
+                        ProductName = product.Name,
+                        VariantCode = variant.Code,
+                    };
+
+        if (!string.IsNullOrWhiteSpace(input.Search))
+        {
+            var term = input.Search.Trim();
+            query = query.Where(c =>
+                c.ProductCode.Contains(term)
+                || c.ProductName.Contains(term)
+                || c.VariantCode.Contains(term));
+        }
+
+        var take = input.MaxCount <= 0 ? 50 : Math.Min(input.MaxCount, 200);
+        var candidates = await AsyncExecuter.ToListAsync(
+            query.OrderBy(c => c.ProductCode).ThenBy(c => c.VariantCode).Take(take));
+
+        foreach (var candidate in candidates)
+        {
+            candidate.DisplayText = $"{candidate.ProductCode} · {candidate.ProductName} ({candidate.VariantCode})";
+        }
+
+        return candidates;
     }
 
     private async Task ApplyProductMatchAsync(OrderLineOperationalData operational, Guid? productVariantId, DateTime matchedAt)

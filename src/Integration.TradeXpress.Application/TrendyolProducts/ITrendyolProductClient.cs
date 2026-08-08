@@ -22,6 +22,15 @@ public interface ITrendyolProductClient
     /// <summary>Ürünü Trendyol'a gönderir (async create). Batch id döner; başarısızsa BusinessException fırlatır.</summary>
     Task<TrendyolSubmitResult> SubmitProductAsync(TrendyolProductData product, TrendyolCredentials credentials, CancellationToken cancellationToken = default);
 
+    /// <summary>Fiyat + stok HAFİF güncellemesi — satırlar yalnız <c>barcode</c> ile adreslenir, ürün İÇERİĞİNE
+    /// (başlık/görsel/attribute) DOKUNMAZ. Ürün oluşturma gibi ASENKRON: <c>batchRequestId</c> döner, sonuç
+    /// <see cref="GetBatchStatusAsync"/> ile sorgulanır.
+    ///
+    /// <para><b>null alan = "bu alana dokunma"</b> (JSON'a hiç yazılmaz, uzak değer korunur); <b><c>0</c> meşru bir
+    /// değerdir</b> (stok sıfırlama = satışı durdurma yolu). İkisini karıştırmak sessizce ya stoğu sıfırlar ya da
+    /// sıfırlamayı yutar.</para></summary>
+    Task<TrendyolSubmitResult> UpdatePriceAndInventoryAsync(IReadOnlyList<TrendyolPriceInventoryItem> items, TrendyolCredentials credentials, CancellationToken cancellationToken = default);
+
     /// <summary>Bir batch isteğinin durumunu sorgular (COMPLETED/FAILED + başarısız kalem gerekçeleri).</summary>
     Task<TrendyolBatchStatus> GetBatchStatusAsync(string batchRequestId, TrendyolCredentials credentials, CancellationToken cancellationToken = default);
 
@@ -62,6 +71,14 @@ public sealed record TrendyolProductItem(
     int Quantity,
     decimal ListPrice,
     decimal SalePrice);
+
+/// <summary>Trendyol HAFİF fiyat/stok satırı — kimlik <c>barcode</c> (stok kodu DEĞİL; ikisi Trendyol'da
+/// farklı olabilir ve karıştırmak başka bir SKU'nun stoğunu ezer).
+///
+/// <para>Dört alan da BAĞIMSIZ gönderilebilir: <c>null</c> = gövdeye yazılmaz (uzak değer korunur), dolu = yazılır.
+/// Nullable'lık burada süs değil, kuralın MEKANİK karşılığıdır — alanlar non-nullable olsaydı varsayılan
+/// <c>0</c>/<c>0,00</c> sessizce stoğu ve fiyatı sıfırlardı (N11 tarafında aynı gerekçe).</para></summary>
+public sealed record TrendyolPriceInventoryItem(string Barcode, int? Quantity, decimal? ListPrice, decimal? SalePrice);
 
 /// <summary>Trendyol attribute değeri (id-bazlı) — value id ile listeden ya da customValue ile serbest.</summary>
 public sealed record TrendyolAttributeValue(int AttributeId, int? AttributeValueId, string? CustomValue);

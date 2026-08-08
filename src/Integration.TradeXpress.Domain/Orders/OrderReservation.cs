@@ -148,6 +148,14 @@ public class OrderReservation : FullAuditedAggregateRoot<Guid>, IMultiTenant, IC
             return;
         }
 
+        // ZATEN BEKLİYORSA DOKUNMA — İLK talep anı korunur. Senkron worker'ı 2 dakikada bir aynı siparişle
+        // döndüğü için damga her turda tazelenirdi; o zaman "ne zamandır karar bekliyor?" sorusunun cevabı
+        // DAİMA "2 dakikadır" olurdu ve bekleyen işi önceliklendirmek imkânsızlaşırdı.
+        if (CancellationDecision == OrderCancellationDecision.Pending)
+        {
+            return;
+        }
+
         CancellationDecision = OrderCancellationDecision.Pending;
         CancellationRequestedAt = at;
     }

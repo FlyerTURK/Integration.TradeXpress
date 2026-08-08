@@ -27,6 +27,15 @@ public class CommodityVariantOptionDto
     public decimal ExitLabor { get; set; }
     public Guid? ExitLaborUnitId { get; set; }
 
+    // "Değiştirilebilir" bayrakları (2026-08-07 G2 / ACIK-ISLER:51 A4): fiş paneli işçilik kilidini SEÇİLİ
+    // varyantın bayrağından okumalı — bunlar taşınmadığı için panel hep ANA varyantın değerlerini kullanıyordu
+    // (fiş VariantId=B kaydedip A'nın işçiliğini tahsil etme hatası).
+    public bool LaborTypeChange { get; set; }
+
+    public bool EntryLaborChange { get; set; }
+
+    public bool ExitLaborChange { get; set; }
+
     public override string ToString()
     {
         return Code;

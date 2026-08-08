@@ -37,6 +37,9 @@ public class MetalListDto : FollowingUnitCatalogListDtoBase
     public decimal ExitLabor { get; set; }
     public Guid? ExitLaborUnitId { get; set; }
     public bool ExitLaborChange { get; set; }
+
+    /// <summary>2026-08-07 G2'de eklendi — iki kardeşi vardı ama bu yoktu; panel işçilik TİPİ kilidini bundan okur.</summary>
+    public bool LaborTypeChange { get; set; }
 }
 
 public class MetalGetDto : FollowingUnitCatalogGetDtoBase, IHasCode
@@ -160,5 +163,18 @@ public class MetalVariantGraphDto : EntityVariantGraphDto
     public Guid? EntryLaborUnitId { get; set; }
     public decimal ExitLabor { get; set; }
     public Guid? ExitLaborUnitId { get; set; }
+
+    // ── "DEĞİŞTİRİLEBİLİR" bayrakları (2026-08-07 G2) ──────────────────────────────────────────────
+    // Fiş panelinde işçiliğin kullanıcı tarafından düzenlenip düzenlenemeyeceğini söyler. Alanlar entity'de
+    // (MetalVariantDetail) ve seed'de VARDI ama DTO'da YOKTU → app service sabit false yazıyor, okuma yolu da
+    // taşımıyordu: kullanıcının ilk Save'i 86/86 seed madenin bayrağını sessizce siliyordu.
+    public bool LaborTypeChange { get; set; }
+
+    public bool EntryLaborChange { get; set; }
+
+    public bool ExitLaborChange { get; set; }
+
+    /// <summary>VARYANT-detay maliyet birimi — <c>Metal.CostUnitId</c> (kayıt seviyesi) ile KARIŞTIRMA.</summary>
+    public Guid? CostUnitId { get; set; }
 }
 

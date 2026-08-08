@@ -37,6 +37,8 @@ using Volo.Abp.BackgroundWorkers;
 using Volo.Abp.Threading;
 using Microsoft.Extensions.Options;
 using Integration.TradeXpress.Financials.ExchangeRates;
+using Integration.TradeXpress.HttpApi.Host.MultiCompany;
+using Integration.TradeXpress.MultiCompany;
 
 namespace Integration.TradeXpress;
 
@@ -119,6 +121,12 @@ public class TradeXpressHttpApiHostModule : AbpModule
             context.Services.AddRazorPages()
                 .AddRazorRuntimeCompilation();
         }
+
+        // ŞİRKET SINIRI — fail-closed. Kayıt YOKSA NullCompanyContextProvider devreye girer ve
+        // ICurrentCompany.Id daima null olur; DbContext'in şirket filtresi o durumda PERMISSIVE (konsolide)
+        // kola düşer, yani API tenant içindeki tüm şirketleri gösterir. Elle kayıt (son kayıt kazanır) —
+        // Blazor host'taki köprü kaydının simetriği.
+        context.Services.AddScoped<ICompanyContextProvider, ApiCompanyContextProvider>();
 
         ConfigureStudio(hostingEnvironment);
         ConfigureAuthentication(context);

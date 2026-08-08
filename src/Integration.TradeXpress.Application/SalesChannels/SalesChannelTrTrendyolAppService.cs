@@ -72,7 +72,7 @@ public class SalesChannelTrTrendyolAppService : TradeXpressAppService, ISalesCha
 
     public virtual async Task<SalesChannelTrTrendyolGetDto> GetAsync(Guid id)
     {
-        var entity = await _repository.GetAsync(id);
+        var entity = await _repository.GetOwnedAsync(_currentCompany, id);
         return Redact(ObjectMapper.Map<SalesChannelTrTrendyol, SalesChannelTrTrendyolGetDto>(entity));
     }
 
@@ -131,7 +131,7 @@ public class SalesChannelTrTrendyolAppService : TradeXpressAppService, ISalesCha
     [Authorize(TradeXpressPermissions.SalesChannels.Update)]
     public virtual async Task<SalesChannelTrTrendyolGetDto> UpdateAsync(Guid id, SalesChannelTrTrendyolUpdateDto input)
     {
-        var entity = await _repository.GetAsync(id);
+        var entity = await _repository.GetOwnedAsync(_currentCompany, id);
 
         await ApplyCodeChangeAsync(entity, input.Code);
         entity.SetName(input.Name);
@@ -229,7 +229,7 @@ public class SalesChannelTrTrendyolAppService : TradeXpressAppService, ISalesCha
     [Authorize(TradeXpressPermissions.SalesChannels.Delete)]
     public virtual async Task DeleteAsync(Guid id)
     {
-        var entity = await _repository.GetAsync(id);
+        var entity = await _repository.GetOwnedAsync(_currentCompany, id);
         await _repository.DeleteAsync(entity, autoSave: true);
     }
 

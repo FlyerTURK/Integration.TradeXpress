@@ -6,7 +6,6 @@ using Integration.TradeXpress.Authorization;
 using Integration.TradeXpress.Branches;
 using Integration.TradeXpress.MultiCompany;
 using Integration.TradeXpress.Orchestration;
-using Volo.Abp.EventBus.Distributed;
 using Integration.TradeXpress.Vaults;
 using Integration.TradeXpress.Vouchers.Balance;
 using Microsoft.AspNetCore.Authorization;
@@ -46,7 +45,7 @@ public partial class VoucherAppService : TradeXpressAppService, IVoucherAppServi
     private readonly VoucherBullionStockService _bullionStockService;
     private readonly VoucherTransferService _transferService;
     private readonly VoucherLineHistoryRecorder _historyRecorder;
-    private readonly IDistributedEventBus _distributedEventBus;   // emtia stok tetiği (commit sonrası publish)
+    private readonly CommodityStockChangeQueuer _stockChangeQueuer;   // emtia stok tetiği (commit sonrası publish)
 
     public VoucherAppService(
         IRepository<Voucher, Guid> repository,
@@ -62,7 +61,7 @@ public partial class VoucherAppService : TradeXpressAppService, IVoucherAppServi
         VoucherBullionStockService bullionStockService,
         VoucherTransferService transferService,
         VoucherLineHistoryRecorder historyRecorder,
-        IDistributedEventBus distributedEventBus)
+        CommodityStockChangeQueuer stockChangeQueuer)
     {
         _repository          = repository;
         _branchRepository    = branchRepository;
@@ -77,7 +76,7 @@ public partial class VoucherAppService : TradeXpressAppService, IVoucherAppServi
         _bullionStockService = bullionStockService;
         _transferService     = transferService;
         _historyRecorder     = historyRecorder;
-        _distributedEventBus = distributedEventBus;
+        _stockChangeQueuer   = stockChangeQueuer;
     }
 
     public async Task<VoucherGetDto> CreateAsync(VoucherCreateDto input)
@@ -191,7 +190,7 @@ public partial class VoucherAppService : TradeXpressAppService, IVoucherAppServi
 
             // Maden tetiği için MUTASYON ÖNCESİ snapshot: satırın madeni değişir ya da silinirse ESKİ maden
             // de yeniden hesaplanmalı (yalnız yeni hâle bakmak onu kaçırırdı — ADR).
-            beforeStockKeys = CollectCommodityStockKeys(voucher);
+            beforeStockKeys = CommodityStockChangeQueuer.CollectKeys(voucher);
 
             VoucherLine savedLine;
             VoucherLineChangeType changeType;
@@ -259,7 +258,7 @@ public partial class VoucherAppService : TradeXpressAppService, IVoucherAppServi
         }
 
         // Maden stok tetiği: önce ∪ sonra anahtar kümesi, COMMIT SONRASI yayımlanır (ADR — push transaction dışı).
-        QueueCommodityStockChangedEvent(voucher, beforeStockKeys);
+        _stockChangeQueuer.QueueForVoucher(voucher, beforeStockKeys);
 
         input.Id            = lineId;
         input.VoucherId     = voucher.Id;
@@ -418,7 +417,7 @@ public partial class VoucherAppService : TradeXpressAppService, IVoucherAppServi
                    ?? throw new EntityNotFoundException(typeof(VoucherLine), lineId);
         await EnsureTransactionPermissionAsync(line.Type);
 
-        var beforeStockKeys = CollectCommodityStockKeys(voucher);   // silinen satırın emtiası "önce" kümesinde yakalanır
+        var beforeStockKeys = CommodityStockChangeQueuer.CollectKeys(voucher);   // silinen satırın emtiası "önce" kümesinde yakalanır
 
         // Silmeden ÖNCE snapshot: soft-delete olduğundan satır hâlâ okunabilir ama anlamlı anlık görüntü
         // (silinmemiş SON hâl) IsDeleted işaretinden ÖNCE alınmalı.
@@ -434,7 +433,7 @@ public partial class VoucherAppService : TradeXpressAppService, IVoucherAppServi
             await _transferService.RemoveTransferTwinAsync(linkId, lineId);
         }
 
-        QueueCommodityStockChangedEvent(voucher, beforeStockKeys);
+        _stockChangeQueuer.QueueForVoucher(voucher, beforeStockKeys);
 
         // VoucherLineLog gelene kadar nedeni log'a yaz (kalıcı geçmiş ertelendi).
         Logger.LogInformation("VoucherLine {LineId} silindi. Neden: {Reason}", lineId, reason);
@@ -495,65 +494,14 @@ public partial class VoucherAppService : TradeXpressAppService, IVoucherAppServi
             await _transferService.RemoveTransferTwinAsync(line.LinkId!.Value, line.Id);
         }
 
-        var beforeStockKeys = CollectCommodityStockKeys(voucher);   // fiş komple düşüyor → tüm stok satırları "önce"de
+        var beforeStockKeys = CommodityStockChangeQueuer.CollectKeys(voucher);   // fiş komple düşüyor → tüm stok satırları "önce"de
 
         await _ledgerSynchronizer.DeleteVoucherAsync(id);
         await _repository.DeleteAsync(id, autoSave: true);
 
-        QueueCommodityStockChangedEvent(voucher, beforeStockKeys);
+        _stockChangeQueuer.QueueForVoucher(voucher, beforeStockKeys);
     }
 
     // ── Emtia stok tetiği (ADR-PRODUCT-ORCHESTRATION) ────────────────────────────────────────────────
 
-    /// <summary>Fişin CANLI (silinmemiş) stok-taşıyan satırlarının anahtarları. Kapsam
-    /// <see cref="CommodityStockFamilies.Tracked"/> (Metal + Good) — ÖDEME TİPİNDEN BAĞIMSIZ
-    /// (Peşin/Rezervasyon ledger'a yazmaz ama stoğu değiştirir; stok raporu da yalnız Type'a bakar).
-    /// Virman ikizleri Transfer tipidir, emtia bacağı taşımaz → ikiz fiş kapsam DIŞI (bilinçli).</summary>
-    private static List<CommodityStockKeyEto> CollectCommodityStockKeys(Voucher voucher)
-    {
-        return voucher.Lines
-            .Where(l => !l.IsDeleted && CommodityStockFamilies.IsTracked(l.Type) && l.CommodityId != null)
-            .Select(l => new CommodityStockKeyEto
-            {
-                Family             = l.Type,
-                CommodityId        = l.CommodityId!.Value,
-                CommodityVariantId = l.VariantId,
-            })
-            .GroupBy(k => (k.Family, k.CommodityId, k.CommodityVariantId))
-            .Select(g => g.First())
-            .ToList();
-    }
-
-    /// <summary>Önce ∪ sonra anahtar kümesini UoW COMMIT SONRASINA kuyruklar. Transaction içinde publish
-    /// YAPILMAZ: handler kanala HTTP push tetikler (N11 60 sn timeout) — voucher dış servise kilitlenemez,
-    /// rollback'te de olay YAYIMLANMAZ (stok değişmedi ki tetik doğsun).</summary>
-    private void QueueCommodityStockChangedEvent(Voucher voucher, List<CommodityStockKeyEto> beforeKeys)
-    {
-        var keys = beforeKeys
-            .Concat(CollectCommodityStockKeys(voucher))
-            .GroupBy(k => (k.Family, k.CommodityId, k.CommodityVariantId))
-            .Select(g => g.First())
-            .ToList();
-        if (keys.Count == 0)
-        {
-            return;
-        }
-
-        var eto = new CommodityStockChangedEto
-        {
-            TenantId  = CurrentTenant.Id,
-            CompanyId = voucher.CompanyId,
-            Keys      = keys,
-        };
-
-        var uow = UnitOfWorkManager.Current;
-        if (uow is null)
-        {
-            // [UnitOfWork] attribute'lu yollarda ambient DAİMA var; savunma amaçlı doğrudan yayım.
-            _ = _distributedEventBus.PublishAsync(eto);
-            return;
-        }
-
-        uow.OnCompleted(async () => await _distributedEventBus.PublishAsync(eto));
-    }
 }

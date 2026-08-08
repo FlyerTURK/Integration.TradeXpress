@@ -19,6 +19,19 @@ namespace Integration.TradeXpress.Orchestration;
 /// emtia kırılımı taşımıyor; desteklenmeyen aile <b>boş sözlük</b> döner → hesap o satırı 0 stok sayar
 /// (fail-closed). Sessizce "sınırsız" saymak oversell kapısını açardı.</para>
 /// </summary>
+/// <remarks>
+/// <b><c>[ExposeServices]</c> ZORUNLU — kaldırılırsa stok orkestrasyonu SESSİZCE ölür.</b> ABP'nin varsayılan
+/// kaydı bir arayüzü ancak sınıf adı o arayüzün adıyla BİTİYORSA açar: <c>ICommodityStockReader</c> → aranan
+/// sonek <c>"CommodityStockReader"</c>, sınıf adı ise <c>"CommodityStockReaderService"</c> ile bitiyor → eşleşme
+/// YOK. Attribute olmadan sınıf yalnız KENDİ tipiyle kaydolur; <c>ICommodityStockReader</c> isteyen
+/// <see cref="ProductStockSyncJob"/> konteynerden çözülemez ve HER turda çöker.
+///
+/// <para>Bu tam olarak yaşandı (2026-07-25 → 2026-08-08): job'ın tamamı 14 gün boyunca her koşuda
+/// <c>Cannot resolve parameter 'ICommodityStockReader stockReader'</c> ile düştü. Derleme temizdi, testler
+/// yeşildi, hiçbir kural kırmızı değildi — çünkü hata derleme zamanında değil KONTEYNER kurulumunda doğuyor.
+/// Mekanik ağ: <c>DependencyRegistrationConventionTests</c>.</para>
+/// </remarks>
+[ExposeServices(typeof(ICommodityStockReader))]
 public class CommodityStockReaderService : ICommodityStockReader, ITransientDependency
 {
     private readonly IMetalReportAppService _metalReport;

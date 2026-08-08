@@ -3982,8 +3982,16 @@ namespace Integration.TradeXpress.Migrations
                     b.Property<DateTime?>("LastSyncedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<decimal?>("MaxPrice")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<int?>("MaxPurchaseQuantity")
                         .HasColumnType("int");
+
+                    b.Property<decimal?>("MinPrice")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<long?>("N11ProductId")
                         .HasColumnType("bigint");
@@ -4003,6 +4011,9 @@ namespace Integration.TradeXpress.Migrations
 
                     b.Property<DateTime?>("ProductionDate")
                         .HasColumnType("datetime2");
+
+                    b.Property<int?>("SafetyStock")
+                        .HasColumnType("int");
 
                     b.Property<string>("SaleStatus")
                         .HasMaxLength(32)
@@ -7584,6 +7595,14 @@ namespace Integration.TradeXpress.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
+                    b.Property<decimal?>("MaxPrice")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("MinPrice")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<Guid>("ProductId")
                         .HasColumnType("uniqueidentifier");
 
@@ -7601,6 +7620,9 @@ namespace Integration.TradeXpress.Migrations
                     b.Property<string>("RemoteProductMainId")
                         .HasMaxLength(64)
                         .HasColumnType("nvarchar(64)");
+
+                    b.Property<int?>("SafetyStock")
+                        .HasColumnType("int");
 
                     b.Property<Guid>("SalesChannelId")
                         .HasColumnType("uniqueidentifier");

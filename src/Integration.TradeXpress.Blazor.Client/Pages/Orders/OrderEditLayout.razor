@@ -17,7 +17,8 @@
         <DxFormLayoutItem Caption="@L["Order:OrderNumber"]" ColSpanMd="4">@Model.OrderNumber</DxFormLayoutItem>
         @* Kanalın İÇ sipariş id'si (ör. N11 "id") — Sipariş No'dan FARKLI; API detay/aksiyon çağrıları bu id ile çalışır. *@
         <DxFormLayoutItem Caption="@L["Order:RemoteOrderId"]" ColSpanMd="4">@Model.RemoteOrderId</DxFormLayoutItem>
-        <DxFormLayoutItem Caption="@L["Order:Date"]" ColSpanMd="4">@Model.OrderDate.ToString("g")</DxFormLayoutItem>
+        @* UTC saklanır, kullanıcının yerel saatinde gösterilir (liste sayfasıyla AYNI kaynak). *@
+        <DxFormLayoutItem Caption="@L["Order:Date"]" ColSpanMd="4"><UtcLocalText Value="@Model.OrderDate" /></DxFormLayoutItem>
         <DxFormLayoutItem Caption="@L["Order:Status"]" ColSpanMd="4">@StatusLabel(Model.NeutralStatus)</DxFormLayoutItem>
         <DxFormLayoutItem Caption="@L["Order:RemoteStatus"]" ColSpanMd="4">@RemoteOrderStatusText(Model)</DxFormLayoutItem>
         <DxFormLayoutItem Caption="@L["Order:Amount"]" ColSpanMd="4">@Model.TotalAmount.ToString("N2")</DxFormLayoutItem>
@@ -86,6 +87,15 @@
             <DxFormLayoutItem Caption="@L["Order:Detail:SellerDiscount"]" ColSpanMd="4">@Money(totals.TotalSellerDiscount)</DxFormLayoutItem>
         </DxFormLayout>
     }
+
+    @* ── REZERVASYON — kalemlerin ÜSTÜNDE: "bu siparişin malı ayrıldı mı, iptal isteniyor mu" sorusu
+         kalem detayından önce gelir. Panel kendi verisini yükler (parent veri kopyalamaz). ── *@
+    <DxFormLayoutGroup Caption="@L["Order:Reservation"]" ColSpanMd="12" CaptionPosition="CaptionPosition.Vertical"
+                       Visible="@(Model.Id != Guid.Empty)">
+        <DxFormLayoutItem ColSpanMd="12">
+            <OrderReservationPanel OrderId="@Model.Id" />
+        </DxFormLayoutItem>
+    </DxFormLayoutGroup>
 
     @* ── Kalemler — drill (AllowAdd/AllowDelete=false: sipariş kalemi eklenip silinemez, yalnız düzenlenir). ── *@
     <OrderItemsDrill @ref="_itemsDrill" OrderId="@Model.Id" ChannelType="@Model.ChannelType" />

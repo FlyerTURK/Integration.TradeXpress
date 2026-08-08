@@ -325,6 +325,12 @@ public abstract class SalesChannelTrN11ProductPushTests<TStartupModule> : TradeX
             Domestic = dto.Domestic,
             PreparingDay = dto.PreparingDay,
             MaxPurchaseQuantity = dto.MaxPurchaseQuantity,
+            // Push emniyet alanları da TAŞINMALI — aktarılmazsa her güncelleme kullanıcının kurduğu emniyet
+            // payını/fiyat bandını sessizce siler (VatRate ile aynı tuzak, ama sonucu daha sinsi: kayıp bir
+            // guard hiçbir hata üretmez, yalnız bir gün aşırı satış olarak görünür).
+            SafetyStock = dto.SafetyStock,
+            MinPrice = dto.MinPrice,
+            MaxPrice = dto.MaxPrice,
             // KDV oranı güncellemede de TAŞINMALI: aktarılmazsa alan null'a düşer ve REST push fail-fast eder
             // (create'te zorunlu). Bunu unutmak "kaydettim, sonra push patladı" tablosunu üretirdi.
             VatRate = dto.VatRate,

@@ -594,6 +594,7 @@ public partial class SalesChannelTrN11ProductAppService : TradeXpressAppService,
             // hafif senkron ERP ham fiyatını gönderip full push'un yazdığı kanal fiyatını EZER + her turda dirty görünürdü.
             var rows = (await BuildPushRowsAsync(entity)).Rows;
             EnsurePushRowsPriced(rows);
+            EnsurePushRowsWithinPriceBand(entity, rows);
 
             // ── SOAP ÖN-OKUMASI KALDIRILDI (2026-08-04, REST geçişi) ───────────────────────────────────
             // SOAP'ta bu adım ZORUNLUYDU: UpdateProductBasic SKU'yu N11'in KENDİ id'siyle adresliyordu, o yüzden
@@ -946,6 +947,7 @@ public partial class SalesChannelTrN11ProductAppService : TradeXpressAppService,
         // N11-only satırda ERP fallback YOK (zincir: OverridePrice ?? türetilmiş) — çözülemeyen fiyat/stok N11'e
         // gitmeden fail-fast (sessiz atlama = kapsam düşürme; kullanıcı override girip yeniden dener).
         EnsurePushRowsPriced(rows);
+        EnsurePushRowsWithinPriceBand(channelProduct, rows);
 
         // Tek para birimi zorunlu (N11 ürün başına tek currencyType). Kanal para birimi seçiliyse O belirler
         // → satırlar farklı birimde olsa da karışıklık yok (MixedCurrency yalnız kanal seçilmemişken denetlenir).
@@ -1277,6 +1279,27 @@ public partial class SalesChannelTrN11ProductAppService : TradeXpressAppService,
     /// ERP-doğrudan aday seti AYNEN (regresyon sıfır).</summary>
     private async Task<N11PushRowSet> BuildPushRowsAsync(SalesChannelTrN11Product channelProduct)
     {
+        // EMNİYET PAYI TEK NOKTADA, EN SONDA uygulanır (E-6). Burası aday setinin ORTAK çıkışı: tam push, hafif
+        // senkron ve önizleme üçü de bu metottan geçer → üçü de AYNI (paylı) adedi görür. Pay push kenarında değil
+        // de üç çağıranın birinde uygulansaydı, dirty-check bir turda paylı diğerinde paysız değerle karşılaşır ve
+        // hiçbir şey değişmemiş ürünü her turda "değişti" sayıp N11'e gereksiz yazardı.
+        //
+        // Pay, stoğun KAYNAĞINA bakmaz — OverrideStock ile elle girilmiş adede de uygulanır. Alan zaten kanal-ürün
+        // başına bilinçli bir kullanıcı ayarı; "elle girdiğinde pay geçersiz" gibi ikinci bir semantik türetmek
+        // Least-Astonishment ihlali olurdu.
+        var candidates = await BuildPushRowCandidatesAsync(channelProduct);
+        return candidates with
+        {
+            Rows = candidates.Rows
+                .Select(r => r with { Stock = ChannelPushGuard.ApplySafetyStock(r.Stock, channelProduct.SafetyStock) })
+                .ToList(),
+        };
+    }
+
+    /// <summary>Aday satır setinin HAM hâli (emniyet payı UYGULANMADAN) — yalnız <see cref="BuildPushRowsAsync"/>
+    /// çağırır; pay tek çıkışta uygulansın diye ayrıldı.</summary>
+    private async Task<N11PushRowSet> BuildPushRowCandidatesAsync(SalesChannelTrN11Product channelProduct)
+    {
         // Aktif + fiyatlı ERP varyantları (IsMain önce) — legacy aday seti + axis-modda ERP-backed satır kaynağı.
         // Satış fiyatı ProductVariantDetail'de (agnostik EntityVariant Product uzantısı) → fiyatlı filtresi detail üzerinden.
         var activeVariants = await AsyncExecuter.ToListAsync(
@@ -1455,6 +1478,27 @@ public partial class SalesChannelTrN11ProductAppService : TradeXpressAppService,
             3 => "EUR",
             _ => "TRY",
         };
+    }
+
+    /// <summary>Push satırlarının fiyatı kanal-ürünün <c>[MinPrice, MaxPrice]</c> bandı içinde mi (SIRADA-5).
+    ///
+    /// <para>İhlalde ÜRÜNÜN TÜM push'u düşer — ihlal eden satırı atlayıp kalanları göndermek sessiz kapsam
+    /// düşürmesi olurdu: kullanıcı push'u "başarılı" görür, ama kanaldaki varyantlardan biri eski fiyatta kalır.</para>
+    ///
+    /// <para>Adet-0 dalı bu kapıya TAKILMAZ: orada <c>rows</c> zaten boştur (satış durdurma yolu, fiyat değil stok
+    /// gönderimidir). Bandın satışı durdurma yolunu kapatması, tam da işe yaraması gereken anda felç ederdi.</para></summary>
+    private static void EnsurePushRowsWithinPriceBand(SalesChannelTrN11Product channelProduct, List<N11PushRow> rows)
+    {
+        if (channelProduct.MinPrice is null && channelProduct.MaxPrice is null)
+        {
+            return;
+        }
+
+        foreach (var row in rows)
+        {
+            ChannelPushGuard.EnsureWithinPriceBand(
+                "N11", row.Code, row.Price, channelProduct.MinPrice, channelProduct.MaxPrice);
+        }
     }
 
     private static void EnsurePushRowsPriced(List<N11PushRow> rows)
@@ -2658,6 +2702,8 @@ public partial class SalesChannelTrN11ProductAppService : TradeXpressAppService,
         entity.SetDomestic(input.Domestic);
         entity.SetPreparingDay(input.PreparingDay);
         entity.SetMaxPurchaseQuantity(input.MaxPurchaseQuantity);
+        entity.SetSafetyStock(input.SafetyStock);
+        entity.SetPriceBand(input.MinPrice, input.MaxPrice);
         entity.SetVatRate(input.VatRate);
         entity.SetCurrencyUnit(input.CurrencyUnitId);
         entity.SetProductionDate(input.ProductionDate);

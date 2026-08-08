@@ -13,6 +13,7 @@
                   Coordinator="@_coordinator" Id="@(Id ?? Guid.Empty)" IsPopupMode="@IsPopupMode" OnSaved="@OnSaved" OnClosed="@OnClosed" OnAfterCommit="@RefreshDerivedGraphAsync"
                   FormCaption="@L["Product"].Value" IconCssClass="@TradeXpressIcons.Product"
                   EntityValue="@(m => m.Code)"
+                  BuildCustomActions="@BuildProductActions"
                   ApplyNewDefaults="@(m => ApplyNew(m))">
         <ProductLayout Model="@context" IsNew="@(context.Id == Guid.Empty)"
                        Metals="Metals" MetalVariants="MetalVariants" Scraps="Scraps" Futures="Futures"

@@ -105,12 +105,18 @@ public static class N11MockOrderEndpoint
         var itemId = 6000000000L + index;
         var price = product.SalePrice ?? 0m;
 
+        // ⚠ Adet SABİT 1 olduğu sürece mock, birim-fiyat/satır-toplamı karışıklığını GİZLER (iki yorum da aynı
+        // sayıyı verir — canlıdaki 20 kalemlik hata mock'ta hiç görünmedi). Her üçüncü sipariş çok adetli üretilir;
+        // N11 gerçeğine uyacak şekilde <price> BİRİM fiyat, başlık totalAmount = price × quantity.
+        var quantity = index % 3 == 2 ? 3 : 1;
+        var orderTotal = price * quantity;
+
         return new XElement("order",
             new XElement("id", orderId),
             new XElement("orderNumber", $"MOCK-{orderId}"),
             new XElement("createDate", "01/08/2026 10:30"),
             new XElement("status", "Completed"),
-            new XElement("totalAmount", Money(price)),
+            new XElement("totalAmount", Money(orderTotal)),
             new XElement("buyer",
                 new XElement("fullName", "Mock Alıcı"),
                 new XElement("email", "mock@example.invalid")),
@@ -122,10 +128,10 @@ public static class N11MockOrderEndpoint
                     new XElement("productId", product.N11ProductId),
                     new XElement("productName", product.Title ?? product.StockCode),
                     new XElement("productSellerCode", product.StockCode),
-                    new XElement("quantity", 1),
+                    new XElement("quantity", quantity),
                     new XElement("price", Money(price)),
-                    new XElement("dueAmount", Money(price)),
-                    new XElement("commission", Money(Math.Round(price * 0.10m, 2))),
+                    new XElement("dueAmount", Money(orderTotal)),
+                    new XElement("commission", Money(Math.Round(orderTotal * 0.10m, 2))),
                     new XElement("status", "Completed"),
                     new XElement("shipmentInfo",
                         new XElement("shipmentCompany",

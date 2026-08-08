@@ -8,10 +8,12 @@
 @using Integration.Framework.Blazor.Client.Services.Mdi
 @using Integration.Framework.Blazor.Client.Services.Base
 @using Microsoft.AspNetCore.Authorization
+@using Microsoft.Extensions.DependencyInjection
 @inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
 @inject IEntityChangeNotifier EntityChanges
 @inject IViewOpener ViewOpener
 @inject IPopupService PopupService
+@inject IServiceProvider Services
 @implements IDisposable
 
 @*
@@ -150,10 +152,18 @@
     private bool _effectiveReadOnly => ReadOnly || FormIsReadOnly;
     private bool _effectiveEnabled => Enabled && !FormIsReadOnly;
 
-    // Görünürlük (kural): handler override VEYA inline EditForm varsa buton aktiftir.
+    // Görünürlük (kural): handler override VEYA düzenleme bileşeni ÇÖZÜLEBİLİYORSA buton aktiftir.
     //   Add  → readonly/disabled değilse VE CanAdd (yetki kapısı) iken.
     //   Edit → readonly/disabled değil VE değer (EditValue) dolu VE CanEdit iken.
-    private bool _hasEditCapability => EditComponentType is not null;
+    //
+    // ⚠ HEDEF TİPTEN DE ÇÖZÜLÜR (2026-08-07 Hakan kuralı): bu bileşenin varlık sebebi ekle/düzelt düğmeleridir
+    // — "yoksa standart combo zaten işimizi görüyor". Eskiden düğmeler YALNIZ çağıran EditComponentType
+    // verdiğinde çiziliyordu ve 69 kullanımın ancak 15'i veriyordu: geri kalanı sessizce düz combo'ya iniyordu.
+    // Kayıt defteri VARSAYILANI sağlar; açık EditComponentType hâlâ önceliklidir (opt-out: CanAdd/CanEdit=false).
+    private Type? _resolvedEditComponentType =>
+        EditComponentType ?? Services.GetService<ILookupEditComponentRegistry>()?.Resolve(typeof(TItem));
+
+    private bool _hasEditCapability => _resolvedEditComponentType is not null;
     private bool ShowEditButton => (OnEditRequested is not null || _hasEditCapability) && CanEdit && _updatePolicyGranted && !_effectiveReadOnly && _effectiveEnabled && _hasValue;
     private bool ShowAddButton => (OnAddRequested is not null || _hasEditCapability) && CanAdd && _createPolicyGranted && !_effectiveReadOnly && _effectiveEnabled;
 
@@ -208,14 +218,15 @@
     // Kayıt sonrası tazeleme + auto-select EntityChange üzerinden olur (OnEntityChanged).
     private Task OpenEditAsync(TValue? id)
     {
-        if (EditComponentType is null) return Task.CompletedTask;
+        var editComponentType = _resolvedEditComponentType;
+        if (editComponentType is null) return Task.CompletedTask;
         var extra = new Dictionary<string, object>
         {
             { "OnClosed", EventCallback.Factory.Create(this, () => PopupService.Close()) },
         };
         // Add → id null (yeni kayıt); Edit → seçili değer. Required (Guid) alanda default = Guid.Empty → host "yeni" sayar.
         object? editId = (id is null || EqualityComparer<TValue>.Default.Equals(id, default!)) ? null : id;
-        return ViewOpener.OpenAsync(EditComponentType, editId, string.Empty, null, extra);
+        return ViewOpener.OpenAsync(editComponentType, editId, string.Empty, null, extra);
     }
 
     // Bu entity türü değişince (inline popup VEYA başka sekme): listeyi tazele + Created'da yeni kaydı auto-select.

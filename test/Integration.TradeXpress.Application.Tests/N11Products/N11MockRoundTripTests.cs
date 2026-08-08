@@ -215,6 +215,28 @@ public sealed class N11MockRoundTripTests : IAsyncLifetime
         line.Quantity.ShouldBe(1);
     }
 
+    /// <summary>ÇOK ADETLİ sipariş uçtan uca: mock birim fiyat + adet gönderir, gerçek istemci satır toplamını
+    /// çarparak üretir, başlık toplamı satır toplamına eşit çıkar. Mock adet SABİT 1 kaldığı sürece birim-fiyat/
+    /// satır-toplamı karışıklığı GÖRÜNMEZDİ (iki yorum da aynı sayıyı verir) — canlıdaki hata bu yüzden mock'ta
+    /// hiç yakalanmadı. Üçüncü ürünün siparişi çok adetli üretilir.</summary>
+    [Fact]
+    public async Task Multi_quantity_order_round_trips_with_line_total_multiplied()
+    {
+        await SeedMaturedProductAsync("ORD-M1", 100m);
+        await SeedMaturedProductAsync("ORD-M2", 200m);
+        await SeedMaturedProductAsync("ORD-M3", 300m);
+
+        var orders = (await _orderClient.GetOrdersPageAsync(AppKey, AppSecret, page: 0)).Orders;
+
+        var multi = orders.Single(o => o.Lines.Single().Quantity > 1);
+        var line = multi.Lines.Single();
+        line.StockCode.ShouldBe("ORD-M3");
+        line.Quantity.ShouldBe(3m);
+        line.UnitPrice.ShouldBe(300m);        // mock'un <price>'ı = birim fiyat
+        line.LineTotal.ShouldBe(900m);        // istemci çarpar
+        multi.TotalAmount.ShouldBe(900m);     // başlık = Σ(satır toplamı) — canlı N11 de böyle gönderiyor
+    }
+
     /// <summary>Sipariş detayı da aynı istemciyle çözülebilmeli (fatura/adres blokları dahil).</summary>
     [Fact]
     public async Task Order_detail_round_trips_and_carries_addresses()

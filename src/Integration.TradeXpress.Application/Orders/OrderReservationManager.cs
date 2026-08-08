@@ -8,11 +8,16 @@ using Integration.TradeXpress.Orchestration;
 using Integration.TradeXpress.Products;
 using Integration.TradeXpress.SalesChannels;
 using Integration.TradeXpress.Vouchers;
+using Integration.TradeXpress.Localization;
+using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Logging;
+using Volo.Abp;
 using Volo.Abp.DependencyInjection;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Linq;
+using Volo.Abp.Localization;
 using Volo.Abp.Timing;
+using Volo.Abp.Uow;
 
 namespace Integration.TradeXpress.Orders;
 
@@ -48,7 +53,10 @@ public class OrderReservationManager : ITransientDependency
     private readonly IRepository<Voucher, Guid> _voucherRepository;
     private readonly OrderReservationVoucherMaterializer _materializer;
     private readonly IAsyncQueryableExecuter _asyncExecuter;
+    private readonly IUnitOfWorkManager _uowManager;
+    private readonly CommodityStockChangeQueuer _stockChangeQueuer;
     private readonly IClock _clock;
+    private readonly IStringLocalizer<TradeXpressResource> _l;
     private readonly ILogger<OrderReservationManager> _logger;
 
     public OrderReservationManager(
@@ -64,7 +72,10 @@ public class OrderReservationManager : ITransientDependency
         IRepository<Voucher, Guid> voucherRepository,
         OrderReservationVoucherMaterializer materializer,
         IAsyncQueryableExecuter asyncExecuter,
+        IUnitOfWorkManager uowManager,
+        CommodityStockChangeQueuer stockChangeQueuer,
         IClock clock,
+        IStringLocalizer<TradeXpressResource> l,
         ILogger<OrderReservationManager> logger)
     {
         _orderRepository           = orderRepository;
@@ -79,13 +90,17 @@ public class OrderReservationManager : ITransientDependency
         _voucherRepository         = voucherRepository;
         _materializer              = materializer;
         _asyncExecuter             = asyncExecuter;
+        _uowManager                = uowManager;
+        _stockChangeQueuer         = stockChangeQueuer;
         _clock                     = clock;
+        _l                         = l;
         _logger                    = logger;
     }
 
     /// <summary>Sipariş için rezervasyonu GARANTİ eder (idempotent). Zaten rezerve/karşılanmışsa hiçbir şey
-    /// yapmaz. Kurulamayan rezervasyon <c>Blocked</c> gerekçesiyle kaydedilir.</summary>
-    public virtual async Task<OrderReservation> EnsureReservationAsync(Guid companyId, Guid orderId)
+    /// yapmaz. Kurulamayan rezervasyon <c>Blocked</c> gerekçesiyle kaydedilir.
+    /// <para>TERMİNAL siparişte (teslim/iptal/iade) hiç kayıt açılmaz → dönüş <c>null</c>.</para></summary>
+    public virtual async Task<OrderReservation?> EnsureReservationAsync(Guid companyId, Guid orderId)
     {
         var reservation = await _asyncExecuter.FirstOrDefaultAsync(
             (await _reservationRepository.GetQueryableAsync()).Where(r => r.OrderId == orderId));
@@ -102,51 +117,119 @@ public class OrderReservationManager : ITransientDependency
             return reservation;
         }
 
+        var order = await _orderRepository.GetAsync(orderId);
+
+        // ⚠ TERMİNAL KAPISI: teslim edilmiş / iptal edilmiş / iade edilmiş sipariş rezervasyon KURMAZ.
+        // Kapı burada, çağıranda değil: rezervasyonun ne zaman meşru olduğu bu sınıfın bilgisidir ve
+        // ileride başka bir çağıran eklenirse kuralı yeniden yazmak gerekmez.
+        // Kayıt AÇILMAZ (2026-08-07 Hakan kararı): terminal sipariş için "bloklandı" ya da "serbest bırakıldı"
+        // demek yanlış olurdu — ortada hiç kurulmamış bir taahhüt var, geri alınan bir şey yok. Gelen kutusunu
+        // 106 tarihsel siparişle doldurmak da gerçek işi görünmez kılardı.
+        // Mevcut kayda DOKUNULMAZ: sipariş rezerve edildikten SONRA teslime geçmişse fiziki çıkışa çevirmek
+        // state machine'in işidir; burada silmek denetim izini yok ederdi.
+        if (order.NeutralStatus.IsTerminal())
+        {
+            return reservation;
+        }
+
         reservation ??= new OrderReservation(companyId, orderId);
 
         try
         {
-            var lines = await BuildLinesAsync(companyId, orderId);
-            if (lines.Count == 0)
+            // ⚠ FİŞ + BAĞLAR + MarkReserved TEK ATOMİK BİRİMDİR. Fiş InsertNumberedAsync'te autoSave:true ile
+            // yazılır; dış bağlamda açık transaction OLMADIĞI için ANINDA commit ediliyordu. Sonraki adım
+            // (bağ insert'i ya da MarkReserved) patlayınca catch yalnız Blocked yazıyor, fişe dokunmuyordu →
+            // geriye SAHİPSİZ bir rezervasyon fişi kalıyor ve ReservedOut kalıcı olarak şişiyordu. Üstelik
+            // rezervasyon Blocked olduğu için bir sonraki tur yeniden deniyor ve İKİNCİ fişi açıyordu.
+            // Kendi transactional UoW'u: istisnada hepsi birlikte geri sarılır.
+            using (var uow = _uowManager.Begin(requiresNew: true, isTransactional: true))
             {
-                await BlockAsync(reservation,
-                    "Sipariş kalemleri yerel ürün varyantına eşleşmedi ya da reçetesi yok.");
+                var lines = await BuildLinesAsync(companyId, orderId);
+                if (lines.Count == 0)
+                {
+                    await BlockAsync(reservation,
+                        "Sipariş kalemleri yerel ürün varyantına eşleşmedi ya da reçetesi yok.");
+                    await uow.CompleteAsync();
+                    return reservation;
+                }
+
+                var channel = await _channelRepository.FindAsync(order.SalesChannelId);
+
+                var voucher = await _materializer.MaterializeAsync(
+                    companyId,
+                    channel?.SubAccountId,
+                    lines.ConvertAll(l => l.Line),
+                    $"Sipariş rezervasyonu: {order.OrderNumber}");
+
+                await UpsertAsync(reservation);   // Id gerekiyor: bağ kayıtları rezervasyondan SONRA yazılır.
+
+                // Kalem ↔ fiş satırı bağları — ÇOKA-ÇOK tablosu (birleştirme senaryosu bunun üzerine kurulacak).
+                for (var i = 0; i < lines.Count; i++)
+                {
+                    var link = new OrderFulfillmentLink(
+                        companyId, orderId, lines[i].RemoteLineId,
+                        voucher.VoucherId, voucher.LineIds[i], OrderFulfillmentLinkKind.Reservation);
+                    link.SetFulfilled(lines[i].Line.Quantity, lines[i].Line.Amount);
+                    await _linkRepository.InsertAsync(link, autoSave: true);
+                }
+
+                reservation.MarkReserved(voucher.VoucherId, _clock.Now.ToUniversalTime());
+                await _reservationRepository.UpdateAsync(reservation, autoSave: true);
+
+                await uow.CompleteAsync();
                 return reservation;
             }
-
-            var order = await _orderRepository.GetAsync(orderId);
-            var channel = await _channelRepository.FindAsync(order.SalesChannelId);
-
-            var voucher = await _materializer.MaterializeAsync(
-                companyId,
-                channel?.SubAccountId,
-                lines.ConvertAll(l => l.Line),
-                $"Sipariş rezervasyonu: {order.OrderNumber}");
-
-            await UpsertAsync(reservation);   // Id gerekiyor: bağ kayıtları rezervasyondan SONRA yazılır.
-
-            // Kalem ↔ fiş satırı bağları — ÇOKA-ÇOK tablosu (birleştirme senaryosu bunun üzerine kurulacak).
-            for (var i = 0; i < lines.Count; i++)
-            {
-                var link = new OrderFulfillmentLink(
-                    companyId, orderId, lines[i].RemoteLineId,
-                    voucher.VoucherId, voucher.LineIds[i], OrderFulfillmentLinkKind.Reservation);
-                link.SetFulfilled(lines[i].Line.Quantity, lines[i].Line.Amount);
-                await _linkRepository.InsertAsync(link, autoSave: true);
-            }
-
-            reservation.MarkReserved(voucher.VoucherId, _clock.Now.ToUniversalTime());
-            await _reservationRepository.UpdateAsync(reservation, autoSave: true);
-            return reservation;
         }
         catch (Exception ex)
         {
             // Rezervasyon kurulamadı → sipariş senkronu DÜŞMEZ (bir siparişin sorunu diğerlerini engellemez),
             // ama SESSİZ de geçilmez: gerekçe kayda ve loga yazılır.
             _logger.LogWarning(ex, "Sipariş rezervasyonu kurulamadı: Order={OrderId}.", orderId);
-            await BlockAsync(reservation, ex.Message);
-            return reservation;
+            return await BlockAfterRollbackAsync(companyId, orderId, DescribeFailure(ex));
         }
+    }
+
+    /// <summary>Kullanıcıya GÖSTERİLECEK gerekçe metni.
+    ///
+    /// <para><b>Neden ham <c>ex.Message</c> yetmiyor:</b> kodlu <c>BusinessException</c>'ların mesajı
+    /// çözülmediğinde gelen kutusuna "TradeXpress:OrderReservation:ChannelSubAccountMissing" gibi bir anahtar
+    /// düşüyordu — kullanıcı için hiçbir anlam taşımayan, üstelik hatanın ne olduğunu değil NEREDE tanımlandığını
+    /// söyleyen bir metin.</para>
+    ///
+    /// <para><b>Kültür SABİTLENİR (tr):</b> worker'ın kültürü belirsizdir ve <c>BlockAsync</c> gerekçeyi
+    /// ORDINAL karşılaştırır. Kültür turlar arasında değişseydi aynı hata her turda "değişmiş" görünür ve
+    /// susturulması gereken tekrarlı yazım geri gelirdi.</para></summary>
+    private string DescribeFailure(Exception ex)
+    {
+        if (ex is BusinessException { Code: { Length: > 0 } code })
+        {
+            using (CultureHelper.Use("tr"))
+            {
+                var localized = _l[code];
+                if (!localized.ResourceNotFound)
+                {
+                    return localized.Value;
+                }
+            }
+        }
+
+        return ex.Message;
+    }
+
+    /// <summary><c>Blocked</c>'ı DIŞ UoW'da, veritabanından TAZE okunan kayıtla yazar.
+    ///
+    /// <para><b>Neden taze okuma:</b> iç transaction geri sarıldığı için elimizdeki nesne artık yalan söylüyor —
+    /// <c>UpsertAsync</c> insert/update kararını <c>Id</c>'ye bakarak verir ve rollback'ten önce insert edilmiş
+    /// nesnenin <c>Id</c>'si DOLU kalır. O nesneyle devam etseydik var olmayan satıra UPDATE atılır ve
+    /// gerekçe hiç yazılamazdı: rezervasyon kurulamadığı hâlde <b>hiçbir iz bırakmadan</b> kaybolurdu.</para></summary>
+    private async Task<OrderReservation> BlockAfterRollbackAsync(Guid companyId, Guid orderId, string reason)
+    {
+        var reservation = await _asyncExecuter.FirstOrDefaultAsync(
+            (await _reservationRepository.GetQueryableAsync()).Where(r => r.OrderId == orderId));
+
+        reservation ??= new OrderReservation(companyId, orderId);
+        await BlockAsync(reservation, reason);
+        return reservation;
     }
 
     /// <summary>Rezervasyonu <c>Blocked</c> olarak kaydeder — <b>DURUM DEĞİŞMEDİYSE YAZMAZ</b>.
@@ -172,6 +255,39 @@ public class OrderReservationManager : ITransientDependency
         await UpsertAsync(reservation);
     }
 
+    /// <summary>KANALDAN İPTAL TALEBİ geldi → rezervasyonun <b>karar ekseni</b> "bekliyor"a düşer.
+    ///
+    /// <para><b>STOK EKSENİNE DOKUNULMAZ</b> (§6 iki-eksen kuralı): maden tutulmaya devam eder. Kanal iptal
+    /// dediği için stoğu kendiliğinden geri vermek, mal fiziksel olarak hazırlanmış/kesilmiş/eritilmiş olabilecekken
+    /// defteri yalanlamak olurdu — bunu yalnız kullanıcı bilir. Hiçbir iptal otomatik değildir.</para>
+    ///
+    /// <para><b>Serbest bırakılmış rezervasyon atlanır</b> — zaten stok geri verilmiş, karar beklenecek bir şey
+    /// yok. <c>Blocked</c> ve <c>Fulfilled</c> ATLANMAZ: ikisinde de kullanıcının görmesi gereken bir talep var
+    /// (Fulfilled'da onay entity guard'ına çarpar, reddi kullanıcı verir).</para></summary>
+    public virtual async Task<OrderReservation?> NotifyCancellationRequestedAsync(Guid orderId)
+    {
+        var reservation = await _asyncExecuter.FirstOrDefaultAsync(
+            (await _reservationRepository.GetQueryableAsync()).Where(r => r.OrderId == orderId));
+
+        if (reservation is null || reservation.Status == OrderReservationStatus.Released)
+        {
+            return reservation;
+        }
+
+        var before = reservation.CancellationDecision;
+        reservation.RequestCancellation(_clock.Now.ToUniversalTime());
+
+        // DEĞİŞMEDİYSE YAZMA (BlockAsync ile aynı disiplin): worker 2 dakikada bir aynı siparişle döner;
+        // koşulsuz UPDATE denetim izini gürültüye boğar ve hiçbir şey eklemez.
+        if (reservation.CancellationDecision == before)
+        {
+            return reservation;
+        }
+
+        await _reservationRepository.UpdateAsync(reservation, autoSave: true);
+        return reservation;
+    }
+
     /// <summary>Rezervasyonu SERBEST BIRAKIR: fiş satırları soft-delete edilir (sayaçtan düşer, denetim izi
     /// kalır — <c>Voucher.RemoveLine</c> koleksiyondan çıkarmaz, DB'de <c>IsDeleted</c> bırakır ve rapor
     /// <c>!IsDeleted</c> filtreler), rezervasyon <c>Released</c> olur.
@@ -191,12 +307,23 @@ public class OrderReservationManager : ITransientDependency
             if (voucher is not null)
             {
                 await _voucherRepository.EnsureCollectionLoadedAsync(voucher, v => v.Lines);
+
+                // ⚠ ANAHTARLAR SİLMEDEN ÖNCE toplanır: soft-delete'ten sonra satırlar `IsDeleted` olur ve
+                // toplayıcı onları ELER — "sonraki duruma" bakan bir tetik BOŞ küme görür, yani hiçbir emtia
+                // için olay yayımlanmaz. Serbest bırakılan madenin kanal stoğu bir sonraki tam turu beklerdi.
+                var beforeKeys = CommodityStockChangeQueuer.CollectKeys(voucher);
+
                 foreach (var line in voucher.Lines.Where(l => !l.IsDeleted).ToList())
                 {
                     voucher.RemoveLine(line.Id);
                 }
 
                 await _voucherRepository.UpdateAsync(voucher, autoSave: true);
+
+                // STOK TETİĞİ (E-9): rezervasyonun düşmesi `AvailableAmount`'ı ARTIRIR — zincir
+                // (ters-endeks → pusher) boşalan stoğu kanala kendiliğinden taşır. Bu tetik eskiden HİÇ YOKTU:
+                // hata üretmiyordu, yalnız stok pazaryerinde 15 dakikaya kadar eksik görünüyordu.
+                _stockChangeQueuer.QueueForVoucher(voucher, beforeKeys);
             }
         }
 

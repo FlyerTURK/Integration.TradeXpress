@@ -81,7 +81,10 @@
                         @FormatSize(((MediaDto)cell.DataItem).Size)
                     </CellDisplayTemplate>
                 </DxGridDataColumn>
-                <DxGridDataColumn FieldName="CreationTime" Caption="@L["CreationTime"]" Width="150px" DisplayFormat="g" />
+                @* Yükleme anı UTC saklanır → kullanıcının yerel saati. FieldName korunur (sıralama/filtre aynı). *@
+                <DxGridDataColumn FieldName="CreationTime" Caption="@L["CreationTime"]" Width="150px">
+                    <CellDisplayTemplate Context="cell"><UtcLocalText Value="@(((MediaDto)cell.DataItem).CreationTime)" /></CellDisplayTemplate>
+                </DxGridDataColumn>
                 <DxGridDataColumn Caption="" Width="260px" AllowSort="false" TextAlignment="GridTextAlignment.Center">
                     <CellDisplayTemplate Context="cell">
                         @{ var m = (MediaDto)cell.DataItem; }

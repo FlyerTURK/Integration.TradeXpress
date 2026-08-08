@@ -40,6 +40,19 @@ public interface IProductAppService : ICrudAppService<
     /// politikası → otorite devri → stok yeniden-hesap job'ı. TEK çağrı (ürün başına round-trip YOK).</summary>
     Task<ProductCommodityProvisionResultDto> ProvisionCommoditiesAsync(ProductCommodityProvisionInputDto input);
 
+    /// <summary>İNSAN yolu: varyantları satışa DOĞRULAR (<c>Draft/Closed/Suspended → Ready</c>) ve ürünü
+    /// satılabilir işaretler.
+    ///
+    /// <para><b>Kapatılan açık:</b> push kapısı fail-closed ÇALIŞIYORDU ama onayı verecek insan yolu hiç
+    /// yoktu — <c>MarkVerified</c>/<c>MarkSaleReady</c>'nin src'de sıfır çağıranı vardı. Sonuç: canlıda
+    /// 165/165 varyant <c>Draft</c> ve HİÇBİR ürün pazaryerine çıkamıyordu. Hata sessiz: kapı doğru çalışıyor,
+    /// yalnız kimse kapıyı açamıyor.</para>
+    ///
+    /// <para>Onay anındaki reçete damgası saklanır; reçete sonradan değişirse onay KENDİLİĞİNDEN düşer
+    /// (ayrı bir olay altyapısı bilinçli olarak yok). Kapı fail-closed KALIR — burada eklenen yalnız insan
+    /// yoludur.</para></summary>
+    Task<ProductSaleVerifyResultDto> VerifySaleReadinessAsync(ProductSaleVerifyInputDto input);
+
     /// <summary>Ürünün MAMÜL aynasını üretir (PERSİSTSİZ) — sınıflandırma adımında "Emtia Formunu Aç"
     /// formunu ön-doldurmak için. Kod/ad/KDV + nitelik + varyant grafı taşınır; kullanıcı Good'a özel
     /// alanları doldurup kendisi kaydeder. Yalnız Good — diğer aileler ürüne paralel değildir.</summary>

@@ -910,4 +910,18 @@ public partial class ProductLayout
         var duplicate = Model.AddOns.Any(x => x.ClientKey != item.ClientKey && x.AddOnId == item.AddOnId);
         return duplicate ? L["Product:AddOnDuplicate"].Value : null;
     }
+
+    /// <summary>Satış statüsü rozetinin rengi. <c>Ready</c> DIŞINDAKİ her durum push kapısından geçemez —
+    /// bu yüzden yalnız Ready yeşil, kalanlar dikkat çeken tonlarda: kullanıcı "satışa hazır değil"i bir
+    /// bakışta görmeli, yoksa ürünün neden pazaryerinde olmadığını aramak zorunda kalır.</summary>
+    private static string SaleStatusCssClass(ProductSaleStatus status)
+    {
+        return status switch
+        {
+            ProductSaleStatus.Ready => "text-success fw-bold",
+            ProductSaleStatus.Suspended => "text-danger fw-bold",
+            ProductSaleStatus.Closed => "text-muted fw-bold",
+            _ => "text-warning fw-bold",
+        };
+    }
 }

@@ -49,9 +49,7 @@ public class ConfirmationVoucherMaterializer : ITransientDependency
     private readonly VoucherCounterpartyResolver _counterpartyResolver;
     private readonly IGuidGenerator _guidGenerator;
     private readonly VoucherLineHistoryRecorder _historyRecorder;
-    private readonly IDistributedEventBus _distributedEventBus;
-    private readonly IUnitOfWorkManager _unitOfWorkManager;
-    private readonly ICurrentTenant _currentTenant;
+    private readonly CommodityStockChangeQueuer _stockChangeQueuer;
 
     public ConfirmationVoucherMaterializer(
         VoucherNumberAllocator numberAllocator,
@@ -59,18 +57,14 @@ public class ConfirmationVoucherMaterializer : ITransientDependency
         VoucherCounterpartyResolver counterpartyResolver,
         IGuidGenerator guidGenerator,
         VoucherLineHistoryRecorder historyRecorder,
-        IDistributedEventBus distributedEventBus,
-        IUnitOfWorkManager unitOfWorkManager,
-        ICurrentTenant currentTenant)
+        CommodityStockChangeQueuer stockChangeQueuer)
     {
         _numberAllocator      = numberAllocator;
         _ledgerSynchronizer   = ledgerSynchronizer;
         _counterpartyResolver = counterpartyResolver;
         _guidGenerator        = guidGenerator;
         _historyRecorder      = historyRecorder;
-        _distributedEventBus  = distributedEventBus;
-        _unitOfWorkManager    = unitOfWorkManager;
-        _currentTenant        = currentTenant;
+        _stockChangeQueuer    = stockChangeQueuer;
     }
 
     /// <summary>Bir bacağı postlar: KARŞI KASA başlıklı yeni fiş (numaralı) + tarafın KENDİ satırı + ledger
@@ -109,49 +103,8 @@ public class ConfirmationVoucherMaterializer : ITransientDependency
         // Maden stok tetiği (2026-07-25 inceleme bulgusu #15): teyit bacağı VoucherAppService yolunu
         // KULLANMADIĞINDAN oradaki CommodityStockChangedEto tetiği burada da kurulmalı — aksi halde teyitle giren/çıkan
         // maden, kanal stoklarını GÜNCELLETMEZDİ (oversell kapısı). Aynı sözleşme: commit-SONRASI publish.
-        QueueCommodityStockChangedEvent(voucher);
+        _stockChangeQueuer.QueueForVoucher(voucher);
 
         return voucher;
-    }
-
-    /// <summary>Materyalize fişin stok-taşıyan satırlarını UoW commit SONRASINA kuyruklar (VoucherAppService
-    /// ile aynı sözleşme: transaction içinde publish YOK, rollback'te olay yayımlanmaz). Fiş YENİ olduğundan
-    /// "önce" kümesi yoktur — yalnız eklenen satırların anahtarları yeter.
-    /// <para>Kapsam <see cref="CommodityStockFamilies.Tracked"/> ile ORTAK: bu liste VoucherAppService'ten
-    /// ayrışırsa teyit yolundan giren bir aile sessizce zincirin dışında kalırdı.</para></summary>
-    private void QueueCommodityStockChangedEvent(Voucher voucher)
-    {
-        var keys = voucher.Lines
-            .Where(l => !l.IsDeleted && CommodityStockFamilies.IsTracked(l.Type) && l.CommodityId != null)
-            .Select(l => new CommodityStockKeyEto
-            {
-                Family             = l.Type,
-                CommodityId        = l.CommodityId!.Value,
-                CommodityVariantId = l.VariantId,
-            })
-            .GroupBy(k => (k.Family, k.CommodityId, k.CommodityVariantId))
-            .Select(g => g.First())
-            .ToList();
-        if (keys.Count == 0)
-        {
-            return;
-        }
-
-        var eto = new CommodityStockChangedEto
-        {
-            TenantId  = _currentTenant.Id,
-            CompanyId = voucher.CompanyId,
-            Keys      = keys,
-        };
-
-        var uow = _unitOfWorkManager.Current;
-        if (uow is null)
-        {
-            // ConfirmAsync [UnitOfWork(isTransactional: true)] ile çağırır — ambient DAİMA var; savunma amaçlı.
-            _ = _distributedEventBus.PublishAsync(eto);
-            return;
-        }
-
-        uow.OnCompleted(async () => await _distributedEventBus.PublishAsync(eto));
     }
 }

@@ -10,7 +10,16 @@ Amaç: 5-10 yıl sonra bile bu koddan pişman olmamak.
 4. `dotnet restore` → `packages.lock.json`'lar deterministik transitive graf verir.
 5. **Secret'lar:** her host'ta `appsettings.secrets.json.example`'ı `appsettings.secrets.json` olarak kopyala + GERÇEK değerleri gir (repoda yok — güvenlik).
 6. **Sertifikalar:** `certs/` (Kestrel TLS) + `openiddict.pfx` repoda YOK (gitignore) — ayrıca sağlanmalı (bkz. §3).
-7. `dotnet build` → `dotnet run` (Blazor host :44318).
+7. **DB şeması + seed — DbMigrator'ı PROJE KLASÖRÜNDEN çalıştır.** Host'lar migrate ETMEZ; migration ve seed'in tek koşum yolu `DbMigratorHostedService`'tir. Repo kökünden çalıştırılırsa content-root bulunamaz → secrets okunamaz.
+   ```bash
+   cd src/Integration.TradeXpress.DbMigrator && dotnet run -c Debug
+   ```
+   Atlanırsa: host ayağa kalkar ama ilk sorguda tablo yok / katalog boş — hata mesajı sebebi göstermez.
+8. **Playwright tarayıcı binary'si** (`playwright install`) — kur feed'i (Harem) varsayılan olarak **AÇIK**tır (`ExchangeRateOptions.HaremEnabled = true`). Binary yoksa feed sonsuz hata-backoff'ta döner: istisna yığılır, kur GELMEZ ve tüm değerleme "Kur yok"ta kilitlenir. Kur feed'i istemiyorsan açıkça kapat:
+   ```json
+   "ExchangeRates": { "HaremEnabled": false }
+   ```
+9. `dotnet build` → `dotnet run` (Blazor host :44318).
 
 ## 2. Secret yönetimi (K3/K4)
 - **GERÇEK secret'lar yalnız `appsettings.secrets.json`'da** (gitignore'lu). `appsettings.json`'a secret YAZMA.
@@ -42,3 +51,20 @@ Amaç: 5-10 yıl sonra bile bu koddan pişman olmamak.
 ## 7. Mekanik governance ağı (armlı)
 - Derleme: BannedApi (Guid.NewGuid/ham exception/Check.NotNullOrWhiteSpace) + expression-bodied (Domain) = HATA.
 - Test: EntityConvention/RazorConvention/LocalizationParity/Navigation/AppServiceConvention. `dotnet test` yeşil olmalı.
+
+## 8. Go-live kontrol listesi (işletim)
+
+Aşağıdakiler **belgelenmiş ama kurulduğu doğrulanmamış** işlerdir. Bir maddenin dokümanda yazması, o işin
+makinede FİİLEN yapıldığı anlamına gelmez — canlıya çıkmadan tek tek işaretle.
+
+| ☐ | Madde | Nasıl doğrulanır |
+|---|---|---|
+| ☐ | Yedek script'i Task Scheduler'a **fiilen** bağlı | `Get-ScheduledTask` çıktısında görünüyor; son koşum başarılı (§4) |
+| ☐ | Son **gerçek restore testi** tarihi biliniyor | Yedeği boş bir DB'ye geri yükle; tarihi bu satıra yaz (§4). Test edilmemiş yedek yedek değildir |
+| ☐ | DbMigrator prod DB'ye koşuldu | `__EFMigrationsHistory` son migration'ı içeriyor (§1 adım 7) |
+| ☐ | Prod `CorsOrigins` gerçek domain | `appsettings.Production.json` — localhost/ts.net kalıntısı yok |
+| ☐ | Secret rotasyonu tamam | §2 listesindeki 4 kalem değiştirildi + GitHub PAT revoke edildi |
+| ☐ | `App:DisablePII=true` prod'da | İki host'un `appsettings.Production.json`'ında; token/claim detayı loga BASILMAZ |
+| ☐ | Kur feed'i sağlıklı | Kur ekranında bugünün tarihi var; log'da tekrarlayan Harem hatası yok (§1 adım 8). *Kalıcı sağlık rozeti henüz YOK — bugün elle kontrol* |
+| ☐ | Hata alarmı asgari yolu | Serilog dosya konumu biliniyor + günlük göz atma alışkanlığı. *E-posta/webhook sink kararı verilmedi — SONRA* |
+| ☐ | Kanal sırları at-rest | **BUGÜN DÜZ METİN.** Envanter ve karar: `.claude/research/rd-2026-08-07/pii-secrets-envanter.md`. Şifreleme ayrı dilim; go-live öncesi bilinçli kabul edilmeli |

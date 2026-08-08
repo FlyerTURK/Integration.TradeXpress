@@ -190,6 +190,15 @@ public class SalesChannelTrN11ProductDto
     public int PreparingDay { get; set; }
     public int? MaxPurchaseQuantity { get; set; }
 
+    /// <summary>Kanalda gösterilmeyen stok payı (opsiyonel) — push adedinden düşülür.</summary>
+    public int? SafetyStock { get; set; }
+
+    /// <summary>Push fiyat tabanı (opsiyonel) — altına düşen fiyatta push durur.</summary>
+    public decimal? MinPrice { get; set; }
+
+    /// <summary>Push fiyat tavanı (opsiyonel) — üstüne çıkan fiyatta push durur.</summary>
+    public decimal? MaxPrice { get; set; }
+
     /// <summary>KDV oranı (N11 REST vatRate; 0/1/10/20). Boşsa REST push reddeder — varsayılan atanmaz.</summary>
     public int? VatRate { get; set; }
 
@@ -261,6 +270,9 @@ public interface ISalesChannelTrN11ProductInput
     bool Domestic { get; }
     int PreparingDay { get; }
     int? MaxPurchaseQuantity { get; }
+    int? SafetyStock { get; }
+    decimal? MinPrice { get; }
+    decimal? MaxPrice { get; }
     int? VatRate { get; }
     Guid? CurrencyUnitId { get; }
     DateTime? ProductionDate { get; }
@@ -293,6 +305,9 @@ public class SalesChannelTrN11ProductCreateDto : ISalesChannelTrN11ProductInput
     public bool Domestic { get; set; } = true;
     public int PreparingDay { get; set; } = 1;
     public int? MaxPurchaseQuantity { get; set; }
+    public int? SafetyStock { get; set; }
+    public decimal? MinPrice { get; set; }
+    public decimal? MaxPrice { get; set; }
     public int? VatRate { get; set; }
     public Guid? CurrencyUnitId { get; set; }
     public DateTime? ProductionDate { get; set; }
@@ -319,6 +334,9 @@ public class SalesChannelTrN11ProductUpdateDto : ISalesChannelTrN11ProductInput
     public bool Domestic { get; set; } = true;
     public int PreparingDay { get; set; } = 1;
     public int? MaxPurchaseQuantity { get; set; }
+    public int? SafetyStock { get; set; }
+    public decimal? MinPrice { get; set; }
+    public decimal? MaxPrice { get; set; }
     public int? VatRate { get; set; }
     public Guid? CurrencyUnitId { get; set; }
     public DateTime? ProductionDate { get; set; }

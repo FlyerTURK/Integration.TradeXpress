@@ -244,6 +244,21 @@ public class SalesChannelTrN11Product : FullAuditedAggregateRoot<Guid>, IMultiTe
     /// <summary>Bekleyen task'ın gönderildiği an (UTC) — çok uzun süre çözülmeyen task'ı ayırt etmek için.</summary>
     public virtual DateTime? PendingPushTaskAt { get; protected set; }
 
+
+    // ── Push emniyet alanları (kural gövdesi: ChannelPushGuard) ──
+    /// <summary>Kanalda GÖSTERİLMEYEN stok payı (opsiyonel). Push satırının nihai adedinden düşülür
+    /// (<c>max(0, satılabilir − pay)</c>); iki senkron turu arasındaki pencerede gelen siparişin elde olmayan
+    /// malı satmasını zorlaştırır. Boş/0 = pay yok (bugünkü davranış birebir korunur).</summary>
+    public virtual int? SafetyStock { get; protected set; }
+
+    /// <summary>Push fiyat TABANI (opsiyonel). Türetilmiş fiyat bunun altına düşerse ürünün push'u DURUR —
+    /// repricing motoru insansız çalıştığı için maliyetin altına satış buradan engellenir.</summary>
+    public virtual decimal? MinPrice { get; protected set; }
+
+    /// <summary>Push fiyat TAVANI (opsiyonel). Üstüne çıkan fiyat da push'u durdurur: aşırı yüksek fiyat satmaz
+    /// ama listelemeyi bozar ve genelde bir hesap hatasının işaretidir.</summary>
+    public virtual decimal? MaxPrice { get; protected set; }
+
     public virtual bool IsActive { get; protected set; }
 
     #endregion
@@ -285,6 +300,19 @@ public class SalesChannelTrN11Product : FullAuditedAggregateRoot<Guid>, IMultiTe
         }
 
         PreparingDay = preparingDay;
+    }
+
+    /// <summary>Emniyet payı (opsiyonel; negatif reddedilir — stok şişirmek aşırı satışın ta kendisidir).
+    /// Kural gövdesi <see cref="ChannelPushGuard"/>'dadır: iki kanal aynı doğrulamayı iki kez tanımlamasın.</summary>
+    public virtual void SetSafetyStock(int? safetyStock)
+    {
+        SafetyStock = ChannelPushGuard.NormalizeSafetyStock(safetyStock);
+    }
+
+    /// <summary>Push fiyat bandı (opsiyonel; negatif sınır ve min&gt;max reddedilir). Tek uçlu bant meşrudur.</summary>
+    public virtual void SetPriceBand(decimal? minPrice, decimal? maxPrice)
+    {
+        (MinPrice, MaxPrice) = ChannelPushGuard.NormalizePriceBand(minPrice, maxPrice);
     }
 
     public virtual void SetMaxPurchaseQuantity(int? maxPurchaseQuantity)

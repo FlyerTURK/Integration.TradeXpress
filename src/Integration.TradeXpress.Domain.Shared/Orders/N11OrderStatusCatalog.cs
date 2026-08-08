@@ -109,6 +109,45 @@ public static class N11OrderStatusCatalog
         return code is 1 or 2 or 5;
     }
 
+    /// <summary>Kalem "İptal Talep Edildi" (kod <b>51</b>) mi — rezervasyonun iptal kararı eksenini uyandırır.
+    ///
+    /// <para><b>52 (iade) ve 53 (değişim) BİLİNÇLİ OLARAK DIŞARIDA:</b> onlar iptal değil İADE sürecinin
+    /// sinyalidir ve tamamen farklı bir yol izler — iade, malın fiziksel olarak kasaya girmesini bekler.
+    /// İkisini aynı köprüye bağlamak, teslim edilmiş bir siparişin iade talebini "iptal kararı bekliyor" diye
+    /// göstermek olurdu; operatör iptali onaylarsa stok geri verilir ama mal hâlâ müşteridedir.</para>
+    ///
+    /// <para>Bilinmeyen/boş kod → <c>false</c> (fail-safe: uydurma iptal sinyali üretme).</para></summary>
+    public static bool IsCancellationRequested(string? rawItemStatus)
+    {
+        if (!int.TryParse(rawItemStatus, NumberStyles.Integer, CultureInfo.InvariantCulture, out var code))
+        {
+            return false;
+        }
+
+        return code == 51;
+    }
+
+    /// <summary>Kalem İADE/DEĞİŞİM sürecinde mi — talepten teslim alınmış iadeye kadar tüm aşamalar.
+    ///
+    /// <para><b>Kapsam:</b> 9 (İade Edildi) · 11 (Talep) · 12 (Tamamlandı) · 13 (Kargoda İade) ·
+    /// 16 (Teslim Edilmiş İade) · 52 (İade Talebi) · 53 (Değişim Talebi).</para>
+    ///
+    /// <para><b>51 (İptal Talebi) BURAYA GİRMEZ</b> — o ayrı bir eksendir ve rezervasyonun iptal kararını
+    /// uyandırır. İkisi karışsaydı iptal talebi "iade girişi bekliyor" diye görünür, kullanıcı hiç çıkmamış
+    /// bir malın iadesini kaydetmeye çalışırdı.</para>
+    ///
+    /// <para><b>Bu bir SİNYALDİR, karar değil</b> (§6): sistem yalnız "bu siparişte iade süreci var" der.
+    /// Stok, mal fiziksel olarak kasaya GİRENE kadar dönmez — girişi operatör kaydeder.</para></summary>
+    public static bool IsReturnFlowSignal(string? rawItemStatus)
+    {
+        if (!int.TryParse(rawItemStatus, NumberStyles.Integer, CultureInfo.InvariantCulture, out var code))
+        {
+            return false;
+        }
+
+        return code is 9 or 11 or 12 or 13 or 16 or 52 or 53;
+    }
+
     private static string? Lookup(Dictionary<int, (string Tr, string En)> map, string? rawStatus)
     {
         if (!int.TryParse(rawStatus, NumberStyles.Integer, CultureInfo.InvariantCulture, out var code) || !map.TryGetValue(code, out var label))

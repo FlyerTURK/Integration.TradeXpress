@@ -40,6 +40,7 @@ public class CompanyAppService : TradeXpressAppService, ICompanyAppService
     private readonly IDataFilter _dataFilter;
     private readonly OrgTreeManager _orgTree;
     private readonly ICurrentCompany _currentCompany;   // graf okurken kasa (ICompanyOwned) kapsamını kurmak için
+    private readonly CompanyCommodityCatalogSeeder _catalogSeeder;
 
     private static readonly HashSet<string> AllowedListFields =
         new(StringComparer.OrdinalIgnoreCase) { "Code", "Name", "CountryCode", "BaseCurrencyCode", "IsActive", "IsHeadquarters", "DisplayOrder", "Id" };
@@ -53,7 +54,8 @@ public class CompanyAppService : TradeXpressAppService, ICompanyAppService
         IBranchAppService branchAppService,
         IDataFilter dataFilter,
         OrgTreeManager orgTree,
-        ICurrentCompany currentCompany)
+        ICurrentCompany currentCompany,
+        CompanyCommodityCatalogSeeder catalogSeeder)
     {
         _repository = repository;
         _currentCompany = currentCompany;
@@ -64,6 +66,7 @@ public class CompanyAppService : TradeXpressAppService, ICompanyAppService
         _branchAppService = branchAppService;
         _dataFilter = dataFilter;
         _orgTree = orgTree;
+        _catalogSeeder = catalogSeeder;
     }
 
     public virtual async Task<PagedResultDto<CompanyListDto>> GetListAsync(CompanyListRequestDto input)
@@ -155,6 +158,12 @@ public class CompanyAppService : TradeXpressAppService, ICompanyAppService
 
         await SaveBranchesAsync(c, input.Branches);
         await _orgTree.EnsureHeadquartersBranchAsync(c);   // en az 1 HQ şube + varsayılan kasa (Branches boşsa da)
+
+        // SİSTEM EMTİA KATALOĞU (Maden/Hurda/Vadeli/Hizmet) — emtia PER-COMPANY olduğundan yeni şirket
+        // kendi setini almalı. Eskiden seeder'lar YALNIZ DbMigrator'dan ve tenant onboarding'inin ikinci
+        // pass'inden koşuyordu; bu ekrandan (ve tenant grafı güncellemesinden) açılan şirket dört katalogda
+        // da BOŞ doğuyordu. Hata sessizdi: şirket açılır, listeler boş gelir, kullanıcı "henüz girmedim" sanır.
+        await _catalogSeeder.SeedAsync();
         // NOT: kasa→kasa akışında CARİ HİÇ ÜRETİLMEZ (2026-07-15 ürün kararı) — kasa fişte doğrudan karşı
         // taraftır (Voucher.AccountType=Vault). Company-create yolunda kargo/cari kurulumu YOKTUR:
         // kargo artık yalnız satış kanalı seviyesinde yaşar (2026-07-26 Hakan kararı).

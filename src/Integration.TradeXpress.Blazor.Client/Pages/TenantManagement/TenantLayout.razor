@@ -97,9 +97,13 @@
 </DxFormLayout>
 
 @* ── GÜNCELLE modu: YAPISAL şirket ağacı (şirket → şube → kasa) ────────────────────────────────────
-   Host tenant yöneticisi org yapısını serbestçe düzenler. Graf YALNIZ yapısal alan taşır (kod/ad/ülke/
-   para birimi/merkez/durum/sıra/açıklama + adres) — sipariş, satış kanalı, bakiye ve kimlik bilgisi bu
-   DTO'da hiç YOKTUR, dolayısıyla bu form onları yapısal olarak gösteremez.                               *@
+   Graf YALNIZ yapısal alan taşır (kod/ad/ülke/para birimi/merkez/durum/sıra/açıklama + adres) — sipariş,
+   satış kanalı, bakiye ve kimlik bilgisi bu DTO'da hiç YOKTUR.
+
+   Tarihçe (2026-08-07): bu drill tam yetkiliydi ama TenantUpdateDto yalnız `Name` taşıyordu ve UpdateAsync
+   yalnız ChangeNameAsync çağırıyordu → yapılan HER yapısal değişiklik sessizce çöpe gidiyordu (ne hata, ne
+   uyarı; yalnız "kaydedildi" diyen bir form). Önce salt-okunur kilitlendi, sonra graf diff'i UpdateAsync'e
+   taşındı ve kilit kaldırıldı — düzenleme artık GERÇEKTEN kaydediliyor (TenantAppService.SaveCompanyGraphAsync). *@
 @if (!IsNew)
 {
     <DrillTabs CssClass="mt-3">

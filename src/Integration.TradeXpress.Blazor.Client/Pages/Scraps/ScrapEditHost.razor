@@ -21,7 +21,7 @@
                   FormCaption="@L["Scrap"].Value" IconCssClass="@TradeXpressIcons.Scrap"
                   EntityValue="@(m => m.Code)"
                   IsReadOnly="@(m => m.IsGlobal && CurrentTenant?.Id != null)"
-                  ApplyNewDefaults="@(m => { m.IsActive = true; m.Factor = 0.570m; m.FactorChange = true; })">
+                  ApplyNewDefaults="@ApplyNewDefaults">
         <ScrapLayout Model="@context" IsNew="@(context.Id == Guid.Empty)" CurrencyUnits="@_units"
                      OnEditFollowingUnit="@OnEditFollowingUnitAsync" />
     </CrudEditHost>

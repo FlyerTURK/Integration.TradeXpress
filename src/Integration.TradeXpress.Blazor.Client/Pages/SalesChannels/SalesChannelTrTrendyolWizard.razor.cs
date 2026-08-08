@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Integration.Framework.Blazor.Client.Components.Crud;
 using Integration.Framework.Blazor.Client.Components.Shared;
 using Integration.Framework.Blazor.Client.Services.Base;
+using Integration.Framework.Blazor.Client.Services.Mdi;
 using Integration.TradeXpress.Blazor.Client.Pages.Products;
 using Integration.TradeXpress.Products;
 using Integration.TradeXpress.SalesChannels;
@@ -46,6 +47,9 @@ public partial class SalesChannelTrTrendyolWizard : CrudComponentBase
     [Inject] private IUiInteractionService UiService { get; set; } = default!;
     [Inject] private NavigationManager Navigation { get; set; } = default!;
     [Inject] private IServiceProvider ServiceProvider { get; set; } = default!;
+
+    // MDI sekme bağlamı — sihirbaz bir MDI sekmesi olarak açıldığında gelir (popup'ta null).
+    [CascadingParameter(Name = "CurrentMdiTab")] private IMdiTab? CurrentMdiTab { get; set; }
 
     // ── 1. adım: kimlik ─────────────────────────────────────────────────────────────────────────────
     private string? _code;
@@ -233,9 +237,18 @@ public partial class SalesChannelTrTrendyolWizard : CrudComponentBase
         _classifyPending = _classifyPanel.PendingCount;
     }
 
-    private Task GoToChannelAsync()
+    /// <summary>Bitir → kurulan kanalın edit formuna geç. NavigateTo MDI kabuğunda NO-OP ([mdi-navigate]) —
+    /// MDI varsa yeni sekmede aç + sihirbaz sekmesini kapat, yoksa NavigateTo fallback (2026-08-07 U1; N11 ikizi).</summary>
+    private async Task GoToChannelAsync()
     {
-        Navigation.NavigateTo($"/sales-channels/trendyol/{_channelId}");
-        return Task.CompletedTask;
+        var url = $"/sales-channels/trendyol/{_channelId}";
+        if (CurrentMdiTab is not null && ServiceProvider.GetService(typeof(IMdiTabOpener)) is IMdiTabOpener tabs)
+        {
+            await tabs.OpenOrActivateAsync(url, L["SalesChannelTrTrendyol:Wizard:Title"].Value, TradeXpressIcons.SalesChannel);
+            await tabs.TryCloseAsync(CurrentMdiTab.Id);
+            return;
+        }
+
+        Navigation.NavigateTo(url);
     }
 }

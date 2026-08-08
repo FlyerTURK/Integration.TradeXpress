@@ -28,6 +28,7 @@ public partial class OrderItemsDrill
     private Guid _loadedOrderId;
     private System.Collections.Generic.List<OrderLineEditDto>? _items;
     private bool _actionBusy;
+    private System.Collections.Generic.List<OrderLineMatchCandidateDto> _matchCandidates = new();
 
     protected override async Task OnParametersSetAsync()
     {
@@ -38,6 +39,12 @@ public partial class OrderItemsDrill
 
         _loadedOrderId = OrderId;
         _items = await OrderAppService.GetOrderLineEditsAsync(OrderId);
+
+        // Eşleştirme adayları bir KEZ yüklenir (sipariş başına): combo aramayı yüklü liste üzerinde yapar.
+        // Her tuşta sunucuya gitmek Blazor Server circuit'inde 126 kalemlik bir siparişte kabul edilemez;
+        // aday sayısı üst sınırlı olduğu için liste küçük kalır.
+        _matchCandidates = await OrderAppService.GetLineMatchCandidatesAsync(
+            new OrderLineMatchCandidateRequestDto { MaxCount = 200 });
     }
 
     /// <summary>Dışarıdan (OrderEditLayout — sipariş-düzeyi toplu Kabul Et/Reddet SONRASI) zorla tazeler.</summary>

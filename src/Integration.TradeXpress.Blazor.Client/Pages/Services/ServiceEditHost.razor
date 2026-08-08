@@ -20,7 +20,7 @@
                   FormCaption="@L["Service"].Value" IconCssClass="@TradeXpressIcons.Service"
                   EntityValue="@(m => m.Code)"
                   IsReadOnly="@(m => m.IsGlobal && CurrentTenant?.Id != null)"
-                  ApplyNewDefaults="@(m => { m.IsActive = true; })">
+                  ApplyNewDefaults="@ApplyNewDefaults">
         <ServiceLayout Model="@context" IsNew="@(context.Id == Guid.Empty)" />
     </CrudEditHost>
 }

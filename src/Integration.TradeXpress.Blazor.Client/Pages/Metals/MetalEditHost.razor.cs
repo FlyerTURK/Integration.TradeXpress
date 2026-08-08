@@ -24,6 +24,14 @@ public partial class MetalEditHost
     [Parameter] public bool SupportsSaveAndNew { get; set; } = true;
 
     [Parameter] public bool SupportsDelete { get; set; } = true;
+
+    /// <summary>Sınıflandırma panelinden ÖN-DOLDURMA (2026-08-07 U1 — GoodEditHost deseni). Panel bu formu
+    /// <c>IViewOpener.OpenAsync</c>'in <c>extraParams</c>'ıyla açarken kod/ad geçiriyor; bu parametreler
+    /// tanımlı OLMADIĞINDA <c>DynamicComponent</c> bilinmeyen-parametre <c>InvalidOperationException</c>'ı
+    /// fırlatıp circuit'i DÜŞÜRÜYORDU. Boş geçilirse davranış eskisi gibi.</summary>
+    [Parameter] public string? SeedCode { get; set; }
+
+    [Parameter] public string? SeedName { get; set; }
     [Parameter] public EventCallback OnSaved { get; set; }
     [Parameter] public EventCallback OnClosed { get; set; }
 
@@ -47,6 +55,17 @@ public partial class MetalEditHost
     {
         m.IsActive = true;
         m.Factor = 0.995m;
+
+        // Panel tohumu: kod/ad üründen türetilip geliyorsa boş form yerine hazır gelir (U1).
+        if (!string.IsNullOrWhiteSpace(SeedCode))
+        {
+            m.Code = SeedCode!;
+        }
+
+        if (!string.IsNullOrWhiteSpace(SeedName))
+        {
+            m.Name = SeedName!;
+        }
 
         // Nitelik×değer üretilince (GenerateVariants) liste değişir; üretilmezse save'de synchronizer bu main'i kalıcılaştırır.
         m.Variants.Add(new MetalVariantGraphDto

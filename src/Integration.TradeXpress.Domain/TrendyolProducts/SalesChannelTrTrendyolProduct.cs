@@ -245,11 +245,34 @@ public class SalesChannelTrTrendyolProduct : FullAuditedAggregateRoot<Guid>, IMu
     /// <summary>Son push/durum hatası (başarısızsa dolu, başarıda temizlenir).</summary>
     public virtual string? LastError { get; protected set; }
 
+
+    // ── Push emniyet alanları (kural gövdesi: ChannelPushGuard; N11 ile BİREBİR aynı anlam) ──
+    /// <summary>Kanalda GÖSTERİLMEYEN stok payı (opsiyonel) — push satırının nihai adedinden düşülür.</summary>
+    public virtual int? SafetyStock { get; protected set; }
+
+    /// <summary>Push fiyat TABANI (opsiyonel) — altına düşen fiyatta ürünün push'u durur.</summary>
+    public virtual decimal? MinPrice { get; protected set; }
+
+    /// <summary>Push fiyat TAVANI (opsiyonel) — üstüne çıkan fiyatta ürünün push'u durur.</summary>
+    public virtual decimal? MaxPrice { get; protected set; }
+
     public virtual bool IsActive { get; protected set; }
 
     #endregion
 
     #region Methods
+
+    /// <summary>Emniyet payı (opsiyonel; negatif reddedilir). Kural gövdesi <see cref="ChannelPushGuard"/>'dadır.</summary>
+    public virtual void SetSafetyStock(int? safetyStock)
+    {
+        SafetyStock = ChannelPushGuard.NormalizeSafetyStock(safetyStock);
+    }
+
+    /// <summary>Push fiyat bandı (opsiyonel; negatif sınır ve min&gt;max reddedilir). Tek uçlu bant meşrudur.</summary>
+    public virtual void SetPriceBand(decimal? minPrice, decimal? maxPrice)
+    {
+        (MinPrice, MaxPrice) = ChannelPushGuard.NormalizePriceBand(minPrice, maxPrice);
+    }
 
     /// <summary>Kategori OPSİYONEL (2026-07-11): boş/null → NULL yazılır (push'ta fail-fast aranır);
     /// doluysa uzunluk guard'ı uygulanır.</summary>

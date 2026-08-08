@@ -345,6 +345,60 @@ public class RazorConventionTests
             + string.Join(Environment.NewLine, violations));
     }
 
+    /// <summary>Sınıflandırma panelinin <c>EditComponentOf</c> switch'inden <c>typeof(X.YEditHost)</c> host tiplerini
+    /// çıkarır — liste kodda değişirse test sözleşmeyi otomatik takip eder.</summary>
+    private static readonly Regex EditHostTypeofRegex = new(@"typeof\(\s*([A-Za-z0-9_.]*\.)?(\w+EditHost)\s*\)", RegexOptions.Compiled);
+
+    /// <summary><c>[Parameter] public string? X { get; set; }</c> deseni (aynı satırda) — salt X kullanımını değil TANIMINI arar.</summary>
+    private static Regex ParameterDeclarationRegex(string name) =>
+        new(@"\[Parameter\][^\n;]*\b" + Regex.Escape(name) + @"\b\s*\{\s*get;\s*set;\s*\}", RegexOptions.Compiled);
+
+    [Fact]
+    public void Classification_panel_edit_hosts_must_declare_seed_parameters()
+    {
+        // Kural (2026-08-07 U1): sınıflandırma paneli emtia formunu extraParams'la (SeedCode/SeedName) açıyor;
+        // bu [Parameter]'ları TANIMLAMAYAN host'ta DynamicComponent çalışma anında InvalidOperationException
+        // fırlatıp CIRCUIT'İ DÜŞÜRÜR (Good dışı 6 ailede canlıda yaşandı). Panelin EditComponentOf listesindeki
+        // her {Family}EditHost, SeedCode ve SeedName parametrelerini taşımalı — liste büyürse test takip eder.
+        var panel = ConventionSource.EnumerateSource("ProductCommodityClassificationPanel.razor.cs").FirstOrDefault();
+        panel.ShouldNotBeNull("Sınıflandırma paneli code-behind'ı bulunamadı — EditComponentOf sözleşmesi taranamıyor.");
+
+        var hostTypeNames = EditHostTypeofRegex.Matches(File.ReadAllText(panel))
+            .Select(m => m.Groups[2].Value)
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+        hostTypeNames.ShouldNotBeEmpty("EditComponentOf switch'inde hiç {Family}EditHost bulunamadı — regex bayat olabilir.");
+
+        var hostFiles = ConventionSource.EnumerateSource("*.razor.cs")
+            .ToDictionary(f => Path.GetFileNameWithoutExtension(f.Replace(".razor.cs", ".razor")), StringComparer.Ordinal);
+
+        var violations = new List<string>();
+        foreach (var host in hostTypeNames)
+        {
+            if (!hostFiles.TryGetValue(host, out var file))
+            {
+                violations.Add($"{host}: EditComponentOf listesinde ama {host}.razor.cs bulunamadı.");
+                continue;
+            }
+
+            // [Parameter] TANIMINI ara, salt "SeedCode" string'ini DEĞİL — aksi halde ApplyNewDefaults'taki
+            // `m.Code = SeedCode` kullanımı, parametre tanımı silinse bile testi yanıltarak yeşil bırakır
+            // (sabotaj testinde yakalandı, 2026-08-07).
+            var text = File.ReadAllText(file);
+            var hasSeedCode = ParameterDeclarationRegex("SeedCode").IsMatch(text);
+            var hasSeedName = ParameterDeclarationRegex("SeedName").IsMatch(text);
+            if (!hasSeedCode || !hasSeedName)
+            {
+                var eksik = (!hasSeedCode ? "SeedCode " : "") + (!hasSeedName ? "SeedName" : "");
+                violations.Add($"{host}: eksik [Parameter] → {eksik.Trim()} (panelden extraParams gelince circuit çöker; U1).");
+            }
+        }
+
+        violations.ShouldBeEmpty(
+            "Sınıflandırma panelinin açtığı emtia host'ları Seed parametrelerini eksik tanımlıyor:"
+            + Environment.NewLine + string.Join(Environment.NewLine, violations));
+    }
+
     private static int CountOccurrences(string line, string token)
     {
         var count = 0;

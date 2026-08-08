@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Integration.Framework.Blazor.Client.Components.Crud;
 using Integration.Framework.Blazor.Client.Components.Shared;
 using Integration.Framework.Blazor.Client.Services.Base;
+using Integration.Framework.Blazor.Client.Services.Mdi;
 using Integration.TradeXpress.Blazor.Client.Components.Shared;
 using Integration.TradeXpress.N11Categories;
 using Integration.TradeXpress.N11Products;
@@ -56,6 +57,9 @@ public partial class SalesChannelTrN11Wizard : CrudComponentBase
     [Inject] private IUiInteractionService UiService { get; set; } = default!;
     [Inject] private NavigationManager Navigation { get; set; } = default!;
     [Inject] private IServiceProvider ServiceProvider { get; set; } = default!;
+
+    // MDI sekme bağlamı — sihirbaz bir MDI sekmesi olarak açıldığında gelir (popup'ta null).
+    [CascadingParameter(Name = "CurrentMdiTab")] private IMdiTab? CurrentMdiTab { get; set; }
 
     // ── 1. adım: kimlik ─────────────────────────────────────────────────────────────────────────────
     private string? _code;
@@ -364,11 +368,22 @@ public partial class SalesChannelTrN11Wizard : CrudComponentBase
         _classifyPending = _classifyPanel.PendingCount;
     }
 
-    /// <summary>Bitir → kurulan kanalın normal edit formuna geç (kullanıcı kaldığı yerden yönetmeye devam etsin).</summary>
-    private Task GoToChannelAsync()
+    /// <summary>Bitir → kurulan kanalın normal edit formuna geç (kullanıcı kaldığı yerden yönetmeye devam etsin).
+    ///
+    /// <para><b>2026-08-07 U1:</b> <c>NavigationManager.NavigateTo</c> MDI kabuğunda NO-OP'tur ([mdi-navigate]) —
+    /// düğme aylarca sessizce hiçbir şey yapmadı. MDI varsa kanalı yeni sekmede açıp sihirbazın KENDİ sekmesini
+    /// kapatırız (SalesChannelListPage.OpenRouteAsync deseni); MDI yoksa (popup/standalone) NavigateTo fallback.</para></summary>
+    private async Task GoToChannelAsync()
     {
-        Navigation.NavigateTo($"/sales-channels/n11/{_channelId}");
-        return Task.CompletedTask;
+        var url = $"/sales-channels/n11/{_channelId}";
+        if (CurrentMdiTab is not null && ServiceProvider.GetService(typeof(IMdiTabOpener)) is IMdiTabOpener tabs)
+        {
+            await tabs.OpenOrActivateAsync(url, L["SalesChannelTrN11:Wizard:Title"].Value, TradeXpressIcons.SalesChannel);
+            await tabs.TryCloseAsync(CurrentMdiTab.Id);   // biten sihirbaz sekmesi açık kalmasın
+            return;
+        }
+
+        Navigation.NavigateTo(url);
     }
 
     private string StatusText(int? count)

@@ -20,9 +20,13 @@ namespace Integration.TradeXpress.Orders;
 /// </summary>
 public interface IN11OrderClient
 {
-    /// <summary>BİR SAYFA sipariş çeker (salt-okuma; tarih filtresi YOK → tüm geçmiş). Streaming çek-kaydet için:
-    /// çağıran sayfayı alıp order başına kaydeder, sonra sonraki sayfayı ister. Throttle'da bekleyip tekrar dener.</summary>
-    Task<N11OrdersPage> GetOrdersPageAsync(string appKey, string appSecret, int page, CancellationToken cancellationToken = default);
+    /// <summary>BİR SAYFA sipariş çeker (salt-okuma). Streaming çek-kaydet için: çağıran sayfayı alıp order
+    /// başına kaydeder, sonra sonraki sayfayı ister. Throttle'da bekleyip tekrar dener.
+    /// <para><paramref name="sinceUtc"/> <c>null</c> → TARİH FİLTRESİ YOK (tüm geçmiş; İLK KURULUM kolu).
+    /// Dolu → dar pencere (periyodik delta kolu). İkisi ayrı stratejidir; gerekçe
+    /// <c>N11OrderClient.BuildListRequest</c> yorumunda.</para></summary>
+    Task<N11OrdersPage> GetOrdersPageAsync(
+        string appKey, string appSecret, int page, DateTime? sinceUtc = null, CancellationToken cancellationToken = default);
 
     /// <summary>Bir siparişin ZENGİN detayını çeker (SOAP <c>getOrderDetail</c>, N11 sipariş id ile; salt-okuma) →
     /// kanal-agnostik <see cref="OrderDetailSnapshot"/> (alıcı/adresler/tutar kırılımı/kalem komisyon+nitelik). Sync

@@ -2,7 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Integration.TradeXpress.Permissions;
 using Integration.TradeXpress.Trendyol;
+using Microsoft.AspNetCore.Authorization;
 using Volo.Abp.Domain.Repositories;
 
 namespace Integration.TradeXpress.TrendyolBrands;
@@ -12,7 +14,12 @@ namespace Integration.TradeXpress.TrendyolBrands;
 /// Trendyol kanalından çözülür (per-kanal; merkezi tek kimlik YOK) ve aramayı istemciye delege eder. Arama CANLI
 /// kalır (pazaryerine SIFIR yazma); picker açılış beslemesi ise host-global <see cref="TrendyolBrand"/> write-through
 /// cache'inden okunur (<see cref="GetCachedListAsync"/>). TrendyolCategoryAppService ile hizalı — ayrı izin yok.
+///
+/// <para><b>Yetki (2026-08-07 G1):</b> tek tüketici Trendyol ürün formu (kanal ekranı) ve arama CANLI Trendyol
+/// API'sine gider (dış kota) → kanal ailesiyle aynı sınır. Öncesinde sınıf ANONİMDİ — dış API kotası kimliksiz
+/// tüketilebilirdi.</para>
 /// </summary>
+[Authorize(TradeXpressPermissions.SalesChannels.Default)]
 public class TrendyolBrandAppService : TradeXpressAppService, ITrendyolBrandAppService
 {
     private readonly ITrendyolBrandClient _client;

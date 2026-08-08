@@ -234,6 +234,20 @@ public class SalesChannelTrTrendyolProductDto
     public int? FailedItemCount { get; set; }
     public DateTime? LastSyncedAt { get; set; }
     public string? LastError { get; set; }
+
+    /// <summary>Push/senkron sonrası eşitleme uyarıları (LOKALİZE) — SALT anlık görüntü, persist EDİLMEZ;
+    /// UI toast olarak gösterir (N11 ile aynı desen).</summary>
+    public List<string> SyncWarnings { get; set; } = new();
+
+    /// <summary>Kanalda gösterilmeyen stok payı (opsiyonel) — push adedinden düşülür.</summary>
+    public int? SafetyStock { get; set; }
+
+    /// <summary>Push fiyat tabanı (opsiyonel) — altına düşen fiyatta push durur.</summary>
+    public decimal? MinPrice { get; set; }
+
+    /// <summary>Push fiyat tavanı (opsiyonel) — üstüne çıkan fiyatta push durur.</summary>
+    public decimal? MaxPrice { get; set; }
+
     public bool IsActive { get; set; }
 }
 
@@ -253,6 +267,9 @@ public interface ISalesChannelTrTrendyolProductInput
     string? Description { get; }
     int? DeliveryDuration { get; }
     TrendyolFastDeliveryType? FastDeliveryType { get; }
+    int? SafetyStock { get; }
+    decimal? MinPrice { get; }
+    decimal? MaxPrice { get; }
     bool IsActive { get; }
     List<SalesChannelTrTrendyolProductCategoryAttributeDto> Attributes { get; }
 
@@ -279,6 +296,9 @@ public class SalesChannelTrTrendyolProductCreateDto : ISalesChannelTrTrendyolPro
     public string? Description { get; set; }
     public int? DeliveryDuration { get; set; }
     public TrendyolFastDeliveryType? FastDeliveryType { get; set; }
+    public int? SafetyStock { get; set; }
+    public decimal? MinPrice { get; set; }
+    public decimal? MaxPrice { get; set; }
     public bool IsActive { get; set; } = true;
     public List<SalesChannelTrTrendyolProductCategoryAttributeDto> Attributes { get; set; } = new();
     public List<SalesChannelTrTrendyolProductStockItemGraphDto> StockItems { get; set; } = new();
@@ -299,6 +319,9 @@ public class SalesChannelTrTrendyolProductUpdateDto : ISalesChannelTrTrendyolPro
     public string? Description { get; set; }
     public int? DeliveryDuration { get; set; }
     public TrendyolFastDeliveryType? FastDeliveryType { get; set; }
+    public int? SafetyStock { get; set; }
+    public decimal? MinPrice { get; set; }
+    public decimal? MaxPrice { get; set; }
     public bool IsActive { get; set; } = true;
     public List<SalesChannelTrTrendyolProductCategoryAttributeDto> Attributes { get; set; } = new();
     public List<SalesChannelTrTrendyolProductStockItemGraphDto> StockItems { get; set; } = new();
@@ -390,6 +413,11 @@ public interface ISalesChannelTrTrendyolProductAppService : IApplicationService
 
     /// <summary>Kaydedilmiş batch id ile Trendyol'dan işlem durumunu çeker + günceller (COMPLETED/FAILED).</summary>
     Task<SalesChannelTrTrendyolProductDto> RefreshStatusAsync(Guid id);
+
+    /// <summary>HAFİF fiyat/stok senkronu — ürün içeriğine dokunmadan yalnız adet/fiyat yazar (N11'deki eşi).
+    /// Çapraz-kanal aşırı satışın kapanışı: başka kanaldan gelen sipariş stoğu düşürdüğünde Trendyol bayat kalmasın.
+    /// <c>LastSent*</c> burada GÜNCELLENMEZ (batch COMPLETED olana dek gerçek yazım belirsiz).</summary>
+    Task<SalesChannelTrTrendyolProductDto> SyncStockAndPriceAsync(Guid id);
 
     /// <summary>Trendyol'a NE gideceğinin READ-ONLY önizlemesi (T6): <c>BuildProductData</c> read-only çalıştırılır,
     /// Trendyol'a SUBMIT EDİLMEZ. Fail-fast/eksik zorunlu alanlar exception yerine

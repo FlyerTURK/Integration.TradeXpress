@@ -423,6 +423,14 @@ public class ProductVariantGraphDto : EntityVariantGraphDto
 
     /// <summary>Net maliyetin en az bir satırında kur/birim eksik mi — UI uyarısı (SALT-OKUNUR).</summary>
     public bool NetCostMissingRate { get; set; }
+
+    /// <summary>Varyantın SATIŞ statüsü (SALT-OKUNUR; save'de YOKSAYILIR — <see cref="NetCost"/> deseni).
+    /// <para>Statüyü form değil <c>VerifySaleReadinessAsync</c> değiştirir; buraya yazılabilir olsaydı
+    /// kullanıcı bir alanı düzenleyerek push kapısını dolaylı yoldan açabilirdi.</para></summary>
+    public ProductSaleStatus SaleStatus { get; set; }
+
+    /// <summary>Son doğrulama anı (UTC; SALT-OKUNUR). Null = hiç doğrulanmamış.</summary>
+    public DateTime? VerifiedAt { get; set; }
 }
 
 /// <summary>

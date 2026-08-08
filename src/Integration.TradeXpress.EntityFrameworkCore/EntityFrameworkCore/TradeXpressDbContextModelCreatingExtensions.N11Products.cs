@@ -61,6 +61,11 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
                 });
             });
 
+            // Push emniyet alanları: fiyat bandı, override fiyatla AYNI precision'ı izler (aynı büyüklüğü karşılaştırıyorlar;
+            // farklı ölçek, bandın kenarında sessiz yuvarlama farkı üretirdi).
+            b.Property(x => x.MinPrice).HasPrecision(ProductRecipeConsts.AmountPrecision, ProductRecipeConsts.AmountScale);
+            b.Property(x => x.MaxPrice).HasPrecision(ProductRecipeConsts.AmountPrecision, ProductRecipeConsts.AmountScale);
+
             // Aynı kanalda AYNI ürün için birden fazla kayıt OLABİLİR (2026-07-07 kullanıcı kararı) → normal index.
             b.HasIndex(x => new { x.SalesChannelId, x.ProductId });
             b.HasIndex(x => new { x.TenantId, x.CompanyId });

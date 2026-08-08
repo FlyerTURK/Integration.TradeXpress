@@ -235,6 +235,12 @@ public class TradeXpressBlazorModule : AbpModule
                                     Integration.TradeXpress.Blazor.Client.Theming.ThemeService>();
         context.Services.AddScoped<Integration.TradeXpress.Blazor.Client.Theming.ISizeModeService,
                                     Integration.TradeXpress.Blazor.Client.Theming.SizeModeService>();
+        // LookupComboBox ekle/düzelt düğmelerinin VARSAYILAN hedefi (2026-08-07 Hakan kuralı: düğmeler
+        // varsayılan görünür — "yoksa standart combo zaten işimizi görüyor"). Eşleme uygulamaya aittir;
+        // Framework hiçbir uygulama tipini tanımaz.
+        context.Services.AddSingleton<Integration.Framework.Blazor.Client.Components.Crud.ILookupEditComponentRegistry>(
+            Integration.TradeXpress.Blazor.Client.Services.TradeXpressLookupEditComponents.Build());
+
         context.Services.AddSingleton<Integration.TradeXpress.Blazor.Client.Services.Mdi.RouteResolver>();
         context.Services.AddScoped<Integration.TradeXpress.Blazor.Client.Services.Mdi.ITabManager,
                                     Integration.TradeXpress.Blazor.Client.Services.Mdi.TabManager>();

@@ -1,0 +1,13 @@
+@*
+   Bilgi bandı — formun/bölümün ÜSTÜNDE duran, tek satırlık bilgilendirme (ikon + metin).
+
+   Tek tanım: aynı markup <EntityEditForm>'un salt-okunur banner'ında da kullanılıyordu; iki yerde kopya
+   durması, birinin stili değişip diğerinin kalması demekti. Görünüm birebir korundu.
+
+   Ham <div>/<span> DevExpress karşılığı OLMADIĞI için kullanılıyor (ui-blazor istisnası): DevExpress'te
+   "alert/banner" bileşeni yok, DxPopup/DxToast ise anlık bildirimler — kalıcı bant için uygun değil.
+*@
+<div style="background:#cff4fc; color:#055160; border:1px solid #b6effb; border-radius:0.375rem; padding:0.5rem 0.75rem; margin-bottom:0.75rem; display:flex; align-items:center; gap:0.5rem;">
+    <i class="@IconCssClass" aria-hidden="true"></i>
+    <span>@Text</span>
+</div>

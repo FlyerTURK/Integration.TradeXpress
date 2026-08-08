@@ -105,6 +105,33 @@
                         </DxFormLayoutGroup>
                     }
 
+                    @* ── ÜRÜN EŞLEŞTİRME — rezervasyonun ÖN KOŞULU. ──────────────────────────────────────
+                       Otomatik eşleştirme kanal ürününün SKU sözlüğüne bakar; sözlük boşsa hiçbir kalem
+                       eşleşmez ve her sipariş rezervasyonda "Kurulamadı" olarak kilitlenir (canlıda 126/126).
+                       Buradan elle eşleştirilen kalem sonraki senkron turunda KENDİLİĞİNDEN rezerve olur —
+                       ayrı "yeniden dene" düğmesi yok, çünkü bloklanmış rezervasyon her turda yeniden deneniyor.
+                       Combo EditContext altında manuel bağlı → ValidationEnabled="false" ŞART ([validation-expr]). *@
+                    <DxFormLayoutGroup Caption="@L["Order:Detail:ProductMatch"]" ColSpanMd="12">
+                        <DxFormLayoutItem Caption="@L["Order:Line:MatchedProduct"]" ColSpanMd="12">
+                            <DxComboBox TData="OrderLineMatchCandidateDto" TValue="Guid?"
+                                        Data="@_matchCandidates"
+                                        Value="@item.ProductVariantId"
+                                        ValueChanged="@((Guid? v) => item.ProductVariantId = v)"
+                                        ValueFieldName="@nameof(OrderLineMatchCandidateDto.EntityVariantId)"
+                                        TextFieldName="@nameof(OrderLineMatchCandidateDto.DisplayText)"
+                                        SearchMode="ListSearchMode.AutoSearch"
+                                        SearchFilterCondition="ListSearchFilterCondition.Contains"
+                                        ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto"
+                                        NullText="@L["Order:Line:MatchProductPlaceholder"].Value"
+                                        ValidationEnabled="false"
+                                        CssClass="w-100" />
+                        </DxFormLayoutItem>
+                        @* Eşleşme YOKSA sebebi yazılır: boş bir combo kullanıcıya neyin eksik olduğunu söylemez. *@
+                        <DxFormLayoutItem ColSpanMd="12" Visible="@(item.ProductVariantId is null)">
+                            <InfoNotice Text="@L["Order:Line:MatchMissingHint"].Value" />
+                        </DxFormLayoutItem>
+                    </DxFormLayoutGroup>
+
                     @* ── Sipariş Fazı O2 — state machine: N11'e YAZAN aksiyonlar (GERÇEK, geri alınamaz). ── *@
                     <DxFormLayoutGroup Caption="@L["Order:Action:Title"]" ColSpanMd="12">
                         <DxFormLayoutItem Caption="@L["Order:Action:CurrentStatus"]" ColSpanMd="12">

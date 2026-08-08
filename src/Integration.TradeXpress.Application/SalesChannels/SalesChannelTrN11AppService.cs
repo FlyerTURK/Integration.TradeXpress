@@ -80,7 +80,7 @@ public class SalesChannelTrN11AppService : TradeXpressAppService, ISalesChannelT
 
     public virtual async Task<SalesChannelTrN11GetDto> GetAsync(Guid id)
     {
-        var entity = await _repository.GetAsync(id);
+        var entity = await _repository.GetOwnedAsync(_currentCompany, id);
         return Redact(ObjectMapper.Map<SalesChannelTrN11, SalesChannelTrN11GetDto>(entity));
     }
 
@@ -116,7 +116,7 @@ public class SalesChannelTrN11AppService : TradeXpressAppService, ISalesChannelT
     public virtual async Task<SalesChannelTrN11GetDto> UpdateAsync(Guid id, SalesChannelTrN11UpdateDto input)
     {
         // Güvenlik sınırı (Product/Account deseni): kaydı ÖNCE yükle — company query-filter yabancı şirketinkini gizler.
-        var entity = await _repository.GetAsync(id);
+        var entity = await _repository.GetOwnedAsync(_currentCompany, id);
 
         await ApplyCodeChangeAsync(entity, input.Code);
         entity.SetName(input.Name);
@@ -165,7 +165,7 @@ public class SalesChannelTrN11AppService : TradeXpressAppService, ISalesChannelT
     [Authorize(TradeXpressPermissions.SalesChannels.Delete)]
     public virtual async Task DeleteAsync(Guid id)
     {
-        var entity = await _repository.GetAsync(id);
+        var entity = await _repository.GetOwnedAsync(_currentCompany, id);
         await _repository.DeleteAsync(entity, autoSave: true);
     }
 

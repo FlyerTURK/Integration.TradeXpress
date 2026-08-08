@@ -24,6 +24,11 @@ public partial class JewelryEditHost
     [Parameter] public bool SupportsSaveAndNew { get; set; } = true;
 
     [Parameter] public bool SupportsDelete { get; set; } = true;
+
+    /// <summary>Sınıflandırma panelinden ÖN-DOLDURMA (2026-08-07 U1 — gerekçe MetalEditHost'ta).</summary>
+    [Parameter] public string? SeedCode { get; set; }
+
+    [Parameter] public string? SeedName { get; set; }
     [Parameter] public EventCallback OnSaved { get; set; }
     [Parameter] public EventCallback OnClosed { get; set; }
 
@@ -50,6 +55,17 @@ public partial class JewelryEditHost
         m.IsActive = true;
         m.PriceTypeChange = true;
         m.CompanyId = Working.CurrentCompanyId;
+
+        // Panel tohumu (U1 — gerekçe MetalEditHost'ta).
+        if (!string.IsNullOrWhiteSpace(SeedCode))
+        {
+            m.Code = SeedCode!;
+        }
+
+        if (!string.IsNullOrWhiteSpace(SeedName))
+        {
+            m.Name = SeedName!;
+        }
 
         // Nitelik×değer üretilince (GenerateVariants) liste değişir; üretilmezse save'de synchronizer bu main'i kalıcılaştırır
         // (IsMain + boş CombinationKey → server main'e eşlenir).

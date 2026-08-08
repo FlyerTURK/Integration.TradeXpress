@@ -174,6 +174,14 @@ public class TenantAppService : TradeXpressAppService, ITenantAppService
         return await GetAsync(tenant.Id);
     }
 
+    /// <summary>Tenant adını ve (gönderildiyse) ŞİRKET GRAFINI günceller.
+    ///
+    /// <para><b>Kapatılan açık:</b> güncelleme formundaki şirket→şube→kasa drill'i tam yetkiliydi ama bu metot
+    /// yalnız <c>ChangeNameAsync</c> çağırıyordu — yapılan her yapısal değişiklik SESSİZCE çöpe gidiyordu.</para>
+    ///
+    /// <para>Atomiklik <see cref="CreateAsync"/> ile AYNI kaynaktan gelir: app service'in ambient UoW'u (ABP
+    /// TransactionBehavior.Auto → yazma yolunda transactional). Yarım uygulanmış org ağacı hiç uygulanmamış
+    /// olandan kötüdür; ikisi de aynı garantiye yaslandığı için burada ayrı bir attribute konmadı.</para></summary>
     [Authorize(TenantManagementPermissions.Tenants.Update)]
     public virtual async Task<TenantGetDto> UpdateAsync(Guid id, TenantUpdateDto input)
     {
@@ -181,8 +189,63 @@ public class TenantAppService : TradeXpressAppService, ITenantAppService
         await _tenantManager.ChangeNameAsync(tenant, input.Name);
         await _tenantRepository.UpdateAsync(tenant, autoSave: true);
 
+        if (input.Companies.Count > 0)
+        {
+            await SaveCompanyGraphAsync(tenant.Id, input.Companies);
+        }
+
         // CreateAsync ile aynı gerekçe: commit dönüşü form'a rebind edilir — graf GetAsync yolundan dolu gelmeli.
         return await GetAsync(tenant.Id);
+    }
+
+    /// <summary>Şirket grafını DIFF'ler ve <see cref="ICompanyAppService"/>'e delege eder (tenant admin yetkisiyle).
+    ///
+    /// <para><b>SIRA KRİTİK</b> — <c>CompanyAppService.SaveBranchesAsync</c>'in şube seviyesindeki deseniyle aynı:</para>
+    /// <list type="number">
+    /// <item><b>Merkez olan ÖNCE.</b> Merkez B'ye devrediliyorsa B önce işlenir; <c>CompanyAppService</c> B'yi
+    /// merkez yapıp A'yı DB'de düşürür, sonra A "merkez değil" olarak geldiğinde çakışma kalmaz. Ters sırada
+    /// A hâlâ merkezken "merkez değil" gelir ve <c>CannotUnsetHeadquarters</c> ile PATLAR.</item>
+    /// <item><b>Silme EN SON.</b> Önce silseydik yeni merkez atanmadan eski merkez düşerdi ve
+    /// <c>OrgTreeManager</c>'ın "daima bir merkez kalsın" guard'ı işlemi ortada keserdi.</item>
+    /// </list>
+    ///
+    /// <para>Son merkezi silme girişimi <c>CompanyAppService.DeleteAsync</c>'in kendi guard'ına çarpar
+    /// (<c>TradeXpress:Company:CannotDeleteHeadquarters</c>) — burada ikinci bir kontrol YAZILMAZ, tek kural
+    /// tek yerde kalır.</para></summary>
+    private async Task SaveCompanyGraphAsync(Guid tenantId, List<CompanyGraphDto> companies)
+    {
+        // Sıra kuralları saf planlayıcıda (test edilebilir); burası YALNIZ yürütür.
+        var plan = TenantCompanyGraphPlanner.Plan(companies);
+
+        using (CurrentTenant.Change(tenantId))
+        {
+            var impersonation = await ImpersonateTenantAdminAsync();
+            if (impersonation == null)
+            {
+                // Admin'siz tenant'ta app-service çağrıları yetkisiz düşerdi. SESSİZ atlamak, kullanıcının
+                // "kaydedildi" sanmasına yol açan tam da o davranıştır → açık hata.
+                throw new BusinessException("TradeXpress:Tenant:AdminMissingForGraphUpdate");
+            }
+
+            using (impersonation)
+            {
+                foreach (var step in plan)
+                {
+                    switch (step.Kind)
+                    {
+                        case TenantCompanyGraphStepKind.Create:
+                            await CreateCompanyAsync(step.Company);
+                            break;
+                        case TenantCompanyGraphStepKind.Update:
+                            await UpdateCompanyAsync(step.Company);
+                            break;
+                        case TenantCompanyGraphStepKind.Delete:
+                            await _companyAppService.DeleteAsync(step.Company.Id);
+                            break;
+                    }
+                }
+            }
+        }
     }
 
     [Authorize(TenantManagementPermissions.Tenants.Delete)]
@@ -243,6 +306,25 @@ public class TenantAppService : TradeXpressAppService, ITenantAppService
             Name = input.Name,
             CountryId = input.CountryId,
             BaseCurrencyUnitId = input.BaseCurrencyUnitId,
+            IsHeadquarters = input.IsHeadquarters,
+            DisplayOrder = input.DisplayOrder,
+            Description = input.Description,
+            Branches = input.Branches,
+        });
+    }
+
+    /// <summary>Mevcut şirket düğümünü <see cref="ICompanyAppService"/>'e delege eder.
+    /// <para><c>CompanyUpdateDto</c>, <c>CompanyCreateDto</c>'dan farklı olarak <c>IsActive</c> de taşır —
+    /// graf düğümünün durumu round-trip etmezse form her kaydetmede şirketi yeniden aktifleştirirdi.</para></summary>
+    private async Task UpdateCompanyAsync(CompanyGraphDto input)
+    {
+        await _companyAppService.UpdateAsync(input.Id, new CompanyUpdateDto
+        {
+            Code = input.Code,
+            Name = input.Name,
+            CountryId = input.CountryId,
+            BaseCurrencyUnitId = input.BaseCurrencyUnitId,
+            IsActive = input.IsActive,
             IsHeadquarters = input.IsHeadquarters,
             DisplayOrder = input.DisplayOrder,
             Description = input.Description,

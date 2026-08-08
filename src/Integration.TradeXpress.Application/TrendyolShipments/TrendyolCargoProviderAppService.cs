@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Integration.TradeXpress.Permissions;
+using Microsoft.AspNetCore.Authorization;
 using Volo.Abp.Domain.Repositories;
 
 namespace Integration.TradeXpress.TrendyolShipments;
@@ -16,7 +18,11 @@ namespace Integration.TradeXpress.TrendyolShipments;
 /// <para>Yazma ucu YOK — liste resmî statik kaynaktan seed edilir (bkz. <c>TrendyolCargoProviderSeeder</c>).
 /// Kullanıcının düzenleyebileceği bir referans değildir: <c>ExternalId</c> Trendyol'un kimliğidir, elle
 /// değiştirilirse ürün gövdesi pazaryerinde reddedilir.</para>
+///
+/// <para><b>Yetki (2026-08-07 G1):</b> tek tüketici Trendyol kanal sihirbazı → kanal ailesiyle aynı sınır.
+/// Öncesinde sınıf ANONİMDİ (salt okuma olsa da kimliksiz yüzey konvansiyona aykırı — mekanik ağ kırmızı).</para>
 /// </summary>
+[Authorize(TradeXpressPermissions.SalesChannels.Default)]
 public class TrendyolCargoProviderAppService : TradeXpressAppService, ITrendyolCargoProviderAppService
 {
     private readonly IRepository<TrendyolCargoProvider, Guid> _repository;

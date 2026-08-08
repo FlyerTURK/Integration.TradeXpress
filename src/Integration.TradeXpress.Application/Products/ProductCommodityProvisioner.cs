@@ -35,7 +35,8 @@ namespace Integration.TradeXpress.Products;
 /// kod/ad düzeyindedir — bir ürünün "hangi emtiadan yapıldığı" veriden çıkarılamaz.</para>
 ///
 /// <para><b>Ürün <c>Draft</c> KALIR:</b> sınıflandırma satışa açmaz. Güvenlik zorunluluktan değil
-/// STATÜDEN gelir — reçete kurulduktan sonra bir insan doğrular (<c>ProductVariantDetail.Verify</c>).</para>
+/// STATÜDEN gelir — reçete kurulduktan sonra bir insan doğrular
+/// (<c>IProductAppService.VerifySaleReadinessAsync</c> → <c>ProductVariantDetail.MarkVerified</c>).</para>
 ///
 /// <para><b>Emtia kaydı ailenin KENDİ app service'iyle açılır</b> (repository ile DEĞİL): şirket sahipliği
 /// damgası (<c>CompanyOwnershipGuard</c>), kod normalizasyonu ve benzersizlik kontrolü orada yaşıyor;

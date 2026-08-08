@@ -1,0 +1,42 @@
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@*
+   Kanal push emniyet alanları (emniyet payı + fiyat bandı) — N11/Trendyol ve ileride Etsy formlarının ORTAK parçası.
+
+   Neden bileşen: üç alanın da anlamı kanaldan bağımsız (kural gövdesi tek yerde: ChannelPushGuard). Markup'ı her
+   kanal formuna kopyalasaydık, ipucu metni ya da alan sırası değiştiğinde kanallar sessizce ayrışırdı — ve bu tür
+   ayrışma en çok, kullanıcının bir kanalda gördüğü emniyeti diğerinde de kurduğunu SANDIĞI yerde acıtır.
+
+   Bağlama tipe değil DEĞERE yapılır (@bind-SafetyStock…): kanal DTO'larının ortak bir client arayüzü yok ve
+   yalnız bunun için bir arayüz uydurmak üç alan uğruna gereksiz bağ kurardı.
+*@
+<DxFormLayoutGroup Caption="@L["ChannelProduct:PushGuard"]" ColSpanMd="12"
+                   Expanded="false" ExpandButtonDisplayMode="GroupExpandButtonDisplayMode.Start">
+    <DxFormLayoutItem ColSpanMd="4">
+        <CaptionTemplate>
+            <InfoCaption Text="@L["ChannelProduct:SafetyStock"].Value" HintText="@L["ChannelProduct:SafetyStockHint"].Value" />
+        </CaptionTemplate>
+        <Template>
+            <NumericSpinEdit TValue="int?" Value="@SafetyStock" ValueChanged="@SafetyStockChanged"
+                             MinValue="0" NullText="@L["Optional"]"
+                             ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
+        </Template>
+    </DxFormLayoutItem>
+
+    <DxFormLayoutItem ColSpanMd="4">
+        <CaptionTemplate>
+            <InfoCaption Text="@L["ChannelProduct:MinPrice"].Value" HintText="@L["ChannelProduct:PriceBandHint"].Value" />
+        </CaptionTemplate>
+        <Template>
+            <NumericSpinEdit TValue="decimal?" Value="@MinPrice" ValueChanged="@MinPriceChanged"
+                             MinValue="0" DisplayFormat="N2" NullText="@L["Optional"]"
+                             ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
+        </Template>
+    </DxFormLayoutItem>
+
+    <DxFormLayoutItem Caption="@L["ChannelProduct:MaxPrice"]" ColSpanMd="4">
+        <NumericSpinEdit TValue="decimal?" Value="@MaxPrice" ValueChanged="@MaxPriceChanged"
+                         MinValue="0" DisplayFormat="N2" NullText="@L["Optional"]"
+                         ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
+    </DxFormLayoutItem>
+</DxFormLayoutGroup>

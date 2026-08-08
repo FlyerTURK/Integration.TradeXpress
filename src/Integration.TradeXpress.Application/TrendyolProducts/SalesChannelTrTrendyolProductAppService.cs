@@ -2,8 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Integration.Framework.Timing;
 using Integration.TradeXpress.Attachments;
 using Integration.TradeXpress.Financials.CurrencyUnits;
+using Integration.TradeXpress.Diagnostics;
 using Integration.TradeXpress.MultiCompany;
 using Integration.TradeXpress.Permissions;
 using Integration.TradeXpress.Products;
@@ -64,6 +66,13 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
     private readonly SalesChannelTrTrendyolProductRemover _remover;
     private readonly ImportedProductCategoryResolver _categoryResolver;
 
+    /// <summary>Varyant satış hazırlığı kapısı (N11'deki eşi) — İNSAN onayından geçmemiş varyant push adayı OLMAZ.</summary>
+    private readonly VariantSaleReadinessResolver _saleReadiness;
+
+    /// <summary>Kodlu hatayı operatörün okuyacağı metne çevirir (teşhis verisi dahil) — LastError'a ham
+    /// <c>ex.Message</c> yazmak guard'ların doldurduğu SKU/fiyat/sınır bilgisini çöpe atardı.</summary>
+    private readonly BusinessExceptionDescriber _describer;
+
     public SalesChannelTrTrendyolProductAppService(
         IRepository<SalesChannelTrTrendyolProduct, Guid> repository,
         IRepository<Product, Guid> productRepository,
@@ -91,8 +100,12 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
         TrendyolBrandCacheManager brandCacheManager,
         TrendyolCommissionResolver commissionResolver,
         SalesChannelTrTrendyolProductRemover remover,
-        ImportedProductCategoryResolver categoryResolver)
+        ImportedProductCategoryResolver categoryResolver,
+        VariantSaleReadinessResolver saleReadiness,
+        BusinessExceptionDescriber describer)
     {
+        _saleReadiness = saleReadiness;
+        _describer = describer;
         _repository = repository;
         _productRepository = productRepository;
         _variantRepository = variantRepository;
@@ -426,11 +439,12 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
     {
         var entity = await GetOwnedAsync(id);
         var channel = await GetOwnedChannelAsync(entity.SalesChannelId);
+        var pushNotices = new List<string>();
 
         try
         {
             // Veri kurulumu da try İÇİNDE — geçici-link hataları dahil MarkSyncFailed'e düşsün (N11 ile aynı).
-            var data = await BuildProductDataAsync(entity);
+            var data = await BuildProductDataAsync(entity, warnings: null, notices: pushNotices);
             var result = await _client.SubmitProductAsync(data, CredentialsOf(channel));
             entity.MarkSubmitted(result.BatchRequestId, "ProductV2OnBoarding", Clock.Now.ToUniversalTime());
             await _repository.UpdateAsync(entity, autoSave: true);
@@ -438,12 +452,170 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
         catch (Exception ex)
         {
             // Hatayı kaydet (kullanıcı görsün) + yeniden fırlat (toast). Gizleme YOK — kayıt + propagate.
-            entity.MarkSyncFailed(ex.Message, Clock.Now.ToUniversalTime());
+            entity.MarkSyncFailed(_describer.Describe(ex), Clock.Now.ToUniversalTime());
             await _repository.UpdateAsync(entity, autoSave: true);
             throw;
         }
 
-        return ObjectMapper.Map<SalesChannelTrTrendyolProduct, SalesChannelTrTrendyolProductDto>(entity);
+        var dto = ObjectMapper.Map<SalesChannelTrTrendyolProduct, SalesChannelTrTrendyolProductDto>(entity);
+        dto.SyncWarnings = pushNotices;
+        return dto;
+    }
+
+    /// <summary>HAFİF fiyat/stok senkronu — ürün içeriğine dokunmadan yalnız adet/fiyat yazar (N11'deki eşi).
+    ///
+    /// <para><b>Neden var:</b> çapraz-kanal aşırı satış deliğinin kapanışı. N11'den gelen bir sipariş stoğu düşürür;
+    /// Trendyol bu yol olmadan bir sonraki TAM push'a kadar bayat adedi göstermeye devam eder.</para>
+    ///
+    /// <para><b>LastSent* BURADA GÜNCELLENMEZ.</b> Trendyol yazma uçları asenkron: <c>batchRequestId</c> döner,
+    /// gerçek yazım ancak batch COMPLETED olunca kesinleşir. Şimdi güncellenseydi bir sonraki tur "değişiklik yok"
+    /// der ve hiç yazılmamış fiyat/stok sessizce atlanırdı — dirty-tracking'in en sinsi tuzağı. Güncelleme
+    /// batch finalizasyonunun işidir (P5).</para>
+    ///
+    /// <para><b>HK-3 GEÇİŞ KİPİ (2026-08-08 kararı):</b> hiç doğrulanmış varyantı olmayan ürün senkron kapsamı
+    /// DIŞINDA kalır ve "doğrulama bekliyor" uyarısı döner — adet-0 ile topluca kapatılmaz. Bedeli bilinçlidir:
+    /// o ürünlerde bayat adet pazaryerinde kalır (bugünkü durumun aynısı). İlk varyant doğrulanır doğrulanmaz
+    /// ürün kendiliğinden tam simetriye girer. Gerekçe: Trendyol'a bugüne kadar hiç push yapılmadığı için
+    /// "otorite devri"nin koruyacağı bir şey yok, ama adet-0 canlı 103 listelemeyi bugün kapatırdı.</para></summary>
+    [Authorize(TradeXpressPermissions.SalesChannels.Update)]
+    public virtual async Task<SalesChannelTrTrendyolProductDto> SyncStockAndPriceAsync(Guid id)
+    {
+        var entity = await GetOwnedAsync(id);
+        var channel = await GetOwnedChannelAsync(entity.SalesChannelId);
+
+        // Ön koşul: en az bir SKU DONMUŞ olmalı. İçe aktarılmış kayıtlarda bu satırlar import'tan gelir
+        // (UpsertImportedSku) → canlıdaki 103 listeleme bu yoldan senkronlanabilir.
+        if (entity.Skus.Count == 0)
+        {
+            throw new BusinessException("TradeXpress:Trendyol:Product:NotPushedYet");
+        }
+
+        // ÇİFTE BATCH KORUMASI: önceki fiyat/stok batch'i hâlâ işleniyorsa yeni submit YAPILMAZ. Trendyol aynı
+        // gövdeyi 15 dk içinde mükerrer sayıp reddediyor; üstelik iki açık batch'in hangisinin kazandığı belirsiz.
+        // Tip AYRIMI YAPILMAZ (2026-08-08 düzeltmesi): entity kayıt başına TEK BatchRequestId yuvası taşıyor.
+        // Guard yalnız fiyat/stok batch'ini bekleseydi, devam eden bir CREATE batch'i üzerine senkron submit
+        // edilir ve create'in makbuzu KALICI olarak kaybolurdu — o push'un akıbeti bir daha sorgulanamazdı.
+        if (entity.Status == "PROCESSING")
+        {
+            throw new BusinessException("TradeXpress:Trendyol:Product:BatchInProgress")
+                .WithData("BatchType", entity.LastBatchRequestType ?? "-");
+        }
+
+        var syncWarnings = new List<string>();
+
+        try
+        {
+            var product = await GetOwnedProductAsync(entity.ProductId);
+            var rowSet = await BuildPushRowsAsync(entity, product, syncWarnings);
+            var rows = rowSet.Rows;
+
+            EnsurePushRowsPriced(rows);
+            EnsurePushRowsWithinPriceBand(entity, rows);
+
+            // HK-3 GEÇİŞ KİPİ: HİÇ aday satır yoksa ürün senkron kapsamı DIŞINDA kalır (adet-0 gönderilmez).
+            // Bu kontrol SKU döngüsünden ÖNCEDİR — aşağıdaki adet-0 dalının bu kararı ezmemesi için.
+            if (rows.Count == 0)
+            {
+                syncWarnings.Add(rowSet.PendingVerificationCount > 0
+                    ? L["TrendyolProduct:SyncSkippedPendingVerification"]
+                    : L["TrendyolProduct:NoSyncableSku"]);
+
+                return await SaveAndMapAsync(entity, syncWarnings);
+            }
+
+            var items = new List<TrendyolPriceInventoryItem>();
+            var anyDirty = false;
+            var closedSkuCount = 0;
+
+            foreach (var sku in entity.Skus)
+            {
+                var row = rows.FirstOrDefault(r => r.Variant.Id == sku.ProductVariantId);
+
+                if (row is null)
+                {
+                    // ÜRÜN KAPSAMDA AMA BU SKU DEĞİL → ADET 0 (2026-08-08 düzeltmesi).
+                    //
+                    // Bu satırı SESSİZCE ATLAMAK en sinsi aşırı satış deliğiydi: varyant kapıya takıldığı
+                    // (askıya alındı · doğrulaması bayatladı · yeni ve Draft) için aday olmuyor, ama Trendyol'da
+                    // SON GÖNDERİLEN adetle CANLI duruyor ve sipariş almaya devam ediyordu. Üstelik bir daha
+                    // ASLA tazelenmiyordu — her turda aynı `continue`. Sistem "bu varyant satılmamalı" kararını
+                    // kendisi verip pazaryerine hiç bildirmemiş oluyordu.
+                    //
+                    // Fiyat DOKUNULMAZ (null = "bu alana dokunma"): amaç satışı durdurmak, listelemeyi bozmak
+                    // değil — stok/doğrulama geri gelince normal dal gerçek adedi kendiliğinden yazar.
+                    // Bu, §6 ① kararının ("0 kurulabilir varyant → adet 0") SKU granülünde uygulanışıdır.
+                    anyDirty |= sku.LastSentQuantity != 0;
+                    closedSkuCount++;
+
+                    items.Add(new TrendyolPriceInventoryItem(
+                        Barcode: sku.Barcode, Quantity: 0, ListPrice: null, SalePrice: null));
+                    continue;
+                }
+
+                anyDirty |= sku.LastSentQuantity != row.Stock
+                    || sku.LastSentListPrice != row.ListPrice
+                    || sku.LastSentSalePrice != row.SalePrice;
+
+                items.Add(new TrendyolPriceInventoryItem(
+                    Barcode: sku.Barcode,
+                    Quantity: row.Stock,
+                    ListPrice: row.ListPrice,
+                    SalePrice: row.SalePrice));
+            }
+
+            if (items.Count == 0)
+            {
+                syncWarnings.Add(L["TrendyolProduct:NoSyncableSku"]);
+                return await SaveAndMapAsync(entity, syncWarnings);
+            }
+
+            // Kapatılan SKU'lar SESSİZ DEĞİLDİR — kullanıcı kaç varyantının satıştan çekildiğini görür.
+            if (closedSkuCount > 0)
+            {
+                syncWarnings.Add(L["TrendyolProduct:SkusZeroedNotSellable", closedSkuCount]);
+            }
+
+            if (!anyDirty)
+            {
+                // Değişiklik yok → Trendyol'a gereksiz yazma yapma (kotaya + 15 dk mükerrer kuralına saygı).
+                syncWarnings.Add(L["TrendyolProduct:NoChangesToSync"]);
+                return await SaveAndMapAsync(entity, syncWarnings);
+            }
+
+            var result = await _client.UpdatePriceAndInventoryAsync(items, CredentialsOf(channel));
+            entity.MarkSubmitted(result.BatchRequestId, PriceInventoryBatchType, Clock.Now.ToUniversalTime());
+            return await SaveAndMapAsync(entity, syncWarnings);
+        }
+        catch (Exception ex)
+        {
+            entity.MarkSyncFailed(_describer.Describe(ex), Clock.Now.ToUniversalTime());
+            await _repository.UpdateAsync(entity, autoSave: true);
+            throw;
+        }
+    }
+
+    /// <summary>Fiyat/stok batch'inin tip etiketi — <see cref="SalesChannelTrTrendyolProduct.LastBatchRequestType"/>'a
+    /// yazılır ve çifte-batch korumasında okunur. Tek yerde tanımlı: iki yazımın ayrışması korumayı sessizce
+    /// devre dışı bırakırdı.</summary>
+    private const string PriceInventoryBatchType = "PriceAndInventory";
+
+    private static void EnsurePushRowsPriced(List<TrendyolPushRow> rows)
+    {
+        var unpriced = rows.FirstOrDefault(r => r.ListPrice is null || r.SalePrice is null || r.Stock is null);
+        if (unpriced is not null)
+        {
+            throw new BusinessException("TradeXpress:Trendyol:Product:PriceMissingForPush")
+                .WithData("StockCode", unpriced.Variant.Code);
+        }
+    }
+
+    private async Task<SalesChannelTrTrendyolProductDto> SaveAndMapAsync(
+        SalesChannelTrTrendyolProduct entity, List<string> syncWarnings)
+    {
+        await _repository.UpdateAsync(entity, autoSave: true);
+        var dto = ObjectMapper.Map<SalesChannelTrTrendyolProduct, SalesChannelTrTrendyolProductDto>(entity);
+        dto.SyncWarnings = syncWarnings;
+        return dto;
     }
 
     [Authorize(TradeXpressPermissions.SalesChannels.Update)]
@@ -466,7 +638,7 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
         }
         catch (Exception ex)
         {
-            entity.MarkSyncFailed(ex.Message, Clock.Now.ToUniversalTime());
+            entity.MarkSyncFailed(_describer.Describe(ex), Clock.Now.ToUniversalTime());
             await _repository.UpdateAsync(entity, autoSave: true);
             throw;
         }
@@ -686,7 +858,118 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
         return ChannelInheritance.Resolve(channelProduct.VatRate, product.VatRate);
     }
 
-    private async Task<TrendyolProductData> BuildProductDataAsync(SalesChannelTrTrendyolProduct channelProduct, List<string>? warnings = null)
+    /// <summary>Trendyol push aday satırı — kimlik ERP varyantı; fiyat/stok zinciri ÇÖZÜLMÜŞ, indirim ve emniyet
+    /// payı UYGULANMIŞ hâlde taşınır. Çözülemeyen değer <c>null</c> kalır (fail-fast kararı çağıranındır).</summary>
+    private sealed record TrendyolPushRow(
+        EntityVariant Variant,
+        decimal? ListPrice,
+        decimal? SalePrice,
+        int? Stock,
+        Guid? PriceCurrencyUnitId);
+
+    /// <summary>Aday seti + kapıya takılan varyant SAYISI. Sayı taşınır çünkü "hiç aday yok" ile "hepsi doğrulama
+    /// bekliyor" AYRI durumlardır ve hafif senkron ikisine farklı davranır (HK-3 geçiş kipi).</summary>
+    private sealed record TrendyolPushRowSet(List<TrendyolPushRow> Rows, int PendingVerificationCount);
+
+    /// <summary>Push · önizleme · hafif senkron için ORTAK aday satır kaynağı (N11 <c>BuildPushRowsAsync</c> portu).
+    ///
+    /// <para><b>PUSH KAPISI</b> (§6): yalnız İNSAN tarafından doğrulanmış ve doğrulamadan sonra reçetesi değişmemiş
+    /// varyant aday olur. Kapı fiyatlamadan ÖNCEDİR — elle girilen <c>OverridePrice</c> bile kararsızlığı örtemez.
+    /// Trendyol tarafında bu kapı bugüne kadar HİÇ yoktu; N11'de vardı (asimetri kapatıldı).</para>
+    ///
+    /// <para><b>Emniyet payı</b> tam da bu tek çıkışta uygulanır — üç çağıran da aynı paylı adedi görsün diye
+    /// (N11 ile birebir gerekçe: aksi hâlde dirty-check her turda "değişti" der).</para></summary>
+    private async Task<TrendyolPushRowSet> BuildPushRowsAsync(
+        SalesChannelTrTrendyolProduct channelProduct, Product product, List<string>? warnings = null)
+    {
+        var activeVariants = await AsyncExecuter.ToListAsync(
+            (await _variantRepository.GetQueryableAsync())
+                .Where(v => v.EntityName == ProductEntityName && v.EntityId == product.Id && v.IsActive));
+
+        // Satış fiyatı/birimi ProductVariantDetail'de (agnostik EntityVariant'ın Product uzantısı).
+        var salePrices = await LoadVariantSalePricesAsync(activeVariants.Select(v => v.Id).ToList());
+        var priced = activeVariants
+            .Where(v => salePrices.GetValueOrDefault(v.Id).SalePrice is not null)
+            .ToList();
+
+        var sellable = await _saleReadiness.ResolveSellableAsync(priced.Select(v => v.Id).ToList());
+        var variants = priced
+            .Where(v => sellable.Contains(v.Id))
+            .OrderByDescending(v => v.IsMain)
+            .ToList();
+
+        if (variants.Count == 0)
+        {
+            // TEŞHİS DOĞRU SEBEBİ SÖYLER (2026-08-08 düzeltmesi): doğrulama kapısı yeni bir "aday yok" sebebi
+            // ekledi. Fiyatlı varyant VARDI ama hepsi kapıya takıldıysa "fiyatlı varyant yok" demek kullanıcıyı
+            // olmayan bir sorunu aramaya yollar — fiyatları kontrol eder, hepsi doğru görünür, tıkanır.
+            var code = priced.Count > 0
+                ? "TradeXpress:Trendyol:Product:NoVerifiedVariant"
+                : "TradeXpress:Trendyol:Product:NoPricedVariant";
+
+            if (warnings is null)
+            {
+                throw new BusinessException(code);
+            }
+
+            warnings.Add(L[code].Value);
+        }
+
+        // Zincir: OverridePrice ?? türetilmiş (reçete NetCost × marj) ?? ERP SalePrice; stok OverrideStock ?? ERP.
+        var pushPricing = await ResolveVariantPushPricingAsync(channelProduct, variants);
+
+        // ÜRÜN İNDİRİMİ (2026-08-07 Hakan kararı): Trendyol'da ayrı bir indirim ALANI yok — indirim ancak
+        // listPrice (üstü çizili) / salePrice (indirimli) ayrımıyla ifade edilir, hesabı BİZ yaparız. Tarih
+        // penceresi de burada gözetilir: N11'e tarihleri gönderip yorumu ona bırakıyoruz, burada bırakacak kimse
+        // yok → süresi dolmuş kampanya aksi hâlde Trendyol'da sonsuza kadar açık kalırdı. Gün date-only
+        // karşılaştırılır (kullanıcının günü) — UTC saat farkı kampanyayı bir gün kaydırmasın.
+        // BusinessClock.Today() — Clock.Now.Date DEĞİL. ABP saati UTC'ye normalize ediyor; UTC gününe bakmak
+        // kampanyayı kullanıcının gününe göre saatler önce açıp saatler geç kapatırdı (indirim penceresi
+        // date-only semantiktir, §6 zaman kuralı). Yorumun "kullanıcının günü" iddiası ancak bu çağrıyla doğru.
+        var today = BusinessClock.Today();
+
+        var rows = variants.Select(v =>
+        {
+            var pricing = pushPricing[v.Id];
+            decimal? salePrice = pricing.Price is { } listPrice
+                ? ProductDiscountCalculator.ResolveSalePrice(
+                    listPrice, product.DiscountType, product.DiscountValue,
+                    product.DiscountStartDate, product.DiscountEndDate, today)
+                : null;
+
+            return new TrendyolPushRow(
+                Variant: v,
+                ListPrice: pricing.Price,
+                SalePrice: salePrice,
+                Stock: ChannelPushGuard.ApplySafetyStock(pricing.Stock, channelProduct.SafetyStock),
+                PriceCurrencyUnitId: salePrices.GetValueOrDefault(v.Id).CurrencyUnitId);
+        }).ToList();
+
+        return new TrendyolPushRowSet(rows, priced.Count - variants.Count);
+    }
+
+    /// <summary>Push satırlarının fiyatı kanal-ürünün <c>[MinPrice, MaxPrice]</c> bandında mı — N11 ile birebir
+    /// kural (gövde <see cref="ChannelPushGuard"/>'da). İhlalde ÜRÜNÜN TÜM push'u düşer; kırpma YOK.
+    /// Bant kontrolü <b>satış</b> fiyatına uygulanır: müşterinin ödediği sayı odur.</summary>
+    private static void EnsurePushRowsWithinPriceBand(SalesChannelTrTrendyolProduct channelProduct, List<TrendyolPushRow> rows)
+    {
+        if (channelProduct.MinPrice is null && channelProduct.MaxPrice is null)
+        {
+            return;
+        }
+
+        foreach (var row in rows)
+        {
+            ChannelPushGuard.EnsureWithinPriceBand(
+                "Trendyol", row.Variant.Code, row.SalePrice, channelProduct.MinPrice, channelProduct.MaxPrice);
+        }
+    }
+
+    /// <param name="warnings">DOLU ise ÖNİZLEME kipi: eksik zorunlu alanlar fırlatmak yerine buraya yazılır.</param>
+    /// <param name="notices">Kipten BAĞIMSIZ bildirimler (gerçek push'ta da dolar). <paramref name="warnings"/>'ten
+    /// ayrı olması şart: onu doldurmak fail-fast'leri uyarıya çevirip push guard'larını devre dışı bırakırdı.</param>
+    private async Task<TrendyolProductData> BuildProductDataAsync(
+        SalesChannelTrTrendyolProduct channelProduct, List<string>? warnings = null, List<string>? notices = null)
     {
         var product = await GetOwnedProductAsync(channelProduct.ProductId);
 
@@ -719,28 +1002,30 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
             warnings.Add(L["TradeXpress:Trendyol:Product:ImagesRequired"].Value);
         }
 
-        // Aktif + fiyatlı varyantlar = Trendyol items (barcode başına). En az 1 zorunlu.
-        // Satış fiyatı/birimi ProductVariantDetail'de (agnostik EntityVariant Product uzantısı) → EntityVariantId ile batch yüklenir.
-        var activeVariants = await AsyncExecuter.ToListAsync(
-            (await _variantRepository.GetQueryableAsync())
-                .Where(v => v.EntityName == ProductEntityName && v.EntityId == product.Id && v.IsActive));
-        var salePrices = await LoadVariantSalePricesAsync(activeVariants.Select(v => v.Id).ToList());
-        var variants = activeVariants
-            .Where(v => salePrices.GetValueOrDefault(v.Id).SalePrice is not null)
-            .OrderByDescending(v => v.IsMain)
-            .ToList();
-        if (variants.Count == 0)
-        {
-            if (warnings is null)
-            {
-                throw new BusinessException("TradeXpress:Trendyol:Product:NoPricedVariant");
-            }
+        // Aday satırlar TEK KAYNAKTAN (push · önizleme · hafif senkron üçü de burayı görür). Kaynak ayrışsaydı
+        // hafif senkron ham ERP fiyatını gönderip tam push'un yazdığı kanal fiyatını EZER ve her turda "değişti"
+        // görünürdü — N11'de aynı gerekçeyle tek kaynağa çekilmişti.
+        var rowSet = await BuildPushRowsAsync(channelProduct, product, warnings);
+        var variants = rowSet.Rows.Select(r => r.Variant).ToList();
 
-            warnings.Add(L["TradeXpress:Trendyol:Product:NoPricedVariant"].Value);
+        // Fiyat bandı YALNIZ gerçek push'ta zorlanır (warnings null). Önizlemede fırlatmak, kullanıcıyı
+        // sorununu GÖREMEDEN kapıda bırakırdı — önizlemenin işi tam da o sayıyı göstermek.
+        if (warnings is null)
+        {
+            EnsurePushRowsWithinPriceBand(channelProduct, rowSet.Rows);
+        }
+
+        // KISMİ ELEME SESSİZ KALMAZ (2026-08-08 düzeltmesi): varyantların bir kısmı doğrulama kapısına
+        // takıldıysa push YİNE yapılır (kalanları engellemek meşru işi durdururdu) ama kullanıcı kaç varyantın
+        // dışarıda kaldığını GÖRÜR. Önceden bu sayı hesaplanıp atılıyordu: push "başarılı" görünüyor, elenen
+        // varyantın listelemesi Trendyol'da bayat adetle canlı kalıyordu.
+        if (rowSet.PendingVerificationCount > 0)
+        {
+            notices?.Add(L["TrendyolProduct:VariantsHeldBackPendingVerification", rowSet.PendingVerificationCount]);
         }
 
         // Trendyol yalnız TRY (V2 create'de currencyType yok) → tek para birimi zorunlu; TRY-dışı karışım fail-fast.
-        var currencyUnitIds = variants.Select(v => salePrices.GetValueOrDefault(v.Id).CurrencyUnitId).Where(x => x is not null).Distinct().ToList();
+        var currencyUnitIds = rowSet.Rows.Select(r => r.PriceCurrencyUnitId).Where(x => x is not null).Distinct().ToList();
         if (currencyUnitIds.Count > 1)
         {
             if (warnings is null)
@@ -751,11 +1036,6 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
             warnings.Add(L["TradeXpress:Trendyol:Product:MixedCurrency"].Value);
         }
 
-        // Kanal-özel fiyat/stok override + türetilmiş fiyat (kaydedilmiş marj + reçete → NetCost×marj) — CANLI hesap.
-        // Zincir: OverridePrice ?? türetilmiş ?? ERP SalePrice; stok: OverrideStock ?? ERP StockQuantity.
-        // NOT (push T8): Trendyol listPrice/salePrice ayrımı (C.4) henüz yok — ikisi de efektif fiyata eşitlenir (iskelet).
-        var pushPricing = await ResolveVariantPushPricingAsync(channelProduct, variants);
-
         // Barcode DONDURMA planı (mutasyonsuz — push başarısızsa DB'ye bayat barcode donmaz; kalıcılaştırma
         // yalnız başarılı batch sonrası ReconcileSkus ile). Varianter attribute imzası kategori-def bağımlı (T6/T8'de
         // dolar) → skeleton'da boş; barcode eşlemesi VariantId + dondurulmuş-kod aşamalarına dayanır.
@@ -764,16 +1044,13 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
             .ToList();
         var plannedBarcodes = channelProduct.PlanBarcodes(candidates);
 
-        var items = variants.Select(v =>
-        {
-            var pricing = pushPricing[v.Id];   // OverridePrice ?? türetilmiş ?? ERP SalePrice; stok OverrideStock ?? ERP
-            return new TrendyolProductItem(
-                Barcode: plannedBarcodes[v.Id],
-                StockCode: v.Code,
-                Quantity: pricing.Stock,
-                ListPrice: pricing.Price!.Value,
-                SalePrice: pricing.Price!.Value);
-        }).ToList();
+        // İndirim + emniyet payı satır kaynağında UYGULANDI (BuildPushRowsAsync) — burada yalnız taşınır.
+        var items = rowSet.Rows.Select(r => new TrendyolProductItem(
+            Barcode: plannedBarcodes[r.Variant.Id],
+            StockCode: r.Variant.Code,
+            Quantity: r.Stock ?? 0,
+            ListPrice: r.ListPrice!.Value,
+            SalePrice: r.SalePrice!.Value)).ToList();
 
         return new TrendyolProductData(
             ProductMainId: channelProduct.ProductMainId,
@@ -1759,6 +2036,8 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
         entity.SetDimensionalWeight(input.DimensionalWeight);
         entity.SetDescription(input.Description);
         entity.SetDeliveryOption(input.DeliveryDuration, input.FastDeliveryType);
+        entity.SetSafetyStock(input.SafetyStock);
+        entity.SetPriceBand(input.MinPrice, input.MaxPrice);
         entity.SetActive(input.IsActive);
         entity.SetAttributes(input.Attributes.Select(a => new SalesChannelTrTrendyolProductCategoryAttribute(a.AttributeId, a.AttributeValueId, a.CustomValue)));
     }

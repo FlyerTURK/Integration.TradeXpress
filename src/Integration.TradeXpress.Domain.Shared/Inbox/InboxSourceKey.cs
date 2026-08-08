@@ -21,6 +21,9 @@ public static class InboxSourceKey
     /// pano ondan yalnız özet sayar; teyit ekranı/entity'si panoya TAŞINMAZ.</summary>
     public const string Confirmations = "Confirmations";
 
+    /// <summary>Sipariş rezervasyonları — kurulamayan (Blocked) ve iptal kararı bekleyen kayıtlar.</summary>
+    public const string OrderReservations = "OrderReservations";
+
     /// <summary>Pazaryeri müşteri soruları (kanal-nötr ortak soru gelen kutusu).</summary>
     public const string ChannelQuestions = "ChannelQuestions";
 }

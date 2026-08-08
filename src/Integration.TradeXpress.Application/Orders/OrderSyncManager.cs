@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -11,6 +12,7 @@ using Integration.TradeXpress.SalesChannels;
 using Integration.TradeXpress.Trendyol;
 using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Volo.Abp.Data;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Domain.Services;
@@ -24,9 +26,16 @@ namespace Integration.TradeXpress.Orders;
 /// <summary>
 /// Sipariş SENKRONİZASYON çekirdeği — pazaryerinden STREAMING (sayfa-sayfa) çekip <b>order başına kaydeder</b> (fetch
 /// bitmeden fresh veri akar; kısmi başarı korunur). Auth YOK → hem <see cref="OrderAppService"/> (manuel düğme, current
-/// company) hem <see cref="OrderSyncBackgroundWorker"/> (tüm tenant/kanal, boş olanı seed'ler) buradan tüketir.
-/// SALT-OKUMA çekim → idempotent upsert ((SalesChannelId, RemoteOrderId)); fiş/rezervasyon/stok'a HİÇ dokunmaz.
+/// company) hem <see cref="OrderSyncBackgroundWorker"/> buradan tüketir.
 /// Worker bağlamında tenant kanaldan gelir (<see cref="CurrentTenant"/>.Change(channel.TenantId)).
+///
+/// <para><b>İKİ STRATEJİ:</b> <see cref="SyncEmptyChannelsAsync"/> (boş kanal → tarih filtresiz TAM geçmiş) ve
+/// <see cref="SyncActiveChannelsAsync"/> (dolu kanal → dar pencere + açık siparişlerin tazelenmesi). Ortak
+/// tenant/kimlik iskeleti <c>ForEachChannelAsync</c>'te; iki kol onu kopyalamaz.</para>
+///
+/// <para><b>⚠ Çekim SALT-OKUMA DEĞİLDİR</b> (eski doc öyle diyordu): upsert idempotenttir ama zincirin devamı
+/// ürün eşleştirmesini, REZERVASYONU (yani fiş + stok) ve iptal köprüsünü tetikler. Bu yüzden delta kolunun
+/// canlıda açılması bir config kararıdır, kod merge'i değil.</para>
 /// </summary>
 public class OrderSyncManager : DomainService
 {
@@ -49,9 +58,23 @@ public class OrderSyncManager : DomainService
     private readonly OrchestrationIdentityScope _identityScope;
     private readonly ICurrentPrincipalAccessor _currentPrincipalAccessor;
     private readonly IStringLocalizer<TradeXpressResource> _l;
+    private readonly OrderSyncOptions _syncOptions;
 
     /// <summary>Trendyol geriye-bakış: yalnız son ~1 ayı servis eder (retention) → daha geriye gitmek boşuna.</summary>
     private static readonly TimeSpan TrendyolFetchLookback = TimeSpan.FromDays(40);
+
+    /// <summary>Delta penceresinin ÖRTÜŞME payı — pencere başı = son çekim anı − bu süre.
+    /// <para>Upsert idempotent olduğu için örtüşme zararsızdır; payı KALDIRMAK ise tehlikelidir: pazaryerinin
+    /// saati bizden birkaç saat farklıysa ya da bir tur hata alırsa aradaki siparişler HİÇ görünmezdi.</para></summary>
+    private static readonly TimeSpan DeltaOverlap = TimeSpan.FromDays(2);
+
+    /// <summary>Delta turunda detayı tazelenecek AÇIK sipariş tavanı — throttle bütçesi korunur.
+    /// En eski <c>FetchedAt</c> önce gelir, yani sıra kimseyi aç bırakmaz (round-robin).</summary>
+    private const int MaxOpenOrderRefreshPerRound = 50;
+
+    /// <summary>Boş dönen kanalların soğuma saatleri. STATİK: manager transient/scoped çözülür, örnek-başı bir
+    /// sözlük her turda sıfırlanır ve soğuma HİÇ çalışmazdı — sessizce etkisiz bir emniyet olurdu.</summary>
+    private static readonly ConcurrentDictionary<Guid, DateTime> _emptyChannelCooldown = new();
 
     public OrderSyncManager(
         IRepository<Order, Guid> orderRepository,
@@ -70,7 +93,8 @@ public class OrderSyncManager : DomainService
         IUnitOfWorkManager uowManager,
         OrchestrationIdentityScope identityScope,
         ICurrentPrincipalAccessor currentPrincipalAccessor,
-        IStringLocalizer<TradeXpressResource> l)
+        IStringLocalizer<TradeXpressResource> l,
+        IOptions<OrderSyncOptions> syncOptions)
     {
         _orderRepository = orderRepository;
         _orderLineRepository = orderLineRepository;
@@ -89,6 +113,7 @@ public class OrderSyncManager : DomainService
         _identityScope = identityScope;
         _currentPrincipalAccessor = currentPrincipalAccessor;
         _l = l;
+        _syncOptions = syncOptions.Value;
     }
 
     // ── Worker girişi: TÜM tenant'ların BOŞ kanallarını seed'le (streaming) ────────────────────────────
@@ -97,6 +122,102 @@ public class OrderSyncManager : DomainService
     /// çeker (period doldurmadan). Tenant kanaldan gelir → her kanal kendi tenant scope'unda işlenir. Kanal başına
     /// bağımsız try/catch (biri düşse — kimlik/ağ/throttle — diğerleri çalışır, worker çökmez).</summary>
     public virtual async Task<OrderFetchResultDto> SyncEmptyChannelsAsync(CancellationToken cancellationToken = default)
+    {
+        return await ForEachChannelAsync(
+            "seed",
+            async (channels, report) =>
+            {
+                foreach (var channel in channels.N11)
+                {
+                    await SeedChannelIfEmptyAsync(channel.Id, channel.CompanyId,
+                        () => StreamN11ChannelAsync(channel, report, cancellationToken), "N11");
+                }
+
+                foreach (var channel in channels.Trendyol)
+                {
+                    await SeedChannelIfEmptyAsync(channel.Id, channel.CompanyId,
+                        () => StreamTrendyolChannelAsync(channel, report, cancellationToken), "Trendyol");
+                }
+
+                foreach (var channel in channels.Etsy)
+                {
+                    await SeedChannelIfEmptyAsync(channel.Id, channel.CompanyId,
+                        () => StreamEtsyChannelAsync(channel, report, cancellationToken), "Etsy");
+                }
+            },
+            cancellationToken);
+    }
+
+    /// <summary>DOLU kanalların DAR PENCERE (delta) çekimi — §6'nın "sipariş çekildiği ANDA rezerve edilir"
+    /// kararının kod karşılığı.
+    ///
+    /// <para><b>Neden seed'den ayrı bir strateji:</b> ilk kurulum tarih filtresi OLMADAN tüm geçmişi ister
+    /// (period gönderilse eski siparişler gizlenir — canlı doğrulandı). Dolu kanalı 2 dakikada bir aynı şekilde
+    /// taramak ise throttle bütçesini yakar ve her turda aynı siparişleri yeniden yazardı. İki kol tek metoda
+    /// sıkıştırılsaydı biri diğerinin varsayımını sessizce bozardı.</para>
+    ///
+    /// <para><b>Damga MIGRATION'SIZ:</b> pencere başı = kanalın <c>MAX(FetchedAt)</c> − 2 gün örtüşme payı.
+    /// Upsert idempotent olduğu için örtüşme zararsızdır; yeni kolon açmak yerine var olan veriden türetilir.</para>
+    ///
+    /// <para><b>⚠ Pencere TEK BAŞINA YETMEZ:</b> N11'in tarih filtresi sipariş TARİHİNE bakar, statü değişimine
+    /// değil — pencere dışında kalan eski bir siparişin İPTALİ listeye hiç düşmez. Bu yüzden N11 kolunda açık
+    /// siparişlerin detayı ayrıca tazelenir; iptal köprüsü de o tazelemeyle beslenir.</para></summary>
+    public virtual async Task<OrderFetchResultDto> SyncActiveChannelsAsync(CancellationToken cancellationToken = default)
+    {
+        return await ForEachChannelAsync(
+            "delta",
+            async (channels, report) =>
+            {
+                foreach (var channel in channels.N11)
+                {
+                    var since = await ResolveDeltaWindowStartAsync(channel.CompanyId, channel.Id);
+                    if (since is null)
+                    {
+                        continue;   // hiç siparişi yok → seed kolunun işi, delta karışmaz
+                    }
+
+                    await RunSafeAsync(
+                        () => StreamN11DeltaAsync(channel, since.Value, report, cancellationToken), channel.Id);
+                }
+
+                foreach (var channel in channels.Trendyol)
+                {
+                    var since = await ResolveDeltaWindowStartAsync(channel.CompanyId, channel.Id);
+                    if (since is null)
+                    {
+                        continue;
+                    }
+
+                    await RunSafeAsync(
+                        () => StreamTrendyolChannelAsync(channel, report, cancellationToken, since.Value), channel.Id);
+                }
+
+                // Etsy delta KAPSAM DIŞI (ilk dilim): canlıda 0 bağlı kanal var ve Etsy istemcisi bugün
+                // tamamen salt-okuma. Kapsama alınması ayrı bir iştir; burada sessizce "yapılmış gibi"
+                // görünmemesi için açıkça yazılmıştır.
+            },
+            cancellationToken);
+    }
+
+    /// <summary>Delta penceresinin başlangıcı: kanalın en son çekim anı − örtüşme payı.
+    /// <c>null</c> = kanalın hiç siparişi yok (seed kolunun işi).</summary>
+    private async Task<DateTime?> ResolveDeltaWindowStartAsync(Guid companyId, Guid channelId)
+    {
+        var lastFetched = await AsyncExecuter.MaxAsync(
+            (await _orderRepository.GetQueryableAsync())
+                .Where(o => o.CompanyId == companyId && o.SalesChannelId == channelId)
+                .Select(o => (DateTime?)o.FetchedAt));
+
+        return lastFetched is { } stamp ? stamp - DeltaOverlap : null;
+    }
+
+    /// <summary>Tenant/kimlik/şirket-filtresi iskeleti — seed ve delta kollarının ORTAK çerçevesi.
+    /// <para>İki kol bu iskeleti kopyalasaydı (impersonation · <c>Disable&lt;ICompanyScoped&gt;</c> · tenant
+    /// başına taze UoW) biri düzeltilip diğeri unutulurdu; bu dosyada zaten o sınıf hatanın izleri var.</para></summary>
+    private async Task<OrderFetchResultDto> ForEachChannelAsync(
+        string armName,
+        Func<ChannelSet, OrderFetchResultDto, Task> body,
+        CancellationToken cancellationToken)
     {
         var report = new OrderFetchResultDto();
 
@@ -130,41 +251,27 @@ public class OrderSyncManager : DomainService
                 if (principal is null)
                 {
                     Logger.LogWarning(
-                        "Sipariş seed: tenant {Tenant} için admin bulunamadı — kanal seed'i atlandı (medya okuma yetkisi kurulamaz).",
-                        tenantId);
+                        "Sipariş senkronu ({Arm}): tenant {Tenant} için admin bulunamadı — atlandı (medya okuma yetkisi kurulamaz).",
+                        armName, tenantId);
                     continue;
                 }
 
                 using (_currentPrincipalAccessor.Change(principal))
                 using (var uow = _uowManager.Begin(requiresNew: true))
                 {
-                    var n11Channels = await AsyncExecuter.ToListAsync(await _n11ChannelRepository.GetQueryableAsync());
-                    var trendyolChannels = await AsyncExecuter.ToListAsync(await _trendyolChannelRepository.GetQueryableAsync());
-                    var etsyChannels = await AsyncExecuter.ToListAsync(await _etsyChannelRepository.GetQueryableAsync());
+                    var channels = new ChannelSet(
+                        await AsyncExecuter.ToListAsync(await _n11ChannelRepository.GetQueryableAsync()),
+                        await AsyncExecuter.ToListAsync(await _trendyolChannelRepository.GetQueryableAsync()),
+                        await AsyncExecuter.ToListAsync(await _etsyChannelRepository.GetQueryableAsync()));
 
-                    if (n11Channels.Count > 0 || trendyolChannels.Count > 0 || etsyChannels.Count > 0)
+                    if (channels.Any)
                     {
-                        Logger.LogInformation("Sipariş seed: tenant {Tenant} → {N11} N11 + {Trendyol} Trendyol + {Etsy} Etsy kanal.",
-                            tenantId, n11Channels.Count, trendyolChannels.Count, etsyChannels.Count);
+                        Logger.LogInformation(
+                            "Sipariş senkronu ({Arm}): tenant {Tenant} → {N11} N11 + {Trendyol} Trendyol + {Etsy} Etsy kanal.",
+                            armName, tenantId, channels.N11.Count, channels.Trendyol.Count, channels.Etsy.Count);
                     }
 
-                    foreach (var channel in n11Channels)
-                    {
-                        await SeedChannelIfEmptyAsync(channel.Id, channel.CompanyId,
-                            () => StreamN11ChannelAsync(channel, report, cancellationToken), "N11");
-                    }
-
-                    foreach (var channel in trendyolChannels)
-                    {
-                        await SeedChannelIfEmptyAsync(channel.Id, channel.CompanyId,
-                            () => StreamTrendyolChannelAsync(channel, report, cancellationToken), "Trendyol");
-                    }
-
-                    foreach (var channel in etsyChannels)
-                    {
-                        await SeedChannelIfEmptyAsync(channel.Id, channel.CompanyId,
-                            () => StreamEtsyChannelAsync(channel, report, cancellationToken), "Etsy");
-                    }
+                    await body(channels, report);
 
                     await uow.CompleteAsync();
                 }
@@ -182,8 +289,25 @@ public class OrderSyncManager : DomainService
             return;
         }
 
+        // BOŞ-SONUÇ SOĞUMASI: gerçekten boş bir kanal (ör. hiç siparişi olmayan Trendyol) her turda 40 günlük
+        // TAM taramaya çıkıyor ve hiçbir şey bulamıyordu — 2 dakikada bir, sonsuza kadar. Throttle bütçesi
+        // buraya akıyordu. Sonucu boş kalan kanal bir süre yeniden denenmez.
+        if (_emptyChannelCooldown.TryGetValue(channelId, out var until) && Clock.Now.ToUniversalTime() < until)
+        {
+            return;
+        }
+
         Logger.LogInformation("Sipariş seed: {Kind} kanal {ChannelId} BOŞ → streaming başlıyor.", channelKind, channelId);
         await RunSafeAsync(stream, channelId);
+
+        // Tur sonunda HÂLÂ boşsa soğumaya alınır. Dolduysa kayıt düşer: bir daha bu yola hiç girmeyecek.
+        if (await ChannelHasOrdersAsync(companyId, channelId))
+        {
+            _emptyChannelCooldown.TryRemove(channelId, out _);
+            return;
+        }
+
+        _emptyChannelCooldown[channelId] = Clock.Now.ToUniversalTime() + _syncOptions.EmptyChannelCooldown;
     }
 
     // ── Manuel giriş (current company, tenant scope zaten var): kanalları çek (streaming) ───────────────
@@ -262,7 +386,9 @@ public class OrderSyncManager : DomainService
 
     // ── Kanal-özel streaming (parse istemcide) → order başına save ──────────────────────────────────────
 
-    private async Task StreamN11ChannelAsync(SalesChannelTrN11 channel, OrderFetchResultDto report, CancellationToken cancellationToken)
+    private async Task StreamN11ChannelAsync(
+        SalesChannelTrN11 channel, OrderFetchResultDto report, CancellationToken cancellationToken,
+        DateTime? sinceUtc = null)
     {
         var tryCurrencyUnitId = await ResolveTryCurrencyUnitIdAsync(report);
 
@@ -270,7 +396,8 @@ public class OrderSyncManager : DomainService
         int pageCount;
         do
         {
-            var result = await _n11OrderClient.GetOrdersPageAsync(channel.AppKey, channel.AppSecret, page, cancellationToken);
+            var result = await _n11OrderClient.GetOrdersPageAsync(
+                channel.AppKey, channel.AppSecret, page, sinceUtc, cancellationToken);
             pageCount = result.PageCount;
             Logger.LogInformation("Sipariş seed: N11 sayfa {Page} → {Count} sipariş (pageCount {PageCount}).", page, result.Orders.Count, pageCount);
             foreach (var remote in result.Orders)
@@ -288,12 +415,73 @@ public class OrderSyncManager : DomainService
         report.ChannelsProcessed++;
     }
 
-    private async Task StreamTrendyolChannelAsync(SalesChannelTrTrendyol channel, OrderFetchResultDto report, CancellationToken cancellationToken)
+    /// <summary>N11 DELTA turu: dar pencereli liste + AÇIK siparişlerin detay tazelemesi.
+    ///
+    /// <para><b>İki adım da şart.</b> Liste penceresi sipariş TARİHİNE göre filtreler; bir siparişin STATÜSÜ
+    /// pencere dışında değişirse (tipik örnek: iki hafta önceki siparişin bugün iptal edilmesi) o değişiklik
+    /// listeye HİÇ düşmez. Yalnız pencereye güvenen bir delta, iptalleri sessizce kaçırırdı — iptal köprüsü de
+    /// hiç tetiklenmezdi.</para></summary>
+    private async Task StreamN11DeltaAsync(
+        SalesChannelTrN11 channel, DateTime sinceUtc, OrderFetchResultDto report, CancellationToken cancellationToken)
+    {
+        await StreamN11ChannelAsync(channel, report, cancellationToken, sinceUtc);
+        await RefreshOpenN11OrdersAsync(channel, report, cancellationToken);
+    }
+
+    /// <summary>Yerelde AÇIK görünen N11 siparişlerinin detayını tazeler ve İPTAL TALEBİNİ yakalar.
+    ///
+    /// <para><b>Neden gerekli:</b> N11'in liste filtresi sipariş TARİHİNE bakar. İki hafta önce verilmiş bir
+    /// siparişin bugün iptal edilmesi dar pencereye HİÇ düşmez — yalnız listeye güvenen bir delta o iptali
+    /// sonsuza kadar kaçırırdı ve rezervasyon tutulmaya devam ederdi.</para>
+    ///
+    /// <para><b>Kaynak KALEM statüsüdür</b> (kod 51), başlık değil: <c>OrderDetailSnapshot</c> başlık statüsü
+    /// TAŞIMAZ ve onu eklemek şema değişikliği gerektirirdi. İptal sinyali zaten kalem seviyesinde tanımlı
+    /// olduğundan doğru kaynak burasıdır — başlık iptali de zaten liste kolundan gelir.</para>
+    ///
+    /// <para>Terminal siparişler DIŞARIDA: canlıdaki 106 tarihsel sipariş her turda boşuna N11'e gitmiş olurdu.
+    /// Tur başına tavan + en eski önce sıralaması throttle bütçesini korur.</para></summary>
+    private async Task RefreshOpenN11OrdersAsync(
+        SalesChannelTrN11 channel, OrderFetchResultDto report, CancellationToken cancellationToken)
+    {
+        var openOrders = await AsyncExecuter.ToListAsync(
+            (await _orderRepository.GetQueryableAsync())
+                .Where(o => o.CompanyId == channel.CompanyId
+                            && o.SalesChannelId == channel.Id
+                            && (o.NeutralStatus == OrderStatus.New
+                                || o.NeutralStatus == OrderStatus.Processing
+                                || o.NeutralStatus == OrderStatus.Shipped
+                                || o.NeutralStatus == OrderStatus.Unknown))
+                .OrderBy(o => o.FetchedAt)
+                .Take(MaxOpenOrderRefreshPerRound));
+
+        foreach (var order in openOrders)
+        {
+            var detail = await FetchN11DetailSafeAsync(channel, order.RemoteOrderId, cancellationToken);
+            if (detail is null)
+            {
+                continue;   // detay alınamadı → mevcut kayıt korunur (enrichment felsefesi)
+            }
+
+            order.SetDetail(detail);
+            await _orderRepository.UpdateAsync(order, autoSave: true);
+            report.RefreshedOrders++;
+
+            if (detail.Items.Any(i => N11OrderStatusCatalog.IsCancellationRequested(i.Status)))
+            {
+                await _reservationManager.NotifyCancellationRequestedAsync(order.Id);
+            }
+        }
+    }
+
+    private async Task StreamTrendyolChannelAsync(
+        SalesChannelTrTrendyol channel, OrderFetchResultDto report, CancellationToken cancellationToken,
+        DateTime? deltaSinceUtc = null)
     {
         var tryCurrencyUnitId = await ResolveTryCurrencyUnitIdAsync(report);
 
-        // Trendyol retention ~1 ay → tek pencere yeterli; client 14 günlük dilim + sayfa döngüsünü içeride yapar.
-        var sinceUtc = Clock.Now.ToUniversalTime() - TrendyolFetchLookback;
+        // Trendyol retention ~1 ay → seed'de tek 40 günlük pencere yeterli; client 14 günlük dilim + sayfa
+        // döngüsünü içeride yapar. DELTA turunda pencere dar tutulur (son çekim − örtüşme payı).
+        var sinceUtc = deltaSinceUtc ?? Clock.Now.ToUniversalTime() - TrendyolFetchLookback;
         report.FetchedSinceUtc = report.FetchedSinceUtc is { } prev && prev < sinceUtc ? prev : sinceUtc;
 
         var credentials = new TrendyolCredentials(channel.SellerId, channel.ApiKey, channel.ApiSecret);
@@ -389,6 +577,18 @@ public class OrderSyncManager : DomainService
         // worker 2 dakikada bir aynı siparişle döner, zaten rezerve olan siparişte hiçbir şey yapılmaz.
         // Eşleşmeyen/reçetesiz sipariş SESSİZ ATLANMAZ: rezervasyon Blocked gerekçesiyle kaydedilir.
         await _reservationManager.EnsureReservationAsync(companyId, order.Id);
+
+        // İPTAL KÖPRÜSÜ: kanaldan gelen iptal sinyali rezervasyonun KARAR eksenini uyandırır.
+        // Köprü olmadan `RequestCancellation`'ın hiç çağıranı yoktu → karar ekseni sonsuza kadar "yok"ta
+        // kalır, kullanıcı arayüzündeki Onayla/Reddet düğmeleri ölü veriye bağlanırdı.
+        // Kanal-agnostik: nötr Cancelled'a üç mapper de düşer. Kalem kodu 51 ("İptal Talep Edildi") N11'e özgü
+        // ek sinyaldir — sipariş başlığı hâlâ açıkken tek kalem iptal isteyebilir.
+        // STOK EKSENİNE DOKUNULMAZ (§6): maden tutulmaya devam eder; kararı kullanıcı verir.
+        if (neutralStatus == OrderStatus.Cancelled
+            || remote.Lines.Any(l => N11OrderStatusCatalog.IsCancellationRequested(l.RemoteLineStatus)))
+        {
+            await _reservationManager.NotifyCancellationRequestedAsync(order.Id);
+        }
 
         await uow.CompleteAsync();
     }
@@ -519,5 +719,18 @@ public class OrderSyncManager : DomainService
         }
 
         return null;
+    }
+}
+
+/// <summary>Bir tenant'ın kanalları — seed ve delta kollarının ORTAK girdisi (üç listeyi ayrı ayrı taşımak
+/// imza gürültüsü üretiyordu).</summary>
+internal sealed record ChannelSet(
+    List<SalesChannelTrN11> N11,
+    List<SalesChannelTrTrendyol> Trendyol,
+    List<SalesChannelEtsy> Etsy)
+{
+    public bool Any
+    {
+        get { return N11.Count > 0 || Trendyol.Count > 0 || Etsy.Count > 0; }
     }
 }

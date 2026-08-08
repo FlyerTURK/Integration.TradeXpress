@@ -360,6 +360,16 @@
                              MainVariantCodeDisplay="@Model.Code"
                              OnAttributesChanged="@(Model.VariantMode is ProductVariantMode.MultiVariant or ProductVariantMode.FromCatalog ? OnGenerateVariants : default)">
             <ExtraFields Context="v">
+                @* SATIŞ STATÜSÜ — SALT-OKUNUR. Push kapısı yalnız "Hazır" varyantı geçirir; statüyü form değil
+                   "Satışa Doğrula" aksiyonu değiştirir. Rozet olmasaydı kullanıcı ürünün neden pazaryerine
+                   çıkmadığını hiçbir ekranda göremezdi (canlıda 165/165 varyant Taslak'tı). *@
+                <DxFormLayoutItem Caption="@L["Product:SaleStatus"]" ColSpanMd="6" BeginRow="true">
+                    <span class="@SaleStatusCssClass(v.SaleStatus)">@L[$"Enum:ProductSaleStatus:{v.SaleStatus}"]</span>
+                    @if (v.VerifiedAt is { } verifiedAt)
+                    {
+                        <span class="ms-2 text-muted"><UtcLocalText Value="@verifiedAt" /></span>
+                    }
+                </DxFormLayoutItem>
                 @* Satılabilir veri (marketplace) — satış fiyatı + para birimi. N11/Trendyol listeleme push'u bunları kullanır;
                    fiyat null = fiyatlanmamış (temizle butonuyla boşaltılabilir). Stok/barkod/GTIN panel çekirdeğinde. *@
                 <DxFormLayoutItem Caption="@L["SalePrice"]" ColSpanMd="6" BeginRow="true">

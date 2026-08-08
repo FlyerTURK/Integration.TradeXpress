@@ -56,6 +56,10 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
                 s.OwnsMany(p => p.AttributeSnapshot);
             });
 
+            // Push emniyet alanları: fiyat bandı, override fiyatla AYNI precision (N11 tarafıyla birebir).
+            b.Property(x => x.MinPrice).HasPrecision(ProductRecipeConsts.AmountPrecision, ProductRecipeConsts.AmountScale);
+            b.Property(x => x.MaxPrice).HasPrecision(ProductRecipeConsts.AmountPrecision, ProductRecipeConsts.AmountScale);
+
             // Aynı kanalda AYNI ürün için birden fazla kayıt OLABİLİR (N11 ile aynı 2026-07-07 kararı) → normal index.
             b.HasIndex(x => new { x.SalesChannelId, x.ProductId });
             b.HasIndex(x => new { x.TenantId, x.CompanyId });

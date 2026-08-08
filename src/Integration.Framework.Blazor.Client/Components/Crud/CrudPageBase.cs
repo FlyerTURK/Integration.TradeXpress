@@ -170,20 +170,31 @@ public abstract class CrudPageBase<TGetDto, TListDto, TKey, TListRequestDto, TCr
         return Task.FromResult(true);
     }
 
+    /// <summary>Toolbar'ın Yeni/Düzenle/Sil görünürlüğünü kullanıcının izinlerinden kurar.
+    ///
+    /// <para><b>Politika adı verilmemişse serbesttir</b> (<c>PermissionPrefix</c> null olan sayfalar): izin
+    /// katmanı opt-in'dir, sessizce her şeyi kilitlemez.</para>
+    ///
+    /// <para><b>Tarihçe (2026-08-07):</b> burada <c>!OperatingSystem.IsBrowser()</c> koşullu bir baypas vardı ve
+    /// üç bayrağı da koşulsuz <c>true</c> yazıyordu. Gerekçesi "Blazor Server'da ABP principal accessor circuit'i
+    /// deadlock edebilir" idi — ama bu uygulama Blazor SERVER'dır, yani dal HER ZAMAN koşuyordu ve UI izin
+    /// katmanı fiilen ÖLÜYDÜ: yetkisi olmayan kullanıcı da tüm düğmeleri görüyordu. Deadlock gerekçesi aynı kod
+    /// tabanında yalanlanıyor: <c>LookupComboBox</c> yıllardır aynı <c>AuthorizationService.IsGrantedAsync</c>
+    /// çağrısını Server modda sorunsuz yapıyor.</para>
+    ///
+    /// <para><b>Bu bir güvenlik yaması DEĞİLDİR</b> — sunucu tarafı app service'ler <c>[Authorize]</c> ile
+    /// zaten korunuyordu (veri sızmıyordu). Düzeltilen şey dürüstlük: kullanıcı yetkisi olmayan düğmeye basıp
+    /// hata almasın, yapabileceği işi görsün.</para></summary>
     protected virtual async Task SetPermissionsAsync()
     {
-        // In Blazor Server mode ABP's principal accessor may deadlock the circuit's
-        // SynchronizationContext (blocking .GetResult() on GetAuthenticationStateAsync).
-        // Skip UI-level permission flags here — the server-side API still enforces them.
-        if (!OperatingSystem.IsBrowser())
-        {
-            StateService.IsGrantedCreate = StateService.IsGrantedUpdate = StateService.IsGrantedDelete = true;
-            return;
-        }
+        StateService.IsGrantedCreate = await IsGrantedAsync(CreatePolicyName);
+        StateService.IsGrantedUpdate = await IsGrantedAsync(UpdatePolicyName);
+        StateService.IsGrantedDelete = await IsGrantedAsync(DeletePolicyName);
+    }
 
-        StateService.IsGrantedCreate = string.IsNullOrEmpty(CreatePolicyName) || await AuthorizationService.IsGrantedAsync(CreatePolicyName);
-        StateService.IsGrantedUpdate = string.IsNullOrEmpty(UpdatePolicyName) || await AuthorizationService.IsGrantedAsync(UpdatePolicyName);
-        StateService.IsGrantedDelete = string.IsNullOrEmpty(DeletePolicyName) || await AuthorizationService.IsGrantedAsync(DeletePolicyName);
+    private async Task<bool> IsGrantedAsync(string? policyName)
+    {
+        return string.IsNullOrEmpty(policyName) || await AuthorizationService.IsGrantedAsync(policyName);
     }
 
     protected async Task ExecuteAsync(Func<Task> action)

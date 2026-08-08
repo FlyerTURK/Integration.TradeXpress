@@ -71,6 +71,7 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
     private readonly ProductRecipeLineWriter _recipeLineWriter;
     private readonly ProductCommodityProvisioner _commodityProvisioner;
     private readonly ProductToGoodProjector _productToGoodProjector;
+    private readonly ProductSaleVerifier _saleVerifier;
 
     /// <summary>Kanal-başı listeleme temizleyicileri — ürün silinirken kanal kayıtları da gitsin diye
     /// (<see cref="IProductChannelListingRemover"/>). <c>IEnumerable</c> ile enjekte edilir: dördüncü pazaryeri
@@ -104,6 +105,7 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         ProductRecipeLineWriter recipeLineWriter,
         ProductCommodityProvisioner commodityProvisioner,
         ProductToGoodProjector productToGoodProjector,
+        ProductSaleVerifier saleVerifier,
         IEnumerable<IProductChannelListingRemover> channelListingRemovers)
     {
         _channelListingRemovers = channelListingRemovers.ToList();
@@ -130,6 +132,7 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         _recipeLineWriter = recipeLineWriter;
         _commodityProvisioner = commodityProvisioner;
         _productToGoodProjector = productToGoodProjector;
+        _saleVerifier = saleVerifier;
     }
 
     public virtual async Task<PagedResultDto<ProductListDto>> GetListAsync(ProductListRequestDto input)
@@ -534,6 +537,15 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         ProductCommodityProvisionInputDto input)
     {
         return await _commodityProvisioner.ProvisionAsync(input);
+    }
+
+    /// <summary>Satışa doğrulama — iş <see cref="ProductSaleVerifier"/>'da; burada yalnız yetki kapısı.
+    /// <para>Update yetkisi ister: ürünün ve varyantlarının satış statüsünü değiştirir, yani ürünü
+    /// pazaryerine çıkarılabilir hâle getirir.</para></summary>
+    [Authorize(TradeXpressPermissions.Products.Update)]
+    public virtual async Task<ProductSaleVerifyResultDto> VerifySaleReadinessAsync(ProductSaleVerifyInputDto input)
+    {
+        return await _saleVerifier.VerifyAsync(input);
     }
 
     /// <summary>Ürünün mamül aynası — iş <see cref="ProductToGoodProjector"/>'da; burada yalnız yetki kapısı.</summary>
@@ -1048,6 +1060,10 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
             {
                 g.SalePrice = d.SalePrice;
                 g.SalePriceCurrencyUnitId = d.SalePriceCurrencyUnitId;
+
+                // SALT-OKUNUR projeksiyon (NetCost deseni): statüyü form DEĞİL doğrulama ucu değiştirir.
+                g.SaleStatus = d.SaleStatus;
+                g.VerifiedAt = d.VerifiedAt;
             }
 
             g.RecipeLines = MapRecipeLines(recipeLines.Where(r => r.ProductVariantId == v.Id));

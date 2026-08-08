@@ -79,6 +79,12 @@ public class MetalAppService
                         dto.EntryLaborUnitId = d.EntryLaborUnitId;
                         dto.ExitLabor = d.ExitLabor;
                         dto.ExitLaborUnitId = d.ExitLaborUnitId;
+
+                        // "Değiştirilebilir" bayrakları (2026-08-07 G2): DTO'da vardı ama HİÇ doldurulmuyordu →
+                        // cari işlem paneli işçiliği her madende salt-okunur gösteriyordu (ACIK-ISLER:53 #4).
+                        dto.LaborTypeChange = d.LaborTypeChange;
+                        dto.EntryLaborChange = d.EntryLaborChange;
+                        dto.ExitLaborChange = d.ExitLaborChange;
                     }
                     else
                     {
@@ -87,7 +93,7 @@ public class MetalAppService
                 }
             }
         }
-        
+
         return page;
     }
 
@@ -119,6 +125,9 @@ public class MetalAppService
                             dto.EntryLaborUnitId = d.EntryLaborUnitId;
                             dto.ExitLabor = d.ExitLabor;
                             dto.ExitLaborUnitId = d.ExitLaborUnitId;
+                            dto.LaborTypeChange = d.LaborTypeChange;      // G2 — picker yolu da bayrakları taşır
+                            dto.EntryLaborChange = d.EntryLaborChange;
+                            dto.ExitLaborChange = d.ExitLaborChange;
                         }
                         else
                         {
@@ -257,6 +266,13 @@ public class MetalAppService
                     v.EntryLaborUnitId = d.EntryLaborUnitId;
                     v.ExitLabor = d.ExitLabor;
                     v.ExitLaborUnitId = d.ExitLaborUnitId;
+
+                    // G2: graf okuma yolu bayrakları + varyant CostUnitId'sini taşımalı — aksi halde form
+                    // bunları false/null okur, Save aynısını geri yazar ve veri yine kaybolur (round-trip kırılır).
+                    v.LaborTypeChange = d.LaborTypeChange;
+                    v.EntryLaborChange = d.EntryLaborChange;
+                    v.ExitLaborChange = d.ExitLaborChange;
+                    v.CostUnitId = d.CostUnitId;
                 }
                 else
                 {
@@ -329,7 +345,13 @@ public class MetalAppService
             detail = new MetalVariantDetail(companyId, variantId);
         }
 
-        detail.SetLabor(dto.LaborType, false, dto.EntryLabor, dto.EntryLaborUnitId, false, dto.ExitLabor, dto.ExitLaborUnitId, false, null);
+        // 2026-08-07 G2: bayraklar ve varyant CostUnitId'si SABİT false/null yazılıyordu — kullanıcının ilk
+        // Save'i seed madenlerin (86/86) işçilik bayraklarını geri dönüşsüz siliyordu. Artık DTO'dan gelir.
+        detail.SetLabor(
+            dto.LaborType, dto.LaborTypeChange,
+            dto.EntryLabor, dto.EntryLaborUnitId, dto.EntryLaborChange,
+            dto.ExitLabor, dto.ExitLaborUnitId, dto.ExitLaborChange,
+            dto.CostUnitId);
 
         if (isNew)
         {
@@ -370,6 +392,12 @@ public class MetalAppService
                     v.EntryLaborUnitId = d.EntryLaborUnitId;
                     v.ExitLabor = d.ExitLabor;
                     v.ExitLaborUnitId = d.ExitLaborUnitId;
+
+                    // A4 (ACIK-ISLER:51): panel işçilik kilidini SEÇİLİ varyantın bayrağından okumalı — bunlar
+                    // taşınmadığı için hangi varyant seçilirse seçilsin ANA varyantın işçiliği tahsil ediliyordu.
+                    v.LaborTypeChange = d.LaborTypeChange;
+                    v.EntryLaborChange = d.EntryLaborChange;
+                    v.ExitLaborChange = d.ExitLaborChange;
                 }
                 else
                 {

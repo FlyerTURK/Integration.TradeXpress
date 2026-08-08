@@ -34,7 +34,13 @@
             <CellDisplayTemplate>@ChannelLabel((OrderListDto)context.DataItem)</CellDisplayTemplate>
         </DxGridDataColumn>
         <DxGridDataColumn FieldName="OrderNumber" Caption="@L["Order:OrderNumber"]" Width="160px" VisibleIndex="2" />
-        <DxGridDataColumn FieldName="OrderDate" Caption="@L["Order:Date"]" Width="150px" DisplayFormat="g" VisibleIndex="3" />
+        @* Sipariş tarihi bir ANDIR (pazaryerinden UTC gelir) → kullanıcının yerel saatine çevrilir.
+           Ham DisplayFormat sunucunun/veritabanının UTC'sini basıyordu: müşteri "23:40'ta sipariş verdim"
+           derken panoda 20:40 görünüyordu ve hiçbir yerde "UTC" yazmadığı için fark edilmiyordu.
+           SIRALAMA/FİLTRE bozulmaz — FieldName duruyor, yalnız hücrenin ÇİZİMİ değişti. *@
+        <DxGridDataColumn FieldName="OrderDate" Caption="@L["Order:Date"]" Width="150px" VisibleIndex="3">
+            <CellDisplayTemplate><UtcLocalText Value="@(((OrderListDto)context.DataItem).OrderDate)" /></CellDisplayTemplate>
+        </DxGridDataColumn>
         <DxGridDataColumn FieldName="CustomerName" Caption="@L["Order:Customer"]" MinWidth="180" VisibleIndex="4" />
         @* Ürün detayı — kalemler SATIR İÇİNDE (N11 satıcı panelindeki "Ürün Detayı" sütunu deseni). Sıralama/
            filtre/gruplama KAPALI: kalem alanları sunucunun izinli alan listesinde yok, açık bırakılsa kullanıcı

@@ -75,7 +75,7 @@ public class SalesChannelEtsyAppService : TradeXpressAppService, ISalesChannelEt
 
     public virtual async Task<SalesChannelEtsyGetDto> GetAsync(Guid id)
     {
-        var entity = await _repository.GetAsync(id);
+        var entity = await _repository.GetOwnedAsync(_currentCompany, id);
         return ToRedactedGetDto(entity);
     }
 
@@ -106,7 +106,7 @@ public class SalesChannelEtsyAppService : TradeXpressAppService, ISalesChannelEt
     [Authorize(TradeXpressPermissions.SalesChannels.Update)]
     public virtual async Task<SalesChannelEtsyGetDto> UpdateAsync(Guid id, SalesChannelEtsyUpdateDto input)
     {
-        var entity = await _repository.GetAsync(id);
+        var entity = await _repository.GetOwnedAsync(_currentCompany, id);
 
         await ApplyCodeChangeAsync(entity, input.Code);
         entity.SetName(input.Name);
@@ -122,7 +122,7 @@ public class SalesChannelEtsyAppService : TradeXpressAppService, ISalesChannelEt
     [Authorize(TradeXpressPermissions.SalesChannels.Delete)]
     public virtual async Task DeleteAsync(Guid id)
     {
-        var entity = await _repository.GetAsync(id);
+        var entity = await _repository.GetOwnedAsync(_currentCompany, id);
         await _repository.DeleteAsync(entity, autoSave: true);
     }
 
@@ -131,7 +131,7 @@ public class SalesChannelEtsyAppService : TradeXpressAppService, ISalesChannelEt
     [Authorize(TradeXpressPermissions.SalesChannels.Update)]
     public virtual async Task<string> StartOAuthAsync(Guid id)
     {
-        var entity = await _repository.GetAsync(id);
+        var entity = await _repository.GetOwnedAsync(_currentCompany, id);
         return await _oauthService.StartAsync(entity);
     }
 

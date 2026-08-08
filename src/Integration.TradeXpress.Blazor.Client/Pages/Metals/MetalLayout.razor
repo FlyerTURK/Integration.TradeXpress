@@ -62,28 +62,48 @@
         <EntityVariantsPanel TVariant="MetalVariantGraphDto" Variants="@Model.Variants" Attributes="@Model.Attributes"
                              ShowStockQuantity="false" ShowImages="true" OnAttributesChanged="@OnGenerateVariants">
             <ExtraFields Context="v">
-                <DxFormLayoutItem Caption="@L["LaborType"]" ColSpanMd="12" BeginRow="true">
+                @* "…Durumu" switch'leri = işçiliğin FİŞTE düzenlenebilir olup olmadığı. Alanlar entity'de ve seed'de
+                   vardı ama forma hiç bağlanmamıştı → app service sabit false yazıyordu ve ilk Save seed bayraklarını
+                   siliyordu (2026-08-07 G2). @bind-Checked kullanılır → [validation-expr] tuzağına girmez. *@
+                <DxFormLayoutItem Caption="@L["LaborType"]" ColSpanMd="6" BeginRow="true">
                     <DxComboBox TData="LaborTypeItem" TValue="MetalLaborType" Data="@_laborTypes"
                                 @bind-Value="@v.LaborType"
                                 ValueFieldName="@nameof(LaborTypeItem.Value)" TextFieldName="@nameof(LaborTypeItem.Label)" CssClass="w-100" />
                 </DxFormLayoutItem>
-                <DxFormLayoutItem Caption="@L["EntryLabor"]" ColSpanMd="6" BeginRow="true">
+                <DxFormLayoutItem Caption="@L["LaborTypeChange"]" ColSpanMd="6">
+                    <DxCheckBox @bind-Checked="@v.LaborTypeChange" CheckType="CheckType.Switch" />
+                </DxFormLayoutItem>
+                <DxFormLayoutItem Caption="@L["EntryLabor"]" ColSpanMd="4" BeginRow="true">
                     <DxSpinEdit @bind-Value="@v.EntryLabor" DisplayFormat="N5" ShowSpinButtons="false" CssClass="w-100" />
                 </DxFormLayoutItem>
-                <DxFormLayoutItem Caption="@L["CurrencyUnit"]" ColSpanMd="6">
+                <DxFormLayoutItem Caption="@L["CurrencyUnit"]" ColSpanMd="4">
                     <LookupComboBox TItem="CurrencyUnitListDto" TValue="Guid?" Data="@CurrencyUnits"
                                     ValueFieldName="@nameof(CurrencyUnitListDto.Id)" TextFieldName="@nameof(CurrencyUnitListDto.Code)"
                                     @bind-Value="@v.EntryLaborUnitId" NullText="@L["Select"].Value"
                                     CreatePolicy="@TradeXpressPermissions.CurrencyUnits.Create"
                                     UpdatePolicy="@TradeXpressPermissions.CurrencyUnits.Update" />
                 </DxFormLayoutItem>
-                <DxFormLayoutItem Caption="@L["ExitLabor"]" ColSpanMd="6" BeginRow="true">
+                <DxFormLayoutItem Caption="@L["EntryLaborChange"]" ColSpanMd="4">
+                    <DxCheckBox @bind-Checked="@v.EntryLaborChange" CheckType="CheckType.Switch" />
+                </DxFormLayoutItem>
+                <DxFormLayoutItem Caption="@L["ExitLabor"]" ColSpanMd="4" BeginRow="true">
                     <DxSpinEdit @bind-Value="@v.ExitLabor" DisplayFormat="N5" ShowSpinButtons="false" CssClass="w-100" />
                 </DxFormLayoutItem>
-                <DxFormLayoutItem Caption="@L["CurrencyUnit"]" ColSpanMd="6">
+                <DxFormLayoutItem Caption="@L["CurrencyUnit"]" ColSpanMd="4">
                     <LookupComboBox TItem="CurrencyUnitListDto" TValue="Guid?" Data="@CurrencyUnits"
                                     ValueFieldName="@nameof(CurrencyUnitListDto.Id)" TextFieldName="@nameof(CurrencyUnitListDto.Code)"
                                     @bind-Value="@v.ExitLaborUnitId" NullText="@L["Select"].Value"
+                                    CreatePolicy="@TradeXpressPermissions.CurrencyUnits.Create"
+                                    UpdatePolicy="@TradeXpressPermissions.CurrencyUnits.Update" />
+                </DxFormLayoutItem>
+                <DxFormLayoutItem Caption="@L["ExitLaborChange"]" ColSpanMd="4">
+                    <DxCheckBox @bind-Checked="@v.ExitLaborChange" CheckType="CheckType.Switch" />
+                </DxFormLayoutItem>
+                @* VARYANT maliyet birimi — Metal.CostUnitId (kayıt seviyesi) ile AYRI alandır. *@
+                <DxFormLayoutItem Caption="@L["VariantCostUnit"]" ColSpanMd="4" BeginRow="true">
+                    <LookupComboBox TItem="CurrencyUnitListDto" TValue="Guid?" Data="@CurrencyUnits"
+                                    ValueFieldName="@nameof(CurrencyUnitListDto.Id)" TextFieldName="@nameof(CurrencyUnitListDto.Code)"
+                                    @bind-Value="@v.CostUnitId" NullText="@L["Select"].Value"
                                     CreatePolicy="@TradeXpressPermissions.CurrencyUnits.Create"
                                     UpdatePolicy="@TradeXpressPermissions.CurrencyUnits.Update" />
                 </DxFormLayoutItem>

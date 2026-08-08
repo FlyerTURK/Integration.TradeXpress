@@ -36,6 +36,12 @@ public class TradeXpressApplicationModule : AbpModule
         // Sahte sunucu bu tabanı kendine çevirerek çalışır; gerçek/mock geçişi TEK config değeridir.
         context.Services.Configure<N11EndpointOptions>(
             configuration.GetSection(N11EndpointOptions.SectionName));
+
+        // Sipariş senkronu — DELTA kolu VARSAYILAN KAPALI. Bölüm hiç yoksa da kapalıdır (bool default false):
+        // canlı pazaryerine 2 dakikada bir çıkan bir worker, config'in unutulmasıyla değil ancak açık bir
+        // kararla başlamalıdır.
+        context.Services.Configure<Orders.OrderSyncOptions>(
+            configuration.GetSection(Orders.OrderSyncOptions.SectionName));
         // NOT: eski HaremBridge HttpClient kaydı kaldırıldı — feed artık in-process Playwright
         // (HaremPlaywrightFeedWorker); HTTP köprü yolu ölü koddu (keşif turu 2, O5).
     }

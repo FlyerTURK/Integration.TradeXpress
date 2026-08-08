@@ -20,11 +20,33 @@ public partial class ServiceEditHost
 
     [Parameter] public bool SupportsDelete { get; set; } = true;
 
+    /// <summary>Sınıflandırma panelinden ÖN-DOLDURMA (2026-08-07 U1 — gerekçe MetalEditHost'ta). Tohum yazımı
+    /// razor'daki <c>ApplyNewDefaults</c> lambda'sında.</summary>
+    [Parameter] public string? SeedCode { get; set; }
+
+    [Parameter] public string? SeedName { get; set; }
+
     private ICommitCoordinator<ServiceGetDto, ServiceListDto, Guid, ServiceListRequestDto>? _coordinator;
 
     protected override void OnInitialized()
     {
         _coordinator = new PersistentCoordinator<ServiceGetDto, ServiceListDto, Guid, ServiceListRequestDto, ServiceCreateDto, ServiceUpdateDto>(
             ServiceAppService, Mapper);
+    }
+
+    private void ApplyNewDefaults(ServiceGetDto m)
+    {
+        m.IsActive = true;
+
+        // Panel tohumu (U1 — gerekçe MetalEditHost'ta).
+        if (!string.IsNullOrWhiteSpace(SeedCode))
+        {
+            m.Code = SeedCode!;
+        }
+
+        if (!string.IsNullOrWhiteSpace(SeedName))
+        {
+            m.Name = SeedName!;
+        }
     }
 }

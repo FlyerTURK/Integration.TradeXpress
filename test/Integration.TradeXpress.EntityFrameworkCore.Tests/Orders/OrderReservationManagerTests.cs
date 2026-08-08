@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Integration.TradeXpress.EntityFrameworkCore;
 using Integration.TradeXpress.Metals;
@@ -9,9 +10,14 @@ using Integration.TradeXpress.Reports;
 using Integration.TradeXpress.SalesChannels;
 using Integration.TradeXpress.Variants;
 using Integration.TradeXpress.Vouchers;
+using Microsoft.Extensions.Logging;
+using NSubstitute;
 using Shouldly;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Guids;
+using Volo.Abp.Linq;
+using Volo.Abp.Timing;
+using Volo.Abp.Uow;
 using Xunit;
 
 namespace Integration.TradeXpress.Orders;
@@ -177,7 +183,152 @@ public class OrderReservationManagerTests : TradeXpressEntityFrameworkCoreTestBa
         (await StockAsync(scenario)).ReservedOutAmount.ShouldBe(0m);
     }
 
+    /// <summary>YARIM İŞLEM: fiş yazıldıktan SONRA bağ kaydı patlarsa geriye SAHİPSİZ fiş kalmamalı.
+    ///
+    /// <para>Fiş <c>autoSave:true</c> ile ANINDA commit ediliyordu; sonraki adım (bağ insert'i / MarkReserved)
+    /// patlayınca catch yalnız <c>Blocked</c> yazıyor, fişe DOKUNMUYORDU. Sonuç: rezervasyon "kurulamadı"
+    /// görünürken <c>ReservedOut</c> kalıcı olarak şişiyor — üstelik bir sonraki tur (rezervasyon Blocked
+    /// olduğu için yeniden denenir) İKİNCİ bir fiş daha açıyor. Stok sessizce erir, sebebi hiçbir yerde
+    /// görünmez.</para>
+    ///
+    /// <para>Sabotaj gerçekçi: yalnız bağ deposunun insert'i fırlatır, geri kalan her şey GERÇEK servistir.</para></summary>
+    [Fact]
+    public async Task Failure_after_voucher_write_leaves_no_orphan_voucher_and_retry_reserves_once()
+    {
+        var scenario = await SeedAsync("ORT", recipeGramsPerUnit: 10m, orderedQuantity: 1m);
+
+        var blocked = await WithUnitOfWorkAsync(
+            () => BuildManagerWithFailingLinkRepository().EnsureReservationAsync(scenario.CompanyId, scenario.OrderId));
+
+        blocked.Status.ShouldBe(OrderReservationStatus.Blocked);
+        blocked.VoucherId.ShouldBeNull();
+
+        // Yarım işlem İZ BIRAKMAZ: fiş geri sarıldı, kullanılabilir stok bozulmadı.
+        var afterFailure = await StockAsync(scenario);
+        afterFailure.ReservedOutAmount.ShouldBe(0m);
+        afterFailure.AvailableAmount.ShouldBe(50m);
+
+        // Sonraki tur normal manager ile kurulur — TEK sayım (sahipsiz fiş dursaydı 20 çıkardı).
+        var reserved = await WithUnitOfWorkAsync(
+            () => _manager.EnsureReservationAsync(scenario.CompanyId, scenario.OrderId));
+
+        reserved.Status.ShouldBe(OrderReservationStatus.Reserved);
+        reserved.VoucherId.ShouldNotBeNull();
+
+        var afterRetry = await StockAsync(scenario);
+        afterRetry.ReservedOutAmount.ShouldBe(10m);      // ⚠ 20 DEĞİL
+        afterRetry.AvailableAmount.ShouldBe(40m);
+
+        var links = await WithUnitOfWorkAsync(() => _links.GetListAsync(l => l.OrderId == scenario.OrderId));
+        links.Count.ShouldBe(1);
+    }
+
+    // ── Terminal statü kapısı ────────────────────────────────────────────────────────────────────────
+
+    /// <summary>TESLİM EDİLMİŞ sipariş rezervasyon KURMAZ — eşleşmesi ve reçetesi kusursuz olsa bile.
+    ///
+    /// <para>Kurulum sipariş durumunu hiç okumuyordu. Canlıda 2017-2018'e ait 106 teslim edilmiş sipariş var;
+    /// ürün eşleşmeleri sihirbazla kuruldukça bunların HER BİRİ kendiliğinden rezervasyon fişi üretecekti —
+    /// yıllar önce müşteriye teslim edilmiş mal bugün stoktan ayrılırdı ve sebebi hiçbir ekranda görünmezdi.</para></summary>
+    [Fact]
+    public async Task Delivered_order_does_not_create_a_reservation()
+    {
+        var scenario = await SeedAsync("ORD", recipeGramsPerUnit: 10m, orderedQuantity: 1m,
+            status: OrderStatus.Delivered);
+
+        var reservation = await WithUnitOfWorkAsync(
+            () => _manager.EnsureReservationAsync(scenario.CompanyId, scenario.OrderId));
+
+        reservation.ShouldBeNull();
+
+        var rows = await WithUnitOfWorkAsync(() => _reservations.GetListAsync(r => r.OrderId == scenario.OrderId));
+        rows.ShouldBeEmpty();
+
+        var stock = await StockAsync(scenario);
+        stock.ReservedOutAmount.ShouldBe(0m);
+        stock.AvailableAmount.ShouldBe(50m);
+    }
+
+    /// <summary>İPTAL edilmiş + eşleşmesi OLMAYAN sipariş <c>Blocked</c> kaydı da DOĞURMAZ.
+    /// <para>Terminal kapısı Blocked'tan ÖNCE gelir: 106 tarihsel siparişin her biri gelen kutusuna "eşleşmedi"
+    /// diye düşseydi, gerçek işi görünmez kılan bir gürültü yığını oluşurdu. Ortada kurulmuş bir taahhüt
+    /// yokken "bloklandı" demek de yanlış olurdu.</para></summary>
+    [Fact]
+    public async Task Cancelled_order_does_not_create_a_blocked_record()
+    {
+        var scenario = await SeedAsync("ORC", recipeGramsPerUnit: 10m, orderedQuantity: 1m,
+            matchLine: false, status: OrderStatus.Cancelled);
+
+        var reservation = await WithUnitOfWorkAsync(
+            () => _manager.EnsureReservationAsync(scenario.CompanyId, scenario.OrderId));
+
+        reservation.ShouldBeNull();
+        (await WithUnitOfWorkAsync(() => _reservations.GetListAsync(r => r.OrderId == scenario.OrderId)))
+            .ShouldBeEmpty();
+    }
+
+    /// <summary>Zaten REZERVE edilmiş sipariş sonradan terminale geçerse kayda DOKUNULMAZ.
+    /// <para>Kapı yalnız KURULUMU keser. Rezerveyi fiziki çıkışa çevirmek ya da serbest bırakmak state
+    /// machine'in / kullanıcının işidir; burada sessizce silmek denetim izini yok eder ve stoğu kimsenin
+    /// karar vermediği bir anda geri verirdi.</para></summary>
+    [Fact]
+    public async Task Reserved_order_turning_terminal_is_left_untouched()
+    {
+        var scenario = await SeedAsync("ORU", recipeGramsPerUnit: 10m, orderedQuantity: 1m);
+
+        var first = await WithUnitOfWorkAsync(
+            () => _manager.EnsureReservationAsync(scenario.CompanyId, scenario.OrderId));
+        first!.Status.ShouldBe(OrderReservationStatus.Reserved);
+
+        // Sipariş teslim edildi.
+        await WithUnitOfWorkAsync(async () =>
+        {
+            var order = await _orders.GetAsync(scenario.OrderId);
+            order.ApplyRemote(
+                order.OrderNumber, order.OrderDate, OrderStatus.Delivered, null, null,
+                order.TotalAmount, null, null, null, DateTime.UtcNow);
+            await _orders.UpdateAsync(order, autoSave: true);
+        });
+
+        var again = await WithUnitOfWorkAsync(
+            () => _manager.EnsureReservationAsync(scenario.CompanyId, scenario.OrderId));
+
+        again!.Status.ShouldBe(OrderReservationStatus.Reserved);
+        again.VoucherId.ShouldBe(first.VoucherId);
+        (await StockAsync(scenario)).ReservedOutAmount.ShouldBe(10m);
+    }
+
     // ── fixture ──────────────────────────────────────────────────────────────────────────────────────
+
+    /// <summary>Gerçek manager — YALNIZ bağ deposu insert'te fırlatan bir vekille değiştirilmiş. DI'dan
+    /// alınamaz (tek bir bağımlılığı değiştiriyoruz), bu yüzden elle kurulur.</summary>
+    private OrderReservationManager BuildManagerWithFailingLinkRepository()
+    {
+        var failingLinks = Substitute.For<IRepository<OrderFulfillmentLink, Guid>>();
+        failingLinks
+            .InsertAsync(Arg.Any<OrderFulfillmentLink>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
+            .Returns<Task<OrderFulfillmentLink>>(_ =>
+                throw new InvalidOperationException("Bağ kaydı yazılamadı (test sabotajı)."));
+
+        return new OrderReservationManager(
+            _orders,
+            _orderLines,
+            _operationalLines,
+            _reservations,
+            failingLinks,
+            _recipeLines,
+            _metals,
+            GetRequiredService<IRepository<Goods.Good, Guid>>(),
+            GetRequiredService<IRepository<SalesChannelBase, Guid>>(),
+            GetRequiredService<IRepository<Voucher, Guid>>(),
+            GetRequiredService<OrderReservationVoucherMaterializer>(),
+            GetRequiredService<IAsyncQueryableExecuter>(),
+            GetRequiredService<IUnitOfWorkManager>(),
+            GetRequiredService<Orchestration.CommodityStockChangeQueuer>(),
+            GetRequiredService<IClock>(),
+            GetRequiredService<Microsoft.Extensions.Localization.IStringLocalizer<Localization.TradeXpressResource>>(),
+            GetRequiredService<ILogger<OrderReservationManager>>());
+    }
 
     private async Task<MetalStockRowDto> StockAsync(ReservationScenario scenario)
     {
@@ -187,7 +338,8 @@ public class OrderReservationManagerTests : TradeXpressEntityFrameworkCoreTestBa
 
     /// <summary>Senaryo: 50 gr stoklu bir maden + o madeni tüketen reçeteli ürün + eşleşmiş sipariş kalemi.</summary>
     private async Task<ReservationScenario> SeedAsync(
-        string prefix, decimal recipeGramsPerUnit, decimal orderedQuantity, bool matchLine = true)
+        string prefix, decimal recipeGramsPerUnit, decimal orderedQuantity, bool matchLine = true,
+        OrderStatus status = OrderStatus.New)
     {
         var data = await WithUnitOfWorkAsync(() => _seeder.SeedCompanyGraphAsync(prefix));
         _companyContext.CompanyId = data.CompanyId;
@@ -246,6 +398,10 @@ public class OrderReservationManagerTests : TradeXpressEntityFrameworkCoreTestBa
 
             var order = new Order(
                 data.CompanyId, channel.Id, SalesChannelType.TrN11, $"{prefix}-REMOTE", $"{prefix}-001");
+            order.ApplyRemote(
+                $"{prefix}-001", DateTime.UtcNow, status, remoteStatus: null, customerName: null,
+                totalAmount: 100m * orderedQuantity, currencyUnitId: null, cargoProvider: null,
+                cargoTrackingNumber: null, fetchedAt: DateTime.UtcNow);
             await _orders.InsertAsync(order, autoSave: true);
 
             var line = new OrderLine(data.CompanyId, order.Id, new OrderLineSnapshot(

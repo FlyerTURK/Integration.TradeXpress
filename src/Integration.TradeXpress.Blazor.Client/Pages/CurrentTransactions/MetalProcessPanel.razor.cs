@@ -247,6 +247,14 @@ public partial class MetalProcessPanel
 
     private void OnMetalChanged(Guid? id)
     {
+        // ⚠ SIRA: bu senkron metot LoadVariantOptionsAsync'ten ÖNCE koşar. Varyant seçimi/listesi burada
+        // temizlenmezse aşağıdaki ApplyDirectionLabor ÖNCEKİ madenin varyant işçiliğini uygulardı (A4
+        // düzeltmesinin yan etkisi). Temizlik sonrası kaynak madenin kendi (ana varyant) değerleridir;
+        // çok varyantlı madende LoadVariantOptionsAsync ana varyantı seçip işçiliği yeniden uygular.
+        _variantOptions = new();
+        Model.VariantId = null;
+        Model.VariantCode = null;
+
         var m = id.HasValue ? _allMetals.FirstOrDefault(x => x.Id == id.Value) : null;
         Model.CommodityId   = id;
         Model.CommodityCode = m?.Code ?? string.Empty;
@@ -291,6 +299,15 @@ public partial class MetalProcessPanel
                 var main = _variantOptions.FirstOrDefault(v => v.IsMain) ?? _variantOptions[0];
                 Model.VariantId = main.Id;
                 Model.VariantCode = main.Code;
+
+                // A4: varsayılan varyant SEÇİLDİĞİ için işçilik onun bayrak/değerleriyle tazelenir —
+                // OnVariantChanged ile TEK kaynak (kullanıcı seçse de otomatik seçilse de aynı yol).
+                var metal = _allMetals.FirstOrDefault(x => x.Id == id);
+                if (metal is { })
+                {
+                    ApplyDirectionLabor(metal);
+                    Recalc(EditedField.Commodity);
+                }
             }
         }
     }
@@ -300,6 +317,15 @@ public partial class MetalProcessPanel
         var v = id.HasValue ? _variantOptions.FirstOrDefault(x => x.Id == id.Value) : null;
         Model.VariantId = v?.Id;
         Model.VariantCode = v?.Code;
+
+        // A4 (§1-1): işçilik kaynağı SEÇİLİ varyanttır — kilit ve default onunla tazelenir (Good ApplyVariant
+        // deseni). Maden FİYATI değişmez; değişen yalnız işçilik bacağıdır.
+        var metal = _allMetals.FirstOrDefault(x => x.Id == Model.CommodityId);
+        if (metal is { })
+        {
+            ApplyDirectionLabor(metal);
+            Recalc(EditedField.Commodity);
+        }
         // Maden fiyatÄ± milyem/iÅŸÃ§ilik â€” varyant seÃ§imi fiyatÄ± DEÄÄ°ÅTÄ°RMEZ (yalnÄ±z hangi SKU olduÄŸunu kaydeder).
     }
 
@@ -337,12 +363,43 @@ public partial class MetalProcessPanel
     // YÃ¶n'e gÃ¶re iÅŸÃ§ilik kilidini + (yalnÄ±z iÅŸÃ§ilik modunda) iÅŸÃ§ilik DEFAULT'unu pay alanlarÄ±na uygular.
     private void ApplyDirectionLabor(MetalListDto m)
     {
+        // A4 (ACIK-ISLER:51 · §1-1 onaylı, 2026-08-07): işçilik SEÇİLİ varyanttan tahsil edilir. Öncesinde
+        // kaynak HEP ana varyantın değerleriydi (MetalListDto ana varyanttan zenginleşir) — fiş VariantId=B
+        // kaydedip A'nın işçiliğini tahsil ediyordu. Varyant seçili değilse (tek varyantlı maden) davranış aynı.
+        var selected = Model.VariantId is { } variantId
+            ? _variantOptions.FirstOrDefault(x => x.Id == variantId)
+            : null;
+
+        if (selected is not null)
+        {
+            ApplyDirectionLabor(
+                selected.EntryLabor, selected.ExitLabor,
+                selected.EntryLaborUnitId, selected.ExitLaborUnitId,
+                selected.EntryLaborChange, selected.ExitLaborChange,
+                m.FollowingUnitId);
+            return;
+        }
+
+        ApplyDirectionLabor(
+            m.EntryLabor, m.ExitLabor,
+            m.EntryLaborUnitId, m.ExitLaborUnitId,
+            m.EntryLaborChange, m.ExitLaborChange,
+            m.FollowingUnitId);
+    }
+
+    /// <summary>Yön'e göre işçilik kilidi + default'u — kaynak varyant ya da maden olabilir (tek matematik yeri).</summary>
+    private void ApplyDirectionLabor(
+        decimal entryLabor, decimal exitLabor,
+        Guid? entryLaborUnitId, Guid? exitLaborUnitId,
+        bool entryLaborChange, bool exitLaborChange,
+        Guid fallbackUnitId)
+    {
         var inflow = Model.Direction.IsInflow();   // GiriÅŸ
-        _laborReadOnly = !(inflow ? m.EntryLaborChange : m.ExitLaborChange);
+        _laborReadOnly = !(inflow ? entryLaborChange : exitLaborChange);
         if (!HasPriceMode)   // Normal/Ä°ade/Emanet â†’ pay = iÅŸÃ§ilik; default rate/birimi Model.Pay*'e yaz (EnsurePayItem seÃ§er)
         {
-            Model.PayFactor      = inflow ? m.EntryLabor : m.ExitLabor;
-            Model.PayCommodityId = (inflow ? m.EntryLaborUnitId : m.ExitLaborUnitId) ?? m.FollowingUnitId;
+            Model.PayFactor      = inflow ? entryLabor : exitLabor;
+            Model.PayCommodityId = (inflow ? entryLaborUnitId : exitLaborUnitId) ?? fallbackUnitId;
         }
     }
 

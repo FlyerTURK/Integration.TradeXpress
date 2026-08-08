@@ -1,0 +1,106 @@
+@using Integration.TradeXpress.Orders
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@*
+   REZERVASYON PANELİ — siparişin stok taahhüdünün ve iptal kararının TEK görünen yüzü.
+
+   Kapatılan açık: rezervasyonun statüsü, kurulamama gerekçesi ve iptal kararı hiçbir ekranda yoktu.
+   "Blocked ≠ sessiz atlama" ve "reddetme zevkini bana bırak" garantileri kodda vardı ama kullanıcı ne
+   bloklanmayı görebiliyor ne kararı verebiliyordu — yani garantiler fiilen yoktu.
+
+   İKİ EKSEN AYRI gösterilir (stok · insan kararı): biri "maden ayrıldı mı", diğeri "iptal isteniyor mu".
+   Tek rozete indirilseydi "iptal bekliyor ama stok hâlâ tutuluyor" durumu görünmez olurdu — ki en kritik
+   hâl tam odur.
+*@
+
+@if (_loading)
+{
+    <DxFormLayoutItem ColSpanMd="12"><DxWaitIndicator Visible="true" /></DxFormLayoutItem>
+}
+else if (_reservation is null)
+{
+    @* Rezervasyon kaydı YOK: sipariş bu özellikten önce çekilmiş ya da terminal statüde gelmiş olabilir.
+       Geriye dönük kurulmaz — sessiz bir boşluk yerine sebebi yazılır. *@
+    <InfoNotice Text="@L["Order:Reservation:None"].Value" />
+}
+else
+{
+    <DxFormLayout CssClass="w-100">
+        <DxFormLayoutItem Caption="@L["Order:Reservation:Status"]" ColSpanMd="4">
+            <span class="@StatusCssClass">@L[$"Enum:OrderReservationStatus:{_reservation.Status}"]</span>
+        </DxFormLayoutItem>
+
+        <DxFormLayoutItem Caption="@L["Order:Reservation:CancellationDecision"]" ColSpanMd="4">
+            <span class="@DecisionCssClass">@L[$"Enum:OrderCancellationDecision:{_reservation.CancellationDecision}"]</span>
+        </DxFormLayoutItem>
+
+        <DxFormLayoutItem Caption="@L["Order:Reservation:ReservedAt"]" ColSpanMd="4">
+            <UtcLocalText Value="@_reservation.ReservedAt" />
+        </DxFormLayoutItem>
+
+        @* Gerekçe/not — Blocked'ın kullanıcıya görünen yüzü. Boşken satır hiç çizilmez. *@
+        <DxFormLayoutItem Caption="@L["Order:Reservation:Note"]" ColSpanMd="12"
+                          Visible="@(!string.IsNullOrWhiteSpace(_reservation.Note))">
+            <span class="text-danger">@_reservation.Note</span>
+        </DxFormLayoutItem>
+
+        <DxFormLayoutItem Caption="@L["Order:Reservation:CancellationRequestedAt"]" ColSpanMd="4"
+                          Visible="@(_reservation.CancellationRequestedAt is not null)">
+            <UtcLocalText Value="@_reservation.CancellationRequestedAt" />
+        </DxFormLayoutItem>
+
+        <DxFormLayoutItem ColSpanMd="12">
+            <DxToolbar ItemRenderStyleMode="ToolbarRenderStyleMode.Plain"
+                       AdaptivityAutoHideRootItems="false" AdaptivityAutoCollapseItemsToIcons="false">
+                @* KARAR düğmeleri YALNIZ talep bekliyorken. Görünürlük @if ile DEĞİL Visible ile —
+                   nested-settings öğeleri kayıt sırasına göre yerleşir (ui-blazor). *@
+                <DxToolbarItem Text="@L["Order:Reservation:ApproveCancellation"]"
+                               IconCssClass="@TradeXpressIcons.CheckCircle"
+                               RenderStyleMode="ToolbarItemRenderStyleMode.Contained"
+                               Visible="@IsDecisionPending" Enabled="@(!_busy)"
+                               Click="@(async () => await DecideAsync(approve: true))" />
+                <DxToolbarItem Text="@L["Order:Reservation:RejectCancellation"]"
+                               IconCssClass="@TradeXpressIcons.Close"
+                               Visible="@IsDecisionPending" Enabled="@(!_busy)"
+                               Click="@(async () => await DecideAsync(approve: false))" />
+                @* FİZİKİ ÇIKIŞ — DÖNÜŞÜ OLMAYAN nokta: bundan sonra iptal reddedilir, rezervasyon serbest
+                   bırakılamaz. Bu yüzden onay diyaloğu metni sonucu açıkça söyler. *@
+                <DxToolbarItem Text="@L["Order:Reservation:Fulfill"]"
+                               IconCssClass="@TradeXpressIcons.CheckCircle"
+                               RenderStyleMode="ToolbarItemRenderStyleMode.Contained"
+                               Visible="@IsReserved" Enabled="@(!_busy)"
+                               Click="@(async () => await FulfillAsync())" />
+                @* ELLE serbest bırakma — iptal talebi olmadan da operatör kararıdır. *@
+                <DxToolbarItem Text="@L["Order:Reservation:Release"]"
+                               IconCssClass="@TradeXpressIcons.Delete"
+                               Visible="@IsReserved" Enabled="@(!_busy)"
+                               Click="@(async () => await ReleaseAsync())" />
+            </DxToolbar>
+        </DxFormLayoutItem>
+
+        @* Bağ kayıtları — hangi fiş satırı hangi kalemi karşılıyor. PriceDifference'ta null ≠ 0 ayrımı
+           GÖRÜNÜR kalır: "beyan edilmedi" ile "fark yok" farklı bilgilerdir. *@
+        <DxFormLayoutGroup Caption="@L["Order:Reservation:Links"]" ColSpanMd="12" CaptionPosition="CaptionPosition.Vertical"
+                           Visible="@(_reservation.Links.Count > 0)">
+            <DxFormLayoutItem ColSpanMd="12">
+                <DxGrid Data="@_reservation.Links" ShowFilterRow="false" PageSize="10" PagerVisible="false">
+                    <Columns>
+                        <DxGridDataColumn FieldName="RemoteLineId" Caption="@L["Order:Reservation:RemoteLineId"]" Width="160px" />
+                        <DxGridDataColumn FieldName="Kind" Caption="@L["Order:Reservation:LinkKind"]" Width="140px">
+                            <CellDisplayTemplate Context="cell">
+                                @L[$"Enum:OrderFulfillmentLinkKind:{((OrderFulfillmentLinkDto)cell.DataItem).Kind}"]
+                            </CellDisplayTemplate>
+                        </DxGridDataColumn>
+                        <DxGridDataColumn FieldName="FulfilledQuantity" Caption="@L["Quantity"]" Width="110px" DisplayFormat="N3" />
+                        <DxGridDataColumn FieldName="FulfilledAmount" Caption="@L["Amount"]" Width="120px" DisplayFormat="N3" />
+                        <DxGridDataColumn FieldName="PriceDifference" Caption="@L["Order:Reservation:PriceDifference"]" Width="150px">
+                            <CellDisplayTemplate Context="cell">
+                                @PriceDifferenceText((OrderFulfillmentLinkDto)cell.DataItem)
+                            </CellDisplayTemplate>
+                        </DxGridDataColumn>
+                    </Columns>
+                </DxGrid>
+            </DxFormLayoutItem>
+        </DxFormLayoutGroup>
+    </DxFormLayout>
+}

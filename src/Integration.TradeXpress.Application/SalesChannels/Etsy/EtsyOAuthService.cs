@@ -2,6 +2,7 @@ using System;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
+using Integration.TradeXpress.MultiCompany;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -14,21 +15,29 @@ using Volo.Abp.Uow;
 
 namespace Integration.TradeXpress.SalesChannels.Etsy;
 
-/// <summary>PKCE state cache kaydı — OAuth'u başlatan bağlam (kanal + tenant) ile callback arasında köprü.
-/// Key = state (CSRF nonce); değer callback'te kanalı ve tenant'ı çözmeye yeter. Tek kullanımlık (okununca silinir).</summary>
+/// <summary>PKCE state cache kaydı — OAuth'u başlatan bağlam (kanal + tenant + ŞİRKET) ile callback arasında
+/// köprü. Key = state (CSRF nonce); değer callback'te kanalı çözmeye yeter. Tek kullanımlık (okununca silinir).</summary>
 public class EtsyOAuthStateCacheItem
 {
     public Guid ChannelId { get; set; }
     public Guid? TenantId { get; set; }
+
+    /// <summary>Kanalın sahibi şirket — callback isteğinde working context YOKTUR ve şirket bağlamı
+    /// kurulmazsa kanal <see cref="ICompanyOwned"/> filtresi altında GÖRÜNMEZ (sentinel) ya da daha kötüsü,
+    /// bağlam null kalırsa filtre permissive kola düşüp YABANCI şirketin kanalı da erişilebilir olur.
+    /// Doğru cevap ikisi de değil: akışı başlatan şirket burada taşınır ve callback onunla koşar.</summary>
+    public Guid CompanyId { get; set; }
+
     public string CodeVerifier { get; set; } = string.Empty;
 }
 
 /// <summary>
 /// <see cref="IEtsyOAuthService"/> implementasyonu. Başlatma: kriptografik state + code_verifier (S256 challenge) üret,
 /// <see cref="IDistributedCache{TCacheItem}"/>'e koy (10 dk TTL), authorize URL döndür. Callback: state'i tek-kullanımlık
-/// doğrula (CSRF), tenant'ı cache kaydından geri yükle (<see cref="ICurrentTenant.Change"/> — callback isteğinde working
-/// context YOK; company filtresi CompanyId=null bağlamda PERMISSIVE olduğundan kanal görünür), token değişimini yap ve
-/// kanala ATOMİK yaz. Redirect URI <c>App:SelfUrl</c>'den türetilir (Etsy app kaydıyla birebir aynı olmalı).
+/// doğrula (CSRF), tenant VE ŞİRKET bağlamını cache kaydından geri yükle (callback isteğinde kimlik → working context
+/// YOK; şirket açıkça kurulmazsa kanal ya sentinel altında görünmez ya da bağlam null kalıp filtre permissive kola
+/// düşer — "permissive olduğundan kanal görünür" eski notu güvenlik açığını davranış sanıyordu), token değişimini yap
+/// ve kanala ATOMİK yaz. Redirect URI <c>App:SelfUrl</c>'den türetilir (Etsy app kaydıyla birebir aynı olmalı).
 /// </summary>
 public class EtsyOAuthService : IEtsyOAuthService, ITransientDependency
 {
@@ -37,6 +46,7 @@ public class EtsyOAuthService : IEtsyOAuthService, ITransientDependency
     private readonly IDistributedCache<EtsyOAuthStateCacheItem> _stateCache;
     private readonly IConfiguration _configuration;
     private readonly ICurrentTenant _currentTenant;
+    private readonly ICurrentCompany _currentCompany;
     private readonly IUnitOfWorkManager _unitOfWorkManager;
     private readonly IClock _clock;
     private readonly ILogger<EtsyOAuthService> _logger;
@@ -47,6 +57,7 @@ public class EtsyOAuthService : IEtsyOAuthService, ITransientDependency
         IDistributedCache<EtsyOAuthStateCacheItem> stateCache,
         IConfiguration configuration,
         ICurrentTenant currentTenant,
+        ICurrentCompany currentCompany,
         IUnitOfWorkManager unitOfWorkManager,
         IClock clock,
         ILogger<EtsyOAuthService> logger)
@@ -56,6 +67,7 @@ public class EtsyOAuthService : IEtsyOAuthService, ITransientDependency
         _stateCache = stateCache;
         _configuration = configuration;
         _currentTenant = currentTenant;
+        _currentCompany = currentCompany;
         _unitOfWorkManager = unitOfWorkManager;
         _clock = clock;
         _logger = logger;
@@ -74,6 +86,7 @@ public class EtsyOAuthService : IEtsyOAuthService, ITransientDependency
             {
                 ChannelId = channel.Id,
                 TenantId = _currentTenant.Id,
+                CompanyId = channel.CompanyId,   // ambient'ten DEĞİL kanalın kendisinden — akış tek kanala bağlı
                 CodeVerifier = codeVerifier,
             },
             new DistributedCacheEntryOptions
@@ -116,10 +129,14 @@ public class EtsyOAuthService : IEtsyOAuthService, ITransientDependency
             return new EtsyOAuthCallbackResult(false, item.ChannelId);
         }
 
-        // 3) Token değişimi + kanala atomik yazım. Tenant cache kaydından geri yüklenir (callback isteği tenant-bağlamsız).
+        // 3) Token değişimi + kanala atomik yazım. Tenant VE ŞİRKET cache kaydından geri yüklenir: callback
+        // isteğinin kimliği yoktur, dolayısıyla working context de yoktur. Şirket bağlamı kurulmazsa kanal ya
+        // sentinel altında görünmez (EntityNotFound) ya da bağlam null kalırsa filtre permissive kola düşüp
+        // yabancı şirketin kanalını da erişilebilir kılar — ikisi de kabul edilemez, akışı başlatan şirketle koş.
         try
         {
             using (_currentTenant.Change(item.TenantId))
+            using (_currentCompany.Change(item.CompanyId))
             using (var uow = _unitOfWorkManager.Begin(requiresNew: true))
             {
                 var channel = await _repository.GetAsync(item.ChannelId);

@@ -20,7 +20,11 @@ namespace Integration.TradeXpress.Orders;
 /// Sipariş ÇEKİM testleri (Sipariş Fazı O0) — sahte client'la (ağ yok, READ-ONLY) uçtan uca: ilk çekim NÖTR Order +
 /// satırları üretir; ikinci çekim İDEMPOTENT'tir (0 yeni + durum/satır güncelleme, dublike YOK); ortak liste
 /// kanal/durum filtresiyle çalışır; nötr status eşleme uygulanır; OrderLine SNAPSHOT olarak yerel ürün silinse bile
-/// SAĞ KALIR (id-only ProductVariantId, sert FK/cascade yok). FİŞ/REZERVASYON/STOK'a HİÇ dokunulmaz.
+/// SAĞ KALIR (id-only ProductVariantId, sert FK/cascade yok).
+///
+/// <para><b>⚠ "FİŞ/REZERVASYON/STOK'a HİÇ dokunulmaz" vaadi GEÇERSİZDİR</b> (Faz 7'den beri): her upsert
+/// <c>EnsureReservationAsync</c> çağırır. Eşleşen kalem rezervasyon fişi doğurur, eşleşmeyen sipariş
+/// <c>Blocked</c> kaydı alır. Zincirin kendisi <c>OrderSyncChainTests</c>'te sürülüyor.</para>
 /// </summary>
 public abstract class OrderFetchTests<TStartupModule> : TradeXpressApplicationTestBase<TStartupModule>
     where TStartupModule : IAbpModule

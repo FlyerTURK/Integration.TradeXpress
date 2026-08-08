@@ -84,7 +84,17 @@ public class VariantSaleReadinessResolver : ITransientDependency
     }
 
     /// <summary>Varyant başına BUGÜNKÜ reçete damgası. Reçetesi olmayan varyant boş-reçete damgası alır —
-    /// böylece "reçetesizken onaylandı, hâlâ reçetesiz" hâli geçerli kalır.</summary>
+    /// böylece "reçetesizken onaylandı, hâlâ reçetesiz" hâli geçerli kalır.
+    ///
+    /// <para><b>PUBLIC olması bilinçli:</b> insan doğrulama ucu (<c>VerifySaleReadinessAsync</c>) onay anındaki
+    /// damgayı YAZAR, bu resolver ise sonradan OKUR. İki taraf damgayı ayrı ayrı hesaplasaydı en küçük formül
+    /// farkı bile "onaylandı ama hiçbir zaman geçerli sayılmıyor" gibi sessiz bir kilide dönerdi — hata mesajı
+    /// üretmeyen, yalnız ürünün push edilemediği bir hâl. Tek kaynak (§4 SSOT).</para></summary>
+    public virtual async Task<Dictionary<Guid, string>> ComputeStampsAsync(List<Guid> variantIds)
+    {
+        return await ComputeCurrentStampsAsync(variantIds);
+    }
+
     private async Task<Dictionary<Guid, string>> ComputeCurrentStampsAsync(List<Guid> variantIds)
     {
         var lines = await _asyncExecuter.ToListAsync(

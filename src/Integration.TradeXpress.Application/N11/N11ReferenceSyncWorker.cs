@@ -36,13 +36,15 @@ public class N11ReferenceSyncWorker : AsyncPeriodicBackgroundWorkerBase
 
     protected override async Task DoWorkAsync(PeriodicBackgroundWorkerContext workerContext)
     {
-        await RunSafe(workerContext, "il/ilçe", sp => sp.GetRequiredService<IN11CityAppService>().SyncCitiesAndDistrictsAsync());
+        // İZİNSİZ manager'lar tüketilir (2026-08-07 G1): app service uçları artık [Authorize]'lı — worker'ın
+        // kullanıcı kimliği yok, yetkili uçtan geçemez (CLAUDE.md §6 materyalizer deseni).
+        await RunSafe(workerContext, "il/ilçe", sp => sp.GetRequiredService<N11Cities.N11CitySyncManager>().SyncCitiesAndDistrictsAsync());
         // İl/ilçe re-sync'inden SONRA çekirdek coğrafyayı tazeler (N11 aynası → AdministrativeArea/Locality köprüsü).
         // Kargo tarafındaki "sync → çekirdek eşleme" deseninin birebir aynısı. Bu adım OLMADAN N11'in eklediği yeni
         // ilçe ayna tablosunda kalır, adres picker'ına DÜŞMEZ — köprü yalnız DbMigrator'da koşuyordu ve biri elle
         // çalıştırana kadar katalog bayat kalırdı. Bağımsız try/catch → düşse N11 sync'ini etkilemez.
         await RunSafe(workerContext, "coğrafya çekirdek eşleme", ReconcileCoreGeographyAsync);
-        await RunSafe(workerContext, "kargo firması", sp => sp.GetRequiredService<IN11ShipmentCompanyAppService>().SyncAsync());
+        await RunSafe(workerContext, "kargo firması", sp => sp.GetRequiredService<N11Shipments.N11ShipmentCompanySyncManager>().SyncAsync());
     }
 
     /// <summary>Çekirdek coğrafya eşlemesini (GeographySeeder) çalıştırır — N11 il/ilçe aynasından

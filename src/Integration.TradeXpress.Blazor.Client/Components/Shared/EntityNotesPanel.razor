@@ -31,7 +31,8 @@
         </DxGridDataColumn>
         <DxGridDataColumn Caption="@L["CreationTime"]" Width="160px">
             <CellDisplayTemplate Context="cell">
-                @(((EntityNoteEditDto)cell.DataItem).CreationTime?.ToString("g"))
+                @* Not kayıt anı UTC → kullanıcının yerel saati (merkezî dönüşüm; sayfa-başı elle çeviri YOK). *@
+                <UtcLocalText Value="@(((EntityNoteEditDto)cell.DataItem).CreationTime)" />
             </CellDisplayTemplate>
         </DxGridDataColumn>
         <DxGridDataColumn FieldName="DisplayOrder" Caption="@L["DisplayOrder"]" Width="90px" />

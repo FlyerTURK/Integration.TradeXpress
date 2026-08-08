@@ -24,6 +24,12 @@ public partial class FutureEditHost
 
     [Parameter] public bool SupportsDelete { get; set; } = true;
 
+    /// <summary>Sınıflandırma panelinden ÖN-DOLDURMA (2026-08-07 U1 — gerekçe MetalEditHost'ta). Tohum yazımı
+    /// razor'daki <c>ApplyNewDefaults</c> lambda'sında.</summary>
+    [Parameter] public string? SeedCode { get; set; }
+
+    [Parameter] public string? SeedName { get; set; }
+
     private List<CurrencyUnitListDto> _units = new();
     private ICommitCoordinator<FutureGetDto, FutureListDto, Guid, FutureListRequestDto>? _coordinator;
     private bool _ready;
@@ -37,6 +43,23 @@ public partial class FutureEditHost
         _units = result.Items.ToList();
 
         _ready = true;
+    }
+
+    private void ApplyNewDefaults(FutureGetDto m)
+    {
+        m.IsActive = true;
+        m.FollowingFactor = 1m;
+
+        // Panel tohumu (U1 — gerekçe MetalEditHost'ta).
+        if (!string.IsNullOrWhiteSpace(SeedCode))
+        {
+            m.Code = SeedCode!;
+        }
+
+        if (!string.IsNullOrWhiteSpace(SeedName))
+        {
+            m.Name = SeedName!;
+        }
     }
 
     private async Task OnEditFollowingUnitAsync(Guid? followingId)

@@ -81,6 +81,11 @@
         </DxFormLayoutItem>
     </DxFormLayoutGroup>
 
+    @* Push emniyeti (emniyet payı + fiyat bandı) — kanaldan bağımsız ortak parça; varsayılan KAPALI grup. *@
+    <ChannelPushGuardFields @bind-SafetyStock="@Model.SafetyStock"
+                            @bind-MinPrice="@Model.MinPrice"
+                            @bind-MaxPrice="@Model.MaxPrice" />
+
     @* İsteğe bağlı alanlar — varsayılan KAPALI (Expanded=false); tıklayınca açılır. Üretim/son kullanma tarihi,
        grup ürün alanları — hiçbiri zorunlu değil, formu kalabalıklaştırmasın diye ayrı grupta. *@
     <DxFormLayoutGroup Caption="@L["N11Product:OptionalFields"]" ColSpanMd="12"

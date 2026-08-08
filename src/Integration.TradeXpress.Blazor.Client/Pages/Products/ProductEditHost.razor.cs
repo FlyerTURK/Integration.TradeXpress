@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Integration.Framework.Blazor.Client.Components.Crud;
 using Integration.Framework.Blazor.Client.Services.Base;
 using Integration.TradeXpress.AddOns;
 using Integration.TradeXpress.Blazor.Client.Components.Shared;
@@ -65,6 +66,101 @@ public partial class ProductEditHost
 
     private ICommitCoordinator<ProductGetDto, ProductListDto, Guid, ProductListRequestDto>? _coordinator;
     private bool _ready;
+    private bool _verifyBusy;
+
+    /// <summary>"Satışa Doğrula" — push kapısını açan İNSAN yolu.
+    ///
+    /// <para>Kapı fail-closed çalışıyordu ama açacak yol yoktu: canlıda 165/165 varyant <c>Draft</c>'tı ve
+    /// hiçbir ürün pazaryerine çıkamıyordu. Kullanıcı hatayı göremiyordu bile — push "aday bulunamadı" diyordu,
+    /// sebebini hiçbir ekran söylemiyordu.</para>
+    ///
+    /// <para>YENİ kayıtta gizlidir: doğrulanacak varyant ancak kaydedildikten sonra vardır. SortIndex 150 —
+    /// Delete(100) ile Previous(700) arası, sipariş aksiyonlarıyla aynı slot felsefesi.</para></summary>
+    private IReadOnlyList<CrudToolbarAction> BuildProductActions(ProductGetDto model)
+    {
+        if (model.Id == Guid.Empty)
+        {
+            return Array.Empty<CrudToolbarAction>();
+        }
+
+        return new List<CrudToolbarAction>
+        {
+            new()
+            {
+                SortIndex = 150,
+                Text = L["Product:VerifyForSale"],
+                Tooltip = L["Product:VerifyForSale"],
+                IconCssClass = TradeXpressIcons.CheckCircle + " xaf-toolbar-item-icon",
+                Visible = true,
+                Enabled = !_verifyBusy,
+                OnClick = () => VerifyForSaleClickedAsync(model),
+            },
+        };
+    }
+
+    private async Task VerifyForSaleClickedAsync(ProductGetDto model)
+    {
+        if (_verifyBusy)
+        {
+            return;
+        }
+
+        // Onay diyaloğu METNİ önemli: kullanıcı "bir kereye mahsus mühür" sanmasın — onay o ANDAKİ reçeteye
+        // verilir ve reçete değişince kendiliğinden düşer.
+        var confirmed = await UiService.ConfirmAsync(
+            L["Product:VerifyForSaleConfirm"].Value,
+            title: null, yesText: L["Yes"].Value, noText: L["Cancel"].Value,
+            showCancel: false, defaultYes: false);
+        if (confirmed != ConfirmDialogResult.Yes)
+        {
+            return;
+        }
+
+        _verifyBusy = true;
+        try
+        {
+            var result = await ProductAppService.VerifySaleReadinessAsync(
+                new ProductSaleVerifyInputDto { ProductId = model.Id });
+
+            // Atlananlar SESSİZ geçilmez — kullanıcı "hepsi açıldı" sanıp push'un neden hâlâ boş döndüğünü
+            // arayamamalı.
+            foreach (var issue in result.Issues)
+            {
+                UiService.ShowErrorToast(issue);
+            }
+
+            UiService.ShowSuccessToast(
+                string.Format(L["Product:VerifyForSaleDone"].Value, result.VerifiedVariants));
+
+            // Rozetleri tazele — ama FORMU YENİDEN YÜKLEMEDEN. Tam reload, kullanıcının kaydetmediği
+            // düzenlemelerini sessizce çöpe atardı; burada yalnız SALT-OKUNUR statü alanları kopyalanır.
+            await RefreshVariantSaleStatusAsync(model);
+        }
+        finally
+        {
+            _verifyBusy = false;
+        }
+    }
+
+    /// <summary>Varyant statü rozetlerini sunucudan tazeler — YALNIZ salt-okunur alanlar.
+    /// <para>Kullanıcının açık formdaki kaydedilmemiş değişiklikleri (fiyat, reçete, medya) KORUNUR: statü
+    /// zaten form tarafından yazılamayan bir projeksiyondur, dolayısıyla üzerine yazmak veri kaybı üretmez.</para></summary>
+    private async Task RefreshVariantSaleStatusAsync(ProductGetDto model)
+    {
+        var fresh = await ProductAppService.GetAsync(model.Id);
+
+        foreach (var variant in model.Variants)
+        {
+            var updated = fresh.Variants.FirstOrDefault(x => x.Id == variant.Id);
+            if (updated is { })
+            {
+                variant.SaleStatus = updated.SaleStatus;
+                variant.VerifiedAt = updated.VerifiedAt;
+            }
+        }
+
+        StateHasChanged();
+    }
 
     // Reçete katalog lookup verisi — açılışta bir kez yüklenir (varyant reçete drill'lerinin ortak beslemesi).
     protected IReadOnlyList<MetalListDto> Metals { get; private set; } = Array.Empty<MetalListDto>();

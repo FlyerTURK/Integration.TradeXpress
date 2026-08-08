@@ -67,8 +67,10 @@ public class SalesChannelAppService : TradeXpressAppService, ISalesChannelAppSer
     [Authorize(TradeXpressPermissions.SalesChannels.Delete)]
     public virtual async Task DeleteAsync(Guid id)
     {
-        // Güvenlik sınırı (company query-filter yabancı şirketinkini gizler → EntityNotFound). TPT cascade alt-tipi düşürür.
-        var entity = await _repository.GetAsync(id);
+        // Güvenlik sınırı İKİ KATLI: global company query-filter + AÇIK CompanyId koşulu (GetOwnedAsync).
+        // Yalnız filtreye güvenmek yetmiyordu — şirket bağlamı kurulmamış bir çağrıda (ör. HTTP API) filtre
+        // permissive kola düşüyor ve koruma sessizce yok oluyordu. TPT cascade alt-tipi düşürür.
+        var entity = await _repository.GetOwnedAsync(_currentCompany, id);
         await _repository.DeleteAsync(entity, autoSave: true);
     }
 

@@ -480,6 +480,11 @@ public class OrderFetchResultDto
     /// <summary>Çekilen toplam sipariş SATIRI sayısı.</summary>
     public int TotalLines { get; set; }
 
+    /// <summary>DELTA turunda detayı TAZELENEN açık sipariş sayısı.
+    /// <para>Ayrı sayılır: liste penceresine düşmeyen ama statüsü değişmiş olabilecek siparişler bu yoldan
+    /// kontrol edilir — sayı 0 kalıyorsa açık sipariş yok ya da tazeleme çalışmıyor demektir.</para></summary>
+    public int RefreshedOrders { get; set; }
+
     /// <summary>İşlenen kanal sayısı (toplu çekimde &gt; 1).</summary>
     public int ChannelsProcessed { get; set; }
 
@@ -514,7 +519,9 @@ public interface IOrderAppService : IApplicationService
     Task<OrderDto> UpdateAsync(Guid id, OrderDto input);
 
     /// <summary>Bir Trendyol kanalının siparişlerini pazaryerinden çeker (salt GET) → nötr Order'a idempotent upsert.
-    /// İkinci çağrı dublike üretmez; durumu/satırları günceller. FİŞ/REZERVASYON/STOK'a HİÇ dokunmaz.</summary>
+    /// İkinci çağrı dublike üretmez; durumu/satırları günceller.
+    /// <para>⚠ Çekim zinciri REZERVASYONU tetikler (dolayısıyla fiş + stok) — eski "fiş/rezervasyon/stok'a hiç
+    /// dokunmaz" vaadi Faz 7'den beri geçersizdir.</para></summary>
     Task<OrderFetchResultDto> FetchOrdersAsync(Guid salesChannelId);
 
     /// <summary>Şirketin TÜM bağlı kanallarının (Trendyol + N11) siparişlerini çeker (tek düğme; kanal-başına dolaşma
@@ -561,6 +568,149 @@ public interface IOrderAppService : IApplicationService
     /// <summary>Rezervasyonu ELLE serbest bırakır (iptal talebi olmadan — operatör kararı). Fiş satırları
     /// soft-delete edilir: sayaçtan düşer, denetim izi kalır.</summary>
     Task<OrderReservationDto> ReleaseReservationAsync(OrderReservationReleaseDto input);
+
+    /// <summary>Bir sipariş kalemini ELLE eşleştirmek için ürün varyantı adayları (aramalı; çalışılan şirket).
+    ///
+    /// <para><b>Neden elle yol şart:</b> otomatik eşleştirme kanal ürününün SKU sözlüğüne bakar; canlıda tek
+    /// N11 kanal ürününün SKU listesi BOŞ olduğu için 126 kalemin HİÇBİRİ eşleşmiyor. Eşleşme olmadan
+    /// rezervasyon kurulamaz ve her sipariş <c>Blocked</c>'da kilitli kalır.</para>
+    ///
+    /// <para>Elle eşleştirme <c>SaveOrderLineEditAsync</c> ile aynı kayda yazar; sonraki senkron turu onu
+    /// EZMEZ (insert-only-if-missing) ve rezervasyon kendiliğinden kurulur — ayrı "yeniden dene" gerekmez.</para></summary>
+    Task<List<OrderLineMatchCandidateDto>> GetLineMatchCandidatesAsync(OrderLineMatchCandidateRequestDto input);
+
+    /// <summary>Rezervasyonu FİZİKİ ÇIKIŞA çevirir — hazırlayan kasa malı gerçekten çıkarır.
+    ///
+    /// <para><b>DÖNÜŞÜ OLMAYAN NOKTA:</b> bundan sonra iptal REDDEDİLİR (artık iade sürecidir) ve rezervasyon
+    /// serbest bırakılamaz. Entity guard'ları bunu zaten kilitler; uç yalnız orkestre eder.</para>
+    ///
+    /// <para><b>ÇİFT SAYIM YASAK:</b> fiziki çıkış satırları yazılırken rezervasyon satırları AYNI işlemde
+    /// soft-delete edilir. Biri yapılıp diğeri unutulursa aynı mal iki kez düşer ve ürün stokta olmadığı hâlde
+    /// satıştan kalkar — hata sessizdir, yalnız kanal adedi sebepsizce küçülür.</para></summary>
+    Task<OrderReservationDto> FulfillReservationAsync(OrderFulfillmentInputDto input);
+
+    /// <summary>İADE GİRİŞİNİ kaydeder — mal FİZİKSEL OLARAK kasaya girdiğinde operatör çağırır.
+    ///
+    /// <para><b>Stok yalnız BURADA döner</b> (2026-08-05 Hakan kararı): iade talebi, kargoda-iade, hatta
+    /// "teslim edilmiş iade" statüsü stoğu geri VERMEZ. Mal elimize geçmeden stoğa yazmak, satılabilir
+    /// göstermek demektir — müşteri onu ikinci kez satın alabilir.</para>
+    ///
+    /// <para><b>Rezervasyona DOKUNULMAZ:</b> <c>Fulfilled</c> kalır. İade rezervasyonu diriltseydi stok iki
+    /// kez artardı — bir kez giriş fişiyle, bir kez de rezervasyonun serbest kalmasıyla.</para></summary>
+    Task<OrderReturnEntryResultDto> RegisterReturnEntryAsync(OrderReturnEntryDto input);
+}
+
+/// <summary>İade girişi girdisi — mal teslim alındığında.</summary>
+public class OrderReturnEntryDto
+{
+    [Required]
+    public Guid OrderId { get; set; }
+
+    /// <summary>Malın GİRDİĞİ şube/kasa — çıkış yapılan kasadan farklı olabilir (başka şube teslim almış).</summary>
+    [Required]
+    public Guid BranchId { get; set; }
+
+    [Required]
+    public Guid VaultId { get; set; }
+
+    [StringLength(OrderConsts.DetailLongTextMaxLength)]
+    public string? Note { get; set; }
+
+    /// <summary>İade edilen satırlar. <b>KISMİ iade gerçektir</b> — operatör miktarı düzeltir; çıkış
+    /// satırlarından ön-doldurulur ama olduğu gibi kabul edilmez.</summary>
+    public List<OrderReturnEntryLineDto> Lines { get; set; } = new();
+}
+
+/// <summary>İade edilen tek satır.</summary>
+public class OrderReturnEntryLineDto
+{
+    /// <summary>Karşılık gelen FİZİKİ ÇIKIŞ bağı — iade neyin geri geldiğini bilmek zorundadır.</summary>
+    [Required]
+    public Guid PhysicalExitLinkId { get; set; }
+
+    /// <summary>Geri gelen miktar (gram/adet — çıkış satırının boyutlarıyla aynı).</summary>
+    public decimal Quantity { get; set; }
+
+    public decimal Amount { get; set; }
+}
+
+/// <summary>İade girişi sonucu.</summary>
+public class OrderReturnEntryResultDto
+{
+    /// <summary>Yazılan giriş fişi.</summary>
+    public Guid VoucherId { get; set; }
+
+    public int RegisteredLines { get; set; }
+
+    /// <summary>Atlanan satırların gerekçeleri — SESSİZ geçilmez.</summary>
+    public List<string> Issues { get; set; } = new();
+}
+
+/// <summary>Fiziki çıkış girdisi.</summary>
+public class OrderFulfillmentInputDto
+{
+    [Required]
+    public Guid OrderId { get; set; }
+
+    /// <summary>Malı HAZIRLAYAN şube — rezervasyon fişi merkezde kesilir, çıkış hazırlayanın kasasından yapılır.</summary>
+    [Required]
+    public Guid BranchId { get; set; }
+
+    [Required]
+    public Guid VaultId { get; set; }
+
+    [StringLength(OrderConsts.DetailLongTextMaxLength)]
+    public string? Note { get; set; }
+
+    /// <summary>Satır-başı fiyat farkı beyanları (opsiyonel).</summary>
+    public List<OrderFulfillmentLineInputDto> Lines { get; set; } = new();
+}
+
+/// <summary>Fiziki çıkış satırı — yalnız FİYAT FARKI beyanı taşır; miktar/emtia rezervasyon fişinden gelir.
+/// <para>Miktarı burada yeniden girmek, rezerve edilenden farklı bir şey çıkarmaya sessizce izin vermek
+/// olurdu. Farklı miktar çıkacaksa önce rezervasyon düzeltilir.</para></summary>
+public class OrderFulfillmentLineInputDto
+{
+    [Required]
+    public Guid FulfillmentLinkId { get; set; }
+
+    /// <summary><b>null = beyan edilmedi</b> · <b>0 = "fark yok" beyanı</b>. Sistem ASLA türetmez —
+    /// fiyat farkını yalnız kullanıcı girer (2026-08-05 Hakan kararı).</summary>
+    public decimal? PriceDifference { get; set; }
+
+    public Guid? PriceDifferenceUnitId { get; set; }
+
+    [StringLength(OrderConsts.DetailLongTextMaxLength)]
+    public string? Note { get; set; }
+}
+
+/// <summary>Eşleştirme adayı arama girdisi.</summary>
+public class OrderLineMatchCandidateRequestDto
+{
+    /// <summary>Serbest arama metni — ürün kodu/adı ya da varyant kodunda aranır. Boş = ilk N kayıt.</summary>
+    public string? Search { get; set; }
+
+    /// <summary>Dönecek en fazla aday sayısı (combo listesi; tam liste değil).</summary>
+    public int MaxCount { get; set; } = 50;
+}
+
+/// <summary>Eşleştirme adayı — kullanıcının combo'da göreceği tek satır.</summary>
+public class OrderLineMatchCandidateDto
+{
+    /// <summary>Eşleştirmede yazılacak değer (<c>OrderLineOperationalData.ProductVariantId</c>).</summary>
+    public Guid EntityVariantId { get; set; }
+
+    public string ProductCode { get; set; } = string.Empty;
+    public string ProductName { get; set; } = string.Empty;
+    public string VariantCode { get; set; } = string.Empty;
+
+    /// <summary>Combo'da gösterilen birleşik etiket — kullanıcı ürünü koddan da addan da bulabilmeli.</summary>
+    public string DisplayText { get; set; } = string.Empty;
+
+    public override string ToString()
+    {
+        return DisplayText;
+    }
 }
 
 /// <summary>Siparişin rezervasyon görünümü — İKİ EKSEN ayrı taşınır (stok · iptal kararı).</summary>

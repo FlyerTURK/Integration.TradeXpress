@@ -174,15 +174,21 @@ public abstract class HostCatalogCrudAppService<TEntity, TGetDto, TListDto, TLis
     /// <summary>
     /// Get/Update/Delete tekil erişimi: host‖own scope içinde arar, bulunamazsa
     /// <see cref="EntityNotFoundException"/>. ABP'nin Get/GetAsync akışları da bunu kullanır.
+    ///
+    /// <para><b>Görünürlük LİSTEYLE AYNI kuraldan gelir</b> (<see cref="BuildVisibilityPredicate"/>): tekil
+    /// erişim yalnız tenant koşulunu uyguluyordu, oysa türevler bu predicate'i şirket sahipliğiyle
+    /// daraltıyor (company-owned kataloglar). İki yolun ayrı kural kullanması, listede GÖRÜNMEYEN bir kaydın
+    /// id'si bilinerek okunabilmesi/güncellenebilmesi demekti — üstelik <c>IMultiTenant</c> filtresi burada
+    /// bilinçli olarak KAPALI olduğundan geriye tek savunma bu sorgu kalıyordu.</para>
     /// </summary>
     protected override async Task<TEntity> GetEntityByIdAsync(Guid id)
     {
         using (DataFilter.Disable<IMultiTenant>())
         {
-            var tenantId = CurrentTenant.Id;
             var entity = await AsyncExecuter.FirstOrDefaultAsync(
                 (await Repository.GetQueryableAsync())
-                    .Where(x => x.Id == id && (x.TenantId == null || x.TenantId == tenantId)));
+                    .Where(BuildVisibilityPredicate())
+                    .Where(x => x.Id == id));
 
             if (entity == null)
             {

@@ -42,5 +42,11 @@ public class TradeXpressApplicationTestModule : AbpModule
         // sayfalama gerçek client'ın static'inden gelir (davranış sahtelenmiyor, yalnız ağ kesiliyor).
         context.Services.AddSingleton<FakeTrendyolOrderClient>();
         context.Services.Replace(ServiceDescriptor.Singleton<ITrendyolOrderClient>(sp => sp.GetRequiredService<FakeTrendyolOrderClient>()));
+
+        // N11 SİPARİŞ SOAP istemcisi de sahte — senkron ZİNCİRİ (çekim → eşleştirme → rezervasyon → iptal
+        // köprüsü) testte gerçek ağ olmadan uçtan uca koşsun. Sahte, hangi PENCEREYLE çağrıldığını kaydeder:
+        // seed ile delta kolunun karışması ancak böyle görülebilir (ikisi de aynı siparişleri döndürür).
+        context.Services.AddSingleton<FakeN11OrderClient>();
+        context.Services.Replace(ServiceDescriptor.Singleton<IN11OrderClient>(sp => sp.GetRequiredService<FakeN11OrderClient>()));
     }
 }
