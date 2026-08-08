@@ -50,8 +50,10 @@ public class TrendyolCategory : FullAuditedAggregateRoot<Guid>
     /// (<c>/integration/product/product-categories</c>) yalnız <c>id/name/parentId/isLeaf</c> verir —
     /// komisyon orada YOKTUR ve satıcının sözleşmesine (satıcı seviyesi, program, kampanya) bağlıdır.</para>
     ///
-    /// <para>⚠ Oranın TABANI (KDV dahil mi hariç mi) henüz modellenmedi; kaynaklar çelişiyor ve fark ~4 puan.
-    /// Production'da netleştirilecek — <c>TrendyolCommissionDefaults</c> notuna bakınız.</para></summary>
+    /// <para><b>Oranın TABANI = KDV DAHİL</b> (2026-08-08 Hakan kararı; konu KAPANDI, yeniden açılmaz).
+    /// Trendyol komisyonu satıcıya göre değişir (kadın girişimci ayrı, satış hacmine göre kademeli) — yani
+    /// "tek gerçek oran" diye bir şey yoktur; gerçek hesap gelene kadar buradaki değerler SABİT komisyon
+    /// sayılır. Hesap Hakan'ın DEĞİL, test için devraldığı bir hesaptır; Satıcı Paneli erişimi istenmez.</para></summary>
     public decimal? CommissionRate { get; protected set; }
 
     #endregion

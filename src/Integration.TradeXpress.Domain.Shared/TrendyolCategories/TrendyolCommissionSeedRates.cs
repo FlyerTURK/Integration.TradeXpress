@@ -22,8 +22,9 @@ namespace Integration.TradeXpress.TrendyolCategories;
 /// yazıldıktan sonra kullanıcının girdiği değeri bir daha EZMEZ. Aksi halde her sync gerçek sözleşme oranını bu
 /// tahminlere geri çevirirdi.</para>
 ///
-/// <para>⚠ Oranın TABANI (KDV dahil mi hariç mi) hâlâ modellenmedi — kaynaklar çelişiyor, fark ~4 puan ve doğrudan
-/// net kâra giriyor. Bkz. <c>TrendyolProducts.TrendyolCommissionDefaults</c>.</para>
+/// <para><b>Oranın TABANI = KDV DAHİL</b> (2026-08-08 Hakan kararı; konu KAPANDI). Buradaki değerler SABİT
+/// komisyon kabul edilir — Trendyol komisyonu satıcı sözleşmesine göre değiştiğinden "tek gerçek oran" yoktur.
+/// Gerçek hesaba geçilince oranlar Hakan tarafından elle girilir (seeder dolu oranı ezmez).</para>
 /// </summary>
 public static class TrendyolCommissionSeedRates
 {
