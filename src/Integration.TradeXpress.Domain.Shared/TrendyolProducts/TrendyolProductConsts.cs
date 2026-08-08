@@ -50,3 +50,21 @@ public static class TrendyolProductConsts
     /// <summary>Kartezyen kombinasyon imzası ("{AttributeId}={ValueId}|...") üst sınırı — makul özellik sayısı × Guid uzunluğu.</summary>
     public const int CombinationSignatureMaxLength = 600;
 }
+
+/// <summary>Trendyol push GEÇMİŞİ alan sınırları — N11 eşiyle (N11PushHistoryConsts) bilinçle AYNI değerler:
+/// aynı delil aynı boyutta saklanmalı ki iki kanalın kaydı yan yana okunabilsin.</summary>
+public static class TrendyolPushHistoryConsts
+{
+    /// <summary>Başlık — Trendyol'un kendi sınırından bağımsız, gönderileni AYNEN saklamaya yeter.</summary>
+    public const int TitleMaxLength = 512;
+
+    /// <summary>"ad=değer; ad=değer" birleşimi.</summary>
+    public const int VariantOptionsMaxLength = 2000;
+
+    /// <summary>"{mediaId:N}:{sha256-hex}" × görsel sayısı.</summary>
+    public const int ImagesMaxLength = 1200;
+
+    // Fiyat: tutar N2 (financials.md yuvarlama kuralı).
+    public const int PricePrecision = 18;
+    public const int PriceScale = 2;
+}

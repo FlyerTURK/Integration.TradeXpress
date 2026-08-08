@@ -156,6 +156,7 @@ public class TradeXpressDbContext :
     public DbSet<Integration.TradeXpress.N11Products.SalesChannelTrN11ProductStockItemRecipeLine> SalesChannelTrN11ProductStockItemRecipeLines { get; set; } = null!;
     // N11'e gönderilen SKU'ların TARİHLİ delil kaydı — append-only (güncellenmez/silinmez).
     public DbSet<Integration.TradeXpress.N11Products.SalesChannelTrN11ProductPushHistory> SalesChannelTrN11ProductPushHistories { get; set; } = null!;
+    public DbSet<Integration.TradeXpress.TrendyolProducts.SalesChannelTrTrendyolProductPushHistory> SalesChannelTrTrendyolProductPushHistories { get; set; } = null!;
     // Etsy ürün listelemeleri — ürün×kanal (company-owned). N11 ikizi.
     public DbSet<Integration.TradeXpress.EtsyProducts.SalesChannelEtsyProduct> SalesChannelEtsyProducts { get; set; } = null!;
     // Etsy kanal-özel varyant EKSENİ/DEĞERİ (ERP ProductAttribute/Value klonu; klon-sonra-ayrış).

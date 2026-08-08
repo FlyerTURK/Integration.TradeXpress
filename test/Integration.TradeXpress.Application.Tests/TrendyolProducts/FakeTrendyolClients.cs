@@ -52,10 +52,19 @@ public sealed class FakeTrendyolProductClient : ITrendyolProductClient
         return Task.FromResult(new TrendyolSubmitResult(NextBatchRequestId));
     }
 
+    /// <summary>Durum sorgusunun döneceği sonuç. <b>Varsayılan <c>null</c> = uç KAPALI</b> (fırlatır) —
+    /// yani "kazayla durum sorgulandı" ile "test bilerek batch çözdü" ayırt edilebilir kalır.</summary>
+    public TrendyolBatchStatus? NextBatchStatus { get; set; }
+
     public Task<TrendyolBatchStatus> GetBatchStatusAsync(
         string batchRequestId, TrendyolCredentials credentials, CancellationToken cancellationToken = default)
     {
-        throw new BusinessException("TradeXpress:Trendyol:Product:StatusFailed");
+        if (NextBatchStatus is null)
+        {
+            throw new BusinessException("TradeXpress:Trendyol:Product:StatusFailed");
+        }
+
+        return Task.FromResult(NextBatchStatus);
     }
 
     public Task<TrendyolSellerProductsPage> GetSellerProductsAsync(

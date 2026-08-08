@@ -1,4 +1,6 @@
+using System.Linq;
 using Integration.TradeXpress.Orchestration;
+using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 using Xunit;
 
@@ -33,5 +35,29 @@ public class EfCoreOrchestrationResolutionTests : TradeXpressEntityFrameworkCore
     public void Product_stock_sync_job_can_be_constructed()
     {
         GetRequiredService<ProductStockSyncJob>().ShouldNotBeNull();
+    }
+
+    /// <summary>Job'ın gördüğü pusher COMPOSITE olmalı — somut bir kanal ayağı değil.
+    ///
+    /// <para><b>Neden pin:</b> iki somut sınıf aynı arayüzü uygulasaydı hangisinin çözüleceği KAYIT SIRASINA
+    /// kalırdı ve bir kanal sessizce hiç push edilmezdi. Hata çıkmaz, log temiz kalır, yalnız o pazaryerindeki
+    /// stok bayat kalır.</para></summary>
+    [Fact]
+    public void The_job_resolves_the_composite_pusher()
+    {
+        GetRequiredService<IChannelStockPusher>().ShouldBeOfType<CompositeChannelStockPusher>();
+    }
+
+    /// <summary>HER kanal ayağı composite'in koleksiyonuna GİRİYOR mu.
+    ///
+    /// <para>Üye sınıfların adı <c>IChannelStockPusherMember</c> ile bitmediği için ABP'nin varsayılan kaydı
+    /// arayüzü AÇMAZ; <c>[ExposeServices]</c> unutulursa composite BOŞ koleksiyon alır ve hiçbir kanal push
+    /// edilmez — üstelik hiçbir şey patlamaz. Bu test o sessizliği kırar.</para></summary>
+    [Fact]
+    public void Every_channel_pusher_member_is_registered()
+    {
+        var members = ServiceProvider.GetServices<IChannelStockPusherMember>().ToList();
+
+        members.Select(m => m.ChannelName).ShouldBe(new[] { "N11", "Trendyol" }, ignoreOrder: true);
     }
 }

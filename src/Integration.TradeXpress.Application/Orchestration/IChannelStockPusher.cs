@@ -14,12 +14,33 @@ namespace Integration.TradeXpress.Orchestration;
 
 /// <summary>
 /// Ürünün kanal listelemelerine STOK+FİYAT senkronu gönderme soyutlaması (ADR: mock-first — testler sahte
-/// implementasyonla koşar, N11'e TEK istek gitmez).
+/// implementasyonla koşar, pazaryerine TEK istek gitmez). Orkestrasyon job'u YALNIZ bunu tanır.
 /// </summary>
 public interface IChannelStockPusher
 {
     /// <summary>Ürünün tüm kanal-ürünlerini hafif senkronla tazeler. Push HATASI fırlatılmaz — loglanır:
     /// bir kanalın geçici arızası diğer kanalları ve job'ın kendisini düşürmemeli (retry sonraki tetikte).</summary>
+    Task PushProductAsync(Guid productId);
+}
+
+/// <summary>
+/// TEK BİR KANALIN push ayağı. Job bunu görmez — <see cref="IChannelStockPusher"/> (composite) görür.
+///
+/// <para><b>Neden ayrı arayüz:</b> job tek bir <c>IChannelStockPusher</c> enjekte ediyor. İki somut sınıf aynı
+/// arayüzü uygulasaydı hangisinin çözüleceği KAYIT SIRASINA kalırdı — yani bir kanal sessizce hiç push
+/// edilmezdi. Üyeler ayrı arayüzde durunca composite hepsini <c>IEnumerable</c> ile toplar ve yeni kanal
+/// eklemek yalnız yeni bir üye sınıfı yazmak olur.</para>
+///
+/// <para><b>⚠ Uygulayan sınıflar <c>[ExposeServices(typeof(IChannelStockPusherMember))]</c> TAŞIMALIDIR:</b>
+/// sınıf adları bu arayüzün adıyla bitmediği için ABP'nin varsayılan kaydı arayüzü AÇMAZ ve composite boş
+/// koleksiyon alır — hiçbir kanal push edilmez, hata da çıkmaz. (Aynı tuzak 2026-08-08'de
+/// <c>ICommodityStockReader</c>'da 14 gün yaşandı.) Mekanik ağ: <c>DependencyRegistrationConventionTests</c>.</para>
+/// </summary>
+public interface IChannelStockPusherMember
+{
+    /// <summary>Log/teşhis için kanal adı.</summary>
+    string ChannelName { get; }
+
     Task PushProductAsync(Guid productId);
 }
 
@@ -30,7 +51,8 @@ public interface IChannelStockPusher
 /// <para><b>UoW sözleşmesi (2026-07-25 inceleme bulgusu #9):</b> DB okuma/yazma KENDİ kısa UoW'unda biter;
 /// N11 HTTP çağrıları UoW DIŞINDA koşar — 60sn'lik dış istek açık DB transaction'ı rehin almaz.</para>
 /// </summary>
-public class N11ChannelStockPusher : IChannelStockPusher, ITransientDependency
+[ExposeServices(typeof(IChannelStockPusherMember))]
+public class N11ChannelStockPusher : IChannelStockPusherMember, ITransientDependency
 {
     private readonly IRepository<SalesChannelTrN11Product, Guid> _n11ProductRepository;
     private readonly ISalesChannelTrN11ProductAppService _n11ProductAppService;
@@ -54,6 +76,8 @@ public class N11ChannelStockPusher : IChannelStockPusher, ITransientDependency
         _asyncExecuter = asyncExecuter;
         _logger = logger;
     }
+
+    public string ChannelName => "N11";
 
     public virtual async Task PushProductAsync(Guid productId)
     {

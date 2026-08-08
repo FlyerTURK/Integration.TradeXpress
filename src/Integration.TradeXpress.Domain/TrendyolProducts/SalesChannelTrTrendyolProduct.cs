@@ -83,6 +83,30 @@ public class SalesChannelTrTrendyolProductSku
     /// <summary>Son BAŞARILI push'ta gönderilen salePrice (efektif satış fiyatı).</summary>
     public decimal? LastSentSalePrice { get; set; }
 
+    // ── GÖNDERİLDİ AMA HENÜZ ONAYLANMADI (2026-08-08 Hakan kararı — seçenek "c") ──
+    //
+    // Trendyol yazma uçları ASENKRON: submit anında "ne gönderdim" bellidir, "kabul edildi mi" belli DEĞİLDİR
+    // ve batch REDDEDİLEBİLİR. Bu üç alan submit anında yazılır, batch COMPLETED olunca LastSent*'e TERFİ eder,
+    // FAILED olunca TEMİZLENİR.
+    //
+    // Neden ayrı alan (reddedilen iki alternatif):
+    //  (a) "Finalizasyonda satırları yeniden kur" — ürün o arada değiştiyse GÖNDERİLMEMİŞ değerler
+    //      "gönderildi" diye yazılırdı: hatasız, logsuz, yalnız yanlış. Bu projenin en pahalı hata sınıfı.
+    //  (b) "Doğrudan LastSent*'e yaz, FAILED'da geri al" — reddedilen gönderim, geri alma anına kadar
+    //      "senkron" görünürdü; üstelik geri alma da başarısız olabilir. Kayıt yalan söyleyebilir hâle gelirdi.
+    // (c) ile "ne gönderdim" sorusunun cevabı KAYITTA durur ve hiçbir aşamada tahmin edilmez.
+    //
+    // Şema notu: SKU satırı JSON kolonunda saklandığı için (OwnsMany + ToJson) bu alanlar migration İSTEMEZ.
+
+    /// <summary>Gönderilen ama batch'i henüz sonuçlanmamış adet.</summary>
+    public int? PendingSentQuantity { get; set; }
+
+    /// <summary>Gönderilen ama batch'i henüz sonuçlanmamış listPrice.</summary>
+    public decimal? PendingSentListPrice { get; set; }
+
+    /// <summary>Gönderilen ama batch'i henüz sonuçlanmamış salePrice.</summary>
+    public decimal? PendingSentSalePrice { get; set; }
+
     public SalesChannelTrTrendyolProductSku()
     {
     }
@@ -417,6 +441,54 @@ public class SalesChannelTrTrendyolProduct : FullAuditedAggregateRoot<Guid>, IMu
         sku.AttributeSnapshot = snapshot
             .Select(a => new SalesChannelTrTrendyolProductSkuAttribute(a.AttributeId, a.AttributeValueId))
             .ToList();
+    }
+
+    /// <summary>SUBMIT anında "ne gönderdim"i kaydeder — henüz onaylanmış SAYILMAZ.
+    /// <c>LastSent*</c>'e DOKUNMAZ: batch reddedilirse dirty-check eski (doğru) tabanla çalışmaya devam eder.</summary>
+    public virtual void RecordPendingSkuPush(string barcode, int? quantity, decimal? listPrice, decimal? salePrice)
+    {
+        var sku = FindSku(barcode);
+        if (sku is null)
+        {
+            return;
+        }
+
+        sku.PendingSentQuantity = quantity;
+        sku.PendingSentListPrice = listPrice;
+        sku.PendingSentSalePrice = salePrice;
+    }
+
+    /// <summary>Batch COMPLETED → bekleyen değerler <c>LastSent*</c>'e TERFİ eder ve bekleme temizlenir.
+    /// Bekleyeni olmayan SKU'ya dokunulmaz (o gönderime dahil değildi; tabanını ezmek yalan olurdu).
+    /// <b>İdempotent:</b> ikinci çağrıda bekleyen kalmadığı için no-op.</summary>
+    public virtual void PromotePendingSkuPushes()
+    {
+        foreach (var sku in Skus.Where(s => s.PendingSentQuantity is not null
+                                            || s.PendingSentListPrice is not null
+                                            || s.PendingSentSalePrice is not null))
+        {
+            sku.LastSentQuantity = sku.PendingSentQuantity;
+            sku.LastSentListPrice = sku.PendingSentListPrice;
+            sku.LastSentSalePrice = sku.PendingSentSalePrice;
+            ClearPending(sku);
+        }
+    }
+
+    /// <summary>Batch FAILED → bekleyenler ATILIR. <c>LastSent*</c> DEĞİŞMEZ, yani bir sonraki senkron
+    /// aynı farkı yeniden görür ve yeniden gönderir — reddedilen gönderim sessizce "yapıldı" sayılmaz.</summary>
+    public virtual void ClearPendingSkuPushes()
+    {
+        foreach (var sku in Skus)
+        {
+            ClearPending(sku);
+        }
+    }
+
+    private static void ClearPending(SalesChannelTrTrendyolProductSku sku)
+    {
+        sku.PendingSentQuantity = null;
+        sku.PendingSentListPrice = null;
+        sku.PendingSentSalePrice = null;
     }
 
     /// <summary>Trendyol yanıtındaki içerik id'sini (productContentId) yerel satıra işler — content-bulk-update

@@ -404,6 +404,12 @@ public class TradeXpressBlazorModule : AbpModule
         Volo.Abp.Threading.AsyncHelper.RunSync(() =>
             context.AddBackgroundWorkerAsync<Integration.TradeXpress.Orchestration.RepricingCycleWorker>());
 
+        // Trendyol batch DURUM işçisi (5 dk) — asenkron gönderimleri çözer: COMPLETED'da LastSent* terfi eder ve
+        // push geçmişi yazılır. Bu worker olmadan finalizasyon yalnız elle "durum yenile"ye bağlı kalır ve
+        // çözülmeyen kayıt çifte-batch guard'ı yüzünden kalıcı kilitlenir. YALNIZ Blazor host'ta.
+        Volo.Abp.Threading.AsyncHelper.RunSync(() =>
+            context.AddBackgroundWorkerAsync<Integration.TradeXpress.TrendyolProducts.TrendyolBatchStatusWorker>());
+
         // Etsy taxonomy TAM-RECONCILE worker (günlük; RunOnStart=true → açılışta İLK bayatlık kontrolü). Bayat/boşsa
         // reconcile (ekle/güncelle/HARD-sil); değilse atlar. YALNIZ Blazor host'ta → çift-çalışma yok.
         Volo.Abp.Threading.AsyncHelper.RunSync(() =>

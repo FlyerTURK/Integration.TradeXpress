@@ -73,6 +73,9 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
     /// <c>ex.Message</c> yazmak guard'ların doldurduğu SKU/fiyat/sınır bilgisini çöpe atardı.</summary>
     private readonly BusinessExceptionDescriber _describer;
 
+    /// <summary>Push GEÇMİŞİ yazıcısı — yalnız COMPLETED batch'te çağrılır (delil "kabul edildi" demektir).</summary>
+    private readonly TrendyolPushHistoryRecorder _historyRecorder;
+
     public SalesChannelTrTrendyolProductAppService(
         IRepository<SalesChannelTrTrendyolProduct, Guid> repository,
         IRepository<Product, Guid> productRepository,
@@ -102,10 +105,12 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
         SalesChannelTrTrendyolProductRemover remover,
         ImportedProductCategoryResolver categoryResolver,
         VariantSaleReadinessResolver saleReadiness,
-        BusinessExceptionDescriber describer)
+        BusinessExceptionDescriber describer,
+        TrendyolPushHistoryRecorder historyRecorder)
     {
         _saleReadiness = saleReadiness;
         _describer = describer;
+        _historyRecorder = historyRecorder;
         _repository = repository;
         _productRepository = productRepository;
         _variantRepository = variantRepository;
@@ -444,8 +449,23 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
         try
         {
             // Veri kurulumu da try İÇİNDE — geçici-link hataları dahil MarkSyncFailed'e düşsün (N11 ile aynı).
-            var data = await BuildProductDataAsync(entity, warnings: null, notices: pushNotices);
+            var candidates = new List<TrendyolSkuPushCandidate>();
+            var data = await BuildProductDataAsync(entity, warnings: null, notices: pushNotices, candidates: candidates);
             var result = await _client.SubmitProductAsync(data, CredentialsOf(channel));
+
+            // SKU DONDURMA (2026-08-08 düzeltmesi): barkodlar ancak gönderim yapıldıktan SONRA kalıcılaşır —
+            // push başarısızsa DB'ye bayat barkod donmasın diye plan aşaması mutasyonsuzdu. Bu çağrı eksikti:
+            // kendi push'umuzla açılan kayıt SKU satırı almıyor, dolayısıyla hafif senkron o üründe kalıcı olarak
+            // "NotPushedYet" veriyordu. Bugüne kadar görünmemesinin tek sebebi canlıdaki 103 kaydın TAMAMININ
+            // import kaynaklı olması (SKU'ları UpsertImportedSku'dan geliyor).
+            entity.ReconcileSkus(candidates);
+
+            // "Ne gönderdim" — batch COMPLETED olunca LastSent*'e terfi edecek (bkz. FinalizeCompletedBatchAsync).
+            foreach (var item in data.Items)
+            {
+                entity.RecordPendingSkuPush(item.Barcode, item.Quantity, item.ListPrice, item.SalePrice);
+            }
+
             entity.MarkSubmitted(result.BatchRequestId, "ProductV2OnBoarding", Clock.Now.ToUniversalTime());
             await _repository.UpdateAsync(entity, autoSave: true);
         }
@@ -583,6 +603,15 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
             }
 
             var result = await _client.UpdatePriceAndInventoryAsync(items, CredentialsOf(channel));
+
+            // "NE GÖNDERDİM" ŞİMDİ kaydedilir — LastSent* değil, PendingSent* (2026-08-08 kararı "c").
+            // Finalizasyon dakikalar sonra çalışıyor ve o an bu değerleri yeniden üretemez: ürün değişmiş
+            // olabilir. Burada yazmazsak "gönderileni" tahmin etmek zorunda kalırdık.
+            foreach (var item in items)
+            {
+                entity.RecordPendingSkuPush(item.Barcode, item.Quantity, item.ListPrice, item.SalePrice);
+            }
+
             entity.MarkSubmitted(result.BatchRequestId, PriceInventoryBatchType, Clock.Now.ToUniversalTime());
             return await SaveAndMapAsync(entity, syncWarnings);
         }
@@ -609,6 +638,67 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
         }
     }
 
+    /// <summary>COMPLETED batch'i YEREL GERÇEĞE işler — bu dilimin kalbi.
+    ///
+    /// <para><b>Neden burada, submit anında değil:</b> Trendyol yazma uçları asenkron ve batch REDDEDİLEBİLİR.
+    /// Submit anında <c>LastSent*</c> yazsaydık bir sonraki tur "değişiklik yok" der, hiç yazılmamış fiyat/stok
+    /// sessizce atlanırdı. Bu yüzden kıyas tabanı ancak "kabul edildi" kanıtlandığında dolar.</para>
+    ///
+    /// <para><b>FAILED'da HİÇBİR ŞEY yazılmaz</b> — ne <c>LastSent*</c> ne geçmiş. Reddedilen bir gönderimi
+    /// geçmişte başarılı göstermek, delil kaydını delil olmaktan çıkarır.</para>
+    ///
+    /// <para><b>İdempotent:</b> ikinci çağrıda <c>Status</c> artık PROCESSING olmadığından (ve çağıranlar
+    /// yalnız PROCESSING kayıtları seçtiğinden) tekrar yazılmaz. Kısmi başarıda (<c>FailedCount &gt; 0</c>)
+    /// de yazılmaz: hangi SKU'nun düştüğü item kırılımından güvenilir biçimde eşlenemiyor, o yüzden
+    /// fail-closed davranıp tabanı KİRLETMİYORUZ — bir sonraki senkron her şeyi yeniden gönderir.</para></summary>
+    private async Task FinalizeCompletedBatchAsync(
+        SalesChannelTrTrendyolProduct entity,
+        TrendyolBatchStatus status,
+        string? batchType,
+        string? batchRequestId)
+    {
+        var completed = string.Equals(status.Status, "COMPLETED", StringComparison.OrdinalIgnoreCase);
+
+        // KISMİ BAŞARI da başarısızlık sayılır: hangi SKU'nun düştüğü item kırılımından güvenilir biçimde
+        // eşlenemiyor. Tabanı yarım terfi ettirmek, düşen SKU'yu "senkron" göstermek olurdu → fail-closed.
+        if (!completed || status.FailedCount > 0)
+        {
+            // Reddedildi/kısmen düştü → bekleyenler ATILIR, LastSent* DEĞİŞMEZ. Bir sonraki senkron aynı
+            // farkı yeniden görür ve yeniden gönderir. Geçmişe de HİÇBİR satır yazılmaz: reddedilen bir
+            // gönderimi delil defterinde başarılı göstermek, defteri delil olmaktan çıkarır.
+            if (status.Status is not null)
+            {
+                entity.ClearPendingSkuPushes();
+            }
+
+            return;
+        }
+
+        // Terfi ÖNCESİ topla: geçmişe yazılacak olan GÖNDERİLEN değerlerdir (terfi sonrası ikisi de aynı olur
+        // ama bekleyeni olmayan SKU'ları ayırt edebilmek için sıra önemli — o SKU'lar bu gönderime dahil değildi).
+        var entries = entity.Skus
+            .Where(s => s.PendingSentQuantity is not null
+                        || s.PendingSentListPrice is not null
+                        || s.PendingSentSalePrice is not null)
+            .Select(s => new TrendyolPushHistoryEntry(
+                Barcode: s.Barcode,
+                ListPrice: s.PendingSentListPrice,
+                SalePrice: s.PendingSentSalePrice,
+                Quantity: s.PendingSentQuantity,
+                Title: null,
+                Options: null,
+                MediaIds: null))
+            .ToList();
+
+        entity.PromotePendingSkuPushes();
+
+        var kind = string.Equals(batchType, PriceInventoryBatchType, StringComparison.Ordinal)
+            ? TrendyolProductPushKind.PriceStockSync
+            : TrendyolProductPushKind.Create;
+
+        await _historyRecorder.RecordAsync(entity.CompanyId, entity.Id, kind, entries, batchRequestId);
+    }
+
     private async Task<SalesChannelTrTrendyolProductDto> SaveAndMapAsync(
         SalesChannelTrTrendyolProduct entity, List<string> syncWarnings)
     {
@@ -633,7 +723,14 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
         {
             var status = await _client.GetBatchStatusAsync(entity.BatchRequestId, CredentialsOf(channel));
             var error = status.FailedCount > 0 ? status.FailureReasons : null;
+            var batchType = entity.LastBatchRequestType;
+            var batchId = entity.BatchRequestId;
+
             entity.MarkStatus(status.Status, status.FailedCount, error, Clock.Now.ToUniversalTime());
+
+            // Batch GERÇEĞE dönüştüğü an — dirty-check'in kıyas tabanı ancak burada dolar.
+            await FinalizeCompletedBatchAsync(entity, status, batchType, batchId);
+
             await _repository.UpdateAsync(entity, autoSave: true);
         }
         catch (Exception ex)
@@ -969,7 +1066,8 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
     /// <param name="notices">Kipten BAĞIMSIZ bildirimler (gerçek push'ta da dolar). <paramref name="warnings"/>'ten
     /// ayrı olması şart: onu doldurmak fail-fast'leri uyarıya çevirip push guard'larını devre dışı bırakırdı.</param>
     private async Task<TrendyolProductData> BuildProductDataAsync(
-        SalesChannelTrTrendyolProduct channelProduct, List<string>? warnings = null, List<string>? notices = null)
+        SalesChannelTrTrendyolProduct channelProduct, List<string>? warnings = null, List<string>? notices = null,
+        List<TrendyolSkuPushCandidate>? candidates = null)
     {
         var product = await GetOwnedProductAsync(channelProduct.ProductId);
 
@@ -1039,10 +1137,13 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
         // Barcode DONDURMA planı (mutasyonsuz — push başarısızsa DB'ye bayat barcode donmaz; kalıcılaştırma
         // yalnız başarılı batch sonrası ReconcileSkus ile). Varianter attribute imzası kategori-def bağımlı (T6/T8'de
         // dolar) → skeleton'da boş; barcode eşlemesi VariantId + dondurulmuş-kod aşamalarına dayanır.
-        var candidates = variants
+        // Aday listesi ÇAĞIRANA da verilir: başarılı submit sonrası SKU DONDURMA (ReconcileSkus) bu listeyi ister.
+        // Vermeseydik push başarılı olur ama kayıt SKU'suz kalırdı → hafif senkron o üründe kalıcı NotPushedYet.
+        var pushCandidates = variants
             .Select(v => new TrendyolSkuPushCandidate(v.Id, v.Code, Array.Empty<SalesChannelTrTrendyolProductSkuAttribute>()))
             .ToList();
-        var plannedBarcodes = channelProduct.PlanBarcodes(candidates);
+        candidates?.AddRange(pushCandidates);
+        var plannedBarcodes = channelProduct.PlanBarcodes(pushCandidates);
 
         // İndirim + emniyet payı satır kaynağında UYGULANDI (BuildPushRowsAsync) — burada yalnız taşınır.
         var items = rowSet.Rows.Select(r => new TrendyolProductItem(

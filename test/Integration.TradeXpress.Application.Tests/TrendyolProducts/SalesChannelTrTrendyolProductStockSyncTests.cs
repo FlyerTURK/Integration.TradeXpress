@@ -41,6 +41,7 @@ public abstract class SalesChannelTrTrendyolProductStockSyncTests<TStartupModule
     private readonly IRepository<EntityVariant, Guid> _erpVariantRepository;
     private readonly IRepository<ProductVariantDetail, Guid> _variantDetailRepository;
     private readonly ICurrentCompany _currentCompany;
+    private readonly IRepository<SalesChannelTrTrendyolProductPushHistory, Guid> _historyRepository;
     private readonly FakeTrendyolProductClient _client;
 
     protected SalesChannelTrTrendyolProductStockSyncTests()
@@ -55,6 +56,7 @@ public abstract class SalesChannelTrTrendyolProductStockSyncTests<TStartupModule
         _erpVariantRepository = GetRequiredService<IRepository<EntityVariant, Guid>>();
         _variantDetailRepository = GetRequiredService<IRepository<ProductVariantDetail, Guid>>();
         _currentCompany = GetRequiredService<ICurrentCompany>();
+        _historyRepository = GetRequiredService<IRepository<SalesChannelTrTrendyolProductPushHistory, Guid>>();
         _client = GetRequiredService<FakeTrendyolProductClient>();
         _client.AllowPriceInventoryWrites = true;
     }
@@ -290,6 +292,76 @@ public abstract class SalesChannelTrTrendyolProductStockSyncTests<TStartupModule
 
             ex.Code.ShouldBe("TradeXpress:Trendyol:Product:BatchInProgress");
             (await _appService.GetAsync(created.Id)).BatchRequestId.ShouldBe("CREATE-BATCH-1");
+        }
+    }
+
+    /// <summary>COMPLETED batch → gönderilen değerler <c>LastSent*</c>'e TERFİ eder ve ikinci senkron
+    /// "değişiklik yok" der. Dirty-check'in kıyas tabanı ancak burada dolar — P5'in bütün gerekçesi bu.</summary>
+    [Fact]
+    public async Task A_completed_batch_promotes_the_sent_values_and_the_next_sync_is_a_no_op()
+    {
+        var companyId = Guid.NewGuid();
+        using (_currentCompany.Change(companyId))
+        {
+            var created = await SeedAsync(companyId, "TYFIN1", verify: true, seedSkus: true);
+            await _appService.SyncStockAndPriceAsync(created.Id);
+
+            _client.NextBatchStatus = new TrendyolBatchStatus("COMPLETED", 2, 0, null);
+            var refreshed = await _appService.RefreshStatusAsync(created.Id);
+
+            refreshed.Skus.Select(s => s.LastSentQuantity).ShouldBe(new int?[] { 10, 20 }, ignoreOrder: true);
+
+            var batchesBefore = _client.PriceInventoryBatches.Count;
+            var second = await _appService.SyncStockAndPriceAsync(created.Id);
+
+            _client.PriceInventoryBatches.Count.ShouldBe(batchesBefore);   // Trendyol'a istek GİTMEDİ
+            second.SyncWarnings.ShouldNotBeEmpty();
+        }
+    }
+
+    /// <summary>COMPLETED batch SKU başına GEÇMİŞ satırı üretir — delil zinciri buradan başlar.</summary>
+    [Fact]
+    public async Task A_completed_batch_writes_push_history()
+    {
+        var companyId = Guid.NewGuid();
+        using (_currentCompany.Change(companyId))
+        {
+            var created = await SeedAsync(companyId, "TYFIN2", verify: true, seedSkus: true);
+            await _appService.SyncStockAndPriceAsync(created.Id);
+
+            _client.NextBatchStatus = new TrendyolBatchStatus("COMPLETED", 2, 0, null);
+            await _appService.RefreshStatusAsync(created.Id);
+
+            var history = await WithUnitOfWorkAsync(() => _historyRepository.GetListAsync(
+                h => h.SalesChannelTrTrendyolProductId == created.Id));
+
+            history.Count.ShouldBe(2);
+            history.ShouldAllBe(h => h.PushKind == TrendyolProductPushKind.PriceStockSync);
+            history.Select(h => h.Quantity).ShouldBe(new int?[] { 10, 20 }, ignoreOrder: true);
+            history.ShouldAllBe(h => h.BatchRequestId != null);
+        }
+    }
+
+    /// <summary>FAILED batch → <c>LastSent*</c> DEĞİŞMEZ, geçmişe satır YAZILMAZ, bekleyenler atılır.
+    /// Reddedilen gönderimi delil defterinde başarılı göstermek defteri delil olmaktan çıkarırdı; tabanı
+    /// terfi ettirmek ise gönderilmemiş değerleri "senkron" sayardı.</summary>
+    [Fact]
+    public async Task A_failed_batch_neither_promotes_nor_records()
+    {
+        var companyId = Guid.NewGuid();
+        using (_currentCompany.Change(companyId))
+        {
+            var created = await SeedAsync(companyId, "TYFIN3", verify: true, seedSkus: true);
+            await _appService.SyncStockAndPriceAsync(created.Id);
+
+            _client.NextBatchStatus = new TrendyolBatchStatus("FAILED", 2, 2, "barcode not found");
+            var refreshed = await _appService.RefreshStatusAsync(created.Id);
+
+            refreshed.Skus.ShouldAllBe(s => s.LastSentQuantity == null);
+
+            var history = await WithUnitOfWorkAsync(() => _historyRepository.GetListAsync(
+                h => h.SalesChannelTrTrendyolProductId == created.Id));
+            history.ShouldBeEmpty();
         }
     }
 

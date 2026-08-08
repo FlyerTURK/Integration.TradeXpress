@@ -589,7 +589,17 @@ public sealed class TrendyolProductClient : TrendyolRestClientBase, ITrendyolPro
     }
 
     // { status, itemCount, items:[{ status, failureReasons:[...] }] } → durum + başarısız kalem + gerekçeler.
-    private static TrendyolBatchStatus ParseBatchStatus(string payload)
+    /// <summary>Batch durum yanıtını çözer (public static — ağsız birim test edilir).
+    ///
+    /// <para><b>⚠ KÖK <c>status</c> HER BATCH'TE DÖNMEZ.</b> Trendyol'un resmî notu: fiyat/stok
+    /// (<c>price-and-inventory</c>) batch'inde <b>batch seviyesinde <c>status</c> alanı YOKTUR</b>, sonuç
+    /// item-bazlı statülerden okunur. Bu yüzden kök alan boşsa durum <b>item statülerinden TÜRETİLİR</b>.</para>
+    ///
+    /// <para><b>Türetmeseydik ne olurdu:</b> <c>Status</c> hep <c>null</c> döner → finalizasyonun
+    /// <c>COMPLETED</c> dalı HİÇ tetiklenmez → <c>LastSent*</c> sonsuza kadar boş kalır → dirty-check her turda
+    /// "değişti" der → aynı istek tekrar gider → Trendyol'un 15 dk mükerrer reddine çarpar. Hatasız, logsuz,
+    /// sonsuz bir döngü. Kök <c>status</c> DOLU ise ona dokunulmaz — mevcut davranış birebir korunur.</para></summary>
+    public static TrendyolBatchStatus ParseBatchStatus(string payload)
     {
         try
         {
@@ -604,11 +614,13 @@ public sealed class TrendyolProductClient : TrendyolRestClientBase, ITrendyolPro
                 : 0;
 
             var failed = 0;
+            var seenItems = 0;
             var reasons = new List<string>();
             if (root.TryGetProperty("items", out var items) && items.ValueKind == JsonValueKind.Array)
             {
                 foreach (var item in items.EnumerateArray())
                 {
+                    seenItems++;
                     var itemStatus = item.TryGetProperty("status", out var itemStatusEl) && itemStatusEl.ValueKind == JsonValueKind.String
                         ? itemStatusEl.GetString()
                         : null;
@@ -628,6 +640,15 @@ public sealed class TrendyolProductClient : TrendyolRestClientBase, ITrendyolPro
             }
 
             var failureReasons = reasons.Count > 0 ? string.Join(" | ", reasons.Distinct()) : null;
+
+            // Kök status YOKSA ama item'lar İŞLENMİŞ olarak dönmüşse batch tamamlanmıştır (bkz. metot doc'u).
+            // Koşul bilinçle DAR: yalnız kök alan boş VE en az bir item varken türetilir. items boşsa "işlendi"
+            // demek için elimizde kanıt yok — o hâlde null kalır ve kayıt PROCESSING'te bekler (fail-closed).
+            if (string.IsNullOrWhiteSpace(status) && seenItems > 0)
+            {
+                status = "COMPLETED";
+            }
+
             return new TrendyolBatchStatus(status, itemCount, failed, failureReasons);
         }
         catch (JsonException)

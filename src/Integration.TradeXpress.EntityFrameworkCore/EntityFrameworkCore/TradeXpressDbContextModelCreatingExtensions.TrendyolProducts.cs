@@ -135,5 +135,24 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
             b.HasIndex(x => new { x.TenantId, x.SalesChannelTrTrendyolProductId, x.StockItemId, x.LineOrder });
             b.HasIndex(x => new { x.TenantId, x.CompanyId });
         });
+
+        // Push GEÇMİŞİ — append-only delil kaydı (N11 eşiyle aynı şekil; yazım anı COMPLETED batch'idir).
+        builder.Entity<SalesChannelTrTrendyolProductPushHistory>(b =>
+        {
+            b.ToTable(TradeXpressConsts.DbTablePrefix + "SalesChannelTrTrendyolProductPushHistories", TradeXpressConsts.DbSchema);
+            b.ConfigureByConvention();
+
+            b.Property(x => x.Barcode).IsRequired().HasMaxLength(TrendyolProductConsts.BarcodeMaxLength);
+            b.Property(x => x.Title).HasMaxLength(TrendyolPushHistoryConsts.TitleMaxLength);
+            b.Property(x => x.VariantOptions).HasMaxLength(TrendyolPushHistoryConsts.VariantOptionsMaxLength);
+            b.Property(x => x.Images).HasMaxLength(TrendyolPushHistoryConsts.ImagesMaxLength);
+            b.Property(x => x.BatchRequestId).HasMaxLength(TrendyolProductConsts.BatchRequestIdMaxLength);
+            b.Property(x => x.ListPrice).HasPrecision(TrendyolPushHistoryConsts.PricePrecision, TrendyolPushHistoryConsts.PriceScale);
+            b.Property(x => x.SalePrice).HasPrecision(TrendyolPushHistoryConsts.PricePrecision, TrendyolPushHistoryConsts.PriceScale);
+
+            // "Bu SKU'nun geçmişi" — en yeni önce okunur (delil sorgusunun tek şekli).
+            b.HasIndex(x => new { x.TenantId, x.SalesChannelTrTrendyolProductId, x.Barcode, x.PushedAtUtc });
+            b.HasIndex(x => new { x.TenantId, x.CompanyId });
+        });
     }
 }
