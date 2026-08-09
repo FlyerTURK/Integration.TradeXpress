@@ -72,4 +72,9 @@
        içeri alınır (salt GET; idempotent). Sonuç raporu panelin altında gösterilir. Kanal bu oturumda YENİ
        oluşturulduysa (AutoImport) panel ilk görünümünde importu otomatik başlatır. *@
     <TrendyolMarketplaceImportPanel SalesChannelId="@Model.Id" AutoImport="@AutoImportProducts" />
+
+    @* FİYATLANDIRMA TAHTASI — içe aktarımın BIRAKTIĞI işi gösterir: pazaryeri fiyatı/adedi ile yerel
+       sınıflandırma durumu yan yana. İçe aktarım panelinin hemen ALTINDA duruyor çünkü akış sıralı:
+       önce çek, sonra "şimdi ne yapmam gerekiyor"u gör. Salt okuma; istenince yüklenir. *@
+    <TrendyolPricingBoardPanel SalesChannelId="@Model.Id" />
 }

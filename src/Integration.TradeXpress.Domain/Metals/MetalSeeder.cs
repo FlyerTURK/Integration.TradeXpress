@@ -33,6 +33,8 @@ public class MetalSeeder(
     IUnitOfWorkManager unitOfWorkManager)
     : ITransientDependency
 {
+    private const string MetalEntityName = "Metal";
+
     // GRAM ALTIN KOD/MİLYEM KURALI (2026-07-25 Hakan düzeltmesi — seeder'da sapma birikmişti):
     //  1) Kod gramajı TEK ONDALIKLI yazılır: G10 DEĞİL "G10.0", G100 DEĞİL "G100.0". Eskiden tam sayı
     //     gramajlar ondalıksız yazılmıştı (G10/G20/G50/G100/G250/G500) → aynı ailede iki farklı yazım.
@@ -124,6 +126,14 @@ public class MetalSeeder(
 
             var existing = existingCodes.ToHashSet(StringComparer.OrdinalIgnoreCase);
 
+            // ANA VARYANT KİMLİK ONARIMI (2026-08-08) — seeder yalnız EKSİĞİ tamamlıyordu, MEVCUDU hiç
+            // denetlemiyordu. Sonuç: 2026-08-06'daki "varyant kodu sahibi izler" kararından ÖNCE ekilmiş 86
+            // madenin ana varyantı "ANAVARYANT" sentinel koduyla kaldı ve onarım hiç uğramadı (kayıt zaten
+            // var → atla). O kod pazaryerine SKU olarak gidebilirdi. Artık her koşuda mevcut madenlerin ana
+            // varyant kimliği de sahibine eşitlenir — seeder "eksiği tamamla" değil "doğru hâle getir" olur.
+            // Sileneni DİRİLTMEZ kuralı korunur: yalnız CANLI madenlerin varyantına dokunulur.
+            await RepairMainVariantIdentityAsync(company.Id);
+
             foreach (var (code, name, factor, factorChange, laborType, stable, entry, exit, costUnit) in Seeds)
             {
             if (existing.Contains(code.NormalizeAsCode())) continue;
@@ -160,5 +170,70 @@ public class MetalSeeder(
         }
 
         await unitOfWorkManager.Current!.SaveChangesAsync();
+    }
+
+    /// <summary>Şirketin CANLI madenlerinde ana varyant kimliğini sahibine eşitler (kod + ad) ve pasif kalmış
+    /// ana varyantı aktifleştirir.
+    ///
+    /// <para><b>Neden seeder'da:</b> "varyant kodu sahibi izler" kuralı yalnız KAYIT anında çalışan bir
+    /// onarımdı; hiç kaydedilmemiş kayda uğramıyordu. Seeder ise "kod varsa atla" dediği için mevcut kayda
+    /// hiç bakmıyordu. İkisinin arasında kalan 86 maden sentinel koduyla ("ANAVARYANT") kaldı — o kod
+    /// pazaryerine SKU olarak gidebilecek durumdaydı. Artık her koşuda mevcut kayıtlar da doğrulanır.</para>
+    ///
+    /// <para><b>Idempotent ve muhafazakâr:</b> yalnız FARK varsa yazar (gereksiz UPDATE yok), yalnız ana
+    /// varyanta dokunur (kombinasyon varyantlarının kodu değer adlarından türer), soft-delete edilmiş madenin
+    /// varyantına DOKUNMAZ — "sileneni diriltme" kuralının varyant ayağı.</para></summary>
+    private async Task RepairMainVariantIdentityAsync(Guid companyId)
+    {
+        var metals = (await metalRepository.GetQueryableAsync())
+            .Where(m => m.CompanyId == companyId)
+            .Select(m => new { m.Id, m.Code, m.Name })
+            .ToList();
+
+        if (metals.Count == 0)
+        {
+            return;
+        }
+
+        var metalIds = metals.Select(m => m.Id).ToList();
+        var mains = (await entityVariantRepository.GetQueryableAsync())
+            .Where(v => v.EntityName == MetalEntityName && v.IsMain && metalIds.Contains(v.EntityId))
+            .ToList();
+
+        var ownerById = metals.ToDictionary(m => m.Id, m => (m.Code, m.Name));
+
+        foreach (var main in mains)
+        {
+            if (!ownerById.TryGetValue(main.EntityId, out var owner))
+            {
+                continue;
+            }
+
+            var changed = false;
+
+            if (!string.Equals(main.Code, owner.Code, StringComparison.Ordinal))
+            {
+                main.SetCode(owner.Code);
+                changed = true;
+            }
+
+            if (!string.Equals(main.Name, owner.Name, StringComparison.Ordinal))
+            {
+                main.SetName(owner.Name);
+                changed = true;
+            }
+
+            // Ana varyant pasif olamaz (2026-08-08 kuralı) — eski veride kalmış ihlali burada onar.
+            if (!main.IsActive)
+            {
+                main.SetAsMain(true);   // SetAsMain aktifleştirir; SetActive(true) de olurdu, niyet burada açık
+                changed = true;
+            }
+
+            if (changed)
+            {
+                await entityVariantRepository.UpdateAsync(main, autoSave: false);
+            }
+        }
     }
 }

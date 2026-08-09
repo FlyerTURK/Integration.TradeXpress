@@ -390,8 +390,54 @@ public class TrendyolImportIssueDto
 /// Yapılandırma (kategori/marka/KDV/kargo/attribute) bizde tutulur; <see cref="PushToTrendyolAsync"/> ürünü +
 /// varyantlarını gönderir (batch id döner), <see cref="RefreshStatusAsync"/> batch durumunu çeker. Company-owned.
 /// </summary>
+/// <summary>FİYATLANDIRMA TAHTASI SATIRI — içe aktarılmış bir kanal ürününün fiyat kararı için gereken her şeyi
+/// TEK satırda taşır (2026-08-08 Hakan talebi: <i>"içe aktarılan ürünlerin resimleri, o andaki pazaryerindeki
+/// fiyatı, satılabilir adedi de görünsün ki fiyat belirlemede yardımcı olabilsin"</i>).
+///
+/// <para><b>Neden ayrı DTO:</b> mevcut <see cref="SalesChannelTrTrendyolProductDto"/> tam graf taşır (SKU'lar,
+/// nitelikler, reçete satırları) — 103 kayıt için o grafı çekmek hem ağır hem gereksiz. Bu DTO yalnız KARAR
+/// verdiren alanları taşır ve tek sorguda toplanır.</para>
+///
+/// <para><b>Pazaryeri değerleri BİZİM değil ONLARIN gerçeğidir</b> — import anındaki görüntüdür ve push
+/// zincirini ETKİLEMEZ. Kıyas içindir: "orada 249'a satıyor, benim maliyetim ne?"</para></summary>
+public class TrendyolPricingBoardItemDto
+{
+    public Guid Id { get; set; }
+
+    public Guid ProductId { get; set; }
+
+    public string ProductCode { get; set; } = string.Empty;
+
+    public string ProductName { get; set; } = string.Empty;
+
+    /// <summary>Kayıt geneli görsel (DAM); yoksa boş — satır yine gösterilir, görsel eksikliği satırı gizlemez.</summary>
+    public string? ImageUrl { get; set; }
+
+    /// <summary>Pazaryerindeki liste fiyatı (import görüntüsü). <c>null</c> = import etmedi/bilinmiyor.</summary>
+    public decimal? RemoteListPrice { get; set; }
+
+    /// <summary>Pazaryerinde satışta mı (onSale). <c>null</c> = bilinmiyor.</summary>
+    public bool? RemoteOnSale { get; set; }
+
+    /// <summary>Pazaryerindeki toplam adet — varyantların kanal override'ı, yoksa çekirdek stoğu.</summary>
+    public int RemoteQuantity { get; set; }
+
+    public int VariantCount { get; set; }
+
+    /// <summary>Reçetesi kurulmuş mu — <c>false</c> ise ürün fiyatlanamaz ve satışa çıkamaz (elle iş bekliyor).
+    /// Tahtanın asıl sıralama ekseni budur: reçetesizler önce gelir.</summary>
+    public bool HasRecipe { get; set; }
+
+    /// <summary>Satış hazırlığından geçmiş varyant sayısı (<c>Ready</c>). 0 ise push kapısından hiçbir satır geçmez.</summary>
+    public int ReadyVariantCount { get; set; }
+}
+
 public interface ISalesChannelTrTrendyolProductAppService : IApplicationService
 {
+    /// <summary>Kanalın FİYATLANDIRMA TAHTASI — içe aktarılmış ürünleri pazaryeri fiyatı/adedi + yerel
+    /// sınıflandırma durumuyla listeler. Salt okuma; pazaryerine çıkmaz (veriler import anından).</summary>
+    Task<List<TrendyolPricingBoardItemDto>> GetPricingBoardAsync(Guid salesChannelId);
+
     /// <summary>Bir ÜRÜNE ait tüm Trendyol kanal ürünleri (ürün-merkezli drill). Aynı kanalda birden fazla kayıt
     /// OLABİLİR (N11 ile aynı 2026-07-07 kararı); kanal set-once (değiştirilemez).</summary>
     Task<List<SalesChannelTrTrendyolProductDto>> GetListForProductAsync(Guid productId);

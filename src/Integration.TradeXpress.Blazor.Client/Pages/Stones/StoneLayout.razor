@@ -61,7 +61,9 @@
         </DxFormLayoutItem>
     </DxFormLayoutGroup>
 
-    <DxFormLayoutGroup Caption="@L["Other"]" ColSpanMd="12">
+    @* İsteğe bağlı "diğer" grubu KAPALI açılır (2026-08-08 Hakan): zorunlu alanlar üstte kalsın, mobilde
+       ekran boşa dolmasın. Metal formundaki desenin aynısı. *@
+    <DxFormLayoutGroup Caption="@L["Other"]" ColSpanMd="12" Expandable="true" Expanded="false">
         <DxFormLayoutItem Caption="@L["Description"]" ColSpanMd="12">
             <DxMemo @bind-Text="@Model.Description" Rows="2" ResizeMode="MemoResizeMode.Disabled" CssClass="w-100" />
         </DxFormLayoutItem>

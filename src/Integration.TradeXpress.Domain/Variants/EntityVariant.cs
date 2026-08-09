@@ -94,15 +94,37 @@ public class EntityVariant : FullAuditedAggregateRoot<Guid>, IMultiTenant, IComp
             description, nameof(Description), EntityFieldConsts.DescriptionMinLength, EntityVariantConsts.DescriptionMaxLength);
     }
 
+    /// <summary>Aktiflik. <b>ANA VARYANT PASİFLEŞTİRİLEMEZ</b> (2026-08-08 Hakan kuralı) — fail-fast.
+    ///
+    /// <para><b>Neden hata, sessiz no-op değil:</b> bu KULLANICININ bilinçli eylemidir. Sessizce yutulsaydı
+    /// kullanıcı pasifleştirdiğini sanır, kayıt aktif kalır ve fark ancak ürün pazaryerinde satılmaya devam
+    /// edince görülürdü. Amaç kaydı satıştan çekmekse doğru yol SAHİBİ (emtia/ürün) pasifleştirmektir —
+    /// ana varyant sahibin kimliğini taşır, ondan bağımsız kapatılamaz.</para></summary>
     public virtual void SetActive(bool value)
     {
+        if (!value && IsMain)
+        {
+            throw new BusinessException("TradeXpress:EntityVariant:MainCannotBeDeactivated")
+                .WithData("Code", Code);
+        }
+
         IsActive = value;
     }
 
-    /// <summary>Main bayrağını değiştirir. Tekil-main değişmezi (diğerlerini düşür) EntityVariantManager'da.</summary>
+    /// <summary>Main bayrağını değiştirir. Tekil-main değişmezi (diğerlerini düşür) EntityVariantManager'da.
+    ///
+    /// <para><b>Ana yapmak AKTİFLEŞTİRİR</b> — burada fail-fast YANLIŞ olurdu: bu yol sistemin yapısal
+    /// onarımıdır (<c>EnsureMainVariantAsync</c> ana varyantı olmayan sahipte listedeki ilkini terfi ettirir).
+    /// Tüm varyantlar pasifse fırlatmak, sahibi ANA VARYANTSIZ bırakırdı — kimlik taşıyan satır hiç olmazdı.
+    /// Bu, pasif bir satırı aktifleştirmekten çok daha kötüdür. Repodaki "kendini onarır" emsaliyle aynı yön.</para></summary>
     public virtual void SetAsMain(bool value)
     {
         IsMain = value;
+
+        if (value)
+        {
+            IsActive = true;   // alan üzerinden: SetActive(true) çağırmak da olurdu ama niyet burada daha açık
+        }
     }
 
     /// <summary>Barkod (opsiyonel; boş değilse trim + max).</summary>

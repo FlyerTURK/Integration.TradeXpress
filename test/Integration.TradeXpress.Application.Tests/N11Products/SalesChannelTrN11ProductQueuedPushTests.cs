@@ -289,7 +289,7 @@ public abstract class SalesChannelTrN11ProductQueuedPushTests<TStartupModule> : 
 
             // Stok geri geldi: varyantlar yeniden kurulabilir hâle gelir.
             _restClient.PriceStockBatches.Clear();
-            await SetVariantsActiveAsync(variantIds, isActive: true);
+            await SetVariantsSellableAsync(variantIds, sellable: true);
 
             await _appService.SyncStockAndPriceAsync(created.Id);
 
@@ -303,6 +303,10 @@ public abstract class SalesChannelTrN11ProductQueuedPushTests<TStartupModule> : 
     /// test karşılığı. İki şey birden gerekir: eksen nitelikleri temizlenir (yoksa reconcile N11-only
     /// kombinasyonu GERİ ÜRETİR) ve ERP varyantları pasifleşir (aday sorgusu <c>IsActive</c> filtreler).
     /// Dönüş: pasifleştirilen varyant kimlikleri — "stok geri geldi" senaryosu bunları geri açar.</summary>
+    // "Stok geri geldi" senaryosunda varyantlara yazilan fiyat — orijinal tohum fiyatiyla ayni olmak zorunda
+    // degil; test yalnizca "aday listesi yeniden doldu" sonucunu dogruluyor.
+    private const decimal RestoredSalePrice = 150m;
+
     private async Task<List<Guid>> MakeNoVariantBuildableAsync(Guid channelProductId)
     {
         var dto = await _appService.GetAsync(channelProductId);
@@ -324,25 +328,35 @@ public abstract class SalesChannelTrN11ProductQueuedPushTests<TStartupModule> : 
                 autoSave: true);
         });
 
-        await SetVariantsActiveAsync(variantIds, isActive: false);
+        await SetVariantsSellableAsync(variantIds, sellable: false);
         return variantIds;
     }
 
-    private async Task SetVariantsActiveAsync(List<Guid> variantIds, bool isActive)
+    /// <summary>Varyantları aday listesinden düşürür/geri getirir — kaldıraç <b>SATIŞ FİYATI</b>.
+    ///
+    /// <para><b>Neden IsActive DEĞİL (2026-08-08):</b> "ana varyant pasifleştirilemez" kuralı geldi
+    /// (<c>EntityVariant.SetActive</c> fail-fast eder) ve bu helper ana varyantı da pasifleştiriyordu.
+    /// Kural testi kırdığı için testi gevşetmek YASAK — bunun yerine AYNI sonucu üreten MEŞRU bir kaldıraca
+    /// geçildi: aday sorgusu fiyatsız varyantı zaten eliyor (<c>SalePrice is not null</c> süzgeci, kapıdan
+    /// da ÖNCE). Testin iddiaları birebir aynı kaldı; yalnız senaryonun kurulma yolu değişti.</para>
+    ///
+    /// <para>Gerçek hayattaki karşılığı da meşru: fiyatı çözülemeyen varyant push adayı olamaz.</para></summary>
+    private async Task SetVariantsSellableAsync(List<Guid> variantIds, bool sellable)
     {
-        var variantRepository = GetRequiredService<Volo.Abp.Domain.Repositories.IRepository<Variants.EntityVariant, Guid>>();
+        var detailRepository =
+            GetRequiredService<Volo.Abp.Domain.Repositories.IRepository<Products.ProductVariantDetail, Guid>>();
         await WithUnitOfWorkAsync(async () =>
         {
             foreach (var variantId in variantIds)
             {
-                var variant = await variantRepository.FindAsync(variantId);
-                if (variant is null)
+                var detail = await detailRepository.FindAsync(d => d.EntityVariantId == variantId);
+                if (detail is null)
                 {
                     continue;
                 }
 
-                variant.SetActive(isActive);
-                await variantRepository.UpdateAsync(variant, autoSave: true);
+                detail.SetSalePrice(sellable ? RestoredSalePrice : null, detail.SalePriceCurrencyUnitId);
+                await detailRepository.UpdateAsync(detail, autoSave: true);
             }
         });
     }

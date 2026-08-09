@@ -295,6 +295,22 @@ public partial class ProductCommodityClassificationPanel : CrudComponentBase
             return;
         }
 
+        // ÖLÜ YOL KAPISI (2026-08-08): metal-bacaklı ailede (Maden/Hurda/Vadeli) "yeni emtia aç" sunucuda
+        // MİLYEM zorunluluğuna takılıp HER ZAMAN reddediliyor (ProductCommodityProvisioner: Factor is null →
+        // Issues'a yazılır, kayıt açılmaz). Panel milyemi TOPLAMADIĞI için bu kombinasyon hiçbir zaman
+        // başarılı olamıyordu: kullanıcı 40 satır seçip "uygula" diyor, ileri gidiyor, hepsi Taslak'ta kalıyor
+        // ve gerekçe hiçbir ekranda görünmüyordu — saatlerce emek sessizce çöpe gidiyordu.
+        //
+        // Toolbar'a milyem EKLENMEDİ (Hakan kararı: "milyemi edit formunda belirleyeceğim") — bunun yerine
+        // yol ERKEN ve YÖNLENDİREREK kapatılıyor. Kural sunucununkinin aynası; ikisi ayrışırsa yine sessiz
+        // reddedilme doğar, bu yüzden aynı üçlü küme burada tekrarlanıyor ve yorumla bağlanıyor.
+        if (_mode == ProductCommodityProvisionMode.CreateNew
+            && _family is ProcessType.Metal or ProcessType.Scrap or ProcessType.Future)
+        {
+            UiService.ShowErrorToast(L["Product:Classify:MetalLeggedCreateNotSupported"]);
+            return;
+        }
+
         // Hizmet DIŞINDAKİ ailelerde en az bir boyut kısıt getirmeli; ikisi de 0 ise reçete satırı stoğu
         // hiç kısıtlamaz ve ürün "sınırsız üretilebilir" görünür — sessiz yanlış rakam.
         if (_family != ProcessType.Service && _amount <= 0m && _quantity <= 0m)

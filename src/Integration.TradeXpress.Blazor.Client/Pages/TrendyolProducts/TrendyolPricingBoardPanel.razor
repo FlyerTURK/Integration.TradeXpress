@@ -1,0 +1,103 @@
+@using Integration.TradeXpress.TrendyolProducts
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@* FİYATLANDIRMA TAHTASI — içe aktarılmış ürünleri fiyat kararı için gereken alanlarla yan yana gösterir
+   (2026-08-08 Hakan talebi). Pazaryeri fiyatı/adedi ONLARIN gerçeğidir (import görüntüsü, push'u etkilemez);
+   kıyas içindir. Sıralama KARAR BEKLEYENİ öne alır: reçetesizler başta, satışa çıkamayanlar sonra.
+   Salt okuma — bu panel pazaryerine çıkmaz, hiçbir şey yazmaz. *@
+
+<div class="mt-3" style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+    <DxButton Text="@L["TrendyolProduct:PricingBoard:Refresh"]"
+              IconCssClass="@TradeXpressIcons.Refresh"
+              RenderStyle="ButtonRenderStyle.Secondary"
+              Enabled="@(!_busy)"
+              Click="@LoadAsync" />
+    @if (_busy)
+    {
+        <DxWaitIndicator Visible="true" />
+    }
+    else if (_items.Count > 0)
+    {
+        <span style="font-size:0.85rem; color:#6c757d;">
+            @L["TrendyolProduct:PricingBoard:Summary", _items.Count, _items.Count(i => !i.HasRecipe), _items.Count(i => i.ReadyVariantCount == 0)]
+        </span>
+    }
+</div>
+
+@if (_items.Count > 0)
+{
+    <DxGrid Data="@_items" CssClass="mt-2" ShowSearchBox="true" ShowFilterRow="true"
+            PageSize="25" ColumnResizeMode="GridColumnResizeMode.NextColumn">
+        <Columns>
+            <DxGridDataColumn Caption="@L["Image"]" Width="80px" AllowSort="false">
+                <CellDisplayTemplate>
+                    @{ var row = (TrendyolPricingBoardItemDto)context.DataItem; }
+                    @if (!string.IsNullOrEmpty(row.ImageUrl))
+                    {
+                        <img src="@row.ImageUrl" alt="" style="width:56px; height:40px; object-fit:cover; border-radius:4px;" />
+                    }
+                    else
+                    {
+                        @* Görselsizlik de bir bilgi — boş hücre yerine görünür bir işaret. *@
+                        <span style="font-size:0.75rem; color:#9ca3af;">@L["TrendyolProduct:PricingBoard:NoImage"]</span>
+                    }
+                </CellDisplayTemplate>
+            </DxGridDataColumn>
+
+            <DxGridDataColumn FieldName="@nameof(TrendyolPricingBoardItemDto.ProductCode)" Caption="@L["Code"]" Width="120px" />
+            <DxGridDataColumn FieldName="@nameof(TrendyolPricingBoardItemDto.ProductName)" Caption="@L["Name"]" MinWidth="200" />
+
+            <DxGridDataColumn FieldName="@nameof(TrendyolPricingBoardItemDto.RemoteListPrice)"
+                              Caption="@L["TrendyolProduct:PricingBoard:RemotePrice"]" Width="130px" DisplayFormat="N2" />
+
+            <DxGridDataColumn FieldName="@nameof(TrendyolPricingBoardItemDto.RemoteQuantity)"
+                              Caption="@L["TrendyolProduct:PricingBoard:RemoteQuantity"]" Width="110px" />
+
+            <DxGridDataColumn Caption="@L["TrendyolProduct:PricingBoard:RemoteOnSale"]" Width="100px">
+                <CellDisplayTemplate>
+                    @{ var row = (TrendyolPricingBoardItemDto)context.DataItem; }
+                    @if (row.RemoteOnSale == true)
+                    {
+                        <span style="color:#15803d;">@L["Yes"]</span>
+                    }
+                    else if (row.RemoteOnSale == false)
+                    {
+                        <span style="color:#b45309;">@L["No"]</span>
+                    }
+                    else
+                    {
+                        <span style="color:#9ca3af;">—</span>
+                    }
+                </CellDisplayTemplate>
+            </DxGridDataColumn>
+
+            <DxGridDataColumn FieldName="@nameof(TrendyolPricingBoardItemDto.VariantCount)"
+                              Caption="@L["Variants"]" Width="90px" />
+
+            @* KARAR SÜTUNU — tahtanın asıl sebebi. Renk durumu ANLATIR, yalnız süslemez. *@
+            <DxGridDataColumn Caption="@L["TrendyolProduct:PricingBoard:Status"]" Width="170px">
+                <CellDisplayTemplate>
+                    @{ var row = (TrendyolPricingBoardItemDto)context.DataItem; }
+                    @if (!row.HasRecipe)
+                    {
+                        <span style="color:#b91c1c;">@L["TrendyolProduct:PricingBoard:NeedsRecipe"]</span>
+                    }
+                    else if (row.ReadyVariantCount == 0)
+                    {
+                        <span style="color:#b45309;">@L["TrendyolProduct:PricingBoard:NeedsVerification"]</span>
+                    }
+                    else
+                    {
+                        <span style="color:#15803d;">@L["TrendyolProduct:PricingBoard:Sellable", row.ReadyVariantCount]</span>
+                    }
+                </CellDisplayTemplate>
+            </DxGridDataColumn>
+        </Columns>
+    </DxGrid>
+}
+else if (_loaded && !_busy)
+{
+    <div class="mt-2" style="font-size:0.85rem; color:#6c757d;">
+        @L["TrendyolProduct:PricingBoard:Empty"]
+    </div>
+}

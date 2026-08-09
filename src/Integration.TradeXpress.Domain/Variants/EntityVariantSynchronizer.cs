@@ -79,9 +79,12 @@ public class EntityVariantSynchronizer : DomainService
                 .ToList();
 
             // Değersiz nitelik varken kartezyen BOŞTUR → mevcut seti koru, yalnız main'i garanti et.
+            // ownerCode/Name BURADA DA GEÇİLİR: geçilmezse yeni doğan ana varyant "ANAVARYANT" sentinel kodunu
+            // alır ve o kod pazaryerine SKU olarak gider (2026-08-06 kararının önlemek istediği şey). Sentinel
+            // yalnız sahip kimliğinin GERÇEKTEN bilinmediği savunma yolunda kalmalı — burada biliniyor.
             if (axes.Any(x => x.Values.Count == 0))
             {
-                await _variantManager.EnsureMainVariantAsync(entityName, entityId, companyId);
+                await _variantManager.EnsureMainVariantAsync(entityName, entityId, companyId, ownerCode, ownerName);
                 return;
             }
 
@@ -134,7 +137,9 @@ public class EntityVariantSynchronizer : DomainService
                 }
             }
 
-            await _variantManager.EnsureMainVariantAsync(entityName, entityId, companyId);
+            // Kombinasyon varyantlarının kodu değer adlarından türer; yine de ownerCode geçilir ki HİÇ varyant
+            // üretilememiş uç durumda doğacak ana varyant sentinel kod almasın.
+            await _variantManager.EnsureMainVariantAsync(entityName, entityId, companyId, ownerCode, ownerName);
         }
     }
 

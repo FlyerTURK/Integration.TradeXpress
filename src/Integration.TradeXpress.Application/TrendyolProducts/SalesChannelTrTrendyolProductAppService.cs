@@ -69,6 +69,9 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
     /// <summary>Varyant satış hazırlığı kapısı (N11'deki eşi) — İNSAN onayından geçmemiş varyant push adayı OLMAZ.</summary>
     private readonly VariantSaleReadinessResolver _saleReadiness;
 
+    /// <summary>Toplu varsayilan gorsel cozumu (fiyatlandirma tahtasi) — urun basina cagri yapilmaz.</summary>
+    private readonly IEntityMediaAppService _entityMedia;
+
     /// <summary>Kodlu hatayı operatörün okuyacağı metne çevirir (teşhis verisi dahil) — LastError'a ham
     /// <c>ex.Message</c> yazmak guard'ların doldurduğu SKU/fiyat/sınır bilgisini çöpe atardı.</summary>
     private readonly BusinessExceptionDescriber _describer;
@@ -105,10 +108,12 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
         SalesChannelTrTrendyolProductRemover remover,
         ImportedProductCategoryResolver categoryResolver,
         VariantSaleReadinessResolver saleReadiness,
+        IEntityMediaAppService entityMedia,
         BusinessExceptionDescriber describer,
         TrendyolPushHistoryRecorder historyRecorder)
     {
         _saleReadiness = saleReadiness;
+        _entityMedia = entityMedia;
         _describer = describer;
         _historyRecorder = historyRecorder;
         _repository = repository;
@@ -175,6 +180,98 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
                 .OrderBy(x => x.CategoryName));
         return items
             .Select(x => ObjectMapper.Map<SalesChannelTrTrendyolProduct, SalesChannelTrTrendyolProductDto>(x))
+            .ToList();
+    }
+
+    /// <summary>FİYATLANDIRMA TAHTASI — içe aktarılmış ürünleri fiyat kararı için gereken alanlarla listeler.
+    ///
+    /// <para><b>Neden ayrı uç:</b> <see cref="GetAsync"/> tam graf kurar (SKU + nitelik + reçete + maliyet).
+    /// 103 kayıt için o yolu 103 kez yürümek hem yavaş hem gereksiz — burada TEK sorgu seti kullanılır ve
+    /// ürün başına çağrı YAPILMAZ (N+1 yok).</para>
+    ///
+    /// <para><b>Pazaryeri değerleri ONLARIN gerçeğidir</b> (import anındaki görüntü) ve push zincirini
+    /// ETKİLEMEZ — kıyas içindir. Yerel taraftan yalnız KARAR VERDİREN iki sinyal taşınır: reçete kuruldu mu
+    /// ve kaç varyant satış hazırlığından geçti. İkisi de 0 ise o ürün bugün satışa çıkamaz.</para></summary>
+    [Authorize(TradeXpressPermissions.SalesChannels.Default)]
+    public virtual async Task<List<TrendyolPricingBoardItemDto>> GetPricingBoardAsync(Guid salesChannelId)
+    {
+        var companyId = EnsureCurrentCompanyId();
+
+        var channelProducts = await AsyncExecuter.ToListAsync(
+            (await _repository.GetQueryableAsync())
+                .Where(x => x.CompanyId == companyId && x.SalesChannelId == salesChannelId));
+
+        if (channelProducts.Count == 0)
+        {
+            return new List<TrendyolPricingBoardItemDto>();
+        }
+
+        var productIds = channelProducts.Select(x => x.ProductId).Distinct().ToList();
+
+        var products = (await AsyncExecuter.ToListAsync(
+                (await _productRepository.GetQueryableAsync()).Where(p => productIds.Contains(p.Id))))
+            .ToDictionary(p => p.Id);
+
+        var variants = await AsyncExecuter.ToListAsync(
+            (await _variantRepository.GetQueryableAsync())
+                .Where(v => v.EntityName == ProductEntityName && productIds.Contains(v.EntityId) && v.IsActive));
+
+        var variantIds = variants.Select(v => v.Id).ToList();
+
+        // Reçete VARLIĞI (içeriği değil) — "sınıflandırıldı mı" sinyali için varyant kimliği yeter.
+        var recipeVariantIds = (await AsyncExecuter.ToListAsync(
+                (await _erpRecipeLineRepository.GetQueryableAsync())
+                    .Where(l => variantIds.Contains(l.ProductVariantId))
+                    .Select(l => l.ProductVariantId)))
+            .ToHashSet();
+
+        // Satış hazırlığı: kapının BUGÜN geçireceği varyantlar (damga tazeliği dahil — Ready olması yetmez).
+        var sellable = await _saleReadiness.ResolveSellableAsync(variantIds);
+
+        // Kanal override stoğu; yoksa çekirdek varyant stoğu (import remote değeri oraya tohumlanır).
+        var overrideStockByVariant = (await AsyncExecuter.ToListAsync(
+                (await _stockItemRepository.GetQueryableAsync())
+                    .Where(si => si.ProductVariantId != null && si.OverrideStock != null)
+                    .Select(si => new { VariantId = si.ProductVariantId!.Value, si.OverrideStock })))
+            .GroupBy(x => x.VariantId)
+            .ToDictionary(g => g.Key, g => g.First().OverrideStock!.Value);
+
+        var variantsByProduct = variants.GroupBy(v => v.EntityId).ToDictionary(g => g.Key, g => g.ToList());
+
+        // Kayıt-geneli varsayılan görsel — TEK toplu çağrı (ürün başına çözücü çalıştırmak N+1 olurdu).
+        // Görseli olmayan ürün satırdan DÜŞMEZ: eksik görsel bir veri eksikliğidir, ürünü gizleme sebebi değil.
+        var posterByProduct = await _entityMedia.GetDefaultPosterMapAsync(ProductEntityName, productIds);
+
+        var board = new List<TrendyolPricingBoardItemDto>(channelProducts.Count);
+
+        foreach (var channelProduct in channelProducts)
+        {
+            var productVariants = variantsByProduct.GetValueOrDefault(channelProduct.ProductId)
+                                  ?? new List<EntityVariant>();
+
+            board.Add(new TrendyolPricingBoardItemDto
+            {
+                Id = channelProduct.Id,
+                ProductId = channelProduct.ProductId,
+                ProductCode = products.GetValueOrDefault(channelProduct.ProductId)?.Code ?? string.Empty,
+                ProductName = products.GetValueOrDefault(channelProduct.ProductId)?.Name ?? string.Empty,
+                ImageUrl = posterByProduct.GetValueOrDefault(channelProduct.ProductId),
+                RemoteListPrice = channelProduct.ListPrice,
+                RemoteOnSale = channelProduct.RemoteOnSale,
+                RemoteQuantity = productVariants.Sum(
+                    v => overrideStockByVariant.TryGetValue(v.Id, out var over) ? over : v.StockQuantity),
+                VariantCount = productVariants.Count,
+                HasRecipe = productVariants.Any(v => recipeVariantIds.Contains(v.Id)),
+                ReadyVariantCount = productVariants.Count(v => sellable.Contains(v.Id)),
+            });
+        }
+
+        // Karar bekleyen iş ÖNCE: reçetesiz ürünler başa, sonra satışa çıkamayanlar, sonra ada göre.
+        // Tahtanın amacı "ne yapmam gerekiyor"u göstermek — hazır olanlar listenin dibinde durabilir.
+        return board
+            .OrderBy(x => x.HasRecipe)
+            .ThenBy(x => x.ReadyVariantCount > 0)
+            .ThenBy(x => x.ProductName)
             .ToList();
     }
 

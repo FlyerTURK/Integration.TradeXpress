@@ -30,7 +30,9 @@
         </DxFormLayoutItem>
     </DxFormLayoutGroup>
 
-    <DxFormLayoutGroup Caption="@L["QuantityTracking"]" ColSpanMd="12">
+    @* İsteğe bağlı gruplar KAPALI açılır (2026-08-08 Hakan): zorunlu alanlar üstte görünür kalsın, mobilde
+       ekran boşa dolmasın. Expandable+Expanded=false — DevExpress yerleşik yolu, ek CSS yok. *@
+    <DxFormLayoutGroup Caption="@L["QuantityTracking"]" ColSpanMd="12" Expandable="true" Expanded="false">
         <DxFormLayoutItem Caption="@L["IsQuantity"]" ColSpanMd="6">
             <DxCheckBox @bind-Checked="@Model.IsQuantity" CheckType="CheckType.Switch">@(Model.IsQuantity ? L["Yes"] : L["No"])</DxCheckBox>
         </DxFormLayoutItem>
@@ -40,7 +42,7 @@
     </DxFormLayoutGroup>
 
 
-    <DxFormLayoutGroup Caption="@L["Other"]" ColSpanMd="12">
+    <DxFormLayoutGroup Caption="@L["Other"]" ColSpanMd="12" Expandable="true" Expanded="false">
         <DxFormLayoutItem Caption="@L["Barcode"]" ColSpanMd="6">
             <DxTextBox @bind-Text="@Model.Barcode" />
         </DxFormLayoutItem>
