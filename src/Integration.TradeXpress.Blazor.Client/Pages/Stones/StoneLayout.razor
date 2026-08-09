@@ -71,19 +71,25 @@
             <DxCheckBox @bind-Checked="@Model.IsActive" CheckType="CheckType.Switch">@(Model.IsActive ? L["Active"] : L["Passive"])</DxCheckBox>
         </DxFormLayoutItem>
     </DxFormLayoutGroup>
+
 </DxFormLayout>
 
 @* En son: alt drill'ler — agnostik graf (in-memory; Stone 'Kaydet'inde birlikte persist). Paneller DxTabPage ÜRETMEZ,
    içeriği üretir (DrillTabs CollectionFiller wrapper gotcha'sı). Kod/ad/varyant üretimi sunucuda (synchronizer). *@
 <DrillTabs CssClass="mt-3">
-    @* Nitelikler ayrı sekmede DEĞİL → varyant panelinin "Özellikleri Düzenle" toolbar butonundan popup'ta (OnAttributesChanged bağlı).
-       Varyant-başı fiyat/stok YOK (fiyat taşta) → ExtraFields yok. Stok Adedi GİZLİ (stok VoucherLine ledger'ından). *@
-    <DxTabPage Text="@L["Variants"]" TabIconCssClass="@TradeXpressIcons.ProductVariant">
-        <EntityVariantsPanel TVariant="EntityVariantGraphDto" Variants="@Model.Variants" Attributes="@Model.Attributes"
-                             ShowStockQuantity="false" ShowImages="true" OnAttributesChanged="@OnGenerateVariants" />
-    </DxTabPage>
-    @* KAYIT-GENELİ medya (CLAUDE.md §6): varyanta ÖZEL görseller Varyantlar sekmesinde ayrı durur, burası kaydın
-       genel görselleridir. İki bağlamdan biri eksikse tip YARIMDIR — Good/Product deseniyle simetrik. *@
+    @* VARYANT SEKMESİ KALDIRILDI (2026-08-09 Hakan kuralı: <i>"taşın varyantı olmaz çünkü her bir taşın parmak
+       izi ayrıdır — bir taş diğer taşa benzemez"</i>).
+
+       Varyant, aynı şeyin TEKRARLANABİLİR çeşididir: 100 tane 22 ayar bilezik birbirinin aynıdır, stok bir
+       SAYIdır. Taşta tekrarlanabilirlik yoktur — iki 0.50 karat pırlanta renk/berraklık/kesim/sertifika
+       bakımından farklıdır ve aynı fiyata satılmaz. Doğru model varyant değil SERİ TAKİBİ (her taş kendi
+       kimliği, kendi maliyeti, kendi fiyatı) — sektör standardı da budur (SAP serial number · Odoo unique
+       serial). O hat henüz KURULMADI; bu kaldırma yanlış modeli açık bırakmamak içindir.
+
+       Kaldırma bugün BEDAVA yapıldı: canlıda 0 taş / 0 taş varyantı vardı. Veri girdikten sonra migration
+       işine dönerdi. *@
+    @* KAYIT-GENELİ medya (CLAUDE.md §6). Taşta varyant olmadığı için "varyant medyası" bağlamı da yoktur —
+       tek bağlam meşrudur, iki-bağlam kuralı yalnız varyantlı tiplere bakar. *@
     <DxTabPage Text="@L["Media"]" TabIconCssClass="@TradeXpressIcons.Stone">
         <EntityMediaPanel Media="@Model.Media" />
     </DxTabPage>

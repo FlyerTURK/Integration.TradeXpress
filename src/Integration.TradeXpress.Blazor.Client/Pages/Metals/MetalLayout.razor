@@ -53,6 +53,10 @@
             <DxCheckBox @bind-Checked="@Model.IsActive" CheckType="CheckType.Switch">@(Model.IsActive ? L["Active"] : L["Passive"])</DxCheckBox>
         </DxFormLayoutItem>
     </DxFormLayoutGroup>
+
+    @* ANA VARYANT KİMLİĞİ — çekirdek formdan ÇİFT YÖNLÜ (2026-08-08 Hakan). Alanlar varyantın KENDİ nesnesine
+       bağlı: buradan da varyant gridinden de aynı yere yazılır, tek Kaydet ile persist olur. *@
+    <MainVariantIdentityFields TVariant="MetalVariantGraphDto" Variants="@Model.Variants" />
 </DxFormLayout>
 
 @* En son: alt drill'ler — agnostik graf (in-memory; Metal 'Kaydet'inde birlikte persist). ANA görsel YOK (kaldırıldı) —

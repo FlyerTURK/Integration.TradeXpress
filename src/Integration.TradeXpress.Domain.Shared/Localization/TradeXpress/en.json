@@ -2113,6 +2113,7 @@
     "N11Product:NetCost": "Net Cost",
     "N11Product:DerivedPrice": "Derived Price",
     "N11Product:PushPriceChainHint": "Push price: override price if set; otherwise net cost + margin; otherwise the product price. Stock: override stock if set, otherwise the ERP stock.",
+    "MainVariantIdentity": "Main Variant Identity",
     "Gtin": "GTIN",
     "Mpn": "MPN",
     "Oem": "OEM",

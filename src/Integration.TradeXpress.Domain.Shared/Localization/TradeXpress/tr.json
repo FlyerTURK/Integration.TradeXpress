@@ -2144,6 +2144,7 @@
     "N11Product:NetCost": "Net Maliyet",
     "N11Product:DerivedPrice": "Türetilmiş Fiyat",
     "N11Product:PushPriceChainHint": "Push fiyatı: özel fiyat varsa o; yoksa net maliyet + marj; yoksa ürün fiyatı. Stok: özel stok varsa o, yoksa ERP stoğu.",
+    "MainVariantIdentity": "Ana Varyant Kimliği",
     "Gtin": "GTIN",
     "Mpn": "MPN",
     "Oem": "OEM",

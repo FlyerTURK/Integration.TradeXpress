@@ -1,0 +1,33 @@
+@using Integration.TradeXpress.Variants
+@typeparam TVariant where TVariant : EntityVariantGraphDto
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@* ANA VARYANT KİMLİĞİ — ÇEKİRDEK FORMDAN ÇİFT YÖNLÜ (2026-08-08 Hakan talebi).
+
+   TEK SSOT, İKİ PENCERE: alanlar varyantın KENDİSİNE bağlanır (aynı in-memory graf nesnesi; Kaydet ile
+   birlikte persist olur). Buradan yazarsın → ana varyanta gider. Varyant gridinden yazarsın → aynı yere
+   gider. Ana varyant değişirse pencere yeni sahibi gösterir. Değer TEK yerde durduğu için "hangisi doğru"
+   sorusu hiç doğmaz.
+
+   REDDEDİLEN ALTERNATİF: değeri hem entity'ye hem varyanta yazıp senkron tutmak. Bu projede o desen HEP
+   sessiz sapmayla bitti (medya bağlamı · override zinciri · LastSent*). İki kopya, er ya da geç ayrışır ve
+   fark ancak pazaryerinde yanlış SKU olarak görülür.
+
+   Kod/Ad BURADA YOK: onlar zaten sahibi izliyor (EntityVariantSynchronizer.ApplyOwnerIdentity — niteliksiz
+   tek varyantta kod/ad her kayıtta emtia koduna eşitlenir). Onları ikinci kez düzenlenebilir yapmak,
+   otomatik eşitlenen bir alanı elle değiştirilebilir göstermek olurdu. *@
+
+@if (Main is not null)
+{
+    <DxFormLayoutGroup Caption="@L["MainVariantIdentity"]" ColSpanMd="12" Expandable="true" Expanded="false">
+        <DxFormLayoutItem Caption="@L["Barcode"]" ColSpanMd="4" ColSpanSm="6">
+            <DxTextBox @bind-Text="@Main.Barcode" CssClass="w-100" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["Gtin"]" ColSpanMd="4" ColSpanSm="6">
+            <DxTextBox @bind-Text="@Main.Gtin" CssClass="w-100" />
+        </DxFormLayoutItem>
+        <DxFormLayoutItem Caption="@L["Mpn"]" ColSpanMd="4" ColSpanSm="6">
+            <DxTextBox @bind-Text="@Main.Mpn" CssClass="w-100" />
+        </DxFormLayoutItem>
+    </DxFormLayoutGroup>
+}

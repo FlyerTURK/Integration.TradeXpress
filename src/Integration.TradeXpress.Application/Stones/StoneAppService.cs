@@ -204,7 +204,7 @@ public class StoneAppService
         var stone = await _stoneRepository.GetAsync(stoneId);
         await _graph.SaveAsync(
             StoneEntityName, VariantImageEntityName, stoneId, stone.CompanyId, stone.Name,
-            documents, notes, attributes, variants, media: media, ownerCode: stone.Code);
+            documents, notes, attributes: null, variants: null, media: media, ownerCode: stone.Code);
     }
 
     public override async Task<StoneGetDto> GetAsync(Guid id)
@@ -214,8 +214,8 @@ public class StoneAppService
         dto.Media = graph.Media;
         dto.Documents = graph.Documents;
         dto.Notes = graph.Notes;
-        dto.Attributes = graph.Attributes;
-        dto.Variants = graph.Variants;
+        // Nitelik/varyant OKUNMAZ: taş varyant taşımaz (2026-08-09 Hakan kuralı). DTO alanları boş kalır —
+        // eski kayıtlarda artık satır varsa bile forma taşınmaz, dolayısıyla kaydet onları geri yazamaz.
         return dto;
     }
 

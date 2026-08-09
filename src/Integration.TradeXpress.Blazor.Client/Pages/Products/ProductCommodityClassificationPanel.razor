@@ -19,87 +19,82 @@
     }
     else
     {
-        <DxToolbar AdaptivityAutoHideRootItems="false"
-                   AdaptivityAutoCollapseItemsToIcons="false">
+        @* GİRİŞ ALANLARI ARAÇ ÇUBUĞUNDAN FORMA TAŞINDI (2026-08-08 Hakan: "toolbar neredeyse hiç
+           yönetilemez oluyor mobil modda"). Araç çubuğu öğeleri dar ekranda ya taşıyor ya ikonlara
+           çöküyor; altı giriş kontrolü orada fiilen kullanılamıyordu. DxFormLayout kolonları daraldıkça
+           alt alta diziliyor — mobilde kullanılabilirlik ek CSS olmadan geliyor.
 
-            <DxToolbarItem Text="@L["Product:Classify:Family"]" BeginGroup="true">
-                <Template>
-                    <DxComboBox Data="@FamilyOptions" TData="CommodityFamilyOption" TValue="ProcessType"
-                                Value="@_family" ValueChanged="@((ProcessType v) => OnFamilyChanged(v))"
-                                ValueFieldName="@nameof(CommodityFamilyOption.Family)"
-                                TextFieldName="@nameof(CommodityFamilyOption.Label)"
-                                ValidationEnabled="false" Style="min-width:150px;" />
-                </Template>
-            </DxToolbarItem>
+           DÜĞMELER araç çubuğunda BIRAKILMADI ama forma da konmadı: eylemler formun ALTINDA düz bir
+           satırda. Sebep: form alanları veri girer, düğmeler eylem yapar — ikisini aynı ızgaraya koymak
+           "kaydet"i bir alan gibi gösterirdi. *@
+        <DxFormLayout CssClass="w-100 mb-2">
+            <DxFormLayoutItem Caption="@L["Product:Classify:Family"]" ColSpanMd="4" ColSpanSm="6">
+                <DxComboBox Data="@FamilyOptions" TData="CommodityFamilyOption" TValue="ProcessType"
+                            Value="@_family" ValueChanged="@((ProcessType v) => OnFamilyChanged(v))"
+                            ValueFieldName="@nameof(CommodityFamilyOption.Family)"
+                            TextFieldName="@nameof(CommodityFamilyOption.Label)"
+                            ValidationEnabled="false" CssClass="w-100" />
+            </DxFormLayoutItem>
 
-            <DxToolbarItem Text="@L["Product:Classify:Mode"]">
-                <Template>
-                    <DxComboBox Data="@ModeOptions" TData="ProvisionModeOption" TValue="ProductCommodityProvisionMode"
-                                Value="@_mode" ValueChanged="@((ProductCommodityProvisionMode v) => OnModeChanged(v))"
-                                ValueFieldName="@nameof(ProvisionModeOption.Mode)"
-                                TextFieldName="@nameof(ProvisionModeOption.Label)"
-                                ValidationEnabled="false" Style="min-width:150px;" />
-                </Template>
-            </DxToolbarItem>
+            <DxFormLayoutItem Caption="@L["Product:Classify:Mode"]" ColSpanMd="4" ColSpanSm="6">
+                <DxComboBox Data="@ModeOptions" TData="ProvisionModeOption" TValue="ProductCommodityProvisionMode"
+                            Value="@_mode" ValueChanged="@((ProductCommodityProvisionMode v) => OnModeChanged(v))"
+                            ValueFieldName="@nameof(ProvisionModeOption.Mode)"
+                            TextFieldName="@nameof(ProvisionModeOption.Label)"
+                            ValidationEnabled="false" CssClass="w-100" />
+            </DxFormLayoutItem>
 
             @* KOŞULLU ÖĞE @if İLE SARILMAZ, Visible İLE GİZLENİR (2026-08-06 Hakan tespiti): DevExpress'in
                nested-settings toplayıcısı öğeleri KAYIT SIRASINA göre alır; @if sonradan true olunca öğe o an
-               eklenir ve araç çubuğunun SONUNA düşer. Visible ile öğe baştan kayıtlı kalır, yalnız görünürlüğü
-               değişir — sıra markup'taki gibi korunur. *@
-            <DxToolbarItem Text="@L["Product:Classify:ExistingCommodity"]" Visible="@NeedsSourceCommodity">
-                <Template>
-                    <DxComboBox Data="@_existingCommodities" TData="CommodityOption" TValue="Guid?"
-                                @bind-Value="@_existingCommodityId"
-                                ValueFieldName="@nameof(CommodityOption.Id)"
-                                TextFieldName="@nameof(CommodityOption.Label)"
-                                NullText="@L["Select"]"
-                                ValidationEnabled="false" Style="min-width:200px;" />
-                </Template>
-            </DxToolbarItem>
+               eklenir ve SONA düşer. Visible ile öğe baştan kayıtlı kalır, yalnız görünürlüğü değişir —
+               sıra markup'taki gibi korunur. Kural araç çubuğundan FORMA taşınırken de geçerli. *@
+            <DxFormLayoutItem Caption="@L["Product:Classify:ExistingCommodity"]" ColSpanMd="4" ColSpanSm="12"
+                              Visible="@NeedsSourceCommodity">
+                <DxComboBox Data="@_existingCommodities" TData="CommodityOption" TValue="Guid?"
+                            @bind-Value="@_existingCommodityId"
+                            ValueFieldName="@nameof(CommodityOption.Id)"
+                            TextFieldName="@nameof(CommodityOption.Label)"
+                            NullText="@L["Select"]"
+                            ValidationEnabled="false" CssClass="w-100" />
+            </DxFormLayoutItem>
 
-            <DxToolbarItem Text="@L["Product:Classify:FollowingUnit"]" Visible="@RequiresFollowingUnit">
-                <Template>
-                    <DxComboBox Data="@_currencyUnits" TData="CommodityOption" TValue="Guid?"
-                                @bind-Value="@_followingUnitId"
-                                ValueFieldName="@nameof(CommodityOption.Id)"
-                                TextFieldName="@nameof(CommodityOption.Label)"
-                                NullText="@L["Select"]"
-                                ValidationEnabled="false" Style="min-width:150px;" />
-                </Template>
-            </DxToolbarItem>
+            <DxFormLayoutItem Caption="@L["Product:Classify:FollowingUnit"]" ColSpanMd="4" ColSpanSm="6"
+                              Visible="@RequiresFollowingUnit">
+                <DxComboBox Data="@_currencyUnits" TData="CommodityOption" TValue="Guid?"
+                            @bind-Value="@_followingUnitId"
+                            ValueFieldName="@nameof(CommodityOption.Id)"
+                            TextFieldName="@nameof(CommodityOption.Label)"
+                            NullText="@L["Select"]"
+                            ValidationEnabled="false" CssClass="w-100" />
+            </DxFormLayoutItem>
 
-            <DxToolbarItem Text="@L["Product:Classify:PerUnitAmount"]" BeginGroup="true">
-                <Template>
-                    <DxSpinEdit @bind-Value="@_amount" MinValue="0" DisplayFormat="N3"
-                                ShowSpinButtons="false" ValidationEnabled="false" Style="width:110px;" />
-                </Template>
-            </DxToolbarItem>
+            <DxFormLayoutItem Caption="@L["Product:Classify:PerUnitAmount"]" ColSpanMd="4" ColSpanSm="6" BeginRow="true">
+                <DxSpinEdit @bind-Value="@_amount" MinValue="0" DisplayFormat="N3"
+                            ShowSpinButtons="false" ValidationEnabled="false" CssClass="w-100" />
+            </DxFormLayoutItem>
 
-            <DxToolbarItem Text="@L["Product:Classify:PerUnitQuantity"]">
-                <Template>
-                    <DxSpinEdit @bind-Value="@_quantity" MinValue="0" DisplayFormat="N0"
-                                ShowSpinButtons="false" ValidationEnabled="false" Style="width:90px;" />
-                </Template>
-            </DxToolbarItem>
+            <DxFormLayoutItem Caption="@L["Product:Classify:PerUnitQuantity"]" ColSpanMd="4" ColSpanSm="6">
+                <DxSpinEdit @bind-Value="@_quantity" MinValue="0" DisplayFormat="N0"
+                            ShowSpinButtons="false" ValidationEnabled="false" CssClass="w-100" />
+            </DxFormLayoutItem>
+        </DxFormLayout>
 
+        <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;" class="mb-2">
             @* Emtia formunu AÇ — panel milyem/işçilik alanlarını taklit etmez, ailenin gerçek formunu açar. *@
-            <DxToolbarItem Text="@L["Product:Classify:OpenCommodityForm"]"
-                           RenderStyle="ButtonRenderStyle.Secondary"
-                           BeginGroup="true"
-                           Click="@OpenCommodityFormAsync" />
+            <DxButton Text="@L["Product:Classify:OpenCommodityForm"]"
+                      RenderStyle="ButtonRenderStyle.Secondary"
+                      Click="@OpenCommodityFormAsync" />
 
-            <DxToolbarItem Text="@L["Product:Classify:ApplyToSelected"]"
-                           RenderStyle="ButtonRenderStyle.Primary"
-                           RenderStyleMode="ToolbarItemRenderStyleMode.Contained"
-                           BeginGroup="true"
-                           Enabled="@(_selected.Count > 0)"
-                           Click="@ApplyToSelected" />
+            <DxButton Text="@L["Product:Classify:ApplyToSelected"]"
+                      RenderStyle="ButtonRenderStyle.Primary"
+                      Enabled="@(_selected.Count > 0)"
+                      Click="@ApplyToSelected" />
 
-            <DxToolbarItem Text="@L["Product:Classify:ClearSelected"]"
-                           RenderStyle="ButtonRenderStyle.Secondary"
-                           Enabled="@(_selected.Count > 0)"
-                           Click="@ClearSelected" />
-        </DxToolbar>
+            <DxButton Text="@L["Product:Classify:ClearSelected"]"
+                      RenderStyle="ButtonRenderStyle.Secondary"
+                      Enabled="@(_selected.Count > 0)"
+                      Click="@ClearSelected" />
+        </div>
 
     @* GRID KENDİ KABINDA KAYDIRILIR (2026-08-06 Hakan tespiti): 20 satır tam boyda çizilince sihirbazın
        ayağı (Geri/İleri/ATLA) ekranın altına itiliyor ve adım FİİLEN KİLİTLENİYORDU — kullanıcı ne

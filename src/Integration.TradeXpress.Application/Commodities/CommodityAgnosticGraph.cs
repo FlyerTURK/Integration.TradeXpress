@@ -43,10 +43,14 @@ public class CommodityAgnosticGraph : ITransientDependency
     /// 2026-08-07'de eklendi — o güne dek graf yalnız VARYANT medyasını yazıyordu, dolayısıyla bu grafı kullanan
     /// Jewelry/Metal/Stone'da kayıt-geneli medya hiçbir zaman kaydedilmiyordu. Hata sessizdi: form alanı olsa bile
     /// kaydet sonrası içerik yok oluyordu.</para></summary>
+    /// <param name="attributes">Varyant ÜRETEN nitelikler. <b><c>null</c> = bu aile VARYANT TAŞIMAZ</b> — varyant
+    /// kolu tamamen atlanır (boş liste ile karıştırma: boş liste "varyantlı ama şu an niteliksiz" demektir ve
+    /// niteliksiz tek ANA VARYANT üretir).</param>
+    /// <param name="variants">Varyant grafı; <paramref name="attributes"/> <c>null</c> ise dikkate alınmaz.</param>
     public async Task SaveAsync(
         string entityName, string variantImageEntityName, Guid entityId, Guid? companyId, string ownerName,
         List<EntityDocumentEditDto> documents, List<EntityNoteEditDto> notes,
-        List<EntityAttributeGraphDto> attributes, IReadOnlyList<EntityVariantGraphDto> variants,
+        List<EntityAttributeGraphDto>? attributes, IReadOnlyList<EntityVariantGraphDto>? variants,
         Func<EntityVariantGraphDto, Guid, Task>? additionalSaveAction = null,
         List<EntityMediaLinkEditDto>? media = null,
         string? ownerCode = null)
@@ -54,6 +58,17 @@ public class CommodityAgnosticGraph : ITransientDependency
         await _entityMedia.ReplaceForAsync(entityName, entityId, companyId, media ?? new List<EntityMediaLinkEditDto>());
         await _documents.ReplaceForAsync(entityName, entityId, documents);
         await _notes.ReplaceForAsync(entityName, entityId, notes);
+
+        // VARYANTSIZ AİLE (2026-08-09 Hakan kuralı: "taşın varyantı olmaz — her taşın parmak izi ayrıdır").
+        // null geçilirse varyant kolu HİÇ çalışmaz. BOŞ LİSTE ile atlanamazdı: senkronizatör niteliksiz durumda
+        // sahibi izleyen tek bir ANA VARYANT üretir — yani boş liste "varyant yok" değil "tek varyant" demektir.
+        // Ayrım null/boş üzerinden yapılıyor çünkü aile-adı listesi tutmak, yeni aile eklendiğinde burayı
+        // güncellemeyi unutturur ve sessizce yanlış tarafa düşürürdü.
+        if (attributes is null)
+        {
+            return;
+        }
+
         await _variants.SaveGraphAsync(
             entityName, entityId, companyId, ownerName, attributes, variants,
             saveExtensionAsync: async (dto, variantId) =>
