@@ -411,6 +411,39 @@ public class N11ImportResultDto
     public List<string> Warnings { get; set; } = new();
 }
 
+/// <summary>N11 çalışma tahtası satırı — ürün kimliği + N11'in döndürdüğü durum + "daha ne yapılacak" sinyali.
+///
+/// <para>Trendyol tahtasındaki <c>RemoteListPrice</c>/<c>RemoteOnSale</c>/<c>RemoteQuantity</c> alanlarının
+/// karşılığı BİLEREK YOK: N11 kanal-ürünü o verileri saklamıyor. Boş kolon göstermek yerine N11'in gerçekten
+/// taşıdığı bilgi (satış/onay durumu) gösterilir — uydurma paralellik kurulmaz.</para></summary>
+public class N11PricingBoardItemDto
+{
+    public Guid Id { get; set; }
+
+    public Guid ProductId { get; set; }
+
+    public string ProductCode { get; set; } = string.Empty;
+
+    public string ProductName { get; set; } = string.Empty;
+
+    /// <summary>Kayıt-geneli varsayılan görsel; yoksa null (satır yine gösterilir).</summary>
+    public string? ImageUrl { get; set; }
+
+    /// <summary>N11'in döndürdüğü satış durumu (push sonrası dolar; hiç push edilmemişse null).</summary>
+    public string? SaleStatus { get; set; }
+
+    /// <summary>N11'in döndürdüğü onay durumu (push sonrası dolar).</summary>
+    public string? ApprovalStatus { get; set; }
+
+    public int VariantCount { get; set; }
+
+    /// <summary>Ürünün HERHANGİ bir varyantında reçete satırı var mı — "sınıflandırıldı mı" sinyali.</summary>
+    public bool HasRecipe { get; set; }
+
+    /// <summary>Satış kapısından BUGÜN geçen varyant sayısı (damga tazeliği dahil).</summary>
+    public int ReadyVariantCount { get; set; }
+}
+
 /// <summary>
 /// N11 ürün listeleme — bir ERP ürününü bir N11 kanalında listeler + N11'e push eder (SaveProduct). Company-owned.
 /// Listeleme yapılandırması (kategori/attribute/kargo şablonu/condition/özel bilgi) bizde tutulur; push ürünün
@@ -418,6 +451,14 @@ public class N11ImportResultDto
 /// </summary>
 public interface ISalesChannelTrN11ProductAppService : IApplicationService
 {
+    /// <summary>Kanalın ÇALIŞMA TAHTASI — listelemeleri "daha ne yapılacak" sinyaliyle gösterir
+    /// (reçete var mı · kaç varyant satışa hazır). Salt okuma; N11'e çıkmaz.
+    ///
+    /// <para><b>Trendyol'dan FARKI:</b> N11 kanal-ürünü pazaryeri fiyatı/adedi TAŞIMAZ (Trendyol'daki
+    /// <c>ListPrice</c>/<c>RemoteOnSale</c> karşılığı yok) — onların yerine N11'in kendi döndürdüğü
+    /// satış/onay durumu gösterilir. Karar sinyali ise ORTAK gövdeden gelir.</para></summary>
+    Task<List<N11PricingBoardItemDto>> GetPricingBoardAsync(Guid salesChannelId);
+
     /// <summary>Bir ÜRÜNE ait tüm N11 kanal ürünleri (ürün-merkezli drill). Aynı kanalda birden fazla kayıt
     /// OLABİLİR (2026-07-07 kullanıcı kararı); kanal set-once (değiştirilemez).</summary>
     Task<List<SalesChannelTrN11ProductDto>> GetListForProductAsync(Guid productId);

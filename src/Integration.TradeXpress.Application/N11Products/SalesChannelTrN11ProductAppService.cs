@@ -65,6 +65,7 @@ public partial class SalesChannelTrN11ProductAppService : TradeXpressAppService,
 
     /// <summary>Push kapısı — yalnız onaylı VE damgası güncel varyant aday olur (üç kanalda ortak).</summary>
     private readonly VariantSaleReadinessResolver _saleReadiness;
+    private readonly ChannelProductBoardBuilder _boardBuilder;
 
     /// <summary>Append-only delil kaydı — N11 versiyonlarını fotoğrafıyla saklıyor, bizde tarihli kayıt yoktu.</summary>
     private readonly N11PushHistoryRecorder _pushHistory;
@@ -105,6 +106,7 @@ public partial class SalesChannelTrN11ProductAppService : TradeXpressAppService,
         IN11TaskPoller taskPoller,
         MarketplacePushImageResolver pushImageResolver,
         VariantSaleReadinessResolver saleReadiness,
+        ChannelProductBoardBuilder boardBuilder,
         N11PushHistoryRecorder pushHistory,
         IEntityMediaAppService entityMedia,
         IN11CategoryClient categoryClient,
@@ -144,6 +146,7 @@ public partial class SalesChannelTrN11ProductAppService : TradeXpressAppService,
         _taskPoller = taskPoller;
         _pushImageResolver = pushImageResolver;
         _saleReadiness = saleReadiness;
+        _boardBuilder = boardBuilder;
         _pushHistory = pushHistory;
         _entityMedia = entityMedia;
         _categoryClient = categoryClient;
@@ -239,6 +242,57 @@ public partial class SalesChannelTrN11ProductAppService : TradeXpressAppService,
                 })
                 .ToList(),
         }).ToList();
+    }
+
+    /// <summary>Kanalın ÇALIŞMA TAHTASI — Trendyol'daki eşinin N11 karşılığı.
+    ///
+    /// <para>Karar sinyali (reçete varlığı + satılabilir varyant sayısı) ORTAK gövdeden gelir
+    /// (<see cref="ChannelProductBoardBuilder"/>): kural iki kanalda da aynı olduğu için buraya kopyalanmadı.
+    /// Kopyalansaydı satılabilirlik kuralı değiştiğinde bir kanal sessizce eski davranışta kalırdı.</para>
+    ///
+    /// <para>Kanal-özel kısım yalnız <c>SaleStatus</c>/<c>ApprovalStatus</c>'tür — N11 pazaryeri fiyatı/adedi
+    /// saklamaz, o yüzden Trendyol tahtasındaki o kolonların karşılığı BİLEREK yoktur.</para></summary>
+    public virtual async Task<List<N11PricingBoardItemDto>> GetPricingBoardAsync(Guid salesChannelId)
+    {
+        var companyId = EnsureCurrentCompanyId();
+
+        var channelProducts = await AsyncExecuter.ToListAsync(
+            (await _repository.GetQueryableAsync())
+                .Where(x => x.CompanyId == companyId && x.SalesChannelId == salesChannelId));
+
+        if (channelProducts.Count == 0)
+        {
+            return new List<N11PricingBoardItemDto>();
+        }
+
+        var common = await _boardBuilder.BuildAsync(
+            channelProducts.Select(x => x.ProductId).Distinct().ToList());
+
+        var board = channelProducts.Select(cp =>
+        {
+            var row = common.GetValueOrDefault(cp.ProductId);
+            return new N11PricingBoardItemDto
+            {
+                Id = cp.Id,
+                ProductId = cp.ProductId,
+                ProductCode = row?.ProductCode ?? string.Empty,
+                ProductName = row?.ProductName ?? string.Empty,
+                ImageUrl = row?.ImageUrl,
+                SaleStatus = cp.SaleStatus,
+                ApprovalStatus = cp.ApprovalStatus,
+                VariantCount = row?.VariantCount ?? 0,
+                HasRecipe = row?.HasRecipe ?? false,
+                ReadyVariantCount = row?.ReadyVariantCount ?? 0,
+            };
+        }).ToList();
+
+        // Karar bekleyen iş ÖNCE (Trendyol tahtasıyla AYNI sıra kuralı): reçetesizler başa, sonra satışa
+        // çıkamayanlar, sonra ada göre. İki tahtanın farklı sıralanması kullanıcıyı şaşırtırdı.
+        return board
+            .OrderBy(x => x.HasRecipe)
+            .ThenBy(x => x.ReadyVariantCount > 0)
+            .ThenBy(x => x.ProductName)
+            .ToList();
     }
 
     public virtual async Task<List<SalesChannelTrN11ProductDto>> GetListForChannelAsync(Guid salesChannelId)

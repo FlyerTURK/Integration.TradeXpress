@@ -76,6 +76,9 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
     /// <c>ex.Message</c> yazmak guard'ların doldurduğu SKU/fiyat/sınır bilgisini çöpe atardı.</summary>
     private readonly BusinessExceptionDescriber _describer;
 
+    /// <summary>Kanal tahtalarının ORTAK gövdesi — karar sinyali iki kanalda da aynı yerden gelir.</summary>
+    private readonly ChannelProductBoardBuilder _boardBuilder;
+
     /// <summary>Push GEÇMİŞİ yazıcısı — yalnız COMPLETED batch'te çağrılır (delil "kabul edildi" demektir).</summary>
     private readonly TrendyolPushHistoryRecorder _historyRecorder;
 
@@ -110,11 +113,13 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
         VariantSaleReadinessResolver saleReadiness,
         IEntityMediaAppService entityMedia,
         BusinessExceptionDescriber describer,
-        TrendyolPushHistoryRecorder historyRecorder)
+        TrendyolPushHistoryRecorder historyRecorder,
+        ChannelProductBoardBuilder boardBuilder)
     {
         _saleReadiness = saleReadiness;
         _entityMedia = entityMedia;
         _describer = describer;
+        _boardBuilder = boardBuilder;
         _historyRecorder = historyRecorder;
         _repository = repository;
         _productRepository = productRepository;
@@ -208,25 +213,14 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
 
         var productIds = channelProducts.Select(x => x.ProductId).Distinct().ToList();
 
-        var products = (await AsyncExecuter.ToListAsync(
-                (await _productRepository.GetQueryableAsync()).Where(p => productIds.Contains(p.Id))))
-            .ToDictionary(p => p.Id);
+        // ORTAK GÖVDE: ürün kimliği + görsel + "karar bekliyor mu" sinyali kanal-agnostiktir
+        // (ChannelProductBoardBuilder). Buraya kopyalansaydı satılabilirlik kuralı değişince N11 ile
+        // Trendyol sessizce ayrışırdı.
+        var common = await _boardBuilder.BuildAsync(productIds);
 
         var variants = await AsyncExecuter.ToListAsync(
             (await _variantRepository.GetQueryableAsync())
                 .Where(v => v.EntityName == ProductEntityName && productIds.Contains(v.EntityId) && v.IsActive));
-
-        var variantIds = variants.Select(v => v.Id).ToList();
-
-        // Reçete VARLIĞI (içeriği değil) — "sınıflandırıldı mı" sinyali için varyant kimliği yeter.
-        var recipeVariantIds = (await AsyncExecuter.ToListAsync(
-                (await _erpRecipeLineRepository.GetQueryableAsync())
-                    .Where(l => variantIds.Contains(l.ProductVariantId))
-                    .Select(l => l.ProductVariantId)))
-            .ToHashSet();
-
-        // Satış hazırlığı: kapının BUGÜN geçireceği varyantlar (damga tazeliği dahil — Ready olması yetmez).
-        var sellable = await _saleReadiness.ResolveSellableAsync(variantIds);
 
         // Kanal override stoğu; yoksa çekirdek varyant stoğu (import remote değeri oraya tohumlanır).
         var overrideStockByVariant = (await AsyncExecuter.ToListAsync(
@@ -238,9 +232,7 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
 
         var variantsByProduct = variants.GroupBy(v => v.EntityId).ToDictionary(g => g.Key, g => g.ToList());
 
-        // Kayıt-geneli varsayılan görsel — TEK toplu çağrı (ürün başına çözücü çalıştırmak N+1 olurdu).
-        // Görseli olmayan ürün satırdan DÜŞMEZ: eksik görsel bir veri eksikliğidir, ürünü gizleme sebebi değil.
-        var posterByProduct = await _entityMedia.GetDefaultPosterMapAsync(ProductEntityName, productIds);
+        // Görseli ortak gövde çözüyor (tek toplu çağrı) — burada ikinci kez sormak aynı sorguyu boşuna koşardı.
 
         var board = new List<TrendyolPricingBoardItemDto>(channelProducts.Count);
 
@@ -249,20 +241,23 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
             var productVariants = variantsByProduct.GetValueOrDefault(channelProduct.ProductId)
                                   ?? new List<EntityVariant>();
 
+            var row = common.GetValueOrDefault(channelProduct.ProductId);
+
             board.Add(new TrendyolPricingBoardItemDto
             {
                 Id = channelProduct.Id,
                 ProductId = channelProduct.ProductId,
-                ProductCode = products.GetValueOrDefault(channelProduct.ProductId)?.Code ?? string.Empty,
-                ProductName = products.GetValueOrDefault(channelProduct.ProductId)?.Name ?? string.Empty,
-                ImageUrl = posterByProduct.GetValueOrDefault(channelProduct.ProductId),
+                ProductCode = row?.ProductCode ?? string.Empty,
+                ProductName = row?.ProductName ?? string.Empty,
+                ImageUrl = row?.ImageUrl,
+                // KANAL-ÖZEL: pazaryeri fiyatı/adedi yalnız Trendyol entity'sinde var (N11 bunları taşımaz).
                 RemoteListPrice = channelProduct.ListPrice,
                 RemoteOnSale = channelProduct.RemoteOnSale,
                 RemoteQuantity = productVariants.Sum(
                     v => overrideStockByVariant.TryGetValue(v.Id, out var over) ? over : v.StockQuantity),
-                VariantCount = productVariants.Count,
-                HasRecipe = productVariants.Any(v => recipeVariantIds.Contains(v.Id)),
-                ReadyVariantCount = productVariants.Count(v => sellable.Contains(v.Id)),
+                VariantCount = row?.VariantCount ?? 0,
+                HasRecipe = row?.HasRecipe ?? false,
+                ReadyVariantCount = row?.ReadyVariantCount ?? 0,
             });
         }
 

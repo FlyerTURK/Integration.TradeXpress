@@ -85,6 +85,10 @@
        görünümünde çekimi kendiliğinden başlatır; rapor yine ekranda kalır (KDV uyarısı görünür olsun diye). *@
     <N11MarketplaceImportPanel SalesChannelId="@Model.Id" AutoImport="@AutoImportProducts" />
 
+    @* N11 ÇALIŞMA TAHTASI — Trendyol tahtasının ikizi; içe aktarımın BIRAKTIĞI işi gösterir.
+       İçe aktarım panelinin hemen ALTINDA: akış sıralı — önce çek, sonra "şimdi ne yapmam gerekiyor"u gör. *@
+    <N11PricingBoardPanel SalesChannelId="@Model.Id" />
+
     <DrillTabs CssClass="mt-3">
         <DxTabPage Text="@L["N11ShipmentTemplates"]" TabIconCssClass="@TradeXpressIcons.SalesChannel">
             <N11ShipmentTemplateDrill Channel="@Model" />

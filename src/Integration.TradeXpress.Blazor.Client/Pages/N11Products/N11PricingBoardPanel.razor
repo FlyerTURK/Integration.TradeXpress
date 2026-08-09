@@ -1,0 +1,106 @@
+@using Integration.TradeXpress.N11Products
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@* N11 ÇALIŞMA TAHTASI — Trendyol tahtasının N11 ikizi. Sıralama KARAR BEKLEYENİ öne alır (aynı kural:
+   reçetesizler başta, satışa çıkamayanlar sonra) — iki tahtanın farklı sıralanması kullanıcıyı şaşırtırdı.
+   PAZARYERİNE SIFIR YAZMA: panel N11'e hiçbir istek göndermez. "Sil" yalnız YEREL kaydı kaldırır —
+   N11'deki listeleme yerinde kalır (etiket bu yüzden "Kanaldan kaldır").
+   Pazaryeri fiyatı/adedi kolonu YOK: N11 kanal-ürünü o veriyi saklamıyor; yerine N11'in döndürdüğü
+   satış/onay durumu gösteriliyor (uydurma paralellik kurulmadı). *@
+
+<div class="mt-3" style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+    <DxButton Text="@L["TrendyolProduct:PricingBoard:Refresh"]"
+              IconCssClass="@TradeXpressIcons.Refresh"
+              RenderStyle="ButtonRenderStyle.Secondary"
+              Enabled="@(!_busy)"
+              Click="@LoadAsync" />
+    @if (_busy)
+    {
+        <DxWaitIndicator Visible="true" />
+    }
+    else if (_items.Count > 0)
+    {
+        <span style="font-size:0.85rem; color:#6c757d;">
+            @L["TrendyolProduct:PricingBoard:Summary", _items.Count, _items.Count(i => !i.HasRecipe), _items.Count(i => i.ReadyVariantCount == 0)]
+        </span>
+    }
+</div>
+
+@if (_items.Count > 0)
+{
+    <DxGrid Data="@_items" CssClass="mt-2" ShowSearchBox="true" ShowFilterRow="true"
+            PageSize="25" ColumnResizeMode="GridColumnResizeMode.NextColumn">
+        <Columns>
+            <DxGridDataColumn Caption="@L["Image"]" Width="80px" AllowSort="false">
+                <CellDisplayTemplate>
+                    @{ var row = (N11PricingBoardItemDto)context.DataItem; }
+                    @if (!string.IsNullOrEmpty(row.ImageUrl))
+                    {
+                        <img src="@row.ImageUrl" alt="" style="width:56px; height:40px; object-fit:cover; border-radius:4px;" />
+                    }
+                    else
+                    {
+                        <span style="font-size:0.75rem; color:#9ca3af;">@L["TrendyolProduct:PricingBoard:NoImage"]</span>
+                    }
+                </CellDisplayTemplate>
+            </DxGridDataColumn>
+
+            @* Kod TIKLANABİLİR: ürün formunu popup'ta açar — ERP reçetesi ve kanal kayıtları orada. *@
+            <GridLinkColumn Caption="@L["Code"]" Width="120px"
+                            TextSelector="@(item => ((N11PricingBoardItemDto)item).ProductCode)"
+                            OnClick="@(item => OpenProductAsync((N11PricingBoardItemDto)item))" />
+            <DxGridDataColumn FieldName="@nameof(N11PricingBoardItemDto.ProductName)" Caption="@L["Name"]" MinWidth="200" />
+
+            <DxGridDataColumn FieldName="@nameof(N11PricingBoardItemDto.SaleStatus)"
+                              Caption="@L["N11Product:SaleStatus"]" Width="130px" />
+            <DxGridDataColumn FieldName="@nameof(N11PricingBoardItemDto.ApprovalStatus)"
+                              Caption="@L["N11Product:ApprovalStatus"]" Width="130px" />
+
+            <DxGridDataColumn FieldName="@nameof(N11PricingBoardItemDto.VariantCount)"
+                              Caption="@L["Variants"]" Width="90px" />
+
+            @* KARAR SÜTUNU — tahtanın asıl sebebi. Renk durumu ANLATIR, yalnız süslemez. *@
+            <DxGridDataColumn Caption="@L["TrendyolProduct:PricingBoard:Status"]" Width="170px">
+                <CellDisplayTemplate>
+                    @{ var row = (N11PricingBoardItemDto)context.DataItem; }
+                    @if (!row.HasRecipe)
+                    {
+                        <span style="color:#b91c1c;">@L["TrendyolProduct:PricingBoard:NeedsRecipe"]</span>
+                    }
+                    else if (row.ReadyVariantCount == 0)
+                    {
+                        <span style="color:#b45309;">@L["TrendyolProduct:PricingBoard:NeedsVerification"]</span>
+                    }
+                    else
+                    {
+                        <span style="color:#15803d;">@L["TrendyolProduct:PricingBoard:Sellable", row.ReadyVariantCount]</span>
+                    }
+                </CellDisplayTemplate>
+            </DxGridDataColumn>
+
+            @* SATIR EYLEMLERİ — hücre içi işleyici SENKRON olmak zorunda (nested-settings async tuzağı). *@
+            <DxGridDataColumn Caption="" Width="110px" AllowSort="false"
+                              TextAlignment="GridTextAlignment.Center">
+                <CellDisplayTemplate>
+                    @{ var actionRow = (N11PricingBoardItemDto)context.DataItem; }
+                    <span style="display:inline-flex; gap:0.25rem;">
+                        <DxButton IconCssClass="@TradeXpressIcons.Edit"
+                                  RenderStyle="ButtonRenderStyle.Link"
+                                  Title="@L["Edit"]"
+                                  Click="@(() => OpenProductAsync(actionRow))" />
+                        <DxButton IconCssClass="@TradeXpressIcons.Delete"
+                                  RenderStyle="ButtonRenderStyle.Link"
+                                  Title="@L["TrendyolProduct:PricingBoard:RemoveFromChannel"]"
+                                  Click="@(() => RemoveFromChannelAsync(actionRow))" />
+                    </span>
+                </CellDisplayTemplate>
+            </DxGridDataColumn>
+        </Columns>
+    </DxGrid>
+}
+else if (_loaded && !_busy)
+{
+    <div class="mt-2" style="font-size:0.85rem; color:#6c757d;">
+        @L["TrendyolProduct:PricingBoard:Empty"]
+    </div>
+}
