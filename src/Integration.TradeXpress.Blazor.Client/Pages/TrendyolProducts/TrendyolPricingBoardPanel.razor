@@ -4,7 +4,8 @@
 @* FİYATLANDIRMA TAHTASI — içe aktarılmış ürünleri fiyat kararı için gereken alanlarla yan yana gösterir
    (2026-08-08 Hakan talebi). Pazaryeri fiyatı/adedi ONLARIN gerçeğidir (import görüntüsü, push'u etkilemez);
    kıyas içindir. Sıralama KARAR BEKLEYENİ öne alır: reçetesizler başta, satışa çıkamayanlar sonra.
-   Salt okuma — bu panel pazaryerine çıkmaz, hiçbir şey yazmaz. *@
+   PAZARYERİNE SIFIR YAZMA: panel Trendyol'a hiçbir istek göndermez. "Sil" yalnız YEREL kaydı kaldırır —
+   Trendyol'daki listeleme yerinde kalır (etiket bu yüzden "Kanaldan kaldır"). *@
 
 <div class="mt-3" style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
     <DxButton Text="@L["TrendyolProduct:PricingBoard:Refresh"]"
@@ -97,6 +98,27 @@
                     {
                         <span style="color:#15803d;">@L["TrendyolProduct:PricingBoard:Sellable", row.ReadyVariantCount]</span>
                     }
+                </CellDisplayTemplate>
+            </DxGridDataColumn>
+
+            @* SATIR EYLEMLERİ — Düzelt + Sil, standart listeleme formu deseni.
+               "Sil" YALNIZ kanal kaydını siler, ürüne DOKUNMAZ (ipucu metni bunu söylüyor).
+               Hücre içi olay işleyicileri SENKRON lambda: nested-settings toplayıcısında `async` işleyici
+               "Async rendering is not allowed here" ile circuit'i düşürür. *@
+            <DxGridDataColumn Caption="" Width="110px" AllowSort="false"
+                              TextAlignment="GridTextAlignment.Center">
+                <CellDisplayTemplate>
+                    @{ var actionRow = (TrendyolPricingBoardItemDto)context.DataItem; }
+                    <span style="display:inline-flex; gap:0.25rem;">
+                        <DxButton IconCssClass="@TradeXpressIcons.Edit"
+                                  RenderStyle="ButtonRenderStyle.Link"
+                                  Title="@L["Edit"]"
+                                  Click="@(() => OpenProductAsync(actionRow))" />
+                        <DxButton IconCssClass="@TradeXpressIcons.Delete"
+                                  RenderStyle="ButtonRenderStyle.Link"
+                                  Title="@L["TrendyolProduct:PricingBoard:RemoveFromChannel"]"
+                                  Click="@(() => RemoveFromChannelAsync(actionRow))" />
+                    </span>
                 </CellDisplayTemplate>
             </DxGridDataColumn>
         </Columns>

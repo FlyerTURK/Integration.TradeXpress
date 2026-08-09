@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using Integration.Framework.Blazor.Client.Components.Crud;
 using Integration.Framework.Blazor.Client.Services.Base;
 using Integration.TradeXpress.TrendyolProducts;
 using Microsoft.AspNetCore.Components;
@@ -8,7 +9,11 @@ using Microsoft.AspNetCore.Components;
 namespace Integration.TradeXpress.Blazor.Client.Pages.TrendyolProducts;
 
 /// <summary>
-/// FİYATLANDIRMA TAHTASI kod-arkası. Salt okuma: hiçbir yazma yolu YOK (pazaryerine de, yerele de).
+/// FİYATLANDIRMA TAHTASI kod-arkası — kanalın ürün listesi + satır eylemleri (Düzelt · Sil).
+///
+/// <para><b>PAZARYERİNE SIFIR YAZMA:</b> bu panel Trendyol'a HİÇBİR istek göndermez. Gösterilen pazaryeri
+/// fiyatı/adedi import anının görüntüsüdür ve "Sil" yalnız YEREL kaydı kaldırır — Trendyol'daki listeleme
+/// yerinde kalır. Yerel yazma tek noktadadır (<see cref="RemoveFromChannelAsync"/>).</para>
 ///
 /// <para><b>Neden kendi paneli:</b> içe aktarım tek tıkla bitiyor ama arkasından 103 ürünlük elle iş bırakıyor
 /// (canlı ölçüm: 104 üründen 103'ü reçetesiz, 144 varyantın 144'ü Draft). Fiyat kararı ancak pazaryerindeki
@@ -36,6 +41,42 @@ public partial class TrendyolPricingBoardPanel
 
     [Inject]
     private IPopupService PopupService { get; set; } = null!;
+
+    [Inject]
+    private IUiInteractionService Ui { get; set; } = null!;
+
+    [Inject]
+    private IServiceProvider ServiceProvider { get; set; } = null!;
+
+    /// <summary>Kaydı YALNIZ bu kanaldan kaldırır — ürüne DOKUNMAZ.
+    ///
+    /// <para><b>Neden "Sil" değil "Kanaldan Kaldır":</b> aynı ürün N11'de de listelenmiş olabilir. Trendyol
+    /// ekranındaki bir düğmenin ana ürünü silmesi, başka bir kanalı sessizce yıkmak olurdu. Ters yön zaten
+    /// doğru kurulu (ürün silinince kanal kayıtları temizleniyor — <c>IProductChannelListingRemover</c>);
+    /// bu yön ona simetrik olarak DAR tutuluyor.</para>
+    ///
+    /// <para><b>Trendyol'daki listeleme SİLİNMEZ:</b> app service'in kendi sözleşmesi de bunu söylüyor
+    /// ("yalnız yerel siler; ürün Trendyol'da kalır"). Yani bu düğme "pazaryerinden kaldır" DEĞİL, "bizim
+    /// yönetimimizden çıkar"dır — etiket bu yüzden dikkatle seçildi.</para></summary>
+    private async Task RemoveFromChannelAsync(TrendyolPricingBoardItemDto item)
+    {
+        if (await Ui.ConfirmDeleteAsync(L["TrendyolProduct:PricingBoard:RemoveConfirm", item.ProductCode].Value)
+            != ConfirmDialogResult.Yes)
+        {
+            return;
+        }
+
+        try
+        {
+            await AppService.DeleteAsync(item.Id);
+            Ui.ShowSuccessToast(L["TrendyolProduct:PricingBoard:Removed", item.ProductCode].Value);
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            Ui.ShowErrorToast(CrudErrorPresenter.ToFriendlyMessage(ex, ServiceProvider) ?? ex.Message);
+        }
+    }
 
     /// <summary>Satırın ÜRÜNÜNÜ açar — kanal kaydını değil.
     ///
