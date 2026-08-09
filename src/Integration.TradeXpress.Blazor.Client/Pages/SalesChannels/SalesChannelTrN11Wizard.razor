@@ -154,6 +154,13 @@
                     }
                 </div>
             }
+
+            @* ÇEK VE GÖR AYNI SAYFADA (2026-08-09 Hakan talebi) — Trendyol sihirbazıyla simetrik.
+               Kanal kaydedilmeden tahta çizilmez (kimlik gerekiyor); kendiliğinden yüklenmez. *@
+            @if (_channelId != Guid.Empty)
+            {
+                <N11PricingBoardPanel SalesChannelId="@_channelId" />
+            }
         </WizardStep>
 
         @* 6 — Emtia sınıflandırması. İçe aktarılan ürün reçetesiz gelir → orkestrasyonun hesaplayacağı bir şey

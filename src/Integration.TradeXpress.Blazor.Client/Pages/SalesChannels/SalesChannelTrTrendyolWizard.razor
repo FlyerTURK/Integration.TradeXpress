@@ -118,6 +118,18 @@
                     }
                 </div>
             }
+
+            @* ÇEK VE GÖR AYNI SAYFADA (2026-08-09 Hakan talebi). İçe aktarım eskiden yalnız bir sayı özeti
+               bırakıyordu ("103 ürün güncellendi") ve kullanıcı ne geldiğini göremiyordu; ürünleri görmek için
+               sihirbazı bitirip kanal sayfasına gitmek gerekiyordu.
+
+               Tahta kanal kaydedildikten SONRA anlamlı (kimlik gerekiyor) → _channelId boşken çizilmez.
+               Kendiliğinden yüklenmez: kullanıcı "Yükle" deyince gelir — çekim biter bitmez ikinci bir ağır
+               sorgu koşturmak, henüz bakmayacağı bir listeyi hazırlamak olurdu. *@
+            @if (_channelId != Guid.Empty)
+            {
+                <TrendyolPricingBoardPanel SalesChannelId="@_channelId" />
+            }
         </WizardStep>
 
         @* 4 — Emtia sınıflandırması. Kanal-agnostik ORTAK bileşen (N11 sihirbazıyla aynı); başlık kanal dilinde.
