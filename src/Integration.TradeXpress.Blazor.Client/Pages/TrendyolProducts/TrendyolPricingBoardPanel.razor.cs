@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using Integration.Framework.Blazor.Client.Services.Base;
 using Integration.TradeXpress.TrendyolProducts;
 using Microsoft.AspNetCore.Components;
 
@@ -29,6 +30,36 @@ public partial class TrendyolPricingBoardPanel
 
     [Inject]
     private ISalesChannelTrTrendyolProductAppService AppService { get; set; } = null!;
+
+    [Inject]
+    private IViewOpener ViewOpener { get; set; } = null!;
+
+    [Inject]
+    private IPopupService PopupService { get; set; } = null!;
+
+    /// <summary>Satırın ÜRÜNÜNÜ açar — kanal kaydını değil.
+    ///
+    /// <para><b>Neden ürün:</b> tahtanın bıraktığı iş (reçete + doğrulama) ÜRÜNE aittir. Ürün formu zaten
+    /// hem ERP reçetesini hem de kanal ürünleri gridini taşıyor; kanal ayrıntısına oradan tek tıkla inilir.
+    /// Doğrudan kanal formunu açsaydık kullanıcı reçeteye ulaşamazdı — ki tahtanın var oluş sebebi tam olarak
+    /// o eksiği kapatmak.</para>
+    ///
+    /// <para>Merkezî yol (<see cref="IViewOpener"/>) kullanılır — ham <c>DxPopup</c> YASAK (liste sayfalarının
+    /// New/Edit akışıyla aynı mekanizma).</para></summary>
+    private Task OpenProductAsync(TrendyolPricingBoardItemDto item)
+    {
+        if (item.ProductId == Guid.Empty)
+        {
+            return Task.CompletedTask;
+        }
+
+        var extra = new Dictionary<string, object>
+        {
+            { "OnClosed", EventCallback.Factory.Create(this, () => PopupService.Close()) },
+        };
+
+        return ViewOpener.OpenAsync(typeof(Products.ProductEditHost), item.ProductId, string.Empty, null, extra);
+    }
 
     private async Task LoadAsync()
     {

@@ -44,7 +44,14 @@
                 </CellDisplayTemplate>
             </DxGridDataColumn>
 
-            <DxGridDataColumn FieldName="@nameof(TrendyolPricingBoardItemDto.ProductCode)" Caption="@L["Code"]" Width="120px" />
+            @* Kod TIKLANABİLİR: ürün formunu popup'ta açar. Ürün formu ZATEN hem ERP reçetesini (varyant
+               drill'i) hem de N11+Trendyol kanal ürünleri gridini içeriyor; o gridden satır açılınca kanal
+               formu ÜSTTE ikinci popup olarak geliyor. Yani "popup üstü popup" yığını yeni bir host yazmadan
+               mevcut parçalardan kuruluyor — ve reçete doğru yerde düzenlenmiş oluyor: emtia satırları
+               ALTTAKİ üründe (ERP, otorite), yan maliyet + komisyon ÜSTTEKİ kanal formunda. *@
+            <GridLinkColumn Caption="@L["Code"]" Width="120px"
+                            TextSelector="@(item => ((TrendyolPricingBoardItemDto)item).ProductCode)"
+                            OnClick="@(item => OpenProductAsync((TrendyolPricingBoardItemDto)item))" />
             <DxGridDataColumn FieldName="@nameof(TrendyolPricingBoardItemDto.ProductName)" Caption="@L["Name"]" MinWidth="200" />
 
             <DxGridDataColumn FieldName="@nameof(TrendyolPricingBoardItemDto.RemoteListPrice)"
