@@ -1,0 +1,53 @@
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@*
+   KANAL ÜRÜNÜ DÜZENLEME ALANLARI — kanal TÜRÜNE göre doğru alan setini açar.
+
+   Drill'in düzenleme popup'ının GÖVDESİ olarak çizilir (kendi popup kabuğu YOKTUR): başlık, kirlilik
+   uyarısı, tam ekran/küçültme ve Kaydet/Kapat düğmeleri DrillList'in EditShell'inden gelir.
+
+   Neden tek bileşende üç dal: alan setleri (SalesChannelTr*ProductEditFields) zaten kanal başına ayrı ve
+   zengin bileşenler — onları yeniden yazmıyoruz, yalnız YÜKLEME + KAYDETME kabuğunu paylaşıyoruz.
+
+   KENDİ EditContext'ini cascade eder ve dıştakini GÖLGELER. Gerekçe: drill'in context'i HAFİF liste
+   satırına bağlıdır (doğrulama kuralı yok); tipli alanların doğrulanması ancak tipli modele bağlı bir
+   context ile mümkündür. İç içe DrillList'lerin yaptığı izolasyonun aynısı.
+*@
+
+@if (_loading)
+{
+    <div style="padding:10px 12px; color:var(--bs-secondary-color);">@L["Loading"]</div>
+}
+else if (_editContext is not null)
+{
+    <CascadingValue Value="@_editContext">
+        <LocalizedDataAnnotationsValidator />
+
+        @if (_editContext.GetValidationMessages().Any())
+        {
+            <div class="alert alert-danger py-2 px-3 mb-3">
+                <ValidationSummary />
+            </div>
+        }
+
+        @if (_n11Model is not null)
+        {
+            <SalesChannelTrN11ProductEditFields Model="@_n11Model" Channels="@_channelAsList" />
+        }
+        else if (_trendyolModel is not null)
+        {
+            <SalesChannelTrTrendyolProductEditFields Model="@_trendyolModel" Channels="@_channelAsList" />
+        }
+        else if (_etsyModel is not null)
+        {
+            <SalesChannelEtsyProductEditFields Model="@_etsyModel" Channels="@_channelAsList" />
+        }
+    </CascadingValue>
+}
+else
+{
+    @* Yükleme başarısızsa BOŞ form gösterilmez: boş form "düzenlenebilir ama kaydetmiyor" izlenimi verir. *@
+    <div style="padding:10px 12px; border-inline-start:3px solid #dc2626; color:var(--bs-body-color);">
+        @(_loadError ?? L["SalesChannelProduct:UnsupportedChannel"].Value)
+    </div>
+}

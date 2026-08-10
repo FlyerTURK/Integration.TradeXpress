@@ -14,9 +14,11 @@
    forward GÜVENLİ. Açık verilmeyen param'lar null/default = zararsız (mevcut basit grid'ler etkilenmez).
 *@
 <DxGrid @ref="_innerGrid"
+        @key="_layoutEpoch"
         Data="@Data"
         KeyFieldName="@KeyFieldName"
         ShowFilterRow="@ShowFilterRow"
+        ShowGroupPanel="@ShowGroupPanel"
         SearchText="@SearchText"
         SelectedDataItems="@SelectedDataItems"
         SelectedDataItemsChanged="@SelectedDataItemsChanged"
@@ -68,6 +70,21 @@
     // parametrelerde olur) → bool/enum/int param literal verilince cast hatası. String/callback'ler açık tanımlı.
     [Parameter] public string? KeyFieldName { get; set; }
     [Parameter] public bool ShowFilterRow { get; set; }
+
+    /// <summary>Gruplama paneli — kullanıcı kolon başlığını buraya sürükleyip satırları o kolona göre
+    /// gruplayabilir. VARSAYILAN KAPALI: panel grid'in üstünde bir şerit yer kaplar ve çoğu drill birkaç
+    /// satırlık alt listedir; oralarda gruplama gürültüdür.
+    /// <para><b>Gruplanabilmenin ŞARTI kolonun bir VERİ ALANI (FieldName) taşımasıdır</b> — yalnız şablondan
+    /// çizilen kolon gruplanamaz. 2026-08-10'da "Satışa Hazırlık" kolonunda tam bu yaşandı: hücre doluydu ama
+    /// arkasında alan olmadığı için grid o kolonu tanımıyordu; çözüm kolonu değil MODELİ düzeltmekti.</para></summary>
+    [Parameter] public bool ShowGroupPanel { get; set; }
+
+    /// <summary>Grup satırının gövdesi — verilmezse DevExpress kendi varsayılanını çizer.
+    /// <para>Enum/bool kolonlarında GEREKLİDİR: varsayılan görünüm HAM değeri yazar ("NoRecipe", "True") ve
+    /// kullanıcı o kelimeleri arayüzün hiçbir yerinde görmemiştir. Gruplamayı açmak, kolonun hücresini
+    /// çizen şablonu grup satırında da düşünmeyi gerektirir.</para></summary>
+    [Parameter] public RenderFragment<GridDataColumnGroupRowTemplateContext>? DataColumnGroupRowTemplate { get; set; }
+
     [Parameter] public string? SearchText { get; set; }
 
     /// <summary>true → grid'in başına STANDART seçim kolonu (sola SABİT, VisibleIndex=0, tümünü-seç) OTOMATİK eklenir.
@@ -99,6 +116,15 @@
     /// — bayat sort ön-sıralı dizilimi ezmesin); genişlik/sıra kalıcılığı aynen sürer. null = DxGrid default (true).</summary>
     [Parameter] public bool? AllowSort { get; set; }
 
+    /// <summary>DxGrid'in GÖMÜLÜ arama kutusu. Dar ekranda toolbar'daki arama kutusu ikona dönüşür ve ikon
+    /// bunu açar (liste toolbar'ındaki davranışın aynısı) — kutu toolbar'da yer kaplamak yerine grid'in
+    /// içinde açılır. null = DxGrid varsayılanı (kapalı).</summary>
+    [Parameter] public bool? ShowSearchBox { get; set; }
+
+    /// <summary>Sayfa boyutu seçici (pager yanında). Uzun listelerde kullanıcı sayfa başına kaç satır
+    /// göreceğini kendisi seçer; kısa alt listelerde gürültü olduğu için varsayılan KAPALI.</summary>
+    [Parameter] public bool? PageSizeSelectorVisible { get; set; }
+
     /// <summary>Yukarıda tanımlı OLMAYAN DxGrid parametreleri (style/class + ileride eklenecekler).
     /// Non-string bir param LİTERAL verilecekse önce yukarıya tipli [Parameter] olarak ekle (literal=string → cast hatası).</summary>
     [Parameter(CaptureUnmatchedValues = true)] public Dictionary<string, object>? Attributes { get; set; }
@@ -114,7 +140,7 @@
     {
         get
         {
-            if (SelectionMode is null && PageSize is null && AllowSelectRowByClick is null && PagerVisible is null && EditMode is null && VirtualScrollingEnabled is null && AllowSort is null)
+            if (DataColumnGroupRowTemplate is null && SelectionMode is null && PageSize is null && AllowSelectRowByClick is null && PagerVisible is null && EditMode is null && VirtualScrollingEnabled is null && AllowSort is null && ShowSearchBox is null && PageSizeSelectorVisible is null)
                 return Attributes;
             var d = Attributes is null ? new() : new Dictionary<string, object>(Attributes);
             if (SelectionMode.HasValue) d["SelectionMode"] = SelectionMode.Value;
@@ -124,12 +150,37 @@
             if (EditMode.HasValue) d["EditMode"] = EditMode.Value;
             if (VirtualScrollingEnabled.HasValue) d["VirtualScrollingEnabled"] = VirtualScrollingEnabled.Value;
             if (AllowSort.HasValue) d["AllowSort"] = AllowSort.Value;
+            if (ShowSearchBox.HasValue) d["ShowSearchBox"] = ShowSearchBox.Value;
+            if (PageSizeSelectorVisible.HasValue) d["PageSizeSelectorVisible"] = PageSizeSelectorVisible.Value;
+            // Sablon  ile gecer: DxGrid alt ogeleri kosullu YAZILAMAZ (RZ9996) ve kosulsuz bos
+            // sablon vermek varsayilan grup satirini SILERDI. null = DxGrid kendi varsayilanini cizer.
+            if (DataColumnGroupRowTemplate is not null) d["DataColumnGroupRowTemplate"] = DataColumnGroupRowTemplate;
             return d;
         }
     }
 
     // Header context-menü: Sola/Sağa Sabitle + Sabitlemeyi Kaldır (seçim kolonu hariç) — ortak helper, tüm grid'lerde aynı.
-    private void OnCustomizeContextMenu(GridCustomizeContextMenuEventArgs args) => GridColumnFixMenu.Add(args);
+    // Bağlam menüsü: kolon sabitleme + GÖRÜNÜMÜ SIFIRLA (kaydedilmiş düzeni siler). Tek kaynak — her grid aynı.
+    private void OnCustomizeContextMenu(GridCustomizeContextMenuEventArgs args) => GridColumnFixMenu.Add(args, ResetLayoutAsync);
+
+    /// <summary>Kolon düzeni kalıcılığını SIFIRLAR: saklanan kayıt temizlenir ve DxGrid @key değişimiyle
+    /// YENİDEN KURULUR — LayoutAutoLoading bu kez boş bulur, grid markup'taki varsayılana döner.
+    /// <para>Yalnız state temizlemek yetmezdi: canlı grid düzeni bellekte durduğundan ekran ancak sayfa
+    /// yenilenince düzelirdi. @key ile bileşen atılıp yeniden kurulur, etki ANINDA görünür.</para></summary>
+    private async Task ResetLayoutAsync()
+    {
+        if (!string.IsNullOrEmpty(StateKey))
+        {
+            // Silme ucu yok; BOŞ kayıt "düzen yok" demektir (OnLayoutLoading boş/whitespace'i zaten atlar).
+            try { await UiState.SaveGridStateAsync(StateKey, string.Empty); } catch { }
+        }
+
+        _layoutEpoch++;
+        StateHasChanged();
+    }
+
+    // DxGrid'in @key'i — artınca bileşen yeniden kurulur (görünüm sıfırlama).
+    private int _layoutEpoch;
 
     private async Task OnLayoutLoading(GridPersistentLayoutEventArgs e)
     {

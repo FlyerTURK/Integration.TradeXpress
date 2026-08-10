@@ -1,0 +1,267 @@
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@*
+   KANAL ÜRÜNLERİ — kanal-ürün kayıtlarının TEK listeleme yüzeyi (PERSISTENT DrillList).
+
+   İKİ YERDE AYNI BİLEŞEN: kanal edit formunun sekmesinde (SalesChannelId dolu → tek kanal) ve standalone
+   "Kanal Ürünleri" sayfasında (SalesChannelId boş → tüm kanallar, "Kanal" kolonu görünür). Ayrı iki grid
+   yazmak, kolon düzenini ve durum mantığını ikiye bölerdi.
+
+   SENKRON OLMUŞ/OLMAMIŞ AYRIMI YOK: liste kanala bağlı TÜM kayıtları gösterir. Gönderilmemiş kayıt bu
+   ekranın hatası değil KONUSUDUR; durum süzgeci isteyene onu ayrı verir.
+
+   DrillList (TxGrid değil) çünkü uygulamanın liste yüzeyi budur: standart araç çubuğu (arama · aktif/pasif ·
+   dışa aktarma · yenile · sil), satır tıkla → düzenleme popup'ı, kolon düzeni kalıcılığı, kirlilik uyarısı.
+
+   YENİ EKLEME KAPALI: kanal-ürün bağı buradan kurulmaz — ürün formundan ya da pazaryeri içe aktarımından
+   gelir (fiyat/stok/görsel oradadır). Silme AÇIK ve YALNIZ YERELDİR (pazaryerindeki ürün kalır).
+*@
+
+@{
+    // Durum süzgeci drill'in KENDİ araç çubuğuna girer (CustomActions) — ayrı bir toolbar açmak ekranda iki
+    // araç çubuğu demek olurdu. Razor inline template C# dosyasına taşınamaz (DrillList'in arama kutusu/aktif
+    // filtresi ile aynı gerekçe) → her render başında alana atanır, kullanımı aşağıda CustomActions'ta.
+    SyncStateFilterTemplate = _ => @<text>
+        @* ASGARİ GENİŞLİK SARMALAYICISI (2026-08-10 Hakan kuralı: "toolbardaki combo öğesi her zaman minimum
+           genişliğe sahip olmalı"). Paylaşılan ToolbarRenderer'da AdaptivityAutoCollapseItemsToIcons AÇIK →
+           dar alanda DevExpress şablon öğesini eziyor ve combo "T..▾"ye düşüyordu; editörün kendi Width'i
+           bunu TUTMUYOR çünkü sıkıştıran şey flex kabıdır. flex-shrink:0 + min-width kabın küçültmesini
+           engeller — çözüm burada, editörde değil. *@
+        <div style="min-width:190px; flex-shrink:0;">
+            @* Panel kanal edit formunun İÇİNDE, yani bir EditContext altında çizilebilir; manuel bağlı Dx
+               editörü ValueExpression ister → ValidationEnabled=false ŞART (aksi halde circuit çöker). *@
+            <DxComboBox Data="@SyncStateOptions"
+                        Value="@_syncState"
+                        ValueChanged="@((ChannelProductSyncState? value) => OnSyncStateChanged(value))"
+                        TextFieldName="@nameof(SyncStateOption.Text)"
+                        ValueFieldName="@nameof(SyncStateOption.Value)"
+                        NullText="@L["SalesChannelProduct:AllStates"]"
+                        ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto"
+                        ValidationEnabled="false"
+                        Width="100%" />
+        </div>
+    </text>;
+
+    // GRUP SATIRI — gruplama açık olduğu için gereklidir. DevExpress varsayılanı HAM değeri yazar; enum ve
+    // bool kolonlarda bu, kullanıcının arayüzde hiç görmediği kelimeler demektir ("NoRecipe", "True").
+    // Hücre şablonu ile grup satırı AYNI sözlükten okunur ki iki yerde iki farklı ad çıkmasın.
+    GroupRowTemplate = groupContext => @<text>
+        <strong>@GroupValueText(groupContext.GroupValue)</strong>
+    </text>;
+}
+
+@* SAYFALAMA AÇIK (aşağıda PageSize/PagerVisible): DrillList'te varsayılan KAPALIDIR ve bu doğrudur — çoğu
+   drill bir kaydın birkaç satırlık alt listesidir (şubeler, kasalar) ve orada sayfalayıcı gürültüdür. Burada
+   liste kanalın TÜM ürünleri, standalone kipte tüm kanalların; yani uzun. Framework varsayılanı ÇEVRİLMEDİ:
+   o karar her drill'i etkilerdi.
+
+   DİKKAT: bu yorum bileşen etiketinin DIŞINDA durur. Razor yorumu attribute'ların ARASINA konursa Blazor
+   onu bir parametre ADI sanar ve "does not have a property matching the name ..." ile circuit'i düşürür
+   (ui-blazor razor-comment kuralı; 2026-08-10'da tam da bu dosyada yaşandı). *@
+<div style="display:flex; flex-direction:column; min-height:0;">
+    <DrillList TItem="SalesChannelProductListDto"
+               @ref="_drill"
+               EntityName="@L["SalesChannelProduct:EditTitle"]"
+               EntityIcon="@TradeXpressIcons.Product"
+               Items="_rows"
+               KeyFieldName="Id"
+               SoftDelete="false"
+               AllowAdd="false"
+               PrimaryTextSelector="@(r => RowTitle(r))"
+               NewItemFactory="@NewRow"
+               PersistUpdate="@PersistUpdateAsync"
+               PersistDelete="@PersistDeleteAsync"
+               PageSize="20"
+               PagerVisible="true"
+               PageSizeSelectorVisible="true"
+               ShowGroupPanel="true"
+               DataColumnGroupRowTemplate="@GroupRowTemplate"
+               ShowActiveFilter="false"
+               OnRefresh="@ReloadAsync"
+               OnItemSaved="@(_ => ReloadAsync())"
+               OnSelectionChanged="@OnSelectionChanged"
+               CustomActions="@BuildCustomActions()"
+               EditPopupMaxWidth="1100px"
+               StateKey="@StateKey">
+        <GridColumns>
+            @* Kanal kolonu tek-kanal görünümünde ANLAMSIZ → Visible ile gizlenir (@if ile sarılmaz:
+               nested-settings öğesi sonradan eklenince kolon listenin sonuna düşerdi). *@
+            <DxGridDataColumn FieldName="SalesChannelCode" Caption="@L["SalesChannel"]" Width="140px" VisibleIndex="3"
+                              Visible="@ShowChannelColumn">
+                <CellDisplayTemplate>
+                    @ChannelLabel((SalesChannelProductListDto)context.DataItem)
+                </CellDisplayTemplate>
+            </DxGridDataColumn>
+            @* GÖRSEL — fiyatlandırma tahtasıyla aynı yapı. Görselsizlik de bir BİLGİDİR: boş hücre yerine
+               görünür bir işaret konur, aksi halde "yüklenmedi mi yoksa yok mu" ayırt edilemez. *@
+            <DxGridDataColumn FieldName="HasImage" Caption="@L["Image"]" Width="80px" VisibleIndex="1">
+                <CellDisplayTemplate>
+                    @{
+                        var imageRow = (SalesChannelProductListDto)context.DataItem;
+                    }
+                    @if (!string.IsNullOrEmpty(imageRow.ImageUrl))
+                    {
+                        <img src="@imageRow.ImageUrl" alt="" style="width:56px; height:40px; object-fit:cover; border-radius:4px;" />
+                    }
+                    else
+                    {
+                        <span style="font-size:0.75rem; color:#9ca3af;">@L["SalesChannelProduct:NoImage"]</span>
+                    }
+                </CellDisplayTemplate>
+            </DxGridDataColumn>
+
+            @* KOD TIKLANABİLİR → ÜRÜN formunu popup'ta açar (tahtanın deseni). Satır tıklaması KANAL-ürün
+               formunu açıyor; ikisi farklı yerler ve ikisine de ihtiyaç var: emtia/reçete ÜRÜNDE, kanal-özel
+               alanlar KANAL kaydında düzenlenir. Kod sütunu bu yüzden ayrı bir kapı. *@
+            <GridLinkColumn FieldName="ProductCode" Caption="@L["Code"]" Width="130px" VisibleIndex="2"
+                            TextSelector="@(item => ((SalesChannelProductListDto)item).ProductCode)"
+                            OnClick="@(item => OpenProductAsync((SalesChannelProductListDto)item))" />
+            @* Genişliği PAYLAŞAN İKİ kolon (MinWidth, Width YOK): ad ve kategori. Geri kalan her kolon dar ve
+               SABİT — aksi halde sabit genişlikler toplamı grid'i aşınca DevExpress hepsini sıkıştırır ve ad
+               3-4 satıra sarar (ui-blazor kuralı).
+
+               KATEGORİ NEDEN SABİT DEĞİL (2026-08-10 Hakan: "kategori tüm parentlerle breadcrumb görünsün"):
+               hücre artık yaprak adını değil KÖKTEN TAM YOLU taşıyor ("Kozmetik > Cilt Bakımı > Göz Makyaj
+               Temizleyici") — sabit 160px bunu kesiyordu ve kesilen yol yanıltır: iki farklı dalın yaprakları
+               aynı görünür. MinWidth okunur tabanı garanti eder, artan alanı ad ile paylaşır. *@
+            <DxGridDataColumn FieldName="ProductName" Caption="@L["Name"]" MinWidth="180" VisibleIndex="4" />
+            <DxGridDataColumn FieldName="CategoryName" Caption="@L["Category"]" MinWidth="240" VisibleIndex="5" />
+
+            @* ── KANALDAKİ SON FİYAT ve ADET (2026-08-10 Hakan: "satış kanalında olan son fiyat ve stok
+               bilgisini her türlü görmem lazım"). Kaynak: SKU'ların LastSent* değerleri — bunlar YALNIZ
+               BAŞARILI gönderimde terfi eder, yani "gönderdiğimizi sandığımız" değil karşı tarafın KABUL
+               ETTİĞİ değerdir. Başarısız deneme buraya yansımaz; onun izi Gönderim Geçmişi'ndedir.
+
+               ⚠ Bir alttaki "Pazaryeri Fiyatı" (RemotePrice) ile AYNI ŞEY DEĞİL ve onun yerine geçmez:
+               o, pazaryerinin BİZE bildirdiği fiyattır (yalnız Trendyol içe aktarımı); bu ise BİZİM
+               gönderdiğimiz. İkisi ayrıştığında haber değeri taşıyan şey tam da o farktır — tek kolonda
+               birleştirmek onu gizlerdi. *@
+            <DxGridDataColumn FieldName="ChannelPrice" Caption="@L["SalesChannelProduct:ChannelPrice"]" Width="150px" VisibleIndex="6">
+                <CellDisplayTemplate>
+                    @{
+                        var priceRow = (SalesChannelProductListDto)context.DataItem;
+                    }
+                    @if (priceRow.ChannelPrice is null)
+                    {
+                        @* Hiç başarılı gönderim yok → BOŞ değil "bilmiyoruz" işareti (0 ile karışmasın). *@
+                        <span style="color:#9ca3af;">—</span>
+                    }
+                    else if (priceRow.ChannelPriceMax is { } max && max != priceRow.ChannelPrice)
+                    {
+                        @* Varyantlar farklı fiyatta → ARALIK. Tek sayı göstermek diğer varyantları gizlerdi. *@
+                        <span>@priceRow.ChannelPrice.Value.ToString("N2") – @max.ToString("N2")</span>
+                    }
+                    else
+                    {
+                        <span>@priceRow.ChannelPrice.Value.ToString("N2")</span>
+                    }
+                </CellDisplayTemplate>
+            </DxGridDataColumn>
+
+            <DxGridDataColumn FieldName="ChannelQuantity" Caption="@L["SalesChannelProduct:ChannelQuantity"]" Width="110px" VisibleIndex="7">
+                <CellDisplayTemplate>
+                    @{
+                        var qtyRow = (SalesChannelProductListDto)context.DataItem;
+                    }
+                    @if (qtyRow.ChannelQuantity is null)
+                    {
+                        <span style="color:#9ca3af;">—</span>
+                    }
+                    else if (qtyRow.ChannelQuantity == 0)
+                    {
+                        @* 0 MEŞRU bir beyandır ("tükendi") ve bilinmezlikten AYRI görünmelidir. *@
+                        <span style="color:#b45309;">0</span>
+                    }
+                    else
+                    {
+                        <span>@qtyRow.ChannelQuantity</span>
+                    }
+                </CellDisplayTemplate>
+            </DxGridDataColumn>
+
+            @* PAZARYERİNDE GÖSTERİLEN FİYAT — onların gerçeği (içe aktarım görüntüsü), bizim hesabımız değil.
+               N11 satırlarında BOŞ kalır: N11 kanal kaydı bu veriyi saklamıyor. Boş hücre "bilmiyoruz" der;
+               yerine bizim fiyatımızı koymak, "pazaryerinde şu fiyat var" diye yanlış delil üretirdi. *@
+            <DxGridDataColumn FieldName="RemotePrice" Caption="@L["SalesChannelProduct:RemotePrice"]"
+                              Width="140px" VisibleIndex="8" DisplayFormat="N2" />
+
+            @* PAZARYERİNDE SATIŞTA MI — üç durumlu: bilinmiyor (—) ile "satışta değil" AYRI şeylerdir. *@
+            <DxGridDataColumn FieldName="RemoteOnSale" Caption="@L["SalesChannelProduct:RemoteOnSale"]" Width="110px" VisibleIndex="9">
+                <CellDisplayTemplate>
+                    @{
+                        var saleRow = (SalesChannelProductListDto)context.DataItem;
+                    }
+                    @if (saleRow.RemoteOnSale == true)
+                    {
+                        <span style="color:#15803d;">@L["Yes"]</span>
+                    }
+                    else if (saleRow.RemoteOnSale == false)
+                    {
+                        <span style="color:#b45309;">@L["No"]</span>
+                    }
+                    else
+                    {
+                        <span style="color:#9ca3af;">—</span>
+                    }
+                </CellDisplayTemplate>
+            </DxGridDataColumn>
+            <DxGridDataColumn FieldName="SyncState" Caption="@L["SalesChannelProduct:SyncState"]" Width="130px" VisibleIndex="10">
+                <CellDisplayTemplate>
+                    @{
+                        var stateRow = (SalesChannelProductListDto)context.DataItem;
+                    }
+                    <span style="@SyncBadgeStyle(stateRow.SyncState)">@SyncStateLabel(stateRow.SyncState)</span>
+                </CellDisplayTemplate>
+            </DxGridDataColumn>
+            @* KARAR SÜTUNU — tahtanın asıl sebebi, buraya da taşındı. Renk durumu ANLATIR, süslemez.
+               Senkron rozetinden FARKLI bir soruya cevap verir: senkron "kanala ulaştı mı", bu sütun
+               "ulaşacak hâlde mi" der. Reçetesiz ürün senkron olsa bile satılabilir değildir. *@
+            <DxGridDataColumn FieldName="Readiness" Caption="@L["SalesChannelProduct:Readiness"]" Width="170px" VisibleIndex="11">
+                <CellDisplayTemplate>
+                    @{
+                        var readyRow = (SalesChannelProductListDto)context.DataItem;
+                    }
+                    @if (!readyRow.HasRecipe)
+                    {
+                        <span style="color:#b91c1c;">@L["SalesChannelProduct:NeedsRecipe"]</span>
+                    }
+                    else if (readyRow.ReadyVariantCount == 0)
+                    {
+                        <span style="color:#b45309;">@L["SalesChannelProduct:NeedsVerification"]</span>
+                    }
+                    else
+                    {
+                        <span style="color:#15803d;">@L["SalesChannelProduct:Sellable", readyRow.ReadyVariantCount]</span>
+                    }
+                </CellDisplayTemplate>
+            </DxGridDataColumn>
+            <DxGridDataColumn FieldName="VariantCount" Caption="@L["Variants"]" Width="90px" VisibleIndex="12" />
+            <DxGridDataColumn FieldName="RemoteId" Caption="@L["SalesChannelProduct:RemoteId"]" Width="140px" VisibleIndex="13" />
+            <DxGridDataColumn FieldName="SkuCount" Caption="@L["SalesChannelProduct:ChannelSkuCount"]" Width="90px" VisibleIndex="14" />
+            @* Zaman UTC saklanır → merkezî UtcLocalText kullanıcının yerel saatine çevirir. *@
+            <DxGridDataColumn FieldName="LastSyncedAt" Caption="@L["SalesChannelProduct:LastSynced"]" Width="150px" VisibleIndex="15">
+                <CellDisplayTemplate>
+                    @{
+                        var syncedRow = (SalesChannelProductListDto)context.DataItem;
+                    }
+                    <UtcLocalText Value="@syncedRow.LastSyncedAt" />
+                </CellDisplayTemplate>
+            </DxGridDataColumn>
+        </GridColumns>
+        <EditContent Context="row">
+            <ChannelProductEditFields @ref="_editFields" Row="@row" />
+        </EditContent>
+    </DrillList>
+
+    @* Boş liste: sebebi AÇIKÇA yazılır — kullanıcı "ekran bozuk mu" diye aramasın. *@
+    @if (_rows.Count == 0 && !_loading)
+    {
+        <div style="padding:10px 12px; border-inline-start:3px solid var(--dxbl-drawer-border-color); color:var(--bs-secondary-color);">
+            @(_syncState is null ? L["SalesChannelProduct:EmptyHint"] : L["SalesChannelProduct:NoMatchHint"])
+        </div>
+    }
+</div>
+
+@* GÖNDERİM GEÇMİŞİ — araç çubuğundan açılır, salt okuma. Delil defteri append-only olduğu için bu yüzey
+   hiçbir şey yazmaz; düzeltilebilir bir delil delil olmazdı. *@
+<ChannelProductPushHistoryPopup @ref="_historyPopup" />

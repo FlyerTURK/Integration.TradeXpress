@@ -1,4 +1,7 @@
 using System;
+using System.Collections.Generic;
+using Integration.Framework.Blazor.Client.Components.Crud;
+using Integration.Framework.Blazor.Client.Services.Mdi;
 using Integration.Framework.Blazor.Client.Services.Base;
 using Integration.TradeXpress.SalesChannels;
 using Microsoft.AspNetCore.Components;
@@ -44,5 +47,91 @@ public partial class SalesChannelTrTrendyolEditHost
     {
         _autoImportProducts = true;
         return Task.CompletedTask;
+    }
+
+    [Inject] private ChannelImportRunner ImportRunner { get; set; } = default!;
+    [Inject] private IMdiTabOpener TabOpener { get; set; } = default!;
+    [Inject] private IUiInteractionService Ui { get; set; } = default!;
+    [Inject] private IServiceProvider ServiceProvider { get; set; } = default!;
+
+    private bool _importing;
+
+    /// <summary>
+    /// Kanala özgü İŞLEM düğmeleri MEVCUT araç çubuğuna girer (2026-08-10 Hakan uyarısı: "form altı toolbar
+    /// eklemeyi alışkanlık haline getirme, bir toolbarımız varken buna gerek yok"). Önceki hâl formun altında
+    /// ayrı bir düğme şeridiydi: uygulamanın geri kalanında işlemler araç çubuğunda dururken bu yüzey istisna
+    /// oluşturuyordu ve dikey yeri de boşa harcıyordu. Uzatma noktası zaten vardı — <c>BuildCustomActions</c>.
+    ///
+    /// <para>YENİ KAYITTA GÖRÜNMEZ: her ikisi de kaydedilmiş bir kanalın kimliğine bağlıdır.</para>
+    /// </summary>
+    private IReadOnlyList<CrudToolbarAction> BuildCustomActions(SalesChannelTrTrendyolGetDto model)
+    {
+        if (model.Id == Guid.Empty)
+        {
+            return System.Array.Empty<CrudToolbarAction>();
+        }
+
+        return new List<CrudToolbarAction>
+        {
+            new()
+            {
+                SortIndex = 300,
+                Text = L["SalesChannel:ImportProducts"],
+                Tooltip = L["SalesChannel:ImportProducts"],
+                IconCssClass = TradeXpressIcons.Swap + " xaf-toolbar-item-icon",
+                Enabled = !_importing,
+                OnClick = () => RunImportAsync(model.Id),
+            },
+
+            // GEÇİCİ (2026-08-10): sihirbaza başka ulaşılabilir giriş yok. Yeni tasarım oturunca kaldırılacak.
+            new()
+            {
+                SortIndex = 310,
+                Text = L["SalesChannel:OpenSetupWizard"],
+                Tooltip = L["SalesChannel:OpenSetupWizard"],
+                IconCssClass = TradeXpressIcons.SalesChannel + " xaf-toolbar-item-icon",
+                OnClick = () => OpenWizardAsync(model.Id),
+            },
+        };
+    }
+
+    /// <summary>Mağazadan içe aktarım — tür dağıtımı ortak koşucuda (<c>ChannelImportRunner</c>), kanal
+    /// listesindeki düğmeyle AYNI yol. Çalışırken düğme pasif: ikinci tıklama paralel bir içe aktarım
+    /// başlatırdı.</summary>
+    private async Task RunImportAsync(Guid channelId)
+    {
+        if (_importing)
+        {
+            return;
+        }
+
+        _importing = true;
+        StateHasChanged();
+        try
+        {
+            var outcome = await ImportRunner.RunAsync(channelId, SalesChannelType.TrTrendyol);
+            Ui.ShowSuccessToast(outcome.Supported
+                ? L["SalesChannel:ImportDone", outcome.Created, outcome.Updated].Value
+                : L["SalesChannel:ImportUnsupported"].Value);
+        }
+        catch (Exception ex)
+        {
+            Ui.ShowErrorToast(CrudErrorPresenter.ToFriendlyMessage(ex, ServiceProvider) ?? ex.Message);
+        }
+        finally
+        {
+            _importing = false;
+            StateHasChanged();
+        }
+    }
+
+    /// <summary>MDI kabuğunda <c>NavigationManager</c> NO-OP'tur → sihirbaz <c>IMdiTabOpener</c> ile
+    /// sekmede açılır.</summary>
+    private Task OpenWizardAsync(Guid channelId)
+    {
+        return TabOpener.OpenOrActivateAsync(
+            "/sales-channels/trendyol/wizard/" + channelId,
+            L["SalesChannelTrTrendyol:Wizard:Title"].Value,
+            TradeXpressIcons.SalesChannel);
     }
 }

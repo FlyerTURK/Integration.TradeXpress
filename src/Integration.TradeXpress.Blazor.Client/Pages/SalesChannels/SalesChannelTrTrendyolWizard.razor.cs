@@ -151,11 +151,48 @@ public partial class SalesChannelTrTrendyolWizard : CrudComponentBase
                 _channelId = channel.Id;
                 _code = channel.Code;
                 _name = channel.Name;
+                _selectedCargoProviderId = channel.DefaultCargoProviderId;
+            }
+
+            // VARSAYILAN ÖN-DOLU (2026-08-10 Hakan): adım seçilmeden ilerlemiyor; kullanıcıyı boş bir
+            // combo'yla karşılamak, cevabı zaten bilinen bir soruyu sormaktı. Karar SUNUCUDA verilir ki
+            // kanal formu ve sihirbaz aynı firmayı göstersin.
+            if (_selectedCargoProviderId is null)
+            {
+                _selectedCargoProviderId = await CargoProviderAppService.GetDefaultIdAsync();
             }
         }
         catch (Exception ex)
         {
             UiService.ShowErrorToast(CrudErrorPresenter.ToFriendlyMessage(ex, ServiceProvider) ?? ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// Kargo adımı: seçimi KANALA YAZAR. Öncesinde bu adım tamamen görselDİ — <c>_selectedCargoProviderId</c>
+    /// yalnız yerel bir alandı, özet ekranında gösterilip sihirbaz kapanınca KAYBOLUYORDU (2026-08-10 bulgusu).
+    ///
+    /// <para>Dar uç kullanılır (<c>SetDefaultCargoProviderAsync</c>), tam güncelleme değil: sihirbaz mevcut
+    /// kanal kipinde kimlik alanlarını yüklemiyor ve tam DTO ile güncelleme onları sessizce boşaltırdı.</para>
+    ///
+    /// <para>Yazma BAŞARISIZSA adım İLERLEMEZ — ilerletmek, kaydedilmemiş bir seçimi özet ekranında
+    /// "kuruldu" diye göstermek olurdu.</para>
+    /// </summary>
+    private async Task PersistCargoProviderAsync(WizardStepAdvanceContext context)
+    {
+        if (_channelId == Guid.Empty || _selectedCargoProviderId is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await ChannelAppService.SetDefaultCargoProviderAsync(_channelId, _selectedCargoProviderId);
+        }
+        catch (Exception ex)
+        {
+            UiService.ShowErrorToast(CrudErrorPresenter.ToFriendlyMessage(ex, ServiceProvider) ?? ex.Message);
+            context.Cancel();
         }
     }
 

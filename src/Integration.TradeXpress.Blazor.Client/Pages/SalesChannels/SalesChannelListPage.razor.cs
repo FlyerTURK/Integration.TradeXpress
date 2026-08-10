@@ -39,6 +39,12 @@ public partial class SalesChannelListPage : IDisposable
     // Şirkette hâlihazırda bulunan kanal türleri — "Yeni ▾"'de o türü devre dışı bırakır (her türden en fazla bir tane).
     private HashSet<SalesChannelType> _existingTypes = new();
 
+    /// <summary>Åirketin kanallarÄ± (kimlik + kod + tÃ¼r) â "Ä°Ã§e Aktar â¾" alt Ã¶Äelerini besler. TÃ¼rlerle
+    /// birlikte tek Ã§ekimde tazelenir; ayrÄ± bir yÃ¼kleme yolu aÃ§mak iki kaynaÄÄ±n ayrÄ±ÅmasÄ±na yol aÃ§ardÄ±.</summary>
+    private List<(Guid Id, string Code, SalesChannelType Type)> _channels = new();
+
+    [Inject] private ChannelImportRunner ImportRunner { get; set; } = default!;
+
     private GridListDataSource<SalesChannelListDto>? _gridDataSource;
 
     /// <summary>Server-side grid kaynağı — birleşik <see cref="ISalesChannelAppService.GetListAsync"/>'e bağlı.</summary>
@@ -87,6 +93,14 @@ public partial class SalesChannelListPage : IDisposable
         try
         {
             _existingTypes = new HashSet<SalesChannelType>(await SalesChannelAppService.GetExistingChannelTypesAsync());
+
+            var channelPage = await SalesChannelAppService.GetListAsync(new SalesChannelListRequestDto
+            {
+                MaxResultCount = ListRequestDto.AllPages,
+            });
+            _channels = channelPage.Items
+                .Select(c => (c.Id, c.Code, c.ChannelType))
+                .ToList();
         }
         catch (Exception ex)
         {
@@ -110,7 +124,63 @@ public partial class SalesChannelListPage : IDisposable
                 NewTypeItem(SalesChannelType.Etsy),
             },
         },
+
+        // KANAL ÜRÜNLERİ — bağımsız liste. Kanal SEÇİMİ GEREKTİRMEZ (satır seçili olmasa da açılır):
+        // sayfa tüm kanalların kayıtlarını gösterir, daraltma orada yapılır. Kanal edit formundaki liste
+        // ile AYNI bileşeni sürer; bu düğme yalnız ona kanal-bağımsız bir giriş kapısı açar.
+        // SAYFA olduğu için popup yolundan DEĞİL sekmeden/adres çubuğundan açılır (sihirbazla aynı gerekçe).
+        new()
+        {
+            SortIndex = 1,
+            Text = L["SalesChannelProducts"],
+            Tooltip = L["SalesChannelProducts:Tooltip"],
+            IconCssClass = TradeXpressIcons.Product + " xaf-toolbar-item-icon",
+            OnClick = () => OpenRouteAsync("/sales-channel-products", L["SalesChannelProducts"].Value),
+        },
+
+        // MAÄAZADAN Ä°ÃE AKTAR (2026-08-10 Hakan) â Åirketin KANALLARI alt Ã¶Äe olarak listelenir.
+        // Neden seÃ§ili satÄ±ra baÄlÄ± DEÄÄ°L: bu liste satÄ±r seÃ§imi tutmuyor ve her tÃ¼rden en fazla bir kanal
+        // olduÄundan alt liste zaten en Ã§ok Ã¼Ã§ Ã¶Äe; seÃ§im mekanizmasÄ± eklemek, Ã¼Ã§ Ã¶Äelik bir menÃ¼ iÃ§in
+        // yeni bir durum kavramÄ± getirmek olurdu.
+        new()
+        {
+            SortIndex = 2,
+            Text = L["SalesChannel:ImportProducts"],
+            Tooltip = L["SalesChannel:ImportProducts"],
+            IconCssClass = TradeXpressIcons.Swap + " xaf-toolbar-item-icon",
+            Enabled = _channels.Count > 0,
+            Items = _channels.ConvertAll(ImportChannelItem),
+        },
     };
+
+    /// <summary>Bir kanalÄ±n iÃ§e aktarÄ±mÄ±nÄ± Ã§alÄ±ÅtÄ±ran alt menÃ¼ Ã¶Äesi.</summary>
+    private CrudToolbarAction ImportChannelItem((Guid Id, string Code, SalesChannelType Type) channel)
+    {
+        return new CrudToolbarAction
+        {
+            Text = string.Concat(channel.Code, " - ", ChannelTypeLabel(channel.Type)),
+            Tooltip = L["SalesChannel:ImportProducts"],
+            IconCssClass = TradeXpressIcons.SalesChannel + " xaf-toolbar-item-icon",
+            OnClick = () => RunImportAsync(channel.Id, channel.Type),
+        };
+    }
+
+    /// <summary>Ä°Ã§e aktarÄ±mÄ± Ã§alÄ±ÅtÄ±rÄ±r ve sonucu SÃYLER. Ortak koÅucu kullanÄ±lÄ±r (ChannelImportRunner) â
+    /// kanal edit formundaki dÃ¼Ämeyle aynÄ± yol; tÃ¼r daÄÄ±tÄ±mÄ± iki yerde ayrÄ± yaÅamaz.</summary>
+    private async Task RunImportAsync(Guid channelId, SalesChannelType type)
+    {
+        try
+        {
+            var outcome = await ImportRunner.RunAsync(channelId, type);
+            UiService?.ShowSuccessToast(outcome.Supported
+                ? L["SalesChannel:ImportDone", outcome.Created, outcome.Updated].Value
+                : L["SalesChannel:ImportUnsupported"].Value);
+        }
+        catch (Exception ex)
+        {
+            await HandleErrorAsync(ex);
+        }
+    }
 
     // "Yeni ▾" alt item — tür şirkette zaten varsa DEVRE DIŞI (tooltip açıklar); server de Create'te zorlar.
     private CrudToolbarAction NewTypeItem(SalesChannelType type)

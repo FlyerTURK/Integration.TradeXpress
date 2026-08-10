@@ -85,6 +85,11 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
             b.Property(x => x.SellerId).IsRequired().HasMaxLength(SalesChannelConsts.ConfigMaxLength);
             b.Property(x => x.ApiKey).IsRequired().HasMaxLength(SalesChannelConsts.ConfigMaxLength);
             b.Property(x => x.ApiSecret).IsRequired().HasMaxLength(SalesChannelConsts.ConfigMaxLength);
+
+            // Varsayılan kargo firması — FK KURULMAZ: TrendyolCargoProvider host-global bir referans
+            // aggregate'idir ve aggregate'ler arası bağ id-only'dir (NavigationConventionTests). Ayrıca
+            // db-per-tenant kurulumunda kanal ile referans tablosu aynı DB'de olmayabilir.
+            b.Property(x => x.DefaultCargoProviderId);
         });
 
         // ── Somut alt-tip: Etsy (global platform — Tr öneki YOK) → AppSalesChannelEtsy (OAuth 2.0 PKCE kimliği) ──

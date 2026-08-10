@@ -79,4 +79,14 @@
        bir kurulum ADIMIDIR (eski AutoImport paneli buraya genellendi). Kanal bu oturumda YENİ oluşturulduysa (AutoRun)
        panel ilk görünümünde kurulumu otomatik başlatır; sonuç adım-adım DxGrid'de gösterilir. *@
     <ChannelProvisioningPanel SalesChannelId="@Model.Id" AutoRun="@AutoImportProducts" />
+
+    @* KANALA ÖZGÜ SEKMELER — tek sekmeyle başlıyor, bu kanala özgü tanımlar yanına eklenecek.
+       Yeni sekmeyi @if ile SARMA (nested-settings sırası bozulur) → koşul için Visible kullan. *@
+    <DrillTabs CssClass="mt-3">
+        <DxTabPage Text="@L["SalesChannelProducts"]" TabIconCssClass="@TradeXpressIcons.Product">
+            @* Bu kanala bağlı TÜM kayıtlar (senkron olmuş/olmamış ayrımı YOK). Trendyol formu ve
+               standalone sayfayla AYNI bileşen. *@
+            <ChannelProductsPanel SalesChannelId="@Model.Id" StateKey="sales-channel-products:etsy-form:v5" />
+        </DxTabPage>
+    </DrillTabs>
 }

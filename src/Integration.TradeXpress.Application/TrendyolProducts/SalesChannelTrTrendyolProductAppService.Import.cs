@@ -685,11 +685,18 @@ public partial class SalesChannelTrTrendyolProductAppService
             var stockCode = remoteVariant.StockCode is { Length: > 0 } rawStockCode
                 ? Truncate(rawStockCode, TrendyolProductConsts.StockCodeMaxLength)
                 : remoteVariant.Barcode;
+            // PAZARYERİNİN BEYANI DA SAKLANIR (2026-08-10): adet/fiyat zaten bu yanıtta geliyordu ama
+            // atılıyordu ve kanal-ürün listesindeki fiyat/stok kolonları bu yüzden BOŞTU. Bu değerler push
+            // zincirine GİRMEZ (fiyat StockItem override'larından yürür) — yalnız "kanalda şu an ne var"
+            // sorusunun cevabıdır ve o soru hiç push etmemiş kayıtlarda ancak buradan cevaplanabilir.
             entity.UpsertImportedSku(
                 localVariant.Id,
                 remoteVariant.Barcode,
                 stockCode,
-                remoteVariant.ProductContentId);
+                remoteVariant.ProductContentId,
+                remoteVariant.Quantity,
+                remoteVariant.ListPrice,
+                remoteVariant.SalePrice);
         }
 
         if (existing is null)

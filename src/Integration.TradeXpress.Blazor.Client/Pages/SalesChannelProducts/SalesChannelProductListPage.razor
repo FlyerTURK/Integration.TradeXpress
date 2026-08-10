@@ -1,0 +1,52 @@
+@page "/sales-channel-products"
+@using Integration.TradeXpress.Permissions
+@attribute [Authorize(TradeXpressPermissions.SalesChannels.Default)]
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@*
+   KANAL ÜRÜNLERİ — bağımsız (standalone) liste. Satış kanalları listesinin araç çubuğundan açılır.
+
+   Kanal-ürün kayıtlarına bugüne kadar yalnız İKİ DOLAYLI yoldan ulaşılabiliyordu: ürün formunun içinden
+   ya da kanal formunun içinden. Bu sayfa onları kendi başına yönetilebilir bir kayıt türü hâline getirir.
+
+   Listeleme + düzenleme ChannelProductsPanel'de (kanal edit formuyla AYNI bileşen) — buradaki tek fark
+   kanalın daraltılmamış olmasıdır: tüm kanallar, "Kanal" kolonu görünür, tür süzgeci açık.
+*@
+
+<div style="display:flex; flex-direction:column; height:100%; padding:6px; box-sizing:border-box; min-height:0;">
+
+    <DxToolbar AdaptivityAutoHideRootItems="false" AdaptivityAutoCollapseItemsToIcons="false">
+        <DxToolbarItem>
+            <Template>
+                <span style="white-space:nowrap; padding:0 0.35rem; font-weight:600;">@L["SalesChannelProducts"]</span>
+            </Template>
+        </DxToolbarItem>
+        @* Kanal türü süzgeci — panele parametre olarak akar (sunucuda tipli eksen). Bu sayfa bir EditContext
+           altında DEĞİLDİR ama combo yine manuel bağlı → ValidationEnabled=false, deseni bozmayalım. *@
+        <DxToolbarItem BeginGroup="true">
+            <Template>
+                @* Asgari genişlik sarmalayıcısı — kanal ürünleri panelindeki combo ile AYNI kural
+                   (toolbardaki combo hiçbir zaman ezilmez); gerekçe orada. *@
+                <div style="min-width:200px; flex-shrink:0;">
+                    <DxComboBox Data="@ChannelTypeOptions"
+                                Value="@_channelType"
+                                ValueChanged="@((SalesChannelType? value) => OnChannelTypeChanged(value))"
+                                TextFieldName="@nameof(ChannelTypeOption.Text)"
+                                ValueFieldName="@nameof(ChannelTypeOption.Value)"
+                                NullText="@L["SalesChannelProduct:AllChannels"]"
+                                ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto"
+                                ValidationEnabled="false"
+                                Width="100%" />
+                </div>
+            </Template>
+        </DxToolbarItem>
+    </DxToolbar>
+
+    <div style="flex:1; min-height:0; min-width:0; display:flex; flex-direction:column; margin-top:6px;">
+        @* Tür değişince panel YENİDEN KURULUR (@key): grid'in server-side kaynağı parametreyi fetch
+           anında okur ve @key olmadan eski kaynağı taşımaya devam ederdi. *@
+        <ChannelProductsPanel @key="_channelType"
+                              ChannelType="@_channelType"
+                              StateKey="sales-channel-products:standalone:v5" />
+    </div>
+</div>

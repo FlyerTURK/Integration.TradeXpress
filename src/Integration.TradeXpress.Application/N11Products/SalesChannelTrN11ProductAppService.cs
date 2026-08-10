@@ -12,6 +12,7 @@ using Integration.TradeXpress.N11Shipments;
 using Integration.TradeXpress.Permissions;
 using Integration.TradeXpress.ProductCategories;
 using Integration.TradeXpress.Products;
+using Integration.TradeXpress.SalesChannelProducts;
 using Integration.TradeXpress.SalesChannels;
 using Integration.TradeXpress.SalesChannels.Variants;
 using Integration.TradeXpress.Substitutions;
@@ -505,12 +506,17 @@ public partial class SalesChannelTrN11ProductAppService : TradeXpressAppService,
         var channel = await GetOwnedChannelAsync(entity.SalesChannelId);
         var syncWarnings = new List<string>();
 
+        // BAŞARISIZLIK KAYDI İÇİN (2026-08-10): ne göndermeye çalıştığımız catch'te de bilinmeli.
+        // null kalması "veri hiç kurulamadı" demektir (BuildProductDataAsync patladı) → yazacak delil yok.
+        N11ProductData? attemptedData = null;
+
         try
         {
             // Veri kurulumu da try İÇİNDE: geçici-link (dış servis) hataları dahil her başarısızlık
             // MarkSyncFailed'e düşsün — kayıt bayat "Synced" göstermesin (review bulgusu).
             var plan = await BuildProductDataAsync(entity, channel);
             var data = plan.Data;
+            attemptedData = data;
 
             // ── SOAP → REST (2026-08-04) ────────────────────────────────────────────────────────────
             // N11 resmî dokümanı (v9.0, satır 513): "Ürün Yükleme ve Güncelleme Servisleri SOAP'tan
@@ -552,7 +558,8 @@ public partial class SalesChannelTrN11ProductAppService : TradeXpressAppService,
                 entity.Id,
                 N11ProductPushKind.FullPush,
                 BuildHistoryEntries(data, await ResolvePushMediaIdsAsync(entity.ProductId)),
-                result.N11ProductId?.ToString(CultureInfo.InvariantCulture));
+                result.N11ProductId?.ToString(CultureInfo.InvariantCulture),
+                ChannelPushOutcome.Succeeded);
 
             foreach (var sku in result.Skus)
             {
@@ -610,8 +617,25 @@ public partial class SalesChannelTrN11ProductAppService : TradeXpressAppService,
         catch (Exception ex)
         {
             // Hatayı kaydet (kullanıcı görsün) + yeniden fırlat (toast). Gizleme YOK — kayıt + propagate.
-            entity.MarkSyncFailed(FriendlyError(ex), Clock.Now.ToUniversalTime());
+            var reason = FriendlyError(ex);
+            entity.MarkSyncFailed(reason, Clock.Now.ToUniversalTime());
             await _repository.UpdateAsync(entity, autoSave: true);
+
+            // DELİL: denenen içerik/fiyat/stok gerekçesiyle deftere geçer (2026-08-10). Görsel kimlikleri
+            // BURADA çözülmez — çözüm de patlamış olabilir ve delil yazarken ikinci bir hata riskine girmek,
+            // elde kalan bilgiyi de kaybettirirdi.
+            if (attemptedData is { } failedData)
+            {
+                await _pushHistory.RecordAsync(
+                    entity.CompanyId,
+                    entity.Id,
+                    N11ProductPushKind.FullPush,
+                    BuildHistoryEntries(failedData, new List<Guid>()),
+                    entity.N11ProductId?.ToString(CultureInfo.InvariantCulture),
+                    ChannelPushOutcome.Failed,
+                    reason);
+            }
+
             throw;
         }
 
@@ -638,6 +662,11 @@ public partial class SalesChannelTrN11ProductAppService : TradeXpressAppService,
         }
 
         var n11ProductId = entity.N11ProductId;
+
+        // BAŞARISIZLIK KAYDI İÇİN (2026-08-10): ne göndermeye çalıştığımız catch'te de bilinmeli. try içinde
+        // tanımlanan liste catch'e görünmez; hata anında "hangi fiyat/stok denendi" cevabı da onunla kaybolurdu.
+        // null kalması "gönderilecek satır hiç kurulamadı" demektir (guard/ön-koşul hatası) → yazacak delil yok.
+        List<N11RestPriceStock>? attemptedItems = null;
 
         try
         {
@@ -721,6 +750,9 @@ public partial class SalesChannelTrN11ProductAppService : TradeXpressAppService,
                 throw new BusinessException("TradeXpress:N11:Product:NoSyncableSku");
             }
 
+            // Gönderilecek satırlar kesinleşti → başarısızlık dalı da bunları yazabilsin.
+            attemptedItems = stockItems;
+
             if (!anyDirty)
             {
                 // Değişiklik yok → N11'e gereksiz yazma yapma (60 sn kuralına + kotaya saygı).
@@ -756,17 +788,9 @@ public partial class SalesChannelTrN11ProductAppService : TradeXpressAppService,
                     entity.CompanyId,
                     entity.Id,
                     N11ProductPushKind.PriceStockSync,
-                    stockItems
-                        .Select(item => new N11PushHistoryEntry(
-                            item.StockCode,
-                            item.SalePrice,
-                            item.CurrencyType,
-                            item.Quantity,
-                            Title: null,
-                            Options: null,
-                            MediaIds: null))
-                        .ToList(),
-                    n11ProductId?.ToString(CultureInfo.InvariantCulture));
+                    BuildSyncHistoryEntries(stockItems),
+                    n11ProductId?.ToString(CultureInfo.InvariantCulture),
+                    ChannelPushOutcome.Succeeded);
 
                 entity.MarkSynced(n11ProductId, entity.SaleStatus, entity.ApprovalStatus, Clock.Now.ToUniversalTime());
             }
@@ -778,8 +802,25 @@ public partial class SalesChannelTrN11ProductAppService : TradeXpressAppService,
             // N11'e GİRMİŞ her başarısızlık (client notFound/SaveFailed/SaveRejected + ağ hataları) kayda geçer —
             // Push ile simetrik. Ön-uçuş guard'ları (NotPushedYet) try'dan ÖNCE fırladığından buraya düşmez;
             // NoSyncableSku düşerse de "senkronlanamadı" işareti bilgilendiricidir.
-            entity.MarkSyncFailed(FriendlyError(ex), Clock.Now.ToUniversalTime());
+            var reason = FriendlyError(ex);
+            entity.MarkSyncFailed(reason, Clock.Now.ToUniversalTime());
             await _repository.UpdateAsync(entity, autoSave: true);
+
+            // DELİL: denenen fiyat/stok değerleri gerekçesiyle deftere geçer (2026-08-10). LastSent* terfi
+            // ETMEZ — ulaşmamış değer kıyas tabanını ilerletmemeli. attemptedItems null ise gönderilecek satır
+            // hiç kurulamamıştır (guard hatası): yazacak bir deneme yok, uydurmayız.
+            if (attemptedItems is { Count: > 0 })
+            {
+                await _pushHistory.RecordAsync(
+                    entity.CompanyId,
+                    entity.Id,
+                    N11ProductPushKind.PriceStockSync,
+                    BuildSyncHistoryEntries(attemptedItems),
+                    n11ProductId?.ToString(CultureInfo.InvariantCulture),
+                    ChannelPushOutcome.Failed,
+                    reason);
+            }
+
             throw;
         }
 
@@ -1495,6 +1536,24 @@ public partial class SalesChannelTrN11ProductAppService : TradeXpressAppService,
 
     /// <summary>Push'a girecek her satırın efektif fiyat+stok'unun ÇÖZÜLMÜŞ olduğunu doğrular — N11-only satırda
     /// ERP fallback yoktur (zincir: OverridePrice ?? türetilmiş / OverrideStock); çözülemiyorsa N11'e gitmeden fail-fast.</summary>
+    /// <summary>Fiyat/stok senkronunun geçmiş girdileri — GÖNDERİLEN (ya da gönderilmeye çalışılan) satırlardan
+    /// kurulur. Başarı ve başarısızlık dalları AYNI kaynaktan okur ki iki dal zamanla ayrışmasın.
+    /// <para>İçerik (başlık/görsel/seçenek) bu yolda gönderilmediği için <c>null</c> geçilir — gönderilmeyeni
+    /// deftere yazmak yalan olurdu.</para></summary>
+    private static List<N11PushHistoryEntry> BuildSyncHistoryEntries(IReadOnlyCollection<N11RestPriceStock> items)
+    {
+        return items
+            .Select(item => new N11PushHistoryEntry(
+                item.StockCode,
+                item.SalePrice,
+                item.CurrencyType,
+                item.Quantity,
+                Title: null,
+                Options: null,
+                MediaIds: null))
+            .ToList();
+    }
+
     /// <summary>Push geçmişi girdileri — GÖNDERİLEN veriden kurulur (yeniden hesaplanmaz).
     /// <i>Delil kaydı "ne göndermiş olmalıydık"ı değil "ne gönderdik"i saklamalı.</i></summary>
     private static List<N11PushHistoryEntry> BuildHistoryEntries(N11ProductData data, List<Guid> mediaIds)

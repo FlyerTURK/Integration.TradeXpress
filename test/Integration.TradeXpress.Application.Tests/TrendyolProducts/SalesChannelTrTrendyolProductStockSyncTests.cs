@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Integration.TradeXpress.MultiCompany;
 using Integration.TradeXpress.Products;
+using Integration.TradeXpress.SalesChannelProducts;
 using Integration.TradeXpress.SalesChannels;
 using Integration.TradeXpress.Variants;
 using Shouldly;
@@ -339,14 +340,17 @@ public abstract class SalesChannelTrTrendyolProductStockSyncTests<TStartupModule
             history.ShouldAllBe(h => h.PushKind == TrendyolProductPushKind.PriceStockSync);
             history.Select(h => h.Quantity).ShouldBe(new int?[] { 10, 20 }, ignoreOrder: true);
             history.ShouldAllBe(h => h.BatchRequestId != null);
+
+            // Başarıda sonuç Succeeded ve gerekçe YOK — boş bir metin "sebep bilinmiyor" gibi okunurdu.
+            history.ShouldAllBe(h => h.Outcome == ChannelPushOutcome.Succeeded);
+            history.ShouldAllBe(h => h.ErrorMessage == null);
         }
     }
 
-    /// <summary>FAILED batch → <c>LastSent*</c> DEĞİŞMEZ, geçmişe satır YAZILMAZ, bekleyenler atılır.
-    /// Reddedilen gönderimi delil defterinde başarılı göstermek defteri delil olmaktan çıkarırdı; tabanı
-    /// terfi ettirmek ise gönderilmemiş değerleri "senkron" sayardı.</summary>
+    /// <summary>FAILED batch → <c>LastSent*</c> DEĞİŞMEZ. Bu, kuralın DEĞİŞMEYEN yarısıdır: gönderilmemiş
+    /// değeri kıyas tabanına terfi ettirmek onu "senkron" saymak olurdu ve bir sonraki tur farkı görmezdi.</summary>
     [Fact]
-    public async Task A_failed_batch_neither_promotes_nor_records()
+    public async Task A_failed_batch_does_not_promote_last_sent()
     {
         var companyId = Guid.NewGuid();
         using (_currentCompany.Change(companyId))
@@ -358,10 +362,40 @@ public abstract class SalesChannelTrTrendyolProductStockSyncTests<TStartupModule
             var refreshed = await _appService.RefreshStatusAsync(created.Id);
 
             refreshed.Skus.ShouldAllBe(s => s.LastSentQuantity == null);
+        }
+    }
+
+    /// <summary>FAILED batch → geçmişe <b>BAŞARISIZ</b> satır yazılır, kanalın kendi gerekçesiyle
+    /// (2026-08-10 Hakan kararı).
+    ///
+    /// <para><b>Bu testin varlık sebebi:</b> eskiden reddedilen gönderim hiç iz bırakmıyordu ve "denendi,
+    /// kanal reddetti" ile "hiç denenmedi" ayırt edilemiyordu. Otonom fiyat/stok güncellemesinde bir fiyatın
+    /// kanala yansımamış olmasının sebebini ancak bu satır söyleyebilir. Eski kuralın koruduğu şey —
+    /// reddedileni BAŞARILI göstermemek — <c>Outcome</c> ile korunuyor.</para></summary>
+    [Fact]
+    public async Task A_failed_batch_records_the_attempt_with_the_channel_reason()
+    {
+        var companyId = Guid.NewGuid();
+        using (_currentCompany.Change(companyId))
+        {
+            var created = await SeedAsync(companyId, "TYFIN4", verify: true, seedSkus: true);
+            await _appService.SyncStockAndPriceAsync(created.Id);
+
+            _client.NextBatchStatus = new TrendyolBatchStatus("FAILED", 2, 2, "barcode not found");
+            await _appService.RefreshStatusAsync(created.Id);
 
             var history = await WithUnitOfWorkAsync(() => _historyRepository.GetListAsync(
                 h => h.SalesChannelTrTrendyolProductId == created.Id));
-            history.ShouldBeEmpty();
+
+            // Denenen SKU'ların HEPSİ deftere geçer — hangisinin düştüğü batch kırılımından eşlenemiyor.
+            history.Count.ShouldBe(2);
+            history.ShouldAllBe(h => h.Outcome == ChannelPushOutcome.Failed);
+
+            // KANALIN kendi cümlesi saklanır; bizim yorumumuz değil.
+            history.ShouldAllBe(h => h.ErrorMessage == "barcode not found");
+
+            // Denenen DEĞERLER de duruyor: "şu adetle denedik, reddedildi" cümlesi ancak böyle kurulur.
+            history.Select(h => h.Quantity).ShouldBe(new int?[] { 10, 20 }, ignoreOrder: true);
         }
     }
 

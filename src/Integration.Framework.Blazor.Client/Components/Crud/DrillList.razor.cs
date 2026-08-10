@@ -66,6 +66,18 @@ public partial class DrillList<TItem> where TItem : class
     /// liste çıkarsa <c>true</c> geçilir.</summary>
     [Parameter] public bool PagerVisible { get; set; }
 
+    /// <summary>Sayfa boyutu seçici (pager yanında). Uzun drill listelerinde kullanıcı sayfa başına kaç
+    /// satır göreceğini seçer; kısa alt listelerde gürültü olduğu için varsayılan KAPALI.</summary>
+    [Parameter] public bool PageSizeSelectorVisible { get; set; }
+
+    /// <summary>Gruplama paneli (kolon başlığını sürükle → o kolona göre grupla). Varsayılan KAPALI —
+    /// gerekçe ve "gruplanabilmenin şartı FieldName'dir" notu <c>TxGrid.ShowGroupPanel</c>'de.</summary>
+    [Parameter] public bool ShowGroupPanel { get; set; }
+
+    /// <summary>Grup satırının gövdesi — enum/bool kolonlarında ham değer yerine okunur metin yazmak için
+    /// (bkz. <c>TxGrid.DataColumnGroupRowTemplate</c>). Verilmezse DevExpress varsayılanı çizilir.</summary>
+    [Parameter] public RenderFragment<GridDataColumnGroupRowTemplateContext>? DataColumnGroupRowTemplate { get; set; }
+
     /// <summary>Sanal kaydırma — sayfalayıcı kapatıldığında uzun listeyi DOM'u şişirmeden gösterir
     /// (yalnız görünür satırlar çizilir).</summary>
     [Parameter] public bool VirtualScrollingEnabled { get; set; }
@@ -253,8 +265,7 @@ public partial class DrillList<TItem> where TItem : class
         {
             CrudToolbarActions.New(L, !ReadOnly && !AllowInlineEdit && AllowAdd, !_busy && !MaxItemsReached, () => { StartNew(); return Task.CompletedTask; }),
             CrudToolbarActions.Delete(L, !ReadOnly && !AllowInlineEdit && AllowDelete, CanDeleteSelection && !_busy, DeleteSelected),
-            // Arama (opt-in) — InGrid (varsayılan) yüklü veride, ServerSide ileride persistent drill için.
-            CrudToolbarActions.SearchBox(ShowSearch, SearchBoxTemplate),
+            // Dışa Aktar öncesi yer tutucu — arama ikilisi aşağıda merkezî fabrikadan eklenir.
             // Dışa Aktar (opt-in) — Excel/PDF, paylaşılan export loader.
             CrudToolbarActions.Export(L, ShowExport, DoExportExcel, DoExportPdf),
             // Yenile — yalnız OnRefresh verilmişse (persistent drill).
@@ -263,11 +274,27 @@ public partial class DrillList<TItem> where TItem : class
             CrudToolbarActions.ActiveFilter(ItemIsActiveAware && ShowActiveFilter, ActiveFilterTemplate),
         };
 
+        // ARAMA: dar ekranda kutu yerine İKON — karar CrudToolbar ile AYNI merkezî fabrikada (eşik tek yerde).
+        // İkon, grid'in gömülü arama kutusunu açıp kapatır (liste toolbar'ındaki davranışın aynısı).
+        // Dar-ekran ölçütü DrillList'in KENDİ DxLayoutBreakpoint'i (_isMobile) — responsive yüksekliği de o
+        // sürüyor. Ayrı bir cascade eklemek ikinci bir eşik doğururdu; bileşen tek ölçüte bakmalı.
+        list.AddRange(CrudToolbarActions.Search(L, ShowSearch, _isMobile, SearchBoxTemplate, ToggleGridSearchAsync));
+
         // Sayfaya özel custom action'lar — liste sayfalarıyla AYNI sözleşme (descriptor; SortIndex'leri çağıran belirler, varsayılan 300).
         if (CustomActions != null)
             list.AddRange(CustomActions);
 
         return list;
+    }
+
+    /// <summary>Dar ekranda arama ikonunun açıp kapattığı GÖMÜLÜ grid arama kutusu — liste toolbar'ındaki
+    /// (<c>CrudLayout.ToggleGridSearch</c>) davranışın aynısı. Kutu toolbar'da yer kaplamaz, grid'in içinde açılır.</summary>
+    private bool _showGridSearch;
+
+    private Task ToggleGridSearchAsync()
+    {
+        _showGridSearch = !_showGridSearch;
+        return InvokeAsync(StateHasChanged);
     }
 
     private async Task OnDrillSearch(string text)

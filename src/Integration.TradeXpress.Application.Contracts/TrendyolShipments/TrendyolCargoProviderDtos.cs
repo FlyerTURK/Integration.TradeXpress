@@ -39,4 +39,10 @@ public interface ITrendyolCargoProviderAppService : IApplicationService
 {
     /// <summary>Kargo firmaları (host-global okuma; varsayılan yalnız aktifler).</summary>
     Task<List<TrendyolCargoProviderDto>> GetListAsync(bool includeInactive = false);
+
+    /// <summary>Yeni kanala konacak VARSAYILAN firmanın kimliği; hiç aktif firma yoksa <c>null</c>.
+    /// <para>Seçim kuralı sunucudadır (<c>TrendyolDefaultCargoProviderResolver</c>) — kanal oluşturma, edit
+    /// formunun ilk açılışı ve sihirbaz aynı cevabı görsün diye. İstemcide "listenin ilkini seç" demek,
+    /// kullanıcının gördüğü firma ile kaydın aldığı firmanın ayrışmasına açık kapı bırakırdı.</para></summary>
+    Task<Guid?> GetDefaultIdAsync();
 }

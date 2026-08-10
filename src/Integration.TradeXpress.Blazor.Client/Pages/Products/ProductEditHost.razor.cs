@@ -539,9 +539,38 @@ public partial class ProductEditHost
     // Varyant; ProductConsts SSOT). Bu satır kaydedince sunucunun ProductVariantManager ile yarattığı DB main'e
     // eşlenir (AppService ResolveTargetVariant: Id yok + IsMain + kombinasyon yok → DB main) → Yeni'de girilen
     // reçete ana varyanta yazılır. Attribute'lu üretimde bu satır synchronizer tarafından kombinasyonlarla değişir.
+    /// <summary>MAMÜLÜN ÜRÜN AYNASI — <c>GoodToProductProjector</c> çıktısı (2026-08-10). Kod/ad/KDV'nin
+    /// yanında NİTELİK ve VARYANT grafını, kayıt-geneli ve varyant medyasını da taşır; kullanıcı aynı bilgiyi
+    /// ikinci kez girmez. <c>GoodEditHost.SeedModel</c>'in birebir simetriği.
+    /// <para><b>Fiyat taşımaz</b> — mamülde fiyat varyantta yaşar, üründe reçeteden türetilir (gerekçe
+    /// projektörün özetinde).</para></summary>
+    [Parameter] public ProductGetDto? SeedModel { get; set; }
+
     private void ApplyNew(ProductGetDto m)
     {
         m.IsActive = true;
+
+        // ZENGİN TOHUM önce: mamülün ürün aynası varsa kimlik + KDV + nitelik + varyant + medya olduğu gibi
+        // gelir. Bu dalda stok ana varyant EKLENMEZ — projeksiyon ana varyantı zaten üretiyor (varyantsız
+        // mamülde bile, kaydın koduyla) ve ikincisini eklemek çift ana varyant demekti.
+        if (SeedModel is { } s)
+        {
+            m.Code        = s.Code;
+            m.Name        = s.Name;
+            m.Description = s.Description;
+            m.VatRate     = s.VatRate;
+            m.Attributes  = s.Attributes;
+            m.Media       = s.Media;
+
+            foreach (var v in s.Variants)
+            {
+                m.Variants.Add(v);
+            }
+
+            _ = InvokeAsync(() => ApplyCompanyDefaultsAsync(m));
+            return;
+        }
+
         m.Variants.Add(new ProductVariantGraphDto
         {
             IsMain = true,

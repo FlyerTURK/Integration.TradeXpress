@@ -143,6 +143,34 @@ public class ProductToGoodProjector : ITransientDependency
             });
         }
 
+        RewriteSentinelMainVariant(dto.Variants, product.Code, product.Name);
+
         return dto;
+    }
+
+    /// <summary>
+    /// SENTINEL ONARIMI — ana varyantın kodu <c>ANAVARYANT</c> ise SAHİBİN koduna çevrilir.
+    ///
+    /// <para><b>Neden yukarıdaki "boş liste" dalı YETMİYOR</b> (2026-08-10, testle yakalandı): varyantsız
+    /// kayıtta <c>LoadGraphAsync</c> boş liste DÖNDÜRMEZ — ana varyantı sentinel yer tutucusuyla üretip
+    /// döndürür. Dolayısıyla liste hiçbir zaman boş gelmiyor ve o dal hiç çalışmıyordu; projeksiyon
+    /// sentinel'i olduğu gibi mamüle taşıyordu.</para>
+    ///
+    /// <para><b>Neden kaynağında (LoadGraphAsync) değil BURADA:</b> yer tutucu, sahibin kimliğinin
+    /// bilinmediği genel bir yükleme yolunda meşrudur (form kimlik alanını zaten gizler). Sahibin kodu
+    /// yalnız BURADA biliniyor. Kaynağı değiştirmek onu tüketen tüm formları etkilerdi.</para>
+    ///
+    /// <para>Yan kazanç: eski sentinel'li kayıtlar projeksiyondan geçtiklerinde kendini onarır.</para>
+    /// </summary>
+    private static void RewriteSentinelMainVariant(List<GoodVariantGraphDto> variants, string ownerCode, string ownerName)
+    {
+        foreach (var variant in variants)
+        {
+            if (string.Equals(variant.Code, EntityVariantConsts.MainVariantCode, StringComparison.Ordinal))
+            {
+                variant.Code = ownerCode;
+                variant.Name = ownerName;
+            }
+        }
     }
 }

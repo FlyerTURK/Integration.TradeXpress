@@ -87,6 +87,11 @@ public static class N11PushHistoryConsts
     /// <summary>N11'in döndürdüğü task/ürün kimliği.</summary>
     public const int RemoteReferenceMaxLength = 128;
 
+    /// <summary>Başarısızlık gerekçesi — <c>LastError</c> ile AYNI sınır: ikisi de aynı tarifçiden
+    /// (<c>FriendlyError</c>) besleniyor, farklı sınır koymak birinde kırpılıp diğerinde kırpılmayan
+    /// aynı metni üretirdi.</summary>
+    public const int ErrorMessageMaxLength = N11ProductConsts.LastErrorMaxLength;
+
     // Fiyat: tutar N2 (financials.md yuvarlama kuralı).
     public const int PricePrecision = 18;
     public const int PriceScale = 2;

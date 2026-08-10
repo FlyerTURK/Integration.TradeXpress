@@ -211,6 +211,11 @@ public class SalesChannelTrTrendyolGetDto : EntityDto<Guid>, IGetDto<Guid>, IHas
     [Required]
     public Guid? SubAccountId { get; set; }
 
+    /// <summary>Kanalın VARSAYILAN kargo firması (<c>TrendyolCargoProvider.Id</c>) — kanal ürünleri kendi
+    /// firması seçilmediğinde bunu devralır. Kargo KANALIN özelliğidir, ürünün değil (CLAUDE.md kargo kararı):
+    /// aynı ürün her pazaryerinde farklı firmayla gider. <c>null</c> = seçilmedi.</summary>
+    public Guid? DefaultCargoProviderId { get; set; }
+
 }
 
 public class SalesChannelTrTrendyolCreateDto : ICreateDto
@@ -251,6 +256,11 @@ public class SalesChannelTrTrendyolCreateDto : ICreateDto
     /// kaydın kendisinde durdurmak, sonradan anlaşılmaz bir arızaya dönüşmesinden iyidir.</para></summary>
     [Required]
     public Guid? SubAccountId { get; set; }
+
+    /// <summary>Kanalın VARSAYILAN kargo firması (<c>TrendyolCargoProvider.Id</c>) — kanal ürünleri kendi
+    /// firması seçilmediğinde bunu devralır. Kargo KANALIN özelliğidir, ürünün değil (CLAUDE.md kargo kararı):
+    /// aynı ürün her pazaryerinde farklı firmayla gider. <c>null</c> = seçilmedi.</summary>
+    public Guid? DefaultCargoProviderId { get; set; }
 
 }
 
@@ -294,6 +304,11 @@ public class SalesChannelTrTrendyolUpdateDto : IUpdateDto
     /// kaydın kendisinde durdurmak, sonradan anlaşılmaz bir arızaya dönüşmesinden iyidir.</para></summary>
     [Required]
     public Guid? SubAccountId { get; set; }
+
+    /// <summary>Kanalın VARSAYILAN kargo firması (<c>TrendyolCargoProvider.Id</c>) — kanal ürünleri kendi
+    /// firması seçilmediğinde bunu devralır. Kargo KANALIN özelliğidir, ürünün değil (CLAUDE.md kargo kararı):
+    /// aynı ürün her pazaryerinde farklı firmayla gider. <c>null</c> = seçilmedi.</summary>
+    public Guid? DefaultCargoProviderId { get; set; }
 
 }
 

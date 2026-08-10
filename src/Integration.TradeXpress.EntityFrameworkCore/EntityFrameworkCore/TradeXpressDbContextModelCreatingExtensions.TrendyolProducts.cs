@@ -147,6 +147,7 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
             b.Property(x => x.VariantOptions).HasMaxLength(TrendyolPushHistoryConsts.VariantOptionsMaxLength);
             b.Property(x => x.Images).HasMaxLength(TrendyolPushHistoryConsts.ImagesMaxLength);
             b.Property(x => x.BatchRequestId).HasMaxLength(TrendyolProductConsts.BatchRequestIdMaxLength);
+            b.Property(x => x.ErrorMessage).HasMaxLength(TrendyolPushHistoryConsts.ErrorMessageMaxLength);
             b.Property(x => x.ListPrice).HasPrecision(TrendyolPushHistoryConsts.PricePrecision, TrendyolPushHistoryConsts.PriceScale);
             b.Property(x => x.SalePrice).HasPrecision(TrendyolPushHistoryConsts.PricePrecision, TrendyolPushHistoryConsts.PriceScale);
 

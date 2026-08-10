@@ -156,6 +156,7 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
             b.Property(x => x.VariantOptions).HasMaxLength(N11PushHistoryConsts.VariantOptionsMaxLength);
             b.Property(x => x.Images).HasMaxLength(N11PushHistoryConsts.ImagesMaxLength);
             b.Property(x => x.RemoteReference).HasMaxLength(N11PushHistoryConsts.RemoteReferenceMaxLength);
+            b.Property(x => x.ErrorMessage).HasMaxLength(N11PushHistoryConsts.ErrorMessageMaxLength);
             b.Property(x => x.SalePrice).HasPrecision(N11PushHistoryConsts.PricePrecision, N11PushHistoryConsts.PriceScale);
 
             // "Bu SKU'nun geçmişi" — en yeni önce okunur (delil sorgusunun tek şekli).

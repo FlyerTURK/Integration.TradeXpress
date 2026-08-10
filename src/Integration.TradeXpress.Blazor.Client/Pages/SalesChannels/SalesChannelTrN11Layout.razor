@@ -68,17 +68,10 @@
    kanal Id'sine bağlıdır). Sekmeler: Kargo Şablonları · N11 Ürünleri (o kanala ait listelemeler). *@
 @if (!IsNew)
 {
-    @* Kurulum sihirbazı — MEVCUT kanal için. Sihirbaz yalnız "Yeni kanal" yolundan açılsaydı ulaşılamaz olurdu:
-       her türden en fazla bir kanal var, dolayısıyla kanalını kuran kullanıcı "Yeni"yi ebediyen kapalı görür. *@
-    <div class="mt-3">
-        @* MDI kabuğunda NavigationManager.NavigateTo NO-OP'tur: rota sekme olarak açılır, adres çubuğu
-           kabuk tarafından kökte tutulur. Bu yüzden düğme 2026-08-06'ya kadar HİÇBİR ŞEY YAPMIYORDU ve
-           sihirbaz fiilen ulaşılamazdı ("Yeni ▾ → N11" de tek-kanal kuralıyla kapalı olduğundan). *@
-        <DxButton Text="@L["SalesChannel:OpenSetupWizard"]"
-                  IconCssClass="@TradeXpressIcons.SalesChannel"
-                  RenderStyle="ButtonRenderStyle.Secondary"
-                  Click="@OpenWizardAsync" />
-    </div>
+    @* SİHİRBAZ DÜĞMESİ KALDIRILDI (2026-08-10 Hakan kararı): "bu yüzeyde farklı bir şey planlıyorum".
+       Trendyol tahtasındaki ikizi de aynı gün kalktı. ⚠ Bilinen sonuç: sihirbaz artık YALNIZ "Yeni ▾ → N11"
+       yolundan açılıyor; o yol da tek-kanal kuralıyla kapalı olduğundan MEVCUT kanalın sihirbazına UI'dan
+       ulaşılmıyor (rota — /sales-channels/n11/wizard/{id} — duruyor). Yeni giriş noktası tasarlanacak. *@
 
     @* Mağazadan ürün içe aktarma — mevcut N11 listelemeleri şablon ürün + varyant + kanal kaydı olarak içeri
        alınır (salt GET; idempotent). Kanal bu oturumda YENİ oluşturulduysa (AutoImportProducts) panel ilk

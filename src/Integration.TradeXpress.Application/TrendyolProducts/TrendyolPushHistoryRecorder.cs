@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Integration.TradeXpress.Attachments;
+using Integration.TradeXpress.SalesChannelProducts;
 using Microsoft.Extensions.Logging;
 using Volo.Abp.DependencyInjection;
 using Volo.Abp.Domain.Repositories;
@@ -45,13 +46,18 @@ public class TrendyolPushHistoryRecorder : ITransientDependency
         _logger = logger;
     }
 
-    /// <summary>KABUL EDİLEN (COMPLETED) gönderim için geçmiş satırlarını yazar. Hata push'u DÜŞÜRMEZ.</summary>
+    /// <summary>Bir batch'in SONUCUNU geçmişe yazar — kabul (COMPLETED) ya da RET. Hata push'u DÜŞÜRMEZ.
+    /// <para><paramref name="outcome"/> ZORUNLUDUR (varsayılanı yok): reddedilen bir gönderimin defterde
+    /// başarılı görünmesi, bu defteri delil olmaktan çıkarırdı — derleyici her çağrı yerini beyana zorlar.
+    /// <paramref name="errorMessage"/> yalnız <see cref="ChannelPushOutcome.Failed"/>'da anlamlıdır.</para></summary>
     public virtual async Task RecordAsync(
         Guid companyId,
         Guid channelProductId,
         TrendyolProductPushKind pushKind,
         IReadOnlyCollection<TrendyolPushHistoryEntry> entries,
-        string? batchRequestId)
+        string? batchRequestId,
+        ChannelPushOutcome outcome,
+        string? errorMessage = null)
     {
         if (entries is null || entries.Count == 0)
         {
@@ -66,7 +72,7 @@ public class TrendyolPushHistoryRecorder : ITransientDependency
             foreach (var entry in entries)
             {
                 var history = new SalesChannelTrTrendyolProductPushHistory(
-                    companyId, channelProductId, entry.Barcode, pushedAt, pushKind);
+                    companyId, channelProductId, entry.Barcode, pushedAt, pushKind, outcome);
 
                 history.Fill(
                     entry.ListPrice,
@@ -75,7 +81,8 @@ public class TrendyolPushHistoryRecorder : ITransientDependency
                     entry.Title,
                     entry.Options,
                     entry.MediaIds?.Select(id => (id, hashByMedia.GetValueOrDefault(id))),
-                    batchRequestId);
+                    batchRequestId,
+                    outcome == ChannelPushOutcome.Failed ? errorMessage : null);
 
                 await _repository.InsertAsync(history, autoSave: true);
             }

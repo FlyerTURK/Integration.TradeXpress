@@ -17,6 +17,7 @@
                   FormCaption="@L["SalesChannelType:TrTrendyol"].Value" IconCssClass="@TradeXpressIcons.SalesChannel"
                   EntityValue="@(m => m.Code)"
                   ApplyNewDefaults="@(m => { m.IsActive = true; })"
+                  BuildCustomActions="@BuildCustomActions"
                   OnAfterCreate="@OnChannelCreatedAsync">
         <SalesChannelTrTrendyolLayout Model="@context" IsNew="@(context.Id == Guid.Empty)" AutoImportProducts="@_autoImportProducts" />
     </CrudEditHost>

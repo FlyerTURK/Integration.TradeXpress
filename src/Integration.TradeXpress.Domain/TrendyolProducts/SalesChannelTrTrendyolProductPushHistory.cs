@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Integration.TradeXpress.MultiCompany;
+using Integration.TradeXpress.SalesChannelProducts;
 using Volo.Abp.Domain.Entities.Auditing;
 using Volo.Abp.MultiTenancy;
 
@@ -20,8 +21,16 @@ namespace Integration.TradeXpress.TrendyolProducts;
 /// "gönderdim" derdi; oysa delilin söylemesi gereken şey "kabul edildi"dir. Reddedilen bir batch'in geçmişte
 /// başarılı görünmesi, delil kaydını delil olmaktan çıkarırdı.</para>
 ///
+/// <para><b>BAŞARISIZ GÖNDERİM DE YAZILIR</b> (2026-08-10 Hakan kararı) — <see cref="Outcome"/> +
+/// <see cref="ErrorMessage"/> ile. Eski kural "reddedileni hiç yazma"ydı; amacı reddedileni <b>başarılı
+/// sanmayı</b> önlemekti ve o amaç korunuyor: satır artık susmak yerine <c>Failed</c> diyor. Susmanın bedeli
+/// şuydu — bir fiyatın kanala yansımamış olmasının sebebi hiçbir yerde kalmıyor, "denendi ve reddedildi" ile
+/// "hiç denenmedi" ayırt edilemiyordu. <c>LastSent*</c> terfisi DEĞİŞMEDİ: yalnız kabul edilen gönderim
+/// kıyas tabanını ilerletir.</para>
+///
 /// <para><b>APPEND-ONLY sözleşmesi:</b> bu kayıtlar GÜNCELLENMEZ ve SİLİNMEZ. Değiştirilebilir bir delil
-/// delil değildir → entity'de hiçbir <c>Set*</c> metodu YOKTUR; tüm alanlar ctor + tek <c>Fill</c> ile yazılır.</para>
+/// delil değildir → entity'de hiçbir <c>Set*</c> metodu YOKTUR; tüm alanlar ctor + tek <c>Fill</c> ile yazılır.
+/// Sonuç bu yüzden ctor'da ZORUNLUDUR: unutulan bir bayrak, başarısızı başarılı gösterirdi.</para>
 ///
 /// <para><b>Geriye dönük çalışmaz:</b> ilk kayıt bu özellik devreye girdikten SONRAKİ ilk COMPLETED batch'ten
 /// başlar. Daha önce gönderilenlerin geçmişi yoktur ve üretilemez — bu yüzden ilk gerçek push'tan ÖNCE kurulur.</para>
@@ -39,13 +48,15 @@ public class SalesChannelTrTrendyolProductPushHistory : CreationAuditedAggregate
         Guid salesChannelTrTrendyolProductId,
         string barcode,
         DateTime pushedAtUtc,
-        TrendyolProductPushKind pushKind)
+        TrendyolProductPushKind pushKind,
+        ChannelPushOutcome outcome)
     {
         CompanyId = companyId;
         SalesChannelTrTrendyolProductId = salesChannelTrTrendyolProductId;
         Barcode = barcode;
         PushedAtUtc = pushedAtUtc;
         PushKind = pushKind;
+        Outcome = outcome;
     }
 
     #endregion
@@ -93,6 +104,14 @@ public class SalesChannelTrTrendyolProductPushHistory : CreationAuditedAggregate
     /// <summary>Bu gönderimi taşıyan Trendyol batch kimliği — karşı tarafla eşleştirme anahtarı.</summary>
     public virtual string? BatchRequestId { get; protected set; }
 
+    /// <summary>Denemenin SONUCU — kabul edildi mi reddedildi mi. Zorunlu (ctor'da yazılır).
+    /// Bkz. <see cref="ChannelPushOutcome"/>.</summary>
+    public virtual ChannelPushOutcome Outcome { get; protected set; }
+
+    /// <summary>Reddin gerekçesi — Trendyol'un batch sonucunda döndürdüğü mesaj (kısmi başarıda kaç kalemin
+    /// düştüğü de burada). <see cref="ChannelPushOutcome.Succeeded"/> satırlarda <c>null</c>.</summary>
+    public virtual string? ErrorMessage { get; protected set; }
+
     #endregion
 
     #region Methods
@@ -106,8 +125,10 @@ public class SalesChannelTrTrendyolProductPushHistory : CreationAuditedAggregate
         string? title,
         IEnumerable<(string Name, string Value)>? options,
         IEnumerable<(Guid MediaId, string? ContentHash)>? images,
-        string? batchRequestId)
+        string? batchRequestId,
+        string? errorMessage = null)
     {
+        ErrorMessage = errorMessage;
         ListPrice = listPrice;
         SalePrice = salePrice;
         Quantity = quantity;

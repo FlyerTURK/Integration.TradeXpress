@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Integration.TradeXpress.MultiCompany;
+using Integration.TradeXpress.SalesChannelProducts;
 using Volo.Abp.Domain.Entities.Auditing;
 using Volo.Abp.MultiTenancy;
 
@@ -16,9 +17,15 @@ namespace Integration.TradeXpress.N11Products;
 /// <c>SalesChannelTrN11ProductSku.LastSent*</c> her push'ta ÜZERİNE yazılıyor — yani karşı taraf tarihli
 /// kayıt gösterirken biz aynı cümleyi kuramıyorduk. Bu tablo o boşluğu kapatır.</para>
 ///
+/// <para><b>BAŞARISIZ GÖNDERİM DE YAZILIR</b> (2026-08-10 Hakan kararı) — <see cref="Outcome"/> +
+/// <see cref="ErrorMessage"/> ile. Defter yalnız başarıyı yazdığı sürece "denendi ve reddedildi" ile "hiç
+/// denenmedi" ayırt edilemiyordu; otonom fiyat/stok güncellemesinde bir fiyatın kanala yansımama sebebini
+/// ancak deneme kaydı söyleyebilir. <c>LastSent*</c> terfisi DEĞİŞMEDİ — kıyas tabanını yalnız başarı ilerletir.</para>
+///
 /// <para><b>APPEND-ONLY sözleşmesi:</b> bu kayıtlar GÜNCELLENMEZ ve SİLİNMEZ. Değiştirilebilir bir delil
 /// delil değildir. Bu yüzden entity'de hiçbir <c>Set*</c> metodu YOKTUR — tüm alanlar ctor'da yazılır ve
-/// <c>protected set</c> ile kapalıdır.</para>
+/// <c>protected set</c> ile kapalıdır. Sonuç bayrağı ctor'da ZORUNLUDUR: unutulsaydı başarısız gönderim
+/// başarılı görünürdü — tam da bu defterin önlemek için var olduğu hata.</para>
 ///
 /// <para><b>Görsel neden <c>MediaId</c> + <c>ContentHash</c> birlikte:</b> <c>MediaId</c> tek başına
 /// "hangi kayıt" der ama içeriğin sonradan değişmediğini KANITLAMAZ; <c>ContentHash</c> ise içeriği
@@ -41,13 +48,15 @@ public class SalesChannelTrN11ProductPushHistory : CreationAuditedAggregateRoot<
         Guid salesChannelTrN11ProductId,
         string sellerStockCode,
         DateTime pushedAtUtc,
-        N11ProductPushKind pushKind)
+        N11ProductPushKind pushKind,
+        ChannelPushOutcome outcome)
     {
         CompanyId = companyId;
         SalesChannelTrN11ProductId = salesChannelTrN11ProductId;
         SellerStockCode = sellerStockCode;
         PushedAtUtc = pushedAtUtc;
         PushKind = pushKind;
+        Outcome = outcome;
     }
 
     #endregion
@@ -94,6 +103,15 @@ public class SalesChannelTrN11ProductPushHistory : CreationAuditedAggregateRoot<
     /// <summary>N11'in bu gönderim için döndürdüğü kimlik (task/ürün) — karşı tarafla eşleştirme anahtarı.</summary>
     public virtual string? RemoteReference { get; protected set; }
 
+    /// <summary>Denemenin SONUCU — ulaştı mı ulaşmadı mı. Zorunlu (ctor'da yazılır); gerekçesi
+    /// <see cref="ErrorMessage"/>'dedir. Bkz. <see cref="ChannelPushOutcome"/>.</summary>
+    public virtual ChannelPushOutcome Outcome { get; protected set; }
+
+    /// <summary>Başarısızlığın gerekçesi — kanalın döndürdüğü mesaj ya da guard'ın açıklaması.
+    /// <see cref="ChannelPushOutcome.Succeeded"/> satırlarda <c>null</c>: başarıda anlatılacak bir sebep
+    /// yoktur ve boş bir metin "sebep bilinmiyor" gibi okunurdu.</summary>
+    public virtual string? ErrorMessage { get; protected set; }
+
     #endregion
 
     #region Methods
@@ -107,8 +125,10 @@ public class SalesChannelTrN11ProductPushHistory : CreationAuditedAggregateRoot<
         string? title,
         IEnumerable<(string Name, string Value)>? options,
         IEnumerable<(Guid MediaId, string? ContentHash)>? images,
-        string? remoteReference)
+        string? remoteReference,
+        string? errorMessage = null)
     {
+        ErrorMessage = errorMessage;
         SalePrice = salePrice;
         CurrencyType = currencyType;
         Quantity = quantity;

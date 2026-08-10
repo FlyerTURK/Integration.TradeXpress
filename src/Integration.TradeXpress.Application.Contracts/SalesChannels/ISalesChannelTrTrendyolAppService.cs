@@ -1,4 +1,5 @@
 using System;
+using System.Threading.Tasks;
 using Volo.Abp.Application.Services;
 
 namespace Integration.TradeXpress.SalesChannels;
@@ -13,4 +14,10 @@ public interface ISalesChannelTrTrendyolAppService : ICrudAppService<
     SalesChannelTrTrendyolCreateDto,
     SalesChannelTrTrendyolUpdateDto>
 {
+    /// <summary>Yalnız varsayılan kargo firmasını değiştirir.
+    /// <para><b>Neden dar bir uç, neden <c>UpdateAsync</c> değil:</b> tam güncelleme kimlik alanlarını
+    /// (SellerId/ApiKey/ApiSecret/cari) da taşır ve çağıranın onları eksiksiz göndermesini şart koşar.
+    /// Kurulum sihirbazı mevcut kanal kipinde bu alanları HİÇ yüklemiyor — tam DTO ile güncelleme, dokunmadığı
+    /// alanları sessizce boşaltma riski demekti. Tek alanı değiştiren yol o riski taşımaz.</para></summary>
+    Task<SalesChannelTrTrendyolGetDto> SetDefaultCargoProviderAsync(Guid id, Guid? cargoProviderId);
 }

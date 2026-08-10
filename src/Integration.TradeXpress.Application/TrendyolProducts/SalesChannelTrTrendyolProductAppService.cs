@@ -9,6 +9,7 @@ using Integration.TradeXpress.Diagnostics;
 using Integration.TradeXpress.MultiCompany;
 using Integration.TradeXpress.Permissions;
 using Integration.TradeXpress.Products;
+using Integration.TradeXpress.SalesChannelProducts;
 using Integration.TradeXpress.SalesChannels;
 using Integration.TradeXpress.SalesChannels.Variants;
 using Integration.TradeXpress.Substitutions;
@@ -736,8 +737,10 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
     /// Submit anında <c>LastSent*</c> yazsaydık bir sonraki tur "değişiklik yok" der, hiç yazılmamış fiyat/stok
     /// sessizce atlanırdı. Bu yüzden kıyas tabanı ancak "kabul edildi" kanıtlandığında dolar.</para>
     ///
-    /// <para><b>FAILED'da HİÇBİR ŞEY yazılmaz</b> — ne <c>LastSent*</c> ne geçmiş. Reddedilen bir gönderimi
-    /// geçmişte başarılı göstermek, delil kaydını delil olmaktan çıkarır.</para>
+    /// <para><b>FAILED'da <c>LastSent*</c> yazılmaz</b> — reddedilen bir gönderimi kıyas tabanına terfi
+    /// ettirmek, hiç ulaşmamış fiyatı "senkron" göstermek olurdu. <b>Geçmişe ise BAŞARISIZ satır yazılır</b>
+    /// (2026-08-10): eskiden hiçbir iz kalmıyordu ve "denendi, reddedildi" ile "hiç denenmedi" ayırt
+    /// edilemiyordu. Satır <c>Failed</c> damgası + kanalın kendi gerekçesiyle gider; başarılı görünmez.</para>
     ///
     /// <para><b>İdempotent:</b> ikinci çağrıda <c>Status</c> artık PROCESSING olmadığından (ve çağıranlar
     /// yalnız PROCESSING kayıtları seçtiğinden) tekrar yazılmaz. Kısmi başarıda (<c>FailedCount &gt; 0</c>)
@@ -756,19 +759,54 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
         if (!completed || status.FailedCount > 0)
         {
             // Reddedildi/kısmen düştü → bekleyenler ATILIR, LastSent* DEĞİŞMEZ. Bir sonraki senkron aynı
-            // farkı yeniden görür ve yeniden gönderir. Geçmişe de HİÇBİR satır yazılmaz: reddedilen bir
-            // gönderimi delil defterinde başarılı göstermek, defteri delil olmaktan çıkarır.
+            // farkı yeniden görür ve yeniden gönderir.
+            //
+            // GEÇMİŞE BAŞARISIZ SATIR YAZILIR (2026-08-10 Hakan kararı). Eskiden hiçbir şey yazılmıyordu ve
+            // bu, "denendi ve reddedildi" ile "hiç denenmedi"yi ayırt edilemez kılıyordu — otonom fiyat/stok
+            // güncellemesinde bir fiyatın kanala yansımama sebebi hiçbir yerde kalmıyordu. Satır Failed
+            // damgasıyla ve KANALIN KENDİ mesajıyla yazılır; başarılı görünme riski yok.
+            //
+            // SIRA ÖNEMLİ: bekleyenler temizlenmeden ÖNCE toplanır — temizlik sonrası ne gönderilmeye
+            // çalışıldığı bilgisi kaybolur.
+            var attempted = CollectPendingEntries(entity);
+
             if (status.Status is not null)
             {
                 entity.ClearPendingSkuPushes();
             }
+
+            await _historyRecorder.RecordAsync(
+                entity.CompanyId,
+                entity.Id,
+                ResolvePushKind(batchType),
+                attempted,
+                batchRequestId,
+                ChannelPushOutcome.Failed,
+                DescribeBatchFailure(status));
 
             return;
         }
 
         // Terfi ÖNCESİ topla: geçmişe yazılacak olan GÖNDERİLEN değerlerdir (terfi sonrası ikisi de aynı olur
         // ama bekleyeni olmayan SKU'ları ayırt edebilmek için sıra önemli — o SKU'lar bu gönderime dahil değildi).
-        var entries = entity.Skus
+        var entries = CollectPendingEntries(entity);
+
+        entity.PromotePendingSkuPushes();
+
+        await _historyRecorder.RecordAsync(
+            entity.CompanyId,
+            entity.Id,
+            ResolvePushKind(batchType),
+            entries,
+            batchRequestId,
+            ChannelPushOutcome.Succeeded);
+    }
+
+    /// <summary>Bu batch'te GÖNDERİLMEYE ÇALIŞILAN SKU değerleri. Bekleyeni olmayan SKU bu gönderime dahil
+    /// değildi → geçmişe girmez. Hem başarı hem ret dalı aynı kaynaktan okur ki iki dal ayrışmasın.</summary>
+    private static List<TrendyolPushHistoryEntry> CollectPendingEntries(SalesChannelTrTrendyolProduct entity)
+    {
+        return entity.Skus
             .Where(s => s.PendingSentQuantity is not null
                         || s.PendingSentListPrice is not null
                         || s.PendingSentSalePrice is not null)
@@ -781,14 +819,30 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
                 Options: null,
                 MediaIds: null))
             .ToList();
+    }
 
-        entity.PromotePendingSkuPushes();
-
-        var kind = string.Equals(batchType, PriceInventoryBatchType, StringComparison.Ordinal)
+    private static TrendyolProductPushKind ResolvePushKind(string? batchType)
+    {
+        return string.Equals(batchType, PriceInventoryBatchType, StringComparison.Ordinal)
             ? TrendyolProductPushKind.PriceStockSync
             : TrendyolProductPushKind.Create;
+    }
 
-        await _historyRecorder.RecordAsync(entity.CompanyId, entity.Id, kind, entries, batchRequestId);
+    /// <summary>Reddin gerekçesi — KANALIN kendi mesajı esastır. Trendyol mesaj döndürmediğinde (kısmi
+    /// başarıda sık) elde kalan tek bilgi durum + kaç kalemin düştüğüdür; onu yazmak, boş bırakıp
+    /// "sebep bilinmiyor" izlenimi vermekten iyidir.</summary>
+    private static string DescribeBatchFailure(TrendyolBatchStatus status)
+    {
+        if (!string.IsNullOrWhiteSpace(status.FailureReasons))
+        {
+            return status.FailureReasons!;
+        }
+
+        var state = string.IsNullOrWhiteSpace(status.Status) ? "UNKNOWN" : status.Status!;
+
+        return status.FailedCount > 0
+            ? $"{state} ({status.FailedCount}/{status.ItemCount} kalem başarısız)"
+            : state;
     }
 
     private async Task<SalesChannelTrTrendyolProductDto> SaveAndMapAsync(

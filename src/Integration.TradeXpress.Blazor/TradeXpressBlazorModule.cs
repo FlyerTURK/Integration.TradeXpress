@@ -248,6 +248,12 @@ public class TradeXpressBlazorModule : AbpModule
             sp => (Integration.TradeXpress.Blazor.Client.Services.Mdi.TabManager)sp.GetRequiredService<Integration.TradeXpress.Blazor.Client.Services.Mdi.ITabManager>());
         context.Services.AddScoped<Integration.Framework.Blazor.Client.Resilience.DevErrorSink>();
 
+        // İçe aktarım dağıtıcısı — client modülde yaşıyor ve o modül server'ın DependsOn zincirinde DEĞİL,
+        // yani ITransientDependency konvansiyonu burada KOŞMAZ (CLAUDE.md §6 Blazor-Server maddesi). Elle
+        // kaydedilmezse bileşen [Inject] anında "no registered service" ile circuit'i düşürür — 2026-08-10'da
+        // tam bu yaşandı; profiller/TabManager de aynı sebeple bu blokta elle kayıtlı.
+        context.Services.AddTransient<Integration.TradeXpress.Blazor.Client.Pages.SalesChannels.ChannelImportRunner>();
+
         // EntityProfile'lar (kimlik tek-kaynak; Faz 1 pilot Vault + parent Branch). Registry framework modülünde
         // (DependsOn'da) kayıtlı; profiller client modülde → server DependsOn zincirinde DEĞİL → ELLE kaydet,
         // yoksa server'da registry boş kalır (Get(VaultListDto) fırlatır). WorkingContextService ile AYNI desen.

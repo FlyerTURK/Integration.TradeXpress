@@ -58,6 +58,7 @@ public class ProductCommodityProvisioner : ITransientDependency
     private readonly IJewelryAppService _jewelries;
     private readonly IStoneAppService _stones;
     private readonly IGoodAppService _goods;
+    private readonly ProductToGoodProjector _goodProjector;
     private readonly IServiceAppService _services;
     private readonly IBackgroundJobManager _backgroundJobManager;
     private readonly ICurrentCompany _currentCompany;
@@ -77,6 +78,7 @@ public class ProductCommodityProvisioner : ITransientDependency
         IJewelryAppService jewelries,
         IStoneAppService stones,
         IGoodAppService goods,
+        ProductToGoodProjector goodProjector,
         IServiceAppService services,
         IBackgroundJobManager backgroundJobManager,
         ICurrentCompany currentCompany,
@@ -95,6 +97,7 @@ public class ProductCommodityProvisioner : ITransientDependency
         _jewelries            = jewelries;
         _stones               = stones;
         _goods                = goods;
+        _goodProjector        = goodProjector;
         _services             = services;
         _backgroundJobManager = backgroundJobManager;
         _currentCompany       = currentCompany;
@@ -403,7 +406,7 @@ public class ProductCommodityProvisioner : ITransientDependency
 
         var created = item.Mode == ProductCommodityProvisionMode.CloneExisting
             ? await CloneWithUniqueCodeAsync(item, baseCode, name, result, product)
-            : await CreateWithUniqueCodeAsync(item, baseCode, name);
+            : await CreateWithUniqueCodeAsync(item, baseCode, name, product.Id);
         if (created is not null)
         {
             result.CreatedCommodities++;
@@ -416,9 +419,9 @@ public class ProductCommodityProvisioner : ITransientDependency
     /// service'inde zorlanır (şirket-scope) — burada tekrar SORGULANMAZ, denenip sonucuna bakılır:
     /// paralel bir kayıt araya girse bile doğru davranış aynı kalır.</summary>
     private async Task<Guid?> CreateWithUniqueCodeAsync(
-        ProductCommodityProvisionItemDto item, string baseCode, string name)
+        ProductCommodityProvisionItemDto item, string baseCode, string name, Guid productId)
     {
-        return await WithUniqueCodeAsync(baseCode, code => CreateOfFamilyAsync(item, code, name));
+        return await WithUniqueCodeAsync(baseCode, code => CreateOfFamilyAsync(item, code, name, productId));
     }
 
     /// <summary>KLON: mevcut kaydı ŞABLON alıp yeni kod/adla kopyalar (2026-08-06 Hakan isteği).
@@ -475,7 +478,7 @@ public class ProductCommodityProvisioner : ITransientDependency
     /// <summary>Yeni katalog kaydı — ailenin KENDİ app service'iyle (şirket damgası + kod benzersizliği orada).
     /// <para>Metal-bacaklı ailelerde <c>Factor</c> çağıran tarafından ZORUNLU kılınmıştır; buraya null
     /// geldiğinde entity varsayılanı devreye girerdi, o yüzden guard yukarıda.</para></summary>
-    private async Task<Guid?> CreateOfFamilyAsync(ProductCommodityProvisionItemDto item, string code, string name)
+    private async Task<Guid?> CreateOfFamilyAsync(ProductCommodityProvisionItemDto item, string code, string name, Guid productId)
     {
         var unit = item.FollowingUnitId;
         var stable = item.StableQuantity ?? 0m;
@@ -511,7 +514,24 @@ public class ProductCommodityProvisioner : ITransientDependency
                 return (await _stones.CreateAsync(new StoneCreateDto { Code = code, Name = name })).Id;
 
             case ProcessType.Good:
-                return (await _goods.CreateAsync(new GoodCreateDto { Code = code, Name = name })).Id;
+            {
+                // MAMUL URUNUN AYNASIDIR (2026-08-10 Hakan): ciplak kod+ad ile acmak, urunun gorsellerini ve
+                // varyantlarini KAYBEDIYORDU; ustelik varyant grafi bos gidince ana varyant "ANAVARYANT"
+                // sentinel koduyla doguyordu. Projeksiyon ZATEN vardi (ProductToGoodProjector) ve dogru
+                // davranisi biliyor - burada kullanilmiyordu.
+                //
+                // KOD/AD projeksiyondan DEGIL cagirandan gelir: kullanici sihirbazda degistirmis olabilir ve
+                // kod benzersizlestirme dongusu (WithUniqueCodeAsync) bu degeri uretir.
+                var projected = await _goodProjector.ProjectAsync(productId);
+                return (await _goods.CreateAsync(new GoodCreateDto
+                {
+                    Code = code,
+                    Name = name,
+                    Attributes = projected.Attributes,
+                    Variants = projected.Variants,
+                    Media = projected.Media,
+                })).Id;
+            }
 
             case ProcessType.Service:
                 return (await _services.CreateAsync(new ServiceCreateDto { Code = code, Name = name })).Id;

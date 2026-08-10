@@ -41,6 +41,20 @@
         @* Muhasebe hedefi: bu kanalın hareketleri hangi cari alt hesaba yazılır.
            Cari ayrıca seçilmez — alt hesap listede "CARİ / ALT" olarak görünür. *@
         <SalesChannelSubAccountField @bind-Value="@Model.SubAccountId" />
+        @* VARSAYILAN KARGO FİRMASI (2026-08-10 Hakan): kanal ürünleri kendi firması seçilmediğinde bunu
+           devralır. Kargo KANALIN özelliğidir, ürünün değil — aynı ürün her pazaryerinde farklı firmayla
+           gider (CLAUDE.md kargo kararı). Liste host-global seed'den gelir (TrendyolCargoProviderSeeder):
+           Trendyol hesabı olsun olmasın doludur, çünkü Trendyol'un firmaları döndüren bir HTTP ucu YOKTUR.
+           Yeni kanalda seçim ÖN-DOLU gelir; kararı sunucu verir (TrendyolDefaultCargoProviderResolver). *@
+        <DxFormLayoutItem Caption="@L["SalesChannel:Trendyol:DefaultCargoProvider"]" ColSpanMd="6">
+            <DxComboBox Data="@_cargoProviders"
+                        @bind-Value="@Model.DefaultCargoProviderId"
+                        ValueFieldName="@nameof(TrendyolCargoProviderDto.Id)"
+                        TextFieldName="@nameof(TrendyolCargoProviderDto.Name)"
+                        NullText="@L["SalesChannel:Trendyol:CargoNotChosen"]"
+                        ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto"
+                        CssClass="w-100" />
+        </DxFormLayoutItem>
         <DxFormLayoutItem Caption="@L["Status"]" ColSpanMd="6" BeginRow="true">
             <DxCheckBox @bind-Checked="@Model.IsActive" CheckType="CheckType.Switch">
                 @(Model.IsActive ? L["Active"] : L["Passive"])
@@ -51,30 +65,30 @@
 
 @* Giderler — kanal yan-maliyet ayarları (ortak editör; Etsy alanları/N11 import düğmesi bu kanalda gizli). *@
 
-@* Kategori senkronizasyonu — yalnız kaydedilmiş kanalda (host-global ağaç kanal kimliğiyle çekilir). Kategori
-   picker'ının dolu gelmesi için tetikleyici; kanal ilk oluşturulduğunda otomatik de senkronlanır (AppService hook). *@
+@* İŞLEM DÜĞMELERİ KALDIRILDI (2026-08-10 Hakan kararı): kurulum sihirbazı · kategori senkronu · ürün içe
+   aktarma · fiyatlandırma tahtası. Dördü de DÜZENLEME değil İŞLEM'di; edit formunun işi kanalın alanlarını
+   düzenlemektir. Üstelik dördü de başka bir yerden zaten erişilebilir durumda:
+     · kategori ağacı kanal oluşturulurken app service hook'uyla ZATEN senkronlanıyor
+     · ürün içe aktarımı sihirbazın kendi adımında (RunImportAsync) + create-anı otomatik tetikleme
+     · fiyatlandırma tahtası sihirbazın içe aktarım adımında
+   Aynı iş üç ayrı yerden tetiklenebiliyordu; sadeleşti. Hakan bu yüzeye farklı bir tasarım planlıyor. *@
+
+@* KANALA ÖZGÜ SEKMELER — yalnız kaydedilmiş kanalda (persistent drill'ler kanal Id'sine bağlıdır).
+   Sekme yapısı BİLEREK tek sekmeyle başlıyor: bu kanala özgü başka tanımlar (kargo firmaları, kanal
+   soruları, gider ayarları...) yanına EKLENECEK. Yeni sekme eklerken @if ile SARMA — DxTabPage bir
+   nested-settings öğesidir, sonradan eklenince listenin sonuna düşer; koşul için Visible kullan. *@
 @if (!IsNew)
 {
-    @* Kurulum sihirbazı — MEVCUT kanal için. Sihirbaz yalnız "Yeni kanal" yolundan açılsaydı ulaşılamaz olurdu:
-       her türden en fazla bir kanal var, dolayısıyla kanalını kuran kullanıcı "Yeni"yi ebediyen kapalı görür. *@
-    <div class="mt-3">
-        @* MDI kabuğunda NavigationManager.NavigateTo NO-OP'tur (N11 layout'undaki aynı gerekçe) — rota
-           sekme olarak açılır. Düğme bu yüzden hiçbir şey yapmıyordu. *@
-        <DxButton Text="@L["SalesChannel:OpenSetupWizard"]"
-                  IconCssClass="@TradeXpressIcons.SalesChannel"
-                  RenderStyle="ButtonRenderStyle.Secondary"
-                  Click="@OpenWizardAsync" />
-    </div>
-
-    <TrendyolCategorySyncPanel />
-
-    @* Pazaryerinden ürün içe aktarma — mevcut Trendyol listelemeleri şablon ürün + varyant + kanal grafı olarak
-       içeri alınır (salt GET; idempotent). Sonuç raporu panelin altında gösterilir. Kanal bu oturumda YENİ
-       oluşturulduysa (AutoImport) panel ilk görünümünde importu otomatik başlatır. *@
-    <TrendyolMarketplaceImportPanel SalesChannelId="@Model.Id" AutoImport="@AutoImportProducts" />
-
-    @* FİYATLANDIRMA TAHTASI — içe aktarımın BIRAKTIĞI işi gösterir: pazaryeri fiyatı/adedi ile yerel
-       sınıflandırma durumu yan yana. İçe aktarım panelinin hemen ALTINDA duruyor çünkü akış sıralı:
-       önce çek, sonra "şimdi ne yapmam gerekiyor"u gör. Salt okuma; istenince yüklenir. *@
-    <TrendyolPricingBoardPanel SalesChannelId="@Model.Id" />
+    @* İŞLEM DÜĞMELERİ ARAÇ ÇUBUĞUNDA (2026-08-10 Hakan uyarısı: "form altı toolbar eklemeyi alışkanlık
+       haline getirme, bir toolbarımız varken buna gerek yok"). Sihirbaz ve içe aktarım artık edit host'un
+       BuildCustomActions uzatma noktasından geçip MEVCUT araç çubuğuna giriyor. Formun altına ikinci bir
+       düğme şeridi koymak hem yer israfıydı hem de aynı işlemlerin uygulamanın geri kalanında araç
+       çubuğunda durmasıyla çelişiyordu. *@
+    <DrillTabs CssClass="mt-3">
+        <DxTabPage Text="@L["SalesChannelProducts"]" TabIconCssClass="@TradeXpressIcons.Product">
+            @* Bu kanala bağlı TÜM kayıtlar (pazaryerine gitmiş/gitmemiş AYRIMI YOK; gitmemiş olan zaten
+               aranan satırdır). Standalone "Kanal Ürünleri" sayfasıyla AYNI bileşen — tek fark daraltma. *@
+            <ChannelProductsPanel SalesChannelId="@Model.Id" StateKey="sales-channel-products:trendyol-form:v5" />
+        </DxTabPage>
+    </DrillTabs>
 }

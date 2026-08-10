@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Integration.TradeXpress.MultiCompany;
 using Integration.TradeXpress.N11Products.Rest;
+using Integration.TradeXpress.SalesChannelProducts;
 using Shouldly;
 using Volo.Abp;
 using Xunit;
@@ -468,6 +469,63 @@ public abstract class SalesChannelTrN11ProductQueuedPushTests<TStartupModule> : 
             // Senkron içerik göndermez → başlık/görsel null (gönderilmeyeni yazmak yalan olurdu).
             afterSecond.Where(h => h.PushKind == N11ProductPushKind.PriceStockSync)
                 .ShouldAllBe(h => h.Title == null && h.Images == null);
+        }
+    }
+
+    /// <summary>N11 senkronu REDDEDİLDİĞİNDE geçmişe <b>BAŞARISIZ</b> satır yazılır — gerekçesiyle
+    /// (2026-08-10 Hakan kararı).
+    ///
+    /// <para><b>Varlık sebebi:</b> başarısızlık hiç yazılmazken "denendi, N11 reddetti" ile "hiç denenmedi"
+    /// ayırt edilemiyordu. Otonom fiyat/stok güncellemesinde bir fiyatın kanala yansımama sebebini yalnız bu
+    /// satır söyleyebilir. <c>LastSent*</c> terfisi ise DEĞİŞMEZ — ulaşmamış değer kıyas tabanını ilerletirse
+    /// bir sonraki tur farkı hiç görmez ve fiyat sessizce eski kalır; test onu da çiviler.</para></summary>
+    [Fact]
+    public async Task A_rejected_sync_records_a_failed_attempt_with_its_reason()
+    {
+        var companyId = Guid.NewGuid();
+        using (_currentCompany.Change(companyId))
+        {
+            var created = await SeedAxisProductWithN11OnlyRowAsync(companyId, "HISTFAIL", greenPrice: 150m, greenStock: 5);
+            _taskPoller.Result = new N11TaskResult(N11TaskState.Processed, Array.Empty<N11TaskItemResult>(), null);
+
+            await _appService.PushToN11Async(created.Id);
+            var afterPush = await ReadHistoryAsync(created.Id);
+
+            // Fiyat değişir → senkron denenir, ama bu kez N11 veri setini REDDEDER.
+            var fresh = await _appService.GetAsync(created.Id);
+            var green = fresh.StockItems.Single(si => si.ProductVariantId is null);
+            green.OverridePrice = 999m;
+            var update = BuildUpdateDto(fresh);
+            update.StockItems = fresh.StockItems;
+            await _appService.UpdateAsync(created.Id, update);
+
+            _taskPoller.Result = new N11TaskResult(
+                N11TaskState.Rejected, Array.Empty<N11TaskItemResult>(), "fiyat kategori sınırının dışında");
+
+            await Should.ThrowAsync<Exception>(() => _appService.SyncStockAndPriceAsync(created.Id));
+
+            var afterFailure = await ReadHistoryAsync(created.Id);
+
+            // Deneme deftere GEÇTİ (eskiden hiç iz kalmıyordu).
+            afterFailure.Count.ShouldBeGreaterThan(afterPush.Count);
+
+            var failed = afterFailure.Where(h => h.Outcome == ChannelPushOutcome.Failed).ToList();
+            failed.ShouldNotBeEmpty();
+            failed.ShouldAllBe(h => h.PushKind == N11ProductPushKind.PriceStockSync);
+
+            // Gerekçe YAZILI — "neden gitmedi" sorusunun cevabı burada yaşar.
+            failed.ShouldAllBe(h => !string.IsNullOrWhiteSpace(h.ErrorMessage));
+
+            // Denenen FİYAT da duruyor: "999 denedik, reddedildi" cümlesi ancak böyle kurulur.
+            failed.Select(h => h.SalePrice).ShouldContain(999m);
+
+            // Başarılı satırlar gerekçesiz kalır — başarıda anlatılacak sebep yoktur.
+            afterFailure.Where(h => h.Outcome == ChannelPushOutcome.Succeeded)
+                .ShouldAllBe(h => h.ErrorMessage == null);
+
+            // ASIL KORUMA: reddedilen değer kıyas tabanına TERFİ ETMEZ.
+            var reread = await _appService.GetAsync(created.Id);
+            reread.Skus.ShouldAllBe(s => s.LastSentOptionPrice != 999m);
         }
     }
 

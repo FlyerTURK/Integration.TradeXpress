@@ -19,8 +19,12 @@
 @code {
     // Arama kutusu (masaüstü) — SortIndex=400 descriptor'ının Template'i (tipli; context kullanılmaz).
     private RenderFragment<IToolbarItemInfo> SearchBoxTemplate => context => @<text>
+        @* [validation-expr] — DrillList'in arama kutusundaki ile AYNI koruma (orada zaten vardı, burada
+           eksikti). Arama metni model alanı değildir; manuel bağlı editör EditContext altına düşerse
+           TextExpression istenir ve circuit kopar. *@
         <DxTextBox Text="@_localSearchText"
                    TextChanged="OnLocalTextChanged"
+                   ValidationEnabled="false"
                    NullText="@L["Search"]"
                    ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto"
                    CssClass="grid-search-box">
@@ -33,9 +37,14 @@
     // IsActive switch (Right, SortIndex=1000) — descriptor'ının Template'i (tipli; context kullanılmaz).
     private RenderFragment<IToolbarItemInfo> ActiveFilterTemplate => context => @<text>
         <div style="display:flex; align-items:center; gap:0.4rem; padding:0 0.25rem; white-space:nowrap;">
+            @* [validation-expr] — DrillList'in aynı anahtarında CANLI çökme olarak yakalandı (2026-08-10).
+               Burada bugün tetikleyici yok (liste toolbar'ı EditContext altında çizilmiyor) ama switch bir
+               model alanı DEĞİL salt UI filtresidir; manuel bağlı Dx editörüne ValidationEnabled=false
+               vermek kuralın kendisidir ve bu kabuk yarın bir formun içine girerse sessizce çökmesin. *@
             <DxCheckBox Checked="ActiveSwitchValue"
                         CheckedChanged="@((bool v) => OnActiveSwitchChanged(v))"
-                        CheckType="CheckType.Switch" />
+                        CheckType="CheckType.Switch"
+                        ValidationEnabled="false" />
             @if (!IsMobile)
             {
                 <span>@(ActiveSwitchValue ? L["ActiveRecords"] : L["PassiveRecords"])</span>

@@ -74,6 +74,21 @@ public class SalesChannelTrTrendyolProductSku
     /// <summary>Push edilen varianter attribute id çiftleri — yeniden-bağlama imzası.</summary>
     public List<SalesChannelTrTrendyolProductSkuAttribute> AttributeSnapshot { get; set; } = new();
 
+    // ── PAZARYERİNİN KENDİ BEYANI (import görüntüsü) — bizim gönderdiğimizden AYRI ────────────────────
+    // 2026-08-10: import bu üç değeri Trendyol'dan ZATEN alıyordu (TrendyolRemoteVariant.Quantity/ListPrice/
+    // SalePrice) ama hiçbir yere yazmıyordu. Sonuç: kanal-ürün listesinde fiyat/stok kolonları BOŞTU ve tek
+    // kaynak LastSent* olduğu için hiç push edilmemiş 224 üründe kalıcı olarak boş kalacaktı — oysa cevap
+    // elimizdeydi, atılıyordu. Bu alanlar push zincirini ETKİLEMEZ (fiyat StockItem override'larından yürür).
+
+    /// <summary>Import anında pazaryerinde görünen ADET. null = hiç import edilmedi.</summary>
+    public int? RemoteQuantity { get; set; }
+
+    /// <summary>Import anında pazaryerindeki liste fiyatı (indirim öncesi referans).</summary>
+    public decimal? RemoteListPrice { get; set; }
+
+    /// <summary>Import anında pazaryerindeki SATIŞ fiyatı (müşterinin ödediği).</summary>
+    public decimal? RemoteSalePrice { get; set; }
+
     /// <summary>Son BAŞARILI push'ta gönderilen adet (dirty-tracking temeli).</summary>
     public int? LastSentQuantity { get; set; }
 
@@ -545,7 +560,18 @@ public class SalesChannelTrTrendyolProduct : FullAuditedAggregateRoot<Guid>, IMu
     /// <summary>Import'tan gelen SKU kimlik satırını upsert eder — anahtar BARCODE (remote'tan gelir, DONDURULMUŞ;
     /// yerel "{Kod}-{Sıra}" üretimi bu satıra uygulanmaz). Var olan satırda barcode ASLA değişmez; varyant bağı /
     /// stockCode / contentId tazelenir. Yeni satır remote kimliğiyle doğar.</summary>
-    public virtual void UpsertImportedSku(Guid productVariantId, string barcode, string stockCode, long? remoteContentId)
+    /// <param name="remoteQuantity">Pazaryerinde GÖRÜNEN adet (import anı). Verilmezse mevcut değer KORUNUR —
+    /// eski çağrı yolları (kimlik-only upsert) pazaryeri beyanını sıfırlamasın diye.</param>
+    /// <param name="remoteListPrice">Pazaryerindeki liste fiyatı (import anı).</param>
+    /// <param name="remoteSalePrice">Pazaryerindeki satış fiyatı (import anı).</param>
+    public virtual void UpsertImportedSku(
+        Guid productVariantId,
+        string barcode,
+        string stockCode,
+        long? remoteContentId,
+        int? remoteQuantity = null,
+        decimal? remoteListPrice = null,
+        decimal? remoteSalePrice = null)
     {
         // Varyant bağı zorunlu — fail-fast konvansiyonu (SetProduct/SetSalesChannel ile simetrik guard).
         if (productVariantId == Guid.Empty)
@@ -571,6 +597,12 @@ public class SalesChannelTrTrendyolProduct : FullAuditedAggregateRoot<Guid>, IMu
         }
 
         sku.RemoteContentId = remoteContentId ?? sku.RemoteContentId;
+
+        // Pazaryerinin beyanı — verilmeyen alan MEVCUDU KORUR. Koşulsuz atamak, kimlik-only çağrılarda
+        // (yeniden-bağlama) daha önce okunmuş gerçek değerleri sessizce null'a çevirirdi.
+        sku.RemoteQuantity = remoteQuantity ?? sku.RemoteQuantity;
+        sku.RemoteListPrice = remoteListPrice ?? sku.RemoteListPrice;
+        sku.RemoteSalePrice = remoteSalePrice ?? sku.RemoteSalePrice;
     }
 
     /// <summary>Başarısız submit/sorgu sonrası hatayı kaydeder.</summary>

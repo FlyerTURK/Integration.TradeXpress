@@ -69,6 +69,29 @@ namespace Integration.Framework.Blazor.Client.Components.Crud
             Visible = visible, OnClick = onClick,
         };
 
+        /// <summary>
+        /// ARAMA — kutu mu ikon mu, kararı TEK YERDE (2026-08-10 Hakan kuralı: "dar ekranda arama kutusu
+        /// sadece ikonlu butona dönüşsün; bunu merkezi yap").
+        ///
+        /// <para><b>Neden fabrika:</b> kural iki toolbar'da da geçerli (liste/split <c>CrudToolbar</c> ve
+        /// <c>DrillList</c>). Her toolbar kendi <c>ShowSearchBox</c>/<c>ShowSearchIcon</c> ikilisini yazarsa
+        /// eşik bir yerde değişip diğerinde kalır ve aynı uygulamada iki farklı davranış olur. Burada tek
+        /// karar var: <paramref name="isNarrow"/> ise ikon, değilse kutu — ikisi ASLA birlikte görünmez.</para>
+        ///
+        /// <para>Dar ekranda kutuyu ezerek göstermek (daralan "A..." kutusu) en kötü seçenekti: hem
+        /// yazılamıyor hem yer kaplıyordu.</para>
+        /// </summary>
+        public static IEnumerable<CrudToolbarAction> Search(
+            IStringLocalizer L,
+            bool visible,
+            bool isNarrow,
+            RenderFragment<IToolbarItemInfo> boxTemplate,
+            Func<Task> onToggle)
+        {
+            yield return SearchBox(visible && !isNarrow, boxTemplate);
+            yield return SearchIcon(L, visible && isNarrow, onToggle);
+        }
+
         public static CrudToolbarAction Export(IStringLocalizer L, bool visible, Func<Task> onExcel, Func<Task> onPdf) => new()
         {
             SortIndex = 500, AdaptiveText = L["Export"], Tooltip = L["Export"],

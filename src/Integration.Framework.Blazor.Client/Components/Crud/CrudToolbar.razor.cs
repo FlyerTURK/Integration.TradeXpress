@@ -189,8 +189,6 @@ namespace Integration.Framework.Blazor.Client.Components.Crud
                 CrudToolbarActions.Save(L, ShowSaveGroup, EditCanSave, DoSave),
                 CrudToolbarActions.SaveAndNew(L, ShowSaveAndNew, EditCanSave, splitDropDown: !IsPopupEdit, DoSaveNew, IsPopupEdit ? null : DoSaveClose),
                 CrudToolbarActions.Delete(L, ShowDeleteItem, DeleteEnabled, DoDelete),
-                CrudToolbarActions.SearchBox(ShowSearchBox, SearchBoxTemplate),
-                CrudToolbarActions.SearchIcon(L, ShowSearchIcon, DoToggleSearch),
                 CrudToolbarActions.Export(L, ShowExport, DoExportExcel, DoExportPdf),
                 CrudToolbarActions.Refresh(L, ShowRefresh, true, DoRefresh),
                 CrudToolbarActions.Previous(L, ShowNav, CanPrev, DoPrev),
@@ -200,6 +198,9 @@ namespace Integration.Framework.Blazor.Client.Components.Crud
                 CrudToolbarActions.Reset(L, ShowReset, CanReset, DoReset),
                 CrudToolbarActions.ActiveFilter(ShowFilter, ActiveFilterTemplate),
             };
+
+            // ARAMA: kutu/ikon kararı merkezî fabrikada (DrillList de AYNI fabrikayı kullanır) — eşik tek yerde.
+            list.AddRange(CrudToolbarActions.Search(L, !IsEdit, IsMobile, SearchBoxTemplate, DoToggleSearch));
 
             // Sayfa-özel custom action'lar — yalnız Liste + Split (edit'te gizli). SortIndex'leri sayfa belirler.
             if (!IsEdit)

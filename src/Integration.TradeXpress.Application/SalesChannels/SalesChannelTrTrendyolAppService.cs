@@ -9,6 +9,7 @@ using Integration.TradeXpress.MultiCompany;
 using Integration.TradeXpress.Permissions;
 using Integration.TradeXpress.SalesChannels.Trendyol;
 using Integration.TradeXpress.TrendyolCategories;
+using Integration.TradeXpress.TrendyolShipments;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Logging;
 using Volo.Abp;
@@ -31,6 +32,7 @@ public class SalesChannelTrTrendyolAppService : TradeXpressAppService, ISalesCha
     private readonly SalesChannelSubAccountBinder _subAccountBinder;
     private readonly ITrendyolCredentialVerifier _credentialVerifier;
     private readonly ITrendyolCategoryAppService _categoryAppService;
+    private readonly TrendyolDefaultCargoProviderResolver _defaultCargoProviderResolver;
 
     private static readonly HashSet<string> AllowedListFields =
         new(StringComparer.OrdinalIgnoreCase) { "Code", "Name", "IsActive", "Id" };
@@ -41,7 +43,8 @@ public class SalesChannelTrTrendyolAppService : TradeXpressAppService, ISalesCha
         ICurrentCompany currentCompany,
         SalesChannelSubAccountBinder subAccountBinder,
         ITrendyolCredentialVerifier credentialVerifier,
-        ITrendyolCategoryAppService categoryAppService)
+        ITrendyolCategoryAppService categoryAppService,
+        TrendyolDefaultCargoProviderResolver defaultCargoProviderResolver)
     {
         _repository = repository;
         _baseRepository = baseRepository;
@@ -49,6 +52,7 @@ public class SalesChannelTrTrendyolAppService : TradeXpressAppService, ISalesCha
         _subAccountBinder = subAccountBinder;
         _credentialVerifier = credentialVerifier;
         _categoryAppService = categoryAppService;
+        _defaultCargoProviderResolver = defaultCargoProviderResolver;
     }
 
     public virtual async Task<PagedResultDto<SalesChannelListDto>> GetListAsync(SalesChannelListRequestDto input)
@@ -104,6 +108,12 @@ public class SalesChannelTrTrendyolAppService : TradeXpressAppService, ISalesCha
         var entity = new SalesChannelTrTrendyol(companyId, input.Code, input.Name, input.SellerId, effectiveApiKey, effectiveApiSecret);
         entity.SetDescription(input.Description);
         await _subAccountBinder.BindAsync(entity, input.SubAccountId);
+
+        // KARGO FİRMASI BOŞ GELİRSE VARSAYILAN DAMGALANIR (2026-08-10 Hakan: "default kargo firması seçili
+        // olsun"). Karar SUNUCUDA veriliyor ki üç yol — form · sihirbaz · doğrudan API — aynı cevabı alsın;
+        // istemcide seçseydik API'den açılan kanal sessizce kargosuz kalırdı.
+        entity.SetDefaultCargoProvider(input.DefaultCargoProviderId ?? await _defaultCargoProviderResolver.ResolveAsync());
+
         await _repository.InsertAsync(entity, autoSave: true);
 
         // Kanal oluşturulur oluşturulmaz Trendyol kategori ağacını (host-global) otomatik senkronize et — kimlik create'te
@@ -139,6 +149,21 @@ public class SalesChannelTrTrendyolAppService : TradeXpressAppService, ISalesCha
         await ApplyCredentialChangeAsync(entity, input.SellerId, input.ApiKey, input.ApiSecret, input.Token);
         entity.SetActive(input.IsActive);
         await _subAccountBinder.BindAsync(entity, input.SubAccountId);
+
+        // Düzenlemede varsayılana GERİ DÖNÜLMEZ: kullanıcı alanı boşaltmışsa boş kalır. Create'teki
+        // "boşsa varsayılan" davranışını burada tekrarlamak, bilinçli bir temizlemeyi geri alırdı.
+        entity.SetDefaultCargoProvider(input.DefaultCargoProviderId);
+
+        await _repository.UpdateAsync(entity, autoSave: true);
+
+        return Redact(ObjectMapper.Map<SalesChannelTrTrendyol, SalesChannelTrTrendyolGetDto>(entity));
+    }
+
+    [Authorize(TradeXpressPermissions.SalesChannels.Update)]
+    public virtual async Task<SalesChannelTrTrendyolGetDto> SetDefaultCargoProviderAsync(Guid id, Guid? cargoProviderId)
+    {
+        var entity = await _repository.GetOwnedAsync(_currentCompany, id);
+        entity.SetDefaultCargoProvider(cargoProviderId);
         await _repository.UpdateAsync(entity, autoSave: true);
 
         return Redact(ObjectMapper.Map<SalesChannelTrTrendyol, SalesChannelTrTrendyolGetDto>(entity));

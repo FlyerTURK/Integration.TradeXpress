@@ -48,6 +48,7 @@ public class GoodAppService
     private readonly IEntityNoteAppService _noteService;
     private readonly IEntityMediaAppService _entityMedia;
     private readonly ICurrentCompany _currentCompany;
+    private readonly Products.GoodToProductProjector _goodToProductProjector;
 
     public GoodAppService(
         IRepository<Good, Guid> repository,
@@ -62,7 +63,8 @@ public class GoodAppService
         IEntityDocumentAppService documentService,
         IEntityNoteAppService noteService,
         IEntityMediaAppService entityMedia,
-        ICurrentCompany currentCompany)
+        ICurrentCompany currentCompany,
+        Products.GoodToProductProjector goodToProductProjector)
         : base(repository)
     {
         _goodRepository = repository;
@@ -78,6 +80,7 @@ public class GoodAppService
         _noteService = noteService;
         _entityMedia = entityMedia;
         _currentCompany = currentCompany;
+        _goodToProductProjector = goodToProductProjector;
         LocalizationResource = typeof(TradeXpressResource);
 
         CreatePolicyName = TradeXpressPermissions.Goods.Create;
@@ -114,6 +117,13 @@ public class GoodAppService
     protected override Expression<Func<Good, string>> PickerOrderSelector
     {
         get { return x => x.Code; }
+    }
+
+    /// <summary>Mamülün ürün aynası — iş <c>GoodToProductProjector</c>'da; burada yalnız yetki kapısı
+    /// (ileri yöndeki <c>ProductAppService.ProjectToGoodAsync</c> ile birebir simetrik).</summary>
+    public virtual async Task<Products.ProductGetDto> ProjectToProductAsync(Guid goodId)
+    {
+        return await _goodToProductProjector.ProjectAsync(goodId);
     }
 
     public virtual async Task<List<GoodListDto>> GetPickerListAsync(Guid? companyId = null)

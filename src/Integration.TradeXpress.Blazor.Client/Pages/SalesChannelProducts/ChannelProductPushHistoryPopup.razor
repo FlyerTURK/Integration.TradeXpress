@@ -1,0 +1,84 @@
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@*
+   GÖNDERİM GEÇMİŞİ — append-only delil defterinin okunuşu (salt okuma; bu ekran hiçbir şey yazmaz).
+
+   Cevapladığı soru: "hangi fiyat/stok ne zaman gönderildi, ulaştı mı, ulaşmadıysa neden". Otonom fiyat/stok
+   güncellemesinde bu sorunun cevabı yalnız burada yaşar — kanal-ürün kaydındaki LastSent* her turda üzerine
+   yazıldığı için geçmişi tutmaz.
+
+   En yeni ÜSTTE (sunucu sıralıyor): en sık sorulan soru "en son ne gönderdik".
+*@
+
+<DxPopup @bind-Visible="@_visible"
+         HeaderText="@HeaderText"
+         Width="min(1100px, 96vw)"
+         MaxHeight="90vh"
+         CloseOnEscape="true"
+         ShowFooter="false">
+    <BodyContentTemplate Context="__historyBody">
+        <div style="display:flex; flex-direction:column; gap:10px; min-height:0;">
+
+            @if (_loading)
+            {
+                <div style="padding:10px 12px; color:var(--bs-secondary-color);">@L["Loading"]</div>
+            }
+            else if (_rows.Count == 0)
+            {
+                @* Boş liste SEBEBİYLE yazılır — kullanıcı "ekran bozuk mu" diye aramasın. Defter geriye dönük
+                   çalışmaz: özellik indikten SONRAKİ ilk gönderimden başlar. *@
+                <div style="padding:10px 12px; border-inline-start:3px solid var(--dxbl-drawer-border-color); color:var(--bs-secondary-color);">
+                    @L["SalesChannelProduct:History:EmptyHint"]
+                </div>
+            }
+            else
+            {
+                <TxGrid Data="@_rows"
+                        KeyFieldName="Id"
+                        PageSize="15"
+                        StateKey="sales-channel-products:push-history"
+                        CssClass="w-100">
+                    <Columns>
+                        @* Zaman UTC saklanır → merkezî UtcLocalText kullanıcının yerel saatine çevirir. *@
+                        <DxGridDataColumn FieldName="PushedAtUtc" Caption="@L["SalesChannelProduct:History:PushedAt"]" Width="150px">
+                            <CellDisplayTemplate>
+                                @{
+                                    var timeRow = (SalesChannelProductPushHistoryDto)context.DataItem;
+                                }
+                                <UtcLocalText Value="@timeRow.PushedAtUtc" />
+                            </CellDisplayTemplate>
+                        </DxGridDataColumn>
+                        <DxGridDataColumn FieldName="Outcome" Caption="@L["SalesChannelProduct:History:Outcome"]" Width="110px">
+                            <CellDisplayTemplate>
+                                @{
+                                    var outcomeRow = (SalesChannelProductPushHistoryDto)context.DataItem;
+                                }
+                                <span style="@OutcomeBadgeStyle(outcomeRow.Outcome)">@OutcomeLabel(outcomeRow.Outcome)</span>
+                            </CellDisplayTemplate>
+                        </DxGridDataColumn>
+                        <DxGridDataColumn FieldName="Kind" Caption="@L["SalesChannelProduct:History:Kind"]" Width="140px">
+                            <CellDisplayTemplate>
+                                @KindLabel(((SalesChannelProductPushHistoryDto)context.DataItem).Kind)
+                            </CellDisplayTemplate>
+                        </DxGridDataColumn>
+                        <DxGridDataColumn FieldName="SkuCode" Caption="@L["SalesChannelProduct:History:Sku"]" Width="140px" />
+                        <DxGridDataColumn FieldName="Quantity" Caption="@L["SalesChannelProduct:History:Quantity"]" Width="80px" />
+                        <DxGridDataColumn FieldName="SalePrice" Caption="@L["SalesChannelProduct:History:SalePrice"]" Width="120px" DisplayFormat="N2" />
+                        <DxGridDataColumn FieldName="ListPrice" Caption="@L["SalesChannelProduct:History:ListPrice"]" Width="120px" DisplayFormat="N2" />
+                        @* Gerekçe genişliği PAYLAŞIR (MinWidth, Width YOK): sabit genişlikler toplamı grid'i
+                           aşarsa DevExpress hepsini sıkıştırır ve uzun hata metni okunamaz hâle gelir. *@
+                        <DxGridDataColumn FieldName="ErrorMessage" Caption="@L["SalesChannelProduct:History:Reason"]" MinWidth="220" />
+                        <DxGridDataColumn FieldName="RemoteReference" Caption="@L["SalesChannelProduct:History:RemoteReference"]" Width="150px" />
+                    </Columns>
+                </TxGrid>
+            }
+
+            <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:4px;">
+                <DxButton Text="@L["Close"]"
+                          RenderStyle="ButtonRenderStyle.Secondary"
+                          RenderStyleMode="ButtonRenderStyleMode.Outline"
+                          Click="@Close" />
+            </div>
+        </div>
+    </BodyContentTemplate>
+</DxPopup>

@@ -17,6 +17,12 @@ public interface IGoodAppService : ICrudAppService<
     /// <summary>Mamül süreç paneli combo'su için host + çalışılan şirkete-özel kayıtlar (koda göre sıralı).</summary>
     Task<List<GoodListDto>> GetPickerListAsync(Guid? companyId = null);
 
+    /// <summary>Mamülün ÜRÜN aynası (PERSİSTSİZ) — <c>ProductAppService.ProjectToGoodAsync</c>'in TERSİ.
+    /// <para>Kaydetmez, yalnız forma tohum üretir: kullanıcı ürüne özel alanları (kategori, reçete, kargo
+    /// desisi) doldurup kendisi kaydeder. Sessizce kayıt açmak, sınıflandırmanın MANUEL olması kuralını
+    /// delerdi. <b>Fiyat taşınmaz</b> — mamülde fiyat varyantta yaşar, üründe reçeteden türetilir.</para></summary>
+    Task<Products.ProductGetDto> ProjectToProductAsync(Guid goodId);
+
     /// <summary>Bir mamülün AKTİF varyantları (fiş satırı panelindeki varyant combo'su) — varyant-başı fiyatı (ana varyant
     /// öncelikli, sonra koda göre) ile. Tek varyantlıysa panel VariantId'yi null bırakır; çokluysa fiyatı seçilen varyant belirler.</summary>
     Task<List<CommodityVariantOptionDto>> GetVariantPickerListAsync(Guid goodId);

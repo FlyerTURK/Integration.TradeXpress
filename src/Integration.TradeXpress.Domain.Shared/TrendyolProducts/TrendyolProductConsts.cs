@@ -64,6 +64,10 @@ public static class TrendyolPushHistoryConsts
     /// <summary>"{mediaId:N}:{sha256-hex}" × görsel sayısı.</summary>
     public const int ImagesMaxLength = 1200;
 
+    /// <summary>Reddin gerekçesi — <c>LastError</c> ile AYNI sınır: ikisi de aynı kaynaktan (batch sonucunun
+    /// <c>FailureReasons</c>'ı) besleniyor, farklı sınır aynı metni birinde kırpıp diğerinde kırpmazdı.</summary>
+    public const int ErrorMessageMaxLength = TrendyolProductConsts.LastErrorMaxLength;
+
     // Fiyat: tutar N2 (financials.md yuvarlama kuralı).
     public const int PricePrecision = 18;
     public const int PriceScale = 2;

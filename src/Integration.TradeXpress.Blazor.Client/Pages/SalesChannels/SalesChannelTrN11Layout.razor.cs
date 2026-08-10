@@ -1,6 +1,4 @@
 using Integration.TradeXpress.SalesChannels;
-using System.Threading.Tasks;
-using Integration.Framework.Blazor.Client.Services.Mdi;
 using Microsoft.AspNetCore.Components;
 
 namespace Integration.TradeXpress.Blazor.Client.Pages.SalesChannels;
@@ -14,21 +12,8 @@ public partial class SalesChannelTrN11Layout
     /// <summary>Kanal bu oturumda YENİ oluşturuldu → içe aktarım paneli çekimi kendiliğinden başlatsın.</summary>
     [Parameter] public bool AutoImportProducts { get; set; }
 
-    /// <summary>Kurulum sihirbazını MDI SEKMESİNDE açar (mevcut kanal kipinde).
-    ///
-    /// <para><b>NavigationManager KULLANILMAZ</b> (2026-08-06 düzeltmesi): bu kabukta rotalar sekme olarak
-    /// açılır ve adres çubuğu kökte tutulur — <c>NavigateTo</c> sessizce hiçbir şey yapmıyordu. Düğme
-    /// tıklanıyor, hiçbir şey olmuyordu; sihirbaz da "Yeni ▾" tek-kanal kuralıyla kapalı olduğundan
-    /// fiilen ULAŞILAMAZ durumdaydı.</para></summary>
-    [Inject] private IMdiTabOpener TabOpener { get; set; } = default!;
-
-    private Task OpenWizardAsync()
-    {
-        return TabOpener.OpenOrActivateAsync(
-            $"/sales-channels/n11/wizard/{Model.Id}",
-            L["SalesChannelTrN11:Wizard:Title"].Value,
-            TradeXpressIcons.SalesChannel);
-    }
+    // Sihirbaz düğmesi + onu açan OpenWizardAsync/IMdiTabOpener bağı 2026-08-10'da KALDIRILDI (layout'taki
+    // gerekçe notuna bakınız). Layout yeniden DUMB: I/O yok, sekme açma yok, yalnız Model bağlama.
 
     /// <summary>Düzenlemede sir alanları boş gelir → in-field ipucu "saklı, boş = korunur"; yeni kayıtta placeholder yok.</summary>
     private string? SecretPlaceholder => IsNew ? null : L["SalesChannel:SecretKept"].Value;

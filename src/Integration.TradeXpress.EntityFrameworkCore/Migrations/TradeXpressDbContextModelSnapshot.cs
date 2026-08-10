@@ -4230,6 +4230,10 @@ namespace Integration.TradeXpress.Migrations
                         .HasMaxLength(8)
                         .HasColumnType("nvarchar(8)");
 
+                    b.Property<string>("ErrorMessage")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
                     b.Property<string>("ExtraProperties")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)")
@@ -4238,6 +4242,9 @@ namespace Integration.TradeXpress.Migrations
                     b.Property<string>("Images")
                         .HasMaxLength(1200)
                         .HasColumnType("nvarchar(1200)");
+
+                    b.Property<byte>("Outcome")
+                        .HasColumnType("tinyint");
 
                     b.Property<byte>("PushKind")
                         .HasColumnType("tinyint");
@@ -7830,6 +7837,10 @@ namespace Integration.TradeXpress.Migrations
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("CreatorId");
 
+                    b.Property<string>("ErrorMessage")
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
                     b.Property<string>("ExtraProperties")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)")
@@ -7842,6 +7853,9 @@ namespace Integration.TradeXpress.Migrations
                     b.Property<decimal?>("ListPrice")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
+
+                    b.Property<byte>("Outcome")
+                        .HasColumnType("tinyint");
 
                     b.Property<byte>("PushKind")
                         .HasColumnType("tinyint");
@@ -11293,6 +11307,9 @@ namespace Integration.TradeXpress.Migrations
                         .IsRequired()
                         .HasMaxLength(256)
                         .HasColumnType("nvarchar(256)");
+
+                    b.Property<Guid?>("DefaultCargoProviderId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("SellerId")
                         .IsRequired()

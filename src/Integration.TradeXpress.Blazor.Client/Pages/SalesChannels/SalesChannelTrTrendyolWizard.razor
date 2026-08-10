@@ -70,7 +70,8 @@
            kalıyor, kullanıcı geçiyor, kurulum sonda tamamlanmıyordu — engel vardı ama görünmüyordu. *@
         <WizardStep Title="@L["SalesChannelTrTrendyol:Wizard:Step:Cargo"]"
                     Description="@L["SalesChannelTrTrendyol:Wizard:Step:CargoHelp"]"
-                    CanAdvance="@(_selectedCargoProviderId is not null)">
+                    CanAdvance="@(_selectedCargoProviderId is not null)"
+                    OnBeforeAdvanceAsync="@PersistCargoProviderAsync">
             @if (_cargoProviders.Count == 0)
             {
                 <div style="color:#b45309; font-size:0.9rem;">@L["SalesChannelTrTrendyol:Wizard:NoCargoProviders"]</div>

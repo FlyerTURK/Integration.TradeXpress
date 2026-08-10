@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Integration.TradeXpress.Attachments;
+using Integration.TradeXpress.SalesChannelProducts;
 using Microsoft.Extensions.Logging;
 using Volo.Abp.DependencyInjection;
 using Volo.Abp.Domain.Repositories;
@@ -43,13 +44,18 @@ public class N11PushHistoryRecorder : ITransientDependency
         _logger = logger;
     }
 
-    /// <summary>Gönderilen SKU'lar için geçmiş satırlarını yazar. Hata push'u DÜŞÜRMEZ (bkz. sınıf doc'u).</summary>
+    /// <summary>Gönderilen SKU'lar için geçmiş satırlarını yazar. Hata push'u DÜŞÜRMEZ (bkz. sınıf doc'u).
+    /// <para><paramref name="outcome"/> ZORUNLUDUR (varsayılanı yok): başarısız bir denemenin başarılı
+    /// yazılması, bu defterin önlemek için var olduğu hatadır — derleyici her çağrı yerini beyana zorlar.
+    /// <paramref name="errorMessage"/> yalnız <see cref="ChannelPushOutcome.Failed"/>'da anlamlıdır.</para></summary>
     public virtual async Task RecordAsync(
         Guid companyId,
         Guid channelProductId,
         N11ProductPushKind pushKind,
         IReadOnlyCollection<N11PushHistoryEntry> entries,
-        string? remoteReference)
+        string? remoteReference,
+        ChannelPushOutcome outcome,
+        string? errorMessage = null)
     {
         if (entries is null || entries.Count == 0)
         {
@@ -64,7 +70,7 @@ public class N11PushHistoryRecorder : ITransientDependency
             foreach (var entry in entries)
             {
                 var history = new SalesChannelTrN11ProductPushHistory(
-                    companyId, channelProductId, entry.SellerStockCode, pushedAt, pushKind);
+                    companyId, channelProductId, entry.SellerStockCode, pushedAt, pushKind, outcome);
 
                 history.Fill(
                     entry.SalePrice,
@@ -73,7 +79,8 @@ public class N11PushHistoryRecorder : ITransientDependency
                     entry.Title,
                     entry.Options,
                     entry.MediaIds?.Select(id => (id, hashByMedia.GetValueOrDefault(id))),
-                    remoteReference);
+                    remoteReference,
+                    outcome == ChannelPushOutcome.Failed ? errorMessage : null);
 
                 await _repository.InsertAsync(history, autoSave: true);
             }

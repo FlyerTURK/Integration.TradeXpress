@@ -26,10 +26,22 @@ namespace Integration.TradeXpress.TrendyolShipments;
 public class TrendyolCargoProviderAppService : TradeXpressAppService, ITrendyolCargoProviderAppService
 {
     private readonly IRepository<TrendyolCargoProvider, Guid> _repository;
+    private readonly TrendyolDefaultCargoProviderResolver _defaultResolver;
 
-    public TrendyolCargoProviderAppService(IRepository<TrendyolCargoProvider, Guid> repository)
+    public TrendyolCargoProviderAppService(
+        IRepository<TrendyolCargoProvider, Guid> repository,
+        TrendyolDefaultCargoProviderResolver defaultResolver)
     {
         _repository = repository;
+        _defaultResolver = defaultResolver;
+    }
+
+    public virtual async Task<Guid?> GetDefaultIdAsync()
+    {
+        using (CurrentTenant.Change(null))
+        {
+            return await _defaultResolver.ResolveAsync();
+        }
     }
 
     public virtual async Task<List<TrendyolCargoProviderDto>> GetListAsync(bool includeInactive = false)

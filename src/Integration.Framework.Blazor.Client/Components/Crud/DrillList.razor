@@ -41,7 +41,12 @@
 
     ActiveFilterTemplate = _ => @<text>
         <div style="display:flex; align-items:center; gap:0.4rem; padding:0 0.25rem; white-space:nowrap;">
-            <DxCheckBox Checked="_showActiveOnly" CheckedChanged="@((bool v) => OnActiveFilterChanged(v))" CheckType="CheckType.Switch" />
+            @* Arama kutusuyla AYNI gerekçe [validation-expr]: drill parent edit formunun EditContext'i içinde
+               render olabilir ve manuel bağlı (Checked + CheckedChanged, @@bind DEĞİL) DevExpress editörü
+               CheckedExpression ister → ValidationEnabled=false ŞART. Bu switch model alanı değil, salt UI
+               filtresidir. 2026-08-10'da CANLI ÇÖKME olarak yakalandı: anahtar yalnız TItem IIsActive iken
+               çizildiğinden (ilk IIsActive drill öğesine kadar) yıllarca gizli kalmıştı. *@
+            <DxCheckBox Checked="_showActiveOnly" CheckedChanged="@((bool v) => OnActiveFilterChanged(v))" CheckType="CheckType.Switch" ValidationEnabled="false" />
             <span>@(_showActiveOnly ? L["ActiveRecords"] : L["PassiveRecords"])</span>
         </div>
     </text>;
@@ -107,6 +112,7 @@
             <TxGrid Data="@FilteredItems"
                     @ref="_txGrid"
                     SearchText="@_searchText"
+                    ShowSearchBox="@_showGridSearch"
                     KeyFieldName="@KeyFieldName"
                     EditMode="GridEditMode.EditRow"
                     EditModelSaving="OnEditModelSaving"
@@ -115,6 +121,9 @@
                     StateKey="@GridStateKey"
                     PageSize="@PageSize"
                     PagerVisible="@PagerVisible"
+                    PageSizeSelectorVisible="@PageSizeSelectorVisible"
+                    ShowGroupPanel="@ShowGroupPanel"
+                    DataColumnGroupRowTemplate="@DataColumnGroupRowTemplate"
                     VirtualScrollingEnabled="@VirtualScrollingEnabled"
                     CssClass="tx-grid-fill">
                 <Columns>
@@ -131,6 +140,7 @@
             <TxGrid Data="@FilteredItems"
                     @ref="_txGrid"
                     SearchText="@_searchText"
+                    ShowSearchBox="@_showGridSearch"
                     KeyFieldName="@KeyFieldName"
                     SelectionMode="GridSelectionMode.Multiple"
                     ShowSelectionColumn="true"
@@ -142,6 +152,9 @@
                     StateKey="@GridStateKey"
                     PageSize="@PageSize"
                     PagerVisible="@PagerVisible"
+                    PageSizeSelectorVisible="@PageSizeSelectorVisible"
+                    ShowGroupPanel="@ShowGroupPanel"
+                    DataColumnGroupRowTemplate="@DataColumnGroupRowTemplate"
                     VirtualScrollingEnabled="@VirtualScrollingEnabled"
                     CssClass="tx-grid-fill">
                 <Columns>

@@ -46,6 +46,24 @@ public class SalesChannelTrTrendyol : SalesChannelBase
     /// <summary>Trendyol API gizli anahtarı (opak sir; normalize edilmez). TODO: at-rest şifrelenmeli (hardening).</summary>
     public virtual string ApiSecret { get; protected set; } = null!;
 
+    /// <summary>
+    /// Bu kanalın VARSAYILAN kargo firması (<c>TrendyolCargoProvider.Id</c>) — kanal ürünleri kendi kargo
+    /// firması seçilmediğinde bunu devralır.
+    ///
+    /// <para><b>Neden KANALDA duruyor:</b> kargo şablonu ürünün değil KANALIN özelliğidir (CLAUDE.md kargo
+    /// kararı) — aynı ürün her pazaryerinde farklı firmayla gider. Ürün başına tekrar tekrar seçtirmek,
+    /// yüzlerce kayıtta aynı cevabı istemek olurdu.</para>
+    ///
+    /// <para><b>Neden id-only ve neden Guid:</b> <c>TrendyolCargoProvider</c> ayrı bir aggregate root'tur →
+    /// navigasyon değil kimlik tutulur (NavigationConventionTests). Trendyol'un sayısal
+    /// <c>cargoCompanyId</c>'si DEĞİL bizim kaydımızın kimliği saklanır: firma listesi bizde yaşayan bir
+    /// referanstır, sayı damgalama anında o kayıttan okunur.</para>
+    ///
+    /// <para><b>null = seçilmedi</b> (fail-open değil): kanal ürünü de kargosuz kalır ve eksiklik ürün
+    /// formunda görünür — uydurma bir firma damgalamaktansa boş bırakmak dürüsttür.</para>
+    /// </summary>
+    public virtual Guid? DefaultCargoProviderId { get; protected set; }
+
     #endregion
 
     #region Methods
@@ -76,6 +94,14 @@ public class SalesChannelTrTrendyol : SalesChannelBase
             nameof(ApiSecret),
             minLength: 1,
             SalesChannelConsts.ConfigMaxLength);
+    }
+
+    /// <summary>Varsayılan kargo firmasını atar. <c>null</c> = seçim kaldırıldı (meşru); doğrulama burada
+    /// YAPILMAZ — kaydın gerçekten var olduğu app service katmanında sınanır (domain, host-global bir
+    /// tabloya sorgu atamaz).</summary>
+    public virtual void SetDefaultCargoProvider(Guid? cargoProviderId)
+    {
+        DefaultCargoProviderId = cargoProviderId == Guid.Empty ? null : cargoProviderId;
     }
 
     public override string ToString()
