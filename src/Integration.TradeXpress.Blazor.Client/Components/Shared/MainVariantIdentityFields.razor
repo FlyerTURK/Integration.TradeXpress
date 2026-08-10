@@ -19,7 +19,7 @@
 
 @if (Main is not null)
 {
-    <DxFormLayoutGroup Caption="@L["MainVariantIdentity"]" ColSpanMd="12" Expandable="true" Expanded="false">
+    <DxFormLayoutGroup Caption="@L["MainVariantIdentity"]" ColSpanMd="12" ExpandButtonDisplayMode="GroupExpandButtonDisplayMode.Start" Expanded="false">
         <DxFormLayoutItem Caption="@L["Barcode"]" ColSpanMd="4" ColSpanSm="6">
             <DxTextBox @bind-Text="@Main.Barcode" CssClass="w-100" />
         </DxFormLayoutItem>
