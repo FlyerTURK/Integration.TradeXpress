@@ -4,6 +4,7 @@ using Integration.TradeXpress.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Volo.Abp.EntityFrameworkCore;
 
@@ -12,9 +13,11 @@ using Volo.Abp.EntityFrameworkCore;
 namespace Integration.TradeXpress.Migrations
 {
     [DbContext(typeof(TradeXpressDbContext))]
-    partial class TradeXpressDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260814093456_TrendyolSkuRemoteAxisSnapshot")]
+    partial class TrendyolSkuRemoteAxisSnapshot
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -7621,14 +7624,6 @@ namespace Integration.TradeXpress.Migrations
                     b.Property<bool?>("RemoteApproved")
                         .HasColumnType("bit");
 
-                    b.PrimitiveCollection<string>("RemoteImageMediaIds")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.PrimitiveCollection<string>("RemoteImageUrls")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<bool?>("RemoteOnSale")
                         .HasColumnType("bit");
 
@@ -12406,15 +12401,9 @@ namespace Integration.TradeXpress.Migrations
 
                             b1.Property<decimal?>("PendingSentListPrice");
 
-                            b1.Property<string>("PendingSentMediaIds");
-
-                            b1.Property<string>("PendingSentOptions");
-
                             b1.Property<int?>("PendingSentQuantity");
 
                             b1.Property<decimal?>("PendingSentSalePrice");
-
-                            b1.Property<string>("PendingSentTitle");
 
                             b1.Property<Guid>("ProductVariantId");
 
@@ -12494,8 +12483,6 @@ namespace Integration.TradeXpress.Migrations
                                         .ValueGeneratedOnAddOrUpdate();
 
                                     b2.Property<int>("AttributeId");
-
-                                    b2.Property<string>("AttributeName");
 
                                     b2.Property<int?>("AttributeValueId");
 
