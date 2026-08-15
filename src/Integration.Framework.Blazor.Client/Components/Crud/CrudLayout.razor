@@ -42,6 +42,7 @@
                      ActiveFilter="_activeFilter"
                      ActiveFilterChanged="OnActiveFilterChanged"
                      OnToggleGridSearch="ToggleGridSearch"
+                     NarrowSearchOpen="@_showGridSearch"
                      CustomActions="EffectiveCustomActions" />
     </div>
     }
@@ -53,7 +54,6 @@
             @bind-SelectedDataItems="StateService.SelectedDataItems"
             SelectionMode="GridSelectionMode.Multiple"
             AllowSelectRowByClick="false"
-            ShowSearchBox="@_showGridSearch"
             @bind-SearchText="_inGridSearchText"
             PagerVisible="true"
             PageSizeSelectorVisible="true"

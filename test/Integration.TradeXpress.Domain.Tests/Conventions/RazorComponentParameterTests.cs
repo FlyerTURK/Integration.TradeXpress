@@ -37,6 +37,16 @@ public class RazorComponentParameterTests
     // @typeparam TItem  → jenerik tip argümanı, markup'ta attribute gibi verilir (TItem="Foo").
     private static readonly Regex TypeParamRegex = new(@"^\s*@typeparam\s+(\w+)", RegexOptions.Multiline | RegexOptions.Compiled);
 
+    // @inherits Ns.EntryPanelBase<Foo> → TABAN SINIFIN parametreleri de meşrudur. Jenerik argüman ve
+    // namespace ön-eki atılıp yalın sınıf adı alınır (katalog sınıf ADIYLA anahtarlı).
+    private static readonly Regex InheritsRegex = new(@"^\s*@inherits\s+([\w\.]+)", RegexOptions.Multiline | RegexOptions.Compiled);
+
+    // C# sınıf bildirimi + taban tipi: "public abstract class EntryPanelBase<TItem> : CrudComponentBase".
+    // Taban zinciri boyunca yürünür — parametre iki kuşak yukarıda tanımlı olabilir.
+    private static readonly Regex ClassDeclarationRegex = new(
+        @"\bclass\s+(\w+)(?:\s*<[^>]*>)?\s*(?::\s*([\w\.]+))?",
+        RegexOptions.Compiled);
+
     // Markup attribute adı: büyük harfle başlayan, '=' ile değer alan ad (bind/yönerge olmayanlar).
     private static readonly Regex AttributeNameRegex = new(@"(?<![\w@\-.])([A-Z]\w*)\s*=", RegexOptions.Compiled);
 
@@ -58,7 +68,8 @@ public class RazorComponentParameterTests
                      && !f.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
             .ToList();
 
-        var components = BuildComponentCatalog(razorFiles);
+        var baseClasses = BuildBaseClassCatalog(root);
+        var components = BuildComponentCatalog(razorFiles, baseClasses);
         components.ShouldNotBeEmpty("Paylaşılan bileşen kataloğu boş — tarama yolu bozulmuş olabilir.");
 
         var violations = new List<string>();
@@ -98,8 +109,87 @@ public class RazorComponentParameterTests
             + string.Join(Environment.NewLine, violations.Distinct()));
     }
 
+    /// <summary>
+    /// C# sınıf adı → (o sınıfın kendi <c>[Parameter]</c>'ları, taban sınıf adı).
+    ///
+    /// <para><b>Neden gerekli:</b> bir bileşen parametrelerini TABAN SINIFTAN devralabilir
+    /// (<c>@inherits EntryPanelBase&lt;T&gt;</c>). Katalog yalnız bileşenin kendi dosyalarına bakarsa
+    /// devralınan her parametre "tanımsız" görünür ve test DOĞRU kodu kırmızıya düşürür — bu tam olarak
+    /// <c>ProductRecipePanel.OnChanged</c>'de yaşandı: parametre gerçekten vardı, ağ yanlış öttü.
+    /// Yanlış pozitif üreten bir ağ, gerçek ihlali de inandırıcılıktan düşürür.</para>
+    /// </summary>
+    private static Dictionary<string, (HashSet<string> Parameters, string? BaseName)> BuildBaseClassCatalog(string root)
+    {
+        var catalog = new Dictionary<string, (HashSet<string>, string?)>(StringComparer.Ordinal);
+
+        var csFiles = Directory
+            .EnumerateFiles(Path.Combine(root, "src"), "*.cs", SearchOption.AllDirectories)
+            .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
+                     && !f.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.Ordinal));
+
+        foreach (var file in csFiles)
+        {
+            var text = File.ReadAllText(file);
+            if (!text.Contains("[Parameter", StringComparison.Ordinal) && !text.Contains("class ", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            foreach (Match declaration in ClassDeclarationRegex.Matches(text))
+            {
+                var className = declaration.Groups[1].Value;
+                var baseName = declaration.Groups[2].Success ? ShortTypeName(declaration.Groups[2].Value) : null;
+
+                // Dosyadaki TÜM [Parameter]'lar bu sınıfa yazılır. Bir dosyada birden çok sınıf olması
+                // bu depoda istisnadır; olsa bile fazladan parametre tanımak YANLIŞ POZİTİF üretmez
+                // (yalnız yakalayamama riski taşır) — ters yön kabul edilemezdi.
+                var parameters = new HashSet<string>(StringComparer.Ordinal);
+                foreach (Match parameter in ParameterDeclarationRegex.Matches(text))
+                {
+                    parameters.Add(parameter.Groups[1].Value);
+                }
+
+                if (parameters.Count > 0 || baseName is not null)
+                {
+                    catalog[className] = (parameters, baseName);
+                }
+            }
+        }
+
+        return catalog;
+    }
+
+    /// <summary>Taban zinciri boyunca devralınan parametreleri toplar. Döngüye karşı ziyaret kümesi tutar
+    /// (kısmi/partial bildirimlerde kendine dönen bir zincir testi sonsuz döngüye sokabilirdi).</summary>
+    private static void AddInheritedParameters(
+        string? baseName,
+        Dictionary<string, (HashSet<string> Parameters, string? BaseName)> baseClasses,
+        HashSet<string> target)
+    {
+        var visited = new HashSet<string>(StringComparer.Ordinal);
+        while (baseName is not null && visited.Add(baseName) && baseClasses.TryGetValue(baseName, out var entry))
+        {
+            foreach (var parameter in entry.Parameters)
+            {
+                target.Add(parameter);
+            }
+
+            baseName = entry.BaseName;
+        }
+    }
+
+    /// <summary>Namespace ön-ekini ve jenerik argümanı atar: <c>A.B.Base&lt;T&gt;</c> → <c>Base</c>.</summary>
+    private static string ShortTypeName(string typeName)
+    {
+        var withoutGenerics = typeName.Split('<')[0];
+        var lastDot = withoutGenerics.LastIndexOf('.');
+        return lastDot >= 0 ? withoutGenerics[(lastDot + 1)..] : withoutGenerics;
+    }
+
     /// <summary>Bileşen adı → kabul ettiği attribute adları (parametreler + jenerik tip argümanları).</summary>
-    private static Dictionary<string, HashSet<string>> BuildComponentCatalog(List<string> razorFiles)
+    private static Dictionary<string, HashSet<string>> BuildComponentCatalog(
+        List<string> razorFiles,
+        Dictionary<string, (HashSet<string> Parameters, string? BaseName)> baseClasses)
     {
         var catalog = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
 
@@ -129,10 +219,25 @@ public class RazorComponentParameterTests
             var codeBehind = file + ".cs";
             if (File.Exists(codeBehind))
             {
-                foreach (Match match in ParameterDeclarationRegex.Matches(File.ReadAllText(codeBehind)))
+                var codeBehindText = File.ReadAllText(codeBehind);
+                foreach (Match match in ParameterDeclarationRegex.Matches(codeBehindText))
                 {
                     parameters.Add(match.Groups[1].Value);
                 }
+
+                // Code-behind'daki taban sınıf (partial sınıf ": Base" ile bildirilmiş olabilir).
+                var declaration = ClassDeclarationRegex.Match(codeBehindText);
+                if (declaration.Success && declaration.Groups[2].Success)
+                {
+                    AddInheritedParameters(ShortTypeName(declaration.Groups[2].Value), baseClasses, parameters);
+                }
+            }
+
+            // @inherits ile bildirilen taban — devralınan parametreler de MEŞRUDUR.
+            var inherits = InheritsRegex.Match(markup);
+            if (inherits.Success)
+            {
+                AddInheritedParameters(ShortTypeName(inherits.Groups[1].Value), baseClasses, parameters);
             }
 
             if (parameters.Count == 0)

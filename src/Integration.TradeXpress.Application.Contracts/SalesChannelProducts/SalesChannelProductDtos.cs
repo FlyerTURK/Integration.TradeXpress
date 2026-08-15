@@ -125,6 +125,41 @@ public class SalesChannelProductListDto : EntityDto<Guid>, IListDto<Guid>, IIsAc
     /// doğrulanmadan "satışta değil" demek yanlış karar verdirirdi.</summary>
     public bool? RemoteOnSale { get; set; }
 
+    /// <summary>
+    /// PAZARYERİ ENGELİ — kayıt kanalda neden satılamıyor (karaliste / red / kilit / arşiv). Kaydın
+    /// SKU'ları arasındaki EN AĞIR engeldir: tek kalemi engelli bir kayıt "engelsiz" sayılamaz.
+    ///
+    /// <para><b>Neden ayrı bir kavram:</b> <see cref="RemoteOnSale"/> ile <c>approved</c> "satışta mı"yı
+    /// söyler, "neden değil"i söylemez. Karalisteye alınmış bir kalem bizde aylarca "onaylı + satışta"
+    /// göründü; gönderim karşı tarafta reddedildi ve sebebi hiçbir ekranda yoktu.</para>
+    ///
+    /// <para><b>Engel push'u DURDURMAZ</b> — bayraklar son içe aktarım anının fotoğrafıdır ve bayat bir
+    /// bayrağa dayanıp gönderimi kesmek, çözülmüş bir sorunu kalıcı kılardı. Sistem uyarır, kullanıcı karar
+    /// verir. Trendyol dışı kanallarda <c>None</c> kalır (o kanallar böyle bir beyan döndürmüyor).</para>
+    /// </summary>
+    public ChannelListingObstacle Obstacle { get; set; }
+
+    /// <summary>Engelin PAZARYERİ GEREKÇESİ — kanalın kendi cümlesi, yeniden yazılmaz. Engel yoksa ya da
+    /// gerekçe bildirilmemişse boş: engelin VARLIĞI ile GEREKÇESİ ayrı sorulardır.</summary>
+    public string? ObstacleReason { get; set; }
+
+    /// <summary>Kanalda AKTİF KAMPANYA var mı. Otonom fiyat güncellemesi bu kayda yazmadan önce kullanıcının
+    /// görmesi gereken tek şey budur — kampanyalı fiyata müdahalenin sonucu bizde modellenmedi.
+    /// <c>null</c> = bilinmiyor.</summary>
+    public bool? HasActiveCampaign { get; set; }
+
+    /// <summary>Kaydın pazaryerindeki sayfası — satırdan doğrudan gidilir. Çok kalemli kayıtta ilk kalemin
+    /// adresidir (varyantlar aynı sayfada yaşar).</summary>
+    public string? RemoteUrl { get; set; }
+
+    /// <summary>Kalemin pazaryerinde SON DEĞİŞTİĞİ an (UTC; kayıttaki en yeni damga). <see cref="LastSyncedAt"/>
+    /// sonrasındaysa kanalda bize ait olmayan bir müdahale olmuştur — bunun tek kanıtı budur.</summary>
+    public DateTime? RemoteUpdatedAt { get; set; }
+
+    /// <summary>Kaydın pazaryerinde İLK oluşturulduğu an (UTC; kalemler arasındaki en eski damga) — "kanalda ne
+    /// zamandır var" sorusunun cevabı; içe aktarılmış ürünlerde bizim kaydımızdan eski olabilir.</summary>
+    public DateTime? RemoteCreatedAt { get; set; }
+
     /// <summary>Son hata metni (varsa) — satır neden <see cref="ChannelProductSyncState.Failed"/> onu söyler.</summary>
     public string? LastError { get; set; }
 

@@ -97,7 +97,8 @@
     @* Drill başlığı (Title) kaldırıldı — toolbar üstü gereksiz başlık; bölüm bağlamı parent form/grid'den belli. *@
     <div style="padding: 0.5rem;">
         @* Liste toolbar — genel CrudToolbar/EditToolbar ile AYNI ToolbarRenderer (ikiz değil). Aksiyonlar descriptor. *@
-        <ToolbarRenderer Actions="@ListToolbarActions" RenderMode="ToolbarRenderStyleMode.Plain" OnActionInvoked="OnToolbarActionInvoked" />
+        <ToolbarRenderer Actions="@ListToolbarActions" RenderMode="ToolbarRenderStyleMode.Plain" OnActionInvoked="OnToolbarActionInvoked"
+                         NarrowSearchTemplate="@SearchBoxTemplate" NarrowSearchVisible="@_showGridSearch" />
     </div>
 
     @* Mobil: SABİT (min/max). Masaüstü: min-height TABAN + max-height vh TAVAN → içerikle büyür, taşınca iç scroll. *@
@@ -112,7 +113,6 @@
             <TxGrid Data="@FilteredItems"
                     @ref="_txGrid"
                     SearchText="@_searchText"
-                    ShowSearchBox="@_showGridSearch"
                     KeyFieldName="@KeyFieldName"
                     EditMode="GridEditMode.EditRow"
                     EditModelSaving="OnEditModelSaving"
@@ -140,7 +140,6 @@
             <TxGrid Data="@FilteredItems"
                     @ref="_txGrid"
                     SearchText="@_searchText"
-                    ShowSearchBox="@_showGridSearch"
                     KeyFieldName="@KeyFieldName"
                     SelectionMode="GridSelectionMode.Multiple"
                     ShowSelectionColumn="true"

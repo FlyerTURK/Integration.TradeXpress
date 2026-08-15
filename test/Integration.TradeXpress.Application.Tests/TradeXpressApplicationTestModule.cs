@@ -38,6 +38,11 @@ public class TradeXpressApplicationTestModule : AbpModule
         context.Services.AddSingleton<FakeTrendyolProductClient>();
         context.Services.Replace(ServiceDescriptor.Singleton<ITrendyolProductClient>(sp => sp.GetRequiredService<FakeTrendyolProductClient>()));
 
+        // Trendyol KATEGORİ istemcisi de sahte — tam-push testi kategori tanımına karşı doğrulama yapar; gerçek
+        // istemci cache MISS'te ağa çıkardı. Konmayan kategori için fırlatır (kazayla tanım isteği görünür kalır).
+        context.Services.AddSingleton<FakeTrendyolCategoryClient>();
+        context.Services.Replace(ServiceDescriptor.Singleton<TrendyolCategories.ITrendyolCategoryClient>(sp => sp.GetRequiredService<FakeTrendyolCategoryClient>()));
+
         // Trendyol SİPARİŞ REST istemcisi de testte SAHTE — çekim testleri sahte sipariş envanterini okur (READ-ONLY);
         // sayfalama gerçek client'ın static'inden gelir (davranış sahtelenmiyor, yalnız ağ kesiliyor).
         context.Services.AddSingleton<FakeTrendyolOrderClient>();

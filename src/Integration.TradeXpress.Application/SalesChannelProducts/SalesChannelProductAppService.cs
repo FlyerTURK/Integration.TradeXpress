@@ -321,6 +321,23 @@ public class SalesChannelProductAppService : TradeXpressAppService, ISalesChanne
             HasOurPush = p.LastSyncedAt != null,
             RemotePrice = p.ListPrice,
             RemoteOnSale = p.RemoteOnSale,
+            // Pazaryerinin ENGEL beyanı — bu alanlar yanıtta hep vardı, hiç okunmuyordu ve reddedilen bir
+            // gönderimin sebebi hiçbir ekranda görünmüyordu.
+            ObstacleBlacklisted = p.Skus.Any(s => s.RemoteBlacklisted == true),
+            ObstacleRejected = p.Skus.Any(s => s.RemoteRejected == true),
+            ObstacleLocked = p.Skus.Any(s => s.RemoteLocked == true),
+            ObstacleArchived = p.Skus.Any(s => s.RemoteArchived == true),
+            ObstacleBlacklistReason = p.Skus.Where(s => s.RemoteBlacklisted == true && s.RemoteBlacklistReason != null)
+                .Select(s => s.RemoteBlacklistReason).FirstOrDefault(),
+            ObstacleRejectReason = p.Skus.Where(s => s.RemoteRejected == true && s.RemoteRejectReason != null)
+                .Select(s => s.RemoteRejectReason).FirstOrDefault(),
+            ObstacleLockReason = p.Skus.Where(s => s.RemoteLocked == true && s.RemoteLockReason != null)
+                .Select(s => s.RemoteLockReason).FirstOrDefault(),
+            CampaignKnown = p.Skus.Any(s => s.RemoteHasActiveCampaign != null),
+            CampaignActive = p.Skus.Any(s => s.RemoteHasActiveCampaign == true),
+            RemoteUrl = p.Skus.Where(s => s.RemoteProductUrl != null).Select(s => s.RemoteProductUrl).FirstOrDefault(),
+            RemoteUpdatedAt = p.Skus.Max(s => s.RemoteUpdatedAtUtc),
+            RemoteCreatedAt = p.Skus.Min(s => s.RemoteCreatedAtUtc),
             LastSyncedAt = p.LastSyncedAt,
             // Batch kısmen başarısız olabilir: hata METNİ olmasa da başarısız kalem sayısı hatanın kendisidir.
             LastError = p.LastError,
@@ -451,10 +468,33 @@ public class SalesChannelProductAppService : TradeXpressAppService, ISalesChanne
             ChannelQuantity = source.ChannelQuantity,
             RemotePrice = source.RemotePrice,
             RemoteOnSale = source.RemoteOnSale,
+            Obstacle = ResolveObstacle(source),
+            ObstacleReason = ResolveObstacleReason(source),
+            HasActiveCampaign = source.CampaignKnown ? source.CampaignActive : null,
+            RemoteUrl = source.RemoteUrl,
+            RemoteUpdatedAt = source.RemoteUpdatedAt,
+            RemoteCreatedAt = source.RemoteCreatedAt,
             LastError = source.LastError,
             SkuCount = source.SkuCount,
             IsActive = source.IsActive,
         };
+    }
+
+    /// <summary>Kaydın PAZARYERİ ENGELİ — kalemleri arasındaki EN AĞIR olanı. SQL projeksiyonu bayrakları
+    /// <c>Skus.Any(...)</c> ile TOPLAR (entity'ye erişemez); ağırlık SIRASI ise Domain'in tek çözücüsünden
+    /// (<see cref="TrendyolListingObstacleResolver"/>) gelir — burada ikinci kez yazılmaz.</summary>
+    private static ChannelListingObstacle ResolveObstacle(ProjectedRow source)
+    {
+        return TrendyolListingObstacleResolver.Resolve(
+            source.ObstacleBlacklisted, source.ObstacleRejected, source.ObstacleLocked, source.ObstacleArchived);
+    }
+
+    /// <summary>Engelin gerekçesi — KANALIN kendi cümlesi; eşleme Domain çözücüsünde. Engel var ama gerekçe
+    /// bildirilmemişse boş kalır: engelin varlığı ile gerekçesi ayrı sorulardır ve gerekçe uydurulmaz.</summary>
+    private static string? ResolveObstacleReason(ProjectedRow source)
+    {
+        return TrendyolListingObstacleResolver.ResolveReason(
+            ResolveObstacle(source), source.ObstacleBlacklistReason, source.ObstacleRejectReason, source.ObstacleLockReason);
     }
 
     /// <summary>Uzak kimlik metni — sayısal (N11/Etsy) ya da metin (Trendyol). İkisi de boşsa
@@ -689,6 +729,28 @@ public class SalesChannelProductAppService : TradeXpressAppService, ISalesChanne
 
         /// <summary>Pazaryerinde satışta mı (yalnız Trendyol taşır; null = bilinmiyor).</summary>
         public bool? RemoteOnSale { get; set; }
+
+        // ── PAZARYERİ ENGELİ (yalnız Trendyol beyan ediyor) ────────────────────────────────────────────
+        // Bayraklar KAYIT seviyesinde değil SKU seviyesinde yaşar; buraya "en az bir kalemde var mı" olarak
+        // indirgenirler. Tek kalemi karalistede olan kayıt "engelsiz" sayılamaz — o kalem satılamıyorsa
+        // kullanıcının haberi olmalıdır. Gerekçe, engeli TAŞIYAN ilk kalemden alınır.
+        public bool ObstacleBlacklisted { get; set; }
+        public bool ObstacleRejected { get; set; }
+        public bool ObstacleLocked { get; set; }
+        public bool ObstacleArchived { get; set; }
+
+        public string? ObstacleBlacklistReason { get; set; }
+        public string? ObstacleRejectReason { get; set; }
+        public string? ObstacleLockReason { get; set; }
+
+        /// <summary>Kampanya bilgisi HİÇ bildirildi mi — "bilinmiyor" ile "kampanya yok" ayrımı bu ikili
+        /// üzerinden kurulur; tek bool ile ikisi ayırt edilemezdi.</summary>
+        public bool CampaignKnown { get; set; }
+        public bool CampaignActive { get; set; }
+
+        public string? RemoteUrl { get; set; }
+        public DateTime? RemoteUpdatedAt { get; set; }
+        public DateTime? RemoteCreatedAt { get; set; }
 
         public DateTime? LastSyncedAt { get; set; }
         public string? LastError { get; set; }

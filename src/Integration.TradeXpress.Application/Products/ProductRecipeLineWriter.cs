@@ -23,21 +23,31 @@ namespace Integration.TradeXpress.Products;
 public class ProductRecipeLineWriter : ITransientDependency
 {
     private readonly IRepository<ProductVariantRecipeLine, Guid> _recipeLineRepository;
+    private readonly ChannelRecipeRefresher _channelRecipeRefresher;
 
-    public ProductRecipeLineWriter(IRepository<ProductVariantRecipeLine, Guid> recipeLineRepository)
+    public ProductRecipeLineWriter(
+        IRepository<ProductVariantRecipeLine, Guid> recipeLineRepository,
+        ChannelRecipeRefresher channelRecipeRefresher)
     {
         _recipeLineRepository = recipeLineRepository;
+        _channelRecipeRefresher = channelRecipeRefresher;
     }
 
     /// <summary>Reçete grafını (varyant-scope; Id + IsDeleted diff, Account/SubAccount deseni) persist eder.
     /// Bileşen türü set-once (toolbar tip belirler); LineOrder korunur. Company + varyant Id (jenerik
-    /// <c>EntityVariant.Id</c>) çağırandan gelir.</summary>
+    /// <c>EntityVariant.Id</c>) çağırandan gelir. Kayıt sonrası devralınmış kanal kopyaları tazelenir
+    /// (<see cref="ChannelRecipeRefresher"/> — devir kararı KAYIT-ÖNCESİ çekirdeğe karşı verilir; kayıt-öncesi
+    /// durum ENTITY LİSTESİ olarak DEĞİL, değer-tipi imza fotoğrafı olarak alınır: aynı UoW'daki entity
+    /// referansları yerinde güncellemeyle mutasyona uğrar ve "eski" liste yeni değerleri gösterirdi).</summary>
     public virtual async Task SaveAsync(Guid companyId, Guid variantId, List<ProductRecipeLineGraphDto> lines)
     {
         if (lines == null || lines.Count == 0)
         {
             return;
         }
+
+        var coreSignaturesBeforeSave = ChannelRecipeInheritance.SnapshotOf(
+            await _recipeLineRepository.GetListAsync(l => l.ProductVariantId == variantId));
 
         foreach (var l in lines.Where(x => x.IsDeleted && x.Id != Guid.Empty))
         {
@@ -90,6 +100,11 @@ public class ProductRecipeLineWriter : ITransientDependency
             entity.SetDerivedSources(csv);
             await _recipeLineRepository.UpdateAsync(entity, autoSave: true);
         }
+
+        // Devralınmış kanal kopyalarını yeni bileşimle hizala (bileşim imzası değişmediyse refresher
+        // kendi içinde kısa devre yapar — kanal sorgusuna inilmez).
+        var coreLinesAfterSave = await _recipeLineRepository.GetListAsync(l => l.ProductVariantId == variantId);
+        await _channelRecipeRefresher.RefreshAsync(variantId, coreSignaturesBeforeSave, coreLinesAfterSave);
     }
 
     /// <summary>Graf düğümünün alanlarını reçete satırına uygular — bileşen türüne göre katalog-emtia ya da

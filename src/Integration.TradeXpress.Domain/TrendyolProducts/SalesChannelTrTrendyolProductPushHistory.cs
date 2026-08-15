@@ -123,7 +123,7 @@ public class SalesChannelTrTrendyolProductPushHistory : CreationAuditedAggregate
         decimal? salePrice,
         int? quantity,
         string? title,
-        IEnumerable<(string Name, string Value)>? options,
+        string? variantOptions,
         IEnumerable<(Guid MediaId, string? ContentHash)>? images,
         string? batchRequestId,
         string? errorMessage = null)
@@ -133,9 +133,10 @@ public class SalesChannelTrTrendyolProductPushHistory : CreationAuditedAggregate
         SalePrice = salePrice;
         Quantity = quantity;
         Title = title;
-        VariantOptions = options is null
-            ? null
-            : string.Join("; ", options.Select(o => o.Name + "=" + o.Value));
+        // "Ad=Değer; Ad2=Değer2" — biçim SUBMIT anında kurulup Pending'te taşınır (finalize'da yeniden
+        // hesaplamak "göndermediğini yazma" hatasına girerdi); burada yalnız taşınır. N11'de payload adları
+        // kendisi taşıdığından orada hâlâ çift listesi alınır — bilinçli imza farkı.
+        VariantOptions = variantOptions;
         Images = images is null
             ? null
             : string.Join(",", images.Select(i => i.MediaId.ToString("N") + ":" + (i.ContentHash ?? string.Empty)));

@@ -287,8 +287,14 @@ public partial class DrillList<TItem> where TItem : class
         return list;
     }
 
-    /// <summary>Dar ekranda arama ikonunun açıp kapattığı GÖMÜLÜ grid arama kutusu — liste toolbar'ındaki
-    /// (<c>CrudLayout.ToggleGridSearch</c>) davranışın aynısı. Kutu toolbar'da yer kaplamaz, grid'in içinde açılır.</summary>
+    /// <summary>Dar ekranda arama ikonunun açıp kapattığı arama satırı — araç çubuğunun ALTINDA, masaüstündeki
+    /// kutunun AYNISI (<c>ToolbarRenderer.NarrowSearchTemplate</c>). Çubukta yer kaplamaz.
+    ///
+    /// <para><b>Eskiden DevExpress'in grid'e GÖMÜLÜ kutusu açılıyordu</b> (<c>DxGrid.ShowSearchBox</c>) ve o
+    /// kutu bizim arama yolumuza bağlı DEĞİLDİ: yazılan metin <c>_searchText</c>'e geri dönmediği için
+    /// <see cref="OnServerSearch"/> hiç tetiklenmiyordu. Sonuç, <see cref="GridSearchMode.ServerSide"/>
+    /// modundaki listelerde masaüstünün TÜM kayıtlarda, mobilin yalnız YÜKLÜ satırlarda aramasıydı — sessiz
+    /// ve fark edilmesi güç bir ayrım.</para></summary>
     private bool _showGridSearch;
 
     private Task ToggleGridSearchAsync()

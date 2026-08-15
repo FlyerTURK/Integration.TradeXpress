@@ -193,7 +193,7 @@ public partial class ProductCommodityClassificationPanel : CrudComponentBase
     /// </summary>
     private async Task OpenCommodityFormAsync()
     {
-        if (EditComponentOf(_family) is not { } editComponent)
+        if (ProductCommoditySeed.EditComponentOf(_family) is not { } editComponent)
         {
             UiService.ShowErrorToast(L["Product:Classify:NoFormForFamily"]);
             return;
@@ -214,27 +214,12 @@ public partial class ProductCommodityClassificationPanel : CrudComponentBase
         // SİHİRBAZ POPUP'INDA footer DAR (2026-08-06 Hakan kararı): "Kaydet ve Yeni" + "Sil" bu akışın parçası
         // değil — Kaydet zaten doğrula+kaydet+kapat çalışıyor (EntityEditForm popup davranışı). ÇAĞRI-BAŞI
         // bayrak: aynı formlar liste sayfasından/MDI'dan açıldığında footer'ları tam kalır.
-        var extra = new Dictionary<string, object>
-        {
-            ["SupportsSaveAndNew"] = false,
-            ["SupportsDelete"] = false,
-        };
-
-        if (seed is not null)
-        {
-            // MAMÜL ürüne PARALELDİR (2026-08-06 Hakan gözlemi): kod/ad/KDV + nitelik + varyant grafı
-            // tümüyle taşınabilir, çünkü altyapı zaten ortak (aynı EntityVariant sistemi, aynı nitelik
-            // grafı). Diğer ailelerde böyle bir paralellik YOK — orada yalnız kod/ad tohumlanır.
-            if (_family == ProcessType.Good)
-            {
-                extra["SeedModel"] = await ProductAppService.ProjectToGoodAsync(seed.ProductId);
-            }
-            else
-            {
-                extra["SeedCode"] = seed.Code;
-                extra["SeedName"] = seed.Name;
-            }
-        }
+        // Eşleme + tohum kuralları ProductCommoditySeed'te (reçete panelinin "Üründen" anahtarıyla ORTAK) —
+        // buradaki tek fark: aday seçilmemişse form tohumsuz açılır.
+        var extra = seed is null
+            ? ProductCommoditySeed.BuildPopupParams()
+            : await ProductCommoditySeed.BuildExtraParamsAsync(
+                _family, seed.ProductId, seed.Code, seed.Name, ProductAppService);
 
         await ViewOpener.OpenAsync(
             editComponent, null, L[$"Enum:ProcessType:{_family}"].Value, iconCssClass: null, extraParams: extra);
@@ -247,22 +232,6 @@ public partial class ProductCommodityClassificationPanel : CrudComponentBase
         }
 
         StateHasChanged();
-    }
-
-    /// <summary>Ailenin edit bileşeni — liste sayfalarının <c>EditComponentType</c>'ıyla AYNI tipler.</summary>
-    private static Type? EditComponentOf(ProcessType family)
-    {
-        return family switch
-        {
-            ProcessType.Metal   => typeof(Metals.MetalEditHost),
-            ProcessType.Scrap   => typeof(Scraps.ScrapEditHost),
-            ProcessType.Future  => typeof(Futures.FutureEditHost),
-            ProcessType.Jewelry => typeof(Jewelries.JewelryEditHost),
-            ProcessType.Stone   => typeof(Stones.StoneEditHost),
-            ProcessType.Good    => typeof(Goods.GoodEditHost),
-            ProcessType.Service => typeof(Services.ServiceEditHost),
-            _                   => null,
-        };
     }
 
     private async Task OnFamilyChanged(ProcessType value)

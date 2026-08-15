@@ -19,7 +19,9 @@ using Integration.TradeXpress.Products;
 using Integration.TradeXpress.SalesChannels;
 using Integration.TradeXpress.Scraps;
 using Integration.TradeXpress.Services;
+using Integration.TradeXpress.Blazor.Client.Pages.Products;
 using Integration.TradeXpress.Stones;
+using Integration.TradeXpress.Vouchers;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
 
@@ -93,6 +95,9 @@ public partial class SalesChannelTrN11ProductEditFields : CrudComponentBase
     [Inject] private IUiInteractionService UiService { get; set; } = default!;
     [Inject] private IServiceProvider ServiceProvider { get; set; } = default!;
 
+    // "Üründen emtia yarat" akışının popup kapısı (lookup → popup → tazele → odaklan deseni).
+    [Inject] private IViewOpener ViewOpener { get; set; } = default!;
+
     // Reçete drill'inin katalog lookup beslemesi + persistsiz maliyet motoru (ERP ile ORTAK: aynı entity-agnostik
     // hesap uçları; kanal varyant reçetesi de ProductRecipeLineGraphDto olduğundan Product AppService yeniden kullanılır).
     [Inject] private IMetalAppService MetalAppService { get; set; } = default!;
@@ -132,6 +137,18 @@ public partial class SalesChannelTrN11ProductEditFields : CrudComponentBase
     private IReadOnlyList<ServiceListDto> _services = Array.Empty<ServiceListDto>();
     private IReadOnlyList<CurrentPriceDto> _priceUnits = Array.Empty<CurrentPriceDto>();
     private bool _catalogsLoaded;
+
+    // Çekirdek varyant listesinin sunucu geri-dönüşü — CoreVariants yalnız ürün-formu yüzeyinde besleniyor;
+    // standalone/tahta yüzeylerinde "Üründen" anahtarının görünürlük kapısı (fail-closed) için buradan çekilir.
+    private IReadOnlyList<ProductVariantGraphDto> _coreVariantsFallback = Array.Empty<ProductVariantGraphDto>();
+    private Guid _loadedCoreVariantsProductId;
+
+    /// <summary>Panelin AllVariants beslemesi — canlı graf (ürün formu yüzeyi) varsa o, yoksa sunucudan
+    /// çekilen kopya. Canlı graf ÖNCELİKLİ: kaydedilmemiş varyant değişikliklerini de bilir.</summary>
+    private IReadOnlyList<ProductVariantGraphDto> EffectiveCoreVariants
+    {
+        get { return CoreVariants.Count > 0 ? CoreVariants : _coreVariantsFallback; }
+    }
 
     // Kategori attribute grid satırları (def + o anki değerler) — hücre-içi düzenleme, paging yok.
     private List<N11AttributeCellRow> _attributeRows = new();
@@ -180,9 +197,33 @@ public partial class SalesChannelTrN11ProductEditFields : CrudComponentBase
     {
         await EnsureCurrencyUnitsAsync();
         await EnsureRecipeCatalogsAsync();
+        await EnsureCoreVariantsAsync();
         await EnsureTemplatesAsync();
         await EnsureAttributesAsync();
         await EnsurePreviewAsync();
+    }
+
+    // Çekirdek varyant listesini bir kez yükler — yalnız CoreVariants parametresi BOŞKEN (standalone yüzeyler);
+    // ürün-formu yüzeyi canlı grafı zaten veriyor, ikinci bir sunucu okuması gürültü olurdu.
+    private async Task EnsureCoreVariantsAsync()
+    {
+        if (CoreVariants.Count > 0
+            || Model.ProductId == Guid.Empty
+            || Model.ProductId == _loadedCoreVariantsProductId)
+        {
+            return;
+        }
+
+        _loadedCoreVariantsProductId = Model.ProductId;
+        try
+        {
+            _coreVariantsFallback = (await RecipeCostAppService.GetAsync(Model.ProductId)).Variants;
+        }
+        catch (Exception ex)
+        {
+            _coreVariantsFallback = Array.Empty<ProductVariantGraphDto>();
+            UiService.ShowErrorToast(CrudErrorPresenter.ToFriendlyMessage(ex, ServiceProvider) ?? L["UnexpectedError"].Value);
+        }
     }
 
     // Reçete satırı lookup beslemesi (aktif katalog + birimler) — bir kez yüklenir; server working-company ile scope'lar.
@@ -505,6 +546,99 @@ public partial class SalesChannelTrN11ProductEditFields : CrudComponentBase
         }
 
         return string.IsNullOrEmpty(stockItem.CombinationLabel) ? "-" : stockItem.CombinationLabel;
+    }
+
+    // ── "Üründen emtia yarat" — KANAL formundan (yayılım adımı 2026-08-14'te kuruldu) ────────────────
+
+    /// <summary>
+    /// Panelin "Üründen" akışı — <c>ProductEditHost.CreateCommodityFromProductAsync</c>'in kanal-form eşi,
+    /// bir farkla: çekirdek formda satır panelin draft'ıyla çekirdek grafına girer; burada draft KANAL
+    /// grafına gireceğinden emtia satırı ÇEKİRDEK varyanta AYRICA yazılmalıdır (otorite orada — stok zinciri
+    /// ve rezervasyon yalnız çekirdek reçeteyi okur). Yayılım sihirbazın mevcut ucuyla yapılır
+    /// (<c>ProvisionCommoditiesAsync</c> · UseExisting): reçete satırı + StockPolicy + otorite devri +
+    /// stok senkronu tek kapıdan, ikinci bir yazım yolu açılmadan. Trendyol EditFields simetriği.
+    /// </summary>
+    private async Task<Guid?> CreateCommodityFromProductAsync(ProcessType family)
+    {
+        if (Model.ProductId == Guid.Empty)
+        {
+            return null;
+        }
+
+        if (ProductCommoditySeed.EditComponentOf(family) is not { } editComponent)
+        {
+            return null;
+        }
+
+        var before = CommodityIdsOf(family);
+
+        // Kod/ad SUNUCUDAN okunur — emtia, kayıtlı ürünün kimliğinden doğar (ProductEditHost ile aynı gerekçe).
+        var product = await RecipeCostAppService.GetAsync(Model.ProductId);
+        var extra = await ProductCommoditySeed.BuildExtraParamsAsync(
+            family, Model.ProductId, product.Code, product.Name, RecipeCostAppService);
+
+        await ViewOpener.OpenAsync(
+            editComponent, null, L[$"Enum:ProcessType:{family}"].Value, iconCssClass: null, extraParams: extra);
+
+        // Katalogları ZORLA tazele — bayrak tek-seferlik; sıfırlanmazsa panel yeni emtiayı göremez ve
+        // önce/sonra farkı boş çıkar.
+        _catalogsLoaded = false;
+        await EnsureRecipeCatalogsAsync();
+
+        var created = CommodityIdsOf(family).Except(before).ToList();
+        if (created.Count != 1)
+        {
+            return null;   // vazgeçildi (boş küme) ya da eşzamanlı ikinci oluşum (belirsiz) — draft açılmaz
+        }
+
+        var result = await RecipeCostAppService.ProvisionCommoditiesAsync(new ProductCommodityProvisionInputDto
+        {
+            Items =
+            {
+                new ProductCommodityProvisionItemDto
+                {
+                    ProductId = Model.ProductId,
+                    Family = family,
+                    Mode = ProductCommodityProvisionMode.UseExisting,
+                    ExistingCommodityId = created[0],
+                },
+            },
+        });
+        if (result.Issues.Count > 0)
+        {
+            UiService.ShowWarningToast(string.Join(" · ", result.Issues));
+        }
+
+        // Otorite devri kanal aynasını (Override*) sunucuda temizledi — AÇIK formdaki kopya da hizalanır;
+        // aksi hâlde sonraki Kaydet, devrin sildiği pazaryeri stok/fiyatını sessizce geri diriltirdi.
+        if (result.ClearedChannelOverrides > 0)
+        {
+            foreach (var stockItem in Model.StockItems)
+            {
+                stockItem.OverridePrice = null;
+                stockItem.OverrideStock = null;
+            }
+
+            MarkDirty(nameof(Model.StockItems));
+        }
+
+        return created[0];
+    }
+
+    /// <summary>Ailenin yüklü katalog kimlik kümesi (önce/sonra farkı için) — <c>ProductEditHost.CommodityIdsOf</c>
+    /// ile aynı kapsam: Service katalog kaydı taşımaz (boş küme → "Üründen" Service'te provizyona gitmez).</summary>
+    private HashSet<Guid> CommodityIdsOf(ProcessType family)
+    {
+        return family switch
+        {
+            ProcessType.Metal   => _metals.Select(x => x.Id).ToHashSet(),
+            ProcessType.Scrap   => _scraps.Select(x => x.Id).ToHashSet(),
+            ProcessType.Future  => _futures.Select(x => x.Id).ToHashSet(),
+            ProcessType.Jewelry => _jewelries.Select(x => x.Id).ToHashSet(),
+            ProcessType.Stone   => _stones.Select(x => x.Id).ToHashSet(),
+            ProcessType.Good    => _goods.Select(x => x.Id).ToHashSet(),
+            _                   => new HashSet<Guid>(),
+        };
     }
 
     // ── Kanal-özel varyant override'ları (fiyat/stok/marj + reçete) ──────────────────────────────────

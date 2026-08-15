@@ -42,7 +42,7 @@ public class MetalSeeder(
     //     Eskiden bazı 995'ler 1.00000 (saf altın!) ya da 0.99800 milyemle kayıtlıydı — kod ile veri çelişiyordu.
     //  3) 995 gram altın İŞÇİLİKLERİ (giriş = çıkış, birim HAS): 1gr ve 2.5gr → 0.007 · 5/10/20gr → 0.005 ·
     //     50/100gr → 0.003. Listede olmayan gramajlar (0.1/0.5/1.5/2.0/7.0/250/500) işçiliksizdir.
-    // (Kod, Ad, Milyem, MilyemOynar, İşçilikTürü, StabilMiktar, GirişİşçiliÄŸi, ÇıkışİşçiliÄŸi, MaliyetBirimKodu)
+    // (Kod, Ad, Milyem, MilyemOynar, İşçilikTürü, StabilMiktar, Girişİşçiliği, Çıkışİşçiliği, MaliyetBirimKodu)
     private static readonly (string Code, string Name, decimal Factor, bool FactorChange,
         MetalLaborType LaborType, decimal Stable, decimal Entry, decimal Exit, string CostUnit)[] Seeds =
     {

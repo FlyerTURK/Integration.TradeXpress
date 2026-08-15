@@ -121,12 +121,14 @@ public class TrendyolPushHistoryRecorder : ITransientDependency
 
 /// <summary>Tek bir SKU için gönderilen değerler — geçmiş yazıcısının girdisi.
 /// <c>ListPrice</c> + <c>SalePrice</c> BİRLİKTE taşınır: Trendyol'da indirim ayrı bir alan değil, ikisinin
-/// farkıdır → yalnız biri saklansaydı indirim delili kurulamazdı.</summary>
+/// farkıdır → yalnız biri saklansaydı indirim delili kurulamazdı.
+/// <para><c>Options</c> = "Ad=Değer; Ad2=Değer2" ÖN-BİRLEŞİK metin — submit anında kurulup Pending'te
+/// taşınır (finalize'da yeniden hesaplamak yasak; batch-async akışın gereği).</para></summary>
 public sealed record TrendyolPushHistoryEntry(
     string Barcode,
     decimal? ListPrice,
     decimal? SalePrice,
     int? Quantity,
     string? Title,
-    IReadOnlyList<(string Name, string Value)>? Options,
+    string? Options,
     IReadOnlyList<Guid>? MediaIds);

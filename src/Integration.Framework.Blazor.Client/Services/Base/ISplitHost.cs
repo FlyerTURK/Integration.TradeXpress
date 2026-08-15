@@ -84,7 +84,8 @@ public interface ISplitGridActions
     /// <summary>Sayfaya özel toolbar aksiyonları (descriptor liste, SortIndex'li) — CrudLayout'a verilen CustomActions.</summary>
     System.Collections.Generic.IReadOnlyList<Integration.Framework.Blazor.Client.Components.Crud.CrudToolbarAction>? CustomActions { get; }
 
-    /// <summary>Mobil arama ikonu → grid'in gömülü arama kutusunu aç/kapat.</summary>
+    /// <summary>Mobil arama ikonu → toolbar altındaki dar-ekran arama satırını aç/kapat (gömülü grid arama
+    /// kutusu kaldırıldı; bayrak CrudLayout._showGridSearch'te yaşar ve NarrowSearch satırını sürer).</summary>
     Task ToggleGridSearchAsync();
 
     /// <summary>Grid'in o an görünür/yüklü satır anahtarları (sıralı) — Previous/Next gezinme için.</summary>

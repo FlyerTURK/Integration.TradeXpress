@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -16,9 +16,9 @@ using Microsoft.Extensions.Localization;
 namespace Integration.TradeXpress.Blazor.Client.Pages.CurrentTransactions;
 
 /// <summary>
-/// FiyatlÄ±-emtia fiÅŸ satÄ±rÄ± panellerinin (TaÅŸ/MÃ¼cevher) ortak gÃ¶vdesi â€” markup + TÃœM davranÄ±ÅŸ burada.
-/// TÃ¼reyen sÄ±nÄ±f markup'sÄ±zdÄ±r (BuildRenderTree devralÄ±nÄ±r); yalnÄ±z iÅŸlem tipini, panel baÅŸlÄ±k anahtarÄ±nÄ±
-/// ve emtia picker servisini saÄŸlar.
+/// Fiyatlı-emtia fiş satırı panellerinin (Taş/Mücevher) ortak gövdesi — markup + TÜM davranış burada.
+/// Türeyen sınıf markup'sızdır (BuildRenderTree devralınır); yalnız işlem tipini, panel başlık anahtarını
+/// ve emtia picker servisini sağlar.
 /// </summary>
 public abstract partial class CommodityProcessPanelBase<TListDto> : IVoucherLineEditPanel where TListDto : class, IPricedCommodityListDto
 {
@@ -28,10 +28,10 @@ public abstract partial class CommodityProcessPanelBase<TListDto> : IVoucherLine
     [Inject] private IVoucherAppService VoucherService { get; set; } = default!;
     [Inject] private IWorkingContextService Working { get; set; } = default!;
     [Inject] private IUiInteractionService Ui { get; set; } = default!;
-    [Inject] private IViewOpener ViewOpener { get; set; } = default!;   // emtia/varyant lookup âœ/+ â†’ merkezÃ® popup yolu
+    [Inject] private IViewOpener ViewOpener { get; set; } = default!;   // emtia/varyant lookup ✎/+ → merkezî popup yolu
     [Inject] private IPopupService PopupService { get; set; } = default!;
 
-    /// <summary>KaydÄ±n normal fiÅŸ yoluna mÄ± Teyit yoluna mÄ± gideceÄŸinin TEK karar noktasÄ± (SSOT).</summary>
+    /// <summary>Kaydın normal fiş yoluna mı Teyit yoluna mı gideceğinin TEK karar noktası (SSOT).</summary>
     [Inject] private VoucherLinePersister Persister { get; set; } = default!;
 
     [Parameter] public EventCallback OnBack { get; set; }
@@ -48,62 +48,62 @@ public abstract partial class CommodityProcessPanelBase<TListDto> : IVoucherLine
     [Parameter] public Guid? VoucherId { get; set; }
     [Parameter] public EventCallback<VoucherLineDto> OnSaved { get; set; }
 
-    /// <summary>Ä°Ã‡ KARÅI TARAF (Teyit) kipi: doluysa satÄ±r POSTLANMAZ â€” Teyit teklifi kurulur. Null = bugÃ¼nkÃ¼
-    /// normal cari akÄ±ÅŸÄ± (davranÄ±ÅŸ birebir aynÄ±). <i>(Bu panel hiyerarÅŸisi henÃ¼z <see cref="VoucherLineContext"/>'e
-    /// geÃ§medi â€” spec'teki olgunlaÅŸtÄ±rma iÅŸi; ÅŸimdilik eklemeli tek parametre.)</i></summary>
+    /// <summary>İÇ KARŞI TARAF (Teyit) kipi: doluysa satır POSTLANMAZ — Teyit teklifi kurulur. Null = bugünkü
+    /// normal cari akışı (davranış birebir aynı). <i>(Bu panel hiyerarşisi henüz <see cref="VoucherLineContext"/>'e
+    /// geçmedi — spec'teki olgunlaştırma işi; şimdilik eklemeli tek parametre.)</i></summary>
     [Parameter] public Guid? CounterpartyVaultId { get; set; }
 
-    /// <summary>BEYAN kipi (gelen kutusundan "Kendi GiriÅŸimi Yaz"): doluysa yeni teklif aÃ§Ä±lmaz, bu Teyit'e
-    /// alÄ±cÄ±nÄ±n KENDÄ° satÄ±rÄ± yazÄ±lÄ±r (sunucu ayna doÄŸrular).</summary>
+    /// <summary>BEYAN kipi (gelen kutusundan "Kendi Girişimi Yaz"): doluysa yeni teklif açılmaz, bu Teyit'e
+    /// alıcının KENDİ satırı yazılır (sunucu ayna doğrular).</summary>
     [Parameter] public Guid? DeclareConfirmationId { get; set; }
 
-    /// <summary>Teyit yoluna gidildiÄŸinde (teklif/beyan) tetiklenir â€” fiÅŸ OLUÅMADIÄI iÃ§in <see cref="OnSaved"/>
-    /// tetiklenmez. Gelen kutusu bunu dinleyip popup'Ä± kapatÄ±r/listeyi tazeler.</summary>
+    /// <summary>Teyit yoluna gidildiğinde (teklif/beyan) tetiklenir — fiş OLUŞMADIĞI için <see cref="OnSaved"/>
+    /// tetiklenmez. Gelen kutusu bunu dinleyip popup'ı kapatır/listeyi tazeler.</summary>
     [Parameter] public EventCallback<VoucherLinePersistOutcome> OnConfirmationSubmitted { get; set; }
 
-    // â”€â”€ TÃ¼reyen sÄ±nÄ±fÄ±n saÄŸladÄ±klarÄ± â”€â”€
+    // ── Türeyen sınıfın sağladıkları ──
 
-    /// <summary>SatÄ±rÄ±n iÅŸlem tipi (Stone/Jewelry).</summary>
+    /// <summary>Satırın işlem tipi (Stone/Jewelry).</summary>
     protected abstract ProcessType ProcessType { get; }
 
-    /// <summary>Panel baÅŸlÄ±ÄŸÄ±nÄ±n lokalizasyon anahtarÄ± ("Stone"/"Jewelry").</summary>
+    /// <summary>Panel başlığının lokalizasyon anahtarı ("Stone"/"Jewelry").</summary>
     protected abstract string ProcessTypeNameKey { get; }
 
-    /// <summary>Emtia picker listesi (Ã§alÄ±ÅŸÄ±lan ÅŸirket scope'lu).</summary>
+    /// <summary>Emtia picker listesi (çalışılan şirket scope'lu).</summary>
     protected abstract Task<List<TListDto>> GetCommodityPickerListAsync(Guid? companyId);
 
-    /// <summary>Panel varyant destekliyor mu (yalnÄ±z Good gibi Ã§ok-varyantlÄ± emtiada true) â€” base varyant combo'sunu buna gÃ¶re Ã§izer.</summary>
+    /// <summary>Panel varyant destekliyor mu (yalnız Good gibi çok-varyantlı emtiada true) — base varyant combo'sunu buna göre çizer.</summary>
     protected virtual bool SupportsVariants
     {
         get { return false; }
     }
 
-    /// <summary>VaryantlarÄ±n KENDÄ° fiyatÄ± var mÄ± (Good â†’ GoodVariantDetail). false ise varyant seÃ§imi fiyatÄ± DEÄÄ°ÅTÄ°RMEZ
-    /// (yalnÄ±z VariantId kaydeder); fiyat emtia seviyesinde kalÄ±r (Jewelry/Stone: milyem/manuel fiyat).</summary>
+    /// <summary>Varyantların KENDİ fiyatı var mı (Good → GoodVariantDetail). false ise varyant seçimi fiyatı DEĞİŞTİRMEZ
+    /// (yalnız VariantId kaydeder); fiyat emtia seviyesinde kalır (Jewelry/Stone: milyem/manuel fiyat).</summary>
     protected virtual bool VariantsHaveOwnPricing
     {
         get { return false; }
     }
 
-    /// <summary>SeÃ§ili emtianÄ±n (commodityId) AKTÄ°F varyant seÃ§eneklerini yÃ¼kler â€” yalnÄ±z SupportsVariants panelde override edilir.</summary>
+    /// <summary>Seçili emtianın (commodityId) AKTİF varyant seçeneklerini yükler — yalnız SupportsVariants panelde override edilir.</summary>
     protected virtual Task<List<CommodityVariantOptionDto>> GetVariantOptionsAsync(Guid commodityId)
     {
         return Task.FromResult(new List<CommodityVariantOptionDto>());
     }
 
-    /// <summary>Emtia lookup combo'sunun âœ/+ butonlarÄ±nÄ±n aÃ§tÄ±ÄŸÄ± edit host tipi (Ã¶r. <c>typeof(GoodEditHost)</c>). null â†’ butonlar gizli.</summary>
+    /// <summary>Emtia lookup combo'sunun ✎/+ butonlarının açtığı edit host tipi (ör. <c>typeof(GoodEditHost)</c>). null → butonlar gizli.</summary>
     protected virtual Type? CommodityEditComponentType
     {
         get { return null; }
     }
 
-    /// <summary>Emtia Ekle(+) izin adÄ± (UI kapÄ±sÄ±; server-side policy asÄ±l denetim). null â†’ kÄ±sÄ±t yok.</summary>
+    /// <summary>Emtia Ekle(+) izin adı (UI kapısı; server-side policy asıl denetim). null → kısıt yok.</summary>
     protected virtual string? CommodityCreatePolicy
     {
         get { return null; }
     }
 
-    /// <summary>Emtia DÃ¼zelt(âœ) izin adÄ±. null â†’ kÄ±sÄ±t yok.</summary>
+    /// <summary>Emtia Düzelt(✎) izin adı. null → kısıt yok.</summary>
     protected virtual string? CommodityUpdatePolicy
     {
         get { return null; }
@@ -125,7 +125,7 @@ public abstract partial class CommodityProcessPanelBase<TListDto> : IVoucherLine
     private List<TListDto> _activeCommodities = new();
     private List<CommodityVariantOptionDto> _variantOptions = new();
 
-    // YÃ¶n-bazlÄ± fiyat/birim kaynaÄŸÄ± â€” emtia ya da (varsa) seÃ§ili varyanttan doldurulur.
+    // Yön-bazlı fiyat/birim kaynağı — emtia ya da (varsa) seçili varyanttan doldurulur.
     private decimal _srcEntryPrice, _srcExitPrice;
     private Guid? _srcEntryUnitId, _srcExitUnitId;
 
@@ -148,7 +148,7 @@ public abstract partial class CommodityProcessPanelBase<TListDto> : IVoucherLine
 
     protected override async Task OnInitializedAsync()
     {
-        // Type tÃ¼reyen sÄ±nÄ±ftan gelir â€” ilk render'dan Ã¶nce (sync bÃ¶lÃ¼mde) atanÄ±r.
+        // Type türeyen sınıftan gelir — ilk render'dan önce (sync bölümde) atanır.
         _model.Type = ProcessType;
 
         _directionItems = new()
@@ -191,7 +191,7 @@ public abstract partial class CommodityProcessPanelBase<TListDto> : IVoucherLine
         }
     }
 
-    // Tutar = (Adet | Miktar) Ã— Fiyat.
+    // Tutar = (Adet | Miktar) × Fiyat.
     private void Recompute()
     {
         var basis = _priceByQuantity ? _model.Quantity : _model.Amount;
@@ -213,8 +213,8 @@ public abstract partial class CommodityProcessPanelBase<TListDto> : IVoucherLine
             _priceTypeReadOnly = !c.PriceTypeChange;
             SetPriceSource(c.EntryPrice, c.ExitPrice, c.EntryPriceUnitId, c.ExitPriceUnitId);
 
-            // VaryantlÄ± emtia (Good): AKTÄ°F varyantlarÄ± yÃ¼kle. Tek varyant â†’ VariantId null (anlamlÄ± varyant boyutu yok);
-            // Ã§oklu â†’ ana varyant varsayÄ±lan seÃ§ilir, fiyatÄ± (varsa) o belirler.
+            // Varyantlı emtia (Good): AKTİF varyantları yükle. Tek varyant → VariantId null (anlamlı varyant boyutu yok);
+            // çoklu → ana varyant varsayılan seçilir, fiyatı (varsa) o belirler.
             if (SupportsVariants && id is { } commodityId)
             {
                 _variantOptions = await GetVariantOptionsAsync(commodityId);
@@ -250,7 +250,7 @@ public abstract partial class CommodityProcessPanelBase<TListDto> : IVoucherLine
         Recompute();
     }
 
-    // SeÃ§ili varyantÄ± modele iÅŸler â€” VariantId/Code + (varyant-baÅŸÄ± fiyatÄ± olan emtiada) fiyat kaynaÄŸÄ±nÄ± varyanta Ã§evirir.
+    // Seçili varyantı modele işler — VariantId/Code + (varyant-başı fiyatı olan emtiada) fiyat kaynağını varyanta çevirir.
     private void ApplyVariant(CommodityVariantOptionDto v)
     {
         _model.VariantId   = v.Id;
@@ -261,7 +261,7 @@ public abstract partial class CommodityProcessPanelBase<TListDto> : IVoucherLine
         }
     }
 
-    // Emtia veya seÃ§ili varyanttan yÃ¶n-bazlÄ± fiyat/birim kaynaÄŸÄ±nÄ± belirler (ApplyDirectionPrice/SuggestedUnit buradan okur).
+    // Emtia veya seçili varyanttan yön-bazlı fiyat/birim kaynağını belirler (ApplyDirectionPrice/SuggestedUnit buradan okur).
     private void SetPriceSource(decimal entry, decimal exit, Guid? entryUnitId, Guid? exitUnitId)
     {
         _srcEntryPrice  = entry;
@@ -272,7 +272,7 @@ public abstract partial class CommodityProcessPanelBase<TListDto> : IVoucherLine
 
     private void ApplyDirectionPrice()
     {
-        var inflow = _model.Direction.IsInflow();   // GiriÅŸ
+        var inflow = _model.Direction.IsInflow();   // Giriş
         _model.PayFactor = inflow ? _srcEntryPrice : _srcExitPrice;
     }
 
@@ -287,7 +287,7 @@ public abstract partial class CommodityProcessPanelBase<TListDto> : IVoucherLine
         return inflow ? _srcEntryUnitId : _srcExitUnitId;
     }
 
-    // Emtia lookup âœ/+ sonrasÄ± (EntityChange) listeyi tazele + seÃ§ili emtia varyantlarÄ±nÄ± da yenile.
+    // Emtia lookup ✎/+ sonrası (EntityChange) listeyi tazele + seçili emtia varyantlarını da yenile.
     private async Task ReloadCommoditiesAsync()
     {
         _allCommodities = await GetCommodityPickerListAsync(Working.CurrentCompanyId);
@@ -300,7 +300,7 @@ public abstract partial class CommodityProcessPanelBase<TListDto> : IVoucherLine
         StateHasChanged();
     }
 
-    // Varyant lookup'Ä±n tazeleme kancasÄ± (TItem farklÄ± olduÄŸundan EntityChange doÄŸrudan tetiklemez; el ile).
+    // Varyant lookup'ın tazeleme kancası (TItem farklı olduğundan EntityChange doğrudan tetiklemez; el ile).
     private async Task ReloadVariantsAsync()
     {
         if (SupportsVariants && _model.CommodityId is { } id)
@@ -310,7 +310,7 @@ public abstract partial class CommodityProcessPanelBase<TListDto> : IVoucherLine
         }
     }
 
-    // SeÃ§ili emtianÄ±n KARTINI aÃ§ar (varyant yÃ¶netimi orada) â€” commodity id ile (varyant id DEÄÄ°L). Varyant lookup'Ä±n âœ/+ butonlarÄ± buraya baÄŸlanÄ±r.
+    // Seçili emtianın KARTINI açar (varyant yönetimi orada) — commodity id ile (varyant id DEĞİL). Varyant lookup'ın ✎/+ butonları buraya bağlanır.
     private Task OpenCommodityCardAsync()
     {
         if (CommodityEditComponentType is null || _model.CommodityId is not { } id)
@@ -325,7 +325,7 @@ public abstract partial class CommodityProcessPanelBase<TListDto> : IVoucherLine
         return ViewOpener.OpenAsync(CommodityEditComponentType, id, string.Empty, null, extra);
     }
 
-    // Varyant Ekle(+) â†’ seÃ§ili mamÃ¼lÃ¼n kartÄ±nÄ± aÃ§ar (yeni varyant orada nitelik tanÄ±mÄ±yla Ã¼retilir); combo'ya seÃ§ilecek deÄŸer yok.
+    // Varyant Ekle(+) → seçili mamülün kartını açar (yeni varyant orada nitelik tanımıyla üretilir); combo'ya seçilecek değer yok.
     private async Task<Guid?> OpenCommodityCardForAddAsync()
     {
         await OpenCommodityCardAsync();
@@ -403,7 +403,7 @@ public abstract partial class CommodityProcessPanelBase<TListDto> : IVoucherLine
     private void OnPayFactorChanged(decimal value) { _model.PayFactor = value; Recompute(); }
     private void OnPriceTypeChanged(bool isQuantity) { _priceByQuantity = isQuantity; Recompute(); }
 
-    // Tutar elle dÃ¼zenlenince Fiyat'Ä± geri-hesapla.
+    // Tutar elle düzenlenince Fiyat'ı geri-hesapla.
     private void OnPayTotalChanged(decimal value)
     {
         _model.PayTotal = value;
@@ -415,19 +415,19 @@ public abstract partial class CommodityProcessPanelBase<TListDto> : IVoucherLine
         "display:flex; flex-direction:column; gap:4px; " + (_isMobile ? "width:100%;" : "width:120px; flex-shrink:0;");
     private string ControlStyle() => _isMobile ? "width:100%;" : "width:120px;";
 
-    // Varyant grubu â€” emtia+varyant combo'larÄ± alt alta; emtia combo'sunun 2 KATI geniÅŸlik (Good paneli).
+    // Varyant grubu — emtia+varyant combo'ları alt alta; emtia combo'sunun 2 KATI genişlik (Good paneli).
     private string VariantGroupStyle() =>
         "display:flex; flex-direction:column; gap:4px; " + (_isMobile ? "width:100%;" : "width:240px; flex-shrink:0;");
     private string VariantControlStyle() => _isMobile ? "width:100%;" : "width:240px;";
 
-    /// <summary>Kaydetme sÃ¼rÃ¼yor mu â€” re-entrancy bayraÄŸÄ± (Ã§ift tÄ±klama/Enter Ã§ift-gÃ¶nderim korumasÄ±).</summary>
+    /// <summary>Kaydetme sürüyor mu — re-entrancy bayrağı (çift tıklama/Enter çift-gönderim koruması).</summary>
     private bool _saving;
 
     private async Task HandleSave()
     {
-        if (_saving) return; // kaydetme zaten sÃ¼rÃ¼yor â€” Ã§ift tÄ±klamayÄ± yut
+        if (_saving) return; // kaydetme zaten sürüyor — çift tıklamayı yut
         _saving = true;
-        StateHasChanged(); // Kaydet butonu ilk await'te disabled Ã§izilsin
+        StateHasChanged(); // Kaydet butonu ilk await'te disabled çizilsin
         try { await HandleSaveCoreAsync(); }
         finally { _saving = false; }
     }
@@ -455,8 +455,8 @@ public abstract partial class CommodityProcessPanelBase<TListDto> : IVoucherLine
 
         var wasEdit = _model.Id != Guid.Empty;
 
-        // KararÄ± persister verir (TEK yer): dÄ±ÅŸ cari â†’ normal fiÅŸ kaydÄ± Â· iÃ§ kasa â†’ Teyit teklifi Â·
-        // beyan kipi â†’ alÄ±cÄ±nÄ±n kendi satÄ±rÄ±. Teyit yollarÄ±nda fiÅŸ OLUÅMAZ â†’ result.Line null.
+        // Kararı persister verir (TEK yer): dış cari → normal fiş kaydı · iç kasa → Teyit teklifi ·
+        // beyan kipi → alıcının kendi satırı. Teyit yollarında fiş OLUŞMAZ → result.Line null.
         VoucherLinePersistResult persisted;
         try
         {
@@ -471,7 +471,7 @@ public abstract partial class CommodityProcessPanelBase<TListDto> : IVoucherLine
 
         if (persisted.Line is not { } result)
         {
-            // Teyit kuruldu/beyan edildi ya da Ã¶n koÅŸul saÄŸlanmadÄ±: fiÅŸ/grid durumu ELLENMEZ, toast'Ä± persister verdi.
+            // Teyit kuruldu/beyan edildi ya da ön koşul sağlanmadı: fiş/grid durumu ELLENMEZ, toast'ı persister verdi.
             ResetVolatileFields();
             if (persisted.Outcome != VoucherLinePersistOutcome.Blocked)
             {
@@ -491,8 +491,8 @@ public abstract partial class CommodityProcessPanelBase<TListDto> : IVoucherLine
         ResetVolatileFields();
     }
 
-    /// <summary>Yeni ekleme sonrasÄ± bir sonraki satÄ±r iÃ§in uÃ§ucu alanlarÄ± sÄ±fÄ±rlar (tutarlar/aÃ§Ä±klama;
-    /// sÄ±nÄ±flandÄ±rma ve seÃ§imler kalÄ±r).</summary>
+    /// <summary>Yeni ekleme sonrası bir sonraki satır için uçucu alanları sıfırlar (tutarlar/açıklama;
+    /// sınıflandırma ve seçimler kalır).</summary>
     private void ResetVolatileFields()
     {
         _model.Amount      = 0m;
@@ -513,7 +513,7 @@ public abstract partial class CommodityProcessPanelBase<TListDto> : IVoucherLine
             _priceTypeReadOnly = !c.PriceTypeChange;
         }
 
-        // VaryantlÄ± emtiada varyant combo'sunu kayÄ±tlÄ± VariantId ile gÃ¶sterebilmek iÃ§in seÃ§enekleri yÃ¼kle (fiyat WYSIWYG â€” dokunma).
+        // Varyantlı emtiada varyant combo'sunu kayıtlı VariantId ile gösterebilmek için seçenekleri yükle (fiyat WYSIWYG — dokunma).
         if (SupportsVariants && dto.CommodityId is { } commodityId)
         {
             _variantOptions = await GetVariantOptionsAsync(commodityId);

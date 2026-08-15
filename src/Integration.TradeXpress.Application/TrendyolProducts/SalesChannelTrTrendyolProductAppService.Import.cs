@@ -657,7 +657,14 @@ public partial class SalesChannelTrTrendyolProductAppService
         // Kategori attribute'ları — grubun İLK kaleminden (Trendyol listing yanıtında kalem-başına gelir;
         // ürün-seviyesi tektir). SetAttributes id'siz öğeleri zaten eler.
         var first = variants[0];
-        entity.SetAttributes(first.Attributes.Select(a => new SalesChannelTrTrendyolProductCategoryAttribute(
+
+        // Ürün seviyesine YALNIZ eksen-dışı (tüm kalemlerde aynı) nitelikler yazılır. Önceki davranış ilk
+        // kalemin TÜM niteliklerini alıyordu — eksen varsa birinci varyantın değeri ("Kırmızı"/"50 ml") ürünün
+        // beyanı sanılıyor, push gövdesi de ürün niteliklerini her item'a kopyaladığından tüm varyantlar aynı
+        // eksen değeriyle gidiyordu. Eksen değerleri KALEM-BAŞINA fotoğraflanır (plan.ValuesByBarcode →
+        // Sku.RemoteVariantAttributes) ve push gövdesi onları item-düzeyi attribute olarak GERİ gönderir.
+        var axisPlan = TrendyolVariantAxisResolver.Resolve(variants);
+        entity.SetAttributes(axisPlan.ProductLevelAttributes.Select(a => new SalesChannelTrTrendyolProductCategoryAttribute(
             a.AttributeId,
             a.AttributeValueId,
             TruncateOptional(a.CustomValue ?? (a.AttributeValueId is null ? a.AttributeValue : null), TrendyolProductConsts.CustomAttributeValueMaxLength))));
@@ -667,6 +674,15 @@ public partial class SalesChannelTrTrendyolProductAppService
             AggregateFlag(variants.Select(v => v.Approved)),
             AggregateFlag(variants.Select(v => v.OnSale)),
             first.ListPrice is >= 0 ? first.ListPrice : null);
+
+        // Kanalın KENDİ görsel adresleri (CDN) + o anki YEREL görsel setinin damgası — push'un yeniden-kullanım
+        // dalını besler: bugünkü set damgayla aynıysa geçici link yerine bu adresler gönderilir (kanala aynı
+        // görseli yeniden yutturma). Damga olmadan adres tek başına yanıltır: hangi sete ait olduğu bilinemez
+        // ve bayat kanal adresi kullanıcının değiştirdiği görselleri geri alabilirdi (entity doc'u).
+        // Adres emniyeti: sayı + uzunluk import sınırında (tek anomali kalem partiyi düşürmesin), şema http(s).
+        entity.SetRemoteImageUrls(
+            SafeRemoteImageUrls(remote.ImageUrls),
+            await _pushImageResolver.ResolveCandidateMediaIdsAsync(product, ProductConsts.MaxImageCount));
 
         // Sku kimlikleri: yalnız YEREL varyantı çözülen kalemler (barcode remote'tan gelir, FROZEN — yerel
         // "{Kod}-{Sıra}" üretimi bu satırlara uygulanmaz). Eksik varyant burada artık OLAMAZ (EnsureTemplateVariants
@@ -694,9 +710,7 @@ public partial class SalesChannelTrTrendyolProductAppService
                 remoteVariant.Barcode,
                 stockCode,
                 remoteVariant.ProductContentId,
-                remoteVariant.Quantity,
-                remoteVariant.ListPrice,
-                remoteVariant.SalePrice);
+                BuildRemoteState(remoteVariant, axisPlan));
         }
 
         if (existing is null)
@@ -715,6 +729,47 @@ public partial class SalesChannelTrTrendyolProductAppService
         await _brandCacheManager.UpsertAsync(entity.BrandId, entity.BrandName);
 
         return entity;
+    }
+
+    /// <summary>Pazaryerinin kalem beyanını kanal kaydına taşınacak tek pakete çevirir — adet/fiyat GÖRÜNTÜSÜ
+    /// + ENGEL bayrakları. Hiçbiri push zincirine girmez (fiyat StockItem override'larından yürür); bunlar
+    /// "kanalda şu an ne var ve neden satılamıyor" sorusunun cevabıdır ve o soru hiç push edilmemiş kayıtlarda
+    /// ancak buradan cevaplanır.</summary>
+    private static TrendyolRemoteListingState BuildRemoteState(
+        TrendyolRemoteVariant remoteVariant, TrendyolVariantAxisPlan axisPlan)
+    {
+        var flags = remoteVariant.Flags;
+
+        // Kalemin EKSEN değerleri (plan çözümünden): eksen yoksa BOŞ liste = "eksen yok" beyanı (mevcut
+        // fotoğrafı temizler — grup tekilleşince bayat "Renk" kalmasın). Metin, kategori-attribute metniyle
+        // aynı üst sınıra kırpılır (aynı onarım felsefesi).
+        var axisValues = axisPlan.ValuesByBarcode.TryGetValue(remoteVariant.Barcode, out var values)
+            ? values.Select(v => new SalesChannelTrTrendyolProductSkuRemoteAxisValue(
+                v.AttributeId,
+                v.AttributeValueId,
+                TruncateOptional(v.ValueText, TrendyolProductConsts.CustomAttributeValueMaxLength),
+                TruncateOptional(v.AttributeName, TrendyolProductConsts.AttributeNameMaxLength))).ToList()
+            : new List<SalesChannelTrTrendyolProductSkuRemoteAxisValue>();
+
+        // Gerekçe/URL uzunluk emniyeti: kanalın kendi cümlesi sınırı aşabilir (birleştirilen red gerekçeleri
+        // gerçekçi biçimde 1000'i geçer) — entity guard fail-fast'i tek anomali kalemle TÜM importu
+        // düşürmesin, stockCode'daki bilinçli onarım felsefesiyle aynı. Kırpılır ama yeniden yazılmaz.
+        return new TrendyolRemoteListingState(
+            Quantity: remoteVariant.Quantity,
+            ListPrice: remoteVariant.ListPrice,
+            SalePrice: remoteVariant.SalePrice,
+            Archived: flags?.Archived,
+            Locked: flags?.Locked,
+            LockReason: TruncateOptional(flags?.LockReason, TrendyolProductConsts.RemoteReasonMaxLength),
+            Blacklisted: flags?.Blacklisted,
+            BlacklistReason: TruncateOptional(flags?.BlacklistReason, TrendyolProductConsts.RemoteReasonMaxLength),
+            Rejected: flags?.Rejected,
+            RejectReason: TruncateOptional(flags?.RejectReason, TrendyolProductConsts.RemoteReasonMaxLength),
+            HasActiveCampaign: flags?.HasActiveCampaign,
+            ProductUrl: SafeHttpUrl(TruncateOptional(flags?.ProductUrl, TrendyolProductConsts.RemoteProductUrlMaxLength)),
+            CreatedAtUtc: flags?.CreatedAtUtc,
+            UpdatedAtUtc: flags?.UpdatedAtUtc,
+            AxisValues: axisValues);
     }
 
     /// <summary>Uzak MARKA id emniyeti: boş → sentinel; entity üst sınırını aşan id de sentinel'e düşer
@@ -740,6 +795,41 @@ public partial class SalesChannelTrTrendyolProductAppService
         }
 
         return id;
+    }
+
+    /// <summary>Dış kaynaklı adres UI'da href'e basılır — yalnız http(s) mutlak URL geçer; aksi (javascript:/data:/
+    /// göreli) <c>null</c>'a düşer. Kaynak kimlik doğrulamalı API olsa da dış veri ham href'e girmez.</summary>
+    private static string? SafeHttpUrl(string? url)
+    {
+        if (string.IsNullOrWhiteSpace(url))
+        {
+            return null;
+        }
+
+        return Uri.TryCreate(url, UriKind.Absolute, out var uri)
+               && (uri.Scheme == Uri.UriSchemeHttps || uri.Scheme == Uri.UriSchemeHttp)
+            ? url
+            : null;
+    }
+
+    /// <summary>Uzak görsel adresleri emniyeti: yalnız http(s) mutlak URL, en fazla ürün görsel sınırı kadar,
+    /// her biri uzunluk sınırında (kolon nvarchar; taşan tek adres partiyi düşürmesin — stockCode felsefesi).
+    /// Şema dışı adres (javascript:/data:) UI'da href'e basıldığından burada elenir.</summary>
+    private static List<string> SafeRemoteImageUrls(IReadOnlyList<string>? urls)
+    {
+        if (urls is null)
+        {
+            return new List<string>();
+        }
+
+        return urls
+            .Where(u => !string.IsNullOrWhiteSpace(u))
+            .Select(u => u.Trim())
+            .Where(u => u.Length <= TrendyolProductConsts.RemoteProductUrlMaxLength
+                        && Uri.TryCreate(u, UriKind.Absolute, out var uri)
+                        && (uri.Scheme == Uri.UriSchemeHttps || uri.Scheme == Uri.UriSchemeHttp))
+            .Take(ProductConsts.MaxImageCount)
+            .ToList();
     }
 
     private static string? TruncateOptional(string? value, int maxLength)

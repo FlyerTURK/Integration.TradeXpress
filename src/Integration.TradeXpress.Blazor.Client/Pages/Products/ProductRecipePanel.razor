@@ -18,20 +18,41 @@
     @* Reçete toolbar — HEP görünür (draft popup'ı arkada açılır); ekleme "Yeni" dropdown'ında; Düzenle/Sil; net maliyet sağda. *@
     <DxToolbar ItemRenderStyleMode="ToolbarRenderStyleMode.Plain"
                AdaptivityAutoCollapseItemsToIcons="false" AdaptivityAutoHideRootItems="false">
+        @* "ÜRÜNDEN" ANAHTARI (2026-08-11 Hakan) — "Yeni"nin hemen SOLUNDA, çünkü onun ne yapacağını
+           değiştiriyor: işaretliyken aile seçimi mevcut kataloğu seçmez, üründen tohumlanmış YENİ emtia
+           formunu açar. Ayrı bir aksiyon düğmesi yapmak aynı işi ikinci bir kavram gibi gösterirdi.
+
+           @if ile SARILMAZ: DxToolbarItem nested-settings öğesidir, sonradan eklenince araç çubuğunun
+           SONUNA düşer ve "Yeni"nin solunda kalmaz (ui-blazor kuralı). Visible ile baştan kayıtlı kalır.
+
+           ValidationEnabled=false ŞART: panel bir EditContext altında yaşıyor ve checkbox manuel bağlı
+           (@bind değil) — aksi halde DevExpress CheckedExpression ister ve circuit çöker. *@
+        <DxToolbarItem Visible="@ShowCreateFromProduct">
+            <Template>
+                @* span yalnız tooltip taşıyıcısı (EntityMediaPanel deseni) — DxCheckBox'ın Tooltip parametresi yok. *@
+                <span title="@L["Recipe:FromProductTooltip"]">
+                    <DxCheckBox Checked="@_createFromProduct"
+                                CheckedChanged="@((bool v) => _createFromProduct = v)"
+                                ValidationEnabled="false">
+                        @L["Recipe:FromProduct"]
+                    </DxCheckBox>
+                </span>
+            </Template>
+        </DxToolbarItem>
         <DxToolbarItem Text="@L["New"]" IconCssClass="@TradeXpressIcons.Add" Tooltip="@L["New"].Value">
             <Items>
                 <DxToolbarItem Text="@L["Metal"]" IconCssClass="@TradeXpressIcons.Metal"
-                               Click="@((ToolbarItemClickEventArgs e) => OpenCatalogDraft(ProcessType.Metal))" />
+                               Click="@(async (ToolbarItemClickEventArgs e) => await OpenCatalogDraftAsync(ProcessType.Metal))" />
                 <DxToolbarItem Text="@L["Scrap"]" IconCssClass="@TradeXpressIcons.Scrap"
-                               Click="@((ToolbarItemClickEventArgs e) => OpenCatalogDraft(ProcessType.Scrap))" />
+                               Click="@(async (ToolbarItemClickEventArgs e) => await OpenCatalogDraftAsync(ProcessType.Scrap))" />
                 <DxToolbarItem Text="@L["Future"]" IconCssClass="@TradeXpressIcons.Future"
-                               Click="@((ToolbarItemClickEventArgs e) => OpenCatalogDraft(ProcessType.Future))" />
+                               Click="@(async (ToolbarItemClickEventArgs e) => await OpenCatalogDraftAsync(ProcessType.Future))" />
                 <DxToolbarItem Text="@L["Jewelry"]" IconCssClass="@TradeXpressIcons.Jewelry"
-                               Click="@((ToolbarItemClickEventArgs e) => OpenCatalogDraft(ProcessType.Jewelry))" />
+                               Click="@(async (ToolbarItemClickEventArgs e) => await OpenCatalogDraftAsync(ProcessType.Jewelry))" />
                 <DxToolbarItem Text="@L["Stone"]" IconCssClass="@TradeXpressIcons.Stone"
-                               Click="@((ToolbarItemClickEventArgs e) => OpenCatalogDraft(ProcessType.Stone))" />
+                               Click="@(async (ToolbarItemClickEventArgs e) => await OpenCatalogDraftAsync(ProcessType.Stone))" />
                 <DxToolbarItem Text="@L["Good"]" IconCssClass="@TradeXpressIcons.Good"
-                               Click="@((ToolbarItemClickEventArgs e) => OpenCatalogDraft(ProcessType.Good))" />
+                               Click="@(async (ToolbarItemClickEventArgs e) => await OpenCatalogDraftAsync(ProcessType.Good))" />
                 <DxToolbarItem Text="@L["Service"]" IconCssClass="@TradeXpressIcons.Service"
                                Click="@((ToolbarItemClickEventArgs e) => OpenServiceDraft())" />
             </Items>

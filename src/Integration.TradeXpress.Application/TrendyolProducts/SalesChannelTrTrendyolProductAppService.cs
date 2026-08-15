@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
 using Integration.Framework.Timing;
@@ -61,6 +62,9 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
     private readonly ITrendyolProductClient _client;
     private readonly ITrendyolCategoryAppService _categoryAppService;
     private readonly MarketplacePushImageResolver _pushImageResolver;
+    private readonly TrendyolProductPushValidator _pushValidator;
+    private readonly TemporaryMediaLinkPublisher _temporaryMediaLinkPublisher;
+    private readonly IRepository<SalesChannelTrTrendyolProductPushHistory, Guid> _pushHistoryRepository;
     private readonly MarketplaceImageDownloader _imageDownloader;
     private readonly TrendyolBrandCacheManager _brandCacheManager;
     private readonly TrendyolCommissionResolver _commissionResolver;
@@ -115,8 +119,14 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
         IEntityMediaAppService entityMedia,
         BusinessExceptionDescriber describer,
         TrendyolPushHistoryRecorder historyRecorder,
-        ChannelProductBoardBuilder boardBuilder)
+        ChannelProductBoardBuilder boardBuilder,
+        TrendyolProductPushValidator pushValidator,
+        TemporaryMediaLinkPublisher temporaryMediaLinkPublisher,
+        IRepository<SalesChannelTrTrendyolProductPushHistory, Guid> pushHistoryRepository)
     {
+        _pushValidator = pushValidator;
+        _temporaryMediaLinkPublisher = temporaryMediaLinkPublisher;
+        _pushHistoryRepository = pushHistoryRepository;
         _saleReadiness = saleReadiness;
         _entityMedia = entityMedia;
         _describer = describer;
@@ -554,9 +564,20 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
             entity.ReconcileSkus(candidates);
 
             // "Ne gönderdim" — batch COMPLETED olunca LastSent*'e terfi edecek (bkz. FinalizeCompletedBatchAsync).
+            // İçerik üçlüsü (başlık/eksen/görsel) da submit anında saklanır: defter satırı finalize'da ancak
+            // BURADAN yazılabilir — o anda yeniden hesaplamak "göndermediğini yazma" hatasına girerdi. Görsel
+            // kimlikleri GÖVDEYE FİİLEN GİREN setten (data.SentMediaIds) — adayları yeniden çözmek, geçici link
+            // alamayıp düşen görseli de "gönderildi" diye yazardı (bağımsız denetim bulgusu, 2026-08-14).
+            var pushedMediaIds = string.Join(",", data.SentMediaIds);
             foreach (var item in data.Items)
             {
-                entity.RecordPendingSkuPush(item.Barcode, item.Quantity, item.ListPrice, item.SalePrice);
+                entity.RecordPendingSkuPush(
+                    item.Barcode, item.Quantity, item.ListPrice, item.SalePrice,
+                    title: data.Title,
+                    optionsText: item.OptionLabels is { Count: > 0 } labels
+                        ? string.Join("; ", labels.Select(o => o.Name + "=" + o.Value))
+                        : null,
+                    mediaIdsCsv: pushedMediaIds.Length > 0 ? pushedMediaIds : null);
             }
 
             entity.MarkSubmitted(result.BatchRequestId, "ProductV2OnBoarding", Clock.Now.ToUniversalTime());
@@ -642,7 +663,9 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
 
             foreach (var sku in entity.Skus)
             {
-                var row = rows.FirstOrDefault(r => r.Variant.Id == sku.ProductVariantId);
+                // ERP satırı varyant id'siyle, Trendyol-only satırı StockItem id'siyle eşleşir — SKU satırı
+                // (J3) ProductVariantId alanında ikisinden uygun olanı taşır.
+                var row = rows.FirstOrDefault(r => r.CandidateId == sku.ProductVariantId);
 
                 if (row is null)
                 {
@@ -727,7 +750,7 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
         if (unpriced is not null)
         {
             throw new BusinessException("TradeXpress:Trendyol:Product:PriceMissingForPush")
-                .WithData("StockCode", unpriced.Variant.Code);
+                .WithData("StockCode", unpriced.Code);
         }
     }
 
@@ -752,6 +775,16 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
         string? batchType,
         string? batchRequestId)
     {
+        // ARA DURUM = HENÜZ SONUÇ YOK — hiçbir şey yapılmaz (bağımsız denetim bulgusu, 2026-08-14): eskiden
+        // COMPLETED dışındaki HER kök durum ret sayılıyordu; Trendyol batch'i henüz işlemedeyken (IN_PROGRESS /
+        // PROCESSING) sorgulanırsa bekleyen içerik SİLİNİYOR, deftere gerekçesi "ara durum adı" olan sahte bir
+        // Failed satırı düşüyor ve batch gerçekten bitince ne LastSent* terfi ediyor ne Succeeded yazılıyordu.
+        // Sonuç ancak terminal durumda okunur; sorgu bir sonraki turda yinelenir (worker PROCESSING seçer).
+        if (IsNonTerminalBatchStatus(status.Status))
+        {
+            return;
+        }
+
         var completed = string.Equals(status.Status, "COMPLETED", StringComparison.OrdinalIgnoreCase);
 
         // KISMİ BAŞARI da başarısızlık sayılır: hangi SKU'nun düştüğü item kırılımından güvenilir biçimde
@@ -815,10 +848,28 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
                 ListPrice: s.PendingSentListPrice,
                 SalePrice: s.PendingSentSalePrice,
                 Quantity: s.PendingSentQuantity,
-                Title: null,
-                Options: null,
-                MediaIds: null))
+                Title: s.PendingSentTitle,
+                Options: s.PendingSentOptions,
+                MediaIds: ParseMediaIdsCsv(s.PendingSentMediaIds)))
             .ToList();
+    }
+
+    /// <summary>Pending'teki virgüllü MediaId listesini (Guid metni; biçim-agnostik parse) çözer — bozuk parça sessizce atlanır
+    /// (delilin kalanını düşürmek, tamamını kaybetmek olurdu).</summary>
+    private static IReadOnlyList<Guid>? ParseMediaIdsCsv(string? csv)
+    {
+        if (string.IsNullOrWhiteSpace(csv))
+        {
+            return null;
+        }
+
+        var ids = csv.Split(',', StringSplitOptions.RemoveEmptyEntries)
+            .Select(part => Guid.TryParse(part, out var id) ? id : (Guid?)null)
+            .Where(id => id is not null)
+            .Select(id => id!.Value)
+            .ToList();
+
+        return ids.Count > 0 ? ids : null;
     }
 
     private static TrendyolProductPushKind ResolvePushKind(string? batchType)
@@ -843,6 +894,19 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
         return status.FailedCount > 0
             ? $"{state} ({status.FailedCount}/{status.ItemCount} kalem başarısız)"
             : state;
+    }
+
+    /// <summary>Trendyol batch kök durumu terminal DEĞİL mi (işleme sürüyor). Boş/null durum da "bilinmiyor" —
+    /// sonuç sayılmaz, bir sonraki sorguya bırakılır (fail-closed: bilinmeyeni ret sanmak defteri kirletir).</summary>
+    private static bool IsNonTerminalBatchStatus(string? status)
+    {
+        if (string.IsNullOrWhiteSpace(status))
+        {
+            return true;
+        }
+
+        return string.Equals(status, "PROCESSING", StringComparison.OrdinalIgnoreCase)
+               || string.Equals(status, "IN_PROGRESS", StringComparison.OrdinalIgnoreCase);
     }
 
     private async Task<SalesChannelTrTrendyolProductDto> SaveAndMapAsync(
@@ -939,7 +1003,13 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
             Quantity = it.Quantity,
             ListPrice = it.ListPrice,
             SalePrice = it.SalePrice,
-            Options = optionsByStockCode.TryGetValue(it.StockCode, out var opt) ? opt : string.Empty,
+            // ERP satırı: varyant kodu üzerinden özet; Trendyol-only satır: item'ın kendi kombinasyon çiftleri
+            // (kod eşleşmez — kombinasyon kodu ERP kodu değildir; boş kalması denetim bulgusuydu).
+            Options = optionsByStockCode.TryGetValue(it.StockCode, out var opt)
+                ? opt
+                : it.OptionLabels is { Count: > 0 } labels
+                    ? string.Join("; ", labels.Select(o => $"{o.Name}: {o.Value}"))
+                    : string.Empty,
         }).ToList();
 
         return new TrendyolPushPreviewDto { Product = previewProduct, Items = items, Warnings = warnings };
@@ -1101,10 +1171,17 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
         return ChannelInheritance.Resolve(channelProduct.VatRate, product.VatRate);
     }
 
-    /// <summary>Trendyol push aday satırı — kimlik ERP varyantı; fiyat/stok zinciri ÇÖZÜLMÜŞ, indirim ve emniyet
-    /// payı UYGULANMIŞ hâlde taşınır. Çözülemeyen değer <c>null</c> kalır (fail-fast kararı çağıranındır).</summary>
+    /// <summary>Trendyol push aday satırı — ERP varyantı (<c>IsErpBacked</c>) ya da Trendyol-only kombinasyon
+    /// (<c>CandidateId</c> = StockItem.Id; N11 J3 deseni — SKU satırı ProductVariantId alanında bu id'yi taşır).
+    /// Fiyat/stok zinciri ÇÖZÜLMÜŞ, indirim ve emniyet payı UYGULANMIŞ hâlde taşınır; çözülemeyen değer
+    /// <c>null</c> kalır (fail-fast kararı çağıranındır). <c>OptionPairs</c> yalnız Trendyol-only satırda dolu
+    /// (kombinasyon imzasından çözülen ad/değer çiftleri; ERP satırının seçenekleri LoadVariantOptionsAsync'ten).</summary>
     private sealed record TrendyolPushRow(
-        EntityVariant Variant,
+        Guid CandidateId,
+        string Code,
+        string DisplayName,
+        bool IsErpBacked,
+        IReadOnlyList<(string Name, string Value)> OptionPairs,
         decimal? ListPrice,
         decimal? SalePrice,
         int? Stock,
@@ -1123,7 +1200,8 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
     /// <para><b>Emniyet payı</b> tam da bu tek çıkışta uygulanır — üç çağıran da aynı paylı adedi görsün diye
     /// (N11 ile birebir gerekçe: aksi hâlde dirty-check her turda "değişti" der).</para></summary>
     private async Task<TrendyolPushRowSet> BuildPushRowsAsync(
-        SalesChannelTrTrendyolProduct channelProduct, Product product, List<string>? warnings = null)
+        SalesChannelTrTrendyolProduct channelProduct, Product product, List<string>? warnings = null,
+        List<string>? notices = null)
     {
         var activeVariants = await AsyncExecuter.ToListAsync(
             (await _variantRepository.GetQueryableAsync())
@@ -1140,23 +1218,6 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
             .Where(v => sellable.Contains(v.Id))
             .OrderByDescending(v => v.IsMain)
             .ToList();
-
-        if (variants.Count == 0)
-        {
-            // TEŞHİS DOĞRU SEBEBİ SÖYLER (2026-08-08 düzeltmesi): doğrulama kapısı yeni bir "aday yok" sebebi
-            // ekledi. Fiyatlı varyant VARDI ama hepsi kapıya takıldıysa "fiyatlı varyant yok" demek kullanıcıyı
-            // olmayan bir sorunu aramaya yollar — fiyatları kontrol eder, hepsi doğru görünür, tıkanır.
-            var code = priced.Count > 0
-                ? "TradeXpress:Trendyol:Product:NoVerifiedVariant"
-                : "TradeXpress:Trendyol:Product:NoPricedVariant";
-
-            if (warnings is null)
-            {
-                throw new BusinessException(code);
-            }
-
-            warnings.Add(L[code].Value);
-        }
 
         // Zincir: OverridePrice ?? türetilmiş (reçete NetCost × marj) ?? ERP SalePrice; stok OverrideStock ?? ERP.
         var pushPricing = await ResolveVariantPushPricingAsync(channelProduct, variants);
@@ -1181,14 +1242,168 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
                 : null;
 
             return new TrendyolPushRow(
-                Variant: v,
+                CandidateId: v.Id,
+                Code: v.Code,
+                DisplayName: v.Name,
+                IsErpBacked: true,
+                OptionPairs: Array.Empty<(string Name, string Value)>(),
                 ListPrice: pricing.Price,
                 SalePrice: salePrice,
                 Stock: ChannelPushGuard.ApplySafetyStock(pricing.Stock, channelProduct.SafetyStock),
                 PriceCurrencyUnitId: salePrices.GetValueOrDefault(v.Id).CurrencyUnitId);
         }).ToList();
 
+        // TRENDYOL-ONLY kombinasyonlar (T8 — N11 J3 portu): özellik-modu başlıkları içinde ERP karşılığı
+        // olmayanlar da satılabilir satırdır; bugüne dek push'a HİÇ girmiyorlardı. Fiyat = Override ??
+        // (kanal reçetesi NetCost × marj); stok YALNIZ Override (ERP fallback yok — ERP'de sayacak varyant
+        // yok; "sınırsız" saymak aşırı satış kapısı olurdu). Satış-hazırlık kapısı ERP varyantına aittir,
+        // bu satırlar ondan geçmez (N11 ile aynı duruş). Emniyet payı ve indirim ERP satırlarıyla AYNI
+        // kurallarla uygulanır — kaynak farkı emniyet farkı üretmesin.
+        var onlyHeaders = await AsyncExecuter.ToListAsync(
+            (await _stockItemRepository.GetQueryableAsync())
+                .Where(h => h.SalesChannelTrTrendyolProductId == channelProduct.Id
+                            && h.CombinationSignature != null
+                            && h.ProductVariantId == null));
+        if (onlyHeaders.Count > 0)
+        {
+            var attributeEntities = await LoadChannelAttributeEntitiesAsync(channelProduct.Id);
+            var valueEntities = await LoadChannelAttributeValueEntitiesAsync(attributeEntities.Select(a => a.Id).ToList());
+            var attributeById = ToAttributeWithValues(attributeEntities, valueEntities).ToDictionary(a => a.AttributeId);
+            var onlyPricing = await ResolveTrendyolOnlyPushPricingAsync(channelProduct, onlyHeaders);
+
+            foreach (var header in onlyHeaders.OrderBy(h => h.CreationTime))
+            {
+                var pairs = ResolveCombinationPairs(header.CombinationSignature!, attributeById);
+                var pricing = onlyPricing[header.Id];
+
+                // NE FİYATI NE STOĞU olan kombinasyon SATILABİLİR KALEM DEĞİLDİR — aday olmaz, uyarıyla bildirilir.
+                // Kartezyen reconcile bu başlıkları override'sız OTOMATİK açar; hepsini aday sayıp fail-fast'e
+                // sokmak, kullanıcı hiçbirine dokunmadan ürünün TÜM ERP senkronunu durdururdu (bu dilim öncesi
+                // ERP SKU'ları senkronlanıyordu — regresyon olurdu). Kısmen dolu satır (fiyat var stok yok ya da
+                // tersi) belirsizliktir ve fail-fast'e KALIR: yarım kalmış bir niyet sessiz geçilmez.
+                if (pricing.Price is null && pricing.Stock is null)
+                {
+                    var label = string.Join("; ", pairs.Select(p => $"{p.Name}: {p.Value}"));
+                    (warnings ?? notices)?.Add(L["TrendyolProduct:TrendyolOnlyCombinationSkipped", label].Value);
+                    continue;
+                }
+
+                decimal? salePrice = pricing.Price is { } listPrice
+                    ? ProductDiscountCalculator.ResolveSalePrice(
+                        listPrice, product.DiscountType, product.DiscountValue,
+                        product.DiscountStartDate, product.DiscountEndDate, today)
+                    : null;
+
+                rows.Add(new TrendyolPushRow(
+                    CandidateId: header.Id,
+                    Code: BuildCombinationCode(pairs, channelProduct.SequenceNo),
+                    DisplayName: string.Join("; ", pairs.Select(p => $"{p.Name}: {p.Value}")),
+                    IsErpBacked: false,
+                    OptionPairs: pairs,
+                    ListPrice: pricing.Price,
+                    SalePrice: salePrice,
+                    Stock: ChannelPushGuard.ApplySafetyStock(pricing.Stock, channelProduct.SafetyStock),
+                    PriceCurrencyUnitId: header.OverridePriceCurrencyUnitId));
+            }
+        }
+
+        // "ADAY YOK" kontrolü satırlar TAMAMEN kurulduktan SONRA (Trendyol-only dahil — N11 portuyla aynı yer):
+        // ERP varyantlarının hepsi kapıya takılmış olsa bile override'lı bir kombinasyon tek başına push'u ayakta
+        // tutar. Kontrol önce olsaydı o ürün push'a başlamadan ölürdü (bağımsız denetim bulgusu, 2026-08-14).
+        if (rows.Count == 0)
+        {
+            // TEŞHİS DOĞRU SEBEBİ SÖYLER (2026-08-08 düzeltmesi): doğrulama kapısı yeni bir "aday yok" sebebi
+            // ekledi. Fiyatlı varyant VARDI ama hepsi kapıya takıldıysa "fiyatlı varyant yok" demek kullanıcıyı
+            // olmayan bir sorunu aramaya yollar — fiyatları kontrol eder, hepsi doğru görünür, tıkanır.
+            var code = priced.Count > 0
+                ? "TradeXpress:Trendyol:Product:NoVerifiedVariant"
+                : "TradeXpress:Trendyol:Product:NoPricedVariant";
+
+            if (warnings is null)
+            {
+                throw new BusinessException(code);
+            }
+
+            warnings.Add(L[code].Value);
+        }
+
         return new TrendyolPushRowSet(rows, priced.Count - variants.Count);
+    }
+
+    /// <summary>Trendyol-only satır fiyat/stok çözümü — N11 <c>ResolveN11OnlyPushPricingAsync</c> portu.
+    /// Fiyat: <c>OverridePrice ?? (kaydedilmiş kanal reçetesi NetCost × (1+Margin/100))</c>; kursuz birimde
+    /// (NetCostMissingRate) türetilmiş fiyat null kalır — uydurma fiyat üretilmez. Stok: YALNIZ OverrideStock.
+    /// Çözülemeyen değer null taşınır; kararı çağıran verir (push fail-fast · önizleme boş gösterir).</summary>
+    private async Task<Dictionary<Guid, TrendyolOnlyPricing>> ResolveTrendyolOnlyPushPricingAsync(
+        SalesChannelTrTrendyolProduct channelProduct, List<SalesChannelTrTrendyolProductStockItem> headers)
+    {
+        var result = new Dictionary<Guid, TrendyolOnlyPricing>();
+        if (headers.Count == 0)
+        {
+            return result;
+        }
+
+        var headerIds = headers.Select(h => h.Id).ToList();
+        var linesByHeader = (await AsyncExecuter.ToListAsync(
+                (await _channelRecipeLineRepository.GetQueryableAsync())
+                    .Where(r => r.SalesChannelTrTrendyolProductId == channelProduct.Id
+                                && headerIds.Contains(r.StockItemId))))
+            .GroupBy(r => r.StockItemId)
+            .ToDictionary(g => g.Key, g => g.ToList());
+
+        var lineSets = headers
+            .Select(h => linesByHeader.TryGetValue(h.Id, out var lines)
+                ? MapSavedRecipeLines(lines)
+                : new List<ProductRecipeLineGraphDto>())
+            .ToList();
+        var costs = await _recipeCostPopulator.PopulateAsync(lineSets);
+
+        for (var i = 0; i < headers.Count; i++)
+        {
+            var header = headers[i];
+            decimal? derived = costs[i].NetCost is { } netCost && !costs[i].NetCostMissingRate
+                ? DerivedPriceCalculator.Calculate(netCost, header.Margin)
+                : null;
+            result[header.Id] = new TrendyolOnlyPricing(header.OverridePrice ?? derived, header.OverrideStock);
+        }
+
+        return result;
+    }
+
+    private sealed record TrendyolOnlyPricing(decimal? Price, int? Stock);
+
+    /// <summary>Kombinasyon imzasını ("{AttrId}={ValueId}|...") ad/değer çiftlerine çözer — N11
+    /// <c>ResolveCombinationPairs</c> portu. Bozuk/bayat çift sessizce atlanır (reconcile orphan'ı zaten siler).</summary>
+    private static List<(string Name, string Value)> ResolveCombinationPairs(
+        string signature, Dictionary<Guid, AttributeWithValues> attributeById)
+    {
+        var pairs = new List<(string Name, string Value)>();
+        foreach (var part in signature.Split('|', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var segments = part.Split('=');
+            if (segments.Length != 2
+                || !Guid.TryParse(segments[0], out var attributeId)
+                || !Guid.TryParse(segments[1], out var valueId)
+                || !attributeById.TryGetValue(attributeId, out var attribute))
+            {
+                continue;
+            }
+
+            pairs.Add((attribute.AttributeName, attribute.Values.FirstOrDefault(v => v.ValueId == valueId).Value ?? string.Empty));
+        }
+
+        return pairs;
+    }
+
+    /// <summary>Kombinasyon değerlerinden deterministik stok kodu GÖVDESİ — N11 <c>BuildCombinationCode</c>
+    /// portu ("SIYAH-42" deseni): yalnız DEĞERLER '-' ile birleşir, UPPER-invariant, "-{SequenceNo}" son eki
+    /// payı düşülerek üst sınıra kesilir (son eki entity <c>BuildBarcode</c>/ChannelSequenceCode ekler).</summary>
+    private static string BuildCombinationCode(List<(string Name, string Value)> pairs, int sequenceNo)
+    {
+        var joined = string.Join("-", pairs.Select(p => p.Value)).ToUpperInvariant();
+        var suffixLength = sequenceNo.ToString(CultureInfo.InvariantCulture).Length + 1;
+        var maxLength = TrendyolProductConsts.StockCodeMaxLength - suffixLength;
+        return joined.Length <= maxLength ? joined : joined[..maxLength];
     }
 
     /// <summary>Push satırlarının fiyatı kanal-ürünün <c>[MinPrice, MaxPrice]</c> bandında mı — N11 ile birebir
@@ -1204,7 +1419,7 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
         foreach (var row in rows)
         {
             ChannelPushGuard.EnsureWithinPriceBand(
-                "Trendyol", row.Variant.Code, row.SalePrice, channelProduct.MinPrice, channelProduct.MaxPrice);
+                "Trendyol", row.Code, row.SalePrice, channelProduct.MinPrice, channelProduct.MaxPrice);
         }
     }
 
@@ -1232,12 +1447,12 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
             throw new BusinessException("TradeXpress:Trendyol:Product:VatRateRequired");
         }
 
-        // Görsel kaynağı MERKEZİ DAM (K2); sıra/limit/atlama kuralları N11 ile ORTAK çözücüde (kanallar ayrışmasın).
-        var imageUrls = await _pushImageResolver.ResolveAsync(product, ProductConsts.MaxImageCount);
-
-        if (imageUrls.Count == 0)
+        // GÖRSEL VARLIĞI kimlik listesinden denetlenir (ucuz, dış-ağsız): görselsiz ürün gerçek push'ta fail-fast,
+        // önizlemede uyarı. Adres ÜRETİMİ (geçici barındırmaya yükleme = dış-ağ yan etkisi) bilinçle EN SONA
+        // bırakıldı — kategori doğrulaması ya da fiyat bandı düşerse yüklenen linkler çöpe gitmesin.
+        var candidateMediaIds = await _pushImageResolver.ResolveCandidateMediaIdsAsync(product, ProductConsts.MaxImageCount);
+        if (candidateMediaIds.Count == 0)
         {
-            // Önizleme (warnings dolu) modunda fırlatma → uyarı; gerçek push'ta (warnings null) fail-fast.
             if (warnings is null)
             {
                 throw new BusinessException("TradeXpress:Trendyol:Product:ImagesRequired");
@@ -1249,8 +1464,23 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
         // Aday satırlar TEK KAYNAKTAN (push · önizleme · hafif senkron üçü de burayı görür). Kaynak ayrışsaydı
         // hafif senkron ham ERP fiyatını gönderip tam push'un yazdığı kanal fiyatını EZER ve her turda "değişti"
         // görünürdü — N11'de aynı gerekçeyle tek kaynağa çekilmişti.
-        var rowSet = await BuildPushRowsAsync(channelProduct, product, warnings);
-        var variants = rowSet.Rows.Select(r => r.Variant).ToList();
+        var rowSet = await BuildPushRowsAsync(channelProduct, product, warnings, notices);
+
+        // Fiyatsız/stoksuz satır (Trendyol-only'de Override girilmemiş olabilir): gerçek push'ta fail-fast,
+        // önizlemede satır uyarıyla ELENİR — items kurulumu dolu fiyat varsayar (`!.Value`).
+        if (warnings is null)
+        {
+            EnsurePushRowsPriced(rowSet.Rows);
+        }
+        else
+        {
+            foreach (var unpriced in rowSet.Rows.Where(r => r.ListPrice is null || r.SalePrice is null || r.Stock is null))
+            {
+                warnings.Add(L["TrendyolProduct:Preview:RowUnpriced", unpriced.DisplayName].Value);
+            }
+
+            rowSet = rowSet with { Rows = rowSet.Rows.Where(r => r.ListPrice is not null && r.SalePrice is not null && r.Stock is not null).ToList() };
+        }
 
         // Fiyat bandı YALNIZ gerçek push'ta zorlanır (warnings null). Önizlemede fırlatmak, kullanıcıyı
         // sorununu GÖREMEDEN kapıda bırakırdı — önizlemenin işi tam da o sayıyı göstermek.
@@ -1280,24 +1510,64 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
             warnings.Add(L["TradeXpress:Trendyol:Product:MixedCurrency"].Value);
         }
 
+        // T6/T8 — GERÇEK push kategori tanımına karşı DOĞRULANIR (N11 paritesi; eskiden tanıma hiç bakılmıyor,
+        // red saatler sonra batch'ten dönüyordu). Eksen kaynağı foto-öncelikli: import fotoğrafı (pazaryeri
+        // beyanı) varsa o, yoksa ERP varyant seçeneklerinden ad→id türetimi. Tanım alınamazsa push DURUR —
+        // doğrulamasız gönderim yok. Önizleme best-effort kalır (AppendRequiredFieldWarnings zorunlu-attribute
+        // uyarısını zaten üretir; tanım yokken önizlemeyi kırmak kullanıcıyı sorunu göremeden kapıda bırakırdı).
+        TrendyolPushValidationResult? validated = null;
+        if (warnings is null)
+        {
+            var leafDefinitions = await _categoryAppService.GetLeafAttributesAsync(channelProduct.CategoryId!);
+            var erpOptions = await LoadVariantOptionsAsync(
+                product.Id, rowSet.Rows.Where(r => r.IsErpBacked).Select(r => r.CandidateId).ToList());
+            var inputs = rowSet.Rows.Select(r => new TrendyolPushVariantInput(
+                r.CandidateId,
+                r.Code,
+                r.IsErpBacked
+                    ? erpOptions.GetValueOrDefault(r.CandidateId) ?? new List<(string Name, string Value)>()
+                    : r.OptionPairs,
+                PhotoValuesOf(channelProduct, r.CandidateId))).ToList();
+            validated = _pushValidator.Validate(leafDefinitions, channelProduct.Attributes, inputs);
+        }
+
         // Barcode DONDURMA planı (mutasyonsuz — push başarısızsa DB'ye bayat barcode donmaz; kalıcılaştırma
-        // yalnız başarılı batch sonrası ReconcileSkus ile). Varianter attribute imzası kategori-def bağımlı (T6/T8'de
-        // dolar) → skeleton'da boş; barcode eşlemesi VariantId + dondurulmuş-kod aşamalarına dayanır.
+        // yalnız başarılı batch sonrası ReconcileSkus ile). Varianter imzası artık DOĞRULAYICIDAN gelir (T6/T8
+        // doldu); önizlemede boş kalır — imza yalnız gerçek push'un reconcile'ına lazım.
         // Aday listesi ÇAĞIRANA da verilir: başarılı submit sonrası SKU DONDURMA (ReconcileSkus) bu listeyi ister.
         // Vermeseydik push başarılı olur ama kayıt SKU'suz kalırdı → hafif senkron o üründe kalıcı NotPushedYet.
-        var pushCandidates = variants
-            .Select(v => new TrendyolSkuPushCandidate(v.Id, v.Code, Array.Empty<SalesChannelTrTrendyolProductSkuAttribute>()))
+        var pushCandidates = rowSet.Rows
+            .Select(r => new TrendyolSkuPushCandidate(
+                r.CandidateId,
+                r.Code,
+                (IReadOnlyList<SalesChannelTrTrendyolProductSkuAttribute>?)validated?.VariantAxes.GetValueOrDefault(r.CandidateId)?.Signature
+                    ?? Array.Empty<SalesChannelTrTrendyolProductSkuAttribute>()))
             .ToList();
         candidates?.AddRange(pushCandidates);
         var plannedBarcodes = channelProduct.PlanBarcodes(pushCandidates);
 
         // İndirim + emniyet payı satır kaynağında UYGULANDI (BuildPushRowsAsync) — burada yalnız taşınır.
-        var items = rowSet.Rows.Select(r => new TrendyolProductItem(
-            Barcode: plannedBarcodes[r.Variant.Id],
-            StockCode: r.Variant.Code,
-            Quantity: r.Stock ?? 0,
-            ListPrice: r.ListPrice!.Value,
-            SalePrice: r.SalePrice!.Value)).ToList();
+        // Item attribute'ları: gerçek push'ta doğrulayıcı çıktısı (foto ?? türetilmiş, kanonik); önizlemede
+        // yalnız foto (tanım yüklenmemiş olabilir — best-effort). OptionLabels = delil defterinin okunur çiftleri.
+        var items = rowSet.Rows.Select(r =>
+        {
+            var axis = validated?.VariantAxes.GetValueOrDefault(r.CandidateId);
+            return new TrendyolProductItem(
+                Barcode: plannedBarcodes[r.CandidateId],
+                StockCode: r.Code,
+                Quantity: r.Stock ?? 0,
+                ListPrice: r.ListPrice!.Value,
+                SalePrice: r.SalePrice!.Value,
+                Attributes: axis?.Attributes ?? ResolveItemAxisAttributes(channelProduct, plannedBarcodes[r.CandidateId]),
+                // Önizlemede (validated yok) Trendyol-only satırın kombinasyon çiftleri gösterilir — kullanıcı
+                // hangi Renk/Beden'in gittiğini görsün (N11 önizlemesi paritesi); ERP satırı özet zincirinden alır.
+                OptionLabels: axis?.Options ?? (r.IsErpBacked ? null : r.OptionPairs));
+        }).ToList();
+
+        // Görsel ADRESLERİ en son (tüm yerel fail-fast'ler geçildi): gerçek push'ta geçici-link akışı ya da set
+        // değişmediyse kanalın kendi CDN'i; önizlemede imzalı DAM linkleri. Fiilen giden kimlikler de döner.
+        var images = await ResolvePushImagesAsync(
+            channelProduct, product, candidateMediaIds, realPush: warnings is null, notices);
 
         return new TrendyolProductData(
             ProductMainId: channelProduct.ProductMainId,
@@ -1311,11 +1581,98 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
             DimensionalWeight: channelProduct.DimensionalWeight,
             DeliveryDuration: channelProduct.DeliveryDuration,
             FastDeliveryType: channelProduct.FastDeliveryType,
-            ImageUrls: imageUrls,
-            Attributes: channelProduct.Attributes
-                .Select(a => new TrendyolAttributeValue(a.AttributeId, a.AttributeValueId, a.CustomValue))
-                .ToList(),
-            Items: items);
+            ImageUrls: images.Urls,
+            // Gerçek push'ta KANONİK liste (varianter tanıma denk gelenler elenmiş — onlar kalemle gider);
+            // önizlemede ham kayıt (tanım yüklenmemiş olabilir).
+            Attributes: validated?.ProductAttributes
+                ?? channelProduct.Attributes
+                    .Select(a => new TrendyolAttributeValue(a.AttributeId, a.AttributeValueId, a.CustomValue))
+                    .ToList(),
+            Items: items,
+            SentMediaIds: images.MediaIds);
+    }
+
+    /// <summary>Push görsel çözümü — adresler + FİİLEN giden kimlikler (defter bunu yazar).</summary>
+    private sealed record PushImages(List<string> Urls, List<Guid> MediaIds);
+
+    /// <summary>
+    /// Push görselleri. Önizleme + yayıncı-kapalı gerçek push: imzalı DAM linkleri (dış ağa çıkılmaz).
+    /// Yayıncı AÇIK gerçek push: ① bugünkü görsel seti import DAMGASIYLA (<c>RemoteImageMediaIds</c>) birebir ise
+    /// kanalın kendi CDN adresleri gönderilir — kanala aynı görseli yeniden yutturma; kapı DEFTERLE değil damgayla
+    /// kurulur (bayat kanal adresi tuzağı entity doc'unda) ② değilse her medya geçici barındırmaya yüklenir;
+    /// yüklenemeyen görsel bildirimle atlanır ve KİMLİĞİ giden listeye GİRMEZ (defter "göndermediğini yazmaz").
+    /// Aday varken hiçbiri yüklenemediyse özgül hata: <c>ImageTemporaryLinkFailed</c> — "görsel yok" değil,
+    /// "barındırıcıya ulaşılamadı" (AV/ağ filtresi engeli bilinen arıza modu; CLAUDE.md §6).
+    /// </summary>
+    private async Task<PushImages> ResolvePushImagesAsync(
+        SalesChannelTrTrendyolProduct channelProduct, Product product, List<Guid> candidateMediaIds,
+        bool realPush, List<string>? notices)
+    {
+        if (!realPush || !_temporaryMediaLinkPublisher.IsEnabled)
+        {
+            var signed = await _pushImageResolver.ResolveAsync(product, ProductConsts.MaxImageCount);
+            var signedIds = await _pushImageResolver.ResolveMediaIdsAsync(product, ProductConsts.MaxImageCount);
+            return new PushImages(signed, signedIds);
+        }
+
+        if (candidateMediaIds.Count > 0
+            && channelProduct.RemoteImageUrls.Count > 0
+            && channelProduct.RemoteImageMediaIds.SequenceEqual(candidateMediaIds))
+        {
+            return new PushImages(channelProduct.RemoteImageUrls.ToList(), candidateMediaIds);
+        }
+
+        var urls = new List<string>();
+        var sentIds = new List<Guid>();
+        foreach (var mediaId in candidateMediaIds)
+        {
+            if (await _temporaryMediaLinkPublisher.PublishAsync(mediaId) is { } url)
+            {
+                urls.Add(url);
+                sentIds.Add(mediaId);
+            }
+            else
+            {
+                notices?.Add(L["TrendyolProduct:ImageTemporaryLinkFailed"].Value);
+            }
+        }
+
+        if (candidateMediaIds.Count > 0 && urls.Count == 0)
+        {
+            throw new BusinessException("TradeXpress:Trendyol:Product:ImageTemporaryLinkFailed");
+        }
+
+        return new PushImages(urls, sentIds);
+    }
+
+    /// <summary>Varyantın import FOTOĞRAFI (pazaryerinin bildirdiği eksen değerleri) — doğrulayıcının
+    /// foto-öncelik girdisi; fotoğrafsız varyantta boş liste.</summary>
+    private static IReadOnlyList<SalesChannelTrTrendyolProductSkuRemoteAxisValue> PhotoValuesOf(
+        SalesChannelTrTrendyolProduct channelProduct, Guid variantId)
+    {
+        return channelProduct.Skus.FirstOrDefault(s => s.ProductVariantId == variantId)?.RemoteVariantAttributes
+            ?? (IReadOnlyList<SalesChannelTrTrendyolProductSkuRemoteAxisValue>)Array.Empty<SalesChannelTrTrendyolProductSkuRemoteAxisValue>();
+    }
+
+    /// <summary>Kalemin item-düzeyi attribute'ları — ÖNİZLEME geri düşüşü (gerçek push'ta kaynak doğrulayıcı
+    /// çıktısıdır: foto ?? kategori tanımından türetilmiş; T6/T8 2026-08-14'te kuruldu). Burada yalnız import
+    /// fotoğrafı okunur (<c>SalesChannelTrTrendyolProductSku.RemoteVariantAttributes</c>: pazaryerinin kendi beyanı);
+    /// fotoğrafı olmayan kalemde <c>null</c> → önizleme yalnız ürün-seviyesi nitelikleri gösterir.</summary>
+    private static IReadOnlyList<TrendyolAttributeValue>? ResolveItemAxisAttributes(
+        SalesChannelTrTrendyolProduct channelProduct, string barcode)
+    {
+        var sku = channelProduct.Skus.FirstOrDefault(s => s.Barcode == barcode);
+        if (sku is null || sku.RemoteVariantAttributes.Count == 0)
+        {
+            return null;
+        }
+
+        return sku.RemoteVariantAttributes
+            .Select(a => new TrendyolAttributeValue(
+                a.AttributeId,
+                a.AttributeValueId,
+                a.AttributeValueId is null ? a.ValueText : null))
+            .ToList();
     }
 
     // ── Trendyol varyant ÖZELLİKLERİ (klon-sonra-ayrış) + kartezyen kombinasyon RECONCILE ─────────────────────

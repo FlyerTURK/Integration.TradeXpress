@@ -40,7 +40,9 @@ public partial class ChannelProductsPanel
     /// <summary>Grid kolon düzeni kalıcılık anahtarı — iki yüzey farklı kolon setleri gösterdiğinden
     /// (kanal kolonu) ayrı anahtar kullanır; aksi halde formda gizlenen kolon standalone listede de
     /// gizli kalırdı.</summary>
-    [Parameter] public string StateKey { get; set; } = "sales-channel-products:list:v5";
+    // v6: kolon seti değişti (Kanal Engeli + Kampanya eklendi, indeksler kaydı). Kaydedilmiş eski düzen
+    // yeni kolonları bilmediği için onları gizli/yanlış yerde çizerdi — anahtar sürümlenerek düzen sıfırlanır.
+    [Parameter] public string StateKey { get; set; } = "sales-channel-products:list:v6";
 
     /// <summary>Kanal kolonu görünür mü. Varsayılan: tek kanala daraltılmadıysa görünür — tek kanalda
     /// her satırda aynı değeri tekrarlamak yer israfıdır.</summary>
@@ -49,8 +51,10 @@ public partial class ChannelProductsPanel
         get { return SalesChannelId is null; }
     }
 
-    /// <summary>Dar ekran bayrağı (kabuk cascade eder) — araç çubuğunda yazı gösterilip gösterilmeyeceği buna bağlı.</summary>
-    [CascadingParameter(Name = "IsMobile")] public bool IsMobile { get; set; }
+    // NOT: dar-ekran bayrağı (IsMobile) ARTIK ALINMIYOR. Tek kullanıcısı araç çubuğu etiketlerini dar ekranda
+    // gizlemekti; o iş DevExpress'in kendi adaptif davranışına devredildi (BuildCustomActions'taki gerekçe).
+    // Ölü bir cascade parametresi zararsız değildi: kabuk her breakpoint değişiminde parametre ataması
+    // tetikliyor ve bu panel o yüzden gereksiz yere yeniden çiziliyordu.
 
     [Inject] private ISalesChannelProductAppService AppService { get; set; } = default!;
     [Inject] private ISalesChannelTrN11ProductAppService N11AppService { get; set; } = default!;
@@ -87,10 +91,11 @@ public partial class ChannelProductsPanel
 
     /// <summary>Yalnız KAPSAM değiştiğinde yeniden çeker.
     ///
-    /// <para><b>Neden koşullu:</b> <c>OnParametersSetAsync</c> her parametre atamasında çalışır — cascading
-    /// değer değişimi dahil. Bu panel dar-ekran bayrağını (<c>IsMobile</c>) cascade ile aldığından, koşulsuz
-    /// çağrı pencereyi 768px eşiğinden geçirmeyi bile TAM bir sunucu çekimine dönüştürüyordu; ebeveynin her
-    /// re-render'ı da aynısını yapıyordu.</para></summary>
+    /// <para><b>Neden koşullu:</b> <c>OnParametersSetAsync</c> her parametre atamasında çalışır — ebeveynin
+    /// her re-render'ı ve her cascading değer değişimi dahil. Koşulsuz çağrı, kapsam hiç değişmese bile TAM
+    /// bir sunucu çekimine dönüşürdü; bu panel dar-ekran bayrağını cascade ile aldığı dönemde pencereyi
+    /// 768px eşiğinden geçirmek bile listeyi baştan çektiriyordu. Bayrak artık alınmıyor ama gerekçe DURUYOR:
+    /// koruma cascade'e değil, "kapsam değişmediyse çekme" kuralına dayanır.</para></summary>
     protected override async Task OnParametersSetAsync()
     {
         var scope = (SalesChannelId, ChannelType);
@@ -215,10 +220,16 @@ public partial class ChannelProductsPanel
             {
                 SortIndex = 310,
 
-                // DAR EKRANDA YAZI YOK, yalnız ikon (2026-08-10 Hakan): uzun etiket dar araç çubuğunda
-                // diğer öğeleri eziyordu. Tooltip her iki durumda da kalır — ikon tek başına ne yaptığını
-                // anlatmaz, açıklamayı büsbütün kaldırmak keşfedilebilirliği öldürürdü.
-                Text = IsMobile ? null : L["SalesChannelProduct:History:Title"].Value,
+                // ETİKET HER ZAMAN VERİLİR — dar ekranda da (2026-08-13 Hakan: "mobilde toolbar menüsünde
+                // daraldığında yazıları görünsün").
+                //
+                // Önceden dar ekranda `Text` NULL'a çekiliyordu ("uzun etiket araç çubuğunu eziyor", 2026-08-10).
+                // O ilaç yanlış yerdeydi: DevExpress zaten dar araç çubuğunda etiketi KENDİ gizliyor
+                // (ToolbarRenderer'da AdaptivityAutoCollapseItemsToIcons=true) — kanıtı, `Text` taşıyan
+                // çerçeve düğmelerinin (Dışa Aktar · Yenile) çubukta ikona düşüp taşma menüsünde YAZIYLA
+                // çıkması. Etiketi kaynağında silmek ise öğeyi menüde de yazısız bırakıyordu: kullanıcı
+                // taşma menüsünde ne yaptığı belirsiz üç ikon görüyordu ve tooltip dokunmatikte açılmıyor.
+                Text = L["SalesChannelProduct:History:Title"].Value,
                 Tooltip = L["SalesChannelProduct:History:Tooltip"],
                 IconCssClass = TradeXpressIcons.History + " xaf-toolbar-item-icon",
                 Enabled = _selected is not null,
@@ -239,7 +250,7 @@ public partial class ChannelProductsPanel
             {
                 SortIndex = 320,
                 Visible = SalesChannelId is not null,
-                Text = IsMobile ? null : L["SalesChannelProduct:Import"].Value,
+                Text = L["SalesChannelProduct:Import"].Value,
                 Tooltip = L["SalesChannelProduct:ImportTooltip"],
                 IconCssClass = TradeXpressIcons.Swap + " xaf-toolbar-item-icon",
                 Enabled = !_importing,
@@ -409,7 +420,29 @@ public partial class ChannelProductsPanel
             return L[$"Enum:ChannelProductReadiness:{readiness}"].Value;
         }
 
+        if (value is ChannelListingObstacle obstacle)
+        {
+            return ObstacleLabel(obstacle);
+        }
+
         return value.ToString() ?? string.Empty;
+    }
+
+    /// <summary>Pazaryeri engelinin okunur adı. <see cref="ChannelListingObstacle.None"/> "engel yok" değil
+    /// "bilinen engel yok" der — Trendyol dışı kanallar böyle bir beyan döndürmüyor.</summary>
+    private string ObstacleLabel(ChannelListingObstacle obstacle)
+    {
+        return L[$"Enum:ChannelListingObstacle:{obstacle}"].Value;
+    }
+
+    /// <summary>Kanal, bizim son gönderimimizden SONRA değişmiş mi — kanalda bize ait olmayan bir müdahalenin
+    /// tek kanıtı. Hiç gönderim yapılmamışsa kıyas edilecek bir an yoktur ve soru KONUSUZDUR: içe aktarılan
+    /// her kayıt aksi hâlde "değişti" görünür ve uyarı anlamını yitirirdi.</summary>
+    private static bool ChangedOnChannelAfterUs(SalesChannelProductListDto row)
+    {
+        return row.LastSyncedAt is { } ours
+               && row.RemoteUpdatedAt is { } theirs
+               && theirs > ours;
     }
 
     /// <summary>Durum süzgeci seçenekleri — "Tümü" seçeneği LİSTEDE YOK: combo'nun temizle düğmesi

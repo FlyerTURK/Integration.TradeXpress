@@ -655,6 +655,134 @@ public abstract class SalesChannelTrTrendyolProductImportTests<TStartupModule> :
         }
     }
 
+    /// <summary>Varyant EKSENİ ürün seviyesine yazılmamalı — yalnız kalemler arasında ORTAK nitelikler yazılmalı.
+    ///
+    /// <para><b>Yakaladığı hata:</b> import ürün-seviyesi nitelikleri grubun İLK kaleminden olduğu gibi alıyordu.
+    /// Eksen varsa bu, birinci varyantın değerini (ör. "Kırmızı") ÜRÜNÜN değeri sanıp kaydetmek demekti; push
+    /// gövdesi de ürün niteliklerini HER item'a kopyaladığından tüm varyantlar aynı renk beyanıyla gidiyordu.
+    /// Çözüm <c>TrendyolVariantAxisResolver</c>: değeri kalemler arasında DEĞİŞEN nitelik = eksen, elenir.</para></summary>
+    [Fact]
+    public async Task Import_writes_only_shared_attributes_to_product_level_not_the_variant_axis()
+    {
+        var companyId = Guid.NewGuid();
+        using (_currentCompany.Change(companyId))
+        {
+            var channel = await SeedChannelAsync(companyId, "IMP14");
+            _fakeClient.RemoteItems.Clear();
+
+            // Aynı grup, iki kalem: Materyal (60) ORTAK, Renk (47) DEĞİŞİYOR → Renk eksendir.
+            var red = BuildRemoteItem(
+                mainId: "MAIN-14", barcode: "BR-AX-RED", stockCode: "STK-AX", title: "Deri Kılıf",
+                quantity: 5, salePrice: 100m, listPrice: null, contentId: 1401, approved: true);
+            _fakeClient.RemoteItems.Add(red with
+            {
+                Variants = new List<TrendyolRemoteVariant>
+                {
+                    red.Variants[0] with
+                    {
+                        Attributes = new List<TrendyolRemoteAttribute>
+                        {
+                            new(60, "Materyal", 1001, "Deri", null),
+                            new(47, "Renk", 686234, "Kırmızı", null),
+                        },
+                    },
+                },
+            });
+            var blue = BuildRemoteItem(
+                mainId: "MAIN-14", barcode: "BR-AX-BLUE", stockCode: "STK-AX", title: "Deri Kılıf",
+                quantity: 3, salePrice: 100m, listPrice: null, contentId: 1402, approved: true);
+            _fakeClient.RemoteItems.Add(blue with
+            {
+                Variants = new List<TrendyolRemoteVariant>
+                {
+                    blue.Variants[0] with
+                    {
+                        Attributes = new List<TrendyolRemoteAttribute>
+                        {
+                            new(60, "Materyal", 1001, "Deri", null),
+                            new(47, "Renk", 686240, "Mavi", null),
+                        },
+                    },
+                },
+            });
+
+            var report = await _appService.ImportFromMarketplaceAsync(channel.Id);
+            report.TotalRemoteProducts.ShouldBe(1);
+
+            var record = (await WithUnitOfWorkAsync(async () =>
+                await _channelProductRepository.GetListAsync(r => r.SalesChannelId == channel.Id))).ShouldHaveSingleItem();
+
+            // Ortak nitelik ürün seviyesinde DURUR; eksen niteliği (Renk) ürün seviyesine YAZILMAZ —
+            // ilk kalemin "Kırmızı"sı ürünün beyanı değildir.
+            record.Attributes.ShouldContain(a => a.AttributeId == 60);
+            record.Attributes.ShouldNotContain(a => a.AttributeId == 47);
+
+            // Eksen değeri KALEMİN fotoğrafına yazılır (push'un item-düzeyi attribute kaynağı): her SKU kendi
+            // renk kimliğini taşır, ortak nitelik (60) fotoğrafa GİRMEZ (o ürün seviyesinde).
+            var redSku = record.Skus.Single(s => s.Barcode == "BR-AX-RED");
+            redSku.RemoteVariantAttributes.ShouldHaveSingleItem();
+            redSku.RemoteVariantAttributes[0].AttributeId.ShouldBe(47);
+            redSku.RemoteVariantAttributes[0].AttributeValueId.ShouldBe(686234);
+            var blueSku = record.Skus.Single(s => s.Barcode == "BR-AX-BLUE");
+            blueSku.RemoteVariantAttributes.ShouldHaveSingleItem();
+            blueSku.RemoteVariantAttributes[0].AttributeValueId.ShouldBe(686240);
+        }
+    }
+
+    /// <summary>Sınırı aşan KANAL GEREKÇESİ importu düşürmemeli — kırpılıp saklanmalı.
+    ///
+    /// <para><b>Yakaladığı hata:</b> gerekçe/URL alanları stockCode'daki onarım süzgecinden geçmeden entity'ye
+    /// gidiyordu; entity guard'ı fail-fast olduğundan 1000 karakteri aşan tek bir karaliste gerekçesi
+    /// (birleştirilen red gerekçelerinde gerçekçi) <c>TooLongPropertyException</c> ile TÜM partiyi iptal
+    /// ediyordu. Onarım import sınırında (<c>BuildRemoteState</c>); guard fail-fast KALIR.</para></summary>
+    [Fact]
+    public async Task Overlong_channel_reason_is_truncated_not_fatal()
+    {
+        var companyId = Guid.NewGuid();
+        using (_currentCompany.Change(companyId))
+        {
+            var channel = await SeedChannelAsync(companyId, "IMP13");
+            _fakeClient.RemoteItems.Clear();
+            var item = BuildRemoteItem(
+                mainId: "MAIN-13", barcode: "BR-LONG-1", stockCode: "STK-LONG-1", title: "Uzun Gerekçeli Kalem",
+                quantity: 1, salePrice: 10m, listPrice: null, contentId: 1301, approved: true);
+            _fakeClient.RemoteItems.Add(item with
+            {
+                Variants = new List<TrendyolRemoteVariant>
+                {
+                    item.Variants[0] with
+                    {
+                        Flags = new TrendyolRemoteListingFlags(
+                            Archived: false,
+                            Locked: false,
+                            LockReason: null,
+                            Blacklisted: true,
+                            BlacklistReason: new string('G', TrendyolProductConsts.RemoteReasonMaxLength + 500),
+                            Rejected: null,
+                            RejectReason: null,
+                            HasActiveCampaign: null,
+                            ProductUrl: "https://www.trendyol.com/" + new string('u', TrendyolProductConsts.RemoteProductUrlMaxLength),
+                            CreatedAtUtc: null,
+                            UpdatedAtUtc: null),
+                    },
+                },
+            });
+
+            var report = await _appService.ImportFromMarketplaceAsync(channel.Id);
+
+            // Parti İPTAL OLMADI; engel beyanı kırpılmış hâliyle saklandı (bayrak + gerekçenin başı korunur).
+            report.CreatedChannelProducts.ShouldBe(1);
+            var record = (await WithUnitOfWorkAsync(async () =>
+                await _channelProductRepository.GetListAsync(r => r.SalesChannelId == channel.Id))).ShouldHaveSingleItem();
+            var sku = record.Skus.ShouldHaveSingleItem();
+            sku.RemoteBlacklisted.ShouldBe(true);
+            sku.RemoteBlacklistReason.ShouldNotBeNull();
+            sku.RemoteBlacklistReason!.Length.ShouldBe(TrendyolProductConsts.RemoteReasonMaxLength);
+            sku.RemoteProductUrl.ShouldNotBeNull();
+            sku.RemoteProductUrl!.Length.ShouldBe(TrendyolProductConsts.RemoteProductUrlMaxLength);
+        }
+    }
+
     // ── Kod-çakışan kardeş varyantlar: İLK kuruluş TÜM renkleri doğurur (canlı vaka "Velvet Ruj") ────
 
     [Fact]

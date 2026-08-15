@@ -14,6 +14,34 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
     {
         Check.NotNull(builder, nameof(builder));
 
+        // SKU SATIRI: ÖNCE KONVANSİYON KEŞFİ SİLİNİR, SONRA SAHİPLİ (owned) İLAN EDİLİR — sıra önemlidir.
+        //
+        // NE OLDU: SKU sınıfına yeni alanlar eklendiğinde model kurulumu TAMAMEN düştü —
+        // "cannot be configured as owned because it has already been configured as a non-owned".
+        // Uygulama açılmıyor, tek bir sorgu çalışmıyor; hata da alanı ekleyen dosyayı değil bu dosyayı
+        // gösteriyor. Ölçüm: <c>SalesChannelTrTrendyolProduct.Skus</c> koleksiyonu, biz onu yapılandırmadan
+        // ÖNCE EF'in ilişki-keşif konvansiyonu tarafından SIRADAN bir gezinme olarak modele giriyor.
+        // Aşağıdaki <c>OwnsMany</c> bu kararı normalde ezip tipi sahipliye çeviriyordu; alanlar eklenince
+        // dönüşüm reddedildi.
+        //
+        // NEDEN İKİ SATIR: <c>Owned&lt;T&gt;()</c> TEK BAŞINA YETMEZ — konvansiyonun kaydı zaten modeldedir
+        // ve aynı gerekçeyle reddedilir (denendi, kırmızı). <c>Ignore&lt;T&gt;()</c> o kaydı modelden siler,
+        // ardından <c>Owned&lt;T&gt;()</c> tipi sıfırdan ve AÇIKÇA sahipli ilan eder. Böylece yapılandırma
+        // konvansiyonun ne bulduğuna bağlı olmaktan çıkar: SKU sınıfına alan eklemek modeli bir daha kıramaz.
+        //
+        // Domain'deki sınıfa <c>[Owned]</c> attribute'u koymak aynı işi görürdü ama Domain'i EF Core'a
+        // bağlardı — katman ihlali (CLAUDE.md §2). Karar bu yüzden EF katmanında yaşıyor.
+        //
+        // Mekanik ağ: EF test paketinin TAMAMI. Model kurulamazsa her test kırmızı olur — bu kırılma da
+        // zaten oradan çıktı, derlemeden ya da birim testlerden değil.
+        builder.Ignore<SalesChannelTrTrendyolProductSku>();
+        builder.Owned<SalesChannelTrTrendyolProductSku>();
+
+        // SKU'nun iç koleksiyonu da aynı korumaya girer (aynı kırılma sınıfı: konvansiyon keşfi tipi
+        // non-owned kaydedip OwnsMany'yi reddedebilir) — sıra yine Ignore → Owned.
+        builder.Ignore<SalesChannelTrTrendyolProductSkuRemoteAxisValue>();
+        builder.Owned<SalesChannelTrTrendyolProductSkuRemoteAxisValue>();
+
         builder.Entity<SalesChannelTrTrendyolProduct>(b =>
         {
             b.ToTable(TradeXpressConsts.DbTablePrefix + "SalesChannelTrTrendyolProducts", TradeXpressConsts.DbSchema);
@@ -54,6 +82,8 @@ public static partial class TradeXpressDbContextModelCreatingExtensions
                 s.Property(p => p.Barcode).HasMaxLength(TrendyolProductConsts.BarcodeMaxLength);
                 s.Property(p => p.StockCode).HasMaxLength(TrendyolProductConsts.StockCodeMaxLength);
                 s.OwnsMany(p => p.AttributeSnapshot);
+                s.OwnsMany(p => p.RemoteVariantAttributes, a =>
+                    a.Property(p => p.ValueText).HasMaxLength(TrendyolProductConsts.CustomAttributeValueMaxLength));
             });
 
             // Push emniyet alanları: fiyat bandı, override fiyatla AYNI precision (N11 tarafıyla birebir).

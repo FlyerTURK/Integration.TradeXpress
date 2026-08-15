@@ -39,8 +39,8 @@ public partial class SalesChannelListPage : IDisposable
     // Şirkette hâlihazırda bulunan kanal türleri — "Yeni ▾"'de o türü devre dışı bırakır (her türden en fazla bir tane).
     private HashSet<SalesChannelType> _existingTypes = new();
 
-    /// <summary>Åirketin kanallarÄ± (kimlik + kod + tÃ¼r) â "Ä°Ã§e Aktar â¾" alt Ã¶Äelerini besler. TÃ¼rlerle
-    /// birlikte tek Ã§ekimde tazelenir; ayrÄ± bir yÃ¼kleme yolu aÃ§mak iki kaynaÄÄ±n ayrÄ±ÅmasÄ±na yol aÃ§ardÄ±.</summary>
+    /// <summary>Şirketin kanalları (kimlik + kod + tür) — "İçe Aktar ▾" alt öğelerini besler. Türlerle
+    /// birlikte tek çekimde tazelenir; ayrı bir yükleme yolu açmak iki kaynağın ayrışmasına yol açardı.</summary>
     private List<(Guid Id, string Code, SalesChannelType Type)> _channels = new();
 
     [Inject] private ChannelImportRunner ImportRunner { get; set; } = default!;
@@ -138,10 +138,10 @@ public partial class SalesChannelListPage : IDisposable
             OnClick = () => OpenRouteAsync("/sales-channel-products", L["SalesChannelProducts"].Value),
         },
 
-        // MAÄAZADAN Ä°ÃE AKTAR (2026-08-10 Hakan) â Åirketin KANALLARI alt Ã¶Äe olarak listelenir.
-        // Neden seÃ§ili satÄ±ra baÄlÄ± DEÄÄ°L: bu liste satÄ±r seÃ§imi tutmuyor ve her tÃ¼rden en fazla bir kanal
-        // olduÄundan alt liste zaten en Ã§ok Ã¼Ã§ Ã¶Äe; seÃ§im mekanizmasÄ± eklemek, Ã¼Ã§ Ã¶Äelik bir menÃ¼ iÃ§in
-        // yeni bir durum kavramÄ± getirmek olurdu.
+        // MAĞAZADAN İÇE AKTAR (2026-08-10 Hakan) — şirketin KANALLARI alt öğe olarak listelenir.
+        // Neden seçili satıra bağlı DEĞİL: bu liste satır seçimi tutmuyor ve her türden en fazla bir kanal
+        // olduğundan alt liste zaten en çok üç öğe; seçim mekanizması eklemek, üç öğelik bir menü için
+        // yeni bir durum kavramı getirmek olurdu.
         new()
         {
             SortIndex = 2,
@@ -153,7 +153,7 @@ public partial class SalesChannelListPage : IDisposable
         },
     };
 
-    /// <summary>Bir kanalÄ±n iÃ§e aktarÄ±mÄ±nÄ± Ã§alÄ±ÅtÄ±ran alt menÃ¼ Ã¶Äesi.</summary>
+    /// <summary>Bir kanalın içe aktarımını çalıştıran alt menü öğesi.</summary>
     private CrudToolbarAction ImportChannelItem((Guid Id, string Code, SalesChannelType Type) channel)
     {
         return new CrudToolbarAction
@@ -165,8 +165,8 @@ public partial class SalesChannelListPage : IDisposable
         };
     }
 
-    /// <summary>Ä°Ã§e aktarÄ±mÄ± Ã§alÄ±ÅtÄ±rÄ±r ve sonucu SÃYLER. Ortak koÅucu kullanÄ±lÄ±r (ChannelImportRunner) â
-    /// kanal edit formundaki dÃ¼Ämeyle aynÄ± yol; tÃ¼r daÄÄ±tÄ±mÄ± iki yerde ayrÄ± yaÅamaz.</summary>
+    /// <summary>İçe aktarımı çalıştırır ve sonucu SÖYLER. Ortak koşucu kullanılır (ChannelImportRunner) —
+    /// kanal edit formundaki düğmeyle aynı yol; tür dağıtımı iki yerde ayrı yaşamaz.</summary>
     private async Task RunImportAsync(Guid channelId, SalesChannelType type)
     {
         try

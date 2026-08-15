@@ -23,6 +23,7 @@
                        AddOnCatalog="AddOns" OnReloadAddOns="@ReloadAddOnsAsync"
                        OnGenerateVariants="@(async () => await GenerateVariantsAsync(context))"
                        OnRecipeChanged="@RecalcVariantCostAsync"
+                       OnCreateCommodityFromProduct="@CreateCommodityFromProductAsync"
                        OnVariantModeChangeRequested="@(async (ProductVariantMode m) => await HandleVariantModeChangeAsync(context, m))"
                        ProductCategories="ProductCategories" OnReloadProductCategories="@ReloadProductCategoriesAsync"
                        OnAddProductCategory="@AddProductCategoryAsync"

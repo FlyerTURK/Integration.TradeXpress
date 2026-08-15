@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
@@ -62,15 +63,26 @@ public sealed record TrendyolProductData(
     TrendyolFastDeliveryType? FastDeliveryType,
     IReadOnlyList<string> ImageUrls,
     IReadOnlyList<TrendyolAttributeValue> Attributes,   // kategori attribute (id-bazlı)
-    IReadOnlyList<TrendyolProductItem> Items);          // varyantlar (barcode başına)
+    IReadOnlyList<TrendyolProductItem> Items,           // varyantlar (barcode başına)
+    // ImageUrls'e FİİLEN giren görsellerin DAM kimlikleri (aynı sıra) — delil defteri "ne gönderdim"i BUNDAN
+    // yazar; adayları yeniden çözerek değil (yüklenemeyen görsel deftere "gönderildi" düşerdi). Gövdeye girmez.
+    IReadOnlyList<Guid> SentMediaIds);
 
-/// <summary>Trendyol satılabilir kalem (= ERP varyantı) — barcode + stok + fiyat (para birimi TRY zımnî).</summary>
+/// <summary>Trendyol satılabilir kalem (= ERP varyantı) — barcode + stok + fiyat (para birimi TRY zımnî).
+/// <para><see cref="Attributes"/> = kalemin KENDİ (varianter/eksen) attribute'ları — gövdede ürün-seviyesi
+/// niteliklerin ÜZERİNE yazılır (aynı attributeId'de kalem kazanır: özgül olan geneli yener). Kaynak gerçek
+/// push'ta doğrulayıcı çıktısıdır: import fotoğrafı (<c>RemoteVariantAttributes</c>) öncelikli, yoksa ERP/kanal
+/// çiftlerinden kategori tanımına karşı ad→id türetimi (T6/T8, 2026-08-14); önizlemede yalnız fotoğraf.</para></summary>
 public sealed record TrendyolProductItem(
     string Barcode,
     string StockCode,
     int Quantity,
     decimal ListPrice,
-    decimal SalePrice);
+    decimal SalePrice,
+    IReadOnlyList<TrendyolAttributeValue>? Attributes = null,
+    IReadOnlyList<(string Name, string Value)>? OptionLabels = null);
+// OptionLabels GÖVDEYE GİRMEZ — delil defterinin okunur "Ad=Değer" çiftleri (N11'de payload'un kendisi ad
+// taşıdığı için ayrı alan gerekmez; Trendyol id-bazlı olduğundan okunur biçim burada yanında taşınır).
 
 /// <summary>Trendyol HAFİF fiyat/stok satırı — kimlik <c>barcode</c> (stok kodu DEĞİL; ikisi Trendyol'da
 /// farklı olabilir ve karıştırmak başka bir SKU'nun stoğunu ezer).
@@ -111,7 +123,33 @@ public sealed record TrendyolRemoteVariant(
     long? ProductContentId,
     bool? Approved,
     bool? OnSale,
-    IReadOnlyList<TrendyolRemoteAttribute> Attributes);
+    IReadOnlyList<TrendyolRemoteAttribute> Attributes,
+    TrendyolRemoteListingFlags? Flags = null);
+
+/// <summary>
+/// Pazaryerinin kalem hakkındaki ENGEL/DURUM beyanı — <c>approved</c>/<c>onSale</c>'in söylemediği kısım.
+///
+/// <para><b>Neden ayrı bir kayıt:</b> bu alanlar aylarca yanıtta GELİYOR ama okunmuyordu. Sonuç sessizdi ve
+/// pahalıydı: karalisteye alınmış ya da kilitlenmiş bir kalem bizde "onaylı ve satışta" görünüyor, gönderim
+/// denemesi karşı tarafta reddediliyor, sebebi ancak hata metninden — o da defter kurulduktan sonra —
+/// anlaşılıyordu. Canlı ölçüm bunun teorik olmadığını gösterdi: 19 kalemlik grubun TAMAMI <c>blacklisted</c>,
+/// dördü ayrıca <c>locked</c>.</para>
+///
+/// <para><b>Üç durumlu okunur:</b> <c>null</c> = "pazaryeri bu alanı bildirmedi", <c>false</c> = "engel yok"
+/// beyanı. İkisini birleştirmek, bildirilmeyen bir engeli "engel yok" diye yazmak olurdu.</para>
+/// </summary>
+public sealed record TrendyolRemoteListingFlags(
+    bool? Archived,
+    bool? Locked,
+    string? LockReason,
+    bool? Blacklisted,
+    string? BlacklistReason,
+    bool? Rejected,
+    string? RejectReason,
+    bool? HasActiveCampaign,
+    string? ProductUrl,
+    DateTime? CreatedAtUtc,
+    DateTime? UpdatedAtUtc);
 
 /// <summary>Uzak (Trendyol'daki) satıcı ürünü — <c>productMainId</c> ile gruplanmış varyant seti + ortak alanlar.
 /// <see cref="ProductMainId"/> TRENDYOL'un grup anahtarıdır (satıcının kendi girdiği değer olabilir) — bizim

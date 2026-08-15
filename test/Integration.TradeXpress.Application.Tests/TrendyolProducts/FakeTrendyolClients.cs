@@ -34,10 +34,23 @@ public sealed class FakeTrendyolProductClient : ITrendyolProductClient
     /// <summary>Sahtenin döndüreceği makbuz kimliği (test ayarlayabilir).</summary>
     public string? NextBatchRequestId { get; set; } = "BATCH-PI-1";
 
+    /// <summary>TAM push izni — VARSAYILAN <c>false</c> (import/senkron testleri kazayla create yapamaz).
+    /// Açan test gönderilen gövdeyi <see cref="SubmittedProducts"/>'tan doğrular.</summary>
+    public bool AllowProductSubmit { get; set; }
+
+    /// <summary>Gönderilen tam-push gövdeleri (çağrı başına bir kayıt) — "ne gönderildi" bununla doğrulanır.</summary>
+    public List<TrendyolProductData> SubmittedProducts { get; } = new();
+
     public Task<TrendyolSubmitResult> SubmitProductAsync(
         TrendyolProductData product, TrendyolCredentials credentials, CancellationToken cancellationToken = default)
     {
-        throw new BusinessException("TradeXpress:Trendyol:Product:SubmitFailed");
+        if (!AllowProductSubmit)
+        {
+            throw new BusinessException("TradeXpress:Trendyol:Product:SubmitFailed");
+        }
+
+        SubmittedProducts.Add(product);
+        return Task.FromResult(new TrendyolSubmitResult(NextBatchRequestId));
     }
 
     public Task<TrendyolSubmitResult> UpdatePriceAndInventoryAsync(
@@ -81,5 +94,33 @@ public sealed class FakeTrendyolProductClient : ITrendyolProductClient
         var flat = await TrendyolProductClient.FetchAllPagesAsync(
             page => GetSellerProductsAsync(credentials, page, pageSize, cancellationToken));
         return TrendyolProductClient.GroupByProductMainId(flat);
+    }
+}
+
+/// <summary>
+/// Trendyol KATEGORİ istemcisinin TEST sahtesi — tam-push testinin kategori tanımı ihtiyacı için (gerçek push
+/// tanım olmadan durur; tanım gerçek istemciden çekilseydi test ağa çıkardı). <see cref="LeafAttributes"/>'a
+/// konan tanım kategori id'siyle servis edilir; konmayan kategori için fırlatır — "kazayla tanım istendi"
+/// görünür kalsın. Ağaç ucu import/kategori testlerinde çağrılmaz; çağrılırsa boş ağaç.
+/// </summary>
+public sealed class FakeTrendyolCategoryClient : TrendyolCategories.ITrendyolCategoryClient
+{
+    public Dictionary<string, TrendyolCategories.TrendyolLeafAttributes> LeafAttributes { get; } = new();
+
+    public Task<IReadOnlyList<TrendyolCategories.TrendyolCategoryNode>> GetCategoryTreeAsync(
+        TrendyolCredentials credentials, CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult<IReadOnlyList<TrendyolCategories.TrendyolCategoryNode>>(new List<TrendyolCategories.TrendyolCategoryNode>());
+    }
+
+    public Task<TrendyolCategories.TrendyolLeafAttributes> GetLeafAttributesAsync(
+        TrendyolCredentials credentials, string categoryExternalId, CancellationToken cancellationToken = default)
+    {
+        if (!LeafAttributes.TryGetValue(categoryExternalId, out var leaf))
+        {
+            throw new BusinessException("TradeXpress:Test:TrendyolLeafAttributesNotSeeded");
+        }
+
+        return Task.FromResult(leaf);
     }
 }

@@ -383,10 +383,25 @@
                 </DxFormLayoutItem>
                 @* Reçete (design-time maliyet) — INLINE panel (VoucherLine giriş paneli deseni; popup YOK). *@
                 <DxFormLayoutGroup Caption="@L["Recipe"]" ColSpanMd="12" CaptionPosition="CaptionPosition.Vertical">
+                    @* "Üründen" anahtarı: burada satır panelin draft'ıyla doğrudan çekirdek grafına girer;
+                       kanal formlarında (N11/Trendyol) aynı anahtar ProvisionCommoditiesAsync ile çekirdeğe
+                       yazar (yayılım adımı 2026-08-14). Etsy kapalı — kanal bilinçli dondurmada. *@
+                    @* OnChanged BAĞLANMAMIŞTI ve bu SESSİZ bir veri kaybı kapısıydı (2026-08-11 Hakan bulgusu):
+                       EntryPanelBase satırı ekledikten sonra OnChanged'i tetikler; bağlı değilse form DIRTY
+                       OLMUYOR → Kaydet pasif kalıyor ve eklenen reçete satırı kaydedilemiyordu. Canlı net
+                       maliyet de yenilenmiyordu. OnVariantRecipeChanged bunu KAPATMIYOR: o yalnız "tüm
+                       varyantlara uygula" yolunda tetikleniyor, tek varyantlı üründe hiç çalışmıyor. Aynı
+                       dosyadaki nitelik/varyant panelleri OnChanged'i zaten bağlıyor — reçete paneli atlanmış.
+
+                       DİKKAT: bu yorum bileşen etiketinin DIŞINDA durur; attribute'ların arasına konursa
+                       Blazor onu parametre adı sanar ve circuit'i düşürür (ui-blazor razor-comment kuralı). *@
                     <ProductRecipePanel Lines="v.RecipeLines"
+                                        ProductId="@Model.Id" AllowCreateFromProduct="true"
+                                        OnCreateCommodityFromProduct="@OnCreateCommodityFromProduct"
                                         Metals="Metals" MetalVariants="MetalVariants" Scraps="Scraps" Futures="Futures"
                                         Jewelries="Jewelries" Stones="Stones" Goods="Goods" Services="Services" Units="Units"
                                         AllVariants="@Model.Variants"
+                                        OnChanged="@(async () => await HandleRecipeChangedAsync(v))"
                                         OnVariantRecipeChanged="@(async (ProductVariantGraphDto variant) => await HandleRecipeChangedAsync(variant))"
                                         NetCost="@v.NetCost" NetCostCurrency="@v.NetCostCurrency" NetCostMissingRate="@v.NetCostMissingRate" />
                 </DxFormLayoutGroup>

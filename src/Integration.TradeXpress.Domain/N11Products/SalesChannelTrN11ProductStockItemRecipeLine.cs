@@ -14,7 +14,7 @@ namespace Integration.TradeXpress.N11Products;
 /// AYNEN yeniden kullanılır — saf/DB'siz); katalog/StableQuantity/EntryPrice hesap anında canlı okunur.
 /// Ürün reçetesiyle AYNI alan seti — hesap motoru ortak kalsın diye birebir hizalı.
 /// </summary>
-public class SalesChannelTrN11ProductStockItemRecipeLine : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwned
+public class SalesChannelTrN11ProductStockItemRecipeLine : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwned, Products.IRecipeCommodityLine
 {
     #region Constructors
 

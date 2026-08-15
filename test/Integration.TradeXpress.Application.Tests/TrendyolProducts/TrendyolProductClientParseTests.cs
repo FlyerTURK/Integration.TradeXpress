@@ -1,3 +1,4 @@
+using System;
 using System.Linq;
 using Shouldly;
 using Volo.Abp;
@@ -123,6 +124,87 @@ public class TrendyolProductClientParseTests
         product.ProductMainId.ShouldBe("MAIN-1");
         product.Variants.Select(v => v.Barcode).ShouldBe(new[] { "BR-RED-1", "BR-BLUE-1" });
         product.ImageUrls.Count.ShouldBe(2);            // ortak alanlar İLK kalemden
+    }
+
+    // ── PAZARYERİ ENGEL BEYANI ──────────────────────────────────────────────────────────────────────
+    // Bu bayraklar yanıtta HEP vardı ve hiç okunmuyordu. Bedeli sessizdi: karalisteye alınmış bir kalem
+    // bizde "onaylı + satışta" görünüyor, gönderim karşı tarafta reddediliyor ve sebebi hiçbir ekranda
+    // yer almıyordu. Canlı ölçüm teorik olmadığını gösterdi — bir grubun 19 kaleminin TAMAMI karalistedeydi.
+
+    private const string BlockedPayload = """
+    {
+      "totalElements": 2, "totalPages": 1, "page": 0, "size": 200,
+      "content": [
+        {
+          "barcode": "BR-BLOCKED", "title": "Karalistelik", "productMainId": "MAIN-B", "quantity": 0,
+          "approved": true, "onSale": true,
+          "archived": false,
+          "locked": true, "lockReason": "UNSUPPLIED_PRODUCT",
+          "blacklisted": true, "blacklistReason": "Orijinallik Şüphesine İlişkin Belgeleri Yüklememe",
+          "rejected": true, "rejectReasonDetails": [ { "reason": "Görsel yetersiz" }, "Marka eşleşmiyor" ],
+          "hasActiveCampaign": true,
+          "productUrl": "https://www.trendyol.com/x-p-742004605?merchantId=312014",
+          "createDateTime": 1690904714000,
+          "lastUpdateDate": 1770636349000
+        },
+        {
+          "barcode": "BR-CLEAN", "title": "Temiz kalem", "productMainId": "MAIN-C", "quantity": 5,
+          "approved": true, "onSale": true
+        }
+      ]
+    }
+    """;
+
+    [Fact]
+    public void Parse_reads_the_marketplace_obstacle_flags_and_their_reasons()
+    {
+        var page = TrendyolProductClient.ParseSellerProductsPage(0, 200, BlockedPayload);
+
+        var flags = page.Items[0].Variants.Single().Flags.ShouldNotBeNull();
+        flags.Blacklisted.ShouldBe(true);
+        flags.BlacklistReason.ShouldBe("Orijinallik Şüphesine İlişkin Belgeleri Yüklememe");
+        flags.Locked.ShouldBe(true);
+        flags.LockReason.ShouldBe("UNSUPPLIED_PRODUCT");
+        flags.HasActiveCampaign.ShouldBe(true);
+        flags.ProductUrl.ShouldBe("https://www.trendyol.com/x-p-742004605?merchantId=312014");
+    }
+
+    [Fact]
+    public void Reject_reasons_are_joined_rather_than_truncated_to_the_first_one()
+    {
+        // Trendyol kimi kayıtta {reason:...} nesnesi, kimi kayıtta düz metin döndürüyor — ikisi de kabul
+        // edilir. İlk gerekçeyi alıp kalanını atmak, "neden reddedildi" sorusuna EKSİK cevap olurdu.
+        var page = TrendyolProductClient.ParseSellerProductsPage(0, 200, BlockedPayload);
+
+        page.Items[0].Variants.Single().Flags!.RejectReason.ShouldBe("Görsel yetersiz · Marka eşleşmiyor");
+    }
+
+    [Fact]
+    public void An_unreported_flag_stays_null_rather_than_becoming_a_no_obstacle_claim()
+    {
+        // ÜÇ DURUMLU: null = "pazaryeri bildirmedi", false = "engel yok" BEYANI. İkisini birleştirmek,
+        // bildirilmemiş bir engeli "engel yok" diye kaydetmek olurdu.
+        var page = TrendyolProductClient.ParseSellerProductsPage(0, 200, BlockedPayload);
+
+        var clean = page.Items[1].Variants.Single().Flags.ShouldNotBeNull();
+        clean.Blacklisted.ShouldBeNull();
+        clean.Locked.ShouldBeNull();
+        clean.HasActiveCampaign.ShouldBeNull();
+
+        // Aynı yanıtta AÇIKÇA false bildirilen alan false kalır — null'a düşmez.
+        page.Items[0].Variants.Single().Flags!.Archived.ShouldBe(false);
+    }
+
+    [Fact]
+    public void Epoch_millisecond_timestamps_are_read_as_utc()
+    {
+        // Trendyol epoch MİLİSANİYE gönderiyor; kayıt UTC'dir (CLAUDE.md §6: kayıt=UTC, görüntü=yerel).
+        var page = TrendyolProductClient.ParseSellerProductsPage(0, 200, BlockedPayload);
+
+        var flags = page.Items[0].Variants.Single().Flags!;
+        flags.CreatedAtUtc.ShouldBe(new DateTime(2023, 8, 1, 15, 45, 14, DateTimeKind.Utc));
+        flags.UpdatedAtUtc!.Value.Kind.ShouldBe(DateTimeKind.Utc);
+        flags.UpdatedAtUtc.Value.ShouldBeGreaterThan(flags.CreatedAtUtc!.Value);
     }
 
     // Bozuk gövde SESSİZCE boş sayfa dönmez (o ve sonraki sayfaların kalemleri raporsuz kaybolurdu) —

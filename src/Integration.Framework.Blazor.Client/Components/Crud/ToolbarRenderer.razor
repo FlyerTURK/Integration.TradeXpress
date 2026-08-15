@@ -25,9 +25,37 @@
     }
 </DxToolbar>
 
+@* DAR EKRAN ARAMA SATIRI — arama ikonuna basınca açılan kutu. Aynı kutunun MASAÜSTÜNDEKİ hâliyle
+   birebir aynı şablonu kullanır (host geçer), yani iki ekran boyutunda iki farklı arama davranışı olmaz. *@
+@if (NarrowSearchVisible && NarrowSearchTemplate is not null)
+{
+    @* Inline stil: yeni CSS sınıfı açmak onay ister (CLAUDE.md §1) ve bu tek kullanımlık bir satır.
+       Kutu tam genişlik kaplar — dar ekranda aranacak alan zaten dardır. *@
+    <div style="padding:0.25rem 0.25rem 0.5rem; width:100%;">
+        @NarrowSearchTemplate(default!)
+    </div>
+}
+
 @code {
     [Parameter, EditorRequired] public IReadOnlyList<CrudToolbarAction> Actions { get; set; } = System.Array.Empty<CrudToolbarAction>();
     [Parameter] public ToolbarRenderStyleMode RenderMode { get; set; } = ToolbarRenderStyleMode.Plain;
+
+    /// <summary>
+    /// Dar ekranda arama ikonuyla açılan kutunun şablonu — host'un MASAÜSTÜNDE kullandığı şablonun AYNISI.
+    ///
+    /// <para><b>Neden burada:</b> dar ekranda arama, DevExpress'in grid'e GÖMÜLÜ arama kutusuyla yapılıyordu.
+    /// O kutu bizim arama yolumuza bağlı değildi — yazılan metin host'un <c>SearchText</c> alanına geri
+    /// dönmediği için sunucu-taraflı listelerde arama sunucuya HİÇ ulaşmıyor, yalnız o an yüklü satırlarda
+    /// filtreliyordu. Yani aynı listede masaüstü "tüm kayıtlarda", mobil "ekrandakilerde" arıyordu ve fark
+    /// hiçbir yerde görünmüyordu. Kendi kutumuzu göstermek bu ayrımı ortadan kaldırır.</para>
+    ///
+    /// <para>Çizim TEK yerde (bu bileşen) çünkü kural iki toolbar için de aynı: liste/split <c>CrudToolbar</c>
+    /// ve <c>DrillList</c>. Şablon host'tan gelir — metin alanı ve olay bağları oraya aittir.</para>
+    /// </summary>
+    [Parameter] public RenderFragment<IToolbarItemInfo>? NarrowSearchTemplate { get; set; }
+
+    /// <summary>Dar ekran arama satırı açık mı (arama ikonu aç/kapat eder).</summary>
+    [Parameter] public bool NarrowSearchVisible { get; set; }
 
     /// <summary>Bir aksiyon (kök veya alt-item) çalıştıktan SONRA tetiklenir → host kendini render eder.
     /// Click EventCallback'i bu bileşende üretildiğinden Blazor yalnız ToolbarRenderer'ı otomatik render eder;

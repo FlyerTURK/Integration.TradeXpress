@@ -1,0 +1,33 @@
+@using DevExpress.Blazor
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@*
+   FORM YÜKLENİYOR PANELİ — "veri gelene kadar ne gösterilir?" sorusunun TEK cevabı.
+
+   NEDEN VAR (2026-08-13 Hakan): formlar önce BOŞ açılıyordu. Kullanıcı bir an eksiksiz ama içi boş bir
+   form görüyor, sonra alanlar dolarken düzen zıplıyordu; kanal ürünü popup'ında ise gövde yerine düz
+   "Yükleniyor…" metni yazıyordu. İkisi de aynı boşluğun iki farklı görüntüsüydü ve her form kendi
+   çözümünü uyduruyordu (kimi metin, kimi hiçbir şey).
+
+   NEDEN AYRI BİLEŞEN: aksi hâlde her form kendi DxLoadingPanel'ini kendi ayarlarıyla kurar ve
+   uygulamada yükleme görüntüsü formdan forma değişirdi. Ayar tek yerde durunca (gölge · içerik kilidi ·
+   metin) hepsi aynı görünür.
+
+   NEDEN PositionTarget + boş div: panel içeriği SARMAZ. DevExpress'in kendi belgesi, panel parent
+   olduğunda karmaşık-tipli parametreli child'ın her etkileşimde yeniden render edildiğini söylüyor —
+   MdiTabPane'de aynı gerekçeyle sarmalama yapılmıyor. Burada zaten gösterilecek içerik YOK; panelin
+   kaplayacağı alanı boş bir kap belirler.
+*@
+
+@if (PositionTargetSelector is null)
+{
+    @* BOŞLUK KİPİ — gösterilecek içerik henüz yok; panelin kaplayacağı alanı boş bir kap belirler. *@
+    <div id="@_targetId" style="@($"min-height:{MinHeight}; width:100%;")"></div>
+}
+
+<DxLoadingPanel Visible="@Visible"
+                PositionTarget="@(PositionTargetSelector ?? $"#{_targetId}")"
+                ApplyBackgroundShading="@(PositionTargetSelector is not null)"
+                IsContentBlocked="true"
+                Text="@L["Loading"]" />
+

@@ -61,10 +61,15 @@ namespace Integration.Framework.Blazor.Client.Components.Crud
             SortIndex = 400, Visible = visible, Template = template,
         };
 
-        /// <summary>Mobil arama ikonu (grid gömülü arama kutusunu aç/kapat).</summary>
+        /// <summary>Dar ekran arama ikonu (arama kutusunu aç/kapat).
+        ///
+        /// <para><c>AdaptiveText</c> — <c>Text</c> DEĞİL: çubukta ikon kalır, TAŞMA MENÜSÜNDE adıyla çıkar.
+        /// Eskiden yalnız <c>Tooltip</c> vardı ve menüye düştüğünde ne olduğu belirsiz bir ikona dönüşüyordu;
+        /// dokunmatikte tooltip açılmadığı için başka ipucu da yoktu. Aynı desen <c>Export</c>'ta zaten
+        /// kullanılıyor — kanıtı, "Dışa Aktar"ın çubukta ikon, menüde yazı olarak görünmesi.</para></summary>
         public static CrudToolbarAction SearchIcon(IStringLocalizer L, bool visible, Func<Task> onClick) => new()
         {
-            SortIndex = 400, Tooltip = L["Search"],
+            SortIndex = 400, AdaptiveText = L["Search"], Tooltip = L["Search"],
             IconUrl = "/images/xaf/action_search.svg", IconCssClass = IconClass,
             Visible = visible, OnClick = onClick,
         };

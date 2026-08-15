@@ -143,6 +143,13 @@ namespace Integration.Framework.Blazor.Client.Components.Crud
 
         [Parameter] public EventCallback OnToggleGridSearch { get; set; }
 
+        /// <summary>Dar ekran arama satırı AÇIK mı — durumu host tutar (arama ikonu <see cref="OnToggleGridSearch"/>
+        /// ile çevirir), toolbar yalnız çizer. ⚠ Split kipi bu parametreyi HENÜZ beslemiyor: SplitCrudView yığını
+        /// uykuda (CLAUDE.md §9 — dokunulmaz) ve hiçbir canlı sayfa çizmiyor; yığın canlandırılırken
+        /// SplitCrudView'ın da bu bayrağı kablolaması gerekir, yoksa split'te arama ikonu ölü kalır
+        /// (gömülü ShowSearchBox kaldırıldı — tek arama yüzeyi bu satır).</summary>
+        [Parameter] public bool NarrowSearchOpen { get; set; }
+
         private string? _localSearchText;
 
         protected override void OnParametersSet()

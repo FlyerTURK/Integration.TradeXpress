@@ -15,7 +15,7 @@ namespace Integration.TradeXpress.Products;
 /// giriş fiyatı (EntryPrice) hesap anında katalogtan CANLI okunur. Ailenin milyemi/faktörü ise
 /// <see cref="Factor"/> alanında düzenlenebilir snapshot olarak tutulur (milyem fiziksel özellik, canlı olan kur).</para>
 /// </summary>
-public class ProductVariantRecipeLine : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwned
+public class ProductVariantRecipeLine : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwned, IRecipeCommodityLine
 {
     #region Constructors
 

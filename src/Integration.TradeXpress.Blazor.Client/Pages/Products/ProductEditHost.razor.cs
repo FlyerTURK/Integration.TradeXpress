@@ -213,6 +213,69 @@ public partial class ProductEditHost
         _ready = true;
     }
 
+    /// <summary>
+    /// "ÜRÜNDEN EMTİA YARAT" — reçete panelindeki anahtarın gövdesi (2026-08-11 Hakan tasarımı).
+    ///
+    /// <para><b>Neden host'ta:</b> katalogların sahibi burasıdır. Yeni kayıt açıldıktan sonra lookup'lar
+    /// tazelenmezse panel yeni emtiayı GÖREMEZ ve satır boş seçimle açılırdı. Panel bilinçli olarak
+    /// dilsizdir; I/O buraya delege edilir.</para>
+    ///
+    /// <para><b>Sessiz yaratım YOK — form açılır.</b> Maden/Hurda/Vadeli ailelerinde takip birimi
+    /// (<c>FollowingUnitId</c>) ZORUNLUDUR ve bir iş kararıdır; uydurulamaz. Mamül tam projeksiyonla,
+    /// diğerleri kod/ad ile tohumlanır, kalanını kullanıcı doldurur ("sınıflandırma manueldir, yazılım
+    /// tahmin etmez"). Aile → form eşlemesi <see cref="ProductCommoditySeed"/>'de, sihirbazın sınıflandırma
+    /// paneliyle ORTAK.</para>
+    ///
+    /// <para><b>Yeni kayıt FARKLA bulunur</b> (önce/sonra kimlik kümesi): app service "az önce ne yarattın"
+    /// diye sorulabilecek bir uç sunmuyor ve kullanıcı formu kaydetmeden kapatmış da olabilir — fark, her
+    /// iki durumu da doğru cevaplar (vazgeçince boş küme → <c>null</c>).</para>
+    /// </summary>
+    private async Task<Guid?> CreateCommodityFromProductAsync(ProcessType family)
+    {
+        if (Id is not { } productId || productId == Guid.Empty)
+        {
+            return null;
+        }
+
+        if (ProductCommoditySeed.EditComponentOf(family) is not { } editComponent)
+        {
+            return null;
+        }
+
+        var before = CommodityIdsOf(family);
+
+        // Kod/ad SUNUCUDAN okunur: host, açık formun modeline erişmiyor (model razor context'inde yaşıyor)
+        // ve kullanıcının kaydedilmemiş kod değişikliğini tohuma taşımak zaten YANLIŞ olurdu — emtia,
+        // kayıtlı ürünün kimliğinden doğar.
+        var product = await ProductAppService.GetAsync(productId);
+
+        var extra = await ProductCommoditySeed.BuildExtraParamsAsync(
+            family, productId, product.Code, product.Name, ProductAppService);
+
+        await ViewOpener.OpenAsync(
+            editComponent, null, L[$"Enum:ProcessType:{family}"].Value, iconCssClass: null, extraParams: extra);
+
+        await LoadRecipeCatalogsAsync();
+
+        var created = CommodityIdsOf(family).Except(before).ToList();
+        return created.Count == 1 ? created[0] : null;
+    }
+
+    /// <summary>Ailenin şu anki katalog kimlikleri — yaratım öncesi/sonrası farkı bununla alınır.</summary>
+    private HashSet<Guid> CommodityIdsOf(ProcessType family)
+    {
+        return family switch
+        {
+            ProcessType.Metal   => Metals.Select(x => x.Id).ToHashSet(),
+            ProcessType.Scrap   => Scraps.Select(x => x.Id).ToHashSet(),
+            ProcessType.Future  => Futures.Select(x => x.Id).ToHashSet(),
+            ProcessType.Jewelry => Jewelries.Select(x => x.Id).ToHashSet(),
+            ProcessType.Stone   => Stones.Select(x => x.Id).ToHashSet(),
+            ProcessType.Good    => Goods.Select(x => x.Id).ToHashSet(),
+            _                   => new HashSet<Guid>(),
+        };
+    }
+
     // Reçete satırlarının lookup beslemesi (aktif katalog kayıtları + birimler). Server working-company ile scope'lar.
     private async Task LoadRecipeCatalogsAsync()
     {

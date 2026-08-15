@@ -340,11 +340,19 @@
                         <DxFormLayoutItem Caption="@L["TrendyolProduct:DerivedPrice"]" ColSpanMd="4">
                             <span>@(v.DerivedPrice is { } dp ? $"{dp:N2} {v.NetCostCurrency}" : "-")</span>
                         </DxFormLayoutItem>
-                        @* Kanal-özel reçete — ERP reçetesinden klonlanır, sonra bağımsız (ERP paneli AYNEN yeniden kullanılır). *@
+                        @* Kanal-özel reçete — ERP reçetesinden klonlanır, sonra bağımsız (ERP paneli AYNEN yeniden kullanılır).
+                           OnChanged ŞART: bağlanmazsa satır ekleme/silme canlı NetCost'u tazelemez ve formu dirty
+                           yapmaz (çekirdekte aynı hata yaşandı — ProductLayout'taki not; kanalda da aynı düzeltme).
+                           "Üründen" akışı AÇIK (2026-08-14): yayılım adımı kuruldu — CreateCommodityFromProductAsync
+                           emtiayı ÇEKİRDEK varyanta yazar (otorite orada), panel dönen kimlikle draft açar. *@
                         <DxFormLayoutGroup Caption="@L["Recipe"]" ColSpanMd="12" CaptionPosition="CaptionPosition.Vertical">
                             <ProductRecipePanel Lines="v.RecipeLines"
+                                                ProductId="@Model.ProductId" AllowCreateFromProduct="true"
+                                                AllVariants="@_coreVariants"
+                                                OnCreateCommodityFromProduct="@CreateCommodityFromProductAsync"
                                                 Metals="_metals" MetalVariants="_metalVariants" Scraps="_scraps" Futures="_futures"
                                                 Jewelries="_jewelries" Stones="_stones" Goods="_goods" Services="_services" Units="_priceUnits"
+                                                OnChanged="@(async () => await HandleStockItemRecipeChangedAsync(v))"
                                                 NetCost="@v.NetCost" NetCostCurrency="@v.NetCostCurrency" NetCostMissingRate="@v.NetCostMissingRate" />
                         </DxFormLayoutGroup>
                     </DxFormLayout>

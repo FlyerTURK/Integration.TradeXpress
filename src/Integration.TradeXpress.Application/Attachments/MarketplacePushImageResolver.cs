@@ -23,6 +23,13 @@ namespace Integration.TradeXpress.Attachments;
 /// <para><b>Kaynak:</b> YALNIZ merkezi DAM (K2 kararı). Legacy <c>ProductImage</c> geri düşüşü 2026-07-31'de
 /// kaldırıldı: varyant-özel medya artık "ProductVariant" bağlamında yaşıyor, kayıt geneli ise "Product"
 /// bağlamında — ikisi de DAM'da. Görsel çözümü tek kaynaktan gelir.</para>
+///
+/// <para><b>İki adres yolu, tek küme:</b> N11 (ve önizlemeler) İMZALI DAM linki gönderir
+/// (<see cref="ResolveAsync(Product,int)"/> / <see cref="ResolveMediaIdsAsync"/> — imza üretilemeyen görsel
+/// atlanır); Trendyol gerçek push'u görseli GEÇİCİ BARINDIRMAYA yükleyip o adresi gönderir
+/// (<c>TemporaryMediaLinkPublisher</c>) ve kimlik kaynağı olarak <see cref="ResolveCandidateMediaIdsAsync"/>'i
+/// kullanır — imzalı linkten BAĞIMSIZ (aksi hâlde imza anahtarı yapılandırılmamış ortamda ürün "görselsiz"
+/// sanılırdı). Küme ve sıra iki yolda da aynıdır; yalnız adresin üretim biçimi farklıdır.</para>
 /// </summary>
 public class MarketplacePushImageResolver : ITransientDependency
 {
@@ -88,6 +95,21 @@ public class MarketplacePushImageResolver : ITransientDependency
             .Select(item => item.MediaId)
             .ToList();
 
+        return ids.Count > maxCount ? ids.Take(maxCount).ToList() : ids;
+    }
+
+    /// <summary>
+    /// Push aday görsellerinin DAM kimlikleri — imzalı-link ÜRETİLEBİLİRLİĞİNDEN BAĞIMSIZ (aynı küme, aynı sıra).
+    /// Geçici-barındırma yolu (Trendyol) ve import damgası içindir: o yollar imzalı DAM linkine hiç ihtiyaç
+    /// duymaz; <see cref="ResolveMediaIdsAsync"/>'in filtresi orada gizli bir bağımlılık üretir (imza anahtarı
+    /// yoksa liste boş kalır ve ürün "görselsiz" sanılır). Hangi kimliğin fiilen gönderildiğine yayıncı karar verir.
+    /// </summary>
+    public virtual async Task<List<Guid>> ResolveCandidateMediaIdsAsync(Product product, int maxCount)
+    {
+        var media = await _entityMedia.GetPushMediaAsync(MediaEntityNames.Product, product.Id, MediaType.Image);
+        media = await AppendVariantMediaAsync(product, media);
+
+        var ids = media.Select(item => item.MediaId).ToList();
         return ids.Count > maxCount ? ids.Take(maxCount).ToList() : ids;
     }
 

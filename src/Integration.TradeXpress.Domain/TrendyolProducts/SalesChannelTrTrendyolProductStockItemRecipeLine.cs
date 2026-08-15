@@ -14,7 +14,7 @@ namespace Integration.TradeXpress.TrendyolProducts;
 /// (<c>ProductRecipeCostCalculator</c> AYNEN yeniden kullanılır — saf/DB'siz); katalog/StableQuantity/EntryPrice hesap
 /// anında canlı okunur. Ürün reçetesiyle AYNI alan seti — hesap motoru ortak kalsın diye birebir hizalı.
 /// </summary>
-public class SalesChannelTrTrendyolProductStockItemRecipeLine : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwned
+public class SalesChannelTrTrendyolProductStockItemRecipeLine : FullAuditedAggregateRoot<Guid>, IMultiTenant, ICompanyOwned, Products.IRecipeCommodityLine
 {
     #region Constructors
 

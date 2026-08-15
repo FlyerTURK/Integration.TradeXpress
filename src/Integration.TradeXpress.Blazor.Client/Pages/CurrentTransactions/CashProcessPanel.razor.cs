@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -11,8 +11,8 @@ using Microsoft.AspNetCore.Components;
 namespace Integration.TradeXpress.Blazor.Client.Pages.CurrentTransactions;
 
 /// <summary>
-/// Nakit (Cash) fiÅŸ satÄ±rÄ± paneli â€” ortak parametre seti / HandleSave iskeleti / LoadForEditAsync
-/// deseni ProcessPanelHostBase'te; burada yalnÄ±z Cash'e Ã¶zel lookup + hesap motoru kÃ¶prÃ¼sÃ¼ var.
+/// Nakit (Cash) fiş satırı paneli — ortak parametre seti / HandleSave iskeleti / LoadForEditAsync
+/// deseni ProcessPanelHostBase'te; burada yalnız Cash'e özel lookup + hesap motoru köprüsü var.
 /// </summary>
 public partial class CashProcessPanel
 {
@@ -31,7 +31,7 @@ public partial class CashProcessPanel
         Factor      = 1m,
     };
 
-    // â”€â”€ UI / lookup altyapÄ±sÄ± (edit deÄŸeri deÄŸil) â”€â”€
+    // ── UI / lookup altyapısı (edit değeri değil) ──
     private bool _isMobile;
     private bool _payFactorReadOnly;
     private bool _payTotalReadOnly;
@@ -51,7 +51,7 @@ public partial class CashProcessPanel
     private List<DirectionItem> _directionItems = new();
     private List<PaymentItem>   _paymentItems   = new();
 
-    // Kur/parite (in-process hesap iÃ§in)
+    // Kur/parite (in-process hesap için)
     private Dictionary<Guid, decimal> _buyByUnit  = new();
     private Dictionary<Guid, string>  _codeByUnit = new();
     private List<(Guid Base, Guid Quote)> _parityPairs = new();
@@ -89,7 +89,7 @@ public partial class CashProcessPanel
         await SelectFirstPayItem();
     }
 
-    // â”€â”€ Hesap motoru kÃ¶prÃ¼sÃ¼ (in-process) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Hesap motoru köprüsü (in-process) ───────────────────────────────────────
 
     private decimal BuyOf(Guid id) => _buyByUnit.GetValueOrDefault(id);
 
@@ -98,10 +98,10 @@ public partial class CashProcessPanel
             _parityPairs, a, b,
             id => CurrencyUnitPriority.RankOf(_codeByUnit.GetValueOrDefault(id, string.Empty)));
 
-    /// <summary>Hesap motorunu Ã§aÄŸÄ±rÄ±r; model'in Fiyat/Tutar/Piyasa/KÃ¢r + readonly kilitlerini gÃ¼nceller.</summary>
+    /// <summary>Hesap motorunu çağırır; model'in Fiyat/Tutar/Piyasa/Kâr + readonly kilitlerini günceller.</summary>
     private void Recalc(EditedField edited)
     {
-        Model.EditedField = edited;   // save'de sunucuya gÃ¶nderilir (recompute yÃ¶nÃ¼)
+        Model.EditedField = edited;   // save'de sunucuya gönderilir (recompute yönü)
 
         if (Model.MainUnitId == Guid.Empty || Model.PayUnitId is null)
             return;
@@ -123,7 +123,7 @@ public partial class CashProcessPanel
             BuyOf,
             ParityMainOf);
 
-        Model.Amount      = r.Amount;   // PayTotal girilip Miktar boÅŸsa tÃ¼retilen MÄ°KTAR geri yansÄ±r
+        Model.Amount      = r.Amount;   // PayTotal girilip Miktar boşsa türetilen MİKTAR geri yansır
         Model.PayFactor   = r.PayFactor;
         Model.PayTotal    = r.PayTotal;
         Model.MarketPrice = r.MarketPrice;
@@ -148,7 +148,7 @@ public partial class CashProcessPanel
     {
         if (Model.PaymentType == ProcessPaymentType.WithCash)
         {
-            // PeÅŸin: karÅŸÄ± liste de Cash; seÃ§ili emtia kendisiyle Ã¶denemez â†’ dÄ±ÅŸla.
+            // Peşin: karşı liste de Cash; seçili emtia kendisiyle ödenemez → dışla.
             _allPayItems = _allCashes
                 .Where(c => c.Id != Model.CommodityId)
                 .Select(c => new PayComboItem(c.Id, c.Code, c.Name ?? string.Empty, c.IsActive,
@@ -171,7 +171,7 @@ public partial class CashProcessPanel
         if (_activePayItems.Count == 0)
             return;
 
-        // VarsayÄ±lan: karÅŸÄ± birimi takip birimiyle (MainUnitId) aynÄ± olan kayÄ±t â†’ aynÄ± birim (Fiyat=1/Tutar=Miktar kilitli).
+        // Varsayılan: karşı birimi takip birimiyle (MainUnitId) aynı olan kayıt → aynı birim (Fiyat=1/Tutar=Miktar kilitli).
         var match = Model.MainUnitId != Guid.Empty
             ? _activePayItems.FirstOrDefault(p => p.PayUnitId == Model.MainUnitId)
             : null;
@@ -184,7 +184,7 @@ public partial class CashProcessPanel
         _selectedPayItem     = id.HasValue ? _allPayItems.FirstOrDefault(p => p.Id == id.Value) : null;
         Model.PayCommodityCode = _selectedPayItem?.Code;
 
-        // PeÅŸin: PayUnit = Cash'in FollowingUnit'i; Normal: PayUnit = birimin kendisi.
+        // Peşin: PayUnit = Cash'in FollowingUnit'i; Normal: PayUnit = birimin kendisi.
         Model.PayUnitId = Model.PaymentType == ProcessPaymentType.WithCash
             ? _selectedPayItem?.PayUnitId
             : _selectedPayItem?.Id;
@@ -202,7 +202,7 @@ public partial class CashProcessPanel
 
         if (Model.PaymentType == ProcessPaymentType.WithCash)
         {
-            // PeÅŸin: karÅŸÄ± liste yeni emtiayÄ± dÄ±ÅŸlamalÄ± + seÃ§im geÃ§erli kalmalÄ± (recalc iÃ§eride).
+            // Peşin: karşı liste yeni emtiayı dışlamalı + seçim geçerli kalmalı (recalc içeride).
             BuildPayList();
             await SelectFirstPayItem();
         }
@@ -240,15 +240,15 @@ public partial class CashProcessPanel
         return Task.CompletedTask;
     }
 
-    // Ortak panel stilleri (ProcessPanelStyles SSOT) â€” markup kÄ±sa Ã§aÄŸrÄ± kullansÄ±n diye sarmalayÄ±cÄ±.
+    // Ortak panel stilleri (ProcessPanelStyles SSOT) — markup kısa çağrı kullansın diye sarmalayıcı.
     private string GroupStyle()   => ProcessPanelStyles.Group(_isMobile);
     private string ControlStyle() => ProcessPanelStyles.Control(_isMobile);
 
-    // â”€â”€ Base kancalarÄ± (HandleSave / LoadForEditAsync iskeleti ProcessPanelHostBase'te) â”€â”€
+    // ── Base kancaları (HandleSave / LoadForEditAsync iskeleti ProcessPanelHostBase'te) ──
 
-    protected override bool CanSave() => Model.MainUnitId != Guid.Empty; // emtia/birim seÃ§ili deÄŸilse Ã§Ä±k
+    protected override bool CanSave() => Model.MainUnitId != Guid.Empty; // emtia/birim seçili değilse çık
 
-    /// <summary>TÃ¼retilen deÄŸerler (WYSIWYG: Piyasa = pay birim kuru).</summary>
+    /// <summary>Türetilen değerler (WYSIWYG: Piyasa = pay birim kuru).</summary>
     protected override void PrepareModelForSave()
     {
         Model.Factor      = 1m;
@@ -262,7 +262,7 @@ public partial class CashProcessPanel
         Model.EditedField = EditedField.None;
     }
 
-    /// <summary>Yeni ekleme: bir sonraki satÄ±r iÃ§in tutarlarÄ± sÄ±fÄ±rla (sÄ±nÄ±flandÄ±rma/seÃ§imler kalsÄ±n).</summary>
+    /// <summary>Yeni ekleme: bir sonraki satır için tutarları sıfırla (sınıflandırma/seçimler kalsın).</summary>
     protected override void ResetVolatileFields()
     {
         Model.Amount      = 0m;
@@ -273,7 +273,7 @@ public partial class CashProcessPanel
 
     protected override Task OnLoadedForEditAsync(VoucherLineDto dto)
     {
-        // DeÄŸiÅŸmeden kaydedilirse saklÄ± Tutar korunsun (sunucu PayTotal'i ezmesin).
+        // Değişmeden kaydedilirse saklı Tutar korunsun (sunucu PayTotal'i ezmesin).
         Model.EditedField = EditedField.PayTotal;
 
         _selectedCash    = dto.CommodityId is { } cid ? _allCashes.FirstOrDefault(c => c.Id == cid) : null;

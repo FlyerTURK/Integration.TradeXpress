@@ -235,16 +235,87 @@
                     }
                 </CellDisplayTemplate>
             </DxGridDataColumn>
-            <DxGridDataColumn FieldName="VariantCount" Caption="@L["Variants"]" Width="90px" VisibleIndex="12" />
-            <DxGridDataColumn FieldName="RemoteId" Caption="@L["SalesChannelProduct:RemoteId"]" Width="140px" VisibleIndex="13" />
-            <DxGridDataColumn FieldName="SkuCount" Caption="@L["SalesChannelProduct:ChannelSkuCount"]" Width="90px" VisibleIndex="14" />
-            @* Zaman UTC saklanır → merkezî UtcLocalText kullanıcının yerel saatine çevirir. *@
-            <DxGridDataColumn FieldName="LastSyncedAt" Caption="@L["SalesChannelProduct:LastSynced"]" Width="150px" VisibleIndex="15">
+            @* KANAL ENGELİ — "satışa hazırlık" BİZİM tarafımızı ölçer, bu sütun KARŞI tarafı: ürün bizde
+               kusursuz olsa bile pazaryeri onu karalisteye almış, kilitlemiş ya da reddetmiş olabilir.
+               Bu bayraklar Trendyol yanıtında hep vardı ve hiç okunmuyordu; reddedilen bir gönderimin
+               sebebi hiçbir ekranda görünmüyordu. Engel gönderimi DURDURMAZ — son içe aktarım anının
+               fotoğrafıdır ve bayat bir bayrağa dayanıp gönderimi kesmek çözülmüş bir sorunu kalıcı kılardı. *@
+            <DxGridDataColumn FieldName="Obstacle" Caption="@L["SalesChannelProduct:Obstacle"]" Width="160px" VisibleIndex="12">
+                <CellDisplayTemplate>
+                    @{
+                        var blockRow = (SalesChannelProductListDto)context.DataItem;
+                    }
+                    @if (blockRow.Obstacle == ChannelListingObstacle.None)
+                    {
+                        <span style="color:#9ca3af;">—</span>
+                    }
+                    else
+                    {
+                        <span style="color:#b91c1c;" title="@blockRow.ObstacleReason">@ObstacleLabel(blockRow.Obstacle)</span>
+                    }
+                </CellDisplayTemplate>
+            </DxGridDataColumn>
+            @* Kampanya AYRI bir sütun çünkü AYRI bir soru: engel "satılamıyor" der, bu "fiyatına dokunma"
+               der. Otonom fiyat güncellemesi bu satıra yazmadan önce kullanıcının görmesi gereken tek şey. *@
+            <DxGridDataColumn FieldName="HasActiveCampaign" Caption="@L["SalesChannelProduct:Campaign"]" Width="110px" VisibleIndex="13">
+                <CellDisplayTemplate>
+                    @{
+                        var campaignRow = (SalesChannelProductListDto)context.DataItem;
+                    }
+                    @if (campaignRow.HasActiveCampaign == true)
+                    {
+                        <span style="color:#b45309;">@L["Yes"]</span>
+                    }
+                    else if (campaignRow.HasActiveCampaign == false)
+                    {
+                        <span style="color:#9ca3af;">@L["No"]</span>
+                    }
+                    else
+                    {
+                        <span style="color:#9ca3af;">—</span>
+                    }
+                </CellDisplayTemplate>
+            </DxGridDataColumn>
+            <DxGridDataColumn FieldName="VariantCount" Caption="@L["Variants"]" Width="90px" VisibleIndex="14" />
+            @* Uzak kimlik, adresi biliniyorsa pazaryerindeki SAYFAYA bağlanır — kullanıcının kaydı orada
+               doğrulamak için tek yaptığı iş buydu ve adres elimizde dururken atılıyordu. *@
+            <DxGridDataColumn FieldName="RemoteId" Caption="@L["SalesChannelProduct:RemoteId"]" Width="140px" VisibleIndex="15">
+                <CellDisplayTemplate>
+                    @{
+                        var remoteRow = (SalesChannelProductListDto)context.DataItem;
+                    }
+                    @if (!string.IsNullOrWhiteSpace(remoteRow.RemoteUrl))
+                    {
+                        <a href="@remoteRow.RemoteUrl" target="_blank" rel="noopener">@remoteRow.RemoteId</a>
+                    }
+                    else
+                    {
+                        @remoteRow.RemoteId
+                    }
+                </CellDisplayTemplate>
+            </DxGridDataColumn>
+            <DxGridDataColumn FieldName="SkuCount" Caption="@L["SalesChannelProduct:ChannelSkuCount"]" Width="90px" VisibleIndex="16" />
+            @* Zaman UTC saklanır → merkezî UtcLocalText kullanıcının yerel saatine çevirir. Kanalın kendi
+               güncelleme damgası bizimkinden YENİYSE ikinci satır olarak yazılır: kanalda bize ait olmayan
+               bir müdahale olduğunun tek kanıtı budur ve ancak yan yana görülünce anlaşılır. *@
+            <DxGridDataColumn FieldName="LastSyncedAt" Caption="@L["SalesChannelProduct:LastSynced"]" Width="160px" VisibleIndex="17">
                 <CellDisplayTemplate>
                     @{
                         var syncedRow = (SalesChannelProductListDto)context.DataItem;
                     }
                     <UtcLocalText Value="@syncedRow.LastSyncedAt" />
+                    @if (ChangedOnChannelAfterUs(syncedRow))
+                    {
+                        <div style="color:#b45309; font-size:.85em;">
+                            @L["SalesChannelProduct:ChangedOnChannel"]&nbsp;<UtcLocalText Value="@syncedRow.RemoteUpdatedAt" />
+                        </div>
+                    }
+                    @if (syncedRow.RemoteCreatedAt is not null)
+                    {
+                        <div style="color:#6c757d; font-size:.8em;">
+                            @L["SalesChannelProduct:CreatedOnChannel"]&nbsp;<UtcLocalText Value="@syncedRow.RemoteCreatedAt" />
+                        </div>
+                    }
                 </CellDisplayTemplate>
             </DxGridDataColumn>
         </GridColumns>

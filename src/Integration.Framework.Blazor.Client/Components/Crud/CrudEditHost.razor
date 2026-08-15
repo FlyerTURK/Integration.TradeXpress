@@ -31,19 +31,34 @@
                   Click="@(async () => await CloseAsync())" />
     </div>
 }
-else if (_model != null)
+else
 {
+@* DÜZEN ÖNCE ÇİZİLİR, VERİ SONRA İŞLENİR (2026-08-13 Hakan kararı: "Layout yüklenmiş olsun ve loading
+   panel gösterilsin. Sonrasında dto bilgisi form elemanlarına işlensin").
+
+   Eskiden model gelene kadar HİÇBİR ŞEY çizilmiyordu: popup boş bir çerçeve olarak açılıyor, sonra form
+   birden beliriyordu. Artık düzen boş bir modelle hemen çizilir, üzerine gölgeli + tıklamayı engelleyen
+   yükleme paneli biner; kayıt gelince model referansı DEĞİŞİR ve EntityEditForm kendini yeniden bağlar
+   (OnParametersSet'te EditContext + temiz snapshot yenilenir), yani alanlar gerçek veriyle dolar ve form
+   "kirli" görünmez.
+
+   Boş modelle çizim güvenlidir çünkü aynı düzen YENİ KAYIT akışında da tam olarak böyle çiziliyor —
+   layout'lar boş DTO'yu zaten desteklemek zorunda.
+
+   ⚠ Bu dal DxPopup'ın içeriği gizliyken render ETMEMESİ gerçeğiyle uyumludur: popup açılır (içerik render
+   olur), yükleme onun İÇİNDE görünür. "Popup'ı yüklenene kadar hiç açma" yolu bu yüzden seçilmedi. *@
+    <div id="@_formAreaId" style="width:100%; height:100%; display:flex; flex-direction:column; min-height:0;">
     <EntityEditForm TGetDto="TGetDto" TListDto="TListDto" TKey="TKey"
-                    Model="@_model" IsNew="@_isNew"
+                    Model="@EffectiveModel" IsNew="@_isNew"
                     FormCaption="@FormCaption"
                     FormCaptionKey="@FormCaptionKey"
-                    EntityValue="@(EntityValue?.Invoke(_model))"
+                    EntityValue="@(EntityValue?.Invoke(EffectiveModel))"
                     ParentLabel="@ParentLabel"
                     ParentLabelKey="@ParentLabelKey"
-                    ParentValue="@(ParentValue?.Invoke(_model))"
+                    ParentValue="@(ParentValue?.Invoke(EffectiveModel))"
                     IconCssClass="@IconCssClass"
-                    CanDeleteRecord="@((CanDelete?.Invoke(_model) ?? true) && !_isNew)"
-                    IsReadOnly="@(IsReadOnly?.Invoke(_model) ?? false)"
+                    CanDeleteRecord="@((CanDelete?.Invoke(EffectiveModel) ?? true) && !_isNew && _model is not null)"
+                    IsReadOnly="@(IsReadOnly?.Invoke(EffectiveModel) ?? false)"
                     ReadOnlyNoticeText="@ReadOnlyNotice"
                     SupportsSaveAndNew="@SupportsSaveAndNew"
                     SupportsDelete="@SupportsDelete"
@@ -58,6 +73,11 @@ else if (_model != null)
                     OnDelete="DeleteAsync">
         @ChildContent(context)
     </EntityEditForm>
+    </div>
+
+    @* Kayıt gelene kadar formun ÜZERİNDE gölgeli katman: yarı dolu bir forma yazılmasını engeller.
+       Veri gelince kapanır — ayrı bir "hazır" sinyali gerekmez, model referansının dolması yeterlidir. *@
+    <FormLoadingPanel Visible="@(_model is null)" PositionTargetSelector="@($"#{_formAreaId}")" />
 }
 
 @code {
@@ -128,6 +148,22 @@ else if (_model != null)
 
     private TGetDto? _model;
     private bool _isNew = true;
+
+    // Yükleme panelinin üzerine bineceği form alanının DOM id'si — kalıcı kimlik DEĞİL, yalnız CSS seçicisi.
+    private readonly string _formAreaId = $"crud-edit-area-{Guid.NewGuid():N}";
+
+    // Kayıt gelmeden ÖNCE düzenin çizilebilmesi için kullanılan boş model. Yalnız BİR kez üretilir:
+    // her render'da yenisi üretilseydi referans sürekli değişir, EntityEditForm her seferinde kendini
+    // yeniden bağlar (yeni EditContext + yeni snapshot) ve form kullanılamaz hâle gelirdi.
+    private TGetDto? _placeholder;
+
+    /// <summary>Forma bağlanan model — kayıt geldiyse O, gelmediyse boş yer tutucu. Yer tutucudan gerçek
+    /// modele geçiş bir REFERANS değişimidir; <c>EntityEditForm.OnParametersSet</c> bunu görüp EditContext'i
+    /// ve temiz snapshot'ı yeniler, böylece alanlar dolar ama form "değiştirilmiş" sayılmaz.</summary>
+    private TGetDto EffectiveModel
+    {
+        get { return _model ?? (_placeholder ??= Coordinator.NewModel()); }
+    }
 
     // Sekme "/entity/new" rotasıyla açıldıysa orijinal URL — kaydet sonrası "/entity/{id}" retarget'i
     // ve Kaydet&Yeni'de geri dönüş için saklanır (aynı kayda ikinci sekme açılmasın).

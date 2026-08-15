@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -11,8 +11,8 @@ using Microsoft.AspNetCore.Components;
 namespace Integration.TradeXpress.Blazor.Client.Pages.CurrentTransactions;
 
 /// <summary>
-/// Hizmet (Service) fiÅŸ satÄ±rÄ± paneli â€” ortak iskelet ProcessPanelHostBase'te; burada hizmet lookup'Ä±
-/// ve tek-deÄŸerli tutar (PayFactor=PayTotal) mantÄ±ÄŸÄ± var. Ana bacak boÅŸtur (tutar pay-leg'de).
+/// Hizmet (Service) fiş satırı paneli — ortak iskelet ProcessPanelHostBase'te; burada hizmet lookup'ı
+/// ve tek-değerli tutar (PayFactor=PayTotal) mantığı var. Ana bacak boştur (tutar pay-leg'de).
 /// </summary>
 public partial class ServiceProcessPanel
 {
@@ -37,8 +37,8 @@ public partial class ServiceProcessPanel
     private List<ServiceListDto> _activeServices = new();
     private ServiceListDto? _selectedService;
 
-    // Birim seÃ§imi (Normal: CurrencyUnit, PeÅŸin: Cash) â†’ MainUnitId Ã§Ã¶zÃ¼lÃ¼r
-    // UnitItem.PayUnitId = Ã§Ã¶zÃ¼len para birimi (Normal: birim, PeÅŸin: kasanÄ±n FollowingUnit'i)
+    // Birim seçimi (Normal: CurrencyUnit, Peşin: Cash) → MainUnitId çözülür
+    // UnitItem.PayUnitId = çözülen para birimi (Normal: birim, Peşin: kasanın FollowingUnit'i)
     private record UnitItem(Guid Id, string Code, bool IsActive, Guid PayUnitId);
     private List<CashListDto> _allCashes = new();
     private List<CurrencyUnitListDto> _allCurrencyUnits = new();
@@ -87,7 +87,7 @@ public partial class ServiceProcessPanel
 
     private void OnAmountChanged(decimal value)
     {
-        // Eski Amount/Total â†’ burada PayFactor/PayTotal (eÅŸit, tek deÄŸer).
+        // Eski Amount/Total → burada PayFactor/PayTotal (eşit, tek değer).
         Model.PayFactor = value;
         Model.PayTotal  = value;
     }
@@ -129,7 +129,7 @@ public partial class ServiceProcessPanel
     private void OnUnitChanged(Guid? id)
     {
         var item = id.HasValue ? _activeUnitItems.FirstOrDefault(u => u.Id == id.Value) : null;
-        Model.PayCommodityId   = id;                                   // seÃ§ili karÅŸÄ±lÄ±k (birim/kasa)
+        Model.PayCommodityId   = id;                                   // seçili karşılık (birim/kasa)
         Model.PayCommodityCode = item?.Code;
         Model.PayUnitId        = item is { } it && it.PayUnitId != Guid.Empty ? it.PayUnitId : null;
     }
@@ -138,14 +138,14 @@ public partial class ServiceProcessPanel
     private string GroupStyle()   => ProcessPanelStyles.Group(_isMobile);
     private string ControlStyle() => ProcessPanelStyles.Control(_isMobile);
 
-    // â”€â”€ Base kancalarÄ± (HandleSave / LoadForEditAsync iskeleti ProcessPanelHostBase'te) â”€â”€
+    // ── Base kancaları (HandleSave / LoadForEditAsync iskeleti ProcessPanelHostBase'te) ──
 
     protected override bool CanSave()
-        => Model.CommodityId is not null && Model.PayUnitId is not null; // hizmet/birim seÃ§ili deÄŸilse Ã§Ä±k
+        => Model.CommodityId is not null && Model.PayUnitId is not null; // hizmet/birim seçili değilse çık
 
     protected override void PrepareModelForSave()
     {
-        // Ana bacak boÅŸ (hizmet = Commodity; tutar pay-leg'de).
+        // Ana bacak boş (hizmet = Commodity; tutar pay-leg'de).
         Model.MainUnitId = Guid.Empty;
         Model.Amount     = 0m;
         Model.Factor     = 0m;
@@ -165,7 +165,7 @@ public partial class ServiceProcessPanel
     {
         _selectedService = dto.CommodityId is { } cid ? _allServices.FirstOrDefault(s => s.Id == cid) : null;
 
-        // KarÅŸÄ±lÄ±k seÃ§imi doÄŸrudan dto.PayCommodityId (combo Value buna baÄŸlÄ±).
+        // Karşılık seçimi doğrudan dto.PayCommodityId (combo Value buna bağlı).
         BuildUnitList();
         return Task.CompletedTask;
     }

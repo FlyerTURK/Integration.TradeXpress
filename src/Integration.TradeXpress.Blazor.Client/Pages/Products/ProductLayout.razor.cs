@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using DevExpress.Blazor;
 using Integration.Framework.Blazor.Client.Components.Crud;
+using Integration.TradeXpress.Vouchers;
 using Integration.TradeXpress.AddOns;
 using Integration.TradeXpress.Attachments;
 using Integration.TradeXpress.Blazor.Client.Components.Shared;
@@ -91,6 +92,10 @@ public partial class ProductLayout
 
     /// <summary>Reçete değişince CANLI maliyet — host yapar (persistsiz hesap, varyant bazında); tam kayıt gerekmez.</summary>
     [Parameter] public Func<ProductVariantGraphDto, Task>? OnRecipeChanged { get; set; }
+
+    /// <summary>"Üründen emtia yarat" — layout DİLSİZDİR, işi host yapar (katalogların sahibi o). Bu köprü
+    /// yalnız çağrıyı geçirir; host bağlı değilse akış SESSİZCE durur ve panel draft açmaz.</summary>
+    [Parameter] public Func<ProcessType, Task<Guid?>>? OnCreateCommodityFromProduct { get; set; }
 
     /// <summary>Reçete satırı eklenince/değişince/silinince: önce CANLI maliyet (host), sonra form dirty.</summary>
     private async Task HandleRecipeChangedAsync(ProductVariantGraphDto variant)

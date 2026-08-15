@@ -16,7 +16,8 @@
 
 @if (_loading)
 {
-    <div style="padding:10px 12px; color:var(--bs-secondary-color);">@L["Loading"]</div>
+    @* Düz "Yükleniyor…" metni yerine ortak yükleme paneli — uygulamadaki her formda AYNI görüntü. *@
+    <FormLoadingPanel />
 }
 else if (_editContext is not null)
 {

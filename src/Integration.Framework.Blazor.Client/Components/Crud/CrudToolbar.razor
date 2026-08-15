@@ -14,7 +14,8 @@
    TEK DxToolbarItem; Template ve Items RenderFragment ATTRIBUTE olarak (null olabilir) verilir.
    Böylece sıra yalnız SortIndex'ten gelir. *@
 @* Çizim paylaşılan ToolbarRenderer'da — EditToolbar + DrillList liste toolbar'ı ile AYNI render (ikiz değil). *@
-<ToolbarRenderer Actions="@SortedActions.ToList()" RenderMode="@RenderMode" />
+<ToolbarRenderer Actions="@SortedActions.ToList()" RenderMode="@RenderMode"
+                 NarrowSearchTemplate="@SearchBoxTemplate" NarrowSearchVisible="@(ShowSearchIcon && NarrowSearchOpen)" />
 
 @code {
     // Arama kutusu (masaüstü) — SortIndex=400 descriptor'ının Template'i (tipli; context kullanılmaz).

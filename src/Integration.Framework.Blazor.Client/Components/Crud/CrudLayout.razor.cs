@@ -187,7 +187,13 @@ namespace Integration.Framework.Blazor.Client.Components.Crud
         IGrid Grid { get; set; } = default!;
         string? SearchText { get; set; }
 
-        // Mobil arama ikonuyla açılıp kapanan DxGrid gömülü arama kutusu.
+        // Dar ekranda arama ikonuyla açılıp kapanan arama SATIRI — araç çubuğunun altında, masaüstündeki
+        // kutunun aynısı (CrudToolbar.SearchBoxTemplate → ToolbarRenderer.NarrowSearchTemplate).
+        //
+        // Eskiden DevExpress'in grid'e GÖMÜLÜ kutusu (DxGrid.ShowSearchBox) açılıyordu. O kutu bizim arama
+        // yolumuza bağlı değildi: metni yalnız grid'in kendi SearchText'ine yazıyor, OnSearchChanged'i hiç
+        // tetiklemiyordu. Bu kabuğun varsayılanı ServerSide olduğundan sonuç şuydu — masaüstü TÜM kayıtlarda,
+        // mobil yalnız O ANKİ SAYFADA arıyordu ve iki sonucun farklı olduğu hiçbir yerde belli olmuyordu.
         private bool _showGridSearch;
         private void ToggleGridSearch() => _showGridSearch = !_showGridSearch;
 

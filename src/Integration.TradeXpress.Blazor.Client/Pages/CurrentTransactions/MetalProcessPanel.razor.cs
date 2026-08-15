@@ -16,8 +16,8 @@ using Microsoft.AspNetCore.Components;
 namespace Integration.TradeXpress.Blazor.Client.Pages.CurrentTransactions;
 
 /// <summary>
-/// Maden (Metal) fiÅŸ satÄ±rÄ± paneli â€” ortak iskelet ProcessPanelHostBase'te; burada maden lookup'Ä±,
-/// milyem/Has hesabÄ±, TEK PAY SETÄ° (iÅŸÃ§ilik â†” bedel) ve PeÅŸin/Bedelli parite bacaÄŸÄ± var.
+/// Maden (Metal) fiş satırı paneli — ortak iskelet ProcessPanelHostBase'te; burada maden lookup'ı,
+/// milyem/Has hesabı, TEK PAY SETİ (işçilik ↔ bedel) ve Peşin/Bedelli parite bacağı var.
 /// </summary>
 public partial class MetalProcessPanel
 {
@@ -26,7 +26,7 @@ public partial class MetalProcessPanel
     [Inject] private ICurrencyUnitAppService CurrencyUnitService { get; set; } = default!;
     [Inject] private IEffectivePriceAppService PriceService { get; set; } = default!;
     [Inject] private IParityAppService ParityService { get; set; } = default!;
-    [Inject] private IViewOpener ViewOpener { get; set; } = default!;   // varyant lookup âœ/+ â†’ maden kartÄ± popup'Ä±
+    [Inject] private IViewOpener ViewOpener { get; set; } = default!;   // varyant lookup ✎/+ → maden kartı popup'ı
     [Inject] private IPopupService PopupService { get; set; } = default!;
 
     protected override ProcessType ProcessType => ProcessType.Metal;
@@ -44,14 +44,14 @@ public partial class MetalProcessPanel
 
     private List<MetalListDto> _allMetals = new();
     private List<MetalListDto> _activeMetals = new();
-    private List<CommodityVariantOptionDto> _variantOptions = new();   // seÃ§ili madenin AKTÄ°F varyantlarÄ± (varyant combo'su)
+    private List<CommodityVariantOptionDto> _variantOptions = new();   // seçili madenin AKTİF varyantları (varyant combo'su)
 
     private List<CurrencyUnitListDto> _allCurrencyUnits = new();
     private List<CurrencyUnitListDto> _activeUnits = new();
 
     private List<CashListDto> _allCashes = new();
 
-    // KarÅŸÄ± bacak (PeÅŸin/Bedelli fiyat birimi). PeÅŸinâ†’Cash kayÄ±tlarÄ±, Bedelliâ†’para birimi (ana hariÃ§).
+    // Karşı bacak (Peşin/Bedelli fiyat birimi). Peşin→Cash kayıtları, Bedelli→para birimi (ana hariç).
     private record PayComboItem(Guid Id, string Code, bool IsActive, Guid? PayUnitId, string? PayUnitCode);
     private List<PayComboItem> _activePayItems = new();
     private PayComboItem? _selectedPayItem;
@@ -59,15 +59,15 @@ public partial class MetalProcessPanel
     private Dictionary<Guid, decimal> _buyByUnit = new();
     private Dictionary<Guid, string>  _codeByUnit = new();
     private List<(Guid Base, Guid Quote)> _parityPairs = new();
-    private Guid? _localUnitId;   // company YEREL para birimi â€” PeÅŸin nakit/Bedelli combo default'u (takip birimi eÅŸleÅŸmesi)
+    private Guid? _localUnitId;   // company YEREL para birimi — Peşin nakit/Bedelli combo default'u (takip birimi eşleşmesi)
 
-    // SeÃ§ili madenin panel durumu
+    // Seçili madenin panel durumu
     private decimal _baseFactor = 0.995m;
     private MetalLaborType _laborType = MetalLaborType.Amount;
     private bool _factorReadOnly, _laborReadOnly, _amountReadOnly, _showAdet, _isQuantity;
     private decimal _stableQuantity;
 
-    // Ä°ÅŸÃ§ilik-rate caption'Ä± â€” Normal/Ä°ade/Emanet'te "Ä°ÅŸÃ§ilik (Adet/Miktar)"; PeÅŸin/Bedelli'de "PayFactor" (bedel). Tek pay seti.
+    // İşçilik-rate caption'ı — Normal/İade/Emanet'te "İşçilik (Adet/Miktar)"; Peşin/Bedelli'de "PayFactor" (bedel). Tek pay seti.
     private string PayRateCaption => HasPriceMode
         ? L["PayFactor:MetalPanel"].Value
         : $"{L["Labor:MetalPanel"].Value} ({(_laborType == MetalLaborType.Quantity ? L["Count:MetalPanel"].Value : L["Amount:MetalPanel"].Value)})";
@@ -101,8 +101,8 @@ public partial class MetalProcessPanel
     private decimal LaborTotalOf(decimal rate)
         => rate * (_laborType == MetalLaborType.Quantity ? Model.Quantity : Model.Amount);
 
-    // PeÅŸin/Bedelli: iÅŸÃ§ilik Has'a yedirilir. Ä°ÅŸÃ§ilik kullanÄ±cÄ±ya gÃ¶sterilmediÄŸinden (tek pay seti bedele ayrÄ±k)
-    // madenin giriÅŸ/Ã§Ä±kÄ±ÅŸ iÅŸÃ§ilik DEFAULT'u doÄŸrudan okunur â€” eski _laborRate state'i ile eÅŸdeÄŸer, ayrÄ± state gerekmez.
+    // Peşin/Bedelli: işçilik Has'a yedirilir. İşçilik kullanıcıya gösterilmediğinden (tek pay seti bedele ayrık)
+    // madenin giriş/çıkış işçilik DEFAULT'u doğrudan okunur — eski _laborRate state'i ile eşdeğer, ayrı state gerekmez.
     private decimal LaborHas()
     {
         var m = _allMetals.FirstOrDefault(x => x.Id == Model.CommodityId);
@@ -117,7 +117,7 @@ public partial class MetalProcessPanel
     }
 
     private Task _initTask = Task.CompletedTask;
-    private bool _editLoaded;   // edit yÃ¼klendiyse InitializeAsync default metal SEÃ‡MESÄ°N (async yarÄ±ÅŸ korumasÄ±)
+    private bool _editLoaded;   // edit yüklendiyse InitializeAsync default metal SEÇMESİN (async yarış koruması)
 
     protected override Task OnInitializedAsync() => _initTask = InitializeAsync();
 
@@ -135,7 +135,7 @@ public partial class MetalProcessPanel
             new(ProcessPaymentType.WithCurrency, L["UI:ProcessPaymentType:WithCurrency"].Value),
             new(ProcessPaymentType.Return,       L["UI:ProcessPaymentType:Return"].Value),
             new(ProcessPaymentType.Consignment,  L["UI:ProcessPaymentType:Consignment"].Value),
-            // Rezervasyon yalnÄ±z MADEN iÅŸlemlerinde seÃ§ilebilir (Muadil M0 kararÄ±) â€” diÄŸer panellere eklenmez.
+            // Rezervasyon yalnız MADEN işlemlerinde seçilebilir (Muadil M0 kararı) — diğer panellere eklenmez.
             new(ProcessPaymentType.Reservation,  L["UI:ProcessPaymentType:Reservation"].Value),
         };
         await ReloadMetalsAsync();
@@ -153,17 +153,17 @@ public partial class MetalProcessPanel
         var parityResult = await ParityService.GetListAsync(new ParityListRequestDto { MaxResultCount = 1000 });
         _parityPairs = parityResult.Items.Select(p => (p.BaseCurrencyUnitId, p.QuoteCurrencyUnitId)).ToList();
 
-        _localUnitId = await PriceService.GetWorkingLocalCurrencyUnitIdAsync();   // PeÅŸin/Bedelli default karÅŸÄ± bacak
+        _localUnitId = await PriceService.GetWorkingLocalCurrencyUnitIdAsync();   // Peşin/Bedelli default karşı bacak
 
-        if (!_editLoaded && _activeMetals.Count > 0)   // edit yÃ¼kleniyorsa default metal SEÃ‡ME (loaded deÄŸerleri ezmesin)
+        if (!_editLoaded && _activeMetals.Count > 0)   // edit yükleniyorsa default metal SEÇME (loaded değerleri ezmesin)
         {
             await OnMetalChangedAsync(_activeMetals[0].Id);
         }
     }
 
-    /// <summary>Maden listesini (lookup verisi) yÃ¼kler/tazeler â€” combo, LISTELEME GRIDIYLE AYNI sÄ±rada:
-    /// Kod artan (kullanÄ±cÄ± kararÄ±; picker'Ä±n birim-dÃ¼zeni sÄ±rasÄ± deÄŸil). Lookup'tan ekle/dÃ¼zelt sonrasÄ±
-    /// EntityChange bu metodu yeniden Ã§aÄŸÄ±rÄ±r.</summary>
+    /// <summary>Maden listesini (lookup verisi) yükler/tazeler — combo, LISTELEME GRIDIYLE AYNI sırada:
+    /// Kod artan (kullanıcı kararı; picker'ın birim-düzeni sırası değil). Lookup'tan ekle/düzelt sonrası
+    /// EntityChange bu metodu yeniden çağırır.</summary>
     private async Task ReloadMetalsAsync()
     {
         _allMetals = await MetalService.GetPickerListAsync();
@@ -172,7 +172,7 @@ public partial class MetalProcessPanel
             .OrderBy(m => m.Code, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        // Maden lookup âœ/+ sonrasÄ± seÃ§ili madenin varyantlarÄ±nÄ± da tazele (varyant combo bayat kalmasÄ±n).
+        // Maden lookup ✎/+ sonrası seçili madenin varyantlarını da tazele (varyant combo bayat kalmasın).
         if (Model.CommodityId is { } id)
         {
             _variantOptions = await MetalService.GetVariantPickerListAsync(id);
@@ -189,21 +189,21 @@ public partial class MetalProcessPanel
     {
         Model.EditedField = edited;
 
-        // Adet bazlÄ± + sabit miktar â†’ Miktar = Adet Ã— StableQuantity (Miktar kilitli).
+        // Adet bazlı + sabit miktar → Miktar = Adet × StableQuantity (Miktar kilitli).
         if (_isQuantity && _stableQuantity > 0m)
             Model.Amount = Model.Quantity * _stableQuantity;
 
         if (!HasPriceMode)
         {
-            // Normal/Ä°ade/Emanet â†’ iÅŸÃ§ilik karÅŸÄ± bacak (parite YOK; inline). Factor = saf milyem; iÅŸÃ§ilik = PayFactor Ã— (adet|miktar).
+            // Normal/İade/Emanet → işçilik karşı bacak (parite YOK; inline). Factor = saf milyem; işçilik = PayFactor × (adet|miktar).
             Model.Factor = _baseFactor;
             Model.Total  = PureHas;
             var qty = _laborType == MetalLaborType.Quantity ? Model.Quantity : Model.Amount;
             if (edited == EditedField.PayTotal && qty != 0m)
-                Model.PayFactor = Model.PayTotal / qty;   // PayTotal elle dÃ¼zenlendi â†’ rate geri-hesap
+                Model.PayFactor = Model.PayTotal / qty;   // PayTotal elle düzenlendi → rate geri-hesap
             else
                 Model.PayTotal = Model.PayFactor * qty;
-            // Ä°ÅŸÃ§ilik birimi = seÃ§ili pay item (Normal'de _activePayItems = para birimleri); PayUnitId=PayCommodityId.
+            // İşçilik birimi = seçili pay item (Normal'de _activePayItems = para birimleri); PayUnitId=PayCommodityId.
             Model.PayUnitId        = _selectedPayItem?.PayUnitId ?? Model.PayCommodityId;
             Model.PayCommodityCode = _selectedPayItem?.Code
                                      ?? (Model.PayCommodityId is { } lu ? _codeByUnit.GetValueOrDefault(lu) : null);
@@ -212,7 +212,7 @@ public partial class MetalProcessPanel
             return;
         }
 
-        // PeÅŸin/Bedelli â†’ iÅŸÃ§ilik Has'a Ã§evrilip Factor'a yedirilir; karÅŸÄ± bacak = parite bedel.
+        // Peşin/Bedelli → işçilik Has'a çevrilip Factor'a yedirilir; karşı bacak = parite bedel.
         var total = PureHas + LaborHas();
         Model.Total  = total;
         Model.Factor = Model.Amount != 0m ? total / Model.Amount : _baseFactor;
@@ -278,14 +278,14 @@ public partial class MetalProcessPanel
         Recalc(EditedField.Commodity);
     }
 
-    // Maden seÃ§imi (async sarmal) â€” sync mantÄ±k (fiyat/milyem/pay) + AKTÄ°F varyantlarÄ± yÃ¼kle. FiyatÄ± DEÄÄ°ÅTÄ°RMEZ (maden fiyatÄ± milyem/iÅŸÃ§ilik).
+    // Maden seçimi (async sarmal) — sync mantık (fiyat/milyem/pay) + AKTİF varyantları yükle. Fiyatı DEĞİŞTİRMEZ (maden fiyatı milyem/işçilik).
     private async Task OnMetalChangedAsync(Guid? id)
     {
         OnMetalChanged(id);
         await LoadVariantOptionsAsync(id);
     }
 
-    // SeÃ§ili madenin AKTÄ°F varyantlarÄ±nÄ± yÃ¼kler. Tek varyant â†’ VariantId null (anlamlÄ± boyut yok); Ã§oklu â†’ ana varyant varsayÄ±lan.
+    // Seçili madenin AKTİF varyantlarını yükler. Tek varyant → VariantId null (anlamlı boyut yok); çoklu → ana varyant varsayılan.
     private async Task LoadVariantOptionsAsync(Guid? metalId)
     {
         Model.VariantId = null;
@@ -326,10 +326,10 @@ public partial class MetalProcessPanel
             ApplyDirectionLabor(metal);
             Recalc(EditedField.Commodity);
         }
-        // Maden fiyatÄ± milyem/iÅŸÃ§ilik â€” varyant seÃ§imi fiyatÄ± DEÄÄ°ÅTÄ°RMEZ (yalnÄ±z hangi SKU olduÄŸunu kaydeder).
+        // Maden fiyatı milyem/işçilik — varyant seçimi fiyatı DEĞİŞTİRMEZ (yalnız hangi SKU olduğunu kaydeder).
     }
 
-    // Varyant lookup âœ/+ â†’ seÃ§ili madenin KARTINI aÃ§ar (varyant yÃ¶netimi orada; commodity id ile â€” varyant id DEÄÄ°L).
+    // Varyant lookup ✎/+ → seçili madenin KARTINI açar (varyant yönetimi orada; commodity id ile — varyant id DEĞİL).
     private Task OpenMetalCardAsync()
     {
         if (Model.CommodityId is not { } id)
@@ -350,7 +350,7 @@ public partial class MetalProcessPanel
         return null;
     }
 
-    // Varyant lookup tazeleme kancasÄ± â€” seÃ§ili madenin varyantlarÄ±nÄ± yeniden yÃ¼kler.
+    // Varyant lookup tazeleme kancası — seçili madenin varyantlarını yeniden yükler.
     private async Task ReloadVariantsForCurrentMetalAsync()
     {
         if (Model.CommodityId is { } id)
@@ -360,7 +360,7 @@ public partial class MetalProcessPanel
         }
     }
 
-    // YÃ¶n'e gÃ¶re iÅŸÃ§ilik kilidini + (yalnÄ±z iÅŸÃ§ilik modunda) iÅŸÃ§ilik DEFAULT'unu pay alanlarÄ±na uygular.
+    // Yön'e göre işçilik kilidini + (yalnız işçilik modunda) işçilik DEFAULT'unu pay alanlarına uygular.
     private void ApplyDirectionLabor(MetalListDto m)
     {
         // A4 (ACIK-ISLER:51 · §1-1 onaylı, 2026-08-07): işçilik SEÇİLİ varyanttan tahsil edilir. Öncesinde
@@ -394,16 +394,16 @@ public partial class MetalProcessPanel
         bool entryLaborChange, bool exitLaborChange,
         Guid fallbackUnitId)
     {
-        var inflow = Model.Direction.IsInflow();   // GiriÅŸ
+        var inflow = Model.Direction.IsInflow();   // Giriş
         _laborReadOnly = !(inflow ? entryLaborChange : exitLaborChange);
-        if (!HasPriceMode)   // Normal/Ä°ade/Emanet â†’ pay = iÅŸÃ§ilik; default rate/birimi Model.Pay*'e yaz (EnsurePayItem seÃ§er)
+        if (!HasPriceMode)   // Normal/İade/Emanet → pay = işçilik; default rate/birimi Model.Pay*'e yaz (EnsurePayItem seçer)
         {
             Model.PayFactor      = inflow ? entryLabor : exitLabor;
             Model.PayCommodityId = (inflow ? entryLaborUnitId : exitLaborUnitId) ?? fallbackUnitId;
         }
     }
 
-    // PeÅŸin â†’ Cash kayÄ±tlarÄ± (PayUnit = Cash.FollowingUnit); Bedelli â†’ para birimi (ana hariÃ§).
+    // Peşin → Cash kayıtları (PayUnit = Cash.FollowingUnit); Bedelli → para birimi (ana hariç).
     private void BuildPayList()
     {
         if (Model.PaymentType == ProcessPaymentType.WithCash)
@@ -417,8 +417,8 @@ public partial class MetalProcessPanel
         }
         else
         {
-            // Ana birim dÄ±ÅŸlamasÄ± yalnÄ±z Bedelli'de (karÅŸÄ± bacak farklÄ± birim olmalÄ±); iÅŸÃ§ilik modunda
-            // (Normal/Ä°ade/Emanet/Rezervasyon) TÃœM birimler â€” madenin kendi takip/iÅŸÃ§ilik birimi de seÃ§ilebilir.
+            // Ana birim dışlaması yalnız Bedelli'de (karşı bacak farklı birim olmalı); işçilik modunda
+            // (Normal/İade/Emanet/Rezervasyon) TÜM birimler — madenin kendi takip/işçilik birimi de seçilebilir.
             _activePayItems = _activeUnits
                 .Where(u => !HasPriceMode || u.Id != Model.MainUnitId)
                 .Select(u => new PayComboItem(u.Id, u.Code, true, u.Id, u.Code))
@@ -434,8 +434,8 @@ public partial class MetalProcessPanel
             ApplyPayItem(DefaultPayItem());
     }
 
-    // Default karÅŸÄ± bacak: takip birimi (PayUnitId) = company YEREL para birimi olan ilk item; yoksa listenin ilki.
-    // (PeÅŸin: nakit kaydÄ±nÄ±n FollowingUnit'i; Bedelli: para biriminin kendisi â€” ikisi de PayUnitId'de.)
+    // Default karşı bacak: takip birimi (PayUnitId) = company YEREL para birimi olan ilk item; yoksa listenin ilki.
+    // (Peşin: nakit kaydının FollowingUnit'i; Bedelli: para biriminin kendisi — ikisi de PayUnitId'de.)
     private PayComboItem? DefaultPayItem()
         => (_localUnitId is { } lu ? _activePayItems.FirstOrDefault(x => x.PayUnitId == lu) : null)
            ?? _activePayItems.FirstOrDefault();
@@ -445,7 +445,7 @@ public partial class MetalProcessPanel
         _selectedPayItem       = item;
         Model.PayCommodityId   = item?.Id;
         Model.PayCommodityCode = item?.Code;
-        // PayUnitId Recalc iÃ§inde payCurrency'den set edilir; burada combo seÃ§imini tutuyoruz.
+        // PayUnitId Recalc içinde payCurrency'den set edilir; burada combo seçimini tutuyoruz.
     }
 
     private void OnDirectionChanged(ProcessDirectionType value)
@@ -458,14 +458,14 @@ public partial class MetalProcessPanel
 
     private void OnPaymentTypeChanged(ProcessPaymentType? value)
     {
-        var wasPriceMode = HasPriceMode;                 // eski mod (deÄŸiÅŸmeden Ã¶nce)
-        var prevPayUnit  = _selectedPayItem?.PayUnitId;  // eski karÅŸÄ± bacak BÄ°RÄ°MÄ° (PeÅŸin: nakit takip birimi; Bedelli: para birimi)
+        var wasPriceMode = HasPriceMode;                 // eski mod (değişmeden önce)
+        var prevPayUnit  = _selectedPayItem?.PayUnitId;  // eski karşı bacak BİRİMİ (Peşin: nakit takip birimi; Bedelli: para birimi)
         Model.PaymentType = value;                       // yeni mod
 
         if (HasPriceMode)
         {
-            // PeÅŸin/Bedelli â†’ karÅŸÄ± bacak listesi. Ã–nceki BÄ°RÄ°M (PayUnitId) yeni listede varsa KORU (item Id farklÄ± olsa da);
-            // yoksa yerel default. Her hÃ¢lde seÃ§ilen birim iÃ§in PayFactor/PayTotal'Ä± TAZE hesapla (staleness olmasÄ±n).
+            // Peşin/Bedelli → karşı bacak listesi. Önceki BİRİM (PayUnitId) yeni listede varsa KORU (item Id farklı olsa da);
+            // yoksa yerel default. Her hâlde seçilen birim için PayFactor/PayTotal'ı TAZE hesapla (staleness olmasın).
             BuildPayList();
             var keep = prevPayUnit is { } pu ? _activePayItems.FirstOrDefault(x => x.PayUnitId == pu) : null;
             ApplyPayItem(keep ?? DefaultPayItem());
@@ -473,11 +473,11 @@ public partial class MetalProcessPanel
         }
         else
         {
-            // Normal/Ä°ade/Emanet. PeÅŸin/Bedelli'DEN geliyorsak madenin DEFAULT iÅŸÃ§iliÄŸini yaz;
-            // laborâ†”labor (Normalâ†”Ä°adeâ†”Emanet) ise iÅŸÃ§ilik alanlarÄ± DEÄÄ°ÅMEZ â€” yalnÄ±z yeniden hesap.
+            // Normal/İade/Emanet. Peşin/Bedelli'DEN geliyorsak madenin DEFAULT işçiliğini yaz;
+            // labor↔labor (Normal↔İade↔Emanet) ise işçilik alanları DEĞİŞMEZ — yalnız yeniden hesap.
             if (wasPriceMode && _allMetals.FirstOrDefault(x => x.Id == Model.CommodityId) is { } m)
             {
-                ApplyDirectionLabor(m);   // Model.PayFactor/PayCommodityId = madenin iÅŸÃ§ilik default'u
+                ApplyDirectionLabor(m);   // Model.PayFactor/PayCommodityId = madenin işçilik default'u
                 BuildPayList();
                 EnsurePayItem();
             }
@@ -489,23 +489,23 @@ public partial class MetalProcessPanel
     private void OnAmountChanged(decimal value)   { Model.Amount = value;   Recalc(EditedField.Amount); }
     private void OnFactorChanged(decimal value)   { _baseFactor = value;    Recalc(EditedField.Amount); }
 
-    // Total (HAS) elle dÃ¼zenlenince Factor'u geri-hesapla. Normal: baz milyem; PeÅŸin/Bedelli: efektif Factor.
+    // Total (HAS) elle düzenlenince Factor'u geri-hesapla. Normal: baz milyem; Peşin/Bedelli: efektif Factor.
     private void OnTotalChanged(decimal value)
     {
         if (!HasPriceMode)
         {
             _baseFactor = Model.Amount != 0m ? value / Model.Amount : _baseFactor;
-            Recalc(EditedField.Amount);   // Total = Amount Ã— baseFactor = value
+            Recalc(EditedField.Amount);   // Total = Amount × baseFactor = value
         }
         else
         {
             Model.Total  = value;
             Model.Factor = Model.Amount != 0m ? value / Model.Amount : Model.Factor;
-            RecalcPriceLeg(value);        // Total'Ä± koru, yalnÄ±z bedeli yeniden hesapla
+            RecalcPriceLeg(value);        // Total'ı koru, yalnız bedeli yeniden hesapla
         }
     }
 
-    // PeÅŸin/Bedelli: verilen Total'Ä± koruyarak bedel bacaÄŸÄ±nÄ± (parite) yeniden hesaplar.
+    // Peşin/Bedelli: verilen Total'ı koruyarak bedel bacağını (parite) yeniden hesaplar.
     private void RecalcPriceLeg(decimal total)
     {
         var payCurrency = _selectedPayItem?.PayUnitId;
@@ -538,12 +538,12 @@ public partial class MetalProcessPanel
     private void OnPayFactorChanged(decimal value) { Model.PayFactor = value; Recalc(EditedField.PayFactor); }
     private void OnPayTotalChanged(decimal value)  { Model.PayTotal = value;  Recalc(EditedField.PayTotal); }
 
-    // Ortak panel stilleri (ProcessPanelStyles SSOT) â€” Metal alan bazÄ±nda farklÄ± geniÅŸlik kullanÄ±r (60/240px).
+    // Ortak panel stilleri (ProcessPanelStyles SSOT) — Metal alan bazında farklı genişlik kullanır (60/240px).
     private string GroupStyle()          => ProcessPanelStyles.Group(_isMobile);
     private string GroupStyle(int w)     => ProcessPanelStyles.Group(_isMobile, w);
     private string ControlStyle()        => ProcessPanelStyles.Control(_isMobile);
 
-    // â”€â”€ Base kancalarÄ± (HandleSave / LoadForEditAsync iskeleti ProcessPanelHostBase'te) â”€â”€
+    // ── Base kancaları (HandleSave / LoadForEditAsync iskeleti ProcessPanelHostBase'te) ──
 
     protected override bool CanSave()
     {
@@ -576,13 +576,13 @@ public partial class MetalProcessPanel
 
     protected override async Task OnLoadedForEditAsync(VoucherLineDto dto)
     {
-        _editLoaded = true;        // OnInitialized'Ä±n default metal seÃ§imini iptal et (yarÄ±ÅŸÄ± kapat)
-        await _initTask;           // veriler (Ã¶zellikle _allMetals) yÃ¼klensin â†’ m bulunur, default ezme olmaz
+        _editLoaded = true;        // OnInitialized'ın default metal seçimini iptal et (yarışı kapat)
+        await _initTask;           // veriler (özellikle _allMetals) yüklensin → m bulunur, default ezme olmaz
 
         var m = _allMetals.FirstOrDefault(x => x.Id == dto.CommodityId);
         if (m is { })
         {
-            Model.MainUnitId  = m.FollowingUnitId;           // ana birim garanti (BuildPayList filtresi buna baÄŸlÄ±)
+            Model.MainUnitId  = m.FollowingUnitId;           // ana birim garanti (BuildPayList filtresi buna bağlı)
             _factorReadOnly   = !m.FactorChange;
             _isQuantity       = m.IsQuantity;
             _stableQuantity   = m.StableQuantity;
@@ -592,16 +592,16 @@ public partial class MetalProcessPanel
             _showAdet         = m.IsQuantity || m.LaborType == MetalLaborType.Quantity;
             _amountReadOnly   = m.IsQuantity && m.StableQuantity > 0m;
         }
-        _baseFactor = HasPriceMode ? (m?.Factor ?? dto.Factor) : dto.Factor;   // Normal=saved milyem; PeÅŸin/Bedelli=pÃ¼r milyem
+        _baseFactor = HasPriceMode ? (m?.Factor ?? dto.Factor) : dto.Factor;   // Normal=saved milyem; Peşin/Bedelli=pür milyem
 
-        // TEK PAY SETÄ° (ERPPROV3) â†’ her iki mod aynÄ±: Model.Pay* zaten dto'da; ayrÄ± state reconstruction YOK.
-        // Pay listesini kur + saved PayCommodityId'yi seÃ§ (aktif listede yoksa kaybolmasÄ±n diye baÅŸa ekle).
+        // TEK PAY SETİ (ERPPROV3) → her iki mod aynı: Model.Pay* zaten dto'da; ayrı state reconstruction YOK.
+        // Pay listesini kur + saved PayCommodityId'yi seç (aktif listede yoksa kaybolmasın diye başa ekle).
         BuildPayList();
         if (Model.PayCommodityId is { } pcid && _activePayItems.All(x => x.Id != pcid))
             _activePayItems.Insert(0, new PayComboItem(pcid, Model.PayCommodityCode ?? string.Empty, true, Model.PayUnitId, Model.PayUnitCode));
         _selectedPayItem = _activePayItems.FirstOrDefault(x => x.Id == Model.PayCommodityId);
 
-        // Varyant seÃ§eneklerini yÃ¼kle (kayÄ±tlÄ± Model.VariantId combo'da gÃ¶rÃ¼nsÃ¼n; VariantId dto'dan zaten geldi â€” dokunma).
+        // Varyant seçeneklerini yükle (kayıtlı Model.VariantId combo'da görünsün; VariantId dto'dan zaten geldi — dokunma).
         if (Model.CommodityId is { } metalId)
         {
             _variantOptions = await MetalService.GetVariantPickerListAsync(metalId);

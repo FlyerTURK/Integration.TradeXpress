@@ -52,12 +52,73 @@ public partial class ProductRecipePanel
     /// <summary>Bir varyantın reçetesi değişince (tüm-varyant işleminde her varyant için) host'un maliyet recalc'ı + dirty.</summary>
     [Parameter] public Func<ProductVariantGraphDto, Task>? OnVariantRecipeChanged { get; set; }
 
+    /// <summary>Reçetenin ait olduğu ÜRÜN — "üründen emtia yarat" akışı bunun üzerinden tohumlanır.
+    /// Panel yine dilsizdir: yalnız kimliği taşır, hiçbir I/O yapmaz.</summary>
+    [Parameter] public Guid ProductId { get; set; }
+
+    /// <summary>"Üründen" anahtarı GÖRÜNSÜN mü. VARSAYILAN KAPALI (opt-in): panel birden çok yüzeyde
+    /// barındırılıyor ve barındıran, yaratılan emtiayı ÇEKİRDEK varyanta yazan bir
+    /// <see cref="OnCreateCommodityFromProduct"/> sağlamalıdır (otorite orada — stok zinciri ve rezervasyon
+    /// yalnız çekirdek reçeteyi okur). Bugün açık olduğu yüzeyler: çekirdek ürün formu + N11 + Trendyol kanal
+    /// formları (yayılım adımı 2026-08-14'te <c>ProvisionCommoditiesAsync</c> ile kuruldu). Etsy kapalı — kanal
+    /// bilinçli dondurmada (ACIK-ISLER).</summary>
+    [Parameter] public bool AllowCreateFromProduct { get; set; }
+
+    /// <summary>"Üründen" akışının GÖVDESİ — host uygular (katalogların sahibi o). Yeni emtianın kimliğini
+    /// döner; kullanıcı vazgeçtiyse <c>null</c>. Panel dilsiz kalsın diye I/O buraya delege edilir.</summary>
+    [Parameter] public Func<ProcessType, Task<Guid?>>? OnCreateCommodityFromProduct { get; set; }
+
     /// <summary>Varyantın canlı net maliyeti (host projeksiyonu; salt görüntü).</summary>
     [Parameter] public decimal? NetCost { get; set; }
     [Parameter] public string NetCostCurrency { get; set; } = string.Empty;
     [Parameter] public bool NetCostMissingRate { get; set; }
 
     private bool _isMobile;
+
+    /// <summary>"Üründen" anahtarı — işaretliyken "Yeni ▾" mevcut kataloğu SEÇMEZ, üründen tohumlanmış YENİ
+    /// bir emtia formu açar. Süzgeç değil, "Yeni"nin KAYNAĞINI değiştiren bir anahtar; konumu bu yüzden
+    /// onun hemen solunda.</summary>
+    private bool _createFromProduct;
+
+    /// <summary>
+    /// Anahtar GÖRÜNÜR mü — yalnız varyantın hiç emtia satırı yokken.
+    ///
+    /// <para><b>Yan maliyetler sayıma girmez</b> (paketleme · kargo · komisyon): onlar bileşim değil kanal
+    /// gideridir. Sayılsalardı yan maliyeti olan her varyant "emtiası var" sayılır ve anahtar hiç görünmezdi.
+    /// Ayrım <c>SideCostKind</c> üzerinden yapılır — çekirdek İŞÇİLİK satırı <c>ComponentType = Service</c>
+    /// taşır ama yan maliyet DEĞİLDİR; aynı ayrım <c>ChannelRecipeInheritance</c>'ta da geçerli.</para>
+    ///
+    /// <para>Emtia bir kez kurulunca anahtar kaybolur: "üründen yarat" ikinci kez anlamlı değil.</para>
+    ///
+    /// <para><b>YALNIZ TEK VARYANTLI ÜRÜNDE</b> (2026-08-11 Hakan): "üründen emtia" ancak ürün ile emtia
+    /// 1:1 örtüştüğünde anlamlıdır. Çok varyantlı üründe her varyantın bileşimi ayrıdır ve hepsini ürünün
+    /// TEK kimliğinden (kod/ad) tohumlamak, aynı koddan türeyen çakışan emtialar üretirdi — hangi varyantın
+    /// emtiası olduğu da belirsiz kalırdı. Orada doğru yol mevcut kataloğu seçmek ya da her varyant için
+    /// emtiayı elle kurmaktır.</para>
+    ///
+    /// <para><b>Varyant listesi verilmemişse KAPALI</b> (fail-closed): sayamadığımız bir şeyi "tek" varsaymak,
+    /// çok varyantlı bir üründe sessizce yanlış emtia üretmek demekti.</para>
+    /// </summary>
+    private bool ShowCreateFromProduct
+    {
+        get
+        {
+            if (!AllowCreateFromProduct || ProductId == Guid.Empty)
+            {
+                return false;
+            }
+
+            if (AllVariants is not { } variants || variants.Count(v => !v.IsDeleted) != 1)
+            {
+                return false;
+            }
+
+            return !Lines.Any(line =>
+                !line.IsDeleted
+                && line.ComponentType == RecipeComponentType.CatalogCommodity
+                && line.SideCostKind is null);
+        }
+    }
 
     // Grid'de seçili satır (edit/sil toolbar butonları + grid-altı açıklama bunu kullanır). Tıklama = SEÇ (edit DEĞİL).
     private ProductRecipeLineGraphDto? _selectedLine;
@@ -196,6 +257,45 @@ public partial class ProductRecipePanel
     }
 
     // ── Panel açma (toolbar) ────────────────────────────────────────────────────────────────────────
+    /// <summary>
+    /// "Yeni ▾" tıklaması. <b>Anahtar işaretliyse</b> mevcut kataloğu seçmez: host'a üründen tohumlanmış
+    /// emtia yaratmasını söyler, dönen kimliği draft'a seçili getirir.
+    ///
+    /// <para><b>Kullanıcı vazgeçerse (kimlik <c>null</c>) draft AÇILMAZ</b> — boş bir satır bırakmak,
+    /// iptal edilen bir işlemi yarım yapılmış gibi gösterirdi.</para>
+    ///
+    /// <para>Yaratım başarılıysa anahtar KENDİLİĞİNDEN kapanır: emtia artık var, "üründen yarat" ikinci kez
+    /// anlamlı değil (görünürlük kuralı da zaten satır eklenince anahtarı gizler).</para>
+    /// </summary>
+    private async Task OpenCatalogDraftAsync(ProcessType family)
+    {
+        if (_createFromProduct && OnCreateCommodityFromProduct is not null)
+        {
+            var createdId = await OnCreateCommodityFromProduct(family);
+            if (createdId is not { } commodityId)
+            {
+                return;
+            }
+
+            _createFromProduct = false;
+            OpenDraft(new ProductRecipeLineGraphDto
+            {
+                ComponentType = RecipeComponentType.CatalogCommodity,
+                CommodityProcessType = family,
+                CommodityId = commodityId,
+                LineOrder = NextOrder(),
+                Factor = 1m,
+            });
+
+            // Yeni kaydın doğal birimi/işçilik birimi/katsayısı seçim mantığından gelsin — mevcut katalog
+            // seçimiyle AYNI yol; ayrı bir doldurma yazmak iki farklı ilk-değer davranışı üretirdi.
+            ApplyCommoditySelection(family, commodityId);
+            return;
+        }
+
+        OpenCatalogDraft(family);
+    }
+
     private void OpenCatalogDraft(ProcessType family)
     {
         OpenDraft(new ProductRecipeLineGraphDto
@@ -234,6 +334,34 @@ public partial class ProductRecipePanel
         }
 
         d.CommodityId = id;
+    }
+
+    /// <summary>Belirli bir katalog kaydını draft'a uygular — <see cref="SelectFirstCommodity"/> ile AYNI
+    /// seçim yolunu kullanır (Factor/doğal birim/işçilik birimi oradan dolar). Maden'de anahtar VARYANT
+    /// olduğundan kaydın ana varyantı çözülür.</summary>
+    private void ApplyCommoditySelection(ProcessType family, Guid commodityId)
+    {
+        switch (family)
+        {
+            case ProcessType.Metal:
+                OnMetalSelected(MetalVariants.FirstOrDefault(v => v.CommodityId == commodityId)?.VariantId);
+                break;
+            case ProcessType.Scrap:
+                OnScrapSelected(commodityId);
+                break;
+            case ProcessType.Future:
+                OnFutureSelected(commodityId);
+                break;
+            case ProcessType.Jewelry:
+                OnJewelrySelected(commodityId);
+                break;
+            case ProcessType.Stone:
+                OnStoneSelected(commodityId);
+                break;
+            case ProcessType.Good:
+                OnGoodSelected(commodityId);
+                break;
+        }
     }
 
     /// <summary>Draft açılışında ailenin ilk katalog kaydını seçer (boş combo bırakmaz); seçim handler'ı

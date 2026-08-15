@@ -345,7 +345,7 @@ public class RazorConventionTests
             + string.Join(Environment.NewLine, violations));
     }
 
-    /// <summary>Sınıflandırma panelinin <c>EditComponentOf</c> switch'inden <c>typeof(X.YEditHost)</c> host tiplerini
+    /// <summary><c>ProductCommoditySeed.EditComponentOf</c> switch'inden <c>typeof(X.YEditHost)</c> host tiplerini
     /// çıkarır — liste kodda değişirse test sözleşmeyi otomatik takip eder.</summary>
     private static readonly Regex EditHostTypeofRegex = new(@"typeof\(\s*([A-Za-z0-9_.]*\.)?(\w+EditHost)\s*\)", RegexOptions.Compiled);
 
@@ -356,14 +356,15 @@ public class RazorConventionTests
     [Fact]
     public void Classification_panel_edit_hosts_must_declare_seed_parameters()
     {
-        // Kural (2026-08-07 U1): sınıflandırma paneli emtia formunu extraParams'la (SeedCode/SeedName) açıyor;
-        // bu [Parameter]'ları TANIMLAMAYAN host'ta DynamicComponent çalışma anında InvalidOperationException
-        // fırlatıp CIRCUIT'İ DÜŞÜRÜR (Good dışı 6 ailede canlıda yaşandı). Panelin EditComponentOf listesindeki
-        // her {Family}EditHost, SeedCode ve SeedName parametrelerini taşımalı — liste büyürse test takip eder.
-        var panel = ConventionSource.EnumerateSource("ProductCommodityClassificationPanel.razor.cs").FirstOrDefault();
-        panel.ShouldNotBeNull("Sınıflandırma paneli code-behind'ı bulunamadı — EditComponentOf sözleşmesi taranamıyor.");
+        // Kural (2026-08-07 U1): sınıflandırma paneli ve reçete panelinin "Üründen" anahtarı emtia formunu
+        // extraParams'la (SeedCode/SeedName) açıyor; bu [Parameter]'ları TANIMLAMAYAN host'ta DynamicComponent
+        // çalışma anında InvalidOperationException fırlatıp CIRCUIT'İ DÜŞÜRÜR (Good dışı 6 ailede canlıda
+        // yaşandı). Eşleme 2026-08-14'te tek kaynağa indi: ProductCommoditySeed.EditComponentOf — iki yüzey de
+        // oradan okur, test de oradan tarar; liste büyürse sözleşmeyi otomatik takip eder.
+        var seedSource = ConventionSource.EnumerateSource("ProductCommoditySeed.cs").FirstOrDefault();
+        seedSource.ShouldNotBeNull("ProductCommoditySeed.cs bulunamadı — EditComponentOf sözleşmesi taranamıyor.");
 
-        var hostTypeNames = EditHostTypeofRegex.Matches(File.ReadAllText(panel))
+        var hostTypeNames = EditHostTypeofRegex.Matches(File.ReadAllText(seedSource))
             .Select(m => m.Groups[2].Value)
             .Distinct(StringComparer.Ordinal)
             .ToList();

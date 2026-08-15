@@ -39,6 +39,13 @@ public static class TrendyolProductConsts
 
     public const int LastErrorMaxLength = 4000;
 
+    /// <summary>Pazaryeri engel gerekçesi (kilit/karaliste/red) — KANALIN kendi cümlesi, yeniden yazılmaz.
+    /// Red gerekçeleri birleşik gelebildiği için hata metniyle aynı bolluk verilir.</summary>
+    public const int RemoteReasonMaxLength = 1000;
+
+    /// <summary>Kalemin pazaryerindeki sayfa adresi (<c>productUrl</c>).</summary>
+    public const int RemoteProductUrlMaxLength = 1000;
+
     /// <summary>Serbest (custom) attribute değeri — id'siz metin.</summary>
     public const int CustomAttributeValueMaxLength = 2000;
 

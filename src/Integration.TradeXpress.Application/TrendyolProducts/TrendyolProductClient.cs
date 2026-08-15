@@ -281,7 +281,8 @@ public sealed class TrendyolProductClient : TrendyolRestClientBase, ITrendyolPro
             ProductContentId: ReadLong(el, "productContentId") ?? ReadLong(el, "id"),
             Approved: ReadBool(el, "approved"),
             OnSale: ReadBool(el, "onSale") ?? ReadBool(el, "onsale"),
-            Attributes: attributes);
+            Attributes: attributes,
+            Flags: ReadListingFlags(el));
 
         return new TrendyolRemoteProduct(
             ProductMainId: ReadString(el, "productMainId"),
@@ -298,15 +299,79 @@ public sealed class TrendyolProductClient : TrendyolRestClientBase, ITrendyolPro
             Variants: new List<TrendyolRemoteVariant> { variant });
     }
 
+    // Pazaryerinin ENGEL/DURUM beyanı. Bu alanlar yanıtta hep vardı ama okunmuyordu; okunmayan bir engel,
+    // gönderim reddedilene kadar görünmez kalıyordu. Alan gelmezse null taşınır ("bildirilmedi" ≠ "engel yok").
+    private static TrendyolRemoteListingFlags ReadListingFlags(JsonElement el)
+    {
+        return new TrendyolRemoteListingFlags(
+            Archived: ReadBool(el, "archived"),
+            Locked: ReadBool(el, "locked"),
+            LockReason: ReadString(el, "lockReason"),
+            Blacklisted: ReadBool(el, "blacklisted"),
+            BlacklistReason: ReadString(el, "blacklistReason"),
+            Rejected: ReadBool(el, "rejected"),
+            RejectReason: ReadRejectReason(el),
+            HasActiveCampaign: ReadBool(el, "hasActiveCampaign"),
+            ProductUrl: ReadString(el, "productUrl"),
+            CreatedAtUtc: ReadEpochUtc(el, "createDateTime"),
+            UpdatedAtUtc: ReadEpochUtc(el, "lastUpdateDate"));
+    }
+
+    // rejectReasonDetails: dizi. Trendyol kimi kayıtta düz metin, kimi kayıtta {reason:...} nesnesi döndürüyor —
+    // ikisi de kabul edilir. Birden çok gerekçe tek satıra birleştirilir: kullanıcının gördüğü şey "neden
+    // reddedildi" sorusunun cevabıdır, ilk gerekçeyi seçip kalanını atmak eksik cevap olurdu.
+    private static string? ReadRejectReason(JsonElement el)
+    {
+        if (el.ValueKind != JsonValueKind.Object
+            || !el.TryGetProperty("rejectReasonDetails", out var details)
+            || details.ValueKind != JsonValueKind.Array)
+        {
+            return null;
+        }
+
+        var reasons = new List<string>();
+        foreach (var detail in details.EnumerateArray())
+        {
+            var text = detail.ValueKind switch
+            {
+                JsonValueKind.String => detail.GetString(),
+                JsonValueKind.Object => ReadString(detail, "reason") ?? ReadString(detail, "reasonName"),
+                _ => null
+            };
+
+            if (!string.IsNullOrWhiteSpace(text))
+            {
+                reasons.Add(text!.Trim());
+            }
+        }
+
+        return reasons.Count == 0 ? null : string.Join(" · ", reasons);
+    }
+
+    // Trendyol zaman damgaları epoch MİLİSANİYE. Kayıt UTC'dir (CLAUDE.md §6: kayıt=UTC, görüntü=yerel).
+    private static DateTime? ReadEpochUtc(JsonElement obj, string property)
+    {
+        return ReadLong(obj, property) is > 0 and { } epochMs
+            ? DateTimeOffset.FromUnixTimeMilliseconds(epochMs).UtcDateTime
+            : null;
+    }
+
     // ── Create gövdesi (items[]) ──────────────────────────────────────────────────────────────────────
 
-    private static string BuildCreateBody(TrendyolProductData p)
+    // internal — gövde ağa çıkmadan birim test edilebilsin diye (BuildPriceInventoryBody emsali;
+    // InternalsVisibleTo zaten test derlemesine açık).
+    internal static string BuildCreateBody(TrendyolProductData p)
     {
         var images = p.ImageUrls.Select(u => new Dictionary<string, object?> { ["url"] = u }).ToList();
-        var attributes = p.Attributes.Select(BuildAttribute).ToList();
 
         var items = p.Items.Select(item =>
         {
+            // Kalem attribute'ları = ürün-seviyesi + kalemin KENDİ eksen değerleri; aynı attributeId'de
+            // kalem KAZANIR (özgül olan geneli yener — eksen niteliği ürün seviyesinde zaten süzülmüş
+            // olmalı ama çakışırsa kalemin beyanı doğrudur). Eski davranış tüm kalemlere AYNI listeyi
+            // kopyalıyordu → çok varyantlı üründe eksen beyanı push'a hiç girmiyordu.
+            var itemAttributes = MergeItemAttributes(p.Attributes, item.Attributes);
+
             var dict = new Dictionary<string, object?>
             {
                 ["barcode"] = item.Barcode,
@@ -321,7 +386,7 @@ public sealed class TrendyolProductClient : TrendyolRestClientBase, ITrendyolPro
                 ["salePrice"] = item.SalePrice,
                 ["vatRate"] = p.VatRate,
                 ["images"] = images,
-                ["attributes"] = attributes,
+                ["attributes"] = itemAttributes,
             };
 
             if (p.DimensionalWeight is { } weight)
@@ -353,6 +418,24 @@ public sealed class TrendyolProductClient : TrendyolRestClientBase, ITrendyolPro
 
         var root = new Dictionary<string, object?> { ["items"] = items };
         return JsonSerializer.Serialize(root);
+    }
+
+    /// <summary>Ürün-seviyesi + kalem attribute'larını birleştirir; aynı <c>attributeId</c>'de KALEM kazanır.
+    /// Kalem listesi boş/null ise sonuç ürün-seviyesinin kendisidir (eski davranışla birebir).</summary>
+    private static List<Dictionary<string, object?>> MergeItemAttributes(
+        IReadOnlyList<TrendyolAttributeValue> productLevel, IReadOnlyList<TrendyolAttributeValue>? itemLevel)
+    {
+        if (itemLevel is null || itemLevel.Count == 0)
+        {
+            return productLevel.Select(BuildAttribute).ToList();
+        }
+
+        var itemIds = itemLevel.Select(a => a.AttributeId).ToHashSet();
+        return productLevel
+            .Where(a => !itemIds.Contains(a.AttributeId))
+            .Concat(itemLevel)
+            .Select(BuildAttribute)
+            .ToList();
     }
 
     // ── Fiyat/stok gövdesi (items[]) ─────────────────────────────────────────────────────────────────
