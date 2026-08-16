@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Integration.Framework;
+using Integration.Framework.Progress;
 using Integration.TradeXpress.Financials.CurrencyUnits;
 using Integration.TradeXpress.MultiCompany;
 using Integration.TradeXpress.Permissions;
@@ -46,11 +47,29 @@ public partial class SalesChannelTrTrendyolProductAppService
     /// (<see cref="SafeCategoryId"/>) ve UnmatchedCategories raporunda görünür.</summary>
     private const string UnknownExternalId = "0";
 
+    /// <summary>İlerleme kanalı — ambient scoped sink (Blazor bileşeni aynı circuit'te dinler; HTTP API'de dinleyen
+    /// yok, rapor kaybolur — zararsız). Ctor'a eklenmedi: 36 parametreli ctor + tüm test sahteleri kırılırdı;
+    /// LazyServiceProvider aynı scope'tan çözer.</summary>
+    private IOperationProgressSink Progress => LazyServiceProvider.LazyGetRequiredService<IOperationProgressSink>();
+
     [Authorize(TradeXpressPermissions.SalesChannels.Update)]
     public virtual async Task<TrendyolImportResultDto> ImportFromMarketplaceAsync(Guid salesChannelId)
     {
         var channel = await GetOwnedChannelAsync(salesChannelId);
 
+        try
+        {
+            return await ImportCoreAsync(channel);
+        }
+        finally
+        {
+            // Panel kapanır — başarı/hata fark etmez (yarım kalan çubuk "hâlâ çalışıyor" izlenimi verirdi).
+            Progress.Complete();
+        }
+    }
+
+    private async Task<TrendyolImportResultDto> ImportCoreAsync(SalesChannelTrTrendyol channel)
+    {
         // Salt GET: tüm satıcı ürünleri sayfa sayfa çekilir + productMainId'ye göre gruplanır (P1 sarmalayıcı)
         // + stockCode paylaşan gruplar TEK ürüne birleştirilir (kardeş varyant kuruluşu — canlı vaka düzeltmesi).
         var remoteProducts = await FetchRemoteProductsAsync(channel);
@@ -86,8 +105,13 @@ public partial class SalesChannelTrTrendyolProductAppService
         var seenBarcodes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var unmatchedCategories = new HashSet<string>(StringComparer.Ordinal);
 
+        var processed = 0;
         foreach (var remote in remoteProducts)
         {
+            // İŞLEME fazı: ürün başına ilerleme + o anki ürünün adı (kullanıcı "ne çekiliyor" görsün).
+            Progress.Report(new OperationProgress(
+                L["TrendyolProduct:Import:Phase:Processing"].Value, ++processed, remoteProducts.Count, remote.Title));
+
             var validVariants = FilterImportableVariants(remote, seenBarcodes, report.SkippedRows);
             if (validVariants.Count == 0)
             {
@@ -138,7 +162,23 @@ public partial class SalesChannelTrTrendyolProductAppService
     /// uygulanır ki İLK import tüm kardeş varyantları doğursun.</summary>
     private async Task<IReadOnlyList<TrendyolRemoteProduct>> FetchRemoteProductsAsync(SalesChannelTrTrendyol channel)
     {
-        var remoteProducts = await _client.GetAllSellerProductsAsync(CredentialsOf(channel));
+        // ÇEKİM fazı: sayfa sayfa; toplam sayfa ilk yanıtta belli olur — sayaç "sayfa N / M · K kalem" (toplam
+        // ürün sayısı gruplamadan önce bilinemez, faz bu yüzden sayfa-bazlı). İstemcinin sayfalama döngüsü
+        // (FetchAllPagesAsync — güvenlik tavanı dahil) AYNEN kullanılır; yalnız sayfa delegesi raporlar.
+        var credentials = CredentialsOf(channel);
+        var fetchPhase = L["TrendyolProduct:Import:Phase:Fetching"].Value;
+        var fetchedItems = 0;
+        var flat = await TrendyolProductClient.FetchAllPagesAsync(async page =>
+        {
+            var result = await _client.GetSellerProductsAsync(credentials, page, 200);
+            fetchedItems += result.Items.Count;
+            Progress.Report(new OperationProgress(
+                fetchPhase, page + 1, result.TotalPages > 0 ? result.TotalPages : null,
+                L["TrendyolProduct:Import:FetchedItems", fetchedItems].Value));
+            return result;
+        });
+
+        var remoteProducts = TrendyolProductClient.GroupByProductMainId(flat);
         return MergeGroupsSharingStockCode(remoteProducts);
     }
 

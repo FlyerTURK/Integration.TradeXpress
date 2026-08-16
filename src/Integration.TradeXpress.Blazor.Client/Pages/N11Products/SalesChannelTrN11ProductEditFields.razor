@@ -149,7 +149,7 @@
         else
         {
             @* Zorunlu attribute'lar (Marka/Toplam Gram/Maden Ayarı) — HEP açık, üstte. *@
-            <N11CategoryAttributeGrid Rows="@_mandatoryAttributeRows" RowSaving="OnAttributeRowSaving" />
+            <N11CategoryAttributeGrid @ref="_mandatoryGrid" Rows="@_mandatoryAttributeRows" RowSaving="OnAttributeRowSaving" />
 
             @* Opsiyonel (GPSR/Ürün Güvenliği vb.) — sayaçlı, varsayılan KAPALI katlanabilir grup: form kalabalıklaşmasın
                ama kabiliyet kaybolmasın (N11 yarın bir GPSR alanını zorunlu yaparsa doldurabilirsin). *@
@@ -159,7 +159,7 @@
                     <DxFormLayoutGroup Caption="@($"{L["N11Product:OptionalAttributes"]} ({OptionalFilledCount}/{_optionalAttributeRows.Count})")"
                                        Expanded="false" ExpandButtonDisplayMode="GroupExpandButtonDisplayMode.Start" ColSpanMd="12">
                         <DxFormLayoutItem ColSpanMd="12">
-                            <N11CategoryAttributeGrid Rows="@_optionalAttributeRows" RowSaving="OnAttributeRowSaving" />
+                            <N11CategoryAttributeGrid @ref="_optionalGrid" Rows="@_optionalAttributeRows" RowSaving="OnAttributeRowSaving" />
                         </DxFormLayoutItem>
                     </DxFormLayoutGroup>
                 </DxFormLayout>
@@ -416,8 +416,10 @@
                                                 ProductId="@Model.ProductId" AllowCreateFromProduct="true"
                                                 AllVariants="@EffectiveCoreVariants"
                                                 OnCreateCommodityFromProduct="@CreateCommodityFromProductAsync"
+                                                OnCatalogReloadRequested="@ReloadRecipeCatalogsAsync"
                                                 Metals="_metals" MetalVariants="_metalVariants" Scraps="_scraps" Futures="_futures"
                                                 Jewelries="_jewelries" Stones="_stones" Goods="_goods" Services="_services" Units="_priceUnits"
+                                                GoodVariants="_goodVariants" JewelryVariants="_jewelryVariants"
                                                 OnChanged="@(async () => await HandleStockItemRecipeChangedAsync(v))"
                                                 NetCost="@v.NetCost" NetCostCurrency="@v.NetCostCurrency" NetCostMissingRate="@v.NetCostMissingRate" />
                         </DxFormLayoutGroup>

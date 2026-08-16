@@ -33,11 +33,11 @@ else if (_editContext is not null)
 
         @if (_n11Model is not null)
         {
-            <SalesChannelTrN11ProductEditFields Model="@_n11Model" Channels="@_channelAsList" />
+            <SalesChannelTrN11ProductEditFields @ref="_n11Fields" Model="@_n11Model" Channels="@_channelAsList" />
         }
         else if (_trendyolModel is not null)
         {
-            <SalesChannelTrTrendyolProductEditFields Model="@_trendyolModel" Channels="@_channelAsList" />
+            <SalesChannelTrTrendyolProductEditFields @ref="_trendyolFields" Model="@_trendyolModel" Channels="@_channelAsList" />
         }
         else if (_etsyModel is not null)
         {

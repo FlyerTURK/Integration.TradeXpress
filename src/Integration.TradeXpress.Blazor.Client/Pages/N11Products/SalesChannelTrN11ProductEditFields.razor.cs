@@ -136,6 +136,8 @@ public partial class SalesChannelTrN11ProductEditFields : CrudComponentBase
     private IReadOnlyList<StoneListDto> _stones = Array.Empty<StoneListDto>();
     private IReadOnlyList<ServiceListDto> _services = Array.Empty<ServiceListDto>();
     private IReadOnlyList<CurrentPriceDto> _priceUnits = Array.Empty<CurrentPriceDto>();
+    private IReadOnlyList<CommodityVariantLookupDto> _goodVariants = Array.Empty<CommodityVariantLookupDto>();
+    private IReadOnlyList<CommodityVariantLookupDto> _jewelryVariants = Array.Empty<CommodityVariantLookupDto>();
     private bool _catalogsLoaded;
 
     // Çekirdek varyant listesinin sunucu geri-dönüşü — CoreVariants yalnız ürün-formu yüzeyinde besleniyor;
@@ -162,6 +164,23 @@ public partial class SalesChannelTrN11ProductEditFields : CrudComponentBase
     // ayrıca tek render'da ÜÇ kez hesaplanıyordu). Bölünme yalnız satır kümesi değişince (BuildAttributeRows) kurulur.
     private IReadOnlyList<N11AttributeCellRow> _mandatoryAttributeRows = Array.Empty<N11AttributeCellRow>();
     private IReadOnlyList<N11AttributeCellRow> _optionalAttributeRows = Array.Empty<N11AttributeCellRow>();
+    private N11CategoryAttributeGrid? _mandatoryGrid;
+    private N11CategoryAttributeGrid? _optionalGrid;
+
+    /// <summary>Her iki attribute grid'indeki açık hücre düzenlemesini form kaydından ÖNCE commit eder
+    /// (Trendyol <c>CommitPendingAttributeEditAsync</c> ile aynı gerekçe: değer hücreden çıkmadan modele düşmez).</summary>
+    public async Task CommitPendingAttributeEditAsync()
+    {
+        if (_mandatoryGrid is not null)
+        {
+            await _mandatoryGrid.CommitPendingEditAsync();
+        }
+
+        if (_optionalGrid is not null)
+        {
+            await _optionalGrid.CommitPendingEditAsync();
+        }
+    }
 
     /// <summary>Opsiyonel alanlardan kaçı dolu (grup başlığı sayacı) — satır sayısı küçük, hücre kaydında tazelenir.</summary>
     private int OptionalFilledCount
@@ -246,11 +265,22 @@ public partial class SalesChannelTrN11ProductEditFields : CrudComponentBase
             _stones = await StoneAppService.GetPickerListAsync();
             _services = await ServiceAppService.GetPickerListAsync();
             _priceUnits = await EffectivePriceAppService.GetCurrentPricesAsync();
+            _goodVariants = await GoodAppService.GetVariantLookupAsync();
+            _jewelryVariants = await JewelryAppService.GetVariantLookupAsync();
         }
         catch (Exception ex)
         {
             UiService.ShowErrorToast(CrudErrorPresenter.ToFriendlyMessage(ex, ServiceProvider) ?? L["UnexpectedError"].Value);
         }
+    }
+
+    // Katalog lookup'ı "Ekle/Düzelt" ile kayıt yapınca listeler ZORLA tazelenir (bayrak tek-seferlik — sıfırlanmazsa
+    // yeni kayıt combo'da görünmez; 2026-08-15 Hakan bulgusu, çekirdek formla aynı düzeltme).
+    private async Task ReloadRecipeCatalogsAsync()
+    {
+        _catalogsLoaded = false;
+        await EnsureRecipeCatalogsAsync();
+        StateHasChanged();
     }
 
     // N11 para birimi lookup listesini bir kez yükler (döviz cache TTL + auto-invalidate).
@@ -421,7 +451,10 @@ public partial class SalesChannelTrN11ProductEditFields : CrudComponentBase
                 IsMandatory = def.IsMandatory,
                 HasValueList = def.Values.Count > 0,
                 AllowCustomValues = def.IsCustomValue,
-                DefinitionValues = def.Values,
+                // Değer listesi ALFABETİK (tr-TR) — Trendyol grid'iyle aynı kural (2026-08-15).
+                DefinitionValues = def.Values
+                    .OrderBy(v => v.Value, StringComparer.Create(CultureInfo.GetCultureInfo("tr-TR"), ignoreCase: true))
+                    .ToList(),
                 CustomValue = existingValue,
             };
         }).ToList();

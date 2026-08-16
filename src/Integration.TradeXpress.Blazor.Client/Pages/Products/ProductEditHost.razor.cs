@@ -169,6 +169,8 @@ public partial class ProductEditHost
     protected IReadOnlyList<FutureListDto> Futures { get; private set; } = Array.Empty<FutureListDto>();
     protected IReadOnlyList<JewelryListDto> Jewelries { get; private set; } = Array.Empty<JewelryListDto>();
     protected IReadOnlyList<GoodListDto> Goods { get; private set; } = Array.Empty<GoodListDto>();
+    protected IReadOnlyList<CommodityVariantLookupDto> GoodVariants { get; private set; } = Array.Empty<CommodityVariantLookupDto>();
+    protected IReadOnlyList<CommodityVariantLookupDto> JewelryVariants { get; private set; } = Array.Empty<CommodityVariantLookupDto>();
     protected IReadOnlyList<StoneListDto> Stones { get; private set; } = Array.Empty<StoneListDto>();
     protected IReadOnlyList<ServiceListDto> Services { get; private set; } = Array.Empty<ServiceListDto>();
     protected IReadOnlyList<CurrentPriceDto> Units { get; private set; } = Array.Empty<CurrentPriceDto>();
@@ -230,27 +232,43 @@ public partial class ProductEditHost
     /// diye sorulabilecek bir uç sunmuyor ve kullanıcı formu kaydetmeden kapatmış da olabilir — fark, her
     /// iki durumu da doğru cevaplar (vazgeçince boş küme → <c>null</c>).</para>
     /// </summary>
-    private async Task<Guid?> CreateCommodityFromProductAsync(ProcessType family)
+    /// <summary>
+    /// <paramref name="draftCode"/>/<paramref name="draftName"/>: AÇIK FORMUN kod/adı — ürün henüz KAYITSIZKEN
+    /// (Id boş) tohum buradan gelir; kayıtlıysa sunucudan okunur (kaydedilmemiş kod değişikliği tohuma taşınmaz).
+    /// <para><b>Neden:</b> ilk sürüm kayıtsız üründe sessizce <c>null</c> dönüyor, combo "+" hiçbir şey açmıyordu
+    /// (2026-08-15 Hakan: "popup artık hiç açılmıyor") — "Yeni ▾" anahtarı zaten yalnız kayıtlı üründe göründüğü
+    /// için o yol bunu hiç yaşamamıştı; "+" her zaman görünür, kayıtsız üründe de çalışmalı. Kayıtsız üründe
+    /// çekirdek yayılımı (reçete satırı) yapılamaz — o satır panel draft'ı olarak forma girer, kayıtla yazılır.</para>
+    /// </summary>
+    private async Task<Guid?> CreateCommodityFromProductAsync(ProcessType family, string? draftCode, string? draftName)
     {
-        if (Id is not { } productId || productId == Guid.Empty)
-        {
-            return null;
-        }
-
         if (ProductCommoditySeed.EditComponentOf(family) is not { } editComponent)
         {
             return null;
         }
 
+        var isSaved = Id is { } savedId && savedId != Guid.Empty;
+        var productId = isSaved ? Id!.Value : Guid.Empty;
+
+        string? seedCode;
+        string? seedName;
+        if (isSaved)
+        {
+            // Kod/ad SUNUCUDAN: emtia, kayıtlı ürünün kimliğinden doğar (kaydedilmemiş düzenleme tohuma taşınmaz).
+            var product = await ProductAppService.GetAsync(productId);
+            seedCode = product.Code;
+            seedName = product.Name;
+        }
+        else
+        {
+            seedCode = draftCode;
+            seedName = draftName;
+        }
+
         var before = CommodityIdsOf(family);
 
-        // Kod/ad SUNUCUDAN okunur: host, açık formun modeline erişmiyor (model razor context'inde yaşıyor)
-        // ve kullanıcının kaydedilmemiş kod değişikliğini tohuma taşımak zaten YANLIŞ olurdu — emtia,
-        // kayıtlı ürünün kimliğinden doğar.
-        var product = await ProductAppService.GetAsync(productId);
-
         var extra = await ProductCommoditySeed.BuildExtraParamsAsync(
-            family, productId, product.Code, product.Name, ProductAppService);
+            family, productId, seedCode, seedName, ProductAppService);
 
         await ViewOpener.OpenAsync(
             editComponent, null, L[$"Enum:ProcessType:{family}"].Value, iconCssClass: null, extraParams: extra);
@@ -279,14 +297,7 @@ public partial class ProductEditHost
     // Reçete satırlarının lookup beslemesi (aktif katalog kayıtları + birimler). Server working-company ile scope'lar.
     private async Task LoadRecipeCatalogsAsync()
     {
-        Metals = await MetalAppService.GetPickerListAsync();
-        MetalVariants = await MetalAppService.GetVariantLookupAsync();
-        Scraps = await ScrapAppService.GetPickerListAsync();
-        Futures = await FutureAppService.GetPickerListAsync();
-        Jewelries = await JewelryAppService.GetPickerListAsync();
-        Goods = await GoodAppService.GetPickerListAsync();
-        Stones = await StoneAppService.GetPickerListAsync();
-        Services = await ServiceAppService.GetPickerListAsync();
+        await LoadCommodityCatalogsAsync();
         Units = await EffectivePriceAppService.GetCurrentPricesAsync();
         CurrencyUnits = await CurrencyLookup.GetAsync();
         AddOns = await AddOnAppService.GetPickerListAsync();
@@ -296,6 +307,31 @@ public partial class ProductEditHost
         VariantTemplates = await VariantTemplateAppService.GetPickerListAsync();
         ProductCategories = await ProductCategoryAppService.GetPickerListAsync();
         RecipeTemplates = await RecipeTemplateAppService.GetPickerListAsync();
+    }
+
+    /// <summary>Reçete panelinin YEDİ emtia kataloğu + maden varyant listesi — hem ilk yüklemenin parçası hem de
+    /// lookup "Ekle/Düzelt" popup'ı kayıt yapınca panelin istediği tazeleme (<c>OnReloadRecipeCatalogs</c>).</summary>
+    private async Task LoadCommodityCatalogsAsync()
+    {
+        Metals = await MetalAppService.GetPickerListAsync();
+        MetalVariants = await MetalAppService.GetVariantLookupAsync();
+        Scraps = await ScrapAppService.GetPickerListAsync();
+        Futures = await FutureAppService.GetPickerListAsync();
+        Jewelries = await JewelryAppService.GetPickerListAsync();
+        Goods = await GoodAppService.GetPickerListAsync();
+        Stones = await StoneAppService.GetPickerListAsync();
+        Services = await ServiceAppService.GetPickerListAsync();
+        // Varyantlı parasal aileler — reçete combo'su varyant listesi gösterir (maden deseni; 2026-08-15 kararı).
+        GoodVariants = await GoodAppService.GetVariantLookupAsync();
+        JewelryVariants = await JewelryAppService.GetVariantLookupAsync();
+    }
+
+    /// <summary>Katalog lookup'ından ekle/düzelt sonrası tazeleme (bağlı değilse yeni kayıt combo'da görünmezdi —
+    /// 2026-08-15 Hakan bulgusu: mamul ekleyip geri dönünce combo'da yoktu).</summary>
+    private async Task ReloadRecipeCatalogsAsync()
+    {
+        await LoadCommodityCatalogsAsync();
+        StateHasChanged();
     }
 
     // Yalnız AKTİF gruplar seçilebilir (pasif grup sunucuda da fail-fast — hesaplama sayfası deseni).

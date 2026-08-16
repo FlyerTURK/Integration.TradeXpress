@@ -84,6 +84,13 @@
     /// akışıyla AYNI mekanizma (ham DxPopup YOK). Override (OnAdd/OnEditRequested) verilmişse o öncelikli kalır.</summary>
     [Parameter] public Type? EditComponentType { get; set; }
 
+    /// <summary>Edit(✎) için DÜZENLENECEK KAYDIN kimliğini seçili değerden çevirir — combo değeri düzenlenen
+    /// entity'nin kimliği DEĞİLSE (ör. varyant lookup'ı: değer VARYANT id'si, düzenlenen SAHİP emtia). Verilmezse
+    /// değerin kendisi kimlik sayılır. Çeviri null dönerse ✎ hiçbir şey açmaz. <para><b>Neden:</b> varyant id'sini
+    /// sahibin host'una "kayıt id" diye vermek kaydı bulamayan bir form açıyor, form kapanıp dispose ediliyor ve
+    /// sonraki güncelleme "Cannot access a disposed object" ile çöküyordu (2026-08-15 mamül varyant combo'su).</para></summary>
+    [Parameter] public Func<TValue, object?>? EditIdSelector { get; set; }
+
     /// <summary>Add(+) butonunun YETKİ kapısı — host, ilgili Create iznini kontrol edip verir (UI gate;
     /// gerçek denetim server-side policy'de). Varsayılan true (izin kavramı olmayan lookuplar etkilenmez).</summary>
     [Parameter] public bool CanAdd { get; set; } = true;
@@ -122,8 +129,24 @@
     }
 
     /// <summary>Inline edit veya dış-sekme değişimi sonrası host'tan <see cref="Data"/>'yı yeniden yüklemesini ister
-    /// (EntityChange tetikler). Auto-select için reload önce beklenir.</summary>
+    /// (EntityChange tetikler). Auto-select için reload önce beklenir.
+    /// ⚠ BAĞLANMAZSA "Ekle" düğmesiyle açılan popup kaydeder ama LİSTE TAZELENMEZ — yeni kayıt combo'da görünmez
+    /// (2026-08-15 Hakan bulgusu: reçete panelinde mamul ekleyip geri dönünce combo'da yoktu; 8 katalog lookup'ının
+    /// hiçbiri bağlamıyordu). <see cref="Data"/>'yı dışarıdan alan HER kullanım bunu bağlamalıdır.</summary>
     [Parameter] public EventCallback OnLookupReloadRequested { get; set; }
+
+    /// <summary>Dinlenecek değişiklik anahtarı — VARSAYILAN <c>typeof(TItem).FullName</c> (edit host'ların
+    /// <c>CrudEditHost.ResolvedKey</c> ile yaydığı anahtar). Combo'nun kalem tipi entity'nin liste DTO'sundan FARKLIYSA
+    /// (ör. maden lookup'ı <c>MetalVariantLookupDto</c> gösterir ama kayıt <c>MetalListDto</c> anahtarıyla yayılır)
+    /// buradan eşlenir; aksi hâlde bildirim hiç yakalanmaz ve reload/auto-select sessizce çalışmaz.</summary>
+    [Parameter] public string? EntityChangeKey { get; set; }
+
+    private string ResolvedEntityChangeKey => EntityChangeKey ?? typeof(TItem).FullName ?? typeof(TItem).Name;
+
+    /// <summary>Created bildiriminde yeni kaydın Id'si combo değeri olarak SEÇİLSİN mi (varsayılan evet). Combo'nun
+    /// değeri yayılan Id ile AYNI kavram değilse KAPATILIR — ör. maden lookup'ının değeri VARYANT id'sidir, bildirim
+    /// ise MADEN id'sini taşır; açık kalsa maden id'si varyant alanına yazılır (yanlış eşleşme). Reload yine çalışır.</summary>
+    [Parameter] public bool AutoSelectCreated { get; set; } = true;
 
     protected override void OnInitialized()
     {
@@ -198,6 +221,12 @@
     {
         if (!_hasValue) return Task.CompletedTask;
         if (OnEditRequested is not null) return OnEditRequested(Value!);
+        if (EditIdSelector is not null)
+        {
+            var ownerId = EditIdSelector(Value!);
+            return ownerId is null ? Task.CompletedTask : OpenEditByIdAsync(ownerId);
+        }
+
         return OpenEditAsync(Value);
     }
 
@@ -218,26 +247,48 @@
     // Kayıt sonrası tazeleme + auto-select EntityChange üzerinden olur (OnEntityChanged).
     private Task OpenEditAsync(TValue? id)
     {
+        // Add → id null (yeni kayıt); Edit → seçili değer. Required (Guid) alanda default = Guid.Empty → host "yeni" sayar.
+        object? editId = (id is null || EqualityComparer<TValue>.Default.Equals(id, default!)) ? null : id;
+        return OpenEditByIdAsync(editId);
+    }
+
+    // Edit host'unu ÇEVRİLMİŞ kimlikle açar (EditIdSelector yolu ile ortak gövde).
+    private Task OpenEditByIdAsync(object? editId)
+    {
         var editComponentType = _resolvedEditComponentType;
         if (editComponentType is null) return Task.CompletedTask;
         var extra = new Dictionary<string, object>
         {
             { "OnClosed", EventCallback.Factory.Create(this, () => PopupService.Close()) },
         };
-        // Add → id null (yeni kayıt); Edit → seçili değer. Required (Guid) alanda default = Guid.Empty → host "yeni" sayar.
-        object? editId = (id is null || EqualityComparer<TValue>.Default.Equals(id, default!)) ? null : id;
         return ViewOpener.OpenAsync(editComponentType, editId, string.Empty, null, extra);
     }
 
     // Bu entity türü değişince (inline popup VEYA başka sekme): listeyi tazele + Created'da yeni kaydı auto-select.
     private async void OnEntityChanged(EntityChange change)
     {
-        if (change.EntityKey != typeof(TItem).FullName) return;
-        await OnLookupReloadRequested.InvokeAsync();   // host Data'yı yeniden yükler
-        if (change.Kind == EntityChangeKind.Created && change.Id is TValue newId)
-            await OnInternalValueChanged(newId);       // yeni kaydı combo'da seç
-        await InvokeAsync(StateHasChanged);
+        if (_disposed || !string.Equals(change.EntityKey, ResolvedEntityChangeKey, StringComparison.Ordinal)) return;
+        try
+        {
+            await OnLookupReloadRequested.InvokeAsync();   // host Data'yı yeniden yükler
+            if (_disposed) return;                          // reload sırasında bileşenin formu kapanmış olabilir
+            if (AutoSelectCreated && change.Kind == EntityChangeKind.Created && change.Id is TValue newId)
+                await OnInternalValueChanged(newId);        // yeni kaydı combo'da seç
+            if (!_disposed) await InvokeAsync(StateHasChanged);
+        }
+        catch (ObjectDisposedException)
+        {
+            // Bus olayı, bileşenin barındığı form dispose olduktan SONRA da gelebilir (popup kapanış yarışı) ve
+            // kullanıcıya "Cannot access a disposed object" olarak yansıyordu. Yeniden çizilecek bileşen zaten
+            // yok, kaybolan iş de yok (tazeleme yeni yüzeyde kendiliğinden yapılır) — yutmak doğru davranış.
+        }
     }
 
-    public void Dispose() => EntityChanges.Changed -= OnEntityChanged;
+    private bool _disposed;
+
+    public void Dispose()
+    {
+        _disposed = true;
+        EntityChanges.Changed -= OnEntityChanged;
+    }
 }

@@ -187,11 +187,16 @@ public abstract class SalesChannelProductAppServiceTests<TStartupModule> : Trade
     }
 
     [Fact]
-    public async Task Pushing_an_imported_listing_promotes_it_to_sent()
+    public async Task Pushing_an_imported_listing_promotes_it_out_of_imported()
     {
         // İki durumun SINIRI: aynı satır bir kez de olsa bizim elimizden geçince artık "İçe
         // Aktarıldı" değildir. Üstteki test tek başına, "Imported'ı her zaman döndür" gibi bir
         // gevşetmeyle de geçerdi; bu test o kaçışı kapatır.
+        //
+        // Trendyol ASENKRON yazar: submit anında batch AÇIKTIR (Status=PROCESSING) → durum "Bekliyor";
+        // batch tamamlanınca "Gönderildi". Eski sürüm submit anını doğrudan Sent sayıyordu — kabul
+        // edilmemiş bir gönderime yeşil rozet vermek yalandı (2026-08-16 ilk canlı gönderim: DB COMPLETED
+        // iken liste sonsuza dek Bekliyor kalıyordu; kural "uzak kimlik yok" yerine "batch açık" oldu).
         var companyId = NewId();
         using (_currentCompany.Change(companyId))
         {
@@ -204,9 +209,14 @@ public abstract class SalesChannelProductAppServiceTests<TStartupModule> : Trade
                 p.MarkSubmitted("batch-1", "UpdatePriceAndInventory", SyncedAt);
             });
 
-            var result = await _appService.GetListAsync(new SalesChannelProductListRequestDto());
+            // Batch açık → Bekliyor (Imported DEĞİL — bizim elimizden geçti).
+            var pending = await _appService.GetListAsync(new SalesChannelProductListRequestDto());
+            pending.Items.ShouldHaveSingleItem().SyncState.ShouldBe(ChannelProductSyncState.Pending);
 
-            result.Items.ShouldHaveSingleItem().SyncState.ShouldBe(ChannelProductSyncState.Sent);
+            // Batch tamamlandı → Gönderildi.
+            await MutateTrendyolAsync(imported, p => p.MarkStatus("COMPLETED", 0, null, SyncedAt));
+            var sent = await _appService.GetListAsync(new SalesChannelProductListRequestDto());
+            sent.Items.ShouldHaveSingleItem().SyncState.ShouldBe(ChannelProductSyncState.Sent);
         }
     }
 

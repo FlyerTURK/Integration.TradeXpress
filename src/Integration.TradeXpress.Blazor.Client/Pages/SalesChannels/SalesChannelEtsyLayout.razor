@@ -86,7 +86,8 @@
         <DxTabPage Text="@L["SalesChannelProducts"]" TabIconCssClass="@TradeXpressIcons.Product">
             @* Bu kanala bağlı TÜM kayıtlar (senkron olmuş/olmamış ayrımı YOK). Trendyol formu ve
                standalone sayfayla AYNI bileşen. *@
-            <ChannelProductsPanel SalesChannelId="@Model.Id" StateKey="sales-channel-products:etsy-form:v5" />
+            <ChannelProductsPanel SalesChannelId="@Model.Id" ChannelType="SalesChannelType.Etsy"
+                                  StateKey="sales-channel-products:etsy-form:v5" />
         </DxTabPage>
     </DrillTabs>
 }

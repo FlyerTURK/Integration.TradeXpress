@@ -27,6 +27,11 @@ public interface IGoodAppService : ICrudAppService<
     /// öncelikli, sonra koda göre) ile. Tek varyantlıysa panel VariantId'yi null bırakır; çokluysa fiyatı seçilen varyant belirler.</summary>
     Task<List<CommodityVariantOptionDto>> GetVariantPickerListAsync(Guid goodId);
 
+    /// <summary>Reçete paneli için TÜM görünür mamül×varyant yassı listesi (Metal <c>GetVariantLookupAsync</c> deseni)
+    /// — fiyat SEÇİLİ varyantın <c>GoodVariantDetail</c>'inden. "Varyantlı her emtia reçetede maden gibi davranır"
+    /// (2026-08-15 Hakan kararı): satıra <c>CommodityVariantId</c> yazılır, maliyet motoru o varyantın fiyatını okur.</summary>
+    Task<List<CommodityVariantLookupDto>> GetVariantLookupAsync();
+
     /// <summary>Persistsiz varyant önizlemesi — nitelik×değer kartezyeni → varyant graf satırları (DB'ye YAZMAZ).
     /// Jenerik agnostik sisteme (EntityVariantGraphService) delege eder. Client round-trip; kalıcılaşma Good save'inde.</summary>
     Task<List<GoodVariantGraphDto>> GenerateVariantsAsync(EntityVariantGenerateRequestDto input);

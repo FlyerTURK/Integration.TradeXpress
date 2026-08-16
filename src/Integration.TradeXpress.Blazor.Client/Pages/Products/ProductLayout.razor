@@ -353,11 +353,11 @@
            görünsün; fiyatlama kararı ondan çıkıyor. *@
         @* Kimlik alanları (Kod + Kombinasyon) yalnız ÇOK varyantlı üretimde anlamlı; tek varyantlı üründe
            kombinasyon yok ve kod otomatik. Ana varyantın kodu ("ANAVARYANT" iç sabiti) yerine ÜRÜNÜN kodu
-           gösterilir — kullanıcı için anlamlı olan o (2026-07-28 Hakan). *@
+           gösterilir — kullanıcı için anlamlı olan o (2026-07-28 Hakan); 2026-08-15'ten beri panel bunu formun
+           cascade ettiği modelden KENDİLİĞİNDEN alır (tüm varyantlı emtialarda tek yol — parametre gerekmez). *@
         <EntityVariantsPanel TVariant="ProductVariantGraphDto" Variants="@Model.Variants" Attributes="@Model.Attributes" ShowImages="true"
                              ShowNetCost="true"
                              ShowIdentity="@(Model.VariantMode is ProductVariantMode.MultiVariant or ProductVariantMode.FromCatalog or ProductVariantMode.Substitution)"
-                             MainVariantCodeDisplay="@Model.Code"
                              OnAttributesChanged="@(Model.VariantMode is ProductVariantMode.MultiVariant or ProductVariantMode.FromCatalog ? OnGenerateVariants : default)">
             <ExtraFields Context="v">
                 @* SATIŞ STATÜSÜ — SALT-OKUNUR. Push kapısı yalnız "Hazır" varyantı geçirir; statüyü form değil
@@ -398,8 +398,10 @@
                     <ProductRecipePanel Lines="v.RecipeLines"
                                         ProductId="@Model.Id" AllowCreateFromProduct="true"
                                         OnCreateCommodityFromProduct="@OnCreateCommodityFromProduct"
+                                        OnCatalogReloadRequested="@OnReloadRecipeCatalogs"
                                         Metals="Metals" MetalVariants="MetalVariants" Scraps="Scraps" Futures="Futures"
                                         Jewelries="Jewelries" Stones="Stones" Goods="Goods" Services="Services" Units="Units"
+                                        GoodVariants="GoodVariants" JewelryVariants="JewelryVariants"
                                         AllVariants="@Model.Variants"
                                         OnChanged="@(async () => await HandleRecipeChangedAsync(v))"
                                         OnVariantRecipeChanged="@(async (ProductVariantGraphDto variant) => await HandleRecipeChangedAsync(variant))"

@@ -216,12 +216,17 @@ public partial class DrillList<TItem> where TItem : class
     /// Verilmezse canlı nesne düzenlenir (Cancel geri almaz).</summary>
     [Parameter] public Func<TItem, TItem>? CloneFactory { get; set; }
 
-    // Persistent mod — verilirse her işlem anında kalıcı yazılır; verilmezse saf in-memory.
+    // Persistent mod — verilen işlem anında kalıcı yazılır; verilmeyen saf in-memory. HER İŞLEM KENDİ DELEGESİNE
+    // BAKAR: eskiden tek bayrak `PersistCreate != null` idi ve ekleme kapalı (AllowAdd=false → PersistCreate yok)
+    // ama güncelleme açık bir drill'de PersistUpdate HİÇ çağrılmıyordu — popup "kaydedildi" diye kapanıyor, sunucuya
+    // hiçbir şey gitmiyordu (kanal ürünleri tahtası; 2026-08-15 Hakan tespiti, DB'de LastModificationTime=NULL kanıtı).
     [Parameter] public Func<TItem, Task<TItem>>? PersistCreate { get; set; }
     [Parameter] public Func<TItem, Task<TItem>>? PersistUpdate { get; set; }
     [Parameter] public Func<TItem, Task>? PersistDelete { get; set; }
 
-    private bool Persistent => PersistCreate != null;
+    private bool PersistsCreate => PersistCreate != null;
+    private bool PersistsUpdate => PersistUpdate != null;
+    private bool PersistsDelete => PersistDelete != null;
 
     private IReadOnlyList<object>? _selectedItems;
 
@@ -335,13 +340,22 @@ public partial class DrillList<TItem> where TItem : class
     private EditContext? _editContext;
     private string? _editSnapshot;  // açılış anındaki _editItem JSON'u → dirty karşılaştırması (ana edit formuyla aynı)
 
-    // Kaydedilmemiş değişiklik var mı? Mevcut _editItem JSON'u açılış snapshot'ından farklıysa dirty.
-    // Serileştirme başarısızsa fail-open (dirty=true → kaydetme/onay engellenmesin).
+    /// <summary>
+    /// DIŞ dirty kaynağı — EditContent'in düzenlediği nesne <c>TItem</c>'ın KENDİSİ DEĞİLSE (ör. liste satırı
+    /// yalnız kimlik taşır, düzenleme ayrı yüklenen tam DTO üzerinde yapılır) JSON snapshot kıyası hiçbir
+    /// değişikliği göremez ve Kaydet hep pasif kalır. Verilirse snapshot kıyasına EK olarak sorulur (biri
+    /// kirli diyorsa kirlidir). <para><b>Neden:</b> kanal-ürün tahtası bu desendedir; kategori attribute
+    /// değişimi (ve aslında her alan) Kaydet'i açmıyordu (2026-08-15 Hakan tespiti).</para></summary>
+    [Parameter] public Func<TItem, bool>? EditDirtyProvider { get; set; }
+
+    // Kaydedilmemiş değişiklik var mı? Mevcut _editItem JSON'u açılış snapshot'ından farklıysa dirty;
+    // dış kaynak (EditDirtyProvider) da kirli diyorsa dirty. Serileştirme başarısızsa fail-open.
     private bool IsEditDirty
     {
         get
         {
             if (_editItem == null) return false;
+            if (EditDirtyProvider is not null && EditDirtyProvider(_editItem)) return true;
             if (_editSnapshot == null) return true;
             try { return System.Text.Json.JsonSerializer.Serialize(_editItem) != _editSnapshot; }
             catch { return true; }
@@ -350,6 +364,13 @@ public partial class DrillList<TItem> where TItem : class
 
     // Alan değişince başlık "*" + Save aktifliği canlı güncellensin (DevExpress inputlar EditContext'e bildirir).
     private void OnEditFieldChanged(object? sender, FieldChangedEventArgs e) => StateHasChanged();
+
+    /// <summary>Dış dirty kaynağı (<see cref="EditDirtyProvider"/>) değişti — EditContent'in kendi EditContext'i
+    /// drill'inkinden ayrıysa drill alan değişimini duymaz; alt form bunu çağırarak Kaydet/başlık "*"ı tazeler.</summary>
+    public void NotifyEditChanged()
+    {
+        InvokeAsync(StateHasChanged);
+    }
 
     private void SetEditContext(TItem item)
     {
@@ -475,9 +496,26 @@ public partial class DrillList<TItem> where TItem : class
     private string GridStateKey => $"Drill:{StateKey ?? typeof(TItem).Name}:v2";
 
     // Footer EditForm DIŞINDA olduğundan submit'i elle tetikliyoruz: önce doğrula, geçerliyse kaydet.
+    /// <summary>
+    /// KAYDETMEDEN (ve doğrulamadan) ÖNCE koşan kanca — EditContent'teki formun BEKLEYEN düzenlemelerini modele
+    /// commit ettirmek için (ör. DevExpress EditCell grid'inde hücre hâlâ düzenlemedeyken Kaydet'e basılması:
+    /// değer edit-model'de kalır, modele hiç düşmez, form "kaydedildi" diye kapanır ve veri KAYBOLUR —
+    /// 2026-08-15 Hakan tespiti). Üç kayıt yolu da (Kaydet · Kaydet-ve-Yeni · kapanışta-kaydet) bunu çağırır.
+    /// </summary>
+    [Parameter] public Func<TItem, Task>? BeforeSave { get; set; }
+
+    private async Task RunBeforeSaveAsync()
+    {
+        if (BeforeSave is not null && _editItem is not null)
+        {
+            await BeforeSave(_editItem);
+        }
+    }
+
     private async Task HandleSaveClick()
     {
         if (_editContext == null) return;
+        await RunBeforeSaveAsync();
         if (_editContext.Validate())
             await SaveAsync();
         else
@@ -488,6 +526,7 @@ public partial class DrillList<TItem> where TItem : class
     private async Task HandleSaveAndNew()
     {
         if (_editContext == null) return;
+        await RunBeforeSaveAsync();
         if (!_editContext.Validate()) { ShowValidationToasts(); return; }
         await SaveAsync();
         if (!_popupVisible)  // başarı → SaveAsync kapattı → yenisini aç (hata olduysa açık kalır, dokunma)
@@ -534,7 +573,7 @@ public partial class DrillList<TItem> where TItem : class
         {
             if (_isNew)
             {
-                var added = Persistent ? await PersistCreate!(_editItem) : _editItem;
+                var added = PersistsCreate ? await PersistCreate!(_editItem) : _editItem;
                 Items.Add(added);
                 _selectedItems = new List<object> { added };
             }
@@ -542,7 +581,7 @@ public partial class DrillList<TItem> where TItem : class
             {
                 // Düzenleme: clone üzerinde çalışıldıysa orijinal slotu değiştir.
                 var target = _editOriginal ?? _editItem;
-                if (Persistent) _editItem = await PersistUpdate!(_editItem);
+                if (PersistsUpdate) _editItem = await PersistUpdate!(_editItem);
                 var idx = Items.IndexOf(target);
                 if (idx >= 0) Items[idx] = _editItem;
                 _selectedItems = new List<object> { _editItem };
@@ -671,6 +710,7 @@ public partial class DrillList<TItem> where TItem : class
     private async Task<bool> TrySaveForCloseAsync()
     {
         if (_editContext == null) return false;
+        await RunBeforeSaveAsync();
         if (!_editContext.Validate()) { ShowValidationToasts(); return false; }
         await SaveAsync();
         return !_popupVisible;
@@ -713,8 +753,8 @@ public partial class DrillList<TItem> where TItem : class
                 }
                 else
                 {
-                    if (Persistent && PersistDelete != null)
-                        await PersistDelete(item);
+                    if (PersistsDelete)
+                        await PersistDelete!(item);
                     await OnItemDeleted.InvokeAsync(item);
                     Items.Remove(item);
                 }
@@ -759,11 +799,11 @@ public partial class DrillList<TItem> where TItem : class
         {
             if (e.IsNew)
             {
-                var added = Persistent ? await PersistCreate!(model) : model;
+                var added = PersistsCreate ? await PersistCreate!(model) : model;
                 Items.Add(added);
                 await OnItemSaved.InvokeAsync(added);
             }
-            else if (Persistent)
+            else if (PersistsUpdate)
             {
                 // Sunucu taze kopyayı döner → liste slotunu onunla değiştir.
                 var updated = await PersistUpdate!(model);
@@ -812,7 +852,7 @@ public partial class DrillList<TItem> where TItem : class
         _busy = true;
         try
         {
-            if (Persistent && PersistDelete != null) await PersistDelete(item);
+            if (PersistsDelete) await PersistDelete!(item);
             await OnItemDeleted.InvokeAsync(item);
             Items.Remove(item);
             await OnChanged.InvokeAsync();

@@ -316,8 +316,11 @@ public class SalesChannelProductAppService : TradeXpressAppService, ISalesChanne
             RemoteTextId = p.RemoteProductMainId,
             RemoteStatus = p.Status,
             RemoteStatusSecondary = null,
-            // Trendyol asenkron yazar: batch açıldı ama uzak kimlik henüz gelmediyse akıbet belirsizdir.
-            IsPending = p.BatchRequestId != null && p.RemoteProductMainId == null,
+            // Trendyol asenkron yazar: batch açıldı ama SONUCU henüz alınmadıysa (Status=PROCESSING) akıbet
+            // belirsizdir. Eski ölçüt "uzak kimlik yok" idi — o kimlik yalnız İMPORT'la dolar; kendi push'umuzla
+            // açılan ürün batch COMPLETED olsa bile import edilmedikçe sonsuza dek "Bekliyor" görünüyordu
+            // (2026-08-16 ilk canlı gönderim: DB COMPLETED, liste Bekliyor — Hakan tespiti).
+            IsPending = p.BatchRequestId != null && p.Status == "PROCESSING",
             HasOurPush = p.LastSyncedAt != null,
             RemotePrice = p.ListPrice,
             RemoteOnSale = p.RemoteOnSale,

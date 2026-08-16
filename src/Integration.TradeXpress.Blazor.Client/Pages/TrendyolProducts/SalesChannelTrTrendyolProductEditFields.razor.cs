@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
 using DevExpress.Blazor;
@@ -122,6 +123,8 @@ public partial class SalesChannelTrTrendyolProductEditFields : CrudComponentBase
     private IReadOnlyList<StoneListDto> _stones = Array.Empty<StoneListDto>();
     private IReadOnlyList<ServiceListDto> _services = Array.Empty<ServiceListDto>();
     private IReadOnlyList<CurrentPriceDto> _priceUnits = Array.Empty<CurrentPriceDto>();
+    private IReadOnlyList<CommodityVariantLookupDto> _goodVariants = Array.Empty<CommodityVariantLookupDto>();
+    private IReadOnlyList<CommodityVariantLookupDto> _jewelryVariants = Array.Empty<CommodityVariantLookupDto>();
     private bool _catalogsLoaded;
 
     // Çekirdek ürünün varyant listesi — panelin "Üründen" anahtarı fail-closed'dur (liste verilmezse hiç
@@ -131,6 +134,24 @@ public partial class SalesChannelTrTrendyolProductEditFields : CrudComponentBase
 
     // Attribute grid satırları (def + o anki değer) — inline edit-cell; değer editörü satır tipine göre değişir.
     private List<TrendyolAttributeRow> _attributeRows = new();
+    private IGrid? _attributeGrid;
+
+    /// <summary>
+    /// AÇIK HÜCRE DÜZENLEMESİNİ KAYDET'TEN ÖNCE KAPATIR — çağıran (tahta <c>SaveAsync</c>, drill kaydı) form
+    /// kaydından hemen önce çağırır.
+    /// <para><b>Neden:</b> DevExpress EditCell'de değer, hücreden ÇIKINCA <c>EditModelSaving</c> ile modele düşer;
+    /// kullanıcı değeri seçip doğrudan popup'ın Kaydet'ine basınca hücre hâlâ düzenlemededir → olay hiç koşmaz,
+    /// değer edit-model klonunda kalır, <c>Model.Attributes</c> boş gider, form "kaydedildi" diye kapanır ve
+    /// nitelik KAYBOLUR (2026-08-15 Hakan tespiti). <c>SaveChangesAsync</c> bekleyen düzenlemeyi commit edip
+    /// <c>OnAttributeRowSaving</c>'i tetikler.</para>
+    /// </summary>
+    public async Task CommitPendingAttributeEditAsync()
+    {
+        if (_attributeGrid is { } grid && grid.IsEditing())
+        {
+            await grid.SaveChangesAsync();
+        }
+    }
 
     // OnParametersSetAsync her render'da çalışır → tekrarlı ağ çağrısını son-yüklenen anahtarla önle.
     private string? _loadedAttributesCategoryId;
@@ -237,11 +258,22 @@ public partial class SalesChannelTrTrendyolProductEditFields : CrudComponentBase
             _stones = await StoneAppService.GetPickerListAsync();
             _services = await ServiceAppService.GetPickerListAsync();
             _priceUnits = await EffectivePriceAppService.GetCurrentPricesAsync();
+            _goodVariants = await GoodAppService.GetVariantLookupAsync();
+            _jewelryVariants = await JewelryAppService.GetVariantLookupAsync();
         }
         catch (Exception ex)
         {
             UiService.ShowErrorToast(CrudErrorPresenter.ToFriendlyMessage(ex, ServiceProvider) ?? L["UnexpectedError"].Value);
         }
+    }
+
+    // Katalog lookup'ı "Ekle/Düzelt" ile kayıt yapınca listeler ZORLA tazelenir (bayrak tek-seferlik — sıfırlanmazsa
+    // yeni kayıt combo'da görünmez; 2026-08-15 Hakan bulgusu, çekirdek formla aynı düzeltme).
+    private async Task ReloadRecipeCatalogsAsync()
+    {
+        _catalogsLoaded = false;
+        await EnsureRecipeCatalogsAsync();
+        StateHasChanged();
     }
 
     // Trendyol para birimi lookup listesini bir kez yükler (döviz cache TTL + auto-invalidate).
@@ -305,7 +337,10 @@ public partial class SalesChannelTrTrendyolProductEditFields : CrudComponentBase
                 IsMandatory = def.Required,
                 AllowCustom = def.AllowCustom,
                 HasValueList = hasList,
-                Values = def.Values,
+                // Değer listesi ALFABETİK (tr-TR; Trendyol tanım sırasıyla gönderiyor — kullanıcı için anlamsız).
+                Values = def.Values
+                    .OrderBy(v => v.Value, StringComparer.Create(CultureInfo.GetCultureInfo("tr-TR"), ignoreCase: true))
+                    .ToList(),
                 SelectedValueId = hasList ? existing?.AttributeValueId : null,
                 CustomValue = hasList ? string.Empty : existing?.CustomValue ?? string.Empty,
             };

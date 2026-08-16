@@ -54,20 +54,30 @@ public static class ProductCommoditySeed
     public static async Task<Dictionary<string, object>> BuildExtraParamsAsync(
         ProcessType family,
         Guid productId,
-        string productCode,
-        string productName,
+        string? productCode,
+        string? productName,
         IProductAppService products)
     {
         var extra = BuildPopupParams();
 
-        if (family == ProcessType.Good)
+        // Zengin mamül tohumu yalnız KAYITLI üründe (projeksiyon sunucudan okunur); kayıtsız üründe (Id boş —
+        // combo "+" kayıtsız formda) kod/ad tohumuna düşülür, hata değil.
+        if (family == ProcessType.Good && productId != Guid.Empty)
         {
             extra["SeedModel"] = await products.ProjectToGoodAsync(productId);
             return extra;
         }
 
-        extra["SeedCode"] = productCode;
-        extra["SeedName"] = productName;
+        if (!string.IsNullOrWhiteSpace(productCode))
+        {
+            extra["SeedCode"] = productCode;
+        }
+
+        if (!string.IsNullOrWhiteSpace(productName))
+        {
+            extra["SeedName"] = productName;
+        }
+
         return extra;
     }
 

@@ -88,7 +88,10 @@
         <DxTabPage Text="@L["SalesChannelProducts"]" TabIconCssClass="@TradeXpressIcons.Product">
             @* Bu kanala bağlı TÜM kayıtlar (pazaryerine gitmiş/gitmemiş AYRIMI YOK; gitmemiş olan zaten
                aranan satırdır). Standalone "Kanal Ürünleri" sayfasıyla AYNI bileşen — tek fark daraltma. *@
-            <ChannelProductsPanel SalesChannelId="@Model.Id" StateKey="sales-channel-products:trendyol-form:v5" />
+            @* ChannelType AÇIKÇA verilir (2026-08-15 Hakan tespiti): panel türü satırlardan okuyordu; kanal
+               boşalınca (ürünler silinince) tür bilinemiyor ve "İçe Aktar" — tam da en gerekli anda — kilitleniyordu. *@
+            <ChannelProductsPanel SalesChannelId="@Model.Id" ChannelType="SalesChannelType.TrTrendyol"
+                                  StateKey="sales-channel-products:trendyol-form:v5" />
         </DxTabPage>
     </DrillTabs>
 }

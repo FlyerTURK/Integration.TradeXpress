@@ -59,6 +59,10 @@
    onu bir parametre ADI sanar ve "does not have a property matching the name ..." ile circuit'i düşürür
    (ui-blazor razor-comment kuralı; 2026-08-10'da tam da bu dosyada yaşandı). *@
 <div style="display:flex; flex-direction:column; min-height:0;">
+    @* İÇE AKTARIM İLERLEMESİ (2026-08-15 Hakan isteği): import dakikalar sürüyor ve ekranda hiçbir şey olmuyormuş
+       gibi görünüyordu. Panel, app service'in aynı circuit'teki ilerleme kanalına yazdığını çizer — "sayfa N/M ·
+       K kalem" (çekim) sonra "ürün N/Toplam · şu anki ürün" (işleme). İşlem yokken hiçbir şey çizmez. *@
+    <OperationProgressPanel />
     <DrillList TItem="SalesChannelProductListDto"
                @ref="_drill"
                EntityName="@L["SalesChannelProduct:EditTitle"]"
@@ -82,6 +86,7 @@
                OnSelectionChanged="@OnSelectionChanged"
                CustomActions="@BuildCustomActions()"
                EditPopupMaxWidth="1100px"
+               EditDirtyProvider="@(_ => _editFields?.IsDirty == true)"
                StateKey="@StateKey">
         <GridColumns>
             @* Kanal kolonu tek-kanal görünümünde ANLAMSIZ → Visible ile gizlenir (@if ile sarılmaz:
@@ -320,7 +325,8 @@
             </DxGridDataColumn>
         </GridColumns>
         <EditContent Context="row">
-            <ChannelProductEditFields @ref="_editFields" Row="@row" />
+            @* OnDirtyChanged → panel yeniden çizilir; drill EditDirtyProvider'ı yeniden sorup Kaydet'i açar. *@
+            <ChannelProductEditFields @ref="_editFields" Row="@row" OnDirtyChanged="@(() => _drill?.NotifyEditChanged())" />
         </EditContent>
     </DrillList>
 

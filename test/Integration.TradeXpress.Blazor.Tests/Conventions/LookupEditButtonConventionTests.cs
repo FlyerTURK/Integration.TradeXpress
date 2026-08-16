@@ -38,6 +38,7 @@ public class LookupEditButtonConventionTests
     {
         ["CurrentPriceDto"]             = "Türetilmiş kur/fiyat projeksiyonu — düzenlenebilir kayıt değil.",
         ["MetalVariantLookupDto"]       = "Maden varyantı seçeneği; varyantlar madenin kendi formunda üretilir.",
+        ["CommodityVariantLookupDto"]   = "Mamül/mücevher varyantı seçeneği (yassı emtia×varyant); varyantlar sahibinin formunda üretilir — reçete paneli EditComponentType'ı açıkça verir (Good/Jewelry host'u).",
         ["CommodityVariantOptionDto"]   = "Emtia varyant seçeneği — sahibinin formunda yönetilir.",
         ["MyVaultDto"]                  = "Kullanıcının erişebildiği kasalar (yetki projeksiyonu) — buradan kasa açılmaz.",
         ["N11ShipmentTemplateDto"]      = "Kanal kargo şablonu; kendi kanal ekranından yönetilir.",

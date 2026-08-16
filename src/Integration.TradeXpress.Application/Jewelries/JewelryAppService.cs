@@ -33,16 +33,19 @@ public class JewelryAppService
     private const string VariantImageEntityName = "JewelryVariant";   // varyant-özel medya/doküman/notun agnostik bağlam anahtarı
 
     private readonly IRepository<Jewelry, Guid> _jewelryRepository;
+    private readonly IRepository<EntityVariant, Guid> _variantRepository;
     private readonly ICurrentCompany _currentCompany;
     private readonly CommodityAgnosticGraph _graph;
 
     public JewelryAppService(
         IRepository<Jewelry, Guid> repository,
+        IRepository<EntityVariant, Guid> variantRepository,
         ICurrentCompany currentCompany,
         CommodityAgnosticGraph graph)
         : base(repository)
     {
         _jewelryRepository = repository;
+        _variantRepository = variantRepository;
         _currentCompany = currentCompany;
         _graph = graph;
         LocalizationResource = typeof(TradeXpressResource);
@@ -233,5 +236,45 @@ public class JewelryAppService
     public virtual Task<List<CommodityVariantOptionDto>> GetVariantPickerListAsync(Guid jewelryId)
     {
         return _graph.GetVariantPickerAsync(JewelryEntityName, jewelryId);
+    }
+
+    /// <summary>Reçete paneli için mücevher×varyant YASSI listesi — Good/Metal deseni. Fiyat MÜCEVHER seviyesinden
+    /// (her varyant satırı aynı değeri taşır — varyantlar fiyatı paylaşır, bilinçli kısıt); seçim kimlik/stok
+    /// içindir. Global filtreler kapatılıp görünürlük elle kurulur (host kaydı tenant filtresine takılmasın).</summary>
+    public virtual async Task<List<CommodityVariantLookupDto>> GetVariantLookupAsync()
+    {
+        using (DataFilter.Disable<IMultiTenant>())
+        using (DataFilter.Disable<ICompanyScoped>())
+        {
+            var jewelryPredicate = CompanyScopedQueryable.CompanyOwnedVisiblePredicate<Jewelry>(CurrentTenant.Id, _currentCompany.Id);
+            var variantPredicate = CompanyScopedQueryable.CompanyVisiblePredicate<EntityVariant>(CurrentTenant.Id, _currentCompany.Id);
+
+            var rows = await AsyncExecuter.ToListAsync(
+                from jewelry in (await Repository.GetQueryableAsync()).Where(jewelryPredicate)
+                join variant in (await _variantRepository.GetQueryableAsync()).Where(variantPredicate) on jewelry.Id equals variant.EntityId
+                where variant.EntityName == JewelryEntityName && !variant.IsDeleted && !jewelry.IsDeleted && variant.IsActive
+                select new CommodityVariantLookupDto
+                {
+                    CommodityId = jewelry.Id,
+                    CommodityCode = jewelry.Code,
+                    CommodityName = jewelry.Name,
+                    VariantId = variant.Id,
+                    VariantCode = variant.Code,
+                    VariantName = variant.Name,
+                    IsMain = variant.IsMain,
+                    IsQuantity = jewelry.IsQuantity,
+                    PriceByQuantity = jewelry.PriceByQuantity,
+                    EntryPrice = jewelry.EntryPrice,
+                    EntryPriceUnitId = jewelry.EntryPriceUnitId,
+                    ExitPrice = jewelry.ExitPrice,
+                    ExitPriceUnitId = jewelry.ExitPriceUnitId,
+                });
+
+            return rows
+                .OrderBy(x => x.CommodityCode)
+                .ThenByDescending(x => x.IsMain)
+                .ThenBy(x => x.VariantCode)
+                .ToList();
+        }
     }
 }

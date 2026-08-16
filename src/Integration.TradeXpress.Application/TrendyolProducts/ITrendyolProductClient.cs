@@ -47,8 +47,13 @@ public interface ITrendyolProductClient
 }
 
 /// <summary>Trendyol ürün verisi (ÇÖZÜLMÜŞ) — ürün başlığı/kategori/marka + varyantlar (Items) + kategori attribute'ları.
-/// <c>currencyType</c>/<c>cargoCompanyId</c> V2 create şemasında YOKTUR (para birimi TRY zımnî; kargo panel/satıcı
-/// seviyesi) → push payload'ında taşınmaz.</summary>
+///
+/// <para><b>DÜZELTME (2026-08-16, ilk CANLI gönderim):</b> bu özet daha önce "<c>currencyType</c>/<c>cargoCompanyId</c>
+/// V2 create şemasında YOKTUR" diyordu — YANLIŞTI. Trendyol ilk gerçek create'i
+/// <c>productRequest.currencyType.null — "Para Birimi alanı boş olamaz"</c> ile REDDETTİ. Alan zorunludur ve gövdeye
+/// <c>currencyType: "TRY"</c> yazılır (Trendyol yalnız TRY kabul eder — para birimi karışımı zaten fail-fast).
+/// Kargo firması da gövde alanıdır (<c>cargoCompanyId</c>): kanalın varsayılan kargo firması gönderilir
+/// (<see cref="CargoCompanyId"/>; null ise alan yazılmaz — Trendyol'un satıcı varsayılanına düşer).</para></summary>
 public sealed record TrendyolProductData(
     string ProductMainId,     // varyantları gruplar ("{ÜrünKodu}-{SequenceNo}", frozen)
     string Title,
@@ -66,7 +71,9 @@ public sealed record TrendyolProductData(
     IReadOnlyList<TrendyolProductItem> Items,           // varyantlar (barcode başına)
     // ImageUrls'e FİİLEN giren görsellerin DAM kimlikleri (aynı sıra) — delil defteri "ne gönderdim"i BUNDAN
     // yazar; adayları yeniden çözerek değil (yüklenemeyen görsel deftere "gönderildi" düşerdi). Gövdeye girmez.
-    IReadOnlyList<Guid> SentMediaIds);
+    IReadOnlyList<Guid> SentMediaIds,
+    // Kanalın varsayılan kargo firması (Trendyol cargoCompanyId) — null ise gövdeye yazılmaz.
+    int? CargoCompanyId = null);
 
 /// <summary>Trendyol satılabilir kalem (= ERP varyantı) — barcode + stok + fiyat (para birimi TRY zımnî).
 /// <para><see cref="Attributes"/> = kalemin KENDİ (varianter/eksen) attribute'ları — gövdede ürün-seviyesi

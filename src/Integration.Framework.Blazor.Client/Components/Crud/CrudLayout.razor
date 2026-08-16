@@ -10,7 +10,13 @@
 @* Sayfa başlığı artık MDI sekme caption'ında gösterilir; global PageHeaderTitle SectionOutlet
    çoklu canlı sayfada çakıştığı için kaldırıldı. PageTitle parametresi geriye uyumluluk için kalır. *@
 
-<div class="crud-layout-container h-100 position-relative d-flex flex-column">
+@* SEÇİCİ modunda (liste sayfası popup'ta) kap KENDİ tavanını koyar: popup kabuğu (EditShell) gövdeye yükseklik/
+   scroll DAYATMAZ — sözleşme "sahip içerik kendi max-height + scroll'unu kurar" (EntityEditForm öyle yapar). Liste
+   sayfası sekme için tasarlandığından h-100'e yaslanır; popup'ta parent yükseklik vermez, h-100 çözülemez, grid içerik
+   kadar uzar ve popup EKRANDAN TAŞAR (2026-08-15 Hakan tespiti: ürün kategorisi seçicisi). Tavan kabuğun 90dvh'sinin
+   altında (başlık + kenar payı düşülmüş); grid flex-grow + overflow-hidden ile kendi içinde kaydırır. *@
+<div class="crud-layout-container h-100 position-relative d-flex flex-column"
+     style="@(IsPickerMode ? "max-height:78dvh; min-height:0;" : null)">
     @if (StateService.IsBusy)
     {
         <div class="crud-loading-overlay">

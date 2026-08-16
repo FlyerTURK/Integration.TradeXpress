@@ -22,4 +22,9 @@ public interface IJewelryAppService : ICrudAppService<
 
     /// <summary>Bir mücevherin AKTİF varyantları (fiş satırı panelindeki varyant combo'su) — fiyatsız (fiyat mücevher seviyesinde).</summary>
     Task<List<CommodityVariantOptionDto>> GetVariantPickerListAsync(Guid jewelryId);
+
+    /// <summary>Reçete paneli için TÜM görünür mücevher×varyant yassı listesi (Metal deseni). Fiyat MÜCEVHER
+    /// seviyesindedir (varyantlar paylaşır — bilinçli kısıt); seçim kimlik/stok içindir, satıra
+    /// <c>CommodityVariantId</c> yazılır ("varyantlı her emtia reçetede maden gibi davranır", 2026-08-15).</summary>
+    Task<List<CommodityVariantLookupDto>> GetVariantLookupAsync();
 }

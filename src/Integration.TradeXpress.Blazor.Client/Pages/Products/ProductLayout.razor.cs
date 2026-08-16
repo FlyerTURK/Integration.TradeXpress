@@ -46,6 +46,8 @@ public partial class ProductLayout
     [Parameter] public IReadOnlyList<FutureListDto> Futures { get; set; } = Array.Empty<FutureListDto>();
     [Parameter] public IReadOnlyList<JewelryListDto> Jewelries { get; set; } = Array.Empty<JewelryListDto>();
     [Parameter] public IReadOnlyList<GoodListDto> Goods { get; set; } = Array.Empty<GoodListDto>();
+    [Parameter] public IReadOnlyList<CommodityVariantLookupDto> GoodVariants { get; set; } = Array.Empty<CommodityVariantLookupDto>();
+    [Parameter] public IReadOnlyList<CommodityVariantLookupDto> JewelryVariants { get; set; } = Array.Empty<CommodityVariantLookupDto>();
     [Parameter] public IReadOnlyList<StoneListDto> Stones { get; set; } = Array.Empty<StoneListDto>();
     [Parameter] public IReadOnlyList<ServiceListDto> Services { get; set; } = Array.Empty<ServiceListDto>();
     [Parameter] public IReadOnlyList<CurrentPriceDto> Units { get; set; } = Array.Empty<CurrentPriceDto>();
@@ -387,6 +389,11 @@ public partial class ProductLayout
 
     /// <summary>Inline muadil grubu ekle/düzelt sonrası lookup listesini host tazeler.</summary>
     [Parameter] public EventCallback OnReloadSubstitutionGroups { get; set; }
+
+    /// <summary>Reçete panelindeki katalog lookup'larından biri (maden/hurda/vadeli/mücevher/taş/mamul/hizmet)
+    /// "Ekle/Düzelt" ile kayıt yapınca host katalog listelerini yeniden yükler — bağlı değilse yeni kayıt combo'da
+    /// görünmez (2026-08-15 Hakan bulgusu).</summary>
+    [Parameter] public EventCallback OnReloadRecipeCatalogs { get; set; }
 
     /// <summary>Seçili grubun kalemleri (override ağacının devralınan-küme referansı) — host yükler.</summary>
     [Parameter] public List<SubstitutionGroupItemGraphDto> SubstitutionGroupItems { get; set; } = new();

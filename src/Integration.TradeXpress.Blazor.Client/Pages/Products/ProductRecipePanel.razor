@@ -125,9 +125,18 @@
                         <small style="@ProcessPanelStyles.Label">@ComponentLabel(d)</small>
                         @if (d.CommodityProcessType == ProcessType.Metal)
                         {
+                            @* Maden lookup'ı VARYANT listesi gösterir ama kayıt MADEN anahtarıyla yayılır → EntityChangeKey
+                               eşler; auto-select KAPALI (maden id'si varyant alanına yazılırdı) — kullanıcı tazelenen
+                               listeden varyantı kendi seçer. ✎ seçili VARYANTIN SAHİBİ madeni açar (EditIdSelector) —
+                               varyant id'sini host'a kayıt id'si diye vermek "disposed form" çöküşü üretiyordu. *@
                             <LookupComboBox TItem="MetalVariantLookupDto" TValue="Guid?" Data="@MetalVariants"
                                             ValueFieldName="@nameof(MetalVariantLookupDto.VariantId)" TextFieldName="@nameof(MetalVariantLookupDto.DisplayText)"
-                                            Value="@d.CommodityVariantId" ValueChanged="@((Guid? v) => OnMetalSelected(v))" AllowClear="false">
+                                            Value="@d.CommodityVariantId" ValueChanged="@((Guid? v) => OnMetalSelected(v))" AllowClear="false"
+                                            EditComponentType="@typeof(MetalEditHost)"
+                                            EditIdSelector="@((Guid? vid) => OwnerOfMetalVariant(vid))"
+                                            OnAddRequested="@(OnCreateCommodityFromProduct is null ? null : () => AddCommodityFromProductAsync(ProcessType.Metal))"
+                                            EntityChangeKey="@typeof(MetalListDto).FullName" AutoSelectCreated="false"
+                                            OnLookupReloadRequested="@OnCatalogReloadRequested">
                                 <Columns>
                                     <DxListEditorColumn FieldName="@nameof(MetalVariantLookupDto.MetalCode)" Caption="@L["MetalCode"]" />
                                     <DxListEditorColumn FieldName="@nameof(MetalVariantLookupDto.MetalName)" Caption="@L["MetalName"]" />
@@ -140,31 +149,63 @@
                         {
                             <LookupComboBox TItem="ScrapListDto" TValue="Guid?" Data="@Scraps"
                                             ValueFieldName="@nameof(ScrapListDto.Id)" TextFieldName="@nameof(ScrapListDto.Code)"
-                                            Value="@d.CommodityId" ValueChanged="@((Guid? v) => OnScrapSelected(v))" AllowClear="false" />
+                                            Value="@d.CommodityId" ValueChanged="@((Guid? v) => OnScrapSelected(v))" AllowClear="false"
+                                            OnLookupReloadRequested="@OnCatalogReloadRequested" />
                         }
                         else if (d.CommodityProcessType == ProcessType.Future)
                         {
                             <LookupComboBox TItem="FutureListDto" TValue="Guid?" Data="@Futures"
                                             ValueFieldName="@nameof(FutureListDto.Id)" TextFieldName="@nameof(FutureListDto.Code)"
-                                            Value="@d.CommodityId" ValueChanged="@((Guid? v) => OnFutureSelected(v))" AllowClear="false" />
+                                            Value="@d.CommodityId" ValueChanged="@((Guid? v) => OnFutureSelected(v))" AllowClear="false"
+                                            OnLookupReloadRequested="@OnCatalogReloadRequested" />
                         }
                         else if (d.CommodityProcessType == ProcessType.Jewelry)
                         {
-                            <LookupComboBox TItem="JewelryListDto" TValue="Guid?" Data="@Jewelries"
-                                            ValueFieldName="@nameof(JewelryListDto.Id)" TextFieldName="@nameof(JewelryListDto.Code)"
-                                            Value="@d.CommodityId" ValueChanged="@((Guid? v) => OnJewelrySelected(v))" AllowClear="false" />
+                            @* Varyantlı emtia — maden deseni: VARYANT listesi, anahtar CommodityVariantId; kayıt mücevher
+                               anahtarıyla yayılır → EntityChangeKey eşler, auto-select kapalı (mücevher id'si varyant
+                               alanına yazılmasın). *@
+                            <LookupComboBox TItem="CommodityVariantLookupDto" TValue="Guid?" Data="@JewelryVariants"
+                                            ValueFieldName="@nameof(CommodityVariantLookupDto.VariantId)" TextFieldName="@nameof(CommodityVariantLookupDto.DisplayText)"
+                                            Value="@d.CommodityVariantId" ValueChanged="@((Guid? v) => OnJewelrySelected(v))" AllowClear="false"
+                                            EditComponentType="@typeof(JewelryEditHost)"
+                                            EditIdSelector="@((Guid? vid) => OwnerOfJewelryVariant(vid))"
+                                            OnAddRequested="@(OnCreateCommodityFromProduct is null ? null : () => AddCommodityFromProductAsync(ProcessType.Jewelry))"
+                                            EntityChangeKey="@typeof(JewelryListDto).FullName" AutoSelectCreated="false"
+                                            OnLookupReloadRequested="@OnCatalogReloadRequested">
+                                <Columns>
+                                    <DxListEditorColumn FieldName="@nameof(CommodityVariantLookupDto.CommodityCode)" Caption="@L["Code"]" />
+                                    <DxListEditorColumn FieldName="@nameof(CommodityVariantLookupDto.CommodityName)" Caption="@L["Name"]" />
+                                    <DxListEditorColumn FieldName="@nameof(CommodityVariantLookupDto.VariantCode)" Caption="@L["VariantCode"]" />
+                                    <DxListEditorColumn FieldName="@nameof(CommodityVariantLookupDto.VariantName)" Caption="@L["VariantName"]" />
+                                </Columns>
+                            </LookupComboBox>
                         }
                         else if (d.CommodityProcessType == ProcessType.Stone)
                         {
                             <LookupComboBox TItem="StoneListDto" TValue="Guid?" Data="@Stones"
                                             ValueFieldName="@nameof(StoneListDto.Id)" TextFieldName="@nameof(StoneListDto.Code)"
-                                            Value="@d.CommodityId" ValueChanged="@((Guid? v) => OnStoneSelected(v))" AllowClear="false" />
+                                            Value="@d.CommodityId" ValueChanged="@((Guid? v) => OnStoneSelected(v))" AllowClear="false"
+                                            OnLookupReloadRequested="@OnCatalogReloadRequested" />
                         }
                         else if (d.CommodityProcessType == ProcessType.Good)
                         {
-                            <LookupComboBox TItem="GoodListDto" TValue="Guid?" Data="@Goods"
-                                            ValueFieldName="@nameof(GoodListDto.Id)" TextFieldName="@nameof(GoodListDto.Code)"
-                                            Value="@d.CommodityId" ValueChanged="@((Guid? v) => OnGoodSelected(v))" AllowClear="false" />
+                            @* Varyantlı emtia — maden deseni: mamülün fiyatı VARYANTTADIR (GoodVariantDetail); seçim
+                               CommodityVariantId'ye yazılır, sunucu o varyantın fiyatını okur. *@
+                            <LookupComboBox TItem="CommodityVariantLookupDto" TValue="Guid?" Data="@GoodVariants"
+                                            ValueFieldName="@nameof(CommodityVariantLookupDto.VariantId)" TextFieldName="@nameof(CommodityVariantLookupDto.DisplayText)"
+                                            Value="@d.CommodityVariantId" ValueChanged="@((Guid? v) => OnGoodSelected(v))" AllowClear="false"
+                                            EditComponentType="@typeof(GoodEditHost)"
+                                            EditIdSelector="@((Guid? vid) => OwnerOfGoodVariant(vid))"
+                                            OnAddRequested="@(OnCreateCommodityFromProduct is null ? null : () => AddCommodityFromProductAsync(ProcessType.Good))"
+                                            EntityChangeKey="@typeof(GoodListDto).FullName" AutoSelectCreated="false"
+                                            OnLookupReloadRequested="@OnCatalogReloadRequested">
+                                <Columns>
+                                    <DxListEditorColumn FieldName="@nameof(CommodityVariantLookupDto.CommodityCode)" Caption="@L["Code"]" />
+                                    <DxListEditorColumn FieldName="@nameof(CommodityVariantLookupDto.CommodityName)" Caption="@L["Name"]" />
+                                    <DxListEditorColumn FieldName="@nameof(CommodityVariantLookupDto.VariantCode)" Caption="@L["VariantCode"]" />
+                                    <DxListEditorColumn FieldName="@nameof(CommodityVariantLookupDto.VariantName)" Caption="@L["VariantName"]" />
+                                </Columns>
+                            </LookupComboBox>
                         }
                     </div>
 
@@ -237,7 +278,8 @@
                         <small style="@ProcessPanelStyles.Label">@L["Service"]</small>
                         <LookupComboBox TItem="ServiceListDto" TValue="Guid?" Data="@Services"
                                         ValueFieldName="@nameof(ServiceListDto.Id)" TextFieldName="@nameof(ServiceListDto.Code)"
-                                        Value="@d.CommodityId" ValueChanged="@((Guid? v) => OnServiceSelected(v))" AllowClear="false" />
+                                        Value="@d.CommodityId" ValueChanged="@((Guid? v) => OnServiceSelected(v))" AllowClear="false"
+                                        OnLookupReloadRequested="@OnCatalogReloadRequested" />
                     </div>
 
                     <div style="@GroupStyle(190)">

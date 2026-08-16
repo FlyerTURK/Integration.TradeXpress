@@ -8,12 +8,14 @@ using Integration.Framework.Blazor.Client.Components.Crud;
 using Integration.Framework.Blazor.Client.Services.Base;
 using Integration.TradeXpress.EtsyProducts;
 using Integration.TradeXpress.Blazor.Client.Pages.N11Products;
+using Integration.TradeXpress.Blazor.Client.Pages.TrendyolProducts;
 using Integration.TradeXpress.N11Products;
 using Integration.TradeXpress.ProductCategories;
 using Integration.TradeXpress.Products;
 using Integration.TradeXpress.SalesChannels;
 using Integration.TradeXpress.TrendyolProducts;
 using Microsoft.AspNetCore.Components;
+using Microsoft.Extensions.Logging;
 
 namespace Integration.TradeXpress.Blazor.Client.Pages.Products;
 
@@ -50,6 +52,7 @@ public partial class ProductSalesChannelsPanel : CrudComponentBase
     [Inject] private IProductCategoryAppService ProductCategoryAppService { get; set; } = default!;
     [Inject] private IProductAppService ProductAppService { get; set; } = default!;
     [Inject] private IUiInteractionService UiService { get; set; } = default!;
+    [Inject] private ILogger<ProductSalesChannelsPanel> Logger { get; set; } = default!;
     [Inject] private IServiceProvider ServiceProvider { get; set; } = default!;
 
     private DrillList<SalesChannelProductRow>? _drill;
@@ -57,6 +60,22 @@ public partial class ProductSalesChannelsPanel : CrudComponentBase
     // Açık N11 edit formunun referansı — SaveGuard zorunlu alan doğrulamasını ona delege eder (zorunlu
     // nitelik tanımları o bileşende yüklü). Popup kapanınca Blazor referansı doğal olarak tazeler.
     private SalesChannelTrN11ProductEditFields? _n11EditFields;
+    private SalesChannelTrTrendyolProductEditFields? _trendyolEditFields;
+
+    /// <summary>Kaydetmeden ÖNCE açık hücre düzenlemelerini (kategori nitelik grid'leri) modele commit eder —
+    /// aksi hâlde seçilen değer edit-model'de kalır ve sessizce kaybolur (drill <c>BeforeSave</c> kancası).</summary>
+    private async Task CommitPendingCellEditsAsync(SalesChannelProductRow row)
+    {
+        if (row.IsN11 && _n11EditFields is not null)
+        {
+            await _n11EditFields.CommitPendingAttributeEditAsync();
+        }
+
+        if (row.IsTrendyol && _trendyolEditFields is not null)
+        {
+            await _trendyolEditFields.CommitPendingAttributeEditAsync();
+        }
+    }
 
     /// <summary>Kanal ürünü satırı kaydedilirken zorunlu alan kontrolü — mesaj döner = kayıt engellenir,
     /// popup açık kalır. Bugün yalnız N11 (zorunlu nitelik kavramı orada); Trendyol/Etsy push aşamalarında
@@ -564,6 +583,16 @@ public partial class ProductSalesChannelsPanel : CrudComponentBase
             return;
         }
 
+        // Gerçek gönderim geri-dönüşsüz (pazaryerinde ürün açılır) — düğme kilidi yerine İNSAN ONAYI.
+        var confirmed = await UiService.ConfirmAsync(
+            L["TrendyolProduct:PushConfirm"].Value,
+            title: null, yesText: L["Yes"].Value, noText: L["Cancel"].Value,
+            showCancel: false, defaultYes: false);
+        if (confirmed != ConfirmDialogResult.Yes)
+        {
+            return;
+        }
+
         try
         {
             var pushed = await TrendyolAppService.PushToTrendyolAsync(channelProduct.Id);
@@ -594,6 +623,9 @@ public partial class ProductSalesChannelsPanel : CrudComponentBase
         }
         catch (Exception ex)
         {
+            // Dostane mesajı olmayan istisna toast'ta "Beklenmeyen hata" olur ve sebebi KAYBOLUR — sunucu logu
+            // bunu görmez (UI katmanında yakalandı). Teşhis için burada loglanır (2026-08-16 canlı test).
+            Logger.LogWarning(ex, "Trendyol durum yenileme başarısız (kanal ürünü {ChannelProductId}).", channelProduct.Id);
             UiService.ShowErrorToast(CrudErrorPresenter.ToFriendlyMessage(ex, ServiceProvider) ?? L["UnexpectedError"].Value);
         }
     }

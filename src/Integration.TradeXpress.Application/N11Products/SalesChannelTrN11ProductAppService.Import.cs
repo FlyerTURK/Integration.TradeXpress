@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Integration.Framework;
+using Integration.Framework.Progress;
 using Integration.TradeXpress.N11Categories;
 using Integration.TradeXpress.N11Products.Rest;
 using Integration.TradeXpress.N11Shipments;
@@ -69,10 +70,29 @@ public partial class SalesChannelTrN11ProductAppService
     /// büyük mağaza en az istekle çekilsin.</summary>
     private const int ImportPageSize = 250;
 
+    /// <summary>İlerleme kanalı — ambient scoped sink (Trendyol import'uyla aynı gerekçe: ctor'a eklenmez, aynı
+    /// scope'tan çözülür; dinleyen yoksa rapor kaybolur).</summary>
+    private IOperationProgressSink Progress => LazyServiceProvider.LazyGetRequiredService<IOperationProgressSink>();
+
     [Authorize(TradeXpressPermissions.SalesChannels.Update)]
     public virtual async Task<N11ImportResultDto> ImportFromMarketplaceAsync(Guid salesChannelId, int? defaultVatRate = null)
     {
         var channel = await GetOwnedChannelAsync(salesChannelId);
+
+        try
+        {
+            return await ImportCoreAsync(channel, defaultVatRate);
+        }
+        finally
+        {
+            Progress.Complete();
+        }
+    }
+
+    private async Task<N11ImportResultDto> ImportCoreAsync(SalesChannelTrN11 channel, int? defaultVatRate)
+    {
+        // ÇEKİM fazı: tek çağrı, sayfa geri bildirimi yok → belirsiz çubuk (kullanıcı "çalışıyor" görsün).
+        Progress.Report(new OperationProgress(L["N11Product:Import:Phase:Fetching"].Value, 0, null));
 
         // Salt GET — filtresiz: hiçbir parametre zorunlu değil, boş filtre satıcının TÜM ürünlerini sayfalar.
         var rows = await _queryClient.QueryAllAsync(
@@ -122,8 +142,13 @@ public partial class SalesChannelTrN11ProductAppService
 
         var unmatchedCategories = new HashSet<string>(StringComparer.Ordinal);
 
+        var processed = 0;
         foreach (var group in groups)
         {
+            // İŞLEME fazı: ürün başına ilerleme + o anki ürünün adı.
+            Progress.Report(new OperationProgress(
+                L["N11Product:Import:Phase:Processing"].Value, ++processed, groups.Count, group.Title));
+
             if (group.CategoryExternalId is not { Length: > 0 } categoryExternalId)
             {
                 // Kategori entity'de ZORUNLU (yaprak kategori olmadan listeleme kurulamaz) → grup atlanır.

@@ -1,0 +1,22 @@
+@using DevExpress.Blazor
+@using Integration.Framework.Progress
+@inherits Integration.Framework.Blazor.Client.Components.Crud.CrudComponentBase
+
+@* UZUN İŞLEM İLERLEME PANELİ — aynı circuit'teki app service'in IOperationProgressSink'e yazdığını çizer.
+   Sink boşsa (işlem yok / bitti) hiçbir şey çizmez. Toplam bilinmiyorsa (akan faz: sayfa sayfa çekim) hareketli
+   çubuk; biliniyorsa yüzde + "N / Toplam · şu an: X". Bileşen dilsizdir: işi başlatmaz, yalnız izler. *@
+@if (Current is { } p && !string.IsNullOrEmpty(p.Phase))
+{
+    <div style="display:flex; flex-direction:column; gap:0.25rem; padding:0.5rem 0;">
+        <DxProgressBar Value="@(p.Percent ?? 0)"
+                       MaxValue="100"
+                       Indeterminate="@(p.Percent is null)"
+                       Label="@LabelOf(p)"
+                       ShowIcon="false"
+                       SetSuccessStatusOnComplete="false" />
+        @if (!string.IsNullOrWhiteSpace(p.Message))
+        {
+            <span style="color:#6c757d; font-size:0.85rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">@p.Message</span>
+        }
+    </div>
+}

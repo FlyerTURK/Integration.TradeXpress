@@ -7,6 +7,7 @@
    opsiyoneller. Kaydetme mantığı üstte kalır (RowSaving delege → düzenlenen satırı AttributeId ile bulup uygular).
    Değer hücresi: değer-listeli → tek-seçim DxComboBox (isCustomValue ise liste-dışı da yazılır); serbest → DxTextBox. *@
 <DxGrid Data="@Rows" KeyFieldName="AttributeId"
+        @ref="_grid"
         EditMode="GridEditMode.EditCell"
         EditModelSaving="@RowSaving"
         PageSize="200" PagerVisible="false"

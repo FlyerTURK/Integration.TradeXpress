@@ -129,6 +129,16 @@ public partial class SalesChannelTrendyolProductsPanel : CrudComponentBase
             return;
         }
 
+        // Gerçek gönderim geri-dönüşsüz (pazaryerinde ürün açılır) — düğme kilidi yerine İNSAN ONAYI.
+        var confirmed = await UiService.ConfirmAsync(
+            L["TrendyolProduct:PushConfirm"].Value,
+            title: null, yesText: L["Yes"].Value, noText: L["Cancel"].Value,
+            showCancel: false, defaultYes: false);
+        if (confirmed != ConfirmDialogResult.Yes)
+        {
+            return;
+        }
+
         try
         {
             var pushed = await AppService.PushToTrendyolAsync(channelProduct.Id);

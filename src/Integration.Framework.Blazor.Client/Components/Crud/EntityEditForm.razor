@@ -51,9 +51,14 @@
                        bu EditChanged cascade'ini çağırır → NotifyIfChanged (re-render + dirty/toolbar/* tazele). *@
                     @* Salt-okunur (fieldset disabled) durumu component'lere cascade et: native disabled input'ları
                        pasifleştirir ama gömülü ✎/+ butonlarını GİZLEYEMEZ → LookupComboBox/LookupEdit bu bayrakla saklar. *@
+                    @* Düzenlenen MODEL de cascade edilir (Name="EditModel"): sahibin kimliğine ihtiyaç duyan paylaşılan
+                       paneller (ör. EntityVariantsPanel — ana varyantı sahibin koduyla gösterir) her formda ayrı ayrı
+                       parametre almak zorunda kalmasın; unutulan form sessizce sapıyordu (2026-08-15 Hakan: "DRY"). *@
                     <CascadingValue Value="@EditChangedAction" Name="EditChanged" IsFixed="true">
                         <CascadingValue Value="@IsReadOnly" Name="FormIsReadOnly">
-                            <div @onchange="OnFormChange">@ChildContent(Model)</div>
+                            <CascadingValue Value="@((object?)Model)" Name="EditModel">
+                                <div @onchange="OnFormChange">@ChildContent(Model)</div>
+                            </CascadingValue>
                         </CascadingValue>
                     </CascadingValue>
                 </fieldset>

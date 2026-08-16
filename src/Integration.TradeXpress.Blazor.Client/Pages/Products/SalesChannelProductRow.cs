@@ -61,6 +61,12 @@ public sealed class SalesChannelProductRow
         get { return ChannelType == SalesChannelType.TrN11; }
     }
 
+    /// <summary>Trendyol kanalı mı.</summary>
+    public bool IsTrendyol
+    {
+        get { return ChannelType == SalesChannelType.TrTrendyol; }
+    }
+
     /// <summary>Etsy kanalı mı.</summary>
     public bool IsEtsy
     {

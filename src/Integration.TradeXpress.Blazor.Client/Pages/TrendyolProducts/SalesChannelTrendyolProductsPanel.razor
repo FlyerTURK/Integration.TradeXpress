@@ -46,13 +46,11 @@
                     }
                     else
                     {
-                        @* READ-ONLY AŞAMA: gerçek push Trendyol'da GERİ-DÖNÜŞSÜZ ürün yaratır (POST /products) →
-                           buton T8'e kadar DEVRE DIŞI (kazara yazma önlemi). T8'de Enabled kaldırılır. *@
+                        @* Gerçek push GERİ-DÖNÜŞSÜZ ürün yaratır (POST /products) — kilit T8'e kadar kapalıydı; T8 kapandı,
+                           kazara yazma önlemi artık ONAY DİYALOĞU (PushAsync). *@
                         <DxButton Text="@L["TrendyolProduct:Push"]" RenderStyle="ButtonRenderStyle.Primary"
                                   IconCssClass="@TradeXpressIcons.SalesChannel"
-                                  Enabled="false"
                                   Click="@(() => PushAsync(row))" />
-                        <span style="color:#6c757d; font-size:0.8rem;" class="ms-1">@L["TrendyolProduct:PushReadonly"]</span>
                         @if (!string.IsNullOrEmpty(row.BatchRequestId))
                         {
                             <DxButton Text="@L["TrendyolProduct:RefreshStatus"]" RenderStyle="ButtonRenderStyle.Secondary"

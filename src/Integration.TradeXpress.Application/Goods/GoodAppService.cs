@@ -179,6 +179,68 @@ public class GoodAppService
         }
     }
 
+    /// <summary>Reçete paneli için mamül×varyant YASSI listesi — Metal <c>GetVariantLookupAsync</c> deseni. Global
+    /// filtreler kapatılıp görünürlük ELLE yeniden kurulur (host mamülü tenant filtresine takılmasın; salt-okuma).
+    /// Fiyat/birim SEÇİLİ varyantın <c>GoodVariantDetail</c>'inden — detayı olmayan varyant 0/null (fail-closed:
+    /// uydurma fiyat yok). IsQuantity/PriceByQuantity ENTITY'den (varyant detayındaki IsQuantity hiç yazılmaz).</summary>
+    public virtual async Task<List<CommodityVariantLookupDto>> GetVariantLookupAsync()
+    {
+        using (DataFilter.Disable<IMultiTenant>())
+        using (DataFilter.Disable<ICompanyScoped>())
+        {
+            var goodPredicate = CompanyScopedQueryable.CompanyOwnedVisiblePredicate<Good>(CurrentTenant.Id, _currentCompany.Id);
+            var variantPredicate = CompanyScopedQueryable.CompanyVisiblePredicate<EntityVariant>(CurrentTenant.Id, _currentCompany.Id);
+
+            var rows = await AsyncExecuter.ToListAsync(
+                from good in (await Repository.GetQueryableAsync()).Where(goodPredicate)
+                join variant in (await _variantRepository.GetQueryableAsync()).Where(variantPredicate) on good.Id equals variant.EntityId
+                where variant.EntityName == GoodEntityName && !variant.IsDeleted && !good.IsDeleted && variant.IsActive
+                select new
+                {
+                    CommodityId = good.Id,
+                    CommodityCode = good.Code,
+                    CommodityName = good.Name,
+                    VariantId = variant.Id,
+                    VariantCode = variant.Code,
+                    VariantName = variant.Name,
+                    variant.IsMain,
+                    good.IsQuantity,
+                    good.PriceByQuantity,
+                });
+
+            var variantIds = rows.Select(r => r.VariantId).ToList();
+            var details = (await AsyncExecuter.ToListAsync(
+                    (await _variantDetailRepository.GetQueryableAsync()).Where(d => variantIds.Contains(d.EntityVariantId))))
+                .ToDictionary(d => d.EntityVariantId);
+
+            return rows
+                .Select(r =>
+                {
+                    details.TryGetValue(r.VariantId, out var d);
+                    return new CommodityVariantLookupDto
+                    {
+                        CommodityId = r.CommodityId,
+                        CommodityCode = r.CommodityCode,
+                        CommodityName = r.CommodityName,
+                        VariantId = r.VariantId,
+                        VariantCode = r.VariantCode,
+                        VariantName = r.VariantName,
+                        IsMain = r.IsMain,
+                        IsQuantity = r.IsQuantity,
+                        PriceByQuantity = r.PriceByQuantity,
+                        EntryPrice = d?.EntryPrice ?? 0m,
+                        EntryPriceUnitId = d?.EntryPriceUnitId,
+                        ExitPrice = d?.ExitPrice ?? 0m,
+                        ExitPriceUnitId = d?.ExitPriceUnitId,
+                    };
+                })
+                .OrderBy(x => x.CommodityCode)
+                .ThenByDescending(x => x.IsMain)
+                .ThenBy(x => x.VariantCode)
+                .ToList();
+        }
+    }
+
     // Liste zenginleştirmesi — kardeş emtia deseni (Metal/Jewelry/Stone): base GetListAsync'in IMultiTenant-disable
     // scope'u İÇİNDE çağrılır; host (TenantId=null) mamüllerin varyant/medya/fiyat satırları tenant filtresine takılmaz.
     // (Eski GetListAsync override'ı zenginleştirmeyi scope KAPANDIKTAN sonra yapıyordu → host mamüllerde thumbnail/fiyat boştu.)

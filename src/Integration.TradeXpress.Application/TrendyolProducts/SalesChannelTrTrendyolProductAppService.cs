@@ -17,6 +17,7 @@ using Integration.TradeXpress.Substitutions;
 using Integration.TradeXpress.Trendyol;
 using Integration.TradeXpress.TrendyolBrands;
 using Integration.TradeXpress.TrendyolCategories;
+using Integration.TradeXpress.TrendyolShipments;
 using Integration.TradeXpress.Variants;
 using Integration.TradeXpress.Vouchers;
 using Microsoft.AspNetCore.Authorization;
@@ -48,6 +49,7 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
     private readonly IRepository<EntityAttributeValue, Guid> _attributeValueRepository;
     private readonly IRepository<EntityVariantAttributeValue, Guid> _variantAttributeRepository;
     private readonly IRepository<SalesChannelTrTrendyol, Guid> _channelRepository;
+    private readonly IRepository<TrendyolCargoProvider, Guid> _cargoProviderRepository;
     private readonly IRepository<SalesChannelTrTrendyolProductStockItem, Guid> _stockItemRepository;
     private readonly IRepository<SalesChannelTrTrendyolProductStockItemRecipeLine, Guid> _channelRecipeLineRepository;
     private readonly IRepository<ProductVariantRecipeLine, Guid> _erpRecipeLineRepository;
@@ -122,11 +124,13 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
         ChannelProductBoardBuilder boardBuilder,
         TrendyolProductPushValidator pushValidator,
         TemporaryMediaLinkPublisher temporaryMediaLinkPublisher,
-        IRepository<SalesChannelTrTrendyolProductPushHistory, Guid> pushHistoryRepository)
+        IRepository<SalesChannelTrTrendyolProductPushHistory, Guid> pushHistoryRepository,
+        IRepository<TrendyolCargoProvider, Guid> cargoProviderRepository)
     {
         _pushValidator = pushValidator;
         _temporaryMediaLinkPublisher = temporaryMediaLinkPublisher;
         _pushHistoryRepository = pushHistoryRepository;
+        _cargoProviderRepository = cargoProviderRepository;
         _saleReadiness = saleReadiness;
         _entityMedia = entityMedia;
         _describer = describer;
@@ -1569,6 +1573,10 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
         var images = await ResolvePushImagesAsync(
             channelProduct, product, candidateMediaIds, realPush: warnings is null, notices);
 
+        // Kanalın VARSAYILAN kargo firması (2026-08-10 Hakan kararıyla kanala kondu; sunucu seçer) → gövdede
+        // cargoCompanyId. Trendyol'un sayısal firma id'si sağlayıcının ExternalId'sidir.
+        var cargoCompanyId = await ResolveDefaultCargoCompanyIdAsync(channelProduct.SalesChannelId);
+
         return new TrendyolProductData(
             ProductMainId: channelProduct.ProductMainId,
             Title: product.Name,
@@ -1589,7 +1597,22 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
                     .Select(a => new TrendyolAttributeValue(a.AttributeId, a.AttributeValueId, a.CustomValue))
                     .ToList(),
             Items: items,
-            SentMediaIds: images.MediaIds);
+            SentMediaIds: images.MediaIds,
+            CargoCompanyId: cargoCompanyId);
+    }
+
+    /// <summary>Kanalın varsayılan kargo firmasının Trendyol sayısal id'si — kanalda seçili değilse ya da
+    /// sağlayıcı kaydı silinmişse null (gövdeye yazılmaz; Trendyol satıcı varsayılanına düşer).</summary>
+    private async Task<int?> ResolveDefaultCargoCompanyIdAsync(Guid salesChannelId)
+    {
+        var channel = await _channelRepository.FindAsync(salesChannelId);
+        if (channel?.DefaultCargoProviderId is not { } providerId)
+        {
+            return null;
+        }
+
+        var provider = await _cargoProviderRepository.FindAsync(providerId);
+        return provider is not null && int.TryParse(provider.ExternalId, out var externalId) ? externalId : null;
     }
 
     /// <summary>Push görsel çözümü — adresler + FİİLEN giden kimlikler (defter bunu yazar).</summary>

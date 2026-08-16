@@ -21,6 +21,7 @@
                PrimaryTextSelector="@(r => r.DisplayCode)"
                NewItemFactory="@NewRowFactory"
                SaveGuard="@ChannelRowSaveGuard"
+               BeforeSave="@CommitPendingCellEditsAsync"
                CloneFactory="@CloneRow"
                AllowAdd="false"
                CustomActions="@PanelActions"
@@ -65,13 +66,12 @@
                     }
                     else
                     {
-                        @* READ-ONLY AŞAMA: Trendyol gerçek push GERİ-DÖNÜŞSÜZ ürün yaratır (POST /products) →
-                           buton T8'e kadar DEVRE DIŞI (kazara yazma önlemi). *@
+                        @* Gerçek push GERİ-DÖNÜŞSÜZ ürün yaratır (POST /products) — kilit T8'e kadar kapalıydı; T8 kapandı
+                           (2026-08-14/15: doğrulayıcı · geçici-link görsel · Trendyol-only satırlar · defter içeriği).
+                           Kazara yazma önlemi artık ONAY DİYALOĞU (PushTrendyolAsync). *@
                         <DxButton Text="@L["TrendyolProduct:Push"]" RenderStyle="ButtonRenderStyle.Primary"
                                   IconCssClass="@TradeXpressIcons.SalesChannel"
-                                  Enabled="false"
                                   Click="@(() => PushTrendyolAsync(row.Trendyol!))" />
-                        <span style="color:#6c757d; font-size:0.8rem;" class="ms-1">@L["TrendyolProduct:PushReadonly"]</span>
                         @if (!string.IsNullOrEmpty(row.Trendyol!.BatchRequestId))
                         {
                             <DxButton Text="@L["TrendyolProduct:RefreshStatus"]" RenderStyle="ButtonRenderStyle.Secondary"
@@ -94,7 +94,7 @@
             }
             else
             {
-                <SalesChannelTrTrendyolProductEditFields Model="row.Trendyol!" Channels="_trendyolChannels" />
+                <SalesChannelTrTrendyolProductEditFields @ref="_trendyolEditFields" Model="row.Trendyol!" Channels="_trendyolChannels" />
             }
         </EditContent>
     </DrillList>

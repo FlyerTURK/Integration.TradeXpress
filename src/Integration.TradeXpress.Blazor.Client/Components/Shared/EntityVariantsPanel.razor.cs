@@ -2,11 +2,13 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Integration.Framework.Base.Dtos.Interfaces;
 using Integration.Framework.Blazor.Client.Components.Crud;
 using Integration.TradeXpress.Attachments;
 using Integration.TradeXpress.Blazor.Client;
 using Integration.TradeXpress.Variants;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Forms;
 
 namespace Integration.TradeXpress.Blazor.Client.Components.Shared;
 
@@ -15,7 +17,7 @@ namespace Integration.TradeXpress.Blazor.Client.Components.Shared;
 /// (Barkod/Stok/Açıklama/Aktif) düzenlenir; entity-özel alanlar <see cref="ExtraFields"/> slot'unda (TYPED: sahip
 /// türetilmiş DTO'suyla, ör. GoodVariantGraphDto → fiyat/stok).</summary>
 /// <typeparam name="TVariant">Sahip varyant DTO'su — çekirdek <see cref="EntityVariantGraphDto"/> ya da türevi.</typeparam>
-public partial class EntityVariantsPanel<TVariant> where TVariant : EntityVariantGraphDto, new()
+public partial class EntityVariantsPanel<TVariant> : IDisposable where TVariant : EntityVariantGraphDto, new()
 {
     [Parameter, EditorRequired] public List<TVariant> Variants { get; set; } = default!;
 
@@ -75,16 +77,118 @@ public partial class EntityVariantsPanel<TVariant> where TVariant : EntityVarian
     /// </summary>
     [Parameter] public bool ShowIdentity { get; set; } = true;
 
-    /// <summary>Grid'de ana varyantın kodu yerine gösterilecek metin — tek varyantlı üründe ürünün KENDİ
-    /// kodu. "ANAVARYANT" iç bir sabittir ve kullanıcı için anlam taşımıyor.</summary>
+    /// <summary>Grid'de ana varyantın kodu yerine gösterilecek metin — VERİLMEZSE sahibin kodu formun cascade
+    /// ettiği modelden (<c>EditModel</c>, <see cref="IHasCode"/>) okunur; yani her varyantlı emtia formu bunu
+    /// KENDİLİĞİNDEN alır (2026-08-15 Hakan: "diğer varyant barındıran tüm emtialarda DRY"). Açık parametre
+    /// yalnız sahibin kodu modelin Code'u olmayan istisnai bir yüzey içindir. "ANAVARYANT" iç bir sabittir ve
+    /// kullanıcı için anlam taşımıyor; sunucu da kayıtta ana varyantı sahibin koduna eşitler
+    /// (EntityVariantSynchronizer.ApplyOwnerIdentity) — burası o kuralın kayıt-öncesi aynasıdır.</summary>
     [Parameter] public string? MainVariantCodeDisplay { get; set; }
 
-    /// <summary>Satırın gösterilecek kodu — ana varyantta <see cref="MainVariantCodeDisplay"/> (verilmişse).</summary>
+    /// <summary>Formun düzenlediği model — sahibin kodu buradan (EntityEditForm cascade'i).</summary>
+    [CascadingParameter(Name = "EditModel")] private object? EditModel { get; set; }
+
+    // Sahibin kodunun panelin en son gördüğü hâli — ana varyantın "izleme" kararı için (aşağıda).
+    private string? _lastOwnerCode;
+
+    /// <summary>
+    /// ANA VARYANTIN KODU SAHİBİN KODUNU İZLER (2026-08-15 Hakan: "yeni emtia tanımlanırsa ana varyant kodla
+    /// aynı olacak şekilde açılsın") — DRY: dört host da yeni kayıtta ana varyantı "ANAVARYANT" sabitiyle
+    /// seed'ler (kod o an henüz yazılmamıştır); host başına kopyalamak yerine panel, model kodu her değiştiğinde
+    /// ana varyantın kodunu ona eşitler. Kullanıcı ana varyanta ELLE başka bir kod yazdıysa (ne sentinel ne
+    /// eski sahip kodu) DOKUNULMAZ — o meşru bir düzenlemedir. Sunucu kayıtta zaten aynı eşitlemeyi yapar
+    /// (<c>EntityVariantSynchronizer.ApplyOwnerIdentity</c>); burası kayıt-öncesi aynasıdır.
+    /// </summary>
+    /// <summary>Formun EditContext'i — sahibin KOD ALANI değişince haberdar olmak için. Cascade edilen model
+    /// nesnesi aynı referans kaldığından (içi değişir) <c>OnParametersSet</c> tetiklenmez; DevExpress editörleri
+    /// <c>OnFieldChanged</c>'i tetikler, izleme oradan yürür (ilk sürüm yalnız OnParametersSet'e dayanıyordu ve
+    /// kod yazılınca hiç koşmuyordu — Hakan'ın "+ ile açtım, kodu göremedim" tespiti).</summary>
+    [CascadingParameter] private EditContext? FormEditContext { get; set; }
+
+    private EditContext? _subscribedEditContext;
+
+    protected override void OnParametersSet()
+    {
+        base.OnParametersSet();
+        SubscribeToOwnerCodeChanges();
+        FollowOwnerCode();
+    }
+
+    private void SubscribeToOwnerCodeChanges()
+    {
+        if (ReferenceEquals(_subscribedEditContext, FormEditContext))
+        {
+            return;
+        }
+
+        if (_subscribedEditContext is not null)
+        {
+            _subscribedEditContext.OnFieldChanged -= OnOwnerFieldChanged;
+        }
+
+        _subscribedEditContext = FormEditContext;
+        if (_subscribedEditContext is not null)
+        {
+            _subscribedEditContext.OnFieldChanged += OnOwnerFieldChanged;
+        }
+    }
+
+    private void OnOwnerFieldChanged(object? sender, FieldChangedEventArgs e)
+    {
+        // Yalnız SAHİBİN Code alanı ilgilendirir; başka alan değişimleri panelin işi değil.
+        if (!string.Equals(e.FieldIdentifier.FieldName, nameof(IHasCode.Code), StringComparison.Ordinal)
+            || !ReferenceEquals(e.FieldIdentifier.Model, EditModel))
+        {
+            return;
+        }
+
+        FollowOwnerCode();
+        StateHasChanged();
+    }
+
+    public void Dispose()
+    {
+        if (_subscribedEditContext is not null)
+        {
+            _subscribedEditContext.OnFieldChanged -= OnOwnerFieldChanged;
+        }
+    }
+
+    private void FollowOwnerCode()
+    {
+        var ownerCode = MainVariantCodeDisplay ?? (EditModel as IHasCode)?.Code;
+        if (string.IsNullOrWhiteSpace(ownerCode) || string.Equals(ownerCode, _lastOwnerCode, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        var main = Variants?.FirstOrDefault(v => v.IsMain && !v.IsDeleted);
+        if (main is not null && IsFollowingOwner(main.Code))
+        {
+            main.Code = ownerCode;
+        }
+
+        _lastOwnerCode = ownerCode;
+    }
+
+    // Kod hâlâ "sahibi izliyor" mu: sentinel, boş ya da sahibin bir önceki kodu → evet; kullanıcı yazımı → hayır.
+    private bool IsFollowingOwner(string? variantCode)
+    {
+        return string.IsNullOrWhiteSpace(variantCode)
+            || string.Equals(variantCode, EntityVariantConsts.MainVariantCode, StringComparison.OrdinalIgnoreCase)
+            || (_lastOwnerCode is not null && string.Equals(variantCode, _lastOwnerCode, StringComparison.Ordinal));
+    }
+
+    /// <summary>Satırın gösterilecek kodu — ana varyantta sahibin kodu (açık parametre ?? cascade model kodu).</summary>
     private string CodeTextOf(TVariant variant)
     {
-        return variant.IsMain && !string.IsNullOrWhiteSpace(MainVariantCodeDisplay)
-            ? MainVariantCodeDisplay!
-            : variant.Code;
+        if (!variant.IsMain)
+        {
+            return variant.Code;
+        }
+
+        var ownerCode = MainVariantCodeDisplay ?? (EditModel as IHasCode)?.Code;
+        return string.IsNullOrWhiteSpace(ownerCode) ? variant.Code : ownerCode;
     }
 
     /// <summary>Varyant edit popup'ında VARYANT-ÖZEL MEDYA panelini (+ grid poster önizlemesini) göster (yeni DAM; v.Media).

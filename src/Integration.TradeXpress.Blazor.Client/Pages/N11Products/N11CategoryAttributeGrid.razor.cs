@@ -22,4 +22,17 @@ public partial class N11CategoryAttributeGrid : CrudComponentBase
 
     /// <summary>Hücre kaydı üst forma delege edilir (üst, satırı AttributeId ile bulup değeri uygular).</summary>
     [Parameter] public EventCallback<GridEditModelSavingEventArgs> RowSaving { get; set; }
+
+    private IGrid? _grid;
+
+    /// <summary>Açık hücre düzenlemesini commit eder (RowSaving tetiklenir) — form kaydından ÖNCE çağrılır;
+    /// EditCell'de değer hücreden çıkmadan modele düşmez, doğrudan Kaydet'e basılınca sessizce kaybolurdu
+    /// (Trendyol grid'iyle aynı düzeltme, 2026-08-15).</summary>
+    public async System.Threading.Tasks.Task CommitPendingEditAsync()
+    {
+        if (_grid is { } grid && grid.IsEditing())
+        {
+            await grid.SaveChangesAsync();
+        }
+    }
 }

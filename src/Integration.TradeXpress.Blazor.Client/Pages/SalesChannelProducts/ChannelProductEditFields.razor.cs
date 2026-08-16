@@ -8,6 +8,8 @@ using Integration.TradeXpress.N11Products;
 using Integration.TradeXpress.SalesChannelProducts;
 using Integration.TradeXpress.SalesChannels;
 using Integration.TradeXpress.TrendyolProducts;
+using Integration.TradeXpress.Blazor.Client.Pages.N11Products;
+using Integration.TradeXpress.Blazor.Client.Pages.TrendyolProducts;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
 using Volo.Abp;
@@ -30,7 +32,7 @@ namespace Integration.TradeXpress.Blazor.Client.Pages.SalesChannelProducts;
 /// VERİLMEZ — o bilgi ürün formunun bağlamıdır. Alan setleri onu opsiyonel taşır ve yokluğunda kanal-özel
 /// alanlar aynen düzenlenebilir.</para>
 /// </summary>
-public partial class ChannelProductEditFields
+public partial class ChannelProductEditFields : IDisposable
 {
     /// <summary>Düzenlenecek satır (hafif liste DTO'su) — tam graf bundan türetilerek çekilir.</summary>
     [Parameter, EditorRequired] public SalesChannelProductListDto Row { get; set; } = default!;
@@ -53,6 +55,8 @@ public partial class ChannelProductEditFields
     private SalesChannelTrN11ProductDto? _n11Model;
     private SalesChannelTrTrendyolProductDto? _trendyolModel;
     private SalesChannelEtsyProductDto? _etsyModel;
+    private SalesChannelTrTrendyolProductEditFields? _trendyolFields;
+    private SalesChannelTrN11ProductEditFields? _n11Fields;
 
     /// <summary>Alan setlerinin beklediği kanal listesi — tek öğeli (kanal SET-ONCE'tur, burada değişmez).</summary>
     private List<SalesChannelListDto> _channelAsList = new();
@@ -125,6 +129,49 @@ public partial class ChannelProductEditFields
         }
     }
 
+    /// <summary>Alt form kirli mi — panelin drill'i Kaydet aktifliğini bununla sürer (<c>EditDirtyProvider</c>).
+    /// Drill'in kendi JSON kıyası liste satırına (Row) baktığından bu formun düzenlemesini HİÇ göremez; dirty
+    /// yalnız buradan bilinebilir (2026-08-15 Hakan: "attribute değişikliği Kaydet'i açmadı").</summary>
+    public bool IsDirty => _editContext?.IsModified() == true;
+
+    /// <summary>Alt formda bir alan değişti — panel drill'i yeniden çizip Kaydet'i tazelesin diye yukarı bildirilir.</summary>
+    [Parameter] public EventCallback OnDirtyChanged { get; set; }
+
+    private EditContext? _subscribedContext;
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        base.OnAfterRender(firstRender);
+        if (ReferenceEquals(_subscribedContext, _editContext))
+        {
+            return;
+        }
+
+        if (_subscribedContext is not null)
+        {
+            _subscribedContext.OnFieldChanged -= OnAnyFieldChanged;
+        }
+
+        _subscribedContext = _editContext;
+        if (_subscribedContext is not null)
+        {
+            _subscribedContext.OnFieldChanged += OnAnyFieldChanged;
+        }
+    }
+
+    private void OnAnyFieldChanged(object? sender, FieldChangedEventArgs e)
+    {
+        _ = InvokeAsync(() => OnDirtyChanged.InvokeAsync());
+    }
+
+    public void Dispose()
+    {
+        if (_subscribedContext is not null)
+        {
+            _subscribedContext.OnFieldChanged -= OnAnyFieldChanged;
+        }
+    }
+
     /// <summary>Tipli kaydetme — panelin <c>PersistUpdate</c>'inden çağrılır. Doğrulama geçmezse ya da model
     /// yüklenememişse İSTİSNA fırlatır: drill bunu yakalayıp popup'ı açık bırakır ve mesajı gösterir
     /// (sessizce "kaydedildi" demek veri kaybıdır).</summary>
@@ -135,6 +182,18 @@ public partial class ChannelProductEditFields
             throw new BusinessException(
                 "SalesChannelProduct:UnsupportedChannel",
                 _loadError ?? L["SalesChannelProduct:UnsupportedChannel"].Value);
+        }
+
+        // Açık hücre düzenlemesi (kategori nitelik grid'i) kaydetmeden ÖNCE kapatılır — aksi hâlde seçilen değer
+        // edit-model'de kalır ve sessizce kaybolur.
+        if (_trendyolFields is not null)
+        {
+            await _trendyolFields.CommitPendingAttributeEditAsync();
+        }
+
+        if (_n11Fields is not null)
+        {
+            await _n11Fields.CommitPendingAttributeEditAsync();
         }
 
         if (!_editContext.Validate())

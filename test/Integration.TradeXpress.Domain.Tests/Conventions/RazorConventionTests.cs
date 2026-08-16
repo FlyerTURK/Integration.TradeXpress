@@ -400,6 +400,41 @@ public class RazorConventionTests
             + Environment.NewLine + string.Join(Environment.NewLine, violations));
     }
 
+    /// <summary>
+    /// REÇETE PANELİNDEKİ HER KATALOG LOOKUP'I RELOAD BAĞLAMALI. <c>LookupComboBox</c> "Ekle/Düzelt" popup'ı kayıt
+    /// yapınca <c>OnLookupReloadRequested</c> ile host'tan liste tazelemesi ister; bağlı değilse kayıt olur ama
+    /// combo'da GÖRÜNMEZ (2026-08-15 Hakan bulgusu — mamul ekleyip geri dönünce combo'da yoktu; sekiz katalog
+    /// lookup'ının hiçbiri bağlamıyordu, aynı sayfanın diğer beş lookup'ı bağlıydı). Panel <c>Data</c>'yı hep
+    /// dışarıdan aldığından bu kural panelde ŞARTTIR; her katalog lookup'ı <c>OnCatalogReloadRequested</c>'a bağlanır.
+    /// Birim lookup'ları (<c>CurrentPriceDto</c>) fiyat cache'idir, katalog değil — kapsam dışı.
+    /// </summary>
+    [Fact]
+    public void Recipe_panel_catalog_lookups_must_request_reload_after_inline_add()
+    {
+        var panel = ConventionSource.EnumerateSource("ProductRecipePanel.razor").FirstOrDefault();
+        panel.ShouldNotBeNull("ProductRecipePanel.razor bulunamadı.");
+
+        var text = File.ReadAllText(panel);
+        // Her <LookupComboBox ...> açılış etiketini yakala (çok satırlı). Attribute değerleri lambda taşır
+        // ("=> OnX(v)") → '>' etiket sonu SAYILMAZ: tırnak içi atlanır, yalnız tırnak dışındaki '>' kapatır.
+        var lookups = Regex.Matches(text, "<LookupComboBox\\b(?<attrs>(?:\"[^\"]*\"|[^\">])*)>", RegexOptions.Singleline);
+        lookups.Count.ShouldBeGreaterThan(0, "Panelde LookupComboBox bulunamadı — regex bayat olabilir.");
+
+        var violations = new List<string>();
+        foreach (Match m in lookups)
+        {
+            var attrs = m.Groups["attrs"].Value;
+            var isCatalog = !attrs.Contains("TItem=\"CurrentPriceDto\"", StringComparison.Ordinal);
+            if (isCatalog && !attrs.Contains("OnLookupReloadRequested=", StringComparison.Ordinal))
+            {
+                var tItem = Regex.Match(attrs, "TItem=\"(?<t>[^\"]+)\"").Groups["t"].Value;
+                violations.Add($"ProductRecipePanel.razor: LookupComboBox TItem={tItem} → OnLookupReloadRequested bağlı değil (yeni kayıt combo'da görünmez).");
+            }
+        }
+
+        violations.ShouldBeEmpty(string.Join(Environment.NewLine, violations));
+    }
+
     private static int CountOccurrences(string line, string token)
     {
         var count = 0;

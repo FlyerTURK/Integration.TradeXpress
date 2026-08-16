@@ -89,6 +89,7 @@
     {
         <DxTabPage Text="@L["TrendyolProduct:Attributes"]" TabIconCssClass="@TradeXpressIcons.Sliders">
             <DxGrid Data="@_attributeRows" KeyFieldName="AttributeId"
+                    @ref="_attributeGrid"
                     EditMode="GridEditMode.EditCell"
                     EditModelSaving="OnAttributeRowSaving"
                     PageSize="200" PagerVisible="false"
@@ -109,6 +110,8 @@
                             @{ var row = (TrendyolAttributeRow)cell.EditModel; }
                             @if (row.HasValueList)
                             {
+                                @* Klavyeyle arama (içerir eşleşme — 2026-08-15 Hakan) — değer listeleri yüzlerce
+                                   kalem olabiliyor (renk/marka); liste alfabetik gelir (BuildAttributeRows). *@
                                 <DxComboBox TData="TrendyolAttributeValueDto" TValue="int?"
                                             Data="@row.Values"
                                             ValueFieldName="@nameof(TrendyolAttributeValueDto.ValueId)"
@@ -116,6 +119,7 @@
                                             Value="@row.SelectedValueId"
                                             ValueChanged="@((int? v) => row.SelectedValueId = v)"
                                             ValueExpression="@(() => row.SelectedValueId)"
+                                            SearchMode="ListSearchMode.AutoSearch"
                                             ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto" />
                             }
                             else
@@ -350,8 +354,10 @@
                                                 ProductId="@Model.ProductId" AllowCreateFromProduct="true"
                                                 AllVariants="@_coreVariants"
                                                 OnCreateCommodityFromProduct="@CreateCommodityFromProductAsync"
+                                                OnCatalogReloadRequested="@ReloadRecipeCatalogsAsync"
                                                 Metals="_metals" MetalVariants="_metalVariants" Scraps="_scraps" Futures="_futures"
                                                 Jewelries="_jewelries" Stones="_stones" Goods="_goods" Services="_services" Units="_priceUnits"
+                                                GoodVariants="_goodVariants" JewelryVariants="_jewelryVariants"
                                                 OnChanged="@(async () => await HandleStockItemRecipeChangedAsync(v))"
                                                 NetCost="@v.NetCost" NetCostCurrency="@v.NetCostCurrency" NetCostMissingRate="@v.NetCostMissingRate" />
                         </DxFormLayoutGroup>

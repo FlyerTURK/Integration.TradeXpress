@@ -40,6 +40,14 @@ public partial class ProductRecipePanel
     [Parameter] public IReadOnlyList<JewelryListDto> Jewelries { get; set; } = Array.Empty<JewelryListDto>();
     [Parameter] public IReadOnlyList<StoneListDto> Stones { get; set; } = Array.Empty<StoneListDto>();
     [Parameter] public IReadOnlyList<GoodListDto> Goods { get; set; } = Array.Empty<GoodListDto>();
+
+    /// <summary>VARYANTLI parasal emtia lookup'ları — "varyantlı her emtia reçetede maden gibi davranır" (2026-08-15
+    /// Hakan kararı): mamül/mücevher combo'su varyant listesi gösterir, satıra <c>CommodityVariantId</c> yazılır.
+    /// Good'da fiyat SEÇİLİ varyantındır (sunucu motoru zaten öyle okuyordu; UI eksikti); Jewelry'de fiyat paylaşılır,
+    /// seçim kimlik/stok içindir. Stone varyantsızdır (2026-08-09) — emtia-seviyesi kalır. Boş verilirse combo boş
+    /// kalır (fail-closed) — host beslemeli.</summary>
+    [Parameter] public IReadOnlyList<CommodityVariantLookupDto> GoodVariants { get; set; } = Array.Empty<CommodityVariantLookupDto>();
+    [Parameter] public IReadOnlyList<CommodityVariantLookupDto> JewelryVariants { get; set; } = Array.Empty<CommodityVariantLookupDto>();
     /// <summary>Hizmet katalogu (etiket/kimlik için — Service entity'sine dokunulmaz).</summary>
     [Parameter] public IReadOnlyList<ServiceListDto> Services { get; set; } = Array.Empty<ServiceListDto>();
     /// <summary>Birim lookup (işçilik/bedel birimi) — CurrentPriceDto (Id + kod).</summary>
@@ -63,6 +71,12 @@ public partial class ProductRecipePanel
     /// formları (yayılım adımı 2026-08-14'te <c>ProvisionCommoditiesAsync</c> ile kuruldu). Etsy kapalı — kanal
     /// bilinçli dondurmada (ACIK-ISLER).</summary>
     [Parameter] public bool AllowCreateFromProduct { get; set; }
+
+    /// <summary>Katalog lookup'larından biri "Ekle/Düzelt" popup'ıyla kayıt yapınca (ya da başka sekmede o entity
+    /// değişince) host'un katalog listelerini YENİDEN yüklemesi istenir — panel dilsizdir, listeler host'undur.
+    /// Bağlanmazsa lookup'ın "Ekle"si kaydeder ama combo'da yeni kayıt GÖRÜNMEZ (2026-08-15 Hakan bulgusu — sekiz
+    /// katalog lookup'ının hiçbiri bağlı değildi; ProductLayout'taki diğer beş lookup bağlıydı, panel atlanmıştı).</summary>
+    [Parameter] public EventCallback OnCatalogReloadRequested { get; set; }
 
     /// <summary>"Üründen" akışının GÖVDESİ — host uygular (katalogların sahibi o). Yeni emtianın kimliğini
     /// döner; kullanıcı vazgeçtiyse <c>null</c>. Panel dilsiz kalsın diye I/O buraya delege edilir.</summary>
@@ -353,15 +367,23 @@ public partial class ProductRecipePanel
                 OnFutureSelected(commodityId);
                 break;
             case ProcessType.Jewelry:
-                OnJewelrySelected(commodityId);
+                OnJewelrySelected(MainVariantOf(JewelryVariants, commodityId));
                 break;
             case ProcessType.Stone:
                 OnStoneSelected(commodityId);
                 break;
             case ProcessType.Good:
-                OnGoodSelected(commodityId);
+                OnGoodSelected(MainVariantOf(GoodVariants, commodityId));
                 break;
         }
+    }
+
+    /// <summary>Kaydın ANA varyantı (yoksa koda göre ilki) — "üründen yarat"/ilk seçim varyant-anahtarlı
+    /// combo'ya doğru değeri versin (maden dalı koda göre ilki alıyordu; burada IsMain önceliklidir).</summary>
+    private static Guid? MainVariantOf(IReadOnlyList<CommodityVariantLookupDto> variants, Guid commodityId)
+    {
+        var own = variants.Where(v => v.CommodityId == commodityId).ToList();
+        return (own.FirstOrDefault(v => v.IsMain) ?? own.FirstOrDefault())?.VariantId;
     }
 
     /// <summary>Draft açılışında ailenin ilk katalog kaydını seçer (boş combo bırakmaz); seçim handler'ı
@@ -380,13 +402,13 @@ public partial class ProductRecipePanel
                 OnFutureSelected(Futures.FirstOrDefault()?.Id);
                 break;
             case ProcessType.Jewelry:
-                OnJewelrySelected(Jewelries.FirstOrDefault()?.Id);
+                OnJewelrySelected(JewelryVariants.FirstOrDefault()?.VariantId);
                 break;
             case ProcessType.Stone:
                 OnStoneSelected(Stones.FirstOrDefault()?.Id);
                 break;
             case ProcessType.Good:
-                OnGoodSelected(Goods.FirstOrDefault()?.Id);
+                OnGoodSelected(GoodVariants.FirstOrDefault()?.VariantId);
                 break;
         }
     }
@@ -781,18 +803,25 @@ public partial class ProductRecipePanel
         RecalcDraft(d);
     }
 
-    private void OnJewelrySelected(Guid? id)
+    /// <summary>Mücevher VARYANTI seçildi (anahtar VARYANT — maden deseni): CommodityId varyanttan çözülür;
+    /// değerleme birimi mücevherin fiyat birimi (varyantlar fiyatı paylaşır — Jewelry'de varyant fiyatı yok).</summary>
+    private void OnJewelrySelected(Guid? variantId)
     {
         if (Draft is not { } d)
         {
             return;
         }
 
-        d.CommodityId = id;
-        var j = id is { } gid ? Jewelries.FirstOrDefault(x => x.Id == gid) : null;
-        if (j != null)
+        d.CommodityVariantId = variantId;
+        var v = variantId is { } vid ? JewelryVariants.FirstOrDefault(x => x.VariantId == vid) : null;
+        if (v != null)
         {
-            d.ValuationUnitId = j.EntryPriceUnitId;
+            d.CommodityId = v.CommodityId;
+            d.ValuationUnitId = v.EntryPriceUnitId;
+        }
+        else
+        {
+            d.CommodityId = null;
         }
     }
 
@@ -811,21 +840,89 @@ public partial class ProductRecipePanel
         }
     }
 
-    private void OnGoodSelected(Guid? id)
+    /// <summary>Mamül VARYANTI seçildi (anahtar VARYANT — maden deseni): CommodityId varyanttan çözülür; değerleme
+    /// birimi SEÇİLİ VARYANTIN giriş-fiyat birimi (Good'da fiyat varyantta — GoodVariantDetail). Sunucu maliyet
+    /// motoru <c>CommodityVariantId</c> ile aynı varyantın fiyatını okur; eskiden UI bu alanı yazmadığından hep ana
+    /// varyanta düşüyor, satır yanlış fiyatlanabiliyordu (2026-08-15 Hakan: "varyantlı her emtia maden gibi").</summary>
+    private void OnGoodSelected(Guid? variantId)
     {
         if (Draft is not { } d)
         {
             return;
         }
 
-        // Good parasal (Jewelry/Stone deseni): değerleme birimi mamülün giriş-fiyat birimi (ana varyanttan resolver'la
-        // GoodListDto'ya doldurulmuş EntryPriceUnitId). Sunucu maliyet motoru fiyatı yine ana varyanttan çözer.
-        d.CommodityId = id;
-        var g = id is { } gid ? Goods.FirstOrDefault(x => x.Id == gid) : null;
-        if (g != null)
+        d.CommodityVariantId = variantId;
+        var v = variantId is { } vid ? GoodVariants.FirstOrDefault(x => x.VariantId == vid) : null;
+        if (v != null)
         {
-            d.ValuationUnitId = g.EntryPriceUnitId;
+            d.CommodityId = v.CommodityId;
+            d.ValuationUnitId = v.EntryPriceUnitId;
         }
+        else
+        {
+            d.CommodityId = null;
+        }
+    }
+
+    // ── Combo "+" → ÜRÜNDEN TOHUMLU yeni emtia (2026-08-15 Hakan: "reçeteden yeni mamul eklersem ürün kodu/adıyla
+    // karşımda görmeliyim") — jenerik boş form yerine host'un tohumlu akışı (OnCreateCommodityFromProduct: kod/ad
+    // üründen, popup, katalog tazeleme, çekirdek yayılımı). Callback yoksa (Etsy — dondurulmuş) null döner ve
+    // LookupComboBox jenerik yola düşer. Varyant-anahtarlı combo'larda dönen SAHİP kimliği ana varyanta çevrilir
+    // (combo değeri varyant id'sidir; sahibin id'sini yazmak seçimi bozardı).
+    private async Task<Guid?> AddCommodityFromProductAsync(ProcessType family)
+    {
+        if (OnCreateCommodityFromProduct is null)
+        {
+            return null;
+        }
+
+        var createdId = await OnCreateCommodityFromProduct(family);
+        if (createdId is not { } commodityId)
+        {
+            return null;
+        }
+
+        return family switch
+        {
+            ProcessType.Metal => MetalVariants.Where(v => v.CommodityId == commodityId)
+                .OrderByDescending(v => v.IsMain).Select(v => v.VariantId).FirstOrDefault(),
+            ProcessType.Good => MainVariantOf(GoodVariants, commodityId),
+            ProcessType.Jewelry => MainVariantOf(JewelryVariants, commodityId),
+            _ => commodityId,
+        };
+    }
+
+    // ✎ düğmesi için varyant → SAHİP emtia kimliği (combo değeri varyant id'sidir; düzenlenen kayıt sahibidir).
+    // Bulunamazsa null → düğme hiçbir şey açmaz (kayıtsız id'yle host açıp dispose çöküşü üretmek yerine).
+    private object? OwnerOfMetalVariant(Guid? variantId)
+    {
+        return variantId is { } vid ? MetalVariants.FirstOrDefault(v => v.VariantId == vid)?.CommodityId : null;
+    }
+
+    private object? OwnerOfGoodVariant(Guid? variantId)
+    {
+        return variantId is { } vid ? GoodVariants.FirstOrDefault(v => v.VariantId == vid)?.CommodityId : null;
+    }
+
+    private object? OwnerOfJewelryVariant(Guid? variantId)
+    {
+        return variantId is { } vid ? JewelryVariants.FirstOrDefault(v => v.VariantId == vid)?.CommodityId : null;
+    }
+
+    /// <summary>Satırın seçili parasal varyant satırı (Good/Jewelry) — gösterim ve toplam bunun üzerinden.</summary>
+    private CommodityVariantLookupDto? SelectedMonetaryVariant(ProductRecipeLineGraphDto l)
+    {
+        if (l.CommodityVariantId is not { } vid)
+        {
+            return null;
+        }
+
+        return l.CommodityProcessType switch
+        {
+            ProcessType.Good => GoodVariants.FirstOrDefault(x => x.VariantId == vid),
+            ProcessType.Jewelry => JewelryVariants.FirstOrDefault(x => x.VariantId == vid),
+            _ => null,
+        };
     }
 
     // ── Görünüm/durum yardımcıları ──────────────────────────────────────────────────────────────────
@@ -1032,9 +1129,13 @@ public partial class ProductRecipePanel
                 : (l.CommodityId is { } cid ? Metals.FirstOrDefault(x => x.Id == cid)?.Code ?? string.Empty : string.Empty),
             ProcessType.Scrap => Scraps.FirstOrDefault(x => x.Id == id)?.Code ?? string.Empty,
             ProcessType.Future => Futures.FirstOrDefault(x => x.Id == id)?.Code ?? string.Empty,
-            ProcessType.Jewelry => Jewelries.FirstOrDefault(x => x.Id == id)?.Code ?? string.Empty,
+            // Varyantlı parasal aile: seçili varyant varsa "KOD / VARYANT" (maden ile aynı gösterim); legacy satır
+            // (CommodityVariantId null — ana varyant fallback'iyle çalışır) emtia kodunu gösterir.
+            ProcessType.Jewelry => SelectedMonetaryVariant(l)?.DisplayText
+                ?? Jewelries.FirstOrDefault(x => x.Id == id)?.Code ?? string.Empty,
             ProcessType.Stone => Stones.FirstOrDefault(x => x.Id == id)?.Code ?? string.Empty,
-            ProcessType.Good => Goods.FirstOrDefault(x => x.Id == id)?.Code ?? string.Empty,
+            ProcessType.Good => SelectedMonetaryVariant(l)?.DisplayText
+                ?? Goods.FirstOrDefault(x => x.Id == id)?.Code ?? string.Empty,
             _ => string.Empty,
         };
     }
@@ -1162,12 +1263,16 @@ public partial class ProductRecipePanel
             return $"{TotalOf(l):N5} {MainUnitCodeOf(l)}".TrimEnd();
         }
 
+        // Good'da fiyat SEÇİLİ VARYANTINDIR — sunucu (RecipeCostPopulator) da aynı varyantı okur; grid toplamı ana
+        // varyanttan hesaplansaydı UI ile sunucu farklı sayı gösterirdi. Legacy satır (varyantsız) emtia-seviyesine düşer.
         var entryPrice = l.CommodityId is { } id
             ? l.CommodityProcessType switch
             {
-                ProcessType.Jewelry => Jewelries.FirstOrDefault(x => x.Id == id)?.EntryPrice ?? 0m,
+                ProcessType.Jewelry => SelectedMonetaryVariant(l)?.EntryPrice
+                    ?? Jewelries.FirstOrDefault(x => x.Id == id)?.EntryPrice ?? 0m,
                 ProcessType.Stone => Stones.FirstOrDefault(x => x.Id == id)?.EntryPrice ?? 0m,
-                ProcessType.Good => Goods.FirstOrDefault(x => x.Id == id)?.EntryPrice ?? 0m,
+                ProcessType.Good => SelectedMonetaryVariant(l)?.EntryPrice
+                    ?? Goods.FirstOrDefault(x => x.Id == id)?.EntryPrice ?? 0m,
                 _ => 0m,
             }
             : 0m;

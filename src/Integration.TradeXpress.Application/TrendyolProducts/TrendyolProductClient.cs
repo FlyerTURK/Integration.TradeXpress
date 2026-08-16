@@ -385,9 +385,17 @@ public sealed class TrendyolProductClient : TrendyolRestClientBase, ITrendyolPro
                 ["listPrice"] = item.ListPrice,
                 ["salePrice"] = item.SalePrice,
                 ["vatRate"] = p.VatRate,
+                // ZORUNLU (ilk canlı gönderim 2026-08-16'da "productRequest.currencyType.null" ile reddedildi);
+                // Trendyol yalnız TRY kabul eder — karışım BuildProductDataAsync'te zaten fail-fast.
+                ["currencyType"] = "TRY",
                 ["images"] = images,
                 ["attributes"] = itemAttributes,
             };
+
+            if (p.CargoCompanyId is { } cargoCompanyId)
+            {
+                dict["cargoCompanyId"] = cargoCompanyId;
+            }
 
             if (p.DimensionalWeight is { } weight)
             {
