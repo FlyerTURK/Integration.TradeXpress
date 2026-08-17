@@ -406,12 +406,23 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
         return Truncate(productCode, maxCodeLength) + suffix;   // Truncate: partial'ın Import dilimindeki ortak yardımcı
     }
 
+    /// <summary>Kanal ürünü güncelleme. <b>IsActive = kanaldaki ARŞİV durumunun aynası</b> (2026-08-17 Hakan kararı):
+    /// bayrak DEĞİŞTİYSE Trendyol'a archive-state gider (pasif → arşiv, aktif → satışa) — AYNI TRANSACTION'da; kanal
+    /// reddederse güncellemenin tamamı geri döner (biz ile kanal farklı şey söyleyemez). Bayrak eskiden yalnız
+    /// yazılıp hiçbir yerde okunmuyordu — anlamsız bir kolon şimdi kanal davranışına bağlandı.</summary>
     [Authorize(TradeXpressPermissions.SalesChannels.Update)]
+    [UnitOfWork(isTransactional: true)]
     public virtual async Task<SalesChannelTrTrendyolProductDto> UpdateAsync(Guid id, SalesChannelTrTrendyolProductUpdateDto input)
     {
         var entity = await GetOwnedAsync(id);
+        var wasActive = entity.IsActive;
         ApplyInput(entity, input);
         await _repository.UpdateAsync(entity, autoSave: true);
+
+        if (wasActive != entity.IsActive)
+        {
+            await _listingWithdrawer.SetArchivedAsync(entity, archived: !entity.IsActive);
+        }
         // K3 write-through: seçilen marka {id, ad, luxury} cache'e (best-effort, idempotent — ad/luxury değiştiyse
         // tazelenir; luxury null = picker'a dokunulmadı → cache'teki değer korunur).
         await _brandCacheManager.UpsertAsync(entity.BrandId, entity.BrandName, input.BrandIsLuxury);
@@ -631,6 +642,14 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
     {
         var entity = await GetOwnedAsync(id);
         var channel = await GetOwnedChannelAsync(entity.SalesChannelId);
+
+        // ARŞİVDEKİ ürüne fiyat/stok yazılmaz (IsActive = kanal arşiv aynası, 2026-08-17): Trendyol arşivdeki
+        // listing'e yazımı reddeder, biz de sessizce deneyip defteri "takılı ürün" satırlarıyla doldurmayız.
+        // Stok tetiği (TrendyolChannelStockPusher) zaten IsActive süzer; burası UI'dan doğrudan tıklamanın kapısı.
+        if (!entity.IsActive)
+        {
+            throw new BusinessException("TradeXpress:Trendyol:Product:ArchivedNoSync");
+        }
 
         // Ön koşul: en az bir SKU DONMUŞ olmalı. İçe aktarılmış kayıtlarda bu satırlar import'tan gelir
         // (UpsertImportedSku) → canlıdaki 103 listeleme bu yoldan senkronlanabilir.

@@ -111,6 +111,78 @@ public abstract class SalesChannelTrTrendyolProductDeleteTests<TStartupModule> :
         }
     }
 
+    // ── IsActive = kanal ARŞİV aynası (2026-08-17 Hakan kararı) ─────────────────────────────────────
+
+    [Fact]
+    public async Task Deactivating_a_listed_record_archives_it_on_trendyol_and_reactivating_unarchives()
+    {
+        var companyId = Guid.NewGuid();
+        using (_currentCompany.Change(companyId))
+        {
+            var (recordId, _) = await SeedListedRecordAsync(companyId, "ARC1", "BR-ARC-1");
+            _fakeClient.RejectArchiveChanges = false;
+            _fakeClient.ArchiveBatches.Clear();
+
+            // Pasif → arşive.
+            var dto = await _appService.GetAsync(recordId);
+            var input = ObjectMapperOf().Map<SalesChannelTrTrendyolProductDto, SalesChannelTrTrendyolProductUpdateDto>(dto);
+            input.IsActive = false;
+            await _appService.UpdateAsync(recordId, input);
+
+            _fakeClient.ArchiveBatches.ShouldHaveSingleItem();
+            _fakeClient.ArchiveBatches[0].Archived.ShouldBeTrue();
+            _fakeClient.ArchiveBatches[0].Barcodes.ShouldBe(new[] { "BR-ARC-1" });
+
+            // Aktif → arşivden çıkar (yeniden satışa).
+            input.IsActive = true;
+            await _appService.UpdateAsync(recordId, input);
+            _fakeClient.ArchiveBatches.Count.ShouldBe(2);
+            _fakeClient.ArchiveBatches[1].Archived.ShouldBeFalse();
+
+            // Bayrak DEĞİŞMEDEN kaydet → kanala gidilmez (her kayıtta arşiv isteği atmak gürültü olurdu).
+            await _appService.UpdateAsync(recordId, input);
+            _fakeClient.ArchiveBatches.Count.ShouldBe(2);
+
+            // Defter: Archive + Unarchive satırları yan yana.
+            var ledger = await WithUnitOfWorkAsync(async () =>
+                await _historyRepository.GetListAsync(h => h.SalesChannelTrTrendyolProductId == recordId));
+            ledger.Count(h => h.PushKind == TrendyolProductPushKind.Archive).ShouldBe(1);
+            ledger.Count(h => h.PushKind == TrendyolProductPushKind.Unarchive).ShouldBe(1);
+        }
+    }
+
+    [Fact]
+    public async Task When_trendyol_rejects_the_archive_change_the_flag_is_not_changed()
+    {
+        var companyId = Guid.NewGuid();
+        using (_currentCompany.Change(companyId))
+        {
+            var (recordId, _) = await SeedListedRecordAsync(companyId, "ARC2", "BR-ARC-2");
+            _fakeClient.RejectArchiveChanges = true;
+            try
+            {
+                var dto = await _appService.GetAsync(recordId);
+                var input = ObjectMapperOf().Map<SalesChannelTrTrendyolProductDto, SalesChannelTrTrendyolProductUpdateDto>(dto);
+                input.IsActive = false;
+
+                var ex = await Should.ThrowAsync<BusinessException>(() => _appService.UpdateAsync(recordId, input));
+                ex.Code.ShouldBe("TradeXpress:Trendyol:Product:ArchiveFailed");
+
+                // Bayrak GERİ DÖNDÜ — biz ile kanal farklı şey söylemiyor (aynı transaction rollback).
+                (await _appService.GetAsync(recordId)).IsActive.ShouldBeTrue();
+            }
+            finally
+            {
+                _fakeClient.RejectArchiveChanges = false;
+            }
+        }
+    }
+
+    private Volo.Abp.ObjectMapping.IObjectMapper ObjectMapperOf()
+    {
+        return GetRequiredService<Volo.Abp.ObjectMapping.IObjectMapper>();
+    }
+
     // ── Tohum ───────────────────────────────────────────────────────────────────────────────────────
 
     /// <summary>Kanala ULAŞMIŞ kayıt: SKU satırı olan (barkodu bilinen) Trendyol kanal ürünü.</summary>

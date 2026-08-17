@@ -218,7 +218,11 @@ public class SalesChannelProductAppService : TradeXpressAppService, ISalesChanne
                     ? ChannelPushKind.ContentUpdate
                     : h.PushKind == TrendyolProductPushKind.Delete
                         ? ChannelPushKind.Delete
-                        : ChannelPushKind.FullPush,
+                        : h.PushKind == TrendyolProductPushKind.Archive
+                            ? ChannelPushKind.Archive
+                            : h.PushKind == TrendyolProductPushKind.Unarchive
+                                ? ChannelPushKind.Unarchive
+                                : ChannelPushKind.FullPush,
             Outcome = h.Outcome,
             ErrorMessage = h.ErrorMessage,
             SkuCode = h.Barcode,

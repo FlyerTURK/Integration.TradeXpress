@@ -40,6 +40,13 @@ public interface ITrendyolProductClient
     /// sonucundan okunur. HTTP başarısızsa BusinessException (kanalın gövdesiyle).</summary>
     Task<TrendyolSubmitResult> DeleteProductsAsync(IReadOnlyList<string> barcodes, TrendyolCredentials credentials, CancellationToken cancellationToken = default);
 
+    /// <summary>Ürünleri ARŞİVLER ya da ARŞİVDEN ÇIKARIR (<c>PUT …/products/archive-state</c>, gövde
+    /// <c>{items:[{barcode, archived}]}</c>; tek istekte 1000 kalem). <c>archived=true</c> → kanalda görünmez, satışa
+    /// kapalı, SİLİNMEZ; <c>false</c> → yeniden aktif (içerik/fiyat/stok Trendyol'da durur). Silmenin aksine TERSİNİR.
+    /// Bizde <c>SalesChannelTrTrendyolProduct.IsActive</c>'in kanal karşılığıdır (2026-08-17 Hakan kararı). ASENKRON:
+    /// batch id döner.</summary>
+    Task<TrendyolSubmitResult> ArchiveProductsAsync(IReadOnlyList<string> barcodes, bool archived, TrendyolCredentials credentials, CancellationToken cancellationToken = default);
+
     /// <summary>Satıcının Trendyol'daki ürünlerinin BİR SAYFASINI çeker (salt GET — pazaryerine SIFIR yazma).
     /// Sayfa öğeleri DÜZ kalemlerdir (barcode başına bir kayıt); productMainId gruplaması
     /// <see cref="GetAllSellerProductsAsync"/>'te yapılır.</summary>

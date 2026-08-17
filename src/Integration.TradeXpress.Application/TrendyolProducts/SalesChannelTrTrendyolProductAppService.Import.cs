@@ -753,6 +753,16 @@ public partial class SalesChannelTrTrendyolProductAppService
                 BuildRemoteState(remoteVariant, axisPlan));
         }
 
+        // IsActive = KANALDAKİ ARŞİV DURUMUNUN AYNASI (2026-08-17 Hakan kararı) — import ters yönü besler: kanal
+        // "arşivde" diyorsa bizde pasif, "arşivde değil" diyorsa aktif; bildirmiyorsa DOKUNMA (üç durumlu, engel
+        // bayraklarıyla aynı okuma). Kayıt seviyesi: kalemlerden herhangi biri arşivdeyse ürün arşivde sayılır
+        // (Trendyol arşivi kalem-bazlı ama bizde bayrak kayıt-bazlı; kısmi arşiv "satışta" görünmesin — fail-closed).
+        var archivedFlags = variants.Select(v => v.Flags?.Archived).ToList();
+        if (archivedFlags.Any(f => f is not null))
+        {
+            entity.SetActive(!archivedFlags.Any(f => f == true));
+        }
+
         if (existing is null)
         {
             await _repository.InsertAsync(entity, autoSave: true);

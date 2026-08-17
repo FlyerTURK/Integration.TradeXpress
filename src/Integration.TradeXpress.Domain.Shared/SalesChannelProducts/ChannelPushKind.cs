@@ -23,4 +23,10 @@ public enum ChannelPushKind : byte
     /// <summary>Kanaldan SİLME — kayıt bizde soft-delete olduğundan bu satır silmenin tek kalıcı delilidir
     /// (2026-08-16 Hakan kararı: "Sil" pazaryerinden de kaldırır).</summary>
     Delete = 3,
+
+    /// <summary>Kanalda arşive alma (satıştan çekme; tersinir).</summary>
+    Archive = 4,
+
+    /// <summary>Kanalda arşivden çıkarma (yeniden satışa alma).</summary>
+    Unarchive = 5,
 }

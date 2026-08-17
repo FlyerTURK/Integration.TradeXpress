@@ -167,4 +167,10 @@ public enum TrendyolProductPushKind : byte
     /// soft-delete olduğundan bu satır silmenin tek kalıcı deliline döner; içerik alanları null (gönderilen içerik
     /// yok — "göndermediğini yazma" kuralı), yalnız barcode + batch id + akıbet.</summary>
     Delete = 3,
+
+    /// <summary>Kanalda ARŞİVE alma (satıştan çekme; tersinir) — bizde <c>IsActive=false</c>'ın kanal karşılığı.</summary>
+    Archive = 4,
+
+    /// <summary>Kanalda ARŞİVDEN ÇIKARMA (yeniden satışa alma) — bizde <c>IsActive=true</c>'nun kanal karşılığı.</summary>
+    Unarchive = 5,
 }

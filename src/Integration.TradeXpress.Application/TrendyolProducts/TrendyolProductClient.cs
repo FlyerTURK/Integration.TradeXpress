@@ -126,6 +126,42 @@ public sealed class TrendyolProductClient : TrendyolRestClientBase, ITrendyolPro
         return new TrendyolSubmitResult(ReadString(payload, "batchRequestId"));
     }
 
+    public async Task<TrendyolSubmitResult> ArchiveProductsAsync(
+        IReadOnlyList<string> barcodes, bool archived, TrendyolCredentials credentials, CancellationToken cancellationToken = default)
+    {
+        if (barcodes.Count == 0)
+        {
+            throw new BusinessException("TradeXpress:Trendyol:Product:ArchiveNeedsBarcodes");
+        }
+
+        var body = BuildArchiveBody(barcodes, archived);
+        var url = $"{BaseUrl}/integration/product/sellers/{credentials.SellerId}/products/archive-state";
+
+        var request = CreateRequest(HttpMethod.Put, url, credentials);
+        request.Content = new StringContent(body, Encoding.UTF8, "application/json");
+
+        var (ok, status, payload) = await SendAsync(request, cancellationToken);
+        if (!ok)
+        {
+            throw new BusinessException("TradeXpress:Trendyol:Product:ArchiveFailed")
+                .WithData("status", status)
+                .WithData("body", Truncate(payload));
+        }
+
+        // Doküman başarı gövdesi örneği vermiyor; batch id varsa okunur (create yolu gibi makbuzsuz yanıta toleranslı).
+        return new TrendyolSubmitResult(ReadString(payload, "batchRequestId"));
+    }
+
+    // internal — gövde ağa çıkmadan birim test edilebilsin (create/price gövdeleriyle aynı desen).
+    internal static string BuildArchiveBody(IReadOnlyList<string> barcodes, bool archived)
+    {
+        var root = new Dictionary<string, object?>
+        {
+            ["items"] = barcodes.Select(b => new Dictionary<string, object?> { ["barcode"] = b, ["archived"] = archived }).ToList(),
+        };
+        return JsonSerializer.Serialize(root);
+    }
+
     // internal — gövde ağa çıkmadan birim test edilebilsin (create/price gövdeleriyle aynı desen).
     internal static string BuildDeleteBody(IReadOnlyList<string> barcodes)
     {

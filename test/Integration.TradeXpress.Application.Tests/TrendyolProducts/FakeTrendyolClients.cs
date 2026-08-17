@@ -71,6 +71,25 @@ public sealed class FakeTrendyolProductClient : ITrendyolProductClient
 
     public List<IReadOnlyList<string>> DeletedBarcodeBatches { get; } = new();
 
+    /// <summary>Arşiv-durumu isteği reddi (test kurar) + gönderilen (barkodlar, archived) kümeleri.</summary>
+    public bool RejectArchiveChanges { get; set; }
+
+    public List<(IReadOnlyList<string> Barcodes, bool Archived)> ArchiveBatches { get; } = new();
+
+    public Task<TrendyolSubmitResult> ArchiveProductsAsync(
+        IReadOnlyList<string> barcodes, bool archived, TrendyolCredentials credentials, CancellationToken cancellationToken = default)
+    {
+        if (RejectArchiveChanges)
+        {
+            throw new BusinessException("TradeXpress:Trendyol:Product:ArchiveFailed")
+                .WithData("status", 404)
+                .WithData("body", "{\"errors\":[{\"key\":\"product.not.found\"}]}");
+        }
+
+        ArchiveBatches.Add((barcodes, archived));
+        return Task.FromResult(new TrendyolSubmitResult(NextBatchRequestId));
+    }
+
     public Task<TrendyolSubmitResult> DeleteProductsAsync(
         IReadOnlyList<string> barcodes, TrendyolCredentials credentials, CancellationToken cancellationToken = default)
     {

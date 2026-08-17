@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Integration.TradeXpress.SalesChannelProducts;
@@ -46,12 +47,34 @@ public class TrendyolListingWithdrawer : ITransientDependency
 
     /// <summary>Kaydın barkodlarını Trendyol'dan siler (kanala hiç ulaşmamışsa no-op). DB grafı silindikten SONRA,
     /// aynı UoW içinde çağrılır — istisna DB'yi geri alır. Delil satırı yazılır (başarı da red de).</summary>
-    public virtual async Task WithdrawAsync(SalesChannelTrTrendyolProduct entity)
+    public virtual Task WithdrawAsync(SalesChannelTrTrendyolProduct entity)
+    {
+        return SendAsync(entity, TrendyolProductPushKind.Delete,
+            (barcodes, credentials) => _client.DeleteProductsAsync(barcodes, credentials));
+    }
+
+    /// <summary>
+    /// Kanaldaki ARŞİV durumunu bizim <c>IsActive</c>'e eşitler (2026-08-17 Hakan kararı: "IsActive bunun eşleniği
+    /// olsun"): pasif → Trendyol'da arşive (satıştan çekilir, silinmez); aktif → arşivden çıkar (yeniden satışa).
+    /// Kanala hiç ulaşmamış kayıtta no-op. Çağıran bayrağı yazdıktan SONRA, aynı UoW'da çağırır — Trendyol reddederse
+    /// bayrak değişimi geri döner (kanal ile biz farklı şey söyleyemeyiz).
+    /// </summary>
+    public virtual Task SetArchivedAsync(SalesChannelTrTrendyolProduct entity, bool archived)
+    {
+        return SendAsync(entity, archived ? TrendyolProductPushKind.Archive : TrendyolProductPushKind.Unarchive,
+            (barcodes, credentials) => _client.ArchiveProductsAsync(barcodes, archived, credentials));
+    }
+
+    // Ortak gövde: barkodlar → kanal çağrısı → delil satırı (başarı/red) → red'de istisna yukarı (UoW rollback).
+    private async Task SendAsync(
+        SalesChannelTrTrendyolProduct entity,
+        TrendyolProductPushKind kind,
+        Func<IReadOnlyList<string>, TrendyolCredentials, Task<TrendyolSubmitResult>> send)
     {
         var barcodes = entity.Skus.Select(s => s.Barcode).Where(b => !string.IsNullOrWhiteSpace(b)).Distinct().ToList();
         if (barcodes.Count == 0)
         {
-            return;   // pazaryerine hiç ulaşmamış kayıt — kanalda silinecek listing yok
+            return;   // pazaryerine hiç ulaşmamış kayıt — kanalda dokunulacak listing yok
         }
 
         var channel = await _channelRepository.GetAsync(entity.SalesChannelId);
@@ -62,18 +85,16 @@ public class TrendyolListingWithdrawer : ITransientDependency
 
         try
         {
-            var result = await _client.DeleteProductsAsync(barcodes, credentials);
+            var result = await send(barcodes, credentials);
             await _historyRecorder.RecordAsync(
-                entity.CompanyId, entity.Id, TrendyolProductPushKind.Delete, entries,
-                result.BatchRequestId, ChannelPushOutcome.Succeeded);
+                entity.CompanyId, entity.Id, kind, entries, result.BatchRequestId, ChannelPushOutcome.Succeeded);
         }
         catch (Exception ex)
         {
             // Red de deftere yazılır (defter yalnız başarıyı yazsaydı "denendi, kanal reddetti" ile "hiç denenmedi"
-            // ayırt edilemezdi — 2026-08-10 kuralı); ardından istisna yukarı: çağıranın UoW'u DB silmesini geri alır.
+            // ayırt edilemezdi — 2026-08-10 kuralı); ardından istisna yukarı: çağıranın UoW'u DB değişimini geri alır.
             await _historyRecorder.RecordAsync(
-                entity.CompanyId, entity.Id, TrendyolProductPushKind.Delete, entries,
-                batchRequestId: null, ChannelPushOutcome.Failed, ex.Message);
+                entity.CompanyId, entity.Id, kind, entries, batchRequestId: null, ChannelPushOutcome.Failed, ex.Message);
             throw;
         }
     }
