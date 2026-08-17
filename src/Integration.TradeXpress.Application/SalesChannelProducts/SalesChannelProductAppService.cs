@@ -211,11 +211,14 @@ public class SalesChannelProductAppService : TradeXpressAppService, ISalesChanne
         {
             Id = h.Id,
             PushedAtUtc = h.PushedAtUtc,
+            // EF ifade ağacı switch ifadesi taşıyamaz → iç içe koşul (SQL'e CASE olarak iner).
             Kind = h.PushKind == TrendyolProductPushKind.PriceStockSync
                 ? ChannelPushKind.PriceStockSync
                 : h.PushKind == TrendyolProductPushKind.ContentUpdate
                     ? ChannelPushKind.ContentUpdate
-                    : ChannelPushKind.FullPush,
+                    : h.PushKind == TrendyolProductPushKind.Delete
+                        ? ChannelPushKind.Delete
+                        : ChannelPushKind.FullPush,
             Outcome = h.Outcome,
             ErrorMessage = h.ErrorMessage,
             SkuCode = h.Barcode,

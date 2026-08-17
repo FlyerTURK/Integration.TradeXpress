@@ -100,6 +100,42 @@ public sealed class TrendyolProductClient : TrendyolRestClientBase, ITrendyolPro
         return new TrendyolSubmitResult(batchRequestId);
     }
 
+    public async Task<TrendyolSubmitResult> DeleteProductsAsync(
+        IReadOnlyList<string> barcodes, TrendyolCredentials credentials, CancellationToken cancellationToken = default)
+    {
+        if (barcodes.Count == 0)
+        {
+            throw new BusinessException("TradeXpress:Trendyol:Product:DeleteNeedsBarcodes");
+        }
+
+        var body = BuildDeleteBody(barcodes);
+        var url = $"{BaseUrl}/integration/product/sellers/{credentials.SellerId}/products";
+
+        var request = CreateRequest(HttpMethod.Delete, url, credentials);
+        request.Content = new StringContent(body, Encoding.UTF8, "application/json");
+
+        // Yazma ucu → GET-retry KULLANILMAZ (idempotent sayılmaz; create/price yollarıyla aynı disiplin).
+        var (ok, status, payload) = await SendAsync(request, cancellationToken);
+        if (!ok)
+        {
+            throw new BusinessException("TradeXpress:Trendyol:Product:DeleteFailed")
+                .WithData("status", status)
+                .WithData("body", Truncate(payload));
+        }
+
+        return new TrendyolSubmitResult(ReadString(payload, "batchRequestId"));
+    }
+
+    // internal — gövde ağa çıkmadan birim test edilebilsin (create/price gövdeleriyle aynı desen).
+    internal static string BuildDeleteBody(IReadOnlyList<string> barcodes)
+    {
+        var root = new Dictionary<string, object?>
+        {
+            ["items"] = barcodes.Select(b => new Dictionary<string, object?> { ["barcode"] = b }).ToList(),
+        };
+        return JsonSerializer.Serialize(root);
+    }
+
     public async Task<TrendyolBatchStatus> GetBatchStatusAsync(
         string batchRequestId, TrendyolCredentials credentials, CancellationToken cancellationToken = default)
     {

@@ -23,6 +23,7 @@ using Integration.TradeXpress.Vouchers;
 using Microsoft.AspNetCore.Authorization;
 using Volo.Abp;
 using Volo.Abp.Domain.Repositories;
+using Volo.Abp.Uow;
 using Integration.TradeXpress.Channels;
 
 namespace Integration.TradeXpress.TrendyolProducts;
@@ -50,6 +51,7 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
     private readonly IRepository<EntityVariantAttributeValue, Guid> _variantAttributeRepository;
     private readonly IRepository<SalesChannelTrTrendyol, Guid> _channelRepository;
     private readonly IRepository<TrendyolCargoProvider, Guid> _cargoProviderRepository;
+    private readonly TrendyolListingWithdrawer _listingWithdrawer;
     private readonly IRepository<SalesChannelTrTrendyolProductStockItem, Guid> _stockItemRepository;
     private readonly IRepository<SalesChannelTrTrendyolProductStockItemRecipeLine, Guid> _channelRecipeLineRepository;
     private readonly IRepository<ProductVariantRecipeLine, Guid> _erpRecipeLineRepository;
@@ -125,12 +127,14 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
         TrendyolProductPushValidator pushValidator,
         TemporaryMediaLinkPublisher temporaryMediaLinkPublisher,
         IRepository<SalesChannelTrTrendyolProductPushHistory, Guid> pushHistoryRepository,
-        IRepository<TrendyolCargoProvider, Guid> cargoProviderRepository)
+        IRepository<TrendyolCargoProvider, Guid> cargoProviderRepository,
+        TrendyolListingWithdrawer listingWithdrawer)
     {
         _pushValidator = pushValidator;
         _temporaryMediaLinkPublisher = temporaryMediaLinkPublisher;
         _pushHistoryRepository = pushHistoryRepository;
         _cargoProviderRepository = cargoProviderRepository;
+        _listingWithdrawer = listingWithdrawer;
         _saleReadiness = saleReadiness;
         _entityMedia = entityMedia;
         _describer = describer;
@@ -436,11 +440,18 @@ public partial class SalesChannelTrTrendyolProductAppService : TradeXpressAppSer
         }
     }
 
+    /// <summary>Kanal ürününü SİLER — bizden VE Trendyol'dan (2026-08-16 Hakan kararı). Sıra: önce DB grafı, sonra
+    /// Trendyol delete; AÇIK TRANSACTION altında olduklarından Trendyol reddederse DB silmesi geri döner (rollback).
+    /// <c>IsTransactional = true</c> AÇIKÇA yazılır (Voucher deseni): otomatik UoW'lar ortama göre transactionsız
+    /// olabilir (test modülü kapatır) — atomiklik "muhtemelen" değil garanti olmalı; rollback testi bunu çiviler.
+    /// Kanala hiç ulaşmamış kayıtta yalnız DB. Gerekçe/kısıtlar <see cref="TrendyolListingWithdrawer"/>'da.</summary>
     [Authorize(TradeXpressPermissions.SalesChannels.Delete)]
+    [UnitOfWork(isTransactional: true)]
     public virtual async Task DeleteAsync(Guid id)
     {
         var entity = await GetOwnedAsync(id);
         await DeleteChannelProductGraphAsync(entity);
+        await _listingWithdrawer.WithdrawAsync(entity);
     }
 
     /// <summary>Kanal ürününü TÜM bağımlılarıyla siler. Graf <see cref="SalesChannelTrTrendyolProductRemover"/>'da

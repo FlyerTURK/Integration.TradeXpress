@@ -65,6 +65,26 @@ public sealed class FakeTrendyolProductClient : ITrendyolProductClient
         return Task.FromResult(new TrendyolSubmitResult(NextBatchRequestId));
     }
 
+    /// <summary>Silme izni — VARSAYILAN <c>true</c> (silme testleri kanal reddini <see cref="RejectDeletes"/> ile
+    /// kurar). Gönderilen barkod kümeleri <see cref="DeletedBarcodeBatches"/>'te.</summary>
+    public bool RejectDeletes { get; set; }
+
+    public List<IReadOnlyList<string>> DeletedBarcodeBatches { get; } = new();
+
+    public Task<TrendyolSubmitResult> DeleteProductsAsync(
+        IReadOnlyList<string> barcodes, TrendyolCredentials credentials, CancellationToken cancellationToken = default)
+    {
+        if (RejectDeletes)
+        {
+            throw new BusinessException("TradeXpress:Trendyol:Product:DeleteFailed")
+                .WithData("status", 400)
+                .WithData("body", "{\"errors\":[{\"message\":\"Onaylı ürün silinemez — önce arşive alın.\"}]}");
+        }
+
+        DeletedBarcodeBatches.Add(barcodes);
+        return Task.FromResult(new TrendyolSubmitResult(NextBatchRequestId));
+    }
+
     /// <summary>Durum sorgusunun döneceği sonuç. <b>Varsayılan <c>null</c> = uç KAPALI</b> (fırlatır) —
     /// yani "kazayla durum sorgulandı" ile "test bilerek batch çözdü" ayırt edilebilir kalır.</summary>
     public TrendyolBatchStatus? NextBatchStatus { get; set; }

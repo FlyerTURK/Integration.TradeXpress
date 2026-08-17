@@ -168,10 +168,25 @@ public partial class ChannelProductsPanel
         return row;
     }
 
-    /// <summary>Silme kanalın KENDİ servisine gider ve YALNIZ YEREL kaydı siler — pazaryerindeki ürün
-    /// kalır (üç servisin de dokümante davranışı).</summary>
+    /// <summary>Silme kanalın KENDİ servisine gider. Kanal başına davranış FARKLI ve kullanıcıya AÇIKÇA söylenir:
+    /// Trendyol → hem bizden hem PAZARYERİNDEN kaldırılır (2026-08-16 Hakan kararı; kanal reddederse yerel kayıt
+    /// geri döner — sunucu tarafı transactional). N11/Etsy → yalnız yerel kayıt silinir, pazaryerindeki listing
+    /// KALIR (henüz uzak silme yolu yok). Onay metni bu farkı yazar — "Sil" iki kanalda iki şey demek olduğu hâlde
+    /// tek cümleyle geçilseydi kullanıcı Trendyol'da da silmeyi beklerdi (ya da tersi).</summary>
     private async Task PersistDeleteAsync(SalesChannelProductListDto row)
     {
+        var confirmKey = row.ChannelType == SalesChannelType.TrTrendyol
+            ? "SalesChannelProduct:DeleteConfirmRemote"
+            : "SalesChannelProduct:DeleteConfirmLocalOnly";
+        var confirmed = await Ui.ConfirmAsync(
+            L[confirmKey, row.ProductCode ?? row.Id.ToString()].Value,
+            title: null, yesText: L["Delete"].Value, noText: L["Cancel"].Value,
+            showCancel: false, defaultYes: false);
+        if (confirmed != ConfirmDialogResult.Yes)
+        {
+            throw new BusinessException("SalesChannelProduct:DeleteCancelled", L["SalesChannelProduct:DeleteCancelled"].Value);
+        }
+
         switch (row.ChannelType)
         {
             case SalesChannelType.TrN11:

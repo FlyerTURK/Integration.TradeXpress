@@ -23,6 +23,7 @@ using Microsoft.AspNetCore.Authorization;
 using Volo.Abp;
 using Volo.Abp.Application.Dtos;
 using Volo.Abp.Domain.Repositories;
+using Volo.Abp.Uow;
 using Volo.Abp.MultiTenancy;
 
 namespace Integration.TradeXpress.Products;
@@ -421,7 +422,11 @@ public class ProductAppService : TradeXpressAppService, IProductAppService
         };
     }
 
+    // AÇIK TRANSACTION (2026-08-16): ürün silme artık kanal listing'lerini TRENDYOL'DAN da kaldırıyor
+    // (SalesChannelTrTrendyolProductRemover.RemoveForProductAsync → TrendyolListingWithdrawer); kanal reddederse
+    // ürün + varyant + kanal silmelerinin TAMAMI geri dönmeli — otomatik UoW ortama göre transactionsız olabilir.
     [Authorize(TradeXpressPermissions.Products.Delete)]
+    [UnitOfWork(isTransactional: true)]
     public virtual async Task DeleteAsync(Guid id)
     {
         // Güvenlik sınırı (Account deseni): ürünü ÖNCE yükle — company query filter yabancı şirketin ürününü

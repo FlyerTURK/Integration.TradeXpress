@@ -12,11 +12,10 @@ namespace Integration.TradeXpress.TrendyolProducts;
 /// ile sorgulanır. Model ÇÖZÜLMÜŞ gelir; client yalnız JSON serialize/parse eder. Kimlik tipi TEK kaynak:
 /// <see cref="TrendyolCredentials"/> (Integration.TradeXpress.Trendyol — kategori/marka istemcileriyle AYNI record;
 /// eski yerel kopya kaldırıldı, çift-record tuzağı kapandı).
-/// <para><b>DİKKAT:</b> Bu istemci Trendyol'un KAMUYA AÇIK dokümante API'sine göre yazılmıştır ancak bu oturumda
-/// CANLI DOĞRULANMAMIŞTIR (Trendyol satıcı test kimliği yok). Endpoint/alan varsayımları <see cref="TrendyolProductClient"/>
-/// başındaki nota göre gerçek Trendyol dokümanıyla teyit edilmeli + gerçek kimlikle test edilmelidir.
-/// İSTİSNA: <see cref="GetSellerProductsAsync"/> ucu (GET /integration/product/sellers/{sellerId}/products)
-/// kimlik doğrulayıcıda (TrendyolProductServiceCredentialVerifier) status-probe olarak KANITLIDIR.</para>
+/// <para><b>Canlı doğrulama (2026-08-16):</b> create (<see cref="SubmitProductAsync"/>) + batch sorgusu
+/// (<see cref="GetBatchStatusAsync"/>) + satıcı ürünleri GET gerçek hesapla uçtan uca KANITLANDI (ilk listeleme
+/// COMPLETED). Aynı testte "currencyType/cargoCompanyId şemada yok" varsayımı çürüdü (bkz. <see cref="TrendyolProductData"/>).
+/// <see cref="DeleteProductsAsync"/> resmî dokümana göre yazıldı, ilk canlı çağrısı bekliyor.</para>
 /// </summary>
 public interface ITrendyolProductClient
 {
@@ -34,6 +33,12 @@ public interface ITrendyolProductClient
 
     /// <summary>Bir batch isteğinin durumunu sorgular (COMPLETED/FAILED + başarısız kalem gerekçeleri).</summary>
     Task<TrendyolBatchStatus> GetBatchStatusAsync(string batchRequestId, TrendyolCredentials credentials, CancellationToken cancellationToken = default);
+
+    /// <summary>Ürünleri Trendyol'dan SİLER (barcode listesiyle; <c>DELETE /integration/product/sellers/{sellerId}/products</c>,
+    /// gövde <c>{items:[{barcode}]}</c>). ASENKRON: batch id döner. Trendyol yalnız ONAY BEKLEYEN ürünleri ve bir günden
+    /// eski ARŞİVLENMİŞ ürünleri siler — onaylı/satıştaki ürünü doğrudan silmez (önce arşiv); red gerekçesi batch
+    /// sonucundan okunur. HTTP başarısızsa BusinessException (kanalın gövdesiyle).</summary>
+    Task<TrendyolSubmitResult> DeleteProductsAsync(IReadOnlyList<string> barcodes, TrendyolCredentials credentials, CancellationToken cancellationToken = default);
 
     /// <summary>Satıcının Trendyol'daki ürünlerinin BİR SAYFASINI çeker (salt GET — pazaryerine SIFIR yazma).
     /// Sayfa öğeleri DÜZ kalemlerdir (barcode başına bir kayıt); productMainId gruplaması

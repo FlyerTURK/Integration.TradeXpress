@@ -162,4 +162,9 @@ public enum TrendyolProductPushKind : byte
 
     /// <summary>Yalnız içerik güncelleme (başlık/açıklama/görsel/nitelik); fiyat ve stok DEĞİŞMEZ.</summary>
     ContentUpdate = 2,
+
+    /// <summary>Kanaldan SİLME (2026-08-16 Hakan kararı: "Sil" hem bizden hem Trendyol'dan kaldırır). Kayıt bizde
+    /// soft-delete olduğundan bu satır silmenin tek kalıcı deliline döner; içerik alanları null (gönderilen içerik
+    /// yok — "göndermediğini yazma" kuralı), yalnız barcode + batch id + akıbet.</summary>
+    Delete = 3,
 }

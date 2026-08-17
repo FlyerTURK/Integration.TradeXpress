@@ -29,6 +29,7 @@ public class SalesChannelTrTrendyolProductRemover : IProductChannelListingRemove
     private readonly IRepository<SalesChannelTrTrendyolProductAttribute, Guid> _attributeRepository;
     private readonly IRepository<SalesChannelTrTrendyolProductAttributeValue, Guid> _attributeValueRepository;
     private readonly IAsyncQueryableExecuter _asyncExecuter;
+    private readonly TrendyolListingWithdrawer _listingWithdrawer;
 
     public SalesChannelTrTrendyolProductRemover(
         IRepository<SalesChannelTrTrendyolProduct, Guid> repository,
@@ -36,7 +37,8 @@ public class SalesChannelTrTrendyolProductRemover : IProductChannelListingRemove
         IRepository<SalesChannelTrTrendyolProductStockItemRecipeLine, Guid> recipeLineRepository,
         IRepository<SalesChannelTrTrendyolProductAttribute, Guid> attributeRepository,
         IRepository<SalesChannelTrTrendyolProductAttributeValue, Guid> attributeValueRepository,
-        IAsyncQueryableExecuter asyncExecuter)
+        IAsyncQueryableExecuter asyncExecuter,
+        TrendyolListingWithdrawer listingWithdrawer)
     {
         _repository               = repository;
         _stockItemRepository      = stockItemRepository;
@@ -44,8 +46,13 @@ public class SalesChannelTrTrendyolProductRemover : IProductChannelListingRemove
         _attributeRepository      = attributeRepository;
         _attributeValueRepository = attributeValueRepository;
         _asyncExecuter            = asyncExecuter;
+        _listingWithdrawer        = listingWithdrawer;
     }
 
+    /// <summary>ŞABLON ÜRÜN silinince kanal kayıtları da gider — hem bizden hem TRENDYOL'DAN (2026-08-16 kararı:
+    /// ürün sistemden kalkıyorsa pazaryerinde bayat listing bırakılmaz — bayat stokla satış aşırı satış kapısıdır).
+    /// Sıra: DB grafı → Trendyol; aynı UoW → red DB'yi geri alır. Import'un ÖKSÜZ temizliği bu yolu KULLANMAZ
+    /// (<see cref="RemoveGraphAsync"/>'i doğrudan çağırır): o kayıt kanalda duruyor ve yeniden kurulacak.</summary>
     public virtual async Task RemoveForProductAsync(Guid productId)
     {
         var records = await _asyncExecuter.ToListAsync(
@@ -54,6 +61,7 @@ public class SalesChannelTrTrendyolProductRemover : IProductChannelListingRemove
         foreach (var record in records)
         {
             await RemoveGraphAsync(record);
+            await _listingWithdrawer.WithdrawAsync(record);
         }
     }
 

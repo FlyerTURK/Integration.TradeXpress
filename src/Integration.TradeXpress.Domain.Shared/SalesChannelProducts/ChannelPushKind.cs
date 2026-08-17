@@ -19,4 +19,8 @@ public enum ChannelPushKind : byte
 
     /// <summary>Yalnız içerik güncelleme; fiyat ve stok değişmez. Bugün yalnız Trendyol üretir.</summary>
     ContentUpdate = 2,
+
+    /// <summary>Kanaldan SİLME — kayıt bizde soft-delete olduğundan bu satır silmenin tek kalıcı delilidir
+    /// (2026-08-16 Hakan kararı: "Sil" pazaryerinden de kaldırır).</summary>
+    Delete = 3,
 }
